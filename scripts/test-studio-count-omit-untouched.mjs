@@ -79,6 +79,35 @@ check('restoredCountTouched: an explicit mark wins, else any count above 1 was c
   assert.equal(helpers.restoredCountTouched(1, true), true)
   assert.equal(helpers.restoredCountTouched(1, 'true'), false, 'only a real boolean is a mark')
 })
+check('applyCountTouchState: flag off returns the very same object', () => {
+  for (const form of [{ componentType: 'METRICS', count: 1 }, { componentType: 'TEXT_BOX', count: 1, structure: 'SEQUENTIAL', generationConfig: { count: 1 } }]) {
+    for (const touched of [false, true]) assert.equal(helpers.applyCountTouchState(form, false, touched), form)
+  }
+})
+check('applyCountTouchState: marks only an untouched METRICS or structured TEXT_BOX at count 1', () => {
+  const marked = form => helpers.applyCountTouchState(form, true, false).countOmitted === true
+  assert.equal(marked({ componentType: 'METRICS', count: 1 }), true)
+  assert.equal(marked({ componentType: 'TEXT_BOX', count: 1, structure: 'SEQUENTIAL' }), true)
+  assert.equal(marked({ componentType: 'TEXT_BOX', count: 1, structure: 'classic' }), true)
+  assert.equal(marked({ componentType: 'TEXT_BOX', count: 1 }), false, 'plain body box has no structure on its form')
+  assert.equal(marked({ componentType: 'TEXT_BOX', count: 1, structure: 'auto' }), false)
+  assert.equal(marked({ componentType: 'TEXT_BOX', count: 3, structure: 'SEQUENTIAL' }), false)
+  assert.equal(marked({ componentType: 'METRICS', count: 2 }), false)
+  assert.equal(marked({ componentType: 'IMAGE', count: 1, structure: 'SEQUENTIAL' }), false, 'the Logo branch is an image form')
+  assert.equal(marked({ componentType: 'TABLE', count: 1 }), false)
+})
+check('applyCountTouchState: a touched Count is never marked omitted and writes the mark into the saved config only', () => {
+  const touched = helpers.applyCountTouchState({ componentType: 'METRICS', count: 1, generationConfig: { count: 1, prompt: 'x' } }, true, true)
+  assert.equal('countOmitted' in touched, false)
+  assert.deepEqual(JSON.parse(JSON.stringify(touched.generationConfig)), { count: 1, prompt: 'x', countTouched: true })
+  const noConfig = { componentType: 'TEXT_BOX', count: 1, structure: 'SEQUENTIAL' }
+  assert.equal(helpers.applyCountTouchState(noConfig, true, true), noConfig)
+  const logo = { componentType: 'IMAGE', count: 1, generationConfig: { count: 1 } }
+  assert.equal(helpers.applyCountTouchState(logo, true, true), logo)
+  const original = { count: 1 }
+  helpers.applyCountTouchState({ componentType: 'METRICS', count: 1, generationConfig: original }, true, true)
+  assert.deepEqual(original, { count: 1 }, 'the caller\'s config object is not mutated')
+})
 check('requestCountOmitted: flag, the form mark, never a refine', () => {
   assert.equal(helpers.requestCountOmitted(true, { countOmitted: true }), true)
   assert.equal(helpers.requestCountOmitted(false, { countOmitted: true }), false)
@@ -376,6 +405,21 @@ await acheck('wire: other component types never carry the mark and keep their co
 })
 
 // ---------------------------------------------------------------- what is NOT touched
+function printedDeclaration(source, name) {
+  const ast = ts.createSourceFile('form.tsx', source, ts.ScriptTarget.Latest, true, ts.ScriptKind.TSX)
+  let found
+  const visit = node => { if (ts.isVariableDeclaration(node) && node.name.getText(ast) === name) found = node; ts.forEachChild(node, visit) }
+  visit(ast)
+  assert.ok(found, name)
+  return ts.createPrinter({ removeComments: true }).printNode(ts.EmitHint.Unspecified, found, ast)
+}
+check('handleSubmit and generationConfig of both forms are textually identical to base (their mapping is untouched)', () => {
+  for (const file of ['components/generation-panel/forms/text-box-form.tsx', 'components/generation-panel/forms/metrics-form.tsx']) {
+    for (const name of ['handleSubmit', 'generationConfig', 'resolvedLayout']) {
+      assert.equal(printedDeclaration(read(file), name), printedDeclaration(atBase(file), name), `${file} ${name}`)
+    }
+  }
+})
 check('the generation hook, Builder page and Text Labs transport are byte-identical to base (local count 1 drives every client rule)', () => {
   for (const path of ['hooks/use-textlabs-generation.ts', 'app/builder/page.tsx', 'lib/metrics-layout.ts', 'lib/textbox-layout.ts', 'components/generation-panel/index.tsx']) {
     assert.equal(sha(read(path)), sha(atBase(path)), `${path} must not change`)

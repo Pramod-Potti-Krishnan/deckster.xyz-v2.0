@@ -41,8 +41,8 @@ import {
 } from '@/lib/text-slot-catalog'
 import {
   STUDIO_COUNT_OMIT_UNTOUCHED_ENABLED,
+  applyCountTouchState,
   restoredCountTouched,
-  shouldOmitUntouchedCount,
 } from '@/lib/studio-count-omit'
 
 import './studio-content-fields.css'
@@ -235,7 +235,7 @@ function OptionalNumberInput({
 }
 
 export function TextBoxForm({
-  onSubmit,
+  onSubmit: onSubmitForm,
   registerSubmit,
   presentationId,
   elementContext,
@@ -561,7 +561,6 @@ export function TextBoxForm({
     targetValue,
     structure,
     count,
-    countTouched: STUDIO_COUNT_OMIT_UNTOUCHED_ENABLED && countTouched ? true : undefined,
     layoutChoice,
     gridCols,
     multiBoxColorMode,
@@ -574,7 +573,6 @@ export function TextBoxForm({
     paddingConfig,
   }), [
     count,
-    countTouched,
     geometryMode,
     gridCols,
     layoutChoice,
@@ -610,16 +608,15 @@ export function TextBoxForm({
     zIndex, positionModified, paddingModified, paddingConfig, positionConfig, geometryEdited,
     showInstances, showBoxDesign, showHeading, showContent, showPositioning, showPadding])
 
+  // Flag on: the submitted form says whether the Count was touched (see lib/studio-count-omit.ts).
+  // Wrapping the callback keeps handleSubmit and generationConfig exactly as they were.
+  const onSubmit = useCallback(
+    (formData: TextLabsFormData) => onSubmitForm(applyCountTouchState(formData, STUDIO_COUNT_OMIT_UNTOUCHED_ENABLED, countTouched)),
+    [onSubmitForm, countTouched],
+  )
+
   const handleSubmit = useCallback(() => {
     const bodyCount = isBodyText ? count : 1
-    // Flag on: a structured body text box whose Count was never touched leaves `count` off
-    // the request so the count stated in the prompt decides. Locally it stays 1.
-    const omitCount = shouldOmitUntouchedCount({
-      flagOn: STUDIO_COUNT_OMIT_UNTOUCHED_ENABLED,
-      touched: countTouched,
-      count: bodyCount,
-      eligible: isBodyText && structure !== 'auto',
-    })
     const slotMetadata = slotMetadataForRequest(selectedSlot)
     if (isAccessory && selectedSlot?.accessory_type === 'LOGO') {
       const logoFormData: ImageFormData = {
@@ -648,7 +645,6 @@ export function TextBoxForm({
       componentType: 'TEXT_BOX',
       prompt,
       count: bodyCount,
-      ...(omitCount ? { countOmitted: true } : {}),
       layout: resolvedLayout.layout,
       advancedModified,
       z_index: zIndex,
@@ -678,7 +674,6 @@ export function TextBoxForm({
   }, [
     advancedModified,
     count,
-    countTouched,
     effectiveGeometry,
     isBodyText,
     isAccessory,

@@ -28,8 +28,8 @@ import {
 } from '@/lib/metrics-card-design'
 import {
   STUDIO_COUNT_OMIT_UNTOUCHED_ENABLED,
+  applyCountTouchState,
   restoredCountTouched,
-  shouldOmitUntouchedCount,
 } from '@/lib/studio-count-omit'
 
 import './studio-specialist-forms.css'
@@ -259,7 +259,7 @@ function TriStateStyleButton({
 }
 
 export function MetricsForm({
-  onSubmit,
+  onSubmit: onSubmitForm,
   registerSubmit,
   isGenerating,
   presentationId,
@@ -486,7 +486,6 @@ export function MetricsForm({
     componentType: 'METRICS',
     prompt,
     count,
-    countTouched: STUDIO_COUNT_OMIT_UNTOUCHED_ENABLED && countTouched ? true : undefined,
     metricsLayoutChoice: layoutChoice,
     layout: resolvedLayout.layout,
     multiBoxColorMode,
@@ -502,7 +501,6 @@ export function MetricsForm({
   }), [
     advancedModified,
     count,
-    countTouched,
     fitIsManual,
     fitMode,
     layoutChoice,
@@ -536,22 +534,20 @@ export function MetricsForm({
     positionModified, geometryEdited, paddingModified, zIndex, positionConfig, paddingConfig, showInstances,
     showCardDesign, showValue, showLabel, showDescription, showSpacing, showPositioning, showPadding])
 
+  // Flag on: the submitted form says whether the Count was touched (see lib/studio-count-omit.ts).
+  // Wrapping the callback keeps handleSubmit and generationConfig exactly as they were.
+  const onSubmit = useCallback(
+    (formData: MetricsFormData) => onSubmitForm(applyCountTouchState(formData, STUDIO_COUNT_OMIT_UNTOUCHED_ENABLED, countTouched)),
+    [onSubmitForm, countTouched],
+  )
+
   const handleSubmit = useCallback(() => {
     const metricsConfig: Partial<MetricsConfig> = { ...sparseMetricsConfig }
-    // Flag on: a Count the user never touched leaves `count` off the request so the count
-    // stated in the prompt decides ("4 KPIs"). Locally it stays 1.
-    const omitCount = shouldOmitUntouchedCount({
-      flagOn: STUDIO_COUNT_OMIT_UNTOUCHED_ENABLED,
-      touched: countTouched,
-      count,
-      eligible: true,
-    })
 
     const formData: MetricsFormData = {
       componentType: 'METRICS',
       prompt,
       count,
-      ...(omitCount ? { countOmitted: true } : {}),
       // The backend receives the resolved structural arrangement. "Auto" is a
       // panel decision, never a second content-fit formula.
       layout: resolvedLayout.layout,
@@ -579,7 +575,7 @@ export function MetricsForm({
       paddingConfig,
     }
     onSubmit(formData)
-  }, [advancedModified, count, countTouched, fitIsManual, fitMode, generationConfig, layoutChoice, manualOverrides, multiBoxColorMode, onSubmit, paddingConfig, positionConfig, presentationId, prompt, resolvedLayout, sparseMetricsConfig, zIndex])
+  }, [advancedModified, count, fitIsManual, fitMode, generationConfig, layoutChoice, manualOverrides, multiBoxColorMode, onSubmit, paddingConfig, positionConfig, presentationId, prompt, resolvedLayout, sparseMetricsConfig, zIndex])
 
   useEffect(() => registerSubmit(handleSubmit), [handleSubmit, registerSubmit])
 

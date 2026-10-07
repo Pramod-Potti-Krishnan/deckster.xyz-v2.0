@@ -46,6 +46,38 @@ export function shouldOmitUntouchedCount(input: UntouchedCountInput): boolean {
   return input.flagOn && input.eligible && !input.touched && input.count === 1
 }
 
+/** The slice of a submitted Text Labs form this module reads. */
+export interface CountMarkableForm {
+  componentType: string
+  count: number
+  structure?: string
+  generationConfig?: unknown
+  countOmitted?: boolean
+}
+
+/**
+ * Stamp the submitted form with what the user did to the Count (flag on only; flag off returns
+ * the same object untouched).
+ * - Untouched, and the form is a structured body text box or METRICS at count 1: mark
+ *   `countOmitted` so the request leaves `count` out. A plain body text box has no `structure`
+ *   on its form and a non-body role or the Logo branch is another component type, so none of
+ *   those are marked.
+ * - Touched: write `countTouched: true` into the saved `generationConfig`, so a later restore of
+ *   that config still knows the Count was chosen (even when the chosen Count is 1).
+ */
+export function applyCountTouchState<T extends CountMarkableForm>(form: T, flagOn: boolean, touched: boolean): T {
+  if (!flagOn) return form
+  if (form.componentType !== 'TEXT_BOX' && form.componentType !== 'METRICS') return form
+  if (touched) {
+    const config = form.generationConfig
+    return config && typeof config === 'object' && !Array.isArray(config)
+      ? { ...form, generationConfig: { ...config, countTouched: true } }
+      : form
+  }
+  const eligible = form.componentType === 'METRICS' || (typeof form.structure === 'string' && form.structure !== 'auto')
+  return shouldOmitUntouchedCount({ flagOn, touched, count: form.count, eligible }) ? { ...form, countOmitted: true } : form
+}
+
 /**
  * Was a Count restored from a draft or a saved generation config a chosen one?
  * An explicit mark wins; without one (older drafts and configs), any count above 1 was chosen.
