@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth-options'
+import { restEntitlementHeaders } from '@/lib/director-rest-entitlement'
 
 export const dynamic = 'force-dynamic'
 
@@ -47,7 +48,7 @@ export async function GET(
   try {
     const response = await fetch(
       `${directorBaseUrl()}/api/v1/slides/compose-jobs/${encodeURIComponent(jobId)}?${query.toString()}`,
-      { cache: 'no-store' },
+      { cache: 'no-store', headers: restEntitlementHeaders(userId, 'GET') },
     )
     const text = await response.text()
     let data: unknown = null

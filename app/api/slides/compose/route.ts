@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth-options'
+import { restEntitlementHeaders } from '@/lib/director-rest-entitlement'
 import { kgHeaders, requireKgEntitled } from '@/lib/kg-proxy'
 
 export const maxDuration = 300
@@ -74,7 +75,7 @@ export async function POST(req: NextRequest) {
   try {
     const response = await fetch(`${directorBaseUrl()}/api/v1/slides/compose-one`, {
       method: 'POST',
-      headers: directorHeaders,
+      headers: { ...directorHeaders, ...restEntitlementHeaders(effectiveUserId, 'POST') },
       body: JSON.stringify(payload),
       cache: 'no-store',
     })

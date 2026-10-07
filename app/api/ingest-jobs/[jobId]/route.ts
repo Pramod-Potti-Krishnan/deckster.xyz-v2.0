@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth-options';
+import { restEntitlementHeaders } from '@/lib/director-rest-entitlement';
 
 /**
  * Template Ingest reconnect-polling proxy → Director job status (C-5).
@@ -27,7 +28,7 @@ export async function GET(_req: NextRequest, { params }: { params: { jobId: stri
   try {
     const r = await fetch(
       `${DIRECTOR_API_URL}/api/users/${encodeURIComponent(userId)}/ingest-jobs/${encodeURIComponent(params.jobId)}`,
-      { cache: 'no-store' },
+      { cache: 'no-store', headers: restEntitlementHeaders(userId, 'GET') },
     );
     const body = await r.json();
     return NextResponse.json(body, { status: r.status });
