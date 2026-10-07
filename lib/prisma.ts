@@ -6,7 +6,6 @@ import { PrismaClient } from '@prisma/client'
 console.log('[Prisma] Initializing Prisma Client...')
 console.log('[Prisma] Environment:', process.env.NODE_ENV)
 console.log('[Prisma] DATABASE_URL configured:', !!process.env.DATABASE_URL)
-console.log('[Prisma] DATABASE_URL prefix:', process.env.DATABASE_URL?.substring(0, 30) + '...')
 console.log('[Prisma] DIRECT_URL configured:', !!process.env.DIRECT_URL)
 
 const globalForPrisma = globalThis as unknown as {
