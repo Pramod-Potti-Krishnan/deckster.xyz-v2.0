@@ -29,6 +29,8 @@ import {
   TEXTBOX_REQUEST_FIDELITY_ENABLED,
   textBoxConfigForRequest,
   textBoxManualGeometryForRequest,
+  typedTextBoxCardLimit,
+  typedTextBoxCardNoun,
 } from '@/lib/textbox-request-fidelity'
 import {
   isTextBoxCountViable,
@@ -465,6 +467,15 @@ export function TextBoxForm({
   const isAccessory = slotKind === 'accessory'
   const isStructuralText = !isBodyText && !isSystemManaged && !isAccessory
 
+  // Fidelity (flag): a typed family is ONE element of N cards and holds a limited number of them.
+  const typedCardLimit = TEXTBOX_REQUEST_FIDELITY_ENABLED && isBodyText ? typedTextBoxCardLimit(structure) : null
+  useEffect(() => {
+    if (typedCardLimit !== null && count > typedCardLimit) {
+      setCount(typedCardLimit)
+      setLayoutChoice('auto')
+    }
+  }, [count, typedCardLimit])
+
   const updateTextboxOverride = useCallback(<K extends keyof TextBoxConfig>(field: K, value: TextBoxConfig[K] | undefined) => {
     setTextboxOverrides(previous => {
       const next = { ...previous }
@@ -618,13 +629,14 @@ export function TextBoxForm({
     onSubmitDirect({
       ...formData,
       ...(isBodyText && countAuto ? { countAuto: true } : {}),
+      ...(isBodyText && typedCardLimit !== null && formData.count > 1 ? { cardsInOneElement: true } : {}),
       layout: isBodyText ? formData.layout : 'horizontal',
       geometryMode: geometry.geometryMode,
       manualGeometryOverrides: geometry.manualGeometryOverrides,
       textboxConfig: textBoxConfigForRequest(textboxOverrides, { isBodyText, structure }),
       generationConfig: { ...formData.generationConfig, countAuto },
     })
-  }, [countAuto, geometryMode, isBodyText, manualGeometryOverrides, onSubmitDirect, structure, textboxOverrides])
+  }, [countAuto, geometryMode, isBodyText, manualGeometryOverrides, onSubmitDirect, structure, textboxOverrides, typedCardLimit])
 
   const handleSubmit = useCallback(() => {
     const bodyCount = isBodyText ? count : 1
@@ -724,11 +736,14 @@ export function TextBoxForm({
       className="w-full rounded-md border border-slate-300 bg-white px-2 py-1.5 text-xs dark:border-slate-600 dark:bg-slate-800"
     >
       {TEXTBOX_REQUEST_FIDELITY_ENABLED && <option value="auto">Auto</option>}
-      {Array.from({ length: 6 }, (_, index) => index + 1).map(value => (
-        <option key={value} value={value} disabled={!feasibleCounts.includes(value)}>
-          {value}{!feasibleCounts.includes(value) ? ' — resize needed' : ''}
-        </option>
-      ))}
+      {Array.from({ length: 6 }, (_, index) => index + 1).map(value => {
+        const overLimit = typedCardLimit !== null && value > typedCardLimit
+        return (
+          <option key={value} value={value} disabled={!feasibleCounts.includes(value) || overLimit}>
+            {value}{overLimit ? ` — max ${typedCardLimit}` : !feasibleCounts.includes(value) ? ' — resize needed' : ''}
+          </option>
+        )
+      })}
     </select>
   )
 
@@ -785,12 +800,16 @@ export function TextBoxForm({
           </select>
           {TEXTBOX_REQUEST_FIDELITY_ENABLED && (
             <label className="block space-y-1">
-              <span className="text-[10px] text-slate-500">Boxes</span>
+              <span className="text-[10px] text-slate-500">{typedCardLimit !== null ? 'Cards' : 'Boxes'}</span>
               {renderCountSelect('Text box count')}
               <span className="block text-[9px] leading-4 text-slate-400">
-                {countAuto
-                  ? 'Auto follows your prompt (one box if it names none). Pick a number to force that many boxes or cards.'
-                  : `Exactly ${count} ${count === 1 ? 'box' : 'boxes'}. Arrangement and colours are under Advanced.`}
+                {typedCardLimit !== null
+                  ? countAuto
+                    ? `Auto follows your prompt (for example "five steps"; one card if it names none). Pick a number to force that many cards, up to ${typedCardLimit}.`
+                    : `One ${STRUCTURE_OPTIONS.find(option => option.value === structure)?.label ?? 'typed'} element with ${count} ${count === 1 ? 'card' : typedTextBoxCardNoun(structure)}. Arrangement and colours are under Advanced.`
+                  : countAuto
+                    ? 'Auto follows your prompt (one box if it names none). Pick a number to force that many boxes or cards.'
+                    : `Exactly ${count} ${count === 1 ? 'box' : 'boxes'}. Arrangement and colours are under Advanced.`}
               </span>
             </label>
           )}

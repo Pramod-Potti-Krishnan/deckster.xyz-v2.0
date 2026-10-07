@@ -1291,7 +1291,19 @@ export function useTextLabsGeneration({
       } : undefined
       for (const [index, element] of elements.entries()) {
         assertGenerationTargetIsStillAuthoritative()
-        const fallbackGridPosition = formElements?.[index]?.grid_position
+        // A typed family with several cards comes back as ONE element (Text Labs !84): it belongs
+        // over the whole panel area, not in the first box's cell (request fidelity flag).
+        const fallbackGridPosition = formData.componentType === 'TEXT_BOX'
+          && formData.cardsInOneElement
+          && elements.length === 1
+          && formData.positionConfig
+          ? {
+              start_col: formData.positionConfig.start_col,
+              start_row: formData.positionConfig.start_row,
+              position_width: formData.positionConfig.position_width,
+              position_height: formData.positionConfig.position_height,
+            }
+          : formElements?.[index]?.grid_position
         const existingThemeVariantId = refineContext
           ? (formData.existingElement?.theme_variant_id as string | null | undefined)
           : null

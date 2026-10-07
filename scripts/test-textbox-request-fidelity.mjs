@@ -233,7 +233,13 @@ function formHarness({ file, component, flag, ref, extraEnv }) {
     registered.at(-1)()
     return { data: copy(submitted.at(-1)), tree }
   }
-  return { render, submit, props, submitted }
+  // Run the first effect whose source contains `fragment` (the fake hooks never run effects on their own).
+  const effect = fragment => {
+    const fn = effects.find(candidate => candidate.toString().includes(fragment))
+    assert.ok(fn, 'effect ' + fragment)
+    fn()
+  }
+  return { render, submit, props, submitted, effect }
 }
 function find(tree, predicate) {
   if (!tree || typeof tree !== 'object') return null
@@ -516,5 +522,167 @@ if (baseSource(FORMS.text.file)) {
   const env = fs.readFileSync(new URL('.env.example', root), 'utf8')
   await check('.env.example documents the flag as off', () => assert.match(env, /^NEXT_PUBLIC_TEXTBOX_REQUEST_FIDELITY_ENABLED="false"$/m))
 }
+
+
+// ---------------------------------------------------------------------------
+// 4. A6: PK rulings D2 (N cards = ONE element), D3 (the prompt's count is never overridden by Auto), D8 (Boxes stays in the main panel).
+//    Contract: Text Labs MR !84 (backend/services/textbox_count.py): a typed family with `compose:true` + `elements[N]` is ONE typed element of
+//    max(count, len(elements)) cards laid out as the panel arranged the boxes; cards above the family limit are clamped there with a warning.
+// ---------------------------------------------------------------------------
+const TYPED_LIMITS = { SEQUENTIAL: 6, COMPARISON: 4, SECTIONS: 5, CALLOUT: 2, TEXT_BULLETS: 4, BULLET_BOX: 4, NUMBERED_LIST: 4 } // !84 TYPED[*].cards_max
+const PLAIN_STRUCTURES = ['auto', 'classic', 'vertical', 'mixed']
+// Port of textbox_count._arrangement (!84): how Text Labs reads the panel's Arrangement back off `elements[].grid_position`.
+function arrangementFromElements(elements) {
+  const starts = []
+  for (const element of elements ?? []) {
+    const position = element?.grid_position
+    if (!position || position.start_col == null || position.start_row == null) return null
+    starts.push([position.start_col, position.start_row])
+  }
+  if (starts.length < 2) return null
+  const columns = new Set(starts.map(([c]) => c)), rows = new Set(starts.map(([, r]) => r))
+  if (rows.size === 1) return ['horizontal', null]
+  if (columns.size === 1) return ['vertical', null]
+  return ['grid', columns.size]
+}
+const textHarness = (flag, prompt) => { const h = make('text', flag); if (prompt) h.props.prompt = prompt; return h }
+function pickStructure(h, value) { structureSelect(h.render()).onChange({ target: { value } }); return h.render() }
+const optionNodes = node => React.Children.toArray(node.props.children)
+const countOptions = tree => optionNodes(find(tree, n => n.props === countSelect(tree)))
+
+for (const [family, limit] of Object.entries(TYPED_LIMITS)) {
+  await check(`D2 ${family}: Boxes above ${limit} are not offered, the panel label becomes Cards`, () => {
+    const h = textHarness('true'); const tree = pickStructure(h, family)
+    const options = countOptions(tree)
+    assert.deepEqual(options.map(o => String(o.props.value)), ['auto', '1', '2', '3', '4', '5', '6'])
+    for (const option of options) {
+      const value = Number(option.props.value)
+      if (Number.isInteger(value) && value > limit) assert.equal(option.props.disabled, true, `${family} ${value} disabled`)
+      if (Number.isInteger(value) && value <= limit) assert.equal(option.props.disabled === true && !String(option.props.children).includes('resize'), false, `${family} ${value} offered`)
+    }
+    assert.ok(find(tree, n => n.type === 'span' && n.props.children === 'Cards'), 'Cards label')
+    assert.equal(find(tree, n => n.type === 'span' && n.props.children === 'Boxes'), null)
+  })
+  await check(`D2 ${family}: ${Math.min(limit, 4)} cards go out as ONE typed request (count, compose, one geometry per card, structure)`, async () => {
+    const h = textHarness('true', 'Rollout plan for the forecasting launch')
+    pickStructure(h, family); const n = Math.min(limit, 4)
+    countSelect(h.render()).onChange({ target: { value: String(n) } })
+    const { data } = h.submit()
+    const body = JSON.parse(await wire(nowClientOn, data))
+    assert.equal(data.cardsInOneElement, true)
+    assert.equal(data.countAuto, undefined)
+    assert.equal(body.count, n)
+    assert.equal(body.compose, true)
+    assert.equal(body.structure, family)
+    assert.equal(body.elements.length, n)
+    for (const element of body.elements) for (const key of ['start_col', 'start_row', 'position_width', 'position_height']) assert.equal(typeof element.grid_position[key], 'number', key)
+    assert.equal('cardsInOneElement' in body || 'cards_in_one_element' in body, false, 'the marker is panel-only')
+  })
+}
+await check('D2: the Arrangement the user picks is exactly what Text Labs reads back off elements[].grid_position', async () => {
+  for (const [count, layout, cols, expected] of [[2, 'horizontal', null, ['horizontal', null]], [2, 'vertical', null, ['vertical', null]], [4, 'grid', '2', ['grid', 2]]]) {
+    const h = textHarness('true'); pickStructure(h, 'BULLET_BOX')
+    countSelect(h.render()).onChange({ target: { value: String(count) } })
+    byLabel(h.render(), 'Arrangement').onChange({ target: { value: layout } })
+    if (cols) byLabel(h.render(), 'Grid columns').onChange({ target: { value: cols } })
+    const body = JSON.parse(await wire(nowClientOn, h.submit().data))
+    assert.deepEqual(arrangementFromElements(body.elements), expected, `${count} ${layout}`)
+    assert.equal(body.layout, layout)
+  }
+})
+await check('D2: switching to a smaller family lowers a bigger count to what it holds; the same count on plain boxes is untouched', async () => {
+  const h = textHarness('true'); pickStructure(h, 'auto')
+  countSelect(h.render()).onChange({ target: { value: '5' } })
+  assert.equal(countSelect(h.render()).value, 5)
+  pickStructure(h, 'CALLOUT'); h.effect('setCount(typedCardLimit)')
+  const callout = h.render()
+  assert.equal(countSelect(callout).value, 2)
+  const body = JSON.parse(await wire(nowClientOn, h.submit().data))
+  assert.equal(body.count, 2); assert.equal(body.elements.length, 2); assert.equal(body.structure, 'CALLOUT')
+  pickStructure(h, 'auto'); h.effect('setCount(typedCardLimit)')
+  assert.equal(countSelect(h.render()).value, 2, 'plain boxes never raise a count on their own')
+})
+for (const structure of PLAIN_STRUCTURES) {
+  await check(`D2: ${structure} stays several separate boxes (COMPOSE, 1-6), never one element of cards`, async () => {
+    const h = textHarness('true'); if (structure !== 'auto') pickStructure(h, structure)
+    countSelect(h.render()).onChange({ target: { value: '3' } })
+    const { data } = h.submit()
+    const body = JSON.parse(await wire(nowClientOn, data))
+    assert.equal(data.cardsInOneElement, undefined)
+    assert.equal(body.compose, true); assert.equal(body.count, 3); assert.equal(body.elements.length, 3)
+    assert.equal(find(h.render(), n => n.type === 'span' && n.props.children === 'Cards'), null)
+    const opts = countOptions(h.render()); assert.equal(opts.some(o => String(o.props.children).includes('max')), false)
+  })
+}
+await check('D2 flag off: no caps, no clamp, no one-element marker (a Callout can still be asked for 5, as before)', async () => {
+  const h = textHarness(undefined); pickStructure(h, 'CALLOUT')
+  countSelect(h.render()).onChange({ target: { value: '5' } })
+  h.effect('!feasibleCounts.includes(count)')
+  const { data, tree } = h.submit()
+  assert.equal(data.count, 5); assert.equal(data.cardsInOneElement, undefined)
+  assert.equal(countOptions(tree).some(o => String(o.props.children).includes('max')), false)
+  assert.equal(find(tree, n => n.type === 'span' && n.props.children === 'Cards'), null)
+})
+await check('D2 METRICS is not a typed family: several cards stay a COMPOSE of N cards', async () => {
+  const h = make('metrics', 'true')
+  need(h.render(), n => n.props?.['aria-label'] === 'Metric count', 'Metric count').onChange({ target: { value: '3' } })
+  const { data } = h.submit(); const body = JSON.parse(await wire(nowClientOn, data))
+  assert.equal(data.cardsInOneElement, undefined); assert.equal(body.compose, true); assert.equal(body.elements.length, 3)
+})
+await check('D2 placement: the single typed element returned for N cards is placed over the whole panel area (hook fallback), flag-marked only', () => {
+  const hook = fs.readFileSync(new URL('hooks/use-textlabs-generation.ts', root), 'utf8')
+  assert.match(hook, /formData\.cardsInOneElement\s*&&\s*elements\.length === 1\s*&&\s*formData\.positionConfig\s*\?\s*\{\s*start_col: formData\.positionConfig\.start_col,\s*start_row: formData\.positionConfig\.start_row,\s*position_width: formData\.positionConfig\.position_width,\s*position_height: formData\.positionConfig\.position_height,\s*\}\s*:\s*formElements\?\.\[index\]\?\.grid_position/)
+  assert.equal((hook.match(/cardsInOneElement/g) ?? []).length, 1, 'only the placement fallback reads the marker')
+  // Text Labs answers the one-element path with grid_position = the request's position_config (chat_routes.py `computed_position`), so the whole area is also what a current backend returns.
+})
+
+// D3: the prompt's own count is never overridden by a default, and the prompt always reaches Text Labs verbatim.
+await check('D3: Auto never overrides a count typed in the prompt (typed family, plain box, Metrics): no count, no compose, no elements, prompt verbatim', async () => {
+  for (const [structure, prompt] of [['SEQUENTIAL', 'Five rollout steps to launch the forecasting pilot'], ['COMPARISON', 'Compare three options for demand forecasting'], [null, 'Three key adoption risks for AI demand forecasting, one sentence each.']]) {
+    const h = textHarness('true', prompt); if (structure) pickStructure(h, structure)
+    const { data } = h.submit(); const body = JSON.parse(await wire(nowClientOn, data))
+    assert.equal(body.message, prompt)
+    assert.equal('count' in body, false, structure + ' count'); assert.equal(body.compose, false); assert.equal('elements' in body, false)
+  }
+  const m = make('metrics', 'true'); m.props.prompt = '4 KPIs: +15 pts accuracy, -30% stockouts, -12% waste, -8% cost'
+  const body = JSON.parse(await wire(nowClientOn, m.submit().data))
+  assert.equal(body.message, m.props.prompt); assert.equal('count' in body, false); assert.equal('metrics_config' in body, false)
+})
+await check('D3: an explicit Boxes choice is sent next to the unmodified prompt, so Text Labs sees both (count 1 is sent too)', async () => {
+  const prompt = 'Five rollout steps to launch the forecasting pilot'
+  const h = textHarness('true', prompt); pickStructure(h, 'SEQUENTIAL')
+  countSelect(h.render()).onChange({ target: { value: '3' } })
+  const body = JSON.parse(await wire(nowClientOn, h.submit().data))
+  assert.equal(body.message, prompt); assert.equal(body.count, 3); assert.equal(body.elements.length, 3)
+  countSelect(h.render()).onChange({ target: { value: '1' } })
+  const one = JSON.parse(await wire(nowClientOn, h.submit().data))
+  assert.equal(one.message, prompt); assert.equal(one.count, 1)
+})
+
+// D8: the Boxes control is in the main panel, not behind Advanced.
+function ancestorsOf(tree, predicate, trail = []) {
+  if (!tree || typeof tree !== 'object') return null
+  if (predicate(tree)) return trail
+  for (const child of React.Children.toArray(tree.props?.children)) { const found = ancestorsOf(child, predicate, [...trail, tree]); if (found) return found }
+  return null
+}
+await check('D8: Boxes is in the main panel: visible with Advanced closed, under no collapsible section, beside Body structure', () => {
+  const h = textHarness('true'); h.props.showAdvanced = false
+  const tree = h.render()
+  const trail = ancestorsOf(tree, n => n.props?.['aria-label'] === 'Text box count')
+  assert.ok(trail, 'Text box count is rendered with Advanced closed')
+  assert.equal(trail.some(n => n.props && 'isOpen' in n.props), false, 'not inside a collapsible section')
+  assert.equal(find(tree, n => n.props?.['aria-label'] === 'Advanced text box count'), null, 'Advanced > Instances is not rendered while Advanced is closed')
+  const section = trail.find(n => n.type === 'section')
+  assert.ok(section && find(section, n => n.type === 'select' && optionValues(n).includes('SEQUENTIAL')), 'same section as Body structure')
+  assert.equal(countSelect(tree).value, 'auto')
+})
+await check('D8: Boxes follows the role (Body only) and the flag (off: not rendered)', () => {
+  const h = textHarness('true'); h.props.showAdvanced = false
+  roleSelect(h.render()).onChange({ target: { value: 'slot:slide_title' } })
+  assert.equal(find(h.render(), n => n.props?.['aria-label'] === 'Text box count'), null)
+  const off = textHarness(undefined); off.props.showAdvanced = false
+  assert.equal(find(off.render(), n => n.props?.['aria-label'] === 'Text box count'), null)
+})
 
 console.log(`\n${checks} checks passed`)

@@ -754,6 +754,12 @@ export interface TextBoxFormData extends TextLabsBaseFormData {
   itemsPerInstance?: number
   textboxConfig: Partial<TextBoxConfig>
   structure?: TextBoxStructure
+  /**
+   * A typed family (Sequential, Compare, ...) with a Boxes/Cards choice above 1: Text Labs
+   * returns ONE element of that many cards, so it belongs over the whole panel area, not in
+   * the first box's cell. Set only behind NEXT_PUBLIC_TEXTBOX_REQUEST_FIDELITY_ENABLED.
+   */
+  cardsInOneElement?: boolean
   semanticRole: TextSemanticRole
   geometryMode: TextGeometryMode
   manualGeometryOverrides?: TextManualGeometryOverrides

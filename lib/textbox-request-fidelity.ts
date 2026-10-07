@@ -14,12 +14,58 @@
  *  - State behind controls that are hidden for the selected role / structure /
  *    surface does not leak onto the wire (e.g. Surface or Title choices made on a
  *    Body role must not restyle a Slide title after the role changes).
+ *  - A typed family (Sequential, Compare, Sections, Callout, Bullets, Bullet Box,
+ *    Numbered) with a Boxes/Cards choice above 1 is ONE element of that many cards
+ *    (Text Labs MR !84, TL_TEXTBOX_COUNT_ALL_TYPES_ENABLED): the choice is capped at
+ *    what the family holds, and the request keeps `count`, `compose` and
+ *    `elements[].grid_position` because Text Labs reads the card count and the
+ *    arrangement (row / column / N-column grid) off them.
  *
  * Import-free on purpose: the node contract test compiles this file alone.
  */
 
 export const TEXTBOX_REQUEST_FIDELITY_ENABLED =
   process.env.NEXT_PUBLIC_TEXTBOX_REQUEST_FIDELITY_ENABLED === 'true'
+
+/**
+ * Cards one typed element holds: Text Labs !84 `TYPED[family].cards_max`, which mirrors the
+ * Text Service endpoints (SEQUENTIAL 1-6, COMPARISON 1-4, SECTIONS 1-5, CALLOUT 1-2,
+ * TEXT_BULLETS / BULLET_BOX / NUMBERED_LIST 1-4). Every other structure is a plain box
+ * (Auto, Classic, Vertical, Mixed: several boxes are separate COMPOSE boxes, 1-6).
+ */
+const TYPED_CARD_LIMITS: Record<string, number> = {
+  SEQUENTIAL: 6,
+  COMPARISON: 4,
+  SECTIONS: 5,
+  CALLOUT: 2,
+  TEXT_BULLETS: 4,
+  BULLET_BOX: 4,
+  NUMBERED_LIST: 4,
+}
+
+/** What a card of each typed family is called in the panel copy. */
+const TYPED_CARD_NOUNS: Record<string, string> = {
+  SEQUENTIAL: 'steps',
+  COMPARISON: 'columns',
+  SECTIONS: 'sections',
+  CALLOUT: 'callouts',
+  TEXT_BULLETS: 'boxes',
+  BULLET_BOX: 'boxes',
+  NUMBERED_LIST: 'lists',
+}
+
+/** Most cards one element of this structure holds, or null for a plain (non-typed) structure. */
+export function typedTextBoxCardLimit(structure: string | null | undefined): number | null {
+  return typeof structure === 'string' && Object.prototype.hasOwnProperty.call(TYPED_CARD_LIMITS, structure)
+    ? TYPED_CARD_LIMITS[structure]
+    : null
+}
+
+export function typedTextBoxCardNoun(structure: string | null | undefined): string {
+  return typeof structure === 'string' && Object.prototype.hasOwnProperty.call(TYPED_CARD_NOUNS, structure)
+    ? TYPED_CARD_NOUNS[structure]
+    : 'boxes'
+}
 
 /** Panel list-style labels -> the values Text Service renders. */
 const LIST_STYLE_WIRE: Record<string, string> = {
