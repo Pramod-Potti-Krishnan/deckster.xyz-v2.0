@@ -38,6 +38,7 @@
     "test:table-overhaul-contract": "node scripts/test-table-overhaul-contract.mjs",
     "test:chart-generation-contract": "node scripts/test-chart-generation-contract.mjs",
     "test:chart-request-safety": "node scripts/test-chart-request-safety.mjs",
+    "test:chart-strip-preview-scripts": "node scripts/test-chart-strip-preview-scripts.mjs",
     "test:director-websocket-reconnect": "node scripts/test-director-websocket-reconnect.mjs",
     "test:slide-element-targeting": "node scripts/test-slide-element-targeting.mjs",
     "test:element-panel-activation": "node scripts/test-element-panel-activation.mjs",
