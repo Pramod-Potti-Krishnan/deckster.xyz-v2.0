@@ -11,6 +11,7 @@
     "build": "prisma generate && next build",
     "dev": "next dev",
     "lint": "next lint",
+    "test:ws-bq-claim": "node scripts/test-ws-bq-claim.mjs",
     "test:director-sync-recovery": "node scripts/test-director-sync-recovery.mjs",
     "test:golden-evidence-contract": "node scripts/test-golden-evidence-contract.mjs",
     "test:build-progress-visibility": "node scripts/test-build-progress-visibility.mjs",

@@ -1235,6 +1235,15 @@ export function useDecksterWebSocketV2(options: UseDecksterWebSocketV2Options = 
   // ws_auth caps any token at 20m), and the frame that arrives at expiry is
   // discarded server-side — which silently swallowed the strawman approval.
   const authRefreshTimerRef = useRef<NodeJS.Timeout | undefined>(undefined);
+  // Build-quota claim (contract F-quota-bq-claim v1). `bqClaimActiveRef` is set
+  // from the ws-token response, which carries `bq_claim: true` only when the
+  // server flag DECKSTER_WS_BQ_CLAIM_ENABLED is on; with the flag off it stays
+  // false and the forced refresh below never runs. `forceAuthRefreshRef` re-mints
+  // the token now (after a coupon redeem / top-up / checkout) instead of waiting
+  // for the ~9 minute timer.
+  const bqClaimActiveRef = useRef(false);
+  const forceAuthRefreshRef = useRef<(() => void) | null>(null);
+  const forcedAuthRefreshInFlightRef = useRef(false);
   const pongDeadlineTimeoutRef = useRef<NodeJS.Timeout | undefined>(undefined);
   const awaitingPongRef = useRef(false);
   const lastCloseDiagnosticAtRef = useRef(0);
@@ -1293,7 +1302,7 @@ export function useDecksterWebSocketV2(options: UseDecksterWebSocketV2Options = 
       connectionDesiredRef.current && !manualDisconnectRef.current);
     if (!isCurrentRefresh()) return;
     const delayMs = Math.max(30_000, Math.floor(expiresInSeconds * 0.6) * 1000);
-    authRefreshTimerRef.current = setTimeout(async () => {
+    const refreshNow = async () => {
       if (!isCurrentRefresh()) return;
       try {
         const resp = await fetch(
@@ -1306,6 +1315,7 @@ export function useDecksterWebSocketV2(options: UseDecksterWebSocketV2Options = 
         if (!isCurrentRefresh()) return;
         if (body?.auth_enabled === false) return; // tokenless deployment
         if (!body?.auth_token) throw new Error('ws-token returned no token');
+        bqClaimActiveRef.current = body.bq_claim === true;
         socket!.send(JSON.stringify({
           type: 'auth_refresh',
           payload: { token: body.auth_token },
@@ -1323,8 +1333,33 @@ export function useDecksterWebSocketV2(options: UseDecksterWebSocketV2Options = 
           () => { if (isCurrentRefresh()) scheduleAuthRefresh(expiresInSeconds); }, 30_000,
         );
       }
-    }, delayMs);
+    };
+    authRefreshTimerRef.current = setTimeout(refreshNow, delayMs);
+    forceAuthRefreshRef.current = () => {
+      if (!bqClaimActiveRef.current || forcedAuthRefreshInFlightRef.current || !isCurrentRefresh()) return;
+      forcedAuthRefreshInFlightRef.current = true;
+      clearAuthRefreshTimer();
+      void refreshNow().finally(() => { forcedAuthRefreshInFlightRef.current = false; });
+    };
   }, [clearAuthRefreshTimer]);
+
+  // A coupon redeem, top-up or checkout (on /redeem or /billing, usually in
+  // another tab) asks this socket to re-mint its token now, so the build-quota
+  // claim reflects the new plan or wallet at once. Inert unless the current
+  // token carries a claim (server flag DECKSTER_WS_BQ_CLAIM_ENABLED). The channel
+  // and event names are lib/ws-bq-refresh.ts's; they are spelled here rather than
+  // imported so this hook's import list stays as it was.
+  useEffect(() => {
+    const requestRefresh = () => forceAuthRefreshRef.current?.();
+    if (typeof BroadcastChannel !== 'undefined') {
+      const channel = new BroadcastChannel('deckster-ws-bq-refresh');
+      channel.onmessage = requestRefresh;
+      return () => channel.close();
+    }
+    if (typeof window === 'undefined') return undefined;
+    window.addEventListener('deckster:ws-bq-refresh', requestRefresh);
+    return () => window.removeEventListener('deckster:ws-bq-refresh', requestRefresh);
+  }, []);
 
   const clearReconnectTimer = useCallback((preservePendingAttempt = false) => {
     if (reconnectTimeoutRef.current) {
@@ -1672,6 +1707,7 @@ export function useDecksterWebSocketV2(options: UseDecksterWebSocketV2Options = 
             if (tokenBody?.auth_token) {
               // Never logged: the auth-bearing protocol carries the secret.
               protocols = ['deckster.v1', `deckster-auth.${tokenBody.auth_token}`];
+              bqClaimActiveRef.current = tokenBody.bq_claim === true;
               expiresInSeconds =
                 typeof tokenBody.expires_in === 'number' ? tokenBody.expires_in : null;
               return { ok: true };
