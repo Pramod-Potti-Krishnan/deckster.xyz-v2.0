@@ -52,6 +52,7 @@ import type { StudioFormatSelectionHandle } from '@/lib/studio-format-native'
 import { TextBoxFormatPanel } from '@/components/textbox-format-panel'
 import { TextBoxFormatting, type RefineElementRequest, type SlideComposeViewerApi, type StudioIntroductionSafety, type StudioComposeSelectionContext, type StudioElementGenerationLease, type StudioPartialNativeReadback } from '@/components/presentation-viewer'
 import { parseStudioNativeSlideOrder, type StudioNativeSlideOrder } from '@/lib/studio-native-slide-order'
+import { STUDIO_PANEL_KEEP_CANVAS_ENABLED, presentationWrapperTransition } from '@/lib/studio-panel-keep-canvas'
 import {
   STUDIO_GOTO_NEW_SLIDE_ENABLED,
   goToNewSlideIntent,
@@ -6459,7 +6460,7 @@ function AuthenticatedBuilderContent({ authScopeUserId }: { authScopeUserId: str
         />
 
         {/* Main Content Area */}
-        <div ref={workspaceRef} data-studio-intro-surface={studioShell ? "builder" : undefined} data-studio-v4-shell-workspace="true" data-studio-workspace-welcome={studioWelcome ? "true" : undefined} data-studio-workspace-mode={studioShell ? workspaceLayout.dualPane ? 'dual' : 'single' : undefined} data-studio-workspace-overlay={studioShell ? String(studioOverlayWorkspace) : undefined} className="flex-1 flex relative overflow-hidden" style={studioShell ? { '--studio-collapsed-inspector-width': `${studioTemplateVisible && templateParamsCollapsed ? TEMPLATE_PANEL_COLLAPSED_WIDTH : 0}px` } as React.CSSProperties : undefined}>
+        <div ref={workspaceRef} data-studio-intro-surface={studioShell ? "builder" : undefined} data-studio-v4-shell-workspace="true" data-studio-workspace-welcome={studioWelcome ? "true" : undefined} data-studio-workspace-mode={studioShell ? workspaceLayout.dualPane ? 'dual' : 'single' : undefined} data-studio-workspace-overlay={studioShell ? String(studioOverlayWorkspace) : undefined} data-studio-panel-keep-canvas={studioShell && STUDIO_PANEL_KEEP_CANVAS_ENABLED ? "true" : undefined} className="flex-1 flex relative overflow-hidden" style={studioShell ? { '--studio-collapsed-inspector-width': `${studioTemplateVisible && templateParamsCollapsed ? TEMPLATE_PANEL_COLLAPSED_WIDTH : 0}px` } as React.CSSProperties : undefined}>
           {studioShell && !workspaceLayout.dualPane && (
             <div data-studio-workspace-switch="true" role="group" aria-label="Workspace pane">
               {studioOverlayWorkspace && <button type="button" aria-pressed={studioStageSelected || (!workspaceLayout.chatVisible && !workspaceLayout.inspectorVisible)} onClick={() => { retireStudioVoiceOwner(); setStudioStageSelected(true) }}>Stage</button>}
@@ -7138,7 +7139,9 @@ function AuthenticatedBuilderContent({ authScopeUserId }: { authScopeUserId: str
             {...(studioCanvasCovered ? { inert: true } : {})}
             className={cn(
               "flex-1 min-w-0 min-h-0 flex flex-col",
-              isResizingDrawer ? "" : "transition-[margin] duration-300 ease-out"
+              STUDIO_PANEL_KEEP_CANVAS_ENABLED
+                ? presentationWrapperTransition({ isResizingDrawer, keepCanvas: studioShell })
+                : isResizingDrawer ? "" : "transition-[margin] duration-300 ease-out"
             )}
             style={studioShell ? { marginLeft: workspaceLayout.left, marginRight: workspaceLayout.right } : { marginLeft: drawerOffset }}
           >
