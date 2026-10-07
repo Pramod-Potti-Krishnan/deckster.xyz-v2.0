@@ -5,16 +5,13 @@
 // Proves, on the REAL source of both export paths (lib/api/download-service.ts and
 // app/api/publish/[slug]/download/[format]/route.ts), with fetch stubbed:
 //   - flag off (unset, "false", "", "TRUE", "1"): the JSON request bodies are
-//     byte-identical to the pinned literals AND to the bodies the pre-change source
-//     (git show 6d47cae) produces;
+//     byte-identical to the pinned literals (captured from the pre-change source 6d47cae);
 //   - flag on ("true"): the same body plus a trailing `view_only: true`, nothing else.
 import assert from 'node:assert/strict'
 import fs from 'node:fs'
 import vm from 'node:vm'
-import { execFileSync } from 'node:child_process'
 import ts from 'typescript'
 
-const BASE_SHA = '6d47cae' // studio-v4-dev-preparation-code before this change
 const LIB = 'lib/export-view-only.ts'
 const SERVICE = 'lib/api/download-service.ts'
 const ROUTE = 'app/api/publish/[slug]/download/[format]/route.ts'
@@ -135,14 +132,7 @@ async function routeBodies(mod, deck) {
   return { pdf: captured[0].init.body, pptx: captured[1].init.body }
 }
 
-// Pre-change sources (no flag), for byte-for-byte comparison.
-let baseServiceSource = null, baseRouteSource = null
-try {
-  baseServiceSource = execFileSync('git', ['show', `${BASE_SHA}:${SERVICE}`], { encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'] })
-  baseRouteSource = execFileSync('git', ['show', `${BASE_SHA}:${ROUTE}`], { encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'] })
-} catch {
-  console.warn(`NOTE: git show ${BASE_SHA} unavailable; the base-source comparison is skipped (pinned literals still run).`)
-}
+// Pre-change bodies are pinned below (no git dependency: runs in shallow clones and CI).
 
 // Pinned flag-off bodies (what the pre-change code sends today).
 const PINNED = {
@@ -197,19 +187,6 @@ await run('download-service: flag off, bodies equal the pinned literals', async 
   setFlag(undefined)
 })
 
-await run('download-service: flag off, bodies equal what the pre-change source sends (JSON equality)', async () => {
-  if (!baseServiceSource) return
-  const base = loadService(baseServiceSource, false)
-  const branch = loadService(read(SERVICE), true)
-  setFlag(undefined)
-  const before = await serviceBodies(base)
-  const after = await serviceBodies(branch)
-  assert.equal(after.pdf, before.pdf)
-  assert.equal(after.pptx, before.pptx)
-  assert.deepEqual(JSON.parse(after.pdf), JSON.parse(before.pdf))
-  assert.deepEqual(JSON.parse(after.pptx), JSON.parse(before.pptx))
-})
-
 await run('download-service: flag on, PDF and PPTX add exactly view_only: true', async () => {
   const mod = loadService(read(SERVICE), true)
   setFlag('true')
@@ -243,19 +220,6 @@ await run('publish route: flag off, bodies equal the pinned literals', async () 
     assert.equal(bodies.pptx, PINNED.routePptx, `pptx, flag ${JSON.stringify(value)}`)
   }
   setFlag(undefined)
-})
-
-await run('publish route: flag off, bodies equal what the pre-change source sends (JSON equality)', async () => {
-  if (!baseRouteSource) return
-  const base = loadRoute(baseRouteSource, false)
-  const branch = loadRoute(read(ROUTE), true)
-  setFlag(undefined)
-  const before = await routeBodies(base)
-  const after = await routeBodies(branch)
-  assert.equal(after.pdf, before.pdf)
-  assert.equal(after.pptx, before.pptx)
-  assert.deepEqual(JSON.parse(after.pdf), JSON.parse(before.pdf))
-  assert.deepEqual(JSON.parse(after.pptx), JSON.parse(before.pptx))
 })
 
 await run('publish route: flag on, PDF and PPTX add exactly view_only: true', async () => {
