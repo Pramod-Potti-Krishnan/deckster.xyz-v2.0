@@ -1,0 +1,13 @@
+{
+ "request": "DELETE /api/presentations/{id}/slides/0",
+ "response": {
+  "success": true,
+  "message": "Slide 1 deleted successfully",
+  "slide_count": 3,
+  "slide_ids": [
+   "slide_51f6389579d6",
+   "slide_06137799b27f",
+   "slide_d960ba5dbd63"
+  ]
+ }
+}

@@ -66,6 +66,8 @@ import {
   resolveSlideViewerNavigationInfo,
 } from '@/lib/slide-compose-async'
 import { applyStageFThumbnailUrls, ownedRestoredThumbnailUrl } from '@/lib/stage-f-thumbnails'
+import { useSlideRailIdentity } from '@/hooks/use-slide-rail-identity'
+import { STUDIO_RAIL_SLIDE_IDENTITY_ENABLED } from '@/lib/slide-rail-identity'
 import {
   DropdownMenu,
   DropdownMenuCheckboxItem,
@@ -910,6 +912,8 @@ export function PresentationViewer({
   studioFormatBusyRef.current = studioFormatBusy
   const onThumbnailInvalidatedRef = useRef(onThumbnailInvalidated)
   onThumbnailInvalidatedRef.current = onThumbnailInvalidated
+  // F8/S-03 rail identity: the post-ack closures below re-read Layout's slide inventory through this.
+  const slideRailRefreshRef = useRef<() => void>(() => {})
   const captureThumbnailInvalidation = useCallback((retireMapping = true) => {
     const owner = renderSlideMutationOwner
     const iframe = iframeRef.current
@@ -933,6 +937,7 @@ export function PresentationViewer({
         slideMutationMountRef.current.generation !== mountGeneration ||
         slideMutationOwnerRef.current !== owner || iframeRef.current !== iframe) return
       onThumbnailInvalidatedRef.current?.(owner.presentationId)
+      slideRailRefreshRef.current()
     }
   }, [studioShell, renderSlideMutationOwner])
   const captureStudioNativeSlideFrame = useCallback(() => {
@@ -1346,9 +1351,28 @@ export function PresentationViewer({
     lastSlideInfoRef.current = null
   }, [approvedIframeNavigationUrl, studioShell])
 
+  // F8/S-03 (flag NEXT_PUBLIC_STUDIO_RAIL_SLIDE_IDENTITY_ENABLED, default off): when Layout serves
+  // its slide inventory, the rail is keyed by slide_id and reads previews from it. `rows` stays null
+  // (today's path below, untouched) whenever the flag is off or the endpoint is absent.
+  const railIdentityStructure = useMemo(
+    () => !slidesModifiedByCrud && Array.isArray(slideStructure?.slides) ? slideStructure.slides as unknown[] : null,
+    [slideStructure, slidesModifiedByCrud],
+  )
+  // A content signature, not the object: the prop defaults to a fresh `{}` on every render.
+  const railThumbnailFrames = useMemo(() => STUDIO_RAIL_SLIDE_IDENTITY_ENABLED ? JSON.stringify(thumbnailUrlsBySlide) : '', [thumbnailUrlsBySlide])
+  const { rows: railIdentityRows, refresh: refreshSlideRail } = useSlideRailIdentity({
+    enabled: STUDIO_RAIL_SLIDE_IDENTITY_ENABLED && studioShell && Boolean(approvedPresentationUrl),
+    presentationId,
+    ownerUserId: studioOwnerUserId,
+    structureSlides: railIdentityStructure,
+    refreshSignals: [totalSlides, railThumbnailFrames],
+  })
+  slideRailRefreshRef.current = refreshSlideRail
+
   // Extract slide thumbnails from slideStructure
   // Use totalSlides when: CRUD ops occurred, OR slideStructure is stale/missing
   const slideThumbnails = useMemo<SlideThumbnail[]>(() => {
+    if (railIdentityRows) return railIdentityRows
     if (studioShell && studioCanonicalThumbnails
       && studioCanonicalThumbnails.owner === renderSlideMutationOwner
       && studioCanonicalThumbnails.nativeRevision === thumbnailNativeRevisionRef.current
@@ -1390,7 +1414,7 @@ export function PresentationViewer({
       }
     })
     return applyStageFThumbnailUrls(structureSlides, thumbnailUrlsBySlide)
-  }, [slideStructure, totalSlides, slidesModifiedByCrud, thumbnailUrlsBySlide, studioShell, presentationId, studioCanonicalThumbnails, renderSlideMutationOwner])
+  }, [railIdentityRows, slideStructure, totalSlides, slidesModifiedByCrud, thumbnailUrlsBySlide, studioShell, presentationId, studioCanonicalThumbnails, renderSlideMutationOwner])
 
   // Define handlers FIRST (before effects that use them)
   const handleNextSlide = useCallback(async () => {
@@ -2072,6 +2096,7 @@ export function PresentationViewer({
         }
         if (!isCurrentSlideMutation()) { reportRetiredAdd(); return }
         commit(setTotalSlides, newTotal)
+        slideRailRefreshRef.current() // F8/S-03: re-read the slide inventory after the Add ack
         commitSelection(setCurrentSlide, newSlideNumber) // Update local state (1-based)
         if (studioShell) commitSelection<number[]>(setSelectedSlideIndices, [newSlideIndex])
         // The parent owns the slide index used by Add Element. Publish the
@@ -4638,6 +4663,7 @@ export function PresentationViewer({
                 totalSlides={totalSlides}
                 composeJobs={composeJobs}
                 onRefineSlide={onRefineSlide}
+                keyBySlideId={railIdentityRows !== null}
               />
             )}
           </div>

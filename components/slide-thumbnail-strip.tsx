@@ -119,6 +119,9 @@ export interface SlideThumbnailStripProps {
   totalSlides?: number
   composeJobs?: SlideComposeThumbnailJob[]
   onRefineSlide?: (target: SlideRefineTarget) => void
+  /** F8/S-03: rows come from Layout's slide inventory, so React keys them by slide_id (a moved
+   *  slide keeps its node and image) instead of by position. Default false = today's keys. */
+  keyBySlideId?: boolean
 }
 
 /**
@@ -151,6 +154,7 @@ export function SlideThumbnailStrip({
   totalSlides,
   composeJobs = [],
   onRefineSlide,
+  keyBySlideId = false,
 }: SlideThumbnailStripProps) {
   const [draggedSlide, setDraggedSlide] = useState<number | null>(null)
   const [dropTarget, setDropTarget] = useState<number | null>(null)
@@ -411,6 +415,7 @@ export function SlideThumbnailStrip({
   const renderThumbnail = (slide: SlideThumbnail, visualNumber: number) => {
     const realSlideNumber = slide.slideNumber
     const slideIndex = realSlideNumber - 1  // 0-based index
+    const itemKey = keyBySlideId && slide.slideId ? `slide-${slide.slideId}` : realSlideNumber
     const isActive = visualNumber === currentSlide
     const isSelected = selectedSlides.includes(slideIndex)
     const isDragging = draggedSlide === realSlideNumber
@@ -717,7 +722,7 @@ export function SlideThumbnailStrip({
     // Wrap with context menu if CRUD actions are available
     if (hasCrudActions) {
       return (
-        <ContextMenu key={realSlideNumber}>
+        <ContextMenu key={itemKey}>
           <ContextMenuTrigger asChild>
             {thumbnailContent}
           </ContextMenuTrigger>
@@ -735,7 +740,7 @@ export function SlideThumbnailStrip({
       )
     }
 
-    return <React.Fragment key={realSlideNumber}>{thumbnailContent}</React.Fragment>
+    return <React.Fragment key={itemKey}>{thumbnailContent}</React.Fragment>
   }
 
   return (

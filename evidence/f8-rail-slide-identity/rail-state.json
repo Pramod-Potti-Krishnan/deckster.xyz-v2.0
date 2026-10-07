@@ -1,0 +1,228 @@
+{
+ "before-1-built": [
+  {
+   "number": "1",
+   "title": "Opening: why now",
+   "hasPreview": "true",
+   "image": "slide_8ea0a04600cf/153efc98a60d7f8a.png",
+   "placeholder": null
+  },
+  {
+   "number": "2",
+   "title": "Market size and growth",
+   "hasPreview": "true",
+   "image": "slide_51f6389579d6/5f9289e5b7ede01c.png",
+   "placeholder": null
+  },
+  {
+   "number": "3",
+   "title": "Wrap-up and next steps",
+   "hasPreview": "true",
+   "image": "slide_d960ba5dbd63/5d1b03da451e2727.png",
+   "placeholder": null
+  }
+ ],
+ "before-2-after-insert": [
+  {
+   "number": "1",
+   "title": "Slide 1",
+   "hasPreview": "false",
+   "image": null,
+   "placeholder": "No preview"
+  },
+  {
+   "number": "2",
+   "title": "Slide 2",
+   "hasPreview": "false",
+   "image": null,
+   "placeholder": "No preview"
+  },
+  {
+   "number": "3",
+   "title": "Slide 3",
+   "hasPreview": "false",
+   "image": null,
+   "placeholder": "No preview"
+  },
+  {
+   "number": "4",
+   "title": "Slide 4",
+   "hasPreview": "false",
+   "image": null,
+   "placeholder": "No preview"
+  }
+ ],
+ "before-3-after-reload": [
+  {
+   "number": "1",
+   "title": "Slide 1",
+   "hasPreview": "false",
+   "image": null,
+   "placeholder": "No preview"
+  },
+  {
+   "number": "2",
+   "title": "Slide 2",
+   "hasPreview": "false",
+   "image": null,
+   "placeholder": "No preview"
+  },
+  {
+   "number": "3",
+   "title": "Slide 3",
+   "hasPreview": "false",
+   "image": null,
+   "placeholder": "No preview"
+  },
+  {
+   "number": "4",
+   "title": "Slide 4",
+   "hasPreview": "false",
+   "image": null,
+   "placeholder": "No preview"
+  }
+ ],
+ "after-1-built": [
+  {
+   "number": "1",
+   "title": "Opening: why now",
+   "hasPreview": "true",
+   "image": "slide_8ea0a04600cf/153efc98a60d7f8a.png",
+   "placeholder": null
+  },
+  {
+   "number": "2",
+   "title": "Market size and growth",
+   "hasPreview": "true",
+   "image": "slide_51f6389579d6/5f9289e5b7ede01c.png",
+   "placeholder": null
+  },
+  {
+   "number": "3",
+   "title": "Wrap-up and next steps",
+   "hasPreview": "true",
+   "image": "slide_d960ba5dbd63/5d1b03da451e2727.png",
+   "placeholder": null
+  }
+ ],
+ "after-2-after-insert": [
+  {
+   "number": "1",
+   "title": "Opening: why now",
+   "hasPreview": "true",
+   "image": "slide_8ea0a04600cf/153efc98a60d7f8a.png",
+   "placeholder": null
+  },
+  {
+   "number": "2",
+   "title": "Market size and growth",
+   "hasPreview": "true",
+   "image": "slide_51f6389579d6/5f9289e5b7ede01c.png",
+   "placeholder": null
+  },
+  {
+   "number": "3",
+   "title": "Slide 3",
+   "hasPreview": "true",
+   "image": "slide_06137799b27f/e171bc29ce2d2b43.png",
+   "placeholder": null
+  },
+  {
+   "number": "4",
+   "title": "Wrap-up and next steps",
+   "hasPreview": "true",
+   "image": "slide_d960ba5dbd63/5d1b03da451e2727.png",
+   "placeholder": null
+  }
+ ],
+ "after-3-after-reload": [
+  {
+   "number": "1",
+   "title": "Opening: why now",
+   "hasPreview": "true",
+   "image": "slide_8ea0a04600cf/153efc98a60d7f8a.png",
+   "placeholder": null
+  },
+  {
+   "number": "2",
+   "title": "Market size and growth",
+   "hasPreview": "true",
+   "image": "slide_51f6389579d6/5f9289e5b7ede01c.png",
+   "placeholder": null
+  },
+  {
+   "number": "3",
+   "title": "Slide 3",
+   "hasPreview": "true",
+   "image": "slide_06137799b27f/e171bc29ce2d2b43.png",
+   "placeholder": null
+  },
+  {
+   "number": "4",
+   "title": "Wrap-up and next steps",
+   "hasPreview": "true",
+   "image": "slide_d960ba5dbd63/5d1b03da451e2727.png",
+   "placeholder": null
+  }
+ ],
+ "after-4-after-reorder": [
+  {
+   "number": "1",
+   "title": "Opening: why now",
+   "hasPreview": "true",
+   "image": "slide_8ea0a04600cf/153efc98a60d7f8a.png",
+   "placeholder": null
+  },
+  {
+   "number": "2",
+   "title": "Market size and growth",
+   "hasPreview": "true",
+   "image": "slide_51f6389579d6/5f9289e5b7ede01c.png",
+   "placeholder": null
+  },
+  {
+   "number": "3",
+   "title": "Wrap-up and next steps",
+   "hasPreview": "true",
+   "image": "slide_d960ba5dbd63/5d1b03da451e2727.png",
+   "placeholder": null
+  },
+  {
+   "number": "4",
+   "title": "Slide 4",
+   "hasPreview": "true",
+   "image": "slide_06137799b27f/e171bc29ce2d2b43.png",
+   "placeholder": null
+  }
+ ],
+ "after-5-endpoint-absent-fallback": [
+  {
+   "number": "1",
+   "title": "Slide 1",
+   "hasPreview": "false",
+   "image": null,
+   "placeholder": "No preview"
+  },
+  {
+   "number": "2",
+   "title": "Slide 2",
+   "hasPreview": "false",
+   "image": null,
+   "placeholder": "No preview"
+  },
+  {
+   "number": "3",
+   "title": "Slide 3",
+   "hasPreview": "false",
+   "image": null,
+   "placeholder": "No preview"
+  },
+  {
+   "number": "4",
+   "title": "Slide 4",
+   "hasPreview": "false",
+   "image": null,
+   "placeholder": "No preview"
+  }
+ ]
+}
