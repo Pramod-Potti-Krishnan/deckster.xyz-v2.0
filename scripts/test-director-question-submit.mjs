@@ -56,7 +56,7 @@ function harness(overrides = {}) {
     user: { id: 'offline-owner' }, uploadedFiles: [], activeTemplate: null,
     isGeneratingFinal: false, awaitingDirectorReply: false,
     isExecutingSendRef: { current: false }, questionSubmissionPendingRef: { current: false },
-    quota: { status: null }, researchEnabled: true, webSearchEnabled: false,
+    quota: { status: null }, STUDIO_BLOCKED_SEND_FEEDBACK_ENABLED: false, STUDIO_QUOTA_FAIL_CLOSED_ENABLED: false, researchEnabled: true, webSearchEnabled: false,
     extendedGenerationEnabled: true, showKnowledgeGraphToggle: true, knowledgeGraphEnabled: true,
     sessionStoreName: 'offline-linked-store', deckIdentity: { main_title: 'Supplied identity' },
     questionSubmissionScopeRef: { current: { active: true, generation: 0, sessionId: 'offline-owned-session', userId: 'offline-owner', routeSessionId: 'offline-owned-session', freshRouteSourceSessionId: null } },
