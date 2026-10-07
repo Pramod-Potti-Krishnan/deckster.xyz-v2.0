@@ -16,6 +16,7 @@ import { authOptions } from '@/lib/auth-options';
 import { prisma } from '@/lib/prisma';
 import { unlockCookieName, verifyUnlockCookie } from '@/lib/publish/passcode';
 import { getPresentation } from '@/lib/layout-service-client';
+import { layoutServiceGuardResponse } from '@/lib/service-url-response';
 import { getSessionVoiceId } from '@/lib/narration/voice-store';
 import { buildManifest } from '@/lib/narration/manifest';
 import { resolveBudget } from '@/lib/narration/budget';
@@ -111,6 +112,10 @@ export async function GET(request: NextRequest) {
     }
 
     const { voiceId } = await getSessionVoiceId(sessionId, ownerId);
+    // J8.0: with DECKSTER_SERVICE_URL_FAIL_CLOSED_ENABLED on, refuse rather than reach the
+    // built-in production Layout Service default. A no-op (plus one warning) when off.
+    const layoutGuard = layoutServiceGuardResponse();
+    if (layoutGuard) return layoutGuard;
     const presentation = await getPresentation(presentationId);
     const slides: Record<string, unknown>[] = (presentation?.slides as never) ?? [];
 

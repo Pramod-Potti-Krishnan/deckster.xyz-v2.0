@@ -1,11 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth-options';
+import { directorApiUrlOrResponse } from '@/lib/service-url-response';
 
 /** Template Builder proxy → Director CRUD for a single template. See ../route.ts. */
-const DIRECTOR_API_URL =
-  process.env.DIRECTOR_API_URL || 'https://directorv33-production.up.railway.app';
-
 async function resolveUserId(): Promise<string | null> {
   const session = await getServerSession(authOptions);
   const uid = (session?.user as { id?: string } | undefined)?.id || session?.user?.email;
@@ -16,6 +14,9 @@ async function resolveUserId(): Promise<string | null> {
 export async function GET(_req: NextRequest, { params }: { params: { id: string } }) {
   const userId = await resolveUserId();
   if (!userId) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  const director = directorApiUrlOrResponse();
+  if (director.error) return director.error;
+  const DIRECTOR_API_URL = director.url;
   try {
     const r = await fetch(
       `${DIRECTOR_API_URL}/api/users/${encodeURIComponent(userId)}/templates/${encodeURIComponent(params.id)}`,
@@ -32,6 +33,9 @@ export async function GET(_req: NextRequest, { params }: { params: { id: string 
 export async function DELETE(_req: NextRequest, { params }: { params: { id: string } }) {
   const userId = await resolveUserId();
   if (!userId) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  const director = directorApiUrlOrResponse();
+  if (director.error) return director.error;
+  const DIRECTOR_API_URL = director.url;
   try {
     const r = await fetch(
       `${DIRECTOR_API_URL}/api/users/${encodeURIComponent(userId)}/templates/${encodeURIComponent(params.id)}`,

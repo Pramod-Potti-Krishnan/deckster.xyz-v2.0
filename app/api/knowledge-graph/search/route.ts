@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { KG_BASE, kgHeaders, requireKgEntitled } from '@/lib/kg-proxy'
+import { kgHeaders, requireKgEntitled } from '@/lib/kg-proxy'
+import { knowledgeGraphUrlOrResponse } from '@/lib/service-url-response'
 
 export async function POST(request: NextRequest) {
   const gate = await requireKgEntitled()
@@ -14,6 +15,10 @@ export async function POST(request: NextRequest) {
   if (!body.query || !body.query.trim()) {
     return NextResponse.json({ error: 'query is required' }, { status: 400 })
   }
+
+  const kg = knowledgeGraphUrlOrResponse()
+  if (kg.error) return kg.error
+  const KG_BASE = kg.url
 
   try {
     const resp = await fetch(

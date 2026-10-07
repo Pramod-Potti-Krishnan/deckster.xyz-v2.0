@@ -7,9 +7,11 @@
  * Replaces direct Gemini API calls via gemini-store-manager.ts.
  */
 
-import { config } from '@/lib/config';
+import { knowledgeUploadUrl } from '@/lib/server-service-url';
 
-const BASE_URL = config.api.knowledgeServiceUrl;
+// Resolved per call (not at module load) so J8.0's fail-closed flag can refuse an unset URL.
+// Same chain as config.api.knowledgeServiceUrl: NEXT_PUBLIC_KNOWLEDGE_SERVICE_URL || KNOWLEDGE_SERVICE_URL || default.
+const baseUrl = () => knowledgeUploadUrl();
 
 export interface KnowledgeSession {
   session_id: string;
@@ -34,7 +36,7 @@ export async function createSession(
   sessionName?: string,
   sessionId?: string
 ): Promise<KnowledgeSession> {
-  const response = await fetch(`${BASE_URL}/api/v1/sessions/create`, {
+  const response = await fetch(`${baseUrl()}/api/v1/sessions/create`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({
@@ -74,7 +76,7 @@ export async function uploadFile(
   formData.append('file', file, fileName);
 
   const response = await fetch(
-    `${BASE_URL}/api/v1/files/upload`,
+    `${baseUrl()}/api/v1/files/upload`,
     {
       method: 'POST',
       body: formData,

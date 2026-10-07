@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
-import { KG_BASE, kgHeaders, requireKgEntitled } from '@/lib/kg-proxy'
+import { kgHeaders, requireKgEntitled } from '@/lib/kg-proxy'
+import { knowledgeGraphUrlOrResponse } from '@/lib/service-url-response'
 
 export const maxDuration = 300
 
@@ -84,6 +85,10 @@ export async function POST(request: Request) {
       total_candidates: allSessionIds.length,
     })
   }
+
+  const kg = knowledgeGraphUrlOrResponse()
+  if (kg.error) return kg.error
+  const KG_BASE = kg.url
 
   try {
     const resp = await fetch(`${KG_BASE}/api/v1/kg/backfill`, {

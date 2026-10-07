@@ -1,23 +1,13 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth-options'
+import { slideComposerDirectorUrlOrResponse } from '@/lib/service-url-response'
 
 export const dynamic = 'force-dynamic'
-
-const DEFAULT_DIRECTOR_URL = 'http://localhost:8000'
 
 type SessionUserWithId = {
   id?: string | null
   email?: string | null
-}
-
-function directorBaseUrl(): string {
-  return (
-    process.env.SLIDE_COMPOSER_DIRECTOR_URL
-    || process.env.DIRECTOR_API_URL
-    || process.env.NEXT_PUBLIC_DIRECTOR_API_URL
-    || DEFAULT_DIRECTOR_URL
-  ).replace(/\/+$/, '')
 }
 
 export async function GET(
@@ -44,9 +34,13 @@ export async function GET(
   })
   if (presentationId) query.set('presentation_id', presentationId)
 
+  const director = slideComposerDirectorUrlOrResponse()
+  if (director.error) return director.error
+  const directorBaseUrl = director.url.replace(/\/+$/, '')
+
   try {
     const response = await fetch(
-      `${directorBaseUrl()}/api/v1/slides/compose-jobs/${encodeURIComponent(jobId)}?${query.toString()}`,
+      `${directorBaseUrl}/api/v1/slides/compose-jobs/${encodeURIComponent(jobId)}?${query.toString()}`,
       { cache: 'no-store' },
     )
     const text = await response.text()

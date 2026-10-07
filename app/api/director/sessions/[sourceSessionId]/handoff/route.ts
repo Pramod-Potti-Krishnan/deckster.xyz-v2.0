@@ -1,14 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth-options'
+import { directorHandoffUrlOrResponse } from '@/lib/service-url-response'
 
 export const maxDuration = 60
-
-const DIRECTOR_API_URL = (
-  process.env.DIRECTOR_API_URL ||
-  process.env.NEXT_PUBLIC_DIRECTOR_API_URL ||
-  'https://directorv33-production.up.railway.app'
-).replace(/\/+$/, '')
 
 type SessionUser = {
   id?: string | null
@@ -55,6 +50,10 @@ export async function POST(
     pending_request: pendingRequest,
     idempotency_key: idempotencyKey,
   }
+
+  const director = directorHandoffUrlOrResponse()
+  if (director.error) return director.error
+  const DIRECTOR_API_URL = director.url.replace(/\/+$/, '')
 
   try {
     const response = await fetch(

@@ -1,23 +1,13 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth-options'
+import { slideComposerDirectorUrlOrResponse } from '@/lib/service-url-response'
 
 export const maxDuration = 300
-
-const DEFAULT_DIRECTOR_URL = 'http://localhost:8000'
 
 type SessionUserWithId = {
   id?: string | null
   email?: string | null
-}
-
-function directorBaseUrl(): string {
-  return (
-    process.env.SLIDE_COMPOSER_DIRECTOR_URL ||
-    process.env.DIRECTOR_API_URL ||
-    process.env.NEXT_PUBLIC_DIRECTOR_API_URL ||
-    DEFAULT_DIRECTOR_URL
-  ).replace(/\/+$/, '')
 }
 
 export async function POST(req: NextRequest) {
@@ -47,8 +37,12 @@ export async function POST(req: NextRequest) {
     user_id: userId,
   }
 
+  const director = slideComposerDirectorUrlOrResponse()
+  if (director.error) return director.error
+  const directorBaseUrl = director.url.replace(/\/+$/, '')
+
   try {
-    const response = await fetch(`${directorBaseUrl()}/api/v1/slides/refine-one`, {
+    const response = await fetch(`${directorBaseUrl}/api/v1/slides/refine-one`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',

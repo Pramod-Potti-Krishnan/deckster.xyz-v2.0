@@ -1,13 +1,18 @@
 import { NextResponse } from 'next/server'
 import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth-options'
-import { KG_BASE, kgHeaders } from '@/lib/kg-proxy'
+import { kgHeaders } from '@/lib/kg-proxy'
+import { knowledgeGraphUrlOrResponse } from '@/lib/service-url-response'
 
 export async function DELETE() {
   const session = await getServerSession(authOptions)
   if (!session?.user?.id) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   }
+
+  const kg = knowledgeGraphUrlOrResponse()
+  if (kg.error) return kg.error
+  const KG_BASE = kg.url
 
   try {
     const resp = await fetch(`${KG_BASE}/api/v1/kg/${session.user.id}`, {

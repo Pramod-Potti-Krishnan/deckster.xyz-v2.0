@@ -1,11 +1,16 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { KG_BASE, kgHeaders, requireKgEntitled } from '@/lib/kg-proxy'
+import { kgHeaders, requireKgEntitled } from '@/lib/kg-proxy'
+import { knowledgeGraphUrlOrResponse } from '@/lib/service-url-response'
 
 export async function GET(request: NextRequest) {
   const gate = await requireKgEntitled()
   if (gate.error) return gate.error
 
   const limit = request.nextUrl.searchParams.get('limit') || '100'
+
+  const kg = knowledgeGraphUrlOrResponse()
+  if (kg.error) return kg.error
+  const KG_BASE = kg.url
 
   try {
     const resp = await fetch(

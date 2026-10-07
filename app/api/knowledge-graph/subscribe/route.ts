@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server'
-import { KG_BASE, kgHeaders, requireKgEntitled } from '@/lib/kg-proxy'
+import { kgHeaders, requireKgEntitled } from '@/lib/kg-proxy'
+import { knowledgeGraphUrlOrResponse } from '@/lib/service-url-response'
 
 export async function POST() {
   // Paid-entitlement gate (review finding 1): only a Pro-and-above account
@@ -7,6 +8,10 @@ export async function POST() {
   const gate = await requireKgEntitled()
   if (gate.error) return gate.error
   const userId = gate.userId
+
+  const kg = knowledgeGraphUrlOrResponse()
+  if (kg.error) return kg.error
+  const KG_BASE = kg.url
 
   try {
     const resp = await fetch(`${KG_BASE}/api/v1/kg/subscribe`, {
