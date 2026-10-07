@@ -51,6 +51,7 @@
     "test:stage-f-thumbnails": "node scripts/test-stage-f-thumbnails.mjs",
     "test:template-save-gate": "node scripts/test-template-save-gate.mjs",
     "test:upload-status-contract": "node scripts/test-upload-status-contract.mjs",
+    "test:upload-owner-id": "node scripts/test-upload-owner-id.mjs",
     "test:research-mode-contract": "node scripts/test-research-mode-contract.mjs",
     "start": "next start",
     "postinstall": "prisma generate",

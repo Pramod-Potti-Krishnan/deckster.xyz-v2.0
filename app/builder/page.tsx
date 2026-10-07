@@ -13,6 +13,7 @@ import { ScrollArea } from "@/components/ui/scroll-area"
 import { ChatHistorySidebar } from "@/components/chat-history-sidebar"
 import { OnboardingModal } from "@/components/onboarding-modal"
 import { useFileUpload } from '@/hooks/use-file-upload'
+import { builderUploadUserId } from '@/lib/upload-owner'
 import type { UploadedFile } from '@/components/file-chip'
 import { features } from '@/lib/config'
 import { useBuildNarration } from '@/hooks/use-build-narration'
@@ -3410,7 +3411,8 @@ function AuthenticatedBuilderContent({ authScopeUserId }: { authScopeUserId: str
     clearAllFiles
   } = useFileUpload({
     sessionId: currentSessionId || '',
-    userId: user?.email || '',
+    // Flag off: the e-mail, as before. NEXT_PUBLIC_UPLOAD_OWNER_ID_ENABLED on: the account id.
+    userId: builderUploadUserId(user),
     onUploadComplete: (files) => {
       console.log('Files uploaded:', files)
       const storeName = files.find(f => f.geminiStoreName)?.geminiStoreName
