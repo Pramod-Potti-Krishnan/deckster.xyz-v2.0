@@ -3,8 +3,8 @@
  * at 60% of the lifetime, exactly one re-mint on a 401, 403 as "not your session").
  *
  * Offline: a fake clock and a fake `fetch`; the real helper is compiled and run
- * unchanged. The helper is not wired into any call site yet, and this test checks
- * that too.
+ * unchanged. The helper has exactly one app importer, lib/upload-identity-token.ts
+ * (R-20261007-frontend-27, behind its own flag), and this test checks that too.
  */
 import assert from 'node:assert/strict'
 import fs from 'node:fs'
@@ -286,7 +286,7 @@ const tokenOf = n => `v1.tok-${n}.x.`
   await assert.rejects(() => w.client.getCredential('s'), err => err instanceof IdentityTokenUnavailableError && err.code === 'bad_response')
 }
 
-// ----------------------------- 6. never logs, and is not wired in yet
+// ----------------------------- 6. never logs, and has exactly one app importer
 assert.equal(logs.length, 0, 'the helper logs nothing')
 {
   const skip = new Set(['node_modules', '.next', '.git', 'scripts', 'docs', 'screenshots', 'public'])
@@ -302,7 +302,7 @@ assert.equal(logs.length, 0, 'the helper logs nothing')
     }
   }
   walk(REPO)
-  assert.deepEqual(users, [], 'not imported by any app file yet (wiring is a follow-up behind its own flag)')
+  assert.deepEqual(users, ['lib/upload-identity-token.ts'], 'imported only by the Researcher upload wrapper (flag NEXT_PUBLIC_UPLOAD_IDENTITY_TOKEN_ENABLED)')
   const callers = []
   const find = dir => {
     for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {

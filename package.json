@@ -53,6 +53,7 @@
     "test:upload-status-contract": "node scripts/test-upload-status-contract.mjs",
     "test:upload-owner-id": "node scripts/test-upload-owner-id.mjs",
     "test:identity-token": "node scripts/test-identity-token.mjs && node scripts/test-identity-token-client.mjs",
+    "test:upload-identity-token": "node scripts/test-upload-identity-token.mjs",
     "test:research-mode-contract": "node scripts/test-research-mode-contract.mjs",
     "start": "next start",
     "postinstall": "prisma generate",

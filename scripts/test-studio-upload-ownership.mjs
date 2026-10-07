@@ -16,6 +16,19 @@ const priorLifetime=execFileSync('git',['show',`7c1d48f:${file}`],{cwd:root,enco
 // must match the complete reviewed baseline, with no broad suppression.
 let restored=source
 const drop=block=>{assert.equal(restored.split(block).length,2,block);restored=restored.replace(block,'')}
+// NEXT_PUBLIC_UPLOAD_IDENTITY_TOKEN_ENABLED (R-20261007-frontend-27), default off: every Researcher call goes through
+// researcherFetch (a plain fetch while the flag is off); the poll learns its session id; a 403 stops the poll and is titled.
+const swap=(from,to)=>{assert.equal(restored.split(from).length,2,from);restored=restored.replace(from,to)}
+drop("import { isNotYourSessionError, researcherFetch } from '@/lib/upload-identity-token'\n")
+swap('await researcherFetch(owner.sessionId, `${getResearcherBaseUrl()}/api/v1/sessions/create`','await fetch(`${getResearcherBaseUrl()}/api/v1/sessions/create`')
+swap('await researcherFetch(currentSessionId, `${getResearcherBaseUrl()}/api/v1/sessions/create`','await fetch(`${getResearcherBaseUrl()}/api/v1/sessions/create`')
+swap('await researcherFetch(researcherSessionId, `${getResearcherBaseUrl()}/api/v1/files/storage-upload-url`','await fetch(`${getResearcherBaseUrl()}/api/v1/files/storage-upload-url`')
+swap('await researcherFetch(researcherSessionId, `${getResearcherBaseUrl()}/api/v1/files/process-uploaded`','await fetch(`${getResearcherBaseUrl()}/api/v1/files/process-uploaded`')
+drop('    tokenSessionId?: string,\n')
+swap('await researcherFetch(\n          tokenSessionId,\n          `${researcherBaseUrl}/api/v1/files/ingest-status/${jobId}`,\n          () => ({ signal: AbortSignal.timeout(POLL_REQUEST_TIMEOUT_MS) }),\n        )','await fetch(\n          `${researcherBaseUrl}/api/v1/files/ingest-status/${jobId}`,\n          { signal: AbortSignal.timeout(POLL_REQUEST_TIMEOUT_MS) },\n        )')
+swap('?.terminal || isNotYourSessionError(error)) throw error','?.terminal) throw error')
+swap('pollIngestStatus(processResult.job_id, fileId, owner, researcherSessionId)','pollIngestStatus(processResult.job_id, fileId, owner)')
+swap("title: isNotYourSessionError(error) ? 'Not your session' : 'Upload failed',","title: 'Upload failed',")
 restored=restored.replace("import { useState, useCallback, useEffect, useRef } from 'react'","import { useState, useCallback, useRef } from 'react'")
 // NEXT_PUBLIC_UPLOAD_OWNER_ID_ENABLED (R-20261007-frontend-23), default off: the owner-id import, the classic-path
 // owner id and the refusal guard. The owner-scoped ensure branch carries the same helper and is removed whole below.
