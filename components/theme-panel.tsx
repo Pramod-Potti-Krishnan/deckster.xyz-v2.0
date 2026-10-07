@@ -15,10 +15,12 @@ import {
   X,
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
+import { getThemeBuilderUrl } from '@/lib/config'
 import { cn } from '@/lib/utils'
 import {
   CANONICAL_THEME_PRESET_IDS,
   FALLBACK_THEME_PRESETS,
+  THEME_PICKER_CANON_ENABLED,
   isCanonicalThemePresetId,
   isValidThemeHex,
   normalizeThemePanelSelection,
@@ -28,6 +30,7 @@ import {
   type BuildThemeSelection,
   type CanonicalThemePresetId,
 } from '@/lib/theme-builder'
+import { loadPresetSwatchPalettes } from '@/lib/theme-preset-swatches'
 import type { ThemeSyncState, ThemeSyncStatus } from '@/lib/theme-sync'
 
 type ThemeMode = 'preset' | 'custom'
@@ -38,9 +41,11 @@ type PreviewPalette = {
   primary: string
   accent: string
   text: string
+  // T-06 (flag on): the built look from Theme Builder's contract (content canvas, hero ground, lead colour).
+  swatch?: { canvas: string; hero: string; lead: string }
 }
 
-const PREVIEW_PALETTES: Record<CanonicalThemePresetId, PreviewPalette> = {
+const PREVIEW_PALETTES: Partial<Record<CanonicalThemePresetId, PreviewPalette>> = {
   corporate_light: {
     background: '#ffffff',
     surface: '#eff6ff',
@@ -85,11 +90,43 @@ const PREVIEW_PALETTES: Record<CanonicalThemePresetId, PreviewPalette> = {
   },
 }
 
+// T-07 flag on, until Theme Builder answers (or if it cannot): the six keep
+// today's guide palette; a canon-only preset gets this neutral swatch, never
+// another preset's colours.
+const PENDING_PREVIEW_PALETTE: PreviewPalette = {
+  background: '#ffffff',
+  surface: '#f3f4f6',
+  primary: '#d1d5db',
+  accent: '#e5e7eb',
+  text: '#374151',
+}
+
 const THEME_PREVIEWS = CANONICAL_THEME_PRESET_IDS.map(id => ({
   id,
   ...FALLBACK_THEME_PRESETS.find(preset => preset.preset_id === id)!,
-  colors: PREVIEW_PALETTES[id],
 }))
+
+/** T-06 flag on: swatches from Theme Builder's own preset contracts (GET /presets/{id}). */
+function useCanonPresetPalettes(): Partial<Record<CanonicalThemePresetId, PreviewPalette>> {
+  const [palettes, setPalettes] = useState<Partial<Record<CanonicalThemePresetId, PreviewPalette>>>({})
+  useEffect(() => {
+    if (!THEME_PICKER_CANON_ENABLED) return
+    let baseUrl: string
+    try {
+      baseUrl = getThemeBuilderUrl()
+    } catch {
+      return
+    }
+    let cancelled = false
+    loadPresetSwatchPalettes(baseUrl, CANONICAL_THEME_PRESET_IDS).then(loaded => {
+      if (!cancelled) setPalettes(loaded)
+    })
+    return () => {
+      cancelled = true
+    }
+  }, [])
+  return palettes
+}
 
 const CUSTOM_COLOR_FIELDS = [
   { key: 'primary_hex', label: 'Primary / brand' },
@@ -226,6 +263,10 @@ export function ThemePanel({
   selectionLocked = false,
   onBuildThemeChange,
 }: ThemePanelProps) {
+  const canonPalettes = useCanonPresetPalettes()
+  const previewPaletteFor = (id: CanonicalThemePresetId): PreviewPalette => (
+    canonPalettes[id] ?? PREVIEW_PALETTES[id] ?? PENDING_PREVIEW_PALETTE
+  )
   const [draft, setDraft] = useState<BuildThemeSelection>(() => (
     normalizeThemePanelSelection(buildThemeSelection)
   ))
@@ -246,7 +287,7 @@ export function ThemePanel({
 
   const mode: ThemeMode = draft.mode === 'custom' ? 'custom' : 'preset'
   const selectedPresetId = resolvedPresetId(draft)
-  const selectedPreview = PREVIEW_PALETTES[selectedPresetId]
+  const selectedPreview = previewPaletteFor(selectedPresetId)
   const hasChanges = themeSelectionFingerprint(draft) !== themeSelectionFingerprint(buildThemeSelection)
   const syncBelongsToPresentation = !themeSync.presentationId
     || !presentationId
@@ -449,6 +490,8 @@ export function ThemePanel({
               </button>
               {THEME_PREVIEWS.map(theme => {
                 const selected = draft.mode === 'preset' && selectedPresetId === theme.id
+                const colors = previewPaletteFor(theme.id)
+                const swatch = colors.swatch ?? { canvas: colors.background, hero: colors.primary, lead: colors.accent }
                 return (
                   <button
                     type="button"
@@ -462,9 +505,9 @@ export function ThemePanel({
                       selected ? 'border-blue-500 bg-blue-50' : 'border-gray-200 hover:border-gray-300',
                     )}
                   >
-                    <div className="mb-2 flex h-9 gap-1 rounded p-1" style={{ background: theme.colors.background }}>
-                      <span className="flex-1 rounded" style={{ background: theme.colors.primary }} />
-                      <span className="w-7 rounded" style={{ background: theme.colors.accent }} />
+                    <div className="mb-2 flex h-9 gap-1 rounded p-1" style={{ background: swatch.canvas }}>
+                      <span className="flex-1 rounded" style={{ background: swatch.hero }} />
+                      <span className="w-7 rounded" style={{ background: swatch.lead }} />
                     </div>
                     <div className="pr-4 text-[11px] font-medium text-gray-900">{theme.name}</div>
                     <div className="mt-0.5 line-clamp-2 text-[9px] leading-3 text-gray-500">{theme.description}</div>
