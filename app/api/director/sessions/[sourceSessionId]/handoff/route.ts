@@ -2,6 +2,7 @@ import { requireServiceUrl, ServiceUrlConfigError } from '@/lib/service-url'
 import { NextRequest, NextResponse } from 'next/server'
 import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth-options'
+import { restEntitlementHeaders } from '@/lib/director-rest-entitlement'
 
 export const maxDuration = 60
 
@@ -63,7 +64,7 @@ export async function POST(
       `${directorBaseUrl()}/api/sessions/${encodeURIComponent(sourceSessionId)}/handoff`,
       {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 'Content-Type': 'application/json', ...restEntitlementHeaders(userId, 'POST') },
         body: JSON.stringify(payload),
         cache: 'no-store',
       },

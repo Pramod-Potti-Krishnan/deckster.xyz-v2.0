@@ -2,6 +2,7 @@ import { requireServiceUrl, ServiceUrlConfigError } from '@/lib/service-url'
 import { NextRequest, NextResponse } from 'next/server'
 import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth-options'
+import { restEntitlementHeaders } from '@/lib/director-rest-entitlement'
 
 function directorBaseUrl(): string {
   return requireServiceUrl('Director', [{ name: 'DIRECTOR_API_URL', value: process.env.DIRECTOR_API_URL }])
@@ -19,7 +20,7 @@ export async function GET() {
   try {
     const r = await fetch(
       `${directorBaseUrl()}/api/users/${encodeURIComponent(userId)}/themes`,
-      { cache: 'no-store' },
+      { cache: 'no-store', headers: restEntitlementHeaders(userId, 'GET') },
     )
     const body = await r.json()
     return NextResponse.json(body, { status: r.status })
@@ -46,7 +47,7 @@ export async function POST(req: NextRequest) {
       `${directorBaseUrl()}/api/users/${encodeURIComponent(userId)}/themes`,
       {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 'Content-Type': 'application/json', ...restEntitlementHeaders(userId, 'POST') },
         body: JSON.stringify(payload),
       },
     )
