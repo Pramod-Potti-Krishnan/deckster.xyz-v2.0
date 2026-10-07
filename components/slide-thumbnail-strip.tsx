@@ -83,6 +83,8 @@ export interface SlideThumbnail {
   title?: string
   content?: string
   thumbnailUrl?: string
+  /** F8/S-03 (rail identity flag only): `pending` = a preview is expected, shown as a spinner instead of "No preview". */
+  thumbnailStatus?: 'fresh' | 'stale' | 'pending' | 'none'
 }
 
 export interface SlideComposeThumbnailJob {
@@ -620,7 +622,11 @@ export function SlideThumbnailStrip({
               />
             ) : (
               <>
-                {STUDIO_THUMBNAILS && <span className="studio-thumbnail-placeholder-label">No preview</span>}
+                {STUDIO_THUMBNAILS && slide.thumbnailStatus === 'pending' ? (
+                  <span className="studio-thumbnail-placeholder-label" data-studio-thumbnail-pending="true" role="status" aria-label="Preview loading">
+                    <Loader2 className="inline h-2.5 w-2.5 animate-spin" aria-hidden /> Preview loading
+                  </span>
+                ) : STUDIO_THUMBNAILS && <span className="studio-thumbnail-placeholder-label">No preview</span>}
                 <div className={cn(
                   "h-1 w-3/4 rounded-sm",
                   isActive ? "bg-blue-400 dark:bg-blue-500" : "bg-slate-300 dark:bg-slate-600"

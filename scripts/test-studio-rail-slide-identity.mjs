@@ -1,7 +1,7 @@
 // F8 / S-03 (frontend half): Studio slide rail keyed by slide_id, read from Layout's slide inventory.
 // Run: node scripts/test-studio-rail-slide-identity.mjs   (plain node: transpile + vm, no network)
-// Fixtures: scripts/fixtures/f8-slide-inventory/*.json = the contract's F8-fixtures with the
-// `<project>` placeholder host replaced by `proj` (a valid host). Every fetch is mocked.
+// Fixtures: scripts/fixtures/f8-slide-inventory/*.json = the contract v1.1 F8-fixtures (real loopback replay output)
+// with the `<project>` placeholder host replaced by `proj` (a valid host). Every fetch is mocked.
 import assert from 'node:assert/strict'
 import { readFileSync } from 'node:fs'
 import vm from 'node:vm'
@@ -21,7 +21,9 @@ const libWith = env => compile(read('lib/slide-rail-identity.ts'), () => { throw
 const lib = libWith({})
 const plain = value => JSON.parse(JSON.stringify(value))
 // Values built inside the vm sandbox have another realm's prototypes: compare their JSON form.
-const same = (actual, expected, message) => assert.deepStrictEqual(plain(actual), plain(expected), message)
+const same = (actual, expected, message) => message === undefined
+  ? assert.deepStrictEqual(plain(actual), plain(expected))
+  : assert.deepStrictEqual(plain(actual), plain(expected), message)
 let checks = 0
 function check(name, action) {
   try {
@@ -43,8 +45,15 @@ const ids = inventory => inventory.slides.map(slide => slide.slide_id)
 const inOrder = (inventory, order) => ({ ...plain(inventory), slides: order.map((id, index) => ({
   ...plain(inventory).slides.find(slide => slide.slide_id === id), slide_index: index })) })
 // Real replay: the Add ack appends N at the end; the reorder ack then moves it to position 3 (the post-insert fixtures).
-const APPENDED = ['slide_8ea0a04600cf', 'slide_51f6389579d6', 'slide_d960ba5dbd63', 'slide_06137799b27f'] // A B C N
-const MOVED = ['slide_8ea0a04600cf', 'slide_51f6389579d6', 'slide_06137799b27f', 'slide_d960ba5dbd63']     // A B N C
+const A = 'slide_8ea0a04600cf', B = 'slide_51f6389579d6', N = 'slide_f9561e229c9a', C = 'slide_d960ba5dbd63'
+const APPENDED = [A, B, C, N]
+const MOVED = [A, B, N, C]
+// What a v1 backend answers: no `title`, no `thumbnail_status`. `untitled` keeps the status and blanks the title.
+const untitled = inventory => ({ ...plain(inventory), slides: plain(inventory).slides.map(slide => ({ ...slide, title: null })) })
+const v1Of = inventory => ({ ...plain(inventory), slides: plain(inventory).slides.map(({ title, thumbnail_status, ...rest }) => rest) })
+const afterEdit = fixture('inventory-after-edit')
+const afterManualAdd = fixture('inventory-after-manual-add')
+const appendBeforeRegistration = fixture('inventory-append-before-registration')
 
 // ---------------------------------------------------------------- flag
 check('flag defaults off and only the exact string true turns it on', () => {
@@ -62,7 +71,9 @@ check('contract fixtures parse: identity, order, count and previews', () => {
   same(inventory.slides.map(row => row.slideId), ids(afterInsert))
   same(inventory.slides.map(row => row.slideIndex), [0, 1, 2, 3])
   assert.ok(inventory.slides.every(row => /^https:\/\/proj\.supabase\.co\/.+\.png$/.test(row.thumbnailUrl)))
-  assert.ok(inventory.slides.every(row => row.thumbnailStale === false && row.title === null))
+  assert.ok(inventory.slides.every(row => row.thumbnailStale === false && row.thumbnailStatus === 'fresh'))
+  same(inventory.slides.map(row => row.title), afterInsert.slides.map(slide => slide.title))
+  assert.ok(inventory.slides.every(row => typeof row.title === 'string' && row.title.length > 0))
   assert.equal(inventory.slides[0].layout, 'H2')
 })
 check('acks carry the full post-mutation order, and the inventory agrees with the last one', () => {
@@ -99,6 +110,7 @@ check('a stale or unsafe preview is never shown; the read still answers', () => 
   const inventory = lib.parseSlideInventory(copy, PID)
   same(inventory.slides.map(row => row.thumbnailUrl), [null, null, null, null])
   same(inventory.slides.map(row => row.thumbnailStale), [true, true, false, false])
+  same(inventory.slides.map(row => row.thumbnailStatus), ['stale', 'stale', 'none', 'none'], 'an unusable URL on a "fresh" row shows nothing, and says so')
   const rows = lib.buildRailRows(inventory, new Map())
   assert.ok(rows.every(row => !('thumbnailUrl' in row)))
 })
@@ -111,11 +123,14 @@ check('rows follow inventory order, keyed by slide_id, with the previews of thos
   same(rows.map(row => row.slideIndex), [0, 1, 2, 3])
   same(rows.map(row => row.actualSlideIndex), [0, 1, 2, 3])
   same(rows.map(row => row.thumbnailUrl), afterInsert.slides.map(slide => slide.thumbnail_url))
-  same(rows.map(row => row.title), ['Slide 1', 'Slide 2', 'Slide 3', 'Slide 4'])
+  same(rows.map(row => row.title), afterInsert.slides.map(slide => slide.title), 'titles come from the inventory')
+  same(rows.map(row => row.thumbnailStatus), ['fresh', 'fresh', 'fresh', 'fresh'])
+  const bare = lib.buildRailRows(lib.parseSlideInventory(untitled(afterInsert), PID), new Map())
+  same(bare.map(row => row.title), ['Slide 1', 'Slide 2', 'Slide 3', 'Slide 4'], 'null titles and no memory: "Slide N"')
 })
 check('reorder keeps identity: every slide_id keeps its preview and title, only the position moves', () => {
-  const appended = lib.parseSlideInventory(inOrder(afterInsert, APPENDED), PID)   // after the Add ack
-  const moved = lib.parseSlideInventory(inOrder(afterInsert, MOVED), PID)         // after the reorder ack
+  const appended = lib.parseSlideInventory(untitled(inOrder(afterInsert, APPENDED)), PID)   // after the Add ack
+  const moved = lib.parseSlideInventory(untitled(inOrder(afterInsert, MOVED)), PID)         // after the reorder ack
   const titles = new Map(appended.slides.map(row => [row.slideId, `Title ${row.slideId.slice(-4)}`]))
   const byId = rows => Object.fromEntries(rows.map(row => [row.slideId, [row.title, row.thumbnailUrl]]))
   const rowsBefore = lib.buildRailRows(appended, titles), rowsAfter = lib.buildRailRows(moved, titles)
@@ -123,47 +138,93 @@ check('reorder keeps identity: every slide_id keeps its preview and title, only 
   same(rowsBefore.map(row => row.slideId), APPENDED)
   same(rowsAfter.map(row => row.slideId), MOVED)
   same(rowsAfter.map(row => row.slideNumber), [1, 2, 3, 4])
-  assert.equal(rowsAfter[2].slideId, 'slide_06137799b27f')
+  assert.equal(rowsAfter[2].slideId, N)
   assert.equal(rowsAfter[2].thumbnailUrl, afterInsert.slides[2].thumbnail_url)
+  // With inventory titles the same holds without any memory.
+  const titled = rows => Object.fromEntries(rows.map(row => [row.slideId, [row.title, row.thumbnailUrl]]))
+  same(titled(lib.buildRailRows(lib.parseSlideInventory(inOrder(afterInsert, MOVED), PID), new Map())),
+    titled(lib.buildRailRows(lib.parseSlideInventory(inOrder(afterInsert, APPENDED), PID), new Map())))
 })
 check('delete then append: each slide shows its own capture, not an index-carried one', () => {
   const rows = lib.buildRailRows(lib.parseSlideInventory(afterDeleteAppend, PID), new Map())
   const before = lib.buildRailRows(lib.parseSlideInventory(afterInsert, PID), new Map())
   const urlOf = (list, id) => list.find(row => row.slideId === id)?.thumbnailUrl
-  assert.equal(urlOf(rows, 'slide_51f6389579d6'), urlOf(before, 'slide_51f6389579d6'))
-  assert.equal(urlOf(rows, 'slide_06137799b27f'), urlOf(before, 'slide_06137799b27f'))
-  assert.equal(urlOf(rows, 'slide_d960ba5dbd63'), urlOf(before, 'slide_d960ba5dbd63'))
-  assert.notEqual(urlOf(rows, 'slide_5e67c1eed22c'), urlOf(rows, 'slide_d960ba5dbd63'))
+  assert.equal(urlOf(rows, B), urlOf(before, B))
+  assert.equal(urlOf(rows, N), urlOf(before, N))
+  assert.equal(urlOf(rows, C), urlOf(before, C))
+  assert.notEqual(urlOf(rows, 'slide_04abaf0e7ad8'), urlOf(rows, C))
   assert.equal(new Set(rows.map(row => row.thumbnailUrl)).size, 4)
 })
-check('a backend title wins when the inventory carries one (optional additive field)', () => {
-  const copy = plain(afterInsert); copy.slides[1].title = 'Backend title'
-  const rows = lib.buildRailRows(lib.parseSlideInventory(copy, PID), new Map([['slide_51f6389579d6', 'Remembered']]))
+check('title: the inventory wins; null falls back to the remembered (Director) title, then "Slide N"', () => {
+  const copy = plain(afterInsert); copy.slides[1].title = 'Backend title'; copy.slides[2].title = null; copy.slides[3].title = null
+  const memory = new Map([[B, 'Remembered B'], [N, 'Remembered N']])
+  const rows = lib.buildRailRows(lib.parseSlideInventory(copy, PID), memory)
+  same(rows.map(row => row.title), [afterInsert.slides[0].title, 'Backend title', 'Remembered N', 'Slide 4'])
+  // The remembered title never overrides a present inventory title.
   assert.equal(rows[1].title, 'Backend title')
+})
+check('title: sanitised on read (plain text, at most 200 characters, never a "Slide N" label)', () => {
+  const copy = plain(afterInsert)
+  copy.slides[0].title = '  Spaced  '; copy.slides[1].title = 'x'.repeat(201); copy.slides[2].title = 'Slide 7'; copy.slides[3].title = 42
+  same(lib.parseSlideInventory(copy, PID).slides.map(row => row.title), ['Spaced', null, null, null])
+  delete copy.slides[0].title
+  assert.equal(lib.parseSlideInventory(copy, PID).slides[0].title, null, 'an absent key reads as null')
+  copy.slides[0].title = 'y'.repeat(200)
+  assert.equal(lib.parseSlideInventory(copy, PID).slides[0].title.length, 200)
+})
+check('thumbnail_status: each of fresh, stale, pending, none maps to the row and drives the preview', () => {
+  const parse = inventory => lib.parseSlideInventory(inventory, PID)
+  const manual = parse(afterManualAdd), edited = parse(afterEdit), pending = parse(appendBeforeRegistration)
+  same(manual.slides.map(row => row.thumbnailStatus), ['fresh', 'fresh', 'fresh', 'fresh', 'stale', 'none'])
+  same(edited.slides.map(row => row.thumbnailStatus), ['fresh', 'fresh', 'fresh', 'fresh', 'stale'])
+  same(pending.slides.map(row => row.thumbnailStatus), ['fresh', 'fresh', 'fresh', 'fresh', 'pending'])
+  // fresh = the URL; stale, pending and none = no URL (the rail never shows a stale or absent image).
+  assert.ok(manual.slides.slice(0, 4).every(row => row.thumbnailUrl))
+  assert.ok([manual.slides[4], manual.slides[5], pending.slides[4]].every(row => row.thumbnailUrl === null))
+  assert.equal(manual.slides[4].thumbnailStale, true)
+  assert.equal(pending.slides[4].thumbnailStale, false); assert.equal(manual.slides[5].thumbnailStale, false)
+  const rows = lib.buildRailRows(manual, new Map())
+  same(rows.map(row => row.thumbnailStatus), ['fresh', 'fresh', 'fresh', 'fresh', 'stale', 'none'])
+  same(rows.map(row => 'thumbnailUrl' in row), [true, true, true, true, false, false])
+  same(lib.buildRailRows(pending, new Map()).map(row => row.thumbnailStatus), ['fresh', 'fresh', 'fresh', 'fresh', 'pending'])
+})
+check('title null on a stock manual slide shows "Slide N"; an edited one shows its text', () => {
+  const rows = lib.buildRailRows(lib.parseSlideInventory(afterManualAdd, PID), new Map())
+  assert.equal(afterManualAdd.slides[5].title, null)
+  assert.equal(rows[5].title, 'Slide 6')
+  assert.equal(rows[4].title, 'Added and then edited')
+})
+check('a v1 backend (no title, no thumbnail_status) still works: status derived from URL and stale flag, never pending', () => {
+  const v1 = lib.parseSlideInventory(v1Of(afterManualAdd), PID)
+  same(v1.slides.map(row => row.thumbnailStatus), ['fresh', 'fresh', 'fresh', 'fresh', 'stale', 'none'])
+  assert.ok(v1.slides.every(row => row.title === null))
+  const odd = plain(afterInsert); odd.slides[0].thumbnail_status = 'sparkly'; odd.slides[0].thumbnail_url = null
+  assert.equal(lib.parseSlideInventory(odd, PID).slides[0].thumbnailStatus, 'none', 'an unknown status is "none"')
 })
 
 // ---------------------------------------------------------------- titles by identity
 check('titles are learned only from an aligned structure and follow slide_id through insert, reorder, delete', () => {
-  const initial = lib.parseSlideInventory({ ...plain(afterInsert), slide_count: 3, slides: plain(afterInsert).slides
-    .filter(slide => slide.slide_id !== 'slide_06137799b27f').map((slide, index) => ({ ...slide, slide_index: index })) }, PID)
+  const bare = untitled(afterInsert) // the memory path is for rows whose inventory title is null
+  const initial = lib.parseSlideInventory({ ...plain(bare), slide_count: 3, slides: plain(bare).slides
+    .filter(slide => slide.slide_id !== N).map((slide, index) => ({ ...slide, slide_index: index })) }, PID)
   const structure = [{ title: 'Opening' }, { title: 'Market' }, { slide_type: 'closing' }]
   let memory = lib.learnRailTitles(new Map(), initial, structure)
-  same([...memory], [['slide_8ea0a04600cf', 'Opening'], ['slide_51f6389579d6', 'Market'], ['slide_d960ba5dbd63', 'closing']])
+  same([...memory], [[A, 'Opening'], [B, 'Market'], [C, 'closing']])
   // Insert in the middle: the structure is no longer trusted (the caller passes null after native CRUD).
-  const inserted = lib.parseSlideInventory(afterInsert, PID)
+  const inserted = lib.parseSlideInventory(bare, PID)
   memory = lib.learnRailTitles(memory, inserted, null)
   const rows = lib.buildRailRows(inserted, memory)
   same(rows.map(row => row.title), ['Opening', 'Market', 'Slide 3', 'closing'])
   // A count-mismatched structure never teaches (it would be an index carry-over).
   assert.equal(lib.learnRailTitles(memory, inserted, structure), memory)
   // Reorder (N moves to the end): titles follow the ids.
-  const appended = lib.parseSlideInventory(inOrder(afterInsert, APPENDED), PID)
+  const appended = lib.parseSlideInventory(untitled(inOrder(afterInsert, APPENDED)), PID)
   same(lib.buildRailRows(appended, memory).map(row => row.title), ['Opening', 'Market', 'closing', 'Slide 4'])
   // Delete drops the deleted slide's entry.
-  const afterDelete = lib.parseSlideInventory(afterDeleteAppend, PID)
+  const afterDelete = lib.parseSlideInventory(untitled(afterDeleteAppend), PID)
   const pruned = lib.learnRailTitles(memory, afterDelete, null)
-  assert.equal(pruned.has('slide_8ea0a04600cf'), false)
-  assert.equal(pruned.get('slide_51f6389579d6'), 'Market')
+  assert.equal(pruned.has(A), false)
+  assert.equal(pruned.get(B), 'Market')
 })
 check('placeholder titles are never remembered', () => {
   const inventory = lib.parseSlideInventory(afterInsert, PID)
@@ -291,6 +352,61 @@ await check('controller: refresh(true) (a structural ack) reads at once; the deb
   h.controller.refresh(); h.controller.refresh(true)           // a pending debounced read is replaced by the immediate one
   await h.c.advance(0); assert.equal(h.calls.length, 2)
   await h.c.advance(500); assert.equal(h.calls.length, 2, 'the cancelled debounce timer never fires a third read')
+})
+const pendingInventory = () => response(200, appendBeforeRegistration)
+const registeredInventory = (() => {
+  // The same deck once Stage F has registered the last slide (derived from the pending fixture: that row gets a fresh URL).
+  const copy = plain(appendBeforeRegistration)
+  copy.slides[4].thumbnail_url = afterInsert.slides[0].thumbnail_url; copy.slides[4].thumbnail_status = 'fresh'
+  return copy
+})()
+await check('controller: a pending preview is re-read on a short timer and the poll stops once it is fresh', async () => {
+  const h = controllerHarness({ responses: [pendingInventory(), pendingInventory(), response(200, registeredInventory)] })
+  h.controller.refresh(true); await h.c.advance(0)
+  assert.equal(h.calls.length, 1); assert.equal(h.controller.getState().inventory.slides[4].thumbnailStatus, 'pending')
+  await h.c.advance(2999); assert.equal(h.calls.length, 1)
+  await h.c.advance(2); assert.equal(h.calls.length, 2, 're-read after 3 s')
+  await h.c.advance(3000); assert.equal(h.calls.length, 3)
+  assert.equal(h.controller.getState().inventory.slides[4].thumbnailStatus, 'fresh')
+  assert.equal(h.controller.getState().inventory.slides[4].thumbnailUrl, afterInsert.slides[0].thumbnail_url)
+  await h.c.advance(60_000); assert.equal(h.calls.length, 3, 'no more reads once nothing is pending')
+  assert.equal(h.c.pending(), 0)
+})
+await check('controller: the backend turning pending into none stops the poll; "none" and "stale" never poll', async () => {
+  const none = plain(appendBeforeRegistration); none.slides[4].thumbnail_status = 'none'
+  const h = controllerHarness({ responses: [pendingInventory(), response(200, none)] })
+  h.controller.refresh(true); await h.c.advance(0); await h.c.advance(3100)
+  assert.equal(h.calls.length, 2); assert.equal(h.controller.getState().inventory.slides[4].thumbnailStatus, 'none')
+  await h.c.advance(60_000); assert.equal(h.calls.length, 2)
+  for (const body of [afterManualAdd, afterEdit]) {
+    const quiet = controllerHarness({ responses: [response(200, body)] })
+    quiet.controller.refresh(true); await quiet.c.advance(0); await quiet.c.advance(60_000)
+    assert.equal(quiet.calls.length, 1)
+  }
+})
+await check('controller: an endless pending is bounded (20 re-reads per trigger) and a new trigger starts a fresh budget', async () => {
+  const h = controllerHarness({ responses: [pendingInventory()] })
+  h.controller.refresh(true); await h.c.advance(0)
+  await h.c.advance(3000 * 40)
+  assert.equal(h.calls.length, 1 + 20)
+  assert.equal(h.c.pending(), 0)
+  h.controller.refresh(true); await h.c.advance(0); await h.c.advance(3000 * 40)
+  assert.equal(h.calls.length, 2 * (1 + 20))
+})
+await check('controller: an unchanged poll publishes nothing (same inventory object, no re-render)', async () => {
+  const h = controllerHarness({ responses: [pendingInventory()] })
+  h.controller.refresh(true); await h.c.advance(0)
+  const first = h.controller.getState().inventory, published = h.states.length
+  await h.c.advance(3100); assert.equal(h.calls.length, 2)
+  assert.equal(h.controller.getState().inventory, first); assert.equal(h.states.length, published)
+})
+await check('controller: refresh() cancels the poll timer; dispose clears it', async () => {
+  const h = controllerHarness({ responses: [pendingInventory()] })
+  h.controller.refresh(true); await h.c.advance(0)
+  assert.equal(h.c.pending(), 1)
+  h.controller.refresh(); assert.equal(h.c.pending(), 1, 'the debounce timer replaced the poll timer')
+  h.controller.dispose(); assert.equal(h.c.pending(), 0)
+  await h.c.advance(60_000); assert.equal(h.calls.length, 1)
 })
 await check('controller: 404 is remembered for the TTL, then asked again', async () => {
   const h = controllerHarness({ responses: [response(404, { detail: 'Not Found' })] })
@@ -423,13 +539,13 @@ function inventoryServer(initial) {
 }
 const before3 = (() => {
   const copy = plain(afterInsert)
-  copy.slides = copy.slides.filter(slide => slide.slide_id !== 'slide_06137799b27f').map((slide, index) => ({ ...slide, slide_index: index }))
+  copy.slides = copy.slides.filter(slide => slide.slide_id !== N).map((slide, index) => ({ ...slide, slide_index: index }))
   copy.slide_count = 3
   return copy
 })()
 
-await check('hook, flag on: rows null until the inventory answers; titles and previews stay after an insert, after a reorder and after a remount', async () => {
-  const storage = new Map(), c = clock(), server = inventoryServer(before3)
+await check('hook, flag on, v1 inventory (no titles): rows null until the inventory answers; remembered titles and previews stay after an insert, a reorder and a remount', async () => {
+  const storage = new Map(), c = clock(), server = inventoryServer(untitled(before3))
   const h = hookHarness({ storage, fetchImpl: server.fetch, clockRef: c })
   const structure = [{ title: 'Opening' }, { title: 'Market' }, { title: 'Wrap-up' }]
   assert.equal((await h.render(baseProps({ structureSlides: structure }))).rows?.length, 3)
@@ -437,21 +553,21 @@ await check('hook, flag on: rows null until the inventory answers; titles and pr
   same(h.api.rows.map(r => r.slideId), ids(before3))
   const previewsBefore = Object.fromEntries(h.api.rows.map(r => [r.slideId, r.thumbnailUrl]))
   // Insert: count signal changes, native CRUD means the structure is no longer trusted, the inventory has 4 rows.
-  server.body = afterInsert
+  server.body = untitled(afterInsert)
   await h.render(baseProps({ structureSlides: null, refreshSignals: [4, '{}'] }))
   same(h.api.rows.map(r => r.slideId), ids(afterInsert))
   same(h.api.rows.map(r => r.title), ['Opening', 'Market', 'Slide 3', 'Wrap-up'])
   for (const row of h.api.rows) if (previewsBefore[row.slideId]) assert.equal(row.thumbnailUrl, previewsBefore[row.slideId])
   assert.ok(h.api.rows.every(row => row.thumbnailUrl), 'previews present on every slide after the insert')
   // Reorder ack (N moves to the end): refresh() with no count change.
-  server.body = inOrder(afterInsert, APPENDED)
+  server.body = untitled(inOrder(afterInsert, APPENDED))
   h.api.refresh(); await h.render(baseProps({ structureSlides: null, refreshSignals: [4, '{}'] }))
   same(h.api.rows.map(r => r.slideId), APPENDED)
   same(h.api.rows.map(r => r.title), ['Opening', 'Market', 'Wrap-up', 'Slide 4'])
   assert.ok(h.api.rows.every(row => row.thumbnailUrl))
   h.unmount()
   // Reload (remount, same tab): the structure is the stale 3-row Director one, which must not teach.
-  server.body = afterReload
+  server.body = untitled(afterReload)
   const reload = hookHarness({ storage, fetchImpl: server.fetch, clockRef: c })
   await reload.render(baseProps({ structureSlides: null, refreshSignals: [4, '{}'] }))
   same(reload.api.rows.map(r => r.slideId), ids(afterReload))
@@ -462,6 +578,57 @@ await check('hook, flag on: rows null until the inventory answers; titles and pr
   await other.render(baseProps({ ownerUserId: 'owner-b' }))
   same(other.api.rows.map(r => r.title), ['Slide 1', 'Slide 2', 'Slide 3', 'Slide 4'])
   reload.unmount(); other.unmount()
+})
+await check('hook, flag on, v1.1 inventory: titles come from the inventory alone (empty storage, no structure), through insert, reorder and a fresh-tab reload', async () => {
+  const c = clock(), server = inventoryServer(before3)
+  const h = hookHarness({ fetchImpl: server.fetch, clockRef: c })
+  await h.render(baseProps())
+  same(h.api.rows.map(r => r.title), before3.slides.map(s => s.title))
+  server.body = afterInsert
+  await h.render(baseProps({ refreshSignals: [4, '{}'] }))
+  same(h.api.rows.map(r => r.title), afterInsert.slides.map(s => s.title))
+  same(h.api.rows.map(r => r.slideId), MOVED)
+  server.body = inOrder(afterInsert, APPENDED)
+  h.api.refresh(); await h.render(baseProps({ refreshSignals: [4, '{}'] }))
+  same(h.api.rows.map(r => r.slideId), APPENDED)
+  same(h.api.rows.map(r => r.title), inOrder(afterInsert, APPENDED).slides.map(s => s.title))
+  h.unmount()
+  const freshTab = hookHarness({ storage: new Map(), fetchImpl: server.fetch, clockRef: c })   // new tab: empty sessionStorage
+  server.body = afterReload
+  await freshTab.render(baseProps({ refreshSignals: [4, '{}'] }))
+  same(freshTab.api.rows.map(r => r.title), afterReload.slides.map(s => s.title))
+  assert.ok(freshTab.api.rows.every(r => r.thumbnailUrl && r.thumbnailStatus === 'fresh'))
+  freshTab.unmount()
+})
+await check('hook: a null inventory title falls back to the remembered Director title; the inventory wins when present', async () => {
+  const c = clock(), server = inventoryServer(null)
+  const mixed = plain(before3); mixed.slides[0].title = null          // slide A has no inventory title
+  server.body = mixed
+  const h = hookHarness({ fetchImpl: server.fetch, clockRef: c })
+  const structure = [{ title: 'Director opening' }, { title: 'Director market' }, { title: 'Director wrap-up' }]
+  await h.render(baseProps({ structureSlides: structure }))
+  same(h.api.rows.map(r => r.title), ['Director opening', before3.slides[1].title, before3.slides[2].title])
+  h.unmount()
+})
+await check('hook: a pending preview shows as pending, then fresh with no other trigger (short timer); none and stale never poll', async () => {
+  const c = clock(), server = inventoryServer(appendBeforeRegistration)
+  const h = hookHarness({ fetchImpl: server.fetch, clockRef: c })
+  await h.render(baseProps({ refreshSignals: [5, '{}'] }))
+  same(h.api.rows.map(r => r.thumbnailStatus), ['fresh', 'fresh', 'fresh', 'fresh', 'pending'])
+  assert.equal('thumbnailUrl' in h.api.rows[4], false)
+  const callsBefore = server.calls
+  server.body = registeredInventory
+  await c.advance(3100)
+  for (let i = 0; i < 5; i++) await h.render(baseProps({ refreshSignals: [5, '{}'] }))
+  assert.equal(server.calls, callsBefore + 1)
+  same(h.api.rows.map(r => r.thumbnailStatus), ['fresh', 'fresh', 'fresh', 'fresh', 'fresh'])
+  assert.ok(h.api.rows[4].thumbnailUrl)
+  h.unmount()
+  const stale = hookHarness({ fetchImpl: inventoryServer(afterManualAdd).fetch, clockRef: clock() })
+  await stale.render(baseProps({ refreshSignals: [6, '{}'] }))
+  same(stale.api.rows.map(r => r.thumbnailStatus), ['fresh', 'fresh', 'fresh', 'fresh', 'stale', 'none'])
+  same(stale.api.rows.map(r => r.title).slice(4), ['Added and then edited', 'Slide 6'])
+  stale.unmount()
 })
 await check('hook, endpoint 404 (backend flag off): rows stay null, so the viewer keeps today\'s rail', async () => {
   const c = clock(), server = inventoryServer({ detail: 'Not Found' }); server.status = 404
@@ -497,13 +664,78 @@ await check('hook: switching deck drops the old deck\'s rows at once and never s
   assert.equal(h.api.rows.length, 4)
   h.unmount()
 })
-await check('hook: flag on but the structure is stale and ignored when the deck was touched (structureSlides null)', async () => {
-  const c = clock(), server = inventoryServer(afterInsert)
+await check('hook: flag on but the structure is stale and ignored when the deck was touched (structureSlides null); null inventory titles read "Slide N"', async () => {
+  const c = clock(), server = inventoryServer(untitled(afterInsert))
   const h = hookHarness({ fetchImpl: server.fetch, clockRef: c })
   await h.render(baseProps({ structureSlides: null }))
   same(h.api.rows.map(r => r.title), ['Slide 1', 'Slide 2', 'Slide 3', 'Slide 4'])
   assert.ok(h.api.rows.every(r => r.thumbnailUrl))
   h.unmount()
+})
+
+// ---------------------------------------------------------------- the real strip, server-rendered
+import fs from 'node:fs'
+import path from 'node:path'
+import { createRequire } from 'node:module'
+const repoRoot = path.resolve(new URL('..', import.meta.url).pathname)
+const nodeRequire = createRequire(path.join(repoRoot, 'package.json'))
+const tsModules = new Map()
+function loadTs(file) {   // transpile-on-require for repo files ('@/' and relative), node_modules as installed, css ignored
+  if (tsModules.has(file)) return tsModules.get(file).exports
+  const module = { exports: {} }; tsModules.set(file, module)
+  const out = ts.transpileModule(fs.readFileSync(file, 'utf8'), { fileName: file, compilerOptions: {
+    module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2020, jsx: ts.JsxEmit.ReactJSX, esModuleInterop: true } }).outputText
+  const resolve = (spec, from) => {
+    const base = spec.startsWith('@/') ? path.join(repoRoot, spec.slice(2)) : path.resolve(path.dirname(from), spec)
+    for (const ext of ['', '.ts', '.tsx', '/index.ts', '/index.tsx']) if (fs.existsSync(base + ext) && fs.statSync(base + ext).isFile()) return base + ext
+    throw Error(`unresolved ${spec}`)
+  }
+  const req = spec => spec.endsWith('.css') ? {} : spec.startsWith('@/') || spec.startsWith('.') ? loadTs(resolve(spec, file)) : nodeRequire(spec)
+  vm.runInThisContext(`(function(exports, require, module, __filename){${out}\n})`, { filename: file })(module.exports, req, module, file)
+  return module.exports
+}
+process.env.NEXT_PUBLIC_STUDIO_V4_SHELL = 'true'   // the strip reads it at load: the Studio rendering is the one this flag serves
+const { SlideThumbnailStrip } = loadTs(path.join(repoRoot, 'components/slide-thumbnail-strip.tsx'))
+const React = nodeRequire('react'), { renderToStaticMarkup } = nodeRequire('react-dom/server')
+const renderStrip = (slides, extra = {}) => renderToStaticMarkup(React.createElement(SlideThumbnailStrip, {
+  slides, currentSlide: 1, onSlideClick() {}, orientation: 'vertical', totalSlides: slides.length, ...extra }))
+const cards = html => html.split('data-studio-thumbnail-card="true"').slice(1)
+
+check('strip (real component, server-rendered): fresh = image; pending = spinner label; none, stale and no status = today\'s "No preview"', () => {
+  const html = renderStrip([
+    { slideNumber: 1, title: 'Fresh one', thumbnailUrl: 'https://proj.test/a.png', thumbnailStatus: 'fresh' },
+    { slideNumber: 2, title: 'Pending one', thumbnailStatus: 'pending' },
+    { slideNumber: 3, title: 'None one', thumbnailStatus: 'none' },
+    { slideNumber: 4, title: 'Stale one', thumbnailStatus: 'stale' },
+    { slideNumber: 5, title: 'Legacy one' },
+  ])
+  const [fresh, pending, none, stale, legacy] = cards(html)
+  assert.match(fresh, /<img[^>]+src="https:\/\/proj\.test\/a\.png"/); assert.doesNotMatch(fresh, /No preview|Preview loading/)
+  assert.match(pending, /data-studio-thumbnail-pending="true"/); assert.match(pending, /Preview loading/); assert.doesNotMatch(pending, /No preview/)
+  assert.match(pending, /animate-spin/); assert.match(pending, /data-has-preview="false"/)
+  for (const card of [none, stale, legacy]) {
+    assert.match(card, /<span class="studio-thumbnail-placeholder-label">No preview<\/span>/)
+    assert.doesNotMatch(card, /Preview loading|data-studio-thumbnail-pending/)
+  }
+  assert.equal((html.match(/data-studio-thumbnail-pending/g) ?? []).length, 1)
+})
+check('strip (real component): a row without thumbnailStatus renders exactly as before (the flag-off row shape)', () => {
+  const rows = [{ slideNumber: 1, title: 'A', thumbnailUrl: 'https://proj.test/a.png' }, { slideNumber: 2, title: 'Slide 2' }]
+  const withStatus = rows.map(row => ({ ...row, thumbnailStatus: row.thumbnailUrl ? 'fresh' : 'none' }))
+  assert.equal(renderStrip(rows), renderStrip(withStatus), 'none and fresh add no markup of their own')
+  assert.match(renderStrip(rows), /No preview/)
+})
+check('rows from the real inventory, through the real strip: titles, previews and the pending spinner show up', () => {
+  const rows = lib.buildRailRows(lib.parseSlideInventory(afterManualAdd, PID), new Map())
+  const html = renderStrip(rows, { keyBySlideId: true })
+  const list = cards(html)
+  assert.equal(list.length, 6)
+  assert.match(list[4], /Added and then edited/); assert.match(list[4], /No preview/)
+  assert.match(list[5], /Slide 6/); assert.match(list[5], /No preview/)
+  assert.equal((html.match(/<img /g) ?? []).length, 4)
+  const pendingHtml = renderStrip(lib.buildRailRows(lib.parseSlideInventory(appendBeforeRegistration, PID), new Map()), { keyBySlideId: true })
+  const last = cards(pendingHtml).at(-1)
+  assert.match(last, /Added after the build/); assert.match(last, /Preview loading/); assert.doesNotMatch(last, /No preview/)
 })
 
 // ---------------------------------------------------------------- wiring (source guards)

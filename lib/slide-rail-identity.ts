@@ -7,7 +7,9 @@
  *   GET {layout}/api/presentations/{presentation_id}/slides/inventory
  * Identity = slide_id, order = array position, count = slide_count. A preview is shown only
  * where `thumbnail_url` is non-null (the backend nulls it when the slide changed since the
- * capture). This module is pure: no React, no storage side effects, no model or image calls.
+ * capture). Contract v1.1 adds per row `title` (the reload source for rail titles) and
+ * `thumbnail_status` (fresh | stale | pending | none). This module is pure: no React, no
+ * storage side effects, no model or image calls.
  *
  * Feature detection: a 404/405 (route absent, backend flag off) or a body that is not a valid
  * inventory means "unavailable" and the rail keeps today's behaviour. A failed read keeps the
@@ -17,6 +19,8 @@
 export const STUDIO_RAIL_SLIDE_IDENTITY_ENABLED =
   process.env.NEXT_PUBLIC_STUDIO_RAIL_SLIDE_IDENTITY_ENABLED === 'true'
 
+export type SlideThumbnailStatus = 'fresh' | 'stale' | 'pending' | 'none'
+
 export interface SlideInventoryRow {
   slideId: string
   slideIndex: number
@@ -25,7 +29,10 @@ export interface SlideInventoryRow {
   /** Non-null only while the preview matches the slide's current content. */
   thumbnailUrl: string | null
   thumbnailStale: boolean
-  /** Optional additive field (not in contract v1): used when the backend sends it. */
+  /** `pending` = a preview is expected soon, `none` = none is coming, `stale` = changed since the capture.
+   *  A v1 backend sends no status: derived from the URL and the stale flag (never `pending`). */
+  thumbnailStatus: SlideThumbnailStatus
+  /** Contract v1.1: plain text, at most 200 characters, null when unknown or a stock placeholder. */
   title: string | null
 }
 
@@ -43,6 +50,7 @@ export interface SlideRailRow {
   actualSlideIndex: number
   title: string
   thumbnailUrl?: string
+  thumbnailStatus: SlideThumbnailStatus
 }
 
 const MAX_URL_LENGTH = 8192
@@ -78,6 +86,14 @@ function cleanTitle(value: unknown): string | null {
   return /^Slide \d+$/i.test(trimmed) ? null : trimmed
 }
 
+function previewStatus(slide: Record<string, unknown>, url: string | null): SlideThumbnailStatus {
+  if (slide.thumbnail_stale === true) return 'stale'
+  if (url) return 'fresh'
+  const given = slide.thumbnail_status
+  // A `fresh` row whose URL is unusable shows nothing, and says so.
+  return given === 'pending' || given === 'stale' ? given : 'none'
+}
+
 /**
  * Validates the inventory body. Returns null (treated as "unavailable") for anything that is
  * not an identity-bearing, ordered inventory of this exact presentation.
@@ -93,17 +109,29 @@ export function parseSlideInventory(body: unknown, expectedPresentationId: strin
     if (!record(slide) || !validSlideId(slide.slide_id) || seen.has(slide.slide_id)) return null
     if (slide.slide_index !== undefined && slide.slide_index !== position) return null
     seen.add(slide.slide_id)
+    const thumbnailUrl = slide.thumbnail_stale === true ? null : safeThumbnailUrl(slide.thumbnail_url)
     rows.push({
       slideId: slide.slide_id,
       slideIndex: position,
       layout: typeof slide.layout === 'string' ? slide.layout : null,
       contentVersion: typeof slide.content_version === 'string' ? slide.content_version : null,
-      thumbnailUrl: slide.thumbnail_stale === true ? null : safeThumbnailUrl(slide.thumbnail_url),
+      thumbnailUrl,
       thumbnailStale: slide.thumbnail_stale === true,
+      thumbnailStatus: previewStatus(slide, thumbnailUrl),
       title: cleanTitle(slide.title),
     })
   }
   return { presentationId: expectedPresentationId, slideCount: rows.length, slides: rows }
+}
+
+/** Same rows, same order: a poll that learned nothing must not re-render the rail. */
+function sameInventory(a: SlideInventory, b: SlideInventory): boolean {
+  if (a.presentationId !== b.presentationId || a.slideCount !== b.slideCount) return false
+  return a.slides.every((row, i) => {
+    const other = b.slides[i]
+    return row.slideId === other.slideId && row.layout === other.layout && row.contentVersion === other.contentVersion
+      && row.thumbnailUrl === other.thumbnailUrl && row.thumbnailStatus === other.thumbnailStatus && row.title === other.title
+  })
 }
 
 export type SlideInventoryResult =
@@ -153,7 +181,9 @@ export interface SlideInventoryState {
 }
 
 /**
- * Coalescing reader for one presentation. refresh() is debounced (refresh(true) is not); a refresh
+ * Coalescing reader for one presentation. While a read shows a `pending` preview it re-reads every
+ * `pendingPollMs` (contract 2.2), at most `maxPendingPolls` times per trigger, and stops as soon
+ * as no row is pending (the backend turns an overdue `pending` into `none`). refresh() is debounced (refresh(true) is not); a refresh
  * requested while a read is in flight runs once more straight after it, so an ack that lands
  * mid-read is never lost. 404/405 or an invalid body is remembered for `unavailableTtlMs` (the endpoint is
  * absent, no need to ask on every frame); a transient failure keeps the last good inventory.
@@ -169,6 +199,8 @@ export function createSlideInventoryController({
   debounceMs = 150,
   unavailableTtlMs = 60_000,
   timeoutMs = 8_000,
+  pendingPollMs = 3_000,
+  maxPendingPolls = 20,
 }: {
   presentationId: string
   getBaseUrl: () => string
@@ -180,6 +212,8 @@ export function createSlideInventoryController({
   debounceMs?: number
   unavailableTtlMs?: number
   timeoutMs?: number
+  pendingPollMs?: number
+  maxPendingPolls?: number
 }) {
   let state: SlideInventoryState = { status: 'idle', inventory: null }
   let disposed = false
@@ -188,6 +222,19 @@ export function createSlideInventoryController({
   let debounceHandle: unknown = null
   let abort: AbortController | null = null
   let unavailableUntil = 0
+  let pendingHandle: unknown = null
+  let pendingPolls = 0
+
+  const stopPendingPoll = () => {
+    if (pendingHandle !== null) clearTimer(pendingHandle)
+    pendingHandle = null
+  }
+  const schedulePendingPoll = () => {
+    stopPendingPoll()
+    if (disposed || pendingPolls >= maxPendingPolls || !state.inventory
+      || !state.inventory.slides.some(row => row.thumbnailStatus === 'pending')) return
+    pendingHandle = setTimer(() => { pendingHandle = null; pendingPolls += 1; void run() }, pendingPollMs)
+  }
 
   const publish = (next: SlideInventoryState) => {
     if (next.status === state.status && next.inventory === state.inventory) return
@@ -219,13 +266,16 @@ export function createSlideInventoryController({
       inFlight = false
     }
     if (disposed) return
-    if (result.kind === 'ok') publish({ status: 'ready', inventory: result.inventory })
-    else if (result.kind === 'unavailable') {
+    if (result.kind === 'ok') {
+      const previous = state.inventory
+      publish({ status: 'ready', inventory: previous && sameInventory(previous, result.inventory) ? previous : result.inventory })
+    } else if (result.kind === 'unavailable') {
       unavailableUntil = now() + unavailableTtlMs
       publish({ status: 'unavailable', inventory: null })
     } else if (state.status === 'loading') publish({ status: 'idle', inventory: null })
     // A transient failure on an already-ready (or unavailable) rail changes nothing.
-    if (dirty) { dirty = false; void run() }
+    if (dirty) { dirty = false; void run(); return }
+    schedulePendingPoll()
   }
 
   return {
@@ -236,6 +286,8 @@ export function createSlideInventoryController({
       if (disposed) return
       if (debounceHandle !== null) clearTimer(debounceHandle)
       debounceHandle = null
+      pendingPolls = 0
+      stopPendingPoll()
       if (immediate) { void run(); return }
       debounceHandle = setTimer(() => { debounceHandle = null; void run() }, debounceMs)
     },
@@ -243,6 +295,7 @@ export function createSlideInventoryController({
       disposed = true
       if (debounceHandle !== null) clearTimer(debounceHandle)
       debounceHandle = null
+      stopPendingPoll()
       abort?.abort()
     },
   }
@@ -285,7 +338,7 @@ export function learnRailTitles(
   return sameMemory(previous, next) ? previous : next
 }
 
-/** Rail rows in inventory order. The row title is the backend's, else remembered, else "Slide N". */
+/** Rail rows in inventory order. The row title is the inventory's, else remembered (Director), else "Slide N". */
 export function buildRailRows(inventory: SlideInventory, titles: RailTitleMemory): SlideRailRow[] {
   return inventory.slides.map((row, position) => ({
     slideNumber: position + 1,
@@ -294,6 +347,7 @@ export function buildRailRows(inventory: SlideInventory, titles: RailTitleMemory
     actualSlideIndex: position,
     title: row.title ?? titles.get(row.slideId) ?? `Slide ${position + 1}`,
     ...(row.thumbnailUrl ? { thumbnailUrl: row.thumbnailUrl } : {}),
+    thumbnailStatus: row.thumbnailStatus,
   }))
 }
 

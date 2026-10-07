@@ -6,33 +6,41 @@
    "slide_index": 0,
    "slide_id": "slide_8ea0a04600cf",
    "layout": "H2",
+   "title": "Three parts",
    "content_version": "cv2-9a495b85250be805",
    "thumbnail_url": "https://proj.supabase.co/storage/v1/object/public/slide-qa/thumbs/f8-replay-on/slide_8ea0a04600cf/153efc98a60d7f8a.png",
-   "thumbnail_stale": false
+   "thumbnail_stale": false,
+   "thumbnail_status": "fresh"
   },
   {
    "slide_index": 1,
    "slide_id": "slide_51f6389579d6",
    "layout": "C1",
+   "title": "Queue Inflation Throttles Delivery Velocity",
    "content_version": "cv2-0f6cacdb08e46206",
    "thumbnail_url": "https://proj.supabase.co/storage/v1/object/public/slide-qa/thumbs/f8-replay-on/slide_51f6389579d6/5f9289e5b7ede01c.png",
-   "thumbnail_stale": false
+   "thumbnail_stale": false,
+   "thumbnail_status": "fresh"
   },
   {
    "slide_index": 2,
-   "slide_id": "slide_06137799b27f",
+   "slide_id": "slide_f9561e229c9a",
    "layout": "C1",
+   "title": "Optimizing Governance via Integrated Workflows",
    "content_version": "cv2-d1ba907181eb02e4",
-   "thumbnail_url": "https://proj.supabase.co/storage/v1/object/public/slide-qa/thumbs/f8-replay-on/slide_06137799b27f/e171bc29ce2d2b43.png",
-   "thumbnail_stale": false
+   "thumbnail_url": "https://proj.supabase.co/storage/v1/object/public/slide-qa/thumbs/f8-replay-on/slide_f9561e229c9a/e171bc29ce2d2b43.png",
+   "thumbnail_stale": false,
+   "thumbnail_status": "fresh"
   },
   {
    "slide_index": 3,
    "slide_id": "slide_d960ba5dbd63",
    "layout": "C1",
+   "title": "Target Operating Models Drive Continuous Flow",
    "content_version": "cv2-ad5536ae5a65f5ec",
    "thumbnail_url": "https://proj.supabase.co/storage/v1/object/public/slide-qa/thumbs/f8-replay-on/slide_d960ba5dbd63/5d1b03da451e2727.png",
-   "thumbnail_stale": false
+   "thumbnail_stale": false,
+   "thumbnail_status": "fresh"
   }
  ]
 }

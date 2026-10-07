@@ -1,6 +1,6 @@
 {
  "presentation_id": "f8-replay-on",
- "slide_count": 4,
+ "slide_count": 5,
  "slides": [
   {
    "slide_index": 0,
@@ -41,6 +41,16 @@
    "thumbnail_url": "https://proj.supabase.co/storage/v1/object/public/slide-qa/thumbs/f8-replay-on/slide_04abaf0e7ad8/5b855ed3586e9ccb.png",
    "thumbnail_stale": false,
    "thumbnail_status": "fresh"
+  },
+  {
+   "slide_index": 4,
+   "slide_id": "slide_7ed24fd8d1ff",
+   "layout": "C1",
+   "title": "Added and then edited",
+   "content_version": "cv2-78aff4ad3e51ac2a",
+   "thumbnail_url": null,
+   "thumbnail_stale": true,
+   "thumbnail_status": "stale"
   }
  ]
 }
