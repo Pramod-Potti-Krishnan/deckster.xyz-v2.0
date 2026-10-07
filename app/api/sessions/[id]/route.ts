@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth-options';
 import { prisma } from '@/lib/prisma';
+import { isSessionApiHardeningEnabled, pickAllowedSessionUpdates } from '@/lib/session-api-hardening';
 
 /**
  * GET /api/sessions/[id]
@@ -167,11 +168,18 @@ export async function PATCH(
         }
       : {};
 
+    // SESSION_API_HARDENING_ENABLED: only the documented metadata fields are
+    // writable. Without the flag the whole body is spread into the update, which
+    // lets an owner rewrite userId, geminiStoreId/Name, or nested relations.
+    const writableUpdates = isSessionApiHardeningEnabled()
+      ? pickAllowedSessionUpdates(sessionUpdates)
+      : sessionUpdates;
+
     // Update session
     const updated = await prisma.chatSession.update({
       where: { id },
       data: {
-        ...sessionUpdates,
+        ...writableUpdates,
         ...stateCacheUpdate,
         updatedAt: new Date()
       }

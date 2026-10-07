@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { isStudioDevDeployment } from '@/lib/dev-deployment'
+import { checkCronBearer, isSessionApiHardeningEnabled } from '@/lib/session-api-hardening'
 
 /**
  * Cleanup abandoned draft sessions
@@ -25,10 +26,33 @@ const ABANDONMENT_THRESHOLD_HOURS = parseInt(
  * GET - Dry run mode
  * Shows what would be deleted without actually deleting anything
  * Useful for monitoring and testing
+ *
+ * The listing includes other users' session ids, user ids and file counts, so with
+ * SESSION_API_HARDENING_ENABLED=true it requires the same `Authorization: Bearer
+ * <CRON_SECRET>` header as POST. Vercel cron always calls this route with GET and
+ * sends that header whenever CRON_SECRET is set in the project, so the scheduled
+ * run keeps working. Flag off: open, exactly as before.
  */
 export async function GET(req: NextRequest) {
   if (isStudioDevDeployment()) {
     return NextResponse.json({ error: 'Not found' }, { status: 404 })
+  }
+  if (isSessionApiHardeningEnabled()) {
+    const auth = checkCronBearer(req.headers.get('authorization'), process.env.CRON_SECRET)
+    if (auth === 'misconfigured') {
+      console.error('[Cleanup Dry Run] CRON_SECRET not configured')
+      return NextResponse.json(
+        { error: 'Server misconfiguration - CRON_SECRET not set' },
+        { status: 500 }
+      )
+    }
+    if (auth === 'unauthorized') {
+      console.warn('[Cleanup Dry Run] Unauthorized access attempt')
+      return NextResponse.json(
+        { error: 'Unauthorized' },
+        { status: 401 }
+      )
+    }
   }
   try {
     const cutoffTime = new Date(
