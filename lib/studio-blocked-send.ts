@@ -25,10 +25,14 @@ export const STUDIO_BLOCKED_SEND_FEEDBACK_ENABLED = studioBlockedSendFeedbackFla
   process.env.NEXT_PUBLIC_STUDIO_BLOCKED_SEND_FEEDBACK_ENABLED,
 )
 
-/** `typed` = the composer box; `answers` = the Director question card (same preflight). */
-export type BlockedSendSource = 'typed' | 'answers'
+/**
+ * `typed` = the composer box; `answers` = the Director question card (same preflight);
+ * `action` = a card button that sends its label (the button stays available);
+ * `queued` = an automatic send that stays staged for this session (template ingest).
+ */
+export type BlockedSendSource = 'typed' | 'answers' | 'action' | 'queued'
 
-export type BlockedSendKind = 'quota' | 'no_allowance' | 'upload_pending' | 'upload_failed' | 'template_locked'
+export type BlockedSendKind = 'quota' | 'no_allowance' | 'quota_unknown' | 'upload_pending' | 'upload_failed' | 'template_locked'
 
 export interface BlockedSendNoticeContent {
   kind: BlockedSendKind
@@ -43,7 +47,11 @@ export interface BlockedSendNotice extends BlockedSendNoticeContent {
 
 const wording = (source: BlockedSendSource) => source === 'answers'
   ? { title: 'Answers not sent', notSent: "your answers weren't sent", kept: 'They are still in the question card.' }
-  : { title: 'Message not sent', notSent: "your message wasn't sent", kept: 'Your text is still in the box.' }
+  : source === 'action'
+    ? { title: 'Choice not sent', notSent: "your choice wasn't sent", kept: 'The option is still available.' }
+    : source === 'queued'
+      ? { title: 'Request not sent', notSent: "your request wasn't sent", kept: 'It stays queued for this session and goes out once your plan allows it.' }
+      : { title: 'Message not sent', notSent: "your message wasn't sent", kept: 'Your text is still in the box.' }
 
 const capitalize = (value: string) => value.charAt(0).toUpperCase() + value.slice(1)
 
@@ -77,6 +85,23 @@ export function quotaBlockedSendNotice(input: QuotaBlockedSendInput, source: Blo
         title: w.title,
         text: `This account has no build quota left on its plan, so ${w.notSent}. ${w.kept} Your ${input.which} budget resets ${input.resetLabel}; reserve credits keep you building now.`,
       }
+}
+
+export interface QuotaUnknownBlockedSendInput {
+  /** True while the first plan read is still in flight; false when it finished without an answer. */
+  checking: boolean
+}
+
+/** Fail-closed plan gate (separate flag): the plan picture is unknown, so the turn waits for it. */
+export function quotaUnknownBlockedSendNotice(input: QuotaUnknownBlockedSendInput, source: BlockedSendSource = 'typed'): BlockedSendNoticeContent {
+  const w = wording(source)
+  return {
+    kind: 'quota_unknown',
+    title: w.title,
+    text: input.checking
+      ? `We're still checking this account's build quota, so ${w.notSent}. ${w.kept} Try again in a moment.`
+      : `We couldn't confirm this account's build quota, so ${w.notSent}. ${w.kept} We're checking again; try again in a moment.`,
+  }
 }
 
 /** Raw-upload gate: the Director is told about uploads only through the send, so it waits. */

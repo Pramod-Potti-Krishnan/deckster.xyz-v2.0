@@ -38,6 +38,16 @@ export interface QuotaState {
 export function useQuota(
   tokenUsage: TokenUsagePayload | null,
   messageId: string | undefined,
+  options?: {
+    /**
+     * Studio (flag NEXT_PUBLIC_STUDIO_TURN_PATHS_QUOTA_GATE_ENABLED, default off):
+     * once the wallet debit for a turn's token usage has settled, read
+     * /api/usage/quota again so the snapshot the send gate uses reflects what the
+     * server has booked (this tab's debit, and any other tab's spend). Absent or
+     * false: exactly the old behaviour.
+     */
+    refreshAfterSpend?: boolean
+  },
 ): QuotaState {
   const { data: session } = useSession()
   const userId = session?.user?.id
@@ -50,6 +60,9 @@ export function useQuota(
 
   const processedRef = useRef<Set<string>>(new Set())
   const lastPayloadRef = useRef<string | null>(null)
+  const refreshAfterSpendRef = useRef(false)
+  refreshAfterSpendRef.current = options?.refreshAfterSpend === true
+  const refetchRef = useRef<() => Promise<void>>(async () => {})
 
   const refetch = useCallback(async () => {
     if (!userId) {
@@ -69,6 +82,8 @@ export function useQuota(
       setIsLoading(false)
     }
   }, [userId])
+
+  refetchRef.current = refetch
 
   useEffect(() => {
     refetch()
@@ -117,7 +132,8 @@ export function useQuota(
     if (payloadKey === lastPayloadRef.current) return
     lastPayloadRef.current = payloadKey
 
-    debit(messageId, turnTokens, tokenUsage.action_type)
+    const settled = debit(messageId, turnTokens, tokenUsage.action_type)
+    if (refreshAfterSpendRef.current) void settled.then(() => refetchRef.current())
   }, [tokenUsage, messageId, debit])
 
   return { status, isLoading, lastCostCents, overflow, capped, refetch }

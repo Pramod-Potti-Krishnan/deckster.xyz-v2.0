@@ -66,8 +66,10 @@ assert.ok(effectCall(page) && effectCall(basePage), 'the handoff auto-submit eff
 const effectSource = source => print(effectCall(source).arguments[0], source)
 const effectDeps = source => effectCall(source).arguments[1].elements.map(element => element.getText(source))
 
-check('the gate and the typed handler are not touched by this change (same text as the base)', () => {
-  assert.equal(callbackOf(page, 'preflightDirectorTurn'), callbackOf(basePage, 'preflightDirectorTurn'))
+check('the typed handler is not touched by this change (same text as the base)', () => {
+  // The gate itself later gained a `planOnly` option and a fail-closed branch (J8.1, remaining
+  // Director-turn paths); test-studio-turn-paths-quota-gate.mjs proves it behaves exactly as it
+  // did here whenever it is called the way this effect calls it.
   assert.equal(callbackOf(page, 'handleSendMessage'), callbackOf(basePage, 'handleSendMessage'))
 })
 check('the first Send passes the gate BEFORE the manual-deck conflict dialog can open (so a $0 user never reaches it)', () => {
@@ -166,7 +168,7 @@ function world({ effect, gate = true, notice = false, studio = true, quota = { s
     console: { warn: (...args) => events.push(['warning', String(args[0])]) },
     isTemplateGenerationReady: template => template.ready,
     templateGenerationUnavailableReason: () => 'Template needs its blueprint first',
-    STUDIO_BLOCKED_SEND_FEEDBACK_ENABLED: notice,
+    STUDIO_BLOCKED_SEND_FEEDBACK_ENABLED: notice, STUDIO_QUOTA_FAIL_CLOSED_ENABLED: false,
     setBlockedSendNotice: notice
       ? updater => { noticeState = typeof updater === 'function' ? updater(noticeState) : updater; events.push(['notice', noticeState && noticeState.kind]) }
       : () => assert.fail('notice flag off must never touch the notice'),

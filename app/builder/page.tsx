@@ -91,12 +91,14 @@ import {
   STUDIO_BLOCKED_SEND_FEEDBACK_ENABLED,
   nextBlockedSendNotice,
   quotaBlockedSendNotice,
+  quotaUnknownBlockedSendNotice,
   templateBlockedSendNotice,
   uploadBlockedSendNotice,
   type BlockedSendNotice,
   type BlockedSendSource,
 } from '@/lib/studio-blocked-send'
 import { STUDIO_HANDOFF_QUOTA_GATE_ENABLED } from '@/lib/studio-handoff-quota-gate'
+import { STUDIO_QUOTA_FAIL_CLOSED_ENABLED, STUDIO_TURN_PATHS_QUOTA_GATE_ENABLED } from '@/lib/studio-turn-paths-quota-gate'
 import { classifyDirectorMessage } from '@/lib/studio-director-message-policy'
 import { createStudioVoiceOwner } from '@/lib/studio-voice-owner'
 import { classifyStudioCanvasLifecycle } from '@/lib/studio-canvas-lifecycle'
@@ -577,6 +579,12 @@ function AuthenticatedBuilderContent({ authScopeUserId }: { authScopeUserId: str
   // MDC P4: late-bound handle so the WS hook options (declared earlier) can
   // trigger the New Chat flow defined further down.
   const handleNewChatWrappedRef = useRef<(() => void) | null>(null)
+  // Quota gate on the remaining Director-turn paths (flag
+  // NEXT_PUBLIC_STUDIO_TURN_PATHS_QUOTA_GATE_ENABLED, default off): late-bound handle
+  // to the plan gate (`preflightDirectorTurn`, defined further down) for the WS
+  // options, the action-button handler and the template-ingest effect, which are
+  // declared before or apart from it. Only assigned with the flag on.
+  const turnPathsGateRef = useRef<((source?: BlockedSendSource, options?: { planOnly?: boolean }) => boolean) | null>(null)
   // MDC P8: late-bound element-directive runner (defined after the Text Labs
   // hook below; the WS options are declared earlier).
   const elementDirectiveRunnerRef = useRef<((payload: import('@/types/mdc').ElementDirectivePayload) => void) | null>(null)
@@ -2334,6 +2342,17 @@ function AuthenticatedBuilderContent({ authScopeUserId }: { authScopeUserId: str
       const prefill = (payload.prefill_prompt || '').trim()
       handleNewChatWrappedRef.current?.()
       if (prefill && payload.auto_send) {
+        // Quota gate (flag NEXT_PUBLIC_STUDIO_TURN_PATHS_QUOTA_GATE_ENABLED, default
+        // off): this auto-send used to bypass the plan gate every typed send passes.
+        // A refusal sends nothing and degrades to the branch below (the new chat is
+        // already open with the brief in the composer), so no sent bubble is faked.
+        // Plan decision only: the busy and upload checks describe the session that
+        // was just replaced, and the directive frame is itself the reply that ends
+        // the previous turn.
+        if (STUDIO_TURN_PATHS_QUOTA_GATE_ENABLED && !(turnPathsGateRef.current?.('typed', { planOnly: true }) ?? false)) {
+          setInputMessage(prefill)
+          return
+        }
         const ts = Date.now()
         session.setUserMessages(prev => [...prev, { id: `user-nd-${ts}`, text: prefill, timestamp: ts }])
         // Dedupe (I-D/F1): upstream's sendMessageWhenConnected owns the
@@ -2819,7 +2838,11 @@ function AuthenticatedBuilderContent({ authScopeUserId }: { authScopeUserId: str
     },
   })
 
-  const quota = useQuota(tokenUsage, tokenUsageMessageId ?? undefined)
+  const quota = useQuota(
+    tokenUsage,
+    tokenUsageMessageId ?? undefined,
+    STUDIO_TURN_PATHS_QUOTA_GATE_ENABLED ? { refreshAfterSpend: true } : undefined,
+  )
   const [topUpOpen, setTopUpOpen] = useState(false)
   const [topUpReason, setTopUpReason] = useState<string | undefined>(undefined)
   // Blocked-send feedback (flag NEXT_PUBLIC_STUDIO_BLOCKED_SEND_FEEDBACK_ENABLED,
@@ -4717,6 +4740,19 @@ function AuthenticatedBuilderContent({ authScopeUserId }: { authScopeUserId: str
   const ingestAckTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const ingestChatEchoSessionRef = useRef<string | null>(null)
   const [ingestResendNonce, setIngestResendNonce] = useState(0)
+  // Quota gate on the ingest auto-send (flag NEXT_PUBLIC_STUDIO_TURN_PATHS_QUOTA_GATE_ENABLED,
+  // default off). The gate is read through turnPathsGateRef (its identity changes on every
+  // render, so it cannot be an effect dependency); the plan picture comes in as two
+  // primitives that are constants (null) with the flag off, so the effect keeps exactly
+  // its old dependencies and re-run behaviour. `Refused` latches an announced refusal per
+  // plan picture (this effect also re-runs for unrelated dependencies, and every refusal
+  // raises a toast and the top-up dialog); `Passed` makes a re-send of the same intent
+  // (reconnect, ack timeout) skip the gate, since Director re-acks duplicates and a
+  // re-send is not a new turn.
+  const ingestGateRefusalRef = useRef<{ key: string; status: unknown } | null>(null)
+  const ingestGatePassedSessionRef = useRef<string | null>(null)
+  const ingestGateQuotaStatus = STUDIO_TURN_PATHS_QUOTA_GATE_ENABLED ? quota.status : null
+  const ingestGateQuotaLoading = STUDIO_TURN_PATHS_QUOTA_GATE_ENABLED ? quota.isLoading : null
   useEffect(() => {
     if (typeof window === 'undefined') return
     if (process.env.NEXT_PUBLIC_TEMPLATE_INGEST_ENABLED !== 'true') return // flag-off: byte-identical behavior
@@ -4790,6 +4826,20 @@ function AuthenticatedBuilderContent({ authScopeUserId }: { authScopeUserId: str
       file_name: intent.file_name,
       kind: intent.kind,
     }
+    // Quota gate (see above): wait for the plan picture (the gate is blind before it
+    // lands), then run the plan decision. A refusal sends nothing and leaves the intent
+    // staged and un-marked, so this effect sends it once a new plan picture opens the gate.
+    if (STUDIO_TURN_PATHS_QUOTA_GATE_ENABLED && ingestGatePassedSessionRef.current !== currentSessionId) {
+      if (ingestGateQuotaLoading) return
+      const refused = ingestGateRefusalRef.current
+      if (refused && refused.key === currentSessionId && refused.status === ingestGateQuotaStatus) return
+      if (!(turnPathsGateRef.current?.('queued', { planOnly: true }) ?? false)) {
+        ingestGateRefusalRef.current = { key: currentSessionId, status: ingestGateQuotaStatus }
+        return
+      }
+      ingestGateRefusalRef.current = null
+      ingestGatePassedSessionRef.current = currentSessionId
+    }
     const messageText = 'Convert my uploaded presentation into a template'
     const success = sendMessage(messageText, undefined, undefined, {
       templateIngest: true,
@@ -4860,7 +4910,8 @@ function AuthenticatedBuilderContent({ authScopeUserId }: { authScopeUserId: str
         }
       }
     }
-  }, [currentSessionId, isReady, socketSessionId, connectionGeneration, ingestResendNonce, sendMessage, session, persistence, toast])
+  }, [currentSessionId, isReady, socketSessionId, connectionGeneration, ingestResendNonce, sendMessage, session, persistence, toast,
+    ingestGateQuotaStatus, ingestGateQuotaLoading])
 
   // Round-4 (BFCache liveness follow-up from the round-3 review): a page
   // restored from the back/forward cache does not re-run mount effects, so a
@@ -5137,19 +5188,30 @@ function AuthenticatedBuilderContent({ authScopeUserId }: { authScopeUserId: str
   // only the matching UI. `hasStrawman` is the Director's own signal, latched.
   const researchSettingsLocked = hasStrawman
 
+  // Fail-closed plan gate inputs (flag NEXT_PUBLIC_STUDIO_QUOTA_FAIL_CLOSED_ENABLED,
+  // default off). Constants with the flag off, so the gate keeps its old dependencies.
+  const quotaFailClosedLoading = STUDIO_QUOTA_FAIL_CLOSED_ENABLED ? quota.isLoading : null
+  const quotaFailClosedRefetch = STUDIO_QUOTA_FAIL_CLOSED_ENABLED ? quota.refetch : null
+
   // Typed messages and structured answers share synchronous readiness gates.
   // Reconnection itself remains the transport's job; disconnected is not a blocker.
-  const preflightDirectorTurn = useCallback((source: BlockedSendSource = 'typed') => {
+  // `planOnly` (the paths added by NEXT_PUBLIC_STUDIO_TURN_PATHS_QUOTA_GATE_ENABLED:
+  // action buttons, the Director-directed new-session auto-send, the template-ingest
+  // auto-send) runs only the user and plan decisions: those paths are fire-and-forget
+  // callbacks, so the busy-state, upload and template checks (which silently drop a
+  // send or describe another session's state) do not apply to them.
+  const preflightDirectorTurn = useCallback((source: BlockedSendSource = 'typed', options?: { planOnly?: boolean }) => {
+    const planOnly = options?.planOnly === true
     if (!user) {
       console.warn('Cannot send message: user not authenticated')
       return false
     }
 
-    if (session.isLoadingSession || awaitingDirectorReply || isExecutingSendRef.current || questionSubmissionPendingRef.current) {
+    if (!planOnly && (session.isLoadingSession || awaitingDirectorReply || isExecutingSendRef.current || questionSubmissionPendingRef.current)) {
       return false
     }
 
-    if (activeTemplate && isGeneratingFinal) {
+    if (!planOnly && activeTemplate && isGeneratingFinal) {
       return false
     }
 
@@ -5160,8 +5222,8 @@ function AuthenticatedBuilderContent({ authScopeUserId }: { authScopeUserId: str
     // which we still know the truth: the Director is told uploads exist purely
     // via `fileUpload`/`storeName` below, so sending while a file is still
     // uploading silently builds the deck without that document.
-    const stillUploading = uploadedFiles.find(f => f.status === 'uploading')
-    const failedUploadFile = uploadedFiles.find(f => f.status === 'error')
+    const stillUploading = planOnly ? undefined : uploadedFiles.find(f => f.status === 'uploading')
+    const failedUploadFile = planOnly ? undefined : uploadedFiles.find(f => f.status === 'error')
     if (stillUploading || failedUploadFile) {
       toast({
         title: stillUploading ? 'Still uploading your file' : 'Upload failed',
@@ -5180,6 +5242,26 @@ function AuthenticatedBuilderContent({ authScopeUserId }: { authScopeUserId: str
     // Pre-flight quota gate: block a new turn only when a plan cap is fully
     // exhausted AND there is no prepaid reserve to cover the overflow.
     const q = quota.status
+    // Fail closed on an unknown plan picture (flag NEXT_PUBLIC_STUDIO_QUOTA_FAIL_CLOSED_ENABLED,
+    // default off): nothing has been read yet, or the first read failed. Refuse with the
+    // same toast and notice shape as the other refusals (no top-up dialog: this is not a
+    // cap). When the read is not simply still in flight, ask for it again so a later
+    // Send can pass once /api/usage/quota answers.
+    if (STUDIO_QUOTA_FAIL_CLOSED_ENABLED && !q) {
+      const checking = quotaFailClosedLoading === true
+      toast({
+        title: checking ? 'Checking your plan' : "Couldn't check your plan",
+        description: checking
+          ? "We're still confirming your build quota, so this wasn't sent. Try again in a moment."
+          : "We couldn't confirm your build quota, so this wasn't sent. We're checking again; try again in a moment.",
+        variant: checking ? 'default' : 'destructive',
+      })
+      if (STUDIO_BLOCKED_SEND_FEEDBACK_ENABLED) {
+        setBlockedSendNotice(previous => nextBlockedSendNotice(previous, quotaUnknownBlockedSendNotice({ checking }, source)))
+      }
+      if (!checking) void quotaFailClosedRefetch?.()
+      return false
+    }
     if (q && (q.flags.dailyAt || q.flags.weeklyAt) && q.walletBalanceCents <= 0) {
       const isDaily = q.flags.dailyAt
       const which = isDaily ? 'daily' : 'weekly'
@@ -5203,7 +5285,7 @@ function AuthenticatedBuilderContent({ authScopeUserId }: { authScopeUserId: str
       return false
     }
 
-    if (activeTemplate && !isTemplateGenerationReady(activeTemplate)) {
+    if (!planOnly && activeTemplate && !isTemplateGenerationReady(activeTemplate)) {
       toast({
         title: 'Template generation locked',
         description: templateGenerationUnavailableReason(activeTemplate),
@@ -5218,7 +5300,9 @@ function AuthenticatedBuilderContent({ authScopeUserId }: { authScopeUserId: str
     if (STUDIO_BLOCKED_SEND_FEEDBACK_ENABLED) setBlockedSendNotice(null)
     return true
   }, [user, session.isLoadingSession, awaitingDirectorReply, activeTemplate,
-    isGeneratingFinal, uploadedFiles, quota.status, toast])
+    isGeneratingFinal, uploadedFiles, quota.status, toast,
+    quotaFailClosedLoading, quotaFailClosedRefetch])
+  if (STUDIO_TURN_PATHS_QUOTA_GATE_ENABLED) turnPathsGateRef.current = preflightDirectorTurn
 
   const handleSendMessage = useCallback(async (
     e?: React.FormEvent,
@@ -5994,6 +6078,14 @@ function AuthenticatedBuilderContent({ authScopeUserId }: { authScopeUserId: str
     // One native request owns one choice, including choices that open input.
     if (actionSubmissionPendingRef.current.has(pendingKey) ||
         session.answeredActionsRef.current.has(actionRequestMessageId)) return
+    // Quota gate (flag NEXT_PUBLIC_STUDIO_TURN_PATHS_QUOTA_GATE_ENABLED, default off):
+    // a button that sends its label is a Director turn like a typed send (this
+    // includes the post-outline generate actions). A refusal sends nothing, marks
+    // nothing answered and records no intent, so the card stays clickable once the
+    // plan allows it. Buttons that only open an input box send nothing here; their
+    // later send goes through the typed handler and its gate.
+    if (STUDIO_TURN_PATHS_QUOTA_GATE_ENABLED && !action.requires_input
+        && !(turnPathsGateRef.current?.('action', { planOnly: true }) ?? false)) return
     session.markStudioUserIntent()
     const messageId = crypto.randomUUID()
     const timestamp = Date.now()

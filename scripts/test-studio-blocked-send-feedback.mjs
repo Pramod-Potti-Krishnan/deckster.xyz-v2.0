@@ -174,7 +174,7 @@ function gateHarness(root, { flag, lazy = false, call = [], ...overrides }) {
     setTopUpOpen: value => events.push(['topup-open', value]),
     toast: value => events.push(['toast', value]),
     console: { warn: (...args) => events.push(['warning', ...args]) },
-    STUDIO_BLOCKED_SEND_FEEDBACK_ENABLED: flag,
+    STUDIO_BLOCKED_SEND_FEEDBACK_ENABLED: flag, STUDIO_QUOTA_FAIL_CLOSED_ENABLED: false,
     setBlockedSendNotice: flag
       ? updater => { noticeState = typeof updater === 'function' ? updater(noticeState) : updater; events.push(['notice', noticeState && { id: noticeState.id, kind: noticeState.kind, title: noticeState.title, text: noticeState.text }]) }
       : () => assert.fail('flag off must never touch the notice'),
