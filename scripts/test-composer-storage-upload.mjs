@@ -5,6 +5,13 @@ import ts from 'typescript'
 
 const source = fs.readFileSync(new URL('../lib/researcher-upload.ts', import.meta.url), 'utf8')
 const compiled = ts.transpileModule(source, { compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022 } })
+// lib/researcher-upload.ts reads the owner id through lib/upload-owner.ts (flag NEXT_PUBLIC_UPLOAD_OWNER_ID_ENABLED,
+// unset here, so the original `userId || 'anonymous'` behaviour).
+const uploadOwnerModule = { exports: {} }
+vm.runInNewContext(
+  ts.transpileModule(fs.readFileSync(new URL('../lib/upload-owner.ts', import.meta.url), 'utf8'), { compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022 } }).outputText,
+  { module: uploadOwnerModule, exports: uploadOwnerModule.exports, process: { env: {} } },
+)
 
 async function upload(options, failAt) {
   const calls = []
@@ -19,6 +26,7 @@ async function upload(options, failAt) {
   vm.runInNewContext(compiled.outputText, {
     module, exports: module.exports,
     require: name => {
+      if (name === '@/lib/upload-owner') return uploadOwnerModule.exports
       assert.equal(name, '@/lib/config')
       return { apiConfig: { knowledgeServiceUrl: 'https://researcher-v11-uat.up.railway.app' } }
     },
