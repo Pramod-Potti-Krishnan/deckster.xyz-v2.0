@@ -5,6 +5,7 @@ import { PrismaAdapter } from "@auth/prisma-adapter"
 import type { Adapter } from "next-auth/adapters"
 import { prisma } from "./prisma"
 import { getUserSubscription } from "@/lib/stripe/stripe-utils"
+import { applyServerReadSessionUpdate, isSessionUpdateServerReadEnabled } from "./auth-session-update"
 
 // Validate required environment variables (only at runtime, not during build)
 if (typeof window === 'undefined' && process.env.NODE_ENV !== 'development') {
@@ -72,6 +73,16 @@ const DEV_LOGIN_ENABLED =
 const DEV_LOGIN_USER_ID = process.env.DEV_LOGIN_USER_ID || "uat-tpl-user"
 const DEV_LOGIN_EMAIL = process.env.DEV_LOGIN_EMAIL || "dev@deckster.local"
 
+// DB re-read used by the session-update step when AUTH_SESSION_UPDATE_SERVER_READ_ENABLED
+// is on (see ./auth-session-update). The dev-login user has no database row.
+async function readSessionUser(userId: string) {
+  if (DEV_LOGIN_ENABLED && userId === DEV_LOGIN_USER_ID) return null
+  return prisma.user.findUnique({
+    where: { id: userId },
+    select: { approved: true, tier: true, walletBalanceCents: true },
+  })
+}
+
 export const authOptions: NextAuthOptions = {
   // Secret for JWT encryption (required by NextAuth)
   secret: process.env.NEXTAUTH_SECRET,
@@ -130,6 +141,13 @@ export const authOptions: NextAuthOptions = {
   callbacks: {
     async jwt({ token, user, account, trigger, session }) {
       try {
+        // Client-initiated session update. With AUTH_SESSION_UPDATE_SERVER_READ_ENABLED
+        // the client may only change name/image; approved/tier/walletBalanceCents are
+        // re-read from the database, never taken from the browser. (Default off.)
+        if (trigger === "update" && isSessionUpdateServerReadEnabled()) {
+          return await applyServerReadSessionUpdate(token, session, readSessionUser)
+        }
+
         // Client-initiated session update (e.g. after a profile edit).
         // Refresh the mutable fields on the token without a full re-login.
         if (trigger === "update" && session) {
