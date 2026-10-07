@@ -51,6 +51,13 @@ import {
   synchronizeChartPanelGenerationConfig,
 } from '@/lib/chart-data-contract'
 import {
+  chartReinsertGeometryAuthoritative,
+  chartReinsertOptIns,
+  chartReinsertSettledAckEnabled,
+  settledAckGeometry,
+  settledChartAckSender,
+} from '@/lib/chart-reinsert-settled-ack'
+import {
   assertLayoutCommandSucceeded,
   LayoutMutationAmbiguousError,
   createLayoutMutationId,
@@ -1430,8 +1437,25 @@ export function useTextLabsGeneration({
           ? 'upsertCitedElement'
           : semanticUpsertParams ? 'upsertSemanticElement'
           : method === 'insertElement' ? 'insertTextBox' : method
+        // J3.0 (NEXT_PUBLIC_CHART_REINSERT_SETTLED_ACK_ENABLED, default off): a same-id chart
+        // insert from a refine asks Layout for the settled ACK (rendered and saved), and for the
+        // move only when the geometry above is authoritative. Flag off: null, nothing changes.
+        const chartReinsertOpts = chartReinsertOptIns({
+          enabled: chartReinsertSettledAckEnabled(),
+          action: insertionAction,
+          sameId: Boolean(refineContext) && params.elementId === refineContext?.elementId,
+          geometryAuthoritative: chartReinsertGeometryAuthoritative({
+            manuallyPositioned: manuallyPositionedChart,
+            refine: Boolean(refineContext),
+            positionConfig: formData.positionConfig,
+            liveGridPosition: refineContext?.gridPosition,
+          }),
+        })
+        if (chartReinsertOpts) Object.assign(params, chartReinsertOpts)
         const insertResponse = await sendLayoutMutationWithReconciliation(
-          generationLayoutServiceApis.sendElementCommand,
+          chartReinsertOpts
+            ? settledChartAckSender(generationLayoutServiceApis.sendElementCommand)
+            : generationLayoutServiceApis.sendElementCommand,
           insertionAction,
           (citedUpsertParams ?? semanticUpsertParams ?? params) as Record<string, unknown>,
           `${lifecycleMutationId}:insert:${index}`,
@@ -1477,7 +1501,17 @@ export function useTextLabsGeneration({
               resolveRefineGenerationConfig(params.generationConfig, formData.generationConfig),
               studio && insertionComponentType === 'METRICS' ? 'METRICS' : '',
             )
-            const generatedGridPosition = gridPositionFromInsertionParams(params)
+            // J3.0: with the settled ACK, the box Layout reports is the box the chart is on.
+            const settledGeometry = chartReinsertOpts ? settledAckGeometry(insertResponse) : null
+            const generatedGridPosition = gridPositionFromInsertionParams(settledGeometry
+              ? {
+                  ...params,
+                  gridRow: settledGeometry.gridRow,
+                  gridColumn: settledGeometry.gridColumn,
+                  positionWidth: undefined,
+                  positionHeight: undefined,
+                }
+              : params)
             const generatedComponentType = normalizeSemanticComponentType(formData.componentType)
               ?? (formData.componentType as TextLabsComponentType)
             const generatedDiagramSubtype = normalizePersistedDiagramSubtype(
