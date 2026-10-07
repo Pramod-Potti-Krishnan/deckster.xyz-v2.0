@@ -96,6 +96,7 @@ import {
   type BlockedSendNotice,
   type BlockedSendSource,
 } from '@/lib/studio-blocked-send'
+import { STUDIO_HANDOFF_QUOTA_GATE_ENABLED } from '@/lib/studio-handoff-quota-gate'
 import { classifyDirectorMessage } from '@/lib/studio-director-message-policy'
 import { createStudioVoiceOwner } from '@/lib/studio-voice-owner'
 import { classifyStudioCanvasLifecycle } from '@/lib/studio-canvas-lifecycle'
@@ -5839,6 +5840,18 @@ function AuthenticatedBuilderContent({ authScopeUserId }: { authScopeUserId: str
     authScopeUserId,
   ])
 
+  // Quota gate on the handoff auto-submit. The gate itself is read through a ref
+  // (its identity changes on every render, so it cannot be an effect dependency);
+  // the inputs that matter are the primitives below. All of them are constants
+  // with the flag off, so the effect keeps exactly its old dependencies and
+  // re-run behaviour.
+  const handoffGateRef = useRef(preflightDirectorTurn)
+  const handoffGateRefusalRef = useRef<{ key: string; status: unknown } | null>(null)
+  if (STUDIO_HANDOFF_QUOTA_GATE_ENABLED) handoffGateRef.current = preflightDirectorTurn
+  const handoffGateQuotaStatus = STUDIO_HANDOFF_QUOTA_GATE_ENABLED ? quota.status : null
+  const handoffGateQuotaLoading = STUDIO_HANDOFF_QUOTA_GATE_ENABLED ? quota.isLoading : null
+  const handoffGateBusy = STUDIO_HANDOFF_QUOTA_GATE_ENABLED ? session.isLoadingSession || awaitingDirectorReply : null
+
   // Current Director can resume the durable request during connection. An owned
   // receipt retires automatic submission; local send success retains the request
   // for observation/recovery and does not imply server or native completion.
@@ -5856,6 +5869,29 @@ function AuthenticatedBuilderContent({ authScopeUserId }: { authScopeUserId: str
 
     const submissionKey = `${pending.new_session_id}:${pending.idempotency_key}`
     if (handoffSubmissionInFlightRef.current.has(submissionKey)) return
+
+    // Quota gate on the staged auto-submit (flag
+    // NEXT_PUBLIC_STUDIO_HANDOFF_QUOTA_GATE_ENABLED, default off). This send used
+    // to bypass the plan gate every other Director turn passes. Wait for the plan
+    // picture (the gate is blind before it lands), then run the same gate. A
+    // refusal sends nothing and leaves the staged record untouched and un-marked,
+    // so this effect submits it, with its idempotency key, once the gate opens
+    // (a new plan picture re-runs it). The text also goes into an empty composer
+    // so it is never lost.
+    if (STUDIO_HANDOFF_QUOTA_GATE_ENABLED) {
+      if (handoffGateQuotaLoading || handoffGateBusy) return
+      // This effect also re-runs for unrelated dependencies, and every refusal
+      // raises a toast and the top-up dialog, so a refusal already announced for
+      // this plan picture is not repeated.
+      const refused = handoffGateRefusalRef.current
+      if (refused && refused.key === submissionKey && refused.status === handoffGateQuotaStatus) return
+      if (!handoffGateRef.current('typed')) {
+        handoffGateRefusalRef.current = { key: submissionKey, status: handoffGateQuotaStatus }
+        setInputMessage(previous => previous.trim() ? previous : pending.text)
+        return
+      }
+      handoffGateRefusalRef.current = null
+    }
     handoffSubmissionInFlightRef.current.add(submissionKey)
 
     const sent = sendMessage(pending.text, undefined, pending.file_count, {
@@ -5941,6 +5977,7 @@ function AuthenticatedBuilderContent({ authScopeUserId }: { authScopeUserId: str
     session.hasTitleFromUserMessageRef, session.setUserMessages,
     session.userMessageContentMapRef, session.userMessageIdsRef,
     studioShell, authScopeUserId, readCurrentStudioHandoff, pendingHandoffRevision,
+    handoffGateQuotaStatus, handoffGateQuotaLoading, handoffGateBusy,
   ])
 
   // Handle action button clicks
