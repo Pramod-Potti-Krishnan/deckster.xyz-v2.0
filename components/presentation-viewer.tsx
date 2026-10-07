@@ -114,6 +114,10 @@ import {
   layoutMutationStateIsAmbiguous,
   sendLayoutMutationWithReconciliation,
 } from '@/lib/layout-command-result'
+import {
+  attachSettledChartAck,
+  chartReinsertSettledAckEnabled,
+} from '@/lib/chart-reinsert-settled-ack'
 
 const DEFAULT_BUILD_THEME_SELECTION: BuildThemeSelection = { mode: 'auto' }
 
@@ -429,7 +433,14 @@ function sendCommand(
           })
         } else {
           settle(() => {
-            reject(new Error(event.data.error || 'Command failed'))
+            const failure = new Error(event.data.error || 'Command failed')
+            // J3.0 (NEXT_PUBLIC_CHART_REINSERT_SETTLED_ACK_ENABLED): a settled chart ACK uses
+            // success = ok, so keep its rendered/persisted/errorCode on the rejection. Only for a
+            // request that asked for ackMode 'settled'; flag off, the rejection is exactly as before.
+            if (chartReinsertSettledAckEnabled() && params?.ackMode === 'settled') {
+              attachSettledChartAck(failure, event.data)
+            }
+            reject(failure)
           })
         }
       }
