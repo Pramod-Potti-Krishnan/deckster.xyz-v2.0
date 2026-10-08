@@ -34,6 +34,7 @@ import { QuestionCard } from "@/components/builder/chat/question-card"
 import { CHAT_CLARITY, CHAT_QUESTIONS } from "@/lib/mdc-flags"
 import type { QuestionSet } from "@/types/mdc"
 import { shouldRerouteEphemeral } from "@/lib/build-narration-heuristics"
+import { isActionRequestHistorical } from "@/lib/studio-reload-fixes"
 
 export interface MessageListProps {
   sessionId?: string | null
@@ -46,7 +47,7 @@ export interface MessageListProps {
   onActionClick: (action: ActionRequest['payload']['actions'][0], messageId: string) => void
   // MDC (P2/P3): sends a composed answer through the normal chat send path.
   // Optional — when absent, structured question rendering falls back to plain.
-  onSubmitAnswers?: (text: string) => void
+  onSubmitAnswers?: (text: string, displayText?: string, actionMessageId?: string) => void
   messagesEndRef: React.RefObject<HTMLDivElement | null>
   // Rich strawman: per-slide context keyed by slide_index. Drives narrative_role chip + key_message subtitle.
   slideContextByIndex?: Record<number, SlideContextItem> | null
@@ -430,6 +431,17 @@ export function MessageList({
     narrationOwnsChat: !!suppressEphemeral,
   })
 
+  const isActionAnswered = (actionMsgId: string, itemIndex: number): boolean => {
+    if (answeredActionsRef.current.has(actionMsgId)) {
+      return true
+    }
+    if (isActionRequestHistorical(itemIndex, processedMessages.length)) {
+      answeredActionsRef.current.add(actionMsgId)
+      return true
+    }
+    return false
+  }
+
   return (
     <>
       {processedMessages.map((item, index) => {
@@ -548,7 +560,7 @@ export function MessageList({
                       )}
 
                       {/* Action Buttons — MDC (P2): card treatment behind CHAT_CLARITY */}
-                      {CHAT_CLARITY && actionRequest && !answeredActionsRef.current.has(actionRequest.message_id) && (
+                      {CHAT_CLARITY && actionRequest && !isActionAnswered(actionRequest.message_id, index) && (
                         <div className="mt-3">
                           <QuestionCard
                             promptText={actionRequest.payload.prompt_text}
@@ -561,7 +573,7 @@ export function MessageList({
                           />
                         </div>
                       )}
-                      {!CHAT_CLARITY && actionRequest && !answeredActionsRef.current.has(actionRequest.message_id) && (
+                      {!CHAT_CLARITY && actionRequest && !isActionAnswered(actionRequest.message_id, index) && (
                         <div className="mt-3">
                           <p className="text-xs text-gray-700 dark:text-slate-200 mb-2">{actionRequest.payload.prompt_text}</p>
                           <div className="flex flex-wrap gap-1.5">
@@ -693,7 +705,7 @@ export function MessageList({
                 )
               } else if (msg.type === 'action_request') {
                 const actionMsg = msg as ActionRequest
-                if (answeredActionsRef.current.has(actionMsg.message_id)) {
+                if (isActionAnswered(actionMsg.message_id, index)) {
                   return null
                 }
                 if (CHAT_CLARITY) {

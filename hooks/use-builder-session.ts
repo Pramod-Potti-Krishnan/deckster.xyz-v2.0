@@ -21,6 +21,7 @@ import {
   attachmentsFromPayload,
   type UserChatMessage,
 } from '@/lib/user-message-attachments'
+import { reconcileRestoredAnsweredActions } from '@/lib/studio-reload-fixes'
 
 interface UseBuilderSessionParams {
   user: any
@@ -470,6 +471,14 @@ export function useBuilderSession({
               })
 
               setUserMessages(userMsgs)
+
+              if (process.env.NEXT_PUBLIC_STUDIO_RELOAD_FIXES_ENABLED === 'true') {
+                const restoredAnswered = reconcileRestoredAnsweredActions(session.messages, sessionState)
+                restoredAnswered.forEach(id => answeredActionsRef.current.add(id))
+                if (restoredAnswered.size > 0) {
+                  debugLog(`✅ [STUDIO-RELOAD] Reconciled ${restoredAnswered.size} answered actions from session history`)
+                }
+              }
 
               userMessageIdsRef.current.clear()
               userMsgs.forEach(msg => {

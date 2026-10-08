@@ -50,6 +50,7 @@ import {
   resolveSlideViewerNavigationInfo,
 } from '@/lib/slide-compose-async'
 import { applyStageFThumbnailUrls } from '@/lib/stage-f-thumbnails'
+import { formatSlideStructureTitle } from '@/lib/studio-reload-fixes'
 import {
   DropdownMenu,
   DropdownMenuCheckboxItem,
@@ -741,7 +742,7 @@ export function PresentationViewer({
         slideId: slide.slide_id || slide.id || null,
         slideIndex: Number.isInteger(slideIndex) && slideIndex >= 0 ? slideIndex : index,
         actualSlideIndex: Number.isInteger(actualSlideIndex) && actualSlideIndex >= 0 ? actualSlideIndex : undefined,
-        title: slide.title || slide.slide_type || `Slide ${index + 1}`,
+        title: formatSlideStructureTitle(slide.title, slide.slide_type, index + 1),
         content: slide.narrative || slide.key_points?.join(', '),
       }
     })

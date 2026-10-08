@@ -5014,7 +5014,10 @@ function AuthenticatedBuilderContent({ authScopeUserId }: { authScopeUserId: str
                         hasSeenWelcomeRef={session.hasSeenWelcomeRef}
                         answeredActionsRef={session.answeredActionsRef}
                         onActionClick={handleActionClick}
-                        onSubmitAnswers={(text: string, displayText?: string) => {
+                        onSubmitAnswers={(text: string, displayText?: string, actionMessageId?: string) => {
+                          if (process.env.NEXT_PUBLIC_STUDIO_RELOAD_FIXES_ENABLED === 'true' && actionMessageId) {
+                            session.answeredActionsRef.current.add(actionMessageId)
+                          }
                           const echo = displayText || text
                           // MDC (P2/P3): QuestionCard composed answers ride the
                           // normal send path — same optimistic append + options

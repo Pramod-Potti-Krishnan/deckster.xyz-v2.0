@@ -38,7 +38,7 @@ export interface QuestionCardProps {
   /** Sends a composed free-form reply through the normal chat send path.
    *  displayText is the compact human echo (UAT 2026-08-30): the transcript
    *  shows "Answers: A · B · C" while the Director consumes the full prose. */
-  onSubmitAnswers?: (text: string, displayText?: string) => void
+  onSubmitAnswers?: (text: string, displayText?: string, actionMessageId?: string) => void
 }
 
 export function QuestionCard({
@@ -93,7 +93,7 @@ export function QuestionCard({
     const answersOnly = questionSet.questions
       .map((q) => (freeText[q.id] || "").trim() || selected[q.id])
       .filter(Boolean)
-    onSubmitAnswers(parts.join("\n"), `Answers: ${answersOnly.join(" · ")}`)
+    onSubmitAnswers(parts.join("\n"), `Answers: ${answersOnly.join(" · ")}`, messageId)
   }
 
   return (

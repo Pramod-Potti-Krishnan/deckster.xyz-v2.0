@@ -27,6 +27,7 @@ import { getSlideMenuActions, slideMenuHasAnyAction } from '@/lib/slide-thumbnai
 import { SLIDE_LAYOUTS, SlideLayoutId } from './slide-layout-picker'
 import { buildSlideComposeVisualOrder } from '@/lib/slide-compose-async'
 import type { SlideRefineTarget } from '@/lib/slide-refinement'
+import { formatSlideThumbnailTitle } from '@/lib/studio-reload-fixes'
 
 export interface SlideThumbnail {
   slideNumber: number
@@ -368,9 +369,7 @@ export function SlideThumbnailStrip({
     const isRefining = refineJob?.status === 'building'
     const canRefine = Boolean(onRefineSlide)
     const isRefineDisabled = isItemProcessing || isRefineTargetBusy(slide, slideIndex)
-    const displayTitle = !slide.title || /^Slide \d+$/i.test(slide.title)
-      ? `Slide ${visualNumber}`
-      : slide.title
+    const displayTitle = formatSlideThumbnailTitle(slide.title, visualNumber)
     const titleText = isRefining ? (refineJob.lastProgressText || 'Refining slide') : displayTitle
     const thumbnailUrl = slide.thumbnailUrl?.trim()
 
