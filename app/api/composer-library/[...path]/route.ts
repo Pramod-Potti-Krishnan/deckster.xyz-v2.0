@@ -4,6 +4,7 @@ import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth-options'
 import { prisma } from '@/lib/prisma'
 import { requireComposerServiceUrl } from '@/lib/composer-library'
+import { composerUseKeys, composerUseModeAllowed } from '@/lib/composer-ditto'
 
 export const dynamic = 'force-dynamic'
 
@@ -53,11 +54,13 @@ async function proxy(req: NextRequest, context: RouteContext) {
         chunks.push(chunk.value)
       }
       const payload = JSON.parse(Buffer.concat(chunks).toString('utf8'))
-      const keys = upload ? ['session_id', 'researcher_session_id', 'storage_path', 'file_name', 'kind'] : ['session_id', 'brief']
+      const dittoEnabled = process.env.NEXT_PUBLIC_COMPOSER_STAGE1B_DITTO_ENABLED === 'true'
+      const keys = upload ? ['session_id', 'researcher_session_id', 'storage_path', 'file_name', 'kind'] : composerUseKeys(dittoEnabled)
       const required = upload ? keys : ['session_id']
       if (!payload || Array.isArray(payload) || Object.keys(payload).some(key => !keys.includes(key)) ||
           !required.every(key => typeof payload[key] === 'string' && payload[key].length > 0) ||
           !safeId(payload.session_id) || upload && payload.kind !== 'pptx') throw new Error('invalid reference')
+      if (use && !composerUseModeAllowed(payload)) throw new Error('invalid mode')
       if (use && payload.brief !== undefined) {
         if (process.env.NEXT_PUBLIC_COMPOSER_STAGE1B_NEW_TOPIC_ENABLED !== 'true') {
           return NextResponse.json({ error: 'New-topic templates are not enabled.' }, { status: 404 })
