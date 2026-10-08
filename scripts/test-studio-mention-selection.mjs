@@ -1,3 +1,4 @@
+import { serviceUrl } from './service-url-harness.mjs'
 import assert from 'node:assert/strict'
 import fs from 'node:fs'
 import vm from 'node:vm'
@@ -9,7 +10,9 @@ const refuse = () => { throw new Error('Mention fixture refuses every service op
 const jsx = (type, props, key) => ({ type, props, key })
 const nodes = value => Array.isArray(value) ? value.flatMap(nodes) : !value || typeof value !== 'object' ? [] : [value, ...nodes(value.props?.children)]
 const imports = {
-  react: { useState: value => [value, () => {}], useRef: current => { const ref = { current }; refs.push(ref); return ref }, useEffect() {}, useCallback: callback => callback },
+  '@/lib/service-url': serviceUrl,
+  './studio-composer-hint': { StudioComposerHint: 'StudioComposerHint' },
+  react: { default: { Fragment: 'Fragment' }, useState: value => [value, () => {}], useRef: current => { const ref = { current }; refs.push(ref); return ref }, useEffect() {}, useCallback: callback => callback },
   'react/jsx-runtime': { jsx, jsxs: jsx },
   'lucide-react': Object.fromEntries(['Layers','Globe','SlidersHorizontal','Paperclip','ArrowUp','Square','Loader2','Search','Brain','LayoutTemplate','Palette','Save','Star','Trash2','X','CheckCircle2','AlertCircle'].map(name => [name,name])),
   '@/components/ui/button': { Button: 'Button' }, '@/components/ui/textarea': { Textarea: 'textarea' }, '@/components/ui/switch': { Switch: 'Switch' }, '@/components/file-chip': { FileChip: 'FileChip' },

@@ -1,3 +1,4 @@
+import { serviceUrl } from './service-url-harness.mjs'
 import assert from 'node:assert/strict'
 import fs from 'node:fs'
 import { createRequire } from 'node:module'
@@ -13,7 +14,7 @@ const mod = { exports: {} }
 vm.runInNewContext(compiled.outputText, {
   module: mod,
   exports: mod.exports,
-  require,
+  require: id => id === '@/lib/service-url' ? serviceUrl : require(id),
   AbortController,
   clearTimeout,
   setTimeout,

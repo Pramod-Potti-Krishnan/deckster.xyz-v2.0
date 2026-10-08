@@ -1,3 +1,4 @@
+import { serviceUrl } from './service-url-harness.mjs'
 /**
  * The narration voice registry.
  *
@@ -36,10 +37,10 @@ function load(relPath, baseUrl = import.meta.url) {
   const mod = { exports: {} };
   cache.set(url.href, mod.exports);
   const localRequire = (id) =>
-    id.startsWith('.') ? load(id, url) : require(id);
+    id === '@/lib/service-url' ? serviceUrl : id.startsWith('.') ? load(id, url) : require(id);
   vm.runInNewContext(compiled.outputText, {
     module: mod, exports: mod.exports, require: localRequire,
-    process, Buffer, JSON, Math, fetch, console,
+    process: { env: {} }, Buffer, JSON, Math, fetch: () => { throw new Error('Offline narration fixture refuses unexpected fetch') }, console,
   });
   cache.set(url.href, mod.exports);
   return mod.exports;
