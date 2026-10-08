@@ -21,6 +21,7 @@ import {
   CANONICAL_THEME_PRESET_IDS,
   FALLBACK_THEME_PRESETS,
   THEME_PICKER_CANON_ENABLED,
+  carryThemeFonts,
   isCanonicalThemePresetId,
   isValidThemeHex,
   normalizeThemePanelSelection,
@@ -346,7 +347,7 @@ export function ThemePanel({
 
   const selectCustomMode = () => {
     if (draft.mode === 'custom') return
-    updateDraft({
+    updateDraft(carryThemeFonts(draft, {
       mode: 'custom',
       preset_id: selectedPresetId,
       primary_hex: draft.color_overrides?.primary || selectedPreview.primary,
@@ -356,7 +357,7 @@ export function ThemePanel({
       harmony_preference: draft.harmony_preference || 'auto',
       palette_mode: draft.palette_mode || 'both',
       color_overrides: draft.color_overrides ? { ...draft.color_overrides } : undefined,
-    })
+    }))
   }
 
   const updateCustomColor = (

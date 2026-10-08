@@ -162,6 +162,9 @@
 .studio-library .sl-specimen-columns > div { background: var(--spec-surface); padding: 11%; border: 1px solid var(--spec-border); border-radius: 3px; }
 .studio-library .sl-specimen-columns span { font-size: 1.5cqw; color: var(--spec-accent); }
 .studio-library .sl-specimen-columns h3 { font-size: 1.85cqw; line-height: 1.3; color: var(--spec-text_primary); margin: 11% 0; }.studio-library .sl-specimen-columns p { font-size: 1.3cqw; line-height: 1.5; }
+/* J4-FONTS: a specimen shows the fonts its selection names; the data attributes exist only then. */
+.studio-library .sl-theme-slide[data-spec-font-body] { font-family: var(--spec-font-body), system-ui, sans-serif; }
+.studio-library .sl-theme-slide[data-spec-font-heading] h2, .studio-library .sl-theme-slide[data-spec-font-heading] h3 { font-family: var(--spec-font-heading), Georgia, serif; }
 .studio-library .sl-blueprint-elements { display: grid; grid-template-columns: repeat(3, minmax(0,1fr)); gap: 3%; margin-top: 4%; max-height: 35%; overflow: hidden; }
 .studio-library .sl-blueprint-elements > div { display: flex; flex-direction: column; border: 1px solid #d2ded2; background: #eff4ec; padding: 8%; border-radius: 3px; gap: 7%; min-height: 10cqw; }
 .studio-library .sl-blueprint-elements span { font-size: 1.2cqw; color: #527560; text-transform: uppercase; letter-spacing: .08em; }

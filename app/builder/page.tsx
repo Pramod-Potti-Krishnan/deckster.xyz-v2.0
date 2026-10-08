@@ -143,6 +143,7 @@ import {
   themeSelectionFingerprint,
   type BuildThemeSelection,
 } from '@/lib/theme-builder'
+import { themeFontFields, themeFontsEqual } from '@/lib/theme-fonts'
 import { getLayoutServiceUrl, LAYOUT_URL_CONFIG_ERROR, LAYOUT_VIEWER_URL_POLICY, getPresentationViewerUrl } from '@/lib/layout-service-client'
 import { ServiceUrlConfigError } from '@/lib/service-url'
 import { evaluateLayoutViewerUrl } from '@/lib/layout-viewer-url-policy'
@@ -283,7 +284,7 @@ function normalizeStoredBuildThemeSelection(value: unknown): BuildThemeSelection
   const raw = value as Partial<BuildThemeSelection>
   if (raw.mode === 'preset') {
     return typeof raw.preset_id === 'string'
-      ? { mode: 'preset', preset_id: raw.preset_id }
+      ? { mode: 'preset', preset_id: raw.preset_id, ...themeFontFields(raw) }
       : { mode: 'auto' }
   }
 
@@ -308,6 +309,7 @@ function normalizeStoredBuildThemeSelection(value: unknown): BuildThemeSelection
     if (raw.color_overrides && typeof raw.color_overrides === 'object') {
       next.color_overrides = raw.color_overrides
     }
+    Object.assign(next, themeFontFields(raw))
     return next.primary_hex || next.secondary_hex || next.tertiary_hex || next.color_overrides ? next : { mode: 'auto' }
   }
 
@@ -357,7 +359,7 @@ function stableStringifyRecord(value: Record<string, string> | undefined): strin
 function buildThemeSelectionsEqual(a: BuildThemeSelection, b: BuildThemeSelection): boolean {
   if (a.mode !== b.mode) return false
   if (a.mode === 'auto') return true
-  if (a.mode === 'preset') return a.preset_id === b.preset_id
+  if (a.mode === 'preset') return a.preset_id === b.preset_id && themeFontsEqual(a, b)
 
   return (
     (a.primary_hex || '').toLowerCase() === (b.primary_hex || '').toLowerCase() &&
@@ -366,7 +368,8 @@ function buildThemeSelectionsEqual(a: BuildThemeSelection, b: BuildThemeSelectio
     (a.neutral_hex || '').toLowerCase() === (b.neutral_hex || '').toLowerCase() &&
     (a.harmony_preference || 'auto') === (b.harmony_preference || 'auto') &&
     (a.palette_mode || 'light') === (b.palette_mode || 'light') &&
-    stableStringifyRecord(a.color_overrides) === stableStringifyRecord(b.color_overrides)
+    stableStringifyRecord(a.color_overrides) === stableStringifyRecord(b.color_overrides) &&
+    themeFontsEqual(a, b)
   )
 }
 
