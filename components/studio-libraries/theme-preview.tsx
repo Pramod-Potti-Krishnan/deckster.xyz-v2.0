@@ -44,7 +44,16 @@ export type ThemeSpecimen = 'title' | 'data' | 'content'
 export function ThemePreview({ selection, specimen, name }: { selection: BuildThemeSelection; specimen: ThemeSpecimen; name: string }) {
   const palette = themePreviewPalette(selection)
   const style = Object.fromEntries(Object.entries(palette).map(([key, value]) => [`--spec-${key}`, value])) as CSSProperties
-  return <div className={`sl-theme-slide sl-theme-${specimen}`} style={style} aria-label={`${specimen} palette specimen for ${name}`}>
+  // J4-FONTS: a selection that names fonts (only with NEXT_PUBLIC_THEME_FONT_SELECTION_ENABLED) shows them in the specimen.
+  const headingFont = typeof selection.font_family_heading === 'string' ? selection.font_family_heading : undefined
+  const bodyFont = typeof selection.font_family === 'string' ? selection.font_family : undefined
+  const fontAttributes = {
+    ...(headingFont ? { 'data-spec-font-heading': headingFont } : {}),
+    ...(bodyFont ? { 'data-spec-font-body': bodyFont } : {}),
+  }
+  if (headingFont) (style as Record<string, string>)['--spec-font-heading'] = `'${headingFont}'`
+  if (bodyFont) (style as Record<string, string>)['--spec-font-body'] = `'${bodyFont}'`
+  return <div className={`sl-theme-slide sl-theme-${specimen}`} style={style} {...fontAttributes} aria-label={`${specimen} palette specimen for ${name}`}>
     <span className="sl-slide-kicker">{name || 'YOUR THEME'} / PALETTE STUDY</span>
     {specimen === 'title' ? <><h2>A clear vision.<br />A lasting impression.</h2><p>Build a visual language that makes<br />every story feel like yours.</p><div className="sl-theme-art" aria-hidden="true"><i /><i /><i /></div></>
       : specimen === 'data' ? <><h2>Progress, made visible.</h2><p>Illustrative data for comparing your colors.</p><div className="sl-specimen-data"><div className="sl-chart" aria-label="Illustrative chart"><i style={{ height: '38%' }} /><i style={{ height: '57%' }} /><i style={{ height: '69%' }} /><i style={{ height: '91%' }} /></div><div><strong>24<span>%</span></strong><p>Sample growth metric</p><small>Sample only · not your data</small></div></div></>

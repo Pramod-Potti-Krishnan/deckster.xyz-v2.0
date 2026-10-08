@@ -52,6 +52,7 @@
     "test:diagram-structured-retry": "node scripts/test-diagram-reliability.mjs && node scripts/test-textlabs-abort-signal.mjs",
     "test:layout-command-result": "node scripts/test-layout-command-result.mjs",
     "test:export-view-only": "node scripts/test-export-view-only.mjs",
+    "test:theme-font-selection": "node scripts/test-theme-font-selection.mjs",
     "test:stage-f-thumbnails": "node scripts/test-stage-f-thumbnails.mjs",
     "test:studio-rail-slide-identity": "node scripts/test-studio-rail-slide-identity.mjs",
     "test:studio-deck-mutation-refresh": "node scripts/test-studio-deck-mutation-refresh.mjs",

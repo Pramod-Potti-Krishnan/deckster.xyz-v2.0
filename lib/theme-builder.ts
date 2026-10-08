@@ -10,6 +10,10 @@ export interface BuildThemeSelection {
   harmony_preference?: 'auto' | 'monochrome' | 'analogous' | 'complementary' | 'triadic'
   palette_mode?: 'light' | 'dark' | 'both'
   color_overrides?: Record<string, string>
+  /** J4-FONTS: body font. Present only when the user chose one (NEXT_PUBLIC_THEME_FONT_SELECTION_ENABLED); never null. */
+  font_family?: string
+  /** J4-FONTS: heading font. Same rules as `font_family`. */
+  font_family_heading?: string
 }
 
 export interface ThemePresetSummary {
@@ -180,6 +184,23 @@ export function normalizeThemePanelSelection(
   }
 }
 
+/**
+ * J4-FONTS: copy the fonts a selection already carries onto the selection built from it. A
+ * selection that carries none (always, with the flag off) comes back as `to`, key for key.
+ */
+export function carryThemeFonts<T extends BuildThemeSelection>(
+  from: Pick<BuildThemeSelection, 'font_family' | 'font_family_heading'>,
+  to: T,
+): T {
+  const body = typeof from.font_family === 'string' ? from.font_family : undefined
+  const heading = typeof from.font_family_heading === 'string' ? from.font_family_heading : undefined
+  if (body === undefined && heading === undefined) return to
+  const next = { ...to }
+  if (body !== undefined) next.font_family = body
+  if (heading !== undefined) next.font_family_heading = heading
+  return next
+}
+
 export function themeSelectionFingerprint(selection: BuildThemeSelection): string {
   const normalized = normalizeThemePanelSelection(selection)
   const overrides = normalized.color_overrides
@@ -219,13 +240,13 @@ export function selectCanonicalThemePreset(
     }
   })
 
-  return {
+  return carryThemeFonts(selection, {
     mode: 'preset',
     preset_id: canonicalPreset,
     harmony_preference: selection.harmony_preference,
     palette_mode: selection.palette_mode,
     color_overrides: Object.keys(colorOverrides).length > 0 ? colorOverrides : undefined,
-  }
+  })
 }
 
 export function isValidThemeHex(value: string | null | undefined): value is string {
