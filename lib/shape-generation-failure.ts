@@ -16,8 +16,8 @@ export function shapeTypedFailureGuidance(
     !(error instanceof TextLabsRequestError)
     || error.kind !== 'application'
     || error.errorCode !== 'SHAPE_GEOMETRY_UNVERIFIABLE'
-    || error.retryable
-    || error.ambiguousCompletion
+    || error.retryable !== false
+    || error.ambiguousCompletion !== false
   ) return null
 
   return 'Try a simpler shape description or choose a preset.'
