@@ -620,6 +620,9 @@ export function TextBoxForm({
 
   // Request fidelity (flag): the submit boundary sends only what the selected role
   // exposes and no count the user never chose. handleSubmit itself is untouched.
+  // In a Sequential element the per-box item count is the number of steps (request fidelity flag).
+  const stepsLabelled = TEXTBOX_REQUEST_FIDELITY_ENABLED && structure === 'SEQUENTIAL'
+
   const onSubmit = useCallback((formData: TextLabsFormData) => {
     if (!TEXTBOX_REQUEST_FIDELITY_ENABLED || formData.componentType !== 'TEXT_BOX') {
       onSubmitDirect(formData)
@@ -630,6 +633,8 @@ export function TextBoxForm({
       ...formData,
       ...(isBodyText && countAuto ? { countAuto: true } : {}),
       ...(isBodyText && typedCardLimit !== null && formData.count > 1 ? { cardsInOneElement: true } : {}),
+      // Text Labs reads multi_box_color_mode only for separate COMPOSE boxes, never for one typed element.
+      ...(isBodyText && typedCardLimit !== null ? { multiBoxColorMode: undefined } : {}),
       layout: isBodyText ? formData.layout : 'horizontal',
       geometryMode: geometry.geometryMode,
       manualGeometryOverrides: geometry.manualGeometryOverrides,
@@ -1067,7 +1072,7 @@ export function TextBoxForm({
                   </div>
                 )}
 
-                {count > 1 && (
+                {count > 1 && typedCardLimit === null && (
                   <label className="space-y-1">
                     <span className="text-[10px] text-slate-500">Multi-box color style</span>
                     <select
@@ -1352,9 +1357,9 @@ export function TextBoxForm({
             <CollapsibleSection title="Content" isOpen={showContent} onToggle={() => setShowContent(value => !value)}>
               <div className="space-y-2.5">
                 <label className="space-y-1">
-                  <span className="text-[11px] font-medium text-slate-600 dark:text-slate-300">Items / Box</span>
+                  <span className="text-[11px] font-medium text-slate-600 dark:text-slate-300">{stepsLabelled ? 'Steps' : 'Items / Box'}</span>
                   <select
-                    aria-label="Items per box"
+                    aria-label={stepsLabelled ? 'Steps' : 'Items per box'}
                     value={geometryMode === 'MANUAL' && manualGeometryOverrides.items_per_box
                       ? String(manualGeometryOverrides.items_per_box)
                       : 'auto'}

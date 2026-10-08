@@ -42,6 +42,7 @@ import {
   type ThemeSyncState,
 } from '@/lib/theme-sync'
 import { restoreBlankElementAfterFailure } from '@/lib/blank-element-recovery'
+import { TEXTBOX_REQUEST_FIDELITY_ENABLED, textBoxResponseNotices } from '@/lib/textbox-request-fidelity'
 import { parseThemeVariantSource, responseStyleOwner } from '@/lib/element-provenance'
 import { resolveMetricsLayout } from '@/lib/metrics-layout'
 import {
@@ -1697,11 +1698,24 @@ export function useTextLabsGeneration({
         generationPanel.openPanelForRefine(generatedRefineContext.elementType, generatedRefineContext)
       }
       assertGenerationTargetIsStillAuthoritative()
+      // Text Labs says which count it honoured in `warnings`; say it in plain words (request fidelity
+      // flag). One toast: the toaster shows a single message, so the notice rides on this one.
+      const countNotices = TEXTBOX_REQUEST_FIDELITY_ENABLED
+        && (formData.componentType === 'TEXT_BOX' || formData.componentType === 'METRICS')
+        ? textBoxResponseNotices(response.warnings, {
+            componentType: formData.componentType,
+            structure: formData.componentType === 'TEXT_BOX' ? formData.structure : null,
+            count: formData.count,
+            countAuto: formData.countAuto,
+            elementsReturned: elements.length,
+          })
+        : []
       toast({
         title: refineContext ? 'Element refined' : 'Element generated',
-        description: refineContext
+        description: (refineContext
           ? `${formData.componentType.replace(/_/g, ' ')} updated on slide`
-          : `${formData.componentType.replace(/_/g, ' ')} added to slide`,
+          : `${formData.componentType.replace(/_/g, ' ')} added to slide`)
+          + (countNotices.length > 0 ? `. ${countNotices.join(' ')}` : ''),
       })
       console.log(`[TextLabs] Generated ${elements.length} ${formData.componentType} element(s)`)
       return { status: 'inserted', presentationId: expectedPresentationTarget.presentationId,

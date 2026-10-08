@@ -20,6 +20,10 @@
  *    what the family holds, and the request keeps `count`, `compose` and
  *    `elements[].grid_position` because Text Labs reads the card count and the
  *    arrangement (row / column / N-column grid) off them.
+ *  - Text Labs reads `multi_box_color_mode` only in its COMPOSE branch, so a typed family
+ *    (one element of cards) neither shows nor sends the Multi-box colour style.
+ *  - The `warnings` of a text box / metrics response that explain a count decision are
+ *    shown to the user in plain words (see textBoxResponseNotices).
  *
  * Import-free on purpose: the node contract test compiles this file alone.
  */
@@ -65,6 +69,64 @@ export function typedTextBoxCardNoun(structure: string | null | undefined): stri
   return typeof structure === 'string' && Object.prototype.hasOwnProperty.call(TYPED_CARD_NOUNS, structure)
     ? TYPED_CARD_NOUNS[structure]
     : 'boxes'
+}
+
+/** The `warnings` codes Text Labs uses to say which count it honoured (prompt or panel). */
+const COUNT_OVERRIDDEN_WARNING = 'text_box_count_overridden'
+const COUNT_NOT_OVERRIDDEN_WARNING = 'text_box_count_not_overridden'
+
+const positiveInteger = (value: unknown): number | null =>
+  typeof value === 'number' && Number.isInteger(value) && value > 0 ? value : null
+
+/**
+ * Plain-words notices for the `warnings` Text Labs returns on POST /api/chat/message, shown
+ * with the success toast. Facts come from the request (what the user chose) and the response
+ * (how many elements came back); a number that is not known is left out of the sentence
+ * rather than guessed. Warnings that are not about text box counts are not the panel's to
+ * explain and are ignored. Returns sentences, deduplicated, in the order Text Labs sent them.
+ */
+export function textBoxResponseNotices(
+  warnings: unknown,
+  facts: {
+    componentType: string
+    structure?: string | null
+    /** The count the panel sent. */
+    count?: number | null
+    /** The panel's Count was Auto: nothing was chosen. */
+    countAuto?: boolean
+    /** Elements in the response; one element of several cards says nothing about the card count. */
+    elementsReturned?: number | null
+  },
+): string[] {
+  if (!Array.isArray(warnings)) return []
+  const cards = facts.componentType === 'METRICS' || typedTextBoxCardLimit(facts.structure) !== null
+  const noun = (amount: number) => (cards ? (amount === 1 ? 'card' : 'cards') : (amount === 1 ? 'box' : 'boxes'))
+  const chosen = facts.countAuto ? null : positiveInteger(facts.count)
+  const returned = positiveInteger(facts.elementsReturned)
+  const used = returned !== null && returned > 1 ? returned : null
+  const notices: string[] = []
+  for (const warning of warnings) {
+    if (typeof warning !== 'string') continue
+    const code = warning.trim().match(/^[a-z0-9_]+/i)?.[0].toLowerCase()
+    if (!code) continue
+    let notice: string | null = null
+    if (code === COUNT_OVERRIDDEN_WARNING) {
+      notice = chosen !== null && used !== null && chosen !== used
+        ? `Used ${used} ${noun(used)} from your prompt instead of ${chosen}`
+        : chosen !== null
+          ? `Used the number of ${noun(2)} named in your prompt instead of the ${chosen} you picked`
+          : `Used the number of ${noun(2)} named in your prompt`
+    } else if (code === COUNT_NOT_OVERRIDDEN_WARNING) {
+      notice = chosen !== null
+        ? `Your prompt names a different number of ${noun(2)}, but the ${chosen} you picked was kept`
+        : `Your prompt names a different number of ${noun(2)}, but the number picked in the panel was kept`
+    } else if (code.startsWith('text_box_')) {
+      const words = code.slice('text_box_'.length).replace(/_/g, ' ')
+      notice = `Note: ${words}`
+    }
+    if (notice && !notices.includes(notice + '.')) notices.push(notice + '.')
+  }
+  return notices
 }
 
 /** Panel list-style labels -> the values Text Service renders. */

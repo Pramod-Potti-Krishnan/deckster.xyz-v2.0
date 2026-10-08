@@ -685,4 +685,118 @@ await check('D8: Boxes follows the role (Body only) and the flag (off: not rende
   assert.equal(find(off.render(), n => n.props?.['aria-label'] === 'Text box count'), null)
 })
 
+// ---------------------------------------------------------------------------
+// 5. ELEMENT-1 contract answers (Text Labs): (a) multi_box_color_mode is read only in the COMPOSE branch, so the seven typed
+//    families neither show nor send it; (b) a Sequential element's per-box item count is its number of steps; (c) the
+//    response `warnings` that say which count was honoured reach the user in plain words.
+// ---------------------------------------------------------------------------
+const multiBoxLabel = tree => find(tree, n => n.type === 'span' && n.props.children === 'Multi-box color style')
+const typedFamilies = Object.keys(TYPED_LIMITS)
+
+for (const family of typedFamilies) {
+  await check(`E1a ${family}: Multi-box color style is hidden and multi_box_color_mode is not sent, even after a colour was picked on separate boxes`, async () => {
+    const h = textHarness('true', 'Rollout plan for the forecasting launch')
+    pickStructure(h, 'classic')
+    countSelect(h.render()).onChange({ target: { value: '2' } })
+    byLabel(h.render(), 'Multi-box color style').onChange({ target: { value: 'THEME_SEQUENCE' } })
+    const plain = JSON.parse(await wire(nowClientOn, h.submit().data))
+    assert.equal(plain.multi_box_color_mode, 'THEME_SEQUENCE', 'separate boxes still send the colour style')
+    pickStructure(h, family)
+    const n = Math.min(TYPED_LIMITS[family], 3)
+    countSelect(h.render()).onChange({ target: { value: String(n) } })
+    const { data, tree } = h.submit()
+    assert.equal(multiBoxLabel(tree), null, 'control hidden')
+    assert.equal(data.multiBoxColorMode, undefined)
+    const body = JSON.parse(await wire(nowClientOn, data))
+    assert.equal('multi_box_color_mode' in body || 'multiBoxColorMode' in body, false, 'not on the wire')
+    assert.equal(body.compose, true); assert.equal(body.count, n); assert.equal(body.structure, family)
+    assert.equal(body.elements.length, n, 'the card count and arrangement still travel')
+    pickStructure(h, 'classic')
+    assert.ok(multiBoxLabel(h.render()), 'back on separate boxes the control returns')
+    assert.equal(byLabel(h.render(), 'Multi-box color style').value, 'THEME_SEQUENCE', 'the earlier choice is kept')
+    assert.equal(JSON.parse(await wire(nowClientOn, h.submit().data)).multi_box_color_mode, 'THEME_SEQUENCE')
+  })
+}
+for (const structure of PLAIN_STRUCTURES) {
+  await check(`E1a ${structure}: separate boxes keep the Multi-box color style control and send it`, async () => {
+    const h = textHarness('true'); if (structure !== 'auto') pickStructure(h, structure)
+    countSelect(h.render()).onChange({ target: { value: '3' } })
+    assert.ok(multiBoxLabel(h.render()))
+    const body = JSON.parse(await wire(nowClientOn, h.submit().data))
+    assert.equal(body.multi_box_color_mode, 'SAME')
+  })
+}
+await check('E1a flag off: a typed family still shows and sends Multi-box color style, exactly as before', async () => {
+  const h = textHarness(undefined, 'Rollout plan for the forecasting launch'); pickStructure(h, 'SEQUENTIAL')
+  countSelect(h.render()).onChange({ target: { value: '3' } })
+  assert.ok(multiBoxLabel(h.render()))
+  const body = JSON.parse(await wire(nowClient, h.submit().data))
+  assert.equal(body.multi_box_color_mode, 'SAME')
+})
+await check('E1a METRICS is not a typed family: its colour style is untouched', async () => {
+  const h = make('metrics', 'true')
+  need(h.render(), n => n.props?.['aria-label'] === 'Metric count', 'Metric count').onChange({ target: { value: '3' } })
+  const body = JSON.parse(await wire(nowClientOn, h.submit().data))
+  assert.equal(typeof body.multi_box_color_mode, 'string')
+})
+
+const itemsControl = (tree, label) => find(tree, n => n.props?.['aria-label'] === label)
+const itemsCaption = (tree, text) => find(tree, n => n.type === 'span' && n.props.children === text && n.props.className?.includes('font-medium'))
+await check('E1b Sequential: the per-box item count is labelled "Steps" (caption and control) and still sends items_per_box', async () => {
+  const h = textHarness('true'); const tree = pickStructure(h, 'SEQUENTIAL')
+  assert.ok(itemsCaption(tree, 'Steps'), 'Steps caption'); assert.equal(itemsCaption(tree, 'Items / Box'), null)
+  assert.ok(itemsControl(tree, 'Steps')); assert.equal(itemsControl(tree, 'Items per box'), null)
+  itemsControl(tree, 'Steps').props.onChange({ target: { value: '4' } })
+  const { data } = h.submit()
+  assert.equal(data.manualGeometryOverrides.items_per_box, 4)
+  assert.equal(JSON.parse(await wire(nowClientOn, data)).manual_geometry_overrides.items_per_box, 4)
+})
+for (const structure of [...typedFamilies.filter(f => f !== 'SEQUENTIAL'), ...PLAIN_STRUCTURES, 'simple']) {
+  await check(`E1b ${structure}: keeps "Items per box"`, () => {
+    const h = textHarness('true'); if (structure !== 'auto') pickStructure(h, structure)
+    const tree = h.render()
+    assert.ok(itemsCaption(tree, 'Items / Box')); assert.ok(itemsControl(tree, 'Items per box'))
+    assert.equal(itemsCaption(tree, 'Steps'), null); assert.equal(itemsControl(tree, 'Steps'), null)
+  })
+}
+await check('E1b flag off: Sequential keeps "Items per box"', () => {
+  const tree = pickStructure(textHarness(undefined), 'SEQUENTIAL')
+  assert.ok(itemsCaption(tree, 'Items / Box')); assert.ok(itemsControl(tree, 'Items per box'))
+  assert.equal(itemsCaption(tree, 'Steps'), null); assert.equal(itemsControl(tree, 'Steps'), null)
+})
+
+const notices = (warnings, facts = {}) => copy(libOn.textBoxResponseNotices(warnings, { componentType: 'TEXT_BOX', ...facts }))
+await check('E1c notices: text_box_count_overridden says which count won, in plain words', () => {
+  assert.deepEqual(notices(['text_box_count_overridden'], { structure: 'SEQUENTIAL', count: 3, elementsReturned: 5 }), ['Used 5 cards from your prompt instead of 3.'])
+  assert.deepEqual(notices(['text_box_count_overridden'], { componentType: 'METRICS', count: 3, elementsReturned: 5 }), ['Used 5 cards from your prompt instead of 3.'])
+  assert.deepEqual(notices(['text_box_count_overridden'], { count: 3, elementsReturned: 5 }), ['Used 5 boxes from your prompt instead of 3.'])
+  assert.deepEqual(notices(['text_box_count_overridden'], { structure: 'CALLOUT', count: 2, elementsReturned: 1 }), ['Used the number of cards named in your prompt instead of the 2 you picked.'])
+  assert.deepEqual(notices(['text_box_count_overridden'], { count: 1, countAuto: true, elementsReturned: 4 }), ['Used the number of boxes named in your prompt.'])
+  assert.deepEqual(notices(['text_box_count_overridden'], { count: 3, elementsReturned: 3 }), ['Used the number of boxes named in your prompt instead of the 3 you picked.'])
+})
+await check('E1c notices: text_box_count_not_overridden says the panel choice was kept', () => {
+  assert.deepEqual(notices(['text_box_count_not_overridden'], { structure: 'SEQUENTIAL', count: 3, elementsReturned: 1 }), ['Your prompt names a different number of cards, but the 3 you picked was kept.'])
+  assert.deepEqual(notices(['text_box_count_not_overridden'], { count: 3, elementsReturned: 3 }), ['Your prompt names a different number of boxes, but the 3 you picked was kept.'])
+  assert.deepEqual(notices(['text_box_count_not_overridden'], { count: 1, countAuto: true }), ['Your prompt names a different number of boxes, but the number picked in the panel was kept.'])
+})
+await check('E1c notices: codes with detail still match; repeats collapse; order is kept; unknown text_box_ codes get a plain note; unrelated warnings are not shown', () => {
+  assert.deepEqual(notices(['text_box_count_overridden: requested=3 used=5', 'text_box_count_overridden'], { count: 3, elementsReturned: 5 }), ['Used 5 boxes from your prompt instead of 3.'])
+  assert.deepEqual(notices(['text_box_count_not_overridden', 'text_box_count_overridden'], { count: 2, elementsReturned: 2 }).length, 2)
+  assert.deepEqual(notices(['text_box_cards_clamped'], { count: 6 }), ['Note: cards clamped.'])
+  for (const ignored of [undefined, null, 'text_box_count_overridden', {}, [], [''], [3, null, {}], ['chart_points_trimmed'], ['Some other service warning']]) {
+    assert.deepEqual(notices(ignored, { count: 3 }), [], JSON.stringify(ignored) ?? 'undefined')
+  }
+})
+await check('E1c wiring: the success toast carries the notices only behind the flag and only for Text Box / Metrics, from response.warnings', () => {
+  const hook = fs.readFileSync(new URL('hooks/use-textlabs-generation.ts', root), 'utf8')
+  assert.match(hook, /import \{ TEXTBOX_REQUEST_FIDELITY_ENABLED, textBoxResponseNotices \} from '@\/lib\/textbox-request-fidelity'/)
+  assert.match(hook, /const countNotices = TEXTBOX_REQUEST_FIDELITY_ENABLED\s*&&\s*\(formData\.componentType === 'TEXT_BOX' \|\| formData\.componentType === 'METRICS'\)\s*\?\s*textBoxResponseNotices\(response\.warnings, \{[^}]*countAuto: formData\.countAuto,[^}]*elementsReturned: elements\.length,\s*\}\)\s*:\s*\[\]/)
+  assert.match(hook, /title: refineContext \? 'Element refined' : 'Element generated',\s*description: \(refineContext\s*\?\s*`\$\{formData\.componentType\.replace\(\/_\/g, ' '\)\} updated on slide`\s*:\s*`\$\{formData\.componentType\.replace\(\/_\/g, ' '\)\} added to slide`\)\s*\+ \(countNotices\.length > 0 \? `\. \$\{countNotices\.join\(' '\)\}` : ''\)/)
+  assert.equal((hook.match(/textBoxResponseNotices\(/g) ?? []).length, 1)
+  // With no notice (flag off, or no warning) the description is exactly the old string.
+  const none = []
+  assert.equal(`TEXT BOX added to slide` + (none.length > 0 ? `. ${none.join(' ')}` : ''), 'TEXT BOX added to slide')
+  assert.equal(`TEXT BOX added to slide` + `. ${['Used 5 cards from your prompt instead of 3.'].join(' ')}`, 'TEXT BOX added to slide. Used 5 cards from your prompt instead of 3.')
+})
+
 console.log(`\n${checks} checks passed`)
