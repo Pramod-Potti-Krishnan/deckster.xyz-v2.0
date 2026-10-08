@@ -892,6 +892,20 @@ export interface TextLabsElement {
   } | null
 }
 
+/**
+ * One entry of `TextLabsResponse.warning_details` (Text Labs TL_TEXTBOX_COUNT_ALL_TYPES_ENABLED):
+ * the numbers behind a count warning. `panel` is the count the panel asked for when the prompt
+ * overrode it; `used` is null when the box was made as before; `box` (0-based) only when the
+ * Text Service names the box.
+ */
+export interface TextLabsWarningDetail {
+  code: string
+  requested?: number | null
+  used?: number | null
+  panel?: number | null
+  box?: number
+}
+
 export interface TextLabsResponse {
   success?: boolean
   element?: TextLabsElement
@@ -909,6 +923,8 @@ export interface TextLabsResponse {
   downstream_generation_attempt_id?: string
   downstreamGenerationAttemptId?: string
   warnings?: string[]
+  /** Absent unless Text Labs has its count flag on and a count warning fired. */
+  warning_details?: TextLabsWarningDetail[]
   message?: string
   response_text?: string
   citations_used?: Array<Record<string, unknown>> | null
