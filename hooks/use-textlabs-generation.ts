@@ -282,6 +282,8 @@ export function useTextLabsGeneration({
   toast,
 }: UseTextLabsGenerationParams) {
   const studio = process.env.NEXT_PUBLIC_STUDIO_V4_SHELL === 'true'
+  const immediateFailureFeedbackEnabled = studio
+    && process.env.NEXT_PUBLIC_ELEMENT_FAILURE_IMMEDIATE_FEEDBACK_ENABLED === 'true'
   const pendingPlaceholderAddsRef = useRef<Set<string>>(new Set())
   const placeholderSequenceRef = useRef(0)
   const placeholderMountRevisionRef = useRef(0)
@@ -363,10 +365,25 @@ export function useTextLabsGeneration({
     )
     const presentationIsStillAuthoritative = () => presentationOwnerIsStillAuthoritative()
       && (!studio || Boolean(nativeGenerationLease?.isCurrent()))
+    let failureRecoveryStarted = false
+    let failureToastPublished = false
+    const publishFailureToast = (message: string) => {
+      if (failureToastPublished) return
+      failureToastPublished = true
+      toast({ title: 'Element generation failed', description: message })
+    }
+    let failureRecoveryIsCurrent = () => presentationIsStillAuthoritative()
     let generationError: string | null = null
     const setGenerationError = (error: string | null) => {
       generationError = error
-      if (!studio || presentationIsStillAuthoritative()) generationPanel.setError(error)
+      if (immediateFailureFeedbackEnabled && error !== null) failureRecoveryStarted = true
+      if ((!studio || presentationIsStillAuthoritative())
+        && (!immediateFailureFeedbackEnabled || error === null || failureRecoveryIsCurrent())) {
+        if (immediateFailureFeedbackEnabled && error !== null
+          && (invocation || !generationPanel.getSnapshot().isOpen)) {
+          publishFailureToast(error)
+        } else generationPanel.setError(error)
+      }
     }
     const failureOutcome = (error?: string): TextLabsGenerationResult => ({
       status: 'failed',
@@ -376,7 +393,11 @@ export function useTextLabsGeneration({
     })
     if (studio && !nativeGenerationLease) {
       const error = 'The presentation viewer is not ready. Wait for it to load before generating an element.'
-      if (presentationOwnerIsStillAuthoritative()) generationPanel.setError(error)
+      if (presentationOwnerIsStillAuthoritative()) {
+        if (immediateFailureFeedbackEnabled && (invocation || !generationPanel.getSnapshot().isOpen)) {
+          publishFailureToast(error)
+        } else generationPanel.setError(error)
+      }
       return failureOutcome(error)
     }
     const retryCandidate = diagramRetryCandidateForPreDispatch(
@@ -460,6 +481,77 @@ export function useTextLabsGeneration({
     let blankTrackingWasRemoved = false
     const insertedElementIds: string[] = []
     let generationLifecycleCleaned = false
+    let recoveryLeaseReleased = false
+    let deferredFailedPanelResume: {
+      type: TextLabsComponentType
+      elementId: string
+      message: string
+      retryStrategy: TextLabsRetryStrategy | null
+    } | null = null
+    let recoveryPanelIntentRevision = immediateFailureFeedbackEnabled
+      ? generationPanel.getIntentRevision?.() : undefined
+    const recoveryPanelAtStart = immediateFailureFeedbackEnabled
+      ? generationPanel.getSnapshot() : null
+    const recoveryBlankIds = new Set([currentBlankId])
+    const recoveryGenerationKeys = new Set([generationKey])
+    failureRecoveryIsCurrent = () => {
+      if (!immediateFailureFeedbackEnabled) return true
+      if (!presentationIsStillAuthoritative()
+        || (!recoveryLeaseReleased && !activeGenerationKeysRef.current.has(generationKey))
+        || generationPanel.getIntentRevision?.() !== recoveryPanelIntentRevision) return false
+      const panel = generationPanel.getSnapshot()
+      if (!recoveryPanelAtStart || panel.isOpen !== recoveryPanelAtStart.isOpen
+        || panel.mode !== recoveryPanelAtStart.mode) return false
+      return currentBlankId
+        ? recoveryBlankIds.has(panel.blankElementId)
+        : panel.blankElementId === recoveryPanelAtStart.blankElementId
+          && panel.editElementId === recoveryPanelAtStart.editElementId
+    }
+    const assertFailureRecoveryIsCurrent = () => {
+      if (!failureRecoveryIsCurrent()) {
+        throw new Error('Element recovery stopped because its presentation or panel changed.')
+      }
+    }
+    const publishImmediateFailure = (message: string, retryStrategy: TextLabsRetryStrategy | null = null) => {
+      if (!immediateFailureFeedbackEnabled) return
+      failureRecoveryStarted = true
+      if (!failureRecoveryIsCurrent()) return
+      const panel = generationPanel.getSnapshot()
+      const ownsPanel = currentBlankId
+        ? recoveryBlankIds.has(panel.blankElementId)
+        : refineContext ? panel.editElementId === refineContext.elementId : !panel.isOpen
+      generationError = message
+      if (ownsPanel && panel.isOpen && !invocation) {
+        setGenerationError(message)
+        generationPanel.setRetryStrategy(retryStrategy)
+      } else publishFailureToast(message)
+    }
+    const resumeFailedPanel = (type: TextLabsComponentType, elementId: string,
+      message: string, retryStrategy: TextLabsRetryStrategy | null, afterCleanup = false) => {
+      if (immediateFailureFeedbackEnabled
+        && (!failureRecoveryIsCurrent() || !recoveryPanelAtStart?.isOpen || invocation)) return
+      if (immediateFailureFeedbackEnabled && !recoveryLeaseReleased) {
+        const resumedKey = `blank:${elementId}`
+        activeGenerationKeysRef.current.add(resumedKey)
+        recoveryGenerationKeys.add(resumedKey)
+        if (elementId !== currentBlankId && !afterCleanup) {
+          // The panel's busy setter owns the old draft key. Keep that visible
+          // target busy until cleanup completes instead of exposing a new idle
+          // draft while the original generation is still recovering.
+          deferredFailedPanelResume = { type, elementId, message, retryStrategy }
+          return
+        }
+      }
+      generationPanel.resumePanelForElement(type, elementId)
+      if (immediateFailureFeedbackEnabled) {
+        recoveryBlankIds.add(elementId)
+        recoveryPanelIntentRevision = generationPanel.getIntentRevision?.()
+        // resume clears error/retry. Restore both in the same synchronous turn;
+        // the old snapshot can still name the previous owned placeholder ID.
+        setGenerationError(message)
+        generationPanel.setRetryStrategy(retryStrategy)
+      }
+    }
 
     const cleanupGenerationLifecycle = async () => {
       if (generationLifecycleCleaned) return
@@ -467,6 +559,7 @@ export function useTextLabsGeneration({
       const refineOverlayTargetSurvived = !refineElementDeleted
         || Boolean(refineContext && insertedElementIds.includes(refineContext.elementId))
       if ((!studio || presentationIsStillAuthoritative())
+        && (!immediateFailureFeedbackEnabled || !failureRecoveryStarted || failureRecoveryIsCurrent())
         && currentBlankId && blankOverlayActive && !blankTrackingWasRemoved) {
         try {
           blankElements.setStatus(currentBlankId, 'blank')
@@ -476,6 +569,7 @@ export function useTextLabsGeneration({
       }
       if (
         presentationIsStillAuthoritative()
+        && (!immediateFailureFeedbackEnabled || !failureRecoveryStarted || failureRecoveryIsCurrent())
         && currentBlankId
         && blankOverlayActive
         && !blankTrackingWasRemoved
@@ -493,6 +587,7 @@ export function useTextLabsGeneration({
       }
       if (
         presentationIsStillAuthoritative()
+        && (!immediateFailureFeedbackEnabled || !failureRecoveryStarted || failureRecoveryIsCurrent())
         && refineContext
         && refineOverlayActive
         && refineOverlayTargetSurvived
@@ -513,7 +608,23 @@ export function useTextLabsGeneration({
       } catch (error) {
         console.warn('[TextLabs] Failed to reset generation panel state:', error)
       }
-      activeGenerationKeysRef.current.delete(generationKey)
+      if (immediateFailureFeedbackEnabled) {
+        recoveryGenerationKeys.forEach(key => activeGenerationKeysRef.current.delete(key))
+      } else activeGenerationKeysRef.current.delete(generationKey)
+      recoveryLeaseReleased = true
+      if (immediateFailureFeedbackEnabled && deferredFailedPanelResume && failureRecoveryIsCurrent()) {
+        const pending = deferredFailedPanelResume
+        deferredFailedPanelResume = null
+        // No await occurs after releasing the old busy/lease and before this
+        // final authority check plus atomic error-preserving panel handoff.
+        try {
+          resumeFailedPanel(pending.type, pending.elementId, pending.message, pending.retryStrategy, true)
+        } catch {
+          // A failed UI handoff must not replace the original generation failure
+          // or reject an otherwise settled, awaited recovery lifecycle.
+          console.warn('[TextLabs] Failed to resume the recovered placeholder after error.')
+        }
+      }
     }
 
     try {
@@ -548,7 +659,14 @@ export function useTextLabsGeneration({
           assertLayoutCommandSucceeded(overlayResponse, 'Regeneration overlay')
           refineOverlayActive = true
         } catch (error) {
+          if (immediateFailureFeedbackEnabled) {
+            const message = error instanceof Error
+              ? `The presentation viewer could not show regeneration progress: ${error.message}`
+              : 'The presentation viewer could not show regeneration progress.'
+            publishImmediateFailure(`${message} Reload the slide and try again.`)
+          }
           try {
+            assertFailureRecoveryIsCurrent()
             await generationLayoutServiceApis.sendElementCommand('setElementGenerationState', {
               elementId: refineContext.elementId,
               generating: false,
@@ -576,8 +694,15 @@ export function useTextLabsGeneration({
           assertLayoutCommandSucceeded(overlayResponse, 'Generation overlay')
           blankOverlayActive = true
         } catch (error) {
-          blankElements.setStatus(blankId, 'blank')
+          if (!immediateFailureFeedbackEnabled || failureRecoveryIsCurrent()) blankElements.setStatus(blankId, 'blank')
+          if (immediateFailureFeedbackEnabled) {
+            const message = error instanceof Error
+              ? `The presentation viewer could not show generation progress: ${error.message}`
+              : 'The presentation viewer could not show generation progress.'
+            publishImmediateFailure(`${message} Reload the slide and try again.`)
+          }
           try {
+            assertFailureRecoveryIsCurrent()
             await generationLayoutServiceApis.sendElementCommand('setElementGenerationState', {
               elementId: blankId,
               generating: false,
@@ -1729,13 +1854,17 @@ export function useTextLabsGeneration({
             insertedElementIds.length = 0
             throw deleteError
           }
+          publishImmediateFailure('The original could not be replaced.')
           const rollbackResults = await Promise.allSettled(
-            insertedElementIds.map((elementId, index) => sendLayoutMutationWithReconciliation(
-              generationLayoutServiceApis.sendElementCommand,
-              'deleteElement',
-              { elementId },
-              `${lifecycleMutationId}:rollback-original-delete:${index}`,
-            )),
+            insertedElementIds.map((elementId, index) => {
+              assertFailureRecoveryIsCurrent()
+              return sendLayoutMutationWithReconciliation(
+                generationLayoutServiceApis.sendElementCommand,
+                'deleteElement',
+                { elementId },
+                `${lifecycleMutationId}:rollback-original-delete:${index}`,
+              )
+            }),
           )
           const rollbackFailed = rollbackResults.some(result => (
             result.status === 'rejected' || !layoutCommandSucceeded(result.value)
@@ -1785,6 +1914,7 @@ export function useTextLabsGeneration({
       return { status: 'inserted', presentationId: expectedPresentationTarget.presentationId,
         slideIndex: generationSlideIndex, elementIds: [...insertedElementIds] }
     } catch (err) {
+      if (immediateFailureFeedbackEnabled) failureRecoveryStarted = true
       let errorRetryStrategy = diagramRequestWasDispatched
         ? diagramRetryStrategyForFailure(err)
         : null
@@ -1851,31 +1981,40 @@ export function useTextLabsGeneration({
         // reloaded and its actual lifecycle state can be inspected.
         insertedElementIds.length = 0
       }
+      publishImmediateFailure(errorMessage, errorRetryStrategy)
       if (
         !presentationTargetChanged &&
+        (!immediateFailureFeedbackEnabled || failureRecoveryIsCurrent()) &&
         (!refineContext || !refineElementDeleted) &&
         insertedElementIds.length > 0 &&
         generationLayoutServiceApis?.sendElementCommand
       ) {
         const rollbackResults = await Promise.allSettled(
-          insertedElementIds.map((elementId, index) => sendLayoutMutationWithReconciliation(
-            generationLayoutServiceApis.sendElementCommand,
-            'deleteElement',
-            { elementId },
-            `${lifecycleMutationId}:rollback-generation:${index}`,
-          )),
+          insertedElementIds.map((elementId, index) => {
+            if (immediateFailureFeedbackEnabled && !failureRecoveryIsCurrent()) {
+              return Promise.resolve({ success: false })
+            }
+            return sendLayoutMutationWithReconciliation(
+              generationLayoutServiceApis.sendElementCommand,
+              'deleteElement',
+              { elementId },
+              `${lifecycleMutationId}:rollback-generation:${index}`,
+            )
+          }),
         )
         if (rollbackResults.some(result => (
           result.status === 'rejected' || !layoutCommandSucceeded(result.value)
         ))) {
           errorMessage += ' Some generated elements could not be removed; reload the slide before retrying.'
         }
+        publishImmediateFailure(errorMessage, errorRetryStrategy)
         insertedElementIds.length = 0
       }
       // Restore placeholder on failure
       let restoredBlankElementId: string | null = currentBlankId
       if (
         !presentationTargetChanged &&
+        (!immediateFailureFeedbackEnabled || failureRecoveryIsCurrent()) &&
         currentBlankId &&
         currentBlankInfo &&
         blankTrackingWasRemoved &&
@@ -1890,27 +2029,40 @@ export function useTextLabsGeneration({
           restoredBlankElementId = await restoreBlankElementAfterFailure({
             elementId: currentBlankId,
             trackingWasRemoved: blankTrackingWasRemoved,
-            deleteElement: () => generationLayoutServiceApis.sendElementCommand('deleteElement', {
-              elementId: currentBlankId,
-            }),
-            insertElement: () => generationLayoutServiceApis.sendElementCommand('insertTextBox', {
-              elementId: currentBlankId,
-              slideIndex: recoveryBlankInfo.slideIndex,
-              content: placeholderHtml,
-              gridRow,
-              gridColumn,
-              positionWidth: recoveryBlankInfo.width,
-              positionHeight: recoveryBlankInfo.height,
-              zIndex: 10,
-              draggable: true,
-              resizable: true,
-              skipAutoSize: true,
-              componentType: recoveryBlankInfo.componentType,
-              themeVariantId: recoveryBlankInfo.themeVariantId,
-              themeBindings: recoveryBlankInfo.themeBindings,
-              themeVariantSource: 'element_generation',
-            }),
+            deleteElement: () => {
+              assertFailureRecoveryIsCurrent()
+              return generationLayoutServiceApis.sendElementCommand('deleteElement', { elementId: currentBlankId })
+            },
+            insertElement: () => {
+              assertFailureRecoveryIsCurrent()
+              return generationLayoutServiceApis.sendElementCommand('insertTextBox', {
+                elementId: currentBlankId,
+                slideIndex: recoveryBlankInfo.slideIndex,
+                content: placeholderHtml,
+                gridRow,
+                gridColumn,
+                positionWidth: recoveryBlankInfo.width,
+                positionHeight: recoveryBlankInfo.height,
+                zIndex: 10,
+                draggable: true,
+                resizable: true,
+                skipAutoSize: true,
+                componentType: recoveryBlankInfo.componentType,
+                themeVariantId: recoveryBlankInfo.themeVariantId,
+                themeBindings: recoveryBlankInfo.themeBindings,
+                themeVariantSource: 'element_generation',
+              })
+            },
             restoreTracking: restoredElementId => {
+              if (immediateFailureFeedbackEnabled) {
+                if (!failureRecoveryIsCurrent()) return
+                recoveryBlankIds.add(restoredElementId)
+                // Reserve a renamed identity before tracking callbacks can
+                // expose it to another user attempt during owned cleanup.
+                const restoredKey = `blank:${restoredElementId}`
+                activeGenerationKeysRef.current.add(restoredKey)
+                recoveryGenerationKeys.add(restoredKey)
+              }
               blankElements.removeElement(currentBlankId)
               blankElements.addElement({
                 ...recoveryBlankInfo,
@@ -1920,7 +2072,7 @@ export function useTextLabsGeneration({
               blankElements.trackElement(restoredElementId)
               const latestPanel = generationPanel.getSnapshot()
               if (!latestPanel.isOpen) {
-                generationPanel.resumePanelForElement(recoveryBlankInfo.componentType, restoredElementId)
+                resumeFailedPanel(recoveryBlankInfo.componentType, restoredElementId, errorMessage, errorRetryStrategy)
               }
             },
             onDeleteError: deleteError => {
@@ -1929,18 +2081,21 @@ export function useTextLabsGeneration({
           })
           const latestPanel = generationPanel.getSnapshot()
           if (restoredBlankElementId && (!latestPanel.isOpen || latestPanel.blankElementId === currentBlankId)) {
-            generationPanel.resumePanelForElement(recoveryBlankInfo.componentType, restoredBlankElementId)
+            resumeFailedPanel(recoveryBlankInfo.componentType, restoredBlankElementId, errorMessage, errorRetryStrategy)
           }
         } catch (restoreErr) {
           console.warn('[TextLabs] Failed to restore placeholder after error:', restoreErr)
         }
-      } else if (!presentationTargetChanged && currentBlankId && currentBlankInfo) {
+      } else if (!presentationTargetChanged
+        && (!immediateFailureFeedbackEnabled || failureRecoveryIsCurrent()) && currentBlankId && currentBlankInfo) {
         // Pre-insertion failures leave the original placeholder in place.
         blankElements.setStatus(currentBlankId, 'blank')
       }
-      // openPanelForElement clears prior panel errors, so publish the final
-      // failure only after any placeholder/tracking recovery has completed.
-      if (!studio || presentationIsStillAuthoritative()) {
+      // OFF retains legacy publication after recovery. ON has already shown
+      // the failure and restores it synchronously whenever owned resume clears it.
+      if (immediateFailureFeedbackEnabled) {
+        publishImmediateFailure(errorMessage, errorRetryStrategy)
+      } else if (!studio || presentationIsStillAuthoritative()) {
         const latestPanel = generationPanel.getSnapshot()
         const ownsCurrentPanel = currentBlankId
           ? latestPanel.blankElementId === currentBlankId || latestPanel.blankElementId === restoredBlankElementId
@@ -1968,6 +2123,7 @@ export function useTextLabsGeneration({
       await cleanupGenerationLifecycle()
     }
   }, [
+    immediateFailureFeedbackEnabled,
     generationPanel,
     textLabsSession,
     layoutServiceApis,
