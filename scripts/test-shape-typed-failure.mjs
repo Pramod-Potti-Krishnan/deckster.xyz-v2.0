@@ -67,7 +67,7 @@ function runtime({ ref, shapeFlag, timeoutFlag, recoveryFlag, delay = 5_000, ses
         if (!url.includes('textlabs.example.test')) return { ok: true, json: async () => ({ primary: '#123456' }) }
         requests.push({ body: JSON.parse(init.body), signal: init.signal, at: now })
         return await new Promise((resolve, reject) => {
-          const id = setTimer(() => resolve({ ok: true, headers: { get: name => name === 'x-request-id' ? 'synthetic-request-1234' : null }, json: async () => ({
+          const id = setTimer(() => resolve({ ok: true, status: 200, headers: { get: name => name === 'x-request-id' ? 'synthetic-request-1234' : null }, json: async () => ({
             ...backendResponse,
           }) }), delay)
           const abort = () => { clearTimer(id); reject(new DOMException('Aborted', 'AbortError')) }
