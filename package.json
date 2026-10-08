@@ -62,7 +62,8 @@
     "test:narration": "node scripts/test-narration-voices.mjs",
     "test:build-narration": "node scripts/test-build-narration.mjs",
     "test:slide-thumbnail-menu": "node scripts/test-slide-thumbnail-menu.mjs",
-    "test:studio-rail-slide-identity": "node scripts/test-studio-rail-slide-identity.mjs"
+    "test:studio-rail-slide-identity": "node scripts/test-studio-rail-slide-identity.mjs",
+    "test:studio-deck-mutation-refresh": "node scripts/test-studio-deck-mutation-refresh.mjs"
   },
   "dependencies": {
     "@auth/prisma-adapter": "^2.10.0",

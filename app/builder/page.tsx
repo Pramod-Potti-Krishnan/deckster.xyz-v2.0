@@ -50,6 +50,12 @@ import { SlideGenerationPanel, type SlideComposeAcceptedJob, type SlideComposeBu
 import { StudioFormatInspector, type StudioFormatTarget, type StudioFormatCommand } from '@/components/builder/studio-format-inspector'
 import type { StudioFormatSelectionHandle } from '@/lib/studio-format-native'
 import { TextBoxFormatPanel } from '@/components/textbox-format-panel'
+import {
+  STUDIO_DECK_MUTATION_REFRESH_ENABLED,
+  createDeckMutationSeen,
+  planDeckMutationRefresh,
+  requestSlideRailRefresh,
+} from '@/lib/studio-deck-mutation-refresh'
 import { TextBoxFormatting, type RefineElementRequest, type SlideComposeViewerApi, type StudioIntroductionSafety, type StudioComposeSelectionContext, type StudioElementGenerationLease, type StudioPartialNativeReadback } from '@/components/presentation-viewer'
 import { parseStudioNativeSlideOrder, type StudioNativeSlideOrder } from '@/lib/studio-native-slide-order'
 import {
@@ -920,6 +926,7 @@ function AuthenticatedBuilderContent({ authScopeUserId }: { authScopeUserId: str
     refreshToken: 0,
   })
   const slideComposeJobsRef = useRef<Record<string, SlideComposeJobState>>({})
+  const deckMutationSeenRef = useRef(createDeckMutationSeen())
   const studioSlideComposeOwnerRef = useRef({
     key: '',
     sessionId: null as string | null,
@@ -2157,6 +2164,21 @@ function AuthenticatedBuilderContent({ authScopeUserId }: { authScopeUserId: str
     }).isUserMessage : undefined,
     expectedHandoffRequest: expectedStudioHandoffRequest,
     onHandoffRequestStatus: handleStudioHandoffRequestStatus,
+    // S-03: Director's deck_mutation (chat-driven add/delete/replace/reorder) reloads the displayed deck and
+    // re-reads the rail inventory. Flag off: no handler, so the hook drops the frame exactly as before.
+    ...(STUDIO_DECK_MUTATION_REFRESH_ENABLED && {
+      onDeckMutation: (message: import('@/types/mdc').DeckMutationMessage, owner: { isCurrent: () => boolean; presentationId: string }) => {
+        const displayed = slideComposerPresentationRef.current
+        const plan = planDeckMutationRefresh({
+          message, ownerIsCurrent: owner.isCurrent(), ownerPresentationId: owner.presentationId,
+          displayed, now: Date.now(), seen: deckMutationSeenRef.current,
+        })
+        if (!plan) return
+        slideComposerPresentationRef.current = { ...displayed, ...plan.override }
+        setSlideComposerOverride(plan.override)
+        requestSlideRailRefresh(plan.override.presentationId)
+      },
+    }),
     // Don't auto-connect when restoring an existing session from URL.
     // The useBuilderSession hook will connect AFTER DB load + restoreMessages,
     // preventing Director's blank state from flashing before restored content.
