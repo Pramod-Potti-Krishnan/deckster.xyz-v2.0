@@ -1,0 +1,2713 @@
+[
+  {
+    "label": "baseline",
+    "source_commit": "18e0446073d62b042a9470fd4524994d3dd82e8e",
+    "source_hashes": {
+      "app/builder/page.tsx": "e3bc115ad4a1747b7c227859280de8a2a5930f37c04c1807867481768d967d2d",
+      "hooks/use-textlabs-generation.ts": "b36929ed296a4562874344292d2feb25fa95fd4772f861e4197e73b961b669eb",
+      "lib/theme-sync.ts": "083872ea4afd4e473d6499b89ea83ecf10b2bd6d628cdf06f0485e2832f705f8",
+      "lib/element-generation-timeout.ts": "b9228e2f77a76d90dd4f680b7c4d79035ba8ba8b71fa86e17dfbd59c97ad1139"
+    },
+    "native": [
+      {
+        "script": "test-async-slide-composer.mjs",
+        "exit": 0,
+        "signal": null,
+        "message": null
+      },
+      {
+        "script": "test-atlas-decks-pagination.mjs",
+        "exit": 0,
+        "signal": null,
+        "message": null
+      },
+      {
+        "script": "test-atlas-details-account.mjs",
+        "exit": 0,
+        "signal": null,
+        "message": null
+      },
+      {
+        "script": "test-atlas-details-harness.mjs",
+        "exit": 0,
+        "signal": null,
+        "message": null
+      },
+      {
+        "script": "test-atlas-details-preview.mjs",
+        "exit": 1,
+        "signal": null,
+        "message": "Error: Unmocked dependency: @/components/studio-intro-replay"
+      },
+      {
+        "script": "test-atlas-help-recovery.mjs",
+        "exit": 0,
+        "signal": null,
+        "message": null
+      },
+      {
+        "script": "test-atlas-intelligence-drafts.mjs",
+        "exit": 1,
+        "signal": null,
+        "message": "Error: Unmocked dependency: @/components/studio-intro-replay"
+      },
+      {
+        "script": "test-atlas-knowledge-recovery.mjs",
+        "exit": 0,
+        "signal": null,
+        "message": null
+      },
+      {
+        "script": "test-atlas-library-account-boundary.mjs",
+        "exit": 0,
+        "signal": null,
+        "message": null
+      },
+      {
+        "script": "test-atlas-library-identity.mjs",
+        "exit": 1,
+        "signal": null,
+        "message": "AssertionError [ERR_ASSERTION]: Entire existing shared controls unchanged except exact optional identity seam"
+      },
+      {
+        "script": "test-atlas-security-lifecycle.mjs",
+        "exit": 0,
+        "signal": null,
+        "message": null
+      },
+      {
+        "script": "test-atlas-template-watch.mjs",
+        "exit": 0,
+        "signal": null,
+        "message": null
+      },
+      {
+        "script": "test-atlas-templates-account-boundary.mjs",
+        "exit": 0,
+        "signal": null,
+        "message": null
+      },
+      {
+        "script": "test-atlas-templates-recovery.mjs",
+        "exit": 0,
+        "signal": null,
+        "message": null
+      },
+      {
+        "script": "test-atlas-templates-render-corrections.mjs",
+        "exit": 0,
+        "signal": null,
+        "message": null
+      },
+      {
+        "script": "test-atlas-theme-read-errors.mjs",
+        "exit": 0,
+        "signal": null,
+        "message": null
+      },
+      {
+        "script": "test-atlas-themes-account-boundary.mjs",
+        "exit": 0,
+        "signal": null,
+        "message": null
+      },
+      {
+        "script": "test-atlas-themes-recovery.mjs",
+        "exit": 0,
+        "signal": null,
+        "message": null
+      },
+      {
+        "script": "test-atlas-workflow-continuations.mjs",
+        "exit": 0,
+        "signal": null,
+        "message": null
+      },
+      {
+        "script": "test-blank-element-recovery.mjs",
+        "exit": 1,
+        "signal": null,
+        "message": "AssertionError [ERR_ASSERTION]: the recovered panel must retain the generation error"
+      },
+      {
+        "script": "test-build-narration.mjs",
+        "exit": 1,
+        "signal": null,
+        "message": "AssertionError [ERR_ASSERTION]: The input did not match the regular expression /messages: (?:scrubBuildControlCapabilityMessages\\(safeHistoricalMessages\\)|mergeDirectorChatHistory\\(historySessionId, safeHistoricalMessages, cachedBotMessages, prev.messages\\))/. Input:"
+      },
+      {
+        "script": "test-build-progress-visibility.mjs",
+        "exit": 0,
+        "signal": null,
+        "message": null
+      },
+      {
+        "script": "test-builder-presentation-ownership.mjs",
+        "exit": 0,
+        "signal": null,
+        "message": null
+      },
+      {
+        "script": "test-chart-generation-contract.mjs",
+        "exit": 1,
+        "signal": null,
+        "message": "Error: Unexpected test import: @/lib/service-url"
+      },
+      {
+        "script": "test-chart-request-safety.mjs",
+        "exit": 1,
+        "signal": null,
+        "message": "Error: Unexpected test import: @/lib/service-url"
+      },
+      {
+        "script": "test-composer-library.mjs",
+        "exit": 1,
+        "signal": null,
+        "message": "Error: Unexpected import @/lib/service-url"
+      },
+      {
+        "script": "test-composer-picker.mjs",
+        "exit": 1,
+        "signal": null,
+        "message": "AssertionError [ERR_ASSERTION]: Unexpected import ./studio-composer-hint"
+      },
+      {
+        "script": "test-composer-storage-upload.mjs",
+        "exit": 1,
+        "signal": null,
+        "message": "  throw new AssertionError(obj);"
+      },
+      {
+        "script": "test-composer-theme.mjs",
+        "exit": 1,
+        "signal": null,
+        "message": "TypeError: (0 , react_1.useLayoutEffect) is not a function"
+      },
+      {
+        "script": "test-deck-identity.mjs",
+        "exit": 0,
+        "signal": null,
+        "message": null
+      },
+      {
+        "script": "test-diagram-catalog-drift.mjs",
+        "exit": 0,
+        "signal": null,
+        "message": null
+      },
+      {
+        "script": "test-diagram-contract.mjs",
+        "exit": 1,
+        "signal": null,
+        "message": "Error: Unexpected test import: @/lib/service-url"
+      },
+      {
+        "script": "test-diagram-reliability.mjs",
+        "exit": 0,
+        "signal": null,
+        "message": null
+      },
+      {
+        "script": "test-diagram-uat-fidelity.mjs",
+        "exit": 1,
+        "signal": null,
+        "message": "Error: Unexpected test import: @/lib/service-url"
+      },
+      {
+        "script": "test-director-action-scope.mjs",
+        "exit": 1,
+        "signal": null,
+        "message": "ReferenceError: ServiceUrlConfigError is not defined"
+      },
+      {
+        "script": "test-director-chat-history.mjs",
+        "exit": 0,
+        "signal": null,
+        "message": null
+      },
+      {
+        "script": "test-director-chat-parity.mjs",
+        "exit": 1,
+        "signal": null,
+        "message": "AssertionError [ERR_ASSERTION]: Unexpected fixture dependency @/lib/studio-director-message-policy"
+      },
+      {
+        "script": "test-director-first-send-page.mjs",
+        "exit": 1,
+        "signal": null,
+        "message": null
+      },
+      {
+        "script": "test-director-history-presentation.mjs",
+        "exit": 1,
+        "signal": null,
+        "message": null
+      },
+      {
+        "script": "test-director-layout-url-ingress.mjs",
+        "exit": 0,
+        "signal": null,
+        "message": null
+      },
+      {
+        "script": "test-director-outline-admission.mjs",
+        "exit": 1,
+        "signal": null,
+        "message": null
+      },
+      {
+        "script": "test-director-question-submit.mjs",
+        "exit": 1,
+        "signal": null,
+        "message": "ReferenceError: ServiceUrlConfigError is not defined"
+      },
+      {
+        "script": "test-director-sync-recovery.mjs",
+        "exit": 0,
+        "signal": null,
+        "message": null
+      },
+      {
+        "script": "test-director-typed-commit.mjs",
+        "exit": 1,
+        "signal": null,
+        "message": "ReferenceError: ServiceUrlConfigError is not defined"
+      },
+      {
+        "script": "test-director-websocket-reconnect.mjs",
+        "exit": 0,
+        "signal": null,
+        "message": null
+      },
+      {
+        "script": "test-element-create-first.mjs",
+        "exit": 0,
+        "signal": null,
+        "message": null
+      },
+      {
+        "script": "test-element-generation-context.mjs",
+        "exit": 1,
+        "signal": null,
+        "message": "AssertionError [ERR_ASSERTION]: the local error recorder still publishes the exact error through the existing panel setter"
+      },
+      {
+        "script": "test-element-geometry.mjs",
+        "exit": 0,
+        "signal": null,
+        "message": null
+      },
+      {
+        "script": "test-element-panel-activation.mjs",
+        "exit": 0,
+        "signal": null,
+        "message": null
+      },
+      {
+        "script": "test-element-semantic-type.mjs",
+        "exit": 1,
+        "signal": null,
+        "message": "AssertionError [ERR_ASSERTION]: The input did not match the regular expression /useState<TextLabsChartType>\\('auto'\\)/. Input:"
+      },
+      {
+        "script": "test-element-theme-variants.mjs",
+        "exit": 1,
+        "signal": null,
+        "message": "Error: Unexpected client dependency: @/lib/service-url"
+      },
+      {
+        "script": "test-export-view-only.mjs",
+        "exit": 0,
+        "signal": null,
+        "message": null
+      },
+      {
+        "script": "test-fe0-public-viewer.mjs",
+        "exit": 0,
+        "signal": null,
+        "message": null
+      },
+      {
+        "script": "test-fe0-theme-version-components.mjs",
+        "exit": 1,
+        "signal": null,
+        "message": "Error: ENOENT: no such file or directory, open '/private/tmp/element3-j3-fe-studio-native-base-20261008/docs/studio-v4/twenty-four-hour-parity-20261005/fe0/root-audit/source/components/build-version-guard.tsx'"
+      },
+      {
+        "script": "test-golden-evidence-contract.mjs",
+        "exit": 0,
+        "signal": null,
+        "message": null
+      },
+      {
+        "script": "test-grid-splitter.mjs",
+        "exit": 0,
+        "signal": null,
+        "message": null
+      },
+      {
+        "script": "test-infographic-contract.mjs",
+        "exit": 1,
+        "signal": null,
+        "message": "Error: Unexpected dependency: @/lib/service-url"
+      },
+      {
+        "script": "test-layout-command-result.mjs",
+        "exit": 0,
+        "signal": null,
+        "message": null
+      },
+      {
+        "script": "test-layout-viewer-messaging.mjs",
+        "exit": 0,
+        "signal": null,
+        "message": null
+      },
+      {
+        "script": "test-layout-viewer-url-policy.mjs",
+        "exit": 0,
+        "signal": null,
+        "message": null
+      },
+      {
+        "script": "test-legal-links.mjs",
+        "exit": 0,
+        "signal": null,
+        "message": null
+      },
+      {
+        "script": "test-manual-deck-workflow.mjs",
+        "exit": 0,
+        "signal": null,
+        "message": null
+      },
+      {
+        "script": "test-metrics-card-refine-draft.mjs",
+        "exit": 1,
+        "signal": null,
+        "message": "Error: ENOENT: no such file or directory, open '/private/tmp/element3-j3-fe-studio-native-base-20261008/docs/studio-v4/eight-hour-parity-20261005/builder1/metrics-refine/before-panel-hook.ts.txt'"
+      },
+      {
+        "script": "test-metrics-card-refine-integration.mjs",
+        "exit": 1,
+        "signal": null,
+        "message": "AssertionError [ERR_ASSERTION]: chat_add_ack_direct_explicit_target_overrides_form_and_current_slide"
+      },
+      {
+        "script": "test-metrics-overhaul-contract.mjs",
+        "exit": 1,
+        "signal": null,
+        "message": "Error: Unexpected client dependency: @/lib/service-url"
+      },
+      {
+        "script": "test-narration-voices.mjs",
+        "exit": 1,
+        "signal": null,
+        "message": "Error: Cannot find module '@/lib/service-url'"
+      },
+      {
+        "script": "test-present-view-only.mjs",
+        "exit": 0,
+        "signal": null,
+        "message": null
+      },
+      {
+        "script": "test-qa-ask-gates.mjs",
+        "exit": 0,
+        "signal": null,
+        "message": null
+      },
+      {
+        "script": "test-qa-citation-tiers.mjs",
+        "exit": 0,
+        "signal": null,
+        "message": null
+      },
+      {
+        "script": "test-qa-limits.mjs",
+        "exit": 0,
+        "signal": null,
+        "message": null
+      },
+      {
+        "script": "test-qa-serialize.mjs",
+        "exit": 0,
+        "signal": null,
+        "message": null
+      },
+      {
+        "script": "test-refinement-provenance.mjs",
+        "exit": 0,
+        "signal": null,
+        "message": null
+      },
+      {
+        "script": "test-research-mode-contract.mjs",
+        "exit": 0,
+        "signal": null,
+        "message": null
+      },
+      {
+        "script": "test-slide-element-targeting.mjs",
+        "exit": 1,
+        "signal": null,
+        "message": "AssertionError [ERR_ASSERTION]: the authoritative new slide is published before awaiting iframe navigation"
+      },
+      {
+        "script": "test-slide-thumbnail-menu.mjs",
+        "exit": 0,
+        "signal": null,
+        "message": null
+      },
+      {
+        "script": "test-stage-f-thumbnail-cache-hook.mjs",
+        "exit": 1,
+        "signal": null,
+        "message": "AssertionError [ERR_ASSERTION]: handleDuplicateSlide/success retires interaction before dispatch"
+      },
+      {
+        "script": "test-stage-f-thumbnail-recovery.mjs",
+        "exit": 0,
+        "signal": null,
+        "message": null
+      },
+      {
+        "script": "test-stage-f-thumbnails.mjs",
+        "exit": 0,
+        "signal": null,
+        "message": null
+      },
+      {
+        "script": "test-studio-account-visual-fidelity.mjs",
+        "exit": 1,
+        "signal": null,
+        "message": "TypeError: (0 , studio_introduction_1.useStudioAboutReplay) is not a function"
+      },
+      {
+        "script": "test-studio-add-element-ownership.mjs",
+        "exit": 1,
+        "signal": null,
+        "message": "AssertionError [ERR_ASSERTION]: generation callback stays exact native source"
+      },
+      {
+        "script": "test-studio-add-slide-ownership.mjs",
+        "exit": 1,
+        "signal": null,
+        "message": "AssertionError [ERR_ASSERTION]: sendCommand: actual native receipt bridge remains unchanged"
+      },
+      {
+        "script": "test-studio-approval-cover.mjs",
+        "exit": 1,
+        "signal": null,
+        "message": "AssertionError [ERR_ASSERTION]: react-dom"
+      },
+      {
+        "script": "test-studio-arrange-controls.mjs",
+        "exit": 1,
+        "signal": null,
+        "message": "AssertionError [ERR_ASSERTION]: Unexpected specimen dependency @/components/builder/studio-format-failures.css"
+      },
+      {
+        "script": "test-studio-auth-host-option.mjs",
+        "exit": 1,
+        "signal": null,
+        "message": "Error: ENOENT: no such file or directory, open '/private/tmp/element3-j3-fe-studio-native-base-20261008/package-lock.json'"
+      },
+      {
+        "script": "test-studio-blank-dismiss.mjs",
+        "exit": 1,
+        "signal": null,
+        "message": null
+      },
+      {
+        "script": "test-studio-build-isolation.mjs",
+        "exit": 1,
+        "signal": null,
+        "message": "<ref *1> Error: spawnSync pnpm ENOENT"
+      },
+      {
+        "script": "test-studio-build-provenance.mjs",
+        "exit": 1,
+        "signal": null,
+        "message": "Error: Command failed: rg --files app components contexts hooks lib"
+      },
+      {
+        "script": "test-studio-canvas-lifecycle.mjs",
+        "exit": 1,
+        "signal": null,
+        "message": "ReferenceError: studioPartialArtifact is not defined"
+      },
+      {
+        "script": "test-studio-canvas-return.mjs",
+        "exit": 1,
+        "signal": null,
+        "message": null
+      },
+      {
+        "script": "test-studio-canvas-shortcuts.mjs",
+        "exit": 0,
+        "signal": null,
+        "message": null
+      },
+      {
+        "script": "test-studio-compose-built-origin.mjs",
+        "exit": 1,
+        "signal": null,
+        "message": null
+      },
+      {
+        "script": "test-studio-compose-entry.mjs",
+        "exit": 1,
+        "signal": null,
+        "message": null
+      },
+      {
+        "script": "test-studio-compose-ownership.mjs",
+        "exit": 1,
+        "signal": null,
+        "message": "ReferenceError: effectiveActiveVersion is not defined"
+      },
+      {
+        "script": "test-studio-compose-recovery.mjs",
+        "exit": 1,
+        "signal": null,
+        "message": "ReferenceError: effectiveActiveVersion is not defined"
+      },
+      {
+        "script": "test-studio-composer-library.mjs",
+        "exit": 0,
+        "signal": null,
+        "message": null
+      },
+      {
+        "script": "test-studio-composer-send.mjs",
+        "exit": 1,
+        "signal": null,
+        "message": "AssertionError [ERR_ASSERTION]: Reversing only explicitly named native theme recovery additions and Studio pointer Send availability restores exact historical handlers/pickers/options/effects"
+      },
+      {
+        "script": "test-studio-connected-runtime.mjs",
+        "exit": 1,
+        "signal": null,
+        "message": "AssertionError [ERR_ASSERTION]: Expected values to be strictly equal:"
+      },
+      {
+        "script": "test-studio-deck-identity-dialog.mjs",
+        "exit": 0,
+        "signal": null,
+        "message": null
+      },
+      {
+        "script": "test-studio-deck-mutation-refresh.mjs",
+        "exit": 0,
+        "signal": null,
+        "message": null
+      },
+      {
+        "script": "test-studio-dev-dependencies.mjs",
+        "exit": 1,
+        "signal": null,
+        "message": null
+      },
+      {
+        "script": "test-studio-dev-deployment.mjs",
+        "exit": 1,
+        "signal": null,
+        "message": "AssertionError [ERR_ASSERTION]: Q&A handlers must remain unchanged apart from relocating the invalid route export"
+      },
+      {
+        "script": "test-studio-dev-server.mjs",
+        "exit": 1,
+        "signal": null,
+        "message": "TypeError: fetch failed"
+      },
+      {
+        "script": "test-studio-diagram-draft.mjs",
+        "exit": 0,
+        "signal": null,
+        "message": null
+      },
+      {
+        "script": "test-studio-director-code.mjs",
+        "exit": 1,
+        "signal": null,
+        "message": "AssertionError [ERR_ASSERTION]: Unexpected code fixture dependency @/lib/studio-greeting-lifecycle"
+      },
+      {
+        "script": "test-studio-director-handoff.mjs",
+        "exit": 1,
+        "signal": null,
+        "message": null
+      },
+      {
+        "script": "test-studio-director-header.mjs",
+        "exit": 1,
+        "signal": null,
+        "message": "AssertionError [ERR_ASSERTION]: Unexpected import @/lib/service-url"
+      },
+      {
+        "script": "test-studio-director-notice.mjs",
+        "exit": 0,
+        "signal": null,
+        "message": null
+      },
+      {
+        "script": "test-studio-director-presence.mjs",
+        "exit": 0,
+        "signal": null,
+        "message": null
+      },
+      {
+        "script": "test-studio-director-transport.mjs",
+        "exit": 1,
+        "signal": null,
+        "message": null
+      },
+      {
+        "script": "test-studio-edit-mode-guide.mjs",
+        "exit": 1,
+        "signal": null,
+        "message": "AssertionError [ERR_ASSERTION]: Whole native viewer source is AST-exact after reversing the leaf-only extraction"
+      },
+      {
+        "script": "test-studio-format-failures.mjs",
+        "exit": 0,
+        "signal": null,
+        "message": null
+      },
+      {
+        "script": "test-studio-fullscreen-picker.mjs",
+        "exit": 1,
+        "signal": null,
+        "message": "AssertionError [ERR_ASSERTION]: Expected values to be strictly equal:"
+      },
+      {
+        "script": "test-studio-generation-cover-fixture.mjs",
+        "exit": 0,
+        "signal": null,
+        "message": null
+      },
+      {
+        "script": "test-studio-generation-cover.mjs",
+        "exit": 1,
+        "signal": null,
+        "message": "AssertionError [ERR_ASSERTION]: The complete viewer must remain byte-exact to accepted application 0ed6298"
+      },
+      {
+        "script": "test-studio-generation-feedback.mjs",
+        "exit": 0,
+        "signal": null,
+        "message": null
+      },
+      {
+        "script": "test-studio-icon-label-draft.mjs",
+        "exit": 0,
+        "signal": null,
+        "message": null
+      },
+      {
+        "script": "test-studio-icon-label-mode-routing.mjs",
+        "exit": 1,
+        "signal": null,
+        "message": "Error: ENOENT: no such file or directory, open '/private/tmp/element3-j3-fe-studio-native-base-20261008/docs/studio-v4/eight-hour-parity-20261005/builder1/icon-label-mode-routing/evidence/before-form.tsx'"
+      },
+      {
+        "script": "test-studio-image-form.mjs",
+        "exit": 0,
+        "signal": null,
+        "message": null
+      },
+      {
+        "script": "test-studio-infographic-draft.mjs",
+        "exit": 0,
+        "signal": null,
+        "message": null
+      },
+      {
+        "script": "test-studio-inspector-focus.mjs",
+        "exit": 0,
+        "signal": null,
+        "message": null
+      },
+      {
+        "script": "test-studio-intro-eligibility.mjs",
+        "exit": 0,
+        "signal": null,
+        "message": null
+      },
+      {
+        "script": "test-studio-intro-integration.mjs",
+        "exit": 1,
+        "signal": null,
+        "message": null
+      },
+      {
+        "script": "test-studio-intro-radix-browser.mjs",
+        "exit": 1,
+        "signal": null,
+        "message": "AssertionError [ERR_ASSERTION]: Unmapped application dependency @/components/builder/studio-composer-hint"
+      },
+      {
+        "script": "test-studio-jose-candidate.mjs",
+        "exit": 1,
+        "signal": null,
+        "message": "Error: ENOENT: no such file or directory, open '/private/tmp/element3-j3-fe-studio-native-base-20261008/.env.studio-v4-runtime/isolated-dependencies/package.json'"
+      },
+      {
+        "script": "test-studio-jwt-type.mjs",
+        "exit": 1,
+        "signal": null,
+        "message": "AssertionError [ERR_ASSERTION]: Existing task 19-model compiler config required; do not generate a replacement client"
+      },
+      {
+        "script": "test-studio-legacy-textbox.mjs",
+        "exit": 0,
+        "signal": null,
+        "message": null
+      },
+      {
+        "script": "test-studio-manual-deck-conflict.mjs",
+        "exit": 0,
+        "signal": null,
+        "message": null
+      },
+      {
+        "script": "test-studio-manual-handoff.mjs",
+        "exit": 1,
+        "signal": null,
+        "message": "ReferenceError: ServiceUrlConfigError is not defined"
+      },
+      {
+        "script": "test-studio-master-panel.mjs",
+        "exit": 0,
+        "signal": null,
+        "message": null
+      },
+      {
+        "script": "test-studio-mention-selection.mjs",
+        "exit": 1,
+        "signal": null,
+        "message": "AssertionError [ERR_ASSERTION]: Unexpected mention dependency @/lib/service-url"
+      },
+      {
+        "script": "test-studio-metric-chart-drafts.mjs",
+        "exit": 1,
+        "signal": null,
+        "message": "AssertionError [ERR_ASSERTION]: Expected values to be strictly equal:"
+      },
+      {
+        "script": "test-studio-narrow-workspace.mjs",
+        "exit": 1,
+        "signal": null,
+        "message": null
+      },
+      {
+        "script": "test-studio-native-recovery-types.mjs",
+        "exit": 1,
+        "signal": null,
+        "message": "Error: ENOENT: no such file or directory, open '/private/tmp/element3-j3-fe-studio-native-base-20261008/next-env.d.ts'"
+      },
+      {
+        "script": "test-studio-native-theme-recovery.mjs",
+        "exit": 1,
+        "signal": null,
+        "message": "Error: Unknown native theme dependency @/lib/service-url"
+      },
+      {
+        "script": "test-studio-navigation-fidelity.mjs",
+        "exit": 1,
+        "signal": null,
+        "message": "AssertionError [ERR_ASSERTION]: Every other shell/session/toolbar/fullscreen/palette/classic CSS byte stays exact"
+      },
+      {
+        "script": "test-studio-onboarding-order.mjs",
+        "exit": 0,
+        "signal": null,
+        "message": null
+      },
+      {
+        "script": "test-studio-outline-preview.mjs",
+        "exit": 0,
+        "signal": null,
+        "message": null
+      },
+      {
+        "script": "test-studio-pending-action.mjs",
+        "exit": 1,
+        "signal": null,
+        "message": "AssertionError [ERR_ASSERTION]: Unexpected import @/lib/service-url"
+      },
+      {
+        "script": "test-studio-picker-escape.mjs",
+        "exit": 0,
+        "signal": null,
+        "message": null
+      },
+      {
+        "script": "test-studio-publish-fidelity.mjs",
+        "exit": 1,
+        "signal": null,
+        "message": "AssertionError [ERR_ASSERTION]: components/publish-dialog.tsx: requests, initial state, effects, controlled values, callbacks and gates retain their baseline source"
+      },
+      {
+        "script": "test-studio-publish-focus.mjs",
+        "exit": 0,
+        "signal": null,
+        "message": null
+      },
+      {
+        "script": "test-studio-publish-preview.mjs",
+        "exit": 1,
+        "signal": null,
+        "message": "AssertionError [ERR_ASSERTION]: Expected values to be strictly deep-equal:"
+      },
+      {
+        "script": "test-studio-publish-session-drafts.mjs",
+        "exit": 1,
+        "signal": null,
+        "message": "AssertionError [ERR_ASSERTION]: Expected values to be strictly deep-equal:"
+      },
+      {
+        "script": "test-studio-rail-slide-identity.mjs",
+        "exit": 0,
+        "signal": null,
+        "message": null
+      },
+      {
+        "script": "test-studio-refine-geometry.mjs",
+        "exit": 0,
+        "signal": null,
+        "message": null
+      },
+      {
+        "script": "test-studio-restored-preview-owner.mjs",
+        "exit": 1,
+        "signal": null,
+        "message": "ReferenceError: retireDeckMutationOwner is not defined"
+      },
+      {
+        "script": "test-studio-route-params.mjs",
+        "exit": 1,
+        "signal": null,
+        "message": "AssertionError [ERR_ASSERTION]: Complete proxy source is byte-exact outside only Promise params resolution"
+      },
+      {
+        "script": "test-studio-session-bulk-delete.mjs",
+        "exit": 0,
+        "signal": null,
+        "message": null
+      },
+      {
+        "script": "test-studio-session-usage-placement.mjs",
+        "exit": 1,
+        "signal": null,
+        "message": "TypeError: (0 , studio_introduction_1.useStudioAboutReplay) is not a function"
+      },
+      {
+        "script": "test-studio-shape-draft.mjs",
+        "exit": 0,
+        "signal": null,
+        "message": null
+      },
+      {
+        "script": "test-studio-shared-continuation-types.mjs",
+        "exit": 1,
+        "signal": null,
+        "message": "Error: ENOENT: no such file or directory, open '/private/tmp/element3-j3-fe-studio-native-base-20261008/next-env.d.ts'"
+      },
+      {
+        "script": "test-studio-slide-menus.mjs",
+        "exit": 1,
+        "signal": null,
+        "message": "AssertionError [ERR_ASSERTION]: all existing options, callbacks, payloads, guards, classes and classic shortcuts remain exact"
+      },
+      {
+        "script": "test-studio-slide-panel-draft-context.mjs",
+        "exit": 1,
+        "signal": null,
+        "message": null
+      },
+      {
+        "script": "test-studio-slide-panel-ownership.mjs",
+        "exit": 1,
+        "signal": null,
+        "message": null
+      },
+      {
+        "script": "test-studio-slide-shortcuts.mjs",
+        "exit": 0,
+        "signal": null,
+        "message": null
+      },
+      {
+        "script": "test-studio-slide-thumbnail-mutations.mjs",
+        "exit": 1,
+        "signal": null,
+        "message": "Error: ENOENT: no such file or directory, open '/private/tmp/element3-j3-fe-studio-native-base-20261008/docs/studio-v4/eight-hour-parity-20261005/builder1/thumbnail-mutations/before-viewer.tsx.txt'"
+      },
+      {
+        "script": "test-studio-slide-types-parity.mjs",
+        "exit": 1,
+        "signal": null,
+        "message": null
+      },
+      {
+        "script": "test-studio-stage-placeholder-fixture.mjs",
+        "exit": 1,
+        "signal": null,
+        "message": "AssertionError [ERR_ASSERTION]: The input did not match the regular expression /StudioWelcomeStage \\/>/. Input:"
+      },
+      {
+        "script": "test-studio-template-ingest-ownership.mjs",
+        "exit": 0,
+        "signal": null,
+        "message": null
+      },
+      {
+        "script": "test-studio-template-observation-recovery.mjs",
+        "exit": 0,
+        "signal": null,
+        "message": null
+      },
+      {
+        "script": "test-studio-template-readability.mjs",
+        "exit": 1,
+        "signal": null,
+        "message": "AssertionError [ERR_ASSERTION]: Unexpected dependency ./destination-intros.css"
+      },
+      {
+        "script": "test-studio-template-readiness-warning.mjs",
+        "exit": 1,
+        "signal": null,
+        "message": "AssertionError [ERR_ASSERTION]: All original library controls/notice children/roles remain exact"
+      },
+      {
+        "script": "test-studio-template-retry-picker.mjs",
+        "exit": 1,
+        "signal": null,
+        "message": "AssertionError [ERR_ASSERTION]: Expected values to be strictly equal:"
+      },
+      {
+        "script": "test-studio-template-retry-save.mjs",
+        "exit": 0,
+        "signal": null,
+        "message": null
+      },
+      {
+        "script": "test-studio-template-retry-types.mjs",
+        "exit": 0,
+        "signal": null,
+        "message": null
+      },
+      {
+        "script": "test-studio-template-save-ownership.mjs",
+        "exit": 0,
+        "signal": null,
+        "message": null
+      },
+      {
+        "script": "test-studio-text-role-default.mjs",
+        "exit": 0,
+        "signal": null,
+        "message": null
+      },
+      {
+        "script": "test-studio-textbox-drafts.mjs",
+        "exit": 1,
+        "signal": null,
+        "message": "AssertionError [ERR_ASSERTION]: Expected values to be strictly equal:"
+      },
+      {
+        "script": "test-studio-theme-draft-ownership.mjs",
+        "exit": 0,
+        "signal": null,
+        "message": null
+      },
+      {
+        "script": "test-studio-theme-refusal-readiness.mjs",
+        "exit": 1,
+        "signal": null,
+        "message": "AssertionError [ERR_ASSERTION]: Expected values to be strictly equal:"
+      },
+      {
+        "script": "test-studio-theme-source-status.mjs",
+        "exit": 0,
+        "signal": null,
+        "message": null
+      },
+      {
+        "script": "test-studio-theme-support-access.mjs",
+        "exit": 1,
+        "signal": null,
+        "message": "AssertionError [ERR_ASSERTION]: Expected values to be strictly equal:"
+      },
+      {
+        "script": "test-studio-thumbnail-cache-admission.mjs",
+        "exit": 1,
+        "signal": null,
+        "message": "Error: ENOENT: no such file or directory, open '/private/tmp/element3-j3-fe-studio-native-base-20261008/docs/studio-v4/eight-hour-parity-20261005/builder1/thumbnail-cache-admission/before-cache-hook.ts.txt'"
+      },
+      {
+        "script": "test-studio-thumbnail-failure-details.mjs",
+        "exit": 1,
+        "signal": null,
+        "message": "AssertionError [ERR_ASSERTION]: All native callbacks, keyboard selection, indices, processing gates, drag, options, classes and other source remain AST-exact"
+      },
+      {
+        "script": "test-studio-thumbnail-failure-fixture.mjs",
+        "exit": 0,
+        "signal": null,
+        "message": null
+      },
+      {
+        "script": "test-studio-thumbnail-initial-visibility.mjs",
+        "exit": 1,
+        "signal": null,
+        "message": "AssertionError [ERR_ASSERTION]: Only the initialization ref/effect changes; every native handler/width/flag/timer/iframe/prop/render gate remains byte-exact"
+      },
+      {
+        "script": "test-studio-toolbar-interact.mjs",
+        "exit": 1,
+        "signal": null,
+        "message": "AssertionError [ERR_ASSERTION]: Every pre-existing header element, handler, gate and focus-reveal effect remains byte-exact"
+      },
+      {
+        "script": "test-studio-toolbar-save-feedback.mjs",
+        "exit": 1,
+        "signal": null,
+        "message": "AssertionError [ERR_ASSERTION]: The complete viewer must remain byte-exact to accepted application 0ed6298"
+      },
+      {
+        "script": "test-studio-upload-ownership.mjs",
+        "exit": 1,
+        "signal": null,
+        "message": "AssertionError [ERR_ASSERTION]: Known Studio additions reverse to the complete original hook byte-for-byte"
+      },
+      {
+        "script": "test-studio-usage-account-fixture.mjs",
+        "exit": 0,
+        "signal": null,
+        "message": null
+      },
+      {
+        "script": "test-studio-version-current-state.mjs",
+        "exit": 1,
+        "signal": null,
+        "message": "AssertionError [ERR_ASSERTION]: All other Viewer source is byte-exact, including handlers, geometry, readiness, options and native Check states"
+      },
+      {
+        "script": "test-studio-viewer-load-order.mjs",
+        "exit": 1,
+        "signal": null,
+        "message": "AssertionError [ERR_ASSERTION]: Observed reset/load ordering matches expected actual source"
+      },
+      {
+        "script": "test-studio-voice-ui.mjs",
+        "exit": 1,
+        "signal": null,
+        "message": "Error: ENOENT: no such file or directory, open '/private/tmp/element3-j3-fe-studio-native-base-20261008/docs/studio-v4/twenty-four-hour-parity-20261005/builder1/voice-correction/APP-MANIFEST.json'"
+      },
+      {
+        "script": "test-studio-waiting-state.mjs",
+        "exit": 0,
+        "signal": null,
+        "message": null
+      },
+      {
+        "script": "test-studio-websocket-configuration.mjs",
+        "exit": 1,
+        "signal": null,
+        "message": null
+      },
+      {
+        "script": "test-studio-websocket-error-fallback.mjs",
+        "exit": 0,
+        "signal": null,
+        "message": null
+      },
+      {
+        "script": "test-studio-workflow.mjs",
+        "exit": 0,
+        "signal": null,
+        "message": null
+      },
+      {
+        "script": "test-studio-workspace-fidelity.mjs",
+        "exit": 1,
+        "signal": null,
+        "message": "AssertionError [ERR_ASSERTION]: Accepted ink-slate action palette"
+      },
+      {
+        "script": "test-studio-workspace-layout.mjs",
+        "exit": 0,
+        "signal": null,
+        "message": null
+      },
+      {
+        "script": "test-table-overhaul-contract.mjs",
+        "exit": 1,
+        "signal": null,
+        "message": "Error: Unexpected client dependency: @/lib/service-url"
+      },
+      {
+        "script": "test-template-retry-acknowledgement.mjs",
+        "exit": 0,
+        "signal": null,
+        "message": null
+      },
+      {
+        "script": "test-template-save-gate.mjs",
+        "exit": 0,
+        "signal": null,
+        "message": null
+      },
+      {
+        "script": "test-textbox-request-fidelity.mjs",
+        "exit": 0,
+        "signal": null,
+        "message": null
+      },
+      {
+        "script": "test-textbox-role-contract.mjs",
+        "exit": 1,
+        "signal": null,
+        "message": "Error: Unexpected dependency: @/lib/service-url"
+      },
+      {
+        "script": "test-textlabs-abort-signal.mjs",
+        "exit": 1,
+        "signal": null,
+        "message": "Error: Unexpected dependency: @/lib/service-url"
+      },
+      {
+        "script": "test-textlabs-session-ownership.mjs",
+        "exit": 0,
+        "signal": null,
+        "message": null
+      },
+      {
+        "script": "test-theme-panel-lifecycle.mjs",
+        "exit": 0,
+        "signal": null,
+        "message": null
+      },
+      {
+        "script": "test-theme-picker-canon.mjs",
+        "exit": 0,
+        "signal": null,
+        "message": null
+      },
+      {
+        "script": "test-theme-sync.mjs",
+        "exit": 1,
+        "signal": null,
+        "message": "Error: Cannot find module '@/lib/service-url'"
+      },
+      {
+        "script": "test-upload-status-contract.mjs",
+        "exit": 0,
+        "signal": null,
+        "message": null
+      },
+      {
+        "script": "test-user-message-attachments.mjs",
+        "exit": 0,
+        "signal": null,
+        "message": null
+      },
+      {
+        "script": "test-visual-element-contract.mjs",
+        "exit": 1,
+        "signal": null,
+        "message": "Error: Unexpected dependency: @/lib/service-url"
+      }
+    ],
+    "native_passed": 96,
+    "native_total": 202,
+    "typecheck": {
+      "exit": 2,
+      "signal": null,
+      "diagnostic_count": 119,
+      "diagnostics": [
+        "app/api/dev/mock-token/route.ts(2,25): error TS2307: Cannot find module 'jose' or its corresponding type declarations.",
+        "app/api/narration/manifest/route.ts(42,33): error TS2339: Property 'publishedDeck' does not exist on type 'PrismaClient<PrismaClientOptions, never, DefaultArgs>'.",
+        "app/api/narration/render/route.ts(87,31): error TS2339: Property 'publishedDeck' does not exist on type 'PrismaClient<PrismaClientOptions, never, DefaultArgs>'.",
+        "app/api/narration/script/route.ts(91,31): error TS2339: Property 'publishedDeck' does not exist on type 'PrismaClient<PrismaClientOptions, never, DefaultArgs>'.",
+        "app/api/narration/script/route.ts(253,22): error TS2339: Property 'publishedDeck' does not exist on type 'PrismaClient<PrismaClientOptions, never, DefaultArgs>'.",
+        "app/api/narration/segment/[segmentId]/route.ts(33,34): error TS2339: Property 'mediaSegment' does not exist on type 'PrismaClient<PrismaClientOptions, never, DefaultArgs>'.",
+        "app/api/narration/segment/[segmentId]/route.ts(65,35): error TS2339: Property 'publishedDeck' does not exist on type 'PrismaClient<PrismaClientOptions, never, DefaultArgs>'.",
+        "app/api/narration/speak/route.ts(45,31): error TS2339: Property 'publishedDeck' does not exist on type 'PrismaClient<PrismaClientOptions, never, DefaultArgs>'.",
+        "app/api/narration/speak/route.ts(104,35): error TS2339: Property 'deckQuestion' does not exist on type 'PrismaClient<PrismaClientOptions, never, DefaultArgs>'.",
+        "app/api/publish/[slug]/ask/route.ts(98,31): error TS2339: Property 'publishedDeck' does not exist on type 'PrismaClient<PrismaClientOptions, never, DefaultArgs>'.",
+        "app/api/publish/[slug]/ask/route.ts(200,14): error TS2339: Property 'deckQuestion' does not exist on type 'PrismaClient<PrismaClientOptions, never, DefaultArgs>'.",
+        "app/api/publish/[slug]/ask/route.ts(203,14): error TS2339: Property 'deckQuestion' does not exist on type 'PrismaClient<PrismaClientOptions, never, DefaultArgs>'.",
+        "app/api/publish/[slug]/ask/route.ts(206,14): error TS2339: Property 'deckQuestion' does not exist on type 'PrismaClient<PrismaClientOptions, never, DefaultArgs>'.",
+        "app/api/publish/[slug]/ask/route.ts(209,14): error TS2339: Property 'deckQuestion' does not exist on type 'PrismaClient<PrismaClientOptions, never, DefaultArgs>'.",
+        "app/api/publish/[slug]/ask/route.ts(212,14): error TS2339: Property 'deckQuestion' does not exist on type 'PrismaClient<PrismaClientOptions, never, DefaultArgs>'.",
+        "app/api/publish/[slug]/ask/route.ts(262,42): error TS2339: Property 'deckQuestion' does not exist on type 'PrismaClient<PrismaClientOptions, never, DefaultArgs>'.",
+        "app/api/publish/[slug]/ask/route.ts(273,42): error TS7006: Parameter 'row' implicitly has an 'any' type.",
+        "app/api/publish/[slug]/ask/route.ts(290,31): error TS2339: Property 'deckFaqItem' does not exist on type 'PrismaClient<PrismaClientOptions, never, DefaultArgs>'.",
+        "app/api/publish/[slug]/ask/route.ts(477,29): error TS2339: Property 'publishedDeckSource' does not exist on type 'PrismaClient<PrismaClientOptions, never, DefaultArgs>'.",
+        "app/api/publish/[slug]/ask/route.ts(481,20): error TS7006: Parameter 'row' implicitly has an 'any' type.",
+        "app/api/publish/[slug]/ask/route.ts(502,28): error TS2339: Property 'deckQuestion' does not exist on type 'PrismaClient<PrismaClientOptions, never, DefaultArgs>'.",
+        "app/api/publish/[slug]/ask/route.ts(561,18): error TS2339: Property 'deckQuestion' does not exist on type 'PrismaClient<PrismaClientOptions, never, DefaultArgs>'.",
+        "app/api/publish/[slug]/download/[format]/route.ts(69,31): error TS2339: Property 'publishedDeck' does not exist on type 'PrismaClient<PrismaClientOptions, never, DefaultArgs>'.",
+        "app/api/publish/[slug]/faq/[faqId]/route.ts(84,34): error TS2339: Property 'deckFaqItem' does not exist on type 'PrismaClient<PrismaClientOptions, never, DefaultArgs>'.",
+        "app/api/publish/[slug]/faq/[faqId]/route.ts(106,18): error TS2339: Property 'deckFaqItem' does not exist on type 'PrismaClient<PrismaClientOptions, never, DefaultArgs>'.",
+        "app/api/publish/[slug]/faq/route.ts(28,31): error TS2339: Property 'publishedDeck' does not exist on type 'PrismaClient<PrismaClientOptions, never, DefaultArgs>'.",
+        "app/api/publish/[slug]/faq/route.ts(54,32): error TS2339: Property 'deckFaqItem' does not exist on type 'PrismaClient<PrismaClientOptions, never, DefaultArgs>'.",
+        "app/api/publish/[slug]/faq/route.ts(61,23): error TS7006: Parameter 'item' implicitly has an 'any' type.",
+        "app/api/publish/[slug]/qa-corpus/route.ts(84,18): error TS2339: Property 'publishedDeck' does not exist on type 'PrismaClient<PrismaClientOptions, never, DefaultArgs>'.",
+        "app/api/publish/[slug]/qa-sources/route.ts(40,33): error TS2339: Property 'publishedDeckSource' does not exist on type 'PrismaClient<PrismaClientOptions, never, DefaultArgs>'.",
+        "app/api/publish/[slug]/qa-sources/route.ts(57,39): error TS7006: Parameter 'row' implicitly has an 'any' type.",
+        "app/api/publish/[slug]/qa-sources/route.ts(78,20): error TS18046: 'row' is of type 'unknown'.",
+        "app/api/publish/[slug]/qa-sources/route.ts(79,21): error TS18046: 'row' is of type 'unknown'.",
+        "app/api/publish/[slug]/qa-sources/route.ts(83,22): error TS18046: 'row' is of type 'unknown'.",
+        "app/api/publish/[slug]/qa-sources/route.ts(83,57): error TS18046: 'row' is of type 'unknown'.",
+        "app/api/publish/[slug]/qa-sources/route.ts(84,21): error TS18046: 'row' is of type 'unknown'.",
+        "app/api/publish/[slug]/qa-sources/route.ts(85,23): error TS18046: 'row' is of type 'unknown'.",
+        "app/api/publish/[slug]/qa-sources/route.ts(139,16): error TS2339: Property 'publishedDeckSource' does not exist on type 'PrismaClient<PrismaClientOptions, never, DefaultArgs>'.",
+        "app/api/publish/[slug]/questions/[id]/answer/route.ts(44,34): error TS2339: Property 'deckQuestion' does not exist on type 'PrismaClient<PrismaClientOptions, never, DefaultArgs>'.",
+        "app/api/publish/[slug]/questions/[id]/block/route.ts(55,35): error TS2339: Property 'deckQuestion' does not exist on type 'PrismaClient<PrismaClientOptions, never, DefaultArgs>'.",
+        "app/api/publish/[slug]/questions/[id]/block/route.ts(64,33): error TS2339: Property 'deckQuestion' does not exist on type 'PrismaClient<PrismaClientOptions, never, DefaultArgs>'.",
+        "app/api/publish/[slug]/questions/[id]/promote/route.ts(106,30): error TS2339: Property 'deckFaqItem' does not exist on type 'PrismaClient<PrismaClientOptions, never, DefaultArgs>'.",
+        "app/api/publish/[slug]/questions/[id]/promote/route.ts(132,20): error TS2339: Property 'deckQuestion' does not exist on type 'PrismaClient<PrismaClientOptions, never, DefaultArgs>'.",
+        "app/api/publish/[slug]/questions/[id]/promote/route.ts(146,29): error TS2339: Property 'deckFaqItem' does not exist on type 'PrismaClient<PrismaClientOptions, never, DefaultArgs>'.",
+        "app/api/publish/[slug]/questions/[id]/route.ts(33,18): error TS2339: Property 'deckQuestion' does not exist on type 'PrismaClient<PrismaClientOptions, never, DefaultArgs>'.",
+        "app/api/publish/[slug]/questions/route.ts(41,31): error TS2339: Property 'deckQuestion' does not exist on type 'PrismaClient<PrismaClientOptions, never, DefaultArgs>'.",
+        "app/api/publish/[slug]/questions/route.ts(55,42): error TS2339: Property 'deckQuestion' does not exist on type 'PrismaClient<PrismaClientOptions, never, DefaultArgs>'.",
+        "app/api/publish/[slug]/rotate/route.ts(57,35): error TS2339: Property 'publishedDeck' does not exist on type 'PrismaClient<PrismaClientOptions, never, DefaultArgs>'.",
+        "app/api/publish/[slug]/rotate/route.ts(155,34): error TS2339: Property 'publishedDeck' does not exist on type 'PrismaClient<PrismaClientOptions, never, DefaultArgs>'.",
+        "app/api/publish/[slug]/rotate/route.ts(178,26): error TS2339: Property 'publishedDeck' does not exist on type 'PrismaClient<PrismaClientOptions, never, DefaultArgs>'.",
+        "app/api/publish/[slug]/rotate/route.ts(218,36): error TS2339: Property 'publishedDeck' does not exist on type 'PrismaClient<PrismaClientOptions, never, DefaultArgs>'.",
+        "app/api/publish/[slug]/rotate/route.ts(220,24): error TS2339: Property 'publishedDeck' does not exist on type 'PrismaClient<PrismaClientOptions, never, DefaultArgs>'.",
+        "app/api/publish/[slug]/rotate/route.ts(223,64): error TS7006: Parameter 'sid' implicitly has an 'any' type.",
+        "app/api/publish/[slug]/rotate/route.ts(232,34): error TS2339: Property 'publishedDeck' does not exist on type 'PrismaClient<PrismaClientOptions, never, DefaultArgs>'.",
+        "app/api/publish/[slug]/route.ts(53,35): error TS2339: Property 'publishedDeck' does not exist on type 'PrismaClient<PrismaClientOptions, never, DefaultArgs>'.",
+        "app/api/publish/[slug]/route.ts(217,32): error TS2339: Property 'publishedDeck' does not exist on type 'PrismaClient<PrismaClientOptions, never, DefaultArgs>'.",
+        "app/api/publish/[slug]/route.ts(222,32): error TS2339: Property 'publishedDeck' does not exist on type 'PrismaClient<PrismaClientOptions, never, DefaultArgs>'.",
+        "app/api/publish/[slug]/route.ts(225,34): error TS2339: Property 'publishedDeck' does not exist on type 'PrismaClient<PrismaClientOptions, never, DefaultArgs>'.",
+        "app/api/publish/[slug]/route.ts(294,35): error TS2339: Property 'publishedDeck' does not exist on type 'PrismaClient<PrismaClientOptions, never, DefaultArgs>'.",
+        "app/api/publish/[slug]/route.ts(334,32): error TS2339: Property 'publishedDeck' does not exist on type 'PrismaClient<PrismaClientOptions, never, DefaultArgs>'.",
+        "app/api/publish/[slug]/route.ts(344,36): error TS2339: Property 'publishedDeck' does not exist on type 'PrismaClient<PrismaClientOptions, never, DefaultArgs>'.",
+        "app/api/publish/[slug]/route.ts(377,36): error TS2339: Property 'publishedDeck' does not exist on type 'PrismaClient<PrismaClientOptions, never, DefaultArgs>'.",
+        "app/api/publish/[slug]/route.ts(379,24): error TS2339: Property 'publishedDeck' does not exist on type 'PrismaClient<PrismaClientOptions, never, DefaultArgs>'.",
+        "app/api/publish/[slug]/route.ts(382,64): error TS7006: Parameter 'sid' implicitly has an 'any' type.",
+        "app/api/publish/[slug]/route.ts(391,34): error TS2339: Property 'publishedDeck' does not exist on type 'PrismaClient<PrismaClientOptions, never, DefaultArgs>'.",
+        "app/api/publish/[slug]/thread/[token]/route.ts(37,31): error TS2339: Property 'publishedDeck' does not exist on type 'PrismaClient<PrismaClientOptions, never, DefaultArgs>'.",
+        "app/api/publish/[slug]/thread/[token]/route.ts(66,35): error TS2339: Property 'deckQuestion' does not exist on type 'PrismaClient<PrismaClientOptions, never, DefaultArgs>'.",
+        "app/api/publish/[slug]/thread/[token]/route.ts(76,14): error TS2339: Property 'deckQuestion' does not exist on type 'PrismaClient<PrismaClientOptions, never, DefaultArgs>'.",
+        "app/api/publish/[slug]/thread/[token]/route.ts(78,17): error TS7006: Parameter 'error' implicitly has an 'any' type.",
+        "app/api/publish/[slug]/unlock/route.ts(38,31): error TS2339: Property 'publishedDeck' does not exist on type 'PrismaClient<PrismaClientOptions, never, DefaultArgs>'.",
+        "app/api/publish/by-session/[sessionId]/route.ts(55,31): error TS2339: Property 'publishedDeck' does not exist on type 'PrismaClient<PrismaClientOptions, never, DefaultArgs>'.",
+        "app/api/publish/route.ts(6,15): error TS2305: Module '\"@prisma/client\"' has no exported member 'PublishedDeck'.",
+        "app/api/publish/route.ts(115,35): error TS2339: Property 'publishedDeck' does not exist on type 'PrismaClient<PrismaClientOptions, never, DefaultArgs>'.",
+        "app/api/publish/route.ts(215,33): error TS2339: Property 'publishedDeck' does not exist on type 'PrismaClient<PrismaClientOptions, never, DefaultArgs>'.",
+        "app/api/publish/route.ts(243,24): error TS2339: Property 'publishedDeck' does not exist on type 'PrismaClient<PrismaClientOptions, never, DefaultArgs>'.",
+        "app/api/publish/route.ts(263,38): error TS2339: Property 'publishedDeck' does not exist on type 'PrismaClient<PrismaClientOptions, never, DefaultArgs>'.",
+        "app/api/publish/route.ts(265,26): error TS2339: Property 'publishedDeck' does not exist on type 'PrismaClient<PrismaClientOptions, never, DefaultArgs>'.",
+        "app/api/publish/route.ts(268,66): error TS7006: Parameter 'sid' implicitly has an 'any' type.",
+        "app/api/publish/route.ts(276,29): error TS2339: Property 'publishedDeck' does not exist on type 'PrismaClient<PrismaClientOptions, never, DefaultArgs>'.",
+        "app/api/publish/route.ts(285,31): error TS2339: Property 'publishedDeck' does not exist on type 'PrismaClient<PrismaClientOptions, never, DefaultArgs>'.",
+        "app/api/webhooks/stripe/route.ts(159,49): error TS2339: Property 'current_period_start' does not exist on type 'Subscription'.",
+        "app/api/webhooks/stripe/route.ts(160,47): error TS2339: Property 'current_period_end' does not exist on type 'Subscription'.",
+        "app/api/webhooks/stripe/route.ts(175,49): error TS2339: Property 'current_period_start' does not exist on type 'Subscription'.",
+        "app/api/webhooks/stripe/route.ts(176,47): error TS2339: Property 'current_period_end' does not exist on type 'Subscription'.",
+        "app/api/webhooks/stripe/route.ts(193,53): error TS2339: Property 'current_period_end' does not exist on type 'Subscription'.",
+        "app/api/webhooks/stripe/route.ts(244,38): error TS2339: Property 'payment_intent' does not exist on type 'Invoice'.",
+        "app/api/webhooks/stripe/route.ts(245,37): error TS2339: Property 'subscription' does not exist on type 'Invoice'.",
+        "app/api/webhooks/stripe/route.ts(275,38): error TS2339: Property 'payment_intent' does not exist on type 'Invoice'.",
+        "app/api/webhooks/stripe/route.ts(276,37): error TS2339: Property 'subscription' does not exist on type 'Invoice'.",
+        "app/p/[slug]/page.tsx(21,29): error TS2339: Property 'publishedDeck' does not exist on type 'PrismaClient<PrismaClientOptions, never, DefaultArgs>'.",
+        "app/p/[slug]/page.tsx(61,10): error TS2339: Property 'publishedDeck' does not exist on type 'PrismaClient<PrismaClientOptions, never, DefaultArgs>'.",
+        "app/p/[slug]/page.tsx(69,32): error TS2339: Property 'deckFaqItem' does not exist on type 'PrismaClient<PrismaClientOptions, never, DefaultArgs>'.",
+        "app/p/[slug]/page.tsx(73,35): error TS7006: Parameter 'row' implicitly has an 'any' type.",
+        "app/p/[slug]/q/[token]/page.tsx(32,29): error TS2339: Property 'publishedDeck' does not exist on type 'PrismaClient<PrismaClientOptions, never, DefaultArgs>'.",
+        "app/p/[slug]/q/[token]/page.tsx(48,33): error TS2339: Property 'deckQuestion' does not exist on type 'PrismaClient<PrismaClientOptions, never, DefaultArgs>'.",
+        "app/p/[slug]/q/[token]/page.tsx(62,12): error TS2339: Property 'deckQuestion' does not exist on type 'PrismaClient<PrismaClientOptions, never, DefaultArgs>'.",
+        "lib/narration/manifest.ts(71,29): error TS2339: Property 'mediaSegment' does not exist on type 'PrismaClient<PrismaClientOptions, never, DefaultArgs>'.",
+        "lib/narration/manifest.ts(98,31): error TS7006: Parameter 'r' implicitly has an 'any' type.",
+        "lib/narration/manifest.ts(122,33): error TS7006: Parameter 'r' implicitly has an 'any' type.",
+        "lib/narration/segments.ts(111,17): error TS2339: Property 'mediaSegment' does not exist on type 'PrismaClient<PrismaClientOptions, never, DefaultArgs>'.",
+        "lib/narration/segments.ts(164,17): error TS2339: Property 'mediaSegment' does not exist on type 'PrismaClient<PrismaClientOptions, never, DefaultArgs>'.",
+        "lib/narration/segments.ts(181,29): error TS2339: Property 'mediaSegment' does not exist on type 'PrismaClient<PrismaClientOptions, never, DefaultArgs>'.",
+        "lib/narration/segments.ts(185,30): error TS7006: Parameter 'r' implicitly has an 'any' type.",
+        "lib/narration/segments.ts(188,26): error TS7006: Parameter 'r' implicitly has an 'any' type.",
+        "lib/narration/segments.ts(189,34): error TS7006: Parameter 'sum' implicitly has an 'any' type.",
+        "lib/narration/segments.ts(189,39): error TS7006: Parameter 'r' implicitly has an 'any' type.",
+        "lib/narration/segments.ts(190,36): error TS7006: Parameter 'sum' implicitly has an 'any' type.",
+        "lib/narration/segments.ts(190,41): error TS7006: Parameter 'r' implicitly has an 'any' type.",
+        "lib/publish/qa-corpus.ts(39,31): error TS2339: Property 'publishedDeck' does not exist on type 'PrismaClient<PrismaClientOptions, never, DefaultArgs>'.",
+        "lib/publish/qa-corpus.ts(88,33): error TS2339: Property 'publishedDeckSource' does not exist on type 'PrismaClient<PrismaClientOptions, never, DefaultArgs>'.",
+        "lib/publish/qa-corpus.ts(101,39): error TS7006: Parameter 'row' implicitly has an 'any' type.",
+        "lib/publish/qa-corpus.ts(107,18): error TS2339: Property 'publishedDeck' does not exist on type 'PrismaClient<PrismaClientOptions, never, DefaultArgs>'.",
+        "lib/publish/qa-corpus.ts(138,18): error TS2339: Property 'publishedDeck' does not exist on type 'PrismaClient<PrismaClientOptions, never, DefaultArgs>'.",
+        "lib/publish/qa-corpus.ts(150,16): error TS2339: Property 'publishedDeck' does not exist on type 'PrismaClient<PrismaClientOptions, never, DefaultArgs>'.",
+        "lib/publish/qa-owner.ts(50,12): error TS2339: Property 'publishedDeck' does not exist on type 'PrismaClient<PrismaClientOptions, never, DefaultArgs>'.",
+        "lib/publish/qa-owner.ts(104,17): error TS2339: Property 'deckQuestion' does not exist on type 'PrismaClient<PrismaClientOptions, never, DefaultArgs>'.",
+        "lib/publish/qa-owner.ts(110,17): error TS2339: Property 'deckFaqItem' does not exist on type 'PrismaClient<PrismaClientOptions, never, DefaultArgs>'.",
+        "lib/publish/serialize.ts(4,15): error TS2305: Module '\"@prisma/client\"' has no exported member 'PublishedDeck'.",
+        "lib/stripe/stripe.ts(15,7): error TS2322: Type '\"2024-11-20.acacia\"' is not assignable to type '\"2025-11-17.clover\"'."
+      ]
+    }
+  },
+  {
+    "label": "candidate",
+    "source_commit": "02830179979aca37b647cd9427f1b9bade70ad1e",
+    "source_hashes": {
+      "app/builder/page.tsx": "dbe412721a1bf1045642b51df9f068df163824fd737d7de52e2db94d9be15c6c",
+      "hooks/use-textlabs-generation.ts": "1814ae0d187f78b3b9b992f44c57643eb14c0f0023e8fdc2b8f96671c45849a1",
+      "lib/theme-sync.ts": "322f49bd5dcba2dc34299ca7134f7862b646fc615802b9da41a9eda6601a16f3",
+      "lib/element-generation-timeout.ts": "14d594e1249d0c859430a457df10d53a8717887aff72304a892819f06db3e8f9",
+      "scripts/test-textbox-planned-recovery.mjs": "2a484c49b2fe9c0023cfe4fd68fb50ec005ddd07c0905a970c267096daff7675"
+    },
+    "native": [
+      {
+        "script": "test-async-slide-composer.mjs",
+        "exit": 0,
+        "signal": null,
+        "message": null
+      },
+      {
+        "script": "test-atlas-decks-pagination.mjs",
+        "exit": 0,
+        "signal": null,
+        "message": null
+      },
+      {
+        "script": "test-atlas-details-account.mjs",
+        "exit": 0,
+        "signal": null,
+        "message": null
+      },
+      {
+        "script": "test-atlas-details-harness.mjs",
+        "exit": 0,
+        "signal": null,
+        "message": null
+      },
+      {
+        "script": "test-atlas-details-preview.mjs",
+        "exit": 1,
+        "signal": null,
+        "message": "Error: Unmocked dependency: @/components/studio-intro-replay"
+      },
+      {
+        "script": "test-atlas-help-recovery.mjs",
+        "exit": 0,
+        "signal": null,
+        "message": null
+      },
+      {
+        "script": "test-atlas-intelligence-drafts.mjs",
+        "exit": 1,
+        "signal": null,
+        "message": "Error: Unmocked dependency: @/components/studio-intro-replay"
+      },
+      {
+        "script": "test-atlas-knowledge-recovery.mjs",
+        "exit": 0,
+        "signal": null,
+        "message": null
+      },
+      {
+        "script": "test-atlas-library-account-boundary.mjs",
+        "exit": 0,
+        "signal": null,
+        "message": null
+      },
+      {
+        "script": "test-atlas-library-identity.mjs",
+        "exit": 1,
+        "signal": null,
+        "message": "AssertionError [ERR_ASSERTION]: Entire existing shared controls unchanged except exact optional identity seam"
+      },
+      {
+        "script": "test-atlas-security-lifecycle.mjs",
+        "exit": 0,
+        "signal": null,
+        "message": null
+      },
+      {
+        "script": "test-atlas-template-watch.mjs",
+        "exit": 0,
+        "signal": null,
+        "message": null
+      },
+      {
+        "script": "test-atlas-templates-account-boundary.mjs",
+        "exit": 0,
+        "signal": null,
+        "message": null
+      },
+      {
+        "script": "test-atlas-templates-recovery.mjs",
+        "exit": 0,
+        "signal": null,
+        "message": null
+      },
+      {
+        "script": "test-atlas-templates-render-corrections.mjs",
+        "exit": 0,
+        "signal": null,
+        "message": null
+      },
+      {
+        "script": "test-atlas-theme-read-errors.mjs",
+        "exit": 0,
+        "signal": null,
+        "message": null
+      },
+      {
+        "script": "test-atlas-themes-account-boundary.mjs",
+        "exit": 0,
+        "signal": null,
+        "message": null
+      },
+      {
+        "script": "test-atlas-themes-recovery.mjs",
+        "exit": 0,
+        "signal": null,
+        "message": null
+      },
+      {
+        "script": "test-atlas-workflow-continuations.mjs",
+        "exit": 0,
+        "signal": null,
+        "message": null
+      },
+      {
+        "script": "test-blank-element-recovery.mjs",
+        "exit": 1,
+        "signal": null,
+        "message": "AssertionError [ERR_ASSERTION]: the recovered panel must retain the generation error"
+      },
+      {
+        "script": "test-build-narration.mjs",
+        "exit": 1,
+        "signal": null,
+        "message": "AssertionError [ERR_ASSERTION]: The input did not match the regular expression /messages: (?:scrubBuildControlCapabilityMessages\\(safeHistoricalMessages\\)|mergeDirectorChatHistory\\(historySessionId, safeHistoricalMessages, cachedBotMessages, prev.messages\\))/. Input:"
+      },
+      {
+        "script": "test-build-progress-visibility.mjs",
+        "exit": 0,
+        "signal": null,
+        "message": null
+      },
+      {
+        "script": "test-builder-presentation-ownership.mjs",
+        "exit": 0,
+        "signal": null,
+        "message": null
+      },
+      {
+        "script": "test-chart-generation-contract.mjs",
+        "exit": 1,
+        "signal": null,
+        "message": "Error: Unexpected test import: @/lib/service-url"
+      },
+      {
+        "script": "test-chart-request-safety.mjs",
+        "exit": 1,
+        "signal": null,
+        "message": "Error: Unexpected test import: @/lib/service-url"
+      },
+      {
+        "script": "test-composer-library.mjs",
+        "exit": 1,
+        "signal": null,
+        "message": "Error: Unexpected import @/lib/service-url"
+      },
+      {
+        "script": "test-composer-picker.mjs",
+        "exit": 1,
+        "signal": null,
+        "message": "AssertionError [ERR_ASSERTION]: Unexpected import ./studio-composer-hint"
+      },
+      {
+        "script": "test-composer-storage-upload.mjs",
+        "exit": 1,
+        "signal": null,
+        "message": "  throw new AssertionError(obj);"
+      },
+      {
+        "script": "test-composer-theme.mjs",
+        "exit": 1,
+        "signal": null,
+        "message": "TypeError: (0 , react_1.useLayoutEffect) is not a function"
+      },
+      {
+        "script": "test-deck-identity.mjs",
+        "exit": 0,
+        "signal": null,
+        "message": null
+      },
+      {
+        "script": "test-diagram-catalog-drift.mjs",
+        "exit": 1,
+        "signal": null,
+        "message": "Error: Unexpected catalog import: @/lib/service-url"
+      },
+      {
+        "script": "test-diagram-contract.mjs",
+        "exit": 1,
+        "signal": null,
+        "message": "Error: Unexpected test import: @/lib/service-url"
+      },
+      {
+        "script": "test-diagram-reliability.mjs",
+        "exit": 0,
+        "signal": null,
+        "message": null
+      },
+      {
+        "script": "test-diagram-uat-fidelity.mjs",
+        "exit": 1,
+        "signal": null,
+        "message": "Error: Unexpected test import: @/lib/service-url"
+      },
+      {
+        "script": "test-director-action-scope.mjs",
+        "exit": 1,
+        "signal": null,
+        "message": "ReferenceError: ServiceUrlConfigError is not defined"
+      },
+      {
+        "script": "test-director-chat-history.mjs",
+        "exit": 0,
+        "signal": null,
+        "message": null
+      },
+      {
+        "script": "test-director-chat-parity.mjs",
+        "exit": 1,
+        "signal": null,
+        "message": "AssertionError [ERR_ASSERTION]: Unexpected fixture dependency @/lib/studio-director-message-policy"
+      },
+      {
+        "script": "test-director-first-send-page.mjs",
+        "exit": 1,
+        "signal": null,
+        "message": null
+      },
+      {
+        "script": "test-director-history-presentation.mjs",
+        "exit": 1,
+        "signal": null,
+        "message": null
+      },
+      {
+        "script": "test-director-layout-url-ingress.mjs",
+        "exit": 0,
+        "signal": null,
+        "message": null
+      },
+      {
+        "script": "test-director-outline-admission.mjs",
+        "exit": 1,
+        "signal": null,
+        "message": null
+      },
+      {
+        "script": "test-director-question-submit.mjs",
+        "exit": 1,
+        "signal": null,
+        "message": "ReferenceError: ServiceUrlConfigError is not defined"
+      },
+      {
+        "script": "test-director-sync-recovery.mjs",
+        "exit": 0,
+        "signal": null,
+        "message": null
+      },
+      {
+        "script": "test-director-typed-commit.mjs",
+        "exit": 1,
+        "signal": null,
+        "message": "ReferenceError: ServiceUrlConfigError is not defined"
+      },
+      {
+        "script": "test-director-websocket-reconnect.mjs",
+        "exit": 0,
+        "signal": null,
+        "message": null
+      },
+      {
+        "script": "test-element-create-first.mjs",
+        "exit": 0,
+        "signal": null,
+        "message": null
+      },
+      {
+        "script": "test-element-generation-context.mjs",
+        "exit": 1,
+        "signal": null,
+        "message": "AssertionError [ERR_ASSERTION]: the local error recorder still publishes the exact error through the existing panel setter"
+      },
+      {
+        "script": "test-element-geometry.mjs",
+        "exit": 0,
+        "signal": null,
+        "message": null
+      },
+      {
+        "script": "test-element-panel-activation.mjs",
+        "exit": 0,
+        "signal": null,
+        "message": null
+      },
+      {
+        "script": "test-element-semantic-type.mjs",
+        "exit": 1,
+        "signal": null,
+        "message": "AssertionError [ERR_ASSERTION]: The input did not match the regular expression /useState<TextLabsChartType>\\('auto'\\)/. Input:"
+      },
+      {
+        "script": "test-element-theme-variants.mjs",
+        "exit": 1,
+        "signal": null,
+        "message": "Error: Unexpected client dependency: @/lib/service-url"
+      },
+      {
+        "script": "test-export-view-only.mjs",
+        "exit": 0,
+        "signal": null,
+        "message": null
+      },
+      {
+        "script": "test-fe0-public-viewer.mjs",
+        "exit": 0,
+        "signal": null,
+        "message": null
+      },
+      {
+        "script": "test-fe0-theme-version-components.mjs",
+        "exit": 1,
+        "signal": null,
+        "message": "Error: ENOENT: no such file or directory, open '/Users/pk1980/Software/Deckster/.worktrees/element3-j3-text-p0-studio-20261008/docs/studio-v4/twenty-four-hour-parity-20261005/fe0/root-audit/source/components/build-version-guard.tsx'"
+      },
+      {
+        "script": "test-golden-evidence-contract.mjs",
+        "exit": 0,
+        "signal": null,
+        "message": null
+      },
+      {
+        "script": "test-grid-splitter.mjs",
+        "exit": 0,
+        "signal": null,
+        "message": null
+      },
+      {
+        "script": "test-infographic-contract.mjs",
+        "exit": 1,
+        "signal": null,
+        "message": "Error: Unexpected dependency: @/lib/service-url"
+      },
+      {
+        "script": "test-layout-command-result.mjs",
+        "exit": 0,
+        "signal": null,
+        "message": null
+      },
+      {
+        "script": "test-layout-viewer-messaging.mjs",
+        "exit": 0,
+        "signal": null,
+        "message": null
+      },
+      {
+        "script": "test-layout-viewer-url-policy.mjs",
+        "exit": 0,
+        "signal": null,
+        "message": null
+      },
+      {
+        "script": "test-legal-links.mjs",
+        "exit": 0,
+        "signal": null,
+        "message": null
+      },
+      {
+        "script": "test-manual-deck-workflow.mjs",
+        "exit": 0,
+        "signal": null,
+        "message": null
+      },
+      {
+        "script": "test-metrics-card-refine-draft.mjs",
+        "exit": 1,
+        "signal": null,
+        "message": "Error: ENOENT: no such file or directory, open '/Users/pk1980/Software/Deckster/.worktrees/element3-j3-text-p0-studio-20261008/docs/studio-v4/eight-hour-parity-20261005/builder1/metrics-refine/before-panel-hook.ts.txt'"
+      },
+      {
+        "script": "test-metrics-card-refine-integration.mjs",
+        "exit": 1,
+        "signal": null,
+        "message": "AssertionError [ERR_ASSERTION]: chat_add_ack_direct_explicit_target_overrides_form_and_current_slide"
+      },
+      {
+        "script": "test-metrics-overhaul-contract.mjs",
+        "exit": 1,
+        "signal": null,
+        "message": "Error: Unexpected client dependency: @/lib/service-url"
+      },
+      {
+        "script": "test-narration-voices.mjs",
+        "exit": 1,
+        "signal": null,
+        "message": "Error: Cannot find module '@/lib/service-url'"
+      },
+      {
+        "script": "test-present-view-only.mjs",
+        "exit": 0,
+        "signal": null,
+        "message": null
+      },
+      {
+        "script": "test-qa-ask-gates.mjs",
+        "exit": 0,
+        "signal": null,
+        "message": null
+      },
+      {
+        "script": "test-qa-citation-tiers.mjs",
+        "exit": 0,
+        "signal": null,
+        "message": null
+      },
+      {
+        "script": "test-qa-limits.mjs",
+        "exit": 0,
+        "signal": null,
+        "message": null
+      },
+      {
+        "script": "test-qa-serialize.mjs",
+        "exit": 0,
+        "signal": null,
+        "message": null
+      },
+      {
+        "script": "test-refinement-provenance.mjs",
+        "exit": 0,
+        "signal": null,
+        "message": null
+      },
+      {
+        "script": "test-research-mode-contract.mjs",
+        "exit": 0,
+        "signal": null,
+        "message": null
+      },
+      {
+        "script": "test-slide-element-targeting.mjs",
+        "exit": 1,
+        "signal": null,
+        "message": "AssertionError [ERR_ASSERTION]: the authoritative new slide is published before awaiting iframe navigation"
+      },
+      {
+        "script": "test-slide-thumbnail-menu.mjs",
+        "exit": 0,
+        "signal": null,
+        "message": null
+      },
+      {
+        "script": "test-stage-f-thumbnail-cache-hook.mjs",
+        "exit": 1,
+        "signal": null,
+        "message": "AssertionError [ERR_ASSERTION]: handleDuplicateSlide/success retires interaction before dispatch"
+      },
+      {
+        "script": "test-stage-f-thumbnail-recovery.mjs",
+        "exit": 0,
+        "signal": null,
+        "message": null
+      },
+      {
+        "script": "test-stage-f-thumbnails.mjs",
+        "exit": 0,
+        "signal": null,
+        "message": null
+      },
+      {
+        "script": "test-studio-account-visual-fidelity.mjs",
+        "exit": 1,
+        "signal": null,
+        "message": "TypeError: (0 , studio_introduction_1.useStudioAboutReplay) is not a function"
+      },
+      {
+        "script": "test-studio-add-element-ownership.mjs",
+        "exit": 1,
+        "signal": null,
+        "message": "AssertionError [ERR_ASSERTION]: generation callback stays exact native source"
+      },
+      {
+        "script": "test-studio-add-slide-ownership.mjs",
+        "exit": 1,
+        "signal": null,
+        "message": "AssertionError [ERR_ASSERTION]: sendCommand: actual native receipt bridge remains unchanged"
+      },
+      {
+        "script": "test-studio-approval-cover.mjs",
+        "exit": 1,
+        "signal": null,
+        "message": "AssertionError [ERR_ASSERTION]: react-dom"
+      },
+      {
+        "script": "test-studio-arrange-controls.mjs",
+        "exit": 1,
+        "signal": null,
+        "message": "AssertionError [ERR_ASSERTION]: Unexpected specimen dependency @/components/builder/studio-format-failures.css"
+      },
+      {
+        "script": "test-studio-auth-host-option.mjs",
+        "exit": 1,
+        "signal": null,
+        "message": "Error: ENOENT: no such file or directory, open '/Users/pk1980/Software/Deckster/.worktrees/element3-j3-text-p0-studio-20261008/package-lock.json'"
+      },
+      {
+        "script": "test-studio-blank-dismiss.mjs",
+        "exit": 1,
+        "signal": null,
+        "message": null
+      },
+      {
+        "script": "test-studio-build-isolation.mjs",
+        "exit": 1,
+        "signal": null,
+        "message": "<ref *1> Error: spawnSync pnpm ENOENT"
+      },
+      {
+        "script": "test-studio-build-provenance.mjs",
+        "exit": 1,
+        "signal": null,
+        "message": "Error: Command failed: rg --files app components contexts hooks lib"
+      },
+      {
+        "script": "test-studio-canvas-lifecycle.mjs",
+        "exit": 1,
+        "signal": null,
+        "message": "ReferenceError: studioPartialArtifact is not defined"
+      },
+      {
+        "script": "test-studio-canvas-return.mjs",
+        "exit": 1,
+        "signal": null,
+        "message": null
+      },
+      {
+        "script": "test-studio-canvas-shortcuts.mjs",
+        "exit": 0,
+        "signal": null,
+        "message": null
+      },
+      {
+        "script": "test-studio-compose-built-origin.mjs",
+        "exit": 1,
+        "signal": null,
+        "message": null
+      },
+      {
+        "script": "test-studio-compose-entry.mjs",
+        "exit": 1,
+        "signal": null,
+        "message": null
+      },
+      {
+        "script": "test-studio-compose-ownership.mjs",
+        "exit": 1,
+        "signal": null,
+        "message": "ReferenceError: effectiveActiveVersion is not defined"
+      },
+      {
+        "script": "test-studio-compose-recovery.mjs",
+        "exit": 1,
+        "signal": null,
+        "message": "ReferenceError: effectiveActiveVersion is not defined"
+      },
+      {
+        "script": "test-studio-composer-library.mjs",
+        "exit": 0,
+        "signal": null,
+        "message": null
+      },
+      {
+        "script": "test-studio-composer-send.mjs",
+        "exit": 1,
+        "signal": null,
+        "message": "AssertionError [ERR_ASSERTION]: Reversing only explicitly named native theme recovery additions and Studio pointer Send availability restores exact historical handlers/pickers/options/effects"
+      },
+      {
+        "script": "test-studio-connected-runtime.mjs",
+        "exit": 1,
+        "signal": null,
+        "message": "AssertionError [ERR_ASSERTION]: Expected values to be strictly equal:"
+      },
+      {
+        "script": "test-studio-deck-identity-dialog.mjs",
+        "exit": 0,
+        "signal": null,
+        "message": null
+      },
+      {
+        "script": "test-studio-deck-mutation-refresh.mjs",
+        "exit": 0,
+        "signal": null,
+        "message": null
+      },
+      {
+        "script": "test-studio-dev-dependencies.mjs",
+        "exit": 1,
+        "signal": null,
+        "message": null
+      },
+      {
+        "script": "test-studio-dev-deployment.mjs",
+        "exit": 1,
+        "signal": null,
+        "message": "AssertionError [ERR_ASSERTION]: Q&A handlers must remain unchanged apart from relocating the invalid route export"
+      },
+      {
+        "script": "test-studio-dev-server.mjs",
+        "exit": 1,
+        "signal": null,
+        "message": "TypeError: fetch failed"
+      },
+      {
+        "script": "test-studio-diagram-draft.mjs",
+        "exit": 0,
+        "signal": null,
+        "message": null
+      },
+      {
+        "script": "test-studio-director-code.mjs",
+        "exit": 1,
+        "signal": null,
+        "message": "AssertionError [ERR_ASSERTION]: Unexpected code fixture dependency @/lib/studio-greeting-lifecycle"
+      },
+      {
+        "script": "test-studio-director-handoff.mjs",
+        "exit": 1,
+        "signal": null,
+        "message": null
+      },
+      {
+        "script": "test-studio-director-header.mjs",
+        "exit": 1,
+        "signal": null,
+        "message": "AssertionError [ERR_ASSERTION]: Unexpected import @/lib/service-url"
+      },
+      {
+        "script": "test-studio-director-notice.mjs",
+        "exit": 0,
+        "signal": null,
+        "message": null
+      },
+      {
+        "script": "test-studio-director-presence.mjs",
+        "exit": 0,
+        "signal": null,
+        "message": null
+      },
+      {
+        "script": "test-studio-director-transport.mjs",
+        "exit": 1,
+        "signal": null,
+        "message": null
+      },
+      {
+        "script": "test-studio-edit-mode-guide.mjs",
+        "exit": 1,
+        "signal": null,
+        "message": "AssertionError [ERR_ASSERTION]: Whole native viewer source is AST-exact after reversing the leaf-only extraction"
+      },
+      {
+        "script": "test-studio-format-failures.mjs",
+        "exit": 0,
+        "signal": null,
+        "message": null
+      },
+      {
+        "script": "test-studio-fullscreen-picker.mjs",
+        "exit": 1,
+        "signal": null,
+        "message": "AssertionError [ERR_ASSERTION]: Expected values to be strictly equal:"
+      },
+      {
+        "script": "test-studio-generation-cover-fixture.mjs",
+        "exit": 0,
+        "signal": null,
+        "message": null
+      },
+      {
+        "script": "test-studio-generation-cover.mjs",
+        "exit": 1,
+        "signal": null,
+        "message": "AssertionError [ERR_ASSERTION]: The complete viewer must remain byte-exact to accepted application 0ed6298"
+      },
+      {
+        "script": "test-studio-generation-feedback.mjs",
+        "exit": 0,
+        "signal": null,
+        "message": null
+      },
+      {
+        "script": "test-studio-icon-label-draft.mjs",
+        "exit": 0,
+        "signal": null,
+        "message": null
+      },
+      {
+        "script": "test-studio-icon-label-mode-routing.mjs",
+        "exit": 1,
+        "signal": null,
+        "message": "Error: ENOENT: no such file or directory, open '/Users/pk1980/Software/Deckster/.worktrees/element3-j3-text-p0-studio-20261008/docs/studio-v4/eight-hour-parity-20261005/builder1/icon-label-mode-routing/evidence/before-form.tsx'"
+      },
+      {
+        "script": "test-studio-image-form.mjs",
+        "exit": 0,
+        "signal": null,
+        "message": null
+      },
+      {
+        "script": "test-studio-infographic-draft.mjs",
+        "exit": 0,
+        "signal": null,
+        "message": null
+      },
+      {
+        "script": "test-studio-inspector-focus.mjs",
+        "exit": 0,
+        "signal": null,
+        "message": null
+      },
+      {
+        "script": "test-studio-intro-eligibility.mjs",
+        "exit": 0,
+        "signal": null,
+        "message": null
+      },
+      {
+        "script": "test-studio-intro-integration.mjs",
+        "exit": 1,
+        "signal": null,
+        "message": null
+      },
+      {
+        "script": "test-studio-intro-radix-browser.mjs",
+        "exit": 1,
+        "signal": null,
+        "message": "AssertionError [ERR_ASSERTION]: Unmapped application dependency @/components/builder/studio-composer-hint"
+      },
+      {
+        "script": "test-studio-jose-candidate.mjs",
+        "exit": 1,
+        "signal": null,
+        "message": "Error: ENOENT: no such file or directory, open '/Users/pk1980/Software/Deckster/.worktrees/element3-j3-text-p0-studio-20261008/.env.studio-v4-runtime/isolated-dependencies/package.json'"
+      },
+      {
+        "script": "test-studio-jwt-type.mjs",
+        "exit": 1,
+        "signal": null,
+        "message": "AssertionError [ERR_ASSERTION]: Existing task 19-model compiler config required; do not generate a replacement client"
+      },
+      {
+        "script": "test-studio-legacy-textbox.mjs",
+        "exit": 0,
+        "signal": null,
+        "message": null
+      },
+      {
+        "script": "test-studio-manual-deck-conflict.mjs",
+        "exit": 0,
+        "signal": null,
+        "message": null
+      },
+      {
+        "script": "test-studio-manual-handoff.mjs",
+        "exit": 1,
+        "signal": null,
+        "message": "ReferenceError: ServiceUrlConfigError is not defined"
+      },
+      {
+        "script": "test-studio-master-panel.mjs",
+        "exit": 0,
+        "signal": null,
+        "message": null
+      },
+      {
+        "script": "test-studio-mention-selection.mjs",
+        "exit": 1,
+        "signal": null,
+        "message": "AssertionError [ERR_ASSERTION]: Unexpected mention dependency @/lib/service-url"
+      },
+      {
+        "script": "test-studio-metric-chart-drafts.mjs",
+        "exit": 1,
+        "signal": null,
+        "message": "AssertionError [ERR_ASSERTION]: Expected values to be strictly equal:"
+      },
+      {
+        "script": "test-studio-narrow-workspace.mjs",
+        "exit": 1,
+        "signal": null,
+        "message": null
+      },
+      {
+        "script": "test-studio-native-recovery-types.mjs",
+        "exit": 1,
+        "signal": null,
+        "message": "Error: ENOENT: no such file or directory, open '/Users/pk1980/Software/Deckster/.worktrees/element3-j3-text-p0-studio-20261008/next-env.d.ts'"
+      },
+      {
+        "script": "test-studio-native-theme-recovery.mjs",
+        "exit": 1,
+        "signal": null,
+        "message": "Error: Unknown native theme dependency @/lib/service-url"
+      },
+      {
+        "script": "test-studio-navigation-fidelity.mjs",
+        "exit": 1,
+        "signal": null,
+        "message": "AssertionError [ERR_ASSERTION]: Every other shell/session/toolbar/fullscreen/palette/classic CSS byte stays exact"
+      },
+      {
+        "script": "test-studio-onboarding-order.mjs",
+        "exit": 0,
+        "signal": null,
+        "message": null
+      },
+      {
+        "script": "test-studio-outline-preview.mjs",
+        "exit": 0,
+        "signal": null,
+        "message": null
+      },
+      {
+        "script": "test-studio-pending-action.mjs",
+        "exit": 1,
+        "signal": null,
+        "message": "AssertionError [ERR_ASSERTION]: Unexpected import @/lib/service-url"
+      },
+      {
+        "script": "test-studio-picker-escape.mjs",
+        "exit": 0,
+        "signal": null,
+        "message": null
+      },
+      {
+        "script": "test-studio-publish-fidelity.mjs",
+        "exit": 1,
+        "signal": null,
+        "message": "AssertionError [ERR_ASSERTION]: components/publish-dialog.tsx: requests, initial state, effects, controlled values, callbacks and gates retain their baseline source"
+      },
+      {
+        "script": "test-studio-publish-focus.mjs",
+        "exit": 0,
+        "signal": null,
+        "message": null
+      },
+      {
+        "script": "test-studio-publish-preview.mjs",
+        "exit": 1,
+        "signal": null,
+        "message": "AssertionError [ERR_ASSERTION]: Expected values to be strictly deep-equal:"
+      },
+      {
+        "script": "test-studio-publish-session-drafts.mjs",
+        "exit": 1,
+        "signal": null,
+        "message": "AssertionError [ERR_ASSERTION]: Expected values to be strictly deep-equal:"
+      },
+      {
+        "script": "test-studio-rail-slide-identity.mjs",
+        "exit": 0,
+        "signal": null,
+        "message": null
+      },
+      {
+        "script": "test-studio-refine-geometry.mjs",
+        "exit": 0,
+        "signal": null,
+        "message": null
+      },
+      {
+        "script": "test-studio-restored-preview-owner.mjs",
+        "exit": 1,
+        "signal": null,
+        "message": "ReferenceError: retireDeckMutationOwner is not defined"
+      },
+      {
+        "script": "test-studio-route-params.mjs",
+        "exit": 1,
+        "signal": null,
+        "message": "AssertionError [ERR_ASSERTION]: Complete proxy source is byte-exact outside only Promise params resolution"
+      },
+      {
+        "script": "test-studio-session-bulk-delete.mjs",
+        "exit": 0,
+        "signal": null,
+        "message": null
+      },
+      {
+        "script": "test-studio-session-usage-placement.mjs",
+        "exit": 1,
+        "signal": null,
+        "message": "TypeError: (0 , studio_introduction_1.useStudioAboutReplay) is not a function"
+      },
+      {
+        "script": "test-studio-shape-draft.mjs",
+        "exit": 0,
+        "signal": null,
+        "message": null
+      },
+      {
+        "script": "test-studio-shared-continuation-types.mjs",
+        "exit": 1,
+        "signal": null,
+        "message": "Error: ENOENT: no such file or directory, open '/Users/pk1980/Software/Deckster/.worktrees/element3-j3-text-p0-studio-20261008/next-env.d.ts'"
+      },
+      {
+        "script": "test-studio-slide-menus.mjs",
+        "exit": 1,
+        "signal": null,
+        "message": "AssertionError [ERR_ASSERTION]: all existing options, callbacks, payloads, guards, classes and classic shortcuts remain exact"
+      },
+      {
+        "script": "test-studio-slide-panel-draft-context.mjs",
+        "exit": 1,
+        "signal": null,
+        "message": null
+      },
+      {
+        "script": "test-studio-slide-panel-ownership.mjs",
+        "exit": 1,
+        "signal": null,
+        "message": null
+      },
+      {
+        "script": "test-studio-slide-shortcuts.mjs",
+        "exit": 0,
+        "signal": null,
+        "message": null
+      },
+      {
+        "script": "test-studio-slide-thumbnail-mutations.mjs",
+        "exit": 1,
+        "signal": null,
+        "message": "Error: ENOENT: no such file or directory, open '/Users/pk1980/Software/Deckster/.worktrees/element3-j3-text-p0-studio-20261008/docs/studio-v4/eight-hour-parity-20261005/builder1/thumbnail-mutations/before-viewer.tsx.txt'"
+      },
+      {
+        "script": "test-studio-slide-types-parity.mjs",
+        "exit": 1,
+        "signal": null,
+        "message": null
+      },
+      {
+        "script": "test-studio-stage-placeholder-fixture.mjs",
+        "exit": 1,
+        "signal": null,
+        "message": "AssertionError [ERR_ASSERTION]: The input did not match the regular expression /StudioWelcomeStage \\/>/. Input:"
+      },
+      {
+        "script": "test-studio-template-ingest-ownership.mjs",
+        "exit": 0,
+        "signal": null,
+        "message": null
+      },
+      {
+        "script": "test-studio-template-observation-recovery.mjs",
+        "exit": 0,
+        "signal": null,
+        "message": null
+      },
+      {
+        "script": "test-studio-template-readability.mjs",
+        "exit": 1,
+        "signal": null,
+        "message": "AssertionError [ERR_ASSERTION]: Unexpected dependency ./destination-intros.css"
+      },
+      {
+        "script": "test-studio-template-readiness-warning.mjs",
+        "exit": 1,
+        "signal": null,
+        "message": "AssertionError [ERR_ASSERTION]: All original library controls/notice children/roles remain exact"
+      },
+      {
+        "script": "test-studio-template-retry-picker.mjs",
+        "exit": 1,
+        "signal": null,
+        "message": "AssertionError [ERR_ASSERTION]: Expected values to be strictly equal:"
+      },
+      {
+        "script": "test-studio-template-retry-save.mjs",
+        "exit": 0,
+        "signal": null,
+        "message": null
+      },
+      {
+        "script": "test-studio-template-retry-types.mjs",
+        "exit": 0,
+        "signal": null,
+        "message": null
+      },
+      {
+        "script": "test-studio-template-save-ownership.mjs",
+        "exit": 0,
+        "signal": null,
+        "message": null
+      },
+      {
+        "script": "test-studio-text-role-default.mjs",
+        "exit": 0,
+        "signal": null,
+        "message": null
+      },
+      {
+        "script": "test-studio-textbox-drafts.mjs",
+        "exit": 1,
+        "signal": null,
+        "message": "AssertionError [ERR_ASSERTION]: Expected values to be strictly equal:"
+      },
+      {
+        "script": "test-studio-theme-draft-ownership.mjs",
+        "exit": 0,
+        "signal": null,
+        "message": null
+      },
+      {
+        "script": "test-studio-theme-refusal-readiness.mjs",
+        "exit": 1,
+        "signal": null,
+        "message": "AssertionError [ERR_ASSERTION]: Expected values to be strictly equal:"
+      },
+      {
+        "script": "test-studio-theme-source-status.mjs",
+        "exit": 0,
+        "signal": null,
+        "message": null
+      },
+      {
+        "script": "test-studio-theme-support-access.mjs",
+        "exit": 1,
+        "signal": null,
+        "message": "AssertionError [ERR_ASSERTION]: Expected values to be strictly equal:"
+      },
+      {
+        "script": "test-studio-thumbnail-cache-admission.mjs",
+        "exit": 1,
+        "signal": null,
+        "message": "Error: ENOENT: no such file or directory, open '/Users/pk1980/Software/Deckster/.worktrees/element3-j3-text-p0-studio-20261008/docs/studio-v4/eight-hour-parity-20261005/builder1/thumbnail-cache-admission/before-cache-hook.ts.txt'"
+      },
+      {
+        "script": "test-studio-thumbnail-failure-details.mjs",
+        "exit": 1,
+        "signal": null,
+        "message": "AssertionError [ERR_ASSERTION]: All native callbacks, keyboard selection, indices, processing gates, drag, options, classes and other source remain AST-exact"
+      },
+      {
+        "script": "test-studio-thumbnail-failure-fixture.mjs",
+        "exit": 0,
+        "signal": null,
+        "message": null
+      },
+      {
+        "script": "test-studio-thumbnail-initial-visibility.mjs",
+        "exit": 1,
+        "signal": null,
+        "message": "AssertionError [ERR_ASSERTION]: Only the initialization ref/effect changes; every native handler/width/flag/timer/iframe/prop/render gate remains byte-exact"
+      },
+      {
+        "script": "test-studio-toolbar-interact.mjs",
+        "exit": 1,
+        "signal": null,
+        "message": "AssertionError [ERR_ASSERTION]: Every pre-existing header element, handler, gate and focus-reveal effect remains byte-exact"
+      },
+      {
+        "script": "test-studio-toolbar-save-feedback.mjs",
+        "exit": 1,
+        "signal": null,
+        "message": "AssertionError [ERR_ASSERTION]: The complete viewer must remain byte-exact to accepted application 0ed6298"
+      },
+      {
+        "script": "test-studio-upload-ownership.mjs",
+        "exit": 1,
+        "signal": null,
+        "message": "AssertionError [ERR_ASSERTION]: Known Studio additions reverse to the complete original hook byte-for-byte"
+      },
+      {
+        "script": "test-studio-usage-account-fixture.mjs",
+        "exit": 0,
+        "signal": null,
+        "message": null
+      },
+      {
+        "script": "test-studio-version-current-state.mjs",
+        "exit": 1,
+        "signal": null,
+        "message": "AssertionError [ERR_ASSERTION]: All other Viewer source is byte-exact, including handlers, geometry, readiness, options and native Check states"
+      },
+      {
+        "script": "test-studio-viewer-load-order.mjs",
+        "exit": 1,
+        "signal": null,
+        "message": "AssertionError [ERR_ASSERTION]: Observed reset/load ordering matches expected actual source"
+      },
+      {
+        "script": "test-studio-voice-ui.mjs",
+        "exit": 1,
+        "signal": null,
+        "message": "Error: ENOENT: no such file or directory, open '/Users/pk1980/Software/Deckster/.worktrees/element3-j3-text-p0-studio-20261008/docs/studio-v4/twenty-four-hour-parity-20261005/builder1/voice-correction/APP-MANIFEST.json'"
+      },
+      {
+        "script": "test-studio-waiting-state.mjs",
+        "exit": 0,
+        "signal": null,
+        "message": null
+      },
+      {
+        "script": "test-studio-websocket-configuration.mjs",
+        "exit": 1,
+        "signal": null,
+        "message": null
+      },
+      {
+        "script": "test-studio-websocket-error-fallback.mjs",
+        "exit": 0,
+        "signal": null,
+        "message": null
+      },
+      {
+        "script": "test-studio-workflow.mjs",
+        "exit": 0,
+        "signal": null,
+        "message": null
+      },
+      {
+        "script": "test-studio-workspace-fidelity.mjs",
+        "exit": 1,
+        "signal": null,
+        "message": "AssertionError [ERR_ASSERTION]: Accepted ink-slate action palette"
+      },
+      {
+        "script": "test-studio-workspace-layout.mjs",
+        "exit": 0,
+        "signal": null,
+        "message": null
+      },
+      {
+        "script": "test-table-overhaul-contract.mjs",
+        "exit": 1,
+        "signal": null,
+        "message": "Error: Unexpected client dependency: @/lib/service-url"
+      },
+      {
+        "script": "test-template-retry-acknowledgement.mjs",
+        "exit": 0,
+        "signal": null,
+        "message": null
+      },
+      {
+        "script": "test-template-save-gate.mjs",
+        "exit": 0,
+        "signal": null,
+        "message": null
+      },
+      {
+        "script": "test-textbox-planned-recovery.mjs",
+        "exit": 0,
+        "signal": null,
+        "message": null
+      },
+      {
+        "script": "test-textbox-request-fidelity.mjs",
+        "exit": 0,
+        "signal": null,
+        "message": null
+      },
+      {
+        "script": "test-textbox-role-contract.mjs",
+        "exit": 1,
+        "signal": null,
+        "message": "Error: Unexpected dependency: @/lib/service-url"
+      },
+      {
+        "script": "test-textlabs-abort-signal.mjs",
+        "exit": 1,
+        "signal": null,
+        "message": "Error: Unexpected dependency: @/lib/service-url"
+      },
+      {
+        "script": "test-textlabs-session-ownership.mjs",
+        "exit": 0,
+        "signal": null,
+        "message": null
+      },
+      {
+        "script": "test-theme-panel-lifecycle.mjs",
+        "exit": 0,
+        "signal": null,
+        "message": null
+      },
+      {
+        "script": "test-theme-picker-canon.mjs",
+        "exit": 0,
+        "signal": null,
+        "message": null
+      },
+      {
+        "script": "test-theme-sync.mjs",
+        "exit": 1,
+        "signal": null,
+        "message": "Error: Cannot find module '@/lib/service-url'"
+      },
+      {
+        "script": "test-upload-status-contract.mjs",
+        "exit": 0,
+        "signal": null,
+        "message": null
+      },
+      {
+        "script": "test-user-message-attachments.mjs",
+        "exit": 0,
+        "signal": null,
+        "message": null
+      },
+      {
+        "script": "test-visual-element-contract.mjs",
+        "exit": 1,
+        "signal": null,
+        "message": "Error: Unexpected dependency: @/lib/service-url"
+      }
+    ],
+    "native_passed": 96,
+    "native_total": 203,
+    "typecheck": {
+      "exit": 2,
+      "signal": null,
+      "diagnostic_count": 119,
+      "diagnostics": [
+        "app/api/dev/mock-token/route.ts(2,25): error TS2307: Cannot find module 'jose' or its corresponding type declarations.",
+        "app/api/narration/manifest/route.ts(42,33): error TS2339: Property 'publishedDeck' does not exist on type 'PrismaClient<PrismaClientOptions, never, DefaultArgs>'.",
+        "app/api/narration/render/route.ts(87,31): error TS2339: Property 'publishedDeck' does not exist on type 'PrismaClient<PrismaClientOptions, never, DefaultArgs>'.",
+        "app/api/narration/script/route.ts(91,31): error TS2339: Property 'publishedDeck' does not exist on type 'PrismaClient<PrismaClientOptions, never, DefaultArgs>'.",
+        "app/api/narration/script/route.ts(253,22): error TS2339: Property 'publishedDeck' does not exist on type 'PrismaClient<PrismaClientOptions, never, DefaultArgs>'.",
+        "app/api/narration/segment/[segmentId]/route.ts(33,34): error TS2339: Property 'mediaSegment' does not exist on type 'PrismaClient<PrismaClientOptions, never, DefaultArgs>'.",
+        "app/api/narration/segment/[segmentId]/route.ts(65,35): error TS2339: Property 'publishedDeck' does not exist on type 'PrismaClient<PrismaClientOptions, never, DefaultArgs>'.",
+        "app/api/narration/speak/route.ts(45,31): error TS2339: Property 'publishedDeck' does not exist on type 'PrismaClient<PrismaClientOptions, never, DefaultArgs>'.",
+        "app/api/narration/speak/route.ts(104,35): error TS2339: Property 'deckQuestion' does not exist on type 'PrismaClient<PrismaClientOptions, never, DefaultArgs>'.",
+        "app/api/publish/[slug]/ask/route.ts(98,31): error TS2339: Property 'publishedDeck' does not exist on type 'PrismaClient<PrismaClientOptions, never, DefaultArgs>'.",
+        "app/api/publish/[slug]/ask/route.ts(200,14): error TS2339: Property 'deckQuestion' does not exist on type 'PrismaClient<PrismaClientOptions, never, DefaultArgs>'.",
+        "app/api/publish/[slug]/ask/route.ts(203,14): error TS2339: Property 'deckQuestion' does not exist on type 'PrismaClient<PrismaClientOptions, never, DefaultArgs>'.",
+        "app/api/publish/[slug]/ask/route.ts(206,14): error TS2339: Property 'deckQuestion' does not exist on type 'PrismaClient<PrismaClientOptions, never, DefaultArgs>'.",
+        "app/api/publish/[slug]/ask/route.ts(209,14): error TS2339: Property 'deckQuestion' does not exist on type 'PrismaClient<PrismaClientOptions, never, DefaultArgs>'.",
+        "app/api/publish/[slug]/ask/route.ts(212,14): error TS2339: Property 'deckQuestion' does not exist on type 'PrismaClient<PrismaClientOptions, never, DefaultArgs>'.",
+        "app/api/publish/[slug]/ask/route.ts(262,42): error TS2339: Property 'deckQuestion' does not exist on type 'PrismaClient<PrismaClientOptions, never, DefaultArgs>'.",
+        "app/api/publish/[slug]/ask/route.ts(273,42): error TS7006: Parameter 'row' implicitly has an 'any' type.",
+        "app/api/publish/[slug]/ask/route.ts(290,31): error TS2339: Property 'deckFaqItem' does not exist on type 'PrismaClient<PrismaClientOptions, never, DefaultArgs>'.",
+        "app/api/publish/[slug]/ask/route.ts(477,29): error TS2339: Property 'publishedDeckSource' does not exist on type 'PrismaClient<PrismaClientOptions, never, DefaultArgs>'.",
+        "app/api/publish/[slug]/ask/route.ts(481,20): error TS7006: Parameter 'row' implicitly has an 'any' type.",
+        "app/api/publish/[slug]/ask/route.ts(502,28): error TS2339: Property 'deckQuestion' does not exist on type 'PrismaClient<PrismaClientOptions, never, DefaultArgs>'.",
+        "app/api/publish/[slug]/ask/route.ts(561,18): error TS2339: Property 'deckQuestion' does not exist on type 'PrismaClient<PrismaClientOptions, never, DefaultArgs>'.",
+        "app/api/publish/[slug]/download/[format]/route.ts(69,31): error TS2339: Property 'publishedDeck' does not exist on type 'PrismaClient<PrismaClientOptions, never, DefaultArgs>'.",
+        "app/api/publish/[slug]/faq/[faqId]/route.ts(84,34): error TS2339: Property 'deckFaqItem' does not exist on type 'PrismaClient<PrismaClientOptions, never, DefaultArgs>'.",
+        "app/api/publish/[slug]/faq/[faqId]/route.ts(106,18): error TS2339: Property 'deckFaqItem' does not exist on type 'PrismaClient<PrismaClientOptions, never, DefaultArgs>'.",
+        "app/api/publish/[slug]/faq/route.ts(28,31): error TS2339: Property 'publishedDeck' does not exist on type 'PrismaClient<PrismaClientOptions, never, DefaultArgs>'.",
+        "app/api/publish/[slug]/faq/route.ts(54,32): error TS2339: Property 'deckFaqItem' does not exist on type 'PrismaClient<PrismaClientOptions, never, DefaultArgs>'.",
+        "app/api/publish/[slug]/faq/route.ts(61,23): error TS7006: Parameter 'item' implicitly has an 'any' type.",
+        "app/api/publish/[slug]/qa-corpus/route.ts(84,18): error TS2339: Property 'publishedDeck' does not exist on type 'PrismaClient<PrismaClientOptions, never, DefaultArgs>'.",
+        "app/api/publish/[slug]/qa-sources/route.ts(40,33): error TS2339: Property 'publishedDeckSource' does not exist on type 'PrismaClient<PrismaClientOptions, never, DefaultArgs>'.",
+        "app/api/publish/[slug]/qa-sources/route.ts(57,39): error TS7006: Parameter 'row' implicitly has an 'any' type.",
+        "app/api/publish/[slug]/qa-sources/route.ts(78,20): error TS18046: 'row' is of type 'unknown'.",
+        "app/api/publish/[slug]/qa-sources/route.ts(79,21): error TS18046: 'row' is of type 'unknown'.",
+        "app/api/publish/[slug]/qa-sources/route.ts(83,22): error TS18046: 'row' is of type 'unknown'.",
+        "app/api/publish/[slug]/qa-sources/route.ts(83,57): error TS18046: 'row' is of type 'unknown'.",
+        "app/api/publish/[slug]/qa-sources/route.ts(84,21): error TS18046: 'row' is of type 'unknown'.",
+        "app/api/publish/[slug]/qa-sources/route.ts(85,23): error TS18046: 'row' is of type 'unknown'.",
+        "app/api/publish/[slug]/qa-sources/route.ts(139,16): error TS2339: Property 'publishedDeckSource' does not exist on type 'PrismaClient<PrismaClientOptions, never, DefaultArgs>'.",
+        "app/api/publish/[slug]/questions/[id]/answer/route.ts(44,34): error TS2339: Property 'deckQuestion' does not exist on type 'PrismaClient<PrismaClientOptions, never, DefaultArgs>'.",
+        "app/api/publish/[slug]/questions/[id]/block/route.ts(55,35): error TS2339: Property 'deckQuestion' does not exist on type 'PrismaClient<PrismaClientOptions, never, DefaultArgs>'.",
+        "app/api/publish/[slug]/questions/[id]/block/route.ts(64,33): error TS2339: Property 'deckQuestion' does not exist on type 'PrismaClient<PrismaClientOptions, never, DefaultArgs>'.",
+        "app/api/publish/[slug]/questions/[id]/promote/route.ts(106,30): error TS2339: Property 'deckFaqItem' does not exist on type 'PrismaClient<PrismaClientOptions, never, DefaultArgs>'.",
+        "app/api/publish/[slug]/questions/[id]/promote/route.ts(132,20): error TS2339: Property 'deckQuestion' does not exist on type 'PrismaClient<PrismaClientOptions, never, DefaultArgs>'.",
+        "app/api/publish/[slug]/questions/[id]/promote/route.ts(146,29): error TS2339: Property 'deckFaqItem' does not exist on type 'PrismaClient<PrismaClientOptions, never, DefaultArgs>'.",
+        "app/api/publish/[slug]/questions/[id]/route.ts(33,18): error TS2339: Property 'deckQuestion' does not exist on type 'PrismaClient<PrismaClientOptions, never, DefaultArgs>'.",
+        "app/api/publish/[slug]/questions/route.ts(41,31): error TS2339: Property 'deckQuestion' does not exist on type 'PrismaClient<PrismaClientOptions, never, DefaultArgs>'.",
+        "app/api/publish/[slug]/questions/route.ts(55,42): error TS2339: Property 'deckQuestion' does not exist on type 'PrismaClient<PrismaClientOptions, never, DefaultArgs>'.",
+        "app/api/publish/[slug]/rotate/route.ts(57,35): error TS2339: Property 'publishedDeck' does not exist on type 'PrismaClient<PrismaClientOptions, never, DefaultArgs>'.",
+        "app/api/publish/[slug]/rotate/route.ts(155,34): error TS2339: Property 'publishedDeck' does not exist on type 'PrismaClient<PrismaClientOptions, never, DefaultArgs>'.",
+        "app/api/publish/[slug]/rotate/route.ts(178,26): error TS2339: Property 'publishedDeck' does not exist on type 'PrismaClient<PrismaClientOptions, never, DefaultArgs>'.",
+        "app/api/publish/[slug]/rotate/route.ts(218,36): error TS2339: Property 'publishedDeck' does not exist on type 'PrismaClient<PrismaClientOptions, never, DefaultArgs>'.",
+        "app/api/publish/[slug]/rotate/route.ts(220,24): error TS2339: Property 'publishedDeck' does not exist on type 'PrismaClient<PrismaClientOptions, never, DefaultArgs>'.",
+        "app/api/publish/[slug]/rotate/route.ts(223,64): error TS7006: Parameter 'sid' implicitly has an 'any' type.",
+        "app/api/publish/[slug]/rotate/route.ts(232,34): error TS2339: Property 'publishedDeck' does not exist on type 'PrismaClient<PrismaClientOptions, never, DefaultArgs>'.",
+        "app/api/publish/[slug]/route.ts(53,35): error TS2339: Property 'publishedDeck' does not exist on type 'PrismaClient<PrismaClientOptions, never, DefaultArgs>'.",
+        "app/api/publish/[slug]/route.ts(217,32): error TS2339: Property 'publishedDeck' does not exist on type 'PrismaClient<PrismaClientOptions, never, DefaultArgs>'.",
+        "app/api/publish/[slug]/route.ts(222,32): error TS2339: Property 'publishedDeck' does not exist on type 'PrismaClient<PrismaClientOptions, never, DefaultArgs>'.",
+        "app/api/publish/[slug]/route.ts(225,34): error TS2339: Property 'publishedDeck' does not exist on type 'PrismaClient<PrismaClientOptions, never, DefaultArgs>'.",
+        "app/api/publish/[slug]/route.ts(294,35): error TS2339: Property 'publishedDeck' does not exist on type 'PrismaClient<PrismaClientOptions, never, DefaultArgs>'.",
+        "app/api/publish/[slug]/route.ts(334,32): error TS2339: Property 'publishedDeck' does not exist on type 'PrismaClient<PrismaClientOptions, never, DefaultArgs>'.",
+        "app/api/publish/[slug]/route.ts(344,36): error TS2339: Property 'publishedDeck' does not exist on type 'PrismaClient<PrismaClientOptions, never, DefaultArgs>'.",
+        "app/api/publish/[slug]/route.ts(377,36): error TS2339: Property 'publishedDeck' does not exist on type 'PrismaClient<PrismaClientOptions, never, DefaultArgs>'.",
+        "app/api/publish/[slug]/route.ts(379,24): error TS2339: Property 'publishedDeck' does not exist on type 'PrismaClient<PrismaClientOptions, never, DefaultArgs>'.",
+        "app/api/publish/[slug]/route.ts(382,64): error TS7006: Parameter 'sid' implicitly has an 'any' type.",
+        "app/api/publish/[slug]/route.ts(391,34): error TS2339: Property 'publishedDeck' does not exist on type 'PrismaClient<PrismaClientOptions, never, DefaultArgs>'.",
+        "app/api/publish/[slug]/thread/[token]/route.ts(37,31): error TS2339: Property 'publishedDeck' does not exist on type 'PrismaClient<PrismaClientOptions, never, DefaultArgs>'.",
+        "app/api/publish/[slug]/thread/[token]/route.ts(66,35): error TS2339: Property 'deckQuestion' does not exist on type 'PrismaClient<PrismaClientOptions, never, DefaultArgs>'.",
+        "app/api/publish/[slug]/thread/[token]/route.ts(76,14): error TS2339: Property 'deckQuestion' does not exist on type 'PrismaClient<PrismaClientOptions, never, DefaultArgs>'.",
+        "app/api/publish/[slug]/thread/[token]/route.ts(78,17): error TS7006: Parameter 'error' implicitly has an 'any' type.",
+        "app/api/publish/[slug]/unlock/route.ts(38,31): error TS2339: Property 'publishedDeck' does not exist on type 'PrismaClient<PrismaClientOptions, never, DefaultArgs>'.",
+        "app/api/publish/by-session/[sessionId]/route.ts(55,31): error TS2339: Property 'publishedDeck' does not exist on type 'PrismaClient<PrismaClientOptions, never, DefaultArgs>'.",
+        "app/api/publish/route.ts(6,15): error TS2305: Module '\"@prisma/client\"' has no exported member 'PublishedDeck'.",
+        "app/api/publish/route.ts(115,35): error TS2339: Property 'publishedDeck' does not exist on type 'PrismaClient<PrismaClientOptions, never, DefaultArgs>'.",
+        "app/api/publish/route.ts(215,33): error TS2339: Property 'publishedDeck' does not exist on type 'PrismaClient<PrismaClientOptions, never, DefaultArgs>'.",
+        "app/api/publish/route.ts(243,24): error TS2339: Property 'publishedDeck' does not exist on type 'PrismaClient<PrismaClientOptions, never, DefaultArgs>'.",
+        "app/api/publish/route.ts(263,38): error TS2339: Property 'publishedDeck' does not exist on type 'PrismaClient<PrismaClientOptions, never, DefaultArgs>'.",
+        "app/api/publish/route.ts(265,26): error TS2339: Property 'publishedDeck' does not exist on type 'PrismaClient<PrismaClientOptions, never, DefaultArgs>'.",
+        "app/api/publish/route.ts(268,66): error TS7006: Parameter 'sid' implicitly has an 'any' type.",
+        "app/api/publish/route.ts(276,29): error TS2339: Property 'publishedDeck' does not exist on type 'PrismaClient<PrismaClientOptions, never, DefaultArgs>'.",
+        "app/api/publish/route.ts(285,31): error TS2339: Property 'publishedDeck' does not exist on type 'PrismaClient<PrismaClientOptions, never, DefaultArgs>'.",
+        "app/api/webhooks/stripe/route.ts(159,49): error TS2339: Property 'current_period_start' does not exist on type 'Subscription'.",
+        "app/api/webhooks/stripe/route.ts(160,47): error TS2339: Property 'current_period_end' does not exist on type 'Subscription'.",
+        "app/api/webhooks/stripe/route.ts(175,49): error TS2339: Property 'current_period_start' does not exist on type 'Subscription'.",
+        "app/api/webhooks/stripe/route.ts(176,47): error TS2339: Property 'current_period_end' does not exist on type 'Subscription'.",
+        "app/api/webhooks/stripe/route.ts(193,53): error TS2339: Property 'current_period_end' does not exist on type 'Subscription'.",
+        "app/api/webhooks/stripe/route.ts(244,38): error TS2339: Property 'payment_intent' does not exist on type 'Invoice'.",
+        "app/api/webhooks/stripe/route.ts(245,37): error TS2339: Property 'subscription' does not exist on type 'Invoice'.",
+        "app/api/webhooks/stripe/route.ts(275,38): error TS2339: Property 'payment_intent' does not exist on type 'Invoice'.",
+        "app/api/webhooks/stripe/route.ts(276,37): error TS2339: Property 'subscription' does not exist on type 'Invoice'.",
+        "app/p/[slug]/page.tsx(21,29): error TS2339: Property 'publishedDeck' does not exist on type 'PrismaClient<PrismaClientOptions, never, DefaultArgs>'.",
+        "app/p/[slug]/page.tsx(61,10): error TS2339: Property 'publishedDeck' does not exist on type 'PrismaClient<PrismaClientOptions, never, DefaultArgs>'.",
+        "app/p/[slug]/page.tsx(69,32): error TS2339: Property 'deckFaqItem' does not exist on type 'PrismaClient<PrismaClientOptions, never, DefaultArgs>'.",
+        "app/p/[slug]/page.tsx(73,35): error TS7006: Parameter 'row' implicitly has an 'any' type.",
+        "app/p/[slug]/q/[token]/page.tsx(32,29): error TS2339: Property 'publishedDeck' does not exist on type 'PrismaClient<PrismaClientOptions, never, DefaultArgs>'.",
+        "app/p/[slug]/q/[token]/page.tsx(48,33): error TS2339: Property 'deckQuestion' does not exist on type 'PrismaClient<PrismaClientOptions, never, DefaultArgs>'.",
+        "app/p/[slug]/q/[token]/page.tsx(62,12): error TS2339: Property 'deckQuestion' does not exist on type 'PrismaClient<PrismaClientOptions, never, DefaultArgs>'.",
+        "lib/narration/manifest.ts(71,29): error TS2339: Property 'mediaSegment' does not exist on type 'PrismaClient<PrismaClientOptions, never, DefaultArgs>'.",
+        "lib/narration/manifest.ts(98,31): error TS7006: Parameter 'r' implicitly has an 'any' type.",
+        "lib/narration/manifest.ts(122,33): error TS7006: Parameter 'r' implicitly has an 'any' type.",
+        "lib/narration/segments.ts(111,17): error TS2339: Property 'mediaSegment' does not exist on type 'PrismaClient<PrismaClientOptions, never, DefaultArgs>'.",
+        "lib/narration/segments.ts(164,17): error TS2339: Property 'mediaSegment' does not exist on type 'PrismaClient<PrismaClientOptions, never, DefaultArgs>'.",
+        "lib/narration/segments.ts(181,29): error TS2339: Property 'mediaSegment' does not exist on type 'PrismaClient<PrismaClientOptions, never, DefaultArgs>'.",
+        "lib/narration/segments.ts(185,30): error TS7006: Parameter 'r' implicitly has an 'any' type.",
+        "lib/narration/segments.ts(188,26): error TS7006: Parameter 'r' implicitly has an 'any' type.",
+        "lib/narration/segments.ts(189,34): error TS7006: Parameter 'sum' implicitly has an 'any' type.",
+        "lib/narration/segments.ts(189,39): error TS7006: Parameter 'r' implicitly has an 'any' type.",
+        "lib/narration/segments.ts(190,36): error TS7006: Parameter 'sum' implicitly has an 'any' type.",
+        "lib/narration/segments.ts(190,41): error TS7006: Parameter 'r' implicitly has an 'any' type.",
+        "lib/publish/qa-corpus.ts(39,31): error TS2339: Property 'publishedDeck' does not exist on type 'PrismaClient<PrismaClientOptions, never, DefaultArgs>'.",
+        "lib/publish/qa-corpus.ts(88,33): error TS2339: Property 'publishedDeckSource' does not exist on type 'PrismaClient<PrismaClientOptions, never, DefaultArgs>'.",
+        "lib/publish/qa-corpus.ts(101,39): error TS7006: Parameter 'row' implicitly has an 'any' type.",
+        "lib/publish/qa-corpus.ts(107,18): error TS2339: Property 'publishedDeck' does not exist on type 'PrismaClient<PrismaClientOptions, never, DefaultArgs>'.",
+        "lib/publish/qa-corpus.ts(138,18): error TS2339: Property 'publishedDeck' does not exist on type 'PrismaClient<PrismaClientOptions, never, DefaultArgs>'.",
+        "lib/publish/qa-corpus.ts(150,16): error TS2339: Property 'publishedDeck' does not exist on type 'PrismaClient<PrismaClientOptions, never, DefaultArgs>'.",
+        "lib/publish/qa-owner.ts(50,12): error TS2339: Property 'publishedDeck' does not exist on type 'PrismaClient<PrismaClientOptions, never, DefaultArgs>'.",
+        "lib/publish/qa-owner.ts(104,17): error TS2339: Property 'deckQuestion' does not exist on type 'PrismaClient<PrismaClientOptions, never, DefaultArgs>'.",
+        "lib/publish/qa-owner.ts(110,17): error TS2339: Property 'deckFaqItem' does not exist on type 'PrismaClient<PrismaClientOptions, never, DefaultArgs>'.",
+        "lib/publish/serialize.ts(4,15): error TS2305: Module '\"@prisma/client\"' has no exported member 'PublishedDeck'.",
+        "lib/stripe/stripe.ts(15,7): error TS2322: Type '\"2024-11-20.acacia\"' is not assignable to type '\"2025-11-17.clover\"'."
+      ]
+    }
+  }
+]

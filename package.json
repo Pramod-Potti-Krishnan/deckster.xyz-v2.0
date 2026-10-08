@@ -68,7 +68,8 @@
     "test:narration": "node scripts/test-narration-voices.mjs",
     "test:build-narration": "node scripts/test-build-narration.mjs",
     "test:slide-thumbnail-menu": "node scripts/test-slide-thumbnail-menu.mjs",
-    "test:legal-links": "node scripts/test-legal-links.mjs"
+    "test:legal-links": "node scripts/test-legal-links.mjs",
+    "test:textbox-planned-recovery": "node scripts/test-textbox-planned-recovery.mjs"
   },
   "dependencies": {
     "@auth/prisma-adapter": "^2.10.0",
