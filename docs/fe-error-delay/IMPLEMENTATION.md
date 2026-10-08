@@ -1,3 +1,5 @@
+> Historical first-handback document from source7bea5949. The reviewed rework, current source binding and qualifications are in [REWORK-1.md](REWORK-1.md). Original failed verdicts and receipt files remain unchanged.
+
 # FE-ERROR-DELAY implementation checkpoint
 
 Baseline failing verdict was published by root at workspace report715e93f0 before any production edit. At approved current source30c9fc9e62cdb56601e6090486914ab1780c072d, actual hook/client/static feedback render formed known failure at0ms and first displayed it at10000ms after synthetic rollback2s, restore delete3s and insert5s. This demonstrates source ordering, not a live incident timing join.

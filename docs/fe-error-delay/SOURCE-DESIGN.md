@@ -1,3 +1,5 @@
+> Historical first-handback document from source7bea5949. The reviewed rework, current source binding and qualifications are in [REWORK-1.md](REWORK-1.md). Original failed verdicts and receipt files remain unchanged.
+
 # FE-ERROR-DELAY source-first design
 
 Read-only first phase; no production change or new execution. Approved source/target: `30c9fc9e62cdb56601e6090486914ab1780c072d`, branch `element3/fe-error-delay`, target `studio-v4-dev-preparation-code`. Source is distinct from earlier operations-attributed running Studio18e. Root freezes the baseline failing verdict before implementation. Root owns commits/integration; this worker owns hook/minimal helper/docs; test worker owns the new focused script only.

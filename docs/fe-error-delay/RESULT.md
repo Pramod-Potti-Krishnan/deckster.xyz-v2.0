@@ -1,3 +1,5 @@
+> Historical first-handback document from source7bea5949. The reviewed rework, current source binding and qualifications are in [REWORK-1.md](REWORK-1.md). Original failed verdicts and receipt files remain unchanged.
+
 # FE-ERROR-DELAY frontend source slice
 
 Completed allocated hook-only implementation on approved base `30c9fc9e62cdb56601e6090486914ab1780c072d` in the shared isolated `element3/fe-error-delay` worktree, targeting `studio-v4-dev-preparation-code`. Root owns coherent commits/draft PR/integration/source validation; OPS-1 owns official gates; this worker made no commit or runtime/job. First failing baseline was frozen/published by root at report715e93f0 before production edits.
