@@ -3,7 +3,7 @@ import { isCanonicalThemePresetId, isValidThemeHex, normalizeThemePresetId, type
 
 // Palette guides match the existing ThemePanel. The authoritative rendered
 // theme (including generated harmony and typography) remains Director-owned.
-const PREVIEW_PALETTES: Record<CanonicalThemePresetId, Record<string, string>> = {
+const PREVIEW_PALETTES: Partial<Record<CanonicalThemePresetId, Record<string, string>>> & { corporate_light: Record<string, string> } = {
   corporate_light: { background: '#ffffff', surface: '#eff6ff', primary: '#1e40af', accent: '#f59e0b', text_primary: '#172033' },
   corporate_dark: { background: '#0f172a', surface: '#1e293b', primary: '#60a5fa', accent: '#fbbf24', text_primary: '#f8fafc' },
   minimal: { background: '#ffffff', surface: '#f8fafc', primary: '#334155', accent: '#94a3b8', text_primary: '#0f172a' },
@@ -14,7 +14,8 @@ const PREVIEW_PALETTES: Record<CanonicalThemePresetId, Record<string, string>> =
 
 export function themePreviewPalette(selection: BuildThemeSelection) {
   const id = normalizeThemePresetId(selection.preset_id)
-  const base = PREVIEW_PALETTES[isCanonicalThemePresetId(id) ? id : 'corporate_light']
+  // T-07: a canon-only id (flag on) has no specimen palette here; it keeps today's corporate_light guide.
+  const base = (isCanonicalThemePresetId(id) && PREVIEW_PALETTES[id]) || PREVIEW_PALETTES.corporate_light
   const palette: Record<string, string> = { ...base, secondary: base.accent, tertiary: base.primary, neutral: '#64748b', text_body: base.text_primary, border: '#94a3b8' }
   for (const key of ['primary', 'secondary', 'tertiary', 'neutral'] as const) {
     const color = selection[`${key}_hex`]

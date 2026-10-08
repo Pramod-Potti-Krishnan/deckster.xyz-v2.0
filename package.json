@@ -25,6 +25,7 @@
     "test:grid-splitter": "node scripts/test-grid-splitter.mjs",
     "test:theme-sync": "node scripts/test-theme-sync.mjs",
     "test:theme-panel-lifecycle": "node scripts/test-theme-panel-lifecycle.mjs",
+    "test:theme-picker-canon": "node scripts/test-theme-picker-canon.mjs",
     "test:element-theme-variants": "node scripts/test-element-theme-variants.mjs",
     "test:element-generation-context": "node scripts/test-element-generation-context.mjs",
     "test:refinement-provenance": "node scripts/test-refinement-provenance.mjs",
