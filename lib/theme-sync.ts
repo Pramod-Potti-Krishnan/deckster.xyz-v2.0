@@ -8,6 +8,13 @@ export interface ThemeSyncState {
   error: string | null
 }
 
+/** The failed authoritative handshake an explicit element Retry may recover. */
+export interface ElementThemePreflightRetry {
+  presentationId: string
+  themeFingerprint: string
+  requestId: string
+}
+
 export type ThemeReadinessFailureCode =
   | 'disconnected'
   | 'failed'
@@ -26,7 +33,7 @@ export type ThemeReadinessResult =
       source: 'director' | 'layout' | 'neutral'
       notice?: string
     }
-  | { ready: false; code: ThemeReadinessFailureCode; error: string }
+  | { ready: false; code: ThemeReadinessFailureCode; error: string; sync?: ThemeSyncState }
 
 export interface PersistedThemeProbe {
   source: 'layout' | 'neutral'
@@ -49,6 +56,7 @@ interface WaitForAuthoritativeThemeOptions {
   pollIntervalMs?: number
   now?: () => number
   delay?: (milliseconds: number) => Promise<void>
+  captureFailureSync?: boolean
 }
 
 export const IDLE_THEME_SYNC: ThemeSyncState = {
@@ -278,6 +286,7 @@ export async function waitForAuthoritativeTheme({
   pollIntervalMs = 50,
   now = Date.now,
   delay = wait,
+  captureFailureSync = false,
 }: WaitForAuthoritativeThemeOptions): Promise<ThemeReadinessResult> {
   const initial = getSyncState()
   if (
@@ -371,6 +380,7 @@ export async function waitForAuthoritativeTheme({
         ready: false,
         code: 'failed',
         error: current.error || 'Director could not apply the selected deck theme. Reapply it, then generate again.',
+        ...(captureFailureSync ? { sync: { ...current } } : {}),
       }
     }
     if (now() - startedAt >= timeoutMs) {
@@ -378,6 +388,7 @@ export async function waitForAuthoritativeTheme({
         ready: false,
         code: 'timeout',
         error: 'Theme application timed out. Reapply the deck theme or reconnect, then generate again.',
+        ...(captureFailureSync ? { sync: { ...current } } : {}),
       }
     }
 

@@ -24,6 +24,7 @@
     "test:element-geometry": "node scripts/test-element-geometry.mjs",
     "test:grid-splitter": "node scripts/test-grid-splitter.mjs",
     "test:theme-sync": "node scripts/test-theme-sync.mjs",
+    "test:textbox-planned-recovery": "node scripts/test-textbox-planned-recovery.mjs",
     "test:theme-panel-lifecycle": "node scripts/test-theme-panel-lifecycle.mjs",
     "test:element-theme-variants": "node scripts/test-element-theme-variants.mjs",
     "test:element-generation-context": "node scripts/test-element-generation-context.mjs",

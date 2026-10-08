@@ -1,0 +1,29 @@
+{
+  "port_status": "one manual conflict resolution preserves Studio setGenerationError; temporary overlay only, not Studio integration approval",
+  "files": [
+    {
+      "file": "app/builder/page.tsx",
+      "studio_ref": "18e0446073d62b042a9470fd4524994d3dd82e8e",
+      "studio_sha256": "e3bc115ad4a1747b7c227859280de8a2a5930f37c04c1807867481768d967d2d",
+      "adapted_overlay_sha256": "dbe412721a1bf1045642b51df9f068df163824fd737d7de52e2db94d9be15c6c"
+    },
+    {
+      "file": "hooks/use-textlabs-generation.ts",
+      "studio_ref": "18e0446073d62b042a9470fd4524994d3dd82e8e",
+      "studio_sha256": "b36929ed296a4562874344292d2feb25fa95fd4772f861e4197e73b961b669eb",
+      "adapted_overlay_sha256": "1814ae0d187f78b3b9b992f44c57643eb14c0f0023e8fdc2b8f96671c45849a1"
+    },
+    {
+      "file": "lib/element-generation-timeout.ts",
+      "studio_ref": "18e0446073d62b042a9470fd4524994d3dd82e8e",
+      "studio_sha256": "b9228e2f77a76d90dd4f680b7c4d79035ba8ba8b71fa86e17dfbd59c97ad1139",
+      "adapted_overlay_sha256": "14d594e1249d0c859430a457df10d53a8717887aff72304a892819f06db3e8f9"
+    },
+    {
+      "file": "lib/theme-sync.ts",
+      "studio_ref": "18e0446073d62b042a9470fd4524994d3dd82e8e",
+      "studio_sha256": "083872ea4afd4e473d6499b89ea83ecf10b2bd6d628cdf06f0485e2832f705f8",
+      "adapted_overlay_sha256": "322f49bd5dcba2dc34299ca7134f7862b646fc615802b9da41a9eda6601a16f3"
+    }
+  ]
+}
