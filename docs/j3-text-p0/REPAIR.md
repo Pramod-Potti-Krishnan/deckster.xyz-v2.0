@@ -15,6 +15,8 @@ Only literal `true` enables either flag. The existing shared abort controller, g
 
 ## Focused evidence
 
+`permanent-focused-results.json` records34 executed runtime scenarios on the actual permanent candidate, pristine18e baseline, four production hashes plus test-script hash, and the tested commit. The summary covers strict OFF parity and the functional cases below; it is distinct from the earlier temporary overlay hashes.
+
 `scripts/test-textbox-planned-recovery.mjs` runs actual pinned generation hooks, Text Labs client functions and extracted page-owned theme functions with virtual timers and synthetic transport/viewer receipts. It exercises:
 
 * strict off-state request, command, error, abort and actual input markup identity against pristine source;
