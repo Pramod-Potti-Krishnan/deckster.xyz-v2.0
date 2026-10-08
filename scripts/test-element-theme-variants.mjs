@@ -1,3 +1,4 @@
+import { serviceUrl, textLabsEnv } from './service-url-harness.mjs'
 import assert from 'node:assert/strict'
 import fs from 'node:fs'
 import vm from 'node:vm'
@@ -80,8 +81,9 @@ const clientMod = { exports: {} }
 vm.runInNewContext(clientCompiled.outputText, {
   module: clientMod,
   exports: clientMod.exports,
-  process: { env: {} },
+  process: { env: { ...textLabsEnv } },
   require: id => {
+    if (id === '@/lib/service-url') return serviceUrl
     if (id === '@/lib/element-semantic-type') return semanticMod.exports
     if (id === '@/lib/textlabs-theme-metadata') return metadataMod.exports
     if (id === '@/lib/element-provenance') return provenanceMod.exports
