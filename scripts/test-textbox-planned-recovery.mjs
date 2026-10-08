@@ -7,6 +7,7 @@ import { execFileSync } from 'node:child_process'
 import ts from 'typescript'
 import React from 'react'
 import { renderToStaticMarkup } from 'react-dom/server'
+import { createHash } from 'node:crypto'
 
 const repo = path.resolve(new URL('..', import.meta.url).pathname)
 const baseline = process.env.TEXTBOX_RECOVERY_BASELINE_REF || '18e0446073d62b042a9470fd4524994d3dd82e8e'
@@ -16,7 +17,9 @@ const sourceAt = (file, ref) => ref
   : fs.existsSync(path.join(sourceRoot, file)) ? fs.readFileSync(path.join(sourceRoot, file), 'utf8')
     : execFileSync('git', ['show', `${process.env.TEXTBOX_RECOVERY_SOURCE_FALLBACK_REF}:${file}`], { cwd: repo, encoding: 'utf8' })
 const flush = async () => { for (let i = 0; i < 100; i++) await Promise.resolve() }
+let scenarioCount = 0
 function runtime({ ref, timeoutFlag, recoveryFlag, delay = 5_000, sessionDelay = 0 } = {}) {
+  scenarioCount++
   let now = 0, timerId = 0, uuid = 0, refCursor = 0, effectCursor = 0
   const timers = new Map(), refs = [], effectStates = [], pendingEffects = []
   const requests = [], commands = [], statuses = [], controllers = [], sessionSignals = []
@@ -346,3 +349,16 @@ assert.equal(budgets.resolveElementGenerationTimeoutMs('DIAGRAM_AUTO', 'off'), 1
 assert.equal(budgets.resolveElementGenerationTimeoutMs('INFOGRAPHIC', 'off'), 300_000)
 assert.equal(budgets.resolveElementGenerationTimeoutMs('TABLE', 'off'), 30_000)
 console.log('Text-box planned budget, strict-off parity, actual dispatcher/client, singleflight, recovery and authoritative theme retry tests passed')
+if (process.env.TEXTBOX_RECOVERY_PROOF_OUTPUT) {
+  const sourceHashes = Object.fromEntries(['app/builder/page.tsx', 'hooks/use-textlabs-generation.ts', 'lib/theme-sync.ts', 'lib/element-generation-timeout.ts', 'scripts/test-textbox-planned-recovery.mjs']
+    .map(file => [file, createHash('sha256').update(sourceAt(file)).digest('hex')]))
+  fs.writeFileSync(process.env.TEXTBOX_RECOVERY_PROOF_OUTPUT, JSON.stringify({
+    proof_kind: 'offline actual permanent candidate with synthetic transport/viewer; not connected acceptance',
+    candidate_root: sourceRoot, candidate_commit: execFileSync('git', ['rev-parse', 'HEAD'], { cwd: repo, encoding: 'utf8' }).trim(),
+    baseline_ref: baseline, source_hashes: sourceHashes, runtime_scenarios: scenarioCount,
+    studio_shell_and_existing_request_fidelity_enabled: (process.env.TEXTBOX_RECOVERY_STUDIO_SHELL ?? 'true') === 'true',
+    strict_off_literals: ['unset', 'false', '1', 'TRUE'], virtual_success_aggregate_ms: [5_000, 45_000, 142_363],
+    request_abort_error_input_markup_off_identity: true, shared_controller_and_singleflight: true,
+    placeholder_recovery_and_owner_retirement: true, exact_ack_retry_and_race_guards: true, passed: true,
+  }, null, 2) + '\n')
+}
