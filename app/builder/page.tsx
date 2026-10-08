@@ -177,6 +177,7 @@ import {
   waitForAuthoritativeTheme,
   type ThemeSyncRequestResult,
   type ThemeSyncState,
+  type ElementThemePreflightRetry,
 } from '@/lib/theme-sync'
 import {
   buildSessionHandoffRequest,
@@ -3189,7 +3190,7 @@ function AuthenticatedBuilderContent({ authScopeUserId }: { authScopeUserId: str
     return { ok: true, requestId, themeFingerprint }
   }, [clearThemeSyncTimeout, commitThemeSync, sendThemeSelection])
 
-  const ensureThemeReady = useCallback(async (targetPresentationId: string) => {
+  const ensureThemeReady = useCallback(async (targetPresentationId: string, retry?: ElementThemePreflightRetry) => {
     if (themeSyncTargetRef.current.composerThemeBlocked) {
       return { ready: false, code: 'failed', error: themeSyncTargetRef.current.composerThemeFrozen
         ? 'This template keeps its stored source theme.'
@@ -3227,6 +3228,31 @@ function AuthenticatedBuilderContent({ authScopeUserId }: { authScopeUserId: str
       } as const
     }
 
+    // Only an explicit Retry of this failed handshake may request fresh
+    // authority. Existing local-theme/composer/template guards still apply.
+    if (
+      process.env.NEXT_PUBLIC_ELEMENT_THEME_PREFLIGHT_RECOVERY_ENABLED === 'true'
+      && retry
+      && retry.presentationId === targetPresentationId
+      && retry.themeFingerprint === desiredFingerprint
+      && current.presentationId === retry.presentationId
+      && current.themeFingerprint === retry.themeFingerprint
+      && current.requestId === retry.requestId
+      && current.status === 'failed'
+    ) {
+      const requested = requestThemeSyncForPresentation(targetPresentationId)
+      if (!requested.ok) return { ready: false, code: requested.code, error: requested.error } as const
+      return waitForAuthoritativeTheme({
+        presentationId: targetPresentationId,
+        themeFingerprint: desiredFingerprint,
+        getSyncState: getThemeSyncSnapshot,
+        isConnected: () => themeSyncTargetRef.current.isReady,
+        requestSync: requestThemeSyncForPresentation,
+        timeoutMs: THEME_SYNC_TIMEOUT_MS,
+        captureFailureSync: true,
+      })
+    }
+
     // A theme mutation already accepted by Director must finish (or fail)
     // before generation. When Director is connected, idle or stale applied
     // state is also advanced to the exact selected theme. A disconnected or
@@ -3260,6 +3286,7 @@ function AuthenticatedBuilderContent({ authScopeUserId }: { authScopeUserId: str
         isConnected: () => themeSyncTargetRef.current.isReady,
         requestSync: requestThemeSyncForPresentation,
         timeoutMs: THEME_SYNC_TIMEOUT_MS,
+        captureFailureSync: process.env.NEXT_PUBLIC_ELEMENT_THEME_PREFLIGHT_RECOVERY_ENABLED === 'true',
       })
     }
 
