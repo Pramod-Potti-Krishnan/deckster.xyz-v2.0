@@ -208,6 +208,13 @@ const concurrent = delayed.api.handleGenerate(delayed.form())
 await delayed.advance(45_000); await Promise.all([work, concurrent])
 assert.equal(delayed.requests.length, 1, 'repeated submit joins/suppresses before paid dispatch')
 assert.equal(delayed.controllers.length, 1, 'one shared abort controller spans session and message')
+assert.deepEqual(delayed.requests[0].body, pristine.requests[0].body, 'longer budget cannot change the actual client payload')
+// Existing insertion IDs contain completion time; compare all other output
+// across different virtual completion times. Same-time flag-off parity above
+// still compares IDs and all fields exactly.
+const insertionOutput = commands => commands.map(command => command.action === 'upsertSemanticElement'
+  ? { ...command, args: { ...command.args, elementId: '<completion-time ID>' } } : command)
+assert.deepEqual(insertionOutput(delayed.commands), insertionOutput(pristine.commands), 'delayed success preserves insertion content, geometry, metadata and cleanup')
 assert.equal(delayed.sessionSignals[0], delayed.requests[0].signal)
 assert.equal(delayed.blank.status, 'removed', 'only successful acknowledged insertion retires original blank')
 assert.ok(delayed.commands.some(x => x.action === 'insertTextBox' || x.action === 'upsertSemanticElement'))

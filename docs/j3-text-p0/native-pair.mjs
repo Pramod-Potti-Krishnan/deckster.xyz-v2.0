@@ -1,7 +1,8 @@
 // Invoke only under heavy.sh and the frontend repository suite lock.
 import fs from 'node:fs'
 import path from 'node:path'
-import { spawnSync } from 'node:child_process'
+import { spawnSync, execFileSync } from 'node:child_process'
+import { createHash } from 'node:crypto'
 const candidate = path.resolve(new URL('../..', import.meta.url).pathname)
 const baseline = '/private/tmp/element3-j3-fe-native-base-20261008'
 const proof = '/private/tmp/element3-j3-fe-native-proof-20261008'
@@ -14,6 +15,10 @@ for (const [label, root] of [['baseline', baseline], ['candidate', candidate]]) 
   delete env.NEXT_PUBLIC_ELEMENT_THEME_PREFLIGHT_RECOVERY_ENABLED
   const tests = fs.readdirSync(path.join(root, 'scripts')).filter(x => /^test-.*\.mjs$/.test(x)).sort()
   const entries = []
+  const sourceCommit = execFileSync('git', ['rev-parse', 'HEAD'], { cwd: root, encoding: 'utf8' }).trim()
+  const sourceHashes = Object.fromEntries(['app/builder/page.tsx', 'hooks/use-textlabs-generation.ts', 'lib/theme-sync.ts', 'lib/element-generation-timeout.ts', 'scripts/test-textbox-planned-recovery.mjs']
+    .filter(file => fs.existsSync(path.join(root, file)))
+    .map(file => [file, createHash('sha256').update(fs.readFileSync(path.join(root, file))).digest('hex')]))
   try {
     for (const script of tests) {
       const run = spawnSync(process.execPath, [path.join(root, 'scripts', script)], { cwd: root, env, encoding: 'utf8', timeout: 60_000 })
@@ -24,7 +29,7 @@ for (const [label, root] of [['baseline', baseline], ['candidate', candidate]]) 
     const typed = spawnSync(process.execPath, [path.join(root, 'node_modules/typescript/bin/tsc'), '--noEmit', '--incremental', 'false', '--pretty', 'false'], { cwd: root, env, encoding: 'utf8', timeout: 120_000 })
     fs.writeFileSync(path.join(proof, `${label}-tsc.log`), `${typed.stdout || ''}${typed.stderr || ''}`)
     const diagnostics = `${typed.stdout || ''}${typed.stderr || ''}`.split('\n').filter(x => /error TS\d+/.test(x))
-    results.push({ label, native: entries, native_passed: entries.filter(x => x.exit === 0).length, native_total: entries.length,
+    results.push({ label, source_commit: sourceCommit, source_hashes: sourceHashes, native: entries, native_passed: entries.filter(x => x.exit === 0).length, native_total: entries.length,
       typecheck: { exit: typed.status, signal: typed.signal, diagnostic_count: diagnostics.length, diagnostics } })
     console.log(`${label}: ${entries.filter(x => x.exit === 0).length}/${entries.length} native files passed; tsc exit=${typed.status}, diagnostics=${diagnostics.length}`)
   } finally { fs.rmSync(ownTmp, { recursive: true, force: true }) }
