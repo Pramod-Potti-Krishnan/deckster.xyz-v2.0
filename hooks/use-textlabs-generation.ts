@@ -1698,8 +1698,9 @@ export function useTextLabsGeneration({
         generationPanel.openPanelForRefine(generatedRefineContext.elementType, generatedRefineContext)
       }
       assertGenerationTargetIsStillAuthoritative()
-      // Text Labs says which count it honoured in `warnings`; say it in plain words (request fidelity
-      // flag). One toast: the toaster shows a single message, so the notice rides on this one.
+      // Text Labs says which count it honoured in `warnings` (and, when its count flag is on, with the
+      // numbers in `warning_details`); say it in plain words (request fidelity flag). One toast: the
+      // toaster shows a single message, so the notice rides on this one.
       const countNotices = TEXTBOX_REQUEST_FIDELITY_ENABLED
         && (formData.componentType === 'TEXT_BOX' || formData.componentType === 'METRICS')
         ? textBoxResponseNotices(response.warnings, {
@@ -1708,7 +1709,7 @@ export function useTextLabsGeneration({
             count: formData.count,
             countAuto: formData.countAuto,
             elementsReturned: elements.length,
-          })
+          }, response.warning_details)
         : []
       toast({
         title: refineContext ? 'Element refined' : 'Element generated',

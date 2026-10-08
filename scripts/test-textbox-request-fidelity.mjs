@@ -45,7 +45,7 @@ function loader({ flag, hooks, sourceOf = () => null, extraEnv = {} }) {
   }
   const env = { NEXT_PUBLIC_ELEMENTOR_URL: 'https://textlabs.example.test', ...extraEnv }
   if (flag !== undefined) env[FLAG] = flag
-  const capture = { requests: [] }
+  const capture = { requests: [], reply: { success: true, elements: [] } }
   function load(file, sourceRef) {
     const key = `${sourceRef ?? 'tree'}:${file}`
     if (cache.has(key)) return cache.get(key)
@@ -59,7 +59,7 @@ function loader({ flag, hooks, sourceOf = () => null, extraEnv = {} }) {
       process: { env },
       fetch: async (url, init) => {
         capture.requests.push({ url, body: init?.body })
-        return { ok: true, headers: { get: () => null }, json: async () => ({ success: true, elements: [] }) }
+        return { ok: true, headers: { get: () => null }, json: async () => capture.reply }
       },
       require: id => id in stubs ? stubs[id]
         : id.endsWith('.css') ? {}
@@ -790,13 +790,178 @@ await check('E1c notices: codes with detail still match; repeats collapse; order
 await check('E1c wiring: the success toast carries the notices only behind the flag and only for Text Box / Metrics, from response.warnings', () => {
   const hook = fs.readFileSync(new URL('hooks/use-textlabs-generation.ts', root), 'utf8')
   assert.match(hook, /import \{ TEXTBOX_REQUEST_FIDELITY_ENABLED, textBoxResponseNotices \} from '@\/lib\/textbox-request-fidelity'/)
-  assert.match(hook, /const countNotices = TEXTBOX_REQUEST_FIDELITY_ENABLED\s*&&\s*\(formData\.componentType === 'TEXT_BOX' \|\| formData\.componentType === 'METRICS'\)\s*\?\s*textBoxResponseNotices\(response\.warnings, \{[^}]*countAuto: formData\.countAuto,[^}]*elementsReturned: elements\.length,\s*\}\)\s*:\s*\[\]/)
+  assert.match(hook, /const countNotices = TEXTBOX_REQUEST_FIDELITY_ENABLED\s*&&\s*\(formData\.componentType === 'TEXT_BOX' \|\| formData\.componentType === 'METRICS'\)\s*\?\s*textBoxResponseNotices\(response\.warnings, \{[^}]*countAuto: formData\.countAuto,[^}]*elementsReturned: elements\.length,\s*\}, response\.warning_details\)\s*:\s*\[\]/)
   assert.match(hook, /title: refineContext \? 'Element refined' : 'Element generated',\s*description: \(refineContext\s*\?\s*`\$\{formData\.componentType\.replace\(\/_\/g, ' '\)\} updated on slide`\s*:\s*`\$\{formData\.componentType\.replace\(\/_\/g, ' '\)\} added to slide`\)\s*\+ \(countNotices\.length > 0 \? `\. \$\{countNotices\.join\(' '\)\}` : ''\)/)
   assert.equal((hook.match(/textBoxResponseNotices\(/g) ?? []).length, 1)
   // With no notice (flag off, or no warning) the description is exactly the old string.
   const none = []
   assert.equal(`TEXT BOX added to slide` + (none.length > 0 ? `. ${none.join(' ')}` : ''), 'TEXT BOX added to slide')
   assert.equal(`TEXT BOX added to slide` + `. ${['Used 5 cards from your prompt instead of 3.'].join(' ')}`, 'TEXT BOX added to slide. Used 5 cards from your prompt instead of 3.')
+})
+
+// ---------------------------------------------------------------------------
+// 6. warning_details (Text Labs TL_TEXTBOX_COUNT_ALL_TYPES_ENABLED): real numbers in the notices. Read first; the `warnings`
+//    strings are the fallback and are read for their own numbers; a string that gives none keeps the generic words.
+// ---------------------------------------------------------------------------
+const noticesWith = (warnings, details, facts = {}) => copy(libOn.textBoxResponseNotices(warnings, { componentType: 'TEXT_BOX', ...facts }, details))
+// the strings Text Labs writes (text-labs tests/test_textbox_count_all_types.py, test_warning_details_read_each_warning)
+const TL_STRINGS = {
+  overridden: "text_box_count_overridden: the prompt asks for 5 sequential cards, the panel's count of 3 was overridden; 5 used",
+  overriddenClamped: "text_box_count_overridden: the prompt asks for 7 sequential cards, the panel's count of 3 was overridden; 6 used",
+  notOverridden: "text_box_count_not_overridden: the prompt asks for 5 boxes, the area is too small for 5; the panel's 3 kept",
+  boxClamped: 'text_box_count_clamped: asked 9 metric cards, one request holds at most 6; 6 used',
+  itemsClamped: 'stated_item_count_clamped: asked 5 items, a bullet_box card fits 3; 3 used',
+  itemsClampedBox: 'stated_item_count_clamped: box 1 asked 6 items, a text box holds at most 4; 4 used',
+  unmet: 'stated_item_count_unmet: asked 4 items, planned 4, 3 rendered (x)',
+  unmetBox: 'stated_item_count_unmet: box 0 asked 4 items, planned 4, 3 rendered (x)',
+  reduced: 'item_count_reduced: asked 4 items, the box kept 3 (a longer text would not fit); 3 used',
+  unsatisfied: 'stated_item_count_unsatisfied: the bullet_box card could not hold 2 items; generated without',
+}
+const detail = (code, requested, used, panel = null, box) => ({ code, requested, used, panel, ...(box === undefined ? {} : { box }) })
+
+await check('F1 details: text_box_count_overridden names the count used and the count the user picked', () => {
+  assert.deepEqual(noticesWith(['text_box_count_overridden'], [detail('text_box_count_overridden', 5, 5, 3)], { structure: 'SEQUENTIAL', count: 3, elementsReturned: 1 }),
+    ['Used 5 cards from your prompt instead of the 3 you picked.'])
+  assert.deepEqual(noticesWith(['text_box_count_overridden'], [detail('text_box_count_overridden', 3, 3, 2)], { count: 2, elementsReturned: 3 }),
+    ['Used 3 boxes from your prompt instead of the 2 you picked.'])
+  assert.deepEqual(noticesWith(['text_box_count_overridden'], [detail('text_box_count_overridden', 4, 4, 2)], { componentType: 'METRICS', count: 2 }),
+    ['Used 4 cards from your prompt instead of the 2 you picked.'])
+  // the number used wins over the number asked for (the prompt said 7, the family holds 6)
+  assert.deepEqual(noticesWith([], [detail('text_box_count_overridden', 7, 6, 3)], { structure: 'SEQUENTIAL' }), ['Used 6 cards from your prompt instead of the 3 you picked.'])
+  // no panel number in the entry: the panel's own count, unless it was Auto or is the number used
+  assert.deepEqual(noticesWith([], [detail('text_box_count_overridden', 5, 5, null)], { structure: 'SEQUENTIAL', count: 3 }), ['Used 5 cards from your prompt instead of the 3 you picked.'])
+  assert.deepEqual(noticesWith([], [detail('text_box_count_overridden', 5, 5, null)], { structure: 'SEQUENTIAL', count: 1, countAuto: true }), ['Used 5 cards from your prompt.'])
+  assert.deepEqual(noticesWith([], [detail('text_box_count_overridden', 6, 6, 6)], { structure: 'SEQUENTIAL' }), ['Used 6 cards from your prompt.'])
+  assert.deepEqual(noticesWith([], [detail('text_box_count_overridden', 1, 1, 3)], { count: 3 }), ['Used 1 box from your prompt instead of the 3 you picked.'])
+})
+await check('F1 details: text_box_count_not_overridden says what the area fits and what was kept', () => {
+  assert.deepEqual(noticesWith(['text_box_count_not_overridden'], [detail('text_box_count_not_overridden', 5, 3, 3)], { count: 3 }),
+    ['The area fits 3 boxes, so your 3 were kept instead of 5.'])
+  assert.deepEqual(noticesWith([], [detail('text_box_count_not_overridden', 5, 2, 2)], { structure: 'SEQUENTIAL' }), ['The area fits 2 cards, so your 2 were kept instead of 5.'])
+  assert.deepEqual(noticesWith([], [detail('text_box_count_not_overridden', 3, 1, 1)], {}), ['The area fits 1 box, so your 1 was kept instead of 3.'])
+  assert.deepEqual(noticesWith([], [detail('text_box_count_not_overridden', 5, 3, null)], {}), ['The area fits 3 boxes, so your 3 were kept instead of 5.'])
+})
+await check('F1 details: item counts name the box (0-based from the Text Service, 1-based for the user) and what fits', () => {
+  assert.deepEqual(noticesWith([], [detail('stated_item_count_clamped', 6, 4, null, 1)], {}), ['Box 2 fits 4 items, so 4 were used instead of 6.'])
+  assert.deepEqual(noticesWith([], [detail('stated_item_count_clamped', 8, 5, null, 0)], {}), ['Box 1 fits 5 items, so 5 were used instead of 8.'])
+  assert.deepEqual(noticesWith([], [detail('stated_item_count_clamped', 5, 3)], {}), ['The box fits 3 items, so 3 were used instead of 5.'])
+  assert.deepEqual(noticesWith([], [detail('stated_item_count_clamped', 5, 3)], { structure: 'BULLET_BOX' }), ['The card fits 3 items, so 3 were used instead of 5.'])
+  assert.deepEqual(noticesWith([], [detail('item_count_reduced', 4, 3)], {}), ['The box fits 3 items, so 3 were used instead of 4.'])
+  assert.deepEqual(noticesWith([], [detail('stated_item_count_unmet', 4, 3, null, 2)], {}), ['Box 3 fits 3 items, so 3 were used instead of 4.'])
+  assert.deepEqual(noticesWith([], [detail('item_count_reduced', 3, 1)], {}), ['The box fits 1 item, so 1 was used instead of 3.'])
+})
+await check('F1 details: clamped counts and unsatisfied item counts', () => {
+  assert.deepEqual(noticesWith([], [detail('text_box_count_clamped', 9, 6)], { componentType: 'METRICS' }), ['Used 6 cards instead of the 9 in your prompt, the most that fit.'])
+  assert.deepEqual(noticesWith([], [detail('stated_item_count_unsatisfied', 2, null, null)], { structure: 'BULLET_BOX' }), ['The card could not hold 2 items, so it was made without that count.'])
+  assert.deepEqual(noticesWith([], [detail('stated_item_count_unsatisfied', 3, null, null, 1)], {}), ['Box 2 could not hold 3 items, so it was made without that count.'])
+})
+await check('F1 details are read first: an entry takes the place of the warnings string with its code; order follows warnings; the rest follow', () => {
+  const both = noticesWith([TL_STRINGS.overridden, TL_STRINGS.itemsClamped],
+    [detail('stated_item_count_clamped', 5, 3), detail('text_box_count_overridden', 5, 5, 3)], { structure: 'SEQUENTIAL', count: 3 })
+  assert.deepEqual(both, ['Used 5 cards from your prompt instead of the 3 you picked.', 'The card fits 3 items, so 3 were used instead of 5.'])
+  // the entry's numbers beat the string's (an entry is Text Labs' own reading)
+  assert.deepEqual(noticesWith([TL_STRINGS.overridden], [detail('text_box_count_overridden', 4, 4, 2)], { structure: 'SEQUENTIAL' }), ['Used 4 cards from your prompt instead of the 2 you picked.'])
+  // an entry with no matching string still shows; a string with no entry is read for its own numbers
+  assert.deepEqual(noticesWith([TL_STRINGS.reduced], [detail('stated_item_count_clamped', 6, 4, null, 1)], {}),
+    ['The box fits 3 items, so 3 were used instead of 4.', 'Box 2 fits 4 items, so 4 were used instead of 6.'])
+  // details alone (no warnings array) are enough
+  assert.deepEqual(noticesWith(undefined, [detail('text_box_count_not_overridden', 5, 3, 3)], {}), ['The area fits 3 boxes, so your 3 were kept instead of 5.'])
+  // two entries of one code pair with two strings of that code, one each
+  assert.deepEqual(noticesWith([TL_STRINGS.itemsClampedBox, TL_STRINGS.itemsClampedBox], [detail('stated_item_count_clamped', 6, 4, null, 1), detail('stated_item_count_clamped', 9, 5, null, 2)], {}),
+    ['Box 2 fits 4 items, so 4 were used instead of 6.', 'Box 3 fits 5 items, so 5 were used instead of 9.'])
+})
+await check('F1 unusable entries are ignored; an entry without numbers keeps the generic words of its code', () => {
+  for (const junk of [undefined, null, [], {}, 'text_box_count_overridden', 7, [null, 3, 'x', [], {}, { code: 7 }, { code: '' }, { requested: 3, used: 3 }]]) {
+    assert.deepEqual(noticesWith(['text_box_count_overridden'], junk, { count: 3, elementsReturned: 5 }), ['Used 5 boxes from your prompt instead of 3.'], JSON.stringify(junk) ?? 'undefined')
+  }
+  assert.deepEqual(noticesWith([], [{ code: 'text_box_count_overridden', requested: 'many', used: 0, panel: -1 }], { count: 3, elementsReturned: 5 }), ['Used 5 boxes from your prompt instead of 3.'])
+  assert.deepEqual(noticesWith([], [{ code: 'text_box_count_not_overridden', requested: 5, used: null, panel: null }], { count: 3 }), ['Your prompt names a different number of boxes, but the 3 you picked was kept.'])
+  assert.deepEqual(noticesWith([], [{ code: 'text_box_count_not_overridden', requested: null, used: 3, panel: 3 }], { count: 4 }), ['Your prompt names a different number of boxes, but the 4 you picked was kept.'])
+  assert.deepEqual(noticesWith([], [{ code: ' TEXT_BOX_Count_Overridden', requested: 5, used: 5, panel: 3 }], { structure: 'SEQUENTIAL' }), ['Used 5 cards from your prompt instead of the 3 you picked.'], 'codes are matched without case or padding')
+  // an item-count entry without both numbers says nothing (it has no generic words), and codes that are not count warnings say nothing
+  assert.deepEqual(noticesWith([], [detail('stated_item_count_clamped', 5, null), detail('item_count_reduced', null, 3), detail('chart_points_trimmed', 9, 6)], {}), [])
+  assert.deepEqual(noticesWith([], [{ code: 'text_box_cards_clamped', requested: 9, used: 6, panel: null }], {}), ['Note: cards clamped.'])
+  // a negative or fractional box index is not a box
+  assert.deepEqual(noticesWith([], [{ code: 'stated_item_count_clamped', requested: 6, used: 4, panel: null, box: -1 }, { code: 'item_count_reduced', requested: 6, used: 4, panel: null, box: 1.5 }], {}), ['The box fits 4 items, so 4 were used instead of 6.'])
+})
+await check('F2 fallback: a warnings string with numbers gives the same real-number sentences (code = text before the first ":")', () => {
+  const facts = { structure: 'SEQUENTIAL', count: 3, elementsReturned: 1 }
+  assert.deepEqual(noticesWith([TL_STRINGS.overridden], undefined, facts), ['Used 5 cards from your prompt instead of the 3 you picked.'])
+  assert.deepEqual(noticesWith([TL_STRINGS.overriddenClamped], undefined, facts), ['Used 6 cards from your prompt instead of the 3 you picked.'])
+  assert.deepEqual(noticesWith([TL_STRINGS.notOverridden], undefined, { count: 3 }), ['The area fits 3 boxes, so your 3 were kept instead of 5.'])
+  assert.deepEqual(noticesWith([TL_STRINGS.boxClamped], undefined, { componentType: 'METRICS' }), ['Used 6 cards instead of the 9 in your prompt, the most that fit.'])
+  assert.deepEqual(noticesWith([TL_STRINGS.itemsClamped], undefined, { structure: 'BULLET_BOX' }), ['The card fits 3 items, so 3 were used instead of 5.'])
+  assert.deepEqual(noticesWith([TL_STRINGS.itemsClampedBox], undefined, {}), ['Box 2 fits 4 items, so 4 were used instead of 6.'])
+  assert.deepEqual(noticesWith([TL_STRINGS.unmet], undefined, {}), ['The box fits 3 items, so 3 were used instead of 4.'])
+  assert.deepEqual(noticesWith([TL_STRINGS.unmetBox], undefined, {}), ['Box 1 fits 3 items, so 3 were used instead of 4.'])
+  assert.deepEqual(noticesWith([TL_STRINGS.reduced], undefined, {}), ['The box fits 3 items, so 3 were used instead of 4.'])
+  // its words ("could not hold 2 items") have no "asks for" / "asked": only warning_details can say it
+  assert.deepEqual(noticesWith([TL_STRINGS.unsatisfied], undefined, { structure: 'BULLET_BOX' }), [])
+  assert.deepEqual(noticesWith([TL_STRINGS.unsatisfied], [detail('stated_item_count_unsatisfied', 2, null)], { structure: 'BULLET_BOX' }), ['The card could not hold 2 items, so it was made without that count.'])
+  // "used" before "kept"; "kept" alone is the count kept; the number asked for is the first integer after "asks for" / "asked"
+  assert.deepEqual(noticesWith(['text_box_count_not_overridden: the prompt asks for 6 boxes (not 4); the panel\'s 2 kept'], undefined, {}), ['The area fits 2 boxes, so your 2 were kept instead of 6.'])
+  assert.deepEqual(noticesWith(['stated_item_count_clamped: asked 8 items, a box holds 5, not 7; 5 used'], undefined, {}), ['The box fits 5 items, so 5 were used instead of 8.'])
+  assert.deepEqual(noticesWith(['item_count_reduced: asked 5 items, the box kept 4 (a longer text would not fit); 3 used'], undefined, {}), ['The box fits 3 items, so 3 were used instead of 5.'])
+  assert.deepEqual(noticesWith(['text_box_count_not_overridden: the prompt asks for 6 boxes; the panel\'s 2 kept, 3 used'], undefined, {}), ['The area fits 3 boxes, so your 3 were kept instead of 6.'], '"N used" wins over "N kept"')
+  assert.deepEqual(noticesWith([TL_STRINGS.overridden], undefined, { structure: 'SEQUENTIAL', count: 2 }), ['Used 5 cards from your prompt instead of the 3 you picked.'], 'the panel count the warning names beats the form\'s')
+})
+await check('F2 fallback: a string whose numbers cannot be read keeps the current generic words (and item-count codes then say nothing)', () => {
+  const facts = { count: 3, elementsReturned: 5 }
+  for (const garbled of ['text_box_count_overridden', 'text_box_count_overridden: requested=3 used=5', 'text_box_count_overridden: garbled', 'text_box_count_overridden: the prompt asks for 3 boxes',
+    'text_box_count_overridden: 3 used', 'TEXT_BOX_COUNT_OVERRIDDEN: asks for many boxes; many used', 'text_box_count_overridden (requested 3, used 5)']) {
+    assert.deepEqual(noticesWith([garbled], undefined, facts), ['Used 5 boxes from your prompt instead of 3.'], garbled)
+  }
+  assert.deepEqual(noticesWith(['text_box_count_not_overridden: area too small'], undefined, { count: 3 }), ['Your prompt names a different number of boxes, but the 3 you picked was kept.'])
+  assert.deepEqual(noticesWith(['text_box_count_clamped: asked many'], undefined, {}), ['Note: count clamped.'])
+  for (const silent of ['item_count_reduced: asked many', 'stated_item_count_clamped: asked 5 items', 'stated_item_count_clamped', 'stated_item_count_unmet: planned 4, 3 rendered', 'stated_item_count_unsatisfied: could not hold items']) {
+    assert.deepEqual(noticesWith([silent], undefined, {}), [], silent)
+  }
+})
+await check('F3 without warning_details the notices are exactly what they were (flag-on prior behaviour)', () => {
+  const cases = [
+    [['text_box_count_overridden'], { structure: 'SEQUENTIAL', count: 3, elementsReturned: 5 }],
+    [['text_box_count_overridden'], { count: 1, countAuto: true, elementsReturned: 4 }],
+    [['text_box_count_not_overridden'], { count: 3, elementsReturned: 3 }],
+    [['text_box_count_overridden: requested=3 used=5', 'text_box_count_overridden'], { count: 3, elementsReturned: 5 }],
+    [['text_box_cards_clamped'], { count: 6 }],
+    [['Some other service warning', 'chart_points_trimmed', '', 4, null], { count: 3 }],
+  ]
+  for (const [warnings, facts] of cases) {
+    const bare = copy(libOn.textBoxResponseNotices(warnings, { componentType: 'TEXT_BOX', ...facts }))
+    for (const absent of [undefined, null, [], {}]) assert.deepEqual(noticesWith(warnings, absent, facts), bare, JSON.stringify(absent) ?? 'undefined')
+  }
+  assert.deepEqual(noticesWith(undefined, undefined, { count: 3 }), []); assert.deepEqual(noticesWith([], [], { count: 3 }), [])
+})
+await check('F4 end to end: the Text Labs client hands warning_details back untouched, and the notices read it', async () => {
+  const client = clientFor({ flag: 'true' })
+  const reply = {
+    success: true,
+    elements: [],
+    warnings: [TL_STRINGS.overridden],
+    warning_details: [detail('text_box_count_overridden', 5, 5, 3)],
+  }
+  client.capture.reply = reply
+  const sent = client.mod.buildApiPayload('session-1', copy(textBox({ count: 3 })))
+  const response = await client.mod.sendMessage('session-1', sent.message, sent.options)
+  assert.deepEqual(copy(response.warning_details), reply.warning_details)
+  assert.deepEqual(copy(response.warnings), reply.warnings)
+  assert.deepEqual(copy(libOn.textBoxResponseNotices(response.warnings, { componentType: 'TEXT_BOX', structure: 'SEQUENTIAL', count: 3, elementsReturned: 1 }, response.warning_details)),
+    ['Used 5 cards from your prompt instead of the 3 you picked.'])
+  // a response without the field (Text Labs flag off, or no count warning) has none to read
+  const quiet = clientFor({ flag: 'true' }); quiet.capture.reply = { success: true, elements: [], warnings: [TL_STRINGS.overridden] }
+  const again = quiet.mod.buildApiPayload('session-1', copy(textBox({ count: 3 })))
+  assert.equal('warning_details' in await quiet.mod.sendMessage('session-1', again.message, again.options), false)
+})
+await check('F5 wiring: the hook gives the toast the response\'s warning_details, only behind the flag; the response type names the field', () => {
+  const hook = fs.readFileSync(new URL('hooks/use-textlabs-generation.ts', root), 'utf8')
+  assert.match(hook, /\? textBoxResponseNotices\(response\.warnings, \{[^}]*\}, response\.warning_details\)\s*:\s*\[\]/)
+  assert.equal((hook.match(/warning_details/g) ?? []).length, 2, 'one comment, one argument')
+  assert.match(hook, /const countNotices = TEXTBOX_REQUEST_FIDELITY_ENABLED\s*&&/)
+  const types = fs.readFileSync(new URL('types/textlabs.ts', root), 'utf8')
+  assert.match(types, /export interface TextLabsWarningDetail \{\s*code: string\s*requested\?: number \| null\s*used\?: number \| null\s*panel\?: number \| null\s*box\?: number\s*\}/)
+  assert.match(types, /warning_details\?: TextLabsWarningDetail\[\]/)
+  const lib = fs.readFileSync(new URL('lib/textbox-request-fidelity.ts', root), 'utf8')
+  assert.doesNotMatch(lib, /^import /m, 'the lib stays import-free')
 })
 
 console.log(`\n${checks} checks passed`)
