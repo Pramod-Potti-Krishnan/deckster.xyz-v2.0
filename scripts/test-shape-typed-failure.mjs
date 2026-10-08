@@ -153,9 +153,9 @@ const form=()=>({componentType:'SHAPE',prompt:'SYNTHETIC_CUSTOM_SUBJECT',count:1
 const guidance='Try a simpler shape description or choose a preset.'
 const digest=value=>createHash('sha256').update(typeof value==='string'?value:JSON.stringify(value)).digest('hex')
 function record(name,details={}){cases.push({name,...details})}
-function feedback(error,retryStrategy,prompt){
+function feedback(error,retryStrategy,prompt,ref){
   const mod={exports:{}}
-  const text=fs.readFileSync(path.join(repo,'components/generation-panel/shared/generation-input.tsx'),'utf8')
+  const text=sourceAt('components/generation-panel/shared/generation-input.tsx',ref)
   const stub=({children})=>React.createElement('span',null,children)
   const code=ts.transpileModule(text,{compilerOptions:{module:ts.ModuleKind.CommonJS,target:ts.ScriptTarget.ES2022,jsx:ts.JsxEmit.ReactJSX}}).outputText
   vm.runInNewContext(code,{module:mod,exports:mod.exports,process:{env:{NEXT_PUBLIC_STUDIO_V4_SHELL:'true'}},require:name=>{
@@ -176,7 +176,7 @@ async function invoke({ref,flag,response=terminal(),data=form(),delay=5_000,refi
  if(cancel||retire){await run.advance(1_000);if(cancel)run.controllers[0].abort();if(retire){run.params.presentationId='another-deck';run.render()}}
  await run.advance(5_000);await promise
  const summary=run.summary()
- return{run,data,summary,dom:feedback(run.panel.error,run.panel.retryStrategy,data.prompt)}
+ return{run,data,summary,dom:feedback(run.panel.error,run.panel.retryStrategy,data.prompt,ref)}
 }
 if(process.env.SHAPE_TYPED_FAILURE_RESPONSE_FIXTURE){
  const fixture=JSON.parse(fs.readFileSync(process.env.SHAPE_TYPED_FAILURE_RESPONSE_FIXTURE,'utf8'))
