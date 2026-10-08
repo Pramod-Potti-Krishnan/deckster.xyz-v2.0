@@ -1,3 +1,4 @@
+import { serviceUrl, textLabsEnv } from './service-url-harness.mjs'
 import assert from 'node:assert/strict'
 import fs from 'node:fs'
 import vm from 'node:vm'
@@ -12,8 +13,8 @@ function compile(file, requireImplementation = () => ({})) {
   vm.runInNewContext(compiled.outputText, {
     module: mod,
     exports: mod.exports,
-    process: { env: {} },
-    require: requireImplementation,
+    process: { env: { ...textLabsEnv } },
+    require: id => id === '@/lib/service-url' ? serviceUrl : requireImplementation(id),
   })
   return mod.exports
 }
@@ -415,7 +416,7 @@ async function dispatchCase(block, fixture, behavior = 'success') {
     if (behavior === 'network') throw new Error('local transport refusal')
     return { success: true, elementId: params.elementId }
   }
-  const context = { element, elementWithPosition: element, formData: { slotKind: 'body', ...fixture.formData }, refineContext: fixture.refineContext ?? null, index: 0, effectiveSlideIndex: 2, lifecycleMutationId: 'local-owned-attempt', layoutServiceApis: { sendElementCommand: send }, buildInsertionParams: (...args) => { insertion = clientModule.buildInsertionParams(...args); return insertion }, buildSemanticUpsertParams: clientModule.buildSemanticUpsertParams, assertLayoutCommandSucceeded: reconcileModule.assertLayoutCommandSucceeded, sendLayoutMutationWithReconciliation: (...args) => reconcileModule.sendLayoutMutationWithReconciliation(...args, { attempts: 2, delayMs: 0 }) }
+  const context = { studio: false, element, elementWithPosition: element, formData: { slotKind: 'body', ...fixture.formData }, refineContext: fixture.refineContext ?? null, index: 0, effectiveSlideIndex: 2, lifecycleMutationId: 'local-owned-attempt', layoutServiceApis: { sendElementCommand: send }, generationLayoutServiceApis: { sendElementCommand: send }, buildInsertionParams: (...args) => { insertion = clientModule.buildInsertionParams(...args); return insertion }, buildSemanticUpsertParams: clientModule.buildSemanticUpsertParams, assertLayoutCommandSucceeded: reconcileModule.assertLayoutCommandSucceeded, sendLayoutMutationWithReconciliation: (...args) => reconcileModule.sendLayoutMutationWithReconciliation(...args, { attempts: 2, delayMs: 0 }) }
   let result, error
   try {
     result = await vm.runInNewContext(ts.transpileModule('(async()=>{'+block+';return insertResponse})()', { compilerOptions: { target: ts.ScriptTarget.ES2022 } }).outputText, context)
@@ -472,7 +473,7 @@ async function verifySemanticDispatch(source) {
   assert.ok(actionStatement && responseStatement)
   let chosen
   const cited = { elementId: 'cited-local' }, semantic = { elementId: 'semantic-local' }
-  await vm.runInNewContext(ts.transpileModule('(async()=>{'+actionStatement.getText(choiceTree)+'\n'+responseStatement.getText(choiceTree)+'})()', { compilerOptions: { target: ts.ScriptTarget.ES2022 } }).outputText, { citedUpsertParams: cited, semanticUpsertParams: semantic, params: { elementId: 'ordinary-local' }, method: 'insertElement', layoutServiceApis: { sendElementCommand: () => {} }, lifecycleMutationId: 'local', index: 0, sendLayoutMutationWithReconciliation: async (_, action, params) => { chosen = { action, params } } })
+  await vm.runInNewContext(ts.transpileModule('(async()=>{'+actionStatement.getText(choiceTree)+'\n'+responseStatement.getText(choiceTree)+'})()', { compilerOptions: { target: ts.ScriptTarget.ES2022 } }).outputText, { citedUpsertParams: cited, semanticUpsertParams: semantic, params: { elementId: 'ordinary-local' }, method: 'insertElement', layoutServiceApis: { sendElementCommand: () => {} }, generationLayoutServiceApis: { sendElementCommand: () => {} }, lifecycleMutationId: 'local', index: 0, sendLayoutMutationWithReconciliation: async (_, action, params) => { chosen = { action, params } } })
   assert.equal(chosen.action, 'upsertCitedElement');assert.equal(chosen.params, cited);semanticDispatchChecks++
   for (const behavior of ['timeout', 'pending', 'refusal', 'network', 'failed-receipt', 'ambiguous']) {
     const run = await dispatchCase(block, fixtures[4], behavior)
