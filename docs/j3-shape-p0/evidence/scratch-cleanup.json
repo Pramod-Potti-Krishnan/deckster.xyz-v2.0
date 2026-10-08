@@ -1,0 +1,14 @@
+{
+  "at": "2026-10-08T18:34:28.336895+00:00",
+  "removed_owned_detached_baseline": "/private/tmp/element3-j3-shape-fe-native-base-20261008",
+  "source_sha": "bb26903c5ab9e0313380691c7c3789bd93a07e0e",
+  "clean_before": true,
+  "no_readers": "Own native session38139 and followup10531 completed; exact runner/wrapper absence verified. No queued checks remain.",
+  "file_bytes_excluding_symlink_target": 19276772,
+  "free_bytes_before": 9303199744,
+  "free_bytes_after": 9325408256,
+  "shared_node_modules_target_preserved": "/Users/pk1980/Software/Deckster/frontend/node_modules",
+  "proof_preserved": "/private/tmp/element3-j3-shape-fe-native-proof-20261008",
+  "recreate": "git worktree add --detach /private/tmp/element3-j3-shape-fe-native-base-20261008 bb26903c5ab9e0313380691c7c3789bd93a07e0e; then add existing node_modules symlink if needed",
+  "authorization": "Root relayed PROGRAM17:34 own finished scratch cleanup approval."
+}

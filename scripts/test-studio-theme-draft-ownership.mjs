@@ -30,6 +30,7 @@ function harness(root=current,{owner=null,ready=true,flag='true',busy=false,dirt
   accountScope:{current:owner===null?null:{owner,ready,current:{current:{owner,ready}}}},accountReady:owner===null||ready,
   process:{env:{NEXT_PUBLIC_STUDIO_V4_SHELL:flag}},studioShell:flag==='true',
   saveTheme:args=>{events.push(['save',JSON.parse(JSON.stringify(args))]);return d.promise},
+  themeFontsEqual:()=>true, // J4-FONTS: save() compares fonts only with the flag on; flag off it is always true
  }
  for(const [setter,key]of[['setName','name'],['setDescription','description'],['setDraft','draft'],['setDirty','dirty'],['setMode','mode'],['setThemes','themes'],['setSelectedId','selectedId'],['setNotice','notice'],['setActionError','actionError'],['setLoading','loading'],['setOperation','operation'],['setCompareBase','compareBase'],['setReplacePrompt','replacePrompt']])c[setter]=value=>{c[key]=typeof value==='function'?value(c[key]):value;events.push([setter,c[key]])}
  const confirm=find(root,n=>ts.isJsxAttribute(n)&&n.name.getText(root)==='onClick'&&n.initializer?.getText(root).includes('loadDraft(replacePrompt)'))
@@ -98,7 +99,14 @@ for(const root of [original,current]){
 // The current callbacks above still execute these guards in every behavior case.
 // Exact read try/catch is separately exercised by account-boundary refusal replay.
 assert.equal(currentText.split('if (!mounted.current || !accountIsCurrent()) return; ').length - 1,3,'Only patchDraft/name/description guards normalized')
+// J4-FONTS (reviewed): the only fieldset additions are the flag-gated pickers and the flag-gated sentence; flag off both are today's markup.
+const fontPickers="            {THEME_FONT_SELECTION_ENABLED && draft.mode !== 'auto' && <FontFields draft={draft} onChange={patchDraft} />}\n"
+const fontSentence="{THEME_FONT_SELECTION_ENABLED ? 'Website extraction and AI theme chat are not connected in this workspace. Colors and fonts above are editable now.' : 'Website extraction, font editing, and AI theme chat are not connected in this workspace. Colors above are editable now.'}"
+const baseSentence='Website extraction, font editing, and AI theme chat are not connected in this workspace. Colors above are editable now.'
+assert.equal(currentText.split(fontPickers).length-1,1,'Only the picker line added');assert.equal(currentText.split(fontSentence).length-1,1,'Only the sentence gated')
 const restored=currentText
+ .replace(fontPickers,'')
+ .replace(fontSentence,baseSentence)
  .replace("    // A previously opened confirmation can outlive the click that starts save.\n    if (!mounted.current || !accountCanStart() || busy.current) return\n",'')
  .replace("const requestDraft = (source: SavedThemeProfile | 'blank') => { if (!mounted.current || !accountCanStart() || busy.current) return; if (dirty)","const requestDraft = (source: SavedThemeProfile | 'blank') => { if (dirty)")
  .replaceAll('if (!mounted.current || !accountIsCurrent()) return; ', '')

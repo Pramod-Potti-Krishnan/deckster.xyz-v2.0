@@ -71,6 +71,7 @@ import {
 import { resolveRefineGenerationConfig } from '@/lib/refine-generation-config'
 import { normalizePersistedDiagramSubtype } from '@/lib/diagram-catalog'
 import { imageEditPreflightError } from '@/lib/image-refinement'
+import { shapeTypedFailureGuidance } from '@/lib/shape-generation-failure'
 import {
   diagramBackendDeadlineBudgetMs,
   diagramRetryCandidateForPreDispatch,
@@ -1955,7 +1956,8 @@ export function useTextLabsGeneration({
         if (err.kind === 'transport') {
           errorMessage = `The generation service could not be reached.${reference}${downstreamReference}`
         } else {
-          errorMessage = `${err.message}${reference}${downstreamReference}`
+          const shapeGuidance = shapeTypedFailureGuidance(formData, err)
+          errorMessage = `${err.message}${shapeGuidance ? ` ${shapeGuidance}` : ''}${reference}${downstreamReference}`
         }
       } else if (err instanceof TypeError && /fetch|network/i.test(err.message)) {
         errorMessage = `The generation service could not be reached. Request reference: ${generationAttemptId.slice(0, 12)}.`

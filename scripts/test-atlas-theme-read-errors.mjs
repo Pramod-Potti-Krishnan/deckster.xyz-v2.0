@@ -6,6 +6,12 @@ import ts from 'typescript'
 
 // Real hook, deliberate offline responses. No connected reads or mutation receipts.
 const source = fs.readFileSync('hooks/use-theme-profiles.ts', 'utf8')
+// J4-FONTS: the hook's one other import is the import-free font policy (flag off here, so a payload passes through untouched).
+const themeFonts = (() => {
+  const mod = { exports: {} }
+  vm.runInNewContext(ts.transpileModule(fs.readFileSync('lib/theme-fonts.ts', 'utf8'), { compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2020 } }).outputText, { module: mod, exports: mod.exports })
+  return mod.exports
+})()
 function harness(text = source) {
   const exports = {}, replies = [], reads = [], values = [], transitions = []
   let slot = 0
@@ -16,6 +22,7 @@ function harness(text = source) {
       return await replies.shift()
     },
     require(id) {
+      if (id === '@/lib/theme-fonts') return themeFonts
       assert.equal(id, 'react')
       return { useCallback: fn => fn, useState(initial) {
         const index = slot++; values[index] = initial
