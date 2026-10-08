@@ -10,7 +10,7 @@ export function shapeTypedFailureGuidance(
 ): string | null {
   if (!SHAPE_TYPED_FAILURE_RECOVERY_ENABLED || formData.componentType !== 'SHAPE') return null
 
-  const shapeType = formData.shapeConfig?.shape_type
+  const shapeType: unknown = formData.shapeConfig?.shape_type
   if (shapeType != null && shapeType !== 'custom' && shapeType !== 'auto') return null
   if (
     !(error instanceof TextLabsRequestError)
