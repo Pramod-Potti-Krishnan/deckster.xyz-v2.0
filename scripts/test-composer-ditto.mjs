@@ -51,6 +51,7 @@ const contracts = load('../lib/composer-library.ts')
 const env = {}
 let upstream = []
 let ownedSession = true
+let ownerQuery = null
 const route = load('../app/api/composer-library/[...path]/route.ts', {
   process: { env },
   fetch: async (url, options) => {
@@ -64,7 +65,7 @@ const route = load('../app/api/composer-library/[...path]/route.ts', {
   '@/lib/auth-options': { authOptions: {} },
   '@/lib/prisma': { prisma: {
     user: { findUnique: async () => ({ id: 'trusted-user' }) },
-    chatSession: { findFirst: async query => ownedSession ? { id: query.where.id } : null },
+    chatSession: { findFirst: async query => { ownerQuery = query; return ownedSession ? { id: query.where.id } : null } },
   } },
   '@/lib/composer-library': contracts,
   '@/lib/composer-ditto': ditto,
@@ -156,6 +157,8 @@ check(assert.equal, accepted.upstream[0].body, '{"session_id":"session-1","mode"
 check(assert.equal, accepted.upstream[0].headers['X-Composer-User-Id'], 'trusted-user')
 check(assert.equal, accepted.upstream[0].headers.Authorization, 'Bearer unit-test-placeholder')
 check(assert.equal, accepted.upstream[0].redirect, 'error')
+// The session must belong to the signed-in account (and not be deleted) before anything is forwarded.
+check(assert.equal, JSON.stringify(ownerQuery), '{"where":{"id":"session-1","userId":"trusted-user","status":{"not":"deleted"}},"select":{"id":true}}')
 // ...with or without the new-topic flag, which is unrelated.
 setEnv({ [FLAG]: 'true', NEXT_PUBLIC_COMPOSER_STAGE1B_NEW_TOPIC_ENABLED: 'true' })
 check(assert.equal, (await send('POST', USE, { session_id: 'session-1', mode: 'ditto' })).upstream[0].body, '{"session_id":"session-1","mode":"ditto"}')
