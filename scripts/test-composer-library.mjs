@@ -15,6 +15,7 @@ function load(relative, context = {}, imports = {}) {
   return module.exports
 }
 
+const serviceUrl = load('../lib/service-url.ts')
 const contracts = load('../lib/composer-library.ts')
 const { requireComposerServiceUrl, validateComposerFile, composerReadyResult } = contracts
 const host = 'directorv40-uat.up.railway.app'
@@ -41,6 +42,7 @@ const route = load('../app/api/composer-library/[...path]/route.ts', {
   process: { env },
   fetch: async (url, options) => { calls.push({ url, options }); return Response.json({ job_id: 'job-1', status: 'queued' }, { status: 202 }) },
 }, {
+  '@/lib/service-url': serviceUrl,
   'next/server': { NextResponse: Response },
   'next-auth': { getServerSession: async () => identity },
   '@/lib/auth-options': { authOptions: {} },
@@ -53,6 +55,7 @@ const route = load('../app/api/composer-library/[...path]/route.ts', {
       return ownedSession ? { id: query.where.id } : null
     } },
   } },
+  '@/lib/composer-long-brief': load('../lib/composer-long-brief.ts'),
   '@/lib/composer-library': contracts,
 })
 function request(method, path, body, extraHeaders = {}) {

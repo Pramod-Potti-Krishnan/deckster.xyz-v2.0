@@ -3,6 +3,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth-options'
 import { prisma } from '@/lib/prisma'
+import { composerBriefLengthValid, composerReferenceMaxBytes } from '@/lib/composer-long-brief'
 import { requireComposerServiceUrl } from '@/lib/composer-library'
 
 export const dynamic = 'force-dynamic'
@@ -38,6 +39,7 @@ async function proxy(req: NextRequest, context: RouteContext) {
       return NextResponse.json({ error: 'JSON references only; upload files directly to storage.' }, { status: 415 })
     }
     try {
+      const longBrief = process.env.NEXT_PUBLIC_COMPOSER_LONG_BRIEF_ENABLED === 'true'
       const reader = req.body?.getReader()
       if (!reader) throw new Error('missing body')
       const chunks: Uint8Array[] = []
@@ -46,7 +48,7 @@ async function proxy(req: NextRequest, context: RouteContext) {
         const chunk = await reader.read()
         if (chunk.done) break
         bytes += chunk.value.byteLength
-        if (bytes > 16384) {
+        if (bytes > composerReferenceMaxBytes(use, longBrief)) {
           await reader.cancel()
           return NextResponse.json({ error: 'Reference is too large.' }, { status: 413 })
         }
@@ -62,8 +64,7 @@ async function proxy(req: NextRequest, context: RouteContext) {
         if (process.env.NEXT_PUBLIC_COMPOSER_STAGE1B_NEW_TOPIC_ENABLED !== 'true') {
           return NextResponse.json({ error: 'New-topic templates are not enabled.' }, { status: 404 })
         }
-        if (typeof payload.brief !== 'string' || payload.brief.trim().length < 20 ||
-            payload.brief.trim().length > 4000) throw new Error('invalid brief')
+        if (typeof payload.brief !== 'string' || !composerBriefLengthValid(payload.brief, longBrief)) throw new Error('invalid brief')
         payload.brief = payload.brief.trim()
       }
       if (upload) {
