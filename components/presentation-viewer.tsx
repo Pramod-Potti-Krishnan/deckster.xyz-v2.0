@@ -53,7 +53,7 @@ import {
   isTrustedLayoutViewerMessage,
 } from '@/lib/layout-viewer-messaging'
 import { evaluateLayoutViewerUrl } from '@/lib/layout-viewer-url-policy'
-import { isPresentViewOnlyEnabled, presentNavigationCommand } from '@/lib/present-view-only'
+import { clampPresentSlideIndex, isPresentViewOnlyEnabled, presentFrameStartIndex, presentNavigationCommand } from '@/lib/present-view-only'
 import { PresentViewOnlyFrame } from './present-view-only-frame'
 import {
   buildSnapshotNavigationUrl,
@@ -863,6 +863,8 @@ export function PresentationViewer({
   }, [approvedPresentationUrl, studioShell, buildSnapshotRevision])
   const presentViewOnlyActive = presentViewOnlyEnabled && isFullscreen && !presentFrameFailed && !!approvedIframeNavigationUrl
   presentViewOnlyActiveRef.current = presentViewOnlyActive
+  // A4: the deck size the Present slide index stays inside (the visual count includes in-deck placeholders).
+  const presentSlideTotal = Math.max(visualTotalSlides || 0, totalSlides || 0)
   const slideMutationOwnerRef = useRef({
     userId: studioOwnerUserId ?? null,
     presentationId: presentationId ?? null,
@@ -3603,8 +3605,10 @@ export function PresentationViewer({
     const endedOn = presentSlideIndexRef.current
     if (endedOn === null) return
     presentSlideIndexRef.current = null
-    if (endedOn !== currentSlide - 1) void handleGoToSlide(endedOn)
-  }, [presentViewOnlyActive, currentSlide, handleGoToSlide])
+    // The deck can have changed while presenting (a mutation shortened it): never ask for a slide past the end.
+    const target = clampPresentSlideIndex(endedOn, presentSlideTotal)
+    if (target !== currentSlide - 1) void handleGoToSlide(target)
+  }, [presentViewOnlyActive, currentSlide, presentSlideTotal, handleGoToSlide])
 
   // Calculate optimal slide dimensions in fullscreen mode
   useEffect(() => {
@@ -4500,10 +4504,13 @@ export function PresentationViewer({
                   title="Presentation Viewer"
                   allow="fullscreen"
                 />
+                {/* Keyed like the editing iframe: when the viewer URL changes mid-Present (a Director deck
+                    mutation, a slide-compose refresh) the overlay reloads on it, on the slide the audience is on. */}
                 {presentViewOnlyActive && approvedIframeNavigationUrl && (
                   <PresentViewOnlyFrame
+                    key={approvedIframeNavigationUrl}
                     baseUrl={approvedIframeNavigationUrl}
-                    startIndex={Math.max(0, currentSlide - 1)}
+                    startIndex={presentFrameStartIndex(presentSlideIndexRef.current, currentSlide - 1, presentSlideTotal)}
                     sendCommand={sendCommand}
                     frameRef={presentFrameRef}
                     onSlideIndex={(index) => { presentSlideIndexRef.current = index }}
