@@ -17,7 +17,8 @@
     "suite-output-inventory.json": "dbaadeaa13d822c8a63f1b56f7fffbc24de001b7ca5f2a07563bb6359a9545fd",
     "repair-validate.mjs": "4d7ed514140509c93e90b16b53200a9c9043def6e0e7171aed2d4aaa4ec43ce3",
     "native-pair-results.json": "b8a18fe629b195d23ce7fb52ad7bb2396423ed257b48974a2f94b559d3cae8f0",
-    "repaired-validation.json": "2675db79bf0a24a81fca925a9a6cd208c6622370abb30d528a50d38ab775173f"
+    "repaired-validation.json": "2675db79bf0a24a81fca925a9a6cd208c6622370abb30d528a50d38ab775173f",
+    "scratch-cleanup.json": "40335f48d1629475863df8433bee71e54682f56a9febad0c417723acce390257"
   },
   "collector_completion": {
     "session": 10531,
@@ -33,6 +34,6 @@
     "available_gib": 8,
     "baseline_checkout_excluding_symlink_target_approx_mib": 22,
     "proof_preserved": "/private/tmp/element3-j3-shape-fe-native-proof-20261008",
-    "baseline_cleanup": "Offer only; baseline scratch not removed. No queued job reads it. Source recreation git worktree add --detach <baseline path> bb26903c5ab9e0313380691c7c3789bd93a07e0e; reuse existing dependency symlink without removing target."
+    "baseline_cleanup": "Completed with git worktree removal after clean/no-reader checks; see scratch-cleanup.json. Shared dependency symlink target and all proof receipts retained."
   }
 }
