@@ -50,6 +50,10 @@ const serviceUrl = load('../lib/service-url.ts')
 const contracts = load('../lib/composer-library.ts')
 const env = {}
 let upstream = []
+// The long-brief change (flag NEXT_PUBLIC_COMPOSER_LONG_BRIEF_ENABLED) adds lib/composer-long-brief.ts and imports it in the
+// route and the dialog; map it when that file is present so this test passes with and without it.
+const longBriefImports = fs.existsSync(new URL('../lib/composer-long-brief.ts', import.meta.url))
+  ? { '@/lib/composer-long-brief': load('../lib/composer-long-brief.ts') } : {}
 let ownedSession = true
 let ownerQuery = null
 const route = load('../app/api/composer-library/[...path]/route.ts', {
@@ -69,6 +73,7 @@ const route = load('../app/api/composer-library/[...path]/route.ts', {
   } },
   '@/lib/composer-library': contracts,
   '@/lib/composer-ditto': ditto,
+  ...longBriefImports,
 })
 function setEnv(values) {
   for (const key of Object.keys(env)) delete env[key]
@@ -233,6 +238,7 @@ function mountDialog({ studio, topic, dittoFlag, auth = true, layoutUrl = 'http:
       if (id === '@/hooks/use-chat-sessions') return { useChatSessions: () => ({ createSession: mocks.createSession || (async () => { throw new Error('No session creation allowed') }) }) }
       if (id === '@/lib/composer-library') return mocks.composerLibrary || { validateComposerFile: () => null, composerRequest() { throw new Error('No service allowed') }, waitForComposerJob() { throw new Error('No jobs allowed') }, requireComposerServiceUrl() { throw new Error('No service configuration allowed') } }
       if (id === '@/lib/composer-ditto') return ditto
+      if (id in longBriefImports) return longBriefImports[id]
       if (id === '@/lib/researcher-upload') return { uploadFileToResearcher() { throw new Error('No upload allowed') } }
       if (id === '@/lib/layout-viewer-url-policy') return { evaluateLayoutViewerUrl: () => ({ status: 'allowed' }) }
       if (id === '@/lib/layout-service-client') return { LAYOUT_VIEWER_URL_POLICY: {} }
