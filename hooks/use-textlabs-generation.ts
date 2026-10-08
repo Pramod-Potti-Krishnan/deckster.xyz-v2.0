@@ -134,6 +134,8 @@ interface UseTextLabsGenerationParams {
     ) => void
     changeElementType: (type: TextLabsComponentType) => void
     getIntentRevision?: () => number
+    getPanelOwnershipRevision?: () => number
+    panelOwnershipRevision?: number
     claimInsertionIntent?: () => number
     getSnapshot: () => {
       isOpen: boolean
@@ -367,23 +369,42 @@ export function useTextLabsGeneration({
     const presentationIsStillAuthoritative = () => presentationOwnerIsStillAuthoritative()
       && (!studio || Boolean(nativeGenerationLease?.isCurrent()))
     let failureRecoveryStarted = false
-    let failureToastPublished = false
+    let lastFailureToastMessage: string | null = null
     const publishFailureToast = (message: string) => {
-      if (failureToastPublished) return
-      failureToastPublished = true
+      if (lastFailureToastMessage === message || !generationHookMountedRef.current) return
+      lastFailureToastMessage = message
       toast({ title: 'Element generation failed', description: message })
     }
     let failureRecoveryIsCurrent = () => presentationIsStillAuthoritative()
+    const panelOwnershipAtInvocation = immediateFailureFeedbackEnabled
+      ? generationPanel.panelOwnershipRevision
+        ?? generationPanel.getPanelOwnershipRevision?.()
+        ?? generationPanel.getIntentRevision?.()
+      : undefined
+    let failurePanelIsCurrent = () => {
+      // Viewer-not-ready errors still belong to the mounted panel even when
+      // no command lease could be captured. No compensation uses this gate.
+      if (!presentationOwnerIsStillAuthoritative()) return false
+      const panel = generationPanel.getSnapshot()
+      return (generationPanel.getPanelOwnershipRevision?.()
+        ?? generationPanel.getIntentRevision?.()) === panelOwnershipAtInvocation
+        && panel.isOpen === generationPanel.isOpen
+        && panel.mode === generationPanel.mode
+        && panel.blankElementId === generationPanel.blankElementId
+        && (!generationPanel.refineContext
+          || panel.editElementId === generationPanel.refineContext.elementId)
+    }
     let generationError: string | null = null
     const setGenerationError = (error: string | null) => {
       generationError = error
       if (immediateFailureFeedbackEnabled && error !== null) failureRecoveryStarted = true
-      if ((!studio || presentationIsStillAuthoritative())
-        && (!immediateFailureFeedbackEnabled || error === null || failureRecoveryIsCurrent())) {
-        if (immediateFailureFeedbackEnabled && error !== null
-          && (invocation || !generationPanel.getSnapshot().isOpen)) {
-          publishFailureToast(error)
-        } else generationPanel.setError(error)
+      if (immediateFailureFeedbackEnabled && error !== null) {
+        const panel = generationPanel.getSnapshot()
+        if (failurePanelIsCurrent() && panel.isOpen && !invocation && panel.mode !== 'edit') {
+          generationPanel.setError(error)
+        } else publishFailureToast(error)
+      } else if (!studio || presentationIsStillAuthoritative()) {
+        generationPanel.setError(error)
       }
     }
     const failureOutcome = (error?: string): TextLabsGenerationResult => ({
@@ -395,10 +416,16 @@ export function useTextLabsGeneration({
     if (studio && !nativeGenerationLease) {
       const error = 'The presentation viewer is not ready. Wait for it to load before generating an element.'
       if (presentationOwnerIsStillAuthoritative()) {
-        if (immediateFailureFeedbackEnabled && (invocation || !generationPanel.getSnapshot().isOpen)) {
+        if (immediateFailureFeedbackEnabled
+          && (invocation || !generationPanel.getSnapshot().isOpen || !failurePanelIsCurrent())) {
           publishFailureToast(error)
         } else generationPanel.setError(error)
       }
+      return failureOutcome(error)
+    }
+    if (immediateFailureFeedbackEnabled && !invocation && !failurePanelIsCurrent()) {
+      const error = 'The element panel changed before generation started. Reopen the intended element and try again.'
+      publishFailureToast(error)
       return failureOutcome(error)
     }
     const retryCandidate = diagramRetryCandidateForPreDispatch(
@@ -489,17 +516,27 @@ export function useTextLabsGeneration({
       message: string
       retryStrategy: TextLabsRetryStrategy | null
     } | null = null
-    let recoveryPanelIntentRevision = immediateFailureFeedbackEnabled
-      ? generationPanel.getIntentRevision?.() : undefined
+    // Older injected panel adapters do not expose the structural revision yet;
+    // retain their conservative intent gate rather than trusting a lagged ID.
+    const getFailurePanelOwnershipRevision = () => generationPanel.getPanelOwnershipRevision?.()
+      ?? generationPanel.getIntentRevision?.()
+    let recoveryPanelOwnershipRevision = immediateFailureFeedbackEnabled
+      ? getFailurePanelOwnershipRevision() : undefined
     const recoveryPanelAtStart = immediateFailureFeedbackEnabled
       ? generationPanel.getSnapshot() : null
     const recoveryBlankIds = new Set([currentBlankId])
     const recoveryGenerationKeys = new Set([generationKey])
     failureRecoveryIsCurrent = () => {
       if (!immediateFailureFeedbackEnabled) return true
+      // Compensation belongs to the captured presentation/lease, not the
+      // panel or its persisted draft. A new panel must not abandon old cleanup.
+      return presentationIsStillAuthoritative()
+    }
+    failurePanelIsCurrent = () => {
+      if (!immediateFailureFeedbackEnabled) return true
       if (!presentationIsStillAuthoritative()
         || (!recoveryLeaseReleased && !activeGenerationKeysRef.current.has(generationKey))
-        || generationPanel.getIntentRevision?.() !== recoveryPanelIntentRevision) return false
+        || getFailurePanelOwnershipRevision() !== recoveryPanelOwnershipRevision) return false
       const panel = generationPanel.getSnapshot()
       if (!recoveryPanelAtStart || panel.isOpen !== recoveryPanelAtStart.isOpen
         || panel.mode !== recoveryPanelAtStart.mode) return false
@@ -510,18 +547,17 @@ export function useTextLabsGeneration({
     }
     const assertFailureRecoveryIsCurrent = () => {
       if (!failureRecoveryIsCurrent()) {
-        throw new Error('Element recovery stopped because its presentation or panel changed.')
+        throw new Error('Element recovery stopped because its presentation changed.')
       }
     }
     const publishImmediateFailure = (message: string, retryStrategy: TextLabsRetryStrategy | null = null) => {
       if (!immediateFailureFeedbackEnabled) return
       failureRecoveryStarted = true
-      if (!failureRecoveryIsCurrent()) return
-      const panel = generationPanel.getSnapshot()
-      const ownsPanel = currentBlankId
-        ? recoveryBlankIds.has(panel.blankElementId)
-        : refineContext ? panel.editElementId === refineContext.elementId : !panel.isOpen
       generationError = message
+      const panel = generationPanel.getSnapshot()
+      const ownsPanel = failurePanelIsCurrent() && (currentBlankId
+        ? recoveryBlankIds.has(panel.blankElementId)
+        : refineContext ? panel.editElementId === refineContext.elementId : !panel.isOpen)
       if (ownsPanel && panel.isOpen && !invocation) {
         setGenerationError(message)
         generationPanel.setRetryStrategy(retryStrategy)
@@ -530,7 +566,7 @@ export function useTextLabsGeneration({
     const resumeFailedPanel = (type: TextLabsComponentType, elementId: string,
       message: string, retryStrategy: TextLabsRetryStrategy | null, afterCleanup = false) => {
       if (immediateFailureFeedbackEnabled
-        && (!failureRecoveryIsCurrent() || !recoveryPanelAtStart?.isOpen || invocation)) return
+        && (!failurePanelIsCurrent() || !recoveryPanelAtStart?.isOpen || invocation)) return
       if (immediateFailureFeedbackEnabled && !recoveryLeaseReleased) {
         const resumedKey = `blank:${elementId}`
         activeGenerationKeysRef.current.add(resumedKey)
@@ -546,7 +582,7 @@ export function useTextLabsGeneration({
       generationPanel.resumePanelForElement(type, elementId)
       if (immediateFailureFeedbackEnabled) {
         recoveryBlankIds.add(elementId)
-        recoveryPanelIntentRevision = generationPanel.getIntentRevision?.()
+        recoveryPanelOwnershipRevision = getFailurePanelOwnershipRevision()
         // resume clears error/retry. Restore both in the same synchronous turn;
         // the old snapshot can still name the previous owned placeholder ID.
         setGenerationError(message)
@@ -613,7 +649,7 @@ export function useTextLabsGeneration({
         recoveryGenerationKeys.forEach(key => activeGenerationKeysRef.current.delete(key))
       } else activeGenerationKeysRef.current.delete(generationKey)
       recoveryLeaseReleased = true
-      if (immediateFailureFeedbackEnabled && deferredFailedPanelResume && failureRecoveryIsCurrent()) {
+      if (immediateFailureFeedbackEnabled && deferredFailedPanelResume && failurePanelIsCurrent()) {
         const pending = deferredFailedPanelResume
         deferredFailedPanelResume = null
         // No await occurs after releasing the old busy/lease and before this
@@ -1251,8 +1287,12 @@ export function useTextLabsGeneration({
       )
       if (imagePreflightError) {
         setGenerationError(imagePreflightError)
-        generationPanel.setIsGenerating(false)
-        activeGenerationKeysRef.current.delete(generationKey)
+        // The outer finally owns the busy key and generating:false command.
+        // Releasing here used to retire cleanup before its image overlay reset.
+        if (!immediateFailureFeedbackEnabled) {
+          generationPanel.setIsGenerating(false)
+          activeGenerationKeysRef.current.delete(generationKey)
+        }
         return failureOutcome()
       }
     }
@@ -2071,7 +2111,9 @@ export function useTextLabsGeneration({
                 elementId: restoredElementId,
                 status: 'blank',
               })
-              blankElements.trackElement(restoredElementId)
+              if (!immediateFailureFeedbackEnabled || failurePanelIsCurrent()) {
+                blankElements.trackElement(restoredElementId)
+              }
               const latestPanel = generationPanel.getSnapshot()
               if (!latestPanel.isOpen) {
                 resumeFailedPanel(recoveryBlankInfo.componentType, restoredElementId, errorMessage, errorRetryStrategy)
@@ -2096,6 +2138,12 @@ export function useTextLabsGeneration({
       // OFF retains legacy publication after recovery. ON has already shown
       // the failure and restores it synchronously whenever owned resume clears it.
       if (immediateFailureFeedbackEnabled) {
+        // An awaited rollback/restore can outlive the original viewer lease.
+        // Keep the final recovery advice accurate without writing its new panel.
+        if (!presentationIsStillAuthoritative()) {
+          errorMessage = PRESENTATION_CHANGED_DURING_GENERATION
+          errorRetryStrategy = 'do_not_retry'
+        }
         publishImmediateFailure(errorMessage, errorRetryStrategy)
       } else if (!studio || presentationIsStillAuthoritative()) {
         const latestPanel = generationPanel.getSnapshot()

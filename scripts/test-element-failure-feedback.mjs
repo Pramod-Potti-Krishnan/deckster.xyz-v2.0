@@ -21,7 +21,7 @@ net.connect = net.createConnection = net.Socket.prototype.connect = denied
 http.request = http.get = https.request = https.get = denied
 globalThis.fetch = denied
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..')
-const BASE = '30c9fc9e62cdb56601e6090486914ab1780c072d'
+const BASE = '83feff51f98fb6db1480c274182825a0325831ed'
 const FLAG = 'NEXT_PUBLIC_ELEMENT_FAILURE_IMMEDIATE_FEEDBACK_ENABLED'
 const out = process.env.ELEMENT_FAILURE_PROOF_DIR || '/private/tmp/element3-fe-error-delay-proof-20261008'
 fs.mkdirSync(out, { recursive: true })
@@ -235,9 +235,17 @@ if(process.argv.includes('--baseline')) {
         else {if(transition==='snapshot_lag')h.setSnapshotLag(true);h.switchIntent({id:transition==='same_id_reopen'||transition==='snapshot_lag'?'blank-1':'blank-2',open:transition!=='close',mode:transition==='edit'?'edit':'generate'})}
         const boundary=h.events.length,commandBoundary=h.commands.length
         await done(h);await p
-        assert.equal(h.events.slice(boundary).some(e=>['tracking_add','tracking_remove','track','resume_clear'].includes(e.event)),false,'No stale tracking/resume mutation')
-        assert.equal(h.commands.slice(commandBoundary).some(c=>c.action==='deleteElement'||c.action.startsWith('insert')),false,'No stale compensating command after await')
-        if(!['unmount','lease_retired','deck_epoch'].includes(transition)){assert.equal(h.panel.error,'New owner feedback');assert.equal(h.panel.retryStrategy,'do_not_retry');assert.equal(h.panel.isOpen,transition!=='close')}
+        const lateEvents=h.events.slice(boundary),lateCommands=h.commands.slice(commandBoundary)
+        if(['unmount','lease_retired','deck_epoch'].includes(transition)) {
+          assert.equal(lateEvents.some(e=>['tracking_add','tracking_remove','track','resume_clear'].includes(e.event)),false,'Retired presentation cannot mutate tracking')
+          assert.equal(lateCommands.some(c=>c.action==='deleteElement'||c.action.startsWith('insert')),false,'Retired presentation cannot compensate through its old bridge')
+        } else {
+          assert.ok(h.isTracked('blank-1'),'Panel changes must not abandon the old placeholder compensation')
+          assert.equal(lateEvents.some(e=>['track','resume_clear'].includes(e.event)),false,'Old recovery must not activate or overwrite the newer panel')
+          assert.equal(lateCommands.some(c=>c.args.elementId==='blank-2'),false,'Compensation never targets a newer element')
+          assert.equal(h.panel.error,'New owner feedback');assert.equal(h.panel.retryStrategy,'do_not_retry');assert.equal(h.panel.isOpen,transition!=='close')
+          assert.ok(h.summary().toasts.some(t=>t.title==='Element generation failed'),'Changed panel receives safe failure toast fallback')
+        }
       })
     }
     await check('on-newer-attempt-different-target',async()=>{
@@ -285,7 +293,7 @@ if(process.argv.includes('--baseline')) {
     })
     await check('on-stale-overlay-failed-ACK',async()=>{
       const h=runtime({flag:'true',scenario:'overlay_late'}),p=start(h);await h.advance(0);h.switchIntent({id:'blank-2'});const boundary=h.events.length,commandBoundary=h.commands.length
-      await done(h);await p;assert.equal(h.events.slice(boundary).some(e=>e.event==='blank_status'),false);assert.equal(h.commands.slice(commandBoundary).some(c=>c.action==='setElementGenerationState'),false);assert.equal(h.panel.error,'New owner feedback')
+      await done(h);await p;assert.ok(h.events.slice(boundary).some(e=>e.event==='blank_status'&&e.id==='blank-1'&&e.status==='blank'));assert.ok(h.commands.slice(commandBoundary).some(c=>c.action==='setElementGenerationState'&&c.args.elementId==='blank-1'&&c.args.generating===false));assert.equal(h.commands.slice(commandBoundary).some(c=>c.args.elementId==='blank-2'),false);assert.equal(h.panel.error,'New owner feedback')
     })
     await check('on-renamed-alias-new-user-attempt-held',async()=>{
       const h=runtime({flag:'true',scenario:'restore_renamed'}),p=start(h);let attempt
@@ -300,7 +308,7 @@ if(process.argv.includes('--baseline')) {
       const h=runtime({flag:'true',type:'CHART',scenario:'none'}),form=h.form();form.positionConfig.start_col=99;const p=h.api.handleGenerate(form);await h.advance(0);assert.match(h.panel.error,/Manual chart position/);assert.ok(h.input().includes('role="alert"'));await done(h);await p;assert.equal(h.requests.length,0)
     })
     await check('on-image-edit-preflight-through-slow-cleanup',async()=>{
-      const h=runtime({flag:'true',type:'IMAGE',scenario:'none',cleanupDelay:2000}),form=h.form();form.imageConfig.operation='edit';const p=h.api.handleGenerate(form);await h.advance(0);assert.ok(h.panel.error);assert.ok(h.input().includes('role="alert"'));assert.equal(h.requests.length,0);await done(h);assert.equal((await p).status,'failed')
+      const h=runtime({flag:'true',type:'IMAGE',scenario:'none',cleanupDelay:2000}),form=h.form();form.imageConfig.operation='edit';const p=h.api.handleGenerate(form);await h.advance(0);assert.ok(h.panel.error);assert.ok(h.input().includes('role="alert"'));assert.equal(h.requests.length,0);assert.equal(h.panel.isGenerating,true,'Busy key stays reserved until central overlay cleanup');await done(h);assert.equal((await p).status,'failed');assert.equal(h.panel.isGenerating,false);assert.deepEqual(h.commands.filter(c=>c.action==='setElementGenerationState').map(c=>c.args.generating),[true,false],'Image preflight clears its original generating overlay')
     })
     await check('on-session-preprovider-failure-busy-feedback',async()=>{
       const h=runtime({flag:'true',backend:'session',scenario:'none',cleanupDelay:2000}),p=start(h);await h.advance(0);alert(h);assert.equal(h.requests.length,0);await done(h);await p
@@ -354,4 +362,3 @@ if(process.argv.includes('--baseline')) {
     console.error(`Failed focused scenario: ${currentCase}: ${error.message}`);process.exitCode=1
   } finally {process.off('unhandledRejection',observeUnhandled)}
 }
-
