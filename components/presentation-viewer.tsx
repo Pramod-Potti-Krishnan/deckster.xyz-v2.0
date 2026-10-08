@@ -70,6 +70,7 @@ import {
 import { applyStageFThumbnailUrls, ownedRestoredThumbnailUrl } from '@/lib/stage-f-thumbnails'
 import { useSlideRailIdentity } from '@/hooks/use-slide-rail-identity'
 import { STUDIO_RAIL_SLIDE_IDENTITY_ENABLED } from '@/lib/slide-rail-identity'
+import { STUDIO_DECK_MUTATION_REFRESH_ENABLED, onSlideRailRefreshRequest } from '@/lib/studio-deck-mutation-refresh'
 import {
   DropdownMenu,
   DropdownMenuCheckboxItem,
@@ -1379,6 +1380,11 @@ export function PresentationViewer({
     refreshSignals: [totalSlides, railThumbnailFrames],
   })
   slideRailRefreshRef.current = refreshSlideRail
+  // S-03 (flag NEXT_PUBLIC_STUDIO_DECK_MUTATION_REFRESH_ENABLED): a Director deck_mutation for this deck re-reads the inventory at once.
+  useEffect(() => {
+    if (!STUDIO_DECK_MUTATION_REFRESH_ENABLED || !presentationId) return
+    return onSlideRailRefreshRequest(id => { if (id === presentationId) slideRailRefreshRef.current() })
+  }, [presentationId])
 
   // Extract slide thumbnails from slideStructure
   // Use totalSlides when: CRUD ops occurred, OR slideStructure is stale/missing
