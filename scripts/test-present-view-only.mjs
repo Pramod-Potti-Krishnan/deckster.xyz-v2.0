@@ -8,6 +8,9 @@
 //   - components/present-view-only-frame.tsx, run on the REAL source under a small hook
 //     runtime with fake timers: frozen src, ready/focus/frameRef, slide reporting, the
 //     fail-open timeout, cleanup;
+//   - the viewer URL changing mid-Present (a Director deck mutation, a slide-compose refresh):
+//     the overlay is keyed by that URL and re-opens on the slide the audience is on, kept
+//     inside the deck; leaving Present never asks the editing frame for a slide past the end;
 //   - wiring contracts on the REAL source of every covered path, and that the editing
 //     canvas and the other surfaces left alone do not gain `viewOnly`.
 // No git dependency: runs in shallow clones and CI.
@@ -149,6 +152,36 @@ await run('presentNavigationCommand: arrow keys only', () => {
   for (const key of ['e', 'E', 'g', 'b', 's', 'Escape', 'Enter', ' ', 'PageDown', 'Home', '']) {
     assert.equal(lib.presentNavigationCommand(key), null, `key ${JSON.stringify(key)}`)
   }
+})
+
+await run('clampPresentSlideIndex: whole slide inside [0, total - 1]; an unknown count only floors at 0', () => {
+  assert.equal(lib.clampPresentSlideIndex(0, 9), 0)
+  assert.equal(lib.clampPresentSlideIndex(4, 9), 4)
+  assert.equal(lib.clampPresentSlideIndex(8, 9), 8)
+  assert.equal(lib.clampPresentSlideIndex(9, 9), 8, 'one past the end is the last slide')
+  assert.equal(lib.clampPresentSlideIndex(40, 9), 8)
+  assert.equal(lib.clampPresentSlideIndex(40, 1), 0)
+  assert.equal(lib.clampPresentSlideIndex(2.9, 9), 2)
+  assert.equal(lib.clampPresentSlideIndex(7.5, 5.9), 4, 'a fractional count is floored')
+  for (const bad of [-1, -0.5, -Infinity, NaN, Infinity, null, undefined]) {
+    assert.equal(lib.clampPresentSlideIndex(bad, 9), 0, `index ${bad}`)
+  }
+  for (const unknown of [0, -3, NaN, null, undefined, Infinity]) {
+    assert.equal(lib.clampPresentSlideIndex(6, unknown), 6, `count ${unknown} cannot clamp`)
+    assert.equal(lib.clampPresentSlideIndex(-2, unknown), 0)
+  }
+})
+
+await run('presentFrameStartIndex: the slide the audience is on, else the one Present began on, inside the deck', () => {
+  assert.equal(lib.presentFrameStartIndex(6, 2, 9), 6, 'the reported slide beats where Present began')
+  assert.equal(lib.presentFrameStartIndex(0, 2, 9), 0, 'slide 0 is a real report')
+  assert.equal(lib.presentFrameStartIndex(null, 2, 9), 2)
+  assert.equal(lib.presentFrameStartIndex(undefined, 2, 9), 2)
+  assert.equal(lib.presentFrameStartIndex(NaN, 2, 9), 2)
+  assert.equal(lib.presentFrameStartIndex(6, 2, 5), 4, 'the deck got shorter: the last slide')
+  assert.equal(lib.presentFrameStartIndex(null, 7, 5), 4)
+  assert.equal(lib.presentFrameStartIndex(6, -1, 0), 6, 'an unknown count does not move the audience')
+  assert.equal(lib.presentFrameStartIndex(null, -1, 0), 0)
 })
 
 // ---- the view-only Present frame, on its real source ----------------------------
@@ -377,6 +410,45 @@ await run('frame: unmount clears frameRef and stops polling', async () => {
   assert.deepEqual(h.events.slides, [2])
 })
 
+// A URL change mid-Present re-mounts the overlay (the viewer keys it by the approved URL), so the
+// new instance reads its src from the new URL. Modelled with two instances of the real component:
+// the previous one is unmounted (its cleanup clears frameRef), the next one is handed the helper's
+// start index, exactly as the viewer's JSX does.
+await run('mid-Present URL change: the re-mounted overlay opens the new URL on the slide the audience is on', async () => {
+  const first = createHarness()
+  first.mount({ baseUrl: BASE, startIndex: lib.presentFrameStartIndex(null, 2, 9) })
+  assert.equal(first.iframe.props.src, `${BASE}?viewOnly=true#/2`)
+  first.script.respond = async () => INFO(2)
+  await first.advance(400)
+  first.script.respond = async () => INFO(6)
+  await first.advance(400)
+  assert.deepEqual(first.events.slides, [2, 6])
+  const reported = first.events.slides.at(-1)
+  assert.equal(first.frameRef.current, first.iframeNode)
+
+  // A Director deck_mutation / compose completion: sc_refresh on the viewer URL. Key changes -> old instance goes.
+  const refreshed = `${BASE}?sc_refresh=1`
+  first.unmount()
+  assert.equal(first.frameRef.current, null, 'forwarded arrow keys have no stale frame to hit while it reloads')
+  const polls = first.sent.length
+  const second = createHarness()
+  second.mount({ baseUrl: refreshed, startIndex: lib.presentFrameStartIndex(reported, 2, 9) })
+  assert.equal(second.iframe.props.src, `${BASE}?sc_refresh=1&viewOnly=true#/6`, 'new URL, still view-only, on slide 6')
+  assert.equal(second.ready, false, 'black until the reloaded viewer answers')
+  second.script.respond = async () => INFO(6)
+  await second.advance(400)
+  assert.equal(second.ready, true)
+  assert.equal(second.frameRef.current, second.iframeNode)
+  assert.equal(first.sent.length, polls, 'the old frame stopped polling')
+  second.unmount()
+
+  // The mutation removed slides: the new frame is opened on the new last slide, not past it.
+  const shorter = createHarness()
+  shorter.mount({ baseUrl: refreshed, startIndex: lib.presentFrameStartIndex(reported, 2, 5) })
+  assert.equal(shorter.iframe.props.src, `${BASE}?sc_refresh=1&viewOnly=true#/4`)
+  shorter.unmount()
+})
+
 // ---- wiring contracts on the real source ----------------------------------------
 const viewer = read('components/presentation-viewer.tsx')
 const messageList = read('components/builder/message-list.tsx')
@@ -388,7 +460,10 @@ await run('Present: view-only frame is flag-gated, covers the editing frame and 
   assert.match(viewer, /const presentViewOnlyEnabled = isPresentViewOnlyEnabled\(\)/)
   assert.match(viewer, /const presentViewOnlyActive = presentViewOnlyEnabled && isFullscreen && !presentFrameFailed && !!approvedIframeNavigationUrl/)
   // the frame renders only when active, from the editing frame's approved URL and current slide
-  assert.match(viewer, /\{presentViewOnlyActive && approvedIframeNavigationUrl && \(\s*<PresentViewOnlyFrame\s+baseUrl=\{approvedIframeNavigationUrl\}\s+startIndex=\{Math\.max\(0, currentSlide - 1\)\}/)
+  // keyed by that URL like the editing iframe, so it reloads when the viewer URL changes mid-Present
+  assert.match(viewer, /\{presentViewOnlyActive && approvedIframeNavigationUrl && \(\s*<PresentViewOnlyFrame\s+key=\{approvedIframeNavigationUrl\}\s+baseUrl=\{approvedIframeNavigationUrl\}\s+startIndex=\{presentFrameStartIndex\(presentSlideIndexRef\.current, currentSlide - 1, presentSlideTotal\)\}/)
+  assert.equal((viewer.match(/<PresentViewOnlyFrame/g) ?? []).length, 1)
+  assert.match(viewer, /const presentSlideTotal = Math\.max\(visualTotalSlides \|\| 0, totalSlides \|\| 0\)/)
   // the editing iframe is exactly as before: same key, same src, no viewOnly
   assert.match(viewer, /key=\{approvedIframeNavigationUrl\}\s+ref=\{iframeRef\}\s+src=\{approvedIframeNavigationUrl \|\| undefined\}/)
   const viewerCode = viewer.replace(/\/\/.*$/gm, '')
@@ -409,11 +484,65 @@ await run('Present: keyboard, fail-open, exit sync and toolbar are gated on the 
   // fail-open: the frame reports failure, Present falls back to the editing frame
   assert.match(viewer, /onFailed=\{\(\) => \{[^}]*setPresentFrameFailed\(true\)/)
   // exit: the editing frame is moved to the slide the audience ended on, only if it differs
-  assert.match(viewer, /if \(endedOn !== currentSlide - 1\) void handleGoToSlide\(endedOn\)/)
+  assert.match(viewer, /const target = clampPresentSlideIndex\(endedOn, presentSlideTotal\)\s*if \(target !== currentSlide - 1\) void handleGoToSlide\(target\)/)
+  assert.doesNotMatch(viewer, /handleGoToSlide\(endedOn\)/, 'the unclamped slide never reaches the editing frame')
   assert.match(viewer, /if \(!presentViewOnlyEnabled \|\| isFullscreen\) return\s*setPresentFrameFailed\(false\)/)
   // authoring controls are hidden only while the frame is up
   assert.match(viewer, /\{presentViewOnlyActive \? null : authoringControls\}/)
   assert.match(viewer, /presentViewOnlyActive && "justify-end",/)
+})
+
+// The viewer's own expressions, lifted from the real source and run: the overlay's start slide and the
+// exit effect. (A full render of the 4,800-line viewer is out of reach of a plain-node test.)
+const between = (text, from, to) => {
+  const start = text.indexOf(from)
+  assert.ok(start >= 0, `source has ${JSON.stringify(from)}`)
+  const end = text.indexOf(to, start + from.length)
+  assert.ok(end > start, `source has ${JSON.stringify(to)} after it`)
+  return text.slice(start + from.length, end)
+}
+const startIndexExpression = between(viewer, '<PresentViewOnlyFrame\n                    key={approvedIframeNavigationUrl}\n                    baseUrl={approvedIframeNavigationUrl}\n                    startIndex={', '}\n                    sendCommand')
+const exitEffectBody = 'if (presentViewOnlyActive) return\n' + between(viewer, 'useEffect(() => {\n    if (presentViewOnlyActive) return\n', '\n  }, [presentViewOnlyActive, currentSlide, presentSlideTotal, handleGoToSlide])')
+
+await run('Present: the overlay opens on the slide the audience is on, not where Present began, kept inside the deck', () => {
+  const startIndex = (reported, currentSlide, presentSlideTotal) => new Function(
+    'presentFrameStartIndex', 'presentSlideIndexRef', 'currentSlide', 'presentSlideTotal', `return (${startIndexExpression})`,
+  )(lib.presentFrameStartIndex, { current: reported }, currentSlide, presentSlideTotal)
+  assert.equal(startIndex(null, 3, 9), 2, 'a fresh Present opens on the editing frame\'s slide (1-based 3 -> index 2)')
+  assert.equal(startIndex(6, 3, 9), 6, 'after a URL change it re-opens on the slide the audience reached')
+  assert.equal(startIndex(0, 3, 9), 0)
+  assert.equal(startIndex(6, 3, 5), 4, 'the deck got shorter')
+  assert.equal(startIndex(null, 12, 5), 4)
+  assert.equal(startIndex(null, 3, 0), 2, 'unknown deck size: no clamp')
+  assert.equal(startIndex(null, 0, 9), 0)
+})
+
+await run('Present exit: the editing frame is moved to the slide the audience ended on, clamped to the deck, only if it differs', () => {
+  const exit = ({ active = false, ended, currentSlide, total, calls = [] }) => {
+    const ref = { current: ended }
+    new Function('presentViewOnlyActive', 'presentSlideIndexRef', 'presentSlideTotal', 'currentSlide', 'handleGoToSlide', 'clampPresentSlideIndex', exitEffectBody)(
+      active, ref, total, currentSlide, index => { calls.push(index) }, lib.clampPresentSlideIndex,
+    )
+    return { calls, ref: ref.current }
+  }
+  assert.deepEqual(exit({ ended: 6, currentSlide: 3, total: 9 }), { calls: [6], ref: null })
+  assert.deepEqual(exit({ ended: 2, currentSlide: 3, total: 9 }), { calls: [], ref: null }, 'already there: no navigation')
+  assert.deepEqual(exit({ ended: 7, currentSlide: 3, total: 5 }), { calls: [4], ref: null }, 'the deck got shorter: the last slide, not a missing one')
+  assert.deepEqual(exit({ ended: 7, currentSlide: 5, total: 5 }), { calls: [], ref: null }, 'clamped onto the slide the editing frame is already on')
+  assert.deepEqual(exit({ ended: 7, currentSlide: 3, total: 0 }), { calls: [7], ref: null }, 'unknown size: unchanged behaviour')
+  assert.deepEqual(exit({ ended: -3, currentSlide: 3, total: 9 }), { calls: [0], ref: null })
+  assert.deepEqual(exit({ ended: null, currentSlide: 3, total: 9 }), { calls: [], ref: null }, 'flag off / nothing reported: nothing happens')
+  assert.deepEqual(exit({ active: true, ended: 6, currentSlide: 3, total: 9 }), { calls: [], ref: 6 }, 'still presenting: nothing consumed')
+})
+
+await run('flag off: only the flag-gated overlay ever writes the Present slide index', () => {
+  const writes = viewer.match(/presentSlideIndexRef\.current = [^\n]*/g) ?? []
+  assert.deepEqual(writes.map(w => w.replace(/\s+/g, ' ')), [
+    'presentSlideIndexRef.current = null', // the exit effect consumes it
+    'presentSlideIndexRef.current = index }}', // only the overlay reports into it
+  ])
+  const overlay = between(viewer, '{presentViewOnlyActive && approvedIframeNavigationUrl && (', '\n                )}')
+  assert.match(overlay, /onSlideIndex=\{\(index\) => \{ presentSlideIndexRef\.current = index \}\}/)
 })
 
 await run('chat "Open" link and dashboard preview go through viewOnlyIfEnabled', () => {
