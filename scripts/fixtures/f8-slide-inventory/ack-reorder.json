@@ -1,0 +1,27 @@
+{
+ "request": {
+  "method": "PUT",
+  "path": "/api/presentations/{id}/slides/reorder",
+  "body": {
+   "from_index": 3,
+   "to_index": 2
+  }
+ },
+ "response": {
+  "success": true,
+  "message": "Slide moved from position 4 to 3",
+  "slide_order": [
+   "H2",
+   "C1",
+   "C1",
+   "C1"
+  ],
+  "slide_ids": [
+   "slide_8ea0a04600cf",
+   "slide_51f6389579d6",
+   "slide_f9561e229c9a",
+   "slide_d960ba5dbd63"
+  ],
+  "slide_count": 4
+ }
+}
