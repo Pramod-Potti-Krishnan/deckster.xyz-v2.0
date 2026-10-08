@@ -19,6 +19,7 @@
     "test:director-layout-url-ingress": "node scripts/test-director-layout-url-ingress.mjs",
     "test:layout-viewer-messaging": "node scripts/test-layout-viewer-messaging.mjs",
     "test:layout-viewer-url-policy": "node scripts/test-layout-viewer-url-policy.mjs",
+    "test:present-view-only": "node scripts/test-present-view-only.mjs",
     "test:builder-presentation-ownership": "node scripts/test-builder-presentation-ownership.mjs",
     "test:element-semantic-type": "node scripts/test-element-semantic-type.mjs",
     "test:element-geometry": "node scripts/test-element-geometry.mjs",
