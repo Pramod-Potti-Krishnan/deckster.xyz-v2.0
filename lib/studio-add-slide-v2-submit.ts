@@ -5,7 +5,8 @@
 //   - async only: the backend forces assume_on_missing on an async job, so this path never asks questions;
 //   - the accepted job is registered through the page's existing handleSlideComposerAccepted (placeholder, poller,
 //     watchdog, completion), never a second queue;
-//   - the wire insert_after_index is the REAL Layout anchor resolved at submit, not the popup's visual index.
+//   - the wire insert_after_index is the REAL Layout anchor resolved at submit, not the popup's visual index;
+//   - v2.0 asks no blocking questions: a needs_input reply is an error that says follow-ups come in v2.1.
 import { resolveSlideComposeVisualIndex, withAsyncSlideComposeFields, type SlideComposeVisualJob } from '@/lib/slide-compose-async'
 import {
   isAcceptedResponse,
@@ -15,11 +16,16 @@ import {
 } from '@/components/slide-generation-panel/compose-helpers'
 import {
   buildAddSlideV2ComposeBody,
+  type AddSlideV2BlankTarget,
   type AddSlideV2Request,
+  type AddSlideV2Settings,
   type AddSlideV2SubmitResult,
 } from '@/lib/studio-add-slide-v2'
 
 export const ADD_SLIDE_V2_COMPOSE_ENDPOINT = '/api/slides/compose'
+
+export const ADD_SLIDE_V2_NEEDS_INPUT_MESSAGE =
+  'This slide needs more detail than you gave. Follow-up questions are coming in v2.1. For now, add more detail to the box and try again.'
 
 export type AddSlideV2Anchor =
   | { ok: true; insertAfterIndex: number | null }
@@ -105,8 +111,8 @@ export async function submitAddSlideV2<TTheme>(
   }
   if (!response.ok) return FAIL(responseErrorMessage(data))
   if (isNeedsInputResponse(data)) {
-    // Async jobs cannot suspend for questions (the backend forces assume_on_missing); synchronous clarification is not wired.
-    return FAIL('The slide composer needs more information than this pop-up can collect yet.')
+    // Async jobs cannot suspend for questions (the backend forces assume_on_missing); v2.0 has no blocking questions.
+    return FAIL(ADD_SLIDE_V2_NEEDS_INPUT_MESSAGE)
   }
   if (!isAcceptedResponse(data)) return FAIL(responseErrorMessage(data))
   if (data.job_id !== jobId || data.session_id !== body.session_id
@@ -125,4 +131,42 @@ export async function submitAddSlideV2<TTheme>(
     request: asyncRequest,
   })
   return { ok: true }
+}
+
+// The Blank slide goes through the existing native Add. That path inserts at the visual slide number, which is
+// wrong whenever a pending or failed compose placeholder sits before the selection. With placeholders in play,
+// resolve the real Layout position exactly like Generate does (flag on only); without any, keep the old
+// default (undefined = the viewer's own position), so nothing changes for a deck with no placeholders.
+export function resolveAddSlideV2BlankTarget(input: {
+  presentationId: string | null
+  visualIndex: number
+  expectedVisualIndex: number
+  realSlideCount: number
+  jobs: Record<string, SlideComposeVisualJob>
+}): AddSlideV2BlankTarget {
+  const placeholders = Object.values(input.jobs).some(job => job.kind !== 'refine' && (job.status === 'building' || job.status === 'error'))
+  if (!input.presentationId || !placeholders) return { ok: true, position: undefined }
+  if (input.visualIndex !== input.expectedVisualIndex) {
+    return { ok: false, message: 'The selected slide changed. Check which slide the new one follows and try again.' }
+  }
+  const anchor = resolveAddSlideV2Anchor(input)
+  if (!anchor.ok) return { ok: false, message: anchor.message }
+  // position is the persisted 0-based insert position: right after the real anchor.
+  return { ok: true, position: (anchor.insertAfterIndex ?? -1) + 1 }
+}
+
+/** The two page-side hooks for the pop-up, built from the page's own state (one call site in app/builder/page.tsx). */
+export function createAddSlideV2Hooks(deps: AddSlideV2SubmitDeps & {
+  /** features.slideComposerEnabled && features.slideComposerAsyncEnabled */
+  generationEnabled: boolean
+  presentationId: string | null
+}): Pick<AddSlideV2Settings, 'submit' | 'resolveBlankTarget'> {
+  return {
+    submit: deps.generationEnabled ? request => submitAddSlideV2(request, deps) : undefined,
+    resolveBlankTarget: expectedVisualIndex => resolveAddSlideV2BlankTarget({
+      presentationId: deps.presentationId,
+      expectedVisualIndex,
+      ...deps.selection(),
+    }),
+  }
 }

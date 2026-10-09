@@ -1924,7 +1924,7 @@ export function PresentationViewer({
   }, [onEditModeChange, studioShell, beginStudioViewerInteraction])
 
   // Add slide handler
-  const handleAddSlide = useCallback(async (layoutId: SlideLayoutType) => {
+  const handleAddSlide = useCallback(async (layoutId: SlideLayoutType, options?: { position?: number }) => {
     const expectedOwner = renderSlideMutationOwner
     const expectedMountGeneration = slideMutationMountRef.current.generation
     const capturedFrame = studioShell ? captureStudioNativeSlideFrame() : null
@@ -2094,7 +2094,7 @@ export function PresentationViewer({
         'addSlide',
         {
           layout: layoutId,
-          position: currentSlide, // Insert after current slide (0-based in iframe)
+          position: options?.position ?? currentSlide, // Insert after current slide (0-based in iframe); J2 v2 Blank passes the real position
         },
         mutationId,
         { attempts: 12, delayMs: 250 },

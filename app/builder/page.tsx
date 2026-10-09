@@ -47,7 +47,7 @@ import { DirectorPresence } from '@/components/build-narration/director-presence
 import { cn } from '@/lib/utils'
 import { useToast } from '@/hooks/use-toast'
 import { SlideGenerationPanel, type SlideComposeAcceptedJob, type SlideComposeBuiltResult, type SlideComposePanelEvent, type StudioSlideBuiltSelection } from '@/components/slide-generation-panel'
-import { submitAddSlideV2 } from '@/lib/studio-add-slide-v2-submit'
+import { createAddSlideV2Hooks } from '@/lib/studio-add-slide-v2-submit'
 import { StudioFormatInspector, type StudioFormatTarget, type StudioFormatCommand } from '@/components/builder/studio-format-inspector'
 import type { StudioFormatSelectionHandle } from '@/lib/studio-format-native'
 import { TextBoxFormatPanel } from '@/components/textbox-format-panel'
@@ -7245,7 +7245,10 @@ function AuthenticatedBuilderContent({ authScopeUserId }: { authScopeUserId: str
                 useKnowledgeGraph: canUseKnowledgeGraph && knowledgeGraphEnabled,
               },
               themeProfileName: activeBuildThemeProfileForSelection?.name ?? null,
-              submit: features.slideComposerEnabled && features.slideComposerAsyncEnabled ? request => submitAddSlideV2(request, {
+              ...createAddSlideV2Hooks({
+                // `submit` needs the composer and its async mode; the Blank target resolver is always there.
+                generationEnabled: features.slideComposerEnabled && features.slideComposerAsyncEnabled,
+                presentationId: effectivePresentationId,
                 fetchImpl: (url, init) => fetch(url, init),
                 newJobId: () => crypto.randomUUID(),
                 captureSessionOwner: captureStudioSlideComposeSessionOwner,
@@ -7259,7 +7262,7 @@ function AuthenticatedBuilderContent({ authScopeUserId }: { authScopeUserId: str
                     : slideComposeJobsRef.current,
                 }),
                 onAccepted: handleSlideComposerAccepted,
-              }) : undefined,
+              }),
             } : undefined}
             onTextBoxSelected={(elementId, formatting, selectedComponentType) => {
               if (studioShell) closeStudioFormat()

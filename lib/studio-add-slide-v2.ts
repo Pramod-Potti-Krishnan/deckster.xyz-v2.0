@@ -142,7 +142,15 @@ export interface AddSlideV2Settings<TTheme = unknown> {
   themeProfileName: string | null
   /** The page supplies this only when the slide composer and its async mode are on. Absent = Generate stays disabled. */
   submit?: AddSlideV2Submit<TTheme>
+  /**
+   * Where the Blank slide goes, resolved by the page against its compose placeholders (flag on only). Absent =
+   * the old native Add position. `expectedVisualIndex` is the slide the pop-up shows as current.
+   */
+  resolveBlankTarget?: (expectedVisualIndex: number) => AddSlideV2BlankTarget
 }
+
+/** `position` is the persisted 0-based insert position for the native Add; undefined = keep the old default. */
+export type AddSlideV2BlankTarget = { ok: true; position: number | undefined } | { ok: false; message: string }
 
 /** What the Add Slide picker hands the pop-up entry: the page's settings plus what only the viewer knows. */
 export interface AddSlideV2EntryConfig<TTheme = unknown> {
@@ -152,10 +160,9 @@ export interface AddSlideV2EntryConfig<TTheme = unknown> {
   theme: TTheme
 }
 
-export type AddSlideV2Blocker = 'subtype-undecided' | 'empty-text' | 'no-session' | 'no-submit'
+export type AddSlideV2Blocker = 'empty-text' | 'no-session' | 'no-submit'
 
 export const ADD_SLIDE_V2_BLOCKER_COPY: Record<AddSlideV2Blocker, string> = {
-  'subtype-undecided': "This content style can't be generated yet. Choose another style.",
   'empty-text': 'Describe what the slide should say.',
   'no-session': 'No active builder session yet.',
   'no-submit': 'Slide generation is not available in this build.',
@@ -166,7 +173,6 @@ export function addSlideV2Blocker(
   context: Pick<AddSlideV2Context, 'sessionId'>,
   hasSubmit: boolean,
 ): AddSlideV2Blocker | null {
-  if (addSlideV2Selections(draft.slideType, activeAddSlideV2Subtype(draft)) === null) return 'subtype-undecided'
   // (e) J2-MAP item8: one trimmed, non-empty text for every slide type, hero types included.
   if (!draft.text.trim()) return 'empty-text'
   if (!context.sessionId) return 'no-session'
@@ -178,23 +184,20 @@ export function addSlideV2Blocker(
 // backend payload itself. A `submit` prop receives this request and owns the call.
 //
 // J2-MAP item8 status (RESULT-J2-MAP.md, streams/ops/evidence/J2-MAP/item8-wiring-20261009):
-//   (a) selections   title/section/closing/text/chart/infographic/image left/image right: mapped below.
-//                    TODO(J2-MAP-DECISION): `image` (image-led, no agreed canvas/content meaning) and content +
-//                    `auto` (global omission can still infer a hero; strict content-only has no backend constraint)
-//                    stay unmapped, so Generate is blocked for them until PROGRAM decides.
+//   (a) selections   mapped below. PROGRAM-1 rulings: Auto sends NO selections key (the Director chooses);
+//                    Image is a TEMP default of I1 + text_heavy_columns.
 //   (b) async        wired in lib/studio-add-slide-v2-submit.ts through the page's handleSlideComposerAccepted.
-//   (c) needs_input  async cannot ask (the backend forces assume_on_missing); a needs_input reply is reported as
-//                    an error. TODO(J2-MAP-DECISION): synchronous clarification is not wired.
+//   (c) needs_input  async cannot ask (the backend forces assume_on_missing): v2.0 has no blocking questions, a
+//                    needs_input reply is reported as an error that says follow-ups come in v2.1.
 //   (d) index        `anchorVisualIndex` here is visual; the page resolves the real Layout anchor at submit.
 //   (e) text         required for every type (blocker above).
-// Returns null while the request would be refused (empty text, no session, unmapped sub-type).
+// Returns null while the request would be refused (empty text, no session).
 export function buildAddSlideV2Request<TTheme>(
   draft: AddSlideV2Draft,
   context: AddSlideV2Context<TTheme>,
 ): AddSlideV2Request<TTheme> | null {
   const instruction = draft.text.trim()
   if (!instruction || !context.sessionId) return null
-  if (addSlideV2Selections(draft.slideType, activeAddSlideV2Subtype(draft)) === null) return null
   return {
     mode: 'generate',
     slideType: draft.slideType,
@@ -209,8 +212,7 @@ export function buildAddSlideV2Request<TTheme>(
 }
 
 // (a) The existing /api/slides/compose `selections` vocabulary, per J2-MAP item8 (a). The UX values
-// (`image_left`, `V1-image-text`, ...) are never sent. `undefined` = no selections (global Auto);
-// `null` = no agreed mapping yet.
+// (`image_left`, `V1-image-text`, ...) are never sent. An empty object means "send no selections key".
 export type AddSlideV2Selections = Record<string, string>
 
 const HERO_SELECTIONS: Record<'title' | 'section' | 'closing', AddSlideV2Selections> = {
@@ -219,12 +221,12 @@ const HERO_SELECTIONS: Record<'title' | 'section' | 'closing', AddSlideV2Selecti
   closing: { canvas_type: 'H3', content_type: 'hero' },
 }
 
-const CONTENT_SELECTIONS: Record<AddSlideV2ContentSubtype, AddSlideV2Selections | null> = {
-  // TODO(J2-MAP-DECISION): global Auto by omission would let the prompt pick a hero despite "Content";
-  // a strict content-only Auto needs a backend exclusion that does not exist.
-  auto: null,
-  // TODO(J2-MAP-DECISION): "Image-led" is not image-only (no such content type) and not a chosen I1/I2 default.
-  image: null,
+const CONTENT_SELECTIONS: Record<AddSlideV2ContentSubtype, AddSlideV2Selections> = {
+  // PROGRAM-1 ruling 1a: Auto = no selections at all; the Director chooses (so a prompt may still yield a hero).
+  auto: {},
+  // TEMP default (awaiting ELEMENT-3 full-image key)
+  // PROGRAM-1 ruling 1b: the wide image-left mixed canvas with a text companion.
+  image: { canvas_type: 'I1', content_type: 'text_heavy_columns' },
   image_left: { canvas_type: 'I1', content_type: 'text_heavy_columns' },
   image_right: { canvas_type: 'I2', content_type: 'text_heavy_columns' },
   chart: { canvas_type: 'C1', content_type: 'chart', chart_subtype: 'single' },
@@ -235,10 +237,9 @@ const CONTENT_SELECTIONS: Record<AddSlideV2ContentSubtype, AddSlideV2Selections 
 export function addSlideV2Selections(
   slideType: AddSlideV2Type,
   subtype: AddSlideV2ContentSubtype | null,
-): AddSlideV2Selections | null {
+): AddSlideV2Selections {
   if (slideType !== 'content') return { ...HERO_SELECTIONS[slideType] }
-  const selections = CONTENT_SELECTIONS[subtype ?? 'auto']
-  return selections ? { ...selections } : null
+  return { ...CONTENT_SELECTIONS[subtype ?? 'auto'] }
 }
 
 // The Slide panel's default (its `webSearchMaxQueries` state); the cap is not inherited from the chat.
@@ -269,15 +270,14 @@ export function buildAddSlideV2ComposeBody<TTheme>(
   request: AddSlideV2Request<TTheme>,
   insertAfterIndex: number | null,
 ): AddSlideV2ComposeBody<TTheme> | null {
+  if (!request.sessionId) return null
   const selections = addSlideV2Selections(request.slideType, request.contentSubtype)
-  if (!selections || !request.sessionId) return null
-  return {
+  const body: AddSlideV2ComposeBody<TTheme> = {
     session_id: request.sessionId,
     presentation_id: request.presentationId,
     insert_after_index: insertAfterIndex,
     instruction: request.instruction,
     theme: request.theme,
-    selections,
     research: {
       use_uploaded_documents: request.research.useUploadedDocuments,
       use_web_search: request.research.useWebSearch,
@@ -286,6 +286,9 @@ export function buildAddSlideV2ComposeBody<TTheme>(
       web_search_max_queries: ADD_SLIDE_V2_WEB_SEARCH_MAX_QUERIES,
     },
   }
+  // No selections = the key is absent, not an empty object (global Auto).
+  if (Object.keys(selections).length > 0) body.selections = selections
+  return body
 }
 
 export interface AddSlideV2ResearchRow {
@@ -320,6 +323,54 @@ export function describeAddSlideV2Theme(
     return selection.primary_hex ? `Brand ${selection.primary_hex}` : 'Custom theme'
   }
   return 'Deck default'
+}
+
+// The draft survives closing the pop-up: it lives in sessionStorage per session and deck, and is cleared only
+// after a successful Generate or an explicit Discard. Every storage access is guarded; a missing, blocked or
+// full storage just means no persistence.
+export interface AddSlideV2DraftStorage {
+  getItem(key: string): string | null
+  setItem(key: string, value: string): void
+  removeItem(key: string): void
+}
+
+export function addSlideV2DraftKey(sessionId: string | null, presentationId: string | null): string {
+  return `deckster.addSlideV2.draft.v1:${sessionId ?? 'no-session'}:${presentationId ?? 'no-deck'}`
+}
+
+export function isPristineAddSlideV2Draft(draft: AddSlideV2Draft): boolean {
+  const initial = initialAddSlideV2Draft()
+  return draft.slideType === initial.slideType && draft.contentSubtype === initial.contentSubtype && draft.text === initial.text
+}
+
+export function loadAddSlideV2Draft(storage: AddSlideV2DraftStorage | null, key: string): AddSlideV2Draft {
+  try {
+    const raw = storage?.getItem(key)
+    if (!raw) return initialAddSlideV2Draft()
+    const parsed: unknown = JSON.parse(raw)
+    if (!parsed || typeof parsed !== 'object') return initialAddSlideV2Draft()
+    const { slideType, contentSubtype, text } = parsed as Record<string, unknown>
+    if (typeof text !== 'string'
+      || !ADD_SLIDE_V2_SLIDE_TYPES.some(option => option.value === slideType)
+      || !ADD_SLIDE_V2_CONTENT_SUBTYPES.some(option => option.value === contentSubtype)) return initialAddSlideV2Draft()
+    return { slideType: slideType as AddSlideV2Type, contentSubtype: contentSubtype as AddSlideV2ContentSubtype, text }
+  } catch {
+    return initialAddSlideV2Draft()
+  }
+}
+
+export function saveAddSlideV2Draft(storage: AddSlideV2DraftStorage | null, key: string, draft: AddSlideV2Draft): void {
+  try {
+    if (!storage) return
+    if (isPristineAddSlideV2Draft(draft)) storage.removeItem(key)
+    else storage.setItem(key, JSON.stringify({ slideType: draft.slideType, contentSubtype: draft.contentSubtype, text: draft.text }))
+  } catch { /* storage unavailable or full: the draft just is not kept */ }
+}
+
+export function clearAddSlideV2Draft(storage: AddSlideV2DraftStorage | null, key: string): void {
+  try {
+    storage?.removeItem(key)
+  } catch { /* nothing to clear */ }
 }
 
 // P9, shown as a note in the pop-up.

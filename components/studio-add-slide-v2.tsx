@@ -2,9 +2,9 @@
 
 // J2 v2 scaffold: the generate-first Add Slide pop-up body (flag NEXT_PUBLIC_STUDIO_ADD_SLIDE_V2_ENABLED).
 // State, copy and the request seam live in lib/studio-add-slide-v2.ts; this file only draws them.
-// It renders no backend call: `submit` is a prop, and without one the Generate button stays disabled.
+// It makes no backend call itself: `submit` is a prop, and without one the Generate button stays disabled.
 import './studio-add-slide-v2.css'
-import { useId, useMemo, useReducer, useRef, useState, type KeyboardEvent } from 'react'
+import { useEffect, useId, useMemo, useReducer, useRef, useState, type KeyboardEvent } from 'react'
 import { Plus, Sparkles, Square, X } from 'lucide-react'
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
 import { cn } from '@/lib/utils'
@@ -16,31 +16,46 @@ import {
   ADD_SLIDE_V2_PROMPT_LABEL,
   ADD_SLIDE_V2_SLIDE_TYPES,
   addSlideV2Blocker,
+  addSlideV2DraftKey,
   addSlideV2PlacementNote,
   buildAddSlideV2Request,
+  clearAddSlideV2Draft,
   describeAddSlideV2Research,
   describeAddSlideV2Theme,
   initialAddSlideV2Draft,
+  isPristineAddSlideV2Draft,
+  loadAddSlideV2Draft,
   reduceAddSlideV2Draft,
+  saveAddSlideV2Draft,
   type AddSlideV2Context,
   type AddSlideV2Draft,
+  type AddSlideV2DraftStorage,
   type AddSlideV2EntryConfig,
   type AddSlideV2Submit,
 } from '@/lib/studio-add-slide-v2'
 
 export interface AddSlideV2PanelProps<TTheme = unknown> {
   context: AddSlideV2Context<TTheme>
-  /** TODO(J2-MAP): supplied by the builder page once generation is wired. Absent = Generate stays disabled. */
+  /** Supplied by the builder page when the composer and its async mode are on. Absent = Generate stays disabled. */
   submit?: AddSlideV2Submit<TTheme>
-  /** P6: the existing blank-slide insert path. */
-  onInsertBlank: () => void | Promise<void>
+  /** P6: the existing blank-slide insert path. A refusal ({ ok: false }) keeps the pop-up open and shows its message. */
+  onInsertBlank: () => void | Promise<void | { ok: false; message: string }>
   onClose: () => void
   disabled?: boolean
-  /** Test and preview seam; the pop-up opens on the defaults. */
+  /** Test and preview seam: a draft that wins over the stored one. */
   initialDraft?: AddSlideV2Draft
+  /** sessionStorage-like store for the draft. Default: the browser's sessionStorage; null = nothing is kept. */
+  storage?: AddSlideV2DraftStorage | null
 }
 
-const seedDraft = (draft?: AddSlideV2Draft) => draft ?? initialAddSlideV2Draft()
+// Reading the property itself can throw (blocked site data), so it is guarded like every other access.
+function browserSessionStorage(): AddSlideV2DraftStorage | null {
+  try {
+    return typeof window === 'undefined' ? null : window.sessionStorage
+  } catch {
+    return null
+  }
+}
 
 export function AddSlideV2Panel<TTheme = unknown>({
   context,
@@ -49,8 +64,11 @@ export function AddSlideV2Panel<TTheme = unknown>({
   onClose,
   disabled = false,
   initialDraft,
+  storage: storageProp,
 }: AddSlideV2PanelProps<TTheme>) {
-  const [draft, dispatch] = useReducer(reduceAddSlideV2Draft, initialDraft, seedDraft)
+  const [storage] = useState(() => (storageProp === undefined ? browserSessionStorage() : storageProp))
+  const draftKey = addSlideV2DraftKey(context.sessionId, context.presentationId)
+  const [draft, dispatch] = useReducer(reduceAddSlideV2Draft, undefined, () => initialDraft ?? loadAddSlideV2Draft(storage, draftKey))
   const [pending, setPending] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const ids = useId()
@@ -59,6 +77,22 @@ export function AddSlideV2Panel<TTheme = unknown>({
   const blocker = addSlideV2Blocker(draft, context, Boolean(submit))
   const busy = disabled || pending
   const researchRows = describeAddSlideV2Research(context.research)
+  const dirty = !isPristineAddSlideV2Draft(draft)
+
+  // Keep the draft across closing the pop-up; it clears only after a successful Generate or an explicit Discard.
+  useEffect(() => { saveAddSlideV2Draft(storage, draftKey, draft) }, [storage, draftKey, draft])
+
+  function discard() {
+    dispatch({ type: 'reset' })
+    clearAddSlideV2Draft(storage, draftKey)
+    setError(null)
+  }
+
+  async function insertBlank() {
+    if (busy) return
+    const outcome = await onInsertBlank()
+    if (outcome && outcome.ok === false) setError(outcome.message)
+  }
 
   async function generate() {
     if (busy || blocker) return
@@ -70,6 +104,7 @@ export function AddSlideV2Panel<TTheme = unknown>({
       const result = await submit(request)
       if (result.ok) {
         dispatch({ type: 'reset' })
+        clearAddSlideV2Draft(storage, draftKey)
         onClose()
       } else {
         setError(result.message)
@@ -187,13 +222,14 @@ export function AddSlideV2Panel<TTheme = unknown>({
           >
             <Sparkles size={14} aria-hidden="true" />{pending ? 'Generating…' : 'Generate slide'}
           </button>
+          {dirty && <button type="button" className="asv2-discard" disabled={busy} onClick={discard}>Discard draft</button>}
           {blocker && <p id={`${ids}-blocker`} className="asv2-blocker" data-blocker={blocker}>{ADD_SLIDE_V2_BLOCKER_COPY[blocker]}</p>}
         </div>
       </div>
 
       <footer className="asv2-footer">
         <span>Or start empty</span>
-        <button type="button" className="asv2-blank" disabled={busy} onClick={() => void onInsertBlank()}>
+        <button type="button" className="asv2-blank" disabled={busy} onClick={() => void insertBlank()}>
           <Square size={13} aria-hidden="true" />{ADD_SLIDE_V2_BLANK_LABEL}
         </button>
       </footer>
@@ -207,8 +243,8 @@ export interface AddSlideV2EntryProps<TTheme = unknown> {
   /** The picker is mid-insert (blank slide); same "Adding" state as today. */
   isAdding?: boolean
   className?: string
-  /** P6: the existing blank-slide insert path (the picker's "Insert Blank slide"). */
-  onInsertBlank: () => void | Promise<void>
+  /** P6: the existing blank-slide insert path; `position` is the real Layout position when placeholders are in play. */
+  onInsertBlank: (position?: number) => void | Promise<void>
 }
 
 /** The flag-on Add Slide entry: the toolbar button plus the generate-first pop-up. */
@@ -265,13 +301,17 @@ export function AddSlideV2Entry<TTheme = unknown>({
         }}
       >
         <AddSlideV2Panel
+          key={addSlideV2DraftKey(context.sessionId, context.presentationId)}
           context={context}
           submit={settings.submit}
           disabled={disabled || isAdding}
           onClose={() => setOpen(false)}
           onInsertBlank={async () => {
+            // Same resolution as Generate; a placeholder on screen has no real position, so refuse and say why.
+            const target = settings.resolveBlankTarget?.(Math.max(0, currentSlide - 1)) ?? { ok: true as const, position: undefined }
+            if (!target.ok) return { ok: false as const, message: target.message }
             setOpen(false)
-            await onInsertBlank()
+            await onInsertBlank(target.position)
           }}
         />
       </PopoverContent>
