@@ -320,6 +320,7 @@ function submitModule(submitSource, lib) {
   return load(submitSource, {
     imports: {
       '@/lib/slide-compose-async': load(read('../lib/slide-compose-async.ts')),
+      '@/lib/element-generation-timeout': load(read('../lib/element-generation-timeout.ts')),
       '@/components/slide-generation-panel/compose-helpers': load(read('../components/slide-generation-panel/compose-helpers.ts')),
       '@/lib/studio-add-slide-v2': lib,
     },
@@ -331,9 +332,12 @@ function submitSuite(sub, lib) {
   function harness(over = {}) {
     const calls = { fetch: [], accepted: [], order: [] }
     const deps = {
+      timeoutMs: over.timeoutMs,
       fetchImpl: async (url, init) => {
         calls.order.push('fetch'); calls.fetch.push({ url, init, body: JSON.parse(init.body) })
         if (over.fetchThrows) throw new Error('socket hang up')
+        if (over.hang) await new Promise((_, reject) => init.signal.addEventListener('abort', () => reject(new Error('aborted'))))
+        if (over.hangBody) return { ok: true, json: () => new Promise((_, reject) => init.signal.addEventListener('abort', () => reject(new Error('aborted')))) }
         return { ok: over.ok ?? true, json: over.badJson ? async () => { throw new Error('bad json') } : async () => over.reply ?? accepted('job-1') }
       },
       newJobId: () => 'job-1',
@@ -344,9 +348,15 @@ function submitSuite(sub, lib) {
     }
     return { deps, calls }
   }
-  const run = async (request, over) => { const h = harness(over); return { result: await sub.submitAddSlideV2(request, h.deps), calls: h.calls } }
+  // A submit that never settles must fail the test, not hang it.
+  const run = async (request, over) => {
+    const h = harness(over); let timer
+    const guard = new Promise((_, reject) => { timer = setTimeout(() => reject(new Error('submit never settled')), 2500) })
+    try { return { result: await Promise.race([sub.submitAddSlideV2(request, h.deps), guard]), calls: h.calls } } finally { clearTimeout(timer) }
+  }
   const refused = (r, text) => { check(assert.equal, r.result.ok, false); if (text) check(assert.match, r.result.message, text); check(assert.equal, r.calls.accepted.length, 0, 'nothing is registered'); }
   const jobAt = (target, over = {}) => ({ kind: 'compose', status: 'building', target_layout_index: target, ...over })
+  const blankFailed = (mod, make) => mod.resolveAddSlideV2BlankTarget({ presentationId: 'pres-1', visualIndex: 1, expectedVisualIndex: 1, realSlideCount: 4, jobs: { a: make(1, { status: 'error' }) } })
 
   return (async () => {
     // (b) happy path: one POST, the page's queue gets the accepted job with the WIRE request
@@ -409,6 +419,17 @@ function submitSuite(sub, lib) {
     const refineJob = await run(lib.buildAddSlideV2Request({ slideType: 'content', contentSubtype: 'chart', text: 'x' }, context({ currentSlide: 4 })),
       { selection: { visualIndex: 3, realSlideCount: 4, jobs: { a: jobAt(1, { kind: 'refine' }) } } })
     check(assert.equal, refineJob.calls.fetch[0].body.insert_after_index, 3, 'a refine overlay is no placeholder')
+    const failedSelected = await run(lib.buildAddSlideV2Request({ slideType: 'content', contentSubtype: 'chart', text: 'x' }, context({ currentSlide: 2 })),
+      { selection: { visualIndex: 1, realSlideCount: 4, jobs: { a: jobAt(1, { status: 'error' }) } } })
+    refused(failedSelected, /failed to generate/); check(assert.equal, failedSelected.calls.fetch.length, 0, 'a selected failed placeholder: block, and say it failed')
+    check(assert.equal, /still being generated/.test(failedSelected.result.message), false)
+    const failedAnchor = sub.resolveAddSlideV2Anchor({ presentationId: 'p', visualIndex: 1, realSlideCount: 4, jobs: { a: jobAt(1, { status: 'error' }) } })
+    check(assert.equal, failedAnchor.reason, 'failed-placeholder-selected')
+    // two placeholders: the message follows the SELECTED one, not any placeholder
+    const mixed = { a: jobAt(0, { status: 'error' }), b: jobAt(2) }
+    check(assert.equal, sub.resolveAddSlideV2Anchor({ presentationId: 'p', visualIndex: 0, realSlideCount: 4, jobs: mixed }).reason, 'failed-placeholder-selected', 'the failed one is selected')
+    check(assert.equal, sub.resolveAddSlideV2Anchor({ presentationId: 'p', visualIndex: 3, realSlideCount: 4, jobs: mixed }).reason, 'placeholder-selected', 'the pending one is selected')
+    check(assert.match, blankFailed(sub, jobAt).message, /failed to generate/, 'Blank says it failed too')
     const onPlaceholder = await run(lib.buildAddSlideV2Request({ slideType: 'content', contentSubtype: 'chart', text: 'x' }, context({ currentSlide: 2 })),
       { selection: { visualIndex: 1, realSlideCount: 4, jobs: { a: jobAt(1) } } })
     refused(onPlaceholder, /finished slide/); check(assert.equal, onPlaceholder.calls.fetch.length, 0, 'a selected placeholder has no anchor: block, never reuse the last real selection')
@@ -438,6 +459,32 @@ function submitSuite(sub, lib) {
     refused(await run(chart('x'), { badJson: true }), undefined)
     const threw = await run(chart('x'), { fetchThrows: true })
     refused(threw, /Couldn't confirm the slide was queued/); check(assert.equal, threw.calls.fetch.length, 1, 'no blind retry after a lost reply')
+    // (b) the backend's {detail} reaches the user; known fields still win; a dump is capped
+    const detailOf = async reply => (await run(chart('x'), { ok: false, reply })).result.message
+    check(assert.equal, await detailOf({ detail: 'Presentation not found' }), 'Presentation not found', 'FastAPI string detail is shown')
+    check(assert.equal, await detailOf({ detail: [{ loc: ['body', 'theme'], msg: 'Field required' }, { msg: 'Value is not valid' }] }), 'Field required; Value is not valid', 'validation detail list is shown')
+    check(assert.equal, await detailOf({ detail: { message: 'Session expired' } }), 'Session expired')
+    check(assert.equal, await detailOf({ error: 'Unauthorized', detail: 'ignored' }), 'Unauthorized', 'the fields the panel already reads win')
+    check(assert.equal, await detailOf({ errors: ['A', 'B'], detail: 'ignored' }), 'A; B')
+    check(assert.equal, await detailOf({ detail: '' }), 'Slide Composer failed', 'an empty detail falls back to the generic text')
+    check(assert.equal, await detailOf({ detail: 42 }), 'Slide Composer failed', 'a non-text detail falls back')
+    check(assert.equal, await detailOf(null), 'Slide Composer failed')
+    check(assert.equal, (await detailOf({ detail: 'x'.repeat(1000) })).length, 300, 'a long detail is capped')
+    const detailOn200 = await run(chart('x'), { reply: { detail: 'Quota exceeded' } })
+    refused(detailOn200, /Quota exceeded/)
+    // (c) the compose POST has a browser budget and a lost reply is never retried
+    const slow = await run(chart('x'), { hang: true, timeoutMs: 15 })
+    refused(slow, /didn't answer in time/); check(assert.equal, slow.result.message, sub.ADD_SLIDE_V2_TIMEOUT_MESSAGE)
+    check(assert.equal, slow.calls.fetch.length, 1, 'a timed-out POST is not retried')
+    check(assert.equal, slow.calls.fetch[0].init.signal.aborted, true, 'the request is aborted, not just abandoned')
+    const slowBody = await run(chart('x'), { hangBody: true, timeoutMs: 15 })
+    refused(slowBody, /didn't answer in time/); check(assert.equal, slowBody.calls.fetch.length, 1, 'a reply that stalls while reading is also bounded')
+    const fast = await run(chart('x'), { timeoutMs: 40 })
+    check(assert.equal, fast.result.ok, true)
+    await new Promise(resolve => setTimeout(resolve, 90))
+    check(assert.equal, fast.calls.fetch[0].init.signal.aborted, false, 'a prompt reply is not aborted later: the timer is cleared')
+    check(assert.equal, sub.ADD_SLIDE_V2_ACCEPT_TIMEOUT_MS, 30000, 'default budget = the existing fast element-generation timeout')
+    check(assert.notEqual, sub.ADD_SLIDE_V2_TIMEOUT_MESSAGE, sub.ADD_SLIDE_V2_LOST_REPLY_MESSAGE)
     // fences tied to the minted job and the request
     refused(await run(chart('x'), { reply: accepted('other-job') }), /Unexpected reply/)
     refused(await run(chart('x'), { reply: accepted('job-1', { session_id: 'sess-2' }) }), /Unexpected reply/)
@@ -685,7 +732,7 @@ check(assert.match, VIEWER, /position: options\?\.position \?\? currentSlide,/, 
 check(assert.match, PICKER, /position === undefined \? onAddSlide\('B1-blank'\) : onAddSlide\('B1-blank', \{ position \}\)/, 'only the pop-up passes a position')
 check(assert.equal, (PICKER.match(/onAddSlide\(layoutId\)/g) ?? []).length, 1, 'the old handleSelectLayout call is untouched')
 const withoutComments = source => source.replace(/\/\*[\s\S]*?\*\//g, '').replace(/^\s*\/\/.*$/gm, '')
-check(assert.equal, /fetch\(|\/api\/|XMLHttpRequest|sendBeacon|WebSocket/.test(withoutComments(PANEL) + withoutComments(LIB)), false, 'the scaffold makes no backend call')
+check(assert.equal, /fetch\(|\/api\/|XMLHttpRequest|sendBeacon|WebSocket/.test(withoutComments(PANEL) + withoutComments(LIB)), false, 'the pop-up and the lib make no backend call')
 
 // ---- 4. mutation check: every mutant must be caught ---------------------------------------------------------------
 const libMutants = [
@@ -759,7 +806,7 @@ const panelMutants = [
 ]
 const submitMutants = [
   ['session fence ignored', 'const isCurrentSession = deps.captureSessionOwner()', 'const isCurrentSession = () => true; deps.captureSessionOwner()'],
-  ['owner captured after the await', [['const isCurrentSession = deps.captureSessionOwner()', 'let isCurrentSession = () => true'], ['const data: unknown = await response.json().catch(() => null)\n', 'const data: unknown = await response.json().catch(() => null)\n  isCurrentSession = deps.captureSessionOwner()\n']]],
+  ['owner captured after the await', [['const isCurrentSession = deps.captureSessionOwner()', 'let isCurrentSession = () => true'], ['  if (timedOut) return FAIL(ADD_SLIDE_V2_TIMEOUT_MESSAGE)\n', '  if (timedOut) return FAIL(ADD_SLIDE_V2_TIMEOUT_MESSAGE)\n  isCurrentSession = deps.captureSessionOwner()\n']]],
   ['visual index used as the anchor', 'const anchor = resolveAddSlideV2Anchor({', 'const anchor = { ok: true as const, insertAfterIndex: request.anchorVisualIndex }\n  void ({'],
   ['selected placeholder allowed through', "if (resolved?.kind === 'compose') {", 'if (false) {'],
   ['popup/page selection mismatch ignored', 'if (request.presentationId && selection.visualIndex !== request.anchorVisualIndex) {', 'if (false) {'],
@@ -768,7 +815,7 @@ const submitMutants = [
   ['reply session not checked', 'data.session_id !== body.session_id', 'false'],
   ['reply deck not checked', 'data.presentation_id !== body.presentation_id', 'false'],
   ['admission ignored', 'if (!deps.isSessionAdmitted(body.session_id)) {', 'if (false) {'],
-  ['HTTP error ignored', 'if (!response.ok) return FAIL(responseErrorMessage(data))', ''],
+  ['HTTP error ignored', 'if (!response.ok) return FAIL(composeErrorMessage(data))', ''],
   ['popup request registered instead of the wire body', 'request: asyncRequest,', 'request: request as never,'],
   ['accepted job never registered', 'deps.onAccepted({', 'void ({'],
   ['sync assumption sent', 'withAsyncSlideComposeFields(body as unknown as Record<string, unknown>, jobId)', '({ ...body, job_id: jobId, assume_on_missing: false } as never)'],
@@ -780,9 +827,22 @@ const submitMutants = [
   ['Blank selection mismatch ignored', 'if (input.visualIndex !== input.expectedVisualIndex) {', 'if (false) {'],
   ['Blank allowed on a placeholder', 'if (!anchor.ok) return { ok: false, message: anchor.message }', "if (!anchor.ok) return { ok: true, position: undefined }"],
   ['a refine overlay counts as a placeholder', "job.kind !== 'refine' && (job.status === 'building'", "(job.status === 'building'"],
+  ['a built job counts as a placeholder', "job.status === 'building' || job.status === 'error')", "job.status === 'building' || job.status === 'error' || job.status === 'built')"],
   ['submit offered without generation enabled', 'submit: deps.generationEnabled ? request => submitAddSlideV2(request, deps) : undefined,', 'submit: request => submitAddSlideV2(request, deps),'],
   ['Blank resolver dropped from the factory', 'resolveBlankTarget: expectedVisualIndex => resolveAddSlideV2BlankTarget({', 'resolveBlankTarget: expectedVisualIndex => (() => ({ ok: true as const, position: undefined }))({'],
-  ['lost reply retried', "} catch {\n    // No reply: the job may exist.", "} catch {\n    if (!deps.fetchImpl) return FAIL('')\n    await deps.fetchImpl(ADD_SLIDE_V2_COMPOSE_ENDPOINT, { method: 'POST', headers: {}, body: '{}' })\n    // No reply: the job may exist."],
+  ['lost reply retried', '} catch {\n    return FAIL(timedOut', "} catch {\n    await deps.fetchImpl(ADD_SLIDE_V2_COMPOSE_ENDPOINT, { method: 'POST', headers: {}, body: '{}' })\n    return FAIL(timedOut"],
+  ['failed placeholder reads as pending', "if (selected?.kind === 'compose' && selected.job.status === 'error') {", 'if (false) {'],
+  ['every placeholder reads as failed', "selected?.kind === 'compose' && selected.job.status === 'error'", "selected?.kind === 'compose'"],
+  ['backend detail ignored', 'const detail = known ? null : detailText(body.detail)', 'const detail = null'],
+  ['backend detail beats the known fields', 'const detail = known ? null : detailText(body.detail)', 'const detail = detailText(body.detail)'],
+  ['backend detail not capped', 'return text.length > 300 ? `${text.slice(0, 297)}...` : text', 'return text'],
+  ['detail ignored on a refused 200', 'if (!isAcceptedResponse(data)) return FAIL(composeErrorMessage(data))', 'if (!isAcceptedResponse(data)) return FAIL(responseErrorMessage(data))'],
+  ['no abort signal', '      signal: controller.signal,\n', ''],
+  ['timeout never fires', 'setTimeout(() => { timedOut = true; controller.abort() }, deps.timeoutMs ?? ADD_SLIDE_V2_ACCEPT_TIMEOUT_MS)', 'setTimeout(() => {}, deps.timeoutMs ?? ADD_SLIDE_V2_ACCEPT_TIMEOUT_MS)'],
+  ['timeout reported as a lost reply', 'FAIL(timedOut ? ADD_SLIDE_V2_TIMEOUT_MESSAGE : ADD_SLIDE_V2_LOST_REPLY_MESSAGE)', 'FAIL(ADD_SLIDE_V2_LOST_REPLY_MESSAGE)'],
+  ['timer never cleared', '    clearTimeout(timer)\n', ''],
+  ['stalled body not bounded', '  if (timedOut) return FAIL(ADD_SLIDE_V2_TIMEOUT_MESSAGE)\n  if (!isCurrentSession()) {', '  if (!isCurrentSession()) {'],
+  ['budget is not the existing fast one', 'ADD_SLIDE_V2_ACCEPT_TIMEOUT_MS = FAST_ELEMENT_GENERATION_TIMEOUT_MS', 'ADD_SLIDE_V2_ACCEPT_TIMEOUT_MS = 300_000'],
   ['unmapped body still sent', 'if (!body) return FAIL("This slide can\'t be generated yet.")', ''],
 ]
 let caught = 0

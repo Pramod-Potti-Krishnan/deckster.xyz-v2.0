@@ -1,6 +1,6 @@
 "use client"
 
-// J2 v2 scaffold: the generate-first Add Slide pop-up body (flag NEXT_PUBLIC_STUDIO_ADD_SLIDE_V2_ENABLED).
+// J2 v2: the generate-first Add Slide pop-up body (flag NEXT_PUBLIC_STUDIO_ADD_SLIDE_V2_ENABLED).
 // State, copy and the request seam live in lib/studio-add-slide-v2.ts; this file only draws them.
 // It makes no backend call itself: `submit` is a prop, and without one the Generate button stays disabled.
 import './studio-add-slide-v2.css'

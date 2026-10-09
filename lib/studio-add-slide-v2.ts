@@ -1,6 +1,6 @@
 // J2 v2: generate-first "Add slide" pop-up (PK feedback J2-P1..P9, ops/program/J2-V2-FEEDBACK.md).
 //
-// Scaffold only. This file is import-free on purpose: the pop-up state, the copy tables and the single
+// This file is import-free on purpose: the pop-up state, the copy tables, the draft storage helpers and the single
 // adapter seam (`buildAddSlideV2Request`) are plain TypeScript so a node test can load them without a bundler.
 //
 // Flag NEXT_PUBLIC_STUDIO_ADD_SLIDE_V2_ENABLED (exact "true"; default off). Off = the existing Add Slide
