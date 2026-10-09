@@ -22,6 +22,7 @@ import {
 } from '@/components/slide-generation-panel/compose-helpers'
 import {
   buildAddSlideV2ComposeBody,
+  rememberAddSlideV2Follow,
   type AddSlideV2BlankTarget,
   type AddSlideV2Request,
   type AddSlideV2Settings,
@@ -115,8 +116,11 @@ export interface AddSlideV2SubmitDeps {
   isSessionAdmitted: (sessionId: string) => boolean
   /** The page's selection at submit time: visual index (placeholders count), real slide count, tracked compose jobs. */
   selection: () => { visualIndex: number; realSlideCount: number; jobs: Record<string, SlideComposeVisualJob> }
-  /** The page's handleSlideComposerAccepted. It returns nothing, so admission is tested before the call. */
-  onAccepted: (job: SlideComposeAcceptedJob) => void
+  /**
+   * The page's handleSlideComposerAccepted. It returns nothing, so admission is tested before the call. `meta` is
+   * the visual slide the user was on when they pressed Generate (DEC-P9: the viewer follows the new slide from there).
+   */
+  onAccepted: (job: SlideComposeAcceptedJob, meta: { submitVisualIndex: number }) => void
 }
 
 const FAIL = (message: string): AddSlideV2SubmitResult => ({ ok: false, message })
@@ -188,7 +192,7 @@ export async function submitAddSlideV2<TTheme>(
     target_slide_id: data.target_slide_id,
     title: body.instruction.slice(0, 72) || 'Composing slide',
     request: asyncRequest,
-  })
+  }, { submitVisualIndex: selection.visualIndex })
   return { ok: true }
 }
 
@@ -219,9 +223,18 @@ export function createAddSlideV2Hooks(deps: AddSlideV2SubmitDeps & {
   /** features.slideComposerEnabled && features.slideComposerAsyncEnabled */
   generationEnabled: boolean
   presentationId: string | null
+  /** The page's job -> visual slide map for DEC-P9 (the viewer follows the new slide). Absent = nothing is remembered. */
+  follow?: Map<string, number>
 }): Pick<AddSlideV2Settings, 'submit' | 'resolveBlankTarget'> {
+  const submitDeps: AddSlideV2SubmitDeps = {
+    ...deps,
+    onAccepted: (job, meta) => {
+      if (deps.follow) rememberAddSlideV2Follow(deps.follow, job.job_id, meta.submitVisualIndex)
+      deps.onAccepted(job, meta)
+    },
+  }
   return {
-    submit: deps.generationEnabled ? request => submitAddSlideV2(request, deps) : undefined,
+    submit: deps.generationEnabled ? request => submitAddSlideV2(request, submitDeps) : undefined,
     resolveBlankTarget: expectedVisualIndex => resolveAddSlideV2BlankTarget({
       presentationId: deps.presentationId,
       expectedVisualIndex,

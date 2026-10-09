@@ -1925,7 +1925,7 @@ export function PresentationViewer({
   }, [onEditModeChange, studioShell, beginStudioViewerInteraction])
 
   // Add slide handler
-  const handleAddSlide = useCallback(async (layoutId: SlideLayoutType, options?: { position?: number }) => {
+  const handleAddSlide = useCallback(async (layoutId: SlideLayoutType, options?: { position?: number; backgroundColor?: string }) => {
     const expectedOwner = renderSlideMutationOwner
     const expectedMountGeneration = slideMutationMountRef.current.generation
     const capturedFrame = studioShell ? captureStudioNativeSlideFrame() : null
@@ -2096,6 +2096,7 @@ export function PresentationViewer({
         {
           layout: layoutId,
           position: options?.position ?? currentSlide, // Insert after current slide (0-based in iframe); J2 v2 Blank passes the real position
+          ...(options?.backgroundColor ? { background_color: options.backgroundColor } : {}), // J2 v2 Blank: the deck theme's background
         },
         mutationId,
         { attempts: 12, delayMs: 250 },
