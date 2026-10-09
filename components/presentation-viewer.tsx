@@ -4735,6 +4735,7 @@ export function PresentationViewer({
                 composeJobs={composeJobs}
                 onRefineSlide={onRefineSlide}
                 keyBySlideId={railIdentityRows !== null}
+                livePreviewViewerUrl={approvedPresentationUrl}
               />
             )}
           </div>

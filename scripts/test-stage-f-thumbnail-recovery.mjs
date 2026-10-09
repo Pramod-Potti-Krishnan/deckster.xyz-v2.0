@@ -115,6 +115,9 @@ function strip(ref, studio) {
     '@/lib/slide-thumbnail-menu': pure(ref,'slide-thumbnail-menu'),
     './slide-layout-picker': {SLIDE_LAYOUTS:[]},
     '@/lib/studio-slide-title-label': {slideTitleLabel:title=>title},
+    // F9-A (live rail preview, flag NEXT_PUBLIC_STUDIO_RAIL_LIVE_PREVIEW_FALLBACK_ENABLED, default off): flag-off stubs; older refs never import them.
+    '@/lib/rail-live-preview': {STUDIO_RAIL_LIVE_PREVIEW_FALLBACK_ENABLED:false,railLivePreviewApplies:()=>false},
+    './rail-live-preview': {RailLivePreview:()=>null},
   }
   const parsed=ts.createSourceFile('strip.tsx',text,ts.ScriptTarget.Latest,true,ts.ScriptKind.TSX)
   for (const declaration of parsed.statements) {
