@@ -55,6 +55,7 @@ const route = load('../app/api/composer-library/[...path]/route.ts', {
       return ownedSession ? { id: query.where.id } : null
     } },
   } },
+  '@/lib/composer-long-brief': load('../lib/composer-long-brief.ts'),
   '@/lib/composer-library': contracts,
   '@/lib/composer-ditto': load('../lib/composer-ditto.ts'),
 })

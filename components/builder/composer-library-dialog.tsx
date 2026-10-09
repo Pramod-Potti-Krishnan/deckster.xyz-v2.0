@@ -15,6 +15,7 @@ import {
   COMPOSER_READY_KEY_PREFIX, composerReadyResult, composerRequest, requireComposerServiceUrl,
   validateComposerFile, waitForComposerJob, type ComposerJob, type ComposerTemplate,
 } from '@/lib/composer-library'
+import { composerBriefLengthValid, composerBriefLimitMessage, composerBriefMax } from '@/lib/composer-long-brief'
 import './studio-composer-library.css'
 
 interface PendingJob { job_id: string; session_id: string; kind: 'upload' | 'use' }
@@ -36,6 +37,7 @@ export function ComposerLibraryDialog({ open, onOpenChange }: {
   const [file, setFile] = useState<File | null>(null)
   const [newBrief, setNewBrief] = useState('')
   const [newTopicTemplateId, setNewTopicTemplateId] = useState<string | null>(null)
+  const longBriefEnabled = process.env.NEXT_PUBLIC_COMPOSER_LONG_BRIEF_ENABLED === 'true'
   const newTopicEnabled = process.env.NEXT_PUBLIC_COMPOSER_STAGE1B_NEW_TOPIC_ENABLED === 'true'
   const dittoEnabled = process.env.NEXT_PUBLIC_COMPOSER_STAGE1B_DITTO_ENABLED === 'true'
   const controllerRef = useRef<AbortController | null>(null)
@@ -130,8 +132,8 @@ export function ComposerLibraryDialog({ open, onOpenChange }: {
 
   const useTemplate = (template: ComposerTemplate, brief?: string) => {
     if (!userId || busy) return
-    if (brief !== undefined && (brief.trim().length < 20 || brief.trim().length > 4000)) {
-      setError('Describe the new presentation in 20 to 4,000 characters.')
+    if (brief !== undefined && !composerBriefLengthValid(brief, longBriefEnabled)) {
+      setError(composerBriefLimitMessage(longBriefEnabled))
       return
     }
     void run(async signal => {
@@ -199,7 +201,7 @@ export function ComposerLibraryDialog({ open, onOpenChange }: {
                 </div>
                 {newTopicEnabled && newTopicTemplateId === template.id && <div data-studio-composer-topic={studioShell ? 'true' : undefined} className="space-y-2">
                   <label htmlFor="composer-new-brief" className="text-sm font-medium">Describe the new presentation</label>
-                  <Textarea id="composer-new-brief" value={newBrief} disabled={busy} maxLength={4000}
+                  <Textarea id="composer-new-brief" value={newBrief} disabled={busy} maxLength={composerBriefMax(longBriefEnabled)}
                     placeholder="What is the topic, audience, and key message? Include any numbers you want shown."
                     onChange={event => setNewBrief(event.target.value)} />
                   <Button data-studio-composer-action={studioShell ? 'create' : undefined} size="sm" disabled={busy || newBrief.trim().length < 20}
