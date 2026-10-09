@@ -17,8 +17,8 @@ import {
  * which `eligible` does, so a frame never outlives the reason for it. Without an
  * IntersectionObserver nothing is ever mounted. Never throws, never makes a request.
  */
-export function useRailLivePreview(eligible: boolean): { hostRef: RefObject<HTMLSpanElement | null>; mounted: boolean } {
-  const hostRef = useRef<HTMLSpanElement | null>(null)
+export function useRailLivePreview(eligible: boolean): { hostRef: RefObject<HTMLDivElement | null>; mounted: boolean } {
+  const hostRef = useRef<HTMLDivElement | null>(null)
   const controllerRef = useRef<RailLivePreviewController | null>(null)
   const [mounted, setMounted] = useState(false)
 

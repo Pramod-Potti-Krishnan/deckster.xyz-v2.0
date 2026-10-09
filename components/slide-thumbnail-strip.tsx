@@ -647,10 +647,6 @@ export function SlideThumbnailStrip({
                   "h-0.5 w-1/2 rounded-sm",
                   isActive ? "bg-blue-300/70 dark:bg-blue-600/60" : "bg-slate-300/70 dark:bg-slate-600/60"
                 )} />
-                {STUDIO_RAIL_LIVE_PREVIEW_FALLBACK_ENABLED && STUDIO_THUMBNAILS && livePreviewViewerUrl
-                  && railLivePreviewApplies({ thumbnailStatus: slide.thumbnailStatus, thumbnailUrl }) && (
-                  <RailLivePreview viewerUrl={livePreviewViewerUrl} slideIndex={slideIndex} />
-                )}
               </>
             )}
 
@@ -733,6 +729,14 @@ export function SlideThumbnailStrip({
         </div>
         {STUDIO_THUMBNAILS && refineJob?.status === 'error' && (
           <ThumbnailFailureDetails slideNumber={visualNumber} kind="refine" reason={refineJob.errors?.filter(Boolean).join('; ') || 'Refinement failed'} />
+        )}
+        {/* F9-A: live mini-preview for a card that will never get a thumbnail. The last child of the card, so no existing
+            sibling changes position; a sibling of the button, not inside it (an iframe is not valid button content). It
+            lies over the preview area and takes no pointer events, so the card's click, drag and keyboard behaviour stay
+            the button's. A refining card keeps its own spinner. */}
+        {STUDIO_RAIL_LIVE_PREVIEW_FALLBACK_ENABLED && STUDIO_THUMBNAILS && livePreviewViewerUrl && !isRefining
+          && railLivePreviewApplies({ thumbnailStatus: slide.thumbnailStatus, thumbnailUrl }) && (
+          <RailLivePreview viewerUrl={livePreviewViewerUrl} slideIndex={slideIndex} />
         )}
       </div>
     )

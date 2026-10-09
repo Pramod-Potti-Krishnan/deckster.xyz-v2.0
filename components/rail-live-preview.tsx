@@ -44,7 +44,8 @@ function LiveFrame({ src, scale }: { src: string; scale: number }) {
  * Live mini-preview of one slide for a rail card that will never get a thumbnail (F9-A, flag
  * NEXT_PUBLIC_STUDIO_RAIL_LIVE_PREVIEW_FALLBACK_ENABLED). The strip renders this only for a card whose
  * inventory status is `none` and which holds no real thumbnail; when either stops being true the strip
- * stops rendering it, which unmounts the frame and frees its slot at once.
+ * stops rendering it, which unmounts the frame and frees its slot at once. It is an overlay on the card's
+ * 16:9 preview area (the card is its positioning parent), a sibling of the card's button.
  *
  * The frame is the view-only Layout viewer opened on `slideIndex`, laid out at the stage's own 1920x1080
  * and scaled down to the card. It cannot be clicked, focused or read by assistive technology: the card
@@ -71,16 +72,15 @@ export function RailLivePreview({ viewerUrl, slideIndex }: { viewerUrl: string; 
     return () => observer.disconnect()
   }, [hostRef])
 
-  // A span, not a div: the card styles its direct child divs as placeholder bars.
   return (
-    <span
+    <div
       ref={hostRef}
       aria-hidden="true"
       inert
       data-studio-rail-live-preview={mounted ? 'live' : 'idle'}
-      className="pointer-events-none absolute inset-0 block overflow-hidden"
+      className="pointer-events-none absolute inset-x-0 top-0 aspect-[16/9] overflow-hidden"
     >
       {mounted && src ? <LiveFrame key={src} src={src} scale={scale} /> : null}
-    </span>
+    </div>
   )
 }

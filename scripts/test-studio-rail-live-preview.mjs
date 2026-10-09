@@ -409,12 +409,12 @@ function componentSuite(overrides) {
   check(assert.match, frame, /opacity:0/, 'hidden until the viewer has loaded')
   check(assert.match, frame, /data-studio-rail-live-frame="loading"/)
   check(assert.doesNotMatch, frame, /sandbox|allow=/, 'same frame attributes as the canvas viewer')
-  const host = html.match(/^<span[^>]*>/)?.[0]
-  check(assert.ok, host, 'the host is a span (the card styles direct child divs)')
+  const host = html.match(/^<div[^>]*>/)?.[0]
+  check(assert.ok, host, 'the host is the overlay div')
   check(assert.match, host, /aria-hidden="true"/)
   check(assert.match, host, /inert=""/)
   check(assert.match, host, /data-studio-rail-live-preview="live"/)
-  check(assert.match, host, /class="pointer-events-none absolute inset-0 block overflow-hidden"/)
+  check(assert.match, host, /class="pointer-events-none absolute inset-x-0 top-0 aspect-\[16\/9\] overflow-hidden"/, 'an overlay on the card\'s 16:9 preview area')
 
   const idleCalls = []
   const idle = componentWorld(overrides, { mounted: false, calls: idleCalls })
@@ -503,17 +503,30 @@ function stripSuite(overrides) {
   const offJobs = render(Off, ROWS, { livePreviewViewerUrl: VIEWER_URL, composeJobs: jobs, keyBySlideId: true })
   check(assert.equal, offJobs, render(Off, ROWS, { composeJobs: jobs, keyBySlideId: true }))
 
-  // the real component inside the real strip: an idle host right after the placeholder bars, never a direct child div
+  // the real component inside the real strip: an idle overlay host, a sibling of the card's button (an iframe is not valid button content)
   const Real = stripWorld(overrides, { stubLive: false })
   const realHtml = render(Real, ROWS, { livePreviewViewerUrl: VIEWER_URL })
   const realCards = cardsOf(realHtml)
   const hosts = realCards.map(card => (card.match(/data-studio-rail-live-preview="idle"/g) ?? []).length)
   check(assert.deepEqual, hosts, [0, 0, 1, 0, 0, 0, 1], 'one preview host on each none card without an image')
-  check(assert.match, realCards[2], /<span aria-hidden="true" inert="" data-studio-rail-live-preview="idle" class="pointer-events-none absolute inset-0 block overflow-hidden"><\/span>/)
-  check(assert.match, realCards[2], /class="h-0\.5 w-1\/2 rounded-sm[^"]*"><\/div><span aria-hidden="true" inert=""/, 'after the placeholder bars, inside the preview')
+  const hostRe = /<div aria-hidden="true" inert="" data-studio-rail-live-preview="idle" class="pointer-events-none absolute inset-x-0 top-0 aspect-\[16\/9\] overflow-hidden"><\/div>/
+  check(assert.match, realCards[2], hostRe)
+  check(assert.match, realCards[2], new RegExp(`</button><div data-studio-thumbnail-caption="true"[\\s\\S]*${hostRe.source}</div><div `), 'the last child of the card: after the button and the title row, so no existing sibling changes position')
+  for (const card of realCards) {
+    const button = card.slice(card.indexOf('<button data-studio-thumbnail-navigation'), card.indexOf('</button>'))
+    check(assert.ok, button.length > 0 && !button.includes('data-studio-rail-live-preview') && !button.includes('<iframe'), 'nothing of the preview inside the card button')
+  }
   check(assert.doesNotMatch, realHtml, /<iframe/, 'nothing is mounted without a visible card')
-  check(assert.equal, render(Real, ROWS, { livePreviewViewerUrl: VIEWER_URL }).replace(/<span aria-hidden="true" inert="" data-studio-rail-live-preview="idle"[^>]*><\/span>/g, ''),
+  check(assert.equal, render(Real, ROWS, { livePreviewViewerUrl: VIEWER_URL }).replace(new RegExp(hostRe.source, 'g'), ''),
     render(Off, ROWS), 'apart from the hosts, the markup is the flag-off markup')
+
+  // a card that is being refined keeps its own spinner: no preview over it
+  const refining = [{ jobId: 'r1', kind: 'refine', status: 'building', targetSlideId: 's3', targetIndex: 2, targetLayoutIndex: 2, lastProgressText: 'Refining slide' }]
+  const refined = render(On, ROWS, { livePreviewViewerUrl: VIEWER_URL, composeJobs: refining })
+  const refinedCards = cardsOf(refined)
+  check(assert.doesNotMatch, refinedCards[2], /data-stub-live/, 'a refining card shows no live preview over its spinner')
+  check(assert.match, refinedCards[2], /data-studio-thumbnail-refining/)
+  check(assert.match, refinedCards[6], /data-stub-live/, 'other none cards still do')
 }
 
 // ---------------------------------------------------------------- source guards (wiring and "no extra calls")
@@ -530,8 +543,10 @@ function guardSuite(sources) {
   check(assert.match, sources.lib ?? SRC.lib, /import \{ presentFrameUrl \} from '@\/lib\/present-view-only'/, 'the existing view-only URL builder')
   check(assert.match, sources.lib ?? SRC.lib, /import \{ evaluateLayoutViewerUrl, type LayoutViewerUrlPolicy \} from '@\/lib\/layout-viewer-url-policy'/)
   const strip = sources.strip ?? SRC.strip
+  check(assert.match, strip, /<RailLivePreview viewerUrl=\{livePreviewViewerUrl\} slideIndex=\{slideIndex\} \/>\n\s+\)\}\n      <\/div>\n    \)\n\n    \/\/ Wrap with context menu/,
+    'the overlay is the last child of the card (a child added earlier would shift later siblings and their React ids even with the flag off)')
   check(assert.equal, (strip.match(/RailLivePreview/g) ?? []).length, 2, 'one import, one use in the strip')
-  check(assert.match, strip, /\{STUDIO_RAIL_LIVE_PREVIEW_FALLBACK_ENABLED && STUDIO_THUMBNAILS && livePreviewViewerUrl\n\s+&& railLivePreviewApplies\(\{ thumbnailStatus: slide\.thumbnailStatus, thumbnailUrl \}\) && \(/)
+  check(assert.match, strip, /\{STUDIO_RAIL_LIVE_PREVIEW_FALLBACK_ENABLED && STUDIO_THUMBNAILS && livePreviewViewerUrl && !isRefining\n\s+&& railLivePreviewApplies\(\{ thumbnailStatus: slide\.thumbnailStatus, thumbnailUrl \}\) && \(/)
 }
 
 function fullSuite(overrides = {}, only = ['lib', 'hook', 'component', 'strip', 'guard']) {
@@ -560,10 +575,11 @@ const mutants = [
   ['gate: a real thumbnail does not block the frame', 'lib', "return !(typeof row.thumbnailUrl === 'string' && row.thumbnailUrl.trim())", 'return true', ['lib', 'strip']],
   ['gate: a blank url counts as a thumbnail', 'lib', 'row.thumbnailUrl.trim())', 'row.thumbnailUrl)', ['lib']],
   ['gate: the strip skips the gate', 'strip', '&& railLivePreviewApplies({ thumbnailStatus: slide.thumbnailStatus, thumbnailUrl }) && (', '&& (', ['strip', 'guard']],
-  ['gate: the strip replaces a real thumbnail', 'strip', '{thumbnailUrl ? (', "{thumbnailUrl && !(STUDIO_RAIL_LIVE_PREVIEW_FALLBACK_ENABLED && livePreviewViewerUrl && slide.thumbnailStatus === 'none') ? (", ['strip']],
+  ['gate: the strip does not tell the gate about the thumbnail', 'strip', 'thumbnailStatus: slide.thumbnailStatus, thumbnailUrl })', 'thumbnailStatus: slide.thumbnailStatus })', ['strip', 'guard']],
+  ['gate: a refining card gets a preview over its spinner', 'strip', 'livePreviewViewerUrl && !isRefining\n', 'livePreviewViewerUrl\n', ['strip', 'guard']],
   ['gate: the strip ignores the flag', 'strip', '{STUDIO_RAIL_LIVE_PREVIEW_FALLBACK_ENABLED && STUDIO_THUMBNAILS && livePreviewViewerUrl', '{STUDIO_THUMBNAILS && livePreviewViewerUrl', ['strip', 'guard']],
   ['gate: the strip ignores the Studio shell', 'strip', '{STUDIO_RAIL_LIVE_PREVIEW_FALLBACK_ENABLED && STUDIO_THUMBNAILS && livePreviewViewerUrl', '{STUDIO_RAIL_LIVE_PREVIEW_FALLBACK_ENABLED && livePreviewViewerUrl', ['strip', 'guard']],
-  ['gate: the strip renders without a viewer URL', 'strip', 'STUDIO_THUMBNAILS && livePreviewViewerUrl\n', 'STUDIO_THUMBNAILS\n', ['strip', 'guard']],
+  ['gate: the strip renders without a viewer URL', 'strip', 'STUDIO_THUMBNAILS && livePreviewViewerUrl && !isRefining', 'STUDIO_THUMBNAILS && !isRefining', ['strip', 'guard']],
   ['gate: the strip passes the wrong URL', 'strip', 'viewerUrl={livePreviewViewerUrl}', "viewerUrl={'https://layout.uat.test/p/other'}", ['strip']],
   ['index: the strip uses the visual number', 'strip', 'slideIndex={slideIndex}', 'slideIndex={visualNumber - 1}', ['strip']],
   ['index: the strip uses a 1-based number', 'strip', 'slideIndex={slideIndex}', 'slideIndex={realSlideNumber}', ['strip']],
@@ -613,7 +629,7 @@ const mutants = [
   ['markup: the host takes pointer events', 'component', 'className="pointer-events-none absolute', 'className="absolute', ['component']],
   ['markup: the host is exposed to assistive technology', 'component', '      aria-hidden="true"\n      inert', '      inert', ['component']],
   ['markup: the host is not inert', 'component', '      inert\n', '', ['component']],
-  ['markup: the host is a div', 'component', ['<span\n      ref={hostRef}', '    </span>'], ['<div\n      ref={hostRef}', '    </div>'], ['component']],
+  ['markup: the host does not cover the preview area', 'component', 'absolute inset-x-0 top-0 aspect-[16/9] overflow-hidden', 'absolute inset-0 overflow-hidden', ['component']],
   ['markup: not scaled', 'component', 'transform: `scale(${scale})`', "transform: 'none'", ['component']],
   ['markup: not laid out at the stage size', 'component', 'width: RAIL_LIVE_PREVIEW_STAGE.width,', 'width: 100,', ['component']],
   ['markup: shown before it has loaded', 'component', 'opacity: loaded ? 1 : 0', 'opacity: 1', ['component']],
@@ -622,6 +638,14 @@ const mutants = [
   ['wiring: the viewer never passes the URL', 'viewer', 'livePreviewViewerUrl={approvedPresentationUrl}', '', ['guard']],
   ['url: the allow-list is bypassed', 'lib', "import { evaluateLayoutViewerUrl, type LayoutViewerUrlPolicy } from '@/lib/layout-viewer-url-policy'", "import { type LayoutViewerUrlPolicy } from '@/lib/layout-viewer-url-policy'\nconst evaluateLayoutViewerUrl = (value: string) => ({ status: 'allowed', url: value })", ['lib', 'guard']],
 ]
+
+const OVERLAY_START = SRC.strip.indexOf('        {/* F9-A: live mini-preview for a card')
+const OVERLAY_END = SRC.strip.indexOf('        )}\n      </div>\n', OVERLAY_START) + '        )}\n'.length
+const OVERLAY_BLOCK = SRC.strip.slice(OVERLAY_START, OVERLAY_END)
+const TITLE_ROW = '        {/* Title row below the preview: [number] [title…] [⋯] */}\n'
+const BUTTON_END = '        </button>\n\n'
+mutants.push(['gate: the preview sits inside the card button', 'strip', [OVERLAY_BLOCK, BUTTON_END + TITLE_ROW], ['', OVERLAY_BLOCK + BUTTON_END + TITLE_ROW], ['strip', 'guard']])
+mutants.push(['gate: the overlay is a child before the title row', 'strip', [OVERLAY_BLOCK, TITLE_ROW], ['', OVERLAY_BLOCK + TITLE_ROW], ['strip', 'guard']])
 
 let caught = 0
 for (const [name, key, from, to, suites] of mutants) {
