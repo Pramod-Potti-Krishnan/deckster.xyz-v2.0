@@ -48,8 +48,15 @@ export function useGenerationPanel() {
   const studio = process.env.NEXT_PUBLIC_STUDIO_V4_SHELL === 'true'
   const panelIntentRevisionRef = useRef(0)
   const getIntentRevision = useCallback(() => panelIntentRevisionRef.current, [])
+  // Draft persistence changes intent without transferring the panel to a new
+  // owner. Failure recovery must distinguish it from close/open/add actions.
+  const panelOwnershipRevisionRef = useRef(0)
+  const getPanelOwnershipRevision = useCallback(() => panelOwnershipRevisionRef.current, [])
   const claimInsertionIntent = useCallback(() => {
-    if (studio) panelIntentRevisionRef.current += 1
+    if (studio) {
+      panelIntentRevisionRef.current += 1
+      panelOwnershipRevisionRef.current += 1
+    }
     return panelIntentRevisionRef.current
   }, [studio])
   const [isOpen, setIsOpen] = useState(false)
@@ -178,7 +185,10 @@ export function useGenerationPanel() {
 
   /** Open panel for a specific blank element on the canvas */
   const openPanelForElement = useCallback((type: TextLabsComponentType, elementId: string) => {
-    if (studio) panelIntentRevisionRef.current += 1
+    if (studio) {
+      panelIntentRevisionRef.current += 1
+      panelOwnershipRevisionRef.current += 1
+    }
     const nextDraftKey = `blank:${elementId}`
     const sameTarget = draftKey === nextDraftKey && elementType === type
     setElementType(type)
@@ -194,7 +204,10 @@ export function useGenerationPanel() {
 
   /** Keep the current draft when Layout replaces the same placeholder identity. */
   const resumePanelForElement = useCallback((type: TextLabsComponentType, elementId: string) => {
-    if (studio) panelIntentRevisionRef.current += 1
+    if (studio) {
+      panelIntentRevisionRef.current += 1
+      panelOwnershipRevisionRef.current += 1
+    }
     const previousKey = draftKey
     const nextDraftKey = `blank:${elementId}`
     if (previousKey && previousKey !== nextDraftKey) {
@@ -214,7 +227,10 @@ export function useGenerationPanel() {
 
   /** Open panel in edit mode for an existing element */
   const openPanelForEdit = useCallback((type: TextLabsComponentType, elementId: string) => {
-    if (studio) panelIntentRevisionRef.current += 1
+    if (studio) {
+      panelIntentRevisionRef.current += 1
+      panelOwnershipRevisionRef.current += 1
+    }
     const nextDraftKey = `element:${elementId}`
     const sameTarget = draftKey === nextDraftKey && elementType === type
     setElementType(type)
@@ -230,7 +246,10 @@ export function useGenerationPanel() {
 
   /** Open panel in refine mode for an existing element. */
   const openPanelForRefine = useCallback((type: TextLabsComponentType, context: RefineContext) => {
-    if (studio) panelIntentRevisionRef.current += 1
+    if (studio) {
+      panelIntentRevisionRef.current += 1
+      panelOwnershipRevisionRef.current += 1
+    }
     const nextDraftKey = `element:${context.elementId}`
     const sameTarget = draftKey === nextDraftKey && elementType === type
     setElementType(type)
@@ -255,13 +274,19 @@ export function useGenerationPanel() {
   }, [activateDraftKey, draftKey, elementType, normalizeResearchForType, studio])
 
   const closePanel = useCallback(() => {
-    if (studio) panelIntentRevisionRef.current += 1
+    if (studio) {
+      panelIntentRevisionRef.current += 1
+      panelOwnershipRevisionRef.current += 1
+    }
     setIsOpen(false)
     setError(null)
   }, [studio])
 
   const changeElementType = useCallback((type: TextLabsComponentType) => {
-    if (studio) panelIntentRevisionRef.current += 1
+    if (studio) {
+      panelIntentRevisionRef.current += 1
+      panelOwnershipRevisionRef.current += 1
+    }
     setElementType(type)
     setDraftKey(null)
     setActivationId(previous => previous + 1)
@@ -280,7 +305,10 @@ export function useGenerationPanel() {
       nextRefineContext,
     )
     if (!next) return
-    if (studio) panelIntentRevisionRef.current += 1
+    if (studio) {
+      panelIntentRevisionRef.current += 1
+      panelOwnershipRevisionRef.current += 1
+    }
 
     const nextDraftKey = `element:${nextRefineContext.elementId}`
     const previousDraftKey = `blank:${replacedPlaceholderId}`
@@ -336,6 +364,8 @@ export function useGenerationPanel() {
     changeElementType,
     getSnapshot,
     getIntentRevision,
+    getPanelOwnershipRevision,
+    panelOwnershipRevision: panelOwnershipRevisionRef.current,
     claimInsertionIntent,
     updateCurrentDraft,
     rememberDraftForElement,

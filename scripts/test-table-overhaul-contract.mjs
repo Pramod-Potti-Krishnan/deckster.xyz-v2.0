@@ -191,13 +191,53 @@ assert.equal(timeoutPolicy.resolveElementGenerationTimeoutMs('TABLE', 'off'), 30
 assert.match(generationSource, /const generationTimeoutMs = resolveElementGenerationTimeoutMs\(\s*formData\.componentType,\s*effectiveResearchMode,?\s*\)/,
   'the generation hook uses the actual shared timeout policy')
 assert.match(generationSource, /restoredBlankElementId = await restoreBlankElementAfterFailure/)
-assert.match(
-  generationSource,
-  /generationPanel\.resumePanelForElement\(recoveryBlankInfo\.componentType, restoredBlankElementId\)/,
-  'failed generation resumes the restored placeholder panel before publishing the error',
-)
-assert.ok(generationSource.indexOf('generationPanel.resumePanelForElement(recoveryBlankInfo.componentType, restoredBlankElementId)')
-  < generationSource.indexOf('setGenerationError(errorMessage)'), 'recovery still precedes final error publication')
+// Recovery now routes through an ownership-safe helper, and ON publishes before
+// awaited cleanup. Check the actual helper handoff and the legacy OFF ordering
+// separately instead of assuming every error is first published after recovery.
+const generationAst = ts.createSourceFile('generation.ts', generationSource, ts.ScriptTarget.Latest, true)
+function findNode(root, predicate) {
+  if (predicate(root)) return root
+  let found
+  ts.forEachChild(root, child => { found ??= findNode(child, predicate) })
+  return found
+}
+const resumeHelper = findNode(generationAst, node => ts.isVariableDeclaration(node)
+  && node.name.getText(generationAst) === 'resumeFailedPanel')
+assert.ok(resumeHelper && ts.isArrowFunction(resumeHelper.initializer))
+const resumeCall = findNode(resumeHelper, node => ts.isCallExpression(node)
+  && node.expression.getText(generationAst) === 'generationPanel.resumePanelForElement')
+assert.ok(resumeCall, 'recovered TABLE placeholders can reopen their persisted draft')
+assert.deepEqual(resumeCall.arguments.map(argument => argument.getText(generationAst)), ['type', 'elementId'])
+const helperErrorRestore = findNode(resumeHelper, node => ts.isCallExpression(node)
+  && node.expression.getText(generationAst) === 'setGenerationError'
+  && node.arguments[0]?.getText(generationAst) === 'message')
+const helperRetryRestore = findNode(resumeHelper, node => ts.isCallExpression(node)
+  && node.expression.getText(generationAst) === 'generationPanel.setRetryStrategy'
+  && node.arguments[0]?.getText(generationAst) === 'retryStrategy')
+assert.ok(helperErrorRestore && helperErrorRestore.pos > resumeCall.pos,
+  'immediate error is restored after resume clears the panel')
+assert.ok(helperRetryRestore && helperRetryRestore.pos > resumeCall.pos,
+  'retry/recovery strategy survives the resume handoff')
+const recoveryResume = findNode(generationAst, node => ts.isCallExpression(node)
+  && node.expression.getText(generationAst) === 'resumeFailedPanel'
+  && node.arguments[1]?.getText(generationAst) === 'restoredBlankElementId')
+assert.ok(recoveryResume, 'the restored identity, not the deleted placeholder, resumes')
+assert.deepEqual(recoveryResume.arguments.map(argument => argument.getText(generationAst)),
+  ['recoveryBlankInfo.componentType', 'restoredBlankElementId', 'errorMessage', 'errorRetryStrategy'])
+const restoreCall = findNode(generationAst, node => ts.isCallExpression(node)
+  && node.expression.getText(generationAst) === 'restoreBlankElementAfterFailure')
+const publicationBranch = findNode(generationAst, node => ts.isIfStatement(node)
+  && node.expression.getText(generationAst) === 'immediateFailureFeedbackEnabled'
+  && node.elseStatement
+  && Boolean(findNode(node.thenStatement, child => ts.isCallExpression(child)
+    && child.expression.getText(generationAst) === 'publishImmediateFailure'
+    && child.arguments[0]?.getText(generationAst) === 'errorMessage')))
+assert.ok(restoreCall && publicationBranch && publicationBranch.pos > restoreCall.pos,
+  'legacy OFF error publication remains after attempted restoration')
+assert.ok(findNode(publicationBranch.elseStatement, node => ts.isCallExpression(node)
+  && node.expression.getText(generationAst) === 'setGenerationError'
+  && node.arguments[0]?.getText(generationAst) === 'errorMessage'),
+  'OFF still publishes the original failure after recovery')
 assert.match(generationPanelHookSource, /draftsRef = useRef<Map<string, GenerationPanelDraft>>/)
 assert.match(generationPanelHookSource, /`blank:\$\{elementId\}`/)
 assert.match(generationPanelHookSource, /`element:\$\{elementId\}`/)
