@@ -9,6 +9,7 @@ import { THEME_TOKENS, ThemePreview, ThemeSwatches, themePreviewPalette, type Th
 import { StudioWorkflowAction } from './studio-workflow-action'
 import { libraryAccountCanStart, libraryAccountIsCurrent, useStudioLibraryAccount } from './library-account-boundary'
 import { keepStudioScrollFocusVisible } from '@/lib/studio-inspector-focus'
+import { THEME_FONT_FAMILIES, THEME_FONT_SELECTION_ENABLED, ensureThemeFontStylesheet, setThemeFont, themeFontCss, themeFontRefusal, themeFontsEqual, type ThemeFontField } from '@/lib/theme-fonts'
 import './themes-fidelity.css'
 
 const INITIAL_THEME: BuildThemeSelection = { mode: 'preset', preset_id: 'minimal' }
@@ -44,8 +45,22 @@ function ColorField({ label, value, fallback, onChange, onReset }: {
   </div>
 }
 
+// J4-FONTS: heading and body pickers (NEXT_PUBLIC_THEME_FONT_SELECTION_ENABLED). "Theme default" clears the field, so it is
+// absent from the saved theme and the base theme keeps its own font. Mounted only with the flag on, so it owns its stylesheet effect.
+function FontFields({ draft, onChange }: { draft: BuildThemeSelection; onChange: (next: BuildThemeSelection) => void }) {
+  useEffect(() => { ensureThemeFontStylesheet() }, [])
+  const picker = (field: ThemeFontField, label: string) => {
+    const chosen = draft[field]
+    return <label className="sl-field">{label}<select value={chosen ?? ''} style={chosen ? { fontFamily: themeFontCss(chosen) } : undefined} onChange={event => onChange(setThemeFont(draft, field, event.target.value))}>
+      <option value="">Theme default</option>{THEME_FONT_FAMILIES.map(family => <option key={family} value={family} style={{ fontFamily: themeFontCss(family) }}>{family}</option>)}
+    </select></label>
+  }
+  return <><div className="sl-two-fields" data-theme-font-fields="true">{picker('font_family_heading', 'Heading font')}{picker('font_family', 'Body font')}</div>
+    <p className="sl-helper">Theme default keeps the base theme&apos;s own font. Your picks apply to new presentations built with this theme.</p></>
+}
+
 export function ThemesWorkspace() {
-  const { listThemes, saveTheme, setStandardTheme, clearStandardTheme } = useThemeProfiles()
+  const { error: profilesError, listThemes, saveTheme, setStandardTheme, clearStandardTheme } = useThemeProfiles()
   const account = useStudioLibraryAccount()
   const accountScope = useRef(account)
   accountScope.current = account
@@ -135,6 +150,8 @@ export function ThemesWorkspace() {
   const unknownBase = Boolean(activeSelection?.preset_id && !isCanonicalThemePresetId(normalizeThemePresetId(activeSelection.preset_id)))
   const invalidColors = Object.values(draft.color_overrides || {}).some(value => !isValidThemeHex(value)) || (draft.mode === 'custom' && (!isValidThemeHex(draft.primary_hex) || CUSTOM_FIELDS.slice(1).some(([key]) => draft[key] !== undefined && !isValidThemeHex(draft[key]))))
   const duplicateName = themes?.some(theme => theme.name.toLowerCase() === name.trim().toLowerCase())
+  // A font Director refuses (422) names the allowed families; show that instead of the generic "not confirmed" text.
+  const fontRefusal = actionError ? themeFontRefusal(profilesError) : null
   const canSave = Boolean(name.trim() && draft.mode !== 'auto' && !invalidColors && !duplicateName && !operation)
   const patchDraft = (next: BuildThemeSelection) => { if (!mounted.current || !accountIsCurrent()) return; setDraft(next); setDirty(true); setActionError(''); setNotice(''); setCompareBase(false) }
 
@@ -153,12 +170,15 @@ export function ThemesWorkspace() {
     const request = ++operationRequest.current
     listRequest.current += 1; setLoading(false)
     busy.current = true; setOperation('save'); setActionError(''); setNotice('')
+    const sentDraft = draft
     try {
       const result = await saveTheme({ name: name.trim(), description: description.trim(), theme: draft, setStandard: false })
       if (!mounted.current || request !== operationRequest.current || !accountIsCurrent(requestAccount)) return
       if (!result?.id || !result.theme_payload) { setActionError('The save was not confirmed. Your draft is still here. Refresh the library before retrying to check whether it was saved.'); return }
       setThemes(current => [...(current ?? []).filter(theme => theme.id !== result.id), result]); setSelectedId(result.id); setDirty(false); setMode('library')
-      setNotice(`“${result.name}” was saved to your library. Choose it in Studio when you are ready to use it.`)
+      // A server that has not enabled theme fonts saves the colors and drops the fonts; say so instead of implying they were kept.
+      const fontsKept = themeFontsEqual(sentDraft, result.theme_payload)
+      setNotice(`“${result.name}” was saved to your library. Choose it in Studio when you are ready to use it.${fontsKept ? '' : ' The server did not keep the font choice, so it was saved without fonts.'}`)
     } catch {
       if (mounted.current && request === operationRequest.current && accountIsCurrent(requestAccount)) setActionError('The save was not confirmed. Your draft is still here. Refresh the library before retrying to check whether it was saved.')
     } finally {
@@ -213,7 +233,7 @@ export function ThemesWorkspace() {
   return <LibraryWorkspace introScreen={process.env.NEXT_PUBLIC_STUDIO_V4_SHELL === 'true' && account !== null ? "brand" : undefined} introAutoStart={true} introEnabled={accountReady} workspaceId="themes" title={process.env.NEXT_PUBLIC_STUDIO_V4_SHELL === 'true' ? 'Themes & brand' : 'Themes'} description={process.env.NEXT_PUBLIC_STUDIO_V4_SHELL === 'true' && account !== null ? 'A reusable visual identity. Your story structure stays separate.' : 'A visual identity you can return to. Explore, customize, and make it yours.'} mode={mode} onModeChange={setMode}>
     <div className="sl-context" data-studio-themes-fidelity={process.env.NEXT_PUBLIC_STUDIO_V4_SHELL === 'true' && account !== null ? 'true' : undefined}><Palette size={15} /><span>{standard ? <>Standard for new presentations: <strong>{standard.name}</strong></> : 'No saved standard · new presentations use the session default'}</span><span>Preview selection only</span></div>
     {!accountReady && <LibraryNotice>Verifying your account. Your draft and last loaded themes stay here; saving, refresh, standard changes, and Studio handoffs are paused.</LibraryNotice>}
-    {notice && <LibraryNotice>{notice}</LibraryNotice>}{actionError && <LibraryNotice error>{actionError}</LibraryNotice>}
+    {notice && <LibraryNotice>{notice}</LibraryNotice>}{actionError && <LibraryNotice error>{fontRefusal ? `Theme not saved: ${fontRefusal}. Your draft is still here.` : actionError}</LibraryNotice>}
     {replacePrompt && <div className="sl-confirm" role="alert"><span>Replace your unsaved theme draft?</span><button type="button" disabled={!accountReady || Boolean(operation)} onClick={() => loadDraft(replacePrompt)}>Discard & continue</button><button type="button" onClick={() => setReplacePrompt(null)}>Keep draft</button></div>}
     <div className="sl-split">
       <aside className="sl-side">
@@ -228,8 +248,9 @@ export function ThemesWorkspace() {
             {draft.mode === 'auto' && <p className="sl-helper">Auto is resolved by Director in Studio. Choose a preset or custom palette to save a reusable theme.</p>}
             {draft.mode === 'custom' && <><div className="sl-colors">{CUSTOM_FIELDS.map(([key, label]) => <ColorField key={key} label={label} value={draft[key]} fallback={palette[key.replace('_hex', '')]} onChange={value => patchDraft({ ...draft, [key]: value || undefined })} onReset={() => patchDraft({ ...draft, [key]: undefined })} />)}</div>
               <div className="sl-two-fields"><label className="sl-field">Color harmony<select value={draft.harmony_preference || 'auto'} onChange={event => patchDraft({ ...draft, harmony_preference: event.target.value as BuildThemeSelection['harmony_preference'] })}>{['auto', 'monochrome', 'analogous', 'complementary', 'triadic'].map(value => <option key={value} value={value}>{value[0].toUpperCase() + value.slice(1)}</option>)}</select></label><label className="sl-field">Palette mode<select value={draft.palette_mode || 'both'} onChange={event => patchDraft({ ...draft, palette_mode: event.target.value as BuildThemeSelection['palette_mode'] })}><option value="light">Light</option><option value="dark">Dark</option><option value="both">Both</option></select></label></div></>}
+            {THEME_FONT_SELECTION_ENABLED && draft.mode !== 'auto' && <FontFields draft={draft} onChange={patchDraft} />}
             <details className="sl-disclosure"><summary>Individual colors <span>{Object.keys(draft.color_overrides || {}).length} overrides</span></summary><p className="sl-helper">Explicit colors stay yours when changing the base. Reset a color to follow the theme again.</p><div className="sl-colors">{THEME_TOKENS.map(([token, label]) => <ColorField key={token} label={label} value={draft.color_overrides?.[token]} fallback={palette[token]} onChange={value => setOverride(token, value)} onReset={() => setOverride(token)} />)}{Object.keys(draft.color_overrides || {}).filter(key => !THEME_TOKENS.some(([token]) => token === key)).map(key => <ColorField key={key} label={key} value={draft.color_overrides?.[key]} fallback="#64748b" onChange={value => setOverride(key, value)} onReset={() => setOverride(key)} />)}</div></details>
-            <p className="sl-helper">Website extraction, font editing, and AI theme chat are not connected in this workspace. Colors above are editable now.</p>
+            <p className="sl-helper">{THEME_FONT_SELECTION_ENABLED ? 'Website extraction and AI theme chat are not connected in this workspace. Colors and fonts above are editable now.' : 'Website extraction, font editing, and AI theme chat are not connected in this workspace. Colors above are editable now.'}</p>
           </fieldset></div>
           <div className="sl-side-footer"><button type="button" className="sl-primary" onClick={() => void save()} disabled={!canSave || !accountReady}><Save size={15} />{operation === 'save' ? 'Saving…' : 'Save reusable theme'}</button><span>{dirty ? 'Unsaved draft · kept while switching tabs' : 'Choose colors to begin'}</span></div>
         </> : <>
@@ -252,7 +273,7 @@ export function ThemesWorkspace() {
             <div className="sl-theme-support-content" data-studio-theme-support-region={process.env.NEXT_PUBLIC_STUDIO_V4_SHELL === 'true' ? 'true' : undefined} tabIndex={process.env.NEXT_PUBLIC_STUDIO_V4_SHELL === 'true' ? 0 : undefined} role={process.env.NEXT_PUBLIC_STUDIO_V4_SHELL === 'true' ? 'region' : undefined} aria-label={process.env.NEXT_PUBLIC_STUDIO_V4_SHELL === 'true' ? 'Theme details and use' : undefined}>
               {activeSelection && <p className="sl-helper">{activeSelection.mode === 'auto' ? 'Auto is resolved from the Studio session; this specimen shows reference colors only. ' : ''}Harmony, typography, and component treatments are resolved by Theme Builder when used in Studio.</p>}
               {unknownBase && <LibraryNotice>This saved base has no local palette specimen. The preview uses reference base colors with your explicit color settings; Studio resolves the actual theme.</LibraryNotice>}
-              {mode === 'library' && selected && <><p className="sl-helper">Studio opens the theme picker for you to choose. Build settings stay locked after generation starts.</p><dl className="sl-read-grid"><ReadValue label="Description" value={selected.description} /><ReadValue label="Palette type" value={selected.theme_payload.mode} /><ReadValue label="Base theme" value={selected.theme_payload.preset_id || 'Service-resolved'} /><ReadValue label="Color harmony" value={selected.theme_payload.harmony_preference || 'Service default'} /><ReadValue label="Palette mode" value={selected.theme_payload.palette_mode || 'Service default'} /><ReadValue label="Explicit token overrides" value={String(Object.keys(selected.theme_payload.color_overrides || {}).length)} /><ReadValue label="Created (UTC)" value={libraryDate(selected.created_at)} /><ReadValue label="Updated (UTC)" value={libraryDate(selected.updated_at)} /><ReadValue label="Recorded uses" value={typeof selected.usage_count === 'number' ? String(selected.usage_count) : undefined} /></dl><MetadataDisclosure label="Complete saved theme settings" value={selected.theme_payload} /></>}
+              {mode === 'library' && selected && <><p className="sl-helper">Studio opens the theme picker for you to choose. Build settings stay locked after generation starts.</p><dl className="sl-read-grid"><ReadValue label="Description" value={selected.description} /><ReadValue label="Palette type" value={selected.theme_payload.mode} /><ReadValue label="Base theme" value={selected.theme_payload.preset_id || 'Service-resolved'} /><ReadValue label="Color harmony" value={selected.theme_payload.harmony_preference || 'Service default'} /><ReadValue label="Palette mode" value={selected.theme_payload.palette_mode || 'Service default'} />{THEME_FONT_SELECTION_ENABLED && <><ReadValue label="Heading font" value={selected.theme_payload.font_family_heading || 'Theme default'} /><ReadValue label="Body font" value={selected.theme_payload.font_family || 'Theme default'} /></>}<ReadValue label="Explicit token overrides" value={String(Object.keys(selected.theme_payload.color_overrides || {}).length)} /><ReadValue label="Created (UTC)" value={libraryDate(selected.created_at)} /><ReadValue label="Updated (UTC)" value={libraryDate(selected.updated_at)} /><ReadValue label="Recorded uses" value={typeof selected.usage_count === 'number' ? String(selected.usage_count) : undefined} /></dl><MetadataDisclosure label="Complete saved theme settings" value={selected.theme_payload} /></>}
               <div className="sl-workflow-link"><div><strong>Continue in Studio</strong><p>Use the theme picker in Studio to select a saved theme for an eligible presentation.</p></div><StudioWorkflowAction action="theme" canStart={canContinueInStudio} disabled={!accountReady}>Back to {process.env.NEXT_PUBLIC_STUDIO_V4_LABELS === 'true' ? 'Studio' : 'builder'}</StudioWorkflowAction><ArrowRight size={14} aria-hidden="true" /></div>
             </div>
           </details>

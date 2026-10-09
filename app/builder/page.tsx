@@ -50,6 +50,12 @@ import { SlideGenerationPanel, type SlideComposeAcceptedJob, type SlideComposeBu
 import { StudioFormatInspector, type StudioFormatTarget, type StudioFormatCommand } from '@/components/builder/studio-format-inspector'
 import type { StudioFormatSelectionHandle } from '@/lib/studio-format-native'
 import { TextBoxFormatPanel } from '@/components/textbox-format-panel'
+import {
+  STUDIO_DECK_MUTATION_REFRESH_ENABLED,
+  createDeckMutationSeen,
+  planDeckMutationRefresh,
+  requestSlideRailRefresh,
+} from '@/lib/studio-deck-mutation-refresh'
 import { TextBoxFormatting, type RefineElementRequest, type SlideComposeViewerApi, type StudioIntroductionSafety, type StudioComposeSelectionContext, type StudioElementGenerationLease, type StudioPartialNativeReadback } from '@/components/presentation-viewer'
 import { parseStudioNativeSlideOrder, type StudioNativeSlideOrder } from '@/lib/studio-native-slide-order'
 import {
@@ -147,6 +153,7 @@ import {
   themeSelectionFingerprint,
   type BuildThemeSelection,
 } from '@/lib/theme-builder'
+import { themeFontFields, themeFontsEqual } from '@/lib/theme-fonts'
 import { getLayoutServiceUrl, LAYOUT_URL_CONFIG_ERROR, LAYOUT_VIEWER_URL_POLICY, getPresentationViewerUrl } from '@/lib/layout-service-client'
 import { ServiceUrlConfigError } from '@/lib/service-url'
 import { evaluateLayoutViewerUrl } from '@/lib/layout-viewer-url-policy'
@@ -181,6 +188,7 @@ import {
   waitForAuthoritativeTheme,
   type ThemeSyncRequestResult,
   type ThemeSyncState,
+  type ElementThemePreflightRetry,
 } from '@/lib/theme-sync'
 import {
   buildSessionHandoffRequest,
@@ -286,7 +294,7 @@ function normalizeStoredBuildThemeSelection(value: unknown): BuildThemeSelection
   const raw = value as Partial<BuildThemeSelection>
   if (raw.mode === 'preset') {
     return typeof raw.preset_id === 'string'
-      ? { mode: 'preset', preset_id: raw.preset_id }
+      ? { mode: 'preset', preset_id: raw.preset_id, ...themeFontFields(raw) }
       : { mode: 'auto' }
   }
 
@@ -311,6 +319,7 @@ function normalizeStoredBuildThemeSelection(value: unknown): BuildThemeSelection
     if (raw.color_overrides && typeof raw.color_overrides === 'object') {
       next.color_overrides = raw.color_overrides
     }
+    Object.assign(next, themeFontFields(raw))
     return next.primary_hex || next.secondary_hex || next.tertiary_hex || next.color_overrides ? next : { mode: 'auto' }
   }
 
@@ -360,7 +369,7 @@ function stableStringifyRecord(value: Record<string, string> | undefined): strin
 function buildThemeSelectionsEqual(a: BuildThemeSelection, b: BuildThemeSelection): boolean {
   if (a.mode !== b.mode) return false
   if (a.mode === 'auto') return true
-  if (a.mode === 'preset') return a.preset_id === b.preset_id
+  if (a.mode === 'preset') return a.preset_id === b.preset_id && themeFontsEqual(a, b)
 
   return (
     (a.primary_hex || '').toLowerCase() === (b.primary_hex || '').toLowerCase() &&
@@ -369,7 +378,8 @@ function buildThemeSelectionsEqual(a: BuildThemeSelection, b: BuildThemeSelectio
     (a.neutral_hex || '').toLowerCase() === (b.neutral_hex || '').toLowerCase() &&
     (a.harmony_preference || 'auto') === (b.harmony_preference || 'auto') &&
     (a.palette_mode || 'light') === (b.palette_mode || 'light') &&
-    stableStringifyRecord(a.color_overrides) === stableStringifyRecord(b.color_overrides)
+    stableStringifyRecord(a.color_overrides) === stableStringifyRecord(b.color_overrides) &&
+    themeFontsEqual(a, b)
   )
 }
 
@@ -930,6 +940,7 @@ function AuthenticatedBuilderContent({ authScopeUserId }: { authScopeUserId: str
     refreshToken: 0,
   })
   const slideComposeJobsRef = useRef<Record<string, SlideComposeJobState>>({})
+  const deckMutationSeenRef = useRef(createDeckMutationSeen())
   const studioSlideComposeOwnerRef = useRef({
     key: '',
     sessionId: null as string | null,
@@ -2167,6 +2178,21 @@ function AuthenticatedBuilderContent({ authScopeUserId }: { authScopeUserId: str
     }).isUserMessage : undefined,
     expectedHandoffRequest: expectedStudioHandoffRequest,
     onHandoffRequestStatus: handleStudioHandoffRequestStatus,
+    // S-03: Director's deck_mutation (chat-driven add/delete/replace/reorder) reloads the displayed deck and
+    // re-reads the rail inventory. Flag off: no handler, so the hook drops the frame exactly as before.
+    ...(STUDIO_DECK_MUTATION_REFRESH_ENABLED && {
+      onDeckMutation: (message: import('@/types/mdc').DeckMutationMessage, owner: { isCurrent: () => boolean; presentationId: string }) => {
+        const displayed = slideComposerPresentationRef.current
+        const plan = planDeckMutationRefresh({
+          message, ownerIsCurrent: owner.isCurrent(), ownerPresentationId: owner.presentationId,
+          displayed, now: Date.now(), seen: deckMutationSeenRef.current,
+        })
+        if (!plan) return
+        slideComposerPresentationRef.current = { ...displayed, ...plan.override }
+        setSlideComposerOverride(plan.override)
+        requestSlideRailRefresh(plan.override.presentationId)
+      },
+    }),
     // Don't auto-connect when restoring an existing session from URL.
     // The useBuilderSession hook will connect AFTER DB load + restoreMessages,
     // preventing Director's blank state from flashing before restored content.
@@ -3191,7 +3217,7 @@ function AuthenticatedBuilderContent({ authScopeUserId }: { authScopeUserId: str
     return { ok: true, requestId, themeFingerprint }
   }, [clearThemeSyncTimeout, commitThemeSync, sendThemeSelection])
 
-  const ensureThemeReady = useCallback(async (targetPresentationId: string) => {
+  const ensureThemeReady = useCallback(async (targetPresentationId: string, retry?: ElementThemePreflightRetry) => {
     if (themeSyncTargetRef.current.composerThemeBlocked) {
       return { ready: false, code: 'failed', error: themeSyncTargetRef.current.composerThemeFrozen
         ? 'This template keeps its stored source theme.'
@@ -3229,6 +3255,31 @@ function AuthenticatedBuilderContent({ authScopeUserId }: { authScopeUserId: str
       } as const
     }
 
+    // Only an explicit Retry of this failed handshake may request fresh
+    // authority. Existing local-theme/composer/template guards still apply.
+    if (
+      process.env.NEXT_PUBLIC_ELEMENT_THEME_PREFLIGHT_RECOVERY_ENABLED === 'true'
+      && retry
+      && retry.presentationId === targetPresentationId
+      && retry.themeFingerprint === desiredFingerprint
+      && current.presentationId === retry.presentationId
+      && current.themeFingerprint === retry.themeFingerprint
+      && current.requestId === retry.requestId
+      && current.status === 'failed'
+    ) {
+      const requested = requestThemeSyncForPresentation(targetPresentationId)
+      if (!requested.ok) return { ready: false, code: requested.code, error: requested.error } as const
+      return waitForAuthoritativeTheme({
+        presentationId: targetPresentationId,
+        themeFingerprint: desiredFingerprint,
+        getSyncState: getThemeSyncSnapshot,
+        isConnected: () => themeSyncTargetRef.current.isReady,
+        requestSync: requestThemeSyncForPresentation,
+        timeoutMs: THEME_SYNC_TIMEOUT_MS,
+        captureFailureSync: true,
+      })
+    }
+
     // A theme mutation already accepted by Director must finish (or fail)
     // before generation. When Director is connected, idle or stale applied
     // state is also advanced to the exact selected theme. A disconnected or
@@ -3262,6 +3313,7 @@ function AuthenticatedBuilderContent({ authScopeUserId }: { authScopeUserId: str
         isConnected: () => themeSyncTargetRef.current.isReady,
         requestSync: requestThemeSyncForPresentation,
         timeoutMs: THEME_SYNC_TIMEOUT_MS,
+        captureFailureSync: process.env.NEXT_PUBLIC_ELEMENT_THEME_PREFLIGHT_RECOVERY_ENABLED === 'true',
       })
     }
 

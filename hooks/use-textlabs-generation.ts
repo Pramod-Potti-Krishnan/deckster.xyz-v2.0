@@ -40,8 +40,10 @@ import {
   type ThemeGenerationAuthority,
   type ThemeReadinessResult,
   type ThemeSyncState,
+  type ElementThemePreflightRetry,
 } from '@/lib/theme-sync'
 import { restoreBlankElementAfterFailure } from '@/lib/blank-element-recovery'
+import { TEXTBOX_REQUEST_FIDELITY_ENABLED, textBoxResponseNotices } from '@/lib/textbox-request-fidelity'
 import { parseThemeVariantSource, responseStyleOwner } from '@/lib/element-provenance'
 import { resolveMetricsLayout } from '@/lib/metrics-layout'
 import {
@@ -69,6 +71,7 @@ import {
 import { resolveRefineGenerationConfig } from '@/lib/refine-generation-config'
 import { normalizePersistedDiagramSubtype } from '@/lib/diagram-catalog'
 import { imageEditPreflightError } from '@/lib/image-refinement'
+import { shapeTypedFailureGuidance } from '@/lib/shape-generation-failure'
 import {
   diagramBackendDeadlineBudgetMs,
   diagramRetryCandidateForPreDispatch,
@@ -167,7 +170,7 @@ interface UseTextLabsGenerationParams {
   researchUserId?: string | null
   researchCapabilities: ElementResearchCapabilities
   getThemeSyncSnapshot: () => ThemeSyncState
-  ensureThemeReady: (presentationId: string) => Promise<ThemeReadinessResult>
+  ensureThemeReady: (presentationId: string, retry?: ElementThemePreflightRetry) => Promise<ThemeReadinessResult>
   toast: (opts: { title: string; description: string }) => void
 }
 
@@ -309,6 +312,39 @@ export function useTextLabsGeneration({
   }
   const renderPresentationTarget = activePresentationTargetRef.current
 
+  const themePreflightRecoveryEnabled = process.env.NEXT_PUBLIC_ELEMENT_THEME_PREFLIGHT_RECOVERY_ENABLED === 'true'
+  const themePreflightFailureRef = useRef<{
+    authority: ElementThemePreflightRetry
+    epoch: number
+    blankElementId: string
+    error: string
+  } | null>(null)
+  const recoveryTheme = themePreflightRecoveryEnabled ? getThemeSyncSnapshot() : null
+  useEffect(() => {
+    const failure = themePreflightFailureRef.current
+    if (!themePreflightRecoveryEnabled || !failure || !recoveryTheme) return
+    if (
+      presentationId !== failure.authority.presentationId
+      || renderPresentationTarget.epoch !== failure.epoch
+      || generationPanel.blankElementId !== failure.blankElementId
+      || !generationPanel.isOpen || generationPanel.mode !== 'generate'
+      || generationPanel.error !== failure.error
+      || recoveryTheme.requestId !== failure.authority.requestId
+      || recoveryTheme.presentationId !== failure.authority.presentationId
+      || recoveryTheme.themeFingerprint !== failure.authority.themeFingerprint
+    ) {
+      themePreflightFailureRef.current = null
+      return
+    }
+    if (recoveryTheme.status === 'applied' && !generationPanel.isGenerating) {
+      const notice = 'Deck theme is now ready. Try again to generate this element.'
+      if (failure.error !== notice) {
+        failure.error = notice
+        generationPanel.setError(notice)
+      }
+    }
+  }, [themePreflightRecoveryEnabled, recoveryTheme, presentationId, renderPresentationTarget.epoch, generationPanel])
+
   const handleGenerate = useCallback(async (
     formData: TextLabsFormData,
     submitIntent: ElementGenerationSubmitIntent = 'generate',
@@ -391,6 +427,14 @@ export function useTextLabsGeneration({
       : `blank:${invocation ? 'direct' : generationPanel.blankElementId ?? 'direct'}`
     if (activeGenerationKeysRef.current.has(generationKey)) return failureOutcome('Another generation is already active for this element.')
     activeGenerationKeysRef.current.add(generationKey)
+    const failedPreflight = themePreflightFailureRef.current
+    const themeRetry = themePreflightRecoveryEnabled && submitIntent === 'retry'
+      && failedPreflight?.epoch === expectedPresentationTarget.epoch
+      && failedPreflight.authority.presentationId === expectedPresentationTarget.presentationId
+      && failedPreflight.blankElementId === generationPanel.blankElementId
+      && failedPreflight.error === generationPanel.error
+      ? failedPreflight.authority : undefined
+    themePreflightFailureRef.current = null
 
     // Lock this panel's submit path before the async geometry lookup so a
     // double-click cannot start two concurrent swaps for the same placeholder.
@@ -565,7 +609,9 @@ export function useTextLabsGeneration({
     if (requestedThemePresentationId) {
       let readiness: ThemeReadinessResult
       try {
-        readiness = await ensureThemeReady(requestedThemePresentationId)
+        readiness = themeRetry
+          ? await ensureThemeReady(requestedThemePresentationId, themeRetry)
+          : await ensureThemeReady(requestedThemePresentationId)
       } catch (error) {
         readiness = {
           ready: false,
@@ -580,7 +626,26 @@ export function useTextLabsGeneration({
         return failureOutcome()
       }
       if (!readiness.ready) {
+        // Pin the handshake that actually failed, rather than a later snapshot
+        // that could already name another request or a just-arrived Applied ACK.
+        const failedTheme = themePreflightRecoveryEnabled ? readiness.sync : null
+        if (
+          blankId && !refineContext
+          && (readiness.code === 'timeout' || readiness.code === 'failed')
+          && (readiness.code === 'timeout' || failedTheme?.error === readiness.error)
+          && failedTheme?.presentationId === requestedThemePresentationId
+          && failedTheme.requestId && failedTheme.themeFingerprint
+          && (failedTheme.status === 'syncing' || failedTheme.status === 'failed')
+        ) {
+          themePreflightFailureRef.current = {
+            authority: { presentationId: requestedThemePresentationId, requestId: failedTheme.requestId, themeFingerprint: failedTheme.themeFingerprint },
+            epoch: expectedPresentationTarget.epoch,
+            blankElementId: blankId,
+            error: readiness.error,
+          }
+        }
         setGenerationError(readiness.error)
+
         toast({
           title: 'Deck theme not ready',
           description: readiness.error,
@@ -1291,7 +1356,19 @@ export function useTextLabsGeneration({
       } : undefined
       for (const [index, element] of elements.entries()) {
         assertGenerationTargetIsStillAuthoritative()
-        const fallbackGridPosition = formElements?.[index]?.grid_position
+        // A typed family with several cards comes back as ONE element (Text Labs !84): it belongs
+        // over the whole panel area, not in the first box's cell (request fidelity flag).
+        const fallbackGridPosition = formData.componentType === 'TEXT_BOX'
+          && formData.cardsInOneElement
+          && elements.length === 1
+          && formData.positionConfig
+          ? {
+              start_col: formData.positionConfig.start_col,
+              start_row: formData.positionConfig.start_row,
+              position_width: formData.positionConfig.position_width,
+              position_height: formData.positionConfig.position_height,
+            }
+          : formElements?.[index]?.grid_position
         const existingThemeVariantId = refineContext
           ? (formData.existingElement?.theme_variant_id as string | null | undefined)
           : null
@@ -1685,11 +1762,25 @@ export function useTextLabsGeneration({
         generationPanel.openPanelForRefine(generatedRefineContext.elementType, generatedRefineContext)
       }
       assertGenerationTargetIsStillAuthoritative()
+      // Text Labs says which count it honoured in `warnings` (and, when its count flag is on, with the
+      // numbers in `warning_details`); say it in plain words (request fidelity flag). One toast: the
+      // toaster shows a single message, so the notice rides on this one.
+      const countNotices = TEXTBOX_REQUEST_FIDELITY_ENABLED
+        && (formData.componentType === 'TEXT_BOX' || formData.componentType === 'METRICS')
+        ? textBoxResponseNotices(response.warnings, {
+            componentType: formData.componentType,
+            structure: formData.componentType === 'TEXT_BOX' ? formData.structure : null,
+            count: formData.count,
+            countAuto: formData.countAuto,
+            elementsReturned: elements.length,
+          }, response.warning_details)
+        : []
       toast({
         title: refineContext ? 'Element refined' : 'Element generated',
-        description: refineContext
+        description: (refineContext
           ? `${formData.componentType.replace(/_/g, ' ')} updated on slide`
-          : `${formData.componentType.replace(/_/g, ' ')} added to slide`,
+          : `${formData.componentType.replace(/_/g, ' ')} added to slide`)
+          + (countNotices.length > 0 ? `. ${countNotices.join(' ')}` : ''),
       })
       console.log(`[TextLabs] Generated ${elements.length} ${formData.componentType} element(s)`)
       return { status: 'inserted', presentationId: expectedPresentationTarget.presentationId,
@@ -1735,7 +1826,8 @@ export function useTextLabsGeneration({
         if (err.kind === 'transport') {
           errorMessage = `The generation service could not be reached.${reference}${downstreamReference}`
         } else {
-          errorMessage = `${err.message}${reference}${downstreamReference}`
+          const shapeGuidance = shapeTypedFailureGuidance(formData, err)
+          errorMessage = `${err.message}${shapeGuidance ? ` ${shapeGuidance}` : ''}${reference}${downstreamReference}`
         }
       } else if (err instanceof TypeError && /fetch|network/i.test(err.message)) {
         errorMessage = `The generation service could not be reached. Request reference: ${generationAttemptId.slice(0, 12)}.`

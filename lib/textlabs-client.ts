@@ -774,7 +774,9 @@ export function buildApiPayload(
     textOnlyMode: isDiagramSubtype(formData.componentType)
       ? false
       : !advancedModified,
-    count,
+    // An Auto count (never chosen by the user) is left to Text Labs, which falls
+    // back to the count stated in the prompt. Refinement always replaces one element.
+    count: formData.countAuto === true && !formData.refine ? undefined : count,
     layout,
     zIndex: z_index,
   }

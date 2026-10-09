@@ -1,3 +1,4 @@
+import { serviceUrl } from './service-url-harness.mjs'
 import assert from 'node:assert/strict'
 import fs from 'node:fs'
 import { createRequire } from 'node:module'
@@ -21,12 +22,13 @@ function loadTypeScriptModule(path, stubs = {}, jsx = ts.JsxEmit.None) {
     module: mod,
     exports: mod.exports,
     console,
-    process,
-    fetch,
+    process: { env: {} },
+    fetch: () => { throw new Error('Offline fixture refuses unexpected fetch') },
     AbortController,
     setTimeout,
     clearTimeout,
     require: id => {
+      if (id === '@/lib/service-url') return serviceUrl
       if (id in stubs) return stubs[id]
       throw new Error(`Unexpected test import: ${id}`)
     },
@@ -453,7 +455,7 @@ assert.match(
 )
 assert.match(
   generationHookSource,
-  /resolveRefineGenerationConfig\(\s*params\.generationConfig,\s*formData\.generationConfig,\s*\)/,
+  /resolveRefineGenerationConfig\(\s*params\.generationConfig,\s*formData\.generationConfig,?\s*\)/,
   'the immediate refine context must prefer the normalized Text Labs response config',
 )
 

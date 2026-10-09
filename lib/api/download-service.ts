@@ -8,6 +8,7 @@
  */
 
 import { requireServiceUrl } from '@/lib/service-url';
+import { withExportViewOnly } from '@/lib/export-view-only';
 
 export const getDownloadServiceUrl = () => requireServiceUrl('Downloads service', [
   { name: 'NEXT_PUBLIC_DOWNLOAD_SERVICE_URL', value: process.env.NEXT_PUBLIC_DOWNLOAD_SERVICE_URL },
@@ -26,6 +27,8 @@ export interface PDFConversionRequest {
   landscape?: boolean;
   print_background?: boolean;
   quality?: DownloadQuality;
+  /** Render the viewer in view-only mode (no authoring placeholders). Sent only when NEXT_PUBLIC_EXPORT_VIEW_ONLY_ENABLED is on. */
+  view_only?: boolean;
 }
 
 export interface PPTXConversionRequest {
@@ -33,6 +36,8 @@ export interface PPTXConversionRequest {
   slide_count: number;
   aspect_ratio?: '16:9' | '4:3';
   quality?: DownloadQuality;
+  /** Render the viewer in view-only mode (no authoring placeholders). Sent only when NEXT_PUBLIC_EXPORT_VIEW_ONLY_ENABLED is on. */
+  view_only?: boolean;
 }
 
 /**
@@ -56,12 +61,12 @@ export async function downloadPDF(
   }
 
   try {
-    const request: PDFConversionRequest = {
+    const request: PDFConversionRequest = withExportViewOnly({
       presentation_url: presentationUrl,
       landscape: true,
       print_background: true,
       quality
-    };
+    });
 
     const response = await fetch(`${getDownloadServiceUrl()}/convert/pdf`, {
       method: 'POST',
@@ -126,12 +131,12 @@ export async function downloadPPTX(
   }
 
   try {
-    const request: PPTXConversionRequest = {
+    const request: PPTXConversionRequest = withExportViewOnly({
       presentation_url: presentationUrl,
       slide_count: slideCount,
       aspect_ratio: '16:9',
       quality
-    };
+    });
 
     const response = await fetch(`${getDownloadServiceUrl()}/convert/pptx`, {
       method: 'POST',

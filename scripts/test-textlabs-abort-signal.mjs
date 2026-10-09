@@ -1,3 +1,4 @@
+import { serviceUrl, textLabsEnv } from './service-url-harness.mjs'
 import assert from 'node:assert/strict'
 import fs from 'node:fs'
 import vm from 'node:vm'
@@ -14,7 +15,7 @@ const mod = { exports: {} }
 vm.runInNewContext(compiled.outputText, {
   module: mod,
   exports: mod.exports,
-  process: { env: {} },
+  process: { env: { ...textLabsEnv } },
   fetch,
   FormData,
   Blob,
@@ -22,6 +23,7 @@ vm.runInNewContext(compiled.outputText, {
   AbortSignal,
   DOMException,
   require: id => {
+    if (id === '@/lib/service-url') return serviceUrl
     if (id === '@/types/textlabs') {
       return {
         INSERTION_METHOD_MAP: { ICON_LABEL: 'insertElement' },

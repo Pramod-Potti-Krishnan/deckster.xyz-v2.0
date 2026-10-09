@@ -24,6 +24,7 @@ import "@/components/studio-libraries/destination-intros.css"
 import { useRouter } from "next/navigation"
 import { LAYOUT_VIEWER_URL_POLICY } from "@/lib/layout-service-client"
 import { evaluateLayoutViewerUrl } from "@/lib/layout-viewer-url-policy"
+import { viewOnlyIfEnabled } from "@/lib/present-view-only"
 
 interface Presentation {
   id: string
@@ -61,7 +62,7 @@ function PresentationPreview({ presentation }: { presentation: Presentation }) {
   if (decision.status === 'allowed') {
     return (
       <iframe
-        src={decision.url}
+        src={viewOnlyIfEnabled(decision.url)}
         className="w-full h-full pointer-events-none"
         title={presentation.title}
         loading="lazy"

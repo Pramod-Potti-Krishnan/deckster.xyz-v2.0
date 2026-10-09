@@ -7,6 +7,7 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Sparkles, Check } from 'lucide-react';
 import Link from 'next/link';
+import { legalHref } from '@/lib/legal-links';
 import { features } from '@/lib/config';
 
 const PLAN_LABELS: Record<string, string> = {
@@ -172,11 +173,11 @@ function SignUpContent() {
             {/* Terms */}
             <p className="text-xs text-center text-muted-foreground">
               By signing up, you agree to our{' '}
-              <Link href="/terms" className="underline hover:text-foreground">
+              <Link href={legalHref('terms')} className="underline hover:text-foreground">
                 Terms of Service
               </Link>{' '}
               and{' '}
-              <Link href="/privacy" className="underline hover:text-foreground">
+              <Link href={legalHref('privacy')} className="underline hover:text-foreground">
                 Privacy Policy
               </Link>
             </p>

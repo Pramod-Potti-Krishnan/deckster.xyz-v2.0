@@ -3,6 +3,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { cookies } from 'next/headers';
 import { prisma } from '@/lib/prisma';
 import { unlockCookieName, verifyUnlockCookie } from '@/lib/publish/passcode';
+import { withExportViewOnly } from '@/lib/export-view-only';
 
 // Service origins are resolved per-request by lib/publish/service-urls, which
 // refuses to fall back to the production services from a non-production
@@ -100,7 +101,8 @@ export async function GET(
     const meta = FORMAT_META[downloadFormat];
 
     // Same payload shape as lib/api/download-service.ts, sent server-side.
-    const payload =
+    // NEXT_PUBLIC_EXPORT_VIEW_ONLY_ENABLED adds `view_only: true`; off = unchanged.
+    const payload = withExportViewOnly(
       downloadFormat === 'pdf'
         ? {
             presentation_url: presentationUrl,
@@ -113,7 +115,8 @@ export async function GET(
             slide_count: slideCount,
             aspect_ratio: '16:9',
             quality: 'high',
-          };
+          }
+    );
 
     const upstream = await fetch(`${getDownloadServiceUrl()}${meta.path}`, {
       method: 'POST',
