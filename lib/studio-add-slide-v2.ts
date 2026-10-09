@@ -26,11 +26,12 @@ export type AddSlideV2ContentSubtype =
 
 // ---- Options and their kill switches ---------------------------------------------------------------------------------
 // One table. An option is shown only when its id is in the resolved set (see resolveAddSlideV2Options). One rule:
-//   hidden = (the default-hidden ids: stage 2 + the opt-in scaffold) + DISABLED, minus ENABLED; DISABLED always wins.
+//   hidden = (the default-hidden ids: stage 2 + the opt-in id `regenerate`) + DISABLED, minus ENABLED; DISABLED always wins.
 //   - NEXT_PUBLIC_STUDIO_ADD_SLIDE_V2_DISABLED_OPTIONS="image_left" ADDS ids to the hidden set; it never un-hides the
 //     default (DEC-P8: stage 2 stays hidden until it is proven).
 //   - NEXT_PUBLIC_STUDIO_ADD_SLIDE_V2_ENABLED_OPTIONS="chart" REMOVES the named ids from the default-hidden set;
-//     "all" removes every stage-2 id. The opt-in scaffold (`regenerate`) is only ever enabled by naming it.
+//     "all" removes every stage-2 id. The opt-in id `regenerate` (the Regenerate section for a generated slide) is only
+//     ever enabled by naming it, and also needs NEXT_PUBLIC_STUDIO_SLIDE_REGENERATE_ENABLED=true.
 export type AddSlideV2OptionId =
   | AddSlideV2Type
   | AddSlideV2ContentSubtype
@@ -66,7 +67,7 @@ export const ADD_SLIDE_V2_OPTION_CONFIG: ReadonlyArray<AddSlideV2OptionConfig> =
   { id: 'blank', group: 'extra', label: 'Blank slide', hint: 'An empty slide, no generation', stage: 1 },
   { id: 'catalog', group: 'extra', label: 'Browse layout catalog', hint: 'The classic layout picker', stage: 1 },
   { id: 'blank_theme', group: 'extra', label: 'Blank slide follows the deck theme', hint: 'Background from the deck theme', stage: 1 },
-  { id: 'regenerate', group: 'extra', label: 'Regenerate in place', hint: 'Non-destructive overlay (scaffold)', stage: 1, optIn: true },
+  { id: 'regenerate', group: 'extra', label: 'Regenerate this slide', hint: 'Rebuild the slide on screen in place', stage: 1, optIn: true },
 ]
 
 export const ADD_SLIDE_V2_STAGE2_IDS: ReadonlyArray<AddSlideV2OptionId> =
@@ -274,6 +275,11 @@ export interface AddSlideV2Settings<TTheme = unknown> {
    * the old native Add position. `expectedVisualIndex` is the slide the panel shows as current.
    */
   resolveBlankTarget?: (expectedVisualIndex: number) => AddSlideV2BlankTarget
+  /**
+   * J2V2-REGENERATE (flag NEXT_PUBLIC_STUDIO_SLIDE_REGENERATE_ENABLED, plus the option id `regenerate`): rebuild the
+   * generated slide on screen in place. Absent = no Regenerate section.
+   */
+  regenerate?: AddSlideV2RegenerateSettings<TTheme>
   /** The Element drawer is showing this panel. */
   panelOpen: boolean
   /** The element inside the Element drawer the panel renders into (null until the drawer is mounted). */
@@ -291,9 +297,11 @@ export interface AddSlideV2EntryConfig<TTheme = unknown> {
   currentSlide: number
   slideCount: number
   theme: TTheme
+  /** The deck's slides in real order (id and title), for Regenerate. Only sent while Regenerate is configured. */
+  slides?: ReadonlyArray<AddSlideV2SlideRow>
 }
 
-export type AddSlideV2Blocker = 'no-options' | 'empty-text' | 'too-short' | 'no-session' | 'no-submit'
+export type AddSlideV2Blocker = 'no-options' | 'empty-text' | 'too-short' | 'no-session' | 'no-submit' | 'busy'
 
 export const ADD_SLIDE_V2_BLOCKER_COPY: Record<AddSlideV2Blocker, string> = {
   'no-options': 'Slide generation options are switched off in this build.',
@@ -301,6 +309,7 @@ export const ADD_SLIDE_V2_BLOCKER_COPY: Record<AddSlideV2Blocker, string> = {
   'too-short': `Add at least ${ADD_SLIDE_V2_HERO_MIN_WORDS} words, for example a short title.`,
   'no-session': 'No active builder session yet.',
   'no-submit': 'Slide generation is not available in this build.',
+  busy: 'This slide is already being regenerated.',
 }
 
 // What stops a request being built at all (the submit wiring is checked separately, in addSlideV2Blocker).
@@ -583,4 +592,293 @@ export function addSlideV2PlacementNote(currentSlide: number): string {
   return currentSlide >= 1
     ? `The new slide is added right after slide ${currentSlide}.`
     : 'The new slide is added right after the current slide.'
+}
+
+// ---- Regenerate a generated slide in place (J2V2-REGENERATE) --------------------------------------------------------
+// Flag NEXT_PUBLIC_STUDIO_SLIDE_REGENERATE_ENABLED (default off) plus the option id `regenerate`.
+//
+// Backend: the Slide panel's own Refine path. POST /api/slides/refine -> Director /api/v1/slides/refine-one (J2-MAP
+// RESULT section 5) builds the new slide, moves it before the old one, and deletes the old one only after that, so the
+// original stays on screen until the new slide is ready and survives a failure (DEC-P5, see
+// lib/studio-add-slide-v2-regenerate.ts). The new slide gets a new id and the same position. Hero targets (title,
+// section, closing) are restyle-only in Director v1: the request has to say it is still a hero, so those kinds always
+// send their explicit H1 / H2 / H3 selections (otherwise Director falls back to a content shape and refuses).
+export const ADD_SLIDE_V2_REGENERATE_ENABLED = process.env.NEXT_PUBLIC_STUDIO_SLIDE_REGENERATE_ENABLED === 'true'
+
+/** One slide of the deck in real (Layout) order, as the viewer's rail knows it. */
+export interface AddSlideV2SlideRow {
+  slideId: string | null
+  title: string
+}
+
+export interface AddSlideV2RegenerateTarget {
+  /** The stable Layout id; a refine is addressed by it. */
+  slideId: string
+  /** 0-based REAL Layout index (compose placeholders do not count). */
+  layoutIndex: number
+  /** 1-based number on screen (placeholders count). */
+  slideNumber: number
+  title: string
+  kind: AddSlideV2Type
+  /** The slide's original instruction (pre-fills the box); '' when none is known. */
+  instruction: string
+  /** How the slide was recognised as generated: a compose job this session, or the Director's slide context. */
+  source: 'compose' | 'context'
+  /** A refine of this slide is already running. */
+  busy: boolean
+}
+
+export interface AddSlideV2RegenerateDraft {
+  /** Content slides only; Auto keeps the slide's own shape. */
+  contentSubtype: AddSlideV2ContentSubtype
+  text: string
+}
+
+export function initialAddSlideV2RegenerateDraft(
+  target: Pick<AddSlideV2RegenerateTarget, 'instruction'>,
+  options: ReadonlySet<string> = ADD_SLIDE_V2_OPTIONS,
+): AddSlideV2RegenerateDraft {
+  const styles = availableAddSlideV2Subtypes(options)
+  return {
+    contentSubtype: styles.some(option => option.value === 'auto') ? 'auto' : (styles[0]?.value ?? 'auto'),
+    text: target.instruction,
+  }
+}
+
+export interface AddSlideV2RegenerateRequest<TTheme = unknown> {
+  mode: 'regenerate'
+  target: AddSlideV2RegenerateTarget
+  /** null unless the target is a content slide. */
+  contentSubtype: AddSlideV2ContentSubtype | null
+  instruction: string
+  /** 0-based VISUAL index the panel showed; the page checks it is still the selection at submit. */
+  visualIndex: number
+  sessionId: string | null
+  presentationId: string | null
+  research: AddSlideV2Research
+  theme: TTheme
+}
+
+export type AddSlideV2RegenerateSubmitResult = { ok: true; jobId: string } | { ok: false; message: string }
+export type AddSlideV2RegenerateSubmit<TTheme = unknown> = (request: AddSlideV2RegenerateRequest<TTheme>) => Promise<AddSlideV2RegenerateSubmitResult>
+
+/** What the page knows about a regenerate job, in the vocabulary of the DEC-P5 state machine. */
+export type AddSlideV2RegenerateJobStatus =
+  | { status: 'building' }
+  | { status: 'failed'; message: string }
+  | { status: 'ready'; newSlideId: string }
+
+export interface AddSlideV2RegenerateSettings<TTheme = unknown> {
+  /** The slide on screen as a regenerate target, or null when it is not a generated slide the page can regenerate. */
+  resolveTarget: (visualIndex: number, slides: ReadonlyArray<AddSlideV2SlideRow>) => AddSlideV2RegenerateTarget | null
+  /** Absent while the refiner, the composer or its async mode is off: the section is shown but disabled. */
+  submit?: AddSlideV2RegenerateSubmit<TTheme>
+  /** null = the page no longer knows the job (for example after a reload). */
+  jobStatus: (jobId: string) => AddSlideV2RegenerateJobStatus | null
+}
+
+/** Only the kinds the backend can keep: a hero stays a hero, so the target decides the type. */
+export function addSlideV2RegenerateIsHero(kind: AddSlideV2Type): boolean {
+  return kind !== 'content'
+}
+
+export const ADD_SLIDE_V2_KIND_LABEL: Record<AddSlideV2Type, string> = {
+  title: 'Title',
+  section: 'Section',
+  closing: 'Closing',
+  content: 'Content',
+}
+
+/** The kind a Director canvas type stands for: H1 title, H2 section, H3 closing, anything else content. */
+export function addSlideV2KindFromCanvas(canvas: unknown): AddSlideV2Type {
+  switch (String(canvas ?? '').trim().toUpperCase()) {
+    case 'H1': return 'title'
+    case 'H2': return 'section'
+    case 'H3': return 'closing'
+    default: return 'content'
+  }
+}
+
+export function addSlideV2RegenerateBlocker(
+  draft: AddSlideV2RegenerateDraft,
+  target: AddSlideV2RegenerateTarget,
+  context: Pick<AddSlideV2Context, 'sessionId'>,
+  hasSubmit: boolean,
+  options: ReadonlySet<string> = ADD_SLIDE_V2_OPTIONS,
+): AddSlideV2Blocker | null {
+  if (!options.has('regenerate')) return 'no-options'
+  if (target.busy) return 'busy'
+  if (target.kind === 'content' && !availableAddSlideV2Subtypes(options).some(option => option.value === draft.contentSubtype)) return 'no-options'
+  const text = draft.text.trim()
+  if (!text) return 'empty-text'
+  if (addSlideV2RegenerateIsHero(target.kind) && countAddSlideV2Words(text) < ADD_SLIDE_V2_HERO_MIN_WORDS) return 'too-short'
+  if (!context.sessionId) return 'no-session'
+  if (!hasSubmit) return 'no-submit'
+  return null
+}
+
+export function buildAddSlideV2RegenerateRequest<TTheme>(
+  draft: AddSlideV2RegenerateDraft,
+  target: AddSlideV2RegenerateTarget,
+  context: AddSlideV2Context<TTheme>,
+  options: ReadonlySet<string> = ADD_SLIDE_V2_OPTIONS,
+): AddSlideV2RegenerateRequest<TTheme> | null {
+  const blocker = addSlideV2RegenerateBlocker(draft, target, context, true, options)
+  if (blocker || !context.sessionId) return null
+  return {
+    mode: 'regenerate',
+    target,
+    contentSubtype: target.kind === 'content' ? draft.contentSubtype : null,
+    instruction: draft.text.trim(),
+    visualIndex: Math.max(0, context.currentSlide - 1),
+    sessionId: context.sessionId,
+    presentationId: context.presentationId,
+    research: { ...context.research },
+    theme: context.theme,
+  }
+}
+
+/** Wire body for POST /api/slides/refine before the async fields (job_id, async, assume_on_missing). */
+export interface AddSlideV2RefineBody<TTheme = unknown> {
+  session_id: string
+  presentation_id: string | null
+  slide_id: string
+  slide_index: number
+  instruction: string
+  theme: TTheme
+  selections?: AddSlideV2Selections
+  research: AddSlideV2ComposeBody['research']
+}
+
+/**
+ * The regenerate request as the refine wire body. `layoutIndex` is the REAL Layout index the page resolved at submit
+ * (never the visual one). A hero kind sends its explicit hero selections, a content slide the chosen style, and Auto
+ * sends none, so Director keeps the slide's own shape. An explicit Diagram forces all research off, as in Add.
+ */
+export function buildAddSlideV2RefineBody<TTheme>(
+  request: AddSlideV2RegenerateRequest<TTheme>,
+  layoutIndex: number,
+): AddSlideV2RefineBody<TTheme> | null {
+  if (!request.sessionId || !request.target.slideId) return null
+  const selections = addSlideV2Selections(request.target.kind, request.contentSubtype)
+  const researchOff = request.target.kind === 'content' && request.contentSubtype === 'diagram'
+  const body: AddSlideV2RefineBody<TTheme> = {
+    session_id: request.sessionId,
+    presentation_id: request.presentationId,
+    slide_id: request.target.slideId,
+    slide_index: Math.max(0, layoutIndex),
+    instruction: request.instruction,
+    theme: request.theme,
+    research: {
+      use_uploaded_documents: !researchOff && request.research.useUploadedDocuments,
+      use_web_search: !researchOff && request.research.useWebSearch,
+      use_deep_research: !researchOff && request.research.useDeepResearch,
+      use_knowledge_graph: !researchOff && request.research.useKnowledgeGraph,
+      web_search_max_queries: ADD_SLIDE_V2_WEB_SEARCH_MAX_QUERIES,
+    },
+  }
+  if (Object.keys(selections).length > 0) body.selections = selections
+  return body
+}
+
+// ---- What the page remembers about slides it generated (the "existing compose metadata") -----------------------------
+// A finished compose or refine job is removed from the page's job map, so on its own it cannot say which slide came
+// from a job. The page records the slide id at slide_ready: the kind (from the request's canvas type), and the
+// original instruction that pre-fills Regenerate. In memory for the session; deck-built slides are recognised by the
+// Director's slide context instead (see resolveAddSlideV2RegenerateTarget in lib/studio-add-slide-v2-submit.ts).
+export interface AddSlideV2GeneratedRecord {
+  kind: AddSlideV2Type
+  instruction: string
+}
+
+/** The slide fields of the Director's slide-context frame that Regenerate reads (hooks/use-deckster-websocket-v2.ts). */
+export interface AddSlideV2ContextSlide {
+  canvas_type?: string
+  key_message?: string
+}
+
+export interface AddSlideV2GeneratedStore {
+  /** real slide id -> what generated it */
+  slides: Map<string, AddSlideV2GeneratedRecord>
+  /** real slide id -> the Director's context for a slide the deck build generated (see rememberAddSlideV2DeckContext) */
+  context: Map<string, AddSlideV2ContextSlide>
+  /** job id -> the new slide id, for the jobs that finished (a finished job is removed from the page's job map) */
+  completed: Map<string, string>
+  /** job id -> why it failed: a failed refine is removed from the page's job map too (the page only toasts it) */
+  failed: Map<string, string>
+}
+
+export const ADD_SLIDE_V2_GENERATED_MAX = 200
+const ADD_SLIDE_V2_COMPLETED_MAX = 40
+const ADD_SLIDE_V2_FAILED_MAX = 40
+const ADD_SLIDE_V2_CONTEXT_MAX = 300
+const ADD_SLIDE_V2_INSTRUCTION_MAX = 2000
+
+export function createAddSlideV2GeneratedStore(): AddSlideV2GeneratedStore {
+  return { slides: new Map(), context: new Map(), completed: new Map(), failed: new Map() }
+}
+
+function capMap<K, V>(map: Map<K, V>, max: number): void {
+  while (map.size > max) {
+    const oldest = map.keys().next()
+    if (oldest.done) return
+    map.delete(oldest.value)
+  }
+}
+
+/**
+ * Record a finished job: the new slide is generated, and a replaced slide no longer exists. The kind is the
+ * request's canvas type; a request without one (Auto) keeps the replaced slide's kind.
+ */
+export function rememberAddSlideV2Generated(
+  store: AddSlideV2GeneratedStore,
+  input: { jobId: string; realSlideId: string; replacedSlideId?: string | null; request: Record<string, unknown> | null },
+): void {
+  const realSlideId = input.realSlideId.trim()
+  if (!realSlideId) return
+  const replaced = input.replacedSlideId ? store.slides.get(input.replacedSlideId) : undefined
+  const selections = input.request?.selections
+  const canvas = selections && typeof selections === 'object' ? (selections as Record<string, unknown>).canvas_type : undefined
+  const instruction = typeof input.request?.instruction === 'string' ? input.request.instruction.trim().slice(0, ADD_SLIDE_V2_INSTRUCTION_MAX) : ''
+  store.slides.delete(realSlideId)
+  store.slides.set(realSlideId, {
+    kind: canvas !== undefined ? addSlideV2KindFromCanvas(canvas) : (replaced?.kind ?? 'content'),
+    instruction,
+  })
+  if (input.replacedSlideId && input.replacedSlideId !== realSlideId) store.slides.delete(input.replacedSlideId)
+  if (input.jobId) {
+    store.completed.delete(input.jobId)
+    store.completed.set(input.jobId, realSlideId)
+  }
+  capMap(store.slides, ADD_SLIDE_V2_GENERATED_MAX)
+  capMap(store.completed, ADD_SLIDE_V2_COMPLETED_MAX)
+}
+
+/** Record a failed regenerate job: the original slide was kept and `message` says why (never empty). */
+export function rememberAddSlideV2Failed(store: AddSlideV2GeneratedStore, jobId: string, message: string | null | undefined): void {
+  if (!jobId) return
+  store.failed.delete(jobId)
+  store.failed.set(jobId, (message ?? '').trim().slice(0, 300) || 'The slide could not be regenerated.')
+  capMap(store.failed, ADD_SLIDE_V2_FAILED_MAX)
+}
+
+/**
+ * The Director's slide context is keyed by BUILD position, so an insert, a delete or a reorder makes a position point at
+ * a neighbour. The first time it lines up with the deck (one entry per slide) each slide's entry is remembered by slide
+ * id, and from then on the id carries it. A deck that has already changed since the build is never guessed at: nothing
+ * is remembered, so those slides are simply not regenerable. Slides already remembered keep their first entry.
+ */
+export function rememberAddSlideV2DeckContext(
+  store: AddSlideV2GeneratedStore,
+  slides: ReadonlyArray<AddSlideV2SlideRow>,
+  contextByIndex: Record<number, AddSlideV2ContextSlide> | null,
+): void {
+  if (!contextByIndex || slides.length === 0 || Object.keys(contextByIndex).length !== slides.length) return
+  slides.forEach((row, index) => {
+    const slideId = row.slideId?.trim()
+    const entry = contextByIndex[index]
+    if (!slideId || !entry || store.context.has(slideId)) return
+    store.context.set(slideId, { canvas_type: entry.canvas_type, key_message: entry.key_message })
+  })
+  capMap(store.context, ADD_SLIDE_V2_CONTEXT_MAX)
 }

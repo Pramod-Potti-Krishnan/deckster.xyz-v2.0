@@ -48,6 +48,8 @@ import { cn } from '@/lib/utils'
 import { useToast } from '@/hooks/use-toast'
 import { SlideGenerationPanel, type SlideComposeAcceptedJob, type SlideComposeBuiltResult, type SlideComposePanelEvent, type StudioSlideBuiltSelection } from '@/components/slide-generation-panel'
 import { createAddSlideV2Hooks } from '@/lib/studio-add-slide-v2-submit'
+import { createAddSlideV2RegenerateHooks } from '@/lib/studio-add-slide-v2-submit'
+import { createAddSlideV2GeneratedStore, rememberAddSlideV2Failed, rememberAddSlideV2Generated } from '@/lib/studio-add-slide-v2'
 import { StudioFormatInspector, type StudioFormatTarget, type StudioFormatCommand } from '@/components/builder/studio-format-inspector'
 import type { StudioFormatSelectionHandle } from '@/lib/studio-format-native'
 import { TextBoxFormatPanel } from '@/components/textbox-format-panel'
@@ -1022,6 +1024,10 @@ function AuthenticatedBuilderContent({ authScopeUserId }: { authScopeUserId: str
     slideComposerLayoutCountReconcileRef.current = null
   }, [])
 
+  // J2V2-REGENERATE (flag NEXT_PUBLIC_STUDIO_SLIDE_REGENERATE_ENABLED): which slides this session generated, and how the
+  // regenerate jobs ended. A finished job leaves slideComposeJobs, so this is the only record of it. Inert with the flag off.
+  const [addSlideV2Generated] = useState(createAddSlideV2GeneratedStore)
+
   const clearSlideComposeWatchdog = useCallback((jobId: string) => {
     const timer = slideComposeWatchdogsRef.current[jobId]
     if (timer) {
@@ -1143,6 +1149,14 @@ function AuthenticatedBuilderContent({ authScopeUserId }: { authScopeUserId: str
 
     if (!hasExpectedSlide) return false
 
+    if (process.env.NEXT_PUBLIC_STUDIO_SLIDE_REGENERATE_ENABLED === 'true' && job.real_slide_id) {
+      rememberAddSlideV2Generated(addSlideV2Generated, {
+        jobId,
+        realSlideId: job.real_slide_id,
+        replacedSlideId: job.kind === 'refine' ? (job.target_slide_id ?? null) : null,
+        request: job.request,
+      })
+    }
     removeSlideComposeJob(jobId)
     const nextOverride = {
       presentationUrl: snapshot.presentationUrl,
@@ -1156,7 +1170,7 @@ function AuthenticatedBuilderContent({ authScopeUserId }: { authScopeUserId: str
     }
     setSlideComposerOverride(nextOverride)
     return true
-  }, [fetchSlideComposePresentationSnapshot, removeSlideComposeJob])
+  }, [addSlideV2Generated, fetchSlideComposePresentationSnapshot, removeSlideComposeJob])
 
   const startSlideComposePoller = useCallback((jobId: string) => {
     const isCurrentOwner = captureStudioSlideComposeOwner()
@@ -1200,6 +1214,7 @@ function AuthenticatedBuilderContent({ authScopeUserId }: { authScopeUserId: str
                   : [`Slide Composer ${recovered.status}.`]
                 const recoveredKind: SlideComposeJobKind = recovered.kind
                 if (recoveredKind === 'refine') {
+                  if (process.env.NEXT_PUBLIC_STUDIO_SLIDE_REGENERATE_ENABLED === 'true') rememberAddSlideV2Failed(addSlideV2Generated, jobId, errors[0])
                   void composeViewerApiRef.current?.refineOverlayClear(jobId).catch(error => {
                     console.warn('[Slide Composer] Failed to clear recovered refine overlay.', error)
                   })
@@ -1308,6 +1323,7 @@ function AuthenticatedBuilderContent({ authScopeUserId }: { authScopeUserId: str
       }, 3_000)
     }, 2_000) as unknown as ReturnType<typeof setInterval>
   }, [
+    addSlideV2Generated,
     clearSlideComposeWatchdog,
     clearSlideComposePoller,
     confirmSlideComposeJobAfterRefresh,
@@ -2466,6 +2482,15 @@ function AuthenticatedBuilderContent({ authScopeUserId }: { authScopeUserId: str
         let liveSwapSucceeded = false
         const job = slideComposeJobsRef.current[payload.job_id]
         const readyKind: SlideComposeJobKind = payload.kind ?? job?.kind ?? 'compose'
+        // J2V2-REGENERATE: remember the slide this job produced (its kind and original instruction) and that the job finished.
+        if (process.env.NEXT_PUBLIC_STUDIO_SLIDE_REGENERATE_ENABLED === 'true' && payload.real_slide_id) {
+          rememberAddSlideV2Generated(addSlideV2Generated, {
+            jobId: payload.job_id,
+            realSlideId: payload.real_slide_id,
+            replacedSlideId: readyKind === 'refine' ? (payload.replaced_slide_id ?? job?.target_slide_id ?? null) : null,
+            request: job?.request ?? null,
+          })
+        }
 
         if (readyKind === 'refine') {
           const requestedSlideId = typeof job?.request.slide_id === 'string' ? job.request.slide_id : null
@@ -2811,6 +2836,7 @@ function AuthenticatedBuilderContent({ authScopeUserId }: { authScopeUserId: str
       clearSlideComposeWatchdog(payload.job_id)
       clearSlideComposePoller(payload.job_id)
       if (failedKind === 'refine') {
+        if (process.env.NEXT_PUBLIC_STUDIO_SLIDE_REGENERATE_ENABLED === 'true') rememberAddSlideV2Failed(addSlideV2Generated, payload.job_id, errors[0] ?? (payload.stage ? `Failed during ${payload.stage}.` : undefined))
         void composeViewerApiRef.current?.refineOverlayClear(payload.job_id).catch(error => {
           console.warn('[Slide Composer] Failed to clear refine overlay after error.', error)
         })
@@ -7417,6 +7443,27 @@ function AuthenticatedBuilderContent({ authScopeUserId }: { authScopeUserId: str
                 // DEC-P9: the viewer follows the new slide when the user is still on the slide they started from.
                 follow: addSlideV2FollowRef.current,
               }),
+              // J2V2-REGENERATE (flag NEXT_PUBLIC_STUDIO_SLIDE_REGENERATE_ENABLED): rebuild the generated slide on screen through
+              // the Slide panel's own Refine route. The accepted job is the page's usual refine job: the original gets the refine
+              // overlay and stays until slide_ready swaps the new slide in at the same index; a failure keeps it.
+              regenerate: process.env.NEXT_PUBLIC_STUDIO_SLIDE_REGENERATE_ENABLED === 'true' ? createAddSlideV2RegenerateHooks({
+                regenerateEnabled: features.slideRefinerEnabled && features.slideComposerEnabled && features.slideComposerAsyncEnabled,
+                store: addSlideV2Generated,
+                contextByIndex: () => (studioPartialMetadata ? null : slideContextByIndex),
+                jobState: jobId => slideComposeJobsRef.current[jobId],
+                fetchImpl: (url, init) => fetch(url, init),
+                newJobId: () => crypto.randomUUID(),
+                captureSessionOwner: captureStudioSlideComposeSessionOwner,
+                isSessionAdmitted: sessionId => !studioShell || sessionId === questionSubmissionScopeRef.current.sessionId,
+                selection: () => ({
+                  visualIndex: currentSlideIndexRef.current,
+                  realSlideCount: effectiveSlideCount ?? 0,
+                  jobs: studioShell
+                    ? Object.fromEntries(Object.entries(slideComposeJobsRef.current).filter(([, item]) => item.target_presentation_id === effectivePresentationId))
+                    : slideComposeJobsRef.current,
+                }),
+                onAccepted: handleSlideComposerAccepted,
+              }) : undefined,
             } : undefined}
             onTextBoxSelected={(elementId, formatting, selectedComponentType) => {
               if (studioShell) closeStudioFormat()

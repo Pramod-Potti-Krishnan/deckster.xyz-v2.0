@@ -1,14 +1,15 @@
-// J2 v2, DEC-P5: NON-DESTRUCTIVE regenerate, scaffolded behind the option id `regenerate` (opt-in: off unless
-// NEXT_PUBLIC_STUDIO_ADD_SLIDE_V2_ENABLED_OPTIONS names it; see lib/studio-add-slide-v2.ts).
+// J2 v2, DEC-P5: NON-DESTRUCTIVE regenerate. The state of one "Regenerate this slide" run in the Add Slide panel
+// (flag NEXT_PUBLIC_STUDIO_SLIDE_REGENERATE_ENABLED, option id `regenerate`; see lib/studio-add-slide-v2.ts).
 //
-// The Add Slide panel does not offer regenerate-in-place yet; the existing Refine (slide thumbnail menu, page
-// handleOpenSlideRefine -> /api/slides/refine) is the live path and already replaces only after the new slide
-// exists. This module is the rule any regenerate offered from the panel must follow, pure so it is testable:
+// The run goes through the Slide panel's own Refine route (POST /api/slides/refine -> Director refine-one), which builds
+// the new slide first and only then replaces the old one, so the rule below holds end to end:
 //
-//   - the old slide stays, untouched, while the new one is building (an overlay marks it, nothing is removed);
-//   - the old slide may be deleted ONLY after the new one is ready, and the new one then takes its place;
+//   - the old slide stays, untouched, while the new one is building (the page overlays it, nothing is removed);
+//   - the old slide may be deleted ONLY after the new one is ready, and the new one then takes its place (same index);
 //   - a failed run keeps the old slide exactly as it was and says why.
 //
+// The panel uses `reduceAddSlideV2Regenerate` as the run's state; `planAddSlideV2RegenerateSwap` is the same rule as a
+// pure deck-order plan (pinned by the tests: the new slide takes exactly the old slot, whatever sits around it).
 // Import-free on purpose (node-testable).
 
 export type AddSlideV2RegenerateState =

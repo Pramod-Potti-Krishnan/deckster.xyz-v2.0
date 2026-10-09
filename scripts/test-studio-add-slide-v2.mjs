@@ -38,12 +38,16 @@ const LIB = read('../lib/studio-add-slide-v2.ts')
 const PANEL = read('../components/studio-add-slide-v2.tsx')
 const SUBMIT = read('../lib/studio-add-slide-v2-submit.ts')
 const REGEN = read('../lib/studio-add-slide-v2-regenerate.ts')
+const REGEN_LIB = load(REGEN)
 const ENVEX = read('../.env.example')
 const PICKER = read('../components/slide-layout-picker.tsx')
 const VIEWER = read('../components/presentation-viewer.tsx')
 const AREA = read('../components/builder/presentation-area.tsx')
 const PAGE = read('../app/builder/page.tsx')
 const ASYNC = read('../lib/slide-compose-async.ts')
+const SLIDE_PANEL = read('../components/slide-generation-panel/index.tsx')
+const REFINE_ROUTE = read('../app/api/slides/refine/route.ts')
+const REGEN_FLAG = 'NEXT_PUBLIC_STUDIO_SLIDE_REGENERATE_ENABLED'
 
 let checks = 0
 const check = (fn, ...args) => { checks++; return fn(...args) }
@@ -398,10 +402,11 @@ function panelModule(panelSource, lib) {
       react: React,
       'react-dom': { createPortal: (node, host) => ({ portal: true, host, node }) },
       'react/jsx-runtime': require('react/jsx-runtime'),
-      'lucide-react': { Layout: icon('layout'), Plus: icon('plus'), Sparkles: icon('sparkles'), Square: icon('square'), X: icon('x') },
+      'lucide-react': { Layout: icon('layout'), Plus: icon('plus'), RefreshCw: icon('refresh'), Sparkles: icon('sparkles'), Square: icon('square'), X: icon('x') },
       '@/lib/utils': { cn: (...a) => a.filter(Boolean).join(' ') },
       '@/lib/theme-builder': { FALLBACK_THEME_PRESETS: [] },
       '@/lib/studio-add-slide-v2': lib,
+      '@/lib/studio-add-slide-v2-regenerate': REGEN_LIB,
       '@/components/builder/studio-panels.css': {},
       './studio-add-slide-v2.css': {},
     },
@@ -788,9 +793,9 @@ function mountPanel(panelSource, lib, props, component = 'AddSlideV2Panel') {
   const mod = load(panelSource, { imports: {
     react: hooks, 'react/jsx-runtime': { jsx, jsxs: jsx, Fragment: 'Fragment' },
     'react-dom': { createPortal: (node, host) => ({ portal: true, host, node }) },
-    'lucide-react': { Layout: icon, Plus: icon, Sparkles: icon, Square: icon, X: icon },
+    'lucide-react': { Layout: icon, Plus: icon, RefreshCw: icon, Sparkles: icon, Square: icon, X: icon },
     '@/lib/utils': { cn: (...a) => a.filter(Boolean).join(' ') }, '@/lib/theme-builder': { FALLBACK_THEME_PRESETS: [] },
-    '@/lib/studio-add-slide-v2': lib, '@/components/builder/studio-panels.css': {}, './studio-add-slide-v2.css': {},
+    '@/lib/studio-add-slide-v2': lib, '@/lib/studio-add-slide-v2-regenerate': REGEN_LIB, '@/components/builder/studio-panels.css': {}, './studio-add-slide-v2.css': {},
   } })
   let tree
   const focused = []
@@ -1175,6 +1180,8 @@ function regenSuite(regen) {
   check(assert.equal, regen.overlaySlideId(ready), null, 'the overlay is gone once the swap is due')
   check(assert.deepEqual, regen.planAddSlideV2RegenerateSwap(['A', 'B', 'C', 'N'], ready), { order: ['A', 'N', 'C'], deleteIds: ['B'] }, 'the new slide takes the old one\'s place; the count and the other slides stay')
   check(assert.deepEqual, regen.planAddSlideV2RegenerateSwap(['N', 'A', 'B'], ready), { order: ['A', 'N'], deleteIds: ['B'] }, 'wherever the new slide was inserted')
+  check(assert.deepEqual, regen.planAddSlideV2RegenerateSwap(['A', 'placeholder-1', 'B', 'C', 'N'], ready), { order: ['A', 'placeholder-1', 'N', 'C'], deleteIds: ['B'] }, 'a placeholder beside it moves nothing: the new slide takes exactly the old slot')
+  check(assert.deepEqual, regen.planAddSlideV2RegenerateSwap(['A', 'B', 'placeholder-1', 'C', 'N'], ready), { order: ['A', 'N', 'placeholder-1', 'C'], deleteIds: ['B'] })
   check(assert.deepEqual, regen.planAddSlideV2RegenerateSwap(['A', 'B', 'C'], ready), { order: ['A', 'B', 'C'], deleteIds: [] }, 'the new slide is not in the deck yet: nothing is deleted')
   check(assert.deepEqual, regen.planAddSlideV2RegenerateSwap(['A', 'C', 'N'], ready), { order: ['A', 'C', 'N'], deleteIds: [] }, 'the old slide is gone already: nothing is deleted')
   // failure: the old slide is kept exactly as it was
@@ -1199,10 +1206,794 @@ function regenSuite(regen) {
   check(assert.doesNotThrow, () => regen.planAddSlideV2RegenerateSwap(frozenIds, ready), 'the deck order passed in is never mutated')
 }
 
+// ---- J2V2-REGENERATE: lib, submit, panel and Entry suites. Each runs on the real source and on every mutant. ------------
+const REGEN_ON = lib => lib.resolveAddSlideV2Options(undefined, 'regenerate,all')
+const withoutComments0 = source => source.replace(/\/\*[\s\S]*?\*\//g, '').replace(/^\s*\/\/.*$/gm, '')
+// A real refine body from the real lib, for key comparisons (the suites below build their own).
+function realLibBody() {
+  const lib = load(LIB, { env: ALL_ENV })
+  const target = { slideId: 's1', layoutIndex: 0, slideNumber: 1, title: 'T', kind: 'content', instruction: '', source: 'compose', busy: false }
+  const req = lib.buildAddSlideV2RegenerateRequest({ contentSubtype: 'chart', text: 'Quarterly revenue' }, target, context(), lib.resolveAddSlideV2Options(undefined, 'regenerate,all'))
+  return lib.buildAddSlideV2RefineBody(req, 0)
+}
+const regenTarget = (over = {}) => ({
+  slideId: 's3', layoutIndex: 2, slideNumber: 3, title: 'Welcome', kind: 'title', instruction: 'Welcome to Acme Corp', source: 'context', busy: false, ...over,
+})
+
+function regenerateLibSuite(lib) {
+  // canvas -> kind: a hero stays a hero
+  for (const [canvas, kind] of [['H1', 'title'], ['H2', 'section'], ['H3', 'closing'], [' h1 ', 'title'], ['h3', 'closing'], ['C1', 'content'], ['I1', 'content'], ['', 'content'], [undefined, 'content'], [null, 'content'], [7, 'content']]) {
+    check(assert.equal, lib.addSlideV2KindFromCanvas(canvas), kind, `canvas ${JSON.stringify(canvas)} is a ${kind} slide`)
+  }
+  check(assert.deepEqual, lib.ADD_SLIDE_V2_KIND_LABEL, { title: 'Title', section: 'Section', closing: 'Closing', content: 'Content' })
+  check(assert.equal, lib.addSlideV2RegenerateIsHero('title'), true)
+  check(assert.equal, lib.addSlideV2RegenerateIsHero('section'), true)
+  check(assert.equal, lib.addSlideV2RegenerateIsHero('closing'), true)
+  check(assert.equal, lib.addSlideV2RegenerateIsHero('content'), false)
+
+  // the draft is pre-filled from the slide's original instruction
+  const on = REGEN_ON(lib)
+  check(assert.deepEqual, lib.initialAddSlideV2RegenerateDraft(regenTarget(), on), { contentSubtype: 'auto', text: 'Welcome to Acme Corp' }, 'pre-filled from the original instruction, Auto')
+  check(assert.equal, lib.initialAddSlideV2RegenerateDraft(regenTarget({ instruction: '' }), on).text, '', 'no original instruction: an empty box')
+  check(assert.equal, lib.initialAddSlideV2RegenerateDraft(regenTarget(), lib.resolveAddSlideV2Options('auto')).contentSubtype, 'text', 'Auto hidden: the first available style')
+
+  // blockers, in order
+  const draft = (text, contentSubtype = 'auto') => ({ contentSubtype, text })
+  const blocker = (d, target, over = {}) => lib.addSlideV2RegenerateBlocker(d, target, { sessionId: 'sess-1', ...over.context }, over.hasSubmit ?? true, over.options ?? on)
+  check(assert.equal, blocker(draft('Welcome to Acme'), regenTarget()), null, 'a title with three words can be regenerated')
+  check(assert.equal, blocker(draft('Welcome to Acme'), regenTarget(), { options: lib.resolveAddSlideV2Options('all') }), 'no-options', 'the regenerate option off blocks')
+  check(assert.equal, blocker(draft('Welcome to Acme'), regenTarget({ busy: true })), 'busy', 'a slide already being regenerated')
+  check(assert.equal, lib.ADD_SLIDE_V2_BLOCKER_COPY.busy, 'This slide is already being regenerated.')
+  check(assert.equal, blocker(draft('   '), regenTarget()), 'empty-text')
+  check(assert.equal, blocker(draft('Welcome'), regenTarget()), 'too-short', 'a title needs two words (DEC-P2)')
+  check(assert.equal, blocker(draft('Welcome'), regenTarget({ kind: 'section' })), 'too-short')
+  check(assert.equal, blocker(draft('Welcome'), regenTarget({ kind: 'closing' })), 'too-short')
+  check(assert.equal, blocker(draft('Welcome back'), regenTarget({ kind: 'closing' })), null)
+  check(assert.equal, blocker(draft('Pipeline'), regenTarget({ kind: 'content' })), null, 'a content slide keeps "not empty"')
+  check(assert.equal, blocker(draft('Pipeline', 'chart'), regenTarget({ kind: 'content' }), { options: lib.resolveAddSlideV2Options(undefined, 'regenerate') }), 'no-options', 'a hidden content style blocks a content slide')
+  check(assert.equal, blocker(draft('Pipeline', 'chart'), regenTarget({ kind: 'title' }), { options: lib.resolveAddSlideV2Options(undefined, 'regenerate') }), 'too-short', 'a hero kind ignores the content style')
+  check(assert.equal, blocker(draft('Welcome to Acme'), regenTarget(), { context: { sessionId: null } }), 'no-session')
+  check(assert.equal, blocker(draft('Welcome to Acme'), regenTarget(), { hasSubmit: false }), 'no-submit')
+  check(assert.equal, blocker(draft('Welcome to Acme'), regenTarget({ busy: true }), { hasSubmit: false }), 'busy', 'busy is reported before a missing submit')
+
+  // the request
+  const build = (d, target = regenTarget(), ctx = context(), options = on) => lib.buildAddSlideV2RegenerateRequest(d, target, ctx, options)
+  const req = build(draft('  Welcome to Acme  '))
+  check(assert.deepEqual, req, {
+    mode: 'regenerate', target: regenTarget(), contentSubtype: null, instruction: 'Welcome to Acme', visualIndex: 2,
+    sessionId: 'sess-1', presentationId: 'pres-1', research: research({ useWebSearch: true }), theme: THEME,
+  }, 'a hero target sends no content style, a trimmed instruction and the VISUAL index (the page re-resolves it)')
+  check(assert.equal, build(draft('Welcome')), null, 'too short: no request')
+  check(assert.equal, build(draft('Welcome to Acme'), regenTarget({ busy: true })), null, 'busy: no request')
+  check(assert.equal, build(draft('Welcome to Acme'), regenTarget(), context({ sessionId: null })), null, 'no session: no request')
+  check(assert.equal, build(draft('Welcome to Acme'), regenTarget(), context(), lib.resolveAddSlideV2Options('all')), null, 'option off: no request')
+  check(assert.equal, build(draft('Pipeline', 'chart'), regenTarget({ kind: 'content' })).contentSubtype, 'chart', 'a content target keeps the chosen style')
+  check(assert.equal, build(draft('Pipeline', 'auto'), regenTarget({ kind: 'content' })).contentSubtype, 'auto')
+  check(assert.equal, build(draft('Pipeline'), regenTarget({ kind: 'content' }), context({ currentSlide: 5 })).visualIndex, 4, 'the visual index is the slide on screen minus one')
+  const ctxResearch = context({ research: research({ useWebSearch: true, useDeepResearch: true }) })
+  const copy = build(draft('Pipeline'), regenTarget({ kind: 'content' }), ctxResearch)
+  check(assert.notEqual, copy.research, ctxResearch.research, 'the research object is copied, not shared')
+  check(assert.deepEqual, copy.research, ctxResearch.research)
+
+  // the wire body: hero kinds say they are still a hero, Auto sends no selections, the index is the REAL one
+  const body = (kind, subtype, layoutIndex = 2, ctx = context(), instruction = 'Say it') =>
+    lib.buildAddSlideV2RefineBody({ ...build(draft(instruction, subtype ?? 'auto'), regenTarget({ kind, slideId: 'slide-xyz', layoutIndex }), ctx), instruction }, layoutIndex)
+  check(assert.deepEqual, body('title'), {
+    session_id: 'sess-1', presentation_id: 'pres-1', slide_id: 'slide-xyz', slide_index: 2, instruction: 'Say it', theme: THEME,
+    selections: { canvas_type: 'H1', content_type: 'hero' },
+    research: { use_uploaded_documents: false, use_web_search: true, use_deep_research: false, use_knowledge_graph: false, web_search_max_queries: 3 },
+  }, 'a title is regenerated as H1 hero')
+  check(assert.deepEqual, body('section').selections, { canvas_type: 'H2', content_type: 'hero' }, 'a section stays a section')
+  check(assert.deepEqual, body('closing').selections, { canvas_type: 'H3', content_type: 'hero' }, 'a closing stays a closing')
+  check(assert.equal, 'selections' in body('content', 'auto'), false, 'Auto: no selections key, so Director keeps the slide\'s own shape')
+  for (const [subtype, selections] of [
+    ['text', { canvas_type: 'C1', content_type: 'text_heavy_columns' }],
+    ['image_left', { canvas_type: 'I1', content_type: 'text_heavy_columns' }],
+    ['image_right', { canvas_type: 'I2', content_type: 'text_heavy_columns' }],
+    ['chart', { canvas_type: 'C1', content_type: 'chart', chart_subtype: 'single' }],
+    ['infographic', { canvas_type: 'C1', content_type: 'infographic', infographic_subtype: 'vertical_center' }],
+    ['table', { canvas_type: 'C1', content_type: 'table', text_subtype: 'table' }],
+    ['diagram', { canvas_type: 'C1', content_type: 'diagram_idea_board', diagram_subtype: 'idea_board' }],
+  ]) check(assert.deepEqual, body('content', subtype).selections, selections, `content/${subtype} selections are the Add ones`)
+  check(assert.equal, body('title', 'chart').selections.content_type, 'hero', 'the chosen style never leaks into a hero request')
+  check(assert.equal, body('content', 'auto', 5).slide_index, 5, 'slide_index is the layout index handed in')
+  check(assert.equal, lib.buildAddSlideV2RefineBody({ ...req, target: { ...req.target, layoutIndex: 1 } }, 6).slide_index, 6, 'the index argument wins over the stale target index')
+  check(assert.equal, lib.buildAddSlideV2RefineBody(req, -3).slide_index, 0, 'never negative')
+  const allResearch = context({ research: research({ useUploadedDocuments: true, useWebSearch: true, useDeepResearch: true, useKnowledgeGraph: true }) })
+  check(assert.deepEqual, body('content', 'diagram', 2, allResearch).research,
+    { use_uploaded_documents: false, use_web_search: false, use_deep_research: false, use_knowledge_graph: false, web_search_max_queries: 3 }, 'an explicit Diagram sends every research flag off')
+  check(assert.deepEqual, body('content', 'table', 2, allResearch).research,
+    { use_uploaded_documents: true, use_web_search: true, use_deep_research: true, use_knowledge_graph: true, web_search_max_queries: 3 }, 'other styles keep the chat research')
+  check(assert.equal, body('title', 'diagram', 2, allResearch).research.use_web_search, true, 'Diagram only forces research off on a content slide')
+  check(assert.deepEqual, Object.keys(body('title')).sort(), ['instruction', 'presentation_id', 'research', 'selections', 'session_id', 'slide_id', 'slide_index', 'theme'], 'exactly the Slide panel refine body keys, no UX vocabulary')
+  check(assert.equal, lib.buildAddSlideV2RefineBody({ ...req, sessionId: null }, 2), null, 'no session: no body')
+  check(assert.equal, lib.buildAddSlideV2RefineBody({ ...req, target: { ...req.target, slideId: '' } }, 2), null, 'no slide id: no body')
+
+  // the Director's deck context is remembered by slide id, only while it lines up with the deck
+  const ctxRows = ['a', 'b', 'c'].map(slideId => ({ slideId, title: slideId }))
+  const ctxFull = { 0: { canvas_type: 'H1', key_message: 'Hello' }, 1: { canvas_type: 'C1', key_message: 'Body' }, 2: { canvas_type: 'H3', key_message: 'Bye' } }
+  const dc = lib.createAddSlideV2GeneratedStore()
+  lib.rememberAddSlideV2DeckContext(dc, ctxRows, ctxFull)
+  check(assert.deepEqual, [...dc.context.keys()], ['a', 'b', 'c'], 'one entry per slide, by id')
+  check(assert.deepEqual, dc.context.get('c'), { canvas_type: 'H3', key_message: 'Bye' })
+  check(assert.notEqual, dc.context.get('c'), ctxFull[2], 'a copy: the frame the page keeps may change later')
+  lib.rememberAddSlideV2DeckContext(dc, ctxRows, { 0: { canvas_type: 'H2' }, 1: {}, 2: {} })
+  check(assert.equal, dc.context.get('a').canvas_type, 'H1', 'the first entry is kept: a later frame never rewrites a slide')
+  const dc2 = lib.createAddSlideV2GeneratedStore()
+  lib.rememberAddSlideV2DeckContext(dc2, ctxRows, null)
+  lib.rememberAddSlideV2DeckContext(dc2, ctxRows, {})
+  lib.rememberAddSlideV2DeckContext(dc2, [], ctxFull)
+  lib.rememberAddSlideV2DeckContext(dc2, ctxRows, { 0: {}, 1: {} })
+  lib.rememberAddSlideV2DeckContext(dc2, ctxRows, { ...ctxFull, 3: {} })
+  check(assert.equal, dc2.context.size, 0, 'no frame, no slides, or a frame that does not line up (fewer or more entries): nothing is guessed')
+  lib.rememberAddSlideV2DeckContext(dc2, [{ slideId: null, title: 'x' }, { slideId: '  ', title: 'y' }, { slideId: ' z ', title: 'z' }], { 0: {}, 1: {}, 2: { canvas_type: 'H2' } })
+  check(assert.deepEqual, [...dc2.context.keys()], ['z'], 'rows with no stable id are skipped, ids are trimmed')
+  lib.rememberAddSlideV2DeckContext(dc2, [{ slideId: 'p', title: 'p' }, { slideId: 'q', title: 'q' }], { 0: {}, 5: { canvas_type: 'H1' } })
+  check(assert.deepEqual, [dc2.context.has('p'), dc2.context.has('q')], [true, false], 'a position with no entry remembers nothing for its slide')
+  const bigCtx = lib.createAddSlideV2GeneratedStore()
+  const bigRows = Array.from({ length: 340 }, (_, i) => ({ slideId: `s${i}`, title: '' }))
+  lib.rememberAddSlideV2DeckContext(bigCtx, bigRows, Object.fromEntries(bigRows.map((_, i) => [i, { canvas_type: 'C1' }])))
+  check(assert.equal, bigCtx.context.size, 300, 'the deck context is capped')
+  check(assert.equal, bigCtx.context.has('s0'), false, 'oldest first')
+  check(assert.equal, bigCtx.context.has('s339'), true)
+
+  // what the page remembers about generated slides
+  const store = lib.createAddSlideV2GeneratedStore()
+  check(assert.deepEqual, [store.slides.size, store.context.size, store.completed.size, store.failed.size], [0, 0, 0, 0])
+  lib.rememberAddSlideV2Generated(store, { jobId: 'j1', realSlideId: 's-title', request: { instruction: '  Welcome to Acme  ', selections: { canvas_type: 'H1', content_type: 'hero' } } })
+  check(assert.deepEqual, store.slides.get('s-title'), { kind: 'title', instruction: 'Welcome to Acme' }, 'kind from the request canvas, trimmed instruction')
+  check(assert.equal, store.completed.get('j1'), 's-title', 'the finished job id maps to the new slide')
+  lib.rememberAddSlideV2Generated(store, { jobId: 'j2', realSlideId: 's-new', replacedSlideId: 's-title', request: { instruction: 'Welcome to Acme, again' } })
+  check(assert.deepEqual, store.slides.get('s-new'), { kind: 'title', instruction: 'Welcome to Acme, again' }, 'no canvas in the request (Auto): the replaced slide\'s kind is kept')
+  check(assert.equal, store.slides.has('s-title'), false, 'the replaced slide no longer exists')
+  lib.rememberAddSlideV2Generated(store, { jobId: 'j3', realSlideId: 's-sec', request: { instruction: 'Part two', selections: { canvas_type: 'H2' } } })
+  check(assert.equal, store.slides.get('s-sec').kind, 'section')
+  lib.rememberAddSlideV2Generated(store, { jobId: 'j4', realSlideId: 's-c', request: { instruction: 'Pipeline', selections: { canvas_type: 'C1', content_type: 'chart' } } })
+  check(assert.equal, store.slides.get('s-c').kind, 'content')
+  lib.rememberAddSlideV2Generated(store, { jobId: 'j5', realSlideId: 's-n', request: null })
+  check(assert.deepEqual, store.slides.get('s-n'), { kind: 'content', instruction: '' }, 'no request, nothing replaced: content, no instruction')
+  lib.rememberAddSlideV2Generated(store, { jobId: 'j6', realSlideId: 's-long', request: { instruction: 'x'.repeat(5000) } })
+  check(assert.equal, store.slides.get('s-long').instruction.length, 2000, 'the remembered instruction is capped')
+  const before = store.slides.size
+  lib.rememberAddSlideV2Generated(store, { jobId: 'j7', realSlideId: '   ', request: null })
+  check(assert.equal, store.slides.size, before, 'an empty slide id records nothing')
+  lib.rememberAddSlideV2Generated(store, { jobId: '', realSlideId: 's-nojob', request: null })
+  check(assert.equal, store.slides.has('s-nojob'), true)
+  check(assert.equal, [...store.completed.values()].includes('s-nojob'), false, 'no job id: no completed entry')
+  lib.rememberAddSlideV2Generated(store, { jobId: 'j8', realSlideId: 's-same', replacedSlideId: 's-same', request: null })
+  check(assert.equal, store.slides.has('s-same'), true, 'a slide that replaces itself is not forgotten')
+  const big = lib.createAddSlideV2GeneratedStore()
+  for (let i = 0; i < 230; i++) lib.rememberAddSlideV2Generated(big, { jobId: `job-${i}`, realSlideId: `slide-${i}`, request: null })
+  check(assert.equal, big.slides.size, lib.ADD_SLIDE_V2_GENERATED_MAX, 'the slide record is capped')
+  check(assert.equal, big.slides.has('slide-0'), false, 'oldest first')
+  check(assert.equal, big.slides.has('slide-229'), true)
+  check(assert.equal, big.completed.size, 40, 'finished jobs are capped')
+  check(assert.equal, big.completed.has('job-229'), true)
+  check(assert.equal, big.completed.has('job-0'), false)
+  lib.rememberAddSlideV2Failed(big, 'jf', '  Research timed out  ')
+  check(assert.equal, big.failed.get('jf'), 'Research timed out', 'a failure keeps its trimmed reason')
+  lib.rememberAddSlideV2Failed(big, 'jg', undefined)
+  check(assert.equal, big.failed.get('jg'), 'The slide could not be regenerated.', 'and never an empty one')
+  lib.rememberAddSlideV2Failed(big, 'jh', 'y'.repeat(900))
+  check(assert.equal, big.failed.get('jh').length, 300, 'the reason is capped')
+  lib.rememberAddSlideV2Failed(big, '', 'nope')
+  check(assert.equal, big.failed.has(''), false, 'no job id: nothing recorded')
+  for (let i = 0; i < 60; i++) lib.rememberAddSlideV2Failed(big, `fail-${i}`, 'x')
+  check(assert.equal, big.failed.size, 40, 'failures are capped')
+}
+
+async function regenerateSubmitSuite(sub, lib) {
+  const accepted = (jobId, over = {}) => ({ status: 'accepted', job_id: jobId, kind: 'refine', target_index: 2, target_slide_id: 's3', session_id: 'sess-1', presentation_id: 'pres-1', ...over })
+  const on = REGEN_ON(lib)
+  function harness(over = {}) {
+    const calls = { fetch: [], accepted: [], meta: [], order: [] }
+    const deps = {
+      timeoutMs: over.timeoutMs,
+      fetchImpl: async (url, init) => {
+        calls.order.push('fetch'); calls.fetch.push({ url, init, body: JSON.parse(init.body) })
+        if (over.fetchThrows) throw new Error('socket hang up')
+        if (over.hang) await new Promise((_, reject) => init.signal.addEventListener('abort', () => reject(new Error('aborted'))))
+        return { ok: over.ok ?? true, json: async () => over.reply ?? accepted('job-1') }
+      },
+      newJobId: () => 'job-1',
+      captureSessionOwner: () => { calls.order.push('capture'); return () => over.sessionStillCurrent ?? true },
+      isSessionAdmitted: () => { calls.order.push('admit'); return over.admitted ?? true },
+      selection: () => ({ visualIndex: 2, realSlideCount: 5, jobs: {}, ...(over.selection ?? {}) }),
+      onAccepted: (job, meta) => { calls.order.push('accepted'); calls.accepted.push(job); calls.meta.push(meta) },
+    }
+    return { deps, calls }
+  }
+  const request = (over = {}, targetOver = {}) => ({
+    ...lib.buildAddSlideV2RegenerateRequest({ contentSubtype: 'auto', text: 'Welcome to Acme' }, regenTarget(targetOver), context(), on), ...over,
+  })
+  const run = async (req, over) => {
+    const h = harness(over); let timer
+    const guard = new Promise((_, reject) => { timer = setTimeout(() => reject(new Error('regenerate never settled')), 2500) })
+    try { return { result: await Promise.race([sub.submitAddSlideV2Regenerate(req, h.deps), guard]), calls: h.calls } } finally { clearTimeout(timer) }
+  }
+  const refused = (r, text) => {
+    check(assert.equal, r.result.ok, false); if (text) check(assert.match, r.result.message, text)
+    check(assert.equal, r.calls.accepted.length, 0, 'nothing is registered')
+  }
+  const jobAt = (target, over = {}) => ({ kind: 'compose', status: 'building', target_layout_index: target, ...over })
+
+  // swap path: one POST to the existing Refine route, registered as the page's refine job
+  const ok = await run(request())
+  check(assert.deepEqual, ok.result, { ok: true, jobId: 'job-1' }, 'the job id comes back so the panel can follow it')
+  check(assert.equal, ok.calls.fetch.length, 1)
+  check(assert.equal, ok.calls.fetch[0].url, '/api/slides/refine', 'the existing Refine route, no new endpoint')
+  check(assert.equal, sub.ADD_SLIDE_V2_REFINE_ENDPOINT, '/api/slides/refine')
+  check(assert.equal, ok.calls.fetch[0].init.method, 'POST')
+  const wire = {
+    session_id: 'sess-1', presentation_id: 'pres-1', slide_id: 's3', slide_index: 2, instruction: 'Welcome to Acme', theme: THEME,
+    selections: { canvas_type: 'H1', content_type: 'hero' },
+    research: { use_uploaded_documents: false, use_web_search: true, use_deep_research: false, use_knowledge_graph: false, web_search_max_queries: 3 },
+    job_id: 'job-1', async: true, assume_on_missing: true,
+  }
+  check(assert.deepEqual, ok.calls.fetch[0].body, wire, 'a title regenerates as an async H1 hero refine of its own slide id')
+  check(assert.equal, ok.calls.accepted.length, 1)
+  check(assert.equal, ok.calls.accepted[0].kind, 'refine', 'registered as a refine job: the page overlays the original and swaps on ready')
+  check(assert.equal, ok.calls.accepted[0].target_slide_id, 's3')
+  check(assert.equal, ok.calls.accepted[0].title, 'Welcome to Acme')
+  check(assert.deepEqual, ok.calls.accepted[0].request, wire, 'the page registers the wire request')
+  check(assert.deepEqual, ok.calls.meta, [{ submitVisualIndex: 2 }])
+  check(assert.deepEqual, ok.calls.order, ['capture', 'fetch', 'admit', 'accepted'], 'owner captured first; admission right before registration')
+  check(assert.equal, (await run(request({ instruction: 'x'.repeat(100) }))).calls.accepted[0].title.length, 72, 'the title is the first 72 characters')
+  const noSlideInReply = await run(request(), { reply: accepted('job-1', { target_slide_id: null }) })
+  check(assert.equal, noSlideInReply.calls.accepted[0].target_slide_id, 's3', 'the reply names no slide: the requested slide id is used')
+  const otherSlideInReply = await run(request(), { reply: accepted('job-1', { target_slide_id: 'director-id' }) })
+  check(assert.equal, otherSlideInReply.calls.accepted[0].target_slide_id, 'director-id', 'the backend\'s resolved slide id wins')
+  const noKind = await run(request(), { reply: accepted('job-1', { kind: undefined }) })
+  check(assert.equal, noKind.calls.accepted[0].kind, 'refine', 'kind is refine even when the reply omits it')
+
+  // every hero kind keeps its hero: explicit selections on the wire
+  for (const [kind, selections] of [['title', { canvas_type: 'H1', content_type: 'hero' }], ['section', { canvas_type: 'H2', content_type: 'hero' }], ['closing', { canvas_type: 'H3', content_type: 'hero' }]]) {
+    const r = await run(request({}, { kind }))
+    check(assert.deepEqual, r.calls.fetch[0].body.selections, selections, `${kind}: restyle-only in Director v1, so the request says hero`)
+  }
+  const autoContent = await run(request({}, { kind: 'content' }))
+  check(assert.equal, 'selections' in autoContent.calls.fetch[0].body, false, 'a content slide on Auto sends no selections')
+  const chartContent = await run(request({ contentSubtype: 'chart' }, { kind: 'content' }))
+  check(assert.deepEqual, chartContent.calls.fetch[0].body.selections, { canvas_type: 'C1', content_type: 'chart', chart_subtype: 'single' })
+
+  // index stability with placeholders: [A,B,C,D,E] + a pending placeholder before B; slide C is visual 3, real index 2
+  const withPlaceholder = { selection: { visualIndex: 3, realSlideCount: 5, jobs: { a: jobAt(1) } } }
+  const stable = await run(request({ visualIndex: 3 }, { layoutIndex: 2, slideNumber: 4 }), withPlaceholder)
+  check(assert.equal, stable.result.ok, true)
+  check(assert.equal, stable.calls.fetch[0].body.slide_index, 2, 'the wire index is the REAL Layout index (2), not the visual one (3)')
+  check(assert.equal, stable.calls.fetch[0].body.slide_id, 's3', 'and the slide is addressed by its id')
+  check(assert.deepEqual, stable.calls.meta, [{ submitVisualIndex: 3 }], 'the visual slide the user was on')
+  const twoBefore = await run(request({ visualIndex: 4 }, { layoutIndex: 2, slideNumber: 5 }), { selection: { visualIndex: 4, realSlideCount: 5, jobs: { a: jobAt(1), b: jobAt(0, { status: 'error' }) } } })
+  check(assert.equal, twoBefore.calls.fetch[0].body.slide_index, 2, 'pending and failed placeholders both occupy a visual slot')
+  const afterSelection = await run(request({ visualIndex: 2 }, { layoutIndex: 2 }), { selection: { visualIndex: 2, realSlideCount: 5, jobs: { a: jobAt(4) } } })
+  check(assert.equal, afterSelection.calls.fetch[0].body.slide_index, 2, 'a placeholder after the slide moves nothing')
+  const finished = await run(request({ visualIndex: 2 }, { layoutIndex: 2 }), { selection: { visualIndex: 2, realSlideCount: 5, jobs: { a: jobAt(1, { status: 'built' }) } } })
+  check(assert.equal, finished.calls.fetch[0].body.slide_index, 2, 'a finished job is no placeholder')
+
+  // refusals: nothing is posted and nothing is registered
+  const moved = await run(request({ visualIndex: 2 }), { selection: { visualIndex: 4 } })
+  refused(moved, /selected slide changed/); check(assert.equal, moved.calls.fetch.length, 0)
+  const onPlaceholder = await run(request({ visualIndex: 1 }, { layoutIndex: 1 }), { selection: { visualIndex: 1, realSlideCount: 5, jobs: { a: jobAt(1) } } })
+  refused(onPlaceholder, /finished slide to regenerate/); check(assert.equal, onPlaceholder.calls.fetch.length, 0, 'a placeholder on screen cannot be regenerated')
+  const onFailed = await run(request({ visualIndex: 1 }, { layoutIndex: 1 }), { selection: { visualIndex: 1, realSlideCount: 5, jobs: { a: jobAt(1, { status: 'error' }) } } })
+  refused(onFailed, /finished slide to regenerate/)
+  const shifted = await run(request({ visualIndex: 2 }, { layoutIndex: 2 }), { selection: { visualIndex: 2, realSlideCount: 5, jobs: { a: jobAt(0) } } })
+  refused(shifted, /deck changed/); check(assert.equal, shifted.calls.fetch.length, 0, 'a placeholder arrived before the slide: it is no longer index 2')
+  const dupe = await run(request(), { selection: { jobs: { r1: { kind: 'refine', status: 'building', target_slide_id: 's3', target_layout_index: 2 } } } })
+  refused(dupe, /already being regenerated/); check(assert.equal, dupe.calls.fetch.length, 0, 'one refine per slide')
+  const dupeByIndex = await run(request(), { selection: { jobs: { r1: { kind: 'refine', status: 'building', target_layout_index: 2 } } } })
+  refused(dupeByIndex, /already being regenerated/)
+  // a pending COMPOSE placeholder aimed at this very slot is not a refine of the slide: it does not block
+  const placeholderAtSlot = await run(request({ visualIndex: 4 }, { layoutIndex: 3, slideNumber: 5, slideId: 's4' }), { selection: { visualIndex: 4, realSlideCount: 5, jobs: { a: jobAt(3) } } })
+  check(assert.equal, placeholderAtSlot.result.ok, true, 'a compose placeholder before the slide is no refine of it')
+  check(assert.equal, placeholderAtSlot.calls.fetch[0].body.slide_index, 3)
+  const otherSlideBusy = await run(request(), { selection: { jobs: { r1: { kind: 'refine', status: 'building', target_slide_id: 's9', target_layout_index: 4 } } } })
+  check(assert.equal, otherSlideBusy.result.ok, true, 'a refine of another slide does not block')
+  const failedRefine = await run(request(), { selection: { jobs: { r1: { kind: 'refine', status: 'error', target_slide_id: 's3', target_layout_index: 2 } } } })
+  check(assert.equal, failedRefine.result.ok, true, 'a finished or failed refine does not block a new one')
+  const noDeck = await run(request({ presentationId: null }))
+  refused(noDeck, /No active presentation/); check(assert.equal, noDeck.calls.fetch.length, 0)
+  const noSession = await run(request({ sessionId: null }))
+  refused(noSession, /can't be regenerated yet/); check(assert.equal, noSession.calls.fetch.length, 0)
+
+  // failure: the original is untouched (nothing registered, so the page never overlays or swaps)
+  const http = await run(request(), { ok: false, reply: { detail: 'Slide refiner is disabled' } })
+  refused(http, /Slide refiner is disabled/)
+  const httpErrors = await run(request(), { ok: false, reply: { errors: ['Target slide not found'] } })
+  refused(httpErrors, /Target slide not found/)
+  const needsInput = await run(request(), { reply: { status: 'needs_input', questions: [{ slot: 'x', ask: 'y' }] } })
+  refused(needsInput, /Follow-up questions are coming in v2\.1/)
+  const wrongKind = await run(request(), { reply: accepted('job-1', { kind: 'compose' }) })
+  refused(wrongKind, /Unexpected reply/)
+  const wrongJob = await run(request(), { reply: accepted('job-other') })
+  refused(wrongJob, /Unexpected reply/)
+  const wrongSession = await run(request(), { reply: accepted('job-1', { session_id: 'sess-9' }) })
+  refused(wrongSession, /Unexpected reply/)
+  const wrongDeck = await run(request(), { reply: accepted('job-1', { presentation_id: 'pres-9' }) })
+  refused(wrongDeck, /Unexpected reply/)
+  const lost = await run(request(), { fetchThrows: true })
+  refused(lost, /Couldn't confirm/)
+  const timeout = await run(request(), { hang: true, timeoutMs: 20 })
+  refused(timeout, /didn't answer in time/)
+  const sessionChanged = await run(request(), { sessionStillCurrent: false })
+  refused(sessionChanged, /session changed/)
+  const notAdmitted = await run(request(), { admitted: false })
+  refused(notAdmitted, /session changed/)
+  check(assert.equal, (await run(request(), { ok: false, reply: { detail: 'Slide refiner is disabled' } })).calls.fetch.length, 1, 'a failed POST is never retried')
+
+  // the hooks the page builds
+  const store = lib.createAddSlideV2GeneratedStore()
+  const jobs = {}
+  let ctx = null
+  const h = harness()
+  const hooks = sub.createAddSlideV2RegenerateHooks({
+    ...h.deps, regenerateEnabled: true, store, contextByIndex: () => ctx, jobState: id => jobs[id],
+    selection: () => ({ visualIndex: 2, realSlideCount: 5, jobs: { ...jobs } }),
+  })
+  check(assert.equal, typeof hooks.submit, 'function')
+  check(assert.equal, sub.createAddSlideV2RegenerateHooks({ ...h.deps, regenerateEnabled: false, store, contextByIndex: () => null, jobState: () => undefined }).submit, undefined, 'no refiner / composer / async: no submit, the section is shown disabled')
+  const rows = ['s1', 's2', 's3', 's4', 's5'].map((id, i) => ({ slideId: id, title: `Slide ${i + 1}` }))
+  check(assert.equal, hooks.resolveTarget(2, rows), null, 'nothing known about the slide: not a target')
+  ctx = { 0: { canvas_type: 'H1', key_message: 'Welcome' }, 1: {}, 2: { canvas_type: 'H2', key_message: '  Part one  ' }, 3: {}, 4: {} }
+  const fromContext = hooks.resolveTarget(2, rows)
+  check(assert.deepEqual, fromContext, { slideId: 's3', layoutIndex: 2, slideNumber: 3, title: 'Slide 3', kind: 'section', instruction: 'Part one', source: 'context', busy: false })
+  // the deck changes after it was built: an insert shifts positions, but the context was remembered by slide id
+  const inserted = [rows[0], { slideId: 'manual-1', title: 'Manual' }, ...rows.slice(1)]
+  const afterInsert = hooks.resolveTarget(3, inserted)
+  check(assert.deepEqual, [afterInsert.slideId, afterInsert.layoutIndex, afterInsert.kind, afterInsert.source, afterInsert.instruction], ['s3', 3, 'section', 'context', 'Part one'], 'an insert shifts positions, not the context: the slide id still carries it')
+  check(assert.equal, hooks.resolveTarget(1, inserted), null, 'and the inserted manual slide is not a target')
+  check(assert.equal, hooks.resolveTarget(0, inserted).kind, 'title', 'nor does it disturb the title')
+  lib.rememberAddSlideV2Generated(store, { jobId: 'jx', realSlideId: 's3', request: { instruction: 'Part one, rebuilt', selections: { canvas_type: 'H2' } } })
+  check(assert.equal, hooks.resolveTarget(2, rows).source, 'compose', 'the page\'s own record wins over the deck context')
+  check(assert.equal, hooks.resolveTarget(2, rows).instruction, 'Part one, rebuilt')
+
+  // jobStatus: tracked job = building (the original is still the slide on screen); then the page's records decide
+  check(assert.equal, hooks.jobStatus('unknown'), null, 'a job the page never heard of')
+  jobs.j1 = { status: 'building' }
+  check(assert.deepEqual, hooks.jobStatus('j1'), { status: 'building' })
+  store.completed.set('j1', 'new-1')
+  check(assert.deepEqual, hooks.jobStatus('j1'), { status: 'building' }, 'finished but still tracked: the swap is not done, so still building')
+  delete jobs.j1
+  check(assert.deepEqual, hooks.jobStatus('j1'), { status: 'ready', newSlideId: 'new-1' }, 'gone from the page and recorded: ready')
+  lib.rememberAddSlideV2Failed(store, 'j2', 'Research timed out')
+  check(assert.deepEqual, hooks.jobStatus('j2'), { status: 'failed', message: 'Research timed out' }, 'a failed refine leaves the job map; the record says why')
+  jobs.j3 = { status: 'error', errors: ['one', '', 'two'] }
+  check(assert.deepEqual, hooks.jobStatus('j3'), { status: 'failed', message: 'one; two' }, 'a job that stays in the map as an error')
+  jobs.j5 = { status: 'queued' }
+  check(assert.deepEqual, hooks.jobStatus('j5'), { status: 'building' }, 'any job the page still tracks is still running, whatever its status word')
+  jobs.j4 = { status: 'error' }
+  check(assert.deepEqual, hooks.jobStatus('j4'), { status: 'failed', message: 'The slide could not be regenerated.' })
+
+  // resolveAddSlideV2RegenerateTarget on its own
+  const resolve = (over = {}) => sub.resolveAddSlideV2RegenerateTarget({
+    visualIndex: 2, slides: rows, jobs: {}, store: lib.createAddSlideV2GeneratedStore(), ...over,
+  })
+  const known = lib.createAddSlideV2GeneratedStore()
+  lib.rememberAddSlideV2Generated(known, { jobId: 'k', realSlideId: 's3', request: { instruction: 'Quarterly revenue', selections: { canvas_type: 'C1', content_type: 'chart' } } })
+  check(assert.equal, resolve(), null, 'no record, no context: a manual slide is not a target')
+  check(assert.deepEqual, resolve({ store: known }), { slideId: 's3', layoutIndex: 2, slideNumber: 3, title: 'Slide 3', kind: 'content', instruction: 'Quarterly revenue', source: 'compose', busy: false })
+  check(assert.equal, resolve({ store: known, visualIndex: 3 }), null, 'only the slide with the record')
+  check(assert.equal, resolve({ store: known, slides: [] }), null, 'no slides')
+  check(assert.equal, resolve({ store: known, visualIndex: 9 }), null, 'a visual index past the deck')
+  check(assert.equal, resolve({ store: known, visualIndex: -1 }), null)
+  check(assert.equal, resolve({ store: known, slides: rows.map((r, i) => (i === 2 ? { ...r, slideId: null } : r)) }), null, 'no stable slide id: not a target')
+  check(assert.equal, resolve({ store: known, slides: rows.map((r, i) => (i === 2 ? { ...r, slideId: '   ' } : r)) }), null, 'a blank slide id too')
+  // the deck context, remembered by slide id while it lined up with the deck
+  const withCtx = (ctxByIndex, slides = rows) => { const st = lib.createAddSlideV2GeneratedStore(); lib.rememberAddSlideV2DeckContext(st, slides, ctxByIndex); return st }
+  const blankIdRows = rows.map((r, i) => (i === 2 ? { ...r, slideId: '   ' } : r))
+  check(assert.equal, resolve({ store: withCtx({ 0: {}, 1: {}, 2: { canvas_type: 'H1' }, 3: {}, 4: {} }, blankIdRows), slides: blankIdRows }), null, 'a blank id is no id, even when the deck context knows the slide')
+  check(assert.equal, resolve({ store: known, slides: rows.map((r, i) => (i === 2 ? { ...r, slideId: ' s3 ' } : r)) }).slideId, 's3', 'the id is trimmed before it is looked up')
+  const fullContext = { 0: { canvas_type: 'H1' }, 1: {}, 2: { canvas_type: 'H3' }, 3: {}, 4: {} }
+  check(assert.equal, resolve({ store: withCtx(fullContext) }).kind, 'closing', 'H3 on the Director context = a closing slide')
+  check(assert.equal, resolve({ store: withCtx({ ...fullContext, 2: { canvas_type: 'C4' } }) }).kind, 'content')
+  check(assert.equal, resolve({ store: withCtx({ 0: { canvas_type: 'H1' }, 1: {}, 2: { canvas_type: 'H3' }, 3: {} }) }), null, 'the context never matched the deck (4 entries, 5 slides): nothing remembered')
+  check(assert.equal, resolve({ store: withCtx({ ...fullContext, 5: {} }) }), null, 'more entries than slides: nothing remembered')
+  check(assert.equal, resolve({ store: withCtx({ 0: {}, 1: {}, 3: {}, 4: {}, 7: {} }) }), null, 'no entry for this slide')
+  check(assert.equal, resolve({ store: (() => { const both = withCtx({ ...fullContext, 2: { canvas_type: 'H1' } }); lib.rememberAddSlideV2Generated(both, { jobId: 'k', realSlideId: 's3', request: { instruction: 'Quarterly revenue', selections: { canvas_type: 'C1', content_type: 'chart' } } }); return both })() }).kind, 'content', 'the page\'s record beats the context')
+  check(assert.equal, resolve({ store: withCtx({ ...fullContext, 2: { canvas_type: 'H1', key_message: 7 } }) }).instruction, '', 'a non-text key message is no instruction')
+  // positions shift, ids do not: insert, delete and reorder after the context was remembered
+  const remembered = withCtx(fullContext)
+  const insertedRows = [rows[0], { slideId: 'new-1', title: 'New' }, ...rows.slice(1)]
+  check(assert.deepEqual, [resolve({ store: remembered, slides: insertedRows, visualIndex: 3 }).slideId, resolve({ store: remembered, slides: insertedRows, visualIndex: 3 }).kind], ['s3', 'closing'], 'after an insert the closing slide is found at its new position')
+  check(assert.equal, resolve({ store: remembered, slides: insertedRows, visualIndex: 1 }), null, 'the inserted slide has no context')
+  const reversed = [...rows].reverse()
+  check(assert.equal, resolve({ store: remembered, slides: reversed, visualIndex: 2 }).kind, 'closing', 'after a reorder the id still carries it (s3 is still in the middle)')
+  check(assert.equal, resolve({ store: remembered, slides: rows.filter(r => r.slideId !== 's1'), visualIndex: 1 }).kind, 'closing', 'after a delete')
+
+  // placeholders: the target is the real slide, whatever sits before it on the rail
+  const phBefore = resolve({ store: known, visualIndex: 3, jobs: { a: jobAt(1) } })
+  check(assert.deepEqual, [phBefore.layoutIndex, phBefore.slideNumber, phBefore.slideId], [2, 4, 's3'], '[A,B,C,D,E] + placeholder before B: visual 3 is slide C at real index 2')
+  check(assert.equal, resolve({ store: known, visualIndex: 1, jobs: { a: jobAt(1) } }), null, 'a pending placeholder on screen is not a target')
+  check(assert.equal, resolve({ store: known, visualIndex: 1, jobs: { a: jobAt(1, { status: 'error' }) } }), null, 'nor a failed one')
+  check(assert.equal, resolve({ store: known, visualIndex: 2, jobs: { a: jobAt(4) } }).layoutIndex, 2, 'a placeholder after it moves nothing')
+  check(assert.equal, resolve({ store: known, visualIndex: 4, jobs: { a: jobAt(1), b: jobAt(0) } }).layoutIndex, 2, 'two placeholders before it')
+  check(assert.equal, resolve({ store: known, jobs: { a: jobAt(1, { kind: 'refine' }) } }).layoutIndex, 2, 'a refine overlay is no placeholder: the index does not shift')
+
+  // busy: a running refine on this slide, matched by id, else by index; not a failed one, not another slide's
+  const refineJob = (over = {}) => ({ kind: 'refine', status: 'building', ...over })
+  check(assert.equal, resolve({ store: known, jobs: { r: refineJob({ target_slide_id: 's3' }) } }).busy, true, 'by slide id')
+  check(assert.equal, resolve({ store: known, jobs: { r: refineJob({ target_layout_index: 2 }) } }).busy, true, 'by layout index when the job has no slide id')
+  check(assert.equal, resolve({ store: known, jobs: { r: refineJob({ targetLayoutIndex: 2 }) } }).busy, true)
+  check(assert.equal, resolve({ store: known, jobs: { r: refineJob({ targetIndex: 2 }) } }).busy, true)
+  check(assert.equal, resolve({ store: known, jobs: { r: refineJob({ target_slide_id: 's9', target_layout_index: 2 }) } }).busy, false, 'an id for another slide wins over a matching index')
+  check(assert.equal, resolve({ store: known, jobs: { r: refineJob({ target_slide_id: 's3', status: 'error' }) } }).busy, false, 'a failed refine does not block')
+  check(assert.equal, resolve({ store: known, jobs: { r: { kind: 'compose', status: 'built', target_slide_id: 's3', target_layout_index: 2 } } }).busy, false, 'a compose job is not a refine')
+  const known4 = lib.createAddSlideV2GeneratedStore()
+  lib.rememberAddSlideV2Generated(known4, { jobId: 'k4', realSlideId: 's4', request: { instruction: 'Fourth', selections: { canvas_type: 'C1' } } })
+  const aimedHere = resolve({ store: known4, visualIndex: 4, jobs: { a: jobAt(3) } })
+  check(assert.deepEqual, [aimedHere.layoutIndex, aimedHere.busy], [3, false], 'a compose placeholder aimed at this slot shifts the slide, it does not make it busy')
+}
+
+async function regeneratePanelSuite(panelSource, lib) {
+  const mem = () => { const map = new Map(); return { map, getItem: k => map.has(k) ? map.get(k) : null, setItem: (k, v) => { map.set(k, String(v)) }, removeItem: k => { map.delete(k) } } }
+  const on = REGEN_ON(lib)
+  const calls = []
+  const regenProps = (over = {}) => ({ target: regenTarget(), submit: async request => { calls.push(request); return { ok: true, jobId: 'job-9' } }, jobStatus: () => null, ...over })
+  const base = (over = {}) => ({ context: context(), storage: mem(), onInsertBlank() {}, onClose() {}, submit: async () => ({ ok: true }), options: on, regenerate: regenProps(), ...over })
+  const mount = over => mountPanel(panelSource, lib, base(over))
+  const modeAdd = rt => rt.byClass('asv2-mode')
+  const modeRegen = rt => rt.byClass('asv2-mode asv2-mode-regenerate')
+  const regenButton = rt => rt.maybeClass('asv2-generate asv2-regenerate')
+  const title = rt => rt.one(n => n.type === 'h3').props.children
+  const goRegen = rt => { modeRegen(rt).props.onClick(); rt.render() }
+  const textbox = rt => rt.one(n => n.type === 'textarea')
+  const note = rt => rt.all(n => String(n.props?.className).includes('asv2-regenerate-note'))[0] ?? null
+  const blockerOf = rt => rt.maybeClass('asv2-blocker')?.props['data-blocker'] ?? null
+  const failedBanner = rt => rt.maybeClass('asv2-error asv2-regen-failed')
+  const textOf = node => [node.props.children].flat(Infinity).filter(x => typeof x === 'string').join('')
+
+  // flag off / option off / not a generated slide: no section at all, the Add form is untouched
+  let rt = mount({ regenerate: undefined })
+  check(assert.equal, rt.maybeClass('asv2-modes'), null, 'no regenerate settings: no switch')
+  check(assert.equal, title(rt), 'Add slide')
+  check(assert.notEqual, rt.maybeClass('asv2-generate'), null, 'the Add form is there')
+  check(assert.equal, regenButton(rt), null)
+  const offHtml = mount({ options: lib.resolveAddSlideV2Options(undefined, 'all') })
+  check(assert.equal, offHtml.maybeClass('asv2-modes'), null, 'the regenerate option off hides the section even when the page configures it')
+  check(assert.equal, mount({ regenerate: regenProps({ target: null }) }).maybeClass('asv2-modes'), null, 'not a generated slide: no switch')
+
+  // a generated title: the switch appears, Add stays the default
+  rt = mount()
+  check(assert.notEqual, rt.maybeClass('asv2-modes'), null, 'a generated slide on screen: the switch')
+  check(assert.equal, modeAdd(rt).props['aria-pressed'], true, 'Add is the default')
+  check(assert.equal, modeRegen(rt).props['aria-pressed'], false)
+  check(assert.equal, title(rt), 'Add slide')
+  check(assert.equal, rt.maybeClass('asv2-kind'), null, 'the Add form shows no kept-type line')
+  goRegen(rt)
+  check(assert.equal, modeRegen(rt).props['aria-pressed'], true)
+  check(assert.equal, modeAdd(rt).props['aria-pressed'], false)
+  check(assert.equal, title(rt), 'Regenerate slide')
+  check(assert.equal, textbox(rt).props.value, 'Welcome to Acme Corp', 'the box is pre-filled from the original instruction')
+  check(assert.equal, rt.all(n => n.type === 'textarea').length, 1, 'still ONE box')
+  check(assert.equal, rt.maybeClass('asv2-kind').props['data-kind'], 'title')
+  check(assert.match, textOf(rt.maybeClass('asv2-kind')), /Slide type.*:\s*a hero slide stays a hero/s)
+  check(assert.equal, rt.radio('title'), undefined, 'the type is the slide\'s own: no type picker')
+  check(assert.equal, rt.radio('auto'), undefined, 'a hero has no content style')
+  check(assert.equal, rt.maybeClass('asv2-generate'), null, 'no Generate (add) button')
+  check(assert.equal, rt.maybeClass('asv2-footer'), null, 'Blank slide and the catalog add slides: hidden here')
+  check(assert.equal, rt.maybeClass('asv2-blank'), null)
+  check(assert.equal, note(rt).props.children, 'Rebuilds slide 3 in place. The current slide stays until the new one is ready.', 'the context bar says what it will do, and that the original stays (nothing is running yet)')
+  check(assert.notEqual, regenButton(rt), null)
+  check(assert.equal, regenButton(rt).props.disabled, false, 'a filled-in title can be regenerated')
+  check(assert.notEqual, rt.maybeClass('asv2-chat'), null, 'the chat settings stay (read-only)')
+  check(assert.equal, rt.focused.filter(x => x === 'textarea').length >= 2, true, 'switching to Regenerate lands in the box')
+  modeAdd(rt).props.onClick(); rt.render()
+  check(assert.equal, title(rt), 'Add slide', 'and back')
+  check(assert.notEqual, rt.maybeClass('asv2-generate'), null)
+
+  // the swap: submit -> building (the original stays) -> ready
+  calls.length = 0
+  rt = mount(); goRegen(rt)
+  await rt.click('asv2-generate asv2-regenerate')
+  check(assert.equal, calls.length, 1, 'one request')
+  check(assert.deepEqual, { ...calls[0], research: undefined }, {
+    mode: 'regenerate', target: regenTarget(), contentSubtype: null, instruction: 'Welcome to Acme Corp', visualIndex: 2,
+    sessionId: 'sess-1', presentationId: 'pres-1', research: undefined, theme: THEME,
+  }, 'the request carries the target, the text and the slide on screen')
+  const buildingLine = rt.maybeClass('asv2-queued asv2-regenerating')
+  check(assert.notEqual, buildingLine, null, 'after the page accepts the job: building')
+  check(assert.equal, textOf(buildingLine), 'Regenerating slide 3. The current slide stays until the new one is ready.')
+  check(assert.equal, regenButton(rt).props.disabled, true, 'one run at a time')
+  check(assert.equal, textbox(rt).props.disabled, true, 'the box is locked while it runs')
+  check(assert.equal, rt.error(), null)
+  rt.setProps({ regenerate: regenProps({ jobStatus: () => ({ status: 'building' }), target: regenTarget({ busy: true }) }) })
+  check(assert.notEqual, rt.maybeClass('asv2-queued asv2-regenerating'), null, 'still building while the page says so')
+  check(assert.equal, blockerOf(rt), null, 'our own run is on screen, so no second "already being regenerated" hint (the page marks the slide busy while it runs)')
+  rt.setProps({ regenerate: regenProps({ jobStatus: () => ({ status: 'building' }) }) })
+  rt.setProps({ regenerate: regenProps({ jobStatus: id => (id === 'job-9' ? { status: 'ready', newSlideId: 's-new' } : null) }) })
+  check(assert.equal, rt.maybeClass('asv2-queued asv2-regenerating'), null, 'ready: the building line is gone')
+  const readyLine = rt.maybeClass('asv2-queued asv2-regenerated')
+  check(assert.notEqual, readyLine, null, 'swapped in')
+  check(assert.equal, textOf(readyLine), 'Regenerated. The new slide replaced slide 3. ')
+  check(assert.equal, regenButton(rt).props.disabled, false, 'free to run again')
+  check(assert.equal, textbox(rt).props.disabled, false)
+  rt.byClass('asv2-discard').props.onClick(); rt.render()
+  check(assert.equal, rt.maybeClass('asv2-queued asv2-regenerated'), null, 'dismissed')
+
+  // while it runs, Cmd+Enter cannot start a second one; a "ready" that names the same slide is not a swap
+  calls.length = 0
+  rt = mount(); goRegen(rt)
+  await rt.click('asv2-generate asv2-regenerate')
+  textbox(rt).props.onKeyDown({ key: 'Enter', metaKey: true, preventDefault() {} })
+  await new Promise(r => setTimeout(r, 0)); rt.render()
+  check(assert.equal, calls.length, 1, 'one run at a time, from the keyboard too')
+  rt.setProps({ regenerate: regenProps({ jobStatus: () => ({ status: 'ready', newSlideId: 's3' }) }) })
+  check(assert.notEqual, rt.maybeClass('asv2-queued asv2-regenerating'), null, 'the same slide id back is no swap: still waiting')
+  check(assert.equal, rt.maybeClass('asv2-queued asv2-regenerated'), null)
+
+  // the run names ITS slide even after another one is selected; that slide's own hints still show
+  rt = mount(); goRegen(rt)
+  await rt.click('asv2-generate asv2-regenerate')
+  rt.setProps({ regenerate: regenProps({ target: regenTarget({ slideId: 's4', layoutIndex: 3, slideNumber: 4, instruction: 'Short' }), jobStatus: () => ({ status: 'building' }) }) })
+  check(assert.equal, textOf(rt.maybeClass('asv2-queued asv2-regenerating')), 'Regenerating slide 3. The current slide stays until the new one is ready.', 'the run is about slide 3, not the slide now on screen')
+  check(assert.equal, blockerOf(rt), 'too-short', 'and the slide now shown keeps its own hint')
+  check(assert.equal, regenButton(rt).props.disabled, true, 'one run at a time, whatever is selected')
+  rt.setProps({ regenerate: regenProps({ target: regenTarget({ slideId: 's4', layoutIndex: 3, slideNumber: 4, instruction: 'Short' }), jobStatus: id => (id === 'job-9' ? { status: 'ready', newSlideId: 's-new' } : null) }) })
+  check(assert.equal, rt.maybeClass('asv2-queued asv2-regenerated'), null, 'a finished run\'s result does not follow the user to another slide')
+  rt.setProps({ regenerate: regenProps({ jobStatus: id => (id === 'job-9' ? { status: 'ready', newSlideId: 's-new' } : null) }) })
+  check(assert.equal, textOf(rt.maybeClass('asv2-queued asv2-regenerated')), 'Regenerated. The new slide replaced slide 3. ', 'and it is there when the user is back on the slide it was about')
+  // the same for a failure
+  rt = mount(); goRegen(rt)
+  await rt.click('asv2-generate asv2-regenerate')
+  rt.setProps({ regenerate: regenProps({ jobStatus: () => ({ status: 'failed', message: 'Research timed out' }) }) })
+  check(assert.notEqual, failedBanner(rt), null)
+  rt.setProps({ regenerate: regenProps({ target: regenTarget({ slideId: 's4', layoutIndex: 3, slideNumber: 4, instruction: 'Other slide text' }), jobStatus: () => ({ status: 'failed', message: 'Research timed out' }) }) })
+  check(assert.equal, failedBanner(rt), null, 'a failure is not shown on another slide')
+  rt.setProps({ regenerate: regenProps({ jobStatus: () => ({ status: 'failed', message: 'Research timed out' }) }) })
+  check(assert.notEqual, failedBanner(rt), null, 'but it is there on the slide it was about')
+
+  // a job id that is not ours never finishes our run
+  rt = mount({ regenerate: regenProps({ jobStatus: id => (id === 'someone-else' ? { status: 'ready', newSlideId: 'x' } : null) }) }); goRegen(rt)
+  await rt.click('asv2-generate asv2-regenerate')
+  check(assert.notEqual, rt.maybeClass('asv2-queued asv2-regenerating'), null, 'only our job id counts')
+
+  // failure keeps the original and shows the error
+  calls.length = 0
+  rt = mount(); goRegen(rt)
+  await rt.click('asv2-generate asv2-regenerate')
+  rt.setProps({ regenerate: regenProps({ jobStatus: () => ({ status: 'failed', message: 'Research timed out' }) }) })
+  check(assert.equal, rt.maybeClass('asv2-queued asv2-regenerating'), null)
+  check(assert.notEqual, failedBanner(rt), null, 'the failure is shown')
+  check(assert.equal, textOf(failedBanner(rt)), 'Research timed out. The original slide was kept. ', 'with the reason as a sentence, and that the original was kept')
+  check(assert.equal, failedBanner(rt).props.role, 'alert')
+  check(assert.equal, regenButton(rt).props.disabled, false, 'the user can try again')
+  check(assert.equal, textbox(rt).props.value, 'Welcome to Acme Corp', 'the text is kept')
+  rt.setProps({ regenerate: regenProps() })
+  rt.byClass('asv2-discard').props.onClick(); rt.render()
+  check(assert.equal, failedBanner(rt), null, 'dismissed')
+  await rt.click('asv2-generate asv2-regenerate')
+  check(assert.equal, calls.length, 2, 'a retry is a new request')
+  rt.setProps({ regenerate: regenProps({ jobStatus: () => ({ status: 'failed', message: 'Research timed out.' }) }) })
+  check(assert.equal, textOf(failedBanner(rt)), 'Research timed out. The original slide was kept. ', 'a reason that already ends in a full stop gets no second one')
+
+  // the page refuses or throws: an error, no run, the draft is kept
+  rt = mount({ regenerate: regenProps({ submit: async () => ({ ok: false, message: 'Select a finished slide to regenerate.' }) }) }); goRegen(rt)
+  rt.type('A different title now')
+  await rt.click('asv2-generate asv2-regenerate')
+  check(assert.equal, rt.error(), 'Select a finished slide to regenerate.')
+  check(assert.equal, rt.maybeClass('asv2-queued asv2-regenerating'), null, 'a refusal starts no run')
+  check(assert.equal, textbox(rt).props.value, 'A different title now', 'the draft is kept')
+  rt = mount({ regenerate: regenProps({ submit: async () => { throw new Error('boom') } }) }); goRegen(rt)
+  await rt.click('asv2-generate asv2-regenerate')
+  check(assert.equal, rt.error(), 'boom')
+  rt.type('Edit the title')
+  check(assert.equal, rt.error(), null, 'editing clears the error')
+
+  // blockers
+  rt = mount(); goRegen(rt)
+  rt.type('Welcome')
+  check(assert.equal, blockerOf(rt), 'too-short', 'a one-word title waits for a second word (DEC-P2)')
+  check(assert.equal, regenButton(rt).props.disabled, true)
+  check(assert.equal, rt.maybeClass('asv2-blocker').props.children, 'Add at least 2 words, for example a short title.')
+  rt.type('Welcome all')
+  check(assert.equal, blockerOf(rt), null)
+  rt.type('   ')
+  check(assert.equal, blockerOf(rt), 'empty-text')
+  rt = mount({ regenerate: regenProps({ target: regenTarget({ busy: true }) }) }); goRegen(rt)
+  check(assert.equal, blockerOf(rt), 'busy', 'a slide already being regenerated')
+  check(assert.equal, regenButton(rt).props.disabled, true)
+  rt = mount({ regenerate: regenProps({ submit: undefined }) }); goRegen(rt)
+  check(assert.equal, blockerOf(rt), 'no-submit', 'refiner, composer or async off: the section is shown but disabled')
+  check(assert.equal, regenButton(rt).props.disabled, true)
+  rt = mount({ context: context({ sessionId: null }) }); goRegen(rt)
+  check(assert.equal, blockerOf(rt), 'no-session')
+  rt = mount({ disabled: true }); goRegen(rt)
+  check(assert.equal, regenButton(rt).props.disabled, true, 'a disabled panel regenerates nothing')
+  check(assert.equal, modeAdd(rt).props.disabled, true)
+  calls.length = 0
+  rt = mount({ regenerate: regenProps({ target: regenTarget({ busy: true }) }) }); goRegen(rt)
+  rt.byClass('asv2-generate asv2-regenerate').props.onClick(); rt.render()
+  check(assert.equal, calls.length, 0, 'a blocked button sends nothing even when clicked')
+  // a disabled panel and a request in flight never send a second one, even when clicked
+  calls.length = 0
+  rt = mount({ disabled: true }); goRegen(rt)
+  rt.byClass('asv2-generate asv2-regenerate').props.onClick(); rt.render()
+  check(assert.equal, calls.length, 0, 'a disabled panel sends nothing even when clicked')
+  let releaseSubmit; const slowSubmit = new Promise(resolve => { releaseSubmit = resolve })
+  rt = mount({ regenerate: regenProps({ submit: async request => { calls.push(request); return slowSubmit } }) }); goRegen(rt)
+  const first = rt.click('asv2-generate asv2-regenerate')
+  await Promise.resolve(); rt.render()
+  check(assert.equal, calls.length, 1)
+  check(assert.equal, regenButton(rt).props.children.at(-1), 'Regenerating…', 'the button says it is working while the request is in flight')
+  rt.byClass('asv2-generate asv2-regenerate').props.onClick()
+  check(assert.equal, calls.length, 1, 'a second click while the request is in flight sends nothing')
+  releaseSubmit({ ok: true, jobId: 'job-slow' }); await first
+
+  // content slide: the style picker, Auto keeps the shape
+  rt = mount({ regenerate: regenProps({ target: regenTarget({ kind: 'content', instruction: 'Quarterly revenue by region' }) }) }); goRegen(rt)
+  check(assert.equal, rt.radio('auto').props.checked, true, 'Auto is the default style')
+  check(assert.deepEqual, rt.all(n => n.type === 'input' && n.props.type === 'radio').map(n => n.props.value), ['auto', 'text', 'image_left', 'image_right', 'chart', 'infographic', 'table', 'diagram'], 'the same styles as Add (kill switches apply)')
+  check(assert.equal, rt.radio('title'), undefined, 'still no type picker')
+  check(assert.match, textOf(rt.maybeClass('asv2-kind')), /Auto keeps the slide as it is/)
+  check(assert.equal, regenButton(rt).props.disabled, false, 'one word is enough for a content slide when it is pre-filled')
+  rt.pick('chart')
+  check(assert.equal, rt.radio('chart').props.checked, true)
+  calls.length = 0
+  await rt.click('asv2-generate asv2-regenerate')
+  check(assert.equal, calls[0].contentSubtype, 'chart', 'the chosen style goes out')
+  check(assert.equal, calls[0].target.kind, 'content')
+  rt = mount({ regenerate: regenProps({ target: regenTarget({ kind: 'content' }) }), options: lib.resolveAddSlideV2Options(undefined, 'regenerate') }); goRegen(rt)
+  check(assert.equal, rt.radio('chart'), undefined, 'stage-2 styles stay hidden by default')
+  check(assert.notEqual, rt.radio('text'), undefined)
+  rt = mount({ regenerate: regenProps({ target: regenTarget({ kind: 'content' }) }) }); goRegen(rt)
+  rt.pick('diagram')
+  check(assert.equal, rt.one(n => String(n.props?.className) === 'asv2-note').props.children, 'Diagrams are built without research.', 'a Diagram regenerate says it is built without research')
+  check(assert.equal, rt.all(n => n.type === 'li').every(n => n.props['data-on'] === 'false'), true, 'and shows every research row off')
+
+  // restore the original text
+  rt = mount(); goRegen(rt)
+  check(assert.equal, rt.maybeClass('asv2-discard'), null, 'nothing to restore while the text is the original')
+  rt.type('Something quite different')
+  check(assert.notEqual, rt.maybeClass('asv2-discard'), null)
+  check(assert.equal, textOf(rt.byClass('asv2-discard')), 'Restore original text')
+  rt.byClass('asv2-discard').props.onClick(); rt.render()
+  check(assert.equal, textbox(rt).props.value, 'Welcome to Acme Corp', 'back to the original')
+  check(assert.equal, rt.maybeClass('asv2-discard'), null)
+  rt = mount({ regenerate: regenProps({ target: regenTarget({ instruction: '' }) }) }); goRegen(rt)
+  rt.type('Brand new words')
+  check(assert.equal, rt.maybeClass('asv2-discard'), null, 'no original instruction: nothing to restore')
+  check(assert.match, textOf(rt.one(n => n.props?.className === 'asv2-hint')), /Describe what the slide should say/)
+
+  // drafts are per slide, and independent of the Add draft
+  const store = mem()
+  rt = mount({ storage: store });
+  rt.type('Add draft words')
+  goRegen(rt)
+  check(assert.equal, textbox(rt).props.value, 'Welcome to Acme Corp', 'Regenerate has its own box state')
+  rt.type('Edited for slide three')
+  rt.setProps({ regenerate: regenProps({ target: regenTarget({ slideId: 's4', layoutIndex: 3, slideNumber: 4, instruction: 'Other slide text' }) }) })
+  check(assert.equal, textbox(rt).props.value, 'Other slide text', 'another slide starts from its own instruction')
+  rt.setProps({ regenerate: regenProps() })
+  check(assert.equal, textbox(rt).props.value, 'Edited for slide three', 'and the first slide keeps its edit')
+  const key = lib.addSlideV2DraftKey('sess-1', 'pres-1')
+  check(assert.equal, JSON.parse(store.map.get(key)).text, 'Add draft words', 'a Regenerate edit never touches the stored Add draft')
+  modeAdd(rt).props.onClick(); rt.render()
+  check(assert.equal, textbox(rt).props.value, 'Add draft words', 'the Add draft is still there')
+  // the slide is no longer a generated one: back to the plain Add panel
+  rt.setProps({ regenerate: regenProps({ target: null }) })
+  check(assert.equal, rt.maybeClass('asv2-modes'), null)
+  check(assert.equal, title(rt), 'Add slide')
+  rt = mount(); goRegen(rt)
+  rt.setProps({ regenerate: regenProps({ target: null }) })
+  check(assert.equal, title(rt), 'Add slide', 'a slide that is not generated falls back to Add even in Regenerate mode')
+  check(assert.equal, rt.maybeClass('asv2-regenerate-note'), null)
+
+  // the Add flow keeps working while a regenerate runs; the run keeps its state
+  calls.length = 0
+  rt = mount(); goRegen(rt)
+  await rt.click('asv2-generate asv2-regenerate')
+  check(assert.equal, modeAdd(rt).props.disabled, false, 'the switch stays usable while a run is going')
+  check(assert.equal, modeRegen(rt).props.disabled, false)
+  modeAdd(rt).props.onClick(); rt.render()
+  check(assert.equal, title(rt), 'Add slide', 'switching to Add while it runs is allowed')
+  check(assert.notEqual, rt.maybeClass('asv2-generate'), null)
+  goRegen(rt)
+  check(assert.notEqual, rt.maybeClass('asv2-queued asv2-regenerating'), null, 'the run is still shown when you come back')
+
+  // Ctrl/Cmd+Enter regenerates in Regenerate mode and adds in Add mode
+  calls.length = 0
+  rt = mount(); goRegen(rt)
+  let prevented = 0
+  textbox(rt).props.onKeyDown({ key: 'Enter', metaKey: true, preventDefault() { prevented++ } })
+  await new Promise(r => setTimeout(r, 0)); rt.render()
+  check(assert.equal, calls.length, 1, 'Cmd+Enter regenerates')
+  check(assert.equal, prevented, 1)
+  // Escape still closes the panel from Regenerate mode
+  let closes = 0
+  rt = mount({ onClose() { closes++ } }); goRegen(rt)
+  rt.key('Escape')
+  check(assert.equal, closes, 1)
+}
+
+async function regenerateEntrySuite(panelSource, lib) {
+  const host = { id: 'element-drawer-host' }
+  const resolved = []
+  const slidesSeen = []
+  const pageSubmit = async () => ({ ok: true, jobId: 'j' })
+  const pageJobStatus = () => ({ status: 'building' })
+  const regenerate = (over = {}) => ({
+    resolveTarget: (visualIndex, slides) => { resolved.push(visualIndex); slidesSeen.push(slides); return regenTarget() },
+    submit: pageSubmit, jobStatus: pageJobStatus, ...over,
+  })
+  const props = (cfg = {}, settingsOver = {}, over = {}) => ({
+    config: { settings: { sessionId: 'sess-1', presentationId: 'pres-1', research: research({ useWebSearch: true }), themeProfileName: null, panelOpen: true, panelHost: host, onPanelOpenChange() {}, ...settingsOver }, currentSlide: 3, slideCount: 7, theme: { mode: 'auto' }, ...cfg },
+    onAddSlide: async () => {}, classicPicker: 'CLASSIC', options: REGEN_ON(lib), ...over,
+  })
+  const mountEntry = (...args) => mountPanel(panelSource, lib, props(...args), 'AddSlideV2Entry')
+  const panelProps = rt => rt.all(n => n.portal === true)[0].node.props
+  const rows = [{ slideId: 's1', title: 'One' }, { slideId: 's2', title: 'Two' }, { slideId: 's3', title: 'Three' }]
+
+  let rt = mountEntry({ slides: rows }, { regenerate: regenerate() })
+  check(assert.deepEqual, resolved, [2], 'the Entry resolves the slide on screen (visual index = current slide - 1)')
+  check(assert.equal, slidesSeen[0], rows, 'against the rows the viewer sent')
+  const forwarded = panelProps(rt).regenerate
+  check(assert.deepEqual, { ...forwarded, submit: undefined, jobStatus: undefined }, { target: regenTarget(), submit: undefined, jobStatus: undefined }, 'the panel gets the target')
+  check(assert.equal, forwarded.submit, pageSubmit, 'and the page\'s submit, as is')
+  check(assert.equal, forwarded.jobStatus, pageJobStatus, 'and the page\'s job status, as is')
+  resolved.length = 0; slidesSeen.length = 0
+  rt = mountEntry({ slides: undefined }, { regenerate: regenerate() })
+  check(assert.deepEqual, slidesSeen[0], [], 'no rows: an empty list, never undefined')
+  resolved.length = 0
+  mountEntry({ currentSlide: 5, slides: rows }, { regenerate: regenerate() })
+  check(assert.deepEqual, resolved, [4], 'the visual index follows the slide on screen')
+  resolved.length = 0
+  rt = mountEntry({ slides: rows }, { regenerate: regenerate(), panelOpen: false })
+  check(assert.deepEqual, resolved, [2], 'a closed panel still resolves: that is when the page remembers the deck as it was built')
+  check(assert.equal, rt.all(n => n.portal === true).length, 0, 'but renders nothing')
+  resolved.length = 0
+  rt = mountEntry({ slides: rows }, { regenerate: regenerate(), panelHost: null })
+  check(assert.deepEqual, resolved, [2], 'no host yet: still resolved')
+  resolved.length = 0
+  rt = mountEntry({ slides: rows }, { regenerate: regenerate() }, { options: lib.resolveAddSlideV2Options(undefined, 'all') })
+  check(assert.equal, resolved.length, 0, 'the regenerate option off: never resolved')
+  check(assert.equal, panelProps(rt).regenerate, undefined, 'and not handed to the panel')
+  rt = mountEntry({ slides: rows }, {})
+  check(assert.equal, panelProps(rt).regenerate, undefined, 'no regenerate settings (flag off): nothing handed to the panel')
+  rt = mountEntry({ slides: rows }, { regenerate: regenerate({ resolveTarget: () => null }) })
+  check(assert.equal, panelProps(rt).regenerate.target, null, 'a slide that is not generated: a null target, so no switch')
+}
+
 // ---- 1. the lib is import-free, the flag and the kill switches are read exactly ---------------------------------------
 check(assert.equal, /^\s*import\s/m.test(LIB), false, 'the lib must stay import-free')
 check(assert.equal, /^\s*import\s/m.test(REGEN), false, 'the regenerate module must stay import-free')
 check(assert.match, LIB, /process\.env\.NEXT_PUBLIC_STUDIO_ADD_SLIDE_V2_ENABLED === 'true'/, 'literal env access so Next inlines it')
+// J2V2-REGENERATE: flag (literal env read, default off), no new endpoint, flag-off identity of the page
+check(assert.match, LIB, /process\.env\.NEXT_PUBLIC_STUDIO_SLIDE_REGENERATE_ENABLED === 'true'/, 'literal env access so Next inlines it')
+for (const [value, expected] of [['true', true], ['false', false], ['TRUE', false], ['1', false], ['', false], [' true', false], [undefined, false]]) {
+  const env = value === undefined ? {} : { [REGEN_FLAG]: value }
+  check(assert.equal, load(LIB, { env }).ADD_SLIDE_V2_REGENERATE_ENABLED, expected, `regenerate flag ${JSON.stringify(value)}`)
+}
+check(assert.match, SUBMIT, /export const ADD_SLIDE_V2_REFINE_ENDPOINT = '\/api\/slides\/refine'/, 'Regenerate uses the Slide panel\'s Refine route')
+check(assert.equal, (withoutComments0(SUBMIT).match(/\/api\/[a-z/]+/g) ?? []).sort().join(','), '/api/slides/compose,/api/slides/refine', 'no other endpoint is named in the submit module')
+check(assert.match, REFINE_ROUTE, /\/api\/v1\/slides\/refine-one/, 'the route forwards to Director refine-one')
+check(assert.match, REFINE_ROUTE, /NEXT_PUBLIC_SLIDE_REFINER_ENABLED/, 'and is gated by the refiner flag')
+{
+  // the wire body has exactly the keys the Slide panel's own Refine sends
+  const refineBlock = SLIDE_PANEL.match(/isRefineMode\s*\?\s*\{([\s\S]*?)\n\s*\}\s*:\s*\{/)
+  check(assert.notEqual, refineBlock, null, 'the Slide panel refine body is findable')
+  const panelKeys = [...refineBlock[1].matchAll(/^\s+(\w+)[:,]/gm)].map(m => m[1]).sort()
+  check(assert.deepEqual, panelKeys, ['instruction', 'presentation_id', 'research', 'selections', 'session_id', 'slide_id', 'slide_index', 'theme'], 'the Slide panel refine keys')
+  check(assert.deepEqual, panelKeys, Object.keys(realLibBody()).sort(), 'Regenerate sends the same keys')
+}
+function regeneratePagePins(PAGE) {
+  check(assert.match, PAGE, /import \{ createAddSlideV2RegenerateHooks \} from '@\/lib\/studio-add-slide-v2-submit'/)
+  check(assert.match, PAGE, /import \{ createAddSlideV2GeneratedStore, rememberAddSlideV2Failed, rememberAddSlideV2Generated \} from '@\/lib\/studio-add-slide-v2'/)
+  check(assert.match, PAGE, /const \[addSlideV2Generated\] = useState\(createAddSlideV2GeneratedStore\)/, 'one store per page, created lazily')
+  check(assert.match, PAGE, /regenerate: process\.env\.NEXT_PUBLIC_STUDIO_SLIDE_REGENERATE_ENABLED === 'true' \? createAddSlideV2RegenerateHooks\(\{/, 'the page builds Regenerate only with its flag on')
+  check(assert.match, PAGE, /regenerateEnabled: features\.slideRefinerEnabled && features\.slideComposerEnabled && features\.slideComposerAsyncEnabled,/, 'submit only with the refiner, the composer and its async mode on')
+  check(assert.match, PAGE, /store: addSlideV2Generated,\s*contextByIndex: \(\) => \(studioPartialMetadata \? null : slideContextByIndex\),\s*jobState: jobId => slideComposeJobsRef\.current\[jobId\],/, 'the page\'s own records feed the target and the status')
+  check(assert.match, PAGE, /contextByIndex: \(\) => \(studioPartialMetadata \? null : slideContextByIndex\),[\s\S]{0,900}onAccepted: handleSlideComposerAccepted,\s*\}\) : undefined,/, 'the refine job is registered through the same page queue as every other job')
+  check(assert.equal, (PAGE.match(/rememberAddSlideV2Generated\(addSlideV2Generated,/g) ?? []).length, 2, 'finished jobs are recorded at the slide_ready handler and at the refresh confirmation')
+  check(assert.equal, (PAGE.match(/rememberAddSlideV2Failed\(addSlideV2Generated,/g) ?? []).length, 2, 'failed refines are recorded where the page drops the job: the WS failure and the recovery poll')
+  check(assert.equal, (PAGE.match(/process\.env\.NEXT_PUBLIC_STUDIO_SLIDE_REGENERATE_ENABLED === 'true'/g) ?? []).length, 5, 'every use in the page sits behind the flag (settings + 4 recordings): flag off = nothing recorded, nothing built')
+  check(assert.match, PAGE, /if \(process\.env\.NEXT_PUBLIC_STUDIO_SLIDE_REGENERATE_ENABLED === 'true' && payload\.real_slide_id\) \{\s*rememberAddSlideV2Generated\(addSlideV2Generated, \{\s*jobId: payload\.job_id,\s*realSlideId: payload\.real_slide_id,\s*replacedSlideId: readyKind === 'refine' \? \(payload\.replaced_slide_id \?\? job\?\.target_slide_id \?\? null\) : null,\s*request: job\?\.request \?\? null,/, 'slide_ready: the new slide id, the one it replaced, and the request')
+  check(assert.match, PAGE, /if \(process\.env\.NEXT_PUBLIC_STUDIO_SLIDE_REGENERATE_ENABLED === 'true' && job\.real_slide_id\) \{\s*rememberAddSlideV2Generated\(addSlideV2Generated, \{\s*jobId,\s*realSlideId: job\.real_slide_id,\s*replacedSlideId: job\.kind === 'refine' \? \(job\.target_slide_id \?\? null\) : null,\s*request: job\.request,\s*\}\)\s*\}\s*removeSlideComposeJob\(jobId\)/, 'the refresh confirmation records before it removes the job')
+  check(assert.match, PAGE, /if \(process\.env\.NEXT_PUBLIC_STUDIO_SLIDE_REGENERATE_ENABLED === 'true'\) rememberAddSlideV2Failed\(addSlideV2Generated, jobId, errors\[0\]\)\s*void composeViewerApiRef\.current\?\.refineOverlayClear\(jobId\)/, 'a recovered failure is recorded before the overlay is cleared')
+  check(assert.match, PAGE, /rememberAddSlideV2Failed\(addSlideV2Generated, payload\.job_id, errors\[0\] \?\? \(payload\.stage \? `Failed during \$\{payload\.stage\}\.` : undefined\)\)\s*void composeViewerApiRef\.current\?\.refineOverlayClear\(payload\.job_id\)/, 'a failed refine is recorded before the overlay is cleared (the original stays)')
+}
+regeneratePagePins(PAGE)
+check(assert.match, ENVEX, /\nNEXT_PUBLIC_STUDIO_SLIDE_REGENERATE_ENABLED="false"\n/, '.env.example documents the flag, default off')
+check(assert.match, ENVEX, /ENABLED_OPTIONS="regenerate[\s\S]{0,900}\nNEXT_PUBLIC_STUDIO_SLIDE_REGENERATE_ENABLED="false"\n/, '.env.example says the option id `regenerate` is needed as well')
 check(assert.match, LIB, /process\.env\.NEXT_PUBLIC_STUDIO_ADD_SLIDE_V2_DISABLED_OPTIONS,\s*process\.env\.NEXT_PUBLIC_STUDIO_ADD_SLIDE_V2_ENABLED_OPTIONS,/, 'literal env access for both option lists')
 for (const [value, expected] of [['true', true], ['false', false], ['TRUE', false], ['1', false], ['', false], [' true', false], [undefined, false]]) {
   const env = value === undefined ? {} : { [FLAG]: value }
@@ -1244,11 +2035,15 @@ check(assert.equal, /\nNEXT_PUBLIC_STUDIO_ADD_SLIDE_V2_(DISABLED|ENABLED)_OPTION
 // ---- 2. behaviour on the real sources ----------------------------------------------------------------------------
 const realLib = load(LIB, { env: ALL_ENV })
 libSuite(realLib)
+regenerateLibSuite(realLib)
 markupSuite(PANEL, realLib)
 check(assert.equal, /^\s*import\s/m.test(SUBMIT), true, 'the submit module imports the page helpers it reuses')
 await submitSuite(submitModule(SUBMIT, realLib), realLib)
+await regenerateSubmitSuite(submitModule(SUBMIT, realLib), realLib)
 await panelInteractionSuite(PANEL, realLib)
 await entrySuite(PANEL, realLib)
+await regeneratePanelSuite(PANEL, realLib)
+await regenerateEntrySuite(PANEL, realLib)
 regenSuite(load(REGEN))
 // Table and Diagram are the Slide panel's own selections: pin them against compose-helpers so they cannot drift
 const composeHelpers = load(read('../components/slide-generation-panel/compose-helpers.ts'))
@@ -1264,8 +2059,8 @@ check(assert.match, PICKER, /if \(ADD_SLIDE_V2_ENABLED && addSlideV2\) \{\s*retu
 check(assert.ok, PICKER.indexOf('if (ADD_SLIDE_V2_ENABLED && addSlideV2)') < PICKER.indexOf('if (STUDIO_SHELL) {'), 'V2 branch precedes the two existing branches')
 check(assert.match, PICKER, /Insert \$\{layout\.label\} slide/, 'existing Insert-slide cards still present')
 check(assert.match, PICKER, /Hero Slides[\s\S]*Content Slides[\s\S]*Visual \+ Text[\s\S]*Image Split/, 'legacy layout picker still present')
-check(assert.match, VIEWER, /addSlideV2=\{ADD_SLIDE_V2_ENABLED && addSlideV2Settings \? \{ settings: addSlideV2Settings, currentSlide, slideCount: totalSlides, theme: buildThemeSelection \} : undefined\}/,
-  'the viewer passes nothing unless the flag is on and the page supplied settings')
+check(assert.match, VIEWER, /addSlideV2=\{ADD_SLIDE_V2_ENABLED && addSlideV2Settings \? \{ settings: addSlideV2Settings, currentSlide, slideCount: totalSlides, theme: buildThemeSelection, slides: addSlideV2Settings\.regenerate \? slideThumbnails\.map\(slide => \(\{ slideId: slide\.slideId \?\? null, title: slide\.title \?\? '' \}\)\) : undefined \} : undefined\}/,
+  'the viewer passes nothing unless the flag is on and the page supplied settings, and the slide rows only when Regenerate is configured')
 check(assert.match, AREA, /addSlideV2Settings=\{addSlideV2Settings\}/, 'the area only forwards')
 check(assert.match, PAGE, /addSlideV2Settings=\{process\.env\.NEXT_PUBLIC_STUDIO_ADD_SLIDE_V2_ENABLED === 'true' \? \{/, 'the page builds settings only with the flag on')
 check(assert.match, PAGE, /\.\.\.createAddSlideV2Hooks\(\{/, 'one factory call supplies submit and the Blank target resolver')
@@ -1304,7 +2099,78 @@ check(assert.equal, /fetch\(|\/api\/|XMLHttpRequest|sendBeacon|WebSocket/.test(w
 check(assert.equal, /Popover|PopoverContent|role="dialog"/.test(PANEL), false, 'the panel is not a pop-up')
 
 // ---- 4. mutation check: every mutant must be caught ---------------------------------------------------------------
+const pageMutants = [
+  ['regenerate is built without its flag', "regenerate: process.env.NEXT_PUBLIC_STUDIO_SLIDE_REGENERATE_ENABLED === 'true' ? createAddSlideV2RegenerateHooks({", "regenerate: createAddSlideV2RegenerateHooks({"],
+  ['regenerate submits without the refiner', "regenerateEnabled: features.slideRefinerEnabled && features.slideComposerEnabled && features.slideComposerAsyncEnabled,", "regenerateEnabled: features.slideComposerEnabled && features.slideComposerAsyncEnabled,"],
+  ['regenerate submits without async', "regenerateEnabled: features.slideRefinerEnabled && features.slideComposerEnabled && features.slideComposerAsyncEnabled,", "regenerateEnabled: features.slideRefinerEnabled && features.slideComposerEnabled,"],
+  ['finished jobs are recorded without the flag', "if (process.env.NEXT_PUBLIC_STUDIO_SLIDE_REGENERATE_ENABLED === 'true' && payload.real_slide_id) {", "if (payload.real_slide_id) {"],
+  ['the slide_ready record forgets the replaced slide', "replacedSlideId: readyKind === 'refine' ? (payload.replaced_slide_id ?? job?.target_slide_id ?? null) : null,", "replacedSlideId: null,"],
+  ['the slide_ready record forgets the request', "            request: job?.request ?? null,\n", "            request: null,\n"],
+  ['the refresh confirmation does not record', "    if (process.env.NEXT_PUBLIC_STUDIO_SLIDE_REGENERATE_ENABLED === 'true' && job.real_slide_id) {\n      rememberAddSlideV2Generated(addSlideV2Generated, {\n        jobId,\n        realSlideId: job.real_slide_id,\n        replacedSlideId: job.kind === 'refine' ? (job.target_slide_id ?? null) : null,\n        request: job.request,\n      })\n    }\n", ""],
+  ['the refresh confirmation records without the flag', "    if (process.env.NEXT_PUBLIC_STUDIO_SLIDE_REGENERATE_ENABLED === 'true' && job.real_slide_id) {", "    if (job.real_slide_id) {"],
+  ['a recovered failure is not recorded', "                  if (process.env.NEXT_PUBLIC_STUDIO_SLIDE_REGENERATE_ENABLED === 'true') rememberAddSlideV2Failed(addSlideV2Generated, jobId, errors[0])\n", ""],
+  ['a failed refine is not recorded', "        if (process.env.NEXT_PUBLIC_STUDIO_SLIDE_REGENERATE_ENABLED === 'true') rememberAddSlideV2Failed(addSlideV2Generated, payload.job_id, errors[0] ?? (payload.stage ? `Failed during ${payload.stage}.` : undefined))\n", ""],
+  ['a failed refine is recorded without the flag', "        if (process.env.NEXT_PUBLIC_STUDIO_SLIDE_REGENERATE_ENABLED === 'true') rememberAddSlideV2Failed(addSlideV2Generated, payload.job_id,", "        rememberAddSlideV2Failed(addSlideV2Generated, payload.job_id,"],
+  ['the refine job is registered somewhere else', "                onAccepted: handleSlideComposerAccepted,\n              }) : undefined,", "                onAccepted: () => {},\n              }) : undefined,"],
+  ['the store is rebuilt on every render', "useState(createAddSlideV2GeneratedStore)", "useState(createAddSlideV2GeneratedStore())"],
+  ['the deck context is used while partial', "contextByIndex: () => (studioPartialMetadata ? null : slideContextByIndex),", "contextByIndex: () => slideContextByIndex,"],
+  ['the job state comes from nowhere', "jobState: jobId => slideComposeJobsRef.current[jobId],", "jobState: () => undefined,"],
+  ['the regenerate store is not the page store', "                store: addSlideV2Generated,\n", "                store: createAddSlideV2GeneratedStore(),\n"],
+]
 const libMutants = [
+  ['the deck context needs no line-up', "Object.keys(contextByIndex).length !== slides.length) return", "false) return"],
+  ['the deck context ids are not trimmed', "    const slideId = row.slideId?.trim()\n    const entry = contextByIndex[index]", "    const slideId = row.slideId\n    const entry = contextByIndex[index]"],
+  ['the deck context is not kept by first sight', " || store.context.has(slideId)) return", ") return"],
+  ['the deck context shares the frame entry', "store.context.set(slideId, { canvas_type: entry.canvas_type, key_message: entry.key_message })", "store.context.set(slideId, entry)"],
+  ['the deck context is not capped', "  capMap(store.context, ADD_SLIDE_V2_CONTEXT_MAX)\n", ""],
+  ['the deck context is keyed by position', "store.context.set(slideId, {", "store.context.set(String(index), {"],
+  ['regen flag on by default', "process.env.NEXT_PUBLIC_STUDIO_SLIDE_REGENERATE_ENABLED === 'true'", "process.env.NEXT_PUBLIC_STUDIO_SLIDE_REGENERATE_ENABLED !== 'false'"],
+  ['regen flag never on', "process.env.NEXT_PUBLIC_STUDIO_SLIDE_REGENERATE_ENABLED === 'true'", "process.env.NEXT_PUBLIC_STUDIO_SLIDE_REGENERATE_ENABLED === 'never'"],
+  ['H1 is not a title', "case 'H1': return 'title'", "case 'H1': return 'section'"],
+  ['H2 is not a section', "case 'H2': return 'section'", "case 'H2': return 'closing'"],
+  ['H3 is not a closing', "case 'H3': return 'closing'", "case 'H3': return 'content'"],
+  ['an unknown canvas is a title', "    default: return 'content'\n  }\n}\n\nexport function addSlideV2RegenerateBlocker", "    default: return 'title'\n  }\n}\n\nexport function addSlideV2RegenerateBlocker"],
+  ['the canvas is not trimmed', "String(canvas ?? '').trim().toUpperCase()", "String(canvas ?? '').toUpperCase()"],
+  ['the canvas is case sensitive', "String(canvas ?? '').trim().toUpperCase()", "String(canvas ?? '').trim()"],
+  ['only a title is a hero', "return kind !== 'content'", "return kind === 'title'"],
+  ['regenerate blocker ignores the option', "  if (!options.has('regenerate')) return 'no-options'\n  if (target.busy) return 'busy'", "  if (target.busy) return 'busy'"],
+  ['regenerate blocker ignores a busy slide', "  if (target.busy) return 'busy'\n", ''],
+  ['regenerate blocker ignores a hidden style', "  if (target.kind === 'content' && !availableAddSlideV2Subtypes(options).some(option => option.value === draft.contentSubtype)) return 'no-options'\n", ''],
+  ['regenerate blocker applies the style check to heroes', "  if (target.kind === 'content' && !availableAddSlideV2Subtypes(options)", "  if (!availableAddSlideV2Subtypes(options)"],
+  ['regenerate hero minimum dropped', "  if (addSlideV2RegenerateIsHero(target.kind) && countAddSlideV2Words(text) < ADD_SLIDE_V2_HERO_MIN_WORDS) return 'too-short'\n", ''],
+  ['regenerate minimum applies to content too', "  if (addSlideV2RegenerateIsHero(target.kind) && countAddSlideV2Words(text) < ADD_SLIDE_V2_HERO_MIN_WORDS) return 'too-short'", "  if (countAddSlideV2Words(text) < ADD_SLIDE_V2_HERO_MIN_WORDS) return 'too-short'"],
+  ['regenerate blocker allows empty text', "  const text = draft.text.trim()\n  if (!text) return 'empty-text'\n  if (addSlideV2RegenerateIsHero", "  const text = draft.text.trim()\n  if (addSlideV2RegenerateIsHero"],
+  ['regenerate blocker ignores a missing session', "  if (!context.sessionId) return 'no-session'\n  if (!hasSubmit) return 'no-submit'\n  return null\n}\n\nexport function buildAddSlideV2RegenerateRequest", "  if (!hasSubmit) return 'no-submit'\n  return null\n}\n\nexport function buildAddSlideV2RegenerateRequest"],
+  ['regenerate blocker ignores a missing submit', "  if (!hasSubmit) return 'no-submit'\n  return null\n}\n\nexport function buildAddSlideV2RegenerateRequest", "  return null\n}\n\nexport function buildAddSlideV2RegenerateRequest"],
+  ['a hero target sends a content style', "contentSubtype: target.kind === 'content' ? draft.contentSubtype : null,", "contentSubtype: draft.contentSubtype,"],
+  ['the request keeps the visual index off by one', "    visualIndex: Math.max(0, context.currentSlide - 1),\n    sessionId: context.sessionId,\n    presentationId: context.presentationId,\n    research: { ...context.research },\n    theme: context.theme,\n  }\n}\n\n/** Wire body for POST /api/slides/refine", "    visualIndex: context.currentSlide,\n    sessionId: context.sessionId,\n    presentationId: context.presentationId,\n    research: { ...context.research },\n    theme: context.theme,\n  }\n}\n\n/** Wire body for POST /api/slides/refine"],
+  ['the regenerate instruction is not trimmed', "    instruction: draft.text.trim(),\n    visualIndex:", "    instruction: draft.text,\n    visualIndex:"],
+  ['the research object is shared', "    research: { ...context.research },\n    theme: context.theme,\n  }\n}\n\n/** Wire body for POST /api/slides/refine", "    research: context.research,\n    theme: context.theme,\n  }\n}\n\n/** Wire body for POST /api/slides/refine"],
+  ['the refine body uses the stale target index', "    slide_index: Math.max(0, layoutIndex),", "    slide_index: request.target.layoutIndex,"],
+  ['the refine body index can go negative', "    slide_index: Math.max(0, layoutIndex),", "    slide_index: layoutIndex,"],
+  ['the refine body drops the slide id', "    slide_id: request.target.slideId,\n", ''],
+  ['the refine body loses the hero selections', "  const selections = addSlideV2Selections(request.target.kind, request.contentSubtype)\n  const researchOff = request.target.kind === 'content' && request.contentSubtype === 'diagram'\n  const body: AddSlideV2RefineBody<TTheme>", "  const selections = addSlideV2Selections('content', request.contentSubtype)\n  const researchOff = request.target.kind === 'content' && request.contentSubtype === 'diagram'\n  const body: AddSlideV2RefineBody<TTheme>"],
+  ['the refine body keeps research on for a Diagram', "  const researchOff = request.target.kind === 'content' && request.contentSubtype === 'diagram'\n  const body: AddSlideV2RefineBody<TTheme>", "  const researchOff = false\n  const body: AddSlideV2RefineBody<TTheme>"],
+  ['the refine body needs no session', "  if (!request.sessionId || !request.target.slideId) return null", "  if (!request.target.slideId) return null"],
+  ['the refine body needs no slide id', "  if (!request.sessionId || !request.target.slideId) return null", "  if (!request.sessionId) return null"],
+  ['the remembered kind ignores the request canvas', "    kind: canvas !== undefined ? addSlideV2KindFromCanvas(canvas) : (replaced?.kind ?? 'content'),", "    kind: replaced?.kind ?? 'content',"],
+  ['the remembered kind ignores the replaced slide', "    kind: canvas !== undefined ? addSlideV2KindFromCanvas(canvas) : (replaced?.kind ?? 'content'),", "    kind: canvas !== undefined ? addSlideV2KindFromCanvas(canvas) : 'content',"],
+  ['the replaced slide is remembered forever', "  if (input.replacedSlideId && input.replacedSlideId !== realSlideId) store.slides.delete(input.replacedSlideId)\n", ''],
+  ['a slide that replaces itself is forgotten', "  if (input.replacedSlideId && input.replacedSlideId !== realSlideId) store.slides.delete(input.replacedSlideId)", "  if (input.replacedSlideId) store.slides.delete(input.replacedSlideId)"],
+  ['the remembered instruction is not capped', ".slice(0, ADD_SLIDE_V2_INSTRUCTION_MAX)", ""],
+  ['the remembered instruction is not trimmed', "input.request.instruction.trim()", "input.request.instruction"],
+  ['an empty slide id is remembered', "  if (!realSlideId) return\n", ''],
+  ['the slide id is not trimmed', "  const realSlideId = input.realSlideId.trim()", "  const realSlideId = input.realSlideId"],
+  ['a finished job without an id is remembered', "  if (input.jobId) {\n    store.completed.delete(input.jobId)", "  if (true) {\n    store.completed.delete(input.jobId)"],
+  ['finished jobs are not capped', "  capMap(store.completed, ADD_SLIDE_V2_COMPLETED_MAX)\n", ''],
+  ['generated slides are not capped', "  capMap(store.slides, ADD_SLIDE_V2_GENERATED_MAX)\n", ''],
+  ['failures are not capped', "  capMap(store.failed, ADD_SLIDE_V2_FAILED_MAX)\n", ''],
+  ['capping drops the newest', "    const oldest = map.keys().next()", "    const oldest = [...map.keys()].slice(-1).map(value => ({ done: false, value }))[0]"],
+  ['a failure may be empty', "|| 'The slide could not be regenerated.')", "|| '')"],
+  ['a failure is not trimmed or capped', "(message ?? '').trim().slice(0, 300)", "(message ?? '')"],
+  ['a failure without a job id is remembered', "  if (!jobId) return\n  store.failed.delete(jobId)", "  store.failed.delete(jobId)"],
+  ['the pre-filled text is empty', "    text: target.instruction,\n  }\n}\n\nexport interface AddSlideV2RegenerateRequest", "    text: '',\n  }\n}\n\nexport interface AddSlideV2RegenerateRequest"],
+  ['the regenerate draft ignores a hidden Auto', "    contentSubtype: styles.some(option => option.value === 'auto') ? 'auto' : (styles[0]?.value ?? 'auto'),\n    text: target.instruction,", "    contentSubtype: 'auto',\n    text: target.instruction,"],
   ['default slide type is title', "slideType: types.some(option => option.value === 'content') ? 'content' : (types[0]?.value ?? 'content'),", "slideType: 'title',"],
   ['default ignores a hidden Content', "slideType: types.some(option => option.value === 'content') ? 'content' : (types[0]?.value ?? 'content'),", "slideType: 'content',"],
   ['default sub-type is chart', "contentSubtype: styles.some(option => option.value === 'auto') ? 'auto' : (styles[0]?.value ?? 'auto'),", "contentSubtype: 'chart',"],
@@ -1399,6 +2265,60 @@ const libMutants = [
   ['flag accepts any truthy value', "process.env.NEXT_PUBLIC_STUDIO_ADD_SLIDE_V2_ENABLED === 'true'", "!!process.env.NEXT_PUBLIC_STUDIO_ADD_SLIDE_V2_ENABLED"],
 ]
 const panelMutants = [
+  ['regenerate ignores its option', "const regen = options.has('regenerate') ? regenerate : undefined", "const regen = regenerate"],
+  ['regenerate mode without a target', "const regenerating = mode === 'regenerate' && target !== null", "const regenerating = mode === 'regenerate'"],
+  ['the header never says Regenerate', "{regenerating ? 'Regenerate slide' : 'Add slide'}", "{'Add slide'}"],
+  ['the context bar forgets the original stays', "in place. The current slide stays until the new one is ready.`}</p>", "in place.`}</p>"],
+  ['the context bar claims a run before one starts', "{`Rebuilds slide ${target.slideNumber} in place.", "{`Regenerating slide ${target.slideNumber} in place."],
+  ['the failure reason gets no full stop', "{`${withFullStop(regenRun.message)} The original slide was kept. `}", "{`${regenRun.message} The original slide was kept. `}"],
+  ['the full stop is always added', "(/[.!?]$/.test(text.trim()) ? text.trim() : `${text.trim()}.`)", "`${text.trim()}.`"],
+  ['the busy hint shows beside our own run', "{regenBlocker && !(regenBuilding && regenBlocker === 'busy') && <p", "{regenBlocker && <p"],
+  ['a running regenerate hides every hint', "{regenBlocker && !(regenBuilding && regenBlocker === 'busy') && <p", "{regenBlocker && !regenBuilding && <p"],
+  ['the switch shows without a target', "{target && (\n            <div className=\"asv2-modes\"", "{(\n            <div className=\"asv2-modes\""],
+  ['the Add / Regenerate switch can be disabled by a run only', "aria-pressed={!regenerating} disabled={busy} onClick", "aria-pressed={!regenerating} disabled={busy || regenBuilding} onClick"],
+  ['one box state for every slide', "const regenDraft = target ? (regenDrafts[target.slideId] ?? initialAddSlideV2RegenerateDraft(target, options)) : null", "const regenDraft = target ? initialAddSlideV2RegenerateDraft(target, options) : null"],
+  ['every slide shares one draft slot', "[target.slideId]: { ...regenDraft, ...change }", "draft: { ...regenDraft, ...change }"],
+  ['an edit keeps the error', "    if (!target || !regenDraft) return\n    setError(null)\n", "    if (!target || !regenDraft) return\n"],
+  ['the run never finishes', "    if (runStatus.status === 'ready') dispatchRegenRun({ type: 'ready', jobId: regenRun.jobId, newSlideId: runStatus.newSlideId })\n", ""],
+  ['the run never fails', "    else if (runStatus.status === 'failed') dispatchRegenRun({ type: 'fail', jobId: regenRun.jobId, message: runStatus.message })\n", ""],
+  ['the run asks about another job', "regen?.jobStatus(regenRun.jobId)", "regen?.jobStatus('x')"],
+  ['the run finishes the wrong job', "dispatchRegenRun({ type: 'ready', jobId: regenRun.jobId,", "dispatchRegenRun({ type: 'ready', jobId: 'x',"],
+  ['the run forgets the old slide', "dispatchRegenRun({ type: 'start', jobId: result.jobId, oldSlideId: target.slideId })", "dispatchRegenRun({ type: 'start', jobId: result.jobId, oldSlideId: 'x' })"],
+  ['the run does not start', "      if (result.ok) {\n        setRunSlideNumber(target.slideNumber)\n        dispatchRegenRun({ type: 'start', jobId: result.jobId, oldSlideId: target.slideId })\n      } else setError(result.message)", "      if (!result.ok) setError(result.message)"],
+  ['the run forgets its slide number', "        setRunSlideNumber(target.slideNumber)\n", ""],
+  ['the run names the slide on screen', "{`Regenerating slide ${runSlideNumber}. The current slide", "{`Regenerating slide ${target.slideNumber}. The current slide"],
+  ['a refusal is not shown', "      } else setError(result.message)\n    } catch (err) {\n      setError(err instanceof Error ? err.message : 'Slide regeneration failed.')", "      }\n    } catch (err) {\n      setError(err instanceof Error ? err.message : 'Slide regeneration failed.')"],
+  ['a second run can start while one runs', "if (busy || regenBuilding || regenBlocker || !target || !regenDraft || !regen?.submit) return", "if (busy || regenBlocker || !target || !regenDraft || !regen?.submit) return"],
+  ['regenerate can be busy-clicked', "if (busy || regenBuilding || regenBlocker || !target || !regenDraft || !regen?.submit) return", "if (regenBuilding || regenBlocker || !target || !regenDraft || !regen?.submit) return"],
+  ['the regenerate button ignores a run', "disabled={busy || regenBuilding || Boolean(regenBlocker)}", "disabled={busy || Boolean(regenBlocker)}"],
+  ['the regenerate button ignores a blocker', "disabled={busy || regenBuilding || Boolean(regenBlocker)}", "disabled={busy || regenBuilding}"],
+  ['the box stays editable during a run', "disabled={busy || regenBuilding}\n                  aria-describedby={hintId}", "disabled={busy}\n                  aria-describedby={hintId}"],
+  ['the failure forgets the original', "{`${withFullStop(regenRun.message)} The original slide was kept. `}", "{`${withFullStop(regenRun.message)} `}"],
+  ['the failure hides the reason', "{`${withFullStop(regenRun.message)} The original slide was kept. `}", "{`The original slide was kept. `}"],
+  ['the ready line names no slide', "{`Regenerated. The new slide replaced slide ${runSlideNumber}. `}", "{`Regenerated. `}"],
+  ['the building line is missing', "{regenRun.status === 'building' && (", "{false && ("],
+  ['the ready line is never shown', "{regenRun.status === 'ready' && target.slideNumber === runSlideNumber && (", "{false && ("],
+  ['the ready line follows the user to every slide', "{regenRun.status === 'ready' && target.slideNumber === runSlideNumber && (", "{regenRun.status === 'ready' && ("],
+  ['the failure follows the user to every slide', "{regenRun.status === 'failed' && target.slideNumber === runSlideNumber && (", "{regenRun.status === 'failed' && ("],
+  ['the failure is never shown', "{regenRun.status === 'failed' && target.slideNumber === runSlideNumber && (", "{false && ("],
+  ['the failure cannot be dismissed', "<button type=\"button\" className=\"asv2-discard\" onClick={() => dispatchRegenRun({ type: 'dismiss' })}>Dismiss</button>", ""],
+  ['the Add footer shows while regenerating', "{!regenerating && (showBlank || showCatalog) && (", "{(showBlank || showCatalog) && ("],
+  ['a hero gets a style picker', "{target.kind === 'content' && styles.length > 0 && (", "{styles.length > 0 && ("],
+  ['the regenerate style is not wired', "onChange={() => editRegenDraft({ contentSubtype: option.value })}", "onChange={() => {}}"],
+  ['the regenerate box is not wired', "onChange={event => editRegenDraft({ text: event.target.value })}", "onChange={() => {}}"],
+  ['the original text cannot be restored', "onClick={() => editRegenDraft({ text: target.instruction })}", "onClick={() => {}}"],
+  ['restore shows without a change', "{target.instruction && regenDraft.text !== target.instruction && (", "{target.instruction && ("],
+  ['restore shows with no original', "{target.instruction && regenDraft.text !== target.instruction && (", "{regenDraft.text !== target.instruction && ("],
+  ['Cmd+Enter always adds', "void (regenerating ? regenerateSlide() : generate())", "void generate()"],
+  ['the regenerate box is not focused', "useEffect(() => { if (regenerating) textRef.current?.focus() }, [regenerating])", "useEffect(() => {}, [regenerating])"],
+  ['the Entry ignores the option', "const regenSettings = options.has('regenerate') ? settings.regenerate : undefined", "const regenSettings = settings.regenerate"],
+  ['the Entry resolves only while open', "const regenTarget = regenSettings ? regenSettings.resolveTarget(", "const regenTarget = panelOpen && regenSettings ? regenSettings.resolveTarget("],
+  ['the Entry resolves only with a host', "const regenTarget = regenSettings ? regenSettings.resolveTarget(", "const regenTarget = regenSettings && settings.panelHost ? regenSettings.resolveTarget("],
+  ['the Entry resolves the wrong slide', "regenSettings.resolveTarget(Math.max(0, currentSlide - 1), slides ?? [])", "regenSettings.resolveTarget(currentSlide, slides ?? [])"],
+  ['the Entry sends no rows', "regenSettings.resolveTarget(Math.max(0, currentSlide - 1), slides ?? [])", "regenSettings.resolveTarget(Math.max(0, currentSlide - 1), [])"],
+  ['the Entry sends undefined rows', "regenSettings.resolveTarget(Math.max(0, currentSlide - 1), slides ?? [])", "regenSettings.resolveTarget(Math.max(0, currentSlide - 1), slides as never)"],
+  ['the Entry drops the submit', "regenerate={regenSettings ? { target: regenTarget, submit: regenSettings.submit, jobStatus: regenSettings.jobStatus } : undefined}", "regenerate={regenSettings ? { target: regenTarget, jobStatus: regenSettings.jobStatus } : undefined}"],
+  ['the Entry drops the job status', "regenerate={regenSettings ? { target: regenTarget, submit: regenSettings.submit, jobStatus: regenSettings.jobStatus } : undefined}", "regenerate={regenSettings ? { target: regenTarget, submit: regenSettings.submit, jobStatus: () => null } : undefined}"],
   ['slide change keeps the stale error', "    setError(null)\n    setQueued(null)\n  }, [context.currentSlide])", "    setQueued(null)\n  }, [context.currentSlide])"],
   ['slide change keeps the Queued note', "    setError(null)\n    setQueued(null)\n  }, [context.currentSlide])", "    setError(null)\n  }, [context.currentSlide])"],
   ['notes cleared on every render', "}, [context.currentSlide])", "})"],
@@ -1454,6 +2374,44 @@ const panelMutants = [
   ['the panel is not remounted per deck', '          key={addSlideV2DraftKey(context.sessionId, context.presentationId)}\n', ''],
 ]
 const submitMutants = [
+  ['regenerate posts to compose', "export const ADD_SLIDE_V2_REFINE_ENDPOINT = '/api/slides/refine'", "export const ADD_SLIDE_V2_REFINE_ENDPOINT = '/api/slides/compose'"],
+  ['regenerate needs no deck', "  if (!request.presentationId) return FAIL('No active presentation is available to regenerate.')\n", ''],
+  ['regenerate ignores a changed selection', "  if (selection.visualIndex !== request.visualIndex) {\n    return FAIL('The selected slide changed. Select the slide you want to regenerate and try again.')\n  }\n", ''],
+  ['regenerate accepts a placeholder', "  if (resolved?.kind !== 'slide') {\n    return FAIL('Select a finished slide to regenerate.", "  if (false) {\n    return FAIL('Select a finished slide to regenerate."],
+  ['regenerate ignores a shifted deck', "  if (resolved.layoutIndex !== request.target.layoutIndex) {", "  if (false) {"],
+  ['regenerate allows a second refine of one slide', "  if (isRegenerating(selection.jobs, request.target.slideId, resolved.layoutIndex)) {", "  if (false) {"],
+  ['regenerate sends the visual index', "buildAddSlideV2RefineBody(request, resolved.layoutIndex)", "buildAddSlideV2RefineBody(request, selection.visualIndex)"],
+  ['regenerate posts to compose too', "postAsyncSlideJob(ADD_SLIDE_V2_REFINE_ENDPOINT, body, deps, isCurrentSession)", "postAsyncSlideJob(ADD_SLIDE_V2_COMPOSE_ENDPOINT, body, deps, isCurrentSession)"],
+  ['regenerate accepts a compose reply', "  if (data.kind && data.kind !== 'refine') {", "  if (false) {"],
+  ['regenerate registers a compose job', "    kind: 'refine',\n    target_slide_id: data.target_slide_id ?? request.target.slideId,", "    kind: data.kind ?? 'compose',\n    target_slide_id: data.target_slide_id ?? request.target.slideId,"],
+  ['regenerate forgets the requested slide', "    target_slide_id: data.target_slide_id ?? request.target.slideId,", "    target_slide_id: data.target_slide_id,"],
+  ['regenerate ignores the backend slide', "    target_slide_id: data.target_slide_id ?? request.target.slideId,", "    target_slide_id: request.target.slideId,"],
+  ['regenerate returns no job id', "  return { ok: true, jobId: data.job_id }", "  return { ok: true, jobId: '' }"],
+  ['regenerate title is not capped', "    title: body.instruction.slice(0, 72) || 'Regenerating slide',", "    title: body.instruction || 'Regenerating slide',"],
+  ['regenerate loses the visual slide', "  }, { submitVisualIndex: selection.visualIndex })\n  return { ok: true, jobId: data.job_id }", "  }, { submitVisualIndex: 0 })\n  return { ok: true, jobId: data.job_id }"],
+  ['a refine on another slide blocks', "    if (job.target_slide_id) return job.target_slide_id === slideId", "    if (job.target_slide_id) return true"],
+  ['a finished refine blocks', "    if (job.kind !== 'refine' || job.status !== 'building') return false", "    if (job.kind !== 'refine') return false"],
+  ['a compose job blocks', "    if (job.kind !== 'refine' || job.status !== 'building') return false", "    if (job.status !== 'building') return false"],
+  ['a refine with no slide id never blocks', "    return job.target_layout_index === layoutIndex || job.targetLayoutIndex === layoutIndex || job.targetIndex === layoutIndex", "    return false"],
+  ['the target resolver ignores placeholders', "  const resolved = resolveSlideComposeVisualIndex(input.visualIndex, { slideCount: input.slides.length, jobs: input.jobs })\n  if (resolved?.kind !== 'slide') return null", "  const resolved = { kind: 'slide' as const, layoutIndex: input.visualIndex }"],
+  ['the target slide id is not trimmed', "  const slideId = row?.slideId?.trim()", "  const slideId = row?.slideId"],
+  ['the target number is the layout index', "    slideNumber: input.visualIndex + 1,", "    slideNumber: resolved.layoutIndex + 1,"],
+  ['the page record is ignored', "  const generated = input.store.slides.get(slideId)", "  const generated = undefined as undefined | { kind: AddSlideV2Type; instruction: string }"],
+  ['the deck context is looked up by position', "  const entry = input.store.context.get(slideId)\n", "  const entry = input.store.context.get(String(resolved.layoutIndex))\n"],
+  ['the context kind is ignored', "    kind: addSlideV2KindFromCanvas(entry.canvas_type),", "    kind: 'content',"],
+  ['the context message is not trimmed', "entry.key_message.trim()", "entry.key_message"],
+  ['the context message may be anything', "typeof entry.key_message === 'string' ?", "entry.key_message ?"],
+  ['the context source is not marked', "    source: 'context',", "    source: 'compose',"],
+  ['the compose record is marked as context', "return { ...base, kind: generated.kind, instruction: generated.instruction, source: 'compose' }", "return { ...base, kind: generated.kind, instruction: generated.instruction, source: 'context' }"],
+  ['the hooks offer submit without the refiner', "    submit: deps.regenerateEnabled ? request => submitAddSlideV2Regenerate(request, deps) : undefined,", "    submit: request => submitAddSlideV2Regenerate(request, deps),"],
+  ['the hooks never remember the deck context', "      rememberAddSlideV2DeckContext(deps.store, slides, deps.contextByIndex())\n", ""],
+  ['the hooks hide the deck context', "rememberAddSlideV2DeckContext(deps.store, slides, deps.contextByIndex())", "rememberAddSlideV2DeckContext(deps.store, slides, null)"],
+  ['a tracked job is not building', "      if (job) return { status: 'building' }", "      if (job?.status === 'building') return { status: 'building' }"],
+  ['the finished job is not reported', "      const newSlideId = deps.store.completed.get(jobId)\n      if (newSlideId) return { status: 'ready', newSlideId }\n", ""],
+  ['the failed job is not reported', "      const failure = deps.store.failed.get(jobId)\n      return failure ? { status: 'failed', message: failure } : null", "      return null"],
+  ['a failed job has no default reason', "|| 'The slide could not be regenerated.' }\n      }\n      if (job) return", "|| '' }\n      }\n      if (job) return"],
+  ['a failed job keeps empty reasons', "job.errors?.filter(Boolean).join('; ')", "job.errors?.join('; ')"],
+  ['a failed job in the map reads as building', "      if (job?.status === 'error') {", "      if (false) {"],
   ['session fence ignored', 'const isCurrentSession = deps.captureSessionOwner()', 'const isCurrentSession = () => true; deps.captureSessionOwner()'],
   ['owner captured after the await', [['const isCurrentSession = deps.captureSessionOwner()', 'let isCurrentSession = () => true'], ['  if (timedOut) return FAIL(ADD_SLIDE_V2_TIMEOUT_MESSAGE)\n', '  if (timedOut) return FAIL(ADD_SLIDE_V2_TIMEOUT_MESSAGE)\n  isCurrentSession = deps.captureSessionOwner()\n']]],
   ['visual index used as the anchor', 'const anchor = resolveAddSlideV2Anchor({', 'const anchor = { ok: true as const, insertAfterIndex: request.anchorVisualIndex }\n  void ({'],
@@ -1517,7 +2475,8 @@ function mutate(source, [name, from, to], label) {
   let out = source
   for (const [a, b] of pairs) {
     assert.ok(out.includes(a), `mutant "${name}" no longer matches the ${label} source`)
-    out = out.replace(a, b)
+    // Every occurrence: the Add and the Regenerate forms share some markup, and a mutant must break both.
+    out = out.split(a).join(b)
   }
   return out
 }
@@ -1526,7 +2485,15 @@ for (const mutant of libMutants) {
   let lib
   try { lib = load(broken, { env: ALL_ENV }) } catch { caught++; continue }
   const seen = checks
-  assert.throws(() => { libSuite(lib); if (mutant[0].startsWith('flag')) assert.equal(load(broken, { env: { [FLAG]: 'false' } }).ADD_SLIDE_V2_ENABLED, false) }, undefined, `lib mutant survived: ${mutant[0]}`)
+  assert.throws(() => {
+    libSuite(lib); regenerateLibSuite(lib)
+    if (mutant[0].startsWith('flag')) assert.equal(load(broken, { env: { [FLAG]: 'false' } }).ADD_SLIDE_V2_ENABLED, false)
+    if (mutant[0].startsWith('regen flag')) {
+      assert.equal(load(broken, { env: {} }).ADD_SLIDE_V2_REGENERATE_ENABLED, false)
+      assert.equal(load(broken, { env: { [REGEN_FLAG]: 'true' } }).ADD_SLIDE_V2_REGENERATE_ENABLED, true)
+      assert.equal(load(broken, { env: { [REGEN_FLAG]: 'TRUE' } }).ADD_SLIDE_V2_REGENERATE_ENABLED, false)
+    }
+  }, undefined, `lib mutant survived: ${mutant[0]}`)
   checks = seen
   caught++
 }
@@ -1534,7 +2501,7 @@ for (const mutant of panelMutants) {
   const broken = mutate(PANEL, mutant, 'component')
   const seen = checks
   let survived = false
-  try { markupSuite(broken, realLib); await panelInteractionSuite(broken, realLib); await entrySuite(broken, realLib); survived = true } catch { /* caught */ }
+  try { markupSuite(broken, realLib); await panelInteractionSuite(broken, realLib); await entrySuite(broken, realLib); await regeneratePanelSuite(broken, realLib); await regenerateEntrySuite(broken, realLib); survived = true } catch { /* caught */ }
   assert.equal(survived, false, `component mutant survived: ${mutant[0]}`)
   checks = seen
   caught++
@@ -1543,7 +2510,7 @@ for (const mutant of submitMutants) {
   const broken = mutate(SUBMIT, mutant, 'submit')
   const seen = checks
   let survived = false
-  try { await submitSuite(submitModule(broken, realLib), realLib); survived = true } catch { /* caught */ }
+  try { await submitSuite(submitModule(broken, realLib), realLib); await regenerateSubmitSuite(submitModule(broken, realLib), realLib); survived = true } catch { /* caught */ }
   assert.equal(survived, false, `submit mutant survived: ${mutant[0]}`)
   checks = seen
   caught++
@@ -1555,6 +2522,13 @@ for (const mutant of regenMutants) {
   checks = seen
   caught++
 }
-check(assert.equal, caught, libMutants.length + panelMutants.length + submitMutants.length + regenMutants.length)
+for (const mutant of pageMutants) {
+  const broken = mutate(PAGE, mutant, 'page')
+  const seen = checks
+  assert.throws(() => regeneratePagePins(broken), undefined, `page mutant survived: ${mutant[0]}`)
+  checks = seen
+  caught++
+}
+check(assert.equal, caught, libMutants.length + panelMutants.length + submitMutants.length + regenMutants.length + pageMutants.length)
 
-console.log(`studio-add-slide-v2: ${checks} checks passed, ${caught} mutants caught (${libMutants.length} lib, ${panelMutants.length} panel/entry, ${submitMutants.length} submit, ${regenMutants.length} regenerate)`)
+console.log(`studio-add-slide-v2: ${checks} checks passed, ${caught} mutants caught (${libMutants.length} lib, ${panelMutants.length} panel/entry, ${submitMutants.length} submit, ${regenMutants.length} regenerate, ${pageMutants.length} page)`)
