@@ -869,6 +869,8 @@ export interface TextLabsElement {
   citations_used?: Array<Record<string, unknown>> | null
   generation_config?: Record<string, unknown> | DiagramGenerationConfig | null
   generationConfig?: Record<string, unknown> | DiagramGenerationConfig | null
+  /** Creative infographic stage-name caption row (Text Labs TL_INFOGRAPHIC_CAPTION_ROW_ENABLED, R14). Additive; read by lib/infographic-caption-row.ts. */
+  caption_row?: Record<string, unknown> | null
   metadata?: {
     theme_variant_id?: string | null
     theme_bindings?: Record<string, string> | null
