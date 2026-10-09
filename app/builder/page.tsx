@@ -47,6 +47,7 @@ import { DirectorPresence } from '@/components/build-narration/director-presence
 import { cn } from '@/lib/utils'
 import { useToast } from '@/hooks/use-toast'
 import { SlideGenerationPanel, type SlideComposeAcceptedJob, type SlideComposeBuiltResult, type SlideComposePanelEvent, type StudioSlideBuiltSelection } from '@/components/slide-generation-panel'
+import { createAddSlideV2Hooks } from '@/lib/studio-add-slide-v2-submit'
 import { StudioFormatInspector, type StudioFormatTarget, type StudioFormatCommand } from '@/components/builder/studio-format-inspector'
 import type { StudioFormatSelectionHandle } from '@/lib/studio-format-native'
 import { TextBoxFormatPanel } from '@/components/textbox-format-panel'
@@ -7232,6 +7233,37 @@ function AuthenticatedBuilderContent({ authScopeUserId }: { authScopeUserId: str
             onComposeApiReady={studioShell ? handleStudioPartialComposeApiReady : handleComposeApiReady}
             onRefineSlide={features.slideRefinerEnabled ? handleOpenSlideRefine : undefined}
             onGenerateSlide={studioShell && features.slideComposerEnabled ? handleOpenSlideCompose : undefined}
+            // J2 v2: same session / research / theme sources as the Slide panel above (P7). `submit` (J2-MAP item8: async,
+            // page-owned registration) exists only with the composer and its async mode on; otherwise Generate stays disabled.
+            addSlideV2Settings={process.env.NEXT_PUBLIC_STUDIO_ADD_SLIDE_V2_ENABLED === 'true' ? {
+              sessionId: resolveSlideComposeSessionId({ deckOwnerSessionId, currentSessionId, wsSessionId }),
+              presentationId: effectivePresentationId,
+              research: {
+                useUploadedDocuments: uploadedFiles.some(isAttachedUpload) || Boolean(sessionStoreName),
+                useWebSearch: webSearchEnabled,
+                useDeepResearch: researchEnabled && webSearchEnabled,
+                useKnowledgeGraph: canUseKnowledgeGraph && knowledgeGraphEnabled,
+              },
+              themeProfileName: activeBuildThemeProfileForSelection?.name ?? null,
+              ...createAddSlideV2Hooks({
+                // `submit` needs the composer and its async mode; the Blank target resolver is always there.
+                generationEnabled: features.slideComposerEnabled && features.slideComposerAsyncEnabled,
+                presentationId: effectivePresentationId,
+                fetchImpl: (url, init) => fetch(url, init),
+                newJobId: () => crypto.randomUUID(),
+                captureSessionOwner: captureStudioSlideComposeSessionOwner,
+                // Same predicate handleSlideComposerAccepted applies before it registers a job.
+                isSessionAdmitted: sessionId => !studioShell || sessionId === questionSubmissionScopeRef.current.sessionId,
+                selection: () => ({
+                  visualIndex: currentSlideIndexRef.current,
+                  realSlideCount: effectiveSlideCount ?? 0,
+                  jobs: studioShell
+                    ? Object.fromEntries(Object.entries(slideComposeJobsRef.current).filter(([, item]) => item.target_presentation_id === effectivePresentationId))
+                    : slideComposeJobsRef.current,
+                }),
+                onAccepted: handleSlideComposerAccepted,
+              }),
+            } : undefined}
             onTextBoxSelected={(elementId, formatting, selectedComponentType) => {
               if (studioShell) closeStudioFormat()
               if (features.useTextLabsGeneration) {
