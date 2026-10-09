@@ -1,0 +1,27 @@
+{
+  "_provenance": "Minted by the Researcher reference mint_token (services/session_auth_report.py at uploads-v1.0 MR !235 head f0923087fc72f30bf320dc61bef5592e8eee8cfc). Secret is a made-up test value.",
+  "secret": "test-signing-key-not-real-0123456789",
+  "cases": [
+    {
+      "name": "email-owner",
+      "sid": "researcher-session-0001",
+      "uid": "owner@example.test",
+      "exp": 1789999600,
+      "token": "v1.cmVzZWFyY2hlci1zZXNzaW9uLTAwMDE.b3duZXJAZXhhbXBsZS50ZXN0.1789999600.bqEYuIqcetsAFvc9H_sTyumq2nw6JtidjfQUp7XxFAM"
+    },
+    {
+      "name": "account-id-owner",
+      "sid": "sess-11111111-1111-4111-8111-111111111111",
+      "uid": "user_abc-123.def:456",
+      "exp": 1789999720,
+      "token": "v1.c2Vzcy0xMTExMTExMS0xMTExLTQxMTEtODExMS0xMTExMTExMTExMTE.dXNlcl9hYmMtMTIzLmRlZjo0NTY.1789999720.C90sAPZl_vpBlB9Ry4joEd21-wuQHRJZxb3zwsK3jao"
+    },
+    {
+      "name": "non-ascii-owner",
+      "sid": "researcher-session-0002",
+      "uid": "owñer@example.test",
+      "exp": 1790003600,
+      "token": "v1.cmVzZWFyY2hlci1zZXNzaW9uLTAwMDI.b3fDsWVyQGV4YW1wbGUudGVzdA.1790003600.-b2yI1J0oDLqRa-YSg5T1SdtQy1v7eXAH4rgV0S2jd8"
+    }
+  ]
+}
