@@ -156,12 +156,29 @@ for (const [name, scenario] of Object.entries(SCENARIOS)) {
   check(`${name}: flag off keeps today's cards`, () => assert.deepEqual(states(off, scenario.rows, ids), scenario.flagOff))
 }
 
-// A reply the Director replayed into the frame list (role user) is a persisted turn too.
+// A reply the Director replayed into the frame list (role user) is a persisted turn too. A history replay (skip_history=false: new
+// tab, other device, next day) stamps EVERY frame clientTimestamp = Date.now() on arrival (use-deckster-websocket-v2.ts), so the
+// arrival stamp is far later than the original time. A replayed turn is timed by its frame timestamp, as the transcript times it.
+const ARRIVED = T0 + 26 * 3600 * 1000
+const replayedUser = (id, t, text, n) => ({ message_id: id, session_id: SID, timestamp: iso(t), type: 'chat_message', role: 'user', payload: { text }, clientTimestamp: ARRIVED + n })
 check('a replayed user frame after a question answers it (flag on only)', () => {
   const state = restore([user('u1', 0, 'Build a deck'), ask('q1', 2)])
-  state.messages.push({ message_id: 'u-replayed', session_id: SID, timestamp: iso(10), type: 'chat_message', role: 'user', payload: { text: 'Answers: Engineers' }, clientTimestamp: T0 + 10000 })
+  state.messages.push(replayedUser('u-replayed', 10, 'Answers: Engineers', 1))
   assert.equal(cardState(render(on, state), 'q1'), 'answered')
   assert.equal(cardState(render(off, state), 'q1'), 'active')
+})
+check('W2: a history replay that lands later does not answer a pending question (the user turn came BEFORE the card)', () => {
+  const state = restore([user('u1', 0, 'Build a deck on AI forecasting'), blankFrame('blank', 0.5), bot('b1', 1, 'A few questions first'), ask('q1', 2)])
+  // Director replays the chat history next day: the same user turn, original time 0, arrival stamp a day later than the card.
+  state.messages.push(replayedUser('msg_hist_0user', 0, 'Build a deck on AI forecasting', 1))
+  assert.equal(cardState(render(on, state), 'q1'), 'active')
+  assert.equal(cardState(render(off, state), 'q1'), 'active')
+})
+check('W3: the same replay, with the question answered before the plan gate: question retired, gate live', () => {
+  const state = restore([user('u1', 0, 'Build a deck'), ask('q1', 2), user('u2', 10, 'Answers: Leadership'), bot('b1', 11, 'Here is the plan'), plan(12)])
+  state.messages.push(replayedUser('h0', 0, 'Build a deck', 1), replayedUser('h1', 10, 'Answers: Leadership', 2))
+  const html = render(on, state)
+  assert.equal(cardState(html, 'q1'), 'answered'); assert.equal(cardState(html, PLAN_ID), 'active')
 })
 check('a card, or a user turn, with no usable time never retires anything', () => {
   const state = restore([user('u1', 0, 'Build a deck'), ask('q1', 2), user('u2', 10, 'Answers: Leadership')])

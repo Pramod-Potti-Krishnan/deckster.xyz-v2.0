@@ -114,6 +114,7 @@ function strip(ref, studio) {
     '@/lib/slide-compose-async': pure(ref,'slide-compose-async'),
     '@/lib/slide-thumbnail-menu': pure(ref,'slide-thumbnail-menu'),
     './slide-layout-picker': {SLIDE_LAYOUTS:[]},
+    '@/lib/studio-slide-title-label': {slideTitleLabel:title=>title},
   }
   const parsed=ts.createSourceFile('strip.tsx',text,ts.ScriptTarget.Latest,true,ts.ScriptKind.TSX)
   for (const declaration of parsed.statements) {

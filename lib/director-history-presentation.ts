@@ -165,10 +165,11 @@ function userReplies(messages: readonly DirectorMessage[], userTurns: readonly H
   for (const turn of userTurns) {
     if (typeof turn.timestamp === 'number' && Number.isFinite(turn.timestamp)) replies.push({ at: turn.timestamp, text: turn.text ?? '' })
   }
-  // A user turn the Director replayed into the frame list is a persisted turn as well.
+  // A user turn the Director replayed into the frame list is a persisted turn as well. It keeps its ORIGINAL time (the
+  // transcript sorts user entries by the frame timestamp); its arrival stamp (clientTimestamp) only says when the replay landed.
   for (const message of messages) {
     if (message.type !== 'chat_message' || (message as DirectorMessage & { role?: string }).role !== 'user') continue
-    const at = transcriptTime(message)
+    const at = directorHistoryTimestamp(message.timestamp)
     if (Number.isFinite(at)) replies.push({ at, text: String((message.payload as { text?: unknown } | undefined)?.text ?? '') })
   }
   return replies
