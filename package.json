@@ -41,6 +41,7 @@
     "test:textbox-request-fidelity": "node scripts/test-textbox-request-fidelity.mjs",
     "test:metrics-overhaul-contract": "node scripts/test-metrics-overhaul-contract.mjs",
     "test:table-overhaul-contract": "node scripts/test-table-overhaul-contract.mjs",
+    "test:table-data-rows-label": "node scripts/test-table-data-rows-label.mjs",
     "test:chart-generation-contract": "node scripts/test-chart-generation-contract.mjs",
     "test:chart-request-safety": "node scripts/test-chart-request-safety.mjs",
     "test:director-websocket-reconnect": "node scripts/test-director-websocket-reconnect.mjs",
