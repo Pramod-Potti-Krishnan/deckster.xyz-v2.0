@@ -2,8 +2,16 @@ import { NextRequest, NextResponse } from 'next/server';
 import { SignJWT } from 'jose';
 import { isStudioDevDeployment } from '@/lib/dev-deployment';
 
-// Only enable in development mode
-const isDevelopment = process.env.NODE_ENV === 'development' || process.env.NEXT_PUBLIC_DEV_MODE === 'true';
+// Local development only. The gate is the server-side NODE_ENV and nothing else:
+// a NEXT_PUBLIC_* variable is exposed to the browser bundle and must never be
+// able to switch on a credential mint.
+const isDevelopment = process.env.NODE_ENV === 'development';
+
+// No fallback signing key: without JWT_SECRET the route refuses instead of minting.
+const missingSecretResponse = () => NextResponse.json(
+  { error: 'Mock tokens are unavailable: JWT_SECRET is not set' },
+  { status: 500 }
+);
 
 export async function POST(request: NextRequest) {
   if (isStudioDevDeployment()) {
@@ -16,14 +24,16 @@ export async function POST(request: NextRequest) {
     );
   }
 
+  if (!process.env.JWT_SECRET) {
+    return missingSecretResponse();
+  }
+
   try {
     const body = await request.json();
     const userId = body.user_id || 'test_user';
     
     // Create a mock JWT token for development
-    const secret = new TextEncoder().encode(
-      process.env.JWT_SECRET || 'dev-secret-key-for-testing-only'
-    );
+    const secret = new TextEncoder().encode(process.env.JWT_SECRET);
     
     const token = await new SignJWT({
       user_id: userId,
@@ -69,6 +79,10 @@ export async function GET(request: NextRequest) {
       { error: 'Mock tokens are only available in development mode' },
       { status: 403 }
     );
+  }
+
+  if (!process.env.JWT_SECRET) {
+    return missingSecretResponse();
   }
 
   return NextResponse.json({

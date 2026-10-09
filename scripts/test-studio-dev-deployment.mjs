@@ -45,13 +45,76 @@ for (const value of [undefined, 'false', 'TRUE', '1', 'true']) {
   checks += 2
 }
 
+// Deliberate, reviewed changes made after the baseline. Each [from, to] pair must
+// match the baseline text exactly, so any other drift still fails the check below.
+const hardenings = new Map([
+  // Dev token route: gated on server-side NODE_ENV only (no NEXT_PUBLIC_DEV_MODE
+  // path) and no hard-coded fallback signing key (no JWT_SECRET: refuse, sign nothing).
+  ['app/api/dev/mock-token/route.ts', [
+    [
+      `// Only enable in development mode
+const isDevelopment = process.env.NODE_ENV === 'development' || process.env.NEXT_PUBLIC_DEV_MODE === 'true';
+`,
+      `// Local development only. The gate is the server-side NODE_ENV and nothing else:
+// a NEXT_PUBLIC_* variable is exposed to the browser bundle and must never be
+// able to switch on a credential mint.
+const isDevelopment = process.env.NODE_ENV === 'development';
+
+// No fallback signing key: without JWT_SECRET the route refuses instead of minting.
+const missingSecretResponse = () => NextResponse.json(
+  { error: 'Mock tokens are unavailable: JWT_SECRET is not set' },
+  { status: 500 }
+);
+`,
+    ],
+    [
+      `  try {
+    const body = await request.json();
+    const userId = body.user_id || 'test_user';
+    
+    // Create a mock JWT token for development
+    const secret = new TextEncoder().encode(
+      process.env.JWT_SECRET || 'dev-secret-key-for-testing-only'
+    );
+`,
+      `  if (!process.env.JWT_SECRET) {
+    return missingSecretResponse();
+  }
+
+  try {
+    const body = await request.json();
+    const userId = body.user_id || 'test_user';
+    
+    // Create a mock JWT token for development
+    const secret = new TextEncoder().encode(process.env.JWT_SECRET);
+`,
+    ],
+    [
+      `  return NextResponse.json({
+    status: 'Mock token endpoint is available',`,
+      `  if (!process.env.JWT_SECRET) {
+    return missingSecretResponse();
+  }
+
+  return NextResponse.json({
+    status: 'Mock token endpoint is available',`,
+    ],
+  ]],
+])
+
 for (const [path, methods] of routes) {
   const source = readFileSync(path, 'utf8')
   const previous = execFileSync('git', ['show', `${baseline}:${path}`], { encoding: 'utf8' })
   const withoutGuard = source
     .replace(/^import \{ isStudioDevDeployment \} from '@\/lib\/dev-deployment';?\n/m, '')
     .replace(/  if \(isStudioDevDeployment\(\)\) \{\n    return NextResponse\.json\(\{ error: 'Not found' \}, \{ status: 404 \}\);?\n  \}\n/g, '')
-  assert.equal(withoutGuard.trimEnd(), previous.trimEnd(), `${path} changed beyond the explicit guard`)
+  let expected = previous
+  for (const [from, to] of hardenings.get(path) ?? []) {
+    assert.ok(expected.includes(from), `${path} baseline no longer contains the text the hardening replaces`)
+    expected = expected.replace(from, to)
+    checks++
+  }
+  assert.equal(withoutGuard.trimEnd(), expected.trimEnd(), `${path} changed beyond the explicit guard and reviewed hardening`)
   checks++
   for (const nodeEnv of ['production', 'development']) {
     // Even an accidentally enabled public mock flag must not bypass the server boundary.
