@@ -13,7 +13,7 @@ export interface StudioDirectorCallOptions {
   authority: ReturnType<typeof createStudioVoiceOwner>
   observation: StudioVoiceOwnerObservation
   messages: readonly DirectorMessage[]
-  userMessages: readonly { text: string }[]
+  userMessages: readonly { text: string; timestamp?: number }[]
   userMessageIdsRef: RefObject<Set<string>>
   userMessageContentMapRef: RefObject<Map<string, string>>
   answeredActionsRef: RefObject<Set<string>>
@@ -112,7 +112,7 @@ export function useStudioDirectorCall(options: StudioDirectorCallOptions) {
     const root = getQuestionRoot()
     if (!root || current.owner !== owner || !owner || !authority.isCurrent(owner)) return false
     const policy = getDirectorActionPolicy(current.options.messages,
-      current.options.answeredActionsRef.current, current.options.messageListSessionId)
+      current.options.answeredActionsRef.current, current.options.messageListSessionId, current.options.userMessages)
     const ask = latestPendingAsk(current.options.messages, {
       displayedSessionId: current.options.observation.sessionId,
       historicalStatuses: policy.historicalActions, activeActionIds: policy.activeActionIds,
@@ -126,7 +126,7 @@ export function useStudioDirectorCall(options: StudioDirectorCallOptions) {
     const control = cards[0].querySelector<HTMLElement>('button:not([disabled]):not([aria-disabled="true"]), textarea:not([disabled]):not([aria-disabled="true"]), input:not([disabled]):not([aria-disabled="true"])')
     return studioVoiceElementVisible(control)
   }, [authority, owner, getQuestionRoot])
-  const policy = getDirectorActionPolicy(messages, options.answeredActionsRef.current, options.messageListSessionId)
+  const policy = getDirectorActionPolicy(messages, options.answeredActionsRef.current, options.messageListSessionId, options.userMessages)
   const call = useDirectorCall({
     enabled, owner, eligible: effectiveObservation.eligible, isCurrentOwner: isCurrentCallOwner,
     messages, replyPolicy, focusComposer,

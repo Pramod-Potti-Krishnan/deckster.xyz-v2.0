@@ -6378,7 +6378,7 @@ function AuthenticatedBuilderContent({ authScopeUserId }: { authScopeUserId: str
     }
   }
   studioPartialNativeReadbackHandlerRef.current = handleStudioPartialNativeReadback
-  const retiredIntroActions = historicalActionStatuses(messages, session.answeredActionsRef.current)
+  const retiredIntroActions = historicalActionStatuses(messages, session.answeredActionsRef.current, session.userMessages)
   const studioMandatoryDecision = messages.some(message => message.type === 'action_request'
     && message.session_id === (currentSessionId || wsSessionId) && !retiredIntroActions.has(message.message_id)
     && Boolean((message.payload as any).question_set || (message as ActionRequest).payload.actions.some(action =>

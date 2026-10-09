@@ -68,6 +68,7 @@ import {
   resolveSlideViewerNavigationInfo,
 } from '@/lib/slide-compose-async'
 import { applyStageFThumbnailUrls, ownedRestoredThumbnailUrl } from '@/lib/stage-f-thumbnails'
+import { slideTitleLabel } from '@/lib/studio-slide-title-label'
 import { useSlideRailIdentity } from '@/hooks/use-slide-rail-identity'
 import { STUDIO_RAIL_SLIDE_IDENTITY_ENABLED } from '@/lib/slide-rail-identity'
 import { STUDIO_DECK_MUTATION_REFRESH_ENABLED, onSlideRailRefreshRequest } from '@/lib/studio-deck-mutation-refresh'
@@ -1429,7 +1430,7 @@ export function PresentationViewer({
         slideId: slide.slide_id || slide.id || null,
         slideIndex: Number.isInteger(slideIndex) && slideIndex >= 0 ? slideIndex : index,
         actualSlideIndex: Number.isInteger(actualSlideIndex) && actualSlideIndex >= 0 ? actualSlideIndex : undefined,
-        title: slide.title || slide.slide_type || `Slide ${index + 1}`,
+        title: slideTitleLabel(slide.title || slide.slide_type || `Slide ${index + 1}`),
         content: slide.narrative || slide.key_points?.join(', '),
         // Retain a supplied image on restored Studio metadata; live StageF
         // images below still take precedence. This does not generate an image.
@@ -2067,7 +2068,7 @@ export function PresentationViewer({
               ? slideStructure.slides.map((slide: any, index: number) => ({
                   slideNumber: index + 1, slideIndex: index,
                   actualSlideIndex: index, slideId: slide.slide_id || slide.id || null,
-                  title: slide.title || slide.slide_type || `Slide ${index + 1}`,
+                  title: slideTitleLabel(slide.title || slide.slide_type || `Slide ${index + 1}`),
                   content: slide.narrative || slide.key_points?.join(', '),
                   thumbnailUrl: ownedRestoredThumbnailUrl(slide, presentationId),
                 })) : []

@@ -180,7 +180,7 @@ export function MessageList({
     certificate: InferredGreetingPrefixCertificate | null
   }>({ receipt: null, revision: 0, eligibleIds: new Set(), userIntentSeen: false, nonIntroSeen: false, certificate: null })
 
-  const { historicalActions, activeActionIds } = getDirectorActionPolicy(messages, answeredActionsRef.current, sessionId)
+  const { historicalActions, activeActionIds } = getDirectorActionPolicy(messages, answeredActionsRef.current, sessionId, userMessages)
   // Old card callbacks may survive a parent history transition. Validate at
   // interaction time against render-current IDs rather than a captured list.
   const activeActionsRef = useRef(activeActionIds)

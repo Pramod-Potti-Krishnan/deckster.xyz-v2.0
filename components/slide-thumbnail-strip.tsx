@@ -29,6 +29,7 @@ import {
 import { getSlideMenuActions, slideMenuHasAnyAction } from '@/lib/slide-thumbnail-menu'
 import { SLIDE_LAYOUTS, SlideLayoutId } from './slide-layout-picker'
 import { buildSlideComposeVisualOrder } from '@/lib/slide-compose-async'
+import { slideTitleLabel } from '@/lib/studio-slide-title-label'
 import type { SlideRefineTarget } from '@/lib/slide-refinement'
 import './studio-thumbnails.css'
 
@@ -429,7 +430,7 @@ export function SlideThumbnailStrip({
     const isRefineDisabled = isItemProcessing || isRefineTargetBusy(slide, slideIndex)
     const displayTitle = !slide.title || /^Slide \d+$/i.test(slide.title)
       ? `Slide ${visualNumber}`
-      : slide.title
+      : slideTitleLabel(slide.title)
     const titleText = isRefining ? (refineJob.lastProgressText || 'Refining slide') : displayTitle
     const thumbnailUrl = slide.thumbnailUrl?.trim()
 
