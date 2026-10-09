@@ -12,6 +12,7 @@
     "dev": "next dev",
     "lint": "next lint",
     "test:director-sync-recovery": "node scripts/test-director-sync-recovery.mjs",
+    "test:studio-history-action-status": "node scripts/test-studio-history-action-status.mjs",
     "test:golden-evidence-contract": "node scripts/test-golden-evidence-contract.mjs",
     "test:build-progress-visibility": "node scripts/test-build-progress-visibility.mjs",
     "test:user-message-attachments": "node scripts/test-user-message-attachments.mjs",

@@ -144,11 +144,48 @@ export function projectVerifiedOutlineReplay<T extends DirectorMessage>(
 
 export type HistoricalActionStatus = 'answered' | 'earlier'
 
+/** Reload fix R1/R2 (RUN-1 J1). Exact "true" enables it; default off, and then every status below is exactly today's. */
+export const STUDIO_HISTORY_ACTION_STATUS_ENABLED = process.env.NEXT_PUBLIC_STUDIO_HISTORY_ACTION_STATUS_ENABLED === 'true'
+
+/** A user turn of the transcript (a `UserChatMessage` fits). `timestamp` is epoch ms. */
+export interface HistoricalUserTurn {
+  readonly text?: string
+  readonly timestamp?: number
+}
+
+// The transcript orders a Director frame by its client arrival time when it has one (a replayed gate is re-stamped
+// on arrival, so it sorts after the turns that preceded the replay), else by its own timestamp.
+function transcriptTime(message: DirectorMessage): number {
+  const arrival = (message as DirectorMessage & { clientTimestamp?: unknown }).clientTimestamp
+  return typeof arrival === 'number' && Number.isFinite(arrival) ? arrival : directorHistoryTimestamp(message.timestamp)
+}
+
+function userReplies(messages: readonly DirectorMessage[], userTurns: readonly HistoricalUserTurn[]): { at: number; text: string }[] {
+  const replies: { at: number; text: string }[] = []
+  for (const turn of userTurns) {
+    if (typeof turn.timestamp === 'number' && Number.isFinite(turn.timestamp)) replies.push({ at: turn.timestamp, text: turn.text ?? '' })
+  }
+  // A user turn the Director replayed into the frame list is a persisted turn as well.
+  for (const message of messages) {
+    if (message.type !== 'chat_message' || (message as DirectorMessage & { role?: string }).role !== 'user') continue
+    const at = transcriptTime(message)
+    if (Number.isFinite(at)) replies.push({ at, text: String((message.payload as { text?: unknown } | undefined)?.text ?? '') })
+  }
+  return replies
+}
+
 /** Only native workflow gates have a proven successor: plan -> outline and
- * outline -> final. Arbitrary current questions/retry/edit choices remain live. */
+ * outline -> final. Arbitrary current questions/retry/edit choices remain live.
+ *
+ * With STUDIO_HISTORY_ACTION_STATUS_ENABLED and the transcript's user turns, a card is also 'answered' once a user turn
+ * follows it (after a reload nothing else records the answer). That is the only evidence: a deck, a position in the list
+ * or a later Director frame never retires a card, so a pending question, plan gate or "Generate final deck" stays live.
+ * A native gate is answered by its own button echo (the turn text is one of its labels); free text sent while it is
+ * pending is not an answer. Pure: it never writes `answeredIds`. */
 export function historicalActionStatuses(
   messages: readonly DirectorMessage[],
   answeredIds: ReadonlySet<string>,
+  userTurns?: readonly HistoricalUserTurn[],
 ): Map<string, HistoricalActionStatus> {
   const statuses = new Map<string, HistoricalActionStatus>()
   for (const message of messages) {
@@ -176,6 +213,17 @@ export function historicalActionStatuses(
         statuses.set(message.message_id, 'earlier'); break
       }
     }
+  }
+  if (!STUDIO_HISTORY_ACTION_STATUS_ENABLED || !userTurns) return statuses
+  const replies = userReplies(messages, userTurns)
+  for (const message of messages) {
+    if (message.type !== 'action_request' || statuses.has(message.message_id)) continue
+    const at = transcriptTime(message)
+    const actions = (message as ActionRequest).payload?.actions ?? []
+    const nativeGate = actions.some(action => action.value === 'accept_plan' || action.value === 'accept_strawman')
+    const labels = new Set(actions.map(action => action.label.trim()))
+    // A card or a turn without a usable time (NaN) never compares as earlier, so it cannot be answered by accident.
+    if (replies.some(reply => reply.at > at && (!nativeGate || labels.has(reply.text.trim())))) statuses.set(message.message_id, 'answered')
   }
   return statuses
 }

@@ -1,5 +1,5 @@
 import type { DirectorMessage } from '@/hooks/use-deckster-websocket-v2'
-import { historicalActionStatuses, type HistoricalActionStatus } from '@/lib/director-history-presentation'
+import { historicalActionStatuses, type HistoricalActionStatus, type HistoricalUserTurn } from '@/lib/director-history-presentation'
 
 export interface DirectorMessageBookkeeping {
   userMessageIds: ReadonlySet<string>
@@ -48,8 +48,9 @@ export function getDirectorActionPolicy(
   messages: readonly DirectorMessage[],
   answeredIds: ReadonlySet<string>,
   sessionId?: string | null,
+  userTurns?: readonly HistoricalUserTurn[],
 ): { historicalActions: Map<string, HistoricalActionStatus>; activeActionIds: Set<string> } {
-  const historicalActions = historicalActionStatuses(messages, answeredIds)
+  const historicalActions = historicalActionStatuses(messages, answeredIds, userTurns)
   const activeActionIds = new Set(messages.filter(message => message.type === 'action_request'
     && (!sessionId || !message.session_id || message.session_id === sessionId)
     && !historicalActions.has(message.message_id)).map(message => message.message_id))
