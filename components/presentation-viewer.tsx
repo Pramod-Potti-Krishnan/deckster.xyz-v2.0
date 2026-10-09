@@ -2140,12 +2140,12 @@ export function PresentationViewer({
         }
         if (!isCurrentSlideMutation()) { reportRetiredAdd(); return }
         commit(setTotalSlides, newTotal)
+        slideRailRefreshRef.current() // F8/S-03: re-read the slide inventory after the Add ack
         if (STUDIO_SLIDE_COUNT_SYNC_ENABLED) {
           commit(setVisualTotalSlides, visualTotalAfterCommit({
             totalBefore: slideTotalsRef.current.total, visualBefore: slideTotalsRef.current.visual, totalAfter: newTotal,
           }))
         }
-        slideRailRefreshRef.current() // F8/S-03: re-read the slide inventory after the Add ack
         commitSelection(setCurrentSlide, newSlideNumber) // Update local state (1-based)
         if (studioShell) commitSelection<number[]>(setSelectedSlideIndices, [newSlideIndex])
         // The parent owns the slide index used by Add Element. Publish the
