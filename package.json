@@ -75,7 +75,8 @@
     "test:slide-thumbnail-menu": "node scripts/test-slide-thumbnail-menu.mjs",
     "test:legal-links": "node scripts/test-legal-links.mjs",
     "test:textbox-planned-recovery": "node scripts/test-textbox-planned-recovery.mjs",
-    "test:shape-typed-failure": "node scripts/test-shape-typed-failure.mjs"
+    "test:shape-typed-failure": "node scripts/test-shape-typed-failure.mjs",
+    "test:studio-blocked-send-feedback": "node scripts/test-studio-blocked-send-feedback.mjs"
   },
   "dependencies": {
     "@auth/prisma-adapter": "^2.10.0",
