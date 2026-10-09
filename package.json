@@ -62,6 +62,7 @@
     "test:theme-font-selection": "node scripts/test-theme-font-selection.mjs",
     "test:stage-f-thumbnails": "node scripts/test-stage-f-thumbnails.mjs",
     "test:studio-rail-slide-identity": "node scripts/test-studio-rail-slide-identity.mjs",
+    "test:studio-rail-live-preview": "node scripts/test-studio-rail-live-preview.mjs",
     "test:studio-deck-mutation-refresh": "node scripts/test-studio-deck-mutation-refresh.mjs",
     "test:studio-add-slide-v2": "node scripts/test-studio-add-slide-v2.mjs",
     "test:template-save-gate": "node scripts/test-template-save-gate.mjs",

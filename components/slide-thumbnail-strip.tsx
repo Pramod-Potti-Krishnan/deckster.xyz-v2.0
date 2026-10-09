@@ -31,6 +31,8 @@ import { SLIDE_LAYOUTS, SlideLayoutId } from './slide-layout-picker'
 import { buildSlideComposeVisualOrder } from '@/lib/slide-compose-async'
 import { slideTitleLabel } from '@/lib/studio-slide-title-label'
 import type { SlideRefineTarget } from '@/lib/slide-refinement'
+import { STUDIO_RAIL_LIVE_PREVIEW_FALLBACK_ENABLED, railLivePreviewApplies } from '@/lib/rail-live-preview'
+import { RailLivePreview } from './rail-live-preview'
 import './studio-thumbnails.css'
 
 const STUDIO_THUMBNAILS = process.env.NEXT_PUBLIC_STUDIO_V4_SHELL === 'true'
@@ -125,6 +127,10 @@ export interface SlideThumbnailStripProps {
   /** F8/S-03: rows come from Layout's slide inventory, so React keys them by slide_id (a moved
    *  slide keeps its node and image) instead of by position. Default false = today's keys. */
   keyBySlideId?: boolean
+  /** F9-A (flag NEXT_PUBLIC_STUDIO_RAIL_LIVE_PREVIEW_FALLBACK_ENABLED): the deck's approved Layout viewer URL. A card whose inventory
+   *  status is `none` (no preview will ever come) shows a live view-only mini-preview of its slide instead of "No preview".
+   *  Ignored when the flag is off. */
+  livePreviewViewerUrl?: string | null
 }
 
 /**
@@ -158,6 +164,7 @@ export function SlideThumbnailStrip({
   composeJobs = [],
   onRefineSlide,
   keyBySlideId = false,
+  livePreviewViewerUrl = null,
 }: SlideThumbnailStripProps) {
   const [draggedSlide, setDraggedSlide] = useState<number | null>(null)
   const [dropTarget, setDropTarget] = useState<number | null>(null)
@@ -640,6 +647,10 @@ export function SlideThumbnailStrip({
                   "h-0.5 w-1/2 rounded-sm",
                   isActive ? "bg-blue-300/70 dark:bg-blue-600/60" : "bg-slate-300/70 dark:bg-slate-600/60"
                 )} />
+                {STUDIO_RAIL_LIVE_PREVIEW_FALLBACK_ENABLED && STUDIO_THUMBNAILS && livePreviewViewerUrl
+                  && railLivePreviewApplies({ thumbnailStatus: slide.thumbnailStatus, thumbnailUrl }) && (
+                  <RailLivePreview viewerUrl={livePreviewViewerUrl} slideIndex={slideIndex} />
+                )}
               </>
             )}
 
