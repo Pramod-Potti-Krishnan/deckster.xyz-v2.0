@@ -7232,6 +7232,18 @@ function AuthenticatedBuilderContent({ authScopeUserId }: { authScopeUserId: str
             onComposeApiReady={studioShell ? handleStudioPartialComposeApiReady : handleComposeApiReady}
             onRefineSlide={features.slideRefinerEnabled ? handleOpenSlideRefine : undefined}
             onGenerateSlide={studioShell && features.slideComposerEnabled ? handleOpenSlideCompose : undefined}
+            // J2 v2: same session / research / theme sources as the Slide panel above (P7). TODO(J2-MAP): add `submit` here.
+            addSlideV2Settings={process.env.NEXT_PUBLIC_STUDIO_ADD_SLIDE_V2_ENABLED === 'true' ? {
+              sessionId: resolveSlideComposeSessionId({ deckOwnerSessionId, currentSessionId, wsSessionId }),
+              presentationId: effectivePresentationId,
+              research: {
+                useUploadedDocuments: uploadedFiles.some(isAttachedUpload) || Boolean(sessionStoreName),
+                useWebSearch: webSearchEnabled,
+                useDeepResearch: researchEnabled && webSearchEnabled,
+                useKnowledgeGraph: canUseKnowledgeGraph && knowledgeGraphEnabled,
+              },
+              themeProfileName: activeBuildThemeProfileForSelection?.name ?? null,
+            } : undefined}
             onTextBoxSelected={(elementId, formatting, selectedComponentType) => {
               if (studioShell) closeStudioFormat()
               if (features.useTextLabsGeneration) {

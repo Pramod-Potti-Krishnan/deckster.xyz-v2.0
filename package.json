@@ -58,6 +58,7 @@
     "test:stage-f-thumbnails": "node scripts/test-stage-f-thumbnails.mjs",
     "test:studio-rail-slide-identity": "node scripts/test-studio-rail-slide-identity.mjs",
     "test:studio-deck-mutation-refresh": "node scripts/test-studio-deck-mutation-refresh.mjs",
+    "test:studio-add-slide-v2": "node scripts/test-studio-add-slide-v2.mjs",
     "test:template-save-gate": "node scripts/test-template-save-gate.mjs",
     "test:upload-status-contract": "node scripts/test-upload-status-contract.mjs",
     "test:research-mode-contract": "node scripts/test-research-mode-contract.mjs",

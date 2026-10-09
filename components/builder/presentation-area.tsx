@@ -32,6 +32,7 @@ import type { BlankElementInfo } from '@/hooks/use-blank-elements'
 import type { TemplateBlueprint, TemplateSelection, TemplateSnapshot } from '@/hooks/use-templates'
 import type { SlideRefineTarget } from '@/lib/slide-refinement'
 import type { BuildThemeSelection } from '@/lib/theme-builder'
+import type { AddSlideV2Settings } from '@/lib/studio-add-slide-v2'
 import type { ThemeSyncState } from '@/lib/theme-sync'
 import type { SlideThumbnailUrlsByPresentation } from '@/lib/stage-f-thumbnails'
 
@@ -146,6 +147,7 @@ export interface PresentationAreaProps {
   composeJobs?: SlideComposeThumbnailJob[]
   onRefineSlide?: (target: SlideRefineTarget) => void
   onGenerateSlide?: () => void
+  addSlideV2Settings?: AddSlideV2Settings<BuildThemeSelection>
   thumbnailUrlsBySlide?: Record<number, string>
   onThumbnailInvalidated?: (presentationId: string) => void
   onThumbnailMutationCapture?: StudioThumbnailMutationCapture
@@ -247,6 +249,7 @@ export function PresentationArea({
   composeJobs = [],
   onRefineSlide,
   onGenerateSlide,
+  addSlideV2Settings,
   thumbnailUrlsBySlide = {},
   onThumbnailInvalidated,
   onThumbnailMutationCapture,
@@ -500,6 +503,7 @@ export function PresentationArea({
             composeJobs={composeJobs}
             onRefineSlide={onRefineSlide}
             onGenerateSlide={onGenerateSlide}
+            addSlideV2Settings={addSlideV2Settings}
             thumbnailUrlsBySlide={thumbnailUrlsBySlide}
             onThumbnailInvalidated={onThumbnailInvalidated}
             onThumbnailMutationCapture={onThumbnailMutationCapture}

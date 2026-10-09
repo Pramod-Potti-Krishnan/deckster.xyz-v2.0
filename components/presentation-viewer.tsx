@@ -93,6 +93,7 @@ import type { SlideRefineTarget } from '@/lib/slide-refinement'
 import { SlideNotesPanel } from './slide-notes-panel'
 import { SaveStatus } from './save-status-indicator'
 import { SlideLayoutPicker, SlideLayoutType } from './slide-layout-picker'
+import { ADD_SLIDE_V2_ENABLED, type AddSlideV2Settings } from '@/lib/studio-add-slide-v2'
 import { DeleteSlideDialog } from './delete-slide-dialog'
 import { TemplateSaveDialog } from './template-save-dialog'
 import { TemplateIngestDialog } from './template-ingest-dialog'
@@ -333,6 +334,8 @@ interface PresentationViewerProps {
   composeJobs?: SlideComposeThumbnailJob[]
   onRefineSlide?: (target: SlideRefineTarget) => void
   onGenerateSlide?: () => void
+  // J2 v2 (flag NEXT_PUBLIC_STUDIO_ADD_SLIDE_V2_ENABLED): the page's chat/session settings for the Add Slide pop-up.
+  addSlideV2Settings?: AddSlideV2Settings<BuildThemeSelection>
   thumbnailUrlsBySlide?: Record<number, string>
   templateSnapshot?: TemplateSnapshot | null
   templateSnapshotLoading?: boolean
@@ -664,6 +667,7 @@ export function PresentationViewer({
   composeJobs = [],
   onRefineSlide,
   onGenerateSlide,
+  addSlideV2Settings,
   thumbnailUrlsBySlide = {},
   templateSnapshot = null,
   templateSnapshotLoading = false,
@@ -4036,6 +4040,7 @@ export function PresentationViewer({
               <SlideLayoutPicker
                 onAddSlide={handleAddSlide}
                 onGenerateSlide={onGenerateSlide}
+                addSlideV2={ADD_SLIDE_V2_ENABLED && addSlideV2Settings ? { settings: addSlideV2Settings, currentSlide, slideCount: totalSlides, theme: buildThemeSelection } : undefined}
                 disabled={!viewerIsReady || templateModeOn || isSlideMutationPending}
                 className="min-w-[80px] justify-center"
               />
