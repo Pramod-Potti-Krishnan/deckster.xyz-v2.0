@@ -10,6 +10,10 @@ export interface BuildThemeSelection {
   harmony_preference?: 'auto' | 'monochrome' | 'analogous' | 'complementary' | 'triadic'
   palette_mode?: 'light' | 'dark' | 'both'
   color_overrides?: Record<string, string>
+  /** J4-FONTS: body font. Present only when the user chose one (NEXT_PUBLIC_THEME_FONT_SELECTION_ENABLED); never null. */
+  font_family?: string
+  /** J4-FONTS: heading font. Same rules as `font_family`. */
+  font_family_heading?: string
 }
 
 export interface ThemePresetSummary {
@@ -18,7 +22,25 @@ export interface ThemePresetSummary {
   description: string
 }
 
-export const CANONICAL_THEME_PRESET_IDS = [
+/**
+ * T-07/T-06 (theme audit TM4 + TM3): NEXT_PUBLIC_THEME_PICKER_CANON_ENABLED,
+ * default OFF. On, the picker offers all ten Theme Builder canon presets and
+ * the four canon-only ids reach Director unchanged instead of being coerced to
+ * corporate_light. Off, the six ids, the six fallback entries and the
+ * coercion are exactly today's. The try only guards non-Next contexts (the
+ * node test sandboxes) that have no `process`; Next inlines the value.
+ */
+function readThemePickerCanonFlag(): boolean {
+  try {
+    return process.env.NEXT_PUBLIC_THEME_PICKER_CANON_ENABLED === 'true'
+  } catch {
+    return false
+  }
+}
+
+export const THEME_PICKER_CANON_ENABLED = readThemePickerCanonFlag()
+
+const PICKER_THEME_PRESET_IDS = [
   'corporate_light',
   'corporate_dark',
   'minimal',
@@ -27,9 +49,23 @@ export const CANONICAL_THEME_PRESET_IDS = [
   'pastel',
 ] as const
 
-export type CanonicalThemePresetId = typeof CANONICAL_THEME_PRESET_IDS[number]
+/** Registered by Theme Builder's canon library, not offered while the flag is off. */
+export const CANON_ONLY_THEME_PRESET_IDS = [
+  'concrete_acid',
+  'espresso_editorial',
+  'gilded_noir',
+  'mission_amber',
+] as const
 
-export const FALLBACK_THEME_PRESETS: ThemePresetSummary[] = [
+export type CanonicalThemePresetId =
+  | typeof PICKER_THEME_PRESET_IDS[number]
+  | typeof CANON_ONLY_THEME_PRESET_IDS[number]
+
+export const CANONICAL_THEME_PRESET_IDS: readonly CanonicalThemePresetId[] = THEME_PICKER_CANON_ENABLED
+  ? [...PICKER_THEME_PRESET_IDS, ...CANON_ONLY_THEME_PRESET_IDS]
+  : PICKER_THEME_PRESET_IDS
+
+const PICKER_FALLBACK_THEME_PRESETS: ThemePresetSummary[] = [
   {
     preset_id: 'corporate_light',
     name: 'Corporate Light',
@@ -61,6 +97,35 @@ export const FALLBACK_THEME_PRESETS: ThemePresetSummary[] = [
     description: 'Softer theme for lighter educational or creative decks',
   },
 ]
+
+// Names and descriptions are Theme Builder's own canon metadata
+// (config/canon_presets.py `ContractMeta`, served by GET /api/v1/themes/presets).
+const CANON_ONLY_FALLBACK_THEME_PRESETS: ThemePresetSummary[] = [
+  {
+    preset_id: 'concrete_acid',
+    name: 'Concrete Acid',
+    description: 'Flat concrete slabs, sharp corners — acid #D6F221 reserved for the takeaway',
+  },
+  {
+    preset_id: 'espresso_editorial',
+    name: 'Espresso Editorial',
+    description: 'Hairline ivory editorial — caramel punctuation, columns by rules not boxes',
+  },
+  {
+    preset_id: 'gilded_noir',
+    name: 'Gilded Noir',
+    description: 'Border-not-fill near-black — 1px gold hairlines, gold as line and type',
+  },
+  {
+    preset_id: 'mission_amber',
+    name: 'Mission Amber',
+    description: 'Dual-ground dark card-token — orange on dark, red form on paper slides',
+  },
+]
+
+export const FALLBACK_THEME_PRESETS: ThemePresetSummary[] = THEME_PICKER_CANON_ENABLED
+  ? [...PICKER_FALLBACK_THEME_PRESETS, ...CANON_ONLY_FALLBACK_THEME_PRESETS]
+  : PICKER_FALLBACK_THEME_PRESETS
 
 export const THEME_PRESET_ALIASES: Record<string, string> = {
   'corporate-blue': 'corporate_light',
@@ -119,6 +184,23 @@ export function normalizeThemePanelSelection(
   }
 }
 
+/**
+ * J4-FONTS: copy the fonts a selection already carries onto the selection built from it. A
+ * selection that carries none (always, with the flag off) comes back as `to`, key for key.
+ */
+export function carryThemeFonts<T extends BuildThemeSelection>(
+  from: Pick<BuildThemeSelection, 'font_family' | 'font_family_heading'>,
+  to: T,
+): T {
+  const body = typeof from.font_family === 'string' ? from.font_family : undefined
+  const heading = typeof from.font_family_heading === 'string' ? from.font_family_heading : undefined
+  if (body === undefined && heading === undefined) return to
+  const next = { ...to }
+  if (body !== undefined) next.font_family = body
+  if (heading !== undefined) next.font_family_heading = heading
+  return next
+}
+
 export function themeSelectionFingerprint(selection: BuildThemeSelection): string {
   const normalized = normalizeThemePanelSelection(selection)
   const overrides = normalized.color_overrides
@@ -158,13 +240,13 @@ export function selectCanonicalThemePreset(
     }
   })
 
-  return {
+  return carryThemeFonts(selection, {
     mode: 'preset',
     preset_id: canonicalPreset,
     harmony_preference: selection.harmony_preference,
     palette_mode: selection.palette_mode,
     color_overrides: Object.keys(colorOverrides).length > 0 ? colorOverrides : undefined,
-  }
+  })
 }
 
 export function isValidThemeHex(value: string | null | undefined): value is string {

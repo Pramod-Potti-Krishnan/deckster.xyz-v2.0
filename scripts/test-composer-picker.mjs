@@ -1,3 +1,4 @@
+import { serviceUrl } from './service-url-harness.mjs'
 import assert from 'node:assert/strict'
 import fs from 'node:fs'
 import vm from 'node:vm'
@@ -30,6 +31,9 @@ let templates = []
 let requests = []
 const toasts = []
 const imports = {
+  '@/lib/service-url': serviceUrl,
+  './studio-composer-hint': { StudioComposerHint: 'StudioComposerHint' },
+  './studio-theme-menu': { StudioThemeMenu: 'StudioThemeMenu' },
   react: { ...react, default: react },
   'react/jsx-runtime': { jsx: element, jsxs: element, Fragment: 'Fragment' },
   // Rendering only: keep the native library link visible without Next's router.
@@ -46,7 +50,7 @@ const imports = {
   '@/lib/mdc-mentions': {},
   '@/lib/mdc-flags': { CHAT_MENTIONS: false },
   '@/lib/utils': { cn: (...values) => values.filter(Boolean).join(' ') },
-  '@/lib/config': { features: { enableFileUploads: false }, config: { api: { themeBuilderUrl: 'http://localhost' } } },
+  '@/lib/config': { getThemeBuilderUrl: () => serviceUrl.requireServiceUrl('Theme Builder', [{ name: 'NEXT_PUBLIC_THEME_BUILDER_URL', value: 'https://theme.synthetic.invalid' }]), features: { enableFileUploads: false }, config: { api: { themeBuilderUrl: 'http://localhost' } } },
   '@/lib/theme-builder': { FALLBACK_THEME_PRESETS: [], isValidThemeHex: value => /^#[\da-f]{6}$/i.test(value) },
   '@/hooks/use-theme-profiles': { useThemeProfiles: () => ({ loading: false, error: null }) },
   '@/hooks/use-toast': { useToast: () => ({ toast: value => toasts.push(value) }) },
@@ -69,6 +73,7 @@ function load(relative) {
   })
   return module.exports
 }
+imports['@/lib/template-retry-acknowledgement'] = load('../lib/template-retry-acknowledgement.ts')
 imports['@/hooks/use-templates'] = load('../hooks/use-templates.ts')
 const picker = load('../components/builder/template-picker.tsx')
 imports['./template-picker'] = picker

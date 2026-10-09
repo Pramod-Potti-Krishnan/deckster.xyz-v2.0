@@ -1,0 +1,9 @@
+{
+  "baseline_head": "30c9fc9e62cdb56601e6090486914ab1780c072d",
+  "receipt": "/private/tmp/element3-fe-error-delay-proof-20261008/FIRST-VERDICT.json",
+  "receipt_sha256": "59abf77fa519f55bd0e0c3ed00374c6b4e3a2a147f9f3a4a10d8a95361ec2f13",
+  "script_sha256": "a0b423781ecae10425e6f5d140ddb2ea84043dcc1d88eef80319a53a91174483",
+  "command": "/opt/homebrew/bin/node scripts/test-element-failure-feedback.mjs --baseline",
+  "single_baseline_case": true,
+  "production_edits_not_started_by_harness_owner": true
+}

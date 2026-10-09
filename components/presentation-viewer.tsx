@@ -53,6 +53,8 @@ import {
   isTrustedLayoutViewerMessage,
 } from '@/lib/layout-viewer-messaging'
 import { evaluateLayoutViewerUrl } from '@/lib/layout-viewer-url-policy'
+import { clampPresentSlideIndex, isPresentViewOnlyEnabled, presentFrameStartIndex, presentNavigationCommand } from '@/lib/present-view-only'
+import { PresentViewOnlyFrame } from './present-view-only-frame'
 import {
   buildSnapshotNavigationUrl,
   completedBuildSnapshotKey,
@@ -66,6 +68,10 @@ import {
   resolveSlideViewerNavigationInfo,
 } from '@/lib/slide-compose-async'
 import { applyStageFThumbnailUrls, ownedRestoredThumbnailUrl } from '@/lib/stage-f-thumbnails'
+import { slideTitleLabel } from '@/lib/studio-slide-title-label'
+import { useSlideRailIdentity } from '@/hooks/use-slide-rail-identity'
+import { STUDIO_RAIL_SLIDE_IDENTITY_ENABLED } from '@/lib/slide-rail-identity'
+import { STUDIO_DECK_MUTATION_REFRESH_ENABLED, onSlideRailRefreshRequest } from '@/lib/studio-deck-mutation-refresh'
 import {
   DropdownMenu,
   DropdownMenuCheckboxItem,
@@ -88,6 +94,7 @@ import type { SlideRefineTarget } from '@/lib/slide-refinement'
 import { SlideNotesPanel } from './slide-notes-panel'
 import { SaveStatus } from './save-status-indicator'
 import { SlideLayoutPicker, SlideLayoutType } from './slide-layout-picker'
+import { ADD_SLIDE_V2_ENABLED, type AddSlideV2Settings } from '@/lib/studio-add-slide-v2'
 import { DeleteSlideDialog } from './delete-slide-dialog'
 import { TemplateSaveDialog } from './template-save-dialog'
 import { TemplateIngestDialog } from './template-ingest-dialog'
@@ -333,6 +340,8 @@ interface PresentationViewerProps {
   composeJobs?: SlideComposeThumbnailJob[]
   onRefineSlide?: (target: SlideRefineTarget) => void
   onGenerateSlide?: () => void
+  // J2 v2 (flag NEXT_PUBLIC_STUDIO_ADD_SLIDE_V2_ENABLED): the page's chat/session settings for the Add Slide pop-up.
+  addSlideV2Settings?: AddSlideV2Settings<BuildThemeSelection>
   thumbnailUrlsBySlide?: Record<number, string>
   templateSnapshot?: TemplateSnapshot | null
   templateSnapshotLoading?: boolean
@@ -664,6 +673,7 @@ export function PresentationViewer({
   composeJobs = [],
   onRefineSlide,
   onGenerateSlide,
+  addSlideV2Settings,
   thumbnailUrlsBySlide = {},
   templateSnapshot = null,
   templateSnapshotLoading = false,
@@ -698,6 +708,13 @@ export function PresentationViewer({
   const slideTotalsRef = useRef({ total: 0, visual: 0 })
   slideTotalsRef.current = { total: totalSlides, visual: visualTotalSlides }
   const [isFullscreen, setIsFullscreen] = useState(false)
+  // A4: while Present is on, a separate `?viewOnly=true` frame covers the editing frame so audiences
+  // never see authoring placeholders. Flag NEXT_PUBLIC_PRESENT_VIEW_ONLY_ENABLED, default off = unchanged.
+  const presentViewOnlyEnabled = isPresentViewOnlyEnabled()
+  const [presentFrameFailed, setPresentFrameFailed] = useState(false)
+  const presentFrameRef = useRef<HTMLIFrameElement | null>(null) // the view-only frame, once initialised
+  const presentSlideIndexRef = useRef<number | null>(null) // last slide it reported, 0-based
+  const presentViewOnlyActiveRef = useRef(false)
   const studioShell = process.env.NEXT_PUBLIC_STUDIO_V4_SHELL === 'true'
   const authoringStripRef = useRef<HTMLDivElement>(null)
   const [studioAuthoringPortalTarget, setStudioAuthoringPortalTarget] = useState<HTMLDivElement | null>(null)
@@ -858,6 +875,10 @@ export function PresentationViewer({
   const approvedIframeNavigationUrl = useMemo(() => {
     return buildSnapshotNavigationUrl(approvedPresentationUrl, studioShell ? buildSnapshotRevision : 0)
   }, [approvedPresentationUrl, studioShell, buildSnapshotRevision])
+  const presentViewOnlyActive = presentViewOnlyEnabled && isFullscreen && !presentFrameFailed && !!approvedIframeNavigationUrl
+  presentViewOnlyActiveRef.current = presentViewOnlyActive
+  // A4: the deck size the Present slide index stays inside (the visual count includes in-deck placeholders).
+  const presentSlideTotal = Math.max(visualTotalSlides || 0, totalSlides || 0)
   const slideMutationOwnerRef = useRef({
     userId: studioOwnerUserId ?? null,
     presentationId: presentationId ?? null,
@@ -919,6 +940,8 @@ export function PresentationViewer({
   studioFormatBusyRef.current = studioFormatBusy
   const onThumbnailInvalidatedRef = useRef(onThumbnailInvalidated)
   onThumbnailInvalidatedRef.current = onThumbnailInvalidated
+  // F8/S-03 rail identity: the post-ack closures below re-read Layout's slide inventory through this.
+  const slideRailRefreshRef = useRef<() => void>(() => {})
   const captureThumbnailInvalidation = useCallback((retireMapping = true) => {
     const owner = renderSlideMutationOwner
     const iframe = iframeRef.current
@@ -942,6 +965,7 @@ export function PresentationViewer({
         slideMutationMountRef.current.generation !== mountGeneration ||
         slideMutationOwnerRef.current !== owner || iframeRef.current !== iframe) return
       onThumbnailInvalidatedRef.current?.(owner.presentationId)
+      slideRailRefreshRef.current()
     }
   }, [studioShell, renderSlideMutationOwner])
   const captureStudioNativeSlideFrame = useCallback(() => {
@@ -1355,9 +1379,33 @@ export function PresentationViewer({
     lastSlideInfoRef.current = null
   }, [approvedIframeNavigationUrl, studioShell])
 
+  // F8/S-03 (flag NEXT_PUBLIC_STUDIO_RAIL_SLIDE_IDENTITY_ENABLED, default off): when Layout serves
+  // its slide inventory, the rail is keyed by slide_id and reads previews from it. `rows` stays null
+  // (today's path below, untouched) whenever the flag is off or the endpoint is absent.
+  const railIdentityStructure = useMemo(
+    () => !slidesModifiedByCrud && Array.isArray(slideStructure?.slides) ? slideStructure.slides as unknown[] : null,
+    [slideStructure, slidesModifiedByCrud],
+  )
+  // A content signature, not the object: the prop defaults to a fresh `{}` on every render.
+  const railThumbnailFrames = useMemo(() => STUDIO_RAIL_SLIDE_IDENTITY_ENABLED ? JSON.stringify(thumbnailUrlsBySlide) : '', [thumbnailUrlsBySlide])
+  const { rows: railIdentityRows, refresh: refreshSlideRail } = useSlideRailIdentity({
+    enabled: STUDIO_RAIL_SLIDE_IDENTITY_ENABLED && studioShell && Boolean(approvedPresentationUrl),
+    presentationId,
+    ownerUserId: studioOwnerUserId,
+    structureSlides: railIdentityStructure,
+    refreshSignals: [totalSlides, railThumbnailFrames],
+  })
+  slideRailRefreshRef.current = refreshSlideRail
+  // S-03 (flag NEXT_PUBLIC_STUDIO_DECK_MUTATION_REFRESH_ENABLED): a Director deck_mutation for this deck re-reads the inventory at once.
+  useEffect(() => {
+    if (!STUDIO_DECK_MUTATION_REFRESH_ENABLED || !presentationId) return
+    return onSlideRailRefreshRequest(id => { if (id === presentationId) slideRailRefreshRef.current() })
+  }, [presentationId])
+
   // Extract slide thumbnails from slideStructure
   // Use totalSlides when: CRUD ops occurred, OR slideStructure is stale/missing
   const slideThumbnails = useMemo<SlideThumbnail[]>(() => {
+    if (railIdentityRows) return railIdentityRows
     if (studioShell && studioCanonicalThumbnails
       && studioCanonicalThumbnails.owner === renderSlideMutationOwner
       && studioCanonicalThumbnails.nativeRevision === thumbnailNativeRevisionRef.current
@@ -1391,7 +1439,7 @@ export function PresentationViewer({
         slideId: slide.slide_id || slide.id || null,
         slideIndex: Number.isInteger(slideIndex) && slideIndex >= 0 ? slideIndex : index,
         actualSlideIndex: Number.isInteger(actualSlideIndex) && actualSlideIndex >= 0 ? actualSlideIndex : undefined,
-        title: slide.title || slide.slide_type || `Slide ${index + 1}`,
+        title: slideTitleLabel(slide.title || slide.slide_type || `Slide ${index + 1}`),
         content: slide.narrative || slide.key_points?.join(', '),
         // Retain a supplied image on restored Studio metadata; live StageF
         // images below still take precedence. This does not generate an image.
@@ -1399,7 +1447,7 @@ export function PresentationViewer({
       }
     })
     return applyStageFThumbnailUrls(structureSlides, thumbnailUrlsBySlide)
-  }, [slideStructure, totalSlides, slidesModifiedByCrud, thumbnailUrlsBySlide, studioShell, presentationId, studioCanonicalThumbnails, renderSlideMutationOwner])
+  }, [railIdentityRows, slideStructure, totalSlides, slidesModifiedByCrud, thumbnailUrlsBySlide, studioShell, presentationId, studioCanonicalThumbnails, renderSlideMutationOwner])
 
   // Define handlers FIRST (before effects that use them)
   const handleNextSlide = useCallback(async () => {
@@ -1743,6 +1791,17 @@ export function PresentationViewer({
         return
       }
 
+      // A4: the view-only Present frame owns the keyboard. Arrow keys are forwarded to it;
+      // nothing reaches the editing frame underneath (no E / G / B / Ctrl+S while presenting).
+      if (presentViewOnlyActiveRef.current) {
+        const command = presentNavigationCommand(e.key)
+        if (command) {
+          e.preventDefault()
+          postCommand(presentFrameRef.current, command)
+        }
+        return
+      }
+
       // Ctrl+S / Cmd+S - Force save (in edit mode)
       if ((e.ctrlKey || e.metaKey) && e.key === 's') {
         e.preventDefault()
@@ -1875,7 +1934,7 @@ export function PresentationViewer({
   }, [onEditModeChange, studioShell, beginStudioViewerInteraction])
 
   // Add slide handler
-  const handleAddSlide = useCallback(async (layoutId: SlideLayoutType) => {
+  const handleAddSlide = useCallback(async (layoutId: SlideLayoutType, options?: { position?: number }) => {
     const expectedOwner = renderSlideMutationOwner
     const expectedMountGeneration = slideMutationMountRef.current.generation
     const capturedFrame = studioShell ? captureStudioNativeSlideFrame() : null
@@ -2018,7 +2077,7 @@ export function PresentationViewer({
               ? slideStructure.slides.map((slide: any, index: number) => ({
                   slideNumber: index + 1, slideIndex: index,
                   actualSlideIndex: index, slideId: slide.slide_id || slide.id || null,
-                  title: slide.title || slide.slide_type || `Slide ${index + 1}`,
+                  title: slideTitleLabel(slide.title || slide.slide_type || `Slide ${index + 1}`),
                   content: slide.narrative || slide.key_points?.join(', '),
                   thumbnailUrl: ownedRestoredThumbnailUrl(slide, presentationId),
                 })) : []
@@ -2045,7 +2104,7 @@ export function PresentationViewer({
         'addSlide',
         {
           layout: layoutId,
-          position: currentSlide, // Insert after current slide (0-based in iframe)
+          position: options?.position ?? currentSlide, // Insert after current slide (0-based in iframe); J2 v2 Blank passes the real position
         },
         mutationId,
         { attempts: 12, delayMs: 250 },
@@ -2086,6 +2145,7 @@ export function PresentationViewer({
             totalBefore: slideTotalsRef.current.total, visualBefore: slideTotalsRef.current.visual, totalAfter: newTotal,
           }))
         }
+        slideRailRefreshRef.current() // F8/S-03: re-read the slide inventory after the Add ack
         commitSelection(setCurrentSlide, newSlideNumber) // Update local state (1-based)
         if (studioShell) commitSelection<number[]>(setSelectedSlideIndices, [newSlideIndex])
         // The parent owns the slide index used by Add Element. Publish the
@@ -3563,6 +3623,22 @@ export function PresentationViewer({
     return () => document.removeEventListener('fullscreenchange', handleFullscreenChange)
   }, [])
 
+  // A4: leaving Present drops a failed view-only frame so the next Present tries again, and
+  // brings the editing frame to the slide the audience ended on (the editing frame never moved).
+  useEffect(() => {
+    if (!presentViewOnlyEnabled || isFullscreen) return
+    setPresentFrameFailed(false)
+  }, [presentViewOnlyEnabled, isFullscreen])
+  useEffect(() => {
+    if (presentViewOnlyActive) return
+    const endedOn = presentSlideIndexRef.current
+    if (endedOn === null) return
+    presentSlideIndexRef.current = null
+    // The deck can have changed while presenting (a mutation shortened it): never ask for a slide past the end.
+    const target = clampPresentSlideIndex(endedOn, presentSlideTotal)
+    if (target !== currentSlide - 1) void handleGoToSlide(target)
+  }, [presentViewOnlyActive, currentSlide, presentSlideTotal, handleGoToSlide])
+
   // Calculate optimal slide dimensions in fullscreen mode
   useEffect(() => {
     if (!isFullscreen || !slideContainerRef.current) return
@@ -3989,6 +4065,7 @@ export function PresentationViewer({
               <SlideLayoutPicker
                 onAddSlide={handleAddSlide}
                 onGenerateSlide={onGenerateSlide}
+                addSlideV2={ADD_SLIDE_V2_ENABLED && addSlideV2Settings ? { settings: addSlideV2Settings, currentSlide, slideCount: totalSlides, theme: buildThemeSelection } : undefined}
                 disabled={!viewerIsReady || templateModeOn || isSlideMutationPending}
                 className="min-w-[80px] justify-center"
               />
@@ -4318,9 +4395,11 @@ export function PresentationViewer({
           <div className={cn(
             "flex items-center justify-between w-full min-w-0 gap-3",
             isFullscreen ? "px-4 py-2" : "px-3 h-full",
+            presentViewOnlyActive && "justify-end",
             isGenerating && "pointer-events-none opacity-50"
           )}>
-            {authoringControls}
+            {/* A4: the view-only frame refuses edits, so its Present toolbar carries no authoring controls. */}
+            {presentViewOnlyActive ? null : authoringControls}
             {deliveryControls}
           </div>
         )
@@ -4457,6 +4536,22 @@ export function PresentationViewer({
                   title="Presentation Viewer"
                   allow="fullscreen"
                 />
+                {/* Keyed like the editing iframe: when the viewer URL changes mid-Present (a Director deck
+                    mutation, a slide-compose refresh) the overlay reloads on it, on the slide the audience is on. */}
+                {presentViewOnlyActive && approvedIframeNavigationUrl && (
+                  <PresentViewOnlyFrame
+                    key={approvedIframeNavigationUrl}
+                    baseUrl={approvedIframeNavigationUrl}
+                    startIndex={presentFrameStartIndex(presentSlideIndexRef.current, currentSlide - 1, presentSlideTotal)}
+                    sendCommand={sendCommand}
+                    frameRef={presentFrameRef}
+                    onSlideIndex={(index) => { presentSlideIndexRef.current = index }}
+                    onFailed={() => {
+                      console.warn('[Present] View-only frame did not initialise; presenting the editing frame instead.')
+                      setPresentFrameFailed(true)
+                    }}
+                  />
+                )}
                 {studioShell && !viewerHasLoaded && <div className="absolute inset-0 z-20 pointer-events-none" data-studio-viewer-loading="true">
                   <StudioWaitingState scope="canvas" message="Loading your slides…" />
                 </div>}
@@ -4664,6 +4759,7 @@ export function PresentationViewer({
                 totalSlides={totalSlides}
                 composeJobs={composeJobs}
                 onRefineSlide={onRefineSlide}
+                keyBySlideId={railIdentityRows !== null}
               />
             )}
           </div>

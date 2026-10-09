@@ -1,3 +1,4 @@
+import { serviceUrl } from './service-url-harness.mjs'
 import assert from 'node:assert/strict'
 import { execFileSync } from 'node:child_process'
 import fs from 'node:fs'
@@ -55,10 +56,11 @@ vm.runInNewContext(compiled.outputText, {
   module: mod,
   exports: mod.exports,
   console,
-  process,
-  fetch,
+  process: { env: {} },
+  fetch: () => { throw new Error('Offline catalog fixture refuses fetch') },
   setTimeout,
   require: id => {
+    if (id === '@/lib/service-url') return serviceUrl
     throw new Error(`Unexpected catalog import: ${id}`)
   },
 })

@@ -37,8 +37,81 @@ assert.match(generationSource, /!layoutCommandSucceeded\(result\.value\)/)
 assert.match(generationSource, /layoutMutationStateIsAmbiguous\(deleteError\)/)
 assert.match(generationSource, /activePresentationTargetRef/)
 assert.match(generationSource, /expectedPresentationTarget\.epoch/)
-assert.match(generationSource, /!presentationTargetChanged\s*&&\s*\(!refineContext \|\| !refineElementDeleted\)/)
-assert.match(generationSource, /presentationIsStillAuthoritative\(\)\s*&&\s*refineContext/)
+// Test the actual guard expressions rather than their formatting or adjacency.
+// Compensation must stop after a deck switch or deletion of the refined source;
+// cleanup must clear only an overlay whose original target still survives.
+const generationAst = ts.createSourceFile('generation.ts', generationSource, ts.ScriptTarget.Latest, true)
+function findNode(root, predicate) {
+  if (predicate(root)) return root
+  let found
+  ts.forEachChild(root, child => { found ??= findNode(child, predicate) })
+  return found
+}
+function containingIf(node) {
+  while (node && !ts.isIfStatement(node)) node = node.parent
+  assert.ok(node, 'mutation has an explicit safety guard')
+  return node
+}
+const rollbackMap = findNode(generationAst, node => ts.isCallExpression(node)
+  && node.expression.getText(generationAst) === 'insertedElementIds.map'
+  && node.arguments[0]?.getText(generationAst).includes(':rollback-generation:'))
+assert.ok(rollbackMap, 'inserted elements are compensated as a batch')
+const rollbackGuard = containingIf(rollbackMap).expression.getText(generationAst)
+const rollbackAllowed = overrides => vm.runInNewContext(rollbackGuard, {
+  presentationTargetChanged: false,
+  immediateFailureFeedbackEnabled: false,
+  failureRecoveryIsCurrent: () => true,
+  presentationIsStillAuthoritative: () => true,
+  refineContext: null,
+  refineElementDeleted: false,
+  insertedElementIds: ['generated'],
+  generationLayoutServiceApis: { sendElementCommand: () => {} },
+  ...overrides,
+})
+assert.ok(rollbackAllowed({}), 'ordinary inserted elements can be rolled back')
+assert.ok(rollbackAllowed({ immediateFailureFeedbackEnabled: true }),
+  'ON compensates while presentation/native authority is current')
+assert.equal(Boolean(rollbackAllowed({ immediateFailureFeedbackEnabled: true,
+  failureRecoveryIsCurrent: () => false })), false,
+  'ON cannot compensate after losing native presentation authority')
+assert.ok(rollbackAllowed({ failureRecoveryIsCurrent: () => false }),
+  'OFF preserves its original presentation guard without the ON native lease gate')
+assert.equal(Boolean(rollbackAllowed({ presentationTargetChanged: true })), false,
+  'compensation cannot mutate a different presentation')
+assert.equal(Boolean(rollbackAllowed({ refineContext: { elementId: 'old' }, refineElementDeleted: true })), false,
+  'a deleted refined source is not compensated as an untouched original')
+assert.ok(rollbackAllowed({ refineContext: { elementId: 'old' } }),
+  'a surviving refined source allows rollback of generated replacements')
+assert.equal(Boolean(rollbackAllowed({ insertedElementIds: [] })), false)
+const refineOverlayCall = findNode(generationAst, node => ts.isCallExpression(node)
+  && node.expression.getText(generationAst) === 'generationLayoutServiceApis.sendElementCommand'
+  && node.arguments[0]?.getText(generationAst) === "'setElementGenerationState'"
+  && node.arguments[1]?.getText(generationAst).includes('elementId: refineContext.elementId')
+  && node.arguments[1]?.getText(generationAst).includes('generating: false'))
+assert.ok(refineOverlayCall, 'the refined overlay is explicitly cleared')
+const refineOverlayGuard = containingIf(refineOverlayCall).expression.getText(generationAst)
+const refineOverlayAllowed = overrides => vm.runInNewContext(refineOverlayGuard, {
+  presentationIsStillAuthoritative: () => true,
+  immediateFailureFeedbackEnabled: false,
+  failureRecoveryStarted: true,
+  failureRecoveryIsCurrent: () => true,
+  refineContext: { elementId: 'old' },
+  refineOverlayActive: true,
+  refineOverlayTargetSurvived: true,
+  generationLayoutServiceApis: { sendElementCommand: () => {} },
+  ...overrides,
+})
+assert.ok(refineOverlayAllowed({}), 'a surviving old overlay is cleaned up')
+assert.ok(refineOverlayAllowed({ immediateFailureFeedbackEnabled: true }),
+  'ON clears a surviving overlay while native authority is current')
+assert.equal(Boolean(refineOverlayAllowed({ immediateFailureFeedbackEnabled: true,
+  failureRecoveryIsCurrent: () => false })), false)
+assert.ok(refineOverlayAllowed({ failureRecoveryIsCurrent: () => false }),
+  'OFF retains original cleanup authority')
+assert.equal(Boolean(refineOverlayAllowed({ presentationIsStillAuthoritative: () => false })), false)
+assert.equal(Boolean(refineOverlayAllowed({ refineOverlayTargetSurvived: false })), false,
+  'cleanup cannot write to a deleted refined target')
+assert.equal(Boolean(refineOverlayAllowed({ refineOverlayActive: false })), false)
 
 const waitImmediately = async () => {}
 const insertCalls = []

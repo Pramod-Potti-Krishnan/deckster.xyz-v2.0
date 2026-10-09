@@ -47,9 +47,16 @@ import { DirectorPresence } from '@/components/build-narration/director-presence
 import { cn } from '@/lib/utils'
 import { useToast } from '@/hooks/use-toast'
 import { SlideGenerationPanel, type SlideComposeAcceptedJob, type SlideComposeBuiltResult, type SlideComposePanelEvent, type StudioSlideBuiltSelection } from '@/components/slide-generation-panel'
+import { createAddSlideV2Hooks } from '@/lib/studio-add-slide-v2-submit'
 import { StudioFormatInspector, type StudioFormatTarget, type StudioFormatCommand } from '@/components/builder/studio-format-inspector'
 import type { StudioFormatSelectionHandle } from '@/lib/studio-format-native'
 import { TextBoxFormatPanel } from '@/components/textbox-format-panel'
+import {
+  STUDIO_DECK_MUTATION_REFRESH_ENABLED,
+  createDeckMutationSeen,
+  planDeckMutationRefresh,
+  requestSlideRailRefresh,
+} from '@/lib/studio-deck-mutation-refresh'
 import { TextBoxFormatting, type RefineElementRequest, type SlideComposeViewerApi, type StudioIntroductionSafety, type StudioComposeSelectionContext, type StudioElementGenerationLease, type StudioPartialNativeReadback } from '@/components/presentation-viewer'
 import { parseStudioNativeSlideOrder, type StudioNativeSlideOrder } from '@/lib/studio-native-slide-order'
 import { STUDIO_PANEL_KEEP_CANVAS_ENABLED, presentationWrapperTransition } from '@/lib/studio-panel-keep-canvas'
@@ -84,6 +91,7 @@ import type {
 import { MessageList } from '@/components/builder/message-list'
 import { ChatInput } from '@/components/builder/chat-input'
 import { StudioDirectorNotice } from '@/components/builder/studio-director-notice'
+import { StudioBlockedSendNotice } from '@/components/builder/studio-blocked-send-notice'
 import { ComposerLibraryDialog } from '@/components/builder/composer-library-dialog'
 import { COMPOSER_READY_KEY_PREFIX, type ComposerReady } from '@/lib/composer-library'
 import { BuilderHeader } from '@/components/builder/builder-header'
@@ -94,6 +102,15 @@ import { StudioDirectorHeader } from '@/components/builder/chat/studio-director-
 import { DirectorCallEntry, DirectorCallPanel } from '@/components/builder/voice-interactive/director-call'
 import { useStudioDirectorCall } from '@/hooks/use-studio-director-call'
 import { STUDIO_VOICE_INTERACTIVE_ENABLED } from '@/lib/studio-voice-interactive'
+import {
+  STUDIO_BLOCKED_SEND_FEEDBACK_ENABLED,
+  nextBlockedSendNotice,
+  quotaBlockedSendNotice,
+  templateBlockedSendNotice,
+  uploadBlockedSendNotice,
+  type BlockedSendNotice,
+  type BlockedSendSource,
+} from '@/lib/studio-blocked-send'
 import { classifyDirectorMessage } from '@/lib/studio-director-message-policy'
 import { createStudioVoiceOwner } from '@/lib/studio-voice-owner'
 import { classifyStudioCanvasLifecycle } from '@/lib/studio-canvas-lifecycle'
@@ -145,6 +162,7 @@ import {
   themeSelectionFingerprint,
   type BuildThemeSelection,
 } from '@/lib/theme-builder'
+import { themeFontFields, themeFontsEqual } from '@/lib/theme-fonts'
 import { getLayoutServiceUrl, LAYOUT_URL_CONFIG_ERROR, LAYOUT_VIEWER_URL_POLICY, getPresentationViewerUrl } from '@/lib/layout-service-client'
 import { ServiceUrlConfigError } from '@/lib/service-url'
 import { evaluateLayoutViewerUrl } from '@/lib/layout-viewer-url-policy'
@@ -179,6 +197,7 @@ import {
   waitForAuthoritativeTheme,
   type ThemeSyncRequestResult,
   type ThemeSyncState,
+  type ElementThemePreflightRetry,
 } from '@/lib/theme-sync'
 import {
   buildSessionHandoffRequest,
@@ -284,7 +303,7 @@ function normalizeStoredBuildThemeSelection(value: unknown): BuildThemeSelection
   const raw = value as Partial<BuildThemeSelection>
   if (raw.mode === 'preset') {
     return typeof raw.preset_id === 'string'
-      ? { mode: 'preset', preset_id: raw.preset_id }
+      ? { mode: 'preset', preset_id: raw.preset_id, ...themeFontFields(raw) }
       : { mode: 'auto' }
   }
 
@@ -309,6 +328,7 @@ function normalizeStoredBuildThemeSelection(value: unknown): BuildThemeSelection
     if (raw.color_overrides && typeof raw.color_overrides === 'object') {
       next.color_overrides = raw.color_overrides
     }
+    Object.assign(next, themeFontFields(raw))
     return next.primary_hex || next.secondary_hex || next.tertiary_hex || next.color_overrides ? next : { mode: 'auto' }
   }
 
@@ -358,7 +378,7 @@ function stableStringifyRecord(value: Record<string, string> | undefined): strin
 function buildThemeSelectionsEqual(a: BuildThemeSelection, b: BuildThemeSelection): boolean {
   if (a.mode !== b.mode) return false
   if (a.mode === 'auto') return true
-  if (a.mode === 'preset') return a.preset_id === b.preset_id
+  if (a.mode === 'preset') return a.preset_id === b.preset_id && themeFontsEqual(a, b)
 
   return (
     (a.primary_hex || '').toLowerCase() === (b.primary_hex || '').toLowerCase() &&
@@ -367,7 +387,8 @@ function buildThemeSelectionsEqual(a: BuildThemeSelection, b: BuildThemeSelectio
     (a.neutral_hex || '').toLowerCase() === (b.neutral_hex || '').toLowerCase() &&
     (a.harmony_preference || 'auto') === (b.harmony_preference || 'auto') &&
     (a.palette_mode || 'light') === (b.palette_mode || 'light') &&
-    stableStringifyRecord(a.color_overrides) === stableStringifyRecord(b.color_overrides)
+    stableStringifyRecord(a.color_overrides) === stableStringifyRecord(b.color_overrides) &&
+    themeFontsEqual(a, b)
   )
 }
 
@@ -932,6 +953,7 @@ function AuthenticatedBuilderContent({ authScopeUserId }: { authScopeUserId: str
     refreshToken: 0,
   })
   const slideComposeJobsRef = useRef<Record<string, SlideComposeJobState>>({})
+  const deckMutationSeenRef = useRef(createDeckMutationSeen())
   const studioSlideComposeOwnerRef = useRef({
     key: '',
     sessionId: null as string | null,
@@ -2169,6 +2191,21 @@ function AuthenticatedBuilderContent({ authScopeUserId }: { authScopeUserId: str
     }).isUserMessage : undefined,
     expectedHandoffRequest: expectedStudioHandoffRequest,
     onHandoffRequestStatus: handleStudioHandoffRequestStatus,
+    // S-03: Director's deck_mutation (chat-driven add/delete/replace/reorder) reloads the displayed deck and
+    // re-reads the rail inventory. Flag off: no handler, so the hook drops the frame exactly as before.
+    ...(STUDIO_DECK_MUTATION_REFRESH_ENABLED && {
+      onDeckMutation: (message: import('@/types/mdc').DeckMutationMessage, owner: { isCurrent: () => boolean; presentationId: string }) => {
+        const displayed = slideComposerPresentationRef.current
+        const plan = planDeckMutationRefresh({
+          message, ownerIsCurrent: owner.isCurrent(), ownerPresentationId: owner.presentationId,
+          displayed, now: Date.now(), seen: deckMutationSeenRef.current,
+        })
+        if (!plan) return
+        slideComposerPresentationRef.current = { ...displayed, ...plan.override }
+        setSlideComposerOverride(plan.override)
+        requestSlideRailRefresh(plan.override.presentationId)
+      },
+    }),
     // Don't auto-connect when restoring an existing session from URL.
     // The useBuilderSession hook will connect AFTER DB load + restoreMessages,
     // preventing Director's blank state from flashing before restored content.
@@ -2823,6 +2860,20 @@ function AuthenticatedBuilderContent({ authScopeUserId }: { authScopeUserId: str
   const quota = useQuota(tokenUsage, tokenUsageMessageId ?? undefined)
   const [topUpOpen, setTopUpOpen] = useState(false)
   const [topUpReason, setTopUpReason] = useState<string | undefined>(undefined)
+  // Blocked-send feedback (flag NEXT_PUBLIC_STUDIO_BLOCKED_SEND_FEEDBACK_ENABLED,
+  // default off): a send refused before it leaves also posts ONE client-only
+  // notice at the end of the chat. Never sent to the Director, never persisted;
+  // the draft is untouched (a refusal never cleared it).
+  const [blockedSendNotice, setBlockedSendNotice] = useState<BlockedSendNotice | null>(null)
+  const blockedSendNoticeRef = useRef<HTMLDivElement>(null)
+  useEffect(() => {
+    if (STUDIO_BLOCKED_SEND_FEEDBACK_ENABLED) setBlockedSendNotice(null)
+  }, [currentSessionId, wsSessionId])
+  useEffect(() => {
+    if (STUDIO_BLOCKED_SEND_FEEDBACK_ENABLED && blockedSendNotice) {
+      blockedSendNoticeRef.current?.scrollIntoView?.({ block: 'nearest', behavior: 'smooth' })
+    }
+  }, [blockedSendNotice?.id])
   const effectiveBuildNarrationEnabled = effectiveNarrationEnabled(
     features.buildNarrationEnabled,
     Boolean(activeTemplate),
@@ -3179,7 +3230,7 @@ function AuthenticatedBuilderContent({ authScopeUserId }: { authScopeUserId: str
     return { ok: true, requestId, themeFingerprint }
   }, [clearThemeSyncTimeout, commitThemeSync, sendThemeSelection])
 
-  const ensureThemeReady = useCallback(async (targetPresentationId: string) => {
+  const ensureThemeReady = useCallback(async (targetPresentationId: string, retry?: ElementThemePreflightRetry) => {
     if (themeSyncTargetRef.current.composerThemeBlocked) {
       return { ready: false, code: 'failed', error: themeSyncTargetRef.current.composerThemeFrozen
         ? 'This template keeps its stored source theme.'
@@ -3217,6 +3268,31 @@ function AuthenticatedBuilderContent({ authScopeUserId }: { authScopeUserId: str
       } as const
     }
 
+    // Only an explicit Retry of this failed handshake may request fresh
+    // authority. Existing local-theme/composer/template guards still apply.
+    if (
+      process.env.NEXT_PUBLIC_ELEMENT_THEME_PREFLIGHT_RECOVERY_ENABLED === 'true'
+      && retry
+      && retry.presentationId === targetPresentationId
+      && retry.themeFingerprint === desiredFingerprint
+      && current.presentationId === retry.presentationId
+      && current.themeFingerprint === retry.themeFingerprint
+      && current.requestId === retry.requestId
+      && current.status === 'failed'
+    ) {
+      const requested = requestThemeSyncForPresentation(targetPresentationId)
+      if (!requested.ok) return { ready: false, code: requested.code, error: requested.error } as const
+      return waitForAuthoritativeTheme({
+        presentationId: targetPresentationId,
+        themeFingerprint: desiredFingerprint,
+        getSyncState: getThemeSyncSnapshot,
+        isConnected: () => themeSyncTargetRef.current.isReady,
+        requestSync: requestThemeSyncForPresentation,
+        timeoutMs: THEME_SYNC_TIMEOUT_MS,
+        captureFailureSync: true,
+      })
+    }
+
     // A theme mutation already accepted by Director must finish (or fail)
     // before generation. When Director is connected, idle or stale applied
     // state is also advanced to the exact selected theme. A disconnected or
@@ -3250,6 +3326,7 @@ function AuthenticatedBuilderContent({ authScopeUserId }: { authScopeUserId: str
         isConnected: () => themeSyncTargetRef.current.isReady,
         requestSync: requestThemeSyncForPresentation,
         timeoutMs: THEME_SYNC_TIMEOUT_MS,
+        captureFailureSync: process.env.NEXT_PUBLIC_ELEMENT_THEME_PREFLIGHT_RECOVERY_ENABLED === 'true',
       })
     }
 
@@ -5183,7 +5260,7 @@ function AuthenticatedBuilderContent({ authScopeUserId }: { authScopeUserId: str
 
   // Typed messages and structured answers share synchronous readiness gates.
   // Reconnection itself remains the transport's job; disconnected is not a blocker.
-  const preflightDirectorTurn = useCallback(() => {
+  const preflightDirectorTurn = useCallback((source: BlockedSendSource = 'typed') => {
     if (!user) {
       console.warn('Cannot send message: user not authenticated')
       return false
@@ -5214,6 +5291,10 @@ function AuthenticatedBuilderContent({ authScopeUserId }: { authScopeUserId: str
           : `${failedUploadFile!.name} couldn't be uploaded. Remove it or try again before sending.`,
         variant: stillUploading ? 'default' : 'destructive',
       })
+      if (STUDIO_BLOCKED_SEND_FEEDBACK_ENABLED) {
+        setBlockedSendNotice(previous => nextBlockedSendNotice(previous, uploadBlockedSendNotice(
+          { name: (stillUploading ?? failedUploadFile)!.name, status: stillUploading ? 'uploading' : 'error' }, source)))
+      }
       return false
     }
 
@@ -5236,6 +5317,10 @@ function AuthenticatedBuilderContent({ authScopeUserId }: { authScopeUserId: str
         description: `Your ${which} budget resets ${resetLabel}. Top up reserve credits to keep generating now.`,
         variant: 'destructive',
       })
+      if (STUDIO_BLOCKED_SEND_FEEDBACK_ENABLED) {
+        setBlockedSendNotice(previous => nextBlockedSendNotice(previous, quotaBlockedSendNotice(
+          { which, resetLabel, caps: q.caps }, source)))
+      }
       return false
     }
 
@@ -5244,9 +5329,14 @@ function AuthenticatedBuilderContent({ authScopeUserId }: { authScopeUserId: str
         title: 'Template generation locked',
         description: templateGenerationUnavailableReason(activeTemplate),
       })
+      if (STUDIO_BLOCKED_SEND_FEEDBACK_ENABLED) {
+        setBlockedSendNotice(previous => nextBlockedSendNotice(previous,
+          templateBlockedSendNotice(templateGenerationUnavailableReason(activeTemplate), source)))
+      }
       return false
     }
 
+    if (STUDIO_BLOCKED_SEND_FEEDBACK_ENABLED) setBlockedSendNotice(null)
     return true
   }, [user, session.isLoadingSession, awaitingDirectorReply, activeTemplate,
     isGeneratingFinal, uploadedFiles, quota.status, toast])
@@ -6357,7 +6447,7 @@ function AuthenticatedBuilderContent({ authScopeUserId }: { authScopeUserId: str
     }
   }
   studioPartialNativeReadbackHandlerRef.current = handleStudioPartialNativeReadback
-  const retiredIntroActions = historicalActionStatuses(messages, session.answeredActionsRef.current)
+  const retiredIntroActions = historicalActionStatuses(messages, session.answeredActionsRef.current, session.userMessages)
   const studioMandatoryDecision = messages.some(message => message.type === 'action_request'
     && message.session_id === (currentSessionId || wsSessionId) && !retiredIntroActions.has(message.message_id)
     && Boolean((message.payload as any).question_set || (message as ActionRequest).payload.actions.some(action =>
@@ -6884,7 +6974,7 @@ function AuthenticatedBuilderContent({ authScopeUserId }: { authScopeUserId: str
                             questionSubmissionScopeRef.current.userId === origin.userId
                           )
                           if (!origin.active || origin.sessionId !== (currentSessionId || wsSessionId) ||
-                              !text.trim() || !preflightDirectorTurn()) return
+                              !text.trim() || !preflightDirectorTurn('answers')) return
                           session.markStudioUserIntent()
                           questionSubmissionPendingRef.current = true
                           try {
@@ -6941,6 +7031,11 @@ function AuthenticatedBuilderContent({ authScopeUserId }: { authScopeUserId: str
                         isGeneratingFinal={isGeneratingFinal}
                         suppressEphemeral={effectiveBuildNarrationEnabled}
                       />
+                      {STUDIO_BLOCKED_SEND_FEEDBACK_ENABLED && blockedSendNotice && (
+                        <div ref={blockedSendNoticeRef}>
+                          <StudioBlockedSendNotice notice={blockedSendNotice} onDismiss={() => setBlockedSendNotice(null)} />
+                        </div>
+                      )}
                       {/* Template Ingest (C-5, M-6): cancel the in-flight ingest job */}
                       {process.env.NEXT_PUBLIC_TEMPLATE_INGEST_ENABLED === 'true' && templateIngestJobId && (
                         <div className="flex justify-end">
@@ -7251,6 +7346,37 @@ function AuthenticatedBuilderContent({ authScopeUserId }: { authScopeUserId: str
             onComposeApiReady={studioShell ? handleStudioPartialComposeApiReady : handleComposeApiReady}
             onRefineSlide={features.slideRefinerEnabled ? handleOpenSlideRefine : undefined}
             onGenerateSlide={studioShell && features.slideComposerEnabled ? handleOpenSlideCompose : undefined}
+            // J2 v2: same session / research / theme sources as the Slide panel above (P7). `submit` (J2-MAP item8: async,
+            // page-owned registration) exists only with the composer and its async mode on; otherwise Generate stays disabled.
+            addSlideV2Settings={process.env.NEXT_PUBLIC_STUDIO_ADD_SLIDE_V2_ENABLED === 'true' ? {
+              sessionId: resolveSlideComposeSessionId({ deckOwnerSessionId, currentSessionId, wsSessionId }),
+              presentationId: effectivePresentationId,
+              research: {
+                useUploadedDocuments: uploadedFiles.some(isAttachedUpload) || Boolean(sessionStoreName),
+                useWebSearch: webSearchEnabled,
+                useDeepResearch: researchEnabled && webSearchEnabled,
+                useKnowledgeGraph: canUseKnowledgeGraph && knowledgeGraphEnabled,
+              },
+              themeProfileName: activeBuildThemeProfileForSelection?.name ?? null,
+              ...createAddSlideV2Hooks({
+                // `submit` needs the composer and its async mode; the Blank target resolver is always there.
+                generationEnabled: features.slideComposerEnabled && features.slideComposerAsyncEnabled,
+                presentationId: effectivePresentationId,
+                fetchImpl: (url, init) => fetch(url, init),
+                newJobId: () => crypto.randomUUID(),
+                captureSessionOwner: captureStudioSlideComposeSessionOwner,
+                // Same predicate handleSlideComposerAccepted applies before it registers a job.
+                isSessionAdmitted: sessionId => !studioShell || sessionId === questionSubmissionScopeRef.current.sessionId,
+                selection: () => ({
+                  visualIndex: currentSlideIndexRef.current,
+                  realSlideCount: effectiveSlideCount ?? 0,
+                  jobs: studioShell
+                    ? Object.fromEntries(Object.entries(slideComposeJobsRef.current).filter(([, item]) => item.target_presentation_id === effectivePresentationId))
+                    : slideComposeJobsRef.current,
+                }),
+                onAccepted: handleSlideComposerAccepted,
+              }),
+            } : undefined}
             onTextBoxSelected={(elementId, formatting, selectedComponentType) => {
               if (studioShell) closeStudioFormat()
               if (features.useTextLabsGeneration) {

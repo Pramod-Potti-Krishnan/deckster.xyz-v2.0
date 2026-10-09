@@ -29,6 +29,7 @@ import {
 import { getSlideMenuActions, slideMenuHasAnyAction } from '@/lib/slide-thumbnail-menu'
 import { SLIDE_LAYOUTS, SlideLayoutId } from './slide-layout-picker'
 import { buildSlideComposeVisualOrder } from '@/lib/slide-compose-async'
+import { slideTitleLabel } from '@/lib/studio-slide-title-label'
 import type { SlideRefineTarget } from '@/lib/slide-refinement'
 import './studio-thumbnails.css'
 
@@ -83,6 +84,8 @@ export interface SlideThumbnail {
   title?: string
   content?: string
   thumbnailUrl?: string
+  /** F8/S-03 (rail identity flag only): `pending` = a preview is expected, shown as a spinner instead of "No preview". */
+  thumbnailStatus?: 'fresh' | 'stale' | 'pending' | 'none'
 }
 
 export interface SlideComposeThumbnailJob {
@@ -119,6 +122,9 @@ export interface SlideThumbnailStripProps {
   totalSlides?: number
   composeJobs?: SlideComposeThumbnailJob[]
   onRefineSlide?: (target: SlideRefineTarget) => void
+  /** F8/S-03: rows come from Layout's slide inventory, so React keys them by slide_id (a moved
+   *  slide keeps its node and image) instead of by position. Default false = today's keys. */
+  keyBySlideId?: boolean
 }
 
 /**
@@ -151,6 +157,7 @@ export function SlideThumbnailStrip({
   totalSlides,
   composeJobs = [],
   onRefineSlide,
+  keyBySlideId = false,
 }: SlideThumbnailStripProps) {
   const [draggedSlide, setDraggedSlide] = useState<number | null>(null)
   const [dropTarget, setDropTarget] = useState<number | null>(null)
@@ -411,6 +418,7 @@ export function SlideThumbnailStrip({
   const renderThumbnail = (slide: SlideThumbnail, visualNumber: number) => {
     const realSlideNumber = slide.slideNumber
     const slideIndex = realSlideNumber - 1  // 0-based index
+    const itemKey = keyBySlideId && slide.slideId ? `slide-${slide.slideId}` : realSlideNumber
     const isActive = visualNumber === currentSlide
     const isSelected = selectedSlides.includes(slideIndex)
     const isDragging = draggedSlide === realSlideNumber
@@ -422,7 +430,7 @@ export function SlideThumbnailStrip({
     const isRefineDisabled = isItemProcessing || isRefineTargetBusy(slide, slideIndex)
     const displayTitle = !slide.title || /^Slide \d+$/i.test(slide.title)
       ? `Slide ${visualNumber}`
-      : slide.title
+      : slideTitleLabel(slide.title)
     const titleText = isRefining ? (refineJob.lastProgressText || 'Refining slide') : displayTitle
     const thumbnailUrl = slide.thumbnailUrl?.trim()
 
@@ -615,7 +623,11 @@ export function SlideThumbnailStrip({
               />
             ) : (
               <>
-                {STUDIO_THUMBNAILS && <span className="studio-thumbnail-placeholder-label">No preview</span>}
+                {STUDIO_THUMBNAILS && slide.thumbnailStatus === 'pending' ? (
+                  <span className="studio-thumbnail-placeholder-label" data-studio-thumbnail-pending="true" role="status" aria-label="Preview loading">
+                    <Loader2 className="inline h-2.5 w-2.5 animate-spin" aria-hidden /> Preview loading
+                  </span>
+                ) : STUDIO_THUMBNAILS && <span className="studio-thumbnail-placeholder-label">No preview</span>}
                 <div className={cn(
                   "h-1 w-3/4 rounded-sm",
                   isActive ? "bg-blue-400 dark:bg-blue-500" : "bg-slate-300 dark:bg-slate-600"
@@ -717,7 +729,7 @@ export function SlideThumbnailStrip({
     // Wrap with context menu if CRUD actions are available
     if (hasCrudActions) {
       return (
-        <ContextMenu key={realSlideNumber}>
+        <ContextMenu key={itemKey}>
           <ContextMenuTrigger asChild>
             {thumbnailContent}
           </ContextMenuTrigger>
@@ -735,7 +747,7 @@ export function SlideThumbnailStrip({
       )
     }
 
-    return <React.Fragment key={realSlideNumber}>{thumbnailContent}</React.Fragment>
+    return <React.Fragment key={itemKey}>{thumbnailContent}</React.Fragment>
   }
 
   return (

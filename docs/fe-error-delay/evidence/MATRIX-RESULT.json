@@ -1,0 +1,1699 @@
+{
+  "source_head_at_execution": "30c9fc9e62cdb56601e6090486914ab1780c072d",
+  "source_sha256": {
+    "hooks/use-textlabs-generation.ts": "de49b25d25006c3be1dcbbb47784099a3fd9381474680cf6c1a72de070a45ce8",
+    "lib/metrics-card-refine-draft.ts": "6f566b05c4252905074f074bf1b7e4cc01205b90b983e857a927a7aadf3ecec5",
+    "lib/textlabs-client.ts": "85b13a044472116b44f6b1f6f773aaf01b6c23400a8f0a08fb6f53a6fda95864",
+    "types/textlabs.ts": "418ff7cd59a18177ee58ec4b1be8278a731adce6ef9dd0df22a51faa267cac27",
+    "lib/element-semantic-type.ts": "957a8ea84c7c2222c6a8a806790854434ee4e9aeb1513fc0a9687cfc704df8cd",
+    "lib/textlabs-theme-metadata.ts": "131ad735f482d178af5fe4cdd6c8e637ca8ff37e086a5892e71fb7e307d6b7f9",
+    "lib/element-provenance.ts": "bb10e78df3164f7fd9fd066f76c815281c2662d1edc9b4546a3d2a2c5f0cebc9",
+    "lib/element-research-policy.ts": "2f165faa28c551aa51f969251176927de8a1a8b2f5ae2cbb69c22f344d9b16d7",
+    "lib/service-url.ts": "f4dafa63ed85979926051bb561f885fc89cdd586752e2b0dc58fc679dc3c700e",
+    "lib/element-geometry.ts": "ab3426ebd929f49ef4804e743282b8f91ff0f3ff7dfcadd9921bcc33c2c9f4d7",
+    "lib/diagram-renderer-state.ts": "229da4fdbeb03f5b3f3776e7dad8ccba9b94c04a1418f3200e8f25a3312dc4b8",
+    "lib/element-theme-variants.ts": "94fbfd5987adc99c873ab5b5045b935e25d337747ec5bdf1c9cf7e5fbb2479d2",
+    "lib/element-generation-context.ts": "fad0bf7478705df923e00cd6af90775f713c069a91ab3f91a71e1adb756d3af2",
+    "lib/theme-sync.ts": "322f49bd5dcba2dc34299ca7134f7862b646fc615802b9da41a9eda6601a16f3",
+    "lib/blank-element-recovery.ts": "f5c7431f22ad0ad58219680cedbd56065678034295069ab1aa371cec368601a2",
+    "lib/textbox-request-fidelity.ts": "c66f2aa23e67aa4e299f5b7c7187475a1fdc0b6ead5d10c98a031069707a3192",
+    "lib/metrics-layout.ts": "62cc24d35a96add9796f88e2d99e598c52898985ba840f8f0440585abfe2c32a",
+    "lib/grid-splitter.ts": "f52be9845072c8b2c58141a76a9beb247e1d78dc9db0ba182e53ab4f617a211b",
+    "lib/chart-data-contract.ts": "e0b761f145c5d71161b3c9cb4337874063d8cda97be15dbd845d95fa4c6c02ab",
+    "lib/layout-command-result.ts": "08d5c7d16f1950a451e782d4015d8a8724edbe10907a7f582bff458d4a0bfbdb",
+    "lib/element-generation-timeout.ts": "14d594e1249d0c859430a457df10d53a8717887aff72304a892819f06db3e8f9",
+    "lib/element-prompt-limit.ts": "cb386ceaf628ae2ead2004feeedc6fb19c789f21b15b7b556b7d4e6a0ad5cfbf",
+    "lib/refine-generation-config.ts": "2e4a1116e6246ad864009c16c7ab9f2e5139b8889c67a1e5e61010cbac2b7b5f",
+    "lib/diagram-catalog.ts": "3fbe8b8232d357db6241ea5eb13766bca58896f73032ece0bd09e1c5fa8875d9",
+    "lib/image-refinement.ts": "e68e781527da71e15c742c2050bd221ec53c3ca44834dc574fd3074298fe46ff",
+    "lib/element-generation-retry.ts": "3d1af6279543dbcf6563510089fe1f8d39dfa3869a68c4475342cca29e581ba9",
+    "hooks/use-generation-panel.ts": "b90ceaefa3c1e6648c284389e32095801bd4961b6697e5c345ba4d706555c258",
+    "components/generation-panel/shared/generation-input.tsx": "ceb67f4709c786632c7ba3c745010fe82a6e8d965a3c3069a0c162a3af2511e6"
+  },
+  "script_sha256": "10c011b28a586c7e2d249c52b9bf7699ec20b92402c4032e4258db52eb971ff5",
+  "baseline_head": "30c9fc9e62cdb56601e6090486914ab1780c072d",
+  "flag": "NEXT_PUBLIC_ELEMENT_FAILURE_IMMEDIATE_FEEDBACK_ENABLED",
+  "cases": [
+    {
+      "name": "off-wire-state:TEXT_BOX:unset",
+      "status": "passed"
+    },
+    {
+      "name": "off-wire-state:TEXT_BOX:false",
+      "status": "passed"
+    },
+    {
+      "name": "off-wire-state:TEXT_BOX:1",
+      "status": "passed"
+    },
+    {
+      "name": "off-wire-state:TEXT_BOX:TRUE",
+      "status": "passed"
+    },
+    {
+      "name": "off-wire-state:TEXT_BOX:",
+      "status": "passed"
+    },
+    {
+      "name": "off-wire-state:METRICS:unset",
+      "status": "passed"
+    },
+    {
+      "name": "off-wire-state:METRICS:false",
+      "status": "passed"
+    },
+    {
+      "name": "off-wire-state:METRICS:1",
+      "status": "passed"
+    },
+    {
+      "name": "off-wire-state:METRICS:TRUE",
+      "status": "passed"
+    },
+    {
+      "name": "off-wire-state:METRICS:",
+      "status": "passed"
+    },
+    {
+      "name": "off-wire-state:TABLE:unset",
+      "status": "passed"
+    },
+    {
+      "name": "off-wire-state:TABLE:false",
+      "status": "passed"
+    },
+    {
+      "name": "off-wire-state:TABLE:1",
+      "status": "passed"
+    },
+    {
+      "name": "off-wire-state:TABLE:TRUE",
+      "status": "passed"
+    },
+    {
+      "name": "off-wire-state:TABLE:",
+      "status": "passed"
+    },
+    {
+      "name": "off-wire-state:CHART:unset",
+      "status": "passed"
+    },
+    {
+      "name": "off-wire-state:CHART:false",
+      "status": "passed"
+    },
+    {
+      "name": "off-wire-state:CHART:1",
+      "status": "passed"
+    },
+    {
+      "name": "off-wire-state:CHART:TRUE",
+      "status": "passed"
+    },
+    {
+      "name": "off-wire-state:CHART:",
+      "status": "passed"
+    },
+    {
+      "name": "off-wire-state:IMAGE:unset",
+      "status": "passed"
+    },
+    {
+      "name": "off-wire-state:IMAGE:false",
+      "status": "passed"
+    },
+    {
+      "name": "off-wire-state:IMAGE:1",
+      "status": "passed"
+    },
+    {
+      "name": "off-wire-state:IMAGE:TRUE",
+      "status": "passed"
+    },
+    {
+      "name": "off-wire-state:IMAGE:",
+      "status": "passed"
+    },
+    {
+      "name": "off-wire-state:ICON_LABEL:unset",
+      "status": "passed"
+    },
+    {
+      "name": "off-wire-state:ICON_LABEL:false",
+      "status": "passed"
+    },
+    {
+      "name": "off-wire-state:ICON_LABEL:1",
+      "status": "passed"
+    },
+    {
+      "name": "off-wire-state:ICON_LABEL:TRUE",
+      "status": "passed"
+    },
+    {
+      "name": "off-wire-state:ICON_LABEL:",
+      "status": "passed"
+    },
+    {
+      "name": "off-wire-state:SHAPE:unset",
+      "status": "passed"
+    },
+    {
+      "name": "off-wire-state:SHAPE:false",
+      "status": "passed"
+    },
+    {
+      "name": "off-wire-state:SHAPE:1",
+      "status": "passed"
+    },
+    {
+      "name": "off-wire-state:SHAPE:TRUE",
+      "status": "passed"
+    },
+    {
+      "name": "off-wire-state:SHAPE:",
+      "status": "passed"
+    },
+    {
+      "name": "off-wire-state:INFOGRAPHIC:unset",
+      "status": "passed"
+    },
+    {
+      "name": "off-wire-state:INFOGRAPHIC:false",
+      "status": "passed"
+    },
+    {
+      "name": "off-wire-state:INFOGRAPHIC:1",
+      "status": "passed"
+    },
+    {
+      "name": "off-wire-state:INFOGRAPHIC:TRUE",
+      "status": "passed"
+    },
+    {
+      "name": "off-wire-state:INFOGRAPHIC:",
+      "status": "passed"
+    },
+    {
+      "name": "off-wire-state:DIAGRAM:unset",
+      "status": "passed"
+    },
+    {
+      "name": "off-wire-state:DIAGRAM:false",
+      "status": "passed"
+    },
+    {
+      "name": "off-wire-state:DIAGRAM:1",
+      "status": "passed"
+    },
+    {
+      "name": "off-wire-state:DIAGRAM:TRUE",
+      "status": "passed"
+    },
+    {
+      "name": "off-wire-state:DIAGRAM:",
+      "status": "passed"
+    },
+    {
+      "name": "off-wire-state:CODE_DISPLAY:unset",
+      "status": "passed"
+    },
+    {
+      "name": "off-wire-state:CODE_DISPLAY:false",
+      "status": "passed"
+    },
+    {
+      "name": "off-wire-state:CODE_DISPLAY:1",
+      "status": "passed"
+    },
+    {
+      "name": "off-wire-state:CODE_DISPLAY:TRUE",
+      "status": "passed"
+    },
+    {
+      "name": "off-wire-state:CODE_DISPLAY:",
+      "status": "passed"
+    },
+    {
+      "name": "off-wire-state:KANBAN_BOARD:unset",
+      "status": "passed"
+    },
+    {
+      "name": "off-wire-state:KANBAN_BOARD:false",
+      "status": "passed"
+    },
+    {
+      "name": "off-wire-state:KANBAN_BOARD:1",
+      "status": "passed"
+    },
+    {
+      "name": "off-wire-state:KANBAN_BOARD:TRUE",
+      "status": "passed"
+    },
+    {
+      "name": "off-wire-state:KANBAN_BOARD:",
+      "status": "passed"
+    },
+    {
+      "name": "off-wire-state:GANTT_CHART:unset",
+      "status": "passed"
+    },
+    {
+      "name": "off-wire-state:GANTT_CHART:false",
+      "status": "passed"
+    },
+    {
+      "name": "off-wire-state:GANTT_CHART:1",
+      "status": "passed"
+    },
+    {
+      "name": "off-wire-state:GANTT_CHART:TRUE",
+      "status": "passed"
+    },
+    {
+      "name": "off-wire-state:GANTT_CHART:",
+      "status": "passed"
+    },
+    {
+      "name": "off-wire-state:CHEVRON_MATURITY:unset",
+      "status": "passed"
+    },
+    {
+      "name": "off-wire-state:CHEVRON_MATURITY:false",
+      "status": "passed"
+    },
+    {
+      "name": "off-wire-state:CHEVRON_MATURITY:1",
+      "status": "passed"
+    },
+    {
+      "name": "off-wire-state:CHEVRON_MATURITY:TRUE",
+      "status": "passed"
+    },
+    {
+      "name": "off-wire-state:CHEVRON_MATURITY:",
+      "status": "passed"
+    },
+    {
+      "name": "off-wire-state:IDEA_BOARD:unset",
+      "status": "passed"
+    },
+    {
+      "name": "off-wire-state:IDEA_BOARD:false",
+      "status": "passed"
+    },
+    {
+      "name": "off-wire-state:IDEA_BOARD:1",
+      "status": "passed"
+    },
+    {
+      "name": "off-wire-state:IDEA_BOARD:TRUE",
+      "status": "passed"
+    },
+    {
+      "name": "off-wire-state:IDEA_BOARD:",
+      "status": "passed"
+    },
+    {
+      "name": "off-wire-state:CLOUD_ARCHITECTURE:unset",
+      "status": "passed"
+    },
+    {
+      "name": "off-wire-state:CLOUD_ARCHITECTURE:false",
+      "status": "passed"
+    },
+    {
+      "name": "off-wire-state:CLOUD_ARCHITECTURE:1",
+      "status": "passed"
+    },
+    {
+      "name": "off-wire-state:CLOUD_ARCHITECTURE:TRUE",
+      "status": "passed"
+    },
+    {
+      "name": "off-wire-state:CLOUD_ARCHITECTURE:",
+      "status": "passed"
+    },
+    {
+      "name": "off-wire-state:LOGICAL_ARCHITECTURE:unset",
+      "status": "passed"
+    },
+    {
+      "name": "off-wire-state:LOGICAL_ARCHITECTURE:false",
+      "status": "passed"
+    },
+    {
+      "name": "off-wire-state:LOGICAL_ARCHITECTURE:1",
+      "status": "passed"
+    },
+    {
+      "name": "off-wire-state:LOGICAL_ARCHITECTURE:TRUE",
+      "status": "passed"
+    },
+    {
+      "name": "off-wire-state:LOGICAL_ARCHITECTURE:",
+      "status": "passed"
+    },
+    {
+      "name": "off-wire-state:DATA_ARCHITECTURE:unset",
+      "status": "passed"
+    },
+    {
+      "name": "off-wire-state:DATA_ARCHITECTURE:false",
+      "status": "passed"
+    },
+    {
+      "name": "off-wire-state:DATA_ARCHITECTURE:1",
+      "status": "passed"
+    },
+    {
+      "name": "off-wire-state:DATA_ARCHITECTURE:TRUE",
+      "status": "passed"
+    },
+    {
+      "name": "off-wire-state:DATA_ARCHITECTURE:",
+      "status": "passed"
+    },
+    {
+      "name": "off-wire-state:CUSTOM:unset",
+      "status": "passed"
+    },
+    {
+      "name": "off-wire-state:CUSTOM:false",
+      "status": "passed"
+    },
+    {
+      "name": "off-wire-state:CUSTOM:1",
+      "status": "passed"
+    },
+    {
+      "name": "off-wire-state:CUSTOM:TRUE",
+      "status": "passed"
+    },
+    {
+      "name": "off-wire-state:CUSTOM:",
+      "status": "passed"
+    },
+    {
+      "name": "off-wire-state:DIAGRAM_AUTO:unset",
+      "status": "passed"
+    },
+    {
+      "name": "off-wire-state:DIAGRAM_AUTO:false",
+      "status": "passed"
+    },
+    {
+      "name": "off-wire-state:DIAGRAM_AUTO:1",
+      "status": "passed"
+    },
+    {
+      "name": "off-wire-state:DIAGRAM_AUTO:TRUE",
+      "status": "passed"
+    },
+    {
+      "name": "off-wire-state:DIAGRAM_AUTO:",
+      "status": "passed"
+    },
+    {
+      "name": "off-recovery-parity:{\"scenario\":\"restore\"}:unset",
+      "status": "passed"
+    },
+    {
+      "name": "off-recovery-parity:{\"scenario\":\"restore\"}:false",
+      "status": "passed"
+    },
+    {
+      "name": "off-recovery-parity:{\"scenario\":\"restore\"}:1",
+      "status": "passed"
+    },
+    {
+      "name": "off-recovery-parity:{\"scenario\":\"restore\"}:TRUE",
+      "status": "passed"
+    },
+    {
+      "name": "off-recovery-parity:{\"scenario\":\"restore_delete_fail\"}:unset",
+      "status": "passed"
+    },
+    {
+      "name": "off-recovery-parity:{\"scenario\":\"restore_delete_fail\"}:false",
+      "status": "passed"
+    },
+    {
+      "name": "off-recovery-parity:{\"scenario\":\"restore_delete_fail\"}:1",
+      "status": "passed"
+    },
+    {
+      "name": "off-recovery-parity:{\"scenario\":\"restore_delete_fail\"}:TRUE",
+      "status": "passed"
+    },
+    {
+      "name": "off-recovery-parity:{\"scenario\":\"restore_insert_fail\"}:unset",
+      "status": "passed"
+    },
+    {
+      "name": "off-recovery-parity:{\"scenario\":\"restore_insert_fail\"}:false",
+      "status": "passed"
+    },
+    {
+      "name": "off-recovery-parity:{\"scenario\":\"restore_insert_fail\"}:1",
+      "status": "passed"
+    },
+    {
+      "name": "off-recovery-parity:{\"scenario\":\"restore_insert_fail\"}:TRUE",
+      "status": "passed"
+    },
+    {
+      "name": "off-recovery-parity:{\"scenario\":\"partial\"}:unset",
+      "status": "passed"
+    },
+    {
+      "name": "off-recovery-parity:{\"scenario\":\"partial\"}:false",
+      "status": "passed"
+    },
+    {
+      "name": "off-recovery-parity:{\"scenario\":\"partial\"}:1",
+      "status": "passed"
+    },
+    {
+      "name": "off-recovery-parity:{\"scenario\":\"partial\"}:TRUE",
+      "status": "passed"
+    },
+    {
+      "name": "off-recovery-parity:{\"scenario\":\"partial_rollback_fail\"}:unset",
+      "status": "passed"
+    },
+    {
+      "name": "off-recovery-parity:{\"scenario\":\"partial_rollback_fail\"}:false",
+      "status": "passed"
+    },
+    {
+      "name": "off-recovery-parity:{\"scenario\":\"partial_rollback_fail\"}:1",
+      "status": "passed"
+    },
+    {
+      "name": "off-recovery-parity:{\"scenario\":\"partial_rollback_fail\"}:TRUE",
+      "status": "passed"
+    },
+    {
+      "name": "off-recovery-parity:{\"scenario\":\"overlay\",\"cleanupDelay\":5000}:unset",
+      "status": "passed"
+    },
+    {
+      "name": "off-recovery-parity:{\"scenario\":\"overlay\",\"cleanupDelay\":5000}:false",
+      "status": "passed"
+    },
+    {
+      "name": "off-recovery-parity:{\"scenario\":\"overlay\",\"cleanupDelay\":5000}:1",
+      "status": "passed"
+    },
+    {
+      "name": "off-recovery-parity:{\"scenario\":\"overlay\",\"cleanupDelay\":5000}:TRUE",
+      "status": "passed"
+    },
+    {
+      "name": "off-recovery-parity:{\"scenario\":\"overlay\",\"cleanupDelay\":5000,\"refine\":true}:unset",
+      "status": "passed"
+    },
+    {
+      "name": "off-recovery-parity:{\"scenario\":\"overlay\",\"cleanupDelay\":5000,\"refine\":true}:false",
+      "status": "passed"
+    },
+    {
+      "name": "off-recovery-parity:{\"scenario\":\"overlay\",\"cleanupDelay\":5000,\"refine\":true}:1",
+      "status": "passed"
+    },
+    {
+      "name": "off-recovery-parity:{\"scenario\":\"overlay\",\"cleanupDelay\":5000,\"refine\":true}:TRUE",
+      "status": "passed"
+    },
+    {
+      "name": "off-recovery-parity:{\"scenario\":\"refine_delete\",\"refine\":true}:unset",
+      "status": "passed"
+    },
+    {
+      "name": "off-recovery-parity:{\"scenario\":\"refine_delete\",\"refine\":true}:false",
+      "status": "passed"
+    },
+    {
+      "name": "off-recovery-parity:{\"scenario\":\"refine_delete\",\"refine\":true}:1",
+      "status": "passed"
+    },
+    {
+      "name": "off-recovery-parity:{\"scenario\":\"refine_delete\",\"refine\":true}:TRUE",
+      "status": "passed"
+    },
+    {
+      "name": "off-recovery-parity:{\"scenario\":\"refine_delete_rollback_fail\",\"refine\":true}:unset",
+      "status": "passed"
+    },
+    {
+      "name": "off-recovery-parity:{\"scenario\":\"refine_delete_rollback_fail\",\"refine\":true}:false",
+      "status": "passed"
+    },
+    {
+      "name": "off-recovery-parity:{\"scenario\":\"refine_delete_rollback_fail\",\"refine\":true}:1",
+      "status": "passed"
+    },
+    {
+      "name": "off-recovery-parity:{\"scenario\":\"refine_delete_rollback_fail\",\"refine\":true}:TRUE",
+      "status": "passed"
+    },
+    {
+      "name": "off-recovery-parity:{\"scenario\":\"none\",\"backend\":\"transport\",\"cleanupDelay\":5000}:unset",
+      "status": "passed"
+    },
+    {
+      "name": "off-recovery-parity:{\"scenario\":\"none\",\"backend\":\"transport\",\"cleanupDelay\":5000}:false",
+      "status": "passed"
+    },
+    {
+      "name": "off-recovery-parity:{\"scenario\":\"none\",\"backend\":\"transport\",\"cleanupDelay\":5000}:1",
+      "status": "passed"
+    },
+    {
+      "name": "off-recovery-parity:{\"scenario\":\"none\",\"backend\":\"transport\",\"cleanupDelay\":5000}:TRUE",
+      "status": "passed"
+    },
+    {
+      "name": "off-recovery-parity:{\"scenario\":\"none\",\"backend\":\"abort\",\"cleanupDelay\":5000}:unset",
+      "status": "passed"
+    },
+    {
+      "name": "off-recovery-parity:{\"scenario\":\"none\",\"backend\":\"abort\",\"cleanupDelay\":5000}:false",
+      "status": "passed"
+    },
+    {
+      "name": "off-recovery-parity:{\"scenario\":\"none\",\"backend\":\"abort\",\"cleanupDelay\":5000}:1",
+      "status": "passed"
+    },
+    {
+      "name": "off-recovery-parity:{\"scenario\":\"none\",\"backend\":\"abort\",\"cleanupDelay\":5000}:TRUE",
+      "status": "passed"
+    },
+    {
+      "name": "off-recovery-parity:{\"scenario\":\"none\",\"backend\":\"session\"}:unset",
+      "status": "passed"
+    },
+    {
+      "name": "off-recovery-parity:{\"scenario\":\"none\",\"backend\":\"session\"}:false",
+      "status": "passed"
+    },
+    {
+      "name": "off-recovery-parity:{\"scenario\":\"none\",\"backend\":\"session\"}:1",
+      "status": "passed"
+    },
+    {
+      "name": "off-recovery-parity:{\"scenario\":\"none\",\"backend\":\"session\"}:TRUE",
+      "status": "passed"
+    },
+    {
+      "name": "on-direct-failure:TEXT_BOX:application",
+      "status": "passed"
+    },
+    {
+      "name": "on-direct-failure:TEXT_BOX:terminal",
+      "status": "passed"
+    },
+    {
+      "name": "on-direct-failure:TEXT_BOX:http",
+      "status": "passed"
+    },
+    {
+      "name": "on-direct-failure:TEXT_BOX:transport",
+      "status": "passed"
+    },
+    {
+      "name": "on-direct-failure:TEXT_BOX:abort",
+      "status": "passed"
+    },
+    {
+      "name": "on-direct-failure:METRICS:application",
+      "status": "passed"
+    },
+    {
+      "name": "on-direct-failure:METRICS:terminal",
+      "status": "passed"
+    },
+    {
+      "name": "on-direct-failure:METRICS:http",
+      "status": "passed"
+    },
+    {
+      "name": "on-direct-failure:METRICS:transport",
+      "status": "passed"
+    },
+    {
+      "name": "on-direct-failure:METRICS:abort",
+      "status": "passed"
+    },
+    {
+      "name": "on-direct-failure:TABLE:application",
+      "status": "passed"
+    },
+    {
+      "name": "on-direct-failure:TABLE:terminal",
+      "status": "passed"
+    },
+    {
+      "name": "on-direct-failure:TABLE:http",
+      "status": "passed"
+    },
+    {
+      "name": "on-direct-failure:TABLE:transport",
+      "status": "passed"
+    },
+    {
+      "name": "on-direct-failure:TABLE:abort",
+      "status": "passed"
+    },
+    {
+      "name": "on-direct-failure:CHART:application",
+      "status": "passed"
+    },
+    {
+      "name": "on-direct-failure:CHART:terminal",
+      "status": "passed"
+    },
+    {
+      "name": "on-direct-failure:CHART:http",
+      "status": "passed"
+    },
+    {
+      "name": "on-direct-failure:CHART:transport",
+      "status": "passed"
+    },
+    {
+      "name": "on-direct-failure:CHART:abort",
+      "status": "passed"
+    },
+    {
+      "name": "on-direct-failure:IMAGE:application",
+      "status": "passed"
+    },
+    {
+      "name": "on-direct-failure:IMAGE:terminal",
+      "status": "passed"
+    },
+    {
+      "name": "on-direct-failure:IMAGE:http",
+      "status": "passed"
+    },
+    {
+      "name": "on-direct-failure:IMAGE:transport",
+      "status": "passed"
+    },
+    {
+      "name": "on-direct-failure:IMAGE:abort",
+      "status": "passed"
+    },
+    {
+      "name": "on-direct-failure:ICON_LABEL:application",
+      "status": "passed"
+    },
+    {
+      "name": "on-direct-failure:ICON_LABEL:terminal",
+      "status": "passed"
+    },
+    {
+      "name": "on-direct-failure:ICON_LABEL:http",
+      "status": "passed"
+    },
+    {
+      "name": "on-direct-failure:ICON_LABEL:transport",
+      "status": "passed"
+    },
+    {
+      "name": "on-direct-failure:ICON_LABEL:abort",
+      "status": "passed"
+    },
+    {
+      "name": "on-direct-failure:SHAPE:application",
+      "status": "passed"
+    },
+    {
+      "name": "on-direct-failure:SHAPE:terminal",
+      "status": "passed"
+    },
+    {
+      "name": "on-direct-failure:SHAPE:http",
+      "status": "passed"
+    },
+    {
+      "name": "on-direct-failure:SHAPE:transport",
+      "status": "passed"
+    },
+    {
+      "name": "on-direct-failure:SHAPE:abort",
+      "status": "passed"
+    },
+    {
+      "name": "on-direct-failure:INFOGRAPHIC:application",
+      "status": "passed"
+    },
+    {
+      "name": "on-direct-failure:INFOGRAPHIC:terminal",
+      "status": "passed"
+    },
+    {
+      "name": "on-direct-failure:INFOGRAPHIC:http",
+      "status": "passed"
+    },
+    {
+      "name": "on-direct-failure:INFOGRAPHIC:transport",
+      "status": "passed"
+    },
+    {
+      "name": "on-direct-failure:INFOGRAPHIC:abort",
+      "status": "passed"
+    },
+    {
+      "name": "on-direct-failure:DIAGRAM:application",
+      "status": "passed"
+    },
+    {
+      "name": "on-direct-failure:DIAGRAM:terminal",
+      "status": "passed"
+    },
+    {
+      "name": "on-direct-failure:DIAGRAM:http",
+      "status": "passed"
+    },
+    {
+      "name": "on-direct-failure:DIAGRAM:transport",
+      "status": "passed"
+    },
+    {
+      "name": "on-direct-failure:DIAGRAM:abort",
+      "status": "passed"
+    },
+    {
+      "name": "on-direct-failure:CODE_DISPLAY:application",
+      "status": "passed"
+    },
+    {
+      "name": "on-direct-failure:CODE_DISPLAY:terminal",
+      "status": "passed"
+    },
+    {
+      "name": "on-direct-failure:CODE_DISPLAY:http",
+      "status": "passed"
+    },
+    {
+      "name": "on-direct-failure:CODE_DISPLAY:transport",
+      "status": "passed"
+    },
+    {
+      "name": "on-direct-failure:CODE_DISPLAY:abort",
+      "status": "passed"
+    },
+    {
+      "name": "on-direct-failure:KANBAN_BOARD:application",
+      "status": "passed"
+    },
+    {
+      "name": "on-direct-failure:KANBAN_BOARD:terminal",
+      "status": "passed"
+    },
+    {
+      "name": "on-direct-failure:KANBAN_BOARD:http",
+      "status": "passed"
+    },
+    {
+      "name": "on-direct-failure:KANBAN_BOARD:transport",
+      "status": "passed"
+    },
+    {
+      "name": "on-direct-failure:KANBAN_BOARD:abort",
+      "status": "passed"
+    },
+    {
+      "name": "on-direct-failure:GANTT_CHART:application",
+      "status": "passed"
+    },
+    {
+      "name": "on-direct-failure:GANTT_CHART:terminal",
+      "status": "passed"
+    },
+    {
+      "name": "on-direct-failure:GANTT_CHART:http",
+      "status": "passed"
+    },
+    {
+      "name": "on-direct-failure:GANTT_CHART:transport",
+      "status": "passed"
+    },
+    {
+      "name": "on-direct-failure:GANTT_CHART:abort",
+      "status": "passed"
+    },
+    {
+      "name": "on-direct-failure:CHEVRON_MATURITY:application",
+      "status": "passed"
+    },
+    {
+      "name": "on-direct-failure:CHEVRON_MATURITY:terminal",
+      "status": "passed"
+    },
+    {
+      "name": "on-direct-failure:CHEVRON_MATURITY:http",
+      "status": "passed"
+    },
+    {
+      "name": "on-direct-failure:CHEVRON_MATURITY:transport",
+      "status": "passed"
+    },
+    {
+      "name": "on-direct-failure:CHEVRON_MATURITY:abort",
+      "status": "passed"
+    },
+    {
+      "name": "on-direct-failure:IDEA_BOARD:application",
+      "status": "passed"
+    },
+    {
+      "name": "on-direct-failure:IDEA_BOARD:terminal",
+      "status": "passed"
+    },
+    {
+      "name": "on-direct-failure:IDEA_BOARD:http",
+      "status": "passed"
+    },
+    {
+      "name": "on-direct-failure:IDEA_BOARD:transport",
+      "status": "passed"
+    },
+    {
+      "name": "on-direct-failure:IDEA_BOARD:abort",
+      "status": "passed"
+    },
+    {
+      "name": "on-direct-failure:CLOUD_ARCHITECTURE:application",
+      "status": "passed"
+    },
+    {
+      "name": "on-direct-failure:CLOUD_ARCHITECTURE:terminal",
+      "status": "passed"
+    },
+    {
+      "name": "on-direct-failure:CLOUD_ARCHITECTURE:http",
+      "status": "passed"
+    },
+    {
+      "name": "on-direct-failure:CLOUD_ARCHITECTURE:transport",
+      "status": "passed"
+    },
+    {
+      "name": "on-direct-failure:CLOUD_ARCHITECTURE:abort",
+      "status": "passed"
+    },
+    {
+      "name": "on-direct-failure:LOGICAL_ARCHITECTURE:application",
+      "status": "passed"
+    },
+    {
+      "name": "on-direct-failure:LOGICAL_ARCHITECTURE:terminal",
+      "status": "passed"
+    },
+    {
+      "name": "on-direct-failure:LOGICAL_ARCHITECTURE:http",
+      "status": "passed"
+    },
+    {
+      "name": "on-direct-failure:LOGICAL_ARCHITECTURE:transport",
+      "status": "passed"
+    },
+    {
+      "name": "on-direct-failure:LOGICAL_ARCHITECTURE:abort",
+      "status": "passed"
+    },
+    {
+      "name": "on-direct-failure:DATA_ARCHITECTURE:application",
+      "status": "passed"
+    },
+    {
+      "name": "on-direct-failure:DATA_ARCHITECTURE:terminal",
+      "status": "passed"
+    },
+    {
+      "name": "on-direct-failure:DATA_ARCHITECTURE:http",
+      "status": "passed"
+    },
+    {
+      "name": "on-direct-failure:DATA_ARCHITECTURE:transport",
+      "status": "passed"
+    },
+    {
+      "name": "on-direct-failure:DATA_ARCHITECTURE:abort",
+      "status": "passed"
+    },
+    {
+      "name": "on-direct-failure:CUSTOM:application",
+      "status": "passed"
+    },
+    {
+      "name": "on-direct-failure:CUSTOM:terminal",
+      "status": "passed"
+    },
+    {
+      "name": "on-direct-failure:CUSTOM:http",
+      "status": "passed"
+    },
+    {
+      "name": "on-direct-failure:CUSTOM:transport",
+      "status": "passed"
+    },
+    {
+      "name": "on-direct-failure:CUSTOM:abort",
+      "status": "passed"
+    },
+    {
+      "name": "on-direct-failure:DIAGRAM_AUTO:application",
+      "status": "passed"
+    },
+    {
+      "name": "on-direct-failure:DIAGRAM_AUTO:terminal",
+      "status": "passed"
+    },
+    {
+      "name": "on-direct-failure:DIAGRAM_AUTO:http",
+      "status": "passed"
+    },
+    {
+      "name": "on-direct-failure:DIAGRAM_AUTO:transport",
+      "status": "passed"
+    },
+    {
+      "name": "on-direct-failure:DIAGRAM_AUTO:abort",
+      "status": "passed"
+    },
+    {
+      "name": "on-await-boundary:{\"scenario\":\"restore\"}",
+      "status": "passed"
+    },
+    {
+      "name": "on-await-boundary:{\"scenario\":\"restore_delete_fail\"}",
+      "status": "passed"
+    },
+    {
+      "name": "on-await-boundary:{\"scenario\":\"restore_insert_fail\"}",
+      "status": "passed"
+    },
+    {
+      "name": "on-await-boundary:{\"scenario\":\"partial\"}",
+      "status": "passed"
+    },
+    {
+      "name": "on-await-boundary:{\"scenario\":\"partial_rollback_fail\"}",
+      "status": "passed"
+    },
+    {
+      "name": "on-await-boundary:{\"scenario\":\"overlay\",\"cleanupDelay\":5000}",
+      "status": "passed"
+    },
+    {
+      "name": "on-await-boundary:{\"scenario\":\"overlay\",\"cleanupDelay\":5000,\"refine\":true}",
+      "status": "passed"
+    },
+    {
+      "name": "on-await-boundary:{\"scenario\":\"refine_delete\",\"refine\":true}",
+      "status": "passed"
+    },
+    {
+      "name": "on-await-boundary:{\"scenario\":\"refine_delete_rollback_fail\",\"refine\":true}",
+      "status": "passed"
+    },
+    {
+      "name": "on-success-preservation:TEXT_BOX",
+      "status": "passed"
+    },
+    {
+      "name": "on-success-preservation:METRICS",
+      "status": "passed"
+    },
+    {
+      "name": "on-success-preservation:TABLE",
+      "status": "passed"
+    },
+    {
+      "name": "on-success-preservation:CHART",
+      "status": "passed"
+    },
+    {
+      "name": "on-success-preservation:IMAGE",
+      "status": "passed"
+    },
+    {
+      "name": "on-success-preservation:ICON_LABEL",
+      "status": "passed"
+    },
+    {
+      "name": "on-success-preservation:SHAPE",
+      "status": "passed"
+    },
+    {
+      "name": "on-success-preservation:INFOGRAPHIC",
+      "status": "passed"
+    },
+    {
+      "name": "on-success-preservation:DIAGRAM",
+      "status": "passed"
+    },
+    {
+      "name": "on-success-preservation:CODE_DISPLAY",
+      "status": "passed"
+    },
+    {
+      "name": "on-success-preservation:KANBAN_BOARD",
+      "status": "passed"
+    },
+    {
+      "name": "on-success-preservation:GANTT_CHART",
+      "status": "passed"
+    },
+    {
+      "name": "on-success-preservation:CHEVRON_MATURITY",
+      "status": "passed"
+    },
+    {
+      "name": "on-success-preservation:IDEA_BOARD",
+      "status": "passed"
+    },
+    {
+      "name": "on-success-preservation:CLOUD_ARCHITECTURE",
+      "status": "passed"
+    },
+    {
+      "name": "on-success-preservation:LOGICAL_ARCHITECTURE",
+      "status": "passed"
+    },
+    {
+      "name": "on-success-preservation:DATA_ARCHITECTURE",
+      "status": "passed"
+    },
+    {
+      "name": "on-success-preservation:CUSTOM",
+      "status": "passed"
+    },
+    {
+      "name": "on-success-preservation:DIAGRAM_AUTO",
+      "status": "passed"
+    },
+    {
+      "name": "on-retired-owner:partial:different_target",
+      "status": "passed"
+    },
+    {
+      "name": "on-retired-owner:partial:same_id_reopen",
+      "status": "passed"
+    },
+    {
+      "name": "on-retired-owner:partial:close",
+      "status": "passed"
+    },
+    {
+      "name": "on-retired-owner:partial:edit",
+      "status": "passed"
+    },
+    {
+      "name": "on-retired-owner:partial:snapshot_lag",
+      "status": "passed"
+    },
+    {
+      "name": "on-retired-owner:partial:unmount",
+      "status": "passed"
+    },
+    {
+      "name": "on-retired-owner:partial:lease_retired",
+      "status": "passed"
+    },
+    {
+      "name": "on-retired-owner:partial:deck_epoch",
+      "status": "passed"
+    },
+    {
+      "name": "on-retired-owner:restore:different_target",
+      "status": "passed"
+    },
+    {
+      "name": "on-retired-owner:restore:same_id_reopen",
+      "status": "passed"
+    },
+    {
+      "name": "on-retired-owner:restore:close",
+      "status": "passed"
+    },
+    {
+      "name": "on-retired-owner:restore:edit",
+      "status": "passed"
+    },
+    {
+      "name": "on-retired-owner:restore:snapshot_lag",
+      "status": "passed"
+    },
+    {
+      "name": "on-retired-owner:restore:unmount",
+      "status": "passed"
+    },
+    {
+      "name": "on-retired-owner:restore:lease_retired",
+      "status": "passed"
+    },
+    {
+      "name": "on-retired-owner:restore:deck_epoch",
+      "status": "passed"
+    },
+    {
+      "name": "on-newer-attempt-different-target",
+      "status": "passed"
+    },
+    {
+      "name": "on-renamed-placeholder-recovery",
+      "status": "passed"
+    },
+    {
+      "name": "on-explicit-retry-after-recovery",
+      "status": "passed"
+    },
+    {
+      "name": "on-session-deadline-before-provider",
+      "status": "passed"
+    },
+    {
+      "name": "on-grounded-chart-recovery",
+      "status": "passed"
+    },
+    {
+      "name": "on-failure-preserves-pristine-reason:application",
+      "status": "passed"
+    },
+    {
+      "name": "on-failure-preserves-pristine-reason:transport",
+      "status": "passed"
+    },
+    {
+      "name": "on-failure-preserves-pristine-reason:session",
+      "status": "passed"
+    },
+    {
+      "name": "on-failure-preserves-pristine-reason:abort",
+      "status": "passed"
+    },
+    {
+      "name": "classic-true-exact-parity:application",
+      "status": "passed"
+    },
+    {
+      "name": "classic-true-exact-parity:terminal",
+      "status": "passed"
+    },
+    {
+      "name": "classic-true-exact-parity:transport",
+      "status": "passed"
+    },
+    {
+      "name": "classic-true-exact-parity:abort",
+      "status": "passed"
+    },
+    {
+      "name": "on-closed-chat-add:{\"backend\":\"application\",\"scenario\":\"none\"}",
+      "status": "passed"
+    },
+    {
+      "name": "on-closed-chat-add:{\"backend\":\"success\",\"scenario\":\"partial\"}",
+      "status": "passed"
+    },
+    {
+      "name": "on-direct-preflight-toast:no_native_lease",
+      "status": "passed"
+    },
+    {
+      "name": "on-direct-preflight-toast:custom_limit",
+      "status": "passed"
+    },
+    {
+      "name": "on-stale-overlay-failed-ACK",
+      "status": "passed"
+    },
+    {
+      "name": "on-renamed-alias-new-user-attempt-held",
+      "status": "passed"
+    },
+    {
+      "name": "on-renamed-deferred-resume-reject-contained",
+      "status": "passed"
+    },
+    {
+      "name": "on-manual-chart-invalid-preflight",
+      "status": "passed"
+    },
+    {
+      "name": "on-image-edit-preflight-through-slow-cleanup",
+      "status": "passed"
+    },
+    {
+      "name": "on-session-preprovider-failure-busy-feedback",
+      "status": "passed"
+    },
+    {
+      "name": "on-controller-cancel-does-not-overwrite-new-owner",
+      "status": "passed"
+    },
+    {
+      "name": "on-hidden-edit-pane-state-toast-only",
+      "status": "passed"
+    },
+    {
+      "name": "on-same-target-overlap-held:partial",
+      "status": "passed"
+    },
+    {
+      "name": "on-same-target-overlap-held:restore",
+      "status": "passed"
+    },
+    {
+      "name": "on-layout-ambiguity:{\"scenario\":\"ambiguous_ack\",\"delayAt\":0}",
+      "status": "passed"
+    },
+    {
+      "name": "on-layout-ambiguity:{\"scenario\":\"ambiguous_timeout\",\"delayAt\":1750}",
+      "status": "passed"
+    },
+    {
+      "name": "on-layout-ambiguity:{\"scenario\":\"refine_delete_ambiguous\",\"refine\":true,\"delayAt\":1750}",
+      "status": "passed"
+    },
+    {
+      "name": "on-cleanup-rejection-keeps-visible-original-failure",
+      "status": "passed"
+    },
+    {
+      "name": "on-real-client-canonical-policy:unknown_code",
+      "status": "passed"
+    },
+    {
+      "name": "on-real-client-canonical-policy:ambiguous_response",
+      "status": "passed"
+    },
+    {
+      "name": "on-real-client-canonical-policy:geometry",
+      "status": "passed"
+    },
+    {
+      "name": "on-geometry-preflight-retry-limit-feedback-before-cleanup",
+      "status": "passed"
+    },
+    {
+      "name": "on-theme-readiness-preflight-kept-no-provider",
+      "status": "passed"
+    },
+    {
+      "name": "off-success-byte-order-state:TEXT_BOX:unset",
+      "status": "passed"
+    },
+    {
+      "name": "off-success-byte-order-state:TEXT_BOX:false",
+      "status": "passed"
+    },
+    {
+      "name": "off-success-byte-order-state:TEXT_BOX:1",
+      "status": "passed"
+    },
+    {
+      "name": "off-success-byte-order-state:TEXT_BOX:TRUE",
+      "status": "passed"
+    },
+    {
+      "name": "off-success-byte-order-state:TEXT_BOX:",
+      "status": "passed"
+    },
+    {
+      "name": "off-success-byte-order-state:METRICS:unset",
+      "status": "passed"
+    },
+    {
+      "name": "off-success-byte-order-state:METRICS:false",
+      "status": "passed"
+    },
+    {
+      "name": "off-success-byte-order-state:METRICS:1",
+      "status": "passed"
+    },
+    {
+      "name": "off-success-byte-order-state:METRICS:TRUE",
+      "status": "passed"
+    },
+    {
+      "name": "off-success-byte-order-state:METRICS:",
+      "status": "passed"
+    },
+    {
+      "name": "off-success-byte-order-state:TABLE:unset",
+      "status": "passed"
+    },
+    {
+      "name": "off-success-byte-order-state:TABLE:false",
+      "status": "passed"
+    },
+    {
+      "name": "off-success-byte-order-state:TABLE:1",
+      "status": "passed"
+    },
+    {
+      "name": "off-success-byte-order-state:TABLE:TRUE",
+      "status": "passed"
+    },
+    {
+      "name": "off-success-byte-order-state:TABLE:",
+      "status": "passed"
+    },
+    {
+      "name": "off-success-byte-order-state:CHART:unset",
+      "status": "passed"
+    },
+    {
+      "name": "off-success-byte-order-state:CHART:false",
+      "status": "passed"
+    },
+    {
+      "name": "off-success-byte-order-state:CHART:1",
+      "status": "passed"
+    },
+    {
+      "name": "off-success-byte-order-state:CHART:TRUE",
+      "status": "passed"
+    },
+    {
+      "name": "off-success-byte-order-state:CHART:",
+      "status": "passed"
+    },
+    {
+      "name": "off-success-byte-order-state:IMAGE:unset",
+      "status": "passed"
+    },
+    {
+      "name": "off-success-byte-order-state:IMAGE:false",
+      "status": "passed"
+    },
+    {
+      "name": "off-success-byte-order-state:IMAGE:1",
+      "status": "passed"
+    },
+    {
+      "name": "off-success-byte-order-state:IMAGE:TRUE",
+      "status": "passed"
+    },
+    {
+      "name": "off-success-byte-order-state:IMAGE:",
+      "status": "passed"
+    },
+    {
+      "name": "off-success-byte-order-state:ICON_LABEL:unset",
+      "status": "passed"
+    },
+    {
+      "name": "off-success-byte-order-state:ICON_LABEL:false",
+      "status": "passed"
+    },
+    {
+      "name": "off-success-byte-order-state:ICON_LABEL:1",
+      "status": "passed"
+    },
+    {
+      "name": "off-success-byte-order-state:ICON_LABEL:TRUE",
+      "status": "passed"
+    },
+    {
+      "name": "off-success-byte-order-state:ICON_LABEL:",
+      "status": "passed"
+    },
+    {
+      "name": "off-success-byte-order-state:SHAPE:unset",
+      "status": "passed"
+    },
+    {
+      "name": "off-success-byte-order-state:SHAPE:false",
+      "status": "passed"
+    },
+    {
+      "name": "off-success-byte-order-state:SHAPE:1",
+      "status": "passed"
+    },
+    {
+      "name": "off-success-byte-order-state:SHAPE:TRUE",
+      "status": "passed"
+    },
+    {
+      "name": "off-success-byte-order-state:SHAPE:",
+      "status": "passed"
+    },
+    {
+      "name": "off-success-byte-order-state:INFOGRAPHIC:unset",
+      "status": "passed"
+    },
+    {
+      "name": "off-success-byte-order-state:INFOGRAPHIC:false",
+      "status": "passed"
+    },
+    {
+      "name": "off-success-byte-order-state:INFOGRAPHIC:1",
+      "status": "passed"
+    },
+    {
+      "name": "off-success-byte-order-state:INFOGRAPHIC:TRUE",
+      "status": "passed"
+    },
+    {
+      "name": "off-success-byte-order-state:INFOGRAPHIC:",
+      "status": "passed"
+    },
+    {
+      "name": "off-success-byte-order-state:DIAGRAM:unset",
+      "status": "passed"
+    },
+    {
+      "name": "off-success-byte-order-state:DIAGRAM:false",
+      "status": "passed"
+    },
+    {
+      "name": "off-success-byte-order-state:DIAGRAM:1",
+      "status": "passed"
+    },
+    {
+      "name": "off-success-byte-order-state:DIAGRAM:TRUE",
+      "status": "passed"
+    },
+    {
+      "name": "off-success-byte-order-state:DIAGRAM:",
+      "status": "passed"
+    },
+    {
+      "name": "off-success-byte-order-state:CODE_DISPLAY:unset",
+      "status": "passed"
+    },
+    {
+      "name": "off-success-byte-order-state:CODE_DISPLAY:false",
+      "status": "passed"
+    },
+    {
+      "name": "off-success-byte-order-state:CODE_DISPLAY:1",
+      "status": "passed"
+    },
+    {
+      "name": "off-success-byte-order-state:CODE_DISPLAY:TRUE",
+      "status": "passed"
+    },
+    {
+      "name": "off-success-byte-order-state:CODE_DISPLAY:",
+      "status": "passed"
+    },
+    {
+      "name": "off-success-byte-order-state:KANBAN_BOARD:unset",
+      "status": "passed"
+    },
+    {
+      "name": "off-success-byte-order-state:KANBAN_BOARD:false",
+      "status": "passed"
+    },
+    {
+      "name": "off-success-byte-order-state:KANBAN_BOARD:1",
+      "status": "passed"
+    },
+    {
+      "name": "off-success-byte-order-state:KANBAN_BOARD:TRUE",
+      "status": "passed"
+    },
+    {
+      "name": "off-success-byte-order-state:KANBAN_BOARD:",
+      "status": "passed"
+    },
+    {
+      "name": "off-success-byte-order-state:GANTT_CHART:unset",
+      "status": "passed"
+    },
+    {
+      "name": "off-success-byte-order-state:GANTT_CHART:false",
+      "status": "passed"
+    },
+    {
+      "name": "off-success-byte-order-state:GANTT_CHART:1",
+      "status": "passed"
+    },
+    {
+      "name": "off-success-byte-order-state:GANTT_CHART:TRUE",
+      "status": "passed"
+    },
+    {
+      "name": "off-success-byte-order-state:GANTT_CHART:",
+      "status": "passed"
+    },
+    {
+      "name": "off-success-byte-order-state:CHEVRON_MATURITY:unset",
+      "status": "passed"
+    },
+    {
+      "name": "off-success-byte-order-state:CHEVRON_MATURITY:false",
+      "status": "passed"
+    },
+    {
+      "name": "off-success-byte-order-state:CHEVRON_MATURITY:1",
+      "status": "passed"
+    },
+    {
+      "name": "off-success-byte-order-state:CHEVRON_MATURITY:TRUE",
+      "status": "passed"
+    },
+    {
+      "name": "off-success-byte-order-state:CHEVRON_MATURITY:",
+      "status": "passed"
+    },
+    {
+      "name": "off-success-byte-order-state:IDEA_BOARD:unset",
+      "status": "passed"
+    },
+    {
+      "name": "off-success-byte-order-state:IDEA_BOARD:false",
+      "status": "passed"
+    },
+    {
+      "name": "off-success-byte-order-state:IDEA_BOARD:1",
+      "status": "passed"
+    },
+    {
+      "name": "off-success-byte-order-state:IDEA_BOARD:TRUE",
+      "status": "passed"
+    },
+    {
+      "name": "off-success-byte-order-state:IDEA_BOARD:",
+      "status": "passed"
+    },
+    {
+      "name": "off-success-byte-order-state:CLOUD_ARCHITECTURE:unset",
+      "status": "passed"
+    },
+    {
+      "name": "off-success-byte-order-state:CLOUD_ARCHITECTURE:false",
+      "status": "passed"
+    },
+    {
+      "name": "off-success-byte-order-state:CLOUD_ARCHITECTURE:1",
+      "status": "passed"
+    },
+    {
+      "name": "off-success-byte-order-state:CLOUD_ARCHITECTURE:TRUE",
+      "status": "passed"
+    },
+    {
+      "name": "off-success-byte-order-state:CLOUD_ARCHITECTURE:",
+      "status": "passed"
+    },
+    {
+      "name": "off-success-byte-order-state:LOGICAL_ARCHITECTURE:unset",
+      "status": "passed"
+    },
+    {
+      "name": "off-success-byte-order-state:LOGICAL_ARCHITECTURE:false",
+      "status": "passed"
+    },
+    {
+      "name": "off-success-byte-order-state:LOGICAL_ARCHITECTURE:1",
+      "status": "passed"
+    },
+    {
+      "name": "off-success-byte-order-state:LOGICAL_ARCHITECTURE:TRUE",
+      "status": "passed"
+    },
+    {
+      "name": "off-success-byte-order-state:LOGICAL_ARCHITECTURE:",
+      "status": "passed"
+    },
+    {
+      "name": "off-success-byte-order-state:DATA_ARCHITECTURE:unset",
+      "status": "passed"
+    },
+    {
+      "name": "off-success-byte-order-state:DATA_ARCHITECTURE:false",
+      "status": "passed"
+    },
+    {
+      "name": "off-success-byte-order-state:DATA_ARCHITECTURE:1",
+      "status": "passed"
+    },
+    {
+      "name": "off-success-byte-order-state:DATA_ARCHITECTURE:TRUE",
+      "status": "passed"
+    },
+    {
+      "name": "off-success-byte-order-state:DATA_ARCHITECTURE:",
+      "status": "passed"
+    },
+    {
+      "name": "off-success-byte-order-state:CUSTOM:unset",
+      "status": "passed"
+    },
+    {
+      "name": "off-success-byte-order-state:CUSTOM:false",
+      "status": "passed"
+    },
+    {
+      "name": "off-success-byte-order-state:CUSTOM:1",
+      "status": "passed"
+    },
+    {
+      "name": "off-success-byte-order-state:CUSTOM:TRUE",
+      "status": "passed"
+    },
+    {
+      "name": "off-success-byte-order-state:CUSTOM:",
+      "status": "passed"
+    },
+    {
+      "name": "off-success-byte-order-state:DIAGRAM_AUTO:unset",
+      "status": "passed"
+    },
+    {
+      "name": "off-success-byte-order-state:DIAGRAM_AUTO:false",
+      "status": "passed"
+    },
+    {
+      "name": "off-success-byte-order-state:DIAGRAM_AUTO:1",
+      "status": "passed"
+    },
+    {
+      "name": "off-success-byte-order-state:DIAGRAM_AUTO:TRUE",
+      "status": "passed"
+    },
+    {
+      "name": "off-success-byte-order-state:DIAGRAM_AUTO:",
+      "status": "passed"
+    },
+    {
+      "name": "actual-rendered-retry-disabled-then-explicit-send-after-recovery",
+      "status": "passed"
+    }
+  ],
+  "passed": 414,
+  "failed": 0,
+  "unhandled_rejections": [],
+  "external_socket_attempts": 0,
+  "limitations": "Actual VM hook/client/helpers and static input; fake Layout/HTTP/clock/panel snapshots+intent and actual extracted per-target busy callback. No live/browser/connected persistence proof."
+}

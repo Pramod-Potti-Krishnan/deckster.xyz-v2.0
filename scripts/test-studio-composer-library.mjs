@@ -7,9 +7,16 @@ import postcss from 'postcss'
 
 const path = 'components/builder/composer-library-dialog.tsx'
 const source = fs.readFileSync(new URL(`../${path}`, import.meta.url), 'utf8')
-const original = execFileSync('git', ['show', `4ae12a9:${path}`], { encoding: 'utf8' })
+const original = execFileSync('git', ['show', `49053ce:${path}`], { encoding: 'utf8' })
 const css = fs.readFileSync(new URL('../components/builder/studio-composer-library.css', import.meta.url), 'utf8')
 postcss.parse(css)
+// BASE-J5 (long brief): the import-free helper is loaded for real; the generic @/lib/ Proxy below would return its names.
+const longBriefHelper = (() => {
+  const module = { exports: {} }
+  vm.runInNewContext(ts.transpileModule(fs.readFileSync(new URL('../lib/composer-long-brief.ts', import.meta.url), 'utf8'),
+    { compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2020 } }).outputText, { module, exports: module.exports })
+  return module.exports
+})()
 // Pin the reviewed pre-adaptation source: native attributes/wrapper are the only change.
 const start = source.indexOf('  const body = <>\n'), end = source.indexOf('  </>\n\n  return (', start)
 assert(start > 0 && end > start)
@@ -17,7 +24,22 @@ const body = source.slice(start + '  const body = <>\n'.length, end)
 let restored = source.slice(0, start) + source.slice(end + '  </>\n\n'.length)
 restored = restored.replace(/        \{studioShell \? <div data-studio-composer-body="true" tabIndex=\{0\} role="region" aria-label="Template upload and library">\{body\}<\/div> : body\}\n/, body)
 restored = restored.replace(/ (?:data-studio-composer[\w-]*|tabIndex|aria-label|role)=\{studioShell \? [^}]+ : undefined\}/g, '')
+// BASE-J5 (ditto): the flag-gated "Rebuild from own content" action is the only addition to the reviewed classic source.
+for (const addition of [
+  /import \{ COMPOSER_DITTO_MODE \} from '@\/lib\/composer-ditto'\n/,
+  /  const dittoEnabled = process\.env\.NEXT_PUBLIC_COMPOSER_STAGE1B_DITTO_ENABLED === 'true'\n/,
+  /  \/\/ Stage 1B G3: rebuild[\s\S]*?\n  }\n\n/,
+  /                    \{dittoEnabled && <Button[^\n]*\n/,
+]) { assert(addition.test(restored), String(addition)); restored = restored.replace(addition, '') }
 restored = restored.replace("import './studio-composer-library.css'\n", '').replace("  const studioShell = process.env.NEXT_PUBLIC_STUDIO_V4_SHELL === 'true'\n", '')
+// BASE-J5 (long brief): the flag-gated limit is the only other change to the reviewed classic source.
+for (const [addition, classic] of [
+  ["import { composerBriefLengthValid, composerBriefLimitMessage, composerBriefMax } from '@/lib/composer-long-brief'\n", ''],
+  ["  const longBriefEnabled = process.env.NEXT_PUBLIC_COMPOSER_LONG_BRIEF_ENABLED === 'true'\n", ''],
+  ['!composerBriefLengthValid(brief, longBriefEnabled)', '(brief.trim().length < 20 || brief.trim().length > 4000)'],
+  ['setError(composerBriefLimitMessage(longBriefEnabled))', "setError('Describe the new presentation in 20 to 4,000 characters.')"],
+  ['maxLength={composerBriefMax(longBriefEnabled)}', 'maxLength={4000}'],
+]) { assert(restored.includes(addition), addition); restored = restored.replace(addition, classic) }
 assert.equal(restored, original, 'Every original handler/effect/payload/condition/default/copy and classic markup must remain exact')
 
 let actions = 0
@@ -44,6 +66,7 @@ function runtime(text, flag, topicFlag, auth, initial) {
         composerRequest() { actions++; throw new Error('No service allowed') }, waitForComposerJob() { actions++; throw new Error('No jobs allowed') },
         requireComposerServiceUrl() { actions++; throw new Error('No service configuration allowed') },
       }
+      if (id === '@/lib/composer-long-brief') return longBriefHelper
       if (id === '@/lib/utils') return { cn: (...args) => args.filter(Boolean).join(' ') }
       if (id.endsWith('.css')) return {}
       if (id.startsWith('@/components/') || id.startsWith('@/lib/') || id === 'lucide-react') return new Proxy({}, { get: (_target, key) => key })
@@ -101,7 +124,7 @@ for (const loading of [true, false]) {
 }
 const local = runtime(source, 'true', 'true', true, [templates, false, false, null, null, null, '', null])
 let tree = local.render({ open: true, onOpenChange() {} })
-find(tree, item => item.props['data-studio-composer-record'] === 'supplied-one').props.children[0].props.children[1].props.children[1].props.onClick()
+all(find(tree, item => item.props['data-studio-composer-record'] === 'supplied-one'), item => item.type === 'Button' && visible(item) === 'New topic')[0].props.onClick()
 tree = local.render({ open: true, onOpenChange() {} })
 const brief = find(tree, item => item.props.id === 'composer-new-brief'); assert.equal(brief.props.maxLength, 4000)
 brief.props.onChange({ target: { value: 'Local unsent brief retained in the native field' } }); tree = local.render({ open: true, onOpenChange() {} })

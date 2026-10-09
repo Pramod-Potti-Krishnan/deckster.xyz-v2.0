@@ -29,6 +29,9 @@ import {
   X,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
+import type { BuildThemeSelection } from '@/lib/theme-builder'
+import { ADD_SLIDE_V2_ENABLED, type AddSlideV2EntryConfig } from '@/lib/studio-add-slide-v2'
+import { AddSlideV2Entry } from './studio-add-slide-v2'
 import {
   SlideLayoutType,
   SlideLayoutCategory,
@@ -93,8 +96,10 @@ const getLayoutsByCategory = (category: SlideLayoutCategory): typeof SLIDE_LAYOU
 }
 
 interface SlideLayoutPickerProps {
-  onAddSlide: (layoutId: SlideLayoutType) => Promise<void>
+  onAddSlide: (layoutId: SlideLayoutType, options?: { position?: number }) => Promise<void>
   onGenerateSlide?: () => void
+  /** J2 v2: with NEXT_PUBLIC_STUDIO_ADD_SLIDE_V2_ENABLED, the generate-first pop-up replaces the layout picker. */
+  addSlideV2?: AddSlideV2EntryConfig<BuildThemeSelection>
   disabled?: boolean
   className?: string
 }
@@ -108,6 +113,7 @@ interface SlideLayoutPickerProps {
 export function SlideLayoutPicker({
   onAddSlide,
   onGenerateSlide,
+  addSlideV2,
   disabled = false,
   className = '',
 }: SlideLayoutPickerProps) {
@@ -136,6 +142,17 @@ export function SlideLayoutPicker({
     image: getLayoutsByCategory('image'),
     other: getLayoutsByCategory('other'),
   }), [])
+
+  if (ADD_SLIDE_V2_ENABLED && addSlideV2) {
+    return <AddSlideV2Entry config={addSlideV2} disabled={disabled} isAdding={isAdding} className={className} onInsertBlank={async position => {
+      setIsAdding(true)
+      try {
+        await (position === undefined ? onAddSlide('B1-blank') : onAddSlide('B1-blank', { position }))
+      } finally {
+        setIsAdding(false)
+      }
+    }} />
+  }
 
   if (STUDIO_SHELL) {
     const matches = SLIDE_LAYOUT_DEFINITIONS.filter(layout => (category === 'all' || layout.category === category) && `${layout.label} ${layout.description}`.toLowerCase().includes(query.trim().toLowerCase()))

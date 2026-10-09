@@ -9,6 +9,11 @@ import ts from 'typescript'
 const root = new URL('../', import.meta.url), file = 'components/studio-libraries/themes-workspace.tsx'
 const source = fs.readFileSync(new URL(file, root), 'utf8')
 const baseline = readAtlasBaseline(`b1e8370:${file}`)
+// J4-FONTS (reviewed): the only fieldset additions are the flag-gated pickers and the flag-gated sentence; flag off both are today's markup.
+const fontPickers = "            {THEME_FONT_SELECTION_ENABLED && draft.mode !== 'auto' && <FontFields draft={draft} onChange={patchDraft} />}\n"
+const fontSentence = "{THEME_FONT_SELECTION_ENABLED ? 'Website extraction and AI theme chat are not connected in this workspace. Colors and fonts above are editable now.' : 'Website extraction, font editing, and AI theme chat are not connected in this workspace. Colors above are editable now.'}"
+const baseSentence = 'Website extraction, font editing, and AI theme chat are not connected in this workspace. Colors above are editable now.'
+assert.equal(source.split(fontPickers).length - 1, 1, 'Only the picker line added'); assert.equal(source.split(fontSentence).length - 1, 1, 'Only the sentence gated')
 const ast = code => ts.createSourceFile('themes.tsx', code, ts.ScriptTarget.Latest, true, ts.ScriptKind.TSX)
 const findNode = (node, predicate) => { if (predicate(node)) return node; let found; ts.forEachChild(node, child => { if (!found) found = findNode(child, predicate) }); return found }
 // Equality excludes only the reviewed live owner guards. Runtime cases below
@@ -18,6 +23,8 @@ assert.equal(source.split('if (!mounted.current || !accountCanStart() || busy.cu
 const equalitySource = source
   .replaceAll('if (!mounted.current || !accountIsCurrent()) return; ', '')
   .replaceAll('if (!mounted.current || !accountCanStart() || busy.current) return', 'if (busy.current) return')
+  .replaceAll(fontPickers, '')
+  .replaceAll(fontSentence, baseSentence)
 const currentAst = ast(equalitySource), originalAst = ast(baseline), printer = ts.createPrinter({ removeComments: true })
 for (const [label, predicate] of [
   ['ColorField', node => ts.isFunctionDeclaration(node) && node.name?.text === 'ColorField'],
@@ -45,6 +52,7 @@ function load(path, imports = {}) {
   return mod.exports
 }
 const builder = load('lib/theme-builder.ts')
+const themeFonts = load('lib/theme-fonts.ts') // J4-FONTS: import-free helper the workspace now imports (flag off here)
 const preview = load('components/studio-libraries/theme-preview.tsx', { '@/lib/theme-builder': builder, 'react/jsx-runtime': { jsx, jsxs: jsx } })
 const workflow = load('lib/studio-workflow.ts')
 const a = { id: 'local-A', name: 'Local A', description: 'A description', theme_payload: { mode: 'preset', preset_id: 'minimal', color_overrides: { accent: '#aabbcc' } }, is_standard: false }
@@ -66,7 +74,7 @@ function harness(code = source) {
   const accountHelper = load('components/studio-libraries/library-account-boundary.tsx', { react: { createContext: () => ({}), useContext: () => null }, 'react/jsx-runtime': { jsx, jsxs: jsx }, '@/hooks/use-auth': { useAuth: refuse } })
   // This historical native/recovery witness runs outside the standalone provider.
   // New owner transitions are exercised by the actual account-boundary witness.
-  const imports = { './themes-fidelity.css': {}, react, 'react/jsx-runtime': { jsx, jsxs: jsx }, '@/hooks/use-theme-profiles': { useThemeProfiles: () => stableApi }, '@/lib/theme-builder': builder, './theme-preview': preview,
+  const imports = { './themes-fidelity.css': {}, react, 'react/jsx-runtime': { jsx, jsxs: jsx }, '@/hooks/use-theme-profiles': { useThemeProfiles: () => stableApi }, '@/lib/theme-builder': builder, '@/lib/theme-fonts': themeFonts, './theme-preview': preview,
     '@/lib/studio-inspector-focus': { keepStudioScrollFocusVisible: refuse }, './library-account-boundary': accountHelper, './studio-workflow-action': { StudioWorkflowAction: 'StudioWorkflowAction' },
     './library-controls': Object.fromEntries(['FittedLibraryStage', 'LibraryLoading', 'LibraryNotice', 'LibrarySearch', 'LibraryWorkspace', 'MetadataDisclosure', 'ReadValue', 'StudioWorkflowLink'].map(n => [n, n])),
     'lucide-react': Object.fromEntries(['ArrowRight', 'Check', 'Copy', 'Palette', 'RefreshCw', 'RotateCcw', 'Save', 'Star'].map(n => [n, n])),

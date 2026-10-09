@@ -1,0 +1,59 @@
+{
+  "kind": "local actual18e/permanent candidate native and TypeScript pair; no official gate or connected acceptance",
+  "baseline_source": "18e0446073d62b042a9470fd4524994d3dd82e8e",
+  "candidate_source": "02830179979aca37b647cd9427f1b9bade70ad1e",
+  "raw_native": {
+    "baseline": {
+      "passed": 96,
+      "total": 202
+    },
+    "candidate": {
+      "passed": 96,
+      "total": 203
+    }
+  },
+  "same_path_native": {
+    "baseline": {
+      "passed": 95,
+      "total": 202
+    },
+    "candidate": {
+      "passed": 96,
+      "total": 203
+    },
+    "existing_status_differences": [],
+    "new_focused_file": {
+      "script": "test-textbox-planned-recovery.mjs",
+      "exit": 0,
+      "runtime_scenarios": 34
+    }
+  },
+  "catalog_path_correction": {
+    "baseline_original": "SKIP frontend-only checkout because backend not auto-found",
+    "candidate": "Existing unchanged test auto-found backend and failed Unexpected catalog import: @/lib/service-url",
+    "targeted_baseline_command": "DIAGRAM_GENERATOR_REPO=/Users/pk1980/Software/Deckster/backend/diagram-generator /opt/homebrew/bin/node scripts/test-diagram-catalog-drift.mjs",
+    "targeted_baseline_cwd": "/private/tmp/element3-j3-fe-studio-native-base-20261008",
+    "targeted_baseline_exit": 1,
+    "targeted_baseline_message": "Error: Unexpected catalog import: @/lib/service-url",
+    "identical_test_sha256": "578da64f71c90ec75d739af6c3e4e80875b6e2142635a8cf9df0221ada738051",
+    "identical_catalog_sha256": "3fbe8b8232d357db6241ea5eb13766bca58896f73032ece0bd09e1c5fa8875d9"
+  },
+  "typecheck": {
+    "baseline_exit": 2,
+    "candidate_exit": 2,
+    "baseline_diagnostics": 119,
+    "candidate_diagnostics": 119,
+    "sorted_diagnostic_arrays_identical_ignoring_line_column": true,
+    "new_diagnostic_ids": [],
+    "removed_diagnostic_ids": []
+  },
+  "full_pair_command": "/Users/pk1980/Software/deckster-workspace/tools/ops/heavy.sh lockf -k /tmp/deckster-suite-frontend.lock lockf -k /tmp/deckster-suite-deckster.xyz-v2.0.lock /opt/homebrew/bin/node docs/j3-text-p0/native-pair.mjs",
+  "wrapper_cwd": "/Users/pk1980/Software/Deckster/.worktrees/element3-j3-text-p0-fe-20261008",
+  "wrapper_session": 10370,
+  "wrapper_exit": 0,
+  "slot_acquired_utc": "2026-10-08 15:48:08 UTC",
+  "disk_gb_at_start": 8,
+  "raw_logs_directory": "/private/tmp/element3-j3-fe-studio-native-proof-20261008",
+  "tmp_policy": "one exact owned TMPDIR per source created inside held locks, removed by runner finally",
+  "limitations": "Broad suite remains failing. Existing assertions are untouched; prior stale fixtures/source-body checks/import mocks and119 typed diagnostics remain. No release gate waived. Newflags OFF identity is separate actual-source runtime proof, not blanket suite green."
+}

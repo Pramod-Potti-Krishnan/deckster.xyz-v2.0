@@ -40,6 +40,7 @@ import { shouldShowBuildWorkingPulse } from "@/lib/build-progress-visibility"
 import { hasLiveTrackedEphemeralMessage } from "@/lib/slide-compose-async"
 import { LAYOUT_VIEWER_URL_POLICY } from "@/lib/layout-service-client"
 import { evaluateLayoutViewerUrl } from "@/lib/layout-viewer-url-policy"
+import { viewOnlyIfEnabled } from "@/lib/present-view-only"
 // MDC (P2): flag-gated clarity rendering — flag-off keeps the exact legacy JSX.
 import { QuestionCard } from "@/components/builder/chat/question-card"
 import { CHAT_CLARITY, CHAT_QUESTIONS } from "@/lib/mdc-flags"
@@ -179,7 +180,7 @@ export function MessageList({
     certificate: InferredGreetingPrefixCertificate | null
   }>({ receipt: null, revision: 0, eligibleIds: new Set(), userIntentSeen: false, nonIntroSeen: false, certificate: null })
 
-  const { historicalActions, activeActionIds } = getDirectorActionPolicy(messages, answeredActionsRef.current, sessionId)
+  const { historicalActions, activeActionIds } = getDirectorActionPolicy(messages, answeredActionsRef.current, sessionId, userMessages)
   // Old card callbacks may survive a parent history transition. Validate at
   // interaction time against render-current IDs rather than a captured list.
   const activeActionsRef = useRef(activeActionIds)
@@ -662,7 +663,7 @@ export function MessageList({
                             disabled={presentationUrlDecision?.status !== 'allowed'}
                             onClick={() => {
                               if (presentationUrlDecision?.status === 'allowed') {
-                                window.open(presentationUrlDecision.url, '_blank', 'noopener,noreferrer')
+                                window.open(viewOnlyIfEnabled(presentationUrlDecision.url), '_blank', 'noopener,noreferrer')
                               }
                             }}
                           >

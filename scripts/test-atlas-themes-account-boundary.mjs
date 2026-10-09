@@ -11,8 +11,13 @@ const source = fs.readFileSync(new URL(file, root), 'utf8')
 // Preserve the actual editable schema/palette algorithms. Only the two text
 // handlers gain a live owner guard; normalize that intentional guard for equality.
 const baseline = readAtlasBaseline(`a8a0667:${file}`)
+// J4-FONTS (reviewed): the only fieldset additions are the flag-gated pickers and the flag-gated sentence; flag off both are today's markup.
+const fontPickers = "            {THEME_FONT_SELECTION_ENABLED && draft.mode !== 'auto' && <FontFields draft={draft} onChange={patchDraft} />}\n"
+const fontSentence = "{THEME_FONT_SELECTION_ENABLED ? 'Website extraction and AI theme chat are not connected in this workspace. Colors and fonts above are editable now.' : 'Website extraction, font editing, and AI theme chat are not connected in this workspace. Colors above are editable now.'}"
+const baseSentence = 'Website extraction, font editing, and AI theme chat are not connected in this workspace. Colors above are editable now.'
+assert.equal(source.split(fontPickers).length - 1, 1, 'Only the picker line added'); assert.equal(source.split(fontSentence).length - 1, 1, 'Only the sentence gated')
 const ast = code => ts.createSourceFile('themes.tsx', code, ts.ScriptTarget.Latest, true, ts.ScriptKind.TSX)
-const currentAst = ast(source.replaceAll('if (!mounted.current || !accountIsCurrent()) return; ', '')), priorAst = ast(baseline)
+const currentAst = ast(source.replaceAll('if (!mounted.current || !accountIsCurrent()) return; ', '').replaceAll(fontPickers, '').replaceAll(fontSentence, baseSentence)), priorAst = ast(baseline)
 const findNode = (node,predicate) => { if(predicate(node))return node;let result;ts.forEachChild(node,child=>{if(!result)result=findNode(child,predicate)});return result }
 const printer=ts.createPrinter({removeComments:true})
 for(const predicate of [node=>ts.isFunctionDeclaration(node)&&node.name?.text==='ColorField',node=>ts.isJsxElement(node)&&node.openingElement.tagName.getText()==='fieldset',...['changePreset','setOverride'].map(name=>node=>ts.isVariableDeclaration(node)&&node.name.getText()===name)]){
@@ -36,6 +41,7 @@ function load(path, imports = {}) {
   return mod.exports
 }
 const builder = load('lib/theme-builder.ts')
+const themeFonts = load('lib/theme-fonts.ts') // J4-FONTS: import-free helper the workspace now imports (flag off here)
 const preview = load('components/studio-libraries/theme-preview.tsx', { '@/lib/theme-builder': builder, 'react/jsx-runtime': { jsx, jsxs: jsx } })
 const a = { id: 'local-A', name: 'Local A', description: 'A description', theme_payload: { mode: 'preset', preset_id: 'minimal', color_overrides: { accent: '#aabbcc' } }, is_standard: false }
 const b = { id: 'local-B', name: 'Local B', description: 'B description', theme_payload: { mode: 'custom', primary_hex: '#112233', palette_mode: 'both', color_overrides: { private_color: '#445566' } }, is_standard: true }
@@ -57,7 +63,7 @@ function harness({ owner = 'account-A', ready = true, current = { current: { own
   }
   const accountHelper = load('components/studio-libraries/library-account-boundary.tsx', { react, 'react/jsx-runtime': { jsx, jsxs: jsx }, '@/hooks/use-auth': { useAuth: refuse } })
   if (initialList) api.listThemes = initialList
-  const imports = { './themes-fidelity.css': {}, react, 'react/jsx-runtime': { jsx, jsxs: jsx }, '@/hooks/use-theme-profiles': { useThemeProfiles: () => stableApi }, '@/lib/theme-builder': builder, './theme-preview': preview,
+  const imports = { './themes-fidelity.css': {}, react, 'react/jsx-runtime': { jsx, jsxs: jsx }, '@/hooks/use-theme-profiles': { useThemeProfiles: () => stableApi }, '@/lib/theme-builder': builder, '@/lib/theme-fonts': themeFonts, './theme-preview': preview,
     '@/lib/studio-inspector-focus': { keepStudioScrollFocusVisible: refuse }, './library-account-boundary': accountHelper, './studio-workflow-action': { StudioWorkflowAction: 'StudioWorkflowAction' },
     './library-controls': Object.fromEntries(['FittedLibraryStage', 'LibraryLoading', 'LibraryNotice', 'LibrarySearch', 'LibraryWorkspace', 'MetadataDisclosure', 'ReadValue', 'StudioWorkflowLink'].map(n => [n, n])),
     'lucide-react': Object.fromEntries(['ArrowRight', 'Check', 'Copy', 'Palette', 'RefreshCw', 'RotateCcw', 'Save', 'Star'].map(n => [n, n])),
