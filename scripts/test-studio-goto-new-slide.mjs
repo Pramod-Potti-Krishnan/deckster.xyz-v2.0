@@ -136,6 +136,79 @@ run('page: goToNewSlideAfterSync reads the native order, navigates through the v
   assert.ok(!/goToSlide|handleGoToSlide|postMessage/.test(body));
 });
 
+// ---- a user move retires the go-to (E2E-1 N1) ---------------------------------------------------
+// Builds the real guard (userMoved / sameRequest / retired, as written in page.tsx) around fake refs, so the
+// behaviour is executed, not just pattern-matched. The mutation checks below prove this test fails without it.
+function buildGuard(pageSource) {
+  const body = pageSource.slice(pageSource.indexOf('async function goToNewSlideAfterSync'), pageSource.indexOf('async function restoreStudioSyncSelection'));
+  const guard = body.slice(body.indexOf('let landing'), body.indexOf('    if (!intent || retired()) return'));
+  assert.ok(guard.includes('const userMoved') && guard.includes('const sameRequest') && guard.includes('const retired'), 'guard block not found');
+  const code = ts.transpileModule(
+    `function make(scope) {
+       const { currentSlideIndexRef, studioSyncPendingRef, studioSyncRequestRef, studioSyncSequenceRef, studioSyncRefreshRevisionRef,
+         composeSelectionAttemptRef, composeViewerApiRef, pending, request, attempt, apis } = scope
+       ${guard}
+       return { userMoved, sameRequest, retired, land: index => { landing = index } }
+     }
+     make`,
+    { compilerOptions: { module: ts.ModuleKind.None, target: ts.ScriptTarget.ES2020 } },
+  ).outputText;
+  return vm.runInNewContext(code);
+}
+function freshScope(startVisualIndex = 2) {
+  const request = { sequence: 7, startVisualIndex, isOwnerCurrent: () => true };
+  const pending = { request, observedRefresh: true, refreshRevision: 3 };
+  const apis = {}, attempt = {};
+  return {
+    currentSlideIndexRef: { current: startVisualIndex }, studioSyncPendingRef: { current: pending }, studioSyncRequestRef: { current: request },
+    studioSyncSequenceRef: { current: 7 }, studioSyncRefreshRevisionRef: { current: 3 }, composeSelectionAttemptRef: { current: attempt },
+    composeViewerApiRef: { current: apis }, pending, request, attempt, apis,
+  };
+}
+function assertUserMoveRetires(make) {
+  // untouched: still the slide the request started on
+  let scope = freshScope(), guard = make(scope);
+  assert.equal(guard.sameRequest(), true);
+  assert.equal(guard.retired(), false);
+  // the go-to's own navigation: the viewer reports the target as current once it lands
+  scope = freshScope(); guard = make(scope); guard.land(4); scope.currentSlideIndexRef.current = 4;
+  assert.equal(guard.sameRequest(), true, 'the go-to must not retire itself when its own target becomes current');
+  // a rail click while the read retries run (any other slide, including slide 1) retires it for good
+  for (const clicked of [0, 1, 5]) {
+    scope = freshScope(); guard = make(scope); scope.currentSlideIndexRef.current = clicked;
+    assert.equal(guard.sameRequest(), false, `a click on slide ${clicked + 1} must retire the go-to`);
+    assert.equal(guard.retired(), true);
+    assert.equal(scope.studioSyncPendingRef.current, null, 'a user move clears the pending so a later reload cannot run the go-to again');
+  }
+  // a user move to a third slide while the go-to is navigating retires it as well
+  scope = freshScope(); guard = make(scope); guard.land(4); scope.currentSlideIndexRef.current = 5;
+  assert.equal(guard.sameRequest(), false);
+  // a newer request retires it too, but that is not a user move: the pending is left to its new owner
+  scope = freshScope(); guard = make(scope); scope.studioSyncRequestRef.current = { sequence: 8 };
+  assert.equal(guard.retired(), true);
+  assert.notEqual(scope.studioSyncPendingRef.current, null);
+}
+
+run('page: a user move during the go-to retires it (guard executed against fake refs)', () => {
+  assertUserMoveRetires(buildGuard(page));
+  assert.ok(page.includes('...(STUDIO_GOTO_NEW_SLIDE_ENABLED ? { startVisualIndex: currentSlideIndexRef.current } : {}),'), 'the baseline is the slide on stage when the request started');
+});
+
+run('mutation check: the user-move test fails if the guard is removed, the self-landing exemption dropped, or the pending kept', () => {
+  const mutate = (from, to) => {
+    assert.equal(page.split(from).length - 1, 1, `mutation anchor must be unique: ${from}`);
+    return page.replace(from, to);
+  };
+  const mutants = {
+    'no user-move clause in sameRequest': mutate(' && composeViewerApiRef.current === apis && !userMoved()', ' && composeViewerApiRef.current === apis'),
+    'landing exemption dropped': mutate(' && currentSlideIndexRef.current !== landing\n', '\n'),
+    'pending kept after a user move': mutate('if (userMoved() && studioSyncPendingRef.current === pending) studioSyncPendingRef.current = null', ''),
+  };
+  for (const [name, source] of Object.entries(mutants)) {
+    assert.throws(() => assertUserMoveRetires(buildGuard(source)), assert.AssertionError, `mutant not caught: ${name}`);
+  }
+});
+
 // ---- Generate button position -------------------------------------------------------------------
 const reactStubs = env => {
   const icon = () => null;

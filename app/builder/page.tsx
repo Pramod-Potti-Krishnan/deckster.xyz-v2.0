@@ -557,7 +557,7 @@ interface StudioSyncSelectionRecord {
   priorOrder: StudioNativeSlideOrder | null
   consumed: boolean
   persistCount: (count: number) => void
-  /** Flag NEXT_PUBLIC_STUDIO_GOTO_NEW_SLIDE_ENABLED only: the slide on stage when the request started. */
+  /** Flag NEXT_PUBLIC_STUDIO_GOTO_NEW_SLIDE_ENABLED only: the slide on stage when the request started (the go-to's user-move baseline). */
   startVisualIndex?: number
 }
 interface StudioSyncPendingSelection {
@@ -3635,20 +3635,30 @@ function AuthenticatedBuilderContent({ authScopeUserId }: { authScopeUserId: str
   async function goToNewSlideAfterSync(apis: SlideComposeViewerApi, pending: StudioSyncPendingSelection, attempt: object) {
     const request = pending.request
     const intent = pending.goToNewSlide
+    // The slide the request started on (armed only if the user was still on it). Any other current slide
+    // is a user move, except this go-to's own target, which the viewer reports as current once it lands.
+    let landing: number | null = null
+    const userMoved = () => currentSlideIndexRef.current !== request.startVisualIndex && currentSlideIndexRef.current !== landing
     const sameRequest = () => studioSyncPendingRef.current === pending && pending.observedRefresh
       && studioSyncRequestRef.current === request && studioSyncSequenceRef.current === request.sequence
       && studioSyncRefreshRevisionRef.current === pending.refreshRevision && request.isOwnerCurrent()
-      && composeSelectionAttemptRef.current === attempt && composeViewerApiRef.current === apis
-    if (!intent || !sameRequest()) return
+      && composeSelectionAttemptRef.current === attempt && composeViewerApiRef.current === apis && !userMoved()
+    // A user move retires the go-to for good, so a later reload cannot run it again.
+    const retired = () => {
+      if (sameRequest()) return false
+      if (userMoved() && studioSyncPendingRef.current === pending) studioSyncPendingRef.current = null
+      return true
+    }
+    if (!intent || retired()) return
     try {
       // A freshly loaded viewer can take a moment to answer; a few short retries, never a guess.
       let order: StudioNativeSlideOrder | null = null
       for (let tries = 0; tries < 6 && !order; tries += 1) {
         if (tries > 0) await new Promise(resolve => setTimeout(resolve, 500))
-        if (!sameRequest()) return
+        if (retired()) return
         try { order = parseStudioNativeSlideOrder(await apis.composeGetState()) } catch { order = null }
       }
-      if (!sameRequest()) return
+      if (retired()) return
       if (!order) {
         console.warn('[Slide Composer] The viewer did not report its slide order; choose the new slide in the rail.', intent)
         if (studioSyncPendingRef.current === pending) studioSyncPendingRef.current = null
@@ -3664,15 +3674,16 @@ function AuthenticatedBuilderContent({ authScopeUserId }: { authScopeUserId: str
         if (studioSyncPendingRef.current === pending) studioSyncPendingRef.current = null
         return
       }
+      landing = target.visualIndex
       await apis.composeGoToVisualIndex(target.visualIndex, { isCurrent: sameRequest })
-      if (!sameRequest()) return
+      if (retired()) return
       currentSlideIndexRef.current = target.visualIndex
       setCurrentSlideIndex(previous => sameRequest() ? target.visualIndex : previous)
       setSelectedLayoutSlideIndex(previous => sameRequest() ? target.visualIndex : previous)
       if (studioSyncPendingRef.current === pending) studioSyncPendingRef.current = null
       scTrace('builder.goto_new_slide.verified', { visual_index: target.visualIndex, by: target.by, native_count: order.nativeCount })
     } catch (error) {
-      if (!sameRequest()) return
+      if (retired()) return
       if (studioSyncPendingRef.current === pending) studioSyncPendingRef.current = null
       console.warn('[Slide Composer] Could not select the new slide; choose it in the rail.', error)
     }
