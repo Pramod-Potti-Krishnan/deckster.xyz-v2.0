@@ -1,7 +1,8 @@
-// J2 v2: generate-first "Add slide" pop-up (PK feedback J2-P1..P9, ops/program/J2-V2-FEEDBACK.md).
+// J2 v2: the generate-first "Add slide" side panel (PK feedback J2-P1..P11, ops/program/J2-V2-FEEDBACK.md).
 //
-// This file is import-free on purpose: the pop-up state, the copy tables, the draft storage helpers and the single
-// adapter seam (`buildAddSlideV2Request`) are plain TypeScript so a node test can load them without a bundler.
+// This file is import-free on purpose: the panel state, the option table and its kill switches, the copy tables,
+// the draft storage helpers and the single adapter seam (`buildAddSlideV2Request`) are plain TypeScript so a
+// node test can load them without a bundler.
 //
 // Flag NEXT_PUBLIC_STUDIO_ADD_SLIDE_V2_ENABLED (exact "true"; default off). Off = the existing Add Slide
 // picker, byte for byte.
@@ -9,17 +10,103 @@
 // Literal property access so Next inlines the value into the client bundle.
 export const ADD_SLIDE_V2_ENABLED = process.env.NEXT_PUBLIC_STUDIO_ADD_SLIDE_V2_ENABLED === 'true'
 
-// P2: the generate pop-up offers exactly these slide types.
+// P2: the generate panel offers exactly these slide types.
 export type AddSlideV2Type = 'title' | 'section' | 'closing' | 'content'
-// P3: content sub-types. Only meaningful when the slide type is "content".
+// P3 / P11: content styles. Only meaningful when the slide type is "content". Plain "Image" (a full-image slide)
+// is gone: no end-to-end path exists for it.
 export type AddSlideV2ContentSubtype =
   | 'auto'
-  | 'image'
+  | 'text'
   | 'image_left'
   | 'image_right'
   | 'chart'
   | 'infographic'
-  | 'text'
+  | 'table'
+  | 'diagram'
+
+// ---- Options and their kill switches ---------------------------------------------------------------------------------
+// One table. An option is shown only when its id is in the resolved set (see resolveAddSlideV2Options). One rule:
+//   hidden = (the default-hidden ids: stage 2 + the opt-in scaffold) + DISABLED, minus ENABLED; DISABLED always wins.
+//   - NEXT_PUBLIC_STUDIO_ADD_SLIDE_V2_DISABLED_OPTIONS="image_left" ADDS ids to the hidden set; it never un-hides the
+//     default (DEC-P8: stage 2 stays hidden until it is proven).
+//   - NEXT_PUBLIC_STUDIO_ADD_SLIDE_V2_ENABLED_OPTIONS="chart" REMOVES the named ids from the default-hidden set;
+//     "all" removes every stage-2 id. The opt-in scaffold (`regenerate`) is only ever enabled by naming it.
+export type AddSlideV2OptionId =
+  | AddSlideV2Type
+  | AddSlideV2ContentSubtype
+  | 'blank'
+  | 'catalog'
+  | 'blank_theme'
+  | 'regenerate'
+
+export interface AddSlideV2OptionConfig {
+  id: AddSlideV2OptionId
+  group: 'type' | 'style' | 'extra'
+  label: string
+  hint: string
+  /** DEC-P8 proof stage: 1 = Title/Section/Closing/Auto/Text/Image left/right, 2 = Chart/Infographic/Table/Diagram. */
+  stage: 1 | 2
+  /** Off unless named in NEXT_PUBLIC_STUDIO_ADD_SLIDE_V2_ENABLED_OPTIONS (`all` does not include it). */
+  optIn?: boolean
+}
+
+export const ADD_SLIDE_V2_OPTION_CONFIG: ReadonlyArray<AddSlideV2OptionConfig> = [
+  { id: 'title', group: 'type', label: 'Title', hint: 'Opening slide', stage: 1 },
+  { id: 'section', group: 'type', label: 'Section', hint: 'Chapter break', stage: 1 },
+  { id: 'closing', group: 'type', label: 'Closing', hint: 'Wrap-up slide', stage: 1 },
+  { id: 'content', group: 'type', label: 'Content', hint: 'Text, charts, images', stage: 1 },
+  { id: 'auto', group: 'style', label: 'Auto', hint: 'Let Deckster choose', stage: 1 },
+  { id: 'text', group: 'style', label: 'Text', hint: 'Text-led slide', stage: 1 },
+  { id: 'image_left', group: 'style', label: 'Image left', hint: 'Image on the left, text on the right', stage: 1 },
+  { id: 'image_right', group: 'style', label: 'Image right', hint: 'Image on the right, text on the left', stage: 1 },
+  { id: 'chart', group: 'style', label: 'Chart', hint: 'Data visualization', stage: 2 },
+  { id: 'infographic', group: 'style', label: 'Infographic', hint: 'Visual explanation', stage: 2 },
+  { id: 'table', group: 'style', label: 'Table', hint: 'Rows and columns', stage: 2 },
+  { id: 'diagram', group: 'style', label: 'Diagram', hint: 'Structured diagram', stage: 2 },
+  { id: 'blank', group: 'extra', label: 'Blank slide', hint: 'An empty slide, no generation', stage: 1 },
+  { id: 'catalog', group: 'extra', label: 'Browse layout catalog', hint: 'The classic layout picker', stage: 1 },
+  { id: 'blank_theme', group: 'extra', label: 'Blank slide follows the deck theme', hint: 'Background from the deck theme', stage: 1 },
+  { id: 'regenerate', group: 'extra', label: 'Regenerate in place', hint: 'Non-destructive overlay (scaffold)', stage: 1, optIn: true },
+]
+
+export const ADD_SLIDE_V2_STAGE2_IDS: ReadonlyArray<AddSlideV2OptionId> =
+  ADD_SLIDE_V2_OPTION_CONFIG.filter(option => option.stage === 2).map(option => option.id)
+
+export function parseAddSlideV2OptionList(raw: string | undefined | null): Set<string> {
+  return new Set((raw ?? '').split(',').map(part => part.trim().toLowerCase()).filter(Boolean))
+}
+
+/** Shorthand in the ENABLED list for every stage-2 id (not the opt-in scaffold). */
+export const ADD_SLIDE_V2_ENABLE_ALL = 'all'
+
+/**
+ * The ids that are shown. Default-hidden ids (stage 2, opt-in) show only when named in `rawEnabled` (or `all` for
+ * stage 2); `rawDisabled` hides more and wins over `rawEnabled`. Unknown ids are ignored, so a typo never shows or
+ * hides anything by accident, and unset, blank or "none" behave like an empty list.
+ */
+export function resolveAddSlideV2Options(
+  rawDisabled: string | undefined | null,
+  rawEnabled?: string | undefined | null,
+): ReadonlySet<string> {
+  const disabled = parseAddSlideV2OptionList(rawDisabled)
+  const enabled = parseAddSlideV2OptionList(rawEnabled)
+  const enableAllStage2 = enabled.has(ADD_SLIDE_V2_ENABLE_ALL)
+  return new Set(
+    ADD_SLIDE_V2_OPTION_CONFIG
+      .filter(option => {
+        if (disabled.has(option.id)) return false
+        if (option.stage !== 2 && !option.optIn) return true
+        return enabled.has(option.id) || (enableAllStage2 && option.stage === 2)
+      })
+      .map(option => option.id),
+  )
+}
+
+// Literal property access so Next inlines the values into the client bundle.
+export const ADD_SLIDE_V2_OPTIONS: ReadonlySet<string> = resolveAddSlideV2Options(
+  process.env.NEXT_PUBLIC_STUDIO_ADD_SLIDE_V2_DISABLED_OPTIONS,
+  process.env.NEXT_PUBLIC_STUDIO_ADD_SLIDE_V2_ENABLED_OPTIONS,
+)
 
 export interface AddSlideV2Option<T extends string> {
   value: T
@@ -27,27 +114,37 @@ export interface AddSlideV2Option<T extends string> {
   hint: string
 }
 
-export const ADD_SLIDE_V2_SLIDE_TYPES: ReadonlyArray<AddSlideV2Option<AddSlideV2Type>> = [
-  { value: 'title', label: 'Title', hint: 'Opening slide' },
-  { value: 'section', label: 'Section', hint: 'Chapter break' },
-  { value: 'closing', label: 'Closing', hint: 'Wrap-up slide' },
-  { value: 'content', label: 'Content', hint: 'Text, charts, images' },
-]
+function optionsOf<T extends string>(group: AddSlideV2OptionConfig['group']): ReadonlyArray<AddSlideV2Option<T>> {
+  return ADD_SLIDE_V2_OPTION_CONFIG
+    .filter(option => option.group === group)
+    .map(option => ({ value: option.id as T, label: option.label, hint: option.hint }))
+}
 
-export const ADD_SLIDE_V2_CONTENT_SUBTYPES: ReadonlyArray<AddSlideV2Option<AddSlideV2ContentSubtype>> = [
-  { value: 'auto', label: 'Auto', hint: 'Let Deckster choose' },
-  { value: 'image', label: 'Image', hint: 'Image-led slide' },
-  { value: 'image_left', label: 'Image left', hint: 'Image on the left, text on the right' },
-  { value: 'image_right', label: 'Image right', hint: 'Image on the right, text on the left' },
-  { value: 'chart', label: 'Chart', hint: 'Data visualization' },
-  { value: 'infographic', label: 'Infographic', hint: 'Visual explanation' },
-  { value: 'text', label: 'Text', hint: 'Text-led slide' },
-]
+/** Every configured slide type / style, in display order, whether or not it is switched on. */
+export const ADD_SLIDE_V2_SLIDE_TYPES: ReadonlyArray<AddSlideV2Option<AddSlideV2Type>> = optionsOf<AddSlideV2Type>('type')
+export const ADD_SLIDE_V2_CONTENT_SUBTYPES: ReadonlyArray<AddSlideV2Option<AddSlideV2ContentSubtype>> = optionsOf<AddSlideV2ContentSubtype>('style')
+
+export function addSlideV2OptionOn(id: AddSlideV2OptionId, options: ReadonlySet<string> = ADD_SLIDE_V2_OPTIONS): boolean {
+  return options.has(id)
+}
+
+/** The styles that are switched on. */
+export function availableAddSlideV2Subtypes(options: ReadonlySet<string> = ADD_SLIDE_V2_OPTIONS): ReadonlyArray<AddSlideV2Option<AddSlideV2ContentSubtype>> {
+  return ADD_SLIDE_V2_CONTENT_SUBTYPES.filter(option => options.has(option.value))
+}
+
+/** The slide types that are switched on. "Content" also needs at least one content style. */
+export function availableAddSlideV2Types(options: ReadonlySet<string> = ADD_SLIDE_V2_OPTIONS): ReadonlyArray<AddSlideV2Option<AddSlideV2Type>> {
+  return ADD_SLIDE_V2_SLIDE_TYPES.filter(option => options.has(option.value)
+    && (option.value !== 'content' || availableAddSlideV2Subtypes(options).length > 0))
+}
 
 // P4: the only free-text field.
 export const ADD_SLIDE_V2_PROMPT_LABEL = 'What should this slide say?'
-// P6: the one secondary option. There is deliberately no placeholder / layout-picker mode (P1, P6).
+// P6: the one extra action. There is deliberately no placeholder generation mode (P1, P6).
 export const ADD_SLIDE_V2_BLANK_LABEL = 'Blank slide'
+// DEC-P1: a quiet secondary link to the classic layout picker, not a mode.
+export const ADD_SLIDE_V2_CATALOG_LABEL = 'Browse layout catalog'
 
 export interface AddSlideV2Draft {
   slideType: AddSlideV2Type
@@ -55,8 +152,14 @@ export interface AddSlideV2Draft {
   text: string
 }
 
-export function initialAddSlideV2Draft(): AddSlideV2Draft {
-  return { slideType: 'content', contentSubtype: 'auto', text: '' }
+export function initialAddSlideV2Draft(options: ReadonlySet<string> = ADD_SLIDE_V2_OPTIONS): AddSlideV2Draft {
+  const types = availableAddSlideV2Types(options)
+  const styles = availableAddSlideV2Subtypes(options)
+  return {
+    slideType: types.some(option => option.value === 'content') ? 'content' : (types[0]?.value ?? 'content'),
+    contentSubtype: styles.some(option => option.value === 'auto') ? 'auto' : (styles[0]?.value ?? 'auto'),
+    text: '',
+  }
 }
 
 export type AddSlideV2Action =
@@ -65,31 +168,54 @@ export type AddSlideV2Action =
   | { type: 'set_text'; value: string }
   | { type: 'reset' }
 
-export function reduceAddSlideV2Draft(draft: AddSlideV2Draft, action: AddSlideV2Action): AddSlideV2Draft {
+export function reduceAddSlideV2Draft(
+  draft: AddSlideV2Draft,
+  action: AddSlideV2Action,
+  options: ReadonlySet<string> = ADD_SLIDE_V2_OPTIONS,
+): AddSlideV2Draft {
   switch (action.type) {
     case 'set_slide_type':
-      return ADD_SLIDE_V2_SLIDE_TYPES.some(option => option.value === action.value)
+      return availableAddSlideV2Types(options).some(option => option.value === action.value)
         ? { ...draft, slideType: action.value }
         : draft
     case 'set_content_subtype':
-      return ADD_SLIDE_V2_CONTENT_SUBTYPES.some(option => option.value === action.value)
+      return availableAddSlideV2Subtypes(options).some(option => option.value === action.value)
         ? { ...draft, contentSubtype: action.value }
         : draft
     case 'set_text':
       return { ...draft, text: action.value }
     case 'reset':
-      return initialAddSlideV2Draft()
+      return initialAddSlideV2Draft(options)
     default:
       return draft
   }
 }
 
-// The sub-type applies to content slides only; a remembered choice stays dormant for the other types.
+// The style applies to content slides only; a remembered choice stays dormant for the other types.
 export function activeAddSlideV2Subtype(draft: AddSlideV2Draft): AddSlideV2ContentSubtype | null {
   return draft.slideType === 'content' ? draft.contentSubtype : null
 }
 
-// P7: research and theme follow the chat's settings; the pop-up only displays them.
+// DEC-P2: Title, Section and Closing need a little more than one word; Content keeps "not empty".
+export const ADD_SLIDE_V2_HERO_MIN_WORDS = 2
+
+/**
+ * Words for the minimum above: whitespace-separated tokens that contain a letter or digit. A token written in a script
+ * without spaces (Han, kana, Hangul) counts one word per two characters, so "市场分析" is two words.
+ */
+export function countAddSlideV2Words(text: string): number {
+  const alnum = new RegExp('[\\p{L}\\p{N}]', 'u')
+  const spaceless = new RegExp('[\\p{Script=Han}\\p{Script=Hiragana}\\p{Script=Katakana}\\p{Script=Hangul}]', 'gu')
+  let words = 0
+  for (const token of text.split(/\s+/)) {
+    if (!alnum.test(token)) continue
+    const cjk = token.match(spaceless)?.length ?? 0
+    words += cjk >= 2 ? Math.ceil(cjk / 2) : 1
+  }
+  return words
+}
+
+// P7: research and theme follow the chat's settings; the panel only displays them.
 export interface AddSlideV2Research {
   useUploadedDocuments: boolean
   useWebSearch: boolean
@@ -133,7 +259,8 @@ export type AddSlideV2Submit<TTheme = unknown> = (request: AddSlideV2Request<TTh
 /**
  * Resolved by the builder page from the same state the Slide panel reads (resolveSlideComposeSessionId,
  * effectivePresentationId, the chat's research toggles, the build theme profile), then passed down the
- * viewer chain as one optional prop (P7).
+ * viewer chain as one optional prop (P7). The page also owns the drawer: it says whether the panel is open and
+ * where in the Element drawer it renders (`panelHost`).
  */
 export interface AddSlideV2Settings<TTheme = unknown> {
   sessionId: string | null
@@ -144,15 +271,21 @@ export interface AddSlideV2Settings<TTheme = unknown> {
   submit?: AddSlideV2Submit<TTheme>
   /**
    * Where the Blank slide goes, resolved by the page against its compose placeholders (flag on only). Absent =
-   * the old native Add position. `expectedVisualIndex` is the slide the pop-up shows as current.
+   * the old native Add position. `expectedVisualIndex` is the slide the panel shows as current.
    */
   resolveBlankTarget?: (expectedVisualIndex: number) => AddSlideV2BlankTarget
+  /** The Element drawer is showing this panel. */
+  panelOpen: boolean
+  /** The element inside the Element drawer the panel renders into (null until the drawer is mounted). */
+  panelHost: HTMLElement | null
+  /** Toolbar button / panel close. The page closes the other Element panels when this opens. */
+  onPanelOpenChange: (open: boolean) => void
 }
 
 /** `position` is the persisted 0-based insert position for the native Add; undefined = keep the old default. */
 export type AddSlideV2BlankTarget = { ok: true; position: number | undefined } | { ok: false; message: string }
 
-/** What the Add Slide picker hands the pop-up entry: the page's settings plus what only the viewer knows. */
+/** What the Add Slide picker hands the panel entry: the page's settings plus what only the viewer knows. */
 export interface AddSlideV2EntryConfig<TTheme = unknown> {
   settings: AddSlideV2Settings<TTheme>
   currentSlide: number
@@ -160,49 +293,69 @@ export interface AddSlideV2EntryConfig<TTheme = unknown> {
   theme: TTheme
 }
 
-export type AddSlideV2Blocker = 'empty-text' | 'no-session' | 'no-submit'
+export type AddSlideV2Blocker = 'no-options' | 'empty-text' | 'too-short' | 'no-session' | 'no-submit'
 
 export const ADD_SLIDE_V2_BLOCKER_COPY: Record<AddSlideV2Blocker, string> = {
+  'no-options': 'Slide generation options are switched off in this build.',
   'empty-text': 'Describe what the slide should say.',
+  'too-short': `Add at least ${ADD_SLIDE_V2_HERO_MIN_WORDS} words, for example a short title.`,
   'no-session': 'No active builder session yet.',
   'no-submit': 'Slide generation is not available in this build.',
+}
+
+// What stops a request being built at all (the submit wiring is checked separately, in addSlideV2Blocker).
+function requestBlocker(
+  draft: AddSlideV2Draft,
+  sessionId: string | null,
+  options: ReadonlySet<string>,
+): Exclude<AddSlideV2Blocker, 'no-submit'> | null {
+  const types = availableAddSlideV2Types(options)
+  if (!types.some(option => option.value === draft.slideType)) return 'no-options'
+  if (draft.slideType === 'content' && !availableAddSlideV2Subtypes(options).some(option => option.value === draft.contentSubtype)) return 'no-options'
+  // (e) J2-MAP item8: trimmed, non-empty text for every slide type ...
+  const text = draft.text.trim()
+  if (!text) return 'empty-text'
+  // ... and DEC-P2: a couple of words for the hero types.
+  if (draft.slideType !== 'content' && countAddSlideV2Words(text) < ADD_SLIDE_V2_HERO_MIN_WORDS) return 'too-short'
+  if (!sessionId) return 'no-session'
+  return null
 }
 
 export function addSlideV2Blocker(
   draft: AddSlideV2Draft,
   context: Pick<AddSlideV2Context, 'sessionId'>,
   hasSubmit: boolean,
+  options: ReadonlySet<string> = ADD_SLIDE_V2_OPTIONS,
 ): AddSlideV2Blocker | null {
-  // (e) J2-MAP item8: one trimmed, non-empty text for every slide type, hero types included.
-  if (!draft.text.trim()) return 'empty-text'
-  if (!context.sessionId) return 'no-session'
+  const blocker = requestBlocker(draft, context.sessionId, options)
+  if (blocker) return blocker
   if (!hasSubmit) return 'no-submit'
   return null
 }
 
-// THE ADAPTER SEAM. Everything the pop-up knows becomes one typed request here; the pop-up never builds a
+// THE ADAPTER SEAM. Everything the panel knows becomes one typed request here; the panel never builds a
 // backend payload itself. A `submit` prop receives this request and owns the call.
 //
 // J2-MAP item8 status (RESULT-J2-MAP.md, streams/ops/evidence/J2-MAP/item8-wiring-20261009):
-//   (a) selections   mapped below. PROGRAM-1 rulings: Auto sends NO selections key (the Director chooses);
-//                    Image is a TEMP default of I1 + text_heavy_columns.
+//   (a) selections   mapped below. PROGRAM-1 rulings: Auto sends NO selections key (the Director chooses). Table and
+//                    Diagram reuse the Slide panel's own mapping (components/slide-generation-panel/compose-helpers.ts).
 //   (b) async        wired in lib/studio-add-slide-v2-submit.ts through the page's handleSlideComposerAccepted.
 //   (c) needs_input  async cannot ask (the backend forces assume_on_missing): v2.0 has no blocking questions, a
 //                    needs_input reply is reported as an error that says follow-ups come in v2.1.
 //   (d) index        `anchorVisualIndex` here is visual; the page resolves the real Layout anchor at submit.
-//   (e) text         required for every type (blocker above).
-// Returns null while the request would be refused (empty text, no session).
+//   (e) text         required for every type; Title/Section/Closing need a couple of words (DEC-P2).
+// Returns null while the request would be refused (no options, empty or too short text, no session).
 export function buildAddSlideV2Request<TTheme>(
   draft: AddSlideV2Draft,
   context: AddSlideV2Context<TTheme>,
+  options: ReadonlySet<string> = ADD_SLIDE_V2_OPTIONS,
 ): AddSlideV2Request<TTheme> | null {
-  const instruction = draft.text.trim()
-  if (!instruction || !context.sessionId) return null
+  if (requestBlocker(draft, context.sessionId, options) || !context.sessionId) return null
   return {
     mode: 'generate',
     slideType: draft.slideType,
     contentSubtype: activeAddSlideV2Subtype(draft),
-    instruction,
+    instruction: draft.text.trim(),
     anchorVisualIndex: context.presentationId ? Math.max(0, context.currentSlide - 1) : null,
     sessionId: context.sessionId,
     presentationId: context.presentationId,
@@ -224,14 +377,15 @@ const HERO_SELECTIONS: Record<'title' | 'section' | 'closing', AddSlideV2Selecti
 const CONTENT_SELECTIONS: Record<AddSlideV2ContentSubtype, AddSlideV2Selections> = {
   // PROGRAM-1 ruling 1a: Auto = no selections at all; the Director chooses (so a prompt may still yield a hero).
   auto: {},
-  // TEMP default (awaiting ELEMENT-3 full-image key)
-  // PROGRAM-1 ruling 1b: the wide image-left mixed canvas with a text companion.
-  image: { canvas_type: 'I1', content_type: 'text_heavy_columns' },
   image_left: { canvas_type: 'I1', content_type: 'text_heavy_columns' },
   image_right: { canvas_type: 'I2', content_type: 'text_heavy_columns' },
   chart: { canvas_type: 'C1', content_type: 'chart', chart_subtype: 'single' },
   infographic: { canvas_type: 'C1', content_type: 'infographic', infographic_subtype: 'vertical_center' },
   text: { canvas_type: 'C1', content_type: 'text_heavy_columns' },
+  // Table and Diagram are the Slide panel's own choices (J2-MAP: "Table maps content_type:table,text_subtype:table";
+  // Diagram = the panel's default Diagram preset, an idea board). The test pins both against compose-helpers.
+  table: { canvas_type: 'C1', content_type: 'table', text_subtype: 'table' },
+  diagram: { canvas_type: 'C1', content_type: 'diagram_idea_board', diagram_subtype: 'idea_board' },
 }
 
 export function addSlideV2Selections(
@@ -263,8 +417,9 @@ export interface AddSlideV2ComposeBody<TTheme = unknown> {
 }
 
 /**
- * The popup's request as the compose wire body. `insertAfterIndex` is the REAL Layout anchor the page resolved
+ * The panel's request as the compose wire body. `insertAfterIndex` is the REAL Layout anchor the page resolved
  * (see resolveAddSlideV2Anchor), never request.anchorVisualIndex. snake_case, no UX-only fields.
+ * An explicit Diagram forces all research off, exactly as the Slide panel does (J2-MAP: "forced OFF for explicit diagrams").
  */
 export function buildAddSlideV2ComposeBody<TTheme>(
   request: AddSlideV2Request<TTheme>,
@@ -272,6 +427,7 @@ export function buildAddSlideV2ComposeBody<TTheme>(
 ): AddSlideV2ComposeBody<TTheme> | null {
   if (!request.sessionId) return null
   const selections = addSlideV2Selections(request.slideType, request.contentSubtype)
+  const researchOff = request.slideType === 'content' && request.contentSubtype === 'diagram'
   const body: AddSlideV2ComposeBody<TTheme> = {
     session_id: request.sessionId,
     presentation_id: request.presentationId,
@@ -279,10 +435,10 @@ export function buildAddSlideV2ComposeBody<TTheme>(
     instruction: request.instruction,
     theme: request.theme,
     research: {
-      use_uploaded_documents: request.research.useUploadedDocuments,
-      use_web_search: request.research.useWebSearch,
-      use_deep_research: request.research.useDeepResearch,
-      use_knowledge_graph: request.research.useKnowledgeGraph,
+      use_uploaded_documents: !researchOff && request.research.useUploadedDocuments,
+      use_web_search: !researchOff && request.research.useWebSearch,
+      use_deep_research: !researchOff && request.research.useDeepResearch,
+      use_knowledge_graph: !researchOff && request.research.useKnowledgeGraph,
       web_search_max_queries: ADD_SLIDE_V2_WEB_SEARCH_MAX_QUERIES,
     },
   }
@@ -325,7 +481,42 @@ export function describeAddSlideV2Theme(
   return 'Deck default'
 }
 
-// The draft survives closing the pop-up: it lives in sessionStorage per session and deck, and is cleared only
+// DEC-P6: a Blank slide follows the deck theme. Layout's B1-blank renderer defaults its background to a hard-coded
+// #ffffff (src/renderers/split-templates.js renderB1Blank, Layout @ 839d95b) while its other blank layouts use
+// var(--theme-bg, #ffffff), so a Blank in a dark deck came out white. The native Add already forwards a
+// `background_color`; this is the same value the other renderers default to. Switch: option id `blank_theme`.
+export const ADD_SLIDE_V2_BLANK_BACKGROUND = 'var(--theme-bg, #ffffff)'
+
+/** What the Blank passes to the native Add besides the layout. undefined = the old call, untouched. */
+export interface AddSlideV2NativeAddOptions {
+  position?: number
+  backgroundColor?: string
+}
+
+export function addSlideV2BlankNativeOptions(
+  position: number | undefined,
+  options: ReadonlySet<string> = ADD_SLIDE_V2_OPTIONS,
+): AddSlideV2NativeAddOptions | undefined {
+  const native: AddSlideV2NativeAddOptions = {}
+  if (position !== undefined) native.position = position
+  if (options.has('blank_theme')) native.backgroundColor = ADD_SLIDE_V2_BLANK_BACKGROUND
+  return Object.keys(native).length > 0 ? native : undefined
+}
+
+// DEC-P9: after a generated slide lands, the viewer follows it if the user is still where they were when they
+// pressed Generate (or on the pending placeholder). The page keeps the slide each job was started from.
+const MAX_REMEMBERED_FOLLOWS = 20
+export function rememberAddSlideV2Follow(follow: Map<string, number>, jobId: string, submitVisualIndex: number): void {
+  follow.delete(jobId)
+  follow.set(jobId, submitVisualIndex)
+  while (follow.size > MAX_REMEMBERED_FOLLOWS) {
+    const oldest = follow.keys().next().value
+    if (oldest === undefined) break
+    follow.delete(oldest)
+  }
+}
+
+// The draft survives closing the panel: it lives in sessionStorage per session and deck, and is cleared only
 // after a successful Generate or an explicit Discard. Every storage access is guarded; a missing, blocked or
 // full storage just means no persistence.
 export interface AddSlideV2DraftStorage {
@@ -338,31 +529,45 @@ export function addSlideV2DraftKey(sessionId: string | null, presentationId: str
   return `deckster.addSlideV2.draft.v1:${sessionId ?? 'no-session'}:${presentationId ?? 'no-deck'}`
 }
 
-export function isPristineAddSlideV2Draft(draft: AddSlideV2Draft): boolean {
-  const initial = initialAddSlideV2Draft()
+export function isPristineAddSlideV2Draft(draft: AddSlideV2Draft, options: ReadonlySet<string> = ADD_SLIDE_V2_OPTIONS): boolean {
+  const initial = initialAddSlideV2Draft(options)
   return draft.slideType === initial.slideType && draft.contentSubtype === initial.contentSubtype && draft.text === initial.text
 }
 
-export function loadAddSlideV2Draft(storage: AddSlideV2DraftStorage | null, key: string): AddSlideV2Draft {
+// A stored choice that is no longer on offer (an option was switched off since) falls back to the default
+// choice; the text the user wrote is kept.
+export function loadAddSlideV2Draft(
+  storage: AddSlideV2DraftStorage | null,
+  key: string,
+  options: ReadonlySet<string> = ADD_SLIDE_V2_OPTIONS,
+): AddSlideV2Draft {
+  const initial = initialAddSlideV2Draft(options)
   try {
     const raw = storage?.getItem(key)
-    if (!raw) return initialAddSlideV2Draft()
+    if (!raw) return initial
     const parsed: unknown = JSON.parse(raw)
-    if (!parsed || typeof parsed !== 'object') return initialAddSlideV2Draft()
+    if (!parsed || typeof parsed !== 'object') return initial
     const { slideType, contentSubtype, text } = parsed as Record<string, unknown>
-    if (typeof text !== 'string'
-      || !ADD_SLIDE_V2_SLIDE_TYPES.some(option => option.value === slideType)
-      || !ADD_SLIDE_V2_CONTENT_SUBTYPES.some(option => option.value === contentSubtype)) return initialAddSlideV2Draft()
-    return { slideType: slideType as AddSlideV2Type, contentSubtype: contentSubtype as AddSlideV2ContentSubtype, text }
+    if (typeof text !== 'string') return initial
+    return {
+      slideType: availableAddSlideV2Types(options).some(option => option.value === slideType) ? slideType as AddSlideV2Type : initial.slideType,
+      contentSubtype: availableAddSlideV2Subtypes(options).some(option => option.value === contentSubtype) ? contentSubtype as AddSlideV2ContentSubtype : initial.contentSubtype,
+      text,
+    }
   } catch {
-    return initialAddSlideV2Draft()
+    return initial
   }
 }
 
-export function saveAddSlideV2Draft(storage: AddSlideV2DraftStorage | null, key: string, draft: AddSlideV2Draft): void {
+export function saveAddSlideV2Draft(
+  storage: AddSlideV2DraftStorage | null,
+  key: string,
+  draft: AddSlideV2Draft,
+  options: ReadonlySet<string> = ADD_SLIDE_V2_OPTIONS,
+): void {
   try {
     if (!storage) return
-    if (isPristineAddSlideV2Draft(draft)) storage.removeItem(key)
+    if (isPristineAddSlideV2Draft(draft, options)) storage.removeItem(key)
     else storage.setItem(key, JSON.stringify({ slideType: draft.slideType, contentSubtype: draft.contentSubtype, text: draft.text }))
   } catch { /* storage unavailable or full: the draft just is not kept */ }
 }
@@ -373,7 +578,7 @@ export function clearAddSlideV2Draft(storage: AddSlideV2DraftStorage | null, key
   } catch { /* nothing to clear */ }
 }
 
-// P9, shown as a note in the pop-up.
+// P9, shown as a note in the panel.
 export function addSlideV2PlacementNote(currentSlide: number): string {
   return currentSlide >= 1
     ? `The new slide is added right after slide ${currentSlide}.`

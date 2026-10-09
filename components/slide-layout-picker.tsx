@@ -96,9 +96,9 @@ const getLayoutsByCategory = (category: SlideLayoutCategory): typeof SLIDE_LAYOU
 }
 
 interface SlideLayoutPickerProps {
-  onAddSlide: (layoutId: SlideLayoutType, options?: { position?: number }) => Promise<void>
+  onAddSlide: (layoutId: SlideLayoutType, options?: { position?: number; backgroundColor?: string }) => Promise<void>
   onGenerateSlide?: () => void
-  /** J2 v2: with NEXT_PUBLIC_STUDIO_ADD_SLIDE_V2_ENABLED, the generate-first pop-up replaces the layout picker. */
+  /** J2 v2: with NEXT_PUBLIC_STUDIO_ADD_SLIDE_V2_ENABLED, the generate-first side panel replaces the layout picker. */
   addSlideV2?: AddSlideV2EntryConfig<BuildThemeSelection>
   disabled?: boolean
   className?: string
@@ -144,14 +144,8 @@ export function SlideLayoutPicker({
   }), [])
 
   if (ADD_SLIDE_V2_ENABLED && addSlideV2) {
-    return <AddSlideV2Entry config={addSlideV2} disabled={disabled} isAdding={isAdding} className={className} onInsertBlank={async position => {
-      setIsAdding(true)
-      try {
-        await (position === undefined ? onAddSlide('B1-blank') : onAddSlide('B1-blank', { position }))
-      } finally {
-        setIsAdding(false)
-      }
-    }} />
+    return <AddSlideV2Entry config={addSlideV2} disabled={disabled || isAdding} className={className} onAddSlide={onAddSlide}
+      classicPicker={<SlideLayoutPicker onAddSlide={onAddSlide} disabled={disabled} className={className} />} />
   }
 
   if (STUDIO_SHELL) {

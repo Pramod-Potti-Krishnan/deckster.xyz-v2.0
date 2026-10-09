@@ -126,30 +126,24 @@ for (const flag of ['__absent__', '', 'false', 'TRUE', '1']) await check(`Classi
   await a.cards[0].props.onClick(); await b.cards[0].props.onClick(); a.render(); b.render()
   assert.deepEqual(calls[0], calls[1]); assert.equal(rendered(a.tree), rendered(b.tree)); assert.equal(a.tree.props.open, false)
 })
-// J2 v2 (#342): exactly what `git diff 922ce14..HEAD -- components/slide-layout-picker.tsx` adds to the picker,
+// J2 v2 (#342, side panel in the follow-up): exactly what `git diff 922ce14..HEAD -- components/slide-layout-picker.tsx` adds to the picker,
 // flag NEXT_PUBLIC_STUDIO_ADD_SLIDE_V2_ENABLED, default off. Each line must occur once and is reversed below, so the
 // reversed picker must still equal the original byte for byte; no other line is waived.
 const pr342PickerAdditions = [
   "import type { BuildThemeSelection } from '@/lib/theme-builder'\n",
   "import { ADD_SLIDE_V2_ENABLED, type AddSlideV2EntryConfig } from '@/lib/studio-add-slide-v2'\n",
   "import { AddSlideV2Entry } from './studio-add-slide-v2'\n",
-  "  /** J2 v2: with NEXT_PUBLIC_STUDIO_ADD_SLIDE_V2_ENABLED, the generate-first pop-up replaces the layout picker. */\n",
+  "  /** J2 v2: with NEXT_PUBLIC_STUDIO_ADD_SLIDE_V2_ENABLED, the generate-first side panel replaces the layout picker. */\n",
   "  addSlideV2?: AddSlideV2EntryConfig<BuildThemeSelection>\n",
   "  addSlideV2,\n",
   `  if (ADD_SLIDE_V2_ENABLED && addSlideV2) {
-    return <AddSlideV2Entry config={addSlideV2} disabled={disabled} isAdding={isAdding} className={className} onInsertBlank={async position => {
-      setIsAdding(true)
-      try {
-        await (position === undefined ? onAddSlide('B1-blank') : onAddSlide('B1-blank', { position }))
-      } finally {
-        setIsAdding(false)
-      }
-    }} />
+    return <AddSlideV2Entry config={addSlideV2} disabled={disabled || isAdding} className={className} onAddSlide={onAddSlide}
+      classicPicker={<SlideLayoutPicker onAddSlide={onAddSlide} disabled={disabled} className={className} />} />
   }
 
 `,
 ]
-const pr342OnAddSlide = { before: 'onAddSlide: (layoutId: SlideLayoutType) => Promise<void>', after: 'onAddSlide: (layoutId: SlideLayoutType, options?: { position?: number }) => Promise<void>' }
+const pr342OnAddSlide = { before: 'onAddSlide: (layoutId: SlideLayoutType) => Promise<void>', after: 'onAddSlide: (layoutId: SlideLayoutType, options?: { position?: number; backgroundColor?: string }) => Promise<void>' }
 await check('Exact narrow source reversal retains all native handlers/options and shared wrapper defaults', () => {
   // Reverse only the reviewed optional Generate method seam; native layout,
   // fullscreen, state, gate and callback bytes remain under the original guard.

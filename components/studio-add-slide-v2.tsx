@@ -1,28 +1,33 @@
 "use client"
 
-// J2 v2: the generate-first Add Slide pop-up body (flag NEXT_PUBLIC_STUDIO_ADD_SLIDE_V2_ENABLED).
-// State, copy and the request seam live in lib/studio-add-slide-v2.ts; this file only draws them.
+// J2 v2: the generate-first Add Slide SIDE PANEL (flag NEXT_PUBLIC_STUDIO_ADD_SLIDE_V2_ENABLED).
+// It renders inside the Element drawer, in the same frame and with the same panel markers as the Add Element
+// generation panel (data-studio-v4-panel / -header / -context / -fields), through a portal into a host the builder
+// page provides. State, copy, options and the request seam live in lib/studio-add-slide-v2.ts; this file draws them.
 // It makes no backend call itself: `submit` is a prop, and without one the Generate button stays disabled.
+import '@/components/builder/studio-panels.css'
 import './studio-add-slide-v2.css'
-import { useEffect, useId, useMemo, useReducer, useRef, useState, type KeyboardEvent } from 'react'
-import { Plus, Sparkles, Square, X } from 'lucide-react'
-import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
+import { createPortal } from 'react-dom'
+import { useEffect, useId, useMemo, useReducer, useRef, useState, type KeyboardEvent, type ReactNode } from 'react'
+import { Layout, Plus, Sparkles, Square, X } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { FALLBACK_THEME_PRESETS } from '@/lib/theme-builder'
 import {
   ADD_SLIDE_V2_BLANK_LABEL,
   ADD_SLIDE_V2_BLOCKER_COPY,
-  ADD_SLIDE_V2_CONTENT_SUBTYPES,
+  ADD_SLIDE_V2_CATALOG_LABEL,
+  ADD_SLIDE_V2_OPTIONS,
   ADD_SLIDE_V2_PROMPT_LABEL,
-  ADD_SLIDE_V2_SLIDE_TYPES,
   addSlideV2Blocker,
+  addSlideV2BlankNativeOptions,
   addSlideV2DraftKey,
   addSlideV2PlacementNote,
+  availableAddSlideV2Subtypes,
+  availableAddSlideV2Types,
   buildAddSlideV2Request,
   clearAddSlideV2Draft,
   describeAddSlideV2Research,
   describeAddSlideV2Theme,
-  initialAddSlideV2Draft,
   isPristineAddSlideV2Draft,
   loadAddSlideV2Draft,
   reduceAddSlideV2Draft,
@@ -31,6 +36,7 @@ import {
   type AddSlideV2Draft,
   type AddSlideV2DraftStorage,
   type AddSlideV2EntryConfig,
+  type AddSlideV2NativeAddOptions,
   type AddSlideV2Submit,
 } from '@/lib/studio-add-slide-v2'
 
@@ -38,14 +44,18 @@ export interface AddSlideV2PanelProps<TTheme = unknown> {
   context: AddSlideV2Context<TTheme>
   /** Supplied by the builder page when the composer and its async mode are on. Absent = Generate stays disabled. */
   submit?: AddSlideV2Submit<TTheme>
-  /** P6: the existing blank-slide insert path. A refusal ({ ok: false }) keeps the pop-up open and shows its message. */
+  /** P6: the existing blank-slide insert path. A refusal ({ ok: false }) shows its message and keeps the draft. */
   onInsertBlank: () => void | Promise<void | { ok: false; message: string }>
   onClose: () => void
+  /** DEC-P1: opens the classic layout picker. Absent (or the `catalog` option off) = no link. */
+  onBrowseCatalog?: () => void
   disabled?: boolean
   /** Test and preview seam: a draft that wins over the stored one. */
   initialDraft?: AddSlideV2Draft
   /** sessionStorage-like store for the draft. Default: the browser's sessionStorage; null = nothing is kept. */
   storage?: AddSlideV2DraftStorage | null
+  /** The options that are shown (default: the build's kill-switch resolution). */
+  options?: ReadonlySet<string>
 }
 
 // Reading the property itself can throw (blocked site data), so it is guarded like every other access.
@@ -62,50 +72,89 @@ export function AddSlideV2Panel<TTheme = unknown>({
   submit,
   onInsertBlank,
   onClose,
+  onBrowseCatalog,
   disabled = false,
   initialDraft,
   storage: storageProp,
+  options = ADD_SLIDE_V2_OPTIONS,
 }: AddSlideV2PanelProps<TTheme>) {
   const [storage] = useState(() => (storageProp === undefined ? browserSessionStorage() : storageProp))
   const draftKey = addSlideV2DraftKey(context.sessionId, context.presentationId)
-  const [draft, dispatch] = useReducer(reduceAddSlideV2Draft, undefined, () => initialDraft ?? loadAddSlideV2Draft(storage, draftKey))
+  const reducer = useMemo(() => (state: AddSlideV2Draft, action: Parameters<typeof reduceAddSlideV2Draft>[1]) => reduceAddSlideV2Draft(state, action, options), [options])
+  const [draft, dispatch] = useReducer(reducer, undefined, () => initialDraft ?? loadAddSlideV2Draft(storage, draftKey, options))
   const [pending, setPending] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [queued, setQueued] = useState<string | null>(null)
   const ids = useId()
+  const textRef = useRef<HTMLTextAreaElement>(null)
   const textId = `${ids}-text`
   const hintId = `${ids}-hint`
-  const blocker = addSlideV2Blocker(draft, context, Boolean(submit))
+  const types = availableAddSlideV2Types(options)
+  const styles = availableAddSlideV2Subtypes(options)
+  const blocker = addSlideV2Blocker(draft, context, Boolean(submit), options)
   const busy = disabled || pending
-  const researchRows = describeAddSlideV2Research(context.research)
-  const dirty = !isPristineAddSlideV2Draft(draft)
+  const diagram = draft.slideType === 'content' && draft.contentSubtype === 'diagram'
+  const researchRows = describeAddSlideV2Research(context.research).map(row => diagram ? { ...row, on: false } : row)
+  const dirty = !isPristineAddSlideV2Draft(draft, options)
+  const showBlank = options.has('blank')
+  const showCatalog = options.has('catalog') && Boolean(onBrowseCatalog)
 
-  // Keep the draft across closing the pop-up; it clears only after a successful Generate or an explicit Discard.
-  useEffect(() => { saveAddSlideV2Draft(storage, draftKey, draft) }, [storage, draftKey, draft])
+  // Generation is the default path, so land in the one text box when the panel opens.
+  useEffect(() => { textRef.current?.focus() }, [])
+
+  // Keep the draft across closing the panel; it clears only after a successful Generate or an explicit Discard.
+  useEffect(() => { saveAddSlideV2Draft(storage, draftKey, draft, options) }, [storage, draftKey, draft, options])
+
+  // Escape closes the panel from anywhere, like Add Element's window shortcut. Skipped while a Generate is in flight,
+  // in a hidden Studio drawer (it stays mounted) and when a Radix layer (the catalog picker) already took the key.
+  const rootRef = useRef<HTMLDivElement>(null)
+  useEffect(() => {
+    if (typeof window === 'undefined') return
+    const onKeyDown = (event: globalThis.KeyboardEvent) => {
+      if (event.key !== 'Escape' || pending || event.defaultPrevented) return
+      if (rootRef.current?.closest('[data-studio-v4-shell="true"] [data-studio-workspace-visible="false"]')) return
+      event.preventDefault()
+      onClose()
+    }
+    window.addEventListener('keydown', onKeyDown)
+    return () => window.removeEventListener('keydown', onKeyDown)
+  }, [pending, onClose])
+
+  // An error or a "Queued" note belongs to the slide it was raised on: the panel stays open while the user moves
+  // between slides (or the viewer follows a new one), so both clear when the current slide changes.
+  useEffect(() => {
+    setError(null)
+    setQueued(null)
+  }, [context.currentSlide])
 
   function discard() {
     dispatch({ type: 'reset' })
     clearAddSlideV2Draft(storage, draftKey)
     setError(null)
+    setQueued(null)
   }
 
   async function insertBlank() {
     if (busy) return
+    setQueued(null)
     const outcome = await onInsertBlank()
     if (outcome && outcome.ok === false) setError(outcome.message)
   }
 
   async function generate() {
     if (busy || blocker) return
-    const request = buildAddSlideV2Request(draft, context)
+    const request = buildAddSlideV2Request(draft, context, options)
     if (!submit || !request) return
     setPending(true)
     setError(null)
+    setQueued(null)
     try {
       const result = await submit(request)
       if (result.ok) {
         dispatch({ type: 'reset' })
         clearAddSlideV2Draft(storage, draftKey)
-        onClose()
+        // The panel stays open so several slides can be queued; it says where this one lands.
+        setQueued(`Queued. It appears right after slide ${context.currentSlide} when it is ready.`)
       } else {
         setError(result.message)
       }
@@ -124,115 +173,153 @@ export function AddSlideV2Panel<TTheme = unknown>({
   }
 
   return (
-    <div className="asv2">
-      <header className="asv2-heading">
-        <div>
-          <h2>Add a slide</h2>
-          <p>{addSlideV2PlacementNote(context.currentSlide)}</p>
-        </div>
-        <button type="button" className="asv2-close" aria-label="Close add slide" onClick={onClose}><X size={14} /></button>
-      </header>
-
-      <div className="asv2-body">
-        <fieldset className="asv2-group">
-          <legend>Slide type</legend>
-          <div className="asv2-choices asv2-types">
-            {ADD_SLIDE_V2_SLIDE_TYPES.map(option => (
-              <label key={option.value} className="asv2-choice" title={option.hint}>
-                <input
-                  type="radio"
-                  name={`${ids}-type`}
-                  value={option.value}
-                  checked={draft.slideType === option.value}
-                  disabled={busy}
-                  onChange={() => dispatch({ type: 'set_slide_type', value: option.value })}
-                />
-                <span>{option.label}</span>
-              </label>
-            ))}
+    <div className="absolute inset-0 z-20 flex pointer-events-none">
+      <div
+        data-studio-v4-panel="add-slide-generation"
+        data-studio-add-slide-v2="true"
+        ref={rootRef}
+        className="asv2 flex-1 bg-white dark:bg-slate-900 flex flex-col shadow-2xl overflow-hidden pointer-events-auto"
+      >
+        <div data-studio-v4-panel-header className="flex items-center justify-between px-3 py-2 border-b border-gray-200 dark:border-slate-700 bg-gray-50 dark:bg-slate-800">
+          <div className="flex items-center gap-2.5">
+            <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-primary/10">
+              <Layout className="h-3.5 w-3.5 text-primary" />
+            </div>
+            <div>
+              <h3 className="max-w-[300px] truncate text-xs font-semibold text-gray-900 dark:text-slate-100">Add slide</h3>
+              <p className="text-[10px] text-gray-500 dark:text-slate-400">Generate a slide, or start blank</p>
+            </div>
           </div>
-        </fieldset>
-
-        {draft.slideType === 'content' && (
-          <fieldset className="asv2-group">
-            <legend>Content style</legend>
-            <div className="asv2-choices asv2-subtypes">
-              {ADD_SLIDE_V2_CONTENT_SUBTYPES.map(option => (
-                <label key={option.value} className="asv2-choice" title={option.hint}>
-                  <input
-                    type="radio"
-                    name={`${ids}-subtype`}
-                    value={option.value}
-                    checked={draft.contentSubtype === option.value}
-                    disabled={busy}
-                    onChange={() => dispatch({ type: 'set_content_subtype', value: option.value })}
-                  />
-                  <span>{option.label}</span>
-                </label>
-              ))}
-            </div>
-          </fieldset>
-        )}
-
-        <div className="asv2-group">
-          <label className="asv2-label" htmlFor={textId}>{ADD_SLIDE_V2_PROMPT_LABEL}</label>
-          <textarea
-            id={textId}
-            className="asv2-text"
-            rows={4}
-            value={draft.text}
-            disabled={busy}
-            placeholder="e.g. Why a phased rollout beats a big-bang launch, with the three milestones"
-            aria-describedby={hintId}
-            onChange={event => dispatch({ type: 'set_text', value: event.target.value })}
-            onKeyDown={onTextKeyDown}
-          />
-          <p id={hintId} className="asv2-hint">Everything else is chosen for you unless you set it above.</p>
-        </div>
-
-        <section className="asv2-chat" aria-label="Settings from your chat">
-          <h3>Follows your chat settings</h3>
-          <dl>
-            <div>
-              <dt>Research</dt>
-              <dd>
-                <ul>
-                  {researchRows.map(row => (
-                    <li key={row.key} data-on={row.on ? 'true' : 'false'}>{row.label} <b>{row.on ? 'on' : 'off'}</b></li>
-                  ))}
-                </ul>
-              </dd>
-            </div>
-            <div>
-              <dt>Theme</dt>
-              <dd>{context.themeLabel}</dd>
-            </div>
-          </dl>
-        </section>
-
-        {error && <p className="asv2-error" role="alert">{error}</p>}
-
-        <div className="asv2-actions">
           <button
             type="button"
-            className="asv2-generate"
-            disabled={busy || Boolean(blocker)}
-            aria-describedby={blocker ? `${ids}-blocker` : undefined}
-            onClick={() => void generate()}
+            aria-label="Close add slide panel"
+            onClick={onClose}
+            className="asv2-close p-1.5 rounded-md hover:bg-gray-100 dark:hover:bg-slate-800 dark:bg-slate-700 transition-colors"
+            title="Close panel"
           >
-            <Sparkles size={14} aria-hidden="true" />{pending ? 'Generating…' : 'Generate slide'}
+            <X className="h-4 w-4 text-gray-500 dark:text-slate-400" />
           </button>
-          {dirty && <button type="button" className="asv2-discard" disabled={busy} onClick={discard}>Discard draft</button>}
-          {blocker && <p id={`${ids}-blocker`} className="asv2-blocker" data-blocker={blocker}>{ADD_SLIDE_V2_BLOCKER_COPY[blocker]}</p>}
         </div>
-      </div>
 
-      <footer className="asv2-footer">
-        <span>Or start empty</span>
-        <button type="button" className="asv2-blank" disabled={busy} onClick={() => void insertBlank()}>
-          <Square size={13} aria-hidden="true" />{ADD_SLIDE_V2_BLANK_LABEL}
-        </button>
-      </footer>
+        <div data-studio-v4-panel-context className="px-3 py-1.5 bg-blue-50 border-b border-blue-100">
+          <p className="text-xs text-blue-800">{addSlideV2PlacementNote(context.currentSlide)}</p>
+        </div>
+
+        <div data-studio-v4-panel-fields className="asv2-body flex-1 overflow-y-auto px-3 py-3">
+          {types.length > 0 && (
+            <fieldset className="asv2-group">
+              <legend>Slide type</legend>
+              <div className="asv2-choices asv2-types">
+                {types.map(option => (
+                  <label key={option.value} className="asv2-choice" title={option.hint}>
+                    <input
+                      type="radio"
+                      name={`${ids}-type`}
+                      value={option.value}
+                      checked={draft.slideType === option.value}
+                      disabled={busy}
+                      onChange={() => dispatch({ type: 'set_slide_type', value: option.value })}
+                    />
+                    <span>{option.label}</span>
+                  </label>
+                ))}
+              </div>
+            </fieldset>
+          )}
+
+          {draft.slideType === 'content' && styles.length > 0 && (
+            <fieldset className="asv2-group">
+              <legend>Content style</legend>
+              <div className="asv2-choices asv2-subtypes">
+                {styles.map(option => (
+                  <label key={option.value} className="asv2-choice" title={option.hint}>
+                    <input
+                      type="radio"
+                      name={`${ids}-subtype`}
+                      value={option.value}
+                      checked={draft.contentSubtype === option.value}
+                      disabled={busy}
+                      onChange={() => dispatch({ type: 'set_content_subtype', value: option.value })}
+                    />
+                    <span>{option.label}</span>
+                  </label>
+                ))}
+              </div>
+            </fieldset>
+          )}
+
+          <div className="asv2-group">
+            <label className="asv2-label" htmlFor={textId}>{ADD_SLIDE_V2_PROMPT_LABEL}</label>
+            <textarea
+              id={textId}
+              ref={textRef}
+              className="asv2-text"
+              rows={4}
+              value={draft.text}
+              disabled={busy}
+              placeholder="e.g. Why a phased rollout beats a big-bang launch, with the three milestones"
+              aria-describedby={hintId}
+              onChange={event => { setQueued(null); setError(null); dispatch({ type: 'set_text', value: event.target.value }) }}
+              onKeyDown={onTextKeyDown}
+            />
+            <p id={hintId} className="asv2-hint">Everything else is chosen for you unless you set it above.</p>
+          </div>
+
+          <section className="asv2-chat" aria-label="Settings from your chat">
+            <h4>Follows your chat settings</h4>
+            <dl>
+              <div>
+                <dt>Research</dt>
+                <dd>
+                  <ul>
+                    {researchRows.map(row => (
+                      <li key={row.key} data-on={row.on ? 'true' : 'false'}>{row.label} <b>{row.on ? 'on' : 'off'}</b></li>
+                    ))}
+                  </ul>
+                  {diagram && <p className="asv2-note">Diagrams are built without research.</p>}
+                </dd>
+              </div>
+              <div>
+                <dt>Theme</dt>
+                <dd>{context.themeLabel}</dd>
+              </div>
+            </dl>
+          </section>
+
+          {error && <p className="asv2-error" role="alert">{error}</p>}
+          {queued && <p className="asv2-queued" role="status">{queued}</p>}
+
+          <div className="asv2-actions">
+            <button
+              type="button"
+              className="asv2-generate"
+              disabled={busy || Boolean(blocker)}
+              aria-describedby={blocker ? `${ids}-blocker` : undefined}
+              onClick={() => void generate()}
+            >
+              <Sparkles size={14} aria-hidden="true" />{pending ? 'Generating…' : 'Generate slide'}
+            </button>
+            {dirty && <button type="button" className="asv2-discard" disabled={busy} onClick={discard}>Discard draft</button>}
+            {blocker && <p id={`${ids}-blocker`} className="asv2-blocker" data-blocker={blocker}>{ADD_SLIDE_V2_BLOCKER_COPY[blocker]}</p>}
+          </div>
+        </div>
+
+        {(showBlank || showCatalog) && (
+          <footer className="asv2-footer">
+            {showBlank ? <span>Or start empty</span> : <span />}
+            <div className="asv2-footer-actions">
+              {showBlank && (
+                <button type="button" className="asv2-blank" disabled={busy} onClick={() => void insertBlank()}>
+                  <Square size={13} aria-hidden="true" />{ADD_SLIDE_V2_BLANK_LABEL}
+                </button>
+              )}
+              {showCatalog && (
+                <button type="button" className="asv2-catalog" disabled={busy} onClick={() => onBrowseCatalog?.()}>{ADD_SLIDE_V2_CATALOG_LABEL}</button>
+              )}
+            </div>
+          </footer>
+        )}
+      </div>
     </div>
   )
 }
@@ -240,24 +327,25 @@ export function AddSlideV2Panel<TTheme = unknown>({
 export interface AddSlideV2EntryProps<TTheme = unknown> {
   config: AddSlideV2EntryConfig<TTheme>
   disabled?: boolean
-  /** The picker is mid-insert (blank slide); same "Adding" state as today. */
-  isAdding?: boolean
   className?: string
-  /** P6: the existing blank-slide insert path; `position` is the real Layout position when placeholders are in play. */
-  onInsertBlank: (position?: number) => void | Promise<void>
+  /** The viewer's native Add (the picker's onAddSlide). The Blank slide goes through it. */
+  onAddSlide: (layoutId: 'B1-blank', options?: AddSlideV2NativeAddOptions) => Promise<void>
+  /** DEC-P1: the classic layout picker, kept mounted but invisible so the panel's link can open it where it always opened. */
+  classicPicker?: ReactNode
+  options?: ReadonlySet<string>
 }
 
-/** The flag-on Add Slide entry: the toolbar button plus the generate-first pop-up. */
+/** The flag-on Add Slide entry: the toolbar button, and the panel rendered into the Element drawer host. */
 export function AddSlideV2Entry<TTheme = unknown>({
   config,
   disabled = false,
-  isAdding = false,
   className = '',
-  onInsertBlank,
+  onAddSlide,
+  classicPicker,
+  options = ADD_SLIDE_V2_OPTIONS,
 }: AddSlideV2EntryProps<TTheme>) {
-  const [open, setOpen] = useState(false)
-  const [portalContainer, setPortalContainer] = useState<Element | null>(null)
-  const contentRef = useRef<HTMLDivElement>(null)
+  const [adding, setAdding] = useState(false)
+  const catalogRef = useRef<HTMLSpanElement>(null)
   const { settings, currentSlide, slideCount, theme } = config
   const context = useMemo<AddSlideV2Context<TTheme>>(() => ({
     sessionId: settings.sessionId,
@@ -268,53 +356,52 @@ export function AddSlideV2Entry<TTheme = unknown>({
     theme,
     themeLabel: describeAddSlideV2Theme(theme as { mode?: string; preset_id?: string; primary_hex?: string }, settings.themeProfileName, FALLBACK_THEME_PRESETS),
   }), [settings.sessionId, settings.presentationId, settings.research, settings.themeProfileName, currentSlide, slideCount, theme])
+  const panelOpen = settings.panelOpen && Boolean(settings.panelHost)
+
+  // Same resolution as Generate; a placeholder on screen has no real position, so refuse and say why.
+  async function insertBlank() {
+    const target = settings.resolveBlankTarget?.(Math.max(0, currentSlide - 1)) ?? { ok: true as const, position: undefined }
+    if (!target.ok) return { ok: false as const, message: target.message }
+    setAdding(true)
+    try {
+      await onAddSlide('B1-blank', addSlideV2BlankNativeOptions(target.position, options))
+    } finally {
+      setAdding(false)
+    }
+  }
 
   return (
-    <Popover open={open} onOpenChange={nextOpen => {
-      setPortalContainer(nextOpen ? document.fullscreenElement : null)
-      setOpen(nextOpen)
-    }}>
-      <PopoverTrigger asChild>
-        <button
-          disabled={disabled || isAdding}
-          className={cn(
-            "flex h-12 min-w-[88px] flex-col items-center justify-center gap-0.5 rounded-md px-3 py-1 text-slate-700 dark:text-slate-200",
-            "hover:bg-slate-100 hover:text-slate-900 dark:hover:bg-slate-800 dark:hover:text-white disabled:opacity-40 disabled:cursor-not-allowed transition-colors",
-            className
-          )}
-        >
-          <Plus className="h-5 w-5" />
-          <span className="text-[10px] font-medium whitespace-nowrap">{isAdding ? 'Adding' : 'Add Slide'}</span>
-        </button>
-      </PopoverTrigger>
-      <PopoverContent
-        ref={contentRef}
-        portalContainer={portalContainer}
-        data-studio-add-slide-v2="true"
-        align="start"
-        sideOffset={8}
-        aria-label="Add a slide"
-        onOpenAutoFocus={event => {
-          // Generation is the default path, so land in the one text box.
-          event.preventDefault()
-          contentRef.current?.querySelector('textarea')?.focus()
-        }}
+    <span className="asv2-entry">
+      <button
+        type="button"
+        disabled={disabled || adding}
+        aria-expanded={settings.panelOpen}
+        aria-pressed={settings.panelOpen}
+        onClick={() => settings.onPanelOpenChange(!settings.panelOpen)}
+        className={cn(
+          "flex h-12 min-w-[88px] flex-col items-center justify-center gap-0.5 rounded-md px-3 py-1 text-slate-700 dark:text-slate-200",
+          "hover:bg-slate-100 hover:text-slate-900 dark:hover:bg-slate-800 dark:hover:text-white disabled:opacity-40 disabled:cursor-not-allowed transition-colors",
+          settings.panelOpen && "bg-slate-100 dark:bg-slate-800",
+          className
+        )}
       >
+        <Plus className="h-5 w-5" />
+        <span className="text-[10px] font-medium whitespace-nowrap">{adding ? 'Adding' : 'Add Slide'}</span>
+      </button>
+      {classicPicker && <span ref={catalogRef} aria-hidden="true" className="asv2-catalog-anchor">{classicPicker}</span>}
+      {panelOpen && settings.panelHost && createPortal(
         <AddSlideV2Panel
           key={addSlideV2DraftKey(context.sessionId, context.presentationId)}
           context={context}
           submit={settings.submit}
-          disabled={disabled || isAdding}
-          onClose={() => setOpen(false)}
-          onInsertBlank={async () => {
-            // Same resolution as Generate; a placeholder on screen has no real position, so refuse and say why.
-            const target = settings.resolveBlankTarget?.(Math.max(0, currentSlide - 1)) ?? { ok: true as const, position: undefined }
-            if (!target.ok) return { ok: false as const, message: target.message }
-            setOpen(false)
-            await onInsertBlank(target.position)
-          }}
-        />
-      </PopoverContent>
-    </Popover>
+          disabled={disabled || adding}
+          options={options}
+          onClose={() => settings.onPanelOpenChange(false)}
+          onBrowseCatalog={classicPicker ? () => catalogRef.current?.querySelector('button')?.click() : undefined}
+          onInsertBlank={insertBlank}
+        />,
+        settings.panelHost,
+      )}
+    </span>
   )
 }

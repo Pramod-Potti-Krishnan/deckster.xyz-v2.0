@@ -323,10 +323,13 @@ export function shouldNavigateToResolvedComposeSlide(options: {
   currentSlideIndex: number
   jobTargetVisualIndex?: number | null
   resolvedVisualIndex: number
+  /** J2 v2 (DEC-P9): the visual slide the job was started from; staying on it also follows the new slide. */
+  followVisualIndex?: number | null
 }): boolean {
   return (
     options.currentSlideIndex === options.jobTargetVisualIndex ||
-    options.currentSlideIndex === options.resolvedVisualIndex
+    options.currentSlideIndex === options.resolvedVisualIndex ||
+    (options.followVisualIndex != null && options.currentSlideIndex === options.followVisualIndex)
   )
 }
 
@@ -334,6 +337,7 @@ export function resolveSlideComposeSelectionAfterReady(options: {
   currentSlideIndex: number
   jobTargetVisualIndex?: number | null
   resolvedVisualIndex: number
+  followVisualIndex?: number | null
 }): number {
   return shouldNavigateToResolvedComposeSlide(options)
     ? Math.max(0, options.resolvedVisualIndex)

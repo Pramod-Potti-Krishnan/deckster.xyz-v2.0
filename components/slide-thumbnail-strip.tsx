@@ -31,6 +31,8 @@ import { SLIDE_LAYOUTS, SlideLayoutId } from './slide-layout-picker'
 import { buildSlideComposeVisualOrder } from '@/lib/slide-compose-async'
 import { slideTitleLabel } from '@/lib/studio-slide-title-label'
 import type { SlideRefineTarget } from '@/lib/slide-refinement'
+import { STUDIO_RAIL_LIVE_PREVIEW_FALLBACK_ENABLED, railLivePreviewApplies } from '@/lib/rail-live-preview'
+import { RailLivePreview } from './rail-live-preview'
 import './studio-thumbnails.css'
 
 const STUDIO_THUMBNAILS = process.env.NEXT_PUBLIC_STUDIO_V4_SHELL === 'true'
@@ -125,6 +127,10 @@ export interface SlideThumbnailStripProps {
   /** F8/S-03: rows come from Layout's slide inventory, so React keys them by slide_id (a moved
    *  slide keeps its node and image) instead of by position. Default false = today's keys. */
   keyBySlideId?: boolean
+  /** F9-A (flag NEXT_PUBLIC_STUDIO_RAIL_LIVE_PREVIEW_FALLBACK_ENABLED): the deck's approved Layout viewer URL. A card whose inventory
+   *  status is `none` (no preview will ever come) shows a live view-only mini-preview of its slide instead of "No preview".
+   *  Ignored when the flag is off. */
+  livePreviewViewerUrl?: string | null
 }
 
 /**
@@ -158,6 +164,7 @@ export function SlideThumbnailStrip({
   composeJobs = [],
   onRefineSlide,
   keyBySlideId = false,
+  livePreviewViewerUrl = null,
 }: SlideThumbnailStripProps) {
   const [draggedSlide, setDraggedSlide] = useState<number | null>(null)
   const [dropTarget, setDropTarget] = useState<number | null>(null)
@@ -722,6 +729,14 @@ export function SlideThumbnailStrip({
         </div>
         {STUDIO_THUMBNAILS && refineJob?.status === 'error' && (
           <ThumbnailFailureDetails slideNumber={visualNumber} kind="refine" reason={refineJob.errors?.filter(Boolean).join('; ') || 'Refinement failed'} />
+        )}
+        {/* F9-A: live mini-preview for a card that will never get a thumbnail. The last child of the card, so no existing
+            sibling changes position; a sibling of the button, not inside it (an iframe is not valid button content). It
+            lies over the preview area and takes no pointer events, so the card's click, drag and keyboard behaviour stay
+            the button's. A refining card keeps its own spinner. */}
+        {STUDIO_RAIL_LIVE_PREVIEW_FALLBACK_ENABLED && STUDIO_THUMBNAILS && livePreviewViewerUrl && !isRefining
+          && railLivePreviewApplies({ thumbnailStatus: slide.thumbnailStatus, thumbnailUrl }) && (
+          <RailLivePreview viewerUrl={livePreviewViewerUrl} slideIndex={slideIndex} />
         )}
       </div>
     )

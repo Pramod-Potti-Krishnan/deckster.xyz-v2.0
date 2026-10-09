@@ -1,35 +1,33 @@
-/* J2 v2 generate-first Add Slide pop-up. Scoped by the marker the picker puts on its popover content. */
-[data-studio-add-slide-v2="true"][data-state] {
+/* J2 v2 generate-first Add Slide side panel: rendered in the Element drawer, next to the Add Element panel.
+   The shared panel markers (data-studio-v4-panel*) give the frame, header and context bar their Studio look; these
+   rules only add what is specific to the panel's own controls. */
+[data-studio-add-slide-v2="true"] {
   --asv2-panel: var(--ss-panel, #fff);
-  --asv2-surface: var(--ss-surface, #f4f7f4);
-  --asv2-text: var(--ss-text, #2c3c36);
-  --asv2-muted: var(--ss-muted, #64736b);
-  --asv2-line: var(--ss-line, #dbe4dc);
-  --asv2-teal: var(--ss-teal, #287b78);
-  --asv2-active: var(--ss-active, #e8f2ed);
-  --asv2-on-teal: #fff;
-  width: min(420px, calc(100vw - 24px)); max-height: min(660px, var(--radix-popover-content-available-height, calc(100dvh - 24px)));
-  display: flex; flex-direction: column; padding: 0; overflow: hidden;
-  border: 1px solid var(--asv2-line); border-radius: 12px; background: var(--asv2-panel); color: var(--asv2-text);
-  box-shadow: 0 15px 45px #132a2529; font-size: 12px; line-height: 1.5;
+  --asv2-surface: var(--ss-surface, #f5f7f6);
+  --asv2-text: var(--ss-text, #243438);
+  --asv2-muted: var(--ss-muted, #566965);
+  --asv2-line: var(--ss-line, #dde5e2);
+  --asv2-accent: var(--ss-accent, #6a4fc0);
+  --asv2-active: var(--ss-accent-soft, #f1edfb);
+  --asv2-on-accent: #fff;
+  color: var(--asv2-text); font-size: 12px; line-height: 1.5; min-width: 0;
 }
-.dark [data-studio-add-slide-v2="true"][data-state] {
+.dark [data-studio-add-slide-v2="true"] {
   --asv2-panel: var(--ss-panel, #25312e); --asv2-surface: var(--ss-surface, #2c3b35);
   --asv2-text: var(--ss-text, #e3eae5); --asv2-muted: var(--ss-muted, #afbeb3);
-  --asv2-line: var(--ss-line, #3d4e45); --asv2-teal: var(--ss-teal, #8dcac3); --asv2-active: var(--ss-active, #304239);
-  --asv2-on-teal: #12201c;
+  --asv2-line: var(--ss-line, #3d4e45); --asv2-accent: var(--ss-accent, #b4a0f2); --asv2-active: var(--ss-accent-soft, #2a2540);
+  --asv2-on-accent: #12201c;
 }
-[data-studio-add-slide-v2="true"] .asv2 { display: flex; flex-direction: column; min-height: 0; }
 [data-studio-add-slide-v2="true"] :is(button,textarea,input) { font: inherit; }
 [data-studio-add-slide-v2="true"] :is(button,textarea):focus-visible,
-[data-studio-add-slide-v2="true"] .asv2-choice:has(input:focus-visible) { outline: 2px solid var(--asv2-teal); outline-offset: 2px; }
+[data-studio-add-slide-v2="true"] .asv2-choice:has(input:focus-visible) { outline: 2px solid var(--asv2-accent); outline-offset: 2px; }
 [data-studio-add-slide-v2="true"] button { cursor: pointer; }
 [data-studio-add-slide-v2="true"] :is(button,textarea):disabled { cursor: not-allowed; opacity: .5; }
-[data-studio-add-slide-v2="true"] .asv2-heading { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; padding: 14px 15px 10px; flex-shrink: 0; }
-[data-studio-add-slide-v2="true"] .asv2-heading h2 { font-family: Georgia, serif; font-size: 21px; font-weight: 400; margin: 0; line-height: 1.2; }
-[data-studio-add-slide-v2="true"] .asv2-heading p { color: var(--asv2-muted); font-size: 11px; margin: 5px 0 0; }
-[data-studio-add-slide-v2="true"] .asv2-close { display: grid; place-items: center; width: 26px; height: 26px; flex-shrink: 0; border: 1px solid var(--asv2-line); border-radius: 6px; background: transparent; color: var(--asv2-muted); }
-[data-studio-add-slide-v2="true"] .asv2-body { min-height: 0; overflow-y: auto; overscroll-behavior: contain; scrollbar-width: thin; padding: 0 15px 14px; display: flex; flex-direction: column; gap: 12px; }
+[data-studio-add-slide-v2="true"] .asv2-body { display: flex; flex-direction: column; gap: 14px; }
+/* The toolbar button, with the classic layout picker kept mounted and invisible over it so the panel's
+   "Browse layout catalog" link opens that picker exactly where it always opened. */
+.asv2-entry { position: relative; display: inline-flex; }
+.asv2-catalog-anchor { position: absolute; inset: 0; visibility: hidden; pointer-events: none; }
 [data-studio-add-slide-v2="true"] .asv2-group { margin: 0; padding: 0; border: 0; min-width: 0; }
 [data-studio-add-slide-v2="true"] .asv2-group legend, [data-studio-add-slide-v2="true"] .asv2-label { display: block; padding: 0; margin: 0 0 6px; color: var(--asv2-muted); font-size: 10px; font-weight: 500; letter-spacing: .02em; }
 [data-studio-add-slide-v2="true"] .asv2-choices { display: flex; flex-wrap: wrap; gap: 5px; }
@@ -38,14 +36,14 @@
 [data-studio-add-slide-v2="true"] .asv2-choice input { position: absolute; inset: 0; width: 100%; height: 100%; margin: 0; opacity: 0; cursor: pointer; }
 [data-studio-add-slide-v2="true"] .asv2-choice span { flex: 1; text-align: center; border: 1px solid var(--asv2-line); border-radius: 6px; background: transparent; color: var(--asv2-muted); padding: 6px 9px; font-size: 11px; white-space: nowrap; }
 [data-studio-add-slide-v2="true"] .asv2-choice:hover input:not(:disabled) + span { background: var(--asv2-surface); color: var(--asv2-text); }
-[data-studio-add-slide-v2="true"] .asv2-choice input:checked + span { background: var(--asv2-active); border-color: var(--asv2-teal); color: var(--asv2-teal); font-weight: 600; }
+[data-studio-add-slide-v2="true"] .asv2-choice input:checked + span { background: var(--asv2-active); border-color: var(--asv2-accent); color: var(--asv2-accent); font-weight: 600; }
 [data-studio-add-slide-v2="true"] .asv2-choice input:disabled { cursor: not-allowed; }
 [data-studio-add-slide-v2="true"] .asv2-subtypes .asv2-choice span { padding: 4px 8px; font-size: 10px; }
 [data-studio-add-slide-v2="true"] .asv2-text { display: block; width: 100%; resize: vertical; min-height: 84px; max-height: 220px; border: 1px solid var(--asv2-line); border-radius: 7px; background: transparent; color: var(--asv2-text); padding: 8px 9px; font-size: 12px; line-height: 1.5; }
 [data-studio-add-slide-v2="true"] .asv2-text::placeholder { color: var(--asv2-muted); }
 [data-studio-add-slide-v2="true"] .asv2-hint { margin: 5px 0 0; color: var(--asv2-muted); font-size: 10px; }
 [data-studio-add-slide-v2="true"] .asv2-chat { border: 1px solid var(--asv2-line); border-radius: 8px; background: var(--asv2-surface); padding: 9px 10px; }
-[data-studio-add-slide-v2="true"] .asv2-chat h3 { margin: 0 0 6px; color: var(--asv2-muted); font-size: 10px; font-weight: 500; letter-spacing: .02em; }
+[data-studio-add-slide-v2="true"] .asv2-chat h4 { margin: 0 0 6px; color: var(--asv2-muted); font-size: 10px; font-weight: 500; letter-spacing: .02em; }
 [data-studio-add-slide-v2="true"] .asv2-chat dl { margin: 0; display: grid; gap: 5px; }
 [data-studio-add-slide-v2="true"] .asv2-chat dl > div { display: flex; gap: 10px; align-items: baseline; }
 [data-studio-add-slide-v2="true"] .asv2-chat dt { flex: 0 0 56px; color: var(--asv2-muted); font-size: 10px; }
@@ -54,16 +52,21 @@
 [data-studio-add-slide-v2="true"] .asv2-chat li { color: var(--asv2-muted); }
 [data-studio-add-slide-v2="true"] .asv2-chat li[data-on="true"] { color: var(--asv2-text); }
 [data-studio-add-slide-v2="true"] .asv2-chat li b { font-weight: 600; }
-[data-studio-add-slide-v2="true"] .asv2-chat li[data-on="true"] b { color: var(--asv2-teal); }
+[data-studio-add-slide-v2="true"] .asv2-chat li[data-on="true"] b { color: var(--asv2-accent); }
 [data-studio-add-slide-v2="true"] .asv2-error { margin: 0; color: #b42318; font-size: 11px; }
 .dark [data-studio-add-slide-v2="true"] .asv2-error { color: #f7a9a0; }
 [data-studio-add-slide-v2="true"] .asv2-actions { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
-[data-studio-add-slide-v2="true"] .asv2-generate { display: inline-flex; align-items: center; gap: 6px; border: 1px solid var(--asv2-teal); border-radius: 7px; background: var(--asv2-teal); color: var(--asv2-on-teal); padding: 7px 13px; font-size: 12px; font-weight: 600; }
+[data-studio-add-slide-v2="true"] .asv2-generate { display: inline-flex; align-items: center; gap: 6px; border: 1px solid var(--asv2-accent); border-radius: 7px; background: var(--asv2-accent); color: var(--asv2-on-accent); padding: 7px 13px; font-size: 12px; font-weight: 600; }
 [data-studio-add-slide-v2="true"] .asv2-generate:not(:disabled):hover { filter: brightness(1.06); }
 [data-studio-add-slide-v2="true"] .asv2-discard { border: 0; background: transparent; color: var(--asv2-muted); padding: 4px 2px; font-size: 11px; text-decoration: underline; text-underline-offset: 2px; }
 [data-studio-add-slide-v2="true"] .asv2-discard:not(:disabled):hover { color: var(--asv2-text); }
+[data-studio-add-slide-v2="true"] .asv2-queued { margin: 0; color: var(--asv2-accent); font-size: 11px; }
+[data-studio-add-slide-v2="true"] .asv2-note { margin: 4px 0 0; color: var(--asv2-muted); font-size: 10px; }
+[data-studio-add-slide-v2="true"] .asv2-footer-actions { display: flex; align-items: center; gap: 12px; }
+[data-studio-add-slide-v2="true"] .asv2-catalog { border: 0; background: transparent; color: var(--asv2-muted); padding: 4px 2px; font-size: 11px; text-decoration: underline; text-underline-offset: 2px; }
+[data-studio-add-slide-v2="true"] .asv2-catalog:not(:disabled):hover { color: var(--asv2-text); }
 [data-studio-add-slide-v2="true"] .asv2-blocker { margin: 0; color: var(--asv2-muted); font-size: 10px; }
 [data-studio-add-slide-v2="true"] .asv2-footer { display: flex; align-items: center; justify-content: space-between; gap: 10px; border-top: 1px solid var(--asv2-line); padding: 9px 15px; flex-shrink: 0; color: var(--asv2-muted); font-size: 10px; }
 [data-studio-add-slide-v2="true"] .asv2-blank { display: inline-flex; align-items: center; gap: 5px; border: 1px solid var(--asv2-line); border-radius: 6px; background: transparent; color: var(--asv2-text); padding: 5px 9px; font-size: 11px; }
-[data-studio-add-slide-v2="true"] .asv2-blank:not(:disabled):hover { border-color: var(--asv2-teal); background: var(--asv2-active); }
+[data-studio-add-slide-v2="true"] .asv2-blank:not(:disabled):hover { border-color: var(--asv2-accent); background: var(--asv2-active); }
 @media (max-width: 430px) { [data-studio-add-slide-v2="true"] .asv2-types .asv2-choice { flex: 1 1 40%; } }

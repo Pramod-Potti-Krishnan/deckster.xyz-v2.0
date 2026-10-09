@@ -1403,6 +1403,11 @@ function AuthenticatedBuilderContent({ authScopeUserId }: { authScopeUserId: str
   // Z-index tracking for drawer stacking order
   const zCounterRef = useRef(0)
   const [panelZIndices, setPanelZIndices] = useState({ element: 0, slide: 0, deck: 0 })
+  // J2 v2 (flag NEXT_PUBLIC_STUDIO_ADD_SLIDE_V2_ENABLED): the Add Slide side panel lives in the Element drawer.
+  // `addSlideV2Open` stays false, and the host is never rendered, while the flag is off.
+  const [addSlideV2Open, setAddSlideV2Open] = useState(false)
+  const [addSlideV2Host, setAddSlideV2Host] = useState<HTMLElement | null>(null)
+  const addSlideV2FollowRef = useRef<Map<string, number>>(new Map())
 
   const bringToFront = useCallback((panel: 'element' | 'slide' | 'deck') => {
     zCounterRef.current += 1
@@ -1476,7 +1481,7 @@ function AuthenticatedBuilderContent({ authScopeUserId }: { authScopeUserId: str
   }, [clampDrawerWidth, studioShell])
 
   // Drawer open conditions
-  const isElementDrawerOpen = generationPanel.isOpen || showTextBoxPanel || showElementPanel || (studioShell && studioFormatOpen)
+  const isElementDrawerOpen = generationPanel.isOpen || showTextBoxPanel || showElementPanel || (studioShell && studioFormatOpen) || addSlideV2Open
   const isSlideDrawerOpen = features.slideComposerEnabled && showFormatPanel
   const isDeckDrawerOpen = showChat
   const isTemplateParamsDrawerOpen = templateBuilderEnabled
@@ -2702,17 +2707,22 @@ function AuthenticatedBuilderContent({ authScopeUserId }: { authScopeUserId: str
           viewerSlideCount,
         })
         const composeJob = slideComposeJobsRef.current[payload.job_id]
+        // J2 v2 (DEC-P9): the slide an Add Slide panel job was started from; null for every other job.
+        const addSlideV2Follow = addSlideV2FollowRef.current.get(payload.job_id) ?? null
+        addSlideV2FollowRef.current.delete(payload.job_id)
         const selectionRestoreVisualIndex = composeJob
           ? resolveSlideComposeSelectionAfterReady({
               currentSlideIndex: currentSlideIndexRef.current,
               jobTargetVisualIndex: composeJob.target_visual_index,
               resolvedVisualIndex,
+              followVisualIndex: addSlideV2Follow,
             })
           : currentSlideIndexRef.current
         const navigate = !!composeJob && shouldNavigateToResolvedComposeSlide({
           currentSlideIndex: currentSlideIndexRef.current,
           jobTargetVisualIndex: composeJob.target_visual_index,
           resolvedVisualIndex,
+          followVisualIndex: addSlideV2Follow,
         })
         const nextPresentationUrl = shouldUseIncomingComposePresentationUrl(
           latest.presentationUrl,
@@ -4565,6 +4575,20 @@ function AuthenticatedBuilderContent({ authScopeUserId }: { authScopeUserId: str
     studioFormatRequestRef.current = null
     setStudioFormatOpen(false); setStudioFormatTarget(null); setStudioFormatLoading(false); setStudioFormatError(null)
   }, [])
+  // J2 v2: opening the Add Slide panel makes the other Element panels step aside (as activateElementPanel does),
+  // and any of them opening closes it, so the drawer shows one panel.
+  const handleAddSlideV2PanelOpenChange = useCallback((open: boolean) => {
+    if (!open) { setAddSlideV2Open(false); return }
+    generationPanel.closePanel()
+    setShowTextBoxPanel(false)
+    setShowElementPanel(false)
+    closeStudioFormat()
+    bringToFront('element')
+    setAddSlideV2Open(true)
+  }, [generationPanel.closePanel, closeStudioFormat, bringToFront])
+  useEffect(() => {
+    if (addSlideV2Open && (generationPanel.isOpen || showTextBoxPanel || showElementPanel || (studioShell && studioFormatOpen))) setAddSlideV2Open(false)
+  }, [addSlideV2Open, generationPanel.isOpen, showTextBoxPanel, showElementPanel, studioShell, studioFormatOpen])
   const studioFormatMountedRef = useRef(false)
   useEffect(() => { studioFormatMountedRef.current = true; return () => { studioFormatMountedRef.current = false; studioFormatRequestRef.current = null; studioFormatCommandIntentRef.current = null } }, [])
   const studioFormatScope = studioFormatScopeRef.current
@@ -6765,15 +6789,16 @@ function AuthenticatedBuilderContent({ authScopeUserId }: { authScopeUserId: str
                   slideIndex={currentSlideIndex}
                 />
               )}
+              {process.env.NEXT_PUBLIC_STUDIO_ADD_SLIDE_V2_ENABLED === 'true' && <div ref={setAddSlideV2Host} data-studio-add-slide-v2-host="true" />}
             </div>
 
             {/* Handle */}
-            {features.useTextLabsGeneration && generationPanel.isOpen && (
+            {((features.useTextLabsGeneration && generationPanel.isOpen) || addSlideV2Open) && (
               <button
                 type="button"
                 onClick={() => {
                   if (studioShell && !studioElementVisible) { setPreferredInspector('element'); selectWorkspacePane('inspector') }
-                  else generationPanel.closePanel()
+                  else { generationPanel.closePanel(); setAddSlideV2Open(false) }
                 }}
                 className={cn(
                   "absolute top-[33%] -translate-y-1/2",
@@ -7369,6 +7394,9 @@ function AuthenticatedBuilderContent({ authScopeUserId }: { authScopeUserId: str
                 useKnowledgeGraph: canUseKnowledgeGraph && knowledgeGraphEnabled,
               },
               themeProfileName: activeBuildThemeProfileForSelection?.name ?? null,
+              panelOpen: addSlideV2Open,
+              panelHost: addSlideV2Host,
+              onPanelOpenChange: handleAddSlideV2PanelOpenChange,
               ...createAddSlideV2Hooks({
                 // `submit` needs the composer and its async mode; the Blank target resolver is always there.
                 generationEnabled: features.slideComposerEnabled && features.slideComposerAsyncEnabled,
@@ -7386,6 +7414,8 @@ function AuthenticatedBuilderContent({ authScopeUserId }: { authScopeUserId: str
                     : slideComposeJobsRef.current,
                 }),
                 onAccepted: handleSlideComposerAccepted,
+                // DEC-P9: the viewer follows the new slide when the user is still on the slide they started from.
+                follow: addSlideV2FollowRef.current,
               }),
             } : undefined}
             onTextBoxSelected={(elementId, formatting, selectedComponentType) => {
