@@ -115,8 +115,12 @@ export interface AddSlideV2Request<TTheme = unknown> {
   /** null unless slideType is "content". */
   contentSubtype: AddSlideV2ContentSubtype | null
   instruction: string
-  /** P9: 0-based index of the slide the new one follows; null while no deck exists yet. */
-  insertAfterIndex: number | null
+  /**
+   * P9: 0-based VISUAL index of the slide the new one follows (placeholders count); null while no deck exists.
+   * Not a Layout index and not the wire `insert_after_index`: the page re-resolves it to a real slide at submit
+   * (J2-MAP item8 d, see lib/studio-add-slide-v2-submit.ts).
+   */
+  anchorVisualIndex: number | null
   sessionId: string | null
   presentationId: string | null
   research: AddSlideV2Research
@@ -136,7 +140,7 @@ export interface AddSlideV2Settings<TTheme = unknown> {
   presentationId: string | null
   research: AddSlideV2Research
   themeProfileName: string | null
-  /** TODO(J2-MAP): the page supplies this once generation is wired. Absent = Generate stays disabled. */
+  /** The page supplies this only when the slide composer and its async mode are on. Absent = Generate stays disabled. */
   submit?: AddSlideV2Submit<TTheme>
 }
 
@@ -148,12 +152,13 @@ export interface AddSlideV2EntryConfig<TTheme = unknown> {
   theme: TTheme
 }
 
-export type AddSlideV2Blocker = 'empty-text' | 'no-session' | 'no-submit'
+export type AddSlideV2Blocker = 'subtype-undecided' | 'empty-text' | 'no-session' | 'no-submit'
 
 export const ADD_SLIDE_V2_BLOCKER_COPY: Record<AddSlideV2Blocker, string> = {
+  'subtype-undecided': "This content style can't be generated yet. Choose another style.",
   'empty-text': 'Describe what the slide should say.',
   'no-session': 'No active builder session yet.',
-  'no-submit': 'Generation is not connected in this build yet.',
+  'no-submit': 'Slide generation is not available in this build.',
 }
 
 export function addSlideV2Blocker(
@@ -161,6 +166,8 @@ export function addSlideV2Blocker(
   context: Pick<AddSlideV2Context, 'sessionId'>,
   hasSubmit: boolean,
 ): AddSlideV2Blocker | null {
+  if (addSlideV2Selections(draft.slideType, activeAddSlideV2Subtype(draft)) === null) return 'subtype-undecided'
+  // (e) J2-MAP item8: one trimmed, non-empty text for every slide type, hero types included.
   if (!draft.text.trim()) return 'empty-text'
   if (!context.sessionId) return 'no-session'
   if (!hasSubmit) return 'no-submit'
@@ -170,32 +177,114 @@ export function addSlideV2Blocker(
 // THE ADAPTER SEAM. Everything the pop-up knows becomes one typed request here; the pop-up never builds a
 // backend payload itself. A `submit` prop receives this request and owns the call.
 //
-// TODO(J2-MAP): the J2-MAP findings decide the rest of the wiring. Open points, none decided here:
-//   - how each slide type / sub-type becomes the backend `selections` vocabulary (image, image left,
-//     image right and Auto have no existing /api/slides/compose equivalent in the Slide panel);
-//   - which endpoint and mode (sync vs async job) carries it, and how the accepted job reaches the builder
-//     page's compose job queue (placeholder, poller, watchdog) so the slide appears;
-//   - the needs_input / error path;
-//   - which slide index is "current" (this viewer's currentSlide vs the page's selectedLayoutSlideIndex);
-//   - sessionId / presentationId must be the page's resolved values (resolveSlideComposeSessionId,
-//     effectivePresentationId), which `addSlideV2Settings` already carries.
-// Returns null while the request would be refused (empty text, no session).
+// J2-MAP item8 status (RESULT-J2-MAP.md, streams/ops/evidence/J2-MAP/item8-wiring-20261009):
+//   (a) selections   title/section/closing/text/chart/infographic/image left/image right: mapped below.
+//                    TODO(J2-MAP-DECISION): `image` (image-led, no agreed canvas/content meaning) and content +
+//                    `auto` (global omission can still infer a hero; strict content-only has no backend constraint)
+//                    stay unmapped, so Generate is blocked for them until PROGRAM decides.
+//   (b) async        wired in lib/studio-add-slide-v2-submit.ts through the page's handleSlideComposerAccepted.
+//   (c) needs_input  async cannot ask (the backend forces assume_on_missing); a needs_input reply is reported as
+//                    an error. TODO(J2-MAP-DECISION): synchronous clarification is not wired.
+//   (d) index        `anchorVisualIndex` here is visual; the page resolves the real Layout anchor at submit.
+//   (e) text         required for every type (blocker above).
+// Returns null while the request would be refused (empty text, no session, unmapped sub-type).
 export function buildAddSlideV2Request<TTheme>(
   draft: AddSlideV2Draft,
   context: AddSlideV2Context<TTheme>,
 ): AddSlideV2Request<TTheme> | null {
   const instruction = draft.text.trim()
   if (!instruction || !context.sessionId) return null
+  if (addSlideV2Selections(draft.slideType, activeAddSlideV2Subtype(draft)) === null) return null
   return {
     mode: 'generate',
     slideType: draft.slideType,
     contentSubtype: activeAddSlideV2Subtype(draft),
     instruction,
-    insertAfterIndex: context.presentationId ? Math.max(0, context.currentSlide - 1) : null,
+    anchorVisualIndex: context.presentationId ? Math.max(0, context.currentSlide - 1) : null,
     sessionId: context.sessionId,
     presentationId: context.presentationId,
     research: { ...context.research },
     theme: context.theme,
+  }
+}
+
+// (a) The existing /api/slides/compose `selections` vocabulary, per J2-MAP item8 (a). The UX values
+// (`image_left`, `V1-image-text`, ...) are never sent. `undefined` = no selections (global Auto);
+// `null` = no agreed mapping yet.
+export type AddSlideV2Selections = Record<string, string>
+
+const HERO_SELECTIONS: Record<'title' | 'section' | 'closing', AddSlideV2Selections> = {
+  title: { canvas_type: 'H1', content_type: 'hero' },
+  section: { canvas_type: 'H2', content_type: 'hero' },
+  closing: { canvas_type: 'H3', content_type: 'hero' },
+}
+
+const CONTENT_SELECTIONS: Record<AddSlideV2ContentSubtype, AddSlideV2Selections | null> = {
+  // TODO(J2-MAP-DECISION): global Auto by omission would let the prompt pick a hero despite "Content";
+  // a strict content-only Auto needs a backend exclusion that does not exist.
+  auto: null,
+  // TODO(J2-MAP-DECISION): "Image-led" is not image-only (no such content type) and not a chosen I1/I2 default.
+  image: null,
+  image_left: { canvas_type: 'I1', content_type: 'text_heavy_columns' },
+  image_right: { canvas_type: 'I2', content_type: 'text_heavy_columns' },
+  chart: { canvas_type: 'C1', content_type: 'chart', chart_subtype: 'single' },
+  infographic: { canvas_type: 'C1', content_type: 'infographic', infographic_subtype: 'vertical_center' },
+  text: { canvas_type: 'C1', content_type: 'text_heavy_columns' },
+}
+
+export function addSlideV2Selections(
+  slideType: AddSlideV2Type,
+  subtype: AddSlideV2ContentSubtype | null,
+): AddSlideV2Selections | null {
+  if (slideType !== 'content') return { ...HERO_SELECTIONS[slideType] }
+  const selections = CONTENT_SELECTIONS[subtype ?? 'auto']
+  return selections ? { ...selections } : null
+}
+
+// The Slide panel's default (its `webSearchMaxQueries` state); the cap is not inherited from the chat.
+export const ADD_SLIDE_V2_WEB_SEARCH_MAX_QUERIES = 3
+
+/** Wire body for POST /api/slides/compose before the async fields (job_id, async, assume_on_missing). */
+export interface AddSlideV2ComposeBody<TTheme = unknown> {
+  session_id: string
+  presentation_id: string | null
+  insert_after_index: number | null
+  instruction: string
+  theme: TTheme
+  selections?: AddSlideV2Selections
+  research: {
+    use_uploaded_documents: boolean
+    use_web_search: boolean
+    use_deep_research: boolean
+    use_knowledge_graph: boolean
+    web_search_max_queries: number
+  }
+}
+
+/**
+ * The popup's request as the compose wire body. `insertAfterIndex` is the REAL Layout anchor the page resolved
+ * (see resolveAddSlideV2Anchor), never request.anchorVisualIndex. snake_case, no UX-only fields.
+ */
+export function buildAddSlideV2ComposeBody<TTheme>(
+  request: AddSlideV2Request<TTheme>,
+  insertAfterIndex: number | null,
+): AddSlideV2ComposeBody<TTheme> | null {
+  const selections = addSlideV2Selections(request.slideType, request.contentSubtype)
+  if (!selections || !request.sessionId) return null
+  return {
+    session_id: request.sessionId,
+    presentation_id: request.presentationId,
+    insert_after_index: insertAfterIndex,
+    instruction: request.instruction,
+    theme: request.theme,
+    selections,
+    research: {
+      use_uploaded_documents: request.research.useUploadedDocuments,
+      use_web_search: request.research.useWebSearch,
+      use_deep_research: request.research.useDeepResearch,
+      use_knowledge_graph: request.research.useKnowledgeGraph,
+      web_search_max_queries: ADD_SLIDE_V2_WEB_SEARCH_MAX_QUERIES,
+    },
   }
 }
 
