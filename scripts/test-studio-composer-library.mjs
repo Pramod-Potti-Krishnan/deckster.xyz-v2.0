@@ -7,7 +7,7 @@ import postcss from 'postcss'
 
 const path = 'components/builder/composer-library-dialog.tsx'
 const source = fs.readFileSync(new URL(`../${path}`, import.meta.url), 'utf8')
-const original = execFileSync('git', ['show', `4ae12a9:${path}`], { encoding: 'utf8' })
+const original = execFileSync('git', ['show', `49053ce:${path}`], { encoding: 'utf8' })
 const css = fs.readFileSync(new URL('../components/builder/studio-composer-library.css', import.meta.url), 'utf8')
 postcss.parse(css)
 // Pin the reviewed pre-adaptation source: native attributes/wrapper are the only change.
@@ -17,6 +17,13 @@ const body = source.slice(start + '  const body = <>\n'.length, end)
 let restored = source.slice(0, start) + source.slice(end + '  </>\n\n'.length)
 restored = restored.replace(/        \{studioShell \? <div data-studio-composer-body="true" tabIndex=\{0\} role="region" aria-label="Template upload and library">\{body\}<\/div> : body\}\n/, body)
 restored = restored.replace(/ (?:data-studio-composer[\w-]*|tabIndex|aria-label|role)=\{studioShell \? [^}]+ : undefined\}/g, '')
+// BASE-J5 (ditto): the flag-gated "Rebuild from own content" action is the only addition to the reviewed classic source.
+for (const addition of [
+  /import \{ COMPOSER_DITTO_MODE \} from '@\/lib\/composer-ditto'\n/,
+  /  const dittoEnabled = process\.env\.NEXT_PUBLIC_COMPOSER_STAGE1B_DITTO_ENABLED === 'true'\n/,
+  /  \/\/ Stage 1B G3: rebuild[\s\S]*?\n  }\n\n/,
+  /                    \{dittoEnabled && <Button[^\n]*\n/,
+]) { assert(addition.test(restored), String(addition)); restored = restored.replace(addition, '') }
 restored = restored.replace("import './studio-composer-library.css'\n", '').replace("  const studioShell = process.env.NEXT_PUBLIC_STUDIO_V4_SHELL === 'true'\n", '')
 assert.equal(restored, original, 'Every original handler/effect/payload/condition/default/copy and classic markup must remain exact')
 
@@ -101,7 +108,7 @@ for (const loading of [true, false]) {
 }
 const local = runtime(source, 'true', 'true', true, [templates, false, false, null, null, null, '', null])
 let tree = local.render({ open: true, onOpenChange() {} })
-find(tree, item => item.props['data-studio-composer-record'] === 'supplied-one').props.children[0].props.children[1].props.children[1].props.onClick()
+all(find(tree, item => item.props['data-studio-composer-record'] === 'supplied-one'), item => item.type === 'Button' && visible(item) === 'New topic')[0].props.onClick()
 tree = local.render({ open: true, onOpenChange() {} })
 const brief = find(tree, item => item.props.id === 'composer-new-brief'); assert.equal(brief.props.maxLength, 4000)
 brief.props.onChange({ target: { value: 'Local unsent brief retained in the native field' } }); tree = local.render({ open: true, onOpenChange() {} })

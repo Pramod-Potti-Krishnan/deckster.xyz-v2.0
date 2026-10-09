@@ -7,6 +7,7 @@ import { Button } from '@/components/ui/button'
 import { Textarea } from '@/components/ui/textarea'
 import { useAuth } from '@/hooks/use-auth'
 import { useChatSessions } from '@/hooks/use-chat-sessions'
+import { COMPOSER_DITTO_MODE } from '@/lib/composer-ditto'
 import { uploadFileToResearcher } from '@/lib/researcher-upload'
 import { evaluateLayoutViewerUrl } from '@/lib/layout-viewer-url-policy'
 import { LAYOUT_VIEWER_URL_POLICY } from '@/lib/layout-service-client'
@@ -36,6 +37,7 @@ export function ComposerLibraryDialog({ open, onOpenChange }: {
   const [newBrief, setNewBrief] = useState('')
   const [newTopicTemplateId, setNewTopicTemplateId] = useState<string | null>(null)
   const newTopicEnabled = process.env.NEXT_PUBLIC_COMPOSER_STAGE1B_NEW_TOPIC_ENABLED === 'true'
+  const dittoEnabled = process.env.NEXT_PUBLIC_COMPOSER_STAGE1B_DITTO_ENABLED === 'true'
   const controllerRef = useRef<AbortController | null>(null)
   const fileInputRef = useRef<HTMLInputElement>(null)
 
@@ -146,6 +148,21 @@ export function ComposerLibraryDialog({ open, onOpenChange }: {
     })
   }
 
+  // Stage 1B G3: rebuild the deck from the template's own content (zero model calls on the backend).
+  const rebuildTemplate = (template: ComposerTemplate) => {
+    if (!userId || busy) return
+    void run(async signal => {
+      setProgress('Preparing a new deck…')
+      requireComposerServiceUrl(process.env.NEXT_PUBLIC_LAYOUT_SERVICE_URL, 'layout-builder-v75-uat.up.railway.app')
+      const sessionId = crypto.randomUUID()
+      if (!await createSession(sessionId, `Rebuild: ${template.name}`)) throw new Error('Could not create the deck session.')
+      if (signal.aborted) return
+      const job = await composerRequest<ComposerJob>(`templates/${encodeURIComponent(template.id)}/use`,
+        { session_id: sessionId, mode: COMPOSER_DITTO_MODE }, signal)
+      await finishJob({ job_id: job.job_id, session_id: sessionId, kind: 'use' }, signal)
+    })
+  }
+
   const body = <>
         <div data-studio-composer-upload={studioShell ? 'true' : undefined} className="space-y-3">
           <label className="block text-sm font-medium" htmlFor="composer-template-file">Add a presentation</label>
@@ -175,6 +192,7 @@ export function ComposerLibraryDialog({ open, onOpenChange }: {
                   </div>
                   <div data-studio-composer-actions={studioShell ? 'true' : undefined} className="flex shrink-0 gap-2">
                     <Button data-studio-composer-action={studioShell ? 'use' : undefined} size="sm" variant="outline" disabled={busy || !userId} onClick={() => useTemplate(template)}>Use original</Button>
+                    {dittoEnabled && <Button data-studio-composer-action={studioShell ? 'ditto' : undefined} size="sm" variant="outline" disabled={busy || !userId} onClick={() => rebuildTemplate(template)}>Rebuild from own content</Button>}
                     {newTopicEnabled && <Button data-studio-composer-action={studioShell ? 'new-topic' : undefined} size="sm" variant="outline" disabled={busy || !userId}
                       onClick={() => { setNewTopicTemplateId(template.id); setNewBrief(''); setError(null) }}>New topic</Button>}
                   </div>
