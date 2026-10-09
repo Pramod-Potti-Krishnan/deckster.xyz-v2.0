@@ -105,6 +105,21 @@ export function AddSlideV2Panel<TTheme = unknown>({
   // Keep the draft across closing the panel; it clears only after a successful Generate or an explicit Discard.
   useEffect(() => { saveAddSlideV2Draft(storage, draftKey, draft, options) }, [storage, draftKey, draft, options])
 
+  // Escape closes the panel from anywhere, like Add Element's window shortcut. Skipped while a Generate is in flight,
+  // in a hidden Studio drawer (it stays mounted) and when a Radix layer (the catalog picker) already took the key.
+  const rootRef = useRef<HTMLDivElement>(null)
+  useEffect(() => {
+    if (typeof window === 'undefined') return
+    const onKeyDown = (event: globalThis.KeyboardEvent) => {
+      if (event.key !== 'Escape' || pending || event.defaultPrevented) return
+      if (rootRef.current?.closest('[data-studio-v4-shell="true"] [data-studio-workspace-visible="false"]')) return
+      event.preventDefault()
+      onClose()
+    }
+    window.addEventListener('keydown', onKeyDown)
+    return () => window.removeEventListener('keydown', onKeyDown)
+  }, [pending, onClose])
+
   // An error or a "Queued" note belongs to the slide it was raised on: the panel stays open while the user moves
   // between slides (or the viewer follows a new one), so both clear when the current slide changes.
   useEffect(() => {
@@ -162,8 +177,8 @@ export function AddSlideV2Panel<TTheme = unknown>({
       <div
         data-studio-v4-panel="add-slide-generation"
         data-studio-add-slide-v2="true"
+        ref={rootRef}
         className="asv2 flex-1 bg-white dark:bg-slate-900 flex flex-col shadow-2xl overflow-hidden pointer-events-auto"
-        onKeyDown={event => { if (event.key === 'Escape' && !pending) onClose() }}
       >
         <div data-studio-v4-panel-header className="flex items-center justify-between px-3 py-2 border-b border-gray-200 dark:border-slate-700 bg-gray-50 dark:bg-slate-800">
           <div className="flex items-center gap-2.5">

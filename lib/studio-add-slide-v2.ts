@@ -25,11 +25,12 @@ export type AddSlideV2ContentSubtype =
   | 'diagram'
 
 // ---- Options and their kill switches ---------------------------------------------------------------------------------
-// One table. An option is shown only when its id is in the resolved set (see resolveAddSlideV2Options):
-//   - NEXT_PUBLIC_STUDIO_ADD_SLIDE_V2_DISABLED_OPTIONS="table,diagram" hides those ids without a code change.
-//     Unset or blank = the stage-2 ids are hidden (DEC-P8: stage 1 is proven first). Any other value replaces that
-//     default, so "none" shows everything (a blank value is NOT "show everything", so an emptied variable stays safe).
-//   - `optIn` options are off unless NEXT_PUBLIC_STUDIO_ADD_SLIDE_V2_ENABLED_OPTIONS names them.
+// One table. An option is shown only when its id is in the resolved set (see resolveAddSlideV2Options). One rule:
+//   hidden = (the default-hidden ids: stage 2 + the opt-in scaffold) + DISABLED, minus ENABLED; DISABLED always wins.
+//   - NEXT_PUBLIC_STUDIO_ADD_SLIDE_V2_DISABLED_OPTIONS="image_left" ADDS ids to the hidden set; it never un-hides the
+//     default (DEC-P8: stage 2 stays hidden until it is proven).
+//   - NEXT_PUBLIC_STUDIO_ADD_SLIDE_V2_ENABLED_OPTIONS="chart" REMOVES the named ids from the default-hidden set;
+//     "all" removes every stage-2 id. The opt-in scaffold (`regenerate`) is only ever enabled by naming it.
 export type AddSlideV2OptionId =
   | AddSlideV2Type
   | AddSlideV2ContentSubtype
@@ -45,7 +46,7 @@ export interface AddSlideV2OptionConfig {
   hint: string
   /** DEC-P8 proof stage: 1 = Title/Section/Closing/Auto/Text/Image left/right, 2 = Chart/Infographic/Table/Diagram. */
   stage: 1 | 2
-  /** Off unless named in NEXT_PUBLIC_STUDIO_ADD_SLIDE_V2_ENABLED_OPTIONS. */
+  /** Off unless named in NEXT_PUBLIC_STUDIO_ADD_SLIDE_V2_ENABLED_OPTIONS (`all` does not include it). */
   optIn?: boolean
 }
 
@@ -75,18 +76,28 @@ export function parseAddSlideV2OptionList(raw: string | undefined | null): Set<s
   return new Set((raw ?? '').split(',').map(part => part.trim().toLowerCase()).filter(Boolean))
 }
 
-/** The ids that are shown. An unset or blank `rawDisabled` means "not configured": the stage-2 ids stay hidden. */
+/** Shorthand in the ENABLED list for every stage-2 id (not the opt-in scaffold). */
+export const ADD_SLIDE_V2_ENABLE_ALL = 'all'
+
+/**
+ * The ids that are shown. Default-hidden ids (stage 2, opt-in) show only when named in `rawEnabled` (or `all` for
+ * stage 2); `rawDisabled` hides more and wins over `rawEnabled`. Unknown ids are ignored, so a typo never shows or
+ * hides anything by accident, and unset, blank or "none" behave like an empty list.
+ */
 export function resolveAddSlideV2Options(
   rawDisabled: string | undefined | null,
-  rawOptIn?: string | undefined | null,
+  rawEnabled?: string | undefined | null,
 ): ReadonlySet<string> {
-  const disabled = rawDisabled === undefined || rawDisabled === null || rawDisabled.trim() === ''
-    ? new Set<string>(ADD_SLIDE_V2_STAGE2_IDS)
-    : parseAddSlideV2OptionList(rawDisabled)
-  const optIn = parseAddSlideV2OptionList(rawOptIn)
+  const disabled = parseAddSlideV2OptionList(rawDisabled)
+  const enabled = parseAddSlideV2OptionList(rawEnabled)
+  const enableAllStage2 = enabled.has(ADD_SLIDE_V2_ENABLE_ALL)
   return new Set(
     ADD_SLIDE_V2_OPTION_CONFIG
-      .filter(option => !disabled.has(option.id) && (!option.optIn || optIn.has(option.id)))
+      .filter(option => {
+        if (disabled.has(option.id)) return false
+        if (option.stage !== 2 && !option.optIn) return true
+        return enabled.has(option.id) || (enableAllStage2 && option.stage === 2)
+      })
       .map(option => option.id),
   )
 }

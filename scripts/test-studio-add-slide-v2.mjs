@@ -17,9 +17,9 @@ const { renderToStaticMarkup } = require('react-dom/server')
 
 const FLAG = 'NEXT_PUBLIC_STUDIO_ADD_SLIDE_V2_ENABLED'
 const DISABLED_ENV = 'NEXT_PUBLIC_STUDIO_ADD_SLIDE_V2_DISABLED_OPTIONS'
-const OPT_IN_ENV = 'NEXT_PUBLIC_STUDIO_ADD_SLIDE_V2_ENABLED_OPTIONS'
-// Every option on (the default hides the stage-2 ones; "none" shows them all), so the suites can reach every style.
-const ALL_ENV = { [DISABLED_ENV]: 'none' }
+const ENABLED_ENV = 'NEXT_PUBLIC_STUDIO_ADD_SLIDE_V2_ENABLED_OPTIONS'
+// Every option on (the default hides the stage-2 ones; ENABLED=all shows them), so the suites can reach every style.
+const ALL_ENV = { [ENABLED_ENV]: 'all' }
 function read(relative) { return fs.readFileSync(new URL(relative, import.meta.url), 'utf8') }
 function compile(source) {
   return ts.transpileModule(source, { compilerOptions: { module: ts.ModuleKind.CommonJS, jsx: ts.JsxEmit.ReactJSX, target: ts.ScriptTarget.ES2022 } }).outputText
@@ -280,29 +280,47 @@ function libSuite(lib) {
   check(assert.deepEqual, ids, ['title', 'section', 'closing', 'content', 'auto', 'text', 'image_left', 'image_right', 'chart', 'infographic', 'table', 'diagram', 'blank', 'catalog', 'blank_theme', 'regenerate'], 'the whole option table, ids are the env vocabulary')
   check(assert.equal, new Set(ids).size, ids.length, 'ids are unique across groups')
   check(assert.deepEqual, [...lib.ADD_SLIDE_V2_STAGE2_IDS], ['chart', 'infographic', 'table', 'diagram'], 'DEC-P8: stage 2 = Chart, Infographic, Table, Diagram')
-  const resolve = (disabled, optIn) => [...lib.resolveAddSlideV2Options(disabled, optIn)]
+  const resolve = (disabled, enabled) => [...lib.resolveAddSlideV2Options(disabled, enabled)]
   const STAGE1 = ['title', 'section', 'closing', 'content', 'auto', 'text', 'image_left', 'image_right', 'blank', 'catalog', 'blank_theme']
+  const STAGE2 = ['chart', 'infographic', 'table', 'diagram']
+  const inOrder = list => [...list].sort((a, b) => ids.indexOf(a) - ids.indexOf(b))
   check(assert.deepEqual, resolve(undefined), STAGE1, 'DEC-P8: unset = stage 1 on, stage 2 hidden, the regenerate scaffold off')
-  check(assert.deepEqual, resolve(null), STAGE1, 'null counts as unset')
-  check(assert.deepEqual, resolve('none'), [...STAGE1, 'chart', 'infographic', 'table', 'diagram'].sort((a, b) => ids.indexOf(a) - ids.indexOf(b)), '"none" shows every stage')
-  check(assert.deepEqual, resolve(''), STAGE1, 'a blank value counts as unset: stage 2 stays hidden (an emptied variable is not "show everything")')
-  check(assert.deepEqual, resolve('  , ,'), resolve('none'), 'a list of only separators is an explicit list of nothing')
-  check(assert.deepEqual, resolve('   '), STAGE1, 'whitespace only counts as blank')
-  check(assert.equal, resolve('table,diagram').includes('chart'), true, 'an explicit list REPLACES the stage-2 default (chart is back on)')
-  check(assert.equal, resolve('table,diagram').includes('table'), false)
-  check(assert.equal, resolve('table,diagram').includes('diagram'), false)
-  check(assert.equal, resolve(' Table , DIAGRAM ,, ').includes('table'), false, 'ids are trimmed, lower-cased, empty entries ignored')
-  check(assert.equal, resolve('bogus,table').includes('chart'), true, 'unknown ids are ignored')
-  check(assert.equal, resolve('regenerate').includes('regenerate'), false, 'regenerate is opt-in, not "everything not disabled"')
-  check(assert.equal, resolve('none', 'regenerate').includes('regenerate'), true, 'the opt-in list turns the scaffold on')
-  check(assert.equal, resolve('regenerate', 'regenerate').includes('regenerate'), false, 'the kill switch still wins over the opt-in')
-  check(assert.equal, resolve('none', 'chart').includes('table'), true, 'an opt-in list does not hide anything')
+  check(assert.deepEqual, resolve(null, null), STAGE1, 'null counts as unset')
+  check(assert.deepEqual, resolve(''), STAGE1, 'a blank value counts as unset')
+  check(assert.deepEqual, resolve('   ', '  '), STAGE1, 'whitespace only counts as blank')
+  check(assert.deepEqual, resolve('  , ,'), STAGE1, 'a list of only separators is an empty list')
+  // ADDITIVE: DISABLED only ever hides more
+  check(assert.deepEqual, resolve('image_left'), STAGE1.filter(id => id !== 'image_left'), 'DISABLED=image_left hides image_left and STAGE 2 STAYS HIDDEN')
+  for (const id of STAGE2) check(assert.equal, resolve('image_left').includes(id), false, `DISABLED=image_left does not un-hide ${id}`)
+  check(assert.deepEqual, resolve('table,diagram'), STAGE1, 'DISABLED=table,diagram changes nothing by default (they are already hidden)')
+  check(assert.deepEqual, resolve('none'), STAGE1, '"none" is not special any more: an unknown id, ignored')
+  check(assert.deepEqual, resolve('bogus,table'), STAGE1, 'unknown ids are ignored')
+  check(assert.equal, resolve(' Title , SECTION ,, ').includes('title') || resolve(' Title , SECTION ,, ').includes('section'), false, 'ids are trimmed and lower-cased, empty entries ignored')
+  // ENABLED removes ids from the default-hidden set
+  check(assert.deepEqual, resolve(undefined, 'chart'), inOrder([...STAGE1, 'chart']), 'ENABLED=chart shows chart ONLY')
+  check(assert.deepEqual, resolve(undefined, ' Chart , TABLE ,, '), inOrder([...STAGE1, 'chart', 'table']), 'ENABLED ids are trimmed and lower-cased')
+  check(assert.deepEqual, resolve(undefined, 'all'), inOrder([...STAGE1, ...STAGE2]), 'ENABLED=all shows every stage-2 id')
+  check(assert.deepEqual, resolve(undefined, 'ALL'), inOrder([...STAGE1, ...STAGE2]), 'all is case-insensitive')
+  check(assert.deepEqual, resolve(undefined, 'title'), STAGE1, 'ENABLED naming a stage-1 id changes nothing')
+  check(assert.deepEqual, resolve('bogus', 'bogus'), STAGE1, 'unknown ids in both lists change nothing')
+  check(assert.deepEqual, resolve('image_left', 'chart'), inOrder([...STAGE1.filter(id => id !== 'image_left'), 'chart']), 'both lists apply together')
+  // DISABLED wins
+  check(assert.equal, resolve('chart', 'chart').includes('chart'), false, 'an id in both ENABLED and DISABLED stays hidden')
+  check(assert.equal, resolve('title', 'title').includes('title'), false, 'DISABLED wins for a stage-1 id too')
+  check(assert.deepEqual, resolve('table', 'all'), inOrder([...STAGE1, 'chart', 'infographic', 'diagram']), 'ENABLED=all with DISABLED=table: all stage 2 but table')
+  // the opt-in scaffold
+  check(assert.equal, resolve(undefined, 'all').includes('regenerate'), false, 'all does not include the opt-in scaffold')
+  check(assert.equal, resolve(undefined, 'regenerate').includes('regenerate'), true, 'naming the scaffold turns it on')
+  check(assert.equal, resolve('regenerate', 'regenerate').includes('regenerate'), false, 'DISABLED wins over ENABLED for the scaffold')
+  check(assert.equal, resolve('regenerate').includes('regenerate'), false, 'regenerate is off unless ENABLED names it')
+  check(assert.equal, resolve(undefined, 'regenerate').includes('chart'), false, 'ENABLED=regenerate does not show stage 2')
   for (const id of ids.filter(i => i !== 'regenerate')) {
-    check(assert.equal, resolve('none').includes(id), true, `${id} is on in the full set`)
-    check(assert.equal, resolve(id).includes(id), false, `NEXT_PUBLIC_STUDIO_ADD_SLIDE_V2_DISABLED_OPTIONS=${id} hides ${id}`)
-    check(assert.equal, resolve(`${id},${id === 'blank' ? 'catalog' : 'blank'}`).includes(id), false, `${id} hidden inside a list`)
+    check(assert.equal, resolve(undefined, 'all').includes(id), true, `${id} is on in the full set`)
+    check(assert.equal, resolve(id, 'all').includes(id), false, `DISABLED=${id} hides ${id} even with ENABLED=all`)
+    check(assert.equal, resolve(id).includes(id), false, `DISABLED=${id} hides ${id}`)
+    check(assert.equal, resolve(`${id},${id === 'blank' ? 'catalog' : 'blank'}`, 'all').includes(id), false, `${id} hidden inside a list`)
   }
-  const allOn = lib.resolveAddSlideV2Options('none')
+  const allOn = lib.resolveAddSlideV2Options(undefined, 'all')
   const labels = os => os.map(o => o.value)
   check(assert.deepEqual, labels(lib.availableAddSlideV2Types(allOn)), ['title', 'section', 'closing', 'content'])
   check(assert.deepEqual, labels(lib.availableAddSlideV2Subtypes(allOn)), ['auto', 'text', 'image_left', 'image_right', 'chart', 'infographic', 'table', 'diagram'])
@@ -464,7 +482,7 @@ function markupSuite(panelSource, lib) {
   check(assert.match, withCatalog, /<button type="button" class="asv2-catalog"[^>]*>Browse layout catalog<\/button>/, 'DEC-P1: the secondary link')
   check(assert.equal, /aria-current|role="tab"|role="tablist"/.test(withCatalog), false, 'a link, not a mode')
   // the kill switches, one option at a time, on the panel
-  const everyOn = lib.resolveAddSlideV2Options('none')
+  const everyOn = lib.resolveAddSlideV2Options(undefined, 'all')
   const minus = id => new Set([...everyOn].filter(x => x !== id))
   for (const id of ['title', 'section', 'closing', 'content']) {
     const html = render({ submit: async () => ({ ok: true }), options: minus(id), onBrowseCatalog() {}, initialDraft: { slideType: id === 'title' ? 'closing' : 'title', contentSubtype: 'auto', text: '' } })
@@ -750,7 +768,20 @@ function mountPanel(panelSource, lib, props, component = 'AddSlideV2Panel') {
     useRef(init) { const i = cursor++; if (!(i in slots)) slots[i] = { current: init }; return slots[i] },
     useMemo(fn, deps) { const i = cursor++; if (!same(slots[i]?.deps, deps)) slots[i] = { deps, value: fn() }; return slots[i].value },
     useId() { const i = cursor++; return `:r${i}:` },
-    useEffect(setup, deps) { const i = cursor++; if (!same(slots[i]?.deps, deps)) { slots[i] = { deps }; queued.push(setup) } },
+    useEffect(setup, deps) { const i = cursor++; if (!same(slots[i]?.deps, deps)) { const prev = slots[i]; slots[i] = { deps }; queued.push(() => { prev?.cleanup?.(); const cleanup = setup(); if (typeof cleanup === 'function') slots[i].cleanup = cleanup }) } },
+  }
+  // The panel's own `window`: records its listeners so a test can press keys and see them removed.
+  const listeners = []
+  const fakeWindow = {
+    sessionStorage: null,
+    addEventListener(type, fn) { listeners.push({ type, fn }) },
+    removeEventListener(type, fn) { const at = listeners.findIndex(l => l.type === type && l.fn === fn); if (at >= 0) listeners.splice(at, 1) },
+  }
+  // A test may install its own `window` (the sessionStorage cases); the panel's listener methods layer on top of it.
+  const withWindow = fn => {
+    const prev = globalThis.window
+    globalThis.window = prev === undefined ? fakeWindow : Object.assign(Object.create(prev), { addEventListener: fakeWindow.addEventListener, removeEventListener: fakeWindow.removeEventListener })
+    try { return fn() } finally { if (prev === undefined) delete globalThis.window; else globalThis.window = prev }
   }
   const jsx = (type, p, key) => ({ type, props: p ?? {}, key })
   const icon = () => null
@@ -768,7 +799,7 @@ function mountPanel(panelSource, lib, props, component = 'AddSlideV2Panel') {
     if (!node || typeof node !== 'object') return
     const ref = node.props?.ref
     if (ref && typeof ref === 'object' && !ref.current) {
-      ref.current = { tag: node.type, focus() { focused.push(node.type) }, querySelector: selector => (selector === 'button' ? props.catalogButton ?? null : null) }
+      ref.current = { tag: node.type, focus() { focused.push(node.type) }, closest(selector) { rt.closestSelectors.push(selector); return rt.hidden ? { hiddenDrawer: true } : null }, querySelector: selector => (selector === 'button' ? props.catalogButton ?? null : null) }
     }
     const c = node.props?.children
     for (const child of Array.isArray(c) ? c.flat(Infinity) : [c]) attachRefs(child)
@@ -776,11 +807,20 @@ function mountPanel(panelSource, lib, props, component = 'AddSlideV2Panel') {
   const rt = {
     closed: 0,
     focused,
+    hidden: false,
+    closestSelectors: [],
     render() {
       let guard = 0
-      do { cursor = 0; dirty = false; tree = mod[component]({ ...props }); attachRefs(tree); while (queued.length) queued.shift()() } while (dirty && ++guard < 30)
+      withWindow(() => { do { cursor = 0; dirty = false; tree = mod[component]({ ...props }); attachRefs(tree); while (queued.length) queued.shift()() } while (dirty && ++guard < 30) })
       return tree
     },
+    key(key, init = {}) {
+      const event = { key, defaultPrevented: false, preventDefault() { this.defaultPrevented = true }, ...init }
+      for (const listener of [...listeners]) if (listener.type === 'keydown') listener.fn(event)
+      return event
+    },
+    listenerCount: () => listeners.filter(l => l.type === 'keydown').length,
+    unmount() { withWindow(() => { for (const slot of slots) slot?.cleanup?.() }) },
     get tree() { return tree },
     setProps(over) { Object.assign(props, over); rt.render() },
     all(pred) {
@@ -930,17 +970,28 @@ async function panelInteractionSuite(panelSource, lib) {
   rt.pick('content'); rt.type('Agenda')
   check(assert.equal, rt.byClass('asv2-generate').props.disabled, false, 'Content keeps its own rule')
 
-  // DEC-P1: the catalog link calls the handler; Escape closes (not while generating)
+  // DEC-P1: the catalog link calls the handler
   let browsed = 0, closes = 0
   rt = mountPanel(panelSource, lib, base(mem(), { onBrowseCatalog() { browsed++ }, onClose() { closes++ } }))
   await rt.click('asv2-catalog')
   check(assert.equal, browsed, 1, 'the link opens the classic picker')
   check(assert.equal, closes, 0, 'opening the catalog does not close the panel')
-  const root = () => rt.one(n => n.props?.['data-studio-add-slide-v2'] === 'true')
-  root().props.onKeyDown({ key: 'Escape' })
-  check(assert.equal, closes, 1, 'Escape closes the panel')
-  root().props.onKeyDown({ key: 'a' })
-  check(assert.equal, closes, 1, 'other keys do not')
+  // Escape closes the panel from anywhere, like Add Element: one window listener with the same three guards
+  check(assert.equal, rt.listenerCount(), 1, 'one window keydown listener while the panel is mounted')
+  rt.key('a')
+  check(assert.equal, closes, 0, 'other keys do not close')
+  const esc = rt.key('Escape')
+  check(assert.equal, closes, 1, 'Escape closes the panel from anywhere (a window listener, not focus inside the panel)')
+  check(assert.equal, esc.defaultPrevented, true, 'and the key is consumed')
+  rt.key('Escape', { defaultPrevented: true })
+  check(assert.equal, closes, 1, 'an Escape a Radix layer (the catalog picker) already took does not close the panel')
+  rt.hidden = true
+  rt.key('Escape')
+  check(assert.equal, closes, 1, 'a hidden Studio drawer (still mounted) ignores Escape')
+  check(assert.equal, rt.closestSelectors.at(-1), '[data-studio-v4-shell="true"] [data-studio-workspace-visible="false"]', 'the same hidden-drawer test Add Element uses')
+  rt.hidden = false
+  rt.unmount()
+  check(assert.equal, rt.listenerCount(), 0, 'the listener is removed when the panel unmounts')
   let release; const slow = new Promise(resolve => { release = resolve })
   rt = mountPanel(panelSource, lib, base(mem(), { onClose() { closes++ }, submit: () => slow }))
   rt.pick('chart'); rt.type('Slow slide')
@@ -948,12 +999,15 @@ async function panelInteractionSuite(panelSource, lib) {
   await Promise.resolve()
   rt.render()
   check(assert.equal, rt.byClass('asv2-generate').props.children.at(-1), 'Generating…', 'pending label')
-  root().props.onKeyDown({ key: 'Escape' })
+  rt.key('Escape')
   check(assert.equal, closes, 1, 'Escape does not close a panel that is generating')
   release({ ok: true }); await clicking
-  const offCatalog = mountPanel(panelSource, lib, base(mem(), { onBrowseCatalog() {}, options: new Set([...lib.resolveAddSlideV2Options('none')].filter(x => x !== 'catalog')) }))
+  check(assert.equal, rt.listenerCount(), 1, 'one listener after the re-subscribe (the old one was removed)')
+  rt.key('Escape')
+  check(assert.equal, closes, 2, 'once generating is over, Escape closes again (the listener sees the current state)')
+  const offCatalog = mountPanel(panelSource, lib, base(mem(), { onBrowseCatalog() {}, options: new Set([...lib.resolveAddSlideV2Options(undefined, 'all')].filter(x => x !== 'catalog')) }))
   check(assert.equal, offCatalog.maybeClass('asv2-catalog'), null, 'the catalog kill switch hides the link')
-  const offBlank = mountPanel(panelSource, lib, base(mem(), { options: new Set([...lib.resolveAddSlideV2Options('none')].filter(x => x !== 'blank')) }))
+  const offBlank = mountPanel(panelSource, lib, base(mem(), { options: new Set([...lib.resolveAddSlideV2Options(undefined, 'all')].filter(x => x !== 'blank')) }))
   check(assert.equal, offBlank.maybeClass('asv2-blank'), null, 'the blank kill switch hides the button')
 
   // the kill switches in the real component: a hidden style is neither offered nor restored
@@ -967,7 +1021,7 @@ async function panelInteractionSuite(panelSource, lib) {
   check(assert.equal, rt.text(), 'Saved before the switch', 'the text is kept')
   check(assert.equal, rt.all(n => n.type === 'input' && n.props.type === 'radio').length, 8)
   s8.map.set(key, JSON.stringify({ slideType: 'content', contentSubtype: 'table', text: 'Saved before the switch' }))
-  rt = mountPanel(panelSource, lib, base(s8, { options: lib.resolveAddSlideV2Options('none') }))
+  rt = mountPanel(panelSource, lib, base(s8, { options: lib.resolveAddSlideV2Options(undefined, 'all') }))
   check(assert.equal, rt.radio('table').props.checked, true, 'with the switch lifted the stored choice is back')
 
   // storage that throws, or none, never breaks the panel
@@ -1159,20 +1213,32 @@ const optionsFrom = env => [...load(LIB, { env }).ADD_SLIDE_V2_OPTIONS]
 const STAGE1_IDS = ['title', 'section', 'closing', 'content', 'auto', 'text', 'image_left', 'image_right', 'blank', 'catalog', 'blank_theme']
 check(assert.deepEqual, optionsFrom({}), STAGE1_IDS, 'DEC-P8: with the env unset only stage 1 is offered')
 check(assert.deepEqual, optionsFrom({ [DISABLED_ENV]: undefined }), STAGE1_IDS)
-for (const id of ['title', 'section', 'closing', 'content', 'auto', 'text', 'image_left', 'image_right', 'chart', 'infographic', 'table', 'diagram', 'blank', 'catalog', 'blank_theme']) {
-  const on = optionsFrom({ [DISABLED_ENV]: id })
-  check(assert.equal, on.includes(id), false, `env ${DISABLED_ENV}=${id} hides ${id}`)
-  check(assert.equal, on.length >= STAGE1_IDS.length - 1, true, 'and only that id (an explicit list replaces the stage-2 default)')
+const STAGE2_IDS = ['chart', 'infographic', 'table', 'diagram']
+for (const id of ['title', 'section', 'closing', 'content', 'auto', 'text', 'image_left', 'image_right', ...STAGE2_IDS, 'blank', 'catalog', 'blank_theme']) {
+  const off = optionsFrom({ [DISABLED_ENV]: id })
+  check(assert.equal, off.includes(id), false, `env ${DISABLED_ENV}=${id} hides ${id}`)
+  check(assert.deepEqual, off, STAGE1_IDS.filter(x => x !== id), 'and only that id: the rest of the default is untouched')
+  check(assert.equal, optionsFrom({ [DISABLED_ENV]: id, [ENABLED_ENV]: 'all' }).includes(id), false, `${id} stays hidden when ENABLED=all too`)
 }
-check(assert.deepEqual, optionsFrom({ [DISABLED_ENV]: 'table,diagram' }).filter(id => ['chart', 'infographic', 'table', 'diagram'].includes(id)), ['chart', 'infographic'], 'table,diagram hidden, chart and infographic shown')
-check(assert.equal, optionsFrom({ [DISABLED_ENV]: 'none' }).length, 15, 'none = every non-opt-in option')
-check(assert.equal, optionsFrom({ [DISABLED_ENV]: 'none', [OPT_IN_ENV]: 'regenerate' }).includes('regenerate'), true, 'regenerate needs the opt-in env')
-check(assert.equal, optionsFrom({ [DISABLED_ENV]: 'none' }).includes('regenerate'), false, 'regenerate is off by default')
+check(assert.deepEqual, optionsFrom({ [DISABLED_ENV]: 'image_left' }).filter(id => STAGE2_IDS.includes(id)), [], 'DISABLED=image_left does NOT un-hide stage 2')
+check(assert.deepEqual, optionsFrom({ [ENABLED_ENV]: 'chart' }).filter(id => STAGE2_IDS.includes(id)), ['chart'], 'ENABLED=chart shows chart only')
+check(assert.deepEqual, optionsFrom({ [ENABLED_ENV]: 'all' }).filter(id => STAGE2_IDS.includes(id)), STAGE2_IDS, 'ENABLED=all shows every stage-2 id')
+check(assert.equal, optionsFrom({ [ENABLED_ENV]: 'all' }).length, 15, 'ENABLED=all = every non-opt-in option')
+check(assert.equal, optionsFrom({ [DISABLED_ENV]: 'chart', [ENABLED_ENV]: 'chart,table' }).includes('chart'), false, 'an id in both lists stays hidden')
+check(assert.equal, optionsFrom({ [DISABLED_ENV]: 'chart', [ENABLED_ENV]: 'chart,table' }).includes('table'), true, 'and the rest of ENABLED applies')
+check(assert.equal, optionsFrom({ [DISABLED_ENV]: 'none' }).length, STAGE1_IDS.length, '"none" is no longer special: stage 1 only')
+check(assert.equal, optionsFrom({ [ENABLED_ENV]: 'regenerate' }).includes('regenerate'), true, 'regenerate needs the enabled env')
+check(assert.equal, optionsFrom({ [ENABLED_ENV]: 'all' }).includes('regenerate'), false, 'ENABLED=all does not turn the scaffold on')
+check(assert.equal, optionsFrom({}).includes('regenerate'), false, 'regenerate is off by default')
 // the documentation names every id and both env vars
-for (const needle of [DISABLED_ENV, OPT_IN_ENV, FLAG, ...['title', 'section', 'closing', 'content', 'auto', 'text', 'image_left', 'image_right', 'chart', 'infographic', 'table', 'diagram', 'blank', 'catalog', 'blank_theme', 'regenerate']]) {
+for (const needle of [DISABLED_ENV, ENABLED_ENV, FLAG, ...['title', 'section', 'closing', 'content', 'auto', 'text', 'image_left', 'image_right', 'chart', 'infographic', 'table', 'diagram', 'blank', 'catalog', 'blank_theme', 'regenerate']]) {
   check(assert.equal, ENVEX.includes(needle), true, `.env.example documents ${needle}`)
 }
-check(assert.match, ENVEX, /\n# NEXT_PUBLIC_STUDIO_ADD_SLIDE_V2_DISABLED_OPTIONS="table,diagram"\n/, 'the example line is commented out: copying .env.example must not change the default')
+check(assert.match, ENVEX, /\n# NEXT_PUBLIC_STUDIO_ADD_SLIDE_V2_DISABLED_OPTIONS="image_left"\n/, 'the example line is commented out: copying .env.example must not change the default')
+check(assert.match, ENVEX, /\n# NEXT_PUBLIC_STUDIO_ADD_SLIDE_V2_ENABLED_OPTIONS="chart,table"\n/, 'the enable example is commented out too')
+check(assert.match, ENVEX, /ENABLED_OPTIONS[^\n]*\n[\s\S]{0,1200}\ball\b/, 'the documentation explains ENABLED=all')
+check(assert.match, ENVEX, /DISABLED wins|disabled wins/i, 'the documentation states that DISABLED wins')
+check(assert.equal, /"none"\s+everything shown/.test(ENVEX), false, 'the old "none" magic is gone from the documentation')
 check(assert.equal, /\nNEXT_PUBLIC_STUDIO_ADD_SLIDE_V2_(DISABLED|ENABLED)_OPTIONS=/.test(ENVEX), false, 'neither list is set by the example file')
 
 // ---- 2. behaviour on the real sources ----------------------------------------------------------------------------
@@ -1299,12 +1365,18 @@ const libMutants = [
   ['web search cap changed', 'ADD_SLIDE_V2_WEB_SEARCH_MAX_QUERIES = 3', 'ADD_SLIDE_V2_WEB_SEARCH_MAX_QUERIES = 5'],
   ['theme dropped from the body', '    instruction: request.instruction,\n    theme: request.theme,\n    research: {', '    instruction: request.instruction,\n    research: {'],
   ['research flag swapped on the wire', 'use_web_search: !researchOff && request.research.useWebSearch,', 'use_web_search: !researchOff && request.research.useDeepResearch,'],
-  ['stage-2 options shown by default', "? new Set<string>(ADD_SLIDE_V2_STAGE2_IDS)", '? new Set<string>()'],
-  ['a blank list means show everything', " || rawDisabled.trim() === ''", ''],
+  ['stage 2 is shown unless disabled', "        if (option.stage !== 2 && !option.optIn) return true\n", "        if (!option.optIn) return true\n"],
+  ['DISABLED un-hides stage 2 (the old replace rule)', "        if (option.stage !== 2 && !option.optIn) return true\n", "        if (option.stage !== 2 && !option.optIn) return true\n        if (disabled.size > 0 && !option.optIn) return true\n"],
+  ['ENABLED is ignored', "        return enabled.has(option.id) || (enableAllStage2 && option.stage === 2)", "        return false"],
+  ['ENABLED=all is ignored', "(enableAllStage2 && option.stage === 2)", "false"],
+  ['ENABLED=all also turns the scaffold on', "(enableAllStage2 && option.stage === 2)", "enableAllStage2"],
+  ['ENABLED=chart shows every stage-2 id', "return enabled.has(option.id) ||", "return enabled.size > 0 ||"],
+  ['ENABLED beats DISABLED', "        if (disabled.has(option.id)) return false\n", "        if (disabled.has(option.id) && !enabled.has(option.id)) return false\n"],
+  ['DISABLED is ignored', "        if (disabled.has(option.id)) return false\n", ""],
+  ['the enable-all word changed', "ADD_SLIDE_V2_ENABLE_ALL = 'all'", "ADD_SLIDE_V2_ENABLE_ALL = 'everything'"],
+  ['the opt-in scaffold needs no name', "if (option.stage !== 2 && !option.optIn) return true", "if (option.stage !== 2) return true"],
   ['option ids are case sensitive', '.map(part => part.trim().toLowerCase())', '.map(part => part.trim())'],
   ['option ids are not trimmed', '.map(part => part.trim().toLowerCase())', '.map(part => part.toLowerCase())'],
-  ['opt-in options ignore the opt-in list', '(!option.optIn || optIn.has(option.id))', 'true'],
-  ['an opt-in beats the kill switch', 'option => !disabled.has(option.id) && (!option.optIn || optIn.has(option.id))', 'option => (option.optIn ? optIn.has(option.id) : !disabled.has(option.id))'],
   ['Content is offered without styles', "(option.value !== 'content' || availableAddSlideV2Subtypes(options).length > 0)", 'true'],
   ['draft key ignores the deck', "${presentationId ?? 'no-deck'}", 'x'],
   ['draft key ignores the session', "${sessionId ?? 'no-session'}", 'x'],
@@ -1353,8 +1425,15 @@ const panelMutants = [
   ['the catalog link ignores its option', "const showCatalog = options.has('catalog') && Boolean(onBrowseCatalog)", 'const showCatalog = Boolean(onBrowseCatalog)'],
   ['the catalog link shows without a handler', "const showCatalog = options.has('catalog') && Boolean(onBrowseCatalog)", "const showCatalog = options.has('catalog')"],
   ['Blank ignores its option', "const showBlank = options.has('blank')", 'const showBlank = true'],
-  ['Escape is ignored', "onKeyDown={event => { if (event.key === 'Escape' && !pending) onClose() }}", 'onKeyDown={() => {}}'],
-  ['Escape closes a generating panel', "if (event.key === 'Escape' && !pending) onClose()", "if (event.key === 'Escape') onClose()"],
+  ['Escape is ignored', "if (event.key !== 'Escape' || pending || event.defaultPrevented) return\n", "return\n"],
+  ['Escape closes a generating panel', "event.key !== 'Escape' || pending || event.defaultPrevented", "event.key !== 'Escape' || event.defaultPrevented"],
+  ['Escape closes over a Radix layer', "event.key !== 'Escape' || pending || event.defaultPrevented", "event.key !== 'Escape' || pending"],
+  ['Escape closes a hidden drawer', "      if (rootRef.current?.closest('[data-studio-v4-shell=\"true\"] [data-studio-workspace-visible=\"false\"]')) return\n", ""],
+  ['Escape ignores the panel root', "        ref={rootRef}\n", ""],
+  ['Escape is not consumed', "      event.preventDefault()\n      onClose()", "      onClose()"],
+  ['Escape reacts to every key', "event.key !== 'Escape' || pending", "pending"],
+  ['the Escape listener is never removed', "return () => window.removeEventListener('keydown', onKeyDown)", "return undefined"],
+  ['the Escape listener goes stale', "  }, [pending, onClose])", "  }, [])"],
   ['a Diagram shows research on', '.map(row => diagram ? { ...row, on: false } : row)', '.map(row => row)'],
   ['the Diagram note is missing', '{diagram && <p className="asv2-note">Diagrams are built without research.</p>}', ''],
   ['the queued note is missing', "setQueued(`Queued. It appears right after slide ${context.currentSlide} when it is ready.`)", ''],
