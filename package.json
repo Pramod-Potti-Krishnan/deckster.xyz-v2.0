@@ -27,6 +27,7 @@
     "test:grid-splitter": "node scripts/test-grid-splitter.mjs",
     "test:theme-sync": "node scripts/test-theme-sync.mjs",
     "test:composer-long-brief": "node scripts/test-composer-long-brief.mjs",
+    "test:infographic-caption-row": "node scripts/test-infographic-caption-row.mjs",
     "test:theme-panel-lifecycle": "node scripts/test-theme-panel-lifecycle.mjs",
     "test:theme-picker-canon": "node scripts/test-theme-picker-canon.mjs",
     "test:element-theme-variants": "node scripts/test-element-theme-variants.mjs",

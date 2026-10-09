@@ -1038,6 +1038,8 @@ export function buildInsertionParams(
     generation_config?: Record<string, unknown> | import('@/types/textlabs').DiagramGenerationConfig | null
     generationConfig?: Record<string, unknown> | import('@/types/textlabs').DiagramGenerationConfig | null
     metadata?: Record<string, unknown> | null
+    /** R14: the text element that carries this picture's stage names (flag NEXT_PUBLIC_INFOGRAPHIC_CAPTION_ROW_ENABLED). */
+    captionElementId?: string | null
   },
   positionConfig?: TextLabsPositionConfig,
   paddingConfig?: TextLabsPaddingConfig,
@@ -1181,6 +1183,7 @@ export function buildInsertionParams(
   if (resolvedTableProfile) baseParams.resolvedTableProfile = resolvedTableProfile
   if (citationsUsed) baseParams.citationsUsed = citationsUsed
   if (generationConfig) baseParams.generationConfig = generationConfig
+  if (element.captionElementId) baseParams.captionElementId = element.captionElementId
   if (structuredPlan) baseParams.structuredPlan = structuredPlan
   if (diagramGenerationConfig) {
     const resolvedDiagramType = diagramGenerationConfig.resolved_type

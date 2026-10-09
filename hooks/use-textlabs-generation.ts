@@ -44,6 +44,17 @@ import {
 } from '@/lib/theme-sync'
 import { restoreBlankElementAfterFailure } from '@/lib/blank-element-recovery'
 import { TEXTBOX_REQUEST_FIDELITY_ENABLED, textBoxResponseNotices } from '@/lib/textbox-request-fidelity'
+import {
+  CAPTION_ROW_PADDING,
+  INFOGRAPHIC_CAPTION_ROW_ENABLED,
+  captionRowElementForInsertion,
+  captionRowRefineState,
+  captionRowSkipNotice,
+  carryCaptionLink,
+  readCaptionRow,
+  withCaptionLink,
+  type CaptionRowRefineState,
+} from '@/lib/infographic-caption-row'
 import { parseThemeVariantSource, responseStyleOwner } from '@/lib/element-provenance'
 import { resolveMetricsLayout } from '@/lib/metrics-layout'
 import {
@@ -446,6 +457,11 @@ export function useTextLabsGeneration({
     let refineOverlayActive = false
     let blankOverlayActive = false
     let refineElementDeleted = false
+    // R14 (flag NEXT_PUBLIC_INFOGRAPHIC_CAPTION_ROW_ENABLED): a refined picture's caption row, and what to tell the user about it.
+    let captionRefineState: CaptionRowRefineState | null = null
+    let captionRowInserted = false
+    let captionRowInsertFailed = false
+    const captionNotices: string[] = []
     let dispatchedDiagramRequestFingerprint: string | null = null
     let diagramRequestWasDispatched = false
 
@@ -831,9 +847,20 @@ export function useTextLabsGeneration({
           auto_position: false,
         }
 
+        // R14: the picture of a captioned pair sits in a box shrunk to make room for its caption row. A variation is asked for the
+        // ORIGINAL area (persisted with the picture), otherwise the picture would shrink again on every variation.
+        if (INFOGRAPHIC_CAPTION_ROW_ENABLED && formData.componentType === 'INFOGRAPHIC') {
+          captionRefineState = captionRowRefineState(
+            formData.infographicConfig?.operation,
+            snapshot.generationConfig ?? refineContext.existingElement?.generation_config ?? refineContext.generationConfig,
+          )
+        }
+        const captionVariationArea = captionRefineState?.operation === 'variation' && captionRefineState.area
+          ? { ...captionRefineState.area, auto_position: false }
+          : null
         applyPositionToFormData(
           formData,
-          chartManualPosition ?? liveGridPosition,
+          chartManualPosition ?? captionVariationArea ?? liveGridPosition,
           formData.slotKind !== 'accessory',
         )
         if (snapshot.zIndex !== null) formData.z_index = snapshot.zIndex
@@ -1452,6 +1479,52 @@ export function useTextLabsGeneration({
         } else if (fallbackGridPosition && !(element as any).grid_position) {
           elementWithPosition = { ...elementWithPosition, grid_position: fallbackGridPosition }
         }
+        // R14: a Creative infographic with a recognised stage list comes back with `caption_row`. Applied: the picture goes to its
+        // own (shrunk) box and the names go in a sibling text element under it. Skipped or absent: the picture is inserted as today.
+        // Everything is decided here, on the element handed to buildInsertionParams, so the insertion block below stays as it was.
+        const captionRead = INFOGRAPHIC_CAPTION_ROW_ENABLED
+          && formData.componentType === 'INFOGRAPHIC'
+          && elements.length === 1
+          && Boolean(element.image_data_url || element.image_url)
+          ? readCaptionRow(element)
+          : null
+        const captionPlan = captionRead?.kind === 'applied' ? captionRead.plan : null
+        let captionInsertParams: Record<string, unknown> | null = null
+        if (captionPlan) {
+          const captionParams = buildInsertionParams(
+            'TEXT_BOX',
+            captionRowElementForInsertion(captionPlan),
+            undefined,
+            CAPTION_ROW_PADDING,
+            (formData.z_index ?? getDefaultSize('INFOGRAPHIC').zIndex) + 1,
+            effectiveSlideIndex,
+          ).params
+          // Layout names an inserted text box after `id` (it ignores `elementId`) and the picture is saved before the row exists,
+          // so the row is given its id up front: the link saved with the picture must be the id Layout will really use.
+          const captionElementId = String(captionParams.elementId)
+          captionInsertParams = { ...captionParams, id: captionElementId }
+          // The link is persisted next to the picture's generationConfig (the part of the element Layout stores and returns).
+          const linkedConfig = withCaptionLink(effectiveGenerationConfig, captionElementId, captionPlan.summary)
+          elementWithPosition = {
+            ...elementWithPosition,
+            grid_position: captionPlan.imagePosition,
+            generation_config: linkedConfig,
+            generationConfig: linkedConfig,
+            captionElementId,
+          }
+        } else if (captionRead) {
+          const skipNotice = captionRowSkipNotice(captionRead, response.warnings)
+          if (skipNotice) captionNotices.push(skipNotice)
+        } else if (captionRefineState?.operation === 'edit' && captionRefineState.captionElementId) {
+          // An edit keeps the caption row; the replacement picture must still point at it.
+          const carriedConfig = carryCaptionLink(effectiveGenerationConfig, captionRefineState)
+          elementWithPosition = {
+            ...elementWithPosition,
+            generation_config: carriedConfig as typeof effectiveGenerationConfig,
+            generationConfig: carriedConfig as typeof effectiveGenerationConfig,
+            captionElementId: captionRefineState.captionElementId,
+          }
+        }
         const insertionComponentType = formData.slotKind === 'accessory'
           ? element.component_type
           : refineContext?.elementType ?? element.component_type
@@ -1668,6 +1741,34 @@ export function useTextLabsGeneration({
             }
           }
         }
+        if (captionInsertParams && method === 'insertImage') {
+          // R14: the caption row goes in right after its picture. If it cannot be added the picture stays and the user is told;
+          // if the picture could not be inserted we never get here and nothing is inserted.
+          try {
+            assertGenerationTargetIsStillAuthoritative()
+            const captionResponse = await sendLayoutMutationWithReconciliation(
+              generationLayoutServiceApis.sendElementCommand,
+              'insertTextBox',
+              captionInsertParams,
+              `${lifecycleMutationId}:insert-caption:${index}`,
+            )
+            const insertedCaptionId = typeof captionResponse?.elementId === 'string'
+              ? captionResponse.elementId.trim()
+              : ''
+            if (!insertedCaptionId) {
+              throw new LayoutMutationAmbiguousError('The stage-name row was acknowledged without an element identity. Reload the slide to check it.')
+            }
+            insertedElementIds.push(insertedCaptionId)
+            captionRowInserted = true
+          } catch (captionError) {
+            if (generationTargetError()) throw captionError
+            captionRowInsertFailed = true
+            console.error('[TextLabs] Caption row insertion failed:', captionError)
+            captionNotices.push(
+              `The stage-name row could not be added under the picture: ${captionError instanceof Error ? captionError.message : 'unknown error'}`,
+            )
+          }
+        }
       }
       assertGenerationTargetIsStillAuthoritative()
 
@@ -1751,6 +1852,36 @@ export function useTextLabsGeneration({
         }
       }
 
+      // R14: a variation replaces the whole pair. The previous caption row goes once the new picture is in and the old one is gone.
+      // If the new row could not be inserted the old one stays: never delete the only copy of the user's stage names.
+      if (
+        captionRefineState?.operation === 'variation'
+        && captionRefineState.captionElementId
+        && refineElementDeleted
+        && !captionRowInsertFailed
+        && generationLayoutServiceApis?.sendElementCommand
+      ) {
+        try {
+          assertGenerationTargetIsStillAuthoritative()
+          await sendLayoutMutationWithReconciliation(
+            generationLayoutServiceApis.sendElementCommand,
+            'deleteElement',
+            { elementId: captionRefineState.captionElementId },
+            `${lifecycleMutationId}:delete-previous-caption`,
+          )
+          if (!captionRowInserted) {
+            captionNotices.push('The previous stage-name row was removed because this variation has no stage names for it.')
+          }
+        } catch (previousCaptionError) {
+          if (generationTargetError()) throw previousCaptionError
+          // A row the user already deleted is simply gone.
+          if (!(previousCaptionError instanceof Error && /not found/i.test(previousCaptionError.message))) {
+            console.warn('[TextLabs] Previous caption row could not be removed:', previousCaptionError)
+            captionNotices.push('The previous stage-name row could not be removed; delete it by hand.')
+          }
+        }
+      }
+
       assertGenerationTargetIsStillAuthoritative()
       if (currentBlankId && generatedRefineContext && elements.length === 1) {
         generationPanel.completeBlankReplacement(
@@ -1780,7 +1911,8 @@ export function useTextLabsGeneration({
         description: (refineContext
           ? `${formData.componentType.replace(/_/g, ' ')} updated on slide`
           : `${formData.componentType.replace(/_/g, ' ')} added to slide`)
-          + (countNotices.length > 0 ? `. ${countNotices.join(' ')}` : ''),
+          + (countNotices.length > 0 ? `. ${countNotices.join(' ')}` : '')
+          + (captionNotices.length > 0 ? `. ${captionNotices.join(' ')}` : ''),
       })
       console.log(`[TextLabs] Generated ${elements.length} ${formData.componentType} element(s)`)
       return { status: 'inserted', presentationId: expectedPresentationTarget.presentationId,
