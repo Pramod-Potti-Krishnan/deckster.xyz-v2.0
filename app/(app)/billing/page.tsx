@@ -13,6 +13,7 @@ import { Alert, AlertDescription } from "@/components/ui/alert"
 import { CreditCard, Calendar, Crown, Sparkles, Shield, Check, X, AlertCircle, Download, Wallet, Plus, Loader2 } from "lucide-react"
 import { useWallet } from "@/hooks/use-wallet"
 import { features } from "@/lib/config"
+import { requestBqClaimRefresh } from "@/lib/ws-bq-refresh"
 import "@/components/billing/studio-billing.css"
 
 interface Invoice {
@@ -55,6 +56,17 @@ function BillingPageContent() {
   const [usage, setUsage] = useState<Usage | null>(null)
   const wallet = useWallet()
   const [topUpLoading, setTopUpLoading] = useState<string | null>(null)
+
+  // Back from Stripe after a top-up or a plan checkout: the wallet or tier just
+  // changed, so any open builder re-mints its Director token (build-quota claim)
+  // now, and once more shortly after because the Stripe webhook can land late.
+  const topUpResult = searchParams?.get("topup")
+  const checkoutResult = searchParams?.get("success")
+  useEffect(() => {
+    if (topUpResult === "success") return requestBqClaimRefresh("topup")
+    if (checkoutResult === "true") return requestBqClaimRefresh("checkout")
+    return undefined
+  }, [topUpResult, checkoutResult])
 
   // Real usage (deck count + storage) for every signed-in user.
   useEffect(() => {
