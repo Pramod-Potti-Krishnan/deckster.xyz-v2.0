@@ -347,9 +347,9 @@ export type NarrationAction =
   | { type: 'control'; control: NarrationControl; ts: number }
   | { type: 'control_timeout'; requested: NarrationControl; fallback: NarrationControl; ts: number }
   | { type: 'typed_phase'; payload: BuildPhasePayload; ts: number; pendingControl?: NarrationControl }
-  | { type: 'typed_event'; payload: BuildEventPayload; ts: number }
+  | { type: 'typed_event'; payload: BuildEventPayload; ts: number; builtTerminal?: boolean }
   | { type: 'typed_slide_built'; payload: SlideBuiltPayload; ts: number }
-  | { type: 'typed_sync'; buildState: unknown; ts: number; pendingControl?: NarrationControl }
+  | { type: 'typed_sync'; buildState: unknown; ts: number; pendingControl?: NarrationControl; builtTerminal?: boolean }
   | { type: 'hydrate'; state: NarrationState };
 
 function capList<T>(list: T[], cap: number): T[] {
@@ -376,10 +376,21 @@ function pushSlideEvent(state: NarrationState, slideIndex: number, ev: Narration
   };
 }
 
-function setSlideState(state: NarrationState, slideIndex: number, s: SlideBuildState): NarrationState {
+function setSlideState(
+  state: NarrationState,
+  slideIndex: number,
+  s: SlideBuildState,
+  builtTerminal = false,
+): NarrationState {
   const prev = state.slideStates[slideIndex];
   // Never regress a terminal state back to building (out-of-order events).
   if ((prev === 'built' || prev === 'skipped') && (s === 'building' || s === 'pending')) return state;
+  // D-A5 (flag NEXT_PUBLIC_STUDIO_BUILD_COUNTER_BUILT_TERMINAL_ENABLED, handed in by the hook as
+  // `builtTerminal`): 'built' and 'skipped' are also terminal against a late 'qa', so the "N of M
+  // built" counter (slidesDone) only ever grows within one build. 'error' still overwrites 'built'
+  // (a real failure after build must show), and a NEW build never reaches this line with old states
+  // (typedStateForBuild hands it a fresh state). Flag off: only the rule above applies.
+  if (builtTerminal && (prev === 'built' || prev === 'skipped') && s === 'qa') return state;
   const slideStates = { ...state.slideStates, [slideIndex]: s };
   const slidesDone = Object.values(slideStates).filter((v) => v === 'built').length;
   return { ...state, slideStates, slidesDone };
@@ -707,16 +718,17 @@ export function narrationReducer(state: NarrationState, action: NarrationAction)
           : (next.slideEvents[p.slide_index ?? -1] || []).some((e) => e.id === ev.id);
       if (already) return next;
       if (p.scope === 'slide' && typeof p.slide_index === 'number') {
+        const builtTerminal = action.builtTerminal === true;
         if (p.status === 'error') {
-          next = setSlideState(next, p.slide_index, 'error');
+          next = setSlideState(next, p.slide_index, 'error', builtTerminal);
         } else if (p.stage === 'qa') {
-          next = setSlideState(next, p.slide_index, 'qa');
+          next = setSlideState(next, p.slide_index, 'qa', builtTerminal);
         } else if (p.status === 'done' && (p.stage === 'content' || p.stage === 'render' || p.stage === 'insert')) {
           // Standard path: content-done IS the per-slide completion signal
           // (slide_built with the presentation id bursts at finalization).
-          next = setSlideState(next, p.slide_index, 'built');
+          next = setSlideState(next, p.slide_index, 'built', builtTerminal);
         } else {
-          next = setSlideState(next, p.slide_index, 'building');
+          next = setSlideState(next, p.slide_index, 'building', builtTerminal);
         }
         return pushSlideEvent(next, p.slide_index, ev);
       }
@@ -742,6 +754,14 @@ export function narrationReducer(state: NarrationState, action: NarrationAction)
         const i = Number(k);
         const v = slides[k] as SlideBuildState;
         if (Number.isFinite(i) && (v === 'pending' || v === 'building' || v === 'built' || v === 'error' || v === 'skipped' || v === 'qa')) {
+          // D-A5 flag: a snapshot may confirm or upgrade a slide, but never rewinds a locally
+          // 'built'/'skipped' one (the Director's own mark_slide treats 'built' the same way).
+          const prevState = slideStates[i];
+          if (
+            action.builtTerminal === true &&
+            (prevState === 'built' || prevState === 'skipped') &&
+            (v === 'pending' || v === 'building' || v === 'qa')
+          ) continue;
           slideStates[i] = v;
         }
       }

@@ -59,6 +59,8 @@ export interface UseBuildNarrationInputs {
   finalPresentationId?: string | null
   /** True when the session restored as an already-finished deck. */
   restoredComplete?: boolean
+  /** D-A5 flag (lib/studio-build-counter.ts): 'built'/'skipped' slides never regress to qa/building/pending. */
+  builtTerminal?: boolean
 }
 
 export interface UseBuildNarrationResult {
@@ -95,6 +97,7 @@ export function useBuildNarration(inputs: UseBuildNarrationInputs): UseBuildNarr
     finalPresentationUrl,
     finalPresentationId = null,
     restoredComplete = false,
+    builtTerminal = false,
   } = inputs
 
   const [narration, dispatch] = useReducer(narrationReducer, undefined, initialNarrationState)
@@ -320,8 +323,8 @@ export function useBuildNarration(inputs: UseBuildNarrationInputs): UseBuildNarr
 
   const onBuildEvent = useCallback((payload: BuildEventPayload) => {
     pendingControlForBuild(payload.build_id)
-    dispatch({ type: 'typed_event', payload, ts: Date.now() })
-  }, [pendingControlForBuild])
+    dispatch({ type: 'typed_event', payload, ts: Date.now(), ...(builtTerminal ? { builtTerminal: true } : {}) })
+  }, [pendingControlForBuild, builtTerminal])
 
   const onSlideBuilt = useCallback((payload: SlideBuiltPayload) => {
     pendingControlForBuild(payload.build_id)
@@ -350,8 +353,9 @@ export function useBuildNarration(inputs: UseBuildNarrationInputs): UseBuildNarr
       buildState,
       ts: Date.now(),
       ...(pending ? { pendingControl: pending.requested } : {}),
+      ...(builtTerminal ? { builtTerminal: true } : {}),
     })
-  }, [clearPendingControl, pendingControlForBuild])
+  }, [clearPendingControl, pendingControlForBuild, builtTerminal])
 
   const markControl = useCallback((
     control: NarrationState['control'],
