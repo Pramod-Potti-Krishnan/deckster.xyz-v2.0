@@ -23,7 +23,17 @@ interface GenerationInputProps {
   error: string | null
   retryStrategy?: TextLabsRetryStrategy | null
   placeholder?: string
+  /**
+   * J2-F7: keep the Generate button where it is while the prompt changes. The box otherwise
+   * re-measures its textarea on every edit, so the button moves between its resting position
+   * (measured while the closed panel has no width: 160px), the first keystroke (118px) and the
+   * grown prompt (back to 160px). With this on the textarea has the fixed height the box already
+   * reaches when full and scrolls inside it. Default off: unchanged.
+   */
+  stableSubmit?: boolean
 }
+
+const STABLE_SUBMIT_TEXTAREA_STYLE = { height: 160 } as const
 
 export function GenerationInput({
   prompt,
@@ -36,6 +46,7 @@ export function GenerationInput({
   error,
   retryStrategy,
   placeholder: placeholderOverride,
+  stableSubmit,
 }: GenerationInputProps) {
   const textareaRef = useRef<HTMLTextAreaElement>(null)
   const mandatoryConfigs = Array.isArray(mandatoryConfig)
@@ -67,11 +78,12 @@ export function GenerationInput({
 
   // Auto-expand textarea as user types
   useEffect(() => {
+    if (stableSubmit) return
     const ta = textareaRef.current
     if (!ta) return
     ta.style.height = 'auto'
     ta.style.height = `${Math.min(ta.scrollHeight, 160)}px`
-  }, [prompt])
+  }, [prompt, stableSubmit])
 
   const placeholder = placeholderOverride
     || mandatoryConfigs.find(config => config.promptPlaceholder)?.promptPlaceholder
@@ -124,6 +136,7 @@ export function GenerationInput({
             aria-label={STUDIO_GENERATION_FEEDBACK ? 'Generation prompt' : undefined}
             aria-invalid={promptOverLimit}
             aria-describedby={promptMaxLength ? 'generation-prompt-limit' : undefined}
+            style={stableSubmit ? STABLE_SUBMIT_TEXTAREA_STYLE : undefined}
             className="w-full resize-y border-0 bg-transparent focus:ring-0 focus:outline-none px-3 pt-3 pb-12 min-h-[60px] max-h-[160px] text-xs placeholder:text-gray-400 dark:text-slate-500 overflow-y-auto text-gray-900 dark:text-slate-100 disabled:opacity-50"
             rows={2}
           />

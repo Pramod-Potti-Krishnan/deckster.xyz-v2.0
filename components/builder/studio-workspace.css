@@ -13,6 +13,9 @@
   transform: none;
   transition: width 180ms ease-out;
 }
+/* J2-F5 (NEXT_PUBLIC_STUDIO_PANEL_KEEP_CANVAS_ENABLED): panels open and close in one step, so the
+   canvas is laid out once at its final size instead of while the drawer animates. */
+[data-studio-v4-shell="true"] [data-studio-panel-keep-canvas="true"] [data-studio-workspace-drawer] { transition: none; }
 [data-studio-v4-shell="true"] [data-studio-workspace-drawer="deck"] { left: 0; right: auto; }
 [data-studio-v4-shell="true"] [data-studio-workspace-drawer]:not([data-studio-workspace-drawer="deck"]) {
   position: absolute;

@@ -59,6 +59,14 @@ import {
 } from '@/lib/studio-deck-mutation-refresh'
 import { TextBoxFormatting, type RefineElementRequest, type SlideComposeViewerApi, type StudioIntroductionSafety, type StudioComposeSelectionContext, type StudioElementGenerationLease, type StudioPartialNativeReadback } from '@/components/presentation-viewer'
 import { parseStudioNativeSlideOrder, type StudioNativeSlideOrder } from '@/lib/studio-native-slide-order'
+import { STUDIO_PANEL_KEEP_CANVAS_ENABLED, presentationWrapperTransition } from '@/lib/studio-panel-keep-canvas'
+import {
+  STUDIO_GOTO_NEW_SLIDE_ENABLED,
+  goToNewSlideIntent,
+  resolveGoToNewSlideTarget,
+  shouldArmGoToNewSlide,
+  type GoToNewSlideIntent,
+} from '@/lib/studio-goto-new-slide'
 import {
   createStudioComposeRestoreTarget, resolveStudioComposeRestore, verifyStudioComposeRestoreSelection,
   type StudioComposeRestoreOwner, type StudioComposeRestoreTarget, type StudioComposeRestoreState,
@@ -549,11 +557,15 @@ interface StudioSyncSelectionRecord {
   priorOrder: StudioNativeSlideOrder | null
   consumed: boolean
   persistCount: (count: number) => void
+  /** Flag NEXT_PUBLIC_STUDIO_GOTO_NEW_SLIDE_ENABLED only: the slide on stage when the request started (the go-to's user-move baseline). */
+  startVisualIndex?: number
 }
 interface StudioSyncPendingSelection {
   request: StudioSyncSelectionRecord
   target: StudioComposeRestoreTarget | null
   restoreSelection: boolean
+  /** Flag NEXT_PUBLIC_STUDIO_GOTO_NEW_SLIDE_ENABLED only: go to the inserted slide after the reload. */
+  goToNewSlide?: GoToNewSlideIntent | null
   refreshRevision: number
   refreshToken: number
   expectedUrl: string
@@ -3626,7 +3638,69 @@ function AuthenticatedBuilderContent({ authScopeUserId }: { authScopeUserId: str
     })
   }, [studioShell])
 
+  // J2-F7 (flag NEXT_PUBLIC_STUDIO_GOTO_NEW_SLIDE_ENABLED): the reloaded viewer starts on slide 1 and the
+  // identity restore had no context to run from (the viewer was in edit mode or unsaved when Generate
+  // was clicked). Read the viewer's own slide order and go to the inserted slide through the verified
+  // go-to path. A user move, a newer request, or a changed deck retires it (sameRequest).
+  async function goToNewSlideAfterSync(apis: SlideComposeViewerApi, pending: StudioSyncPendingSelection, attempt: object) {
+    const request = pending.request
+    const intent = pending.goToNewSlide
+    // The slide the request started on (armed only if the user was still on it). Any other current slide
+    // is a user move, except this go-to's own target, which the viewer reports as current once it lands.
+    let landing: number | null = null
+    const userMoved = () => currentSlideIndexRef.current !== request.startVisualIndex && currentSlideIndexRef.current !== landing
+    const sameRequest = () => studioSyncPendingRef.current === pending && pending.observedRefresh
+      && studioSyncRequestRef.current === request && studioSyncSequenceRef.current === request.sequence
+      && studioSyncRefreshRevisionRef.current === pending.refreshRevision && request.isOwnerCurrent()
+      && composeSelectionAttemptRef.current === attempt && composeViewerApiRef.current === apis && !userMoved()
+    // A user move retires the go-to for good, so a later reload cannot run it again.
+    const retired = () => {
+      if (sameRequest()) return false
+      if (userMoved() && studioSyncPendingRef.current === pending) studioSyncPendingRef.current = null
+      return true
+    }
+    if (!intent || retired()) return
+    try {
+      // A freshly loaded viewer can take a moment to answer; a few short retries, never a guess.
+      let order: StudioNativeSlideOrder | null = null
+      for (let tries = 0; tries < 6 && !order; tries += 1) {
+        if (tries > 0) await new Promise(resolve => setTimeout(resolve, 500))
+        if (retired()) return
+        try { order = parseStudioNativeSlideOrder(await apis.composeGetState()) } catch { order = null }
+      }
+      if (retired()) return
+      if (!order) {
+        console.warn('[Slide Composer] The viewer did not report its slide order; choose the new slide in the rail.', intent)
+        if (studioSyncPendingRef.current === pending) studioSyncPendingRef.current = null
+        return
+      }
+      // The viewer's own count is authoritative whether or not the navigation below succeeds.
+      setSlideComposerOverride(previous => sameRequest() && previous?.refreshToken === pending.refreshToken
+        ? { ...previous, slideCount: order.nativeCount } : previous)
+      request.persistCount(order.nativeCount)
+      const target = resolveGoToNewSlideTarget(order, intent)
+      if (!target) {
+        console.warn('[Slide Composer] Could not find the new slide in the viewer; choose it in the rail.', intent)
+        if (studioSyncPendingRef.current === pending) studioSyncPendingRef.current = null
+        return
+      }
+      landing = target.visualIndex
+      await apis.composeGoToVisualIndex(target.visualIndex, { isCurrent: sameRequest })
+      if (retired()) return
+      currentSlideIndexRef.current = target.visualIndex
+      setCurrentSlideIndex(previous => sameRequest() ? target.visualIndex : previous)
+      setSelectedLayoutSlideIndex(previous => sameRequest() ? target.visualIndex : previous)
+      if (studioSyncPendingRef.current === pending) studioSyncPendingRef.current = null
+      scTrace('builder.goto_new_slide.verified', { visual_index: target.visualIndex, by: target.by, native_count: order.nativeCount })
+    } catch (error) {
+      if (retired()) return
+      if (studioSyncPendingRef.current === pending) studioSyncPendingRef.current = null
+      console.warn('[Slide Composer] Could not select the new slide; choose it in the rail.', error)
+    }
+  }
+
   async function restoreStudioSyncSelection(apis: SlideComposeViewerApi, pending: StudioSyncPendingSelection, attempt: object) {
+    if (STUDIO_GOTO_NEW_SLIDE_ENABLED && pending.goToNewSlide) { await goToNewSlideAfterSync(apis, pending, attempt); return }
     const request = pending.request
     const context = apis.composeCaptureSelectionContext?.()
     const sameRequest = () => studioSyncPendingRef.current === pending && pending.observedRefresh
@@ -4136,6 +4210,7 @@ function AuthenticatedBuilderContent({ authScopeUserId }: { authScopeUserId: str
         presentationId: ownerToken.presentationId ?? '', activeVersion: version ?? '', mountGeneration: chatOwner.generation },
       isOwnerCurrent, context: null, priorOrder: null, consumed: false,
       persistCount: count => { if (isOwnerCurrent()) persistence?.updateMetadata({ slideCount: count, lastMessageAt: new Date() }) },
+      ...(STUDIO_GOTO_NEW_SLIDE_ENABLED ? { startVisualIndex: currentSlideIndexRef.current } : {}),
     }
     const proof = Object.freeze({})
     studioSyncProofsRef.current.set(proof, record)
@@ -4201,6 +4276,11 @@ function AuthenticatedBuilderContent({ authScopeUserId }: { authScopeUserId: str
       // may preserve the captured prior real slide, never a positional guess.
       studioSyncPendingRef.current = { request: record, restoreSelection,
         target: target && !record.priorOrder?.slideIds.includes(target.slideId) ? target : null,
+        ...(STUDIO_GOTO_NEW_SLIDE_ENABLED && shouldArmGoToNewSlide({
+          enabled: true, lane: record.lane, existingDeck, restoreSelection,
+          draftStillCurrent: Boolean(selection?.draftStillCurrent),
+          startVisualIndex: record.startVisualIndex, currentVisualIndex: currentSlideIndexRef.current,
+        }) ? { goToNewSlide: goToNewSlideIntent(result) } : {}),
         refreshRevision, refreshToken, expectedUrl, observedRefresh: false }
     }
 
@@ -6505,7 +6585,7 @@ function AuthenticatedBuilderContent({ authScopeUserId }: { authScopeUserId: str
         />
 
         {/* Main Content Area */}
-        <div ref={workspaceRef} data-studio-intro-surface={studioShell ? "builder" : undefined} data-studio-v4-shell-workspace="true" data-studio-workspace-welcome={studioWelcome ? "true" : undefined} data-studio-workspace-mode={studioShell ? workspaceLayout.dualPane ? 'dual' : 'single' : undefined} data-studio-workspace-overlay={studioShell ? String(studioOverlayWorkspace) : undefined} className="flex-1 flex relative overflow-hidden" style={studioShell ? { '--studio-collapsed-inspector-width': `${studioTemplateVisible && templateParamsCollapsed ? TEMPLATE_PANEL_COLLAPSED_WIDTH : 0}px` } as React.CSSProperties : undefined}>
+        <div ref={workspaceRef} data-studio-intro-surface={studioShell ? "builder" : undefined} data-studio-v4-shell-workspace="true" data-studio-workspace-welcome={studioWelcome ? "true" : undefined} data-studio-workspace-mode={studioShell ? workspaceLayout.dualPane ? 'dual' : 'single' : undefined} data-studio-workspace-overlay={studioShell ? String(studioOverlayWorkspace) : undefined} data-studio-panel-keep-canvas={studioShell && STUDIO_PANEL_KEEP_CANVAS_ENABLED ? "true" : undefined} className="flex-1 flex relative overflow-hidden" style={studioShell ? { '--studio-collapsed-inspector-width': `${studioTemplateVisible && templateParamsCollapsed ? TEMPLATE_PANEL_COLLAPSED_WIDTH : 0}px` } as React.CSSProperties : undefined}>
           {studioShell && !workspaceLayout.dualPane && (
             <div data-studio-workspace-switch="true" role="group" aria-label="Workspace pane">
               {studioOverlayWorkspace && <button type="button" aria-pressed={studioStageSelected || (!workspaceLayout.chatVisible && !workspaceLayout.inspectorVisible)} onClick={() => { retireStudioVoiceOwner(); setStudioStageSelected(true) }}>Stage</button>}
@@ -7190,7 +7270,9 @@ function AuthenticatedBuilderContent({ authScopeUserId }: { authScopeUserId: str
             {...(studioCanvasCovered ? { inert: true } : {})}
             className={cn(
               "flex-1 min-w-0 min-h-0 flex flex-col",
-              isResizingDrawer ? "" : "transition-[margin] duration-300 ease-out"
+              STUDIO_PANEL_KEEP_CANVAS_ENABLED
+                ? presentationWrapperTransition({ isResizingDrawer, keepCanvas: studioShell })
+                : isResizingDrawer ? "" : "transition-[margin] duration-300 ease-out"
             )}
             style={studioShell ? { marginLeft: workspaceLayout.left, marginRight: workspaceLayout.right } : { marginLeft: drawerOffset }}
           >
