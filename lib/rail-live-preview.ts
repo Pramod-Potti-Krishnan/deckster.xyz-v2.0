@@ -9,13 +9,17 @@
  * instead: an iframe of the VIEW-ONLY Layout viewer opened on that slide, scaled down by the
  * component. This module holds the rules and nothing else (pure: no React, no DOM, no network):
  *
- *  - the none-only gate: pending, stale and fresh cards, and any card holding a real thumbnail
- *    URL, never get a frame (a real image is never replaced, and drops the frame at once);
+ *  - the gate: only a `none` card, or a `pending` card that has had no thumbnail URL for the grace period (15 s,
+ *    a client-side timer; Layout can keep saying `pending` for ten minutes about a slide that will never get a
+ *    preview), gets a frame. Stale and fresh cards, and any card holding a real thumbnail URL, never do (a real image
+ *    is never replaced, and drops the frame at once);
  *  - the frame URL: the existing view-only builder (`presentFrameUrl`, `?viewOnly=true#/N`) on the
  *    deck's already approved viewer URL, checked against the Layout viewer allow-list again;
  *  - a module-level slot pool: at most RAIL_LIVE_PREVIEW_MAX_FRAMES frames across the whole rail,
  *    everyone else waits (and keeps showing "No preview") until a slot frees;
- *  - a per-card controller: a frame is mounted only while the card is eligible AND visible.
+ *  - a per-card controller: a frame is mounted only while the card is eligible AND visible;
+ *  - a synchronous stand-in for the observer's first answer (railBoxVisible): the browser only delivers that answer
+ *    once it has rendered a frame, so a card already on screen must not have to wait for it.
  */
 
 import { presentFrameUrl } from '@/lib/present-view-only'
@@ -33,14 +37,40 @@ export const RAIL_LIVE_PREVIEW_STAGE = { width: 1920, height: 1080 } as const
 /** Same status vocabulary as the slide inventory (lib/slide-rail-identity.ts), kept loose so a legacy row (no status) is just "not none". */
 type PreviewStatus = string | null | undefined
 
+/** How long a card must have been seen `pending` (no thumbnail URL) before it counts as eligible. */
+export const RAIL_LIVE_PREVIEW_PENDING_GRACE_MS = 15_000
+
+type PreviewRow = { thumbnailStatus?: PreviewStatus; thumbnailUrl?: string | null }
+
+/** A row that carries a usable thumbnail URL is never replaced whatever its status says (the card trims the URL the same way). */
+const hasThumbnailUrl = (row: PreviewRow): boolean => typeof row.thumbnailUrl === 'string' && Boolean(row.thumbnailUrl.trim())
+
 /**
- * The none-only gate. `none` is Layout's word for "no preview, none is coming"; `pending` (one is
- * expected), `stale` and `fresh` keep today's rendering, and a row that carries a usable thumbnail
- * URL is never replaced whatever its status says.
+ * The none gate. `none` is Layout's word for "no preview, none is coming"; `stale` and `fresh` keep
+ * today's rendering, and a row that carries a usable thumbnail URL is never replaced.
  */
-export function railLivePreviewApplies(row: { thumbnailStatus?: PreviewStatus; thumbnailUrl?: string | null }): boolean {
+export function railLivePreviewApplies(row: PreviewRow): boolean {
   if (row.thumbnailStatus !== 'none') return false
-  return !(typeof row.thumbnailUrl === 'string' && row.thumbnailUrl.trim())
+  return !hasThumbnailUrl(row)
+}
+
+/** A `pending` card with no thumbnail URL: one is expected, so it only qualifies once it has stayed that way for the grace period. */
+export function railLivePreviewPending(row: PreviewRow): boolean {
+  if (row.thumbnailStatus !== 'pending') return false
+  return !hasThumbnailUrl(row)
+}
+
+/** Whether the strip renders the preview host for a card at all: `none`, or `pending` (which then waits out the grace period). */
+export function railLivePreviewCandidate(row: PreviewRow): boolean {
+  return railLivePreviewApplies(row) || railLivePreviewPending(row)
+}
+
+/** The two statuses a card with a preview host can be in. */
+export type RailLivePreviewStatus = 'none' | 'pending'
+
+/** `none` is eligible at once; `pending` only after it has been seen pending for the grace period. */
+export function railLivePreviewEligible(status: RailLivePreviewStatus, pendingElapsed: boolean): boolean {
+  return status === 'none' || (status === 'pending' && pendingElapsed)
 }
 
 /**
@@ -68,6 +98,28 @@ export function railLivePreviewSrc(
 /** Scale that fits the Layout stage into a card `width` CSS pixels wide (a bad width gives 0: draw nothing). */
 export function railLivePreviewScale(width: number): number {
   return Number.isFinite(width) && width > 0 ? width / RAIL_LIVE_PREVIEW_STAGE.width : 0
+}
+
+// ---------------------------------------------------------------- on screen, without waiting for the observer
+
+export interface RailBox { left: number; top: number; right: number; bottom: number }
+
+/**
+ * Whether `target` lies inside every one of `clips` (the viewport and each scroll or overflow-clipping ancestor) by a
+ * visible area. Touching edges do not count and a box with no area never does: a card that is only just off screen is
+ * not seen. This is the geometry the IntersectionObserver answers with, asked directly.
+ */
+export function railBoxVisible(target: RailBox, clips: ReadonlyArray<RailBox>): boolean {
+  let { left, top, right, bottom } = target
+  if (!(right > left && bottom > top)) return false
+  for (const clip of clips) {
+    left = Math.max(left, clip.left)
+    top = Math.max(top, clip.top)
+    right = Math.min(right, clip.right)
+    bottom = Math.min(bottom, clip.bottom)
+    if (!(right > left && bottom > top)) return false
+  }
+  return true
 }
 
 // ---------------------------------------------------------------- slot pool
