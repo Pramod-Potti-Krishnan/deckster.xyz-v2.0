@@ -65,7 +65,10 @@ export interface StudioFormatInspectorProps {
 
 interface StudioAIContentDraft { prompt: string; tone: string | null; style: string | null; revision: number; unconfirmed?: boolean }
 interface StudioAIContentDraftEntry { elementId: string; presentationId: string; slideIndex: number; sessionId?: string | null; draft: StudioAIContentDraft }
-type Tab = 'content' | 'appearance' | 'arrange'
+type Tab = 'content' | 'appearance' | 'box' | 'arrange'
+/** R6: NEXT_PUBLIC_STUDIO_TEXTBOX_PADDING_REACHABLE_ENABLED (exact 'true', default off). An editable text box gets its own "Box"
+ *  tab (padding, fill, border) instead of burying Box under Appearance, below Typography, Alignment and Theme colors. */
+export const STUDIO_TEXTBOX_PADDING_REACHABLE = process.env.NEXT_PUBLIC_STUDIO_TEXTBOX_PADDING_REACHABLE_ENABLED === 'true'
 const validTarget = (target: StudioFormatTarget | null): target is StudioFormatTarget => Boolean(target
   && target.selectionOwner && typeof target.selectionOwner === 'object' && !Array.isArray(target.selectionOwner)
   && typeof target.elementId === 'string' && target.elementId && target.elementId === target.elementId.trim()
@@ -162,7 +165,7 @@ export function StudioFormatInspector(props: StudioFormatInspectorProps) {
   return <div data-studio-v4-shell="true" className="h-full min-h-0 min-w-0"><section data-studio-v4-panel="inspector-format" aria-label="Format selected element"
     className="relative flex h-full min-h-0 min-w-0 flex-col bg-white text-slate-800 dark:bg-slate-900 dark:text-slate-100">
     <header data-studio-v4-panel-header className="flex shrink-0 items-center justify-between border-b px-4 py-3">
-      <div className="min-w-0"><h2>Format</h2><p>{target?.kind === 'editable-text' ? 'Selected text' : target?.kind === 'textbox-shell' ? 'Selected graphic box' : target ? 'Selected element' : 'No element selected'}</p></div>
+      <div className="min-w-0"><h2>Format</h2><p>{target?.kind === 'editable-text' ? (STUDIO_TEXTBOX_PADDING_REACHABLE ? 'Selected text box' : 'Selected text') : target?.kind === 'textbox-shell' ? 'Selected graphic box' : target ? 'Selected element' : 'No element selected'}</p></div>
       <button type="button" onClick={props.onClose} aria-label="Close Format inspector" className="rounded-md p-2"><X size={16}/></button>
     </header>
     {props.busy && <p role="status" className="px-4 py-2 text-xs">Formatting is unavailable while generation is in progress.</p>}
@@ -174,7 +177,8 @@ export function StudioFormatInspector(props: StudioFormatInspectorProps) {
 
 function InspectorControls({ target, send, disabled, readRevision, contentDraft, externalBusy }: { readRevision: number; target: StudioFormatTarget; send: (action: string, params: Record<string, any>) => Promise<any>; disabled: boolean; contentDraft: StudioAIContentDraft | null; externalBusy: boolean }) {
   const [tab, setTab] = useState<Tab>(target.kind === 'editable-text' ? 'content' : target.kind === 'textbox-shell' ? 'appearance' : 'arrange')
-  const tabs: Tab[] = target.kind === 'editable-text' ? ['content', 'appearance', 'arrange'] : target.kind === 'textbox-shell' ? ['appearance', 'arrange'] : ['arrange']
+  const boxTab = STUDIO_TEXTBOX_PADDING_REACHABLE && target.kind === 'editable-text'
+  const tabs: Tab[] = target.kind === 'editable-text' ? (boxTab ? ['content', 'appearance', 'box', 'arrange'] : ['content', 'appearance', 'arrange']) : target.kind === 'textbox-shell' ? ['appearance', 'arrange'] : ['arrange']
   const supported = (catalog: readonly StudioFormatCommand[]) => catalog.every(command => target.supportedCommands.includes(command))
   const content = target.kind === 'editable-text' && supported(STUDIO_FORMAT_COMMANDS.content)
   const nativeProperties = target.properties && target.properties.elementId === target.elementId
@@ -184,7 +188,7 @@ function InspectorControls({ target, send, disabled, readRevision, contentDraft,
   return <>
     <div role="tablist" aria-label="Selected element properties" className="flex shrink-0 gap-1 border-b px-3 py-2">
       {tabs.map(value=><button key={value} type="button" role="tab" aria-selected={tab === value} onClick={()=>setTab(value)}
-        className="min-w-0 flex-1 rounded-md px-2 py-2 text-xs font-medium" style={tab === value ? { background: 'var(--sp-active)', color: 'var(--sp-ink)' } : { color: 'var(--sp-muted)' }}>{value === 'content' ? 'Content' : value === 'appearance' ? 'Appearance' : 'Arrange'}</button>)}
+        className="min-w-0 flex-1 rounded-md px-2 py-2 text-xs font-medium" style={tab === value ? { background: 'var(--sp-active)', color: 'var(--sp-ink)' } : { color: 'var(--sp-muted)' }}>{value === 'content' ? 'Content' : value === 'appearance' ? 'Appearance' : value === 'box' ? 'Box' : 'Arrange'}</button>)}
     </div>
     <div data-studio-v4-panel-fields className="min-h-0 flex-1 overflow-y-auto">
       {target.kind === 'editable-text' && <>
@@ -196,8 +200,12 @@ function InspectorControls({ target, send, disabled, readRevision, contentDraft,
         <div role="tabpanel" aria-label="Appearance" hidden={tab !== 'appearance'}>
           <CompactAppearance key={`appearance-${readRevision}`} target={target} send={send} disabled={disabled}/>
           <ThemeColors key={`theme-${readRevision}`} target={target} send={send} disabled={disabled}/>
-          <BoxControls key={`box-${readRevision}`} target={{...target,box:target.box ?? {padding:target.formatting?.padding,backgroundColor:target.formatting?.backgroundColor}}} send={send} disabled={disabled}/>
+          {!boxTab && <BoxControls key={`box-${readRevision}`} target={{...target,box:target.box ?? {padding:target.formatting?.padding,backgroundColor:target.formatting?.backgroundColor}}} send={send} disabled={disabled}/>}
         </div>
+        {boxTab && <div role="tabpanel" aria-label="Box" hidden={tab !== 'box'}>
+          <p className="px-4 pt-3 text-xs">Box properties affect the whole text box. The text inside keeps its own formatting.</p>
+          <BoxControls key={`box-${readRevision}`} target={{...target,box:target.box ?? {padding:target.formatting?.padding,backgroundColor:target.formatting?.backgroundColor}}} send={send} disabled={disabled}/>
+        </div>}
       </>}
       {target.kind === 'textbox-shell' && <div role="tabpanel" aria-label="Appearance" hidden={tab !== 'appearance'}>
         <p className="px-4 pt-3 text-xs">Box properties affect the surrounding container. Text and artwork inside it keep their rendered appearance.</p>
