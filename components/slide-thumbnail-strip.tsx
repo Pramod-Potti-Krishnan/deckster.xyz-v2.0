@@ -31,7 +31,7 @@ import { SLIDE_LAYOUTS, SlideLayoutId } from './slide-layout-picker'
 import { buildSlideComposeVisualOrder } from '@/lib/slide-compose-async'
 import { slideTitleLabel } from '@/lib/studio-slide-title-label'
 import type { SlideRefineTarget } from '@/lib/slide-refinement'
-import { STUDIO_RAIL_LIVE_PREVIEW_FALLBACK_ENABLED, railLivePreviewApplies } from '@/lib/rail-live-preview'
+import { STUDIO_RAIL_LIVE_PREVIEW_FALLBACK_ENABLED, railLivePreviewCandidate } from '@/lib/rail-live-preview'
 import { RailLivePreview } from './rail-live-preview'
 import './studio-thumbnails.css'
 
@@ -128,8 +128,8 @@ export interface SlideThumbnailStripProps {
    *  slide keeps its node and image) instead of by position. Default false = today's keys. */
   keyBySlideId?: boolean
   /** F9-A (flag NEXT_PUBLIC_STUDIO_RAIL_LIVE_PREVIEW_FALLBACK_ENABLED): the deck's approved Layout viewer URL. A card whose inventory
-   *  status is `none` (no preview will ever come) shows a live view-only mini-preview of its slide instead of "No preview".
-   *  Ignored when the flag is off. */
+   *  status is `none` (no preview will ever come), or `pending` for 15 s with no thumbnail URL, shows a live view-only mini-preview
+   *  of its slide instead of "No preview". Ignored when the flag is off. */
   livePreviewViewerUrl?: string | null
 }
 
@@ -735,8 +735,8 @@ export function SlideThumbnailStrip({
             lies over the preview area and takes no pointer events, so the card's click, drag and keyboard behaviour stay
             the button's. A refining card keeps its own spinner. */}
         {STUDIO_RAIL_LIVE_PREVIEW_FALLBACK_ENABLED && STUDIO_THUMBNAILS && livePreviewViewerUrl && !isRefining
-          && railLivePreviewApplies({ thumbnailStatus: slide.thumbnailStatus, thumbnailUrl }) && (
-          <RailLivePreview viewerUrl={livePreviewViewerUrl} slideIndex={slideIndex} />
+          && railLivePreviewCandidate({ thumbnailStatus: slide.thumbnailStatus, thumbnailUrl }) && (
+          <RailLivePreview viewerUrl={livePreviewViewerUrl} slideIndex={slideIndex} status={slide.thumbnailStatus === 'pending' ? 'pending' : 'none'} />
         )}
       </div>
     )

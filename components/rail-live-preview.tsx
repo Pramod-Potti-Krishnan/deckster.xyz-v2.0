@@ -4,10 +4,12 @@ import React, { useEffect, useState } from 'react'
 import { LAYOUT_VIEWER_URL_POLICY } from '@/lib/layout-service-client'
 import {
   RAIL_LIVE_PREVIEW_STAGE,
+  railLivePreviewEligible,
   railLivePreviewScale,
   railLivePreviewSrc,
+  type RailLivePreviewStatus,
 } from '@/lib/rail-live-preview'
-import { useRailLivePreview } from '@/hooks/use-rail-live-preview'
+import { useRailLivePreview, useRailPendingGrace } from '@/hooks/use-rail-live-preview'
 
 /** Width of a rail card's preview before it is measured (w-28 minus its border). */
 const DEFAULT_CARD_WIDTH = 108
@@ -43,9 +45,11 @@ function LiveFrame({ src, scale }: { src: string; scale: number }) {
 /**
  * Live mini-preview of one slide for a rail card that will never get a thumbnail (F9-A, flag
  * NEXT_PUBLIC_STUDIO_RAIL_LIVE_PREVIEW_FALLBACK_ENABLED). The strip renders this only for a card whose
- * inventory status is `none` and which holds no real thumbnail; when either stops being true the strip
- * stops rendering it, which unmounts the frame and frees its slot at once. It is an overlay on the card's
- * 16:9 preview area (the card is its positioning parent), a sibling of the card's button.
+ * inventory status is `none`, or `pending` with no thumbnail URL, and which holds no real thumbnail; when
+ * either stops being true the strip stops rendering it, which unmounts the frame and frees its slot at once.
+ * A `none` card is eligible at once; a `pending` card (Layout can say that for ten minutes about a slide that
+ * will never get a preview) only once it has been seen pending for 15 s, by a timer in the browser.
+ * It is an overlay on the card's 16:9 preview area (the card is its positioning parent), a sibling of the card's button.
  *
  * The frame is the view-only Layout viewer opened on `slideIndex`, laid out at the stage's own 1920x1080
  * and scaled down to the card. It cannot be clicked, focused or read by assistive technology: the card
@@ -55,9 +59,10 @@ function LiveFrame({ src, scale }: { src: string; scale: number }) {
  * `slideIndex` is the slide's index in the saved deck (0-based): the frame is a fresh load of the saved
  * deck, which holds none of the editing view's in-progress placeholders.
  */
-export function RailLivePreview({ viewerUrl, slideIndex }: { viewerUrl: string; slideIndex: number }) {
+export function RailLivePreview({ viewerUrl, slideIndex, status = 'none' }: { viewerUrl: string; slideIndex: number; status?: RailLivePreviewStatus }) {
   const src = railLivePreviewSrc(viewerUrl, slideIndex, LAYOUT_VIEWER_URL_POLICY)
-  const { hostRef, mounted } = useRailLivePreview(src !== null)
+  const pendingElapsed = useRailPendingGrace(status === 'pending')
+  const { hostRef, mounted } = useRailLivePreview(src !== null && railLivePreviewEligible(status, pendingElapsed))
   const [scale, setScale] = useState(() => railLivePreviewScale(DEFAULT_CARD_WIDTH))
 
   useEffect(() => {

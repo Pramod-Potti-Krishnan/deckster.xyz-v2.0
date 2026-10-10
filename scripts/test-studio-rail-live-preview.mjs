@@ -1,9 +1,10 @@
 // F9-A: live mini-preview fallback for rail cards that will never get a thumbnail
 // (flag NEXT_PUBLIC_STUDIO_RAIL_LIVE_PREVIEW_FALLBACK_ENABLED, default off).
 // Offline and self-contained: no network, no git, no browser. The repo root is found from this file (package.json anchor).
-// It covers the none-only gate, the frame URL (view-only builder + Layout viewer allow-list), the shared slot pool (cap of 3),
-// the per-card controller (mounted only while eligible AND visible), the hook (IntersectionObserver, mount/unmount, swap to a real
-// image), the component markup (scaled, inert, no pointer events) and the real strip (server render; flag off = unchanged),
+// It covers the gate (none, or pending for 15 s), the frame URL (view-only builder + Layout viewer allow-list), the shared slot pool
+// (cap of 3), the per-card controller (mounted only while eligible AND visible), the hook (IntersectionObserver, mount/unmount, swap
+// to a real image; the on-screen stand-in for an observer that has not answered yet, so a card already in view needs no scroll), the
+// pending timer, the component markup (scaled, inert, no pointer events) and the real strip (server render; flag off = unchanged),
 // then re-runs every suite against deliberately broken copies of the sources: each mutant must be caught.
 import assert from 'node:assert/strict'
 import fs from 'node:fs'
@@ -104,6 +105,53 @@ function libSuite(overrides) {
     check(assert.equal, applies({ thumbnailStatus: status, thumbnailUrl: 'https://proj.test/a.png' }), false)
   }
   check(assert.equal, applies({}), false, 'a legacy row (no status) is not none')
+
+  // pending: a preview is expected, so a card qualifies only after the grace period
+  check(assert.equal, lib.RAIL_LIVE_PREVIEW_PENDING_GRACE_MS, 15000, 'a pending card waits fifteen seconds')
+  const pendingRow = row => lib.railLivePreviewPending(row)
+  check(assert.equal, pendingRow({ thumbnailStatus: 'pending' }), true, 'pending, no url')
+  check(assert.equal, pendingRow({ thumbnailStatus: 'pending', thumbnailUrl: null }), true)
+  check(assert.equal, pendingRow({ thumbnailStatus: 'pending', thumbnailUrl: '  ' }), true, 'a blank url is no thumbnail')
+  check(assert.equal, pendingRow({ thumbnailStatus: 'pending', thumbnailUrl: 'https://proj.test/a.png' }), false, 'never replace a real thumbnail')
+  for (const status of ['none', 'fresh', 'stale', undefined, null, '', 'PENDING', 'unknown'])
+    check(assert.equal, pendingRow({ thumbnailStatus: status }), false, `status ${String(status)} is not pending`)
+  const candidate = row => lib.railLivePreviewCandidate(row)
+  check(assert.equal, candidate({ thumbnailStatus: 'none' }), true, 'none is a candidate')
+  check(assert.equal, candidate({ thumbnailStatus: 'pending' }), true, 'pending is a candidate')
+  check(assert.equal, candidate({ thumbnailStatus: 'none', thumbnailUrl: 'https://proj.test/a.png' }), false)
+  check(assert.equal, candidate({ thumbnailStatus: 'pending', thumbnailUrl: 'https://proj.test/a.png' }), false, 'a real thumbnail is never a candidate')
+  for (const status of ['fresh', 'stale', undefined, null, 'NONE']) check(assert.equal, candidate({ thumbnailStatus: status }), false, `status ${String(status)}`)
+  check(assert.equal, lib.railLivePreviewEligible('none', false), true, 'none: eligible at once')
+  check(assert.equal, lib.railLivePreviewEligible('none', true), true)
+  check(assert.equal, lib.railLivePreviewEligible('pending', false), false, 'pending: not before the grace period')
+  check(assert.equal, lib.railLivePreviewEligible('pending', true), true, 'pending: after it')
+
+  // on screen without the observer: the viewport and every clipping ancestor must show the box
+  const box = (left, top, right, bottom) => ({ left, top, right, bottom })
+  const viewport = box(0, 0, 1000, 800)
+  const visible = (target, clips) => lib.railBoxVisible(target, clips)
+  check(assert.equal, visible(box(10, 10, 120, 70), [viewport]), true, 'inside the viewport')
+  check(assert.equal, visible(box(10, 10, 120, 70), []), true, 'nothing clips it')
+  check(assert.equal, visible(box(10, 790, 120, 850), [viewport]), true, 'partly in view is in view')
+  check(assert.equal, visible(box(10, 800, 120, 860), [viewport]), false, 'touching the bottom edge is not in view')
+  check(assert.equal, visible(box(10, 900, 120, 960), [viewport]), false, 'below the viewport')
+  check(assert.equal, visible(box(-200, 10, 0, 70), [viewport]), false, 'left of the viewport (touching)')
+  check(assert.equal, visible(box(1000, 10, 1100, 70), [viewport]), false, 'right of the viewport (touching)')
+  check(assert.equal, visible(box(10, -80, 120, 0), [viewport]), false, 'above the viewport (touching)')
+  check(assert.equal, visible(box(10, 10, 10, 70), [viewport]), false, 'no width')
+  check(assert.equal, visible(box(10, 10, 120, 10), [viewport]), false, 'no height')
+  check(assert.equal, visible(box(120, 70, 10, 10), [viewport]), false, 'an inverted box')
+  check(assert.equal, visible(box(10, 10, 10, 70), []), false, 'no width, nothing clips it')
+  check(assert.equal, visible(box(10, 10, 120, 10), []), false, 'no height, nothing clips it')
+  check(assert.equal, visible(box(NaN, 10, 120, 70), [viewport]), false, 'not a number')
+  const scroller = box(0, 0, 140, 300)
+  check(assert.equal, visible(box(10, 250, 120, 310), [viewport, scroller]), true, 'partly inside the scroll container')
+  check(assert.equal, visible(box(10, 400, 120, 460), [viewport, scroller]), false, 'inside the viewport but clipped out by the scroll container')
+  check(assert.equal, visible(box(10, 400, 120, 460), [scroller, viewport]), false, 'the order of the clips does not matter')
+  check(assert.equal, visible(box(200, 10, 320, 70), [viewport, scroller]), false, 'clipped on the right')
+  check(assert.equal, visible(box(-300, 10, -20, 70), [viewport, scroller]), false, 'clipped on the left')
+  check(assert.equal, visible(box(10, -300, 120, -20), [viewport, scroller]), false, 'clipped at the top')
+  check(assert.equal, visible(box(10, 10, 120, 70), [viewport, scroller, box(500, 500, 600, 600)]), false, 'every clip counts')
 
   // the frame URL: the existing view-only builder, through the allow-list
   const src = (url, index, p = policy) => lib.railLivePreviewSrc(url, index, p)
@@ -260,16 +308,16 @@ class FakeObserver {
 }
 FakeObserver.all = []
 
-function hookWorld(overrides, { observer = true } = {}) {
+function hookWorld(overrides, { observer = true, globals = {}, call = (hooks, props) => hooks.useRailLivePreview(props.eligible) } = {}) {
   let current = null
   const fakeReact = {
     useRef: (...args) => current.useRef(...args),
     useState: (...args) => current.useState(...args),
     useEffect: (...args) => current.useEffect(...args),
   }
-  const world = createWorld({ overrides, stubs: { react: fakeReact }, globals: { IntersectionObserver: observer ? FakeObserver : undefined } })
+  const world = createWorld({ overrides, stubs: { react: fakeReact }, globals: { IntersectionObserver: observer ? FakeObserver : undefined, ...globals } })
   const lib = world.load(FILES.lib)
-  const { useRailLivePreview } = world.load(FILES.hook)
+  const hooks = world.load(FILES.hook)
   function instance(host) {
     let cursor = 0, dirty = false, pending = [], slots = [], props, api
     const impl = {
@@ -290,7 +338,7 @@ function hookWorld(overrides, { observer = true } = {}) {
     }
     const once = () => {
       current = impl; cursor = 0; dirty = false
-      try { api = useRailLivePreview(props.eligible) } finally { current = null }
+      try { api = call(hooks, props) } finally { current = null }
       if (host && !api.hostRef.current) api.hostRef.current = host
     }
     const flush = () => {
@@ -381,13 +429,280 @@ function hookSuite(overrides) {
   noObserver.unmount()
 }
 
+// The first answer: an already-eligible card that is on screen mounts on the observer's FIRST callback, whichever of
+// "eligible" and "first callback" comes first, and the latest of several entries wins.
+function initialCallbackSuite(overrides) {
+  FakeObserver.all = []
+  const { lib, instance } = hookWorld(overrides)
+  const cardsOnScreen = Array.from({ length: 7 }, (_, i) => instance({ tag: 'span', i }))
+  const eligible = [true, false, false, true, false, true, false]
+  const apis = cardsOnScreen.map((c, i) => c.render({ eligible: eligible[i] }))
+  check(assert.deepEqual, apis.map(a => a.mounted), eligible.map(() => false), 'before the first callback nothing is mounted')
+  // every card reports "on screen" in its very first callback; no later callback ever comes (nobody scrolls)
+  FakeObserver.all.forEach(o => o.fire(true))
+  check(assert.deepEqual, cardsOnScreen.map(c => c.flush().mounted), eligible, 'the first callback mounts each eligible card, with no scroll')
+  check(assert.equal, lib.railPreviewSlots.active, 3)
+  cardsOnScreen.forEach(c => c.unmount())
+  check(assert.equal, lib.railPreviewSlots.active, 0)
+
+  // the first callback comes before the card is eligible (the pending timer, the status): mounts the moment it is
+  FakeObserver.all = []
+  const early = instance({ tag: 'span' })
+  early.render({ eligible: false })
+  FakeObserver.all[0].fire(true)
+  check(assert.equal, early.flush().mounted, false, 'on screen but not eligible yet')
+  check(assert.equal, lib.railPreviewSlots.active, 0)
+  check(assert.equal, early.render({ eligible: true }).mounted, true, 'eligible later, still on screen: mounted without another callback')
+  early.unmount()
+
+  // several entries in one callback: the latest wins
+  FakeObserver.all = []
+  const batch = instance({ tag: 'span' })
+  batch.render({ eligible: true })
+  FakeObserver.all[0].callback([{ isIntersecting: false }, { isIntersecting: true }])
+  check(assert.equal, batch.flush().mounted, true, 'false then true: on screen')
+  FakeObserver.all[0].callback([{ isIntersecting: true }, { isIntersecting: false }])
+  check(assert.equal, batch.flush().mounted, false, 'true then false: off screen')
+  FakeObserver.all[0].callback([])
+  check(assert.equal, batch.flush().mounted, false, 'an empty callback changes nothing')
+  batch.unmount()
+}
+
+// The stand-in for the first answer: until the observer has said anything, the card's own geometry decides.
+function geometrySuite(overrides) {
+  const box = (left, top, right, bottom) => ({ left, top, right, bottom })
+  const documentElement = { tag: 'html' }
+  const node = (rect, { parent = null, overflowX = 'visible', overflowY = 'visible' } = {}) => ({
+    rect, parentElement: parent, style: { overflowX, overflowY }, getBoundingClientRect() { return this.rect } })
+  const page = node(box(0, 0, 1000, 800), { parent: documentElement })
+  const rail = node(box(860, 0, 1000, 800), { parent: page })
+  const list = node(box(860, 0, 1000, 800), { parent: rail, overflowY: 'auto' })
+  const globals = { window: { innerWidth: 1000, innerHeight: 800 }, document: { documentElement }, getComputedStyle: el => el.style }
+  const card = (top, bottom = top + 62) => node(box(866, top, 994, bottom), { parent: list })
+  const world = (opts = {}) => hookWorld(overrides, { globals, ...opts })
+
+  // 1. NO-SCROLL: seven cards all fit; the observer says nothing (a page that has not rendered a frame yet) -> every eligible card is mounted
+  FakeObserver.all = []
+  let w = world()
+  const eligible = [true, false, false, true, false, true, false]
+  const seven = Array.from({ length: 7 }, (_, i) => w.instance(card(10 + i * 110)))
+  const silent = seven.map((c, i) => c.render({ eligible: eligible[i] }))
+  check(assert.deepEqual, silent.map(a => a.mounted), eligible, 'all cards on screen at mount: the eligible ones get frames without a scroll and without an observer answer')
+  check(assert.equal, w.lib.railPreviewSlots.active, 3)
+  // and the observer agrees when it finally speaks
+  FakeObserver.all.forEach(o => o.fire(true))
+  check(assert.deepEqual, seven.map(c => c.flush().mounted), eligible, 'the observer confirming changes nothing')
+  // or disagrees: it has the last word
+  FakeObserver.all[3].fire(false)
+  check(assert.deepEqual, seven.map(c => c.flush().mounted), [true, false, false, false, false, true, false], 'the observer says off screen: unmounted')
+  check(assert.equal, w.lib.railPreviewSlots.active, 2)
+  seven.forEach(c => c.unmount())
+  check(assert.equal, w.lib.railPreviewSlots.active, 0)
+
+  // 2. five eligible cards on screen: the stand-in respects the cap of three too
+  FakeObserver.all = []
+  w = world()
+  const five = Array.from({ length: 5 }, (_, i) => w.instance(card(10 + i * 70)))
+  check(assert.deepEqual, five.map(c => c.render({ eligible: true }).mounted), [true, true, true, false, false], 'at most three frames')
+  five.forEach(c => c.unmount())
+
+  // 3. a card clipped out by its scroll container, or below the viewport, is not on screen
+  FakeObserver.all = []
+  w = world()
+  const shortList = node(box(860, 0, 1000, 300), { parent: rail, overflowY: 'auto' })
+  const inList = top => node(box(866, top, 994, top + 62), { parent: shortList })
+  const clipped = [inList(10), inList(150), inList(400), inList(700)].map(h => w.instance(h))
+  check(assert.deepEqual, clipped.map(c => c.render({ eligible: true }).mounted), [true, true, false, false], 'inside the viewport but scrolled out of the container: not mounted')
+  clipped.forEach(c => c.unmount())
+  FakeObserver.all = []
+  w = world()
+  const longList = node(box(860, 0, 1000, 2000), { parent: rail, overflowY: 'auto' })
+  const below = w.instance(node(box(866, 900, 994, 962), { parent: longList }))
+  const above = w.instance(node(box(866, 700, 994, 762), { parent: longList }))
+  check(assert.equal, below.render({ eligible: true }).mounted, false, 'below the viewport: not mounted')
+  check(assert.equal, above.render({ eligible: true }).mounted, true, 'but a card inside both is')
+  below.unmount(); above.unmount()
+  // each edge of the viewport counts (the container is huge, so only the viewport clips)
+  FakeObserver.all = []
+  w = world()
+  const huge = node(box(-3000, -3000, 3000, 3000), { parent: rail, overflowY: 'auto' })
+  const edges = [
+    ['inside', box(300, 300, 412, 362), true], ['right of the viewport', box(1100, 300, 1212, 362), false],
+    ['left of the viewport', box(-300, 300, -188, 362), false], ['above the viewport', box(300, -200, 412, -138), false],
+    ['below the viewport', box(300, 900, 412, 962), false],
+  ].map(([name, rect, expected]) => [name, w.instance(node(rect, { parent: huge })), expected])
+  for (const [name, h, expected] of edges) check(assert.equal, h.render({ eligible: true }).mounted, expected, name)
+  edges.forEach(([, h]) => h.unmount())
+
+  // a clipping ancestor that only clips one axis
+  FakeObserver.all = []
+  w = world()
+  const xOnly = node(box(0, 0, 100, 800), { parent: rail, overflowX: 'hidden' })
+  const sideways = w.instance(node(box(300, 10, 400, 70), { parent: xOnly }))
+  check(assert.equal, sideways.render({ eligible: true }).mounted, false, 'clipped on the x axis only')
+  sideways.unmount()
+  FakeObserver.all = []
+  w = world()
+  const yOnly = node(box(0, 0, 1000, 100), { parent: rail, overflowY: 'hidden' })
+  const lower = w.instance(node(box(300, 300, 400, 360), { parent: yOnly }))
+  check(assert.equal, lower.render({ eligible: true }).mounted, false, 'clipped on the y axis only')
+  lower.unmount()
+  // a collapsed rail (width 0, overflow hidden) shows nothing
+  FakeObserver.all = []
+  w = world()
+  const collapsed = node(box(500, 0, 500, 800), { parent: page, overflowX: 'hidden', overflowY: 'hidden' })
+  const hidden = w.instance(node(box(500, 10, 612, 70), { parent: collapsed }))
+  check(assert.equal, hidden.render({ eligible: true }).mounted, false, 'a collapsed rail')
+  hidden.unmount()
+
+  // 4. the observer answered first: the stand-in is never consulted again
+  FakeObserver.all = []
+  w = world()
+  const answered = w.instance(card(10))
+  answered.render({ eligible: false })
+  FakeObserver.all[0].fire(false)
+  answered.flush()
+  check(assert.equal, answered.render({ eligible: true }).mounted, false, 'the observer said off screen: the geometry does not overrule it')
+  FakeObserver.all[0].fire(true)
+  check(assert.equal, answered.flush().mounted, true, 'it says on screen: mounted')
+  check(assert.equal, answered.render({ eligible: false }).mounted, false)
+  check(assert.equal, answered.render({ eligible: true }).mounted, true, 'eligible again: the observer\'s last answer (on screen) stands')
+  answered.unmount()
+
+  // 5. eligibility arrives later with the observer still silent: the stand-in runs then
+  FakeObserver.all = []
+  w = world()
+  const late = w.instance(card(10))
+  check(assert.equal, late.render({ eligible: false }).mounted, false)
+  check(assert.equal, late.render({ eligible: true }).mounted, true, 'eligible later (the pending timer ran out): mounted at once')
+  check(assert.equal, late.render({ eligible: false }).mounted, false, 'and dropped when eligibility goes')
+  check(assert.equal, w.lib.railPreviewSlots.active, 0)
+  late.unmount()
+
+  // 5b. the stand-in is read when the card becomes eligible, not earlier: a card that was in view while it was not eligible, and has since moved out of view, stays out
+  FakeObserver.all = []
+  w = world()
+  const moved = card(10)
+  const drifted = w.instance(moved)
+  drifted.render({ eligible: false })
+  moved.rect = box(866, 1400, 994, 1462)
+  check(assert.equal, drifted.render({ eligible: true }).mounted, false, 'out of view by the time it is eligible: not mounted')
+  moved.rect = box(866, 10, 994, 72)
+  check(assert.equal, drifted.render({ eligible: false }).mounted, false)
+  check(assert.equal, drifted.render({ eligible: true }).mounted, true, 'back in view and eligible again: the geometry is read again')
+  drifted.unmount()
+
+  // 6. without an IntersectionObserver nothing is ever mounted, geometry or not
+  w = world({ observer: false })
+  const bare = w.instance(card(10))
+  check(assert.equal, bare.render({ eligible: true }).mounted, false, 'no observer: no frame, even on screen')
+  check(assert.equal, w.lib.railPreviewSlots.active, 0)
+  bare.unmount()
+
+  // 7. a layout read that throws never throws out of the hook and never mounts
+  FakeObserver.all = []
+  w = world()
+  const broken = w.instance({ parentElement: list, getBoundingClientRect() { throw new Error('detached') } })
+  check(assert.equal, broken.render({ eligible: true }).mounted, false, 'a failing layout read is a no')
+  broken.unmount()
+  FakeObserver.all = []
+  w = hookWorld(overrides, { globals: { ...globals, getComputedStyle: () => { throw new Error('no style') } } })
+  const noStyle = w.instance(card(10))
+  check(assert.equal, noStyle.render({ eligible: true }).mounted, false, 'a failing style read is a no')
+  noStyle.unmount()
+}
+
+// ---------------------------------------------------------------- the 15 s pending timer
+function fakeTimers() {
+  let now = 0, seq = 0
+  const timers = new Map()
+  return {
+    setTimeout: (fn, ms) => { const id = ++seq; timers.set(id, { at: now + ms, fn }); return id },
+    clearTimeout: id => { timers.delete(id) },
+    advance(ms) {
+      const end = now + ms
+      for (;;) {
+        const due = [...timers.entries()].filter(([, t]) => t.at <= end).sort((a, b) => a[1].at - b[1].at)[0]
+        if (!due) break
+        now = due[1].at
+        timers.delete(due[0])
+        due[1].fn()
+      }
+      now = end
+    },
+    get active() { return timers.size },
+  }
+}
+function graceSuite(overrides) {
+  const make = () => {
+    const clock = fakeTimers()
+    const world = hookWorld(overrides, { globals: { setTimeout: clock.setTimeout, clearTimeout: clock.clearTimeout },
+      call: (hooks, props) => hooks.useRailPendingGrace(props.pending, props.graceMs) })
+    return { clock, ...world }
+  }
+  let { clock, instance } = make()
+  let h = instance(null)
+  check(assert.equal, h.render({ pending: true }), false, 'just seen pending: not yet')
+  check(assert.equal, clock.active, 1, 'one client-side timer')
+  clock.advance(14999)
+  check(assert.equal, h.flush(), false, 'fourteen seconds and a bit: still not')
+  clock.advance(1)
+  check(assert.equal, h.flush(), true, 'fifteen seconds: eligible')
+  clock.advance(60000)
+  check(assert.equal, h.flush(), true, 'and stays eligible')
+  check(assert.equal, clock.active, 0)
+  // a status change resets it, and the same pending episode does not restart it
+  check(assert.equal, h.render({ pending: true }), true, 'a re-render in the same pending episode keeps it')
+  check(assert.equal, h.renderOnly({ pending: false }), false, 'no longer pending: false in that very render')
+  check(assert.equal, h.flush(), false)
+  check(assert.equal, h.render({ pending: true }), false, 'pending again: the full wait again')
+  clock.advance(14999)
+  check(assert.equal, h.flush(), false)
+  clock.advance(1)
+  check(assert.equal, h.flush(), true)
+  h.unmount()
+  check(assert.equal, clock.active, 0, 'unmount clears the timer')
+
+  ;({ clock, instance } = make())
+  h = instance(null)
+  check(assert.equal, h.render({ pending: false }), false)
+  check(assert.equal, clock.active, 0, 'not pending: no timer at all')
+  clock.advance(60000)
+  check(assert.equal, h.flush(), false)
+  h.unmount()
+
+  // pending for a while, then the status settles before the period is over: the timer is gone and never fires late
+  ;({ clock, instance } = make())
+  h = instance(null)
+  h.render({ pending: true })
+  clock.advance(10000)
+  h.render({ pending: false })
+  check(assert.equal, clock.active, 0, 'the status left pending: the timer is cleared')
+  clock.advance(60000)
+  check(assert.equal, h.flush(), false, 'and it never fires late')
+  h.unmount()
+
+  // a different period
+  ;({ clock, instance } = make())
+  h = instance(null)
+  h.render({ pending: true, graceMs: 100 })
+  clock.advance(99)
+  check(assert.equal, h.flush(), false)
+  clock.advance(1)
+  check(assert.equal, h.flush(), true, 'the period is a parameter')
+  h.unmount()
+}
+
 // ---------------------------------------------------------------- component markup (hook stubbed)
-function componentWorld(overrides, { mounted = true, calls = [] } = {}) {
+function componentWorld(overrides, { mounted = true, calls = [], elapsed = false, graceCalls = [] } = {}) {
   const world = createWorld({
     overrides,
     stubs: {
       '@/lib/layout-service-client': { LAYOUT_VIEWER_URL_POLICY: policy },
-      '@/hooks/use-rail-live-preview': { useRailLivePreview: eligible => { calls.push(eligible); return { hostRef: { current: null }, mounted } } },
+      '@/hooks/use-rail-live-preview': {
+        useRailLivePreview: eligible => { calls.push(eligible); return { hostRef: { current: null }, mounted } },
+        useRailPendingGrace: pending => { graceCalls.push(pending); return elapsed },
+      },
     },
   })
   return world.load(FILES.component)
@@ -433,6 +748,22 @@ function componentSuite(overrides) {
   const other = componentWorld(overrides, { mounted: true, calls: sharedCalls })
   const second = renderToStaticMarkup(React.createElement(other.RailLivePreview, { viewerUrl: `${VIEWER_URL}?studio_build_snapshot=4`, slideIndex: 0 }))
   check(assert.match, second.match(/<iframe[^>]*>/)[0], /src="https:\/\/layout\.uat\.test\/p\/pres-1\?studio_build_snapshot=4&amp;viewOnly=true#\/0"/)
+
+  // status: a none card is eligible at once; a pending card only once its 15 s timer has run out
+  check(assert.deepEqual, calls, [true], 'status defaults to none')
+  for (const [status, elapsed, expected] of [['none', false, true], ['none', true, true], ['pending', false, false], ['pending', true, true]]) {
+    const eligibleCalls = [], graceCalls = []
+    const world = componentWorld(overrides, { mounted: true, calls: eligibleCalls, elapsed, graceCalls })
+    renderToStaticMarkup(React.createElement(world.RailLivePreview, { viewerUrl: VIEWER_URL, slideIndex: 3, status }))
+    check(assert.deepEqual, eligibleCalls, [expected], `${status}, timer ${elapsed ? 'elapsed' : 'running'}: eligible ${expected}`)
+    check(assert.deepEqual, graceCalls, [status === 'pending'], `the timer runs for a pending card only (${status})`)
+  }
+  // a pending card past its timer still needs an approved frame URL
+  const pendingBlocked = [], pendingGrace = []
+  const blockedPending = componentWorld(overrides, { mounted: true, calls: pendingBlocked, elapsed: true, graceCalls: pendingGrace })
+  const blockedPendingHtml = renderToStaticMarkup(React.createElement(blockedPending.RailLivePreview, { viewerUrl: 'https://layout-prod.test/p/pres-1', slideIndex: 3, status: 'pending' }))
+  check(assert.deepEqual, pendingBlocked, [false], 'pending past its timer: an unapproved origin still gets nothing')
+  check(assert.doesNotMatch, blockedPendingHtml, /<iframe/)
 }
 
 // ---------------------------------------------------------------- the real strip, server-rendered
@@ -442,7 +773,7 @@ function stripWorld(overrides, { flag = true, shell = true, stubLive = false } =
   const stubs = { '@/lib/layout-service-client': { LAYOUT_VIEWER_URL_POLICY: policy } }
   if (stubLive) {
     stubs['./rail-live-preview'] = { RailLivePreview: props => React.createElement('i', {
-      'data-stub-live': 'true', 'data-url': props.viewerUrl, 'data-index': String(props.slideIndex) }) }
+      'data-stub-live': 'true', 'data-url': props.viewerUrl, 'data-index': String(props.slideIndex), 'data-status': props.status }) }
   }
   return createWorld({ env, overrides, stubs }).load(FILES.strip).SlideThumbnailStrip
 }
@@ -457,23 +788,28 @@ const ROWS = [
   { slideNumber: 5, slideId: 's5', title: 'Legacy' },
   { slideNumber: 6, slideId: 's6', title: 'None but an image', thumbnailUrl: 'https://proj.test/b.png', thumbnailStatus: 'none' },
   { slideNumber: 7, slideId: 's7', title: 'Manual two', thumbnailStatus: 'none' },
+  { slideNumber: 8, slideId: 's8', title: 'Pending but an image', thumbnailUrl: 'https://proj.test/c.png', thumbnailStatus: 'pending' },
+  { slideNumber: 9, slideId: 's9', title: 'Pending two', thumbnailStatus: 'pending' },
 ]
 
 function stripSuite(overrides) {
-  // flag on, Studio shell, viewer URL known: only the none cards without an image get the preview
+  // flag on, Studio shell, viewer URL known: only the none and pending cards without an image get the preview host
   const On = stripWorld(overrides, { stubLive: true })
   const html = render(On, ROWS, { livePreviewViewerUrl: VIEWER_URL })
   const cards = cardsOf(html)
-  check(assert.equal, cards.length, 7)
+  check(assert.equal, cards.length, 9)
   const live = cards.map(card => card.includes('data-stub-live'))
-  check(assert.deepEqual, live, [false, false, true, false, false, false, true], 'only status none without a thumbnail')
-  check(assert.equal, (html.match(/data-stub-live/g) ?? []).length, 2)
-  check(assert.match, cards[2], /data-url="https:\/\/layout\.uat\.test\/p\/pres-1" data-index="2"/, 'the approved viewer URL and the slide index')
-  check(assert.match, cards[6], /data-index="6"/)
+  check(assert.deepEqual, live, [false, true, true, false, false, false, true, false, true], 'status none, or pending, without a thumbnail')
+  check(assert.equal, (html.match(/data-stub-live/g) ?? []).length, 4)
+  check(assert.match, cards[2], /data-url="https:\/\/layout\.uat\.test\/p\/pres-1" data-index="2" data-status="none"/, 'the approved viewer URL, the slide index and the status')
+  check(assert.match, cards[6], /data-index="6" data-status="none"/)
+  check(assert.match, cards[1], /data-index="1" data-status="pending"/, 'a pending card is told it is pending (its own timer decides)')
+  check(assert.match, cards[8], /data-index="8" data-status="pending"/)
+  check(assert.match, cards[7], /<img[^>]+src="https:\/\/proj\.test\/c\.png"/, 'a pending card that holds a real image keeps it')
   check(assert.match, cards[0], /<img[^>]+src="https:\/\/proj\.test\/a\.png"/)
   check(assert.match, cards[5], /<img[^>]+src="https:\/\/proj\.test\/b\.png"/, 'a real thumbnail is never replaced')
-  check(assert.match, cards[1], /Preview loading/)
-  for (const i of [0, 1, 3, 4, 5]) check(assert.doesNotMatch, cards[i], /data-stub-live/)
+  check(assert.match, cards[1], /Preview loading/, 'a pending card keeps its own label until a frame shows')
+  for (const i of [0, 3, 4, 5, 7]) check(assert.doesNotMatch, cards[i], /data-stub-live/)
   check(assert.match, cards[2], /No preview/, 'the card keeps its own label')
   check(assert.match, cards[2], /aria-label="Go to slide 3: Manual one"/, 'and its own button')
 
@@ -500,6 +836,7 @@ function stripSuite(overrides) {
   check(assert.equal, off, render(Off, ROWS), 'flag off ignores the viewer URL')
   check(assert.equal, off, render(On, ROWS), 'and equals the flag-on strip that has no viewer URL')
   check(assert.equal, (off.match(/No preview/g) ?? []).length, 4, 'every settled card without an image still says No preview')
+  check(assert.equal, (off.match(/data-studio-thumbnail-pending/g) ?? []).length, 2, 'and every pending card without an image its spinner')
   const offJobs = render(Off, ROWS, { livePreviewViewerUrl: VIEWER_URL, composeJobs: jobs, keyBySlideId: true })
   check(assert.equal, offJobs, render(Off, ROWS, { composeJobs: jobs, keyBySlideId: true }))
 
@@ -508,7 +845,7 @@ function stripSuite(overrides) {
   const realHtml = render(Real, ROWS, { livePreviewViewerUrl: VIEWER_URL })
   const realCards = cardsOf(realHtml)
   const hosts = realCards.map(card => (card.match(/data-studio-rail-live-preview="idle"/g) ?? []).length)
-  check(assert.deepEqual, hosts, [0, 0, 1, 0, 0, 0, 1], 'one preview host on each none card without an image')
+  check(assert.deepEqual, hosts, [0, 1, 1, 0, 0, 0, 1, 0, 1], 'one preview host on each none or pending card without an image')
   const hostRe = /<div aria-hidden="true" inert="" data-studio-rail-live-preview="idle" class="pointer-events-none absolute inset-x-0 top-0 aspect-\[16\/9\] overflow-hidden"><\/div>/
   check(assert.match, realCards[2], hostRe)
   check(assert.match, realCards[2], new RegExp(`</button><div data-studio-thumbnail-caption="true"[\\s\\S]*${hostRe.source}</div><div `), 'the last child of the card: after the button and the title row, so no existing sibling changes position')
@@ -527,6 +864,8 @@ function stripSuite(overrides) {
   check(assert.doesNotMatch, refinedCards[2], /data-stub-live/, 'a refining card shows no live preview over its spinner')
   check(assert.match, refinedCards[2], /data-studio-thumbnail-refining/)
   check(assert.match, refinedCards[6], /data-stub-live/, 'other none cards still do')
+  const refiningPending = [{ jobId: 'r2', kind: 'refine', status: 'building', targetSlideId: 's9', targetIndex: 8, targetLayoutIndex: 8, lastProgressText: 'Refining slide' }]
+  check(assert.doesNotMatch, cardsOf(render(On, ROWS, { livePreviewViewerUrl: VIEWER_URL, composeJobs: refiningPending }))[8], /data-stub-live/, 'nor over a refining pending card')
 }
 
 // ---------------------------------------------------------------- source guards (wiring and "no extra calls")
@@ -536,22 +875,26 @@ function guardSuite(sources) {
   check(assert.doesNotMatch, viewer, /rail-live-preview|RAIL_LIVE_PREVIEW/, 'the viewer imports nothing of the feature')
   check(assert.match, ENVEX, /^NEXT_PUBLIC_STUDIO_RAIL_LIVE_PREVIEW_FALLBACK_ENABLED="false"$/m, 'documented in .env.example, default off')
   for (const key of ['lib', 'hook', 'component']) {
-    check(assert.doesNotMatch, sources[key] ?? SRC[key], /\bfetch\s*\(|XMLHttpRequest|WebSocket|sendBeacon|setInterval|setTimeout|requestAnimationFrame/, `${key}: no backend call, no polling`)
+    check(assert.doesNotMatch, sources[key] ?? SRC[key], /\bfetch\s*\(|XMLHttpRequest|WebSocket|sendBeacon|setInterval|requestAnimationFrame/, `${key}: no backend call, no polling`)
   }
+  for (const key of ['lib', 'component']) check(assert.doesNotMatch, sources[key] ?? SRC[key], /setTimeout/, `${key}: no timer`)
+  const hookSource = sources.hook ?? SRC.hook
+  check(assert.equal, (hookSource.match(/\bsetTimeout\(/g) ?? []).length, 1, 'the one timer is the 15 s pending timer, a single timeout and no repeat')
+  check(assert.equal, (hookSource.match(/\bclearTimeout\(/g) ?? []).length, 1, 'and it is cleared')
   check(assert.match, sources.component ?? SRC.component, /<LiveFrame key=\{src\} /, 'a new URL is a new frame, never a navigation inside the old one')
   check(assert.match, sources.component ?? SRC.component, /import \{ LAYOUT_VIEWER_URL_POLICY \} from '@\/lib\/layout-service-client'/, 'the Layout viewer policy')
   check(assert.match, sources.lib ?? SRC.lib, /import \{ presentFrameUrl \} from '@\/lib\/present-view-only'/, 'the existing view-only URL builder')
   check(assert.match, sources.lib ?? SRC.lib, /import \{ evaluateLayoutViewerUrl, type LayoutViewerUrlPolicy \} from '@\/lib\/layout-viewer-url-policy'/)
   const strip = sources.strip ?? SRC.strip
-  check(assert.match, strip, /<RailLivePreview viewerUrl=\{livePreviewViewerUrl\} slideIndex=\{slideIndex\} \/>\n\s+\)\}\n      <\/div>\n    \)\n\n    \/\/ Wrap with context menu/,
+  check(assert.match, strip, /<RailLivePreview viewerUrl=\{livePreviewViewerUrl\} slideIndex=\{slideIndex\} status=\{slide\.thumbnailStatus === 'pending' \? 'pending' : 'none'\} \/>\n\s+\)\}\n      <\/div>\n    \)\n\n    \/\/ Wrap with context menu/,
     'the overlay is the last child of the card (a child added earlier would shift later siblings and their React ids even with the flag off)')
   check(assert.equal, (strip.match(/RailLivePreview/g) ?? []).length, 2, 'one import, one use in the strip')
-  check(assert.match, strip, /\{STUDIO_RAIL_LIVE_PREVIEW_FALLBACK_ENABLED && STUDIO_THUMBNAILS && livePreviewViewerUrl && !isRefining\n\s+&& railLivePreviewApplies\(\{ thumbnailStatus: slide\.thumbnailStatus, thumbnailUrl \}\) && \(/)
+  check(assert.match, strip, /\{STUDIO_RAIL_LIVE_PREVIEW_FALLBACK_ENABLED && STUDIO_THUMBNAILS && livePreviewViewerUrl && !isRefining\n\s+&& railLivePreviewCandidate\(\{ thumbnailStatus: slide\.thumbnailStatus, thumbnailUrl \}\) && \(/)
 }
 
 function fullSuite(overrides = {}, only = ['lib', 'hook', 'component', 'strip', 'guard']) {
   if (only.includes('lib')) libSuite(overrides)
-  if (only.includes('hook')) hookSuite(overrides)
+  if (only.includes('hook')) { hookSuite(overrides); initialCallbackSuite(overrides); geometrySuite(overrides); graceSuite(overrides) }
   if (only.includes('component')) componentSuite(overrides)
   if (only.includes('strip')) stripSuite(overrides)
   if (only.includes('guard')) guardSuite(Object.fromEntries(Object.entries(FILES).filter(([, rel]) => rel in overrides).map(([key, rel]) => [key, overrides[rel]])))
@@ -572,9 +915,9 @@ const mutants = [
   ['gate: stale also gets a frame', 'lib', "if (row.thumbnailStatus !== 'none') return false", "if (row.thumbnailStatus !== 'none' && row.thumbnailStatus !== 'stale') return false", ['lib', 'strip']],
   ['gate: fresh also gets a frame', 'lib', "if (row.thumbnailStatus !== 'none') return false", "if (row.thumbnailStatus !== 'none' && row.thumbnailStatus !== 'fresh') return false", ['lib', 'strip']],
   ['gate: a row without status gets a frame', 'lib', "if (row.thumbnailStatus !== 'none') return false", "if (row.thumbnailStatus !== undefined && row.thumbnailStatus !== 'none') return false", ['lib', 'strip']],
-  ['gate: a real thumbnail does not block the frame', 'lib', "return !(typeof row.thumbnailUrl === 'string' && row.thumbnailUrl.trim())", 'return true', ['lib', 'strip']],
+  ['gate: a real thumbnail does not block the frame', 'lib', "typeof row.thumbnailUrl === 'string' && Boolean(row.thumbnailUrl.trim())", 'false', ['lib', 'strip']],
   ['gate: a blank url counts as a thumbnail', 'lib', 'row.thumbnailUrl.trim())', 'row.thumbnailUrl)', ['lib']],
-  ['gate: the strip skips the gate', 'strip', '&& railLivePreviewApplies({ thumbnailStatus: slide.thumbnailStatus, thumbnailUrl }) && (', '&& (', ['strip', 'guard']],
+  ['gate: the strip skips the gate', 'strip', '&& railLivePreviewCandidate({ thumbnailStatus: slide.thumbnailStatus, thumbnailUrl }) && (', '&& (', ['strip', 'guard']],
   ['gate: the strip does not tell the gate about the thumbnail', 'strip', 'thumbnailStatus: slide.thumbnailStatus, thumbnailUrl })', 'thumbnailStatus: slide.thumbnailStatus })', ['strip', 'guard']],
   ['gate: a refining card gets a preview over its spinner', 'strip', 'livePreviewViewerUrl && !isRefining\n', 'livePreviewViewerUrl\n', ['strip', 'guard']],
   ['gate: the strip ignores the flag', 'strip', '{STUDIO_RAIL_LIVE_PREVIEW_FALLBACK_ENABLED && STUDIO_THUMBNAILS && livePreviewViewerUrl', '{STUDIO_THUMBNAILS && livePreviewViewerUrl', ['strip', 'guard']],
@@ -592,7 +935,7 @@ const mutants = [
   ['url: a fractional index is accepted', 'lib', '!Number.isSafeInteger(slideIndex)', '!Number.isFinite(slideIndex)', ['lib']],
   ['url: the component skips the policy', 'component', 'railLivePreviewSrc(viewerUrl, slideIndex, LAYOUT_VIEWER_URL_POLICY)', 'viewerUrl', ['component']],
   ['url: the component uses its own index', 'component', 'railLivePreviewSrc(viewerUrl, slideIndex, LAYOUT_VIEWER_URL_POLICY)', 'railLivePreviewSrc(viewerUrl, 0, LAYOUT_VIEWER_URL_POLICY)', ['component']],
-  ['url: eligible although no frame URL', 'component', 'useRailLivePreview(src !== null)', 'useRailLivePreview(true)', ['component']],
+  ['url: eligible although no frame URL', 'component', 'useRailLivePreview(src !== null && railLivePreviewEligible(status, pendingElapsed))', 'useRailLivePreview(railLivePreviewEligible(status, pendingElapsed))', ['component']],
   ['url: a frame without a URL', 'component', '{mounted && src ? <LiveFrame', '{mounted ? <LiveFrame', ['component']],
   // scale
   ['scale: wrong stage width', 'lib', 'width / RAIL_LIVE_PREVIEW_STAGE.width', 'width / 1080', ['lib', 'component']],
@@ -617,9 +960,9 @@ const mutants = [
   ['visible: the observer is never disconnected', 'hook', 'observer?.disconnect()', '', ['hook']],
   ['visible: no observer, mounts anyway', 'hook', "if (host && typeof IntersectionObserver !== 'undefined')", 'if (host)', ['hook']],
   ['visible: the controller is never disposed', 'hook', 'controller.dispose()', '', ['hook']],
-  ['visible: the hook never tells the controller it is eligible', 'hook', 'controllerRef.current?.setEligible(eligible)', 'void eligible', ['hook']],
+  ['visible: the hook never tells the controller it is eligible', 'hook', 'controller.setEligible(eligible)', 'void eligible', ['hook']],
   ['visible: the hook uses a private pool', 'hook', 'pool: railPreviewSlots', 'pool: { request: onGrant => { onGrant(); return { granted: true, release() {} } }, active: 0, waiting: 0, max: 99 }', ['hook']],
-  ['visible: polling', 'hook', 'controllerRef.current?.setEligible(eligible) }, [eligible])', 'controllerRef.current?.setEligible(eligible); setInterval(() => {}, 1000) }, [eligible])', ['guard']],
+  ['visible: polling', 'hook', '  }, [eligible])', '    setInterval(() => {}, 1000)\n  }, [eligible])', ['guard']],
   // swap to the real thumbnail
   ['swap: the frame outlives its eligibility', 'hook', 'mounted: mounted && eligible', 'mounted', ['hook']],
   // component markup
@@ -637,6 +980,62 @@ const mutants = [
   ['markup: a new URL navigates the old frame', 'component', '<LiveFrame key={src} ', '<LiveFrame ', ['guard']],
   ['wiring: the viewer never passes the URL', 'viewer', 'livePreviewViewerUrl={approvedPresentationUrl}', '', ['guard']],
   ['url: the allow-list is bypassed', 'lib', "import { evaluateLayoutViewerUrl, type LayoutViewerUrlPolicy } from '@/lib/layout-viewer-url-policy'", "import { type LayoutViewerUrlPolicy } from '@/lib/layout-viewer-url-policy'\nconst evaluateLayoutViewerUrl = (value: string) => ({ status: 'allowed', url: value })", ['lib', 'guard']],
+  // pending: eligible only after the 15 s timer
+  ['pending: no wait (the grace is zero)', 'lib', 'RAIL_LIVE_PREVIEW_PENDING_GRACE_MS = 15_000', 'RAIL_LIVE_PREVIEW_PENDING_GRACE_MS = 0', ['lib', 'hook']],
+  ['pending: a wait of one second', 'lib', 'RAIL_LIVE_PREVIEW_PENDING_GRACE_MS = 15_000', 'RAIL_LIVE_PREVIEW_PENDING_GRACE_MS = 1_000', ['lib', 'hook']],
+  ['pending: a wait of a minute', 'lib', 'RAIL_LIVE_PREVIEW_PENDING_GRACE_MS = 15_000', 'RAIL_LIVE_PREVIEW_PENDING_GRACE_MS = 60_000', ['lib', 'hook']],
+  ['pending: a pending card is eligible at once', 'lib', "status === 'none' || (status === 'pending' && pendingElapsed)", "status === 'none' || status === 'pending'", ['lib', 'component']],
+  ['pending: eligible whatever the timer says', 'lib', "status === 'none' || (status === 'pending' && pendingElapsed)", 'true', ['lib', 'component']],
+  ['pending: a none card has to wait too', 'lib', "return status === 'none' || (status === 'pending' && pendingElapsed)", "return pendingElapsed", ['lib', 'component']],
+  ['pending: the pending gate lets any status through', 'lib', "if (row.thumbnailStatus !== 'pending') return false", 'if (false) return false', ['lib']],
+  ['pending: a pending card with an image qualifies', 'lib', 'export function railLivePreviewPending(row: PreviewRow): boolean {\n  if (row.thumbnailStatus !== \'pending\') return false\n  return !hasThumbnailUrl(row)', 'export function railLivePreviewPending(row: PreviewRow): boolean {\n  if (row.thumbnailStatus !== \'pending\') return false\n  return true', ['lib', 'strip']],
+  ['pending: pending is not a candidate', 'lib', 'return railLivePreviewApplies(row) || railLivePreviewPending(row)', 'return railLivePreviewApplies(row)', ['lib', 'strip']],
+  ['pending: every row is a candidate', 'lib', 'return railLivePreviewApplies(row) || railLivePreviewPending(row)', 'return true', ['lib', 'strip']],
+  ['pending: the timer fires at once', 'hook', 'setTimeout(() => setElapsed(true), graceMs)', 'setTimeout(() => setElapsed(true), 0)', ['hook']],
+  ['pending: no timer, elapsed from the start', 'hook', 'const [elapsed, setElapsed] = useState(false)', 'const [elapsed, setElapsed] = useState(true)', ['hook']],
+  ['pending: the timer is never cleared', 'hook', 'return () => clearTimeout(timer)', 'return undefined', ['hook', 'guard']],
+  ['pending: leaving pending does not reset it', 'hook', '    if (!pending) {\n      setElapsed(false)\n      return\n    }', '    if (!pending) return', ['hook']],
+  ['pending: elapsed counts for a card that is not pending', 'hook', 'return pending && elapsed', 'return elapsed', ['hook']],
+  ['pending: the timer runs for a card that is not pending', 'hook', '    if (!pending) {\n      setElapsed(false)\n      return\n    }', '    if (false) {\n      return\n    }', ['hook']],
+  ['pending: the default period is ignored', 'hook', 'graceMs: number = RAIL_LIVE_PREVIEW_PENDING_GRACE_MS', 'graceMs: number = 0', ['hook']],
+  ['pending: a custom period is ignored', 'hook', 'setTimeout(() => setElapsed(true), graceMs)', 'setTimeout(() => setElapsed(true), RAIL_LIVE_PREVIEW_PENDING_GRACE_MS)', ['hook']],
+  ['pending: the component never starts the timer', 'component', 'useRailPendingGrace(status === \'pending\')', 'useRailPendingGrace(false)', ['component']],
+  ['pending: the component runs the timer for every card', 'component', 'useRailPendingGrace(status === \'pending\')', 'useRailPendingGrace(true)', ['component']],
+  ['pending: the component ignores the timer', 'component', 'railLivePreviewEligible(status, pendingElapsed)', 'railLivePreviewEligible(status, true)', ['component']],
+  ['pending: the component ignores the status', 'component', 'railLivePreviewEligible(status, pendingElapsed)', "railLivePreviewEligible('none', pendingElapsed)", ['component']],
+  ['pending: the strip never says pending', 'strip', "status={slide.thumbnailStatus === 'pending' ? 'pending' : 'none'}", "status={'none'}", ['strip', 'guard']],
+  ['pending: the strip always says pending', 'strip', "status={slide.thumbnailStatus === 'pending' ? 'pending' : 'none'}", "status={'pending'}", ['strip', 'guard']],
+  // on screen without the observer
+  ['geometry: the stand-in is never asked', 'hook', 'if (eligible && host && observingRef.current && !answeredRef.current && hostOnScreen(host)) controller.setVisible(true)', 'void host', ['hook']],
+  ['geometry: asked without an observer', 'hook', 'if (eligible && host && observingRef.current && !answeredRef.current && hostOnScreen(host))', 'if (eligible && host && !answeredRef.current && hostOnScreen(host))', ['hook']],
+  ['geometry: overrules an observer that has answered', 'hook', 'if (eligible && host && observingRef.current && !answeredRef.current && hostOnScreen(host))', 'if (eligible && host && observingRef.current && hostOnScreen(host))', ['hook']],
+  ['geometry: the observer answer is not remembered', 'hook', '        answeredRef.current = true\n', '', ['hook']],
+  ['geometry: asked when not eligible', 'hook', 'if (eligible && host && observingRef.current', 'if (host && observingRef.current', ['hook']],
+  ['geometry: the viewport is ignored', 'hook', '[{ left: 0, top: 0, right: window.innerWidth, bottom: window.innerHeight }]', '[]', ['hook']],
+  ['geometry: the viewport width is ignored', 'hook', 'right: window.innerWidth,', 'right: 1e9,', ['hook']],
+  ['geometry: the viewport height is ignored', 'hook', 'bottom: window.innerHeight }', 'bottom: 1e9 }', ['hook']],
+  ['geometry: the viewport left edge is ignored', 'hook', '{ left: 0, top: 0, right: window.innerWidth', '{ left: -1e9, top: 0, right: window.innerWidth', ['hook']],
+  ['geometry: the viewport top edge is ignored', 'hook', '{ left: 0, top: 0, right: window.innerWidth', '{ left: 0, top: -1e9, right: window.innerWidth', ['hook']],
+  ['geometry: no ancestor clips', 'hook', "style.overflowX !== 'visible' || style.overflowY !== 'visible'", 'false', ['hook']],
+  ['geometry: only the x axis clips', 'hook', " || style.overflowY !== 'visible'", '', ['hook']],
+  ['geometry: only the y axis clips', 'hook', "style.overflowX !== 'visible' || ", '', ['hook']],
+  ['geometry: the card itself is not measured', 'hook', 'return railBoxVisible(host.getBoundingClientRect(), clips)', 'return railBoxVisible({ left: 0, top: 0, right: 1, bottom: 1 }, clips)', ['hook']],
+  ['geometry: a failing read escapes', 'hook', '  } catch {\n    return false\n  }', '  } catch (error) {\n    throw error\n  }', ['hook']],
+  ['geometry: a failing read means yes', 'hook', '  } catch {\n    return false\n  }', '  } catch {\n    return true\n  }', ['hook']],
+  ['geometry: every card is on screen', 'hook', 'return railBoxVisible(host.getBoundingClientRect(), clips)', 'return true', ['hook']],
+  ['geometry: touching edges count', 'lib', 'if (!(right > left && bottom > top)) return false\n  for', 'if (!(right >= left && bottom >= top)) return false\n  for', ['lib']],
+  ['geometry: touching edges count after a clip', 'lib', '    if (!(right > left && bottom > top)) return false\n  }', '    if (!(right >= left && bottom >= top)) return false\n  }', ['lib']],
+  ['geometry: a box with no area counts', 'lib', '  if (!(right > left && bottom > top)) return false\n  for', '  for', ['lib']],
+  ['geometry: the clips are ignored', 'lib', 'for (const clip of clips) {', 'for (const clip of []) {', ['lib', 'hook']],
+  ['geometry: the left clip is ignored', 'lib', 'left = Math.max(left, clip.left)', 'left = left', ['lib']],
+  ['geometry: the top clip is ignored', 'lib', 'top = Math.max(top, clip.top)', 'top = top', ['lib']],
+  ['geometry: the right clip is ignored', 'lib', 'right = Math.min(right, clip.right)', 'right = right', ['lib']],
+  ['geometry: the bottom clip is ignored', 'lib', 'bottom = Math.min(bottom, clip.bottom)', 'bottom = bottom', ['lib']],
+  ['geometry: only the last clip counts', 'lib', 'left = Math.max(left, clip.left)\n    top = Math.max(top, clip.top)\n    right = Math.min(right, clip.right)\n    bottom = Math.min(bottom, clip.bottom)', 'left = clip.left\n    top = clip.top\n    right = clip.right\n    bottom = clip.bottom', ['lib']],
+  ['first answer: the observer result is dropped', 'hook', '        const latest = entries[entries.length - 1]\n        if (!latest) return', '        const latest = entries[0]\n        if (!latest) return', ['hook']],
+  ['first answer: the first entry wins', 'hook', 'const latest = entries[entries.length - 1]', 'const latest = entries[0]', ['hook']],
+  ['first answer: a callback without entries throws', 'hook', '        if (!latest) return\n', '', ['hook']],
+  ['first answer: visibility is forgotten until eligible', 'lib', "setVisible(next) { if (next !== visible) { visible = next; reconcile() } },", "setVisible(next) { if (next !== visible) { visible = eligible && next; reconcile() } },", ['lib', 'hook']],
 ]
 
 const OVERLAY_START = SRC.strip.indexOf('        {/* F9-A: live mini-preview for a card')
