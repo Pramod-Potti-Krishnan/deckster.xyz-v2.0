@@ -9,10 +9,10 @@
  * instead: an iframe of the VIEW-ONLY Layout viewer opened on that slide, scaled down by the
  * component. This module holds the rules and nothing else (pure: no React, no DOM, no network):
  *
- *  - the gate: only a `none` card, or a `pending` card that has had no thumbnail URL for the grace period (15 s,
- *    a client-side timer; Layout can keep saying `pending` for ten minutes about a slide that will never get a
- *    preview), gets a frame. Stale and fresh cards, and any card holding a real thumbnail URL, never do (a real image
- *    is never replaced, and drops the frame at once);
+ *  - the gate: only a `none` card, or a `pending` or `stale` card that has had no thumbnail URL for the grace period
+ *    (15 s, a client-side timer; Layout can keep saying `pending` for ten minutes about a slide that will never get a
+ *    preview, and `stale` with no URL is a card whose image is gone), gets a frame. Fresh cards, and any card holding a
+ *    real thumbnail URL, never do (a real image is never replaced, and drops the frame at once);
  *  - the frame URL: the existing view-only builder (`presentFrameUrl`, `?viewOnly=true#/N`) on the
  *    deck's already approved viewer URL, checked against the Layout viewer allow-list again;
  *  - a module-level slot pool: at most RAIL_LIVE_PREVIEW_MAX_FRAMES frames across the whole rail,
@@ -37,7 +37,7 @@ export const RAIL_LIVE_PREVIEW_STAGE = { width: 1920, height: 1080 } as const
 /** Same status vocabulary as the slide inventory (lib/slide-rail-identity.ts), kept loose so a legacy row (no status) is just "not none". */
 type PreviewStatus = string | null | undefined
 
-/** How long a card must have been seen `pending` (no thumbnail URL) before it counts as eligible. */
+/** How long a card must have been seen `pending` or `stale` (no thumbnail URL) before it counts as eligible. */
 export const RAIL_LIVE_PREVIEW_PENDING_GRACE_MS = 15_000
 
 type PreviewRow = { thumbnailStatus?: PreviewStatus; thumbnailUrl?: string | null }
@@ -46,29 +46,32 @@ type PreviewRow = { thumbnailStatus?: PreviewStatus; thumbnailUrl?: string | nul
 const hasThumbnailUrl = (row: PreviewRow): boolean => typeof row.thumbnailUrl === 'string' && Boolean(row.thumbnailUrl.trim())
 
 /**
- * The none gate. `none` is Layout's word for "no preview, none is coming"; `stale` and `fresh` keep
- * today's rendering, and a row that carries a usable thumbnail URL is never replaced.
+ * The none gate. `none` is Layout's word for "no preview, none is coming"; `fresh` keeps today's
+ * rendering, and a row that carries a usable thumbnail URL is never replaced.
  */
 export function railLivePreviewApplies(row: PreviewRow): boolean {
   if (row.thumbnailStatus !== 'none') return false
   return !hasThumbnailUrl(row)
 }
 
-/** A `pending` card with no thumbnail URL: one is expected, so it only qualifies once it has stayed that way for the grace period. */
+/**
+ * A `pending` card with no thumbnail URL (one is expected), or a `stale` one with no URL (the image it had is gone and Layout has
+ * no new one): either only qualifies once it has stayed that way for the grace period. `stale` WITH a URL keeps its image.
+ */
 export function railLivePreviewPending(row: PreviewRow): boolean {
-  if (row.thumbnailStatus !== 'pending') return false
+  if (row.thumbnailStatus !== 'pending' && row.thumbnailStatus !== 'stale') return false
   return !hasThumbnailUrl(row)
 }
 
-/** Whether the strip renders the preview host for a card at all: `none`, or `pending` (which then waits out the grace period). */
+/** Whether the strip renders the preview host for a card at all: `none`, or `pending` / `stale` without a URL (which then wait out the grace period). */
 export function railLivePreviewCandidate(row: PreviewRow): boolean {
   return railLivePreviewApplies(row) || railLivePreviewPending(row)
 }
 
-/** The two statuses a card with a preview host can be in. */
+/** The two kinds of card with a preview host: `none`, and `pending` (which also stands for `stale` without a URL: both wait out the grace period). */
 export type RailLivePreviewStatus = 'none' | 'pending'
 
-/** `none` is eligible at once; `pending` only after it has been seen pending for the grace period. */
+/** `none` is eligible at once; `pending` only after it has been seen waiting for the grace period. */
 export function railLivePreviewEligible(status: RailLivePreviewStatus, pendingElapsed: boolean): boolean {
   return status === 'none' || (status === 'pending' && pendingElapsed)
 }

@@ -88,8 +88,8 @@ export function useRailLivePreview(eligible: boolean): { hostRef: RefObject<HTML
 }
 
 /**
- * True once `pending` has stayed true for `graceMs` without a break (a client-side timer started when the card was first
- * seen pending; no request to anyone). Going false resets it. Layout can keep answering `pending` for ten minutes about a
+ * True once `pending` (a pending or stale card) has stayed true for `graceMs` without a break (a client-side timer started when
+ * the card was first seen that way; no request to anyone). Going false resets it. Layout can keep answering `pending` for ten minutes about a
  * slide that will never get a preview; the grace period is how long the card trusts that answer before it shows the slide.
  */
 export function useRailPendingGrace(pending: boolean, graceMs: number = RAIL_LIVE_PREVIEW_PENDING_GRACE_MS): boolean {

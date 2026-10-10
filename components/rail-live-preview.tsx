@@ -45,10 +45,11 @@ function LiveFrame({ src, scale }: { src: string; scale: number }) {
 /**
  * Live mini-preview of one slide for a rail card that will never get a thumbnail (F9-A, flag
  * NEXT_PUBLIC_STUDIO_RAIL_LIVE_PREVIEW_FALLBACK_ENABLED). The strip renders this only for a card whose
- * inventory status is `none`, or `pending` with no thumbnail URL, and which holds no real thumbnail; when
+ * inventory status is `none`, or `pending` or `stale` with no thumbnail URL, and which holds no real thumbnail; when
  * either stops being true the strip stops rendering it, which unmounts the frame and frees its slot at once.
- * A `none` card is eligible at once; a `pending` card (Layout can say that for ten minutes about a slide that
- * will never get a preview) only once it has been seen pending for 15 s, by a timer in the browser.
+ * A `none` card is eligible at once; a `pending` or `stale` card (Layout can say `pending` for ten minutes about a slide
+ * that will never get a preview, and `stale` with no URL has lost its image) only once it has been seen that way for 15 s,
+ * by a timer in the browser. The strip passes both as status `pending`.
  * It is an overlay on the card's 16:9 preview area (the card is its positioning parent), a sibling of the card's button.
  *
  * The frame is the view-only Layout viewer opened on `slideIndex`, laid out at the stage's own 1920x1080
