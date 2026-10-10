@@ -17,6 +17,11 @@ const priorLifetime=execFileSync('git',['show',`7c1d48f:${file}`],{cwd:root,enco
 let restored=source
 const drop=block=>{assert.equal(restored.split(block).length,2,block);restored=restored.replace(block,'')}
 restored=restored.replace("import { useState, useCallback, useEffect, useRef } from 'react'","import { useState, useCallback, useRef } from 'react'")
+// NEXT_PUBLIC_UPLOAD_OWNER_ID_ENABLED (R-20261007-frontend-23), default off: the owner-id import, the classic-path
+// owner id and the refusal guard. The owner-scoped ensure branch carries the same helper and is removed whole below.
+drop("import {\n  UPLOAD_OWNER_REQUIRED_MESSAGE,\n  UploadOwnerRequiredError,\n  isUploadOwnerId,\n  isUploadOwnerIdEnabled,\n  researcherUploadOwnerId,\n} from '@/lib/upload-owner'\n")
+restored=restored.replace("          // Flag off: `userId || 'anonymous'` as always. Flag on: the account id,\n          // or the upload is refused (R-20261007-frontend-23).\n          user_id: researcherUploadOwnerId(userId),","          user_id: userId || 'anonymous',")
+drop("    // R-20261007-frontend-23: with NEXT_PUBLIC_UPLOAD_OWNER_ID_ENABLED on, an upload\n    // whose owner is not an account id (missing, an e-mail, a placeholder) is\n    // refused here, before any chip or request exists. Flag off: skipped.\n    if (isUploadOwnerIdEnabled() && !isUploadOwnerId(userId)) {\n      toast({\n        title: 'Upload blocked',\n        description: UPLOAD_OWNER_REQUIRED_MESSAGE,\n        variant: 'destructive'\n      })\n      throw new UploadOwnerRequiredError()\n    }\n\n")
 const helpersStart=restored.indexOf('// Studio upload ownership is local only;'),helpersEnd=restored.indexOf('// End Studio upload ownership helpers.\n\n')
 assert.ok(helpersStart>=0&&helpersEnd>helpersStart)
 restored=restored.slice(0,helpersStart)+restored.slice(helpersEnd+'// End Studio upload ownership helpers.\n\n'.length)

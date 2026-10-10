@@ -10,6 +10,13 @@ import {
   resolveEnrichmentOutcome,
   type IngestReadiness,
 } from '@/lib/upload-status'
+import {
+  UPLOAD_OWNER_REQUIRED_MESSAGE,
+  UploadOwnerRequiredError,
+  isUploadOwnerId,
+  isUploadOwnerIdEnabled,
+  researcherUploadOwnerId,
+} from '@/lib/upload-owner'
 
 const MAX_FILES = uploadConfig.maxFiles
 // Resolve only for an admitted Knowledge action; optional uploader imports stay safe.
@@ -180,7 +187,7 @@ export function useFileUpload({ sessionId, userId, onUploadComplete }: UseFileUp
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
-            user_id: owner.userId || 'anonymous',
+            user_id: researcherUploadOwnerId(owner.userId),
             session_id: owner.sessionId,
             session_name: `Session_${owner.sessionId.slice(0, 8)}`,
             metadata: { frontend_session_id: owner.sessionId, upload_path: 'direct_supabase' },
@@ -216,7 +223,9 @@ export function useFileUpload({ sessionId, userId, onUploadComplete }: UseFileUp
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          user_id: userId || 'anonymous',
+          // Flag off: `userId || 'anonymous'` as always. Flag on: the account id,
+          // or the upload is refused (R-20261007-frontend-23).
+          user_id: researcherUploadOwnerId(userId),
           session_id: currentSessionId,
           session_name: `Session_${currentSessionId.slice(0, 8)}`,
           metadata: {
@@ -477,6 +486,18 @@ export function useFileUpload({ sessionId, userId, onUploadComplete }: UseFileUp
         variant: 'destructive'
       })
       throw new Error('No active session')
+    }
+
+    // R-20261007-frontend-23: with NEXT_PUBLIC_UPLOAD_OWNER_ID_ENABLED on, an upload
+    // whose owner is not an account id (missing, an e-mail, a placeholder) is
+    // refused here, before any chip or request exists. Flag off: skipped.
+    if (isUploadOwnerIdEnabled() && !isUploadOwnerId(userId)) {
+      toast({
+        title: 'Upload blocked',
+        description: UPLOAD_OWNER_REQUIRED_MESSAGE,
+        variant: 'destructive'
+      })
+      throw new UploadOwnerRequiredError()
     }
 
     const fileId = crypto.randomUUID()
