@@ -95,6 +95,7 @@ import { SlideNotesPanel } from './slide-notes-panel'
 import { SaveStatus } from './save-status-indicator'
 import { SlideLayoutPicker, SlideLayoutType } from './slide-layout-picker'
 import { ADD_SLIDE_V2_ENABLED, type AddSlideV2Settings } from '@/lib/studio-add-slide-v2'
+import { STUDIO_BLANK_GOTO_VISUAL_INDEX_ENABLED, blankInsertVisualIndex } from '@/lib/studio-blank-goto-visual-index'
 import { DeleteSlideDialog } from './delete-slide-dialog'
 import { TemplateSaveDialog } from './template-save-dialog'
 import { TemplateIngestDialog } from './template-ingest-dialog'
@@ -1933,6 +1934,10 @@ export function PresentationViewer({
     }
   }, [onEditModeChange, studioShell, beginStudioViewerInteraction])
 
+  // The placeholders the Add ack is converted against (read at ack time, so the callback keeps its identity).
+  const composeJobsRef = useRef(composeJobs)
+  composeJobsRef.current = composeJobs
+
   // Add slide handler
   const handleAddSlide = useCallback(async (layoutId: SlideLayoutType, options?: { position?: number; backgroundColor?: string }) => {
     const expectedOwner = renderSlideMutationOwner
@@ -2129,7 +2134,11 @@ export function PresentationViewer({
         const newTotal = typeof candidateSlideCount === 'number' && Number.isFinite(candidateSlideCount)
           ? candidateSlideCount
           : totalSlides + 1
-        const newSlideNumber = newSlideIndex + 1
+        // A Blank placed past compose placeholders: the ack index is the persisted one, the iframe navigates by visual index.
+        const newVisualIndex = STUDIO_BLANK_GOTO_VISUAL_INDEX_ENABLED && options?.position !== undefined
+          ? blankInsertVisualIndex({ persistedIndex: newSlideIndex, realSlideCount: newTotal, jobs: composeJobsRef.current })
+          : newSlideIndex
+        const newSlideNumber = newVisualIndex + 1
         committedSlideNumber = newSlideNumber
 
         if (studioShell && capturedNativeRevision === thumbnailNativeRevisionRef.current) {
@@ -2200,7 +2209,7 @@ export function PresentationViewer({
         let manualSelectionConfirmed = true
         if (isCurrentSlideSelection()) {
           // Navigate iframe to the new slide (PowerPoint/Keynote behavior).
-          await sendCommand(iframe, 'goToSlide', { index: newSlideIndex })
+          await sendCommand(iframe, 'goToSlide', { index: newVisualIndex })
           if (!isCurrentSlideMutation()) { reportRetiredAdd(); return }
           if (isCurrentSlideSelection()) {
             // Only the still-current automatic selection owns these editing
@@ -2221,7 +2230,7 @@ export function PresentationViewer({
 
         toast({
           title: manualSelectionConfirmed ? 'Slide Added' : 'Slide added; selection not confirmed',
-          description: manualSelectionConfirmed ? `New slide inserted at position ${newSlideIndex + 1}`
+          description: manualSelectionConfirmed ? `New slide inserted at position ${newSlideNumber}`
             : `Slide ${newSlideNumber} was added. Select your slide again; do not add it again.`,
         })
 
