@@ -70,3 +70,12 @@
 [data-studio-add-slide-v2="true"] .asv2-blank { display: inline-flex; align-items: center; gap: 5px; border: 1px solid var(--asv2-line); border-radius: 6px; background: transparent; color: var(--asv2-text); padding: 5px 9px; font-size: 11px; }
 [data-studio-add-slide-v2="true"] .asv2-blank:not(:disabled):hover { border-color: var(--asv2-accent); background: var(--asv2-active); }
 @media (max-width: 430px) { [data-studio-add-slide-v2="true"] .asv2-types .asv2-choice { flex: 1 1 40%; } }
+/* J2V2-REGENERATE: the Add / Regenerate switch, the kept slide type, and the run's status line. */
+[data-studio-add-slide-v2="true"] .asv2-modes { display: flex; gap: 0; border: 1px solid var(--asv2-line); border-radius: 7px; overflow: hidden; }
+[data-studio-add-slide-v2="true"] .asv2-mode { flex: 1 1 0; border: 0; background: transparent; color: var(--asv2-muted); padding: 6px 9px; font-size: 11px; }
+[data-studio-add-slide-v2="true"] .asv2-mode + .asv2-mode { border-left: 1px solid var(--asv2-line); }
+[data-studio-add-slide-v2="true"] .asv2-mode[aria-pressed="true"] { background: var(--asv2-active); color: var(--asv2-accent); font-weight: 600; }
+[data-studio-add-slide-v2="true"] .asv2-kind { margin: 0; color: var(--asv2-muted); font-size: 11px; }
+[data-studio-add-slide-v2="true"] .asv2-kind b { color: var(--asv2-text); font-weight: 600; }
+[data-studio-add-slide-v2="true"] .asv2-regenerating, [data-studio-add-slide-v2="true"] .asv2-regenerated { display: flex; align-items: baseline; flex-wrap: wrap; gap: 6px; }
+[data-studio-add-slide-v2="true"] .asv2-regen-failed { display: flex; align-items: baseline; flex-wrap: wrap; gap: 6px; }

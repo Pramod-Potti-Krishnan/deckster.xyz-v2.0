@@ -4066,7 +4066,7 @@ export function PresentationViewer({
               <SlideLayoutPicker
                 onAddSlide={handleAddSlide}
                 onGenerateSlide={onGenerateSlide}
-                addSlideV2={ADD_SLIDE_V2_ENABLED && addSlideV2Settings ? { settings: addSlideV2Settings, currentSlide, slideCount: totalSlides, theme: buildThemeSelection } : undefined}
+                addSlideV2={ADD_SLIDE_V2_ENABLED && addSlideV2Settings ? { settings: addSlideV2Settings, currentSlide, slideCount: totalSlides, theme: buildThemeSelection, slides: addSlideV2Settings.regenerate ? slideThumbnails.map(slide => ({ slideId: slide.slideId ?? null, title: slide.title ?? '' })) : undefined } : undefined}
                 disabled={!viewerIsReady || templateModeOn || isSlideMutationPending}
                 className="min-w-[80px] justify-center"
               />
