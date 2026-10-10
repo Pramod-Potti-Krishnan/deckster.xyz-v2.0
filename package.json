@@ -69,6 +69,7 @@
     "test:template-save-gate": "node scripts/test-template-save-gate.mjs",
     "test:upload-status-contract": "node scripts/test-upload-status-contract.mjs",
     "test:research-mode-contract": "node scripts/test-research-mode-contract.mjs",
+    "test:researcher-ingest-status-auth": "node scripts/test-researcher-ingest-status-auth.mjs",
     "start": "next start",
     "postinstall": "prisma generate",
     "test:qa-citation-tiers": "node scripts/test-qa-citation-tiers.mjs",
