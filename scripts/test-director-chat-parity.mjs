@@ -42,7 +42,7 @@ function load(source, studio = true) {
 }
 const read = name => fs.readFileSync(new URL(`../${name}`, import.meta.url), 'utf8')
 const fromGit = (ref, name) => execFileSync('git', ['show', `${ref}:${name}`], { encoding: 'utf8' })
-for (const name of ['user-message-attachments', 'build-progress-visibility', 'director-transcript', 'director-chat-history', 'director-history-presentation', 'studio-greeting-lifecycle']) imports[`@/lib/${name}`] = load(read(`lib/${name}.ts`))
+for (const name of ['user-message-attachments', 'build-progress-visibility', 'director-transcript', 'director-chat-history', 'director-ask-identity', 'director-history-presentation', 'studio-greeting-lifecycle']) imports[`@/lib/${name}`] = load(read(`lib/${name}.ts`))
 const cardSource = read('components/builder/chat/question-card.tsx')
 const { QuestionCard } = load(cardSource)
 imports['@/components/builder/chat/question-card'] = { QuestionCard }

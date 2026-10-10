@@ -1,6 +1,7 @@
 import type { DirectorMessage, ActionRequest } from '@/hooks/use-deckster-websocket-v2'
 import type { DirectorTranscriptEntry } from '@/lib/director-transcript'
 import { directorHistoryTimestamp } from '@/lib/director-chat-history'
+import { STUDIO_ASK_CARD_IDENTITY_ENABLED, isApprovalGate, isAskAnswered } from '@/lib/director-ask-identity'
 
 const transportFields = new Set(['preview_url', 'presentation_url', 'url', 'preview_presentation_id', 'presentation_id'])
 
@@ -182,8 +183,46 @@ function userReplies(messages: readonly DirectorMessage[], userTurns: readonly H
  * follows it (after a reload nothing else records the answer). That is the only evidence: a deck, a position in the list
  * or a later Director frame never retires a card, so a pending question, plan gate or "Generate final deck" stays live.
  * A native gate is answered by its own button echo (the turn text is one of its labels); free text sent while it is
- * pending is not an answer. Pure: it never writes `answeredIds`. */
+ * pending is not an answer. Pure: it never writes `answeredIds`.
+ *
+ * With STUDIO_ASK_CARD_IDENTITY_ENABLED an answer belongs to the ask instance, not to a reused id, and only the newest approval
+ * gate of a session can stay live. (The build lock lives in lockApprovalGateStatuses, applied by the callers.) */
 export function historicalActionStatuses(
+  messages: readonly DirectorMessage[],
+  answeredIds: ReadonlySet<string>,
+  userTurns?: readonly HistoricalUserTurn[],
+): Map<string, HistoricalActionStatus> {
+  const statuses = baseHistoricalActionStatuses(messages, answeredIds, userTurns)
+  if (STUDIO_ASK_CARD_IDENTITY_ENABLED) retireSupersededApprovalGates(messages, statuses)
+  return statuses
+}
+
+// Supersession (NEW-E1). Director re-sends the outline gate under a new id on every reconnect while the outline is unapproved,
+// so a restored session holds several. Every approval gate older than the newest of its session is an earlier step. A card
+// without a usable time never compares as older, so it cannot be retired by accident.
+function retireSupersededApprovalGates(
+  messages: readonly DirectorMessage[],
+  statuses: Map<string, HistoricalActionStatus>,
+): void {
+  const bySession = new Map<string, { id: string; time: number }[]>()
+  for (const message of messages) {
+    if (message.type !== 'action_request' || !isApprovalGate((message as ActionRequest).payload?.actions)) continue
+    const gates = bySession.get(message.session_id ?? '') ?? []
+    gates.push({ id: message.message_id, time: transcriptTime(message) })
+    bySession.set(message.session_id ?? '', gates)
+  }
+  for (const gates of bySession.values()) {
+    let newest: { id: string; time: number } | undefined
+    for (const gate of gates) if (Number.isFinite(gate.time) && (!newest || gate.time >= newest.time)) newest = gate
+    for (const gate of gates) {
+      if (statuses.has(gate.id)) continue
+      // An id is judged by its newest entry: two entries of ONE id are one ask, never each other's successor.
+      if (newest && gate.id !== newest.id && Number.isFinite(gate.time)) statuses.set(gate.id, 'earlier')
+    }
+  }
+}
+
+function baseHistoricalActionStatuses(
   messages: readonly DirectorMessage[],
   answeredIds: ReadonlySet<string>,
   userTurns?: readonly HistoricalUserTurn[],
@@ -191,7 +230,7 @@ export function historicalActionStatuses(
   const statuses = new Map<string, HistoricalActionStatus>()
   for (const message of messages) {
     if (message.type !== 'action_request') continue
-    if (answeredIds.has(message.message_id)) { statuses.set(message.message_id, 'answered'); continue }
+    if (isAskAnswered(answeredIds, message)) { statuses.set(message.message_id, 'answered'); continue }
     const actions = (message as ActionRequest).payload.actions
     const planGate = actions.some(action => action.value === 'accept_plan')
     const outlineGate = actions.some(action => action.value === 'accept_strawman')

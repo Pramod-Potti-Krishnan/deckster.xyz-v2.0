@@ -32,6 +32,7 @@ function load(relative) {
 imports['@/lib/user-message-attachments'] = load('../lib/user-message-attachments.ts')
 imports['@/lib/director-transcript'] = load('../lib/director-transcript.ts')
 imports['@/lib/director-chat-history'] = load('../lib/director-chat-history.ts')
+imports['@/lib/director-ask-identity'] = load('../lib/director-ask-identity.ts')
 imports['@/lib/director-history-presentation'] = load('../lib/director-history-presentation.ts')
 imports['@/lib/build-progress-visibility'] = load('../lib/build-progress-visibility.ts')
 const { MessageList } = load('../components/builder/message-list.tsx')
