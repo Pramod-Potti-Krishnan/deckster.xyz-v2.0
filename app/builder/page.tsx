@@ -60,6 +60,7 @@ import {
 import { TextBoxFormatting, type RefineElementRequest, type SlideComposeViewerApi, type StudioIntroductionSafety, type StudioComposeSelectionContext, type StudioElementGenerationLease, type StudioPartialNativeReadback } from '@/components/presentation-viewer'
 import { parseStudioNativeSlideOrder, type StudioNativeSlideOrder } from '@/lib/studio-native-slide-order'
 import { STUDIO_PANEL_KEEP_CANVAS_ENABLED, presentationWrapperTransition } from '@/lib/studio-panel-keep-canvas'
+import { STUDIO_BUILD_COUNTER_BUILT_TERMINAL_ENABLED } from '@/lib/studio-build-counter'
 import {
   STUDIO_GOTO_NEW_SLIDE_ENABLED,
   goToNewSlideIntent,
@@ -2928,6 +2929,7 @@ function AuthenticatedBuilderContent({ authScopeUserId }: { authScopeUserId: str
     finalPresentationId,
     // Durable final identity fences outline/history replay without suppressing
     // a distinct newer typed build or its recovery controls.
+    builtTerminal: STUDIO_BUILD_COUNTER_BUILT_TERMINAL_ENABLED,
   })
 
   const { showOutlinePreview, onNativeBuildPhase, cancelOutlinePreview } = useStudioOutlinePreview({
