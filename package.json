@@ -11,6 +11,8 @@
     "build": "prisma generate && next build",
     "dev": "next dev",
     "lint": "next lint",
+    "test:ws-bq-claim": "node scripts/test-ws-bq-claim.mjs",
+    "test:quota-live-tier": "node scripts/test-quota-live-tier.mjs",
     "test:director-sync-recovery": "node scripts/test-director-sync-recovery.mjs",
     "test:studio-history-action-status": "node scripts/test-studio-history-action-status.mjs",
     "test:golden-evidence-contract": "node scripts/test-golden-evidence-contract.mjs",
