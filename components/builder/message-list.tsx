@@ -31,6 +31,7 @@ import {
 import { deduplicateDirectorTranscript, type DirectorTranscriptEntry } from "@/lib/director-transcript"
 import { classifyDirectorMessage, getDirectorActionPolicy } from "@/lib/studio-director-message-policy"
 import { directorHistoryTimestamp } from "@/lib/director-chat-history"
+import { askAnswerKey, lockApprovalGatePolicy } from "@/lib/director-ask-identity"
 import { coalesceOutlineStateReplays, presentTerminalOutlineRevisions, type HistoricalActionStatus, type OutlineHistoryStatus } from "@/lib/director-history-presentation"
 import {
   attachmentsFromPayload,
@@ -65,7 +66,11 @@ export interface MessageListProps {
   userMessageContentMapRef: React.RefObject<Map<string, string>>
   hasSeenWelcomeRef: React.RefObject<boolean>
   answeredActionsRef: React.RefObject<Set<string>>
-  onActionClick: (action: ActionRequest['payload']['actions'][0], messageId: string) => void
+  /** Third argument: the key under which the owner records the answer to THIS ask (the bare id unless
+   * NEXT_PUBLIC_STUDIO_ASK_CARD_IDENTITY_ENABLED, then id + the frame's timestamp). */
+  onActionClick: (action: ActionRequest['payload']['actions'][0], messageId: string, answerKey?: string) => void
+  /** Approval gates stay inactive while a build runs, is stopped or is over (flag NEXT_PUBLIC_STUDIO_ASK_CARD_IDENTITY_ENABLED only). */
+  askGatesLocked?: boolean
   // MDC (P2/P3): sends a composed answer through the normal chat send path.
   // Optional — when absent, structured question rendering falls back to plain.
   onSubmitAnswers?: (text: string, displayText?: string) => void
@@ -157,6 +162,7 @@ export function MessageList({
   hasSeenWelcomeRef,
   answeredActionsRef,
   onActionClick,
+  askGatesLocked,
   onSubmitAnswers,
   onDraftPrompt,
   connectionState,
@@ -180,18 +186,27 @@ export function MessageList({
     certificate: InferredGreetingPrefixCertificate | null
   }>({ receipt: null, revision: 0, eligibleIds: new Set(), userIntentSeen: false, nonIntroSeen: false, certificate: null })
 
-  const { historicalActions, activeActionIds } = getDirectorActionPolicy(messages, answeredActionsRef.current, sessionId, userMessages)
+  const { historicalActions, activeActionIds } = lockApprovalGatePolicy(
+    getDirectorActionPolicy(messages, answeredActionsRef.current, sessionId, userMessages), messages, askGatesLocked)
   // Old card callbacks may survive a parent history transition. Validate at
   // interaction time against render-current IDs rather than a captured list.
   const activeActionsRef = useRef(activeActionIds)
   activeActionsRef.current = activeActionIds
+  const messagesRef = useRef(messages)
+  messagesRef.current = messages
+  // The answer is recorded against the ask instance on screen, not against an id a later ask may re-use.
+  const answerKeyFor = (messageId: string) => {
+    const ask = messagesRef.current.find(message => message.type === 'action_request' && message.message_id === messageId)
+    return ask ? askAnswerKey(ask) : messageId
+  }
   const onCurrentActionClick = (action: ActionRequest['payload']['actions'][0], messageId: string) => {
-    if (!activeActionsRef.current.has(messageId) || answeredActionsRef.current.has(messageId)) return
-    onActionClick(action, messageId)
+    const answerKey = answerKeyFor(messageId)
+    if (!activeActionsRef.current.has(messageId) || answeredActionsRef.current.has(answerKey)) return
+    onActionClick(action, messageId, answerKey)
   }
   const currentAnswerSubmit = (messageId: string) => onSubmitAnswers
     ? (text: string, displayText?: string) => {
-        if (activeActionsRef.current.has(messageId) && !answeredActionsRef.current.has(messageId)) onSubmitAnswers(text, displayText)
+        if (activeActionsRef.current.has(messageId) && !answeredActionsRef.current.has(answerKeyFor(messageId))) onSubmitAnswers(text, displayText)
       }
     : undefined
   const isEmptyStudioConversation = studio && userMessages.length === 0 && messages.every(message =>

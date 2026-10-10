@@ -5,6 +5,7 @@ import type { DirectorMessage } from './use-deckster-websocket-v2'
 import { useDirectorCall } from '@/components/builder/voice-interactive/use-director-call'
 import { latestDirectorReply, latestPendingAsk, type DirectorReplyPolicy } from '@/lib/studio-voice-interactive'
 import { classifyDirectorMessage, getDirectorActionPolicy } from '@/lib/studio-director-message-policy'
+import { lockApprovalGatePolicy } from '@/lib/director-ask-identity'
 import { studioVoiceElementVisible, type createStudioVoiceOwner, type StudioVoiceOwnerObservation } from '@/lib/studio-voice-owner'
 import type { StudioVoiceTranscriptProvenance } from '@/lib/studio-voice-transcript-provenance'
 
@@ -17,6 +18,8 @@ export interface StudioDirectorCallOptions {
   userMessageIdsRef: RefObject<Set<string>>
   userMessageContentMapRef: RefObject<Map<string, string>>
   answeredActionsRef: RefObject<Set<string>>
+  /** Same value supplied to the actual MessageList: approval gates are inactive while a build runs, is stopped or is over. */
+  askGatesLocked?: boolean
   /** Same value supplied to the actual MessageList, including null legacy policy. */
   messageListSessionId: string | null
   transcript: StudioVoiceTranscriptProvenance | null
@@ -111,8 +114,9 @@ export function useStudioDirectorCall(options: StudioDirectorCallOptions) {
     const current = currentRef.current
     const root = getQuestionRoot()
     if (!root || current.owner !== owner || !owner || !authority.isCurrent(owner)) return false
-    const policy = getDirectorActionPolicy(current.options.messages,
-      current.options.answeredActionsRef.current, current.options.messageListSessionId, current.options.userMessages)
+    const policy = lockApprovalGatePolicy(getDirectorActionPolicy(current.options.messages,
+      current.options.answeredActionsRef.current, current.options.messageListSessionId, current.options.userMessages),
+      current.options.messages, current.options.askGatesLocked)
     const ask = latestPendingAsk(current.options.messages, {
       displayedSessionId: current.options.observation.sessionId,
       historicalStatuses: policy.historicalActions, activeActionIds: policy.activeActionIds,
@@ -126,7 +130,9 @@ export function useStudioDirectorCall(options: StudioDirectorCallOptions) {
     const control = cards[0].querySelector<HTMLElement>('button:not([disabled]):not([aria-disabled="true"]), textarea:not([disabled]):not([aria-disabled="true"]), input:not([disabled]):not([aria-disabled="true"])')
     return studioVoiceElementVisible(control)
   }, [authority, owner, getQuestionRoot])
-  const policy = getDirectorActionPolicy(messages, options.answeredActionsRef.current, options.messageListSessionId, options.userMessages)
+  const policy = lockApprovalGatePolicy(
+    getDirectorActionPolicy(messages, options.answeredActionsRef.current, options.messageListSessionId, options.userMessages),
+    messages, options.askGatesLocked)
   const call = useDirectorCall({
     enabled, owner, eligible: effectiveObservation.eligible, isCurrentOwner: isCurrentCallOwner,
     messages, replyPolicy, focusComposer,

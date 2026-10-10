@@ -8,6 +8,7 @@ import '@/components/builder/studio-canvas.css'
 import { allocateStudioWorkspace, resizeStudioPane, type StudioWorkspacePane, type StudioInspector } from '@/lib/studio-workspace-layout'
 import { StudioIntroductionProvider, StudioIntroductionButton } from '@/components/builder/studio-introduction'
 import { historicalActionStatuses } from '@/lib/director-history-presentation'
+import { askGatesLocked, lockApprovalGateStatuses } from '@/lib/director-ask-identity'
 import { StudioRail } from '@/components/layout/studio-rail'
 
 import { composerThemeSyncBlocked } from '@/lib/composer-theme-policy'
@@ -6101,7 +6102,7 @@ function AuthenticatedBuilderContent({ authScopeUserId }: { authScopeUserId: str
   ])
 
   // Handle action button clicks
-  const handleActionClick = useCallback(async (action: ActionRequest['payload']['actions'][0], actionRequestMessageId: string) => {
+  const handleActionClick = useCallback(async (action: ActionRequest['payload']['actions'][0], actionRequestMessageId: string, answerKey: string = actionRequestMessageId) => {
     const origin = { ...questionSubmissionScopeRef.current }
     const isCurrentSubmission = () => (
       questionSubmissionScopeRef.current.active &&
@@ -6110,16 +6111,18 @@ function AuthenticatedBuilderContent({ authScopeUserId }: { authScopeUserId: str
       questionSubmissionScopeRef.current.userId === origin.userId
     )
     if (!origin.active || origin.sessionId !== (currentSessionId || wsSessionId)) return
-    const pendingKey = JSON.stringify([origin.generation, origin.sessionId, origin.userId, actionRequestMessageId])
+    // answerKey is the bare id unless NEXT_PUBLIC_STUDIO_ASK_CARD_IDENTITY_ENABLED, then the ask instance: a re-ask that re-uses the id
+    // (the plan gate does) is a new ask, not an answered one.
+    const pendingKey = JSON.stringify([origin.generation, origin.sessionId, origin.userId, answerKey])
     // One native request owns one choice, including choices that open input.
     if (actionSubmissionPendingRef.current.has(pendingKey) ||
-        session.answeredActionsRef.current.has(actionRequestMessageId)) return
+        session.answeredActionsRef.current.has(answerKey)) return
     session.markStudioUserIntent()
     const messageId = crypto.randomUUID()
     const timestamp = Date.now()
 
     if (action.requires_input) {
-      session.answeredActionsRef.current.add(actionRequestMessageId)
+      session.answeredActionsRef.current.add(answerKey)
       setPendingActionInput({ action, messageId, timestamp })
       setTimeout(() => {
         textareaRef.current?.focus()
@@ -6157,7 +6160,7 @@ function AuthenticatedBuilderContent({ authScopeUserId }: { authScopeUserId: str
           return
         }
 
-        session.answeredActionsRef.current.add(actionRequestMessageId)
+        session.answeredActionsRef.current.add(answerKey)
         session.userMessageIdsRef.current.add(messageId)
         session.setUserMessages(prev => [...prev, {
           id: messageId,
@@ -6482,7 +6485,13 @@ function AuthenticatedBuilderContent({ authScopeUserId }: { authScopeUserId: str
     }
   }
   studioPartialNativeReadbackHandlerRef.current = handleStudioPartialNativeReadback
-  const retiredIntroActions = historicalActionStatuses(messages, session.answeredActionsRef.current, session.userMessages)
+  // NEXT_PUBLIC_STUDIO_ASK_CARD_IDENTITY_ENABLED: no approval gate is enabled while a build runs, is paused or stopped, or the session is over.
+  const approvalGatesLocked = askGatesLocked({
+    generatingFinal: isGeneratingFinal, narrationPhase: buildNarration.phase, narrationControl: buildNarration.control,
+    workflowState: directorWorkflowState,
+  })
+  const retiredIntroActions = lockApprovalGateStatuses(
+    historicalActionStatuses(messages, session.answeredActionsRef.current, session.userMessages), messages, approvalGatesLocked)
   const studioMandatoryDecision = messages.some(message => message.type === 'action_request'
     && message.session_id === (currentSessionId || wsSessionId) && !retiredIntroActions.has(message.message_id)
     && Boolean((message.payload as any).question_set || (message as ActionRequest).payload.actions.some(action =>
@@ -6543,7 +6552,7 @@ function AuthenticatedBuilderContent({ authScopeUserId }: { authScopeUserId: str
     },
     messages, userMessages: session.userMessages,
     userMessageIdsRef: session.userMessageIdsRef, userMessageContentMapRef: session.userMessageContentMapRef,
-    answeredActionsRef: session.answeredActionsRef, messageListSessionId: currentSessionId,
+    answeredActionsRef: session.answeredActionsRef, askGatesLocked: approvalGatesLocked, messageListSessionId: currentSessionId,
     transcript: studioVoiceTranscriptReceipt, chatRootRef: studioVoiceChatRootRef,
     transcriptRootRef: studioVoiceTranscriptRootRef, textareaRef,
   })
@@ -7001,6 +7010,7 @@ function AuthenticatedBuilderContent({ authScopeUserId }: { authScopeUserId: str
                         hasSeenWelcomeRef={session.hasSeenWelcomeRef}
                         answeredActionsRef={session.answeredActionsRef}
                         onActionClick={handleActionClick}
+                        askGatesLocked={approvalGatesLocked}
                         onSubmitAnswers={async (text: string, displayText?: string) => {
                           const origin = { ...questionSubmissionScopeRef.current }
                           const isCurrentSubmission = () => (
