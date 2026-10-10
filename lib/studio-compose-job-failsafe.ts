@@ -8,8 +8,9 @@
 //
 // Behaviour with the flag on:
 //   1. A job with no outcome and no sign of life for a bounded time becomes an ERROR card in place of the
-//      placeholder, in plain words, with Retry and Dismiss. At the deadline the existing job-status route is asked
-//      once; the answer picks the wording (a job the Director has never heard of is "lost").
+//      placeholder, in plain words, with Retry and Dismiss. At the deadline the existing job-status route is asked;
+//      the answer picks the wording (a job the Director has never heard of is "lost"). A job the Director still
+//      reports as "building" is alive: it gets another interval instead, never past the hard cap from acceptance.
 //   2. The minimal job record (including the request, so the prompt) is kept in sessionStorage per session + deck. A
 //      reload re-checks each record once and shows it as pending, as the error, or not at all (the slide landed).
 //   3. Retry is the page's existing retry (it re-sends the stored request); Dismiss removes the card and the record.
@@ -194,6 +195,23 @@ export function classifyComposeJobRecheck(status: number, body: unknown, jobId: 
   return { kind: 'error', errors: result.errors.length > 0 ? result.errors : [COMPOSE_JOB_GENERIC_MESSAGE] }
 }
 
+export type ComposeJobDeadlineDecision =
+  | { action: 'built' }
+  | { action: 'reschedule' }
+  | { action: 'fail'; errors: string[] }
+
+/**
+ * What a deadline does with the re-check answer. Pure. "building" is a live job: reschedule, until the hard cap
+ * counted from acceptance is reached; from then on it fails like any other answer that is not a sign of life.
+ * "built" is handed back to the caller (the slide exists, it only has to show up).
+ */
+export function decideComposeJobDeadline(outcome: ComposeJobRecheck, acceptedAt: number, now: number): ComposeJobDeadlineDecision {
+  if (outcome.kind === 'built') return { action: 'built' }
+  if (outcome.kind === 'error') return { action: 'fail', errors: outcome.errors }
+  if (outcome.kind === 'building' && now < acceptedAt + COMPOSE_JOB_FAILSAFE_MAX_MS) return { action: 'reschedule' }
+  return { action: 'fail', errors: [outcome.kind === 'missing' ? COMPOSE_JOB_LOST_MESSAGE : COMPOSE_JOB_TIMEOUT_MESSAGE] }
+}
+
 // ---- Placeholder positions ---------------------------------------------------------------------------------------
 /** Visual slot of each pending or failed compose job: its Layout target plus the jobs placed before it (the rail's order). */
 export function composePlaceholderVisualIndexes(entries: Array<{ id: string; target: number; order: number }>): Map<string, number> {
@@ -362,7 +380,8 @@ export function createComposeJobFailsafe<TJob extends ComposeFailsafeJob>(
     if (disposed || !isOwner() || !latest || latest.status !== 'building' || tracked.get(jobId) !== entry) return
     // News arrived while we asked: the clock restarted, so this is not the deadline any more.
     if (entry.lastLifeAt !== lifeAtStart) { schedule(jobId); return }
-    if (outcome.kind === 'built') {
+    const decision = decideComposeJobDeadline(outcome, entry.acceptedAt, deps.now())
+    if (decision.action === 'built') {
       if (!entry.builtGraceUsed) {
         entry.builtGraceUsed = true
         entry.lastLifeAt = deps.now()
@@ -373,8 +392,13 @@ export function createComposeJobFailsafe<TJob extends ComposeFailsafeJob>(
       fail(latest, [COMPOSE_JOB_NOT_SHOWN_MESSAGE])
       return
     }
-    if (outcome.kind === 'error') { fail(latest, outcome.errors); return }
-    fail(latest, [outcome.kind === 'missing' ? COMPOSE_JOB_LOST_MESSAGE : COMPOSE_JOB_TIMEOUT_MESSAGE])
+    if (decision.action === 'reschedule') {
+      // Still building: another interval of the job's own window; schedule() never lets it run past the hard cap.
+      entry.lastLifeAt = deps.now()
+      schedule(jobId)
+      return
+    }
+    fail(latest, decision.errors)
   }
 
   function sync(jobs: Record<string, TJob>) {

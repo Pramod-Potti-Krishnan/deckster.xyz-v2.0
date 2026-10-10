@@ -3,7 +3,7 @@
 // Offline and self-contained: no network, no git, no browser. The repo root is found from this file (package.json anchor).
 // It drives the real controller (lib/studio-compose-job-failsafe.ts) with a fake clock, fake storage, a scripted job-status
 // route and a fake viewer: a job with no outcome becomes an error card at its deadline (wording picked by one status
-// re-check), a reload restores the stored record after one re-check (pending, error, or gone), a late "ready" is normal,
+// re-check; a job the route still reports as building is rescheduled until the 25 minute cap), a reload restores the stored record after one re-check (pending, error, or gone), a late "ready" is normal,
 // Retry keeps the prompt, Dismiss removes the card and the record. It also runs the real hook against a tiny hook runtime
 // (flag off = inert), server-renders the real rail strip, pins the page wiring, then re-runs every suite against
 // deliberately broken copies of the sources: each mutant must be caught.
@@ -151,7 +151,9 @@ function harness(lib, { storage = new MemStorage(), clock = makeClock(), jobs = 
       const planned = h.outcomes[id]
       if (planned === 'throw') throw new Error('offline')
       if (typeof planned === 'function') return planned()
-      return planned ?? answer(200, statusBody(id, 'building'))
+      // The default re-check cannot tell (a proxy failure). A "still building" answer reschedules the deadline instead of
+      // failing, so a test that wants that plans it explicitly (see the reschedule block in timeoutSuite).
+      return planned ?? answer(502, { errors: ['proxy'] })
     },
     getJobs: () => state.jobs,
     setJobs: update => {
@@ -244,6 +246,25 @@ function pureSuite(overrides) {
   check(assert.deepEqual, classify(200, { nonsense: true }), { kind: 'unreachable' })
   check(assert.deepEqual, classify(200, null), { kind: 'unreachable' })
 
+  // the deadline decision: still building = alive = reschedule, until the 25 minute cap from acceptance
+  const decide = (outcome, sinceAcceptedMs) => lib.decideComposeJobDeadline(outcome, 1_000, 1_000 + sinceAcceptedMs)
+  const CAP = lib.COMPOSE_JOB_FAILSAFE_MAX_MS
+  const timeoutFail = { action: 'fail', errors: [lib.COMPOSE_JOB_TIMEOUT_MESSAGE] }
+  check(assert.deepEqual, decide({ kind: 'building' }, 5 * MIN), { action: 'reschedule' }, 'building at the first deadline: reschedule')
+  check(assert.deepEqual, decide({ kind: 'building' }, 0), { action: 'reschedule' })
+  check(assert.deepEqual, decide({ kind: 'building' }, CAP - 1), { action: 'reschedule' }, 'one millisecond short of the cap: still reschedule')
+  check(assert.deepEqual, decide({ kind: 'building' }, CAP), timeoutFail, 'building at the cap: fail')
+  check(assert.deepEqual, decide({ kind: 'building' }, CAP + 1), timeoutFail, 'building past the cap: fail')
+  check(assert.deepEqual, decide({ kind: 'building' }, CAP + 60 * MIN), timeoutFail, 'building long past the cap: fail')
+  check(assert.deepEqual, lib.decideComposeJobDeadline({ kind: 'building' }, 5_000_000, 5_000_000 + CAP - 1), { action: 'reschedule' }, 'the cap counts from the acceptance time given')
+  check(assert.deepEqual, lib.decideComposeJobDeadline({ kind: 'building' }, 5_000_000, 5_000_000 + CAP), timeoutFail)
+  for (const since of [0, 5 * MIN, CAP - 1, CAP, CAP + MIN]) {
+    check(assert.deepEqual, decide({ kind: 'error', errors: ['Slide Builder failed'] }, since), { action: 'fail', errors: ['Slide Builder failed'] }, `failed at ${since}: fail with its words`)
+    check(assert.deepEqual, decide({ kind: 'missing' }, since), { action: 'fail', errors: [lib.COMPOSE_JOB_LOST_MESSAGE] }, `lost at ${since}: fail`)
+    check(assert.deepEqual, decide({ kind: 'unreachable' }, since), timeoutFail, `unreachable at ${since}: fail, never rescheduled`)
+    check(assert.deepEqual, decide({ kind: 'built' }, since), { action: 'built' }, `ready at ${since}: handed to the built path, not failed or rescheduled`)
+  }
+
   // visual slots
   const slots = lib.composePlaceholderVisualIndexes([{ id: 'late', target: 3, order: 9 }, { id: 'early', target: 3, order: 1 }, { id: 'front', target: 1, order: 5 }])
   check(assert.deepEqual, [...slots.entries()], [['front', 1], ['early', 4], ['late', 5]], 'target plus the jobs placed before it')
@@ -319,7 +340,6 @@ async function timeoutSuite(overrides) {
   await wording(answer(404, { detail: 'Slide compose job not found' }), [LOST], 'Director never heard of it: lost')
   await wording('throw', [TIMEOUT], 'the route is unreachable: timeout')
   await wording(answer(502, { errors: ['proxy'] }), [TIMEOUT], 'a proxy failure: timeout')
-  await wording(answer(200, statusBody('job-1', 'building')), [TIMEOUT], 'still building at the deadline: timeout')
   await wording(answer(200, statusBody('job-1', 'error', { errors: ['Slide Builder: chart data was empty'] })), ['Slide Builder: chart data was empty'], 'the Director reports the failure: its words')
   await wording(answer(200, statusBody('job-1', 'cancelled')), [lib.COMPOSE_JOB_GENERIC_MESSAGE], 'cancelled: generic plain words')
 
@@ -369,17 +389,18 @@ async function timeoutSuite(overrides) {
     release(); await tick()
     check(assert.deepEqual, [h.failed.length, h.api.fails.length, Object.keys(h.state.jobs).length], [0, 0, 0], 'a job that finished while we asked is left alone')
   }
-  // ... and so does a job that Director's own failure frame already marked
-  {
+  // ... and so does a job that Director's own failure frame already marked, whatever the answer was
+  for (const [name, reply] of [['lost', answer(404, {})], ['still building', answer(200, statusBody('job-1', 'building'))]]) {
     const h = harness(lib)
     let release
-    h.outcomes['job-1'] = () => new Promise(resolve => { release = () => resolve(answer(200, statusBody('job-1', 'building'))) })
+    h.outcomes['job-1'] = () => new Promise(resolve => { release = () => resolve(reply) })
     h.register(makeJob('job-1'))
     await h.clock.advance(5 * MIN)
     h.update('job-1', { status: 'error', errors: ['Slide Builder said no'] })
     release(); await tick()
-    check(assert.deepEqual, h.state.jobs['job-1'].errors, ['Slide Builder said no'], "the backend's own failure is not replaced")
-    check(assert.equal, h.failed.length, 0)
+    check(assert.deepEqual, h.state.jobs['job-1'].errors, ['Slide Builder said no'], `${name}: the backend's own failure is not replaced`)
+    check(assert.equal, h.failed.length, 0, name)
+    check(assert.equal, h.clock.timers.size, 0, `${name}: and no new deadline is set for it`)
   }
   // the owner changed (another deck, version or route) while we asked: this controller's answer is dropped
   {
@@ -422,12 +443,12 @@ async function timeoutSuite(overrides) {
   {
     const h = harness(lib)
     let release
-    h.outcomes['job-1'] = () => new Promise(resolve => { release = () => resolve(answer(200, statusBody('job-1', 'building'))) })
+    h.outcomes['job-1'] = () => new Promise(resolve => { release = () => resolve(answer(404, {})) })
     h.register(makeJob('job-1'))
     await h.clock.advance(5 * MIN)
     h.update('job-1', { lastProgressText: 'Composing' })
     release(); await tick()
-    h.outcomes['job-1'] = answer(200, statusBody('job-1', 'building'))
+    h.outcomes['job-1'] = answer(502, { errors: ['proxy'] })
     check(assert.equal, h.state.jobs['job-1'].status, 'building', 'progress arrived during the question')
     await h.clock.advance(5 * MIN)
     check(assert.equal, h.state.jobs['job-1'].status, 'error', 'a new five minutes without news')
@@ -443,6 +464,141 @@ async function timeoutSuite(overrides) {
     check(assert.equal, h.state.jobs['job-1'].status, 'building', '24 minutes, still getting news')
     await h.clock.advance(MIN)
     check(assert.equal, h.state.jobs['job-1'].status, 'error', 'but never more than 25 minutes from acceptance')
+  }
+
+  // still building at the deadline: alive, so another interval, never past the 25 minute cap from acceptance
+  const building = id => answer(200, statusBody(id, 'building'))
+  const timersOf = clock => [...clock.timers]
+  const recordTimers = clock => {
+    const times = []
+    const set = clock.setTimer
+    clock.setTimer = (callback, ms) => { const timer = set(callback, ms); times.push(timer.at); return timer }
+    return times
+  }
+  {
+    const clock = makeClock()
+    const start = clock.now
+    const scheduled = recordTimers(clock)
+    const h = harness(lib, { clock })
+    h.outcomes['job-1'] = () => building('job-1')
+    h.register(makeJob('job-1'))
+    for (const minute of [5, 10, 15, 20]) {
+      await h.clock.advance(minute * MIN - (h.clock.now - start) - 1)
+      check(assert.equal, h.state.jobs['job-1'].status, 'building', `minute ${minute} - 1 ms: nothing yet`)
+      await h.clock.advance(1)
+      check(assert.equal, h.fetches.length, minute / 5, `minute ${minute}: asked once more`)
+      check(assert.equal, h.state.jobs['job-1'].status, 'building', `minute ${minute}: still building, so not given up on`)
+      check(assert.equal, h.clock.timers.size, 1, `minute ${minute}: exactly one deadline timer`)
+      check(assert.equal, timersOf(h.clock)[0].at - start, (minute + 5) * MIN, `minute ${minute}: the next deadline is another interval away`)
+      check(assert.deepEqual, [h.failed.length, h.api.fails.length, h.disarmed.length], [0, 0, 0], `minute ${minute}: no failure side effect`)
+      check(assert.equal, h.records()[0].status, 'building', `minute ${minute}: the record still says building`)
+    }
+    await h.clock.advance(5 * MIN - 1)
+    check(assert.equal, h.state.jobs['job-1'].status, 'building', 'one millisecond before the cap')
+    await h.clock.advance(1)
+    check(assert.equal, h.fetches.length, 5, 'the cap deadline asks too')
+    check(assert.equal, h.state.jobs['job-1'].status, 'error', 'still building at the 25 minute cap: the error card')
+    check(assert.deepEqual, h.state.jobs['job-1'].errors, [TIMEOUT])
+    check(assert.deepEqual, h.failed, [['job-1', TIMEOUT]])
+    check(assert.equal, h.clock.timers.size, 0, 'a failed job holds no timer')
+    check(assert.ok, Math.max(...scheduled) - start <= lib.COMPOSE_JOB_FAILSAFE_MAX_MS, 'no deadline was ever set past the cap')
+    await h.clock.advance(60 * MIN)
+    check(assert.equal, h.fetches.length, 5, 'no further asking')
+  }
+  // a window that does not divide the cap: the last interval is cut short at the cap, never past it
+  {
+    const clock = makeClock()
+    const start = clock.now
+    const scheduled = recordTimers(clock)
+    const h = harness(lib, { clock })
+    h.outcomes['job-1'] = () => building('job-1')
+    h.outcomes['job-2'] = () => building('job-2')
+    h.register(makeJob('job-1', { target_layout_index: 1 }))
+    h.register(makeJob('job-2', { target_layout_index: 2 })) // one pending job ahead: an 8 minute window
+    await h.clock.advance(5 * MIN)
+    check(assert.equal, h.state.jobs['job-1'].status, 'building')
+    h.update('job-1', { status: 'error', errors: ['Slide Builder said no'] })
+    await h.clock.advance(3 * MIN)
+    check(assert.deepEqual, [h.fetchesFor('job-2').length, h.state.jobs['job-2'].status], [1, 'building'], 'minute 8: rescheduled')
+    await h.clock.advance(8 * MIN)
+    check(assert.deepEqual, [h.fetchesFor('job-2').length, h.state.jobs['job-2'].status], [2, 'building'], 'minute 16: rescheduled again')
+    await h.clock.advance(8 * MIN)
+    check(assert.deepEqual, [h.fetchesFor('job-2').length, h.state.jobs['job-2'].status], [3, 'building'], 'minute 24: rescheduled again')
+    check(assert.equal, timersOf(h.clock)[0].at - start, 25 * MIN, 'the next deadline is cut to the cap, not minute 32')
+    await h.clock.advance(MIN - 1)
+    check(assert.equal, h.state.jobs['job-2'].status, 'building')
+    await h.clock.advance(1)
+    check(assert.deepEqual, [h.fetchesFor('job-2').length, h.state.jobs['job-2'].status], [4, 'error'], 'minute 25: the error card')
+    check(assert.deepEqual, h.state.jobs['job-2'].errors, [TIMEOUT])
+    check(assert.ok, Math.max(...scheduled) - start <= lib.COMPOSE_JOB_FAILSAFE_MAX_MS, 'no deadline was ever set past the cap')
+  }
+  // a later answer decides: failed -> its words, lost -> lost, unreachable -> timeout, ready -> the built grace
+  {
+    const later = async (planned, check2, name) => {
+      const h = harness(lib)
+      h.outcomes['job-1'] = building('job-1')
+      h.register(makeJob('job-1'))
+      await h.clock.advance(5 * MIN)
+      check(assert.deepEqual, [h.state.jobs['job-1'].status, h.failed.length], ['building', 0], `${name}: first deadline reschedules`)
+      h.outcomes['job-1'] = planned
+      await h.clock.advance(5 * MIN)
+      await check2(h)
+    }
+    await later(answer(200, statusBody('job-1', 'error', { errors: ['Slide Builder: chart data was empty'] })), h => {
+      check(assert.equal, h.state.jobs['job-1'].status, 'error')
+      check(assert.deepEqual, h.state.jobs['job-1'].errors, ['Slide Builder: chart data was empty'], 'failed: its own words, at once')
+    }, 'failed later')
+    await later(answer(404, {}), h => { check(assert.deepEqual, h.state.jobs['job-1'].errors, [LOST], 'lost later') }, 'lost later')
+    await later('throw', h => { check(assert.deepEqual, h.state.jobs['job-1'].errors, [TIMEOUT], 'unreachable later: timeout') }, 'unreachable later')
+    await later(answer(200, statusBody('job-1', 'built', { real_slide_id: 's1' })), async h => {
+      check(assert.equal, h.state.jobs['job-1'].status, 'building', 'ready later: the usual moment to land')
+      await h.clock.advance(lib.COMPOSE_JOB_FAILSAFE_BUILT_GRACE_MS)
+      check(assert.deepEqual, h.state.jobs['job-1'].errors, [lib.COMPOSE_JOB_NOT_SHOWN_MESSAGE], 'ready later but never shown: honest error after the grace')
+    }, 'ready later')
+  }
+  // ready (the slide lands) during the extra interval: normal, no error, nothing asked again
+  {
+    const h = harness(lib)
+    h.outcomes['job-1'] = building('job-1')
+    h.register(makeJob('job-1'))
+    await h.clock.advance(5 * MIN)
+    check(assert.equal, h.state.jobs['job-1'].status, 'building')
+    h.remove('job-1')
+    check(assert.deepEqual, [h.records().length, h.clock.timers.size], [0, 0], 'the record and the timer go with the job')
+    await h.clock.advance(60 * MIN)
+    check(assert.deepEqual, [h.fetches.length, h.failed.length, h.api.fails.length], [1, 0, 0])
+  }
+  // news during the extra interval restarts the clock from the news
+  {
+    const h = harness(lib)
+    h.outcomes['job-1'] = building('job-1')
+    h.register(makeJob('job-1'))
+    await h.clock.advance(5 * MIN)
+    await h.clock.advance(3 * MIN)
+    h.update('job-1', { lastProgressText: 'Composing' })
+    await h.clock.advance(2 * MIN)
+    check(assert.equal, h.fetches.length, 1, 'minute 10 would have been the deadline, but news came at minute 8')
+    await h.clock.advance(3 * MIN)
+    check(assert.equal, h.fetches.length, 2, 'five minutes after the news')
+    check(assert.equal, h.state.jobs['job-1'].status, 'building')
+  }
+  // the extra intervals count on: a new owner (version, route) keeps the hard cap from the original acceptance
+  {
+    const storage = new MemStorage()
+    const clock = makeClock()
+    const a = harness(lib, { storage, clock })
+    a.outcomes['job-1'] = building('job-1')
+    a.register(makeJob('job-1'))
+    await clock.advance(5 * MIN)
+    check(assert.equal, a.state.jobs['job-1'].status, 'building')
+    a.controller.dispose()
+    const b = harness(lib, { storage, clock, jobs: a.state.jobs })
+    b.outcomes['job-1'] = building('job-1')
+    b.controller.sync(b.state.jobs)
+    await clock.advance(20 * MIN - 1)
+    check(assert.equal, b.state.jobs['job-1'].status, 'building', 'minute 25 - 1 ms')
+    await clock.advance(1)
+    check(assert.equal, b.state.jobs['job-1'].status, 'error', 'the cap counts from the original acceptance')
   }
 
   // a queue: each pending job ahead earns the next one 3 minutes
@@ -742,24 +898,39 @@ async function reloadSuite(overrides) {
 
   // already past its deadline when the page comes back: decided from the one re-check, no second question
   {
-    const storage = new MemStorage()
-    const clock = makeClock()
-    const old = harness(lib, { storage, clock })
-    old.register(makeJob('job-2'))
-    old.controller.dispose() // the tab went away with the job still pending
-    await clock.advance(20 * MIN)
-    const snapshot = storage.getItem(old.key)
-    const second = await reload({ storage, clock }, h => { h.outcomes['job-2'] = answer(200, statusBody('job-2', 'building')) })
+    const oldJob = async minutes => {
+      const storage = new MemStorage()
+      const clock = makeClock()
+      const old = harness(lib, { storage, clock })
+      old.register(makeJob('job-2'))
+      old.controller.dispose() // the tab went away with the job still pending
+      await clock.advance(minutes * MIN)
+      return { storage, clock, key: old.key }
+    }
+    const building = h => { h.outcomes['job-2'] = answer(200, statusBody('job-2', 'building')) }
+    // twenty minutes old and the Director still says "building": alive, so no card yet; asked once more at the cap
+    const alive = await oldJob(20)
+    const second = await reload(alive, building)
     check(assert.equal, second.fetchesFor('job-2').length, 1, 'one question, not two')
     await second.clock.advance(0)
-    check(assert.equal, second.state.jobs['job-2'].status, 'error', 'twenty minutes old and still "building": an error card now')
-    check(assert.deepEqual, second.state.jobs['job-2'].errors, [lib.COMPOSE_JOB_TIMEOUT_MESSAGE])
+    check(assert.equal, second.state.jobs['job-2'].status, 'building', 'twenty minutes old but still "building": not given up on')
     check(assert.equal, second.fetchesFor('job-2').length, 1, 'still one question')
-    const storage2 = new MemStorage()
-    storage2.setItem(old.key, snapshot)
-    const third = await reload({ storage: storage2, clock }, h => { h.outcomes['job-2'] = answer(404, {}) })
+    check(assert.equal, second.failed.length, 0)
+    await second.clock.advance(5 * MIN)
+    check(assert.equal, second.fetchesFor('job-2').length, 2, 'asked again at the cap, once')
+    check(assert.equal, second.state.jobs['job-2'].status, 'error', 'and an error card at the 25 minute cap')
+    check(assert.deepEqual, second.state.jobs['job-2'].errors, [lib.COMPOSE_JOB_TIMEOUT_MESSAGE])
+    // past the cap when the page comes back and still "building": an error card now, from the one question
+    const past = await oldJob(26)
+    const third = await reload(past, building)
     await third.clock.advance(0)
-    check(assert.deepEqual, third.state.jobs['job-2'].errors, [lib.COMPOSE_JOB_LOST_MESSAGE], 'and "lost" when the Director has never heard of it')
+    check(assert.equal, third.fetchesFor('job-2').length, 1, 'one question')
+    check(assert.equal, third.state.jobs['job-2'].status, 'error', 'twenty-six minutes old and still "building": an error card now')
+    check(assert.deepEqual, third.state.jobs['job-2'].errors, [lib.COMPOSE_JOB_TIMEOUT_MESSAGE])
+    const lost = await oldJob(20)
+    const fourth = await reload(lost, h => { h.outcomes['job-2'] = answer(404, {}) })
+    await fourth.clock.advance(0)
+    check(assert.deepEqual, fourth.state.jobs['job-2'].errors, [lib.COMPOSE_JOB_LOST_MESSAGE], 'and "lost" when the Director has never heard of it')
   }
 
   // ready after restore: normal
@@ -983,7 +1154,7 @@ async function hookSuite(overrides) {
     setInterval: (callback, ms) => { const id = { callback, ms }; log.intervals.push(id); return id },
     clearInterval: id => { log.clearedIntervals.push(id) },
   }
-  const fetchImpl = async url => { log.fetch.push(url); return answer(200, statusBody(decodeURIComponent(url.split('/api/slides/jobs/')[1].split('?')[0]), 'building')) }
+  const fetchImpl = async url => { log.fetch.push(url); return answer(502, { errors: ['proxy'] }) }
   const world = createWorld({ env: { [FLAG]: 'true' }, overrides, stubs: { react: runtime.impl }, globals: { window: win, fetch: fetchImpl } })
   const hookModule = world.load(FILES.hook)
   const lib = world.load(FILES.lib)
@@ -1201,10 +1372,24 @@ const mutants = [
   ['deadline: asks the wrong deck', L, 'job.target_presentation_id ?? deps.presentationId, jobId)', "'pres-wrong', jobId)", ['timeout']],
   ['deadline: built fails at once', L, 'if (!entry.builtGraceUsed) {', 'if (false) {', ['timeout']],
   ['deadline: built is never an error', L, 'fail(latest, [COMPOSE_JOB_NOT_SHOWN_MESSAGE])', 'schedule(jobId)', ['timeout']],
-  ['deadline: lost reads as timeout', L, "outcome.kind === 'missing' ? COMPOSE_JOB_LOST_MESSAGE : COMPOSE_JOB_TIMEOUT_MESSAGE", 'COMPOSE_JOB_TIMEOUT_MESSAGE', ['timeout']],
-  ['deadline: timeout reads as lost', L, "outcome.kind === 'missing' ? COMPOSE_JOB_LOST_MESSAGE : COMPOSE_JOB_TIMEOUT_MESSAGE", 'COMPOSE_JOB_LOST_MESSAGE', ['timeout']],
-  ['deadline: the backend failure words are dropped', L, "if (outcome.kind === 'error') { fail(latest, outcome.errors); return }", '', ['timeout']],
-  ['deadline: an unreachable route is left pending', L, "fail(latest, [outcome.kind === 'missing'", "if (outcome.kind === 'unreachable') return\n    fail(latest, [outcome.kind === 'missing'", ['timeout']],
+  ['deadline: lost reads as timeout', L, "outcome.kind === 'missing' ? COMPOSE_JOB_LOST_MESSAGE : COMPOSE_JOB_TIMEOUT_MESSAGE", 'COMPOSE_JOB_TIMEOUT_MESSAGE', ['pure', 'timeout']],
+  ['deadline: timeout reads as lost', L, "outcome.kind === 'missing' ? COMPOSE_JOB_LOST_MESSAGE : COMPOSE_JOB_TIMEOUT_MESSAGE", 'COMPOSE_JOB_LOST_MESSAGE', ['pure', 'timeout']],
+  // still building at the deadline: reschedule until the hard cap
+  ['reschedule: building fails at the first deadline as before', L, "  if (outcome.kind === 'building' && now < acceptedAt + COMPOSE_JOB_FAILSAFE_MAX_MS) return { action: 'reschedule' }\n", '', ['pure', 'timeout', 'reload']],
+  ['reschedule: the hard cap is ignored', L, "outcome.kind === 'building' && now < acceptedAt + COMPOSE_JOB_FAILSAFE_MAX_MS", "outcome.kind === 'building'", ['pure', 'timeout']],
+  ['reschedule: one more interval at the cap itself', L, 'now < acceptedAt + COMPOSE_JOB_FAILSAFE_MAX_MS', 'now <= acceptedAt + COMPOSE_JOB_FAILSAFE_MAX_MS', ['pure']],
+  ['reschedule: the cap counts from now, not from acceptance', L, 'now < acceptedAt + COMPOSE_JOB_FAILSAFE_MAX_MS', 'now < now + COMPOSE_JOB_FAILSAFE_MAX_MS', ['pure', 'timeout']],
+  ['reschedule: the cap is shorter than the real one', L, 'now < acceptedAt + COMPOSE_JOB_FAILSAFE_MAX_MS', 'now < acceptedAt + COMPOSE_JOB_FAILSAFE_MAX_MS / 2', ['pure', 'timeout']],
+  ['reschedule: an unreachable route is rescheduled', L, "outcome.kind === 'building' && now <", "outcome.kind !== 'missing' && now <", ['pure', 'timeout']],
+  ['reschedule: a lost job is rescheduled', L, "outcome.kind === 'building' && now <", "outcome.kind !== 'unreachable' && now <", ['pure', 'timeout']],
+  ['reschedule: a failed job is rescheduled', L, "  if (outcome.kind === 'error') return { action: 'fail', errors: outcome.errors }\n  if (outcome.kind === 'building' && now <", "  if (outcome.kind === 'building' && now <", ['pure', 'timeout']],
+  ['reschedule: a built job is not handed to the built path', L, "  if (outcome.kind === 'built') return { action: 'built' }\n", '', ['pure', 'timeout']],
+  ['reschedule: the controller always fails', L, "if (decision.action === 'reschedule') {", 'if (false) {', ['timeout', 'reload']],
+  ['reschedule: the clock is not restarted', L, "      entry.lastLifeAt = deps.now()\n      schedule(jobId)\n      return\n    }\n    fail(latest, decision.errors)", "      schedule(jobId)\n      return\n    }\n    fail(latest, decision.errors)", ['timeout']],
+  ['reschedule: no new timer is set', L, "      entry.lastLifeAt = deps.now()\n      schedule(jobId)\n      return\n    }\n    fail(latest, decision.errors)", "      entry.lastLifeAt = deps.now()\n      return\n    }\n    fail(latest, decision.errors)", ['timeout']],
+  ['reschedule: the built grace window is reused', L, "      entry.lastLifeAt = deps.now()\n      schedule(jobId)\n      return\n    }\n    fail(latest, decision.errors)", "      entry.lastLifeAt = deps.now()\n      entry.windowMs = COMPOSE_JOB_FAILSAFE_BUILT_GRACE_MS\n      schedule(jobId)\n      return\n    }\n    fail(latest, decision.errors)", ['timeout']],
+  ['deadline: the backend failure words are dropped', L, "if (outcome.kind === 'error') return { action: 'fail', errors: outcome.errors }\n", '', ['pure', 'timeout']],
+  ['deadline: an unreachable route is left pending', L, "    fail(latest, decision.errors)\n", "    if (outcome.kind === 'unreachable') return\n    fail(latest, decision.errors)\n", ['timeout']],
   ['deadline: a finished job is overwritten', L, "if (disposed || !isOwner() || !latest || latest.status !== 'building' || tracked.get(jobId) !== entry) return", "if (disposed || !isOwner() || tracked.get(jobId) !== entry) return", ['timeout']],
   ['deadline: a failure frame is overwritten', L, "if (disposed || !isOwner() || !latest || latest.status !== 'building' || tracked.get(jobId) !== entry) return", "if (disposed || !isOwner() || !latest || tracked.get(jobId) !== entry) return", ['timeout']],
   ['deadline: a retired owner still acts', L, "if (disposed || !isOwner() || !latest ||", "if (disposed || !latest ||", ['timeout']],
