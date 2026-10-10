@@ -146,9 +146,14 @@ import {
   mergeStageFReadyThumbnailUrl,
   mergeStageFPresentationThumbnailUrl,
 } from '@/lib/stage-f-thumbnails'
+import {
+  COMPOSE_JOB_FAILSAFE_TOAST_TITLE,
+  STUDIO_COMPOSE_JOB_FAILSAFE_ENABLED,
+} from '@/lib/studio-compose-job-failsafe'
 
 // Extracted hooks
 import { useBuilderSession } from '@/hooks/use-builder-session'
+import { useStudioComposeJobFailsafe } from '@/hooks/use-studio-compose-job-failsafe'
 import { useTextLabsGeneration, type TextLabsGenerationResult } from '@/hooks/use-textlabs-generation'
 import { useKnowledgeGraph } from '@/hooks/use-knowledge-graph'
 import { useQuota } from '@/hooks/use-quota'
@@ -1047,8 +1052,8 @@ function AuthenticatedBuilderContent({ authScopeUserId }: { authScopeUserId: str
     delete studioSlideComposePollerOwnersRef.current[jobId]
   }, [])
 
-  const triggerCoalescedSlideComposeReload = useCallback((reason: string) => {
-    if (slideComposeFallbackReloadInFlightRef.current) return
+  const triggerCoalescedSlideComposeReload = useCallback((reason: string, options?: { force?: boolean }) => {
+    if (slideComposeFallbackReloadInFlightRef.current && !options?.force) return
     slideComposeFallbackReloadInFlightRef.current = true
     const snapshot = slideComposerPresentationRef.current
     scTrace('builder.reload_fallback.trigger', {
@@ -4121,10 +4126,35 @@ function AuthenticatedBuilderContent({ authScopeUserId }: { authScopeUserId: str
     bringToFront('slide')
   }, [bringToFront])
 
+  // J2-SILENT-FAIL (flag NEXT_PUBLIC_STUDIO_COMPOSE_JOB_FAILSAFE_ENABLED, default off): a compose job with no outcome for a
+  // bounded time becomes an error card (Retry / Dismiss), and in-flight jobs are restored after a reload. Off = inert.
+  const composeFailsafe = useStudioComposeJobFailsafe({
+    enabled: STUDIO_COMPOSE_JOB_FAILSAFE_ENABLED,
+    sessionId: (currentSessionId || wsSessionId) as string | null,
+    presentationId: effectivePresentationId,
+    ownerKey: studioSlideComposeOwnerKey,
+    jobs: slideComposeJobs,
+    setJobs: setSlideComposeJobs,
+    getViewerApi: () => composeViewerApiRef.current,
+    captureOwner: captureStudioSlideComposeOwner,
+    armJob: job => startSlideComposePoller(job.job_id),
+    disarmJob: jobId => { clearSlideComposeWatchdog(jobId); clearSlideComposePoller(jobId) },
+    onFailed: (job, message) => {
+      setSlideComposePanelEvent({ jobId: job.job_id, status: 'error', message })
+      toast({ title: COMPOSE_JOB_FAILSAFE_TOAST_TITLE, description: message, variant: 'destructive' })
+    },
+    // The viewer still draws the dismissed job's placeholder and has no command to remove it: reload it, back on the same slide.
+    onDismissed: (_job, visualIndex) => {
+      const current = currentSlideIndexRef.current
+      queueComposeSelectionRestore(current > visualIndex ? current - 1 : current)
+      triggerCoalescedSlideComposeReload('compose job dismissed', { force: true })
+    },
+  })
+
   const slideComposeThumbnailJobs = useMemo<SlideComposeThumbnailJob[]>(
     () => Object.values(slideComposeJobs)
       .filter(job => job.status === 'building' || job.status === 'error')
-      .map(job => ({
+      .map(job => composeFailsafe.decorate({
         jobId: job.job_id,
         targetIndex: job.target_layout_index,
         targetLayoutIndex: job.target_layout_index,
@@ -4136,8 +4166,8 @@ function AuthenticatedBuilderContent({ authScopeUserId }: { authScopeUserId: str
         errors: job.errors,
         onRetry: handleRetrySlideCompose,
         onSelect: handleSelectPendingSlideCompose,
-      })),
-    [handleRetrySlideCompose, handleSelectPendingSlideCompose, slideComposeJobs],
+      }, job)),
+    [composeFailsafe.decorate, handleRetrySlideCompose, handleSelectPendingSlideCompose, slideComposeJobs],
   )
 
   // Retire pending answers as soon as navigation/account intent changes; an

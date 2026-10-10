@@ -67,6 +67,7 @@
     "test:studio-deck-mutation-refresh": "node scripts/test-studio-deck-mutation-refresh.mjs",
     "test:studio-add-slide-v2": "node scripts/test-studio-add-slide-v2.mjs",
     "test:studio-textbox-padding-reachable": "node scripts/test-studio-textbox-padding-reachable.mjs",
+    "test:studio-compose-job-failsafe": "node scripts/test-studio-compose-job-failsafe.mjs",
     "test:template-save-gate": "node scripts/test-template-save-gate.mjs",
     "test:upload-status-contract": "node scripts/test-upload-status-contract.mjs",
     "test:research-mode-contract": "node scripts/test-research-mode-contract.mjs",

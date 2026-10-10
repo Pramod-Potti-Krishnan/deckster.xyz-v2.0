@@ -103,6 +103,9 @@ export interface SlideComposeThumbnailJob {
   errors?: string[]
   onRetry?: (jobId: string) => void
   onSelect?: (jobId: string) => void
+  /** J2-SILENT-FAIL (flag NEXT_PUBLIC_STUDIO_COMPOSE_JOB_FAILSAFE_ENABLED): plain words under an error card, and Dismiss. Absent = today's card. */
+  failureCaption?: string
+  onDismiss?: (jobId: string) => void
 }
 
 export interface SlideThumbnailStripProps {
@@ -329,10 +332,22 @@ export function SlideThumbnailStrip({
             "px-2 py-1.5 text-[10px] leading-tight text-left line-clamp-2 w-full",
             isError ? "bg-white text-red-700" : "bg-white text-purple-800"
           )}>
-            {isError ? STUDIO_THUMBNAILS && !job.onRetry ? 'Compose failed' : 'Retry compose' : title}
+            {isError ? job.failureCaption ?? (STUDIO_THUMBNAILS && !job.onRetry ? 'Compose failed' : 'Retry compose') : title}
           </div>
         </button>
         {STUDIO_THUMBNAILS && isError && <ThumbnailFailureDetails slideNumber={visualNumber} kind="compose" reason={errorText || 'Slide Composer failed'} />}
+        {isError && job.onDismiss && (
+          <div data-compose-failsafe-actions="true" className="mt-1 flex w-28 items-center justify-between gap-1 text-[10px] font-medium">
+            {job.onRetry && (
+              <button type="button" data-compose-failsafe-action="retry" aria-label={`Retry slide ${visualNumber}`}
+                onClick={() => job.onRetry?.(job.jobId)}
+                className="rounded px-1.5 py-0.5 text-red-700 hover:bg-red-100 focus:outline-none focus:ring-2 focus:ring-purple-500">Retry</button>
+            )}
+            <button type="button" data-compose-failsafe-action="dismiss" aria-label={`Dismiss failed slide ${visualNumber}`}
+              onClick={() => job.onDismiss?.(job.jobId)}
+              className="rounded px-1.5 py-0.5 text-gray-600 hover:bg-gray-100 focus:outline-none focus:ring-2 focus:ring-purple-500">Dismiss</button>
+          </div>
+        )}
       </div>
     )
   }
