@@ -128,7 +128,7 @@ export interface SlideThumbnailStripProps {
    *  slide keeps its node and image) instead of by position. Default false = today's keys. */
   keyBySlideId?: boolean
   /** F9-A (flag NEXT_PUBLIC_STUDIO_RAIL_LIVE_PREVIEW_FALLBACK_ENABLED): the deck's approved Layout viewer URL. A card whose inventory
-   *  status is `none` (no preview will ever come), or `pending` for 15 s with no thumbnail URL, shows a live view-only mini-preview
+   *  status is `none` (no preview will ever come), or `pending` / `stale` for 15 s with no thumbnail URL, shows a live view-only mini-preview
    *  of its slide instead of "No preview". Ignored when the flag is off. */
   livePreviewViewerUrl?: string | null
 }
@@ -736,7 +736,7 @@ export function SlideThumbnailStrip({
             the button's. A refining card keeps its own spinner. */}
         {STUDIO_RAIL_LIVE_PREVIEW_FALLBACK_ENABLED && STUDIO_THUMBNAILS && livePreviewViewerUrl && !isRefining
           && railLivePreviewCandidate({ thumbnailStatus: slide.thumbnailStatus, thumbnailUrl }) && (
-          <RailLivePreview viewerUrl={livePreviewViewerUrl} slideIndex={slideIndex} status={slide.thumbnailStatus === 'pending' ? 'pending' : 'none'} />
+          <RailLivePreview viewerUrl={livePreviewViewerUrl} slideIndex={slideIndex} status={slide.thumbnailStatus === 'none' ? 'none' : 'pending'} />
         )}
       </div>
     )
