@@ -1,0 +1,92 @@
+/* PASS2 #6: the Studio Add Element picker as a card gallery (flag NEXT_PUBLIC_STUDIO_ELEMENT_GALLERY, default off).
+   Every rule is scoped to [data-studio-element-gallery], which only the gallery menu sets, so nothing here reaches the
+   other authoring menus or the plain dropdown. It sits on the tokens studio-authoring-menus.css already defines. */
+[data-studio-authoring-menu][data-studio-element-gallery] {
+  --seg-paper: #f1f5f2;
+  --seg-bar: #cbd8d3;
+  --seg-rule: #d6e1dc;
+  --seg-ink: #4b6560;
+  --seg-teal: #397d71;
+  --seg-teal-soft: #8dbab1;
+  --seg-coral: #d9856a;
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 8px;
+  padding: 8px;
+}
+.dark [data-studio-authoring-menu][data-studio-element-gallery] {
+  --seg-paper: #273633;
+  --seg-bar: #44585a;
+  --seg-rule: #3a4d4f;
+  --seg-ink: #b9cdc8;
+  --seg-teal: #83c4bd;
+  --seg-teal-soft: #4f8179;
+  --seg-coral: #e39a80;
+}
+[data-studio-authoring-menu="add-element"][data-studio-element-gallery="true"] { width: 448px; }
+
+/* header spans the grid */
+[data-studio-authoring-menu][data-studio-element-gallery] .seg-head {
+  grid-column: 1 / -1;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 4px 2px 2px;
+  font-weight: 400;
+}
+[data-studio-authoring-menu][data-studio-element-gallery] .seg-title { color: var(--sam-text); font-size: 13px; font-weight: 600; line-height: 1.3; }
+[data-studio-authoring-menu][data-studio-element-gallery] .seg-hint { color: var(--sam-muted); font-size: 10.5px; line-height: 1.4; }
+
+/* one card per element type; the menu item is the card, so focus, hover, disabled and close-on-select stay Radix's */
+[data-studio-authoring-menu][data-studio-element-gallery] [role^="menuitem"].seg-card {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  justify-content: flex-start;
+  gap: 2px;
+  min-height: 0;
+  padding: 6px 6px 8px;
+  border: 1px solid var(--sam-line);
+  border-radius: 8px;
+  background: var(--sam-panel);
+  color: var(--sam-text);
+  text-align: left;
+}
+[data-studio-authoring-menu][data-studio-element-gallery] [role^="menuitem"].seg-card:is([data-highlighted],:hover) {
+  border-color: var(--sam-accent);
+  background: color-mix(in srgb, var(--sam-accent) 7%, var(--sam-panel));
+  box-shadow: 0 0 0 1px var(--sam-accent);
+  color: var(--sam-text);
+}
+[data-studio-authoring-menu][data-studio-element-gallery] [role^="menuitem"].seg-card[data-disabled] { opacity: .45; }
+[data-studio-authoring-menu][data-studio-element-gallery] .seg-art {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  aspect-ratio: 5 / 3;
+  margin-bottom: 4px;
+  border-radius: 5px;
+  background: var(--seg-paper);
+  overflow: hidden;
+  pointer-events: none;
+}
+[data-studio-authoring-menu][data-studio-element-gallery] .seg-art .seg-art-svg { display: block; width: 100%; height: 100%; }
+[data-studio-authoring-menu][data-studio-element-gallery] .seg-art .seg-fallback-icon { width: 22px; height: 22px; color: var(--sam-accent); }
+[data-studio-authoring-menu][data-studio-element-gallery] .seg-name { color: var(--sam-text); font-size: 11.5px; font-weight: 600; line-height: 1.3; }
+[data-studio-authoring-menu][data-studio-element-gallery] .seg-desc { color: var(--sam-muted); font-size: 10px; line-height: 1.35; overflow-wrap: normal; }
+
+/* illustration palette */
+[data-studio-element-gallery] .seg-teal { fill: var(--seg-teal); }
+[data-studio-element-gallery] .seg-teal-soft { fill: var(--seg-teal-soft); }
+[data-studio-element-gallery] .seg-coral { fill: var(--seg-coral); }
+[data-studio-element-gallery] .seg-ink { fill: var(--seg-ink); }
+[data-studio-element-gallery] .seg-bar { fill: var(--seg-bar); }
+[data-studio-element-gallery] .seg-tile { fill: var(--sam-panel); }
+[data-studio-element-gallery] .seg-outline { stroke: var(--seg-bar); stroke-width: 1.2; }
+[data-studio-element-gallery] .seg-over { opacity: .92; }
+[data-studio-element-gallery] .seg-rule { fill: none; stroke: var(--seg-rule); stroke-width: 1; }
+[data-studio-element-gallery] .seg-link { fill: none; stroke: var(--seg-bar); stroke-width: 1.6; stroke-linecap: round; stroke-linejoin: round; }
+
+@media (max-width: 480px) {
+  [data-studio-authoring-menu][data-studio-element-gallery] { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
