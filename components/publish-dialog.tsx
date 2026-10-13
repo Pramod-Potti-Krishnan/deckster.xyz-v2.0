@@ -6,6 +6,7 @@ import {
   Copy,
   ExternalLink,
   Globe,
+  Globe2,
   KeyRound,
   Loader2,
   RefreshCw,
@@ -44,9 +45,12 @@ import { useToast } from '@/hooks/use-toast'
 import { useCopyToClipboard } from '@/hooks/use-copy-to-clipboard'
 import type { SerializedPublishedDeck } from '@/lib/publish/serialize'
 import type { StudioPublishPreviewSource } from '@/lib/studio-publish-preview'
+import { STUDIO_TOP_BAR_V2_ENABLED } from '@/lib/studio-top-bar-v2'
 import './studio-publish.css'
 
 const STUDIO_PUBLISH = process.env.NEXT_PUBLIC_STUDIO_V4_SHELL === 'true'
+// PASS2-PK-FOUR #1 (NEXT_PUBLIC_STUDIO_TOP_BAR_V2, default off): the Publish trigger carries the mockup's globe icon. Off: as before.
+const STUDIO_TOP_BAR_GLOBE = STUDIO_PUBLISH && STUDIO_TOP_BAR_V2_ENABLED
 
 /** Keep classic's DOM intact; v4 scrolls settings inside fixed dialog chrome. */
 function PublishDialogBody({ children }: { children: React.ReactNode }) {
@@ -180,7 +184,7 @@ export function PublishControls({
               : 'Publish this deck to a shareable link'
         }
       >
-        <Globe className="h-5 w-5" />
+        {STUDIO_TOP_BAR_GLOBE ? <Globe2 className="h-5 w-5" /> : <Globe className="h-5 w-5" />}
         {slideCountDrifted && (
           <span
             aria-hidden

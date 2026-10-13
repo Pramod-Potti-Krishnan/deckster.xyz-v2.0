@@ -10,12 +10,16 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
-import { AlertCircle, Check, Download, FileText, Loader2, Presentation, RefreshCw } from 'lucide-react';
+import { AlertCircle, Check, ChevronDown, Download, FileText, Loader2, Presentation, RefreshCw } from 'lucide-react';
 import { downloadPDF, downloadPPTX, DownloadQuality } from '@/lib/api/download-service';
 import { useToast } from '@/hooks/use-toast';
+import { STUDIO_TOP_BAR_V2_ENABLED } from '@/lib/studio-top-bar-v2';
 import './studio-delivery.css';
 
 const STUDIO_DELIVERY = process.env.NEXT_PUBLIC_STUDIO_V4_SHELL === 'true';
+// PASS2-PK-FOUR #1 (NEXT_PUBLIC_STUDIO_TOP_BAR_V2, default off): the trigger reads "Export" with a menu chevron, as in the mockup.
+// Same menu, same PDF / PPTX handlers. Off: exactly as before.
+const STUDIO_EXPORT_LABEL = STUDIO_DELIVERY && STUDIO_TOP_BAR_V2_ENABLED;
 
 function DownloadMenuPortal({ container, children }: { container: Element | null; children: React.ReactNode }) {
   // Fullscreen hides body portals outside its element. Classic keeps its native portal.
@@ -185,13 +189,14 @@ export function PresentationDownloadControls({
         <DropdownMenuTrigger asChild>
           <button
             disabled={!isDownloadEnabled || isDownloading}
-            aria-label={STUDIO_DELIVERY ? isDownloading ? 'Converting presentation for download' : isDownloadEnabled ? 'Download presentation' : 'Download unavailable until presentation is ready' : undefined}
+            aria-label={STUDIO_DELIVERY ? isDownloading ? 'Converting presentation for download' : isDownloadEnabled ? (STUDIO_EXPORT_LABEL ? 'Export presentation' : 'Download presentation') : (STUDIO_EXPORT_LABEL ? 'Export unavailable until presentation is ready' : 'Download unavailable until presentation is ready') : undefined}
             aria-busy={STUDIO_DELIVERY ? isDownloading : undefined}
             className="flex h-12 min-w-[72px] flex-col items-center justify-center gap-0.5 rounded-md px-3 py-1 text-slate-700 hover:bg-slate-100 hover:text-slate-900 dark:text-slate-200 dark:hover:bg-slate-800 dark:hover:text-white transition-colors disabled:cursor-not-allowed disabled:opacity-40 disabled:hover:bg-transparent disabled:hover:text-slate-700 dark:disabled:hover:text-slate-200"
-            title={!isDownloadEnabled ? 'Waiting for presentation...' : 'Download as PDF or PPTX'}
+            title={!isDownloadEnabled ? 'Waiting for presentation...' : STUDIO_EXPORT_LABEL ? 'Export as PDF or PPTX' : 'Download as PDF or PPTX'}
           >
             {STUDIO_DELIVERY && isDownloading ? <Loader2 className="h-5 w-5 animate-spin" /> : <Download className={`h-5 w-5 ${isDownloading ? 'animate-pulse' : ''}`} />}
-            <span className="text-[10px] font-medium">{isDownloading ? 'Converting' : 'Download'}</span>
+            <span className="text-[10px] font-medium">{isDownloading ? 'Converting' : STUDIO_EXPORT_LABEL ? 'Export' : 'Download'}</span>
+            {STUDIO_EXPORT_LABEL && <ChevronDown data-studio-export-chevron="true" aria-hidden="true" />}
           </button>
         </DropdownMenuTrigger>
         <DownloadMenuPortal container={menuPortalContainer}>
