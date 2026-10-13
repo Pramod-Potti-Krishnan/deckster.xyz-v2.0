@@ -24,6 +24,13 @@ import {
   type CachedSessionState,
 } from '@/hooks/use-session-cache'
 import { unsavedBuilderSessionKey } from '@/lib/last-builder-session'
+import {
+  STUDIO_SESSION_HYGIENE_ENABLED,
+  decideMissingSession,
+  readSessionOrigin,
+  type SessionLoadOutcome,
+  type StudioSessionProblem,
+} from '@/lib/studio-session-hygiene'
 import { STUDIO_VOICE_INTERACTIVE_ENABLED } from '@/lib/studio-voice-interactive'
 import {
   attachmentsFromPayload,
@@ -44,6 +51,8 @@ interface UseBuilderSessionParams {
   isAuthLoading: boolean
   searchParams: ReturnType<typeof import("next/navigation").useSearchParams>
   loadSession: (sessionId: string) => Promise<any>
+  /** NEXT_PUBLIC_STUDIO_SESSION_HYGIENE: the same lookup, but it says why there is no row. Unused when the flag is off. */
+  loadSessionResult?: (sessionId: string) => Promise<SessionLoadOutcome<any>>
   createSession: (sessionId: string) => Promise<any>
   persistence: {
     queueMessage: (msg: DirectorMessage, userText?: string) => void
@@ -75,6 +84,7 @@ export function useBuilderSession({
   isAuthLoading,
   searchParams,
   loadSession,
+  loadSessionResult,
   createSession,
   persistence,
   connected,
@@ -144,6 +154,8 @@ export function useBuilderSession({
   const [isLoadingSession, setIsLoadingSession] = useState(() => Boolean(currentSessionId))
   const [isResumedSession, setIsResumedSession] = useState(false)
   const [isCreatingSession, setIsCreatingSession] = useState(false)
+  // NEXT_PUBLIC_STUDIO_SESSION_HYGIENE: why the URL's session cannot be opened. Always null with the flag off.
+  const [sessionProblem, setSessionProblem] = useState<{ kind: StudioSessionProblem; sessionId: string } | null>(null)
 
   const [userMessages, setUserMessages] = useState<UserChatMessage[]>(() => {
     if (typeof window === 'undefined') return [];
@@ -325,6 +337,7 @@ export function useBuilderSession({
       }
 
       setIsLoadingSession(true)
+      if (STUDIO_SESSION_HYGIENE_ENABLED) setSessionProblem(null)
       hasTitleFromUserMessageRef.current = false
       hasTitleFromPresentationRef.current = false
       answeredActionsRef.current.clear()
@@ -386,8 +399,13 @@ export function useBuilderSession({
           const transcriptScope = initializationScope
           const transcriptRequest = initializationRequest
           setStudioFrontendTranscriptReceipt(null)
-          const session = await loadSession(sessionParam)
+          // Flag on: the lookup says WHY a row is missing, so a miss is never silently turned into a new empty session.
+          const hygieneLoad = STUDIO_SESSION_HYGIENE_ENABLED && loadSessionResult ? await loadSessionResult(sessionParam) : null
+          const session = hygieneLoad ? (hygieneLoad.kind === 'found' ? hygieneLoad.session : null) : await loadSession(sessionParam)
           if (!mayContinueInitialization() || (session && session.id !== sessionParam)) return
+          const missingDecision = hygieneLoad && hygieneLoad.kind !== 'found'
+            ? decideMissingSession(hygieneLoad, readSessionOrigin(typeof window !== 'undefined' ? window.sessionStorage : null, builderCacheOwner, sessionParam))
+            : null
 
           if (session) {
             if (session.status === 'deleted') {
@@ -619,6 +637,23 @@ export function useBuilderSession({
                   .map((msg: any) => msg.id)),
               }))
             }
+          } else if (missingDecision === 'keep_unsaved') {
+            // A local id this tab generated (bare /builder, + Presentation, a reload of either). Its row is created by the
+            // first real action (first message, upload, manual-deck handoff), exactly like + Presentation always did.
+            setCurrentSessionId(sessionParam)
+            setSessionStoreName(null)
+            setIsUnsavedSession(true)
+            setIsResumedSession(false)
+            debugLog('🆕 [SESSION-HYGIENE] Local unsaved session kept; no history row written:', sessionParam)
+          } else if (missingDecision && missingDecision !== 'adopt') {
+            // Not a session this account can open. Show the state; write nothing, connect to nothing.
+            console.warn('⚠️ [SESSION-HYGIENE] Session cannot be opened:', missingDecision, sessionParam)
+            setCurrentSessionId(null)
+            setSessionStoreName(null)
+            setIsUnsavedSession(false)
+            setIsResumedSession(false)
+            setSessionProblem({ kind: missingDecision, sessionId: sessionParam })
+            return
           } else {
             console.warn('⚠️ Session not found in frontend DB, adopting URL session:', sessionParam)
             const adopted = await createSession(sessionParam)
@@ -932,6 +967,7 @@ export function useBuilderSession({
     isResumedSession,
     setIsResumedSession,
     isCreatingSession,
+    sessionProblem,
     studioInitialFreshCanonicalEntry: studioInitialFreshCanonicalEntry?.isCurrentAssignment()
       ? studioInitialFreshCanonicalEntry : null,
     // Read at display admission time, including user intent before an awaited
