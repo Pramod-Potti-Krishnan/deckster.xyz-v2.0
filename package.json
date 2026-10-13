@@ -38,6 +38,7 @@
     "test:theme-picker-canon": "node scripts/test-theme-picker-canon.mjs",
     "test:studio-theme-picker-v2": "node scripts/test-studio-theme-picker-v2.mjs",
     "test:studio-top-bar-v2": "node scripts/test-studio-top-bar-v2.mjs",
+    "test:studio-template-workspace": "node scripts/test-studio-template-workspace.mjs",
     "test:element-theme-variants": "node scripts/test-element-theme-variants.mjs",
     "test:element-generation-context": "node scripts/test-element-generation-context.mjs",
     "test:refinement-provenance": "node scripts/test-refinement-provenance.mjs",

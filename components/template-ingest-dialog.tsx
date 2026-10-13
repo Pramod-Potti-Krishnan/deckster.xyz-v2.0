@@ -33,6 +33,11 @@ import { uploadFileToResearcher } from '@/lib/researcher-upload'
 import { INGEST_INTENT_KEY_PREFIX } from '@/hooks/use-deckster-websocket-v2'
 
 const STUDIO_TEMPLATE_FLOW = process.env.NEXT_PUBLIC_STUDIO_V4_SHELL === 'true'
+// PASS2-PK-FOUR item 4 (NEXT_PUBLIC_STUDIO_TEMPLATE_WORKSPACE, exact "true", Studio shell only, default off): uploads open the template
+// workspace. With it on, this dialog takes PowerPoint (.pptx) only and says in plain words why another file cannot be used (the dialog
+// stays open); on handoff it also stages `deckster_template_workspace_handoff_<session id>` for the workspace. Off: exactly as before.
+const STUDIO_TEMPLATE_WORKSPACE = STUDIO_TEMPLATE_FLOW && process.env.NEXT_PUBLIC_STUDIO_TEMPLATE_WORKSPACE === 'true'
+const TEMPLATE_WORKSPACE_HANDOFF_PREFIX = 'deckster_template_workspace_handoff_'
 
 function TemplateFlowBody({ children }: { children: ReactNode }) {
   return STUDIO_TEMPLATE_FLOW ? <div className="studio-template-flow-body">{children}</div> : <Fragment>{children}</Fragment>
@@ -75,6 +80,21 @@ function validateIngestFile(file: File): string | null {
   return null
 }
 
+/** The template workspace's own check (flag on): a .pptx of a usable size, or the reason in plain words. */
+function templateWorkspaceFileProblem(file: File): string | null {
+  const lower = file.name.toLowerCase()
+  if (lower.endsWith('.key')) return 'This is a Keynote file. Export it as PowerPoint (.pptx), then upload it again.'
+  if (lower.endsWith('.pptm')) return 'This file has macros (.pptm). Save it as a plain PowerPoint file (.pptx), then upload it again.'
+  if (lower.endsWith('.ppt')) return 'This is an older PowerPoint file (.ppt). Save it as .pptx in PowerPoint, then upload it again.'
+  if (lower.endsWith('.potx')) return 'This is a PowerPoint template file (.potx). Save a deck made from it as .pptx, then upload that.'
+  if (lower.endsWith('.pdf')) return 'A PDF can’t become a template. Upload the PowerPoint (.pptx) it came from.'
+  if (lower.endsWith('.odp')) return 'This is an OpenDocument file. Save it as PowerPoint (.pptx), then upload it again.'
+  if (!lower.endsWith('.pptx')) return 'This isn’t a PowerPoint file. Upload a .pptx.'
+  if (file.size === 0) return 'This file is empty. Choose the saved .pptx.'
+  if (file.size > MAX_INGEST_FILE_BYTES) return 'This file is larger than 100 MB. Compress its pictures in PowerPoint, then upload it again.'
+  return null
+}
+
 interface TemplateIngestDialogProps {
   open: boolean
   onOpenChange: (open: boolean) => void
@@ -92,6 +112,7 @@ export function TemplateIngestDialog({ open, onOpenChange, isCurrent, canStart }
   const [progress, setProgress] = useState(0)
   const [error, setError] = useState<string | null>(null)
   const [dragActive, setDragActive] = useState(false)
+  const [refusedFile, setRefusedFile] = useState<{ name: string; size: number } | null>(null)
   const fileInputRef = useRef<HTMLInputElement>(null)
   const busy = phase !== 'idle' && phase !== 'paused'
   const latestOuter = useRef({ isCurrent, canStart })
@@ -142,6 +163,7 @@ export function TemplateIngestDialog({ open, onOpenChange, isCurrent, canStart }
     setProgress(0)
     setError(null)
     setDragActive(false)
+    if (STUDIO_TEMPLATE_WORKSPACE) setRefusedFile(null)
   }, [])
 
   useLayoutEffect(() => {
@@ -180,7 +202,8 @@ export function TemplateIngestDialog({ open, onOpenChange, isCurrent, canStart }
     if (!outerCanStart()) return
     if (STUDIO_TEMPLATE_FLOW && (studioClosedOwnerRef.current === studioOwner || !studioMountedRef.current || studioMountEpochRef.current !== studioMountEpoch || studioOwnerRef.current !== studioOwner || readStudioRoute() !== studioRoute || studioRequestRef.current)) return
     if (!candidate) return
-    const validationError = validateIngestFile(candidate)
+    const validationError = (STUDIO_TEMPLATE_WORKSPACE ? templateWorkspaceFileProblem(candidate) : null) ?? validateIngestFile(candidate)
+    if (STUDIO_TEMPLATE_WORKSPACE) setRefusedFile(validationError ? { name: candidate.name, size: candidate.size } : null)
     if (validationError) {
       setError(validationError)
       if (checkpointRef.current?.paused) { setPhase('idle'); setProgress(0) }
@@ -279,6 +302,12 @@ export function TemplateIngestDialog({ open, onOpenChange, isCurrent, canStart }
       } catch {
         throw new Error('Could not stage the ingest handoff (storage unavailable)')
       }
+      if (STUDIO_TEMPLATE_WORKSPACE) {
+        // The workspace opens from this when the builder loads. Losing it only means the builder opens as before.
+        try {
+          sessionStorage.setItem(`${TEMPLATE_WORKSPACE_HANDOFF_PREFIX}${newSessionId}`, JSON.stringify({ v: 1, file_name: file.name, file_size: file.size, created_at: Date.now() }))
+        } catch { /* storage unavailable */ }
+      }
 
       // Commit the owned handoff before closing. The library parent unmounts
       // on this close; that intentional unmount must not suppress navigation.
@@ -322,11 +351,10 @@ export function TemplateIngestDialog({ open, onOpenChange, isCurrent, canStart }
     <Dialog open={open} onOpenChange={handleOpenChange}>
       <DialogContent portalContainer={STUDIO_TEMPLATE_FLOW && open && typeof document !== 'undefined' ? document.fullscreenElement : undefined} data-studio-v4-shell={STUDIO_TEMPLATE_FLOW ? "true" : undefined} data-studio-template-flow={STUDIO_TEMPLATE_FLOW ? "import" : undefined} data-studio-v4-dialog={process.env.NEXT_PUBLIC_STUDIO_V4_SHELL === 'true' ? 'template-import' : undefined} className="sm:max-w-md">
         <DialogHeader className="studio-template-flow-header">
-          {STUDIO_TEMPLATE_FLOW && <span className="studio-template-flow-eyebrow">Templates · Import a presentation</span>}
-          <DialogTitle>Upload presentation</DialogTitle>
+          {STUDIO_TEMPLATE_FLOW && <span className="studio-template-flow-eyebrow">{STUDIO_TEMPLATE_WORKSPACE ? 'Templates · Upload a template' : 'Templates · Import a presentation'}</span>}
+          <DialogTitle>{STUDIO_TEMPLATE_WORKSPACE ? 'Upload a template' : 'Upload presentation'}</DialogTitle>
           <DialogDescription>
-            Convert an existing PowerPoint or PDF deck into a reusable template.
-            One file, up to 100MB.
+            {STUDIO_TEMPLATE_WORKSPACE ? 'Deckster brings your deck in exactly as designed, then learns each slide’s layout so you can reuse it. One PowerPoint file (.pptx), up to 100 MB.' : 'Convert an existing PowerPoint or PDF deck into a reusable template. One file, up to 100MB.'}
           </DialogDescription>
         </DialogHeader>
         <TemplateFlowBody>
@@ -374,18 +402,26 @@ export function TemplateIngestDialog({ open, onOpenChange, isCurrent, canStart }
                   {(file.size / 1024 / 1024).toFixed(1)} MB · {STUDIO_TEMPLATE_FLOW && busy ? 'file selected' : 'click to choose a different file'}
                 </div>
               </>
+            ) : STUDIO_TEMPLATE_WORKSPACE && refusedFile ? (
+              <>
+                <AlertTriangle className="h-8 w-8 text-amber-600 dark:text-amber-400" />
+                <div className="text-sm font-medium text-slate-800 dark:text-slate-100">{refusedFile.name}</div>
+                <div className="text-xs text-muted-foreground">
+                  {(refusedFile.size / 1024 / 1024).toFixed(1)} MB · can{'\u2019'}t be used · click to choose another file
+                </div>
+              </>
             ) : (
               <>
                 <Upload className="h-8 w-8 text-slate-400" />
                 <div className="text-sm font-medium text-slate-700 dark:text-slate-200">
                   Drop a file here or click to browse
                 </div>
-                <div className="text-xs text-muted-foreground">.pptx, .ppt, or .pdf — max 100MB</div>
+                <div className="text-xs text-muted-foreground">{STUDIO_TEMPLATE_WORKSPACE ? 'PowerPoint (.pptx) — max 100MB' : '.pptx, .ppt, or .pdf — max 100MB'}</div>
               </>
             )}
           </div>
 
-          {STUDIO_TEMPLATE_FLOW && <p className="studio-template-flow-help">Upload this file, then continue conversion in a new Builder conversation.</p>}
+          {STUDIO_TEMPLATE_FLOW && <p className="studio-template-flow-help">{STUDIO_TEMPLATE_WORKSPACE ? 'The template workspace opens as soon as the file is uploaded: your deck as-is first, then each slide locks in while you browse.' : 'Upload this file, then continue conversion in a new Builder conversation.'}</p>}
           {phaseLabel && (
             <div className="space-y-2 studio-template-flow-progress" role={STUDIO_TEMPLATE_FLOW ? 'status' : undefined} aria-live={STUDIO_TEMPLATE_FLOW ? 'polite' : undefined} aria-busy={STUDIO_TEMPLATE_FLOW ? busy : undefined}>
               {STUDIO_TEMPLATE_FLOW && <ol className="studio-template-flow-phases" aria-label="Upload handoff progress">{(['uploading', 'session', 'redirecting'] as const).map((item, index) => {
@@ -407,7 +443,7 @@ export function TemplateIngestDialog({ open, onOpenChange, isCurrent, canStart }
           )}
 
           {error && (
-            <div role={STUDIO_TEMPLATE_FLOW ? "alert" : undefined} className="studio-template-flow-error flex items-start gap-2 rounded-md border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700 dark:border-red-900 dark:bg-red-950/40 dark:text-red-300">
+            <div role={STUDIO_TEMPLATE_FLOW ? "alert" : undefined} className={STUDIO_TEMPLATE_WORKSPACE && refusedFile ? "studio-template-flow-refusal flex items-start gap-2 rounded-md border border-dashed border-amber-300 bg-amber-50 px-3 py-2 text-sm leading-relaxed text-amber-800 dark:border-amber-800 dark:bg-amber-950/40 dark:text-amber-300" : "studio-template-flow-error flex items-start gap-2 rounded-md border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700 dark:border-red-900 dark:bg-red-950/40 dark:text-red-300"}>
               <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />
               <span>{error}</span>
             </div>
@@ -418,14 +454,14 @@ export function TemplateIngestDialog({ open, onOpenChange, isCurrent, canStart }
           <Button variant="outline" onClick={() => handleOpenChange(false)} disabled={busy && phase !== 'redirecting'}>
             Cancel
           </Button>
-          <Button onClick={() => { void handleStart() }} disabled={!file || busy || !outerCanStart()}>
+          <Button onClick={() => { if (STUDIO_TEMPLATE_WORKSPACE && !file && refusedFile) { if (!busy && dialogCanStart()) fileInputRef.current?.click() } else void handleStart() }} disabled={(!file && !(STUDIO_TEMPLATE_WORKSPACE && refusedFile)) || busy || !outerCanStart()}>
             {busy ? (
               <>
                 <Loader2 className="mr-2 h-4 w-4 animate-spin" />
                 Working…
               </>
             ) : (
-              phase === 'paused' ? 'Continue handoff' : 'Upload & convert'
+              phase === 'paused' ? 'Continue handoff' : STUDIO_TEMPLATE_WORKSPACE && !file && refusedFile ? 'Choose another file' : 'Upload & convert'
             )}
           </Button>
         </DialogFooter>
