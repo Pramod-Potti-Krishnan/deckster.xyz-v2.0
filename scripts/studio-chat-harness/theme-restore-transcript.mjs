@@ -285,7 +285,7 @@ export async function runThemeRestoreTranscript({ root, fixture, mode }) {
     async advance(step) { await advance(step.ms) },
     async unmount() { await unmount() },
     // A fresh tab: new page instance, empty sessionStorage (it is per tab).
-    async mount(step) { if (step.freshTab) env.sessionStorage.clear(); acked.clear(); await mount() },
+    async mount(step) { if (step.freshTab) env.sessionStorage.clear(); await mount() },
     // The Builder's session load before it connects (hooks/use-builder-session.ts, PR #371's restore): the database row's deck
     // and chat rows reach the hook through restoreMessages, so the page knows the presentation before Director answers.
     async restore(step) {
@@ -300,9 +300,11 @@ export async function runThemeRestoreTranscript({ root, fixture, mode }) {
       })()
     },
     async themePick(step) { call('page.handleBuildThemeChange', [step.theme]); probe.latest.theme.handleBuildThemeChange(step.theme) },
-    // Director's real _send_theme_sync frames (fixture.ackTemplate) for the newest set_theme on the wire not yet answered.
+    // Director's real _send_theme_sync frames (fixture.ackTemplate) for the newest set_theme this socket sent and Director has
+    // not answered yet (Director answers on the socket that asked).
     async themeAck(step) {
-      const pending = sentThemes().filter(s => !acked.has(s.request_id))
+      const socket = socketFor(step)
+      const pending = sentThemes().filter(s => s.socket === socket.id && !acked.has(s.request_id))
       const last = pending[pending.length - 1]
       if (!last) { rec.notes.push(`step ${rec.step}: themeAck skipped, no unanswered set_theme`); return }
       acked.add(last.request_id)
@@ -311,7 +313,7 @@ export async function runThemeRestoreTranscript({ root, fixture, mode }) {
         const frame = JSON.parse(JSON.stringify(template))
         frame.session_id = step.sessionId ?? session.id
         Object.assign(frame.payload, { request_id: last.request_id, presentation_id: last.presentation_id, theme: last.theme })
-        socketFor(step).serverMessage(JSON.stringify(frame))
+        socket.serverMessage(JSON.stringify(frame))
         await settle()
       }
     },

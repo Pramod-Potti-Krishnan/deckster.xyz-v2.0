@@ -21,19 +21,7 @@
       "name": "page.onMessage",
       "step": 9
     },
-    {"args":[{"type":"sync_response"}],"at":8000,"name":"page.onMessage","step":15},
-    {
-      "args": [{"request_id":"synthetic-uuid-0001","status":"syncing","type":"theme_sync"}],
-      "at": 8500,
-      "name": "page.onMessage",
-      "step": 16
-    },
-    {
-      "args": [{"request_id":"synthetic-uuid-0001","status":"applied","type":"theme_sync"}],
-      "at": 8500,
-      "name": "page.onMessage",
-      "step": 16
-    }
+    {"args":[{"type":"sync_response"}],"at":8000,"name":"page.onMessage","step":15}
   ],
   "checkpoints": [
     {
@@ -86,5 +74,5 @@
     }
   ],
   "diagnostics": {"blockedNetwork":[],"console":[],"uncaught":[]},
-  "notes": []
+  "notes": ["step 16: themeAck skipped, no unanswered set_theme"]
 }

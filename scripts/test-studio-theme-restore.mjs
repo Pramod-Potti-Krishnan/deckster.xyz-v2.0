@@ -236,16 +236,23 @@ function wiringSuite(src) {
 const SRC = Object.fromEntries([PAGE, HOOK, LIB, '.env.example', 'package.json'].map(rel => [rel, read(rel)]))
 wiringSuite(SRC)
 
-// The hook change is types only: with types erased its JavaScript is the base's, byte for byte.
-let hookCompared = false
+// The hook change is types only: the restored payload member adds no JavaScript, and without it the hook is the base's
+// text exactly (checked while no later change has touched the hook; after one has, the member-only check still applies).
+const RESTORED_MEMBER = / \| \{\n {4}\/\/ THEME-RESET-ON-RECONNECT-P1[\s\S]*?desired_status\?: 'syncing' \| 'applied' \| 'failed' \| null;\n {2}\}/
+const js = text => ts.transpileModule(text, { compilerOptions: { module: ts.ModuleKind.ESNext, target: ts.ScriptTarget.ES2022, removeComments: true } }).outputText
+const hookWithoutMember = SRC[HOOK].replace(RESTORED_MEMBER, '')
+check(assert.notEqual, hookWithoutMember, SRC[HOOK], 'hook: the restored payload member is present')
+check(assert.equal, js(SRC[HOOK]), js(hookWithoutMember), 'hook: the restored payload member is type syntax only')
+let hookVsBase = 'base not reachable in git, skipped'
 try {
   const baseHook = execFileSync('git', ['show', `${BASE_REF}:${HOOK}`], { cwd: repoRoot, encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'], maxBuffer: 64 * 1024 * 1024 })
-  const js = text => ts.transpileModule(text, { compilerOptions: { module: ts.ModuleKind.ESNext, target: ts.ScriptTarget.ES2022, removeComments: true } }).outputText
-  check(assert.equal, js(SRC[HOOK]), js(baseHook), 'hook: transpiled JavaScript identical to the base (types only)')
-  hookCompared = true
-} catch (error) {
-  if (error instanceof assert.AssertionError) throw error
-}
+  if (hookWithoutMember === baseHook) {
+    check(assert.equal, js(SRC[HOOK]), js(baseHook), 'hook: transpiled JavaScript identical to the base')
+    hookVsBase = 'the base text plus the type member only; transpiled JS identical'
+  } else {
+    hookVsBase = 'the hook has other changes since the base; the member-only check applies'
+  }
+} catch { /* the base object is not in this clone */ }
 
 unitSuite(repoRoot)
 const summary = await transcriptSuite(repoRoot)
@@ -315,5 +322,5 @@ for (const line of caughtBy) console.log(line)
 console.log('transcripts (set_theme sent: socket@virtual ms:theme):')
 for (const row of summary) console.log(`  ${row.fixture.padEnd(32)} ${row.mode.padEnd(3)} ${row.setTheme.length}  ${row.setTheme.join('  ')}`)
 console.log(`studio theme restore: ${mainChecks} checks passed; ${fixtures.length} transcripts x 2 modes match their baselines (off = base ${BASE_REF.slice(0, 7)}); `
-  + `hook types-only vs base: ${hookCompared ? 'transpiled JS identical' : 'base not reachable in git, skipped'}; ${caught}/${MUTANTS.length} mutants caught; `
+  + `hook vs base: ${hookVsBase}; ${caught}/${MUTANTS.length} mutants caught; `
   + `page regions: ${themeRestoreRegions(repoRoot).anchors.length}`)
