@@ -6728,6 +6728,7 @@ function AuthenticatedBuilderContent({ authScopeUserId }: { authScopeUserId: str
           isChatHistoryOpen={showChatHistory}
           toolbarSlotRef={setToolbarPortalTarget}
           onToolbarInteract={studioOverlayWorkspace ? revealStudioStage : undefined}
+          isUnsavedSession={isUnsavedSession}
         />
 
         {/* Main Content Area */}
