@@ -1,0 +1,269 @@
+[
+  {
+    "checkpoint": "01-mid-build",
+    "hookMessageIds": ["msg-greeting","msg-plan","msg_plan_confirm_synthetic-session-reconnect","msg-think-1","msg-think-2"],
+    "keys": [
+      {"action":null,"buttons":0,"empty":false,"inputs":0,"key":"msg-greeting","role":null,"tag":"div"},
+      {"action":null,"buttons":0,"empty":false,"inputs":0,"key":"synthetic-uuid-0001","role":null,"tag":"div"},
+      {"action":null,"buttons":0,"empty":false,"inputs":0,"key":"msg-plan","role":null,"tag":"div"},
+      {
+        "action": "msg_plan_confirm_synthetic-session-reconnect",
+        "buttons": 2,
+        "empty": false,
+        "inputs": 0,
+        "key": "msg_plan_confirm_synthetic-session-reconnect",
+        "role": null,
+        "tag": "div"
+      },
+      {"action":null,"buttons":0,"empty":false,"inputs":0,"key":"synthetic-uuid-0002","role":null,"tag":"div"},
+      {"action":null,"buttons":1,"empty":false,"inputs":0,"key":"thinking_msg-think-1","role":null,"tag":"div"},
+      {"action":null,"buttons":0,"empty":false,"inputs":0,"key":null,"role":null,"tag":"div"}
+    ]
+  },
+  {
+    "checkpoint": "02-socket-dropped",
+    "hookMessageIds": ["msg-greeting","msg-plan","msg_plan_confirm_synthetic-session-reconnect","msg-think-1","msg-think-2"],
+    "keys": [
+      {"action":null,"buttons":0,"empty":false,"inputs":0,"key":"msg-greeting","role":null,"tag":"div"},
+      {"action":null,"buttons":0,"empty":false,"inputs":0,"key":"synthetic-uuid-0001","role":null,"tag":"div"},
+      {"action":null,"buttons":0,"empty":false,"inputs":0,"key":"msg-plan","role":null,"tag":"div"},
+      {
+        "action": "msg_plan_confirm_synthetic-session-reconnect",
+        "buttons": 2,
+        "empty": false,
+        "inputs": 0,
+        "key": "msg_plan_confirm_synthetic-session-reconnect",
+        "role": null,
+        "tag": "div"
+      },
+      {"action":null,"buttons":0,"empty":false,"inputs":0,"key":"synthetic-uuid-0002","role":null,"tag":"div"},
+      {"action":null,"buttons":1,"empty":false,"inputs":0,"key":"thinking_msg-think-1","role":null,"tag":"div"},
+      {"action":null,"buttons":0,"empty":false,"inputs":0,"key":null,"role":null,"tag":"div"}
+    ]
+  },
+  {
+    "checkpoint": "03-reconnecting",
+    "hookMessageIds": ["msg-greeting","msg-plan","msg_plan_confirm_synthetic-session-reconnect","msg-think-1","msg-think-2"],
+    "keys": [
+      {"action":null,"buttons":0,"empty":false,"inputs":0,"key":"msg-greeting","role":null,"tag":"div"},
+      {"action":null,"buttons":0,"empty":false,"inputs":0,"key":"synthetic-uuid-0001","role":null,"tag":"div"},
+      {"action":null,"buttons":0,"empty":false,"inputs":0,"key":"msg-plan","role":null,"tag":"div"},
+      {
+        "action": "msg_plan_confirm_synthetic-session-reconnect",
+        "buttons": 2,
+        "empty": false,
+        "inputs": 0,
+        "key": "msg_plan_confirm_synthetic-session-reconnect",
+        "role": null,
+        "tag": "div"
+      },
+      {"action":null,"buttons":0,"empty":false,"inputs":0,"key":"synthetic-uuid-0002","role":null,"tag":"div"},
+      {"action":null,"buttons":1,"empty":false,"inputs":0,"key":"thinking_msg-think-1","role":null,"tag":"div"},
+      {"action":null,"buttons":0,"empty":false,"inputs":0,"key":null,"role":null,"tag":"div"}
+    ]
+  },
+  {
+    "checkpoint": "04-resynced",
+    "hookMessageIds": [
+      "msg-greeting",
+      "msg-plan",
+      "msg_plan_confirm_synthetic-session-reconnect",
+      "msg-think-1",
+      "msg-think-2",
+      "msg-think-3"
+    ],
+    "keys": [
+      {"action":null,"buttons":0,"empty":false,"inputs":0,"key":"msg-greeting","role":null,"tag":"div"},
+      {"action":null,"buttons":0,"empty":false,"inputs":0,"key":"synthetic-uuid-0001","role":null,"tag":"div"},
+      {"action":null,"buttons":0,"empty":false,"inputs":0,"key":"msg-plan","role":null,"tag":"div"},
+      {"action":null,"buttons":0,"empty":false,"inputs":0,"key":"synthetic-uuid-0002","role":null,"tag":"div"},
+      {"action":null,"buttons":1,"empty":false,"inputs":0,"key":"thinking_msg-think-1","role":null,"tag":"div"},
+      {
+        "action": "msg_plan_confirm_synthetic-session-reconnect",
+        "buttons": 2,
+        "empty": false,
+        "inputs": 0,
+        "key": "msg_plan_confirm_synthetic-session-reconnect",
+        "role": null,
+        "tag": "div"
+      },
+      {"action":null,"buttons":1,"empty":false,"inputs":0,"key":"thinking_msg-think-3","role":null,"tag":"div"},
+      {"action":null,"buttons":0,"empty":false,"inputs":0,"key":null,"role":null,"tag":"div"}
+    ]
+  },
+  {
+    "checkpoint": "05-outline-after-reconnect",
+    "hookMessageIds": [
+      "msg-greeting",
+      "msg-plan",
+      "msg_plan_confirm_synthetic-session-reconnect",
+      "msg-think-1",
+      "msg-think-2",
+      "msg-think-3",
+      "msg-outline-1",
+      "msg-url-strawman",
+      "msg-approve-outline"
+    ],
+    "keys": [
+      {"action":null,"buttons":0,"empty":false,"inputs":0,"key":"msg-greeting","role":null,"tag":"div"},
+      {"action":null,"buttons":0,"empty":false,"inputs":0,"key":"synthetic-uuid-0001","role":null,"tag":"div"},
+      {"action":null,"buttons":0,"empty":false,"inputs":0,"key":"msg-plan","role":null,"tag":"div"},
+      {"action":null,"buttons":0,"empty":false,"inputs":0,"key":"synthetic-uuid-0002","role":null,"tag":"div"},
+      {
+        "action": "msg_plan_confirm_synthetic-session-reconnect",
+        "buttons": 2,
+        "empty": false,
+        "inputs": 0,
+        "key": "msg_plan_confirm_synthetic-session-reconnect",
+        "role": null,
+        "tag": "div"
+      },
+      {"action":null,"buttons":3,"empty":false,"inputs":0,"key":"combined_msg-outline-1","role":null,"tag":"div"},
+      {"action":null,"buttons":0,"empty":false,"inputs":0,"key":null,"role":null,"tag":"div"}
+    ]
+  },
+  {
+    "checkpoint": "06-browser-offline",
+    "hookMessageIds": [
+      "msg-greeting",
+      "msg-plan",
+      "msg_plan_confirm_synthetic-session-reconnect",
+      "msg-think-1",
+      "msg-think-2",
+      "msg-think-3",
+      "msg-outline-1",
+      "msg-url-strawman",
+      "msg-approve-outline"
+    ],
+    "keys": [
+      {"action":null,"buttons":0,"empty":false,"inputs":0,"key":"msg-greeting","role":null,"tag":"div"},
+      {"action":null,"buttons":0,"empty":false,"inputs":0,"key":"synthetic-uuid-0001","role":null,"tag":"div"},
+      {"action":null,"buttons":0,"empty":false,"inputs":0,"key":"msg-plan","role":null,"tag":"div"},
+      {"action":null,"buttons":0,"empty":false,"inputs":0,"key":"synthetic-uuid-0002","role":null,"tag":"div"},
+      {
+        "action": "msg_plan_confirm_synthetic-session-reconnect",
+        "buttons": 2,
+        "empty": false,
+        "inputs": 0,
+        "key": "msg_plan_confirm_synthetic-session-reconnect",
+        "role": null,
+        "tag": "div"
+      },
+      {"action":null,"buttons":3,"empty":false,"inputs":0,"key":"combined_msg-outline-1","role":null,"tag":"div"},
+      {"action":null,"buttons":0,"empty":false,"inputs":0,"key":null,"role":null,"tag":"div"}
+    ]
+  },
+  {
+    "checkpoint": "07-back-online",
+    "hookMessageIds": [
+      "msg-greeting",
+      "msg-plan",
+      "msg_plan_confirm_synthetic-session-reconnect",
+      "msg-think-1",
+      "msg-think-2",
+      "msg-think-3",
+      "msg-outline-1",
+      "msg-url-strawman",
+      "msg-approve-outline"
+    ],
+    "keys": [
+      {"action":null,"buttons":0,"empty":false,"inputs":0,"key":"msg-greeting","role":null,"tag":"div"},
+      {"action":null,"buttons":0,"empty":false,"inputs":0,"key":"synthetic-uuid-0001","role":null,"tag":"div"},
+      {"action":null,"buttons":0,"empty":false,"inputs":0,"key":"msg-plan","role":null,"tag":"div"},
+      {"action":null,"buttons":0,"empty":false,"inputs":0,"key":"synthetic-uuid-0002","role":null,"tag":"div"},
+      {
+        "action": "msg_plan_confirm_synthetic-session-reconnect",
+        "buttons": 2,
+        "empty": false,
+        "inputs": 0,
+        "key": "msg_plan_confirm_synthetic-session-reconnect",
+        "role": null,
+        "tag": "div"
+      },
+      {"action":null,"buttons":3,"empty":false,"inputs":0,"key":"combined_msg-outline-1","role":null,"tag":"div"},
+      {"action":null,"buttons":0,"empty":false,"inputs":0,"key":null,"role":null,"tag":"div"}
+    ]
+  },
+  {
+    "checkpoint": "08-approval-sent-on-the-new-socket",
+    "hookMessageIds": [
+      "msg-greeting",
+      "msg-plan",
+      "msg_plan_confirm_synthetic-session-reconnect",
+      "msg-think-1",
+      "msg-think-2",
+      "msg-think-3",
+      "msg-outline-1",
+      "msg-url-strawman",
+      "msg-approve-outline"
+    ],
+    "keys": [
+      {"action":null,"buttons":0,"empty":false,"inputs":0,"key":"msg-greeting","role":null,"tag":"div"},
+      {"action":null,"buttons":0,"empty":false,"inputs":0,"key":"synthetic-uuid-0001","role":null,"tag":"div"},
+      {"action":null,"buttons":0,"empty":false,"inputs":0,"key":"msg-plan","role":null,"tag":"div"},
+      {"action":null,"buttons":0,"empty":false,"inputs":0,"key":"synthetic-uuid-0002","role":null,"tag":"div"},
+      {
+        "action": "msg_plan_confirm_synthetic-session-reconnect",
+        "buttons": 2,
+        "empty": false,
+        "inputs": 0,
+        "key": "msg_plan_confirm_synthetic-session-reconnect",
+        "role": null,
+        "tag": "div"
+      },
+      {
+        "action": "msg-approve-outline",
+        "buttons": 3,
+        "empty": false,
+        "inputs": 0,
+        "key": "combined_msg-outline-1",
+        "role": null,
+        "tag": "div"
+      },
+      {"action":null,"buttons":0,"empty":false,"inputs":0,"key":"synthetic-uuid-0003","role":null,"tag":"div"},
+      {"action":null,"buttons":0,"empty":false,"inputs":0,"key":null,"role":null,"tag":"div"},
+      {"action":null,"buttons":0,"empty":false,"inputs":0,"key":null,"role":null,"tag":"div"}
+    ]
+  },
+  {
+    "checkpoint": "09-final",
+    "hookMessageIds": [
+      "msg-greeting",
+      "msg-plan",
+      "msg_plan_confirm_synthetic-session-reconnect",
+      "msg-think-1",
+      "msg-think-2",
+      "msg-think-3",
+      "msg-outline-1",
+      "msg-url-strawman",
+      "msg-approve-outline"
+    ],
+    "keys": [
+      {"action":null,"buttons":0,"empty":false,"inputs":0,"key":"msg-greeting","role":null,"tag":"div"},
+      {"action":null,"buttons":0,"empty":false,"inputs":0,"key":"synthetic-uuid-0001","role":null,"tag":"div"},
+      {"action":null,"buttons":0,"empty":false,"inputs":0,"key":"msg-plan","role":null,"tag":"div"},
+      {"action":null,"buttons":0,"empty":false,"inputs":0,"key":"synthetic-uuid-0002","role":null,"tag":"div"},
+      {
+        "action": "msg_plan_confirm_synthetic-session-reconnect",
+        "buttons": 2,
+        "empty": false,
+        "inputs": 0,
+        "key": "msg_plan_confirm_synthetic-session-reconnect",
+        "role": null,
+        "tag": "div"
+      },
+      {
+        "action": "msg-approve-outline",
+        "buttons": 3,
+        "empty": false,
+        "inputs": 0,
+        "key": "combined_msg-outline-1",
+        "role": null,
+        "tag": "div"
+      },
+      {"action":null,"buttons":0,"empty":false,"inputs":0,"key":"synthetic-uuid-0003","role":null,"tag":"div"},
+      {"action":null,"buttons":0,"empty":false,"inputs":0,"key":null,"role":null,"tag":"div"},
+      {"action":null,"buttons":0,"empty":false,"inputs":0,"key":null,"role":null,"tag":"div"}
+    ]
+  }
+]

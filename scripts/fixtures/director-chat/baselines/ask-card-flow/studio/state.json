@@ -1,0 +1,618 @@
+{
+  "checkpoints": [
+    {
+      "checkpoint": "01-questions-card-shown",
+      "connection": {
+        "awaitingDirectorReply": false,
+        "connected": true,
+        "connecting": false,
+        "connectionGeneration": 1,
+        "reconnectAttempt": 0,
+        "reconnectStatus": "idle",
+        "sockets": 1,
+        "state": "connected"
+      },
+      "deck": {
+        "activeVersion": "final",
+        "blankUrl": null,
+        "finalId": null,
+        "finalUrl": null,
+        "hasStrawman": false,
+        "isBlank": false,
+        "owner": null,
+        "presentationId": null,
+        "presentationUrl": null,
+        "slideContextIndexes": null,
+        "slideCount": null,
+        "slideStructureSha": null,
+        "strawmanUrl": null,
+        "workflow": null
+      },
+      "ephemeralFadeToken": 0,
+      "ephemeralMessageIds": ["msg-think-1"],
+      "error": null,
+      "label": "questions card shown",
+      "messages": [
+        "msg-greeting | chat_message | assistant | +1500ms",
+        "msg-think-1 | chat_message | assistant | +2500ms",
+        "msg-questions-1 | action_request | assistant | +3000ms"
+      ],
+      "messagesSha": "c5d942ec4cfa6be430ce3faa3b65e3dd9c7e3cc9865dd6f19a38c00b0e4ae63f",
+      "page": {
+        "answeredActions": [],
+        "isGeneratingFinal": false,
+        "pendingActionInput": null,
+        "toasts": 0,
+        "userMessageIds": ["synthetic-uuid-0001"],
+        "userMessages": [{"attachments":0,"id":"synthetic-uuid-0001","text":"I need a deck about ocean currents","timestamp":2000}]
+      },
+      "status": null,
+      "transportNotice": null,
+      "virtualMs": 3500
+    },
+    {
+      "checkpoint": "02-first-answer-chosen",
+      "connection": {
+        "awaitingDirectorReply": false,
+        "connected": true,
+        "connecting": false,
+        "connectionGeneration": 1,
+        "reconnectAttempt": 0,
+        "reconnectStatus": "idle",
+        "sockets": 1,
+        "state": "connected"
+      },
+      "deck": {
+        "activeVersion": "final",
+        "blankUrl": null,
+        "finalId": null,
+        "finalUrl": null,
+        "hasStrawman": false,
+        "isBlank": false,
+        "owner": null,
+        "presentationId": null,
+        "presentationUrl": null,
+        "slideContextIndexes": null,
+        "slideCount": null,
+        "slideStructureSha": null,
+        "strawmanUrl": null,
+        "workflow": null
+      },
+      "ephemeralFadeToken": 0,
+      "ephemeralMessageIds": ["msg-think-1"],
+      "error": null,
+      "label": "first answer chosen",
+      "messages": [
+        "msg-greeting | chat_message | assistant | +1500ms",
+        "msg-think-1 | chat_message | assistant | +2500ms",
+        "msg-questions-1 | action_request | assistant | +3000ms"
+      ],
+      "messagesSha": "c5d942ec4cfa6be430ce3faa3b65e3dd9c7e3cc9865dd6f19a38c00b0e4ae63f",
+      "page": {
+        "answeredActions": [],
+        "isGeneratingFinal": false,
+        "pendingActionInput": null,
+        "toasts": 0,
+        "userMessageIds": ["synthetic-uuid-0001"],
+        "userMessages": [{"attachments":0,"id":"synthetic-uuid-0001","text":"I need a deck about ocean currents","timestamp":2000}]
+      },
+      "status": null,
+      "transportNotice": null,
+      "virtualMs": 4500
+    },
+    {
+      "checkpoint": "03-all-questions-answered",
+      "connection": {
+        "awaitingDirectorReply": false,
+        "connected": true,
+        "connecting": false,
+        "connectionGeneration": 1,
+        "reconnectAttempt": 0,
+        "reconnectStatus": "idle",
+        "sockets": 1,
+        "state": "connected"
+      },
+      "deck": {
+        "activeVersion": "final",
+        "blankUrl": null,
+        "finalId": null,
+        "finalUrl": null,
+        "hasStrawman": false,
+        "isBlank": false,
+        "owner": null,
+        "presentationId": null,
+        "presentationUrl": null,
+        "slideContextIndexes": null,
+        "slideCount": null,
+        "slideStructureSha": null,
+        "strawmanUrl": null,
+        "workflow": null
+      },
+      "ephemeralFadeToken": 0,
+      "ephemeralMessageIds": ["msg-think-1"],
+      "error": null,
+      "label": "all questions answered",
+      "messages": [
+        "msg-greeting | chat_message | assistant | +1500ms",
+        "msg-think-1 | chat_message | assistant | +2500ms",
+        "msg-questions-1 | action_request | assistant | +3000ms"
+      ],
+      "messagesSha": "c5d942ec4cfa6be430ce3faa3b65e3dd9c7e3cc9865dd6f19a38c00b0e4ae63f",
+      "page": {
+        "answeredActions": [],
+        "isGeneratingFinal": false,
+        "pendingActionInput": null,
+        "toasts": 0,
+        "userMessageIds": ["synthetic-uuid-0001"],
+        "userMessages": [{"attachments":0,"id":"synthetic-uuid-0001","text":"I need a deck about ocean currents","timestamp":2000}]
+      },
+      "status": null,
+      "transportNotice": null,
+      "virtualMs": 7000
+    },
+    {
+      "checkpoint": "04-questions-answered",
+      "connection": {
+        "awaitingDirectorReply": true,
+        "connected": true,
+        "connecting": false,
+        "connectionGeneration": 1,
+        "reconnectAttempt": 0,
+        "reconnectStatus": "idle",
+        "sockets": 1,
+        "state": "connected"
+      },
+      "deck": {
+        "activeVersion": "final",
+        "blankUrl": null,
+        "finalId": null,
+        "finalUrl": null,
+        "hasStrawman": false,
+        "isBlank": false,
+        "owner": null,
+        "presentationId": null,
+        "presentationUrl": null,
+        "slideContextIndexes": null,
+        "slideCount": null,
+        "slideStructureSha": null,
+        "strawmanUrl": null,
+        "workflow": null
+      },
+      "ephemeralFadeToken": 0,
+      "ephemeralMessageIds": ["msg-think-1"],
+      "error": null,
+      "label": "questions answered",
+      "messages": [
+        "msg-greeting | chat_message | assistant | +1500ms",
+        "msg-think-1 | chat_message | assistant | +2500ms",
+        "msg-questions-1 | action_request | assistant | +3000ms"
+      ],
+      "messagesSha": "c5d942ec4cfa6be430ce3faa3b65e3dd9c7e3cc9865dd6f19a38c00b0e4ae63f",
+      "page": {
+        "answeredActions": [],
+        "isGeneratingFinal": false,
+        "pendingActionInput": null,
+        "toasts": 0,
+        "userMessageIds": ["synthetic-uuid-0001"],
+        "userMessages": [
+          {"attachments":0,"id":"synthetic-uuid-0001","text":"I need a deck about ocean currents","timestamp":2000},
+          {
+            "attachments": 0,
+            "id": "user-qa-1791201607500",
+            "text": "Answers: General public · Mostly plain language with one chart · 10 minutes",
+            "timestamp": 7500
+          }
+        ]
+      },
+      "status": null,
+      "transportNotice": null,
+      "virtualMs": 8500
+    },
+    {
+      "checkpoint": "05-plan-gate-shown",
+      "connection": {
+        "awaitingDirectorReply": false,
+        "connected": true,
+        "connecting": false,
+        "connectionGeneration": 1,
+        "reconnectAttempt": 0,
+        "reconnectStatus": "idle",
+        "sockets": 1,
+        "state": "connected"
+      },
+      "deck": {
+        "activeVersion": "final",
+        "blankUrl": null,
+        "finalId": null,
+        "finalUrl": null,
+        "hasStrawman": false,
+        "isBlank": false,
+        "owner": null,
+        "presentationId": null,
+        "presentationUrl": null,
+        "slideContextIndexes": null,
+        "slideCount": null,
+        "slideStructureSha": null,
+        "strawmanUrl": null,
+        "workflow": null
+      },
+      "ephemeralFadeToken": 0,
+      "ephemeralMessageIds": ["msg-think-1"],
+      "error": null,
+      "label": "plan gate shown",
+      "messages": [
+        "msg-greeting | chat_message | assistant | +1500ms",
+        "msg-think-1 | chat_message | assistant | +2500ms",
+        "msg-questions-1 | action_request | assistant | +3000ms",
+        "msg-plan | chat_message | assistant | +9000ms",
+        "msg_plan_confirm_synthetic-session-ask-card | action_request | assistant | +9500ms"
+      ],
+      "messagesSha": "850943814e95e3152f8d26670bc047d4e0d11c7af6222e3eb043620850b99584",
+      "page": {
+        "answeredActions": [],
+        "isGeneratingFinal": false,
+        "pendingActionInput": null,
+        "toasts": 0,
+        "userMessageIds": ["synthetic-uuid-0001"],
+        "userMessages": [
+          {"attachments":0,"id":"synthetic-uuid-0001","text":"I need a deck about ocean currents","timestamp":2000},
+          {
+            "attachments": 0,
+            "id": "user-qa-1791201607500",
+            "text": "Answers: General public · Mostly plain language with one chart · 10 minutes",
+            "timestamp": 7500
+          }
+        ]
+      },
+      "status": null,
+      "transportNotice": null,
+      "virtualMs": 10000
+    },
+    {
+      "checkpoint": "06-plan-gate-answered",
+      "connection": {
+        "awaitingDirectorReply": true,
+        "connected": true,
+        "connecting": false,
+        "connectionGeneration": 1,
+        "reconnectAttempt": 0,
+        "reconnectStatus": "idle",
+        "sockets": 1,
+        "state": "connected"
+      },
+      "deck": {
+        "activeVersion": "final",
+        "blankUrl": null,
+        "finalId": null,
+        "finalUrl": null,
+        "hasStrawman": false,
+        "isBlank": false,
+        "owner": null,
+        "presentationId": null,
+        "presentationUrl": null,
+        "slideContextIndexes": null,
+        "slideCount": null,
+        "slideStructureSha": null,
+        "strawmanUrl": null,
+        "workflow": null
+      },
+      "ephemeralFadeToken": 0,
+      "ephemeralMessageIds": ["msg-think-1"],
+      "error": null,
+      "label": "plan gate answered",
+      "messages": [
+        "msg-greeting | chat_message | assistant | +1500ms",
+        "msg-think-1 | chat_message | assistant | +2500ms",
+        "msg-questions-1 | action_request | assistant | +3000ms",
+        "msg-plan | chat_message | assistant | +9000ms",
+        "msg_plan_confirm_synthetic-session-ask-card | action_request | assistant | +9500ms"
+      ],
+      "messagesSha": "850943814e95e3152f8d26670bc047d4e0d11c7af6222e3eb043620850b99584",
+      "page": {
+        "answeredActions": ["msg_plan_confirm_synthetic-session-ask-card"],
+        "isGeneratingFinal": false,
+        "pendingActionInput": null,
+        "toasts": 0,
+        "userMessageIds": ["synthetic-uuid-0001","synthetic-uuid-0002"],
+        "userMessages": [
+          {"attachments":0,"id":"synthetic-uuid-0001","text":"I need a deck about ocean currents","timestamp":2000},
+          {
+            "attachments": 0,
+            "id": "user-qa-1791201607500",
+            "text": "Answers: General public · Mostly plain language with one chart · 10 minutes",
+            "timestamp": 7500
+          },
+          {"attachments":0,"id":"synthetic-uuid-0002","text":"I'd like to make changes","timestamp":10500}
+        ]
+      },
+      "status": null,
+      "transportNotice": null,
+      "virtualMs": 11500
+    },
+    {
+      "checkpoint": "07-same-id-re-sent-upsert",
+      "connection": {
+        "awaitingDirectorReply": false,
+        "connected": true,
+        "connecting": false,
+        "connectionGeneration": 1,
+        "reconnectAttempt": 0,
+        "reconnectStatus": "idle",
+        "sockets": 1,
+        "state": "connected"
+      },
+      "deck": {
+        "activeVersion": "final",
+        "blankUrl": null,
+        "finalId": null,
+        "finalUrl": null,
+        "hasStrawman": false,
+        "isBlank": false,
+        "owner": null,
+        "presentationId": null,
+        "presentationUrl": null,
+        "slideContextIndexes": null,
+        "slideCount": null,
+        "slideStructureSha": null,
+        "strawmanUrl": null,
+        "workflow": null
+      },
+      "ephemeralFadeToken": 0,
+      "ephemeralMessageIds": ["msg-think-1"],
+      "error": null,
+      "label": "same id re-sent (upsert)",
+      "messages": [
+        "msg-greeting | chat_message | assistant | +1500ms",
+        "msg-think-1 | chat_message | assistant | +2500ms",
+        "msg-questions-1 | action_request | assistant | +3000ms",
+        "msg-plan | chat_message | assistant | +9000ms",
+        "msg_plan_confirm_synthetic-session-ask-card | action_request | assistant | +12000ms"
+      ],
+      "messagesSha": "ccc4510c6e83b796018af0c5f2e481ec2cfa97b8a12ba40f5a7214639818d845",
+      "page": {
+        "answeredActions": ["msg_plan_confirm_synthetic-session-ask-card"],
+        "isGeneratingFinal": false,
+        "pendingActionInput": null,
+        "toasts": 0,
+        "userMessageIds": ["synthetic-uuid-0001","synthetic-uuid-0002"],
+        "userMessages": [
+          {"attachments":0,"id":"synthetic-uuid-0001","text":"I need a deck about ocean currents","timestamp":2000},
+          {
+            "attachments": 0,
+            "id": "user-qa-1791201607500",
+            "text": "Answers: General public · Mostly plain language with one chart · 10 minutes",
+            "timestamp": 7500
+          },
+          {"attachments":0,"id":"synthetic-uuid-0002","text":"I'd like to make changes","timestamp":10500}
+        ]
+      },
+      "status": null,
+      "transportNotice": null,
+      "virtualMs": 12500
+    },
+    {
+      "checkpoint": "08-input-requiring-action-shown",
+      "connection": {
+        "awaitingDirectorReply": false,
+        "connected": true,
+        "connecting": false,
+        "connectionGeneration": 1,
+        "reconnectAttempt": 0,
+        "reconnectStatus": "idle",
+        "sockets": 1,
+        "state": "connected"
+      },
+      "deck": {
+        "activeVersion": "final",
+        "blankUrl": null,
+        "finalId": null,
+        "finalUrl": null,
+        "hasStrawman": false,
+        "isBlank": false,
+        "owner": null,
+        "presentationId": null,
+        "presentationUrl": null,
+        "slideContextIndexes": null,
+        "slideCount": null,
+        "slideStructureSha": null,
+        "strawmanUrl": null,
+        "workflow": null
+      },
+      "ephemeralFadeToken": 0,
+      "ephemeralMessageIds": ["msg-think-1"],
+      "error": null,
+      "label": "input-requiring action shown",
+      "messages": [
+        "msg-greeting | chat_message | assistant | +1500ms",
+        "msg-think-1 | chat_message | assistant | +2500ms",
+        "msg-questions-1 | action_request | assistant | +3000ms",
+        "msg-plan | chat_message | assistant | +9000ms",
+        "msg_plan_confirm_synthetic-session-ask-card | action_request | assistant | +12000ms",
+        "msg-adjust-1 | action_request | assistant | +13000ms"
+      ],
+      "messagesSha": "79325e872a9366d51d8fd5565ea73f1a84a4fe3fed62235a5535c9142046ebb3",
+      "page": {
+        "answeredActions": ["msg_plan_confirm_synthetic-session-ask-card"],
+        "isGeneratingFinal": false,
+        "pendingActionInput": null,
+        "toasts": 0,
+        "userMessageIds": ["synthetic-uuid-0001","synthetic-uuid-0002"],
+        "userMessages": [
+          {"attachments":0,"id":"synthetic-uuid-0001","text":"I need a deck about ocean currents","timestamp":2000},
+          {
+            "attachments": 0,
+            "id": "user-qa-1791201607500",
+            "text": "Answers: General public · Mostly plain language with one chart · 10 minutes",
+            "timestamp": 7500
+          },
+          {"attachments":0,"id":"synthetic-uuid-0002","text":"I'd like to make changes","timestamp":10500}
+        ]
+      },
+      "status": null,
+      "transportNotice": null,
+      "virtualMs": 13500
+    },
+    {
+      "checkpoint": "09-input-action-chosen",
+      "connection": {
+        "awaitingDirectorReply": false,
+        "connected": true,
+        "connecting": false,
+        "connectionGeneration": 1,
+        "reconnectAttempt": 0,
+        "reconnectStatus": "idle",
+        "sockets": 1,
+        "state": "connected"
+      },
+      "deck": {
+        "activeVersion": "final",
+        "blankUrl": null,
+        "finalId": null,
+        "finalUrl": null,
+        "hasStrawman": false,
+        "isBlank": false,
+        "owner": null,
+        "presentationId": null,
+        "presentationUrl": null,
+        "slideContextIndexes": null,
+        "slideCount": null,
+        "slideStructureSha": null,
+        "strawmanUrl": null,
+        "workflow": null
+      },
+      "ephemeralFadeToken": 0,
+      "ephemeralMessageIds": ["msg-think-1"],
+      "error": null,
+      "label": "input action chosen",
+      "messages": [
+        "msg-greeting | chat_message | assistant | +1500ms",
+        "msg-think-1 | chat_message | assistant | +2500ms",
+        "msg-questions-1 | action_request | assistant | +3000ms",
+        "msg-plan | chat_message | assistant | +9000ms",
+        "msg_plan_confirm_synthetic-session-ask-card | action_request | assistant | +12000ms",
+        "msg-adjust-1 | action_request | assistant | +13000ms"
+      ],
+      "messagesSha": "79325e872a9366d51d8fd5565ea73f1a84a4fe3fed62235a5535c9142046ebb3",
+      "page": {
+        "answeredActions": ["msg_plan_confirm_synthetic-session-ask-card","msg-adjust-1"],
+        "isGeneratingFinal": false,
+        "pendingActionInput": {"value":"add_slide"},
+        "toasts": 0,
+        "userMessageIds": ["synthetic-uuid-0001","synthetic-uuid-0002"],
+        "userMessages": [
+          {"attachments":0,"id":"synthetic-uuid-0001","text":"I need a deck about ocean currents","timestamp":2000},
+          {
+            "attachments": 0,
+            "id": "user-qa-1791201607500",
+            "text": "Answers: General public · Mostly plain language with one chart · 10 minutes",
+            "timestamp": 7500
+          },
+          {"attachments":0,"id":"synthetic-uuid-0002","text":"I'd like to make changes","timestamp":10500}
+        ]
+      },
+      "status": null,
+      "transportNotice": null,
+      "virtualMs": 15000
+    },
+    {
+      "checkpoint": "10-final",
+      "connection": {
+        "awaitingDirectorReply": false,
+        "connected": true,
+        "connecting": false,
+        "connectionGeneration": 1,
+        "reconnectAttempt": 0,
+        "reconnectStatus": "idle",
+        "sockets": 1,
+        "state": "connected"
+      },
+      "deck": {
+        "activeVersion": "final",
+        "blankUrl": null,
+        "finalId": null,
+        "finalUrl": null,
+        "hasStrawman": false,
+        "isBlank": false,
+        "owner": null,
+        "presentationId": null,
+        "presentationUrl": null,
+        "slideContextIndexes": null,
+        "slideCount": null,
+        "slideStructureSha": null,
+        "strawmanUrl": null,
+        "workflow": null
+      },
+      "ephemeralFadeToken": 0,
+      "ephemeralMessageIds": ["msg-think-1"],
+      "error": null,
+      "label": "final",
+      "messages": [
+        "msg-greeting | chat_message | assistant | +1500ms",
+        "msg-think-1 | chat_message | assistant | +2500ms",
+        "msg-questions-1 | action_request | assistant | +3000ms",
+        "msg-plan | chat_message | assistant | +9000ms",
+        "msg_plan_confirm_synthetic-session-ask-card | action_request | assistant | +12000ms",
+        "msg-adjust-1 | action_request | assistant | +13000ms"
+      ],
+      "messagesSha": "79325e872a9366d51d8fd5565ea73f1a84a4fe3fed62235a5535c9142046ebb3",
+      "page": {
+        "answeredActions": ["msg_plan_confirm_synthetic-session-ask-card","msg-adjust-1"],
+        "isGeneratingFinal": false,
+        "pendingActionInput": {"value":"add_slide"},
+        "toasts": 0,
+        "userMessageIds": ["synthetic-uuid-0001","synthetic-uuid-0002"],
+        "userMessages": [
+          {"attachments":0,"id":"synthetic-uuid-0001","text":"I need a deck about ocean currents","timestamp":2000},
+          {
+            "attachments": 0,
+            "id": "user-qa-1791201607500",
+            "text": "Answers: General public · Mostly plain language with one chart · 10 minutes",
+            "timestamp": 7500
+          },
+          {"attachments":0,"id":"synthetic-uuid-0002","text":"I'd like to make changes","timestamp":10500}
+        ]
+      },
+      "status": null,
+      "transportNotice": null,
+      "virtualMs": 15000
+    }
+  ],
+  "notes": ["step 22: click skipped, target disabled"],
+  "steps": [
+    {"op":"ensureConnected","step":0},
+    {"op":"open","step":1},
+    {"op":"frame","step":2},
+    {"op":"typed","step":3},
+    {"op":"frame","step":4},
+    {"op":"frame","step":5},
+    {"op":"checkpoint","step":6},
+    {"op":"click","step":7},
+    {"op":"checkpoint","step":8},
+    {"op":"change","step":9},
+    {"op":"click","step":10},
+    {"comment":"second click deselects the recommended chip","op":"click","step":11},
+    {"comment":"third click selects it again","op":"click","step":12},
+    {"op":"checkpoint","step":13},
+    {"op":"click","step":14},
+    {"op":"expect","step":15},
+    {"op":"click","skipped":"profile studio","step":16},
+    {"op":"checkpoint","step":17},
+    {"op":"frame","step":18},
+    {"op":"frame","step":19},
+    {"op":"checkpoint","step":20},
+    {"op":"click","step":21},
+    {
+      "comment": "an answered gate renders as a historical card: its buttons are disabled, so the click is not delivered",
+      "op": "click",
+      "step": 22
+    },
+    {"op":"checkpoint","step":23},
+    {"op":"frame","step":24},
+    {"op":"checkpoint","step":25},
+    {"op":"frame","step":26},
+    {"op":"checkpoint","step":27},
+    {"op":"click","step":28},
+    {"op":"expect","step":29},
+    {"op":"checkpoint","step":30}
+  ]
+}

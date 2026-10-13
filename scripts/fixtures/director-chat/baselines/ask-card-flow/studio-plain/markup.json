@@ -1,0 +1,52 @@
+{
+  "01-questions-card-shown": {
+    "chat": "fc325959147b2867d0c539b4cbb8ac7b3eb02ad9a0fdb17fa7a78a2aa09c8d96",
+    "header": "8115c620e51ebe5ecec9fb6cd6f2bc48326707f5b03a68d3b7fa9920773f27ad",
+    "notice": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+  },
+  "02-first-answer-chosen": {
+    "chat": "fc325959147b2867d0c539b4cbb8ac7b3eb02ad9a0fdb17fa7a78a2aa09c8d96",
+    "header": "8115c620e51ebe5ecec9fb6cd6f2bc48326707f5b03a68d3b7fa9920773f27ad",
+    "notice": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+  },
+  "03-all-questions-answered": {
+    "chat": "fc325959147b2867d0c539b4cbb8ac7b3eb02ad9a0fdb17fa7a78a2aa09c8d96",
+    "header": "8115c620e51ebe5ecec9fb6cd6f2bc48326707f5b03a68d3b7fa9920773f27ad",
+    "notice": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+  },
+  "04-questions-answered": {
+    "chat": "5ea6daccbd0d5bf3331848d6aafe295088d854254b263d0e893091bbd6ca977f",
+    "header": "8115c620e51ebe5ecec9fb6cd6f2bc48326707f5b03a68d3b7fa9920773f27ad",
+    "notice": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+  },
+  "05-plan-gate-shown": {
+    "chat": "d1f93bb5eceed2e484ec0986082d4ed8cbecbfbb8897cf65e7eeb94d6d325912",
+    "header": "8115c620e51ebe5ecec9fb6cd6f2bc48326707f5b03a68d3b7fa9920773f27ad",
+    "notice": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+  },
+  "06-plan-gate-answered": {
+    "chat": "38c6b0d4ce7388056c7c22a1692c4177e0b3776e5812a75d4ce8e5fe44fce610",
+    "header": "8115c620e51ebe5ecec9fb6cd6f2bc48326707f5b03a68d3b7fa9920773f27ad",
+    "notice": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+  },
+  "07-same-id-re-sent-upsert": {
+    "chat": "1be4cda8bc677fe9d180a7ca76682fefd53d37fde27f95540adfd2f8fdc7c25c",
+    "header": "8115c620e51ebe5ecec9fb6cd6f2bc48326707f5b03a68d3b7fa9920773f27ad",
+    "notice": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+  },
+  "08-input-requiring-action-shown": {
+    "chat": "8db4e5e2b0c65bb58ea2945269684af80da5f870ec4721da548bc635e4e6913c",
+    "header": "8115c620e51ebe5ecec9fb6cd6f2bc48326707f5b03a68d3b7fa9920773f27ad",
+    "notice": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+  },
+  "09-input-action-chosen": {
+    "chat": "c79b8cc5a1244f6395a87a3f85eb8f43620e4788d244d143a4292f589cb4195e",
+    "header": "8115c620e51ebe5ecec9fb6cd6f2bc48326707f5b03a68d3b7fa9920773f27ad",
+    "notice": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+  },
+  "10-final": {
+    "chat": "c79b8cc5a1244f6395a87a3f85eb8f43620e4788d244d143a4292f589cb4195e",
+    "header": "8115c620e51ebe5ecec9fb6cd6f2bc48326707f5b03a68d3b7fa9920773f27ad",
+    "notice": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+  }
+}

@@ -1,0 +1,42 @@
+{
+  "01-working": {
+    "chat": "cc32ee280f891ffa33ea61f4b8c2682c2cfa785804f0de4a899e9d1d208cd6cc",
+    "header": "8115c620e51ebe5ecec9fb6cd6f2bc48326707f5b03a68d3b7fa9920773f27ad",
+    "notice": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+  },
+  "02-status-error": {
+    "chat": "cc32ee280f891ffa33ea61f4b8c2682c2cfa785804f0de4a899e9d1d208cd6cc",
+    "header": "8115c620e51ebe5ecec9fb6cd6f2bc48326707f5b03a68d3b7fa9920773f27ad",
+    "notice": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+  },
+  "03-transport-error-notice": {
+    "chat": "cc32ee280f891ffa33ea61f4b8c2682c2cfa785804f0de4a899e9d1d208cd6cc",
+    "header": "8115c620e51ebe5ecec9fb6cd6f2bc48326707f5b03a68d3b7fa9920773f27ad",
+    "notice": "ebe36386b599f88069789e474d6a2a0fef4b1271e42e1070a9240b2cb1e1a3c6"
+  },
+  "04-auth-expired-resend-needed": {
+    "chat": "cc32ee280f891ffa33ea61f4b8c2682c2cfa785804f0de4a899e9d1d208cd6cc",
+    "header": "8115c620e51ebe5ecec9fb6cd6f2bc48326707f5b03a68d3b7fa9920773f27ad",
+    "notice": "62dfc4e7b7c351a8e78118569c110ac32589e27e1b40567b8a1cee013001aab7"
+  },
+  "05-refresh-failed": {
+    "chat": "cc32ee280f891ffa33ea61f4b8c2682c2cfa785804f0de4a899e9d1d208cd6cc",
+    "header": "8115c620e51ebe5ecec9fb6cd6f2bc48326707f5b03a68d3b7fa9920773f27ad",
+    "notice": "a7f10a313bb531cefa41fff3720298abefd6852cf93534f7da5874bba5cd62f7"
+  },
+  "06-after-resend": {
+    "chat": "24d90faabadaa2c4e33a75753a789c5c3af12e13e1faaf35b345db11a512e476",
+    "header": "8115c620e51ebe5ecec9fb6cd6f2bc48326707f5b03a68d3b7fa9920773f27ad",
+    "notice": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+  },
+  "07-recovered": {
+    "chat": "0fc85df06a85b5c1f4a1f9f8727eb9c58fa60eac8273927eef0614c3d9a2db4d",
+    "header": "8115c620e51ebe5ecec9fb6cd6f2bc48326707f5b03a68d3b7fa9920773f27ad",
+    "notice": "e953abe6342162b51cbc3383aa82ebaf52e98a5e534d10bc9fa75bbfd25973a6"
+  },
+  "08-final": {
+    "chat": "0fc85df06a85b5c1f4a1f9f8727eb9c58fa60eac8273927eef0614c3d9a2db4d",
+    "header": "8115c620e51ebe5ecec9fb6cd6f2bc48326707f5b03a68d3b7fa9920773f27ad",
+    "notice": "e953abe6342162b51cbc3383aa82ebaf52e98a5e534d10bc9fa75bbfd25973a6"
+  }
+}

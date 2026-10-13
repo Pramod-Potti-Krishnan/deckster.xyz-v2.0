@@ -1,0 +1,27 @@
+{
+  "01-restored-from-database": {
+    "chat": "8de1e061446c1229a24e24dc1bce9daea2084dda4cdfe5b791dcba4749fff5a2",
+    "header": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "notice": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+  },
+  "02-after-sync-and-replays": {
+    "chat": "973b7edd8274b400e48598439b9f64260bf68625267aaf2dde1d4e37e3e5c3ac",
+    "header": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "notice": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+  },
+  "03-after-new-turn": {
+    "chat": "dfbed727391547a796fcdefcfa3a321e5a619fae50b5088c7afff1cbb773e21a",
+    "header": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "notice": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+  },
+  "04-reloaded-again": {
+    "chat": "973b7edd8274b400e48598439b9f64260bf68625267aaf2dde1d4e37e3e5c3ac",
+    "header": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "notice": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+  },
+  "05-final": {
+    "chat": "973b7edd8274b400e48598439b9f64260bf68625267aaf2dde1d4e37e3e5c3ac",
+    "header": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "notice": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+  }
+}

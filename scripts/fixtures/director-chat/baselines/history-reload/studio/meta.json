@@ -1,0 +1,15 @@
+{
+  "diagnostics": {
+    "blockedNetwork": [],
+    "console": [],
+    "fetches": [{"method":"GET","url":"/api/director/ws-token?session_id=synthetic-session-history-reload"}],
+    "sockets": 1,
+    "timersLeft": 1,
+    "uncaughtTimerErrors": [],
+    "windowOpens": []
+  },
+  "fixture": "history-reload",
+  "fixtureSha": "8475fc726518050a",
+  "profile": "studio",
+  "schema": 1
+}
