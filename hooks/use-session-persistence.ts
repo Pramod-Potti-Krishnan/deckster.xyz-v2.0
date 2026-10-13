@@ -4,6 +4,7 @@ import { DirectorMessage } from './use-deckster-websocket-v2';
 import { useSessionCache } from './use-session-cache';
 import { debugLog } from '@/lib/debug-log';
 import { DirectorChatSaveQueue } from '@/lib/director-chat-history';
+import { STUDIO_SESSION_HYGIENE_ENABLED } from '@/lib/studio-session-hygiene';
 
 type PersistableDirectorMessage = Exclude<DirectorMessage, { type: 'token_usage' }>;
 
@@ -140,6 +141,16 @@ export function useSessionPersistence(options: SessionPersistenceOptions) {
     const currentSessionId = sessionIdRef.current;
     if (!currentSessionId) {
       console.warn('⚠️ updateMetadata skipped - no sessionId');
+      return;
+    }
+
+    // NEXT_PUBLIC_STUDIO_SESSION_HYGIENE: an unsaved local session (bare /builder, ?session_id=new, a reload of either) has no
+    // history row, and `enabled` is false for it. queueMessage and flushMessages already honour that; this was the one writer
+    // that did not. Director's blank-deck frame (presentation_init) reaches here through the page's onSessionStateChange, and a
+    // PATCH for a row that does not exist 404s, retries, then updateSession's recovery POSTs the row: an empty "Untitled Session".
+    // The row is created by the first real action (first message, an upload, a hand-off), after which `enabled` is true.
+    if (STUDIO_SESSION_HYGIENE_ENABLED && !enabledRef.current) {
+      debugLog('[SESSION-HYGIENE] updateMetadata skipped - session is unsaved, no history row yet:', currentSessionId);
       return;
     }
 

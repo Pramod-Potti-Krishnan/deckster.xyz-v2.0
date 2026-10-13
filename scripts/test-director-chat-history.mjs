@@ -156,6 +156,8 @@ function hookHarness(persistenceSource) {
     if (name === './use-session-cache') return { useSessionCache: () => cache }
     if (name === '@/lib/debug-log') return { debugLog: () => {} }
     if (name === '@/lib/director-chat-history') return helpers
+    // NEXT_PUBLIC_STUDIO_SESSION_HYGIENE is off here: this suite pins the hook exactly as it was (the flag-on behaviour is pinned in test-studio-session-hygiene.mjs)
+    if (name === '@/lib/studio-session-hygiene') return { STUDIO_SESSION_HYGIENE_ENABLED: false }
     throw new Error(`Unexpected import ${name}`)
   }, {
     setTimeout: (callback, delay) => { const timer = setTimeout(callback, delay); timers.add(timer); return timer },
