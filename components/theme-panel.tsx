@@ -36,6 +36,12 @@ import {
 } from '@/lib/theme-builder'
 import { loadPresetSwatchPalettes } from '@/lib/theme-preset-swatches'
 import type { ThemeSyncState, ThemeSyncStatus } from '@/lib/theme-sync'
+import {
+  ThemeDropdownPicker,
+  themeDropdownPreview,
+  themeDropdownSwatches,
+  type ThemeDropdownOption,
+} from './theme-dropdown-picker'
 
 type ThemeMode = 'preset' | 'custom'
 
@@ -171,6 +177,10 @@ const STUDIO_THEME_PANEL = process.env.NEXT_PUBLIC_STUDIO_V4_SHELL === 'true'
 // PASS2 #7 (flag NEXT_PUBLIC_STUDIO_THEME_PICKER_V2, exact "true", default off; Studio shell only): the same panel, state and Apply
 // as a lighter picker: clear preview tiles, the current theme marked, the lock note only when locked. Off: nothing below runs.
 const STUDIO_THEME_PICKER_V2 = STUDIO_THEME_PANEL && process.env.NEXT_PUBLIC_STUDIO_THEME_PICKER_V2 === 'true'
+// PASS2-PK-FOUR item 3 (flag NEXT_PUBLIC_STUDIO_THEME_DROPDOWN, exact "true", default off; Studio shell only): inside that same picker,
+// the preset grid becomes a searchable dropdown (current theme pinned) with a preview of the selected theme. Same draft, handlers, Apply
+// and lock rule. Off: nothing below runs and the picker (or plain panel) renders exactly as before.
+const STUDIO_THEME_DROPDOWN = STUDIO_THEME_PANEL && process.env.NEXT_PUBLIC_STUDIO_THEME_DROPDOWN === 'true'
 
 function SyncBadge({ status }: { status: ThemeSyncStatus }) {
   if (status === 'syncing') {
@@ -314,6 +324,7 @@ function ThemePickerV2({
   customMode,
   customEditor,
   advanced,
+  presetPicker,
   canApply,
   applyLabel,
   invalidColor,
@@ -336,6 +347,8 @@ function ThemePickerV2({
   customMode: boolean
   customEditor: ReactNode
   advanced: ReactNode
+  /** The searchable dropdown (flag NEXT_PUBLIC_STUDIO_THEME_DROPDOWN). Absent: the grid below. */
+  presetPicker?: ReactNode
   canApply: boolean
   applyLabel: ReactNode
   invalidColor: boolean
@@ -358,6 +371,7 @@ function ThemePickerV2({
       data-studio-theme="true"
       data-studio-v4-dialog="theme"
       data-studio-theme-picker="v2"
+      {...(presetPicker ? { 'data-studio-theme-dropdown': 'true' } : {})}
       role="dialog"
       aria-modal="false"
       aria-label="Theme for this presentation"
@@ -414,7 +428,7 @@ function ThemePickerV2({
           </div>
         ) : (
           <>
-            <div className="stpv2-grid">
+            {presetPicker ?? <div className="stpv2-grid">
               <button
                 type="button"
                 disabled={locked}
@@ -451,8 +465,8 @@ function ThemePickerV2({
                   {card.selected && <span className="stpv2-check" aria-hidden="true"><Check className="h-3 w-3" /></span>}
                 </button>
               ))}
-            </div>
-            <p className="stpv2-caption">Swatches show each theme’s main colours. The full theme also sets fonts and layout details.</p>
+            </div>}
+            {presetPicker ? null : <p className="stpv2-caption">Swatches show each theme’s main colours. The full theme also sets fonts and layout details.</p>}
             {!locked && (
               <div className="stpv2-custom-row">
                 <span>Want your own colours?</span>
@@ -614,7 +628,7 @@ export function ThemePanel({
     onBuildThemeChange(next)
   }
 
-  if (STUDIO_THEME_PICKER_V2) {
+  if (STUDIO_THEME_PICKER_V2 || STUDIO_THEME_DROPDOWN) {
     const currentSelection = normalizeThemePanelSelection(buildThemeSelection)
     const nameOf = (selection: BuildThemeSelection) => (
       selection.mode === 'auto'
@@ -637,6 +651,49 @@ export function ThemePanel({
         ink: readableInk(swatch.canvas),
       }
     })
+    // PASS2-PK-FOUR item 3: the dropdown takes the grid's place. The same presets in the same order (Auto first); it picks through the
+    // same selectAuto / selectPreset, so the draft, the Apply payload and the lock rule are the grid's.
+    let presetPicker: ReactNode
+    if (STUDIO_THEME_DROPDOWN) {
+      const options: ThemeDropdownOption[] = [
+        { id: 'auto', name: 'Auto', hint: 'Director picks for you', swatches: [], current: currentSelection.mode === 'auto' },
+        ...THEME_PREVIEWS.map(theme => {
+          const colors = previewPaletteFor(theme.id)
+          return {
+            id: theme.id,
+            name: theme.name,
+            hint: theme.description,
+            swatches: themeDropdownSwatches({
+              hero: colors.swatch?.hero,
+              primary: colors.primary,
+              accent: colors.accent,
+              text: colors.text,
+              surface: colors.surface,
+              background: colors.background,
+            }),
+            current: currentPresetId === theme.id,
+          }
+        }),
+      ]
+      const selectedTheme = THEME_PREVIEWS.find(theme => theme.id === selectedPresetId)
+      presetPicker = (
+        <ThemeDropdownPicker
+          options={options}
+          selectedId={draft.mode === 'auto' ? 'auto' : draft.mode === 'preset' ? selectedPresetId : null}
+          locked={selectionLocked}
+          preview={draft.mode === 'auto' || !selectedTheme
+            ? { kind: 'auto' }
+            : themeDropdownPreview({
+              name: selectedTheme.name,
+              description: selectedTheme.description,
+              colors: selectedPreview,
+              overrides: draft.color_overrides,
+              fontSource: draft,
+            })}
+          onSelect={id => { if (id === 'auto') selectAuto(); else selectPreset(id) }}
+        />
+      )
+    }
     const overrideCount = Object.keys(draft.color_overrides || {}).length
     // Same fields, seeds, labels and handlers as the "Build custom" tab and the token overrides below.
     const customEditor = (
@@ -723,6 +780,7 @@ export function ThemePanel({
         customMode={mode === 'custom'}
         customEditor={customEditor}
         advanced={advanced}
+        presetPicker={presetPicker}
         canApply={canApply}
         applyLabel={visibleSyncStatus === 'syncing'
           ? <><Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" /> Applying</>
