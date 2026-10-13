@@ -1,5 +1,6 @@
 {
   "regions": [
+    {"chars":185,"label":"page.<ChatInput ...0>","sha256":"53c49b75d6047630"},
     {"chars":35,"label":"page.<ChatInput activeBuildThemeProfile>","sha256":"b51c5f2d8c7e80a9"},
     {"chars":14,"label":"page.<ChatInput activeTemplate>","sha256":"3025902998fbdf2d"},
     {"chars":21,"label":"page.<ChatInput awaitingReply>","sha256":"f16e2dd4c9f74bd2"},

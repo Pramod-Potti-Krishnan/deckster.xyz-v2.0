@@ -531,8 +531,11 @@ function pageWiring(pageSource) {
   return found
 }
 const FIX_SPREAD = /onComposerTemplateAction|onRequestTaken/
+// Chat PR D's flag-gated ChatInput prop (NEXT_PUBLIC_STUDIO_CHAT_COMPOSER_CONTEXT); its flag-off value (undefined) is proven by
+// scripts/test-studio-chat-composer-recovery-answered.mjs, so it is left out of this pin like the fix's own spreads.
+const SIBLING_FLAG_ATTR = /^studioContextLabel=/
 /** Both elements without the fix's two spreads: equal to the base's means the page passes exactly what it passed before when they add nothing. */
-const pageWiringHash = source => { const w = pageWiring(source); return sha(['ChatInput', 'ComposerLibraryDialog'].map(tag => [...w[tag].attrs, ...w[tag].spreads.filter(x => !FIX_SPREAD.test(x))].join('\n')).join('\n----\n')) }
+const pageWiringHash = source => { const w = pageWiring(source); return sha(['ChatInput', 'ComposerLibraryDialog'].map(tag => [...w[tag].attrs.filter(a => !SIBLING_FLAG_ATTR.test(a)), ...w[tag].spreads.filter(x => !FIX_SPREAD.test(x))].join('\n')).join('\n----\n')) }
 
 if (process.env.PRINT_GOLDEN) {
   const out = { composer: {}, themeMenu: await themeMenuHash(), template: {}, strip: await pageStripHash(), dialog: await dialogHash(), pageWiring: pageWiringHash(read(PAGE)) }
