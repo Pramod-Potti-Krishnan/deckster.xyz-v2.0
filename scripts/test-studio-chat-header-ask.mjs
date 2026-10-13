@@ -1,6 +1,6 @@
 // PASS2-DIRECTOR-CHAT PR C: NEXT_PUBLIC_STUDIO_CHAT_HEADER and NEXT_PUBLIC_STUDIO_CHAT_ASK change WORDS only.
 //
-//   NEXT_PUBLIC_STUDIO_CHAT_HEADER  the Director header's connection line ("Ready to help", "Reconnecting…", "Offline, will retry",
+//   NEXT_PUBLIC_STUDIO_CHAT_HEADER  the Director header's connection line ("Connected", "Reconnecting…", "Offline, will retry",
 //                                   "Couldn't reconnect") chosen from the connection state and reconnect status the hook already reports
 //   NEXT_PUBLIC_STUDIO_CHAT_ASK     the plan gate's card is headed "Approval needed" instead of "Your input"
 //
@@ -49,7 +49,7 @@ const fixtures = fs.readdirSync(path.join(repoRoot, 'scripts/fixtures/director-c
 // not list for a state is not a state the hook produces together with it, and is not asserted.
 const SCHEDULED = ['reconnecting', 'Reconnecting…'], OFFLINE = ['offline', 'Offline, will retry'], FAILED = ['failed', "Couldn't reconnect"]
 const ORACLE = {
-  connected: { idle: ['ready', 'Ready to help'], scheduled: ['ready', 'Ready to help'], paused_offline: ['ready', 'Ready to help'], exhausted: ['ready', 'Ready to help'], manual: ['ready', 'Ready to help'] },
+  connected: { idle: ['ready', 'Connected'], scheduled: ['ready', 'Connected'], paused_offline: ['ready', 'Connected'], exhausted: ['ready', 'Connected'], manual: ['ready', 'Connected'] },
   connecting: { idle: ['connecting', 'Connecting…'], scheduled: SCHEDULED, paused_offline: OFFLINE, exhausted: FAILED, manual: ['connecting', 'Connecting…'] },
   disconnected: { idle: ['disconnected', 'Disconnected'], scheduled: SCHEDULED, paused_offline: OFFLINE, exhausted: FAILED, manual: ['disconnected', 'Disconnected'] },
   error: { idle: ['error', 'Connection error'], scheduled: SCHEDULED, paused_offline: OFFLINE, exhausted: FAILED, manual: ['error', 'Connection error'] },
@@ -98,6 +98,8 @@ async function checks(root) {
 
   const ATTR = / data-studio-chat-(?:header|header-state|ask)="[^"]*"/g
   const split = chrome => { const at = chrome.indexOf('<!-- StudioDirectorNotice -->'); return [chrome.slice(0, at), chrome.slice(at)] }
+  // React escapes text content (e.g. ' -> &#x27;), so decode before comparing with the plain-text oracle
+  const unescapeHtml = text => text.replace(/&#x27;/g, "'").replace(/&quot;/g, '"').replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&amp;/g, '&')
   const headerTexts = html => [...html.matchAll(/<span role="status"[^>]*>([^<]*)<\/span>/g)].map(match => match[1])
   const cardsOf = html => { // one string per ask card, from its root to the next card
     const starts = [...html.matchAll(/ data-director-action-id="([^"]*)"/g)].map(match => ({ id: match[1], at: match.index }))
@@ -125,7 +127,7 @@ async function checks(root) {
       if (off['markup.json'] !== baseline['markup.json']) fail(`${label}: flag-off markup hashes differ from the committed base baselines`)
       for (const name of Object.keys(off)) if (name.startsWith('markup/') && baseline[name] !== undefined && off[name] !== baseline[name]) fail(`${label}: flag-off ${name} differs from the base baseline`)
       for (const name of Object.keys(off)) if (name !== 'env.json' && off[name] !== explicitOff[name]) fail(`${label}: ${HEADER}/${ASK}="false" differs from unset in ${name}`)
-      if (/data-studio-chat-(?:header|ask)|Ready to help|Reconnecting…|Offline, will retry|Couldn't reconnect|Approval needed/.test(Object.values(off).join('\n'))) fail(`${label}: flag off, but new-flag markup or words were rendered`)
+      if (/data-studio-chat-(?:header|ask)|Reconnecting…|Offline, will retry|Couldn't reconnect|Approval needed/.test(Object.values(off).join('\n'))) fail(`${label}: flag off, but new-flag markup or words were rendered`)
 
       // 2. flag on: everything but markup (and the recorded env) is identical to flag off, in every combination
       for (const [name, files] of [['header', hdr], ['ask', ask], ['both', both]]) {
@@ -158,7 +160,7 @@ async function checks(root) {
         const [tone, words] = loading ? ['loading', 'Loading conversation…'] : (ORACLE[checkpoint.connection.state] || {})[checkpoint.connection.reconnectStatus] || []
         if (!words) { fail(`${label} ${file}: no oracle row for ${checkpoint.connection.state} / ${checkpoint.connection.reconnectStatus}`); continue }
         stats.headerStates.set(`${checkpoint.connection.state}/${checkpoint.connection.reconnectStatus}`, words)
-        if (hdrText !== words) fail(`${label} ${file}: header says "${hdrText}", the table says "${words}" for ${checkpoint.connection.state} / ${checkpoint.connection.reconnectStatus}`)
+        if (unescapeHtml(hdrText) !== words) fail(`${label} ${file}: header says "${hdrText}", the table says "${words}" for ${checkpoint.connection.state} / ${checkpoint.connection.reconnectStatus}`)
         const stateAttr = hdrHeader.match(/ data-studio-chat-header-state="([^"]*)"/)?.[1]
         if (stateAttr !== tone) fail(`${label} ${file}: data-studio-chat-header-state is "${stateAttr}", the table says "${tone}"`)
         if (!/<header data-studio-director-header="true" role="group" aria-label="Director conversation" data-studio-chat-header="true">/.test(hdrHeader)) fail(`${label} ${file}: the header root lacks data-studio-chat-header`)
@@ -223,8 +225,8 @@ async function checks(root) {
           if (attrs['data-connection-state'] !== (loading ? 'loading' : connectionState)) fail(`header unit: data-connection-state changed for ${connectionState} loading=${loading}`)
           if (attrs.role !== 'status' || attrs['aria-label'] !== 'Director connection' || attrs['aria-atomic'] !== 'true') fail(`header unit: the status region lost role / aria-label / aria-atomic`)
           if (nodesOf(tree).some(node => node.type === 'button')) fail('header unit: a button appeared in the header')
-          if (!/^(?:Ready to help|Connecting…|Reconnecting…|Offline, will retry|Couldn't reconnect|Disconnected|Connection error|Loading conversation…)$/.test(text)) fail(`header unit: unexpected words "${text}"`)
-          if (text === 'Ready to help' && !loading && connectionState !== 'connected') fail(`header unit: "Ready to help" shown while ${connectionState}`)
+          if (!/^(?:Connected|Connecting…|Reconnecting…|Offline, will retry|Couldn't reconnect|Disconnected|Connection error|Loading conversation…)$/.test(text)) fail(`header unit: unexpected words "${text}"`)
+          if (text === 'Connected' && !loading && connectionState !== 'connected') fail(`header unit: "Connected" shown while ${connectionState}`)
         }
       }
     }
@@ -338,9 +340,9 @@ async function mutationCheck() {
   const HDR = 'components/builder/chat/studio-director-header.tsx', CARD = 'components/builder/chat/question-card.tsx', PAGE = 'app/builder/page.tsx', CSS = 'components/builder/chat/studio-director-header.css'
   const mutations = [
     ['header: ignores its flag (new words with the flag off)', HDR, s => s.replace('process.env.NEXT_PUBLIC_STUDIO_CHAT_HEADER === "true"', 'true')],
-    ['header: connected + scheduled no longer reads "Ready to help"', HDR, s => s.replace('  if (connectionState === "connected") return { tone: "ready", text: "Ready to help" }\n', '')],
+    ['header: connected + scheduled no longer reads "Connected"', HDR, s => s.replace('  if (connectionState === "connected") return { tone: "ready", text: "Connected" }\n', '')],
     ['header: offline and gave-up words swapped', HDR, s => s.replace('"Offline, will retry"', '"@@"').replace('"Couldn\'t reconnect"', '"Offline, will retry"').replace('"@@"', '"Couldn\'t reconnect"')],
-    ['header: "Ready to help" while not connected', HDR, s => s.replace('if (connectionState === "connected") return', 'if (connectionState !== "error") return')],
+    ['header: "Connected" while not connected', HDR, s => s.replace('if (connectionState === "connected") return', 'if (connectionState !== "error") return')],
     ['header: the state attribute is dropped', HDR, s => s.replace('{ "data-studio-chat-header-state": chatHeader.tone }', '{}')],
     ['ask: ignores its flag (new heading with the flag off)', CARD, s => s.replace('process.env.NEXT_PUBLIC_STUDIO_CHAT_ASK === "true"', 'true')],
     ['ask: the outline gate is headed "Approval needed" too', CARD, s => s.replace('studio && !structured && !isOutlineApproval &&', 'studio && !structured &&').replace('studio && isOutlineApproval ? "Review your outline" : isPlanApproval', 'isPlanApproval ? "Approval needed" : studio && isOutlineApproval')],
