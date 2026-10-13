@@ -499,10 +499,10 @@ await run('the picker adds no state, effect, request or env read of its own, and
   assert.equal([...source.matchAll(/(?<![A-Za-z_])STUDIO_THEME_PICKER_V2\b/g)].length, 2, 'declared once, used once')
   assert.equal([...source.matchAll(/<ThemePickerV2\b/g)].length, 1)
   for (const handler of ['onSelectAuto={selectAuto}', 'onSelectPreset={selectPreset}', 'onBuildCustom={selectCustomMode}', 'onApply={applyTheme}', 'onClose={onClose}']) assert.ok(source.includes(handler), handler)
-  // the panel's own imports are untouched apart from icons and a type
+  // the panel's own imports are untouched apart from icons, a type and (PASS2-PK-FOUR item 3) the dropdown module
   const imports = ts.createSourceFile('theme-panel.tsx', source, ts.ScriptTarget.Latest, true, ts.ScriptKind.TSX).statements
     .filter(ts.isImportDeclaration).map(node => node.moduleSpecifier.text)
-  assert.deepEqual(imports.sort(), ['./studio-editor-dialogs.css', './studio-theme-panel.css', '@/components/ui/button', '@/lib/config', '@/lib/theme-builder', '@/lib/theme-preset-swatches', '@/lib/theme-sync', '@/lib/utils', 'lucide-react', 'react'].sort())
+  assert.deepEqual(imports.sort(), ['./studio-editor-dialogs.css', './studio-theme-panel.css', './theme-dropdown-picker', '@/components/ui/button', '@/lib/config', '@/lib/theme-builder', '@/lib/theme-preset-swatches', '@/lib/theme-sync', '@/lib/utils', 'lucide-react', 'react'].sort())
 })
 
 await run('flag on, no Theme Builder answer (offline): the picker still renders every preset with a neutral preview, and nothing throws', async () => {

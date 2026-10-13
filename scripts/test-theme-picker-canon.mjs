@@ -59,6 +59,7 @@ function renderPanel(env, props, swatchFetch) {
     imports: {
       './studio-editor-dialogs.css': {},
       './studio-theme-panel.css': {},
+      './theme-dropdown-picker': {}, // PASS2-PK-FOUR item 3: only called with NEXT_PUBLIC_STUDIO_THEME_DROPDOWN on
       react,
       'react/jsx-runtime': { jsx, jsxs: jsx, Fragment: 'Fragment' },
       'lucide-react': icons,
