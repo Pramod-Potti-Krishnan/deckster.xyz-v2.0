@@ -40,6 +40,14 @@ for (const [addition, classic] of [
   ['setError(composerBriefLimitMessage(longBriefEnabled))', "setError('Describe the new presentation in 20 to 4,000 characters.')"],
   ['maxLength={composerBriefMax(longBriefEnabled)}', 'maxLength={4000}'],
 ]) { assert(restored.includes(addition), addition); restored = restored.replace(addition, classic) }
+// PASS2-COMPOSER-POPUPS fix: the optional request from the composer's template popup (the page passes it only with
+// NEXT_PUBLIC_STUDIO_COMPOSER_POPUPS_V2 on) and the two effects that run it through the existing handlers are the only other addition.
+for (const [addition, classic] of [
+  [/import type \{ ComposerLibraryRequest \} from '@\/lib\/studio-composer-popups'\n/, ''],
+  [/export function ComposerLibraryDialog\(\{ open, onOpenChange, request = null, onRequestTaken \}: \{\n  open: boolean\n  onOpenChange: \(open: boolean\) => void\n  \/\*\* PASS2-COMPOSER-POPUPS fix: [^\n]*\*\/\n  request\?: ComposerLibraryRequest \| null\n  onRequestTaken\?: \(\) => void\n\}\) \{/,
+    'export function ComposerLibraryDialog({ open, onOpenChange }: {\n  open: boolean\n  onOpenChange: (open: boolean) => void\n}) {'],
+  [/  \/\/ PASS2-COMPOSER-POPUPS fix \(only the page passes `request`[\s\S]*?\n  \}, \[pickedRequest\]\)[^\n]*\n\n/, ''],
+]) { assert(addition.test(restored), String(addition)); restored = restored.replace(addition, classic) }
 assert.equal(restored, original, 'Every original handler/effect/payload/condition/default/copy and classic markup must remain exact')
 
 let actions = 0
@@ -97,7 +105,9 @@ let cases = 0
 for (const flag of ['true', 'false', undefined, '1']) for (const topic of ['true', 'false']) for (const auth of [true, false]) for (const busy of [true, false]) {
   const initial = [templates, false, busy, 'Supplied preparing status', 'Complete supplied failed-read detail '.repeat(30), { name: 'valid.pptx', size: 1024 }, 'A meaningful local presentation brief', 'supplied-one']
   const run = runtime(source, flag, topic, auth, initial), tree = run.render({ open: true, onOpenChange() {} })
-  assert.equal(run.effects.length, 1)
+  // The open effect, plus the PASS2-COMPOSER-POPUPS fix's two request effects, which do nothing without a request (checked below).
+  assert.equal(run.effects.length, 3)
+  for (const effect of run.effects.slice(1)) assert.equal(effect.fn(), undefined)
   assert.equal(all(tree, item => item.type === 'Button' && visible(item) === 'Use original').length, 3)
   assert.equal(all(tree, item => item.type === 'Button' && visible(item) === 'New topic').length, topic === 'true' ? 3 : 0)
   assert(visible(tree).includes(templates[0].name)); const readable = visible(tree).replace(/\s+/g, ' '); assert(readable.includes('6 slides')); assert(readable.includes('8 slides')); assert(readable.includes('0 slides'))

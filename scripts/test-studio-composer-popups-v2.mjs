@@ -13,6 +13,13 @@
 //     strip render exactly as the base did (the whole expanded element tree, every key and value, is hashed and compared with the base's);
 //   - flag on: the same handlers and payloads (theme apply, template use, strip actions), a shared open-state, Esc and outside click closing;
 //   - the stylesheet is scoped to markers that exist only with the flag on; and every check above fails for the mutation it guards against.
+//
+// PASS2-COMPOSER-POPUPS fix (same flag): with the flag on, "My templates" lists the composer library's own templates (the library dialog's
+// request, made under its rule) and offers the dialog's actions, which the dialog itself runs (page.tsx hands it the request); "Template
+// library" opens the library dialog and never links /studio/templates where that page is disabled; an empty list says why. Proved here on the
+// real chat-input, template picker, library dialog and page.tsx wiring: the same list request; for every listed template, Use original, Rebuild
+// and New topic make exactly the requests, writes and navigation of the dialog's own buttons with the flag off; a job the dialog resumes on
+// opening is not disturbed; and flag off, the dialog (16 states) and the page's ChatInput / dialog elements are the base's.
 import assert from 'node:assert/strict'
 import crypto from 'node:crypto'
 import fs from 'node:fs'
@@ -179,7 +186,7 @@ const TEMPLATES = [
 ]
 
 /** Everything the composer, the popups and the dropdown import that is not repo code, as stubs; repo modules load for real. */
-function makeWorld({ env, mutate = {}, recorder = false } = {}) {
+function makeWorld({ env, mutate = {}, recorder = false, globals: extraGlobals = {}, stubs: extraStubs = {}, savedTemplates = TEMPLATES } = {}) {
   const runtime = createRuntime()
   const toasts = []
   const calls = { listTemplates: 0, reoptimize: [], listThemes: 0 }
@@ -191,7 +198,7 @@ function makeWorld({ env, mutate = {}, recorder = false } = {}) {
   }
   const fakeUseTemplates = {
     loading: false,
-    listTemplates: async () => { calls.listTemplates += 1; return { templates: TEMPLATES, count: TEMPLATES.length } },
+    listTemplates: async () => { calls.listTemplates += 1; return { templates: savedTemplates, count: savedTemplates.length } },
     reoptimizeTemplate: async id => { calls.reoptimize.push(id); return { id, blueprint_enrichment_status: 'queued', blueprint_enrichment_error: null, template_purity_status: 'pending' } },
     watchTemplateStatus: () => () => {},
   }
@@ -213,8 +220,9 @@ function makeWorld({ env, mutate = {}, recorder = false } = {}) {
     '@/hooks/use-theme-profiles': { useThemeProfiles: () => themeProfiles },
     '@/hooks/use-toast': { useToast: () => ({ toast: value => toasts.push(value) }) },
     './studio-composer-hint': { StudioComposerHint: ({ children }) => children },
+    ...extraStubs,
   }
-  const globals = { fetch: async () => ({ ok: false, status: 503, json: async () => ({}) }) }
+  const globals = { fetch: async () => ({ ok: false, status: 503, json: async () => ({}) }), ...extraGlobals }
   const loader = createLoader({ env, stubs, globals, mutate })
   // Real use-templates (its pure readiness helpers), with the hook replaced by a local fixture.
   const realTemplates = loader.load('hooks/use-templates.ts')
@@ -345,6 +353,10 @@ const BASE_HASHES = {
     'shell=true': '917670280b22dcea6b3c550d8ae1c69fe25275cfd9b6ff3228395a749f1683c5',
   },
   strip: '494e6e54fc64b1f7cfc85b0632c44a5a5c21a4979e856283de13f2cfbb018a48',
+  // PASS2-COMPOSER-POPUPS fix, captured from the base at 37d6fd7 (#374 merged): the library dialog with no request (16 states: tree and every
+  // request it makes), and the page's ChatInput / ComposerLibraryDialog elements without the fix's two spreads.
+  dialog: 'a9afddd567106c52d82928b71af772f66c43a2b731f26b34f0843e692b6a5801',
+  pageWiring: 'f062e97d1a2e9db9738e64d19b2f503ca849a97fe2a59a23aa845b5fb25675dd',
 }
 
 // ---- the narrow-window strip, from page.tsx ------------------------------------------------------------------------------------------------------
@@ -422,8 +434,108 @@ function diffTrees(a, b, where = '$', out = []) {
   return out
 }
 
+// ---- PASS2-COMPOSER-POPUPS fix: the composer library (its dialog, its list, its services) and the page's wiring -------------------------------
+const DIALOG = 'components/builder/composer-library-dialog.tsx'
+// Invented records named like the QA account's two uploads, plus an id that must be encoded into the path.
+const COMPOSER_TEMPLATES = [
+  { id: 'cmp-j1', name: 'J1', slide_count: 12, stage_template_summary: { slide_count: 12, schema_version: 'stage-template-v1' } },
+  { id: 'cmp-northwind', name: 'Northwind', stage_template_summary: { slide_count: 9 } },
+  { id: 'cmp odd/id', name: 'Odd id', slide_count: 3 },
+]
+const OWNER = 'local-owner'
+const LAYOUT = 'https://layout-builder-v75-uat.up.railway.app'
+const SESSION = 'fresh-session-0001'
+const COMPOSER_ENV = { NEXT_PUBLIC_LAYOUT_SERVICE_URL: LAYOUT, NEXT_PUBLIC_COMPOSER_STAGE1B_DITTO_ENABLED: 'true', NEXT_PUBLIC_COMPOSER_STAGE1B_NEW_TOPIC_ENABLED: 'true' }
+
+/** The services the composer library uses, faked and recorded: every fetch, session create, sessionStorage write and navigation, in order. */
+function composerServices({ templates = COMPOSER_TEMPLATES, listStatus = 200, pending = null, auth = true } = {}) {
+  const log = []
+  const store = new Map(pending ? [[`deckster_composer_job_${encodeURIComponent(OWNER)}`, JSON.stringify(pending)]] : [])
+  const answer = (status, data) => ({ ok: status < 400, status, json: async () => data })
+  let lastUse = null
+  // A job the dialog resumes on opening keeps running until the test releases it.
+  let held = Boolean(pending)
+  const fetch = async (url, init = {}) => {
+    log.push(['fetch', url, { method: init.method, cache: init.cache, signal: init.signal ? 'AbortSignal' : init.signal ?? null, headers: init.headers ?? null, body: init.body ?? null }])
+    const route = url.replace('/api/composer-library/', '')
+    if (route === 'templates' && init.method === 'GET') return answer(listStatus, listStatus < 400 ? { templates } : { error: 'Template library is not configured.' })
+    const use = /^templates\/([^/]+)\/use$/.exec(route)
+    if (use && init.method === 'POST') { lastUse = { templateId: decodeURIComponent(use[1]), sessionId: JSON.parse(init.body).session_id }; return answer(202, { job_id: 'job-use-1', status: 'queued' }) }
+    const job = /^jobs\/([^/]+)$/.exec(route)
+    if (job && init.method === 'GET' && job[1] === 'job-use-1') return answer(200, { job_id: 'job-use-1', status: 'complete', checkpoint: { result: { session_id: lastUse.sessionId, template_id: lastUse.templateId, presentation_id: 'deck-1', viewer_url: `${LAYOUT}/p/deck-1`, slide_count: 9 } } })
+    if (job && init.method === 'GET') return answer(200, held ? { job_id: job[1], status: 'running', stage: 'preparing' } : { job_id: job[1], status: 'complete' })
+    return answer(404, { error: 'Not found' })
+  }
+  const globals = {
+    // One Error for every module, as in the browser (each module here runs in its own vm realm): the dialog and the popup both test `instanceof Error`.
+    fetch, URL, AbortController, DOMException, Error,
+    setTimeout: callback => { setTimeout(callback, 0); return 1 }, clearTimeout() {},
+    crypto: { randomUUID: () => SESSION },
+    sessionStorage: {
+      getItem: key => store.get(key) ?? null,
+      setItem: (key, value) => { log.push(['sessionStorage.setItem', key, value]); store.set(key, value) },
+      removeItem: key => { log.push(['sessionStorage.removeItem', key]); store.delete(key) },
+    },
+    window: { location: { assign: url => log.push(['location.assign', url]) } },
+  }
+  const stubs = {
+    '@/components/ui/dialog': { Dialog: 'Dialog', DialogContent: 'DialogContent', DialogDescription: 'DialogDescription', DialogHeader: 'DialogHeader', DialogTitle: 'DialogTitle' },
+    '@/hooks/use-auth': { useAuth: () => ({ user: auth ? { id: OWNER } : null }) },
+    '@/hooks/use-chat-sessions': { useChatSessions: () => ({ createSession: async (id, title) => { log.push(['createSession', id, title]); return true } }) },
+    '@/lib/researcher-upload': { uploadFileToResearcher: refuse },
+    '@/lib/layout-viewer-url-policy': { evaluateLayoutViewerUrl: () => ({ status: 'allowed' }) },
+    '@/lib/layout-service-client': { LAYOUT_VIEWER_URL_POLICY: {} },
+  }
+  return { log, store, globals, stubs, release: () => { held = false } }
+}
+/** Render a stateful root again and again while its async work (requests, polling) runs to the end. */
+async function drain(runtime, Component, props, turns = 40) {
+  let tree = runtime.render(Component, props())
+  for (let i = 0; i < turns; i++) { await tick(); tree = runtime.render(Component, props()) }
+  return tree
+}
+/** The library dialog, mounted for real (its handlers, effects and the real composer-library module) against the recorded services. */
+function mountDialog({ env, services, mutate = {} }) {
+  const world = makeWorld({ env, globals: services.globals, stubs: services.stubs, mutate })
+  return { world, ComposerLibraryDialog: world.loader.load(DIALOG).ComposerLibraryDialog }
+}
+async function dialogHash() {
+  const hashes = []
+  for (const shell of [true, false]) for (const auth of [true, false]) for (const extras of [COMPOSER_ENV, { NEXT_PUBLIC_LAYOUT_SERVICE_URL: LAYOUT }]) for (const listStatus of [200, 503]) {
+    const services = composerServices({ auth, listStatus })
+    const { world, ComposerLibraryDialog } = mountDialog({ env: { ...(shell ? { [SHELL]: 'true' } : {}), ...extras }, services })
+    const tree = await drain(world.runtime, ComposerLibraryDialog, () => ({ open: true, onOpenChange() {} }), 8)
+    hashes.push(sha(ser(tree) + ser(services.log)))
+  }
+  return sha(hashes.join('\n'))
+}
+
+/** The page's ChatInput and ComposerLibraryDialog elements, taken from page.tsx: their attributes and spread expressions. */
+function pageWiring(pageSource) {
+  const file = ts.createSourceFile('page.tsx', pageSource, ts.ScriptTarget.ES2022, true, ts.ScriptKind.TSX)
+  const found = {}
+  const visit = node => {
+    if (ts.isJsxElement(node) || ts.isJsxSelfClosingElement(node)) {
+      const opening = ts.isJsxElement(node) ? node.openingElement : node
+      const tag = opening.tagName.getText(file)
+      if (tag === 'ChatInput' || tag === 'ComposerLibraryDialog') {
+        assert.ok(!found[tag], `one ${tag} in page.tsx`)
+        const props = opening.attributes.properties
+        found[tag] = { node: node.getText(file), attrs: props.filter(ts.isJsxAttribute).map(p => p.getText(file)), spreads: props.filter(ts.isJsxSpreadAttribute).map(p => p.expression.getText(file)) }
+      }
+    }
+    ts.forEachChild(node, visit)
+  }
+  visit(file)
+  assert.ok(found.ChatInput && found.ComposerLibraryDialog, 'page.tsx renders ChatInput and ComposerLibraryDialog')
+  return found
+}
+const FIX_SPREAD = /onComposerTemplateAction|onRequestTaken/
+/** Both elements without the fix's two spreads: equal to the base's means the page passes exactly what it passed before when they add nothing. */
+const pageWiringHash = source => { const w = pageWiring(source); return sha(['ChatInput', 'ComposerLibraryDialog'].map(tag => [...w[tag].attrs, ...w[tag].spreads.filter(x => !FIX_SPREAD.test(x))].join('\n')).join('\n----\n')) }
+
 if (process.env.PRINT_GOLDEN) {
-  const out = { composer: {}, themeMenu: await themeMenuHash(), template: {}, strip: await pageStripHash() }
+  const out = { composer: {}, themeMenu: await themeMenuHash(), template: {}, strip: await pageStripHash(), dialog: await dialogHash(), pageWiring: pageWiringHash(read(PAGE)) }
   for (const shell of [false, true]) {
     const env = shell ? { [SHELL]: 'true' } : {}
     out.composer[`shell=${shell}`] = await composerHash(env)
@@ -927,7 +1039,9 @@ mutant('template popup: a template that is not ready is selected anyway (the rea
 await run('template popup (flag on): "Deckster templates" (none provided yet: disabled, honest wording) and "My templates" (the same saved records); Template library → and New template…; retry for a failed one', async () => {
   const log = []
   let closed = 0, newTemplate = 0
-  const t = await mountTemplates(ON_ENV, { onSelect: v => log.push(v), isOpen: true, dropdowns: { selectedTemplateId: 'tp-2', locked: false, savedTemplates: true, onClose: () => { closed += 1 }, onNewTemplate: () => { newTemplate += 1 } } }, { recorder: true })
+  // (PASS2-COMPOSER-POPUPS fix) Saved templates without a composer library: "Template library" is the Templates page, which works here
+  // because saved templates are connected (NEXT_PUBLIC_TEMPLATE_BUILDER_ENABLED). Without that flag the page is never linked (see below).
+  const t = await mountTemplates({ ...ON_ENV, NEXT_PUBLIC_TEMPLATE_BUILDER_ENABLED: 'true' }, { onSelect: v => log.push(v), isOpen: true, dropdowns: { selectedTemplateId: 'tp-2', locked: false, savedTemplates: true, onClose: () => { closed += 1 }, onNewTemplate: () => { newTemplate += 1 } } }, { recorder: true })
   const tree = await t.render()
   const [deckster, mine] = flat(tree).filter(n => n.type === 'ThemeDropdownPicker')
   deq([deckster.props.copy.label, mine.props.copy.label], ['Deckster templates', 'My templates'])
@@ -962,9 +1076,17 @@ await run('template popup (flag on): "Deckster templates" (none provided yet: di
   const noSavedTree = await noSaved.render()
   assert.equal(flat(noSavedTree).filter(n => n.type === 'ThemeDropdownPicker').length, 0)
   assert.equal(noSaved.world.calls.listTemplates, 0, 'no templates are requested when saved templates are off')
-  assert.ok(flat(noSavedTree).some(n => n.props?.['data-studio-template-action'] === 'new') && flat(noSavedTree).some(n => n.type === 'a'))
+  // (PASS2-COMPOSER-POPUPS fix) the upload flow and the library stay; "Template library" opens the library dialog, never the disabled page
+  let library = 0
+  const noSavedWithLibrary = await mountTemplates(ON_ENV, { onSelect() {}, isOpen: false, dropdowns: { selectedTemplateId: null, locked: false, savedTemplates: false, onClose() {}, onNewTemplate() {}, onLibrary: () => { library += 1 } } }, { recorder: true })
+  const noSavedWithLibraryTree = await noSavedWithLibrary.render()
+  assert.ok(flat(noSavedWithLibraryTree).some(n => n.props?.['data-studio-template-action'] === 'new'))
+  assert.equal(flat(noSavedWithLibraryTree).filter(n => n.type === 'a').length, 0, 'no link to /studio/templates')
+  flat(noSavedWithLibraryTree).find(n => n.type === 'button' && n.props['data-studio-template-action'] === 'library').props.onClick()
+  assert.equal(library, 1)
+  assert.equal(flat(noSavedTree).filter(n => n.props?.['data-studio-template-action'] === 'library').length, 0, 'no library and the page is disabled here: no library link at all')
   // a locked deck: dropdowns locked with the lock wording, the actions stay
-  const locked = await mountTemplates(ON_ENV, { onSelect() {}, isOpen: true, dropdowns: { selectedTemplateId: null, locked: true, savedTemplates: true, onClose() {}, onNewTemplate() {} } }, { recorder: true })
+  const locked = await mountTemplates({ ...ON_ENV, NEXT_PUBLIC_TEMPLATE_BUILDER_ENABLED: 'true' }, { onSelect() {}, isOpen: true, dropdowns: { selectedTemplateId: null, locked: true, savedTemplates: true, onClose() {}, onNewTemplate() {} } }, { recorder: true })
   const lockedTree = await locked.render()
   assert.ok(flat(lockedTree).filter(n => n.type === 'ThemeDropdownPicker').every(n => n.props.locked))
   assert.match(text(lockedTree), /Template selection is locked for this deck\./)
@@ -1027,6 +1149,420 @@ await run('the Deckster-provided template list is empty (no catalog exists) and 
   const filled = createLoader({ env: ON_ENV, stubs: t.world.stubs, mutate: { [POPUPS_LIB]: [['export const DECKSTER_PROVIDED_TEMPLATES: readonly DecksterTemplateOption[] = []', "export const DECKSTER_PROVIDED_TEMPLATES: readonly DecksterTemplateOption[] = [{ id: 'dk-1', name: 'Deckster pitch', description: 'Provided', slideCount: 9 }]"]] } })
   const fakeLib = filled.load(POPUPS_LIB)
   assert.equal(fakeLib.DECKSTER_PROVIDED_TEMPLATES.length, 1)
+})
+
+// ================================================================================================================================================
+// 4b. PASS2-COMPOSER-POPUPS fix: the template popup lists the composer library's templates, runs their actions through the library dialog, and
+//     "Template library" opens the working library (never the disabled /studio/templates page)
+// ================================================================================================================================================
+const DIALOG_ENV_ON = { ...ON_ENV, ...COMPOSER_ENV }
+const DIALOG_ENV_OFF = { [SHELL]: 'true', ...COMPOSER_ENV }
+
+/** Flag off: the library dialog as it is today. Open it, click a template's action (as a person would), and record everything that leaves. */
+async function flagOffDialogAction({ action, templateId, brief, pending = null, mutate = {} }) {
+  const services = composerServices({ pending })
+  const { world, ComposerLibraryDialog } = mountDialog({ env: DIALOG_ENV_OFF, services, mutate })
+  const props = () => ({ open: true, onOpenChange() {} })
+  let tree = await drain(world.runtime, ComposerLibraryDialog, props, 6)
+  const record = flat(tree).find(n => n.props?.['data-studio-composer-record'] === templateId)
+  assert.ok(record, `the dialog lists ${templateId}`)
+  const button = flat(record).find(n => n.props?.['data-studio-composer-action'] === action)
+  if (!button.props.disabled) button.props.onClick()
+  tree = await drain(world.runtime, ComposerLibraryDialog, props, 6)
+  if (action === 'new-topic' && brief !== undefined) {
+    flat(tree).find(n => n.props?.id === 'composer-new-brief').props.onChange({ target: { value: brief } })
+    tree = await drain(world.runtime, ComposerLibraryDialog, props, 2)
+    flat(tree).find(n => n.props?.['data-studio-composer-action'] === 'create').props.onClick()
+  }
+  services.release()
+  tree = await drain(world.runtime, ComposerLibraryDialog, props, 40)
+  return { log: collapse(services.log), tree, buttonDisabled: Boolean(button.props.disabled) }
+}
+
+/** Flag on, end to end on the real sources: page.tsx's wiring -> the composer -> the template popup -> page.tsx's dialog element -> the dialog. */
+async function flagOnPopupAction({ action, templateId, brief, pending = null, mutate = {}, page = read(PAGE), user = { id: OWNER }, rerenderWithSameRequest = false }) {
+  const wiring = pageWiring(page)
+  const pageState = { request: null, show: false }
+  const pageScope = () => ({ studioPopupsV2: true, composerLibraryEnabled: true, showComposerLibrary: pageState.show, composerLibraryRequest: pageState.request,
+    setShowComposerLibrary: v => { pageState.show = v }, setComposerLibraryRequest: v => { pageState.request = v }, ComposerLibraryDialog: 'ComposerLibraryDialog' })
+  const fixSpread = wiring.ChatInput.spreads.filter(x => FIX_SPREAD.test(x))
+  assert.equal(fixSpread.length, 1, 'page.tsx hands ChatInput the action handler through one spread')
+  const fromPage = compileJsx(fixSpread[0], 'ChatInput spread')(pageScope())
+  // the composer (real chat-input; the picker recorded) hands the page's handler and the signed-in identity to the template picker
+  const composerWorld = makeWorld({ env: DIALOG_ENV_ON, mutate, stubs: { './template-picker': { TemplatePicker: props => jsx('TemplatePicker', props) } } })
+  const { ChatInput } = composerWorld.loader.load(CHAT_INPUT)
+  const composerTree = await settle(composerWorld.runtime, ChatInput, makeProps({ ...fromPage, templateBuilderEnabled: false, onSelectTemplate: undefined, user }))
+  const picker = flat(composerTree).find(n => n.type === 'TemplatePicker').props
+  // the popup (real template picker) lists the library's templates, one is picked, its action is clicked
+  const popupServices = composerServices()
+  const popupWorld = makeWorld({ env: DIALOG_ENV_ON, recorder: true, mutate, globals: popupServices.globals })
+  const { ComposerTemplatePopupBody } = popupWorld.loader.load(TEMPLATE_PICKER)
+  let closed = 0
+  const body = () => ({ onSelect: refuse, open: true, mode: 'generation', showSavedTemplates: Boolean(picker.showSavedTemplates), selectionLocked: false, selectedTemplateId: null,
+    onClose: () => { closed += 1 }, onOpenLibrary: picker.onOpenLibrary, onComposerAction: picker.onComposerAction, composerUserId: picker.composerUserId ?? null })
+  let popup = await drain(popupWorld.runtime, ComposerTemplatePopupBody, body, 6)
+  flat(popup).find(n => n.type === 'ThemeDropdownPicker' && n.props.copy.label === 'My templates').props.onSelect(`composer:${templateId}`)
+  popup = await drain(popupWorld.runtime, ComposerTemplatePopupBody, body, 2)
+  flat(popup).find(n => n.props?.['data-studio-template-composer-action'] === action).props.onClick()
+  // the page opens the library dialog with the request (the element from page.tsx), and the dialog runs it
+  const services = composerServices({ pending })
+  const { world, ComposerLibraryDialog } = mountDialog({ env: DIALOG_ENV_ON, services, mutate })
+  const dialogProps = () => compileJsx(wiring.ComposerLibraryDialog.node, 'dialog element')(pageScope()).props
+  const shown = pageState.show
+  const picked = pageState.request
+  let tree = await drain(world.runtime, ComposerLibraryDialog, dialogProps, 6)
+  if (rerenderWithSameRequest) {
+    // a later page render that still carries the same request (with a new onRequestTaken, as the page's inline arrow is): once the first
+    // run is over, it must not run again
+    tree = await drain(world.runtime, ComposerLibraryDialog, dialogProps, 40)
+    assert.ok(picked, 'the page held a request')
+    tree = await drain(world.runtime, ComposerLibraryDialog, () => ({ ...dialogProps(), request: picked, onRequestTaken: () => {} }), 20)
+  }
+  if (action === 'new-topic' && brief !== undefined) {
+    flat(tree).find(n => n.props?.id === 'composer-new-brief').props.onChange({ target: { value: brief } })
+    tree = await drain(world.runtime, ComposerLibraryDialog, dialogProps, 2)
+    flat(tree).find(n => n.props?.['data-studio-composer-action'] === 'create').props.onClick()
+  }
+  services.release()
+  tree = await drain(world.runtime, ComposerLibraryDialog, dialogProps, 40)
+  return { log: collapse(services.log), tree, popupLog: popupServices.log, popup, picker, fromPage, closed, shown, pageState }
+}
+/** A resumed job is polled until it ends; how many polls depends on timing, so repeated identical entries count once. */
+function collapse(log) { return log.filter((entry, i) => i === 0 || ser(entry) !== ser(log[i - 1])) }
+const strip = log => log.map(entry => entry[0] === 'fetch' ? `${entry[2].method} ${entry[1]} ${entry[2].body ?? ''}` : entry.join(' '))
+
+await run('fix: the popup lists the composer library\'s own list: the same request as the library dialog (path, method, cache, no body), read the same way, and only while open for a signed-in user', async () => {
+  // the dialog's own request when it opens (flag off)
+  const off = await flagOffDialogAction({ action: 'use', templateId: 'cmp-j1' })
+  const dialogList = off.log.filter(e => e[0] === 'fetch' && e[1].endsWith('/templates'))[0]
+  deq(dialogList, ['fetch', '/api/composer-library/templates', { method: 'GET', cache: 'no-store', signal: null, headers: null, body: null }])
+  // the popup's request (flag on)
+  const on = await flagOnPopupAction({ action: 'use', templateId: 'cmp-j1' })
+  deq(on.popupLog, [dialogList], 'one request, identical to the dialog\'s')
+  const mine = flat(on.popup).find(n => n.type === 'ThemeDropdownPicker' && n.props.copy.label === 'My templates')
+  deq(mine.props.options.map(o => [o.id, o.name, o.sub]), COMPOSER_TEMPLATES.map(t => [`composer:${t.id}`, t.name, `${t.stage_template_summary?.slide_count ?? t.slide_count ?? 0} slides`]), 'the dialog\'s records, names and slide counts, in its order')
+  deq(flat(off.tree).filter(n => n.props?.['data-studio-composer-name']).map(text), COMPOSER_TEMPLATES.map(t => t.name), 'the dialog shows the same records')
+  // readiness: nothing is requested while closed, signed out, or without a composer library (the dialog's rule: open and signed in)
+  for (const [name, over] of [['closed', { open: false }], ['signed out', { composerUserId: null }], ['no composer library', { onComposerAction: undefined }]]) {
+    const services = composerServices()
+    const world = makeWorld({ env: DIALOG_ENV_ON, recorder: true, globals: services.globals })
+    const { ComposerTemplatePopupBody } = world.loader.load(TEMPLATE_PICKER)
+    const props = { onSelect: refuse, open: true, mode: 'generation', showSavedTemplates: false, selectionLocked: false, selectedTemplateId: null, onClose() {}, onOpenLibrary() {}, onComposerAction() {}, composerUserId: OWNER, ...over }
+    const tree = await drain(world.runtime, ComposerTemplatePopupBody, () => props, 4)
+    deq(services.log, [], `${name}: no request`)
+    if (name === 'signed out') assert.match(text(tree), /Sign in to see your templates\./)
+    if (name === 'no composer library') assert.equal(flat(tree).filter(n => n.type === 'ThemeDropdownPicker').length, 0, 'without saved templates or a library there is nothing to list')
+  }
+})
+mutant('fix: the popup reads another list (a different path)', async () => {
+  const on = await flagOnPopupAction({ action: 'use', templateId: 'cmp-j1', mutate: { [POPUPS_LIB]: [["composerRequest<{ templates: ComposerTemplate[] }>('templates')", "composerRequest<{ templates: ComposerTemplate[] }>('templates?all=1')"]] } })
+  assert.equal(on.popupLog[0][1], '/api/composer-library/templates')
+})
+mutant('fix: the popup lists while closed (the readiness rule is dropped)', async () => {
+  const services = composerServices()
+  const world = makeWorld({ env: DIALOG_ENV_ON, recorder: true, globals: services.globals, mutate: { [TEMPLATE_PICKER]: [['const listing = Boolean(onComposerAction && open && composerUserId)', 'const listing = Boolean(onComposerAction)']] } })
+  const { ComposerTemplatePopupBody } = world.loader.load(TEMPLATE_PICKER)
+  await drain(world.runtime, ComposerTemplatePopupBody, () => ({ onSelect: refuse, open: false, mode: 'generation', showSavedTemplates: false, selectionLocked: false, selectedTemplateId: null, onClose() {}, onComposerAction() {}, composerUserId: OWNER }), 4)
+  deq(services.log, [])
+})
+
+await run('fix: Use original and Rebuild from the popup make exactly the requests the library dialog\'s own buttons make (session, use payload, job polling, ready record, navigation), for every listed template', async () => {
+  for (const action of ['use', 'ditto']) {
+    for (const template of COMPOSER_TEMPLATES) {
+      const off = await flagOffDialogAction({ action, templateId: template.id })
+      const on = await flagOnPopupAction({ action, templateId: template.id })
+      deq(on.log, off.log, `${action} ${template.id}: every request, write and navigation`)
+      assert.equal(ser(on.tree), ser(off.tree), `${action} ${template.id}: the dialog ends in the same state`)
+      const posted = off.log.find(e => e[0] === 'fetch' && e[2].method === 'POST')
+      assert.equal(posted[1], `/api/composer-library/templates/${encodeURIComponent(template.id)}/use`)
+      assert.equal(posted[2].body, action === 'use' ? JSON.stringify({ session_id: SESSION }) : JSON.stringify({ session_id: SESSION, mode: 'ditto' }))
+      deq(off.log.find(e => e[0] === 'createSession'), ['createSession', SESSION, action === 'use' ? `Template: ${template.name}` : `Rebuild: ${template.name}`])
+      deq(off.log.at(-1), ['location.assign', `/builder?session_id=${SESSION}`])
+      // the popup closed, the page opened the dialog, and the request was taken (cleared) once
+      assert.equal(on.closed, 1); assert.equal(on.shown, true); assert.equal(on.pageState.request, null)
+    }
+  }
+  deq(strip((await flagOffDialogAction({ action: 'use', templateId: 'cmp-northwind' })).log), [
+    'GET /api/composer-library/templates ', `createSession ${SESSION} Template: Northwind`,
+    `POST /api/composer-library/templates/cmp-northwind/use {"session_id":"${SESSION}"}`,
+    `sessionStorage.setItem deckster_composer_job_${OWNER} {"job_id":"job-use-1","session_id":"${SESSION}","kind":"use"}`,
+    'GET /api/composer-library/jobs/job-use-1 ',
+    `sessionStorage.setItem deckster_composer_ready_${SESSION} ${off_ready(SESSION, 'cmp-northwind')}`,
+    `sessionStorage.removeItem deckster_composer_job_${OWNER}`, `location.assign /builder?session_id=${SESSION}`,
+  ])
+})
+function off_ready(session, templateId) {
+  return JSON.stringify({ user_id: OWNER, result: { composer_adoption: { schema_version: 'composer-adoption-v1', template_id: templateId, presentation_id: 'deck-1', frozen_theme: true }, session_id: session, template_id: templateId, presentation_id: 'deck-1', viewer_url: `${LAYOUT}/p/deck-1`, slide_count: 9 } })
+}
+mutant('fix: the dialog runs Use original as a rebuild', async () => {
+  const off = await flagOffDialogAction({ action: 'use', templateId: 'cmp-j1' })
+  const on = await flagOnPopupAction({ action: 'use', templateId: 'cmp-j1', mutate: { [DIALOG]: [["if (action === 'use') useTemplate(template)", "if (action === 'use') rebuildTemplate(template)"]] } })
+  deq(on.log, off.log)
+})
+mutant('fix: the popup hands over another template than the one picked', async () => {
+  const off = await flagOffDialogAction({ action: 'use', templateId: 'cmp-northwind' })
+  const on = await flagOnPopupAction({ action: 'use', templateId: 'cmp-northwind', mutate: { [TEMPLATE_PICKER]: [['onClick={() => composer.onAction({ action, template: chosen })}', 'onClick={() => composer.onAction({ action, template: composer.templates![0] })}']] } })
+  deq(on.log, off.log)
+})
+mutant('fix: chat-input hands the picker another identity than the dialog reads (email first)', async () => {
+  const on = await flagOnPopupAction({ action: 'use', templateId: 'cmp-j1', user: { id: OWNER, email: 'someone@example.invalid' }, mutate: { [CHAT_INPUT]: [['composerUserId: user?.id || user?.email || null', 'composerUserId: user?.email || user?.id || null']] } })
+  assert.equal(on.picker.composerUserId, OWNER)
+})
+
+await run('fix: New topic from the popup opens the same topic box as the dialog\'s New topic button, and Create deck then sends the same brief', async () => {
+  const brief = 'Quarterly results for the board: revenue up 12 percent, two new regions, hiring plan for next year.'
+  const offOpen = await flagOffDialogAction({ action: 'new-topic', templateId: 'cmp-northwind' })
+  const onOpen = await flagOnPopupAction({ action: 'new-topic', templateId: 'cmp-northwind' })
+  assert.equal(ser(onOpen.tree), ser(offOpen.tree), 'the same dialog, with the topic box open for that template')
+  assert.ok(flat(onOpen.tree).some(n => n.props?.['data-studio-composer-topic']))
+  deq(onOpen.log, offOpen.log, 'opening the box sends nothing beyond the dialog\'s list')
+  const off = await flagOffDialogAction({ action: 'new-topic', templateId: 'cmp-northwind', brief })
+  const on = await flagOnPopupAction({ action: 'new-topic', templateId: 'cmp-northwind', brief })
+  deq(on.log, off.log)
+  assert.equal(off.log.find(e => e[0] === 'fetch' && e[2].method === 'POST')[2].body, JSON.stringify({ session_id: SESSION, brief }))
+})
+
+await run('fix: an action is run once, on the render after the dialog opens: a job the dialog resumes on opening keeps running and the action is dropped, as a click on its disabled buttons is', async () => {
+  const pending = { job_id: 'job-upload-9', session_id: 'upload-session-9', kind: 'upload' }
+  for (const action of ['use', 'ditto', 'new-topic']) {
+    const off = await flagOffDialogAction({ action, templateId: 'cmp-j1', pending })
+    assert.equal(off.buttonDisabled, true, 'the dialog\'s buttons are disabled while it resumes the job')
+    const on = await flagOnPopupAction({ action, templateId: 'cmp-j1', pending })
+    deq(on.log, off.log, `${action}: only the resumed job's requests`)
+    assert.ok(!on.log.some(e => e[0] === 'createSession'))
+    assert.ok(!flat(on.tree).some(n => n.props?.['data-studio-composer-topic']), `${action}: no topic box opened`)
+    assert.equal(ser(on.tree), ser(off.tree))
+  }
+  // a page render that still carries the same request does not run it again
+  const once = await flagOnPopupAction({ action: 'use', templateId: 'cmp-j1', rerenderWithSameRequest: true })
+  assert.equal(once.log.filter(e => e[0] === 'createSession').length, 1)
+})
+mutant('fix: the dialog runs the action in the same render it opens (before a resumed job shows as busy)', async () => {
+  const pending = { job_id: 'job-upload-9', session_id: 'upload-session-9', kind: 'upload' }
+  const on = await flagOnPopupAction({ action: 'use', templateId: 'cmp-j1', pending, mutate: { [DIALOG]: [['    setPickedRequest(request)\n  }, [open, request, onRequestTaken])', "    if (request.action === 'use') useTemplate(request.template)\n  }, [open, request, onRequestTaken])"]] } })
+  assert.ok(!on.log.some(e => e[0] === 'createSession'))
+})
+mutant('fix: New topic ignores a busy dialog', async () => {
+  const pending = { job_id: 'job-upload-9', session_id: 'upload-session-9', kind: 'upload' }
+  const on = await flagOnPopupAction({ action: 'new-topic', templateId: 'cmp-j1', pending, mutate: { [DIALOG]: [["action === 'new-topic' && newTopicEnabled && !busy && userId", "action === 'new-topic' && newTopicEnabled"]] } })
+  assert.ok(!flat(on.tree).some(n => n.props?.['data-studio-composer-topic']))
+})
+mutant('fix: the dialog takes the same request twice', async () => {
+  const once = await flagOnPopupAction({ action: 'use', templateId: 'cmp-j1', rerenderWithSameRequest: true, mutate: { [DIALOG]: [['if (!open || !request || takenRequest.current === request) return', 'if (!open || !request) return']] } })
+  assert.equal(once.log.filter(e => e[0] === 'createSession').length, 1)
+})
+
+await run('fix: the popup offers the library dialog\'s actions with its labels, in its order, behind the same flags; they are off for a signed-out user', async () => {
+  const lib = createLoader({ env: {} }).load(POPUPS_LIB)
+  deq(lib.composerTemplateActions({ ditto: false, newTopic: false }).map(a => a.label), ['Use original'])
+  deq(lib.composerTemplateActions({ ditto: true, newTopic: false }).map(a => a.label), ['Use original', 'Rebuild from own content'])
+  deq(lib.composerTemplateActions({ ditto: false, newTopic: true }).map(a => a.label), ['Use original', 'New topic'])
+  deq(lib.composerTemplateActions({ ditto: true, newTopic: true }).map(a => [a.action, a.label]), [['use', 'Use original'], ['ditto', 'Rebuild from own content'], ['new-topic', 'New topic']])
+  for (const [ditto, newTopic] of [[false, false], [true, false], [false, true], [true, true]]) {
+    const env = { ...ON_ENV, NEXT_PUBLIC_LAYOUT_SERVICE_URL: LAYOUT, ...(ditto ? { NEXT_PUBLIC_COMPOSER_STAGE1B_DITTO_ENABLED: 'true' } : {}), ...(newTopic ? { NEXT_PUBLIC_COMPOSER_STAGE1B_NEW_TOPIC_ENABLED: 'true' } : {}) }
+    // the dialog's buttons for a template, flag off
+    const dialogServices = composerServices()
+    const dialog = mountDialog({ env: { ...env, [FLAG]: 'false' }, services: dialogServices })
+    const dialogTree = await drain(dialog.world.runtime, dialog.ComposerLibraryDialog, () => ({ open: true, onOpenChange() {} }), 6)
+    const dialogLabels = flat(flat(dialogTree).find(n => n.props?.['data-studio-composer-record'] === 'cmp-j1')).filter(n => n.type === 'Button').map(text)
+    // the popup's buttons for the same template, flag on
+    for (const userId of [OWNER, null]) {
+      const services = composerServices()
+      const world = makeWorld({ env, recorder: true, globals: services.globals })
+      const { ComposerTemplatePopupBody } = world.loader.load(TEMPLATE_PICKER)
+      const props = () => ({ onSelect: refuse, open: true, mode: 'generation', showSavedTemplates: false, selectionLocked: false, selectedTemplateId: null, onClose() {}, onComposerAction() {}, composerUserId: userId })
+      let tree = await drain(world.runtime, ComposerTemplatePopupBody, props, 4)
+      if (userId === null) {
+        // signed out: nothing listed (so nothing to act on), and it says why
+        assert.equal(flat(tree).find(n => n.type === 'ThemeDropdownPicker' && n.props.copy.label === 'My templates').props.options.length, 0)
+        continue
+      }
+      flat(tree).find(n => n.type === 'ThemeDropdownPicker' && n.props.copy.label === 'My templates').props.onSelect('composer:cmp-j1')
+      tree = await drain(world.runtime, ComposerTemplatePopupBody, props, 2)
+      const buttons = flat(tree).filter(n => n.props?.['data-studio-template-composer-action'])
+      deq(buttons.map(text), dialogLabels, `ditto=${ditto} newTopic=${newTopic}: the dialog's actions`)
+      assert.ok(buttons.every(b => b.props.disabled === false))
+      assert.match(text(flat(tree).find(n => n.props?.['data-studio-template-composer'] === 'cmp-j1')), /^J1 · 12 slides/)
+    }
+  }
+})
+mutant('fix: Rebuild is offered without its flag', async () => {
+  const lib = createLoader({ env: {}, mutate: { [POPUPS_LIB]: [['...(enabled.ditto ? [', '...(true ? [']] } }).load(POPUPS_LIB)
+  deq(lib.composerTemplateActions({ ditto: false, newTopic: false }).map(a => a.label), ['Use original'])
+})
+
+await run('fix: "Template library" opens the working library (the library dialog wherever there is one); the Templates page only where it works; never /studio/templates where it says saved templates are not enabled; never the template workspace', async () => {
+  const lib = createLoader({ env: {} }).load(POPUPS_LIB)
+  assert.equal(lib.templateLibraryTarget({ composerLibrary: true, templatesPage: true }), 'dialog')
+  assert.equal(lib.templateLibraryTarget({ composerLibrary: true, templatesPage: false }), 'dialog')
+  assert.equal(lib.templateLibraryTarget({ composerLibrary: false, templatesPage: true }), 'page')
+  assert.equal(lib.templateLibraryTarget({ composerLibrary: false, templatesPage: false }), null)
+  let checked = 0
+  for (const builder of [undefined, 'false', 'true', 'TRUE']) for (const workspace of [undefined, 'true']) for (const withLibrary of [false, true]) for (const savedTemplates of [false, true]) {
+    const env = { ...ON_ENV, ...(builder === undefined ? {} : { NEXT_PUBLIC_TEMPLATE_BUILDER_ENABLED: builder }), ...(workspace ? { NEXT_PUBLIC_STUDIO_TEMPLATE_WORKSPACE: workspace } : {}) }
+    let library = 0, closed = 0
+    const t = await mountTemplates(env, { onSelect() {}, isOpen: true, dropdowns: { selectedTemplateId: null, locked: false, savedTemplates, onClose: () => { closed += 1 },
+      onNewTemplate() {}, ...(withLibrary ? { onLibrary: () => { library += 1 } } : {}) } }, { recorder: true })
+    const tree = await t.render()
+    const entries = flat(tree).filter(n => n.props?.['data-studio-template-action'] === 'library')
+    const pageWorks = builder === 'true'
+    assert.ok(entries.length <= 1)
+    const where = `builder=${builder} workspace=${workspace} library=${withLibrary} saved=${savedTemplates}`
+    for (const node of flat(tree)) assert.ok(!(node.props?.href === '/studio/templates' && !pageWorks), `${where}: never links the disabled page`)
+    if (withLibrary) {
+      assert.equal(entries[0].type, 'button', `${where}: the library dialog`)
+      assert.equal(entries[0].props.href, undefined)
+      entries[0].props.onClick(); assert.equal(library, 1)
+    } else if (pageWorks) {
+      assert.equal(entries[0].type, 'a'); assert.equal(entries[0].props.href, '/studio/templates')
+      entries[0].props.onClick(); assert.equal(closed, 1)
+    } else assert.equal(entries.length, 0, `${where}: no library link`)
+    checked += 1
+  }
+  assert.equal(checked, 32)
+  // the real picker hands "Template library" the same library handler as before ("Template library" in the flag-off menu)
+  const world = makeWorld({ env: DIALOG_ENV_ON, recorder: true })
+  const { TemplatePicker } = world.loader.load(TEMPLATE_PICKER)
+  const calls = []
+  const tree = world.runtime.render(TemplatePicker, { onSelect() {}, onOpenLibrary: () => calls.push('library'), showSavedTemplates: false, dropdowns: true, open: true, onOpenChange: v => calls.push(['open', v]), onComposerAction() {}, composerUserId: OWNER })
+  const offWorld = makeWorld({ env: { [SHELL]: 'true' } })
+  const offTree = offWorld.runtime.render(offWorld.loader.load(TEMPLATE_PICKER).TemplatePicker, { onSelect() {}, onOpenLibrary: () => calls.push('library'), showSavedTemplates: false })
+  const offCalls = calls.length
+  flat(offTree).find(n => n.type === 'DropdownMenuItem').props.onSelect()
+  const offEffect = calls.slice(offCalls)
+  const onCalls = calls.length
+  flat(tree).find(n => n.props?.['data-studio-template-action'] === 'library').props.onClick()
+  deq(calls.slice(onCalls), [['open', false], ...offEffect], 'closes the popup, then opens the library, as the flag-off menu item does')
+})
+mutant('fix: "Template library" goes back to /studio/templates', async () => {
+  const lib = createLoader({ env: {}, mutate: { [POPUPS_LIB]: [["return available.composerLibrary ? 'dialog' : available.templatesPage ? 'page' : null", "return 'page'"]] } }).load(POPUPS_LIB)
+  assert.equal(lib.templateLibraryTarget({ composerLibrary: true, templatesPage: false }), 'dialog')
+})
+mutant('fix: the Templates page is linked without checking that it works', async () => {
+  const lib = createLoader({ env: {}, mutate: { [POPUPS_LIB]: [["return available.composerLibrary ? 'dialog' : available.templatesPage ? 'page' : null", "return available.composerLibrary ? 'dialog' : 'page'"]] } }).load(POPUPS_LIB)
+  assert.equal(lib.templateLibraryTarget({ composerLibrary: false, templatesPage: false }), null)
+})
+mutant('fix: the picker reads the Templates page flag as truthy', async () => {
+  const t = await mountTemplates({ ...ON_ENV, NEXT_PUBLIC_TEMPLATE_BUILDER_ENABLED: 'false' }, { onSelect() {}, isOpen: true, dropdowns: { selectedTemplateId: null, locked: false, savedTemplates: true, onClose() {} } },
+    { recorder: true, mutate: { [TEMPLATE_PICKER]: [["const TEMPLATES_PAGE_ENABLED = process.env.NEXT_PUBLIC_TEMPLATE_BUILDER_ENABLED === 'true'", 'const TEMPLATES_PAGE_ENABLED = Boolean(process.env.NEXT_PUBLIC_TEMPLATE_BUILDER_ENABLED)']] } })
+  assert.ok(!flat(await t.render()).some(n => n.props?.href === '/studio/templates'))
+})
+
+await run('fix: an empty list says why in plain words (Deckster has no catalog; signed out; failed; loading; nothing uploaded; no saved templates), never a blank control', async () => {
+  const bodyTree = async ({ listStatus = 200, templates = COMPOSER_TEMPLATES, userId = OWNER, turns = 4, withLibrary = true } = {}) => {
+    const onOpenLibrary = withLibrary ? () => {} : undefined
+    const services = composerServices({ listStatus, templates })
+    const world = makeWorld({ env: DIALOG_ENV_ON, recorder: true, globals: services.globals })
+    const { ComposerTemplatePopupBody } = world.loader.load(TEMPLATE_PICKER)
+    const props = () => ({ onSelect: refuse, open: true, mode: 'generation', showSavedTemplates: false, selectionLocked: false, selectedTemplateId: null, onClose() {}, onOpenLibrary, onComposerAction() {}, composerUserId: userId })
+    return turns === 0 ? world.runtime.render(ComposerTemplatePopupBody, props()) : drain(world.runtime, ComposerTemplatePopupBody, props, turns)
+  }
+  const note = (tree, which) => text(flat(tree).find(n => n.props?.['data-studio-template-empty'] === which) ?? '')
+  const field = (tree, label) => flat(tree).find(n => n.type === 'ThemeDropdownPicker' && n.props.copy.label === label)
+  let tree = await bodyTree()
+  assert.equal(note(tree, 'deckster'), 'Deckster has no ready-made templates yet. Templates you upload are listed under My templates.')
+  assert.equal(field(tree, 'Deckster templates').props.locked, true)
+  assert.equal(note(tree, 'mine'), '', 'a filled list needs no note')
+  assert.equal(field(tree, 'My templates').props.locked, false)
+  tree = await bodyTree({ templates: [] })
+  assert.equal(note(tree, 'mine'), 'You have no templates yet. Upload a PowerPoint with New template… and it is listed here.')
+  assert.equal(field(tree, 'My templates').props.copy.placeholder, 'No templates yet')
+  tree = await bodyTree({ templates: [], withLibrary: false })
+  assert.equal(note(tree, 'mine'), 'You have no templates yet.')
+  tree = await bodyTree({ listStatus: 503 })
+  assert.equal(note(tree, 'mine'), 'Your templates could not be loaded: Template library is not configured. Use Refresh to try again.')
+  assert.equal(field(tree, 'My templates').props.copy.placeholder, 'Library unavailable')
+  tree = await bodyTree({ userId: null })
+  assert.equal(note(tree, 'mine'), 'Sign in to see your templates.')
+  tree = await bodyTree({ turns: 0 })
+  assert.equal(note(tree, 'mine'), 'Loading your templates…')
+  assert.equal(field(tree, 'My templates').props.copy.placeholder, 'Loading your templates…')
+  // without a composer library: saved templates only (the #374 popup); an empty saved list says why too
+  const emptySaved = await mountTemplates(ON_ENV, { onSelect() {}, isOpen: true, dropdowns: { selectedTemplateId: null, locked: false, savedTemplates: true, onClose() {} } }, { recorder: true, savedTemplates: [] })
+  const emptySavedTree = await emptySaved.render()
+  assert.equal(text(flat(emptySavedTree).find(n => n.props?.['data-studio-template-empty'] === 'mine')), 'No saved templates yet. Build a deck and use Save as Template to add one.')
+  assert.ok(text(flat(emptySavedTree).find(n => n.props?.['data-studio-template-empty'] === 'deckster')).startsWith('Deckster has no ready-made templates yet.'))
+})
+mutant('fix: the Deckster list is a blank control again', async () => {
+  const world = makeWorld({ env: DIALOG_ENV_ON, recorder: true, globals: composerServices().globals, mutate: { [TEMPLATE_PICKER]: [['{deckster.length === 0 && <p className="stcd-empty" data-studio-template-empty="deckster">{DECKSTER_TEMPLATES_EMPTY}</p>}', '']] } })
+  const { ComposerTemplatePopupBody } = world.loader.load(TEMPLATE_PICKER)
+  const tree = await drain(world.runtime, ComposerTemplatePopupBody, () => ({ onSelect: refuse, open: true, mode: 'generation', showSavedTemplates: false, selectionLocked: false, selectedTemplateId: null, onClose() {}, onComposerAction() {}, composerUserId: OWNER }), 4)
+  assert.ok(flat(tree).some(n => n.props?.['data-studio-template-empty'] === 'deckster'))
+})
+
+await run('fix: with saved templates too, "My templates" lists the library\'s templates, then the saved ones; a saved one is chosen exactly as before; a locked deck keeps the library\'s (each opens a new deck) and drops the saved ones', async () => {
+  const mount = async locked => {
+    const services = composerServices()
+    const log = []
+    const world = makeWorld({ env: DIALOG_ENV_ON, recorder: true, globals: services.globals })
+    const { ComposerTemplatePopupBody } = world.loader.load(TEMPLATE_PICKER)
+    let closed = 0
+    const props = () => ({ onSelect: v => log.push(plain(v)), open: true, mode: 'generation', showSavedTemplates: true, selectionLocked: locked, selectedTemplateId: null, onClose: () => { closed += 1 }, onOpenLibrary() {}, onComposerAction() {}, composerUserId: OWNER })
+    const tree = await drain(world.runtime, ComposerTemplatePopupBody, props, 4)
+    return { tree, log, closed: () => closed, world, props, Body: ComposerTemplatePopupBody }
+  }
+  const open = await mount(false)
+  const mine = flat(open.tree).find(n => n.type === 'ThemeDropdownPicker' && n.props.copy.label === 'My templates')
+  // (the saved records are loaded by the picker content, which this harness draws without its own state: the composer records lead)
+  deq(mine.props.options.slice(0, COMPOSER_TEMPLATES.length).map(o => o.id), COMPOSER_TEMPLATES.map(t => `composer:${t.id}`))
+  // a saved template, chosen through the merged list, sends the same selection as #374's list (checked on TemplatePickerContent directly)
+  const offLog = [], onLog = []
+  const plainList = await mountTemplates(ON_ENV, { onSelect: v => offLog.push(plain(v)), isOpen: true, dropdowns: { selectedTemplateId: null, locked: false, savedTemplates: true, onClose() {} } }, { recorder: true })
+  flat(await plainList.render()).find(n => n.type === 'ThemeDropdownPicker' && n.props.copy.label === 'My templates').props.onSelect('tp-1')
+  const composer = { templates: COMPOSER_TEMPLATES, loading: false, error: null, userId: OWNER, chosenId: null, onChoose: () => {}, actions: [], onAction: refuse, refresh() {} }
+  const merged = await mountTemplates(ON_ENV, { onSelect: v => onLog.push(plain(v)), isOpen: true, dropdowns: { selectedTemplateId: null, locked: false, savedTemplates: true, onClose() {}, composer } }, { recorder: true })
+  const mergedMine = flat(await merged.render()).find(n => n.type === 'ThemeDropdownPicker' && n.props.copy.label === 'My templates')
+  deq(mergedMine.props.options.map(o => o.id), [...COMPOSER_TEMPLATES.map(t => `composer:${t.id}`), ...TEMPLATES.map(t => t.id)])
+  mergedMine.props.onSelect('tp-1')
+  deq(onLog, offLog)
+  const lockedMerged = await mountTemplates(ON_ENV, { onSelect: refuse, isOpen: true, dropdowns: { selectedTemplateId: null, locked: true, savedTemplates: true, onClose() {}, composer } }, { recorder: true })
+  const lockedTree = await lockedMerged.render()
+  const lockedMine = flat(lockedTree).find(n => n.type === 'ThemeDropdownPicker' && n.props.copy.label === 'My templates')
+  deq(lockedMine.props.options.map(o => o.id), COMPOSER_TEMPLATES.map(t => `composer:${t.id}`))
+  assert.equal(lockedMine.props.locked, false)
+  assert.match(text(lockedTree), /Saved templates are locked for this deck\./)
+})
+
+await run('fix (page.tsx): flag off, the page hands ChatInput and the library dialog exactly what it did before; flag on, the popup\'s action opens the dialog with the request, which is cleared once taken', async () => {
+  const page = read(PAGE)
+  assert.equal(pageWiringHash(page), BASE_HASHES.pageWiring, 'both elements, without the fix\'s spreads, are the base\'s')
+  const wiring = pageWiring(page)
+  const chatSpread = wiring.ChatInput.spreads.filter(x => FIX_SPREAD.test(x))
+  const dialogSpread = wiring.ComposerLibraryDialog.spreads.filter(x => FIX_SPREAD.test(x))
+  assert.equal(chatSpread.length, 1); assert.equal(dialogSpread.length, 1)
+  const log = []
+  const scope = (flag, library) => ({ studioPopupsV2: flag, composerLibraryEnabled: library, composerLibraryRequest: { marker: 'request' },
+    setComposerLibraryRequest: v => log.push(['request', v]), setShowComposerLibrary: v => log.push(['show', v]) })
+  // (keys, not deq: deq compares as JSON, which drops function values)
+  for (const library of [false, true]) deq(Object.keys(compileJsx(chatSpread[0], 'chat spread')(scope(false, library))), [], 'flag off: nothing added to ChatInput')
+  deq(Object.keys(compileJsx(chatSpread[0], 'chat spread')(scope(true, false))), [], 'no composer library: nothing added')
+  deq(Object.keys(compileJsx(dialogSpread[0], 'dialog spread')(scope(false, true))), [], 'flag off: nothing added to the dialog')
+  deq(Object.keys(compileJsx(chatSpread[0], 'chat spread')(scope(true, true))), ['onComposerTemplateAction'])
+  const handler = compileJsx(chatSpread[0], 'chat spread')(scope(true, true)).onComposerTemplateAction
+  const request = { action: 'use', template: COMPOSER_TEMPLATES[0] }
+  handler(request)
+  deq(log, [['request', request], ['show', true]])
+  const dialogExtra = compileJsx(dialogSpread[0], 'dialog spread')(scope(true, true))
+  deq(Object.keys(dialogExtra), ['request', 'onRequestTaken'])
+  deq(dialogExtra.request, { marker: 'request' })
+  log.length = 0; dialogExtra.onRequestTaken(); deq(log, [['request', null]])
+  assert.match(page, /const \[composerLibraryRequest, setComposerLibraryRequest\] = useState<ComposerLibraryRequest \| null>\(null\)/)
+})
+mutant('fix (page.tsx): the action handler reaches ChatInput with the flag off', async () => {
+  const page = read(PAGE).replace('{...(studioPopupsV2 && composerLibraryEnabled ? { onComposerTemplateAction:', '{...(composerLibraryEnabled ? { onComposerTemplateAction:')
+  if (page === read(PAGE)) throw new MutationTargetMissing('page mutation did not apply')
+  const spread = pageWiring(page).ChatInput.spreads.find(x => FIX_SPREAD.test(x))
+  deq(Object.keys(compileJsx(spread, 'chat spread')({ studioPopupsV2: false, composerLibraryEnabled: true, setComposerLibraryRequest() {}, setShowComposerLibrary() {} })), [])
+})
+mutant('fix (page.tsx): the dialog gets the request with the flag off', async () => {
+  const page = read(PAGE).replace('{...(studioPopupsV2 ? { request: composerLibraryRequest', '{...(true ? { request: composerLibraryRequest')
+  if (page === read(PAGE)) throw new MutationTargetMissing('page mutation did not apply')
+  const spread = pageWiring(page).ComposerLibraryDialog.spreads.find(x => FIX_SPREAD.test(x))
+  deq(Object.keys(compileJsx(spread, 'dialog spread')({ studioPopupsV2: false, composerLibraryRequest: null, setComposerLibraryRequest() {} })), [])
+})
+
+await run('fix: flag off (no request), the library dialog renders and requests exactly as the base did (16 states: tree and every request)', async () => {
+  assert.equal(await dialogHash(), BASE_HASHES.dialog)
 })
 
 // ================================================================================================================================================

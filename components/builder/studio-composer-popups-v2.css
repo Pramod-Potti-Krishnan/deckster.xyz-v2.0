@@ -77,6 +77,16 @@
 [data-studio-composer-menu="template"] .stcd-footer svg { width: 12px; height: 12px; stroke-width: 1.5; }
 [data-studio-composer-menu="template"] .stcd-footer :is(a, button):hover { filter: brightness(.9); }
 [data-studio-composer-menu="template"] :is(button, a, input):focus-visible { outline: 2px solid var(--sco-accent); outline-offset: 2px; }
+/* PASS2-COMPOSER-POPUPS fix: why a list is empty, in plain words under it; the composer template picked in "My templates" with the library
+   dialog's actions (outlined, as the dialog's are). */
+[data-studio-composer-menu="template"] .stcd-empty { margin: 5px 0 0; color: var(--sco-muted); font-size: 10.5px; line-height: 1.45; overflow-wrap: anywhere; }
+[data-studio-composer-menu="template"] .stcd-composer { display: flex; flex-direction: column; gap: 7px; padding: 8px; border: 1px solid var(--sco-line); border-radius: 8px; background: var(--sco-surface); }
+[data-studio-composer-menu="template"] .stcd-composer-name { margin: 0; color: var(--sco-text); font-size: 11.5px; overflow-wrap: anywhere; }
+[data-studio-composer-menu="template"] .stcd-composer-actions { display: flex; flex-wrap: wrap; gap: 6px; }
+[data-studio-composer-menu="template"] .stcd-composer-actions button { padding: 4px 9px; border: 1px solid var(--sco-line); border-radius: 6px; background: var(--sco-panel); color: var(--sco-text); font-size: 11px; font-weight: 600; line-height: 1.4; }
+[data-studio-composer-menu="template"] .stcd-composer-actions button:not(:disabled):hover { background: var(--sco-active); }
+[data-studio-composer-menu="template"] .stcd-composer-actions button:disabled { opacity: .55; cursor: default; }
+[data-studio-composer-menu="template"] .stcd-composer .stcd-hint { margin: 0; }
 @keyframes stcd-spin { to { transform: rotate(360deg); } }
 @media (prefers-reduced-motion: reduce) { [data-studio-composer-menu="template"] .stcd-spin { animation: none; } }
 @media (max-width: 360px) { [data-studio-composer-menu="template"] .stcd-footer { flex-wrap: wrap; } }
