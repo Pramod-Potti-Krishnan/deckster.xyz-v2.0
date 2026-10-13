@@ -61,6 +61,8 @@
 
 /* The chat card of the outline that is on the canvas: summary only, slide details folded (flag on only). */
 [data-studio-v4-shell="true"] [data-studio-director-part="outline-review-canvas-note"] { margin: 8px 0 0; color: var(--ss-text); font-size: 10.5px; line-height: 1.6; }
+/* An older, different outline the canvas outline replaced: the same fold, its note muted. */
+[data-studio-v4-shell="true"] [data-studio-director-part="outline-review-superseded-note"] { margin: 8px 0 0; color: var(--ss-muted); font-size: 10.5px; line-height: 1.6; }
 [data-studio-v4-shell="true"] [data-studio-director-part="outline-review-details"] { margin-top: 8px; }
 [data-studio-v4-shell="true"] [data-studio-director-part="outline-review-details"] > summary { color: var(--ss-muted); font-size: 10.5px; cursor: pointer; }
 [data-studio-v4-shell="true"] [data-studio-director-part="outline-review-details"] > summary:focus-visible { outline: 2px solid var(--ss-accent); outline-offset: 3px; border-radius: 4px; }

@@ -4,6 +4,10 @@
 //  (b) A built deck's structure that Director re-sends on reconnect is no longer drawn as a new outline card below
 //      "Your presentation is ready" (the dev history bug); the original outline card keeps its place.
 //  (c) The outline card's count reads as the outline's ("Outline · 7 slides"), with the deck's current count beside it.
+//  (d) Fix-forward (PASS2 LIVE-CHECK, session "Pilot Results"): while the canvas shows the outline, EVERY chat outline card it stands
+//      for folds to the summary, including the copy the transcript keeps when Director re-sends the pending outline on reconnect
+//      (the canvas pairs the live gate with the newest copy, the transcript draws the first). An older, different outline folds too,
+//      marked "Earlier outline". The pre-fix tree (FIX_BASE) and in-memory mutants of the rule must fail these checks.
 // Renders the REAL MessageList / StudioOutlineCard / PresentationArea / StudioOutlineCanvas server-side from the real TypeScript
 // sources, and proves flag off renders byte for byte (sha256) what the base commit renders. No network, no browser, no timers.
 import assert from 'node:assert/strict'
@@ -23,6 +27,8 @@ const FLAG = 'NEXT_PUBLIC_STUDIO_OUTLINE_CANVAS'
 const ASK = 'NEXT_PUBLIC_STUDIO_ASK_CARD_IDENTITY_ENABLED'
 /** The commit this feature was built on (studio-v4-dev-preparation-code at #357): flag off must render exactly as it did. */
 const BASE_COMMIT = '68e3396'
+/** The merged PASS2 #4 (studio-v4-dev-preparation-code at #360) this fix-forward starts from: it reproduces the live bug. */
+const FIX_BASE = '5cc455d'
 const STUDIO = { NEXT_PUBLIC_STUDIO_V4_SHELL: 'true' }
 const read = rel => fs.readFileSync(path.join(repoRoot, rel), 'utf8')
 const sha = text => crypto.createHash('sha256').update(text).digest('hex')
@@ -43,24 +49,27 @@ function compile(rel, source) {
   }
   return transpiled.get(key)
 }
-let baseAvailable = true
-try { execFileSync('git', ['cat-file', '-e', `${BASE_COMMIT}^{commit}`], { cwd: repoRoot, stdio: 'ignore' }) } catch { baseAvailable = false }
+const commitAvailable = commit => { try { execFileSync('git', ['cat-file', '-e', `${commit}^{commit}`], { cwd: repoRoot, stdio: 'ignore' }); return true } catch { return false } }
+const baseAvailable = commitAvailable(BASE_COMMIT)
 const baseCache = new Map()
-function baseSource(rel) {
-  if (!baseCache.has(rel)) {
-    try { baseCache.set(rel, execFileSync('git', ['show', `${BASE_COMMIT}:${rel}`], { cwd: repoRoot, encoding: 'utf8', maxBuffer: 64 * 1024 * 1024, stdio: ['ignore', 'pipe', 'ignore'] })) }
-    catch { baseCache.set(rel, null) }
+function baseSource(rel, commit = BASE_COMMIT) {
+  const key = `${commit}:${rel}`
+  if (!baseCache.has(key)) {
+    try { baseCache.set(key, execFileSync('git', ['show', `${commit}:${rel}`], { cwd: repoRoot, encoding: 'utf8', maxBuffer: 64 * 1024 * 1024, stdio: ['ignore', 'pipe', 'ignore'] })) }
+    catch { baseCache.set(key, null) }
   }
-  return baseCache.get(rel)
+  return baseCache.get(key)
 }
 const STUBS = {
   'next/navigation': { useRouter: () => ({ push() {}, replace() {}, refresh() {} }), useSearchParams: () => new URLSearchParams(), usePathname: () => '/builder' },
   'next-auth/react': { useSession: () => ({ data: null, status: 'unauthenticated', update: async () => null }), signIn: async () => {}, signOut: async () => {}, SessionProvider: ({ children }) => children },
 }
-/** base: every repo file comes from BASE_COMMIT (a file the base lacks fails to resolve). */
-function createWorld({ env = {}, base = false } = {}) {
+/** base: every repo file comes from BASE_COMMIT, or from `commit` (a file the base lacks fails to resolve). overrides: rel -> source
+ * (the mutation checks). */
+function createWorld({ env = {}, base = false, commit = BASE_COMMIT, overrides = {} } = {}) {
   const cache = new Map()
-  const source = rel => base ? baseSource(rel) : (fs.existsSync(path.join(repoRoot, rel)) && fs.statSync(path.join(repoRoot, rel)).isFile() ? read(rel) : null)
+  const source = rel => rel in overrides ? overrides[rel] : base ? baseSource(rel, commit)
+    : (fs.existsSync(path.join(repoRoot, rel)) && fs.statSync(path.join(repoRoot, rel)).isFile() ? read(rel) : null)
   const resolve = (spec, fromRel) => {
     const stem = spec.startsWith('@/') ? spec.slice(2) : path.posix.join(path.posix.dirname(fromRel), spec)
     for (const ext of ['', '.ts', '.tsx', '/index.ts', '/index.tsx']) if (/\.tsx?$/.test(stem + ext) && source(stem + ext) !== null) return stem + ext
@@ -159,7 +168,75 @@ const LEGACY = {
 }
 const BLOCKED = { name: 'evidence-blocked outline', messages: [outline('su-1', 10, 'deck-0'), retryGate('ar-retry', 12)], userMessages: [FIRST] }
 const NO_EARLIER = { name: 'resend without an earlier outline', messages: [finalUrl('pu-final', 40, 'deck-1'), chat('c-ready', 41, READY), outline('su-reconnect', 900, 'deck-1')], userMessages: [FIRST] }
-const FIXTURES = [DEV, DEV_NEW_DECK, SAME_TURN, PENDING, REFINED, LEGACY, BLOCKED, NO_EARLIER]
+
+// (d) The live finding, as Studio restored it: session "Pilot Results" (Studio dev, PASS2 LIVE-CHECK), rebuilt from its persisted rows
+// (read once, read-only; ids, times and deck ids replaced, long text shortened, nothing token-like). Plan approved, so the outline is
+// built at once ("Building the full deck now"); the build fails. From then on Director replays the still-pending outline on EVERY
+// reconnect (websocket.py _replay_strawman_review: a slide_update and an approval action_request, each under a new id at the
+// reconnect's time; Studio persists both). The failed build had changed the strawman, so every replay differs from the first outline
+// (an emoji title, an empty closing title, "Key content about ..." notes, service "text"). The transcript draws the first outline and
+// the first replay (coalesceOutlineStateReplays drops the later identical replays of the same user turn); the canvas pairs the live
+// gate with the NEWEST replay, an id no chat card carries, so before the fix both cards stayed full size.
+const PILOT_DECK = 'deck-pilot'
+const PILOT_SUBTITLES = ['Pilot forecast performance against historical baselines, with illustrative weekly error data',
+  'Sample weekly forecast-error values for Baseline and Pilot across the testing period. Illustrative data.', 'Report the pilot results']
+const PILOT_CHART = 'Pilot Testing Demonstrates Forecast Error Reduction Against Baseline Benchmarks'
+const pilotOutline = (id, s, replay, extra) => frame('slide_update', id, s, {
+  slides: [['title_slide', 'H1', 'hook'], ['content', 'C1', 'deep_dive'], ['closing_slide', 'H3', 'closing']].map(([slide_type, layout, purpose], i) => {
+    const title = replay ? ['📋 Pilot Results', PILOT_CHART, ''][i] : ['Pilot Results', PILOT_CHART, 'Pilot Results'][i]
+    return { title, purpose, service: replay ? 'text' : null, slide_id: `slide_${i + 1}`, subtitle: PILOT_SUBTITLES[i],
+      narrative: replay ? `Key content about ${title}` : [' ', 'Key message: Illustrative weekly pilot tracking shows baseline error drops across trial weeks.', ' '][i],
+      key_points: [], slide_type, variant_id: null, slide_number: i + 1, speaker_notes: null, semantic_group: null, visuals_needed: null,
+      diagrams_needed: null, analytics_needed: null, container_layout: null, structure_preference: layout }
+  }),
+  is_blank: false,
+  metadata: { main_title: 'Pilot Results', slide_count: 3, overall_theme: 'professional', design_suggestions: '', target_audience: 'general',
+    presentation_duration: 15, preview_url: `${LAYOUT}/p/${PILOT_DECK}`, preview_presentation_id: PILOT_DECK },
+  operation: 'full_update', affected_slides: null }, extra)
+// Restored Director rows carry no role; use-builder-session stamps each with its persisted time (clientTimestamp).
+const row = (type, id, s, payload) => frame(type, id, s, payload)
+const pilotGate = (id, s, extra) => frame('action_request', id, s, { actions: [LOOKS_PERFECT('accept_strawman'), SOME_CHANGES],
+  prompt_text: 'Does this outline look good, or would you like to make changes?' }, extra)
+const DAY = 86400
+// The visit that saw the bug: its own reconnect replay arrives live, stamped on arrival by the WebSocket hook.
+const live = s => ({ clientTimestamp: T0 + s * 1000 })
+const PILOT_HISTORY = [
+  row('chat_message', 'p-greeting', 2, { text: "Hello! I'm your presentation assistant. What topic would you like to present on?" }),
+  row('chat_message', 'p-plan', 20, { text: "Here's my proposed plan for your presentation:\n\n**Core Message**\nThe pilot reduced forecast errors.\n\n**Proposed Structure:** 3 slides" }),
+  row('action_request', `msg_plan_confirm_${SID}`, 20, { prompt_text: 'Does this structure work for you?', actions: [
+    { label: "Yes, let's build it!", value: 'accept_plan', primary: true, requires_input: false },
+    { label: "I'd like to make changes", value: 'reject_plan', primary: false, requires_input: false }] }),
+  row('chat_message', 'p-think-1', 47.874, { text: 'Reviewing your topic and audience…', ephemeral: true }),
+  pilotOutline('p-outline', 69.992, false),
+  row('chat_message', 'p-announce', 70.06, { text: "I've created an outline with 3 slides for **Pilot Results**. Building the full deck now — watch it take shape on the canvas." }),
+  row('chat_message', 'p-think-2', 80.098, { text: 'Slide 2: layout chosen — single_chart_top_intro_plus_decision', ephemeral: true }),
+  row('chat_message', 'p-error', 81.438, { text: 'Sorry, content generation encountered an error: Slide Builder build failed: plan-and-build internal error.' }),
+  // reconnect replays, as persisted (the first two rows of a pair share a millisecond; the gate row comes first)
+  pilotGate('p-gate-1', 313.833), pilotOutline('p-replay-1', 313.833, true),
+  pilotGate('p-gate-2', 2092.47), pilotOutline('p-replay-2', 2092.47, true),
+  pilotOutline('p-replay-3', 3583.474, true), pilotGate('p-gate-3', 3583.475),
+]
+const PILOT_USERS = [{ id: 'p-u-ask', text: 'Create exactly 3 slides titled Pilot Results: a title slide, one bar chart slide with illustrative weekly forecast-error values, and a closing slide.', timestamp: T0 + 10_000 },
+  { id: 'p-u-plan', text: "Yes, let's build it!", timestamp: T0 + 46_000 }]
+const PILOT = {
+  name: 'Pilot Results: failed build, outline replayed on every reconnect, live replay on this visit',
+  messages: [...PILOT_HISTORY, pilotOutline('p-replay-live', 3 * DAY, true, live(3 * DAY)), pilotGate('p-gate-live', 3 * DAY + 0.001, live(3 * DAY + 0.001))],
+  userMessages: PILOT_USERS,
+}
+// The same session reloaded later: that visit's replay is persisted too (the session as it is stored now).
+const PILOT_RELOADED = {
+  name: 'Pilot Results, reloaded: every replay persisted',
+  messages: [...PILOT_HISTORY, pilotOutline('p-replay-4', 3 * DAY, true), pilotGate('p-gate-4', 3 * DAY + 0.001)],
+  userMessages: PILOT_USERS,
+}
+// Not messy at all: #364's clean pending outline, reopened. Director's reconnect replay alone defeated the id link.
+const PENDING_REOPENED = {
+  name: 'clean pending outline, reopened (Director replays it on connect)',
+  messages: [...PENDING.messages, { ...outline('su-replay', 900, 'deck-0'), clientTimestamp: T0 + 900_000 },
+    { ...outlineGate('ar-gate-replay', 900.001, 'accept_strawman:f6510ef8dd10'), clientTimestamp: T0 + 900_001 }],
+  userMessages: PENDING.userMessages,
+}
+const FIXTURES = [DEV, DEV_NEW_DECK, SAME_TURN, PENDING, REFINED, LEGACY, BLOCKED, NO_EARLIER, PILOT, PILOT_RELOADED, PENDING_REOPENED]
 
 // ---------------------------------------------------------------- MessageList, server-rendered
 function renderList(world, fixture, extra = {}) {
@@ -361,6 +438,125 @@ if (baseAvailable) {
   }
 }
 
+// ---------------------------------------------------------------- (d) every chat card the canvas stands for folds (the live finding)
+const ON = { ...STUDIO, [FLAG]: 'true' }
+const cardsOf = html => [...html.matchAll(/<section data-studio-director-part="outline-(?:history-)?review" aria-label="([^"]+)">([\s\S]*?)<\/section>/g)]
+  .map(([, label, body]) => ({ label, heading: body.match(/data-studio-director-part="outline-review-heading">[\s\S]*?<span>([^<]*)<\/span>/)?.[1],
+    canvasNote: body.includes('data-studio-director-part="outline-review-canvas-note">The outline is on the canvas.'),
+    replacedNote: body.includes('data-studio-director-part="outline-review-superseded-note">Replaced by the outline on the canvas.</p>'),
+    folded: /<details data-studio-director-part="outline-review-details"><summary>Slide details<\/summary>[\s\S]*<ol data-studio-director-part="outline-review-slides"/.test(body),
+    slides: (body.match(/data-studio-director-part="outline-review-slide"/g) ?? []).length,
+    titles: [...body.matchAll(/<strong>([^<]*)<\/strong>/g)].map(m => m[1]) }))
+const ROLE = {
+  canvas: { label: 'Presentation outline', heading: 'Presentation outline', canvasNote: true, replacedNote: false, folded: true },
+  earlier: { label: 'Earlier presentation outline', heading: 'Earlier outline', canvasNote: false, replacedNote: true, folded: true },
+}
+const selectIn = (world, fixture) => world.load('lib/studio-outline-canvas.ts').selectStudioOutlineCanvas({ enabled: true, blocked: false,
+  messages: fixture.messages, answeredIds: new Set(), userTurns: fixture.userMessages, sessionId: SID })
+/** Every expectation of (d), collected (not thrown) so the pre-fix tree and each mutant can be shown to fail them. */
+function foldFailures(world) {
+  const failures = []
+  const expect = (ok, what) => { if (!ok) failures.push(what) }
+  for (const [fixture, roles, slides] of [[PILOT, ['earlier', 'canvas'], 3], [PILOT_RELOADED, ['earlier', 'canvas'], 3],
+    [PENDING_REOPENED, ['canvas'], 7], [PENDING, ['canvas'], 7], [REFINED, ['earlier', 'canvas'], null]]) {
+    const selection = selectIn(world, fixture)
+    expect(selection, `${fixture.name}: the canvas shows an outline`)
+    if (!selection) continue
+    const cards = cardsOf(renderList(world, fixture, { props: { studioOutlineOnCanvas: selection.outline.message_id } }).html)
+    expect(cards.length === roles.length, `${fixture.name}: ${roles.length} outline card(s), got ${cards.length}`)
+    cards.forEach((card, i) => {
+      const want = ROLE[roles[i]]
+      if (!want) return
+      for (const key of Object.keys(want)) expect(card[key] === want[key], `${fixture.name}: card ${i + 1} (${roles[i]}) ${key} = ${JSON.stringify(card[key])}`)
+      if (slides) expect(card.slides === slides, `${fixture.name}: card ${i + 1} keeps all ${slides} slides under "Slide details"`)
+    })
+  }
+  // Pure rule. Nothing on the canvas, a later outline, another session's outline, or a non-outline frame: no relation.
+  const rule = world.load('lib/director-history-presentation.ts').outlineCanvasRelation
+  expect(typeof rule === 'function', 'outlineCanvasRelation exists')
+  if (typeof rule !== 'function') return failures
+  const canvas = pilotOutline('p-canvas', 500, true)
+  const relation = (card, on = canvas, id = on?.message_id) => { try { return rule(card, on, id) } catch (error) { return `threw ${error.message}` } }
+  expect(relation(canvas) === 'canvas', 'the frame itself')
+  expect(relation(pilotOutline('p-copy', 400, true)) === 'canvas', 'an earlier identical copy')
+  const moved = pilotOutline('p-moved', 400, true)
+  moved.payload.metadata = { ...moved.payload.metadata, preview_url: `${LAYOUT}/p/deck-other`, preview_presentation_id: 'deck-other' }
+  expect(relation(moved) === 'canvas', 'same outline on another preview deck (viewer transport is not content)')
+  expect(relation(pilotOutline('p-old', 400, false)) === 'earlier', 'an older, different outline')
+  expect(relation(pilotOutline('p-later', 600, false)) === null, 'a later outline is not replaced by the canvas')
+  expect(relation(pilotOutline('p-same-later', 600, true)) === 'canvas', 'a later identical copy is the same outline')
+  expect(relation({ ...pilotOutline('p-other', 400, false), session_id: 'another-session' }) === null, 'another session\'s outline')
+  expect(relation(pilotOutline('p-old', 400, false), null, undefined) === null, 'nothing on the canvas')
+  expect(relation(pilotOutline('p-old', 400, false), null, 'p-unknown') === null, 'canvas id not in the transcript: no guess')
+  const blank = pilotOutline('p-blank', 400, false); blank.payload.is_blank = true
+  expect(relation(blank) === null, 'the blank deck frame')
+  expect(relation(chat('c-x', 400, 'x')) === null, 'not an outline')
+  return failures
+}
+{
+  // the fixed tree: no failures, with Director's ask-card identity off and on
+  for (const env of [{}, { [ASK]: 'true' }]) {
+    const failures = foldFailures(createWorld({ env: { ...ON, ...env } }))
+    check(assert.deepEqual, failures, [], `(d) ask identity ${env[ASK] ? 'on' : 'off'}`)
+  }
+  const on = createWorld({ env: ON })
+  // the live session: the canvas pairs the live gate with the newest replay, which the transcript does not draw
+  const selection = selectIn(on, PILOT)
+  check(assert.equal, selection.outline.message_id, 'p-replay-live')
+  check(assert.equal, selection.gate.message_id, 'p-gate-live')
+  const html = renderList(on, PILOT, { props: { studioOutlineOnCanvas: 'p-replay-live' } }).html
+  const cards = cardsOf(html)
+  check(assert.deepEqual, cards.map(card => card.titles), [['Pilot Results', PILOT_CHART, 'Pilot Results'], ['📋 Pilot Results', PILOT_CHART, '']],
+    'the first outline (replaced) and the first replay (on the canvas); the later identical replays are not drawn')
+  check(assert.ok, at(html, 'Replaced by the outline on the canvas.') < at(html, 'Sorry, content generation encountered an error') &&
+    at(html, 'Sorry, content generation encountered an error') < at(html, 'The outline is on the canvas.'), 'cards keep their places')
+  check(assert.equal, (html.match(/data-studio-director-part="outline-review-canvas-note"/g) ?? []).length, 1)
+  // nothing is on the canvas (a build owns it, or the gate was answered): every card is drawn exactly as before the fix
+  if (commitAvailable(FIX_BASE)) {
+    const prefix = createWorld({ env: ON, base: true, commit: FIX_BASE })
+    for (const fixture of FIXTURES) {
+      check(assert.equal, sha(renderList(on, fixture).html), sha(renderList(prefix, fixture).html), `${fixture.name}: no canvas, == ${FIX_BASE}`)
+      const id = selectIn(on, fixture)?.outline.message_id
+      // the approval cards and the rest of the transcript: unchanged while the canvas is up
+      const rest = html => html.replace(/<section data-studio-director-part="outline-(?:history-)?review"[\s\S]*?<\/section>/g, '<outline/>')
+      check(assert.equal, rest(renderList(on, fixture, { props: { studioOutlineOnCanvas: id } }).html),
+        rest(renderList(prefix, fixture, { props: { studioOutlineOnCanvas: id } }).html), `${fixture.name}: only outline cards change`)
+    }
+    // #364's own case (the outline on the canvas is the drawn frame): byte for byte as before
+    check(assert.equal, sha(renderList(on, PENDING, { props: { studioOutlineOnCanvas: 'su-strawman' } }).html),
+      sha(renderList(prefix, PENDING, { props: { studioOutlineOnCanvas: 'su-strawman' } }).html), `PENDING on the canvas == ${FIX_BASE}`)
+
+    // mutation check 1: the merged #364 tree fails (d), showing the live symptom: both cards full size, no canvas note
+    check(assert.ok, foldFailures(prefix).length > 0, `${FIX_BASE} fails (d)`)
+    const before = cardsOf(renderList(prefix, PILOT, { props: { studioOutlineOnCanvas: 'p-replay-live' } }).html)
+    check(assert.deepEqual, before.map(card => [card.label, card.canvasNote, card.folded]), [['Presentation outline', false, false], ['Presentation outline', false, false]],
+      `${FIX_BASE}: the live bug reproduced (two full outline cards, none folded)`)
+    check(assert.equal, cardsOf(renderList(prefix, PENDING_REOPENED, { props: { studioOutlineOnCanvas: selectIn(prefix, PENDING_REOPENED).outline.message_id } }).html)[0].canvasNote, false,
+      `${FIX_BASE}: even a clean pending outline loses the fold once Director replays it`)
+  } else console.log(`  SKIP pre-fix comparisons: ${FIX_BASE} is not in this clone`)
+
+  // mutation check 2: each in-memory mutant of the fix fails (d)
+  const LIB = 'lib/director-history-presentation.ts', LIST = 'components/builder/message-list.tsx', CARD = 'components/builder/chat/studio-outline-card.tsx'
+  const mutants = [
+    ['id link only (the #364 rule)', LIB, "  if (outlineContent(card.payload as Record<string, any>) === outlineContent(canvas.payload as Record<string, any>)) return 'canvas'\n", ''],
+    ['content compared with the viewer transport', LIB, "if (outlineContent(card.payload as Record<string, any>) === outlineContent(canvas.payload as Record<string, any>))",
+      'if (JSON.stringify(card.payload) === JSON.stringify(canvas.payload))'],
+    ['older outlines left full size', LIB, "time <= canvasTime ? 'earlier' : null", 'time <= canvasTime ? null : null'],
+    ['later outlines marked replaced', LIB, "time <= canvasTime ? 'earlier' : null", "true ? 'earlier' : null"],
+    ['any session', LIB, '  if (card.session_id && canvas.session_id && card.session_id !== canvas.session_id) return null\n', ''],
+    ['MessageList drops the replaced mark', LIST, "canvasSuperseded: relation === 'earlier'", 'canvasSuperseded: false'],
+    ['MessageList keeps the id link', LIST, "onCanvas: relation === 'canvas'", 'onCanvas: message.message_id === studioOutlineOnCanvas'],
+    ['card does not fold a replaced outline', CARD, "</> : canvasSuperseded ? <>", '</> : false ? <>'],
+  ]
+  for (const [name, rel, from, to] of mutants) {
+    const original = read(rel)
+    check(assert.equal, original.split(from).length, 2, `mutant "${name}": its target occurs once`)
+    const failures = foldFailures(createWorld({ env: ON, overrides: { [rel]: original.replace(from, to) } }))
+    check(assert.ok, failures.length > 0, `mutant "${name}" is caught`)
+  }
+  console.log(`  (d) fold rule: ${mutants.length} mutants caught${commitAvailable(FIX_BASE) ? `, ${FIX_BASE} reproduces the live bug` : ''}`)
+}
+
 // ---------------------------------------------------------------- the canvas view
 {
   const { StudioOutlineCanvas } = createWorld({ env: { ...STUDIO, [FLAG]: 'true' } }).load('components/builder/studio-outline-canvas.tsx')
@@ -380,7 +576,7 @@ if (baseAvailable) {
   check(assert.match, renderToStaticMarkup(React.createElement(StudioOutlineCanvas, { outline: noAudience, onApprove() {} })), /<p>7 slides · Review the structure/)
   const css = read('components/builder/studio-outline-canvas.css')
   for (const rule of css.split('}').map(r => r.trim()).filter(r => r && !r.startsWith('@') && !r.startsWith('/*') && !/^(from|to)\b/.test(r)))
-    check(assert.match, rule.replace(/^[\s\S]*?\*\/\s*/, ''), /data-studio-outline-canvas|outline-review-(canvas-note|details|deck-count)|^\s*\[data-studio-outline-canvas/, `scoped CSS: ${rule.slice(0, 60)}`)
+    check(assert.match, rule.replace(/^[\s\S]*?\*\/\s*/, ''), /data-studio-outline-canvas|outline-review-(canvas-note|superseded-note|details|deck-count)|^\s*\[data-studio-outline-canvas/, `scoped CSS: ${rule.slice(0, 60)}`)
 }
 
 // ---------------------------------------------------------------- PresentationArea knows nothing of it (the page mounts the overlay)

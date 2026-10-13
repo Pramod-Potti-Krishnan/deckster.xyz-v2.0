@@ -22,10 +22,15 @@ function outlineIdentity(message: DirectorMessage): { presentationId: string; co
   const presentationId = payload.metadata?.preview_presentation_id || payload.preview_presentation_id
     || payload.strawman?.preview_presentation_id || payload.presentation_id
   if (typeof presentationId !== 'string' || !presentationId.trim()) return null
+  return { presentationId, content: outlineContent(payload) }
+}
+
+// Every outline field except the viewer transport aliases, canonical.
+function outlineContent(payload: Record<string, any>): string {
   const content = Object.fromEntries(Object.entries(payload).filter(([key]) => !transportFields.has(key))
     .map(([key, value]) => [key, (key === 'metadata' || key === 'strawman') && value && typeof value === 'object'
       ? Object.fromEntries(Object.entries(value).filter(([field]) => !transportFields.has(field))) : value]))
-  return { presentationId, content: JSON.stringify(canonical(content)) }
+  return JSON.stringify(canonical(content))
 }
 
 // The native completed reconnect reconstructs narrative from saved notes, or
@@ -280,6 +285,28 @@ export function isOutlineFrame(message: DirectorMessage | null | undefined): mes
   return Boolean(payload && typeof payload === 'object' && payload.is_blank !== true
     && (payload.operation === undefined || payload.operation === 'full_update')
     && Array.isArray(payload.slides) && payload.slides.length > 0)
+}
+
+/** How an outline card in chat relates to the outline on the canvas (flag on, only while the canvas shows one).
+ *  'canvas': the canvas shows this outline. Either it is the very frame, or a copy with the same content: while the outline waits
+ *    for approval Director re-sends it under a new id on every reconnect (websocket.py _replay_strawman_review), the transcript
+ *    draws only the first copy of a user turn (coalesceOutlineStateReplays), and the canvas pairs the live gate with the newest copy.
+ *  'earlier': an older outline with different content (a refinement, or the outline Director re-sent changed after a failed
+ *    build). The canvas outline replaced it.
+ *  null: nothing on the canvas, a later outline or another session's. Content is compared as coalescing compares it: every
+ *  outline field except the viewer transport aliases. */
+export function outlineCanvasRelation(
+  card: DirectorMessage,
+  canvas: DirectorMessage | null | undefined,
+  canvasId: string | null | undefined,
+): 'canvas' | 'earlier' | null {
+  if (!canvasId) return null
+  if (card.message_id === canvasId) return 'canvas'
+  if (!canvas || !isOutlineFrame(card) || !isOutlineFrame(canvas)) return null
+  if (card.session_id && canvas.session_id && card.session_id !== canvas.session_id) return null
+  if (outlineContent(card.payload as Record<string, any>) === outlineContent(canvas.payload as Record<string, any>)) return 'canvas'
+  const time = transcriptTime(card), canvasTime = transcriptTime(canvas)
+  return Number.isFinite(time) && Number.isFinite(canvasTime) && time <= canvasTime ? 'earlier' : null
 }
 
 /** The deck an outline frame points at, read in the WebSocket hook's order. */

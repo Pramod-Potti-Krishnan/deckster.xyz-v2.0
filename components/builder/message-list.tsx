@@ -32,7 +32,7 @@ import { deduplicateDirectorTranscript, type DirectorTranscriptEntry } from "@/l
 import { classifyDirectorMessage, getDirectorActionPolicy } from "@/lib/studio-director-message-policy"
 import { directorHistoryTimestamp } from "@/lib/director-chat-history"
 import { askAnswerKey, lockApprovalGatePolicy } from "@/lib/director-ask-identity"
-import { coalesceOutlineStateReplays, presentTerminalOutlineRevisions, STUDIO_OUTLINE_CANVAS_ENABLED, hideBuiltDeckStructureResends, type HistoricalActionStatus, type OutlineHistoryStatus } from "@/lib/director-history-presentation"
+import { coalesceOutlineStateReplays, presentTerminalOutlineRevisions, STUDIO_OUTLINE_CANVAS_ENABLED, hideBuiltDeckStructureResends, outlineCanvasRelation, type HistoricalActionStatus, type OutlineHistoryStatus } from "@/lib/director-history-presentation"
 import {
   attachmentsFromPayload,
   type UserChatMessage,
@@ -183,10 +183,16 @@ export function MessageList({
   studioOutlineOnCanvas,
 }: MessageListProps) {
   const studio = process.env.NEXT_PUBLIC_STUDIO_V4_SHELL === 'true'
-  // PASS2 #4: off, no outline card receives these props, so it renders exactly as before.
-  const outlineCanvasProps = (messageId: string) => STUDIO_OUTLINE_CANVAS_ENABLED
-    ? { onCanvas: studioOutlineOnCanvas === messageId, outlineLabel: true, deckSlideCount: presentationContext?.slideCount ?? null }
-    : undefined
+  // PASS2 #4: off, no outline card receives these props, so it renders exactly as before. On, every card the canvas outline stands
+  // for (the frame itself or a re-sent copy with the same content) folds to the summary, and an older, different outline folds too,
+  // marked as replaced (lib/director-history-presentation outlineCanvasRelation).
+  const canvasOutline = STUDIO_OUTLINE_CANVAS_ENABLED && studioOutlineOnCanvas
+    ? messages.find(message => message.message_id === studioOutlineOnCanvas) ?? null : null
+  const outlineCanvasProps = (message: SlideUpdate) => {
+    if (!STUDIO_OUTLINE_CANVAS_ENABLED) return undefined
+    const relation = outlineCanvasRelation(message, canvasOutline, studioOutlineOnCanvas)
+    return { onCanvas: relation === 'canvas', canvasSuperseded: relation === 'earlier', outlineLabel: true, deckSlideCount: presentationContext?.slideCount ?? null }
+  }
   const greetingProjectionRef = useRef<{
     receipt: StudioFrontendTranscriptReceipt | null
     revision: number
@@ -644,7 +650,7 @@ export function MessageList({
                       <p data-studio-director-part="speaker" className="text-[11px] font-medium text-gray-500 dark:text-slate-400 mb-0.5">Director</p>
 
                       {/* Slide Structure Card */}
-                      {studio && slideUpdate ? <StudioOutlineCard payload={slideUpdate.payload} historyStatus={slideUpdate.clientOutlineHistoryStatus} contextByIndex={slideContextByIndex} renderEvidence={(context) => <EvidenceBadge context={context} />} {...outlineCanvasProps(slideUpdate.message_id)} /> : (
+                      {studio && slideUpdate ? <StudioOutlineCard payload={slideUpdate.payload} historyStatus={slideUpdate.clientOutlineHistoryStatus} contextByIndex={slideContextByIndex} renderEvidence={(context) => <EvidenceBadge context={context} />} {...outlineCanvasProps(slideUpdate)} /> : (
                       <div data-studio-director-part="outline" className="mt-2 p-3 bg-gray-50 dark:bg-slate-800 rounded-lg border border-gray-100 dark:border-slate-800">
                         <div className="flex items-center gap-2 mb-1.5">
                           <span className="text-sm">📊</span>
@@ -920,7 +926,7 @@ export function MessageList({
                     </div>
                     <div className="flex-1 min-w-0">
                       <p data-studio-director-part="speaker" className="text-[11px] font-medium text-gray-500 dark:text-slate-400 mb-0.5">Director</p>
-                      {studio ? <StudioOutlineCard payload={slideMsg.payload} historyStatus={slideMsg.clientOutlineHistoryStatus} contextByIndex={slideContextByIndex} renderEvidence={(context) => <EvidenceBadge context={context} />} {...outlineCanvasProps(slideMsg.message_id)} /> : (
+                      {studio ? <StudioOutlineCard payload={slideMsg.payload} historyStatus={slideMsg.clientOutlineHistoryStatus} contextByIndex={slideContextByIndex} renderEvidence={(context) => <EvidenceBadge context={context} />} {...outlineCanvasProps(slideMsg)} /> : (
                       <div data-studio-director-part="outline" className="mt-2 p-3 bg-gray-50 dark:bg-slate-800 rounded-lg border border-gray-100 dark:border-slate-800">
                         <div className="flex items-center gap-2 mb-1.5">
                           <span className="text-sm">📊</span>
