@@ -1,4 +1,4 @@
-import type { DirectorMessage, ActionRequest } from '@/hooks/use-deckster-websocket-v2'
+import type { DirectorMessage, ActionRequest, PresentationURL, SlideUpdate } from '@/hooks/use-deckster-websocket-v2'
 import type { DirectorTranscriptEntry } from '@/lib/director-transcript'
 import { directorHistoryTimestamp } from '@/lib/director-chat-history'
 import { STUDIO_ASK_CARD_IDENTITY_ENABLED, isApprovalGate, isAskAnswered } from '@/lib/director-ask-identity'
@@ -266,4 +266,61 @@ function baseHistoricalActionStatuses(
     if (replies.some(reply => reply.at > at && (!nativeGate || labels.has(reply.text.trim())))) statuses.set(message.message_id, 'answered')
   }
   return statuses
+}
+
+/** PASS2 #4: outline review on the canvas (NEXT_PUBLIC_STUDIO_OUTLINE_CANVAS). Exact "true" enables it; default off, and then
+ * nothing below runs. Declared here so the transcript (MessageList) reads it without a new dependency; lib/studio-outline-canvas
+ * re-exports it for the canvas. */
+export const STUDIO_OUTLINE_CANVAS_ENABLED = process.env.NEXT_PUBLIC_STUDIO_OUTLINE_CANVAS === 'true'
+
+/** A real outline (not the blank deck's initialisation frame): a full slide_update with at least one slide. */
+export function isOutlineFrame(message: DirectorMessage | null | undefined): message is SlideUpdate {
+  if (!message || message.type !== 'slide_update') return false
+  const payload = (message as SlideUpdate).payload as SlideUpdate['payload'] | undefined
+  return Boolean(payload && typeof payload === 'object' && payload.is_blank !== true
+    && (payload.operation === undefined || payload.operation === 'full_update')
+    && Array.isArray(payload.slides) && payload.slides.length > 0)
+}
+
+/** The deck an outline frame points at, read in the WebSocket hook's order. */
+export function outlineDeckIdentity(message: SlideUpdate): { id: string | null; url: string | null } {
+  const payload = (message.payload ?? {}) as Record<string, any>
+  const text = (value: unknown) => (typeof value === 'string' && value.trim() ? value.trim() : null)
+  return {
+    id: text(payload.metadata?.preview_presentation_id) ?? text(payload.preview_presentation_id)
+      ?? text(payload.strawman?.preview_presentation_id) ?? text(payload.presentation_id),
+    url: text(payload.preview_url) ?? text(payload.metadata?.preview_url) ?? text(payload.strawman?.preview_url) ?? text(payload.url),
+  }
+}
+
+/** A Director reconnect to a BUILT session re-sends the deck's structure as a fresh slide_update (new id, the reconnect's
+ * timestamp; Director websocket.py: "the frame is idempotent state, not a review surface"). Studio persisted it and drew it as a
+ * new outline card, so after a reload it sorted below "Your presentation is ready" and "What would you like to do next?".
+ * With the flag on, an outline frame for a deck the transcript already completed (an earlier presentation_url frame with the same
+ * deck id or URL) is not drawn, provided an earlier outline frame exists, so the outline never disappears from the chat.
+ * Display only: the WebSocket state still takes the frame. Entries arrive sorted; returns the SAME array when nothing is dropped. */
+export function hideBuiltDeckStructureResends<T extends { messageType: string }>(entries: T[]): T[] {
+  const completedIds = new Set<string>()
+  const completedUrls = new Set<string>()
+  let outlineSeen = false
+  let dropped = false
+  const kept = entries.filter(entry => {
+    if (entry.messageType !== 'bot') return true
+    const message = entry as unknown as DirectorMessage
+    if (message.type === 'presentation_url') {
+      const payload = ((message as PresentationURL).payload ?? {}) as Partial<PresentationURL['payload']>
+      if (typeof payload.presentation_id === 'string' && payload.presentation_id.trim()) completedIds.add(payload.presentation_id.trim())
+      if (typeof payload.url === 'string' && payload.url.trim()) completedUrls.add(payload.url.trim())
+      return true
+    }
+    if (!isOutlineFrame(message)) return true
+    const { id, url } = outlineDeckIdentity(message)
+    if (outlineSeen && ((id !== null && completedIds.has(id)) || (url !== null && completedUrls.has(url)))) {
+      dropped = true
+      return false
+    }
+    outlineSeen = true
+    return true
+  })
+  return dropped ? kept : entries
 }
