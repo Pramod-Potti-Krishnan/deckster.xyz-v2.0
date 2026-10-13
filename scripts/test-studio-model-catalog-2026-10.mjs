@@ -113,7 +113,7 @@ for (const flag of [undefined, '', 'false', '0', '1', 'TRUE', 'True', 'yes', ' t
   assert.equal(sha256(renderHtml(flag)), BASE_RENDER_SHA256, `flag ${JSON.stringify(flag)}: the Intelligence workspace must render the exact base bytes`)
 }
 assert.ok(offHtml.includes(base.version) && offHtml.includes('Gemini 2.5 Pro') && offHtml.includes('Snapshot specifications only. Speed, quality, pricing, and live availability have not been verified.'))
-assert.ok(!offHtml.includes('Release status') && !offHtml.includes('List price per 1M'), 'extra comparison rows are flag-on only')
+assert.ok(!offHtml.includes('Release status') && !offHtml.includes('Price per 1M'), 'extra comparison rows are flag-on only')
 { // flag-off draft behaviour: the old retired ids are still ordinary choices
   const { preview, nodes, exports } = previewHost(undefined)
   assert.equal(exports.resolveRetiredModel('google/gemini-2.5-pro'), 'google/gemini-2.5-pro')
@@ -185,7 +185,7 @@ for (const id of RETIRED) assert.ok(!onHtml.includes(`value="${id}"`), `${id} is
 assert.ok(!/google\/gemini-2\.5-(pro|flash-lite|flash)(?![-\w])/.test(onHtml), 'a retired id is rendered')
 for (const name of ['Gemini 2.5 Pro', 'Gemini 2.5 Flash Lite', 'Gemini 2.5 Flash']) assert.ok(!onHtml.includes(`>${name}<`) && !onHtml.includes(`· ${name}<`), `${name} is rendered`)
 for (const name of ['Gemini 3 Flash Preview', 'Gemini 3.1 Pro Preview', 'Gemini 3.1 Flash Lite', 'Gemini 2.5 Flash Image']) assert.ok(onHtml.includes(name), `${name} is missing`)
-for (const text of ['Release status', 'Input types', 'Structured output', 'List price per 1M tokens (in / out)', '$0.50 / $3.00', '$2.00 / $12.00', 'Snapshot specifications and public list prices only.']) assert.ok(onHtml.includes(text), `${text} is missing`)
+for (const text of ['Release status', 'Input types', 'Structured output', 'Price per 1M tokens', '$0.50 in / $3.00 out', '$2.00 in / $12.00 out', 'Snapshot specifications and public list prices only.']) assert.ok(onHtml.includes(text), `${text} is missing`)
 assert.ok(!onHtml.includes('pricing, and live availability'), 'the old "pricing not verified" note must be replaced')
 
 // draft mapping: a retired id (e.g. a draft saved before the refresh) resolves to its successor; nothing dangles
@@ -219,8 +219,8 @@ assert.ok(!onHtml.includes('pricing, and live availability'), 'the old "pricing 
     assert.ok(!RETIRED_SET.has(value))
   }
   // the comparison rows show the metadata of what is picked
-  const prices = row(nodes, text, tree, 'List price per 1M tokens (in / out)')
-  assert.ok(prices && prices.every(cell => /^\$\d+\.\d\d \/ \$\d+\.\d\d$/.test(cell)), `price cells: ${JSON.stringify(prices)}`)
+  const prices = row(nodes, text, tree, 'Price per 1M tokens')
+  assert.ok(prices && prices.every(cell => /^\$\d+\.\d\d in \/ \$\d+\.\d\d out$/.test(cell)), `price cells: ${JSON.stringify(prices)}`)
   assert.deepEqual(row(nodes, text, tree, 'Release status'), ['Preview', 'Preview'])
 }
 

@@ -145,9 +145,11 @@ function modelFor(task: TaskId, choice: string) {
   return catalog.models[id as ModelId]
 }
 
+/** Flag on: the longer comparison scrolls under the sticky action, so the action gets an opaque ground (the accent tint over the panel colour). */
+const OPAQUE_ACTION = { background: "linear-gradient(var(--sp-active), var(--sp-active)), var(--sp-panel)" }
 const releaseLabel = (stage?: string) => stage === "ga" ? "Stable (GA)" : stage === "preview" ? "Preview" : "Not stated"
 const inputsLabel = (inputs?: string[]) => inputs?.length ? inputs.map(kind => kind === "file" ? "files" : kind).join(", ").replace(/^./, first => first.toUpperCase()) : "Not listed"
-const priceLabel = (model: CatalogModel) => model.pricePerMillionTokens ? `$${model.pricePerMillionTokens.input.toFixed(2)} / $${model.pricePerMillionTokens.output.toFixed(2)}` : model.priceNote || "Not listed"
+const priceLabel = (model: CatalogModel) => model.pricePerMillionTokens ? `$${model.pricePerMillionTokens.input.toFixed(2)} in / $${model.pricePerMillionTokens.output.toFixed(2)} out` : model.priceNote || "Not listed"
 
 /** A deliberately in-memory design candidate. No catalog fetch, persistence or generation. */
 function ModelDesignPreview() {
@@ -219,14 +221,14 @@ function ModelDesignPreview() {
               <tr><th scope="row">Tool support</th><td>{chosen.tools ? "Yes" : "No"}</td><td>{alternative.tools ? "Yes" : "No"}</td></tr>
               {catalogRefreshed && <>
                 <tr><th scope="row">Release status</th><td>{releaseLabel(chosen.releaseStage)}</td><td>{releaseLabel(alternative.releaseStage)}</td></tr>
-                <tr><th scope="row">Input types</th><td>{inputsLabel(chosen.inputModalities)}</td><td>{inputsLabel(alternative.inputModalities)}</td></tr>
+                <tr><th scope="row">Price per 1M tokens</th><td>{priceLabel(chosen)}</td><td>{priceLabel(alternative)}</td></tr>
                 <tr><th scope="row">Structured output</th><td>{chosen.structuredOutput === undefined ? "Not listed" : chosen.structuredOutput ? "Yes" : "No"}</td><td>{alternative.structuredOutput === undefined ? "Not listed" : alternative.structuredOutput ? "Yes" : "No"}</td></tr>
-                <tr><th scope="row">List price per 1M tokens (in / out)</th><td>{priceLabel(chosen)}</td><td>{priceLabel(alternative)}</td></tr>
+                <tr><th scope="row">Input types</th><td>{inputsLabel(chosen.inputModalities)}</td><td>{inputsLabel(alternative.inputModalities)}</td></tr>
               </>}
             </tbody>
           </table>
           <p className="sp-comparison-note">{catalogRefreshed ? "Snapshot specifications and public list prices only. Speed, quality, and live availability have not been verified." : "Snapshot specifications only. Speed, quality, pricing, and live availability have not been verified."}</p>
-          <button type="button" className="sp-button sp-button-accent" disabled={chosen === alternative} onClick={() => choose(activeTask, comparison)}>Use in design preview <ArrowRight size={15} aria-hidden="true" /></button>
+          <button type="button" className="sp-button sp-button-accent" style={catalogRefreshed ? OPAQUE_ACTION : undefined} disabled={chosen === alternative} onClick={() => choose(activeTask, comparison)}>Use in design preview <ArrowRight size={15} aria-hidden="true" /></button>
         </aside>
       </div>
 
