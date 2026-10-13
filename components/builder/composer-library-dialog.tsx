@@ -16,13 +16,17 @@ import {
   validateComposerFile, waitForComposerJob, type ComposerJob, type ComposerTemplate,
 } from '@/lib/composer-library'
 import { composerBriefLengthValid, composerBriefLimitMessage, composerBriefMax } from '@/lib/composer-long-brief'
+import type { ComposerLibraryRequest } from '@/lib/studio-composer-popups'
 import './studio-composer-library.css'
 
 interface PendingJob { job_id: string; session_id: string; kind: 'upload' | 'use' }
 
-export function ComposerLibraryDialog({ open, onOpenChange }: {
+export function ComposerLibraryDialog({ open, onOpenChange, request = null, onRequestTaken }: {
   open: boolean
   onOpenChange: (open: boolean) => void
+  /** PASS2-COMPOSER-POPUPS fix: an action picked in the composer's template popup. Passed only with NEXT_PUBLIC_STUDIO_COMPOSER_POPUPS_V2 on. */
+  request?: ComposerLibraryRequest | null
+  onRequestTaken?: () => void
 }) {
   const studioShell = process.env.NEXT_PUBLIC_STUDIO_V4_SHELL === 'true'
   const { user } = useAuth()
@@ -164,6 +168,27 @@ export function ComposerLibraryDialog({ open, onOpenChange }: {
       await finishJob({ job_id: job.job_id, session_id: sessionId, kind: 'use' }, signal)
     })
   }
+
+  // PASS2-COMPOSER-POPUPS fix (only the page passes `request`, and only with the flag on): an action picked in the composer's template popup
+  // runs here, through this dialog's own handlers, as the same button in the list below would. It is taken when the dialog opens and run
+  // on the next render, so a job the dialog resumes on opening already shows as busy, and the request is then dropped, as a click on a
+  // disabled button is. Without a request nothing here runs.
+  const takenRequest = useRef<ComposerLibraryRequest | null>(null)
+  const [pickedRequest, setPickedRequest] = useState<ComposerLibraryRequest | null>(null)
+  useEffect(() => {
+    if (!open || !request || takenRequest.current === request) return
+    takenRequest.current = request
+    onRequestTaken?.()
+    setPickedRequest(request)
+  }, [open, request, onRequestTaken])
+  useEffect(() => {
+    if (!pickedRequest) return
+    setPickedRequest(null)
+    const { action, template } = pickedRequest
+    if (action === 'use') useTemplate(template)
+    else if (action === 'ditto' && dittoEnabled) rebuildTemplate(template)
+    else if (action === 'new-topic' && newTopicEnabled && !busy && userId) { setNewTopicTemplateId(template.id); setNewBrief(''); setError(null) }
+  }, [pickedRequest]) // only the picked request: it runs this render's handlers, once
 
   const body = <>
         <div data-studio-composer-upload={studioShell ? 'true' : undefined} className="space-y-3">
