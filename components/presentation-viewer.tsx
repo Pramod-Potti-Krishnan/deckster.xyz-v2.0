@@ -6,6 +6,7 @@ import { EditModeGuide } from './edit-mode-guide'
 import { StudioToolbarSaveFeedback } from './studio-toolbar-save-feedback'
 import { StudioIntroReplay } from '@/components/studio-intro-replay'
 import './studio-authoring-menus.css'
+import { StudioElementGalleryMenu } from './studio-element-gallery'
 import type { StudioWorkflowRequest } from "@/lib/studio-workflow"
 import { parseStudioNativeSlideOrder, matchStudioNativeAddSlideOrder } from '@/lib/studio-native-slide-order'
 import { planStudioSlideThumbnailMutation, remapStudioSlideThumbnailRows, canAdmitStudioSlideThumbnailMetadata, type StudioSlideThumbnailMutationPlan, type StudioSlideThumbnailCapture } from '@/lib/studio-slide-thumbnail-mutations'
@@ -4028,6 +4029,9 @@ export function PresentationViewer({
             action: () => onOpenGenerationPanel ? onOpenGenerationPanel('DIAGRAM') : handleInsertDiagram(),
           },
         ]
+        // PASS2 #6 (flag NEXT_PUBLIC_STUDIO_ELEMENT_GALLERY, default off): the Add Element picker as a card gallery in the
+        // normal Studio viewer. Same items, handlers and follow-on panel; off: the dropdown below is unchanged.
+        const studioElementGallery = studioShell && !isFullscreen && process.env.NEXT_PUBLIC_STUDIO_ELEMENT_GALLERY === 'true'
 
         const versionMenuItems = (
           <>
@@ -4098,19 +4102,23 @@ export function PresentationViewer({
                   </button>
                 </DropdownMenuTrigger>
                 <DropdownMenuPortal container={toolbarDropdownPortalContainer}>
-                  <DropdownMenuContent data-studio-authoring-menu={studioShell && !isFullscreen ? "add-element" : undefined} data-studio-v4-shell={studioShell && isFullscreen ? "true" : undefined} data-studio-presentation-popup={studioShell && isFullscreen ? "true" : undefined} align="start" sideOffset={8} className="w-52 p-1">
-                    {addElementItems.map(({ label, icon: Icon, disabled, action }) => (
-                      <DropdownMenuItem
-                        key={label}
-                        disabled={disabled}
-                        onClick={() => { void action() }}
-                        className="cursor-pointer gap-2"
-                      >
-                        <Icon className="h-4 w-4 text-gray-600" />
-                        <span>{label}</span>
-                      </DropdownMenuItem>
-                    ))}
-                  </DropdownMenuContent>
+                  {studioElementGallery ? (
+                    <StudioElementGalleryMenu items={addElementItems} />
+                  ) : (
+                    <DropdownMenuContent data-studio-authoring-menu={studioShell && !isFullscreen ? "add-element" : undefined} data-studio-v4-shell={studioShell && isFullscreen ? "true" : undefined} data-studio-presentation-popup={studioShell && isFullscreen ? "true" : undefined} align="start" sideOffset={8} className="w-52 p-1">
+                      {addElementItems.map(({ label, icon: Icon, disabled, action }) => (
+                        <DropdownMenuItem
+                          key={label}
+                          disabled={disabled}
+                          onClick={() => { void action() }}
+                          className="cursor-pointer gap-2"
+                        >
+                          <Icon className="h-4 w-4 text-gray-600" />
+                          <span>{label}</span>
+                        </DropdownMenuItem>
+                      ))}
+                    </DropdownMenuContent>
+                  )}
                 </DropdownMenuPortal>
               </DropdownMenu>
 
