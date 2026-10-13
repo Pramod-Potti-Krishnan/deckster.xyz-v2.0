@@ -2,8 +2,10 @@
 
 import { useCallback, useEffect, useRef, useState } from 'react'
 import Link from 'next/link'
-import { AlertTriangle, CheckCircle2, LayoutTemplate, Loader2, RotateCw, Search, X } from 'lucide-react'
+import { AlertTriangle, ArrowRight, CheckCircle2, LayoutTemplate, Loader2, Plus, RotateCw, Search, X } from 'lucide-react'
 import './studio-template-picker.css'
+import { ThemeDropdownPicker, type ThemeDropdownCopy, type ThemeDropdownOption } from '@/components/theme-dropdown-picker'
+import { DECKSTER_PROVIDED_TEMPLATES, keepPopupOpenForDropdownList } from '@/lib/studio-composer-popups'
 import { StudioComposerHint } from './studio-composer-hint'
 import {
   DropdownMenu,
@@ -37,6 +39,13 @@ interface TemplatePickerProps {
   mode?: TemplatePickerMode
   onOpenLibrary?: () => void
   showSavedTemplates?: boolean
+  /** PASS2-COMPOSER-POPUPS (flag NEXT_PUBLIC_STUDIO_COMPOSER_POPUPS_V2, set by the composer): the popup is two dropdowns, "Deckster templates" and "My templates". */
+  dropdowns?: boolean
+  /** PASS2-COMPOSER-POPUPS: the composer owns the open-state, so only one composer popup is open at a time. Absent: the picker keeps its own. */
+  open?: boolean
+  onOpenChange?: (open: boolean) => void
+  /** PASS2-COMPOSER-POPUPS: the template the composer has locked in, shown as the chosen value of "My templates". */
+  selectedTemplateId?: string | null
 }
 
 interface TemplatePickerContentProps {
@@ -46,7 +55,23 @@ interface TemplatePickerContentProps {
   mode?: TemplatePickerMode
   preferredTemplateId?: string | null
   standalone?: boolean
+  /** PASS2-COMPOSER-POPUPS: draw the composer popup (two dropdowns and the library actions) instead of the search box and cards. */
+  dropdowns?: ComposerTemplateDropdowns
 }
+
+/** What the composer's template popup needs beyond the records: the chosen template, the lock, and the two actions below the dropdowns. */
+export interface ComposerTemplateDropdowns {
+  selectedTemplateId: string | null
+  locked: boolean
+  /** False when saved templates are not enabled in this environment: the popup then offers only the two actions. */
+  savedTemplates: boolean
+  onClose: () => void
+  /** The existing upload flow (the composer library dialog); absent when the environment has none. */
+  onNewTemplate?: () => void
+}
+
+const DECKSTER_TEMPLATES_COPY: ThemeDropdownCopy = { label: 'Deckster templates', help: null, placeholder: 'Search Deckster templates', singular: 'template', plural: 'templates', groups: false, none: 'No Deckster templates yet.' }
+const MY_TEMPLATES_COPY: ThemeDropdownCopy = { label: 'My templates', help: null, placeholder: 'Search your templates', singular: 'template', plural: 'templates', groups: false, none: 'No saved templates yet.' }
 
 export function TemplatePickerContent({
   onSelect,
@@ -55,6 +80,7 @@ export function TemplatePickerContent({
   mode = 'generation',
   preferredTemplateId = null,
   standalone = false,
+  dropdowns,
 }: TemplatePickerContentProps) {
   const { toast } = useToast()
   const { listTemplates, loading, reoptimizeTemplate, watchTemplateStatus } = useTemplates()
@@ -316,6 +342,66 @@ export function TemplatePickerContent({
     }
   }
 
+  if (STUDIO_SHELL && dropdowns) {
+    // PASS2-COMPOSER-POPUPS: the same records, selection handler, readiness rules, retry and watchers as the cards below; only the picture changes.
+    const optionOf = (template: SavedTemplate): ThemeDropdownOption => {
+      const ready = isTemplateGenerationReady(template)
+      const slides = template.slide_count != null ? `${template.slide_count} slides` : 'Saved template'
+      return { id: template.id, name: template.name, hint: template.description || templateGenerationUnavailableReason(template), swatches: [], current: false,
+        sub: `${slides} · ${templateGenerationStatusLabel(template)}`, search: `${template.name} ${template.description || ''}`, muted: mode === 'generation' && !ready }
+    }
+    const mine = (templates ?? []).map(optionOf)
+    const deckster: ThemeDropdownOption[] = DECKSTER_PROVIDED_TEMPLATES.map(item => ({ id: item.id, name: item.name, hint: item.description ?? '', swatches: [], current: false,
+      sub: item.slideCount != null ? `${item.slideCount} slides` : '', search: `${item.name} ${item.description ?? ''}` }))
+    const choose = (id: string) => {
+      const template = templates?.find(item => item.id === id)
+      if (!template) return
+      handleTemplateClick(template)
+      // As with the menu rows before: a template that can be used closes the popup; one that is not ready explains why and stays.
+      if (mode !== 'generation' || isTemplateGenerationReady(template)) dropdowns.onClose()
+    }
+    const attention = (templates ?? []).filter(template => ['failed', 'needs_cleanup'].includes(templateGenerationStatus(template)))
+    const loadingFirst = refreshing && templates === null
+    const refreshButton = <button type="button" className="stcd-icon-button" aria-label="Refresh saved templates" disabled={refreshing || Boolean(retryingId)} onClick={() => void refresh()}><RotateCw size={13} aria-hidden="true" className={refreshing ? 'stcd-spin' : undefined} /></button>
+    return <section data-studio-template-dropdowns="true" aria-label={label} className="stcd">
+      <div className="stcd-heading">
+        <strong>{label}</strong>
+        {refreshButton}
+        <button type="button" className="stcd-icon-button" data-studio-template-action="close" aria-label="Close template options" onClick={dropdowns.onClose}><X size={14} aria-hidden="true" /></button>
+      </div>
+      {dropdowns.savedTemplates && <>
+      {dropdowns.locked && <p className="stcd-note">Template selection is locked for this deck.</p>}
+      <div className="stcd-field" data-studio-template-dd="deckster">
+        <ThemeDropdownPicker options={deckster} selectedId={null} locked={dropdowns.locked || deckster.length === 0} onSelect={choose}
+          copy={deckster.length === 0 ? { ...DECKSTER_TEMPLATES_COPY, placeholder: 'No Deckster templates yet' } : DECKSTER_TEMPLATES_COPY} />
+      </div>
+      <div className="stcd-field" data-studio-template-dd="mine">
+        <ThemeDropdownPicker options={mine} selectedId={dropdowns.selectedTemplateId} locked={dropdowns.locked || loadingFirst || (templates === null && Boolean(listError))} onSelect={choose}
+          copy={{ ...MY_TEMPLATES_COPY, placeholder: loadingFirst ? 'Loading your templates…' : templates === null && listError ? 'Library unavailable' : MY_TEMPLATES_COPY.placeholder }} />
+      </div>
+      </>}
+      {dropdowns.savedTemplates && listError && <p className="stcd-note stcd-error" role="alert">{listError}{templates !== null && ' Showing the last loaded records; their status may have changed.'}</p>}
+      {dropdowns.savedTemplates && attention.length > 0 && <div className="stcd-attention" role="group" aria-label="Templates that need attention">
+        {attention.map(template => {
+          const errors = [template.blueprint_enrichment_error, template.template_purity_error].filter(Boolean).join(' · ')
+          return <div key={template.id} className="stcd-attention-row">
+            <div className="stcd-attention-head">
+              <span><strong>{template.name}</strong> · {templateGenerationStatusLabel(template)}</span>
+              <button type="button" className="stcd-retry" disabled={Boolean(retryingId)} onClick={() => void retryNative(template)}><RotateCw size={11} aria-hidden="true" />{retryingId === template.id ? 'Requesting…' : 'Retry'}</button>
+            </div>
+            <small>{templateGenerationUnavailableReason(template)}{errors ? ` Current diagnostics: ${errors}` : ''}{previousErrors[template.id]?.length ? ` Previous attempt: ${previousErrors[template.id].join(' · ')}` : ''}</small>
+            {watchNotices[template.id] && <small role="status">{watchNotices[template.id]}</small>}
+          </div>
+        })}
+      </div>}
+      {dropdowns.savedTemplates && <p className="stcd-hint">{mode === 'review' ? 'Review does not start generation.' : 'Readiness and build locks still apply.'}</p>}
+      <div className="stcd-footer">
+        <Link href="/studio/templates" data-studio-template-action="library" onClick={dropdowns.onClose}>Template library <ArrowRight size={12} aria-hidden="true" /></Link>
+        {dropdowns.onNewTemplate && <button type="button" data-studio-template-action="new" onClick={dropdowns.onNewTemplate}><Plus size={12} aria-hidden="true" />New template…</button>}
+      </div>
+    </section>
+  }
+
   if (STUDIO_SHELL) {
     const matches = templates?.filter(template => `${template.name} ${template.description || ''}`.toLowerCase().includes(query.trim().toLowerCase())) ?? []
     const preferred = templates?.find(template => template.id === preferredTemplateId)
@@ -443,8 +529,12 @@ export function TemplatePickerContent({
  * which then carries template_mode/template_id on the next send). See
  * TEMPLATE_PLAN.md §6 (retrieval = in-chat control beside attach).
  */
-export function TemplatePicker({ onSelect, disabled, selectionLocked = false, mode = 'generation', onOpenLibrary, showSavedTemplates = true }: TemplatePickerProps) {
-  const [open, setOpen] = useState(false)
+export function TemplatePicker({ onSelect, disabled, selectionLocked = false, mode = 'generation', onOpenLibrary, showSavedTemplates = true,
+  dropdowns = false, open: controlledOpen, onOpenChange, selectedTemplateId = null }: TemplatePickerProps) {
+  const [ownOpen, setOwnOpen] = useState(false)
+  // Without the composer's V2 flag nothing is passed in: the open-state is the picker's own, as before.
+  const open = controlledOpen ?? ownOpen
+  const setOpen = controlledOpen === undefined ? setOwnOpen : (next: boolean) => onOpenChange?.(next)
 
   return (
     <DropdownMenu open={open} onOpenChange={setOpen}>
@@ -461,6 +551,18 @@ export function TemplatePicker({ onSelect, disabled, selectionLocked = false, mo
         </button>
       </DropdownMenuTrigger>
       </StudioComposerHint>
+      {dropdowns && STUDIO_SHELL ? (
+        <DropdownMenuContent align="start" data-studio-composer-menu="template" data-studio-composer-dd="true" data-studio-v4-chrome={process.env.NEXT_PUBLIC_STUDIO_V4_TOKENS === 'true' ? 'true' : undefined} data-studio-v4-menu="template" className="studio-template-popover"
+          onEscapeKeyDown={keepPopupOpenForDropdownList}
+          onKeyDownCapture={event => {
+            // Native Tab traversal inside the form-like popup must run before Radix menu key handling (as in the theme popup).
+            if (event.key === 'Tab') event.stopPropagation()
+          }}>
+          <TemplatePickerContent onSelect={onSelect} isOpen={open && showSavedTemplates} mode={mode} label="Reuse a template"
+            dropdowns={{ selectedTemplateId, locked: selectionLocked, savedTemplates: showSavedTemplates, onClose: () => setOpen(false),
+              onNewTemplate: onOpenLibrary ? () => { setOpen(false); onOpenLibrary() } : undefined }} />
+        </DropdownMenuContent>
+      ) : (
       <DropdownMenuContent align="start" className="w-64">
         {onOpenLibrary && <DropdownMenuItem onSelect={() => { setOpen(false); onOpenLibrary() }}>
           <LayoutTemplate className="mr-2 h-4 w-4" /> Template library
@@ -470,6 +572,7 @@ export function TemplatePicker({ onSelect, disabled, selectionLocked = false, mo
           ? <DropdownMenuItem disabled>Template selection is locked for this deck</DropdownMenuItem>
           : <TemplatePickerContent onSelect={onSelect} isOpen={open} mode={mode} />)}
       </DropdownMenuContent>
+      )}
     </DropdownMenu>
   )
 }

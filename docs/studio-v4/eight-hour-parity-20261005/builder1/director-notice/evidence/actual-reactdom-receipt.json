@@ -1,0 +1,352 @@
+{
+  "timestamp": "2026-10-13T14:11:20.252Z",
+  "level": "Complete actual new component mounted/updated/unmounted with installed ReactDOM in an inert synthetic DOM. No browser layout/pixels, native viewer, services, real socket, ownership filter or durable-chat integration claim.",
+  "runtime": {
+    "node": "v26.10.0",
+    "react": "19.2.1",
+    "reactDOM": "19.2.1"
+  },
+  "observations": [
+    {
+      "name": "empty_metadata_mounts_no_notice",
+      "text": "Retained durable chat — unchanged by transport metadata.",
+      "roles": [],
+      "reasonText": [],
+      "detailText": [],
+      "theme": "light-parent",
+      "hostWidth": 1024,
+      "wrapContract": "actualDOM styles anywhere/pre-wrap/maxWidth100%; no browser pixel claim"
+    },
+    {
+      "name": "explicit_null_metadata_mounts_no_notice",
+      "text": "Retained durable chat — unchanged by transport metadata.",
+      "roles": [],
+      "reasonText": [],
+      "detailText": [],
+      "theme": "light-parent",
+      "hostWidth": 1024,
+      "wrapContract": "actualDOM styles anywhere/pre-wrap/maxWidth100%; no browser pixel claim"
+    },
+    {
+      "name": "auth_expired_exact_reason_and_manual_resend",
+      "text": "Retained durable chat — unchanged by transport metadata.Your last input needs to be resentYour token expiredYour last input was discarded when the connection expired. Restore the connection, then use the chat box to resend it yourself.",
+      "roles": [
+        {
+          "role": "alert",
+          "text": "Your last input needs to be resentYour token expiredYour last input was discarded when the connection expired. Restore the connection, then use the chat box to resend it yourself."
+        }
+      ],
+      "reasonText": [
+        "Your token expired"
+      ],
+      "detailText": [],
+      "theme": "light-parent",
+      "hostWidth": 1024,
+      "wrapContract": "actualDOM styles anywhere/pre-wrap/maxWidth100%; no browser pixel claim"
+    },
+    {
+      "name": "auth_expired_requires_manual_resend_even_inconsistent_flag",
+      "text": "Retained durable chat — unchanged by transport metadata.Your last input needs to be resentSynthetic transport reasonYour last input was discarded when the connection expired. Restore the connection, then use the chat box to resend it yourself.",
+      "roles": [
+        {
+          "role": "alert",
+          "text": "Your last input needs to be resentSynthetic transport reasonYour last input was discarded when the connection expired. Restore the connection, then use the chat box to resend it yourself."
+        }
+      ],
+      "reasonText": [
+        "Synthetic transport reason"
+      ],
+      "detailText": [],
+      "theme": "light-parent",
+      "hostWidth": 1024,
+      "wrapContract": "actualDOM styles anywhere/pre-wrap/maxWidth100%; no browser pixel claim"
+    },
+    {
+      "name": "auth_refresh_failed_conservative_reason",
+      "text": "Retained durable chat — unchanged by transport metadata.Connection refresh failedRefresh token rejected",
+      "roles": [
+        {
+          "role": "alert",
+          "text": "Connection refresh failedRefresh token rejected"
+        }
+      ],
+      "reasonText": [
+        "Refresh token rejected"
+      ],
+      "detailText": [],
+      "theme": "light-parent",
+      "hostWidth": 1024,
+      "wrapContract": "actualDOM styles anywhere/pre-wrap/maxWidth100%; no browser pixel claim"
+    },
+    {
+      "name": "structured_error_preserves_detail_without_invented_auth_cause",
+      "text": "Retained durable chat — unchanged by transport metadata.Director reported an errorUnsupported actionThe server did not recognize this request.",
+      "roles": [
+        {
+          "role": "alert",
+          "text": "Director reported an errorUnsupported actionThe server did not recognize this request."
+        }
+      ],
+      "reasonText": [
+        "Unsupported action"
+      ],
+      "detailText": [
+        "The server did not recognize this request."
+      ],
+      "theme": "light-parent",
+      "hostWidth": 1024,
+      "wrapContract": "actualDOM styles anywhere/pre-wrap/maxWidth100%; no browser pixel claim"
+    },
+    {
+      "name": "auth_refreshed_quiet_status_no_unnecessary_resend",
+      "text": "Retained durable chat — unchanged by transport metadata.Secure connection refreshed.",
+      "roles": [
+        {
+          "role": "status",
+          "text": "Secure connection refreshed."
+        }
+      ],
+      "reasonText": [
+        "Secure connection refreshed."
+      ],
+      "detailText": [],
+      "theme": "light-parent",
+      "hostWidth": 1024,
+      "wrapContract": "actualDOM styles anywhere/pre-wrap/maxWidth100%; no browser pixel claim"
+    },
+    {
+      "name": "auth_refreshed_preserves_sticky_discarded_input_resend_requirement",
+      "text": "Retained durable chat — unchanged by transport metadata.Connection refreshedSecure connection refreshed. Please resend your last action.Your earlier input was discarded. Use the chat box to resend it yourself when the connection is ready.",
+      "roles": [
+        {
+          "role": "status",
+          "text": "Connection refreshedSecure connection refreshed. Please resend your last action.Your earlier input was discarded. Use the chat box to resend it yourself when the connection is ready."
+        }
+      ],
+      "reasonText": [
+        "Secure connection refreshed. Please resend your last action."
+      ],
+      "detailText": [],
+      "theme": "light-parent",
+      "hostWidth": 1024,
+      "wrapContract": "actualDOM styles anywhere/pre-wrap/maxWidth100%; no browser pixel claim"
+    },
+    {
+      "name": "auth_refreshed_empty_reason_has_quiet_fallback",
+      "text": "Retained durable chat — unchanged by transport metadata.Secure connection refreshed.",
+      "roles": [
+        {
+          "role": "status",
+          "text": "Secure connection refreshed."
+        }
+      ],
+      "reasonText": [],
+      "detailText": [],
+      "theme": "light-parent",
+      "hostWidth": 1024,
+      "wrapContract": "actualDOM styles anywhere/pre-wrap/maxWidth100%; no browser pixel claim"
+    },
+    {
+      "name": "handoff_processing_exact_metadata_only",
+      "text": "Retained durable chat — unchanged by transport metadata.Request in progressDirector is processing this request.",
+      "roles": [
+        {
+          "role": "status",
+          "text": "Request in progressDirector is processing this request."
+        }
+      ],
+      "reasonText": [],
+      "detailText": [],
+      "theme": "light-parent",
+      "hostWidth": 1024,
+      "wrapContract": "actualDOM styles anywhere/pre-wrap/maxWidth100%; no browser pixel claim"
+    },
+    {
+      "name": "handoff_already_processing_exact_metadata_only",
+      "text": "Retained durable chat — unchanged by transport metadata.Request already in progressDirector is already processing this request.",
+      "roles": [
+        {
+          "role": "status",
+          "text": "Request already in progressDirector is already processing this request."
+        }
+      ],
+      "reasonText": [],
+      "detailText": [],
+      "theme": "light-parent",
+      "hostWidth": 1024,
+      "wrapContract": "actualDOM styles anywhere/pre-wrap/maxWidth100%; no browser pixel claim"
+    },
+    {
+      "name": "handoff_already_completed_exact_metadata_only",
+      "text": "Retained durable chat — unchanged by transport metadata.Request already processedDirector reports this request was already completed. The canvas reports deck readiness separately.",
+      "roles": [
+        {
+          "role": "status",
+          "text": "Request already processedDirector reports this request was already completed. The canvas reports deck readiness separately."
+        }
+      ],
+      "reasonText": [],
+      "detailText": [],
+      "theme": "light-parent",
+      "hostWidth": 1024,
+      "wrapContract": "actualDOM styles anywhere/pre-wrap/maxWidth100%; no browser pixel claim"
+    },
+    {
+      "name": "handoff_failed_exact_metadata_only",
+      "text": "Retained durable chat — unchanged by transport metadata.Request failedDirector reported that this request failed.",
+      "roles": [
+        {
+          "role": "alert",
+          "text": "Request failedDirector reported that this request failed."
+        }
+      ],
+      "reasonText": [],
+      "detailText": [],
+      "theme": "light-parent",
+      "hostWidth": 1024,
+      "wrapContract": "actualDOM styles anywhere/pre-wrap/maxWidth100%; no browser pixel claim"
+    },
+    {
+      "name": "raw_message_and_detail_are_exact_inert_text",
+      "text": "Retained durable chat — unchanged by transport metadata.Director reported an error  Unsafe-looking text <script>alert(\"x\")</script> & <img src=x onerror=x>\nSecond line 💡    Unsafe-looking text <script>alert(\"x\")</script> & <img src=x onerror=x>\nSecond line 💡  ",
+      "roles": [
+        {
+          "role": "alert",
+          "text": "Director reported an error  Unsafe-looking text <script>alert(\"x\")</script> & <img src=x onerror=x>\nSecond line 💡    Unsafe-looking text <script>alert(\"x\")</script> & <img src=x onerror=x>\nSecond line 💡  "
+        }
+      ],
+      "reasonText": [
+        "  Unsafe-looking text <script>alert(\"x\")</script> & <img src=x onerror=x>\nSecond line 💡  "
+      ],
+      "detailText": [
+        "  Unsafe-looking text <script>alert(\"x\")</script> & <img src=x onerror=x>\nSecond line 💡  "
+      ],
+      "theme": "light-parent",
+      "hostWidth": 1024,
+      "wrapContract": "actualDOM styles anywhere/pre-wrap/maxWidth100%; no browser pixel claim"
+    },
+    {
+      "name": "handoff_failed_raw_reason_exact_inert_text",
+      "text": "Retained durable chat — unchanged by transport metadata.Request failedDirector reported that this request failed.  Unsafe-looking text <script>alert(\"x\")</script> & <img src=x onerror=x>\nSecond line 💡  ",
+      "roles": [
+        {
+          "role": "alert",
+          "text": "Request failedDirector reported that this request failed.  Unsafe-looking text <script>alert(\"x\")</script> & <img src=x onerror=x>\nSecond line 💡  "
+        }
+      ],
+      "reasonText": [],
+      "detailText": [],
+      "theme": "light-parent",
+      "hostWidth": 1024,
+      "wrapContract": "actualDOM styles anywhere/pre-wrap/maxWidth100%; no browser pixel claim"
+    },
+    {
+      "name": "mixed_transport_alert_and_processing_status_separate_slots",
+      "text": "Retained durable chat — unchanged by transport metadata.Your last input needs to be resentSynthetic transport reasonYour last input was discarded when the connection expired. Restore the connection, then use the chat box to resend it yourself.Request in progressDirector is processing this request.",
+      "roles": [
+        {
+          "role": "alert",
+          "text": "Your last input needs to be resentSynthetic transport reasonYour last input was discarded when the connection expired. Restore the connection, then use the chat box to resend it yourself."
+        },
+        {
+          "role": "status",
+          "text": "Request in progressDirector is processing this request."
+        }
+      ],
+      "reasonText": [
+        "Synthetic transport reason"
+      ],
+      "detailText": [],
+      "theme": "light-parent",
+      "hostWidth": 1024,
+      "wrapContract": "actualDOM styles anywhere/pre-wrap/maxWidth100%; no browser pixel claim"
+    },
+    {
+      "name": "mixed_quiet_refresh_and_completed_receipt_no_native_completion",
+      "text": "Retained durable chat — unchanged by transport metadata.Secure connection refreshed.Request already processedDirector reports this request was already completed. The canvas reports deck readiness separately.",
+      "roles": [
+        {
+          "role": "status",
+          "text": "Secure connection refreshed."
+        },
+        {
+          "role": "status",
+          "text": "Request already processedDirector reports this request was already completed. The canvas reports deck readiness separately."
+        }
+      ],
+      "reasonText": [
+        "Secure connection refreshed."
+      ],
+      "detailText": [],
+      "theme": "light-parent",
+      "hostWidth": 1024,
+      "wrapContract": "actualDOM styles anywhere/pre-wrap/maxWidth100%; no browser pixel claim"
+    },
+    {
+      "name": "long_unbroken_reason_light_narrow_wrap_contract",
+      "text": "Retained durable chat — unchanged by transport metadata.Director reported an errorSyntheticReasonSyntheticReasonSyntheticReasonSyntheticReasonSyntheticReasonSyntheticReasonSyntheticReasonSyntheticReasonSyntheticReasonSyntheticReasonSyntheticReasonSyntheticReasonSyntheticReasonSyntheticReasonSyntheticReasonSyntheticReasonSyntheticReasonSyntheticReasonSyntheticReasonSyntheticReasonSyntheticReasonSyntheticReasonSyntheticReasonSyntheticReasonSyntheticReasonSyntheticReasonSyntheticReasonSyntheticReasonSyntheticReasonSyntheticReasonSyntheticReasonSyntheticReasonSyntheticReasonSyntheticReasonSyntheticReasonSyntheticReasonSyntheticReasonSyntheticReasonSyntheticReasonSyntheticReasonSyntheticReasonSyntheticReasonSyntheticReasonSyntheticReasonSyntheticReasonSyntheticReasonSyntheticReasonSyntheticReasonSyntheticReasonSyntheticReasonSyntheticReasonSyntheticReasonSyntheticReasonSyntheticReasonSyntheticReasonSyntheticReasonSyntheticReasonSyntheticReasonSyntheticReasonSyntheticReasonSyntheticReasonSyntheticReasonSyntheticReasonSyntheticReasonSyntheticReasonSyntheticReasonSyntheticReasonSyntheticReasonSyntheticReasonSyntheticReasonSyntheticReasonSyntheticReasonSyntheticReasonSyntheticReasonSyntheticReasonSyntheticReasonSyntheticReasonSyntheticReasonSyntheticReasonSyntheticReasonSyntheticReasonSyntheticReasonSyntheticReasonSyntheticReasonSyntheticReasonSyntheticReasonSyntheticReasonSyntheticReasonSyntheticReasonSyntheticReasonSyntheticReasonSyntheticReasonSyntheticReasonSyntheticReasonSyntheticReasonSyntheticReasonSyntheticReasonSyntheticReasonSyntheticReasonSyntheticReasonSyntheticReasonSyntheticReasonSyntheticReasonSyntheticReasonSyntheticReasonSyntheticReasonSyntheticReasonSyntheticReasonSyntheticReasonSyntheticReasonSyntheticReasonSyntheticReasonSyntheticReasonSyntheticReasonSyntheticReasonSyntheticReasonSyntheticReasonSyntheticReasonSyntheticReasonSyntheticReasonSyntheticReasonSyntheticReasonSyntheticReasonSyntheticReasonSyntheticReasonSyntheticReasonSyntheticReasonSyntheticReasonSyntheticReasonSyntheticReasonSyntheticReasonSyntheticReasonSyntheticReasonSyntheticReasonSyntheticReasonSyntheticReasonSyntheticReasonSyntheticReasonSyntheticReasonSyntheticReasonSyntheticReasonSyntheticReasonSyntheticReasonSyntheticReasonSyntheticReasonSyntheticReasonSyntheticReasonSyntheticReasonSyntheticReasonSyntheticReasonline1\nline2\n  Unsafe-looking text <script>alert(\"x\")</script> & <img src=x onerror=x>\nSecond line 💡  Request failedDirector reported that this request failed.SyntheticHandoffReasonSyntheticHandoffReasonSyntheticHandoffReasonSyntheticHandoffReasonSyntheticHandoffReasonSyntheticHandoffReasonSyntheticHandoffReasonSyntheticHandoffReasonSyntheticHandoffReasonSyntheticHandoffReasonSyntheticHandoffReasonSyntheticHandoffReasonSyntheticHandoffReasonSyntheticHandoffReasonSyntheticHandoffReasonSyntheticHandoffReasonSyntheticHandoffReasonSyntheticHandoffReasonSyntheticHandoffReasonSyntheticHandoffReasonSyntheticHandoffReasonSyntheticHandoffReasonSyntheticHandoffReasonSyntheticHandoffReasonSyntheticHandoffReasonSyntheticHandoffReasonSyntheticHandoffReasonSyntheticHandoffReasonSyntheticHandoffReasonSyntheticHandoffReasonSyntheticHandoffReasonSyntheticHandoffReasonSyntheticHandoffReasonSyntheticHandoffReasonSyntheticHandoffReasonSyntheticHandoffReasonSyntheticHandoffReasonSyntheticHandoffReasonSyntheticHandoffReasonSyntheticHandoffReasonSyntheticHandoffReasonSyntheticHandoffReasonSyntheticHandoffReasonSyntheticHandoffReasonSyntheticHandoffReasonSyntheticHandoffReasonSyntheticHandoffReasonSyntheticHandoffReasonSyntheticHandoffReasonSyntheticHandoffReasonSyntheticHandoffReasonSyntheticHandoffReasonSyntheticHandoffReasonSyntheticHandoffReasonSyntheticHandoffReasonSyntheticHandoffReasonSyntheticHandoffReasonSyntheticHandoffReasonSyntheticHandoffReasonSyntheticHandoffReasonSyntheticHandoffReasonSyntheticHandoffReasonSyntheticHandoffReasonSyntheticHandoffReasonSyntheticHandoffReasonSyntheticHandoffReasonSyntheticHandoffReasonSyntheticHandoffReasonSyntheticHandoffReasonSyntheticHandoffReasonSyntheticHandoffReasonSyntheticHandoffReasonSyntheticHandoffReasonSyntheticHandoffReasonSyntheticHandoffReasonSyntheticHandoffReasonSyntheticHandoffReasonSyntheticHandoffReasonSyntheticHandoffReasonSyntheticHandoffReasonSyntheticHandoffReasonSyntheticHandoffReasonSyntheticHandoffReasonSyntheticHandoffReasonSyntheticHandoffReasonSyntheticHandoffReasonSyntheticHandoffReasonSyntheticHandoffReasonSyntheticHandoffReasonSyntheticHandoffReasonSyntheticHandoffReasonSyntheticHandoffReasonSyntheticHandoffReasonSyntheticHandoffReasonSyntheticHandoffReasonSyntheticHandoffReasonSyntheticHandoffReasonSyntheticHandoffReasonSyntheticHandoffReasonSyntheticHandoffReason",
+      "roles": [
+        {
+          "role": "alert",
+          "text": "Director reported an errorSyntheticReasonSyntheticReasonSyntheticReasonSyntheticReasonSyntheticReasonSyntheticReasonSyntheticReasonSyntheticReasonSyntheticReasonSyntheticReasonSyntheticReasonSyntheticReasonSyntheticReasonSyntheticReasonSyntheticReasonSyntheticReasonSyntheticReasonSyntheticReasonSyntheticReasonSyntheticReasonSyntheticReasonSyntheticReasonSyntheticReasonSyntheticReasonSyntheticReasonSyntheticReasonSyntheticReasonSyntheticReasonSyntheticReasonSyntheticReasonSyntheticReasonSyntheticReasonSyntheticReasonSyntheticReasonSyntheticReasonSyntheticReasonSyntheticReasonSyntheticReasonSyntheticReasonSyntheticReasonSyntheticReasonSyntheticReasonSyntheticReasonSyntheticReasonSyntheticReasonSyntheticReasonSyntheticReasonSyntheticReasonSyntheticReasonSyntheticReasonSyntheticReasonSyntheticReasonSyntheticReasonSyntheticReasonSyntheticReasonSyntheticReasonSyntheticReasonSyntheticReasonSyntheticReasonSyntheticReasonSyntheticReasonSyntheticReasonSyntheticReasonSyntheticReasonSyntheticReasonSyntheticReasonSyntheticReasonSyntheticReasonSyntheticReasonSyntheticReasonSyntheticReasonSyntheticReasonSyntheticReasonSyntheticReasonSyntheticReasonSyntheticReasonSyntheticReasonSyntheticReasonSyntheticReasonSyntheticReasonSyntheticReasonSyntheticReasonSyntheticReasonSyntheticReasonSyntheticReasonSyntheticReasonSyntheticReasonSyntheticReasonSyntheticReasonSyntheticReasonSyntheticReasonSyntheticReasonSyntheticReasonSyntheticReasonSyntheticReasonSyntheticReasonSyntheticReasonSyntheticReasonSyntheticReasonSyntheticReasonSyntheticReasonSyntheticReasonSyntheticReasonSyntheticReasonSyntheticReasonSyntheticReasonSyntheticReasonSyntheticReasonSyntheticReasonSyntheticReasonSyntheticReasonSyntheticReasonSyntheticReasonSyntheticReasonSyntheticReasonSyntheticReasonSyntheticReasonSyntheticReasonSyntheticReasonSyntheticReasonSyntheticReasonSyntheticReasonSyntheticReasonSyntheticReasonSyntheticReasonSyntheticReasonSyntheticReasonSyntheticReasonSyntheticReasonSyntheticReasonSyntheticReasonSyntheticReasonSyntheticReasonSyntheticReasonSyntheticReasonSyntheticReasonSyntheticReasonSyntheticReasonSyntheticReasonSyntheticReasonSyntheticReasonSyntheticReasonSyntheticReasonSyntheticReasonSyntheticReasonSyntheticReasonSyntheticReasonSyntheticReasonSyntheticReasonSyntheticReasonline1\nline2\n  Unsafe-looking text <script>alert(\"x\")</script> & <img src=x onerror=x>\nSecond line 💡  "
+        },
+        {
+          "role": "alert",
+          "text": "Request failedDirector reported that this request failed.SyntheticHandoffReasonSyntheticHandoffReasonSyntheticHandoffReasonSyntheticHandoffReasonSyntheticHandoffReasonSyntheticHandoffReasonSyntheticHandoffReasonSyntheticHandoffReasonSyntheticHandoffReasonSyntheticHandoffReasonSyntheticHandoffReasonSyntheticHandoffReasonSyntheticHandoffReasonSyntheticHandoffReasonSyntheticHandoffReasonSyntheticHandoffReasonSyntheticHandoffReasonSyntheticHandoffReasonSyntheticHandoffReasonSyntheticHandoffReasonSyntheticHandoffReasonSyntheticHandoffReasonSyntheticHandoffReasonSyntheticHandoffReasonSyntheticHandoffReasonSyntheticHandoffReasonSyntheticHandoffReasonSyntheticHandoffReasonSyntheticHandoffReasonSyntheticHandoffReasonSyntheticHandoffReasonSyntheticHandoffReasonSyntheticHandoffReasonSyntheticHandoffReasonSyntheticHandoffReasonSyntheticHandoffReasonSyntheticHandoffReasonSyntheticHandoffReasonSyntheticHandoffReasonSyntheticHandoffReasonSyntheticHandoffReasonSyntheticHandoffReasonSyntheticHandoffReasonSyntheticHandoffReasonSyntheticHandoffReasonSyntheticHandoffReasonSyntheticHandoffReasonSyntheticHandoffReasonSyntheticHandoffReasonSyntheticHandoffReasonSyntheticHandoffReasonSyntheticHandoffReasonSyntheticHandoffReasonSyntheticHandoffReasonSyntheticHandoffReasonSyntheticHandoffReasonSyntheticHandoffReasonSyntheticHandoffReasonSyntheticHandoffReasonSyntheticHandoffReasonSyntheticHandoffReasonSyntheticHandoffReasonSyntheticHandoffReasonSyntheticHandoffReasonSyntheticHandoffReasonSyntheticHandoffReasonSyntheticHandoffReasonSyntheticHandoffReasonSyntheticHandoffReasonSyntheticHandoffReasonSyntheticHandoffReasonSyntheticHandoffReasonSyntheticHandoffReasonSyntheticHandoffReasonSyntheticHandoffReasonSyntheticHandoffReasonSyntheticHandoffReasonSyntheticHandoffReasonSyntheticHandoffReasonSyntheticHandoffReasonSyntheticHandoffReasonSyntheticHandoffReasonSyntheticHandoffReasonSyntheticHandoffReasonSyntheticHandoffReasonSyntheticHandoffReasonSyntheticHandoffReasonSyntheticHandoffReasonSyntheticHandoffReasonSyntheticHandoffReasonSyntheticHandoffReasonSyntheticHandoffReasonSyntheticHandoffReasonSyntheticHandoffReasonSyntheticHandoffReasonSyntheticHandoffReasonSyntheticHandoffReasonSyntheticHandoffReasonSyntheticHandoffReasonSyntheticHandoffReason"
+        }
+      ],
+      "reasonText": [
+        "SyntheticReasonSyntheticReasonSyntheticReasonSyntheticReasonSyntheticReasonSyntheticReasonSyntheticReasonSyntheticReasonSyntheticReasonSyntheticReasonSyntheticReasonSyntheticReasonSyntheticReasonSyntheticReasonSyntheticReasonSyntheticReasonSyntheticReasonSyntheticReasonSyntheticReasonSyntheticReasonSyntheticReasonSyntheticReasonSyntheticReasonSyntheticReasonSyntheticReasonSyntheticReasonSyntheticReasonSyntheticReasonSyntheticReasonSyntheticReasonSyntheticReasonSyntheticReasonSyntheticReasonSyntheticReasonSyntheticReasonSyntheticReasonSyntheticReasonSyntheticReasonSyntheticReasonSyntheticReasonSyntheticReasonSyntheticReasonSyntheticReasonSyntheticReasonSyntheticReasonSyntheticReasonSyntheticReasonSyntheticReasonSyntheticReasonSyntheticReasonSyntheticReasonSyntheticReasonSyntheticReasonSyntheticReasonSyntheticReasonSyntheticReasonSyntheticReasonSyntheticReasonSyntheticReasonSyntheticReasonSyntheticReasonSyntheticReasonSyntheticReasonSyntheticReasonSyntheticReasonSyntheticReasonSyntheticReasonSyntheticReasonSyntheticReasonSyntheticReasonSyntheticReasonSyntheticReasonSyntheticReasonSyntheticReasonSyntheticReasonSyntheticReasonSyntheticReasonSyntheticReasonSyntheticReasonSyntheticReasonSyntheticReasonSyntheticReasonSyntheticReasonSyntheticReasonSyntheticReasonSyntheticReasonSyntheticReasonSyntheticReasonSyntheticReasonSyntheticReasonSyntheticReasonSyntheticReasonSyntheticReasonSyntheticReasonSyntheticReasonSyntheticReasonSyntheticReasonSyntheticReasonSyntheticReasonSyntheticReasonSyntheticReasonSyntheticReasonSyntheticReasonSyntheticReasonSyntheticReasonSyntheticReasonSyntheticReasonSyntheticReasonSyntheticReasonSyntheticReasonSyntheticReasonSyntheticReasonSyntheticReasonSyntheticReasonSyntheticReasonSyntheticReasonSyntheticReasonSyntheticReasonSyntheticReasonSyntheticReasonSyntheticReasonSyntheticReasonSyntheticReasonSyntheticReasonSyntheticReasonSyntheticReasonSyntheticReasonSyntheticReasonSyntheticReasonSyntheticReasonSyntheticReasonSyntheticReasonSyntheticReasonSyntheticReasonSyntheticReasonSyntheticReasonSyntheticReasonSyntheticReasonSyntheticReasonSyntheticReasonSyntheticReasonSyntheticReasonSyntheticReasonSyntheticReasonSyntheticReasonSyntheticReasonSyntheticReasonSyntheticReasonSyntheticReasonSyntheticReason"
+      ],
+      "detailText": [
+        "line1\nline2\n  Unsafe-looking text <script>alert(\"x\")</script> & <img src=x onerror=x>\nSecond line 💡  "
+      ],
+      "theme": "light-parent",
+      "hostWidth": 320,
+      "wrapContract": "actualDOM styles anywhere/pre-wrap/maxWidth100%; no browser pixel claim"
+    },
+    {
+      "name": "long_unbroken_reason_dark_narrow_wrap_contract",
+      "text": "Retained durable chat — unchanged by transport metadata.Director reported an errorSyntheticReasonSyntheticReasonSyntheticReasonSyntheticReasonSyntheticReasonSyntheticReasonSyntheticReasonSyntheticReasonSyntheticReasonSyntheticReasonSyntheticReasonSyntheticReasonSyntheticReasonSyntheticReasonSyntheticReasonSyntheticReasonSyntheticReasonSyntheticReasonSyntheticReasonSyntheticReasonSyntheticReasonSyntheticReasonSyntheticReasonSyntheticReasonSyntheticReasonSyntheticReasonSyntheticReasonSyntheticReasonSyntheticReasonSyntheticReasonSyntheticReasonSyntheticReasonSyntheticReasonSyntheticReasonSyntheticReasonSyntheticReasonSyntheticReasonSyntheticReasonSyntheticReasonSyntheticReasonSyntheticReasonSyntheticReasonSyntheticReasonSyntheticReasonSyntheticReasonSyntheticReasonSyntheticReasonSyntheticReasonSyntheticReasonSyntheticReasonSyntheticReasonSyntheticReasonSyntheticReasonSyntheticReasonSyntheticReasonSyntheticReasonSyntheticReasonSyntheticReasonSyntheticReasonSyntheticReasonSyntheticReasonSyntheticReasonSyntheticReasonSyntheticReasonSyntheticReasonSyntheticReasonSyntheticReasonSyntheticReasonSyntheticReasonSyntheticReasonSyntheticReasonSyntheticReasonSyntheticReasonSyntheticReasonSyntheticReasonSyntheticReasonSyntheticReasonSyntheticReasonSyntheticReasonSyntheticReasonSyntheticReasonSyntheticReasonSyntheticReasonSyntheticReasonSyntheticReasonSyntheticReasonSyntheticReasonSyntheticReasonSyntheticReasonSyntheticReasonSyntheticReasonSyntheticReasonSyntheticReasonSyntheticReasonSyntheticReasonSyntheticReasonSyntheticReasonSyntheticReasonSyntheticReasonSyntheticReasonSyntheticReasonSyntheticReasonSyntheticReasonSyntheticReasonSyntheticReasonSyntheticReasonSyntheticReasonSyntheticReasonSyntheticReasonSyntheticReasonSyntheticReasonSyntheticReasonSyntheticReasonSyntheticReasonSyntheticReasonSyntheticReasonSyntheticReasonSyntheticReasonSyntheticReasonSyntheticReasonSyntheticReasonSyntheticReasonSyntheticReasonSyntheticReasonSyntheticReasonSyntheticReasonSyntheticReasonSyntheticReasonSyntheticReasonSyntheticReasonSyntheticReasonSyntheticReasonSyntheticReasonSyntheticReasonSyntheticReasonSyntheticReasonSyntheticReasonSyntheticReasonSyntheticReasonSyntheticReasonSyntheticReasonSyntheticReasonSyntheticReasonSyntheticReasonSyntheticReasonSyntheticReasonSyntheticReasonSyntheticReasonSyntheticReasonSyntheticReasonline1\nline2\n  Unsafe-looking text <script>alert(\"x\")</script> & <img src=x onerror=x>\nSecond line 💡  Request failedDirector reported that this request failed.SyntheticHandoffReasonSyntheticHandoffReasonSyntheticHandoffReasonSyntheticHandoffReasonSyntheticHandoffReasonSyntheticHandoffReasonSyntheticHandoffReasonSyntheticHandoffReasonSyntheticHandoffReasonSyntheticHandoffReasonSyntheticHandoffReasonSyntheticHandoffReasonSyntheticHandoffReasonSyntheticHandoffReasonSyntheticHandoffReasonSyntheticHandoffReasonSyntheticHandoffReasonSyntheticHandoffReasonSyntheticHandoffReasonSyntheticHandoffReasonSyntheticHandoffReasonSyntheticHandoffReasonSyntheticHandoffReasonSyntheticHandoffReasonSyntheticHandoffReasonSyntheticHandoffReasonSyntheticHandoffReasonSyntheticHandoffReasonSyntheticHandoffReasonSyntheticHandoffReasonSyntheticHandoffReasonSyntheticHandoffReasonSyntheticHandoffReasonSyntheticHandoffReasonSyntheticHandoffReasonSyntheticHandoffReasonSyntheticHandoffReasonSyntheticHandoffReasonSyntheticHandoffReasonSyntheticHandoffReasonSyntheticHandoffReasonSyntheticHandoffReasonSyntheticHandoffReasonSyntheticHandoffReasonSyntheticHandoffReasonSyntheticHandoffReasonSyntheticHandoffReasonSyntheticHandoffReasonSyntheticHandoffReasonSyntheticHandoffReasonSyntheticHandoffReasonSyntheticHandoffReasonSyntheticHandoffReasonSyntheticHandoffReasonSyntheticHandoffReasonSyntheticHandoffReasonSyntheticHandoffReasonSyntheticHandoffReasonSyntheticHandoffReasonSyntheticHandoffReasonSyntheticHandoffReasonSyntheticHandoffReasonSyntheticHandoffReasonSyntheticHandoffReasonSyntheticHandoffReasonSyntheticHandoffReasonSyntheticHandoffReasonSyntheticHandoffReasonSyntheticHandoffReasonSyntheticHandoffReasonSyntheticHandoffReasonSyntheticHandoffReasonSyntheticHandoffReasonSyntheticHandoffReasonSyntheticHandoffReasonSyntheticHandoffReasonSyntheticHandoffReasonSyntheticHandoffReasonSyntheticHandoffReasonSyntheticHandoffReasonSyntheticHandoffReasonSyntheticHandoffReasonSyntheticHandoffReasonSyntheticHandoffReasonSyntheticHandoffReasonSyntheticHandoffReasonSyntheticHandoffReasonSyntheticHandoffReasonSyntheticHandoffReasonSyntheticHandoffReasonSyntheticHandoffReasonSyntheticHandoffReasonSyntheticHandoffReasonSyntheticHandoffReasonSyntheticHandoffReasonSyntheticHandoffReasonSyntheticHandoffReasonSyntheticHandoffReasonSyntheticHandoffReasonSyntheticHandoffReason",
+      "roles": [
+        {
+          "role": "alert",
+          "text": "Director reported an errorSyntheticReasonSyntheticReasonSyntheticReasonSyntheticReasonSyntheticReasonSyntheticReasonSyntheticReasonSyntheticReasonSyntheticReasonSyntheticReasonSyntheticReasonSyntheticReasonSyntheticReasonSyntheticReasonSyntheticReasonSyntheticReasonSyntheticReasonSyntheticReasonSyntheticReasonSyntheticReasonSyntheticReasonSyntheticReasonSyntheticReasonSyntheticReasonSyntheticReasonSyntheticReasonSyntheticReasonSyntheticReasonSyntheticReasonSyntheticReasonSyntheticReasonSyntheticReasonSyntheticReasonSyntheticReasonSyntheticReasonSyntheticReasonSyntheticReasonSyntheticReasonSyntheticReasonSyntheticReasonSyntheticReasonSyntheticReasonSyntheticReasonSyntheticReasonSyntheticReasonSyntheticReasonSyntheticReasonSyntheticReasonSyntheticReasonSyntheticReasonSyntheticReasonSyntheticReasonSyntheticReasonSyntheticReasonSyntheticReasonSyntheticReasonSyntheticReasonSyntheticReasonSyntheticReasonSyntheticReasonSyntheticReasonSyntheticReasonSyntheticReasonSyntheticReasonSyntheticReasonSyntheticReasonSyntheticReasonSyntheticReasonSyntheticReasonSyntheticReasonSyntheticReasonSyntheticReasonSyntheticReasonSyntheticReasonSyntheticReasonSyntheticReasonSyntheticReasonSyntheticReasonSyntheticReasonSyntheticReasonSyntheticReasonSyntheticReasonSyntheticReasonSyntheticReasonSyntheticReasonSyntheticReasonSyntheticReasonSyntheticReasonSyntheticReasonSyntheticReasonSyntheticReasonSyntheticReasonSyntheticReasonSyntheticReasonSyntheticReasonSyntheticReasonSyntheticReasonSyntheticReasonSyntheticReasonSyntheticReasonSyntheticReasonSyntheticReasonSyntheticReasonSyntheticReasonSyntheticReasonSyntheticReasonSyntheticReasonSyntheticReasonSyntheticReasonSyntheticReasonSyntheticReasonSyntheticReasonSyntheticReasonSyntheticReasonSyntheticReasonSyntheticReasonSyntheticReasonSyntheticReasonSyntheticReasonSyntheticReasonSyntheticReasonSyntheticReasonSyntheticReasonSyntheticReasonSyntheticReasonSyntheticReasonSyntheticReasonSyntheticReasonSyntheticReasonSyntheticReasonSyntheticReasonSyntheticReasonSyntheticReasonSyntheticReasonSyntheticReasonSyntheticReasonSyntheticReasonSyntheticReasonSyntheticReasonSyntheticReasonSyntheticReasonSyntheticReasonSyntheticReasonSyntheticReasonSyntheticReasonSyntheticReasonSyntheticReasonSyntheticReasonSyntheticReasonSyntheticReasonline1\nline2\n  Unsafe-looking text <script>alert(\"x\")</script> & <img src=x onerror=x>\nSecond line 💡  "
+        },
+        {
+          "role": "alert",
+          "text": "Request failedDirector reported that this request failed.SyntheticHandoffReasonSyntheticHandoffReasonSyntheticHandoffReasonSyntheticHandoffReasonSyntheticHandoffReasonSyntheticHandoffReasonSyntheticHandoffReasonSyntheticHandoffReasonSyntheticHandoffReasonSyntheticHandoffReasonSyntheticHandoffReasonSyntheticHandoffReasonSyntheticHandoffReasonSyntheticHandoffReasonSyntheticHandoffReasonSyntheticHandoffReasonSyntheticHandoffReasonSyntheticHandoffReasonSyntheticHandoffReasonSyntheticHandoffReasonSyntheticHandoffReasonSyntheticHandoffReasonSyntheticHandoffReasonSyntheticHandoffReasonSyntheticHandoffReasonSyntheticHandoffReasonSyntheticHandoffReasonSyntheticHandoffReasonSyntheticHandoffReasonSyntheticHandoffReasonSyntheticHandoffReasonSyntheticHandoffReasonSyntheticHandoffReasonSyntheticHandoffReasonSyntheticHandoffReasonSyntheticHandoffReasonSyntheticHandoffReasonSyntheticHandoffReasonSyntheticHandoffReasonSyntheticHandoffReasonSyntheticHandoffReasonSyntheticHandoffReasonSyntheticHandoffReasonSyntheticHandoffReasonSyntheticHandoffReasonSyntheticHandoffReasonSyntheticHandoffReasonSyntheticHandoffReasonSyntheticHandoffReasonSyntheticHandoffReasonSyntheticHandoffReasonSyntheticHandoffReasonSyntheticHandoffReasonSyntheticHandoffReasonSyntheticHandoffReasonSyntheticHandoffReasonSyntheticHandoffReasonSyntheticHandoffReasonSyntheticHandoffReasonSyntheticHandoffReasonSyntheticHandoffReasonSyntheticHandoffReasonSyntheticHandoffReasonSyntheticHandoffReasonSyntheticHandoffReasonSyntheticHandoffReasonSyntheticHandoffReasonSyntheticHandoffReasonSyntheticHandoffReasonSyntheticHandoffReasonSyntheticHandoffReasonSyntheticHandoffReasonSyntheticHandoffReasonSyntheticHandoffReasonSyntheticHandoffReasonSyntheticHandoffReasonSyntheticHandoffReasonSyntheticHandoffReasonSyntheticHandoffReasonSyntheticHandoffReasonSyntheticHandoffReasonSyntheticHandoffReasonSyntheticHandoffReasonSyntheticHandoffReasonSyntheticHandoffReasonSyntheticHandoffReasonSyntheticHandoffReasonSyntheticHandoffReasonSyntheticHandoffReasonSyntheticHandoffReasonSyntheticHandoffReasonSyntheticHandoffReasonSyntheticHandoffReasonSyntheticHandoffReasonSyntheticHandoffReasonSyntheticHandoffReasonSyntheticHandoffReasonSyntheticHandoffReasonSyntheticHandoffReasonSyntheticHandoffReason"
+        }
+      ],
+      "reasonText": [
+        "SyntheticReasonSyntheticReasonSyntheticReasonSyntheticReasonSyntheticReasonSyntheticReasonSyntheticReasonSyntheticReasonSyntheticReasonSyntheticReasonSyntheticReasonSyntheticReasonSyntheticReasonSyntheticReasonSyntheticReasonSyntheticReasonSyntheticReasonSyntheticReasonSyntheticReasonSyntheticReasonSyntheticReasonSyntheticReasonSyntheticReasonSyntheticReasonSyntheticReasonSyntheticReasonSyntheticReasonSyntheticReasonSyntheticReasonSyntheticReasonSyntheticReasonSyntheticReasonSyntheticReasonSyntheticReasonSyntheticReasonSyntheticReasonSyntheticReasonSyntheticReasonSyntheticReasonSyntheticReasonSyntheticReasonSyntheticReasonSyntheticReasonSyntheticReasonSyntheticReasonSyntheticReasonSyntheticReasonSyntheticReasonSyntheticReasonSyntheticReasonSyntheticReasonSyntheticReasonSyntheticReasonSyntheticReasonSyntheticReasonSyntheticReasonSyntheticReasonSyntheticReasonSyntheticReasonSyntheticReasonSyntheticReasonSyntheticReasonSyntheticReasonSyntheticReasonSyntheticReasonSyntheticReasonSyntheticReasonSyntheticReasonSyntheticReasonSyntheticReasonSyntheticReasonSyntheticReasonSyntheticReasonSyntheticReasonSyntheticReasonSyntheticReasonSyntheticReasonSyntheticReasonSyntheticReasonSyntheticReasonSyntheticReasonSyntheticReasonSyntheticReasonSyntheticReasonSyntheticReasonSyntheticReasonSyntheticReasonSyntheticReasonSyntheticReasonSyntheticReasonSyntheticReasonSyntheticReasonSyntheticReasonSyntheticReasonSyntheticReasonSyntheticReasonSyntheticReasonSyntheticReasonSyntheticReasonSyntheticReasonSyntheticReasonSyntheticReasonSyntheticReasonSyntheticReasonSyntheticReasonSyntheticReasonSyntheticReasonSyntheticReasonSyntheticReasonSyntheticReasonSyntheticReasonSyntheticReasonSyntheticReasonSyntheticReasonSyntheticReasonSyntheticReasonSyntheticReasonSyntheticReasonSyntheticReasonSyntheticReasonSyntheticReasonSyntheticReasonSyntheticReasonSyntheticReasonSyntheticReasonSyntheticReasonSyntheticReasonSyntheticReasonSyntheticReasonSyntheticReasonSyntheticReasonSyntheticReasonSyntheticReasonSyntheticReasonSyntheticReasonSyntheticReasonSyntheticReasonSyntheticReasonSyntheticReasonSyntheticReasonSyntheticReasonSyntheticReasonSyntheticReasonSyntheticReasonSyntheticReasonSyntheticReasonSyntheticReasonSyntheticReasonSyntheticReasonSyntheticReason"
+      ],
+      "detailText": [
+        "line1\nline2\n  Unsafe-looking text <script>alert(\"x\")</script> & <img src=x onerror=x>\nSecond line 💡  "
+      ],
+      "theme": "dark-parent",
+      "hostWidth": 320,
+      "wrapContract": "actualDOM styles anywhere/pre-wrap/maxWidth100%; no browser pixel claim"
+    },
+    {
+      "name": "clearing_metadata_removes_old_alert_and_retains_durable_chat",
+      "text": "Retained durable chat — unchanged by transport metadata.",
+      "roles": [],
+      "reasonText": [],
+      "detailText": [],
+      "theme": "light-parent",
+      "hostWidth": 1024,
+      "wrapContract": "actualDOM styles anywhere/pre-wrap/maxWidth100%; no browser pixel claim"
+    }
+  ],
+  "runtimeImports": [
+    "react/jsx-runtime"
+  ],
+  "sourceHashes": {
+    "components/builder/studio-director-notice.tsx": "a65a505785f70ae17863a9141655c69efd49115bb7b83f5229baa1f70847e750",
+    "hooks/use-deckster-websocket-v2.ts": "a8869897d6a6dbe648b1e4e0b55766c216189fbdc03a1c9c7b812b733ebc2502"
+  },
+  "scriptSha256": "9877d47eb23b8baabf951b95179f227b71dd76c8a07a03e738e38dd1d8c41261",
+  "noSideEffects": true,
+  "remaining": "Root filters current owner and wires the page; current notice type hash only binds interfaces, hook was not imported at runtime. Browser narrow/dark pixels and connected notice/gate behavior unverified."
+}
