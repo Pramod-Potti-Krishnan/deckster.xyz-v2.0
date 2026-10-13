@@ -73,6 +73,7 @@ import { slideTitleLabel } from '@/lib/studio-slide-title-label'
 import { useSlideRailIdentity } from '@/hooks/use-slide-rail-identity'
 import { STUDIO_RAIL_SLIDE_IDENTITY_ENABLED } from '@/lib/slide-rail-identity'
 import { STUDIO_DECK_MUTATION_REFRESH_ENABLED, onSlideRailRefreshRequest } from '@/lib/studio-deck-mutation-refresh'
+import { STUDIO_SLIDE_RAIL_V2, SLIDE_RAIL_V2_DEFAULT_WIDTH } from '@/lib/studio-slide-rail-v2'
 import {
   DropdownMenu,
   DropdownMenuCheckboxItem,
@@ -720,7 +721,8 @@ export function PresentationViewer({
   const authoringStripRef = useRef<HTMLDivElement>(null)
   const [studioAuthoringPortalTarget, setStudioAuthoringPortalTarget] = useState<HTMLDivElement | null>(null)
   const [studioPresentPortalTarget, setStudioPresentPortalTarget] = useState<HTMLDivElement | null>(null)
-  const [thumbnailWidth, setThumbnailWidth] = useState(120)
+  // PASS2 rail v2 (flag NEXT_PUBLIC_STUDIO_SLIDE_RAIL_V2): the rail opens at the mockup's 140 px; a remembered width still wins.
+  const [thumbnailWidth, setThumbnailWidth] = useState(STUDIO_SLIDE_RAIL_V2 ? SLIDE_RAIL_V2_DEFAULT_WIDTH : 120)
   const thumbnailResizeRef = useRef<{ startX: number; width: number } | null>(null)
   const thumbnailPreferenceKey = 'deckster_studio_v4_thumbnail_width'
   const clampThumbnailWidth = (width: number) => Math.max(96, Math.min(180, Math.round(width)))

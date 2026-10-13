@@ -24,6 +24,7 @@
 
 import { presentFrameUrl } from '@/lib/present-view-only'
 import { evaluateLayoutViewerUrl, type LayoutViewerUrlPolicy } from '@/lib/layout-viewer-url-policy'
+import { STUDIO_SLIDE_RAIL_V2, SLIDE_RAIL_V2_MAX_FRAMES } from '@/lib/studio-slide-rail-v2'
 
 export const STUDIO_RAIL_LIVE_PREVIEW_FALLBACK_ENABLED =
   process.env.NEXT_PUBLIC_STUDIO_RAIL_LIVE_PREVIEW_FALLBACK_ENABLED === 'true'
@@ -186,8 +187,9 @@ export function createRailPreviewSlotPool(max: number = RAIL_LIVE_PREVIEW_MAX_FR
   }
 }
 
-/** The one pool the whole rail shares. */
-export const railPreviewSlots: RailPreviewSlotPool = createRailPreviewSlotPool(RAIL_LIVE_PREVIEW_MAX_FRAMES)
+/** The one pool the whole rail shares. Rail v2 (NEXT_PUBLIC_STUDIO_SLIDE_RAIL_V2) lifts the cap to every card on screen. */
+export const railPreviewSlots: RailPreviewSlotPool = createRailPreviewSlotPool(
+  STUDIO_SLIDE_RAIL_V2 ? SLIDE_RAIL_V2_MAX_FRAMES : RAIL_LIVE_PREVIEW_MAX_FRAMES)
 
 // ---------------------------------------------------------------- per-card controller
 

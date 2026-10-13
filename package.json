@@ -64,6 +64,7 @@
     "test:stage-f-thumbnails": "node scripts/test-stage-f-thumbnails.mjs",
     "test:studio-rail-slide-identity": "node scripts/test-studio-rail-slide-identity.mjs",
     "test:studio-rail-live-preview": "node scripts/test-studio-rail-live-preview.mjs",
+    "test:studio-slide-rail-v2": "node scripts/test-studio-slide-rail-v2.mjs",
     "test:studio-deck-mutation-refresh": "node scripts/test-studio-deck-mutation-refresh.mjs",
     "test:studio-add-slide-v2": "node scripts/test-studio-add-slide-v2.mjs",
     "test:studio-textbox-padding-reachable": "node scripts/test-studio-textbox-padding-reachable.mjs",
@@ -86,6 +87,7 @@
     "test:textbox-planned-recovery": "node scripts/test-textbox-planned-recovery.mjs",
     "test:shape-typed-failure": "node scripts/test-shape-typed-failure.mjs",
     "test:studio-blocked-send-feedback": "node scripts/test-studio-blocked-send-feedback.mjs",
+    "test:studio-deck-cards-v2": "node scripts/test-studio-deck-cards-v2.mjs",
     "test:studio-element-gallery": "node scripts/test-studio-element-gallery.mjs"
   },
   "dependencies": {

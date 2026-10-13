@@ -33,9 +33,12 @@ import { slideTitleLabel } from '@/lib/studio-slide-title-label'
 import type { SlideRefineTarget } from '@/lib/slide-refinement'
 import { STUDIO_RAIL_LIVE_PREVIEW_FALLBACK_ENABLED, railLivePreviewCandidate } from '@/lib/rail-live-preview'
 import { RailLivePreview } from './rail-live-preview'
+import { STUDIO_SLIDE_RAIL_V2, slideRailV2Number } from '@/lib/studio-slide-rail-v2'
 import './studio-thumbnails.css'
 
 const STUDIO_THUMBNAILS = process.env.NEXT_PUBLIC_STUDIO_V4_SHELL === 'true'
+/** PASS2 rail v2 (flag NEXT_PUBLIC_STUDIO_SLIDE_RAIL_V2, default off): Studio shell only; its look is all in studio-thumbnails.css. */
+const RAIL_V2 = STUDIO_SLIDE_RAIL_V2 && STUDIO_THUMBNAILS
 
 
 function ThumbnailActionHint({ label, children }: { label: string; children: React.ReactElement }) {
@@ -696,9 +699,9 @@ export function SlideThumbnailStrip({
                 ? "text-blue-700 dark:text-blue-300"
                 : "text-slate-500 dark:text-slate-400"
             )}>
-              {visualNumber}
+              {RAIL_V2 ? slideRailV2Number(visualNumber) : visualNumber}
             </span>
-            <span className={cn(
+            <span title={RAIL_V2 ? titleText : undefined} className={cn(
               "min-w-0 text-[10px] leading-tight line-clamp-2",
               isActive
                 ? "text-blue-900 font-medium dark:text-blue-200"
@@ -785,6 +788,7 @@ export function SlideThumbnailStrip({
       ref={containerRef}
       data-studio-v4-shell={STUDIO_THUMBNAILS}
       data-studio-thumbnail-strip={STUDIO_THUMBNAILS}
+      data-studio-rail-v2={RAIL_V2 ? 'true' : undefined}
       data-orientation={orientation}
       role={STUDIO_THUMBNAILS ? 'region' : undefined}
       aria-label={STUDIO_THUMBNAILS ? 'Slide thumbnails' : undefined}
