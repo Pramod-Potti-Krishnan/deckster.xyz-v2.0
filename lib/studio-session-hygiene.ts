@@ -5,8 +5,10 @@
  * the Builder, the route loader and the 404 page are exactly as before. On:
  *
  *  1. A bare /builder (or ?session_id=new) is a local, unsaved session. No history row is written for it until the
- *     user's first real action (first message, an upload, a manual-deck handoff: the paths that already create the row).
- *     A reload of that URL does not create the row either.
+ *     user's first real action (first message, an upload, a manual-deck handoff: the paths that already create the row,
+ *     and the first state-changing click on a blank canvas: a theme or template pick, a manual Add Slide / Add Element;
+ *     see hooks/use-save-session-on-first-action.ts). A reload of that URL does not create the row either, and neither does
+ *     Director's own blank-deck frame.
  *  2. /builder?session_id=<id> for an id the account does not have is an error state ("session not found"), never a
  *     silently created empty session. A deleted session and a failed lookup get their own wording.
  *  3. The route loader is the Builder shell skeleton instead of a blank page (components/builder/studio-session-hygiene).
@@ -100,6 +102,48 @@ export function decideMissingSession(outcome: SessionLoadFailure, origin: Sessio
 /** True when the "last builder session" shortcut must not point at this session (an unsaved id has no row to open). */
 export function shouldRememberLastSession(hygiene: boolean, isUnsavedSession: boolean): boolean {
   return !(hygiene && isUnsavedSession)
+}
+
+/**
+ * Whether a user's state-changing click on a blank canvas must save the session row now.
+ *  - flag off                              -> never (the Builder is exactly as before).
+ *  - no session id / the "new" placeholder -> never (nothing to save yet).
+ *  - the session is already saved          -> never (nothing to do).
+ *  - this tab already saved it             -> never (React has not rerendered `isUnsavedSession` yet; one POST only).
+ */
+export function shouldSaveSessionOnFirstAction(
+  hygiene: boolean,
+  state: { sessionId: string | null | undefined; isUnsavedSession: boolean; savedHereId: string | null },
+): boolean {
+  if (!hygiene) return false
+  if (!state.sessionId || state.sessionId === 'new') return false
+  if (!state.isUnsavedSession) return false
+  return state.savedHereId !== state.sessionId
+}
+
+/**
+ * Metadata Director sent while the session was still unsaved (its automatic blank-deck frame: blankPresentationUrl/Id and the
+ * like). Nothing is written for it then; it is kept, merged newest-last per session, and sent once when the row exists.
+ */
+export interface DeferredMetadata<TUpdates extends object = Record<string, unknown>> {
+  sessionId: string
+  updates: TUpdates
+}
+
+export function deferMetadata<TUpdates extends object>(
+  held: DeferredMetadata<TUpdates> | null,
+  sessionId: string,
+  updates: TUpdates,
+): DeferredMetadata<TUpdates> {
+  return { sessionId, updates: held && held.sessionId === sessionId ? { ...held.updates, ...updates } : { ...updates } }
+}
+
+/** What to send for this session, or null (nothing held, or what is held belongs to another session). */
+export function takeDeferredMetadata<TUpdates extends object>(
+  held: DeferredMetadata<TUpdates> | null,
+  sessionId: string,
+): TUpdates | null {
+  return held && held.sessionId === sessionId ? held.updates : null
 }
 
 export interface StudioSessionProblemCopy {

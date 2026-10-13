@@ -147,6 +147,8 @@ export interface PresentationAreaProps {
   composeJobs?: SlideComposeThumbnailJob[]
   onRefineSlide?: (target: SlideRefineTarget) => void
   onGenerateSlide?: () => void
+  /** NEXT_PUBLIC_STUDIO_SESSION_HYGIENE: passed to the viewer unchanged (see PresentationViewer.onUserDeckEdit). */
+  onUserDeckEdit?: () => void
   addSlideV2Settings?: AddSlideV2Settings<BuildThemeSelection>
   // PASS2 #3 (flag NEXT_PUBLIC_STUDIO_PANEL_FOCUS): passed through to the viewer's slide rail.
   studioRailCollapsed?: boolean
@@ -252,6 +254,7 @@ export function PresentationArea({
   composeJobs = [],
   onRefineSlide,
   onGenerateSlide,
+  onUserDeckEdit,
   addSlideV2Settings,
   studioRailCollapsed,
   onStudioRailReveal,
@@ -508,6 +511,7 @@ export function PresentationArea({
             composeJobs={composeJobs}
             onRefineSlide={onRefineSlide}
             onGenerateSlide={onGenerateSlide}
+            onUserDeckEdit={onUserDeckEdit}
             addSlideV2Settings={addSlideV2Settings}
             studioRailCollapsed={studioRailCollapsed}
             onStudioRailReveal={onStudioRailReveal}

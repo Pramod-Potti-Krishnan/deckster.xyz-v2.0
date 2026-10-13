@@ -4,12 +4,30 @@ import { DirectorMessage } from './use-deckster-websocket-v2';
 import { useSessionCache } from './use-session-cache';
 import { debugLog } from '@/lib/debug-log';
 import { DirectorChatSaveQueue } from '@/lib/director-chat-history';
-import { STUDIO_SESSION_HYGIENE_ENABLED } from '@/lib/studio-session-hygiene';
+import { STUDIO_SESSION_HYGIENE_ENABLED, deferMetadata, takeDeferredMetadata, type DeferredMetadata } from '@/lib/studio-session-hygiene';
 
 type PersistableDirectorMessage = Exclude<DirectorMessage, { type: 'token_usage' }>;
 
 function isPersistableMessage(message: DirectorMessage): message is PersistableDirectorMessage {
   return message.type !== 'token_usage' && message.type !== 'build_control_capability';
+}
+
+export interface SessionMetadataUpdates {
+  title?: string;
+  currentStage?: number;
+  blankPresentationUrl?: string;
+  strawmanPreviewUrl?: string;
+  finalPresentationUrl?: string;
+  blankPresentationId?: string;
+  strawmanPresentationId?: string;
+  finalPresentationId?: string;
+  slideCount?: number;
+  lastMessageAt?: Date | string;
+  stateCache?: {
+    currentStatus?: unknown;
+    slideStructure?: unknown;
+    activeVersion?: 'blank' | 'strawman' | 'final';
+  };
 }
 
 export interface SessionPersistenceOptions {
@@ -39,6 +57,8 @@ export function useSessionPersistence(options: SessionPersistenceOptions) {
   const messageQueueRef = useRef(new DirectorChatSaveQueue());
   const saveTimeoutRef = useRef<NodeJS.Timeout | undefined>(undefined);
   const activeSaveRef = useRef<Promise<void> | null>(null);
+  // NEXT_PUBLIC_STUDIO_SESSION_HYGIENE: blank-deck metadata Director sent while the session had no row (see sendDeferredMetadata).
+  const deferredMetadataRef = useRef<DeferredMetadata<SessionMetadataUpdates> | null>(null);
 
   const flushMessages = useCallback((): Promise<void> => {
     if (!enabledRef.current || !userIdRef.current) return Promise.resolve();
@@ -120,23 +140,7 @@ export function useSessionPersistence(options: SessionPersistenceOptions) {
    * Update session metadata
    * FIX 8: Uses sessionIdRef to avoid stale closure
    */
-  const updateMetadata = useCallback(async (updates: {
-    title?: string;
-    currentStage?: number;
-    blankPresentationUrl?: string;
-    strawmanPreviewUrl?: string;
-    finalPresentationUrl?: string;
-    blankPresentationId?: string;
-    strawmanPresentationId?: string;
-    finalPresentationId?: string;
-    slideCount?: number;
-    lastMessageAt?: Date | string;
-    stateCache?: {
-      currentStatus?: unknown;
-      slideStructure?: unknown;
-      activeVersion?: 'blank' | 'strawman' | 'final';
-    };
-  }) => {
+  const updateMetadata = useCallback(async (updates: SessionMetadataUpdates) => {
     // FIX 8: Use ref instead of closure value
     const currentSessionId = sessionIdRef.current;
     if (!currentSessionId) {
@@ -151,6 +155,9 @@ export function useSessionPersistence(options: SessionPersistenceOptions) {
     // The row is created by the first real action (first message, an upload, a hand-off), after which `enabled` is true.
     if (STUDIO_SESSION_HYGIENE_ENABLED && !enabledRef.current) {
       debugLog('[SESSION-HYGIENE] updateMetadata skipped - session is unsaved, no history row yet:', currentSessionId);
+      // Nothing is written, but the blank deck's URL/id must not be lost if the user's first click on the canvas saves the
+      // row: it is kept (newest wins, per session) and sent once by sendDeferredMetadata.
+      deferredMetadataRef.current = deferMetadata(deferredMetadataRef.current, currentSessionId, updates);
       return;
     }
 
@@ -170,6 +177,35 @@ export function useSessionPersistence(options: SessionPersistenceOptions) {
       }
     }
   }, [updateSession, onError]);  // FIX 8: Remove 'enabled' and 'sessionId' from deps
+
+  /**
+   * NEXT_PUBLIC_STUDIO_SESSION_HYGIENE: send, once, the metadata that updateMetadata held back while the session had no row.
+   * Called by hooks/use-save-session-on-first-action.ts right after the first user action created the row. It cannot go through
+   * updateMetadata's own gate: `enabled` only turns true on the next render, and this runs in the same tick as the POST. The
+   * PATCH is the same one updateMetadata sends (same normalisation, same updateSession). Held data for another session is left
+   * alone (a new chat replaces it); with the flag off nothing is ever held.
+   */
+  const sendDeferredMetadata = useCallback(async (forSessionId: string) => {
+    if (!STUDIO_SESSION_HYGIENE_ENABLED) return;
+    const held = takeDeferredMetadata(deferredMetadataRef.current, forSessionId);
+    if (!held) return;
+    deferredMetadataRef.current = null;
+    try {
+      const normalizedUpdates = {
+        ...held,
+        lastMessageAt: held.lastMessageAt instanceof Date
+          ? held.lastMessageAt.toISOString()
+          : held.lastMessageAt,
+      };
+      debugLog('📝 [SESSION-HYGIENE] Sending the blank-deck metadata held while the session was unsaved:', normalizedUpdates);
+      await updateSession(forSessionId, normalizedUpdates);
+    } catch (error) {
+      console.error('❌ Error updating session metadata:', error);
+      if (onError) {
+        onError(error instanceof Error ? error : new Error('Unknown error'));
+      }
+    }
+  }, [updateSession, onError]);
 
   /**
    * Generate title from first user message or presentation metadata
@@ -244,6 +280,7 @@ export function useSessionPersistence(options: SessionPersistenceOptions) {
     saveBatch,
     flushMessages,
     updateMetadata,
+    sendDeferredMetadata,
     generateTitle,
     pendingCount: messageQueueRef.current.size(userIdRef.current),
   };

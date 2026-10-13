@@ -159,6 +159,7 @@ import {
 
 // Extracted hooks
 import { useBuilderSession } from '@/hooks/use-builder-session'
+import { useSaveSessionOnFirstAction } from '@/hooks/use-save-session-on-first-action'
 import { useStudioComposeJobFailsafe } from '@/hooks/use-studio-compose-job-failsafe'
 import { useTextLabsGeneration, type TextLabsGenerationResult } from '@/hooks/use-textlabs-generation'
 import { useKnowledgeGraph } from '@/hooks/use-knowledge-graph'
@@ -1928,6 +1929,13 @@ function AuthenticatedBuilderContent({ authScopeUserId }: { authScopeUserId: str
     }
   }, [getTemplate, toast])
 
+  // NEXT_PUBLIC_STUDIO_SESSION_HYGIENE: the user's first state-changing action on an unsaved (blank-canvas) session saves the
+  // history row, so the session opens in a second tab. The callback is created after useBuilderSession (it wraps that hook's
+  // handleRequestSession) and parked in this ref; the handlers below run later, from clicks, and only ever call the ref.
+  // A no-op with the flag off, for a session that is already saved, and for a session that already started saving.
+  const saveSessionOnFirstActionRef = useRef<(() => Promise<boolean>) | null>(null)
+  const saveSessionOnFirstAction = useCallback(() => { void saveSessionOnFirstActionRef.current?.() }, [])
+
   const handleSelectTemplate = useCallback((template: BuilderTemplateSelection) => {
     if (templateSelectionLockedRef.current) {
       toast({
@@ -1937,6 +1945,7 @@ function AuthenticatedBuilderContent({ authScopeUserId }: { authScopeUserId: str
       return
     }
 
+    saveSessionOnFirstAction()
     retireStudioVoiceOwner()
     setActiveTemplate(template)
     setTemplateOverrides({})
@@ -1954,7 +1963,7 @@ function AuthenticatedBuilderContent({ authScopeUserId }: { authScopeUserId: str
         description: templateGenerationUnavailableReason(template),
       })
     }
-  }, [currentSlideIndex, toast, retireStudioVoiceOwner])
+  }, [currentSlideIndex, toast, retireStudioVoiceOwner, saveSessionOnFirstAction])
 
   const handleBuildThemeChange = useCallback((next: BuildThemeSelection) => {
     if (templateSelectionLockedRef.current) {
@@ -1964,12 +1973,13 @@ function AuthenticatedBuilderContent({ authScopeUserId }: { authScopeUserId: str
       })
       return
     }
+    saveSessionOnFirstAction()
     setActiveBuildThemeProfile(current => (
       buildThemeProfileMatchesSelection(current, next) ? current : null
     ))
     themeSelectionChangedLocallyRef.current = true
     setBuildThemeSelection(next)
-  }, [toast])
+  }, [toast, saveSessionOnFirstAction])
 
   const handleActiveBuildThemeProfileChange = useCallback((profile: ActiveBuildThemeProfile | null) => {
     if (templateSelectionLockedRef.current) {
@@ -1979,8 +1989,10 @@ function AuthenticatedBuilderContent({ authScopeUserId }: { authScopeUserId: str
       })
       return
     }
+    // Choosing a saved theme is an action; clearing the profile (also sent on every keystroke of the brand-colour field) is not.
+    if (profile) saveSessionOnFirstAction()
     setActiveBuildThemeProfile(profile)
-  }, [toast])
+  }, [toast, saveSessionOnFirstAction])
 
   const handleClearTemplate = useCallback(() => {
     if (templateSelectionLockedRef.current) {
@@ -4529,6 +4541,15 @@ function AuthenticatedBuilderContent({ authScopeUserId }: { authScopeUserId: str
     setSessionStoreName,
   })
 
+  // NEXT_PUBLIC_STUDIO_SESSION_HYGIENE: the first-action row save (see saveSessionOnFirstAction above). Wraps the session hook's
+  // handleRequestSession (the uploads' draft-session creator) and the persistence hook's held blank-deck metadata.
+  saveSessionOnFirstActionRef.current = useSaveSessionOnFirstAction({
+    currentSessionId,
+    isUnsavedSession,
+    requestSession: session.handleRequestSession,
+    sendDeferredMetadata: persistence.sendDeferredMetadata,
+  })
+
   // Text Labs session (depends on the currently displayed presentation)
   const [dismissedWorkflowKey, setDismissedWorkflowKey] = useState<string | null>(null)
   const workflowKey = searchParams.toString()
@@ -4790,6 +4811,8 @@ function AuthenticatedBuilderContent({ authScopeUserId }: { authScopeUserId: str
         error: 'The presentation viewer is unavailable. Reload the presentation and try again.' }
     }
 
+    // NEXT_PUBLIC_STUDIO_SESSION_HYGIENE: adding an element by hand is the user's first action on an unsaved blank canvas.
+    saveSessionOnFirstAction()
     const partialWork = {}
     if (studioShell) studioPartialLocalWorkRef.current.add(partialWork)
     try { return await handleTextLabsGenerate(formData, submitIntent, invocation) }
@@ -4797,7 +4820,7 @@ function AuthenticatedBuilderContent({ authScopeUserId }: { authScopeUserId: str
       studioPartialLocalWorkRef.current.delete(partialWork)
       if (studioPartialMountedRef.current) setStudioPartialRevision(revision => revision + 1)
     }
-  }, [generationPanel, handleTextLabsGenerate, layoutServiceApis, toast, effectivePresentationId])
+  }, [generationPanel, handleTextLabsGenerate, layoutServiceApis, toast, effectivePresentationId, saveSessionOnFirstAction])
 
   const handleRefineElementRequested = useCallback((payload: RefineElementRequest) => {
     if (!features.useTextLabsGeneration) return
@@ -7456,6 +7479,7 @@ function AuthenticatedBuilderContent({ authScopeUserId }: { authScopeUserId: str
               ? (studioPartialNativeIndex?.owner === studioInitialSelectedTarget.owner
                 ? (studioPartialNativeIndex.isCurrent() ? studioPartialNativeIndex.index : currentSlideIndex) : 0)
               : currentSlideIndex}
+            onUserDeckEdit={STUDIO_SESSION_HYGIENE_ENABLED ? saveSessionOnFirstAction : undefined}
             onSlideChange={(slideNum) => {
               const nextVisualIndex = Math.max(0, slideNum - 1)
               // Keep the imperative insertion owner current before React

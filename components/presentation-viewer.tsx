@@ -345,6 +345,9 @@ interface PresentationViewerProps {
   composeJobs?: SlideComposeThumbnailJob[]
   onRefineSlide?: (target: SlideRefineTarget) => void
   onGenerateSlide?: () => void
+  // NEXT_PUBLIC_STUDIO_SESSION_HYGIENE: the user changed the deck's slides by hand (Add / Duplicate / Delete / Reorder). The page
+  // passes it only with the flag on and uses it to save the session row on the first such action. Never called by Director.
+  onUserDeckEdit?: () => void
   // J2 v2 (flag NEXT_PUBLIC_STUDIO_ADD_SLIDE_V2_ENABLED): the page's chat/session settings for the Add Slide pop-up.
   addSlideV2Settings?: AddSlideV2Settings<BuildThemeSelection>
   // PASS2 #3 (flag NEXT_PUBLIC_STUDIO_PANEL_FOCUS): the page hides the slide rail while Add Slide / Add Element is open;
@@ -682,6 +685,7 @@ export function PresentationViewer({
   composeJobs = [],
   onRefineSlide,
   onGenerateSlide,
+  onUserDeckEdit,
   addSlideV2Settings,
   studioRailCollapsed = false,
   onStudioRailReveal,
@@ -812,6 +816,11 @@ export function PresentationViewer({
   const [selectedSlideIndices, setSelectedSlideIndices] = useState<number[]>([])
   // Track when CRUD operations have modified slides (invalidates stale slideStructure)
   const [slidesModifiedByCrud, setSlidesModifiedByCrud] = useState(false)
+  // NEXT_PUBLIC_STUDIO_SESSION_HYGIENE: every manual slide mutation (add, duplicate, delete, reorder) raises the flag above, so
+  // its false -> true edge is the one place that sees them all. No prop (flag off) = no call.
+  const onUserDeckEditRef = useRef(onUserDeckEdit)
+  useEffect(() => { onUserDeckEditRef.current = onUserDeckEdit }, [onUserDeckEdit])
+  useEffect(() => { if (slidesModifiedByCrud) onUserDeckEditRef.current?.() }, [slidesModifiedByCrud])
   const [isSlideMutationPending, setIsSlideMutationPending] = useState(false)
   const slideMutationPendingRef = useRef(false)
   // Publication survives release of the busy lease, so queued React updates
