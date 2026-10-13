@@ -1,0 +1,295 @@
+{
+ "name": "reconnect-theme-restore",
+ "description": "A themed session (Corporate Light stored and applied) opens in a tab whose local selection is Auto: Director sends sync_response, the restored theme and the history replay. Then the socket drops and the hook reconnects (skip_history): sync_response and the restore again. Flag on: Corporate Light is shown and no set_theme is sent on either socket. Base / flag off: the socket-ready set_theme {mode:auto} overwrites the stored theme.",
+ "source": "Director 50772ff connect handler via THEME-2 support module (generator in the evidence folder), sha256 17410d071e9c1b29da3fdb7c9363a672be636825765a5ebf3358d68740c06c84 (themed_cl_on)",
+ "session": {
+  "id": "sess-themed-cl",
+  "userId": "synthetic-user-01"
+ },
+ "ackTemplate": [
+  {
+   "type": "theme_sync",
+   "session_id": "sess-themed-cl",
+   "timestamp": "2026-10-13T23:09:31.689734Z",
+   "payload": {
+    "request_id": "__REQ__",
+    "status": "syncing",
+    "presentation_id": "deck-themed-cl",
+    "theme": {
+     "mode": "auto"
+    }
+   }
+  },
+  {
+   "type": "theme_sync",
+   "session_id": "sess-themed-cl",
+   "timestamp": "2026-10-13T23:09:31.689741Z",
+   "payload": {
+    "request_id": "__REQ__",
+    "status": "applied",
+    "presentation_id": "deck-themed-cl",
+    "theme": {
+     "mode": "auto"
+    },
+    "theme_session_id": "ts-ack"
+   }
+  }
+ ],
+ "steps": [
+  {
+   "op": "restore",
+   "session": {
+    "id": "sess-themed-cl",
+    "status": "active",
+    "title": "Synthetic session",
+    "geminiStoreName": null,
+    "blankPresentationUrl": "https://layout.example.com/p/deck-themed-cl",
+    "blankPresentationId": "deck-themed-cl",
+    "strawmanPreviewUrl": null,
+    "strawmanPresentationId": null,
+    "finalPresentationUrl": null,
+    "finalPresentationId": null,
+    "slideCount": null,
+    "currentStage": 1,
+    "stateCache": {
+     "activeVersion": "blank",
+     "slideStructure": null
+    },
+    "messages": [
+     {
+      "id": "db-user-0",
+      "messageType": "chat_message",
+      "timestamp": "2026-10-13T09:00:00.000Z",
+      "payload": {
+       "text": "Build a claims automation ROI deck"
+      },
+      "userText": "Build a claims automation ROI deck"
+     },
+     {
+      "id": "db-director-1",
+      "messageType": "chat_message",
+      "timestamp": "2026-10-13T09:00:01.000Z",
+      "payload": {
+       "text": "I can build that. Who is the audience?",
+       "sub_title": null,
+       "list_items": null
+      }
+     }
+    ]
+   }
+  },
+  {
+   "op": "ensureConnected"
+  },
+  {
+   "op": "open"
+  },
+  {
+   "op": "checkpoint",
+   "label": "socket open, nothing received"
+  },
+  {
+   "op": "expect",
+   "on": {
+    "setTheme": 0,
+    "gatePhase": "waiting"
+   },
+   "off": {
+    "setTheme": 1,
+    "lastSetTheme": {
+     "mode": "auto"
+    }
+   }
+  },
+  {
+   "op": "frames",
+   "frames": [
+    {
+     "message_id": "msg_sync_0d6ec3bd",
+     "session_id": "sess-themed-cl",
+     "timestamp": "2026-10-13T23:09:31.675467Z",
+     "type": "sync_response",
+     "role": "assistant",
+     "payload": {
+      "action": "send_history",
+      "message_count": 2,
+      "current_state": "TOPIC_SET",
+      "has_strawman": false,
+      "presentation_url": "https://layout.example.com/p/deck-themed-cl",
+      "presentation_id": "deck-themed-cl",
+      "slide_count": null
+     }
+    },
+    {
+     "type": "theme_sync",
+     "session_id": "sess-themed-cl",
+     "timestamp": "2026-10-13T23:09:31.677044Z",
+     "payload": {
+      "request_id": "restore:sess-themed-cl:req-cl-1",
+      "status": "restored",
+      "presentation_id": "deck-themed-cl",
+      "theme": {
+       "mode": "preset",
+       "preset_id": "corporate_light"
+      },
+      "applied": true,
+      "desired_status": "applied"
+     }
+    },
+    {
+     "message_id": "msg_hist_0b681a89edc6",
+     "session_id": "sess-themed-cl",
+     "timestamp": "2026-10-13T09:00:00Z",
+     "type": "chat_message",
+     "role": "user",
+     "payload": {
+      "text": "Build a claims automation ROI deck",
+      "sub_title": null,
+      "list_items": null,
+      "format": "markdown",
+      "ephemeral": false
+     }
+    },
+    {
+     "message_id": "msg_hist_b6bf31b5a056",
+     "session_id": "sess-themed-cl",
+     "timestamp": "2026-10-13T09:00:01Z",
+     "type": "chat_message",
+     "role": "assistant",
+     "payload": {
+      "text": "I can build that. Who is the audience?",
+      "sub_title": null,
+      "list_items": null,
+      "format": "markdown",
+      "ephemeral": false
+     }
+    }
+   ]
+  },
+  {
+   "op": "themeAck"
+  },
+  {
+   "op": "checkpoint",
+   "label": "connect 1 restored"
+  },
+  {
+   "op": "expect",
+   "on": {
+    "setTheme": 0,
+    "selection": {
+     "mode": "preset",
+     "preset_id": "corporate_light"
+    },
+    "themeSyncStatus": "applied",
+    "gatePhase": "restored",
+    "locallyChanged": false
+   },
+   "off": {
+    "setTheme": 1,
+    "lastSetTheme": {
+     "mode": "auto"
+    },
+    "selection": {
+     "mode": "auto"
+    }
+   }
+  },
+  {
+   "op": "close",
+   "code": 1006
+  },
+  {
+   "op": "advance",
+   "ms": 2500
+  },
+  {
+   "op": "checkpoint",
+   "label": "reconnecting"
+  },
+  {
+   "op": "expect",
+   "on": {
+    "setTheme": 0,
+    "gatePhase": "waiting",
+    "sockets": 2
+   },
+   "off": {
+    "setTheme": 1,
+    "sockets": 2
+   }
+  },
+  {
+   "op": "open"
+  },
+  {
+   "op": "frames",
+   "frames": [
+    {
+     "message_id": "msg_sync_867dd03b",
+     "session_id": "sess-themed-cl",
+     "timestamp": "2026-10-13T23:09:31.677255Z",
+     "type": "sync_response",
+     "role": "assistant",
+     "payload": {
+      "action": "skip_history",
+      "message_count": 2,
+      "current_state": "TOPIC_SET",
+      "has_strawman": false,
+      "presentation_url": "https://layout.example.com/p/deck-themed-cl",
+      "presentation_id": "deck-themed-cl",
+      "slide_count": null
+     }
+    },
+    {
+     "type": "theme_sync",
+     "session_id": "sess-themed-cl",
+     "timestamp": "2026-10-13T23:09:31.678704Z",
+     "payload": {
+      "request_id": "restore:sess-themed-cl:req-cl-1",
+      "status": "restored",
+      "presentation_id": "deck-themed-cl",
+      "theme": {
+       "mode": "preset",
+       "preset_id": "corporate_light"
+      },
+      "applied": true,
+      "desired_status": "applied"
+     }
+    }
+   ]
+  },
+  {
+   "op": "themeAck"
+  },
+  {
+   "op": "advance",
+   "ms": 25000
+  },
+  {
+   "op": "checkpoint",
+   "label": "connect 2 restored, 25 s later"
+  },
+  {
+   "op": "expect",
+   "on": {
+    "setTheme": 0,
+    "selection": {
+     "mode": "preset",
+     "preset_id": "corporate_light"
+    },
+    "themeSyncStatus": "applied",
+    "gatePhase": "restored"
+   },
+   "off": {
+    "setTheme": 1,
+    "selection": {
+     "mode": "auto"
+    }
+   }
+  }
+ ],
+ "env": {
+  "NEXT_PUBLIC_LAYOUT_SERVICE_URL": "https://layout.example.com"
+ }
+}

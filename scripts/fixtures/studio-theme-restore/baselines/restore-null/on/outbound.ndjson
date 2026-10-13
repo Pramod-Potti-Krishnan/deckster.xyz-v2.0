@@ -1,0 +1,4 @@
+{"handshake":0,"at":1000,"url":"wss://director.synthetic.invalid/ws?session_id=sess-topicless&user_id=synthetic-user-01&skip_history=false&message_count=1&build_control_capability=1"}
+{"socket":0,"at":16500,"data":"ping"}
+{"socket":0,"at":29000,"data":"{\"type\":\"set_theme\",\"data\":{\"request_id\":\"synthetic-uuid-0001\",\"theme\":{\"mode\":\"preset\",\"preset_id\":\"minimal\"},\"presentation_id\":\"blank-topicless\"}}"}
+{"close":0,"code":1005,"reason":""}

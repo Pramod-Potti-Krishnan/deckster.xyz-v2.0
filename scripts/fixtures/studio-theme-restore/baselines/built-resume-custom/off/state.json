@@ -1,0 +1,60 @@
+{
+  "calls": [
+    {
+      "args": [{"mode":"auto"},"synthetic-uuid-0001","deck-built",true],
+      "at": 1500,
+      "name": "hook.sendThemeSelection",
+      "step": 2
+    },
+    {"args":[{"type":"sync_response"}],"at":2000,"name":"page.onMessage","step":3},
+    {
+      "args": [{"request_id":"restore:sess-built:req-9","status":"restored","type":"theme_sync"}],
+      "at": 2000,
+      "name": "page.onMessage",
+      "step": 3
+    },
+    {"args":[{"type":"chat_message"}],"at":2000,"name":"page.onMessage","step":3},
+    {"args":[{"type":"chat_message"}],"at":2000,"name":"page.onMessage","step":3},
+    {"args":[{"type":"slide_update"}],"at":2000,"name":"page.onMessage","step":3},
+    {
+      "args": [{"request_id":"synthetic-uuid-0001","status":"syncing","type":"theme_sync"}],
+      "at": 2500,
+      "name": "page.onMessage",
+      "step": 4
+    },
+    {
+      "args": [{"request_id":"synthetic-uuid-0001","status":"applied","type":"theme_sync"}],
+      "at": 2500,
+      "name": "page.onMessage",
+      "step": 4
+    }
+  ],
+  "checkpoints": [
+    {
+      "activeBuildThemeProfile": null,
+      "buildThemeSelection": {"mode":"auto"},
+      "connection": {"connected":true,"generation":1,"sockets":1},
+      "deck": {"effectivePresentationId":"deck-built","presentationId":"deck-built"},
+      "label": "built deck resumed",
+      "messages": [
+        "db-director-1 | chat_message",
+        "msg_hist_2420c71976e9 | chat_message",
+        "msg_hist_b027ecd2ef7e | chat_message",
+        "msg_55a025be | slide_update"
+      ],
+      "setThemeSent": [{"at":1500,"socket":0,"theme":{"mode":"auto"}}],
+      "themeSelectionChangedLocally": false,
+      "themeSync": {
+        "error": null,
+        "presentationId": "deck-built",
+        "requestId": "synthetic-uuid-0001",
+        "status": "applied",
+        "themeFingerprint": "{\"mode\":\"auto\"}"
+      },
+      "toasts": 0,
+      "virtualMs": 28000
+    }
+  ],
+  "diagnostics": {"blockedNetwork":[],"console":[],"uncaught":[]},
+  "notes": []
+}
