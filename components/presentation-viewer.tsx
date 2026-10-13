@@ -75,6 +75,7 @@ import { useSlideRailIdentity } from '@/hooks/use-slide-rail-identity'
 import { STUDIO_RAIL_SLIDE_IDENTITY_ENABLED } from '@/lib/slide-rail-identity'
 import { STUDIO_DECK_MUTATION_REFRESH_ENABLED, onSlideRailRefreshRequest } from '@/lib/studio-deck-mutation-refresh'
 import { STUDIO_SLIDE_RAIL_V2, SLIDE_RAIL_V2_DEFAULT_WIDTH } from '@/lib/studio-slide-rail-v2'
+import { STUDIO_TOP_BAR_V2_ENABLED, publishStudioDeckSaveState } from '@/lib/studio-top-bar-v2'
 import {
   DropdownMenu,
   DropdownMenuCheckboxItem,
@@ -1150,6 +1151,17 @@ export function PresentationViewer({
   const viewerIsReady = viewerHasLoaded && (!studioShell
     || snapshotSelectionRef.current?.source !== approvedIframeNavigationUrl
     || nativeReadySource === approvedIframeNavigationUrl)
+  // PASS2-PK-FOUR #1 (NEXT_PUBLIC_STUDIO_TOP_BAR_V2, default off): the top bar's "Saved" status reads the save state this viewer
+  // already keeps (Layout autosave messages, force save). Reported only for a settled deck on stage; null otherwise and on unmount.
+  // Off: nothing is reported.
+  useEffect(() => {
+    if (!STUDIO_TOP_BAR_V2_ENABLED || !studioShell) return
+    publishStudioDeckSaveState(viewerIsReady && !isGenerating && !studioPartialArtifact ? (isSaving ? 'saving' : saveStatus) : null)
+  }, [studioShell, viewerIsReady, isGenerating, studioPartialArtifact, isSaving, saveStatus])
+  useEffect(() => {
+    if (!STUDIO_TOP_BAR_V2_ENABLED || !studioShell) return
+    return () => publishStudioDeckSaveState(null)
+  }, [studioShell])
   const snapshotSafetyRef = useRef({ isEditMode, isSaving, saveStatus, composeJobs: composeJobs.length })
   snapshotSafetyRef.current = { isEditMode, isSaving, saveStatus, composeJobs: composeJobs.length }
   const introSafetyRef = useRef({ presentationId, presentationUrl, viewerIsReady, isEditMode, isSaving, saveStatus,

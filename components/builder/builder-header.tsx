@@ -6,7 +6,7 @@ import { useTheme } from "next-themes"
 import { Button } from "@/components/ui/button"
 import { UserProfileMenu } from "@/components/user-profile-menu"
 import { ConnectionError } from "@/components/connection-error"
-import { Brain, Home, PanelLeft, Plus } from "lucide-react"
+import { Brain, Check, Home, PanelLeft, Plus } from "lucide-react"
 import {
   BuildFingerprintBadge,
   BuildVersionGuard,
@@ -14,6 +14,16 @@ import {
 import { DeckIdentityDialog } from "@/components/builder/deck-identity-dialog"
 import { isDeckIdentityEnabled } from "@/lib/deck-identity"
 import { StudioNavigationHint } from "@/components/layout/studio-navigation-hint"
+import {
+  STUDIO_TOP_BAR_V2_ENABLED,
+  getStudioDeckSaveState,
+  studioTopBarSavedLabel,
+  subscribeStudioDeckSaveState,
+} from "@/lib/studio-top-bar-v2"
+import "./studio-top-bar-v2.css"
+
+const subscribeToNothing = () => () => {}
+const nothingToRead = () => null
 
 export interface BuilderHeaderProps {
   onNewPresentation?: () => void
@@ -41,6 +51,14 @@ export function BuilderHeader({
   const isDark = resolvedTheme === 'dark'
   const studioShell = process.env.NEXT_PUBLIC_STUDIO_V4_SHELL === 'true'
   const studioLabels = process.env.NEXT_PUBLIC_STUDIO_V4_LABELS === 'true'
+  // PASS2-PK-FOUR #1 (NEXT_PUBLIC_STUDIO_TOP_BAR_V2, exact "true", Studio shell only, default off): the top bar of the accepted
+  // mockup. Off: the header renders exactly as before.
+  const studioTopBarV2 = studioShell && STUDIO_TOP_BAR_V2_ENABLED
+  const savedLabel = studioTopBarSavedLabel(React.useSyncExternalStore(
+    studioTopBarV2 ? subscribeStudioDeckSaveState : subscribeToNothing,
+    studioTopBarV2 ? getStudioDeckSaveState : nothingToRead,
+    nothingToRead,
+  ))
 
   const headerRef = React.useRef<HTMLElement>(null)
   React.useEffect(() => {
@@ -91,6 +109,7 @@ export function BuilderHeader({
         data-studio-v4-shell-header="true"
         aria-label={studioLabels ? "Studio" : undefined}
         data-studio-v4-chrome={process.env.NEXT_PUBLIC_STUDIO_V4_TOKENS === 'true' ? 'true' : undefined}
+        {...(studioTopBarV2 ? { 'data-studio-top-bar-v2': 'true' } : {})}
         className={
           isDark
             ? "bg-slate-900 border-b border-slate-800 h-14 flex-shrink-0"
@@ -163,12 +182,18 @@ export function BuilderHeader({
             <StudioNavigationHint enabled label={isChatHistoryOpen ? "Close sessions" : "Sessions"}>
               <Button variant="ghost" size="icon" onClick={onOpenChatHistory} aria-label={isChatHistoryOpen ? 'Close deck list' : 'Open deck list'}><PanelLeft className="h-5 w-5" /></Button>
             </StudioNavigationHint>
-            <span title={deckTitle}>{deckTitle}</span>
+            {studioTopBarV2 && <>
+              <span data-studio-top-bar-divider="true" aria-hidden="true" />
+              <Link href="/dashboard" prefetch={false} data-studio-top-bar-crumb="true">Workspace</Link>
+              <span data-studio-top-bar-crumb-separator="true" aria-hidden="true">/</span>
+            </>}
+            <span title={deckTitle} {...(studioTopBarV2 ? { 'data-studio-top-bar-deck': 'true' } : {})}>{deckTitle}</span>
+            {studioTopBarV2 && savedLabel && <span data-studio-top-bar-saved="true" role="status"><Check aria-hidden="true" />{savedLabel}</span>}
             {isDeckIdentityEnabled() && <DeckIdentityDialog isDark={isDark} />}
           </div>}
           {studioShell ? (
             <div className="studio-shell-header-actions">
-              <Button className="studio-shell-new" onClick={onNewPresentation} aria-label="Add presentation" title="Add presentation"><Plus className="h-4 w-4" /><span>Presentation</span></Button>
+              <Button className="studio-shell-new" onClick={onNewPresentation} aria-label={studioTopBarV2 ? "New deck" : "Add presentation"} title={studioTopBarV2 ? "New deck" : "Add presentation"}><Plus className="h-4 w-4" /><span>{studioTopBarV2 ? "New deck" : "Presentation"}</span></Button>
               {/* Delivery controls retain their portal target and original handlers. */}
               <div data-studio-v4-toolbar-target="true" ref={toolbarSlotRef} className="min-w-0 h-full overflow-hidden" />
             </div>
