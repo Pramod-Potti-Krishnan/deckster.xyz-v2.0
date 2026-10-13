@@ -8,6 +8,11 @@
 //     except the staged hand-off, and the unknown/deleted/failed ones surface a problem and never connect.
 //     When the pre-change hook is reachable in git (the base commit), the same scenarios also run on it and the flag-off
 //     traces must be identical to it.
+//  2b. (fix-forward) The REAL useChatSessions + useSessionPersistence + useBuilderSession wired as the page wires them, against a
+//     history API that 404s unknown ids like the real one: a bare /builder plus Director's blank-deck frames and idle writes
+//     NOTHING with the flag on (no PATCH, no POST), the first real action creates exactly one row and metadata flows after it,
+//     a saved session is never mistaken for an unsaved one, the pre-fix hook reproduces the live trace, and with the flag off
+//     the request logs are hash-identical to the pre-fix hooks.
 //  3. The views, server-rendered: the skeleton, the problem views, the 404 page. The flag-off 404 must render exactly what
 //     the installed Next's own built-in 404 renders; the route loader must be the original element tree with the flag off.
 //  4. Wiring pins on the page and the docs (.env.example, package.json), then every suite again against deliberately broken
@@ -17,6 +22,7 @@ import fs from 'node:fs'
 import path from 'node:path'
 import { createRequire } from 'node:module'
 import { execFileSync } from 'node:child_process'
+import { createHash } from 'node:crypto'
 import ts from 'typescript'
 
 const repoRoot = path.resolve(new URL('..', import.meta.url).pathname)
@@ -28,6 +34,7 @@ const FLAG = 'NEXT_PUBLIC_STUDIO_SESSION_HYGIENE'
 const FILES = {
   lib: 'lib/studio-session-hygiene.ts',
   chat: 'hooks/use-chat-sessions.ts',
+  persist: 'hooks/use-session-persistence.ts',
   hook: 'hooks/use-builder-session.ts',
   views: 'components/builder/studio-session-hygiene.tsx',
   card: 'components/builder/studio-problem-card.tsx',
@@ -457,6 +464,327 @@ await scenarioSuite()
   }
 }
 
+// ---------------------------------------------------------------- 2b. the real persistence wiring (fix-forward for PR #361)
+// The scenarios above hand the hook `persistence: null` and answer every fetch with 200, so they could not see the second
+// writer. A bare /builder is an unsaved local id with no history row; Director then sends its blank-deck frame
+// (presentation_init), the page's onSessionStateChange calls persistence.updateMetadata, and that PATCHed a row that does not
+// exist: 404, four attempts, then updateSession's recovery POSTed the row. This section drives the REAL useChatSessions,
+// useSessionPersistence and useBuilderSession together, wired as app/builder/page.tsx wires them (enabled: !!currentSessionId &&
+// !isUnsavedSession, the ref-based onSessionStateChange guard), against a history API that behaves like the real one:
+// unknown id -> 404 on GET/PATCH/messages, POST creates (201) or 409s.
+const PERSIST_BASE_REF = '5cc455d' // origin/studio-v4-dev-preparation-code (after #360/#365): the base of the session-hygiene-b fix-forward
+const UUID_RE = /[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/g
+
+function historyApi(knownIds = []) {
+  const rows = new Map(knownIds.map(id => [id, { id, status: 'active', title: 'A deck', messages: [], currentStage: 0, slideCount: 0,
+    blankPresentationUrl: null, strawmanPreviewUrl: null, finalPresentationUrl: null, blankPresentationId: null,
+    strawmanPresentationId: null, finalPresentationId: null, geminiStoreName: null }]))
+  const calls = []
+  const reply = (status, body) => ({ ok: status >= 200 && status < 300, status, statusText: String(status), json: async () => body, text: async () => JSON.stringify(body) })
+  async function fetch(url, init = {}) {
+    await new Promise(resolve => setImmediate(resolve)) // network latency: the request is handled a turn after it is sent, so two in flight at once overlap as they do for real
+    const method = String(init.method || 'GET').toUpperCase()
+    const body = init.body ? JSON.parse(init.body) : null
+    const m = /^\/api\/sessions(?:\/([^/?]+))?(?:\/(messages|files))?(?:\?.*)?$/.exec(url)
+    let status = 200, out = {}
+    if (!m) { out = {} }
+    else if (!m[1]) {
+      if (method === 'POST') {
+        if (rows.has(body.sessionId)) { status = 409; out = { session: rows.get(body.sessionId) } }
+        else { const row = { id: body.sessionId, status: 'active', title: body.title || 'Untitled Session', messages: [] }; rows.set(row.id, row); status = 201; out = { session: row } }
+      } else out = { sessions: [], pagination: { total: 0, limit: 50, offset: 0, hasMore: false } }
+    } else if (!rows.has(m[1])) { status = 404; out = { error: 'Session not found' } }
+    else if (m[2] === 'messages') { const n = (body?.messages ?? []).length; rows.get(m[1]).messages.push(...(body?.messages ?? [])); out = { saved: n, failed: 0, total: n } }
+    else if (method === 'PATCH') { Object.assign(rows.get(m[1]), body); out = { session: rows.get(m[1]) } }
+    else out = { session: rows.get(m[1]) }
+    calls.push({ method, url, body, status })
+    return reply(status, out)
+  }
+  const isWrite = c => /^\/api\/sessions/.test(c.url) && (c.method === 'POST' || c.method === 'PATCH' || c.method === 'PUT' || c.method === 'DELETE')
+  return {
+    fetch, rows, calls,
+    writes: () => calls.filter(isWrite),
+    sessionWrites: () => calls.filter(c => isWrite(c) && !/\/messages$/.test(c.url)), // row creations and metadata PATCHes, the "Untitled Session" makers
+    rowCreations: () => calls.filter(c => c.method === 'POST' && c.url === '/api/sessions' && c.status === 201),
+    count: (method, status) => calls.filter(c => c.method === method && c.status === status).length,
+  }
+}
+
+/** A trace that survives random ids and clocks: for comparing two runs of the same scenario. */
+const normaliseCalls = calls => calls.map(c => ({
+  method: c.method, status: c.status,
+  url: c.url.replace(UUID_RE, id => id === UNKNOWN || id === KNOWN ? id : '<local>'),
+  body: c.body && JSON.parse(JSON.stringify(c.body, (k, v) => (k === 'lastMessageAt' || k === 'timestamp' || k === 'id') && typeof v === 'string' ? '<x>' : v)
+    .replace(UUID_RE, id => id === UNKNOWN || id === KNOWN ? id : '<local>')),
+}))
+const hashCalls = calls => createHash('sha256').update(JSON.stringify(normaliseCalls(calls))).digest('hex')
+
+/**
+ * One Builder page: it owns what page.tsx owns (url, currentSessionId, isUnsavedSession, the director's messages) and runs the
+ * real hooks the way the page does. `steps(h)` plays the user and Director.
+ */
+async function runPersisted({ hygiene, persistSource, hookSource, url = '/builder', known = [], seed, storage = new MemStorage() }, steps) {
+  const { log, warn, error } = console
+  console.log = console.warn = console.error = () => {}
+  try {
+    const runtime = hookRuntime()
+    const api = historyApi(known)
+    const page = { url, currentSessionId: null, isUnsavedSession: false, dirty: false, messages: [] }
+    const routeSession = () => new URLSearchParams(page.url.split('?')[1] ?? '').get('session_id')
+    const initialRoute = routeSession()
+    page.currentSessionId = initialRoute && initialRoute !== 'new' ? initialRoute : null
+    page.isUnsavedSession = Boolean(initialRoute && initialRoute !== 'new' && storage.getItem(unsavedKey(initialRoute)) === 'true')
+    seed?.(storage, page)
+    page.isUnsavedSession = Boolean(page.currentSessionId && storage.getItem(unsavedKey(page.currentSessionId)) === 'true')
+
+    const win = { location: { get search() { return '?' + (page.url.split('?')[1] ?? '') } }, sessionStorage: storage,
+      addEventListener() {}, removeEventListener() {} }
+    // timers: every delay (the 400 ms retry back-off, the 500 ms save debounce) becomes "next turn", so a long idle is cheap and ordered
+    const world = createWorld({
+      env: hygiene ? { [FLAG]: 'true' } : {},
+      overrides: { ...(hookSource ? { [FILES.hook]: hookSource } : {}), ...(persistSource ? { [FILES.persist]: persistSource } : {}) },
+      globals: { window: win, sessionStorage: storage, fetch: api.fetch, navigator: { sendBeacon() { return true } },
+        setTimeout: fn => setImmediate(fn), clearTimeout: handle => clearImmediate(handle) },
+      stubs: {
+        react: runtime.impl,
+        'next/navigation': { useRouter: () => ({
+          replace: next => { page.url = next; page.dirty = true },
+          push: next => { page.url = next; page.dirty = true },
+        }) },
+        '@/lib/config': { features: { immediateConnection: true } },
+        '@/lib/layout-service-client': { getLayoutServiceUrl: () => 'https://layout.invalid', LAYOUT_URL_CONFIG_ERROR: null,
+          LAYOUT_VIEWER_URL_POLICY: { configuredOrigin: null, allowedOrigins: [] } },
+      },
+    })
+    const hookModule = world.load(FILES.hook)
+    const chatModule = world.load(FILES.chat)
+    const persistModule = world.load(FILES.persist)
+    let latest = null
+    let hookDirty = false
+    const connects = { count: 0 }
+    const pageCall = () => {
+      const chat = chatModule.useChatSessions()
+      const persistence = persistModule.useSessionPersistence({
+        sessionId: page.currentSessionId || '', userId: OWNER,
+        enabled: !!page.currentSessionId && !page.isUnsavedSession, // app/builder/page.tsx
+        debounceMs: 500, onError() {},
+      })
+      // the page's refs, kept current by effects exactly as the page does
+      const persistenceRef = runtime.impl.useRef(persistence)
+      runtime.impl.useEffect(() => { persistenceRef.current = persistence }, [persistence])
+      const currentSessionIdRef = runtime.impl.useRef(page.currentSessionId)
+      runtime.impl.useEffect(() => { currentSessionIdRef.current = page.currentSessionId }, [page.currentSessionId])
+      const session = hookModule.useBuilderSession({
+        user: { id: OWNER, email: 'owner@example.invalid' }, isAuthLoading: false,
+        searchParams: new URLSearchParams(page.url.split('?')[1] ?? ''),
+        loadSession: chat.loadSession, loadSessionResult: chat.loadSessionResult, createSession: chat.createSession, persistence,
+        connected: false, connecting: false, reconnectStatus: 'idle',
+        ensureConnected: () => { connects.count++; return true }, disconnect() {}, clearMessages() { page.messages = [] },
+        restoreMessages() {}, updateCacheUserMessages() {}, messages: page.messages, toast() {},
+        isUnsavedSession: page.isUnsavedSession, setIsUnsavedSession: v => { if (v !== page.isUnsavedSession) { page.isUnsavedSession = v; page.dirty = true } },
+        currentSessionId: page.currentSessionId, setCurrentSessionId: v => { if (v !== page.currentSessionId) { page.currentSessionId = v; page.dirty = true } },
+        setSessionStoreName() {},
+      })
+      return { chat, persistence, persistenceRef, currentSessionIdRef, session }
+    }
+    const instance = runtime.instance(pageCall, () => { hookDirty = true })
+    const render = () => { page.dirty = false; hookDirty = false; latest = instance.render() }
+    const settle = async (rounds = 400) => {
+      let stable = 0, last = -1
+      for (let i = 0; i < rounds; i++) {
+        await tick(4)
+        if (page.dirty || hookDirty) render()
+        const now = api.calls.length
+        if (now === last && !page.dirty && !hookDirty) { if (++stable >= 10) break } else stable = 0
+        last = now
+      }
+    }
+    const h = {
+      api, page, storage, connects, get latest() { return latest }, settle,
+      /** Director's blank-deck frame -> the page's onSessionStateChange (app/builder/page.tsx), mirrored: guarded by refs only. */
+      blank(times = 2) {
+        for (let i = 0; i < times; i++) {
+          const state = { presentationUrl: 'https://layout.invalid/p/blank-1', presentationId: 'blank-1', slideCount: 1, currentStage: 0 }
+          if (latest.currentSessionIdRef.current && latest.persistenceRef.current) {
+            latest.persistenceRef.current.updateMetadata({
+              currentStage: state.currentStage, slideCount: state.slideCount, lastMessageAt: new Date(),
+              stateCache: { activeVersion: state.activeVersion, slideStructure: state.slideStructure },
+              blankPresentationUrl: state.presentationUrl, blankPresentationId: state.presentationId,
+            })
+          }
+        }
+        return settle()
+      },
+      /** Director's greeting, as the WebSocket hook hands it to the session hook. */
+      greet() {
+        page.messages = [{ type: 'chat_message', message_id: 'greeting-1', session_id: page.currentSessionId, timestamp: '2026-10-12T19:00:00.000Z', payload: { text: 'Hello!' } }]
+        page.dirty = true
+        return settle()
+      },
+      /** The page's handleSendMessage branch for an unsaved session (app/builder/page.tsx): create the row, mark saved, save the first message. */
+      async firstMessage(text = 'A short pitch') {
+        const id = page.currentSessionId
+        const dbSession = await latest.chat.createSession(id)
+        latest.session.justCreatedSessionRef.current = dbSession.id
+        page.isUnsavedSession = false; page.dirty = true
+        try { storage.removeItem(unsavedKey(dbSession.id)) } catch {}
+        await api.fetch(`/api/sessions/${dbSession.id}/messages`, { method: 'POST', body: JSON.stringify({ messages: [{ id: 'first-1', messageType: 'chat_message', payload: { text }, userText: text }] }) })
+        await api.fetch(`/api/sessions/${dbSession.id}`, { method: 'PATCH', body: JSON.stringify({ title: text }) })
+        return settle()
+      },
+      async upload() { await latest.session.handleRequestSession(); return settle() },
+      newChat() { latest.session.handleNewChat(); return settle() },
+      navigate(next) { page.url = next; page.dirty = true; return settle() },
+    }
+    render()
+    await settle()
+    await steps(h)
+    instance.unmount()
+    return h
+  } finally { console.log = log; console.warn = warn; console.error = error }
+}
+
+const PERSIST_SCENARIOS = {
+  // name: [options, steps]
+  bareVisit: [{ url: '/builder' }, async h => { await h.greet(); await h.blank(2); await h.settle(); await h.settle() }],
+  explicitNew: [{ url: '/builder?session_id=new' }, async h => { await h.blank(2) }],
+  reloadUnsaved: [{ url: `/builder?session_id=${UNKNOWN}`, seed: s => s.setItem(unsavedKey(UNKNOWN), 'true') }, async h => { await h.blank(2) }],
+  savedBlank: [{ url: `/builder?session_id=${KNOWN}`, known: [KNOWN] }, async h => { await h.blank(2) }],
+  newChat: [{ url: `/builder?session_id=${KNOWN}`, known: [KNOWN] }, async h => { await h.blank(1); await h.newChat(); await h.blank(2) }],
+  firstMessage: [{ url: '/builder' }, async h => { await h.blank(2); await h.firstMessage(); await h.blank(2) }],
+  upload: [{ url: '/builder' }, async h => { await h.blank(2); await h.upload(); await h.blank(2) }],
+  sidebarToSaved: [{ url: '/builder', known: [KNOWN] }, async h => { await h.blank(2); await h.navigate(`/builder?session_id=${KNOWN}`); await h.blank(2) }],
+  staleMarker: [{ url: `/builder?session_id=${KNOWN}`, known: [KNOWN], seed: s => s.setItem(unsavedKey(KNOWN), 'true') }, async h => { await h.blank(2) }],
+  staged: [{ url: `/builder?session_id=${UNKNOWN}`, seed: s => s.setItem(`deckster_composer_ready_${UNKNOWN}`, '{}') }, async h => { await h.blank(2) }],
+}
+
+const stripGate = source => {
+  const anchor = 'if (STUDIO_SESSION_HYGIENE_ENABLED && !enabledRef.current) {'
+  assert.ok(source.includes(anchor), 'the updateMetadata gate is present')
+  return source.replace(anchor, 'if (false) {')
+}
+
+async function persistenceSuite(overrides = {}) {
+  const hookSource = overrides[FILES.hook]
+  const persistSource = overrides[FILES.persist]
+  const run = (name, hygiene, extra = {}) => runPersisted({ hygiene, hookSource, persistSource, ...PERSIST_SCENARIOS[name][0], ...extra }, PERSIST_SCENARIOS[name][1])
+  const patches404 = h => h.api.calls.filter(c => c.method === 'PATCH' && c.status === 404).length
+
+  // ---- flag on: an unsaved session writes nothing, whatever Director sends
+  for (const name of ['bareVisit', 'explicitNew', 'reloadUnsaved']) {
+    const h = await run(name, true)
+    check(assert.deepEqual, h.api.sessionWrites(), [], `flag on, ${name}: ZERO session writes (no PATCH, no POST) through Director's blank frames and idle`)
+    check(assert.deepEqual, h.api.writes(), [], `flag on, ${name}: and no message writes either`)
+    check(assert.equal, h.api.rows.size, 0, `flag on, ${name}: no history row exists`)
+    check(assert.equal, h.page.isUnsavedSession, true, `flag on, ${name}: it stays an unsaved session`)
+    check(assert.ok, h.connects.count >= 1, `flag on, ${name}: Director still connects`)
+    check(assert.equal, h.api.calls.filter(c => c.method === 'GET').length, 1, `flag on, ${name}: the id is looked up exactly once`)
+  }
+  {
+    const h = await run('newChat', true)
+    const local = h.page.currentSessionId
+    check(assert.notEqual, local, KNOWN, 'flag on, new chat from a saved session: a fresh local id')
+    check(assert.deepEqual, h.api.calls.filter(c => c.url.includes(KNOWN) && c.method === 'PATCH').map(c => c.status), [200], 'flag on: the saved session before it still gets its metadata (PATCH 200 once)')
+    check(assert.deepEqual, h.api.sessionWrites().filter(c => !c.url.includes(KNOWN)), [], 'flag on, new chat: nothing is written for the new local id')
+    check(assert.equal, h.api.rows.size, 1, 'flag on, new chat: still just the one pre-existing row')
+  }
+
+  // ---- flag on: the first real action creates exactly one row, after which metadata flows again with no 404
+  {
+    const h = await run('firstMessage', true)
+    const id = h.page.currentSessionId
+    check(assert.equal, h.api.rowCreations().length, 1, 'flag on, first message: exactly one row is created')
+    check(assert.deepEqual, h.api.calls.filter(c => c.method === 'POST' && c.url === '/api/sessions').map(c => c.body.sessionId), [id], 'flag on: for the local id')
+    check(assert.equal, patches404(h), 0, 'flag on, first message: no PATCH ever 404s')
+    const firstWrite = h.api.calls.findIndex(c => /^(POST|PATCH)$/.test(c.method) && c.url.startsWith('/api/sessions'))
+    check(assert.deepEqual, [h.api.calls[firstWrite].method, h.api.calls[firstWrite].url], ['POST', '/api/sessions'], 'flag on: and the very first write is that row creation (the two blank frames before it wrote nothing)')
+    check(assert.equal, h.api.count('PATCH', 200), 3, 'flag on: the title PATCH plus the two blank frames sent after the row exists all land')
+    check(assert.equal, h.page.isUnsavedSession, false)
+    check(assert.equal, h.api.rows.get(id).blankPresentationId, 'blank-1', 'flag on: metadata is saved once the session is saved')
+  }
+  {
+    const h = await run('upload', true)
+    check(assert.equal, h.api.rowCreations().length, 1, 'flag on, upload: exactly one row is created')
+    check(assert.equal, patches404(h), 0, 'flag on, upload: no PATCH 404s')
+    check(assert.equal, h.api.count('PATCH', 200), 2, 'flag on, upload: the two blank frames sent after the row exists land')
+    const firstWrite = h.api.calls.find(c => /^(POST|PATCH)$/.test(c.method) && c.url.startsWith('/api/sessions'))
+    check(assert.deepEqual, [firstWrite.method, firstWrite.url], ['POST', '/api/sessions'], 'flag on, upload: the first write is the row creation')
+  }
+  {
+    const h = await run('staged', true)
+    check(assert.equal, h.api.rowCreations().length, 1, 'flag on, staged hand-off: adopted as before, one row')
+    check(assert.equal, patches404(h), 0, 'flag on, staged hand-off: no PATCH 404s')
+    check(assert.equal, h.api.count('PATCH', 200), 2, 'flag on, staged hand-off: metadata lands once the row exists')
+  }
+
+  // ---- flag on: a saved session is never mistaken for an unsaved one
+  {
+    const h = await run('savedBlank', true)
+    check(assert.deepEqual, h.api.calls.filter(c => c.method === 'PATCH').map(c => c.status), [200, 200], 'flag on, saved session: blank frames are written (PATCH 200 x2)')
+    check(assert.equal, h.api.rowCreations().length, 0)
+    const stale = await run('staleMarker', true)
+    check(assert.equal, stale.page.isUnsavedSession, false, 'flag on: a stale unsaved marker does not make a row that exists unsaved')
+    check(assert.equal, stale.storage.getItem(unsavedKey(KNOWN)), null, 'flag on: and the stale marker is removed')
+    check(assert.deepEqual, stale.api.calls.filter(c => c.method === 'PATCH').map(c => c.status), [200, 200], 'flag on, stale marker: its metadata is still written')
+    const side = await run('sidebarToSaved', true)
+    check(assert.deepEqual, side.api.sessionWrites().filter(c => !c.url.includes(KNOWN)), [], 'flag on, bare visit then a saved session: the bare id wrote nothing')
+    check(assert.equal, side.page.currentSessionId, KNOWN)
+    check(assert.equal, side.page.isUnsavedSession, false, 'flag on: opening a saved session from the sidebar leaves the unsaved state behind')
+    check(assert.deepEqual, side.api.calls.filter(c => c.method === 'PATCH').map(c => [c.url, c.status]), [[`/api/sessions/${KNOWN}`, 200], [`/api/sessions/${KNOWN}`, 200]], 'flag on: and the saved session gets its metadata')
+    check(assert.equal, side.api.rowCreations().length, 0)
+  }
+
+  // ---- the bug itself, reproduced on the pre-fix persistence hook with the flag on (this is what #361's harness could not see)
+  {
+    const bug = await runPersisted({ hygiene: true, hookSource, persistSource: stripGate(persistSource ?? SRC.persist), ...PERSIST_SCENARIOS.bareVisit[0] }, PERSIST_SCENARIOS.bareVisit[1])
+    check(assert.equal, bug.api.rowCreations().length, 1, 'pre-fix, flag on: a bare visit creates the empty row (the live "Untitled Session")')
+    check(assert.equal, patches404(bug), 8, 'pre-fix, flag on: after eight PATCH 404s (two updates x four attempts), as in the live trace')
+    check(assert.equal, bug.api.count('POST', 409), 1, 'pre-fix, flag on: with the second update\'s recovery POST answering 409')
+    check(assert.equal, bug.api.count('PATCH', 200), 2, 'pre-fix, flag on: then both PATCHes land')
+    check(assert.equal, bug.api.calls[0].method + ' ' + bug.api.calls[0].status, 'GET 404', 'pre-fix, flag on: after the one lookup that 404ed')
+  }
+
+  // ---- flag off: exactly uat (pinned here, and compared with the pre-fix hooks below)
+  {
+    const bare = await run('bareVisit', false)
+    check(assert.equal, bare.api.rowCreations().length, 1, 'flag off, bare visit: the row is created at load (uat behaviour)')
+    check(assert.equal, patches404(bare), 0)
+    check(assert.equal, bare.api.count('PATCH', 200), 2, 'flag off, bare visit: and the two blank frames PATCH it')
+    const stale = await run('staleMarker', false)
+    check(assert.equal, stale.page.isUnsavedSession, true, 'flag off: a stale marker still leaves a saved session "unsaved" (uat behaviour, untouched)')
+    check(assert.deepEqual, stale.api.calls.filter(c => c.method === 'PATCH').map(c => c.status), [200, 200], 'flag off: and its metadata is still written (uat ignores `enabled` there)')
+    check(assert.equal, stale.storage.getItem(unsavedKey(KNOWN)), 'true', 'flag off: the marker is left alone')
+    const side = await run('sidebarToSaved', false)
+    check(assert.equal, side.page.isUnsavedSession, false, 'flag off: bare visit adopted a row, so it is saved by then')
+  }
+}
+await persistenceSuite()
+
+// flag off, the SAME scenarios on the pre-fix hooks (the base commit, when it is reachable in git): identical write traces, by hash
+{
+  var persistCompared = 0
+  var persistHashes = null
+  const gitShow = rel => { try { return execFileSync('git', ['show', `${PERSIST_BASE_REF}:${rel}`], { cwd: repoRoot, encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'] }) } catch { return null } }
+  const basePersist = gitShow(FILES.persist), baseHook = gitShow(FILES.hook)
+  if (basePersist && baseHook) {
+    check(assert.equal, basePersist.includes('STUDIO_SESSION_HYGIENE'), false, 'the base persistence hook is the pre-fix one')
+    check(assert.equal, baseHook.includes('[SESSION-HYGIENE] Local unsaved session kept'), true, 'the base session hook is #361\'s')
+    const base = {}, branch = {}
+    for (const name of Object.keys(PERSIST_SCENARIOS)) {
+      const [options, steps] = PERSIST_SCENARIOS[name]
+      const before = await runPersisted({ hygiene: false, hookSource: baseHook, persistSource: basePersist, ...options }, steps)
+      const after = await runPersisted({ hygiene: false, ...options }, steps)
+      check(assert.deepEqual, normaliseCalls(after.api.calls), normaliseCalls(before.api.calls), `flag off: ${name} sends exactly the requests the pre-fix hooks send`)
+      check(assert.equal, hashCalls(after.api.calls), hashCalls(before.api.calls), `flag off: ${name} request-log hash is identical`)
+      check(assert.deepEqual, [after.page.isUnsavedSession, after.storage.getItem(unsavedKey(KNOWN)), after.storage.getItem(unsavedKey(UNKNOWN))],
+        [before.page.isUnsavedSession, before.storage.getItem(unsavedKey(KNOWN)), before.storage.getItem(unsavedKey(UNKNOWN))], `flag off: ${name} leaves the same state`)
+      base[name] = hashCalls(before.api.calls).slice(0, 12); branch[name] = hashCalls(after.api.calls).slice(0, 12)
+      persistCompared++
+    }
+    persistHashes = { base, branch }
+  }
+}
+
 // ---------------------------------------------------------------- 3. the views
 const noop = () => null
 const viewWorld = (env, overrides = {}) => createWorld({
@@ -594,6 +922,18 @@ function wiringSuite(sources = SRC, envex = ENVEX, pkg = PKG) {
   // chat sessions: the new lookup never writes
   const loadResultSource = sources.chat.slice(sources.chat.indexOf('const loadSessionResult'), sources.chat.indexOf('const createSession'))
   check(assert.doesNotMatch, loadResultSource, /method:|POST|PATCH|DELETE|createSession/, 'loadSessionResult is read-only')
+  // the persistence wiring the fix-forward rests on (section 2b mirrors the page here, so the page may not drift from it unnoticed)
+  check(assert.match, sources.page, /const persistence = useSessionPersistence\(\{\s*sessionId: currentSessionId \|\| '',\s*userId: authScopeUserId,\s*enabled: !!currentSessionId && !isUnsavedSession,/, 'persistence is enabled only for a saved session')
+  check(assert.match, sources.page, /onSessionStateChange: \(state\) => \{[\s\S]{0,400}?if \(currentSessionIdRef\.current && persistenceRef\.current\) \{[\s\S]*?persistenceRef\.current\.updateMetadata\(updates\)/, 'Director state changes reach persistence.updateMetadata guarded by refs only: the gate lives in the persistence hook')
+  check(assert.match, sources.persist, /import \{ STUDIO_SESSION_HYGIENE_ENABLED \} from '@\/lib\/studio-session-hygiene'/)
+  check(assert.equal, (sources.persist.match(/STUDIO_SESSION_HYGIENE_ENABLED && !enabledRef\.current/g) || []).length, 1, 'updateMetadata has the one gate, on the ref (current at call time)')
+  {
+    const update = sources.persist.slice(sources.persist.indexOf('const updateMetadata'), sources.persist.indexOf('const generateTitle'))
+    const gateAt = update.indexOf('STUDIO_SESSION_HYGIENE_ENABLED && !enabledRef.current')
+    check(assert.ok, gateAt > 0 && gateAt < update.indexOf('await updateSession('), 'the gate comes before the write')
+    check(assert.match, update.slice(gateAt, update.indexOf('await updateSession(')), /\n\s*return;\n\s*\}/, 'and it returns before it')
+  }
+  check(assert.match, sources.hook, /setSessionStoreName\(session\.geminiStoreName \|\| null\)\s*\n\s*if \(STUDIO_SESSION_HYGIENE_ENABLED\) \{[\s\S]{0,600}?setIsUnsavedSession\(false\)[\s\S]{0,200}?sessionStorage\.removeItem\(unsavedBuilderSessionKey\(builderCacheOwner, session\.id\)\)/, 'a row the history returns is a saved session')
   // not-found page
   check(assert.match, sources.notFoundPage, /if \(process\.env\.NEXT_PUBLIC_STUDIO_SESSION_HYGIENE === 'true'\) \{\s*\n\s*const \{ StudioNotFound \} = await import\('@\/components\/studio-not-found'\)\s*\n\s*return <StudioNotFound \/>\s*\n\s*\}\s*\n\s*return <FrameworkDefaultNotFound \/>/, 'the 404 page tests the flag inline, around the lazy import, so the build drops the Studio view with the flag off')
   check(assert.doesNotMatch, sources.notFoundPage, /^import .*\.css'/m, 'the 404 page imports no stylesheet itself')
@@ -665,6 +1005,19 @@ async function mutantSuite() {
   mutate('404 view loses its inline css', FILES.notFoundViews, '      <StudioSessionHygieneStyles />\n', '', ['view', 'wiring'])
   mutate('skeleton loses its inline css', FILES.views, '      <StudioSessionHygieneStyles />\n      <aside data-studio-skel-rail', '      <aside data-studio-skel-rail', ['view', 'wiring'])
 
+  // fix-forward: the persistence gate and the "a returned row is saved" reset
+  const P = FILES.persist
+  const GATE = 'if (STUDIO_SESSION_HYGIENE_ENABLED && !enabledRef.current) {'
+  mutate('updateMetadata gate removed', P, GATE, 'if (false) {', ['persist', 'wiring'])
+  mutate('updateMetadata gate inverted', P, GATE, 'if (STUDIO_SESSION_HYGIENE_ENABLED && enabledRef.current) {', ['persist', 'wiring'])
+  mutate('updateMetadata gate ignores the flag', P, GATE, 'if (!enabledRef.current) {', ['persist', 'wiring'])
+  mutate('updateMetadata gate blocks saved sessions too', P, GATE, 'if (STUDIO_SESSION_HYGIENE_ENABLED) {', ['persist', 'wiring'])
+  mutate('updateMetadata gate does not return', P, "unsaved, no history row yet:', currentSessionId);\n      return;", "unsaved, no history row yet:', currentSessionId);", ['persist', 'wiring'])
+  mutate('a returned row is not marked saved', H, "if (STUDIO_SESSION_HYGIENE_ENABLED) {\n              // The history has a row for this id, so it is saved", "if (false) {\n              // The history has a row for this id, so it is saved", ['persist', 'wiring'])
+  mutate('a returned row is marked saved with the flag off too', H, "if (STUDIO_SESSION_HYGIENE_ENABLED) {\n              // The history has a row for this id, so it is saved", "if (true) {\n              // The history has a row for this id, so it is saved", ['persist'])
+  mutate('a stale marker is left in storage', H, "                if (builderCacheOwner) sessionStorage.removeItem(unsavedBuilderSessionKey(builderCacheOwner, session.id))\n              } catch {}\n            }\n            debugLog('✅ Session loaded successfully')", "              } catch {}\n            }\n            debugLog('✅ Session loaded successfully')", ['persist', 'wiring'])
+  mutate('a returned row stays unsaved', H, "              setIsUnsavedSession(false)\n              try {\n                if (builderCacheOwner) sessionStorage.removeItem(unsavedBuilderSessionKey(builderCacheOwner, session.id))", "              try {\n                if (builderCacheOwner) sessionStorage.removeItem(unsavedBuilderSessionKey(builderCacheOwner, session.id))", ['persist', 'wiring'])
+
   let caught = 0
   for (const mutant of mutants) {
     const overrides = { [mutant.rel]: mutant.source }
@@ -673,6 +1026,7 @@ async function mutantSuite() {
       try {
         if (suite === 'policy') policySuite(overrides)
         else if (suite === 'scenario') await scenarioSuite(overrides)
+        else if (suite === 'persist') await persistenceSuite(overrides)
         else if (suite === 'view') await viewSuite(overrides)
         else if (suite === 'wiring') {
           const key = Object.keys(FILES).find(k => FILES[k] === mutant.rel)
@@ -693,4 +1047,5 @@ const { mutants, caught } = await mutantSuite()
 
 await tick()
 assert.deepEqual(unhandled, [], 'no unhandled rejection')
-console.log(`studio session hygiene: ${checks} checks passed; ${caught}/${mutants} mutants caught; flag-off traces compared with the pre-change hook (${BASE_REF}): ${baseCompared === 0 ? 'base not reachable in git, skipped' : `${baseCompared} scenarios identical`}`)
+console.log(`studio session hygiene: ${checks} checks passed; ${caught}/${mutants} mutants caught; flag-off traces compared with the pre-change hook (${BASE_REF}): ${baseCompared === 0 ? 'base not reachable in git, skipped' : `${baseCompared} scenarios identical`}; flag-off request logs compared with the pre-fix hooks (${PERSIST_BASE_REF}): ${persistCompared === 0 ? 'base not reachable in git, skipped' : `${persistCompared} scenarios hash-identical`}`)
+if (persistHashes && process.env.HYGIENE_PRINT_HASHES) console.log(JSON.stringify(persistHashes, null, 2))

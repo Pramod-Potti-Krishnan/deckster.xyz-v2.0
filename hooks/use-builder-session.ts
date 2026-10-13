@@ -426,6 +426,15 @@ export function useBuilderSession({
             })
             setCurrentSessionId(session.id)
             setSessionStoreName(session.geminiStoreName || null)
+            if (STUDIO_SESSION_HYGIENE_ENABLED) {
+              // The history has a row for this id, so it is saved, whatever an unsaved flag left over from the previous session
+              // (bare /builder, then a click on a saved one in the sidebar) or a stale marker says. With the flag on an unsaved
+              // session writes nothing (use-session-persistence), so a saved one must not be mistaken for it.
+              setIsUnsavedSession(false)
+              try {
+                if (builderCacheOwner) sessionStorage.removeItem(unsavedBuilderSessionKey(builderCacheOwner, session.id))
+              } catch {}
+            }
             debugLog('✅ Session loaded successfully')
 
             if (session.title) {
