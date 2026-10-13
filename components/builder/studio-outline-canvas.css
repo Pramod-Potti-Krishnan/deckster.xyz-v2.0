@@ -1,0 +1,67 @@
+/* PASS2 #4 (flag NEXT_PUBLIC_STUDIO_OUTLINE_CANVAS): outline review on the canvas, after the accepted v4 mockup's
+   .story-outline (design/studio-v4-mockup/app/studio.css). Every rule is scoped to attributes that exist only with the flag on. */
+/* While the outline is up, the presentation column is its positioning box. The viewer under it stays mounted and live (same
+   frame, same slide, header Download still ready) and is only covered: it is made its own stacking context, so the outline sits
+   above everything in it at z-index 1 and below the workspace drawers and their handles (the Director handle stays reachable, as
+   in the mockup). StudioOutlineCanvas makes it inert while covered (out of the tab order and the accessibility tree). */
+[data-studio-v4-shell="true"] [data-studio-outline-canvas-open="true"] { position: relative; }
+[data-studio-v4-shell="true"] [data-studio-outline-canvas-open="true"] > :not([data-studio-outline-canvas]) { isolation: isolate; }
+[data-studio-v4-shell="true"] [data-studio-outline-canvas="true"] {
+  position: absolute; inset: var(--studio-pane-toolbar-height, 0px) 0 0 0; z-index: 1; display: flex; overflow: auto; container-type: inline-size;
+  background: radial-gradient(ellipse at 55% 38%, color-mix(in srgb, var(--ss-active) 45%, transparent), transparent 65%), var(--ss-surface);
+  color: var(--ss-text);
+}
+[data-studio-outline-canvas="true"] [data-studio-outline-canvas-part="body"] { box-sizing: border-box; width: 100%; max-width: 1080px; margin: 0 auto; padding: 38px 34px; }
+[data-studio-outline-canvas="true"] [data-studio-outline-canvas-part="heading"] { display: flex; justify-content: space-between; align-items: center; gap: 15px; margin-bottom: 27px; }
+[data-studio-outline-canvas="true"] [data-studio-outline-canvas-part="eyebrow"] { font-size: 9px; letter-spacing: 1.6px; text-transform: uppercase; color: var(--ss-muted); }
+[data-studio-outline-canvas="true"] h2 { margin: 12px 0; font-size: 25px; line-height: 1.3; letter-spacing: -.6px; font-weight: 400; color: var(--ss-text); }
+[data-studio-outline-canvas="true"] [data-studio-outline-canvas-part="heading"] p { margin: 0; font-size: 11px; line-height: 1.7; color: var(--ss-muted); overflow-wrap: anywhere; }
+[data-studio-outline-canvas="true"] [data-studio-outline-canvas-part="badge"] { flex: none; padding: 6px 10px; border-radius: 6px; background: var(--ss-active); color: var(--ss-teal); font-size: 11px; }
+[data-studio-outline-canvas="true"] [data-studio-outline-canvas-part="main"] { display: grid; grid-template-columns: minmax(0, 1fr) 210px; gap: 18px; align-items: start; }
+[data-studio-outline-canvas="true"] [data-studio-outline-canvas-part="slide"] { min-height: 275px; padding: 30px 25px; border: 1px solid var(--ss-line); border-radius: 9px; background: var(--ss-panel); box-shadow: 0 9px 25px #4c538307; }
+[data-studio-outline-canvas="true"] [data-studio-outline-canvas-part="slide-number"] { font-size: 8px; letter-spacing: 1.3px; text-transform: uppercase; color: var(--ss-teal); }
+[data-studio-outline-canvas="true"] h3 { min-height: 58px; margin: 25px 0; font-size: 22px; line-height: 1.3; letter-spacing: -.5px; font-weight: 400; color: var(--ss-text); overflow-wrap: anywhere; }
+[data-studio-outline-canvas="true"] [data-studio-outline-canvas-part="wire-lines"] { display: flex; flex-direction: column; gap: 6px; margin-bottom: 20px; }
+[data-studio-outline-canvas="true"] [data-studio-outline-canvas-part="wire-lines"] i { display: block; height: 4px; border-radius: 3px; background: var(--ss-line); }
+[data-studio-outline-canvas="true"] [data-studio-outline-canvas-part="wire-lines"] i:nth-child(2) { width: 93%; }
+[data-studio-outline-canvas="true"] [data-studio-outline-canvas-part="wire-lines"] i:nth-child(3) { width: 68%; }
+[data-studio-outline-canvas="true"] [data-studio-outline-canvas-part="wire-blocks"] { display: flex; gap: 8px; }
+[data-studio-outline-canvas="true"] [data-studio-outline-canvas-part="wire-blocks"] i { flex: 1; height: 45px; border-radius: 4px; background: var(--ss-soft); }
+[data-studio-outline-canvas="true"] [data-studio-outline-canvas-part="wire-blocks"] i:nth-child(2) { background: color-mix(in srgb, var(--ss-teal) 12%, var(--ss-panel)); }
+[data-studio-outline-canvas="true"] [data-studio-outline-canvas-part="wire-blocks"] i:nth-child(3) { background: color-mix(in srgb, #c8a96a 18%, var(--ss-panel)); }
+[data-studio-outline-canvas="true"] [data-studio-outline-canvas-part="purpose"] { display: flex; gap: 7px; margin: 22px 0 0; padding-top: 15px; border-top: 1px solid var(--ss-line); font-size: 11px; line-height: 1.7; color: var(--ss-muted); overflow-wrap: anywhere; }
+[data-studio-outline-canvas="true"] [data-studio-outline-canvas-part="purpose"] > svg { flex: none; margin-top: 3px; color: var(--ss-accent); }
+[data-studio-outline-canvas="true"] [data-studio-outline-canvas-part="list"] { display: flex; flex-direction: column; gap: 6px; max-height: 415px; margin: 0; padding: 0; overflow: auto; list-style: none; scrollbar-width: thin; }
+[data-studio-outline-canvas="true"] [data-studio-outline-canvas-part="list"] button { display: flex; align-items: center; gap: 10px; width: 100%; padding: 12px 10px; border: 1px solid transparent; border-radius: 6px; background: transparent; color: var(--ss-text); text-align: left; cursor: pointer; }
+[data-studio-outline-canvas="true"] [data-studio-outline-canvas-part="list"] button:hover { background: var(--ss-panel); }
+[data-studio-outline-canvas="true"] [data-studio-outline-canvas-part="list"] button[aria-pressed="true"] { border-color: color-mix(in srgb, var(--ss-teal) 30%, var(--ss-line)); background: var(--ss-panel); }
+[data-studio-outline-canvas="true"] [data-studio-outline-canvas-part="list"] button:focus-visible { outline: 2px solid var(--ss-accent); outline-offset: -2px; }
+[data-studio-outline-canvas="true"] [data-studio-outline-canvas-part="list"] button > span { flex: none; font-size: 10px; color: var(--ss-muted); font-variant-numeric: tabular-nums; }
+[data-studio-outline-canvas="true"] [data-studio-outline-canvas-part="list"] button > strong { flex: 1; min-width: 0; font-size: 11px; font-weight: 400; line-height: 1.5; overflow-wrap: anywhere; }
+[data-studio-outline-canvas="true"] [data-studio-outline-canvas-part="list"] button[aria-pressed="true"] > span,
+[data-studio-outline-canvas="true"] [data-studio-outline-canvas-part="list"] button > svg { color: var(--ss-teal); }
+[data-studio-outline-canvas="true"] [data-studio-outline-canvas-part="footer"] { display: flex; align-items: center; justify-content: space-between; gap: 15px; margin-top: 28px; padding-top: 20px; border-top: 1px solid var(--ss-line); }
+[data-studio-outline-canvas="true"] [data-studio-outline-canvas-part="footer"] > span { display: flex; align-items: center; gap: 6px; font-size: 10px; color: var(--ss-muted); }
+[data-studio-outline-canvas="true"] [data-studio-outline-canvas-part="approve"] { display: inline-flex; align-items: center; gap: 8px; min-height: 36px; padding: 8px 14px; border: 1px solid var(--ss-action); border-radius: 7px; background: var(--ss-action); color: var(--ss-on-action); font-size: 12px; font-weight: 500; cursor: pointer; }
+[data-studio-outline-canvas="true"] [data-studio-outline-canvas-part="approve"]:hover { background: var(--ss-action-hover); }
+[data-studio-outline-canvas="true"] [data-studio-outline-canvas-part="approve"]:focus-visible { outline: 2px solid var(--ss-accent); outline-offset: 2px; }
+[data-studio-outline-canvas="true"] [data-studio-outline-canvas-part="approve"]:disabled { opacity: .6; cursor: progress; }
+@container (max-width: 620px) {
+  [data-studio-outline-canvas="true"] [data-studio-outline-canvas-part="body"] { padding: 27px 24px; }
+  [data-studio-outline-canvas="true"] [data-studio-outline-canvas-part="main"] { grid-template-columns: 1fr; }
+  [data-studio-outline-canvas="true"] [data-studio-outline-canvas-part="list"] { max-height: 185px; }
+  [data-studio-outline-canvas="true"] [data-studio-outline-canvas-part="slide"] { min-height: 220px; }
+  [data-studio-outline-canvas="true"] h2 { font-size: 23px; }
+  [data-studio-outline-canvas="true"] [data-studio-outline-canvas-part="footer"] { flex-wrap: wrap; }
+}
+@media (prefers-reduced-motion: no-preference) {
+  [data-studio-v4-shell="true"] [data-studio-outline-canvas="true"] { animation: studio-outline-canvas-in .35s cubic-bezier(.16, 1, .3, 1); }
+}
+@keyframes studio-outline-canvas-in { from { opacity: 0; transform: translateX(18px); } }
+
+/* The chat card of the outline that is on the canvas: summary only, slide details folded (flag on only). */
+[data-studio-v4-shell="true"] [data-studio-director-part="outline-review-canvas-note"] { margin: 8px 0 0; color: var(--ss-text); font-size: 10.5px; line-height: 1.6; }
+[data-studio-v4-shell="true"] [data-studio-director-part="outline-review-details"] { margin-top: 8px; }
+[data-studio-v4-shell="true"] [data-studio-director-part="outline-review-details"] > summary { color: var(--ss-muted); font-size: 10.5px; cursor: pointer; }
+[data-studio-v4-shell="true"] [data-studio-director-part="outline-review-details"] > summary:focus-visible { outline: 2px solid var(--ss-accent); outline-offset: 3px; border-radius: 4px; }
+[data-studio-v4-shell="true"] [data-studio-director-part="outline-review-deck-count"] { margin: 2px 0 0; color: var(--ss-muted); font-size: 10.5px; line-height: 1.6; }

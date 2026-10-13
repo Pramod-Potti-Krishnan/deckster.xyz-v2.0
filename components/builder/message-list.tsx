@@ -32,7 +32,7 @@ import { deduplicateDirectorTranscript, type DirectorTranscriptEntry } from "@/l
 import { classifyDirectorMessage, getDirectorActionPolicy } from "@/lib/studio-director-message-policy"
 import { directorHistoryTimestamp } from "@/lib/director-chat-history"
 import { askAnswerKey, lockApprovalGatePolicy } from "@/lib/director-ask-identity"
-import { coalesceOutlineStateReplays, presentTerminalOutlineRevisions, type HistoricalActionStatus, type OutlineHistoryStatus } from "@/lib/director-history-presentation"
+import { coalesceOutlineStateReplays, presentTerminalOutlineRevisions, STUDIO_OUTLINE_CANVAS_ENABLED, hideBuiltDeckStructureResends, type HistoricalActionStatus, type OutlineHistoryStatus } from "@/lib/director-history-presentation"
 import {
   attachmentsFromPayload,
   type UserChatMessage,
@@ -95,6 +95,8 @@ export interface MessageListProps {
   // thinking-stream is rerouted to the canvas + DirectorPresence and never
   // renders in chat. False/undefined = today's behavior, byte-for-byte.
   suppressEphemeral?: boolean
+  /** PASS2 #4 (NEXT_PUBLIC_STUDIO_OUTLINE_CANVAS): message_id of the outline frame the canvas is showing. Undefined when off. */
+  studioOutlineOnCanvas?: string | null
 }
 
 // Keep the native pre component identity stable across transcript/status rerenders.
@@ -175,8 +177,13 @@ export function MessageList({
   currentStatus,
   isGeneratingFinal = false,
   suppressEphemeral,
+  studioOutlineOnCanvas,
 }: MessageListProps) {
   const studio = process.env.NEXT_PUBLIC_STUDIO_V4_SHELL === 'true'
+  // PASS2 #4: off, no outline card receives these props, so it renders exactly as before.
+  const outlineCanvasProps = (messageId: string) => STUDIO_OUTLINE_CANVAS_ENABLED
+    ? { onCanvas: studioOutlineOnCanvas === messageId, outlineLabel: true, deckSlideCount: presentationContext?.slideCount ?? null }
+    : undefined
   const greetingProjectionRef = useRef<{
     receipt: StudioFrontendTranscriptReceipt | null
     revision: number
@@ -414,7 +421,8 @@ export function MessageList({
     }
     // Preserve the legacy welcome policy outside Studio. Studio uses a bounded
     // display prefix; raw messages still drive history/actions/persistence.
-    const filtered = studio ? [...studioPresented] : presented.filter((item, index) => {
+    // PASS2 #4 (flag on, Studio only): a built deck's structure re-sent on reconnect is state, not a new outline card.
+    const filtered = studio ? (STUDIO_OUTLINE_CANVAS_ENABLED ? hideBuiltDeckStructureResends([...studioPresented]) : [...studioPresented]) : presented.filter((item, index) => {
       if (item.messageType === 'bot') {
         const msg = item as DirectorMessage;
         if (msg.type === 'chat_message') {
@@ -626,7 +634,7 @@ export function MessageList({
                       <p data-studio-director-part="speaker" className="text-[11px] font-medium text-gray-500 dark:text-slate-400 mb-0.5">Director</p>
 
                       {/* Slide Structure Card */}
-                      {studio && slideUpdate ? <StudioOutlineCard payload={slideUpdate.payload} historyStatus={slideUpdate.clientOutlineHistoryStatus} contextByIndex={slideContextByIndex} renderEvidence={(context) => <EvidenceBadge context={context} />} /> : (
+                      {studio && slideUpdate ? <StudioOutlineCard payload={slideUpdate.payload} historyStatus={slideUpdate.clientOutlineHistoryStatus} contextByIndex={slideContextByIndex} renderEvidence={(context) => <EvidenceBadge context={context} />} {...outlineCanvasProps(slideUpdate.message_id)} /> : (
                       <div data-studio-director-part="outline" className="mt-2 p-3 bg-gray-50 dark:bg-slate-800 rounded-lg border border-gray-100 dark:border-slate-800">
                         <div className="flex items-center gap-2 mb-1.5">
                           <span className="text-sm">📊</span>
@@ -902,7 +910,7 @@ export function MessageList({
                     </div>
                     <div className="flex-1 min-w-0">
                       <p data-studio-director-part="speaker" className="text-[11px] font-medium text-gray-500 dark:text-slate-400 mb-0.5">Director</p>
-                      {studio ? <StudioOutlineCard payload={slideMsg.payload} historyStatus={slideMsg.clientOutlineHistoryStatus} contextByIndex={slideContextByIndex} renderEvidence={(context) => <EvidenceBadge context={context} />} /> : (
+                      {studio ? <StudioOutlineCard payload={slideMsg.payload} historyStatus={slideMsg.clientOutlineHistoryStatus} contextByIndex={slideContextByIndex} renderEvidence={(context) => <EvidenceBadge context={context} />} {...outlineCanvasProps(slideMsg.message_id)} /> : (
                       <div data-studio-director-part="outline" className="mt-2 p-3 bg-gray-50 dark:bg-slate-800 rounded-lg border border-gray-100 dark:border-slate-800">
                         <div className="flex items-center gap-2 mb-1.5">
                           <span className="text-sm">📊</span>

@@ -32,6 +32,8 @@ import type { UploadedFile } from '@/components/file-chip'
 import { features } from '@/lib/config'
 import { useBuildNarration } from '@/hooks/use-build-narration'
 import { useStudioOutlinePreview } from '@/hooks/use-studio-outline-preview'
+import { STUDIO_OUTLINE_CANVAS_BUSY_PHASES, STUDIO_OUTLINE_CANVAS_ENABLED, selectStudioOutlineCanvas } from '@/lib/studio-outline-canvas'
+import { StudioOutlineCanvas } from '@/components/builder/studio-outline-canvas'
 import { useStageFThumbnailCache } from '@/hooks/use-stage-f-thumbnail-cache'
 import { centerStageFor, effectiveNarrationEnabled } from '@/lib/build-narration-heuristics'
 import {
@@ -6548,6 +6550,13 @@ function AuthenticatedBuilderContent({ authScopeUserId }: { authScopeUserId: str
   })
   const retiredIntroActions = lockApprovalGateStatuses(
     historicalActionStatuses(messages, session.answeredActionsRef.current, session.userMessages), messages, approvalGatesLocked)
+  // PASS2 #4 (flag NEXT_PUBLIC_STUDIO_OUTLINE_CANVAS, default off): while the outline gate is live, the canvas shows the outline.
+  const studioOutlineCanvas = selectStudioOutlineCanvas({
+    enabled: STUDIO_OUTLINE_CANVAS_ENABLED && studioShell,
+    blocked: templateModeOn || isGeneratingFinal || session.isLoadingSession || STUDIO_OUTLINE_CANVAS_BUSY_PHASES.has(buildNarration.phase),
+    messages, answeredIds: session.answeredActionsRef.current, userTurns: session.userMessages,
+    sessionId: currentSessionId, locked: approvalGatesLocked,
+  })
   const studioMandatoryDecision = messages.some(message => message.type === 'action_request'
     && message.session_id === (currentSessionId || wsSessionId) && !retiredIntroActions.has(message.message_id)
     && Boolean((message.payload as any).question_set || (message as ActionRequest).payload.actions.some(action =>
@@ -7067,6 +7076,7 @@ function AuthenticatedBuilderContent({ authScopeUserId }: { authScopeUserId: str
                         answeredActionsRef={session.answeredActionsRef}
                         onActionClick={handleActionClick}
                         askGatesLocked={approvalGatesLocked}
+                        studioOutlineOnCanvas={studioOutlineCanvas?.outline.message_id}
                         onSubmitAnswers={async (text: string, displayText?: string) => {
                           const origin = { ...questionSubmissionScopeRef.current }
                           const isCurrentSubmission = () => (
@@ -7332,6 +7342,7 @@ function AuthenticatedBuilderContent({ authScopeUserId }: { authScopeUserId: str
           <div
             data-studio-v4-shell-presentation="true"
             data-studio-canvas-covered={studioCanvasCovered ? "true" : undefined}
+            data-studio-outline-canvas-open={studioOutlineCanvas ? "true" : undefined}
             aria-hidden={studioCanvasCovered ? true : undefined}
             {...(studioCanvasCovered ? { inert: true } : {})}
             className={cn(
@@ -7623,6 +7634,9 @@ function AuthenticatedBuilderContent({ authScopeUserId }: { authScopeUserId: str
             onTemplateBlueprintChange={handleTemplateBlueprintChange}
           />
           )}
+          {studioOutlineCanvas && <StudioOutlineCanvas key={studioOutlineCanvas.outline.message_id}
+            outline={studioOutlineCanvas.outline.payload} contextByIndex={slideContextByIndex}
+            onApprove={() => handleActionClick(studioOutlineCanvas.approve, studioOutlineCanvas.gate.message_id, studioOutlineCanvas.answerKey)} />}
           </div>
         </div>
       </div>
