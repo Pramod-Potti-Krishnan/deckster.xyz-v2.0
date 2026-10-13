@@ -1,0 +1,41 @@
+[
+  {
+    "at": 9000,
+    "body": {
+      "component_type": "TEXT_BOX",
+      "count": 1,
+      "generation_attempt_id": "synthetic-uuid-0003",
+      "generation_context": {
+        "generation_intent": {"component_type":"TEXT_BOX","user_prompt":"Three synthetic facts about ocean currents"},
+        "reference_context": {"deck":null,"slide":{"context_status":"unavailable","elements":[],"slide_index":0}}
+      },
+      "geometry_mode": "AUTO",
+      "layout": "vertical",
+      "message": "Three synthetic facts about ocean currents",
+      "position_config": {"auto_position":false,"position_height":6,"position_width":10,"start_col":5,"start_row":4},
+      "presentation_id": "synthetic-blank-02",
+      "research": {
+        "depth": "quick",
+        "mode": "off",
+        "session_id": "synthetic-session-blank-canvas",
+        "source_capabilities": {},
+        "store_name": null,
+        "uploaded_docs": false,
+        "use_knowledge_graph": false,
+        "user_id": null,
+        "web": false
+      },
+      "semantic_role": "BODY_TEXT",
+      "server_side_insert": false,
+      "session_id": "synthetic-textlabs-session",
+      "slide_context": {"context_status":"unavailable","elements":[],"slide_index":0},
+      "slide_index": 0,
+      "text_only_mode": true,
+      "theme_bindings": {"text":"--theme-text"},
+      "theme_variant_id": "synthetic-variant",
+      "use_deck_theme": true
+    },
+    "method": "POST",
+    "path": "/api/chat/message"
+  }
+]

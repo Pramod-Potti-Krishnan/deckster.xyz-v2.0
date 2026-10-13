@@ -1,0 +1,88 @@
+[
+  {"args":[{"message_id":"msg-initial-theme","type":"theme_sync"}],"name":"hook.onMessage","step":3},
+  {
+    "args": [
+      {
+        "currentStage": 0,
+        "presentationId": "synthetic-blank-02",
+        "presentationUrl": "https://layout.synthetic.invalid/p/synthetic-blank-02",
+        "slideCount": 1
+      }
+    ],
+    "name": "hook.onSessionStateChange",
+    "step": 5
+  },
+  {"args":[{"message_id":"msg-blank-init","type":"presentation_init"}],"name":"hook.onMessage","step":5},
+  {"args":[{"message_id":"msg-greeting-blank","type":"chat_message"}],"name":"hook.onMessage","step":6},
+  {"args":[{"message_id":"msg-theme-auto-applied","type":"theme_sync"}],"name":"hook.onMessage","step":9},
+  {"args":[{"mode":"preset","preset_id":"corporate_light"}],"name":"page.handleBuildThemeChange","step":11},
+  {"args":[],"name":"page.saveSessionOnFirstAction","step":11},
+  {"args":[{"message_id":"msg-theme-corporate-applied","type":"theme_sync"}],"name":"hook.onMessage","step":14},
+  {
+    "args": [
+      {
+        "advancedModified": false,
+        "componentType": "TEXT_BOX",
+        "count": 1,
+        "geometryMode": "AUTO",
+        "layout": "vertical",
+        "positionConfig": {"auto_position":false,"position_height":6,"position_width":10,"start_col":5,"start_row":4},
+        "presentationId": "synthetic-blank-02",
+        "prompt": "Three synthetic facts about ocean currents",
+        "semanticRole": "BODY_TEXT",
+        "slideIndex": 0,
+        "textboxConfig": {},
+        "useDeckTheme": true
+      }
+    ],
+    "name": "page.handleTextLabsGenerate",
+    "step": 17
+  },
+  {"args":[true],"name":"panel.setIsGenerating","step":17},
+  {"args":[null],"name":"panel.setError","step":17},
+  {"args":["synthetic-blank-element-1","generating"],"name":"blank.setStatus","step":17},
+  {
+    "args": ["setElementGenerationState",{"elementId":"synthetic-blank-element-1"}],
+    "name": "layout.sendElementCommand",
+    "step": 17
+  },
+  {
+    "args": ["getElementGeometry",{"elementId":"synthetic-blank-element-1"}],
+    "name": "layout.sendElementCommand",
+    "step": 17
+  },
+  {
+    "args": ["refreshElementThemeMetadata",{"elementId":"synthetic-blank-element-1"}],
+    "name": "layout.sendElementCommand",
+    "step": 17
+  },
+  {"args":["getSlideGenerationContext",{"elementId":null}],"name":"layout.sendElementCommand","step":17},
+  {"args":[],"name":"textlabs.ensureSession","step":17},
+  {"args":[{"method":"POST","path":"/api/chat/message"}],"name":"textlabs.request","step":17},
+  {
+    "args": ["insertTextBox",{"elementId":"text_box_1791201609000_1"}],
+    "name": "layout.sendElementCommand",
+    "step": 17
+  },
+  {
+    "args": ["deleteElement",{"elementId":"synthetic-blank-element-1"}],
+    "name": "layout.sendElementCommand",
+    "step": 17
+  },
+  {"args":["synthetic-blank-element-1"],"name":"blank.removeElement","step":17},
+  {"args":[],"name":"panel.completeBlankReplacement","step":17},
+  {"args":[{"description":"TEXT BOX added to slide","title":"Element generated"}],"name":"page.toast","step":17},
+  {"args":[false],"name":"panel.setIsGenerating","step":17},
+  {
+    "args": [
+      {
+        "elementIds": ["synthetic-generated-1"],
+        "presentationId": "synthetic-blank-02",
+        "slideIndex": 0,
+        "status": "inserted"
+      }
+    ],
+    "name": "page.handleTextLabsGenerate.result",
+    "step": 17
+  }
+]
