@@ -1,0 +1,71 @@
+/* PASS2 #2: the first-run home (flag NEXT_PUBLIC_STUDIO_FIRST_RUN_V2). Every rule below is keyed to markup that exists only with
+   the flag on ([data-studio-first-run], [data-studio-first-run-starters], [data-studio-first-run-actions]), so with the flag off
+   none of it matches anything. Presentation only: the stage and its viewer stay mounted (visibility, like the overlay layout's
+   covered canvas), and no handler, message or request is touched. */
+
+/* The head, serif like the accepted mockup's welcome. In a narrow chat column it is compact and left-aligned (the size of today's
+   welcome); with the whole workspace (layout rules below) it is centred and larger. */
+[data-studio-v4-shell="true"] [data-studio-director-welcome][data-studio-first-run] { padding: 13px 8px 4px; }
+[data-studio-v4-shell="true"] [data-studio-first-run-part="mark"] {
+  display: grid; place-items: center; width: 36px; height: 36px; margin-bottom: 14px;
+  border: 1px solid color-mix(in srgb, var(--ss-accent) 22%, var(--ss-line)); border-radius: 11px;
+  background: color-mix(in srgb, var(--ss-accent) 9%, var(--ss-panel)); color: var(--ss-accent);
+}
+[data-studio-v4-shell="true"] [data-studio-director-welcome][data-studio-first-run] h2 {
+  margin: 10px 0 10px; font: 400 clamp(24px, 2.4vw, 30px)/1.15 Georgia, "Times New Roman", serif; letter-spacing: -.02em; text-wrap: balance;
+}
+
+/* Starters, after Director's greeting. */
+[data-studio-v4-shell="true"] [data-studio-first-run-starters] { margin-top: 4px; }
+
+/* The stage's quiet actions. Shown only while the stage is out of sight (rule below); otherwise the stage carries its own. */
+[data-studio-v4-shell="true"] [data-studio-first-run-actions] { display: none; }
+[data-studio-v4-shell="true"] [data-studio-first-run-actions] .studio-first-run-link {
+  display: inline-flex; align-items: center; gap: 6px; padding: 5px 8px; border: 0; border-radius: 6px; background: transparent;
+  color: var(--ss-muted); font-size: 11px; line-height: 1.4; text-decoration: none; cursor: pointer; opacity: 1;
+}
+[data-studio-v4-shell="true"] [data-studio-first-run-actions] .studio-first-run-link:hover { background: var(--ss-active); color: var(--ss-text); }
+[data-studio-v4-shell="true"] [data-studio-first-run-actions] .studio-first-run-link:focus-visible { outline: 2px solid var(--ss-accent); outline-offset: 1px; }
+[data-studio-v4-shell="true"] [data-studio-first-run-actions] .studio-first-run-link:disabled { opacity: .55; cursor: default; }
+
+/* The layout: while the welcome is up (nothing said yet in the chat) and the page marks the stage as free to step aside
+   (data-studio-first-run-stage: the landing state, no workflow link, no fullscreen, no inspector), the chat takes the whole workspace
+   and the stage steps out of sight. Any message, "Start on a blank canvas", an opened inspector or a workflow link brings the usual split back. */
+[data-studio-v4-shell="true"] [data-studio-v4-shell-workspace]:has(> [data-studio-v4-shell-presentation][data-studio-first-run-stage="true"]):has([data-studio-workspace-drawer="deck"][data-studio-workspace-visible="true"] [data-studio-first-run]) :is([data-studio-workspace-drawer="deck"], [data-studio-workspace-drawer="deck"] > [data-studio-workspace-content]) {
+  width: 100% !important;
+}
+[data-studio-v4-shell="true"] [data-studio-v4-shell-workspace]:has(> [data-studio-v4-shell-presentation][data-studio-first-run-stage="true"]):has([data-studio-workspace-drawer="deck"][data-studio-workspace-visible="true"] [data-studio-first-run]) [data-studio-v4-shell-presentation] {
+  visibility: hidden;
+}
+[data-studio-v4-shell="true"] [data-studio-v4-shell-workspace]:has(> [data-studio-v4-shell-presentation][data-studio-first-run-stage="true"]):has([data-studio-workspace-drawer="deck"][data-studio-workspace-visible="true"] [data-studio-first-run]) :is([data-studio-workspace-resize="chat"], [data-studio-drawer-handle="director"]) {
+  display: none;
+}
+[data-studio-v4-shell="true"] [data-studio-v4-shell-workspace]:has(> [data-studio-v4-shell-presentation][data-studio-first-run-stage="true"]):has([data-studio-workspace-drawer="deck"][data-studio-workspace-visible="true"] [data-studio-first-run]) div:has(> [data-studio-first-run]) {
+  display: flex; flex-direction: column; align-items: center;
+}
+[data-studio-v4-shell="true"] [data-studio-v4-shell-workspace]:has(> [data-studio-v4-shell-presentation][data-studio-first-run-stage="true"]):has([data-studio-workspace-drawer="deck"][data-studio-workspace-visible="true"] [data-studio-first-run]) div:has(> [data-studio-first-run]) > * {
+  box-sizing: border-box; width: min(620px, 100%);
+}
+[data-studio-v4-shell="true"] [data-studio-v4-shell-workspace]:has(> [data-studio-v4-shell-presentation][data-studio-first-run-stage="true"]):has([data-studio-workspace-drawer="deck"][data-studio-workspace-visible="true"] [data-studio-first-run]) [data-studio-v4-composer] {
+  box-sizing: border-box; width: min(668px, 100%); margin-inline: auto; border-top-color: transparent;
+}
+[data-studio-v4-shell="true"] [data-studio-v4-shell-workspace]:has(> [data-studio-v4-shell-presentation][data-studio-first-run-stage="true"]):has([data-studio-workspace-drawer="deck"][data-studio-workspace-visible="true"] [data-studio-first-run]) [data-studio-first-run-actions] {
+  display: flex; flex-wrap: wrap; justify-content: center; gap: 2px 14px; margin-top: 14px;
+}
+
+/* Wide welcome: the centred head. */
+[data-studio-v4-shell="true"] [data-studio-v4-shell-workspace]:has(> [data-studio-v4-shell-presentation][data-studio-first-run-stage="true"]):has([data-studio-workspace-drawer="deck"][data-studio-workspace-visible="true"] [data-studio-first-run]) [data-studio-director-welcome][data-studio-first-run] {
+  display: flex; flex-direction: column; align-items: center; max-width: 620px; margin: clamp(0px, 2.5vh, 24px) auto 14px; padding: 0 8px; text-align: center;
+}
+[data-studio-v4-shell="true"] [data-studio-v4-shell-workspace]:has(> [data-studio-v4-shell-presentation][data-studio-first-run-stage="true"]):has([data-studio-workspace-drawer="deck"][data-studio-workspace-visible="true"] [data-studio-first-run]) [data-studio-first-run-part="mark"] { width: 42px; height: 42px; margin-bottom: 16px; border-radius: 14px; }
+[data-studio-v4-shell="true"] [data-studio-v4-shell-workspace]:has(> [data-studio-v4-shell-presentation][data-studio-first-run-stage="true"]):has([data-studio-workspace-drawer="deck"][data-studio-workspace-visible="true"] [data-studio-first-run]) [data-studio-director-welcome][data-studio-first-run] [data-studio-director-welcome-part="eyebrow"] { justify-content: center; }
+[data-studio-v4-shell="true"] [data-studio-v4-shell-workspace]:has(> [data-studio-v4-shell-presentation][data-studio-first-run-stage="true"]):has([data-studio-workspace-drawer="deck"][data-studio-workspace-visible="true"] [data-studio-first-run]) [data-studio-director-welcome][data-studio-first-run] h2 {
+  max-width: none; margin: 10px 0 10px; font-size: clamp(30px, 3vw, 42px); line-height: 1.12;
+}
+[data-studio-v4-shell="true"] [data-studio-v4-shell-workspace]:has(> [data-studio-v4-shell-presentation][data-studio-first-run-stage="true"]):has([data-studio-workspace-drawer="deck"][data-studio-workspace-visible="true"] [data-studio-first-run]) [data-studio-director-welcome][data-studio-first-run] [data-studio-director-welcome-part="intro"] { max-width: 420px; }
+[data-studio-v4-shell="true"] [data-studio-v4-shell-workspace]:has(> [data-studio-v4-shell-presentation][data-studio-first-run-stage="true"]):has([data-studio-workspace-drawer="deck"][data-studio-workspace-visible="true"] [data-studio-first-run]) [data-studio-first-run-starters] [data-studio-director-welcome-part="hint"] { max-width: none; text-align: center; }
+/* A short window keeps the welcome on one screen: the mark goes, the heading tightens. */
+@media (max-height: 760px) {
+  [data-studio-v4-shell="true"] [data-studio-v4-shell-workspace]:has(> [data-studio-v4-shell-presentation][data-studio-first-run-stage="true"]):has([data-studio-workspace-drawer="deck"][data-studio-workspace-visible="true"] [data-studio-first-run]) [data-studio-first-run-part="mark"] { display: none; }
+  [data-studio-v4-shell="true"] [data-studio-v4-shell-workspace]:has(> [data-studio-v4-shell-presentation][data-studio-first-run-stage="true"]):has([data-studio-workspace-drawer="deck"][data-studio-workspace-visible="true"] [data-studio-first-run]) [data-studio-director-welcome][data-studio-first-run] h2 { font-size: clamp(26px, 2.6vw, 32px); }
+}

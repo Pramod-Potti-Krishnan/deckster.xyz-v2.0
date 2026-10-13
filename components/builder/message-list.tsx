@@ -47,7 +47,7 @@ import { QuestionCard } from "@/components/builder/chat/question-card"
 import { CHAT_CLARITY, CHAT_QUESTIONS } from "@/lib/mdc-flags"
 import type { QuestionSet } from "@/types/mdc"
 import { shouldRerouteEphemeral } from "@/lib/build-narration-heuristics"
-import { StudioWelcome, type StudioDirectorConnectionState, type StudioPresentationContext } from "@/components/builder/chat/studio-welcome"
+import { StudioWelcome, StudioFirstRunStarters, type StudioDirectorConnectionState, type StudioPresentationContext } from "@/components/builder/chat/studio-welcome"
 import { StudioOutlineCard } from "@/components/builder/chat/studio-outline-card"
 import "./studio-director.css"
 
@@ -80,6 +80,8 @@ export interface MessageListProps {
   connectionState?: StudioDirectorConnectionState
   /** Supplied open-artifact context for local empty-chat guidance only. */
   presentationContext?: StudioPresentationContext
+  /** PASS2 #2 (NEXT_PUBLIC_STUDIO_FIRST_RUN_V2): the small row of stage actions the first-run welcome carries under its starters. */
+  studioFirstRunActions?: React.ReactNode
   messagesEndRef: React.RefObject<HTMLDivElement | null>
   // Rich strawman: per-slide context keyed by slide_index. Drives narrative_role chip + key_message subtitle.
   slideContextByIndex?: Record<number, SlideContextItem> | null
@@ -169,6 +171,7 @@ export function MessageList({
   onDraftPrompt,
   connectionState,
   presentationContext,
+  studioFirstRunActions,
   messagesEndRef,
   slideContextByIndex,
   ephemeralFadeToken,
@@ -216,8 +219,12 @@ export function MessageList({
         if (activeActionsRef.current.has(messageId) && !answeredActionsRef.current.has(answerKeyFor(messageId))) onSubmitAnswers(text, displayText)
       }
     : undefined
+  // PASS2 #2 (flag NEXT_PUBLIC_STUDIO_FIRST_RUN_V2, default off): Director's opening greeting alone is still a first run, so the
+  // welcome holds once Director has said hello. Off, only a blank-deck notice (or nothing) counts, exactly as before.
+  const firstRunV2 = studio && process.env.NEXT_PUBLIC_STUDIO_FIRST_RUN_V2 === 'true'
   const isEmptyStudioConversation = studio && userMessages.length === 0 && messages.every(message =>
-    message.type === 'slide_update' && (message as SlideUpdate).payload.is_blank === true
+    ((message.type === 'slide_update' && (message as SlideUpdate).payload.is_blank === true)
+      || (firstRunV2 && message.type === 'chat_message' && (message as V2ChatMessage).payload.text === DIRECTOR_522_INITIAL_GREETING))
       && !classifyDirectorMessage(message, {
         userMessageIds: userMessageIdsRef.current,
         userMessageContentMap: userMessageContentMapRef.current,
@@ -569,6 +576,8 @@ export function MessageList({
     narrationOwnsChat: !!suppressEphemeral,
   })
 
+  const welcomeBusy = isGeneratingFinal || currentStatus?.status === 'thinking' || currentStatus?.status === 'generating'
+
   return (
     <>
       {isEmptyStudioConversation && (
@@ -576,7 +585,8 @@ export function MessageList({
           onDraftPrompt={onDraftPrompt}
           connectionState={connectionState}
           presentationContext={presentationContext}
-          busy={isGeneratingFinal || currentStatus?.status === 'thinking' || currentStatus?.status === 'generating'}
+          busy={welcomeBusy}
+          {...(firstRunV2 ? { firstRun: true } : {})}
         />
       )}
       {processedMessages.map((item, index) => {
@@ -967,6 +977,9 @@ export function MessageList({
           </React.Fragment>
         )
       })}
+      {isEmptyStudioConversation && firstRunV2 && !presentationContext && (
+        <StudioFirstRunStarters onDraftPrompt={onDraftPrompt} busy={welcomeBusy}>{studioFirstRunActions}</StudioFirstRunStarters>
+      )}
       {showWorkingPulse && (
         <div data-studio-director-message={studio ? "director" : undefined} className="flex gap-3 animate-in fade-in duration-200">
           <div data-studio-director-part="avatar" className="flex-shrink-0 w-6 h-6 rounded-full bg-purple-600 flex items-center justify-center">
