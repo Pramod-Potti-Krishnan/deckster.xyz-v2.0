@@ -118,6 +118,8 @@ function strip(ref, studio) {
     // F9-A (live rail preview, flag NEXT_PUBLIC_STUDIO_RAIL_LIVE_PREVIEW_FALLBACK_ENABLED, default off): flag-off stubs; older refs never import them.
     '@/lib/rail-live-preview': {STUDIO_RAIL_LIVE_PREVIEW_FALLBACK_ENABLED:false,railLivePreviewApplies:()=>false},
     './rail-live-preview': {RailLivePreview:()=>null},
+    // PASS2 rail v2 (flag NEXT_PUBLIC_STUDIO_SLIDE_RAIL_V2, default off): flag-off stub; older refs never import it.
+    '@/lib/studio-slide-rail-v2': {STUDIO_SLIDE_RAIL_V2:false,slideRailV2Number:n=>String(n).padStart(2,'0')},
   }
   const parsed=ts.createSourceFile('strip.tsx',text,ts.ScriptTarget.Latest,true,ts.ScriptKind.TSX)
   for (const declaration of parsed.statements) {

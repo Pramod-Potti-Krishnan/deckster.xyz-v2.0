@@ -106,3 +106,24 @@
 [data-studio-thumbnail-failure="true"] p { color:var(--st-muted); font-size:12px; line-height:1.6; }
 [data-studio-thumbnail-failure="true"] [data-studio-thumbnail-failure-text="true"] { min-height:0; max-height:min(280px,50dvh); overflow-y:auto; overscroll-behavior:contain; scrollbar-width:thin; white-space:pre-wrap; overflow-wrap:anywhere; border:1px solid var(--st-line); border-radius:7px; padding:10px; background:var(--st-surface); color:var(--st-text); font-size:12px; line-height:1.6; }
 [data-studio-thumbnail-failure="true"] :is(button,[tabindex]):focus-visible { outline:2px solid var(--st-accent); outline-offset:-2px; }
+
+/* PASS2 rail v2 (flag NEXT_PUBLIC_STUDIO_SLIDE_RAIL_V2, default off; the strip carries data-studio-rail-v2 only when it is on,
+   so every rule below is inert without it). The accepted mockup rail: a one-line "01 Title" row above each preview with the
+   title readable across the row, and the slide itself as the preview. */
+[data-studio-rail-v2="true"] [data-studio-thumbnail-card="true"] { display: flex; flex-direction: column; }
+[data-studio-rail-v2="true"] [data-studio-thumbnail-caption="true"] { order: -1; position: relative; align-items: center; gap: 4px; height: 24px; min-height: 24px; padding: 0 2px 0 6px; }
+[data-studio-rail-v2="true"] [data-studio-thumbnail-caption="true"] > button { align-items: center; gap: 5px; }
+[data-studio-rail-v2="true"] [data-studio-thumbnail-caption="true"] > button > span:first-child { min-width: 12px; line-height: 1; letter-spacing: .2px; }
+[data-studio-rail-v2="true"] [data-studio-thumbnail-caption="true"] > button > span:last-child { display: block; -webkit-line-clamp: unset; line-clamp: unset; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; line-height: 1.3; }
+/* Refine no longer holds a slot in the row: it appears over the row's end, left of the options button, on hover or focus. */
+[data-studio-rail-v2="true"] [data-studio-thumbnail-card="true"] [data-studio-thumbnail-refine="true"] { position: absolute; top: 1px; right: 24px; z-index: 2; box-shadow: 0 0 0 2px var(--st-panel); opacity: 0; pointer-events: none; }
+[data-studio-rail-v2="true"] [data-studio-thumbnail-card="true"]:is(:hover, :focus-within) [data-studio-thumbnail-refine="true"] { opacity: 1; pointer-events: auto; }
+[data-studio-rail-v2="true"] [data-studio-thumbnail-card="true"]:is(:hover, :focus-within) [data-studio-thumbnail-refine="true"]:disabled { opacity: .55; }
+@media (hover: none) {
+  [data-studio-rail-v2="true"] [data-studio-thumbnail-card="true"] [data-studio-thumbnail-refine="true"] { opacity: 1; pointer-events: auto; }
+}
+/* The row is on top now, so the selection check and the live preview move to the preview area under it. */
+[data-studio-rail-v2="true"] [data-studio-thumbnail-check="true"] { bottom: 4px; }
+[data-studio-rail-v2="true"] [data-studio-rail-live-preview] { top: 24px; }
+/* A loaded live render is the slide: the "No preview" placeholder under it goes (a refining spinner stays). */
+[data-studio-rail-v2="true"] [data-studio-thumbnail-card="true"]:has([data-studio-rail-live-frame="ready"]) [data-studio-thumbnail-preview="true"] > :not([data-studio-thumbnail-refining]) { visibility: hidden; }

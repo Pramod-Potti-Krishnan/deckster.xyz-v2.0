@@ -1044,7 +1044,8 @@ const mutants = [
   ['cap: a waiter that left is still granted', 'lib', 'if (at >= 0) queue.splice(at, 1)', '', ['lib']],
   ['cap: newest waiter first', 'lib', 'queue.shift()!.grant()', 'queue.pop()!.grant()', ['lib']],
   ['cap: a waiting card counts as mounted', 'lib', 'Boolean(ticket?.granted)', 'Boolean(ticket)', ['lib', 'hook']],
-  ['cap: the pool is not shared', 'lib', 'export const railPreviewSlots: RailPreviewSlotPool = createRailPreviewSlotPool(RAIL_LIVE_PREVIEW_MAX_FRAMES)', 'export const railPreviewSlots: RailPreviewSlotPool = createRailPreviewSlotPool(99)', ['lib', 'hook']],
+  // PASS2 rail v2 (flag NEXT_PUBLIC_STUDIO_SLIDE_RAIL_V2, default off) picks the shared pool's cap; off, it is still RAIL_LIVE_PREVIEW_MAX_FRAMES.
+  ['cap: the pool is not shared', 'lib', 'export const railPreviewSlots: RailPreviewSlotPool = createRailPreviewSlotPool(\n  STUDIO_SLIDE_RAIL_V2 ? SLIDE_RAIL_V2_MAX_FRAMES : RAIL_LIVE_PREVIEW_MAX_FRAMES)', 'export const railPreviewSlots: RailPreviewSlotPool = createRailPreviewSlotPool(99)', ['lib', 'hook']],
   // visibility mount/unmount
   ['visible: eligibility alone mounts', 'lib', 'const want = !disposed && eligible && visible', 'const want = !disposed && eligible', ['lib', 'hook']],
   ['visible: visibility alone mounts', 'lib', 'const want = !disposed && eligible && visible', 'const want = !disposed && visible', ['lib', 'hook']],
