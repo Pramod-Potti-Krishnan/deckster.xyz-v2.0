@@ -4,13 +4,29 @@ import { useEffect, useRef, useState } from "react"
 import { ArrowDownUp, ArrowRight, AudioLines, Compass, ImageIcon, Info, PenLine, RotateCcw, Search, SlidersHorizontal } from "lucide-react"
 import { StudioWorkflowAction } from "@/components/studio-libraries/studio-workflow-action"
 import { BackToBuilderButton } from "@/components/layout/app-header"
-import catalog from "./model-catalog-snapshot.json"
+import baseCatalog from "./model-catalog-snapshot.json"
+import refreshedCatalog from "./model-catalog-snapshot-2026-10.json"
 import { StudioIntroReplay } from "@/components/studio-intro-replay"
 import "@/components/studio-libraries/destination-intros.css"
 import "./personal-workspaces.css"
 import "./intelligence-workspace.css"
 
-type TaskId = keyof typeof catalog.tasks
+type TaskId = keyof typeof baseCatalog.tasks
+type CatalogModel = {
+  name: string; provider: string; contextWindow: number; imageOutput: boolean; tools: boolean
+  releaseStage?: string; inputModalities?: string[]; structuredOutput?: boolean; pricePerMillionTokens?: { input: number; output: number }; priceNote?: string
+}
+type Catalog = {
+  version: string; source: string
+  tasks: Record<TaskId, { label: string; defaultModel: string; models: string[] }>
+  models: Record<string, CatalogModel>
+  retiredModels?: Record<string, { name: string; retiresOn: string; successor: string }>
+}
+/** NEXT_PUBLIC_STUDIO_MODEL_CATALOG_2026_10 (default off; build-time). On: the 2026-10-13.1 snapshot replaces 2026-08-20.1, with the retiring
+ * Gemini 2.5 Flash, Flash Lite and Pro swapped for their 3.x successors, and the comparison shows release status, inputs, structured output and
+ * list price. Off: the 2026-08-20.1 catalog and every rendered byte are unchanged. */
+const catalogRefreshed = process.env.NEXT_PUBLIC_STUDIO_MODEL_CATALOG_2026_10 === "true"
+const catalog: Catalog = catalogRefreshed ? refreshedCatalog : baseCatalog
 type ModelId = keyof typeof catalog.models
 type Draft = Record<TaskId, string>
 const emptyBriefs = (): Draft => ({ planning_strategy: "", content_writing: "", research_analysis: "", imagery: "" })
@@ -119,10 +135,19 @@ function defaultDraft(): Draft {
   return Object.fromEntries(taskIds.map(id => [id, "default"])) as Draft
 }
 
+/** Flag on: a retired model id (a draft or default saved before the refresh) resolves to its successor. Any other id, and every id with the flag off, passes through. */
+export function resolveRetiredModel(id: string) {
+  return catalogRefreshed ? catalog.retiredModels?.[id]?.successor ?? id : id
+}
+
 function modelFor(task: TaskId, choice: string) {
-  const id = choice === "default" ? catalog.tasks[task].defaultModel : choice
+  const id = resolveRetiredModel(choice === "default" ? catalog.tasks[task].defaultModel : choice)
   return catalog.models[id as ModelId]
 }
+
+const releaseLabel = (stage?: string) => stage === "ga" ? "Stable (GA)" : stage === "preview" ? "Preview" : "Not stated"
+const inputsLabel = (inputs?: string[]) => inputs?.length ? inputs.map(kind => kind === "file" ? "files" : kind).join(", ").replace(/^./, first => first.toUpperCase()) : "Not listed"
+const priceLabel = (model: CatalogModel) => model.pricePerMillionTokens ? `$${model.pricePerMillionTokens.input.toFixed(2)} / $${model.pricePerMillionTokens.output.toFixed(2)}` : model.priceNote || "Not listed"
 
 /** A deliberately in-memory design candidate. No catalog fetch, persistence or generation. */
 function ModelDesignPreview() {
@@ -142,7 +167,8 @@ function ModelDesignPreview() {
     setComparison(choices.find(model => model !== current) || current)
   }
 
-  function choose(id: TaskId, value: string) {
+  function choose(id: TaskId, requested: string) {
+    const value = resolveRetiredModel(requested)
     if (value !== "default" && !(catalog.tasks[id].models as readonly string[]).includes(value)) return
     setDraft(previous => ({ ...previous, [id]: value }))
     setFeedback(`${catalog.tasks[id].label}: ${modelFor(id, value).name} selected in this draft.`)
@@ -191,9 +217,15 @@ function ModelDesignPreview() {
               <tr><th scope="row">Context window</th><td>{chosen.contextWindow.toLocaleString("en-US")}</td><td>{alternative.contextWindow.toLocaleString("en-US")}</td></tr>
               <tr><th scope="row">Image output</th><td>{chosen.imageOutput ? "Yes" : "No"}</td><td>{alternative.imageOutput ? "Yes" : "No"}</td></tr>
               <tr><th scope="row">Tool support</th><td>{chosen.tools ? "Yes" : "No"}</td><td>{alternative.tools ? "Yes" : "No"}</td></tr>
+              {catalogRefreshed && <>
+                <tr><th scope="row">Release status</th><td>{releaseLabel(chosen.releaseStage)}</td><td>{releaseLabel(alternative.releaseStage)}</td></tr>
+                <tr><th scope="row">Input types</th><td>{inputsLabel(chosen.inputModalities)}</td><td>{inputsLabel(alternative.inputModalities)}</td></tr>
+                <tr><th scope="row">Structured output</th><td>{chosen.structuredOutput === undefined ? "Not listed" : chosen.structuredOutput ? "Yes" : "No"}</td><td>{alternative.structuredOutput === undefined ? "Not listed" : alternative.structuredOutput ? "Yes" : "No"}</td></tr>
+                <tr><th scope="row">List price per 1M tokens (in / out)</th><td>{priceLabel(chosen)}</td><td>{priceLabel(alternative)}</td></tr>
+              </>}
             </tbody>
           </table>
-          <p className="sp-comparison-note">Snapshot specifications only. Speed, quality, pricing, and live availability have not been verified.</p>
+          <p className="sp-comparison-note">{catalogRefreshed ? "Snapshot specifications and public list prices only. Speed, quality, and live availability have not been verified." : "Snapshot specifications only. Speed, quality, pricing, and live availability have not been verified."}</p>
           <button type="button" className="sp-button sp-button-accent" disabled={chosen === alternative} onClick={() => choose(activeTask, comparison)}>Use in design preview <ArrowRight size={15} aria-hidden="true" /></button>
         </aside>
       </div>
