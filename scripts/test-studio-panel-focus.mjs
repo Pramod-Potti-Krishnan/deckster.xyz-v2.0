@@ -205,8 +205,8 @@ const page = read('app/builder/page.tsx')
             onStudioRailReveal={onStudioRailReveal}`), 'PresentationArea passes both through')
   const baseArea = baseSource('components/builder/presentation-area.tsx')
   if (baseArea) {
-    const stripped = area.split('\n').filter(line => !/studioRailCollapsed|onStudioRailReveal|PASS2 #3/.test(line)).join('\n')
-    check(assert.equal, stripped, baseArea, 'PresentationArea: only the pass-through lines were added')
+    const stripped = area.split('\n').filter(line => !/studioRailCollapsed|onStudioRailReveal|onUserDeckEdit|PASS2 #3/.test(line)).join('\n')
+    check(assert.equal, stripped, baseArea, 'PresentationArea: only the pass-through lines were added (the rail props, and the session-hygiene onUserDeckEdit one)')
   }
 }
 
