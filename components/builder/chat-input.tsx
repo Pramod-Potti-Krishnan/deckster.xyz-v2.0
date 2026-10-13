@@ -52,6 +52,7 @@ import { TemplatePicker } from './template-picker'
 import { StudioComposerHint } from './studio-composer-hint'
 import { StudioThemeMenu, type StudioThemeView, type StudioThemeMutationKind, type StudioThemeMutationNotice } from './studio-theme-menu'
 import { keepPopupOpenForDropdownList, nextComposerPopup, type ComposerPopupId } from '@/lib/studio-composer-popups'
+import type { ComposerLibraryRequest } from '@/lib/studio-composer-popups'
 
 const TEXTAREA_MIN_HEIGHT = 96
 const TEXTAREA_MAX_HEIGHT = 220
@@ -112,6 +113,9 @@ export interface ChatInputProps {
   activeTemplate?: TemplateSelection | null
   onSelectTemplate?: (template: TemplateSelection) => void
   onOpenComposerLibrary?: () => void
+  /** PASS2-COMPOSER-POPUPS fix (flag NEXT_PUBLIC_STUDIO_COMPOSER_POPUPS_V2; the page passes it only with the flag on and a composer library):
+   *  runs an action picked in the template popup (Use original, Rebuild, New topic) in the composer library dialog. */
+  onComposerTemplateAction?: (request: ComposerLibraryRequest) => void
   onClearTemplate?: () => void
   templateSelectionLocked?: boolean
   isTemplateReuseRunning?: boolean
@@ -162,6 +166,7 @@ export function ChatInput({
   activeTemplate,
   onSelectTemplate,
   onOpenComposerLibrary,
+  onComposerTemplateAction,
   onClearTemplate,
   templateSelectionLocked = false,
   isTemplateReuseRunning = false,
@@ -1105,7 +1110,8 @@ export function ChatInput({
                 <TemplatePicker onSelect={onSelectTemplate || (() => {})} disabled={!user || isLoadingSession}
                   selectionLocked={templateSelectionLocked} onOpenLibrary={onOpenComposerLibrary}
                   showSavedTemplates={!!(templateBuilderEnabled && onSelectTemplate)}
-                  {...(popupsV2 ? { dropdowns: true, open: composerPopup === 'template', onOpenChange: popupSetter('template'), selectedTemplateId: activeTemplate?.id ?? null } : {})} />
+                  {...(popupsV2 ? { dropdowns: true, open: composerPopup === 'template', onOpenChange: popupSetter('template'), selectedTemplateId: activeTemplate?.id ?? null,
+                    ...(onComposerTemplateAction ? { onComposerAction: onComposerTemplateAction, composerUserId: user?.id || user?.email || null } : {}) } : {})} />
               )}
 
               {/* Build-time Theme Builder selection */}

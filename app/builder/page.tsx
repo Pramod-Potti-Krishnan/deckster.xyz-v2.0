@@ -102,6 +102,7 @@ import { StudioBlockedSendNotice } from '@/components/builder/studio-blocked-sen
 import { ComposerLibraryDialog } from '@/components/builder/composer-library-dialog'
 import { StudioWorkspaceSwitchV2 } from '@/components/builder/studio-workspace-switch-v2'
 import { COMPOSER_READY_KEY_PREFIX, type ComposerReady } from '@/lib/composer-library'
+import type { ComposerLibraryRequest } from '@/lib/studio-composer-popups'
 import { BuilderHeader } from '@/components/builder/builder-header'
 import { PresentationArea } from '@/components/builder/presentation-area'
 import { TemplateParamsPanel, TEMPLATE_PANEL_COLLAPSED_WIDTH } from '@/components/builder/template-params-panel'
@@ -608,6 +609,8 @@ function AuthenticatedBuilderContent({ authScopeUserId }: { authScopeUserId: str
   const templateBuilderEnabled = process.env.NEXT_PUBLIC_TEMPLATE_BUILDER_ENABLED === 'true'
   const composerLibraryEnabled = process.env.NEXT_PUBLIC_COMPOSER_LIBRARY_ENABLED === 'true'
   const [showComposerLibrary, setShowComposerLibrary] = useState(false)
+  // PASS2-COMPOSER-POPUPS fix (flag NEXT_PUBLIC_STUDIO_COMPOSER_POPUPS_V2): an action picked in the composer's template popup, for the library dialog to run.
+  const [composerLibraryRequest, setComposerLibraryRequest] = useState<ComposerLibraryRequest | null>(null)
   const blueprintEditorV2Enabled = templateBuilderEnabled && process.env.NEXT_PUBLIC_BLUEPRINT_EDITOR_V2 === 'true'
   // Template Builder (reuse): the locked-in template, carried on every send.
   const [activeTemplate, setActiveTemplate] = useState<BuilderTemplateSelection | null>(null)
@@ -7300,6 +7303,7 @@ function AuthenticatedBuilderContent({ authScopeUserId }: { authScopeUserId: str
                     activeTemplate={activeTemplate}
                     onSelectTemplate={handleSelectTemplate}
                     onOpenComposerLibrary={composerLibraryEnabled ? () => setShowComposerLibrary(true) : undefined}
+                    {...(studioPopupsV2 && composerLibraryEnabled ? { onComposerTemplateAction: (request: ComposerLibraryRequest) => { setComposerLibraryRequest(request); setShowComposerLibrary(true) } } : {})}
                     onClearTemplate={handleClearTemplate}
                     templateSelectionLocked={generationSelectionsLocked}
                     isTemplateReuseRunning={Boolean(activeTemplate && isGeneratingFinal)}
@@ -7702,7 +7706,8 @@ function AuthenticatedBuilderContent({ authScopeUserId }: { authScopeUserId: str
       </div>
 
       {/* Chat History Sidebar */}
-      {composerLibraryEnabled && <ComposerLibraryDialog open={showComposerLibrary} onOpenChange={setShowComposerLibrary} />}
+      {composerLibraryEnabled && <ComposerLibraryDialog open={showComposerLibrary} onOpenChange={setShowComposerLibrary}
+        {...(studioPopupsV2 ? { request: composerLibraryRequest, onRequestTaken: () => setComposerLibraryRequest(null) } : {})} />}
       <ChatHistorySidebar
         isOpen={showChatHistory}
         onClose={() => setShowChatHistory(false)}
