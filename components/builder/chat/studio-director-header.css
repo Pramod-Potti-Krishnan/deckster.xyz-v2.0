@@ -7,3 +7,34 @@
 [data-studio-v4-shell="true"] [data-studio-director-header="true"] > [data-connection-state="error"] { color: var(--ss-text); }
 @media (max-height: 640px) { [data-studio-v4-shell="true"] [data-studio-director-header="true"] { height: 32px; max-height: 32px; flex-basis: 32px; padding-block: 3px; } }
 @media (max-width: 480px) { [data-studio-v4-shell="true"] [data-studio-director-header="true"] { padding-inline: 8px; gap: 7px; } [data-studio-v4-shell="true"] [data-studio-director-header="true"] > [aria-hidden="true"] { display: none; } }
+
+/* PASS2-DIRECTOR-CHAT PR C (flag NEXT_PUBLIC_STUDIO_CHAT_HEADER): the connection as a quiet line under the name, the way the accepted v4
+   mockup's header sets "Director" over its status line (design/studio-v4-mockup .dch-identity). Every rule below is keyed to
+   [data-studio-chat-header], which StudioDirectorHeader sets only with the flag on, so with the flag off none of it matches anything.
+   The header keeps its 36px height; only the arrangement of the three children it already had changes (a grid, no new elements). */
+[data-studio-v4-shell="true"] [data-studio-chat-header] { display: grid; grid-template-columns: auto minmax(0, 1fr) auto; grid-template-rows: auto auto; align-content: center; column-gap: 9px; row-gap: 0; padding-block: 4px; }
+[data-studio-v4-shell="true"] [data-studio-chat-header] > [aria-hidden="true"] { grid-column: 1; grid-row: 1 / span 2; align-self: center; }
+[data-studio-v4-shell="true"] [data-studio-chat-header] > strong { grid-column: 2; grid-row: 1; align-self: end; min-width: 0; font-size: 12px; line-height: 15px; }
+[data-studio-v4-shell="true"] [data-studio-chat-header] > [role="status"] {
+  grid-column: 2; grid-row: 2; align-self: start; margin-left: 0; min-width: 0; display: flex; align-items: center; gap: 5px;
+  overflow: hidden; text-overflow: ellipsis; color: var(--ss-muted); font-size: 10px; line-height: 13px;
+}
+[data-studio-v4-shell="true"] [data-studio-chat-header] > :nth-child(n+4) { grid-column: 3; grid-row: 1 / span 2; align-self: center; }
+/* the status dot: the mockup's "live" dot, one colour per state, all from the Studio tokens */
+[data-studio-v4-shell="true"] [data-studio-chat-header] > [role="status"]::before { content: ""; flex: none; width: 6px; height: 6px; border-radius: 50%; background: var(--ss-muted); }
+[data-studio-v4-shell="true"] [data-studio-chat-header] > [data-studio-chat-header-state="ready"]::before { background: var(--ss-teal); }
+[data-studio-v4-shell="true"] [data-studio-chat-header] > :is([data-studio-chat-header-state="connecting"],[data-studio-chat-header-state="reconnecting"])::before { background: var(--ss-accent); }
+[data-studio-v4-shell="true"] [data-studio-chat-header] > :is([data-studio-chat-header-state="failed"],[data-studio-chat-header-state="error"]) { color: var(--ss-text); }
+[data-studio-v4-shell="true"] [data-studio-chat-header] > :is([data-studio-chat-header-state="failed"],[data-studio-chat-header-state="error"])::before { background: transparent; box-shadow: inset 0 0 0 1.5px currentColor; }
+@media (forced-colors: active) { [data-studio-v4-shell="true"] [data-studio-chat-header] > [role="status"]::before { background: CanvasText; } }
+/* Narrow panels already hide the icon: its column goes too. */
+@media (max-width: 480px) {
+  [data-studio-v4-shell="true"] [data-studio-chat-header] { grid-template-columns: minmax(0, 1fr) auto; column-gap: 0; }
+  [data-studio-v4-shell="true"] [data-studio-chat-header] > :is(strong,[role="status"]) { grid-column: 1; }
+  [data-studio-v4-shell="true"] [data-studio-chat-header] > :nth-child(n+4) { grid-column: 2; margin-left: 7px; }
+}
+/* Short windows already shrink the header to 32px: two lines cannot fit, so the words go back to one row, on the right as before. */
+@media (max-height: 640px) {
+  [data-studio-v4-shell="true"] [data-studio-chat-header] { display: flex; padding-block: 3px; }
+  [data-studio-v4-shell="true"] [data-studio-chat-header] > [role="status"] { margin-left: auto; }
+}

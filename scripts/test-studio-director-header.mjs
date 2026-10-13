@@ -98,9 +98,10 @@ assert.equal(nodes(StudioWelcome({ connectionState: 'disconnected' })).some(node
 flag = 'false'
 assert.equal(nodes(ChatInput({ ...baseProps, showConnectionStatus: false })).some(node => node.props?.['data-studio-composer-part'] === 'footer'), false)
 const page = fs.readFileSync(new URL('../app/builder/page.tsx', import.meta.url), 'utf8')
-// The owner passes the live connection state and session-loading flag. Its only `actions` slot is the Director call
+// The owner passes the live connection state and session-loading flag (and, for NEXT_PUBLIC_STUDIO_CHAT_HEADER, the hook's own
+// reconnectStatus, read only; ignored with the flag off). Its only `actions` slot is the Director call
 // entry (7c0040b), and that is mounted solely behind STUDIO_VOICE_INTERACTIVE_ENABLED; otherwise the header stays control-free.
-assert.match(page, /\{studioShell && <StudioDirectorHeader connectionState=\{connectionState\} isLoadingSession=\{session\.isLoadingSession\}\s+actions=\{STUDIO_VOICE_INTERACTIVE_ENABLED \? <DirectorCallEntry [^>]*\/> : undefined\} \/>\}/)
+assert.match(page, /\{studioShell && <StudioDirectorHeader connectionState=\{connectionState\} isLoadingSession=\{session\.isLoadingSession\}(?: reconnectStatus=\{reconnectStatus\})?\s+actions=\{STUDIO_VOICE_INTERACTIVE_ENABLED \? <DirectorCallEntry [^>]*\/> : undefined\} \/>\}/)
 assert.match(page, /showConnectionStatus=\{!studioShell\}/)
 assert.ok(page.indexOf('{studioShell && <StudioDirectorHeader') < page.indexOf('                  <TokenUsageStrip'))
 console.log('Persistent Director header passed: actual connection/loading labels and literal flag, no readiness/call claims, no controls, default/hidden composer connection with unchanged drafts/gates/instructions/actions, standalone welcome status and native page wiring. No effects/services/requests ran; root owns geometry captures.')

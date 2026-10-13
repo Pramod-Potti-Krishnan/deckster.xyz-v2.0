@@ -7078,7 +7078,7 @@ function AuthenticatedBuilderContent({ authScopeUserId }: { authScopeUserId: str
             >
               {showChat && (
                 <>
-                  {studioShell && <StudioDirectorHeader connectionState={connectionState} isLoadingSession={session.isLoadingSession}
+                  {studioShell && <StudioDirectorHeader connectionState={connectionState} isLoadingSession={session.isLoadingSession} reconnectStatus={reconnectStatus}
                     actions={STUDIO_VOICE_INTERACTIVE_ENABLED ? <DirectorCallEntry call={studioDirectorCall.call} disabled={!studioDirectorCall.eligible} /> : undefined} />}
                   {studioShell && <StudioDirectorNotice
                     className="mx-3 mt-2"
