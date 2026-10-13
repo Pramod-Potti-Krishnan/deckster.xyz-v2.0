@@ -3,14 +3,17 @@
 import "./studio-editor-dialogs.css"
 import "./studio-theme-panel.css"
 
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useState, type ReactNode } from 'react'
 import {
   AlertCircle,
+  ArrowLeft,
   Check,
   CheckCircle2,
   Loader2,
+  Lock,
   Palette,
   RotateCcw,
+  Sparkles,
   Wand2,
   X,
 } from 'lucide-react'
@@ -165,6 +168,9 @@ function resolvedPresetId(selection: BuildThemeSelection): CanonicalThemePresetI
 }
 
 const STUDIO_THEME_PANEL = process.env.NEXT_PUBLIC_STUDIO_V4_SHELL === 'true'
+// PASS2 #7 (flag NEXT_PUBLIC_STUDIO_THEME_PICKER_V2, exact "true", default off; Studio shell only): the same panel, state and Apply
+// as a lighter picker: clear preview tiles, the current theme marked, the lock note only when locked. Off: nothing below runs.
+const STUDIO_THEME_PICKER_V2 = STUDIO_THEME_PANEL && process.env.NEXT_PUBLIC_STUDIO_THEME_PICKER_V2 === 'true'
 
 function SyncBadge({ status }: { status: ThemeSyncStatus }) {
   if (status === 'syncing') {
@@ -250,6 +256,230 @@ function HexField({
           aria-label={`${label} hex value`}
           aria-invalid={STUDIO_THEME_PANEL ? Boolean(value && !isValidThemeHex(value)) : undefined}
         />
+      </div>
+    </div>
+  )
+}
+
+// ── PASS2 #7: the lighter picker (flag NEXT_PUBLIC_STUDIO_THEME_PICKER_V2). Presentation only: ThemePanel keeps the draft, the
+// handlers, Apply and the lock rule; this renders them. Same presets, same custom palette and overrides, same Apply payload. ──
+
+type ThemePickerCard = {
+  id: string
+  name: string
+  description: string
+  selected: boolean
+  current: boolean
+  canvas: string
+  hero: string
+  lead: string
+  ink: string
+}
+
+/** Dark text on a light tile, light text on a dark one. Anything that is not a six-digit hex gets the dark ink. */
+function readableInk(hex: string): string {
+  if (!isValidThemeHex(hex)) return '#1b2430'
+  const channel = (start: number) => {
+    const value = parseInt(hex.slice(start, start + 2), 16) / 255
+    return value <= 0.03928 ? value / 12.92 : ((value + 0.055) / 1.055) ** 2.4
+  }
+  const luminance = 0.2126 * channel(1) + 0.7152 * channel(3) + 0.0722 * channel(5)
+  return luminance > 0.4 ? '#1b2430' : '#f8fafc'
+}
+
+function ThemePickerTile({ canvas, hero, lead, ink }: { canvas: string; hero: string; lead: string; ink: string }) {
+  return (
+    <span className="stpv2-tile" aria-hidden="true" style={{ background: canvas }}>
+      <span className="stpv2-tile-content">
+        <span className="stpv2-tile-aa" style={{ color: ink }}>Aa</span>
+        <span className="stpv2-tile-rule" style={{ background: lead }} />
+      </span>
+      <span className="stpv2-tile-hero" style={{ background: hero }}>
+        <span className="stpv2-tile-dot" style={{ background: lead }} />
+      </span>
+    </span>
+  )
+}
+
+function ThemePickerV2({
+  locked,
+  syncStatus,
+  syncError,
+  currentLabel,
+  selectedLabel,
+  hasChanges,
+  autoSelected,
+  autoCurrent,
+  cards,
+  customMode,
+  customEditor,
+  advanced,
+  canApply,
+  applyLabel,
+  invalidColor,
+  onSelectAuto,
+  onSelectPreset,
+  onBuildCustom,
+  onBackToPresets,
+  onApply,
+  onClose,
+}: {
+  locked: boolean
+  syncStatus: ThemeSyncStatus
+  syncError: string | null
+  currentLabel: string
+  selectedLabel: string
+  hasChanges: boolean
+  autoSelected: boolean
+  autoCurrent: boolean
+  cards: ThemePickerCard[]
+  customMode: boolean
+  customEditor: ReactNode
+  advanced: ReactNode
+  canApply: boolean
+  applyLabel: ReactNode
+  invalidColor: boolean
+  onSelectAuto: () => void
+  onSelectPreset: (id: string) => void
+  onBuildCustom: () => void
+  onBackToPresets: () => void
+  onApply: () => void
+  onClose: () => void
+}) {
+  const hint = invalidColor
+    ? 'Custom themes need a primary six-digit colour, such as #1e40af.'
+    : syncStatus === 'failed' && !hasChanges
+      ? 'That did not go through. Try again.'
+      : hasChanges
+        ? `Selected: ${selectedLabel}. Not applied yet.`
+        : 'Pick a different theme to change it.'
+  return (
+    <div
+      data-studio-theme="true"
+      data-studio-v4-dialog="theme"
+      data-studio-theme-picker="v2"
+      role="dialog"
+      aria-modal="false"
+      aria-label="Theme for this presentation"
+      onKeyDown={event => { if (event.key === 'Escape') onClose() }}
+      className="stpv2 fixed z-50 flex flex-col"
+    >
+      <div data-studio-theme-part="header" className="stpv2-header">
+        <div className="stpv2-heading">
+          <h2>Theme for this presentation</h2>
+          <p>Choose how the whole deck looks.</p>
+        </div>
+        <div className="stpv2-header-actions">
+          {syncStatus !== 'idle' && <SyncBadge status={syncStatus} />}
+          <button
+            type="button"
+            onClick={onClose}
+            className="stpv2-close"
+            title="Close"
+            aria-label="Close deck theme panel"
+            data-studio-theme-close="true"
+          >
+            <X className="h-4 w-4" />
+          </button>
+        </div>
+      </div>
+
+      {syncStatus === 'failed' && syncError && (
+        <div data-studio-theme-notice="failed" role="alert" tabIndex={0} className="stpv2-notice">
+          {syncError}
+        </div>
+      )}
+
+      {locked && (
+        <div data-studio-theme-notice="locked" className="stpv2-notice stpv2-lock">
+          <Lock className="h-3.5 w-3.5" aria-hidden="true" />
+          <span>This deck is already building or built, so its theme is fixed. Start a new chat to pick a different one.</span>
+        </div>
+      )}
+
+      <div className="stpv2-current" data-studio-theme-current="true">
+        <span>Current theme</span>
+        <strong>{currentLabel}</strong>
+      </div>
+
+      <div data-studio-theme-part="body" className="stpv2-body">
+        {customMode ? (
+          <div className="stpv2-custom">
+            {!locked && (
+              <button type="button" className="stpv2-link" onClick={onBackToPresets}>
+                <ArrowLeft className="h-3.5 w-3.5" aria-hidden="true" /> Back to preset themes
+              </button>
+            )}
+            {customEditor}
+          </div>
+        ) : (
+          <>
+            <div className="stpv2-grid">
+              <button
+                type="button"
+                disabled={locked}
+                onClick={onSelectAuto}
+                data-studio-theme-preset="auto"
+                aria-pressed={autoSelected}
+                className="stpv2-card"
+              >
+                <span className="stpv2-tile stpv2-tile-auto" aria-hidden="true"><Sparkles className="h-5 w-5" /></span>
+                <span className="stpv2-name">
+                  Auto
+                  {autoCurrent && <span className="stpv2-current-pill">Current</span>}
+                </span>
+                <span className="stpv2-sub">Director picks for you</span>
+                {autoSelected && <span className="stpv2-check" aria-hidden="true"><Check className="h-3 w-3" /></span>}
+              </button>
+              {cards.map(card => (
+                <button
+                  type="button"
+                  disabled={locked}
+                  key={card.id}
+                  onClick={() => onSelectPreset(card.id)}
+                  data-studio-theme-preset={card.id}
+                  aria-pressed={card.selected}
+                  title={card.description}
+                  className="stpv2-card"
+                >
+                  <ThemePickerTile canvas={card.canvas} hero={card.hero} lead={card.lead} ink={card.ink} />
+                  <span className="stpv2-name">
+                    {card.name}
+                    {card.current && <span className="stpv2-current-pill">Current</span>}
+                  </span>
+                  <span className="sr-only">{card.description}</span>
+                  {card.selected && <span className="stpv2-check" aria-hidden="true"><Check className="h-3 w-3" /></span>}
+                </button>
+              ))}
+            </div>
+            <p className="stpv2-caption">Swatches show each theme’s main colours. The full theme also sets fonts and layout details.</p>
+            {!locked && (
+              <div className="stpv2-custom-row">
+                <span>Want your own colours?</span>
+                <button type="button" className="stpv2-link" onClick={onBuildCustom}>
+                  <Wand2 className="h-3.5 w-3.5" aria-hidden="true" /> Build a custom palette
+                </button>
+              </div>
+            )}
+          </>
+        )}
+        {advanced}
+      </div>
+
+      <div data-studio-theme-part="footer" className="stpv2-footer">
+        {locked ? (
+          <>
+            <Button variant="outline" onClick={onClose} className="stpv2-btn">Close</Button>
+          </>
+        ) : (
+          <>
+            <span className="stpv2-hint" role={invalidColor ? 'alert' : undefined} data-studio-theme-hint={invalidColor ? 'invalid' : 'info'}>{hint}</span>
+            <Button variant="outline" onClick={onClose} className="stpv2-btn">Cancel</Button>
+            <Button onClick={onApply} disabled={!canApply || syncStatus === 'syncing'} className="stpv2-btn stpv2-apply">
+              {applyLabel}
+            </Button>
+          </>
+        )}
       </div>
     </div>
   )
@@ -382,6 +612,132 @@ export function ThemePanel({
     const next = normalizeThemePanelSelection(draft)
     setSubmittedFromRequestId(themeSync.requestId)
     onBuildThemeChange(next)
+  }
+
+  if (STUDIO_THEME_PICKER_V2) {
+    const currentSelection = normalizeThemePanelSelection(buildThemeSelection)
+    const nameOf = (selection: BuildThemeSelection) => (
+      selection.mode === 'auto'
+        ? 'Auto (Director’s choice)'
+        : selection.mode === 'custom'
+          ? 'Custom colours'
+          : THEME_PREVIEWS.find(theme => theme.id === resolvedPresetId(selection))?.name ?? 'Preset theme'
+    )
+    const currentPresetId = currentSelection.mode === 'preset' ? resolvedPresetId(currentSelection) : null
+    const cards: ThemePickerCard[] = THEME_PREVIEWS.map(theme => {
+      const colors = previewPaletteFor(theme.id)
+      const swatch = colors.swatch ?? { canvas: colors.background, hero: colors.primary, lead: colors.accent }
+      return {
+        id: theme.id,
+        name: theme.name,
+        description: theme.description,
+        selected: draft.mode === 'preset' && selectedPresetId === theme.id,
+        current: currentPresetId === theme.id,
+        ...swatch,
+        ink: readableInk(swatch.canvas),
+      }
+    })
+    const overrideCount = Object.keys(draft.color_overrides || {}).length
+    // Same fields, seeds, labels and handlers as the "Build custom" tab and the token overrides below.
+    const customEditor = (
+      <>
+        <div className="stpv2-palette" style={{ background: currentPalette.background, color: currentPalette.text }}>
+          <span style={{ background: currentPalette.primary }} />
+          <span style={{ background: currentPalette.accent }} />
+          <span style={{ background: currentPalette.surface }} />
+        </div>
+        <p className="stpv2-caption">Palette guide only. Director applies the complete Theme Builder contract, including typography and component treatments.</p>
+        <h3 className="stpv2-heading-small">Custom palette</h3>
+        <p className="stpv2-caption">These values are explicit literals and stay fixed when a named theme changes.</p>
+        {CUSTOM_COLOR_FIELDS.map(({ key, label }, index) => (
+          <HexField
+            key={key}
+            label={label}
+            value={draft[key]}
+            fallback={index === 0 ? selectedPreview.primary : index === 1 ? selectedPreview.accent : selectedPreview.surface}
+            linkedLabel="Generated from primary"
+            disabled={selectionLocked}
+            onChange={value => updateCustomColor(key, value)}
+            onReset={() => updateCustomColor(key, '')}
+          />
+        ))}
+      </>
+    )
+    const overrideFallbacks: Record<string, string> = {
+      primary: currentPalette.primary,
+      secondary: selectedPreview.accent,
+      tertiary: selectedPreview.surface,
+      neutral: selectedPreview.surface,
+      accent: currentPalette.accent,
+      background: currentPalette.background,
+      surface: currentPalette.surface,
+      text_primary: currentPalette.text,
+      text_body: currentPalette.text,
+      border: selectedPreview.surface,
+    }
+    const advanced = !selectionLocked || overrideCount > 0 ? (
+      <details className="stpv2-advanced" data-studio-theme-advanced="true">
+        <summary>Fine-tune individual colours{overrideCount > 0 ? ` (${overrideCount} set)` : ''}</summary>
+        <div className="stpv2-advanced-body">
+          <p className="stpv2-caption">Empty values stay linked to the selected theme.</p>
+          {overrideCount > 0 && (
+            <button
+              type="button"
+              className="stpv2-link"
+              disabled={selectionLocked}
+              onClick={() => updateDraft({ ...draft, color_overrides: undefined })}
+            >
+              <RotateCcw className="h-3.5 w-3.5" aria-hidden="true" /> Reset all
+            </button>
+          )}
+          {OVERRIDE_TOKENS.map(({ key, label }) => (
+            <HexField
+              key={key}
+              label={label}
+              value={draft.color_overrides?.[key]}
+              fallback={overrideFallbacks[key]}
+              disabled={selectionLocked}
+              onChange={value => updateOverride(key, value)}
+              onReset={() => updateOverride(key)}
+            />
+          ))}
+          {draft.color_overrides && Object.keys(draft.color_overrides).some(
+            key => !OVERRIDE_TOKENS.some(token => token.key === key),
+          ) && (
+            <p className="stpv2-caption">Additional saved overrides are retained when you apply this theme.</p>
+          )}
+        </div>
+      </details>
+    ) : null
+    return (
+      <ThemePickerV2
+        locked={selectionLocked}
+        syncStatus={visibleSyncStatus}
+        syncError={themeSync.error}
+        currentLabel={nameOf(currentSelection)}
+        selectedLabel={nameOf(draft)}
+        hasChanges={hasChanges}
+        autoSelected={draft.mode === 'auto'}
+        autoCurrent={currentSelection.mode === 'auto'}
+        cards={cards}
+        customMode={mode === 'custom'}
+        customEditor={customEditor}
+        advanced={advanced}
+        canApply={canApply}
+        applyLabel={visibleSyncStatus === 'syncing'
+          ? <><Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" /> Applying</>
+          : visibleSyncStatus === 'failed' && !hasChanges
+            ? 'Try again'
+            : 'Apply theme'}
+        invalidColor={invalidCustomColor || invalidOverride}
+        onSelectAuto={selectAuto}
+        onSelectPreset={selectPreset}
+        onBuildCustom={selectCustomMode}
+        onBackToPresets={() => { if (draft.mode === 'custom') selectPreset(selectedPresetId) }}
+        onApply={applyTheme}
+        onClose={onClose}
+      />
+    )
   }
 
   return (
