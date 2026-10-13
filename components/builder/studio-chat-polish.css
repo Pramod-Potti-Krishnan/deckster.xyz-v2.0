@@ -1,0 +1,59 @@
+/* PASS2-DIRECTOR-CHAT PR B (flag NEXT_PUBLIC_STUDIO_CHAT_POLISH): the Director chat in the accepted v4 mockup's voice
+   (design/studio-v4-mockup/app/studio.css: .message, .message-label, .thinking). Plan items 1 (DIRECTOR / YOU labels, tinted user turn),
+   2 (type scale) and 5 (lighter thinking row).
+   Every rule is keyed to [data-studio-chat-polish], an attribute MessageList puts on its message roots only with the flag on (Studio
+   shell only), so with the flag off none of this matches anything. Presentation only: the markup, the React keys, the handlers and
+   everything the socket sends are untouched; the avatar and label elements stay in the DOM and are restyled. */
+
+/* 1. Speaker labels. No avatar circle: a small uppercase label, "DIRECTOR" with the spark, "YOU" plain. */
+[data-studio-v4-shell="true"] [data-studio-chat-polish] [data-studio-director-part="avatar"] { display: none; }
+[data-studio-v4-shell="true"] [data-studio-chat-polish] [data-studio-director-part="speaker"] {
+  display: flex; align-items: center; gap: 6px; margin: 0 0 6px;
+  color: var(--ss-accent); font-size: 9px; font-weight: 600; line-height: 1.2; letter-spacing: .12em; text-transform: uppercase;
+}
+[data-studio-v4-shell="true"] [data-studio-chat-polish] [data-studio-director-part="speaker"]::before {
+  content: ""; flex: none; width: 12px; height: 12px; background-color: currentColor;
+  /* lucide Sparkles, the icon the avatar circle carried */
+  -webkit-mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23000' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M9.937 15.5A2 2 0 0 0 8.5 14.063l-6.135-1.582a.5.5 0 0 1 0-.962L8.5 9.936A2 2 0 0 0 9.937 8.5l1.582-6.135a.5.5 0 0 1 .963 0L14.063 8.5A2 2 0 0 0 15.5 9.937l6.135 1.581a.5.5 0 0 1 0 .964L15.5 14.063a2 2 0 0 0-1.437 1.437l-1.582 6.135a.5.5 0 0 1-.963 0z'/%3E%3Cpath d='M20 3v4'/%3E%3Cpath d='M22 5h-4'/%3E%3Cpath d='M4 17v2'/%3E%3Cpath d='M5 18H3'/%3E%3C/svg%3E") center / contain no-repeat;
+  mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23000' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M9.937 15.5A2 2 0 0 0 8.5 14.063l-6.135-1.582a.5.5 0 0 1 0-.962L8.5 9.936A2 2 0 0 0 9.937 8.5l1.582-6.135a.5.5 0 0 1 .963 0L14.063 8.5A2 2 0 0 0 15.5 9.937l6.135 1.581a.5.5 0 0 1 0 .964L15.5 14.063a2 2 0 0 0-1.437 1.437l-1.582 6.135a.5.5 0 0 1-.963 0z'/%3E%3Cpath d='M20 3v4'/%3E%3Cpath d='M22 5h-4'/%3E%3Cpath d='M4 17v2'/%3E%3Cpath d='M5 18H3'/%3E%3C/svg%3E") center / contain no-repeat;
+}
+@media (forced-colors: active) {
+  [data-studio-v4-shell="true"] [data-studio-chat-polish] [data-studio-director-part="speaker"]::before { background-color: CanvasText; }
+}
+
+/* The user's turn: a soft tinted block, left-aligned and set in a little from the edge (the mockup's .message.user), "YOU" above it. */
+[data-studio-v4-shell="true"] [data-studio-chat-polish][data-studio-director-message="user"] { justify-content: flex-start; }
+[data-studio-v4-shell="true"] [data-studio-chat-polish][data-studio-director-message="user"] > div:last-child { display: none; }
+[data-studio-v4-shell="true"] [data-studio-chat-polish][data-studio-director-message="user"] > div:first-child {
+  flex: 0 1 auto; width: 100%; max-width: calc(34rem - 20px); margin-left: 20px; padding: 12px 15px 13px; box-sizing: border-box;
+  border-radius: 11px 11px 3px 11px; background: var(--ss-soft); text-align: left;
+}
+[data-studio-v4-shell="true"] [data-studio-chat-polish][data-studio-director-message="user"] > div:first-child > p:first-child {
+  margin: 0 0 6px; color: var(--ss-muted); font-size: 9px; font-weight: 600; line-height: 1.2; letter-spacing: .12em; text-transform: uppercase;
+}
+[data-studio-v4-shell="true"] [data-studio-chat-polish][data-studio-director-message="user"] > div:first-child > p:nth-child(2) {
+  display: block; padding: 0; border: 0; border-radius: 0; background: none; color: var(--ss-text); font-size: 12px; line-height: 1.6; overflow-wrap: anywhere;
+}
+[data-studio-v4-shell="true"] [data-studio-chat-polish][data-studio-director-message="user"] > div:first-child > div { justify-content: flex-start; }
+
+/* 2. Type scale. Director's words at 13px on a 1.55 line, easier list rhythm, a measure that stops at a readable width. */
+[data-studio-v4-shell="true"] [data-studio-chat-polish] [data-studio-director-part="body"] { max-width: 34rem; font-size: 13px; line-height: 1.55; }
+[data-studio-v4-shell="true"] [data-studio-chat-polish] [data-studio-director-part="body"] :is(p, li) { line-height: 1.55; }
+[data-studio-v4-shell="true"] [data-studio-chat-polish] [data-studio-director-part="body"] :is(h1,h2,h3,h4,h5,h6) { font-size: 14px; margin: 14px 0 6px; }
+[data-studio-v4-shell="true"] [data-studio-chat-polish] [data-studio-director-part="body"] :is(ul,ol) { margin: 8px 0 10px; padding-left: 20px; }
+[data-studio-v4-shell="true"] [data-studio-chat-polish] [data-studio-director-part="body"] li { margin-block: 5px; }
+[data-studio-v4-shell="true"] [data-studio-chat-polish] [data-studio-director-part="body"] li > :is(ul,ol) { margin-block: 4px 2px; }
+[data-studio-v4-shell="true"] [data-studio-chat-polish] [data-studio-director-part="subtitle"],
+[data-studio-v4-shell="true"] [data-studio-chat-polish] [data-studio-director-part="message-list-items"] { max-width: 34rem; }
+
+/* 5. The thinking / status row: pulsing dots and one muted line, no box, no label (the mockup's .thinking). Still role=status, same
+   text, same collapsible; only its weight changes. */
+[data-studio-v4-shell="true"] [data-studio-chat-polish="thinking"] [data-studio-director-part="speaker"] { display: none; }
+[data-studio-v4-shell="true"] [data-studio-chat-polish="thinking"] [data-studio-director-part="thinking"] {
+  padding: 2px 0; border: 0; border-radius: 0; background: transparent;
+}
+[data-studio-v4-shell="true"] [data-studio-chat-polish="thinking"] [data-studio-director-part="thinking"] :is(p, span.min-w-0) { color: var(--ss-muted); font-size: 11px; line-height: 1.5; }
+[data-studio-v4-shell="true"] [data-studio-chat-polish="thinking"] [data-studio-director-part="thinking"] button > svg { color: var(--ss-muted); }
+[data-studio-v4-shell="true"] [data-studio-chat-polish="thinking"] [data-studio-director-part="progress-history"] {
+  margin-top: 6px; padding: 0 0 0 22px; border-top: 0;
+}

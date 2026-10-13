@@ -50,6 +50,7 @@ import { shouldRerouteEphemeral } from "@/lib/build-narration-heuristics"
 import { StudioWelcome, StudioFirstRunStarters, type StudioDirectorConnectionState, type StudioPresentationContext } from "@/components/builder/chat/studio-welcome"
 import { StudioOutlineCard } from "@/components/builder/chat/studio-outline-card"
 import "./studio-director.css"
+import "./studio-chat-polish.css"
 
 export interface MessageListProps {
   sessionId?: string | null
@@ -584,6 +585,12 @@ export function MessageList({
 
   const welcomeBusy = isGeneratingFinal || currentStatus?.status === 'thinking' || currentStatus?.status === 'generating'
 
+  // PASS2-DIRECTOR-CHAT PR B (flag NEXT_PUBLIC_STUDIO_CHAT_POLISH, Studio shell only, default off): DIRECTOR / YOU speaker labels and a
+  // tinted user turn, a 13px Director body, a lighter thinking row. Presentation only: on, each message root below gains one
+  // data-studio-chat-polish attribute and studio-chat-polish.css does the rest. Off, this is undefined and spreading it adds nothing,
+  // so the markup, the keys and every handler are exactly what they were.
+  const chatPolish = (kind: 'message' | 'thinking' = 'message') => studio && process.env.NEXT_PUBLIC_STUDIO_CHAT_POLISH === 'true' ? { 'data-studio-chat-polish': kind } : undefined
+
   return (
     <>
       {isEmptyStudioConversation && (
@@ -598,7 +605,7 @@ export function MessageList({
       {processedMessages.map((item, index) => {
         if (item.messageType === 'user') {
           return (
-            <div key={item.id} data-studio-director-message={studio ? "user" : undefined} className="flex gap-3 justify-end animate-in fade-in duration-200">
+            <div key={item.id} data-studio-director-message={studio ? "user" : undefined} className="flex gap-3 justify-end animate-in fade-in duration-200" {...chatPolish()}>
               <div className="flex-1 max-w-[85%] text-right">
                 <p className="text-[11px] font-medium text-gray-500 dark:text-slate-400 mb-0.5">You</p>
                 <p className="text-xs text-gray-700 dark:text-slate-200 leading-relaxed whitespace-pre-wrap break-words">{item.text}</p>
@@ -642,7 +649,7 @@ export function MessageList({
                   : null
 
                 return (
-                  <div data-studio-director-message={studio ? "director" : undefined} className="flex gap-3 animate-in fade-in duration-200">
+                  <div data-studio-director-message={studio ? "director" : undefined} className="flex gap-3 animate-in fade-in duration-200" {...chatPolish()}>
                     <div data-studio-director-part="avatar" className="flex-shrink-0 w-6 h-6 rounded-full bg-purple-600 flex items-center justify-center">
                       <Sparkles className="h-3 w-3 text-white" />
                     </div>
@@ -763,7 +770,7 @@ export function MessageList({
                 const canExpand = visibleMessages.length > 1
 
                 return (
-                  <div data-studio-director-message={studio ? "director" : undefined} className={`flex gap-3 animate-in fade-in duration-200 transition-opacity duration-300 ${isFading ? 'opacity-0' : ''}`}>
+                  <div data-studio-director-message={studio ? "director" : undefined} className={`flex gap-3 animate-in fade-in duration-200 transition-opacity duration-300 ${isFading ? 'opacity-0' : ''}`} {...chatPolish('thinking')}>
                     <div data-studio-director-part="avatar" className="flex-shrink-0 w-6 h-6 rounded-full bg-purple-600 flex items-center justify-center">
                       <Sparkles className="h-3 w-3 text-white" />
                     </div>
@@ -820,7 +827,7 @@ export function MessageList({
                 if (removedIds.has(chatMsg.message_id)) return null
                 const isFading = fadingIds.has(chatMsg.message_id)
                 return (
-                  <div data-studio-director-message={studio ? "director" : undefined} className={`flex gap-3 animate-in fade-in duration-200 transition-opacity duration-300 ${isFading ? 'opacity-0' : ''}`}>
+                  <div data-studio-director-message={studio ? "director" : undefined} className={`flex gap-3 animate-in fade-in duration-200 transition-opacity duration-300 ${isFading ? 'opacity-0' : ''}`} {...chatPolish()}>
                     <div data-studio-director-part="avatar" className="flex-shrink-0 w-6 h-6 rounded-full bg-purple-600 flex items-center justify-center">
                       <Sparkles className="h-3 w-3 text-white" />
                     </div>
@@ -869,7 +876,7 @@ export function MessageList({
                 }
                 if (CHAT_CLARITY || studio) {
                   return (
-                    <div data-studio-director-message={studio ? "director" : undefined} className="flex gap-3 animate-in fade-in duration-200">
+                    <div data-studio-director-message={studio ? "director" : undefined} className="flex gap-3 animate-in fade-in duration-200" {...chatPolish()}>
                       <div data-studio-director-part="avatar" className="flex-shrink-0 w-6 h-6 rounded-full bg-purple-600 flex items-center justify-center">
                         <Sparkles className="h-3 w-3 text-white" />
                       </div>
@@ -920,7 +927,7 @@ export function MessageList({
                 const slideMsg = msg as SlideUpdate & { clientOutlineHistoryStatus?: OutlineHistoryStatus }
                 if (studio && slideMsg.payload.is_blank === true) return null
                 return (
-                  <div data-studio-director-message={studio ? "director" : undefined} className="flex gap-3 animate-in fade-in duration-200">
+                  <div data-studio-director-message={studio ? "director" : undefined} className="flex gap-3 animate-in fade-in duration-200" {...chatPolish()}>
                     <div data-studio-director-part="avatar" className="flex-shrink-0 w-6 h-6 rounded-full bg-purple-600 flex items-center justify-center">
                       <Sparkles className="h-3 w-3 text-white" />
                     </div>
@@ -987,7 +994,7 @@ export function MessageList({
         <StudioFirstRunStarters onDraftPrompt={onDraftPrompt} busy={welcomeBusy}>{studioFirstRunActions}</StudioFirstRunStarters>
       )}
       {showWorkingPulse && (
-        <div data-studio-director-message={studio ? "director" : undefined} className="flex gap-3 animate-in fade-in duration-200">
+        <div data-studio-director-message={studio ? "director" : undefined} className="flex gap-3 animate-in fade-in duration-200" {...chatPolish('thinking')}>
           <div data-studio-director-part="avatar" className="flex-shrink-0 w-6 h-6 rounded-full bg-purple-600 flex items-center justify-center">
             <Sparkles className="h-3 w-3 text-white" />
           </div>
