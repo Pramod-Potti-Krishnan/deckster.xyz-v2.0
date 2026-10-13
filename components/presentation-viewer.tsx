@@ -102,6 +102,7 @@ import { ADD_SLIDE_V2_ENABLED, type AddSlideV2Settings } from '@/lib/studio-add-
 import { DeleteSlideDialog } from './delete-slide-dialog'
 import { TemplateSaveDialog } from './template-save-dialog'
 import { TemplateIngestDialog } from './template-ingest-dialog'
+import { StudioTemplatePicker } from './studio-template-workspace/entry'
 import { useToast } from '@/hooks/use-toast'
 // TextFormatPopover is now replaced by simple text box insertion button
 // Keeping FormatTextParams for backward compatibility if needed
@@ -4166,7 +4167,8 @@ export function PresentationViewer({
 
               {/* Template — "Save as Template" (Template Builder). Enabled once a
                   deck exists and we know the WS session to snapshot. */}
-              {templateBuilderEnabled ? (
+              {/* PASS2-PK-FOUR item 4 (NEXT_PUBLIC_STUDIO_TEMPLATE_WORKSPACE, default off): Template ▾ moves next to Theme, below. */}
+              {studioShell && process.env.NEXT_PUBLIC_STUDIO_TEMPLATE_WORKSPACE === 'true' ? null : templateBuilderEnabled ? (
                 <DropdownMenu
                   open={toolbarTemplateMenuOpen}
                   onOpenChange={(open) => {
@@ -4288,7 +4290,21 @@ export function PresentationViewer({
               </button>
 
               {/* Divider — separates the four primary build actions from the quiet view helpers */}
-              <div className="mx-1 h-6 w-px bg-slate-200 dark:bg-slate-700" aria-hidden="true" />
+              {/* PASS2-PK-FOUR item 4 (NEXT_PUBLIC_STUDIO_TEMPLATE_WORKSPACE, default off): Template ▾ right after Theme (frame 3b): your
+                  templates, a preview, New topic / Reuse as-is and "Upload a template (.pptx)"; the old menu's Save Template and Template
+                  Mode stay in its footer. It shares the divider's slot, so with the flag off every element keeps its place (and its ids). */}
+              {studioShell && process.env.NEXT_PUBLIC_STUDIO_TEMPLATE_WORKSPACE === 'true' ? <>
+                <StudioTemplatePicker
+                  disabled={!viewerIsReady}
+                  triggerClassName={cn(toolbarButtonClass, toolbarBtnBase)}
+                  labelClassName={toolbarLabelClass}
+                  portalContainer={toolbarDropdownPortalContainer}
+                  onUploadTemplate={templateIngestEnabled ? () => setShowTemplateIngest(true) : undefined}
+                  onSaveTemplate={templateBuilderEnabled ? (canSaveTemplate ? () => setShowTemplateSave(true) : null) : undefined}
+                  templateMode={templateBuilderEnabled ? { on: templateModeOn, available: templateModeAvailable, toggle: () => { viewerInteractionIntentRef.current += 1; onTemplateModeChange?.(!templateModeOn) } } : null}
+                />
+                <div className="mx-1 h-6 w-px bg-slate-200 dark:bg-slate-700" aria-hidden="true" />
+              </> : <div className="mx-1 h-6 w-px bg-slate-200 dark:bg-slate-700" aria-hidden="true" />}
 
               {/* Mode — quiet helper: editing mode (View/Edit) + UI theme (Light/Dark) */}
               <DropdownMenu>

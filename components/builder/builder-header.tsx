@@ -21,6 +21,7 @@ import {
   subscribeStudioDeckSaveState,
 } from "@/lib/studio-top-bar-v2"
 import "./studio-top-bar-v2.css"
+import { StudioTemplateWorkspaceHeaderActions, StudioTemplateWorkspaceHeading } from "@/components/studio-template-workspace/entry"
 
 const subscribeToNothing = () => () => {}
 const nothingToRead = () => null
@@ -190,12 +191,17 @@ export function BuilderHeader({
             <span title={deckTitle} {...(studioTopBarV2 ? { 'data-studio-top-bar-deck': 'true' } : {})}>{deckTitle}</span>
             {studioTopBarV2 && savedLabel && <span data-studio-top-bar-saved="true" role="status"><Check aria-hidden="true" />{savedLabel}</span>}
             {isDeckIdentityEnabled() && <DeckIdentityDialog isDark={isDark} />}
+            {/* PASS2-PK-FOUR item 4 (NEXT_PUBLIC_STUDIO_TEMPLATE_WORKSPACE, default off): "Templates / <template>" while the workspace is open. */}
+            {process.env.NEXT_PUBLIC_STUDIO_TEMPLATE_WORKSPACE === 'true' && <StudioTemplateWorkspaceHeading />}
           </div>}
           {studioShell ? (
             <div className="studio-shell-header-actions">
               <Button className="studio-shell-new" onClick={onNewPresentation} aria-label={studioTopBarV2 ? "New deck" : "Add presentation"} title={studioTopBarV2 ? "New deck" : "Add presentation"}><Plus className="h-4 w-4" /><span>{studioTopBarV2 ? "New deck" : "Presentation"}</span></Button>
               {/* Delivery controls retain their portal target and original handlers. */}
               <div data-studio-v4-toolbar-target="true" ref={toolbarSlotRef} className="min-w-0 h-full overflow-hidden" />
+              {/* PASS2-PK-FOUR item 4 (default off): the template workspace (drawn over the stage) and, while it is open, its progress pill,
+                  "Back to Studio" and "Use template ▾". */}
+              {process.env.NEXT_PUBLIC_STUDIO_TEMPLATE_WORKSPACE === 'true' && <StudioTemplateWorkspaceHeaderActions />}
             </div>
           ) : (
             <div data-studio-v4-toolbar-target="true" ref={toolbarSlotRef} className="flex-1 min-w-0 h-full overflow-hidden" />
