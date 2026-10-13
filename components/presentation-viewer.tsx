@@ -724,6 +724,10 @@ export function PresentationViewer({
   const presentSlideIndexRef = useRef<number | null>(null) // last slide it reported, 0-based
   const presentViewOnlyActiveRef = useRef(false)
   const studioShell = process.env.NEXT_PUBLIC_STUDIO_V4_SHELL === 'true'
+  // PASS2 #5 (flag NEXT_PUBLIC_STUDIO_TOOLBAR_CLEANUP, exact "true", default off, Studio shell only): the toolbar loses its
+  // dead "Templates — coming soon" control, and Present moves from the slide footer to the end of the authoring strip, as in
+  // the mockup. Off: the toolbar and footer are exactly as before.
+  const studioToolbarCleanup = studioShell && process.env.NEXT_PUBLIC_STUDIO_TOOLBAR_CLEANUP === 'true'
   const authoringStripRef = useRef<HTMLDivElement>(null)
   const [studioAuthoringPortalTarget, setStudioAuthoringPortalTarget] = useState<HTMLDivElement | null>(null)
   const [studioPresentPortalTarget, setStudioPresentPortalTarget] = useState<HTMLDivElement | null>(null)
@@ -4068,6 +4072,25 @@ export function PresentationViewer({
           </>
         )
 
+        // PASS2 #5: with the flag on (normal Studio viewer) Present closes the authoring strip instead of sitting in the slide footer.
+        const presentInStrip = studioToolbarCleanup && !isFullscreen
+        const presentControl = (
+              <button
+                onClick={handleFullscreen}
+                disabled={!viewerIsReady}
+                className={cn(toolbarButtonClass, toolbarBtnBase)}
+                title={isFullscreen ? "Exit fullscreen (ESC)" : "Present fullscreen"}
+                {...(presentInStrip ? { 'data-studio-toolbar-present': 'true' } : {})}
+              >
+                {isFullscreen ? (
+                  <Minimize2 className="h-5 w-5" />
+                ) : (
+                  <Play className="h-5 w-5" />
+                )}
+                <span className={toolbarLabelClass}>{studioShell ? (isFullscreen ? 'Exit' : 'Present') : 'Play'}</span>
+              </button>
+        )
+
         const authoringControls = (
           <div
               className={cn(
@@ -4220,7 +4243,7 @@ export function PresentationViewer({
                     </DropdownMenuContent>
                   </DropdownMenuPortal>
                 </DropdownMenu>
-              ) : (
+              ) : studioToolbarCleanup ? null : (
                 <button
                   disabled
                   className={cn(toolbarButtonClass, "text-slate-400 dark:text-slate-500 cursor-not-allowed")}
@@ -4347,24 +4370,15 @@ export function PresentationViewer({
                   </DropdownMenuContent>
                 </DropdownMenuPortal>
               </DropdownMenu>
+
+              {presentInStrip && (
+                <>
+                  <div className="mx-1 h-6 w-px bg-slate-200 dark:bg-slate-700" aria-hidden="true" />
+                  {presentControl}
+                </>
+              )}
             </div>
         )
-        const presentControl = (
-              <button
-                onClick={handleFullscreen}
-                disabled={!viewerIsReady}
-                className={cn(toolbarButtonClass, toolbarBtnBase)}
-                title={isFullscreen ? "Exit fullscreen (ESC)" : "Present fullscreen"}
-              >
-                {isFullscreen ? (
-                  <Minimize2 className="h-5 w-5" />
-                ) : (
-                  <Play className="h-5 w-5" />
-                )}
-                <span className={toolbarLabelClass}>{studioShell ? (isFullscreen ? 'Exit' : 'Present') : 'Play'}</span>
-              </button>
-        )
-
         const deliveryControls = (
           <div className="flex flex-shrink-0 items-center gap-1">
               {/* Save — transient status only; autosave is automatic, so nothing shows at rest */}
@@ -4437,11 +4451,11 @@ export function PresentationViewer({
               studioAuthoringPortalTarget
             )}
             {studioShell && !isFullscreen && studioPresentPortalTarget && createPortal(
-              <div data-studio-slide-controls="true" role="group" aria-label="Presentation controls" className={cn(isGenerating && "pointer-events-none opacity-50")}>
+              <div data-studio-slide-controls="true" role="group" aria-label="Presentation controls" className={cn(isGenerating && "pointer-events-none opacity-50")} {...(presentInStrip ? { 'data-studio-position-only': 'true' } : {})}>
               <span>Slide {currentSlide} / {STUDIO_SLIDE_COUNT_SYNC_ENABLED
                 ? syncedFooterTotal({ visualTotalSlides, totalSlides, slideCount, partialArtifact: Boolean(studioPartialArtifact) })
                 : visualTotalSlides || totalSlides || slideCount || (studioPartialArtifact ? '—' : 1)}</span>
-                {presentControl}
+                {!presentInStrip && presentControl}
               </div>,
               studioPresentPortalTarget
             )}

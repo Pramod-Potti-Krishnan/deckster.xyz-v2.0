@@ -15,6 +15,7 @@
     "test:studio-history-action-status": "node scripts/test-studio-history-action-status.mjs",
     "test:studio-ask-card-identity": "node scripts/test-studio-ask-card-identity.mjs",
     "test:studio-outline-canvas": "node scripts/test-studio-outline-canvas.mjs",
+    "test:studio-toolbar-cleanup": "node scripts/test-studio-toolbar-cleanup.mjs",
     "test:golden-evidence-contract": "node scripts/test-golden-evidence-contract.mjs",
     "test:build-progress-visibility": "node scripts/test-build-progress-visibility.mjs",
     "test:user-message-attachments": "node scripts/test-user-message-attachments.mjs",
