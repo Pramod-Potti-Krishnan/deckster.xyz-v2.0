@@ -99,6 +99,8 @@ function previewHost(flag) {
   return { preview, nodes, text, exports: loaded.exports }
 }
 const optionValues = (nodes, tree) => nodes(tree).filter(node => node.type === 'option').map(node => node.props.value)
+const compareSelect = (nodes, tree) => nodes(tree).find(node => node.type === 'select' && !node.props.id)
+const useButton = (nodes, text, tree) => nodes(tree).find(node => node.type === 'button' && text(node).startsWith('Use in design preview'))
 const row = (nodes, text, tree, label) => {
   const tr = nodes(tree).find(node => node.type === 'tr' && text(node).startsWith(label))
   return tr && nodes(tr).filter(node => node.type === 'td').map(text)
@@ -115,7 +117,7 @@ for (const flag of [undefined, '', 'false', '0', '1', 'TRUE', 'True', 'yes', ' t
 assert.ok(offHtml.includes(base.version) && offHtml.includes('Gemini 2.5 Pro') && offHtml.includes('Snapshot specifications only. Speed, quality, pricing, and live availability have not been verified.'))
 assert.ok(!offHtml.includes('Release status') && !offHtml.includes('Price per 1M'), 'extra comparison rows are flag-on only')
 { // flag-off draft behaviour: the old retired ids are still ordinary choices
-  const { preview, nodes, exports } = previewHost(undefined)
+  const { preview, nodes, text, exports } = previewHost(undefined)
   assert.equal(exports.resolveRetiredModel('google/gemini-2.5-pro'), 'google/gemini-2.5-pro')
   let tree = preview.render()
   const select = () => nodes(tree).find(node => node.type === 'select' && node.props.id === 'sp-model-planning_strategy')
@@ -123,6 +125,12 @@ assert.ok(!offHtml.includes('Release status') && !offHtml.includes('Price per 1M
   select().props.onChange({ target: { value: 'google/gemini-2.5-pro' } })
   tree = preview.render()
   assert.equal(select().props.value, 'google/gemini-2.5-pro')
+  // the sticky action keeps the stylesheet's own look: no inline style, enabled or disabled
+  assert.equal(useButton(nodes, text, tree).props.style, undefined)
+  compareSelect(nodes, tree).props.onChange({ target: { value: 'google/gemini-2.5-pro' } })
+  tree = preview.render()
+  assert.equal(useButton(nodes, text, tree).props.disabled, true)
+  assert.equal(useButton(nodes, text, tree).props.style, undefined, 'flag off: a disabled action gets no inline style')
 }
 
 // ---- 2. flag ON ----------------------------------------------------------------------------------------------------------------------
@@ -222,6 +230,13 @@ assert.ok(!onHtml.includes('pricing, and live availability'), 'the old "pricing 
   const prices = row(nodes, text, tree, 'Price per 1M tokens')
   assert.ok(prices && prices.every(cell => /^\$\d+\.\d\d in \/ \$\d+\.\d\d out$/.test(cell)), `price cells: ${JSON.stringify(prices)}`)
   assert.deepEqual(row(nodes, text, tree, 'Release status'), ['Preview', 'Preview'])
+  // scrolled rows must not show through a disabled sticky action: it is fully opaque (and enabled stays on the stylesheet's opaque tint)
+  assert.equal(useButton(nodes, text, tree).props.disabled, true)
+  assert.equal(useButton(nodes, text, tree).props.style.opacity, 1)
+  compareSelect(nodes, tree).props.onChange({ target: { value: 'google/gemini-3-flash-preview' } })
+  tree = preview.render()
+  assert.equal(useButton(nodes, text, tree).props.disabled, false)
+  assert.equal(useButton(nodes, text, tree).props.style, undefined)
 }
 
 console.log('PASS: model catalog 2026-10 off = base bytes (catalog file + rendered workspace); on = no retired Gemini 2.5 id anywhere, drafts map to successors, successor metadata present')

@@ -145,8 +145,9 @@ function modelFor(task: TaskId, choice: string) {
   return catalog.models[id as ModelId]
 }
 
-/** Flag on: the longer comparison scrolls under the sticky action, so the action gets an opaque ground (the accent tint over the panel colour). */
-const OPAQUE_ACTION = { background: "linear-gradient(var(--sp-active), var(--sp-active)), var(--sp-panel)" }
+/** Flag on: the longer comparison scrolls under the sticky action, and a disabled button is 60% opaque so the rows show through it.
+ * Disabled keeps its look (the same 60% blend) on a fully opaque button. */
+const DISABLED_ACTION_OPAQUE = { opacity: 1, background: "color-mix(in srgb, var(--sp-active) 60%, var(--sp-panel))", color: "color-mix(in srgb, var(--sp-teal) 60%, var(--sp-panel))" }
 const releaseLabel = (stage?: string) => stage === "ga" ? "Stable (GA)" : stage === "preview" ? "Preview" : "Not stated"
 const inputsLabel = (inputs?: string[]) => inputs?.length ? inputs.map(kind => kind === "file" ? "files" : kind).join(", ").replace(/^./, first => first.toUpperCase()) : "Not listed"
 const priceLabel = (model: CatalogModel) => model.pricePerMillionTokens ? `$${model.pricePerMillionTokens.input.toFixed(2)} in / $${model.pricePerMillionTokens.output.toFixed(2)} out` : model.priceNote || "Not listed"
@@ -228,7 +229,7 @@ function ModelDesignPreview() {
             </tbody>
           </table>
           <p className="sp-comparison-note">{catalogRefreshed ? "Snapshot specifications and public list prices only. Speed, quality, and live availability have not been verified." : "Snapshot specifications only. Speed, quality, pricing, and live availability have not been verified."}</p>
-          <button type="button" className="sp-button sp-button-accent" style={catalogRefreshed ? OPAQUE_ACTION : undefined} disabled={chosen === alternative} onClick={() => choose(activeTask, comparison)}>Use in design preview <ArrowRight size={15} aria-hidden="true" /></button>
+          <button type="button" className="sp-button sp-button-accent" style={catalogRefreshed && chosen === alternative ? DISABLED_ACTION_OPAQUE : undefined} disabled={chosen === alternative} onClick={() => choose(activeTask, comparison)}>Use in design preview <ArrowRight size={15} aria-hidden="true" /></button>
         </aside>
       </div>
 
