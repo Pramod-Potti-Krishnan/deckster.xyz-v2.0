@@ -1385,6 +1385,10 @@ function AuthenticatedBuilderContent({ authScopeUserId }: { authScopeUserId: str
   const studioShell = process.env.NEXT_PUBLIC_STUDIO_V4_SHELL === 'true'
   // PASS2-COMPOSER-POPUPS (flag NEXT_PUBLIC_STUDIO_COMPOSER_POPUPS_V2, Studio shell only, default off): the narrow-window pane strip in plain words.
   const studioPopupsV2 = studioShell && process.env.NEXT_PUBLIC_STUDIO_COMPOSER_POPUPS_V2 === 'true'
+  // Toolbar template picker fix-forward (flag NEXT_PUBLIC_STUDIO_TEMPLATE_WORKSPACE, Studio shell only, default off): its "Template ▾" lists the composer library's
+  // templates and hands an action (Use original, Rebuild, New topic) to the same library dialog, through the same request as the composer's template popup.
+  const studioTemplateWorkspace = studioShell && process.env.NEXT_PUBLIC_STUDIO_TEMPLATE_WORKSPACE === 'true'
+  const runComposerTemplateAction = (request: ComposerLibraryRequest) => { setComposerLibraryRequest(request); setShowComposerLibrary(true) }
   const workspaceRef = useRef<HTMLDivElement>(null)
   const [workspaceWidth, setWorkspaceWidth] = useState(1100)
   const [workspaceInnerWidth, setWorkspaceInnerWidth] = useState(1100)
@@ -7701,6 +7705,7 @@ function AuthenticatedBuilderContent({ authScopeUserId }: { authScopeUserId: str
             templateModeOn={templateModeOn}
             onTemplateModeChange={(enabled) => { cancelOutlinePreview(); handleTemplateModeChange(enabled) }}
             templateModeAvailable={Boolean(activeTemplate)}
+            {...(studioTemplateWorkspace && composerLibraryEnabled ? { onComposerTemplateAction: runComposerTemplateAction, onOpenComposerLibrary: () => setShowComposerLibrary(true) } : {})}
             templateSnapshot={templateSnapshot}
             templateSnapshotLoading={templateSnapshotLoading}
             composeJobs={studioPartialMetadata
@@ -7731,7 +7736,7 @@ function AuthenticatedBuilderContent({ authScopeUserId }: { authScopeUserId: str
 
       {/* Chat History Sidebar */}
       {composerLibraryEnabled && <ComposerLibraryDialog open={showComposerLibrary} onOpenChange={setShowComposerLibrary}
-        {...(studioPopupsV2 ? { request: composerLibraryRequest, onRequestTaken: () => setComposerLibraryRequest(null) } : {})} />}
+        {...(studioPopupsV2 || studioTemplateWorkspace ? { request: composerLibraryRequest, onRequestTaken: () => setComposerLibraryRequest(null) } : {})} />}
       <ChatHistorySidebar
         isOpen={showChatHistory}
         onClose={() => setShowChatHistory(false)}
