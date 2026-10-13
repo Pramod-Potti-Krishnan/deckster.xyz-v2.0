@@ -100,6 +100,7 @@ import { ChatInput } from '@/components/builder/chat-input'
 import { StudioDirectorNotice } from '@/components/builder/studio-director-notice'
 import { StudioBlockedSendNotice } from '@/components/builder/studio-blocked-send-notice'
 import { ComposerLibraryDialog } from '@/components/builder/composer-library-dialog'
+import { StudioWorkspaceSwitchV2 } from '@/components/builder/studio-workspace-switch-v2'
 import { COMPOSER_READY_KEY_PREFIX, type ComposerReady } from '@/lib/composer-library'
 import { BuilderHeader } from '@/components/builder/builder-header'
 import { PresentationArea } from '@/components/builder/presentation-area'
@@ -1378,6 +1379,8 @@ function AuthenticatedBuilderContent({ authScopeUserId }: { authScopeUserId: str
   }, [])
 
   const studioShell = process.env.NEXT_PUBLIC_STUDIO_V4_SHELL === 'true'
+  // PASS2-COMPOSER-POPUPS (flag NEXT_PUBLIC_STUDIO_COMPOSER_POPUPS_V2, Studio shell only, default off): the narrow-window pane strip in plain words.
+  const studioPopupsV2 = studioShell && process.env.NEXT_PUBLIC_STUDIO_COMPOSER_POPUPS_V2 === 'true'
   const workspaceRef = useRef<HTMLDivElement>(null)
   const [workspaceWidth, setWorkspaceWidth] = useState(1100)
   const [workspaceInnerWidth, setWorkspaceInnerWidth] = useState(1100)
@@ -6702,7 +6705,19 @@ function AuthenticatedBuilderContent({ authScopeUserId }: { authScopeUserId: str
 
         {/* Main Content Area */}
         <div ref={workspaceRef} data-studio-intro-surface={studioShell ? "builder" : undefined} data-studio-v4-shell-workspace="true" data-studio-workspace-welcome={studioWelcome ? "true" : undefined} data-studio-workspace-mode={studioShell ? workspaceLayout.dualPane ? 'dual' : 'single' : undefined} data-studio-workspace-overlay={studioShell ? String(studioOverlayWorkspace) : undefined} data-studio-panel-keep-canvas={studioShell && STUDIO_PANEL_KEEP_CANVAS_ENABLED ? "true" : undefined} data-studio-panel-focus={studioPanelFocus ? "true" : undefined} className="flex-1 flex relative overflow-hidden" style={studioShell ? { '--studio-collapsed-inspector-width': `${studioTemplateVisible && templateParamsCollapsed ? TEMPLATE_PANEL_COLLAPSED_WIDTH : 0}px` } as React.CSSProperties : undefined}>
-          {studioShell && !workspaceLayout.dualPane && (
+          {studioPopupsV2 && !workspaceLayout.dualPane && (
+            <StudioWorkspaceSwitchV2
+              showSlides={studioOverlayWorkspace}
+              slidesPressed={studioStageSelected || (!workspaceLayout.chatVisible && !workspaceLayout.inspectorVisible)}
+              onSlides={() => { retireStudioVoiceOwner(); setStudioStageSelected(true) }}
+              directorPressed={studioOverlayWorkspace ? workspaceLayout.chatVisible : workspaceLayout.presentedPane === 'chat'}
+              onDirector={() => { selectWorkspacePane('chat'); if (!showChat) setShowChat(true) }}
+              showEdit={Boolean(activeInspector)}
+              editPressed={studioOverlayWorkspace ? workspaceLayout.inspectorVisible : workspaceLayout.presentedPane === 'inspector'}
+              onEdit={() => selectWorkspacePane('inspector')}
+            />
+          )}
+          {studioShell && !studioPopupsV2 && !workspaceLayout.dualPane && (
             <div data-studio-workspace-switch="true" role="group" aria-label="Workspace pane">
               {studioOverlayWorkspace && <button type="button" aria-pressed={studioStageSelected || (!workspaceLayout.chatVisible && !workspaceLayout.inspectorVisible)} onClick={() => { retireStudioVoiceOwner(); setStudioStageSelected(true) }}>Stage</button>}
               <button type="button" aria-pressed={studioOverlayWorkspace ? workspaceLayout.chatVisible : workspaceLayout.presentedPane === 'chat'} onClick={() => { selectWorkspacePane('chat'); if (!showChat) setShowChat(true) }}>Chat</button>

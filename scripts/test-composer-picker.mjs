@@ -40,6 +40,9 @@ const imports = {
   'next/link': { default: 'a' },
   // The scoped stylesheet has no executable behavior in this DOM-free fixture.
   './studio-template-picker.css': {},
+  // PASS2-COMPOSER-POPUPS: the V2 popup pieces template-picker imports; this test renders the flag-off picker only.
+  '@/components/theme-dropdown-picker': { ThemeDropdownPicker: 'ThemeDropdownPicker' },
+  '@/lib/studio-composer-popups': { DECKSTER_PROVIDED_TEMPLATES: [], keepPopupOpenForDropdownList() {} },
   'lucide-react': primitives,
   '@/components/ui/dropdown-menu': primitives,
   '@/components/ui/button': primitives,

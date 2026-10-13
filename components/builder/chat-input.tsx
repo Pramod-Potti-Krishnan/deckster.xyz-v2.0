@@ -51,6 +51,7 @@ import {
 import { TemplatePicker } from './template-picker'
 import { StudioComposerHint } from './studio-composer-hint'
 import { StudioThemeMenu, type StudioThemeView, type StudioThemeMutationKind, type StudioThemeMutationNotice } from './studio-theme-menu'
+import { keepPopupOpenForDropdownList, nextComposerPopup, type ComposerPopupId } from '@/lib/studio-composer-popups'
 
 const TEXTAREA_MIN_HEIGHT = 96
 const TEXTAREA_MAX_HEIGHT = 220
@@ -177,6 +178,10 @@ export function ChatInput({
   const studio = process.env.NEXT_PUBLIC_STUDIO_V4_SHELL === 'true'
   // PASS2 composer copy (flag NEXT_PUBLIC_STUDIO_COMPOSER_COPY, Studio shell only, default off): plain words for the idle placeholder.
   const studioComposerCopy = studio && process.env.NEXT_PUBLIC_STUDIO_COMPOSER_COPY === 'true'
+  // PASS2-COMPOSER-POPUPS (flag NEXT_PUBLIC_STUDIO_COMPOSER_POPUPS_V2, Studio shell only, default off): smaller prompt text, the theme and
+  // template popups as dropdowns, and one open popup at a time. Every V2 attribute and prop below is added through a spread that is empty
+  // when the flag is off, so the flag-off element tree has exactly the base's keys.
+  const popupsV2 = studio && process.env.NEXT_PUBLIC_STUDIO_COMPOSER_POPUPS_V2 === 'true'
   const PromptRegion = studio ? 'div' : React.Fragment
   // Only raw transfer/session-linking blocks Send. Once a file is stored,
   // background source enrichment is calm and non-blocking (`processing`);
@@ -227,6 +232,13 @@ export function ChatInput({
   const [savedThemes, setSavedThemes] = useState<SavedThemeProfile[]>([])
   const [themeMenuOpen, setThemeMenuOpen] = useState(false)
   const [researchMenuOpen, setResearchMenuOpen] = useState(false)
+  // V2: one shared open-state for the composer's popups (template, theme, research). The two states above are used only with the flag off.
+  const [composerPopup, setComposerPopup] = useState<ComposerPopupId | null>(null)
+  const popupSetter = (id: ComposerPopupId) => (next: boolean) => setComposerPopup(current => nextComposerPopup(current, id, next))
+  const themeOpen = popupsV2 ? composerPopup === 'theme' : themeMenuOpen
+  const setThemeOpen = popupsV2 ? popupSetter('theme') : setThemeMenuOpen
+  const researchOpen = popupsV2 ? composerPopup === 'research' : researchMenuOpen
+  const setResearchOpen = popupsV2 ? popupSetter('research') : setResearchMenuOpen
   const [requestedSavedThemeId, setRequestedSavedThemeId] = useState<string | null>(null)
   const [dismissedSavedThemeRequestKey, setDismissedSavedThemeRequestKey] = useState<string | null>(null)
   const [unavailableSavedThemeRequest, setUnavailableSavedThemeRequest] = useState<{ key: string; failed: boolean } | null>(null)
@@ -456,7 +468,7 @@ export function ChatInput({
       const available = result?.themes.some((theme) => theme.id === id) ?? false
       setRequestedSavedThemeId(available ? id : null)
       setUnavailableSavedThemeRequest(available ? null : { key, failed: result === null })
-      setThemeMenuOpen(true)
+      setThemeOpen(true)
     }
     void showRequestedTheme()
     return () => { cancelled = true }
@@ -739,6 +751,7 @@ export function ChatInput({
       data-studio-v4-composer="true"
       data-studio-v4-type={process.env.NEXT_PUBLIC_STUDIO_V4_TYPE === 'true' ? 'true' : undefined}
       data-studio-v4-dragging={isDraggingFiles ? 'true' : undefined}
+      {...(popupsV2 ? { 'data-studio-composer-popups-v2': 'true' } : {})}
       className={`p-3 border-t border-gray-100 bg-white transition-colors dark:border-slate-800 dark:bg-slate-900 ${
         isDraggingFiles ? 'bg-purple-50 border-purple-200 dark:bg-purple-950/30 dark:border-purple-700' : ''
       }`}
@@ -1071,6 +1084,7 @@ export function ChatInput({
                   className="flex items-center justify-center rounded-lg p-1.5 text-gray-600 dark:text-slate-300 transition-colors hover:bg-gray-200 dark:hover:bg-slate-700 disabled:cursor-not-allowed disabled:opacity-50"
                   disabled={uploadedFiles.length >= 5}
                   onClick={async () => {
+                    if (popupsV2) setComposerPopup(null)
                     try {
                       await onRequestSession()
                     } catch {
@@ -1090,12 +1104,13 @@ export function ChatInput({
               {((templateBuilderEnabled && onSelectTemplate) || onOpenComposerLibrary) && (
                 <TemplatePicker onSelect={onSelectTemplate || (() => {})} disabled={!user || isLoadingSession}
                   selectionLocked={templateSelectionLocked} onOpenLibrary={onOpenComposerLibrary}
-                  showSavedTemplates={!!(templateBuilderEnabled && onSelectTemplate)} />
+                  showSavedTemplates={!!(templateBuilderEnabled && onSelectTemplate)}
+                  {...(popupsV2 ? { dropdowns: true, open: composerPopup === 'template', onOpenChange: popupSetter('template'), selectedTemplateId: activeTemplate?.id ?? null } : {})} />
               )}
 
               {/* Build-time Theme Builder selection */}
-              <DropdownMenu open={themeMenuOpen} onOpenChange={(open) => { setThemeMenuOpen(open); if (open) void refreshSavedThemes() }}>
-                <StudioComposerHint enabled={studio} label={`Choose a theme · ${activeThemeLabel}`} suppressed={themeMenuOpen}>
+              <DropdownMenu open={themeOpen} onOpenChange={(open) => { setThemeOpen(open); if (open) void refreshSavedThemes() }}>
+                <StudioComposerHint enabled={studio} label={`Choose a theme · ${activeThemeLabel}`} suppressed={themeOpen}>
                 <DropdownMenuTrigger asChild>
                   <button
                     type="button"
@@ -1115,11 +1130,12 @@ export function ChatInput({
                 <DropdownMenuContent onKeyDownCapture={studio ? (event) => {
                   // Native form Tab traversal must run before Radix menu key handling.
                   if (event.key === 'Tab') event.stopPropagation()
-                } : undefined} data-studio-composer-menu={studio ? 'theme' : undefined} data-studio-v4-chrome={process.env.NEXT_PUBLIC_STUDIO_V4_TOKENS === 'true' ? 'true' : undefined} data-studio-v4-type={process.env.NEXT_PUBLIC_STUDIO_V4_TYPE === 'true' ? 'true' : undefined} data-studio-v4-menu="theme" align="start" className={studio ? 'studio-theme-popover' : 'w-72 p-2'}>
+                } : undefined} data-studio-composer-menu={studio ? 'theme' : undefined} data-studio-v4-chrome={process.env.NEXT_PUBLIC_STUDIO_V4_TOKENS === 'true' ? 'true' : undefined} data-studio-v4-type={process.env.NEXT_PUBLIC_STUDIO_V4_TYPE === 'true' ? 'true' : undefined} data-studio-v4-menu="theme" align="start" className={studio ? 'studio-theme-popover' : 'w-72 p-2'}
+                  {...(popupsV2 ? { 'data-studio-composer-dd': 'true', onEscapeKeyDown: keepPopupOpenForDropdownList } : {})}>
                   {/* Studio theme presentation START */}
                   {themePresetsConfigurationError && <p role="status" data-studio-theme-config-error="true" className={studio ? 'studio-theme-note' : 'text-[10px] text-amber-600 dark:text-amber-300'}>{themePresetsConfigurationError}</p>}
                   {studio ? <StudioThemeMenu
-                    view={studioThemeView} onView={setStudioThemeView} onClose={() => setThemeMenuOpen(false)}
+                    view={studioThemeView} onView={setStudioThemeView} onClose={() => setThemeOpen(false)}
                     selection={buildTheme} presets={themePresets} presetsLoading={themePresetsLoading} presetsError={!!themePresetsError}
                     themes={visibleSavedThemes} selectedId={selectedSavedThemeId} currentProfile={activeBuildThemeProfile}
                     activeTheme={activeSavedTheme} standardTheme={standardTheme}
@@ -1134,6 +1150,7 @@ export function ChatInput({
                     mutation={ownedStudioThemeMutation}
                     onSave={() => void handleSaveCurrentTheme()} onSetStandard={() => void handleSetStandardTheme()}
                     onClearStandard={() => void handleClearStandardTheme()} onDelete={() => void handleDeleteSavedTheme()}
+                    {...(popupsV2 ? { dropdowns: true } : {})}
                   /> : <>
                   {/* Studio theme classic body START */}
                   {studio && (
@@ -1315,8 +1332,8 @@ export function ChatInput({
               </DropdownMenu>
 
               {/* Settings/Options Menu */}
-              <DropdownMenu open={studio ? researchMenuOpen : undefined} onOpenChange={studio ? setResearchMenuOpen : undefined}>
-                <StudioComposerHint enabled={studio} label="Research options" suppressed={researchMenuOpen}>
+              <DropdownMenu open={studio ? researchOpen : undefined} onOpenChange={studio ? setResearchOpen : undefined}>
+                <StudioComposerHint enabled={studio} label="Research options" suppressed={researchOpen}>
                 <DropdownMenuTrigger asChild>
                   <button
                     type="button"

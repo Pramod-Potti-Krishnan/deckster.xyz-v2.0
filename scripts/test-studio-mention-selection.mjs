@@ -23,6 +23,7 @@ const imports = {
   '@/hooks/use-templates': { isTemplateGenerationReady: () => false, templateGenerationUnavailableReason: () => '' },
   '@/hooks/use-theme-profiles': { useThemeProfiles: () => ({ loading: false, error: null, listThemes: refuse, saveTheme: refuse, setStandardTheme: refuse, clearStandardTheme: refuse, deleteTheme: refuse }) },
   './template-picker': { TemplatePicker: 'TemplatePicker' }, './studio-director.css': {},
+  '@/lib/studio-composer-popups': { nextComposerPopup: refuse, keepPopupOpenForDropdownList: refuse }, // PASS2-COMPOSER-POPUPS: flag off here, never called
   './studio-theme-menu': { StudioThemeMenu: 'StudioThemeMenu' },
 }
 function load(relative) {

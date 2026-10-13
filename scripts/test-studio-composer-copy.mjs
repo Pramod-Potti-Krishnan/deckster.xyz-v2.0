@@ -62,6 +62,8 @@ const stubs = {
   './template-picker': { TemplatePicker: nothing },
   './studio-composer-hint': { StudioComposerHint: passthrough },
   './studio-theme-menu': { StudioThemeMenu: nothing },
+  // PASS2-COMPOSER-POPUPS: the V2 popup helpers; the flag is off in this test, so they are never called.
+  '@/lib/studio-composer-popups': { nextComposerPopup: refuse, keepPopupOpenForDropdownList: refuse },
 }
 const transpileCache = new Map()
 function loadChatInput(source) {

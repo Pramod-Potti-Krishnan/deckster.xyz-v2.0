@@ -22,6 +22,38 @@ export type ThemeDropdownOption = {
   swatches: string[]
   /** The theme the deck has now: pinned to the top of the list. */
   current: boolean
+  /** PASS2-COMPOSER-POPUPS: a second line in place of the swatches ('' draws nothing). Absent: the default wording for an option without swatches. */
+  sub?: string
+  /** PASS2-COMPOSER-POPUPS: the text a search matches (default: the name). */
+  search?: string
+  /** PASS2-COMPOSER-POPUPS: drawn quieter (an option that is listed but cannot be used yet). */
+  muted?: boolean
+}
+
+/**
+ * The wording and extras of one dropdown. The theme picker uses the defaults, so its markup is unchanged; the composer's popups
+ * (PASS2-COMPOSER-POPUPS) pass their own (a "Deckster templates" or "My templates" list, no preview, no group headings).
+ */
+export type ThemeDropdownCopy = {
+  label: string
+  /** The line beside the label. null: none. */
+  help: string | null
+  placeholder: string
+  /** For the empty list ("No {plural} match") and the screen-reader count. */
+  singular: string
+  plural: string
+  /** false: the options are listed without group headings. */
+  groups: boolean
+  /** What an empty list says when nothing was typed ("No saved themes yet."). Absent: the same "No {plural} match" line as a search with no hits. */
+  none?: string
+}
+export const THEME_DROPDOWN_COPY: ThemeDropdownCopy = {
+  label: 'Theme',
+  help: 'Type to search',
+  placeholder: 'Search themes',
+  singular: 'theme',
+  plural: 'themes',
+  groups: true,
 }
 
 export type ThemeDropdownPreviewData =
@@ -244,13 +276,19 @@ export function ThemeDropdownPicker({
   locked,
   preview,
   onSelect,
+  copy = THEME_DROPDOWN_COPY,
+  labelAccessory,
 }: {
   options: ThemeDropdownOption[]
   /** 'auto', a preset id, or null (nothing in the list is chosen). */
   selectedId: string | null
   locked: boolean
-  preview: ThemeDropdownPreviewData
+  /** Absent (the composer's popups): no preview under the dropdown. */
+  preview?: ThemeDropdownPreviewData
   onSelect: (id: string) => void
+  copy?: ThemeDropdownCopy
+  /** Drawn in the label row in place of the help line (the composer's "Refresh"). */
+  labelAccessory?: ReactNode
 }) {
   const uid = useId()
   const inputId = `${uid}-input`
@@ -264,15 +302,15 @@ export function ThemeDropdownPicker({
 
   const selected = options.find(option => option.id === selectedId) ?? null
   const filtering = query.trim().length > 0
-  const pinned = options.filter(option => option.current && themeDropdownMatches(option.name, query))
-  const rest = options.filter(option => !option.current && themeDropdownMatches(option.name, query))
+  const pinned = options.filter(option => option.current && themeDropdownMatches(option.search ?? option.name, query))
+  const rest = options.filter(option => !option.current && themeDropdownMatches(option.search ?? option.name, query))
   const visible = [...pinned, ...rest]
   const highlighted = visible.find(option => option.id === highlightId)
     ?? (filtering ? visible[0] : visible.find(option => option.id === selectedId) ?? visible[0])
     ?? null
   const isOpen = open && !locked
 
-  const wantsFonts = preview.kind === 'theme' && Boolean(preview.headingFont || preview.bodyFont)
+  const wantsFonts = preview?.kind === 'theme' && Boolean(preview.headingFont || preview.bodyFont)
   useEffect(() => {
     if (wantsFonts) ensureThemeFontStylesheet()
   }, [wantsFonts])
@@ -305,6 +343,7 @@ export function ThemeDropdownPicker({
       role="option"
       aria-selected={option.id === selectedId}
       data-active={option.id === highlighted?.id ? 'true' : undefined}
+      {...(option.muted ? { 'data-muted': 'true' } : {})}
       data-studio-theme-preset={option.id}
       title={option.hint}
       className="stpdd-option"
@@ -316,8 +355,10 @@ export function ThemeDropdownPicker({
         {option.current && <span className="stpv2-current-pill">Current</span>}
       </span>
       {option.swatches.length > 0
-        ? <Swatches colors={option.swatches} />
-        : <span className="stpdd-option-sub">Director picks for you</span>}
+        ? option.sub ? <><Swatches colors={option.swatches} /><span className="stpdd-option-sub">{option.sub}</span></> : <Swatches colors={option.swatches} />
+        : option.sub === undefined
+          ? <span className="stpdd-option-sub">Director picks for you</span>
+          : option.sub ? <span className="stpdd-option-sub">{option.sub}</span> : null}
       <span className="stpdd-check" aria-hidden="true">{option.id === selectedId && <Check className="h-3 w-3" />}</span>
     </div>
   )
@@ -325,8 +366,8 @@ export function ThemeDropdownPicker({
   return (
     <div className="stpdd" data-studio-theme-dropdown-root="true">
       <div className="stpdd-label-row">
-        <label id={labelId} htmlFor={inputId} className="stpdd-label">Theme</label>
-        {!locked && <span id={hintId} className="stpdd-help">Type to search</span>}
+        <label id={labelId} htmlFor={inputId} className="stpdd-label">{copy.label}</label>
+        {labelAccessory ?? (!locked && copy.help !== null && <span id={hintId} className="stpdd-help">{copy.help}</span>)}
       </div>
       <div
         className="stpdd-combo"
@@ -344,11 +385,11 @@ export function ThemeDropdownPicker({
             aria-controls={listId}
             aria-autocomplete="list"
             aria-activedescendant={isOpen && highlighted ? optionId(highlighted.id) : undefined}
-            aria-describedby={locked ? undefined : hintId}
+            aria-describedby={locked || copy.help === null || labelAccessory ? undefined : hintId}
             autoComplete="off"
             spellCheck={false}
             disabled={locked}
-            placeholder={selected?.name ?? 'Search themes'}
+            placeholder={selected?.name ?? copy.placeholder}
             value={isOpen ? query : selected?.name ?? ''}
             className="stpdd-input"
             onFocus={event => event.currentTarget.select()}
@@ -410,7 +451,7 @@ export function ThemeDropdownPicker({
         {isOpen && (
           <div id={listId} role="listbox" aria-labelledby={labelId} tabIndex={-1} className="stpdd-list" onMouseDown={event => event.preventDefault()}>
             {visible.length === 0 ? (
-              <div className="stpdd-empty" data-studio-theme-empty="true">No themes match “{query.trim()}”.</div>
+              <div className="stpdd-empty" data-studio-theme-empty="true">{!filtering && copy.none ? copy.none : `No ${copy.plural} match “${query.trim()}”.`}</div>
             ) : (
               <>
                 {pinned.length > 0 && (
@@ -420,8 +461,8 @@ export function ThemeDropdownPicker({
                   </div>
                 )}
                 {rest.length > 0 && (
-                  <div role="group" aria-label={pinned.length > 0 ? 'Other themes' : 'All themes'} className="stpdd-group">
-                    <div className="stpdd-group-label" aria-hidden="true">{pinned.length > 0 ? 'Other themes' : 'All themes'}</div>
+                  <div role="group" aria-label={copy.groups ? (pinned.length > 0 ? 'Other themes' : 'All themes') : copy.label} className="stpdd-group">
+                    {copy.groups && <div className="stpdd-group-label" aria-hidden="true">{pinned.length > 0 ? 'Other themes' : 'All themes'}</div>}
                     {rest.map(renderOption)}
                   </div>
                 )}
@@ -430,10 +471,10 @@ export function ThemeDropdownPicker({
           </div>
         )}
         <div className="sr-only" role="status">
-          {isOpen ? (visible.length === 0 ? 'No themes match.' : `${visible.length} ${visible.length === 1 ? 'theme' : 'themes'} available.`) : ''}
+          {isOpen ? (visible.length === 0 ? `No ${copy.plural} match.` : `${visible.length} ${visible.length === 1 ? copy.singular : copy.plural} available.`) : ''}
         </div>
       </div>
-      <ThemeDropdownPreview preview={preview} locked={locked} />
+      {preview && <ThemeDropdownPreview preview={preview} locked={locked} />}
     </div>
   )
 }

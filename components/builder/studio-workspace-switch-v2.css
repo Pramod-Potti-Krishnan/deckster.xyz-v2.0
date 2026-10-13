@@ -1,0 +1,8 @@
+/* PASS2-COMPOSER-POPUPS item 5 (flag NEXT_PUBLIC_STUDIO_COMPOSER_POPUPS_V2): the narrow-window pane strip as the mockup's segmented control.
+   The bar itself (position, height, border) is still the one in studio-workspace.css; these rules only restyle the buttons inside it and
+   hang off the V2 marker, which exists only with the flag on. */
+[data-studio-v4-shell="true"] [data-studio-workspace-switch-v2="true"] .swsv2-segments { display: inline-flex; align-items: center; gap: 2px; padding: 2px; border: 1px solid var(--ss-line); border-radius: 7px; background: var(--ss-surface); }
+[data-studio-v4-shell="true"] [data-studio-workspace-switch-v2="true"] .swsv2-segments > button { display: inline-flex; align-items: center; gap: 6px; height: 22px; padding: 0 10px; border-radius: 5px; background: transparent; color: var(--ss-muted); font-size: 12px; font-weight: 500; line-height: 20px; }
+[data-studio-v4-shell="true"] [data-studio-workspace-switch-v2="true"] .swsv2-segments > button > svg { width: 14px; height: 14px; flex-shrink: 0; stroke-width: 1.7; }
+[data-studio-v4-shell="true"] [data-studio-workspace-switch-v2="true"] .swsv2-segments > button:hover { color: var(--ss-text); }
+[data-studio-v4-shell="true"] [data-studio-workspace-switch-v2="true"] .swsv2-segments > button[aria-pressed="true"] { background: var(--ss-panel); color: var(--ss-teal); font-weight: 600; box-shadow: 0 1px 3px rgba(23, 44, 19, .12); }
