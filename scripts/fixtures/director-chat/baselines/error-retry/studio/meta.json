@@ -1,0 +1,15 @@
+{
+  "diagnostics": {
+    "blockedNetwork": [],
+    "console": [],
+    "fetches": [{"method":"GET","url":"/api/director/ws-token?session_id=synthetic-session-error-retry"}],
+    "sockets": 1,
+    "timersLeft": 1,
+    "uncaughtTimerErrors": [],
+    "windowOpens": []
+  },
+  "fixture": "error-retry",
+  "fixtureSha": "65b2a6f23cab0939",
+  "profile": "studio",
+  "schema": 1
+}

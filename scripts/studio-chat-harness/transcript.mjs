@@ -1,0 +1,430 @@
+// Runs one recorded transcript against the real Director chat code and returns a snapshot
+// (a map of file name -> text) describing everything observable:
+//   outbound.ndjson   every byte the client put on the fake socket (+ handshake URLs)
+//   keys.json         ordered React keys of MessageList + ordered hook message ids, per checkpoint
+//   calls.json        every handler / hook-callback invocation with its arguments
+//   state.json        hook + page state digest per checkpoint
+//   cache.json        the session cache (sessionStorage) as the hook left it
+//   markup/*.html     rendered chat markup + header/notice ("chrome") per checkpoint; markup.json holds hashes
+//   env.json, meta.json   profile environment, fixture hash, diagnostics (console errors, blocked network)
+import crypto from 'node:crypto'
+import React from 'react'
+import { renderToStaticMarkup } from 'react-dom/server'
+import { Root, hostNodes, keyedChildren, textOf, toElements } from './mini-react.mjs'
+import { createEnvironment, START_MS } from './fake-env.mjs'
+import { createModuleLoader } from './module-loader.mjs'
+import { pageSources } from './page-sources.mjs'
+import { BASE_ENV } from './profiles.mjs'
+import { canonical, pretty, prettyHtml, sha256 } from './snapshot.mjs'
+import { esmPackages, lucideStub } from './esm-packages.mjs'
+
+const DEFAULT_DT = 500
+const slug = text => String(text).toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '').slice(0, 48) || 'checkpoint'
+
+export async function runTranscript({ root, fixture, profile, processEnv, includeMarkup = true, crossCheck = false }) {
+  const sources = pageSources(root)
+  const env = createEnvironment({ processEnv: { ...BASE_ENV, ...processEnv } })
+  const session = fixture.session
+  const authUser = { id: session.userId, email: `${session.userId}@example.invalid` }
+  const loader = createModuleLoader({
+    root, globals: env.globals,
+    stubs: { ...(await esmPackages(root)), 'lucide-react': lucideStub(React) },
+    fileStubs: { 'hooks/use-auth': { useAuth: () => ({ user: authUser, isLoading: false }) } },
+  })
+  const hookModule = loader.load('hooks/use-deckster-websocket-v2.ts')
+  const { MessageList } = loader.load('components/builder/message-list.tsx')
+  const { StudioDirectorHeader } = loader.load('components/builder/chat/studio-director-header.tsx')
+  const { StudioDirectorNotice } = loader.load('components/builder/studio-director-notice.tsx')
+  const { attachmentsFromPayload } = loader.load('lib/user-message-attachments.ts')
+  const voice = loader.load('lib/studio-voice-interactive.ts')
+
+  // ---- recorders ----------------------------------------------------------
+  const rec = { step: -1, calls: [], steps: [], checkpoints: [], markup: {}, notes: [], crossCheck: [] }
+  const call = (name, args) => rec.calls.push({ step: rec.step, name, args: canonical(args) })
+  const pendingWork = new Set()
+  // Wrap a handler so each invocation is recorded and any promise it returns is awaited by the
+  // step that triggered it. By default a fresh wrapper is made per render, exactly like the
+  // page's inline callbacks. With fixture.stableHandlers the wrapper identity is kept fixed
+  // (still calling the latest function) so effects keyed on handler identity are not re-run.
+  const latestByName = new Map(), stableByName = new Map()
+  const track = (name, fn) => {
+    if (typeof fn !== 'function') return fn
+    const tracked = function (...args) {
+      call(name, args)
+      const target = fixture.stableHandlers ? latestByName.get(name) : fn
+      const result = target.apply(this, args)
+      if (result && typeof result.then === 'function') {
+        const watched = Promise.resolve(result).catch(error => { rec.notes.push(`${name} rejected: ${String(error?.message ?? error).slice(0, 160)}`) })
+        pendingWork.add(watched)
+        watched.finally(() => pendingWork.delete(watched))
+      }
+      return result
+    }
+    if (!fixture.stableHandlers) return tracked
+    latestByName.set(name, fn)
+    if (!stableByName.has(name)) stableByName.set(name, tracked)
+    return stableByName.get(name)
+  }
+  const macrotask = env.macrotask
+
+  // ---- page-owned state (what app/builder/page.tsx keeps outside the hook) -------------
+  const pageInputs = {
+    currentSessionId: session.currentSessionId ?? session.id,
+    researchEnabled: false, webSearchEnabled: false, extendedGenerationEnabled: true, knowledgeGraphEnabled: false,
+    canUseKnowledgeGraph: false, showKnowledgeGraphToggle: false, sessionStoreName: null, buildSendOptions: {}, deckIdentity: null,
+    askGatesLocked: false, suppressEphemeral: false, activeTemplate: null,
+    ...(fixture.page || {}),
+  }
+  const makeRefs = () => ({
+    answeredActionsRef: { current: new Set() }, userMessageIdsRef: { current: new Set() }, userMessageContentMapRef: { current: new Map() },
+    hasSeenWelcomeRef: { current: false }, messagesEndRef: { current: null }, textareaRef: { current: null },
+    actionSubmissionPendingRef: { current: new Set() }, questionSubmissionPendingRef: { current: false }, isExecutingSendRef: { current: false },
+    isGeneratingFinalRef: { current: false },
+    questionSubmissionScopeRef: { current: { active: true, generation: 0, sessionId: session.id, userId: session.userId, routeSessionId: session.id, freshRouteSourceSessionId: null } },
+    transcriptScopeRef: { current: { userIntentSeen: false, generation: 1 } },
+  })
+  let refs = makeRefs()
+  const toasts = []
+  const persistence = {
+    queueMessage: (...args) => call('page.persistence.queueMessage', args),
+    generateTitle: text => text.slice(0, 50), updateMetadata: (...args) => call('page.persistence.updateMetadata', args),
+  }
+
+  // ---- the probe ---------------------------------------------------------------------
+  const probe = { latest: null }
+  const toast = value => { toasts.push(value); call('page.toast', [value]) }
+  function PageProbe() {
+    const R = React
+    const [userMessages, setUserMessages] = R.useState([])
+    const [isGeneratingFinal, setIsGeneratingFinal] = R.useState(false)
+    const [templateReuseAwaitingInput, setTemplateReuseAwaitingInput] = R.useState(false)
+    const [inputMessage, setInputMessage] = R.useState('')
+    const [pendingActionInput, setPendingActionInput] = R.useState(null)
+    const [transcriptReceipt, setTranscriptReceipt] = R.useState(null)
+    const [isLoadingSession, setIsLoadingSession] = R.useState(false)
+    refs.isGeneratingFinalRef.current = isGeneratingFinal
+    const studioShell = env.globals.process.env.NEXT_PUBLIC_STUDIO_V4_SHELL === 'true'
+    const sessionApi = {
+      userMessages, setUserMessages, isLoadingSession,
+      answeredActionsRef: refs.answeredActionsRef, userMessageIdsRef: refs.userMessageIdsRef, userMessageContentMapRef: refs.userMessageContentMapRef,
+      hasSeenWelcomeRef: refs.hasSeenWelcomeRef,
+      hasTitleFromUserMessageRef: { current: false }, hasTitleFromPresentationRef: { current: false },
+      markStudioUserIntent: () => { refs.transcriptScopeRef.current.userIntentSeen = true },
+      hasStudioUserIntent: () => refs.transcriptScopeRef.current.userIntentSeen,
+      studioFrontendTranscriptReceipt: transcriptReceipt,
+    }
+    const base = {
+      React: R, process: env.globals.process, console: env.console, Date: env.globals.Date, crypto: env.crypto,
+      setTimeout: env.clock.setTimeout, clearTimeout: env.clock.clearTimeout, requestAnimationFrame: env.clock.requestAnimationFrame,
+      studioShell, features: { immediateConnection: true }, STUDIO_VOICE_INTERACTIVE_ENABLED: voice.STUDIO_VOICE_INTERACTIVE_ENABLED,
+      ...pageInputs, user: authUser, toast, persistence, session: sessionApi,
+      ...refs, isGeneratingFinal, setIsGeneratingFinal, templateReuseAwaitingInput, setTemplateReuseAwaitingInput,
+      inputMessage, setInputMessage, pendingActionInput, setPendingActionInput, setWorkflowBrief: () => {},
+      awaitingDirectorReply: false, uploadedFiles: [], quota: { status: null }, STUDIO_BLOCKED_SEND_FEEDBACK_ENABLED: false,
+      studioOutlineCanvas: undefined, turnContext: undefined, effectivePresentationUrl: undefined,
+      isThemeSyncTerminal: () => false,
+    }
+    const hookOptions = {}
+    for (const [name, evaluate] of Object.entries(sources.compiled.hookOptions)) hookOptions[name] = evaluate(base)
+    const options = {
+      ...hookOptions,
+      onSessionStateChange: track('hook.onSessionStateChange', () => {}),
+      onSlideComposeProgress: track('hook.onSlideComposeProgress', () => {}),
+      onSlideBuilt: track('hook.onSlideBuilt', () => {}),
+      onSlideComposeReady: track('hook.onSlideComposeReady', () => {}),
+      onSlideComposeFailed: track('hook.onSlideComposeFailed', () => {}),
+      onElementDirective: track('hook.onElementDirective', () => {}),
+      onSessionDirective: track('hook.onSessionDirective', () => {}),
+      onBuildPhase: track('hook.onBuildPhase', () => {}),
+      onBuildEvent: track('hook.onBuildEvent', () => {}),
+      onBuildStateSync: track('hook.onBuildStateSync', () => {}),
+    }
+    // The page's own onMessage handler (extracted); only {type, message_id} is recorded because the
+    // full frame is already in the hook state digest.
+    options.onMessage = message => { call('hook.onMessage', [{ type: message.type, message_id: message.message_id }]); return sources.compiled.onMessage(base)(message) }
+    const ws = hookModule.useDecksterWebSocketV2(options)
+    // use-builder-session: keep the session cache's user turns in step (drives skip_history).
+    R.useEffect(() => { sources.compiled.cacheSyncEffect({ userMessages, updateCacheUserMessages: ws.updateCacheUserMessages })() }, [userMessages, ws.updateCacheUserMessages])
+    const values = {
+      ...base, ...ws, wsError: ws.error, wsSessionId: ws.sessionId, session: sessionApi,
+      connected: ws.connected, connecting: ws.connecting, transportNotice: ws.transportNotice,
+      effectiveBuildNarrationEnabled: pageInputs.suppressEphemeral, approvalGatesLocked: pageInputs.askGatesLocked,
+      effectiveSlideCount: ws.slideCount, effectivePresentationUrl: ws.presentationUrl,
+      isReady: ws.isReady,
+    }
+    values.preflightDirectorTurn = sources.compiled.preflightDirectorTurn(values)
+    values.handleActionClick = sources.compiled.handleActionClick(values)
+    const listProps = {}
+    for (const [name, evaluate] of Object.entries(sources.compiled.messageList)) {
+      const value = evaluate(values)
+      listProps[name] = name.startsWith('on') ? track(`ml.${name}`, value) : value
+    }
+    probe.latest = { ws, values, listProps, userMessages, isGeneratingFinal, templateReuseAwaitingInput, sessionApi, studioShell, isLoadingSession, setIsLoadingSession, setTranscriptReceipt, setUserMessages, setIsGeneratingFinal }
+    return R.createElement(MessageList, listProps)
+  }
+
+  // ---- renderer wiring ---------------------------------------------------------------------
+  let root_ = null
+  const settle = async () => {
+    for (let quiet = 0, rounds = 0; quiet < 2; rounds++) {
+      if (rounds > 80) throw new Error('harness: the page did not settle after 80 rounds')
+      await macrotask()
+      quiet = root_ && root_.flush() ? 0 : quiet + 1
+    }
+  }
+  env.settle = settle
+  const advance = async ms => { await env.clock.advance(ms, settle) }
+  const mount = async () => {
+    refs = makeRefs()
+    root_ = new Root()
+    root_.setElement(React.createElement(PageProbe))
+    await settle()
+  }
+  const unmount = async () => {
+    root_.unmount()
+    root_ = null
+    probe.latest = null
+    await advance(0)
+  }
+  const flushPending = async () => {
+    for (let i = 0; pendingWork.size && i < 400; i++) {
+      await settle()
+      if (pendingWork.size) await advance(50)
+    }
+    if (pendingWork.size) throw new Error('harness: page work never completed (a promise is still pending after 20s of virtual time)')
+  }
+
+  // ---- node finding / events ------------------------------------------------------------------
+  const describe = node => {
+    const hosts = hostNodes(node)
+    const first = hosts[0]
+    const attr = name => hosts.map(h => h.props?.[name]).find(v => v !== undefined)
+    return { role: attr('data-studio-director-message') ?? null, action: attr('data-director-action-id') ?? null, tag: first?.type ?? null, empty: hosts.length === 0, buttons: hosts.filter(h => h.type === 'button').length, inputs: hosts.filter(h => h.type === 'input').length }
+  }
+  const findNode = selector => {
+    const tree = root_.tree
+    let pool = hostNodes(tree)
+    if (selector.within) {
+      const top = keyedChildren(tree, 'MessageList') || []
+      if (selector.within.key !== undefined) {
+        const hit = top.find(node => node.key === selector.within.key)
+        if (!hit) throw new Error(`harness: no MessageList child with key "${selector.within.key}" (keys: ${top.map(n => n.key).join(', ')})`)
+        pool = hostNodes(hit)
+      } else if (selector.within.action !== undefined) {
+        const holder = pool.find(node => node.props?.['data-director-action-id'] === selector.within.action)
+        if (!holder) throw new Error(`harness: no element with data-director-action-id="${selector.within.action}"`)
+        pool = hostNodes(holder)
+      }
+    }
+    const matches = pool.filter(node =>
+      (!selector.tag || node.type === selector.tag) &&
+      Object.entries(selector.attrs || {}).every(([k, v]) => String(node.props?.[k]) === String(v)) &&
+      (selector.text === undefined || textOf(node).includes(selector.text)))
+    const index = selector.index ?? 0
+    if (!matches[index]) throw new Error(`harness: selector matched ${matches.length} element(s), wanted index ${index}: ${JSON.stringify(selector)}`)
+    return matches[index]
+  }
+  const syntheticEvent = (type, value) => ({ type, preventDefault() {}, stopPropagation() {}, target: { value }, currentTarget: { value } })
+
+  // ---- checkpoints -------------------------------------------------------------------------------
+  // One compact token per transcript message: id | type | role | arrival offset (+ projection flags).
+  const digestMessage = message => [
+    message.message_id, message.type, message.role ?? '-',
+    typeof message.clientTimestamp === 'number' ? `+${message.clientTimestamp - START_MS}ms` : 'no-ts',
+    ...(message.clientOutlineReplayOf ? [`replayOf=${message.clientOutlineReplayOf}`] : []),
+    ...(message.clientTerminalOutlineRevisionOf ? [`terminalRevisionOf=${message.clientTerminalOutlineRevisionOf}`] : []),
+    ...(message.clientOutlineHistoryStatus ? [`history=${message.clientOutlineHistoryStatus}`] : []),
+  ].join(' | ')
+  const digest = () => {
+    const { ws, userMessages, isGeneratingFinal } = probe.latest
+    return {
+      virtualMs: env.clock.now() - START_MS,
+      connection: { state: ws.connectionState, connected: ws.connected, connecting: ws.connecting, reconnectStatus: ws.reconnectStatus, reconnectAttempt: ws.reconnectAttempt, awaitingDirectorReply: ws.awaitingDirectorReply, connectionGeneration: ws.connectionGeneration, sockets: env.sockets.length },
+      error: ws.error ? { name: ws.error.name, message: ws.error.message } : null,
+      transportNotice: ws.transportNotice,
+      status: ws.currentStatus,
+      messages: ws.messages.map(digestMessage),
+      messagesSha: sha256(JSON.stringify(canonical(ws.messages))),
+      ephemeralMessageIds: ws.ephemeralMessageIds, ephemeralFadeToken: ws.ephemeralFadeToken,
+      deck: {
+        activeVersion: ws.activeVersion, presentationUrl: ws.presentationUrl, presentationId: ws.presentationId, blankUrl: ws.blankPresentationUrl, strawmanUrl: ws.strawmanPreviewUrl,
+        finalUrl: ws.finalPresentationUrl, finalId: ws.finalPresentationId, slideCount: ws.slideCount, isBlank: ws.isBlankPresentation, owner: ws.deckOwnerSessionId,
+        workflow: ws.directorWorkflowState, hasStrawman: ws.hasStrawman, slideStructureSha: ws.slideStructure ? sha256(JSON.stringify(canonical(ws.slideStructure))) : null,
+        slideContextIndexes: ws.slideContextByIndex ? Object.keys(ws.slideContextByIndex) : null,
+      },
+      page: {
+        userMessages: userMessages.map(m => ({ id: m.id, text: m.text, timestamp: m.timestamp - START_MS, attachments: (m.attachments || []).length })),
+        answeredActions: [...refs.answeredActionsRef.current], userMessageIds: [...refs.userMessageIdsRef.current], isGeneratingFinal,
+        pendingActionInput: probe.latest.values.pendingActionInput ? { value: probe.latest.values.pendingActionInput.action?.value } : null,
+        toasts: toasts.length,
+      },
+    }
+  }
+  const checkpoint = label => {
+    const n = String(rec.checkpoints.length + 1).padStart(2, '0')
+    const name = `${n}-${slug(label)}`
+    const latest = probe.latest
+    const top = keyedChildren(root_.tree, 'MessageList') || []
+    const chat = renderToStaticMarkup(toElements(root_.tree))
+    const headerProps = {}
+    for (const [prop, evaluate] of Object.entries(sources.compiled.header)) headerProps[prop] = evaluate(latest.values)
+    const noticeProps = {}
+    for (const [prop, evaluate] of Object.entries(sources.compiled.notice)) noticeProps[prop] = evaluate(latest.values)
+    const header = latest.studioShell ? renderToStaticMarkup(React.createElement(StudioDirectorHeader, headerProps)) : ''
+    const notice = latest.studioShell ? renderToStaticMarkup(React.createElement(StudioDirectorNotice, noticeProps)) : ''
+    if (crossCheck) {
+      // Diagnostic: server-render MessageList from the same props (refs cloned, so its memo
+      // side effects do not leak) and compare with the mini-renderer's post-effect tree.
+      const clone = ref => ({ current: ref.current instanceof Set ? new Set(ref.current) : ref.current instanceof Map ? new Map(ref.current) : ref.current })
+      const ssr = renderToStaticMarkup(React.createElement(MessageList, { ...latest.listProps, userMessageIdsRef: clone(latest.listProps.userMessageIdsRef), userMessageContentMapRef: clone(latest.listProps.userMessageContentMapRef), answeredActionsRef: clone(latest.listProps.answeredActionsRef), hasSeenWelcomeRef: clone(latest.listProps.hasSeenWelcomeRef) }))
+      rec.crossCheck.push({ checkpoint: name, equal: ssr === chat, ...(ssr === chat ? {} : { ssr: prettyHtml(ssr), mini: prettyHtml(chat) }) })
+    }
+    rec.markup[`markup/${name}.chat.html`] = prettyHtml(chat)
+    rec.markup[`markup/${name}.chrome.html`] = `<!-- StudioDirectorHeader -->\n${prettyHtml(header)}<!-- StudioDirectorNotice -->\n${prettyHtml(notice)}`
+    rec.checkpoints.push({
+      name, label,
+      keys: top.map(node => ({ key: node.key ?? null, ...describe(node) })),
+      messageIds: latest.ws.messages.map(m => m.message_id),
+      state: digest(),
+      markup: { chat: sha256(chat), header: sha256(header), notice: sha256(notice) },
+    })
+  }
+
+  // ---- operations -------------------------------------------------------------------------------
+  const socketFor = step => {
+    const index = step.socket ?? env.sockets.length - 1
+    const socket = env.sockets[index]
+    if (!socket) throw new Error(`harness: step ${rec.step} (${step.op}) needs socket ${index} but only ${env.sockets.length} exist`)
+    return socket
+  }
+  const operations = {
+    async ensureConnected() { probe.latest.ws.ensureConnected() },
+    async open(step) { socketFor(step).serverOpen() },
+    async frame(step) { socketFor(step).serverMessage(JSON.stringify(step.frame)) },
+    async raw(step) { socketFor(step).serverMessage(step.data) },
+    async close(step) { socketFor(step).serverClose(step.code ?? 1006, step.reason ?? '') },
+    async advance(step) { await advance(step.ms) },
+    async offline() { env.navigator.onLine = false; env.window.dispatchEvent({ type: 'offline' }) },
+    async online() { env.navigator.onLine = true; env.window.dispatchEvent({ type: 'online' }) },
+    async props(step) { Object.assign(pageInputs, step.set); root_.schedule() },
+    async unmount() { await unmount() },
+    async mount() { await mount() },
+    async checkpoint(step) { checkpoint(step.label) },
+    async typed(step) {
+      const text = step.text.trim()
+      const values = probe.latest.values
+      if (!values.preflightDirectorTurn()) { rec.notes.push(`step ${rec.step}: typed turn blocked by preflight`); return }
+      const options = { ...sources.compiled.typedOptions(values), ...(step.options || {}) }
+      call('page.sendTypedTurn', [text, step.fileCount ?? 0, options])
+      let ok = false
+      try { ok = await probe.latest.ws.sendMessageWhenConnected(text, undefined, step.fileCount ?? 0, options, undefined, () => true) } catch (error) { rec.notes.push(`typed send rejected: ${error?.message}`) }
+      await settle()
+      if (ok !== true) { toast({ title: "Couldn't reach the Director" }); return }
+      // Deliver first, commit after (mirrors the tail of handleSendMessage).
+      const id = env.crypto.randomUUID(), timestamp = env.clock.now()
+      refs.userMessageIdsRef.current.add(id)
+      probe.latest.setUserMessages(prev => [...prev, { id, text, timestamp, attachments: [] }])
+      persistence.queueMessage({ message_id: id, type: 'chat_message', payload: { text } }, text)
+    },
+    // Direct hook sends: pin the wire format of every optional field and each control frame.
+    async send(step) {
+      call('hook.sendMessageWhenConnected', [step.text, step.storeName, step.fileCount, step.options || {}])
+      const ok = await probe.latest.ws.sendMessageWhenConnected(step.text, step.storeName, step.fileCount, step.options || {}, undefined, () => true)
+      rec.notes.push(`step ${rec.step}: hook send returned ${ok}`)
+    },
+    async control(step) { call('hook.sendControlMessage', [step.type, step.data]); rec.notes.push(`step ${rec.step}: control returned ${probe.latest.ws.sendControlMessage(step.type, step.data)}`) },
+    async theme(step) { call('hook.sendThemeSelection', [step.theme, step.requestId, step.presentationId]); rec.notes.push(`step ${rec.step}: theme returned ${probe.latest.ws.sendThemeSelection(step.theme, step.requestId, step.presentationId)}`) },
+    async elementResult(step) { call('hook.sendElementDirectiveResult', [step.data]); rec.notes.push(`step ${rec.step}: element result returned ${probe.latest.ws.sendElementDirectiveResult(step.data)}`) },
+    async click(step) {
+      const node = findNode(step.target)
+      if (node.props.disabled) { rec.notes.push(`step ${rec.step}: click skipped, target disabled`); return }
+      await node.props.onClick?.(syntheticEvent('click'))
+      await flushPending()
+    },
+    async change(step) {
+      const node = findNode(step.target)
+      await node.props.onChange?.(syntheticEvent('change', step.value))
+    },
+    async restore(step) {
+      // The Builder's session load: DB rows -> user turns + Director frames, then restoreMessages.
+      const row = step.session
+      const restoredSessionState = sources.compiled.restoredSessionState({ session: row, process: env.globals.process })
+      let userMsgs = null
+      const ids = { user: refs.userMessageIdsRef, content: refs.userMessageContentMapRef }
+      const persisted = { current: new Set() }
+      const setUserMessagesCaptured = list => { userMsgs = list; probe.latest.setUserMessages(list) }
+      const scope = {
+        session: row, sessionState: restoredSessionState, restoreMessages: probe.latest.ws.restoreMessages,
+        setUserMessages: setUserMessagesCaptured, userMessageIdsRef: ids.user, userMessageContentMapRef: ids.content, persistedMessageIdsRef: persisted,
+        setIsResumedSession: () => {}, hasSeenWelcomeRef: refs.hasSeenWelcomeRef, attachmentsFromPayload,
+        debugLog: () => {}, STUDIO_VOICE_INTERACTIVE_ENABLED: voice.STUDIO_VOICE_INTERACTIVE_ENABLED,
+        process: env.globals.process, Date: env.globals.Date, console: env.console,
+      }
+      await sources.compiled.restoreBlock(scope)()
+      refs.transcriptScopeRef.current.generation = 1
+      const receiptScope = {
+        transcriptScopeRef: refs.transcriptScopeRef, transcriptScope: refs.transcriptScopeRef.current, transcriptLoadRequestRef: { current: 1 }, transcriptRequest: 1,
+        builderCacheOwner: session.userId, session: row, sessionParam: row.id, Array,
+        setStudioFrontendTranscriptReceipt: receipt => { call('session.setStudioFrontendTranscriptReceipt', [receipt]); probe.latest.setTranscriptReceipt(receipt) },
+        Object,
+      }
+      sources.compiled.receiptBlock(receiptScope)()
+      rec.notes.push(`step ${rec.step}: restored ${userMsgs?.length ?? 0} user turns`)
+    },
+    async expect(step) {
+      const ws = probe.latest.ws
+      const failures = []
+      const check = (label, ok) => { if (!ok) failures.push(label) }
+      if (step.outbound !== undefined) check(`outbound ${env.outbound.filter(o => o.data !== 'ping').length} === ${step.outbound}`, env.outbound.filter(o => o.data !== 'ping').length === step.outbound)
+      if (step.sockets !== undefined) check(`sockets ${env.sockets.length} === ${step.sockets}`, env.sockets.length === step.sockets)
+      if (step.messageCount !== undefined) check(`messages ${ws.messages.length} === ${step.messageCount}`, ws.messages.length === step.messageCount)
+      if (step.connectionState !== undefined) check(`connectionState ${ws.connectionState} === ${step.connectionState}`, ws.connectionState === step.connectionState)
+      if (step.reconnectStatus !== undefined) check(`reconnectStatus ${ws.reconnectStatus} === ${step.reconnectStatus}`, ws.reconnectStatus === step.reconnectStatus)
+      if (step.exists) check(`element exists ${JSON.stringify(step.exists)}`, (() => { try { findNode(step.exists); return true } catch { return false } })())
+      if (step.absent) check(`element absent ${JSON.stringify(step.absent)}`, (() => { try { findNode(step.absent); return false } catch { return true } })())
+      if (failures.length) throw new Error(`fixture guard failed at step ${rec.step}: ${failures.join('; ')}`)
+    },
+  }
+
+  // ---- run ----------------------------------------------------------------------------------------
+  await mount()
+  for (const [index, step] of fixture.steps.entries()) {
+    rec.step = index
+    if (!operations[step.op]) throw new Error(`fixture ${fixture.name}: unknown op "${step.op}" at step ${index}`)
+    if (step.profiles && !step.profiles.includes(profile)) { rec.steps.push({ step: index, op: step.op, skipped: `profile ${profile}` }); continue }
+    if (step.op !== 'advance') await advance(step.dt ?? DEFAULT_DT)
+    try {
+      await operations[step.op](step)
+      await settle()
+    } catch (error) {
+      error.message = `[${fixture.name} / ${profile}] step ${index} (${step.op}${step.comment ? `: ${step.comment}` : ''}) failed: ${error.message}`
+      throw error
+    }
+    rec.steps.push({ step: index, op: step.op, ...(step.comment ? { comment: step.comment } : {}) })
+  }
+  await advance(0)
+  if (probe.latest) checkpoint('final')
+
+  // ---- assemble the snapshot ----------------------------------------------------------------------------
+  const files = {}
+  const outboundLines = [
+    ...env.handshakes.map(h => JSON.stringify({ kind: 'handshake', ...h })),
+    ...env.outbound.map((o, n) => JSON.stringify({ kind: o.data === 'ping' ? 'heartbeat' : (() => { try { return `json:${JSON.parse(o.data).type}` } catch { return 'raw' } })(), n, socket: o.socket, at: o.at, sha256: sha256(o.data), bytes: o.data })),
+    ...env.clientCloses.map(c => JSON.stringify({ kind: 'client-close', ...c })),
+  ]
+  files['outbound.ndjson'] = outboundLines.join('\n') + '\n'
+  files['keys.json'] = pretty(rec.checkpoints.map(c => ({ checkpoint: c.name, keys: c.keys, hookMessageIds: c.messageIds })))
+  files['calls.json'] = pretty(rec.calls)
+  files['state.json'] = pretty({ checkpoints: rec.checkpoints.map(c => ({ checkpoint: c.name, label: c.label, ...c.state })), steps: rec.steps, notes: rec.notes })
+  const cacheKey = Object.keys(env.sessionStorage.dump()).filter(k => k.startsWith('deckster_session_v2_'))
+  files['cache.json'] = pretty(Object.fromEntries(cacheKey.map(k => [k, JSON.parse(env.sessionStorage.dump()[k])])))
+  files['markup.json'] = pretty(Object.fromEntries(rec.checkpoints.map(c => [c.name, c.markup])))
+  if (includeMarkup) Object.assign(files, rec.markup)
+  files['env.json'] = pretty({ profile, env: { ...BASE_ENV, ...processEnv } })
+  files['meta.json'] = pretty({
+    schema: 1, fixture: fixture.name, profile, fixtureSha: sha256(JSON.stringify(canonical(fixture))).slice(0, 16),
+    diagnostics: { console: env.consoleEvents, uncaughtTimerErrors: env.clock.uncaught, blockedNetwork: env.blockedNetwork, fetches: env.fetches, windowOpens: env.windowOpens, sockets: env.sockets.length, timersLeft: env.clock.pending() },
+  })
+  if (root_) { root_.unmount(); root_ = null }
+  return { files, blockedNetwork: env.blockedNetwork, regions: sources.regions, sendSites: sources.sendSites, crossCheck: rec.crossCheck }
+}

@@ -1,0 +1,264 @@
+[
+  {
+    "checkpoint": "01-questions-card-shown",
+    "hookMessageIds": ["msg-greeting","msg-think-1","msg-questions-1"],
+    "keys": [
+      {"action":null,"buttons":0,"empty":false,"inputs":0,"key":"msg-greeting","role":null,"tag":"div"},
+      {"action":null,"buttons":0,"empty":false,"inputs":0,"key":"synthetic-uuid-0001","role":null,"tag":"div"},
+      {"action":null,"buttons":1,"empty":false,"inputs":0,"key":"thinking_msg-think-1","role":null,"tag":"div"},
+      {"action":null,"buttons":1,"empty":false,"inputs":0,"key":"msg-questions-1","role":null,"tag":"div"},
+      {"action":null,"buttons":0,"empty":false,"inputs":0,"key":null,"role":null,"tag":"div"}
+    ]
+  },
+  {
+    "checkpoint": "02-first-answer-chosen",
+    "hookMessageIds": ["msg-greeting","msg-think-1","msg-questions-1"],
+    "keys": [
+      {"action":null,"buttons":0,"empty":false,"inputs":0,"key":"msg-greeting","role":null,"tag":"div"},
+      {"action":null,"buttons":0,"empty":false,"inputs":0,"key":"synthetic-uuid-0001","role":null,"tag":"div"},
+      {"action":null,"buttons":1,"empty":false,"inputs":0,"key":"thinking_msg-think-1","role":null,"tag":"div"},
+      {"action":null,"buttons":1,"empty":false,"inputs":0,"key":"msg-questions-1","role":null,"tag":"div"},
+      {"action":null,"buttons":0,"empty":false,"inputs":0,"key":null,"role":null,"tag":"div"}
+    ]
+  },
+  {
+    "checkpoint": "03-all-questions-answered",
+    "hookMessageIds": ["msg-greeting","msg-think-1","msg-questions-1"],
+    "keys": [
+      {"action":null,"buttons":0,"empty":false,"inputs":0,"key":"msg-greeting","role":null,"tag":"div"},
+      {"action":null,"buttons":0,"empty":false,"inputs":0,"key":"synthetic-uuid-0001","role":null,"tag":"div"},
+      {"action":null,"buttons":1,"empty":false,"inputs":0,"key":"thinking_msg-think-1","role":null,"tag":"div"},
+      {"action":null,"buttons":1,"empty":false,"inputs":0,"key":"msg-questions-1","role":null,"tag":"div"},
+      {"action":null,"buttons":0,"empty":false,"inputs":0,"key":null,"role":null,"tag":"div"}
+    ]
+  },
+  {
+    "checkpoint": "04-questions-answered",
+    "hookMessageIds": ["msg-greeting","msg-think-1","msg-questions-1"],
+    "keys": [
+      {"action":null,"buttons":0,"empty":false,"inputs":0,"key":"msg-greeting","role":null,"tag":"div"},
+      {"action":null,"buttons":0,"empty":false,"inputs":0,"key":"synthetic-uuid-0001","role":null,"tag":"div"},
+      {"action":null,"buttons":1,"empty":false,"inputs":0,"key":"thinking_msg-think-1","role":null,"tag":"div"},
+      {
+        "action": "msg-questions-1",
+        "buttons": 1,
+        "empty": false,
+        "inputs": 0,
+        "key": "msg-questions-1",
+        "role": null,
+        "tag": "div"
+      },
+      {"action":null,"buttons":0,"empty":false,"inputs":0,"key":"synthetic-uuid-0002","role":null,"tag":"div"},
+      {"action":null,"buttons":0,"empty":false,"inputs":0,"key":null,"role":null,"tag":"div"}
+    ]
+  },
+  {
+    "checkpoint": "05-plan-gate-shown",
+    "hookMessageIds": ["msg-greeting","msg-think-1","msg-questions-1","msg-plan","msg_plan_confirm_synthetic-session-ask-card"],
+    "keys": [
+      {"action":null,"buttons":0,"empty":false,"inputs":0,"key":"msg-greeting","role":null,"tag":"div"},
+      {"action":null,"buttons":0,"empty":false,"inputs":0,"key":"synthetic-uuid-0001","role":null,"tag":"div"},
+      {"action":null,"buttons":1,"empty":false,"inputs":0,"key":"thinking_msg-think-1","role":null,"tag":"div"},
+      {
+        "action": "msg-questions-1",
+        "buttons": 1,
+        "empty": false,
+        "inputs": 0,
+        "key": "msg-questions-1",
+        "role": null,
+        "tag": "div"
+      },
+      {"action":null,"buttons":0,"empty":false,"inputs":0,"key":"synthetic-uuid-0002","role":null,"tag":"div"},
+      {"action":null,"buttons":0,"empty":false,"inputs":0,"key":"msg-plan","role":null,"tag":"div"},
+      {
+        "action": null,
+        "buttons": 2,
+        "empty": false,
+        "inputs": 0,
+        "key": "msg_plan_confirm_synthetic-session-ask-card",
+        "role": null,
+        "tag": "div"
+      },
+      {"action":null,"buttons":0,"empty":false,"inputs":0,"key":null,"role":null,"tag":"div"}
+    ]
+  },
+  {
+    "checkpoint": "06-plan-gate-answered",
+    "hookMessageIds": ["msg-greeting","msg-think-1","msg-questions-1","msg-plan","msg_plan_confirm_synthetic-session-ask-card"],
+    "keys": [
+      {"action":null,"buttons":0,"empty":false,"inputs":0,"key":"msg-greeting","role":null,"tag":"div"},
+      {"action":null,"buttons":0,"empty":false,"inputs":0,"key":"synthetic-uuid-0001","role":null,"tag":"div"},
+      {"action":null,"buttons":1,"empty":false,"inputs":0,"key":"thinking_msg-think-1","role":null,"tag":"div"},
+      {
+        "action": "msg-questions-1",
+        "buttons": 1,
+        "empty": false,
+        "inputs": 0,
+        "key": "msg-questions-1",
+        "role": null,
+        "tag": "div"
+      },
+      {"action":null,"buttons":0,"empty":false,"inputs":0,"key":"synthetic-uuid-0002","role":null,"tag":"div"},
+      {"action":null,"buttons":0,"empty":false,"inputs":0,"key":"msg-plan","role":null,"tag":"div"},
+      {
+        "action": "msg_plan_confirm_synthetic-session-ask-card",
+        "buttons": 2,
+        "empty": false,
+        "inputs": 0,
+        "key": "msg_plan_confirm_synthetic-session-ask-card",
+        "role": null,
+        "tag": "div"
+      },
+      {"action":null,"buttons":0,"empty":false,"inputs":0,"key":"synthetic-uuid-0003","role":null,"tag":"div"},
+      {"action":null,"buttons":0,"empty":false,"inputs":0,"key":null,"role":null,"tag":"div"}
+    ]
+  },
+  {
+    "checkpoint": "07-same-id-re-sent-upsert",
+    "hookMessageIds": ["msg-greeting","msg-think-1","msg-questions-1","msg-plan","msg_plan_confirm_synthetic-session-ask-card"],
+    "keys": [
+      {"action":null,"buttons":0,"empty":false,"inputs":0,"key":"msg-greeting","role":null,"tag":"div"},
+      {"action":null,"buttons":0,"empty":false,"inputs":0,"key":"synthetic-uuid-0001","role":null,"tag":"div"},
+      {"action":null,"buttons":1,"empty":false,"inputs":0,"key":"thinking_msg-think-1","role":null,"tag":"div"},
+      {
+        "action": "msg-questions-1",
+        "buttons": 1,
+        "empty": false,
+        "inputs": 0,
+        "key": "msg-questions-1",
+        "role": null,
+        "tag": "div"
+      },
+      {"action":null,"buttons":0,"empty":false,"inputs":0,"key":"synthetic-uuid-0002","role":null,"tag":"div"},
+      {"action":null,"buttons":0,"empty":false,"inputs":0,"key":"msg-plan","role":null,"tag":"div"},
+      {"action":null,"buttons":0,"empty":false,"inputs":0,"key":"synthetic-uuid-0003","role":null,"tag":"div"},
+      {
+        "action": "msg_plan_confirm_synthetic-session-ask-card",
+        "buttons": 2,
+        "empty": false,
+        "inputs": 0,
+        "key": "msg_plan_confirm_synthetic-session-ask-card",
+        "role": null,
+        "tag": "div"
+      },
+      {"action":null,"buttons":0,"empty":false,"inputs":0,"key":null,"role":null,"tag":"div"}
+    ]
+  },
+  {
+    "checkpoint": "08-input-requiring-action-shown",
+    "hookMessageIds": [
+      "msg-greeting",
+      "msg-think-1",
+      "msg-questions-1",
+      "msg-plan",
+      "msg_plan_confirm_synthetic-session-ask-card",
+      "msg-adjust-1"
+    ],
+    "keys": [
+      {"action":null,"buttons":0,"empty":false,"inputs":0,"key":"msg-greeting","role":null,"tag":"div"},
+      {"action":null,"buttons":0,"empty":false,"inputs":0,"key":"synthetic-uuid-0001","role":null,"tag":"div"},
+      {"action":null,"buttons":1,"empty":false,"inputs":0,"key":"thinking_msg-think-1","role":null,"tag":"div"},
+      {
+        "action": "msg-questions-1",
+        "buttons": 1,
+        "empty": false,
+        "inputs": 0,
+        "key": "msg-questions-1",
+        "role": null,
+        "tag": "div"
+      },
+      {"action":null,"buttons":0,"empty":false,"inputs":0,"key":"synthetic-uuid-0002","role":null,"tag":"div"},
+      {"action":null,"buttons":0,"empty":false,"inputs":0,"key":"msg-plan","role":null,"tag":"div"},
+      {"action":null,"buttons":0,"empty":false,"inputs":0,"key":"synthetic-uuid-0003","role":null,"tag":"div"},
+      {
+        "action": "msg_plan_confirm_synthetic-session-ask-card",
+        "buttons": 2,
+        "empty": false,
+        "inputs": 0,
+        "key": "msg_plan_confirm_synthetic-session-ask-card",
+        "role": null,
+        "tag": "div"
+      },
+      {"action":null,"buttons":2,"empty":false,"inputs":0,"key":"msg-adjust-1","role":null,"tag":"div"},
+      {"action":null,"buttons":0,"empty":false,"inputs":0,"key":null,"role":null,"tag":"div"}
+    ]
+  },
+  {
+    "checkpoint": "09-input-action-chosen",
+    "hookMessageIds": [
+      "msg-greeting",
+      "msg-think-1",
+      "msg-questions-1",
+      "msg-plan",
+      "msg_plan_confirm_synthetic-session-ask-card",
+      "msg-adjust-1"
+    ],
+    "keys": [
+      {"action":null,"buttons":0,"empty":false,"inputs":0,"key":"msg-greeting","role":null,"tag":"div"},
+      {"action":null,"buttons":0,"empty":false,"inputs":0,"key":"synthetic-uuid-0001","role":null,"tag":"div"},
+      {"action":null,"buttons":1,"empty":false,"inputs":0,"key":"thinking_msg-think-1","role":null,"tag":"div"},
+      {
+        "action": "msg-questions-1",
+        "buttons": 1,
+        "empty": false,
+        "inputs": 0,
+        "key": "msg-questions-1",
+        "role": null,
+        "tag": "div"
+      },
+      {"action":null,"buttons":0,"empty":false,"inputs":0,"key":"synthetic-uuid-0002","role":null,"tag":"div"},
+      {"action":null,"buttons":0,"empty":false,"inputs":0,"key":"msg-plan","role":null,"tag":"div"},
+      {"action":null,"buttons":0,"empty":false,"inputs":0,"key":"synthetic-uuid-0003","role":null,"tag":"div"},
+      {
+        "action": "msg_plan_confirm_synthetic-session-ask-card",
+        "buttons": 2,
+        "empty": false,
+        "inputs": 0,
+        "key": "msg_plan_confirm_synthetic-session-ask-card",
+        "role": null,
+        "tag": "div"
+      },
+      {"action":"msg-adjust-1","buttons":2,"empty":false,"inputs":0,"key":"msg-adjust-1","role":null,"tag":"div"},
+      {"action":null,"buttons":0,"empty":false,"inputs":0,"key":null,"role":null,"tag":"div"}
+    ]
+  },
+  {
+    "checkpoint": "10-final",
+    "hookMessageIds": [
+      "msg-greeting",
+      "msg-think-1",
+      "msg-questions-1",
+      "msg-plan",
+      "msg_plan_confirm_synthetic-session-ask-card",
+      "msg-adjust-1"
+    ],
+    "keys": [
+      {"action":null,"buttons":0,"empty":false,"inputs":0,"key":"msg-greeting","role":null,"tag":"div"},
+      {"action":null,"buttons":0,"empty":false,"inputs":0,"key":"synthetic-uuid-0001","role":null,"tag":"div"},
+      {"action":null,"buttons":1,"empty":false,"inputs":0,"key":"thinking_msg-think-1","role":null,"tag":"div"},
+      {
+        "action": "msg-questions-1",
+        "buttons": 1,
+        "empty": false,
+        "inputs": 0,
+        "key": "msg-questions-1",
+        "role": null,
+        "tag": "div"
+      },
+      {"action":null,"buttons":0,"empty":false,"inputs":0,"key":"synthetic-uuid-0002","role":null,"tag":"div"},
+      {"action":null,"buttons":0,"empty":false,"inputs":0,"key":"msg-plan","role":null,"tag":"div"},
+      {"action":null,"buttons":0,"empty":false,"inputs":0,"key":"synthetic-uuid-0003","role":null,"tag":"div"},
+      {
+        "action": "msg_plan_confirm_synthetic-session-ask-card",
+        "buttons": 2,
+        "empty": false,
+        "inputs": 0,
+        "key": "msg_plan_confirm_synthetic-session-ask-card",
+        "role": null,
+        "tag": "div"
+      },
+      {"action":"msg-adjust-1","buttons":2,"empty":false,"inputs":0,"key":"msg-adjust-1","role":null,"tag":"div"},
+      {"action":null,"buttons":0,"empty":false,"inputs":0,"key":null,"role":null,"tag":"div"}
+    ]
+  }
+]

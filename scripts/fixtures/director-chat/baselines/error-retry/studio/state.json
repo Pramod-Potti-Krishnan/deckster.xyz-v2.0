@@ -1,0 +1,457 @@
+{
+  "checkpoints": [
+    {
+      "checkpoint": "01-working",
+      "connection": {
+        "awaitingDirectorReply": false,
+        "connected": true,
+        "connecting": false,
+        "connectionGeneration": 1,
+        "reconnectAttempt": 0,
+        "reconnectStatus": "idle",
+        "sockets": 1,
+        "state": "connected"
+      },
+      "deck": {
+        "activeVersion": "final",
+        "blankUrl": null,
+        "finalId": null,
+        "finalUrl": null,
+        "hasStrawman": false,
+        "isBlank": false,
+        "owner": null,
+        "presentationId": null,
+        "presentationUrl": null,
+        "slideContextIndexes": null,
+        "slideCount": null,
+        "slideStructureSha": null,
+        "strawmanUrl": null,
+        "workflow": null
+      },
+      "ephemeralFadeToken": 0,
+      "ephemeralMessageIds": ["msg-think-1"],
+      "error": null,
+      "label": "working",
+      "messages": ["msg-greeting | chat_message | assistant | +1500ms","msg-think-1 | chat_message | assistant | +2500ms"],
+      "messagesSha": "1fe646a646a6a050755c24ce1a5d58cdc303381bc6f250ad68b8c6d12882b191",
+      "page": {
+        "answeredActions": [],
+        "isGeneratingFinal": false,
+        "pendingActionInput": null,
+        "toasts": 0,
+        "userMessageIds": ["synthetic-uuid-0001"],
+        "userMessages": [{"attachments":0,"id":"synthetic-uuid-0001","text":"Build a deck about ocean currents","timestamp":2000}]
+      },
+      "status": {"estimated_time":null,"progress":35,"status":"generating","text":"Drafting your outline"},
+      "transportNotice": null,
+      "virtualMs": 3500
+    },
+    {
+      "checkpoint": "02-status-error",
+      "connection": {
+        "awaitingDirectorReply": false,
+        "connected": true,
+        "connecting": false,
+        "connectionGeneration": 1,
+        "reconnectAttempt": 0,
+        "reconnectStatus": "idle",
+        "sockets": 1,
+        "state": "connected"
+      },
+      "deck": {
+        "activeVersion": "final",
+        "blankUrl": null,
+        "finalId": null,
+        "finalUrl": null,
+        "hasStrawman": false,
+        "isBlank": false,
+        "owner": null,
+        "presentationId": null,
+        "presentationUrl": null,
+        "slideContextIndexes": null,
+        "slideCount": null,
+        "slideStructureSha": null,
+        "strawmanUrl": null,
+        "workflow": null
+      },
+      "ephemeralFadeToken": 0,
+      "ephemeralMessageIds": ["msg-think-1"],
+      "error": null,
+      "label": "status error",
+      "messages": ["msg-greeting | chat_message | assistant | +1500ms","msg-think-1 | chat_message | assistant | +2500ms"],
+      "messagesSha": "1fe646a646a6a050755c24ce1a5d58cdc303381bc6f250ad68b8c6d12882b191",
+      "page": {
+        "answeredActions": [],
+        "isGeneratingFinal": false,
+        "pendingActionInput": null,
+        "toasts": 0,
+        "userMessageIds": ["synthetic-uuid-0001"],
+        "userMessages": [{"attachments":0,"id":"synthetic-uuid-0001","text":"Build a deck about ocean currents","timestamp":2000}]
+      },
+      "status": {
+        "estimated_time": null,
+        "progress": null,
+        "status": "error",
+        "text": "Something went wrong while building your deck."
+      },
+      "transportNotice": null,
+      "virtualMs": 4500
+    },
+    {
+      "checkpoint": "03-transport-error-notice",
+      "connection": {
+        "awaitingDirectorReply": false,
+        "connected": true,
+        "connecting": false,
+        "connectionGeneration": 1,
+        "reconnectAttempt": 0,
+        "reconnectStatus": "idle",
+        "sockets": 1,
+        "state": "connected"
+      },
+      "deck": {
+        "activeVersion": "final",
+        "blankUrl": null,
+        "finalId": null,
+        "finalUrl": null,
+        "hasStrawman": false,
+        "isBlank": false,
+        "owner": null,
+        "presentationId": null,
+        "presentationUrl": null,
+        "slideContextIndexes": null,
+        "slideCount": null,
+        "slideStructureSha": null,
+        "strawmanUrl": null,
+        "workflow": null
+      },
+      "ephemeralFadeToken": 0,
+      "ephemeralMessageIds": ["msg-think-1"],
+      "error": {"message":"Director could not finish this turn.","name":"DirectorTransportError"},
+      "label": "transport error notice",
+      "messages": ["msg-greeting | chat_message | assistant | +1500ms","msg-think-1 | chat_message | assistant | +2500ms"],
+      "messagesSha": "1fe646a646a6a050755c24ce1a5d58cdc303381bc6f250ad68b8c6d12882b191",
+      "page": {
+        "answeredActions": [],
+        "isGeneratingFinal": false,
+        "pendingActionInput": null,
+        "toasts": 0,
+        "userMessageIds": ["synthetic-uuid-0001"],
+        "userMessages": [{"attachments":0,"id":"synthetic-uuid-0001","text":"Build a deck about ocean currents","timestamp":2000}]
+      },
+      "status": null,
+      "transportNotice": {
+        "code": "PROCESSING_FAILED",
+        "detail": "Synthetic processing detail",
+        "message": "Director could not finish this turn.",
+        "requiresResend": false,
+        "sessionId": "synthetic-session-error-retry",
+        "type": "error"
+      },
+      "virtualMs": 5500
+    },
+    {
+      "checkpoint": "04-auth-expired-resend-needed",
+      "connection": {
+        "awaitingDirectorReply": false,
+        "connected": true,
+        "connecting": false,
+        "connectionGeneration": 1,
+        "reconnectAttempt": 0,
+        "reconnectStatus": "idle",
+        "sockets": 1,
+        "state": "connected"
+      },
+      "deck": {
+        "activeVersion": "final",
+        "blankUrl": null,
+        "finalId": null,
+        "finalUrl": null,
+        "hasStrawman": false,
+        "isBlank": false,
+        "owner": null,
+        "presentationId": null,
+        "presentationUrl": null,
+        "slideContextIndexes": null,
+        "slideCount": null,
+        "slideStructureSha": null,
+        "strawmanUrl": null,
+        "workflow": null
+      },
+      "ephemeralFadeToken": 0,
+      "ephemeralMessageIds": ["msg-think-1"],
+      "error": {"message":"Your secure connection expired.","name":"DirectorTransportError"},
+      "label": "auth expired, resend needed",
+      "messages": ["msg-greeting | chat_message | assistant | +1500ms","msg-think-1 | chat_message | assistant | +2500ms"],
+      "messagesSha": "1fe646a646a6a050755c24ce1a5d58cdc303381bc6f250ad68b8c6d12882b191",
+      "page": {
+        "answeredActions": [],
+        "isGeneratingFinal": false,
+        "pendingActionInput": null,
+        "toasts": 0,
+        "userMessageIds": ["synthetic-uuid-0001"],
+        "userMessages": [{"attachments":0,"id":"synthetic-uuid-0001","text":"Build a deck about ocean currents","timestamp":2000}]
+      },
+      "status": null,
+      "transportNotice": {
+        "code": "WS_AUTH_EXPIRED",
+        "discardedMessageType": "user_message",
+        "message": "Your secure connection expired.",
+        "requiresResend": true,
+        "sessionId": "synthetic-session-error-retry",
+        "type": "auth_expired"
+      },
+      "virtualMs": 6500
+    },
+    {
+      "checkpoint": "05-refresh-failed",
+      "connection": {
+        "awaitingDirectorReply": false,
+        "connected": true,
+        "connecting": false,
+        "connectionGeneration": 1,
+        "reconnectAttempt": 0,
+        "reconnectStatus": "idle",
+        "sockets": 1,
+        "state": "connected"
+      },
+      "deck": {
+        "activeVersion": "final",
+        "blankUrl": null,
+        "finalId": null,
+        "finalUrl": null,
+        "hasStrawman": false,
+        "isBlank": false,
+        "owner": null,
+        "presentationId": null,
+        "presentationUrl": null,
+        "slideContextIndexes": null,
+        "slideCount": null,
+        "slideStructureSha": null,
+        "strawmanUrl": null,
+        "workflow": null
+      },
+      "ephemeralFadeToken": 0,
+      "ephemeralMessageIds": ["msg-think-1"],
+      "error": {"message":"Could not refresh the secure connection.","name":"DirectorTransportError"},
+      "label": "refresh failed",
+      "messages": ["msg-greeting | chat_message | assistant | +1500ms","msg-think-1 | chat_message | assistant | +2500ms"],
+      "messagesSha": "1fe646a646a6a050755c24ce1a5d58cdc303381bc6f250ad68b8c6d12882b191",
+      "page": {
+        "answeredActions": [],
+        "isGeneratingFinal": false,
+        "pendingActionInput": null,
+        "toasts": 0,
+        "userMessageIds": ["synthetic-uuid-0001"],
+        "userMessages": [{"attachments":0,"id":"synthetic-uuid-0001","text":"Build a deck about ocean currents","timestamp":2000}]
+      },
+      "status": null,
+      "transportNotice": {
+        "code": "WS_AUTH_REFRESH_REJECTED",
+        "discardedMessageType": "user_message",
+        "message": "Could not refresh the secure connection.",
+        "requiresResend": true,
+        "sessionId": "synthetic-session-error-retry",
+        "type": "auth_refresh_failed"
+      },
+      "virtualMs": 7500
+    },
+    {
+      "checkpoint": "06-after-resend",
+      "connection": {
+        "awaitingDirectorReply": true,
+        "connected": true,
+        "connecting": false,
+        "connectionGeneration": 1,
+        "reconnectAttempt": 0,
+        "reconnectStatus": "idle",
+        "sockets": 1,
+        "state": "connected"
+      },
+      "deck": {
+        "activeVersion": "final",
+        "blankUrl": null,
+        "finalId": null,
+        "finalUrl": null,
+        "hasStrawman": false,
+        "isBlank": false,
+        "owner": null,
+        "presentationId": null,
+        "presentationUrl": null,
+        "slideContextIndexes": null,
+        "slideCount": null,
+        "slideStructureSha": null,
+        "strawmanUrl": null,
+        "workflow": null
+      },
+      "ephemeralFadeToken": 0,
+      "ephemeralMessageIds": ["msg-think-1"],
+      "error": {"message":"Could not refresh the secure connection.","name":"DirectorTransportError"},
+      "label": "after resend",
+      "messages": ["msg-greeting | chat_message | assistant | +1500ms","msg-think-1 | chat_message | assistant | +2500ms"],
+      "messagesSha": "1fe646a646a6a050755c24ce1a5d58cdc303381bc6f250ad68b8c6d12882b191",
+      "page": {
+        "answeredActions": [],
+        "isGeneratingFinal": false,
+        "pendingActionInput": null,
+        "toasts": 0,
+        "userMessageIds": ["synthetic-uuid-0001","synthetic-uuid-0002"],
+        "userMessages": [
+          {"attachments":0,"id":"synthetic-uuid-0001","text":"Build a deck about ocean currents","timestamp":2000},
+          {"attachments":0,"id":"synthetic-uuid-0002","text":"Build a deck about ocean currents","timestamp":8000}
+        ]
+      },
+      "status": null,
+      "transportNotice": null,
+      "virtualMs": 9000
+    },
+    {
+      "checkpoint": "07-recovered",
+      "connection": {
+        "awaitingDirectorReply": false,
+        "connected": true,
+        "connecting": false,
+        "connectionGeneration": 1,
+        "reconnectAttempt": 0,
+        "reconnectStatus": "idle",
+        "sockets": 1,
+        "state": "connected"
+      },
+      "deck": {
+        "activeVersion": "final",
+        "blankUrl": null,
+        "finalId": null,
+        "finalUrl": null,
+        "hasStrawman": false,
+        "isBlank": false,
+        "owner": null,
+        "presentationId": null,
+        "presentationUrl": null,
+        "slideContextIndexes": null,
+        "slideCount": null,
+        "slideStructureSha": null,
+        "strawmanUrl": null,
+        "workflow": null
+      },
+      "ephemeralFadeToken": 0,
+      "ephemeralMessageIds": ["msg-think-1","msg-think-2"],
+      "error": null,
+      "label": "recovered",
+      "messages": [
+        "msg-greeting | chat_message | assistant | +1500ms",
+        "msg-think-1 | chat_message | assistant | +2500ms",
+        "msg-think-2 | chat_message | assistant | +10000ms",
+        "msg-plan | chat_message | assistant | +10500ms",
+        "msg_plan_confirm_synthetic-session-error-retry | action_request | assistant | +11000ms"
+      ],
+      "messagesSha": "c395e8baa8f20d9eba5b8216d99421fdf461c8f4ed0aa0b1f7846e017fcf503b",
+      "page": {
+        "answeredActions": [],
+        "isGeneratingFinal": false,
+        "pendingActionInput": null,
+        "toasts": 0,
+        "userMessageIds": ["synthetic-uuid-0001","synthetic-uuid-0002"],
+        "userMessages": [
+          {"attachments":0,"id":"synthetic-uuid-0001","text":"Build a deck about ocean currents","timestamp":2000},
+          {"attachments":0,"id":"synthetic-uuid-0002","text":"Build a deck about ocean currents","timestamp":8000}
+        ]
+      },
+      "status": null,
+      "transportNotice": {
+        "expiresAt": 1790000000,
+        "message": "Secure connection refreshed.",
+        "requiresResend": false,
+        "sessionId": "synthetic-session-error-retry",
+        "type": "auth_refreshed"
+      },
+      "virtualMs": 11500
+    },
+    {
+      "checkpoint": "08-final",
+      "connection": {
+        "awaitingDirectorReply": false,
+        "connected": true,
+        "connecting": false,
+        "connectionGeneration": 1,
+        "reconnectAttempt": 0,
+        "reconnectStatus": "idle",
+        "sockets": 1,
+        "state": "connected"
+      },
+      "deck": {
+        "activeVersion": "final",
+        "blankUrl": null,
+        "finalId": null,
+        "finalUrl": null,
+        "hasStrawman": false,
+        "isBlank": false,
+        "owner": null,
+        "presentationId": null,
+        "presentationUrl": null,
+        "slideContextIndexes": null,
+        "slideCount": null,
+        "slideStructureSha": null,
+        "strawmanUrl": null,
+        "workflow": null
+      },
+      "ephemeralFadeToken": 0,
+      "ephemeralMessageIds": ["msg-think-1","msg-think-2"],
+      "error": null,
+      "label": "final",
+      "messages": [
+        "msg-greeting | chat_message | assistant | +1500ms",
+        "msg-think-1 | chat_message | assistant | +2500ms",
+        "msg-think-2 | chat_message | assistant | +10000ms",
+        "msg-plan | chat_message | assistant | +10500ms",
+        "msg_plan_confirm_synthetic-session-error-retry | action_request | assistant | +11000ms"
+      ],
+      "messagesSha": "c395e8baa8f20d9eba5b8216d99421fdf461c8f4ed0aa0b1f7846e017fcf503b",
+      "page": {
+        "answeredActions": [],
+        "isGeneratingFinal": false,
+        "pendingActionInput": null,
+        "toasts": 0,
+        "userMessageIds": ["synthetic-uuid-0001","synthetic-uuid-0002"],
+        "userMessages": [
+          {"attachments":0,"id":"synthetic-uuid-0001","text":"Build a deck about ocean currents","timestamp":2000},
+          {"attachments":0,"id":"synthetic-uuid-0002","text":"Build a deck about ocean currents","timestamp":8000}
+        ]
+      },
+      "status": null,
+      "transportNotice": {
+        "expiresAt": 1790000000,
+        "message": "Secure connection refreshed.",
+        "requiresResend": false,
+        "sessionId": "synthetic-session-error-retry",
+        "type": "auth_refreshed"
+      },
+      "virtualMs": 11500
+    }
+  ],
+  "notes": [],
+  "steps": [
+    {"op":"ensureConnected","step":0},
+    {"op":"open","step":1},
+    {"op":"frame","step":2},
+    {"op":"typed","step":3},
+    {"op":"frame","step":4},
+    {"op":"frame","step":5},
+    {"op":"checkpoint","step":6},
+    {"op":"frame","step":7},
+    {"op":"checkpoint","step":8},
+    {"op":"frame","step":9},
+    {"op":"checkpoint","step":10},
+    {"op":"frame","step":11},
+    {"op":"checkpoint","step":12},
+    {"op":"frame","step":13},
+    {"op":"checkpoint","step":14},
+    {"comment":"user resends the same turn","op":"typed","step":15},
+    {"op":"expect","step":16},
+    {"op":"checkpoint","step":17},
+    {"op":"frame","step":18},
+    {"op":"frame","step":19},
+    {"op":"frame","step":20},
+    {"op":"frame","step":21},
+    {"op":"checkpoint","step":22}
+  ]
+}

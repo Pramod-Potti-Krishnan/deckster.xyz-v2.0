@@ -1,0 +1,751 @@
+{
+  "checkpoints": [
+    {
+      "checkpoint": "01-empty-chat-welcome-guide",
+      "connection": {
+        "awaitingDirectorReply": false,
+        "connected": true,
+        "connecting": false,
+        "connectionGeneration": 1,
+        "reconnectAttempt": 0,
+        "reconnectStatus": "idle",
+        "sockets": 1,
+        "state": "connected"
+      },
+      "deck": {
+        "activeVersion": "blank",
+        "blankUrl": "https://layout.synthetic.invalid/p/synthetic-blank-01",
+        "finalId": null,
+        "finalUrl": null,
+        "hasStrawman": false,
+        "isBlank": true,
+        "owner": "synthetic-session-normal-build",
+        "presentationId": "synthetic-blank-01",
+        "presentationUrl": "https://layout.synthetic.invalid/p/synthetic-blank-01",
+        "slideContextIndexes": null,
+        "slideCount": null,
+        "slideStructureSha": null,
+        "strawmanUrl": null,
+        "workflow": "BLANK_PRESENTATION"
+      },
+      "ephemeralFadeToken": 0,
+      "ephemeralMessageIds": [],
+      "error": null,
+      "label": "empty chat (welcome guide)",
+      "messages": [],
+      "messagesSha": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+      "page": {
+        "answeredActions": [],
+        "isGeneratingFinal": false,
+        "pendingActionInput": null,
+        "toasts": 0,
+        "userMessageIds": [],
+        "userMessages": []
+      },
+      "status": null,
+      "transportNotice": null,
+      "virtualMs": 2000
+    },
+    {
+      "checkpoint": "02-greeting",
+      "connection": {
+        "awaitingDirectorReply": false,
+        "connected": true,
+        "connecting": false,
+        "connectionGeneration": 1,
+        "reconnectAttempt": 0,
+        "reconnectStatus": "idle",
+        "sockets": 1,
+        "state": "connected"
+      },
+      "deck": {
+        "activeVersion": "blank",
+        "blankUrl": "https://layout.synthetic.invalid/p/synthetic-blank-01",
+        "finalId": null,
+        "finalUrl": null,
+        "hasStrawman": false,
+        "isBlank": true,
+        "owner": "synthetic-session-normal-build",
+        "presentationId": "synthetic-blank-01",
+        "presentationUrl": "https://layout.synthetic.invalid/p/synthetic-blank-01",
+        "slideContextIndexes": null,
+        "slideCount": null,
+        "slideStructureSha": null,
+        "strawmanUrl": null,
+        "workflow": "BLANK_PRESENTATION"
+      },
+      "ephemeralFadeToken": 0,
+      "ephemeralMessageIds": [],
+      "error": null,
+      "label": "greeting",
+      "messages": ["msg-greeting | chat_message | assistant | +2500ms"],
+      "messagesSha": "5ddbd462b7c7cef99ee2ab0d5266184742ae575bdbd0822f3c8ebee34798a556",
+      "page": {
+        "answeredActions": [],
+        "isGeneratingFinal": false,
+        "pendingActionInput": null,
+        "toasts": 0,
+        "userMessageIds": [],
+        "userMessages": []
+      },
+      "status": null,
+      "transportNotice": null,
+      "virtualMs": 3000
+    },
+    {
+      "checkpoint": "03-thinking-stream",
+      "connection": {
+        "awaitingDirectorReply": false,
+        "connected": true,
+        "connecting": false,
+        "connectionGeneration": 1,
+        "reconnectAttempt": 0,
+        "reconnectStatus": "idle",
+        "sockets": 1,
+        "state": "connected"
+      },
+      "deck": {
+        "activeVersion": "blank",
+        "blankUrl": "https://layout.synthetic.invalid/p/synthetic-blank-01",
+        "finalId": null,
+        "finalUrl": null,
+        "hasStrawman": false,
+        "isBlank": true,
+        "owner": "synthetic-session-normal-build",
+        "presentationId": "synthetic-blank-01",
+        "presentationUrl": "https://layout.synthetic.invalid/p/synthetic-blank-01",
+        "slideContextIndexes": null,
+        "slideCount": null,
+        "slideStructureSha": null,
+        "strawmanUrl": null,
+        "workflow": "BLANK_PRESENTATION"
+      },
+      "ephemeralFadeToken": 0,
+      "ephemeralMessageIds": ["msg-think-1","msg-think-2"],
+      "error": null,
+      "label": "thinking stream",
+      "messages": [
+        "msg-greeting | chat_message | assistant | +2500ms",
+        "msg-think-1 | chat_message | assistant | +4500ms",
+        "msg-think-2 | chat_message | assistant | +5000ms"
+      ],
+      "messagesSha": "8057711f6f3ca6e0f50cfc7cbda340c365c321d326878a0b7347a1d65e2bb059",
+      "page": {
+        "answeredActions": [],
+        "isGeneratingFinal": false,
+        "pendingActionInput": null,
+        "toasts": 0,
+        "userMessageIds": ["synthetic-uuid-0001"],
+        "userMessages": [
+          {
+            "attachments": 0,
+            "id": "synthetic-uuid-0001",
+            "text": "Build a four slide deck about synthetic ocean currents for a general audience",
+            "timestamp": 3500
+          }
+        ]
+      },
+      "status": {"estimated_time":null,"progress":20,"status":"thinking","text":"Planning your deck"},
+      "transportNotice": null,
+      "virtualMs": 6000
+    },
+    {
+      "checkpoint": "04-plan-proposal",
+      "connection": {
+        "awaitingDirectorReply": false,
+        "connected": true,
+        "connecting": false,
+        "connectionGeneration": 1,
+        "reconnectAttempt": 0,
+        "reconnectStatus": "idle",
+        "sockets": 1,
+        "state": "connected"
+      },
+      "deck": {
+        "activeVersion": "blank",
+        "blankUrl": "https://layout.synthetic.invalid/p/synthetic-blank-01",
+        "finalId": null,
+        "finalUrl": null,
+        "hasStrawman": false,
+        "isBlank": true,
+        "owner": "synthetic-session-normal-build",
+        "presentationId": "synthetic-blank-01",
+        "presentationUrl": "https://layout.synthetic.invalid/p/synthetic-blank-01",
+        "slideContextIndexes": null,
+        "slideCount": null,
+        "slideStructureSha": null,
+        "strawmanUrl": null,
+        "workflow": "BLANK_PRESENTATION"
+      },
+      "ephemeralFadeToken": 0,
+      "ephemeralMessageIds": ["msg-think-1","msg-think-2"],
+      "error": null,
+      "label": "plan proposal",
+      "messages": [
+        "msg-greeting | chat_message | assistant | +2500ms",
+        "msg-think-1 | chat_message | assistant | +4500ms",
+        "msg-think-2 | chat_message | assistant | +5000ms",
+        "msg-plan | chat_message | assistant | +6500ms",
+        "msg_plan_confirm_synthetic-session-normal-build | action_request | assistant | +7000ms"
+      ],
+      "messagesSha": "75c0eff33424b053091d28554203b79886b14232d94b7b13dda2c492ed637811",
+      "page": {
+        "answeredActions": [],
+        "isGeneratingFinal": false,
+        "pendingActionInput": null,
+        "toasts": 0,
+        "userMessageIds": ["synthetic-uuid-0001"],
+        "userMessages": [
+          {
+            "attachments": 0,
+            "id": "synthetic-uuid-0001",
+            "text": "Build a four slide deck about synthetic ocean currents for a general audience",
+            "timestamp": 3500
+          }
+        ]
+      },
+      "status": null,
+      "transportNotice": null,
+      "virtualMs": 7500
+    },
+    {
+      "checkpoint": "05-drafting",
+      "connection": {
+        "awaitingDirectorReply": false,
+        "connected": true,
+        "connecting": false,
+        "connectionGeneration": 1,
+        "reconnectAttempt": 0,
+        "reconnectStatus": "idle",
+        "sockets": 1,
+        "state": "connected"
+      },
+      "deck": {
+        "activeVersion": "blank",
+        "blankUrl": "https://layout.synthetic.invalid/p/synthetic-blank-01",
+        "finalId": null,
+        "finalUrl": null,
+        "hasStrawman": false,
+        "isBlank": true,
+        "owner": "synthetic-session-normal-build",
+        "presentationId": "synthetic-blank-01",
+        "presentationUrl": "https://layout.synthetic.invalid/p/synthetic-blank-01",
+        "slideContextIndexes": null,
+        "slideCount": null,
+        "slideStructureSha": null,
+        "strawmanUrl": null,
+        "workflow": "BLANK_PRESENTATION"
+      },
+      "ephemeralFadeToken": 0,
+      "ephemeralMessageIds": ["msg-think-1","msg-think-2","msg-think-3","msg-think-4"],
+      "error": null,
+      "label": "drafting",
+      "messages": [
+        "msg-greeting | chat_message | assistant | +2500ms",
+        "msg-think-1 | chat_message | assistant | +4500ms",
+        "msg-think-2 | chat_message | assistant | +5000ms",
+        "msg-plan | chat_message | assistant | +6500ms",
+        "msg_plan_confirm_synthetic-session-normal-build | action_request | assistant | +7000ms",
+        "msg-think-3 | chat_message | assistant | +9500ms",
+        "msg-think-4 | chat_message | assistant | +10000ms"
+      ],
+      "messagesSha": "1a342d187ec2f831988c245b953a23d288472023cb8a265de6c00616ad9c2f10",
+      "page": {
+        "answeredActions": ["msg_plan_confirm_synthetic-session-normal-build"],
+        "isGeneratingFinal": false,
+        "pendingActionInput": null,
+        "toasts": 0,
+        "userMessageIds": ["synthetic-uuid-0001","synthetic-uuid-0002"],
+        "userMessages": [
+          {
+            "attachments": 0,
+            "id": "synthetic-uuid-0001",
+            "text": "Build a four slide deck about synthetic ocean currents for a general audience",
+            "timestamp": 3500
+          },
+          {"attachments":0,"id":"synthetic-uuid-0002","text":"Yes, let's build it!","timestamp":8000}
+        ]
+      },
+      "status": {"estimated_time":null,"progress":55,"status":"generating","text":"Drafting your outline"},
+      "transportNotice": null,
+      "virtualMs": 10500
+    },
+    {
+      "checkpoint": "06-outline-ready",
+      "connection": {
+        "awaitingDirectorReply": false,
+        "connected": true,
+        "connecting": false,
+        "connectionGeneration": 1,
+        "reconnectAttempt": 0,
+        "reconnectStatus": "idle",
+        "sockets": 1,
+        "state": "connected"
+      },
+      "deck": {
+        "activeVersion": "final",
+        "blankUrl": "https://layout.synthetic.invalid/p/synthetic-blank-01",
+        "finalId": "synthetic-strawman-01",
+        "finalUrl": "https://layout.synthetic.invalid/p/synthetic-strawman-01",
+        "hasStrawman": true,
+        "isBlank": false,
+        "owner": "synthetic-session-normal-build",
+        "presentationId": "synthetic-strawman-01",
+        "presentationUrl": "https://layout.synthetic.invalid/p/synthetic-strawman-01",
+        "slideContextIndexes": ["0","1","2","3"],
+        "slideCount": 4,
+        "slideStructureSha": "82a7fcef15877e2a27327751ad6bd68bcf411ad567c4ca31b20dfa3026533faf",
+        "strawmanUrl": "https://layout.synthetic.invalid/p/synthetic-strawman-01",
+        "workflow": "CONTENT_GENERATED"
+      },
+      "ephemeralFadeToken": 2,
+      "ephemeralMessageIds": ["msg-think-1","msg-think-2","msg-think-3","msg-think-4"],
+      "error": null,
+      "label": "outline ready",
+      "messages": [
+        "msg-greeting | chat_message | assistant | +2500ms",
+        "msg-think-1 | chat_message | assistant | +4500ms",
+        "msg-think-2 | chat_message | assistant | +5000ms",
+        "msg-plan | chat_message | assistant | +6500ms",
+        "msg_plan_confirm_synthetic-session-normal-build | action_request | assistant | +7000ms",
+        "msg-think-3 | chat_message | assistant | +9500ms",
+        "msg-think-4 | chat_message | assistant | +10000ms",
+        "msg-outline-1 | slide_update | assistant | +11500ms",
+        "msg-url-strawman | presentation_url | assistant | +12000ms",
+        "msg-approve-outline | action_request | assistant | +12500ms"
+      ],
+      "messagesSha": "e5b724d591bfd744c40baa304fdcd6fdbe5b10908fa5e876a9e88772be37ceda",
+      "page": {
+        "answeredActions": ["msg_plan_confirm_synthetic-session-normal-build"],
+        "isGeneratingFinal": false,
+        "pendingActionInput": null,
+        "toasts": 0,
+        "userMessageIds": ["synthetic-uuid-0001","synthetic-uuid-0002"],
+        "userMessages": [
+          {
+            "attachments": 0,
+            "id": "synthetic-uuid-0001",
+            "text": "Build a four slide deck about synthetic ocean currents for a general audience",
+            "timestamp": 3500
+          },
+          {"attachments":0,"id":"synthetic-uuid-0002","text":"Yes, let's build it!","timestamp":8000}
+        ]
+      },
+      "status": null,
+      "transportNotice": null,
+      "virtualMs": 13000
+    },
+    {
+      "checkpoint": "07-building-final-deck",
+      "connection": {
+        "awaitingDirectorReply": true,
+        "connected": true,
+        "connecting": false,
+        "connectionGeneration": 1,
+        "reconnectAttempt": 0,
+        "reconnectStatus": "idle",
+        "sockets": 1,
+        "state": "connected"
+      },
+      "deck": {
+        "activeVersion": "final",
+        "blankUrl": "https://layout.synthetic.invalid/p/synthetic-blank-01",
+        "finalId": "synthetic-strawman-01",
+        "finalUrl": "https://layout.synthetic.invalid/p/synthetic-strawman-01",
+        "hasStrawman": true,
+        "isBlank": false,
+        "owner": "synthetic-session-normal-build",
+        "presentationId": "synthetic-strawman-01",
+        "presentationUrl": "https://layout.synthetic.invalid/p/synthetic-strawman-01",
+        "slideContextIndexes": ["0","1","2","3"],
+        "slideCount": 4,
+        "slideStructureSha": "82a7fcef15877e2a27327751ad6bd68bcf411ad567c4ca31b20dfa3026533faf",
+        "strawmanUrl": "https://layout.synthetic.invalid/p/synthetic-strawman-01",
+        "workflow": "CONTENT_GENERATED"
+      },
+      "ephemeralFadeToken": 2,
+      "ephemeralMessageIds": ["msg-think-1","msg-think-2","msg-think-3","msg-think-4"],
+      "error": null,
+      "label": "building final deck",
+      "messages": [
+        "msg-greeting | chat_message | assistant | +2500ms",
+        "msg-think-1 | chat_message | assistant | +4500ms",
+        "msg-think-2 | chat_message | assistant | +5000ms",
+        "msg-plan | chat_message | assistant | +6500ms",
+        "msg_plan_confirm_synthetic-session-normal-build | action_request | assistant | +7000ms",
+        "msg-think-3 | chat_message | assistant | +9500ms",
+        "msg-think-4 | chat_message | assistant | +10000ms",
+        "msg-outline-1 | slide_update | assistant | +11500ms",
+        "msg-url-strawman | presentation_url | assistant | +12000ms",
+        "msg-approve-outline | action_request | assistant | +12500ms"
+      ],
+      "messagesSha": "e5b724d591bfd744c40baa304fdcd6fdbe5b10908fa5e876a9e88772be37ceda",
+      "page": {
+        "answeredActions": ["msg_plan_confirm_synthetic-session-normal-build","msg-approve-outline"],
+        "isGeneratingFinal": true,
+        "pendingActionInput": null,
+        "toasts": 0,
+        "userMessageIds": ["synthetic-uuid-0001","synthetic-uuid-0002","synthetic-uuid-0003"],
+        "userMessages": [
+          {
+            "attachments": 0,
+            "id": "synthetic-uuid-0001",
+            "text": "Build a four slide deck about synthetic ocean currents for a general audience",
+            "timestamp": 3500
+          },
+          {"attachments":0,"id":"synthetic-uuid-0002","text":"Yes, let's build it!","timestamp":8000},
+          {"attachments":0,"id":"synthetic-uuid-0003","text":"Looks perfect!","timestamp":13500}
+        ]
+      },
+      "status": null,
+      "transportNotice": null,
+      "virtualMs": 14500
+    },
+    {
+      "checkpoint": "08-final-deck-ready",
+      "connection": {
+        "awaitingDirectorReply": false,
+        "connected": true,
+        "connecting": false,
+        "connectionGeneration": 1,
+        "reconnectAttempt": 0,
+        "reconnectStatus": "idle",
+        "sockets": 1,
+        "state": "connected"
+      },
+      "deck": {
+        "activeVersion": "final",
+        "blankUrl": "https://layout.synthetic.invalid/p/synthetic-blank-01",
+        "finalId": "synthetic-final-01",
+        "finalUrl": "https://layout.synthetic.invalid/p/synthetic-final-01",
+        "hasStrawman": true,
+        "isBlank": false,
+        "owner": "synthetic-session-normal-build",
+        "presentationId": "synthetic-final-01",
+        "presentationUrl": "https://layout.synthetic.invalid/p/synthetic-final-01",
+        "slideContextIndexes": ["0","1","2","3"],
+        "slideCount": 4,
+        "slideStructureSha": "82a7fcef15877e2a27327751ad6bd68bcf411ad567c4ca31b20dfa3026533faf",
+        "strawmanUrl": "https://layout.synthetic.invalid/p/synthetic-strawman-01",
+        "workflow": "CONTENT_GENERATED"
+      },
+      "ephemeralFadeToken": 3,
+      "ephemeralMessageIds": ["msg-think-1","msg-think-2","msg-think-3","msg-think-4","msg-think-5"],
+      "error": null,
+      "label": "final deck ready",
+      "messages": [
+        "msg-greeting | chat_message | assistant | +2500ms",
+        "msg-think-1 | chat_message | assistant | +4500ms",
+        "msg-think-2 | chat_message | assistant | +5000ms",
+        "msg-plan | chat_message | assistant | +6500ms",
+        "msg_plan_confirm_synthetic-session-normal-build | action_request | assistant | +7000ms",
+        "msg-think-3 | chat_message | assistant | +9500ms",
+        "msg-think-4 | chat_message | assistant | +10000ms",
+        "msg-outline-1 | slide_update | assistant | +11500ms",
+        "msg-url-strawman | presentation_url | assistant | +12000ms",
+        "msg-approve-outline | action_request | assistant | +12500ms",
+        "msg-think-5 | chat_message | assistant | +15500ms",
+        "msg-url-final | presentation_url | assistant | +16000ms",
+        "msg-done | chat_message | assistant | +16500ms",
+        "msg-next-steps | action_request | assistant | +17000ms"
+      ],
+      "messagesSha": "704957b318d84c57390e352c77911393b486e1ffe7bd082b7b47386ddb207bd1",
+      "page": {
+        "answeredActions": ["msg_plan_confirm_synthetic-session-normal-build","msg-approve-outline"],
+        "isGeneratingFinal": false,
+        "pendingActionInput": null,
+        "toasts": 0,
+        "userMessageIds": ["synthetic-uuid-0001","synthetic-uuid-0002","synthetic-uuid-0003"],
+        "userMessages": [
+          {
+            "attachments": 0,
+            "id": "synthetic-uuid-0001",
+            "text": "Build a four slide deck about synthetic ocean currents for a general audience",
+            "timestamp": 3500
+          },
+          {"attachments":0,"id":"synthetic-uuid-0002","text":"Yes, let's build it!","timestamp":8000},
+          {"attachments":0,"id":"synthetic-uuid-0003","text":"Looks perfect!","timestamp":13500}
+        ]
+      },
+      "status": null,
+      "transportNotice": null,
+      "virtualMs": 18000
+    },
+    {
+      "checkpoint": "09-after-done",
+      "connection": {
+        "awaitingDirectorReply": true,
+        "connected": true,
+        "connecting": false,
+        "connectionGeneration": 1,
+        "reconnectAttempt": 0,
+        "reconnectStatus": "idle",
+        "sockets": 1,
+        "state": "connected"
+      },
+      "deck": {
+        "activeVersion": "final",
+        "blankUrl": "https://layout.synthetic.invalid/p/synthetic-blank-01",
+        "finalId": "synthetic-final-01",
+        "finalUrl": "https://layout.synthetic.invalid/p/synthetic-final-01",
+        "hasStrawman": true,
+        "isBlank": false,
+        "owner": "synthetic-session-normal-build",
+        "presentationId": "synthetic-final-01",
+        "presentationUrl": "https://layout.synthetic.invalid/p/synthetic-final-01",
+        "slideContextIndexes": ["0","1","2","3"],
+        "slideCount": 4,
+        "slideStructureSha": "82a7fcef15877e2a27327751ad6bd68bcf411ad567c4ca31b20dfa3026533faf",
+        "strawmanUrl": "https://layout.synthetic.invalid/p/synthetic-strawman-01",
+        "workflow": "CONTENT_GENERATED"
+      },
+      "ephemeralFadeToken": 3,
+      "ephemeralMessageIds": ["msg-think-1","msg-think-2","msg-think-3","msg-think-4","msg-think-5"],
+      "error": null,
+      "label": "after done",
+      "messages": [
+        "msg-greeting | chat_message | assistant | +2500ms",
+        "msg-think-1 | chat_message | assistant | +4500ms",
+        "msg-think-2 | chat_message | assistant | +5000ms",
+        "msg-plan | chat_message | assistant | +6500ms",
+        "msg_plan_confirm_synthetic-session-normal-build | action_request | assistant | +7000ms",
+        "msg-think-3 | chat_message | assistant | +9500ms",
+        "msg-think-4 | chat_message | assistant | +10000ms",
+        "msg-outline-1 | slide_update | assistant | +11500ms",
+        "msg-url-strawman | presentation_url | assistant | +12000ms",
+        "msg-approve-outline | action_request | assistant | +12500ms",
+        "msg-think-5 | chat_message | assistant | +15500ms",
+        "msg-url-final | presentation_url | assistant | +16000ms",
+        "msg-done | chat_message | assistant | +16500ms",
+        "msg-next-steps | action_request | assistant | +17000ms"
+      ],
+      "messagesSha": "704957b318d84c57390e352c77911393b486e1ffe7bd082b7b47386ddb207bd1",
+      "page": {
+        "answeredActions": ["msg_plan_confirm_synthetic-session-normal-build","msg-approve-outline","msg-next-steps"],
+        "isGeneratingFinal": false,
+        "pendingActionInput": null,
+        "toasts": 0,
+        "userMessageIds": ["synthetic-uuid-0001","synthetic-uuid-0002","synthetic-uuid-0003","synthetic-uuid-0004"],
+        "userMessages": [
+          {
+            "attachments": 0,
+            "id": "synthetic-uuid-0001",
+            "text": "Build a four slide deck about synthetic ocean currents for a general audience",
+            "timestamp": 3500
+          },
+          {"attachments":0,"id":"synthetic-uuid-0002","text":"Yes, let's build it!","timestamp":8000},
+          {"attachments":0,"id":"synthetic-uuid-0003","text":"Looks perfect!","timestamp":13500},
+          {"attachments":0,"id":"synthetic-uuid-0004","text":"Done, looks great!","timestamp":18500}
+        ]
+      },
+      "status": null,
+      "transportNotice": null,
+      "virtualMs": 19500
+    },
+    {
+      "checkpoint": "10-outbound-payload-matrix-sent",
+      "connection": {
+        "awaitingDirectorReply": true,
+        "connected": true,
+        "connecting": false,
+        "connectionGeneration": 1,
+        "reconnectAttempt": 0,
+        "reconnectStatus": "idle",
+        "sockets": 1,
+        "state": "connected"
+      },
+      "deck": {
+        "activeVersion": "final",
+        "blankUrl": "https://layout.synthetic.invalid/p/synthetic-blank-01",
+        "finalId": "synthetic-final-01",
+        "finalUrl": "https://layout.synthetic.invalid/p/synthetic-final-01",
+        "hasStrawman": true,
+        "isBlank": false,
+        "owner": "synthetic-session-normal-build",
+        "presentationId": "synthetic-final-01",
+        "presentationUrl": "https://layout.synthetic.invalid/p/synthetic-final-01",
+        "slideContextIndexes": ["0","1","2","3"],
+        "slideCount": 4,
+        "slideStructureSha": "82a7fcef15877e2a27327751ad6bd68bcf411ad567c4ca31b20dfa3026533faf",
+        "strawmanUrl": "https://layout.synthetic.invalid/p/synthetic-strawman-01",
+        "workflow": "CONTENT_GENERATED"
+      },
+      "ephemeralFadeToken": 3,
+      "ephemeralMessageIds": ["msg-think-1","msg-think-2","msg-think-3","msg-think-4","msg-think-5"],
+      "error": null,
+      "label": "outbound payload matrix sent",
+      "messages": [
+        "msg-greeting | chat_message | assistant | +2500ms",
+        "msg-think-1 | chat_message | assistant | +4500ms",
+        "msg-think-2 | chat_message | assistant | +5000ms",
+        "msg-plan | chat_message | assistant | +6500ms",
+        "msg_plan_confirm_synthetic-session-normal-build | action_request | assistant | +7000ms",
+        "msg-think-3 | chat_message | assistant | +9500ms",
+        "msg-think-4 | chat_message | assistant | +10000ms",
+        "msg-outline-1 | slide_update | assistant | +11500ms",
+        "msg-url-strawman | presentation_url | assistant | +12000ms",
+        "msg-approve-outline | action_request | assistant | +12500ms",
+        "msg-think-5 | chat_message | assistant | +15500ms",
+        "msg-url-final | presentation_url | assistant | +16000ms",
+        "msg-done | chat_message | assistant | +16500ms",
+        "msg-next-steps | action_request | assistant | +17000ms"
+      ],
+      "messagesSha": "704957b318d84c57390e352c77911393b486e1ffe7bd082b7b47386ddb207bd1",
+      "page": {
+        "answeredActions": ["msg_plan_confirm_synthetic-session-normal-build","msg-approve-outline","msg-next-steps"],
+        "isGeneratingFinal": false,
+        "pendingActionInput": null,
+        "toasts": 0,
+        "userMessageIds": ["synthetic-uuid-0001","synthetic-uuid-0002","synthetic-uuid-0003","synthetic-uuid-0004"],
+        "userMessages": [
+          {
+            "attachments": 0,
+            "id": "synthetic-uuid-0001",
+            "text": "Build a four slide deck about synthetic ocean currents for a general audience",
+            "timestamp": 3500
+          },
+          {"attachments":0,"id":"synthetic-uuid-0002","text":"Yes, let's build it!","timestamp":8000},
+          {"attachments":0,"id":"synthetic-uuid-0003","text":"Looks perfect!","timestamp":13500},
+          {"attachments":0,"id":"synthetic-uuid-0004","text":"Done, looks great!","timestamp":18500}
+        ]
+      },
+      "status": null,
+      "transportNotice": null,
+      "virtualMs": 24500
+    },
+    {
+      "checkpoint": "11-final",
+      "connection": {
+        "awaitingDirectorReply": true,
+        "connected": true,
+        "connecting": false,
+        "connectionGeneration": 1,
+        "reconnectAttempt": 0,
+        "reconnectStatus": "idle",
+        "sockets": 1,
+        "state": "connected"
+      },
+      "deck": {
+        "activeVersion": "final",
+        "blankUrl": "https://layout.synthetic.invalid/p/synthetic-blank-01",
+        "finalId": "synthetic-final-01",
+        "finalUrl": "https://layout.synthetic.invalid/p/synthetic-final-01",
+        "hasStrawman": true,
+        "isBlank": false,
+        "owner": "synthetic-session-normal-build",
+        "presentationId": "synthetic-final-01",
+        "presentationUrl": "https://layout.synthetic.invalid/p/synthetic-final-01",
+        "slideContextIndexes": ["0","1","2","3"],
+        "slideCount": 4,
+        "slideStructureSha": "82a7fcef15877e2a27327751ad6bd68bcf411ad567c4ca31b20dfa3026533faf",
+        "strawmanUrl": "https://layout.synthetic.invalid/p/synthetic-strawman-01",
+        "workflow": "CONTENT_GENERATED"
+      },
+      "ephemeralFadeToken": 3,
+      "ephemeralMessageIds": ["msg-think-1","msg-think-2","msg-think-3","msg-think-4","msg-think-5"],
+      "error": null,
+      "label": "final",
+      "messages": [
+        "msg-greeting | chat_message | assistant | +2500ms",
+        "msg-think-1 | chat_message | assistant | +4500ms",
+        "msg-think-2 | chat_message | assistant | +5000ms",
+        "msg-plan | chat_message | assistant | +6500ms",
+        "msg_plan_confirm_synthetic-session-normal-build | action_request | assistant | +7000ms",
+        "msg-think-3 | chat_message | assistant | +9500ms",
+        "msg-think-4 | chat_message | assistant | +10000ms",
+        "msg-outline-1 | slide_update | assistant | +11500ms",
+        "msg-url-strawman | presentation_url | assistant | +12000ms",
+        "msg-approve-outline | action_request | assistant | +12500ms",
+        "msg-think-5 | chat_message | assistant | +15500ms",
+        "msg-url-final | presentation_url | assistant | +16000ms",
+        "msg-done | chat_message | assistant | +16500ms",
+        "msg-next-steps | action_request | assistant | +17000ms"
+      ],
+      "messagesSha": "704957b318d84c57390e352c77911393b486e1ffe7bd082b7b47386ddb207bd1",
+      "page": {
+        "answeredActions": ["msg_plan_confirm_synthetic-session-normal-build","msg-approve-outline","msg-next-steps"],
+        "isGeneratingFinal": false,
+        "pendingActionInput": null,
+        "toasts": 0,
+        "userMessageIds": ["synthetic-uuid-0001","synthetic-uuid-0002","synthetic-uuid-0003","synthetic-uuid-0004"],
+        "userMessages": [
+          {
+            "attachments": 0,
+            "id": "synthetic-uuid-0001",
+            "text": "Build a four slide deck about synthetic ocean currents for a general audience",
+            "timestamp": 3500
+          },
+          {"attachments":0,"id":"synthetic-uuid-0002","text":"Yes, let's build it!","timestamp":8000},
+          {"attachments":0,"id":"synthetic-uuid-0003","text":"Looks perfect!","timestamp":13500},
+          {"attachments":0,"id":"synthetic-uuid-0004","text":"Done, looks great!","timestamp":18500}
+        ]
+      },
+      "status": null,
+      "transportNotice": null,
+      "virtualMs": 24500
+    }
+  ],
+  "notes": [
+    "step 40: hook send returned true",
+    "step 41: hook send returned true",
+    "step 42: hook send returned true",
+    "step 43: hook send returned true",
+    "step 44: hook send returned true",
+    "step 45: control returned true",
+    "step 46: control returned true",
+    "step 47: theme returned true",
+    "step 48: element result returned true"
+  ],
+  "steps": [
+    {"op":"ensureConnected","step":0},
+    {"op":"open","step":1},
+    {"op":"frame","step":2},
+    {"op":"checkpoint","step":3},
+    {"op":"click","skipped":"profile classic","step":4},
+    {"op":"frame","step":5},
+    {"op":"checkpoint","step":6},
+    {"op":"typed","step":7},
+    {"op":"expect","step":8},
+    {"op":"frame","step":9},
+    {"op":"frame","step":10},
+    {"op":"frame","step":11},
+    {"op":"checkpoint","step":12},
+    {"op":"frame","step":13},
+    {"op":"frame","step":14},
+    {"op":"checkpoint","step":15},
+    {"op":"click","step":16},
+    {"op":"expect","step":17},
+    {"op":"frame","step":18},
+    {"op":"frame","step":19},
+    {"op":"frame","step":20},
+    {"op":"checkpoint","step":21},
+    {"op":"frame","step":22},
+    {"op":"frame","step":23},
+    {"op":"frame","step":24},
+    {"op":"frame","step":25},
+    {"op":"checkpoint","step":26},
+    {"op":"click","step":27},
+    {"op":"expect","step":28},
+    {"op":"checkpoint","step":29},
+    {"op":"frame","step":30},
+    {"op":"frame","step":31},
+    {"op":"frame","step":32},
+    {"op":"frame","step":33},
+    {"op":"frame","step":34},
+    {"op":"frame","step":35},
+    {"op":"checkpoint","step":36},
+    {"op":"click","step":37},
+    {"op":"expect","step":38},
+    {"op":"checkpoint","step":39},
+    {"comment":"hook defaults only","op":"send","step":40},
+    {"op":"send","step":41},
+    {"op":"send","step":42},
+    {"op":"send","step":43},
+    {"op":"send","step":44},
+    {"op":"control","step":45},
+    {"op":"control","step":46},
+    {"op":"theme","step":47},
+    {"op":"elementResult","step":48},
+    {"op":"checkpoint","step":49}
+  ]
+}

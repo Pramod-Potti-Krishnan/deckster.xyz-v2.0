@@ -1,0 +1,133 @@
+{
+  "deckster_session_v2_synthetic-user-01_synthetic-session-ask-card": {
+    "activeVersion": "final",
+    "blankPresentationId": null,
+    "blankPresentationUrl": null,
+    "currentStatus": null,
+    "deckContext": null,
+    "finalPresentationId": null,
+    "finalPresentationUrl": null,
+    "isBlankPresentation": false,
+    "lastUpdated": 1791201614000,
+    "messages": [
+      {
+        "clientTimestamp": 1791201601500,
+        "message_id": "msg-greeting",
+        "payload": {"format":"markdown","list_items":null,"sub_title":null,"text":"Hello! What would you like to build today?"},
+        "role": "assistant",
+        "session_id": "synthetic-session-ask-card",
+        "timestamp": "2026-10-05T12:00:01Z",
+        "type": "chat_message"
+      },
+      {
+        "clientTimestamp": 1791201602500,
+        "message_id": "msg-think-1",
+        "payload": {"ephemeral":true,"format":"text","list_items":null,"sub_title":null,"text":"Reading your request..."},
+        "role": "assistant",
+        "session_id": "synthetic-session-ask-card",
+        "timestamp": "2026-10-05T12:00:02Z",
+        "type": "chat_message"
+      },
+      {
+        "clientTimestamp": 1791201603000,
+        "message_id": "msg-questions-1",
+        "payload": {
+          "actions": [{"label":"Skip - use sensible defaults","primary":false,"requires_input":false,"value":"skip_questions"}],
+          "prompt_text": "A few quick questions:\n\n- Who is the audience?\n- How technical should it be?\n- How long is the talk?",
+          "question_set": {
+            "id": "qs-ocean-01",
+            "intro": "A few quick questions so the deck fits:",
+            "questions": [
+              {
+                "allow_free_text": true,
+                "id": "audience",
+                "suggestions": [{"label":"General public","recommended":true},{"label":"Students"},{"label":"Policy makers"}],
+                "text": "Who is the audience?"
+              },
+              {
+                "allow_free_text": true,
+                "id": "depth",
+                "suggestions": [{"label":"Plain language","recommended":true},{"label":"Some equations"}],
+                "text": "How technical should it be?"
+              },
+              {
+                "allow_free_text": false,
+                "id": "length",
+                "suggestions": [{"label":"5 minutes"},{"label":"10 minutes","recommended":true}],
+                "text": "How long is the talk?"
+              }
+            ]
+          }
+        },
+        "role": "assistant",
+        "session_id": "synthetic-session-ask-card",
+        "timestamp": "2026-10-05T12:00:03Z",
+        "type": "action_request"
+      },
+      {
+        "clientTimestamp": 1791201609000,
+        "message_id": "msg-plan",
+        "payload": {"format":"markdown","list_items":null,"sub_title":null,"text":"Thanks. Here is the plan."},
+        "role": "assistant",
+        "session_id": "synthetic-session-ask-card",
+        "timestamp": "2026-10-05T12:00:04Z",
+        "type": "chat_message"
+      },
+      {
+        "clientTimestamp": 1791201612000,
+        "message_id": "msg_plan_confirm_synthetic-session-ask-card",
+        "payload": {
+          "actions": [
+            {"label":"Yes, let's build it!","primary":true,"requires_input":false,"value":"accept_plan"},
+            {"label":"Change it again","primary":false,"requires_input":false,"value":"reject_plan"}
+          ],
+          "prompt_text": "Does this revised structure work for you?"
+        },
+        "role": "assistant",
+        "session_id": "synthetic-session-ask-card",
+        "timestamp": "2026-10-05T12:00:06Z",
+        "type": "action_request"
+      },
+      {
+        "clientTimestamp": 1791201613000,
+        "message_id": "msg-adjust-1",
+        "payload": {
+          "actions": [
+            {"label":"Add a slide","primary":true,"requires_input":true,"value":"add_slide"},
+            {"label":"Keep it as is","primary":false,"requires_input":false,"value":"keep"}
+          ],
+          "prompt_text": "What should change?"
+        },
+        "role": "assistant",
+        "session_id": "synthetic-session-ask-card",
+        "timestamp": "2026-10-05T12:00:07Z",
+        "type": "action_request"
+      }
+    ],
+    "ownerUserId": "synthetic-user-01",
+    "presentationId": null,
+    "presentationUrl": null,
+    "slideContextByIndex": null,
+    "slideCount": null,
+    "slideStructure": null,
+    "strawmanPresentationId": null,
+    "strawmanPreviewUrl": null,
+    "tokenUsage": null,
+    "tokenUsageMessageId": null,
+    "userMessages": [
+      {
+        "attachments": [],
+        "id": "synthetic-uuid-0001",
+        "text": "I need a deck about ocean currents",
+        "timestamp": 1791201602000
+      },
+      {
+        "id": "user-qa-1791201607500",
+        "text": "Answers: General public · Mostly plain language with one chart · 10 minutes",
+        "timestamp": 1791201607500
+      },
+      {"id":"synthetic-uuid-0002","text":"I'd like to make changes","timestamp":1791201610500}
+    ],
+    "version": 2
+  }
+}

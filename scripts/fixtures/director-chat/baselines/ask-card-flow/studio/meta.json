@@ -1,0 +1,15 @@
+{
+  "diagnostics": {
+    "blockedNetwork": [],
+    "console": [],
+    "fetches": [{"method":"GET","url":"/api/director/ws-token?session_id=synthetic-session-ask-card"}],
+    "sockets": 1,
+    "timersLeft": 1,
+    "uncaughtTimerErrors": [],
+    "windowOpens": []
+  },
+  "fixture": "ask-card-flow",
+  "fixtureSha": "2017bcafa685ee9a",
+  "profile": "studio",
+  "schema": 1
+}
