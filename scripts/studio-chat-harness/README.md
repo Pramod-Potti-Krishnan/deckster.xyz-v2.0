@@ -2,17 +2,20 @@
 
 PASS2-DIRECTOR-CHAT, PR A. Harness only: no file under `app/`, `components/`, `hooks/` or `lib/` changed.
 
-It replays five sanitised Director transcripts through the **real** Director WebSocket hook
+It replays seven sanitised Director transcripts (five from PR A, two added in PR D) through the **real** Director WebSocket hook
 (`hooks/use-deckster-websocket-v2.ts`), `MessageList`, `QuestionCard`, `StudioOutlineCard`,
 `StudioWelcome`, the Studio header and notice, and the **real page handlers** (`handleActionClick`,
 `onSubmitAnswers`, `preflightDirectorTurn`, `onMessage`, the typed-turn options, and every
 `<MessageList .../>` prop expression), extracted by AST from `app/builder/page.tsx` and
 `hooks/use-builder-session.ts`. Baselines were recorded from `origin/studio-v4-dev-preparation-code`
-@ `5cc455d`, so PRs B to D can prove flag-off identity and byte-identical sends.
+@ `5cc455d`, so PRs B to D can prove flag-off identity and byte-identical sends. The two PR D transcripts (`composer-send`,
+`reconnect-exhausted`) were recorded from `37d6fd7` (the base of PR D) by running this harness against that tree, so their flag-off
+baselines are base output, not branch output.
 
 ```
 node scripts/test-studio-chat-transcripts.mjs            # compare with the baselines (also: pnpm test:studio-chat-transcripts)
 node scripts/test-studio-chat-transcripts.mjs --update   # re-record (flag-off, default env only)
+node scripts/test-studio-chat-transcripts.mjs --update-sources   # re-record ONLY baselines/_sources.json (the page-region anchors); the transcripts must still pass
 node scripts/test-studio-chat-transcripts.mjs --structural --env NEXT_PUBLIC_STUDIO_CHAT_<X>=true
                                                          # flag-on: everything except markup must still match
 ```
@@ -51,8 +54,13 @@ questions off), `classic` (pre-Studio plain-button asks). All flag-off for the n
 5. `history-reload`: database-shaped rows restored through the Builder's own split into user turns and Director
    frames (duplicate outline replays, resend after "ready", repeated greeting), reconnect, a new turn, second reload.
 
+6. `composer-send` (PR D, `"composer": true`): the real composer. A draft typed and sent with the Send button and with Enter
+   (Shift+Enter does not send), an empty draft, a deck opening and the canvas moving to slide 3, a template and a build theme
+   selected and cleared through their pills, selections locked, and the socket lost.
+7. `reconnect-exhausted` (PR D): every bounded retry is refused; the hook reports `exhausted` and stays there.
+
 Steps: `ensureConnected open frame raw close advance offline online typed send control theme elementResult click
-change restore unmount mount props checkpoint expect`. Every step may carry `dt` (virtual ms before it, default 500),
+change restore unmount mount props compose key submit checkpoint expect`. Every step may carry `dt` (virtual ms before it, default 500),
 `profiles` and `comment`. `expect` steps guard the fixture itself (it still exercises what it claims). Clicks select
 by `{within:{key|action}, tag, text, attrs, index}`; prefer the React key, tag and visible text over classes.
 All data is synthetic (`*.invalid` hosts, `synthetic-*` ids). Time is virtual and ids are deterministic.
@@ -69,8 +77,27 @@ repo's own hooks run unmodified. Its self-test (every run) pins eager `setState`
 identity, and checks that real components serialise like react-dom. Page code that references something the harness
 does not provide throws a named error instead of reading `undefined`.
 
-Fidelity limits (deliberate): no StrictMode double invoke and no concurrent rendering; the composer (`ChatInput`) is
-not rendered (PR D needs a composer panel: render it from `jsxAttributes(page, 'ChatInput')` like the header);
+## The composer panel (PR D)
+
+A fixture with `"composer": true` also renders the real `ChatInput`, next to `MessageList`, with the page's own prop expressions
+(`jsxAttributes(page, 'ChatInput')`, every one anchored in `_sources.json`; JSX spread attributes are evaluated in order by
+`evaluateProps`). The page state those expressions read (`activeTemplate`, `buildThemeSelection`, `currentSlideIndex`, ...) sits at
+defaults and is changed with the `props` step. Steps `compose` (the textarea's `onChange`), `key` (its `onKeyDown`) and `submit` (the
+form's `onSubmit`) drive the real elements; `click` finds composer elements with `{"within": {"composer": true}, ...}`. Send runs the
+same typed-turn path as the `typed` step (the page's own option expression, the hook's own send) and then clears the draft, so the
+bytes a composer send puts on the socket land in `outbound.ndjson`. Every composer handler call is recorded as `composer.<prop>` in
+`calls.json`. Extra files, only for such fixtures: `composer.json` (every control of the composer and the handler names it carries,
+per checkpoint) and `markup/<n>.composer.html` / a `composer` hash in `markup.json`.
+
+The composer's popups (dropdown menus, the template picker, the theme menu, the tooltip hints) are Radix portals that need providers the
+offline host does not model, and no transcript opens them, so those leaf modules are replaced by inert stand-ins for these fixtures
+(`transcript.mjs`, `composerStubs`). The send-while-disconnected branch of `handleSendMessage` (`connect()` and a toast) is not mirrored.
+
+A presentation-only element a flag may add (today the PR D recovery card, marked `data-studio-chat-recovery`) is left out of the ordered
+`keys.json`, so flag-on keys stay comparable with flag-off: a card is not a message and has no key.
+
+Fidelity limits (deliberate): no StrictMode double invoke and no concurrent rendering; the composer (`ChatInput`) is rendered only for
+fixtures that ask for it, with its popups stubbed (above);
 `recoverRestoredLayoutViewerUrls` is skipped (URLs are policy-allowed); the typed-turn *commit* is mirrored from the
 tail of `handleSendMessage` while its option object is the page's own expression; page state outside the chat
 (templates, uploads, quota) sits at defaults; MDC flags (`CHAT_DIRECTIVES`, `CHAT_MENTIONS`) are off; icons render as

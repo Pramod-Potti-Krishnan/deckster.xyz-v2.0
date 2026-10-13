@@ -1,0 +1,118 @@
+[
+  {
+    "checkpoint": "01-empty-composer-no-deck-yet",
+    "controls": [
+      {"disabled":false,"handlers":["onDragLeave","onDragOver","onDrop"],"label":null,"tag":"div","type":null},
+      {"disabled":false,"handlers":["onChange"],"label":null,"tag":"input","type":"file"},
+      {"disabled":false,"handlers":["onSubmit"],"label":null,"tag":"form","type":null},
+      {"disabled":false,"handlers":["onChange","onKeyDown"],"label":"Message Director","tag":"textarea","type":null},
+      {"disabled":false,"handlers":["onClick"],"label":"Upload a file","tag":"button","type":"button"}
+    ]
+  },
+  {
+    "checkpoint": "02-draft-typed",
+    "controls": [
+      {"disabled":false,"handlers":["onDragLeave","onDragOver","onDrop"],"label":null,"tag":"div","type":null},
+      {"disabled":false,"handlers":["onChange"],"label":null,"tag":"input","type":"file"},
+      {"disabled":false,"handlers":["onSubmit"],"label":null,"tag":"form","type":null},
+      {"disabled":false,"handlers":["onChange","onKeyDown"],"label":"Message Director","tag":"textarea","type":null},
+      {"disabled":false,"handlers":["onClick"],"label":"Upload a file","tag":"button","type":"button"}
+    ]
+  },
+  {
+    "checkpoint": "03-sent-from-the-send-button",
+    "controls": [
+      {"disabled":false,"handlers":["onDragLeave","onDragOver","onDrop"],"label":null,"tag":"div","type":null},
+      {"disabled":false,"handlers":["onChange"],"label":null,"tag":"input","type":"file"},
+      {"disabled":false,"handlers":["onSubmit"],"label":null,"tag":"form","type":null},
+      {"disabled":false,"handlers":["onChange","onKeyDown"],"label":"Message Director","tag":"textarea","type":null},
+      {"disabled":false,"handlers":["onClick"],"label":"Upload a file","tag":"button","type":"button"}
+    ]
+  },
+  {
+    "checkpoint": "04-deck-open-slide-1",
+    "controls": [
+      {"disabled":false,"handlers":["onDragLeave","onDragOver","onDrop"],"label":null,"tag":"div","type":null},
+      {"disabled":false,"handlers":["onChange"],"label":null,"tag":"input","type":"file"},
+      {"disabled":false,"handlers":["onSubmit"],"label":null,"tag":"form","type":null},
+      {"disabled":false,"handlers":["onChange","onKeyDown"],"label":"Message Director","tag":"textarea","type":null},
+      {"disabled":false,"handlers":["onClick"],"label":"Upload a file","tag":"button","type":"button"}
+    ]
+  },
+  {
+    "checkpoint": "05-deck-open-slide-3",
+    "controls": [
+      {"disabled":false,"handlers":["onDragLeave","onDragOver","onDrop"],"label":null,"tag":"div","type":null},
+      {"disabled":false,"handlers":["onChange"],"label":null,"tag":"input","type":"file"},
+      {"disabled":false,"handlers":["onSubmit"],"label":null,"tag":"form","type":null},
+      {"disabled":false,"handlers":["onChange","onKeyDown"],"label":"Message Director","tag":"textarea","type":null},
+      {"disabled":false,"handlers":["onClick"],"label":"Upload a file","tag":"button","type":"button"}
+    ]
+  },
+  {
+    "checkpoint": "06-template-and-theme-selected",
+    "controls": [
+      {"disabled":false,"handlers":["onDragLeave","onDragOver","onDrop"],"label":null,"tag":"div","type":null},
+      {"disabled":false,"handlers":["onChange"],"label":null,"tag":"input","type":"file"},
+      {"disabled":false,"handlers":["onClick"],"label":"Clear template","tag":"button","type":"button"},
+      {"disabled":false,"handlers":["onClick"],"label":"Clear theme","tag":"button","type":"button"},
+      {"disabled":false,"handlers":["onSubmit"],"label":null,"tag":"form","type":null},
+      {"disabled":false,"handlers":["onChange","onKeyDown"],"label":"Message Director","tag":"textarea","type":null},
+      {"disabled":false,"handlers":["onClick"],"label":"Upload a file","tag":"button","type":"button"}
+    ]
+  },
+  {
+    "checkpoint": "07-sent-with-enter-with-a-template-and-theme-select",
+    "controls": [
+      {"disabled":false,"handlers":["onDragLeave","onDragOver","onDrop"],"label":null,"tag":"div","type":null},
+      {"disabled":false,"handlers":["onChange"],"label":null,"tag":"input","type":"file"},
+      {"disabled":false,"handlers":["onClick"],"label":"Clear template","tag":"button","type":"button"},
+      {"disabled":false,"handlers":["onClick"],"label":"Clear theme","tag":"button","type":"button"},
+      {"disabled":false,"handlers":["onSubmit"],"label":null,"tag":"form","type":null},
+      {"disabled":false,"handlers":["onChange","onKeyDown"],"label":"Message Director","tag":"textarea","type":null},
+      {"disabled":false,"handlers":["onClick"],"label":"Upload a file","tag":"button","type":"button"}
+    ]
+  },
+  {
+    "checkpoint": "08-pills-cleared-the-handlers-were-called-the-page-",
+    "controls": [
+      {"disabled":false,"handlers":["onDragLeave","onDragOver","onDrop"],"label":null,"tag":"div","type":null},
+      {"disabled":false,"handlers":["onChange"],"label":null,"tag":"input","type":"file"},
+      {"disabled":false,"handlers":["onClick"],"label":"Clear template","tag":"button","type":"button"},
+      {"disabled":false,"handlers":["onClick"],"label":"Clear theme","tag":"button","type":"button"},
+      {"disabled":false,"handlers":["onSubmit"],"label":null,"tag":"form","type":null},
+      {"disabled":false,"handlers":["onChange","onKeyDown"],"label":"Message Director","tag":"textarea","type":null},
+      {"disabled":false,"handlers":["onClick"],"label":"Upload a file","tag":"button","type":"button"}
+    ]
+  },
+  {
+    "checkpoint": "09-selections-locked",
+    "controls": [
+      {"disabled":false,"handlers":["onDragLeave","onDragOver","onDrop"],"label":null,"tag":"div","type":null},
+      {"disabled":false,"handlers":["onChange"],"label":null,"tag":"input","type":"file"},
+      {"disabled":false,"handlers":["onSubmit"],"label":null,"tag":"form","type":null},
+      {"disabled":false,"handlers":["onChange","onKeyDown"],"label":"Message Director","tag":"textarea","type":null},
+      {"disabled":false,"handlers":["onClick"],"label":"Upload a file","tag":"button","type":"button"}
+    ]
+  },
+  {
+    "checkpoint": "10-socket-lost",
+    "controls": [
+      {"disabled":false,"handlers":["onDragLeave","onDragOver","onDrop"],"label":null,"tag":"div","type":null},
+      {"disabled":false,"handlers":["onChange"],"label":null,"tag":"input","type":"file"},
+      {"disabled":false,"handlers":["onSubmit"],"label":null,"tag":"form","type":null},
+      {"disabled":false,"handlers":["onChange","onKeyDown"],"label":"Message Director","tag":"textarea","type":null},
+      {"disabled":false,"handlers":["onClick"],"label":"Upload a file","tag":"button","type":"button"}
+    ]
+  },
+  {
+    "checkpoint": "11-final",
+    "controls": [
+      {"disabled":false,"handlers":["onDragLeave","onDragOver","onDrop"],"label":null,"tag":"div","type":null},
+      {"disabled":false,"handlers":["onChange"],"label":null,"tag":"input","type":"file"},
+      {"disabled":false,"handlers":["onSubmit"],"label":null,"tag":"form","type":null},
+      {"disabled":false,"handlers":["onChange","onKeyDown"],"label":"Message Director","tag":"textarea","type":null},
+      {"disabled":false,"handlers":["onClick"],"label":"Upload a file","tag":"button","type":"button"}
+    ]
+  }
+]

@@ -124,6 +124,9 @@ export interface ChatInputProps {
   themeSyncError?: string | null
   /** Saved Theme library handoff: inspect in the native picker, then explicitly select. */
   studioSavedThemeRequest?: { id: string; key: string }
+  /** PASS2-DIRECTOR-CHAT PR D, item 6 (flag NEXT_PUBLIC_STUDIO_CHAT_COMPOSER_CONTEXT, Studio shell only): the words of the one line above the
+   *  composer ("Working on slide 3"), worded by the page from values it already holds (lib/studio-chat-composer-context). Passed only with the flag on. */
+  studioContextLabel?: string
 }
 
 export function ChatInput({
@@ -174,6 +177,7 @@ export function ChatInput({
   themeSyncError,
   studioSavedThemeRequest,
   composerTextareaRef,
+  studioContextLabel,
 }: ChatInputProps) {
   const studio = process.env.NEXT_PUBLIC_STUDIO_V4_SHELL === 'true'
   // PASS2 composer copy (flag NEXT_PUBLIC_STUDIO_COMPOSER_COPY, Studio shell only, default off): plain words for the idle placeholder.
@@ -182,6 +186,14 @@ export function ChatInput({
   // template popups as dropdowns, and one open popup at a time. Every V2 attribute and prop below is added through a spread that is empty
   // when the flag is off, so the flag-off element tree has exactly the base's keys.
   const popupsV2 = studio && process.env.NEXT_PUBLIC_STUDIO_COMPOSER_POPUPS_V2 === 'true'
+  // PASS2-DIRECTOR-CHAT PR D, item 6 (flag NEXT_PUBLIC_STUDIO_CHAT_COMPOSER_CONTEXT, Studio shell only, default off): a context line above the
+  // composer ("Working on slide 3") and the Template / Theme selections as the v4 mockup's compact pills. Presentation only: the line is words
+  // from values the page already holds, the pills are the EXISTING selection rows (same props, same clear buttons, same handlers) with one
+  // added attribute and the name in bold. No state, effect, handler or send is added or changed; off, every spread and branch below adds nothing
+  // and the element tree is exactly the base's (the line shares the slot of the hidden file input, so no child is added to any list).
+  const chatComposerContext = studio && process.env.NEXT_PUBLIC_STUDIO_CHAT_COMPOSER_CONTEXT === 'true'
+  const chatContextLabel = chatComposerContext && studioContextLabel && user && !isLoadingSession ? studioContextLabel : null
+  const chatPill = (kind: 'template' | 'theme') => chatComposerContext ? { 'data-studio-chat-pill': kind } : undefined
   const PromptRegion = studio ? 'div' : React.Fragment
   // Only raw transfer/session-linking blocks Send. Once a file is stored,
   // background source enrichment is calm and non-blocking (`processing`);
@@ -745,6 +757,25 @@ export function ChatInput({
     if (stillReady) void refreshSavedThemes(true)
   }
   // Studio theme mutations END.
+  const hiddenFileInput = (
+    <input
+      ref={fileInputRef}
+      type="file"
+      multiple
+      accept=".pdf,.docx,.doc,.txt,.md,.xlsx,.xls,.csv,.pptx,.ppt,.json,.xml,.yaml,.yml,.png,.jpg,.jpeg,.gif,.webp,.py,.js,.ts,.java,.go,.rs"
+      onChange={(e) => {
+        const files = Array.from(e.target.files || [])
+        console.log(`[ChatInput] File input onChange fired, ${files.length} file(s)`, files.map(f => f.name))
+        if (files.length > 0) {
+          onFilesSelected(files)
+        }
+        if (fileInputRef.current) {
+          fileInputRef.current.value = ''
+        }
+      }}
+      className="hidden"
+    />
+  )
   return (
     <div
       data-studio-v4-chrome={process.env.NEXT_PUBLIC_STUDIO_V4_TOKENS === 'true' ? 'true' : undefined}
@@ -801,24 +832,16 @@ export function ChatInput({
         </div>
       )}
 
-      {/* Hidden file input for upload button */}
-      <input
-        ref={fileInputRef}
-        type="file"
-        multiple
-        accept=".pdf,.docx,.doc,.txt,.md,.xlsx,.xls,.csv,.pptx,.ppt,.json,.xml,.yaml,.yml,.png,.jpg,.jpeg,.gif,.webp,.py,.js,.ts,.java,.go,.rs"
-        onChange={(e) => {
-          const files = Array.from(e.target.files || [])
-          console.log(`[ChatInput] File input onChange fired, ${files.length} file(s)`, files.map(f => f.name))
-          if (files.length > 0) {
-            onFilesSelected(files)
-          }
-          if (fileInputRef.current) {
-            fileInputRef.current.value = ''
-          }
-        }}
-        className="hidden"
-      />
+      {/* Hidden file input for upload button. PR D (context flag on): the context line shares this slot. */}
+      {chatContextLabel ? (
+        <>
+          <div data-studio-chat-context="true">
+            <span aria-hidden="true" data-studio-chat-context-dot="true" />
+            <span>{chatContextLabel}</span>
+          </div>
+          {hiddenFileInput}
+        </>
+      ) : hiddenFileInput}
 
       {/* Action Input Banner */}
       {pendingActionInput && (
@@ -848,7 +871,7 @@ export function ChatInput({
           activeTemplateReady
             ? 'bg-purple-50 dark:bg-purple-950/30 border-purple-200 dark:border-purple-800'
             : 'bg-amber-50 dark:bg-amber-950/30 border-amber-200 dark:border-amber-800'
-        }`}>
+        }`} {...chatPill('template')}>
           <div data-studio-v4-type-role="selection-content" className={`flex items-center gap-1.5 text-xs font-medium min-w-0 ${
             activeTemplateReady
               ? 'text-purple-700 dark:text-purple-300'
@@ -856,7 +879,7 @@ export function ChatInput({
           }`}>
             <LayoutTemplate className="h-3.5 w-3.5 shrink-0" />
             <span data-studio-v4-type-role="selection-label" title={studio ? activeTemplate.name : undefined} className="truncate">
-              {templateChipLabel}: {activeTemplate.name}
+              {templateChipLabel}: {chatComposerContext ? <strong>{activeTemplate.name}</strong> : activeTemplate.name}
             </span>
             {!activeTemplateReady && (
               <span data-studio-v4-type-role="selection-helper" className="hidden sm:inline text-[11px] font-normal opacity-80">
@@ -878,10 +901,10 @@ export function ChatInput({
         </div>
       )}
       {buildTheme.mode !== 'auto' && (
-        <div data-studio-composer-selection={studio ? 'theme' : undefined} data-studio-composer-theme-sync={studio ? themeSyncStatus : undefined} data-studio-v4-theme-chip="true" className="mb-2 px-2 py-1.5 bg-sky-50 dark:bg-sky-950/30 border border-sky-200 dark:border-sky-800 rounded-lg flex items-center justify-between">
+        <div data-studio-composer-selection={studio ? 'theme' : undefined} data-studio-composer-theme-sync={studio ? themeSyncStatus : undefined} data-studio-v4-theme-chip="true" className="mb-2 px-2 py-1.5 bg-sky-50 dark:bg-sky-950/30 border border-sky-200 dark:border-sky-800 rounded-lg flex items-center justify-between" {...chatPill('theme')}>
           <div data-studio-v4-type-role="selection-content" className="flex items-center gap-1.5 text-sky-700 dark:text-sky-300 text-xs font-medium min-w-0">
             <Palette className="h-3.5 w-3.5 shrink-0" />
-            <span data-studio-v4-type-role="selection-label" title={studio ? activeThemeLabel : undefined} className="truncate">{themeChipLabel}: {activeThemeLabel}</span>
+            <span data-studio-v4-type-role="selection-label" title={studio ? activeThemeLabel : undefined} className="truncate">{themeChipLabel}: {chatComposerContext ? <strong>{activeThemeLabel}</strong> : activeThemeLabel}</span>
             {themeSyncStatus === 'syncing' && (
               <span data-studio-v4-type-role="theme-sync-status" className="ml-1 inline-flex items-center gap-1 text-[10px] font-normal" title="Applying theme to the current deck">
                 <Loader2 className="h-3 w-3 animate-spin" /> Syncing

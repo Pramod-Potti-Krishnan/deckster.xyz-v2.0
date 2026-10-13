@@ -96,12 +96,17 @@ export function compile(node, source, label) {
   return values => factory(strictScope({ ...values }, label))
 }
 
-// Every attribute expression of <Tag ... /> in the page, by prop name.
+// Every attribute expression of <Tag ... /> in the page, by prop name. A spread attribute ({...expr}) is kept in order under the
+// synthetic name "...<n>"; evaluate it with `evaluateProps` below (an object that is merged over what came before, exactly as JSX does).
 export function jsxAttributes(source, tag) {
   const opening = must(walk(source, node => (ts.isJsxOpeningElement(node) || ts.isJsxSelfClosingElement(node)) && node.tagName.getText(source) === tag ? node : null), `<${tag} ...>`)
   const out = {}
+  let spreads = 0
   for (const attr of opening.attributes.properties) {
-    if (!ts.isJsxAttribute(attr)) throw new Error(`harness extract: <${tag}> uses a spread attribute; teach the harness about it`)
+    if (ts.isJsxSpreadAttribute(attr)) {
+      out[`...${spreads++}`] = { text: attr.expression.getText(source), node: attr.expression, spread: true }
+      continue
+    }
     const name = attr.name.getText(source)
     if (!attr.initializer) out[name] = { text: 'true', node: null }
     else if (ts.isStringLiteral(attr.initializer)) out[name] = { text: JSON.stringify(attr.initializer.text), node: attr.initializer }
@@ -129,4 +134,15 @@ export function findCalls(source, calleeText) {
   }
   visit(source)
   return calls
+}
+
+// Evaluate compiled JSX attributes (name -> evaluator, in source order; "...<n>" names are spreads) into one props object.
+// `wrap(name, value)` lets the caller wrap a value (the transcript runner records handler calls with it).
+export function evaluateProps(compiled, values, wrap = (_name, value) => value) {
+  const props = {}
+  for (const [name, evaluate] of Object.entries(compiled)) {
+    if (name.startsWith('...')) { Object.assign(props, evaluate(values) ?? {}); continue }
+    props[name] = wrap(name, evaluate(values))
+  }
+  return props
 }

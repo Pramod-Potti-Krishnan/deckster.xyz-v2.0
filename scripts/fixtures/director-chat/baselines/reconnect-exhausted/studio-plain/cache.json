@@ -1,0 +1,52 @@
+{
+  "deckster_session_v2_synthetic-user-01_synthetic-session-reconnect-exhausted": {
+    "activeVersion": "blank",
+    "blankPresentationId": "synthetic-blank-01",
+    "blankPresentationUrl": "https://layout.synthetic.invalid/p/synthetic-blank-01",
+    "currentStatus": null,
+    "deckContext": null,
+    "finalPresentationId": null,
+    "finalPresentationUrl": null,
+    "isBlankPresentation": true,
+    "lastUpdated": 1791201727000,
+    "messages": [
+      {
+        "clientTimestamp": 1791201602000,
+        "message_id": "msg-greeting",
+        "payload": {"format":"markdown","list_items":null,"sub_title":null,"text":"Hello! What would you like to build today?"},
+        "role": "assistant",
+        "session_id": "synthetic-session-reconnect-exhausted",
+        "timestamp": "2026-10-05T12:00:02Z",
+        "type": "chat_message"
+      },
+      {
+        "clientTimestamp": 1791201603000,
+        "message_id": "msg-reply",
+        "payload": {"format":"markdown","list_items":null,"sub_title":null,"text":"On it. Give me a moment to plan."},
+        "role": "assistant",
+        "session_id": "synthetic-session-reconnect-exhausted",
+        "timestamp": "2026-10-05T12:00:03Z",
+        "type": "chat_message"
+      }
+    ],
+    "ownerUserId": "synthetic-user-01",
+    "presentationId": "synthetic-blank-01",
+    "presentationUrl": "https://layout.synthetic.invalid/p/synthetic-blank-01",
+    "slideContextByIndex": null,
+    "slideCount": null,
+    "slideStructure": null,
+    "strawmanPresentationId": null,
+    "strawmanPreviewUrl": null,
+    "tokenUsage": null,
+    "tokenUsageMessageId": null,
+    "userMessages": [
+      {
+        "attachments": [],
+        "id": "synthetic-uuid-0001",
+        "text": "Build a short deck about ocean currents",
+        "timestamp": 1791201602500
+      }
+    ],
+    "version": 2
+  }
+}
