@@ -3100,6 +3100,11 @@ function AuthenticatedBuilderContent({ authScopeUserId }: { authScopeUserId: str
   const effectiveSlideStructure = studioPartialMetadata ? null : slideStructure
   const effectiveActiveVersion = studioPartialMetadata ? 'final' : activeVersion
   const effectiveIsBlankPresentation = studioPartialMetadata ? false : isBlankPresentation
+  // PASS2 composer copy (flag NEXT_PUBLIC_STUDIO_COMPOSER_COPY, default off): the composer placeholder asks "is a deck open?" the same
+  // way the transcript does (MessageList presentationContext below). Read only for wording; undefined unless the flag is on.
+  const studioComposerDeckOpen = studioShell && process.env.NEXT_PUBLIC_STUDIO_COMPOSER_COPY === 'true'
+    ? Boolean(effectivePresentationUrl && (!isBlankPresentation || (slideStructure?.slides ?? []).length > 0))
+    : undefined
 
   // Retire continuations on navigation/version intent, even if the same deck
   // is selected again. Counts and composer refreshes keep the current owner.
@@ -7226,6 +7231,7 @@ function AuthenticatedBuilderContent({ authScopeUserId }: { authScopeUserId: str
                         index: i, title: sl?.title || '', slide_id: sl?.slide_id ?? null,
                       }))
                     }
+                    deckOpen={studioComposerDeckOpen}
                     awaitingReply={awaitingDirectorReply}
                     onStopAwaiting={stopAwaitingReply}
                     onSubmit={handleSendMessage}

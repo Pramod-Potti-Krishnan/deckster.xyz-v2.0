@@ -70,6 +70,8 @@ export interface ChatInputProps {
   mentionSlides?: MentionSlide[]
   /** Turn gate: a user turn is awaiting the Director's reply. */
   awaitingReply?: boolean
+  /** PASS2 composer copy: the session has a deck open (a presentation with slides). Read only for the placeholder wording. */
+  deckOpen?: boolean
   /** Deliberate unlock (Esc) while awaiting a reply. */
   onStopAwaiting?: () => void
   onSubmit: (e?: React.FormEvent) => void
@@ -128,6 +130,7 @@ export function ChatInput({
   onInputChange,
   mentionSlides,
   awaitingReply = false,
+  deckOpen = false,
   onStopAwaiting,
   onSubmit,
   uploadedFiles,
@@ -172,6 +175,8 @@ export function ChatInput({
   composerTextareaRef,
 }: ChatInputProps) {
   const studio = process.env.NEXT_PUBLIC_STUDIO_V4_SHELL === 'true'
+  // PASS2 composer copy (flag NEXT_PUBLIC_STUDIO_COMPOSER_COPY, Studio shell only, default off): plain words for the idle placeholder.
+  const studioComposerCopy = studio && process.env.NEXT_PUBLIC_STUDIO_COMPOSER_COPY === 'true'
   const PromptRegion = studio ? 'div' : React.Fragment
   // Only raw transfer/session-linking blocks Send. Once a file is stored,
   // background source enrichment is calm and non-blocking (`processing`);
@@ -1043,7 +1048,9 @@ export function ChatInput({
                       ? "Director is replying… (Esc to type anyway)"
                     : pendingActionInput
                       ? "Type your changes... (ESC to cancel)"
-                      : "Message Director..."
+                      : studioComposerCopy
+                        ? (deckOpen ? "Ask for a change, or describe a new deck…" : "What would you like to present?")
+                        : "Message Director..."
             }
             disabled={!user || isLoadingSession || isTemplateReuseRunning}
             className="w-full resize-none border-0 bg-transparent focus:ring-0 focus-visible:ring-0 focus-visible:ring-offset-0 px-3 pt-3 pb-14 min-h-[96px] max-h-[220px] text-xs placeholder:text-gray-400 dark:text-slate-500 overflow-y-auto dark:text-slate-100 dark:placeholder:text-slate-500"
