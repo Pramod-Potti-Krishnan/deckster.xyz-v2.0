@@ -31,6 +31,8 @@ export function pageSources(root) {
   compiled.messageList = jsx('MessageList')
   compiled.header = jsx('StudioDirectorHeader')
   compiled.notice = jsx('StudioDirectorNotice')
+  // The composer (PASS2-DIRECTOR-CHAT PR D): every prop expression the page hands <ChatInput>, run by fixtures that opt in (`composer: true`).
+  compiled.chatInput = jsx('ChatInput')
 
   // The normal-path typed turn: the options object the page hands sendTypedTurn.
   const typedCalls = extract.findCalls(page, 'sendTypedTurn')

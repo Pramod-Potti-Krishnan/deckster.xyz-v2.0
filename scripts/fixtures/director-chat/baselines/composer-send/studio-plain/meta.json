@@ -1,0 +1,15 @@
+{
+  "diagnostics": {
+    "blockedNetwork": [],
+    "console": [{"level":"warn","text":"🔌 WebSocket connection closed <object>"}],
+    "fetches": [{"method":"GET","url":"/api/director/ws-token?session_id=synthetic-session-composer-send"}],
+    "sockets": 1,
+    "timersLeft": 1,
+    "uncaughtTimerErrors": [],
+    "windowOpens": []
+  },
+  "fixture": "composer-send",
+  "fixtureSha": "acbc3efc2e751fd0",
+  "profile": "studio-plain",
+  "schema": 1
+}

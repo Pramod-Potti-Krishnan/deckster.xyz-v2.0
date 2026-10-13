@@ -7,6 +7,7 @@
 //
 //   node scripts/test-studio-chat-transcripts.mjs                run, compare to baselines
 //   node scripts/test-studio-chat-transcripts.mjs --update       re-record baselines
+//   node scripts/test-studio-chat-transcripts.mjs --update-sources   re-record ONLY _sources.json (the page-region anchors); the transcripts still must pass
 //   node scripts/test-studio-chat-transcripts.mjs --structural   ignore markup (flag-on runs)
 //   node scripts/test-studio-chat-transcripts.mjs --env NEXT_PUBLIC_STUDIO_CHAT_LABELS=true --structural
 //
@@ -45,16 +46,18 @@ const { compareSnapshots, explainOutbound, isMarkupFile, pretty, readSnapshot, r
 const MARKUP_PROFILES = new Set(['studio'])
 const baselineRoot = path.resolve(option('--baseline-dir') || path.join(fixturesDir, 'baselines'))
 const update = flag('--update')
+const updateSources = flag('--update-sources')
 const structural = flag('--structural')
 const full = flag('--full')
 const outDir = option('--out')
 const extraEnv = Object.fromEntries(repeated('--env').map(pair => { const i = pair.indexOf('='); if (i < 1) throw new Error(`--env expects NAME=VALUE, got "${pair}"`); return [pair.slice(0, i), pair.slice(i + 1)] }))
 const onlyFixtures = option('--only')?.split(',')
 const onlyProfiles = option('--profile')?.split(',')
-if (update && (structural || Object.keys(extraEnv).length)) {
-  console.error('Refusing --update with --structural or --env: baselines are recorded flag-off, with the default profile environment.')
+if ((update || updateSources) && (structural || Object.keys(extraEnv).length)) {
+  console.error('Refusing --update / --update-sources with --structural or --env: baselines are recorded flag-off, with the default profile environment.')
   process.exit(2)
 }
+if (update && updateSources) { console.error('Use --update or --update-sources, not both.'); process.exit(2) }
 for (const profile of onlyProfiles || []) if (!PROFILES[profile]) { console.error(`Unknown profile "${profile}". Known: ${Object.keys(PROFILES).join(', ')}`); process.exit(2) }
 
 const fixtures = fs.readdirSync(fixturesDir).filter(name => name.endsWith('.json')).sort()
@@ -130,7 +133,7 @@ for (const fixture of fixtures) {
 if (anchorsSnapshot && !onlyFixtures && !onlyProfiles) {
   const dir = path.join(baselineRoot)
   const file = path.join(dir, '_sources.json')
-  if (update) { fs.mkdirSync(dir, { recursive: true }); fs.writeFileSync(file, anchorsSnapshot['_sources.json']); console.log('UPDATED _sources.json') }
+  if (update || updateSources) { fs.mkdirSync(dir, { recursive: true }); fs.writeFileSync(file, anchorsSnapshot['_sources.json']); console.log('UPDATED _sources.json') }
   else {
     const expected = fs.existsSync(file) ? fs.readFileSync(file, 'utf8') : ''
     if (expected === anchorsSnapshot['_sources.json']) { passes++; console.log('PASS _sources (dependency versions and the page.tsx / use-builder-session.ts regions the harness executes are unchanged)') }

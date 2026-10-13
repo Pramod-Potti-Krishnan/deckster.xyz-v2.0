@@ -1,0 +1,150 @@
+{
+ "name": "reconnect-exhausted",
+ "description": "The socket drops and every bounded retry is refused: the hook reports exhausted and stays there (an online event does not clear it). Covers the connection-lost states the other transcripts do not reach.",
+ "session": {
+  "id": "synthetic-session-reconnect-exhausted",
+  "userId": "synthetic-user-01"
+ },
+ "stableHandlers": true,
+ "steps": [
+  {
+   "op": "ensureConnected"
+  },
+  {
+   "op": "open"
+  },
+  {
+   "op": "frame",
+   "frame": {
+    "message_id": "msg-init-blank",
+    "session_id": "synthetic-session-reconnect-exhausted",
+    "timestamp": "2026-10-05T12:00:01Z",
+    "type": "presentation_init",
+    "role": "assistant",
+    "payload": {
+     "is_blank": true,
+     "preview_url": "https://layout.synthetic.invalid/p/synthetic-blank-01",
+     "preview_presentation_id": "synthetic-blank-01"
+    }
+   }
+  },
+  {
+   "op": "frame",
+   "frame": {
+    "message_id": "msg-greeting",
+    "session_id": "synthetic-session-reconnect-exhausted",
+    "timestamp": "2026-10-05T12:00:02Z",
+    "type": "chat_message",
+    "role": "assistant",
+    "payload": {
+     "text": "Hello! What would you like to build today?",
+     "sub_title": null,
+     "list_items": null,
+     "format": "markdown"
+    }
+   }
+  },
+  {
+   "op": "typed",
+   "text": "Build a short deck about ocean currents"
+  },
+  {
+   "op": "frame",
+   "frame": {
+    "message_id": "msg-reply",
+    "session_id": "synthetic-session-reconnect-exhausted",
+    "timestamp": "2026-10-05T12:00:03Z",
+    "type": "chat_message",
+    "role": "assistant",
+    "payload": {
+     "text": "On it. Give me a moment to plan.",
+     "sub_title": null,
+     "list_items": null,
+     "format": "markdown"
+    }
+   }
+  },
+  {
+   "op": "checkpoint",
+   "label": "connected"
+  },
+  {
+   "op": "close",
+   "code": 1006,
+   "comment": "the socket drops"
+  },
+  {
+   "op": "expect",
+   "connectionState": "disconnected",
+   "reconnectStatus": "scheduled"
+  },
+  {
+   "op": "checkpoint",
+   "label": "dropped, a retry is scheduled"
+  },
+  {
+   "op": "advance",
+   "ms": 30000,
+   "comment": "backoff elapses, retry 1 opens a socket"
+  },
+  {
+   "op": "close",
+   "code": 1006,
+   "comment": "retry 1 is refused"
+  },
+  {
+   "op": "advance",
+   "ms": 30000,
+   "comment": "backoff elapses, retry 2 opens a socket"
+  },
+  {
+   "op": "close",
+   "code": 1006,
+   "comment": "retry 2 is refused"
+  },
+  {
+   "op": "advance",
+   "ms": 30000,
+   "comment": "backoff elapses, retry 3 opens a socket"
+  },
+  {
+   "op": "close",
+   "code": 1006,
+   "comment": "retry 3 is refused"
+  },
+  {
+   "op": "advance",
+   "ms": 30000,
+   "comment": "backoff elapses, retry 4 opens a socket"
+  },
+  {
+   "op": "close",
+   "code": 1006,
+   "comment": "retry 4 is refused"
+  },
+  {
+   "op": "expect",
+   "reconnectStatus": "exhausted"
+  },
+  {
+   "op": "checkpoint",
+   "label": "retries used up"
+  },
+  {
+   "op": "online",
+   "comment": "a browser online event does not clear exhaustion"
+  },
+  {
+   "op": "advance",
+   "ms": 30000
+  },
+  {
+   "op": "expect",
+   "reconnectStatus": "exhausted"
+  },
+  {
+   "op": "checkpoint",
+   "label": "still exhausted after an online event"
+  }
+ ]
+}

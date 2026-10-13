@@ -98,6 +98,7 @@ import type {
 import { MessageList } from '@/components/builder/message-list'
 import { ChatInput } from '@/components/builder/chat-input'
 import { StudioDirectorNotice } from '@/components/builder/studio-director-notice'
+import { studioComposerContextLabel } from '@/lib/studio-chat-composer-context'
 import { StudioBlockedSendNotice } from '@/components/builder/studio-blocked-send-notice'
 import { ComposerLibraryDialog } from '@/components/builder/composer-library-dialog'
 import { StudioWorkspaceSwitchV2 } from '@/components/builder/studio-workspace-switch-v2'
@@ -7162,6 +7163,13 @@ function AuthenticatedBuilderContent({ authScopeUserId }: { authScopeUserId: str
                         onActionClick={handleActionClick}
                         askGatesLocked={approvalGatesLocked}
                         studioOutlineOnCanvas={studioOutlineCanvas?.outline.message_id}
+                        studioRecovery={studioShell && process.env.NEXT_PUBLIC_STUDIO_CHAT_RECOVERY === 'true' ? {
+                          // PASS2-DIRECTOR-CHAT PR D, item 7: facts already held here, passed read-only to word the recovery card. Same session test as the notice above.
+                          noticeType: transportNotice?.sessionId === (currentSessionId || wsSessionId) ? (transportNotice?.type ?? null) : null,
+                          noticeRequiresResend: Boolean(transportNotice?.sessionId === (currentSessionId || wsSessionId) && transportNotice?.requiresResend),
+                          reconnectStatus,
+                          statusError: currentStatus?.status === 'error',
+                        } : undefined}
                         onSubmitAnswers={async (text: string, displayText?: string) => {
                           const origin = { ...questionSubmissionScopeRef.current }
                           const isCurrentSubmission = () => (
@@ -7337,6 +7345,12 @@ function AuthenticatedBuilderContent({ authScopeUserId }: { authScopeUserId: str
                     onActiveBuildThemeProfileChange={handleActiveBuildThemeProfileChange}
                     themeSyncStatus={themeSync.status}
                     themeSyncError={themeSync.error}
+                    studioContextLabel={studioShell && process.env.NEXT_PUBLIC_STUDIO_CHAT_COMPOSER_CONTEXT === 'true' ? studioComposerContextLabel({
+                      // PASS2-DIRECTOR-CHAT PR D, item 6: whether a deck is open (the test the transcript uses) and the slide on the canvas, read only.
+                      deckOpen: Boolean(effectivePresentationUrl && (!isBlankPresentation || (slideStructure?.slides ?? []).length > 0)),
+                      slideNumber: currentSlideIndex + 1,
+                      slideCount: effectiveSlideCount,
+                    }) : undefined}
                   />
                 </>
               )}

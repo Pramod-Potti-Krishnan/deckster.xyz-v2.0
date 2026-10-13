@@ -1,0 +1,27 @@
+{
+  "diagnostics": {
+    "blockedNetwork": [],
+    "console": [
+      {"level":"warn","text":"🔌 WebSocket connection closed <object>"},
+      {"level":"warn","text":"🔌 WebSocket connection closed <object>"},
+      {"level":"warn","text":"🔌 WebSocket connection closed <object>"},
+      {"level":"warn","text":"🔌 WebSocket connection closed <object>"},
+      {"level":"warn","text":"🔌 WebSocket connection closed <object>"}
+    ],
+    "fetches": [
+      {"method":"GET","url":"/api/director/ws-token?session_id=synthetic-session-reconnect-exhausted"},
+      {"method":"GET","url":"/api/director/ws-token?session_id=synthetic-session-reconnect-exhausted"},
+      {"method":"GET","url":"/api/director/ws-token?session_id=synthetic-session-reconnect-exhausted"},
+      {"method":"GET","url":"/api/director/ws-token?session_id=synthetic-session-reconnect-exhausted"},
+      {"method":"GET","url":"/api/director/ws-token?session_id=synthetic-session-reconnect-exhausted"}
+    ],
+    "sockets": 5,
+    "timersLeft": 0,
+    "uncaughtTimerErrors": [],
+    "windowOpens": []
+  },
+  "fixture": "reconnect-exhausted",
+  "fixtureSha": "14adc9f0561c67a4",
+  "profile": "studio-plain",
+  "schema": 1
+}

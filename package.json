@@ -60,6 +60,7 @@
     "test:chart-request-safety": "node scripts/test-chart-request-safety.mjs",
     "test:director-websocket-reconnect": "node scripts/test-director-websocket-reconnect.mjs",
     "test:studio-chat-transcripts": "node scripts/test-studio-chat-transcripts.mjs",
+    "test:studio-chat-composer-recovery-answered": "node scripts/test-studio-chat-composer-recovery-answered.mjs",
     "test:studio-chat-polish": "node scripts/test-studio-chat-polish.mjs",
     "test:studio-chat-header-ask": "node scripts/test-studio-chat-header-ask.mjs",
     "test:slide-element-targeting": "node scripts/test-slide-element-targeting.mjs",

@@ -9,6 +9,7 @@ import {
   ExternalLink,
   User,
   ChevronDown,
+  Check,
 } from "lucide-react"
 import { FileChip, type UploadedFile } from "@/components/file-chip"
 import {
@@ -49,8 +50,13 @@ import type { QuestionSet } from "@/types/mdc"
 import { shouldRerouteEphemeral } from "@/lib/build-narration-heuristics"
 import { StudioWelcome, StudioFirstRunStarters, type StudioDirectorConnectionState, type StudioPresentationContext } from "@/components/builder/chat/studio-welcome"
 import { StudioOutlineCard } from "@/components/builder/chat/studio-outline-card"
+import { StudioRecoveryCard } from "@/components/builder/chat/studio-recovery-card"
+import { studioChatRecoveryCard, type StudioChatRecoveryInput } from "@/lib/studio-chat-recovery"
+import { findAnsweredChoice, suggestionKey, type AnsweredChoice } from "@/lib/studio-chat-answered-choice"
 import "./studio-director.css"
 import "./studio-chat-polish.css"
+import "./studio-chat-answered.css"
+import "./studio-chat-composer.css"
 
 export interface MessageListProps {
   sessionId?: string | null
@@ -100,6 +106,9 @@ export interface MessageListProps {
   suppressEphemeral?: boolean
   /** PASS2 #4 (NEXT_PUBLIC_STUDIO_OUTLINE_CANVAS): message_id of the outline frame the canvas is showing. Undefined when off. */
   studioOutlineOnCanvas?: string | null
+  /** PASS2-DIRECTOR-CHAT PR D, item 7 (NEXT_PUBLIC_STUDIO_CHAT_RECOVERY): facts the page already holds (the transport notice, the hook's
+   *  reconnect status, whether the last status was an error), read only, to word the recovery card. Undefined when the flag is off. */
+  studioRecovery?: StudioChatRecoveryInput
 }
 
 // Keep the native pre component identity stable across transcript/status rerenders.
@@ -143,15 +152,24 @@ function EvidenceBadge({ context }: { context?: SlideContextItem }) {
   )
 }
 
-function HistoricalActionCard({ message, status, studio }: { message: ActionRequest; status: HistoricalActionStatus; studio: boolean }) {
+function HistoricalActionCard({ message, status, studio, chosen }: { message: ActionRequest; status: HistoricalActionStatus; studio: boolean; chosen?: AnsweredChoice }) {
   const questions = (message.payload as { question_set?: QuestionSet }).question_set
+  // PASS2-DIRECTOR-CHAT PR D, item 8: `chosen` is passed only with NEXT_PUBLIC_STUDIO_CHAT_ANSWERED_CHOICE on and only when the user's own reply
+  // names an option (lib/studio-chat-answered-choice). Absent, every spread below adds nothing and every child is exactly what it was.
+  const mark = (picked: boolean | undefined) => picked ? { 'data-studio-chat-chosen': 'true' } : undefined
   return (
-    <div data-studio-director-ask={studio ? 'history' : undefined} data-studio-director-history-action={studio ? status : undefined} data-director-action-id={message.message_id} aria-label="Earlier Director choices">
+    <div data-studio-director-ask={studio ? 'history' : undefined} data-studio-director-history-action={studio ? status : undefined} data-director-action-id={message.message_id} aria-label="Earlier Director choices" {...(chosen ? { 'data-studio-chat-answered': 'true' } : undefined)}>
       <p data-studio-director-part="heading" className="text-[10px] text-muted-foreground">{status === 'answered' ? 'Answered' : 'Earlier step'}</p>
       <p data-studio-director-part="prompt" className="text-xs whitespace-pre-wrap mb-2">{message.payload.prompt_text}</p>
       {questions?.intro && <p className="text-xs whitespace-pre-wrap">{questions.intro}</p>}
-      {questions?.questions?.map(question => <div key={question.id} className="text-xs mb-2"><p>{question.text}</p><ul>{question.suggestions?.map((suggestion, index) => <li key={index}>{suggestion.label}</li>)}</ul></div>)}
-      <div className="flex flex-wrap gap-1.5">{message.payload.actions.map((action, index) => <Button key={index} data-studio-director-option={studio ? 'action' : undefined} size="sm" variant="outline" disabled>{action.label}</Button>)}</div>
+      {questions?.questions?.map(question => <div key={question.id} className="text-xs mb-2"><p>{question.text}</p><ul>{question.suggestions?.map((suggestion, index) => {
+        const picked = chosen?.suggestions.includes(suggestionKey(question.id, suggestion.label))
+        return <li key={index} {...mark(picked)}>{picked ? <>{suggestion.label}<Check className="h-3 w-3" aria-hidden="true" /><span className="sr-only"> (your choice)</span></> : suggestion.label}</li>
+      })}</ul></div>)}
+      <div className="flex flex-wrap gap-1.5">{message.payload.actions.map((action, index) => {
+        const picked = chosen?.actionIndex === index
+        return <Button key={index} data-studio-director-option={studio ? 'action' : undefined} size="sm" variant="outline" disabled {...(picked ? { ...mark(true), 'aria-pressed': true } : undefined)}>{picked ? <>{action.label}<Check className="h-3 w-3" aria-hidden="true" /></> : action.label}</Button>
+      })}</div>
     </div>
   )
 }
@@ -182,6 +200,7 @@ export function MessageList({
   isGeneratingFinal = false,
   suppressEphemeral,
   studioOutlineOnCanvas,
+  studioRecovery,
 }: MessageListProps) {
   const studio = process.env.NEXT_PUBLIC_STUDIO_V4_SHELL === 'true'
   // PASS2 #4: off, no outline card receives these props, so it renders exactly as before. On, every card the canvas outline stands
@@ -591,6 +610,22 @@ export function MessageList({
   // so the markup, the keys and every handler are exactly what they were.
   const chatPolish = (kind: 'message' | 'thinking' = 'message') => studio && process.env.NEXT_PUBLIC_STUDIO_CHAT_POLISH === 'true' ? { 'data-studio-chat-polish': kind } : undefined
 
+  // PASS2-DIRECTOR-CHAT PR D, item 8 (flag NEXT_PUBLIC_STUDIO_CHAT_ANSWERED_CHOICE, Studio shell only, default off): an answered ask shows the option
+  // the user chose. Read at render from the list already sorted above: the next user turn after the ask names the option (lib/studio-chat-answered-
+  // choice). It writes nothing (no state, no ref) and never changes whether a card is answered or live; off, this returns undefined and spreading
+  // it adds nothing.
+  const answeredChoice = studio && process.env.NEXT_PUBLIC_STUDIO_CHAT_ANSWERED_CHOICE === 'true'
+  const answeredChoiceProps = (index: number, ask: ActionRequest, status: HistoricalActionStatus) => {
+    if (!answeredChoice || status !== 'answered') return undefined
+    const chosen = findAnsweredChoice(processedMessages, index, ask)
+    return chosen ? { chosen } : undefined
+  }
+
+  // PASS2-DIRECTOR-CHAT PR D, item 7 (flag NEXT_PUBLIC_STUDIO_CHAT_RECOVERY, Studio shell only, default off): a calm card at the end of the transcript
+  // when something interrupted Director. Words only, from facts the page passes down read-only; the card has no button, so the existing message box
+  // stays the only resend. Off, this is null and nothing is rendered.
+  const recoveryCard = studio && process.env.NEXT_PUBLIC_STUDIO_CHAT_RECOVERY === 'true' ? studioChatRecoveryCard(studioRecovery) : null
+
   return (
     <>
       {isEmptyStudioConversation && (
@@ -720,7 +755,7 @@ export function MessageList({
                       )}
 
                       {/* Action Buttons — MDC (P2): card treatment behind CHAT_CLARITY */}
-                      {actionRequest && historicalActions.has(actionRequest.message_id) && <HistoricalActionCard message={actionRequest} status={historicalActions.get(actionRequest.message_id)!} studio={studio} />}
+                      {actionRequest && historicalActions.has(actionRequest.message_id) && <HistoricalActionCard message={actionRequest} status={historicalActions.get(actionRequest.message_id)!} studio={studio} {...answeredChoiceProps(index, actionRequest, historicalActions.get(actionRequest.message_id)!)} />}
                       {(CHAT_CLARITY || studio) && actionRequest && !historicalActions.has(actionRequest.message_id) && (
                         <div className="mt-3">
                           <QuestionCard
@@ -872,7 +907,7 @@ export function MessageList({
               } else if (msg.type === 'action_request') {
                 const actionMsg = msg as ActionRequest
                 if (historicalActions.has(actionMsg.message_id)) {
-                  return <HistoricalActionCard message={actionMsg} status={historicalActions.get(actionMsg.message_id)!} studio={studio} />
+                  return <HistoricalActionCard message={actionMsg} status={historicalActions.get(actionMsg.message_id)!} studio={studio} {...answeredChoiceProps(index, actionMsg, historicalActions.get(actionMsg.message_id)!)} />
                 }
                 if (CHAT_CLARITY || studio) {
                   return (
@@ -1015,7 +1050,13 @@ export function MessageList({
           </div>
         </div>
       )}
-      <div ref={messagesEndRef} />
+      {/* PR D (recovery flag on): the card shares the end anchor's slot, so with the flag off the child list is exactly the base's. */}
+      {recoveryCard ? (
+        <>
+          <StudioRecoveryCard card={recoveryCard} />
+          <div ref={messagesEndRef} />
+        </>
+      ) : <div ref={messagesEndRef} />}
     </>
   )
 }

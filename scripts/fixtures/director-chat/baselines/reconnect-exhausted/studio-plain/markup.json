@@ -1,0 +1,27 @@
+{
+  "01-connected": {
+    "chat": "1f2be6bc7264a7096451d234a9e153fab3efc5551b0e3a4f719f9fce9ddf7965",
+    "header": "8115c620e51ebe5ecec9fb6cd6f2bc48326707f5b03a68d3b7fa9920773f27ad",
+    "notice": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+  },
+  "02-dropped-a-retry-is-scheduled": {
+    "chat": "1f2be6bc7264a7096451d234a9e153fab3efc5551b0e3a4f719f9fce9ddf7965",
+    "header": "6ba45185bd4bd90b41aebd401b6bcdf2b65d89fc69739a66d8c9d6af40221f67",
+    "notice": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+  },
+  "03-retries-used-up": {
+    "chat": "1f2be6bc7264a7096451d234a9e153fab3efc5551b0e3a4f719f9fce9ddf7965",
+    "header": "6ba45185bd4bd90b41aebd401b6bcdf2b65d89fc69739a66d8c9d6af40221f67",
+    "notice": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+  },
+  "04-still-exhausted-after-an-online-event": {
+    "chat": "1f2be6bc7264a7096451d234a9e153fab3efc5551b0e3a4f719f9fce9ddf7965",
+    "header": "6ba45185bd4bd90b41aebd401b6bcdf2b65d89fc69739a66d8c9d6af40221f67",
+    "notice": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+  },
+  "05-final": {
+    "chat": "1f2be6bc7264a7096451d234a9e153fab3efc5551b0e3a4f719f9fce9ddf7965",
+    "header": "6ba45185bd4bd90b41aebd401b6bcdf2b65d89fc69739a66d8c9d6af40221f67",
+    "notice": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+  }
+}

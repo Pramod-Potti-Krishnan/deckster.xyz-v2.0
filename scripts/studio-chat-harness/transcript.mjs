@@ -14,6 +14,7 @@ import { Root, hostNodes, keyedChildren, textOf, toElements } from './mini-react
 import { createEnvironment, START_MS } from './fake-env.mjs'
 import { createModuleLoader } from './module-loader.mjs'
 import { pageSources } from './page-sources.mjs'
+import { evaluateProps } from './page-extract.mjs'
 import { BASE_ENV } from './profiles.mjs'
 import { canonical, pretty, prettyHtml, sha256 } from './snapshot.mjs'
 import { esmPackages, lucideStub } from './esm-packages.mjs'
@@ -26,15 +27,31 @@ export async function runTranscript({ root, fixture, profile, processEnv, includ
   const env = createEnvironment({ processEnv: { ...BASE_ENV, ...processEnv } })
   const session = fixture.session
   const authUser = { id: session.userId, email: `${session.userId}@example.invalid` }
+  // Fixtures with `composer: true` also render the real composer (ChatInput). Its popups are Radix portals that need providers the offline
+  // host does not model (and no transcript opens them), so those leaf components are replaced by inert stand-ins; everything ChatInput itself
+  // renders and every handler it owns is the repo's own code.
+  const composerOn = Boolean(fixture.composer)
+  const inert = () => null
+  const passChildren = ({ children }) => children ?? null
+  const composerStubs = composerOn ? {
+    'components/ui/dropdown-menu': new Proxy({ __esModule: true }, { get: (target, key) => key in target ? target[key] : typeof key !== 'string' ? undefined : (key === 'DropdownMenu' || key === 'DropdownMenuTrigger' ? passChildren : inert) }),
+    'components/ui/switch': { __esModule: true, Switch: inert },
+    'components/builder/studio-composer-hint': { __esModule: true, StudioComposerHint: passChildren },
+    'components/builder/template-picker': { __esModule: true, TemplatePicker: inert },
+    'components/builder/studio-theme-menu': { __esModule: true, StudioThemeMenu: inert },
+  } : {}
   const loader = createModuleLoader({
     root, globals: env.globals,
     stubs: { ...(await esmPackages(root)), 'lucide-react': lucideStub(React) },
-    fileStubs: { 'hooks/use-auth': { useAuth: () => ({ user: authUser, isLoading: false }) } },
+    fileStubs: { 'hooks/use-auth': { useAuth: () => ({ user: authUser, isLoading: false }) }, ...composerStubs },
   })
   const hookModule = loader.load('hooks/use-deckster-websocket-v2.ts')
   const { MessageList } = loader.load('components/builder/message-list.tsx')
   const { StudioDirectorHeader } = loader.load('components/builder/chat/studio-director-header.tsx')
   const { StudioDirectorNotice } = loader.load('components/builder/studio-director-notice.tsx')
+  const ChatInput = composerOn ? loader.load('components/builder/chat-input.tsx').ChatInput : null
+  const templateHelpers = composerOn ? loader.load('hooks/use-templates.ts') : {}
+  const composerContextLib = composerOn ? loader.load('lib/studio-chat-composer-context.ts') : {}
   const { attachmentsFromPayload } = loader.load('lib/user-message-attachments.ts')
   const voice = loader.load('lib/studio-voice-interactive.ts')
 
@@ -73,6 +90,12 @@ export async function runTranscript({ root, fixture, profile, processEnv, includ
     researchEnabled: false, webSearchEnabled: false, extendedGenerationEnabled: true, knowledgeGraphEnabled: false,
     canUseKnowledgeGraph: false, showKnowledgeGraphToggle: false, sessionStoreName: null, buildSendOptions: {}, deckIdentity: null,
     askGatesLocked: false, suppressEphemeral: false, activeTemplate: null,
+    // What the composer's prop expressions read from the page (fixtures with `composer: true`); each is a plain value or an inert handler.
+    ...(composerOn ? {
+      savedThemeWorkflowId: null, workflowKey: null, studioComposerDeckOpen: undefined, researchSettingsLocked: false,
+      knowledgeGraphAccess: 'locked', templateBuilderEnabled: false, composerLibraryEnabled: false, generationSelectionsLocked: false,
+      buildThemeSelection: { mode: 'auto' }, activeBuildThemeProfileForSelection: null, themeSync: { status: 'idle', error: null }, currentSlideIndex: 0,
+    } : {}),
     ...(fixture.page || {}),
   }
   const makeRefs = () => ({
@@ -112,7 +135,11 @@ export async function runTranscript({ root, fixture, profile, processEnv, includ
       markStudioUserIntent: () => { refs.transcriptScopeRef.current.userIntentSeen = true },
       hasStudioUserIntent: () => refs.transcriptScopeRef.current.userIntentSeen,
       studioFrontendTranscriptReceipt: transcriptReceipt,
+      ...(composerOn ? { handleRequestSession: async () => {} } : {}),
     }
+    const composerHandlers = composerOn ? Object.fromEntries(['stopAwaitingReply', 'handleFilesSelected', 'removeFile', 'clearAllFiles', 'handleResearchEnabledChange',
+      'handleWebSearchEnabledChange', 'setKnowledgeGraphEnabled', 'handleSelectTemplate', 'setShowComposerLibrary', 'handleClearTemplate', 'handleCancelTemplateReuse',
+      'handleBuildThemeChange', 'handleActiveBuildThemeProfileChange'].map(name => [name, () => {}])) : {}
     const base = {
       React: R, process: env.globals.process, console: env.console, Date: env.globals.Date, crypto: env.crypto,
       setTimeout: env.clock.setTimeout, clearTimeout: env.clock.clearTimeout, requestAnimationFrame: env.clock.requestAnimationFrame,
@@ -123,6 +150,11 @@ export async function runTranscript({ root, fixture, profile, processEnv, includ
       awaitingDirectorReply: false, uploadedFiles: [], quota: { status: null }, STUDIO_BLOCKED_SEND_FEEDBACK_ENABLED: false,
       studioOutlineCanvas: undefined, turnContext: undefined, effectivePresentationUrl: undefined,
       isThemeSyncTerminal: () => false,
+      // Page names a sibling PR's ChatInput props read (the composer template popup's library action, PR #380); inert here, the popup is stubbed.
+      ...(composerOn ? { studioComposerContextLabel: composerContextLib.studioComposerContextLabel } : {}),
+      ...(composerOn ? { studioPopupsV2: studioShell && env.globals.process.env.NEXT_PUBLIC_STUDIO_COMPOSER_POPUPS_V2 === 'true', setComposerLibraryRequest: () => {} } : {}),
+      ...(composerOn ? { ...composerHandlers, isTemplateGenerationReady: templateHelpers.isTemplateGenerationReady, router: { push: track('composer.page.router.push', () => {}) }, subscribeToKnowledgeGraph: async () => false,
+        handleSendMessage: event => { event?.preventDefault?.(); return composerSubmit() } } : {}),
     }
     const hookOptions = {}
     for (const [name, evaluate] of Object.entries(sources.compiled.hookOptions)) hookOptions[name] = evaluate(base)
@@ -154,13 +186,13 @@ export async function runTranscript({ root, fixture, profile, processEnv, includ
     }
     values.preflightDirectorTurn = sources.compiled.preflightDirectorTurn(values)
     values.handleActionClick = sources.compiled.handleActionClick(values)
-    const listProps = {}
-    for (const [name, evaluate] of Object.entries(sources.compiled.messageList)) {
-      const value = evaluate(values)
-      listProps[name] = name.startsWith('on') ? track(`ml.${name}`, value) : value
-    }
+    const listProps = evaluateProps(sources.compiled.messageList, values, (name, value) => name.startsWith('on') ? track(`ml.${name}`, value) : value)
     probe.latest = { ws, values, listProps, userMessages, isGeneratingFinal, templateReuseAwaitingInput, sessionApi, studioShell, isLoadingSession, setIsLoadingSession, setTranscriptReceipt, setUserMessages, setIsGeneratingFinal }
-    return R.createElement(MessageList, listProps)
+    if (!composerOn) return R.createElement(MessageList, listProps)
+    // The composer, with the page's own prop expressions. Handlers are recorded (composer.<prop>); the send handler runs the page's typed-turn path.
+    const chatProps = evaluateProps(sources.compiled.chatInput, values, (name, value) => name.startsWith('on') ? track(`composer.${name}`, value) : value)
+    probe.latest.chatProps = chatProps
+    return R.createElement(R.Fragment, null, R.createElement(MessageList, listProps), R.createElement(ChatInput, chatProps))
   }
 
   // ---- renderer wiring ---------------------------------------------------------------------
@@ -195,6 +227,16 @@ export async function runTranscript({ root, fixture, profile, processEnv, includ
   }
 
   // ---- node finding / events ------------------------------------------------------------------
+  // A named component's node anywhere in the expanded tree (the chat and the composer are siblings when a fixture opts into the composer).
+  const findComp = (node, name) => {
+    if (!node) return null
+    if (node.t === 'comp') return node.name === name ? node : findComp(node.child, name)
+    if (node.t === 'frag' || node.t === 'host') { for (const child of node.children) { const hit = findComp(child, name); if (hit) return hit } }
+    return null
+  }
+  // Presentation-only additions a flag may draw (today: the PR D recovery card). They carry a marker attribute and are left out of the ordered
+  // keys, so flag-on `keys.json` is comparable with flag-off: a card is not a message and has no key.
+  const isAdditive = node => hostNodes(node)[0]?.props?.['data-studio-chat-recovery'] !== undefined
   const describe = node => {
     const hosts = hostNodes(node)
     const first = hosts[0]
@@ -210,6 +252,10 @@ export async function runTranscript({ root, fixture, profile, processEnv, includ
         const hit = top.find(node => node.key === selector.within.key)
         if (!hit) throw new Error(`harness: no MessageList child with key "${selector.within.key}" (keys: ${top.map(n => n.key).join(', ')})`)
         pool = hostNodes(hit)
+      } else if (selector.within.composer) {
+        const composer = findComp(tree, 'ChatInput')
+        if (!composer) throw new Error('harness: this fixture does not render the composer (set "composer": true)')
+        pool = hostNodes(composer)
       } else if (selector.within.action !== undefined) {
         const holder = pool.find(node => node.props?.['data-director-action-id'] === selector.within.action)
         if (!holder) throw new Error(`harness: no element with data-director-action-id="${selector.within.action}"`)
@@ -257,6 +303,7 @@ export async function runTranscript({ root, fixture, profile, processEnv, includ
         answeredActions: [...refs.answeredActionsRef.current], userMessageIds: [...refs.userMessageIdsRef.current], isGeneratingFinal,
         pendingActionInput: probe.latest.values.pendingActionInput ? { value: probe.latest.values.pendingActionInput.action?.value } : null,
         toasts: toasts.length,
+        ...(composerOn ? { composer: { inputMessage: probe.latest.values.inputMessage, activeTemplate: pageInputs.activeTemplate ? { id: pageInputs.activeTemplate.id, name: pageInputs.activeTemplate.name } : null, buildTheme: pageInputs.buildThemeSelection, currentSlideIndex: pageInputs.currentSlideIndex } } : {}),
       },
     }
   }
@@ -264,12 +311,16 @@ export async function runTranscript({ root, fixture, profile, processEnv, includ
     const n = String(rec.checkpoints.length + 1).padStart(2, '0')
     const name = `${n}-${slug(label)}`
     const latest = probe.latest
-    const top = keyedChildren(root_.tree, 'MessageList') || []
-    const chat = renderToStaticMarkup(toElements(root_.tree))
-    const headerProps = {}
-    for (const [prop, evaluate] of Object.entries(sources.compiled.header)) headerProps[prop] = evaluate(latest.values)
-    const noticeProps = {}
-    for (const [prop, evaluate] of Object.entries(sources.compiled.notice)) noticeProps[prop] = evaluate(latest.values)
+    const top = (keyedChildren(root_.tree, 'MessageList') || []).filter(node => !isAdditive(node))
+    const chat = renderToStaticMarkup(toElements(composerOn ? findComp(root_.tree, 'MessageList') : root_.tree))
+    const composerNode = composerOn ? findComp(root_.tree, 'ChatInput') : null
+    const composerHtml = composerNode ? renderToStaticMarkup(toElements(composerNode)) : null
+    // Every control of the composer and the handlers it carries (names only): a flag that restyled the composer must leave this list as it was.
+    const composerControls = composerNode ? hostNodes(composerNode).filter(host => Object.keys(host.props || {}).some(key => /^on[A-Z]/.test(key) && typeof host.props[key] === 'function'))
+      .map(host => ({ tag: host.type, type: host.props.type ?? null, label: host.props['aria-label'] ?? host.props.title ?? null, disabled: Boolean(host.props.disabled),
+        handlers: Object.keys(host.props).filter(key => /^on[A-Z]/.test(key) && typeof host.props[key] === 'function').sort() })) : null
+    const headerProps = evaluateProps(sources.compiled.header, latest.values)
+    const noticeProps = evaluateProps(sources.compiled.notice, latest.values)
     const header = latest.studioShell ? renderToStaticMarkup(React.createElement(StudioDirectorHeader, headerProps)) : ''
     const notice = latest.studioShell ? renderToStaticMarkup(React.createElement(StudioDirectorNotice, noticeProps)) : ''
     if (crossCheck) {
@@ -281,12 +332,14 @@ export async function runTranscript({ root, fixture, profile, processEnv, includ
     }
     rec.markup[`markup/${name}.chat.html`] = prettyHtml(chat)
     rec.markup[`markup/${name}.chrome.html`] = `<!-- StudioDirectorHeader -->\n${prettyHtml(header)}<!-- StudioDirectorNotice -->\n${prettyHtml(notice)}`
+    if (composerHtml !== null) rec.markup[`markup/${name}.composer.html`] = prettyHtml(composerHtml)
     rec.checkpoints.push({
       name, label,
       keys: top.map(node => ({ key: node.key ?? null, ...describe(node) })),
       messageIds: latest.ws.messages.map(m => m.message_id),
       state: digest(),
-      markup: { chat: sha256(chat), header: sha256(header), notice: sha256(notice) },
+      markup: { chat: sha256(chat), header: sha256(header), notice: sha256(notice), ...(composerHtml !== null ? { composer: sha256(composerHtml) } : {}) },
+      composerControls,
     })
   }
 
@@ -296,6 +349,31 @@ export async function runTranscript({ root, fixture, profile, processEnv, includ
     const socket = env.sockets[index]
     if (!socket) throw new Error(`harness: step ${rec.step} (${step.op}) needs socket ${index} but only ${env.sockets.length} exist`)
     return socket
+  }
+  // The page's normal typed-turn path (handleSendMessage -> sendTypedTurn): its option object is the page's own expression, the send is the hook's.
+  // Returns whether the turn was delivered.
+  const submitTyped = async step => {
+    const text = step.text.trim()
+    const values = probe.latest.values
+    if (!values.preflightDirectorTurn()) { rec.notes.push(`step ${rec.step}: typed turn blocked by preflight`); return false }
+    const options = { ...sources.compiled.typedOptions(values), ...(step.options || {}) }
+    call('page.sendTypedTurn', [text, step.fileCount ?? 0, options])
+    let ok = false
+    try { ok = await probe.latest.ws.sendMessageWhenConnected(text, undefined, step.fileCount ?? 0, options, undefined, () => true) } catch (error) { rec.notes.push(`typed send rejected: ${error?.message}`) }
+    await settle()
+    if (ok !== true) { toast({ title: "Couldn't reach the Director" }); return false }
+    // Deliver first, commit after (mirrors the tail of handleSendMessage).
+    const id = env.crypto.randomUUID(), timestamp = env.clock.now()
+    refs.userMessageIdsRef.current.add(id)
+    probe.latest.setUserMessages(prev => [...prev, { id, text, timestamp, attachments: [] }])
+    persistence.queueMessage({ message_id: id, type: 'chat_message', payload: { text } }, text)
+    return true
+  }
+  // What the composer's Send does in the page: nothing for an empty draft, else the typed-turn path, then the draft is cleared.
+  const composerSubmit = async () => {
+    const draft = probe.latest.values.inputMessage
+    if (!draft.trim()) return
+    if (await submitTyped({ text: draft })) probe.latest.values.setInputMessage('')
   }
   const operations = {
     async ensureConnected() { probe.latest.ws.ensureConnected() },
@@ -310,21 +388,17 @@ export async function runTranscript({ root, fixture, profile, processEnv, includ
     async unmount() { await unmount() },
     async mount() { await mount() },
     async checkpoint(step) { checkpoint(step.label) },
-    async typed(step) {
-      const text = step.text.trim()
-      const values = probe.latest.values
-      if (!values.preflightDirectorTurn()) { rec.notes.push(`step ${rec.step}: typed turn blocked by preflight`); return }
-      const options = { ...sources.compiled.typedOptions(values), ...(step.options || {}) }
-      call('page.sendTypedTurn', [text, step.fileCount ?? 0, options])
-      let ok = false
-      try { ok = await probe.latest.ws.sendMessageWhenConnected(text, undefined, step.fileCount ?? 0, options, undefined, () => true) } catch (error) { rec.notes.push(`typed send rejected: ${error?.message}`) }
-      await settle()
-      if (ok !== true) { toast({ title: "Couldn't reach the Director" }); return }
-      // Deliver first, commit after (mirrors the tail of handleSendMessage).
-      const id = env.crypto.randomUUID(), timestamp = env.clock.now()
-      refs.userMessageIdsRef.current.add(id)
-      probe.latest.setUserMessages(prev => [...prev, { id, text, timestamp, attachments: [] }])
-      persistence.queueMessage({ message_id: id, type: 'chat_message', payload: { text } }, text)
+    async typed(step) { await submitTyped(step) },
+    // The composer, through the REAL ChatInput elements: typing fires its textarea onChange, Enter its onKeyDown, Send its form onSubmit.
+    async compose(step) { await findNode({ within: { composer: true }, tag: 'textarea' }).props.onChange?.(syntheticEvent('change', step.text)) },
+    async key(step) {
+      const textarea = findNode({ within: { composer: true }, tag: 'textarea' })
+      await textarea.props.onKeyDown?.({ ...syntheticEvent('keydown'), key: step.key, shiftKey: Boolean(step.shift) })
+      await flushPending()
+    },
+    async submit() {
+      await findNode({ within: { composer: true }, tag: 'form' }).props.onSubmit?.(syntheticEvent('submit'))
+      await flushPending()
     },
     // Direct hook sends: pin the wire format of every optional field and each control frame.
     async send(step) {
@@ -418,6 +492,7 @@ export async function runTranscript({ root, fixture, profile, processEnv, includ
   files['state.json'] = pretty({ checkpoints: rec.checkpoints.map(c => ({ checkpoint: c.name, label: c.label, ...c.state })), steps: rec.steps, notes: rec.notes })
   const cacheKey = Object.keys(env.sessionStorage.dump()).filter(k => k.startsWith('deckster_session_v2_'))
   files['cache.json'] = pretty(Object.fromEntries(cacheKey.map(k => [k, JSON.parse(env.sessionStorage.dump()[k])])))
+  if (composerOn) files['composer.json'] = pretty(rec.checkpoints.map(c => ({ checkpoint: c.name, controls: c.composerControls })))
   files['markup.json'] = pretty(Object.fromEntries(rec.checkpoints.map(c => [c.name, c.markup])))
   if (includeMarkup) Object.assign(files, rec.markup)
   files['env.json'] = pretty({ profile, env: { ...BASE_ENV, ...processEnv } })
