@@ -53,6 +53,7 @@ import {
   isTrustedLayoutViewerMessage,
 } from '@/lib/layout-viewer-messaging'
 import { evaluateLayoutViewerUrl } from '@/lib/layout-viewer-url-policy'
+import { STUDIO_RAIL_FOCUS_HIDDEN_STYLE } from '@/lib/studio-panel-focus'
 import { clampPresentSlideIndex, isPresentViewOnlyEnabled, presentFrameStartIndex, presentNavigationCommand } from '@/lib/present-view-only'
 import { PresentViewOnlyFrame } from './present-view-only-frame'
 import {
@@ -343,6 +344,10 @@ interface PresentationViewerProps {
   onGenerateSlide?: () => void
   // J2 v2 (flag NEXT_PUBLIC_STUDIO_ADD_SLIDE_V2_ENABLED): the page's chat/session settings for the Add Slide pop-up.
   addSlideV2Settings?: AddSlideV2Settings<BuildThemeSelection>
+  // PASS2 #3 (flag NEXT_PUBLIC_STUDIO_PANEL_FOCUS): the page hides the slide rail while Add Slide / Add Element is open;
+  // the rail's own toggle then calls onStudioRailReveal instead of changing the user's show/hide choice.
+  studioRailCollapsed?: boolean
+  onStudioRailReveal?: () => void
   thumbnailUrlsBySlide?: Record<number, string>
   templateSnapshot?: TemplateSnapshot | null
   templateSnapshotLoading?: boolean
@@ -675,6 +680,8 @@ export function PresentationViewer({
   onRefineSlide,
   onGenerateSlide,
   addSlideV2Settings,
+  studioRailCollapsed = false,
+  onStudioRailReveal,
   thumbnailUrlsBySlide = {},
   templateSnapshot = null,
   templateSnapshotLoading = false,
@@ -1524,10 +1531,15 @@ export function PresentationViewer({
     }
   }, [currentSlide, totalSlides, onSlideChange, studioShell, beginStudioViewerInteraction, beginStudioManualSlideNavigation])
 
+  // PASS2 #3: shown = the user's choice, unless the page has the rail collapsed for a creation panel. A collapsed rail stays
+  // mounted (scroll position, selection and live frames intact) but out of the layout and invisible, so it comes back as it was.
+  const railFocusHidden = studioRailCollapsed && showThumbnails
+  const railShown = showThumbnails && !railFocusHidden
   const handleToggleOverview = useCallback(() => {
     debugLog('🔘 Grid button clicked - toggling thumbnail strip!')
+    if (railFocusHidden) { onStudioRailReveal?.(); return }
     setShowThumbnails(prev => !prev)
-  }, [])
+  }, [railFocusHidden, onStudioRailReveal])
 
   // Toggle grid overlay via postMessage (fire-and-forget to avoid timeout on hide)
   const handleToggleGrid = useCallback(() => {
@@ -4450,7 +4462,7 @@ export function PresentationViewer({
       })()}
 
       {/* Main Content Area - Flex container for slide and thumbnails */}
-      <div className={`flex-1 flex min-h-0 min-w-0 ${isFullscreen ? 'bg-black' : ''}`}>
+      <div className={`flex-1 flex min-h-0 min-w-0 ${isFullscreen ? 'bg-black' : ''}${railFocusHidden ? ' relative' : ''}`}>
         {/* Left: Presentation Area */}
         <div className={`flex-1 flex flex-col min-w-0 min-h-0 ${isFullscreen ? 'bg-black' : 'overflow-hidden bg-gray-100 dark:bg-slate-800'}`}>
           {studioShell && !isFullscreen && showControls && (
@@ -4660,7 +4672,7 @@ export function PresentationViewer({
 
         </div>
 
-        {studioShell && !isFullscreen && showThumbnails && (
+        {studioShell && !isFullscreen && railShown && (
           <div
             data-studio-v4-thumbnail-resize="true"
             role="separator"
@@ -4714,15 +4726,15 @@ export function PresentationViewer({
                 "absolute top-[50%] -translate-y-1/2 right-0",
                 "w-4 py-3 rounded-l-md shadow-sm border border-r-0",
                 "flex flex-col items-center justify-center gap-0.5 cursor-pointer transition-colors",
-                showThumbnails
+                railShown
                   ? "bg-indigo-200 hover:bg-indigo-300 border-indigo-400 text-indigo-700 dark:bg-indigo-900/50 dark:hover:bg-indigo-800/60 dark:border-indigo-700 dark:text-indigo-200"
                   : "bg-indigo-100 hover:bg-indigo-200 border-indigo-300 text-indigo-600 dark:bg-slate-800 dark:hover:bg-slate-700 dark:border-slate-700 dark:text-indigo-300"
               )}
-              title={showThumbnails ? "Hide thumbnails" : "Show thumbnails"}
-              aria-label={showThumbnails ? "Hide thumbnails" : "Show thumbnails"}
-              aria-expanded={showThumbnails}
+              title={railShown ? "Hide thumbnails" : "Show thumbnails"}
+              aria-label={railShown ? "Hide thumbnails" : "Show thumbnails"}
+              aria-expanded={railShown}
             >
-              {showThumbnails ? (
+              {railShown ? (
                 <ChevronRight className="h-2.5 w-2.5" />
               ) : (
                 <ChevronLeft className="h-2.5 w-2.5" />
@@ -4736,7 +4748,7 @@ export function PresentationViewer({
 
         {/* Thumbnail Strip — separate flex participant */}
         {!isFullscreen && (
-          <div data-studio-v4-thumbnails={studioShell ? "true" : undefined} style={studioShell ? { width: showThumbnails ? thumbnailWidth : 0 } : undefined} className={cn(
+          <div data-studio-v4-thumbnails={studioShell ? "true" : undefined} style={studioShell ? { width: showThumbnails ? thumbnailWidth : 0, ...(railFocusHidden ? STUDIO_RAIL_FOCUS_HIDDEN_STYLE : undefined) } : undefined} className={cn(
             "flex flex-col border-l border-gray-200 bg-gray-50 overflow-hidden flex-shrink-0",
             !studioShell && "transition-[width] duration-300 ease-out",
             showThumbnails ? "w-36" : "w-0"
