@@ -97,6 +97,12 @@ import {
   type ElementGenerationSubmitIntent,
 } from '@/lib/element-generation-retry'
 import type { TextLabsResponse } from '@/types/textlabs'
+import {
+  STUDIO_ELEMENT_PLACEHOLDER_FIX_ENABLED,
+  createPlaceholderDeferral,
+  isBlankPlaceholderInsert,
+  type PlaceholderDeferral,
+} from '@/lib/element-placeholder-defer'
 
 export type TextLabsGenerationResult =
   | { status: 'inserted'; presentationId: string | null; slideIndex: number; elementIds: string[] }
@@ -282,7 +288,7 @@ export function useTextLabsGeneration({
   generationPanel,
   blankElements,
   textLabsSession,
-  layoutServiceApis,
+  layoutServiceApis: layoutServiceApisProp,
   presentationId,
   currentSlideIndex,
   getCurrentSlideIndex,
@@ -326,6 +332,42 @@ export function useTextLabsGeneration({
     }
   }
   const renderPresentationTarget = activePresentationTargetRef.current
+
+  // PASS2-J3 P1 (flag NEXT_PUBLIC_STUDIO_ELEMENT_PLACEHOLDER_FIX, Studio shell only, default off): choosing an Add Element card puts
+  // nothing on the slide. The card click's placeholder insertion is held back (lib/element-placeholder-defer.ts) and sent only when
+  // Generate first needs the element; a Generate that ends without the generated element takes the empty placeholder out again.
+  // Off: `layoutServiceApis` below is the prop itself and the hook behaves exactly as before.
+  const placeholderFixEnabled = studio && STUDIO_ELEMENT_PLACEHOLDER_FIX_ENABLED
+  const placeholderDeferralRef = useRef<PlaceholderDeferral | null>(null)
+  if (placeholderFixEnabled && !placeholderDeferralRef.current) placeholderDeferralRef.current = createPlaceholderDeferral()
+  const placeholderDeferral = placeholderFixEnabled ? placeholderDeferralRef.current : null
+  const deferringPlaceholderInsertRef = useRef(false)
+  const layoutApisProxyRef = useRef<{ source: NonNullable<UseTextLabsGenerationParams['layoutServiceApis']>, proxy: NonNullable<UseTextLabsGenerationParams['layoutServiceApis']> } | null>(null)
+  if (placeholderDeferral && layoutServiceApisProp && layoutApisProxyRef.current?.source !== layoutServiceApisProp) {
+    layoutApisProxyRef.current = {
+      source: layoutServiceApisProp,
+      proxy: {
+        ...layoutServiceApisProp,
+        // handleOpenPanel's placeholder insertion (only while handleOpenPanelDeferred is calling it) is held back, answered as Layout would.
+        sendElementCommand: (action, params) => deferringPlaceholderInsertRef.current && isBlankPlaceholderInsert(action, params)
+          ? Promise.resolve(placeholderDeferral.defer(params, { ...activePresentationTargetRef.current }))
+          : layoutServiceApisProp.sendElementCommand(action, params),
+        // A Generate's lease sends the held-back insertion just before its first command on that placeholder.
+        captureStudioElementGeneration: layoutServiceApisProp.captureStudioElementGeneration
+          ? () => {
+              const lease = layoutServiceApisProp.captureStudioElementGeneration?.() ?? null
+              return lease ? placeholderDeferral.wrapLease(lease, owner => (
+                activePresentationTargetRef.current.presentationId === owner.presentationId
+                && activePresentationTargetRef.current.epoch === owner.epoch
+              )) : null
+            }
+          : undefined,
+      },
+    }
+  }
+  const layoutServiceApis = placeholderDeferral && layoutServiceApisProp
+    ? layoutApisProxyRef.current?.proxy ?? layoutServiceApisProp
+    : layoutServiceApisProp
 
   const themePreflightRecoveryEnabled = process.env.NEXT_PUBLIC_ELEMENT_THEME_PREFLIGHT_RECOVERY_ENABLED === 'true'
   const themePreflightFailureRef = useRef<{
@@ -2412,5 +2454,66 @@ export function useTextLabsGeneration({
     }
   }, [generationPanel, layoutServiceApis, blankElements, currentSlideIndex, getCurrentSlideIndex, toast, renderPresentationTarget, studio])
 
+  // PASS2-J3 P1 (NEXT_PUBLIC_STUDIO_ELEMENT_PLACEHOLDER_FIX): the same two handlers, with the placeholder's insertion deferred to Generate.
+  const blankElementsRef = useRef(blankElements)
+  blankElementsRef.current = blankElements
+  const generationPanelRef = useRef(generationPanel)
+  generationPanelRef.current = generationPanel
+
+  const handleOpenPanelDeferred = useCallback(async (type: string) => {
+    // handleOpenPanel reaches its placeholder insertion before its first await, so the hold-back window is the synchronous call.
+    deferringPlaceholderInsertRef.current = true
+    let opening: Promise<void>
+    try { opening = handleOpenPanel(type) } finally { deferringPlaceholderInsertRef.current = false }
+    await opening
+  }, [handleOpenPanel])
+
+  const handleGenerateDeferred = useCallback(async (
+    formData: TextLabsFormData,
+    submitIntent: ElementGenerationSubmitIntent = 'generate',
+    invocation?: { kind: 'chat-add'; slideIndex: number },
+  ): Promise<TextLabsGenerationResult> => {
+    const blankId = invocation ? null : generationPanel.blankElementId
+    const held = placeholderDeferral && blankId ? placeholderDeferral.get(blankId) : undefined
+    // A second click while a Generate owns the placeholder is only ever refused by handleGenerate; it must not own the clean-up.
+    if (!placeholderDeferral || !held || held.inFlight) return handleGenerate(formData, submitIntent, invocation)
+    held.inFlight = true
+    let outcome: TextLabsGenerationResult | null = null
+    try {
+      outcome = await handleGenerate(formData, submitIntent, invocation)
+      return outcome
+    } finally {
+      held.inFlight = false
+      if (outcome?.status === 'inserted') {
+        // The generated element replaced the placeholder (handleGenerate deleted it): nothing is held any more.
+        placeholderDeferral.forget(held.elementId)
+      } else {
+        // The Generate ended without the generated element (a refusal, a failure, a stop). The empty placeholder must not stay on
+        // the slide: take it out; the form keeps its draft and the next Generate inserts it again.
+        const removed = await placeholderDeferral.takeOut(held.elementId)
+        const panel = generationPanelRef.current.getSnapshot()
+        if (removed && !(panel.isOpen && panel.blankElementId === held.elementId)) {
+          placeholderDeferral.forget(held.elementId)
+          blankElementsRef.current.removeElement(held.elementId)
+        }
+      }
+    }
+  }, [generationPanel, handleGenerate, placeholderDeferral])
+
+  // The panel moved on from a held-back placeholder (closed, or another card chosen): nothing of it was ever on the slide, so just
+  // forget it (and take out an inserted one nobody can reach any more).
+  const sweepPanelBlankId = generationPanel.isOpen ? generationPanel.blankElementId : null
+  useEffect(() => {
+    if (!placeholderDeferral) return
+    for (const gone of placeholderDeferral.sweep(sweepPanelBlankId)) {
+      void placeholderDeferral.takeOut(gone.elementId).then(removed => {
+        if (!removed) return // still on the slide: it stays tracked and reachable, as before
+        placeholderDeferral.forget(gone.elementId)
+        blankElementsRef.current.removeElement(gone.elementId)
+      })
+    }
+  }, [placeholderDeferral, sweepPanelBlankId])
+
+  if (placeholderDeferral) return { handleGenerate: handleGenerateDeferred, handleOpenPanel: handleOpenPanelDeferred }
   return { handleGenerate, handleOpenPanel }
 }
