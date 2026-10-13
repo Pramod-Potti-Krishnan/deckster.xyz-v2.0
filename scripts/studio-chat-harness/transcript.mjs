@@ -23,7 +23,10 @@ import { esmPackages, lucideStub } from './esm-packages.mjs'
 const DEFAULT_DT = 500
 const slug = text => String(text).toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '').slice(0, 48) || 'checkpoint'
 
-export async function runTranscript({ root, fixture, profile, processEnv, includeMarkup = true, crossCheck = false }) {
+export async function runTranscript({ root, fixture, profile, processEnv: callerEnv, includeMarkup = true, crossCheck = false }) {
+  // A fixture's own "env" (the element-preflight fixtures) sits under whatever the caller passes, so every runner replays it the same way
+  // and a caller's --env can still override it. Fixtures without "env" get exactly the caller's environment, as before.
+  const processEnv = fixture.env ? { ...fixture.env, ...callerEnv } : callerEnv
   const sources = pageSources(root)
   const env = createEnvironment({ processEnv: { ...BASE_ENV, ...processEnv } })
   const session = fixture.session

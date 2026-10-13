@@ -77,7 +77,8 @@ All data is synthetic (`*.invalid` hosts, `synthetic-*` ids). Time is virtual an
 A fixture with `"elementPreflight": true` also runs the page's deck-theme preflight and the REAL Add Element generation hook. Opt-in
 only: every other fixture, `_sources.json` and every earlier baseline are untouched.
 
-- `"env"` (fixture level) is merged over the profile environment (and under `--env`): these two fixtures turn on
+- `"env"` (fixture level) is merged over the profile environment and under the caller's own (`runTranscript` does it, so the PR C/D flag
+  tests replay these fixtures the same way, and `--env` still wins): these two fixtures turn on
   `NEXT_PUBLIC_COMPOSER_LIBRARY_ENABLED`, `NEXT_PUBLIC_STUDIO_NEW_SESSION_THEME_POLICY` and a synthetic `NEXT_PUBLIC_ELEMENTOR_URL`. Their
   baselines are recorded with that env; `--env NEXT_PUBLIC_STUDIO_NEW_SESSION_THEME_POLICY=false` replays the pre-fix behaviour (the
   blank-canvas guards then fail; the adopted session's output is unchanged).
