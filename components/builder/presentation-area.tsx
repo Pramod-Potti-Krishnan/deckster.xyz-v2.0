@@ -148,6 +148,9 @@ export interface PresentationAreaProps {
   onRefineSlide?: (target: SlideRefineTarget) => void
   onGenerateSlide?: () => void
   addSlideV2Settings?: AddSlideV2Settings<BuildThemeSelection>
+  // PASS2 #3 (flag NEXT_PUBLIC_STUDIO_PANEL_FOCUS): passed through to the viewer's slide rail.
+  studioRailCollapsed?: boolean
+  onStudioRailReveal?: () => void
   thumbnailUrlsBySlide?: Record<number, string>
   onThumbnailInvalidated?: (presentationId: string) => void
   onThumbnailMutationCapture?: StudioThumbnailMutationCapture
@@ -250,6 +253,8 @@ export function PresentationArea({
   onRefineSlide,
   onGenerateSlide,
   addSlideV2Settings,
+  studioRailCollapsed,
+  onStudioRailReveal,
   thumbnailUrlsBySlide = {},
   onThumbnailInvalidated,
   onThumbnailMutationCapture,
@@ -504,6 +509,8 @@ export function PresentationArea({
             onRefineSlide={onRefineSlide}
             onGenerateSlide={onGenerateSlide}
             addSlideV2Settings={addSlideV2Settings}
+            studioRailCollapsed={studioRailCollapsed}
+            onStudioRailReveal={onStudioRailReveal}
             thumbnailUrlsBySlide={thumbnailUrlsBySlide}
             onThumbnailInvalidated={onThumbnailInvalidated}
             onThumbnailMutationCapture={onThumbnailMutationCapture}

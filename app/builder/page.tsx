@@ -63,6 +63,7 @@ import {
 import { TextBoxFormatting, type RefineElementRequest, type SlideComposeViewerApi, type StudioIntroductionSafety, type StudioComposeSelectionContext, type StudioElementGenerationLease, type StudioPartialNativeReadback } from '@/components/presentation-viewer'
 import { parseStudioNativeSlideOrder, type StudioNativeSlideOrder } from '@/lib/studio-native-slide-order'
 import { STUDIO_PANEL_KEEP_CANVAS_ENABLED, presentationWrapperTransition } from '@/lib/studio-panel-keep-canvas'
+import { STUDIO_PANEL_FOCUS_ENABLED, STUDIO_PANEL_FOCUS_NONE, studioPanelFocusActive, studioPanelFocusChatOpen, studioPanelFocusRailCollapsed } from '@/lib/studio-panel-focus'
 import {
   STUDIO_GOTO_NEW_SLIDE_ENABLED,
   goToNewSlideIntent,
@@ -1506,6 +1507,16 @@ function AuthenticatedBuilderContent({ authScopeUserId }: { authScopeUserId: str
   const isElementDrawerOpen = generationPanel.isOpen || showTextBoxPanel || showElementPanel || (studioShell && studioFormatOpen) || addSlideV2Open
   const isSlideDrawerOpen = features.slideComposerEnabled && showFormatPanel
   const isDeckDrawerOpen = showChat
+  // PASS2 #3 (flag NEXT_PUBLIC_STUDIO_PANEL_FOCUS, default off): while Add Slide or Add Element is open, the chat and the
+  // slide rail step aside so the canvas keeps its size, and come back as they were when the panel closes (lib/studio-panel-focus).
+  const studioPanelFocus = studioPanelFocusActive({ enabled: STUDIO_PANEL_FOCUS_ENABLED, studioShell, overlay: studioOverlayWorkspace,
+    addSlideOpen: addSlideV2Open, addElementOpen: generationPanel.isOpen })
+  const [studioPanelFocusReveal, setStudioPanelFocusReveal] = useState(STUDIO_PANEL_FOCUS_NONE)
+  useEffect(() => { if (!studioPanelFocus) setStudioPanelFocusReveal(STUDIO_PANEL_FOCUS_NONE) }, [studioPanelFocus])
+  const studioWorkspaceChatOpen = studioPanelFocusChatOpen({ chatOpen: isDeckDrawerOpen, focus: studioPanelFocus,
+    workspaceWidth, revealed: studioPanelFocusReveal.chat })
+  const studioPanelFocusChatHidden = isDeckDrawerOpen && !studioWorkspaceChatOpen
+  const studioPanelFocusRevealRail = useCallback(() => setStudioPanelFocusReveal(reveal => ({ ...reveal, rail: true })), [])
   const isTemplateParamsDrawerOpen = templateBuilderEnabled
     && templateModeOn
     && (blueprintEditorV2Enabled || Boolean(selectedTemplateElementId))
@@ -1548,7 +1559,7 @@ function AuthenticatedBuilderContent({ authScopeUserId }: { authScopeUserId: str
       width: workspaceWidth,
       chatPreference: side === 'chat' ? width : chatWidth ?? studioChatWidth,
       inspectorPreference: side === 'inspector' ? width : drawerWidth,
-      chatOpen: isDeckDrawerOpen,
+      chatOpen: studioWorkspaceChatOpen,
       inspectorOpen: Boolean(activeInspector),
       inspectorCollapsed: activeInspector === 'template' && templateParamsCollapsed,
       activePane: workspacePane,
@@ -3143,7 +3154,7 @@ function AuthenticatedBuilderContent({ authScopeUserId }: { authScopeUserId: str
     width: studioOverlayWorkspace ? workspaceInnerWidth : workspaceWidth,
     chatPreference: chatWidth ?? (studioWelcome ? Math.min(640, workspaceWidth * .44) : 304),
     inspectorPreference: drawerWidth,
-    chatOpen: isDeckDrawerOpen,
+    chatOpen: studioWorkspaceChatOpen,
     inspectorOpen: Boolean(activeInspector),
     inspectorCollapsed: activeInspector === 'template' && templateParamsCollapsed,
     collapsedWidth: TEMPLATE_PANEL_COLLAPSED_WIDTH,
@@ -6650,7 +6661,7 @@ function AuthenticatedBuilderContent({ authScopeUserId }: { authScopeUserId: str
         />
 
         {/* Main Content Area */}
-        <div ref={workspaceRef} data-studio-intro-surface={studioShell ? "builder" : undefined} data-studio-v4-shell-workspace="true" data-studio-workspace-welcome={studioWelcome ? "true" : undefined} data-studio-workspace-mode={studioShell ? workspaceLayout.dualPane ? 'dual' : 'single' : undefined} data-studio-workspace-overlay={studioShell ? String(studioOverlayWorkspace) : undefined} data-studio-panel-keep-canvas={studioShell && STUDIO_PANEL_KEEP_CANVAS_ENABLED ? "true" : undefined} className="flex-1 flex relative overflow-hidden" style={studioShell ? { '--studio-collapsed-inspector-width': `${studioTemplateVisible && templateParamsCollapsed ? TEMPLATE_PANEL_COLLAPSED_WIDTH : 0}px` } as React.CSSProperties : undefined}>
+        <div ref={workspaceRef} data-studio-intro-surface={studioShell ? "builder" : undefined} data-studio-v4-shell-workspace="true" data-studio-workspace-welcome={studioWelcome ? "true" : undefined} data-studio-workspace-mode={studioShell ? workspaceLayout.dualPane ? 'dual' : 'single' : undefined} data-studio-workspace-overlay={studioShell ? String(studioOverlayWorkspace) : undefined} data-studio-panel-keep-canvas={studioShell && STUDIO_PANEL_KEEP_CANVAS_ENABLED ? "true" : undefined} data-studio-panel-focus={studioPanelFocus ? "true" : undefined} className="flex-1 flex relative overflow-hidden" style={studioShell ? { '--studio-collapsed-inspector-width': `${studioTemplateVisible && templateParamsCollapsed ? TEMPLATE_PANEL_COLLAPSED_WIDTH : 0}px` } as React.CSSProperties : undefined}>
           {studioShell && !workspaceLayout.dualPane && (
             <div data-studio-workspace-switch="true" role="group" aria-label="Workspace pane">
               {studioOverlayWorkspace && <button type="button" aria-pressed={studioStageSelected || (!workspaceLayout.chatVisible && !workspaceLayout.inspectorVisible)} onClick={() => { retireStudioVoiceOwner(); setStudioStageSelected(true) }}>Stage</button>}
@@ -7249,6 +7260,7 @@ function AuthenticatedBuilderContent({ authScopeUserId }: { authScopeUserId: str
             <button
               type="button"
               onClick={() => {
+                if (studioPanelFocusChatHidden) { setStudioPanelFocusReveal(reveal => ({ ...reveal, chat: true })); return }
                 if (studioShell && isDeckDrawerOpen && !workspaceLayout.chatVisible) { selectWorkspacePane('chat'); return }
                 const next = !showChat
                 if (!next) retireStudioVoiceOwner()
@@ -7448,6 +7460,8 @@ function AuthenticatedBuilderContent({ authScopeUserId }: { authScopeUserId: str
             onComposeApiReady={studioShell ? handleStudioPartialComposeApiReady : handleComposeApiReady}
             onRefineSlide={features.slideRefinerEnabled ? handleOpenSlideRefine : undefined}
             onGenerateSlide={studioShell && features.slideComposerEnabled ? handleOpenSlideCompose : undefined}
+            studioRailCollapsed={STUDIO_PANEL_FOCUS_ENABLED ? studioPanelFocusRailCollapsed({ focus: studioPanelFocus, revealed: studioPanelFocusReveal.rail }) : undefined}
+            onStudioRailReveal={STUDIO_PANEL_FOCUS_ENABLED ? studioPanelFocusRevealRail : undefined}
             // J2 v2: same session / research / theme sources as the Slide panel above (P7). `submit` (J2-MAP item8: async,
             // page-owned registration) exists only with the composer and its async mode on; otherwise Generate stays disabled.
             addSlideV2Settings={process.env.NEXT_PUBLIC_STUDIO_ADD_SLIDE_V2_ENABLED === 'true' ? {
