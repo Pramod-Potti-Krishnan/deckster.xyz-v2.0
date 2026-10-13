@@ -118,6 +118,7 @@ import { classifyDirectorMessage } from '@/lib/studio-director-message-policy'
 import { createStudioVoiceOwner } from '@/lib/studio-voice-owner'
 import { classifyStudioCanvasLifecycle } from '@/lib/studio-canvas-lifecycle'
 import { StudioWaitingState } from '@/components/builder/studio-waiting-state'
+import { StudioBuilderSkeleton, StudioSessionProblemView } from '@/components/builder/studio-session-hygiene'
 import { TemplateIngestReviewCards } from '@/components/template-ingest-review-cards'
 import { INGEST_INTENT_KEY_PREFIX, type IngestIntentPayload } from '@/components/template-ingest-dialog'
 import { TopUpModal } from '@/components/builder/topup-modal'
@@ -220,6 +221,7 @@ import {
   type PendingHandoffSubmission,
 } from '@/lib/manual-deck-workflow'
 import { lastBuilderSessionKey, unsavedBuilderSessionKey } from '@/lib/last-builder-session'
+import { STUDIO_SESSION_HYGIENE_ENABLED, shouldRememberLastSession } from '@/lib/studio-session-hygiene'
 import {
   absorbStudioHandoffStatus,
   canAutomaticallySubmitStudioHandoff,
@@ -591,7 +593,7 @@ function AuthenticatedBuilderContent({ authScopeUserId }: { authScopeUserId: str
   const themeSearchOverride = searchParams.get('theme')
 
   // Session management
-  const { loadSession, createSession } = useChatSessions()
+  const { loadSession, loadSessionResult, createSession } = useChatSessions()
 
   // UI state
   const [inputMessage, setInputMessage] = useState("")
@@ -1759,14 +1761,15 @@ function AuthenticatedBuilderContent({ authScopeUserId }: { authScopeUserId: str
   useEffect(() => {
     if (typeof window === "undefined") return
     const userId = user?.id ?? user?.email
-    if (userId && currentSessionId && currentSessionId !== "new") {
+    // NEXT_PUBLIC_STUDIO_SESSION_HYGIENE: an unsaved session has no history row, so "Back to builder" must not point at it.
+    if (userId && currentSessionId && currentSessionId !== "new" && shouldRememberLastSession(STUDIO_SESSION_HYGIENE_ENABLED, isUnsavedSession)) {
       try {
         window.localStorage.setItem(lastBuilderSessionKey(userId), currentSessionId)
       } catch {
         // ignore storage errors (Safari private mode, quota)
       }
     }
-  }, [currentSessionId, user?.email, user?.id])
+  }, [currentSessionId, isUnsavedSession, user?.email, user?.id])
 
   useEffect(() => {
     standardThemeLoadedRef.current = false
@@ -4478,6 +4481,7 @@ function AuthenticatedBuilderContent({ authScopeUserId }: { authScopeUserId: str
     isAuthLoading,
     searchParams,
     loadSession,
+    loadSessionResult,
     createSession,
     persistence,
     connected,
@@ -6613,6 +6617,11 @@ function AuthenticatedBuilderContent({ authScopeUserId }: { authScopeUserId: str
     transcriptRootRef: studioVoiceTranscriptRootRef, textareaRef,
   })
 
+  // NEXT_PUBLIC_STUDIO_SESSION_HYGIENE: the URL names a session this account cannot open. Show that, not an empty builder.
+  if (STUDIO_SESSION_HYGIENE_ENABLED && session.sessionProblem) {
+    return <StudioSessionProblemView problem={session.sessionProblem.kind} studioShell={studioShell} />
+  }
+
   return (
     <StudioIntroductionProvider enabled={studioShell} eligibility={studioIntroInputs}
       getEligibility={() => {
@@ -7659,6 +7668,8 @@ function AuthenticatedBuilderContent({ authScopeUserId }: { authScopeUserId: str
 }
 
 function BuilderLoadingState({ message = 'Loading builder...' }: { message?: string }) {
+  // NEXT_PUBLIC_STUDIO_SESSION_HYGIENE: the route loader is the builder shell, not a blank page with a spinner.
+  if (STUDIO_SESSION_HYGIENE_ENABLED && process.env.NEXT_PUBLIC_STUDIO_V4_SHELL === 'true') return <StudioBuilderSkeleton message={message} />
   if (process.env.NEXT_PUBLIC_STUDIO_V4_SHELL === 'true') return <StudioWaitingState scope="screen" message={message} />
   return (
     <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-purple-50 via-blue-50 to-pink-50">
