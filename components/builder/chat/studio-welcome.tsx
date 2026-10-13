@@ -1,5 +1,6 @@
 "use client"
 
+import type { ReactNode } from "react"
 import { ArrowUpRight, BookOpen, Lightbulb, ListChecks, Sparkles } from "lucide-react"
 
 export type StudioDirectorConnectionState = "connecting" | "connected" | "disconnected" | "error"
@@ -15,6 +16,8 @@ interface StudioWelcomeProps {
   onDraftPrompt?: (text: string) => void
   connectionState?: StudioDirectorConnectionState
   busy?: boolean
+  /** PASS2 #2 (NEXT_PUBLIC_STUDIO_FIRST_RUN_V2): the focused first-run head. Starters follow Director's greeting (StudioFirstRunStarters). */
+  firstRun?: boolean
 }
 
 const STARTERS = [
@@ -65,6 +68,14 @@ const CONTINUATION_STARTERS = [
   },
 ]
 
+/** PASS2 #2 (flag NEXT_PUBLIC_STUDIO_FIRST_RUN_V2): the words of the focused first-run welcome. */
+const FIRST_RUN_COPY = {
+  eyebrow: "Your presentation brief",
+  heading: "What story are we telling today?",
+  intro: "Bring an idea, who it’s for, and what you want them to take away. Director shapes the story from there.",
+  startersCaption: "Need a starting point?",
+} as const
+
 const CONNECTION_LABELS: Record<StudioDirectorConnectionState, string> = {
   connecting: "Connecting to Director…",
   connected: "Director connected",
@@ -73,8 +84,9 @@ const CONNECTION_LABELS: Record<StudioDirectorConnectionState, string> = {
 }
 
 /** Local guidance, not a Director message. Starters only request an editable draft. */
-export function StudioWelcome({ onDraftPrompt, connectionState, busy = false, presentationContext }: StudioWelcomeProps) {
+export function StudioWelcome({ onDraftPrompt, connectionState, busy = false, presentationContext, firstRun = false }: StudioWelcomeProps) {
   const continuing = Boolean(presentationContext)
+  if (firstRun && !continuing) return <StudioFirstRunHead />
   const starters = continuing ? CONTINUATION_STARTERS : STARTERS
   const title = presentationContext?.title?.trim()
   const slideCount = presentationContext?.slideCount
@@ -116,6 +128,47 @@ export function StudioWelcome({ onDraftPrompt, connectionState, busy = false, pr
         </div>
       )}
       {connectionState && <p data-studio-director-welcome-part="connection" data-connection-state={connectionState} role="status">{CONNECTION_LABELS[connectionState]}</p>}
+    </section>
+  )
+}
+
+/** PASS2 #2: one centred head instead of the brief scaffold. The same guidance, in one line. */
+function StudioFirstRunHead() {
+  return (
+    <section data-studio-director-welcome="true" data-studio-first-run="true" aria-label="Getting started with your presentation">
+      <span data-studio-first-run-part="mark" aria-hidden="true"><Sparkles size={22} /></span>
+      <div data-studio-director-welcome-part="eyebrow">{FIRST_RUN_COPY.eyebrow}</div>
+      <h2>{FIRST_RUN_COPY.heading}</h2>
+      <p data-studio-director-welcome-part="intro">{FIRST_RUN_COPY.intro}</p>
+    </section>
+  )
+}
+
+/** PASS2 #2: the same starters as StudioWelcome, placed after Director's greeting. `children` is the small row of stage actions. */
+export function StudioFirstRunStarters({ onDraftPrompt, busy = false, children }: { onDraftPrompt?: (text: string) => void; busy?: boolean; children?: ReactNode }) {
+  return (
+    <section data-studio-first-run-starters="true" aria-label="Starting points">
+      {onDraftPrompt && (
+        <div data-studio-director-welcome-part="starters">
+          <p data-studio-director-welcome-part="caption">{FIRST_RUN_COPY.startersCaption}</p>
+          {STARTERS.map(({ id, label, detail, icon: Icon, prompt }) => (
+            <button
+              key={id}
+              type="button"
+              data-studio-director-starter={id}
+              disabled={busy}
+              aria-label={`Draft a starter: ${label}`}
+              onClick={() => { if (!busy) onDraftPrompt(prompt) }}
+            >
+              <Icon size={16} aria-hidden="true" />
+              <span><strong>{label}</strong><small>{detail}</small></span>
+              <ArrowUpRight size={14} aria-hidden="true" />
+            </button>
+          ))}
+          <p data-studio-director-welcome-part="hint">{busy ? "Director is working. Starters will be available when this step finishes." : "Choose a starter to add an editable draft below. Fill in the brackets, then send when you’re ready."}</p>
+        </div>
+      )}
+      {children}
     </section>
   )
 }

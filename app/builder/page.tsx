@@ -7,6 +7,7 @@ import '@/components/builder/studio-workspace.css'
 import '@/components/builder/studio-canvas.css'
 import { allocateStudioWorkspace, resizeStudioPane, type StudioWorkspacePane, type StudioInspector } from '@/lib/studio-workspace-layout'
 import { StudioIntroductionProvider, StudioIntroductionButton } from '@/components/builder/studio-introduction'
+import { StudioFirstRunActions } from '@/components/builder/studio-first-run-actions'
 import { historicalActionStatuses } from '@/lib/director-history-presentation'
 import { askGatesLocked, lockApprovalGateStatuses } from '@/lib/director-ask-identity'
 import { StudioRail } from '@/components/layout/studio-rail'
@@ -3139,6 +3140,12 @@ function AuthenticatedBuilderContent({ authScopeUserId }: { authScopeUserId: str
     connecting,
   })
   const studioWelcome = studioShell && !studioPartialMetadata && studioCanvasLifecycle.showLanding
+  // The blank-canvas choice. One handler for the stage's own button and, with NEXT_PUBLIC_STUDIO_FIRST_RUN_V2, the first-run welcome's.
+  const handleDismissBlankPlaceholder = () => {
+    if (studioShell && studioSlideComposeOwnerRef.current !== studioInitialSelectedTarget.owner) return
+    studioExplicitBlankOwnerRef.current = studioInitialSelectedTarget.owner
+    setBlankPlaceholderDismissed(true)
+  }
   const workspaceLayout = allocateStudioWorkspace({
     width: studioOverlayWorkspace ? workspaceInnerWidth : workspaceWidth,
     chatPreference: chatWidth ?? (studioWelcome ? Math.min(640, workspaceWidth * .44) : 304),
@@ -4534,6 +4541,11 @@ function AuthenticatedBuilderContent({ authScopeUserId }: { authScopeUserId: str
     // A new navigation request opens its original viewer workflow on the visible Stage.
     if (studioShell && viewerWorkflowKey) setStudioStageSelected(true)
   }, [studioShell, viewerWorkflowKey])
+  // PASS2 #2 (flag NEXT_PUBLIC_STUDIO_FIRST_RUN_V2): the stage may step out of sight behind the first-run welcome only while nothing
+  // else needs it: not for a workflow link that opens a Stage dialog (theme, footer and logo, templates), not in fullscreen, and not
+  // while an inspector shows. The welcome's own state (nothing said yet) is read from the chat by the CSS.
+  const studioFirstRunStage = studioShell && process.env.NEXT_PUBLIC_STUDIO_FIRST_RUN_V2 === 'true' && studioWelcome
+    && !viewerWorkflowRequest && !studioViewerFullscreen && !workspaceLayout.inspectorVisible
 
   useEffect(() => {
     if (!composerLibraryEnabled || session.isLoadingSession || !currentSessionId || currentSessionId === 'new' || !user) return
@@ -5326,6 +5338,11 @@ function AuthenticatedBuilderContent({ authScopeUserId }: { authScopeUserId: str
       const viewport = messagesEndRef.current?.closest('[data-radix-scroll-area-viewport]')
       if (viewport) viewport.scrollTop = 0
       return
+    }
+    // PASS2 #2 (flag NEXT_PUBLIC_STUDIO_FIRST_RUN_V2): while the first-run welcome is up, Director's greeting arriving leaves it at its heading.
+    if (studioShell && process.env.NEXT_PUBLIC_STUDIO_FIRST_RUN_V2 === 'true') {
+      const viewport = messagesEndRef.current?.closest('[data-radix-scroll-area-viewport]')
+      if (viewport?.querySelector('[data-studio-first-run]')) { viewport.scrollTop = 0; return }
     }
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" })
   }, [messages, session.userMessages, studioShell])
@@ -7047,6 +7064,8 @@ function AuthenticatedBuilderContent({ authScopeUserId }: { authScopeUserId: str
                           title: slideStructure?.metadata?.main_title ?? null,
                           slideCount: effectiveSlideCount,
                         } : undefined}
+                        studioFirstRunActions={studioShell && process.env.NEXT_PUBLIC_STUDIO_FIRST_RUN_V2 === 'true'
+                          ? <StudioFirstRunActions onStartBlank={effectivePresentationUrl ? handleDismissBlankPlaceholder : undefined} /> : undefined}
                         connectionState={studioShell ? undefined : connected ? 'connected' : connecting ? 'connecting' : wsError ? 'error' : 'disconnected'}
                         onDraftPrompt={text => {
                           if (inputMessage.trim()) setWorkflowBrief(text)
@@ -7334,6 +7353,7 @@ function AuthenticatedBuilderContent({ authScopeUserId }: { authScopeUserId: str
             data-studio-canvas-covered={studioCanvasCovered ? "true" : undefined}
             aria-hidden={studioCanvasCovered ? true : undefined}
             {...(studioCanvasCovered ? { inert: true } : {})}
+            data-studio-first-run-stage={studioFirstRunStage ? "true" : undefined}
             className={cn(
               "flex-1 min-w-0 min-h-0 flex flex-col",
               STUDIO_PANEL_KEEP_CANVAS_ENABLED
@@ -7402,11 +7422,7 @@ function AuthenticatedBuilderContent({ authScopeUserId }: { authScopeUserId: str
             isGeneratingStrawman={isGeneratingStrawman}
             buildNarrationEnabled={effectiveBuildNarrationEnabled}
             blankPlaceholderDismissed={blankPlaceholderDismissed}
-            onDismissBlankPlaceholder={() => {
-              if (studioShell && studioSlideComposeOwnerRef.current !== studioInitialSelectedTarget.owner) return
-              studioExplicitBlankOwnerRef.current = studioInitialSelectedTarget.owner
-              setBlankPlaceholderDismissed(true)
-            }}
+            onDismissBlankPlaceholder={handleDismissBlankPlaceholder}
             slideContextByIndex={effectiveBuildNarrationEnabled && !studioPartialMetadata ? slideContextByIndex : null}
             narrationNavigate={effectiveBuildNarrationEnabled
               && (!studioShell || (!studioPartialPending
