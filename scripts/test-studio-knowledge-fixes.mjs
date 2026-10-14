@@ -283,16 +283,21 @@ function mountPage({ flag = true, shell = true, kg = access(), server = createSe
     const globals = {
       process: { env }, fetch: server.fetch, AbortController, Intl, Set, Map, Promise, JSON, Math, Number, String, Object, Array, Boolean, Error, TypeError, Date: clock.Date, URL,
       // `denied`: reading window.localStorage itself throws (blocked site data, some private windows)
-      window: Object.defineProperties({ location: { reload() {} } }, { localStorage: { get() { if (storage.denied) throw new Error('SecurityError: access denied'); return storage } } }),
+      window: Object.defineProperties({
+        location: { reload() {} },
+        addEventListener: (type, fn) => listeners.set(type, [...(listeners.get(type) ?? []), fn]),
+        removeEventListener: (type, fn) => listeners.set(type, (listeners.get(type) ?? []).filter(item => item !== fn)),
+      }, { localStorage: { get() { if (storage.denied) throw new Error('SecurityError: access denied'); return storage } } }),
       console: { warn: (...a) => logs.warn.push(a), error: (...a) => logs.error.push(a), log: (...a) => logs.log.push(a), info() {}, debug() {} },
     }
+    const listeners = new Map()   // the page's window events (pagehide, pageshow)
     const loader = createLoader({ env, stubs: {
       '@/lib/utils': { cn: (...values) => values.filter(Boolean).join(' ') },
       '@/components/knowledge/kg-graph-view': { KgGraphView: 'KgGraphView', typeColor: () => '#60A5FA' },
       '@/hooks/use-knowledge-graph': { useKnowledgeGraph: () => kg },
     }, globals, mutate, react: runtime.react })
     const exports = loader.load(PAGE)
-    return { runtime, exports, loader }
+    return { runtime, exports, loader, events: listeners }
   }
   let current = make()
   const world = {
@@ -306,6 +311,8 @@ function mountPage({ flag = true, shell = true, kg = access(), server = createSe
     async load(props) { world.render(props); await settle(); return world.view(props) },
     reload() { current.runtime.unmount(); current = make() },
     unmount() { current.runtime.unmount() },
+    /** a window event of the page now mounted, e.g. 'pagehide' when the browser starts to leave the document */
+    fire(type) { for (const fn of current.events.get(type) ?? []) fn({ type }) },
   }
   return world
 }
@@ -813,6 +820,28 @@ check('S1: flag on, the notice survives the page\'s start-up (loading, then a mo
   assert.match(noticeText(second.view()), /^Import interrupted because Knowledge access changed/)
 })
 
+check('S1: flag on, a reload or closed tab (the browser rejects the request in flight) keeps the marker; the same rejection while the page stays does not', async ({ shell }) => {
+  const browser = sharedBrowser()
+  let rejectFetch
+  const server = createServer({ backfill: () => new Promise((_, reject) => { rejectFetch = () => reject(new TypeError('Failed to fetch')) }) })
+  const world = mountPage({ shell, server, ...browser })
+  await world.load(); await startImport(world)
+  assert.ok(readMarker(world))
+  world.fire('pagehide'); rejectFetch(); await settle(20)
+  assert.ok(readMarker(world), 'unloading: the marker stays')
+  world.reload()
+  assert.match(noticeText(await world.load()), /^An import may still be running/)
+
+  // the page came back from the back/forward cache (pageshow): an ordinary network failure clears it again
+  const again = sharedBrowser()
+  let rejectAgain
+  const second = mountPage({ shell, server: createServer({ backfill: () => new Promise((_, reject) => { rejectAgain = () => reject(new TypeError('Failed to fetch')) }) }), ...again })
+  await second.load(); await startImport(second)
+  second.fire('pagehide'); second.fire('pageshow'); rejectAgain(); await settle(20)
+  assert.equal(readMarker(second), null)
+  assert.match(noticeText(second.view()), /offline/)
+})
+
 check('S1: flag on, a marker alone never starts an import; a reload mid-import does not repeat requests', async ({ shell }) => {
   const browser = sharedBrowser()
   const server = createServer({ backfill: hang })
@@ -870,7 +899,7 @@ check('S1: marker states and texts', async () => {
 const MARKER_KEY_RE = /deckster:knowledge:import-marker:v1:/
 mutant('no marker is written when an import starts', { [PAGE]: [['if (KNOWLEDGE_FIXES) writeImportMarker(markerOwner, markerStartedAt, markerStartedAt)', '']] })
 mutant('the marker is not refreshed after a batch', { [PAGE]: [['if (KNOWLEDGE_FIXES) touchImportMarker(markerOwner, markerStartedAt)', '']] })
-mutant('the marker is not cleared when the import finishes', { [PAGE]: [['if (KNOWLEDGE_FIXES) clearImportMarker(markerOwner, markerStartedAt)', '']] })
+mutant('the marker is not cleared when the import finishes', { [PAGE]: [['if (KNOWLEDGE_FIXES && !pageLeavingRef.current) clearImportMarker(markerOwner, markerStartedAt)', '']] })
 mutant('the marker is cleared even by an import cut short by leaving the page', { [PAGE]: [['      if (await admitted() && isCurrent()) {\n        // Flag on: the import finished', '      if (KNOWLEDGE_FIXES) clearImportMarker(markerOwner)\n      if (await admitted() && isCurrent()) {\n        // Flag on: the import finished']] })
 mutant('an import ending clears the newer import\'s marker', { [LIB]: [['      if (marker && marker.startedAt !== startedAt) return\n', '']] })
 mutant('a batch revives or rewrites another import\'s marker', { [LIB]: [['if (marker && marker.startedAt === startedAt) writeImportMarker(owner, startedAt, now, store)', 'writeImportMarker(owner, startedAt, now, store)']] })
@@ -886,6 +915,9 @@ mutant('the marker is read with the flag off', { [PAGE]: [['    if (!KNOWLEDGE_F
 mutant('the marker is read before access is ready (a later access change wipes the notice)', { [PAGE]: [['    if (!KNOWLEDGE_FIXES || accessStatus !== "ready" || importActiveRef.current) return\n    const marker', '    if (!KNOWLEDGE_FIXES || importActiveRef.current) return\n    const marker'], ['  }, [operationOwner, accessStatus, accessRevision])', '  }, [operationOwner])']] })
 mutant('the notice replaces one that is already shown', { [PAGE]: [['setImportNotice(current => current ?? { tone: "neutral", kind: found.kind, text: found.text })', 'setImportNotice({ tone: "neutral", kind: found.kind, text: found.text })']] })
 mutant('the marker is written with the flag off', { [PAGE]: [['if (KNOWLEDGE_FIXES) writeImportMarker(markerOwner, markerStartedAt, markerStartedAt)', 'writeImportMarker(markerOwner, markerStartedAt, markerStartedAt)']] })
+mutant('a reload clears the marker (the rejected request is treated as an ordinary failure)', { [PAGE]: [['if (KNOWLEDGE_FIXES && !pageLeavingRef.current) clearImportMarker(markerOwner, markerStartedAt)', 'if (KNOWLEDGE_FIXES) clearImportMarker(markerOwner, markerStartedAt)']] })
+mutant('leaving the page is never noticed', { [PAGE]: [['window.addEventListener("pagehide", leaving)', '']] })
+mutant('coming back to the page is never noticed', { [PAGE]: [['window.addEventListener("pageshow", returned)', '']] })
 mutant('no Refresh in the "may still be running" notice', { [PAGE]: [['{KNOWLEDGE_FIXES && importNotice.kind === "resumed" && (', '{false && importNotice.kind === "resumed" && (']] })
 mutant('dismissing an interrupted notice keeps its marker', { [PAGE]: [['if (KNOWLEDGE_FIXES && importNotice.kind === "interrupted") clearImportMarker(ownerTag(operationOwner));', '']] })
 mutant('dismissing any notice forgets the marker', { [PAGE]: [['if (KNOWLEDGE_FIXES && importNotice.kind === "interrupted") clearImportMarker(ownerTag(operationOwner));', 'if (KNOWLEDGE_FIXES) clearImportMarker(ownerTag(operationOwner));']] })
@@ -1360,15 +1392,17 @@ mutant('the boundary fallback shows the technical error', { [BOUNDARY]: [['{page
 
 const failures = []
 let ran = 0
-async function runChecks(label, only = null) {
+async function runChecks(label, only = null, failFast = false) {
   const failed = []
   for (const [name, fn, options] of checks) {
     if (only && !only.includes(name)) continue
     if (ON_BASE && !options.base) continue
+    if (process.env.ONLY && !name.includes(process.env.ONLY)) continue
     for (const profile of PROFILES) {
       try { await fn(profile); ran++ } catch (error) {
         if (error instanceof MutationTargetMissing) throw error
         failed.push(`${label} / ${profile.label}: ${name}\n      ${String(error?.message ?? error).split('\n')[0]}`)
+        if (failFast) return failed
       }
     }
   }
@@ -1383,7 +1417,7 @@ if (!ON_BASE && !process.env.SKIP_MUTANTS) {
   for (const [name, mutate] of mutants) {
     activeMutation = mutate
     let caught
-    try { caught = await runChecks('mutant') } catch (error) { failures.push(`mutant "${name}": ${error.message}`); continue } finally { activeMutation = {} }
+    try { caught = await runChecks('mutant', null, true) } catch (error) { failures.push(`mutant "${name}": ${error.message}`); continue } finally { activeMutation = {} }
     if (!caught.length) failures.push(`mutant NOT caught: ${name}`)
     else if (process.env.VERBOSE) console.log(`mutant caught (${caught.length}): ${name}\n    first: ${caught[0].replace(/\n\s*/g, ' | ').slice(0, 230)}`)
   }

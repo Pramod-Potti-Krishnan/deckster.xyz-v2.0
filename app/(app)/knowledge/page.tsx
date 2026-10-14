@@ -505,6 +505,8 @@ function KnowledgePageForAccount({ kg }: { kg: KnowledgeGraphAccess }) {
   const importGenerationRef = useRef(0)
   const importAbortRef = useRef<AbortController | null>(null)
   const importActiveRef = useRef(false)
+  // Flag on: true from the moment the browser starts leaving this document (reload, navigation, closing the tab).
+  const pageLeavingRef = useRef(false)
   const interruptedImportRef = useRef({ owner: kg.accountKey, interrupted: false })
   const mountedRef = useRef(true)
   const admissionWaitersRef = useRef(new Set<() => void>())
@@ -669,6 +671,18 @@ function KnowledgePageForAccount({ kg }: { kg: KnowledgeGraphAccess }) {
       void loadData()
     }
   }, [accessRevision, accessStatus, loadData])
+
+  useEffect(() => {
+    if (!KNOWLEDGE_FIXES) return
+    const leaving = () => { pageLeavingRef.current = true }
+    const returned = () => { pageLeavingRef.current = false }
+    window.addEventListener("pagehide", leaving)
+    window.addEventListener("pageshow", returned)
+    return () => {
+      window.removeEventListener("pagehide", leaving)
+      window.removeEventListener("pageshow", returned)
+    }
+  }, [])
 
   // Flag on: an import this browser started that never reported finishing (the page was reloaded or closed, or it runs in another tab)
   // is announced on return. Read when the page becomes usable (access "ready"), and again if access is retired and restored, because
@@ -923,9 +937,10 @@ function KnowledgePageForAccount({ kg }: { kg: KnowledgeGraphAccess }) {
       }
     } finally {
       if (await admitted() && isCurrent()) {
-        // Flag on: the import finished (or failed) in this tab, so there is nothing left to announce. An import cut short by a reload or by
-        // leaving the page never gets here, and its marker stays.
-        if (KNOWLEDGE_FIXES) clearImportMarker(markerOwner, markerStartedAt)
+        // Flag on: the import finished (or failed) in this tab, so there is nothing left to announce. An import cut short by leaving the page
+        // within the app never gets here, and its marker stays. A reload or a closed tab makes the browser reject the request that is in
+        // flight, which lands here as a network failure: pagehide comes first, so that case keeps the marker too.
+        if (KNOWLEDGE_FIXES && !pageLeavingRef.current) clearImportMarker(markerOwner, markerStartedAt)
         importActiveRef.current = false
         setImporting(false)
       }
