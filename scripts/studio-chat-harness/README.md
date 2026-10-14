@@ -183,3 +183,14 @@ Content corrections for PR C (item 4): `QuestionCard` already shows `N of M answ
 `Send answers (k/N)` on the button (`question-card.tsx` 118 and 188), and the outline-approval heading is
 "Review your outline", not "Approval needed". Item 8 has two call sites. Items 1 and 5 touch 7 avatar/speaker
 blocks (ML 622, 640, 761, 818, 867, 888, 918, 985).
+
+## Build resume after Stop (J7-RESUME-LOOP-P1, `build-resume-transcript.mjs`)
+
+`scripts/test-studio-build-resume.mjs` replays `scripts/fixtures/build-resume/j7-stop-resume.json` (Director's real code on the J7
+session's shapes: Stop at 0 of 3, slide 1 lands in flight, the partial deck's `presentation_url`, a reload, a typed resume with and
+without Director !490) through the real socket hook, `useBuildNarration`, the reducer and `StageRibbon`. The page's wiring between them
+(the `useBuildNarration({...})` argument, the frame-routing effect, the socket hook's build-frame options, `<PresentationArea
+buildNarrationApi>` and `approvalGatesLocked`) is read from `app/builder/page.tsx` by AST. Stand-ins: framer-motion, the Stop confirm
+dialog and Director's build-control HTTP route (answered locally; the stop acknowledgement carries the page's own request id). Flag-off
+runs are compared with `scripts/fixtures/build-resume/baselines/flag-off.json`, recorded from the base tree with `--record-baseline --root`.
+

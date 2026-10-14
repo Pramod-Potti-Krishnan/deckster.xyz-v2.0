@@ -3065,6 +3065,9 @@ function AuthenticatedBuilderContent({ authScopeUserId }: { authScopeUserId: str
     finalPresentationId,
     // Durable final identity fences outline/history replay without suppressing
     // a distinct newer typed build or its recovery controls.
+    // J7-RESUME-LOOP-P1 (NEXT_PUBLIC_STUDIO_BUILD_RESUME_FIX, default off): the URL Director sends after a Stop
+    // no longer ends the stopped build, so Resume stays.
+    keepStoppedOnFinalUrl: process.env.NEXT_PUBLIC_STUDIO_BUILD_RESUME_FIX === 'true',
   })
 
   const { showOutlinePreview, onNativeBuildPhase, cancelOutlinePreview } = useStudioOutlinePreview({
