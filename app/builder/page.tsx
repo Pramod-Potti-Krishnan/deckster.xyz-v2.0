@@ -63,6 +63,9 @@ import {
   planDeckMutationRefresh,
   requestSlideRailRefresh,
 } from '@/lib/studio-deck-mutation-refresh'
+import { STUDIO_DECK_CHANGED_NOTICE_ENABLED, reportDeckChange, themeAnnounceDecision } from '@/lib/studio-deck-changed-notice'
+import { useDeckChangedNotice } from '@/hooks/use-deck-changed-notice'
+import { StudioDeckChangedNotice } from '@/components/builder/studio-deck-changed-notice'
 import { TextBoxFormatting, type RefineElementRequest, type SlideComposeViewerApi, type StudioIntroductionSafety, type StudioComposeSelectionContext, type StudioElementGenerationLease, type StudioPartialNativeReadback } from '@/components/presentation-viewer'
 import { parseStudioNativeSlideOrder, type StudioNativeSlideOrder } from '@/lib/studio-native-slide-order'
 import { STUDIO_PANEL_KEEP_CANVAS_ENABLED, presentationWrapperTransition } from '@/lib/studio-panel-keep-canvas'
@@ -647,6 +650,8 @@ function AuthenticatedBuilderContent({ authScopeUserId }: { authScopeUserId: str
   const latestThemeSyncKeyRef = useRef<string | null>(null)
   const themeSyncTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const themeSelectionChangedLocallyRef = useRef(false)
+  // NEXT_PUBLIC_STUDIO_DECK_CHANGED_NOTICE: when the user last picked a theme in this tab (waiting for Director to confirm it).
+  const themePickedAtRef = useRef<number | null>(null)
   const commitThemeSync = useCallback((next: ThemeSyncState) => {
     themeSyncRef.current = next
     setThemeSync(next)
@@ -2267,6 +2272,7 @@ function AuthenticatedBuilderContent({ authScopeUserId }: { authScopeUserId: str
         slideComposerPresentationRef.current = { ...displayed, ...plan.override }
         setSlideComposerOverride(plan.override)
         requestSlideRailRefresh(plan.override.presentationId)
+        reportDeckChange('slide') // NEXT_PUBLIC_STUDIO_DECK_CHANGED_NOTICE: other tabs on this deck are told (no-op with the flag off)
       },
     }),
     // Don't auto-connect when restoring an existing session from URL.
@@ -3119,6 +3125,43 @@ function AuthenticatedBuilderContent({ authScopeUserId }: { authScopeUserId: str
   const effectiveSlideStructure = studioPartialMetadata ? null : slideStructure
   const effectiveActiveVersion = studioPartialMetadata ? 'final' : activeVersion
   const effectiveIsBlankPresentation = studioPartialMetadata ? false : isBlankPresentation
+  // MULTITAB J2 P1 (flag NEXT_PUBLIC_STUDIO_DECK_CHANGED_NOTICE, default off): "This deck changed in another tab". Reload deck is the
+  // deck-mutation reload that already exists (a new refresh token on the viewer URL + the rail's inventory re-read); it runs only on the
+  // user's click. Off: the hook creates no channel, listener or request and the notice renders nothing.
+  const reloadDeckFromOtherTab = useCallback(() => {
+    const displayed = slideComposerPresentationRef.current
+    const reloadPresentationId = displayed.presentationId
+    if (!reloadPresentationId) return
+    const override = {
+      presentationUrl: displayed.presentationUrl ?? presentationUrl,
+      presentationId: reloadPresentationId,
+      slideCount: displayed.slideCount,
+      refreshToken: Math.max(Date.now(), displayed.refreshToken + 1),
+    }
+    slideComposerPresentationRef.current = { ...displayed, ...override }
+    setSlideComposerOverride(override)
+    requestSlideRailRefresh(reloadPresentationId)
+  }, [presentationUrl])
+  const deckChangedNotice = useDeckChangedNotice({
+    enabled: STUDIO_DECK_CHANGED_NOTICE_ENABLED && studioShell && !studioPartialMetadata && !templateModeOn && !isGeneratingFinal && !isGeneratingStrawman,
+    sessionId: currentSessionId || wsSessionId,
+    presentationId: effectivePresentationId,
+    onReload: reloadDeckFromOtherTab,
+  })
+  // Applying a theme changes the shared deck: tell the other tabs once Director confirms it (the theme sync turns applied, within a minute
+  // of the pick). Only a theme picked here counts: the connect-time sync, a restored theme or another tab's pick never stamp a pick.
+  useEffect(() => {
+    // handleBuildThemeChange (the user's pick) raises themeSelectionChangedLocallyRef before it sets the selection; a restore never does.
+    if (!STUDIO_DECK_CHANGED_NOTICE_ENABLED || !themeSelectionChangedLocallyRef.current) return
+    themePickedAtRef.current = Date.now()
+  }, [buildThemeSelection])
+  useEffect(() => {
+    if (!STUDIO_DECK_CHANGED_NOTICE_ENABLED) return
+    const decision = themeAnnounceDecision(themePickedAtRef.current, Date.now(), themeSync)
+    if (decision === 'wait') return
+    themePickedAtRef.current = null
+    if (decision === 'announce') reportDeckChange('theme')
+  }, [themeSync.status, themeSync.requestId])
   // PASS2 composer copy (flag NEXT_PUBLIC_STUDIO_COMPOSER_COPY, default off): the composer placeholder asks "is a deck open?" the same
   // way the transcript does (MessageList presentationContext below). Read only for wording; undefined unless the flag is on.
   const studioComposerDeckOpen = studioShell && process.env.NEXT_PUBLIC_STUDIO_COMPOSER_COPY === 'true'
@@ -7456,6 +7499,8 @@ function AuthenticatedBuilderContent({ authScopeUserId }: { authScopeUserId: str
             )}
             style={studioShell ? { marginLeft: workspaceLayout.left, marginRight: workspaceLayout.right } : { marginLeft: drawerOffset }}
           >
+          {deckChangedNotice.notice && <StudioDeckChangedNotice notice={deckChangedNotice.notice} unsaved={deckChangedNotice.unsaved}
+            onReload={deckChangedNotice.reload} onDismiss={deckChangedNotice.dismiss} />}
           {session.isLoadingSession ? (
             studioShell ? <StudioWaitingState scope="canvas" message="Loading session..." /> : (
             <div className="flex-1 flex items-center justify-center bg-gray-100 dark:bg-slate-800 h-full">
