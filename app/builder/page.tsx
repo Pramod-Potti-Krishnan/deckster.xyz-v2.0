@@ -202,6 +202,12 @@ import {
   isPresentationCallbackCurrent,
   resolveEffectivePresentation,
 } from '@/lib/builder-presentation-ownership'
+import {
+  STUDIO_BLANK_DECK_RELOAD_FIX_ENABLED,
+  deckSlotUpdates,
+  restoreOwnsOverride,
+  shouldPersistLayoutCount,
+} from '@/lib/studio-blank-deck-reload'
 import { normalizeSemanticComponentType } from '@/lib/element-semantic-type'
 import {
   IDLE_THEME_SYNC,
@@ -1761,6 +1767,14 @@ function AuthenticatedBuilderContent({ authScopeUserId }: { authScopeUserId: str
     persistenceRef.current = persistence
   }, [persistence])
 
+  // NEXT_PUBLIC_STUDIO_BLANK_DECK_RELOAD_FIX: the first-message save (handleSendMessage, the only writer of createdDirectorSessionRef)
+  // has created this session's row; send, once, the blank deck Director gave it while it was unsaved, so a reload restores it.
+  useEffect(() => {
+    if (!STUDIO_BLANK_DECK_RELOAD_FIX_ENABLED || isUnsavedSession || !currentSessionId) return
+    if (createdDirectorSessionRef.current?.id !== currentSessionId) return
+    void persistenceRef.current.sendDeferredMetadata(currentSessionId)
+  }, [currentSessionId, isUnsavedSession])
+
   const currentSessionIdRef = useRef(currentSessionId)
   const previousKnowledgeGraphSessionRef = useRef(currentSessionId)
   useEffect(() => {
@@ -2673,13 +2687,8 @@ function AuthenticatedBuilderContent({ authScopeUserId }: { authScopeUserId: str
             const updates: any = {
               slideCount: nextSlideCount,
               lastMessageAt: new Date(),
-            }
-            if (latest.activeVersion === 'strawman') {
-              updates.strawmanPreviewUrl = nextPresentationUrl
-              updates.strawmanPresentationId = targetPresentationId
-            } else {
-              updates.finalPresentationUrl = nextPresentationUrl
-              updates.finalPresentationId = targetPresentationId
+              // NEXT_PUBLIC_STUDIO_BLANK_DECK_RELOAD_FIX: on, a blank deck's count goes to the blank slots (off: strawman, else final).
+              ...deckSlotUpdates(STUDIO_BLANK_DECK_RELOAD_FIX_ENABLED, latest.activeVersion, nextPresentationUrl, targetPresentationId),
             }
             persistenceRef.current.updateMetadata(updates)
           }
@@ -2836,13 +2845,8 @@ function AuthenticatedBuilderContent({ authScopeUserId }: { authScopeUserId: str
           const updates: any = {
             slideCount: nextSlideCount,
             lastMessageAt: new Date(),
-          }
-          if (latest.activeVersion === 'strawman') {
-            updates.strawmanPreviewUrl = nextPresentationUrl
-            updates.strawmanPresentationId = targetPresentationId
-          } else {
-            updates.finalPresentationUrl = nextPresentationUrl
-            updates.finalPresentationId = targetPresentationId
+            // NEXT_PUBLIC_STUDIO_BLANK_DECK_RELOAD_FIX: on, a blank deck's count goes to the blank slots (off: strawman, else final).
+            ...deckSlotUpdates(STUDIO_BLANK_DECK_RELOAD_FIX_ENABLED, latest.activeVersion, nextPresentationUrl, targetPresentationId),
           }
           persistenceRef.current.updateMetadata(updates)
         }
@@ -3599,17 +3603,14 @@ function AuthenticatedBuilderContent({ authScopeUserId }: { authScopeUserId: str
       }
       setSlideComposerOverride(nextOverride)
 
-      if (currentSessionIdRef.current && persistenceRef.current) {
+      // NEXT_PUBLIC_STUDIO_BLANK_DECK_RELOAD_FIX: on, Director's untouched one-slide blank deck is never saved as the session's deck.
+      if (currentSessionIdRef.current && persistenceRef.current
+        && shouldPersistLayoutCount(STUDIO_BLANK_DECK_RELOAD_FIX_ENABLED, activeVersion, presentation.slideCount)) {
         const updates: any = {
           slideCount: presentation.slideCount,
           lastMessageAt: new Date(),
-        }
-        if (activeVersion === 'strawman') {
-          updates.strawmanPreviewUrl = nextPresentationUrl
-          updates.strawmanPresentationId = effectivePresentationId
-        } else {
-          updates.finalPresentationUrl = nextPresentationUrl
-          updates.finalPresentationId = effectivePresentationId
+          // NEXT_PUBLIC_STUDIO_BLANK_DECK_RELOAD_FIX: on, a blank deck's count goes to the blank slots (off: strawman, else final).
+          ...deckSlotUpdates(STUDIO_BLANK_DECK_RELOAD_FIX_ENABLED, activeVersion, nextPresentationUrl, effectivePresentationId),
         }
         persistenceRef.current.updateMetadata(updates)
       }
@@ -4408,14 +4409,8 @@ function AuthenticatedBuilderContent({ authScopeUserId }: { authScopeUserId: str
       const updates: any = {
         slideCount: nextSlideCount,
         lastMessageAt: new Date(),
-      }
-
-      if (activeVersion === 'strawman') {
-        updates.strawmanPreviewUrl = targetPresentationUrl
-        updates.strawmanPresentationId = targetPresentationId
-      } else {
-        updates.finalPresentationUrl = targetPresentationUrl
-        updates.finalPresentationId = targetPresentationId
+        // NEXT_PUBLIC_STUDIO_BLANK_DECK_RELOAD_FIX: on, a blank deck's count goes to the blank slots (off: strawman, else final).
+        ...deckSlotUpdates(STUDIO_BLANK_DECK_RELOAD_FIX_ENABLED, activeVersion, targetPresentationUrl, targetPresentationId),
       }
 
       persistence.updateMetadata(updates)
@@ -4557,6 +4552,20 @@ function AuthenticatedBuilderContent({ authScopeUserId }: { authScopeUserId: str
     requestSession: session.handleRequestSession,
     sendDeferredMetadata: persistence.sendDeferredMetadata,
   })
+
+  // NEXT_PUBLIC_STUDIO_BLANK_DECK_RELOAD_FIX: the session restore owns the deck. When it commits (a new transcript receipt, set in
+  // the same batch as the restored deck), retire a local override it did not restore, as the override-retire effect does: an
+  // override left over a restore with no deck would be the selection with no owner ("Loading your selected deck…" forever).
+  const blankDeckRestoreReceiptRef = useRef<unknown>(null)
+  useEffect(() => {
+    if (!STUDIO_BLANK_DECK_RELOAD_FIX_ENABLED) return
+    const receipt = session.studioFrontendTranscriptReceipt
+    if (!receipt || blankDeckRestoreReceiptRef.current === receipt) return
+    blankDeckRestoreReceiptRef.current = receipt
+    if (restoreOwnsOverride(slideComposerOverride, { presentationId, presentationUrl })) return
+    setSlideComposerOverride(null)
+    clearSlideComposerWork()
+  }, [clearSlideComposerWork, presentationId, presentationUrl, session.studioFrontendTranscriptReceipt, slideComposerOverride])
 
   // Text Labs session (depends on the currently displayed presentation)
   const [dismissedWorkflowKey, setDismissedWorkflowKey] = useState<string | null>(null)
