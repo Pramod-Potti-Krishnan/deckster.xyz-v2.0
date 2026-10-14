@@ -351,7 +351,11 @@ function constInit(source, name) {
 const FIX = /onComposerTemplateAction|onOpenComposerLibrary|onRequestTaken/
 /** A mutated copy of a source: the target must exist, or the mutant would silently test nothing. */
 const mut = (source, from, to) => { assert.ok(source.includes(from), `mutation target missing: ${from.slice(0, 70)}`); return source.replace(from, to) }
-const withoutFix = element => [...element.attrs, ...element.spreads.filter(s => !FIX.test(s))].join('\n')
+// Sibling flag-gated attributes that later merged PRs add to the same elements. Each is proven inert flag-off by its own test,
+// so this pin ignores them like the fix's own spreads (scope: #382 chat PR D, NEXT_PUBLIC_STUDIO_CHAT_COMPOSER_CONTEXT ->
+// ChatInput studioContextLabel; flag-off value proven by scripts/test-studio-chat-composer-recovery-answered.mjs).
+const SIBLING_FLAG_ATTR = /^studioContextLabel=/
+const withoutFix = element => [...element.attrs.filter(a => !SIBLING_FLAG_ATTR.test(a)), ...element.spreads.filter(s => !FIX.test(s))].join('\n')
 
 // ---- library dialog helpers (the dialog's own buttons are the reference) --------------------------------------------------------------------------
 function mountDialog({ env, services, mutate = {} }) {
