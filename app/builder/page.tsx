@@ -248,6 +248,7 @@ import {
 } from '@/lib/manual-deck-workflow'
 import { lastBuilderSessionKey, unsavedBuilderSessionKey } from '@/lib/last-builder-session'
 import { STUDIO_SESSION_HYGIENE_ENABLED, shouldRememberLastSession } from '@/lib/studio-session-hygiene'
+import { isLocalUnsavedRoute, isStudioSessionRestoring } from '@/lib/studio-first-run-restoring'
 import {
   absorbStudioHandoffStatus,
   canAutomaticallySubmitStudioHandoff,
@@ -6518,6 +6519,16 @@ function AuthenticatedBuilderContent({ authScopeUserId }: { authScopeUserId: str
     && session.studioInitialFreshCanonicalEntry.sessionId === (currentSessionId || wsSessionId)
     && session.studioInitialFreshCanonicalEntry.sessionId === wsSessionId
     && session.studioInitialFreshCanonicalEntry.isCurrentAssignment())
+  // PASS2 #2 fix-forward (flag NEXT_PUBLIC_STUDIO_FIRST_RUN_V2, J2 pass-2 P1): an existing session whose history is still being fetched has no
+  // user turn in the transcript yet, which is also what a new session looks like. The first-run welcome (and the stage stepping out of sight
+  // behind it) therefore waits until the session is confirmed new: the history load has finished, or this is a local UUID the page just assigned
+  // (studioInitialKnownFresh) or one this tab generated and has not saved (the unsaved marker): for those the "load" is only the lookup that finds
+  // no row (lib/studio-first-run-restoring). The page's own loading states (header, composer, canvas) show until then.
+  const studioFirstRunRestoring = process.env.NEXT_PUBLIC_STUDIO_FIRST_RUN_V2 === 'true' && isStudioSessionRestoring({
+    loadingSession: session.isLoadingSession,
+    knownFresh: studioInitialKnownFresh,
+    localUnsavedRoute: session.isLoadingSession && isLocalUnsavedRoute(authScopeUserId, searchParams.get('session_id'), () => window.sessionStorage),
+  })
   const studioPartialSessionId = currentSessionId || wsSessionId
   const studioPartialRouteSessionId = searchParams.get('session_id')
   const studioPartialAssignmentOwned = Boolean(studioShell && user?.id === authScopeUserId && !isAuthLoading
@@ -7273,6 +7284,7 @@ function AuthenticatedBuilderContent({ authScopeUserId }: { authScopeUserId: str
                         } : undefined}
                         studioFirstRunActions={studioShell && process.env.NEXT_PUBLIC_STUDIO_FIRST_RUN_V2 === 'true'
                           ? <StudioFirstRunActions onStartBlank={effectivePresentationUrl ? handleDismissBlankPlaceholder : undefined} /> : undefined}
+                        studioRestoring={studioShell && process.env.NEXT_PUBLIC_STUDIO_FIRST_RUN_V2 === 'true' ? studioFirstRunRestoring : undefined}
                         connectionState={studioShell ? undefined : connected ? 'connected' : connecting ? 'connecting' : wsError ? 'error' : 'disconnected'}
                         onDraftPrompt={text => {
                           if (inputMessage.trim()) setWorkflowBrief(text)
@@ -7578,7 +7590,7 @@ function AuthenticatedBuilderContent({ authScopeUserId }: { authScopeUserId: str
             data-studio-outline-canvas-open={studioOutlineCanvas ? "true" : undefined}
             aria-hidden={studioCanvasCovered ? true : undefined}
             {...(studioCanvasCovered ? { inert: true } : {})}
-            data-studio-first-run-stage={studioFirstRunStage ? "true" : undefined}
+            data-studio-first-run-stage={studioFirstRunStage && !studioFirstRunRestoring ? "true" : undefined}
             className={cn(
               "flex-1 min-w-0 min-h-0 flex flex-col",
               STUDIO_PANEL_KEEP_CANVAS_ENABLED
