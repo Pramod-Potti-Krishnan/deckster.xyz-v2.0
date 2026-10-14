@@ -2,9 +2,15 @@
 // Flag NEXT_PUBLIC_STUDIO_ELEMENT_PLACEHOLDER_FIX (exact "true", Studio shell only), default off.
 //
 // Loads the REAL hooks/use-generation-panel.ts, hooks/use-blank-elements.ts and hooks/use-textlabs-generation.ts (and the real lib/*) into a
-// small React-hook runtime with a virtual clock. The Layout viewer is a fake that behaves like the real one where it matters here: it holds
-// elements, refuses a command on an element that is not there, and "saves" every mutation (so a reload shows what was saved). Text Labs HTTP is
-// a fake. Offline: no sockets, no keys, no live or paid calls.
+// small React-hook runtime with a virtual clock. The Layout viewer is a fake that behaves like the real one (layout-builder origin/uat) where it
+// matters here: it NAMES A NEW TEXT BOX ITSELF (insertTextBox ignores `elementId`), refuses a command on an element that is not there (Studio's
+// bridge rejects it), refuses a slide-context read for a target that is not on the slide, tells the Builder which element a delete removed
+// (the Builder's own close-the-panel rule is applied), and "saves" every mutation (so a reload shows what was saved). Text Labs HTTP is a fake.
+// Offline: no sockets, no keys, no live or paid calls.
+//
+// Studio dev P0 (PASS2-J3 round 4): #388 as merged failed every Generate because Layout answered the placeholder under its own name and
+// #388 refused any other name; its fake kept the `elementId` Studio sent. The checks below reproduce that failure on #388's code
+// and prove the fix-forward (the deferral now aims the Generate's commands at the element Layout really holds).
 //
 // Before (flag off, or the base): choosing a card inserts the placeholder at once, cancelling leaves it, and the saved deck keeps it.
 // After (flag on): choosing a card sends nothing to Layout; Generate inserts the placeholder just before it first needs it and replaces it
@@ -140,7 +146,8 @@ function createRig({
   const requests = []
   const toasts = []
   const visible = []
-  const state = { backend, scenario, elements, theme, deleteRefusals: 0, insertRefusals: 0, renameBlank: false, leaseCurrent: true, presentationId: 'offline-deck' }
+  // honourElementId: the #388 stand-in's assumption (Layout keeps the `elementId` Studio sends). The real viewer does NOT (see below).
+  const state = { backend, scenario, elements, theme, deleteRefusals: 0, insertRefusals: 0, honourElementId: false, leaseCurrent: true, presentationId: 'offline-deck', themeRequestId: 'r' }
   const fakeConsole = { log() {}, info() {}, warn() {}, error() {} }
   const respond = (status, body) => ({ ok: status >= 200 && status < 300, status, headers: { get: () => null }, json: async () => body, text: async () => JSON.stringify(body) })
   const component = () => ({
@@ -156,6 +163,7 @@ function createRig({
       signal?.addEventListener('abort', () => reject(new DOMException('Aborted', 'AbortError')), { once: true })
       promise.then(resolve, reject)
     })
+    requests[requests.length - 1].body = typeof init.body === 'string' ? init.body : null
     await abortable(sleep(SLOW))
     if (state.backend === '500') return respond(500, { error: 'Upstream exploded', error_code: 'UPSTREAM_500', retryable: false })
     return respond(200, { success: true, elements: Array.from({ length: state.elements }, component) })
@@ -179,53 +187,99 @@ function createRig({
     return mod.exports
   }
 
-  // ---- fake Layout viewer: holds elements, saves every mutation (a reload shows the saved set) ----
-  const live = new Map()          // id -> { blank: boolean }
+  // ---- fake Layout viewer, mirroring the REAL one (layout-builder origin/uat bda4578) where Add Element touches it ----
+  // * insertTextBox names the new text box itself: ElementManager.insertTextBox uses `config.id || generateId('textbox')` and IGNORES the
+  //   `elementId` Studio sends (src/utils/element-manager.js:6374; the bridge passes params straight through, viewer/presentation-viewer.html:3997-4004).
+  //   With an `id` it keeps that id and answers an existing one with `alreadyExists` (element-manager.js:6385-6389).
+  // * A command on an element that is not there answers {success:false, error:'Element not found…'} (getElementGeometry 8069-8071,
+  //   setElementGenerationState 1087-1091, deleteElement 8157-8166); getSlideGenerationContext refuses a targetElementId that is not on
+  //   the slide (8036-8043). Studio's bridge (components/presentation-viewer.tsx sendCommand) REJECTS every {success:false} answer.
+  // * deleteElement tells the Builder which element vanished (emitElementDeletedEvent, 8193): app/builder/page.tsx onElementDeleted then
+  //   closes the element panel when that element is the panel's and no Generate is running. Emulated below with the page's own predicate.
+  // * Layout autosaves every mutation, so a reload shows what was saved.
+  const live = new Map()          // id -> { blank, themeVariantId }
   const savedDeck = new Set(saved) // what a reload would show
   for (const id of saved) live.set(id, { blank: id.startsWith('blank_') })
-  const log = []                  // every command: { at, action, id, blank, generating, params }
+  const log = []                  // every command as Layout received it: { at, action, id, target, blank, generating, params, assigned, outcome }
+  const deletedEvents = []        // elementDeleted events the Builder received, and whether they closed the panel
   let inserted = 0
+  let layoutSeq = 0
   const persist = () => { savedDeck.clear(); for (const id of live.keys()) savedDeck.add(id) }
-  const missing = id => new Error(`Element not found: ${id}`)
+  const refuse = error => { throw new Error(error) }   // presentation-viewer.tsx sendCommand: reject(new Error(event.data.error || 'Command failed'))
+  const emitElementDeleted = id => setTimer(() => {
+    const panel = latest.panel
+    const deletedActiveElement = panel.editElementId === id || panel.refineContext?.elementId === id || panel.blankElementId === id
+    const closes = deletedActiveElement && !panel.isGenerating
+    deletedEvents.push({ at: now, id, closes })
+    if (closes) panel.closePanel()
+  }, 0)
+  const layoutAnswer = (entry, action, args) => {
+    if (action === 'getElementGeometry') {
+      if (!live.has(args.elementId)) refuse('Element not found')
+      return { success: true, action, elementId: args.elementId, position: { gridRow: '4/10', gridColumn: '5/15' }, z_index: 100,
+        theme_variant_id: live.get(args.elementId).themeVariantId ?? null, theme_bindings: {} }
+    }
+    if (action === 'getElementGenerationMetadata') {
+      if (!live.has(args.elementId)) refuse(`Element not found: ${args.elementId}`)
+      return { success: true, componentType: type, themeVariantSource: 'manual' }
+    }
+    if (action === 'getSlideGenerationContext') {
+      const target = args.targetElementId || null
+      if (target && !live.has(target)) refuse(`Target element ${target} was not found on slide ${args.slideIndex ?? 0}`)
+      return { success: true, action, slide_index: args.slideIndex ?? 0, slide_title: null, slide_summary: null, target_element_id: target,
+        elements: [...live.keys()].sort().map(id => ({ element_id: id, renderer_type: 'textbox', component_type: null, position: null,
+          summary: live.get(id).blank ? '' : 'Offline generated', properties: {}, is_target: id === target })), truncated: false }
+    }
+    if (action === 'getElementMutationReceipt') return { status: 'unknown' }
+    if (action === 'setElementGenerationState') {
+      if (!live.has(args.elementId)) refuse(`Element not found: ${args.elementId}`)
+      return { success: true, action, elementId: args.elementId, generating: args.generating === true }
+    }
+    if (action.startsWith('insert') || action.startsWith('upsert')) {
+      if (entry.blank && state.insertRefusals > 0) { state.insertRefusals--; refuse('Supplied Layout refusal') }
+      if (!entry.blank) {
+        inserted++
+        if (state.scenario === 'partial2' && inserted === 2) refuse('Offline insertion failed')
+      }
+      let id
+      if (entry.blank) {
+        if (args.id && live.has(args.id)) return { success: true, action, elementId: args.id, alreadyExists: true }
+        id = args.id || (state.honourElementId ? args.elementId : `textbox-layout-${++layoutSeq}`)
+      } else id = `generated-${inserted}`
+      entry.assigned = id
+      const themeVariantId = entry.blank ? `variant-${type.toLowerCase()}` : null
+      live.set(id, { blank: Boolean(entry.blank), themeVariantId })
+      persist()
+      return { success: true, action, elementId: id, position: { gridRow: args.gridRow, gridColumn: args.gridColumn },
+        ...(entry.blank ? { component_type: args.componentType ?? null, theme_variant_id: themeVariantId, theme_bindings: {} } : {}) }
+    }
+    if (action === 'deleteElement') {
+      if (state.deleteRefusals > 0 && live.get(args.elementId)?.blank) { state.deleteRefusals--; refuse('Supplied Layout delete refusal') }
+      if (!live.has(args.elementId)) refuse('Element not found')
+      const wasBlank = live.get(args.elementId).blank
+      live.delete(args.elementId)
+      persist()
+      emitElementDeleted(args.elementId)
+      if (wasBlank && state.scenario === 'themeChangeAfterReplace') state.themeRequestId = 'r-changed'  // the deck theme changes mid-Generate
+      return { success: true, action }
+    }
+    return { success: true, action, elementId: args.elementId }
+  }
   const sendElementCommand = async (action, args = {}) => {
     const entry = { at: now, action, id: args.elementId ?? null }
+    if (args.targetElementId) entry.target = args.targetElementId
     if (action === 'insertTextBox' && typeof args.content === 'string' && args.content.includes('data-blank-element=')) entry.blank = true
     if (action === 'setElementGenerationState') entry.generating = args.generating
     entry.params = JSON.stringify(args)
     log.push(entry)
-    if (action === 'getElementGeometry') {
-      if (!live.has(args.elementId)) throw missing(args.elementId)
-      return { success: true, action, elementId: args.elementId, position: { gridRow: '4/10', gridColumn: '5/15' } }
+    try {
+      const answer = layoutAnswer(entry, action, args)
+      entry.outcome = 'ok'
+      return answer
+    } catch (error) {
+      entry.outcome = String(error.message)
+      throw error
     }
-    if (action === 'getElementGenerationMetadata') {
-      if (!live.has(args.elementId)) throw missing(args.elementId)
-      return { success: true, componentType: type, themeVariantSource: 'manual' }
-    }
-    if (action === 'getSlideGenerationContext') throw new Error('context unavailable (offline)')
-    if (action === 'getElementMutationReceipt') return { status: 'unknown' }
-    if (action === 'setElementGenerationState') {
-      if (!live.has(args.elementId)) throw missing(args.elementId)
-      return { success: true, elementId: args.elementId }
-    }
-    if (action.startsWith('insert') || action.startsWith('upsert')) {
-      if (entry.blank && state.insertRefusals > 0) { state.insertRefusals--; return { success: false, error: 'Supplied Layout refusal' } }
-      if (!entry.blank) {
-        inserted++
-        if (state.scenario === 'partial2' && inserted === 2) return { success: false, error: 'Offline insertion failed' }
-      }
-      const id = entry.blank ? (state.renameBlank ? `renamed-by-layout` : args.elementId) : `generated-${inserted}`
-      live.set(id, { blank: Boolean(entry.blank) })
-      persist()
-      return { success: true, elementId: id }
-    }
-    if (action === 'deleteElement') {
-      if (state.deleteRefusals > 0 && live.get(args.elementId)?.blank) { state.deleteRefusals--; return { success: false, error: 'Supplied Layout delete refusal' } }
-      if (!live.has(args.elementId)) throw missing(args.elementId)
-      live.delete(args.elementId)
-      persist()
-      return { success: true, elementId: args.elementId }
-    }
-    return { success: true, elementId: args.elementId }
   }
   const layoutServiceApis = {
     sendElementCommand,
@@ -240,7 +294,7 @@ function createRig({
   const params = {
     textLabsSession: { ensureSession: async () => 'offline-session' }, currentSlideIndex: 0, getCurrentSlideIndex: () => 0,
     deckContext: null, researchSessionId: null, researchStoreName: null, researchUserId: null, researchCapabilities: {},
-    getThemeSyncSnapshot: () => ({ status: 'applied', presentationId: 'offline-deck', requestId: 'r', themeFingerprint: 'f' }),
+    getThemeSyncSnapshot: () => ({ status: 'applied', presentationId: 'offline-deck', requestId: state.themeRequestId, themeFingerprint: 'f' }),
     ensureThemeReady: async () => (state.theme === 'ready'
       ? { ready: true, source: 'neutral' }
       : { ready: false, code: 'failed', error: 'The selected deck theme could not be prepared. Reapply it, then generate again.' }),
@@ -284,7 +338,7 @@ function createRig({
   }
 
   const rig = {
-    log, requests, toasts, visible, live, advance, sleep, state,
+    log, requests, toasts, visible, live, advance, sleep, state, deletedEvents,
     get now() { return now },
     get saved() { return [...savedDeck].sort() },
     get panel() { return latest.panel },
@@ -311,7 +365,7 @@ const generatedInserts = rig => rig.log.filter(c => c.action.startsWith('insert'
 const liveIds = rig => [...rig.live.keys()].sort()
 const blankIdsOnSlide = rig => [...rig.live.entries()].filter(([, v]) => v.blank).map(([id]) => id)
 const trace = rig => JSON.stringify({
-  log: rig.log, requests: rig.requests, toasts: rig.toasts, visible: rig.visible, live: liveIds(rig), saved: rig.saved,
+  log: rig.log, requests: rig.requests, toasts: rig.toasts, visible: rig.visible, live: liveIds(rig), saved: rig.saved, deleted: rig.deletedEvents,
   panel: { isOpen: rig.panel.isOpen, blank: rig.panel.blankElementId, mode: rig.panel.mode, busy: rig.panel.isGenerating, error: rig.panel.error, type: rig.panel.elementType },
 })
 
@@ -387,7 +441,79 @@ if (baseAvailable) {
   })
 }
 
+// ======================= the Studio dev P0 (PASS2-J3 round 4): #388 as merged, on a Layout that names the placeholder itself ==========
+// Live (Studio dev, flag on): every Generate failed with this text and no Text Labs request was made. Cause: Layout's insertTextBox
+// ignores `elementId` and names the text box itself; #388 treated the answered name as "a different identity", deleted the element
+// and failed. #388's own stand-in kept the `elementId` Studio sent, so its harness passed.
+const PR388 = '9196a6af20b8cc5cf4aea30e332067cb65070160'   // merge of #388 (head 93822214) into studio-v4-dev-preparation-code
+const LIVE_P0_TEXT = 'The presentation viewer could not show generation progress: The element placeholder could not be added. '
+  + 'Please wait for the slide to finish loading and try again. Reload the slide and try again.'
+let pr388Available = true
+try { execFileSync('git', ['cat-file', '-e', `${PR388}^{commit}`], { cwd: root, env: gitEnv, stdio: 'ignore' }) } catch { pr388Available = false }
+if (pr388Available) {
+  await check('live P0 reproduced: #388 as merged fails every Generate exactly like Studio dev (the text, no Text Labs request, nothing left)', async () => {
+    for (const type of TYPES) {
+      for (const immediate of [true, false]) {
+        const { rig, result } = await chooseThenGenerate({ ref: PR388, ...ON, immediate, type })
+        assert.equal(result.status, 'failed', `${type}: fails`)
+        assert.equal(rig.panel.error, LIVE_P0_TEXT, `${type}: the exact text Studio dev showed`)
+        assert.equal(rig.requests.length, 0, `${type}: no Text Labs request`)
+        assert.match(blankInserts(rig)[0]?.assigned ?? '', /^textbox-layout-/, `${type}: Layout named the placeholder itself`)
+        assert.deepEqual(liveIds(rig), [], `${type}: nothing is left`)
+      }
+    }
+  })
+  await check('why #388\'s harness passed: on its stand-in (Layout keeps the elementId Studio sends) the same code generates', async () => {
+    const { rig, result } = await chooseThenGenerate({ ref: PR388, ...ON, type: 'CHART' }, { afterOpen: async r => { r.state.honourElementId = true } })
+    assert.equal(result.status, 'inserted', rig.panel.error ?? '')
+    assert.deepEqual(liveIds(rig), ['generated-1'])
+  })
+}
+
 // ======================= after (flag on) =======================
+for (const type of TYPES) {
+  for (const immediate of [false, true]) {
+    await check(`on: ${type}${immediate ? ' + immediate failure feedback' : ''}: Layout names the placeholder itself (as the real viewer does) and Generate still produces exactly one element`, async () => {
+      const { rig, result } = await chooseThenGenerate({ ...ON, immediate, type })
+      assert.equal(result.status, 'inserted', `Generate failed: ${rig.panel.error}`)
+      assert.equal(rig.requests.length, 1, 'one Text Labs request')
+      assert.equal(blankInserts(rig).length, 1, 'one placeholder insertion')
+      const layoutId = blankInserts(rig)[0].assigned
+      assert.notEqual(layoutId, blankInserts(rig)[0].id, 'Layout ignored the elementId and named the placeholder itself')
+      const forPlaceholder = rig.log.slice(1).filter(c => c.id && !/^(insert|upsert)/.test(c.action) && !c.id.startsWith('generated-'))
+      assert.ok(forPlaceholder.length >= 3 && forPlaceholder.every(c => c.id === layoutId),
+        `every command for the placeholder reached the element Layout holds: ${JSON.stringify(names(rig))}`)
+      assert.deepEqual(liveIds(rig), ['generated-1'], 'exactly one element')
+      assert.deepEqual(rig.saved, ['generated-1'], 'and it is what is saved')
+      assert.deepEqual(blankIdsOnSlide(rig), [])
+    })
+  }
+}
+
+await check('on: the old stand-in (Layout keeps the elementId) still works: the identity is simply the same', async () => {
+  const { rig, result } = await chooseThenGenerate({ ...ON, type: 'CHART' }, { afterOpen: async r => { r.state.honourElementId = true } })
+  assert.equal(result.status, 'inserted', rig.panel.error ?? '')
+  assert.equal(blankInserts(rig)[0].assigned, blankInserts(rig)[0].id)
+  assert.deepEqual(liveIds(rig), ['generated-1'])
+})
+
+await check('on: the deck theme changes after the placeholder was replaced: the Generate puts it back, the take-out removes that one; nothing empty is left and the form keeps its error', async () => {
+  const { rig, result } = await chooseThenGenerate({ ...ON, type: 'CHART', scenario: 'themeChangeAfterReplace' }, { generateOver: { useDeckTheme: true, presentationId: 'offline-deck' } })
+  assert.equal(result.status, 'failed')
+  assert.equal(rig.requests.length, 1, 'Text Labs answered')
+  assert.equal(generatedInserts(rig).length, 1, 'the generated element went in, replaced the placeholder, and was rolled back when the theme changed')
+  assert.match(rig.panel.error ?? '', /theme/i, 'the failure is the theme change, not the placeholder')
+  const inserts = blankInserts(rig)
+  assert.equal(inserts.length, 2, 'the placeholder, then the Generate\'s own restore of it')
+  assert.notEqual(inserts[1].assigned, inserts[0].assigned, 'Layout named the restored one afresh')
+  assert.ok(rig.log.some(c => c.action === 'deleteElement' && c.id === inserts[1].assigned && c.outcome === 'ok'), 'the take-out removed the restored element')
+  assert.deepEqual(liveIds(rig), [], 'nothing, empty or generated, is left')
+  assert.deepEqual(rig.saved, [])
+  assert.equal(rig.panel.isOpen, true)
+  assert.equal(rig.panel.blankElementId, inserts[0].id, 'the form keeps its own identity')
+  assert.ok(rig.panel.error, 'and shows the failure')
+  assert.equal(rig.tracked(inserts[0].id), true, 'Retry works')
+})
 for (const type of TYPES) {
   await check(`on: choosing ${type} sends nothing to Layout and opens its form`, async () => {
     const rig = createRig({ ...ON, type })
@@ -449,10 +575,15 @@ await check('on: choose then Generate: the placeholder goes in only now, is repl
   assert.equal(blankInserts(rig).length, 1, 'one placeholder insertion')
   assert.equal(generatedInserts(rig).length, 1, 'one generated insertion')
   const blankId = blankInserts(rig)[0].id
+  const layoutId = blankInserts(rig)[0].assigned
+  assert.match(layoutId, /^textbox-layout-\d+$/, 'Layout named the placeholder itself, as the real viewer does')
   assert.equal(seq[0], `insertTextBox[blank](${blankId})`, 'the very first Layout command is the placeholder, sent by Generate')
-  assert.equal(seq[1], `setElementGenerationState(${blankId}):true`, 'then the progress overlay on it')
+  assert.equal(seq[1], `setElementGenerationState(${layoutId}):true`, 'then the progress overlay on it, on the element Layout really holds')
+  const context = rig.log.find(c => c.action === 'getSlideGenerationContext')
+  assert.equal(context?.target, layoutId, 'the slide context is read for the element Layout really holds')
+  assert.equal(context?.outcome, 'ok', 'and Layout found it (no degraded context)')
   const firstGenerated = rig.log.findIndex(c => c.action.startsWith('insert') && !c.blank)
-  const placeholderDelete = rig.log.findIndex(c => c.action === 'deleteElement' && c.id === blankId)
+  const placeholderDelete = rig.log.findIndex(c => c.action === 'deleteElement' && c.id === layoutId)
   assert.ok(firstGenerated > 1 && placeholderDelete > firstGenerated, 'create-first: the placeholder is deleted only after the generated element is in')
   assert.deepEqual(liveIds(rig), ['generated-1'], 'exactly one element remains on the slide')
   assert.deepEqual(rig.saved, ['generated-1'], 'and it is what is saved')
@@ -464,6 +595,10 @@ await check('on: choose then Generate: the placeholder goes in only now, is repl
     assert.deepEqual(names(rig).slice(1), names(base.rig).slice(1), 'every other command, in order, equals the base')
     assert.equal(base.result.status, 'inserted')
     assert.deepEqual(liveIds(rig), liveIds(base.rig))
+    // What Text Labs is asked is what the base asked (the placeholder's identity aside: the base's form held Layout's name for it).
+    const body = (r, ids) => ids.reduce((text, id) => text.split(id).join('<placeholder>'), r.requests.map(q => q.body ?? '').join('\n'))
+    assert.equal(body(rig, [blankId, layoutId]), body(base.rig, [blankInserts(base.rig)[0].id, blankInserts(base.rig)[0].assigned]),
+      'the Text Labs request equals the base request')
   }
 })
 
@@ -481,6 +616,9 @@ await check('on: Generate fails (provider error): the placeholder is taken out a
   await rig.advance(0)
   assert.equal(failed.status, 'failed')
   assert.equal(blankInserts(rig).length, 1)
+  const layoutId = blankInserts(rig)[0].assigned
+  assert.ok(rig.log.some(c => c.action === 'deleteElement' && c.id === layoutId && c.outcome === 'ok'), 'the take-out deleted the element Layout really holds')
+  assert.ok(rig.deletedEvents.length > 0 && rig.deletedEvents.every(e => !e.closes), "the Builder's elementDeleted did not close the form")
   assert.deepEqual(blankIdsOnSlide(rig), [], 'no empty placeholder stays on the slide after a failed Generate')
   assert.deepEqual(rig.saved, [], 'and none is saved')
   assert.equal(rig.panel.isOpen, true)
@@ -616,7 +754,7 @@ await check('on: a refused take-out leaves the placeholder tracked and reachable
   await first
   await rig.advance(0)
   const blankId = rig.panel.blankElementId
-  assert.deepEqual(blankIdsOnSlide(rig), [blankId], 'today\'s behaviour is the fallback: the placeholder is still there')
+  assert.deepEqual(blankIdsOnSlide(rig), [blankInserts(rig)[0].assigned], 'today\'s behaviour is the fallback: the placeholder is still there')
   assert.equal(rig.tracked(blankId), true)
   rig.state.backend = 'ok'
   const retry = Promise.resolve(rig.generate({}, 'retry'))
@@ -658,20 +796,6 @@ await check('on: two cards chosen back to back (no render between): only the las
   assert.equal(rig.tracked(live), false)
 })
 
-await check('on: Layout answers the placeholder with another identity: a plain error, the stray element is removed, nothing is left', async () => {
-  const rig = createRig({ ...ON, type: 'CHART' })
-  rig.state.renameBlank = true
-  await rig.advance(0)
-  await rig.open('CHART')
-  await rig.advance(0)
-  const result = await Promise.resolve(rig.generate())
-  await rig.advance(0)
-  assert.equal(result.status, 'failed')
-  assert.match(rig.panel.error, /placeholder could not be added/i)
-  assert.deepEqual(liveIds(rig), [], 'the element Layout created under another identity is deleted')
-  assert.equal(rig.requests.length, 0)
-})
-
 await check('on: the panel is closed while a Generate runs and fails, and the take-out is refused: the placeholder stays tracked and reachable', async () => {
   const rig = createRig({ ...ON, type: 'CHART', backend: '500' })
   await rig.advance(0)
@@ -686,7 +810,7 @@ await check('on: the panel is closed while a Generate runs and fails, and the ta
   await rig.advance(SLOW * 3)
   await pending
   await rig.advance(0)
-  assert.deepEqual(blankIdsOnSlide(rig), [blankId], 'the refused delete leaves it on the slide, as before the fix')
+  assert.deepEqual(blankIdsOnSlide(rig), [blankInserts(rig)[0].assigned], 'the refused delete leaves it on the slide, as before the fix')
   assert.equal(rig.tracked(blankId), true, 'so it stays tracked and reachable (a click on it reopens the form)')
 })
 
@@ -764,6 +888,9 @@ await check('on: an existing (reloaded) placeholder that the user clicks is stil
 })
 
 // ======================= flag off: identical to the base =======================
+const DEV_HEAD = '90f15a1f99242ceadde0799f2f51e458fcbe727a'   // origin/studio-v4-dev-preparation-code when this fix-forward was cut
+let devHeadAvailable = true
+try { execFileSync('git', ['cat-file', '-e', `${DEV_HEAD}^{commit}`], { cwd: root, env: gitEnv, stdio: 'ignore' }) } catch { devHeadAvailable = false }
 if (baseAvailable) {
   const SCENARIOS = {
     'choose': async rig => { await rig.open('CHART'); await rig.advance(0) },
@@ -786,7 +913,8 @@ if (baseAvailable) {
   for (const [label, run] of Object.entries(SCENARIOS)) {
     await check(`off: "${label}" is identical to the base (flag unset and flag "false"): commands, requests, toasts, panel, saved deck`, async () => {
       const traces = []
-      for (const variant of [{ ref: BASE }, {}, { flag: 'false' }]) {
+      // The base before #388, and (when present) the dev head this fix-forward is cut from (#388 merged, its flag off).
+      for (const variant of [{ ref: BASE }, {}, { flag: 'false' }, ...(devHeadAvailable ? [{ ref: DEV_HEAD }] : [])]) {
         const rig = createRig({ ...variant, type: 'CHART' })
         await rig.advance(0)
         await run(rig)
@@ -794,6 +922,7 @@ if (baseAvailable) {
       }
       assert.equal(traces[1], traces[0], 'flag unset equals the base')
       assert.equal(traces[2], traces[0], 'flag "false" equals the base')
+      if (devHeadAvailable) assert.equal(traces[3], traces[0], 'and equals the dev head this fix is cut from (flag unset)')
     })
   }
 }

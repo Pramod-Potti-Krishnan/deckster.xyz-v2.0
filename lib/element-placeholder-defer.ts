@@ -10,6 +10,12 @@
  * Layout renders element content at creation time only, so nothing here patches an element: it only delays a create and, on
  * failure, deletes the empty one it created.
  *
+ * Layout names a new text box itself: the real viewer's ElementManager.insertTextBox uses `config.id || generateId('textbox')` and
+ * ignores the `elementId` the command carries (layout-builder src/utils/element-manager.js, insertTextBox). When the card click
+ * inserted the placeholder, the form simply adopted the identity Layout answered. Here the form already holds its own identity
+ * when Generate inserts the placeholder, so the identity Layout answers is recorded next to it, and every command the Generate
+ * sends for the form's identity is aimed at the element Layout really holds (and its answer is given back under the form's identity).
+ *
  * This module holds the bookkeeping only (no React, no Layout call of its own): the hook feeds it the commands.
  */
 
@@ -31,8 +37,14 @@ export interface DeferredPlaceholder {
   readonly elementId: string
   readonly params: Record<string, any>
   readonly owner: PlaceholderOwner
-  /** deferred: nothing on the slide. inserted: the empty element is in Layout. */
-  state: 'deferred' | 'inserted'
+  /**
+   * deferred: nothing on the slide; the next Generate inserts it. inserted: the empty element is in Layout, as `layoutId`.
+   * removed: the running Generate deleted it itself (the generated element replaced it, or its rollback): nothing on the slide, and
+   * only that Generate's own placeholder restore may put it back. A take-out turns it into deferred again.
+   */
+  state: 'deferred' | 'inserted' | 'removed'
+  /** While inserted: the identity Layout gave the empty element (Layout ignores `elementId` and names a new text box itself). */
+  layoutId: string | null
   /** The panel has pointed at this placeholder at least once (an effect saw it), so it may be swept when the panel moves on. */
   seen: boolean
   /** A Generate owns it: never swept or rolled back by anyone else. */
@@ -56,6 +68,8 @@ export function isBlankPlaceholderInsert(action: string, params: Record<string, 
 export const PLACEHOLDER_NOT_ADDED_MESSAGE =
   'The element placeholder could not be added. Please wait for the slide to finish loading and try again.'
 
+const NOT_FOUND = /not found|no such|does not exist/i
+
 export function createPlaceholderDeferral() {
   const entries = new Map<string, DeferredPlaceholder>()
 
@@ -67,19 +81,27 @@ export function createPlaceholderDeferral() {
       if (entry.state === 'deferred' && !entry.inFlight) entry.seen = true
     }
     entries.set(params.elementId, {
-      elementId: params.elementId, params: { ...params }, owner, state: 'deferred', seen: false, inFlight: false, lease: null, busy: null,
+      elementId: params.elementId, params: { ...params }, owner, state: 'deferred', layoutId: null, seen: false, inFlight: false, lease: null, busy: null,
     })
     return { success: true, elementId: params.elementId as string }
   }
 
+  /** Layout answered: the empty element is on the slide under `layoutId` (Layout's own name for it). */
+  function markInserted(entry: DeferredPlaceholder, layoutId: string, lease: PlaceholderLease) {
+    entry.state = 'inserted'
+    entry.layoutId = layoutId
+    entry.lease = lease
+  }
+
   /**
    * The lease handed to a Generate. Any command aimed at a held-back placeholder first sends the held-back insertion (once, in
-   * order); everything else is forwarded untouched.
+   * order). Commands that name the placeholder (`elementId`, or a slide-context read's `targetElementId`) are aimed at the element
+   * Layout really holds, and an answer that names it comes back under the form's identity. Everything else is forwarded untouched.
    */
   function wrapLease(lease: PlaceholderLease, ownerIsCurrent: (owner: PlaceholderOwner) => boolean): PlaceholderLease {
     async function ensureInserted(entry: DeferredPlaceholder) {
       if (entry.busy) await entry.busy
-      if (entry.state === 'inserted') return
+      if (entry.state !== 'deferred') return
       if (!ownerIsCurrent(entry.owner)) {
         throw new Error('The active presentation changed before the element placeholder was added. Reload the presentation and try again.')
       }
@@ -88,14 +110,8 @@ export function createPlaceholderDeferral() {
         if (response?.success === false) {
           throw new Error(typeof response.error === 'string' && response.error ? response.error : 'Layout rejected the blank placeholder')
         }
-        const insertedId = typeof response?.elementId === 'string' && response.elementId ? response.elementId : entry.elementId
-        if (insertedId !== entry.elementId) {
-          // The panel, the draft and every retry are keyed by this identity: an element Layout renamed cannot be tracked.
-          try { await lease.sendElementCommand('deleteElement', { elementId: insertedId }) } catch { /* best effort */ }
-          throw new Error('Layout answered the blank placeholder with a different identity.')
-        }
-        entry.state = 'inserted'
-        entry.lease = lease
+        // Layout names the new text box itself (it ignores `elementId`), as it did when the card click inserted it.
+        markInserted(entry, typeof response?.elementId === 'string' && response.elementId ? response.elementId : entry.elementId, lease)
       })()
       entry.busy = run.finally(() => { entry.busy = null }).catch(() => {})
       try { await run } catch (error) {
@@ -103,21 +119,55 @@ export function createPlaceholderDeferral() {
         throw new Error(PLACEHOLDER_NOT_ADDED_MESSAGE, { cause: error })
       }
     }
+    const heldBy = (value: unknown) => (typeof value === 'string' && value ? entries.get(value) : undefined)
     return {
       isCurrent: lease.isCurrent,
       sendElementCommand: async (action, params) => {
-        const id = params && typeof params.elementId === 'string' ? params.elementId : null
-        const entry = id ? entries.get(id) : undefined
-        if (entry && entry.state === 'deferred') await ensureInserted(entry)
-        else if (entry?.busy) await entry.busy
-        return lease.sendElementCommand(action, params)
+        const entry = heldBy(params?.elementId)
+        const target = heldBy(params?.targetElementId)
+        if (!entry && !target) return lease.sendElementCommand(action, params)
+        if (entry?.busy) await entry.busy
+        if (target?.busy) await target.busy
+        if (entry && isBlankPlaceholderInsert(action, params)) {
+          // The Generate puts its own placeholder back (its restore after a failed replacement). Layout names it afresh; the form
+          // keeps its identity, so the answer comes back under it and a later take-out removes the element Layout really made.
+          const response = await lease.sendElementCommand(action, params)
+          if (response?.success === false || typeof response?.elementId !== 'string' || !response.elementId) return response
+          markInserted(entry, response.elementId, lease)
+          return { ...response, elementId: entry.elementId }
+        }
+        // A delete never inserts first: nothing would be gained, and a placeholder the Generate removed must stay removed.
+        if (entry && entry.state === 'deferred' && action !== 'deleteElement') await ensureInserted(entry)
+        const layoutId = entry?.state === 'inserted' ? entry.layoutId : null
+        const targetLayoutId = target?.state === 'inserted' ? target.layoutId : null
+        const aimed = layoutId || targetLayoutId
+          ? { ...params, ...(layoutId ? { elementId: layoutId } : {}), ...(targetLayoutId ? { targetElementId: targetLayoutId } : {}) }
+          : params
+        const removedBy = (deleted: boolean) => {
+          if (deleted && entry && layoutId && action === 'deleteElement' && entry.layoutId === layoutId) {
+            entry.state = 'removed'
+            entry.layoutId = null
+            entry.lease = null
+          }
+        }
+        let response: any
+        try {
+          response = await lease.sendElementCommand(action, aimed)
+        } catch (error) {
+          removedBy(error instanceof Error && NOT_FOUND.test(error.message))
+          throw error
+        }
+        removedBy(response?.success !== false)
+        return layoutId && response && typeof response === 'object' && response.elementId === layoutId
+          ? { ...response, elementId: entry!.elementId }
+          : response
       },
     }
   }
 
   /**
-   * A Generate ended without the generated element replacing the placeholder: take the empty one out again. Only a placeholder this
-   * module inserted, only through the lease that inserted it, and never while that lease no longer matches the viewer (then the
+   * A Generate ended without the generated element replacing the placeholder: take the empty one out again (under the identity
+   * Layout gave it). Only a placeholder this module inserted, only through the lease that inserted it, and never while that lease no longer matches the viewer (then the
    * state of the slide is unknown and nothing is changed). A failed delete leaves it inserted, which is today's behaviour.
    * Returns true when the slide no longer holds it.
    */
@@ -125,21 +175,27 @@ export function createPlaceholderDeferral() {
     const entry = entries.get(id)
     if (!entry) return false
     if (entry.busy) await entry.busy
-    if (entry.state !== 'inserted' || !entry.lease) return entry.state === 'deferred'
+    const nothingOnSlide = () => {
+      entry.state = 'deferred'
+      entry.layoutId = null
+      entry.lease = null
+    }
+    // The Generate already deleted it itself: nothing is on the slide; the next Generate inserts it afresh.
+    if (entry.state === 'removed') { nothingOnSlide(); return true }
+    if (entry.state !== 'inserted' || !entry.lease || !entry.layoutId) return entry.state === 'deferred'
     const lease = entry.lease
+    const layoutId = entry.layoutId
     if (!lease.isCurrent()) return false
     const run = (async () => {
-      const response = await lease.sendElementCommand('deleteElement', { elementId: id })
+      const response = await lease.sendElementCommand('deleteElement', { elementId: layoutId })
       if (response?.success === false) throw new Error(typeof response.error === 'string' ? response.error : 'Layout refused the delete')
-      entry.state = 'deferred'
-      entry.lease = null
+      nothingOnSlide()
     })()
     entry.busy = run.finally(() => { entry.busy = null }).catch(() => {})
     try { await run; return true } catch (error) {
       // Already gone from the slide (a failed restore, a manual delete): the goal is met, and the next Generate inserts it afresh.
-      if (error instanceof Error && /not found|no such|does not exist/i.test(error.message)) {
-        entry.state = 'deferred'
-        entry.lease = null
+      if (error instanceof Error && NOT_FOUND.test(error.message)) {
+        nothingOnSlide()
         return true
       }
       return false
