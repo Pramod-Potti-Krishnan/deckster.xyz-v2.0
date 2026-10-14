@@ -89,6 +89,9 @@ export interface MessageListProps {
   presentationContext?: StudioPresentationContext
   /** PASS2 #2 (NEXT_PUBLIC_STUDIO_FIRST_RUN_V2): the small row of stage actions the first-run welcome carries under its starters. */
   studioFirstRunActions?: React.ReactNode
+  /** PASS2 #2 fix-forward (NEXT_PUBLIC_STUDIO_FIRST_RUN_V2, J2 pass-2 P1): an existing session's history is still being fetched, so "nothing has been said yet"
+   *  is not yet known. While true no welcome is drawn (first-run or plain); the page's loading states carry the wait. Passed only with the flag on. */
+  studioRestoring?: boolean
   messagesEndRef: React.RefObject<HTMLDivElement | null>
   // Rich strawman: per-slide context keyed by slide_index. Drives narrative_role chip + key_message subtitle.
   slideContextByIndex?: Record<number, SlideContextItem> | null
@@ -191,6 +194,7 @@ export function MessageList({
   connectionState,
   presentationContext,
   studioFirstRunActions,
+  studioRestoring,
   messagesEndRef,
   slideContextByIndex,
   ephemeralFadeToken,
@@ -248,7 +252,11 @@ export function MessageList({
   // PASS2 #2 (flag NEXT_PUBLIC_STUDIO_FIRST_RUN_V2, default off): Director's opening greeting alone is still a first run, so the
   // welcome holds once Director has said hello. Off, only a blank-deck notice (or nothing) counts, exactly as before.
   const firstRunV2 = studio && process.env.NEXT_PUBLIC_STUDIO_FIRST_RUN_V2 === 'true'
-  const isEmptyStudioConversation = studio && userMessages.length === 0 && messages.every(message =>
+  // J2 pass-2 P1 (same flag): a transcript with no user turn is also what an existing session looks like for the moment its history is loading.
+  // The page says so (studioRestoring); until it is confirmed new or restored, no "nothing here yet" welcome is drawn. An open deck's own
+  // welcome ("What would you like to change?", presentationContext) is true whatever the history says, so it stays. Off, firstRunV2 is false.
+  const restoringSession = firstRunV2 && studioRestoring === true && !presentationContext
+  const isEmptyStudioConversation = studio && !restoringSession && userMessages.length === 0 && messages.every(message =>
     ((message.type === 'slide_update' && (message as SlideUpdate).payload.is_blank === true)
       || (firstRunV2 && message.type === 'chat_message' && (message as V2ChatMessage).payload.text === DIRECTOR_522_INITIAL_GREETING))
       && !classifyDirectorMessage(message, {

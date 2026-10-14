@@ -71,6 +71,7 @@
     {"chars":318,"label":"page.<MessageList studioGreetingSafety>","sha256":"c338de90e665e5e5"},
     {"chars":39,"label":"page.<MessageList studioOutlineOnCanvas>","sha256":"b76f01f0c3bafc10"},
     {"chars":549,"label":"page.<MessageList studioRecovery>","sha256":"b42f35f5e3767717"},
+    {"chars":107,"label":"page.<MessageList studioRestoring>","sha256":"eeb8687102ebe1c9"},
     {"chars":30,"label":"page.<MessageList suppressEphemeral>","sha256":"5158563c6053a2ac"},
     {"chars":32,"label":"page.<MessageList userMessageContentMapRef>","sha256":"7a72d80f0c34d483"},
     {"chars":25,"label":"page.<MessageList userMessageIdsRef>","sha256":"c3c013aa7b472b7d"},

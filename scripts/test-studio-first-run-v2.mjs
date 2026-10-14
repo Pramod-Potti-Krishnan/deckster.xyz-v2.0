@@ -5,6 +5,8 @@
 //   FIRST_RUN_V2_ROOT=<pristine base checkout> PRINT_GOLDEN=1 node scripts/test-studio-first-run-v2.mjs
 //     re-prints the flag-off hashes below from the base sources.
 //
+// J2 pass-2 P1 (fix-forward, same flag): an existing session that is still restoring is never drawn as a first run (sections 5 and 6).
+//
 // The proof runs on the REAL sources: components/builder/message-list.tsx and components/builder/chat/studio-welcome.tsx (and the
 // libs they use) are transpiled and evaluated in a vm. Everything the page owns (stage, composer, handlers) is out of scope here by
 // design: the change is MessageList choosing a different welcome, plus CSS keyed to markup that exists only with the flag on.
@@ -44,8 +46,9 @@ const stubs = {
   './studio-director.css': {},
 }
 const transpiled = new Map()
-function createLoader() {
+function createLoader(sourceOverrides = {}) {
   const cache = new Map()
+  const overridden = new Map()
   const resolve = (spec, from) => {
     const base = spec.startsWith('@/') ? path.join(treeRoot, spec.slice(2)) : path.resolve(path.dirname(from), spec)
     for (const suffix of ['.ts', '.tsx']) if (fs.existsSync(base + suffix)) return base + suffix
@@ -65,9 +68,13 @@ function createLoader() {
     if (cache.has(file)) return cache.get(file)
     const mod = { exports: {} }
     cache.set(file, mod.exports)
-    if (!transpiled.has(file)) transpiled.set(file, ts.transpileModule(fs.readFileSync(file, 'utf8'), { fileName: file, reportDiagnostics: true,
-      compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022, jsx: ts.JsxEmit.ReactJSX, esModuleInterop: true } }).outputText)
-    vm.runInNewContext(transpiled.get(file), { module: mod, exports: mod.exports, process: { env }, console, fetch: refuse, setTimeout: refuse, clearTimeout: refuse, require: spec => requireFor(spec, file) })
+    const compile = text => ts.transpileModule(text, { fileName: file, reportDiagnostics: true,
+      compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022, jsx: ts.JsxEmit.ReactJSX, esModuleInterop: true } }).outputText
+    const rel = path.relative(treeRoot, file)
+    // A mutated copy of a source (mutation checks only) is compiled into this loader's own cache, never the shared one.
+    if (rel in sourceOverrides) overridden.set(file, compile(sourceOverrides[rel]))
+    else if (!transpiled.has(file)) transpiled.set(file, compile(fs.readFileSync(file, 'utf8')))
+    vm.runInNewContext(overridden.get(file) ?? transpiled.get(file), { module: mod, exports: mod.exports, process: { env }, console, fetch: refuse, setTimeout: refuse, clearTimeout: refuse, require: spec => requireFor(spec, file) })
     cache.set(file, mod.exports)
     return mod.exports
   }
@@ -129,6 +136,7 @@ function expand(node) {
   return { type: typeof node.type === 'function' ? `[component ${node.type.name}]` : typeof node.type === 'symbol' ? 'Fragment' : node.type, props, key: node.key }
 }
 const treeOf = props => MessageList(props)
+const hashOfWith = (List, props) => { const tree = List(props); return sha(ser(expand(tree)) + '\n' + renderToStaticMarkup(tree)) }
 const hashOf = props => { const tree = treeOf(props); return sha(ser(expand(tree)) + '\n' + renderToStaticMarkup(tree)) }
 const hashes = flag => {
   setFlags({ flag })
@@ -266,7 +274,7 @@ for (const name of notFirstRun) {
   assert.doesNotMatch(page, /onDismissBlankPlaceholder=\{\(\) =>/, 'no second copy of the handler')
   assert.match(page, /studioFirstRunActions=\{studioShell && process\.env\.NEXT_PUBLIC_STUDIO_FIRST_RUN_V2 === 'true'\n\s+\? <StudioFirstRunActions onStartBlank=\{effectivePresentationUrl \? handleDismissBlankPlaceholder : undefined\} \/> : undefined\}/, 'actions are offered only with the flag; Start on a blank canvas only when a blank deck exists')
   assert.match(page, /const studioFirstRunStage = studioShell && process\.env\.NEXT_PUBLIC_STUDIO_FIRST_RUN_V2 === 'true' && studioWelcome\n\s+&& !viewerWorkflowRequest && !studioViewerFullscreen && !workspaceLayout\.inspectorVisible/, 'the stage steps aside only in the landing state: no workflow link, no fullscreen, no inspector')
-  assert.match(page, /data-studio-first-run-stage=\{studioFirstRunStage \? "true" : undefined\}/)
+  assert.match(page, /data-studio-first-run-stage=\{studioFirstRunStage && !studioFirstRunRestoring \? "true" : undefined\}/, 'the stage attribute is the #365 one, plus the restoring gate (section 5)')
   assert.match(page, /if \(studioShell && process\.env\.NEXT_PUBLIC_STUDIO_FIRST_RUN_V2 === 'true'\) \{\n\s+const viewport = messagesEndRef\.current\?\.closest\('\[data-radix-scroll-area-viewport\]'\)\n\s+if \(viewport\?\.querySelector\('\[data-studio-first-run\]'\)\) \{ viewport\.scrollTop = 0; return \}/, 'the greeting does not scroll the welcome off its heading')
   for (const file of ['components/builder/studio-first-run-actions.tsx', 'components/builder/chat/studio-welcome.tsx', 'components/builder/studio-first-run.css']) {
     const source = read(file)
@@ -279,4 +287,154 @@ for (const name of notFirstRun) {
   assert.match(read('.env.example'), /^NEXT_PUBLIC_STUDIO_FIRST_RUN_V2="false"$/m, 'documented, default off')
   assert.equal(JSON.parse(read('package.json')).scripts['test:studio-first-run-v2'], 'node scripts/test-studio-first-run-v2.mjs')
 }
-console.log(`Studio first-run v2 passed: flag off hashes equal the base for ${Object.keys(MATRIX).length} transcripts x 6 flag spellings, flag on shows the centred serif welcome (heading, greeting, same three starters, the stage's actions) only while nothing has been said, and the CSS can match only flag-on markup.`)
+
+// ---- 5. J2 pass-2 P1: an existing deck must not flash the first-run welcome while its session restores ---------------------------
+// Cause: the welcome shows whenever the transcript holds no user turn, and that is also true for the moment an existing session's history
+// is still being fetched (the page renders, session.isLoadingSession is true, userMessages is [] and Director may already have greeted).
+// Fix (same flag): the page tells MessageList the session is restoring; the first-run welcome (head, starters, stage actions) and the
+// plain welcome are then not drawn, and the stage is not hidden. A confirmed-new session (restoring false) is exactly what it was.
+const restoring = props => ({ ...props, studioRestoring: true })
+const welcomeMarks = /data-studio-director-welcome|data-studio-first-run|data-studio-director-starter|What story are we telling|What are we making|data-fixture-actions/
+setFlags({ flag: 'true' })
+for (const name of firstRunCases) {
+  const markup = html(restoring(MATRIX[name]()))
+  assert.doesNotMatch(markup, welcomeMarks, `${name}: a session that is still restoring draws no welcome at all (no head, no starters, no stage actions)`)
+}
+for (const name of Object.keys(MATRIX)) {
+  // Restoring only withholds the welcome. Whatever else the transcript holds is drawn exactly as it was (a cached conversation, a reply).
+  if (firstRunCases.includes(name)) continue
+  assert.equal(html(restoring(MATRIX[name]())), html(MATRIX[name]()), `${name}: a transcript with a real turn or an open deck is untouched by restoring`)
+}
+for (const value of [undefined, false]) {
+  for (const name of firstRunCases) {
+    const markup = html({ ...MATRIX[name](), studioRestoring: value })
+    assert.match(markup, /data-studio-first-run="true"/, `${name}: studioRestoring ${value}: a session confirmed new is still the first-run welcome`)
+    assert.equal(markup, html(MATRIX[name]()), `${name}: studioRestoring ${value} changes nothing`)
+  }
+}
+{
+  // The frame order the person sees on opening an existing deck: restoring (nothing), then the restored transcript (no welcome, no first run).
+  const restored = html(baseProps({ messages: [directorReply], userMessages: [userTurn], userMessageIdsRef: { current: new Set([userTurn.id]) } }))
+  assert.doesNotMatch(restored, /data-studio-first-run/)
+  assert.match(restored, /A pitch for the Q3 review/)
+  const loadingFrame = html(restoring(baseProps({ messages: [greeting] })))
+  assert.doesNotMatch(loadingFrame, welcomeMarks, 'frame 1 (history still loading): no welcome')
+  const settledEmpty = html(baseProps({ messages: [greeting] }))
+  assert.match(settledEmpty, /data-studio-first-run="true"/, 'a history that finished loading empty is a new session: the welcome appears then')
+}
+// Flag off (or outside the Studio shell): the prop is ignored, the render is the base's, byte for byte.
+for (const value of [undefined, 'false', 'TRUE', '1', 'true ', '']) {
+  setFlags({ flag: value })
+  for (const name of Object.keys(MATRIX)) assert.equal(hashOf(restoring(MATRIX[name]())), GOLDEN[name], `flag ${JSON.stringify(value)}: studioRestoring is ignored ("${name}" is the base)`)
+}
+setFlags({ shell: 'false', flag: 'true' })
+const shellOffRestoring = Object.fromEntries(Object.entries(MATRIX).map(([n, m]) => [n, hashOf(restoring(m()))]))
+setFlags({ shell: 'false' })
+assert.deepEqual(shellOffRestoring, Object.fromEntries(Object.entries(MATRIX).map(([n, m]) => [n, hashOf(m())])), 'outside the Studio shell studioRestoring changes nothing')
+setFlags({ flag: 'true' })
+const WIRING = /const studioFirstRunRestoring = process\.env\.NEXT_PUBLIC_STUDIO_FIRST_RUN_V2 === 'true' && isStudioSessionRestoring\(\{\n\s+loadingSession: session\.isLoadingSession,\n\s+knownFresh: studioInitialKnownFresh,\n\s+localUnsavedRoute: session\.isLoadingSession && isLocalUnsavedRoute\(authScopeUserId, searchParams\.get\('session_id'\), \(\) => window\.sessionStorage\),\n\s+\}\)\n/
+const restoringLib = loader.load('lib/studio-first-run-restoring.ts')
+const unsavedKey = (owner, id) => `deckster_unsaved_v2_${encodeURIComponent(owner)}_${id}`
+const storageWith = items => ({ getItem: key => (key in items ? items[key] : null) })
+const checkRestoringLib = lib => {
+  const { isStudioSessionRestoring, isLocalUnsavedRoute } = lib
+  // the decision table: restoring only while loading, and only when the session is not known to be new
+  for (const loadingSession of [true, false]) for (const knownFresh of [true, false]) for (const localUnsavedRoute of [true, false]) {
+    assert.equal(isStudioSessionRestoring({ loadingSession, knownFresh, localUnsavedRoute }), loadingSession && !knownFresh && !localUnsavedRoute,
+      `restoring(loading=${loadingSession}, fresh=${knownFresh}, unsaved=${localUnsavedRoute})`)
+  }
+  const OWNER = 'fixture-user-001', A = 'aaaaaaaa-0000-4000-8000-00000000000a', B = 'bbbbbbbb-0000-4000-8000-00000000000b'
+  const mine = () => storageWith({ [unsavedKey(OWNER, A)]: 'true' })
+  assert.equal(isLocalUnsavedRoute(OWNER, A, mine), true, 'a route id this tab generated and has not saved')
+  assert.equal(isLocalUnsavedRoute(OWNER, B, mine), false, 'the marker is per id: a stale marker for session A says nothing about existing session B (switching A -> B)')
+  assert.equal(isLocalUnsavedRoute('someone-else', A, mine), false, 'the marker is per account')
+  assert.equal(isLocalUnsavedRoute(OWNER, A, () => storageWith({ [unsavedKey(OWNER, A)]: 'false' })), false, 'only the exact "true" marker counts')
+  assert.equal(isLocalUnsavedRoute(OWNER, 'new', mine), false, 'the "new" placeholder is not an id')
+  assert.equal(isLocalUnsavedRoute(OWNER, null, mine), false, 'no route id')
+  assert.equal(isLocalUnsavedRoute('', A, mine), false, 'no account')
+  assert.equal(isLocalUnsavedRoute(OWNER, A, () => { throw new Error('blocked storage') }), false, 'storage that throws is no proof')
+  assert.equal(isLocalUnsavedRoute(OWNER, A, () => ({ getItem() { throw new Error('blocked storage') } })), false, 'a read that throws is no proof')
+  assert.equal(isLocalUnsavedRoute(OWNER, A, () => undefined), false, 'no storage (server render)')
+  // the whole decision, as the page composes it, for each way a Builder is opened
+  const decide = ({ route, loading, fresh = false, storage }) => isStudioSessionRestoring({ loadingSession: loading, knownFresh: fresh,
+    localUnsavedRoute: loading && isLocalUnsavedRoute(OWNER, route, () => storage) })
+  assert.equal(decide({ route: B, loading: true, storage: storageWith({}) }), true, 'open an existing deck by URL: restoring')
+  assert.equal(decide({ route: B, loading: true, storage: storageWith({ [unsavedKey(OWNER, A)]: 'true' }) }), true, 'from an unsaved session to an existing one: restoring')
+  assert.equal(decide({ route: B, loading: false, storage: storageWith({}) }), false, 'history loaded: not restoring (a history that is empty is a new session)')
+  assert.equal(decide({ route: A, loading: true, fresh: true, storage: storageWith({}) }), false, 'a local UUID the hook just assigned: not restoring')
+  assert.equal(decide({ route: A, loading: true, storage: storageWith({ [unsavedKey(OWNER, A)]: 'true' }) }), false, 'reload of a bare session\'s own URL (unsaved): not restoring')
+  assert.equal(decide({ route: null, loading: false, storage: storageWith({}) }), false, 'bare /builder before the id is assigned: not restoring')
+}
+checkRestoringLib(restoringLib)
+{
+  // The page wiring: restoring is "the history is still loading, and this is not a UUID the page just made itself", it is passed only
+  // with the flag, and it also keeps the stage out of the first-run hidden state.
+  const page = read('app/builder/page.tsx')
+  assert.equal((page.match(/const studioFirstRunRestoring = /g) || []).length, 1)
+  assert.match(page, /import \{ isLocalUnsavedRoute, isStudioSessionRestoring \} from '@\/lib\/studio-first-run-restoring'/)
+  assert.match(page, WIRING, 'restoring = the history is loading and the session is neither a UUID the hook just assigned nor a local unsaved id; only with the flag')
+  assert.match(page, /studioRestoring=\{studioShell && process\.env\.NEXT_PUBLIC_STUDIO_FIRST_RUN_V2 === 'true' \? studioFirstRunRestoring : undefined\}/, 'passed to the transcript only with the flag')
+  assert.match(page, /data-studio-first-run-stage=\{studioFirstRunStage && !studioFirstRunRestoring \? "true" : undefined\}/, 'the stage is never hidden while the session restores')
+  assert.ok(page.indexOf('const studioInitialKnownFresh = ') < page.indexOf('const studioFirstRunRestoring = '), 'defined after the value it reads (no use before definition)')
+  assert.ok(page.indexOf('const studioFirstRunRestoring = ') < page.indexOf('studioRestoring={'), 'defined before it is used')
+}
+
+// ---- 6. mutation checks: the section-5 assertions must fail when the fix is taken out ---------------------------------------------
+{
+  const source = read('components/builder/message-list.tsx')
+  const mutate = (label, from, to) => {
+    assert.ok(source.includes(from), `mutation "${label}": the text to mutate is present`)
+    return createLoader({ 'components/builder/message-list.tsx': source.replace(from, to) }).load('components/builder/message-list.tsx').MessageList
+  }
+  setFlags({ flag: 'true' })
+  const tryRender = (List, props) => { try { return renderToStaticMarkup(List(props)) } catch (error) { return `THROWN ${error.message}` } }
+  const cases = {
+    'restoring ignored (the #365 behaviour)': ['const restoringSession = firstRunV2 && studioRestoring === true && !presentationContext', 'const restoringSession = false'],
+    'restoring honoured without the flag': ['const restoringSession = firstRunV2 && studioRestoring === true && !presentationContext', 'const restoringSession = studioRestoring === true && !presentationContext'],
+    'restoring also hides an open deck\'s own welcome': ['const restoringSession = firstRunV2 && studioRestoring === true && !presentationContext', 'const restoringSession = firstRunV2 && studioRestoring === true'],
+    'restoring hides the whole transcript, not just the welcome': ['const restoringSession = firstRunV2 && studioRestoring === true && !presentationContext', 'const restoringSession = firstRunV2 && studioRestoring === true && !presentationContext; if (restoringSession) return null'],
+  }
+  for (const [label, [from, to]] of Object.entries(cases)) {
+    const List = mutate(label, from, to)
+    const caught = []
+    // (a) a restoring session must draw no welcome
+    if (welcomeMarks.test(tryRender(List, restoring(MATRIX['empty']())))) caught.push('restoring draws a welcome')
+    // (b) a confirmed-new session must still draw the first-run welcome
+    if (!/data-studio-first-run="true"/.test(tryRender(List, MATRIX['greeting-only']()))) caught.push('confirmed new no longer first-run')
+    // (c) flag off (or shell off): the prop is ignored
+    setFlags({ flag: undefined })
+    if (hashOfWith(List, restoring(MATRIX['empty']())) !== GOLDEN['empty']) caught.push('flag off differs from the base')
+    setFlags({ flag: 'true' })
+    // (d) a real conversation is untouched by restoring
+    const real = baseProps({ messages: [directorReply], userMessages: [userTurn], userMessageIdsRef: { current: new Set([userTurn.id]) } })
+    if (tryRender(List, restoring(real)) !== tryRender(List, real) || !/A pitch for the Q3 review/.test(tryRender(List, restoring(real)))) caught.push('a real transcript changed')
+    const deck = MATRIX['empty-with-deck-context']()
+    if (tryRender(List, restoring(deck)) !== tryRender(List, deck)) caught.push('an open deck\'s welcome changed')
+    assert.ok(caught.length > 0, `mutation "${label}" must be caught by the section-5 assertions`)
+    console.log(`  mutation caught: ${label} -> ${caught.join('; ')}`)
+  }
+  // the page wiring regexes catch the obvious regressions too
+  const page = read('app/builder/page.tsx')
+  assert.match(page, WIRING)
+  assert.doesNotMatch(page.replace('    knownFresh: studioInitialKnownFresh,\n', ''), WIRING, 'dropping the fresh-assignment exception from the wiring is caught')
+  assert.doesNotMatch(page.replace('loadingSession: session.isLoadingSession,', 'loadingSession: true,'), WIRING, 'ignoring the loading state in the wiring is caught')
+  assert.doesNotMatch(page.replace("process.env.NEXT_PUBLIC_STUDIO_FIRST_RUN_V2 === 'true' && isStudioSessionRestoring", 'isStudioSessionRestoring'), WIRING, 'computing it without the flag is caught')
+  assert.doesNotMatch(page.replace("studioFirstRunStage && !studioFirstRunRestoring ?", 'studioFirstRunStage ?'), /data-studio-first-run-stage=\{studioFirstRunStage && !studioFirstRunRestoring \? "true" : undefined\}/, 'dropping the stage gate is caught')
+  // the policy module: each way of getting it wrong fails the decision table
+  const libSource = read('lib/studio-first-run-restoring.ts')
+  const libMutations = {
+    'restoring without a load': ['return input.loadingSession && !input.knownFresh && !input.localUnsavedRoute', 'return !input.knownFresh && !input.localUnsavedRoute'],
+    'a fresh UUID counts as restoring (new-session flicker)': ['return input.loadingSession && !input.knownFresh && !input.localUnsavedRoute', 'return input.loadingSession && !input.localUnsavedRoute'],
+    'a reload of an unsaved session counts as restoring': ['return input.loadingSession && !input.knownFresh && !input.localUnsavedRoute', 'return input.loadingSession && !input.knownFresh'],
+    'the marker of another id counts': ['readSessionOrigin(storage, ownerId, routeSessionId)', "readSessionOrigin(storage, ownerId, 'aaaaaaaa-0000-4000-8000-00000000000a')"],
+    'throwing storage is trusted': ['try { storage = getStorage() } catch { return false }', 'storage = getStorage()'],
+  }
+  for (const [label, [from, to]] of Object.entries(libMutations)) {
+    assert.ok(libSource.includes(from), `lib mutation "${label}": text present`)
+    const mutated = createLoader({ 'lib/studio-first-run-restoring.ts': libSource.replace(from, to) }).load('lib/studio-first-run-restoring.ts')
+    assert.throws(() => checkRestoringLib(mutated), `lib mutation "${label}" must be caught by the decision table`)
+    console.log(`  mutation caught: ${label}`)
+  }
+  setFlags({ flag: 'true' })
+}
+console.log(`Studio first-run v2 passed: flag off hashes equal the base for ${Object.keys(MATRIX).length} transcripts x 6 flag spellings, flag on shows the centred serif welcome (heading, greeting, same three starters, the stage's actions) only while nothing has been said, the CSS can match only flag-on markup, and (J2 pass-2 P1) a session whose history is still loading draws no welcome and leaves the stage in place (new, unsaved and freshly assigned sessions are exempt), checked by mutation against the transcript, the page wiring and the decision table.`)
