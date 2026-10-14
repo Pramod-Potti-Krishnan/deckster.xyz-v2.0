@@ -24,6 +24,7 @@ import {
 } from '@/lib/chart-data-contract'
 import { ElementContext, GenerationPanelDraft, MandatoryConfig } from '../types'
 import { resolveDraftThemeSource } from '@/lib/visual-form-draft'
+import { STUDIO_EMPTY_PROMPT_GUARD_ENABLED } from '@/lib/studio-empty-prompt-guard'
 import { ToggleRow } from '../shared/toggle-row'
 import { CollapsibleSection } from '../shared/collapsible-section'
 import { PositionPresets } from '../shared/position-presets'
@@ -243,6 +244,9 @@ export function ChartForm({
     .flatMap(group => group.types)
     .find(type => type.value === chartType)?.label ?? 'Auto'
 
+  // J3-EMPTY-PROMPT-GUARD (flag off: always false): the data comes from the Custom JSON, so Generate does not wait for a typed prompt.
+  const promptOptional = STUDIO_EMPTY_PROMPT_GUARD_ENABLED && dataSource === 'custom'
+
   // Keep chart choice in the chat toolbar, as in the production interaction
   // model. A native grouped select is used deliberately: it remains reliable
   // in the panel/iframe stack where the generic popover previously failed.
@@ -252,6 +256,7 @@ export function ChartForm({
       displayLabel: chartTypeLabel,
       selectedValue: chartType,
       promptPlaceholder: 'e.g., Show quarterly revenue growth for 2024',
+      ...(promptOptional ? { promptOptional: true } : {}),
       onChange: value => selectChartType(value as TextLabsChartType),
       customRender: (
         <label data-studio-v4-shell={STUDIO_SPECIALIST_FORMS ? 'true' : undefined} data-studio-specialist-picker={STUDIO_SPECIALIST_FORMS ? 'chart' : undefined} className="relative block min-w-0 max-w-[150px]">
@@ -296,7 +301,7 @@ export function ChartForm({
       },
       chartTypeConfig,
     ])
-  }, [chartType, chartTypeLabel, isGenerating, operationMode, panelMode, registerMandatoryConfig, selectChartType])
+  }, [chartType, chartTypeLabel, isGenerating, operationMode, panelMode, promptOptional, registerMandatoryConfig, selectChartType])
 
   const seriesNames = useMemo(
     () => seriesNamesInput.split(',').map(value => value.trim()).filter(Boolean),

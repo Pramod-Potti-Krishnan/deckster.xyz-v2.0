@@ -22,6 +22,7 @@ import { parseTemplateSlotCatalog } from '@/lib/text-slot-catalog'
 import { ResearchControls } from './shared/research-controls'
 import type { ElementGenerationSubmitIntent } from '@/lib/element-generation-retry'
 import { resolveChartFormDataFromGenerationConfig } from '@/lib/chart-data-contract'
+import { EMPTY_PROMPT_HINT, emptyPromptBlocksGenerate, mandatoryConfigPromptOptional } from '@/lib/studio-empty-prompt-guard'
 
 function readObject(value: unknown): Record<string, unknown> | null {
   return value && typeof value === 'object' && !Array.isArray(value)
@@ -136,6 +137,9 @@ export function GenerationPanel({
     intent: ElementGenerationSubmitIntent
   } | null>(null)
 
+  // J3-EMPTY-PROMPT-GUARD: set on every render (below, once the prompt and the form's config are known); read by handleFooterGenerate.
+  const emptyPromptBlockedRef = useRef(false)
+
   const registerSubmit = useCallback((fn: () => void) => {
     submitFnRef.current = { key: panelTargetKey, submit: fn }
   }, [panelTargetKey])
@@ -143,6 +147,8 @@ export function GenerationPanel({
   const handleFooterGenerate = useCallback((
     intent: ElementGenerationSubmitIntent = 'generate',
   ) => {
+    // The one way in for the Generate button, the retry button and Cmd/Ctrl+Enter: a required prompt that is empty does nothing.
+    if (emptyPromptBlockedRef.current) return
     const registration = submitFnRef.current
     if (registration?.key !== panelTargetKey) return
     const effectiveIntent = (
@@ -255,6 +261,14 @@ export function GenerationPanel({
   const mandatoryConfig = mandatoryConfigState.key === panelTargetKey
     ? mandatoryConfigState.config
     : null
+  // J3-EMPTY-PROMPT-GUARD (NEXT_PUBLIC_STUDIO_EMPTY_PROMPT_GUARD, default off: always false): see lib/studio-empty-prompt-guard.ts.
+  const emptyPromptBlocked = emptyPromptBlocksGenerate({
+    mode,
+    prompt,
+    retryStrategy,
+    promptOptional: mandatoryConfigPromptOptional(mandatoryConfig),
+  })
+  emptyPromptBlockedRef.current = emptyPromptBlocked
 
   const persistedGenerationDraft = useMemoFromSavedGenerationConfig(
     existingTextTarget?.generationConfig,
@@ -391,6 +405,7 @@ export function GenerationPanel({
             error={error}
             retryStrategy={retryStrategy}
             placeholder={elementType === 'CHART' ? 'e.g., Show quarterly revenue growth for 2024' : undefined}
+            emptyPromptHint={emptyPromptBlocked ? EMPTY_PROMPT_HINT : undefined}
           />
         )}
 
