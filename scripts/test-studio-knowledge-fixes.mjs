@@ -499,11 +499,168 @@ check('S6 wiring: a section that throws is contained, the others still render (p
 }))
 
 // ===========================================================================================================================================
+// 2. S2 / S3: plain words and a Retry instead of "Failed to fetch" and the backend's own error text
+// ===========================================================================================================================================
+
+const importButtonOf = tree => buttons(tree, 'Import past sessions')[0]
+const noticeOf = tree => all(tree, item => item.type === 'div' && item.props.role === 'status')[0]
+const noticeText = tree => text(noticeOf(tree).props.children[0]).replace(/\s+/g, ' ').trim()   // the message only, not the buttons
+const OFFLINE = /You seem to be offline, or Deckster can't be reached right now\. Check your connection and try again\./
+const TECHNICAL = /Failed to fetch|NetworkError|Unexpected end of JSON|TypeError|SyntaxError|db-prod|Traceback/
+
+check('S2: flag on, a network failure while loading says so in plain words with Retry; the detail goes to the console', async ({ shell }) => {
+  const server = createServer({ stats: networkDown })
+  const world = mountPage({ shell, server })
+  const tree = await world.load()
+  assert.match(text(tree), /Knowledge could not be loaded/)
+  assert.match(text(tree), OFFLINE)
+  assert.doesNotMatch(text(tree), TECHNICAL)
+  assert.ok(world.logs.warn.some(entry => entry.some(part => part instanceof TypeError && part.message === 'Failed to fetch')), 'the raw error is in the console')
+  assert.equal(buttons(tree, 'Retry').length, 1)
+  server.routes.stats = respond(200, STATS)
+  buttons(tree, 'Retry')[0].props.onClick()
+  await settle()
+  const after = world.view()
+  assert.equal(server.count('stats'), 2, 'Retry asks again')
+  assert.doesNotMatch(text(after), /Knowledge could not be loaded/)
+})
+
+check('S2: flag on, an unreadable response says the graph could not be loaded, not the parser\'s message; HTTP errors keep their plain sentences', async ({ shell }) => {
+  const parse = mountPage({ shell, server: createServer({ stats: respond(200, undefined) }) })
+  const tree = await parse.load()
+  assert.match(text(tree), /Your knowledge graph could not be loaded\./)
+  assert.doesNotMatch(text(tree), TECHNICAL)
+  assert.ok(parse.logs.warn.some(entry => entry.some(part => part instanceof SyntaxError)))
+  const unavailable = await mountPage({ shell, server: createServer({ stats: respond(503, { error: 'x' }) }) }).load()
+  assert.match(text(unavailable), /The Knowledge Graph service is not activated or is temporarily unavailable\./)
+  const failed = await mountPage({ shell, server: createServer({ graph: respond(500, { error: 'Traceback: db-prod' }) }) }).load()
+  assert.match(text(failed), /Your knowledge graph could not be loaded\./)
+  assert.doesNotMatch(text(failed), TECHNICAL)
+})
+
+check('S2: flag on, search and entity details fail in plain words with Retry too', async ({ shell }) => {
+  const server = createServer({ search: networkDown, node: networkDown })
+  const world = mountPage({ shell, server })
+  await world.load()
+  all(world.view(), item => item.type === 'Input')[0].props.onChange({ target: { value: 'north' } })
+  all(world.view(), item => item.type === 'form')[0].props.onSubmit({ preventDefault() {} })
+  await settle()
+  let tree = world.view()
+  assert.match(text(tree), OFFLINE)
+  assert.doesNotMatch(text(tree), /Failed to fetch/)
+  assert.equal(rawButtons(tree, 'Retry').length, 1, 'search has a Retry')
+  server.routes.search = respond(200, { nodes: [{ node_id: 'n1', name: 'Northwind', entity_type: 'ORG' }] })
+  rawButtons(tree, 'Retry')[0].props.onClick()
+  await settle()
+  assert.equal(server.count('search'), 2)
+  assert.match(text(world.view()), /Northwind/)
+
+  all(tree, item => item.type === 'KgGraphView')[0].props.onSelect('n1')
+  world.render(); await settle()
+  tree = world.view()
+  const inspector = all(tree, item => item.type === 'StudioKnowledgeInspector')[0]
+  if (inspector) {
+    assert.match(inspector.props.error, OFFLINE)
+    assert.doesNotMatch(inspector.props.error, /Failed to fetch/)
+  } else {
+    assert.match(text(tree), OFFLINE)
+    assert.equal(rawButtons(tree, 'Retry').length, 1, 'the classic inspector has a Retry')
+    server.routes.node = respond(200, { node: GRAPH.nodes[0], evidence: [], provenance_session_ids: [], edges: [] })
+    rawButtons(tree, 'Retry')[0].props.onClick()
+    world.render(); await settle()
+    assert.equal(server.count('node'), 2, 'Retry asks again')
+  }
+})
+
+check('S2/S3: flag on, a failed import shows one plain sentence and Retry; the backend text and the raw error stay in the console', async ({ shell }) => {
+  const cases = [
+    ['network', networkDown, /You seem to be offline, so Deckster couldn't confirm the import finished\. Check your connection and try again\. Sessions already imported are skipped\./],
+    ['HTTP 500 with a verbatim backend error', () => respond(500, { error: 'Backfill failed: connection to db-prod-7 refused' }), /^The import could not be completed\. Please try again in a moment\.$/],
+    ['HTTP 502 with no body', () => respond(502, undefined), /^The import could not be completed\. Please try again in a moment\.$/],
+    ['HTTP 503', () => respond(503, { error: 'Knowledge Graph is not activated on the backend yet' }), /^Knowledge is temporarily unavailable, so the import could not continue\. Please try again in a moment\.$/],
+  ]
+  for (const [label, backfill, expected] of cases) {
+    const server = createServer({ backfill })
+    const world = mountPage({ shell, server })
+    await world.load()
+    importButtonOf(world.view()).props.onClick()
+    await settle(20)
+    const tree = world.view()
+    assert.match(noticeText(tree), expected, label)
+    assert.doesNotMatch(noticeText(tree), TECHNICAL, label)
+    assert.ok(world.logs.warn.length > 0, `${label}: the detail is in the console`)
+    const retry = rawButtons(noticeOf(tree), 'Retry')
+    assert.equal(retry.length, 1, `${label}: Retry`)
+    retry[0].props.onClick()
+    await settle(20)
+    assert.equal(server.count('backfill'), 2, `${label}: Retry asks again`)
+  }
+  const verbatim = mountPage({ shell, server: createServer({ backfill: () => respond(500, { error: 'Backfill failed: connection to db-prod-7 refused' }) }) })
+  await verbatim.load(); importButtonOf(verbatim.view()).props.onClick(); await settle(20)
+  assert.ok(verbatim.logs.warn.some(entry => entry.some(part => String(part).includes('db-prod-7'))), 'the backend text is in the console')
+})
+
+check('S2: flag on, a failure after some batches keeps the progress sentence; Retry is only on a failed request', async ({ shell }) => {
+  let n = 0
+  const batch = { sessions_processed: 3, sessions_completed: 3, entities_created: 2, entities_merged: 0, total_candidates: 9, next_cursor: 3 }
+  const world = mountPage({ shell, server: createServer({ backfill: () => (++n === 1 ? respond(200, batch) : networkDown()) }) })
+  await world.load()
+  importButtonOf(world.view()).props.onClick()
+  await settle(20)
+  assert.match(noticeText(world.view()), /^3 session IDs were processed before import paused\. You seem to be offline/)
+  assert.equal(rawButtons(noticeOf(world.view()), 'Retry').length, 1)
+  const partial = mountPage({ shell, server: createServer({ backfill: () => respond(200, { sessions_processed: 2, sessions_completed: 0, sessions_retryable: 0, total_candidates: 2, next_cursor: null }) }) })
+  await partial.load(); importButtonOf(partial.view()).props.onClick(); await settle(20)
+  assert.match(noticeText(partial.view()), /could not be imported/)
+  assert.equal(rawButtons(noticeOf(partial.view()), 'Retry').length, 0, 'an import that ran and reported results has no Retry')
+  const running = mountPage({ shell, server: createServer({ backfill: () => new Promise(() => {}) }) })
+  await running.load(); importButtonOf(running.view()).props.onClick(); await settle()
+  assert.equal(rawButtons(noticeOf(running.view()), 'Retry').length, 0, 'no Retry while an import is running')
+})
+
+check('S2: network and text classification (browser engines, our own sentences, everything else)', async () => {
+  const lib = mountPage().loader.load(LIB)
+  for (const message of ['Failed to fetch', 'NetworkError when attempting to fetch resource.', 'Load failed', 'fetch failed', 'Network request failed', 'The Internet connection appears to be offline.', 'The network connection was lost.'])
+    assert.equal(lib.isNetworkFailure(new TypeError(message)), true, message)
+  for (const value of [new Error('Failed to fetch'), new TypeError('x is not a function'), new SyntaxError('Unexpected token'), null, undefined, 'Failed to fetch', { name: 'TypeError' }])
+    assert.equal(lib.isNetworkFailure(value), false, String(value))
+  assert.equal(lib.plainKnowledgeError(new Error('Entity details could not be loaded.'), 'fallback'), 'Entity details could not be loaded.', 'our own sentence passes through')
+  assert.equal(lib.plainKnowledgeError(new TypeError('x is not a function'), 'fallback'), 'fallback')
+  assert.equal(lib.plainKnowledgeError(new SyntaxError('Unexpected token <'), 'fallback'), 'fallback')
+  assert.equal(lib.plainKnowledgeError('boom', 'fallback'), 'fallback')
+  assert.equal(lib.plainKnowledgeError(new TypeError('Failed to fetch'), 'fallback', 'offline text'), 'offline text')
+  assert.equal(lib.importFailureText(503, 'x'), lib.IMPORT_UNAVAILABLE_TEXT)
+  assert.equal(lib.importFailureText(500, 'x'), lib.IMPORT_FAILED_TEXT)
+})
+
+mutant('a network failure is not recognised', { [LIB]: [['return name === "TypeError" && typeof message === "string" && NETWORK_MESSAGE.test(message)', 'return false']] })
+mutant('every TypeError counts as offline', { [LIB]: [['return name === "TypeError" && typeof message === "string" && NETWORK_MESSAGE.test(message)', 'return name === "TypeError"']] })
+mutant('the raw error message is shown', { [LIB]: [['  return fallback\n}', '  return String((error as { message?: unknown })?.message ?? fallback)\n}']] })
+mutant('the raw error is not logged', { [LIB]: [['    console.warn("[knowledge] request failed (network)", error)\n', '']] })
+mutant('the backend error text is shown for a failed import', { [LIB]: [['return status === 503 ? IMPORT_UNAVAILABLE_TEXT : IMPORT_FAILED_TEXT', 'return String(detail)']] })
+mutant('the backend error text is not logged', { [LIB]: [['  console.warn("[knowledge] import batch failed", status, detail)\n', '']] })
+mutant('a 503 import is not told apart', { [LIB]: [['return status === 503 ? IMPORT_UNAVAILABLE_TEXT : IMPORT_FAILED_TEXT', 'return IMPORT_FAILED_TEXT']] })
+mutant('loading shows the raw error again', { [PAGE]: [['setLoadError(KNOWLEDGE_FIXES\n          ? plainKnowledgeError(error, "Your knowledge graph could not be loaded.")\n          : error instanceof Error', 'setLoadError(false\n          ? plainKnowledgeError(error, "Your knowledge graph could not be loaded.")\n          : error instanceof Error']] })
+mutant('entity details show the raw error again', { [PAGE]: [['setSelectedError(KNOWLEDGE_FIXES\n            ? plainKnowledgeError', 'setSelectedError(false\n            ? plainKnowledgeError']] })
+mutant('search shows the raw error again', { [PAGE]: [['setSearchError(KNOWLEDGE_FIXES\n          ? plainKnowledgeError', 'setSearchError(false\n          ? plainKnowledgeError']] })
+mutant('a failed import shows the raw error again', { [PAGE]: [['              ? plainKnowledgeError(error, IMPORT_FAILED_TEXT, OFFLINE_IMPORT_TEXT)', '              ? (error instanceof Error ? error.message : "")']] })
+mutant('a failed import still shows the backend text', { [PAGE]: [['KNOWLEDGE_FIXES\n              ? importFailureText(response.status, body.error)', 'false\n              ? importFailureText(response.status, body.error)']] })
+mutant('a failed import has no Retry', { [PAGE]: [['{KNOWLEDGE_FIXES && importNotice.kind === "failed" && !importing && (', '{false && importNotice.kind === "failed" && !importing && (']] })
+mutant('every error notice has a Retry', { [PAGE]: [['{KNOWLEDGE_FIXES && importNotice.kind === "failed" && !importing && (', '{KNOWLEDGE_FIXES && !importing && (']] })
+mutant('a failed import is not marked failed', { [PAGE]: [['...(KNOWLEDGE_FIXES ? { kind: "failed" as const } : {}),', '']] })
+mutant('search has no Retry', { [PAGE]: [['{searchError && (KNOWLEDGE_FIXES', '{searchError && (false']] })
+mutant('the classic inspector has no Retry', { [PAGE]: [['{KNOWLEDGE_FIXES && (\n              <button type="button" onClick={onRetry}', '{false && (\n              <button type="button" onClick={onRetry}']] })
+
+// ===========================================================================================================================================
 // flag off = the base, byte for byte: render hashes over a matrix of states (markup, requests, console, storage)
 // ===========================================================================================================================================
 
+// React renders nothing for an undefined prop or for a null / boolean child, so those are omitted (an undefined property is dropped by
+// JSON.stringify; the filter drops the `false` of `{flag && <x/>}`, and a one-element list is its element) rather than recorded: the hashes
+// cover what the DOM gets.
 const serTree = value => JSON.stringify(value, (key, item) =>
-  typeof item === 'function' ? (key === 'type' ? `[component ${item.name}]` : '[fn]') : item === undefined ? '__undefined__' : item)
+  typeof item === 'function' ? (key === 'type' ? `[component ${item.name}]` : '[fn]')
+    : Array.isArray(item) ? ((kept) => kept.length === 1 ? kept[0] : kept)(item.filter(entry => entry !== null && entry !== undefined && typeof entry !== 'boolean')) : item)
 
 /**
  * Drives the page through the states below with the flag OFF and returns a hash per state of everything observable: the expanded markup
@@ -513,6 +670,7 @@ async function offStates(shell) {
   const states = {}
   const record = (name, world, extra = null) => {
     const view = world.view()
+    if (process.env.DUMP_DIR) fs.writeFileSync(path.join(process.env.DUMP_DIR, `${shell ? 'studio' : 'classic'}-${name}.json`), JSON.stringify(JSON.parse(serTree({ view, calls: world.server.calls, logs: world.logs, storage: world.storage.log })), null, 1))
     if (process.env.SHOW === name) console.log(`--- ${name}\n${text(view).replace(/\s+/g, ' ')}`)
     states[name] = sha(serTree({ view, calls: world.server.calls, logs: world.logs, storage: world.storage.log, extra })).slice(0, 20)
   }
@@ -580,67 +738,67 @@ async function offStates(shell) {
 // Recorded from the base tree with: KNOWLEDGE_FIXES_ROOT=<b0c5a4a checkout> PRINT_GOLDEN=1 node scripts/test-studio-knowledge-fixes.mjs
 const GOLDEN = {
   "studio": {
-    "loading": "60886f604a9dd6738882",
-    "loaded": "e06697c14cf3edf02e05",
-    "empty": "f78da70f4df4fa3718bb",
-    "load-503": "36c6dc7078216b4f079c",
-    "load-network": "51640033926a98ded730",
-    "refresh-failed": "94150d2643b90a9d32ed",
-    "type-hidden": "91c3fcc3b0a0802a89ba",
-    "importing": "d31b9ce61c2b0a9b5175",
-    "import-success": "cea019207be7f1823ae5",
-    "import-singular": "ff03ee5b3c9b11e189c3",
-    "import-partial": "0bc002fd306e891d1354",
-    "import-unfinished": "0c09f6ee0a68e7557e6d",
-    "import-no-sessions": "c7caf58b45c5f3513ba1",
-    "import-http-error": "31019ce553703efe0c05",
-    "import-http-error-bare": "dbbd4d6b9ed832ae6c40",
-    "import-network-error": "62a7470dc1cef31624ba",
-    "import-error-after-batch": "1b26750d6ae5d4c85075",
-    "import-dismissed": "96742123972aace273de",
-    "empty-import-success": "37817feba68f0d9c4f86",
-    "search-hits": "9309dc06c69d0550f7a4",
-    "search-error": "922a7994ed7a5a8b17e0",
-    "search-network": "3a6fd7b2bdbbe4c5a97b",
-    "detail-loaded": "0dadbcdd7cc74f76bbaf",
-    "detail-error": "7178d5afdd49b852f347",
-    "detail-network": "8187d326c32de0b4bfb6",
-    "gate-loading": "9dbe8c32bb7040ad30dd",
-    "gate-locked": "38e4a649d1d4521f797c",
-    "gate-unavailable": "3e209867f4b726ee3a79",
-    "gate-paused": "a712b9be136fc55bd359",
+    "loading": "176908a50f25476e480e",
+    "loaded": "2daa54d1cc309b1a5fc9",
+    "empty": "a0b39b099a771b455180",
+    "load-503": "4d24dca63ec2fae56899",
+    "load-network": "7f38683e158af87d2952",
+    "refresh-failed": "1d85082cc74b5fb2c6ad",
+    "type-hidden": "46a27e4bd8556db93e0c",
+    "importing": "c9316f08e396e1862db5",
+    "import-success": "93d0613ff072c04201fd",
+    "import-singular": "853841c27774a98c1b01",
+    "import-partial": "06e28bf093e2e64c585b",
+    "import-unfinished": "2db2a27295838b8d27a5",
+    "import-no-sessions": "d094c3a06fb9533ceeda",
+    "import-http-error": "18808cd3dac1b82a85f9",
+    "import-http-error-bare": "db4181900d68f25b40ea",
+    "import-network-error": "c675b8ef6e43425e2554",
+    "import-error-after-batch": "99d9c56643078a2383b0",
+    "import-dismissed": "f841b7ae48330251ef9d",
+    "empty-import-success": "44c6aa80a3fca74d7e14",
+    "search-hits": "f4b742ab977025754520",
+    "search-error": "3a2ee484d6dc4ba0dae1",
+    "search-network": "27a4ecd2c0984911222d",
+    "detail-loaded": "fc239e9a8214a579b855",
+    "detail-error": "405b74537bdaeb0a84ad",
+    "detail-network": "384e32b8620e6cc64e8c",
+    "gate-loading": "5031ff6f6463edd5061a",
+    "gate-locked": "71b84c0d13ab9da2fe0f",
+    "gate-unavailable": "376083621d64decd1a49",
+    "gate-paused": "88d1d96a360894d0da0a",
     "default-export": "7f394dc27664a83a98b7",
     "missing-nodes-by-type": "e980ad1b24fa0c73f93b"
   },
   "classic": {
-    "loading": "c769fe2eb7913acd68fd",
-    "loaded": "6d7250fe06c85ecc788c",
-    "empty": "5531550a4998c8d4a8e2",
-    "load-503": "86c2c6879d0b1d7ff3ab",
-    "load-network": "e5cec89efc081c8e5448",
-    "type-hidden": "09885692fdb1cf6fb185",
-    "importing": "a64036be400db22400f3",
-    "import-success": "ec4fb433610d43d893d0",
-    "import-singular": "712e2755d8d9112b3a4b",
-    "import-partial": "7b17f2297414cd972ccc",
-    "import-unfinished": "7ee64ab516faffd19b26",
-    "import-no-sessions": "011ecdbf851faa755c94",
-    "import-http-error": "f91d72afbc7cc9350f05",
-    "import-http-error-bare": "e97f9dcecf40f63268af",
-    "import-network-error": "ce3c4f1362787bc6fd38",
-    "import-error-after-batch": "d59d3a0aac8ecbd2c11e",
-    "import-dismissed": "5d6d5d4f4151e4d51e05",
-    "empty-import-success": "de4cfaa3b4f97cf59c12",
-    "search-hits": "43a347292507a03a9086",
-    "search-error": "0503e4922f985bd2f1fe",
-    "search-network": "d9f6f53715d22466fcaf",
-    "detail-loaded": "f9070dfc38f61f8bb9d3",
-    "detail-error": "5ede905068f800e4bab5",
-    "detail-network": "a95d4f6f5f0df75f1e43",
-    "gate-loading": "9dbe8c32bb7040ad30dd",
-    "gate-locked": "38e4a649d1d4521f797c",
-    "gate-unavailable": "3e209867f4b726ee3a79",
-    "gate-paused": "a712b9be136fc55bd359",
+    "loading": "e2e35f2287af81419d3d",
+    "loaded": "12c265d1a32fd28b3f29",
+    "empty": "ab76b502464063e33726",
+    "load-503": "cd236630ea797deeca14",
+    "load-network": "b32c03d79a5fa8c3a4d1",
+    "type-hidden": "7c0fe91484fc8ace7a3c",
+    "importing": "bcd070d9e618e431a143",
+    "import-success": "ae87fcb435dd2d0d5805",
+    "import-singular": "0f711c59f2b6ed6a0e78",
+    "import-partial": "e2d31bab74a61505a8a1",
+    "import-unfinished": "1ee29115fc99c3903251",
+    "import-no-sessions": "37ba5a4d6fbf085c79e1",
+    "import-http-error": "fe681d1406f2d5fd9699",
+    "import-http-error-bare": "ee639da0fab4f7069a11",
+    "import-network-error": "e629a949be9ae9c24e46",
+    "import-error-after-batch": "f5f38e9381118513437c",
+    "import-dismissed": "7f71ef9fd20b10e6ef18",
+    "empty-import-success": "9bfd8abb832c048af890",
+    "search-hits": "59b997f35eada2d54fb3",
+    "search-error": "248e93d82e055401b620",
+    "search-network": "8fbfa08ce23dcb8161d8",
+    "detail-loaded": "3f72ba973a008eb3e2dc",
+    "detail-error": "6fd0fd174e5aec4c4f87",
+    "detail-network": "1f53c524607e5d1b2b85",
+    "gate-loading": "5031ff6f6463edd5061a",
+    "gate-locked": "71b84c0d13ab9da2fe0f",
+    "gate-unavailable": "376083621d64decd1a49",
+    "gate-paused": "88d1d96a360894d0da0a",
     "default-export": "7f394dc27664a83a98b7",
     "missing-nodes-by-type": "e980ad1b24fa0c73f93b"
   }

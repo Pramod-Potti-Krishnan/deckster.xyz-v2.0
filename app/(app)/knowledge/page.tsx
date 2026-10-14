@@ -28,7 +28,7 @@ import { useKnowledgeGraph } from "@/hooks/use-knowledge-graph"
 import { KgGraphView, typeColor } from "@/components/knowledge/kg-graph-view"
 import { StudioKnowledgeInspector } from "@/components/knowledge/studio-knowledge-inspector"
 import { KnowledgeSectionBoundary } from "@/components/knowledge/knowledge-section-boundary"
-import { normalizeKgGraph, normalizeKgStats } from "@/lib/studio-knowledge-fixes"
+import { importFailureText, normalizeKgGraph, normalizeKgStats, OFFLINE_IMPORT_TEXT, plainKnowledgeError, IMPORT_FAILED_TEXT } from "@/lib/studio-knowledge-fixes"
 import type { KgGraphPresentationState, KgViewEdge, KgViewNode } from "@/components/knowledge/kg-graph-view"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -93,7 +93,8 @@ interface KgNodeDetail {
   edges: Array<{ src_name: string; dst_name: string; relation: string; weight: number }>
 }
 
-type ImportNotice = { tone: "success" | "error" | "neutral"; text: string }
+// kind "failed": the import request itself failed (flag on: the banner offers Retry).
+type ImportNotice = { tone: "success" | "error" | "neutral"; text: string; kind?: "failed" }
 
 // Evaluates a section's markup while rendering as ITS OWN component, so an error thrown by the expression is caught by the section's boundary.
 function LazySection({ render }: { render: () => ReactNode }) {
@@ -321,6 +322,11 @@ function Inspector({
         {!loading && error && (
           <div className="rounded-xl border border-amber-200 bg-amber-50 p-3 text-sm text-amber-800 dark:border-amber-900/60 dark:bg-amber-950/30 dark:text-amber-200">
             {error}
+            {KNOWLEDGE_FIXES && (
+              <button type="button" onClick={onRetry} className="mt-2 block rounded-md border border-amber-300 px-2.5 py-0.5 text-xs font-medium text-amber-900 hover:bg-amber-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber-500 dark:border-amber-800 dark:text-amber-100 dark:hover:bg-amber-950/50">
+                Retry
+              </button>
+            )}
           </div>
         )}
 
@@ -638,7 +644,9 @@ function KnowledgePageForAccount({ kg }: { kg: KnowledgeGraphAccess }) {
       }
     } catch (error) {
       if (await admitted() && isCurrent()) {
-        setLoadError(error instanceof Error ? error.message : "Your knowledge graph could not be loaded.")
+        setLoadError(KNOWLEDGE_FIXES
+          ? plainKnowledgeError(error, "Your knowledge graph could not be loaded.")
+          : error instanceof Error ? error.message : "Your knowledge graph could not be loaded.")
       }
     } finally {
       if (await admitted() && isCurrent()) setDataLoading(false)
@@ -688,7 +696,9 @@ function KnowledgePageForAccount({ kg }: { kg: KnowledgeGraphAccess }) {
       })
       .catch(async (error) => {
         if (await admitted() && isCurrent()) {
-          setSelectedError(error instanceof Error ? error.message : "Entity details could not be loaded.")
+          setSelectedError(KNOWLEDGE_FIXES
+            ? plainKnowledgeError(error, "Entity details could not be loaded.")
+            : error instanceof Error ? error.message : "Entity details could not be loaded.")
         }
       })
       .finally(async () => {
@@ -770,7 +780,9 @@ function KnowledgePageForAccount({ kg }: { kg: KnowledgeGraphAccess }) {
     } catch (error) {
       if (await admitted() && isCurrent()) {
         setSearchHits([])
-        setSearchError(error instanceof Error ? error.message : "Search is unavailable right now.")
+        setSearchError(KNOWLEDGE_FIXES
+          ? plainKnowledgeError(error, "Search is unavailable right now.")
+          : error instanceof Error ? error.message : "Search is unavailable right now.")
       }
     } finally {
       if (await admitted() && isCurrent()) setSearchLoading(false)
@@ -817,7 +829,9 @@ function KnowledgePageForAccount({ kg }: { kg: KnowledgeGraphAccess }) {
         if (!await admitted() || !isCurrent()) return
         if (!response.ok) {
           throw new Error(
-            typeof body.error === "string"
+            KNOWLEDGE_FIXES
+              ? importFailureText(response.status, body.error)
+              : typeof body.error === "string"
               ? body.error
               : "Past sessions could not be imported."
           )
@@ -871,9 +885,12 @@ function KnowledgePageForAccount({ kg }: { kg: KnowledgeGraphAccess }) {
       if (await admitted() && isCurrent()) {
         setImportNotice({
           tone: "error",
+          ...(KNOWLEDGE_FIXES ? { kind: "failed" as const } : {}),
           text:
             (totals.processed ? `${formatNumber(totals.processed)} session IDs were processed before import paused. ` : "") +
-            (error instanceof Error ? error.message : "Past sessions could not be imported."),
+            (KNOWLEDGE_FIXES
+              ? plainKnowledgeError(error, IMPORT_FAILED_TEXT, OFFLINE_IMPORT_TEXT)
+              : error instanceof Error ? error.message : "Past sessions could not be imported."),
         })
       }
     } finally {
@@ -1024,7 +1041,12 @@ stats && stats.nodes_by_type.length > 0 && (
             importNotice.tone === "neutral" && "border-blue-200 bg-blue-50 text-blue-800 dark:border-blue-900/60 dark:bg-blue-950/30 dark:text-blue-200"
           )}
         >
-          <span>{importNotice.text}</span>
+          <span className={KNOWLEDGE_FIXES ? "min-w-0 flex-1" : undefined}>{importNotice.text}</span>
+          {KNOWLEDGE_FIXES && importNotice.kind === "failed" && !importing && (
+            <button type="button" onClick={() => void runImport()} className="shrink-0 rounded-md border border-red-300 bg-white/70 px-2.5 py-0.5 text-xs font-medium text-red-800 hover:bg-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-current dark:border-red-800 dark:bg-transparent dark:text-red-200 dark:hover:bg-red-950/50">
+              Retry
+            </button>
+          )}
           {!importing && (
             <button type="button" onClick={() => { interruptedImportRef.current.interrupted = false; setImportNotice(null) }} className="rounded p-0.5 hover:bg-black/5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-current" aria-label="Dismiss import message">
               <X className="h-4 w-4" />
@@ -1104,7 +1126,9 @@ stats && stats.nodes_by_type.length > 0 && (
                 {searchHits !== null && (
                   <div data-studio-knowledge-role={STUDIO_SHELL ? "search-results" : undefined} className="absolute right-0 top-[calc(100%+0.5rem)] z-30 w-full overflow-hidden rounded-xl border border-slate-200 bg-white shadow-2xl dark:border-slate-700 dark:bg-slate-900">
                     {STUDIO_SHELL && <div className="sk-search-summary"><span>{searchError ? "Search unavailable" : `${searchHits.length} returned results`}</span><button type="button" aria-label="Close knowledge search results" onClick={() => { clearSearchResults(); searchInputRef.current?.focus() }}><X size={13} /></button></div>}
-                    {searchError && <p className="px-3 py-3 text-sm text-amber-700 dark:text-amber-300">{searchError}</p>}
+                    {searchError && (KNOWLEDGE_FIXES
+                      ? <div className="flex items-center justify-between gap-3 px-3 py-3"><p className="min-w-0 text-sm text-amber-700 dark:text-amber-300">{searchError}</p><button type="button" onClick={() => void runSearch()} className="shrink-0 rounded-md border border-amber-300 px-2.5 py-0.5 text-xs font-medium text-amber-900 hover:bg-amber-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber-500 dark:border-amber-800 dark:text-amber-100 dark:hover:bg-amber-950/50">Retry</button></div>
+                      : <p className="px-3 py-3 text-sm text-amber-700 dark:text-amber-300">{searchError}</p>)}
                     {!searchError && searchHits.length === 0 && <p className="px-3 py-3 text-sm text-slate-500">No matching entities found.</p>}
                     {!searchError && searchHits.map((node) => (
                       <button
