@@ -35,6 +35,7 @@ import type { BuildThemeSelection } from '@/lib/theme-builder'
 import type { AddSlideV2Settings } from '@/lib/studio-add-slide-v2'
 import type { ThemeSyncState } from '@/lib/theme-sync'
 import type { SlideThumbnailUrlsByPresentation } from '@/lib/stage-f-thumbnails'
+import type { ComposerLibraryRequest } from '@/lib/studio-composer-popups'
 
 /** Check if a selected element is a blank placeholder; if so, open generation panel instead of format panel */
 export function handleBlankElementClick(
@@ -141,6 +142,9 @@ export interface PresentationAreaProps {
   templateModeOn?: boolean
   onTemplateModeChange?: (enabled: boolean) => void
   templateModeAvailable?: boolean
+  /** Toolbar template picker fix-forward (NEXT_PUBLIC_STUDIO_TEMPLATE_WORKSPACE): passed to the viewer unchanged (see PresentationViewer.onComposerTemplateAction). */
+  onComposerTemplateAction?: (request: ComposerLibraryRequest) => void
+  onOpenComposerLibrary?: () => void
   templateSnapshot?: TemplateSnapshot | null
   templateSnapshotLoading?: boolean
   templateCurrentSlideIndex?: number
@@ -248,6 +252,8 @@ export function PresentationArea({
   templateModeOn = false,
   onTemplateModeChange,
   templateModeAvailable = false,
+  onComposerTemplateAction,
+  onOpenComposerLibrary,
   templateSnapshot = null,
   templateSnapshotLoading = false,
   templateCurrentSlideIndex,
@@ -508,6 +514,7 @@ export function PresentationArea({
             templateModeOn={templateModeOn}
             onTemplateModeChange={onTemplateModeChange}
             templateModeAvailable={templateModeAvailable}
+            {...(onComposerTemplateAction ? { onComposerTemplateAction, onOpenComposerLibrary } : {})}
             composeJobs={composeJobs}
             onRefineSlide={onRefineSlide}
             onGenerateSlide={onGenerateSlide}

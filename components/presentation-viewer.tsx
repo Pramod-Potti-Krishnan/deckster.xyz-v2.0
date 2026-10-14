@@ -115,6 +115,7 @@ import { PresentationSettingsPanel } from './presentation-settings-panel'
 import { ThemePanel } from './theme-panel'
 import { TemplateModeOverlay } from './builder/template-mode-overlay'
 import { TemplatePickerContent } from './builder/template-picker'
+import type { ComposerLibraryRequest } from '@/lib/studio-composer-popups'
 import type { TemplateBlueprint, TemplateSelection, TemplateSnapshot } from '@/hooks/use-templates'
 import { getTemplateSaveGate } from '@/lib/template-save-gate'
 import {
@@ -342,6 +343,9 @@ interface PresentationViewerProps {
   templateModeOn?: boolean
   onTemplateModeChange?: (enabled: boolean) => void
   templateModeAvailable?: boolean
+  /** Toolbar template picker fix-forward (NEXT_PUBLIC_STUDIO_TEMPLATE_WORKSPACE; the page passes both only with that flag and a composer library). */
+  onComposerTemplateAction?: (request: ComposerLibraryRequest) => void
+  onOpenComposerLibrary?: () => void
   composeJobs?: SlideComposeThumbnailJob[]
   onRefineSlide?: (target: SlideRefineTarget) => void
   onGenerateSlide?: () => void
@@ -682,6 +686,8 @@ export function PresentationViewer({
   templateModeOn = false,
   onTemplateModeChange,
   templateModeAvailable = false,
+  onComposerTemplateAction,
+  onOpenComposerLibrary,
   composeJobs = [],
   onRefineSlide,
   onGenerateSlide,
@@ -4311,6 +4317,8 @@ export function PresentationViewer({
                   onUploadTemplate={templateIngestEnabled ? () => setShowTemplateIngest(true) : undefined}
                   onSaveTemplate={templateBuilderEnabled ? (canSaveTemplate ? () => setShowTemplateSave(true) : null) : undefined}
                   templateMode={templateBuilderEnabled ? { on: templateModeOn, available: templateModeAvailable, toggle: () => { viewerInteractionIntentRef.current += 1; onTemplateModeChange?.(!templateModeOn) } } : null}
+                  onComposerTemplateAction={onComposerTemplateAction}
+                  onOpenComposerLibrary={onOpenComposerLibrary}
                 />
                 <div className="mx-1 h-6 w-px bg-slate-200 dark:bg-slate-700" aria-hidden="true" />
               </> : <div className="mx-1 h-6 w-px bg-slate-200 dark:bg-slate-700" aria-hidden="true" />}

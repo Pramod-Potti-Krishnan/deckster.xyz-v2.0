@@ -1186,7 +1186,7 @@ async function flagOffDialogAction({ action, templateId, brief, pending = null, 
 async function flagOnPopupAction({ action, templateId, brief, pending = null, mutate = {}, page = read(PAGE), user = { id: OWNER }, rerenderWithSameRequest = false }) {
   const wiring = pageWiring(page)
   const pageState = { request: null, show: false }
-  const pageScope = () => ({ studioPopupsV2: true, composerLibraryEnabled: true, showComposerLibrary: pageState.show, composerLibraryRequest: pageState.request,
+  const pageScope = () => ({ studioPopupsV2: true, studioTemplateWorkspace: false, composerLibraryEnabled: true, showComposerLibrary: pageState.show, composerLibraryRequest: pageState.request,
     setShowComposerLibrary: v => { pageState.show = v }, setComposerLibraryRequest: v => { pageState.request = v }, ComposerLibraryDialog: 'ComposerLibraryDialog' })
   const fixSpread = wiring.ChatInput.spreads.filter(x => FIX_SPREAD.test(x))
   assert.equal(fixSpread.length, 1, 'page.tsx hands ChatInput the action handler through one spread')
@@ -1534,7 +1534,7 @@ await run('fix (page.tsx): flag off, the page hands ChatInput and the library di
   const dialogSpread = wiring.ComposerLibraryDialog.spreads.filter(x => FIX_SPREAD.test(x))
   assert.equal(chatSpread.length, 1); assert.equal(dialogSpread.length, 1)
   const log = []
-  const scope = (flag, library) => ({ studioPopupsV2: flag, composerLibraryEnabled: library, composerLibraryRequest: { marker: 'request' },
+  const scope = (flag, library) => ({ studioPopupsV2: flag, studioTemplateWorkspace: false, composerLibraryEnabled: library, composerLibraryRequest: { marker: 'request' },
     setComposerLibraryRequest: v => log.push(['request', v]), setShowComposerLibrary: v => log.push(['show', v]) })
   // (keys, not deq: deq compares as JSON, which drops function values)
   for (const library of [false, true]) deq(Object.keys(compileJsx(chatSpread[0], 'chat spread')(scope(false, library))), [], 'flag off: nothing added to ChatInput')
@@ -1558,10 +1558,10 @@ mutant('fix (page.tsx): the action handler reaches ChatInput with the flag off',
   deq(Object.keys(compileJsx(spread, 'chat spread')({ studioPopupsV2: false, composerLibraryEnabled: true, setComposerLibraryRequest() {}, setShowComposerLibrary() {} })), [])
 })
 mutant('fix (page.tsx): the dialog gets the request with the flag off', async () => {
-  const page = read(PAGE).replace('{...(studioPopupsV2 ? { request: composerLibraryRequest', '{...(true ? { request: composerLibraryRequest')
+  const page = read(PAGE).replace('{...(studioPopupsV2 || studioTemplateWorkspace ? { request: composerLibraryRequest', '{...(true ? { request: composerLibraryRequest')
   if (page === read(PAGE)) throw new MutationTargetMissing('page mutation did not apply')
   const spread = pageWiring(page).ComposerLibraryDialog.spreads.find(x => FIX_SPREAD.test(x))
-  deq(Object.keys(compileJsx(spread, 'dialog spread')({ studioPopupsV2: false, composerLibraryRequest: null, setComposerLibraryRequest() {} })), [])
+  deq(Object.keys(compileJsx(spread, 'dialog spread')({ studioPopupsV2: false, studioTemplateWorkspace: false, composerLibraryRequest: null, setComposerLibraryRequest() {} })), [])
 })
 
 await run('fix: flag off (no request), the library dialog renders and requests exactly as the base did (16 states: tree and every request)', async () => {
