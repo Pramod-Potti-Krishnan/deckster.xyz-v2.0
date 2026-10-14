@@ -87,7 +87,7 @@
     {"chars":49,"label":"page.hookOption.autoConnect","sha256":"80b703a6da2b4937"},
     {"chars":29,"label":"page.hookOption.existingSessionId","sha256":"e48651a63b823160"},
     {"chars":1,"label":"page.hookOption.maxReconnectAttempts","sha256":"4b227777d4dd1fc6"},
-    {"chars":1309,"label":"page.hookOption.onMessage","sha256":"8a66c2fa7af65b69"},
+    {"chars":1796,"label":"page.hookOption.onMessage","sha256":"175f7d7adf0110aa"},
     {"chars":4,"label":"page.hookOption.reconnectDelay","sha256":"9f69998560dcfd80"},
     {"chars":4,"label":"page.hookOption.reconnectOnError","sha256":"b5bea41b6c623f7c"},
     {"chars":3080,"label":"page.preflightDirectorTurn","sha256":"849502d8045894d6"},

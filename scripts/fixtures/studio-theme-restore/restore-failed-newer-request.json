@@ -1,0 +1,213 @@
+{
+  "name": "restore-failed-newer-request",
+  "description": "A second tab opens on a themed session whose newest theme request (Vibrant) FAILED: Director's restore says applied:false, desired_status:'failed', theme = the failed desired selection (THEME-2 review of #387). Flag on: the restore is committed as failed with \"Director could not apply this theme.\" (NOT settled \u2014 settling would hide a real failure), nothing is sent, and no 20 s timer runs. Base / flag off: the socket-ready set_theme {mode:auto} overwrites the stored theme.",
+  "source": "THEME-2's recorded connect frames (director !485 @ 50772ff) from reconnect-theme-restore; the restored frame's theme / applied / desired_status are set to the documented in-flight shape (connect_theme_restore.restored_theme_payload: source = desired selection, applied = false, desired_status = syncing).",
+  "session": {
+    "id": "sess-themed-cl",
+    "userId": "synthetic-user-01"
+  },
+  "ackTemplate": [
+    {
+      "type": "theme_sync",
+      "session_id": "sess-themed-cl",
+      "timestamp": "2026-10-13T23:09:31.689734Z",
+      "payload": {
+        "request_id": "__REQ__",
+        "status": "syncing",
+        "presentation_id": "deck-themed-cl",
+        "theme": {
+          "mode": "auto"
+        }
+      }
+    },
+    {
+      "type": "theme_sync",
+      "session_id": "sess-themed-cl",
+      "timestamp": "2026-10-13T23:09:31.689741Z",
+      "payload": {
+        "request_id": "__REQ__",
+        "status": "applied",
+        "presentation_id": "deck-themed-cl",
+        "theme": {
+          "mode": "auto"
+        },
+        "theme_session_id": "ts-ack"
+      }
+    }
+  ],
+  "steps": [
+    {
+      "op": "restore",
+      "session": {
+        "id": "sess-themed-cl",
+        "status": "active",
+        "title": "Synthetic session",
+        "geminiStoreName": null,
+        "blankPresentationUrl": "https://layout.example.com/p/deck-themed-cl",
+        "blankPresentationId": "deck-themed-cl",
+        "strawmanPreviewUrl": null,
+        "strawmanPresentationId": null,
+        "finalPresentationUrl": null,
+        "finalPresentationId": null,
+        "slideCount": null,
+        "currentStage": 1,
+        "stateCache": {
+          "activeVersion": "blank",
+          "slideStructure": null
+        },
+        "messages": [
+          {
+            "id": "db-user-0",
+            "messageType": "chat_message",
+            "timestamp": "2026-10-13T09:00:00.000Z",
+            "payload": {
+              "text": "Build a claims automation ROI deck"
+            },
+            "userText": "Build a claims automation ROI deck"
+          },
+          {
+            "id": "db-director-1",
+            "messageType": "chat_message",
+            "timestamp": "2026-10-13T09:00:01.000Z",
+            "payload": {
+              "text": "I can build that. Who is the audience?",
+              "sub_title": null,
+              "list_items": null
+            }
+          }
+        ]
+      }
+    },
+    {
+      "op": "ensureConnected"
+    },
+    {
+      "op": "open"
+    },
+    {
+      "op": "frames",
+      "frames": [
+        {
+          "message_id": "msg_sync_0d6ec3bd",
+          "session_id": "sess-themed-cl",
+          "timestamp": "2026-10-13T23:09:31.675467Z",
+          "type": "sync_response",
+          "role": "assistant",
+          "payload": {
+            "action": "send_history",
+            "message_count": 2,
+            "current_state": "TOPIC_SET",
+            "has_strawman": false,
+            "presentation_url": "https://layout.example.com/p/deck-themed-cl",
+            "presentation_id": "deck-themed-cl",
+            "slide_count": null
+          }
+        },
+        {
+          "type": "theme_sync",
+          "session_id": "sess-themed-cl",
+          "timestamp": "2026-10-13T23:09:31.677044Z",
+          "payload": {
+            "request_id": "restore:sess-themed-cl:req-tab-a-vibrant",
+            "status": "restored",
+            "presentation_id": "deck-themed-cl",
+            "theme": {
+              "mode": "preset",
+              "preset_id": "vibrant"
+            },
+            "applied": false,
+            "desired_status": "failed"
+          }
+        },
+        {
+          "message_id": "msg_hist_0b681a89edc6",
+          "session_id": "sess-themed-cl",
+          "timestamp": "2026-10-13T09:00:00Z",
+          "type": "chat_message",
+          "role": "user",
+          "payload": {
+            "text": "Build a claims automation ROI deck",
+            "sub_title": null,
+            "list_items": null,
+            "format": "markdown",
+            "ephemeral": false
+          }
+        },
+        {
+          "message_id": "msg_hist_b6bf31b5a056",
+          "session_id": "sess-themed-cl",
+          "timestamp": "2026-10-13T09:00:01Z",
+          "type": "chat_message",
+          "role": "assistant",
+          "payload": {
+            "text": "I can build that. Who is the audience?",
+            "sub_title": null,
+            "list_items": null,
+            "format": "markdown",
+            "ephemeral": false
+          }
+        }
+      ]
+    },
+    {
+      "op": "themeAck"
+    },
+    {
+      "op": "checkpoint",
+      "label": "restored after a failed newer request"
+    },
+    {
+      "op": "expect",
+      "on": {
+        "setTheme": 0,
+        "selection": {
+          "mode": "preset",
+          "preset_id": "vibrant"
+        },
+        "themeSyncStatus": "failed",
+        "themeSyncError": "Director could not apply this theme.",
+        "gatePhase": "restored",
+        "locallyChanged": false
+      },
+      "off": {
+        "setTheme": 1,
+        "lastSetTheme": {
+          "mode": "auto"
+        },
+        "selection": {
+          "mode": "auto"
+        }
+      }
+    },
+    {
+      "op": "advance",
+      "ms": 25000
+    },
+    {
+      "op": "checkpoint",
+      "label": "25 s later: still failed, no timer, nothing sent"
+    },
+    {
+      "op": "expect",
+      "on": {
+        "setTheme": 0,
+        "selection": {
+          "mode": "preset",
+          "preset_id": "vibrant"
+        },
+        "themeSyncStatus": "failed",
+        "themeSyncError": "Director could not apply this theme."
+      },
+      "off": {
+        "setTheme": 1,
+        "selection": {
+          "mode": "auto"
+        },
+        "themeSyncStatus": "applied"
+      }
+    }
+  ],
+  "env": {
+    "NEXT_PUBLIC_LAYOUT_SERVICE_URL": "https://layout.example.com"
+  }
+}

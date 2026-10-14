@@ -1,0 +1,57 @@
+{
+  "calls": [
+    {"args":[{"type":"sync_response"}],"at":2000,"name":"page.onMessage","step":3},
+    {
+      "args": [{"request_id":"restore:sess-themed-cl:req-tab-a-vibrant","status":"restored","type":"theme_sync"}],
+      "at": 2000,
+      "name": "page.onMessage",
+      "step": 3
+    },
+    {"args":[{"type":"chat_message"}],"at":2000,"name":"page.onMessage","step":3},
+    {"args":[{"type":"chat_message"}],"at":2000,"name":"page.onMessage","step":3}
+  ],
+  "checkpoints": [
+    {
+      "activeBuildThemeProfile": null,
+      "buildThemeSelection": {"mode":"preset","preset_id":"vibrant"},
+      "connection": {"connected":true,"generation":1,"sockets":1},
+      "deck": {"effectivePresentationId":"deck-themed-cl","presentationId":"deck-themed-cl"},
+      "gate": {"phase":"restored","sessionId":"sess-themed-cl","syncSeen":true},
+      "label": "restored after a failed newer request",
+      "messages": ["db-director-1 | chat_message","msg_hist_0b681a89edc6 | chat_message","msg_hist_b6bf31b5a056 | chat_message"],
+      "setThemeSent": [],
+      "themeSelectionChangedLocally": false,
+      "themeSync": {
+        "error": "Director could not apply this theme.",
+        "presentationId": "deck-themed-cl",
+        "requestId": "restore:sess-themed-cl:req-tab-a-vibrant",
+        "status": "failed",
+        "themeFingerprint": "{\"mode\":\"preset\",\"preset_id\":\"vibrant\"}"
+      },
+      "toasts": 0,
+      "virtualMs": 3000
+    },
+    {
+      "activeBuildThemeProfile": null,
+      "buildThemeSelection": {"mode":"preset","preset_id":"vibrant"},
+      "connection": {"connected":true,"generation":1,"sockets":1},
+      "deck": {"effectivePresentationId":"deck-themed-cl","presentationId":"deck-themed-cl"},
+      "gate": {"phase":"restored","sessionId":"sess-themed-cl","syncSeen":true},
+      "label": "25 s later: still failed, no timer, nothing sent",
+      "messages": ["db-director-1 | chat_message","msg_hist_0b681a89edc6 | chat_message","msg_hist_b6bf31b5a056 | chat_message"],
+      "setThemeSent": [],
+      "themeSelectionChangedLocally": false,
+      "themeSync": {
+        "error": "Director could not apply this theme.",
+        "presentationId": "deck-themed-cl",
+        "requestId": "restore:sess-themed-cl:req-tab-a-vibrant",
+        "status": "failed",
+        "themeFingerprint": "{\"mode\":\"preset\",\"preset_id\":\"vibrant\"}"
+      },
+      "toasts": 0,
+      "virtualMs": 29000
+    }
+  ],
+  "diagnostics": {"blockedNetwork":[],"console":[],"uncaught":[]},
+  "notes": ["step 4: themeAck skipped, no unanswered set_theme"]
+}
