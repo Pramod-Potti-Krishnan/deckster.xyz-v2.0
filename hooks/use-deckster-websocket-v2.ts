@@ -36,6 +36,7 @@ import {
   resolveDirectorReconnectPlan,
   shouldReconnectDirectorOnOnline,
 } from '@/lib/director-reconnect-policy';
+import { STUDIO_ONE_LIVE_TAB_ENABLED, isDirectorSupersededClose } from '@/lib/studio-one-live-tab';
 import {
   buildControlEndpointFromWsUrl,
   createBuildControlRequestId,
@@ -2966,6 +2967,17 @@ export function useDecksterWebSocketV2(options: UseDecksterWebSocketV2Options = 
           wsRef.current = null;
           buildControlTokenRef.current = null;
           clearAuthRefreshTimer();
+          // NEXT_PUBLIC_STUDIO_ONE_LIVE_TAB (default off): Director keeps one live socket per session and closed this one
+          // (4000 "New connection opened") because the session was opened in another tab. Reconnecting would only evict that
+          // tab in turn, so this tab stops here: no timer, no ping, no frame. The user takes the session back with connect().
+          // Studio's own 4000 closes (heartbeat) carry other reasons and keep their backoff, as does every other close.
+          if (STUDIO_ONE_LIVE_TAB_ENABLED && isDirectorSupersededClose(event)) {
+            debugLog('📑 Director closed this socket: the session is open in another tab; not reconnecting');
+            clearReconnectTimer();
+            reconnectPausedForOfflineRef.current = false;
+            setReconnectStatus('superseded', reconnectAttemptsRef.current);
+            return;
+          }
           scheduleReconnect(`close:${event.code}`);
         };
       })();
@@ -3068,7 +3080,9 @@ export function useDecksterWebSocketV2(options: UseDecksterWebSocketV2Options = 
         !reconnectOnErrorRef.current ||
         manualDisconnectRef.current ||
         !connectionDesiredRef.current ||
-        reconnectStatusRef.current === 'exhausted'
+        reconnectStatusRef.current === 'exhausted' ||
+        // A tab Director handed over to another tab has nothing to resume when the network returns.
+        reconnectStatusRef.current === 'superseded'
       ) {
         return;
       }
@@ -3421,6 +3435,10 @@ export function useDecksterWebSocketV2(options: UseDecksterWebSocketV2Options = 
       if (socketSessionRef.current !== origin.sessionId) return false;
       return sendMessage(text, storeName, fileCount, options);
     }
+
+    // NEXT_PUBLIC_STUDIO_ONE_LIVE_TAB: a tab Director handed over to another tab does not reconnect to send (that would evict the
+    // live tab); fail at once instead of waiting out the reconnect window. The page tells the user and offers "Use here".
+    if (STUDIO_ONE_LIVE_TAB_ENABLED && reconnectStatusRef.current === 'superseded') return false;
 
     debugLog('🔌 Send requested on a closed socket — reconnecting first');
     ensureConnected();

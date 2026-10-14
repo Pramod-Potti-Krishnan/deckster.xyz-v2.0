@@ -43,6 +43,7 @@
     "test:studio-model-catalog-2026-10": "node scripts/test-studio-model-catalog-2026-10.mjs",
     "test:studio-intelligence-polish": "node scripts/test-studio-intelligence-polish.mjs",
     "test:studio-element-placeholder-fix": "node scripts/test-studio-element-placeholder-fix.mjs",
+    "test:studio-one-live-tab": "node scripts/test-studio-one-live-tab.mjs",
     "test:element-theme-variants": "node scripts/test-element-theme-variants.mjs",
     "test:element-generation-context": "node scripts/test-element-generation-context.mjs",
     "test:refinement-provenance": "node scripts/test-refinement-provenance.mjs",

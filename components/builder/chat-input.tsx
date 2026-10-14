@@ -131,6 +131,9 @@ export interface ChatInputProps {
   /** PASS2-DIRECTOR-CHAT PR D, item 6 (flag NEXT_PUBLIC_STUDIO_CHAT_COMPOSER_CONTEXT, Studio shell only): the words of the one line above the
    *  composer ("Working on slide 3"), worded by the page from values it already holds (lib/studio-chat-composer-context). Passed only with the flag on. */
   studioContextLabel?: string
+  /** NEXT_PUBLIC_STUDIO_ONE_LIVE_TAB: this tab is paused because the session is live in another tab. Only the placeholder changes (it must
+   *  not promise "send to reconnect": a send now shows the notice instead). The page passes it only while paused; absent, nothing differs. */
+  pausedInOtherTab?: boolean
 }
 
 export function ChatInput({
@@ -183,6 +186,7 @@ export function ChatInput({
   studioSavedThemeRequest,
   composerTextareaRef,
   studioContextLabel,
+  pausedInOtherTab = false,
 }: ChatInputProps) {
   const studio = process.env.NEXT_PUBLIC_STUDIO_V4_SHELL === 'true'
   // PASS2 composer copy (flag NEXT_PUBLIC_STUDIO_COMPOSER_COPY, Studio shell only, default off): plain words for the idle placeholder.
@@ -1079,6 +1083,8 @@ export function ChatInput({
                 ? "Authenticating..."
                 : isLoadingSession
                 ? "Loading..."
+                : pausedInOtherTab
+                  ? "Open in another tab" // = SUPERSEDED_STATUS_TEXT (lib/studio-one-live-tab.ts), pinned by test-studio-one-live-tab
                 : !connected && !connecting
                   ? "Disconnected - send to reconnect"
                   : connecting

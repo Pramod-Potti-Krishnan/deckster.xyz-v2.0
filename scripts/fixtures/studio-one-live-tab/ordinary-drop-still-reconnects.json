@@ -1,0 +1,367 @@
+{
+ "name": "ordinary-drop-still-reconnects",
+ "description": "Every other close keeps today's behaviour with the flag on: 1006 on the 1.5 s then 3 s ladder, and 4000 with another reason (Studio's own heartbeat retire), 1011, 4000 without a reason, the reason in other letters, and that reason with another code all reconnect.",
+ "env": {
+  "NEXT_PUBLIC_STUDIO_CHAT_HEADER": "true"
+ },
+ "recordServerCloses": true,
+ "composer": true,
+ "stableHandlers": true,
+ "session": {
+  "id": "synthetic-session-one-live-tab-c",
+  "userId": "synthetic-user-01"
+ },
+ "steps": [
+  {
+   "op": "ensureConnected"
+  },
+  {
+   "op": "open"
+  },
+  {
+   "op": "frame",
+   "frame": {
+    "message_id": "msg-init-blank",
+    "session_id": "synthetic-session-one-live-tab-c",
+    "timestamp": "2026-10-13T12:00:01Z",
+    "type": "presentation_init",
+    "role": "assistant",
+    "payload": {
+     "is_blank": true,
+     "preview_url": "https://layout.synthetic.invalid/p/synthetic-blank-olt",
+     "preview_presentation_id": "synthetic-blank-olt"
+    }
+   }
+  },
+  {
+   "op": "frame",
+   "frame": {
+    "message_id": "msg-greeting",
+    "session_id": "synthetic-session-one-live-tab-c",
+    "timestamp": "2026-10-13T12:00:02Z",
+    "type": "chat_message",
+    "role": "assistant",
+    "payload": {
+     "text": "Hello! What would you like to build today?",
+     "sub_title": null,
+     "list_items": null,
+     "format": "markdown"
+    }
+   }
+  },
+  {
+   "op": "compose",
+   "text": "Build a short deck about ocean currents"
+  },
+  {
+   "op": "submit",
+   "comment": "the first turn goes out on the live socket"
+  },
+  {
+   "op": "expect",
+   "outbound": 1
+  },
+  {
+   "op": "frame",
+   "frame": {
+    "message_id": "msg-reply",
+    "session_id": "synthetic-session-one-live-tab-c",
+    "timestamp": "2026-10-13T12:00:03Z",
+    "type": "chat_message",
+    "role": "assistant",
+    "payload": {
+     "text": "On it. Give me a moment to plan.",
+     "sub_title": null,
+     "list_items": null,
+     "format": "markdown"
+    }
+   }
+  },
+  {
+   "op": "checkpoint",
+   "label": "connected, one turn sent"
+  },
+  {
+   "op": "close",
+   "code": 1006,
+   "comment": "an ordinary network drop"
+  },
+  {
+   "op": "expect",
+   "connectionState": "disconnected",
+   "reconnectStatus": "scheduled"
+  },
+  {
+   "op": "checkpoint",
+   "label": "dropped, retry 1 scheduled"
+  },
+  {
+   "op": "advance",
+   "ms": 1500,
+   "comment": "retry 1 after 1.5 s"
+  },
+  {
+   "op": "expect",
+   "sockets": 2
+  },
+  {
+   "op": "close",
+   "code": 1006,
+   "comment": "retry 1 is refused"
+  },
+  {
+   "op": "advance",
+   "ms": 3000,
+   "comment": "retry 2 after 3 s"
+  },
+  {
+   "op": "expect",
+   "sockets": 3
+  },
+  {
+   "op": "open"
+  },
+  {
+   "op": "frame",
+   "frame": {
+    "message_id": "msg-sync-1",
+    "session_id": "synthetic-session-one-live-tab-c",
+    "timestamp": "2026-10-13T12:00:04Z",
+    "type": "sync_response",
+    "role": "assistant",
+    "payload": {
+     "action": "skip_history",
+     "message_count": 4,
+     "current_state": "TOPIC_SET",
+     "has_strawman": false,
+     "presentation_url": "https://layout.synthetic.invalid/p/synthetic-blank-olt",
+     "presentation_id": "synthetic-blank-olt"
+    }
+   }
+  },
+  {
+   "op": "advance",
+   "ms": 31000,
+   "comment": "stable for 30 s: the retry budget resets"
+  },
+  {
+   "op": "checkpoint",
+   "label": "reconnected after two refusals"
+  },
+  {
+   "op": "close",
+   "code": 4000,
+   "reason": "Director heartbeat timeout",
+   "comment": "Studio's own heartbeat retire (4000, another reason) keeps reconnecting"
+  },
+  {
+   "op": "expect",
+   "reconnectStatus": "scheduled"
+  },
+  {
+   "op": "advance",
+   "ms": 1500
+  },
+  {
+   "op": "expect",
+   "sockets": 4
+  },
+  {
+   "op": "open"
+  },
+  {
+   "op": "frame",
+   "frame": {
+    "message_id": "msg-sync-2",
+    "session_id": "synthetic-session-one-live-tab-c",
+    "timestamp": "2026-10-13T12:00:05Z",
+    "type": "sync_response",
+    "role": "assistant",
+    "payload": {
+     "action": "skip_history",
+     "message_count": 4,
+     "current_state": "TOPIC_SET",
+     "has_strawman": false,
+     "presentation_url": "https://layout.synthetic.invalid/p/synthetic-blank-olt",
+     "presentation_id": "synthetic-blank-olt"
+    }
+   }
+  },
+  {
+   "op": "advance",
+   "ms": 31000
+  },
+  {
+   "op": "close",
+   "code": 1011,
+   "reason": "internal error",
+   "comment": "a server error"
+  },
+  {
+   "op": "expect",
+   "reconnectStatus": "scheduled"
+  },
+  {
+   "op": "advance",
+   "ms": 1500
+  },
+  {
+   "op": "expect",
+   "sockets": 5
+  },
+  {
+   "op": "open"
+  },
+  {
+   "op": "frame",
+   "frame": {
+    "message_id": "msg-sync-3",
+    "session_id": "synthetic-session-one-live-tab-c",
+    "timestamp": "2026-10-13T12:00:06Z",
+    "type": "sync_response",
+    "role": "assistant",
+    "payload": {
+     "action": "skip_history",
+     "message_count": 4,
+     "current_state": "TOPIC_SET",
+     "has_strawman": false,
+     "presentation_url": "https://layout.synthetic.invalid/p/synthetic-blank-olt",
+     "presentation_id": "synthetic-blank-olt"
+    }
+   }
+  },
+  {
+   "op": "advance",
+   "ms": 31000
+  },
+  {
+   "op": "close",
+   "code": 4000,
+   "reason": "",
+   "comment": "4000 with no reason"
+  },
+  {
+   "op": "expect",
+   "reconnectStatus": "scheduled"
+  },
+  {
+   "op": "advance",
+   "ms": 1500
+  },
+  {
+   "op": "expect",
+   "sockets": 6
+  },
+  {
+   "op": "open"
+  },
+  {
+   "op": "frame",
+   "frame": {
+    "message_id": "msg-sync-4",
+    "session_id": "synthetic-session-one-live-tab-c",
+    "timestamp": "2026-10-13T12:00:07Z",
+    "type": "sync_response",
+    "role": "assistant",
+    "payload": {
+     "action": "skip_history",
+     "message_count": 4,
+     "current_state": "TOPIC_SET",
+     "has_strawman": false,
+     "presentation_url": "https://layout.synthetic.invalid/p/synthetic-blank-olt",
+     "presentation_id": "synthetic-blank-olt"
+    }
+   }
+  },
+  {
+   "op": "advance",
+   "ms": 31000
+  },
+  {
+   "op": "close",
+   "code": 4000,
+   "reason": "new connection opened",
+   "comment": "4000 with the reason in other letters"
+  },
+  {
+   "op": "expect",
+   "reconnectStatus": "scheduled"
+  },
+  {
+   "op": "advance",
+   "ms": 1500
+  },
+  {
+   "op": "expect",
+   "sockets": 7
+  },
+  {
+   "op": "open"
+  },
+  {
+   "op": "frame",
+   "frame": {
+    "message_id": "msg-sync-5",
+    "session_id": "synthetic-session-one-live-tab-c",
+    "timestamp": "2026-10-13T12:00:08Z",
+    "type": "sync_response",
+    "role": "assistant",
+    "payload": {
+     "action": "skip_history",
+     "message_count": 4,
+     "current_state": "TOPIC_SET",
+     "has_strawman": false,
+     "presentation_url": "https://layout.synthetic.invalid/p/synthetic-blank-olt",
+     "presentation_id": "synthetic-blank-olt"
+    }
+   }
+  },
+  {
+   "op": "advance",
+   "ms": 31000
+  },
+  {
+   "op": "close",
+   "code": 1000,
+   "reason": "New connection opened",
+   "comment": "the reason with another code"
+  },
+  {
+   "op": "expect",
+   "reconnectStatus": "scheduled"
+  },
+  {
+   "op": "advance",
+   "ms": 1500
+  },
+  {
+   "op": "expect",
+   "sockets": 8
+  },
+  {
+   "op": "open"
+  },
+  {
+   "op": "frame",
+   "frame": {
+    "message_id": "msg-sync-6",
+    "session_id": "synthetic-session-one-live-tab-c",
+    "timestamp": "2026-10-13T12:00:09Z",
+    "type": "sync_response",
+    "role": "assistant",
+    "payload": {
+     "action": "skip_history",
+     "message_count": 4,
+     "current_state": "TOPIC_SET",
+     "has_strawman": false,
+     "presentation_url": "https://layout.synthetic.invalid/p/synthetic-blank-olt",
+     "presentation_id": "synthetic-blank-olt"
+    }
+   }
+  },
+  {
+   "op": "checkpoint",
+   "label": "every ordinary close reconnected"
+  }
+ ]
+}

@@ -8,6 +8,8 @@
 //   markup/*.html     rendered chat markup + header/notice ("chrome") per checkpoint; markup.json holds hashes
 //   env.json, meta.json   profile environment, fixture hash, diagnostics (console errors, blocked network)
 import crypto from 'node:crypto'
+import fs from 'node:fs'
+import path from 'node:path'
 import React from 'react'
 import { renderToStaticMarkup } from 'react-dom/server'
 import { Root, hostNodes, keyedChildren, textOf, toElements } from './mini-react.mjs'
@@ -46,7 +48,9 @@ export async function runTranscript({ root, fixture, profile, processEnv: caller
   } : {}
   const loader = createModuleLoader({
     root, globals: env.globals,
-    stubs: { ...(await esmPackages(root)), 'lucide-react': lucideStub(React) },
+    // One React for the host and the repo code, also when `root` is another checkout (the base tree, for a flag-off byte comparison): the mini host
+    // installs its hook dispatcher on the host's React, so the repo's own `react` import must be that instance. The same file when root is this tree.
+    stubs: { ...(await esmPackages(root)), react: React, 'lucide-react': lucideStub(React) },
     fileStubs: { 'hooks/use-auth': { useAuth: () => ({ user: authUser, isLoading: false }) }, ...composerStubs },
   })
   const hookModule = loader.load('hooks/use-deckster-websocket-v2.ts')
@@ -57,6 +61,11 @@ export async function runTranscript({ root, fixture, profile, processEnv: caller
   const templateHelpers = composerOn ? loader.load('hooks/use-templates.ts') : {}
   const composerContextLib = composerOn ? loader.load('lib/studio-chat-composer-context.ts') : {}
   const { attachmentsFromPayload } = loader.load('lib/user-message-attachments.ts')
+  // NEXT_PUBLIC_STUDIO_ONE_LIVE_TAB (MULTITAB J1 P1b): the paused-tab policy and notice, where the tree has them. The base tree does not, and then
+  // the page's own flag-off code runs, which never reads them (the harness values below stay false/inert).
+  const hasOneLiveTab = fs.existsSync(path.join(root, 'lib/studio-one-live-tab.ts'))
+  const oneLiveTab = hasOneLiveTab ? loader.load('lib/studio-one-live-tab.ts') : null
+  const SupersededNotice = hasOneLiveTab ? loader.load('components/builder/studio-superseded-notice.tsx').StudioSupersededNotice : null
   const voice = loader.load('lib/studio-voice-interactive.ts')
   // Fixtures with `"elementPreflight": true` (PASS2-J3 P0) also run the page's deck-theme preflight and the REAL Add Element
   // generation hook (page-theme-sources.mjs, `useTextLabsGeneration`), against a synthetic Text Labs that only answers them.
@@ -114,6 +123,7 @@ export async function runTranscript({ root, fixture, profile, processEnv: caller
     return stableByName.get(name)
   }
   const macrotask = env.macrotask
+  const serverCloses = []
 
   // ---- page-owned state (what app/builder/page.tsx keeps outside the hook) -------------
   const pageInputs = {
@@ -233,6 +243,8 @@ export async function runTranscript({ root, fixture, profile, processEnv: caller
       ...refs, isGeneratingFinal, setIsGeneratingFinal, templateReuseAwaitingInput, setTemplateReuseAwaitingInput,
       inputMessage, setInputMessage, pendingActionInput, setPendingActionInput, setWorkflowBrief: () => {},
       awaitingDirectorReply: false, uploadedFiles: [], quota: { status: null }, STUDIO_BLOCKED_SEND_FEEDBACK_ENABLED: false,
+      // The words the page's preflight toasts while the tab is paused (lib/studio-one-live-tab.ts; empty strings in a tree without it).
+      SUPERSEDED_NOTICE_TITLE: oneLiveTab?.SUPERSEDED_NOTICE_TITLE ?? '', SUPERSEDED_NOTICE_DETAIL: oneLiveTab?.SUPERSEDED_NOTICE_DETAIL ?? '',
       studioOutlineCanvas: undefined, turnContext: undefined, effectivePresentationUrl: undefined,
       isThemeSyncTerminal: () => false,
       ...(preflightOn ? { isThemeSyncTerminal: themeLibs.isThemeSyncTerminal, applyThemeSyncResponse: themeLibs.applyThemeSyncResponse,
@@ -271,6 +283,8 @@ export async function runTranscript({ root, fixture, profile, processEnv: caller
       effectiveBuildNarrationEnabled: pageInputs.suppressEphemeral, approvalGatesLocked: pageInputs.askGatesLocked,
       effectiveSlideCount: ws.slideCount, effectivePresentationUrl: ws.presentationUrl,
       isReady: ws.isReady,
+      // The page's `isTabSuperseded(STUDIO_ONE_LIVE_TAB_ENABLED, reconnectStatus)`, through the same lib (false in a tree without it).
+      oneLiveTabSuperseded: oneLiveTab ? oneLiveTab.isTabSuperseded(oneLiveTab.STUDIO_ONE_LIVE_TAB_ENABLED, ws.reconnectStatus) : false,
     }
     if (preflightOn) {
       const T = themeSources.compiled
@@ -435,6 +449,9 @@ export async function runTranscript({ root, fixture, profile, processEnv: caller
     const noticeProps = evaluateProps(sources.compiled.notice, latest.values)
     const header = latest.studioShell ? renderToStaticMarkup(React.createElement(StudioDirectorHeader, headerProps)) : ''
     const notice = latest.studioShell ? renderToStaticMarkup(React.createElement(StudioDirectorNotice, noticeProps)) : ''
+    // The paused-tab notice renders nothing unless it is active, so a tree without it (or any flag-off checkpoint) records exactly what it did before.
+    const superseded = latest.studioShell && SupersededNotice && sources.compiled.superseded
+      ? renderToStaticMarkup(React.createElement(SupersededNotice, evaluateProps(sources.compiled.superseded, latest.values))) : ''
     if (crossCheck) {
       // Diagnostic: server-render MessageList from the same props (refs cloned, so its memo
       // side effects do not leak) and compare with the mini-renderer's post-effect tree.
@@ -443,14 +460,14 @@ export async function runTranscript({ root, fixture, profile, processEnv: caller
       rec.crossCheck.push({ checkpoint: name, equal: ssr === chat, ...(ssr === chat ? {} : { ssr: prettyHtml(ssr), mini: prettyHtml(chat) }) })
     }
     rec.markup[`markup/${name}.chat.html`] = prettyHtml(chat)
-    rec.markup[`markup/${name}.chrome.html`] = `<!-- StudioDirectorHeader -->\n${prettyHtml(header)}<!-- StudioDirectorNotice -->\n${prettyHtml(notice)}`
+    rec.markup[`markup/${name}.chrome.html`] = `<!-- StudioDirectorHeader -->\n${prettyHtml(header)}<!-- StudioDirectorNotice -->\n${prettyHtml(notice)}${superseded ? `<!-- StudioSupersededNotice -->\n${prettyHtml(superseded)}` : ''}`
     if (composerHtml !== null) rec.markup[`markup/${name}.composer.html`] = prettyHtml(composerHtml)
     rec.checkpoints.push({
       name, label,
       keys: top.map(node => ({ key: node.key ?? null, ...describe(node) })),
       messageIds: latest.ws.messages.map(m => m.message_id),
       state: digest(),
-      markup: { chat: sha256(chat), header: sha256(header), notice: sha256(notice), ...(composerHtml !== null ? { composer: sha256(composerHtml) } : {}) },
+      markup: { chat: sha256(chat), header: sha256(header), notice: sha256(notice), ...(superseded ? { superseded: sha256(superseded) } : {}), ...(composerHtml !== null ? { composer: sha256(composerHtml) } : {}) },
       composerControls,
     })
   }
@@ -492,7 +509,13 @@ export async function runTranscript({ root, fixture, profile, processEnv: caller
     async open(step) { socketFor(step).serverOpen() },
     async frame(step) { socketFor(step).serverMessage(JSON.stringify(step.frame)) },
     async raw(step) { socketFor(step).serverMessage(step.data) },
-    async close(step) { socketFor(step).serverClose(step.code ?? 1006, step.reason ?? '') },
+    async close(step) {
+      const socket = socketFor(step)
+      // Opt-in (fixture "recordServerCloses": true, the NEXT_PUBLIC_STUDIO_ONE_LIVE_TAB transcripts): when the server closed which socket, with what, so a
+      // reconnect delay can be read off the recorded bytes. Absent, outbound.ndjson is exactly what it always was.
+      if (fixture.recordServerCloses) serverCloses.push({ socket: socket.id, code: step.code ?? 1006, reason: step.reason ?? '', at: env.clock.now() - START_MS })
+      socket.serverClose(step.code ?? 1006, step.reason ?? '')
+    },
     async advance(step) { await advance(step.ms) },
     async offline() { env.navigator.onLine = false; env.window.dispatchEvent({ type: 'offline' }) },
     async online() { env.navigator.onLine = true; env.window.dispatchEvent({ type: 'online' }) },
@@ -512,11 +535,40 @@ export async function runTranscript({ root, fixture, profile, processEnv: caller
       await findNode({ within: { composer: true }, tag: 'form' }).props.onSubmit?.(syntheticEvent('submit'))
       await flushPending()
     },
+    // The "Use here" button of the paused-tab notice, clicked through the REAL StudioSupersededNotice component with the page's own prop
+    // expressions (so the handler is whatever the page wires: the hook's explicit connect()).
+    async useHere() {
+      if (!SupersededNotice || !sources.compiled.superseded) throw new Error('harness: this tree has no StudioSupersededNotice')
+      const props = evaluateProps(sources.compiled.superseded, probe.latest.values, (name, value) => name.startsWith('on') ? track(`superseded.${name}`, value) : value)
+      const findButton = node => {
+        if (!node || typeof node !== 'object') return null
+        if (Array.isArray(node)) { for (const item of node) { const hit = findButton(item); if (hit) return hit } return null }
+        if (node.props?.['data-studio-superseded-part'] === 'use-here') return node
+        return findButton(node.props?.children)
+      }
+      const tree = SupersededNotice(props)
+      const button = findButton(tree)
+      if (!button) throw new Error('harness: the paused-tab notice is not showing a "Use here" button (is this tab superseded, with the flag on?)')
+      await button.props.onClick({ type: 'click', preventDefault() {}, stopPropagation() {} })
+      await flushPending()
+    },
     // Direct hook sends: pin the wire format of every optional field and each control frame.
     async send(step) {
       call('hook.sendMessageWhenConnected', [step.text, step.storeName, step.fileCount, step.options || {}])
       const ok = await probe.latest.ws.sendMessageWhenConnected(step.text, step.storeName, step.fileCount, step.options || {}, undefined, () => true)
       rec.notes.push(`step ${rec.step}: hook send returned ${ok}`)
+    },
+    // Like `send`, but the pending send is driven to its end with virtual time (the reconnect window of sendMessageWhenConnected is a virtual
+    // 12 s of polling), and the note records how much virtual time it took: a send that gives up at once says 0 ms.
+    async sendAndWait(step) {
+      call('hook.sendMessageWhenConnected', [step.text, step.storeName, step.fileCount, step.options || {}])
+      const started = env.clock.now()
+      const work = probe.latest.ws.sendMessageWhenConnected(step.text, step.storeName, step.fileCount, step.options || {}, undefined, () => true)
+        .then(ok => { rec.notes.push(`step ${rec.step}: hook send returned ${ok} after ${env.clock.now() - started} ms`) })
+        .catch(error => { rec.notes.push(`step ${rec.step}: hook send rejected: ${String(error?.message ?? error).slice(0, 120)}`) })
+      pendingWork.add(work)
+      work.finally(() => pendingWork.delete(work))
+      await flushPending()
     },
     async control(step) { call('hook.sendControlMessage', [step.type, step.data]); rec.notes.push(`step ${rec.step}: control returned ${probe.latest.ws.sendControlMessage(step.type, step.data)}`) },
     async theme(step) { call('hook.sendThemeSelection', [step.theme, step.requestId, step.presentationId]); rec.notes.push(`step ${rec.step}: theme returned ${probe.latest.ws.sendThemeSelection(step.theme, step.requestId, step.presentationId)}`) },
@@ -627,6 +679,7 @@ export async function runTranscript({ root, fixture, profile, processEnv: caller
     ...env.handshakes.map(h => JSON.stringify({ kind: 'handshake', ...h })),
     ...env.outbound.map((o, n) => JSON.stringify({ kind: o.data === 'ping' ? 'heartbeat' : (() => { try { return `json:${JSON.parse(o.data).type}` } catch { return 'raw' } })(), n, socket: o.socket, at: o.at, sha256: sha256(o.data), bytes: o.data })),
     ...env.clientCloses.map(c => JSON.stringify({ kind: 'client-close', ...c })),
+    ...serverCloses.map(c => JSON.stringify({ kind: 'server-close', ...c })),
   ]
   files['outbound.ndjson'] = outboundLines.join('\n') + '\n'
   files['keys.json'] = pretty(rec.checkpoints.map(c => ({ checkpoint: c.name, keys: c.keys, hookMessageIds: c.messageIds })))

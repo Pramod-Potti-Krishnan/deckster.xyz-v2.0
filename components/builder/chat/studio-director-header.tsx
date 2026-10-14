@@ -28,12 +28,15 @@ const CONNECTION_LABELS: Record<StudioDirectorConnectionState, string> = {
  * PASS2-DIRECTOR-CHAT PR C (flag NEXT_PUBLIC_STUDIO_CHAT_HEADER, default off): the connection in plain words, from state the
  * hook already reports (`connectionState`, `reconnectStatus`). Nothing is inferred: "Connected" only while the socket is
  * open, and the three waiting/failed phrases only for the hook's own `scheduled`, `paused_offline` and `exhausted`.
+ * NEXT_PUBLIC_STUDIO_ONE_LIVE_TAB: `superseded` (only ever reported with that flag on) reads "Open in another tab" (the words of
+ * SUPERSEDED_STATUS_TEXT in lib/studio-one-live-tab.ts; kept as a literal here so this file keeps its imports; test-studio-one-live-tab pins them equal).
  */
 function chatHeaderConnection(
   connectionState: StudioDirectorConnectionState,
   reconnectStatus: DirectorReconnectStatus | undefined,
 ): { tone: string; text: string } {
   if (connectionState === "connected") return { tone: "ready", text: "Connected" }
+  if (reconnectStatus === "superseded") return { tone: "superseded", text: "Open in another tab" }
   if (reconnectStatus === "scheduled") return { tone: "reconnecting", text: "Reconnecting…" }
   if (reconnectStatus === "paused_offline") return { tone: "offline", text: "Offline, will retry" }
   if (reconnectStatus === "exhausted") return { tone: "failed", text: "Couldn't reconnect" }
