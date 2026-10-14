@@ -106,6 +106,9 @@ function LazySection({ render }: { render: () => ReactNode }) {
   return <>{render()}</>
 }
 
+// Flag on: the singular where the count is 1 ("1 new entity"). Flag off: always the form the page used before.
+const noun = (count: number | undefined, one: string, many: string) => (KNOWLEDGE_FIXES && count === 1 ? one : many)
+
 function formatNumber(value: number | undefined): string {
   return new Intl.NumberFormat().format(value ?? 0)
 }
@@ -877,7 +880,7 @@ function KnowledgePageForAccount({ kg }: { kg: KnowledgeGraphAccess }) {
         const totalCandidates = Number(body.total_candidates ?? totals.processed)
         setImportNotice({
           tone: "neutral",
-          text: `Processed ${formatNumber(totals.processed)} of ${formatNumber(totalCandidates)} eligible session IDs · ${formatNumber(totals.completed)} completed…`,
+          text: `Processed ${formatNumber(totals.processed)} of ${formatNumber(totalCandidates)} eligible session ${noun(totalCandidates, "ID", "IDs")} · ${formatNumber(totals.completed)} completed…`,
         })
         cursor = typeof body.next_cursor === "number" ? body.next_cursor : null
         batchCount += 1
@@ -893,11 +896,11 @@ function KnowledgePageForAccount({ kg }: { kg: KnowledgeGraphAccess }) {
         text:
           `${partial ? "Processed" : "Imported"} ${formatNumber(totals.processed)} session ID${totals.processed === 1 ? "" : "s"}: ` +
           `${formatNumber(totals.completed)} completed` +
-          (totals.retryable ? `, ${formatNumber(totals.retryable)} need another attempt` : "") +
+          (totals.retryable ? `, ${formatNumber(totals.retryable)} ${noun(totals.retryable, "needs", "need")} another attempt` : "") +
           (nonRetryable ? `, and ${formatNumber(nonRetryable)} could not be imported` : "") +
-          `. ${formatNumber(totals.entitiesCreated)} new entities and ${formatNumber(totals.entitiesMerged)} reinforced.` +
+          `. ${formatNumber(totals.entitiesCreated)} new ${noun(totals.entitiesCreated, "entity", "entities")} and ${formatNumber(totals.entitiesMerged)} reinforced.` +
           (totals.alreadyPresent
-            ? ` ${formatNumber(totals.alreadyPresent)} were already in your graph.`
+            ? ` ${formatNumber(totals.alreadyPresent)} ${noun(totals.alreadyPresent, "was", "were")} already in your graph.`
             : "") +
           (moreBatchesRemain
             ? " This bounded import stopped before all eligible sessions were processed. More sessions remain according to the returned cursor. You can run Import past sessions again."
@@ -910,7 +913,7 @@ function KnowledgePageForAccount({ kg }: { kg: KnowledgeGraphAccess }) {
           tone: "error",
           ...(KNOWLEDGE_FIXES ? { kind: "failed" as const } : {}),
           text:
-            (totals.processed ? `${formatNumber(totals.processed)} session IDs were processed before import paused. ` : "") +
+            (totals.processed ? `${formatNumber(totals.processed)} session ${noun(totals.processed, "ID was", "IDs were")} processed before import paused. ` : "") +
             (KNOWLEDGE_FIXES
               ? plainKnowledgeError(error, IMPORT_FAILED_TEXT, OFFLINE_IMPORT_TEXT)
               : error instanceof Error ? error.message : "Past sessions could not be imported."),
@@ -1093,7 +1096,7 @@ stats && stats.nodes_by_type.length > 0 && (
         </div>
       )}
 
-      {guardSection("summary", STUDIO_SHELL ? <details data-studio-knowledge-role="summary-disclosure"><summary><span>Knowledge summary</span><span>{stats ? `${formatNumber(stats.node_count)} entities · ${formatNumber(stats.edge_count)} relations · ${formatNumber(stats.evidence_count)} evidence · ${formatNumber(stats.sessions_consolidated)} sessions` : dataLoading ? "Loading counts…" : "Counts not loaded"}</span></summary>{summaryCards}</details> : summaryCards, stats)}
+      {guardSection("summary", STUDIO_SHELL ? <details data-studio-knowledge-role="summary-disclosure"><summary><span>Knowledge summary</span><span>{stats ? `${formatNumber(stats.node_count)} ${noun(stats.node_count, "entity", "entities")} · ${formatNumber(stats.edge_count)} ${noun(stats.edge_count, "relation", "relations")} · ${formatNumber(stats.evidence_count)} evidence · ${formatNumber(stats.sessions_consolidated)} ${noun(stats.sessions_consolidated, "session", "sessions")}` : dataLoading ? "Loading counts…" : "Counts not loaded"}</span></summary>{summaryCards}</details> : summaryCards, stats)}
 
       {loadError && (
         <section data-studio-knowledge-role={STUDIO_SHELL ? "load-error" : undefined} role={STUDIO_SHELL ? "alert" : undefined} className="mb-4 flex flex-col items-start justify-between gap-3 rounded-2xl border border-amber-200 bg-amber-50 p-4 sm:flex-row sm:items-center dark:border-amber-900/60 dark:bg-amber-950/30">
@@ -1121,7 +1124,7 @@ stats && stats.nodes_by_type.length > 0 && (
                 </h2>
                 <p className="mt-0.5 text-xs text-slate-500 dark:text-slate-400">
                   {graph
-                    ? `Showing ${formatNumber(visibleNodes)} of ${formatNumber(graph.total_nodes)} entities`
+                    ? `Showing ${formatNumber(visibleNodes)} of ${formatNumber(graph.total_nodes)} ${noun(graph.total_nodes, "entity", "entities")}`
                     : STUDIO_SHELL && !dataLoading ? "Graph not loaded" : "Loading the most reinforced entities…"}
                 </p>
               </div>

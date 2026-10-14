@@ -1076,6 +1076,69 @@ mutant('the dialog does not say it is the real graph', { [CONFIRM]: [['This is y
 mutant('the dialog is not rendered', { [PAGE]: [['      {KNOWLEDGE_FIXES && (\n        <KnowledgeImportConfirm', '      {false && (\n        <KnowledgeImportConfirm']] })
 
 // ===========================================================================================================================================
+// 5. S4: singular and plural
+// ===========================================================================================================================================
+
+async function importMessage(shell, extra, flag = true) {
+  const world = mountPage({ flag, shell, server: createServer({ backfill: () => respond(200, batchOf(extra)) }) })
+  await world.load(); await startImport(world)
+  return noticeText(world.view())
+}
+
+check('S4: flag on, "1 new entity", "1 needs another attempt", "1 was already in your graph" (and the plural forms stay plural)', async ({ shell }) => {
+  assert.match(await importMessage(shell, { entities_created: 1, entities_merged: 1 }), /\. 1 new entity and 1 reinforced\.$/)
+  assert.match(await importMessage(shell, { entities_created: 0, entities_merged: 0 }), /\. 0 new entities and 0 reinforced\.$/)
+  assert.match(await importMessage(shell, { entities_created: 2 }), /\. 2 new entities and 1 reinforced\.$/)
+  assert.match(await importMessage(shell, { sessions_completed: 2, sessions_retryable: 1 }), /^Processed 3 session IDs: 2 completed, 1 needs another attempt\./)
+  assert.match(await importMessage(shell, { sessions_completed: 1, sessions_retryable: 2 }), /^Processed 3 session IDs: 1 completed, 2 need another attempt\./)
+  assert.match(await importMessage(shell, { sessions_already_consolidated: 1 }), / 1 was already in your graph\.$/)
+  assert.match(await importMessage(shell, { sessions_already_consolidated: 4 }), / 4 were already in your graph\.$/)
+  assert.match(await importMessage(shell, { sessions_processed: 1, sessions_completed: 1 }), /^Imported 1 session ID: 1 completed\./)
+})
+
+check('S4: flag on, the progress line and the "processed before import paused" line agree with their counts', async ({ shell }) => {
+  let n = 0
+  const progress = mountPage({ shell, server: createServer({ backfill: () => (++n === 1 ? respond(200, batchOf({ sessions_processed: 1, sessions_completed: 1, total_candidates: 1, next_cursor: 1 })) : hang()) }) })
+  await progress.load(); await startImport(progress)
+  assert.match(noticeText(progress.view()), /^Processed 1 of 1 eligible session ID · 1 completed…$/)
+  let m = 0
+  const failed = mountPage({ shell, server: createServer({ backfill: () => (++m === 1 ? respond(200, batchOf({ sessions_processed: 1, sessions_completed: 1, total_candidates: 4, next_cursor: 1 })) : networkDown()) }) })
+  await failed.load(); await startImport(failed)
+  assert.match(noticeText(failed.view()), /^1 session ID was processed before import paused\./)
+  let k = 0
+  const several = mountPage({ shell, server: createServer({ backfill: () => (++k === 1 ? respond(200, batchOf({ total_candidates: 4, next_cursor: 3 })) : networkDown()) }) })
+  await several.load(); await startImport(several)
+  assert.match(noticeText(several.view()), /^3 session IDs were processed before import paused\./)
+})
+
+check('S4: flag on, the counts in the summary and over the map say "1 entity", "1 relation", "1 session"', async ({ shell }) => {
+  const one = mountPage({ shell, server: createServer({ stats: respond(200, { ...STATS, node_count: 1, edge_count: 1, sessions_consolidated: 1 }), graph: respond(200, { ...GRAPH, total_nodes: 1 }) }) })
+  const tree = await one.load()
+  assert.match(text(tree), /Showing 2 of 1 entity/)
+  if (shell) assert.match(text(tree), /1 entity · 1 relation · 11 evidence · 1 session(?!s)/)
+  const many = mountPage({ shell })
+  const loaded = await many.load()
+  assert.match(text(loaded), /Showing 2 of 9 entities/)
+  if (shell) assert.match(text(loaded), /9 entities · 9 relations · 11 evidence · 1 session(?!s)/, 'the counts stay plural where they are not 1')
+})
+
+check('S4: flag off keeps the old wording ("1 new entities", "1 were already in your graph")', async ({ shell }) => {
+  const message = await importMessage(shell, { sessions_processed: 1, sessions_completed: 1, entities_created: 1, sessions_already_consolidated: 1, sessions_retryable: 0 }, false)
+  assert.match(message, /1 new entities and 1 reinforced\. 1 were already in your graph\./)
+})
+
+mutant('the singular is never used', { [PAGE]: [['const noun = (count: number | undefined, one: string, many: string) => (KNOWLEDGE_FIXES && count === 1 ? one : many)', 'const noun = (count: number | undefined, one: string, many: string) => many']] })
+mutant('the singular is used with the flag off', { [PAGE]: [['const noun = (count: number | undefined, one: string, many: string) => (KNOWLEDGE_FIXES && count === 1 ? one : many)', 'const noun = (count: number | undefined, one: string, many: string) => (count === 1 ? one : many)']] })
+mutant('zero reads as singular', { [PAGE]: [['KNOWLEDGE_FIXES && count === 1 ? one : many', 'KNOWLEDGE_FIXES && (count ?? 0) <= 1 ? one : many']] })
+mutant('the entity count word is not singular', { [PAGE]: [['new ${noun(totals.entitiesCreated, "entity", "entities")} and', 'new entities and']] })
+mutant('the already-in-your-graph verb is not singular', { [PAGE]: [['${noun(totals.alreadyPresent, "was", "were")} already', 'were already']] })
+mutant('the needs-another-attempt verb is not singular', { [PAGE]: [['${noun(totals.retryable, "needs", "need")} another attempt', 'need another attempt']] })
+mutant('the progress line is not singular', { [PAGE]: [['eligible session ${noun(totalCandidates, "ID", "IDs")} ·', 'eligible session IDs ·']] })
+mutant('the paused line is not singular', { [PAGE]: [['${noun(totals.processed, "ID was", "IDs were")} processed before', 'IDs were processed before']] })
+mutant('the summary line is not singular', { [PAGE]: [['${noun(stats.sessions_consolidated, "session", "sessions")}`', 'sessions`']] })
+mutant('the map header is not singular', { [PAGE]: [['${noun(graph.total_nodes, "entity", "entities")}`', 'entities`']] })
+
+// ===========================================================================================================================================
 // flag off = the base, byte for byte: render hashes over a matrix of states (markup, requests, console, storage)
 // ===========================================================================================================================================
 
