@@ -1,0 +1,42 @@
+[
+  {
+    "checkpoint": "01-new-blank-canvas",
+    "hookMessageIds": ["msg-greeting-blank"],
+    "keys": [
+      {"action":null,"buttons":0,"empty":false,"inputs":0,"key":"msg-greeting-blank","role":null,"tag":"div"},
+      {"action":null,"buttons":0,"empty":false,"inputs":0,"key":null,"role":null,"tag":"div"}
+    ]
+  },
+  {
+    "checkpoint": "02-corporate-light-requested",
+    "hookMessageIds": ["msg-greeting-blank"],
+    "keys": [
+      {"action":null,"buttons":0,"empty":false,"inputs":0,"key":"msg-greeting-blank","role":null,"tag":"div"},
+      {"action":null,"buttons":0,"empty":false,"inputs":0,"key":null,"role":null,"tag":"div"}
+    ]
+  },
+  {
+    "checkpoint": "03-corporate-light-applied",
+    "hookMessageIds": ["msg-greeting-blank"],
+    "keys": [
+      {"action":null,"buttons":0,"empty":false,"inputs":0,"key":"msg-greeting-blank","role":null,"tag":"div"},
+      {"action":null,"buttons":0,"empty":false,"inputs":0,"key":null,"role":null,"tag":"div"}
+    ]
+  },
+  {
+    "checkpoint": "04-element-generated",
+    "hookMessageIds": ["msg-greeting-blank"],
+    "keys": [
+      {"action":null,"buttons":0,"empty":false,"inputs":0,"key":"msg-greeting-blank","role":null,"tag":"div"},
+      {"action":null,"buttons":0,"empty":false,"inputs":0,"key":null,"role":null,"tag":"div"}
+    ]
+  },
+  {
+    "checkpoint": "05-final",
+    "hookMessageIds": ["msg-greeting-blank"],
+    "keys": [
+      {"action":null,"buttons":0,"empty":false,"inputs":0,"key":"msg-greeting-blank","role":null,"tag":"div"},
+      {"action":null,"buttons":0,"empty":false,"inputs":0,"key":null,"role":null,"tag":"div"}
+    ]
+  }
+]

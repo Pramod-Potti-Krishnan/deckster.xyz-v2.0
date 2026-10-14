@@ -1,0 +1,18 @@
+{
+  "diagnostics": {
+    "blockedNetwork": [],
+    "console": [{"level":"warn","text":"🔌 WebSocket connection closed <object>"}],
+    "fetches": [
+      {"method":"GET","url":"/api/director/ws-token?session_id=synthetic-session-use-original"},
+      {"method":"GET","url":"/api/director/ws-token?session_id=synthetic-session-use-original"}
+    ],
+    "sockets": 2,
+    "timersLeft": 2,
+    "uncaughtTimerErrors": [],
+    "windowOpens": []
+  },
+  "fixture": "composer-use-original-frozen",
+  "fixtureSha": "fbfe8e6ce79592fc",
+  "profile": "classic",
+  "schema": 1
+}

@@ -1,0 +1,23 @@
+[
+  {"chars":6,"label":"page.THEME_SYNC_TIMEOUT_MS","sha256":"5b833d7dc44d5c88"},
+  {"chars":211,"label":"page.buildThemeProfileMatchesSelection","sha256":"d9939af7eaddacb0"},
+  {"chars":127,"label":"page.clearThemeSyncTimeout","sha256":"166c5fc74cb48a6e"},
+  {"chars":2,"label":"page.clearThemeSyncTimeout.deps","sha256":"4f53cda18c2baa0c"},
+  {"chars":76,"label":"page.commitThemeSync","sha256":"3e63422f4d7f1013"},
+  {"chars":2,"label":"page.commitThemeSync.deps","sha256":"4f53cda18c2baa0c"},
+  {"chars":59,"label":"page.composerLibraryEnabled","sha256":"79c923ce9bfa6b9b"},
+  {"chars":118,"label":"page.composerThemeBlocked","sha256":"e2a75ba5018f2a30"},
+  {"chars":87,"label":"page.composerThemeFrozen","sha256":"e2ee407731710161"},
+  {"chars":4049,"label":"page.ensureThemeReady","sha256":"593b32b5d966066f"},
+  {"chars":68,"label":"page.ensureThemeReady.deps","sha256":"aebf8a103e76734c"},
+  {"chars":26,"label":"page.getThemeSyncSnapshot","sha256":"a5fedf000f72b76b"},
+  {"chars":2,"label":"page.getThemeSyncSnapshot.deps","sha256":"4f53cda18c2baa0c"},
+  {"chars":473,"label":"page.handleBuildThemeChange","sha256":"b55c23d3ee0daaa5"},
+  {"chars":33,"label":"page.handleBuildThemeChange.deps","sha256":"060a06f880876491"},
+  {"chars":2679,"label":"page.requestThemeSyncForPresentation","sha256":"5aec02829210713e"},
+  {"chars":60,"label":"page.requestThemeSyncForPresentation.deps","sha256":"bd9744d0a02e8e0b"},
+  {"chars":1658,"label":"page.themeSyncEffect","sha256":"02a5d1aaa5c30358"},
+  {"chars":169,"label":"page.themeSyncEffect.deps","sha256":"a716dd56ec42b50c"},
+  {"chars":144,"label":"page.themeSyncTargetRef(initial)","sha256":"6b3501dfc0f2b90d"},
+  {"chars":144,"label":"page.themeSyncTargetRef.current","sha256":"6b3501dfc0f2b90d"}
+]

@@ -761,6 +761,12 @@ const getDirectorWsUrl = () => requireServiceUrl('Director', [
 ], { protocols: ['ws:', 'wss:'], urlType: 'endpoint' });
 const BUILD_CONTROL_HTTP_TIMEOUT_MS = 4000;
 const COMPOSER_LIBRARY_ENABLED = process.env.NEXT_PUBLIC_COMPOSER_LIBRARY_ENABLED === 'true';
+// PASS2-J3 P0: Director answers a NEW session with its blank deck (presentation_init) and never a sync_response, so the
+// composer theme policy above stayed unresolved and every set_theme / Add Element was refused for the whole session.
+// On (exact "true", default off): the session's first blank deck frame on a socket with no sync_response resolves the
+// policy as "no adoption". A Composer adoption (use result, cached marker or sync) is never unlocked.
+const STUDIO_NEW_SESSION_THEME_POLICY_ENABLED = COMPOSER_LIBRARY_ENABLED
+  && process.env.NEXT_PUBLIC_STUDIO_NEW_SESSION_THEME_POLICY === 'true';
 
 // How long a send will wait for a closed socket to come back before it gives
 // up and tells the user. Long enough to cover ordinary reconnect churn,
@@ -1727,6 +1733,8 @@ export function useDecksterWebSocketV2(options: UseDecksterWebSocketV2Options = 
         }
         wsRef.current = ws;
         const isCurrentSocket = () => wsRef.current === ws && isCurrentAttempt();
+        // New-session theme policy: an existing session's socket gets sync_response before any deck frame.
+        let socketSyncResponseSeen = false;
 
         ws.onopen = () => {
           if (!isCurrentSocket()) {
@@ -2000,6 +2008,19 @@ export function useDecksterWebSocketV2(options: UseDecksterWebSocketV2Options = 
                 displayedSession: sessionIdRef.current,
               });
             }
+
+            // New-session theme policy, captured at dispatch in frame order: a blank deck frame that arrives before any
+            // sync_response on this socket is Director's new-session branch (no adoption can exist on its blank deck).
+            const newSessionBlankFrame = STUDIO_NEW_SESSION_THEME_POLICY_ENABLED && !socketSyncResponseSeen && !blockedIngress
+              && (message.type === 'presentation_init' || (message.type === 'slide_update' && Boolean(message.payload?.is_blank)));
+            if (STUDIO_NEW_SESSION_THEME_POLICY_ENABLED && message.type === 'sync_response') socketSyncResponseSeen = true;
+            const resolveNewSessionThemePolicy = (prev: UseDecksterWebSocketV2State, newState: UseDecksterWebSocketV2State) => {
+              if (!newSessionBlankFrame || prev.composerThemeResolved || prev.composerAdoption ||
+                  socketSessionId !== sessionIdRef.current ||
+                  (message.session_id && message.session_id !== sessionIdRef.current)) return;
+              newState.composerThemeResolved = true;
+              composerThemeRef.current = { sessionId: sessionIdRef.current, composerAdoption: null, composerThemeResolved: true };
+            };
 
             setStateWithCache(prev => {
               // React can apply this publication after the dispatching socket
@@ -2303,6 +2324,7 @@ export function useDecksterWebSocketV2(options: UseDecksterWebSocketV2Options = 
                       newState.deckOwnerSessionId = sessionIdRef.current;
                       newState.slideStructure = null;
                       newState.slideCount = null;
+                      resolveNewSessionThemePolicy(prev, newState);
 
                       debugLog('✅ Blank presentation ready - all editing tools now active');
 
@@ -2414,6 +2436,7 @@ export function useDecksterWebSocketV2(options: UseDecksterWebSocketV2Options = 
                       newState.deckOwnerSessionId = sessionIdRef.current;
                       newState.slideStructure = null;
                       newState.slideCount = null;
+                      resolveNewSessionThemePolicy(prev, newState);
 
                       debugLog('✅ Blank presentation ready - all editing tools now active');
 
