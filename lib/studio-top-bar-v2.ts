@@ -29,8 +29,15 @@ export function getStudioDeckSaveState(): StudioDeckSaveState {
   return current
 }
 
-/** The top bar says "Saved" only when the viewer reports the deck saved. Saving, unsaved and failed saves keep showing
- *  where they always did (the toolbar's save control, with its "save now" action), so the top bar shows nothing then. */
-export function studioTopBarSavedLabel(state: StudioDeckSaveState): 'Saved' | null {
-  return state === 'saved' ? 'Saved' : null
+/** The top bar says "Saved" only when the viewer reports the deck saved AND the session has a history row. Saving, unsaved and
+ *  failed saves keep showing where they always did (the toolbar's save control, with its "save now" action), so the top bar
+ *  shows nothing then.
+ *
+ *  The viewer's state alone is not enough: it starts at 'saved' for any settled deck, including the blank one Director puts on
+ *  stage for a session nobody has touched. With NEXT_PUBLIC_STUDIO_SESSION_HYGIENE that session has no history row yet (the row
+ *  is written on the first real action), so "Saved" would claim something that has not happened. `sessionUnsaved` is the
+ *  Builder's own unsaved-session flag (the one the hygiene hooks use), already combined with the hygiene flag by the caller: true
+ *  means "no history row", and the top bar then shows nothing. The default keeps a caller that does not know as before. */
+export function studioTopBarSavedLabel(state: StudioDeckSaveState, sessionUnsaved = false): 'Saved' | null {
+  return state === 'saved' && !sessionUnsaved ? 'Saved' : null
 }

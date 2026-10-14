@@ -1,0 +1,359 @@
+{
+  "checkpoints": [
+    {
+      "checkpoint": "01-new-blank-canvas",
+      "connection": {
+        "awaitingDirectorReply": false,
+        "connected": true,
+        "connecting": false,
+        "connectionGeneration": 1,
+        "reconnectAttempt": 0,
+        "reconnectStatus": "idle",
+        "sockets": 1,
+        "state": "connected"
+      },
+      "deck": {
+        "activeVersion": "blank",
+        "blankUrl": "https://layout.synthetic.invalid/p/synthetic-blank-02",
+        "finalId": null,
+        "finalUrl": null,
+        "hasStrawman": false,
+        "isBlank": true,
+        "owner": "synthetic-session-blank-canvas",
+        "presentationId": "synthetic-blank-02",
+        "presentationUrl": "https://layout.synthetic.invalid/p/synthetic-blank-02",
+        "slideContextIndexes": null,
+        "slideCount": null,
+        "slideStructureSha": null,
+        "strawmanUrl": null,
+        "workflow": "BLANK_PRESENTATION"
+      },
+      "ephemeralFadeToken": 0,
+      "ephemeralMessageIds": [],
+      "error": null,
+      "label": "new blank canvas",
+      "messages": ["msg-greeting-blank | chat_message | assistant | +3500ms"],
+      "messagesSha": "ea59fece7cb83f9cb26803215e40f3c24ca9d0381e5be9d9ff0ef0ee664386a8",
+      "page": {
+        "answeredActions": [],
+        "isGeneratingFinal": false,
+        "pendingActionInput": null,
+        "toasts": 0,
+        "userMessageIds": [],
+        "userMessages": []
+      },
+      "status": null,
+      "theme": {
+        "blankStatus": "blank",
+        "buildThemeSelection": {"mode":"auto"},
+        "composerAdoption": null,
+        "composerThemeBlocked": false,
+        "composerThemeFrozen": false,
+        "composerThemeResolved": true,
+        "effectivePresentationId": "synthetic-blank-02",
+        "panelError": null,
+        "textLabsRequests": 0,
+        "themeSync": {
+          "error": null,
+          "presentationId": "synthetic-blank-02",
+          "requestId": "synthetic-uuid-0001",
+          "status": "syncing",
+          "themeFingerprint": "{\"mode\":\"auto\"}"
+        }
+      },
+      "transportNotice": null,
+      "virtualMs": 4000
+    },
+    {
+      "checkpoint": "02-corporate-light-requested",
+      "connection": {
+        "awaitingDirectorReply": false,
+        "connected": true,
+        "connecting": false,
+        "connectionGeneration": 1,
+        "reconnectAttempt": 0,
+        "reconnectStatus": "idle",
+        "sockets": 1,
+        "state": "connected"
+      },
+      "deck": {
+        "activeVersion": "blank",
+        "blankUrl": "https://layout.synthetic.invalid/p/synthetic-blank-02",
+        "finalId": null,
+        "finalUrl": null,
+        "hasStrawman": false,
+        "isBlank": true,
+        "owner": "synthetic-session-blank-canvas",
+        "presentationId": "synthetic-blank-02",
+        "presentationUrl": "https://layout.synthetic.invalid/p/synthetic-blank-02",
+        "slideContextIndexes": null,
+        "slideCount": null,
+        "slideStructureSha": null,
+        "strawmanUrl": null,
+        "workflow": "BLANK_PRESENTATION"
+      },
+      "ephemeralFadeToken": 0,
+      "ephemeralMessageIds": [],
+      "error": null,
+      "label": "corporate light requested",
+      "messages": ["msg-greeting-blank | chat_message | assistant | +3500ms"],
+      "messagesSha": "ea59fece7cb83f9cb26803215e40f3c24ca9d0381e5be9d9ff0ef0ee664386a8",
+      "page": {
+        "answeredActions": [],
+        "isGeneratingFinal": false,
+        "pendingActionInput": null,
+        "toasts": 0,
+        "userMessageIds": [],
+        "userMessages": []
+      },
+      "status": null,
+      "theme": {
+        "blankStatus": "blank",
+        "buildThemeSelection": {"mode":"preset","preset_id":"corporate_light"},
+        "composerAdoption": null,
+        "composerThemeBlocked": false,
+        "composerThemeFrozen": false,
+        "composerThemeResolved": true,
+        "effectivePresentationId": "synthetic-blank-02",
+        "panelError": null,
+        "textLabsRequests": 0,
+        "themeSync": {
+          "error": null,
+          "presentationId": "synthetic-blank-02",
+          "requestId": "synthetic-uuid-0002",
+          "status": "syncing",
+          "themeFingerprint": "{\"mode\":\"preset\",\"preset_id\":\"corporate_light\"}"
+        }
+      },
+      "transportNotice": null,
+      "virtualMs": 7000
+    },
+    {
+      "checkpoint": "03-corporate-light-applied",
+      "connection": {
+        "awaitingDirectorReply": false,
+        "connected": true,
+        "connecting": false,
+        "connectionGeneration": 1,
+        "reconnectAttempt": 0,
+        "reconnectStatus": "idle",
+        "sockets": 1,
+        "state": "connected"
+      },
+      "deck": {
+        "activeVersion": "blank",
+        "blankUrl": "https://layout.synthetic.invalid/p/synthetic-blank-02",
+        "finalId": null,
+        "finalUrl": null,
+        "hasStrawman": false,
+        "isBlank": true,
+        "owner": "synthetic-session-blank-canvas",
+        "presentationId": "synthetic-blank-02",
+        "presentationUrl": "https://layout.synthetic.invalid/p/synthetic-blank-02",
+        "slideContextIndexes": null,
+        "slideCount": null,
+        "slideStructureSha": null,
+        "strawmanUrl": null,
+        "workflow": "BLANK_PRESENTATION"
+      },
+      "ephemeralFadeToken": 0,
+      "ephemeralMessageIds": [],
+      "error": null,
+      "label": "corporate light applied",
+      "messages": ["msg-greeting-blank | chat_message | assistant | +3500ms"],
+      "messagesSha": "ea59fece7cb83f9cb26803215e40f3c24ca9d0381e5be9d9ff0ef0ee664386a8",
+      "page": {
+        "answeredActions": [],
+        "isGeneratingFinal": false,
+        "pendingActionInput": null,
+        "toasts": 0,
+        "userMessageIds": [],
+        "userMessages": []
+      },
+      "status": null,
+      "theme": {
+        "blankStatus": "blank",
+        "buildThemeSelection": {"mode":"preset","preset_id":"corporate_light"},
+        "composerAdoption": null,
+        "composerThemeBlocked": false,
+        "composerThemeFrozen": false,
+        "composerThemeResolved": true,
+        "effectivePresentationId": "synthetic-blank-02",
+        "panelError": null,
+        "textLabsRequests": 0,
+        "themeSync": {
+          "error": null,
+          "presentationId": "synthetic-blank-02",
+          "requestId": "synthetic-uuid-0002",
+          "status": "applied",
+          "themeFingerprint": "{\"mode\":\"preset\",\"preset_id\":\"corporate_light\"}"
+        }
+      },
+      "transportNotice": null,
+      "virtualMs": 8500
+    },
+    {
+      "checkpoint": "04-element-generated",
+      "connection": {
+        "awaitingDirectorReply": false,
+        "connected": true,
+        "connecting": false,
+        "connectionGeneration": 1,
+        "reconnectAttempt": 0,
+        "reconnectStatus": "idle",
+        "sockets": 1,
+        "state": "connected"
+      },
+      "deck": {
+        "activeVersion": "blank",
+        "blankUrl": "https://layout.synthetic.invalid/p/synthetic-blank-02",
+        "finalId": null,
+        "finalUrl": null,
+        "hasStrawman": false,
+        "isBlank": true,
+        "owner": "synthetic-session-blank-canvas",
+        "presentationId": "synthetic-blank-02",
+        "presentationUrl": "https://layout.synthetic.invalid/p/synthetic-blank-02",
+        "slideContextIndexes": null,
+        "slideCount": null,
+        "slideStructureSha": null,
+        "strawmanUrl": null,
+        "workflow": "BLANK_PRESENTATION"
+      },
+      "ephemeralFadeToken": 0,
+      "ephemeralMessageIds": [],
+      "error": null,
+      "label": "element generated",
+      "messages": ["msg-greeting-blank | chat_message | assistant | +3500ms"],
+      "messagesSha": "ea59fece7cb83f9cb26803215e40f3c24ca9d0381e5be9d9ff0ef0ee664386a8",
+      "page": {
+        "answeredActions": [],
+        "isGeneratingFinal": false,
+        "pendingActionInput": null,
+        "toasts": 1,
+        "userMessageIds": [],
+        "userMessages": []
+      },
+      "status": null,
+      "theme": {
+        "blankStatus": "removed",
+        "buildThemeSelection": {"mode":"preset","preset_id":"corporate_light"},
+        "composerAdoption": null,
+        "composerThemeBlocked": false,
+        "composerThemeFrozen": false,
+        "composerThemeResolved": true,
+        "effectivePresentationId": "synthetic-blank-02",
+        "panelError": null,
+        "textLabsRequests": 1,
+        "themeSync": {
+          "error": null,
+          "presentationId": "synthetic-blank-02",
+          "requestId": "synthetic-uuid-0002",
+          "status": "applied",
+          "themeFingerprint": "{\"mode\":\"preset\",\"preset_id\":\"corporate_light\"}"
+        }
+      },
+      "transportNotice": null,
+      "virtualMs": 10000
+    },
+    {
+      "checkpoint": "05-final",
+      "connection": {
+        "awaitingDirectorReply": false,
+        "connected": true,
+        "connecting": false,
+        "connectionGeneration": 1,
+        "reconnectAttempt": 0,
+        "reconnectStatus": "idle",
+        "sockets": 1,
+        "state": "connected"
+      },
+      "deck": {
+        "activeVersion": "blank",
+        "blankUrl": "https://layout.synthetic.invalid/p/synthetic-blank-02",
+        "finalId": null,
+        "finalUrl": null,
+        "hasStrawman": false,
+        "isBlank": true,
+        "owner": "synthetic-session-blank-canvas",
+        "presentationId": "synthetic-blank-02",
+        "presentationUrl": "https://layout.synthetic.invalid/p/synthetic-blank-02",
+        "slideContextIndexes": null,
+        "slideCount": null,
+        "slideStructureSha": null,
+        "strawmanUrl": null,
+        "workflow": "BLANK_PRESENTATION"
+      },
+      "ephemeralFadeToken": 0,
+      "ephemeralMessageIds": [],
+      "error": null,
+      "label": "final",
+      "messages": ["msg-greeting-blank | chat_message | assistant | +3500ms"],
+      "messagesSha": "ea59fece7cb83f9cb26803215e40f3c24ca9d0381e5be9d9ff0ef0ee664386a8",
+      "page": {
+        "answeredActions": [],
+        "isGeneratingFinal": false,
+        "pendingActionInput": null,
+        "toasts": 1,
+        "userMessageIds": [],
+        "userMessages": []
+      },
+      "status": null,
+      "theme": {
+        "blankStatus": "removed",
+        "buildThemeSelection": {"mode":"preset","preset_id":"corporate_light"},
+        "composerAdoption": null,
+        "composerThemeBlocked": false,
+        "composerThemeFrozen": false,
+        "composerThemeResolved": true,
+        "effectivePresentationId": "synthetic-blank-02",
+        "panelError": null,
+        "textLabsRequests": 1,
+        "themeSync": {
+          "error": null,
+          "presentationId": "synthetic-blank-02",
+          "requestId": "synthetic-uuid-0002",
+          "status": "applied",
+          "themeFingerprint": "{\"mode\":\"preset\",\"preset_id\":\"corporate_light\"}"
+        }
+      },
+      "transportNotice": null,
+      "virtualMs": 10000
+    }
+  ],
+  "notes": [],
+  "steps": [
+    {"op":"ensureConnected","step":0},
+    {"op":"open","step":1},
+    {"comment":"onopen: the policy is still unresolved (no race with the deck)","op":"expect","step":2},
+    {
+      "comment": "Director new-session branch, 1/3: the initial theme is applied before the blank deck is published",
+      "op": "frame",
+      "step": 3
+    },
+    {"op":"expect","step":4},
+    {"comment":"2/3: the blank deck (create_presentation_init payload)","op":"frame","step":5},
+    {"comment":"3/3: the greeting; no sync_response follows on a new session","op":"frame","step":6},
+    {"op":"checkpoint","step":7},
+    {
+      "comment": "resolved as no adoption: the page syncs the default Auto theme, exactly as with the library off",
+      "op": "expect",
+      "step": 8
+    },
+    {"op":"themeAck","step":9},
+    {"op":"expect","step":10},
+    {"comment":"Theme dialog: Corporate Light","op":"themePick","step":11},
+    {"comment":"the pick reaches Director (it was refused before)","op":"expect","step":12},
+    {"op":"checkpoint","step":13},
+    {"op":"themeAck","step":14},
+    {"op":"expect","step":15},
+    {"op":"checkpoint","step":16},
+    {"comment":"Add Element > Text Box > Generate","op":"generate","step":17},
+    {
+      "comment": "the theme preflight is ready and the generation request reaches Text Labs",
+      "op": "expect",
+      "step": 18
+    },
+    {"op":"checkpoint","step":19}
+  ]
+}

@@ -14,6 +14,7 @@ import { Root, hostNodes, keyedChildren, textOf, toElements } from './mini-react
 import { createEnvironment, START_MS } from './fake-env.mjs'
 import { createModuleLoader } from './module-loader.mjs'
 import { pageSources } from './page-sources.mjs'
+import { pageThemeSources } from './page-theme-sources.mjs'
 import { evaluateProps } from './page-extract.mjs'
 import { BASE_ENV } from './profiles.mjs'
 import { canonical, pretty, prettyHtml, sha256 } from './snapshot.mjs'
@@ -22,7 +23,10 @@ import { esmPackages, lucideStub } from './esm-packages.mjs'
 const DEFAULT_DT = 500
 const slug = text => String(text).toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '').slice(0, 48) || 'checkpoint'
 
-export async function runTranscript({ root, fixture, profile, processEnv, includeMarkup = true, crossCheck = false }) {
+export async function runTranscript({ root, fixture, profile, processEnv: callerEnv, includeMarkup = true, crossCheck = false }) {
+  // A fixture's own "env" (the element-preflight fixtures) sits under whatever the caller passes, so every runner replays it the same way
+  // and a caller's --env can still override it. Fixtures without "env" get exactly the caller's environment, as before.
+  const processEnv = fixture.env ? { ...fixture.env, ...callerEnv } : callerEnv
   const sources = pageSources(root)
   const env = createEnvironment({ processEnv: { ...BASE_ENV, ...processEnv } })
   const session = fixture.session
@@ -54,6 +58,33 @@ export async function runTranscript({ root, fixture, profile, processEnv, includ
   const composerContextLib = composerOn ? loader.load('lib/studio-chat-composer-context.ts') : {}
   const { attachmentsFromPayload } = loader.load('lib/user-message-attachments.ts')
   const voice = loader.load('lib/studio-voice-interactive.ts')
+  // Fixtures with `"elementPreflight": true` (PASS2-J3 P0) also run the page's deck-theme preflight and the REAL Add Element
+  // generation hook (page-theme-sources.mjs, `useTextLabsGeneration`), against a synthetic Text Labs that only answers them.
+  const preflightOn = Boolean(fixture.elementPreflight)
+  const themeSources = preflightOn ? pageThemeSources(root) : null
+  const themeLibs = preflightOn ? {
+    ...loader.load('lib/theme-sync.ts'),
+    themeSelectionFingerprint: loader.load('lib/theme-builder.ts').themeSelectionFingerprint,
+    composerThemeSyncBlocked: loader.load('lib/composer-theme-policy.ts').composerThemeSyncBlocked,
+    getLayoutServiceUrl: loader.load('lib/layout-service-client.ts').getLayoutServiceUrl,
+  } : null
+  const resolveEffectivePresentation = preflightOn ? loader.load('lib/builder-presentation-ownership.ts').resolveEffectivePresentation : null
+  const generationHook = preflightOn ? loader.load('hooks/use-textlabs-generation.ts') : null
+  const textLabsRequests = []
+  if (preflightOn) {
+    const base = processEnv.NEXT_PUBLIC_ELEMENTOR_URL
+    if (!base) throw new Error('harness: an elementPreflight fixture needs NEXT_PUBLIC_ELEMENTOR_URL in its "env"')
+    env.textLabs = {
+      base,
+      answer: async (url, init) => {
+        const body = typeof init?.body === 'string' ? init.body : null
+        textLabsRequests.push({ at: env.clock.now() - START_MS, method: init?.method || 'GET', path: url.slice(base.length), body: body ? JSON.parse(body) : null })
+        call('textlabs.request', [{ method: init?.method || 'GET', path: url.slice(base.length) }])
+        const answer = fixture.textLabsResponse || { success: true, elements: [] }
+        return { ok: true, status: 200, headers: { get: () => null }, json: async () => JSON.parse(JSON.stringify(answer)) }
+      },
+    }
+  }
 
   // ---- recorders ----------------------------------------------------------
   const rec = { step: -1, calls: [], steps: [], checkpoints: [], markup: {}, notes: [], crossCheck: [] }
@@ -113,6 +144,38 @@ export async function runTranscript({ root, fixture, profile, processEnv, includ
     generateTitle: text => text.slice(0, 50), updateMetadata: (...args) => call('page.persistence.updateMetadata', args),
   }
 
+  // ---- elementPreflight: the Add Element panel's collaborators (recording stand-ins; the generation hook itself is real) ----
+  // The panel is open on the blank placeholder the gallery card created; the Layout viewer acknowledges every command.
+  const elementBlank = { elementId: 'synthetic-blank-element-1', componentType: fixture.elementType || 'TEXT_BOX', slideIndex: 0, startCol: 5, startRow: 4, width: 10, height: 6, status: 'blank' }
+  const elementPanelState = { blankElementId: elementBlank.elementId, editElementId: null, isOpen: true, elementType: elementBlank.componentType, isGenerating: false,
+    error: null, retryStrategy: null, mode: 'generate', refineContext: null, researchMode: 'off', researchWeb: false, researchUploadedDocs: false, researchKnowledgeGraph: false }
+  const elementPanel = Object.assign(elementPanelState, {
+    setIsGenerating: value => { elementPanelState.isGenerating = value; call('panel.setIsGenerating', [value]) },
+    setError: value => { elementPanelState.error = value; call('panel.setError', [value]) },
+    setRetryStrategy: value => { elementPanelState.retryStrategy = value; call('panel.setRetryStrategy', [value]) },
+    getSnapshot: () => ({ ...elementPanelState }), getIntentRevision: () => 0,
+    closePanel: () => { elementPanelState.isOpen = false; call('panel.closePanel', []) },
+    rememberDraftForElement: () => {}, openPanelForElement: () => {}, openPanelForRefine: () => {}, changeElementType: () => {},
+    resumePanelForElement: () => call('panel.resumePanelForElement', []), completeBlankReplacement: () => call('panel.completeBlankReplacement', []),
+  })
+  const elementBlanks = {
+    getElement: id => (id === elementBlank.elementId ? elementBlank : undefined), updatePosition: () => {}, updateGenerationMetadata: () => {},
+    setStatus: (id, status) => { elementBlank.status = status; call('blank.setStatus', [id, status]) },
+    removeElement: id => { if (id === elementBlank.elementId) elementBlank.status = 'removed'; call('blank.removeElement', [id]) }, addElement: info => call('blank.addElement', [info.elementId]), trackElement: id => call('blank.trackElement', [id]),
+  }
+  const elementSession = { ensureSession: async () => { call('textlabs.ensureSession', []); return 'synthetic-textlabs-session' } }
+  let insertedElements = 0
+  const sendElementCommand = async (action, args = {}) => {
+    call('layout.sendElementCommand', [action, { elementId: args.elementId ?? null }])
+    if (action === 'getElementGeometry') return { success: true, action, elementId: args.elementId, position: { gridRow: '4/10', gridColumn: '5/15' } }
+    if (action.startsWith('insert') || action.startsWith('upsert')) return { success: true, elementId: `synthetic-generated-${++insertedElements}` }
+    if (action === 'getElementMutationReceipt') return { status: 'unknown' }
+    if (action === 'getElementGenerationMetadata') return { success: true, componentType: elementBlank.componentType, themeVariantSource: 'manual' }
+    if (action === 'refreshElementThemeMetadata') return { themeVariantId: 'synthetic-variant', themeBindings: { text: '--theme-text' } }
+    return { success: true, elementId: args.elementId ?? null }
+  }
+  const elementLayout = { sendElementCommand, captureStudioElementGeneration: () => ({ sendElementCommand, isCurrent: () => true }) }
+
   // ---- the probe ---------------------------------------------------------------------
   const probe = { latest: null }
   const toast = value => { toasts.push(value); call('page.toast', [value]) }
@@ -126,6 +189,28 @@ export async function runTranscript({ root, fixture, profile, processEnv, includ
     const [transcriptReceipt, setTranscriptReceipt] = R.useState(null)
     const [isLoadingSession, setIsLoadingSession] = R.useState(false)
     refs.isGeneratingFinalRef.current = isGeneratingFinal
+    // elementPreflight: the page's deck-theme state (page.tsx keeps it next to the hook) and its early callbacks.
+    const theme = preflightOn ? (() => {
+      const T = themeSources.compiled
+      const [buildThemeSelection, setBuildThemeSelection] = R.useState({ mode: 'auto' })
+      const [activeBuildThemeProfile, setActiveBuildThemeProfile] = R.useState(null)
+      const [themeSync, setThemeSync] = R.useState(themeLibs.IDLE_THEME_SYNC)
+      const themeSyncRef = R.useRef(themeSync)
+      themeSyncRef.current = themeSync
+      const scope = {
+        ...themeLibs, process: env.globals.process, crypto: env.crypto, console: env.console,
+        setTimeout: env.clock.setTimeout, clearTimeout: env.clock.clearTimeout,
+        buildThemeSelection, setBuildThemeSelection, activeBuildThemeProfile, setActiveBuildThemeProfile, themeSync, setThemeSync, themeSyncRef,
+        latestThemeSyncRequestRef: R.useRef(null), latestThemeSyncKeyRef: R.useRef(null), themeSyncTimeoutRef: R.useRef(null),
+        themeSelectionChangedLocallyRef: R.useRef(false), templateSelectionLockedRef: R.useRef(false), templateModeOn: false,
+        toast, saveSessionOnFirstAction: () => call('page.saveSessionOnFirstAction', []),
+      }
+      scope.THEME_SYNC_TIMEOUT_MS = T.themeSyncTimeoutMs(scope)
+      scope.buildThemeProfileMatchesSelection = T.buildThemeProfileMatchesSelection(scope)
+      scope.composerLibraryEnabled = T.composerLibraryEnabled(scope)
+      for (const name of ['getThemeSyncSnapshot', 'commitThemeSync', 'clearThemeSyncTimeout']) scope[name] = R.useCallback(T[name].fn(scope), T[name].deps(scope))
+      return scope
+    })() : null
     const studioShell = env.globals.process.env.NEXT_PUBLIC_STUDIO_V4_SHELL === 'true'
     const sessionApi = {
       userMessages, setUserMessages, isLoadingSession,
@@ -150,6 +235,9 @@ export async function runTranscript({ root, fixture, profile, processEnv, includ
       awaitingDirectorReply: false, uploadedFiles: [], quota: { status: null }, STUDIO_BLOCKED_SEND_FEEDBACK_ENABLED: false,
       studioOutlineCanvas: undefined, turnContext: undefined, effectivePresentationUrl: undefined,
       isThemeSyncTerminal: () => false,
+      ...(preflightOn ? { isThemeSyncTerminal: themeLibs.isThemeSyncTerminal, applyThemeSyncResponse: themeLibs.applyThemeSyncResponse,
+        latestThemeSyncRequestRef: theme.latestThemeSyncRequestRef, themeSyncRef: theme.themeSyncRef, clearThemeSyncTimeout: theme.clearThemeSyncTimeout,
+        commitThemeSync: theme.commitThemeSync, themeSelectionChangedLocallyRef: theme.themeSelectionChangedLocallyRef } : {}),
       // Page names a sibling PR's ChatInput props read (the composer template popup's library action, PR #380); inert here, the popup is stubbed.
       ...(composerOn ? { studioComposerContextLabel: composerContextLib.studioComposerContextLabel } : {}),
       ...(composerOn ? { studioPopupsV2: studioShell && env.globals.process.env.NEXT_PUBLIC_STUDIO_COMPOSER_POPUPS_V2 === 'true', setComposerLibraryRequest: () => {} } : {}),
@@ -184,10 +272,29 @@ export async function runTranscript({ root, fixture, profile, processEnv, includ
       effectiveSlideCount: ws.slideCount, effectivePresentationUrl: ws.presentationUrl,
       isReady: ws.isReady,
     }
+    if (preflightOn) {
+      const T = themeSources.compiled
+      Object.assign(theme, { composerAdoption: ws.composerAdoption, composerThemeResolved: ws.composerThemeResolved, isReady: ws.isReady,
+        studioShell: base.studioShell, sendThemeSelection: ws.sendThemeSelection,
+        // The default (not final_fill, no Template Mode) branch of the page's effectivePresentationId, through the real resolver.
+        effectivePresentationId: resolveEffectivePresentation({ livePresentationUrl: ws.presentationUrl, livePresentationId: ws.presentationId, liveSlideCount: ws.slideCount, override: null }).presentationId })
+      theme.composerThemeBlocked = T.composerThemeBlocked(theme)
+      theme.composerThemeFrozen = T.composerThemeFrozen(theme)
+      theme.themeSyncTargetRef = R.useRef(T.themeSyncTargetInitial(theme))
+      theme.themeSyncTargetRef.current = T.themeSyncTargetCurrent(theme)
+      for (const name of ['requestThemeSyncForPresentation', 'ensureThemeReady', 'handleBuildThemeChange']) theme[name] = R.useCallback(T[name].fn(theme), T[name].deps(theme))
+      R.useEffect(T.themeSyncEffect.fn(theme), T.themeSyncEffect.deps(theme))
+      theme.generation = generationHook.useTextLabsGeneration({
+        generationPanel: elementPanel, blankElements: elementBlanks, textLabsSession: elementSession, layoutServiceApis: elementLayout,
+        presentationId: theme.effectivePresentationId, currentSlideIndex: 0, deckContext: null, researchSessionId: pageInputs.currentSessionId,
+        researchStoreName: null, researchUserId: authUser.id, researchCapabilities: {},
+        getThemeSyncSnapshot: theme.getThemeSyncSnapshot, ensureThemeReady: theme.ensureThemeReady, toast,
+      })
+    }
     values.preflightDirectorTurn = sources.compiled.preflightDirectorTurn(values)
     values.handleActionClick = sources.compiled.handleActionClick(values)
     const listProps = evaluateProps(sources.compiled.messageList, values, (name, value) => name.startsWith('on') ? track(`ml.${name}`, value) : value)
-    probe.latest = { ws, values, listProps, userMessages, isGeneratingFinal, templateReuseAwaitingInput, sessionApi, studioShell, isLoadingSession, setIsLoadingSession, setTranscriptReceipt, setUserMessages, setIsGeneratingFinal }
+    probe.latest = { ws, values, listProps, userMessages, isGeneratingFinal, templateReuseAwaitingInput, sessionApi, studioShell, isLoadingSession, setIsLoadingSession, setTranscriptReceipt, setUserMessages, setIsGeneratingFinal, theme }
     if (!composerOn) return R.createElement(MessageList, listProps)
     // The composer, with the page's own prop expressions. Handlers are recorded (composer.<prop>); the send handler runs the page's typed-turn path.
     const chatProps = evaluateProps(sources.compiled.chatInput, values, (name, value) => name.startsWith('on') ? track(`composer.${name}`, value) : value)
@@ -305,6 +412,11 @@ export async function runTranscript({ root, fixture, profile, processEnv, includ
         toasts: toasts.length,
         ...(composerOn ? { composer: { inputMessage: probe.latest.values.inputMessage, activeTemplate: pageInputs.activeTemplate ? { id: pageInputs.activeTemplate.id, name: pageInputs.activeTemplate.name } : null, buildTheme: pageInputs.buildThemeSelection, currentSlideIndex: pageInputs.currentSlideIndex } } : {}),
       },
+      ...(probe.latest.theme ? { theme: (({ theme: t }) => ({
+        composerAdoption: t.composerAdoption, composerThemeResolved: t.composerThemeResolved, composerThemeBlocked: t.composerThemeBlocked, composerThemeFrozen: t.composerThemeFrozen,
+        effectivePresentationId: t.effectivePresentationId, buildThemeSelection: t.buildThemeSelection, themeSync: t.themeSync,
+        panelError: elementPanelState.error, blankStatus: elementBlank.status, textLabsRequests: textLabsRequests.length,
+      }))(probe.latest) } : {}),
     }
   }
   const checkpoint = label => {
@@ -408,6 +520,27 @@ export async function runTranscript({ root, fixture, profile, processEnv, includ
     },
     async control(step) { call('hook.sendControlMessage', [step.type, step.data]); rec.notes.push(`step ${rec.step}: control returned ${probe.latest.ws.sendControlMessage(step.type, step.data)}`) },
     async theme(step) { call('hook.sendThemeSelection', [step.theme, step.requestId, step.presentationId]); rec.notes.push(`step ${rec.step}: theme returned ${probe.latest.ws.sendThemeSelection(step.theme, step.requestId, step.presentationId)}`) },
+    // elementPreflight fixtures: a theme picked in the Theme dialog (the page's own handleBuildThemeChange).
+    async themePick(step) { call('page.handleBuildThemeChange', [step.theme]); probe.latest.theme.handleBuildThemeChange(step.theme) },
+    // Director acknowledges the LAST set_theme on the wire (its request id is a client uuid, so the fixture cannot spell it).
+    async themeAck(step) {
+      const last = [...env.outbound].reverse().find(o => o.data.startsWith('{"type":"set_theme"'))
+      // Nothing to acknowledge (a refused theme never reached Director): recorded, so a flag-off replay still runs to the end.
+      if (!last) { rec.notes.push(`step ${rec.step}: themeAck skipped, no set_theme was sent`); return }
+      const sent = JSON.parse(last.data).data
+      socketFor(step).serverMessage(JSON.stringify({ message_id: step.messageId, session_id: session.id, timestamp: step.timestamp, type: 'theme_sync', role: 'assistant',
+        payload: { request_id: sent.request_id, status: step.status ?? 'applied', presentation_id: sent.presentation_id, theme: sent.theme } }))
+    },
+    // Composer "Use original": the page hands the use result to the hook (page.tsx applyTemplateIngestReady call sites).
+    async useOriginal(step) { call('hook.applyTemplateIngestReady', [step.result, session.id]); rec.notes.push(`step ${rec.step}: applyTemplateIngestReady returned ${probe.latest.ws.applyTemplateIngestReady(step.result, session.id)}`) },
+    // Add Element > Generate: the REAL useTextLabsGeneration().handleGenerate with the page's real theme preflight.
+    async generate(step) {
+      const t = probe.latest.theme
+      const form = { ...step.form, presentationId: step.form.presentationId ?? t.effectivePresentationId }
+      const run = track('page.handleTextLabsGenerate', async value => { const result = await t.generation.handleGenerate(value); call('page.handleTextLabsGenerate.result', [result]); return result })
+      run(form)
+      await flushPending()
+    },
     async elementResult(step) { call('hook.sendElementDirectiveResult', [step.data]); rec.notes.push(`step ${rec.step}: element result returned ${probe.latest.ws.sendElementDirectiveResult(step.data)}`) },
     async click(step) {
       const node = findNode(step.target)
@@ -454,6 +587,15 @@ export async function runTranscript({ root, fixture, profile, processEnv, includ
       if (step.messageCount !== undefined) check(`messages ${ws.messages.length} === ${step.messageCount}`, ws.messages.length === step.messageCount)
       if (step.connectionState !== undefined) check(`connectionState ${ws.connectionState} === ${step.connectionState}`, ws.connectionState === step.connectionState)
       if (step.reconnectStatus !== undefined) check(`reconnectStatus ${ws.reconnectStatus} === ${step.reconnectStatus}`, ws.reconnectStatus === step.reconnectStatus)
+      if (step.textLabsRequests !== undefined) check(`Text Labs requests ${textLabsRequests.length} === ${step.textLabsRequests}`, textLabsRequests.length === step.textLabsRequests)
+      for (const [type, n] of Object.entries(step.outboundOfType || {})) {
+        const count = env.outbound.filter(o => { try { return JSON.parse(o.data).type === type } catch { return false } }).length
+        check(`${type} sends ${count} === ${n}`, count === n)
+      }
+      if (step.themeBlocked !== undefined) check(`composerThemeBlocked ${probe.latest.theme?.composerThemeBlocked} === ${step.themeBlocked}`, probe.latest.theme?.composerThemeBlocked === step.themeBlocked)
+      if (step.themeSyncStatus !== undefined) check(`themeSync.status ${probe.latest.theme?.themeSync.status} === ${step.themeSyncStatus}`, probe.latest.theme?.themeSync.status === step.themeSyncStatus)
+      if (step.toast !== undefined) check(`a toast titled "${step.toast}"`, toasts.some(item => item?.title === step.toast))
+      if (step.noToast !== undefined) check(`no toast titled "${step.noToast}"`, !toasts.some(item => item?.title === step.noToast))
       if (step.exists) check(`element exists ${JSON.stringify(step.exists)}`, (() => { try { findNode(step.exists); return true } catch { return false } })())
       if (step.absent) check(`element absent ${JSON.stringify(step.absent)}`, (() => { try { findNode(step.absent); return false } catch { return true } })())
       if (failures.length) throw new Error(`fixture guard failed at step ${rec.step}: ${failures.join('; ')}`)
@@ -493,6 +635,10 @@ export async function runTranscript({ root, fixture, profile, processEnv, includ
   const cacheKey = Object.keys(env.sessionStorage.dump()).filter(k => k.startsWith('deckster_session_v2_'))
   files['cache.json'] = pretty(Object.fromEntries(cacheKey.map(k => [k, JSON.parse(env.sessionStorage.dump()[k])])))
   if (composerOn) files['composer.json'] = pretty(rec.checkpoints.map(c => ({ checkpoint: c.name, controls: c.composerControls })))
+  if (preflightOn) {
+    files['textlabs.json'] = pretty(textLabsRequests)
+    files['theme-sources.json'] = pretty(themeSources.regions)
+  }
   files['markup.json'] = pretty(Object.fromEntries(rec.checkpoints.map(c => [c.name, c.markup])))
   if (includeMarkup) Object.assign(files, rec.markup)
   files['env.json'] = pretty({ profile, env: { ...BASE_ENV, ...processEnv } })

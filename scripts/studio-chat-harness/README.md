@@ -2,7 +2,7 @@
 
 PASS2-DIRECTOR-CHAT, PR A. Harness only: no file under `app/`, `components/`, `hooks/` or `lib/` changed.
 
-It replays seven sanitised Director transcripts (five from PR A, two added in PR D) through the **real** Director WebSocket hook
+It replays nine sanitised Director transcripts (five from PR A, two added in PR D, two added for PASS2-J3 P0) through the **real** Director WebSocket hook
 (`hooks/use-deckster-websocket-v2.ts`), `MessageList`, `QuestionCard`, `StudioOutlineCard`,
 `StudioWelcome`, the Studio header and notice, and the **real page handlers** (`handleActionClick`,
 `onSubmitAnswers`, `preflightDirectorTurn`, `onMessage`, the typed-turn options, and every
@@ -58,12 +58,45 @@ questions off), `classic` (pre-Studio plain-button asks). All flag-off for the n
    (Shift+Enter does not send), an empty draft, a deck opening and the canvas moving to slide 3, a template and a build theme
    selected and cleared through their pills, selections locked, and the socket lost.
 7. `reconnect-exhausted` (PR D): every bounded retry is refused; the hook reports `exhausted` and stays there.
+8. `new-blank-canvas-add-element` (PASS2-J3 P0, `"elementPreflight": true`): a NEW session under the composer library gets Director's
+   new-session frames (initial `theme_sync`, blank `presentation_init`, greeting) and never a `sync_response`; with
+   `NEXT_PUBLIC_STUDIO_NEW_SESSION_THEME_POLICY` the policy resolves on the blank deck, Auto is synced, a Corporate Light pick sends
+   `set_theme`, Director applies it, and Add Element > Generate passes the page's theme preflight and reaches Text Labs (one request).
+9. `composer-use-original-frozen` (PASS2-J3 P0): a Composer "Use original" session (staged use result + adoption in `sync_response`)
+   stays frozen with the flag on: a stray blank frame, a theme pick, Generate (refused at the preflight, no Text Labs request) and a
+   reconnect change nothing. Its output is byte-identical with the flag forced off.
 
 Steps: `ensureConnected open frame raw close advance offline online typed send control theme elementResult click
-change restore unmount mount props compose key submit checkpoint expect`. Every step may carry `dt` (virtual ms before it, default 500),
+change restore unmount mount props compose key submit checkpoint expect` (+ `themePick themeAck useOriginal generate` for element-preflight fixtures). Every step may carry `dt` (virtual ms before it, default 500),
 `profiles` and `comment`. `expect` steps guard the fixture itself (it still exercises what it claims). Clicks select
 by `{within:{key|action}, tag, text, attrs, index}`; prefer the React key, tag and visible text over classes.
 All data is synthetic (`*.invalid` hosts, `synthetic-*` ids). Time is virtual and ids are deterministic.
+
+## Element preflight fixtures (PASS2-J3 P0)
+
+A fixture with `"elementPreflight": true` also runs the page's deck-theme preflight and the REAL Add Element generation hook. Opt-in
+only: every other fixture, `_sources.json` and every earlier baseline are untouched.
+
+- `"env"` (fixture level) is merged over the profile environment and under the caller's own (`runTranscript` does it, so the PR C/D flag
+  tests replay these fixtures the same way, and `--env` still wins): these two fixtures turn on
+  `NEXT_PUBLIC_COMPOSER_LIBRARY_ENABLED`, `NEXT_PUBLIC_STUDIO_NEW_SESSION_THEME_POLICY` and a synthetic `NEXT_PUBLIC_ELEMENTOR_URL`. Their
+  baselines are recorded with that env; `--env NEXT_PUBLIC_STUDIO_NEW_SESSION_THEME_POLICY=false` replays the pre-fix behaviour (the
+  blank-canvas guards then fail; the adopted session's output is unchanged).
+- Page regions (`page-theme-sources.mjs`, read by AST like the chat regions): `composerLibraryEnabled`, `THEME_SYNC_TIMEOUT_MS`,
+  `buildThemeProfileMatchesSelection`, `getThemeSyncSnapshot`, `commitThemeSync`, `clearThemeSyncTimeout`, `handleBuildThemeChange`,
+  `composerThemeBlocked`, `composerThemeFrozen`, `themeSyncTargetRef` (initial and per render), `requestThemeSyncForPresentation`,
+  `ensureThemeReady` and the deck-theme sync effect, each `useCallback` memoised with the page's own dependency list. The page's
+  `onMessage` gets the real `theme_sync` collaborators. `effectivePresentationId` is the page's default branch (no final_fill, no
+  Template Mode) through the real `resolveEffectivePresentation`. Their anchors go to the fixture's own `theme-sources.json`.
+- `useTextLabsGeneration` (hooks/use-textlabs-generation.ts) runs unmodified with the page's `ensureThemeReady` and
+  `getThemeSyncSnapshot`. Its collaborators are recording stand-ins: the open panel on the gallery's blank placeholder, the blank
+  element tracker, a Text Labs session (`ensureSession`) and a Layout viewer that acknowledges every command. The only network the
+  fake `fetch` answers beyond the ws-token is the synthetic Text Labs host, with the fixture's `textLabsResponse`; each request
+  (method, path, JSON body) is recorded in `textlabs.json`.
+- Steps: `themePick` (the page's `handleBuildThemeChange`), `themeAck` (Director's `theme_sync` for the last `set_theme` on the wire;
+  skipped with a note when none was sent), `useOriginal` (the hook's `applyTemplateIngestReady`, as the page applies a staged
+  Composer result), `generate` (`handleGenerate(form)`, awaited with virtual time). `expect` also takes `textLabsRequests`,
+  `outboundOfType` (`{"set_theme": n}`), `themeBlocked`, `themeSyncStatus`, `toast` and `noToast`. `state.json` gains a `theme` digest.
 
 ## How it stays offline and honest
 

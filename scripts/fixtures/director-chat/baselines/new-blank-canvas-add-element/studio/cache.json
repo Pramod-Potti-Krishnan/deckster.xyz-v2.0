@@ -1,0 +1,42 @@
+{
+  "deckster_session_v2_synthetic-user-01_synthetic-session-blank-canvas": {
+    "activeVersion": "blank",
+    "blankPresentationId": "synthetic-blank-02",
+    "blankPresentationUrl": "https://layout.synthetic.invalid/p/synthetic-blank-02",
+    "composerAdoption": null,
+    "currentStatus": null,
+    "deckContext": null,
+    "finalPresentationId": null,
+    "finalPresentationUrl": null,
+    "isBlankPresentation": true,
+    "lastUpdated": 1791201607500,
+    "messages": [
+      {
+        "clientTimestamp": 1791201603500,
+        "message_id": "msg-greeting-blank",
+        "payload": {
+          "format": "markdown",
+          "list_items": null,
+          "sub_title": null,
+          "text": "Hello! I'm your presentation assistant. What would you like to build today?"
+        },
+        "role": "assistant",
+        "session_id": "synthetic-session-blank-canvas",
+        "timestamp": "2026-10-05T12:00:03Z",
+        "type": "chat_message"
+      }
+    ],
+    "ownerUserId": "synthetic-user-01",
+    "presentationId": "synthetic-blank-02",
+    "presentationUrl": "https://layout.synthetic.invalid/p/synthetic-blank-02",
+    "slideContextByIndex": null,
+    "slideCount": null,
+    "slideStructure": null,
+    "strawmanPresentationId": null,
+    "strawmanPreviewUrl": null,
+    "tokenUsage": null,
+    "tokenUsageMessageId": null,
+    "userMessages": [],
+    "version": 2
+  }
+}

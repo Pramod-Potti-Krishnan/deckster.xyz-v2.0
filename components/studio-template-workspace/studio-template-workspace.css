@@ -330,6 +330,12 @@
 .stw-radio[aria-checked="true"] .ring { border: 4px solid var(--stw-teal); }
 .stw-radio:disabled { opacity: .55; cursor: not-allowed; }
 .stw-picker-note { font-size: 10px; color: var(--ss-muted); line-height: 1.45; }
+/* Fix-forward: a composer library template's actions in the footer (Use original, Rebuild from own content, New topic), and why its list is empty or failed. */
+.stw-picker-actions { display: flex; flex-wrap: wrap; gap: 6px; }
+.stw-picker-actions .stw-btn { flex: 1 1 auto; }
+.stw-picker-empty.err { color: var(--stw-warn); }
+.stw-picker-retry { padding: 0; border: 0; background: transparent; color: inherit; font: inherit; text-decoration: underline; cursor: pointer; }
+.stw-picker-retry:disabled { opacity: .5; cursor: not-allowed; }
 
 /* Templates page: uploads in progress (the library card of the "leave and come back" edge case) */
 .stw-library { position: fixed; z-index: 45; right: 20px; bottom: 20px; display: flex; flex-direction: column; gap: 8px; width: min(380px, calc(100vw - 40px)); }

@@ -1,0 +1,18 @@
+{
+  "diagnostics": {
+    "blockedNetwork": [],
+    "console": [{"level":"warn","text":"[TextLabs] Live slide context unavailable; continuing prompt-first: <object>"}],
+    "fetches": [
+      {"method":"GET","url":"/api/director/ws-token?session_id=synthetic-session-blank-canvas"},
+      {"method":"POST","url":"https://textlabs.synthetic.invalid/api/chat/message"}
+    ],
+    "sockets": 1,
+    "timersLeft": 1,
+    "uncaughtTimerErrors": [],
+    "windowOpens": []
+  },
+  "fixture": "new-blank-canvas-add-element",
+  "fixtureSha": "83fbd3aeb86d1900",
+  "profile": "studio",
+  "schema": 1
+}

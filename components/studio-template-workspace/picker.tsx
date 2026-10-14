@@ -6,12 +6,20 @@
 // creates a NEW deck (PK, Q3). It shares the theme dropdown's search rule and keyboard model (#372, PK Q11): every typed word must
 // appear in the name, arrows move, Enter picks, Escape closes.
 // Replaces the toolbar's Template menu with the flag on; that menu's "Save Template" and "Template Mode" stay here as footer links.
-import { useEffect, useId, useMemo, useState, type ReactNode } from 'react'
+//
+// Fix-forward (same flag): with the composer library on, "Your templates" also lists the library's own templates (the uploads the composer's
+// template popup and the library dialog list: the dialog's own `composerRequest('templates')`, read through `loadComposerTemplates`, as that popup
+// reads it). A composer template has the library dialog's actions (Use original, Rebuild from own content, New topic), which the page hands to
+// the dialog to run with its own handlers (`onComposerTemplateAction`, the same callback the composer's template popup uses). "Template library"
+// opens that dialog, and /studio/templates is linked only where that page works. An empty list says why in plain words.
+import { useCallback, useEffect, useId, useMemo, useRef, useState, type ReactNode } from 'react'
 import Link from 'next/link'
 import { ArrowRight, Check, ChevronDown, LayoutTemplate, Save, Search, Sparkles, Upload, X } from 'lucide-react'
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
 import { themeDropdownMatches } from '@/components/theme-dropdown-picker'
 import { cn } from '@/lib/utils'
+import { composerTemplateActions, composerTemplateSlideCount, loadComposerTemplates, templateLibraryTarget, type ComposerLibraryRequest } from '@/lib/studio-composer-popups'
+import type { ComposerTemplate } from '@/lib/composer-library'
 import { templateNameFromFile } from '@/lib/studio-template-workspace/registry'
 import { templateCapabilities, templateWorkspaceCounts } from '@/lib/studio-template-workspace/state'
 import type { TemplateWorkspaceSnapshot } from '@/lib/studio-template-workspace/adapter'
@@ -29,7 +37,20 @@ export interface StudioTemplatePickerProps {
   onSaveTemplate?: (() => void) | null
   saveTemplateDisabled?: boolean
   templateMode?: { on: boolean; available: boolean; toggle: () => void } | null
+  /** Fix-forward: runs a composer library action (Use original, Rebuild, New topic) in the library dialog. Absent: no composer library, nothing is listed or requested. */
+  onComposerTemplateAction?: (request: ComposerLibraryRequest) => void
+  /** Fix-forward: opens the composer library dialog ("Template library"). Absent: that link goes to the Templates page, only where it works. */
+  onOpenComposerLibrary?: () => void
 }
+
+// Fix-forward: the Templates page works only with saved templates connected (the page's own rule), and the library dialog's actions follow its flags.
+// Read here as the dialog and the page read them.
+const TEMPLATES_PAGE_ENABLED = process.env.NEXT_PUBLIC_TEMPLATE_BUILDER_ENABLED === 'true'
+const COMPOSER_DITTO_ENABLED = process.env.NEXT_PUBLIC_COMPOSER_STAGE1B_DITTO_ENABLED === 'true'
+const COMPOSER_NEW_TOPIC_ENABLED = process.env.NEXT_PUBLIC_COMPOSER_STAGE1B_NEW_TOPIC_ENABLED === 'true'
+/** A composer library template's key in the picker's one list; it can never equal an upload's session id. */
+const COMPOSER_ROW_PREFIX = 'composer:'
+type ComposerRow = { key: string; template: ComposerTemplate; name: string }
 
 type Entry = { record: ReturnType<typeof useTemplateWorkspaceRecords>[number]; snapshot: TemplateWorkspaceSnapshot; start: ((mode: 'new_topic' | 'as_is') => Promise<string>) | null; name: string }
 
@@ -43,7 +64,37 @@ function metaLine(entry: Entry): ReactNode {
   return <><span className="prog">Locking {counts.done}/{counts.total}</span> · as-is ready</>
 }
 
-export function StudioTemplatePicker({ disabled, triggerClassName, labelClassName, portalContainer, onUploadTemplate, onSaveTemplate, saveTemplateDisabled, templateMode }: StudioTemplatePickerProps) {
+/**
+ * Fix-forward: the composer library's list, as the composer's template popup reads it (`loadComposerTemplates`, the library dialog's own request),
+ * made under the dialog's rule: only while the popover is open and the user is signed in. Nothing is requested for `listing` false.
+ */
+function useComposerTemplates(listing: boolean) {
+  const [templates, setTemplates] = useState<ComposerTemplate[] | null>(null)
+  const [loading, setLoading] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+  const latest = useRef(0)
+  const refresh = useCallback(async () => {
+    const request = ++latest.current
+    setLoading(true)
+    setError(null)
+    try {
+      const listed = await loadComposerTemplates()
+      if (request === latest.current) setTemplates(listed)
+    } catch (reason) {
+      if (request === latest.current) setError(reason instanceof Error ? reason.message : 'Could not load templates.')
+    } finally {
+      if (request === latest.current) setLoading(false)
+    }
+  }, [])
+  useEffect(() => {
+    if (!listing) return
+    void refresh()
+    return () => { latest.current += 1; setLoading(false) }
+  }, [listing, refresh])
+  return { templates, loading, error, refresh }
+}
+
+export function StudioTemplatePicker({ disabled, triggerClassName, labelClassName, portalContainer, onUploadTemplate, onSaveTemplate, saveTemplateDisabled, templateMode, onComposerTemplateAction, onOpenComposerLibrary }: StudioTemplatePickerProps) {
   const uid = useId()
   const userKey = useTemplateWorkspaceUserKey()
   const records = useTemplateWorkspaceRecords(userKey)
@@ -54,33 +105,58 @@ export function StudioTemplatePicker({ disabled, triggerClassName, labelClassNam
   const [highlightId, setHighlightId] = useState<string | null>(null)
   const [mode, setMode] = useState<'new_topic' | 'as_is'>('new_topic')
   const [message, setMessage] = useState<string | null>(null)
+  const composerList = useComposerTemplates(Boolean(onComposerTemplateAction && open && userKey))
 
   const entries: Entry[] = useMemo(() => live
     .filter(item => item.snapshot.state.status !== 'refused' && !(item.snapshot.state.status === 'failed' && !item.snapshot.state.deck))
     // The newest ready template first (pinned, NEW), then the rest, newest first.
     .sort((a, b) => Number(b.snapshot.state.status === 'ready') - Number(a.snapshot.state.status === 'ready') || b.record.created_at - a.record.created_at)
     .map(item => ({ record: item.record, snapshot: item.snapshot, start: item.store.commands.startDeck ?? null, name: item.snapshot.state.deck?.templateName ?? templateNameFromFile(item.record.file_name) })), [live])
+  // The composer library's templates come first (they are complete and usable; an upload of this tab still locking has no action yet).
+  const composerRows: ComposerRow[] = useMemo(() => (onComposerTemplateAction && userKey ? composerList.templates ?? [] : [])
+    .map(template => ({ key: `${COMPOSER_ROW_PREFIX}${template.id}`, template, name: template.name })), [onComposerTemplateAction, userKey, composerList.templates])
+  const visibleComposer = composerRows.filter(row => themeDropdownMatches(row.name, query))
   const visible = entries.filter(entry => themeDropdownMatches(entry.name, query))
+  const visibleKeys = [...visibleComposer.map(row => row.key), ...visible.map(entry => entry.record.session_id)]
   const fallback = entries.find(entry => entry.snapshot.state.status === 'ready') ?? entries[0] ?? null
-  const selected = entries.find(entry => entry.record.session_id === selectedId) ?? fallback
-  const highlighted = visible.find(entry => entry.record.session_id === highlightId) ?? (query.trim() ? visible[0] : undefined)
+  const chosenEntry = entries.find(entry => entry.record.session_id === selectedId)
+  const selectedComposer = composerRows.find(row => row.key === selectedId) ?? (chosenEntry ? null : composerRows[0] ?? null)
+  const selected = selectedComposer ? null : chosenEntry ?? fallback
+  const selectedKey = selectedComposer?.key ?? selected?.record.session_id
+  const highlightedKey = visibleKeys.find(key => key === highlightId) ?? (query.trim() ? visibleKeys[0] : undefined)
   const caps = selected ? templateCapabilities(selected.snapshot.state) : { reuseAsIs: false, newTopic: false }
   const effectiveMode = mode === 'new_topic' && !caps.newTopic && caps.reuseAsIs ? 'as_is' : mode
   const canStart = Boolean(selected?.start) && (effectiveMode === 'new_topic' ? caps.newTopic : caps.reuseAsIs)
+  const composerActions = composerTemplateActions({ ditto: COMPOSER_DITTO_ENABLED, newTopic: COMPOSER_NEW_TOPIC_ENABLED })
+  const library = templateLibraryTarget({ composerLibrary: Boolean(onOpenComposerLibrary), templatesPage: TEMPLATES_PAGE_ENABLED })
+  const listedCount = composerRows.length + entries.length
+  // The composer list's state, in plain words (only with the composer library: without it nothing here has changed). `failed`: no answer yet, and the
+  // request failed; `stale`: a refresh failed, so the last loaded list is shown.
+  const composerState = !onComposerTemplateAction ? null : !userKey ? 'signed-out' as const
+    : composerList.templates === null ? (composerList.error ? 'failed' as const : 'loading' as const) : composerList.error ? 'stale' as const : 'ready' as const
+  const composerNote = composerState === 'loading' ? 'Loading your templates…'
+    : composerState === 'failed' ? `Your templates could not be loaded: ${composerList.error}`
+      : composerState === 'stale' ? `Your templates could not be refreshed: ${composerList.error} Showing the last loaded list.` : null
+  const composerFailed = composerState === 'failed' || composerState === 'stale'
+  const emptyText = !onComposerTemplateAction ? 'No templates yet. Upload a PowerPoint and Deckster turns it into a template you can reuse here.'
+    : composerState === 'signed-out' ? 'Sign in to see your templates.'
+      : composerState === 'ready' || composerState === 'stale' ? `No templates yet. Upload a PowerPoint${onOpenComposerLibrary ? ' in the template library' : ''} and Deckster turns it into a template you can reuse here.` : null
 
   useEffect(() => { if (!open) { setQuery(''); setHighlightId(null); setMessage(null) } }, [open])
 
-  const choose = (entry: Entry) => { setSelectedId(entry.record.session_id); setHighlightId(entry.record.session_id); setMessage(null) }
+  const chooseKey = (key: string) => { setSelectedId(key); setHighlightId(key); setMessage(null) }
   const move = (step: 1 | -1) => {
-    if (!visible.length) return
-    const at = Math.max(0, visible.findIndex(entry => entry.record.session_id === (highlighted ?? selected)?.record.session_id))
-    setHighlightId(visible[(at + step + visible.length) % visible.length].record.session_id)
+    if (!visibleKeys.length) return
+    const at = Math.max(0, visibleKeys.findIndex(key => key === (highlightedKey ?? selectedKey)))
+    setHighlightId(visibleKeys[(at + step + visibleKeys.length) % visibleKeys.length])
   }
   const optionId = (id: string) => `${uid}-opt-${id}`
   const start = async () => {
     if (!selected?.start || !canStart) return
     setMessage(await selected.start(effectiveMode))
   }
+  // A composer template's action is handed to the library dialog, which runs it with its own handlers; the popover then closes, as the composer's does.
+  const runComposerAction = (request: ComposerLibraryRequest) => { setOpen(false); onComposerTemplateAction?.(request) }
 
   return (
     <Popover open={open} onOpenChange={setOpen}>
@@ -96,7 +172,7 @@ export function StudioTemplatePicker({ disabled, triggerClassName, labelClassNam
         <div className="stw-picker-main">
           <div className="stw-picker-head">
             <div>
-              <h3>Start from a template <span>{entries.length}</span></h3>
+              <h3>Start from a template <span>{listedCount}</span></h3>
               <p>Creates a new presentation.</p>
             </div>
             <button type="button" className="stw-btn quiet" style={{ width: 26, height: 26, padding: 0 }} aria-label="Close" onClick={() => setOpen(false)}><X /></button>
@@ -104,27 +180,47 @@ export function StudioTemplatePicker({ disabled, triggerClassName, labelClassNam
           <label className="stw-picker-search">
             <Search aria-hidden="true" />
             <input id={`${uid}-search`} type="text" role="combobox" aria-expanded="true" aria-controls={`${uid}-list`} aria-autocomplete="list" autoComplete="off" spellCheck={false}
-              aria-activedescendant={highlighted ? optionId(highlighted.record.session_id) : undefined} placeholder="Search templates" value={query}
+              aria-activedescendant={highlightedKey ? optionId(highlightedKey) : undefined} placeholder="Search templates" value={query}
               onChange={event => { setQuery(event.target.value); setHighlightId(null) }}
               onKeyDown={event => {
                 if (event.key === 'ArrowDown' || event.key === 'ArrowUp') { event.preventDefault(); move(event.key === 'ArrowDown' ? 1 : -1) }
-                else if (event.key === 'Enter') { event.preventDefault(); if (highlighted) choose(highlighted) }
+                else if (event.key === 'Enter') { event.preventDefault(); if (highlightedKey) chooseKey(highlightedKey) }
               }} />
           </label>
           <div id={`${uid}-list`} role="listbox" aria-label="Your templates" className="stw-picker-list">
             <div className="stw-picker-group" aria-hidden="true">Your templates</div>
-            {entries.length === 0 ? (
-              <div className="stw-picker-empty">No templates yet. Upload a PowerPoint and Deckster turns it into a template you can reuse here.</div>
-            ) : visible.length === 0 ? (
+            {composerNote && (
+              <div className={cn('stw-picker-empty', composerFailed && 'err')} role={composerFailed ? 'alert' : 'status'} data-studio-template-composer-note={composerState}>
+                {composerNote}
+                {composerFailed && <> <button type="button" className="stw-picker-retry" disabled={composerList.loading} onClick={() => void composerList.refresh()}>Try again</button></>}
+              </div>
+            )}
+            {listedCount === 0 ? (
+              emptyText && <div className="stw-picker-empty" {...(onComposerTemplateAction ? { 'data-studio-template-composer-note': composerState } : {})}>{emptyText}</div>
+            ) : visibleKeys.length === 0 ? (
               <div className="stw-picker-empty">No templates match “{query.trim()}”.</div>
-            ) : visible.map(entry => {
+            ) : <>
+              {visibleComposer.map(row => {
+                const isSelected = selectedKey === row.key
+                return (
+                  <button key={row.key} id={optionId(row.key)} type="button" role="option" aria-selected={isSelected} data-active={highlightedKey === row.key ? 'true' : undefined}
+                    className="stw-pick" title={row.name} data-studio-template-composer-option={row.template.id} onClick={() => chooseKey(row.key)} onMouseMove={() => setHighlightId(row.key)}>
+                    <span className="info">
+                      <span className="name"><span>{row.name}</span></span>
+                      <span className="meta">{composerTemplateSlideCount(row.template)} slides</span>
+                    </span>
+                    {isSelected ? <Check className="tick" aria-hidden="true" /> : <span className="tick" />}
+                  </button>
+                )
+              })}
+              {visible.map(entry => {
               const id = entry.record.session_id
-              const isSelected = selected?.record.session_id === id
+              const isSelected = selectedKey === id
               const total = entry.snapshot.state.slideCount ?? 0
               const fresh = entry.snapshot.state.status === 'ready' && Date.now() - entry.record.created_at < 24 * 3600 * 1000
               return (
-                <button key={id} id={optionId(id)} type="button" role="option" aria-selected={isSelected} data-active={highlighted?.record.session_id === id ? 'true' : undefined}
-                  className="stw-pick" onClick={() => choose(entry)} onMouseMove={() => setHighlightId(id)}>
+                <button key={id} id={optionId(id)} type="button" role="option" aria-selected={isSelected} data-active={highlightedKey === id ? 'true' : undefined}
+                  className="stw-pick" onClick={() => chooseKey(id)} onMouseMove={() => setHighlightId(id)}>
                   <span className="info">
                     <span className="name"><span>{entry.name}</span>{fresh && <span className="new">NEW</span>}</span>
                     <span className="meta">{metaLine(entry)}</span>
@@ -136,13 +232,24 @@ export function StudioTemplatePicker({ disabled, triggerClassName, labelClassNam
                   {isSelected ? <Check className="tick" aria-hidden="true" /> : <span className="tick" />}
                 </button>
               )
-            })}
+              })}
+            </>}
           </div>
           <div className="stw-picker-foot">
-            <button type="button" className="stw-btn teal" disabled={!canStart} onClick={() => void start()}>Start presentation<ArrowRight /></button>
+            {selectedComposer ? (
+              <div className="stw-picker-actions" role="group" aria-label={`What to do with ${selectedComposer.name}`} data-studio-template-composer={selectedComposer.template.id}>
+                {composerActions.map(({ action, label }) => (
+                  <button key={action} type="button" className={cn('stw-btn', action === 'use' && 'teal')} data-studio-template-composer-action={action} disabled={!userKey}
+                    onClick={() => runComposerAction({ action, template: selectedComposer.template })}>{label}{action === 'use' && <ArrowRight />}</button>
+                ))}
+              </div>
+            ) : (
+              <button type="button" className="stw-btn teal" disabled={!canStart} onClick={() => void start()}>Start presentation<ArrowRight /></button>
+            )}
             {message && <span className="stw-picker-note" role="status">{message}</span>}
             <div className="stw-picker-links">
-              <Link href="/studio/templates" prefetch={false}><LayoutTemplate />Template library</Link>
+              {library === 'dialog' && <button type="button" data-studio-template-action="library" onClick={() => { setOpen(false); onOpenComposerLibrary?.() }}><LayoutTemplate />Template library</button>}
+              {library === 'page' && <Link href="/studio/templates" prefetch={false}><LayoutTemplate />Template library</Link>}
               {onUploadTemplate && <button type="button" onClick={() => { setOpen(false); onUploadTemplate() }}><Upload />Upload a template (.pptx)</button>}
             </div>
             {(onSaveTemplate !== undefined || templateMode) && (
@@ -155,10 +262,21 @@ export function StudioTemplatePicker({ disabled, triggerClassName, labelClassNam
         </div>
         <section className="stw-picker-prev" aria-label="Preview of the selected template">
           <span className="eyebrow">Preview</span>
-          {selected ? <Preview entry={selected} mode={effectiveMode} onMode={setMode} /> : <p>Pick a template to see it here.</p>}
+          {selectedComposer ? <ComposerPreview row={selectedComposer} /> : selected ? <Preview entry={selected} mode={effectiveMode} onMode={setMode} /> : <p>Pick a template to see it here.</p>}
         </section>
       </PopoverContent>
     </Popover>
+  )
+}
+
+/** Fix-forward: a composer library template in the preview. The list carries only its name and slide count, so there is no picture to show. */
+function ComposerPreview({ row }: { row: ComposerRow }) {
+  return (
+    <>
+      <h4>{row.name}</h4>
+      <p>{composerTemplateSlideCount(row.template)} slides · from your template library</p>
+      <p>Use original opens the uploaded deck as a new presentation. Each option opens a new deck; the template library shows its progress.</p>
+    </>
   )
 }
 

@@ -1,0 +1,32 @@
+{
+  "deckster_session_v2_synthetic-user-01_synthetic-session-use-original": {
+    "activeVersion": "final",
+    "blankPresentationId": "synthetic-blank-03",
+    "blankPresentationUrl": "https://layout.synthetic.invalid/p/synthetic-blank-03",
+    "composerAdoption": {
+      "frozen_theme": true,
+      "presentation_id": "synthetic-composer-deck-01",
+      "schema_version": "composer-adoption-v1",
+      "template_id": "synthetic-template-01"
+    },
+    "currentStatus": null,
+    "deckContext": null,
+    "finalPresentationId": "synthetic-composer-deck-01",
+    "finalPresentationUrl": "https://layout.synthetic.invalid/p/synthetic-composer-deck-01",
+    "isBlankPresentation": false,
+    "lastUpdated": 1791201611000,
+    "messages": [],
+    "ownerUserId": "synthetic-user-01",
+    "presentationId": "synthetic-composer-deck-01",
+    "presentationUrl": "https://layout.synthetic.invalid/p/synthetic-composer-deck-01",
+    "slideContextByIndex": null,
+    "slideCount": 3,
+    "slideStructure": null,
+    "strawmanPresentationId": null,
+    "strawmanPreviewUrl": null,
+    "tokenUsage": null,
+    "tokenUsageMessageId": null,
+    "userMessages": [],
+    "version": 2
+  }
+}
