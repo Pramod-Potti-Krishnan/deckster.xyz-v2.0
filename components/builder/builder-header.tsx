@@ -13,6 +13,7 @@ import {
 } from "@/components/build-version-guard"
 import { DeckIdentityDialog } from "@/components/builder/deck-identity-dialog"
 import { isDeckIdentityEnabled } from "@/lib/deck-identity"
+import { STUDIO_SESSION_HYGIENE_ENABLED } from "@/lib/studio-session-hygiene"
 import { StudioNavigationHint } from "@/components/layout/studio-navigation-hint"
 import {
   STUDIO_TOP_BAR_V2_ENABLED,
@@ -34,6 +35,9 @@ export interface BuilderHeaderProps {
   isChatHistoryOpen?: boolean
   toolbarSlotRef?: (el: HTMLDivElement | null) => void
   onToolbarInteract?: () => void
+  /** The Builder's unsaved-session flag (no history row yet). Read only by the top bar's "Saved" status, and only with
+   *  NEXT_PUBLIC_STUDIO_SESSION_HYGIENE on (see studioTopBarSavedLabel). */
+  isUnsavedSession?: boolean
 }
 
 export function BuilderHeader({
@@ -44,6 +48,7 @@ export function BuilderHeader({
   isChatHistoryOpen = false,
   toolbarSlotRef,
   onToolbarInteract,
+  isUnsavedSession = false,
 }: BuilderHeaderProps) {
   // Theme is owned by next-themes; the in-toolbar light/dark toggle lives
   // in the Mode dropdown (inside presentation-viewer.tsx). We still read
@@ -55,11 +60,13 @@ export function BuilderHeader({
   // PASS2-PK-FOUR #1 (NEXT_PUBLIC_STUDIO_TOP_BAR_V2, exact "true", Studio shell only, default off): the top bar of the accepted
   // mockup. Off: the header renders exactly as before.
   const studioTopBarV2 = studioShell && STUDIO_TOP_BAR_V2_ENABLED
+  // "Saved" also needs a history row: with NEXT_PUBLIC_STUDIO_SESSION_HYGIENE a bare /builder is an unsaved local session whose
+  // blank deck the viewer already calls saved, so an unsaved session shows nothing here until its first action writes the row.
   const savedLabel = studioTopBarSavedLabel(React.useSyncExternalStore(
     studioTopBarV2 ? subscribeStudioDeckSaveState : subscribeToNothing,
     studioTopBarV2 ? getStudioDeckSaveState : nothingToRead,
     nothingToRead,
-  ))
+  ), STUDIO_SESSION_HYGIENE_ENABLED && isUnsavedSession)
 
   const headerRef = React.useRef<HTMLElement>(null)
   React.useEffect(() => {

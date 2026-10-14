@@ -8,6 +8,11 @@
 // The proof is made on the REAL source: the BuilderHeader component, the PresentationDownloadControls component and the Publish
 // trigger are cut out of their files by AST and evaluated with a tiny JSX runtime, so a later edit is tested, not a copy. The
 // same checks are then run against in-memory mutants of the change, each of which must be caught.
+//
+// FRONTEND-2 fix-forward (fe2/fix-topbar-saved-unsaved): "Saved" also needs a history row. With NEXT_PUBLIC_STUDIO_SESSION_HYGIENE a bare
+// /builder is an unsaved local session (no row until the first real action) whose blank deck the viewer already calls "saved", so the
+// top bar claimed a save that had not happened. Saved now shows only when the viewer says saved AND the Builder's own isUnsavedSession
+// flag (the one the hygiene hooks use) is false; hygiene off, or TOP_BAR_V2 off, is exactly as before.
 import assert from 'node:assert/strict'
 import crypto from 'node:crypto'
 import fs from 'node:fs'
@@ -24,11 +29,14 @@ const FILES = {
   download: 'components/presentation-download-controls.tsx',
   publish: 'components/publish-dialog.tsx',
   viewer: 'components/presentation-viewer.tsx',
+  page: 'app/builder/page.tsx',
+  hygiene: 'lib/studio-session-hygiene.ts',
   lib: 'lib/studio-top-bar-v2.ts',
   css: 'components/builder/studio-top-bar-v2.css',
 }
 const FLAG = 'NEXT_PUBLIC_STUDIO_TOP_BAR_V2'
 const SHELL = 'NEXT_PUBLIC_STUDIO_V4_SHELL'
+const HYGIENE = 'NEXT_PUBLIC_STUDIO_SESSION_HYGIENE'
 const ORIGINAL = Object.fromEntries(Object.entries(FILES).map(([key, file]) => [key, read(file)]))
 
 // ---- tiny JSX "runtime": elements become {type, props, children}; components stay unexpanded (their name is the type) ------
@@ -120,6 +128,11 @@ function topBarEnabled(src, env) {
   const sourceFile = parse(FILES.lib, src.lib)
   return moduleConstants(sourceFile, { process: { env } }, ['STUDIO_TOP_BAR_V2_ENABLED']).STUDIO_TOP_BAR_V2_ENABLED
 }
+// The session-hygiene lib's flag constant for an env (the header reads this one, never the env directly).
+function hygieneEnabled(src, env) {
+  const sourceFile = parse(FILES.hygiene, src.hygiene)
+  return moduleConstants(sourceFile, { process: { env } }, ['STUDIO_SESSION_HYGIENE_ENABLED']).STUDIO_SESSION_HYGIENE_ENABLED
+}
 function libModule(src) {
   const js = ts.transpileModule(src.lib, { compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022 } }).outputText
   const module = { exports: {} }
@@ -130,7 +143,7 @@ function libModule(src) {
 // ---- the header ---------------------------------------------------------------------------------------------------------
 const recorder = () => { const calls = []; const make = name => { const fn = (...args) => { calls.push(name) }; Object.defineProperty(fn, 'name', { value: name }); return fn }; return { calls, make } }
 function renderHeader(src, cell) {
-  const { env = {}, isDark = false, isChatHistoryOpen = false, deckTitle, wsError = null, deckIdentity = false, saveState = null } = cell
+  const { env = {}, isDark = false, isChatHistoryOpen = false, deckTitle, wsError = null, deckIdentity = false, saveState = null, isUnsavedSession } = cell
   const sourceFile = parse(FILES.header, src.header)
   const rec = recorder()
   const scope = {
@@ -139,6 +152,7 @@ function renderHeader(src, cell) {
     useTheme: () => ({ resolvedTheme: isDark ? 'dark' : 'light' }),
     isDeckIdentityEnabled: () => deckIdentity,
     STUDIO_TOP_BAR_V2_ENABLED: topBarEnabled(src, env),
+    STUDIO_SESSION_HYGIENE_ENABLED: hygieneEnabled(src, env),
     getStudioDeckSaveState: () => saveState,
     subscribeStudioDeckSaveState: () => () => {},
     studioTopBarSavedLabel: src.lib ? libModule(src).studioTopBarSavedLabel : undefined,
@@ -147,6 +161,7 @@ function renderHeader(src, cell) {
   const props = { wsError, onNewPresentation: rec.make('onNewPresentation'), onOpenChatHistory: rec.make('onOpenChatHistory'), isChatHistoryOpen,
     toolbarSlotRef: rec.make('toolbarSlotRef'), onToolbarInteract: rec.make('onToolbarInteract') }
   if (deckTitle !== undefined) props.deckTitle = deckTitle
+  if (isUnsavedSession !== undefined) props.isUnsavedSession = isUnsavedSession
   const component = compile(functionText(sourceFile, 'BuilderHeader'))(scope)
   return { tree: component(props), props, calls: rec.calls }
 }
@@ -197,7 +212,10 @@ const DOWNLOAD_MATRIX = product({ shell: BOOLS, presentationUrl: [null, 'https:/
   feedback: Object.keys(FEEDBACK), slideCount: [null, 7] })
 const PUBLISH_MATRIX = product({ shell: BOOLS, sessionId: [null, 's1'], enabled: BOOLS, publishedSlideCount: [null, 7, 5], slideCount: [null, 7] })
 const withFlag = (env, flag) => flag === undefined ? env : { ...env, [FLAG]: flag }
-const headerDigest = (src, flag) => sha(HEADER_MATRIX.map(cell => sha(serialise(renderHeader(src, { ...cell, env: withFlag(baseEnv(cell), flag) }).tree))).join('\n'))
+// `extra`: { hygiene, isUnsavedSession } layered on every cell (the session state the fix reads; not given: as the base, which never passed it)
+const headerDigest = (src, flag, extra = {}) => sha(HEADER_MATRIX.map(cell => sha(serialise(renderHeader(src, {
+  ...cell, ...(extra.isUnsavedSession === undefined ? {} : { isUnsavedSession: extra.isUnsavedSession }),
+  env: { ...withFlag(baseEnv(cell), flag), ...(extra.hygiene ? { [HYGIENE]: 'true' } : {}) } }).tree))).join('\n'))
 const downloadDigest = (src, flag) => sha(DOWNLOAD_MATRIX.map(cell => sha(serialise(renderDownload(src, { ...cell, feedback: FEEDBACK[cell.feedback], env: withFlag(baseEnv(cell), flag) })))).join('\n'))
 const publishDigest = (src, flag) => sha(PUBLISH_MATRIX.map(cell => sha(serialise(renderPublishTrigger(src, { ...cell, env: withFlag(baseEnv(cell), flag) })))).join('\n'))
 
@@ -237,6 +255,65 @@ const CHECKS = {
     assert.equal(topBarEnabled(src, ON), true)
     assert.match(src.lib, /process\.env\.NEXT_PUBLIC_STUDIO_TOP_BAR_V2 === 'true'/)
   },
+  'flag on: "Saved" also needs a history row: with session hygiene on, an unsaved session shows no "Saved" in any save state': src => {
+    const savedMarkers = (env, saveState, isUnsavedSession) =>
+      findAll(renderHeader(src, { env, deckTitle: DECK, saveState, isUnsavedSession }).tree, node => node.props && node.props['data-studio-top-bar-saved']).length
+    for (const hygiene of BOOLS) for (const isUnsavedSession of [undefined, false, true]) for (const saveState of ['saved', 'saving', 'unsaved', 'error', null]) {
+      const env = { ...ON, ...(hygiene ? { [HYGIENE]: 'true' } : {}) }
+      const expected = saveState === 'saved' && !(hygiene && isUnsavedSession === true) ? 1 : 0
+      assert.equal(savedMarkers(env, saveState, isUnsavedSession), expected, `hygiene=${hygiene} isUnsavedSession=${isUnsavedSession} saveState=${saveState}`)
+    }
+    // the bare-/builder case of the bug, spelled out: hygiene on, unsaved session, the viewer calls the blank deck saved -> nothing claimed
+    const hygieneOn = { ...ON, [HYGIENE]: 'true' }
+    assert.equal(savedMarkers(hygieneOn, 'saved', true), 0)
+    assert.doesNotMatch(serialise(renderHeader(src, { env: hygieneOn, deckTitle: DECK, saveState: 'saved', isUnsavedSession: true }).tree), /Saved/)
+    // the rest of the bar is untouched by the session state: same tree except the Saved status
+    const strip = tree => serialise(tree).replace(/<span data-studio-top-bar-saved="true" role="status">.*?<\/span>/, '')
+    assert.equal(strip(renderHeader(src, { env: hygieneOn, deckTitle: DECK, saveState: 'saved', isUnsavedSession: true }).tree),
+      strip(renderHeader(src, { env: hygieneOn, deckTitle: DECK, saveState: 'saved', isUnsavedSession: false }).tree))
+  },
+  'flag on: after the first action writes the row (isUnsavedSession turns false), "Saved" shows when the viewer says saved, and not before': src => {
+    const hygieneOn = { ...ON, [HYGIENE]: 'true' }
+    const saved = (saveState, isUnsavedSession) => findAll(renderHeader(src, { env: hygieneOn, deckTitle: DECK, saveState, isUnsavedSession }).tree, node => node.props && node.props['data-studio-top-bar-saved']).length
+    // bare /builder -> first message / upload / theme pick / manual Add Slide: the viewer's state is 'saved' throughout; the row decides
+    assert.deepEqual([saved('saved', true), saved('saved', true), saved('saved', false)], [0, 0, 1])
+    // a deck that is saving right after the row exists still claims nothing; it says Saved once the viewer does
+    assert.deepEqual([saved('saving', false), saved('saved', false)], [0, 1])
+    // a saved session (opened from the sidebar) keeps its Saved
+    assert.equal(saved('saved', false), 1)
+  },
+  'session hygiene off (unset or any non-"true" value): "Saved" is exactly as today even for an unsaved session': src => {
+    for (const value of OFF_VALUES.filter(v => v !== undefined)) for (const isUnsavedSession of [undefined, false, true]) {
+      const env = { ...ON, [HYGIENE]: value }
+      assert.equal(hygieneEnabled(src, env), false, `hygiene=${JSON.stringify(value)}`)
+      const saved = findAll(renderHeader(src, { env, deckTitle: DECK, saveState: 'saved', isUnsavedSession }).tree, node => node.props && node.props['data-studio-top-bar-saved'])
+      assert.equal(saved.length, 1, `hygiene=${JSON.stringify(value)} isUnsavedSession=${isUnsavedSession}`)
+    }
+    assert.equal(hygieneEnabled(src, { ...ON, [HYGIENE]: 'true' }), true)
+    // the unsaved-aware label has the same default as the old one-argument call
+    const lib = libModule(src)
+    assert.equal(lib.studioTopBarSavedLabel('saved'), 'Saved')
+    assert.equal(lib.studioTopBarSavedLabel('saved', false), 'Saved')
+    assert.equal(lib.studioTopBarSavedLabel('saved', true), null)
+    assert.deepEqual(['saving', 'unsaved', 'error', null].map(state => lib.studioTopBarSavedLabel(state, false)), [null, null, null, null])
+  },
+  'the Builder page hands the header its own unsaved-session flag: the same state the first-action row save is given': src => {
+    const sourceFile = parse(FILES.page, src.page)
+    const headers = findEvery(sourceFile, n => ts.isJsxSelfClosingElement(n) && n.tagName.getText(sourceFile) === 'BuilderHeader')
+    assert.equal(headers.length, 1, 'one BuilderHeader')
+    const attrs = headers[0].attributes.properties.filter(a => ts.isJsxAttribute(a) && a.name.getText(sourceFile) === 'isUnsavedSession')
+    assert.equal(attrs.length, 1, 'the header gets isUnsavedSession')
+    assert.equal(attrs[0].initializer.expression.getText(sourceFile), 'isUnsavedSession', 'the page state itself, not a copy or a constant')
+    const saves = findEvery(sourceFile, n => ts.isCallExpression(n) && n.expression.getText(sourceFile) === 'useSaveSessionOnFirstAction')
+    assert.equal(saves.length, 1)
+    const given = saves[0].arguments[0].properties.find(p => p.name.getText(sourceFile) === 'isUnsavedSession')
+    assert.ok(given && ts.isShorthandPropertyAssignment(given), 'the first-action save reads the same variable')
+    const states = findEvery(sourceFile, n => ts.isVariableDeclaration(n) && n.name.getText(sourceFile).startsWith('[isUnsavedSession,'))
+    assert.equal(states.length, 1, 'one isUnsavedSession state in the page')
+    // the header reads the hygiene flag only through the hygiene lib
+    assert.match(src.header, /import \{ STUDIO_SESSION_HYGIENE_ENABLED \} from "@\/lib\/studio-session-hygiene"/)
+    assert.doesNotMatch(src.header, /process\.env\.NEXT_PUBLIC_STUDIO_SESSION_HYGIENE/)
+  },
   'flag off (unset, "false" or any non-"true" value): the header renders byte-for-byte as the base, over 1920 states': src => {
     for (const value of OFF_DIGEST_VALUES) assert.equal(headerDigest(src, value), GOLDEN.header, `flag=${JSON.stringify(value)}`)
   },
@@ -255,6 +332,17 @@ const CHECKS = {
       assert.equal(serialise(renderDownload(src, { ...c, env: classic })), serialise(renderDownload(src, { ...c, env: {} })))
     }
     for (const cell of PUBLISH_MATRIX.filter(c => !c.shell)) assert.equal(serialise(renderPublishTrigger(src, { ...cell, env: classic })), serialise(renderPublishTrigger(src, { ...cell, env: {} })))
+  },
+  'TOP_BAR_V2 off: the header is byte-for-byte the base whatever the session state and the hygiene flag, over 1920 states each': src => {
+    for (const extra of [{ hygiene: true, isUnsavedSession: true }, { hygiene: true, isUnsavedSession: false }, { hygiene: false, isUnsavedSession: true }]) {
+      assert.equal(headerDigest(src, undefined, extra), GOLDEN.header, JSON.stringify(extra))
+      assert.equal(headerDigest(src, 'false', extra), GOLDEN.header, `flag "false" ${JSON.stringify(extra)}`)
+    }
+    // flag on but outside the Studio shell (classic builder): the session state changes nothing either
+    for (const cell of HEADER_MATRIX.filter(c => !c.shell && !c.labels && !c.tokens)) {
+      const plain = serialise(renderHeader(src, { ...cell, env: { [FLAG]: 'true' } }).tree)
+      assert.equal(serialise(renderHeader(src, { ...cell, isUnsavedSession: true, env: { [FLAG]: 'true', [HYGIENE]: 'true' } }).tree), plain)
+    }
   },
   'flag on: the header carries the v2 marker; the left reads toggle | Workspace / deck name, Saved': src => {
     const { tree, props } = renderHeader(src, { env: ON, deckTitle: DECK, saveState: 'saved' })
@@ -413,8 +501,20 @@ const MUTANTS = [
   ['flag-off label changed', 'header', ': "Presentation"}', ': "Presentations"}'],
   ['flag-off accessible name changed', 'header', 'aria-label={studioTopBarV2 ? "New deck" : "Add presentation"}', 'aria-label={studioTopBarV2 ? "New deck" : "Add deck"}'],
   ['marker always on', 'header', `{...(studioTopBarV2 ? { 'data-studio-top-bar-v2': 'true' } : {})}`, `data-studio-top-bar-v2="true"`],
-  ['Saved shown for every state', 'lib', `return state === 'saved' ? 'Saved' : null`, `return state ? 'Saved' : null`],
-  ['Saved shown while saving', 'lib', `return state === 'saved' ? 'Saved' : null`, `return state === 'saved' || state === 'saving' ? 'Saved' : null`],
+  ['Saved shown for every state', 'lib', `return state === 'saved' && !sessionUnsaved ? 'Saved' : null`, `return state && !sessionUnsaved ? 'Saved' : null`],
+  ['Saved shown while saving', 'lib', `return state === 'saved' && !sessionUnsaved ? 'Saved' : null`, `return (state === 'saved' || state === 'saving') && !sessionUnsaved ? 'Saved' : null`],
+  ['Saved ignores an unsaved session', 'lib', `return state === 'saved' && !sessionUnsaved ? 'Saved' : null`, `return state === 'saved' ? 'Saved' : null`],
+  ['unsaved-session gate inverted', 'lib', `return state === 'saved' && !sessionUnsaved ? 'Saved' : null`, `return state === 'saved' && sessionUnsaved ? 'Saved' : null`],
+  ['unsaved-session default flipped', 'lib', `sessionUnsaved = false`, `sessionUnsaved = true`],
+  ['header drops the unsaved session from the label', 'header', `), STUDIO_SESSION_HYGIENE_ENABLED && isUnsavedSession)`, `))`],
+  ['header ignores the hygiene flag (an unsaved session hides Saved with hygiene off)', 'header', `STUDIO_SESSION_HYGIENE_ENABLED && isUnsavedSession)`, `isUnsavedSession)`],
+  ['header gates on hygiene alone (every session hides Saved)', 'header', `STUDIO_SESSION_HYGIENE_ENABLED && isUnsavedSession)`, `STUDIO_SESSION_HYGIENE_ENABLED)`],
+  ['header reads the unsaved flag inverted', 'header', `STUDIO_SESSION_HYGIENE_ENABLED && isUnsavedSession)`, `STUDIO_SESSION_HYGIENE_ENABLED && !isUnsavedSession)`],
+  ['header prop defaults to unsaved', 'header', `isUnsavedSession = false,`, `isUnsavedSession = true,`],
+  ['header reads the hygiene flag from the env directly', 'header', `import { STUDIO_SESSION_HYGIENE_ENABLED } from "@/lib/studio-session-hygiene"`, `const STUDIO_SESSION_HYGIENE_ENABLED = process.env.NEXT_PUBLIC_STUDIO_SESSION_HYGIENE === 'true'`],
+  ['hygiene flag read loosely', 'hygiene', `process.env.NEXT_PUBLIC_STUDIO_SESSION_HYGIENE === 'true'`, `process.env.NEXT_PUBLIC_STUDIO_SESSION_HYGIENE !== 'false'`],
+  ['page does not hand the header the flag', 'page', `          isUnsavedSession={isUnsavedSession}\n        />`, `        />`],
+  ['page hands the header a constant', 'page', `isUnsavedSession={isUnsavedSession}\n        />`, `isUnsavedSession={false}\n        />`],
   ['Export label leaks into flag off', 'download', `: STUDIO_EXPORT_LABEL ? 'Export' : 'Download'}`, `: 'Export'}`],
   ['Export flag ignores the flag', 'download', 'const STUDIO_EXPORT_LABEL = STUDIO_DELIVERY && STUDIO_TOP_BAR_V2_ENABLED;', 'const STUDIO_EXPORT_LABEL = STUDIO_DELIVERY;'],
   ['Export menu changed', 'download', '<DropdownMenuContent align="end" className="w-48"', '<DropdownMenuContent align="start" className="w-48"'],
