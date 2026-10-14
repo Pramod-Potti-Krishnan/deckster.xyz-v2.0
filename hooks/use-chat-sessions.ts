@@ -1,5 +1,6 @@
 import { useState, useCallback } from 'react';
 import { sessionLoadKindForStatus, type SessionLoadOutcome } from '@/lib/studio-session-hygiene';
+import { STUDIO_BLANK_START_NEW_SESSION_ENABLED, browserBlankStartStorage, forgetBlankStartEverywhere } from '@/lib/studio-blank-start-new-session';
 
 export interface ChatSession {
   id: string;
@@ -320,6 +321,9 @@ export function useChatSessions() {
       if (!response.ok) {
         throw new Error(`Failed to delete session: ${response.statusText}`);
       }
+
+      // NEXT_PUBLIC_STUDIO_BLANK_START_NEW_SESSION: a deleted session's blank-canvas memory goes with it.
+      if (STUDIO_BLANK_START_NEW_SESSION_ENABLED) forgetBlankStartEverywhere(browserBlankStartStorage(), sessionId);
 
       return true;
     } catch (err) {
