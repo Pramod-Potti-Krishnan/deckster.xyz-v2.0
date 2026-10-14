@@ -67,7 +67,7 @@
     {"chars":214,"label":"page.<MessageList presentationContext>","sha256":"cd57ed72fab9d9bd"},
     {"chars":16,"label":"page.<MessageList sessionId>","sha256":"c6159f0286278c09"},
     {"chars":19,"label":"page.<MessageList slideContextByIndex>","sha256":"7f5e6330873b0749"},
-    {"chars":193,"label":"page.<MessageList studioFirstRunActions>","sha256":"48def4e1944b44b9"},
+    {"chars":263,"label":"page.<MessageList studioFirstRunActions>","sha256":"4966aedcafad0062"},
     {"chars":60,"label":"page.<MessageList studioFrontendTranscriptReceipt>","sha256":"566e72d93baf0cfc"},
     {"chars":318,"label":"page.<MessageList studioGreetingSafety>","sha256":"c338de90e665e5e5"},
     {"chars":39,"label":"page.<MessageList studioOutlineOnCanvas>","sha256":"b76f01f0c3bafc10"},

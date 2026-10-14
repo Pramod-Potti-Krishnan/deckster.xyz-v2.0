@@ -257,6 +257,8 @@ import {
 import { lastBuilderSessionKey, unsavedBuilderSessionKey } from '@/lib/last-builder-session'
 import { STUDIO_SESSION_HYGIENE_ENABLED, shouldRememberLastSession } from '@/lib/studio-session-hygiene'
 import { isLocalUnsavedRoute, isStudioSessionRestoring } from '@/lib/studio-first-run-restoring'
+import { STUDIO_BLANK_START_NEW_SESSION_ENABLED } from '@/lib/studio-blank-start-new-session'
+import { useStudioBlankStart } from '@/hooks/use-studio-blank-start'
 import {
   absorbStudioHandoffStatus,
   canAutomaticallySubmitStudioHandoff,
@@ -3309,6 +3311,20 @@ function AuthenticatedBuilderContent({ authScopeUserId }: { authScopeUserId: str
     studioExplicitBlankOwnerRef.current = studioInitialSelectedTarget.owner
     setBlankPlaceholderDismissed(true)
   }
+  // NEXT_PUBLIC_STUDIO_BLANK_START_NEW_SESSION (default off): a reload keeps a started blank canvas, and the first-run "Start on a blank
+  // canvas" on a session that already holds a started deck opens a new session instead of revealing that deck (hooks/use-studio-blank-start.ts).
+  const handleStartOnBlankCanvas = useStudioBlankStart({
+    enabled: STUDIO_BLANK_START_NEW_SESSION_ENABLED && studioShell,
+    ownerId: builderCacheOwner,
+    sessionId: currentSessionId,
+    unsavedSession: isUnsavedSession,
+    dismissed: blankPlaceholderDismissed,
+    setDismissed: setBlankPlaceholderDismissed,
+    hasOwnedSelection: studioCanvasLifecycle.hasOwnedSelection,
+    showLanding: studioCanvasLifecycle.showLanding,
+    dismiss: handleDismissBlankPlaceholder,
+    startNewSession: () => handleNewChatWrappedRef.current?.(),
+  })
   const workspaceLayout = allocateStudioWorkspace({
     width: studioOverlayWorkspace ? workspaceInnerWidth : workspaceWidth,
     chatPreference: chatWidth ?? (studioWelcome ? Math.min(640, workspaceWidth * .44) : 304),
@@ -7309,7 +7325,7 @@ function AuthenticatedBuilderContent({ authScopeUserId }: { authScopeUserId: str
                           slideCount: effectiveSlideCount,
                         } : undefined}
                         studioFirstRunActions={studioShell && process.env.NEXT_PUBLIC_STUDIO_FIRST_RUN_V2 === 'true'
-                          ? <StudioFirstRunActions onStartBlank={effectivePresentationUrl ? handleDismissBlankPlaceholder : undefined} /> : undefined}
+                          ? <StudioFirstRunActions onStartBlank={effectivePresentationUrl ? (STUDIO_BLANK_START_NEW_SESSION_ENABLED ? handleStartOnBlankCanvas : handleDismissBlankPlaceholder) : undefined} /> : undefined}
                         studioRestoring={studioShell && process.env.NEXT_PUBLIC_STUDIO_FIRST_RUN_V2 === 'true' ? studioFirstRunRestoring : undefined}
                         connectionState={studioShell ? undefined : connected ? 'connected' : connecting ? 'connecting' : wsError ? 'error' : 'disconnected'}
                         onDraftPrompt={text => {
