@@ -356,6 +356,10 @@ export async function runThemeRestoreTranscript({ root, fixture, mode }) {
       if (want.themeSyncStatus !== undefined) check(`themeSync.status ${theme.themeSync.status} === ${want.themeSyncStatus}`, theme.themeSync.status === want.themeSyncStatus)
       if (want.gatePhase !== undefined) check(`gate ${theme.themeRestoreGate?.phase} === ${want.gatePhase}`, theme.themeRestoreGate?.phase === want.gatePhase)
       if (want.locallyChanged !== undefined) check(`themeSelectionChangedLocally ${theme.themeSelectionChangedLocallyRef.current} === ${want.locallyChanged}`, theme.themeSelectionChangedLocallyRef.current === want.locallyChanged)
+      if (want.themeSyncRequestId !== undefined) check(`themeSync.requestId ${theme.themeSync.requestId} === ${want.themeSyncRequestId}`, theme.themeSync.requestId === want.themeSyncRequestId)
+      // The committed state is fingerprinted with the given selection (the lib's own fingerprint, as the deck-theme effect compares).
+      if (want.themeSyncFingerprintOf !== undefined) check(`themeSync.themeFingerprint ${theme.themeSync.themeFingerprint} === fingerprint of ${JSON.stringify(want.themeSyncFingerprintOf)}`, theme.themeSync.themeFingerprint === themeBuilderLib.themeSelectionFingerprint(want.themeSyncFingerprintOf))
+      if (want.activeProfile !== undefined) check(`activeBuildThemeProfile ${JSON.stringify(theme.activeBuildThemeProfile)} === ${JSON.stringify(want.activeProfile)}`, JSON.stringify(theme.activeBuildThemeProfile) === JSON.stringify(want.activeProfile))
       if (want.themeSyncError !== undefined) check(`themeSync.error ${JSON.stringify(theme.themeSync.error)} === ${JSON.stringify(want.themeSyncError)}`, theme.themeSync.error === want.themeSyncError)
       if (want.preflightReady !== undefined) check(`element preflight ready ${lastPreflight?.ready} (${lastPreflight?.code}) === ${want.preflightReady}`, lastPreflight?.ready === want.preflightReady)
       if (want.preflightSource !== undefined) check(`element preflight source ${lastPreflight?.code} === ${want.preflightSource}`, lastPreflight?.code === want.preflightSource)

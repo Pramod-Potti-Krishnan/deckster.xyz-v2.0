@@ -9,12 +9,19 @@
 //  2. Transcripts (scripts/fixtures/studio-theme-restore/*.json) on the PR #371 harness: the REAL Director socket hook and
 //     the REAL page regions (scripts/studio-chat-harness/theme-restore-transcript.mjs) replay THEME-2's recorded Director
 //     frames. Every byte the tab puts on the socket is compared with the baselines: `off` was recorded from the base tree
-//     (origin/studio-v4-dev-preparation-code b0c5a4a) and the flag-off branch must reproduce it byte for byte; `on` is the
+//     (origin/studio-v4-dev-preparation-code b0c5a4a; the three `none` transcripts below from 282efbd, whose output for the
+//     original nine equals b0c5a4a's byte for byte) and the flag-off branch must reproduce it byte for byte; `on` is the
 //     branch with the flag on, and each transcript's expect steps pin its set_theme counts and the adopted theme.
 //     `restore-syncing-other-tab` pins the settling rule: a restore whose apply is still in flight on another tab (Director
 //     acknowledges only the socket that asked) is committed applied, with no 20 s timer or timeout banner, and Add Element's
 //     theme preflight (ensureThemeReady -> waitForAuthoritativeTheme) proceeds at once (0 ms of virtual time, at the restore
 //     and 25 s later). On the previous head that transcript fails: "Theme application timed out" after 20 s.
+//     `new-session-default-theme`, `existing-pick-unchanged` and `explicit-auto-pick` pin the never-picked rule (fix-forward of
+//     #387, same flag) on the REAL frames of Director origin/uat: a brand-new session's blank deck is auto-themed at creation
+//     (corporate_light, stored only as applied state), so its restore is `restore:<sid>:none` with that theme and applied:true.
+//     That is Director's default, not a pick: the selection stays Auto (no "Theme selected" chip), the state is committed
+//     applied for the Auto fingerprint, nothing is sent. A real pick (the same theme, or an explicit Auto) ends in its request id
+//     and is adopted exactly as before. On the previous head new-session-default-theme fails: Corporate Light, applied, as a chip.
 //  3. Wiring pins: the hook change is types only (its transpiled JavaScript equals the base's), every new page path is
 //     behind the inline flag read, .env.example and package.json document the flag.
 //  4. Mutants: deliberately broken copies of the lib and the page must each be caught by 1 or 2.
@@ -95,12 +102,38 @@ function unitSuite(root) {
     eq(lib.restoredThemeSelection(value), null, `nothing usable stored: ${JSON.stringify(value)}`)
   }
 
+  // the never-picked rule: `restore:<sid>:none` is Director's default for the deck, not a pick
+  const none = (theme, extra = {}) => ({ request_id: 'restore:s:none', presentation_id: 'blank-1', theme, applied: true, desired_status: null, ...extra })
+  const AUTO = { mode: 'auto' }
+  for (const id of ['restore:s:none', 'restore:sess-new-cl:none', 'x:none']) check(assert.equal, lib.isNeverPickedRestore({ request_id: id }), true, `never picked: ${id}`)
+  for (const id of ['restore:s:req-1', 'restore:s:uuid-t1-corp', 'restore:s:none-1', 'restore:s:nonexistent', 'restore:s:req-none', 'restore:s:none:', 'restore:s:NONE', 'none', '', undefined, null, 7, {}]) {
+    check(assert.equal, lib.isNeverPickedRestore({ request_id: id }), false, `a pick (or no id): ${JSON.stringify(id)}`)
+  }
+  check(assert.equal, lib.isNeverPickedRestore({}), false, 'no request id: not never picked')
+  same(lib.restoredAdoptedSelection(none(CL)), AUTO, 'never picked + Director\'s default preset: Auto')
+  same(lib.restoredAdoptedSelection(none({ mode: 'preset', preset_id: 'minimal', color_overrides: { accent: '#ffaa00' } })), AUTO, 'never picked: overrides are the default\'s, not a choice')
+  same(lib.restoredAdoptedSelection(none({ mode: 'custom', primary_hex: '#0a7d4f', color_overrides: { accent: '#ffaa00' } })), AUTO, 'never picked + the user\'s standard theme applied by Director: Auto')
+  same(lib.restoredAdoptedSelection(none(AUTO)), AUTO, 'never picked + Auto: Auto')
+  same(fontsOn.restoredAdoptedSelection(none({ ...CL, font_family: 'Inter', font_family_heading: 'Lora' })), AUTO, 'never picked + fonts flag on: no font survives')
+  same(fontsOn.restoredAdoptedSelection(none({ mode: 'auto', font_family: 'Inter' })), AUTO, 'never picked + fonts flag on, Auto with a font: plain Auto')
+  eq(lib.restoredAdoptedSelection(none(null)), null, 'never picked + nothing stored: nothing (the null path)')
+  eq(lib.restoredAdoptedSelection(none({ mode: 'preset' })), null, 'never picked + nothing usable: nothing')
+  same(lib.restoredAdoptedSelection(none(CL, { request_id: 'restore:s:req-cl-1' })), CL, 'a real pick keeps its theme (also the same one as the default)')
+  same(lib.restoredAdoptedSelection(none({ mode: 'custom', primary_hex: '#0a7d4f' }, { request_id: 'restore:s:req-9' })), { mode: 'custom', primary_hex: '#0a7d4f' }, 'a real custom pick is kept')
+  same(lib.restoredAdoptedSelection(none(AUTO, { request_id: 'restore:s:req-auto-1', applied: false, desired_status: 'applied' })), AUTO, 'an explicit Auto pick: Auto, as a choice')
+  same(fontsOn.restoredAdoptedSelection(none({ mode: 'auto', font_family: 'Inter' }, { request_id: 'restore:s:req-auto-2' })), { mode: 'auto', font_family: 'Inter' }, 'an explicit Auto pick keeps its font')
+  same(lib.restoredAdoptedSelection(none(CL, { request_id: undefined })), CL, 'no request id: adopted as a stored theme, as before')
+
   // the theme-sync state a restore commits
   const { themeSelectionFingerprint: fp } = createModuleLoader({ root, globals: { process: { env: {} }, console } }).load('lib/theme-builder.ts')
   eq(lib.restoredThemeSync({ request_id: 'restore:s:req-1', presentation_id: 'deck-1', applied: true, desired_status: 'applied' }, CL),
     { status: 'applied', requestId: 'restore:s:req-1', presentationId: 'deck-1', themeFingerprint: fp(CL), error: null }, 'applied')
   eq(lib.restoredThemeSync({ request_id: 'restore:s:none', presentation_id: 'blank-1', applied: true, desired_status: null }, { mode: 'auto' }).status, 'applied',
     'a new session\'s blank deck: applied with no desired state')
+  eq(lib.restoredThemeSync(none(CL), lib.restoredAdoptedSelection(none(CL))),
+    { status: 'applied', requestId: 'restore:s:none', presentationId: 'blank-1', themeFingerprint: fp(AUTO), error: null }, 'a never-picked restore is applied for the AUTO fingerprint of the blank deck')
+  check(assert.notEqual, lib.restoredThemeSync(none(CL), lib.restoredAdoptedSelection(none(CL))).themeFingerprint, fp(CL), 'and not for the default theme\'s')
+  eq(lib.restoredThemeSync(none(CL, { request_id: 'restore:s:req-cl-1' }), lib.restoredAdoptedSelection(none(CL, { request_id: 'restore:s:req-cl-1' }))).themeFingerprint, fp(CL), 'a real pick is applied for its own fingerprint')
   eq(lib.restoredThemeSync({ request_id: 'r', presentation_id: 'deck-1', applied: true, desired_status: 'syncing' }, CL).status, 'applied', 'applied wins over a re-apply in flight')
   // the settling rule: another tab's apply in flight (Director acknowledges only the socket that asked) is committed applied
   eq(lib.restoredThemeSync({ request_id: 'r', presentation_id: 'deck-1', applied: false, desired_status: 'syncing' }, CL),
@@ -233,6 +266,8 @@ function wiringSuite(src) {
   const observe = page.slice(page.indexOf('const observeThemeRestoreFrame = useCallback'), page.indexOf('const standardThemeLoadedRef'))
   check(assert.ok, observe.length > 0 && !observe.includes('themeSelectionChangedLocallyRef.current ='), 'page: a restore never marks a user pick')
   check(assert.ok, !observe.includes('sendThemeSelection') && !observe.includes('requestThemeSyncForPresentation'), 'page: a restore never sends')
+  check(assert.ok, observe.includes('const selection = restoredAdoptedSelection(restore)') && !observe.includes('restoredThemeSelection('), 'page: the adopted selection comes through the never-picked rule')
+  check(assert.ok, observe.includes('restoredThemeSync(restore, selection)'), 'page: the committed state is fingerprinted with the adopted selection (Auto for a never-picked restore)')
   check(assert.ok, !observe.includes('setTimeout') && !observe.includes('THEME_SYNC_TIMEOUT_MS') && !observe.includes('themeSyncTimeoutRef'), 'page: a restore arms no timer (settled, see restoredThemeSync)')
   check(assert.equal, count(page, 'from \'@/lib/studio-theme-restore\''), 1, 'page imports the lib once')
   const hook = src[HOOK]
@@ -302,6 +337,17 @@ const MUTANTS = [
   ['gate never holds', LIB, "return !(gate.sessionId === sessionId && gate.phase === 'fallback')", 'return false'],
   ['late restore adopted', LIB, "if (current.phase !== 'waiting' || frameSession !== sessionId)", 'if (frameSession !== sessionId)'],
   ['sync_response not seen', LIB, '? { ...current, syncSeen: true } : current', '? current : current'],
+  // the never-picked rule (fix-forward of #387): `restore:<sid>:none` is Director's default for the deck, not a pick
+  ['never-picked rule off (":none" is a pick)', LIB, "return isNeverPickedRestore(payload) ? { mode: 'auto' } : stored", 'return stored'],
+  ['every restore is never picked', LIB, 'return nonEmptyString(payload.request_id) && payload.request_id.endsWith(THEME_RESTORE_NEVER_PICKED_SUFFIX)', 'return true'],
+  ['":none" matched anywhere in the id', LIB, 'payload.request_id.endsWith(THEME_RESTORE_NEVER_PICKED_SUFFIX)', 'payload.request_id.includes(THEME_RESTORE_NEVER_PICKED_SUFFIX)'],
+  ['"none" matched without its colon', LIB, "export const THEME_RESTORE_NEVER_PICKED_SUFFIX = ':none'", "export const THEME_RESTORE_NEVER_PICKED_SUFFIX = 'none'"],
+  ['never-picked Auto keeps the default\'s fields', LIB, "return isNeverPickedRestore(payload) ? { mode: 'auto' } : stored", "return isNeverPickedRestore(payload) ? { ...stored, mode: 'auto' } : stored"],
+  ['an explicit Auto pick read as never picked', LIB, 'return nonEmptyString(payload.request_id) && payload.request_id.endsWith(THEME_RESTORE_NEVER_PICKED_SUFFIX)',
+    "return (nonEmptyString(payload.request_id) && payload.request_id.endsWith(THEME_RESTORE_NEVER_PICKED_SUFFIX)) || (isRecord(payload.theme) && payload.theme.mode === 'auto')"],
+  ['page bypasses the never-picked rule', PAGE, 'const selection = restoredAdoptedSelection(restore)', 'const selection = restoredThemeSelection(restore.theme)'],
+  ['never-picked state fingerprinted with the default theme', PAGE, 'const sync = restoredThemeSync(restore, selection)', 'const sync = restoredThemeSync(restore, restoredThemeSelection(restore.theme) ?? selection)'],
+  ['never-picked restore commits nothing', PAGE, 'const sync = restoredThemeSync(restore, selection)', 'const sync = isNeverPickedRestore(restore) ? null : restoredThemeSync(restore, selection)'],
   // the page
   ['onMessage skips the gate', PAGE, `if (process.env.${FLAG} === 'true' && observeThemeRestoreFrame(message)) return`, `if (process.env.${FLAG} === 'never' && observeThemeRestoreFrame(message)) return`],
   ['flag read as anything but false', PAGE, `if (process.env.${FLAG} === 'true' && observeThemeRestoreFrame(message)) return`, `if (process.env.${FLAG} !== 'false' && observeThemeRestoreFrame(message)) return`],
@@ -338,6 +384,6 @@ console.log('mutants (each caught by):')
 for (const line of caughtBy) console.log(line)
 console.log('transcripts (set_theme sent: socket@virtual ms:theme):')
 for (const row of summary) console.log(`  ${row.fixture.padEnd(32)} ${row.mode.padEnd(3)} ${row.setTheme.length}  ${row.setTheme.join('  ')}`)
-console.log(`studio theme restore: ${mainChecks} checks passed; ${fixtures.length} transcripts x 2 modes match their baselines (off = base ${BASE_REF.slice(0, 7)}); `
+console.log(`studio theme restore: ${mainChecks} checks passed; ${fixtures.length} transcripts x 2 modes match their baselines (off = base ${BASE_REF.slice(0, 7)}, and 282efbd for the never-picked transcripts); `
   + `hook vs base: ${hookVsBase}; ${caught}/${MUTANTS.length} mutants caught; `
   + `page regions: ${themeRestoreRegions(repoRoot).anchors.length}`)

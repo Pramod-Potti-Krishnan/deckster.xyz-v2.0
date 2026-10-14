@@ -1,0 +1,10 @@
+{"handshake":0,"at":500,"url":"wss://director.synthetic.invalid/ws?session_id=sess-new-cl&user_id=synthetic-user-01&skip_history=false&message_count=0&build_control_capability=1"}
+{"handshake":1,"at":32000,"url":"wss://director.synthetic.invalid/ws?session_id=sess-new-cl&user_id=synthetic-user-01&skip_history=false&message_count=1&build_control_capability=1"}
+{"socket":0,"at":1500,"data":"{\"type\":\"set_theme\",\"data\":{\"request_id\":\"synthetic-uuid-0001\",\"theme\":{\"mode\":\"auto\"},\"presentation_id\":\"blank-pres-1\"}}"}
+{"socket":0,"at":16000,"data":"ping"}
+{"socket":1,"at":32500,"data":"{\"type\":\"set_theme\",\"data\":{\"request_id\":\"synthetic-uuid-0002\",\"theme\":{\"mode\":\"auto\"},\"presentation_id\":\"blank-pres-1\"}}"}
+{"socket":1,"at":47500,"data":"ping"}
+{"socket":1,"at":61000,"data":"{\"type\":\"set_theme\",\"data\":{\"request_id\":\"synthetic-uuid-0003\",\"theme\":{\"mode\":\"preset\",\"preset_id\":\"corporate_light\"},\"presentation_id\":\"blank-pres-1\"}}"}
+{"socket":1,"at":62500,"data":"ping"}
+{"close":0,"code":1005,"reason":""}
+{"close":1,"code":1005,"reason":""}
