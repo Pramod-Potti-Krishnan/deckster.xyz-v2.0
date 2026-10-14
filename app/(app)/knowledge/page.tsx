@@ -28,7 +28,10 @@ import { useKnowledgeGraph } from "@/hooks/use-knowledge-graph"
 import { KgGraphView, typeColor } from "@/components/knowledge/kg-graph-view"
 import { StudioKnowledgeInspector } from "@/components/knowledge/studio-knowledge-inspector"
 import { KnowledgeSectionBoundary } from "@/components/knowledge/knowledge-section-boundary"
-import { importFailureText, normalizeKgGraph, normalizeKgStats, OFFLINE_IMPORT_TEXT, plainKnowledgeError, IMPORT_FAILED_TEXT } from "@/lib/studio-knowledge-fixes"
+import {
+  clearImportMarker, IMPORT_FAILED_TEXT, importFailureText, normalizeKgGraph, normalizeKgStats, OFFLINE_IMPORT_TEXT, ownerTag,
+  plainKnowledgeError, readImportMarker, resumedImportNotice, touchImportMarker, writeImportMarker,
+} from "@/lib/studio-knowledge-fixes"
 import type { KgGraphPresentationState, KgViewEdge, KgViewNode } from "@/components/knowledge/kg-graph-view"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -93,8 +96,9 @@ interface KgNodeDetail {
   edges: Array<{ src_name: string; dst_name: string; relation: string; weight: number }>
 }
 
-// kind "failed": the import request itself failed (flag on: the banner offers Retry).
-type ImportNotice = { tone: "success" | "error" | "neutral"; text: string; kind?: "failed" }
+// kind (flag on only): "failed" = the import request itself failed (the banner offers Retry); "resumed" / "interrupted" = found on return
+// to the page: an import this browser started never reported finishing (the banner offers Refresh / nothing).
+type ImportNotice = { tone: "success" | "error" | "neutral"; text: string; kind?: "failed" | "resumed" | "interrupted" }
 
 // Evaluates a section's markup while rendering as ITS OWN component, so an error thrown by the expression is caught by the section's boundary.
 function LazySection({ render }: { render: () => ReactNode }) {
@@ -659,6 +663,16 @@ function KnowledgePageForAccount({ kg }: { kg: KnowledgeGraphAccess }) {
     }
   }, [accessRevision, accessStatus, loadData])
 
+  // Flag on: an import this browser started that never reported finishing (the page was reloaded or closed, or it runs in another tab)
+  // is announced on return. Read once per account; the marker is written and cleared by runImport.
+  useEffect(() => {
+    if (!KNOWLEDGE_FIXES || importActiveRef.current) return
+    const marker = readImportMarker(ownerTag(operationOwner))
+    if (!marker) return
+    const found = resumedImportNotice(marker)
+    setImportNotice({ tone: "neutral", kind: found.kind, text: found.text })
+  }, [operationOwner])
+
   useEffect(() => {
     const generation = ++nodeGenerationRef.current
     nodeAbortRef.current?.abort()
@@ -805,6 +819,10 @@ function KnowledgePageForAccount({ kg }: { kg: KnowledgeGraphAccess }) {
     importActiveRef.current = true
     interruptedImportRef.current = { owner, interrupted: false }
     setImporting(true)
+    // Flag on: remember in this browser that an import started, so a reload (or a second tab) can say one may still be running.
+    const markerOwner = KNOWLEDGE_FIXES ? ownerTag(owner) : ""
+    const markerStartedAt = Date.now()
+    if (KNOWLEDGE_FIXES) writeImportMarker(markerOwner, markerStartedAt, markerStartedAt)
     setImportNotice({ tone: "neutral", text: "Importing eligible past sessions. This can take a few minutes…" })
     const totals = {
       processed: 0,
@@ -836,6 +854,7 @@ function KnowledgePageForAccount({ kg }: { kg: KnowledgeGraphAccess }) {
               : "Past sessions could not be imported."
           )
         }
+        if (KNOWLEDGE_FIXES) touchImportMarker(markerOwner, markerStartedAt)
         if (body.no_sessions_found && !foundAny) {
           setImportNotice({ tone: "neutral", text: "No eligible past sessions with uploads or research were found." })
           return
@@ -895,6 +914,9 @@ function KnowledgePageForAccount({ kg }: { kg: KnowledgeGraphAccess }) {
       }
     } finally {
       if (await admitted() && isCurrent()) {
+        // Flag on: the import finished (or failed) in this tab, so there is nothing left to announce. An import cut short by a reload or by
+        // leaving the page never gets here, and its marker stays.
+        if (KNOWLEDGE_FIXES) clearImportMarker(markerOwner, markerStartedAt)
         importActiveRef.current = false
         setImporting(false)
       }
@@ -1047,8 +1069,13 @@ stats && stats.nodes_by_type.length > 0 && (
               Retry
             </button>
           )}
+          {KNOWLEDGE_FIXES && importNotice.kind === "resumed" && (
+            <button type="button" disabled={dataLoading} onClick={() => void loadData()} className="shrink-0 rounded-md border border-blue-300 bg-white/70 px-2.5 py-0.5 text-xs font-medium text-blue-800 hover:bg-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-current disabled:opacity-60 dark:border-blue-800 dark:bg-transparent dark:text-blue-200 dark:hover:bg-blue-950/50">
+              Refresh
+            </button>
+          )}
           {!importing && (
-            <button type="button" onClick={() => { interruptedImportRef.current.interrupted = false; setImportNotice(null) }} className="rounded p-0.5 hover:bg-black/5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-current" aria-label="Dismiss import message">
+            <button type="button" onClick={() => { interruptedImportRef.current.interrupted = false; if (KNOWLEDGE_FIXES && importNotice.kind === "interrupted") clearImportMarker(ownerTag(operationOwner)); setImportNotice(null) }} className="rounded p-0.5 hover:bg-black/5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-current" aria-label="Dismiss import message">
               <X className="h-4 w-4" />
             </button>
           )}

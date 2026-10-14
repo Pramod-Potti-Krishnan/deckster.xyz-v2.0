@@ -245,12 +245,12 @@ function createServer(routes = {}) {
   return server
 }
 
-function createStorage({ broken = false } = {}) {
+function createStorage({ broken = false, denied = false } = {}) {
   const map = new Map()
   const log = []
   const guard = (op, key) => { log.push([op, key]); if (broken) throw new Error('storage is blocked') }
   return {
-    map, log,
+    map, log, denied,
     getItem: key => { guard('get', key); return map.has(key) ? map.get(key) : null },
     setItem: (key, value) => { guard('set', key); map.set(key, String(value)) },
     removeItem: key => { guard('remove', key); map.delete(key) },
@@ -282,7 +282,8 @@ function mountPage({ flag = true, shell = true, kg = access(), server = createSe
     else if (flag === 'false') env[FLAG] = 'false'
     const globals = {
       process: { env }, fetch: server.fetch, AbortController, Intl, Set, Map, Promise, JSON, Math, Number, String, Object, Array, Boolean, Error, TypeError, Date: clock.Date, URL,
-      window: { localStorage: storage, location: { reload() {} } },
+      // `denied`: reading window.localStorage itself throws (blocked site data, some private windows)
+      window: Object.defineProperties({ location: { reload() {} } }, { localStorage: { get() { if (storage.denied) throw new Error('SecurityError: access denied'); return storage } } }),
       console: { warn: (...a) => logs.warn.push(a), error: (...a) => logs.error.push(a), log: (...a) => logs.log.push(a), info() {}, debug() {} },
     }
     const loader = createLoader({ env, stubs: {
@@ -650,6 +651,218 @@ mutant('every error notice has a Retry', { [PAGE]: [['{KNOWLEDGE_FIXES && import
 mutant('a failed import is not marked failed', { [PAGE]: [['...(KNOWLEDGE_FIXES ? { kind: "failed" as const } : {}),', '']] })
 mutant('search has no Retry', { [PAGE]: [['{searchError && (KNOWLEDGE_FIXES', '{searchError && (false']] })
 mutant('the classic inspector has no Retry', { [PAGE]: [['{KNOWLEDGE_FIXES && (\n              <button type="button" onClick={onRetry}', '{false && (\n              <button type="button" onClick={onRetry}']] })
+
+// ===========================================================================================================================================
+// 3. S1: an import that was running when the page was reloaded is announced on return
+// ===========================================================================================================================================
+
+const MIN = 60 * 1000
+const batchOf = (extra = {}) => ({ sessions_processed: 3, sessions_completed: 3, sessions_retryable: 0, sessions_already_consolidated: 0, entities_created: 2, entities_merged: 1, total_candidates: 3, next_cursor: null, ...extra })
+const hang = () => new Promise(() => {})
+const markerKeyFor = (world, account = OWNER) => { const lib = world.loader.load(LIB); return lib.IMPORT_MARKER_PREFIX + lib.ownerTag(account) }
+const readMarker = (world, account = OWNER) => { const raw = world.storage.map.get(markerKeyFor(world, account)); return raw ? JSON.parse(raw) : null }
+async function startImport(world) { importButtonOf(world.view()).props.onClick(); await settle(20) }
+const sharedBrowser = () => ({ storage: createStorage(), clock: createClock() })
+
+check('S1: flag on, starting an import leaves a marker in this browser, refreshed after every batch and removed when it finishes', async ({ shell }) => {
+  const browser = sharedBrowser()
+  const gate = []
+  let n = 0
+  const server = createServer({ backfill: () => { browser.clock.t += 2 * MIN; return ++n < 3 ? respond(200, batchOf({ next_cursor: n * 3, total_candidates: 9 })) : (gate.push(1), respond(200, batchOf({ next_cursor: null, total_candidates: 9 }))) } })
+  const world = mountPage({ shell, server, ...browser })
+  await world.load()
+  assert.equal(readMarker(world), null, 'nothing before an import')
+  const started = browser.clock.t
+  await startImport(world)
+  assert.equal(server.count('backfill'), 3)
+  assert.equal(readMarker(world), null, 'removed when the import finished')
+  // while it runs: the marker exists with the start time and moves its activeAt forward after each batch
+  const seen = []
+  const watched = createServer({ backfill: () => { seen.push(readMarker(world2)); browser.clock.t += 2 * MIN; return respond(200, batchOf({ next_cursor: seen.length < 3 ? seen.length * 3 : null, total_candidates: 9 })) } })
+  const world2 = mountPage({ shell, server: watched, ...browser })
+  await world2.load(); await startImport(world2)
+  assert.equal(seen.length, 3)
+  assert.ok(seen[0] && seen[0].v === 1, 'the marker exists before the first batch is asked for')
+  assert.equal(seen[0].startedAt, seen[0].activeAt)
+  assert.ok(seen[2].activeAt > seen[0].activeAt, 'activeAt moves after each batch')
+  assert.equal(seen[2].startedAt, seen[0].startedAt, 'startedAt does not')
+  assert.ok(seen[0].startedAt >= started)
+})
+
+check('S1: flag on, the marker is removed however the import ends in this tab (success, partial, no sessions, HTTP error, network error)', async ({ shell }) => {
+  for (const [label, backfill] of [
+    ['success', () => respond(200, batchOf())],
+    ['partial', () => respond(200, batchOf({ sessions_completed: 1, sessions_retryable: 2 }))],
+    ['unfinished', () => respond(200, batchOf({ sessions_completed: 0 }))],
+    ['no sessions', () => respond(200, { no_sessions_found: true })],
+    ['HTTP error', () => respond(500, { error: 'x' })],
+    ['network error', networkDown],
+  ]) {
+    const world = mountPage({ shell, server: createServer({ backfill }) })
+    await world.load(); await startImport(world)
+    assert.equal(readMarker(world), null, label)
+    assert.ok(world.storage.log.some(([op]) => op === 'set'), `${label}: a marker was written first`)
+  }
+})
+
+check('S1: flag on, a reload during an import says one may still be running (and does not start another)', async ({ shell }) => {
+  const browser = sharedBrowser()
+  const server = createServer({ backfill: hang })
+  const world = mountPage({ shell, server, ...browser })
+  await world.load(); await startImport(world)
+  assert.match(noticeText(world.view()), /^Importing eligible past sessions/)
+  browser.clock.t += 90 * 1000
+  world.reload()
+  const tree = await world.load()
+  assert.match(noticeText(tree), /^An import may still be running\. It was started at .+ and can take a few minutes to finish\. Refresh in a few minutes to see what it added\.$/)
+  assert.equal(importButtonOf(tree).props.disabled, false, 'the person is not locked out')
+  assert.equal(server.count('backfill'), 1, 'only the first import ever asked the service')
+  assert.doesNotMatch(text(tree), /Importing…/)
+  const refresh = rawButtons(noticeOf(tree), 'Refresh')
+  assert.equal(refresh.length, 1)
+  refresh[0].props.onClick(); await settle()
+  assert.equal(server.count('stats'), 3, 'Refresh re-reads the graph (twice before, once now)')
+  assert.match(noticeText(world.view()), /^An import may still be running/, 'refreshing does not hide it')
+  assert.ok(readMarker(world), 'the marker stays while the import may be running')
+})
+
+check('S1: flag on, a marker older than ten minutes reads as an interrupted import; dismissing it forgets it', async ({ shell }) => {
+  const browser = sharedBrowser()
+  const world = mountPage({ shell, server: createServer({ backfill: hang }), ...browser })
+  await world.load(); await startImport(world)
+  browser.clock.t += 11 * MIN
+  world.reload()
+  const tree = await world.load()
+  assert.match(noticeText(tree), /^An earlier import stopped before it finished, because the page was closed or reloaded\. Sessions it already added are kept\. Run Import past sessions again to continue; sessions already in your graph are skipped\.$/)
+  assert.equal(rawButtons(noticeOf(tree), 'Refresh').length, 0)
+  all(tree, item => item.type === 'button' && item.props['aria-label'] === 'Dismiss import message')[0].props.onClick()
+  assert.equal(world.view().props.children?.length === undefined ? 0 : all(world.view(), item => item.type === 'div' && item.props.role === 'status').length, 0, 'dismissed')
+  assert.equal(readMarker(world), null, 'the interrupted marker is forgotten')
+  world.reload()
+  assert.equal(all(await world.load(), item => item.type === 'div' && item.props.role === 'status').length, 0, 'and does not come back')
+})
+
+check('S1: flag on, dismissing the "may still be running" notice hides it for now but keeps the marker', async ({ shell }) => {
+  const browser = sharedBrowser()
+  const world = mountPage({ shell, server: createServer({ backfill: hang }), ...browser })
+  await world.load(); await startImport(world)
+  world.reload()
+  const tree = await world.load()
+  all(tree, item => item.type === 'button' && item.props['aria-label'] === 'Dismiss import message')[0].props.onClick()
+  assert.ok(readMarker(world))
+  world.reload()
+  assert.match(noticeText(await world.load()), /may still be running/)
+})
+
+check('S1: flag on, the marker is per account and carries no account identity; another account never sees it', async ({ shell }) => {
+  const browser = sharedBrowser()
+  const world = mountPage({ shell, server: createServer({ backfill: hang }), ...browser })
+  await world.load(); await startImport(world)
+  const keys = [...world.storage.map.keys()]
+  assert.equal(keys.length, 1)
+  assert.doesNotMatch(keys[0] + world.storage.map.get(keys[0]), /fixture-owner|user:|@/, 'no account key or email in the key or the value')
+  const other = mountPage({ shell, kg: access('user:someone-else@example.com'), server: createServer(), ...browser })
+  const tree = await other.load()
+  assert.equal(all(tree, item => item.type === 'div' && item.props.role === 'status').length, 0, 'another account sees nothing')
+  assert.ok(keys[0].includes(world.loader.load(LIB).ownerTag(OWNER)))
+  assert.notEqual(world.loader.load(LIB).ownerTag(OWNER), world.loader.load(LIB).ownerTag('user:someone-else@example.com'))
+})
+
+check('S1: flag on, unusable storage changes nothing (blocked, full, corrupt, wrong version, expired)', async ({ shell }) => {
+  for (const storage of [createStorage({ broken: true }), createStorage({ denied: true })]) {
+    const blocked = mountPage({ shell, server: createServer({ backfill: () => respond(200, batchOf()) }), storage })
+    const view = await blocked.load()
+    assert.equal(all(view, item => item.type === 'div' && item.props.role === 'status').length, 0)
+    await startImport(blocked)
+    assert.match(noticeText(blocked.view()), /^Imported 3 session IDs/, 'the import itself is unaffected')
+  }
+  const world = mountPage({ shell })
+  const lib = world.loader.load(LIB)
+  const bad = [['corrupt', '{not json'], ['wrong version', JSON.stringify({ v: 2, startedAt: CLOCK0, activeAt: CLOCK0 })], ['no times', JSON.stringify({ v: 1 })], ['expired', JSON.stringify({ v: 1, startedAt: CLOCK0 - 30 * 60 * MIN, activeAt: CLOCK0 - 25 * 60 * MIN })], ['not an object', '7']]
+  for (const [label, raw] of bad) {
+    const browser = sharedBrowser()
+    browser.storage.map.set(lib.IMPORT_MARKER_PREFIX + lib.ownerTag(OWNER), raw)
+    const page = mountPage({ shell, server: createServer(), ...browser })
+    const view = await page.load()
+    assert.equal(all(view, item => item.type === 'div' && item.props.role === 'status').length, 0, label)
+    assert.equal(browser.storage.map.size, 0, `${label}: the unusable marker is removed`)
+  }
+})
+
+check('S1: flag on, a marker alone never starts an import; a reload mid-import does not repeat requests', async ({ shell }) => {
+  const browser = sharedBrowser()
+  const server = createServer({ backfill: hang })
+  const world = mountPage({ shell, server, ...browser })
+  await world.load(); await startImport(world)
+  for (let i = 0; i < 3; i++) { world.reload(); await world.load() }
+  assert.equal(server.count('backfill'), 1)
+})
+
+check('S1: flag on, leaving the page keeps the marker; a newer import in another tab keeps its own marker when this one ends', async ({ shell }) => {
+  const browser = sharedBrowser()
+  let release
+  const server = createServer({ backfill: () => new Promise(resolve => { release = () => resolve(respond(200, batchOf())) }) })
+  const world = mountPage({ shell, server, ...browser })
+  await world.load(); await startImport(world)
+  assert.ok(readMarker(world))
+  world.unmount()
+  release(); await settle(20)
+  assert.ok(readMarker(world), 'an import cut short by leaving the page keeps its marker')
+
+  // another tab's newer import
+  const tabA = sharedBrowser()
+  let releaseA
+  const a = mountPage({ shell, server: createServer({ backfill: () => new Promise(resolve => { releaseA = () => resolve(respond(200, batchOf())) }) }), ...tabA })
+  await a.load(); await startImport(a)
+  const lib = a.loader.load(LIB)
+  const newer = { v: 1, startedAt: tabA.clock.t + 5000, activeAt: tabA.clock.t + 5000 }
+  tabA.storage.map.set(lib.IMPORT_MARKER_PREFIX + lib.ownerTag(OWNER), JSON.stringify(newer))
+  releaseA(); await settle(20)
+  assert.deepEqual(readMarker(a), newer, 'the first import ending does not erase the newer import\'s marker')
+})
+
+check('S1: flag off writes and reads no marker and shows no notice after a reload', async ({ shell }) => {
+  const browser = sharedBrowser()
+  const world = mountPage({ flag: false, shell, server: createServer({ backfill: hang }), ...browser })
+  await world.load(); await startImport(world)
+  world.reload()
+  const tree = await world.load()
+  assert.deepEqual(browser.storage.log, [])
+  assert.equal(all(tree, item => item.type === 'div' && item.props.role === 'status').length, 0)
+})
+
+check('S1: marker states and texts', async () => {
+  const lib = mountPage().loader.load(LIB)
+  const marker = { v: 1, startedAt: CLOCK0, activeAt: CLOCK0 }
+  assert.equal(lib.importMarkerState(marker, CLOCK0 + 10 * MIN), 'running')
+  assert.equal(lib.importMarkerState(marker, CLOCK0 + 10 * MIN + 1), 'interrupted')
+  assert.equal(lib.importMarkerState(marker, CLOCK0 - 5 * MIN), 'running', 'a clock set back is not an interruption')
+  assert.equal(lib.resumedImportNotice(marker, CLOCK0 + 2 * MIN).kind, 'resumed')
+  assert.equal(lib.resumedImportNotice(marker, CLOCK0 + 20 * MIN).kind, 'interrupted')
+  assert.equal(lib.ownerTag('user:a'), lib.ownerTag('user:a'))
+  assert.match(lib.ownerTag('user:a'), /^[0-9a-f]{8}$/)
+})
+
+const MARKER_KEY_RE = /deckster:knowledge:import-marker:v1:/
+mutant('no marker is written when an import starts', { [PAGE]: [['if (KNOWLEDGE_FIXES) writeImportMarker(markerOwner, markerStartedAt, markerStartedAt)', '']] })
+mutant('the marker is not refreshed after a batch', { [PAGE]: [['if (KNOWLEDGE_FIXES) touchImportMarker(markerOwner, markerStartedAt)', '']] })
+mutant('the marker is not cleared when the import finishes', { [PAGE]: [['if (KNOWLEDGE_FIXES) clearImportMarker(markerOwner, markerStartedAt)', '']] })
+mutant('the marker is cleared even by an import cut short by leaving the page', { [PAGE]: [['      if (await admitted() && isCurrent()) {\n        // Flag on: the import finished', '      if (KNOWLEDGE_FIXES) clearImportMarker(markerOwner)\n      if (await admitted() && isCurrent()) {\n        // Flag on: the import finished']] })
+mutant('an import ending clears the newer import\'s marker', { [LIB]: [['      if (marker && marker.startedAt !== startedAt) return\n', '']] })
+mutant('a batch revives or rewrites another import\'s marker', { [LIB]: [['if (marker && marker.startedAt === startedAt) writeImportMarker(owner, startedAt, now, store)', 'writeImportMarker(owner, startedAt, now, store)']] })
+mutant('the marker is shared by every account', { [LIB]: [['  return hash.toString(16).padStart(8, "0")', '  return "shared"']] })
+mutant('the marker key carries the account key', { [LIB]: [['  let hash = 0x811c9dc5', '  return accountKey\n  let hash = 0x811c9dc5']] })
+mutant('blocked storage breaks the page', { [LIB]: [['    return typeof window === "undefined" ? null : window.localStorage\n  } catch {\n    return null\n  }', '    return typeof window === "undefined" ? null : window.localStorage\n  } finally {\n  }']] })
+mutant('a corrupt marker is believed', { [LIB]: [['if (!isRecord(parsed) || parsed.v !== 1 || typeof parsed.startedAt !== "number" || typeof parsed.activeAt !== "number") {', 'if (false) {']] })
+mutant('an old marker is never forgotten', { [LIB]: [['if (now - parsed.activeAt > IMPORT_MARKER_MAX_AGE_MS) {', 'if (false) {']] })
+mutant('every marker reads as still running', { [LIB]: [['return now - marker.activeAt <= IMPORT_FRESH_MS ? "running" : "interrupted"', 'return "running"']] })
+mutant('every marker reads as interrupted', { [LIB]: [['return now - marker.activeAt <= IMPORT_FRESH_MS ? "running" : "interrupted"', 'return "interrupted"']] })
+mutant('the notice is not shown on return', { [PAGE]: [['    setImportNotice({ tone: "neutral", kind: found.kind, text: found.text })', '']] })
+mutant('the marker is read with the flag off', { [PAGE]: [['    if (!KNOWLEDGE_FIXES || importActiveRef.current) return\n    const marker', '    if (importActiveRef.current) return\n    const marker']] })
+mutant('the marker is written with the flag off', { [PAGE]: [['if (KNOWLEDGE_FIXES) writeImportMarker(markerOwner, markerStartedAt, markerStartedAt)', 'writeImportMarker(markerOwner, markerStartedAt, markerStartedAt)']] })
+mutant('no Refresh in the "may still be running" notice', { [PAGE]: [['{KNOWLEDGE_FIXES && importNotice.kind === "resumed" && (', '{false && importNotice.kind === "resumed" && (']] })
+mutant('dismissing an interrupted notice keeps its marker', { [PAGE]: [['if (KNOWLEDGE_FIXES && importNotice.kind === "interrupted") clearImportMarker(ownerTag(operationOwner));', '']] })
+mutant('dismissing any notice forgets the marker', { [PAGE]: [['if (KNOWLEDGE_FIXES && importNotice.kind === "interrupted") clearImportMarker(ownerTag(operationOwner));', 'if (KNOWLEDGE_FIXES) clearImportMarker(ownerTag(operationOwner));']] })
 
 // ===========================================================================================================================================
 // flag off = the base, byte for byte: render hashes over a matrix of states (markup, requests, console, storage)
