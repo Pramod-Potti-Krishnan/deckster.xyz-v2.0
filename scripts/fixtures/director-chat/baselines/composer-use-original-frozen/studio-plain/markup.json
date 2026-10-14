@@ -1,0 +1,22 @@
+{
+  "01-composer-deck-adopted": {
+    "chat": "9f7e0a93f556391a392a9674840a0e9ee835d4092fb948e10df822d8f233e7d8",
+    "header": "8115c620e51ebe5ecec9fb6cd6f2bc48326707f5b03a68d3b7fa9920773f27ad",
+    "notice": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+  },
+  "02-frozen-after-theme-pick-and-generate": {
+    "chat": "9f7e0a93f556391a392a9674840a0e9ee835d4092fb948e10df822d8f233e7d8",
+    "header": "8115c620e51ebe5ecec9fb6cd6f2bc48326707f5b03a68d3b7fa9920773f27ad",
+    "notice": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+  },
+  "03-still-frozen-after-reconnect": {
+    "chat": "9f7e0a93f556391a392a9674840a0e9ee835d4092fb948e10df822d8f233e7d8",
+    "header": "8115c620e51ebe5ecec9fb6cd6f2bc48326707f5b03a68d3b7fa9920773f27ad",
+    "notice": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+  },
+  "04-final": {
+    "chat": "9f7e0a93f556391a392a9674840a0e9ee835d4092fb948e10df822d8f233e7d8",
+    "header": "8115c620e51ebe5ecec9fb6cd6f2bc48326707f5b03a68d3b7fa9920773f27ad",
+    "notice": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+  }
+}

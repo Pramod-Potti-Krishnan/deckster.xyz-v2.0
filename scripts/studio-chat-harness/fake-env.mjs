@@ -147,6 +147,8 @@ export function createFetch(env) {
     if (/^\/api\/director\/ws-token\?session_id=[^&]+$/.test(url)) {
       return { ok: true, status: 200, json: async () => ({ auth_enabled: false }) }
     }
+    // Only fixtures with `"elementPreflight": true` install a synthetic Text Labs (transcript.mjs); everything else stays refused.
+    if (env.textLabs && url.startsWith(`${env.textLabs.base}/`)) return env.textLabs.answer(url, init)
     env.blockedNetwork.push(url)
     throw new Error(`harness: network disabled (${url.slice(0, 80)})`)
   }
@@ -156,7 +158,7 @@ export function createEnvironment({ processEnv }) {
   const env = {
     clock: new VirtualClock(),
     sockets: [], handshakes: [], outbound: [], clientCloses: [], fetches: [], blockedNetwork: [],
-    consoleEvents: [], windowOpens: [], autoPong: true,
+    consoleEvents: [], windowOpens: [], autoPong: true, textLabs: null,
     sessionStorage: createStorage(), localStorage: createStorage(),
     settle: async () => {},
   }

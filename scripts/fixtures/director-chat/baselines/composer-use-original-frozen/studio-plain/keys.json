@@ -1,0 +1,34 @@
+[
+  {
+    "checkpoint": "01-composer-deck-adopted",
+    "hookMessageIds": [],
+    "keys": [
+      {"action":null,"buttons":3,"empty":false,"inputs":0,"key":null,"role":null,"tag":"section"},
+      {"action":null,"buttons":0,"empty":false,"inputs":0,"key":null,"role":null,"tag":"div"}
+    ]
+  },
+  {
+    "checkpoint": "02-frozen-after-theme-pick-and-generate",
+    "hookMessageIds": [],
+    "keys": [
+      {"action":null,"buttons":3,"empty":false,"inputs":0,"key":null,"role":null,"tag":"section"},
+      {"action":null,"buttons":0,"empty":false,"inputs":0,"key":null,"role":null,"tag":"div"}
+    ]
+  },
+  {
+    "checkpoint": "03-still-frozen-after-reconnect",
+    "hookMessageIds": [],
+    "keys": [
+      {"action":null,"buttons":3,"empty":false,"inputs":0,"key":null,"role":null,"tag":"section"},
+      {"action":null,"buttons":0,"empty":false,"inputs":0,"key":null,"role":null,"tag":"div"}
+    ]
+  },
+  {
+    "checkpoint": "04-final",
+    "hookMessageIds": [],
+    "keys": [
+      {"action":null,"buttons":3,"empty":false,"inputs":0,"key":null,"role":null,"tag":"section"},
+      {"action":null,"buttons":0,"empty":false,"inputs":0,"key":null,"role":null,"tag":"div"}
+    ]
+  }
+]

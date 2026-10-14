@@ -227,7 +227,7 @@ function toolbarRenderer(src) {
       currentSlide: 1, totalSlides: 7, slideCount: 7, visualTotalSlides: 7, syncedFooterTotal: () => 7, toolbarOffset: 0,
       authoringStripRef: { current: null }, viewerInteractionIntentRef: { current: 0 }, toolbarDropdownPortalContainer: null,
       downloadControls: 'DOWNLOAD', onOpenGenerationPanel: record(), onGenerateSlide: record(), onSelectTemplate: record(),
-      onTemplateModeChange: record(), onVersionSwitch: record(), handleAddSlide: record(), handleFullscreen: record(),
+      onTemplateModeChange: record(), onComposerTemplateAction: undefined, onOpenComposerLibrary: undefined, onVersionSwitch: record(), handleAddSlide: record(), handleFullscreen: record(),
       handleInsertTable: record(), handleInsertChart: record(), handleInsertTextBox: record(), handleInsertImage: record(), handleInsertInfographic: record(), handleInsertDiagram: record(),
       handleSaveChanges: record(), handleToggleBorders: record(), handleToggleEditModeButton: record(), handleToggleGrid: record(),
       setShowPresentationSettings: record(), setShowTemplateIngest: record(), setShowTemplateSave: record(), setShowThemePanel: record(), setTheme: record(),
@@ -360,7 +360,9 @@ const SURFACE_CHECKS = {
   },
   dialog: async src => { for (const flag of OFF_DIGEST_VALUES) assert.equal(await dialogDigest(src, flag), GOLDEN.dialog, `dialog, flag=${JSON.stringify(flag)}`) },
   // Not pinned to the base's bytes (other work changes this page); what matters is that this feature adds nothing to it.
-  builderPage: src => { assert.doesNotMatch(src.builderPage, /studio-template-workspace|StudioTemplateWorkspace|NEXT_PUBLIC_STUDIO_TEMPLATE_WORKSPACE/) },
+  // The one change the page carries (toolbar template picker fix-forward): it reads the flag once, to hand the composer library's action callback to the
+  // picker and the dialog (see test-studio-toolbar-template-list.mjs). Those lines are set aside; nothing else may name the workspace.
+  builderPage: src => { assert.doesNotMatch(src.builderPage.split('\n').filter(line => !/studioTemplateWorkspace|Toolbar template picker fix-forward/.test(line)).join('\n'), /studio-template-workspace|StudioTemplateWorkspace|NEXT_PUBLIC_STUDIO_TEMPLATE_WORKSPACE/) },
 }
 
 await run('flag off (unset, "false" or any non-"true" value): the builder header renders byte-for-byte as the base (512 states)', () => SURFACE_CHECKS.header(SOURCES))

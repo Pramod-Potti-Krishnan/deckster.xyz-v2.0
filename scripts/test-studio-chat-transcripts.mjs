@@ -88,7 +88,7 @@ for (const fixture of fixtures) {
     const label = `${fixture.name}/${profile}`
     let result
     try {
-      result = await runTranscript({ root, fixture, profile, processEnv: { ...PROFILES[profile], ...extraEnv }, includeMarkup: MARKUP_PROFILES.has(profile), crossCheck: flag('--crosscheck') })
+      result = await runTranscript({ root, fixture, profile, processEnv: { ...PROFILES[profile], ...(fixture.env || {}), ...extraEnv }, includeMarkup: MARKUP_PROFILES.has(profile), crossCheck: flag('--crosscheck') })
     } catch (error) {
       failures++
       failureReports.push(`FAIL ${label}: the transcript could not be replayed\n  ${String(flag('--verbose') ? error.stack : error.message).split('\n').join('\n  ')}`)
