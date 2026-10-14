@@ -183,6 +183,15 @@ import {
   type BuildThemeSelection,
 } from '@/lib/theme-builder'
 import { themeFontFields, themeFontsEqual } from '@/lib/theme-fonts'
+import {
+  advanceThemeRestoreGate,
+  isFreshThemeRestoreGate,
+  restoredThemeSelection,
+  restoredThemeSync,
+  themeRestoreGateFor,
+  themeRestoreHoldsSocketSync,
+  type ThemeRestoreGate,
+} from '@/lib/studio-theme-restore'
 import { getLayoutServiceUrl, LAYOUT_URL_CONFIG_ERROR, LAYOUT_VIEWER_URL_POLICY, getPresentationViewerUrl } from '@/lib/layout-service-client'
 import { ServiceUrlConfigError } from '@/lib/service-url'
 import { evaluateLayoutViewerUrl } from '@/lib/layout-viewer-url-policy'
@@ -667,6 +676,46 @@ function AuthenticatedBuilderContent({ authScopeUserId }: { authScopeUserId: str
     clearTimeout(themeSyncTimeoutRef.current)
     themeSyncTimeoutRef.current = null
   }, [])
+  // THEME-RESET-ON-RECONNECT-P1 (NEXT_PUBLIC_STUDIO_THEME_RESTORE, default off; lib/studio-theme-restore.ts): adopt the
+  // theme Director restores on connect. The gate (per socket and session) holds the socket-ready set_theme until the
+  // restore, or the fallback for a Director that sends none, has arrived. Off: never updated, never read.
+  const [themeRestoreGate, setThemeRestoreGate] = useState<ThemeRestoreGate>(() => themeRestoreGateFor(null))
+  const themeRestoreGateRef = useRef(themeRestoreGate)
+  const themeRestoreSessionRef = useRef<string | null>(null)
+  const commitThemeRestoreGate = useCallback((next: ThemeRestoreGate) => {
+    if (next === themeRestoreGateRef.current) return
+    themeRestoreGateRef.current = next
+    setThemeRestoreGate(next)
+  }, [])
+  // Every frame the socket delivers passes here first (flag on). Returns true for a `restored` theme_sync, which the
+  // ordinary theme_sync handling must not see. A restore never counts as a user pick (themeSelectionChangedLocallyRef).
+  const observeThemeRestoreFrame = useCallback((message: DirectorMessage): boolean => {
+    const step = advanceThemeRestoreGate(themeRestoreGateRef.current, themeRestoreSessionRef.current, message)
+    commitThemeRestoreGate(step.gate)
+    const restore = step.restore
+    // A pick the user made before the restore arrived wins: it was sent once, and this restore changes nothing.
+    if (!restore || themeSelectionChangedLocallyRef.current) return step.consumed
+    const selection = restoredThemeSelection(restore.theme)
+    if (!selection) {
+      // Nothing stored: show Auto, send nothing.
+      setActiveBuildThemeProfile(null)
+      setBuildThemeSelection(current => (current.mode === 'auto' && Object.keys(current).length === 1 ? current : { mode: 'auto' }))
+      return step.consumed
+    }
+    setActiveBuildThemeProfile(current => (buildThemeProfileMatchesSelection(current, selection) ? current : null))
+    setBuildThemeSelection(selection)
+    const sync = restoredThemeSync(restore, selection)
+    if (sync) {
+      // The deck-theme effect then finds this theme current for the presentation and sends nothing.
+      clearThemeSyncTimeout()
+      latestThemeSyncRequestRef.current = sync.requestId
+      latestThemeSyncKeyRef.current = `${sync.presentationId}:${sync.themeFingerprint}`
+      commitThemeSync(sync)
+      // No timer: restoredThemeSync commits applied or failed, never syncing. Another tab's apply in flight is settled
+      // (Director acknowledges an apply only on the socket that asked for it, so this tab would wait for nothing).
+    }
+    return step.consumed
+  }, [clearThemeSyncTimeout, commitThemeRestoreGate, commitThemeSync])
   const standardThemeLoadedRef = useRef(false)
   const buildThemeSelectionRef = useRef(buildThemeSelection)
   const { getStandardTheme } = useThemeProfiles()
@@ -2357,7 +2406,12 @@ function AuthenticatedBuilderContent({ authScopeUserId }: { authScopeUserId: str
       }
     },
     onMessage: (message) => {
+      // THEME-RESET-ON-RECONNECT-P1: the flag is read inline so every harness that runs this handler needs nothing new
+      // while it is off. On: the restore gate sees every frame first and takes Director's `restored` theme_sync.
+      if (process.env.NEXT_PUBLIC_STUDIO_THEME_RESTORE === 'true' && observeThemeRestoreFrame(message)) return
       if (message.type === 'theme_sync') {
+        // A `restored` frame never answers this tab's own request (its request id is Director's); off, it ends here.
+        if (message.payload.status === 'restored') return
         if (message.payload.request_id !== latestThemeSyncRequestRef.current) return
         const terminal = isThemeSyncTerminal(message.payload.status)
         if (terminal) clearThemeSyncTimeout()
@@ -3486,6 +3540,18 @@ function AuthenticatedBuilderContent({ authScopeUserId }: { authScopeUserId: str
     } as const
   }, [studioShell, getThemeSyncSnapshot, requestThemeSyncForPresentation])
 
+  // THEME-RESET-ON-RECONNECT-P1 (NEXT_PUBLIC_STUDIO_THEME_RESTORE): the restore gate belongs to the displayed session and
+  // the current socket. A socket that is not ready (dropped, or not yet open) and a session change start a fresh gate, so
+  // the next socket waits for its own restore. Declared before the deck-theme effect so that, in one commit, it runs first.
+  const themeRestoreSession = currentSessionId || wsSessionId || null
+  themeRestoreSessionRef.current = themeRestoreSession
+  useEffect(() => {
+    if (process.env.NEXT_PUBLIC_STUDIO_THEME_RESTORE !== 'true') return
+    const gate = themeRestoreGateRef.current
+    if (isReady ? gate.sessionId === themeRestoreSession : isFreshThemeRestoreGate(gate, themeRestoreSession)) return
+    commitThemeRestoreGate(themeRestoreGateFor(themeRestoreSession))
+  }, [commitThemeRestoreGate, isReady, themeRestoreSession])
+
   useEffect(() => {
     if (composerThemeBlocked) {
       latestThemeSyncRequestRef.current = null
@@ -3545,6 +3611,12 @@ function AuthenticatedBuilderContent({ authScopeUserId }: { authScopeUserId: str
       return
     }
 
+    // THEME-RESET-ON-RECONNECT-P1 (flag read inline, as in onMessage): no socket-ready set_theme until this socket's
+    // restore (nothing to send then) or the fallback (today's sync) has arrived; a real user pick always goes through.
+    if (
+      process.env.NEXT_PUBLIC_STUDIO_THEME_RESTORE === 'true'
+      && themeRestoreHoldsSocketSync(themeRestoreGateRef.current, themeRestoreSessionRef.current, themeSelectionChangedLocallyRef.current)
+    ) return
     requestThemeSyncForPresentation(effectivePresentationId)
   }, [
     buildThemeSelection,
@@ -3555,6 +3627,8 @@ function AuthenticatedBuilderContent({ authScopeUserId }: { authScopeUserId: str
     requestThemeSyncForPresentation,
     templateModeOn,
     composerThemeBlocked,
+    // Flag on: re-run when the gate opens (the fallback runs today's sync). Off: a constant, so nothing re-runs.
+    process.env.NEXT_PUBLIC_STUDIO_THEME_RESTORE === 'true' ? themeRestoreGate : null,
   ])
 
   useEffect(() => clearThemeSyncTimeout, [clearThemeSyncTimeout])

@@ -399,6 +399,16 @@ export interface ThemeSyncMessage {
     presentation_id?: string | null;
     theme_session_id?: string | null;
     error?: string | null;
+  } | {
+    // THEME-RESET-ON-RECONNECT-P1 (Director DIRECTOR_THEME_RESTORE_ON_CONNECT_ENABLED): the session's stored theme, sent
+    // once per connect before the history replay and the greeting. `theme` is always present (null: nothing stored). Types
+    // only: the reducer still just logs theme_sync; the page adopts it (NEXT_PUBLIC_STUDIO_THEME_RESTORE).
+    request_id: string;
+    status: 'restored';
+    presentation_id?: string | null;
+    theme: Record<string, unknown> | null;
+    applied: boolean;
+    desired_status?: 'syncing' | 'applied' | 'failed' | null;
   };
 }
 

@@ -16,8 +16,8 @@
   {"chars":33,"label":"page.handleBuildThemeChange.deps","sha256":"060a06f880876491"},
   {"chars":2679,"label":"page.requestThemeSyncForPresentation","sha256":"5aec02829210713e"},
   {"chars":60,"label":"page.requestThemeSyncForPresentation.deps","sha256":"bd9744d0a02e8e0b"},
-  {"chars":1658,"label":"page.themeSyncEffect","sha256":"02a5d1aaa5c30358"},
-  {"chars":169,"label":"page.themeSyncEffect.deps","sha256":"a716dd56ec42b50c"},
+  {"chars":2091,"label":"page.themeSyncEffect","sha256":"4200a0906883edff"},
+  {"chars":362,"label":"page.themeSyncEffect.deps","sha256":"03c018ebe41454cb"},
   {"chars":144,"label":"page.themeSyncTargetRef(initial)","sha256":"6b3501dfc0f2b90d"},
   {"chars":144,"label":"page.themeSyncTargetRef.current","sha256":"6b3501dfc0f2b90d"}
 ]

@@ -1,0 +1,259 @@
+{
+ "name": "built-resume-custom",
+ "description": "THEME-2's built-session resume: a built deck whose stored theme is custom + colour overrides + fonts, opened in a fresh tab (sync_response, restored, history, slide_update). Flag on (fonts flag on): the custom theme with its overrides and fonts is adopted as applied and nothing is sent. Base / flag off: a socket-ready {mode:auto}.",
+ "source": "THEME-2 recorded frames (director !485 @ 50772ff, backsafe generator), sha256 59ef57a09d508d91b73a2a8adf54ef4ca4838bc8f9ed69ba855d33e5c5f409fa (built_resume_dedup_on)",
+ "session": {
+  "id": "sess-built",
+  "userId": "synthetic-user-01"
+ },
+ "ackTemplate": [
+  {
+   "type": "theme_sync",
+   "session_id": "sess-themed-cl",
+   "timestamp": "2026-10-13T23:09:31.689734Z",
+   "payload": {
+    "request_id": "__REQ__",
+    "status": "syncing",
+    "presentation_id": "deck-themed-cl",
+    "theme": {
+     "mode": "auto"
+    }
+   }
+  },
+  {
+   "type": "theme_sync",
+   "session_id": "sess-themed-cl",
+   "timestamp": "2026-10-13T23:09:31.689741Z",
+   "payload": {
+    "request_id": "__REQ__",
+    "status": "applied",
+    "presentation_id": "deck-themed-cl",
+    "theme": {
+     "mode": "auto"
+    },
+    "theme_session_id": "ts-ack"
+   }
+  }
+ ],
+ "steps": [
+  {
+   "op": "restore",
+   "session": {
+    "id": "sess-built",
+    "status": "active",
+    "title": "Synthetic session",
+    "geminiStoreName": null,
+    "blankPresentationUrl": null,
+    "blankPresentationId": null,
+    "strawmanPreviewUrl": "https://layout.example.com/p/deck-built",
+    "strawmanPresentationId": "deck-built",
+    "finalPresentationUrl": null,
+    "finalPresentationId": null,
+    "slideCount": 2,
+    "currentStage": 4,
+    "stateCache": {
+     "activeVersion": "strawman",
+     "slideStructure": null
+    },
+    "messages": [
+     {
+      "id": "db-user-0",
+      "messageType": "chat_message",
+      "timestamp": "2026-10-13T09:00:00.000Z",
+      "payload": {
+       "text": "Build a claims automation ROI deck"
+      },
+      "userText": "Build a claims automation ROI deck"
+     },
+     {
+      "id": "db-director-1",
+      "messageType": "chat_message",
+      "timestamp": "2026-10-13T09:00:01.000Z",
+      "payload": {
+       "text": "Here is your deck.",
+       "sub_title": null,
+       "list_items": null
+      }
+     }
+    ]
+   }
+  },
+  {
+   "op": "ensureConnected"
+  },
+  {
+   "op": "open"
+  },
+  {
+   "op": "frames",
+   "frames": [
+    {
+     "message_id": "msg_sync_c2bcc019",
+     "session_id": "sess-built",
+     "timestamp": "2026-10-13T21:56:46.540162Z",
+     "type": "sync_response",
+     "role": "assistant",
+     "payload": {
+      "action": "send_history",
+      "message_count": 2,
+      "current_state": "CONTENT_GENERATED",
+      "has_strawman": true,
+      "presentation_url": "https://layout.example.com/p/deck-built",
+      "presentation_id": "deck-built",
+      "slide_count": 2
+     }
+    },
+    {
+     "type": "theme_sync",
+     "session_id": "sess-built",
+     "timestamp": "2026-10-13T21:56:46.541893Z",
+     "payload": {
+      "request_id": "restore:sess-built:req-9",
+      "status": "restored",
+      "presentation_id": "deck-built",
+      "theme": {
+       "mode": "custom",
+       "primary_hex": "#0A7D4F",
+       "secondary_hex": "#C2410C",
+       "color_overrides": {
+        "accent": "#FFAA00"
+       },
+       "font_family": "Inter",
+       "font_family_heading": "Playfair Display"
+      },
+      "applied": true,
+      "desired_status": "applied"
+     }
+    },
+    {
+     "message_id": "msg_hist_2420c71976e9",
+     "session_id": "sess-built",
+     "timestamp": "2026-10-13T09:00:00Z",
+     "type": "chat_message",
+     "role": "user",
+     "payload": {
+      "text": "Build a claims automation ROI deck",
+      "sub_title": null,
+      "list_items": null,
+      "format": "markdown",
+      "ephemeral": false
+     }
+    },
+    {
+     "message_id": "msg_hist_b027ecd2ef7e",
+     "session_id": "sess-built",
+     "timestamp": "2026-10-13T09:00:01Z",
+     "type": "chat_message",
+     "role": "assistant",
+     "payload": {
+      "text": "Here is your deck.",
+      "sub_title": null,
+      "list_items": null,
+      "format": "markdown",
+      "ephemeral": false
+     }
+    },
+    {
+     "message_id": "msg_55a025be",
+     "session_id": "sess-built",
+     "timestamp": "2026-10-13T21:56:46.542035Z",
+     "type": "slide_update",
+     "role": "assistant",
+     "payload": {
+      "operation": "full_update",
+      "metadata": {
+       "main_title": "Claims ROI",
+       "overall_theme": "professional",
+       "design_suggestions": "",
+       "target_audience": "general",
+       "presentation_duration": 15,
+       "preview_url": "https://layout.example.com/p/deck-built",
+       "preview_presentation_id": "deck-built"
+      },
+      "slides": [
+       {
+        "slide_id": "s1",
+        "slide_number": 1,
+        "slide_type": "content",
+        "title": "Why now",
+        "subtitle": null,
+        "narrative": "Key content about Why now",
+        "key_points": [],
+        "variant_id": null,
+        "service": null,
+        "purpose": null,
+        "semantic_group": null,
+        "analytics_needed": null,
+        "visuals_needed": null,
+        "diagrams_needed": null,
+        "structure_preference": "H1",
+        "container_layout": null,
+        "speaker_notes": null
+       },
+       {
+        "slide_id": "s2",
+        "slide_number": 2,
+        "slide_type": "content",
+        "title": "Savings",
+        "subtitle": null,
+        "narrative": "Key content about Savings",
+        "key_points": [],
+        "variant_id": null,
+        "service": null,
+        "purpose": null,
+        "semantic_group": null,
+        "analytics_needed": null,
+        "visuals_needed": null,
+        "diagrams_needed": null,
+        "structure_preference": "C1",
+        "container_layout": null,
+        "speaker_notes": null
+       }
+      ],
+      "affected_slides": null,
+      "is_blank": false
+     }
+    }
+   ]
+  },
+  {
+   "op": "themeAck"
+  },
+  {
+   "op": "advance",
+   "ms": 25000
+  },
+  {
+   "op": "checkpoint",
+   "label": "built deck resumed"
+  },
+  {
+   "op": "expect",
+   "on": {
+    "setTheme": 0,
+    "themeSyncStatus": "applied",
+    "gatePhase": "restored",
+    "selection": {
+     "mode": "custom",
+     "primary_hex": "#0A7D4F",
+     "color_overrides": {
+      "accent": "#FFAA00"
+     },
+     "secondary_hex": "#C2410C",
+     "font_family": "Inter",
+     "font_family_heading": "Playfair Display"
+    }
+   },
+   "off": {
+    "setTheme": 1,
+    "lastSetTheme": {
+     "mode": "auto"
+    }
+   }
+  }
+ ],
+ "env": {
+  "NEXT_PUBLIC_LAYOUT_SERVICE_URL": "https://layout.example.com",
+  "NEXT_PUBLIC_THEME_FONT_SELECTION_ENABLED": "true"
+ }
+}
