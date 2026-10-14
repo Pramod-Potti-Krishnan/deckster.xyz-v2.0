@@ -74,6 +74,7 @@ import { slideTitleLabel } from '@/lib/studio-slide-title-label'
 import { useSlideRailIdentity } from '@/hooks/use-slide-rail-identity'
 import { STUDIO_RAIL_SLIDE_IDENTITY_ENABLED } from '@/lib/slide-rail-identity'
 import { STUDIO_DECK_MUTATION_REFRESH_ENABLED, onSlideRailRefreshRequest } from '@/lib/studio-deck-mutation-refresh'
+import { STUDIO_DECK_CHANGED_NOTICE_ENABLED, reportDeckChange, reportLayoutCommandAck, reportOwnDeckEdit, reportViewerDeckState } from '@/lib/studio-deck-changed-notice'
 import { STUDIO_SLIDE_RAIL_V2, SLIDE_RAIL_V2_DEFAULT_WIDTH } from '@/lib/studio-slide-rail-v2'
 import { STUDIO_TOP_BAR_V2_ENABLED, publishStudioDeckSaveState } from '@/lib/studio-top-bar-v2'
 import {
@@ -539,6 +540,7 @@ function sendCommand(
           settle(() => {
             resolve(event.data)
           })
+          reportLayoutCommandAck(action) // NEXT_PUBLIC_STUDIO_DECK_CHANGED_NOTICE: other tabs hear about deck-changing acks (no-op with the flag off)
         } else {
           settle(() => {
             reject(new Error(event.data.error || 'Command failed'))
@@ -1443,6 +1445,18 @@ export function PresentationViewer({
     if (!STUDIO_DECK_MUTATION_REFRESH_ENABLED || !presentationId) return
     return onSlideRailRefreshRequest(id => { if (id === presentationId) slideRailRefreshRef.current() })
   }, [presentationId])
+  // NEXT_PUBLIC_STUDIO_DECK_CHANGED_NOTICE: "Reload deck" asks for the same re-read. Its own effect, so the S-03 one above is untouched
+  // (with S-03 on that one already listens; this one stays out of the way).
+  useEffect(() => {
+    if (STUDIO_DECK_MUTATION_REFRESH_ENABLED || !STUDIO_DECK_CHANGED_NOTICE_ENABLED || !presentationId) return
+    return onSlideRailRefreshRequest(id => { if (id === presentationId) slideRailRefreshRef.current() })
+  }, [presentationId])
+  // NEXT_PUBLIC_STUDIO_DECK_CHANGED_NOTICE: hand the page what only the viewer knows (the slide count on screen, unsaved edits).
+  useEffect(() => {
+    if (!STUDIO_DECK_CHANGED_NOTICE_ENABLED) return
+    reportViewerDeckState({ presentationId: presentationId ?? null, slideCount: iframeReady && totalSlides > 0 ? totalSlides : null, unsaved: saveStatus !== 'saved' })
+  }, [presentationId, iframeReady, totalSlides, saveStatus])
+  useEffect(() => () => { reportViewerDeckState(null) }, [])
 
   // Extract slide thumbnails from slideStructure
   // Use totalSlides when: CRUD ops occurred, OR slideStructure is stale/missing
@@ -3155,6 +3169,7 @@ export function PresentationViewer({
         // Elementor auto-injects content - trigger iframe refresh to show it
         if (data.injected) {
           triggerIframeRefresh()
+          reportLayoutCommandAck(action) // NEXT_PUBLIC_STUDIO_DECK_CHANGED_NOTICE: Elementor injected an element into the deck
         }
 
         return {
@@ -3815,6 +3830,7 @@ export function PresentationViewer({
         if (status !== 'saved') {
           if (studioShell) viewerInteractionIntentRef.current += 1
           nativeSnapshotDirtyRef.current = true
+          reportOwnDeckEdit() // NEXT_PUBLIC_STUDIO_DECK_CHANGED_NOTICE: this tab's own autosave is not "another tab" (no-op with the flag off)
         }
         else if (event.data.hasPendingChanges === false) nativeSnapshotDirtyRef.current = false
         setNativeSnapshotSafetyRevision(value => value + 1)
@@ -3949,6 +3965,7 @@ export function PresentationViewer({
 
       if (event.data.type === 'elementDeleted') {
         if (studioShell) viewerInteractionIntentRef.current += 1
+        reportDeckChange('element') // NEXT_PUBLIC_STUDIO_DECK_CHANGED_NOTICE (no-op with the flag off)
         const elementId = event.data.elementId as string
         if (elementId) onElementDeleted?.(elementId)
         debugLog(`🎯 Element deleted: ${elementId}`)
