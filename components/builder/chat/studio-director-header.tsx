@@ -26,14 +26,14 @@ const CONNECTION_LABELS: Record<StudioDirectorConnectionState, string> = {
 
 /**
  * PASS2-DIRECTOR-CHAT PR C (flag NEXT_PUBLIC_STUDIO_CHAT_HEADER, default off): the connection in plain words, from state the
- * hook already reports (`connectionState`, `reconnectStatus`). Nothing is inferred: "Ready to help" only while the socket is
+ * hook already reports (`connectionState`, `reconnectStatus`). Nothing is inferred: "Connected" only while the socket is
  * open, and the three waiting/failed phrases only for the hook's own `scheduled`, `paused_offline` and `exhausted`.
  */
 function chatHeaderConnection(
   connectionState: StudioDirectorConnectionState,
   reconnectStatus: DirectorReconnectStatus | undefined,
 ): { tone: string; text: string } {
-  if (connectionState === "connected") return { tone: "ready", text: "Ready to help" }
+  if (connectionState === "connected") return { tone: "ready", text: "Connected" }
   if (reconnectStatus === "scheduled") return { tone: "reconnecting", text: "Reconnecting…" }
   if (reconnectStatus === "paused_offline") return { tone: "offline", text: "Offline, will retry" }
   if (reconnectStatus === "exhausted") return { tone: "failed", text: "Couldn't reconnect" }
