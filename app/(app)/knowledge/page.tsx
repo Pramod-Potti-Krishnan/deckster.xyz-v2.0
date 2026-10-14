@@ -1,6 +1,6 @@
 "use client"
 
-import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react"
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactNode } from "react"
 import Link from "next/link"
 import { StudioIntroReplay } from "@/components/studio-intro-replay"
 import "@/components/studio-libraries/destination-intros.css"
@@ -27,6 +27,8 @@ import {
 import { useKnowledgeGraph } from "@/hooks/use-knowledge-graph"
 import { KgGraphView, typeColor } from "@/components/knowledge/kg-graph-view"
 import { StudioKnowledgeInspector } from "@/components/knowledge/studio-knowledge-inspector"
+import { KnowledgeSectionBoundary } from "@/components/knowledge/knowledge-section-boundary"
+import { normalizeKgGraph, normalizeKgStats } from "@/lib/studio-knowledge-fixes"
 import type { KgGraphPresentationState, KgViewEdge, KgViewNode } from "@/components/knowledge/kg-graph-view"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -35,6 +37,8 @@ import "@/components/knowledge/studio-knowledge.css"
 
 export const dynamic = "force-dynamic"
 const STUDIO_SHELL = process.env.NEXT_PUBLIC_STUDIO_V4_SHELL === "true"
+// J6 pass-2 fixes (card PASS2-J6-FINDINGS). Exact "true" enables them; default off, and then the page is exactly as before.
+const KNOWLEDGE_FIXES = process.env.NEXT_PUBLIC_STUDIO_KNOWLEDGE_FIXES === "true"
 
 interface KgStats {
   node_count: number
@@ -90,6 +94,11 @@ interface KgNodeDetail {
 }
 
 type ImportNotice = { tone: "success" | "error" | "neutral"; text: string }
+
+// Evaluates a section's markup while rendering as ITS OWN component, so an error thrown by the expression is caught by the section's boundary.
+function LazySection({ render }: { render: () => ReactNode }) {
+  return <>{render()}</>
+}
 
 function formatNumber(value: number | undefined): string {
   return new Intl.NumberFormat().format(value ?? 0)
@@ -447,7 +456,10 @@ export default function KnowledgePage() {
   // Account identity is a React ownership boundary. Switching users remounts
   // the workspace synchronously, so graph/search/selection state from the
   // previous account can never be rendered while the new account resolves.
-  return <KnowledgePageForAccount key={kg.accountKey} kg={kg} />
+  const account = <KnowledgePageForAccount key={kg.accountKey} kg={kg} />
+  // Flag on: the whole-page safety net. A render error nobody anticipated shows a plain notice with "Try again" in the page's place,
+  // not Next's application-error screen (which replaces the whole app).
+  return KNOWLEDGE_FIXES ? <KnowledgeSectionBoundary label="Second Brain page" page resetKey={kg.accountKey}>{account}</KnowledgeSectionBoundary> : account
 }
 
 function KnowledgePageForAccount({ kg }: { kg: KnowledgeGraphAccess }) {
@@ -617,8 +629,12 @@ function KnowledgePageForAccount({ kg }: { kg: KnowledgeGraphAccess }) {
         graphResponse.json() as Promise<KgGraphData>,
       ])
       if (await admitted() && isCurrent()) {
-        setStats(current => isCurrent() ? nextStats : current)
-        setGraph(current => isCurrent() && !sameKnowledgeSnapshot(current, nextGraph) ? nextGraph : current)
+        // Flag on: a response missing nodes_by_type / top_entities / nodes / edges is treated as empty instead of crashing the render.
+        const loadedStats = KNOWLEDGE_FIXES ? normalizeKgStats(nextStats) : nextStats
+        const loadedGraph = KNOWLEDGE_FIXES ? normalizeKgGraph(nextGraph) : nextGraph
+        if (KNOWLEDGE_FIXES && !loadedGraph) throw new Error("Your knowledge graph could not be loaded.")
+        setStats(current => isCurrent() ? loadedStats : current)
+        setGraph(current => isCurrent() && !sameKnowledgeSnapshot(current, loadedGraph) ? loadedGraph : current)
       }
     } catch (error) {
       if (await admitted() && isCurrent()) {
@@ -897,6 +913,11 @@ function KnowledgePageForAccount({ kg }: { kg: KnowledgeGraphAccess }) {
   const selectedMapNode = selectedId ? graph?.nodes.find(node => node.node_id === selectedId) : undefined
   const selectionOutsideMap = Boolean(selectedId && graph && !filteredGraph?.nodes.some(node => node.node_id === selectedId))
 
+  // Flag on: a render error inside one section shows a plain notice in that section's place; the rest of the page keeps working.
+  // Flag off: returns the node untouched.
+  const guardSection = (label: string, node: ReactNode, resetKey?: unknown) =>
+    KNOWLEDGE_FIXES ? <KnowledgeSectionBoundary label={label} resetKey={resetKey}>{node}</KnowledgeSectionBoundary> : node
+
   const summaryCards = (
 <section data-studio-knowledge-role="summary" className="mb-4 grid gap-3 sm:grid-cols-2 xl:grid-cols-4" aria-label="Knowledge graph summary">
         {dataLoading && !stats ? (
@@ -913,7 +934,7 @@ function KnowledgePageForAccount({ kg }: { kg: KnowledgeGraphAccess }) {
         )}
       </section>
   )
-  const typeFilters = (
+  const renderTypeFilters = () => (
 stats && stats.nodes_by_type.length > 0 && (
               <div data-studio-knowledge-role="filters" className="mt-4 flex flex-wrap gap-1.5" aria-label="Filter entities by type">
                 {stats.nodes_by_type.map((item) => {
@@ -951,6 +972,10 @@ stats && stats.nodes_by_type.length > 0 && (
               </div>
             )
   )
+  // Flag on: evaluated inside its own boundary, so a bad field here cannot throw from the page body itself.
+  const typeFilters = KNOWLEDGE_FIXES
+    ? <KnowledgeSectionBoundary label="type filters" resetKey={stats}><LazySection render={renderTypeFilters} /></KnowledgeSectionBoundary>
+    : renderTypeFilters()
   const headerContext = <>
 <p data-studio-knowledge-role="description" className="mt-1 max-w-2xl text-sm text-slate-600 dark:text-slate-400">
             Explore the entities, relationships, and source evidence accumulated from the decks you chose to connect.
@@ -1008,7 +1033,7 @@ stats && stats.nodes_by_type.length > 0 && (
         </div>
       )}
 
-      {STUDIO_SHELL ? <details data-studio-knowledge-role="summary-disclosure"><summary><span>Knowledge summary</span><span>{stats ? `${formatNumber(stats.node_count)} entities · ${formatNumber(stats.edge_count)} relations · ${formatNumber(stats.evidence_count)} evidence · ${formatNumber(stats.sessions_consolidated)} sessions` : dataLoading ? "Loading counts…" : "Counts not loaded"}</span></summary>{summaryCards}</details> : summaryCards}
+      {guardSection("summary", STUDIO_SHELL ? <details data-studio-knowledge-role="summary-disclosure"><summary><span>Knowledge summary</span><span>{stats ? `${formatNumber(stats.node_count)} entities · ${formatNumber(stats.edge_count)} relations · ${formatNumber(stats.evidence_count)} evidence · ${formatNumber(stats.sessions_consolidated)} sessions` : dataLoading ? "Loading counts…" : "Counts not loaded"}</span></summary>{summaryCards}</details> : summaryCards, stats)}
 
       {loadError && (
         <section data-studio-knowledge-role={STUDIO_SHELL ? "load-error" : undefined} role={STUDIO_SHELL ? "alert" : undefined} className="mb-4 flex flex-col items-start justify-between gap-3 rounded-2xl border border-amber-200 bg-amber-50 p-4 sm:flex-row sm:items-center dark:border-amber-900/60 dark:bg-amber-950/30">
@@ -1131,7 +1156,7 @@ stats && stats.nodes_by_type.length > 0 && (
               </div>
             )}
 
-            {filteredGraph && filteredGraph.nodes.length > 0 && (
+            {filteredGraph && filteredGraph.nodes.length > 0 && guardSection("knowledge map", (
               <KgGraphView
                 key={presentationContext.generation}
                 nodes={filteredGraph.nodes}
@@ -1140,7 +1165,7 @@ stats && stats.nodes_by_type.length > 0 && (
                 onSelect={selectKnowledgeNode}
                 presentation={graphPresentation}
               />
-            )}
+            ), graph)}
 
             {graph && graph.nodes.length > 0 && filteredGraph?.nodes.length === 0 && (
               <div data-studio-knowledge-role={STUDIO_SHELL ? "map-filtered" : undefined} className="flex min-h-[430px] flex-col items-center justify-center rounded-2xl bg-[#070b18] px-6 text-center sm:min-h-[520px]">
@@ -1152,16 +1177,18 @@ stats && stats.nodes_by_type.length > 0 && (
           </div>
         </section>
 
-        <Inspector
-          selected={selected}
-          loading={selectedLoading}
-          error={selectedError}
-          topEntities={stats?.top_entities ?? []}
-          onSelect={selectKnowledgeNode}
-          selectedId={selectedId}
-          onRetry={() => setDetailAttempt(attempt => attempt + 1)}
-          onClear={() => setSelectedId(null)}
-        />
+        {guardSection("entity inspector", (
+          <Inspector
+            selected={selected}
+            loading={selectedLoading}
+            error={selectedError}
+            topEntities={stats?.top_entities ?? []}
+            onSelect={selectKnowledgeNode}
+            selectedId={selectedId}
+            onRetry={() => setDetailAttempt(attempt => attempt + 1)}
+            onClear={() => setSelectedId(null)}
+          />
+        ), selected ?? selectedId)}
       </div>
       <StudioIntroReplay screen="knowledge" autoStart={true} targetSelector='[data-studio-intro-surface="knowledge"]' className="studio-destination-intro-replay" />
     </main>
