@@ -31,6 +31,8 @@ export function pageSources(root) {
   compiled.messageList = jsx('MessageList')
   compiled.header = jsx('StudioDirectorHeader')
   compiled.notice = jsx('StudioDirectorNotice')
+  // NEXT_PUBLIC_STUDIO_ONE_LIVE_TAB: the paused-tab notice and its "Use here" button, where the page has them (the base page does not).
+  compiled.superseded = extract.hasJsxTag(page, 'StudioSupersededNotice') ? jsx('StudioSupersededNotice') : null
   // The composer (PASS2-DIRECTOR-CHAT PR D): every prop expression the page hands <ChatInput>, run by fixtures that opt in (`composer: true`).
   compiled.chatInput = jsx('ChatInput')
 

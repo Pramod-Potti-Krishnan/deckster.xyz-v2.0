@@ -291,6 +291,8 @@ export async function runThemeRestoreTranscript({ root, fixture, mode }) {
     async frame(step) { socketFor(step).serverMessage(JSON.stringify(step.frame)) },
     async frames(step) { for (const frame of step.frames) { socketFor(step).serverMessage(JSON.stringify(frame)); await settle() } },
     async close(step) { socketFor(step).serverClose(step.code ?? 1006, step.reason ?? '') },
+    // The hook's explicit connect(), which the page hands to the paused-tab notice's "Use here" (NEXT_PUBLIC_STUDIO_ONE_LIVE_TAB).
+    async connect() { call('hook.connect', []); probe.latest.ws.connect() },
     async advance(step) { await advance(step.ms) },
     async unmount() { await unmount() },
     // A fresh tab: new page instance, empty sessionStorage (it is per tab).

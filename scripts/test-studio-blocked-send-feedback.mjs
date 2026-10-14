@@ -175,6 +175,7 @@ function gateHarness(root, { flag, lazy = false, call = [], ...overrides }) {
     toast: value => events.push(['toast', value]),
     console: { warn: (...args) => events.push(['warning', ...args]) },
     STUDIO_BLOCKED_SEND_FEEDBACK_ENABLED: flag,
+    oneLiveTabSuperseded: false, // NEXT_PUBLIC_STUDIO_ONE_LIVE_TAB: a tab that is not paused (the gate's first check is then a no-op)
     setBlockedSendNotice: flag
       ? updater => { noticeState = typeof updater === 'function' ? updater(noticeState) : updater; events.push(['notice', noticeState && { id: noticeState.id, kind: noticeState.kind, title: noticeState.title, text: noticeState.text }]) }
       : () => assert.fail('flag off must never touch the notice'),

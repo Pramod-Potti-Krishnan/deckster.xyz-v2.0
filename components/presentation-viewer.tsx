@@ -353,6 +353,9 @@ interface PresentationViewerProps {
   // NEXT_PUBLIC_STUDIO_SESSION_HYGIENE: the user changed the deck's slides by hand (Add / Duplicate / Delete / Reorder). The page
   // passes it only with the flag on and uses it to save the session row on the first such action. Never called by Director.
   onUserDeckEdit?: () => void
+  // NEXT_PUBLIC_STUDIO_ONE_LIVE_TAB: set (a hint sentence) only while this tab is paused because the session is live in another tab.
+  // Add Slide, Add Element, Theme and Template are then disabled with this hint; viewing and moving between slides stay available.
+  studioTabPausedHint?: string
   // J2 v2 (flag NEXT_PUBLIC_STUDIO_ADD_SLIDE_V2_ENABLED): the page's chat/session settings for the Add Slide pop-up.
   addSlideV2Settings?: AddSlideV2Settings<BuildThemeSelection>
   // PASS2 #3 (flag NEXT_PUBLIC_STUDIO_PANEL_FOCUS): the page hides the slide rail while Add Slide / Add Element is open;
@@ -694,6 +697,7 @@ export function PresentationViewer({
   onRefineSlide,
   onGenerateSlide,
   onUserDeckEdit,
+  studioTabPausedHint,
   addSlideV2Settings,
   studioRailCollapsed = false,
   onStudioRailReveal,
@@ -4140,6 +4144,13 @@ export function PresentationViewer({
               </button>
         )
 
+        // NEXT_PUBLIC_STUDIO_ONE_LIVE_TAB: this tab is paused (the session is live in another tab). Undefined/false otherwise, so every
+        // `|| tabPaused` below and every hint is inert and the markup is what it was.
+        const tabPaused = Boolean(studioTabPausedHint)
+        // A disabled button swallows the pointer, so the hint sits on a box around it that receives the hover instead.
+        const tabPausedWrap = (control: React.ReactNode) => tabPaused
+          ? <span title={studioTabPausedHint} data-studio-tab-paused="true" className="inline-flex [&_button]:pointer-events-none">{control}</span>
+          : control
         const authoringControls = (
           <div
               className={cn(
@@ -4149,21 +4160,21 @@ export function PresentationViewer({
               style={!isFullscreen && !studioShell ? { marginLeft: toolbarOffset } : undefined}
             >
               {/* Add Slide */}
-              <SlideLayoutPicker
+              {tabPausedWrap(<SlideLayoutPicker
                 onAddSlide={handleAddSlide}
                 onGenerateSlide={onGenerateSlide}
                 addSlideV2={ADD_SLIDE_V2_ENABLED && addSlideV2Settings ? { settings: addSlideV2Settings, currentSlide, slideCount: totalSlides, theme: buildThemeSelection, slides: addSlideV2Settings.regenerate ? slideThumbnails.map(slide => ({ slideId: slide.slideId ?? null, title: slide.title ?? '' })) : undefined } : undefined}
-                disabled={!viewerIsReady || templateModeOn || isSlideMutationPending}
+                disabled={!viewerIsReady || templateModeOn || isSlideMutationPending || tabPaused}
                 className="min-w-[80px] justify-center"
-              />
+              />)}
 
               {/* Add Element — same Plus icon as Add Slide; label disambiguates */}
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
                   <button
-                    disabled={!viewerIsReady || templateModeOn || isSlideMutationPending}
+                    disabled={!viewerIsReady || templateModeOn || isSlideMutationPending || tabPaused}
                     className={cn(toolbarButtonClass, toolbarBtnBase, "min-w-[96px]")}
-                    title="Add an element"
+                    title={tabPaused ? studioTabPausedHint : "Add an element"}
                   >
                     <Plus className="h-5 w-5" />
                     <span className={cn(toolbarLabelClass, "whitespace-nowrap")}>Add Element</span>
@@ -4210,9 +4221,9 @@ export function PresentationViewer({
                 >
                   <DropdownMenuTrigger asChild>
                     <button
-                      disabled={!viewerIsReady}
+                      disabled={!viewerIsReady || tabPaused}
                       className={cn(toolbarButtonClass, toolbarBtnBase)}
-                      title="Template options"
+                      title={tabPaused ? studioTabPausedHint : "Template options"}
                       aria-label={studioShell ? "Template" : undefined}
                     >
                       <LayoutTemplate className="h-5 w-5" />
@@ -4311,9 +4322,9 @@ export function PresentationViewer({
               {/* Theme — 4th primary build action; sits with its build siblings */}
               <button
                 onClick={() => setShowThemePanel(true)}
-                disabled={!viewerIsReady || templateModeOn}
+                disabled={!viewerIsReady || templateModeOn || tabPaused}
                 className={cn(toolbarButtonClass, toolbarBtnBase)}
-                title="Presentation theme"
+                title={tabPaused ? studioTabPausedHint : "Presentation theme"}
                 aria-label={studioShell ? "Theme" : undefined}
                 data-studio-v4-secondary={studioShell ? "true" : undefined}
               >
@@ -4326,8 +4337,8 @@ export function PresentationViewer({
                   templates, a preview, New topic / Reuse as-is and "Upload a template (.pptx)"; the old menu's Save Template and Template
                   Mode stay in its footer. It shares the divider's slot, so with the flag off every element keeps its place (and its ids). */}
               {studioShell && process.env.NEXT_PUBLIC_STUDIO_TEMPLATE_WORKSPACE === 'true' ? <>
-                <StudioTemplatePicker
-                  disabled={!viewerIsReady}
+                {tabPausedWrap(<StudioTemplatePicker
+                  disabled={!viewerIsReady || tabPaused}
                   triggerClassName={cn(toolbarButtonClass, toolbarBtnBase)}
                   labelClassName={toolbarLabelClass}
                   portalContainer={toolbarDropdownPortalContainer}
@@ -4336,7 +4347,7 @@ export function PresentationViewer({
                   templateMode={templateBuilderEnabled ? { on: templateModeOn, available: templateModeAvailable, toggle: () => { viewerInteractionIntentRef.current += 1; onTemplateModeChange?.(!templateModeOn) } } : null}
                   onComposerTemplateAction={onComposerTemplateAction}
                   onOpenComposerLibrary={onOpenComposerLibrary}
-                />
+                />)}
                 <div className="mx-1 h-6 w-px bg-slate-200 dark:bg-slate-700" aria-hidden="true" />
               </> : <div className="mx-1 h-6 w-px bg-slate-200 dark:bg-slate-700" aria-hidden="true" />}
 

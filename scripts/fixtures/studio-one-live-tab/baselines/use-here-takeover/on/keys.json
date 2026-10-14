@@ -1,0 +1,95 @@
+[
+  {
+    "checkpoint": "01-connected-one-turn-sent",
+    "hookMessageIds": ["msg-greeting","msg-reply"],
+    "keys": [
+      {"action":null,"buttons":0,"empty":false,"inputs":0,"key":"msg-greeting","role":"director","tag":"div"},
+      {"action":null,"buttons":0,"empty":false,"inputs":0,"key":"synthetic-uuid-0001","role":"user","tag":"div"},
+      {"action":null,"buttons":0,"empty":false,"inputs":0,"key":"msg-reply","role":"director","tag":"div"},
+      {"action":null,"buttons":0,"empty":false,"inputs":0,"key":null,"role":null,"tag":"div"}
+    ]
+  },
+  {
+    "checkpoint": "02-evicted-by-another-tab",
+    "hookMessageIds": ["msg-greeting","msg-reply"],
+    "keys": [
+      {"action":null,"buttons":0,"empty":false,"inputs":0,"key":"msg-greeting","role":"director","tag":"div"},
+      {"action":null,"buttons":0,"empty":false,"inputs":0,"key":"synthetic-uuid-0001","role":"user","tag":"div"},
+      {"action":null,"buttons":0,"empty":false,"inputs":0,"key":"msg-reply","role":"director","tag":"div"},
+      {"action":null,"buttons":0,"empty":false,"inputs":0,"key":null,"role":null,"tag":"div"}
+    ]
+  },
+  {
+    "checkpoint": "03-send-blocked-draft-kept",
+    "hookMessageIds": ["msg-greeting","msg-reply"],
+    "keys": [
+      {"action":null,"buttons":0,"empty":false,"inputs":0,"key":"msg-greeting","role":"director","tag":"div"},
+      {"action":null,"buttons":0,"empty":false,"inputs":0,"key":"synthetic-uuid-0001","role":"user","tag":"div"},
+      {"action":null,"buttons":0,"empty":false,"inputs":0,"key":"msg-reply","role":"director","tag":"div"},
+      {"action":null,"buttons":0,"empty":false,"inputs":0,"key":null,"role":null,"tag":"div"}
+    ]
+  },
+  {
+    "checkpoint": "04-use-here-connecting",
+    "hookMessageIds": ["msg-greeting","msg-reply"],
+    "keys": [
+      {"action":null,"buttons":0,"empty":false,"inputs":0,"key":"msg-greeting","role":"director","tag":"div"},
+      {"action":null,"buttons":0,"empty":false,"inputs":0,"key":"synthetic-uuid-0001","role":"user","tag":"div"},
+      {"action":null,"buttons":0,"empty":false,"inputs":0,"key":"msg-reply","role":"director","tag":"div"},
+      {"action":null,"buttons":0,"empty":false,"inputs":0,"key":null,"role":null,"tag":"div"}
+    ]
+  },
+  {
+    "checkpoint": "05-took-the-session-back",
+    "hookMessageIds": ["msg-greeting","msg-reply"],
+    "keys": [
+      {"action":null,"buttons":0,"empty":false,"inputs":0,"key":"msg-greeting","role":"director","tag":"div"},
+      {"action":null,"buttons":0,"empty":false,"inputs":0,"key":"synthetic-uuid-0001","role":"user","tag":"div"},
+      {"action":null,"buttons":0,"empty":false,"inputs":0,"key":"msg-reply","role":"director","tag":"div"},
+      {"action":null,"buttons":0,"empty":false,"inputs":0,"key":null,"role":null,"tag":"div"}
+    ]
+  },
+  {
+    "checkpoint": "06-late-close-of-the-old-socket-ignored",
+    "hookMessageIds": ["msg-greeting","msg-reply"],
+    "keys": [
+      {"action":null,"buttons":0,"empty":false,"inputs":0,"key":"msg-greeting","role":"director","tag":"div"},
+      {"action":null,"buttons":0,"empty":false,"inputs":0,"key":"synthetic-uuid-0001","role":"user","tag":"div"},
+      {"action":null,"buttons":0,"empty":false,"inputs":0,"key":"msg-reply","role":"director","tag":"div"},
+      {"action":null,"buttons":0,"empty":false,"inputs":0,"key":null,"role":null,"tag":"div"}
+    ]
+  },
+  {
+    "checkpoint": "07-sent-from-the-winning-tab",
+    "hookMessageIds": ["msg-greeting","msg-reply"],
+    "keys": [
+      {"action":null,"buttons":0,"empty":false,"inputs":0,"key":"msg-greeting","role":"director","tag":"div"},
+      {"action":null,"buttons":0,"empty":false,"inputs":0,"key":"synthetic-uuid-0001","role":"user","tag":"div"},
+      {"action":null,"buttons":0,"empty":false,"inputs":0,"key":"msg-reply","role":"director","tag":"div"},
+      {"action":null,"buttons":0,"empty":false,"inputs":0,"key":"synthetic-uuid-0002","role":"user","tag":"div"},
+      {"action":null,"buttons":0,"empty":false,"inputs":0,"key":null,"role":null,"tag":"div"}
+    ]
+  },
+  {
+    "checkpoint": "08-paused-again-still-one-eviction-each",
+    "hookMessageIds": ["msg-greeting","msg-reply"],
+    "keys": [
+      {"action":null,"buttons":0,"empty":false,"inputs":0,"key":"msg-greeting","role":"director","tag":"div"},
+      {"action":null,"buttons":0,"empty":false,"inputs":0,"key":"synthetic-uuid-0001","role":"user","tag":"div"},
+      {"action":null,"buttons":0,"empty":false,"inputs":0,"key":"msg-reply","role":"director","tag":"div"},
+      {"action":null,"buttons":0,"empty":false,"inputs":0,"key":"synthetic-uuid-0002","role":"user","tag":"div"},
+      {"action":null,"buttons":0,"empty":false,"inputs":0,"key":null,"role":null,"tag":"div"}
+    ]
+  },
+  {
+    "checkpoint": "09-final",
+    "hookMessageIds": ["msg-greeting","msg-reply"],
+    "keys": [
+      {"action":null,"buttons":0,"empty":false,"inputs":0,"key":"msg-greeting","role":"director","tag":"div"},
+      {"action":null,"buttons":0,"empty":false,"inputs":0,"key":"synthetic-uuid-0001","role":"user","tag":"div"},
+      {"action":null,"buttons":0,"empty":false,"inputs":0,"key":"msg-reply","role":"director","tag":"div"},
+      {"action":null,"buttons":0,"empty":false,"inputs":0,"key":"synthetic-uuid-0002","role":"user","tag":"div"},
+      {"action":null,"buttons":0,"empty":false,"inputs":0,"key":null,"role":null,"tag":"div"}
+    ]
+  }
+]

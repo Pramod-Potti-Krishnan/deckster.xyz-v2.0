@@ -1,0 +1,4 @@
+{"handshake":0,"at":1000,"url":"wss://director.synthetic.invalid/ws?session_id=sess-themed-cl&user_id=synthetic-user-01&skip_history=true&message_count=2&build_control_capability=1"}
+{"handshake":1,"at":65500,"url":"wss://director.synthetic.invalid/ws?session_id=sess-themed-cl&user_id=synthetic-user-01&skip_history=true&message_count=4&build_control_capability=1"}
+{"socket":1,"at":81500,"data":"ping"}
+{"close":1,"code":1005,"reason":""}

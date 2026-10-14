@@ -1,0 +1,98 @@
+[
+  {
+    "args": [
+      {
+        "currentStage": 0,
+        "presentationId": "synthetic-blank-olt",
+        "presentationUrl": "https://layout.synthetic.invalid/p/synthetic-blank-olt",
+        "slideCount": 1
+      }
+    ],
+    "name": "hook.onSessionStateChange",
+    "step": 2
+  },
+  {"args":[{"message_id":"msg-init-blank","type":"presentation_init"}],"name":"hook.onMessage","step":2},
+  {"args":[{"message_id":"msg-greeting","type":"chat_message"}],"name":"hook.onMessage","step":3},
+  {"args":["Build a short deck about ocean currents"],"name":"composer.onInputChange","step":4},
+  {
+    "args": [{"currentTarget":{},"preventDefault":"[fn]","stopPropagation":"[fn]","target":{},"type":"submit"}],
+    "name": "composer.onSubmit",
+    "step": 5
+  },
+  {
+    "args": [
+      "Build a short deck about ocean currents",
+      0,
+      {
+        "deepResearch": false,
+        "extendedGeneration": true,
+        "fileUpload": false,
+        "storeName": null,
+        "useKnowledgeGraph": false,
+        "webSearch": false
+      }
+    ],
+    "name": "page.sendTypedTurn",
+    "step": 5
+  },
+  {
+    "args": [
+      {
+        "message_id": "synthetic-uuid-0001",
+        "payload": {"text":"Build a short deck about ocean currents"},
+        "type": "chat_message"
+      },
+      "Build a short deck about ocean currents"
+    ],
+    "name": "page.persistence.queueMessage",
+    "step": 5
+  },
+  {"args":[{"message_id":"msg-reply","type":"chat_message"}],"name":"hook.onMessage","step":7},
+  {"args":["A draft typed in the paused tab"],"name":"composer.onInputChange","step":11},
+  {
+    "args": [{"currentTarget":{},"preventDefault":"[fn]","stopPropagation":"[fn]","target":{},"type":"submit"}],
+    "name": "composer.onSubmit",
+    "step": 12
+  },
+  {
+    "args": [{"description":"Changes there are live; this tab is paused.","title":"This session is open in another tab."}],
+    "name": "page.toast",
+    "step": 12
+  },
+  {"args":["A direct hook send while paused",null,0,{}],"name":"hook.sendMessageWhenConnected","step":15},
+  {"args":[],"name":"superseded.onUseHere","step":17},
+  {"args":[{"message_id":"msg-sync-1","type":"sync_response"}],"name":"hook.onMessage","step":21},
+  {
+    "args": [{"currentTarget":{},"preventDefault":"[fn]","stopPropagation":"[fn]","target":{},"type":"submit"}],
+    "name": "composer.onSubmit",
+    "step": 26
+  },
+  {
+    "args": [
+      "A draft typed in the paused tab",
+      0,
+      {
+        "deepResearch": false,
+        "extendedGeneration": true,
+        "fileUpload": false,
+        "storeName": null,
+        "useKnowledgeGraph": false,
+        "webSearch": false
+      }
+    ],
+    "name": "page.sendTypedTurn",
+    "step": 26
+  },
+  {
+    "args": [
+      {
+        "message_id": "synthetic-uuid-0002",
+        "payload": {"text":"A draft typed in the paused tab"},
+        "type": "chat_message"
+      },
+      "A draft typed in the paused tab"
+    ],
+    "name": "page.persistence.queueMessage",
+    "step": 26
+  }
+]
