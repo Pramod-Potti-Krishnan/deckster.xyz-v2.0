@@ -130,5 +130,10 @@ export interface MandatoryConfig {
   promptPlaceholder?: string
   promptMaxLength?: number
   promptLimitLabel?: string
+  /**
+   * J3-EMPTY-PROMPT-GUARD: this form can generate without a typed prompt right now (Chart with Custom JSON data, a preset Shape, an
+   * Infographic with a reference image or manual rows). Only read when NEXT_PUBLIC_STUDIO_EMPTY_PROMPT_GUARD is on; forms set it only then.
+   */
+  promptOptional?: boolean
   customRender?: React.ReactNode
 }

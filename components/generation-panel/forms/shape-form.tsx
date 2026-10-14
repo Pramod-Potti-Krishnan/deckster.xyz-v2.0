@@ -10,6 +10,7 @@ import { ThemeSourceSelector } from '../shared/theme-source-selector'
 import { useThemeSourceState } from '../shared/use-theme-source-state'
 import { useDeckThemePalette } from '@/hooks/use-deck-theme-palette'
 import { resolveDraftThemeSource } from '@/lib/visual-form-draft'
+import { STUDIO_EMPTY_PROMPT_GUARD_ENABLED } from '@/lib/studio-empty-prompt-guard'
 import './studio-shape-icon.css'
 
 const STUDIO_VISUAL_FORMS = process.env.NEXT_PUBLIC_STUDIO_V4_SHELL === 'true'
@@ -348,6 +349,8 @@ export function ShapeForm({ onSubmit, registerSubmit, isGenerating, presentation
         })),
         onChange: (value) => { setShapeType(value as TextLabsShapeType) },
         promptPlaceholder: shapeType === 'custom' ? 'e.g., three concentric circles' : 'e.g., a red star',
+        // J3-EMPTY-PROMPT-GUARD (flag off: never set): a preset shape sends no prompt (shape_config.prompt is null); only Custom reads it.
+        ...(STUDIO_EMPTY_PROMPT_GUARD_ENABLED && shapeType !== 'custom' ? { promptOptional: true } : {}),
       },
       colorConfig('fill', 'Fill', fillColor, setFillColor),
       colorConfig('stroke', 'Border', strokeColor, setStrokeColor),
