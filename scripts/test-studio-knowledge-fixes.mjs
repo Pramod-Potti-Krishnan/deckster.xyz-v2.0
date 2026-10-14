@@ -584,7 +584,7 @@ check('S2/S3: flag on, a failed import shows one plain sentence and Retry; the b
     const server = createServer({ backfill })
     const world = mountPage({ shell, server })
     await world.load()
-    importButtonOf(world.view()).props.onClick()
+    await startImport(world)
     await settle(20)
     const tree = world.view()
     assert.match(noticeText(tree), expected, label)
@@ -592,12 +592,12 @@ check('S2/S3: flag on, a failed import shows one plain sentence and Retry; the b
     assert.ok(world.logs.warn.length > 0, `${label}: the detail is in the console`)
     const retry = rawButtons(noticeOf(tree), 'Retry')
     assert.equal(retry.length, 1, `${label}: Retry`)
-    retry[0].props.onClick()
+    retry[0].props.onClick(); await confirmIfAsked(world)
     await settle(20)
     assert.equal(server.count('backfill'), 2, `${label}: Retry asks again`)
   }
   const verbatim = mountPage({ shell, server: createServer({ backfill: () => respond(500, { error: 'Backfill failed: connection to db-prod-7 refused' }) }) })
-  await verbatim.load(); importButtonOf(verbatim.view()).props.onClick(); await settle(20)
+  await verbatim.load(); await startImport(verbatim)
   assert.ok(verbatim.logs.warn.some(entry => entry.some(part => String(part).includes('db-prod-7'))), 'the backend text is in the console')
 })
 
@@ -606,16 +606,16 @@ check('S2: flag on, a failure after some batches keeps the progress sentence; Re
   const batch = { sessions_processed: 3, sessions_completed: 3, entities_created: 2, entities_merged: 0, total_candidates: 9, next_cursor: 3 }
   const world = mountPage({ shell, server: createServer({ backfill: () => (++n === 1 ? respond(200, batch) : networkDown()) }) })
   await world.load()
-  importButtonOf(world.view()).props.onClick()
+  await startImport(world)
   await settle(20)
   assert.match(noticeText(world.view()), /^3 session IDs were processed before import paused\. You seem to be offline/)
   assert.equal(rawButtons(noticeOf(world.view()), 'Retry').length, 1)
   const partial = mountPage({ shell, server: createServer({ backfill: () => respond(200, { sessions_processed: 2, sessions_completed: 0, sessions_retryable: 0, total_candidates: 2, next_cursor: null }) }) })
-  await partial.load(); importButtonOf(partial.view()).props.onClick(); await settle(20)
+  await partial.load(); await startImport(partial)
   assert.match(noticeText(partial.view()), /could not be imported/)
   assert.equal(rawButtons(noticeOf(partial.view()), 'Retry').length, 0, 'an import that ran and reported results has no Retry')
   const running = mountPage({ shell, server: createServer({ backfill: () => new Promise(() => {}) }) })
-  await running.load(); importButtonOf(running.view()).props.onClick(); await settle()
+  await running.load(); await startImport(running)
   assert.equal(rawButtons(noticeOf(running.view()), 'Retry').length, 0, 'no Retry while an import is running')
 })
 
@@ -661,7 +661,13 @@ const batchOf = (extra = {}) => ({ sessions_processed: 3, sessions_completed: 3,
 const hang = () => new Promise(() => {})
 const markerKeyFor = (world, account = OWNER) => { const lib = world.loader.load(LIB); return lib.IMPORT_MARKER_PREFIX + lib.ownerTag(account) }
 const readMarker = (world, account = OWNER) => { const raw = world.storage.map.get(markerKeyFor(world, account)); return raw ? JSON.parse(raw) : null }
-async function startImport(world) { importButtonOf(world.view()).props.onClick(); await settle(20) }
+/** With the flag on the button only asks; this confirms in the dialog when one is open, as a person would. */
+async function confirmIfAsked(world) {
+  const open = all(world.view(), item => item.type === 'AlertDialog')[0]
+  if (open?.props.open) all(all(world.view(), item => item.type === 'AlertDialogContent')[0], item => item.type === 'AlertDialogAction')[0].props.onClick()
+  await settle(20)
+}
+async function startImport(world) { importButtonOf(world.view()).props.onClick(); await confirmIfAsked(world) }
 const sharedBrowser = () => ({ storage: createStorage(), clock: createClock() })
 
 check('S1: flag on, starting an import leaves a marker in this browser, refreshed after every batch and removed when it finishes', async ({ shell }) => {
@@ -863,6 +869,211 @@ mutant('the marker is written with the flag off', { [PAGE]: [['if (KNOWLEDGE_FIX
 mutant('no Refresh in the "may still be running" notice', { [PAGE]: [['{KNOWLEDGE_FIXES && importNotice.kind === "resumed" && (', '{false && importNotice.kind === "resumed" && (']] })
 mutant('dismissing an interrupted notice keeps its marker', { [PAGE]: [['if (KNOWLEDGE_FIXES && importNotice.kind === "interrupted") clearImportMarker(ownerTag(operationOwner));', '']] })
 mutant('dismissing any notice forgets the marker', { [PAGE]: [['if (KNOWLEDGE_FIXES && importNotice.kind === "interrupted") clearImportMarker(ownerTag(operationOwner));', 'if (KNOWLEDGE_FIXES) clearImportMarker(ownerTag(operationOwner));']] })
+
+// ===========================================================================================================================================
+// 4. safety: "Import past sessions" writes to the person's real graph, so it asks first and never auto-runs
+// ===========================================================================================================================================
+
+const dialogOf = tree => all(tree, item => item.type === 'AlertDialog')[0]
+const dialogText = tree => text(all(tree, item => item.type === 'AlertDialogContent')[0]).replace(/\s+/g, ' ').trim()
+const confirmButton = tree => all(all(tree, item => item.type === 'AlertDialogContent')[0], item => item.type === 'AlertDialogAction')[0]
+const emptyWorld = (options = {}) => mountPage({ ...options, server: createServer({ stats: respond(200, { ...STATS, node_count: 0, nodes_by_type: [], top_entities: [] }), graph: respond(200, EMPTY_GRAPH), backfill: () => respond(200, batchOf()), ...(options.routes ?? {}) }) })
+
+check('safety: flag on, "Import past sessions" opens a dialog that names what is written; nothing is requested until confirm', async ({ shell }) => {
+  const server = createServer({ backfill: () => respond(200, batchOf()) })
+  const world = mountPage({ shell, server })
+  let tree = await world.load()
+  assert.equal(dialogOf(tree).props.open, false, 'closed until asked')
+  importButtonOf(tree).props.onClick()
+  tree = world.view()
+  assert.equal(dialogOf(tree).props.open, true)
+  assert.equal(server.count('backfill'), 0, 'opening the dialog asks nothing')
+  const body = dialogText(tree)
+  assert.match(body, /Add your past sessions to your knowledge graph\?/)
+  assert.match(body, /past sessions that have uploads, research or a finished deck/)
+  assert.match(body, /write what it finds into your saved knowledge graph/)
+  assert.match(body, /entities: the people, organizations, products and ideas it recognizes/)
+  assert.match(body, /relations: how those entities connect/)
+  assert.match(body, /evidence: short source snippets that back each entity/)
+  assert.match(body, /This is your real graph, not a practice copy\. Sessions already in your graph are skipped\. Up to 50 sessions/)
+  assert.match(body, /Keep this page open until it finishes/)
+  assert.match(body, /Cancel/)
+  assert.match(text(confirmButton(tree)), /^Import sessions$/)
+  assert.equal(role(tree, 'import-confirm-warning').length, 0, 'no warning without another import')
+  assert.equal(server.count('backfill'), 0)
+})
+
+check('safety: flag on, Cancel, Escape and a click outside close the dialog without a request', async ({ shell }) => {
+  const server = createServer({ backfill: () => respond(200, batchOf()) })
+  const world = mountPage({ shell, server })
+  await world.load()
+  importButtonOf(world.view()).props.onClick()
+  dialogOf(world.view()).props.onOpenChange(false)   // what Radix calls for Cancel, Escape and the overlay
+  await settle()
+  assert.equal(dialogOf(world.view()).props.open, false)
+  assert.equal(server.count('backfill'), 0)
+  importButtonOf(world.view()).props.onClick()
+  assert.equal(dialogOf(world.view()).props.open, true, 'it can be opened again')
+})
+
+check('safety: flag on, confirm starts exactly one import (POST, cursor 0), once, and closes the dialog', async ({ shell }) => {
+  const server = createServer({ backfill: () => respond(200, batchOf()) })
+  const world = mountPage({ shell, server })
+  await world.load()
+  importButtonOf(world.view()).props.onClick()
+  const action = confirmButton(world.view())
+  action.props.onClick()
+  dialogOf(world.view()).props.onOpenChange(false)   // Radix closes an AlertDialog after its action's own handler
+  action.props.onClick()                              // a second click on the same handler
+  await settle(20)
+  assert.equal(server.count('backfill'), 1)
+  assert.deepEqual(server.calls.filter(call => call.name === 'backfill').map(call => [call.method, call.url]), [['POST', '/api/knowledge-graph/backfill?cursor=0']])
+  assert.equal(dialogOf(world.view()).props.open, false)
+  assert.match(noticeText(world.view()), /^Imported 3 session IDs/)
+})
+
+check('safety: flag on, the empty map\'s Import button and the failed-import Retry open the same dialog; neither starts an import', async ({ shell }) => {
+  const empty = emptyWorld({ shell })
+  await empty.load()
+  const buttonsFound = buttons(empty.view(), 'Import past sessions')
+  assert.equal(buttonsFound.length, 2, 'header and empty map')
+  buttonsFound.at(-1).props.onClick()
+  assert.equal(dialogOf(empty.view()).props.open, true)
+  assert.equal(empty.server.count('backfill'), 0)
+
+  const failing = mountPage({ shell, server: createServer({ backfill: () => respond(500, { error: 'x' }) }) })
+  await failing.load()
+  importButtonOf(failing.view()).props.onClick()
+  confirmButton(failing.view()).props.onClick(); await settle(20)
+  assert.equal(failing.server.count('backfill'), 1)
+  rawButtons(noticeOf(failing.view()), 'Retry')[0].props.onClick()
+  assert.equal(dialogOf(failing.view()).props.open, true, 'Retry asks first')
+  assert.equal(failing.server.count('backfill'), 1)
+  confirmButton(failing.view()).props.onClick(); await settle(20)
+  assert.equal(failing.server.count('backfill'), 2)
+})
+
+check('safety: flag on, nothing but the dialog\'s confirm ever starts an import (mount, reload, markers, refresh, retry, search, selection)', async ({ shell }) => {
+  const browser = sharedBrowser()
+  const server = createServer({ backfill: () => respond(200, batchOf()), search: respond(200, { nodes: [] }), node: respond(200, { node: GRAPH.nodes[0], evidence: [], provenance_session_ids: [], edges: [] }) })
+  const world = mountPage({ shell, server, ...browser })
+  await world.load()
+  const lib = world.loader.load(LIB)
+  browser.storage.map.set(lib.IMPORT_MARKER_PREFIX + lib.ownerTag(OWNER), JSON.stringify({ v: 1, startedAt: browser.clock.t - MIN, activeAt: browser.clock.t - MIN }))
+  world.reload(); await world.load()
+  server.routes.stats = networkDown
+  world.reload(); let tree = await world.load()
+  buttons(tree, 'Retry')[0].props.onClick(); await settle()
+  server.routes.stats = respond(200, STATS)
+  buttons(world.view(), 'Retry')[0].props.onClick(); await settle()
+  if (shell) { buttons(world.view(), 'Refresh')[0].props.onClick(); await settle() }
+  all(world.view(), item => item.type === 'Input')[0].props.onChange({ target: { value: 'x' } })
+  all(world.view(), item => item.type === 'form')[0].props.onSubmit({ preventDefault() {} }); await settle()
+  all(world.view(), item => item.type === 'KgGraphView')[0].props.onSelect('n1'); world.render(); await settle()
+  rawButtons(world.view(), 'Refresh').forEach(button => button.props.onClick())
+  await settle()
+  assert.equal(server.count('backfill'), 0)
+})
+
+check('safety: flag on, the dialog warns when another import may still be running, and only then', async ({ shell }) => {
+  const browser = sharedBrowser()
+  const server = createServer({ backfill: hang })
+  const tabA = mountPage({ shell, server, ...browser })
+  await tabA.load(); await startImport(tabA)
+  const tabB = mountPage({ shell, server: createServer(), ...browser })
+  await tabB.load()
+  importButtonOf(tabB.view()).props.onClick()
+  const warning = role(tabB.view(), 'import-confirm-warning')
+  assert.equal(warning.length, 1)
+  assert.match(text(warning[0]), /^An import started at .+, possibly in another tab or before a reload, may still be running\. Starting another one now can repeat the same work\.$/)
+  browser.clock.t += 11 * MIN
+  tabB.reload(); await tabB.load()
+  importButtonOf(tabB.view()).props.onClick()
+  assert.equal(role(tabB.view(), 'import-confirm-warning').length, 0, 'an interrupted import is not a running one')
+})
+
+check('safety: flag on, a dialog left open does not survive a change of access, and double-opening does not stack', async ({ shell }) => {
+  const server = createServer({ backfill: () => respond(200, batchOf()) })
+  const world = mountPage({ shell, server })
+  await world.load()
+  importButtonOf(world.view()).props.onClick()
+  importButtonOf(world.view()).props.onClick()
+  assert.equal(all(world.view(), item => item.type === 'AlertDialog').length, 1)
+  world.render({ kg: { ...access(), isSubscribed: false } })   // access lost: the paused screen
+  world.render({ kg: access() })                                // and restored
+  await settle()
+  assert.equal(dialogOf(world.view()).props.open, false)
+  assert.equal(server.count('backfill'), 0)
+})
+
+check('safety: flag on, a stale confirm or a stale Import click while an import runs neither starts nor re-opens anything', async ({ shell }) => {
+  const server = createServer({ backfill: hang })
+  const world = mountPage({ shell, server })
+  await world.load()
+  const staleRequest = importButtonOf(world.view()).props.onClick
+  staleRequest()
+  const staleConfirm = confirmButton(world.view()).props.onClick
+  staleConfirm()
+  await settle()
+  const starts = () => world.storage.log.filter(([op]) => op === 'set').length
+  assert.equal(starts(), 1, 'one import started')
+  staleConfirm(); staleConfirm()
+  await settle()
+  assert.equal(starts(), 1, 'a stale confirm does not start another')
+  staleRequest()
+  assert.equal(dialogOf(world.view()).props.open, false, 'a stale Import click does not re-open the dialog')
+  assert.equal(server.count('backfill'), 1)
+})
+
+check('safety: flag on, the dialog closes itself on confirm (it does not rely on the dialog library to do it)', async ({ shell }) => {
+  const world = mountPage({ shell, server: createServer({ backfill: () => respond(200, batchOf()) }) })
+  await world.load()
+  importButtonOf(world.view()).props.onClick()
+  assert.equal(dialogOf(world.view()).props.open, true)
+  const raw = all(world.render(), item => typeof item.type === 'function' && item.type.name === 'KnowledgeImportConfirm')[0]
+  raw.props.onConfirm()
+  assert.equal(dialogOf(world.view()).props.open, false)
+  await settle(20)
+})
+
+check('safety: flag off, the buttons start the import at once and there is no dialog (the base)', async ({ shell }) => {
+  const server = createServer({ backfill: () => respond(200, batchOf()) })
+  const world = mountPage({ flag: false, shell, server })
+  await world.load()
+  assert.equal(all(world.view(), item => item.type === 'AlertDialog').length, 0)
+  importButtonOf(world.view()).props.onClick()
+  await settle(20)
+  assert.equal(server.count('backfill'), 1)
+})
+
+check('safety wiring: runImport is started from exactly the dialog\'s confirm (and by the flag-off buttons)', onlyOnBranch(async () => {
+  const source = read(PAGE)
+  const uses = [...source.matchAll(/\brunImport\b/g)].map(match => source.slice(source.lastIndexOf('\n', match.index) + 1, source.indexOf('\n', match.index)).trim())
+  assert.deepEqual(uses.map(line => line.replace(/\s+/g, ' ')), [
+    'const runImport = useCallback(async () => {',
+    '<Button variant="outline" onClick={KNOWLEDGE_FIXES ? requestImport : runImport} disabled={importing}>',
+    '<Button onClick={KNOWLEDGE_FIXES ? requestImport : runImport} disabled={importing}><Import className="mr-2 h-4 w-4" /> Import past sessions</Button>',
+    'onConfirm={() => { setImportConfirm(null); if (!importActiveRef.current) void runImport() }}',
+  ])
+  assert.equal((source.match(/backfill/g) ?? []).length, 1, 'the page names the backfill route once')
+}))
+
+mutant('the header button imports at once again', { [PAGE]: [['<Button variant="outline" onClick={KNOWLEDGE_FIXES ? requestImport : runImport} disabled={importing}>', '<Button variant="outline" onClick={runImport} disabled={importing}>']] })
+mutant('the empty map button imports at once again', { [PAGE]: [['<Button onClick={KNOWLEDGE_FIXES ? requestImport : runImport} disabled={importing}><Import', '<Button onClick={runImport} disabled={importing}><Import']] })
+mutant('Retry imports at once', { [PAGE]: [['<button type="button" onClick={() => requestImport()}', '<button type="button" onClick={() => void runImport()}']] })
+mutant('confirm does not start the import', { [PAGE]: [['if (!importActiveRef.current) void runImport() }}', '}}']] })
+mutant('confirm can start a second import', { [PAGE]: [['if (!importActiveRef.current) void runImport() }}', 'void runImport() }}']] })
+mutant('cancel starts the import', { [PAGE]: [['onCancel={() => setImportConfirm(null)}', 'onCancel={() => { setImportConfirm(null); void runImport() }}']] })
+mutant('the dialog is always open', { [PAGE]: [['open={importConfirm !== null}', 'open={true}']] })
+mutant('the dialog opens while an import runs', { [PAGE]: [['    if (importActiveRef.current) return\n    setImportConfirm', '    setImportConfirm']] })
+mutant('the dialog stays open after confirm', { [PAGE]: [['onConfirm={() => { setImportConfirm(null); if', 'onConfirm={() => { if']] })
+mutant('the dialog survives a change of access', { [PAGE]: [['      setImportConfirm(null)\n      setImportNotice(retainInterruptedNotice', '      setImportNotice(retainInterruptedNotice']] })
+mutant('the dialog never warns about another import', { [LIB]: [['if (!marker || importMarkerState(marker, now) !== "running") return null', 'return null']] })
+mutant('the dialog warns about interrupted imports too', { [LIB]: [['if (!marker || importMarkerState(marker, now) !== "running") return null', 'if (!marker) return null']] })
+mutant('the dialog does not name the relations', { [CONFIRM]: [['<li>relations: how those entities connect</li>', '']] })
+mutant('the dialog does not name the evidence', { [CONFIRM]: [['<li>evidence: short source snippets that back each entity</li>', '']] })
+mutant('the dialog does not say it is the real graph', { [CONFIRM]: [['This is your real graph, not a practice copy. ', '']] })
+mutant('the dialog is not rendered', { [PAGE]: [['      {KNOWLEDGE_FIXES && (\n        <KnowledgeImportConfirm', '      {false && (\n        <KnowledgeImportConfirm']] })
 
 // ===========================================================================================================================================
 // flag off = the base, byte for byte: render hashes over a matrix of states (markup, requests, console, storage)

@@ -28,8 +28,9 @@ import { useKnowledgeGraph } from "@/hooks/use-knowledge-graph"
 import { KgGraphView, typeColor } from "@/components/knowledge/kg-graph-view"
 import { StudioKnowledgeInspector } from "@/components/knowledge/studio-knowledge-inspector"
 import { KnowledgeSectionBoundary } from "@/components/knowledge/knowledge-section-boundary"
+import { KnowledgeImportConfirm } from "@/components/knowledge/knowledge-import-confirm"
 import {
-  clearImportMarker, IMPORT_FAILED_TEXT, importFailureText, normalizeKgGraph, normalizeKgStats, OFFLINE_IMPORT_TEXT, ownerTag,
+  clearImportMarker, IMPORT_FAILED_TEXT, importConfirmWarning, importFailureText, normalizeKgGraph, normalizeKgStats, OFFLINE_IMPORT_TEXT, ownerTag,
   plainKnowledgeError, readImportMarker, resumedImportNotice, touchImportMarker, writeImportMarker,
 } from "@/lib/studio-knowledge-fixes"
 import type { KgGraphPresentationState, KgViewEdge, KgViewNode } from "@/components/knowledge/kg-graph-view"
@@ -489,6 +490,8 @@ function KnowledgePageForAccount({ kg }: { kg: KnowledgeGraphAccess }) {
   const [hiddenTypes, setHiddenTypes] = useState<Set<string>>(new Set())
   const [importing, setImporting] = useState(false)
   const [importNotice, setImportNotice] = useState<ImportNotice | null>(null)
+  // Flag on: the confirm dialog in front of "Import past sessions" (null = closed; warning = another import may still be running).
+  const [importConfirm, setImportConfirm] = useState<{ warning: string | null } | null>(null)
   const dataGenerationRef = useRef(0)
   const dataAbortRef = useRef<AbortController | null>(null)
   const nodeGenerationRef = useRef(0)
@@ -600,6 +603,7 @@ function KnowledgePageForAccount({ kg }: { kg: KnowledgeGraphAccess }) {
       setSearchLoading(false)
       setSearchError(null)
       setImporting(false)
+      setImportConfirm(null)
       setImportNotice(retainInterruptedNotice ? { tone: "neutral", text: "Import interrupted because Knowledge access changed. No further batches will be sent from this import. Already dispatched requests may have completed; their results have not been verified here. Refresh your graph after access is restored before starting another import." } : null)
     }
     wakeAdmissionWaiters()
@@ -664,7 +668,7 @@ function KnowledgePageForAccount({ kg }: { kg: KnowledgeGraphAccess }) {
   }, [accessRevision, accessStatus, loadData])
 
   // Flag on: an import this browser started that never reported finishing (the page was reloaded or closed, or it runs in another tab)
-  // is announced on return. Read once per account; the marker is written and cleared by runImport.
+  // is announced on return. Read once per account; the marker is written and cleared by the import itself.
   useEffect(() => {
     if (!KNOWLEDGE_FIXES || importActiveRef.current) return
     const marker = readImportMarker(ownerTag(operationOwner))
@@ -923,6 +927,13 @@ function KnowledgePageForAccount({ kg }: { kg: KnowledgeGraphAccess }) {
     }
   }, [loadData, operationOwner, operationLifetime, waitForAdmission])
 
+  // Flag on: every way to start an import (the header button, the empty-map button, the failed-import banner's Retry) only opens the confirm
+  // dialog. The import starts from the dialog's own button and from nowhere else.
+  const requestImport = useCallback(() => {
+    if (importActiveRef.current) return
+    setImportConfirm({ warning: importConfirmWarning(readImportMarker(ownerTag(operationOwner))) })
+  }, [operationOwner])
+
   const filteredGraph = useMemo(() => {
     if (!graph || hiddenTypes.size === 0) return graph
     const nodes = graph.nodes.filter((node) => !hiddenTypes.has(node.entity_type))
@@ -1041,7 +1052,7 @@ stats && stats.nodes_by_type.length > 0 && (
         </div>
         <div data-studio-knowledge-role="actions" className="flex flex-wrap gap-2">
           {STUDIO_SHELL && <Button variant="outline" disabled={dataLoading || importing} onClick={() => void loadData()}><RefreshCw className={cn("mr-2 h-4 w-4", dataLoading && "animate-spin")} />{dataLoading ? "Refreshing…" : "Refresh"}</Button>}
-          <Button variant="outline" onClick={runImport} disabled={importing}>
+          <Button variant="outline" onClick={KNOWLEDGE_FIXES ? requestImport : runImport} disabled={importing}>
             {importing ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Import className="mr-2 h-4 w-4" />}
             {importing ? "Importing…" : "Import past sessions"}
           </Button>
@@ -1065,7 +1076,7 @@ stats && stats.nodes_by_type.length > 0 && (
         >
           <span className={KNOWLEDGE_FIXES ? "min-w-0 flex-1" : undefined}>{importNotice.text}</span>
           {KNOWLEDGE_FIXES && importNotice.kind === "failed" && !importing && (
-            <button type="button" onClick={() => void runImport()} className="shrink-0 rounded-md border border-red-300 bg-white/70 px-2.5 py-0.5 text-xs font-medium text-red-800 hover:bg-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-current dark:border-red-800 dark:bg-transparent dark:text-red-200 dark:hover:bg-red-950/50">
+            <button type="button" onClick={() => requestImport()} className="shrink-0 rounded-md border border-red-300 bg-white/70 px-2.5 py-0.5 text-xs font-medium text-red-800 hover:bg-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-current dark:border-red-800 dark:bg-transparent dark:text-red-200 dark:hover:bg-red-950/50">
               Retry
             </button>
           )}
@@ -1201,7 +1212,7 @@ stats && stats.nodes_by_type.length > 0 && (
                   Build a deck with Knowledge enabled, or import eligible past sessions to create your first entities and connections.
                 </p>
                 <div className="mt-5 flex flex-wrap justify-center gap-2">
-                  <Button onClick={runImport} disabled={importing}><Import className="mr-2 h-4 w-4" /> Import past sessions</Button>
+                  <Button onClick={KNOWLEDGE_FIXES ? requestImport : runImport} disabled={importing}><Import className="mr-2 h-4 w-4" /> Import past sessions</Button>
                   <Button asChild variant="outline" className="border-slate-700 bg-transparent text-slate-200 hover:bg-slate-800 hover:text-white"><Link href="/builder">Build a deck</Link></Button>
                 </div>
               </div>
@@ -1241,6 +1252,14 @@ stats && stats.nodes_by_type.length > 0 && (
           />
         ), selected ?? selectedId)}
       </div>
+      {KNOWLEDGE_FIXES && (
+        <KnowledgeImportConfirm
+          open={importConfirm !== null}
+          warning={importConfirm?.warning ?? null}
+          onCancel={() => setImportConfirm(null)}
+          onConfirm={() => { setImportConfirm(null); if (!importActiveRef.current) void runImport() }}
+        />
+      )}
       <StudioIntroReplay screen="knowledge" autoStart={true} targetSelector='[data-studio-intro-surface="knowledge"]' className="studio-destination-intro-replay" />
     </main>
   )

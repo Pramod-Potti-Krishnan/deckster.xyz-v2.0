@@ -12,6 +12,7 @@
  *  S1  import marker: a per-viewer localStorage marker written when an import starts, refreshed after every batch, removed when the
  *      import finishes in the tab that ran it. There is no import status endpoint (the backfill route is the only import API and it is
  *      cursor-driven from the browser), so a reload or a second tab can only learn "an import was started and never reported finishing".
+ *      importConfirmWarning reuses it: the confirm dialog warns when another import may still be running.
  */
 
 const isRecord = (value: unknown): value is Record<string, unknown> =>
@@ -200,3 +201,9 @@ export function resumedImportNotice(marker: ImportMarker, now: number = Date.now
 }
 
 /** The line the confirm dialog adds when another import may still be running. null when there is nothing to warn about. */
+
+/** The line the confirm dialog adds when another import may still be running. null when there is nothing to warn about. */
+export function importConfirmWarning(marker: ImportMarker | null, now: number = Date.now()): string | null {
+  if (!marker || importMarkerState(marker, now) !== "running") return null
+  return `An import started at ${clock(marker.startedAt)}, possibly in another tab or before a reload, may still be running. Starting another one now can repeat the same work.`
+}
