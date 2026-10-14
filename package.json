@@ -77,6 +77,7 @@
     "test:export-view-only": "node scripts/test-export-view-only.mjs",
     "test:theme-font-selection": "node scripts/test-theme-font-selection.mjs",
     "test:studio-theme-restore": "node scripts/test-studio-theme-restore.mjs",
+    "test:studio-build-resume": "node scripts/test-studio-build-resume.mjs",
     "test:stage-f-thumbnails": "node scripts/test-stage-f-thumbnails.mjs",
     "test:studio-rail-slide-identity": "node scripts/test-studio-rail-slide-identity.mjs",
     "test:studio-deck-changed-notice": "node scripts/test-studio-deck-changed-notice.mjs",

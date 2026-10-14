@@ -59,6 +59,9 @@ export interface UseBuildNarrationInputs {
   finalPresentationId?: string | null
   /** True when the session restored as an already-finished deck. */
   restoredComplete?: boolean
+  /** NEXT_PUBLIC_STUDIO_BUILD_RESUME_FIX (J7-RESUME-LOOP-P1): a final URL that arrives while the build is stopped
+   *  updates the deck only, so the stopped ribbon (Resume) stays. False: today's behaviour. */
+  keepStoppedOnFinalUrl?: boolean
 }
 
 export interface UseBuildNarrationResult {
@@ -95,6 +98,7 @@ export function useBuildNarration(inputs: UseBuildNarrationInputs): UseBuildNarr
     finalPresentationUrl,
     finalPresentationId = null,
     restoredComplete = false,
+    keepStoppedOnFinalUrl = false,
   } = inputs
 
   const [narration, dispatch] = useReducer(narrationReducer, undefined, initialNarrationState)
@@ -257,11 +261,14 @@ export function useBuildNarration(inputs: UseBuildNarrationInputs): UseBuildNarr
     dispatch({ type: 'planning_resumed', ts: Date.now() })
   }, [enabled, isGeneratingStrawman])
 
-  // Final URL → complete, settle, dismiss.
+  // Final URL → complete, settle, dismiss (with keepStoppedOnFinalUrl: not while stopped).
   useEffect(() => {
     if (!enabled || !finalPresentationUrl) return
-    dispatch({ type: 'final_url', presentationId: finalPresentationId, ts: Date.now() })
-  }, [enabled, sessionId, finalPresentationUrl, finalPresentationId])
+    dispatch({
+      type: 'final_url', presentationId: finalPresentationId, ts: Date.now(),
+      ...(keepStoppedOnFinalUrl ? { keepStopped: true } : {}),
+    })
+  }, [enabled, sessionId, finalPresentationUrl, finalPresentationId, keepStoppedOnFinalUrl])
 
   // The settle timer belongs to this completed build, not to a URL that can
   // stay unchanged while another build/session becomes active.
