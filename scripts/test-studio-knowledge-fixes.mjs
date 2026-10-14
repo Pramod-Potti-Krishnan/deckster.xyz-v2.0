@@ -795,6 +795,24 @@ check('S1: flag on, unusable storage changes nothing (blocked, full, corrupt, wr
   }
 })
 
+check('S1: flag on, the notice survives the page\'s start-up (loading, then a moment of no access, then ready), and an access-change notice is never replaced', async ({ shell }) => {
+  const browser = sharedBrowser()
+  const world = mountPage({ shell, server: createServer({ backfill: hang }), ...browser })
+  await world.load(); await startImport(world)
+  world.reload()
+  // what the real hook does on a reload: loading, then settings not read yet (blocked), then ready
+  world.render({ kg: { ...access(), isLoading: true } })
+  world.render({ kg: { ...access(), isSubscribed: false, settings: null } })
+  const tree = await world.load({ kg: access() })
+  assert.match(noticeText(tree), /^An import may still be running/)
+  // access lost while an import runs: its own notice stays even though the marker is still there
+  const second = mountPage({ shell, server: createServer({ backfill: hang }), ...sharedBrowser() })
+  await second.load(); await startImport(second)
+  second.render({ kg: { ...access(), isSubscribed: false, settings: null } })
+  second.render({ kg: access() }); await settle()
+  assert.match(noticeText(second.view()), /^Import interrupted because Knowledge access changed/)
+})
+
 check('S1: flag on, a marker alone never starts an import; a reload mid-import does not repeat requests', async ({ shell }) => {
   const browser = sharedBrowser()
   const server = createServer({ backfill: hang })
@@ -863,8 +881,10 @@ mutant('a corrupt marker is believed', { [LIB]: [['if (!isRecord(parsed) || pars
 mutant('an old marker is never forgotten', { [LIB]: [['if (now - parsed.activeAt > IMPORT_MARKER_MAX_AGE_MS) {', 'if (false) {']] })
 mutant('every marker reads as still running', { [LIB]: [['return now - marker.activeAt <= IMPORT_FRESH_MS ? "running" : "interrupted"', 'return "running"']] })
 mutant('every marker reads as interrupted', { [LIB]: [['return now - marker.activeAt <= IMPORT_FRESH_MS ? "running" : "interrupted"', 'return "interrupted"']] })
-mutant('the notice is not shown on return', { [PAGE]: [['    setImportNotice({ tone: "neutral", kind: found.kind, text: found.text })', '']] })
-mutant('the marker is read with the flag off', { [PAGE]: [['    if (!KNOWLEDGE_FIXES || importActiveRef.current) return\n    const marker', '    if (importActiveRef.current) return\n    const marker']] })
+mutant('the notice is not shown on return', { [PAGE]: [['    setImportNotice(current => current ?? { tone: "neutral", kind: found.kind, text: found.text })', '']] })
+mutant('the marker is read with the flag off', { [PAGE]: [['    if (!KNOWLEDGE_FIXES || accessStatus !== "ready" || importActiveRef.current) return\n    const marker', '    if (accessStatus !== "ready" || importActiveRef.current) return\n    const marker']] })
+mutant('the marker is read before access is ready (a later access change wipes the notice)', { [PAGE]: [['    if (!KNOWLEDGE_FIXES || accessStatus !== "ready" || importActiveRef.current) return\n    const marker', '    if (!KNOWLEDGE_FIXES || importActiveRef.current) return\n    const marker'], ['  }, [operationOwner, accessStatus, accessRevision])', '  }, [operationOwner])']] })
+mutant('the notice replaces one that is already shown', { [PAGE]: [['setImportNotice(current => current ?? { tone: "neutral", kind: found.kind, text: found.text })', 'setImportNotice({ tone: "neutral", kind: found.kind, text: found.text })']] })
 mutant('the marker is written with the flag off', { [PAGE]: [['if (KNOWLEDGE_FIXES) writeImportMarker(markerOwner, markerStartedAt, markerStartedAt)', 'writeImportMarker(markerOwner, markerStartedAt, markerStartedAt)']] })
 mutant('no Refresh in the "may still be running" notice', { [PAGE]: [['{KNOWLEDGE_FIXES && importNotice.kind === "resumed" && (', '{false && importNotice.kind === "resumed" && (']] })
 mutant('dismissing an interrupted notice keeps its marker', { [PAGE]: [['if (KNOWLEDGE_FIXES && importNotice.kind === "interrupted") clearImportMarker(ownerTag(operationOwner));', '']] })

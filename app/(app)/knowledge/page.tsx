@@ -671,14 +671,16 @@ function KnowledgePageForAccount({ kg }: { kg: KnowledgeGraphAccess }) {
   }, [accessRevision, accessStatus, loadData])
 
   // Flag on: an import this browser started that never reported finishing (the page was reloaded or closed, or it runs in another tab)
-  // is announced on return. Read once per account; the marker is written and cleared by the import itself.
+  // is announced on return. Read when the page becomes usable (access "ready"), and again if access is retired and restored, because
+  // retiring access clears the notice; an existing notice (for example "interrupted because Knowledge access changed") is never replaced.
+  // The marker is written and cleared by the import itself.
   useEffect(() => {
-    if (!KNOWLEDGE_FIXES || importActiveRef.current) return
+    if (!KNOWLEDGE_FIXES || accessStatus !== "ready" || importActiveRef.current) return
     const marker = readImportMarker(ownerTag(operationOwner))
     if (!marker) return
     const found = resumedImportNotice(marker)
-    setImportNotice({ tone: "neutral", kind: found.kind, text: found.text })
-  }, [operationOwner])
+    setImportNotice(current => current ?? { tone: "neutral", kind: found.kind, text: found.text })
+  }, [operationOwner, accessStatus, accessRevision])
 
   useEffect(() => {
     const generation = ++nodeGenerationRef.current
