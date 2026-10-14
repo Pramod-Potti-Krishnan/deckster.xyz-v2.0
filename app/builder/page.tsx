@@ -3322,6 +3322,7 @@ function AuthenticatedBuilderContent({ authScopeUserId }: { authScopeUserId: str
     setDismissed: setBlankPlaceholderDismissed,
     hasOwnedSelection: studioCanvasLifecycle.hasOwnedSelection,
     showLanding: studioCanvasLifecycle.showLanding,
+    hasRealDeck: studioCanvasLifecycle.hasGeneratedDeck || studioCanvasLifecycle.hasAuthoredDeck,
     dismiss: handleDismissBlankPlaceholder,
     startNewSession: () => handleNewChatWrappedRef.current?.(),
   })

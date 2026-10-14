@@ -16,7 +16,10 @@
  *
  * On:
  *  1. the choice is remembered per account and session (localStorage, the newest BLANK_START_MEMORY_LIMIT sessions) and restored when the
- *     session loads: a reload keeps the user on the deck they started;
+ *     session loads: a reload keeps the user on the deck they started. Stored: session ids only, under one key per account whose name
+ *     carries a hash of the account id (never an email). An entry is dropped once its session has a real (generated or authored) deck,
+ *     and when the session is deleted from this browser (hooks/use-chat-sessions.ts deleteSession). Every storage access is guarded;
+ *     nothing here makes a request or creates a session row;
  *  2. "Start on a blank canvas" on a session whose blank canvas was already started AND that holds work (it has a saved history row) opens a
  *     NEW session through the Builder's own New flow, then starts that session's blank canvas once its blank deck arrives (the same
  *     dismiss handler, on the new session's own deck). A just-started, still unsaved blank canvas is dismissed exactly as before.
@@ -33,11 +36,26 @@ export const BLANK_START_MEMORY_LIMIT = 50
 export interface BlankStartStorage {
   getItem(key: string): string | null
   setItem(key: string, value: string): void
+  removeItem?(key: string): void
+  readonly length?: number
+  key?(index: number): string | null
+}
+
+const KEY_PREFIX = 'deckster:studio-blank-started:v1:'
+
+/** FNV-1a (32-bit), hex: the account id never appears in the key name in clear (it may be an email when the user has no id). */
+function accountTag(ownerId: string): string {
+  let hash = 0x811c9dc5
+  for (let i = 0; i < ownerId.length; i++) {
+    hash ^= ownerId.charCodeAt(i)
+    hash = Math.imul(hash, 0x01000193) >>> 0
+  }
+  return hash.toString(16).padStart(8, '0')
 }
 
 /** Per-account localStorage key: a JSON array of session ids whose blank canvas the user started, oldest first. */
 export function blankStartKey(ownerId: string): string {
-  return `deckster:studio-blank-started:v1:${ownerId}`
+  return `${KEY_PREFIX}${accountTag(ownerId)}`
 }
 
 function readStarted(storage: BlankStartStorage | null | undefined, ownerId: string): string[] {
@@ -60,10 +78,50 @@ export function rememberBlankStart(storage: BlankStartStorage | null | undefined
   if (!storage || !ownerId || !sessionId || sessionId === 'new') return
   const started = readStarted(storage, ownerId).filter(id => id !== sessionId)
   started.push(sessionId)
+  writeStarted(storage, blankStartKey(ownerId), started.slice(-BLANK_START_MEMORY_LIMIT))
+}
+
+function writeStarted(storage: BlankStartStorage, key: string, started: string[]): void {
   try {
-    storage.setItem(blankStartKey(ownerId), JSON.stringify(started.slice(-BLANK_START_MEMORY_LIMIT)))
+    if (started.length === 0 && storage.removeItem) storage.removeItem(key)
+    else storage.setItem(key, JSON.stringify(started))
   } catch {
-    // The canvas still opens; only the reload memory is lost.
+    // Private mode or quota: the memory is only lost, nothing else depends on it.
+  }
+}
+
+/** Forget one session for one account (its deck became a real deck). */
+export function forgetBlankStart(storage: BlankStartStorage | null | undefined, ownerId: string, sessionId: string | null): void {
+  if (!storage || !ownerId || !sessionId) return
+  const started = readStarted(storage, ownerId)
+  if (started.includes(sessionId)) writeStarted(storage, blankStartKey(ownerId), started.filter(id => id !== sessionId))
+}
+
+/** Forget a deleted session for every account remembered in this browser (the delete path does not know the account). */
+export function forgetBlankStartEverywhere(storage: BlankStartStorage | null | undefined, sessionId: string | null): void {
+  if (!storage || !sessionId) return
+  try {
+    const keys: string[] = []
+    for (let i = 0; i < (storage.length ?? 0); i++) {
+      const key = storage.key?.(i)
+      if (key && key.startsWith(KEY_PREFIX)) keys.push(key)
+    }
+    for (const key of keys) {
+      const parsed: unknown = JSON.parse(storage.getItem(key) ?? '[]')
+      if (!Array.isArray(parsed) || !parsed.includes(sessionId)) continue
+      writeStarted(storage, key, parsed.filter((id): id is string => typeof id === 'string' && id.length > 0 && id !== sessionId))
+    }
+  } catch {
+    // Nothing to clean, or storage unavailable.
+  }
+}
+
+/** The browser's localStorage, or null when it cannot be reached (server render, blocked storage). */
+export function browserBlankStartStorage(): BlankStartStorage | null {
+  try {
+    return typeof window === 'undefined' ? null : window.localStorage
+  } catch {
+    return null
   }
 }
 

@@ -55,9 +55,9 @@ const stubs = {
   'next/link': { __esModule: true, default: ({ href, children, ...rest }) => React.createElement('a', { href, ...rest }, children) },
   '@/components/builder/studio-introduction': { StudioIntroductionButton: () => React.createElement('button', { 'data-fixture-intro': 'true' }) },
 }
-function createLoader(treeRoot, env, storage, overrides) {
+function createLoader(treeRoot, env, storage, overrides = {}, extraGlobals = {}) {
   const cache = new Map()
-  const globals = { process: { env }, window: { localStorage: storage }, console, fetch: refuse('fetch'), setTimeout: refuse('timers'), setInterval: refuse('timers') }
+  const globals = { process: { env }, window: { localStorage: storage }, console, fetch: refuse('fetch'), setTimeout: refuse('timers'), setInterval: refuse('timers'), ...extraGlobals }
   const resolve = (spec, from) => {
     const base = spec.startsWith('@/') ? path.join(treeRoot, spec.slice(2)) : path.resolve(path.dirname(from), spec)
     for (const suffix of ['.ts', '.tsx']) if (overrides[path.relative(treeRoot, base + suffix)] !== undefined || fs.existsSync(base + suffix)) return base + suffix
@@ -127,8 +127,8 @@ function mountTab({ world, treeRoot, env, storage, overrides = {}, sessionId }) 
     const isUnsavedSession = !world.saved.has(currentSessionId)
     const studioCanvasLifecycle = classifyStudioCanvasLifecycle({
       displayedSessionId: currentSessionId, deckOwnerSessionId: deck ? currentSessionId : null,
-      selected: { presentationId: deck?.presentationId ?? null, presentationUrl: deck?.presentationUrl ?? null, activeVersion: 'blank', slideCount: deck ? 1 : null },
-      finalPresentationId: null, finalPresentationUrl: null,
+      selected: { presentationId: deck?.presentationId ?? null, presentationUrl: deck?.presentationUrl ?? null, activeVersion: deck?.generated ? 'final' : 'blank', slideCount: deck ? 1 : null },
+      finalPresentationId: deck?.generated ? deck.presentationId : null, finalPresentationUrl: deck?.generated ? deck.presentationUrl : null,
       // A blank-canvas deck has no Director slide structure: elements added by hand are not "authored structure".
       hasAuthoredStructure: false, loading: false, generating: false, phase: 'idle', dismissed: blankPlaceholderDismissed,
       connected: true, connecting: false,
@@ -235,6 +235,25 @@ const SCENARIOS = {
     tab.openSession('synthetic-session-9'); checkpoint('opened another saved session', tab)
     tab.clickStartBlank(); checkpoint('clicked Start on a blank canvas there', tab)
   },
+  // Hygiene on: the button saves no row, so after Reload the started session is still UNSAVED (per-tab marker). The canvas is restored
+  // and a second click there is the old dismiss (no new session), exactly as today.
+  'unsaved-start-reload-start-again'(ctx) {
+    const { world, mount, checkpoint } = ctx
+    let tab = mount('synthetic-session-1')
+    deliverBlankDeck(world, 'synthetic-session-1'); tab.render()
+    tab.clickStartBlank(); checkpoint('started, unsaved', tab)
+    tab.unmount(); tab = mount('synthetic-session-1')
+    checkpoint('after Reload now (still unsaved)', tab)
+    tab.clickStartBlank(); checkpoint('second click', tab)
+  },
+  // A started canvas that becomes a real deck (Director built it) no longer needs its memory.
+  'started-then-real-deck'(ctx) {
+    const { world, mount, checkpoint } = ctx
+    const tab = mount('synthetic-session-1')
+    deliverBlankDeck(world, 'synthetic-session-1'); tab.render()
+    tab.clickStartBlank(); addElement(world, tab, 'table'); checkpoint('started deck', tab)
+    world.decks.get('synthetic-session-1').generated = true; tab.render(); checkpoint('generated deck', tab)
+  },
   // A pending start belongs to the new session only: opening another session before its deck arrives drops it.
   'pending-start-dropped-on-switch'(ctx) {
     const { world, mount, checkpoint } = ctx
@@ -251,6 +270,7 @@ const SCENARIOS = {
 }
 
 function runScenario(name, { treeRoot, env, overrides = {}, storage = createStorage() }) {
+  // The vm refuses fetch, timers and sockets: any request from the page pieces, the hook or the lib would throw and fail the scenario.
   const world = createWorld()
   const checkpoints = []
   const ctx = {
@@ -294,8 +314,16 @@ function expectBug(trace) {
 
 const OFF = { ...SHELL_ENV }
 const ON = { ...SHELL_ENV, [FLAG]: 'true' }
+const libFor = (env, overrides = {}) => createLoader(branchRoot, env, createStorage(), overrides)(LIB)
 const failures = []
-const check = (label, fn) => { try { fn(); console.log(`ok   ${label}`) } catch (error) { failures.push(label); console.log(`FAIL ${label}\n     ${error.message.split('\n')[0]}`) } }
+const pending = []
+const report = (label, error) => { if (!error) { console.log(`ok   ${label}`); return } failures.push(label); console.log(`FAIL ${label}\n     ${error.message.split('\n')[0]}`) }
+const check = (label, fn) => {
+  let out
+  try { out = fn() } catch (error) { report(label, error); return }
+  if (out && typeof out.then === 'function') pending.push(out.then(() => report(label), error => report(label, error)))
+  else report(label)
+}
 
 // ---- 1. the J3 R13-2 sequence -----------------------------------------------------------------------------------------------------
 const branchOff = Object.fromEntries(Object.keys(SCENARIOS).map(name => [name, runScenario(name, { treeRoot: branchRoot, env: OFF })]))
@@ -326,9 +354,24 @@ check('2b flag on: a theme pick before the first click still starts this session
 check('2c flag on: switching to another saved session leaks no memory; its landing shows and its click dismisses', () => {
   const on = branchOn['switch-to-another-saved-session']
   assert.deepEqual(on.checkpoints, branchOff['switch-to-another-saved-session'].checkpoints)
-  assert.deepEqual(JSON.parse(on.storage['deckster:studio-blank-started:v1:synthetic-user']), ['synthetic-session-1', 'synthetic-session-9'],
+  assert.deepEqual(JSON.parse(on.storage[libFor(ON).blankStartKey('synthetic-user')]), ['synthetic-session-1', 'synthetic-session-9'],
     'remembered: deck A, then session 9 only after its own click')
   assert.equal(at(on, 'opened another saved session').briefPage, true)
+})
+check('2e flag on, hygiene on: Start saves no row; after Reload the still-UNSAVED session opens on its canvas; a second Start is the old dismiss', () => {
+  const on = branchOn['unsaved-start-reload-start-again'], off = branchOff['unsaved-start-reload-start-again']
+  const reload = at(on, 'after Reload now (still unsaved)')
+  assert.equal(reload.saved, false, 'still unsaved (the per-tab marker keeps it a local session)')
+  assert.equal(reload.briefPage, false, 'the started canvas is restored, no brief page')
+  assert.equal(at(off, 'after Reload now (still unsaved)').briefPage, true, 'flag off: the brief page (today)')
+  assert.equal(at(on, 'second click').session, 'synthetic-session-1')
+  assert.deepEqual(on.log, [], 'no New, no row')
+  assert.deepEqual(at(on, 'second click'), { ...at(off, 'second click'), label: 'second click' }, 'second click: same state as today')
+})
+check('2f flag on: a session with a real (generated) deck is forgotten', () => {
+  const on = branchOn['started-then-real-deck']
+  assert.deepEqual(JSON.parse(on.storage[libFor(ON).blankStartKey('synthetic-user')] ?? '[]'), [], 'entry dropped')
+  assert.equal(at(on, 'generated deck').briefPage, false)
 })
 check('2d flag on: a pending start is dropped when the user opens another session first', () => {
   const on = branchOn['pending-start-dropped-on-switch']
@@ -359,7 +402,6 @@ if (baseRoot) {
 }
 
 // ---- 4. the lib -------------------------------------------------------------------------------------------------------------------
-const libFor = (env, overrides = {}) => createLoader(branchRoot, env, createStorage(), overrides)(LIB)
 check('4a flag literal: only exact "true" enables', () => {
   assert.equal(libFor(OFF).STUDIO_BLANK_START_NEW_SESSION_ENABLED, false)
   assert.equal(libFor({ [FLAG]: 'TRUE' }).STUDIO_BLANK_START_NEW_SESSION_ENABLED, false)
@@ -384,6 +426,56 @@ check('4b memory: per account, bounded to the newest 50, "new"/empty ignored, st
   assert.equal(lib.hasBlankStart(throwing, 'u1', 's1'), false)
   assert.doesNotThrow(() => lib.rememberBlankStart(throwing, 'u1', 's1'))
   assert.equal(lib.hasBlankStart(null, 'u1', 's1'), false)
+})
+check('4b2 storage hygiene: account id never in clear in the key; forget; forget on delete across accounts; every access guarded', () => {
+  const lib = libFor(ON)
+  const email = 'person@example.invalid'
+  assert.ok(!lib.blankStartKey(email).includes('person') && !lib.blankStartKey(email).includes('@'), 'no email in the key name')
+  assert.match(lib.blankStartKey(email), /^deckster:studio-blank-started:v1:[0-9a-f]{8}$/)
+  assert.notEqual(lib.blankStartKey('u1'), lib.blankStartKey('u2'))
+  const storage = createStorage()
+  lib.rememberBlankStart(storage, 'u1', 's1'); lib.rememberBlankStart(storage, 'u1', 's2'); lib.rememberBlankStart(storage, 'u2', 's1')
+  storage.setItem('unrelated', '["s1"]')
+  assert.deepEqual(Object.values(storage.dump()).flatMap(v => JSON.parse(v)).every(id => /^s\d$/.test(id)), true, 'values: session ids only')
+  lib.forgetBlankStart(storage, 'u1', 's2')
+  assert.equal(lib.hasBlankStart(storage, 'u1', 's2'), false)
+  assert.equal(lib.hasBlankStart(storage, 'u1', 's1'), true)
+  lib.forgetBlankStartEverywhere(storage, 's1')
+  assert.equal(lib.hasBlankStart(storage, 'u1', 's1'), false)
+  assert.equal(lib.hasBlankStart(storage, 'u2', 's1'), false)
+  assert.equal(storage.getItem(lib.blankStartKey('u1')), null, 'an emptied list removes its key')
+  assert.equal(storage.getItem('unrelated'), '["s1"]', 'other keys untouched')
+  const throwing = { getItem: () => { throw new Error('denied') }, setItem: () => { throw new Error('quota') }, removeItem: () => { throw new Error('denied') }, get length() { throw new Error('denied') }, key: () => { throw new Error('denied') } }
+  for (const call of [() => lib.forgetBlankStart(throwing, 'u1', 's1'), () => lib.forgetBlankStartEverywhere(throwing, 's1'), () => lib.rememberBlankStart(throwing, 'u1', 's1'), () => lib.hasBlankStart(throwing, 'u1', 's1')]) assert.doesNotThrow(call)
+  const blocked = createLoader(branchRoot, ON, null, {}, { window: Object.defineProperty({}, 'localStorage', { get() { throw new Error('SecurityError') } }) })(LIB)
+  assert.equal(blocked.browserBlankStartStorage(), null, 'blocked localStorage: null, no throw')
+  const server = createLoader(branchRoot, ON, null, {}, { window: undefined })(LIB)
+  assert.equal(server.browserBlankStartStorage(), null, 'server render: null')
+})
+check('4e delete: the REAL useChatSessions.deleteSession forgets the session after a successful DELETE (flag on only)', () => {
+  const run = (env, ok) => {
+    const storage = createStorage()
+    const lib = createLoader(branchRoot, env, storage)(LIB)
+    lib.rememberBlankStart(storage, 'u1', 's1'); lib.rememberBlankStart(storage, 'u1', 's2')
+    const before = JSON.stringify(storage.dump())
+    const requests = []
+    const fetchStub = async (url, init) => { requests.push(`${init?.method ?? 'GET'} ${url}`); return { ok, statusText: ok ? 'OK' : 'Server Error', json: async () => ({}) } }
+    const quiet = ok ? console : { ...console, error() {} } // the failed DELETE logs its error; expected here
+    const { useChatSessions } = createLoader(branchRoot, env, storage, {}, { fetch: fetchStub, console: quiet })('hooks/use-chat-sessions.ts')
+    let api = null
+    const root = new Root()
+    root.setElement(React.createElement(function Probe() { api = useChatSessions(); return null })); root.flush()
+    return { storage, before, requests, deleted: api.deleteSession('s1') , root }
+  }
+  return Promise.all([run(ON, true), run(OFF, true), run(ON, false)].map(async r => ({ ...r, result: await r.deleted }))).then(([on, off, failed]) => {
+    assert.deepEqual(on.requests, ['DELETE /api/sessions/s1'])
+    assert.equal(on.result, true)
+    const lib = libFor(ON)
+    assert.equal(lib.hasBlankStart(on.storage, 'u1', 's1'), false, 'flag on: forgotten')
+    assert.equal(lib.hasBlankStart(on.storage, 'u1', 's2'), true)
+    assert.equal(JSON.stringify(off.storage.dump()), off.before, 'flag off: storage untouched')
+    assert.equal(JSON.stringify(failed.storage.dump()), failed.before, 'a failed DELETE forgets nothing')
+  })
 })
 check('4c decision table', () => {
   const { decideBlankStart: d } = libFor(ON)
@@ -412,7 +504,9 @@ check('5a page wiring', () => {
   assert.match(page, /^import \{ useStudioBlankStart \} from '@\/hooks\/use-studio-blank-start'$/m)
   assert.equal((page.match(/useStudioBlankStart\(/g) || []).length, 1, 'one hook call')
   assert.match(page, /    setBlankPlaceholderDismissed\(true\)\n  \}\n(  \/\/ [^\n]*\n)+  const handleStartOnBlankCanvas = useStudioBlankStart\(\{\n    enabled: STUDIO_BLANK_START_NEW_SESSION_ENABLED && studioShell,\n/, 'right after the dismiss handler, Studio shell only')
-  assert.match(page, /    dismiss: handleDismissBlankPlaceholder,\n    startNewSession: \(\) => handleNewChatWrappedRef\.current\?\.\(\),\n  \}\)/, 'the page\'s own dismiss handler and New flow')
+  assert.match(page, /    hasRealDeck: studioCanvasLifecycle\.hasGeneratedDeck \|\| studioCanvasLifecycle\.hasAuthoredDeck,\n    dismiss: handleDismissBlankPlaceholder,\n    startNewSession: \(\) => handleNewChatWrappedRef\.current\?\.\(\),\n  \}\)/, 'the page\'s own dismiss handler and New flow')
+  const sessions = read('hooks/use-chat-sessions.ts')
+  assert.match(sessions, /throw new Error\(`Failed to delete session: \$\{response\.statusText\}`\);\n      \}\n\n      \/\/ [^\n]*\n      if \(STUDIO_BLANK_START_NEW_SESSION_ENABLED\) forgetBlankStartEverywhere\(browserBlankStartStorage\(\), sessionId\);\n\n      return true;/, 'delete cleanup only after a successful DELETE, flag-gated')
   assert.match(page, /onStartBlank=\{effectivePresentationUrl \? \(STUDIO_BLANK_START_NEW_SESSION_ENABLED \? handleStartOnBlankCanvas : handleDismissBlankPlaceholder\) : undefined\}/, 'flag off: the same handler as before')
   assert.match(page, /onDismissBlankPlaceholder=\{handleDismissBlankPlaceholder\}/, 'the stage button is unchanged')
   assert.match(page, /useEffect\(\(\) => \{\n    setBlankPlaceholderDismissed\(false\)\n  \}, \[currentSessionId\]\)/, 'the per-session reset is unchanged')
@@ -442,12 +536,13 @@ check('5d documented default off; script registered', () => {
 // ---- 6. mutants must be caught ------------------------------------------------------------------------------------------------
 const MUTANTS = [
   ['lib: new session even for an unsaved canvas', LIB, '&& !input.unsavedSession ', '', 'fresh-canvas-clicked-twice'],
-  ['lib: never remember', LIB, "storage.setItem(blankStartKey(ownerId), JSON.stringify(started.slice(-BLANK_START_MEMORY_LIMIT)))", 'void 0', 'j3-r13-reload-then-start-blank'],
-  ['hook: remember on the session-switch commit', HOOK, 'enabled && sameSession && dismissed', 'enabled && dismissed', 'switch-to-another-saved-session'],
+  ['lib: never remember', LIB, 'writeStarted(storage, blankStartKey(ownerId), started.slice(-BLANK_START_MEMORY_LIMIT))', 'void 0', 'j3-r13-reload-then-start-blank'],
+  ['hook: remember on the session-switch commit', HOOK, 'else if (sameSession && dismissed)', 'else if (dismissed)', 'switch-to-another-saved-session'],
   ['hook: no restore after load', HOOK, 'latest.current.setDismissed(true)', 'void 0', 'j3-r13-reload-then-start-blank'],
   ['hook: pending start never fires', HOOK, 'if (step.dismiss) latest.current.dismiss()', 'void step', 'j3-r13-reload-then-start-blank'],
   ['hook: pending start not dropped on a switch', LIB, 'if (now.sessionId !== carry.to) return { carry: null, dismiss: false }', 'if (now.sessionId !== carry.to) return { carry, dismiss: false }', 'pending-start-dropped-on-switch'],
   ['page: first-run row keeps the old handler with the flag on', PAGE, '(STUDIO_BLANK_START_NEW_SESSION_ENABLED ? handleStartOnBlankCanvas : handleDismissBlankPlaceholder)', 'handleDismissBlankPlaceholder', 'j3-r13-reload-then-start-blank'],
+  ['hook: a real deck is never forgotten', HOOK, 'if (hasRealDeck) forgetBlankStart(browserBlankStartStorage(), ownerId, sessionId)\n    else if', 'if'],
   ['page: hook enabled outside the flag', PAGE, 'enabled: STUDIO_BLANK_START_NEW_SESSION_ENABLED && studioShell,', 'enabled: studioShell,', 'flag-off'],
 ]
 for (const [label, file, from, to, scenario] of MUTANTS) {
@@ -462,6 +557,7 @@ for (const [label, file, from, to, scenario] of MUTANTS) {
       } else {
         const trace = runScenario(scenario, { treeRoot: branchRoot, env: ON, overrides })
         if (scenario === 'j3-r13-reload-then-start-blank') expectFixed(trace)
+        else if (scenario === 'started-then-real-deck') assert.deepEqual(JSON.parse(trace.storage[libFor(ON).blankStartKey('synthetic-user')] ?? '[]'), [])
         else assert.equal(sha(trace), sha(branchOn[scenario]))
       }
     } catch { caught = true }
@@ -469,5 +565,6 @@ for (const [label, file, from, to, scenario] of MUTANTS) {
   })
 }
 
+await Promise.all(pending)
 console.log(failures.length ? `\n${failures.length} FAILED` : '\nall blank-start checks passed')
 process.exit(failures.length ? 1 : 0)
