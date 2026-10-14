@@ -4,7 +4,8 @@
 //
 // Page regions, each read from app/builder/page.tsx by AST and run in the harness's strict scope (a name the harness does
 // not provide throws): the hook's `onMessage` option, `commitThemeSync`, `clearThemeSyncTimeout`, `handleBuildThemeChange`
-// (a user's theme pick), `requestThemeSyncForPresentation`, `themeSyncTargetRef` (initial and per render), the composer
+// (a user's theme pick), `requestThemeSyncForPresentation`, `getThemeSyncSnapshot` and `ensureThemeReady` (Add Element's
+// theme preflight, `elementPreflight` op), `themeSyncTargetRef` (initial and per render), the composer
 // theme policy (`composerLibraryEnabled`, `composerThemeBlocked`, `composerThemeFrozen`), `buildThemeProfileMatchesSelection`
 // and the deck-theme sync effect (the socket-ready `set_theme`); and, where the tree has them (this change), the restore
 // gate's `commitThemeRestoreGate`, `observeThemeRestoreFrame`, `themeRestoreSession` and its reset effect. A tree without
@@ -72,6 +73,8 @@ export function themeRestoreRegions(root) {
     clearThemeSyncTimeout: callback('clearThemeSyncTimeout'),
     handleBuildThemeChange: callback('handleBuildThemeChange'),
     requestThemeSyncForPresentation: callback('requestThemeSyncForPresentation'),
+    getThemeSyncSnapshot: callback('getThemeSyncSnapshot'),
+    ensureThemeReady: callback('ensureThemeReady'),
     themeSyncTargetInitial: compile('page.themeSyncTargetRef(initial)', targetRef.arguments[0]),
     themeSyncTargetCurrent: compile('page.themeSyncTargetRef.current', targetAssign.right),
     themeSyncEffect,
@@ -114,6 +117,7 @@ export async function runThemeRestoreTranscript({ root, fixture, mode }) {
   const themeBuilderLib = loader.load('lib/theme-builder.ts')
   const { themeFontsEqual } = loader.load('lib/theme-fonts.ts')
   const { composerThemeSyncBlocked } = loader.load('lib/composer-theme-policy.ts')
+  const { getLayoutServiceUrl } = loader.load('lib/layout-service-client.ts')
   const { resolveEffectivePresentation } = loader.load('lib/builder-presentation-ownership.ts')
   const restoreLib = T.restore ? loader.load('lib/studio-theme-restore.ts') : {}
   const voice = loader.load('lib/studio-voice-interactive.ts')
@@ -121,6 +125,8 @@ export async function runThemeRestoreTranscript({ root, fixture, mode }) {
 
   // ---- recorders ---------------------------------------------------------------------------------------------------
   const rec = { step: -1, calls: [], checkpoints: [], notes: [], failures: [] }
+  const PREFLIGHT_CAP_MS = 30_000
+  let lastPreflight = null
   const call = (name, args) => rec.calls.push({ step: rec.step, at: env.clock.now() - START_MS, name, args: canonical(args) })
   const toasts = []
   const toast = value => { toasts.push(value); call('page.toast', [value]) }
@@ -153,7 +159,7 @@ export async function runThemeRestoreTranscript({ root, fixture, mode }) {
     const themeSyncRef = R.useRef(themeSync)
     themeSyncRef.current = themeSync
     const theme = {
-      ...themeSyncLib, themeSelectionFingerprint: themeBuilderLib.themeSelectionFingerprint, themeFontsEqual, composerThemeSyncBlocked,
+      ...themeSyncLib, themeSelectionFingerprint: themeBuilderLib.themeSelectionFingerprint, themeFontsEqual, composerThemeSyncBlocked, getLayoutServiceUrl,
       ...restoreLib,
       process: env.globals.process, crypto: env.crypto, console: env.console, setTimeout: env.clock.setTimeout, clearTimeout: env.clock.clearTimeout,
       buildThemeSelection, setBuildThemeSelection, activeBuildThemeProfile, setActiveBuildThemeProfile, themeSync, setThemeSync, themeSyncRef,
@@ -233,6 +239,9 @@ export async function runThemeRestoreTranscript({ root, fixture, mode }) {
     theme.themeSyncTargetRef = R.useRef(T.themeSyncTargetInitial(theme))
     theme.themeSyncTargetRef.current = T.themeSyncTargetCurrent(theme)
     theme.requestThemeSyncForPresentation = R.useCallback(T.requestThemeSyncForPresentation.fn(theme), T.requestThemeSyncForPresentation.deps(theme))
+    // Add Element's theme preflight (page.tsx ensureThemeReady -> lib/theme-sync.ts waitForAuthoritativeTheme, unmodified).
+    theme.getThemeSyncSnapshot = R.useCallback(T.getThemeSyncSnapshot.fn(theme), T.getThemeSyncSnapshot.deps(theme))
+    theme.ensureThemeReady = R.useCallback(T.ensureThemeReady.fn(theme), T.ensureThemeReady.deps(theme))
     if (T.restore) {
       theme.themeRestoreSession = T.restore.themeRestoreSession(theme)
       theme.themeRestoreSessionRef.current = T.restore.sessionAssign(theme)
@@ -299,6 +308,25 @@ export async function runThemeRestoreTranscript({ root, fixture, mode }) {
         process: env.globals.process, Date: env.globals.Date, console: env.console,
       })()
     },
+    // Add Element in this tab: the page's element-generation theme preflight. Virtual time runs in 50 ms steps until it answers
+    // (at most PREFLIGHT_CAP_MS), so a preflight that waits on Director shows as the time it waited; one that proceeds at once
+    // answers in 0 ms.
+    async elementPreflight() {
+      const { theme } = probe.latest
+      const startedAt = env.clock.now()
+      let outcome = null
+      call('page.ensureThemeReady', [theme.effectivePresentationId])
+      theme.ensureThemeReady(theme.effectivePresentationId).then(
+        result => { outcome = { result, at: env.clock.now() } },
+        error => { outcome = { error: String(error?.message ?? error).slice(0, 160), at: env.clock.now() } },
+      )
+      await settle()
+      for (let waited = 0; !outcome && waited < PREFLIGHT_CAP_MS; waited += 50) await advance(50)
+      if (!outcome) lastPreflight = { settled: false, ready: false, code: 'pending', elapsedMs: env.clock.now() - startedAt }
+      else if (outcome.error) lastPreflight = { settled: true, ready: false, code: `threw: ${outcome.error}`, elapsedMs: outcome.at - startedAt }
+      else lastPreflight = { settled: true, ready: outcome.result.ready === true, code: outcome.result.ready ? outcome.result.source : outcome.result.code, elapsedMs: outcome.at - startedAt }
+      rec.notes.push(`step ${rec.step}: element preflight ${lastPreflight.settled ? '' : 'still pending, '}${lastPreflight.ready ? 'ready' : 'not ready'} (${lastPreflight.code}) after ${lastPreflight.elapsedMs} ms virtual`)
+    },
     async themePick(step) { call('page.handleBuildThemeChange', [step.theme]); probe.latest.theme.handleBuildThemeChange(step.theme) },
     // Director's real _send_theme_sync frames (fixture.ackTemplate) for the newest set_theme this socket sent and Director has
     // not answered yet (Director answers on the socket that asked).
@@ -328,6 +356,10 @@ export async function runThemeRestoreTranscript({ root, fixture, mode }) {
       if (want.themeSyncStatus !== undefined) check(`themeSync.status ${theme.themeSync.status} === ${want.themeSyncStatus}`, theme.themeSync.status === want.themeSyncStatus)
       if (want.gatePhase !== undefined) check(`gate ${theme.themeRestoreGate?.phase} === ${want.gatePhase}`, theme.themeRestoreGate?.phase === want.gatePhase)
       if (want.locallyChanged !== undefined) check(`themeSelectionChangedLocally ${theme.themeSelectionChangedLocallyRef.current} === ${want.locallyChanged}`, theme.themeSelectionChangedLocallyRef.current === want.locallyChanged)
+      if (want.themeSyncError !== undefined) check(`themeSync.error ${JSON.stringify(theme.themeSync.error)} === ${JSON.stringify(want.themeSyncError)}`, theme.themeSync.error === want.themeSyncError)
+      if (want.preflightReady !== undefined) check(`element preflight ready ${lastPreflight?.ready} (${lastPreflight?.code}) === ${want.preflightReady}`, lastPreflight?.ready === want.preflightReady)
+      if (want.preflightSource !== undefined) check(`element preflight source ${lastPreflight?.code} === ${want.preflightSource}`, lastPreflight?.code === want.preflightSource)
+      if (want.preflightElapsedMs !== undefined) check(`element preflight answered after ${lastPreflight?.elapsedMs} ms virtual === ${want.preflightElapsedMs}`, lastPreflight?.elapsedMs === want.preflightElapsedMs)
       if (want.sockets !== undefined) check(`sockets ${env.sockets.length} === ${want.sockets}`, env.sockets.length === want.sockets)
     },
   }

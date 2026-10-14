@@ -11,6 +11,10 @@
 //     frames. Every byte the tab puts on the socket is compared with the baselines: `off` was recorded from the base tree
 //     (origin/studio-v4-dev-preparation-code b0c5a4a) and the flag-off branch must reproduce it byte for byte; `on` is the
 //     branch with the flag on, and each transcript's expect steps pin its set_theme counts and the adopted theme.
+//     `restore-syncing-other-tab` pins the settling rule: a restore whose apply is still in flight on another tab (Director
+//     acknowledges only the socket that asked) is committed applied, with no 20 s timer or timeout banner, and Add Element's
+//     theme preflight (ensureThemeReady -> waitForAuthoritativeTheme) proceeds at once (0 ms of virtual time, at the restore
+//     and 25 s later). On the previous head that transcript fails: "Theme application timed out" after 20 s.
 //  3. Wiring pins: the hook change is types only (its transpiled JavaScript equals the base's), every new page path is
 //     behind the inline flag read, .env.example and package.json document the flag.
 //  4. Mutants: deliberately broken copies of the lib and the page must each be caught by 1 or 2.
@@ -98,7 +102,12 @@ function unitSuite(root) {
   eq(lib.restoredThemeSync({ request_id: 'restore:s:none', presentation_id: 'blank-1', applied: true, desired_status: null }, { mode: 'auto' }).status, 'applied',
     'a new session\'s blank deck: applied with no desired state')
   eq(lib.restoredThemeSync({ request_id: 'r', presentation_id: 'deck-1', applied: true, desired_status: 'syncing' }, CL).status, 'applied', 'applied wins over a re-apply in flight')
-  eq(lib.restoredThemeSync({ request_id: 'r', presentation_id: 'deck-1', applied: false, desired_status: 'syncing' }, CL).status, 'syncing', 'desired still syncing')
+  // the settling rule: another tab's apply in flight (Director acknowledges only the socket that asked) is committed applied
+  eq(lib.restoredThemeSync({ request_id: 'r', presentation_id: 'deck-1', applied: false, desired_status: 'syncing' }, CL),
+    { status: 'applied', requestId: 'r', presentationId: 'deck-1', themeFingerprint: fp(CL), error: null }, 'desired still syncing (another tab\'s apply): settled as applied, no error')
+  for (const payload of [{ applied: false, desired_status: 'syncing' }, { applied: false, desired_status: 'applied' }, { applied: true, desired_status: 'syncing' }, { applied: true, desired_status: null }, { applied: false, desired_status: 'failed' }, { applied: false, desired_status: null }]) {
+    check(assert.notEqual, lib.restoredThemeSync({ request_id: 'r', presentation_id: 'deck-1', ...payload }, CL)?.status, 'syncing', `a restore is never committed syncing: ${JSON.stringify(payload)}`)
+  }
   eq(lib.restoredThemeSync({ request_id: 'r', presentation_id: 'deck-1', applied: false, desired_status: 'failed' }, CL),
     { status: 'failed', requestId: 'r', presentationId: 'deck-1', themeFingerprint: fp(CL), error: 'Director could not apply this theme.' }, 'desired failed')
   eq(lib.restoredThemeSync({ request_id: 'r', presentation_id: 'deck-1', applied: false, desired_status: 'applied' }, CL).status, 'applied', 'desired applied (Auto resolved on apply)')
@@ -224,6 +233,7 @@ function wiringSuite(src) {
   const observe = page.slice(page.indexOf('const observeThemeRestoreFrame = useCallback'), page.indexOf('const standardThemeLoadedRef'))
   check(assert.ok, observe.length > 0 && !observe.includes('themeSelectionChangedLocallyRef.current ='), 'page: a restore never marks a user pick')
   check(assert.ok, !observe.includes('sendThemeSelection') && !observe.includes('requestThemeSyncForPresentation'), 'page: a restore never sends')
+  check(assert.ok, !observe.includes('setTimeout') && !observe.includes('THEME_SYNC_TIMEOUT_MS') && !observe.includes('themeSyncTimeoutRef'), 'page: a restore arms no timer (settled, see restoredThemeSync)')
   check(assert.equal, count(page, 'from \'@/lib/studio-theme-restore\''), 1, 'page imports the lib once')
   const hook = src[HOOK]
   check(assert.ok, !hook.includes('studio-theme-restore') && !hook.includes(`process.env.${FLAG}`), 'hook: no import, no flag read (types only)')
@@ -278,7 +288,13 @@ const MUTANTS = [
   ['adapter drops a preset\'s overrides', LIB, '      ...(overrides ? { color_overrides: overrides } : {}),\n', ''],
   ['adapter reads explicit Auto as nothing stored', LIB, "if (theme.mode === 'auto') return { mode: 'auto', ...fonts }", "if (theme.mode === 'auto') return null"],
   ['adapter drops fonts', LIB, 'const fonts = themeFontFields(theme)', 'const fonts = {}'],
-  ['restore ignores applied', LIB, 'const status = payload.applied === true', "const status = payload.applied === 'yes'"],
+  ['restore ignores applied', LIB, "if (payload.applied === true) return 'applied'", "if (payload.applied === 'yes') return 'applied'"],
+  // the settling rule (another tab's apply in flight): the unit rows catch the first; the second is held to the new transcript alone
+  ['syncing restore left syncing', LIB, "return payload.desired_status === 'syncing' || payload.desired_status === 'applied' ? 'applied' : null", "return payload.desired_status === 'syncing' ? 'syncing' : payload.desired_status === 'applied' ? 'applied' : null"],
+  ['syncing restore left syncing (transcripts only)', LIB, "return payload.desired_status === 'syncing' || payload.desired_status === 'applied' ? 'applied' : null", "return payload.desired_status === 'syncing' ? 'syncing' : payload.desired_status === 'applied' ? 'applied' : null", 'transcripts'],
+  ['syncing restore not settled (null)', LIB, "return payload.desired_status === 'syncing' || payload.desired_status === 'applied' ? 'applied' : null", "return payload.desired_status === 'applied' ? 'applied' : null", 'transcripts'],
+  ['failed restore settled as applied', LIB, "if (payload.desired_status === 'failed') return 'failed'", "if (payload.desired_status === 'failed') return 'applied'"],
+  ['settled restore carries no fingerprint', LIB, '    themeFingerprint: themeSelectionFingerprint(selection),\n    error: status', '    themeFingerprint: null,\n    error: status', 'transcripts'],
   ['no greeting fallback on a new session', LIB, " || frame.type === 'chat_message'", ''],
   ['restored frames read as the fallback', LIB, "if (frame.type === 'theme_sync') {", "if (frame.type === 'theme_sync' && false) {"],
   ['restore of another session adopted', LIB, 'if (!sessionId || (frameSession !== null && frameSession !== sessionId)) {', 'if (!sessionId) {'],
@@ -292,21 +308,22 @@ const MUTANTS = [
   ['socket-ready send not held', PAGE, '&& themeRestoreHoldsSocketSync(themeRestoreGateRef.current, themeRestoreSessionRef.current, themeSelectionChangedLocallyRef.current)', '&& false'],
   ['restore overwrites a user pick', PAGE, 'if (!restore || themeSelectionChangedLocallyRef.current) return step.consumed', 'if (!restore) return step.consumed'],
   ['restore counts as a user pick', PAGE, '    setBuildThemeSelection(selection)\n    const sync = restoredThemeSync(restore, selection)', '    setBuildThemeSelection(selection)\n    themeSelectionChangedLocallyRef.current = true\n    const sync = restoredThemeSync(restore, selection)'],
-  ['restore commits no theme-sync state', PAGE, '      commitThemeSync(sync)\n      if (sync.status', '      void sync\n      if (sync.status'],
+  ['restore arms a 20 s timer again', PAGE, '      commitThemeSync(sync)\n      // No timer:', "      commitThemeSync(sync)\n      themeSyncTimeoutRef.current = setTimeout(() => commitThemeSync({ ...sync, status: 'failed', error: 'Theme application timed out. Reapply the deck theme or reconnect, then generate again.' }), THEME_SYNC_TIMEOUT_MS)\n      // No timer:"],
+  ['restore commits no theme-sync state', PAGE, '      commitThemeSync(sync)\n      // No timer:', '      void sync\n      // No timer:'],
   ['gate never reset per socket', PAGE, 'commitThemeRestoreGate(themeRestoreGateFor(themeRestoreSession))', 'void themeRestoreSession'],
   ['fallback never re-runs the effect', PAGE, `process.env.${FLAG} === 'true' ? themeRestoreGate : null,`, 'null,'],
 ]
 let caught = 0
 const caughtBy = []
 const firstLine = error => String(error?.message ?? error).split('\n')[0].slice(0, 110)
-for (const [name, rel, from, to] of MUTANTS) {
+for (const [name, rel, from, to, only] of MUTANTS) {
   const source = SRC[rel]
   assert.ok(source.includes(from), `mutant "${name}": anchor not found in ${rel}`)
   const mutated = source.replace(from, to)
   const dir = scratchTree({ [rel]: mutated })
   let by = null
   try {
-    try { unitSuite(dir) } catch (error) { by = `unit: ${firstLine(error)}` }
+    if (only !== 'transcripts') try { unitSuite(dir) } catch (error) { by = `unit: ${firstLine(error)}` }
     if (!by) try { await transcriptSuite(dir) } catch (error) { by = `transcripts: ${firstLine(error)}` }
     if (!by) try { wiringSuite({ ...SRC, [rel]: mutated }) } catch (error) { by = `wiring: ${firstLine(error)}` }
   } finally {

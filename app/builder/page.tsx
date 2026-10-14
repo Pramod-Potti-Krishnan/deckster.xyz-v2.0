@@ -700,21 +700,8 @@ function AuthenticatedBuilderContent({ authScopeUserId }: { authScopeUserId: str
       latestThemeSyncRequestRef.current = sync.requestId
       latestThemeSyncKeyRef.current = `${sync.presentationId}:${sync.themeFingerprint}`
       commitThemeSync(sync)
-      if (sync.status === 'syncing') {
-        // Director acknowledges an apply only on the socket that asked for it, so bound this one like any other request.
-        const { requestId, presentationId, themeFingerprint } = sync
-        themeSyncTimeoutRef.current = setTimeout(() => {
-          if (latestThemeSyncRequestRef.current !== requestId) return
-          commitThemeSync({
-            status: 'failed',
-            requestId,
-            presentationId,
-            themeFingerprint,
-            error: 'Theme application timed out. Reapply the deck theme or reconnect, then generate again.',
-          })
-          themeSyncTimeoutRef.current = null
-        }, THEME_SYNC_TIMEOUT_MS)
-      }
+      // No timer: restoredThemeSync commits applied or failed, never syncing. Another tab's apply in flight is settled
+      // (Director acknowledges an apply only on the socket that asked for it, so this tab would wait for nothing).
     }
     return step.consumed
   }, [clearThemeSyncTimeout, commitThemeRestoreGate, commitThemeSync])

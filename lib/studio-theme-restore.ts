@@ -10,6 +10,8 @@
  *     the greeting. `session_id` is top-level on the frame; the frame has no `message_id`.
  *  2. The page adopts `theme` as its build theme (`restoredThemeSelection`) and commits the theme-sync state the restore
  *     describes (`restoredThemeSync`), so the deck-theme effect finds the theme already applied and sends nothing.
+ *     The state is committed settled: a restore whose apply is still in flight on another tab (`desired_status: "syncing"`,
+ *     which Director acknowledges only to the socket that asked) counts as applied, with no timer and no banner.
  *     `theme: null` (nothing was ever chosen) shows Auto and sends nothing either. A restore never counts as a user pick.
  *  3. Until the restore (or the fallback below) has arrived on the current socket, the socket-ready `set_theme` is held
  *     (`themeRestoreHoldsSocketSync`), unless the user picked a theme: a real pick always goes out, and a restore that
@@ -102,17 +104,19 @@ export function restoredThemeSelection(theme: unknown): BuildThemeSelection | nu
 }
 
 /**
- * The theme-sync state the restore describes, committed so the deck-theme effect treats the adopted theme as current:
- * `applied` when Director's stored theme is the applied one, otherwise Director's own `desired_status` (`syncing` or
- * `failed`). `null` (commit nothing) without a presentation or a request id, or for any other status.
+ * The theme-sync state the restore describes, committed so the deck-theme effect treats the adopted theme as current.
+ * `null` (commit nothing) without a presentation or a request id, or for any other status.
+ *
+ * The settling rule: a restore is committed SETTLED. Director acknowledges an apply only on the socket that asked for it,
+ * so a restore that says `desired_status: "syncing"` with `applied: false` (another tab's apply is in flight) can never
+ * be acknowledged to this tab: waiting on it would only run into the 20 s timeout and a "Theme application timed out"
+ * banner for a theme nobody on this socket asked for. The tab did not request that apply, so it commits `applied` for
+ * this presentation and theme (no timer, no banner), and element generation proceeds at once. Director's `failed` is
+ * kept (the stored theme could not be applied; the banner is right), and `applied` is unchanged.
  */
 export function restoredThemeSync(payload: ThemeRestorePayload, selection: BuildThemeSelection): ThemeSyncState | null {
   if (!nonEmptyString(payload.presentation_id) || !nonEmptyString(payload.request_id)) return null
-  const status = payload.applied === true
-    ? 'applied'
-    : payload.desired_status === 'syncing' || payload.desired_status === 'failed' || payload.desired_status === 'applied'
-      ? payload.desired_status
-      : null
+  const status = settledRestoreStatus(payload)
   if (!status) return null
   return {
     status,
@@ -121,6 +125,14 @@ export function restoredThemeSync(payload: ThemeRestorePayload, selection: Build
     themeFingerprint: themeSelectionFingerprint(selection),
     error: status === 'failed' ? 'Director could not apply this theme.' : null,
   }
+}
+
+/** `applied` or `failed` (never `syncing`, see restoredThemeSync) from Director's `applied` and `desired_status`; null for neither. */
+function settledRestoreStatus(payload: ThemeRestorePayload): 'applied' | 'failed' | null {
+  if (payload.applied === true) return 'applied'
+  if (payload.desired_status === 'failed') return 'failed'
+  // 'syncing' is another tab's apply in flight: settled (see restoredThemeSync).
+  return payload.desired_status === 'syncing' || payload.desired_status === 'applied' ? 'applied' : null
 }
 
 // ------------------------------------------------------------------------------------------------------------- the gate
