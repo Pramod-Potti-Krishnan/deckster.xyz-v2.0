@@ -1,6 +1,7 @@
 "use client"
 
-import type { ReactNode } from "react"
+import { useSyncExternalStore, type ReactNode } from "react"
+import { studioWelcomeEyebrow } from "@/lib/studio-welcome-polish"
 import { ArrowUpRight, BookOpen, Lightbulb, ListChecks, Sparkles } from "lucide-react"
 
 export type StudioDirectorConnectionState = "connecting" | "connected" | "disconnected" | "error"
@@ -18,6 +19,13 @@ interface StudioWelcomeProps {
   busy?: boolean
   /** PASS2 #2 (NEXT_PUBLIC_STUDIO_FIRST_RUN_V2): the focused first-run head. Starters follow Director's greeting (StudioFirstRunStarters). */
   firstRun?: boolean
+  /** PASS2B G01 (NEXT_PUBLIC_STUDIO_WELCOME_POLISH): present only with the flag. The eyebrow becomes a time-of-day greeting with the user's first name. */
+  greeting?: StudioWelcomeGreeting
+}
+
+/** PASS2B G01: the signed-in user's display name (the page's session data), or null. Only its first word is ever drawn, and never an email. */
+export interface StudioWelcomeGreeting {
+  name?: string | null
 }
 
 const STARTERS = [
@@ -83,17 +91,30 @@ const CONNECTION_LABELS: Record<StudioDirectorConnectionState, string> = {
   error: "Connection needs attention · you can draft meanwhile",
 }
 
+const subscribeNever = () => () => {}
+const clientHour = (): number | null => new Date().getHours()
+const serverHour = (): number | null => null
+
+/**
+ * PASS2B G01: "Good morning, Alex". The hour is read on the client only (no clock on the server snapshot, so the first paint keeps `fallback`
+ * and nothing mismatches while hydrating); the name is the page's, through `greeting`.
+ */
+function StudioGreetingText({ greeting, fallback }: { greeting: StudioWelcomeGreeting; fallback: string }) {
+  const hour = useSyncExternalStore<number | null>(subscribeNever, clientHour, serverHour)
+  return <>{studioWelcomeEyebrow({ hour, name: greeting.name, fallback })}</>
+}
+
 /** Local guidance, not a Director message. Starters only request an editable draft. */
-export function StudioWelcome({ onDraftPrompt, connectionState, busy = false, presentationContext, firstRun = false }: StudioWelcomeProps) {
+export function StudioWelcome({ onDraftPrompt, connectionState, busy = false, presentationContext, firstRun = false, greeting }: StudioWelcomeProps) {
   const continuing = Boolean(presentationContext)
-  if (firstRun && !continuing) return <StudioFirstRunHead />
+  if (firstRun && !continuing) return <StudioFirstRunHead greeting={greeting} />
   const starters = continuing ? CONTINUATION_STARTERS : STARTERS
   const title = presentationContext?.title?.trim()
   const slideCount = presentationContext?.slideCount
   const hasSlideCount = typeof slideCount === "number" && Number.isInteger(slideCount) && slideCount > 0
   return (
     <section data-studio-director-welcome="true" data-studio-director-welcome-context={continuing ? "presentation" : undefined} aria-label={continuing ? "Continue with your presentation" : "Getting started with your presentation"}>
-      <div data-studio-director-welcome-part="eyebrow"><Sparkles size={13} aria-hidden="true" />{continuing ? "Your current presentation" : "Your presentation brief"}</div>
+      <div data-studio-director-welcome-part="eyebrow"><Sparkles size={13} aria-hidden="true" />{continuing ? "Your current presentation" : greeting ? <StudioGreetingText greeting={greeting} fallback="Your presentation brief" /> : "Your presentation brief"}</div>
       <h2>{continuing ? "What would you like to change?" : "What are we making?"}</h2>
       <p data-studio-director-welcome-part="intro">{continuing ? "Describe your next change in chat. Name the slide or section and the message you want to improve." : "Start with your topic, who it’s for, and what you want them to take away. Director can help shape the story from there."}</p>
       {continuing && (title || hasSlideCount) && (
@@ -133,11 +154,11 @@ export function StudioWelcome({ onDraftPrompt, connectionState, busy = false, pr
 }
 
 /** PASS2 #2: one centred head instead of the brief scaffold. The same guidance, in one line. */
-function StudioFirstRunHead() {
+function StudioFirstRunHead({ greeting }: { greeting?: StudioWelcomeGreeting }) {
   return (
     <section data-studio-director-welcome="true" data-studio-first-run="true" aria-label="Getting started with your presentation">
       <span data-studio-first-run-part="mark" aria-hidden="true"><Sparkles size={22} /></span>
-      <div data-studio-director-welcome-part="eyebrow">{FIRST_RUN_COPY.eyebrow}</div>
+      <div data-studio-director-welcome-part="eyebrow">{greeting ? <StudioGreetingText greeting={greeting} fallback={FIRST_RUN_COPY.eyebrow} /> : FIRST_RUN_COPY.eyebrow}</div>
       <h2>{FIRST_RUN_COPY.heading}</h2>
       <p data-studio-director-welcome-part="intro">{FIRST_RUN_COPY.intro}</p>
     </section>
