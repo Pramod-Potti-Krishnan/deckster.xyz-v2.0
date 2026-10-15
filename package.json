@@ -28,6 +28,7 @@
     "test:studio-blank-deck-reload": "node scripts/test-studio-blank-deck-reload.mjs",
     "test:studio-blank-start-new-session": "node scripts/test-studio-blank-start-new-session.mjs",
     "test:studio-empty-prompt-guard": "node scripts/test-studio-empty-prompt-guard.mjs",
+    "test:studio-shape-target-background": "node scripts/test-studio-shape-target-background.mjs",
     "test:composer-ditto": "node scripts/test-composer-ditto.mjs",
     "test:element-semantic-type": "node scripts/test-element-semantic-type.mjs",
     "test:element-geometry": "node scripts/test-element-geometry.mjs",
