@@ -1,0 +1,7 @@
+/* PASS2B G45 (flag NEXT_PUBLIC_STUDIO_LIBRARY_BACK_LINK, default off; the wrapper exists only with it on, so every rule below is inert without it).
+   The mockup's "<- Back to Studio" at the right of the library pages' top bar: a quiet, borderless text button in the muted ink (the mockup's
+   "+ Presentation" beside it is the bordered one), which takes the soft highlight on hover and focus. */
+[data-studio-v4-shell="true"] [data-studio-library-back="true"] { display: flex; align-items: center; flex-shrink: 0; margin-left: auto; }
+[data-studio-v4-shell="true"] [data-studio-library-back="true"] [data-studio-v4-account-return] { height: 34px; gap: 6px; padding: 0 10px; font-size: 13px; font-weight: 500; color: var(--ss-muted); border: 0; border-radius: 7px; background: transparent; }
+[data-studio-v4-shell="true"] [data-studio-library-back="true"] [data-studio-v4-account-return]:hover { background: var(--ss-active); color: var(--ss-text); }
+[data-studio-v4-shell="true"] [data-studio-library-back="true"] [data-studio-v4-account-return] > svg { width: 14px; height: 14px; margin-right: 0; stroke-width: 1.8; }

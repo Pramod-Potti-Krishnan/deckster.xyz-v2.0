@@ -10,17 +10,25 @@ import { lastBuilderSessionKey } from "@/lib/last-builder-session"
 import { ArrowLeft, Brain, LayoutDashboard, Layers } from "lucide-react"
 import { StudioNavigationHint } from "@/components/layout/studio-navigation-hint"
 import { studioNavLabels } from "@/lib/studio-nav-labels"
+import "./studio-library-back.css"
+
+/**
+ * PASS2B G45 (NEXT_PUBLIC_STUDIO_LIBRARY_BACK_LINK, default off): the library pages, i.e. the Studio rail's destinations besides Studio itself, by the same
+ * exact paths the Studio top bar below titles them by ("Your details" has two routes). Settings, billing and the rest keep the plain "Account" bar.
+ */
+const STUDIO_LIBRARY_BACK_PATHS = ["/dashboard", "/knowledge", "/studio/templates", "/studio/themes", "/studio/intelligence", "/studio/details", "/profile"]
 
 /**
  * Returns the user to their most recent builder session (if one is remembered),
  * otherwise opens a fresh builder. Reads localStorage inside the click handler so
  * there is no SSR/hydration concern.
  */
-export function BackToBuilderButton({ rail = false }: { rail?: boolean } = {}) {
+export function BackToBuilderButton({ rail = false, label }: { rail?: boolean; label?: string } = {}) {
   const router = useRouter()
   const { user } = useAuth()
   const studioLabels = process.env.NEXT_PUBLIC_STUDIO_V4_LABELS === "true"
-  const returnLabel = rail ? "Studio" : studioLabels ? "Back to Studio" : "Back to builder"
+  // PASS2B G45: the Studio top bar names it itself (`label`); every other use passes none and keeps the words it had.
+  const returnLabel = label ?? (rail ? "Studio" : studioLabels ? "Back to Studio" : "Back to builder")
 
   const handleClick = () => {
     let target = "/builder"
@@ -67,7 +75,12 @@ export function AppHeader() {
   // PASS2B G43 (NEXT_PUBLIC_STUDIO_PLAIN_NAV_LABELS, default off): the top bar title of /dashboard and /knowledge, as the rail names them.
   const navLabels = studioNavLabels(process.env.NEXT_PUBLIC_STUDIO_PLAIN_NAV_LABELS === "true")
 
-  if (process.env.NEXT_PUBLIC_STUDIO_V4_SHELL === "true") return <header data-studio-v4-shell-header="true"><div className="flex h-full items-center"><span className="text-sm font-semibold">{pathname === "/dashboard" ? navLabels.decks : pathname === "/knowledge" ? navLabels.knowledge : pathname === "/profile" || pathname === "/studio/details" ? "Your details" : pathname === "/studio/templates" ? "Templates" : pathname === "/studio/themes" ? "Themes & brand" : pathname === "/studio/intelligence" ? "Intelligence" : "Account"}</span></div></header>
+  if (process.env.NEXT_PUBLIC_STUDIO_V4_SHELL === "true") {
+    // PASS2B G45 (NEXT_PUBLIC_STUDIO_LIBRARY_BACK_LINK, default off): "Back to Studio" at the right of the library pages' top bar, the existing
+    // return button (last builder session, else a fresh builder). Null with the flag off, and on every other route.
+    const libraryBack = process.env.NEXT_PUBLIC_STUDIO_LIBRARY_BACK_LINK === "true" && STUDIO_LIBRARY_BACK_PATHS.includes(pathname) ? <div data-studio-library-back="true"><BackToBuilderButton label="Back to Studio" /></div> : null
+    return <header data-studio-v4-shell-header="true"><div className="flex h-full items-center"><span className="text-sm font-semibold">{pathname === "/dashboard" ? navLabels.decks : pathname === "/knowledge" ? navLabels.knowledge : pathname === "/profile" || pathname === "/studio/details" ? "Your details" : pathname === "/studio/templates" ? "Templates" : pathname === "/studio/themes" ? "Themes & brand" : pathname === "/studio/intelligence" ? "Intelligence" : "Account"}</span>{libraryBack}</div></header>
+  }
 
   const navItems = [
     { href: "/dashboard", label: "Decks", icon: LayoutDashboard },

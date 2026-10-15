@@ -35,6 +35,8 @@ import { STUDIO_RAIL_LIVE_PREVIEW_FALLBACK_ENABLED, railLivePreviewCandidate } f
 import { RailLivePreview } from './rail-live-preview'
 import { STUDIO_SLIDE_RAIL_V2, slideRailV2Number } from '@/lib/studio-slide-rail-v2'
 import { STUDIO_RAIL_LAYOUT_LABELS, railLayoutName } from '@/lib/studio-rail-layout-label'
+import { STUDIO_RAIL_ADD_SLIDE } from '@/lib/studio-rail-add-slide'
+import { RailAddSlideButton, type RailAddSlideProps } from './studio-rail-add-slide'
 import './studio-thumbnails.css'
 
 const STUDIO_THUMBNAILS = process.env.NEXT_PUBLIC_STUDIO_V4_SHELL === 'true'
@@ -140,6 +142,9 @@ export interface SlideThumbnailStripProps {
    *  status is `none` (no preview will ever come), or `pending` / `stale` for 15 s with no thumbnail URL, shows a live view-only mini-preview
    *  of its slide instead of "No preview". Ignored when the flag is off. */
   livePreviewViewerUrl?: string | null
+  /** PASS2B G21 (flag NEXT_PUBLIC_STUDIO_RAIL_ADD_SLIDE, Studio shell, vertical rail only): the footer's "+ Add slide" button, given by the viewer
+   *  (it owns the Add Slide panel's handler and the toolbar's gating). Ignored when the flag is off. */
+  addSlide?: RailAddSlideProps
 }
 
 /**
@@ -174,6 +179,7 @@ export function SlideThumbnailStrip({
   onRefineSlide,
   keyBySlideId = false,
   livePreviewViewerUrl = null,
+  addSlide,
 }: SlideThumbnailStripProps) {
   const [draggedSlide, setDraggedSlide] = useState<number | null>(null)
   const [dropTarget, setDropTarget] = useState<number | null>(null)
@@ -820,6 +826,7 @@ export function SlideThumbnailStrip({
             : renderThumbnail(item.slide, item.visualNumber)
         )}
       </div>
+      {STUDIO_RAIL_ADD_SLIDE && STUDIO_THUMBNAILS && isVertical && addSlide ? <RailAddSlideButton {...addSlide} /> : null}
     </div>
   )
 }

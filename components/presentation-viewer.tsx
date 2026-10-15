@@ -106,6 +106,7 @@ import { TemplateIngestDialog } from './template-ingest-dialog'
 import { StudioTemplatePicker } from './studio-template-workspace/entry'
 import { StudioDisabledReason } from './studio-disabled-reason'
 import { STUDIO_DISABLED_REASONS_ENABLED, studioToolbarDisabledReason, studioElementCardsDisabledReason, type StudioToolbarControl } from '@/lib/studio-disabled-reasons'
+import { STUDIO_RAIL_ADD_SLIDE, railAddSlideState } from '@/lib/studio-rail-add-slide'
 import { useToast } from '@/hooks/use-toast'
 // TextFormatPopover is now replaced by simple text box insertion button
 // Keeping FormatTextParams for backward compatibility if needed
@@ -1593,6 +1594,19 @@ export function PresentationViewer({
     if (railFocusHidden) { onStudioRailReveal?.(); return }
     setShowThumbnails(prev => !prev)
   }, [railFocusHidden, onStudioRailReveal])
+  // PASS2B G21 (NEXT_PUBLIC_STUDIO_RAIL_ADD_SLIDE, default off, Studio shell only): the rail footer's "+ Add slide". It opens the Add Slide panel through the
+  // toolbar's own handler (onPanelOpenChange, here with `true`) and sends no Layout command itself; its gating mirrors the toolbar's Add Slide
+  // (lib/studio-rail-add-slide.ts). Undefined, and then not passed to the strip, with the flag off.
+  const railAddSlideGate = railAddSlideState({
+    panelAvailable: STUDIO_RAIL_ADD_SLIDE && studioShell && ADD_SLIDE_V2_ENABLED && Boolean(studioAuthoringPortalTarget),
+    viewerIsReady,
+    templateModeOn,
+    slideMutationPending: isSlideMutationPending,
+    tabPausedHint: studioTabPausedHint,
+    building: Boolean(isGenerating),
+    disabledReasons: STUDIO_DISABLED_REASONS_ENABLED,
+  })
+  const railAddSlide = railAddSlideGate && addSlideV2Settings ? { ...railAddSlideGate, onOpen: () => addSlideV2Settings.onPanelOpenChange(true) } : undefined
 
   // Toggle grid overlay via postMessage (fire-and-forget to avoid timeout on hide)
   const handleToggleGrid = useCallback(() => {
@@ -4884,6 +4898,7 @@ export function PresentationViewer({
                 onRefineSlide={onRefineSlide}
                 keyBySlideId={railIdentityRows !== null}
                 livePreviewViewerUrl={approvedPresentationUrl}
+                {...(railAddSlide ? { addSlide: railAddSlide } : {})}
               />
             )}
           </div>
