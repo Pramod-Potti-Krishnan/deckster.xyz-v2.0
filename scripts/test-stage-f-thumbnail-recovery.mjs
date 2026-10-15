@@ -120,6 +120,8 @@ function strip(ref, studio) {
     './rail-live-preview': {RailLivePreview:()=>null},
     // PASS2 rail v2 (flag NEXT_PUBLIC_STUDIO_SLIDE_RAIL_V2, default off): flag-off stub; older refs never import it.
     '@/lib/studio-slide-rail-v2': {STUDIO_SLIDE_RAIL_V2:false,slideRailV2Number:n=>String(n).padStart(2,'0')},
+    // PASS2B G20 (flag NEXT_PUBLIC_STUDIO_RAIL_LAYOUT_LABELS, default off): flag-off stub; older refs never import it.
+    '@/lib/studio-rail-layout-label': {STUDIO_RAIL_LAYOUT_LABELS:false,railLayoutName:()=>null},
   }
   const parsed=ts.createSourceFile('strip.tsx',text,ts.ScriptTarget.Latest,true,ts.ScriptKind.TSX)
   for (const declaration of parsed.statements) {

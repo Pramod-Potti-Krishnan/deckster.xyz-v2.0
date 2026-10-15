@@ -19,6 +19,10 @@
 export const STUDIO_RAIL_SLIDE_IDENTITY_ENABLED =
   process.env.NEXT_PUBLIC_STUDIO_RAIL_SLIDE_IDENTITY_ENABLED === 'true'
 
+/** PASS2B G20 (NEXT_PUBLIC_STUDIO_RAIL_LAYOUT_LABELS, exact 'true', default off): rows also carry the slide's `layout`, so the rail can name an
+ *  untitled slide by its layout (lib/studio-rail-layout-label.ts). Off, rows are exactly as before. This module stays import-free. */
+const RAIL_LAYOUT_LABELS = process.env.NEXT_PUBLIC_STUDIO_RAIL_LAYOUT_LABELS === 'true'
+
 export type SlideThumbnailStatus = 'fresh' | 'stale' | 'pending' | 'none'
 
 export interface SlideInventoryRow {
@@ -51,6 +55,8 @@ export interface SlideRailRow {
   title: string
   thumbnailUrl?: string
   thumbnailStatus: SlideThumbnailStatus
+  /** Only with NEXT_PUBLIC_STUDIO_RAIL_LAYOUT_LABELS on, and only when the inventory names one. */
+  layout?: string
 }
 
 const MAX_URL_LENGTH = 8192
@@ -359,6 +365,7 @@ export function buildRailRows(inventory: SlideInventory, titles: RailTitleMemory
     title: row.title ?? titles.get(row.slideId) ?? `Slide ${position + 1}`,
     ...(row.thumbnailUrl ? { thumbnailUrl: row.thumbnailUrl } : {}),
     thumbnailStatus: row.thumbnailStatus,
+    ...(RAIL_LAYOUT_LABELS && row.layout ? { layout: row.layout } : {}),
   }))
 }
 
