@@ -3,7 +3,8 @@
 // ("Your presentation will take shape here"). Flag NEXT_PUBLIC_STUDIO_FIRST_RUN_POSTER_HIDE (exact "true", Studio shell only), default off.
 //
 // Run: node scripts/test-studio-first-run-poster-hide.mjs   (plain node: transpile, no network, no browser, no env)
-//   FIRST_RUN_POSTER_BASE=<commit> overrides the base commit the flag-off identity is checked against (default a2e14da).
+//   FIRST_RUN_POSTER_BASE=<commit> overrides the base commit the flag-off identity is checked against (default 8df821b, the #407 merge: the
+//   last commit before the G20/G12/G09 batch; the default was a2e14da until #407 landed its own page lines between the two).
 //
 // Proven on the REAL components/builder/studio-welcome-stage.tsx, components/builder/presentation-area.tsx and app/builder/page.tsx:
 //   1. the stage: without `planning` the markup is the base commit's, byte for byte, over a props matrix; with it the poster's words and first-run
@@ -25,7 +26,7 @@ const repoRoot = path.resolve(new URL('..', import.meta.url).pathname)
 const nodeRequire = createRequire(path.join(repoRoot, 'package.json'))
 const React = nodeRequire('react')
 const { renderToStaticMarkup } = nodeRequire('react-dom/server')
-const BASE_COMMIT = process.env.FIRST_RUN_POSTER_BASE || 'a2e14da'
+const BASE_COMMIT = process.env.FIRST_RUN_POSTER_BASE || '8df821b'
 const read = rel => fs.readFileSync(path.join(repoRoot, rel), 'utf8')
 function baseSource(rel) {
   try {
