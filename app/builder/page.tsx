@@ -7694,6 +7694,7 @@ function AuthenticatedBuilderContent({ authScopeUserId }: { authScopeUserId: str
             onStudioIntroductionSafetyChange={studioShell ? handleStudioViewerSafety : undefined}
             studioCanvasLifecycle={studioShell ? studioCanvasLifecycle : undefined}
             studioInitialNativeDeferred={studioInitialNativeDeferred}
+            studioBriefSent={studioShell && process.env.NEXT_PUBLIC_STUDIO_FIRST_RUN_POSTER_HIDE === 'true' ? session.userMessages.length > 0 : undefined}
             studioPartialStagePending={studioShell ? studioPartialPending : undefined}
             studioPartialArtifact={studioShell ? studioPartialMetadata : undefined}
             onStudioPartialNativeReadback={studioShell ? handleStudioPartialNativeReadback : undefined}

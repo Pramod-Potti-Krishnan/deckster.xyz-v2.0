@@ -357,7 +357,9 @@ const mut = (source, from, to) => { assert.ok(source.includes(from), `mutation t
 // + NEXT_PUBLIC_STUDIO_ONE_LIVE_TAB -> ChatInput pausedInOtherTab and PresentationArea studioTabPausedHint (false / undefined unless the tab is
 // paused; flag-off equality with the base: scripts/test-studio-one-live-tab.mjs --base-root).
 // + PASS2B J1-10 (NEXT_PUBLIC_STUDIO_CHAT_EDIT_PROMPT) -> ChatInput studioEditPrompt (`studioEditPromptActive || undefined`: undefined flag off; scripts/test-studio-pass2b-chat.mjs).
-const SIBLING_FLAG_ATTR = /^(studioContextLabel|pausedInOtherTab|studioTabPausedHint|studioEditPrompt)=/
+// + PASS2B G09 (NEXT_PUBLIC_STUDIO_FIRST_RUN_POSTER_HIDE) -> PresentationArea studioBriefSent (`undefined` unless the flag is exactly "true" in the Studio shell;
+// flag-off equality: scripts/test-studio-first-run-poster-hide.mjs).
+const SIBLING_FLAG_ATTR = /^(studioContextLabel|pausedInOtherTab|studioTabPausedHint|studioEditPrompt|studioBriefSent)=/
 const withoutFix = element => [...element.attrs.filter(a => !SIBLING_FLAG_ATTR.test(a)), ...element.spreads.filter(s => !FIX.test(s))].join('\n')
 
 // ---- library dialog helpers (the dialog's own buttons are the reference) --------------------------------------------------------------------------
