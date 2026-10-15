@@ -50,6 +50,8 @@ import {
   type AddSlideV2Submit,
 } from '@/lib/studio-add-slide-v2'
 import { ADD_SLIDE_V2_REGENERATE_IDLE, reduceAddSlideV2Regenerate } from '@/lib/studio-add-slide-v2-regenerate'
+import { slidePanelEyebrow } from '@/lib/studio-panel-eyebrow'
+import { StudioPanelEyebrow } from '@/components/studio-panel-eyebrow'
 
 export interface AddSlideV2PanelProps<TTheme = unknown> {
   context: AddSlideV2Context<TTheme>
@@ -125,6 +127,8 @@ export function AddSlideV2Panel<TTheme = unknown>({
   const target = regen?.target ?? null
   const [mode, setMode] = useState<'add' | 'regenerate'>('add')
   const regenerating = mode === 'regenerate' && target !== null
+  // PASS2B G29 (NEXT_PUBLIC_STUDIO_PANEL_EYEBROW, default off, Studio shell only): the violet band over the header.
+  const panelEyebrow = process.env.NEXT_PUBLIC_STUDIO_V4_SHELL === 'true' && process.env.NEXT_PUBLIC_STUDIO_PANEL_EYEBROW === 'true'
   const [regenDrafts, setRegenDrafts] = useState<Record<string, AddSlideV2RegenerateDraft>>({})
   const [regenRun, dispatchRegenRun] = useReducer(reduceAddSlideV2Regenerate, ADD_SLIDE_V2_REGENERATE_IDLE)
   // The run says which slide it is about even after the user selects another one; a finished run's result shows only on that
@@ -278,6 +282,7 @@ export function AddSlideV2Panel<TTheme = unknown>({
         ref={rootRef}
         className="asv2 flex-1 bg-white dark:bg-slate-900 flex flex-col shadow-2xl overflow-hidden pointer-events-auto"
       >
+        {panelEyebrow && <StudioPanelEyebrow {...slidePanelEyebrow(regenerating && target ? { mode: 'regenerate', slideNumber: target.slideNumber } : { mode: 'create', slideNumber: context.currentSlide })} />}
         <div data-studio-v4-panel-header className="flex items-center justify-between px-3 py-2 border-b border-gray-200 dark:border-slate-700 bg-gray-50 dark:bg-slate-800">
           <div className="flex items-center gap-2.5">
             <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-primary/10">
