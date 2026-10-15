@@ -8,9 +8,9 @@
 import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react'
 import { Button } from '@/components/ui/button'
 import { toast } from '@/hooks/use-toast'
-import { composerRequest } from '@/lib/composer-library'
+import { composerJobRecoveryMessage, composerRequest } from '@/lib/composer-library'
 import {
-  TEMPLATE_AS_IS_LINE, TEMPLATE_CANNOT_READ, TEMPLATE_STALLED_LINE, TEMPLATE_UPLOAD_FAILED,
+  TEMPLATE_AS_IS_LINE, TEMPLATE_CANNOT_READ, TEMPLATE_STALLED_LINE,
   parseTrackedTemplateJob, templateActionHeld, templateProgressKey, templateProgressView, templateToastsDue, templateUploadHeld, watchTemplateJob,
   type TemplateProgressJob, type TemplateProgressView, type TemplateRowAction, type TrackedTemplateJob,
 } from '@/lib/studio-template-progress'
@@ -41,11 +41,15 @@ const INERT: TemplateProgressControls = {
   enabled: false, view: null, uploadHeld: false, track() {}, held: () => false, around: node => node,
 }
 
-export function useTemplateProgress({ enabled, userId, refresh }: {
+export function useTemplateProgress({ enabled, userId, refresh, onEnd, retryUpload }: {
   enabled: boolean
   userId: string | null | undefined
   /** The dialog's own list refresh: run when the as-is template is saved (its row appears) and when the job ends. */
   refresh: () => Promise<void>
+  /** Called once when the job being read has finished (with its last view). The dialog lets go of the chosen file unless `view.retry`. */
+  onEnd?: (view: TemplateProgressView) => void
+  /** #406's Retry for an upload, from the dialog: the handler that uploads the same chosen file again, or null when it cannot (no file chosen any more). */
+  retryUpload?: () => (() => void) | null
 }): TemplateProgressControls {
   const [tracked, setTracked] = useState<TrackedTemplateJob | null>(null)
   const [job, setJob] = useState<TemplateProgressJob | null>(null)
@@ -53,6 +57,8 @@ export function useTemplateProgress({ enabled, userId, refresh }: {
   const [attempt, setAttempt] = useState(0)
   const refreshRef = useRef(refresh)
   refreshRef.current = refresh
+  const onEndRef = useRef(onEnd)
+  onEndRef.current = onEnd
   const shownRef = useRef<string[]>([])
   const key = templateProgressKey(userId)
   const jobId = tracked?.job_id ?? null
@@ -72,6 +78,7 @@ export function useTemplateProgress({ enabled, userId, refresh }: {
     const record = tracked as TrackedTemplateJob
     shownRef.current = record.shown
     let savedTemplate: string | null = null
+    let ended = false
     const remember = () => { try { sessionStorage.setItem(key, JSON.stringify({ ...record, shown: shownRef.current })) } catch { /* storage unavailable */ } }
     const forget = () => { try { sessionStorage.removeItem(key) } catch { /* storage unavailable */ } }
     const reload = () => { void refreshRef.current().catch(() => { /* the list keeps what it had; the next refresh retries */ }) }
@@ -94,6 +101,7 @@ export function useTemplateProgress({ enabled, userId, refresh }: {
         // A finished job is kept in the tab only while it has something to say about new topics (paused, refused, failed); a clean or failed
         // one is forgotten, so a reload does not bring it back.
         if (view.terminal && (view.failed || !view.detailed || view.newTopic === 'available')) forget()
+        if (view.terminal && !ended) { ended = true; onEndRef.current?.(view) }
       },
     }).then(outcome => { if (outcome === 'limit' && !controller.signal.aborted) setProblem(TEMPLATE_STALLED_LINE) })
     return () => controller.abort()
@@ -116,19 +124,24 @@ export function useTemplateProgress({ enabled, userId, refresh }: {
 
   if (!enabled) return INERT
   const view = job ? templateProgressView(job) : null
+  const rereading = !!problem || !!view?.stalled
   const name = tracked?.file_name || (job as { upload_ref?: { file_name?: string } } | null)?.upload_ref?.file_name || ''
   return {
     enabled, view,
     uploadHeld: templateUploadHeld(!!tracked, view, problem !== null),
     track,
     held: (templateId, action) => templateActionHeld(view, templateId, action),
-    around: (node, studioShell) => tracked && (view || problem)
-      ? <>
+    // `around` runs while the dialog draws, after its own handlers exist: `retryUpload` is asked here, not when the hook is called.
+    around: (node, studioShell) => {
+      if (!(tracked && (view || problem))) return node
+      const uploadAgain = view?.retry ? retryUpload?.() ?? null : null
+      return <>
         <TemplateProgressCard view={view} problem={problem} name={name} studioShell={studioShell}
-          onRetry={retry} onDismiss={dismiss} dismissible={!!problem || !view || view.failed || view.stalled} />
+          onRetry={rereading ? retry : uploadAgain} onDismiss={dismiss} dismissible={!!problem || !view || view.dismissible}
+          failure={view?.failed ? composerJobRecoveryMessage({ job_id: tracked.job_id, kind: 'upload', reason: 'failed', detail: view.failure, retry: null }, !!uploadAgain) : null} />
         {node}
       </>
-      : node,
+    },
   }
 }
 
@@ -141,21 +154,24 @@ const DOT_CLASS = {
 } as const
 
 /** One uploaded template's progress: the file, the stage, the slides done and the time left, one dot per slide, and what is ready. */
-export function TemplateProgressCard({ view, problem, name, studioShell, onRetry, onDismiss, dismissible }: {
+export function TemplateProgressCard({ view, problem, name, studioShell, onRetry, onDismiss, dismissible, failure }: {
   view: TemplateProgressView | null
   problem: string | null
   name: string
   studioShell: boolean
-  onRetry: () => void
+  /** Retry: read the job again (stalled, unreadable), or upload the file again (failed): null when there is none to offer. */
+  onRetry: (() => void) | null
   onDismiss: () => void
   dismissible: boolean
+  /** #406's words for a failed upload (Director's own error text after them), or null. */
+  failure: string | null
 }) {
   const note = (value: string | null) => value && <p className="text-xs text-muted-foreground">{value}</p>
   return (
     <div data-studio-template-progress={studioShell ? 'true' : undefined} className="space-y-2 rounded-md border p-3">
       {name && <p className="truncate text-sm font-medium" title={name}>{name}</p>}
       {view && <>
-        <p role="status" aria-live="polite" className="text-xs text-muted-foreground">{view.failed ? TEMPLATE_UPLOAD_FAILED : view.statusLine}</p>
+        <p role="status" aria-live="polite" className="text-xs text-muted-foreground">{failure ?? view.statusLine}</p>
         {!view.failed && view.percent !== null && <div role="progressbar" aria-label="Slides done" aria-valuemin={0} aria-valuemax={100} aria-valuenow={view.percent}
           data-studio-template-bar={studioShell ? 'true' : undefined} className="h-1.5 w-full overflow-hidden rounded-full bg-muted">
           <div className="h-full rounded-full bg-primary" style={{ width: `${view.percent}%` }} />
@@ -168,13 +184,12 @@ export function TemplateProgressCard({ view, problem, name, studioShell, onRetry
         {view.asIsReady && !view.terminal && note(TEMPLATE_AS_IS_LINE)}
         {note(view.newTopicLine)}
         {note(view.lockingNote)}
-        {view.failed && note(view.failure)}
         {view.stalled && !problem && <p className="text-xs text-muted-foreground">{TEMPLATE_STALLED_LINE}</p>}
       </>}
       {problem && <p className="text-xs text-muted-foreground">{problem === TEMPLATE_STALLED_LINE ? problem : TEMPLATE_CANNOT_READ}</p>}
-      {dismissible && <div className="flex flex-wrap gap-2">
-        {(problem || view?.stalled) && <Button data-studio-template-progress-action={studioShell ? 'retry' : undefined} size="sm" variant="outline" onClick={onRetry}>Retry</Button>}
-        <Button data-studio-template-progress-action={studioShell ? 'dismiss' : undefined} size="sm" variant="ghost" onClick={onDismiss}>Dismiss</Button>
+      {(onRetry || dismissible) && <div className="flex flex-wrap gap-2">
+        {onRetry && <Button data-studio-template-progress-action={studioShell ? 'retry' : undefined} size="sm" variant="outline" onClick={onRetry}>Retry</Button>}
+        {dismissible && <Button data-studio-template-progress-action={studioShell ? 'dismiss' : undefined} size="sm" variant="ghost" onClick={onDismiss}>Dismiss</Button>}
       </div>}
     </div>
   )
