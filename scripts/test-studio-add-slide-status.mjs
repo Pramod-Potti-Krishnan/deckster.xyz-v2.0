@@ -23,6 +23,7 @@ import { createRequire } from 'node:module'
 import {
   FIXTURES, React, createPageWorld, load, loadLibs, mountPanel, read, read as readFile, readFixture, renderToStaticMarkup, repoRoot, settle, toHtml,
 } from './studio-add-slide-status-harness.mjs'
+import { stripAddSlideStatus } from './studio-add-slide-status-strip.mjs'
 
 const FLAG = 'NEXT_PUBLIC_STUDIO_ADD_SLIDE_STATUS'
 const ON = { [FLAG]: 'true' }
@@ -499,6 +500,11 @@ function pinsSuite(sources = {}) {
   check(assert.equal, /NEXT_PUBLIC_STUDIO_ADD_SLIDE_STATUS/.test(strip(page)), false, 'the page does not read the env itself')
   check(assert.match, page, /createAddSlideV2StatusSettings\(\{\s*jobs: slideComposeJobs,\s*goToSlide: narrationNavigate,/, 'the jobs of this render (state, not the ref that is synced after it); Go to slide is the viewer go-to the page already has')
   check(assert.match, page, /retry: jobId => \{ void slideComposeThumbnailJobs\.find\(job => job\.jobId === jobId\)\?\.onRetry\?\.\(jobId\) \},/, 'Try again is the rail card\'s own retry')
+  // the strip the sibling pins use (scripts/studio-add-slide-status-strip.mjs) takes out exactly what this change added: the panel is the base's
+  // panel again, and nothing of the feature is left in the page
+  const basePanel = baseFile(PANEL)
+  if (basePanel) check(assert.equal, stripAddSlideStatus(PANEL, panel), basePanel, 'the panel without this change\'s lines is the base commit\'s panel, byte for byte')
+  check(assert.equal, /ADD_SLIDE_STATUS|createAddSlideV2StatusSettings|PASS2B J2-04/.test(stripAddSlideStatus('app/builder/page.tsx', page)), false, 'the page without this change\'s lines names none of it')
   // the rail and the viewer are not touched by this feature: they never see the module
   for (const rel of ['components/slide-thumbnail-strip.tsx', 'components/presentation-viewer.tsx', 'components/builder/presentation-area.tsx', 'components/slide-layout-picker.tsx', 'lib/studio-slide-rail-v2.ts', 'lib/studio-panel-focus.ts']) {
     check(assert.equal, /studio-add-slide-status|ADD_SLIDE_STATUS|data-add-slide-status/.test(read(rel)), false, `${rel} does not know this feature`)

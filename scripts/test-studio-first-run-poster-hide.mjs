@@ -21,6 +21,7 @@ import vm from 'node:vm'
 import { execFileSync } from 'node:child_process'
 import { createRequire } from 'node:module'
 import ts from 'typescript'
+import { stripAddSlideStatus } from './studio-add-slide-status-strip.mjs'
 
 const repoRoot = path.resolve(new URL('..', import.meta.url).pathname)
 const nodeRequire = createRequire(path.join(repoRoot, 'package.json'))
@@ -149,7 +150,7 @@ function provePage(page, label = 'page') {
   const at = page.indexOf('<PresentationArea\n'), end = page.indexOf('\n          />', at)
   assert.ok(at > 0 && page.slice(at, end).includes(PAGE_ATTR), `${label}: it is on PresentationArea`)
   const basePage = baseSource(PAGE)
-  if (basePage) assert.equal(stripG01G02(page.replace(PAGE_ATTR, '').replace(G12_BLOCK, '')), basePage, `${label}: without it (and the G12 block) the page is ${BASE_COMMIT}'s`)
+  if (basePage) assert.equal(stripG01G02(stripAddSlideStatus(PAGE, page).replace(PAGE_ATTR, '').replace(G12_BLOCK, '')), basePage, `${label}: without it (and the G12 block) the page is ${BASE_COMMIT}'s`)
 }
 provePage(SOURCES[PAGE]); checks += 3 + 1
 

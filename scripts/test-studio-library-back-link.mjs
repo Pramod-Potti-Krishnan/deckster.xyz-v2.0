@@ -24,6 +24,7 @@ import vm from 'node:vm'
 import { execFileSync } from 'node:child_process'
 import { createRequire } from 'node:module'
 import ts from 'typescript'
+import { stripAddSlideStatus } from './studio-add-slide-status-strip.mjs'
 
 const repoRoot = path.resolve(new URL('..', import.meta.url).pathname)
 const nodeRequire = createRequire(path.join(repoRoot, 'package.json'))
@@ -201,8 +202,14 @@ function wiringChecks() {
   const changed = git(['diff', '--name-only', BASE_COMMIT, 'HEAD']).split('\n').filter(Boolean)
   const allowed = new Set(['.env.example', HEADER, CSS, 'scripts/test-studio-library-back-link.mjs'])
   // other batch commits on this branch (G21, with the pins it had to adjust) changed their own files; this change touches only these
-  const mine = changed.filter(file => !/rail-add-slide|slide-thumbnail-strip|presentation-viewer|test-stage-f-thumbnail-recovery/.test(file))
+  // + PASS2B J2-04 (NEXT_PUBLIC_STUDIO_ADD_SLIDE_STATUS, also on this branch): its own files and the sibling pins it had to adjust; in the page and package.json
+  // only its own lines (the page is checked below: without them it is the base's).
+  const J2_04 = /add-slide-status|studio-add-slide-v2|test-studio-(toolbar-template-list|first-run-poster-hide|welcome-polish|panel-eyebrow)/
+  const mine = changed.filter(file => !/rail-add-slide|slide-thumbnail-strip|presentation-viewer|test-stage-f-thumbnail-recovery/.test(file) && !J2_04.test(file) && file !== 'package.json' && file !== 'app/builder/page.tsx')
   for (const file of mine) ok(allowed.has(file), `${file} is not part of G45`)
+  const basePage = baseSource('app/builder/page.tsx'), basePackage = baseSource('package.json')
+  if (basePage !== null) eq(stripAddSlideStatus('app/builder/page.tsx', read('app/builder/page.tsx')), basePage, 'app/builder/page.tsx is not part of G45')
+  if (basePackage !== null) eq(read('package.json').replace('    "test:studio-add-slide-status": "node scripts/test-studio-add-slide-status.mjs",\n', ''), basePackage, 'package.json is not part of G45')
   const css = SOURCES[CSS]
   const rules = css.split('\n').filter(line => /\{/.test(line) && !line.trim().startsWith('/*'))
   ok(rules.length >= 4, 'the rules exist')

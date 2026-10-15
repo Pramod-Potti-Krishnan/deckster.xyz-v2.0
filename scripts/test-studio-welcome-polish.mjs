@@ -23,6 +23,7 @@ import vm from 'node:vm'
 import { execFileSync } from 'node:child_process'
 import { createRequire } from 'node:module'
 import ts from 'typescript'
+import { stripAddSlideStatus } from './studio-add-slide-status-strip.mjs'
 
 const repoRoot = path.resolve(new URL('..', import.meta.url).pathname)
 const nodeRequire = createRequire(path.join(repoRoot, 'package.json'))
@@ -177,7 +178,8 @@ const PAGE_CONST = `  // PASS2B G02 (flag NEXT_PUBLIC_STUDIO_WELCOME_POLISH, def
 `
 const PAGE_OPEN = '              {!studioSlideTabHidden && (\n'
 const PAGE_CLOSE = '              </button>\n              )}\n'
-const stripPage = text => text.replace(PAGE_IMPORT, '').replace(PAGE_SPREAD, '').replace(PAGE_CONST, '').replace(PAGE_OPEN, '').replace(PAGE_CLOSE, '              </button>\n')
+// + PASS2B J2-04 (NEXT_PUBLIC_STUDIO_ADD_SLIDE_STATUS) adds three flag-gated entries to the page; scripts/studio-add-slide-status-strip.mjs takes them out first.
+const stripPage = text => stripAddSlideStatus(PAGE, text).replace(PAGE_IMPORT, '').replace(PAGE_SPREAD, '').replace(PAGE_CONST, '').replace(PAGE_OPEN, '').replace(PAGE_CLOSE, '              </button>\n')
 function provePage(page, label = 'page') {
   eq((page.match(/process\.env\.NEXT_PUBLIC_STUDIO_WELCOME_POLISH/g) ?? []).length, 2, `${label}: the flag is read twice, inline (the greeting and the edge tab)`)
   eq(page.split(PAGE_SPREAD).length - 1, 1, `${label}: the exact-flag, Studio-shell greeting spread, once`)

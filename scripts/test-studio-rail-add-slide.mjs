@@ -26,6 +26,7 @@ import vm from 'node:vm'
 import { execFileSync } from 'node:child_process'
 import { createRequire } from 'node:module'
 import ts from 'typescript'
+import { stripAddSlideStatus } from './studio-add-slide-status-strip.mjs'
 
 const repoRoot = path.resolve(new URL('..', import.meta.url).pathname)
 const nodeRequire = createRequire(path.join(repoRoot, 'package.json'))
@@ -374,7 +375,8 @@ function wiringChecks() {
     assert.deepEqual(changed(STRIP).filter(line => line.startsWith('-')), [], 'the strip loses no line')
     assert.equal(changed(VIEWER).filter(line => line.startsWith('+')).length, 1 + 13 + 1, 'the viewer gains an import, the gate and the prop')
     assert.equal(changed(STRIP).filter(line => line.startsWith('+')).length, 2 + 3 + 1 + 1, 'the strip gains two imports, the prop, its destructuring and the footer')
-    assert.equal(git(['diff', '--no-color', BASE_COMMIT, '--', PAGE, ENTRY]), '', 'the page and the Add Slide entry are untouched')
+    // + PASS2B J2-04 (NEXT_PUBLIC_STUDIO_ADD_SLIDE_STATUS) adds flag-gated lines to both; scripts/studio-add-slide-status-strip.mjs takes them out first.
+    for (const rel of [PAGE, ENTRY]) assert.equal(stripAddSlideStatus(rel, read(rel)), baseSource(rel), `${rel}: the page and the Add Slide entry are untouched`)
     // the toolbar's own Add Slide block is untouched
     const block = text => text.slice(text.indexOf('{/* Add Slide */}'), text.indexOf("'add-slide', 'Add Slide')}"))
     assert.equal(block(SOURCES[VIEWER]), block(baseViewer), 'the toolbar\'s Add Slide block is the base\'s')
