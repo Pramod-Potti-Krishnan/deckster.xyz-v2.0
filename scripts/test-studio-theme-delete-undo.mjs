@@ -26,6 +26,8 @@
 //  3. flag off (unset, "false", any other spelling, and "true" without the Studio shell): the menu in a grid of states, the composer, and the
 //     whole Delete trace (one immediate deleteTheme, no toast, same notices) are identical to the base's (hashed).
 //  4. wiring (.env.example, package.json) and mutants: deliberately broken copies of the lib and the menu must each be caught by 1, 2 or 3.
+//  5. PASS2B-THEME-DELETE-BYID: the delete that goes out when the window runs out names the theme captured at click time (through the
+//     real ChatInput), so a selection that moved to another saved theme while the popover was closed is never deleted in its place.
 import assert from 'node:assert/strict'
 import crypto from 'node:crypto'
 import fs from 'node:fs'
@@ -307,6 +309,8 @@ function makeWorld({ root = repoRoot, env, mutate = {}, deleteResult = true, gat
     menuOpen: () => flat(world.tree).some(n => n.props?.['data-studio-theme-view']),
     undoNotice: () => flat(world.tree).find(n => n.props?.['data-studio-theme-delete-undo']),
     notices: () => flat(world.tree).filter(n => n.props?.['data-studio-theme-mutation-state']).map(n => `${n.props['data-studio-theme-mutation-kind']}:${n.props['data-studio-theme-mutation-state']}:${text(n)}`),
+    removeFromServer: id => { server = server.filter(theme => theme.id !== id) },
+    selectedValue: () => flat(world.tree).find(n => n.type === 'select' && n.props['aria-label'] === 'Saved theme')?.props.value,
     async clickDelete() { byAction(world.tree, 'delete').props.onClick(); await host.settle() },
     async chooseSaved(id) { flat(world.tree).find(n => n.type === 'select' && n.props['aria-label'] === 'Saved theme').props.onChange({ target: { value: id } }); await host.settle() },
   }
@@ -365,6 +369,16 @@ async function proveLib({ mutate = {}, root = repoRoot } = {}) {
     eq(d.deleted.length, 1, 'closing the popover does not cancel: the last onDelete goes out at 6 s')
     const n = fresh()
     n.store.begin('a', 'Alpha', n.notify); n.store.begin('b', 'Beta', n.notify); eq(n.deleted.length, 1, 'a second begin commits the first'); eq(n.store.getSnapshot().pending?.id, 'b')
+    const named = fresh(), ids = []
+    named.store.attach({ onDelete: id => ids.push(id), selectedId: 'a' })
+    named.store.begin('a', 'Alpha', named.notify); await named.clock.advance(6000); eq(ids, ['a'], 'the delete is handed the id captured at click time')
+    const closed = fresh(), closedIds = []
+    closed.store.attach({ onDelete: id => closedIds.push(id), selectedId: 'a' })
+    closed.store.begin('a', 'Alpha', closed.notify); closed.store.detach(); await closed.clock.advance(6000); eq(closedIds, ['a'], 'popover closed: the remembered onDelete is still handed the id')
+    const early = fresh(), earlyIds = []
+    early.store.attach({ onDelete: id => earlyIds.push(id), selectedId: 'a' })
+    early.store.begin('a', 'Alpha', early.notify); early.store.begin('b', 'Beta', early.notify)
+    early.store.attach({ onDelete: id => earlyIds.push(id), selectedId: 'b' }); early.store.flush(); eq(earlyIds, ['a', 'b'], 'a commit forced early (second begin, flush) names its own theme')
     const r = fresh()
     r.store.begin('a', 'Alpha', r.notify); await r.clock.advance(6000); r.store.release('a'); eq(r.store.getSnapshot().committing, [], 'release shows the theme again')
     r.store.reset(); eq(r.store.getSnapshot().pending, null)
@@ -425,6 +439,40 @@ async function proveOn({ mutate = {} } = {}) {
     await v.openManage(); await v.clickDelete(); await v.closePopover(); v.toasts[0].action.props.onClick(); await v.advance(60000)
     eq(v.writes, 0, 'closed popover, then the toast Undo: no write'); await v.openPopover(); byAction(v.tree, 'manage-entry')?.props.onClick(); await v.settle()
     eq(v.options(), ['Northwind brand', 'Investor update', 'Workshop warm'], 'and the theme is back when it reopens')
+  }
+  { // PASS2B-THEME-DELETE-BYID: the selection moves to another saved theme while the popover is closed: the deleted theme goes, the other is untouched
+    const w = await makeWorld({ env: ON, mutate }).mount()
+    await w.openManage(); await w.clickDelete(); await w.closePopover()
+    await w.setProps({ activeBuildThemeProfile: profileOf(SAVED[2]), buildTheme: SAVED[2].theme_payload })
+    eq(w.menuOpen(), false, 'the popover is closed while the selection moves')
+    await w.advance(5999); eq(w.writes, 0, 'nothing before the window runs out'); await w.advance(1)
+    eq(w.calls.deleteTheme, ['th-2'], 'exactly one DELETE, for the theme that was deleted (th-2), never the selected th-3'); eq(w.writes, 1)
+    eq(w.log.filter(entry => entry[0] === 'onActiveBuildThemeProfileChange' && entry[1] === null), [], 'the selected th-3 is not cleared')
+    eq(w.log.filter(entry => entry[0] === 'onBuildThemeChange'), [], 'the page choice is not rewritten')
+    await w.openPopover(); byAction(w.tree, 'manage-entry')?.props.onClick(); await w.settle()
+    eq(w.options(), ['Northwind brand', 'Workshop warm'], 'th-2 is gone, th-3 is still in the library'); eq(w.selectedValue(), 'th-3', 'and th-3 is still the selected theme')
+    eq(w.notices(), ['delete:success:Saved theme deleted.'])
+    await w.advance(120000); eq(w.writes, 1, 'never repeated')
+  }
+  { // the same, with the page now on a preset (no saved theme selected): the deleted theme still goes, the preset choice is kept
+    const w = await makeWorld({ env: ON, mutate }).mount()
+    await w.openManage(); await w.clickDelete(); await w.closePopover()
+    await w.setProps({ activeBuildThemeProfile: undefined, buildTheme: { mode: 'preset', preset_id: 'minimal' } })
+    await w.advance(6000)
+    eq(w.calls.deleteTheme, ['th-2'], 'the deleted theme is deleted by id even though nothing is selected now'); eq(w.writes, 1)
+    eq(w.log.filter(entry => entry[0] === 'onActiveBuildThemeProfileChange' && entry[1] === null), [], 'the preset choice is not reset')
+  }
+  { // the captured theme is already gone (another tab deleted it) and the selection is another saved theme: nothing is deleted
+    const w = await makeWorld({ env: ON, mutate }).mount()
+    await w.openManage(); await w.clickDelete(); await w.closePopover()
+    await w.setProps({ activeBuildThemeProfile: profileOf(SAVED[2]), buildTheme: SAVED[2].theme_payload })
+    w.removeFromServer('th-2')
+    const reads = w.calls.list
+    await w.openPopover(); ok(w.calls.list > reads, 'reopening reads the library: the composer now knows th-2 is gone'); await w.closePopover()
+    await w.advance(6000)
+    eq(w.calls.deleteTheme, [], 'no DELETE: not for the gone th-2, and never redirected to the selected th-3'); eq(w.writes, 0)
+    eq(w.log.filter(entry => entry[0] === 'onActiveBuildThemeProfileChange' && entry[1] === null), [], 'the selection is untouched'); eq(w.toasts[0].dismissed, true)
+    await w.advance(120000); eq(w.writes, 0)
   }
   { // page left mid-window: nothing is sent
     const w = await makeWorld({ env: ON, mutate }).mount()
@@ -543,6 +591,13 @@ async function proveOff({ mutate = {}, expected }) {
   }
   const shape = (await offHashes(repoRoot, withShell({}), mutate)).traceShape
   eq(shape, { immediateWrites: 1, toasts: 0, timersLeft: shape.timersLeft }, 'flag off: Delete writes at once and shows no toast')
+  { // a real click hands its event to onDelete: flag off that is still ChatInput's own delete of the SELECTED theme (the event is never read as an id)
+    const w = await makeWorld({ root: repoRoot, env: withShell({}), mutate }).mount()
+    await w.openManage()
+    byAction(w.tree, 'delete').props.onClick({ type: 'click', target: {}, nativeEvent: {} }); await w.settle()
+    eq(w.calls.deleteTheme, ['th-2'], 'flag off, real click event: one immediate delete of the selected theme'); eq(w.toasts.length, 0)
+    eq(w.notices(), ['delete:success:Saved theme deleted.']); eq(w.log.filter(entry => entry[0] === 'onActiveBuildThemeProfileChange'), [['onActiveBuildThemeProfileChange', null]])
+  }
 }
 
 // ---- main --------------------------------------------------------------------------------------------------------------------------------------
@@ -600,6 +655,11 @@ const MUTANTS = [
   ['menu: the toast Undo has no alt text', { [MENU]: [['altText={`Undo deleting the theme ${name}`} ', '']] }],
   ['menu: the toast lasts 60 s', { [MENU]: [['duration: STUDIO_THEME_DELETE_UNDO_MS,', 'duration: 60000,']] }],
   ['menu: the inline Undo does nothing', { [MENU]: [['onUndo: () => { themeDeleteUndo.undo() }', 'onUndo: () => {}']] }],
+  ['lib: the delete is not handed the captured id (a bare call deletes the selection)', { [LIB]: [['onDelete(entry.id) // the only place', 'onDelete() // the only place']] }],
+  ['chat-input: the id is ignored (the currently selected theme is deleted)', { [CHAT_INPUT]: [['studioThemeCacheThemes.current.find((theme) => theme.id === (targetThemeId ?? profileId))', 'studioThemeCacheThemes.current.find((theme) => theme.id === profileId)']] }],
+  ['chat-input: a gone captured theme falls back to the selection', { [CHAT_INPUT]: [['studioThemeCacheThemes.current.find((theme) => theme.id === (targetThemeId ?? profileId))', '(studioThemeCacheThemes.current.find((theme) => theme.id === targetThemeId) ?? studioThemeCacheThemes.current.find((theme) => theme.id === profileId))']] }],
+  ['chat-input: deleting another theme than the selected one clears the selection', { [CHAT_INPUT]: [[' && profile!.id === profileId) {', ') {']] }],
+  ['chat-input: a click event is read as an id (flag off no longer deletes the selection)', { [CHAT_INPUT]: [["typeof id === 'string' ? runStudioThemeMutation('delete', id)", "id !== undefined ? runStudioThemeMutation('delete', id as string)"]] }],
   ['menu: the menu keeps the old onDelete (writes at once)', { [MENU]: [['      themeDeleteUndo.begin(theme.id, theme.name, showUndoToast)', '      p.onDelete()']] }],
 ]
 for (const [name, mutate] of MUTANTS) {
