@@ -15,11 +15,15 @@ import {
   COMPOSER_READY_KEY_PREFIX, composerReadyResult, composerRequest, requireComposerServiceUrl,
   validateComposerFile, waitForComposerJob, type ComposerJob, type ComposerTemplate,
 } from '@/lib/composer-library'
+// NEXT_PUBLIC_STUDIO_COMPOSER_JOB_RECOVERY (default off): a stored job that failed or stopped moving ends as a notice with Retry and Dismiss.
+import {
+  composerJobRecovery, composerJobRecoveryMessage, composerRetryAction, dismissComposerJob, type ComposerJobRecovery, type ComposerRetryAction,
+} from '@/lib/composer-library'
 import { composerBriefLengthValid, composerBriefLimitMessage, composerBriefMax } from '@/lib/composer-long-brief'
 import type { ComposerLibraryRequest } from '@/lib/studio-composer-popups'
 import './studio-composer-library.css'
 
-interface PendingJob { job_id: string; session_id: string; kind: 'upload' | 'use' }
+interface PendingJob { job_id: string; session_id: string; kind: 'upload' | 'use'; retry?: ComposerRetryAction | null }
 
 export function ComposerLibraryDialog({ open, onOpenChange, request = null, onRequestTaken }: {
   open: boolean
@@ -44,6 +48,12 @@ export function ComposerLibraryDialog({ open, onOpenChange, request = null, onRe
   const longBriefEnabled = process.env.NEXT_PUBLIC_COMPOSER_LONG_BRIEF_ENABLED === 'true'
   const newTopicEnabled = process.env.NEXT_PUBLIC_COMPOSER_STAGE1B_NEW_TOPIC_ENABLED === 'true'
   const dittoEnabled = process.env.NEXT_PUBLIC_COMPOSER_STAGE1B_DITTO_ENABLED === 'true'
+  // NEXT_PUBLIC_STUDIO_COMPOSER_JOB_RECOVERY (exact "true", default off). Off: `recovery` stays null, no record gains `retry`, nothing below runs.
+  const jobRecoveryEnabled = process.env.NEXT_PUBLIC_STUDIO_COMPOSER_JOB_RECOVERY === 'true'
+  const [recovery, setRecovery] = useState<ComposerJobRecovery | null>(null)
+  const uploadRetryFile = useRef<File | null>(null)
+  // The stored job record gains the action that started it (a template's id and name only, or a new topic's brief), for Retry.
+  const retryRecord = (retry: ComposerRetryAction) => jobRecoveryEnabled ? { retry: composerRetryAction(retry) } : {}
   const controllerRef = useRef<AbortController | null>(null)
   const fileInputRef = useRef<HTMLInputElement>(null)
 
@@ -57,11 +67,22 @@ export function ComposerLibraryDialog({ open, onOpenChange, request = null, onRe
 
   const finishJob = useCallback(async (pending: PendingJob, signal: AbortSignal) => {
     sessionStorage.setItem(pendingKey, JSON.stringify(pending))
-    const job = await waitForComposerJob(pending.job_id, signal, next => {
+    let stopped: ComposerJobRecovery | null = null
+    const polling = waitForComposerJob(pending.job_id, signal, next => {
       if (['failed', 'cancelled'].includes(next.status)) sessionStorage.removeItem(pendingKey)
       const label = next.status.replaceAll('_', ' ')
       setProgress(pending.kind === 'upload' ? `Preparing template: ${label}…` : `Creating deck: ${label}…`)
+      // NEXT_PUBLIC_STUDIO_COMPOSER_JOB_RECOVERY: a failed job (the poll then throws) or a stale one (stopped here) ends the wait below.
+      if (jobRecoveryEnabled && (stopped = composerJobRecovery(pending, next, Date.now()))?.reason === 'stale') throw new Error('stale job')
     })
+    // Flag on: that ending shows the notice in place of the progress line, and the dialog is free again (run() clears `busy`).
+    const job = await (jobRecoveryEnabled ? polling.catch(reason => {
+      if (!stopped || signal.aborted) throw reason
+      setProgress(null)
+      setRecovery(stopped)
+      return null
+    }) : polling)
+    if (!job) return
     if (pending.kind === 'upload') {
       sessionStorage.removeItem(pendingKey)
       setFile(null)
@@ -90,6 +111,7 @@ export function ComposerLibraryDialog({ open, onOpenChange, request = null, onRe
     controllerRef.current = controller
     setBusy(true)
     setError(null)
+    setRecovery(null) // flag on: a new action, a Retry or a resume replaces the notice (flag off it is always null)
     try { await operation(controller.signal) }
     catch (reason) {
       if (!controller.signal.aborted) setError(reason instanceof Error ? reason.message : 'Template library request failed.')
@@ -115,6 +137,7 @@ export function ComposerLibraryDialog({ open, onOpenChange, request = null, onRe
     const validation = validateComposerFile(file)
     if (validation) { setError(validation); return }
     const selected = file
+    if (jobRecoveryEnabled) uploadRetryFile.current = selected
     void run(async signal => {
       // Validate before creating a session or calling the existing signed-upload helper.
       requireComposerServiceUrl(process.env.NEXT_PUBLIC_KNOWLEDGE_SERVICE_URL, 'researcher-v11-uat.up.railway.app')
@@ -130,7 +153,7 @@ export function ComposerLibraryDialog({ open, onOpenChange, request = null, onRe
         session_id: sessionId, researcher_session_id: uploaded.researcherSessionId,
         storage_path: uploaded.storagePath, file_name: selected.name, kind: 'pptx',
       }, signal)
-      await finishJob({ job_id: job.job_id, session_id: sessionId, kind: 'upload' }, signal)
+      await finishJob({ job_id: job.job_id, session_id: sessionId, kind: 'upload', ...retryRecord({ action: 'upload' }) }, signal)
     })
   }
 
@@ -150,7 +173,8 @@ export function ComposerLibraryDialog({ open, onOpenChange, request = null, onRe
       if (signal.aborted) return
       const job = await composerRequest<ComposerJob>(`templates/${encodeURIComponent(template.id)}/use`,
         { session_id: sessionId, ...(brief ? { brief: brief.trim() } : {}) }, signal)
-      await finishJob({ job_id: job.job_id, session_id: sessionId, kind: 'use' }, signal)
+      await finishJob({ job_id: job.job_id, session_id: sessionId, kind: 'use',
+        ...retryRecord(brief ? { action: 'new-topic', template, brief } : { action: 'use', template }) }, signal)
     })
   }
 
@@ -165,7 +189,7 @@ export function ComposerLibraryDialog({ open, onOpenChange, request = null, onRe
       if (signal.aborted) return
       const job = await composerRequest<ComposerJob>(`templates/${encodeURIComponent(template.id)}/use`,
         { session_id: sessionId, mode: COMPOSER_DITTO_MODE }, signal)
-      await finishJob({ job_id: job.job_id, session_id: sessionId, kind: 'use' }, signal)
+      await finishJob({ job_id: job.job_id, session_id: sessionId, kind: 'use', ...retryRecord({ action: 'ditto', template }) }, signal)
     })
   }
 
@@ -190,6 +214,28 @@ export function ComposerLibraryDialog({ open, onOpenChange, request = null, onRe
     else if (action === 'new-topic' && newTopicEnabled && !busy && userId) { setNewTopicTemplateId(template.id); setNewBrief(''); setError(null) }
   }, [pickedRequest]) // only the picked request: it runs this render's handlers, once
 
+  // NEXT_PUBLIC_STUDIO_COMPOSER_JOB_RECOVERY: the notice for a stored job that failed or went stale, shown where the progress line was.
+  // Retry runs the action that started the job again, through the same handler with the same arguments, as its button would (a new session
+  // and a new job); an upload can be retried only while its presentation is still the one chosen here. Dismiss forgets the job in this tab:
+  // it removes this dialog's stored record if that still names the job, and asks nothing of the server. Every other action stays available.
+  const retryable = (retry: ComposerRetryAction | null) => retry?.action === 'upload' ? !!file && file === uploadRetryFile.current
+    : retry?.action === 'ditto' ? dittoEnabled : retry?.action === 'new-topic' ? newTopicEnabled : retry?.action === 'use'
+  const retryJob = (retry: ComposerRetryAction) => {
+    if (retry.action === 'upload') upload()
+    else if (retry.action === 'ditto') rebuildTemplate(retry.template)
+    else useTemplate(retry.template, retry.action === 'new-topic' ? retry.brief : undefined)
+  }
+  const recoveryRetry = recovery && retryable(recovery.retry) ? recovery.retry : null
+  const recoveryNotice = recovery && <div data-studio-composer-recovery={studioShell ? 'true' : undefined} role="alert" className="space-y-2 text-sm text-red-600">
+    <p>{composerJobRecoveryMessage(recovery, !!recoveryRetry)}</p>
+    <div className="flex flex-wrap gap-2">
+      {recoveryRetry && <Button data-studio-composer-action={studioShell ? 'retry' : undefined} size="sm" variant="outline" disabled={busy || !userId}
+        onClick={() => retryJob(recoveryRetry)}>Retry</Button>}
+      <Button data-studio-composer-action={studioShell ? 'dismiss' : undefined} size="sm" variant="ghost"
+        onClick={() => { dismissComposerJob(sessionStorage, pendingKey, recovery.job_id); setRecovery(null) }}>Dismiss</Button>
+    </div>
+  </div>
+
   const body = <>
         <div data-studio-composer-upload={studioShell ? 'true' : undefined} className="space-y-3">
           <label className="block text-sm font-medium" htmlFor="composer-template-file">Add a presentation</label>
@@ -204,9 +250,9 @@ export function ComposerLibraryDialog({ open, onOpenChange, request = null, onRe
           </Button>
           <p className="text-xs text-muted-foreground">PowerPoint (.pptx), up to 100 MB.</p>
         </div>
-        {progress && <p data-studio-composer-progress={studioShell ? 'true' : undefined} tabIndex={studioShell ? 0 : undefined} aria-label={studioShell ? 'Template operation status' : undefined} role="status" aria-live="polite" className="flex items-center gap-2 text-sm">
+        {recoveryNotice ?? (progress && <p data-studio-composer-progress={studioShell ? 'true' : undefined} tabIndex={studioShell ? 0 : undefined} aria-label={studioShell ? 'Template operation status' : undefined} role="status" aria-live="polite" className="flex items-center gap-2 text-sm">
           {busy && <Loader2 className="h-4 w-4 animate-spin" />} {progress}
-        </p>}
+        </p>)}
         {error && <p data-studio-composer-error={studioShell ? 'true' : undefined} tabIndex={studioShell ? 0 : undefined} aria-label={studioShell ? 'Template library error' : undefined} role="alert" className="text-sm text-red-600">{error}</p>}
         <div data-studio-composer-list={studioShell ? 'true' : undefined} role={studioShell ? 'group' : undefined} aria-label={studioShell ? 'Saved Composer templates' : undefined} className="max-h-72 space-y-2 overflow-y-auto border-t pt-4">
           {loading && !templates.length ? <p className="text-sm text-muted-foreground">Loading templates…</p>

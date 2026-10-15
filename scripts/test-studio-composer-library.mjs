@@ -48,6 +48,23 @@ for (const [addition, classic] of [
     'export function ComposerLibraryDialog({ open, onOpenChange }: {\n  open: boolean\n  onOpenChange: (open: boolean) => void\n}) {'],
   [/  \/\/ PASS2-COMPOSER-POPUPS fix \(only the page passes `request`[\s\S]*?\n  \}, \[pickedRequest\]\)[^\n]*\n\n/, ''],
 ]) { assert(addition.test(restored), String(addition)); restored = restored.replace(addition, classic) }
+// NEXT_PUBLIC_STUDIO_COMPOSER_JOB_RECOVERY (default off): the flag-gated job-recovery notice (its import, state, the stored record's `retry`,
+// the poll's stale/failed ending, Retry/Dismiss and the notice in the progress slot) is the only other addition. Its behaviour, and the flag-off
+// identity of the tree and of every request and write, are proved in scripts/test-studio-composer-job-recovery.mjs.
+for (const [addition, classic] of [
+  [/\/\/ NEXT_PUBLIC_STUDIO_COMPOSER_JOB_RECOVERY \(default off\)[^\n]*\nimport \{\n[^\n]*\n\} from '@\/lib\/composer-library'\n/, ''],
+  [/; retry\?: ComposerRetryAction \| null \}/, ' }'],
+  [/  \/\/ NEXT_PUBLIC_STUDIO_COMPOSER_JOB_RECOVERY \(exact "true"[^\n]*\n(?:  [^\n]*\n){4}  const retryRecord = [^\n]*\n/, ''],
+  [/    let stopped: ComposerJobRecovery \| null = null\n    const polling = waitForComposerJob\(/, '    const job = await waitForComposerJob('],
+  [/      \/\/ NEXT_PUBLIC_STUDIO_COMPOSER_JOB_RECOVERY: a failed job[^\n]*\n      if \(jobRecoveryEnabled && [^\n]*\n/, ''],
+  [/    \/\/ Flag on: that ending shows the notice[^\n]*\n    const job = await \(jobRecoveryEnabled \? polling\.catch\([\s\S]*?\n    \}\) : polling\)\n    if \(!job\) return\n/, ''],
+  [/    setRecovery\(null\) \/\/ flag on: [^\n]*\n/, ''],
+  [/    if \(jobRecoveryEnabled\) uploadRetryFile\.current = selected\n/, ''],
+  [/kind: 'upload', \.\.\.retryRecord\(\{ action: 'upload' \}\) \}/, "kind: 'upload' }"],
+  [/kind: 'use',\n        \.\.\.retryRecord\(brief \? [^\n]*\) \}, signal\)/, "kind: 'use' }, signal)"],
+  [/  \/\/ NEXT_PUBLIC_STUDIO_COMPOSER_JOB_RECOVERY: the notice for a stored job[\s\S]*?\n  <\/div>\n\n/, ''],
+  [/\{recoveryNotice \?\? \(progress && (<p [\s\S]*?<\/p>)\)\}/, '{progress && $1}'],
+]) { assert(addition.test(restored), String(addition)); restored = restored.replace(addition, classic) }
 assert.equal(restored, original, 'Every original handler/effect/payload/condition/default/copy and classic markup must remain exact')
 
 let actions = 0
@@ -101,6 +118,14 @@ function canonical(tree) {
   return [{ type: tree.type, props, children: canonical(tree.props.children) }]
 }
 const find = (tree, predicate) => { const matches = all(tree, predicate); assert.equal(matches.length, 1); return matches[0] }
+// NEXT_PUBLIC_STUDIO_COMPOSER_JOB_RECOVERY: the "Upload template" button's callback is the upload handler itself, so its source text carries the
+// handler's two flag-gated statements (remember the chosen file; add the stored record's `retry`). Each must be there exactly once and is the
+// only difference from the reviewed callback; the flag-off behaviour (no file kept, no `retry` written) is proved in test-studio-composer-job-recovery.mjs.
+const JOB_RECOVERY_FRAGMENTS = ['if (jobRecoveryEnabled) uploadRetryFile.current = selected; ', ", ...retryRecord({ action: 'upload' })"]
+function withoutJobRecovery(text) {
+  for (const fragment of JOB_RECOVERY_FRAGMENTS) { assert.equal(text.split(fragment).length, 2, fragment); text = text.replace(fragment, '') }
+  return text
+}
 let cases = 0
 for (const flag of ['true', 'false', undefined, '1']) for (const topic of ['true', 'false']) for (const auth of [true, false]) for (const busy of [true, false]) {
   const initial = [templates, false, busy, 'Supplied preparing status', 'Complete supplied failed-read detail '.repeat(30), { name: 'valid.pptx', size: 1024 }, 'A meaningful local presentation brief', 'supplied-one']
@@ -120,7 +145,7 @@ for (const flag of ['true', 'false', undefined, '1']) for (const topic of ['true
     assert.equal(all(tree, item => item.props['data-studio-composer-record']).length, 3)
   } else {
     const before = runtime(original, flag, topic, auth, initial).render({ open: true, onOpenChange() {} })
-    assert.equal(JSON.stringify(canonical(tree)), JSON.stringify(canonical(before)), 'Classic trees/callbacks are exact with the fragment flattened')
+    assert.equal(withoutJobRecovery(JSON.stringify(canonical(tree))), JSON.stringify(canonical(before)), 'Classic trees/callbacks are exact with the fragment flattened')
   }
   let closed = 0
   const closeTree = run.render({ open: true, onOpenChange() { closed++ } })

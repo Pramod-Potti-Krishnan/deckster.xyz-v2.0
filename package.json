@@ -39,6 +39,7 @@
     "test:infographic-caption-row": "node scripts/test-infographic-caption-row.mjs",
     "test:studio-theme-dropdown": "node scripts/test-studio-theme-dropdown.mjs",
     "test:studio-composer-popups-v2": "node scripts/test-studio-composer-popups-v2.mjs",
+    "test:studio-composer-job-recovery": "node scripts/test-studio-composer-job-recovery.mjs",
     "test:theme-panel-lifecycle": "node scripts/test-theme-panel-lifecycle.mjs",
     "test:theme-picker-canon": "node scripts/test-theme-picker-canon.mjs",
     "test:studio-theme-picker-v2": "node scripts/test-studio-theme-picker-v2.mjs",

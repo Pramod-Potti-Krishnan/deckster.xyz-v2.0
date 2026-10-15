@@ -48,3 +48,8 @@
 [data-studio-composer-library="true"] > button:last-child:hover { color:var(--scl-text); background:var(--scl-surface); }
 @media(max-height:650px) { [data-studio-composer-library="true"] { padding:16px; gap:10px; } [data-studio-composer-body="true"] { gap:10px; } [data-studio-composer-upload="true"] { padding:10px; gap:8px; } }
 @media(max-width:420px) { [data-studio-composer-library="true"] { padding:16px; max-height:calc(100dvh - 24px); } [data-studio-composer-record-info="true"] { flex-basis:100%; } }
+/* NEXT_PUBLIC_STUDIO_COMPOSER_JOB_RECOVERY: the notice for a stored job that failed or stopped moving (the marker exists only with the flag on). */
+[data-studio-composer-recovery="true"] { flex-shrink:0; margin:0; min-width:0; border:1px solid var(--scl-line); border-left:3px solid var(--scl-danger); border-radius:7px; padding:9px 11px; background:var(--scl-error-bg); color:var(--scl-danger); font-size:12px; line-height:20px; overflow-wrap:anywhere; }
+[data-studio-composer-recovery="true"] p { margin:0; }
+[data-studio-composer-recovery="true"] button { border:1px solid var(--scl-line); background:var(--scl-panel); color:var(--scl-text); }
+[data-studio-composer-recovery="true"] button:hover:not(:disabled) { color:var(--scl-teal); border-color:var(--scl-teal); background:var(--scl-surface); }
