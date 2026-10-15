@@ -146,7 +146,7 @@ const localFetch = async url => {
 const icons = new Proxy({}, { get: (_, name) => `Icon:${String(name)}` })
 function mountPanel(env, { fetchImpl = localFetch, extraStubs = {} } = {}) {
   const runtime = createRuntime()
-  const stubs = { react: runtime.react, 'react/jsx-runtime': jsxRuntime, 'lucide-react': icons, '@/components/ui/button': { Button: 'Button' }, '@/lib/config': { getThemeBuilderUrl: () => 'http://127.0.0.1:9' }, '@/lib/utils': { cn: (...values) => values.filter(Boolean).join(' ') }, ...extraStubs }
+  const stubs = { react: runtime.react, 'react/jsx-runtime': jsxRuntime, 'lucide-react': icons, 'next/link': { default: 'Link' }, '@/components/ui/button': { Button: 'Button' }, '@/lib/config': { getThemeBuilderUrl: () => 'http://127.0.0.1:9' }, '@/lib/utils': { cn: (...values) => values.filter(Boolean).join(' ') }, ...extraStubs }
   const { ThemePanel } = createLoader({ env, stubs, globals: { fetch: fetchImpl } }).load('components/theme-panel.tsx')
   return {
     runtime,
@@ -332,7 +332,9 @@ await run('flag off: the grid picker and the plain panel are the base ones, and 
 })
 
 await run('the existing stylesheet is byte-for-byte what it was; the dropdown has its own, and every rule hangs off the dropdown marker', async () => {
-  assert.equal(sha(read('components/studio-theme-panel.css')), BASE_CSS_SHA256)
+  // PASS2B G35 (e1e9e79) adds one `.stpv2-brandkit` rule to this stylesheet (the brand-kit link; proven in test-studio-theme-brand-link.mjs): everything else is still the base's
+  const G35_RULE = '[data-studio-theme-picker="v2"] .stpv2-brandkit { margin: 12px 2px 4px; padding-top: 12px; border-top: 1px solid var(--stp-line); }\n'
+  assert.equal(sha(read('components/studio-theme-panel.css').replace(G35_RULE, '')), BASE_CSS_SHA256)
   const css = read('components/studio-theme-dropdown.css')
   const parsed = postcss.parse(css)
   let rules = 0

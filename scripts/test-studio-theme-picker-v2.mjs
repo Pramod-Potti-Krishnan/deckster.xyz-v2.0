@@ -143,7 +143,7 @@ const localFetch = async url => {
 const icons = new Proxy({}, { get: (_, name) => `Icon:${String(name)}` })
 function mountPanel(env, { fetchImpl = localFetch } = {}) {
   const runtime = createRuntime()
-  const stubs = { react: runtime.react, 'react/jsx-runtime': jsxRuntime, 'lucide-react': icons, '@/components/ui/button': { Button: 'Button' }, '@/lib/config': { getThemeBuilderUrl: () => 'http://127.0.0.1:9' }, '@/lib/utils': { cn: (...values) => values.filter(Boolean).join(' ') } }
+  const stubs = { react: runtime.react, 'react/jsx-runtime': jsxRuntime, 'lucide-react': icons, 'next/link': { default: 'Link' }, '@/components/ui/button': { Button: 'Button' }, '@/lib/config': { getThemeBuilderUrl: () => 'http://127.0.0.1:9' }, '@/lib/utils': { cn: (...values) => values.filter(Boolean).join(' ') } }
   const { ThemePanel } = createLoader({ env, stubs, globals: { fetch: fetchImpl } }).load('components/theme-panel.tsx')
   return {
     runtime,
@@ -494,7 +494,8 @@ await run('the picker adds no state, effect, request or env read of its own, and
   const start = source.indexOf('// ── PASS2 #7')
   const end = source.indexOf('export function ThemePanel(')
   assert.ok(start > 0 && end > start)
-  const block = source.slice(start, end)
+  // PASS2B G35 (e1e9e79) adds one inline, exact-"true" flag read to the picker (the brand-kit link; proven in test-studio-theme-brand-link.mjs): it is the one env read allowed here
+  const block = source.slice(start, end).replace(/ *\/\/ PASS2B G35 \(NEXT_PUBLIC_STUDIO_THEME_BRAND_LINK[\s\S]*?\n {2}\) : null\n/, '')
   assert.doesNotMatch(block, /fetch\(|useState|useEffect|useMemo|useRef|useCallback|process\.env|localStorage|sendCommand/)
   assert.equal([...source.matchAll(/(?<![A-Za-z_])STUDIO_THEME_PICKER_V2\b/g)].length, 2, 'declared once, used once')
   assert.equal([...source.matchAll(/<ThemePickerV2\b/g)].length, 1)
@@ -502,7 +503,7 @@ await run('the picker adds no state, effect, request or env read of its own, and
   // the panel's own imports are untouched apart from icons, a type and (PASS2-PK-FOUR item 3) the dropdown module
   const imports = ts.createSourceFile('theme-panel.tsx', source, ts.ScriptTarget.Latest, true, ts.ScriptKind.TSX).statements
     .filter(ts.isImportDeclaration).map(node => node.moduleSpecifier.text)
-  assert.deepEqual(imports.sort(), ['./studio-editor-dialogs.css', './studio-theme-panel.css', './theme-dropdown-picker', '@/components/ui/button', '@/lib/config', '@/lib/theme-builder', '@/lib/theme-preset-swatches', '@/lib/theme-sync', '@/lib/utils', 'lucide-react', 'react'].sort())
+  assert.deepEqual(imports.sort(), ['./studio-editor-dialogs.css', './studio-theme-panel.css', './theme-dropdown-picker', '@/components/ui/button', '@/lib/config', '@/lib/theme-builder', '@/lib/theme-preset-swatches', '@/lib/theme-sync', '@/lib/utils', 'lucide-react', 'next/link', 'react'].sort())
 })
 
 await run('flag on, no Theme Builder answer (offline): the picker still renders every preset with a neutral preview, and nothing throws', async () => {

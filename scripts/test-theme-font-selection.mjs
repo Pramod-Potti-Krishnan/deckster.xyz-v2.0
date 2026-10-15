@@ -284,7 +284,7 @@ async function observe(rootDir, env) {
     const group = out.render = {}
     const icons = new Proxy({}, { get: (_, name) => `Icon:${String(name)}` })
     const fakeReact = { useState: init => [typeof init === 'function' ? init() : init, () => {}], useEffect() {}, useLayoutEffect() {}, useMemo: fn => fn(), useCallback: fn => fn, useRef: init => ({ current: init }), useId: () => 'id' }
-    const stubs = { react: fakeReact, 'react/jsx-runtime': jsxRuntime, 'lucide-react': icons, '@/components/ui/button': { Button: 'Button' }, '@/lib/config': { getThemeBuilderUrl: () => 'http://127.0.0.1:9' }, '@/lib/utils': { cn: (...values) => values.filter(Boolean).join(' ') } }
+    const stubs = { react: fakeReact, 'react/jsx-runtime': jsxRuntime, 'lucide-react': icons, 'next/link': { default: 'Link' }, '@/components/ui/button': { Button: 'Button' }, '@/lib/config': { getThemeBuilderUrl: () => 'http://127.0.0.1:9' }, '@/lib/utils': { cn: (...values) => values.filter(Boolean).join(' ') } }
     const loader = createLoader(rootDir, { env, stubs, globals: { fetch: () => { throw new Error('network refused') } } })
     const expand = (node, hooks = true) => {
       if (Array.isArray(node)) return node.map(item => expand(item))
@@ -527,7 +527,7 @@ async function suite(overrides = {}, { envs = ENV_OFF } = {}) {
   // 7b: the deck theme panel in the builder keeps the fonts of the selection it was opened with ---------------------
   {
     const icons = new Proxy({}, { get: (_, name) => String(name) })
-    const stubs = (runtime) => ({ react: runtime.react, 'react/jsx-runtime': jsxRuntime, 'lucide-react': icons, '@/components/ui/button': { Button: 'Button' }, '@/lib/config': { getThemeBuilderUrl: () => 'http://127.0.0.1:9' }, '@/lib/utils': { cn: (...values) => values.filter(Boolean).join(' ') } })
+    const stubs = (runtime) => ({ react: runtime.react, 'react/jsx-runtime': jsxRuntime, 'lucide-react': icons, 'next/link': { default: 'Link' }, '@/components/ui/button': { Button: 'Button' }, '@/lib/config': { getThemeBuilderUrl: () => 'http://127.0.0.1:9' }, '@/lib/utils': { cn: (...values) => values.filter(Boolean).join(' ') } })
     const applied = []
     const runtime = createRuntime()
     const { ThemePanel } = load(fontEnv, { stubs: stubs(runtime), globals: { fetch: async () => { throw new Error('network refused') } } }).load('components/theme-panel.tsx')

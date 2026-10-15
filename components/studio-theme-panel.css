@@ -112,6 +112,7 @@
 [data-studio-theme-picker="v2"] .stpv2-check { position: absolute; bottom: 9px; right: 9px; display: flex; align-items: center; justify-content: center; width: 18px; height: 18px; border-radius: 50%; background: var(--stp-accent); color: var(--stpv2-on-accent); }
 [data-studio-theme-picker="v2"] .stpv2-caption { margin: 10px 2px 0; font-size: 11px; line-height: 1.5; color: var(--stp-muted); }
 [data-studio-theme-picker="v2"] .stpv2-custom-row { display: flex; align-items: center; flex-wrap: wrap; gap: 4px 10px; margin: 12px 2px 4px; padding-top: 12px; border-top: 1px solid var(--stp-line); font-size: 12px; color: var(--stp-muted); }
+[data-studio-theme-picker="v2"] .stpv2-brandkit { margin: 12px 2px 4px; padding-top: 12px; border-top: 1px solid var(--stp-line); }
 [data-studio-theme-picker="v2"] .stpv2-link { display: inline-flex; align-items: center; gap: 5px; padding: 3px 2px; border: 0; background: transparent; font-size: 12px; font-weight: 600; color: var(--stp-accent); }
 [data-studio-theme-picker="v2"] .stpv2-link:hover:not(:disabled) { text-decoration: underline; }
 [data-studio-theme-picker="v2"] .stpv2-link:disabled { opacity: .55; }
