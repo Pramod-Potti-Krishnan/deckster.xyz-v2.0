@@ -1,0 +1,121 @@
+{
+  "calls": [
+    {
+      "args": [{"request_id":"initial:blank-pres-1","status":"applied","type":"theme_sync"}],
+      "at": 1500,
+      "name": "page.onMessage",
+      "step": 2
+    },
+    {"args":[{"type":"presentation_init"}],"at":1500,"name":"page.onMessage","step":2},
+    {
+      "args": [{"request_id":"restore:sess-auto-pick:none","status":"restored","type":"theme_sync"}],
+      "at": 1500,
+      "name": "page.onMessage",
+      "step": 2
+    },
+    {"args":[{"type":"chat_message"}],"at":1500,"name":"page.onMessage","step":2},
+    {"args":[{"mode":"preset","preset_id":"vibrant"}],"at":2500,"name":"page.handleBuildThemeChange","step":4},
+    {"args":[],"at":2500,"name":"page.saveSessionOnFirstAction","step":4},
+    {
+      "args": [{"mode":"preset","preset_id":"vibrant"},"synthetic-uuid-0001","blank-pres-1",true],
+      "at": 2500,
+      "name": "hook.sendThemeSelection",
+      "step": 4
+    },
+    {
+      "args": [{"request_id":"synthetic-uuid-0001","status":"syncing","type":"theme_sync"}],
+      "at": 3000,
+      "name": "page.onMessage",
+      "step": 5
+    },
+    {
+      "args": [{"request_id":"synthetic-uuid-0001","status":"applied","type":"theme_sync"}],
+      "at": 3000,
+      "name": "page.onMessage",
+      "step": 5
+    },
+    {"args":[{"mode":"auto"}],"at":3500,"name":"page.handleBuildThemeChange","step":6},
+    {"args":[],"at":3500,"name":"page.saveSessionOnFirstAction","step":6},
+    {
+      "args": [{"mode":"auto"},"synthetic-uuid-0002","blank-pres-1",true],
+      "at": 3500,
+      "name": "hook.sendThemeSelection",
+      "step": 6
+    },
+    {
+      "args": [{"request_id":"synthetic-uuid-0002","status":"syncing","type":"theme_sync"}],
+      "at": 4500,
+      "name": "page.onMessage",
+      "step": 8
+    },
+    {
+      "args": [{"request_id":"synthetic-uuid-0002","status":"applied","type":"theme_sync"}],
+      "at": 4500,
+      "name": "page.onMessage",
+      "step": 8
+    },
+    {"args":[{"type":"sync_response"}],"at":8500,"name":"page.onMessage","step":16},
+    {
+      "args": [{"request_id":"restore:sess-auto-pick:req-auto-1","status":"restored","type":"theme_sync"}],
+      "at": 8500,
+      "name": "page.onMessage",
+      "step": 16
+    },
+    {"args":[{"type":"chat_message"}],"at":8500,"name":"page.onMessage","step":16},
+    {"args":["blank-pres-1"],"at":35500,"name":"page.ensureThemeReady","step":21}
+  ],
+  "checkpoints": [
+    {
+      "activeBuildThemeProfile": null,
+      "buildThemeSelection": {"mode":"auto"},
+      "connection": {"connected":true,"generation":1,"sockets":1},
+      "deck": {"effectivePresentationId":"blank-pres-1","presentationId":"blank-pres-1"},
+      "gate": {"phase":"restored","sessionId":"sess-auto-pick","syncSeen":false},
+      "label": "the user picked Vibrant, then Auto",
+      "messages": ["msg_hist_28306facfa8f | chat_message"],
+      "setThemeSent": [
+        {"at":2500,"socket":0,"theme":{"mode":"preset","preset_id":"vibrant"}},
+        {"at":3500,"socket":0,"theme":{"mode":"auto"}}
+      ],
+      "themeSelectionChangedLocally": false,
+      "themeSync": {
+        "error": null,
+        "presentationId": "blank-pres-1",
+        "requestId": "synthetic-uuid-0002",
+        "status": "applied",
+        "themeFingerprint": "{\"mode\":\"auto\"}"
+      },
+      "toasts": 0,
+      "virtualMs": 5000
+    },
+    {
+      "activeBuildThemeProfile": null,
+      "buildThemeSelection": {"mode":"auto"},
+      "connection": {"connected":true,"generation":1,"sockets":2},
+      "deck": {"effectivePresentationId":"blank-pres-1","presentationId":"blank-pres-1"},
+      "gate": {"phase":"restored","sessionId":"sess-auto-pick","syncSeen":true},
+      "label": "reload: the Auto choice is restored",
+      "messages": ["db-director-0 | chat_message","msg_hist_28306facfa8f | chat_message"],
+      "setThemeSent": [
+        {"at":2500,"socket":0,"theme":{"mode":"preset","preset_id":"vibrant"}},
+        {"at":3500,"socket":0,"theme":{"mode":"auto"}}
+      ],
+      "themeSelectionChangedLocally": false,
+      "themeSync": {
+        "error": null,
+        "presentationId": "blank-pres-1",
+        "requestId": "restore:sess-auto-pick:req-auto-1",
+        "status": "applied",
+        "themeFingerprint": "{\"mode\":\"auto\"}"
+      },
+      "toasts": 0,
+      "virtualMs": 34500
+    }
+  ],
+  "diagnostics": {"blockedNetwork":[],"console":[],"uncaught":[]},
+  "notes": [
+    "step 3: themeAck skipped, no unanswered set_theme",
+    "step 17: themeAck skipped, no unanswered set_theme",
+    "step 21: element preflight ready (director) after 0 ms virtual"
+  ]
+}

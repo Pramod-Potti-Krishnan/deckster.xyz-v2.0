@@ -197,7 +197,7 @@ import { themeFontFields, themeFontsEqual } from '@/lib/theme-fonts'
 import {
   advanceThemeRestoreGate,
   isFreshThemeRestoreGate,
-  restoredThemeSelection,
+  restoredAdoptedSelection,
   restoredThemeSync,
   themeRestoreGateFor,
   themeRestoreHoldsSocketSync,
@@ -709,7 +709,9 @@ function AuthenticatedBuilderContent({ authScopeUserId }: { authScopeUserId: str
     const restore = step.restore
     // A pick the user made before the restore arrived wins: it was sent once, and this restore changes nothing.
     if (!restore || themeSelectionChangedLocallyRef.current) return step.consumed
-    const selection = restoredThemeSelection(restore.theme)
+    // `restore:<session id>:none` (the user never picked): Director's default theme is not a choice, so this stays Auto and
+    // the state committed below is applied for the Auto fingerprint (restoredAdoptedSelection).
+    const selection = restoredAdoptedSelection(restore)
     if (!selection) {
       // Nothing stored: show Auto, send nothing.
       setActiveBuildThemeProfile(null)

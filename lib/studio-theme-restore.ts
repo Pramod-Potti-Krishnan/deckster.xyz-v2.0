@@ -13,6 +13,12 @@
  *     The state is committed settled: a restore whose apply is still in flight on another tab (`desired_status: "syncing"`,
  *     which Director acknowledges only to the socket that asked) counts as applied, with no timer and no banner.
  *     `theme: null` (nothing was ever chosen) shows Auto and sends nothing either. A restore never counts as a user pick.
+ *     Exception, `restore:<session_id>:none` (Director found no desired theme state: the user never picked a theme with
+ *     `set_theme`, and a build writes none): the theme it carries is Director's own default for the deck, which it applied
+ *     when it created the session's blank deck (the user's standard theme, else corporate_light), not a choice. The page keeps
+ *     Auto (no "Theme selected" chip) and commits the theme-sync state as applied for the Auto fingerprint of the presentation,
+ *     so nothing is sent (restoredAdoptedSelection). Any other id ends in the request id of a real pick (Auto included) and is
+ *     adopted as above.
  *  3. Until the restore (or the fallback below) has arrived on the current socket, the socket-ready `set_theme` is held
  *     (`themeRestoreHoldsSocketSync`), unless the user picked a theme: a real pick always goes out, and a restore that
  *     arrives after it is a no-op.
@@ -101,6 +107,30 @@ export function restoredThemeSelection(theme: unknown): BuildThemeSelection | nu
   }
 
   return null
+}
+
+/** The suffix Director gives `restore:<session_id>:<desired request id | none>` when the session has no desired theme state. */
+export const THEME_RESTORE_NEVER_PICKED_SUFFIX = ':none'
+
+/**
+ * A restore of a session whose user never picked a theme (`restore:<session_id>:none`). Director writes desired theme state
+ * only for a `set_theme`, so ":none" is guaranteed exactly when no pick was ever made; a build, and the auto-theming of the
+ * session's blank deck at creation (stored only as applied state, request id "initial:<presentation id>"), write none.
+ */
+export function isNeverPickedRestore(payload: ThemeRestorePayload): boolean {
+  return nonEmptyString(payload.request_id) && payload.request_id.endsWith(THEME_RESTORE_NEVER_PICKED_SUFFIX)
+}
+
+/**
+ * The selection the Builder adopts for a restore: Director's stored theme, except for a never-picked restore, whose theme is
+ * Director's default for the deck and not the user's choice: the picker stays on Auto. The caller commits the theme-sync state
+ * for the selection returned here (restoredThemeSync), so a never-picked restore is applied for the Auto fingerprint and the
+ * deck-theme effect has nothing to send. `null` when nothing usable is stored (Auto, nothing committed), as before.
+ */
+export function restoredAdoptedSelection(payload: ThemeRestorePayload): BuildThemeSelection | null {
+  const stored = restoredThemeSelection(payload.theme)
+  if (!stored) return null
+  return isNeverPickedRestore(payload) ? { mode: 'auto' } : stored
 }
 
 /**
