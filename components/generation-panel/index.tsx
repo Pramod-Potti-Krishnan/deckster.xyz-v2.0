@@ -23,6 +23,7 @@ import { ResearchControls } from './shared/research-controls'
 import type { ElementGenerationSubmitIntent } from '@/lib/element-generation-retry'
 import { resolveChartFormDataFromGenerationConfig } from '@/lib/chart-data-contract'
 import { EMPTY_PROMPT_HINT, emptyPromptBlocksGenerate, mandatoryConfigPromptOptional } from '@/lib/studio-empty-prompt-guard'
+import { STUDIO_GENERATING_STATUS_ENABLED, generatingStatusText, escapeClosesWhileGenerating, isEditableEventTarget } from '@/lib/studio-generating-status'
 
 function readObject(value: unknown): Record<string, unknown> | null {
   return value && typeof value === 'object' && !Array.isArray(value)
@@ -346,7 +347,13 @@ export function GenerationPanel({
       // Hidden Studio drawers remain mounted to retain production form drafts.
       // Their window shortcuts must not act on the active compact workspace.
       if (panelRootRef.current?.closest('[data-studio-v4-shell="true"] [data-studio-workspace-visible="false"]')) return
-      if (e.key === 'Escape' && !isGenerating) {
+      // PASS2B J3-05 (NEXT_PUBLIC_STUDIO_GENERATING_STATUS, default off: `!isGenerating` exactly as before): while generating, Escape closes the panel
+      // the way the header's ✕ does (the same onClose), except an Escape typed into a text field outside the panel.
+      if (e.key === 'Escape' && (!isGenerating || escapeClosesWhileGenerating({
+        isGenerating,
+        fromEditableField: isEditableEventTarget(e.target),
+        outsidePanel: !(panelRootRef.current && e.target && panelRootRef.current.contains(e.target as Node)),
+      }))) {
         // Radix consumes a picker Escape before it reaches this window listener.
         // Let that layer dismiss and restore focus without closing its inspector.
         if (process.env.NEXT_PUBLIC_STUDIO_V4_SHELL === 'true' && e.defaultPrevented) return
@@ -406,6 +413,7 @@ export function GenerationPanel({
             retryStrategy={retryStrategy}
             placeholder={elementType === 'CHART' ? 'e.g., Show quarterly revenue growth for 2024' : undefined}
             emptyPromptHint={emptyPromptBlocked ? EMPTY_PROMPT_HINT : undefined}
+            generatingStatus={STUDIO_GENERATING_STATUS_ENABLED ? (isGenerating ? generatingStatusText(elementType) : '') : undefined}
           />
         )}
 

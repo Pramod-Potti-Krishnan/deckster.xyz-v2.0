@@ -102,7 +102,7 @@ function makeEnvironment(state) {
     studioTabPausedHint: undefined, // NEXT_PUBLIC_STUDIO_ONE_LIVE_TAB: a new prop of the viewer; absent = the base toolbar, byte for byte
     isSlideMutationPending: false, isEditMode: false, isGridActive: false, isBordersActive: false, isSaving: false, saveStatus: 'saved',
     resolvedTheme: 'light', activeVersion: 'blank', strawmanPreviewUrl: versions ? 'https://example.invalid/s' : null, finalPresentationUrl: versions ? 'https://example.invalid/f' : null,
-    ADD_SLIDE_V2_ENABLED: false, STUDIO_SLIDE_COUNT_SYNC_ENABLED: false, addSlideV2Settings: null, buildThemeSelection: null, slideThumbnails: [],
+    ADD_SLIDE_V2_ENABLED: false, STUDIO_DISABLED_REASONS_ENABLED: false, STUDIO_SLIDE_COUNT_SYNC_ENABLED: false, addSlideV2Settings: null, buildThemeSelection: null, slideThumbnails: [],
     currentSlide: 1, totalSlides: 7, slideCount: 7, visualTotalSlides: 7, syncedFooterTotal: () => 7, toolbarOffset: 0,
     authoringStripRef: { current: null }, viewerInteractionIntentRef: { current: 0 }, toolbarDropdownPortalContainer: null,
     downloadControls: 'DOWNLOAD', onOpenGenerationPanel: record('onOpenGenerationPanel'), onGenerateSlide: record('onGenerateSlide'), onSelectTemplate: record('onSelectTemplate'),

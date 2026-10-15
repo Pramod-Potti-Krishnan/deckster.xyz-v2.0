@@ -559,7 +559,8 @@ function wiringChecks() {
   assert.match(read(PANEL), /getTemplateSlotCatalog=\{getTemplateSlotCatalog\}/)
   if (baseAvailable) {
     const touched = git(['diff', '--name-only', BASE_SHA, '--']).split('\n').filter(Boolean)
-    for (const frozen of ['hooks/use-textlabs-generation.ts', 'components/presentation-viewer.tsx', 'lib/element-free-spot.ts']) {
+    // The viewer was frozen for this change; PASS2B batch 1 later edits it behind its own flag (test-studio-pass2b-batch1.mjs proves that edit).
+    for (const frozen of ['hooks/use-textlabs-generation.ts', 'lib/element-free-spot.ts']) {
       assert.equal(touched.includes(frozen), false, `${frozen} is FRONTEND-2's and is untouched`)
     }
   }
