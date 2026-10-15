@@ -205,8 +205,8 @@ const page = read('app/builder/page.tsx')
             onStudioRailReveal={onStudioRailReveal}`), 'PresentationArea passes both through')
   const baseArea = baseSource('components/builder/presentation-area.tsx')
   if (baseArea) {
-    const stripped = area.split('\n').filter(line => !/studioRailCollapsed|onStudioRailReveal|onUserDeckEdit|PASS2 #3|onComposerTemplateAction|onOpenComposerLibrary|Toolbar template picker fix-forward|ComposerLibraryRequest/.test(line)).join('\n')
-    check(assert.equal, stripped, baseArea, 'PresentationArea: only the pass-through lines were added (the rail props, the session-hygiene onUserDeckEdit one, and the toolbar template picker\'s two callbacks)')
+    const stripped = area.split('\n').filter(line => !/studioRailCollapsed|onStudioRailReveal|onUserDeckEdit|PASS2 #3|onComposerTemplateAction|onOpenComposerLibrary|Toolbar template picker fix-forward|ComposerLibraryRequest|NEXT_PUBLIC_STUDIO_ONE_LIVE_TAB|studioTabPausedHint/.test(line)).join('\n')
+    check(assert.equal, stripped, baseArea, 'PresentationArea: only the pass-through lines were added (the rail props, the session-hygiene onUserDeckEdit one, the toolbar template picker\'s two callbacks, and the one-live-tab studioTabPausedHint one)')
   }
 }
 

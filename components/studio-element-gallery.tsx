@@ -144,9 +144,17 @@ export function orderElementGalleryItems<T extends { label: string }>(items: rea
   return items.map((item, index) => ({ item, index })).sort((a, b) => rank(a.item.label) - rank(b.item.label) || a.index - b.index).map(({ item }) => item)
 }
 
+const GALLERY_REASON_ID = "studio-element-gallery-disabled-reason"
+
 const slug = (label: string) => label.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "")
 
-export function StudioElementGalleryMenu({ items }: { items: readonly ElementGalleryItem[] }) {
+/**
+ * `disabledReason` (PASS2B batch 1, NEXT_PUBLIC_STUDIO_DISABLED_REASONS; the viewer passes it only with that flag on): why the disabled cards are
+ * disabled ("Loading the slide…", "Exit Template Mode to add elements", ...). Shown as one line under the header (role="status"), and each
+ * disabled card gets it as its title and in aria-describedby. Not passed (undefined): the gallery is exactly what it was.
+ */
+export function StudioElementGalleryMenu({ items, disabledReason }: { items: readonly ElementGalleryItem[]; disabledReason?: string }) {
+  const reasonShown = typeof disabledReason === 'string' && disabledReason !== '' && items.some(item => item.disabled)
   return (
     <DropdownMenuContent
       data-studio-authoring-menu="add-element"
@@ -158,10 +166,12 @@ export function StudioElementGalleryMenu({ items }: { items: readonly ElementGal
       <DropdownMenuLabel className="seg-head">
         <span className="seg-title">Add an element</span>
         <span className="seg-hint">Choose one, then shape it.</span>
+        {reasonShown && <span id={GALLERY_REASON_ID} role="status" data-studio-element-gallery-reason="true" className="seg-hint">{disabledReason}</span>}
       </DropdownMenuLabel>
       {orderElementGalleryItems(items).map(({ label, icon: Icon, disabled, action }) => {
         const copy = CARD_COPY[label]
         const describedBy = copy ? `studio-element-gallery-${slug(label)}-desc` : undefined
+        const cardReason = reasonShown && disabled
         return (
           <DropdownMenuItem
             key={label}
@@ -169,7 +179,8 @@ export function StudioElementGalleryMenu({ items }: { items: readonly ElementGal
             onClick={() => { void action() }}
             textValue={label}
             aria-label={label}
-            aria-describedby={describedBy}
+            aria-describedby={cardReason ? [describedBy, GALLERY_REASON_ID].filter(Boolean).join(' ') : describedBy}
+            title={cardReason ? disabledReason : undefined}
             data-studio-element-card={slug(label)}
             className="seg-card cursor-pointer"
           >

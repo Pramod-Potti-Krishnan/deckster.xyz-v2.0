@@ -1,0 +1,62 @@
+[
+  {
+    "args": [
+      {
+        "currentStage": 0,
+        "presentationId": "synthetic-blank-olt",
+        "presentationUrl": "https://layout.synthetic.invalid/p/synthetic-blank-olt",
+        "slideCount": 1
+      }
+    ],
+    "name": "hook.onSessionStateChange",
+    "step": 2
+  },
+  {"args":[{"message_id":"msg-init-blank","type":"presentation_init"}],"name":"hook.onMessage","step":2},
+  {"args":[{"message_id":"msg-greeting","type":"chat_message"}],"name":"hook.onMessage","step":3},
+  {"args":["Build a short deck about ocean currents"],"name":"composer.onInputChange","step":4},
+  {
+    "args": [{"currentTarget":{},"preventDefault":"[fn]","stopPropagation":"[fn]","target":{},"type":"submit"}],
+    "name": "composer.onSubmit",
+    "step": 5
+  },
+  {
+    "args": [
+      "Build a short deck about ocean currents",
+      0,
+      {
+        "deepResearch": false,
+        "extendedGeneration": true,
+        "fileUpload": false,
+        "storeName": null,
+        "useKnowledgeGraph": false,
+        "webSearch": false
+      }
+    ],
+    "name": "page.sendTypedTurn",
+    "step": 5
+  },
+  {
+    "args": [
+      {
+        "message_id": "synthetic-uuid-0001",
+        "payload": {"text":"Build a short deck about ocean currents"},
+        "type": "chat_message"
+      },
+      "Build a short deck about ocean currents"
+    ],
+    "name": "page.persistence.queueMessage",
+    "step": 5
+  },
+  {"args":[{"message_id":"msg-reply","type":"chat_message"}],"name":"hook.onMessage","step":7},
+  {"args":["Make the title shorter"],"name":"composer.onInputChange","step":14},
+  {
+    "args": [{"currentTarget":{},"preventDefault":"[fn]","stopPropagation":"[fn]","target":{},"type":"submit"}],
+    "name": "composer.onSubmit",
+    "step": 15
+  },
+  {
+    "args": [{"description":"Changes there are live; this tab is paused.","title":"This session is open in another tab."}],
+    "name": "page.toast",
+    "step": 15
+  }
+]

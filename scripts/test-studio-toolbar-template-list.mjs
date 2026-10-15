@@ -354,7 +354,10 @@ const mut = (source, from, to) => { assert.ok(source.includes(from), `mutation t
 // Sibling flag-gated attributes that later merged PRs add to the same elements. Each is proven inert flag-off by its own test,
 // so this pin ignores them like the fix's own spreads (scope: #382 chat PR D, NEXT_PUBLIC_STUDIO_CHAT_COMPOSER_CONTEXT ->
 // ChatInput studioContextLabel; flag-off value proven by scripts/test-studio-chat-composer-recovery-answered.mjs).
-const SIBLING_FLAG_ATTR = /^studioContextLabel=/
+// + NEXT_PUBLIC_STUDIO_ONE_LIVE_TAB -> ChatInput pausedInOtherTab and PresentationArea studioTabPausedHint (false / undefined unless the tab is
+// paused; flag-off equality with the base: scripts/test-studio-one-live-tab.mjs --base-root).
+// + PASS2B J1-10 (NEXT_PUBLIC_STUDIO_CHAT_EDIT_PROMPT) -> ChatInput studioEditPrompt (`studioEditPromptActive || undefined`: undefined flag off; scripts/test-studio-pass2b-chat.mjs).
+const SIBLING_FLAG_ATTR = /^(studioContextLabel|pausedInOtherTab|studioTabPausedHint|studioEditPrompt)=/
 const withoutFix = element => [...element.attrs.filter(a => !SIBLING_FLAG_ATTR.test(a)), ...element.spreads.filter(s => !FIX.test(s))].join('\n')
 
 // ---- library dialog helpers (the dialog's own buttons are the reference) --------------------------------------------------------------------------
@@ -548,7 +551,7 @@ await run('the area and the viewer pass the two props on unchanged, and only whe
   const picker = oneElement(read(VIEWER), 'StudioTemplatePicker')
   assert.ok(picker.attrs.includes('onComposerTemplateAction={onComposerTemplateAction}'))
   assert.ok(picker.attrs.includes('onOpenComposerLibrary={onOpenComposerLibrary}'))
-  const flagged = read(VIEWER).split("process.env.NEXT_PUBLIC_STUDIO_TEMPLATE_WORKSPACE === 'true' ? <>\n                <StudioTemplatePicker")
+  const flagged = read(VIEWER).split("process.env.NEXT_PUBLIC_STUDIO_TEMPLATE_WORKSPACE === 'true' ? <>\n                {tabPausedWrap(<StudioTemplatePicker")
   assert.equal(flagged.length, 2, 'the picker is still rendered only inside the workspace flag\'s branch')
 })
 

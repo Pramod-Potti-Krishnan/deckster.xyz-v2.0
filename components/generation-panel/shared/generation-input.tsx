@@ -31,9 +31,23 @@ interface GenerationInputProps {
    * reaches when full and scrolls inside it. Default off: unchanged.
    */
   stableSubmit?: boolean
+  /**
+   * J3-EMPTY-PROMPT-GUARD (NEXT_PUBLIC_STUDIO_EMPTY_PROMPT_GUARD): set by the panel while a required prompt is empty. Generate (and the
+   * error box's retry) is then disabled, aria-disabled, and carries this text as its hint. Default off / not set: unchanged.
+   */
+  emptyPromptHint?: string | null
+  /**
+   * PASS2B J3-05 (NEXT_PUBLIC_STUDIO_GENERATING_STATUS): the panel sets it with the flag on: the status sentence while an element generates
+   * ("Generating chart… usually 10–30 s"), an empty string otherwise. It fills an aria-live="polite" line under the box. Default off / not set
+   * (undefined): nothing is rendered and the input is unchanged.
+   */
+  generatingStatus?: string
 }
 
 const STABLE_SUBMIT_TEXTAREA_STYLE = { height: 160 } as const
+
+/** PASS2B J3-04: the id of the visually hidden hint a blocked Generate button is described by (static, like the prompt-limit id below). */
+const EMPTY_PROMPT_HINT_ID = 'generation-empty-prompt-hint'
 
 export function GenerationInput({
   prompt,
@@ -47,6 +61,8 @@ export function GenerationInput({
   retryStrategy,
   placeholder: placeholderOverride,
   stableSubmit,
+  emptyPromptHint,
+  generatingStatus,
 }: GenerationInputProps) {
   const textareaRef = useRef<HTMLTextAreaElement>(null)
   const mandatoryConfigs = Array.isArray(mandatoryConfig)
@@ -61,7 +77,9 @@ export function GenerationInput({
   const promptLengthState = elementPromptLengthState(prompt, promptMaxLength)
   const promptOverLimit = promptLengthState.overLimit
   const promptOverflow = promptLengthState.overflow
-  const submitDisabled = isGenerating || promptOverLimit
+  const promptGuardHint = emptyPromptHint ? emptyPromptHint : null
+  const promptGuardBlocked = promptGuardHint !== null
+  const submitDisabled = isGenerating || promptOverLimit || promptGuardBlocked
   const primarySubmitIntent: ElementGenerationSubmitIntent =
     retryStrategy === 'resume_same_attempt' ? 'retry' : 'generate'
   const handleSubmit = () => {
@@ -192,6 +210,7 @@ export function GenerationInput({
               type="button"
               onClick={handleSubmit}
               disabled={submitDisabled}
+              aria-disabled={promptGuardBlocked ? true : undefined}
               className={`h-7 w-7 rounded-lg flex items-center justify-center transition-all ${
                 submitDisabled
                   ? 'bg-gray-200 dark:bg-slate-700 text-gray-400 dark:text-slate-500 cursor-not-allowed'
@@ -200,17 +219,23 @@ export function GenerationInput({
               title={
                 promptOverLimit
                   ? 'Shorten the prompt before generating'
-                  : retryStrategy === 'resume_same_attempt'
-                    ? 'Check generation result (⌘↵)'
-                    : 'Generate (⌘↵)'
+                  : promptGuardHint !== null
+                    ? promptGuardHint
+                    : retryStrategy === 'resume_same_attempt'
+                      ? 'Check generation result (⌘↵)'
+                      : 'Generate (⌘↵)'
               }
-              aria-label={STUDIO_GENERATION_FEEDBACK
+              aria-label={STUDIO_GENERATION_FEEDBACK || promptGuardBlocked
                 ? promptOverLimit
                   ? 'Shorten the prompt before generating'
                   : retryStrategy === 'resume_same_attempt'
                     ? 'Check generation result (⌘↵)'
                     : 'Generate (⌘↵)'
                 : undefined}
+              // PASS2B J3-04 (#398 aria follow-up, same flag: promptGuardBlocked is only ever true with it on): a blocked button keeps its name
+              // "Generate (⌘↵)" in every shell (the aria-label above; outside the Studio shell the hint title WAS its name) and is described by
+              // the hint (the visually hidden span below). Not blocked / flag off: no attribute added.
+              aria-describedby={promptGuardBlocked ? EMPTY_PROMPT_HINT_ID : undefined}
             >
               {isGenerating ? (
                 <Loader2 className="h-4 w-4 animate-spin" />
@@ -218,9 +243,21 @@ export function GenerationInput({
                 <ArrowUp className="h-4 w-4" />
               )}
             </button>
+            {promptGuardBlocked && <span id={EMPTY_PROMPT_HINT_ID} className="sr-only">{promptGuardHint}</span>}
           </div>
         </div>
       </div>
+      {generatingStatus !== undefined && (
+        // The line is always in the tree while the flag is on, so the polite live region exists before its text arrives and is announced; idle it
+        // is empty and takes no room (the parent's space-y margin is zeroed).
+        <p
+          role="status"
+          aria-live="polite"
+          data-studio-generating-status={generatingStatus ? 'true' : undefined}
+          style={generatingStatus ? undefined : { marginTop: 0 }}
+          className="px-1 text-[10px] leading-4 text-gray-500 dark:text-slate-400"
+        >{generatingStatus}</p>
+      )}
       {promptMaxLength && (
         <div
           id="generation-prompt-limit"

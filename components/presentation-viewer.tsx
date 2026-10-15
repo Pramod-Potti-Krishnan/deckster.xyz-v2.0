@@ -104,6 +104,8 @@ import { DeleteSlideDialog } from './delete-slide-dialog'
 import { TemplateSaveDialog } from './template-save-dialog'
 import { TemplateIngestDialog } from './template-ingest-dialog'
 import { StudioTemplatePicker } from './studio-template-workspace/entry'
+import { StudioDisabledReason } from './studio-disabled-reason'
+import { STUDIO_DISABLED_REASONS_ENABLED, studioToolbarDisabledReason, studioElementCardsDisabledReason, type StudioToolbarControl } from '@/lib/studio-disabled-reasons'
 import { useToast } from '@/hooks/use-toast'
 // TextFormatPopover is now replaced by simple text box insertion button
 // Keeping FormatTextParams for backward compatibility if needed
@@ -353,6 +355,9 @@ interface PresentationViewerProps {
   // NEXT_PUBLIC_STUDIO_SESSION_HYGIENE: the user changed the deck's slides by hand (Add / Duplicate / Delete / Reorder). The page
   // passes it only with the flag on and uses it to save the session row on the first such action. Never called by Director.
   onUserDeckEdit?: () => void
+  // NEXT_PUBLIC_STUDIO_ONE_LIVE_TAB: set (a hint sentence) only while this tab is paused because the session is live in another tab.
+  // Add Slide, Add Element, Theme and Template are then disabled with this hint; viewing and moving between slides stay available.
+  studioTabPausedHint?: string
   // J2 v2 (flag NEXT_PUBLIC_STUDIO_ADD_SLIDE_V2_ENABLED): the page's chat/session settings for the Add Slide pop-up.
   addSlideV2Settings?: AddSlideV2Settings<BuildThemeSelection>
   // PASS2 #3 (flag NEXT_PUBLIC_STUDIO_PANEL_FOCUS): the page hides the slide rail while Add Slide / Add Element is open;
@@ -694,6 +699,7 @@ export function PresentationViewer({
   onRefineSlide,
   onGenerateSlide,
   onUserDeckEdit,
+  studioTabPausedHint,
   addSlideV2Settings,
   studioRailCollapsed = false,
   onStudioRailReveal,
@@ -4140,6 +4146,24 @@ export function PresentationViewer({
               </button>
         )
 
+        // NEXT_PUBLIC_STUDIO_ONE_LIVE_TAB: this tab is paused (the session is live in another tab). Undefined/false otherwise, so every
+        // `|| tabPaused` below and every hint is inert and the markup is what it was.
+        const tabPaused = Boolean(studioTabPausedHint)
+        // A disabled button swallows the pointer, so the hint sits on a box around it that receives the hover instead.
+        // PASS2B batch 1 (NEXT_PUBLIC_STUDIO_DISABLED_REASONS, default off): with the flag on, the box that carries the hint also says why a control is
+        // disabled for any reason (loading, Template Mode, a change in flight, or this paused tab): the same box (so `tabPausedWrap(` keeps its two
+        // calls below), now a keyboard tab stop with a tooltip on hover and focus and aria (components/studio-disabled-reason.tsx). The optional
+        // kind/label are given by the two picker call sites; reasonWrap does the same for the three buttons that never had a box. Off: the
+        // kind/label are ignored and this is exactly the wrapper above.
+        const toolbarReason = (kind: StudioToolbarControl) => studioToolbarDisabledReason(kind, { tabPausedHint: studioTabPausedHint, viewerIsReady, templateModeOn, slideMutationPending: isSlideMutationPending })
+        const reasonWrap = (control: React.ReactNode, kind: StudioToolbarControl, label: string) => STUDIO_DISABLED_REASONS_ENABLED
+          ? <StudioDisabledReason reason={toolbarReason(kind)} label={label} tabPaused={tabPaused} portalContainer={toolbarDropdownPortalContainer}>{control}</StudioDisabledReason>
+          : control
+        const tabPausedWrap = (control: React.ReactNode, kind?: StudioToolbarControl, label?: string) => STUDIO_DISABLED_REASONS_ENABLED && kind && label
+          ? reasonWrap(control, kind, label)
+          : tabPaused
+          ? <span title={studioTabPausedHint} data-studio-tab-paused="true" className="inline-flex [&_button]:pointer-events-none">{control}</span>
+          : control
         const authoringControls = (
           <div
               className={cn(
@@ -4149,21 +4173,21 @@ export function PresentationViewer({
               style={!isFullscreen && !studioShell ? { marginLeft: toolbarOffset } : undefined}
             >
               {/* Add Slide */}
-              <SlideLayoutPicker
+              {tabPausedWrap(<SlideLayoutPicker
                 onAddSlide={handleAddSlide}
                 onGenerateSlide={onGenerateSlide}
                 addSlideV2={ADD_SLIDE_V2_ENABLED && addSlideV2Settings ? { settings: addSlideV2Settings, currentSlide, slideCount: totalSlides, theme: buildThemeSelection, slides: addSlideV2Settings.regenerate ? slideThumbnails.map(slide => ({ slideId: slide.slideId ?? null, title: slide.title ?? '' })) : undefined } : undefined}
-                disabled={!viewerIsReady || templateModeOn || isSlideMutationPending}
+                disabled={!viewerIsReady || templateModeOn || isSlideMutationPending || tabPaused}
                 className="min-w-[80px] justify-center"
-              />
+              />, 'add-slide', 'Add Slide')}
 
               {/* Add Element — same Plus icon as Add Slide; label disambiguates */}
-              <DropdownMenu>
+              {reasonWrap(<DropdownMenu>
                 <DropdownMenuTrigger asChild>
                   <button
-                    disabled={!viewerIsReady || templateModeOn || isSlideMutationPending}
+                    disabled={!viewerIsReady || templateModeOn || isSlideMutationPending || tabPaused}
                     className={cn(toolbarButtonClass, toolbarBtnBase, "min-w-[96px]")}
-                    title="Add an element"
+                    title={tabPaused ? studioTabPausedHint : "Add an element"}
                   >
                     <Plus className="h-5 w-5" />
                     <span className={cn(toolbarLabelClass, "whitespace-nowrap")}>Add Element</span>
@@ -4171,7 +4195,7 @@ export function PresentationViewer({
                 </DropdownMenuTrigger>
                 <DropdownMenuPortal container={toolbarDropdownPortalContainer}>
                   {studioElementGallery ? (
-                    <StudioElementGalleryMenu items={addElementItems} />
+                    <StudioElementGalleryMenu items={addElementItems} disabledReason={STUDIO_DISABLED_REASONS_ENABLED ? studioElementCardsDisabledReason(toolbarReason('add-element')) : undefined} />
                   ) : (
                     <DropdownMenuContent data-studio-authoring-menu={studioShell && !isFullscreen ? "add-element" : undefined} data-studio-v4-shell={studioShell && isFullscreen ? "true" : undefined} data-studio-presentation-popup={studioShell && isFullscreen ? "true" : undefined} align="start" sideOffset={8} className="w-52 p-1">
                       {addElementItems.map(({ label, icon: Icon, disabled, action }) => (
@@ -4188,7 +4212,7 @@ export function PresentationViewer({
                     </DropdownMenuContent>
                   )}
                 </DropdownMenuPortal>
-              </DropdownMenu>
+              </DropdownMenu>, 'add-element', 'Add Element')}
 
               {studioShell && onStudioFormatRequested && <button type="button"
                 disabled={!viewerIsReady || templateModeOn || isSlideMutationPending || studioFormatBusy || !studioFormatSelection?.isCurrent()}
@@ -4201,7 +4225,7 @@ export function PresentationViewer({
                   deck exists and we know the WS session to snapshot. */}
               {/* PASS2-PK-FOUR item 4 (NEXT_PUBLIC_STUDIO_TEMPLATE_WORKSPACE, default off): Template ▾ moves next to Theme, below. */}
               {studioShell && process.env.NEXT_PUBLIC_STUDIO_TEMPLATE_WORKSPACE === 'true' ? null : templateBuilderEnabled ? (
-                <DropdownMenu
+                reasonWrap(<DropdownMenu
                   open={toolbarTemplateMenuOpen}
                   onOpenChange={(open) => {
                     setToolbarTemplateMenuOpen(open)
@@ -4210,9 +4234,9 @@ export function PresentationViewer({
                 >
                   <DropdownMenuTrigger asChild>
                     <button
-                      disabled={!viewerIsReady}
+                      disabled={!viewerIsReady || tabPaused}
                       className={cn(toolbarButtonClass, toolbarBtnBase)}
-                      title="Template options"
+                      title={tabPaused ? studioTabPausedHint : "Template options"}
                       aria-label={studioShell ? "Template" : undefined}
                     >
                       <LayoutTemplate className="h-5 w-5" />
@@ -4296,7 +4320,7 @@ export function PresentationViewer({
                       )}
                     </DropdownMenuContent>
                   </DropdownMenuPortal>
-                </DropdownMenu>
+                </DropdownMenu>, 'template', 'Template')
               ) : studioToolbarCleanup ? null : (
                 <button
                   disabled
@@ -4309,25 +4333,25 @@ export function PresentationViewer({
               )}
 
               {/* Theme — 4th primary build action; sits with its build siblings */}
-              <button
+              {reasonWrap(<button
                 onClick={() => setShowThemePanel(true)}
-                disabled={!viewerIsReady || templateModeOn}
+                disabled={!viewerIsReady || templateModeOn || tabPaused}
                 className={cn(toolbarButtonClass, toolbarBtnBase)}
-                title="Presentation theme"
+                title={tabPaused ? studioTabPausedHint : "Presentation theme"}
                 aria-label={studioShell ? "Theme" : undefined}
                 data-studio-v4-secondary={studioShell ? "true" : undefined}
               >
                 <Palette className="h-5 w-5" />
                 <span className={toolbarLabelClass}>Theme</span>
-              </button>
+              </button>, 'theme', 'Theme')}
 
               {/* Divider — separates the four primary build actions from the quiet view helpers */}
               {/* PASS2-PK-FOUR item 4 (NEXT_PUBLIC_STUDIO_TEMPLATE_WORKSPACE, default off): Template ▾ right after Theme (frame 3b): your
                   templates, a preview, New topic / Reuse as-is and "Upload a template (.pptx)"; the old menu's Save Template and Template
                   Mode stay in its footer. It shares the divider's slot, so with the flag off every element keeps its place (and its ids). */}
               {studioShell && process.env.NEXT_PUBLIC_STUDIO_TEMPLATE_WORKSPACE === 'true' ? <>
-                <StudioTemplatePicker
-                  disabled={!viewerIsReady}
+                {tabPausedWrap(<StudioTemplatePicker
+                  disabled={!viewerIsReady || tabPaused}
                   triggerClassName={cn(toolbarButtonClass, toolbarBtnBase)}
                   labelClassName={toolbarLabelClass}
                   portalContainer={toolbarDropdownPortalContainer}
@@ -4336,7 +4360,7 @@ export function PresentationViewer({
                   templateMode={templateBuilderEnabled ? { on: templateModeOn, available: templateModeAvailable, toggle: () => { viewerInteractionIntentRef.current += 1; onTemplateModeChange?.(!templateModeOn) } } : null}
                   onComposerTemplateAction={onComposerTemplateAction}
                   onOpenComposerLibrary={onOpenComposerLibrary}
-                />
+                />, 'template', 'Template')}
                 <div className="mx-1 h-6 w-px bg-slate-200 dark:bg-slate-700" aria-hidden="true" />
               </> : <div className="mx-1 h-6 w-px bg-slate-200 dark:bg-slate-700" aria-hidden="true" />}
 

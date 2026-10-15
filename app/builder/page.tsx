@@ -2,6 +2,7 @@
 
 import './studio-v4.css'
 import './studio-v4-type.css'
+import '@/components/builder/studio-pass2b-chat.css'
 import '@/components/layout/studio-shell.css'
 import '@/components/builder/studio-workspace.css'
 import '@/components/builder/studio-canvas.css'
@@ -102,7 +103,17 @@ import { MessageList } from '@/components/builder/message-list'
 import { ChatInput } from '@/components/builder/chat-input'
 import { StudioDirectorNotice } from '@/components/builder/studio-director-notice'
 import { studioComposerContextLabel } from '@/lib/studio-chat-composer-context'
+import { studioChatEditPromptActive } from '@/lib/studio-pass2b-chat'
+import { useStudioStaleErrorNotice } from '@/hooks/use-studio-stale-error-notice'
 import { StudioBlockedSendNotice } from '@/components/builder/studio-blocked-send-notice'
+import { StudioSupersededNotice } from '@/components/builder/studio-superseded-notice'
+import {
+  STUDIO_ONE_LIVE_TAB_ENABLED,
+  SUPERSEDED_NOTICE_DETAIL,
+  SUPERSEDED_NOTICE_TEXT,
+  SUPERSEDED_NOTICE_TITLE,
+  isTabSuperseded,
+} from '@/lib/studio-one-live-tab'
 import { ComposerLibraryDialog } from '@/components/builder/composer-library-dialog'
 import { StudioWorkspaceSwitchV2 } from '@/components/builder/studio-workspace-switch-v2'
 import { COMPOSER_READY_KEY_PREFIX, type ComposerReady } from '@/lib/composer-library'
@@ -186,7 +197,7 @@ import { themeFontFields, themeFontsEqual } from '@/lib/theme-fonts'
 import {
   advanceThemeRestoreGate,
   isFreshThemeRestoreGate,
-  restoredThemeSelection,
+  restoredAdoptedSelection,
   restoredThemeSync,
   themeRestoreGateFor,
   themeRestoreHoldsSocketSync,
@@ -249,6 +260,8 @@ import {
 import { lastBuilderSessionKey, unsavedBuilderSessionKey } from '@/lib/last-builder-session'
 import { STUDIO_SESSION_HYGIENE_ENABLED, shouldRememberLastSession } from '@/lib/studio-session-hygiene'
 import { isLocalUnsavedRoute, isStudioSessionRestoring } from '@/lib/studio-first-run-restoring'
+import { STUDIO_BLANK_START_NEW_SESSION_ENABLED } from '@/lib/studio-blank-start-new-session'
+import { useStudioBlankStart } from '@/hooks/use-studio-blank-start'
 import {
   absorbStudioHandoffStatus,
   canAutomaticallySubmitStudioHandoff,
@@ -696,7 +709,9 @@ function AuthenticatedBuilderContent({ authScopeUserId }: { authScopeUserId: str
     const restore = step.restore
     // A pick the user made before the restore arrived wins: it was sent once, and this restore changes nothing.
     if (!restore || themeSelectionChangedLocallyRef.current) return step.consumed
-    const selection = restoredThemeSelection(restore.theme)
+    // `restore:<session id>:none` (the user never picked): Director's default theme is not a choice, so this stays Auto and
+    // the state committed below is applied for the Auto fingerprint (restoredAdoptedSelection).
+    const selection = restoredAdoptedSelection(restore)
     if (!selection) {
       // Nothing stored: show Auto, send nothing.
       setActiveBuildThemeProfile(null)
@@ -3004,6 +3019,12 @@ function AuthenticatedBuilderContent({ authScopeUserId }: { authScopeUserId: str
     },
   })
 
+  // MULTITAB J1 P1b (NEXT_PUBLIC_STUDIO_ONE_LIVE_TAB, default off; lib/studio-one-live-tab.ts): Director keeps one live socket per
+  // session and closed this tab's because the session was opened in another tab. The hook then reconnects nothing (no timer, no
+  // ping, no set_theme); this tab is paused until the user takes the session back with "Use here" (the hook's explicit connect call).
+  // Always false with the flag off: the hook never reports `superseded` then.
+  const oneLiveTabSuperseded = isTabSuperseded(STUDIO_ONE_LIVE_TAB_ENABLED, reconnectStatus)
+
   const quota = useQuota(tokenUsage, tokenUsageMessageId ?? undefined)
   const [topUpOpen, setTopUpOpen] = useState(false)
   const [topUpReason, setTopUpReason] = useState<string | undefined>(undefined)
@@ -3065,6 +3086,9 @@ function AuthenticatedBuilderContent({ authScopeUserId }: { authScopeUserId: str
     finalPresentationId,
     // Durable final identity fences outline/history replay without suppressing
     // a distinct newer typed build or its recovery controls.
+    // J7-RESUME-LOOP-P1 (NEXT_PUBLIC_STUDIO_BUILD_RESUME_FIX, default off): the URL Director sends after a Stop
+    // no longer ends the stopped build, so Resume stays.
+    keepStoppedOnFinalUrl: process.env.NEXT_PUBLIC_STUDIO_BUILD_RESUME_FIX === 'true',
   })
 
   const { showOutlinePreview, onNativeBuildPhase, cancelOutlinePreview } = useStudioOutlinePreview({
@@ -3292,6 +3316,21 @@ function AuthenticatedBuilderContent({ authScopeUserId }: { authScopeUserId: str
     studioExplicitBlankOwnerRef.current = studioInitialSelectedTarget.owner
     setBlankPlaceholderDismissed(true)
   }
+  // NEXT_PUBLIC_STUDIO_BLANK_START_NEW_SESSION (default off): a reload keeps a started blank canvas, and the first-run "Start on a blank
+  // canvas" on a session that already holds a started deck opens a new session instead of revealing that deck (hooks/use-studio-blank-start.ts).
+  const handleStartOnBlankCanvas = useStudioBlankStart({
+    enabled: STUDIO_BLANK_START_NEW_SESSION_ENABLED && studioShell,
+    ownerId: builderCacheOwner,
+    sessionId: currentSessionId,
+    unsavedSession: isUnsavedSession,
+    dismissed: blankPlaceholderDismissed,
+    setDismissed: setBlankPlaceholderDismissed,
+    hasOwnedSelection: studioCanvasLifecycle.hasOwnedSelection,
+    showLanding: studioCanvasLifecycle.showLanding,
+    hasRealDeck: studioCanvasLifecycle.hasGeneratedDeck || studioCanvasLifecycle.hasAuthoredDeck,
+    dismiss: handleDismissBlankPlaceholder,
+    startNewSession: () => handleNewChatWrappedRef.current?.(),
+  })
   const workspaceLayout = allocateStudioWorkspace({
     width: studioOverlayWorkspace ? workspaceInnerWidth : workspaceWidth,
     chatPreference: chatWidth ?? (studioWelcome ? Math.min(640, workspaceWidth * .44) : 304),
@@ -5558,6 +5597,14 @@ function AuthenticatedBuilderContent({ authScopeUserId }: { authScopeUserId: str
       return false
     }
 
+    // NEXT_PUBLIC_STUDIO_ONE_LIVE_TAB: this tab is paused (the session is live in another tab). A typed message, an answer or an
+    // action click shows the notice instead of silently reconnecting, which would only evict the live tab. Nothing is sent and the
+    // draft stays in the box; "Use here" takes the session back.
+    if (oneLiveTabSuperseded) {
+      toast({ title: SUPERSEDED_NOTICE_TITLE, description: SUPERSEDED_NOTICE_DETAIL })
+      return false
+    }
+
     if (session.isLoadingSession || awaitingDirectorReply || isExecutingSendRef.current || questionSubmissionPendingRef.current) {
       return false
     }
@@ -5630,7 +5677,7 @@ function AuthenticatedBuilderContent({ authScopeUserId }: { authScopeUserId: str
 
     if (STUDIO_BLOCKED_SEND_FEEDBACK_ENABLED) setBlockedSendNotice(null)
     return true
-  }, [user, session.isLoadingSession, awaitingDirectorReply, activeTemplate,
+  }, [user, oneLiveTabSuperseded, session.isLoadingSession, awaitingDirectorReply, activeTemplate,
     isGeneratingFinal, uploadedFiles, quota.status, toast])
 
   const handleSendMessage = useCallback(async (
@@ -6765,6 +6812,21 @@ function AuthenticatedBuilderContent({ authScopeUserId }: { authScopeUserId: str
     messages, answeredIds: session.answeredActionsRef.current, userTurns: session.userMessages,
     sessionId: currentSessionId, locked: approvalGatesLocked,
   })
+  // PASS2B (E2E-2), two values derived at render from state already held here; both stay false unless their flag is exactly "true" (Studio shell only).
+  // J1-10 (NEXT_PUBLIC_STUDIO_CHAT_EDIT_PROMPT): the last user turn is the click on "I'd like to make changes" / "Make some changes" and nothing has
+  // been typed since: the composer is focused once, when that starts, and its placeholder says what to type. Nothing is sent or stored.
+  const studioEditPromptActive = studioShell && process.env.NEXT_PUBLIC_STUDIO_CHAT_EDIT_PROMPT === 'true'
+    && studioChatEditPromptActive(session.userMessages, messages)
+  const editPromptWasActiveRef = useRef(studioEditPromptActive)
+  useEffect(() => {
+    const wasActive = editPromptWasActiveRef.current
+    editPromptWasActiveRef.current = studioEditPromptActive
+    if (studioEditPromptActive && !wasActive) requestAnimationFrame(() => textareaRef.current?.focus())
+  }, [studioEditPromptActive])
+  // J1-17 (NEXT_PUBLIC_STUDIO_CHAT_ERROR_CLEAR): the Director error notice on screen (and the recovery card it feeds) was answered by a later turn:
+  // the user sent another message and Director replied. The hook's notice is not touched; this only stops it being drawn.
+  const staleErrorNotice = useStudioStaleErrorNotice(
+    studioShell && process.env.NEXT_PUBLIC_STUDIO_CHAT_ERROR_CLEAR === 'true', transportNotice, session.userMessages.length, messages.length)
   const studioMandatoryDecision = messages.some(message => message.type === 'action_request'
     && message.session_id === (currentSessionId || wsSessionId) && !retiredIntroActions.has(message.message_id)
     && Boolean((message.payload as any).question_set || (message as ActionRequest).payload.actions.some(action =>
@@ -7245,12 +7307,14 @@ function AuthenticatedBuilderContent({ authScopeUserId }: { authScopeUserId: str
               {showChat && (
                 <>
                   {studioShell && <StudioDirectorHeader connectionState={connectionState} isLoadingSession={session.isLoadingSession} reconnectStatus={reconnectStatus}
+                    onReconnect={process.env.NEXT_PUBLIC_STUDIO_CHAT_RECONNECT === 'true' ? connect : undefined}
                     actions={STUDIO_VOICE_INTERACTIVE_ENABLED ? <DirectorCallEntry call={studioDirectorCall.call} disabled={!studioDirectorCall.eligible} /> : undefined} />}
                   {studioShell && <StudioDirectorNotice
                     className="mx-3 mt-2"
-                    notice={transportNotice?.sessionId === (currentSessionId || wsSessionId) ? transportNotice : null}
+                    notice={staleErrorNotice ? null : transportNotice?.sessionId === (currentSessionId || wsSessionId) ? transportNotice : null}
                     handoffStatus={handoffRequestStatus?.sessionId === (currentSessionId || wsSessionId) ? handoffRequestStatus : null}
                   />}
+                  {studioShell && <StudioSupersededNotice className="mx-3 mt-2" active={oneLiveTabSuperseded} onUseHere={connect} />}
                   {studioShell && handoffStorageWarning?.sessionId === (currentSessionId || wsSessionId) && (
                     <p role="alert" className="mx-3 mt-2 rounded-lg border border-[var(--ss-line)] bg-[var(--ss-panel)] p-3 text-xs text-[var(--ss-text)]">
                       {handoffStorageWarning.text}
@@ -7283,7 +7347,7 @@ function AuthenticatedBuilderContent({ authScopeUserId }: { authScopeUserId: str
                           slideCount: effectiveSlideCount,
                         } : undefined}
                         studioFirstRunActions={studioShell && process.env.NEXT_PUBLIC_STUDIO_FIRST_RUN_V2 === 'true'
-                          ? <StudioFirstRunActions onStartBlank={effectivePresentationUrl ? handleDismissBlankPlaceholder : undefined} /> : undefined}
+                          ? <StudioFirstRunActions onStartBlank={effectivePresentationUrl ? (STUDIO_BLANK_START_NEW_SESSION_ENABLED ? handleStartOnBlankCanvas : handleDismissBlankPlaceholder) : undefined} /> : undefined}
                         studioRestoring={studioShell && process.env.NEXT_PUBLIC_STUDIO_FIRST_RUN_V2 === 'true' ? studioFirstRunRestoring : undefined}
                         connectionState={studioShell ? undefined : connected ? 'connected' : connecting ? 'connecting' : wsError ? 'error' : 'disconnected'}
                         onDraftPrompt={text => {
@@ -7308,7 +7372,7 @@ function AuthenticatedBuilderContent({ authScopeUserId }: { authScopeUserId: str
                         studioOutlineOnCanvas={studioOutlineCanvas?.outline.message_id}
                         studioRecovery={studioShell && process.env.NEXT_PUBLIC_STUDIO_CHAT_RECOVERY === 'true' ? {
                           // PASS2-DIRECTOR-CHAT PR D, item 7: facts already held here, passed read-only to word the recovery card. Same session test as the notice above.
-                          noticeType: transportNotice?.sessionId === (currentSessionId || wsSessionId) ? (transportNotice?.type ?? null) : null,
+                          noticeType: staleErrorNotice ? null : transportNotice?.sessionId === (currentSessionId || wsSessionId) ? (transportNotice?.type ?? null) : null,
                           noticeRequiresResend: Boolean(transportNotice?.sessionId === (currentSessionId || wsSessionId) && transportNotice?.requiresResend),
                           reconnectStatus,
                           statusError: currentStatus?.status === 'error',
@@ -7494,6 +7558,8 @@ function AuthenticatedBuilderContent({ authScopeUserId }: { authScopeUserId: str
                       slideNumber: currentSlideIndex + 1,
                       slideCount: effectiveSlideCount,
                     }) : undefined}
+                    pausedInOtherTab={oneLiveTabSuperseded}
+                    studioEditPrompt={studioEditPromptActive || undefined}
                   />
                 </>
               )}
@@ -7643,6 +7709,7 @@ function AuthenticatedBuilderContent({ authScopeUserId }: { authScopeUserId: str
                 ? (studioPartialNativeIndex.isCurrent() ? studioPartialNativeIndex.index : currentSlideIndex) : 0)
               : currentSlideIndex}
             onUserDeckEdit={STUDIO_SESSION_HYGIENE_ENABLED ? saveSessionOnFirstAction : undefined}
+            studioTabPausedHint={oneLiveTabSuperseded ? SUPERSEDED_NOTICE_TEXT : undefined}
             onSlideChange={(slideNum) => {
               const nextVisualIndex = Math.max(0, slideNum - 1)
               // Keep the imperative insertion owner current before React

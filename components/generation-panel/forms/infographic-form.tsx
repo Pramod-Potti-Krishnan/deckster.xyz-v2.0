@@ -31,6 +31,7 @@ import { CollapsibleSection } from '../shared/collapsible-section'
 import { ZIndexInput } from '../shared/z-index-input'
 import { ThemeSourceSelector } from '../shared/theme-source-selector'
 import { useThemeSourceState } from '../shared/use-theme-source-state'
+import { STUDIO_EMPTY_PROMPT_GUARD_ENABLED } from '@/lib/studio-empty-prompt-guard'
 
 import './studio-content-fields.css'
 
@@ -361,12 +362,20 @@ export function InfographicForm({
     panelMode,
   ])
 
+  // J3-EMPTY-PROMPT-GUARD (flag off: always false): a reference image (Design v1) or manual segment rows (Design v2) are the content,
+  // so Generate does not wait for a typed prompt. The form's own checks still run on submit.
+  const promptOptional = STUDIO_EMPTY_PROMPT_GUARD_ENABLED && (() => {
+    const guardMode = resolveInfographicDesignMode({ panelMode, operation, existingMode, requestedMode: mode })
+    return (guardMode === 'v1' && referenceImage !== null) || (guardMode === 'v2' && contentMode === 'manual')
+  })()
+
   useEffect(() => {
     const referenceConfig: MandatoryConfig = {
       fieldLabel: 'Reference',
       displayLabel: referenceImage ? referenceImage.name : 'No image',
       onChange: () => {},
       promptPlaceholder: 'e.g., A five-stage process from hypothesis to publication',
+      ...(promptOptional ? { promptOptional: true } : {}),
       customRender: (
         <div data-studio-content-reference={STUDIO_CONTENT_FIELDS ? 'true' : undefined} className="flex items-center gap-1.5">
           <button
@@ -418,6 +427,7 @@ export function InfographicForm({
     isGenerating,
     operation,
     panelMode,
+    promptOptional,
     referenceImage,
     registerMandatoryConfig,
     selectOperation,

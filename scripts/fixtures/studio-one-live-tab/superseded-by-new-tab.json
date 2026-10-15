@@ -1,0 +1,144 @@
+{
+ "name": "superseded-by-new-tab",
+ "description": "Director closes this tab's socket with 4000 \"New connection opened\" (the session was opened in another tab). With NEXT_PUBLIC_STUDIO_ONE_LIVE_TAB the hook goes to `superseded` and schedules no reconnect: no new socket for minutes, none after an offline/online pair, a send shows the notice and goes nowhere. Flag off, the same close starts today's backoff.",
+ "env": {
+  "NEXT_PUBLIC_STUDIO_CHAT_HEADER": "true"
+ },
+ "recordServerCloses": true,
+ "composer": true,
+ "stableHandlers": true,
+ "session": {
+  "id": "synthetic-session-one-live-tab-a",
+  "userId": "synthetic-user-01"
+ },
+ "steps": [
+  {
+   "op": "ensureConnected"
+  },
+  {
+   "op": "open"
+  },
+  {
+   "op": "frame",
+   "frame": {
+    "message_id": "msg-init-blank",
+    "session_id": "synthetic-session-one-live-tab-a",
+    "timestamp": "2026-10-13T12:00:01Z",
+    "type": "presentation_init",
+    "role": "assistant",
+    "payload": {
+     "is_blank": true,
+     "preview_url": "https://layout.synthetic.invalid/p/synthetic-blank-olt",
+     "preview_presentation_id": "synthetic-blank-olt"
+    }
+   }
+  },
+  {
+   "op": "frame",
+   "frame": {
+    "message_id": "msg-greeting",
+    "session_id": "synthetic-session-one-live-tab-a",
+    "timestamp": "2026-10-13T12:00:02Z",
+    "type": "chat_message",
+    "role": "assistant",
+    "payload": {
+     "text": "Hello! What would you like to build today?",
+     "sub_title": null,
+     "list_items": null,
+     "format": "markdown"
+    }
+   }
+  },
+  {
+   "op": "compose",
+   "text": "Build a short deck about ocean currents"
+  },
+  {
+   "op": "submit",
+   "comment": "the first turn goes out on the live socket"
+  },
+  {
+   "op": "expect",
+   "outbound": 1
+  },
+  {
+   "op": "frame",
+   "frame": {
+    "message_id": "msg-reply",
+    "session_id": "synthetic-session-one-live-tab-a",
+    "timestamp": "2026-10-13T12:00:03Z",
+    "type": "chat_message",
+    "role": "assistant",
+    "payload": {
+     "text": "On it. Give me a moment to plan.",
+     "sub_title": null,
+     "list_items": null,
+     "format": "markdown"
+    }
+   }
+  },
+  {
+   "op": "checkpoint",
+   "label": "connected, one turn sent"
+  },
+  {
+   "op": "close",
+   "code": 4000,
+   "reason": "New connection opened",
+   "comment": "Director closes this tab's socket: the session was opened in another tab (4000 New connection opened)"
+  },
+  {
+   "op": "checkpoint",
+   "label": "evicted by another tab"
+  },
+  {
+   "op": "advance",
+   "ms": 60000,
+   "comment": "a whole minute: today's ladder (1.5, 3, 6, 12 s) would be well under way"
+  },
+  {
+   "op": "checkpoint",
+   "label": "a minute later"
+  },
+  {
+   "op": "ensureConnected",
+   "comment": "the session effect asks again (it only connects when the transport is idle): a paused tab is not idle"
+  },
+  {
+   "op": "compose",
+   "text": "Make the title shorter"
+  },
+  {
+   "op": "submit",
+   "comment": "a send in the paused tab: nothing goes out and no reconnect starts (the notice is shown instead)"
+  },
+  {
+   "op": "checkpoint",
+   "label": "send in the paused tab"
+  },
+  {
+   "op": "offline",
+   "comment": "the browser goes offline"
+  },
+  {
+   "op": "online",
+   "comment": "and comes back: a paused tab has nothing to resume"
+  },
+  {
+   "op": "advance",
+   "ms": 60000
+  },
+  {
+   "op": "checkpoint",
+   "label": "offline and online while paused"
+  },
+  {
+   "op": "advance",
+   "ms": 120000
+  },
+  {
+   "op": "checkpoint",
+   "label": "two more minutes"
+  }
+ ]
+}

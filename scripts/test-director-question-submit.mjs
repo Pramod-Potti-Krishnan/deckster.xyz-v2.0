@@ -57,6 +57,7 @@ function harness(overrides = {}) {
     isGeneratingFinal: false, awaitingDirectorReply: false,
     isExecutingSendRef: { current: false }, questionSubmissionPendingRef: { current: false },
     quota: { status: null }, STUDIO_BLOCKED_SEND_FEEDBACK_ENABLED: false, researchEnabled: true, webSearchEnabled: false,
+    oneLiveTabSuperseded: false, // NEXT_PUBLIC_STUDIO_ONE_LIVE_TAB: this tab is not paused
     extendedGenerationEnabled: true, showKnowledgeGraphToggle: true, knowledgeGraphEnabled: true,
     sessionStoreName: 'offline-linked-store', deckIdentity: { main_title: 'Supplied identity' },
     questionSubmissionScopeRef: { current: { active: true, generation: 0, sessionId: 'offline-owned-session', userId: 'offline-owner', routeSessionId: 'offline-owned-session', freshRouteSourceSessionId: null } },
@@ -253,6 +254,7 @@ function transportHarness() {
     sessionIdRef: { current: 'offline-owned-session' }, userIdRef: { current: 'offline-owner' },
     wsRef: { current: null }, socketSessionRef: { current: null },
     WebSocket: { OPEN: 1 }, SEND_RECONNECT_TIMEOUT_MS: 12000,
+    STUDIO_ONE_LIVE_TAB_ENABLED: false, reconnectStatusRef: { current: 'idle' }, // NEXT_PUBLIC_STUDIO_ONE_LIVE_TAB: the send's first line is then a no-op
     Date: { now: () => clock }, setTimeout: (callback, delay) => timers.push({ callback, delay }),
     ensureConnected: () => calls.push(['connect']),
     sendMessage: (...args) => { calls.push(['send', c.wsRef.current, ...args]); return true },

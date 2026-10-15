@@ -63,6 +63,11 @@ export function QuestionCard({
   // count and the (k/N) on Send answers already exist and are not repeated here.
   const isPlanApproval = studio && !structured && !isOutlineApproval && process.env.NEXT_PUBLIC_STUDIO_CHAT_ASK === "true"
     && actions.some((action) => action.value === "accept_plan")
+  // PASS2B J1-07 (flag NEXT_PUBLIC_STUDIO_APPROVAL_HINT, Studio shell only, default off): the gates whose primary action starts the build say how long
+  // it takes and that it can be stopped, in one quiet line under the buttons. Words only, from the action values the card already receives; the
+  // actions, onActionClick and everything else are untouched, and off nothing below is rendered.
+  const approvalHint = studio && !structured && process.env.NEXT_PUBLIC_STUDIO_APPROVAL_HINT === 'true'
+    && actions.some((action) => action.value === 'accept_plan' || action.value === 'accept_strawman' || String(action.value ?? '').startsWith('accept_strawman:'))
   const HeadingIcon = studio ? (structured ? ListChecks : isOutlineApproval || isPlanApproval ? CheckCircle2 : HelpCircle) : HelpCircle
   const [selected, setSelected] = useState<Record<string, string>>({})
   const [freeText, setFreeText] = useState<Record<string, string>>({})
@@ -223,6 +228,7 @@ export function QuestionCard({
           ))}
         </div>
       )}
+      {approvalHint && <p data-studio-director-part="approval-hint">About 3–5 minutes. You can stop anytime.</p>}
     </div>
   )
 }

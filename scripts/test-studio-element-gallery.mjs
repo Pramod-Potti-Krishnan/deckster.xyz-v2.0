@@ -89,6 +89,7 @@ function makeEnvironment({ studioShell, isFullscreen, viewerIsReady, withPanel, 
     handleInsertTable: record('handleInsertTable'), handleInsertChart: record('handleInsertChart'), handleInsertTextBox: record('handleInsertTextBox'),
     handleInsertImage: record('handleInsertImage'), handleInsertInfographic: record('handleInsertInfographic'), handleInsertDiagram: record('handleInsertDiagram'),
     toolbarDropdownPortalContainer: null,
+    STUDIO_DISABLED_REASONS_ENABLED: false, // PASS2B batch 1: the viewer reads this flag (default off); off is the base picker
   }
   if (galleryMenu) scope.StudioElementGalleryMenu = galleryMenu
   scope.addElementItems = evaluate(addItemsDeclaration.initializer.getText(viewerSource), scope)
