@@ -159,6 +159,8 @@ function DashboardForAccount({ user, isLoading }: Pick<ReturnType<typeof useAuth
   currentOwner.current = owner
   const hasLoadedSessions = Boolean(owner && loadedOwner === owner)
   const studioShell = process.env.NEXT_PUBLIC_STUDIO_V4_SHELL === "true"
+  // PASS2B G54 (NEXT_PUBLIC_STUDIO_PLAIN_NAV_LABELS, default off, Studio shell only): the second tab reads "Outline previews".
+  const plainNavLabels = studioShell && process.env.NEXT_PUBLIC_STUDIO_PLAIN_NAV_LABELS === "true"
   const router = useRouter()
 
   // Load sessions from API
@@ -600,7 +602,7 @@ function DashboardForAccount({ user, isLoading }: Pick<ReturnType<typeof useAuth
               Completed Presentations ({completedPresentations.length})
             </TabsTrigger>
             <TabsTrigger value="strawman">
-              Strawman Previews ({strawmanPresentations.length})
+              {plainNavLabels ? <>Outline previews ({strawmanPresentations.length})</> : <>Strawman Previews ({strawmanPresentations.length})</>}
             </TabsTrigger>
           </TabsList>
 
