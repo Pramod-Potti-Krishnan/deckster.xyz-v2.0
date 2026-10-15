@@ -7561,6 +7561,15 @@ function AuthenticatedBuilderContent({ authScopeUserId }: { authScopeUserId: str
                       deckOpen: Boolean(effectivePresentationUrl && (!isBlankPresentation || (slideStructure?.slides ?? []).length > 0)),
                       slideNumber: currentSlideIndex + 1,
                       slideCount: effectiveSlideCount,
+                      // PASS2B G12 (flag NEXT_PUBLIC_STUDIO_COMPOSER_STAGE_CONTEXT, default off): name the stage until a built deck exists.
+                      ...(process.env.NEXT_PUBLIC_STUDIO_COMPOSER_STAGE_CONTEXT === 'true' ? { stage: {
+                        builtDeck: studioCanvasLifecycle.hasGeneratedDeck,
+                        activeVersion: effectiveActiveVersion,
+                        generatingFinal: isGeneratingFinal,
+                        phase: buildNarration.active ? buildNarration.phase : 'idle',
+                        directorWorking: buildNarration.active || awaitingDirectorReply || isGeneratingStrawman || isGeneratingFinal
+                          || (['thinking', 'generating', 'awaiting_user'] as string[]).includes(String(currentStatus?.status)),
+                      } } : {}),
                     }) : undefined}
                     pausedInOtherTab={oneLiveTabSuperseded}
                     studioEditPrompt={studioEditPromptActive || undefined}
@@ -7689,6 +7698,7 @@ function AuthenticatedBuilderContent({ authScopeUserId }: { authScopeUserId: str
             onStudioIntroductionSafetyChange={studioShell ? handleStudioViewerSafety : undefined}
             studioCanvasLifecycle={studioShell ? studioCanvasLifecycle : undefined}
             studioInitialNativeDeferred={studioInitialNativeDeferred}
+            studioBriefSent={studioShell && process.env.NEXT_PUBLIC_STUDIO_FIRST_RUN_POSTER_HIDE === 'true' ? session.userMessages.length > 0 : undefined}
             studioPartialStagePending={studioShell ? studioPartialPending : undefined}
             studioPartialArtifact={studioShell ? studioPartialMetadata : undefined}
             onStudioPartialNativeReadback={studioShell ? handleStudioPartialNativeReadback : undefined}

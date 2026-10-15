@@ -34,6 +34,7 @@ import type { SlideRefineTarget } from '@/lib/slide-refinement'
 import { STUDIO_RAIL_LIVE_PREVIEW_FALLBACK_ENABLED, railLivePreviewCandidate } from '@/lib/rail-live-preview'
 import { RailLivePreview } from './rail-live-preview'
 import { STUDIO_SLIDE_RAIL_V2, slideRailV2Number } from '@/lib/studio-slide-rail-v2'
+import { STUDIO_RAIL_LAYOUT_LABELS, railLayoutName } from '@/lib/studio-rail-layout-label'
 import './studio-thumbnails.css'
 
 const STUDIO_THUMBNAILS = process.env.NEXT_PUBLIC_STUDIO_V4_SHELL === 'true'
@@ -88,6 +89,8 @@ export interface SlideThumbnail {
   actualSlideIndex?: number
   title?: string
   content?: string
+  /** PASS2B G20 (NEXT_PUBLIC_STUDIO_RAIL_LAYOUT_LABELS): the slide's layout from Layout's inventory; an untitled slide is named by it. */
+  layout?: string | null
   thumbnailUrl?: string
   /** F8/S-03 (rail identity flag only): `pending` = a preview is expected, shown as a spinner instead of "No preview". */
   thumbnailStatus?: 'fresh' | 'stale' | 'pending' | 'none'
@@ -453,9 +456,13 @@ export function SlideThumbnailStrip({
     const isRefining = refineJob?.status === 'building'
     const canRefine = Boolean(onRefineSlide)
     const isRefineDisabled = isItemProcessing || isRefineTargetBusy(slide, slideIndex)
-    const displayTitle = !slide.title || /^Slide \d+$/i.test(slide.title)
+    const baseTitle = !slide.title || /^Slide \d+$/i.test(slide.title)
       ? `Slide ${visualNumber}`
       : slideTitleLabel(slide.title)
+    // PASS2B G20 (flag NEXT_PUBLIC_STUDIO_RAIL_LAYOUT_LABELS, Studio shell only): an untitled slide reads as its layout's friendly name.
+    // The refine target below keeps baseTitle, as before.
+    const layoutTitle = STUDIO_RAIL_LAYOUT_LABELS && STUDIO_THUMBNAILS && (!slide.title || /^Slide \d+$/i.test(slide.title)) ? railLayoutName(slide.layout) : null
+    const displayTitle = layoutTitle ?? baseTitle
     const titleText = isRefining ? (refineJob.lastProgressText || 'Refining slide') : displayTitle
     const thumbnailUrl = slide.thumbnailUrl?.trim()
 
@@ -553,7 +560,7 @@ export function SlideThumbnailStrip({
             onRefineSlide?.({
               slide_id: slide.slideId ?? null,
               slide_index: slideIndex,
-              title: displayTitle,
+              title: baseTitle,
             })
           }}
           disabled={isRefineDisabled}

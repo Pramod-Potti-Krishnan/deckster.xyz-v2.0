@@ -65,6 +65,8 @@ export interface PresentationAreaProps {
   showOutlinePreview?: boolean
   studioCanvasLifecycle?: StudioCanvasLifecycle
   studioInitialNativeDeferred?: boolean
+  /** PASS2B G09 (NEXT_PUBLIC_STUDIO_FIRST_RUN_POSTER_HIDE): the first message of this session has been sent. The page supplies it only with the flag on. */
+  studioBriefSent?: boolean
   studioPartialStagePending?: boolean
   studioPartialArtifact?: boolean
   onStudioPartialNativeReadback?: (readback: import('@/components/presentation-viewer').StudioPartialNativeReadback) => void
@@ -192,6 +194,7 @@ export interface PresentationAreaProps {
 export function PresentationArea({
   studioCanvasLifecycle,
   studioInitialNativeDeferred = false,
+  studioBriefSent,
   studioNativeOwner,
   studioPartialStagePending = false,
   studioPartialArtifact = false,
@@ -339,6 +342,8 @@ export function PresentationArea({
     : currentStatus?.status === 'awaiting_user' ? 'awaiting_user' as const
     : (isGeneratingFinal || isGeneratingStrawman || currentStatus?.status === 'generating') ? 'planning' as const : undefined
   const waitingForDirector = narrationActive || !!waitingActivity
+  // PASS2B G09 (flag NEXT_PUBLIC_STUDIO_FIRST_RUN_POSTER_HIDE, exact 'true', default off): once the first message is sent the first-run poster gives way to the planning card.
+  const studioPosterPlanning = process.env.NEXT_PUBLIC_STUDIO_FIRST_RUN_POSTER_HIDE === 'true' && studioBriefSent === true ? { planning: true } : {}
   const workingPlaceholder = studioShell && !blankPlaceholderDismissed && lifecycle.hasOwnedSelection
     && !lifecycle.hasGeneratedDeck && !lifecycle.hasAuthoredDeck
     && waitingForDirector && (narrationPhase === 'idle' || narrationPhase === 'planning' || narrationPhase === 'awaiting_user')
@@ -553,7 +558,7 @@ export function PresentationArea({
             </div></div>, toolbarPortalTarget)}
             <div className="flex w-full min-h-0 flex-col items-center gap-3">
               {narrationActive && buildNarration && <StageRibbon narration={buildNarration} control={buildNarrationApi?.control} />}
-              <StudioWelcomeStage studioIntroReplay={studioIntroReplay} />
+              <StudioWelcomeStage studioIntroReplay={studioIntroReplay} {...studioPosterPlanning} />
               {waitingForDirector && <StudioWaitingState scope="canvas" narration={waitingNarration} activity={waitingActivity} />}
               {onDismissBlankPlaceholder && <button type="button" onClick={onDismissBlankPlaceholder}
                 className="rounded-md border border-border px-3 py-2 text-sm text-muted-foreground hover:bg-muted focus-visible:outline focus-visible:outline-2 focus-visible:outline-primary"
@@ -569,7 +574,7 @@ export function PresentationArea({
                   <StudioWaitingState scope="canvas" narration={waitingNarration} activity={waitingActivity} />
                   {narrationActive && buildNarration && <StageProgressFooter narration={buildNarration} />}
                 </div>
-                : <StudioWelcomeStage studioIntroReplay={studioIntroReplay} />
+                : <StudioWelcomeStage studioIntroReplay={studioIntroReplay} {...studioPosterPlanning} />
             ) : buildNarrationEnabled ? (
               /* Canvas v2 R1: designed 16:9 placeholder for the no-URL case
                  (no dismiss — there is no blank deck to reveal). */

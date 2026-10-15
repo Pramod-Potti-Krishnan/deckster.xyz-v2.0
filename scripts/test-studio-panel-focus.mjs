@@ -205,7 +205,9 @@ const page = read('app/builder/page.tsx')
             onStudioRailReveal={onStudioRailReveal}`), 'PresentationArea passes both through')
   const baseArea = baseSource('components/builder/presentation-area.tsx')
   if (baseArea) {
-    const stripped = area.split('\n').filter(line => !/studioRailCollapsed|onStudioRailReveal|onUserDeckEdit|PASS2 #3|onComposerTemplateAction|onOpenComposerLibrary|Toolbar template picker fix-forward|ComposerLibraryRequest|NEXT_PUBLIC_STUDIO_ONE_LIVE_TAB|studioTabPausedHint/.test(line)).join('\n')
+    // + PASS2B G09 (NEXT_PUBLIC_STUDIO_FIRST_RUN_POSTER_HIDE): studioBriefSent and its decision, and the one spread it adds to the two StudioWelcomeStage draws
+    //   (flag off the spread is empty; scripts/test-studio-first-run-poster-hide.mjs compares this file, minus the G09 text, with the base commit's).
+    const stripped = area.split('\n').map(line => line.replace(' {...studioPosterPlanning}', '')).filter(line => !/studioRailCollapsed|onStudioRailReveal|onUserDeckEdit|PASS2 #3|onComposerTemplateAction|onOpenComposerLibrary|Toolbar template picker fix-forward|ComposerLibraryRequest|NEXT_PUBLIC_STUDIO_ONE_LIVE_TAB|studioTabPausedHint|PASS2B G09|studioBriefSent|studioPosterPlanning/.test(line)).join('\n')
     check(assert.equal, stripped, baseArea, 'PresentationArea: only the pass-through lines were added (the rail props, the session-hygiene onUserDeckEdit one, the toolbar template picker\'s two callbacks, and the one-live-tab studioTabPausedHint one)')
   }
 }

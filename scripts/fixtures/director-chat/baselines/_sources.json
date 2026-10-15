@@ -41,7 +41,7 @@
     {"chars":22,"label":"page.<ChatInput researchSettingsLocked>","sha256":"4b95ccf3bc4d6a30"},
     {"chars":12,"label":"page.<ChatInput showConnectionStatus>","sha256":"31b37d3b0be74fef"},
     {"chars":24,"label":"page.<ChatInput showKnowledgeGraphToggle>","sha256":"458f7e02e92add44"},
-    {"chars":440,"label":"page.<ChatInput studioContextLabel>","sha256":"6dfdf8955ba4b06c"},
+    {"chars":1051,"label":"page.<ChatInput studioContextLabel>","sha256":"73e9a121533e7e5d"},
     {"chars":35,"label":"page.<ChatInput studioEditPrompt>","sha256":"c072e02a397497dd"},
     {"chars":81,"label":"page.<ChatInput studioSavedThemeRequest>","sha256":"674dc293236da392"},
     {"chars":22,"label":"page.<ChatInput templateBuilderEnabled>","sha256":"86cbc3a80bf32b9f"},
