@@ -8,7 +8,9 @@
 // slide (a slide kept as-is is a neutral dot); follows capabilities.new_topic.state ONLY for "New topic" (PK 13 Oct: an unlockable / kept slide never
 // blocks new topics; toast "Template ready for new topics", once per job), with plain words and Director's own locking.message for a paused or
 // failed lock; and lets a failed or stalled job ("Still working…", Retry, Dismiss) never block a new upload. The job id is kept in sessionStorage,
-// so a reload goes on reading it.
+// so a reload goes on reading it. A finished card is never a dead end (follow-up to the first version): a failed job, or a lock that failed and Director
+// calls retryable, keeps #406's Retry (the dialog's own Upload of the same chosen file, through its retryJob) and Dismiss; a refused, paused or
+// otherwise unavailable one gets Dismiss; Dismiss forgets the stored job and stops the poll; a new upload replaces the card.
 //
 // Run: node scripts/test-studio-template-progress.mjs   (plain node: transpile + vm, a small hooks runtime, a virtual clock, no network, no writes)
 //   TEMPLATE_PROGRESS_BASE=<commit> picks the base the flag-off identity is measured against (default 89b47f4, the studio-v4-dev-preparation-code
@@ -343,6 +345,13 @@ const EXPECTED = {
   'flag-off-complete': [true, false, false, false, 'Template added to your library.', null, null, null, {}, false, null, null, null, null],
 }
 const REASON_CODES = /[A-Z][A-Z0-9]+_[A-Z0-9_]+/
+/** [retry, dismissible]: a failed job or a retryable lock failure offers Retry; every finished card that is not clean, and a stalled one, can be dismissed. */
+const RETRY_DISMISS = {
+  converting: [false, false], checking: [false, false], 'as-is-ready-mid-lock': [false, false], 'locking-unlockable-kept': [false, false],
+  'done-available': [false, false], 'done-available-one-kept': [false, false], 'paused-budget-done': [false, true], 'paused-budget-live': [false, false],
+  'locking-failed-done': [true, true], 'refused-done': [false, true], 'failed-upload': [true, true], 'stalled-locking': [false, true], 'stalled-converting': [false, true],
+  'legacy-running': [false, false], 'legacy-complete': [false, false], 'new-topic-flag-disabled': [false, true], 'flag-off-running': [false, false], 'flag-off-complete': [false, false],
+}
 
 function pureChecks(sources) {
   const lib = createLoader({ sources, env: {}, stubs: {}, globals: { Date } }).load(LIB)
@@ -356,6 +365,7 @@ function pureChecks(sources) {
     deq([view.terminal, view.failed, view.stalled, view.detailed, view.statusLine, view.percent, view.countLabel, view.eta, dotCounts(view), view.asIsReady, view.newTopic, view.newTopicLine, view.lockingNote],
       expected.slice(0, 13), name)
     check(assert.equal, nextTemplatePollMs(job), expected[13], `${name}: the wait before the next read (null: stop)`)
+    deq([view.retry, view.dismissible], RETRY_DISMISS[name], `${name}: [retry, dismissible]`)
     // Plain words: nothing Director sends as a code, a refusal, an element id or a role is ever drawn.
     const drawn = [view.statusLine, view.countLabel, view.eta, view.newTopicLine, view.lockingNote, view.failure, ...view.dots.map(dot => dot.label)].filter(Boolean).join(' | ')
     check(assert.equal, REASON_CODES.test(drawn), false, `${name}: no code in "${drawn}"`)
@@ -364,6 +374,16 @@ function pureChecks(sources) {
       if (hidden) check(assert.equal, drawn.includes(hidden), false, `${name}: ${hidden} is not drawn`)
     }
   }
+  // Retry is for a failed job or a retryable lock failure only: never refused, never paused, never a lock failure Director does not call retryable.
+  const lockFailed = real('locking-failed-done')
+  for (const [patch, retry, why] of [[{}, true, 'locking failed, retryable'], [{ capabilities: { ...lockFailed.capabilities, new_topic: { ...lockFailed.capabilities.new_topic, retryable: false } } }, false, 'locking failed, not retryable'],
+    [{ capabilities: { ...lockFailed.capabilities, new_topic: { ...lockFailed.capabilities.new_topic, state: 'refused' } } }, false, 'refused even if retryable'],
+    [{ status: 'cracking', poll: { next_interval_ms: 2000 } }, false, 'a lock that failed while the job still runs'],
+    [{ capabilities: { ...lockFailed.capabilities, new_topic: { ...lockFailed.capabilities.new_topic, retryable: undefined } } }, false, 'retryable not said']]) {
+    check(assert.equal, templateProgressView({ ...lockFailed, ...patch }).retry, retry, why)
+  }
+  check(assert.equal, templateProgressView({ ...real('paused-budget-done'), capabilities: { ...real('paused-budget-done').capabilities, new_topic: { state: 'unavailable', retryable: true } } }).retry, false, 'paused is never retried (no "Finish now" in this pass)')
+  check(assert.equal, templateProgressView({ ...real('failed-upload'), status: 'cancelled' }).retry, true, 'a cancelled job is retried like a failed one (#406)')
   // Director's own words for a paused or failed lock are shown as they are, and only then.
   for (const name of ['paused-budget-done', 'paused-budget-live', 'locking-failed-done', 'refused-done']) {
     const job = real(name)
@@ -727,7 +747,8 @@ async function flagOnChecks(sources) {
     deq(dotCounts({ dots: ui.dots().map(kind => ({ kind })) }), { locked: 11, kept: 1 })
     deq(rowState(ui, TEMPLATE), { 'Use original': false, 'Rebuild from own content': false, 'New topic': false }, 'ONE kept slide: New topic is enabled')
     check(assert.equal, ui.store.has(PKEY), false, 'a clean finish is forgotten')
-    check(assert.equal, ui.disabled('Upload template'), false, 'a finished job does not hold the Upload button')
+    check(assert.equal, ui.disabled('Upload template'), true, 'a clean finish lets go of the chosen file, as a finished upload always did')
+    ui.chooseFile(DECK); await ui.settle(2); check(assert.equal, ui.disabled('Upload template'), false, 'and a finished job does not hold the Upload button')
     await ui.advance(10 * 60 * 1000); deq(ui.times.length, 5, 'poll === null: no read after the terminal answer')
     check(assert.equal, ui.toasts.length, 2)
     // Everything the page asked for was the user\'s own GET or POST.
@@ -781,6 +802,9 @@ async function flagOnChecks(sources) {
     deq(ui.cardLines(), [FILE_NAME, 'Template added to your library.', '7 of 12 slides done', LOCK_FAILED], name)
     deq(rowState(ui, TEMPLATE), { 'Use original': false, 'Rebuild from own content': false, 'New topic': true }, name)
     check(assert.equal, /SEMANTIC|REFUSED|METADATA|D10|COMPOSER/.test(ui.cardLines().join(' ')), false, `${name}: no code`)
+    deq(ui.cardButtons(), ['Dismiss'], `${name}: no file is chosen in this page, so there is nothing to Retry`)
+    ui.click('Dismiss'); await ui.settle()
+    check(assert.equal, ui.card(), null, `${name}: Dismiss`); check(assert.equal, ui.store.has(PKEY), false, `${name}: and the stored job is forgotten`)
     await ui.close()
   }
   // Director's own new-topic flag off: plain words.
@@ -823,13 +847,15 @@ async function flagOnChecks(sources) {
   {
     const ui = await uploaded(sources, ['converting', 'failed-upload'].map(name => asJob(name)))
     await ui.advance(3000)
-    deq(ui.cardLines(), [FILE_NAME, 'The upload could not be finished.', 'Template upload could not be completed; no automatic retry was made.']); deq(ui.cardButtons(), ['Dismiss'])
+    deq(ui.cardLines(), [FILE_NAME, 'Your last template upload could not be finished. Template upload could not be completed; no automatic retry was made.'], "#406's words, Director's text after them")
+    deq(ui.cardButtons(), ['Retry', 'Dismiss'], 'the file is still chosen, so #406\'s Retry is offered')
     check(assert.equal, ui.bar(), null); deq(ui.dots(), [])
     ui.chooseFile(DECK); await ui.settle(2); check(assert.equal, ui.disabled('Upload template'), false, 'a failed job never holds the Upload button')
     check(assert.equal, ui.store.has(PKEY), false); deq(ui.toasts, [])
     await ui.advance(60000); deq(ui.times, [0, 3000])
     await ui.close()
   }
+  await retryAndDismissChecks(sources)
   { // a new upload after a failed one starts a new job
     const second = 'stage-upload-0002'
     const ui = await uploaded(sources, ['failed-upload'].map(name => asJob(name)), { queue: [...uploadQueue(['failed-upload'].map(name => asJob(name))), { job_id: second, answers: () => [asJob('converting', second)] }] })
@@ -946,6 +972,97 @@ async function flagOnChecks(sources) {
   }
 }
 
+// ---- 3b. Retry and Dismiss on a finished card ---------------------------------------------------------------------------------------------
+/** The requests one upload makes (session create, storage upload, POST upload-reference), the fresh session id normalised. */
+function uploadPayload(log, from = 0) {
+  const slice = log.slice(from)
+  const start = slice.findIndex(entry => entry[0] === 'createSession')
+  const end = slice.findIndex((entry, i) => i > start && entry[0] === 'fetch' && entry[1] === 'POST')
+  assert.ok(start >= 0 && end > start, 'an upload ran')
+  const session = slice[start][1]
+  return JSON.parse(JSON.stringify(slice.slice(start, end + 1)).replaceAll(session, '<session>'))
+}
+async function retryAndDismissChecks(sources) {
+  const SECOND = 'stage-upload-0002'
+  const second = (name = 'converting') => ({ job_id: SECOND, answers: () => [asJob(name, SECOND)] })
+  // A failed upload: #406's Retry runs the dialog's own Upload of the same file (the requests equal the base dialog's own Upload button), and the card
+  // follows the new job.
+  {
+    const ui = await uploaded(sources, [asJob('failed-upload')], { queue: [...uploadQueue([asJob('failed-upload')]), second()] })
+    deq(ui.cardButtons(), ['Retry', 'Dismiss'])
+    const first = uploadPayload(ui.log), mark = ui.log.length
+    check(assert.equal, ui.click('Retry'), 'clicked'); await ui.settle()
+    deq(uploadPayload(ui.log, mark), first, 'Retry makes the same requests as the first upload')
+    const base = mount({ sources: baseSources, flag: undefined, queue: [{ job_id: 'stage-up-base', answers: s => [upJob('stage-up-base', s, 'cracking')] }] })
+    await base.settle(); base.chooseFile(DECK); await base.settle(2); base.click('Upload template'); await base.settle()
+    deq(uploadPayload(ui.log, mark), uploadPayload(base.log), "and the base dialog's own Upload button makes")
+    check(assert.notEqual, ui.log.slice(mark).find(entry => entry[0] === 'createSession')[1], ui.log.find(entry => entry[0] === 'createSession')[1], 'a new session')
+    deq(JSON.parse(ui.store.get(PKEY)).job_id, SECOND, 'the new job is the one kept')
+    deq(ui.cardLines(), [FILE_NAME, 'Reading your presentation…', 'Preparing for new topics…'], 'the card follows the new job')
+    check(assert.equal, ui.busy(), false)
+    await ui.close(); await base.close()
+  }
+  // A failed upload after a reload (no file chosen any more): #406's words say so; Dismiss only.
+  {
+    const ui = mount({ sources, flag: 'true', clock: 'virtual', stored: { [PKEY]: JSON.stringify({ job_id: UPLOAD_JOB, session_id: SESSION, file_name: FILE_NAME, shown: [] }) }, jobs: { [UPLOAD_JOB]: [asJob('failed-upload')] } })
+    await ui.settle()
+    deq(ui.cardLines(), [FILE_NAME, 'Your last template upload could not be finished. Template upload could not be completed; no automatic retry was made. Choose the presentation again to upload it.'])
+    deq(ui.cardButtons(), ['Dismiss'])
+    ui.click('Dismiss'); await ui.settle(); check(assert.equal, ui.card(), null)
+    await ui.close()
+  }
+  // A lock that failed and Director calls retryable: Retry (the file is kept for it) and Dismiss; New topic stays on capabilities (closed).
+  {
+    const frames = ['as-is-ready-mid-lock', 'locking-failed-done'].map(name => asJob(name))
+    const ui = await uploaded(sources, frames, { queue: [...uploadQueue(frames), second()] })
+    await ui.advance(2000)
+    deq(ui.cardLines(), [FILE_NAME, 'Template added to your library.', '7 of 12 slides done', LOCK_FAILED])
+    deq(ui.cardButtons(), ['Retry', 'Dismiss'])
+    check(assert.equal, ui.rowButton(TEMPLATE, 'New topic').props.disabled, true, 'new_topic.state is unavailable')
+    check(assert.equal, ui.rowButton(TEMPLATE, 'Use original').props.disabled, false)
+    ui.click('Retry'); await ui.settle()
+    deq(JSON.parse(ui.store.get(PKEY)).job_id, SECOND, 'Retry uploads the file again: a new job replaces the card')
+    await ui.close()
+  }
+  // Refused and paused: Dismiss only, even with the file still chosen in this page (no Retry for them); Dismiss forgets the stored job and stops the poll.
+  for (const [name, lines] of [['refused-done', [FILE_NAME, 'Template added to your library.', '7 of 12 slides done', LOCK_FAILED]], ['paused-budget-done', [FILE_NAME, 'Template added to your library.', '7 of 12 slides done', PAUSED]]]) {
+    const frames = ['as-is-ready-mid-lock', name].map(frame => asJob(frame))
+    const ui = await uploaded(sources, frames, { queue: [...uploadQueue(frames), second()] })
+    await ui.advance(2000)
+    deq(ui.cardLines(), lines, name); deq(ui.cardButtons(), ['Dismiss'], `${name}: Dismiss, no Retry`)
+    check(assert.equal, ui.disabled('Upload template'), true, `${name}: the file was let go (no Retry is offered), so Upload waits for a file`)
+    check(assert.equal, ui.rowButton(TEMPLATE, 'New topic').props.disabled, true, `${name}: New topic follows new_topic.state`)
+    check(assert.equal, ui.store.has(PKEY), true, `${name}: the record is kept until Dismiss`)
+    const reads = ui.times.length, before = ui.log.length
+    ui.click('Dismiss'); await ui.settle()
+    check(assert.equal, ui.card(), null); check(assert.equal, ui.store.has(PKEY), false, `${name}: Dismiss forgets the stored job`)
+    await ui.advance(60000); check(assert.equal, ui.times.length, reads, `${name}: nothing is read any more`)
+    deq(ui.log.slice(before).filter(entry => entry[0] === 'fetch' && entry[1] !== 'GET'), [], 'Dismiss asks nothing of the server')
+    await ui.close()
+  }
+  // A new upload replaces a card that is kept (a refused one).
+  {
+    const frames = ['as-is-ready-mid-lock', 'refused-done'].map(name => asJob(name))
+    const ui = await uploaded(sources, frames, { queue: [...uploadQueue(frames), second()] })
+    await ui.advance(2000)
+    ui.chooseFile({ name: 'next.pptx', size: 10 }); await ui.settle(2)
+    check(assert.equal, ui.disabled('Upload template'), false, 'a kept card does not hold the Upload button')
+    ui.click('Upload template'); await ui.settle()
+    deq(JSON.parse(ui.store.get(PKEY)), { job_id: SECOND, session_id: 'fresh-session-0002', file_name: 'next.pptx', shown: [] })
+    deq(ui.cardLines(), ['next.pptx', 'Reading your presentation…', 'Preparing for new topics…'])
+    await ui.close()
+  }
+  // A stalled job still has Retry (read again) and Dismiss; Retry does not upload anything.
+  {
+    const ui = await uploaded(sources, ['as-is-ready-mid-lock', 'stalled-locking'].map(name => asJob(name)))
+    await ui.advance(2000)
+    const before = serverActions(ui.log).length
+    ui.click('Retry'); await ui.settle()
+    check(assert.equal, serverActions(ui.log).length, before, 'a stalled job is read again, not uploaded again')
+    await ui.close()
+  }
+}
+
 // ---- 4. mutations ---------------------------------------------------------------------------------------------------------------------------
 /** `source: false` skips the source pins (a mutant of the dialog is meant to be caught by what the dialog DOES, not by its text). */
 async function suite(sources, { source = true } = {}) {
@@ -1005,6 +1122,14 @@ const MUTANTS = [
   [LIB, 'the new-topic toast repeats', "view.newTopic === 'available' && !next.includes('new_topic')", "view.newTopic === 'available'"],
   [LIB, 'both toasts at once', '  } else if (asIsDue) {', '  }\n  if (asIsDue) {'],
   // the upload hold
+  [LIB, 'a failed job has no Retry', 'terminal && (failed || (lockFailed', 'terminal && (false || (lockFailed'],
+  [LIB, 'a refused template gets Retry', "(lockFailed && newTopic === 'unavailable' && job.capabilities", '(lockFailed && job.capabilities'],
+  [LIB, 'a lock failure Director does not call retryable gets Retry', " && job.capabilities?.new_topic?.retryable === true)", ')'],
+  [LIB, 'a paused lock gets Retry', "const lockFailed = detailed && locking?.state === 'failed'", "const lockFailed = detailed && (locking?.state === 'failed' || locking?.state === 'paused')"],
+  [LIB, 'a lock failure still running gets Retry', 'const retry = terminal && (', 'const retry = ('],
+  [LIB, 'a refused or paused card cannot be dismissed', '? failed || (detailed && newTopic !== null && newTopic !== \'available\') : stalled', '? failed || false : stalled'],
+  [LIB, 'a clean card can be dismissed', "(detailed && newTopic !== null && newTopic !== 'available')", 'detailed'],
+  [LIB, 'a stalled job cannot be dismissed', ': stalled\n', ': false\n'],
   [LIB, 'a stalled job holds the upload', 'return view === null || !(view.terminal || view.stalled)', 'return view === null || !view.terminal'],
   [LIB, 'a failed job holds the upload', 'return view === null || !(view.terminal || view.stalled)', 'return view === null || !view.stalled'],
   [LIB, 'an unreadable job holds the upload', 'if (!tracked || problem) return false', 'if (!tracked) return false'],
@@ -1025,9 +1150,14 @@ const MUTANTS = [
   [HOOK, 'Dismiss keeps the record', 'const dismiss = useCallback(() => {\n    try { sessionStorage.removeItem(key) } catch { /* storage unavailable */ }\n', 'const dismiss = useCallback(() => {\n'],
   [HOOK, 'Retry does nothing', 'setAttempt(count => count + 1)', 'setAttempt(count => count)'],
   [HOOK, 'another job is not followed', '}, [enabled, jobId, attempt])', '}, [enabled, attempt])'],
-  [HOOK, 'the card is not drawn', 'around: (node, studioShell) => tracked && (view || problem)', 'around: (node, studioShell) => false && (view || problem)'],
-  [HOOK, 'a stalled card has no Retry', '{(problem || view?.stalled) && <Button', '{problem && <Button'],
-  [HOOK, 'a stalled card cannot be dismissed', 'dismissible={!!problem || !view || view.failed || view.stalled}', 'dismissible={!!problem || !view || view.failed}'],
+  [HOOK, 'the card is not drawn', 'if (!(tracked && (view || problem))) return node', 'if (true) return node'],
+  [HOOK, 'a stalled card has no Retry', 'onRetry={rereading ? retry : uploadAgain}', 'onRetry={uploadAgain}'],
+  [HOOK, 'a refused or paused card cannot be dismissed', 'dismissible={!!problem || !view || view.dismissible}', 'dismissible={!!problem || !view || view.failed || view.stalled}'],
+  [HOOK, 'Retry of a failed upload only reads the job again', 'onRetry={rereading ? retry : uploadAgain}', 'onRetry={retry}'],
+  [HOOK, 'the card never offers the dialog\'s Retry', "const uploadAgain = view?.retry ? retryUpload?.() ?? null : null", 'const uploadAgain = null'],
+  [HOOK, 'Retry is offered whatever the view says', "const uploadAgain = view?.retry ? retryUpload?.() ?? null : null", 'const uploadAgain = retryUpload?.() ?? null'],
+  [HOOK, 'the end of a job is not reported', 'onEndRef.current?.(view)', ''],
+  [HOOK, "a failed upload's words are not #406's", "failure={view?.failed ? composerJobRecoveryMessage({ job_id: tracked.job_id, kind: 'upload', reason: 'failed', detail: view.failure, retry: null }, !!uploadAgain) : null}", 'failure={null}'],
   [HOOK, 'the dots lose their kind', 'data-studio-template-dot={dot.kind}', 'data-studio-template-dot="queued"'],
   [HOOK, 'the bar value is not the percent', 'aria-valuenow={view.percent}', 'aria-valuenow={0}'],
   [HOOK, 'the as-is line stays when finished', '{view.asIsReady && !view.terminal && note(TEMPLATE_AS_IS_LINE)}', '{view.asIsReady && note(TEMPLATE_AS_IS_LINE)}'],
@@ -1036,6 +1166,10 @@ const MUTANTS = [
   [DIALOG, 'the flag is read loosely', "process.env.NEXT_PUBLIC_STUDIO_TEMPLATE_PROGRESS === 'true'", "process.env.NEXT_PUBLIC_STUDIO_TEMPLATE_PROGRESS !== 'false'"],
   [DIALOG, 'the upload still waits for the job', 'if (templateProgress.enabled) {', 'if (false) {'],
   [DIALOG, 'the job is not handed to the hook', "templateProgress.track({ job_id: job.job_id, session_id: sessionId, file_name: selected.name })", ''],
+  [DIALOG, 'the chosen file is let go when a Retry is due', 'if (!view.retry) { setFile(null)', 'if (true) { setFile(null)'],
+  [DIALOG, 'the chosen file is kept after a clean finish', 'if (!view.retry) { setFile(null)', 'if (false) { setFile(null)'],
+  [DIALOG, 'the file of the upload is not kept for Retry', '        uploadRetryFile.current = selected\n        templateProgress.track', '        templateProgress.track'],
+  [DIALOG, "Retry does not go through the dialog's own upload", 'return retryable(retry) ? () => retryJob(retry) : null', 'return null'],
   [DIALOG, 'the progress line stays after the upload', "        setProgress(null)\n        return\n", '        return\n'],
   [DIALOG, 'Upload is not held', ' || templateProgress.uploadHeld', ''],
   [DIALOG, 'New topic is not held', " || templateProgress.held(template.id, 'new-topic')", ''],
@@ -1044,6 +1178,10 @@ const MUTANTS = [
 ]
 
 const started = Date.now()
+if (process.env.TP_MUTANT_TARGETS_ONLY) { // a quick look that every mutant still names exactly one place (while editing the sources)
+  for (const [rel, name, from] of MUTANTS) assert.equal(branchSources[rel].split(from).length, 2, `mutant "${name}" must match exactly one place in ${rel}`)
+  console.log(`${MUTANTS.length} mutant targets match`); process.exit(0)
+}
 fixtureChecks()
 await suite(branchSources)
 const total = checks

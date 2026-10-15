@@ -15,7 +15,9 @@
 //     slide state is ever read to decide that. unavailable / refused are plain words (a reason code is never shown); a paused or failed lock
 //     shows Director's own `locking.message`;
 //   - a job that failed, or that has gone 120 s without a heartbeat (`poll.stalled`), never blocks a new upload; the stalled one says
-//     "Still working…" with Retry and Dismiss.
+//     "Still working…" with Retry and Dismiss;
+//   - a finished card is never a dead end: a failed job, or a lock that failed and Director calls retryable, keeps #406's Retry (the dialog's own
+//     upload again, same file) and Dismiss; a refused, paused or otherwise unavailable one gets Dismiss. Dismiss forgets the stored job.
 //
 // This module is pure (no React, no network): the dialog's hook supplies the request and the storage. scripts/test-studio-template-progress.mjs
 // runs it on Director's own answers (scripts/fixtures/template-progress/director-template-progress-reads.json).
@@ -91,7 +93,6 @@ export const TEMPLATE_STALLED_LINE = 'Still working…'
 export const TEMPLATE_AS_IS_LINE = 'Ready to use as it is.'
 export const TEMPLATE_NEW_TOPIC_PROCESSING = 'Preparing for new topics…'
 export const TEMPLATE_NEW_TOPIC_READY = 'Ready for new topics.'
-export const TEMPLATE_UPLOAD_FAILED = 'The upload could not be finished.'
 /** What the card says when Director's answer cannot be read at all (not found, refused) or the job outlasts the watch limit. */
 export const TEMPLATE_CANNOT_READ = "We can't check this upload's progress right now."
 
@@ -150,6 +151,10 @@ export interface TemplateProgressView {
   newTopicLine: string | null
   /** Director's `locking.message` while locking is paused or failed. */
   lockingNote: string | null
+  /** The job is finished and uploading the file again is the way on: it failed, or its lock failed and Director says `retryable`. Never for refused or paused. */
+  retry: boolean
+  /** The card can be dismissed: a stalled job, a failed one, or a finished one with something to say about new topics (paused, refused, lock failed, unavailable). */
+  dismissible: boolean
 }
 
 const count = (value: unknown): number | null => typeof value === 'number' && Number.isInteger(value) && value >= 0 ? value : null
@@ -187,6 +192,9 @@ export function templateProgressView(job: TemplateProgressJob): TemplateProgress
   const slides = detailed && Array.isArray(progress.slides) ? progress.slides : []
   const dots = slides.map(slide => (slide && typeof slide === 'object' ? dotFor(slide, terminal) : null))
     .filter((dot): dot is TemplateProgressDot => dot !== null).sort((a, b) => a.index - b.index).slice(0, MAX_DOTS)
+  const lockFailed = detailed && locking?.state === 'failed'
+  const retry = terminal && (failed || (lockFailed && newTopic === 'unavailable' && job.capabilities?.new_topic?.retryable === true))
+  const dismissible = terminal ? failed || (detailed && newTopic !== null && newTopic !== 'available') : stalled
   const newTopicLine = !detailed || newTopic === null || failed ? null
     : newTopic === 'processing' ? TEMPLATE_NEW_TOPIC_PROCESSING
       : newTopic === 'available' ? TEMPLATE_NEW_TOPIC_READY
@@ -203,7 +211,7 @@ export function templateProgressView(job: TemplateProgressJob): TemplateProgress
     eta: terminal ? null : templateEtaWords(progress?.eta_s),
     dots, asIsReady,
     templateId: text(job.template_id),
-    newTopic, newTopicLine, lockingNote,
+    newTopic, newTopicLine, lockingNote, retry, dismissible,
   }
 }
 

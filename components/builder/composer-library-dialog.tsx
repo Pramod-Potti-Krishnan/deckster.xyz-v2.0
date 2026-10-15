@@ -139,7 +139,13 @@ export function ComposerLibraryDialog({ open, onOpenChange, request = null, onRe
   }, [open, userId, pendingKey, refresh, run, finishJob])
 
   // NEXT_PUBLIC_STUDIO_TEMPLATE_PROGRESS (exact "true"). Off: the hook answers with an inert object and nothing below changes anything.
-  const templateProgress = useTemplateProgress({ enabled: process.env.NEXT_PUBLIC_STUDIO_TEMPLATE_PROGRESS === 'true', userId, refresh })
+  const templateProgress = useTemplateProgress({
+    enabled: process.env.NEXT_PUBLIC_STUDIO_TEMPLATE_PROGRESS === 'true', userId, refresh,
+    // A job that ended with no Retry to offer lets go of the chosen file, as a finished upload always did; a failed one keeps it for Retry.
+    onEnd: view => { if (!view.retry) { setFile(null); if (fileInputRef.current) fileInputRef.current.value = '' } },
+    // The card's Retry for a failed upload is #406's: the dialog's own upload of the same chosen file (below), or none when it cannot run.
+    retryUpload: () => { const retry: ComposerRetryAction = { action: 'upload' }; return retryable(retry) ? () => retryJob(retry) : null },
+  })
 
   const upload = () => {
     if (!file || !userId || busy) return
@@ -164,9 +170,8 @@ export function ComposerLibraryDialog({ open, onOpenChange, request = null, onRe
       }, signal)
       // NEXT_PUBLIC_STUDIO_TEMPLATE_PROGRESS: the job is read in the background, not waited for here, so the library stays usable while it runs.
       if (templateProgress.enabled) {
+        uploadRetryFile.current = selected
         templateProgress.track({ job_id: job.job_id, session_id: sessionId, file_name: selected.name })
-        setFile(null)
-        if (fileInputRef.current) fileInputRef.current.value = ''
         setProgress(null)
         return
       }

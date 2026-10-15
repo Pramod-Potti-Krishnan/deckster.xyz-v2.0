@@ -12,7 +12,7 @@ export const DIALOG_ADDITIONS = [
   // the import of the hook
   [/\/\/ NEXT_PUBLIC_STUDIO_TEMPLATE_PROGRESS \(default off\): [^\n]*\nimport \{ useTemplateProgress \} from '@\/components\/builder\/composer-template-progress'\n/, ''],
   // the hook call, with its comment
-  [/ {2}\/\/ NEXT_PUBLIC_STUDIO_TEMPLATE_PROGRESS \(exact "true"\)\.[^\n]*\n {2}const templateProgress = useTemplateProgress\([^\n]*\n\n/, ''],
+  [/ {2}\/\/ NEXT_PUBLIC_STUDIO_TEMPLATE_PROGRESS \(exact "true"\)\.[^\n]*\n {2}const templateProgress = useTemplateProgress\(\{\n(?: {4}[^\n]*\n)+ {2}\}\)\n\n/, ''],
   // upload(): hand the job to the hook instead of waiting for it
   [/ {6}\/\/ NEXT_PUBLIC_STUDIO_TEMPLATE_PROGRESS: the job is read in the background[^\n]*\n {6}if \(templateProgress\.enabled\) \{\n(?: {8}[^\n]*\n)+ {6}\}\n/, ''],
   // the Upload button
