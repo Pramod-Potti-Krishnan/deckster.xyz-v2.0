@@ -6,7 +6,7 @@ import '@/components/builder/studio-pass2b-chat.css'
 import '@/components/layout/studio-shell.css'
 import '@/components/builder/studio-workspace.css'
 import '@/components/builder/studio-canvas.css'
-import { allocateStudioWorkspace, resizeStudioPane, type StudioWorkspacePane, type StudioInspector } from '@/lib/studio-workspace-layout'
+import { allocateStudioWorkspace, resizeStudioPane, studioChatPreference, studioChatStage, type StudioWorkspacePane, type StudioInspector } from '@/lib/studio-workspace-layout'
 import { StudioIntroductionProvider, StudioIntroductionButton } from '@/components/builder/studio-introduction'
 import { StudioFirstRunActions } from '@/components/builder/studio-first-run-actions'
 import { historicalActionStatuses } from '@/lib/director-history-presentation'
@@ -278,6 +278,8 @@ const MIN_DRAWER_WIDTH = 320
 const MAX_DRAWER_WIDTH_RATIO = 0.5
 const BUILDER_SESSION_OPTIONS_VERSION = 2
 const THEME_SYNC_TIMEOUT_MS = 20_000
+// NEXT_PUBLIC_STUDIO_CHAT_WIDTH_V2 (default off): the chat column's default width follows the v4 mockup per stage (lib/studio-workspace-layout.ts).
+const STUDIO_CHAT_WIDTH_V2_ENABLED = process.env.NEXT_PUBLIC_STUDIO_CHAT_WIDTH_V2 === 'true'
 const isAttachedUpload = (file: UploadedFile) => (
   file.status === 'success'
   || file.status === 'stored'
@@ -3331,9 +3333,11 @@ function AuthenticatedBuilderContent({ authScopeUserId }: { authScopeUserId: str
     dismiss: handleDismissBlankPlaceholder,
     startNewSession: () => handleNewChatWrappedRef.current?.(),
   })
+  const studioChatWidthStage = studioChatStage({ welcome: studioWelcome, mode: studioCanvasLifecycle.mode })
   const workspaceLayout = allocateStudioWorkspace({
     width: studioOverlayWorkspace ? workspaceInnerWidth : workspaceWidth,
-    chatPreference: chatWidth ?? (studioWelcome ? Math.min(640, workspaceWidth * .44) : 304),
+    chatPreference: studioChatPreference({ saved: chatWidth, enabled: STUDIO_CHAT_WIDTH_V2_ENABLED && studioShell, stage: studioChatWidthStage,
+      width: workspaceWidth, inspectorOpen: Boolean(activeInspector) }),
     inspectorPreference: drawerWidth,
     chatOpen: studioWorkspaceChatOpen,
     inspectorOpen: Boolean(activeInspector),
@@ -6935,7 +6939,7 @@ function AuthenticatedBuilderContent({ authScopeUserId }: { authScopeUserId: str
         />
 
         {/* Main Content Area */}
-        <div ref={workspaceRef} data-studio-intro-surface={studioShell ? "builder" : undefined} data-studio-v4-shell-workspace="true" data-studio-workspace-welcome={studioWelcome ? "true" : undefined} data-studio-workspace-mode={studioShell ? workspaceLayout.dualPane ? 'dual' : 'single' : undefined} data-studio-workspace-overlay={studioShell ? String(studioOverlayWorkspace) : undefined} data-studio-panel-keep-canvas={studioShell && STUDIO_PANEL_KEEP_CANVAS_ENABLED ? "true" : undefined} data-studio-panel-focus={studioPanelFocus ? "true" : undefined} className="flex-1 flex relative overflow-hidden" style={studioShell ? { '--studio-collapsed-inspector-width': `${studioTemplateVisible && templateParamsCollapsed ? TEMPLATE_PANEL_COLLAPSED_WIDTH : 0}px` } as React.CSSProperties : undefined}>
+        <div ref={workspaceRef} data-studio-intro-surface={studioShell ? "builder" : undefined} data-studio-v4-shell-workspace="true" data-studio-workspace-welcome={studioWelcome ? "true" : undefined} data-studio-workspace-mode={studioShell ? workspaceLayout.dualPane ? 'dual' : 'single' : undefined} data-studio-workspace-overlay={studioShell ? String(studioOverlayWorkspace) : undefined} data-studio-panel-keep-canvas={studioShell && STUDIO_PANEL_KEEP_CANVAS_ENABLED ? "true" : undefined} data-studio-panel-focus={studioPanelFocus ? "true" : undefined} data-studio-chat-width-stage={studioShell && STUDIO_CHAT_WIDTH_V2_ENABLED ? studioChatWidthStage : undefined} className="flex-1 flex relative overflow-hidden" style={studioShell ? { '--studio-collapsed-inspector-width': `${studioTemplateVisible && templateParamsCollapsed ? TEMPLATE_PANEL_COLLAPSED_WIDTH : 0}px` } as React.CSSProperties : undefined}>
           {studioPopupsV2 && !workspaceLayout.dualPane && (
             <StudioWorkspaceSwitchV2
               showSlides={studioOverlayWorkspace}
