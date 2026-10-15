@@ -156,6 +156,8 @@ function renderHeader(src, cell) {
     getStudioDeckSaveState: () => saveState,
     subscribeStudioDeckSaveState: () => () => {},
     studioTopBarSavedLabel: src.lib ? libModule(src).studioTopBarSavedLabel : undefined,
+    // PASS2B G56 (00cb07f, NEXT_PUBLIC_STUDIO_CREATE_WORD, default off): the create-button helper; off it returns the call site's own word.
+    studioCreateLabel: (unified, original) => unified === true ? 'New deck' : original,
   }
   moduleConstants(sourceFile, scope)
   const props = { wsError, onNewPresentation: rec.make('onNewPresentation'), onOpenChatHistory: rec.make('onOpenChatHistory'), isChatHistoryOpen,
@@ -177,6 +179,8 @@ function renderDownload(src, cell) {
     useState: initial => [call < states.length ? states[call++] : initial, () => {}],
     useToast: () => ({ toast: () => {} }),
     STUDIO_TOP_BAR_V2_ENABLED: topBarEnabled(src, env),
+    // PASS2B G16 (9a9f0e4, NEXT_PUBLIC_STUDIO_EXPORT_AFTER_BUILD, default off): the export gate; off it never blocks (null).
+    studioExportBlockedReason: () => null,
   }
   moduleConstants(sourceFile, scope)
   const component = compile(functionText(sourceFile, 'PresentationDownloadControls'))(scope)
@@ -498,8 +502,9 @@ const MUTANTS = [
   ['flag read loosely (!== "false")', 'lib', `process.env.NEXT_PUBLIC_STUDIO_TOP_BAR_V2 === 'true'`, `process.env.NEXT_PUBLIC_STUDIO_TOP_BAR_V2 !== 'false'`],
   ['flag ignores the Studio shell', 'lib', `process.env.NEXT_PUBLIC_STUDIO_V4_SHELL === 'true' && process.env`, `true && process.env`],
   ['header ignores the flag', 'header', 'const studioTopBarV2 = studioShell && STUDIO_TOP_BAR_V2_ENABLED', 'const studioTopBarV2 = studioShell'],
-  ['flag-off label changed', 'header', ': "Presentation"}', ': "Presentations"}'],
-  ['flag-off accessible name changed', 'header', 'aria-label={studioTopBarV2 ? "New deck" : "Add presentation"}', 'aria-label={studioTopBarV2 ? "New deck" : "Add deck"}'],
+  // PASS2B G56 (00cb07f): the flag-off word is now the helper's fallback argument.
+  ['flag-off label changed', 'header', 'studioCreateLabel(studioCreateWord, "Presentation")}', 'studioCreateLabel(studioCreateWord, "Presentations")}'],
+  ['flag-off accessible name changed', 'header', 'aria-label={studioTopBarV2 ? "New deck" : studioCreateLabel(studioCreateWord, "Add presentation")}', 'aria-label={studioTopBarV2 ? "New deck" : studioCreateLabel(studioCreateWord, "Add deck")}'],
   ['marker always on', 'header', `{...(studioTopBarV2 ? { 'data-studio-top-bar-v2': 'true' } : {})}`, `data-studio-top-bar-v2="true"`],
   ['Saved shown for every state', 'lib', `return state === 'saved' && !sessionUnsaved ? 'Saved' : null`, `return state && !sessionUnsaved ? 'Saved' : null`],
   ['Saved shown while saving', 'lib', `return state === 'saved' && !sessionUnsaved ? 'Saved' : null`, `return (state === 'saved' || state === 'saving') && !sessionUnsaved ? 'Saved' : null`],

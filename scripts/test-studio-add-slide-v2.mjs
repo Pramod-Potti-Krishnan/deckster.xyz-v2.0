@@ -409,6 +409,9 @@ function panelModule(panelSource, lib) {
       '@/lib/studio-add-slide-v2-regenerate': REGEN_LIB,
       '@/components/builder/studio-panels.css': {},
       './studio-add-slide-v2.css': {},
+      // PASS2B G29 (NEXT_PUBLIC_STUDIO_PANEL_EYEBROW, default off): the band's two imports; never reached with the flag off.
+      '@/lib/studio-panel-eyebrow': { slidePanelEyebrow: () => ({ label: '', detail: '' }) },
+      '@/components/studio-panel-eyebrow': { StudioPanelEyebrow: () => null },
     },
   })
 }
@@ -796,6 +799,8 @@ function mountPanel(panelSource, lib, props, component = 'AddSlideV2Panel') {
     'lucide-react': { Layout: icon, Plus: icon, RefreshCw: icon, Sparkles: icon, Square: icon, X: icon },
     '@/lib/utils': { cn: (...a) => a.filter(Boolean).join(' ') }, '@/lib/theme-builder': { FALLBACK_THEME_PRESETS: [] },
     '@/lib/studio-add-slide-v2': lib, '@/lib/studio-add-slide-v2-regenerate': REGEN_LIB, '@/components/builder/studio-panels.css': {}, './studio-add-slide-v2.css': {},
+    // PASS2B G29 (NEXT_PUBLIC_STUDIO_PANEL_EYEBROW, default off): the band's two imports; never reached with the flag off.
+    '@/lib/studio-panel-eyebrow': { slidePanelEyebrow: () => ({ label: '', detail: '' }) }, '@/components/studio-panel-eyebrow': { StudioPanelEyebrow: () => null },
   } })
   let tree
   const focused = []

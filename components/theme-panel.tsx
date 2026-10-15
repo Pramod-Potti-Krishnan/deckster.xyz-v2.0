@@ -4,9 +4,11 @@ import "./studio-editor-dialogs.css"
 import "./studio-theme-panel.css"
 
 import { useEffect, useMemo, useState, type ReactNode } from 'react'
+import Link from 'next/link'
 import {
   AlertCircle,
   ArrowLeft,
+  ArrowRight,
   Check,
   CheckCircle2,
   Loader2,
@@ -359,6 +361,24 @@ function ThemePickerV2({
   onApply: () => void
   onClose: () => void
 }) {
+  // The "Want your own colours?" row, as the base drew it (a const so the G35 link below can sit beside it without adding a child).
+  const customRow = !locked && (
+    <div className="stpv2-custom-row">
+      <span>Want your own colours?</span>
+      <button type="button" className="stpv2-link" onClick={onBuildCustom}>
+        <Wand2 className="h-3.5 w-3.5" aria-hidden="true" /> Build a custom palette
+      </button>
+    </div>
+  )
+  // PASS2B G35 (NEXT_PUBLIC_STUDIO_THEME_BRAND_LINK, default off, Studio shell only): the way on to Themes & brand, locked or not. Null with the flag
+  // off, and then the body renders `customRow` alone in its old place, so the flag-off element tree has no extra child.
+  const brandKitLink = process.env.NEXT_PUBLIC_STUDIO_V4_SHELL === 'true' && process.env.NEXT_PUBLIC_STUDIO_THEME_BRAND_LINK === 'true' ? (
+    <p className="stpv2-brandkit" data-studio-theme-part="brand-kit">
+      <Link href="/studio/themes" prefetch={false} className="stpv2-link" data-studio-theme-action="brand-kit" onClick={onClose}>
+        <Palette className="h-3.5 w-3.5" aria-hidden="true" /> Open themes &amp; brand kit <ArrowRight className="h-3.5 w-3.5" aria-hidden="true" />
+      </Link>
+    </p>
+  ) : null
   const hint = invalidColor
     ? 'Custom themes need a primary six-digit colour, such as #1e40af.'
     : syncStatus === 'failed' && !hasChanges
@@ -467,14 +487,7 @@ function ThemePickerV2({
               ))}
             </div>}
             {presetPicker ? null : <p className="stpv2-caption">Swatches show each theme’s main colours. The full theme also sets fonts and layout details.</p>}
-            {!locked && (
-              <div className="stpv2-custom-row">
-                <span>Want your own colours?</span>
-                <button type="button" className="stpv2-link" onClick={onBuildCustom}>
-                  <Wand2 className="h-3.5 w-3.5" aria-hidden="true" /> Build a custom palette
-                </button>
-              </div>
-            )}
+            {brandKitLink ? <>{customRow}{brandKitLink}</> : customRow}
           </>
         )}
         {advanced}

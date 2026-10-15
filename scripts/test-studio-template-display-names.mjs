@@ -549,8 +549,14 @@ const HEAD_AFTER = {
   [PICKER]: ["import { templateNameFromFile } from '@/lib/studio-template-workspace/registry'\n", "const COMPOSER_ROW_PREFIX = 'composer:'\n"],
   [DIALOG]: ["import type { ComposerLibraryRequest } from '@/lib/studio-composer-popups'\n", "interface PendingJob { job_id: string; session_id: string; kind: 'upload' | 'use'; retry?: ComposerRetryAction | null }\n"],
 }
+// PASS2B G39 (db0b716) adds three lines and one conditional to the pop-up file (proven in test-studio-empty-catalog-hide.mjs); they are turned back here so the file is compared as the base's.
+const G39_ADDED = `    // PASS2B G39 (NEXT_PUBLIC_STUDIO_EMPTY_CATALOG_HIDE, default off): no Deckster catalog exists yet, so with the flag on the empty "Deckster templates" block
+    // (a disabled dropdown and its explanation) is not drawn until the list has an entry. Off, or with a catalog, the block is the base's.
+    const hideEmptyDeckster = process.env.NEXT_PUBLIC_STUDIO_EMPTY_CATALOG_HIDE === 'true' && deckster.length === 0
+    const decksterField = hideEmptyDeckster ? null : <div className="stcd-field" data-studio-template-dd="deckster">\n`
+const G39_BASE = '    const decksterField = <div className="stcd-field" data-studio-template-dd="deckster">\n'
 function revert(rel, source) {
-  let text = source
+  let text = rel === TEMPLATE_PICKER ? source.replace(G39_ADDED, () => G39_BASE) : source
   for (const [mine, theirs] of PAIRS[rel]) text = text.replace(mine, () => theirs)
   const [importAfter, constsAfter] = HEAD_AFTER[rel], [headImport, headConsts] = HEADS[rel]
   return text.replace(importAfter + headImport, importAfter).replace(constsAfter + headConsts, constsAfter)

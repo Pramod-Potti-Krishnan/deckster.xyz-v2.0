@@ -63,6 +63,7 @@ function renderPanel(env, props, swatchFetch) {
       react,
       'react/jsx-runtime': { jsx, jsxs: jsx, Fragment: 'Fragment' },
       'lucide-react': icons,
+      'next/link': { default: 'Link' }, // PASS2B G35 (e1e9e79): the brand-kit link, only drawn with its flag on
       '@/components/ui/button': { Button: 'Button' },
       '@/lib/config': { getThemeBuilderUrl: () => 'http://127.0.0.1:9' },
       '@/lib/utils': { cn: (...values) => values.filter(Boolean).join(' ') },
