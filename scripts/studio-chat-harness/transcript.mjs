@@ -66,6 +66,11 @@ export async function runTranscript({ root, fixture, profile, processEnv: caller
   const hasOneLiveTab = fs.existsSync(path.join(root, 'lib/studio-one-live-tab.ts'))
   const oneLiveTab = hasOneLiveTab ? loader.load('lib/studio-one-live-tab.ts') : null
   const SupersededNotice = hasOneLiveTab ? loader.load('components/builder/studio-superseded-notice.tsx').StudioSupersededNotice : null
+  // PASS2B chat touches (E2E-2): the page's two derived values (J1-10 edit prompt, J1-17 stale error notice) come from this lib and hook. A tree without
+  // them (the base tree, for a flag-off byte comparison) runs the page's own flag-off code, which never reads the two values (they stay false below).
+  const hasPass2b = fs.existsSync(path.join(root, 'lib/studio-pass2b-chat.ts')) && fs.existsSync(path.join(root, 'hooks/use-studio-stale-error-notice.ts'))
+  const pass2bLib = hasPass2b ? loader.load('lib/studio-pass2b-chat.ts') : null
+  const useStaleErrorNotice = hasPass2b ? loader.load('hooks/use-studio-stale-error-notice.ts').useStudioStaleErrorNotice : null
   const voice = loader.load('lib/studio-voice-interactive.ts')
   // Fixtures with `"elementPreflight": true` (PASS2-J3 P0) also run the page's deck-theme preflight and the REAL Add Element
   // generation hook (page-theme-sources.mjs, `useTextLabsGeneration`), against a synthetic Text Labs that only answers them.
@@ -286,6 +291,14 @@ export async function runTranscript({ root, fixture, profile, processEnv: caller
       // The page's `isTabSuperseded(STUDIO_ONE_LIVE_TAB_ENABLED, reconnectStatus)`, through the same lib (false in a tree without it).
       oneLiveTabSuperseded: oneLiveTab ? oneLiveTab.isTabSuperseded(oneLiveTab.STUDIO_ONE_LIVE_TAB_ENABLED, ws.reconnectStatus) : false,
     }
+    // The page's `studioEditPromptActive` and `staleErrorNotice` (page.tsx, next to `studioOutlineCanvas`), through the same lib and hook. Both are false
+    // unless their flag is "true" in this run's environment. The hook runs on every render, so its ref lives as long as the page's does.
+    const pass2bShell = studioShell
+    const pass2bEnv = env.globals.process.env
+    values.studioEditPromptActive = hasPass2b
+      ? Boolean(pass2bShell && pass2bEnv.NEXT_PUBLIC_STUDIO_CHAT_EDIT_PROMPT === 'true' && pass2bLib.studioChatEditPromptActive(userMessages, ws.messages)) : false
+    values.staleErrorNotice = hasPass2b
+      ? useStaleErrorNotice(Boolean(pass2bShell && pass2bEnv.NEXT_PUBLIC_STUDIO_CHAT_ERROR_CLEAR === 'true'), ws.transportNotice, userMessages.length, ws.messages.length) : false
     if (preflightOn) {
       const T = themeSources.compiled
       Object.assign(theme, { composerAdoption: ws.composerAdoption, composerThemeResolved: ws.composerThemeResolved, isReady: ws.isReady,

@@ -2,6 +2,7 @@
 
 import './studio-v4.css'
 import './studio-v4-type.css'
+import '@/components/builder/studio-pass2b-chat.css'
 import '@/components/layout/studio-shell.css'
 import '@/components/builder/studio-workspace.css'
 import '@/components/builder/studio-canvas.css'
@@ -102,6 +103,8 @@ import { MessageList } from '@/components/builder/message-list'
 import { ChatInput } from '@/components/builder/chat-input'
 import { StudioDirectorNotice } from '@/components/builder/studio-director-notice'
 import { studioComposerContextLabel } from '@/lib/studio-chat-composer-context'
+import { studioChatEditPromptActive } from '@/lib/studio-pass2b-chat'
+import { useStudioStaleErrorNotice } from '@/hooks/use-studio-stale-error-notice'
 import { StudioBlockedSendNotice } from '@/components/builder/studio-blocked-send-notice'
 import { StudioSupersededNotice } from '@/components/builder/studio-superseded-notice'
 import {
@@ -6807,6 +6810,21 @@ function AuthenticatedBuilderContent({ authScopeUserId }: { authScopeUserId: str
     messages, answeredIds: session.answeredActionsRef.current, userTurns: session.userMessages,
     sessionId: currentSessionId, locked: approvalGatesLocked,
   })
+  // PASS2B (E2E-2), two values derived at render from state already held here; both stay false unless their flag is exactly "true" (Studio shell only).
+  // J1-10 (NEXT_PUBLIC_STUDIO_CHAT_EDIT_PROMPT): the last user turn is the click on "I'd like to make changes" / "Make some changes" and nothing has
+  // been typed since: the composer is focused once, when that starts, and its placeholder says what to type. Nothing is sent or stored.
+  const studioEditPromptActive = studioShell && process.env.NEXT_PUBLIC_STUDIO_CHAT_EDIT_PROMPT === 'true'
+    && studioChatEditPromptActive(session.userMessages, messages)
+  const editPromptWasActiveRef = useRef(studioEditPromptActive)
+  useEffect(() => {
+    const wasActive = editPromptWasActiveRef.current
+    editPromptWasActiveRef.current = studioEditPromptActive
+    if (studioEditPromptActive && !wasActive) requestAnimationFrame(() => textareaRef.current?.focus())
+  }, [studioEditPromptActive])
+  // J1-17 (NEXT_PUBLIC_STUDIO_CHAT_ERROR_CLEAR): the Director error notice on screen (and the recovery card it feeds) was answered by a later turn:
+  // the user sent another message and Director replied. The hook's notice is not touched; this only stops it being drawn.
+  const staleErrorNotice = useStudioStaleErrorNotice(
+    studioShell && process.env.NEXT_PUBLIC_STUDIO_CHAT_ERROR_CLEAR === 'true', transportNotice, session.userMessages.length, messages.length)
   const studioMandatoryDecision = messages.some(message => message.type === 'action_request'
     && message.session_id === (currentSessionId || wsSessionId) && !retiredIntroActions.has(message.message_id)
     && Boolean((message.payload as any).question_set || (message as ActionRequest).payload.actions.some(action =>
@@ -7287,10 +7305,11 @@ function AuthenticatedBuilderContent({ authScopeUserId }: { authScopeUserId: str
               {showChat && (
                 <>
                   {studioShell && <StudioDirectorHeader connectionState={connectionState} isLoadingSession={session.isLoadingSession} reconnectStatus={reconnectStatus}
+                    onReconnect={process.env.NEXT_PUBLIC_STUDIO_CHAT_RECONNECT === 'true' ? connect : undefined}
                     actions={STUDIO_VOICE_INTERACTIVE_ENABLED ? <DirectorCallEntry call={studioDirectorCall.call} disabled={!studioDirectorCall.eligible} /> : undefined} />}
                   {studioShell && <StudioDirectorNotice
                     className="mx-3 mt-2"
-                    notice={transportNotice?.sessionId === (currentSessionId || wsSessionId) ? transportNotice : null}
+                    notice={staleErrorNotice ? null : transportNotice?.sessionId === (currentSessionId || wsSessionId) ? transportNotice : null}
                     handoffStatus={handoffRequestStatus?.sessionId === (currentSessionId || wsSessionId) ? handoffRequestStatus : null}
                   />}
                   {studioShell && <StudioSupersededNotice className="mx-3 mt-2" active={oneLiveTabSuperseded} onUseHere={connect} />}
@@ -7351,7 +7370,7 @@ function AuthenticatedBuilderContent({ authScopeUserId }: { authScopeUserId: str
                         studioOutlineOnCanvas={studioOutlineCanvas?.outline.message_id}
                         studioRecovery={studioShell && process.env.NEXT_PUBLIC_STUDIO_CHAT_RECOVERY === 'true' ? {
                           // PASS2-DIRECTOR-CHAT PR D, item 7: facts already held here, passed read-only to word the recovery card. Same session test as the notice above.
-                          noticeType: transportNotice?.sessionId === (currentSessionId || wsSessionId) ? (transportNotice?.type ?? null) : null,
+                          noticeType: staleErrorNotice ? null : transportNotice?.sessionId === (currentSessionId || wsSessionId) ? (transportNotice?.type ?? null) : null,
                           noticeRequiresResend: Boolean(transportNotice?.sessionId === (currentSessionId || wsSessionId) && transportNotice?.requiresResend),
                           reconnectStatus,
                           statusError: currentStatus?.status === 'error',
@@ -7538,6 +7557,7 @@ function AuthenticatedBuilderContent({ authScopeUserId }: { authScopeUserId: str
                       slideCount: effectiveSlideCount,
                     }) : undefined}
                     pausedInOtherTab={oneLiveTabSuperseded}
+                    studioEditPrompt={studioEditPromptActive || undefined}
                   />
                 </>
               )}

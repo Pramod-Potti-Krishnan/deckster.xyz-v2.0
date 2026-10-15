@@ -134,6 +134,10 @@ export interface ChatInputProps {
   /** NEXT_PUBLIC_STUDIO_ONE_LIVE_TAB: this tab is paused because the session is live in another tab. Only the placeholder changes (it must
    *  not promise "send to reconnect": a send now shows the notice instead). The page passes it only while paused; absent, nothing differs. */
   pausedInOtherTab?: boolean
+  /** PASS2B J1-10 (flag NEXT_PUBLIC_STUDIO_CHAT_EDIT_PROMPT, Studio shell only): the user's last turn was the click on "I'd like to make changes" (or
+   *  "Make some changes") and nothing has been typed since, so the idle placeholder says what to type. Derived by the page from the transcript
+   *  (lib/studio-pass2b-chat) and passed only with the flag on; only the placeholder changes. */
+  studioEditPrompt?: boolean
 }
 
 export function ChatInput({
@@ -187,6 +191,7 @@ export function ChatInput({
   composerTextareaRef,
   studioContextLabel,
   pausedInOtherTab = false,
+  studioEditPrompt = false,
 }: ChatInputProps) {
   const studio = process.env.NEXT_PUBLIC_STUDIO_V4_SHELL === 'true'
   // PASS2 composer copy (flag NEXT_PUBLIC_STUDIO_COMPOSER_COPY, Studio shell only, default off): plain words for the idle placeholder.
@@ -1095,6 +1100,8 @@ export function ChatInput({
                       ? "Director is replying… (Esc to type anyway)"
                     : pendingActionInput
                       ? "Type your changes... (ESC to cancel)"
+                      : studioEditPrompt && studio && process.env.NEXT_PUBLIC_STUDIO_CHAT_EDIT_PROMPT === 'true'
+                        ? "Tell Director what to change…"
                       : studioComposerCopy
                         ? (deckOpen ? "Ask for a change, or describe a new deck…" : "What would you like to present?")
                         : "Message Director..."
