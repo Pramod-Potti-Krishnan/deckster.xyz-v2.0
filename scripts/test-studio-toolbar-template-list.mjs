@@ -356,7 +356,8 @@ const mut = (source, from, to) => { assert.ok(source.includes(from), `mutation t
 // ChatInput studioContextLabel; flag-off value proven by scripts/test-studio-chat-composer-recovery-answered.mjs).
 // + NEXT_PUBLIC_STUDIO_ONE_LIVE_TAB -> ChatInput pausedInOtherTab and PresentationArea studioTabPausedHint (false / undefined unless the tab is
 // paused; flag-off equality with the base: scripts/test-studio-one-live-tab.mjs --base-root).
-const SIBLING_FLAG_ATTR = /^(studioContextLabel|pausedInOtherTab|studioTabPausedHint)=/
+// + PASS2B J1-10 (NEXT_PUBLIC_STUDIO_CHAT_EDIT_PROMPT) -> ChatInput studioEditPrompt (`studioEditPromptActive || undefined`: undefined flag off; scripts/test-studio-pass2b-chat.mjs).
+const SIBLING_FLAG_ATTR = /^(studioContextLabel|pausedInOtherTab|studioTabPausedHint|studioEditPrompt)=/
 const withoutFix = element => [...element.attrs.filter(a => !SIBLING_FLAG_ATTR.test(a)), ...element.spreads.filter(s => !FIX.test(s))].join('\n')
 
 // ---- library dialog helpers (the dialog's own buttons are the reference) --------------------------------------------------------------------------

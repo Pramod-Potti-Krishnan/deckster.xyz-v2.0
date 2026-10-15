@@ -534,8 +534,9 @@ const FIX_SPREAD = /onComposerTemplateAction|onRequestTaken/
 // Chat PR D's flag-gated ChatInput prop (NEXT_PUBLIC_STUDIO_CHAT_COMPOSER_CONTEXT); its flag-off value (undefined) is proven by
 // scripts/test-studio-chat-composer-recovery-answered.mjs, so it is left out of this pin like the fix's own spreads. Likewise
 // NEXT_PUBLIC_STUDIO_ONE_LIVE_TAB's pausedInOtherTab (false unless the tab is paused; the flag-off composer is proven equal to the base's by
-// scripts/test-studio-one-live-tab.mjs --base-root).
-const SIBLING_FLAG_ATTR = /^(studioContextLabel|pausedInOtherTab)=/
+// scripts/test-studio-one-live-tab.mjs --base-root). Likewise PASS2B J1-10's studioEditPrompt (NEXT_PUBLIC_STUDIO_CHAT_EDIT_PROMPT; `studioEditPromptActive || undefined`,
+// so undefined with the flag off, which scripts/test-studio-pass2b-chat.mjs proves).
+const SIBLING_FLAG_ATTR = /^(studioContextLabel|pausedInOtherTab|studioEditPrompt)=/
 /** Both elements without the fix's two spreads: equal to the base's means the page passes exactly what it passed before when they add nothing. */
 const pageWiringHash = source => { const w = pageWiring(source); return sha(['ChatInput', 'ComposerLibraryDialog'].map(tag => [...w[tag].attrs.filter(a => !SIBLING_FLAG_ATTR.test(a)), ...w[tag].spreads.filter(x => !FIX_SPREAD.test(x))].join('\n')).join('\n----\n')) }
 

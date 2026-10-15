@@ -58,6 +58,11 @@ export function StageRibbon({ narration: n, control, className }: StageRibbonPro
   const lastErrorText = isError
     ? [...n.deckEvents].reverse().find((e) => e.status === 'error')?.text || 'The build hit an error.'
     : null
+  // PASS2B J1-15 (flag NEXT_PUBLIC_STUDIO_BUILD_ERROR_STATE, Studio shell only, default off): a build that failed has nothing to pause or stop, so
+  // Pause and Stop are not offered, and one line says what is kept and how to try again. Presentation only: it reads the phase this ribbon already
+  // has, adds no state or effect, and sends nothing (the way to retry is the message box, as the recovery card already says).
+  const buildErrorState = isError
+    && process.env.NEXT_PUBLIC_STUDIO_V4_SHELL === 'true' && process.env.NEXT_PUBLIC_STUDIO_BUILD_ERROR_STATE === 'true'
 
   return (
     <div
@@ -114,6 +119,9 @@ export function StageRibbon({ narration: n, control, className }: StageRibbonPro
           {isError && lastErrorText ? (
             <p data-studio-build-part={process.env.NEXT_PUBLIC_STUDIO_V4_SHELL === 'true' ? 'error' : undefined} className="truncate text-xs text-destructive/80">{lastErrorText}</p>
           ) : null}
+          {buildErrorState ? (
+            <p data-studio-build-part="error-recovery" className="text-xs text-muted-foreground">Your outline and any finished slides are saved. Send a message to try again.</p>
+          ) : null}
         </div>
         <Elapsed startedAt={n.startedAt} halted={isHalted || isComplete || isError || isWaiting} />
         {n.slideCount > 0 && (n.phase === 'building' || n.phase === 'qa' || n.phase === 'finalizing' || isHalted) && (
@@ -122,7 +130,7 @@ export function StageRibbon({ narration: n, control, className }: StageRibbonPro
           </span>
         )}
       </div>
-      {control ? (
+      {control && !buildErrorState ? (
         <PauseStopControl
           {...control}
           control={n.control}
