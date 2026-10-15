@@ -445,6 +445,7 @@ export function PresentationArea({
                     presentationId={presentationId}
                     slideCount={slideCount}
                     stage={currentStage}
+                    hasFinalDeck={hasFinalDeck}
                   />
                   <PublishControls
                     sessionId={publishSessionId ?? null}

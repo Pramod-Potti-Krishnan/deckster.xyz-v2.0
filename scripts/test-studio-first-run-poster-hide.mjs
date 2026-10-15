@@ -95,7 +95,9 @@ const AREA_G09 = [
   /  \/\/ PASS2B G09[^\n]*\n  const studioPosterPlanning = [^\n]*\n/,
   / \{\.\.\.studioPosterPlanning\}/g,
 ]
-const stripG09 = text => AREA_G09.reduce((acc, pattern) => acc.replace(pattern, ''), text)
+// PASS2B G16 (9a9f0e4, same batch): one pass-through line on <PresentationDownloadControls>, reverted too so the file can be compared with the base commit.
+const AREA_G16 = /(<PresentationDownloadControls[^\n]*\n(?:[^\n]*\n)*?\s*stage=\{currentStage\}\n)\s*hasFinalDeck=\{hasFinalDeck\}\n/
+const stripG09 = text => [...AREA_G09, AREA_G16].reduce((acc, pattern) => acc.replace(pattern, pattern === AREA_G16 ? '$1' : ''), text)
 function areaDecision(source) {
   const decision = source.match(/const studioPosterPlanning = ([^\n]+)\n/)?.[1]
   assert.ok(decision, 'the decision is in the source')
