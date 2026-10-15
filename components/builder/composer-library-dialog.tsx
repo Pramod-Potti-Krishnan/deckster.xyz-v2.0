@@ -21,9 +21,13 @@ import {
 } from '@/lib/composer-library'
 import { composerBriefLengthValid, composerBriefLimitMessage, composerBriefMax } from '@/lib/composer-long-brief'
 import type { ComposerLibraryRequest } from '@/lib/studio-composer-popups'
+import { studioTemplateShownName } from '@/lib/studio-template-display-name'
 import './studio-composer-library.css'
 
 interface PendingJob { job_id: string; session_id: string; kind: 'upload' | 'use'; retry?: ComposerRetryAction | null }
+// PASS2B G38 (NEXT_PUBLIC_STUDIO_TEMPLATE_DISPLAY_NAMES, default off): templates are drawn by a short display name; the full stored name stays in a tooltip and in every payload.
+const TEMPLATE_DISPLAY_NAMES = process.env.NEXT_PUBLIC_STUDIO_TEMPLATE_DISPLAY_NAMES === 'true'
+const displayName = (name: string) => studioTemplateShownName(name, TEMPLATE_DISPLAY_NAMES)
 
 export function ComposerLibraryDialog({ open, onOpenChange, request = null, onRequestTaken }: {
   open: boolean
@@ -260,7 +264,7 @@ export function ComposerLibraryDialog({ open, onOpenChange, request = null, onRe
               : templates.map(template => <div data-studio-composer-record={studioShell ? template.id : undefined} key={template.id} className="space-y-3 rounded-md border p-3">
                 <div data-studio-composer-record-row={studioShell ? 'true' : undefined} className="flex items-center justify-between gap-3">
                   <div data-studio-composer-record-info={studioShell ? 'true' : undefined} className="min-w-0">
-                    <p data-studio-composer-name={studioShell ? 'true' : undefined} className="truncate text-sm font-medium" title={template.name}>{template.name}</p>
+                    <p data-studio-composer-name={studioShell ? 'true' : undefined} className="truncate text-sm font-medium" title={template.name}>{displayName(template.name)}</p>
                     <p data-studio-composer-count={studioShell ? 'true' : undefined} className="text-xs text-muted-foreground">{template.stage_template_summary?.slide_count ?? template.slide_count ?? 0} slides</p>
                   </div>
                   <div data-studio-composer-actions={studioShell ? 'true' : undefined} className="flex shrink-0 gap-2">

@@ -65,6 +65,13 @@ for (const [addition, classic] of [
   [/  \/\/ NEXT_PUBLIC_STUDIO_COMPOSER_JOB_RECOVERY: the notice for a stored job[\s\S]*?\n  <\/div>\n\n/, ''],
   [/\{recoveryNotice \?\? \(progress && (<p [\s\S]*?<\/p>)\)\}/, '{progress && $1}'],
 ]) { assert(addition.test(restored), String(addition)); restored = restored.replace(addition, classic) }
+// PASS2B G38 (NEXT_PUBLIC_STUDIO_TEMPLATE_DISPLAY_NAMES, default off): the template row draws its name through one wrapper (its title already carries the
+// full name); the import and the wrapper's definition are the only other additions. scripts/test-studio-template-display-names.mjs proves the rest.
+for (const [addition, classic] of [
+  ["import { studioTemplateShownName } from '@/lib/studio-template-display-name'\n", ''],
+  [/\/\/ PASS2B G38 \(NEXT_PUBLIC_STUDIO_TEMPLATE_DISPLAY_NAMES[^\n]*\nconst TEMPLATE_DISPLAY_NAMES = [^\n]*\nconst displayName = [^\n]*\n/, ''],
+  ['title={template.name}>{displayName(template.name)}</p>', 'title={template.name}>{template.name}</p>'],
+]) { assert(typeof addition === 'string' ? restored.includes(addition) : addition.test(restored), String(addition)); restored = restored.replace(addition, classic) }
 assert.equal(restored, original, 'Every original handler/effect/payload/condition/default/copy and classic markup must remain exact')
 
 let actions = 0
@@ -92,6 +99,7 @@ function runtime(text, flag, topicFlag, auth, initial) {
         requireComposerServiceUrl() { actions++; throw new Error('No service configuration allowed') },
       }
       if (id === '@/lib/composer-long-brief') return longBriefHelper
+      if (id === '@/lib/studio-template-display-name') return { studioTemplateShownName: name => name } // PASS2B G38: reached only for a name drawn through displayName(); flag NEXT_PUBLIC_STUDIO_TEMPLATE_DISPLAY_NAMES is off here, so the stored name comes back as it is.
       if (id === '@/lib/utils') return { cn: (...args) => args.filter(Boolean).join(' ') }
       if (id.endsWith('.css')) return {}
       if (id.startsWith('@/components/') || id.startsWith('@/lib/') || id === 'lucide-react') return new Proxy({}, { get: (_target, key) => key })

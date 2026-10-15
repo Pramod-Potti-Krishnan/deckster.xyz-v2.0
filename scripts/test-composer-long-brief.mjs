@@ -290,6 +290,7 @@ function mountDialog({ studio, topic, longFlag, auth = true, layoutUrl = 'http:/
       if (id === '@/lib/composer-library') return mocks.composerLibrary || { validateComposerFile: () => null, composerRequest() { throw new Error('No service allowed') }, waitForComposerJob() { throw new Error('No jobs allowed') }, requireComposerServiceUrl() { throw new Error('No service configuration allowed') } }
       if (id === '@/lib/composer-long-brief') return brief
       if (id in siblings) return siblings[id]
+      if (id === '@/lib/studio-template-display-name') return { studioTemplateShownName: name => name } // PASS2B G38: reached only for a name drawn through displayName(); flag NEXT_PUBLIC_STUDIO_TEMPLATE_DISPLAY_NAMES is off here, so the stored name comes back as it is.
       if (id === '@/lib/researcher-upload') return { uploadFileToResearcher() { throw new Error('No upload allowed') } }
       if (id === '@/lib/layout-viewer-url-policy') return { evaluateLayoutViewerUrl: () => ({ status: 'allowed' }) }
       if (id === '@/lib/layout-service-client') return { LAYOUT_VIEWER_URL_POLICY: {} }
