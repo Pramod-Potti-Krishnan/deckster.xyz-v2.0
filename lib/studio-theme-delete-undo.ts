@@ -4,8 +4,11 @@
 // deck. With the flag on, Delete only HIDES the theme and starts a 6 s undo window (an inline "Undo" in the popover plus the app's toast
 // with an Undo action). Nothing is requested while the window is open:
 //   - Undo (either one) restores the theme. No request was made, so nothing is written.
-//   - The window running out hands the delete to the popover's own `onDelete` (ChatInput's runStudioThemeMutation('delete')), so the one
+//   - The window running out hands the delete to the popover's own `onDelete` (ChatInput's runStudioThemeMutation('delete', id)), so the one
 //     real request keeps every guard it already has (ownership, single in-flight mutation, acknowledgment, cache, reconciliation read).
+//     It is sent WITH the id captured at click time: the theme that was deleted is the one deleted, even if the selection moved to another
+//     saved theme while the popover was closed; a theme that is no longer in the library is a no-op, and a delete never clears a selection
+//     that is some other theme.
 //   - Choosing another theme / preset / brand colour in the popover while a delete is waiting commits it first (it is read from the
 //     selection at that moment, so it must go before the selection moves).
 //   - If the theme is no longer the selected one when the window ends and the popover is open, the delete is dropped, never redirected
@@ -32,8 +35,8 @@ export interface ThemeDeleteSnapshot {
 
 /** What the open popover tells the store on every render. */
 export interface ThemeDeleteAttachment {
-  /** ChatInput's delete for the selected theme. */
-  onDelete: () => void
+  /** ChatInput's delete; called with the id captured when Delete was clicked (a bare call means the selected theme). */
+  onDelete: (id?: string) => void
   /** The real (not hidden) selected saved-theme id. */
   selectedId: string | null
 }
@@ -53,7 +56,7 @@ export function createThemeDeleteUndo(deps: ThemeDeleteUndoDeps, windowMs = STUD
   let snapshot: ThemeDeleteSnapshot = EMPTY
   let current: Entry | null = null
   let attached: ThemeDeleteAttachment | null = null
-  let lastOnDelete: (() => void) | null = null
+  let lastOnDelete: ((id?: string) => void) | null = null
   const settling = new Map<string, unknown>()
   const listeners = new Set<() => void>()
 
@@ -82,7 +85,7 @@ export function createThemeDeleteUndo(deps: ThemeDeleteUndoDeps, windowMs = STUD
     if (!onDelete) { publish(); return false }
     hold(entry.id)
     publish()
-    onDelete() // the only place a delete request can start
+    onDelete(entry.id) // the only place a delete request can start, and it names the theme
     return true
   }
   const release = (id: string) => {
