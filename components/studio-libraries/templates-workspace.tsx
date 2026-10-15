@@ -8,6 +8,7 @@ import { libraryAccountCanStart, libraryAccountIsCurrent, useStudioLibraryAccoun
 import { isTemplateGenerationReady, templateGenerationStatus, templateGenerationStatusLabel, templateGenerationUnavailableReason, useTemplates, type SavedTemplate, type TemplateBlueprintSlide, type TemplateEnrichmentResult, type TemplateSnapshot } from '@/hooks/use-templates'
 import { FittedLibraryStage, LibraryLoading, LibraryNotice, LibrarySearch, LibraryWorkspace, MetadataDisclosure, ReadValue, StudioWorkflowLink, libraryDate, type LibraryMode } from './library-controls'
 import './templates-fidelity.css'
+import { templatesNoticeText } from '@/lib/studio-templates-notice'
 
 const TEMPLATES_ENABLED = process.env.NEXT_PUBLIC_TEMPLATE_BUILDER_ENABLED === 'true'
 const COMPOSER_ENABLED = process.env.NEXT_PUBLIC_COMPOSER_LIBRARY_ENABLED === 'true'
@@ -261,7 +262,7 @@ export function TemplatesWorkspace() {
   return <LibraryWorkspace introScreen={standaloneStudio ? "templates" : undefined} introAutoStart={standaloneStudio} introEnabled={accountReady && !importOpen} title="Templates" description={standaloneStudio ? 'Reusable story structure, slide roles, and content slots.' : 'Start with the shape of a story. Bring fresh content, evidence, and your own theme.'} mode={mode} onModeChange={setMode} actions={INGEST_ENABLED ? <button ref={standaloneStudio ? importTrigger : undefined} type="button" className="sl-button" disabled={!accountReady} onClick={() => { if (canStartAccountAction()) setImportOpen(true) }} title="Import PowerPoint or PDF into a new Studio session"><FileUp size={15} />Import presentation</button> : undefined}>
     <div className="sl-context" data-studio-templates-fidelity={standaloneStudio ? 'true' : undefined}><Layers size={15} /><span>Reusable structure, intent, and content roles</span><span>{mode === 'create' ? 'Local planning draft' : 'Your saved library'}</span></div>
     {!accountReady && <LibraryNotice>Verifying your account… Your current library and local draft are still here. Connected actions resume after verification.</LibraryNotice>}
-    {!TEMPLATES_ENABLED && <LibraryNotice>Saved templates are not enabled in this environment. You can sketch a local draft; connected creation and reuse remain in Studio when enabled.</LibraryNotice>}
+    {!TEMPLATES_ENABLED && <LibraryNotice>{templatesNoticeText(process.env.NEXT_PUBLIC_STUDIO_V4_SHELL === 'true' && process.env.NEXT_PUBLIC_STUDIO_TEMPLATES_NOTICE_PLAIN === 'true')}</LibraryNotice>}
     {actionError && <LibraryNotice error>{actionError}</LibraryNotice>}{actionNotice && <LibraryNotice>{actionNotice}</LibraryNotice>}
     {discardPrompt && <div className="sl-confirm" role="alert"><span>Discard this local template draft?</span><button type="button" onClick={resetDraft}>Discard & start again</button><button type="button" onClick={() => setDiscardPrompt(false)}>Keep draft</button></div>}
     <div className="sl-split">
