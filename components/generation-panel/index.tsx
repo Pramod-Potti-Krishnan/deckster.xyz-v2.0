@@ -422,6 +422,7 @@ export function GenerationPanel({
             registerSubmit={registerSubmit}
             isGenerating={isGenerating}
             slideIndex={slideIndex}
+            getTemplateSlotCatalog={getTemplateSlotCatalog}
             presentationId={presentationId}
             elementContext={elementContext}
             prompt={prompt}
@@ -460,6 +461,7 @@ function FormRouter({
   registerSubmit,
   isGenerating,
   slideIndex,
+  getTemplateSlotCatalog,
   presentationId,
   elementContext,
   targetElementId,
@@ -482,6 +484,7 @@ function FormRouter({
   registerSubmit: (fn: () => void) => void
   isGenerating: boolean
   slideIndex: number
+  getTemplateSlotCatalog?: GenerationPanelProps['getTemplateSlotCatalog']
   presentationId?: string | null
   elementContext?: ElementContext | null
   targetElementId?: string | null
@@ -524,7 +527,7 @@ function FormRouter({
     case 'ICON_LABEL':
       return <IconLabelForm {...commonProps} initialDraft={initialDraft} panelMode={panelMode} onDraftChange={onDraftChange} targetElementId={targetElementId} />
     case 'SHAPE':
-      return <ShapeForm {...commonProps} initialDraft={initialDraft} onDraftChange={onDraftChange} targetElementId={targetElementId} />
+      return <ShapeForm {...commonProps} initialDraft={initialDraft} onDraftChange={onDraftChange} targetElementId={targetElementId} slideIndex={slideIndex} getTemplateSlotCatalog={getTemplateSlotCatalog} />
     case 'INFOGRAPHIC':
       return (
         <InfographicForm

@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react'
 import { getLayoutServiceUrl } from '@/lib/layout-service-client'
 import type { ThemePalette } from '@/types/textlabs'
+import { STUDIO_SHAPE_TARGET_BACKGROUND_ENABLED } from '@/lib/studio-shape-target-background'
 
 export interface DeckThemeToken {
   id:
@@ -71,11 +72,14 @@ export function useDeckThemePalette(presentationId?: string | null) {
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [tokens, setTokens] = useState<DeckThemeToken[]>([])
+  // J3-SHAPE-FILL-CONTRAST-FE (flag off: never set, stays null): the raw css_variables, for the slide-ground read of the Shape form.
+  const [cssVars, setCssVars] = useState<Record<string, unknown> | null>(null)
 
   useEffect(() => {
     if (!presentationId) {
       setPalette(null)
       setTokens([])
+      if (STUDIO_SHAPE_TARGET_BACKGROUND_ENABLED) setCssVars(null)
       setError(null)
       setLoading(false)
       return
@@ -93,6 +97,7 @@ export function useDeckThemePalette(presentationId?: string | null) {
     } catch (err) {
       setPalette(null)
       setTokens([])
+      if (STUDIO_SHAPE_TARGET_BACKGROUND_ENABLED) setCssVars(null)
       setError(err instanceof Error ? err.message : String(err))
       setLoading(false)
       return () => { cancelled = true }
@@ -112,11 +117,13 @@ export function useDeckThemePalette(presentationId?: string | null) {
           : data
         setPalette(derivePalette(vars || {}))
         setTokens(deriveTokens(vars || {}))
+        if (STUDIO_SHAPE_TARGET_BACKGROUND_ENABLED) setCssVars(vars && typeof vars === 'object' ? vars : null)
       })
       .catch(err => {
         if (cancelled) return
         setPalette(null)
         setTokens([])
+        if (STUDIO_SHAPE_TARGET_BACKGROUND_ENABLED) setCssVars(null)
         setError(err instanceof Error ? err.message : String(err))
       })
       .finally(() => {
@@ -128,5 +135,5 @@ export function useDeckThemePalette(presentationId?: string | null) {
     }
   }, [presentationId])
 
-  return { palette, tokens, loading, error }
+  return { palette, tokens, loading, error, cssVars }
 }
