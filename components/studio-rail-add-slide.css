@@ -1,0 +1,10 @@
+/* PASS2B G21 (flag NEXT_PUBLIC_STUDIO_RAIL_ADD_SLIDE, default off; the footer exists only with it on, so every rule below is inert without it).
+   The mockup's rail footer: a dashed, full-width "+ Add slide" under the list, which keeps its place while the list scrolls.
+   Its own file (imported by studio-rail-add-slide.tsx) so studio-thumbnails.css, and the tests that pin it, stay as they were. */
+[data-studio-thumbnail-strip="true"] [data-studio-rail-footer="true"] { display: flex; flex-shrink: 0; padding: 0 2px 2px; }
+[data-studio-thumbnail-strip="true"] [data-studio-rail-footer="true"] > * { flex: 1 1 auto; min-width: 0; }
+[data-studio-thumbnail-strip="true"] [data-studio-rail-add-slide="true"] { display: flex; flex: 1 1 auto; align-items: center; justify-content: center; gap: 6px; min-width: 0; padding: 9px 5px; border: 1px dashed var(--st-line); border-radius: 5px; background: transparent; color: var(--st-muted); font-size: 11px; line-height: 1.2; cursor: pointer; }
+[data-studio-thumbnail-strip="true"] [data-studio-rail-add-slide="true"] > svg { flex-shrink: 0; width: 14px; height: 14px; stroke-width: 1.8; }
+[data-studio-thumbnail-strip="true"] [data-studio-rail-add-slide="true"] > span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+[data-studio-thumbnail-strip="true"] [data-studio-rail-add-slide="true"]:hover:not(:disabled) { background: var(--st-accent-soft); color: var(--st-accent); border-color: var(--st-accent); }
+[data-studio-thumbnail-strip="true"] [data-studio-rail-add-slide="true"]:disabled { opacity: .55; cursor: not-allowed; }
