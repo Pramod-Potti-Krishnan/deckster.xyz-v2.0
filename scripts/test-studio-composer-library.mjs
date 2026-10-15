@@ -4,9 +4,11 @@ import vm from 'node:vm'
 import { execFileSync } from 'node:child_process'
 import ts from 'typescript'
 import postcss from 'postcss'
+import { stripTemplateProgress } from './studio-template-progress-strip.mjs'
 
 const path = 'components/builder/composer-library-dialog.tsx'
-const source = fs.readFileSync(new URL(`../${path}`, import.meta.url), 'utf8')
+// NEXT_PUBLIC_STUDIO_TEMPLATE_PROGRESS (default off): its lines in the dialog are taken out first, as the sibling pins do (the way J2-04's status lines are); scripts/test-studio-template-progress.mjs proves them.
+const source = stripTemplateProgress(path, fs.readFileSync(new URL(`../${path}`, import.meta.url), 'utf8'))
 const original = execFileSync('git', ['show', `49053ce:${path}`], { encoding: 'utf8' })
 const css = fs.readFileSync(new URL('../components/builder/studio-composer-library.css', import.meta.url), 'utf8')
 postcss.parse(css)

@@ -53,3 +53,20 @@
 [data-studio-composer-recovery="true"] p { margin:0; }
 [data-studio-composer-recovery="true"] button { border:1px solid var(--scl-line); background:var(--scl-panel); color:var(--scl-text); }
 [data-studio-composer-recovery="true"] button:hover:not(:disabled) { color:var(--scl-teal); border-color:var(--scl-teal); background:var(--scl-surface); }
+/* NEXT_PUBLIC_STUDIO_TEMPLATE_PROGRESS: the progress card of an uploaded template (the marker exists only with the flag on). */
+[data-studio-template-progress="true"] { flex-shrink:0; display:flex; flex-direction:column; gap:7px; min-width:0; border:1px solid var(--scl-line); border-radius:8px; padding:12px; background:var(--scl-surface); }
+[data-studio-template-progress="true"] > p { margin:0; color:var(--scl-muted); font-size:11px; line-height:18px; overflow-wrap:anywhere; }
+[data-studio-template-progress="true"] > p[title] { color:var(--scl-text); font-size:13px; line-height:20px; white-space:normal; }
+[data-studio-template-progress="true"] [data-studio-template-bar="true"] { height:6px; background:var(--scl-line); }
+[data-studio-template-progress="true"] [data-studio-template-bar="true"] > div { background:var(--scl-teal); transition:width .4s ease; }
+[data-studio-template-progress="true"] ul { display:flex; flex-wrap:wrap; gap:5px; margin:0; padding:0; list-style:none; }
+[data-studio-template-progress="true"] [data-studio-template-dot] { box-sizing:border-box; width:9px; height:9px; border-radius:50%; background:transparent; }
+[data-studio-template-progress="true"] [data-studio-template-dot="queued"] { border:1.5px solid var(--scl-line); }
+[data-studio-template-progress="true"] [data-studio-template-dot="working"] { background:var(--scl-accent); opacity:.55; animation:scl-dot-pulse 1.4s ease-in-out infinite; }
+[data-studio-template-progress="true"] [data-studio-template-dot="analysed"] { background:var(--scl-accent); }
+[data-studio-template-progress="true"] [data-studio-template-dot="locked"] { background:var(--scl-teal); }
+[data-studio-template-progress="true"] [data-studio-template-dot="kept"] { border:1.5px dashed var(--scl-muted); }
+@keyframes scl-dot-pulse { 50% { opacity:1; } }
+@media (prefers-reduced-motion: reduce) { [data-studio-template-progress="true"] [data-studio-template-dot="working"] { animation:none; } [data-studio-template-progress="true"] [data-studio-template-bar="true"] > div { transition:none; } }
+[data-studio-template-progress="true"] button { border:1px solid var(--scl-line); background:var(--scl-panel); color:var(--scl-text); }
+[data-studio-template-progress="true"] button:hover:not(:disabled) { color:var(--scl-teal); border-color:var(--scl-teal); background:var(--scl-surface); }

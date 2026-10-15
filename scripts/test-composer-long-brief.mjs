@@ -12,6 +12,7 @@ import crypto from 'node:crypto'
 import fs from 'node:fs'
 import vm from 'node:vm'
 import ts from 'typescript'
+import { stripTemplateProgress } from './studio-template-progress-strip.mjs'
 
 const FLAG = 'NEXT_PUBLIC_COMPOSER_LONG_BRIEF_ENABLED'
 const BASE_PROXY_DIGEST = '4b2ad278a89fc56d746aaee730b38f46efc1e340a07ad91f6fc009faf722cc58'
@@ -260,7 +261,8 @@ for (const entry of corpus.filter(fitsToday)) {
 check(assert.ok, compared > 35, `compared ${compared} requests`)
 
 // ---- 3. The dialog ------------------------------------------------------------------------------------------------
-const dialogSource = read('../components/builder/composer-library-dialog.tsx')
+// NEXT_PUBLIC_STUDIO_TEMPLATE_PROGRESS (default off): its lines in the dialog are taken out first, as the sibling pins do; scripts/test-studio-template-progress.mjs proves them.
+const dialogSource = stripTemplateProgress('components/builder/composer-library-dialog.tsx', read('../components/builder/composer-library-dialog.tsx'))
 const templates = [
   { id: 'supplied-one', name: 'A very long supplied template name '.repeat(5), slide_count: 4, stage_template_summary: { slide_count: 6 } },
   { id: 'supplied-two', name: 'Legacy slide count', slide_count: 8 },
