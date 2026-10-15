@@ -54,6 +54,8 @@ globalThis.fetch = denied
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..')
 /** studio-v4-dev-preparation-code at #401: flag off must behave exactly as this. */
 const BASE_SHA = '506f32fcc4e202b853d984a01b1ff1ce3229414e'
+/** studio-v4-dev-preparation-code at #404: the frozen files below must equal this (they were not touched by PASS2B batch 1 or 2). */
+const FROZEN_SHA = 'dd47bd58855636abae0ab2fdb7409c575a8f07ed'
 const FLAG_A = 'NEXT_PUBLIC_STUDIO_DISABLED_REASONS'
 const FLAG_B = 'NEXT_PUBLIC_STUDIO_GENERATING_STATUS'
 const FLAG_C = 'NEXT_PUBLIC_STUDIO_EMPTY_PROMPT_GUARD'
@@ -874,7 +876,8 @@ function wiringChecks() {
     // the files this change must not touch (other builders' and FRONTEND-2's): byte-equal to the base commit
     const frozen = ['app/builder/page.tsx', 'hooks/use-textlabs-generation.ts', 'lib/studio-theme-restore.ts', 'components/builder/studio-theme-menu.tsx', 'lib/studio-empty-prompt-guard.ts', 'components/generation-panel/header.tsx']
     for (const file of git(['ls-tree', '-r', '--name-only', BASE_SHA, 'lib', 'components']).split('\n').filter(file => /composer-library|composer-popups/.test(file))) frozen.push(file)
-    for (const file of frozen) assert.equal(read(file), baseFile(file), `${file} is untouched`)
+    // #402 and #404 (the chat stream) changed app/builder/page.tsx after #401; these files are compared with the base they were merged onto (#404), not #401.
+    for (const file of frozen) assert.equal(read(file), git(['show', `${FROZEN_SHA}:${file}`]), `${file} is untouched`)
     // no Layout viewer command: not one added or removed line of the viewer names a command, a postMessage or the iframe
     const diff = git(['diff', BASE_SHA, '--', VIEWER]).split('\n').filter(line => /^[+-](?![+-])/.test(line))
     for (const line of diff) assert.doesNotMatch(line, /postMessage|sendCommand|sendLayout|contentWindow|iframeRef|addEventListener|createViewerRequestId|action:/, `viewer diff touches a Layout command: ${line}`)

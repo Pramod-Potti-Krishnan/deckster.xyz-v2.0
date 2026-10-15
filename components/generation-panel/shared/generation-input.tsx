@@ -42,12 +42,22 @@ interface GenerationInputProps {
    * (undefined): nothing is rendered and the input is unchanged.
    */
   generatingStatus?: string
+  /**
+   * PASS2B J3-02 (NEXT_PUBLIC_STUDIO_PROMPT_AUTOFOCUS): the panel sets it (a key per new activation) only with the flag on, in generate mode while open.
+   * When it changes the box takes focus once the picking menu is gone, through `scheduleFocus` (lib/studio-prompt-autofocus.ts, handed in by the panel
+   * so this file imports nothing new). Default off / not set (undefined): unchanged.
+   */
+  autoFocusKey?: string
+  scheduleFocus?: (getBox: () => HTMLTextAreaElement | null) => () => void
 }
 
 const STABLE_SUBMIT_TEXTAREA_STYLE = { height: 160 } as const
 
 /** PASS2B J3-04: the id of the visually hidden hint a blocked Generate button is described by (static, like the prompt-limit id below). */
 const EMPTY_PROMPT_HINT_ID = 'generation-empty-prompt-hint'
+
+/** PASS2B J3-09: the id of the visible line that says why the prompt box is not taking text (static, like the ids around it). */
+const PROMPT_DISABLED_HINT_ID = 'generation-prompt-disabled-hint'
 
 export function GenerationInput({
   prompt,
@@ -63,6 +73,8 @@ export function GenerationInput({
   stableSubmit,
   emptyPromptHint,
   generatingStatus,
+  autoFocusKey,
+  scheduleFocus,
 }: GenerationInputProps) {
   const textareaRef = useRef<HTMLTextAreaElement>(null)
   const mandatoryConfigs = Array.isArray(mandatoryConfig)
@@ -74,6 +86,9 @@ export function GenerationInput({
     typeof config.promptMaxLength === 'number' && config.promptMaxLength > 0
   ))
   const promptMaxLength = promptLimitConfig?.promptMaxLength
+  // PASS2B J3-09 (NEXT_PUBLIC_STUDIO_SHAPE_PRESET_PROMPT_HINT): a form that does not read the prompt right now (a preset Shape) says so here; the box
+  // then takes no text (read-only, aria-disabled; the typed text stays) and the line below it says why. Forms set it only with the flag on.
+  const promptDisabledHint = mandatoryConfigs.find(config => config.promptDisabledHint)?.promptDisabledHint ?? null
   const promptLengthState = elementPromptLengthState(prompt, promptMaxLength)
   const promptOverLimit = promptLengthState.overLimit
   const promptOverflow = promptLengthState.overflow
@@ -103,7 +118,13 @@ export function GenerationInput({
     ta.style.height = `${Math.min(ta.scrollHeight, 160)}px`
   }, [prompt, stableSubmit])
 
-  const placeholder = placeholderOverride
+  // PASS2B J3-02: focus the box for a new activation, after the menu that picked the element has closed (flag off: autoFocusKey is never set).
+  useEffect(() => {
+    if (autoFocusKey === undefined || !scheduleFocus) return
+    return scheduleFocus(() => textareaRef.current)
+  }, [autoFocusKey])
+
+  const placeholder = promptDisabledHint !== null ? '' : placeholderOverride
     || mandatoryConfigs.find(config => config.promptPlaceholder)?.promptPlaceholder
     || 'Describe what you want to generate...'
 
@@ -153,10 +174,13 @@ export function GenerationInput({
             disabled={isGenerating}
             aria-label={STUDIO_GENERATION_FEEDBACK ? 'Generation prompt' : undefined}
             aria-invalid={promptOverLimit}
-            aria-describedby={promptMaxLength ? 'generation-prompt-limit' : undefined}
+            aria-describedby={promptDisabledHint !== null
+              ? (promptMaxLength ? `generation-prompt-limit ${PROMPT_DISABLED_HINT_ID}` : PROMPT_DISABLED_HINT_ID)
+              : promptMaxLength ? 'generation-prompt-limit' : undefined}
             style={stableSubmit ? STABLE_SUBMIT_TEXTAREA_STYLE : undefined}
-            className="w-full resize-y border-0 bg-transparent focus:ring-0 focus:outline-none px-3 pt-3 pb-12 min-h-[60px] max-h-[160px] text-xs placeholder:text-gray-400 dark:text-slate-500 overflow-y-auto text-gray-900 dark:text-slate-100 disabled:opacity-50"
+            className={`w-full resize-y border-0 bg-transparent focus:ring-0 focus:outline-none px-3 pt-3 pb-12 min-h-[60px] max-h-[160px] text-xs placeholder:text-gray-400 dark:text-slate-500 overflow-y-auto text-gray-900 dark:text-slate-100 disabled:opacity-50${promptDisabledHint !== null ? ' cursor-not-allowed opacity-50' : ''}`}
             rows={2}
+            {...(promptDisabledHint !== null ? { readOnly: true, 'aria-disabled': true } : {})}
           />
           {/* Resize grip indicator */}
           <div className="absolute bottom-12 right-1.5 pointer-events-none text-gray-300">
@@ -247,6 +271,9 @@ export function GenerationInput({
           </div>
         </div>
       </div>
+      {promptDisabledHint !== null && (
+        <p id={PROMPT_DISABLED_HINT_ID} className="px-1 text-[10px] leading-4 text-gray-500 dark:text-slate-400">{promptDisabledHint}</p>
+      )}
       {generatingStatus !== undefined && (
         // The line is always in the tree while the flag is on, so the polite live region exists before its text arrives and is announced; idle it
         // is empty and takes no room (the parent's space-y margin is zeroed).
