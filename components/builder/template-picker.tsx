@@ -435,7 +435,10 @@ export function TemplatePickerContent({
     const refreshBusy = refreshing || Boolean(retryingId) || Boolean(composer?.loading)
     const refreshButton = <button type="button" className="stcd-icon-button" aria-label={composer ? 'Refresh templates' : 'Refresh saved templates'} disabled={refreshBusy}
       onClick={() => { if (!composer || dropdowns.savedTemplates) void refresh(); composer?.refresh() }}><RotateCw size={13} aria-hidden="true" className={refreshing || composer?.loading ? 'stcd-spin' : undefined} /></button>
-    const decksterField = <div className="stcd-field" data-studio-template-dd="deckster">
+    // PASS2B G39 (NEXT_PUBLIC_STUDIO_EMPTY_CATALOG_HIDE, default off): no Deckster catalog exists yet, so with the flag on the empty "Deckster templates" block
+    // (a disabled dropdown and its explanation) is not drawn until the list has an entry. Off, or with a catalog, the block is the base's.
+    const hideEmptyDeckster = process.env.NEXT_PUBLIC_STUDIO_EMPTY_CATALOG_HIDE === 'true' && deckster.length === 0
+    const decksterField = hideEmptyDeckster ? null : <div className="stcd-field" data-studio-template-dd="deckster">
       <ThemeDropdownPicker options={deckster} selectedId={null} locked={dropdowns.locked || deckster.length === 0} onSelect={choose}
         copy={deckster.length === 0 ? { ...DECKSTER_TEMPLATES_COPY, placeholder: 'No Deckster templates yet' } : DECKSTER_TEMPLATES_COPY} />
       {deckster.length === 0 && <p className="stcd-empty" data-studio-template-empty="deckster">{DECKSTER_TEMPLATES_EMPTY}</p>}
