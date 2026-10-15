@@ -31,6 +31,11 @@ interface GenerationInputProps {
    * reaches when full and scrolls inside it. Default off: unchanged.
    */
   stableSubmit?: boolean
+  /**
+   * J3-EMPTY-PROMPT-GUARD (NEXT_PUBLIC_STUDIO_EMPTY_PROMPT_GUARD): set by the panel while a required prompt is empty. Generate (and the
+   * error box's retry) is then disabled, aria-disabled, and carries this text as its hint. Default off / not set: unchanged.
+   */
+  emptyPromptHint?: string | null
 }
 
 const STABLE_SUBMIT_TEXTAREA_STYLE = { height: 160 } as const
@@ -47,6 +52,7 @@ export function GenerationInput({
   retryStrategy,
   placeholder: placeholderOverride,
   stableSubmit,
+  emptyPromptHint,
 }: GenerationInputProps) {
   const textareaRef = useRef<HTMLTextAreaElement>(null)
   const mandatoryConfigs = Array.isArray(mandatoryConfig)
@@ -61,7 +67,9 @@ export function GenerationInput({
   const promptLengthState = elementPromptLengthState(prompt, promptMaxLength)
   const promptOverLimit = promptLengthState.overLimit
   const promptOverflow = promptLengthState.overflow
-  const submitDisabled = isGenerating || promptOverLimit
+  const promptGuardHint = emptyPromptHint ? emptyPromptHint : null
+  const promptGuardBlocked = promptGuardHint !== null
+  const submitDisabled = isGenerating || promptOverLimit || promptGuardBlocked
   const primarySubmitIntent: ElementGenerationSubmitIntent =
     retryStrategy === 'resume_same_attempt' ? 'retry' : 'generate'
   const handleSubmit = () => {
@@ -192,6 +200,7 @@ export function GenerationInput({
               type="button"
               onClick={handleSubmit}
               disabled={submitDisabled}
+              aria-disabled={promptGuardBlocked ? true : undefined}
               className={`h-7 w-7 rounded-lg flex items-center justify-center transition-all ${
                 submitDisabled
                   ? 'bg-gray-200 dark:bg-slate-700 text-gray-400 dark:text-slate-500 cursor-not-allowed'
@@ -200,9 +209,11 @@ export function GenerationInput({
               title={
                 promptOverLimit
                   ? 'Shorten the prompt before generating'
-                  : retryStrategy === 'resume_same_attempt'
-                    ? 'Check generation result (⌘↵)'
-                    : 'Generate (⌘↵)'
+                  : promptGuardHint !== null
+                    ? promptGuardHint
+                    : retryStrategy === 'resume_same_attempt'
+                      ? 'Check generation result (⌘↵)'
+                      : 'Generate (⌘↵)'
               }
               aria-label={STUDIO_GENERATION_FEEDBACK
                 ? promptOverLimit

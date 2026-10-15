@@ -1,0 +1,1455 @@
+{
+ "name": "j7-stop-resume",
+ "description": "J7 (session 5e2675b8): Stop at 0 of 3, slide 1 lands in flight, Director publishes the partial deck URL; reload; typed resume.",
+ "source": {
+  "director_tree": "a76a08610c3e396d8bdaefab55b193ddb92bc9c7",
+  "how": "Director's real code, keyless, in a `git archive` copy of director origin/uat (contains !490): planning/strawman narration + outline slide_update, then the real _handle_content_generation (Slide Builder v2 path) with a fake Slide Builder playing the uat timeline (real handle_sb_progress callbacks, real _handle_build_control stop); the real handle_connection for the reload; THEME-2's j7_resume_after_stop_support.play() for the typed resume.",
+  "recorded_frames_proof": "the same run reproduces seat2-j7-resume-renders/base-flag-off.json (sha256 e7e2bafb52191b79d71e0b33831f08644e58bb579b3ad2fbe47634d71d5ef8be) byte for byte; typed_resume_director_off is its stop_resume_loop turn 1 unmasked",
+  "frames_sha256": "e671ff8ba52673189e7ff29322b77514805dd2a738022cf9b5c79e2c341b0094",
+  "uat_log": "streams/ops/PASS2/J7/director-uat-5e2675b8.log (same frame order: render started, stop ack 0/3, slide 1 done, slide_built, stopped 1/3 x2, presentation_url, chat)"
+ },
+ "session": {
+  "id": "synthetic-5e2675b8",
+  "userId": "synthetic-user"
+ },
+ "frames": {
+  "live_stop": [
+   {
+    "message_id": "msg_build_phase_a7f45026",
+    "session_id": "synthetic-5e2675b8",
+    "timestamp": "2026-10-14T04:20:53.627720Z",
+    "type": "build_phase",
+    "role": "assistant",
+    "payload": {
+     "build_id": "bld_46a5295c9574",
+     "phase": "planning",
+     "label": "Designing your deck plan…",
+     "slide_count": null,
+     "slides_done": 0,
+     "auto_proceed": null,
+     "presentation_id": null,
+     "control_request_id": null
+    }
+   },
+   {
+    "message_id": "msg_build_phase_70b14574",
+    "session_id": "synthetic-5e2675b8",
+    "timestamp": "2026-10-14T04:20:53.627748Z",
+    "type": "build_phase",
+    "role": "assistant",
+    "payload": {
+     "build_id": "bld_46a5295c9574",
+     "phase": "strawman",
+     "label": "Outline ready — shaping your slides…",
+     "slide_count": 3,
+     "slides_done": 0,
+     "auto_proceed": null,
+     "presentation_id": null,
+     "control_request_id": null
+    }
+   },
+   {
+    "message_id": "msg_422dd783",
+    "session_id": "synthetic-5e2675b8",
+    "timestamp": "2026-10-14T04:20:53.627813Z",
+    "type": "slide_update",
+    "role": "assistant",
+    "payload": {
+     "operation": "full_update",
+     "metadata": {
+      "main_title": "Transitioning weekly status meetings to async updates",
+      "overall_theme": "professional",
+      "design_suggestions": "",
+      "target_audience": "general",
+      "presentation_duration": 15,
+      "preview_url": "https://layout.synthetic.invalid/p/synthetic-5e2675b8-outline",
+      "preview_presentation_id": "synthetic-5e2675b8-outline"
+     },
+     "slides": [
+      {
+       "slide_id": "s1",
+       "slide_number": 1,
+       "slide_type": "content",
+       "title": "Trading Meeting Fatigue for Focused Operations",
+       "subtitle": null,
+       "narrative": "Key content about Trading Meeting Fatigue for Focused Operations",
+       "key_points": [],
+       "variant_id": null,
+       "service": null,
+       "purpose": null,
+       "semantic_group": null,
+       "analytics_needed": null,
+       "visuals_needed": null,
+       "diagrams_needed": null,
+       "structure_preference": "L01",
+       "container_layout": null,
+       "speaker_notes": null
+      },
+      {
+       "slide_id": "s2",
+       "slide_number": 2,
+       "slide_type": "content",
+       "title": "Reclaiming 200+ Team Hours Annually",
+       "subtitle": null,
+       "narrative": "Key content about Reclaiming 200+ Team Hours Annually",
+       "key_points": [],
+       "variant_id": null,
+       "service": null,
+       "purpose": null,
+       "semantic_group": null,
+       "analytics_needed": null,
+       "visuals_needed": null,
+       "diagrams_needed": null,
+       "structure_preference": "L01",
+       "container_layout": null,
+       "speaker_notes": null
+      },
+      {
+       "slide_id": "s3",
+       "slide_number": 3,
+       "slide_type": "content",
+       "title": "Our New Monday Momentum Workflow",
+       "subtitle": null,
+       "narrative": "Key content about Our New Monday Momentum Workflow",
+       "key_points": [],
+       "variant_id": null,
+       "service": null,
+       "purpose": null,
+       "semantic_group": null,
+       "analytics_needed": null,
+       "visuals_needed": null,
+       "diagrams_needed": null,
+       "structure_preference": "L01",
+       "container_layout": null,
+       "speaker_notes": null
+      }
+     ],
+     "affected_slides": null,
+     "is_blank": false
+    }
+   },
+   {
+    "message_id": "msg_945fddc9",
+    "session_id": "synthetic-5e2675b8",
+    "timestamp": "2026-10-14T04:20:53.627948Z",
+    "type": "status_update",
+    "role": "assistant",
+    "payload": {
+     "status": "thinking",
+     "text": "Generating presentation content...",
+     "progress": null,
+     "estimated_time": null
+    }
+   },
+   {
+    "message_id": "msg_b274db0e",
+    "session_id": "synthetic-5e2675b8",
+    "timestamp": "2026-10-14T04:20:53.627965Z",
+    "type": "chat_message",
+    "role": "assistant",
+    "payload": {
+     "text": "Preparing your approved outline for slide generation…",
+     "sub_title": null,
+     "list_items": null,
+     "format": "markdown",
+     "ephemeral": true
+    }
+   },
+   {
+    "message_id": "msg_build_phase_e4099e98",
+    "session_id": "synthetic-5e2675b8",
+    "timestamp": "2026-10-14T04:20:53.628006Z",
+    "type": "build_phase",
+    "role": "assistant",
+    "payload": {
+     "build_id": "bld_46a5295c9574",
+     "phase": "building",
+     "label": "Building your slides…",
+     "slide_count": 3,
+     "slides_done": 0,
+     "auto_proceed": null,
+     "presentation_id": null,
+     "control_request_id": null
+    }
+   },
+   {
+    "type": "theme_sync",
+    "session_id": "synthetic-5e2675b8",
+    "timestamp": "2026-10-14T04:20:53.628038Z",
+    "payload": {
+     "request_id": "generation:synthetic-5e2675b8-outline",
+     "status": "applied",
+     "presentation_id": "synthetic-5e2675b8-outline",
+     "theme_session_id": "theme-sess-1"
+    }
+   },
+   {
+    "message_id": "msg_a7b6d310",
+    "session_id": "synthetic-5e2675b8",
+    "timestamp": "2026-10-14T04:20:53.628051Z",
+    "type": "status_update",
+    "role": "assistant",
+    "payload": {
+     "status": "thinking",
+     "text": "Syncing with preview changes...",
+     "progress": null,
+     "estimated_time": null
+    }
+   },
+   {
+    "message_id": "msg_8418600f",
+    "session_id": "synthetic-5e2675b8",
+    "timestamp": "2026-10-14T04:20:53.628731Z",
+    "type": "status_update",
+    "role": "assistant",
+    "payload": {
+     "status": "thinking",
+     "text": "Composing 3 slides (v2 path)...",
+     "progress": null,
+     "estimated_time": null
+    }
+   },
+   {
+    "message_id": "msg_5bbf2e73",
+    "session_id": "synthetic-5e2675b8",
+    "timestamp": "2026-10-14T04:20:53.628749Z",
+    "type": "chat_message",
+    "role": "assistant",
+    "payload": {
+     "text": "Handing 3 slides to the Slide Builder…",
+     "sub_title": null,
+     "list_items": null,
+     "format": "markdown",
+     "ephemeral": true
+    }
+   },
+   {
+    "message_id": "msg_97837c4a",
+    "session_id": "synthetic-5e2675b8",
+    "timestamp": "2026-10-14T04:20:53.628901Z",
+    "type": "chat_message",
+    "role": "assistant",
+    "payload": {
+     "text": "Slide 1: rendering 3 element(s)…",
+     "sub_title": null,
+     "list_items": null,
+     "format": "markdown",
+     "ephemeral": true
+    }
+   },
+   {
+    "message_id": "msg_build_event_880bd41d",
+    "session_id": "synthetic-5e2675b8",
+    "timestamp": "2026-10-14T04:20:53.628943Z",
+    "type": "build_event",
+    "role": "assistant",
+    "payload": {
+     "build_id": "bld_46a5295c9574",
+     "seq": 0,
+     "scope": "slide",
+     "stage": "render",
+     "status": "started",
+     "text": "Slide 1: rendering 3 element(s)…",
+     "detail": null,
+     "slide_index": 0,
+     "job_id": null,
+     "ts": "2026-10-14T04:20:53.628931Z"
+    }
+   },
+   {
+    "message_id": "msg_build_phase_4cf5f1ce",
+    "session_id": "synthetic-5e2675b8",
+    "timestamp": "2026-10-14T04:20:53.628998Z",
+    "type": "build_phase",
+    "role": "assistant",
+    "payload": {
+     "build_id": "bld_46a5295c9574",
+     "phase": "stopped",
+     "label": "Stopped — your progress is saved",
+     "slide_count": 3,
+     "slides_done": 0,
+     "auto_proceed": null,
+     "presentation_id": null,
+     "control_request_id": "synthetic-stop-request-1"
+    }
+   },
+   {
+    "message_id": "msg_9feccfcd",
+    "session_id": "synthetic-5e2675b8",
+    "timestamp": "2026-10-14T04:20:53.629028Z",
+    "type": "chat_message",
+    "role": "assistant",
+    "payload": {
+     "text": "Building slide 1/3 — text heavy rows…",
+     "sub_title": null,
+     "list_items": null,
+     "format": "markdown",
+     "ephemeral": true
+    }
+   },
+   {
+    "message_id": "msg_build_event_38bdd040",
+    "session_id": "synthetic-5e2675b8",
+    "timestamp": "2026-10-14T04:20:53.629062Z",
+    "type": "build_event",
+    "role": "assistant",
+    "payload": {
+     "build_id": "bld_46a5295c9574",
+     "seq": 1,
+     "scope": "slide",
+     "stage": "render",
+     "status": "done",
+     "text": "Building slide 1/3 — text heavy rows…",
+     "detail": null,
+     "slide_index": 0,
+     "job_id": null,
+     "ts": "2026-10-14T04:20:53.629054Z"
+    }
+   },
+   {
+    "message_id": "msg_slide_built_9d664e93",
+    "session_id": "synthetic-5e2675b8",
+    "timestamp": "2026-10-14T04:20:53.629082Z",
+    "type": "slide_built",
+    "role": "assistant",
+    "payload": {
+     "presentation_id": "synthetic-5e2675b8-deck",
+     "slide_index": 0,
+     "slide_count": 3,
+     "thumbnail_url": null,
+     "qa_verdict": null,
+     "qa_skipped_reason": null,
+     "session_id": "synthetic-5e2675b8",
+     "build_id": "bld_46a5295c9574"
+    }
+   },
+   {
+    "message_id": "msg_build_phase_06e71e80",
+    "session_id": "synthetic-5e2675b8",
+    "timestamp": "2026-10-14T04:20:53.629280Z",
+    "type": "build_phase",
+    "role": "assistant",
+    "payload": {
+     "build_id": "bld_46a5295c9574",
+     "phase": "stopped",
+     "label": "Stopped — your progress is saved",
+     "slide_count": 3,
+     "slides_done": 1,
+     "auto_proceed": null,
+     "presentation_id": "synthetic-5e2675b8-deck",
+     "control_request_id": null
+    }
+   },
+   {
+    "message_id": "msg_build_phase_0a6b10fc",
+    "session_id": "synthetic-5e2675b8",
+    "timestamp": "2026-10-14T04:20:53.631038Z",
+    "type": "build_phase",
+    "role": "assistant",
+    "payload": {
+     "build_id": "bld_46a5295c9574",
+     "phase": "stopped",
+     "label": "Stopped — your progress is saved",
+     "slide_count": 3,
+     "slides_done": 1,
+     "auto_proceed": null,
+     "presentation_id": "synthetic-5e2675b8-deck",
+     "control_request_id": null
+    }
+   },
+   {
+    "message_id": "msg_97660ee8",
+    "session_id": "synthetic-5e2675b8",
+    "timestamp": "2026-10-14T04:20:53.632573Z",
+    "type": "presentation_url",
+    "role": "assistant",
+    "payload": {
+     "url": "https://layout.synthetic.invalid/p/synthetic-5e2675b8-deck",
+     "presentation_id": "synthetic-5e2675b8-deck",
+     "slide_count": 1,
+     "message": "Your presentation is ready!",
+     "citations_by_slide": null
+    }
+   },
+   {
+    "message_id": "msg_61fe7eab",
+    "session_id": "synthetic-5e2675b8",
+    "timestamp": "2026-10-14T04:20:53.632594Z",
+    "type": "chat_message",
+    "role": "assistant",
+    "payload": {
+     "text": "Stopped. The slides that finished are saved in your deck.",
+     "sub_title": null,
+     "list_items": null,
+     "format": "markdown",
+     "ephemeral": false
+    }
+   }
+  ],
+  "reconnect_send_history": [
+   {
+    "message_id": "msg_sync_240c0897",
+    "session_id": "synthetic-5e2675b8",
+    "timestamp": "2026-10-14T04:20:53.632967Z",
+    "type": "sync_response",
+    "role": "assistant",
+    "payload": {
+     "action": "send_history",
+     "message_count": 1,
+     "current_state": "REFINE_STRAWMAN",
+     "has_strawman": true,
+     "presentation_url": "https://layout.synthetic.invalid/p/synthetic-5e2675b8-deck",
+     "presentation_id": "synthetic-5e2675b8-deck",
+     "slide_count": null,
+     "build_state": {
+      "build_id": "bld_46a5295c9574",
+      "phase": "stopped",
+      "auto_proceed": false,
+      "slide_count": 3,
+      "presentation_id": "synthetic-5e2675b8-deck",
+      "slides": {
+       "0": "built",
+       "1": "skipped",
+       "2": "skipped"
+      },
+      "started_at": "2026-10-14T04:20:53.627696Z",
+      "updated_at": "2026-10-14T04:20:53.631028Z",
+      "stopped_reason": null,
+      "seq": 2,
+      "seq_ceiling": 514
+     }
+    }
+   },
+   {
+    "type": "theme_sync",
+    "session_id": "synthetic-5e2675b8",
+    "timestamp": "2026-10-14T04:20:53.634515Z",
+    "payload": {
+     "request_id": "restore:synthetic-5e2675b8:none",
+     "status": "restored",
+     "presentation_id": "synthetic-5e2675b8-deck",
+     "theme": null,
+     "applied": false,
+     "desired_status": null
+    }
+   },
+   {
+    "message_id": "msg_hist_82652c77c46d",
+    "session_id": "synthetic-5e2675b8",
+    "timestamp": "2026-10-14T04:20:53.632588Z",
+    "type": "chat_message",
+    "role": "assistant",
+    "payload": {
+     "text": "Stopped. The slides that finished are saved in your deck.",
+     "sub_title": null,
+     "list_items": null,
+     "format": "markdown",
+     "ephemeral": false
+    }
+   },
+   {
+    "message_id": "msg_21782648",
+    "session_id": "synthetic-5e2675b8",
+    "timestamp": "2026-10-14T04:20:53.638445Z",
+    "type": "slide_context",
+    "role": "assistant",
+    "payload": {
+     "deck": {
+      "deck_arc": null,
+      "presentation_brief": null,
+      "theme_session_id": "theme-sess-1",
+      "theme_chrome_policy": null,
+      "deck_composition_guidance": null,
+      "color_application_policy": null,
+      "deck_identity": null,
+      "footer": null
+     },
+     "slides": [
+      {
+       "slide_index": 0,
+       "narrative_role": "support",
+       "key_message": null,
+       "content_type": "text",
+       "subtype": null,
+       "content": null,
+       "research_status": null,
+       "research_ready": null,
+       "research_issues": [],
+       "citation_count": null,
+       "source_types": [],
+       "chart_epistemic_mode": null,
+       "chart_data_asset_id": null,
+       "chart_disclosure": null,
+       "chart_assumptions": [],
+       "chart_methodology": null
+      },
+      {
+       "slide_index": 1,
+       "narrative_role": "support",
+       "key_message": null,
+       "content_type": "text",
+       "subtype": null,
+       "content": null,
+       "research_status": null,
+       "research_ready": null,
+       "research_issues": [],
+       "citation_count": null,
+       "source_types": [],
+       "chart_epistemic_mode": null,
+       "chart_data_asset_id": null,
+       "chart_disclosure": null,
+       "chart_assumptions": [],
+       "chart_methodology": null
+      },
+      {
+       "slide_index": 2,
+       "narrative_role": "support",
+       "key_message": null,
+       "content_type": "text",
+       "subtype": null,
+       "content": null,
+       "research_status": null,
+       "research_ready": null,
+       "research_issues": [],
+       "citation_count": null,
+       "source_types": [],
+       "chart_epistemic_mode": null,
+       "chart_data_asset_id": null,
+       "chart_disclosure": null,
+       "chart_assumptions": [],
+       "chart_methodology": null
+      }
+     ]
+    }
+   },
+   {
+    "message_id": "msg_c812daf1",
+    "session_id": "synthetic-5e2675b8",
+    "timestamp": "2026-10-14T04:20:53.638572Z",
+    "type": "slide_update",
+    "role": "assistant",
+    "payload": {
+     "operation": "full_update",
+     "metadata": {
+      "main_title": "Transitioning weekly status meetings to async updates",
+      "overall_theme": "professional",
+      "design_suggestions": "",
+      "target_audience": "general",
+      "presentation_duration": 15,
+      "preview_url": "https://layout.synthetic.invalid/p/synthetic-5e2675b8-deck",
+      "preview_presentation_id": "synthetic-5e2675b8-deck"
+     },
+     "slides": [
+      {
+       "slide_id": "s1",
+       "slide_number": 1,
+       "slide_type": "content",
+       "title": "Trading Meeting Fatigue for Focused Operations",
+       "subtitle": null,
+       "narrative": "Key content about Trading Meeting Fatigue for Focused Operations",
+       "key_points": [],
+       "variant_id": null,
+       "service": null,
+       "purpose": null,
+       "semantic_group": null,
+       "analytics_needed": null,
+       "visuals_needed": null,
+       "diagrams_needed": null,
+       "structure_preference": "L01",
+       "container_layout": null,
+       "speaker_notes": null
+      },
+      {
+       "slide_id": "s2",
+       "slide_number": 2,
+       "slide_type": "content",
+       "title": "Reclaiming 200+ Team Hours Annually",
+       "subtitle": null,
+       "narrative": "Key content about Reclaiming 200+ Team Hours Annually",
+       "key_points": [],
+       "variant_id": null,
+       "service": null,
+       "purpose": null,
+       "semantic_group": null,
+       "analytics_needed": null,
+       "visuals_needed": null,
+       "diagrams_needed": null,
+       "structure_preference": "L01",
+       "container_layout": null,
+       "speaker_notes": null
+      },
+      {
+       "slide_id": "s3",
+       "slide_number": 3,
+       "slide_type": "content",
+       "title": "Our New Monday Momentum Workflow",
+       "subtitle": null,
+       "narrative": "Key content about Our New Monday Momentum Workflow",
+       "key_points": [],
+       "variant_id": null,
+       "service": null,
+       "purpose": null,
+       "semantic_group": null,
+       "analytics_needed": null,
+       "visuals_needed": null,
+       "diagrams_needed": null,
+       "structure_preference": "L01",
+       "container_layout": null,
+       "speaker_notes": null
+      }
+     ],
+     "affected_slides": null,
+     "is_blank": false
+    }
+   },
+   {
+    "message_id": "msg_0f0a3200",
+    "session_id": "synthetic-5e2675b8",
+    "timestamp": "2026-10-14T04:20:53.638621Z",
+    "type": "action_request",
+    "role": "assistant",
+    "payload": {
+     "prompt_text": "Does this outline look good, or would you like to make changes?",
+     "actions": [
+      {
+       "label": "Looks perfect!",
+       "value": "accept_strawman",
+       "primary": true,
+       "requires_input": false
+      },
+      {
+       "label": "Make some changes",
+       "value": "request_refinement",
+       "primary": false,
+       "requires_input": false
+      }
+     ]
+    }
+   }
+  ],
+  "reconnect_skip_history": [
+   {
+    "message_id": "msg_sync_2a5d95e9",
+    "session_id": "synthetic-5e2675b8",
+    "timestamp": "2026-10-14T04:20:53.638732Z",
+    "type": "sync_response",
+    "role": "assistant",
+    "payload": {
+     "action": "skip_history",
+     "message_count": 1,
+     "current_state": "REFINE_STRAWMAN",
+     "has_strawman": true,
+     "presentation_url": "https://layout.synthetic.invalid/p/synthetic-5e2675b8-deck",
+     "presentation_id": "synthetic-5e2675b8-deck",
+     "slide_count": null,
+     "build_state": {
+      "build_id": "bld_46a5295c9574",
+      "phase": "stopped",
+      "auto_proceed": false,
+      "slide_count": 3,
+      "presentation_id": "synthetic-5e2675b8-deck",
+      "slides": {
+       "0": "built",
+       "1": "skipped",
+       "2": "skipped"
+      },
+      "started_at": "2026-10-14T04:20:53.627696Z",
+      "updated_at": "2026-10-14T04:20:53.631028Z",
+      "stopped_reason": null,
+      "seq": 2,
+      "seq_ceiling": 514
+     }
+    }
+   },
+   {
+    "type": "theme_sync",
+    "session_id": "synthetic-5e2675b8",
+    "timestamp": "2026-10-14T04:20:53.640507Z",
+    "payload": {
+     "request_id": "restore:synthetic-5e2675b8:none",
+     "status": "restored",
+     "presentation_id": "synthetic-5e2675b8-deck",
+     "theme": null,
+     "applied": false,
+     "desired_status": null
+    }
+   },
+   {
+    "message_id": "msg_80a99e5d",
+    "session_id": "synthetic-5e2675b8",
+    "timestamp": "2026-10-14T04:20:53.640554Z",
+    "type": "slide_context",
+    "role": "assistant",
+    "payload": {
+     "deck": {
+      "deck_arc": null,
+      "presentation_brief": null,
+      "theme_session_id": "theme-sess-1",
+      "theme_chrome_policy": null,
+      "deck_composition_guidance": null,
+      "color_application_policy": null,
+      "deck_identity": null,
+      "footer": null
+     },
+     "slides": [
+      {
+       "slide_index": 0,
+       "narrative_role": "support",
+       "key_message": null,
+       "content_type": "text",
+       "subtype": null,
+       "content": null,
+       "research_status": null,
+       "research_ready": null,
+       "research_issues": [],
+       "citation_count": null,
+       "source_types": [],
+       "chart_epistemic_mode": null,
+       "chart_data_asset_id": null,
+       "chart_disclosure": null,
+       "chart_assumptions": [],
+       "chart_methodology": null
+      },
+      {
+       "slide_index": 1,
+       "narrative_role": "support",
+       "key_message": null,
+       "content_type": "text",
+       "subtype": null,
+       "content": null,
+       "research_status": null,
+       "research_ready": null,
+       "research_issues": [],
+       "citation_count": null,
+       "source_types": [],
+       "chart_epistemic_mode": null,
+       "chart_data_asset_id": null,
+       "chart_disclosure": null,
+       "chart_assumptions": [],
+       "chart_methodology": null
+      },
+      {
+       "slide_index": 2,
+       "narrative_role": "support",
+       "key_message": null,
+       "content_type": "text",
+       "subtype": null,
+       "content": null,
+       "research_status": null,
+       "research_ready": null,
+       "research_issues": [],
+       "citation_count": null,
+       "source_types": [],
+       "chart_epistemic_mode": null,
+       "chart_data_asset_id": null,
+       "chart_disclosure": null,
+       "chart_assumptions": [],
+       "chart_methodology": null
+      }
+     ]
+    }
+   },
+   {
+    "message_id": "msg_d3a1e9af",
+    "session_id": "synthetic-5e2675b8",
+    "timestamp": "2026-10-14T04:20:53.640654Z",
+    "type": "slide_update",
+    "role": "assistant",
+    "payload": {
+     "operation": "full_update",
+     "metadata": {
+      "main_title": "Transitioning weekly status meetings to async updates",
+      "overall_theme": "professional",
+      "design_suggestions": "",
+      "target_audience": "general",
+      "presentation_duration": 15,
+      "preview_url": "https://layout.synthetic.invalid/p/synthetic-5e2675b8-deck",
+      "preview_presentation_id": "synthetic-5e2675b8-deck"
+     },
+     "slides": [
+      {
+       "slide_id": "s1",
+       "slide_number": 1,
+       "slide_type": "content",
+       "title": "Trading Meeting Fatigue for Focused Operations",
+       "subtitle": null,
+       "narrative": "Key content about Trading Meeting Fatigue for Focused Operations",
+       "key_points": [],
+       "variant_id": null,
+       "service": null,
+       "purpose": null,
+       "semantic_group": null,
+       "analytics_needed": null,
+       "visuals_needed": null,
+       "diagrams_needed": null,
+       "structure_preference": "L01",
+       "container_layout": null,
+       "speaker_notes": null
+      },
+      {
+       "slide_id": "s2",
+       "slide_number": 2,
+       "slide_type": "content",
+       "title": "Reclaiming 200+ Team Hours Annually",
+       "subtitle": null,
+       "narrative": "Key content about Reclaiming 200+ Team Hours Annually",
+       "key_points": [],
+       "variant_id": null,
+       "service": null,
+       "purpose": null,
+       "semantic_group": null,
+       "analytics_needed": null,
+       "visuals_needed": null,
+       "diagrams_needed": null,
+       "structure_preference": "L01",
+       "container_layout": null,
+       "speaker_notes": null
+      },
+      {
+       "slide_id": "s3",
+       "slide_number": 3,
+       "slide_type": "content",
+       "title": "Our New Monday Momentum Workflow",
+       "subtitle": null,
+       "narrative": "Key content about Our New Monday Momentum Workflow",
+       "key_points": [],
+       "variant_id": null,
+       "service": null,
+       "purpose": null,
+       "semantic_group": null,
+       "analytics_needed": null,
+       "visuals_needed": null,
+       "diagrams_needed": null,
+       "structure_preference": "L01",
+       "container_layout": null,
+       "speaker_notes": null
+      }
+     ],
+     "affected_slides": null,
+     "is_blank": false
+    }
+   },
+   {
+    "message_id": "msg_2d4a55ed",
+    "session_id": "synthetic-5e2675b8",
+    "timestamp": "2026-10-14T04:20:53.640699Z",
+    "type": "action_request",
+    "role": "assistant",
+    "payload": {
+     "prompt_text": "Does this outline look good, or would you like to make changes?",
+     "actions": [
+      {
+       "label": "Looks perfect!",
+       "value": "accept_strawman",
+       "primary": true,
+       "requires_input": false
+      },
+      {
+       "label": "Make some changes",
+       "value": "request_refinement",
+       "primary": false,
+       "requires_input": false
+      }
+     ]
+    }
+   }
+  ],
+  "typed_resume_director_off": [
+   {
+    "message_id": "msg_1954c3ec",
+    "session_id": "synthetic-5e2675b8",
+    "timestamp": "2026-10-14T04:20:53.652795Z",
+    "type": "chat_message",
+    "role": "assistant",
+    "payload": {
+     "text": "Welcome back — here's the outline we had (3 slides):\n\n1. Trading Meeting Fatigue for Focused Operations\n2. Reclaiming 200+ Team Hours Annually\n3. Our New Monday Momentum Workflow",
+     "sub_title": null,
+     "list_items": null,
+     "format": "markdown",
+     "ephemeral": false
+    }
+   },
+   {
+    "message_id": "msg_4ffb5baf",
+    "session_id": "synthetic-5e2675b8",
+    "timestamp": "2026-10-14T04:20:53.652817Z",
+    "type": "action_request",
+    "role": "assistant",
+    "payload": {
+     "prompt_text": "Pick up right where we left off?",
+     "actions": [
+      {
+       "label": "Build the deck",
+       "value": "accept_strawman",
+       "primary": true,
+       "requires_input": false
+      },
+      {
+       "label": "Refine the outline first",
+       "value": "request_refinement",
+       "primary": false,
+       "requires_input": false
+      }
+     ]
+    }
+   }
+  ],
+  "typed_resume_director_on": [
+   {
+    "message_id": "msg_b83e8313",
+    "session_id": "synthetic-5e2675b8",
+    "timestamp": "2026-10-14T04:20:53.659694Z",
+    "type": "chat_message",
+    "role": "assistant",
+    "payload": {
+     "text": "Picking up where we stopped: building the remaining 2 slides now.",
+     "sub_title": null,
+     "list_items": null,
+     "format": "markdown",
+     "ephemeral": false
+    }
+   },
+   {
+    "message_id": "msg_build_phase_0b0233b3",
+    "session_id": "synthetic-5e2675b8",
+    "timestamp": "2026-10-14T04:20:53.659756Z",
+    "type": "build_phase",
+    "role": "assistant",
+    "payload": {
+     "build_id": "bld_46a5295c9574",
+     "phase": "building",
+     "label": "Resuming your build…",
+     "slide_count": 3,
+     "slides_done": 1,
+     "auto_proceed": null,
+     "presentation_id": null,
+     "control_request_id": null
+    }
+   }
+  ]
+ },
+ "scenarios": {
+  "resume-without-reload": [
+   {
+    "op": "ensureConnected"
+   },
+   {
+    "op": "open"
+   },
+   {
+    "op": "frames",
+    "from": "live_stop",
+    "end": 12,
+    "comment": "planning, outline, content generation, Slide Builder hand-off, slide 1 starts rendering"
+   },
+   {
+    "op": "expect",
+    "label": "building",
+    "off": {
+     "phase": "building",
+     "ribbon": true,
+     "button": "Stop"
+    },
+    "on": {
+     "phase": "building",
+     "ribbon": true,
+     "button": "Stop"
+    }
+   },
+   {
+    "op": "click",
+    "text": "Stop",
+    "comment": "the ribbon Stop button opens the confirm dialog"
+   },
+   {
+    "op": "confirm",
+    "comment": "the dialog Stop: sendBuildControl(stop) + markNarrationControl(stop_requested)"
+   },
+   {
+    "op": "ack",
+    "from": "live_stop",
+    "index": 12,
+    "comment": "Director's stop ack (build_phase stopped 0/3) for the page's request id"
+   },
+   {
+    "op": "expect",
+    "label": "stopped (shot 08)",
+    "off": {
+     "phase": "stopped",
+     "button": "Resume"
+    },
+    "on": {
+     "phase": "stopped",
+     "button": "Resume"
+    }
+   },
+   {
+    "op": "frames",
+    "from": "live_stop",
+    "start": 13,
+    "comment": "slide 1 finishes in flight, slide_built, stopped 1/3 twice, presentation_url (the partial deck), \"Stopped. The slides that finished are saved in your deck.\""
+   },
+   {
+    "op": "expect",
+    "label": "URL just arrived",
+    "off": {
+     "phase": "complete",
+     "finalUrl": "https://layout.synthetic.invalid/p/synthetic-5e2675b8-deck"
+    },
+    "on": {
+     "phase": "stopped",
+     "button": "Resume",
+     "finalUrl": "https://layout.synthetic.invalid/p/synthetic-5e2675b8-deck"
+    }
+   },
+   {
+    "op": "advance",
+    "ms": 2000
+   },
+   {
+    "op": "expect",
+    "label": "stop + URL + 2 s (shot 09)",
+    "off": {
+     "phase": "complete",
+     "active": false,
+     "ribbon": false,
+     "slidesDone": 3
+    },
+    "on": {
+     "phase": "stopped",
+     "active": true,
+     "ribbon": true,
+     "button": "Resume",
+     "slidesDone": 1,
+     "headlineIncludes": "1 of 3 built"
+    }
+   },
+   {
+    "op": "checkpoint",
+    "label": "after stop + URL + 2 s"
+   },
+   {
+    "op": "typed",
+    "text": "Please resume and finish building the deck from where it stopped."
+   },
+   {
+    "op": "director",
+    "off": "typed_resume_director_off",
+    "on": "typed_resume_director_on",
+    "comment": "Director !490 on: chat + build_phase building (same build id); off: \"Pick up right where we left off?\""
+   },
+   {
+    "op": "advance",
+    "ms": 2000
+   },
+   {
+    "op": "expect",
+    "label": "typed resume",
+    "off/on": {
+     "phase": "complete",
+     "active": false,
+     "ribbon": false
+    },
+    "on/on": {
+     "phase": "building",
+     "active": true,
+     "ribbon": true,
+     "headlineIncludes": "Resuming your build",
+     "button": "Pause",
+     "noButton": "Resume"
+    },
+    "off/off": {
+     "ribbon": false
+    },
+    "on/off": {
+     "phase": "stopped",
+     "ribbon": true,
+     "button": "Resume"
+    }
+   },
+   {
+    "op": "checkpoint",
+    "label": "after typed resume + 2 s"
+   }
+  ],
+  "same-tab-reload": [
+   {
+    "op": "ensureConnected"
+   },
+   {
+    "op": "open"
+   },
+   {
+    "op": "frames",
+    "from": "live_stop",
+    "end": 12,
+    "comment": "planning, outline, content generation, Slide Builder hand-off, slide 1 starts rendering"
+   },
+   {
+    "op": "expect",
+    "label": "building",
+    "off": {
+     "phase": "building",
+     "ribbon": true,
+     "button": "Stop"
+    },
+    "on": {
+     "phase": "building",
+     "ribbon": true,
+     "button": "Stop"
+    }
+   },
+   {
+    "op": "click",
+    "text": "Stop",
+    "comment": "the ribbon Stop button opens the confirm dialog"
+   },
+   {
+    "op": "confirm",
+    "comment": "the dialog Stop: sendBuildControl(stop) + markNarrationControl(stop_requested)"
+   },
+   {
+    "op": "ack",
+    "from": "live_stop",
+    "index": 12,
+    "comment": "Director's stop ack (build_phase stopped 0/3) for the page's request id"
+   },
+   {
+    "op": "expect",
+    "label": "stopped (shot 08)",
+    "off": {
+     "phase": "stopped",
+     "button": "Resume"
+    },
+    "on": {
+     "phase": "stopped",
+     "button": "Resume"
+    }
+   },
+   {
+    "op": "frames",
+    "from": "live_stop",
+    "start": 13,
+    "comment": "slide 1 finishes in flight, slide_built, stopped 1/3 twice, presentation_url (the partial deck), \"Stopped. The slides that finished are saved in your deck.\""
+   },
+   {
+    "op": "expect",
+    "label": "URL just arrived",
+    "off": {
+     "phase": "complete",
+     "finalUrl": "https://layout.synthetic.invalid/p/synthetic-5e2675b8-deck"
+    },
+    "on": {
+     "phase": "stopped",
+     "button": "Resume",
+     "finalUrl": "https://layout.synthetic.invalid/p/synthetic-5e2675b8-deck"
+    }
+   },
+   {
+    "op": "advance",
+    "ms": 2000
+   },
+   {
+    "op": "expect",
+    "label": "stop + URL + 2 s (shot 09)",
+    "off": {
+     "phase": "complete",
+     "active": false,
+     "ribbon": false,
+     "slidesDone": 3
+    },
+    "on": {
+     "phase": "stopped",
+     "active": true,
+     "ribbon": true,
+     "button": "Resume",
+     "slidesDone": 1,
+     "headlineIncludes": "1 of 3 built"
+    }
+   },
+   {
+    "op": "checkpoint",
+    "label": "after stop + URL + 2 s"
+   },
+   {
+    "op": "unmount"
+   },
+   {
+    "op": "mount"
+   },
+   {
+    "op": "restore"
+   },
+   {
+    "op": "ensureConnected"
+   },
+   {
+    "op": "open"
+   },
+   {
+    "op": "reconnect",
+    "send": "reconnect_send_history",
+    "skip": "reconnect_skip_history"
+   },
+   {
+    "op": "advance",
+    "ms": 2000
+   },
+   {
+    "op": "expect",
+    "label": "reload",
+    "off": {
+     "phase": "stopped",
+     "active": true,
+     "ribbon": true,
+     "button": "Resume"
+    },
+    "on": {
+     "phase": "stopped",
+     "active": true,
+     "ribbon": true,
+     "button": "Resume",
+     "buildId": "bld_46a5295c9574"
+    }
+   },
+   {
+    "op": "checkpoint",
+    "label": "after reload + 2 s"
+   },
+   {
+    "op": "typed",
+    "text": "Please resume and finish building the deck from where it stopped."
+   },
+   {
+    "op": "director",
+    "off": "typed_resume_director_off",
+    "on": "typed_resume_director_on",
+    "comment": "Director !490 on: chat + build_phase building (same build id); off: \"Pick up right where we left off?\""
+   },
+   {
+    "op": "advance",
+    "ms": 2000
+   },
+   {
+    "op": "expect",
+    "label": "typed resume",
+    "off/on": {
+     "phase": "building",
+     "ribbon": true
+    },
+    "on/on": {
+     "phase": "building",
+     "active": true,
+     "ribbon": true,
+     "headlineIncludes": "Resuming your build",
+     "button": "Pause",
+     "noButton": "Resume"
+    },
+    "off/off": {
+     "phase": "stopped",
+     "ribbon": true,
+     "button": "Resume"
+    },
+    "on/off": {
+     "phase": "stopped",
+     "ribbon": true,
+     "button": "Resume"
+    }
+   },
+   {
+    "op": "checkpoint",
+    "label": "after typed resume + 2 s"
+   }
+  ],
+  "fresh-tab-reload": [
+   {
+    "op": "ensureConnected"
+   },
+   {
+    "op": "open"
+   },
+   {
+    "op": "frames",
+    "from": "live_stop",
+    "end": 12,
+    "comment": "planning, outline, content generation, Slide Builder hand-off, slide 1 starts rendering"
+   },
+   {
+    "op": "expect",
+    "label": "building",
+    "off": {
+     "phase": "building",
+     "ribbon": true,
+     "button": "Stop"
+    },
+    "on": {
+     "phase": "building",
+     "ribbon": true,
+     "button": "Stop"
+    }
+   },
+   {
+    "op": "click",
+    "text": "Stop",
+    "comment": "the ribbon Stop button opens the confirm dialog"
+   },
+   {
+    "op": "confirm",
+    "comment": "the dialog Stop: sendBuildControl(stop) + markNarrationControl(stop_requested)"
+   },
+   {
+    "op": "ack",
+    "from": "live_stop",
+    "index": 12,
+    "comment": "Director's stop ack (build_phase stopped 0/3) for the page's request id"
+   },
+   {
+    "op": "expect",
+    "label": "stopped (shot 08)",
+    "off": {
+     "phase": "stopped",
+     "button": "Resume"
+    },
+    "on": {
+     "phase": "stopped",
+     "button": "Resume"
+    }
+   },
+   {
+    "op": "frames",
+    "from": "live_stop",
+    "start": 13,
+    "comment": "slide 1 finishes in flight, slide_built, stopped 1/3 twice, presentation_url (the partial deck), \"Stopped. The slides that finished are saved in your deck.\""
+   },
+   {
+    "op": "expect",
+    "label": "URL just arrived",
+    "off": {
+     "phase": "complete",
+     "finalUrl": "https://layout.synthetic.invalid/p/synthetic-5e2675b8-deck"
+    },
+    "on": {
+     "phase": "stopped",
+     "button": "Resume",
+     "finalUrl": "https://layout.synthetic.invalid/p/synthetic-5e2675b8-deck"
+    }
+   },
+   {
+    "op": "advance",
+    "ms": 2000
+   },
+   {
+    "op": "expect",
+    "label": "stop + URL + 2 s (shot 09)",
+    "off": {
+     "phase": "complete",
+     "active": false,
+     "ribbon": false,
+     "slidesDone": 3
+    },
+    "on": {
+     "phase": "stopped",
+     "active": true,
+     "ribbon": true,
+     "button": "Resume",
+     "slidesDone": 1,
+     "headlineIncludes": "1 of 3 built"
+    }
+   },
+   {
+    "op": "checkpoint",
+    "label": "after stop + URL + 2 s"
+   },
+   {
+    "op": "unmount"
+   },
+   {
+    "op": "mount",
+    "freshTab": true
+   },
+   {
+    "op": "restore"
+   },
+   {
+    "op": "ensureConnected"
+   },
+   {
+    "op": "open"
+   },
+   {
+    "op": "reconnect",
+    "send": "reconnect_send_history",
+    "skip": "reconnect_skip_history"
+   },
+   {
+    "op": "advance",
+    "ms": 2000
+   },
+   {
+    "op": "expect",
+    "label": "reload",
+    "off": {
+     "phase": "stopped",
+     "active": true,
+     "ribbon": true,
+     "button": "Resume"
+    },
+    "on": {
+     "phase": "stopped",
+     "active": true,
+     "ribbon": true,
+     "button": "Resume",
+     "buildId": "bld_46a5295c9574"
+    }
+   },
+   {
+    "op": "checkpoint",
+    "label": "after reload + 2 s"
+   },
+   {
+    "op": "typed",
+    "text": "Please resume and finish building the deck from where it stopped."
+   },
+   {
+    "op": "director",
+    "off": "typed_resume_director_off",
+    "on": "typed_resume_director_on",
+    "comment": "Director !490 on: chat + build_phase building (same build id); off: \"Pick up right where we left off?\""
+   },
+   {
+    "op": "advance",
+    "ms": 2000
+   },
+   {
+    "op": "expect",
+    "label": "typed resume",
+    "off/on": {
+     "phase": "building",
+     "ribbon": true
+    },
+    "on/on": {
+     "phase": "building",
+     "active": true,
+     "ribbon": true,
+     "headlineIncludes": "Resuming your build",
+     "button": "Pause",
+     "noButton": "Resume"
+    },
+    "off/off": {
+     "phase": "stopped",
+     "ribbon": true,
+     "button": "Resume"
+    },
+    "on/off": {
+     "phase": "stopped",
+     "ribbon": true,
+     "button": "Resume"
+    }
+   },
+   {
+    "op": "checkpoint",
+    "label": "after typed resume + 2 s"
+   }
+  ]
+ }
+}

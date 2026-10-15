@@ -1,6 +1,6 @@
 "use client"
 
-import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react"
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactNode } from "react"
 import Link from "next/link"
 import { StudioIntroReplay } from "@/components/studio-intro-replay"
 import "@/components/studio-libraries/destination-intros.css"
@@ -27,6 +27,12 @@ import {
 import { useKnowledgeGraph } from "@/hooks/use-knowledge-graph"
 import { KgGraphView, typeColor } from "@/components/knowledge/kg-graph-view"
 import { StudioKnowledgeInspector } from "@/components/knowledge/studio-knowledge-inspector"
+import { KnowledgeSectionBoundary } from "@/components/knowledge/knowledge-section-boundary"
+import { KnowledgeImportConfirm } from "@/components/knowledge/knowledge-import-confirm"
+import {
+  clearImportMarker, IMPORT_FAILED_TEXT, importConfirmWarning, importFailureText, normalizeKgGraph, normalizeKgStats, OFFLINE_IMPORT_TEXT, ownerTag,
+  plainKnowledgeError, readImportMarker, resumedImportNotice, touchImportMarker, writeImportMarker,
+} from "@/lib/studio-knowledge-fixes"
 import type { KgGraphPresentationState, KgViewEdge, KgViewNode } from "@/components/knowledge/kg-graph-view"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -35,6 +41,8 @@ import "@/components/knowledge/studio-knowledge.css"
 
 export const dynamic = "force-dynamic"
 const STUDIO_SHELL = process.env.NEXT_PUBLIC_STUDIO_V4_SHELL === "true"
+// J6 pass-2 fixes (card PASS2-J6-FINDINGS). Exact "true" enables them; default off, and then the page is exactly as before.
+const KNOWLEDGE_FIXES = process.env.NEXT_PUBLIC_STUDIO_KNOWLEDGE_FIXES === "true"
 
 interface KgStats {
   node_count: number
@@ -89,7 +97,17 @@ interface KgNodeDetail {
   edges: Array<{ src_name: string; dst_name: string; relation: string; weight: number }>
 }
 
-type ImportNotice = { tone: "success" | "error" | "neutral"; text: string }
+// kind (flag on only): "failed" = the import request itself failed (the banner offers Retry); "resumed" / "interrupted" = found on return
+// to the page: an import this browser started never reported finishing (the banner offers Refresh / nothing).
+type ImportNotice = { tone: "success" | "error" | "neutral"; text: string; kind?: "failed" | "resumed" | "interrupted" }
+
+// Evaluates a section's markup while rendering as ITS OWN component, so an error thrown by the expression is caught by the section's boundary.
+function LazySection({ render }: { render: () => ReactNode }) {
+  return <>{render()}</>
+}
+
+// Flag on: the singular where the count is 1 ("1 new entity"). Flag off: always the form the page used before.
+const noun = (count: number | undefined, one: string, many: string) => (KNOWLEDGE_FIXES && count === 1 ? one : many)
 
 function formatNumber(value: number | undefined): string {
   return new Intl.NumberFormat().format(value ?? 0)
@@ -312,6 +330,11 @@ function Inspector({
         {!loading && error && (
           <div className="rounded-xl border border-amber-200 bg-amber-50 p-3 text-sm text-amber-800 dark:border-amber-900/60 dark:bg-amber-950/30 dark:text-amber-200">
             {error}
+            {KNOWLEDGE_FIXES && (
+              <button type="button" onClick={onRetry} className="mt-2 block rounded-md border border-amber-300 px-2.5 py-0.5 text-xs font-medium text-amber-900 hover:bg-amber-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber-500 dark:border-amber-800 dark:text-amber-100 dark:hover:bg-amber-950/50">
+                Retry
+              </button>
+            )}
           </div>
         )}
 
@@ -447,7 +470,10 @@ export default function KnowledgePage() {
   // Account identity is a React ownership boundary. Switching users remounts
   // the workspace synchronously, so graph/search/selection state from the
   // previous account can never be rendered while the new account resolves.
-  return <KnowledgePageForAccount key={kg.accountKey} kg={kg} />
+  const account = <KnowledgePageForAccount key={kg.accountKey} kg={kg} />
+  // Flag on: the whole-page safety net. A render error nobody anticipated shows a plain notice with "Try again" in the page's place,
+  // not Next's application-error screen (which replaces the whole app).
+  return KNOWLEDGE_FIXES ? <KnowledgeSectionBoundary label="Second Brain page" page resetKey={kg.accountKey}>{account}</KnowledgeSectionBoundary> : account
 }
 
 function KnowledgePageForAccount({ kg }: { kg: KnowledgeGraphAccess }) {
@@ -467,6 +493,8 @@ function KnowledgePageForAccount({ kg }: { kg: KnowledgeGraphAccess }) {
   const [hiddenTypes, setHiddenTypes] = useState<Set<string>>(new Set())
   const [importing, setImporting] = useState(false)
   const [importNotice, setImportNotice] = useState<ImportNotice | null>(null)
+  // Flag on: the confirm dialog in front of "Import past sessions" (null = closed; warning = another import may still be running).
+  const [importConfirm, setImportConfirm] = useState<{ warning: string | null } | null>(null)
   const dataGenerationRef = useRef(0)
   const dataAbortRef = useRef<AbortController | null>(null)
   const nodeGenerationRef = useRef(0)
@@ -477,6 +505,8 @@ function KnowledgePageForAccount({ kg }: { kg: KnowledgeGraphAccess }) {
   const importGenerationRef = useRef(0)
   const importAbortRef = useRef<AbortController | null>(null)
   const importActiveRef = useRef(false)
+  // Flag on: true from the moment the browser starts leaving this document (reload, navigation, closing the tab).
+  const pageLeavingRef = useRef(false)
   const interruptedImportRef = useRef({ owner: kg.accountKey, interrupted: false })
   const mountedRef = useRef(true)
   const admissionWaitersRef = useRef(new Set<() => void>())
@@ -578,6 +608,7 @@ function KnowledgePageForAccount({ kg }: { kg: KnowledgeGraphAccess }) {
       setSearchLoading(false)
       setSearchError(null)
       setImporting(false)
+      setImportConfirm(null)
       setImportNotice(retainInterruptedNotice ? { tone: "neutral", text: "Import interrupted because Knowledge access changed. No further batches will be sent from this import. Already dispatched requests may have completed; their results have not been verified here. Refresh your graph after access is restored before starting another import." } : null)
     }
     wakeAdmissionWaiters()
@@ -617,12 +648,18 @@ function KnowledgePageForAccount({ kg }: { kg: KnowledgeGraphAccess }) {
         graphResponse.json() as Promise<KgGraphData>,
       ])
       if (await admitted() && isCurrent()) {
-        setStats(current => isCurrent() ? nextStats : current)
-        setGraph(current => isCurrent() && !sameKnowledgeSnapshot(current, nextGraph) ? nextGraph : current)
+        // Flag on: a response missing nodes_by_type / top_entities / nodes / edges is treated as empty instead of crashing the render.
+        const loadedStats = KNOWLEDGE_FIXES ? normalizeKgStats(nextStats) : nextStats
+        const loadedGraph = KNOWLEDGE_FIXES ? normalizeKgGraph(nextGraph) : nextGraph
+        if (KNOWLEDGE_FIXES && !loadedGraph) throw new Error("Your knowledge graph could not be loaded.")
+        setStats(current => isCurrent() ? loadedStats : current)
+        setGraph(current => isCurrent() && !sameKnowledgeSnapshot(current, loadedGraph) ? loadedGraph : current)
       }
     } catch (error) {
       if (await admitted() && isCurrent()) {
-        setLoadError(error instanceof Error ? error.message : "Your knowledge graph could not be loaded.")
+        setLoadError(KNOWLEDGE_FIXES
+          ? plainKnowledgeError(error, "Your knowledge graph could not be loaded.")
+          : error instanceof Error ? error.message : "Your knowledge graph could not be loaded.")
       }
     } finally {
       if (await admitted() && isCurrent()) setDataLoading(false)
@@ -634,6 +671,30 @@ function KnowledgePageForAccount({ kg }: { kg: KnowledgeGraphAccess }) {
       void loadData()
     }
   }, [accessRevision, accessStatus, loadData])
+
+  useEffect(() => {
+    if (!KNOWLEDGE_FIXES) return
+    const leaving = () => { pageLeavingRef.current = true }
+    const returned = () => { pageLeavingRef.current = false }
+    window.addEventListener("pagehide", leaving)
+    window.addEventListener("pageshow", returned)
+    return () => {
+      window.removeEventListener("pagehide", leaving)
+      window.removeEventListener("pageshow", returned)
+    }
+  }, [])
+
+  // Flag on: an import this browser started that never reported finishing (the page was reloaded or closed, or it runs in another tab)
+  // is announced on return. Read when the page becomes usable (access "ready"), and again if access is retired and restored, because
+  // retiring access clears the notice; an existing notice (for example "interrupted because Knowledge access changed") is never replaced.
+  // The marker is written and cleared by the import itself.
+  useEffect(() => {
+    if (!KNOWLEDGE_FIXES || accessStatus !== "ready" || importActiveRef.current) return
+    const marker = readImportMarker(ownerTag(operationOwner))
+    if (!marker) return
+    const found = resumedImportNotice(marker)
+    setImportNotice(current => current ?? { tone: "neutral", kind: found.kind, text: found.text })
+  }, [operationOwner, accessStatus, accessRevision])
 
   useEffect(() => {
     const generation = ++nodeGenerationRef.current
@@ -672,7 +733,9 @@ function KnowledgePageForAccount({ kg }: { kg: KnowledgeGraphAccess }) {
       })
       .catch(async (error) => {
         if (await admitted() && isCurrent()) {
-          setSelectedError(error instanceof Error ? error.message : "Entity details could not be loaded.")
+          setSelectedError(KNOWLEDGE_FIXES
+            ? plainKnowledgeError(error, "Entity details could not be loaded.")
+            : error instanceof Error ? error.message : "Entity details could not be loaded.")
         }
       })
       .finally(async () => {
@@ -754,7 +817,9 @@ function KnowledgePageForAccount({ kg }: { kg: KnowledgeGraphAccess }) {
     } catch (error) {
       if (await admitted() && isCurrent()) {
         setSearchHits([])
-        setSearchError(error instanceof Error ? error.message : "Search is unavailable right now.")
+        setSearchError(KNOWLEDGE_FIXES
+          ? plainKnowledgeError(error, "Search is unavailable right now.")
+          : error instanceof Error ? error.message : "Search is unavailable right now.")
       }
     } finally {
       if (await admitted() && isCurrent()) setSearchLoading(false)
@@ -777,6 +842,10 @@ function KnowledgePageForAccount({ kg }: { kg: KnowledgeGraphAccess }) {
     importActiveRef.current = true
     interruptedImportRef.current = { owner, interrupted: false }
     setImporting(true)
+    // Flag on: remember in this browser that an import started, so a reload (or a second tab) can say one may still be running.
+    const markerOwner = KNOWLEDGE_FIXES ? ownerTag(owner) : ""
+    const markerStartedAt = Date.now()
+    if (KNOWLEDGE_FIXES) writeImportMarker(markerOwner, markerStartedAt, markerStartedAt)
     setImportNotice({ tone: "neutral", text: "Importing eligible past sessions. This can take a few minutes…" })
     const totals = {
       processed: 0,
@@ -801,11 +870,14 @@ function KnowledgePageForAccount({ kg }: { kg: KnowledgeGraphAccess }) {
         if (!await admitted() || !isCurrent()) return
         if (!response.ok) {
           throw new Error(
-            typeof body.error === "string"
+            KNOWLEDGE_FIXES
+              ? importFailureText(response.status, body.error)
+              : typeof body.error === "string"
               ? body.error
               : "Past sessions could not be imported."
           )
         }
+        if (KNOWLEDGE_FIXES) touchImportMarker(markerOwner, markerStartedAt)
         if (body.no_sessions_found && !foundAny) {
           setImportNotice({ tone: "neutral", text: "No eligible past sessions with uploads or research were found." })
           return
@@ -824,7 +896,7 @@ function KnowledgePageForAccount({ kg }: { kg: KnowledgeGraphAccess }) {
         const totalCandidates = Number(body.total_candidates ?? totals.processed)
         setImportNotice({
           tone: "neutral",
-          text: `Processed ${formatNumber(totals.processed)} of ${formatNumber(totalCandidates)} eligible session IDs · ${formatNumber(totals.completed)} completed…`,
+          text: `Processed ${formatNumber(totals.processed)} of ${formatNumber(totalCandidates)} eligible session ${noun(totalCandidates, "ID", "IDs")} · ${formatNumber(totals.completed)} completed…`,
         })
         cursor = typeof body.next_cursor === "number" ? body.next_cursor : null
         batchCount += 1
@@ -840,11 +912,11 @@ function KnowledgePageForAccount({ kg }: { kg: KnowledgeGraphAccess }) {
         text:
           `${partial ? "Processed" : "Imported"} ${formatNumber(totals.processed)} session ID${totals.processed === 1 ? "" : "s"}: ` +
           `${formatNumber(totals.completed)} completed` +
-          (totals.retryable ? `, ${formatNumber(totals.retryable)} need another attempt` : "") +
+          (totals.retryable ? `, ${formatNumber(totals.retryable)} ${noun(totals.retryable, "needs", "need")} another attempt` : "") +
           (nonRetryable ? `, and ${formatNumber(nonRetryable)} could not be imported` : "") +
-          `. ${formatNumber(totals.entitiesCreated)} new entities and ${formatNumber(totals.entitiesMerged)} reinforced.` +
+          `. ${formatNumber(totals.entitiesCreated)} new ${noun(totals.entitiesCreated, "entity", "entities")} and ${formatNumber(totals.entitiesMerged)} reinforced.` +
           (totals.alreadyPresent
-            ? ` ${formatNumber(totals.alreadyPresent)} were already in your graph.`
+            ? ` ${formatNumber(totals.alreadyPresent)} ${noun(totals.alreadyPresent, "was", "were")} already in your graph.`
             : "") +
           (moreBatchesRemain
             ? " This bounded import stopped before all eligible sessions were processed. More sessions remain according to the returned cursor. You can run Import past sessions again."
@@ -855,18 +927,32 @@ function KnowledgePageForAccount({ kg }: { kg: KnowledgeGraphAccess }) {
       if (await admitted() && isCurrent()) {
         setImportNotice({
           tone: "error",
+          ...(KNOWLEDGE_FIXES ? { kind: "failed" as const } : {}),
           text:
-            (totals.processed ? `${formatNumber(totals.processed)} session IDs were processed before import paused. ` : "") +
-            (error instanceof Error ? error.message : "Past sessions could not be imported."),
+            (totals.processed ? `${formatNumber(totals.processed)} session ${noun(totals.processed, "ID was", "IDs were")} processed before import paused. ` : "") +
+            (KNOWLEDGE_FIXES
+              ? plainKnowledgeError(error, IMPORT_FAILED_TEXT, OFFLINE_IMPORT_TEXT)
+              : error instanceof Error ? error.message : "Past sessions could not be imported."),
         })
       }
     } finally {
       if (await admitted() && isCurrent()) {
+        // Flag on: the import finished (or failed) in this tab, so there is nothing left to announce. An import cut short by leaving the page
+        // within the app never gets here, and its marker stays. A reload or a closed tab makes the browser reject the request that is in
+        // flight, which lands here as a network failure: pagehide comes first, so that case keeps the marker too.
+        if (KNOWLEDGE_FIXES && !pageLeavingRef.current) clearImportMarker(markerOwner, markerStartedAt)
         importActiveRef.current = false
         setImporting(false)
       }
     }
   }, [loadData, operationOwner, operationLifetime, waitForAdmission])
+
+  // Flag on: every way to start an import (the header button, the empty-map button, the failed-import banner's Retry) only opens the confirm
+  // dialog. The import starts from the dialog's own button and from nowhere else.
+  const requestImport = useCallback(() => {
+    if (importActiveRef.current) return
+    setImportConfirm({ warning: importConfirmWarning(readImportMarker(ownerTag(operationOwner))) })
+  }, [operationOwner])
 
   const filteredGraph = useMemo(() => {
     if (!graph || hiddenTypes.size === 0) return graph
@@ -897,6 +983,11 @@ function KnowledgePageForAccount({ kg }: { kg: KnowledgeGraphAccess }) {
   const selectedMapNode = selectedId ? graph?.nodes.find(node => node.node_id === selectedId) : undefined
   const selectionOutsideMap = Boolean(selectedId && graph && !filteredGraph?.nodes.some(node => node.node_id === selectedId))
 
+  // Flag on: a render error inside one section shows a plain notice in that section's place; the rest of the page keeps working.
+  // Flag off: returns the node untouched.
+  const guardSection = (label: string, node: ReactNode, resetKey?: unknown) =>
+    KNOWLEDGE_FIXES ? <KnowledgeSectionBoundary label={label} resetKey={resetKey}>{node}</KnowledgeSectionBoundary> : node
+
   const summaryCards = (
 <section data-studio-knowledge-role="summary" className="mb-4 grid gap-3 sm:grid-cols-2 xl:grid-cols-4" aria-label="Knowledge graph summary">
         {dataLoading && !stats ? (
@@ -913,7 +1004,7 @@ function KnowledgePageForAccount({ kg }: { kg: KnowledgeGraphAccess }) {
         )}
       </section>
   )
-  const typeFilters = (
+  const renderTypeFilters = () => (
 stats && stats.nodes_by_type.length > 0 && (
               <div data-studio-knowledge-role="filters" className="mt-4 flex flex-wrap gap-1.5" aria-label="Filter entities by type">
                 {stats.nodes_by_type.map((item) => {
@@ -951,6 +1042,10 @@ stats && stats.nodes_by_type.length > 0 && (
               </div>
             )
   )
+  // Flag on: evaluated inside its own boundary, so a bad field here cannot throw from the page body itself.
+  const typeFilters = KNOWLEDGE_FIXES
+    ? <KnowledgeSectionBoundary label="type filters" resetKey={stats}><LazySection render={renderTypeFilters} /></KnowledgeSectionBoundary>
+    : renderTypeFilters()
   const headerContext = <>
 <p data-studio-knowledge-role="description" className="mt-1 max-w-2xl text-sm text-slate-600 dark:text-slate-400">
             Explore the entities, relationships, and source evidence accumulated from the decks you chose to connect.
@@ -977,7 +1072,7 @@ stats && stats.nodes_by_type.length > 0 && (
         </div>
         <div data-studio-knowledge-role="actions" className="flex flex-wrap gap-2">
           {STUDIO_SHELL && <Button variant="outline" disabled={dataLoading || importing} onClick={() => void loadData()}><RefreshCw className={cn("mr-2 h-4 w-4", dataLoading && "animate-spin")} />{dataLoading ? "Refreshing…" : "Refresh"}</Button>}
-          <Button variant="outline" onClick={runImport} disabled={importing}>
+          <Button variant="outline" onClick={KNOWLEDGE_FIXES ? requestImport : runImport} disabled={importing}>
             {importing ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Import className="mr-2 h-4 w-4" />}
             {importing ? "Importing…" : "Import past sessions"}
           </Button>
@@ -999,16 +1094,26 @@ stats && stats.nodes_by_type.length > 0 && (
             importNotice.tone === "neutral" && "border-blue-200 bg-blue-50 text-blue-800 dark:border-blue-900/60 dark:bg-blue-950/30 dark:text-blue-200"
           )}
         >
-          <span>{importNotice.text}</span>
+          <span className={KNOWLEDGE_FIXES ? "min-w-0 flex-1" : undefined}>{importNotice.text}</span>
+          {KNOWLEDGE_FIXES && importNotice.kind === "failed" && !importing && (
+            <button type="button" onClick={() => requestImport()} className="shrink-0 rounded-md border border-red-300 bg-white/70 px-2.5 py-0.5 text-xs font-medium text-red-800 hover:bg-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-current dark:border-red-800 dark:bg-transparent dark:text-red-200 dark:hover:bg-red-950/50">
+              Retry
+            </button>
+          )}
+          {KNOWLEDGE_FIXES && importNotice.kind === "resumed" && (
+            <button type="button" disabled={dataLoading} onClick={() => void loadData()} className="shrink-0 rounded-md border border-blue-300 bg-white/70 px-2.5 py-0.5 text-xs font-medium text-blue-800 hover:bg-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-current disabled:opacity-60 dark:border-blue-800 dark:bg-transparent dark:text-blue-200 dark:hover:bg-blue-950/50">
+              Refresh
+            </button>
+          )}
           {!importing && (
-            <button type="button" onClick={() => { interruptedImportRef.current.interrupted = false; setImportNotice(null) }} className="rounded p-0.5 hover:bg-black/5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-current" aria-label="Dismiss import message">
+            <button type="button" onClick={() => { interruptedImportRef.current.interrupted = false; if (KNOWLEDGE_FIXES && importNotice.kind === "interrupted") clearImportMarker(ownerTag(operationOwner)); setImportNotice(null) }} className="rounded p-0.5 hover:bg-black/5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-current" aria-label="Dismiss import message">
               <X className="h-4 w-4" />
             </button>
           )}
         </div>
       )}
 
-      {STUDIO_SHELL ? <details data-studio-knowledge-role="summary-disclosure"><summary><span>Knowledge summary</span><span>{stats ? `${formatNumber(stats.node_count)} entities · ${formatNumber(stats.edge_count)} relations · ${formatNumber(stats.evidence_count)} evidence · ${formatNumber(stats.sessions_consolidated)} sessions` : dataLoading ? "Loading counts…" : "Counts not loaded"}</span></summary>{summaryCards}</details> : summaryCards}
+      {guardSection("summary", STUDIO_SHELL ? <details data-studio-knowledge-role="summary-disclosure"><summary><span>Knowledge summary</span><span>{stats ? `${formatNumber(stats.node_count)} ${noun(stats.node_count, "entity", "entities")} · ${formatNumber(stats.edge_count)} ${noun(stats.edge_count, "relation", "relations")} · ${formatNumber(stats.evidence_count)} evidence · ${formatNumber(stats.sessions_consolidated)} ${noun(stats.sessions_consolidated, "session", "sessions")}` : dataLoading ? "Loading counts…" : "Counts not loaded"}</span></summary>{summaryCards}</details> : summaryCards, stats)}
 
       {loadError && (
         <section data-studio-knowledge-role={STUDIO_SHELL ? "load-error" : undefined} role={STUDIO_SHELL ? "alert" : undefined} className="mb-4 flex flex-col items-start justify-between gap-3 rounded-2xl border border-amber-200 bg-amber-50 p-4 sm:flex-row sm:items-center dark:border-amber-900/60 dark:bg-amber-950/30">
@@ -1036,7 +1141,7 @@ stats && stats.nodes_by_type.length > 0 && (
                 </h2>
                 <p className="mt-0.5 text-xs text-slate-500 dark:text-slate-400">
                   {graph
-                    ? `Showing ${formatNumber(visibleNodes)} of ${formatNumber(graph.total_nodes)} entities`
+                    ? `Showing ${formatNumber(visibleNodes)} of ${formatNumber(graph.total_nodes)} ${noun(graph.total_nodes, "entity", "entities")}`
                     : STUDIO_SHELL && !dataLoading ? "Graph not loaded" : "Loading the most reinforced entities…"}
                 </p>
               </div>
@@ -1079,7 +1184,9 @@ stats && stats.nodes_by_type.length > 0 && (
                 {searchHits !== null && (
                   <div data-studio-knowledge-role={STUDIO_SHELL ? "search-results" : undefined} className="absolute right-0 top-[calc(100%+0.5rem)] z-30 w-full overflow-hidden rounded-xl border border-slate-200 bg-white shadow-2xl dark:border-slate-700 dark:bg-slate-900">
                     {STUDIO_SHELL && <div className="sk-search-summary"><span>{searchError ? "Search unavailable" : `${searchHits.length} returned results`}</span><button type="button" aria-label="Close knowledge search results" onClick={() => { clearSearchResults(); searchInputRef.current?.focus() }}><X size={13} /></button></div>}
-                    {searchError && <p className="px-3 py-3 text-sm text-amber-700 dark:text-amber-300">{searchError}</p>}
+                    {searchError && (KNOWLEDGE_FIXES
+                      ? <div className="flex items-center justify-between gap-3 px-3 py-3"><p className="min-w-0 text-sm text-amber-700 dark:text-amber-300">{searchError}</p><button type="button" onClick={() => void runSearch()} className="shrink-0 rounded-md border border-amber-300 px-2.5 py-0.5 text-xs font-medium text-amber-900 hover:bg-amber-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber-500 dark:border-amber-800 dark:text-amber-100 dark:hover:bg-amber-950/50">Retry</button></div>
+                      : <p className="px-3 py-3 text-sm text-amber-700 dark:text-amber-300">{searchError}</p>)}
                     {!searchError && searchHits.length === 0 && <p className="px-3 py-3 text-sm text-slate-500">No matching entities found.</p>}
                     {!searchError && searchHits.map((node) => (
                       <button
@@ -1125,13 +1232,13 @@ stats && stats.nodes_by_type.length > 0 && (
                   Build a deck with Knowledge enabled, or import eligible past sessions to create your first entities and connections.
                 </p>
                 <div className="mt-5 flex flex-wrap justify-center gap-2">
-                  <Button onClick={runImport} disabled={importing}><Import className="mr-2 h-4 w-4" /> Import past sessions</Button>
+                  <Button onClick={KNOWLEDGE_FIXES ? requestImport : runImport} disabled={importing}><Import className="mr-2 h-4 w-4" /> Import past sessions</Button>
                   <Button asChild variant="outline" className="border-slate-700 bg-transparent text-slate-200 hover:bg-slate-800 hover:text-white"><Link href="/builder">Build a deck</Link></Button>
                 </div>
               </div>
             )}
 
-            {filteredGraph && filteredGraph.nodes.length > 0 && (
+            {filteredGraph && filteredGraph.nodes.length > 0 && guardSection("knowledge map", (
               <KgGraphView
                 key={presentationContext.generation}
                 nodes={filteredGraph.nodes}
@@ -1140,7 +1247,7 @@ stats && stats.nodes_by_type.length > 0 && (
                 onSelect={selectKnowledgeNode}
                 presentation={graphPresentation}
               />
-            )}
+            ), graph)}
 
             {graph && graph.nodes.length > 0 && filteredGraph?.nodes.length === 0 && (
               <div data-studio-knowledge-role={STUDIO_SHELL ? "map-filtered" : undefined} className="flex min-h-[430px] flex-col items-center justify-center rounded-2xl bg-[#070b18] px-6 text-center sm:min-h-[520px]">
@@ -1152,17 +1259,27 @@ stats && stats.nodes_by_type.length > 0 && (
           </div>
         </section>
 
-        <Inspector
-          selected={selected}
-          loading={selectedLoading}
-          error={selectedError}
-          topEntities={stats?.top_entities ?? []}
-          onSelect={selectKnowledgeNode}
-          selectedId={selectedId}
-          onRetry={() => setDetailAttempt(attempt => attempt + 1)}
-          onClear={() => setSelectedId(null)}
-        />
+        {guardSection("entity inspector", (
+          <Inspector
+            selected={selected}
+            loading={selectedLoading}
+            error={selectedError}
+            topEntities={stats?.top_entities ?? []}
+            onSelect={selectKnowledgeNode}
+            selectedId={selectedId}
+            onRetry={() => setDetailAttempt(attempt => attempt + 1)}
+            onClear={() => setSelectedId(null)}
+          />
+        ), selected ?? selectedId)}
       </div>
+      {KNOWLEDGE_FIXES && (
+        <KnowledgeImportConfirm
+          open={importConfirm !== null}
+          warning={importConfirm?.warning ?? null}
+          onCancel={() => setImportConfirm(null)}
+          onConfirm={() => { setImportConfirm(null); if (!importActiveRef.current) void runImport() }}
+        />
+      )}
       <StudioIntroReplay screen="knowledge" autoStart={true} targetSelector='[data-studio-intro-surface="knowledge"]' className="studio-destination-intro-replay" />
     </main>
   )

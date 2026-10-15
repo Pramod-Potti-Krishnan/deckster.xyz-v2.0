@@ -342,7 +342,7 @@ export type NarrationAction =
   | { type: 'awaiting_user'; ts: number }
   | { type: 'accepted'; ts: number } // accept clicked / isGeneratingFinal flipped
   | { type: 'planning_resumed'; ts: number } // plan gate answered; strawman generation started
-  | { type: 'final_url'; ts: number; presentationId?: string | null }
+  | { type: 'final_url'; ts: number; presentationId?: string | null; keepStopped?: boolean }
   | { type: 'pin'; slideIndex: number | null }
   | { type: 'control'; control: NarrationControl; ts: number }
   | { type: 'control_timeout'; requested: NarrationControl; fallback: NarrationControl; ts: number }
@@ -622,6 +622,10 @@ export function narrationReducer(state: NarrationState, action: NarrationAction)
       return toPhase(state, 'planning', action.ts);
 
     case 'final_url': {
+      // J7-RESUME-LOOP-P1 (NEXT_PUBLIC_STUDIO_BUILD_RESUME_FIX; the hook sets keepStopped): Director publishes the
+      // partial deck's URL after a Stop. It updates the deck only; the build stays stopped (Resume stays) until a
+      // later build_phase or a new build id. Without the flag this is today's completion.
+      if (action.keepStopped === true && state.phase === 'stopped') return state;
       if (action.presentationId && state.buildPresentationId && action.presentationId !== state.buildPresentationId) {
         return state;
       }

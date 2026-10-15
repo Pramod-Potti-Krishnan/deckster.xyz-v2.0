@@ -1,0 +1,32 @@
+{
+  "01-connected-one-turn-sent": {
+    "chat": "1f2be6bc7264a7096451d234a9e153fab3efc5551b0e3a4f719f9fce9ddf7965",
+    "composer": "523a7a8cc53cce070edca6411bb935729bf222282c36ce02bfe6e7d63d1e69f9",
+    "header": "f300b84d63410cdc2e8eca6372408049af5aedbaca9c860ffe488ef2d8a3626d",
+    "notice": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+  },
+  "02-dropped-retry-1-scheduled": {
+    "chat": "1f2be6bc7264a7096451d234a9e153fab3efc5551b0e3a4f719f9fce9ddf7965",
+    "composer": "7800d66279c37cdff6d90a6e501959b222638e28f8c58de8d81acdc6e915f41b",
+    "header": "abd195a1e9802f70d3e5498a24ace633d184d7cf0350d51d181b5a34856d536e",
+    "notice": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+  },
+  "03-reconnected-after-two-refusals": {
+    "chat": "1f2be6bc7264a7096451d234a9e153fab3efc5551b0e3a4f719f9fce9ddf7965",
+    "composer": "523a7a8cc53cce070edca6411bb935729bf222282c36ce02bfe6e7d63d1e69f9",
+    "header": "f300b84d63410cdc2e8eca6372408049af5aedbaca9c860ffe488ef2d8a3626d",
+    "notice": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+  },
+  "04-every-ordinary-close-reconnected": {
+    "chat": "1f2be6bc7264a7096451d234a9e153fab3efc5551b0e3a4f719f9fce9ddf7965",
+    "composer": "523a7a8cc53cce070edca6411bb935729bf222282c36ce02bfe6e7d63d1e69f9",
+    "header": "f300b84d63410cdc2e8eca6372408049af5aedbaca9c860ffe488ef2d8a3626d",
+    "notice": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+  },
+  "05-final": {
+    "chat": "1f2be6bc7264a7096451d234a9e153fab3efc5551b0e3a4f719f9fce9ddf7965",
+    "composer": "523a7a8cc53cce070edca6411bb935729bf222282c36ce02bfe6e7d63d1e69f9",
+    "header": "f300b84d63410cdc2e8eca6372408049af5aedbaca9c860ffe488ef2d8a3626d",
+    "notice": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+  }
+}

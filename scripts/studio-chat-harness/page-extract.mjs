@@ -96,6 +96,12 @@ export function compile(node, source, label) {
   return values => factory(strictScope({ ...values }, label))
 }
 
+// Whether the page renders <Tag ... /> at all. NEXT_PUBLIC_STUDIO_ONE_LIVE_TAB added one (<StudioSupersededNotice>); the base page does not
+// have it, and the harness must still run the base page as it is (so its flag-off output can be compared with the branch's).
+export function hasJsxTag(source, tag) {
+  return Boolean(walk(source, node => (ts.isJsxOpeningElement(node) || ts.isJsxSelfClosingElement(node)) && node.tagName.getText(source) === tag ? node : null))
+}
+
 // Every attribute expression of <Tag ... /> in the page, by prop name. A spread attribute ({...expr}) is kept in order under the
 // synthetic name "...<n>"; evaluate it with `evaluateProps` below (an object that is merged over what came before, exactly as JSX does).
 export function jsxAttributes(source, tag) {

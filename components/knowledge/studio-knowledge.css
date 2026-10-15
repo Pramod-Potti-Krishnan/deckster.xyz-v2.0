@@ -295,3 +295,11 @@
   [data-studio-v4-shell="true"] [data-studio-knowledge="true"] [data-studio-knowledge-role="map-content"] > [data-studio-graph-view="true"] { min-height: 504px; }
   [data-studio-v4-shell="true"] [data-studio-knowledge="true"] [data-studio-knowledge-role="map-content"] > [data-studio-graph-view="true"] > svg[role="group"] { flex: 1 0 420px; height: auto; min-height: 420px; }
 }
+
+/* J6 pass-2 fixes (NEXT_PUBLIC_STUDIO_KNOWLEDGE_FIXES): the plain notice an error boundary shows in place of a section that could not be drawn. */
+[data-studio-v4-shell="true"] [data-studio-knowledge-role="section-fallback"] { border-color: var(--ss-line); border-radius: 9px; background: var(--ss-surface); padding: 14px 16px; gap: 8px; }
+[data-studio-v4-shell="true"] [data-studio-knowledge-role="section-fallback"] > svg { color: var(--ss-teal); }
+[data-studio-v4-shell="true"] [data-studio-knowledge-role="section-fallback"] p { color: var(--ss-muted); font-size: 11px; line-height: 1.6; }
+[data-studio-v4-shell="true"] [data-studio-knowledge-role="section-fallback"] p:first-child { color: var(--ss-text); font-size: 12px; font-weight: 600; }
+[data-studio-v4-shell="true"] [data-studio-knowledge-role="section-fallback"] button { background: var(--ss-panel); border-color: var(--ss-line); color: var(--ss-teal); font-size: 11px; }
+[data-studio-v4-shell="true"] [data-studio-knowledge-role="map-content"] > [data-studio-knowledge-role="section-fallback"] { align-items: center; justify-content: center; text-align: center; min-height: 250px; }

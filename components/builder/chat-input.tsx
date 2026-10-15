@@ -131,6 +131,9 @@ export interface ChatInputProps {
   /** PASS2-DIRECTOR-CHAT PR D, item 6 (flag NEXT_PUBLIC_STUDIO_CHAT_COMPOSER_CONTEXT, Studio shell only): the words of the one line above the
    *  composer ("Working on slide 3"), worded by the page from values it already holds (lib/studio-chat-composer-context). Passed only with the flag on. */
   studioContextLabel?: string
+  /** NEXT_PUBLIC_STUDIO_ONE_LIVE_TAB: this tab is paused because the session is live in another tab. Only the placeholder changes (it must
+   *  not promise "send to reconnect": a send now shows the notice instead). The page passes it only while paused; absent, nothing differs. */
+  pausedInOtherTab?: boolean
 }
 
 export function ChatInput({
@@ -183,6 +186,7 @@ export function ChatInput({
   studioSavedThemeRequest,
   composerTextareaRef,
   studioContextLabel,
+  pausedInOtherTab = false,
 }: ChatInputProps) {
   const studio = process.env.NEXT_PUBLIC_STUDIO_V4_SHELL === 'true'
   // PASS2 composer copy (flag NEXT_PUBLIC_STUDIO_COMPOSER_COPY, Studio shell only, default off): plain words for the idle placeholder.
@@ -639,7 +643,7 @@ export function ChatInput({
   }
   // Studio theme read recovery END.
   // Studio theme mutations START — only returned native outcomes acknowledge writes.
-  const runStudioThemeMutation = async (kind: StudioThemeMutationKind) => {
+  const runStudioThemeMutation = async (kind: StudioThemeMutationKind, targetThemeId?: string) => {
     const owner = studioThemeOwner
     const mountEpoch = studioThemeMount.current.epoch
     const ready = studioThemeReady.current
@@ -649,7 +653,7 @@ export function ChatInput({
       || (prior?.owner === owner && prior.mountEpoch === mountEpoch)) return
     const [profileId, selection] = JSON.parse(studioThemeSelection.current.key) as [string | null, BuildThemeSelection]
     const profile = studioThemeCacheAccount.current === owner.account
-      ? studioThemeCacheThemes.current.find((theme) => theme.id === profileId) : undefined
+      ? studioThemeCacheThemes.current.find((theme) => theme.id === (targetThemeId ?? profileId)) : undefined // J4-01: a deferred delete names its theme
     const standard = studioThemeCacheAccount.current === owner.account
       ? studioThemeCacheThemes.current.find((theme) => theme.is_standard) : undefined
     const draft = { ...studioThemeDraft.current }
@@ -750,7 +754,7 @@ export function ChatInput({
       message = 'Standard theme cleared.'
     } else if (kind === 'delete') {
       publish(ownedThemes.filter((theme) => theme.id !== profile!.id))
-      if (choiceUnchanged && stillReady) {
+      if (choiceUnchanged && stillReady && profile!.id === profileId) {
         recordStudioThemeSelection(null)
         setSelectedSavedThemeId(null)
         onActiveBuildThemeProfileChange?.(null)
@@ -1079,6 +1083,8 @@ export function ChatInput({
                 ? "Authenticating..."
                 : isLoadingSession
                 ? "Loading..."
+                : pausedInOtherTab
+                  ? "Open in another tab" // = SUPERSEDED_STATUS_TEXT (lib/studio-one-live-tab.ts), pinned by test-studio-one-live-tab
                 : !connected && !connecting
                   ? "Disconnected - send to reconnect"
                   : connecting
@@ -1178,7 +1184,7 @@ export function ChatInput({
                     asStandard={saveAsStandard} onAsStandard={(asStandard) => { studioThemeDraft.current = { ...studioThemeDraft.current, asStandard, epoch: studioThemeDraft.current.epoch + 1 }; setSaveAsStandard(asStandard) }}
                     mutation={ownedStudioThemeMutation}
                     onSave={() => void handleSaveCurrentTheme()} onSetStandard={() => void handleSetStandardTheme()}
-                    onClearStandard={() => void handleClearStandardTheme()} onDelete={() => void handleDeleteSavedTheme()}
+                    onClearStandard={() => void handleClearStandardTheme()} onDelete={(id?: unknown) => void (typeof id === 'string' ? runStudioThemeMutation('delete', id) : handleDeleteSavedTheme())}
                     {...(popupsV2 ? { dropdowns: true } : {})}
                   /> : <>
                   {/* Studio theme classic body START */}

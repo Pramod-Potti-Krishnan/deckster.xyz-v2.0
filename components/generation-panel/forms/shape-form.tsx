@@ -10,6 +10,9 @@ import { ThemeSourceSelector } from '../shared/theme-source-selector'
 import { useThemeSourceState } from '../shared/use-theme-source-state'
 import { useDeckThemePalette } from '@/hooks/use-deck-theme-palette'
 import { resolveDraftThemeSource } from '@/lib/visual-form-draft'
+import { STUDIO_EMPTY_PROMPT_GUARD_ENABLED } from '@/lib/studio-empty-prompt-guard'
+import { STUDIO_SHAPE_TARGET_BACKGROUND_ENABLED, isSentGroundValue, resolveSlideGroundHex, shapeTargetBackgroundField } from '@/lib/studio-shape-target-background'
+import { parseTemplateSlotCatalog } from '@/lib/text-slot-catalog'
 import './studio-shape-icon.css'
 
 const STUDIO_VISUAL_FORMS = process.env.NEXT_PUBLIC_STUDIO_V4_SHELL === 'true'
@@ -131,9 +134,12 @@ interface ShapeFormProps {
   initialDraft?: GenerationPanelDraft | null
   onDraftChange?: (draft: Partial<GenerationPanelDraft>) => void
   targetElementId?: string | null
+  // J3-SHAPE-FILL-CONTRAST-FE (NEXT_PUBLIC_STUDIO_SHAPE_TARGET_BACKGROUND): read only with the flag on.
+  slideIndex?: number
+  getTemplateSlotCatalog?: (slideIndex: number) => Promise<unknown>
 }
 
-export function ShapeForm({ onSubmit, registerSubmit, isGenerating, presentationId, elementContext, prompt, showAdvanced, registerMandatoryConfig, initialDraft, onDraftChange, targetElementId }: ShapeFormProps) {
+export function ShapeForm({ onSubmit, registerSubmit, isGenerating, presentationId, elementContext, prompt, showAdvanced, registerMandatoryConfig, initialDraft, onDraftChange, targetElementId, slideIndex, getTemplateSlotCatalog }: ShapeFormProps) {
   const controlsDraft = STUDIO_VISUAL_FORMS ? initialDraft?.shapeControls : null
   const initialFormData = initialDraft?.formData?.componentType === 'SHAPE'
     ? initialDraft.formData
@@ -147,7 +153,8 @@ export function ShapeForm({ onSubmit, registerSubmit, isGenerating, presentation
     ...('opacity' in initialConfig ? ['opacity' as const] : []),
     ...('rotation' in initialConfig ? ['rotation' as const] : []),
     ...('size' in initialConfig ? ['size' as const] : []),
-    ...('target_background' in initialConfig ? ['background' as const] : []),
+    // With the flag on, a hex target_background is the slide ground Studio itself sent last time (see handleSubmit), not a Background the user set.
+    ...('target_background' in initialConfig && !(STUDIO_SHAPE_TARGET_BACKGROUND_ENABLED && isSentGroundValue(initialConfig.target_background)) ? ['background' as const] : []),
   ])
   const [count, setCount] = useState(controlsDraft?.count ?? initialFormData?.count ?? 1)
   const [shapeType, setShapeType] = useState<TextLabsShapeType>(controlsDraft?.shapeType ?? (initialConfig.shape_type || 'custom'))
@@ -158,7 +165,7 @@ export function ShapeForm({ onSubmit, registerSubmit, isGenerating, presentation
   const [opacity, setOpacity] = useState(controlsDraft?.opacity ?? initialConfig.opacity ?? 1.0)
   const [rotation, setRotation] = useState(controlsDraft?.rotation ?? initialConfig.rotation ?? 0)
   const [size, setSize] = useState<'small' | 'medium' | 'large'>(controlsDraft?.size ?? (initialConfig.size || 'medium'))
-  const [targetBackground, setTargetBackground] = useState(controlsDraft?.targetBackground ?? (initialConfig.target_background || 'light'))
+  const [targetBackground, setTargetBackground] = useState(controlsDraft?.targetBackground ?? ((STUDIO_SHAPE_TARGET_BACKGROUND_ENABLED && isSentGroundValue(initialConfig.target_background) ? '' : initialConfig.target_background) || 'light'))
   const [advancedModified, setAdvancedModified] = useState(controlsDraft?.advancedModified ?? Boolean(initialFormData?.advancedModified))
   const [explicitFields, setExplicitFields] = useState<Set<ShapeOverrideField>>(() => controlsDraft ? new Set(controlsDraft.explicitFields) : initialExplicitFields)
   const [zIndex, setZIndex] = useState(controlsDraft?.zIndex ?? initialFormData?.z_index ?? DEFAULTS.zIndex)
@@ -166,7 +173,23 @@ export function ShapeForm({ onSubmit, registerSubmit, isGenerating, presentation
     presentationId,
     controlsDraft?.themeSource ?? (initialFormData ? resolveDraftThemeSource(presentationId, initialFormData) : null),
   )
-  const { tokens: themeTokens } = useDeckThemePalette(presentationId)
+  const { tokens: themeTokens, cssVars: deckCssVars } = useDeckThemePalette(presentationId)
+
+  // J3-SHAPE-FILL-CONTRAST-FE (flag off: no read, groundHex stays null): the canvas type of the slide this shape lands on, from the viewer's
+  // existing getTemplateSlotCatalog; with the deck's css_variables it gives the slide ground (lib/studio-shape-target-background.ts).
+  const [slideCanvasType, setSlideCanvasType] = useState<string | null>(null)
+  useEffect(() => {
+    if (!STUDIO_SHAPE_TARGET_BACKGROUND_ENABLED) return
+    setSlideCanvasType(null)
+    if (!getTemplateSlotCatalog || typeof slideIndex !== 'number') return
+    let cancelled = false
+    void Promise.resolve()
+      .then(() => getTemplateSlotCatalog(slideIndex))
+      .then(response => { if (!cancelled) setSlideCanvasType(parseTemplateSlotCatalog(response).canvas_type ?? null) })
+      .catch(() => { if (!cancelled) setSlideCanvasType(null) })
+    return () => { cancelled = true }
+  }, [getTemplateSlotCatalog, slideIndex])
+  const groundHex = STUDIO_SHAPE_TARGET_BACKGROUND_ENABLED ? resolveSlideGroundHex(slideCanvasType, deckCssVars) : null
 
   // Pixel-based position (primary)
   const [x, setX] = useState(controlsDraft?.x ?? initialConfig.x ?? 60)       // px, 0-1919
@@ -348,6 +371,8 @@ export function ShapeForm({ onSubmit, registerSubmit, isGenerating, presentation
         })),
         onChange: (value) => { setShapeType(value as TextLabsShapeType) },
         promptPlaceholder: shapeType === 'custom' ? 'e.g., three concentric circles' : 'e.g., a red star',
+        // J3-EMPTY-PROMPT-GUARD (flag off: never set): a preset shape sends no prompt (shape_config.prompt is null); only Custom reads it.
+        ...(STUDIO_EMPTY_PROMPT_GUARD_ENABLED && shapeType !== 'custom' ? { promptOptional: true } : {}),
       },
       colorConfig('fill', 'Fill', fillColor, setFillColor),
       colorConfig('stroke', 'Border', strokeColor, setStrokeColor),
@@ -403,6 +428,8 @@ export function ShapeForm({ onSubmit, registerSubmit, isGenerating, presentation
       ...(explicitFields.has('rotation') ? { rotation } : {}),
       ...(explicitFields.has('size') ? { size } : {}),
       ...(explicitFields.has('background') ? { target_background: targetBackground } : {}),
+      // J3-SHAPE-FILL-CONTRAST-FE (flag off: {}): Fill Auto and Background untouched -> the slide's own ground, so Text Labs can pick a visible fill.
+      ...shapeTargetBackgroundField({ enabled: STUDIO_SHAPE_TARGET_BACKGROUND_ENABLED, fillExplicit: explicitFields.has('fill'), backgroundExplicit: explicitFields.has('background'), groundHex }),
       x: Math.round(x),
       y: Math.round(y),
       width_px: Math.round(widthPx),
@@ -438,7 +465,7 @@ export function ShapeForm({ onSubmit, registerSubmit, isGenerating, presentation
       paddingConfig,
     }
     onSubmit(formData)
-  }, [prompt, count, shapeType, sides, fillColor, strokeColor, strokeWidth, opacity, rotation, size, targetBackground, x, y, widthPx, heightPx, startCol, startRow, gridW, gridH, explicitFields, advancedModified, zIndex, presentationId, useDeckTheme, themeOverrides, paddingConfig, onSubmit, noBorderFromPrompt])
+  }, [prompt, count, shapeType, sides, fillColor, strokeColor, strokeWidth, opacity, rotation, size, targetBackground, x, y, widthPx, heightPx, startCol, startRow, gridW, gridH, explicitFields, advancedModified, zIndex, presentationId, useDeckTheme, themeOverrides, paddingConfig, onSubmit, noBorderFromPrompt, groundHex])
 
   useEffect(() => {
     registerSubmit(handleSubmit)
