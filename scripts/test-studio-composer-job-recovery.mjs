@@ -139,6 +139,8 @@ function createLoader({ sources, env, stubs, globals }) {
       if (spec in stubs) return stubs[spec]
       if (spec.endsWith('.css')) return {}
       if (spec.startsWith('@/lib/')) return run(resolve(spec))
+      // NEXT_PUBLIC_STUDIO_TEMPLATE_PROGRESS (default off): the dialog's new hook is loaded for real (flag off it is inert: the trees and requests below still equal the base's).
+      if (spec === '@/components/builder/composer-template-progress') return run(resolve(spec))
       throw new Error(`unexpected import ${spec} in ${rel}`)
     }
     vm.runInNewContext(transpiled.get(key), { module: mod, exports: mod.exports, process: { env }, console, ...globals, require: requireFor })
@@ -240,6 +242,7 @@ function mount({ sources, flag, shell = true, stored = {}, jobs = {}, queue = []
       return { researcherSessionId: sessionId, storagePath: `${sessionId}/${file.name}` }
     } },
     '@/lib/layout-viewer-url-policy': { evaluateLayoutViewerUrl: () => ({ status: 'allowed' }) },
+    '@/hooks/use-toast': { toast() {} }, // reached only by the progress card's toasts (flag off: never)
     '@/lib/layout-service-client': { LAYOUT_VIEWER_URL_POLICY: {} },
   }
   const Dialog = createLoader({ sources, env, stubs, globals }).load(DIALOG).ComposerLibraryDialog

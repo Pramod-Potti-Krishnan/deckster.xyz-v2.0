@@ -7,6 +7,7 @@ import crypto from 'node:crypto'
 import fs from 'node:fs'
 import vm from 'node:vm'
 import ts from 'typescript'
+import { stripTemplateProgress } from './studio-template-progress-strip.mjs'
 
 const FLAG = 'NEXT_PUBLIC_COMPOSER_STAGE1B_DITTO_ENABLED'
 const BASE_PROXY_DIGEST = 'c3d06565066e9574018f789e6c79f11cb7af164d8c577a4d6bf3f594cb3d229b'
@@ -209,7 +210,8 @@ for (const topic of [undefined, 'true']) {
 }
 
 // ---- 3. The dialog ------------------------------------------------------------------------------------------------
-const dialogSource = read('../components/builder/composer-library-dialog.tsx')
+// NEXT_PUBLIC_STUDIO_TEMPLATE_PROGRESS (default off): its lines in the dialog are taken out first, as the sibling pins do; scripts/test-studio-template-progress.mjs proves them.
+const dialogSource = stripTemplateProgress('components/builder/composer-library-dialog.tsx', read('../components/builder/composer-library-dialog.tsx'))
 const templates = [
   { id: 'supplied-one', name: 'A very long supplied template name '.repeat(5), slide_count: 4, stage_template_summary: { slide_count: 6 } },
   { id: 'supplied-two', name: 'Legacy slide count', slide_count: 8 },

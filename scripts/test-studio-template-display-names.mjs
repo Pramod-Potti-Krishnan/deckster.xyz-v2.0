@@ -23,6 +23,7 @@ import vm from 'node:vm'
 import { execFileSync } from 'node:child_process'
 import { createRequire } from 'node:module'
 import ts from 'typescript'
+import { stripTemplateProgress } from './studio-template-progress-strip.mjs'
 
 const repoRoot = path.resolve(new URL('..', import.meta.url).pathname)
 const nodeRequire = createRequire(path.join(repoRoot, 'package.json'))
@@ -563,7 +564,8 @@ function revert(rel, source) {
 }
 function proveSources(sources, label = 'sources') {
   for (const rel of [PICKER, TEMPLATE_PICKER, DIALOG]) {
-    const source = sources[rel]
+    // NEXT_PUBLIC_STUDIO_TEMPLATE_PROGRESS (default off): the lines it adds to the dialog are taken out first, as the sibling pins do; scripts/test-studio-template-progress.mjs proves them.
+    const source = stripTemplateProgress(rel, sources[rel])
     const [headImport, headConsts] = HEADS[rel]
     eq(source.split(headImport).length - 1, 1, `${label}: ${rel} imports the helper once`)
     eq(source.split(headConsts).length - 1, 1, `${label}: ${rel} reads the exact flag once, inline, and defines its wrappers`)

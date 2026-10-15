@@ -20,6 +20,8 @@ import {
   composerJobRecovery, composerJobRecoveryMessage, composerRetryAction, dismissComposerJob, type ComposerJobRecovery, type ComposerRetryAction,
 } from '@/lib/composer-library'
 import { composerBriefLengthValid, composerBriefLimitMessage, composerBriefMax } from '@/lib/composer-long-brief'
+// NEXT_PUBLIC_STUDIO_TEMPLATE_PROGRESS (default off): an uploaded template is read in the background and shown as progress; Use original opens as soon as the as-is template is saved.
+import { useTemplateProgress } from '@/components/builder/composer-template-progress'
 import type { ComposerLibraryRequest } from '@/lib/studio-composer-popups'
 import { studioTemplateShownName } from '@/lib/studio-template-display-name'
 import './studio-composer-library.css'
@@ -136,6 +138,9 @@ export function ComposerLibraryDialog({ open, onOpenChange, request = null, onRe
     return () => { controllerRef.current?.abort() }
   }, [open, userId, pendingKey, refresh, run, finishJob])
 
+  // NEXT_PUBLIC_STUDIO_TEMPLATE_PROGRESS (exact "true"). Off: the hook answers with an inert object and nothing below changes anything.
+  const templateProgress = useTemplateProgress({ enabled: process.env.NEXT_PUBLIC_STUDIO_TEMPLATE_PROGRESS === 'true', userId, refresh })
+
   const upload = () => {
     if (!file || !userId || busy) return
     const validation = validateComposerFile(file)
@@ -157,6 +162,14 @@ export function ComposerLibraryDialog({ open, onOpenChange, request = null, onRe
         session_id: sessionId, researcher_session_id: uploaded.researcherSessionId,
         storage_path: uploaded.storagePath, file_name: selected.name, kind: 'pptx',
       }, signal)
+      // NEXT_PUBLIC_STUDIO_TEMPLATE_PROGRESS: the job is read in the background, not waited for here, so the library stays usable while it runs.
+      if (templateProgress.enabled) {
+        templateProgress.track({ job_id: job.job_id, session_id: sessionId, file_name: selected.name })
+        setFile(null)
+        if (fileInputRef.current) fileInputRef.current.value = ''
+        setProgress(null)
+        return
+      }
       await finishJob({ job_id: job.job_id, session_id: sessionId, kind: 'upload', ...retryRecord({ action: 'upload' }) }, signal)
     })
   }
@@ -249,14 +262,14 @@ export function ComposerLibraryDialog({ open, onOpenChange, request = null, onRe
               setFile(next)
               setError(next ? validateComposerFile(next) : null)
             }} />
-          <Button data-studio-composer-action={studioShell ? 'upload' : undefined} onClick={upload} disabled={!file || !!validateComposerFile(file) || busy || !userId}>
+          <Button data-studio-composer-action={studioShell ? 'upload' : undefined} onClick={upload} disabled={!file || !!validateComposerFile(file) || busy || !userId || templateProgress.uploadHeld}>
             <FileUp className="mr-2 h-4 w-4" /> Upload template
           </Button>
           <p className="text-xs text-muted-foreground">PowerPoint (.pptx), up to 100 MB.</p>
         </div>
-        {recoveryNotice ?? (progress && <p data-studio-composer-progress={studioShell ? 'true' : undefined} tabIndex={studioShell ? 0 : undefined} aria-label={studioShell ? 'Template operation status' : undefined} role="status" aria-live="polite" className="flex items-center gap-2 text-sm">
+        {templateProgress.around(recoveryNotice ?? (progress && <p data-studio-composer-progress={studioShell ? 'true' : undefined} tabIndex={studioShell ? 0 : undefined} aria-label={studioShell ? 'Template operation status' : undefined} role="status" aria-live="polite" className="flex items-center gap-2 text-sm">
           {busy && <Loader2 className="h-4 w-4 animate-spin" />} {progress}
-        </p>)}
+        </p>), studioShell)}
         {error && <p data-studio-composer-error={studioShell ? 'true' : undefined} tabIndex={studioShell ? 0 : undefined} aria-label={studioShell ? 'Template library error' : undefined} role="alert" className="text-sm text-red-600">{error}</p>}
         <div data-studio-composer-list={studioShell ? 'true' : undefined} role={studioShell ? 'group' : undefined} aria-label={studioShell ? 'Saved Composer templates' : undefined} className="max-h-72 space-y-2 overflow-y-auto border-t pt-4">
           {loading && !templates.length ? <p className="text-sm text-muted-foreground">Loading templates…</p>
@@ -268,9 +281,9 @@ export function ComposerLibraryDialog({ open, onOpenChange, request = null, onRe
                     <p data-studio-composer-count={studioShell ? 'true' : undefined} className="text-xs text-muted-foreground">{template.stage_template_summary?.slide_count ?? template.slide_count ?? 0} slides</p>
                   </div>
                   <div data-studio-composer-actions={studioShell ? 'true' : undefined} className="flex shrink-0 gap-2">
-                    <Button data-studio-composer-action={studioShell ? 'use' : undefined} size="sm" variant="outline" disabled={busy || !userId} onClick={() => useTemplate(template)}>Use original</Button>
-                    {dittoEnabled && <Button data-studio-composer-action={studioShell ? 'ditto' : undefined} size="sm" variant="outline" disabled={busy || !userId} onClick={() => rebuildTemplate(template)}>Rebuild from own content</Button>}
-                    {newTopicEnabled && <Button data-studio-composer-action={studioShell ? 'new-topic' : undefined} size="sm" variant="outline" disabled={busy || !userId}
+                    <Button data-studio-composer-action={studioShell ? 'use' : undefined} size="sm" variant="outline" disabled={busy || !userId || templateProgress.held(template.id, 'use')} onClick={() => useTemplate(template)}>Use original</Button>
+                    {dittoEnabled && <Button data-studio-composer-action={studioShell ? 'ditto' : undefined} size="sm" variant="outline" disabled={busy || !userId || templateProgress.held(template.id, 'ditto')} onClick={() => rebuildTemplate(template)}>Rebuild from own content</Button>}
+                    {newTopicEnabled && <Button data-studio-composer-action={studioShell ? 'new-topic' : undefined} size="sm" variant="outline" disabled={busy || !userId || templateProgress.held(template.id, 'new-topic')}
                       onClick={() => { setNewTopicTemplateId(template.id); setNewBrief(''); setError(null) }}>New topic</Button>}
                   </div>
                 </div>
