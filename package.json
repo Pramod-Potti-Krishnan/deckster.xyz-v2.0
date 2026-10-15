@@ -30,6 +30,7 @@
     "test:studio-empty-prompt-guard": "node scripts/test-studio-empty-prompt-guard.mjs",
     "test:studio-shape-target-background": "node scripts/test-studio-shape-target-background.mjs",
     "test:studio-pass2b-batch1": "node scripts/test-studio-pass2b-batch1.mjs",
+    "test:studio-pass2b-batch2": "node scripts/test-studio-pass2b-batch2.mjs",
     "test:composer-ditto": "node scripts/test-composer-ditto.mjs",
     "test:element-semantic-type": "node scripts/test-element-semantic-type.mjs",
     "test:element-geometry": "node scripts/test-element-geometry.mjs",

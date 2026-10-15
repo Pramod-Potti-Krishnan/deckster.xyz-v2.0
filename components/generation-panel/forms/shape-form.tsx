@@ -11,6 +11,7 @@ import { useThemeSourceState } from '../shared/use-theme-source-state'
 import { useDeckThemePalette } from '@/hooks/use-deck-theme-palette'
 import { resolveDraftThemeSource } from '@/lib/visual-form-draft'
 import { STUDIO_EMPTY_PROMPT_GUARD_ENABLED } from '@/lib/studio-empty-prompt-guard'
+import { shapePresetPromptHintConfig } from '@/lib/studio-shape-preset-prompt-hint'
 import { STUDIO_SHAPE_TARGET_BACKGROUND_ENABLED, isSentGroundValue, resolveSlideGroundHex, shapeTargetBackgroundField } from '@/lib/studio-shape-target-background'
 import { parseTemplateSlotCatalog } from '@/lib/text-slot-catalog'
 import './studio-shape-icon.css'
@@ -373,6 +374,8 @@ export function ShapeForm({ onSubmit, registerSubmit, isGenerating, presentation
         promptPlaceholder: shapeType === 'custom' ? 'e.g., three concentric circles' : 'e.g., a red star',
         // J3-EMPTY-PROMPT-GUARD (flag off: never set): a preset shape sends no prompt (shape_config.prompt is null); only Custom reads it.
         ...(STUDIO_EMPTY_PROMPT_GUARD_ENABLED && shapeType !== 'custom' ? { promptOptional: true } : {}),
+        // PASS2B J3-09 (NEXT_PUBLIC_STUDIO_SHAPE_PRESET_PROMPT_HINT, flag off: never set): the panel's prompt box takes no text for a preset and says why.
+        ...shapePresetPromptHintConfig(shapeType),
       },
       colorConfig('fill', 'Fill', fillColor, setFillColor),
       colorConfig('stroke', 'Border', strokeColor, setStrokeColor),

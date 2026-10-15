@@ -135,5 +135,10 @@ export interface MandatoryConfig {
    * Infographic with a reference image or manual rows). Only read when NEXT_PUBLIC_STUDIO_EMPTY_PROMPT_GUARD is on; forms set it only then.
    */
   promptOptional?: boolean
+  /**
+   * PASS2B J3-09: this form does not read the prompt right now (a preset Shape sends prompt: null). The prompt box is then read-only and aria-disabled
+   * and this sentence is shown under it. Only read when set; forms set it only with NEXT_PUBLIC_STUDIO_SHAPE_PRESET_PROMPT_HINT on.
+   */
+  promptDisabledHint?: string
   customRender?: React.ReactNode
 }

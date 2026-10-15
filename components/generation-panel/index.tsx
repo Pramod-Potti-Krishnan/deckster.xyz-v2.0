@@ -24,6 +24,7 @@ import type { ElementGenerationSubmitIntent } from '@/lib/element-generation-ret
 import { resolveChartFormDataFromGenerationConfig } from '@/lib/chart-data-contract'
 import { EMPTY_PROMPT_HINT, emptyPromptBlocksGenerate, mandatoryConfigPromptOptional } from '@/lib/studio-empty-prompt-guard'
 import { STUDIO_GENERATING_STATUS_ENABLED, generatingStatusText, escapeClosesWhileGenerating, isEditableEventTarget } from '@/lib/studio-generating-status'
+import { promptAutofocusKey, schedulePromptFocus } from '@/lib/studio-prompt-autofocus'
 
 function readObject(value: unknown): Record<string, unknown> | null {
   return value && typeof value === 'object' && !Array.isArray(value)
@@ -323,6 +324,8 @@ export function GenerationPanel({
 
   // Visibility logic
   const showGenerationInput = mode === 'generate' || mode === 'refine'
+  // PASS2B J3-02 (NEXT_PUBLIC_STUDIO_PROMPT_AUTOFOCUS, default off: undefined): the key the prompt box is focused for (one per new element opened in generate mode).
+  const promptFocusKey = promptAutofocusKey({ isOpen, mode, showsPromptBox: showGenerationInput, activationId, elementType })
   const supportsResearch = !isNonResearchVisualElement(elementType)
 
   const researchControls = showGenerationInput && supportsResearch ? (
@@ -414,6 +417,8 @@ export function GenerationPanel({
             placeholder={elementType === 'CHART' ? 'e.g., Show quarterly revenue growth for 2024' : undefined}
             emptyPromptHint={emptyPromptBlocked ? EMPTY_PROMPT_HINT : undefined}
             generatingStatus={STUDIO_GENERATING_STATUS_ENABLED ? (isGenerating ? generatingStatusText(elementType) : '') : undefined}
+            autoFocusKey={promptFocusKey}
+            scheduleFocus={promptFocusKey === undefined ? undefined : schedulePromptFocus}
           />
         )}
 
