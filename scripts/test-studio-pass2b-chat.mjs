@@ -18,6 +18,9 @@
 //   C. the behaviours, on transcripts rebuilt from the recorded frames of error-retry, normal-build and reconnect-exhausted: the error notice and the
 //      recovery card clear only after a retry that Director answered (not before, not after a retry that fails again); the edit prompt starts at the
 //      click on the edit action and ends at the next turn, on both gates, and never after "Yes, let's build it!".
+//   E. NEXT_PUBLIC_STUDIO_ONE_LIVE_TAB x NEXT_PUBLIC_STUDIO_CHAT_RECONNECT (#402 follow-up): a tab Director handed over to another tab (`superseded`) never shows
+//      the header Reconnect button, with both flags on (and the header / recovery flags): the one-live-tab transcripts plus a rebuilt one where the eviction comes
+//      after a retry; its only way back stays "Use here". The button still shows for `exhausted` with ONE_LIVE_TAB on, so the check cannot pass by showing nothing.
 //   D. units: QuestionCard / StudioDirectorHeader / StageRibbon flag off equal hashes of the base sources (scripts/fixtures/studio-pass2b-chat/
 //      base-golden.json, printed from the base tree with PRINT_GOLDEN=1 PASS2B_ROOT=<base checkout>), and flag on differ exactly as designed over every
 //      state; the two derived helpers over tables and through the real hook; the page's focus effect (extracted by AST and run); no handler region of the
@@ -25,6 +28,7 @@
 //
 //   node scripts/test-studio-pass2b-chat.mjs                    # all of the above
 //   node scripts/test-studio-pass2b-chat.mjs --mutation-check   # also: break the code in a scratch copy several ways; each must be caught
+//   node scripts/test-studio-pass2b-chat.mjs --mutation-check --mutant superseded   # only the breaks whose name contains the word
 //   PRINT_GOLDEN=1 PASS2B_ROOT=/path/to/base node scripts/test-studio-pass2b-chat.mjs    # print base-golden.json from the base sources
 //
 // Offline by construction (no socket, fetch or real timer): the harness installs the host network guard.
@@ -376,6 +380,64 @@ async function checks(root, { only } = {}) {
     } catch (error) { fail(`edit-prompt variants could not be built or replayed: ${String(error.message).split('\n')[0].slice(0, 220)}`) }
   }
 
+  // ---- E. a superseded tab never offers Reconnect (ONE_LIVE_TAB and RECONNECT both on) ---------------------------------------------
+  if (!only || only.includes('superseded')) {
+    try {
+      const liveTab = name => JSON.parse(fs.readFileSync(path.join(here, 'scripts/fixtures/studio-one-live-tab', `${name}.json`), 'utf8'))
+      const ONE_LIVE_TAB = 'NEXT_PUBLIC_STUDIO_ONE_LIVE_TAB'
+      const BUTTON = 'data-studio-chat-reconnect'
+      const bothOn = { [ONE_LIVE_TAB]: 'true', [FLAGS.reconnect]: 'true', NEXT_PUBLIC_STUDIO_CHAT_HEADER: 'true', [RECOVERY]: 'true' }
+      const reconnectOff = { ...bothOn, [FLAGS.reconnect]: 'false' }
+      // The eviction after a retry: an ordinary drop, retry 1 starts, and that socket is the one Director closes with 4000 "New connection opened".
+      const drop = liveTab('ordinary-drop-still-reconnects')
+      const afterRetry = { ...clone(drop), name: 'pass2b-superseded-after-retry', steps: clone([
+        ...drop.steps.slice(0, drop.steps.findIndex(step => step.op === 'checkpoint' && step.label === 'connected, one turn sent') + 1),
+        { op: 'close', code: 1006, comment: 'an ordinary network drop' }, { op: 'expect', reconnectStatus: 'scheduled' },
+        { op: 'advance', ms: 1500, comment: 'retry 1 starts' }, { op: 'expect', sockets: 2 },
+        { op: 'close', code: 4000, reason: 'New connection opened', comment: 'the retry\'s socket is closed by Director: the session is open in another tab' },
+        { op: 'checkpoint', label: 'evicted after a retry' }, { op: 'advance', ms: 120000 }, { op: 'checkpoint', label: 'two minutes later' },
+        { op: 'offline' }, { op: 'online' }, { op: 'advance', ms: 60000 }, { op: 'checkpoint', label: 'offline and online while paused' },
+      ]) }
+      const transcripts = [liveTab('superseded-by-new-tab'), liveTab('use-here-takeover'), afterRetry]
+      let supersededCheckpoints = 0
+      for (const fixture of transcripts) for (const profile of ['studio', 'studio-plain']) {
+        const label = `superseded ${fixture.name}/${profile}`
+        const both = await run(fixture, profile, bothOn), off = await run(fixture, profile, reconnectOff)
+        for (const diff of compareSnapshots(off, both, { skip: file => file === 'env.json' })) fail(`${label}: the Reconnect flag changes ${diff.file}; in a tab that is never exhausted it must change nothing`)
+        const checkpoints = JSON.parse(both['state.json']).checkpoints
+        let paused = false
+        for (const entry of checkpoints) {
+          const chrome = both[`markup/${entry.checkpoint}.chrome.html`] ?? ''
+          const status = entry.connection.reconnectStatus
+          if (chrome.includes(BUTTON)) fail(`${label} "${entry.label}": the Reconnect button is drawn (status ${status})`)
+          if (status === 'exhausted') fail(`${label} "${entry.label}": the hook reports exhausted in a transcript that never uses up its retries`)
+          if (status === 'superseded') {
+            supersededCheckpoints++
+            if (!/data-studio-chat-header-state="superseded">Open in another tab<\/span>/.test(chrome)) fail(`${label} "${entry.label}": a superseded tab must read "Open in another tab"`)
+            if (!/data-studio-superseded-part="use-here"[^>]*>Use here<\/button>/.test(chrome)) fail(`${label} "${entry.label}": a superseded tab's way back must be "Use here"`)
+            if (entry.connection.connecting || entry.connection.connected) fail(`${label} "${entry.label}": a superseded tab is connecting or connected`)
+          }
+          // once evicted, the status stays superseded until the user takes the session back (use-here-takeover does, and says so in its label)
+          if (fixture.name !== 'use-here-takeover') { if (status === 'superseded') paused = true; else if (paused) fail(`${label} "${entry.label}": left superseded (${status}) with no "Use here"`) }
+        }
+        if (fixture.name === 'pass2b-superseded-after-retry') {
+          const evicted = checkpoints.find(entry => entry.label === 'evicted after a retry')
+          if (evicted.connection.reconnectStatus !== 'superseded' || !(evicted.connection.reconnectAttempt > 0)) fail(`${label}: the eviction must come after a retry (status ${evicted.connection.reconnectStatus}, attempt ${evicted.connection.reconnectAttempt})`)
+        }
+      }
+      if (supersededCheckpoints < 6) fail(`superseded transcripts reached only ${supersededCheckpoints} superseded checkpoints; the check would be thin`)
+      // not vacuous: with the one-live-tab flag on too, a tab that really used up its retries still gets the button
+      for (const profile of ['studio', 'studio-plain']) {
+        const files = await run(fixtureNamed('reconnect-exhausted'), profile, bothOn)
+        const states = JSON.parse(files['state.json']).checkpoints
+        const withButton = states.filter(entry => (files[`markup/${entry.checkpoint}.chrome.html`] ?? '').includes(BUTTON))
+        if (withButton.length === 0) fail(`superseded control (${profile}): with ONE_LIVE_TAB on, an exhausted tab shows no Reconnect, so the check above proves nothing`)
+        if (withButton.some(entry => entry.connection.reconnectStatus !== 'exhausted')) fail(`superseded control (${profile}): Reconnect drawn while not exhausted`)
+        stats.reconnectButtons += withButton.length
+      }
+    } catch (error) { fail(`superseded transcripts could not be rebuilt or replayed: ${String(error.message).split('\n')[0].slice(0, 220)}`) }
+  }
+
   // ---- D. units -----------------------------------------------------------------------------------------------------------------
   const flagsOffEnvs = [{}, ALL_FALSE]
   // D1 QuestionCard
@@ -584,6 +646,7 @@ const MUTANTS = [
   ['hint drawn with the flag unset', 'components/builder/chat/question-card.tsx', "process.env.NEXT_PUBLIC_STUDIO_APPROVAL_HINT === 'true'", "process.env.NEXT_PUBLIC_STUDIO_APPROVAL_HINT !== 'x'", ['normal-build']],
   ['hint on a skip card', 'components/builder/chat/question-card.tsx', "action.value === 'accept_plan' || action.value === 'accept_strawman'", "action.value === 'accept_plan' || action.value === 'skip_questions' || action.value === 'accept_strawman'", ['normal-build']],
   ['Reconnect while retries are still running', 'components/builder/chat/studio-director-header.tsx', "reconnectStatus === 'exhausted'", "reconnectStatus !== 'idle'", ['reconnect-exhausted', 'reconnect-mid-build']],
+  ['Reconnect while superseded (both flags on)', 'components/builder/chat/studio-director-header.tsx', "reconnectStatus === 'exhausted'", "(reconnectStatus === 'exhausted' || reconnectStatus === 'superseded')", ['superseded']],
   ['Reconnect click passes the event', 'components/builder/chat/studio-director-header.tsx', 'onClick={() => onReconnect()}', 'onClick={onReconnect}', ['reconnect-exhausted']],
   ['failed build keeps Pause/Stop', 'components/build-narration/stage-ribbon.tsx', '{control && !buildErrorState ? (', '{control ? (', ['normal-build']],
   ['saved line on every phase', 'components/build-narration/stage-ribbon.tsx', 'const buildErrorState = isError\n    &&', 'const buildErrorState = true\n    &&', ['normal-build']],
@@ -606,7 +669,9 @@ async function mutationCheck() {
     fs.symlinkSync(path.join(here, 'node_modules'), path.join(to, 'node_modules'))
   }
   try {
+    const wanted = args.includes('--mutant') ? args[args.indexOf('--mutant') + 1] : null
     for (const [index, [name, file, from, to, only]] of MUTANTS.entries()) {
+      if (wanted && !name.includes(wanted)) continue
       const original = fs.readFileSync(path.join(here, file), 'utf8')
       if (!original.includes(from)) { missed.push(`${name} (the text to break was not found in ${file})`); continue }
       const root = path.join(scratch, `m${index}`)
