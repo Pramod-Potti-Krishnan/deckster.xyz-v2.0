@@ -88,6 +88,7 @@ export function loadPanel(source, libs, { realIcons = false } = {}) {
     'lucide-react': { Layout: icon('Layout'), Plus: icon('Plus'), RefreshCw: icon('RefreshCw'), Sparkles: icon('Sparkles'), Square: icon('Square'), X: icon('X') },
     '@/lib/utils': { cn: (...a) => a.filter(Boolean).join(' ') }, '@/lib/theme-builder': { FALLBACK_THEME_PRESETS: [] },
     '@/lib/studio-add-slide-v2': libs.add, '@/lib/studio-add-slide-v2-regenerate': libs.regenerate,
+    '@/lib/studio-panel-eyebrow': { slidePanelEyebrow: () => ({ label: '', detail: '' }) }, '@/components/studio-panel-eyebrow': { StudioPanelEyebrow: () => null }, // PASS2B G29: off here
     '@/components/builder/studio-panels.css': {}, './studio-add-slide-v2.css': {},
   } })
   return { mod, hooks, slotsRef, queued, takeDirty: () => { const d = dirty; dirty = false; return d }, resetCursor: () => { cursor = 0 } }

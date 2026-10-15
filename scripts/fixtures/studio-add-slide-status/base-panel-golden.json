@@ -1,5 +1,5 @@
 {
- "base_commit": "dd47bd5",
+ "base_commit": "d5603f7",
  "note": "sha256 of the server-rendered Add Slide panel of the base commit (components/studio-add-slide-v2.tsx) over the cases in scripts/test-studio-add-slide-status.mjs, no status settings",
  "hashes": {
   "unwired": "5f13334e58bfbe3c7efd1955d3ab86718d62a9c37a405365619c043153f37acc",

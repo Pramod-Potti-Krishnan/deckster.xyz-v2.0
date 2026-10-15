@@ -27,8 +27,8 @@ import {
 const FLAG = 'NEXT_PUBLIC_STUDIO_ADD_SLIDE_STATUS'
 const ON = { [FLAG]: 'true' }
 const ALL_OPTIONS = { NEXT_PUBLIC_STUDIO_ADD_SLIDE_V2_ENABLED_OPTIONS: 'all' }
-/** The commit this was built on (studio-v4-dev-preparation-code at #404): flag off must be exactly this commit's panel. */
-const BASE_COMMIT = 'dd47bd5'
+/** The last commit on studio-v4-dev-preparation-code that changed the panel (PASS2B G29, #410): flag off must be exactly this panel, whatever the base has moved to since. */
+const BASE_COMMIT = 'd5603f7'
 const GOLDEN = `${FIXTURES}/base-panel-golden.json`
 
 let checks = 0
@@ -157,6 +157,7 @@ function ssrPanel(source, libs, props) {
     'lucide-react': { Layout: icon('layout'), Plus: icon('plus'), RefreshCw: icon('refresh'), Sparkles: icon('sparkles'), Square: icon('square'), X: icon('x') },
     '@/lib/utils': { cn: (...a) => a.filter(Boolean).join(' ') }, '@/lib/theme-builder': { FALLBACK_THEME_PRESETS: [] },
     '@/lib/studio-add-slide-v2': libs.add, '@/lib/studio-add-slide-v2-regenerate': libs.regenerate,
+    '@/lib/studio-panel-eyebrow': { slidePanelEyebrow: () => ({ label: '', detail: '' }) }, '@/components/studio-panel-eyebrow': { StudioPanelEyebrow: () => null }, // PASS2B G29: off here
     '@/components/builder/studio-panels.css': {}, './studio-add-slide-v2.css': {},
   } })
   return renderToStaticMarkup(React.createElement(mod.AddSlideV2Panel, { onInsertBlank() {}, onClose() {}, storage: null, context: { sessionId: 'sess-1', presentationId: 'pres-1', currentSlide: 3, slideCount: 7, research: { useUploadedDocuments: false, useWebSearch: true, useDeepResearch: false, useKnowledgeGraph: false }, theme: { mode: 'preset', preset_id: 'corporate_light' }, themeLabel: 'Corporate Light' }, ...props }))
