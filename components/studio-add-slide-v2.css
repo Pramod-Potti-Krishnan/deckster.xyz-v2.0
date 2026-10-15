@@ -79,3 +79,7 @@
 [data-studio-add-slide-v2="true"] .asv2-kind b { color: var(--asv2-text); font-weight: 600; }
 [data-studio-add-slide-v2="true"] .asv2-regenerating, [data-studio-add-slide-v2="true"] .asv2-regenerated { display: flex; align-items: baseline; flex-wrap: wrap; gap: 6px; }
 [data-studio-add-slide-v2="true"] .asv2-regen-failed { display: flex; align-items: baseline; flex-wrap: wrap; gap: 6px; }
+/* PASS2B J2-04: the status line under "Queued" (flag NEXT_PUBLIC_STUDIO_ADD_SLIDE_STATUS): "Building…", "Added as slide 3 · Go to slide", "Couldn't build it · Try again". */
+[data-studio-add-slide-v2="true"] .asv2-status { display: flex; align-items: baseline; flex-wrap: wrap; gap: 6px; }
+/* Under "Queued" it reads as one block with it: the body's 14px gap becomes 6px. */
+[data-studio-add-slide-v2="true"] .asv2-queued + .asv2-status { margin-top: -8px; }
