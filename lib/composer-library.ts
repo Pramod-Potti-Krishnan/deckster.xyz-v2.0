@@ -29,9 +29,15 @@ export interface ComposerJob {
   slide_count?: number | null
   session_id?: string
   errors?: string[]
-  checkpoint?: { result?: ComposerReady }
+  checkpoint?: { result?: ComposerReady; retryable?: boolean }
   /** Director's job record (TemplateIngestJob) as JSON: the time of its last write, ISO 8601. */
   updated_at?: string | null
+  /**
+   * Director's orphan watchdog (COMPOSER_STALE_JOB_WATCHDOG_ENABLED, !498): `true` on the poll of a stage job it failed because the process
+   * running it is gone ("This job was interrupted by a server restart. Please try again."; `checkpoint.retryable` is true too). Only ever
+   * `true` or absent, so a failed job without it is not "not retryable": Director before !498, or with the flag off, never sends it.
+   */
+  retryable?: boolean
 }
 
 /** Explicit UAT or loopback only; never inherit the older production defaults. */
@@ -135,6 +141,9 @@ export async function waitForComposerJob(
  * 75 minutes is that 3600 s deadline plus one 900 s request window (the reads before the worker call, the cancel and the failure write, and
  * clock skew). The longest real jobs measured were about 15 minutes (a 30-slide upload) and 7 minutes (a replay), so a live job is never
  * called stale, and a job whose record is older than this cannot still be running.
+ * With Director's orphan watchdog on (COMPOSER_STALE_JOB_WATCHDOG_ENABLED, !498, on in UAT) this rule is only a fallback: the running job touches its
+ * record every 30 s and Director itself fails an orphan on the first poll after 180 s of silence (`failed`, `retryable: true`), which ends the wait
+ * through the failed path above. The library cannot read Director's flag, so the rule stays for a Director without it (flag off, or before !498).
  */
 export const COMPOSER_JOB_STALE_AFTER_MS = 75 * 60 * 1000
 
