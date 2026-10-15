@@ -21,7 +21,7 @@
 //      rule, the new-topic rule (the slides are never read for it), the plain words (no reason code is ever drawn), the toasts (once per job), the upload
 //      hold (a failed or stalled job never holds), the poll pace (poll.next_interval_ms; stop on null; the old 5 s when Director sends none), the watch;
 //   2. flag off (unset, "false", "1", "TRUE", " true"): the dialog's tree, every request, session, upload, storage read/write and navigation equal the base
-//      dialog's (sha256) for 11 scenarios; and the dialog's source minus the added lines is the base's, byte for byte;
+//      dialog's (sha256) for 12 scenarios; and the dialog's source minus the added lines is the base's, byte for byte;
 //   3. flag on: the upload hands its job to the hook (the dialog is free at once); the poll follows Director's pace; Use original opens at as-is ready
 //      (and works while Composer is still locking); new topics wait for new_topic.state alone; the stalled, failed, paused, refused, legacy and
 //      "Director without the flow" answers; Retry and Dismiss; a reload goes on reading the stored job without repeating a toast; no request but the
