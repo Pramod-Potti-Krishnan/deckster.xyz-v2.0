@@ -1,0 +1,20 @@
+{
+ "base_commit": "d5603f7",
+ "note": "sha256 of the server-rendered Add Slide panel of the base commit (components/studio-add-slide-v2.tsx) over the cases in scripts/test-studio-add-slide-status.mjs, no status settings",
+ "hashes": {
+  "unwired": "5f13334e58bfbe3c7efd1955d3ab86718d62a9c37a405365619c043153f37acc",
+  "unwired, typed": "38dcff0406df18373aa39d0d64ab6f8f4e02e08f1df7b196e94887125a10957e",
+  "wired": "5f13334e58bfbe3c7efd1955d3ab86718d62a9c37a405365619c043153f37acc",
+  "chart typed": "23135678fe68faf353152910dc9cbed1c8ff78da2ab00bba9ecae4df99e49978",
+  "title one word": "bb53a8f02ab0779f66b70481a98ad22851a7bc3995121f23599b92651361edb9",
+  "title two words": "5f157390f95193ef6864a220859e9bcb489af917645bd076b9ecf7d2ec230951",
+  "diagram": "345cd709bea66f5ca8c209faf32affd2bace838c97f88a62547c8ed371602ead",
+  "disabled": "7bc5aca3adf989b182db304cca76e8a87d132b3baa9532b673254b095d81ed03",
+  "no session": "c7de1ccac037d8afc9c59a92b6d860faa28cddfe1097cec8a1ee2bca128dd80d",
+  "catalog": "5abf6b4eb089e4087a815634f9c17f80c416849798b6af59f666c860ac1722c5",
+  "first slide": "8ab6505f8afdc16281177ccdf1e0772ca8fb98c5e82b756967b35c16bb754a68",
+  "all options": "5f13334e58bfbe3c7efd1955d3ab86718d62a9c37a405365619c043153f37acc",
+  "regenerate switch": "5f13334e58bfbe3c7efd1955d3ab86718d62a9c37a405365619c043153f37acc",
+  "regenerate switch, disabled": "b0a227e31fc9ec131ad974298c0e2a989bea01d793156f0cc4ea2818dc1dc28d"
+ }
+}

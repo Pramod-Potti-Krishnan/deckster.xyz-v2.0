@@ -55,6 +55,7 @@ import { SlideGenerationPanel, type SlideComposeAcceptedJob, type SlideComposeBu
 import { createAddSlideV2Hooks } from '@/lib/studio-add-slide-v2-submit'
 import { createAddSlideV2RegenerateHooks } from '@/lib/studio-add-slide-v2-submit'
 import { createAddSlideV2GeneratedStore, rememberAddSlideV2Failed, rememberAddSlideV2Generated } from '@/lib/studio-add-slide-v2'
+import { STUDIO_ADD_SLIDE_STATUS_ENABLED, createAddSlideV2StatusSettings } from '@/lib/studio-add-slide-status'
 import { StudioFormatInspector, type StudioFormatTarget, type StudioFormatCommand } from '@/components/builder/studio-format-inspector'
 import type { StudioFormatSelectionHandle } from '@/lib/studio-format-native'
 import { TextBoxFormatPanel } from '@/components/textbox-format-panel'
@@ -7830,6 +7831,8 @@ function AuthenticatedBuilderContent({ authScopeUserId }: { authScopeUserId: str
                 onAccepted: handleSlideComposerAccepted,
                 // DEC-P9: the viewer follows the new slide when the user is still on the slide they started from.
                 follow: addSlideV2FollowRef.current,
+                // PASS2B J2-04 (flag NEXT_PUBLIC_STUDIO_ADD_SLIDE_STATUS): answer with the accepted job's id so the panel can follow it.
+                includeJobId: STUDIO_ADD_SLIDE_STATUS_ENABLED,
               }),
               // J2V2-REGENERATE (flag NEXT_PUBLIC_STUDIO_SLIDE_REGENERATE_ENABLED): rebuild the generated slide on screen through
               // the Slide panel's own Refine route. The accepted job is the page's usual refine job: the original gets the refine
@@ -7851,6 +7854,13 @@ function AuthenticatedBuilderContent({ authScopeUserId }: { authScopeUserId: str
                     : slideComposeJobsRef.current,
                 }),
                 onAccepted: handleSlideComposerAccepted,
+              }) : undefined,
+              // PASS2B J2-04 (flag NEXT_PUBLIC_STUDIO_ADD_SLIDE_STATUS): one status line under "Queued", read from the compose-job records the rail
+              // already draws (state of this render). "Go to slide" is the go-to a rail thumbnail uses; "Try again" is the rail card's own retry.
+              status: STUDIO_ADD_SLIDE_STATUS_ENABLED ? createAddSlideV2StatusSettings({
+                jobs: slideComposeJobs,
+                goToSlide: narrationNavigate,
+                retry: jobId => { void slideComposeThumbnailJobs.find(job => job.jobId === jobId)?.onRetry?.(jobId) },
               }) : undefined,
             } : undefined}
             onTextBoxSelected={(elementId, formatting, selectedComponentType) => {

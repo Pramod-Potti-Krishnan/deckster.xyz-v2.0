@@ -254,7 +254,8 @@ export interface AddSlideV2Request<TTheme = unknown> {
   theme: TTheme
 }
 
-export type AddSlideV2SubmitResult = { ok: true } | { ok: false; message: string }
+// `jobId` (the accepted compose job) is present only with NEXT_PUBLIC_STUDIO_ADD_SLIDE_STATUS on; the panel's status line follows that job.
+export type AddSlideV2SubmitResult = { ok: true; jobId?: string } | { ok: false; message: string }
 export type AddSlideV2Submit<TTheme = unknown> = (request: AddSlideV2Request<TTheme>) => Promise<AddSlideV2SubmitResult>
 
 /**
@@ -286,6 +287,11 @@ export interface AddSlideV2Settings<TTheme = unknown> {
   panelHost: HTMLElement | null
   /** Toolbar button / panel close. The page closes the other Element panels when this opens. */
   onPanelOpenChange: (open: boolean) => void
+  /**
+   * PASS2B J2-04 (flag NEXT_PUBLIC_STUDIO_ADD_SLIDE_STATUS): what became of the slide Generate queued, as one status line in the panel
+   * ("Building…", "Added as slide 3 · Go to slide", "Couldn't build it · Try again"). Absent = no line, the panel as it was.
+   */
+  status?: import('@/lib/studio-add-slide-status').AddSlideV2StatusSettings
 }
 
 /** `position` is the persisted 0-based insert position for the native Add; undefined = keep the old default. */

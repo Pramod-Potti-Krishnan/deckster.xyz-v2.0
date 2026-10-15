@@ -135,6 +135,8 @@ export interface AddSlideV2SubmitDeps {
    * the visual slide the user was on when they pressed Generate (DEC-P9: the viewer follows the new slide from there).
    */
   onAccepted: (job: SlideComposeAcceptedJob, meta: { submitVisualIndex: number }) => void
+  /** PASS2B J2-04 (flag NEXT_PUBLIC_STUDIO_ADD_SLIDE_STATUS): answer { ok: true, jobId } so the panel can follow the accepted job. Absent = { ok: true }. */
+  includeJobId?: boolean
 }
 
 const FAIL = (message: string): { ok: false; message: string } => ({ ok: false, message })
@@ -225,7 +227,7 @@ export async function submitAddSlideV2<TTheme>(
     title: body.instruction.slice(0, 72) || 'Composing slide',
     request: asyncRequest,
   }, { submitVisualIndex: selection.visualIndex })
-  return { ok: true }
+  return deps.includeJobId ? { ok: true, jobId: data.job_id } : { ok: true }
 }
 
 // ---- Regenerate (J2V2-REGENERATE) ------------------------------------------------------------------------------------

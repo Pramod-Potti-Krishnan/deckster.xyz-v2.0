@@ -1,0 +1,35 @@
+// PASS2B J2-04 (flag NEXT_PUBLIC_STUDIO_ADD_SLIDE_STATUS): the lines this change adds to files that other pins hold to a base commit
+// ("without the added lines the file is <base>'s"). Sibling pins call stripAddSlideStatus(rel, text) first and then do what they always did, the
+// way they already strip G09, G12 and G01/G02. scripts/test-studio-add-slide-status.mjs proves the panel strip against the panel's own base
+// commit, and that nothing of this feature is left in the page after it.
+//
+// Every addition is flag-gated or inert flag off (false / undefined / not drawn): scripts/test-studio-add-slide-status.mjs hashes the panel's
+// markup and a scripted session against the base's, and runs the page's own handlers on recorded frames with the flag off and on.
+
+const PAGE = 'app/builder/page.tsx'
+const PANEL = 'components/studio-add-slide-v2.tsx'
+
+const PAGE_ADDITIONS = [
+  [/import \{ STUDIO_ADD_SLIDE_STATUS_ENABLED, createAddSlideV2StatusSettings \} from '@\/lib\/studio-add-slide-status'\n/, ''],
+  [/ {16}\/\/ PASS2B J2-04 [^\n]*\n {16}includeJobId: STUDIO_ADD_SLIDE_STATUS_ENABLED,\n/, ''],
+  [/ {14}\/\/ PASS2B J2-04 [^\n]*\n {14}\/\/ [^\n]*\n {14}status: STUDIO_ADD_SLIDE_STATUS_ENABLED \? createAddSlideV2StatusSettings\(\{[\s\S]*?\}\) : undefined,\n/, ''],
+]
+
+const PANEL_ADDITIONS = [
+  [/import type \{ AddSlideStatus, AddSlideV2StatusSettings \} from '@\/lib\/studio-add-slide-status'\n/, ''],
+  [/ {2}\/\*\* PASS2B J2-04 \(flag NEXT_PUBLIC_STUDIO_ADD_SLIDE_STATUS\)[^\n]*\n {2}status\?: AddSlideV2StatusSettings\n/, ''],
+  [/ {2}status: statusSettings,\n/, ''],
+  [/ {2}\/\/ PASS2B J2-04: the job Generate queued[\s\S]*? {2}if \(tracked && addStatus !== tracked\.status\) setTracked\(\{ jobId: tracked\.jobId, status: addStatus \}\)\n/, ''],
+  [/( {4}setQueued\(null\)\n) {4}setTracked\(null\)\n/, '$1'],
+  [/ {8}if \(statusSettings && result\.jobId\) setTracked\(\{ jobId: result\.jobId, status: null \}\)\n/, ''],
+  // the Queued note keeps its base line; the status line (three shapes) is the addition
+  [/ {12}\{queued && !\(addStatus\?\.kind === 'added' \|\| addStatus\?\.kind === 'failed'\) && <p className="asv2-queued" role="status">\{queued\}<\/p>\}\n[\s\S]*?>Try again<\/button>\n {14}<\/p>\n {12}\)\}\n/,
+    '            {queued && <p className="asv2-queued" role="status">{queued}</p>}\n'],
+  [/ {10}status=\{settings\.status\}\n/, ''],
+]
+
+/** `text` of repo file `rel` without this change's additions (any other file comes back as it is). */
+export function stripAddSlideStatus(rel, text) {
+  const table = rel === PAGE ? PAGE_ADDITIONS : rel === PANEL ? PANEL_ADDITIONS : []
+  return table.reduce((out, [from, to]) => out.replace(from, to), text)
+}

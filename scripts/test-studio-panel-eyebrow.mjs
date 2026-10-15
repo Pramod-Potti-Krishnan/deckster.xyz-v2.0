@@ -21,6 +21,7 @@ import vm from 'node:vm'
 import { execFileSync } from 'node:child_process'
 import { createRequire } from 'node:module'
 import ts from 'typescript'
+import { stripAddSlideStatus } from './studio-add-slide-status-strip.mjs'
 
 const repoRoot = path.resolve(new URL('..', import.meta.url).pathname)
 const nodeRequire = createRequire(path.join(repoRoot, 'package.json'))
@@ -149,7 +150,7 @@ function proveSlidePanel(file, source, label = file) {
   eq(source.split(IMPORTS).length - 1, 1, `${label}: the two imports, once, together`)
   eq(source.split(JSX_LINE(file)).length - 1, 1, `${label}: the band's JSX line, once, with the right words per mode`)
   eq((source.match(/process\.env\.NEXT_PUBLIC_STUDIO_PANEL_EYEBROW/g) ?? []).length, 1, `${label}: the flag is read once, inline`)
-  if (baseText) eq(source.replace(IMPORTS, '').replace(constText, '').replace(JSX_LINE(file), ''), baseText, `${label}: without the added lines the file is ${BASE_COMMIT}'s`)
+  if (baseText) eq(stripAddSlideStatus(file, source).replace(IMPORTS, '').replace(constText, '').replace(JSX_LINE(file), ''), baseText, `${label}: without the added lines the file is ${BASE_COMMIT}'s`)
   // the line sits right before the header (a comment line may sit between them)
   const after = source.slice(source.indexOf(JSX_LINE(file)) + JSX_LINE(file).length)
   match(after, /^(?:\s*\{\/\* Header \*\/\}\n)?\s*<div data-studio-v4-panel-header /, `${label}: the band is the header's previous sibling`)

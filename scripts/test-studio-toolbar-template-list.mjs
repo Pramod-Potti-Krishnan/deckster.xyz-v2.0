@@ -360,7 +360,15 @@ const mut = (source, from, to) => { assert.ok(source.includes(from), `mutation t
 // + PASS2B G09 (NEXT_PUBLIC_STUDIO_FIRST_RUN_POSTER_HIDE) -> PresentationArea studioBriefSent (`undefined` unless the flag is exactly "true" in the Studio shell;
 // flag-off equality: scripts/test-studio-first-run-poster-hide.mjs).
 const SIBLING_FLAG_ATTR = /^(studioContextLabel|pausedInOtherTab|studioTabPausedHint|studioEditPrompt|studioBriefSent)=/
-const withoutFix = element => [...element.attrs.filter(a => !SIBLING_FLAG_ATTR.test(a)), ...element.spreads.filter(s => !FIX.test(s))].join('\n')
+// + PASS2B J2-04 (NEXT_PUBLIC_STUDIO_ADD_SLIDE_STATUS) -> PresentationArea addSlideV2Settings: `includeJobId: STUDIO_ADD_SLIDE_STATUS_ENABLED` in the
+// createAddSlideV2Hooks call and a `status: STUDIO_ADD_SLIDE_STATUS_ENABLED ? createAddSlideV2StatusSettings({...}) : undefined` entry. Both are false /
+// undefined flag-off (scripts/test-studio-add-slide-status.mjs); cut out here, the attribute is the base's byte for byte.
+const SIBLING_SETTINGS_ENTRIES = [
+  /\n[ \t]*\/\/ PASS2B J2-04 [^\n]*\n[ \t]*includeJobId: STUDIO_ADD_SLIDE_STATUS_ENABLED,/,
+  /\n[ \t]*\/\/ PASS2B J2-04 [^\n]*\n[ \t]*\/\/ [^\n]*\n[ \t]*status: STUDIO_ADD_SLIDE_STATUS_ENABLED \? createAddSlideV2StatusSettings\(\{[\s\S]*?\}\) : undefined,/,
+]
+const withoutSiblingEntries = attr => SIBLING_SETTINGS_ENTRIES.reduce((text, entry) => text.replace(entry, ''), attr)
+const withoutFix = element => [...element.attrs.filter(a => !SIBLING_FLAG_ATTR.test(a)).map(withoutSiblingEntries), ...element.spreads.filter(s => !FIX.test(s))].join('\n')
 
 // ---- library dialog helpers (the dialog's own buttons are the reference) --------------------------------------------------------------------------
 function mountDialog({ env, services, mutate = {} }) {

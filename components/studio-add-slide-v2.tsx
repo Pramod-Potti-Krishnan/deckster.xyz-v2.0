@@ -52,6 +52,7 @@ import {
 import { ADD_SLIDE_V2_REGENERATE_IDLE, reduceAddSlideV2Regenerate } from '@/lib/studio-add-slide-v2-regenerate'
 import { slidePanelEyebrow } from '@/lib/studio-panel-eyebrow'
 import { StudioPanelEyebrow } from '@/components/studio-panel-eyebrow'
+import type { AddSlideStatus, AddSlideV2StatusSettings } from '@/lib/studio-add-slide-status'
 
 export interface AddSlideV2PanelProps<TTheme = unknown> {
   context: AddSlideV2Context<TTheme>
@@ -71,6 +72,8 @@ export interface AddSlideV2PanelProps<TTheme = unknown> {
   options?: ReadonlySet<string>
   /** J2V2-REGENERATE: the slide on screen as a regenerate target. Absent (or the `regenerate` option off) = no section. */
   regenerate?: AddSlideV2PanelRegenerate<TTheme>
+  /** PASS2B J2-04 (flag NEXT_PUBLIC_STUDIO_ADD_SLIDE_STATUS): the status line under "Queued". Absent = the panel as it was. */
+  status?: AddSlideV2StatusSettings
 }
 
 export interface AddSlideV2PanelRegenerate<TTheme = unknown> {
@@ -103,6 +106,7 @@ export function AddSlideV2Panel<TTheme = unknown>({
   storage: storageProp,
   options = ADD_SLIDE_V2_OPTIONS,
   regenerate,
+  status: statusSettings,
 }: AddSlideV2PanelProps<TTheme>) {
   const [storage] = useState(() => (storageProp === undefined ? browserSessionStorage() : storageProp))
   const draftKey = addSlideV2DraftKey(context.sessionId, context.presentationId)
@@ -111,6 +115,13 @@ export function AddSlideV2Panel<TTheme = unknown>({
   const [pending, setPending] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [queued, setQueued] = useState<string | null>(null)
+  // PASS2B J2-04: the job Generate queued, and the status line last drawn for it. The line is derived at render from the page's own job records
+  // (settings.status.read); a change is stored during the render itself, so the line never lags a render. The page returns the same object while
+  // nothing changed, which is what stops this settling.
+  const [tracked, setTracked] = useState<{ jobId: string; status: AddSlideStatus | null } | null>(null)
+  const [retrySent, setRetrySent] = useState<string | null>(null)
+  const addStatus = statusSettings && tracked ? statusSettings.read(tracked.jobId, tracked.status) : null
+  if (tracked && addStatus !== tracked.status) setTracked({ jobId: tracked.jobId, status: addStatus })
   const ids = useId()
   const textRef = useRef<HTMLTextAreaElement>(null)
   const textId = `${ids}-text`
@@ -202,6 +213,7 @@ export function AddSlideV2Panel<TTheme = unknown>({
     setPending(true)
     setError(null)
     setQueued(null)
+    setTracked(null)
     try {
       const result = await submit(request)
       if (result.ok) {
@@ -209,6 +221,7 @@ export function AddSlideV2Panel<TTheme = unknown>({
         clearAddSlideV2Draft(storage, draftKey)
         // The panel stays open so several slides can be queued; it says where this one lands.
         setQueued(`Queued. It appears right after slide ${context.currentSlide} when it is ready.`)
+        if (statusSettings && result.jobId) setTracked({ jobId: result.jobId, status: null })
       } else {
         setError(result.message)
       }
@@ -466,7 +479,25 @@ export function AddSlideV2Panel<TTheme = unknown>({
             {chatSettings}
 
             {error && <p className="asv2-error" role="alert">{error}</p>}
-            {queued && <p className="asv2-queued" role="status">{queued}</p>}
+            {queued && !(addStatus?.kind === 'added' || addStatus?.kind === 'failed') && <p className="asv2-queued" role="status">{queued}</p>}
+            {addStatus?.kind === 'building' && <p className="asv2-queued asv2-status" role="status" data-add-slide-status="building">Building…</p>}
+            {addStatus?.kind === 'added' && (
+              <p className="asv2-queued asv2-status" role="status" data-add-slide-status="added">
+                {`Added as slide ${addStatus.slideNumber} · `}
+                <button type="button" className="asv2-discard" disabled={disabled} onClick={() => statusSettings?.goToSlide(addStatus.slideNumber - 1)}>Go to slide</button>
+              </p>
+            )}
+            {addStatus?.kind === 'failed' && (
+              <p className="asv2-error asv2-status" role="alert" data-add-slide-status="failed" title={addStatus.message || undefined}>
+                {"Couldn't build it · "}
+                <button
+                  type="button"
+                  className="asv2-discard"
+                  disabled={disabled || retrySent === addStatus.jobId}
+                  onClick={() => { setRetrySent(addStatus.jobId); statusSettings?.retry(addStatus.jobId) }}
+                >Try again</button>
+              </p>
+            )}
 
             <div className="asv2-actions">
               <button
@@ -582,6 +613,7 @@ export function AddSlideV2Entry<TTheme = unknown>({
           disabled={disabled || adding}
           options={options}
           regenerate={regenSettings ? { target: regenTarget, submit: regenSettings.submit, jobStatus: regenSettings.jobStatus } : undefined}
+          status={settings.status}
           onClose={() => settings.onPanelOpenChange(false)}
           onBrowseCatalog={classicPicker ? () => catalogRef.current?.querySelector('button')?.click() : undefined}
           onInsertBlank={insertBlank}
