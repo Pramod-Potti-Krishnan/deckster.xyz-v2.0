@@ -20,6 +20,7 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from './ui/alert-dialog';
+import { studioCreateLabel } from '@/lib/studio-create-word';
 import './studio-session-history.css';
 
 export interface ChatHistorySidebarProps {
@@ -38,6 +39,8 @@ export function ChatHistorySidebar({
   onNewChat
 }: ChatHistorySidebarProps) {
   const studio = process.env.NEXT_PUBLIC_STUDIO_V4_SHELL === 'true';
+  // PASS2B G56 (NEXT_PUBLIC_STUDIO_CREATE_WORD, default off, Studio shell only): the create button says "New deck".
+  const createWord = studio && process.env.NEXT_PUBLIC_STUDIO_CREATE_WORD === 'true';
   const { loadSessions, deleteSession, loading } = useChatSessions();
   const { user } = useAuth();
   const { toast } = useToast();
@@ -326,7 +329,7 @@ export function ChatHistorySidebar({
             size="sm"
           >
             <Plus className="w-3 h-3 mr-1.5" />
-            {studio ? 'Presentation' : 'New Chat'}
+            {studio ? studioCreateLabel(createWord, 'Presentation') : 'New Chat'}
           </Button>
         </div>
 

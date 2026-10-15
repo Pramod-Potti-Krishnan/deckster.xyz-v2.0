@@ -149,7 +149,16 @@ const DASH_CONST = `  // PASS2B G54 (NEXT_PUBLIC_STUDIO_PLAIN_NAV_LABELS, defaul
 `
 const DASH_TAB = '              {plainNavLabels ? <>Outline previews ({strawmanPresentations.length})</> : <>Strawman Previews ({strawmanPresentations.length})</>}\n'
 const DASH_TAB_BASE = '              Strawman Previews ({strawmanPresentations.length})\n'
-const stripDash = text => text.replace(DASH_CONST, '').replace(DASH_TAB, DASH_TAB_BASE)
+// The page also carries later PASS2B lines of the same batch, reverted too so it can be compared with the base commit: G56 (00cb07f, create word:
+// the import, a constant, two helper calls) and G53 (edc0134, four-card grid: a constant and one className expression).
+const LATER_DASH = [
+  ['import { studioCreateLabel } from "@/lib/studio-create-word"\n', ''],
+  ['  // PASS2B G56 (NEXT_PUBLIC_STUDIO_CREATE_WORD, default off, Studio shell only): the create buttons say "New deck", as the top bar does.\n  const createWord = studioShell && process.env.NEXT_PUBLIC_STUDIO_CREATE_WORD === "true"\n', ''],
+  ['{studioCreateLabel(createWord, "New Presentation")}', 'New Presentation'], ['{studioCreateLabel(createWord, "Create Presentation")}', 'Create Presentation'],
+  ['  // PASS2B G53 (NEXT_PUBLIC_STUDIO_DECK_GRID_4, default off, Studio shell only): four cards per row from the xl breakpoint (1280 px), as in the mockup.\n  const deckGrid4 = studioShell && process.env.NEXT_PUBLIC_STUDIO_DECK_GRID_4 === "true"\n', ''],
+  ['className={deckGrid4 ? "grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6" : "grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6"}', 'className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6"'],
+]
+const stripDash = text => LATER_DASH.reduce((result, [from, to]) => result.replace(from, to), text.replace(DASH_CONST, '').replace(DASH_TAB, DASH_TAB_BASE))
 function tabComponent(snippet) {
   const source = `module.exports = ({ studioShell, flag, strawmanPresentations }) => {\n  const plainNavLabels = studioShell && flag === 'true'\n  return <span>\n${snippet}</span>\n}\n`
   const module = { exports: {} }

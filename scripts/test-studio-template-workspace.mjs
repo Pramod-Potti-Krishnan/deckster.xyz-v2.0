@@ -190,6 +190,8 @@ function renderHeader(src, cell) {
     getStudioDeckSaveState: () => saveState,
     subscribeStudioDeckSaveState: () => () => {},
     studioTopBarSavedLabel: topBarLibModule(src).studioTopBarSavedLabel,
+    // PASS2B G56 (00cb07f, NEXT_PUBLIC_STUDIO_CREATE_WORD, default off): the create-button helper; off it returns the call site's own word.
+    studioCreateLabel: (unified, original) => unified === true ? 'New deck' : original,
   }
   moduleConstants(sourceFile, scope)
   const props = { wsError, onNewPresentation: fn, onOpenChatHistory: fn, isChatHistoryOpen, toolbarSlotRef: fn, onToolbarInteract: fn }

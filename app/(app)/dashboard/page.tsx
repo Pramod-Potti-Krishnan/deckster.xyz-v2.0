@@ -26,6 +26,7 @@ import { LAYOUT_VIEWER_URL_POLICY } from "@/lib/layout-service-client"
 import { evaluateLayoutViewerUrl } from "@/lib/layout-viewer-url-policy"
 import { viewOnlyIfEnabled } from "@/lib/present-view-only"
 import { deckCardDescription, deckCardStatusLabel } from "@/lib/studio-deck-cards"
+import { studioCreateLabel } from "@/lib/studio-create-word"
 
 interface Presentation {
   id: string
@@ -161,6 +162,8 @@ function DashboardForAccount({ user, isLoading }: Pick<ReturnType<typeof useAuth
   const studioShell = process.env.NEXT_PUBLIC_STUDIO_V4_SHELL === "true"
   // PASS2B G54 (NEXT_PUBLIC_STUDIO_PLAIN_NAV_LABELS, default off, Studio shell only): the second tab reads "Outline previews".
   const plainNavLabels = studioShell && process.env.NEXT_PUBLIC_STUDIO_PLAIN_NAV_LABELS === "true"
+  // PASS2B G56 (NEXT_PUBLIC_STUDIO_CREATE_WORD, default off, Studio shell only): the create buttons say "New deck", as the top bar does.
+  const createWord = studioShell && process.env.NEXT_PUBLIC_STUDIO_CREATE_WORD === "true"
   const router = useRouter()
 
   // Load sessions from API
@@ -431,7 +434,7 @@ function DashboardForAccount({ user, isLoading }: Pick<ReturnType<typeof useAuth
         <Button data-studio-deck-primary="true" asChild>
           <Link href="/builder">
             <Plus className="mr-2 h-4 w-4" />
-            New Presentation
+            {studioCreateLabel(createWord, "New Presentation")}
           </Link>
         </Button>
       </div>
@@ -609,7 +612,7 @@ function DashboardForAccount({ user, isLoading }: Pick<ReturnType<typeof useAuth
           {(["completed", "strawman"] as const).map(tab => <TabsContent key={tab} value={tab} className="space-y-6">
             {!hasLoadedSessions && !sessionsError ? <div data-studio-deck-loading="true" role="status" className="flex items-center justify-center gap-3 py-12 text-sm text-muted-foreground"><Loader2 className="h-5 w-5 animate-spin" />Loading presentations…</div> : !hasLoadedSessions && sessionsError ? <div data-studio-deck-empty="true" className="text-center py-12"><h3 className="text-lg font-semibold mb-2">Your library is unavailable</h3><p className="text-slate-600">Retry the library above to load your presentations.</p></div> : <>
               <div data-studio-deck-grid="true" data-studio-deck-view={view} className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">{filteredPresentations.map(presentation => <PresentationCard key={presentation.id} presentation={presentation} onOpen={id => router.push(`/builder?session_id=${encodeURIComponent(id)}`)} getStatusColor={getStatusColor} getStageName={getStageName} onDelete={studioShell && hasLoadedSessions ? requestDelete : undefined} deleteDisabled={isLoadingSessions || isLoadingMore || isDeletingSession} />)}</div>
-              {filteredPresentations.length === 0 && hasLoadedSessions && <div data-studio-deck-empty="true" className="text-center py-12"><Sparkles className="h-12 w-12 text-slate-400 mx-auto mb-4" /><h3 className="text-lg font-semibold mb-2">{hasActiveCriteria ? "No matching presentations" : tab === "completed" ? "No completed presentations found" : "No strawman previews found"}</h3><p className="text-slate-600 mb-4">{hasActiveCriteria ? "Try a different search or clear the folder, tag, and status filters." : tab === "completed" ? "Complete a strawman preview to create your first presentation." : "Create a presentation to generate a strawman preview."}</p>{hasActiveCriteria ? <Button variant="outline" onClick={clearFilters}><X className="mr-2 h-4 w-4" />Clear search and filters</Button> : <Button data-studio-deck-primary="true" asChild><Link href="/builder"><Plus className="mr-2 h-4 w-4" />Create Presentation</Link></Button>}</div>}
+              {filteredPresentations.length === 0 && hasLoadedSessions && <div data-studio-deck-empty="true" className="text-center py-12"><Sparkles className="h-12 w-12 text-slate-400 mx-auto mb-4" /><h3 className="text-lg font-semibold mb-2">{hasActiveCriteria ? "No matching presentations" : tab === "completed" ? "No completed presentations found" : "No strawman previews found"}</h3><p className="text-slate-600 mb-4">{hasActiveCriteria ? "Try a different search or clear the folder, tag, and status filters." : tab === "completed" ? "Complete a strawman preview to create your first presentation." : "Create a presentation to generate a strawman preview."}</p>{hasActiveCriteria ? <Button variant="outline" onClick={clearFilters}><X className="mr-2 h-4 w-4" />Clear search and filters</Button> : <Button data-studio-deck-primary="true" asChild><Link href="/builder"><Plus className="mr-2 h-4 w-4" />{studioCreateLabel(createWord, "Create Presentation")}</Link></Button>}</div>}
             </>}
           </TabsContent>)}
         </Tabs>
