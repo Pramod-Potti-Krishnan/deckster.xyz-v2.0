@@ -43,6 +43,8 @@ const imports = {
   // PASS2-COMPOSER-POPUPS: the V2 popup pieces template-picker imports; this test renders the flag-off picker only.
   '@/components/theme-dropdown-picker': { ThemeDropdownPicker: 'ThemeDropdownPicker' },
   '@/lib/studio-composer-popups': { DECKSTER_PROVIDED_TEMPLATES: [], keepPopupOpenForDropdownList() {} },
+  // PASS2B G38: reached only for a name drawn through displayName(); flag NEXT_PUBLIC_STUDIO_TEMPLATE_DISPLAY_NAMES is off here, so the stored name comes back as it is.
+  '@/lib/studio-template-display-name': { studioTemplateShownName: name => name, studioTemplateTitleProps: () => ({}) },
   'lucide-react': primitives,
   '@/components/ui/dropdown-menu': primitives,
   '@/components/ui/button': primitives,

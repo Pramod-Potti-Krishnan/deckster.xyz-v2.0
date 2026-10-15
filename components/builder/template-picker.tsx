@@ -21,6 +21,7 @@ import {
 } from '@/components/ui/dropdown-menu'
 import { cn } from '@/lib/utils'
 import { useToast } from '@/hooks/use-toast'
+import { studioTemplateShownName, studioTemplateTitleProps } from '@/lib/studio-template-display-name'
 import { mergeTemplateRetryAcknowledgement } from '@/lib/template-retry-acknowledgement'
 import {
   isTemplateGenerationReady,
@@ -35,6 +36,10 @@ import {
 
 type TemplatePickerMode = 'generation' | 'review'
 const STUDIO_SHELL = process.env.NEXT_PUBLIC_STUDIO_V4_SHELL === 'true'
+// PASS2B G38 (NEXT_PUBLIC_STUDIO_TEMPLATE_DISPLAY_NAMES, default off): templates are drawn by a short display name; the full stored name stays in a tooltip and in every payload.
+const TEMPLATE_DISPLAY_NAMES = process.env.NEXT_PUBLIC_STUDIO_TEMPLATE_DISPLAY_NAMES === 'true'
+const displayName = (name: string) => studioTemplateShownName(name, TEMPLATE_DISPLAY_NAMES)
+const nameTitle = (name: string) => studioTemplateTitleProps(name, TEMPLATE_DISPLAY_NAMES)
 // PASS2-COMPOSER-POPUPS fix (flag on only): the Templates page works only with saved templates connected (the page's own rule), and the
 // composer library's actions follow the library dialog's flags. Read here as the dialog and the page read them.
 const TEMPLATES_PAGE_ENABLED = process.env.NEXT_PUBLIC_TEMPLATE_BUILDER_ENABLED === 'true'
@@ -385,7 +390,8 @@ export function TemplatePickerContent({
     const optionOf = (template: SavedTemplate): ThemeDropdownOption => {
       const ready = isTemplateGenerationReady(template)
       const slides = template.slide_count != null ? `${template.slide_count} slides` : 'Saved template'
-      return { id: template.id, name: template.name, hint: template.description || templateGenerationUnavailableReason(template), swatches: [], current: false,
+      const note = template.description || templateGenerationUnavailableReason(template)
+      return { id: template.id, name: displayName(template.name), hint: displayName(template.name) !== template.name ? `${template.name} · ${note}` : note, swatches: [], current: false,
         sub: `${slides} · ${templateGenerationStatusLabel(template)}`, search: `${template.name} ${template.description || ''}`, muted: mode === 'generation' && !ready }
     }
     const mine = (templates ?? []).map(optionOf)
@@ -405,7 +411,7 @@ export function TemplatePickerContent({
     // template is chosen exactly as before. "Template library" opens the working library, never a page that is disabled here.
     const composer = dropdowns.composer
     const library = templateLibraryTarget({ composerLibrary: Boolean(dropdowns.onLibrary), templatesPage: TEMPLATES_PAGE_ENABLED })
-    const composerOptions: ThemeDropdownOption[] = (composer?.templates ?? []).map(template => ({ id: `${COMPOSER_OPTION}${template.id}`, name: template.name, hint: template.name,
+    const composerOptions: ThemeDropdownOption[] = (composer?.templates ?? []).map(template => ({ id: `${COMPOSER_OPTION}${template.id}`, name: displayName(template.name), hint: template.name,
       swatches: [], current: false, sub: `${composerTemplateSlideCount(template)} slides`, search: template.name }))
     // A locked deck still offers the composer templates (each one opens a new deck, as in the library dialog), but no saved ones.
     const savedOptions = dropdowns.savedTemplates && !(composer && dropdowns.locked) ? mine : []
@@ -458,8 +464,8 @@ export function TemplatePickerContent({
         {myEmpty && <p className="stcd-empty" role="status" data-studio-template-empty="mine">{myEmpty}</p>}
         {composer.error && composer.templates !== null && <p className="stcd-note stcd-error" role="alert">Your templates could not be refreshed: {composer.error} Showing the last loaded list.</p>}
       </div>
-      {chosen && <div className="stcd-composer" role="group" aria-label={`What to do with ${chosen.name}`} data-studio-template-composer={chosen.id}>
-        <p className="stcd-composer-name"><strong>{chosen.name}</strong> · {composerTemplateSlideCount(chosen)} slides</p>
+      {chosen && <div className="stcd-composer" role="group" aria-label={`What to do with ${displayName(chosen.name)}`} data-studio-template-composer={chosen.id}>
+        <p className="stcd-composer-name"><strong {...nameTitle(chosen.name)}>{displayName(chosen.name)}</strong> · {composerTemplateSlideCount(chosen)} slides</p>
         <div className="stcd-composer-actions">
           {composer.actions.map(({ action, label: actionLabel }) => <button key={action} type="button" data-studio-template-composer-action={action} disabled={!composer.userId}
             onClick={() => composer.onAction({ action, template: chosen })}>{actionLabel}</button>)}
@@ -473,7 +479,7 @@ export function TemplatePickerContent({
           const errors = [template.blueprint_enrichment_error, template.template_purity_error].filter(Boolean).join(' · ')
           return <div key={template.id} className="stcd-attention-row">
             <div className="stcd-attention-head">
-              <span><strong>{template.name}</strong> · {templateGenerationStatusLabel(template)}</span>
+              <span><strong {...nameTitle(template.name)}>{displayName(template.name)}</strong> · {templateGenerationStatusLabel(template)}</span>
               <button type="button" className="stcd-retry" disabled={Boolean(retryingId)} onClick={() => void retryNative(template)}><RotateCw size={11} aria-hidden="true" />{retryingId === template.id ? 'Requesting…' : 'Retry'}</button>
             </div>
             <small>{templateGenerationUnavailableReason(template)}{errors ? ` Current diagnostics: ${errors}` : ''}{previousErrors[template.id]?.length ? ` Previous attempt: ${previousErrors[template.id].join(' · ')}` : ''}</small>
@@ -498,13 +504,13 @@ export function TemplatePickerContent({
       const ready = isTemplateGenerationReady(template)
       const status = templateGenerationStatus(template)
       const errors = [template.blueprint_enrichment_error, template.template_purity_error].filter(Boolean).join(' · ')
-      return <><span className="stp-mini" aria-hidden="true"><i /><i /><i /></span><span className="stp-copy"><span className="stp-title">{template.name}</span><span className="stp-description">{template.slide_count != null ? `${template.slide_count} slides` : 'Saved template'}{template.description ? ` · ${template.description}` : ''}</span><span className="stp-status" data-status={status}>{ready ? <CheckCircle2 size={12} /> : status === 'optimizing' ? <Loader2 size={12} /> : <AlertTriangle size={12} />}{templateGenerationStatusLabel(template)}</span>{!ready && <span className="stp-reason">{mode === 'review' ? 'Review available. ' : ''}{templateGenerationUnavailableReason(template)}</span>}{errors && <span className="stp-reason break-words">Current diagnostics: {errors}</span>}{Boolean(previousErrors[template.id]?.length) && <span className="stp-reason break-words">Previous attempt: {previousErrors[template.id].join(' · ')}</span>}{watchNotices[template.id] && <span className="stp-reason" role="status">{watchNotices[template.id]}</span>}{template.id === preferredTemplateId && <span className="stp-preferred">From your library · not applied</span>}</span></>
+      return <><span className="stp-mini" aria-hidden="true"><i /><i /><i /></span><span className="stp-copy"><span className="stp-title" {...nameTitle(template.name)}>{displayName(template.name)}</span><span className="stp-description">{template.slide_count != null ? `${template.slide_count} slides` : 'Saved template'}{template.description ? ` · ${template.description}` : ''}</span><span className="stp-status" data-status={status}>{ready ? <CheckCircle2 size={12} /> : status === 'optimizing' ? <Loader2 size={12} /> : <AlertTriangle size={12} />}{templateGenerationStatusLabel(template)}</span>{!ready && <span className="stp-reason">{mode === 'review' ? 'Review available. ' : ''}{templateGenerationUnavailableReason(template)}</span>}{errors && <span className="stp-reason break-words">Current diagnostics: {errors}</span>}{Boolean(previousErrors[template.id]?.length) && <span className="stp-reason break-words">Previous attempt: {previousErrors[template.id].join(' · ')}</span>}{watchNotices[template.id] && <span className="stp-reason" role="status">{watchNotices[template.id]}</span>}{template.id === preferredTemplateId && <span className="stp-preferred">From your library · not applied</span>}</span></>
     }
     const refreshControl = standalone ? <button type="button" className="stp-icon-button" aria-label="Refresh saved templates" disabled={refreshing || Boolean(retryingId)} onClick={() => void refresh()}><RotateCw size={14} /></button> : <DropdownMenuItem className="stp-icon-button" aria-label="Refresh saved templates" disabled={refreshing || Boolean(retryingId)} onSelect={event => { event.preventDefault(); void refresh() }}><RotateCw size={14} /></DropdownMenuItem>
     return <section data-studio-template-picker="true" data-standalone={standalone ? 'true' : undefined} aria-label={label}>
       <div className="stp-heading"><div><strong>{label}</strong><p>{mode === 'review' ? 'Inspect saved structure, including templates that are not ready to generate.' : 'Choose verified reusable structure for the next build.'}</p></div>{refreshControl}</div>
       <div className="stp-search"><Search size={15} aria-hidden="true" /><input ref={searchInput} aria-label="Search saved templates" placeholder="Find a story structure" value={query} onChange={event => setQuery(event.target.value)} onKeyDown={event => { if (event.key.length === 1 || ['Backspace', 'Delete', 'Home', 'End', 'ArrowLeft', 'ArrowRight'].includes(event.key)) event.stopPropagation() }} />{query && <button type="button" aria-label="Clear saved template search" onClick={() => { setQuery(''); searchInput.current?.focus() }}><X size={14} /></button>}</div>
-      {preferred && <div className="stp-notice"><strong>From your library: {preferred.name}</strong><p>Highlighted only. This template has not been selected or applied.{query && !matches.some(template => template.id === preferred.id) ? ' Clear your search to see it.' : ''}</p></div>}
+      {preferred && <div className="stp-notice"><strong {...nameTitle(preferred.name)}>From your library: {displayName(preferred.name)}</strong><p>Highlighted only. This template has not been selected or applied.{query && !matches.some(template => template.id === preferred.id) ? ' Clear your search to see it.' : ''}</p></div>}
       {requestedMissing && <div className="stp-notice">The requested template is not in this available saved-template list. Refresh, or open the full library to find its current workflow.</div>}
       {listError && <div className="stp-notice stp-error" role="alert">{listError}{templates !== null && <p>Showing the last loaded records; their status may have changed.</p>}</div>}
       <p className="stp-count" role="status">{refreshing ? templates === null ? 'Loading saved templates…' : 'Refreshing saved templates…' : templates === null ? 'Library not loaded' : `${matches.length} ${matches.length === 1 ? 'template' : 'templates'}${query ? ' match' : ' available'}`}</p>

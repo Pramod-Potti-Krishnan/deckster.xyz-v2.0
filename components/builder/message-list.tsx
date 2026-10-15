@@ -48,7 +48,7 @@ import { QuestionCard } from "@/components/builder/chat/question-card"
 import { CHAT_CLARITY, CHAT_QUESTIONS } from "@/lib/mdc-flags"
 import type { QuestionSet } from "@/types/mdc"
 import { shouldRerouteEphemeral } from "@/lib/build-narration-heuristics"
-import { StudioWelcome, StudioFirstRunStarters, type StudioDirectorConnectionState, type StudioPresentationContext } from "@/components/builder/chat/studio-welcome"
+import { StudioWelcome, StudioFirstRunStarters, type StudioDirectorConnectionState, type StudioPresentationContext, type StudioWelcomeGreeting } from "@/components/builder/chat/studio-welcome"
 import { StudioOutlineCard } from "@/components/builder/chat/studio-outline-card"
 import { StudioRecoveryCard } from "@/components/builder/chat/studio-recovery-card"
 import { studioChatRecoveryCard, type StudioChatRecoveryInput } from "@/lib/studio-chat-recovery"
@@ -92,6 +92,8 @@ export interface MessageListProps {
   /** PASS2 #2 fix-forward (NEXT_PUBLIC_STUDIO_FIRST_RUN_V2, J2 pass-2 P1): an existing session's history is still being fetched, so "nothing has been said yet"
    *  is not yet known. While true no welcome is drawn (first-run or plain); the page's loading states carry the wait. Passed only with the flag on. */
   studioRestoring?: boolean
+  /** PASS2B G01 (NEXT_PUBLIC_STUDIO_WELCOME_POLISH): the signed-in user's display name for the welcome's time-of-day greeting. Passed only with the flag on. */
+  studioWelcomeGreeting?: StudioWelcomeGreeting
   messagesEndRef: React.RefObject<HTMLDivElement | null>
   // Rich strawman: per-slide context keyed by slide_index. Drives narrative_role chip + key_message subtitle.
   slideContextByIndex?: Record<number, SlideContextItem> | null
@@ -195,6 +197,7 @@ export function MessageList({
   presentationContext,
   studioFirstRunActions,
   studioRestoring,
+  studioWelcomeGreeting,
   messagesEndRef,
   slideContextByIndex,
   ephemeralFadeToken,
@@ -643,6 +646,7 @@ export function MessageList({
           presentationContext={presentationContext}
           busy={welcomeBusy}
           {...(firstRunV2 ? { firstRun: true } : {})}
+          {...(studioWelcomeGreeting ? { greeting: studioWelcomeGreeting } : {})}
         />
       )}
       {processedMessages.map((item, index) => {

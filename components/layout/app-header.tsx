@@ -9,6 +9,7 @@ import { useAuth } from "@/hooks/use-auth"
 import { lastBuilderSessionKey } from "@/lib/last-builder-session"
 import { ArrowLeft, Brain, LayoutDashboard, Layers } from "lucide-react"
 import { StudioNavigationHint } from "@/components/layout/studio-navigation-hint"
+import { studioNavLabels } from "@/lib/studio-nav-labels"
 
 /**
  * Returns the user to their most recent builder session (if one is remembered),
@@ -63,7 +64,10 @@ export function AppHeader() {
   const pathname = usePathname()
   const studioLabels = process.env.NEXT_PUBLIC_STUDIO_V4_LABELS === "true"
 
-  if (process.env.NEXT_PUBLIC_STUDIO_V4_SHELL === "true") return <header data-studio-v4-shell-header="true"><div className="flex h-full items-center"><span className="text-sm font-semibold">{pathname === "/dashboard" ? "Decks" : pathname === "/knowledge" ? "Knowledge" : pathname === "/profile" || pathname === "/studio/details" ? "Your details" : pathname === "/studio/templates" ? "Templates" : pathname === "/studio/themes" ? "Themes & brand" : pathname === "/studio/intelligence" ? "Intelligence" : "Account"}</span></div></header>
+  // PASS2B G43 (NEXT_PUBLIC_STUDIO_PLAIN_NAV_LABELS, default off): the top bar title of /dashboard and /knowledge, as the rail names them.
+  const navLabels = studioNavLabels(process.env.NEXT_PUBLIC_STUDIO_PLAIN_NAV_LABELS === "true")
+
+  if (process.env.NEXT_PUBLIC_STUDIO_V4_SHELL === "true") return <header data-studio-v4-shell-header="true"><div className="flex h-full items-center"><span className="text-sm font-semibold">{pathname === "/dashboard" ? navLabels.decks : pathname === "/knowledge" ? navLabels.knowledge : pathname === "/profile" || pathname === "/studio/details" ? "Your details" : pathname === "/studio/templates" ? "Templates" : pathname === "/studio/themes" ? "Themes & brand" : pathname === "/studio/intelligence" ? "Intelligence" : "Account"}</span></div></header>
 
   const navItems = [
     { href: "/dashboard", label: "Decks", icon: LayoutDashboard },

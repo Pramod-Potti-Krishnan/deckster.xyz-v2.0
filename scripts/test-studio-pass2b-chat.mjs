@@ -599,8 +599,10 @@ async function checks(root, { only } = {}) {
     const regions = Object.fromEntries(pageSources(root).regions.map(region => [region.label, region.sha256]))
     // + PASS2B G12 (NEXT_PUBLIC_STUDIO_COMPOSER_STAGE_CONTEXT) adds one flag-gated spread inside the composer context line's call; flag off it is the base's
     //   expression (scripts/test-studio-composer-stage-context.mjs compares the call site, minus that spread, with the base commit's text).
+    // + PASS2B G01 (NEXT_PUBLIC_STUDIO_WELCOME_POLISH) adds one flag-gated spread on MessageList (the welcome's greeting name); flag off it adds no prop
+    //   (scripts/test-studio-welcome-polish.mjs compares the page, minus that spread, with the base commit's text).
     const OWNED = new Set(['page.<MessageList studioRecovery>', 'page.<StudioDirectorNotice notice>', 'page.<ChatInput studioEditPrompt>', 'page.<StudioDirectorHeader onReconnect>',
-      'page.<ChatInput studioContextLabel>'])
+      'page.<ChatInput studioContextLabel>', 'page.<MessageList ...0>'])
     for (const [label, hash] of Object.entries(GOLDEN.regions)) if (!OWNED.has(label) && regions[label] !== hash) fail(`page region "${label}" changed (handlers and every other prop expression must stay the base's)`)
     for (const label of Object.keys(regions)) if (!(label in GOLDEN.regions) && !OWNED.has(label)) fail(`page region "${label}" is new and not one of the four this PR owns`)
     for (const label of OWNED) if (!(label in regions)) fail(`page region "${label}" is missing`)

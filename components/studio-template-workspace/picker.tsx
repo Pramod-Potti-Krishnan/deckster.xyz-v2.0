@@ -21,6 +21,7 @@ import { cn } from '@/lib/utils'
 import { composerTemplateActions, composerTemplateSlideCount, loadComposerTemplates, templateLibraryTarget, type ComposerLibraryRequest } from '@/lib/studio-composer-popups'
 import type { ComposerTemplate } from '@/lib/composer-library'
 import { templateNameFromFile } from '@/lib/studio-template-workspace/registry'
+import { studioTemplateShownName, studioTemplateTitleProps } from '@/lib/studio-template-display-name'
 import { templateCapabilities, templateWorkspaceCounts } from '@/lib/studio-template-workspace/state'
 import type { TemplateWorkspaceSnapshot } from '@/lib/studio-template-workspace/adapter'
 import { SlideView, uploadedAgo, useTemplateWorkspaceRecords, useTemplateWorkspaceSnapshots, useTemplateWorkspaceUserKey } from './shared'
@@ -50,6 +51,10 @@ const COMPOSER_DITTO_ENABLED = process.env.NEXT_PUBLIC_COMPOSER_STAGE1B_DITTO_EN
 const COMPOSER_NEW_TOPIC_ENABLED = process.env.NEXT_PUBLIC_COMPOSER_STAGE1B_NEW_TOPIC_ENABLED === 'true'
 /** A composer library template's key in the picker's one list; it can never equal an upload's session id. */
 const COMPOSER_ROW_PREFIX = 'composer:'
+// PASS2B G38 (NEXT_PUBLIC_STUDIO_TEMPLATE_DISPLAY_NAMES, default off): templates are drawn by a short display name; the full stored name stays in a tooltip and in every payload.
+const TEMPLATE_DISPLAY_NAMES = process.env.NEXT_PUBLIC_STUDIO_TEMPLATE_DISPLAY_NAMES === 'true'
+const displayName = (name: string) => studioTemplateShownName(name, TEMPLATE_DISPLAY_NAMES)
+const nameTitle = (name: string) => studioTemplateTitleProps(name, TEMPLATE_DISPLAY_NAMES)
 type ComposerRow = { key: string; template: ComposerTemplate; name: string }
 
 type Entry = { record: ReturnType<typeof useTemplateWorkspaceRecords>[number]; snapshot: TemplateWorkspaceSnapshot; start: ((mode: 'new_topic' | 'as_is') => Promise<string>) | null; name: string }
@@ -206,7 +211,7 @@ export function StudioTemplatePicker({ disabled, triggerClassName, labelClassNam
                   <button key={row.key} id={optionId(row.key)} type="button" role="option" aria-selected={isSelected} data-active={highlightedKey === row.key ? 'true' : undefined}
                     className="stw-pick" title={row.name} data-studio-template-composer-option={row.template.id} onClick={() => chooseKey(row.key)} onMouseMove={() => setHighlightId(row.key)}>
                     <span className="info">
-                      <span className="name"><span>{row.name}</span></span>
+                      <span className="name"><span>{displayName(row.name)}</span></span>
                       <span className="meta">{composerTemplateSlideCount(row.template)} slides</span>
                     </span>
                     {isSelected ? <Check className="tick" aria-hidden="true" /> : <span className="tick" />}
@@ -222,7 +227,7 @@ export function StudioTemplatePicker({ disabled, triggerClassName, labelClassNam
                 <button key={id} id={optionId(id)} type="button" role="option" aria-selected={isSelected} data-active={highlightedKey === id ? 'true' : undefined}
                   className="stw-pick" onClick={() => chooseKey(id)} onMouseMove={() => setHighlightId(id)}>
                   <span className="info">
-                    <span className="name"><span>{entry.name}</span>{fresh && <span className="new">NEW</span>}</span>
+                    <span className="name"><span {...nameTitle(entry.name)}>{displayName(entry.name)}</span>{fresh && <span className="new">NEW</span>}</span>
                     <span className="meta">{metaLine(entry)}</span>
                   </span>
                   <span className="minis" aria-hidden="true">
@@ -237,7 +242,7 @@ export function StudioTemplatePicker({ disabled, triggerClassName, labelClassNam
           </div>
           <div className="stw-picker-foot">
             {selectedComposer ? (
-              <div className="stw-picker-actions" role="group" aria-label={`What to do with ${selectedComposer.name}`} data-studio-template-composer={selectedComposer.template.id}>
+              <div className="stw-picker-actions" role="group" aria-label={`What to do with ${displayName(selectedComposer.name)}`} data-studio-template-composer={selectedComposer.template.id}>
                 {composerActions.map(({ action, label }) => (
                   <button key={action} type="button" className={cn('stw-btn', action === 'use' && 'teal')} data-studio-template-composer-action={action} disabled={!userKey}
                     onClick={() => runComposerAction({ action, template: selectedComposer.template })}>{label}{action === 'use' && <ArrowRight />}</button>
@@ -273,7 +278,7 @@ export function StudioTemplatePicker({ disabled, triggerClassName, labelClassNam
 function ComposerPreview({ row }: { row: ComposerRow }) {
   return (
     <>
-      <h4>{row.name}</h4>
+      <h4 {...nameTitle(row.name)}>{displayName(row.name)}</h4>
       <p>{composerTemplateSlideCount(row.template)} slides · from your template library</p>
       <p>Use original opens the uploaded deck as a new presentation. Each option opens a new deck; the template library shows its progress.</p>
     </>
@@ -294,7 +299,7 @@ function Preview({ entry, mode, onMode }: { entry: Entry; mode: 'new_topic' | 'a
     <>
       {state.deck ? <SlideView index={0} width={270} fixture={fixture} thumb /> : <div className="stw-slide thumb" style={{ width: 270, height: 152 }} />}
       {state.deck && minis.length > 0 && <div className="row">{minis.map(i => <SlideView key={i} index={i} width={62} fixture={fixture} thumb />)}</div>}
-      <h4>{entry.name}</h4>
+      <h4 {...nameTitle(entry.name)}>{displayName(entry.name)}</h4>
       <p>{description}</p>
       <span className="eyebrow" style={{ marginTop: 2 }}>How to use it</span>
       <div role="radiogroup" aria-label="How to use it" style={{ display: 'grid', gap: 6 }}>

@@ -3,7 +3,8 @@
 // ("Your presentation will take shape here"). Flag NEXT_PUBLIC_STUDIO_FIRST_RUN_POSTER_HIDE (exact "true", Studio shell only), default off.
 //
 // Run: node scripts/test-studio-first-run-poster-hide.mjs   (plain node: transpile, no network, no browser, no env)
-//   FIRST_RUN_POSTER_BASE=<commit> overrides the base commit the flag-off identity is checked against (default a2e14da).
+//   FIRST_RUN_POSTER_BASE=<commit> overrides the base commit the flag-off identity is checked against (default 8df821b, the #407 merge: the
+//   last commit before the G20/G12/G09 batch; the default was a2e14da until #407 landed its own page lines between the two).
 //
 // Proven on the REAL components/builder/studio-welcome-stage.tsx, components/builder/presentation-area.tsx and app/builder/page.tsx:
 //   1. the stage: without `planning` the markup is the base commit's, byte for byte, over a props matrix; with it the poster's words and first-run
@@ -25,7 +26,7 @@ const repoRoot = path.resolve(new URL('..', import.meta.url).pathname)
 const nodeRequire = createRequire(path.join(repoRoot, 'package.json'))
 const React = nodeRequire('react')
 const { renderToStaticMarkup } = nodeRequire('react-dom/server')
-const BASE_COMMIT = process.env.FIRST_RUN_POSTER_BASE || 'a2e14da'
+const BASE_COMMIT = process.env.FIRST_RUN_POSTER_BASE || '8df821b'
 const read = rel => fs.readFileSync(path.join(repoRoot, rel), 'utf8')
 function baseSource(rel) {
   try {
@@ -124,6 +125,21 @@ proveArea(SOURCES[AREA]); checks += 80 + 10
 
 // ---------------------------------------------------------------- 3. the page
 const G12_BLOCK = /\s*\/\/ PASS2B G12[^\n]*\n\s*\.\.\.\(process\.env\.NEXT_PUBLIC_STUDIO_COMPOSER_STAGE_CONTEXT === 'true' \? \{ stage: \{[\s\S]*?\} \} : \{\}\),/
+// + PASS2B G01/G02 (NEXT_PUBLIC_STUDIO_WELCOME_POLISH) add an import, one flag-gated spread on MessageList, the edge-tab decision and a wrapper around the
+//   Slide handle; flag off none of it changes the page's output. scripts/test-studio-welcome-polish.mjs proves them against the same base text.
+const G01_G02 = [
+  ["import { studioSlideEdgeTabHidden } from '@/lib/studio-welcome-polish'\n", ''],
+  ["                        {...(studioShell && process.env.NEXT_PUBLIC_STUDIO_WELCOME_POLISH === 'true' ? { studioWelcomeGreeting: { name: user?.name ?? null } } : {})}\n", ''],
+  [`  // PASS2B G02 (flag NEXT_PUBLIC_STUDIO_WELCOME_POLISH, default off): no collapsed Slide edge tab on the welcome screen or over the outline.
+  const studioSlideTabHidden = studioShell && studioSlideEdgeTabHidden({
+    enabled: process.env.NEXT_PUBLIC_STUDIO_WELCOME_POLISH === 'true', panelOpen: isSlideDrawerOpen || studioSlideVisible,
+    landing: studioWelcome, builtDeck: studioCanvasLifecycle.hasGeneratedDeck, activeVersion: effectiveActiveVersion,
+  })
+`, ''],
+  ['              {!studioSlideTabHidden && (\n', ''],
+  ['              </button>\n              )}\n', '              </button>\n'],
+]
+const stripG01G02 = text => G01_G02.reduce((acc, [from, to]) => acc.replace(from, to), text)
 const PAGE_ATTR = "            studioBriefSent={studioShell && process.env.NEXT_PUBLIC_STUDIO_FIRST_RUN_POSTER_HIDE === 'true' ? session.userMessages.length > 0 : undefined}\n"
 function provePage(page, label = 'page') {
   assert.equal((page.match(/studioBriefSent=/g) ?? []).length, 1, `${label}: one attribute`)
@@ -131,7 +147,7 @@ function provePage(page, label = 'page') {
   const at = page.indexOf('<PresentationArea\n'), end = page.indexOf('\n          />', at)
   assert.ok(at > 0 && page.slice(at, end).includes(PAGE_ATTR), `${label}: it is on PresentationArea`)
   const basePage = baseSource(PAGE)
-  if (basePage) assert.equal(page.replace(PAGE_ATTR, '').replace(G12_BLOCK, ''), basePage, `${label}: without it (and the G12 block) the page is ${BASE_COMMIT}'s`)
+  if (basePage) assert.equal(stripG01G02(page.replace(PAGE_ATTR, '').replace(G12_BLOCK, '')), basePage, `${label}: without it (and the G12 block) the page is ${BASE_COMMIT}'s`)
 }
 provePage(SOURCES[PAGE]); checks += 3 + 1
 

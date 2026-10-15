@@ -138,6 +138,7 @@ import {
 import { classifyDirectorMessage } from '@/lib/studio-director-message-policy'
 import { createStudioVoiceOwner } from '@/lib/studio-voice-owner'
 import { classifyStudioCanvasLifecycle } from '@/lib/studio-canvas-lifecycle'
+import { studioSlideEdgeTabHidden } from '@/lib/studio-welcome-polish'
 import { StudioWaitingState } from '@/components/builder/studio-waiting-state'
 import { StudioBuilderSkeleton, StudioSessionProblemView } from '@/components/builder/studio-session-hygiene'
 import { TemplateIngestReviewCards } from '@/components/template-ingest-review-cards'
@@ -3353,6 +3354,11 @@ function AuthenticatedBuilderContent({ authScopeUserId }: { authScopeUserId: str
   const studioElementVisible = inspectorIsVisible('element')
   const studioSlideVisible = inspectorIsVisible('slide')
   const studioTemplateVisible = inspectorIsVisible('template')
+  // PASS2B G02 (flag NEXT_PUBLIC_STUDIO_WELCOME_POLISH, default off): no collapsed Slide edge tab on the welcome screen or over the outline.
+  const studioSlideTabHidden = studioShell && studioSlideEdgeTabHidden({
+    enabled: process.env.NEXT_PUBLIC_STUDIO_WELCOME_POLISH === 'true', panelOpen: isSlideDrawerOpen || studioSlideVisible,
+    landing: studioWelcome, builtDeck: studioCanvasLifecycle.hasGeneratedDeck, activeVersion: effectiveActiveVersion,
+  })
   const studioInspectorWidth = workspaceLayout.inspectorWidth
   const studioChatWidth = workspaceLayout.chatWidth
   const showStudioInspectorTabs = availableInspectors.length > 1 && !(activeInspector === 'template' && templateParamsCollapsed)
@@ -7244,6 +7250,7 @@ function AuthenticatedBuilderContent({ authScopeUserId }: { authScopeUserId: str
               </div>
 
               {/* Handle */}
+              {!studioSlideTabHidden && (
               <button
                 type="button"
                 onClick={() => {
@@ -7279,6 +7286,7 @@ function AuthenticatedBuilderContent({ authScopeUserId }: { authScopeUserId: str
                   Slide
                 </span>
               </button>
+              )}
             </div>
           )}
 
@@ -7353,6 +7361,7 @@ function AuthenticatedBuilderContent({ authScopeUserId }: { authScopeUserId: str
                         studioFirstRunActions={studioShell && process.env.NEXT_PUBLIC_STUDIO_FIRST_RUN_V2 === 'true'
                           ? <StudioFirstRunActions onStartBlank={effectivePresentationUrl ? (STUDIO_BLANK_START_NEW_SESSION_ENABLED ? handleStartOnBlankCanvas : handleDismissBlankPlaceholder) : undefined} /> : undefined}
                         studioRestoring={studioShell && process.env.NEXT_PUBLIC_STUDIO_FIRST_RUN_V2 === 'true' ? studioFirstRunRestoring : undefined}
+                        {...(studioShell && process.env.NEXT_PUBLIC_STUDIO_WELCOME_POLISH === 'true' ? { studioWelcomeGreeting: { name: user?.name ?? null } } : {})}
                         connectionState={studioShell ? undefined : connected ? 'connected' : connecting ? 'connecting' : wsError ? 'error' : 'disconnected'}
                         onDraftPrompt={text => {
                           if (inputMessage.trim()) setWorkflowBrief(text)

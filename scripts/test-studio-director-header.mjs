@@ -16,6 +16,7 @@ const imports = {
   'react/jsx-runtime': { jsx, jsxs: jsx },
   'lucide-react': Object.fromEntries(['Sparkles', 'ArrowUpRight', 'BookOpen', 'Lightbulb', 'ListChecks', 'Globe', 'SlidersHorizontal', 'Paperclip', 'ArrowUp', 'Square', 'Loader2', 'Search', 'Brain', 'LayoutTemplate', 'Palette', 'Save', 'Star', 'Trash2', 'X', 'CheckCircle2', 'AlertCircle'].map(name => [name, name])),
   './studio-director-header.css': {},
+  '@/lib/studio-welcome-polish': { studioWelcomeEyebrow: refuse }, // PASS2B G01: reached only with a `greeting` prop (flag NEXT_PUBLIC_STUDIO_WELCOME_POLISH), never passed here
   '@/components/builder/chat/mention-popover': { SlideMentionPopover: 'SlideMentionPopover' },
   '@/lib/mdc-mentions': { filterMentionSlides: () => [], mentionToken: refuse },
   '@/lib/mdc-flags': { CHAT_MENTIONS: false },
