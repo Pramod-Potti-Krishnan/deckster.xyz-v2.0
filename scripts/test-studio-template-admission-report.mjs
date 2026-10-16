@@ -513,6 +513,8 @@ function pureChecks(sources) {
 
 // ---- 2. flag off: the base dialog's tree, requests and writes, step for step -----------------------------------------------------------------
 const framesJob = (name, job_id = UPLOAD_JOB) => ({ ...structuredClone(jobOf(name)), job_id })
+/** A frame that ends the watch (a finished job: status complete, poll null), so no scenario leaves a poll running when it is done. */
+const ending = job => ({ ...job, status: 'complete', poll: null })
 const SAVED = () => ({ ...structuredClone(rowOf('progress-flow-mid-run')), id: TEMPLATE_ID, name: `Deck04_Fabrikam_Review.pptx — upload 2026-10-15 12:00 UTC [${TEMPLATE_ID}]` })
 const SCENARIOS = {
   'open, the list carries reports': { opts: () => ({ templates: LIST() }), steps: [] },
@@ -569,24 +571,33 @@ function sourceChecks(sources) {
   for (const file of ['vercel.json', 'vercel.dev.json']) check(assert.equal, read(file).includes('STUDIO_TEMPLATE_ADMISSION_REPORT'), false, `${file} does not turn it on`)
 }
 
-async function flagOffChecks(sources) {
+const baseHashes = new Map() // the base dialog's hash per scenario and shell: the same for every mutant, so measured once
+async function baseHash(name, shell) {
+  const key = `${name}|${shell}`
+  if (!baseHashes.has(key)) baseHashes.set(key, (await play(baseSources, undefined, name, { shell })).hash)
+  return baseHashes.get(key)
+}
+/** `light` (the mutants): the studio shell and three spellings of the flag; the whole suite runs both shells and five spellings once, unmutated. */
+async function flagOffChecks(sources, light = false) {
   const withProgress = name => SCENARIOS[name].opts().progress === true
-  for (const shell of [true, false]) for (const name of Object.keys(SCENARIOS)) {
-    const base = (await play({ ...baseSources }, undefined, name, { shell })).hash
-    for (const flag of [undefined, 'false', '1', 'TRUE', ' true']) {
+  const shells = light ? [true] : [true, false], spellings = light ? [undefined, 'false', '1'] : [undefined, 'false', '1', 'TRUE', ' true']
+  for (const shell of shells) for (const name of Object.keys(SCENARIOS)) {
+    const base = await baseHash(name, shell)
+    for (const flag of spellings) {
       check(assert.equal, (await play(sources, flag, name, { shell })).hash, base, `flag ${JSON.stringify(flag)}, shell ${shell}: ${name}`)
     }
   }
   check(assert.equal, withProgress('upload (progress on): the job reads carry the report'), true)
   // Flag on, but no row has a report to show: the base's tree, requests and storage access.
-  for (const shell of [true, false]) for (const name of ['open, an empty library', 'open, a list with no report at all']) {
-    const base = await play(baseSources, undefined, name, { shell }), lit = await play(sources, 'true', name, { shell })
-    check(assert.equal, lit.hash, base.hash, `flag on, nothing to show, shell ${shell}: ${name}: the base's tree, requests and storage access`)
+  for (const shell of shells) for (const name of ['open, an empty library', 'open, a list with no report at all']) {
+    const lit = await play(sources, 'true', name, { shell })
+    check(assert.equal, lit.hash, await baseHash(name, shell), `flag on, nothing to show, shell ${shell}: ${name}: the base's tree, requests and storage access`)
   }
   { // a list whose only reports are unreadable
     const templates = [noKey(ID.none, 'composer-flag-off'), { ...noKey(ID.garbage, 'composer-flag-off'), admission_report: { version: 'composer-admission-report-v9' } }, { ...noKey(ID.off, 'director-flag-off'), admission_report: null }]
     const hash = async (sourceSet, flag) => { const ui = mount({ sources: sourceSet, flag, templates }); await ui.settle(); const out = sha(ser(ui.tree) + ser(ui.log)); await ui.close(); return out }
-    check(assert.equal, await hash(sources, 'true'), await hash(baseSources, undefined), 'flag on, reports that do not read as reports: the base\'s tree')
+    if (!baseHashes.has('unreadable')) baseHashes.set('unreadable', await hash(baseSources, undefined))
+    check(assert.equal, await hash(sources, 'true'), baseHashes.get('unreadable'), 'flag on, reports that do not read as reports: the base\'s tree')
   }
 }
 
@@ -691,7 +702,7 @@ async function flagOnChecks(sources) {
   }
   { // a long deck's job read (a real progress frame with the 450-slide report Director served): only the slides with something to say, and the note
     const longDeck = { ...framesJob('progress-flow-mid-run'), admission_report: reportOf('big-deck') }
-    const ui = mount({ sources, flag: 'true', progress: true, templates: [], saved: SAVED(), queue: [{ job_id: UPLOAD_JOB, answers: [longDeck] }] })
+    const ui = mount({ sources, flag: 'true', progress: true, templates: [], saved: SAVED(), queue: [{ job_id: UPLOAD_JOB, answers: [ending(longDeck)] }] })
     await ui.settle(); ui.chooseFile({ name: 'a.pptx', size: 4096 }); await ui.settle(2); ui.click('Upload template'); await ui.settle(30)
     const block = readBlock(blockOf(ui, TEMPLATE_ID)), wanted = expectedView(reportOf('big-deck'))
     deq(block.chips.map(chip => Number(chip.slide)), wanted.strip.map(chip => chip.slide), 'only the slides with something to say')
@@ -704,7 +715,7 @@ async function flagOnChecks(sources) {
   {
     const bad = { ...framesJob('progress-flow-mid-run'), admission_report: { version: 'composer-admission-report-v1', headline: '<x>', totals: {}, slides: [], changes: [], changes_more: 0 } }
     const listRow = { ...SAVED(), admission_report: structuredClone(rowOf('progress-flow-mid-run').admission_report) }
-    const ui = mount({ sources, flag: 'true', progress: true, templates: [], saved: listRow, queue: [{ job_id: UPLOAD_JOB, answers: [bad] }] })
+    const ui = mount({ sources, flag: 'true', progress: true, templates: [], saved: listRow, queue: [{ job_id: UPLOAD_JOB, answers: [ending(bad)] }] })
     await ui.settle(); ui.chooseFile({ name: 'a.pptx', size: 4096 }); await ui.settle(2); ui.click('Upload template'); await ui.settle(30)
     const block = readBlock(blockOf(ui, TEMPLATE_ID))
     check(assert.equal, block.headline, reportOf('progress-flow-mid-run').headline, "a job report that does not read falls back to the row's own")
@@ -713,14 +724,14 @@ async function flagOnChecks(sources) {
   }
   { // a job whose report is null (Composer's flag off): the row's report, if any, is the list's; nothing otherwise
     const nullJob = { ...framesJob('progress-flow-mid-run'), admission_report: null }
-    const ui = mount({ sources, flag: 'true', progress: true, templates: [], saved: SAVED(), queue: [{ job_id: UPLOAD_JOB, answers: [nullJob] }] })
+    const ui = mount({ sources, flag: 'true', progress: true, templates: [], saved: SAVED(), queue: [{ job_id: UPLOAD_JOB, answers: [ending(nullJob)] }] })
     await ui.settle(); ui.chooseFile({ name: 'a.pptx', size: 4096 }); await ui.settle(2); ui.click('Upload template'); await ui.settle(30)
     const saved = SAVED()
     const record = ui.rowNode(TEMPLATE_ID)
     check(assert.ok, record, 'the saved template is in the list')
     check(assert.equal, flat(record).some(node => node.props?.['aria-label'] === 'What changed'), true, "the list row's own report")
     await ui.close()
-    const clean = mount({ sources, flag: 'true', progress: true, templates: [], saved: (({ admission_report, ...rest }) => rest)(saved), queue: [{ job_id: UPLOAD_JOB, answers: [nullJob] }] })
+    const clean = mount({ sources, flag: 'true', progress: true, templates: [], saved: (({ admission_report, ...rest }) => rest)(saved), queue: [{ job_id: UPLOAD_JOB, answers: [ending(nullJob)] }] })
     await clean.settle(); clean.chooseFile({ name: 'a.pptx', size: 4096 }); await clean.settle(2); clean.click('Upload template'); await clean.settle(30)
     check(assert.equal, flat(clean.rowNode(TEMPLATE_ID)).some(node => node.props?.['aria-label'] === 'What changed'), false, 'nothing to show: nothing drawn')
     await clean.close()
@@ -729,11 +740,11 @@ async function flagOnChecks(sources) {
 
 // ---- 4. mutations ---------------------------------------------------------------------------------------------------------------------------
 /** `source: false` skips the source pins (a mutant of the dialog is meant to be caught by what the dialog DOES, not by its text). */
-async function suite(sources, { source = true } = {}) {
+async function suite(sources, { source = true, light = false } = {}) {
   checks = 0
   if (source) sourceChecks(sources)
   pureChecks(sources)
-  await flagOffChecks(sources)
+  await flagOffChecks(sources, light)
   await flagOnChecks(sources)
 }
 
@@ -852,10 +863,11 @@ for (const [rel, name, from, to] of MUTANTS) {
   const source = branchSources[rel]
   assert.equal(source.split(from).length, 2, `mutant "${name}" must match exactly one place in ${rel}`)
   let failure = null
-  try { await suite({ ...branchSources, [rel]: source.replace(from, () => to) }, { source: rel !== DIALOG }) } catch (error) { failure = error }
+  try { await suite({ ...branchSources, [rel]: source.replace(from, () => to) }, { source: rel !== DIALOG, light: true }) } catch (error) { failure = error }
   if (!failure) { survivors.push(name); console.log(`  MUTANT SURVIVED: ${name}`); continue }
   caught++
   console.log(`  mutation caught: ${name} (${String(failure.message).split('\n')[0].slice(0, 100)})`)
 }
 assert.deepStrictEqual(survivors, [], `MUTANTS SURVIVED: ${survivors.join('; ')}`)
 console.log(`PASS: studio template admission report (${total} checks, ${caught}/${MUTANTS.length} mutants caught, ${((Date.now() - started) / 1000).toFixed(0)} s)`)
+process.exit(0) // the fake runtime has no unmount; every scenario ends its job (a finished frame), and this makes the exit certain
