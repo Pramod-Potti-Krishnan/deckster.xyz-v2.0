@@ -74,6 +74,8 @@ import { slideTitleLabel } from '@/lib/studio-slide-title-label'
 import { useSlideRailIdentity } from '@/hooks/use-slide-rail-identity'
 import { STUDIO_RAIL_SLIDE_IDENTITY_ENABLED } from '@/lib/slide-rail-identity'
 import { STUDIO_DECK_MUTATION_REFRESH_ENABLED, onSlideRailRefreshRequest } from '@/lib/studio-deck-mutation-refresh'
+import { STUDIO_SLIDE_DELETE_CANVAS_REFRESH_ENABLED, studioSlideDeleteRefresh } from '@/lib/studio-slide-delete-refresh' // PASS2D B4
+import { StudioSlideDeleteRefreshVeil } from '@/components/builder/studio-slide-delete-refresh-veil' // PASS2D B4
 import { STUDIO_DECK_CHANGED_NOTICE_ENABLED, reportDeckChange, reportLayoutCommandAck, reportOwnDeckEdit, reportViewerDeckState } from '@/lib/studio-deck-changed-notice'
 import { STUDIO_SLIDE_RAIL_V2, SLIDE_RAIL_V2_DEFAULT_WIDTH } from '@/lib/studio-slide-rail-v2'
 import { STUDIO_TOP_BAR_V2_ENABLED, publishStudioDeckSaveState } from '@/lib/studio-top-bar-v2'
@@ -1407,6 +1409,7 @@ export function PresentationViewer({
       // Even an identical URL is a fresh native frame lifetime.
       const retiredNativeRequest = slideMutationRequestRef.current
       studioComposeLoadRevisionRef.current += 1
+      if (STUDIO_SLIDE_DELETE_CANVAS_REFRESH_ENABLED) studioSlideDeleteRefresh.frameLoaded() // PASS2D B4: the new document is the canvas
       studioComposeLoadedFrameRef.current = { iframe: event.currentTarget, source: loadedUrl,
         nativeWindow: event.currentTarget.contentWindow, revision: studioComposeLoadRevisionRef.current }
       slideMutationOwnerRef.current = { ...slideMutationOwnerRef.current,
@@ -2456,6 +2459,7 @@ export function PresentationViewer({
     mutation.commit<boolean>(setIsDeleting, true)
     try {
       debugLog('🗑️ Attempting bulk delete with indices:', slidesToDelete)
+      const deleteLoadRevision = studioComposeLoadRevisionRef.current // PASS2D B4: the frame lifetime when the command goes out
 
       // Use bulk delete endpoint - pass all indices at once
       const result = await sendCommand(mutation.iframe, 'deleteSlides', {
@@ -2474,6 +2478,7 @@ export function PresentationViewer({
           || JSON.stringify(result)
         throw new Error(errorMsg)
       }
+      if (STUDIO_SLIDE_DELETE_CANVAS_REFRESH_ENABLED && studioShell) studioSlideDeleteRefresh.acknowledged({ revisionAtSend: deleteLoadRevision, revisionNow: studioComposeLoadRevisionRef.current }) // PASS2D B4: cover the stale canvas until the reloaded frame loads
 
       // Update local state based on response
       const deletedCount = result.deleted_count || slidesToDelete.length
@@ -4695,6 +4700,7 @@ export function PresentationViewer({
                 {studioShell && !viewerHasLoaded && <div className="absolute inset-0 z-20 pointer-events-none" data-studio-viewer-loading="true">
                   <StudioWaitingState scope="canvas" message="Loading your slides…" />
                 </div>}
+                {studioShell && STUDIO_SLIDE_DELETE_CANVAS_REFRESH_ENABLED && <StudioSlideDeleteRefreshVeil />}{/* PASS2D B4 */}
                 {templateModeOn && templateBuilderEnabled && (
                   <TemplateModeOverlay
                     snapshot={templateSnapshot}
