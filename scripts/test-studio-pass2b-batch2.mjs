@@ -831,7 +831,7 @@ function wiringChecks() {
     assert.deepEqual(removed(PANEL), [], 'index.tsx: additions only')
     assert.deepEqual(removed(DIALOG), [], 'template-save-dialog.tsx: additions only (its disabled expression and handlers are untouched)')
     // the files this change must not touch (other builders' and the request path): byte-equal to the base commit
-    const frozen = ['components/builder/chat-input.tsx', 'components/studio-add-slide-v2.tsx', 'app/builder/page.tsx', 'hooks/use-textlabs-generation.ts', 'components/builder/studio-theme-menu.tsx',
+    const frozen = ['components/builder/chat-input.tsx', 'components/studio-add-slide-v2.tsx', 'app/builder/page.tsx', 'components/builder/studio-theme-menu.tsx',
       'lib/studio-theme-restore.ts', 'lib/studio-empty-prompt-guard.ts', 'components/generation-panel/header.tsx', 'lib/textlabs-client.ts', VIEWER]
     for (const file of git(['ls-tree', '-r', '--name-only', BASE_SHA, 'lib', 'components']).split('\n').filter(file => /composer-library|composer-popups|studio-theme-|question|outline|recovery/.test(file))) frozen.push(file)
     for (const file of frozen) assert.equal(read(file), baseFile(file), `${file} is untouched`)

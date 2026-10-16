@@ -88,6 +88,7 @@ function harness(studio, send = async () => ({ success: true, elementId: 'suppli
     generationHookMountedRef: { current: true }, placeholderMountRevisionRef: { current: 0 },
     activePresentationTargetRef: { current: { presentationId: 'presentation-A', epoch: 0 } },
     pendingPlaceholderAddsRef: { current: new Set() }, placeholderSequenceRef: { current: 0 },
+    freeSpotRef: { current: null }, // PASS2D: the free-spot hand-over (NEXT_PUBLIC_STUDIO_ELEMENT_FREE_SPOT); null = the native column 2, row 4
     freshDiagramAttemptHandoffsRef: { current: new Map() },
     generationPanel: panel.render(),
     ...pure('types/textlabs.ts'), ...pure('lib/element-geometry.ts'),

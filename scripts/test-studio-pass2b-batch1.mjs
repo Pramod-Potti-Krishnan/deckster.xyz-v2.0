@@ -874,7 +874,7 @@ function wiringChecks() {
   for (const file of [LIB_A, LIB_B, COMPONENT]) assert.doesNotMatch(read(file).replace(/\/\*[\s\S]*?\*\//g, '').replace(/\/\/.*$/gm, ''), /\b(fetch|WebSocket|XMLHttpRequest|localStorage|sessionStorage|setTimeout|setInterval)\b/, file)
   if (baseAvailable) {
     // the files this change must not touch (other builders' and FRONTEND-2's): byte-equal to the base commit
-    const frozen = ['app/builder/page.tsx', 'hooks/use-textlabs-generation.ts', 'lib/studio-theme-restore.ts', 'components/builder/studio-theme-menu.tsx', 'lib/studio-empty-prompt-guard.ts', 'components/generation-panel/header.tsx']
+    const frozen = ['app/builder/page.tsx', 'lib/studio-theme-restore.ts', 'components/builder/studio-theme-menu.tsx', 'lib/studio-empty-prompt-guard.ts', 'components/generation-panel/header.tsx']
     for (const file of git(['ls-tree', '-r', '--name-only', BASE_SHA, 'lib', 'components']).split('\n').filter(file => /composer-library|composer-popups/.test(file))) frozen.push(file)
     // #402 and #404 (the chat stream) changed app/builder/page.tsx after #401; these files are compared with the base they were merged onto (#404), not #401.
     for (const file of frozen) assert.equal(read(file), git(['show', `${FROZEN_SHA}:${file}`]), `${file} is untouched`)
