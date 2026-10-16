@@ -13,6 +13,10 @@ const PAGE_ADDITIONS = [
   [/import \{ STUDIO_ADD_SLIDE_STATUS_ENABLED, createAddSlideV2StatusSettings \} from '@\/lib\/studio-add-slide-status'\n/, ''],
   [/ {16}\/\/ PASS2B J2-04 [^\n]*\n {16}includeJobId: STUDIO_ADD_SLIDE_STATUS_ENABLED,\n/, ''],
   [/ {14}\/\/ PASS2B J2-04 [^\n]*\n {14}\/\/ [^\n]*\n {14}status: STUDIO_ADD_SLIDE_STATUS_ENABLED \? createAddSlideV2StatusSettings\(\{[\s\S]*?\}\) : undefined,\n/, ''],
+  // PASS2D A1 (NEXT_PUBLIC_STUDIO_COMPOSER_DRAFT): two imports and one hook call, all inert with the flag off; scripts/test-studio-composer-draft.mjs proves them.
+  [/import \{ STUDIO_COMPOSER_DRAFT_ENABLED \} from '@\/lib\/studio-composer-draft'\n/, ''],
+  [/import \{ useStudioComposerDraft \} from '@\/hooks\/use-studio-composer-draft'\n/, ''],
+  [/ {2}\/\/ PASS2D A1 [^\n]*\n {2}\/\/ [^\n]*\n {2}useStudioComposerDraft\(\{\n[\s\S]*?\n {2}\}\)\n/, ''],
 ]
 
 const PANEL_ADDITIONS = [

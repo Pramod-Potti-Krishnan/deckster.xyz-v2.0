@@ -174,11 +174,13 @@ import {
   COMPOSE_JOB_FAILSAFE_TOAST_TITLE,
   STUDIO_COMPOSE_JOB_FAILSAFE_ENABLED,
 } from '@/lib/studio-compose-job-failsafe'
+import { STUDIO_COMPOSER_DRAFT_ENABLED } from '@/lib/studio-composer-draft'
 
 // Extracted hooks
 import { useBuilderSession } from '@/hooks/use-builder-session'
 import { useSaveSessionOnFirstAction } from '@/hooks/use-save-session-on-first-action'
 import { useStudioComposeJobFailsafe } from '@/hooks/use-studio-compose-job-failsafe'
+import { useStudioComposerDraft } from '@/hooks/use-studio-composer-draft'
 import { useTextLabsGeneration, type TextLabsGenerationResult } from '@/hooks/use-textlabs-generation'
 import { useKnowledgeGraph } from '@/hooks/use-knowledge-graph'
 import { useQuota } from '@/hooks/use-quota'
@@ -1863,6 +1865,15 @@ function AuthenticatedBuilderContent({ authScopeUserId }: { authScopeUserId: str
     }
     previousKnowledgeGraphSessionRef.current = currentSessionId
   }, [currentSessionId])
+  // PASS2D A1 (flag NEXT_PUBLIC_STUDIO_COMPOSER_DRAFT, default off; lib/studio-composer-draft.ts): the unsent composer text is kept per session
+  // in sessionStorage and put back after a reload; a completed send clears the box and with it the stored draft. Off, the hook does nothing.
+  useStudioComposerDraft({
+    enabled: STUDIO_COMPOSER_DRAFT_ENABLED,
+    owner: builderCacheOwner,
+    sessionId: currentSessionId,
+    value: inputMessage,
+    setValue: setInputMessage,
+  })
   const builderOptionsRestoredSessionRef = useRef<string | null>(null)
   const skipBuilderOptionsPersistRef = useRef<string | null>(null)
   const builderOptionsScope = builderCacheOwner && currentSessionId && currentSessionId !== 'new'
