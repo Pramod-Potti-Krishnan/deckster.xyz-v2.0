@@ -45,6 +45,7 @@ import {
   themeDropdownPreview,
   themeDropdownSwatches,
   type ThemeDropdownOption,
+  type ThemeDropdownPreviewData,
 } from './theme-dropdown-picker'
 
 type ThemeMode = 'preset' | 'custom'
@@ -170,6 +171,9 @@ interface ThemePanelProps {
   themeSync: ThemeSyncState
   selectionLocked?: boolean
   onBuildThemeChange?: (selection: BuildThemeSelection) => void
+  /** PASS2D A3 (NEXT_PUBLIC_STUDIO_THEME_BLANK_NOTE): the deck is the blank canvas, and what to say about it (lib/studio-theme-blank-note). The viewer
+   *  passes it only with the flag on; absent, nothing differs. */
+  blankNote?: { note: string; previewNote: string }
 }
 
 function resolvedPresetId(selection: BuildThemeSelection): CanonicalThemePresetId {
@@ -343,6 +347,7 @@ function ThemePickerV2({
   onBackToPresets,
   onApply,
   onClose,
+  blankNote,
 }: {
   locked: boolean
   syncStatus: ThemeSyncStatus
@@ -369,6 +374,8 @@ function ThemePickerV2({
   onBackToPresets: () => void
   onApply: () => void
   onClose: () => void
+  /** PASS2D A3: the note for a blank canvas (shown only while the choice is open). Absent: nothing is drawn. */
+  blankNote?: string
 }) {
   // The "Want your own colours?" row, as the base drew it (a const so the G35 link below can sit beside it without adding a child).
   const customRow = !locked && (
@@ -440,12 +447,17 @@ function ThemePickerV2({
         </div>
       )}
 
-      {locked && (
+      {/* The blank-canvas note (A3) shares the lock notice's slot, so this child list has the base's shape with the flag off. */}
+      {locked ? (
         <div data-studio-theme-notice="locked" className="stpv2-notice stpv2-lock">
           <Lock className="h-3.5 w-3.5" aria-hidden="true" />
           <span>This deck is already building or built, so its theme is fixed. Start a new chat to pick a different one.</span>
         </div>
-      )}
+      ) : blankNote ? (
+        <div data-studio-theme-notice="blank" role="note" className="stpv2-notice">
+          <span>{blankNote}</span>
+        </div>
+      ) : false}
 
       {modeControl ? <>{currentRow}{modeControl}</> : currentRow}
 
@@ -533,6 +545,7 @@ export function ThemePanel({
   themeSync,
   selectionLocked = false,
   onBuildThemeChange,
+  blankNote: blankCopy,
 }: ThemePanelProps) {
   const canonPalettes = useCanonPresetPalettes()
   const previewPaletteFor = (id: CanonicalThemePresetId): PreviewPalette => (
@@ -683,6 +696,8 @@ export function ThemePanel({
           : THEME_PREVIEWS.find(theme => theme.id === resolvedPresetId(selection))?.name ?? 'Preset theme'
     )
     const currentPresetId = currentSelection.mode === 'preset' ? resolvedPresetId(currentSelection) : null
+    // PASS2D A3: on the blank canvas (flag on, the viewer passes blankNote) an applied theme is not painted until Director builds slides; say so.
+    const blankNote = blankCopy && !selectionLocked ? blankCopy : undefined
     const cards: ThemePickerCard[] = THEME_PREVIEWS.map(theme => {
       const colors = previewPaletteFor(theme.id)
       const swatch = colors.swatch ?? { canvas: colors.background, hero: colors.primary, lead: colors.accent }
@@ -721,20 +736,21 @@ export function ThemePanel({
         }),
       ]
       const selectedTheme = THEME_PREVIEWS.find(theme => theme.id === selectedPresetId)
+      const dropdownPreview: ThemeDropdownPreviewData = draft.mode === 'auto' || !selectedTheme
+        ? { kind: 'auto' }
+        : themeDropdownPreview({
+          name: selectedTheme.name,
+          description: selectedTheme.description,
+          colors: selectedPreview,
+          overrides: draft.color_overrides,
+          fontSource: draft,
+        })
       presetPicker = (
         <ThemeDropdownPicker
           options={options}
           selectedId={draft.mode === 'auto' ? 'auto' : draft.mode === 'preset' ? selectedPresetId : null}
           locked={selectionLocked}
-          preview={draft.mode === 'auto' || !selectedTheme
-            ? { kind: 'auto' }
-            : themeDropdownPreview({
-              name: selectedTheme.name,
-              description: selectedTheme.description,
-              colors: selectedPreview,
-              overrides: draft.color_overrides,
-              fontSource: draft,
-            })}
+          preview={blankNote && dropdownPreview.kind === 'theme' ? { ...dropdownPreview, applyNote: blankNote.previewNote } : dropdownPreview}
           onSelect={id => { if (id === 'auto') selectAuto(); else selectPreset(id) }}
         />
       )
@@ -840,6 +856,7 @@ export function ThemePanel({
         onBackToPresets={() => { if (draft.mode === 'custom') selectPreset(selectedPresetId) }}
         onApply={applyTheme}
         onClose={onClose}
+        {...(blankNote ? { blankNote: blankNote.note } : {})}
       />
     )
   }

@@ -115,6 +115,30 @@ const P2C_SWAPS = [
 ]
 const unP2c = text => P2C_SWAPS.reduce((out, [mine, base]) => { eq(out.split(mine).length - 1, 1, `P2C: ${mine.slice(0, 48).trim()} appears once`); return out.replace(mine, () => base) }, text)
 const RULE = '[data-studio-theme-picker="v2"] .stpv2-brandkit { margin: 12px 2px 4px; padding-top: 12px; border-top: 1px solid var(--stp-line); }\n'
+// PASS2D A3 (NEXT_PUBLIC_STUDIO_THEME_BLANK_NOTE): the panel's edits for the blank-canvas note, as [text in the panel, the base's text]. Turning them back is how
+// this test still proves the panel is the base commit's file; test-studio-theme-blank-note.mjs proves the edits themselves.
+const A3_REVERSALS = [
+  ["  type ThemeDropdownOption,\n  type ThemeDropdownPreviewData,\n} from './theme-dropdown-picker'",
+   "  type ThemeDropdownOption,\n} from './theme-dropdown-picker'"],
+  ["  onBuildThemeChange?: (selection: BuildThemeSelection) => void\n  /** PASS2D A3 (NEXT_PUBLIC_STUDIO_THEME_BLANK_NOTE): the deck is the blank canvas, and what to say about it (lib/studio-theme-blank-note). The viewer\n   *  passes it only with the flag on; absent, nothing differs. */\n  blankNote?: { note: string; previewNote: string }\n}",
+   "  onBuildThemeChange?: (selection: BuildThemeSelection) => void\n}"],
+  ["  onClose,\n  blankNote,\n}: {\n  locked: boolean",
+   "  onClose,\n}: {\n  locked: boolean"],
+  ["  onClose: () => void\n  /** PASS2D A3: the note for a blank canvas (shown only while the choice is open). Absent: nothing is drawn. */\n  blankNote?: string\n}) {",
+   "  onClose: () => void\n}) {"],
+  ["      {/* The blank-canvas note (A3) shares the lock notice's slot, so this child list has the base's shape with the flag off. */}\n      {locked ? (\n        <div data-studio-theme-notice=\"locked\" className=\"stpv2-notice stpv2-lock\">\n          <Lock className=\"h-3.5 w-3.5\" aria-hidden=\"true\" />\n          <span>This deck is already building or built, so its theme is fixed. Start a new chat to pick a different one.</span>\n        </div>\n      ) : blankNote ? (\n        <div data-studio-theme-notice=\"blank\" role=\"note\" className=\"stpv2-notice\">\n          <span>{blankNote}</span>\n        </div>\n      ) : false}\n",
+   "      {locked && (\n        <div data-studio-theme-notice=\"locked\" className=\"stpv2-notice stpv2-lock\">\n          <Lock className=\"h-3.5 w-3.5\" aria-hidden=\"true\" />\n          <span>This deck is already building or built, so its theme is fixed. Start a new chat to pick a different one.</span>\n        </div>\n      )}\n"],
+  ["  onBuildThemeChange,\n  blankNote: blankCopy,\n}: ThemePanelProps) {",
+   "  onBuildThemeChange,\n}: ThemePanelProps) {"],
+  ["    // PASS2D A3: on the blank canvas (flag on, the viewer passes blankNote) an applied theme is not painted until Director builds slides; say so.\n    const blankNote = blankCopy && !selectionLocked ? blankCopy : undefined\n",
+   ""],
+  ["      const dropdownPreview: ThemeDropdownPreviewData = draft.mode === 'auto' || !selectedTheme\n        ? { kind: 'auto' }\n        : themeDropdownPreview({\n          name: selectedTheme.name,\n          description: selectedTheme.description,\n          colors: selectedPreview,\n          overrides: draft.color_overrides,\n          fontSource: draft,\n        })\n      presetPicker = (",
+   "      presetPicker = ("],
+  ["          preview={blankNote && dropdownPreview.kind === 'theme' ? { ...dropdownPreview, applyNote: blankNote.previewNote } : dropdownPreview}\n",
+   "          preview={draft.mode === 'auto' || !selectedTheme\n            ? { kind: 'auto' }\n            : themeDropdownPreview({\n              name: selectedTheme.name,\n              description: selectedTheme.description,\n              colors: selectedPreview,\n              overrides: draft.color_overrides,\n              fontSource: draft,\n            })}\n"],
+  ["        onClose={onClose}\n        {...(blankNote ? { blankNote: blankNote.note } : {})}\n      />",
+   "        onClose={onClose}\n      />"],
+]
 function proveSource(source, label = 'panel') {
   eq(source.split(CONSTS).length - 1, 1, `${label}: the custom-palette row const and the link const, once, before the hint`)
   eq(source.split(USE).length - 1, 1, `${label}: the body places the link beside the row, once`)
@@ -124,7 +148,9 @@ function proveSource(source, label = 'panel') {
   eq((source.match(/<Link /g) ?? []).length, 1, `${label}: one Link`)
   const at = source.indexOf(USE)
   ok(source.lastIndexOf(') : (\n          <>', at) > source.indexOf('<div className="stpv2-custom">') && source.indexOf('{advanced}', at) > at && source.indexOf('{presetPicker ?? <div className="stpv2-grid">') < at, `${label}: in the preset branch, after the cards, before {advanced}`)
-  eq(unP2c(source.replace(CONSTS, '').replace(USE, BASE_USE).replace(IMPORT, '').replace(ICON, '')), BASE[PANEL], `${label}: with the two consts, the one body line, and the two imports turned back into the base's, the file is ${BASE_COMMIT}'s`)
+  let reversed = source
+  for (const [edited, original] of A3_REVERSALS) { eq(reversed.split(edited).length - 1, 1, `${label}: the blank-canvas note edit, once: ${edited.slice(0, 50)}`); reversed = reversed.replace(edited, () => original) }
+  eq(unP2c(reversed.replace(CONSTS, '').replace(USE, BASE_USE).replace(IMPORT, '').replace(ICON, '')), BASE[PANEL], `${label}: with the blank-canvas note edits, the two consts, the one body line, and the two imports turned back into the base's, the file is ${BASE_COMMIT}'s`)
   ok(source.indexOf('const hint = ') > source.indexOf(CONSTS), `${label}: with the flag off the body's last child is the base's own expression (no extra child)`)
 }
 function proveCss(css, label = 'css') {
