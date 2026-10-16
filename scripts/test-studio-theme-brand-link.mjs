@@ -79,6 +79,41 @@ const BASE_USE = `            {!locked && (
               </div>
             )}
 `
+// P2C (reviewed): the Light | Dark control (flag NEXT_PUBLIC_THEME_DARK_MODE_ENABLED, proven in test-studio-theme-dark-toggle.mjs). Its additions to the panel
+// are listed here, [P2C text, base text]; with the flag off the panel renders the base's tree, so turning them back must give the base file.
+const P2C_SWAPS = [
+  // import: helper
+  ["import { clampDarkOnlyPaletteMode, customEntryPaletteMode, effectivePaletteMode, lightDisabledFor, themeDarkModeEnabled, withPaletteMode, type DeckPaletteMode } from '@/lib/studio-theme-dark-toggle'\n", ""],
+  // import: control
+  ["import { DeckModeControl } from './theme-deck-mode-control'\n", ""],
+  // flag const
+  ["// P2C (flag NEXT_PUBLIC_THEME_DARK_MODE_ENABLED, exact \"true\", default off): a Light / Dark choice for the whole deck, before the build. It writes\n// `palette_mode` onto the theme selection that already goes out (the build message and `set_theme`). On a built deck the same control only stages\n// \"Rebuild in dark / light\" (nothing is sent). Off: no control, and every handler below computes what it did before.\nconst THEME_DARK_MODE = themeDarkModeEnabled(process.env.NEXT_PUBLIC_THEME_DARK_MODE_ENABLED)\n", ""],
+  // picker prop destructured
+  ["  presetPicker,\n  modeControl,\n", "  presetPicker,\n"],
+  // picker prop type
+  ["  /** The Light | Dark control (flag NEXT_PUBLIC_THEME_DARK_MODE_ENABLED). Absent: the body is as it was. */\n  modeControl?: ReactNode\n", ""],
+  // current row const
+  ["  // The \"Current theme\" row as the base drew it (a const so the Light | Dark control can sit under it without adding a child when there is none).\n  const currentRow = (\n    <div className=\"stpv2-current\" data-studio-theme-current=\"true\">\n      <span>Current theme</span>\n      <strong>{currentLabel}</strong>\n    </div>\n  )\n", ""],
+  // current row use
+  ["      {modeControl ? <>{currentRow}{modeControl}</> : currentRow}\n", "      <div className=\"stpv2-current\" data-studio-theme-current=\"true\">\n        <span>Current theme</span>\n        <strong>{currentLabel}</strong>\n      </div>\n"],
+  // staged state
+  ["  // P2C: the mode staged for the next rebuild of this deck (flag on, built deck only). Panel state, scoped to the deck it was chosen on: it is never put in\n  // the theme selection (a changed selection makes the page send `set_theme`), and nothing reads it to start a build.\n  const [staged, setStaged] = useState<{ deckKey: string; mode: DeckPaletteMode } | null>(null)\n  const deckKey = presentationId ?? ''\n  const stagedMode = staged && staged.deckKey === deckKey ? staged.mode : null\n", ""],
+  // custom entry
+  ["palette_mode: customEntryPaletteMode(draft, THEME_DARK_MODE),", "palette_mode: draft.palette_mode || 'both',"],
+  // control factory
+  ["  // P2C: the Light | Dark control (flag on only). Before the build it edits the draft like any other control (Apply sends it); on a built deck\n  // it stages \"Rebuild in dark / light\" in this panel and sends nothing.\n  const deckModeControlFor = (variant: 'plain' | 'picker') => THEME_DARK_MODE ? (\n    <DeckModeControl\n      variant={variant}\n      locked={selectionLocked}\n      mode={effectivePaletteMode(draft, THEME_DARK_MODE)}\n      staged={stagedMode}\n      lightDisabled={lightDisabledFor(draft, THEME_DARK_MODE)}\n      onChange={next => updateDraft(withPaletteMode(draft, next, THEME_DARK_MODE))}\n      onStage={next => setStaged(next ? { deckKey, mode: next } : null)}\n    />\n  ) : null\n\n", ""],
+  // dark-only presets: the last gate before Apply sends the selection (flag on only; a no-op otherwise)
+  ["    const next = clampDarkOnlyPaletteMode(normalizeThemePanelSelection(draft), THEME_DARK_MODE)\n", "    const next = normalizeThemePanelSelection(draft)\n"],
+  // picker prop passed
+  ["        modeControl={deckModeControlFor('picker')}\n", ""],
+  // plain control
+  ["  const deckModeControl = deckModeControlFor('plain')\n", ""],
+  // locked notice const
+  ["  // The lock note as the base drew it (a const so the Light | Dark control can follow it without adding a child when there is none).\n  const lockedNotice = selectionLocked && (\n    <div data-studio-theme-notice={STUDIO_THEME_PANEL ? 'locked' : undefined} tabIndex={STUDIO_THEME_PANEL ? 0 : undefined} className=\"border-b border-amber-200 bg-amber-50 px-3 py-2 text-[11px] leading-4 text-amber-800\">\n      Template and theme choices are locked once generation starts. Start a new chat to choose different build settings.\n    </div>\n  )\n", ""],
+  // locked notice use
+  ["      {deckModeControl ? <>{lockedNotice}{deckModeControl}</> : lockedNotice}\n", "      {selectionLocked && (\n        <div data-studio-theme-notice={STUDIO_THEME_PANEL ? 'locked' : undefined} tabIndex={STUDIO_THEME_PANEL ? 0 : undefined} className=\"border-b border-amber-200 bg-amber-50 px-3 py-2 text-[11px] leading-4 text-amber-800\">\n          Template and theme choices are locked once generation starts. Start a new chat to choose different build settings.\n        </div>\n      )}\n"],
+]
+const unP2c = text => P2C_SWAPS.reduce((out, [mine, base]) => { eq(out.split(mine).length - 1, 1, `P2C: ${mine.slice(0, 48).trim()} appears once`); return out.replace(mine, () => base) }, text)
 const RULE = '[data-studio-theme-picker="v2"] .stpv2-brandkit { margin: 12px 2px 4px; padding-top: 12px; border-top: 1px solid var(--stp-line); }\n'
 function proveSource(source, label = 'panel') {
   eq(source.split(CONSTS).length - 1, 1, `${label}: the custom-palette row const and the link const, once, before the hint`)
@@ -89,7 +124,7 @@ function proveSource(source, label = 'panel') {
   eq((source.match(/<Link /g) ?? []).length, 1, `${label}: one Link`)
   const at = source.indexOf(USE)
   ok(source.lastIndexOf(') : (\n          <>', at) > source.indexOf('<div className="stpv2-custom">') && source.indexOf('{advanced}', at) > at && source.indexOf('{presetPicker ?? <div className="stpv2-grid">') < at, `${label}: in the preset branch, after the cards, before {advanced}`)
-  eq(source.replace(CONSTS, '').replace(USE, BASE_USE).replace(IMPORT, '').replace(ICON, ''), BASE[PANEL], `${label}: with the two consts, the one body line, and the two imports turned back into the base's, the file is ${BASE_COMMIT}'s`)
+  eq(unP2c(source.replace(CONSTS, '').replace(USE, BASE_USE).replace(IMPORT, '').replace(ICON, '')), BASE[PANEL], `${label}: with the two consts, the one body line, and the two imports turned back into the base's, the file is ${BASE_COMMIT}'s`)
   ok(source.indexOf('const hint = ') > source.indexOf(CONSTS), `${label}: with the flag off the body's last child is the base's own expression (no extra child)`)
 }
 function proveCss(css, label = 'css') {

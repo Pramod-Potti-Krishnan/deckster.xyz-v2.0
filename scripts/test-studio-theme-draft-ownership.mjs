@@ -104,7 +104,16 @@ const fontPickers="            {THEME_FONT_SELECTION_ENABLED && draft.mode !== '
 const fontSentence="{THEME_FONT_SELECTION_ENABLED ? 'Website extraction and AI theme chat are not connected in this workspace. Colors and fonts above are editable now.' : 'Website extraction, font editing, and AI theme chat are not connected in this workspace. Colors above are editable now.'}"
 const baseSentence='Website extraction, font editing, and AI theme chat are not connected in this workspace. Colors above are editable now.'
 assert.equal(currentText.split(fontPickers).length-1,1,'Only the picker line added');assert.equal(currentText.split(fontSentence).length-1,1,'Only the sentence gated')
-const restored=currentText
+// P2C (reviewed): the palette-mode select and the custom-palette default come from the import-free lib/studio-theme-dark-toggle.ts; with the flag off
+// (the default) each renders and computes today's markup and value (proven in test-studio-theme-dark-toggle.mjs). Normalized back here for the equality.
+const p2cSwaps=[
+ ['value={paletteModeSelectValue(draft, THEME_DARK_MODE)}',"value={draft.palette_mode || 'both'}"],
+ ['{paletteModeChoices(THEME_DARK_MODE).map(choice => <option key={choice.value} value={choice.value}>{choice.label}</option>)}','<option value="light">Light</option><option value="dark">Dark</option><option value="both">Both</option>'],
+ ['palette_mode: customEntryPaletteMode(draft, THEME_DARK_MODE)',"palette_mode: draft.palette_mode || 'both'"],
+]
+for(const [changed] of p2cSwaps)assert.equal(currentText.split(changed).length-1,1,'P2C: '+changed.slice(0,48)+' appears once')
+const unP2c=code=>p2cSwaps.reduce((out,[changed,original])=>out.replaceAll(changed,original),code)
+const restored=unP2c(currentText)
  .replace(fontPickers,'')
  .replace(fontSentence,baseSentence)
  .replace("    // A previously opened confirmation can outlive the click that starts save.\n    if (!mounted.current || !accountCanStart() || busy.current) return\n",'')

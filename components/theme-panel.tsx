@@ -37,7 +37,9 @@ import {
   type CanonicalThemePresetId,
 } from '@/lib/theme-builder'
 import { loadPresetSwatchPalettes } from '@/lib/theme-preset-swatches'
+import { clampDarkOnlyPaletteMode, customEntryPaletteMode, effectivePaletteMode, lightDisabledFor, themeDarkModeEnabled, withPaletteMode, type DeckPaletteMode } from '@/lib/studio-theme-dark-toggle'
 import type { ThemeSyncState, ThemeSyncStatus } from '@/lib/theme-sync'
+import { DeckModeControl } from './theme-deck-mode-control'
 import {
   ThemeDropdownPicker,
   themeDropdownPreview,
@@ -183,6 +185,10 @@ const STUDIO_THEME_PICKER_V2 = STUDIO_THEME_PANEL && process.env.NEXT_PUBLIC_STU
 // the preset grid becomes a searchable dropdown (current theme pinned) with a preview of the selected theme. Same draft, handlers, Apply
 // and lock rule. Off: nothing below runs and the picker (or plain panel) renders exactly as before.
 const STUDIO_THEME_DROPDOWN = STUDIO_THEME_PANEL && process.env.NEXT_PUBLIC_STUDIO_THEME_DROPDOWN === 'true'
+// P2C (flag NEXT_PUBLIC_THEME_DARK_MODE_ENABLED, exact "true", default off): a Light / Dark choice for the whole deck, before the build. It writes
+// `palette_mode` onto the theme selection that already goes out (the build message and `set_theme`). On a built deck the same control only stages
+// "Rebuild in dark / light" (nothing is sent). Off: no control, and every handler below computes what it did before.
+const THEME_DARK_MODE = themeDarkModeEnabled(process.env.NEXT_PUBLIC_THEME_DARK_MODE_ENABLED)
 
 function SyncBadge({ status }: { status: ThemeSyncStatus }) {
   if (status === 'syncing') {
@@ -327,6 +333,7 @@ function ThemePickerV2({
   customEditor,
   advanced,
   presetPicker,
+  modeControl,
   canApply,
   applyLabel,
   invalidColor,
@@ -351,6 +358,8 @@ function ThemePickerV2({
   advanced: ReactNode
   /** The searchable dropdown (flag NEXT_PUBLIC_STUDIO_THEME_DROPDOWN). Absent: the grid below. */
   presetPicker?: ReactNode
+  /** The Light | Dark control (flag NEXT_PUBLIC_THEME_DARK_MODE_ENABLED). Absent: the body is as it was. */
+  modeControl?: ReactNode
   canApply: boolean
   applyLabel: ReactNode
   invalidColor: boolean
@@ -386,6 +395,13 @@ function ThemePickerV2({
       : hasChanges
         ? `Selected: ${selectedLabel}. Not applied yet.`
         : 'Pick a different theme to change it.'
+  // The "Current theme" row as the base drew it (a const so the Light | Dark control can sit under it without adding a child when there is none).
+  const currentRow = (
+    <div className="stpv2-current" data-studio-theme-current="true">
+      <span>Current theme</span>
+      <strong>{currentLabel}</strong>
+    </div>
+  )
   return (
     <div
       data-studio-theme="true"
@@ -431,10 +447,7 @@ function ThemePickerV2({
         </div>
       )}
 
-      <div className="stpv2-current" data-studio-theme-current="true">
-        <span>Current theme</span>
-        <strong>{currentLabel}</strong>
-      </div>
+      {modeControl ? <>{currentRow}{modeControl}</> : currentRow}
 
       <div data-studio-theme-part="body" className="stpv2-body">
         {customMode ? (
@@ -529,6 +542,11 @@ export function ThemePanel({
     normalizeThemePanelSelection(buildThemeSelection)
   ))
   const [submittedFromRequestId, setSubmittedFromRequestId] = useState<string | null | undefined>()
+  // P2C: the mode staged for the next rebuild of this deck (flag on, built deck only). Panel state, scoped to the deck it was chosen on: it is never put in
+  // the theme selection (a changed selection makes the page send `set_theme`), and nothing reads it to start a build.
+  const [staged, setStaged] = useState<{ deckKey: string; mode: DeckPaletteMode } | null>(null)
+  const deckKey = presentationId ?? ''
+  const stagedMode = staged && staged.deckKey === deckKey ? staged.mode : null
 
   useEffect(() => {
     if (!isOpen) return
@@ -612,7 +630,7 @@ export function ThemePanel({
       tertiary_hex: draft.color_overrides?.tertiary,
       neutral_hex: draft.color_overrides?.neutral,
       harmony_preference: draft.harmony_preference || 'auto',
-      palette_mode: draft.palette_mode || 'both',
+      palette_mode: customEntryPaletteMode(draft, THEME_DARK_MODE),
       color_overrides: draft.color_overrides ? { ...draft.color_overrides } : undefined,
     }))
   }
@@ -636,10 +654,24 @@ export function ThemePanel({
 
   const applyTheme = () => {
     if (selectionLocked || !canApply || !onBuildThemeChange) return
-    const next = normalizeThemePanelSelection(draft)
+    const next = clampDarkOnlyPaletteMode(normalizeThemePanelSelection(draft), THEME_DARK_MODE)
     setSubmittedFromRequestId(themeSync.requestId)
     onBuildThemeChange(next)
   }
+
+  // P2C: the Light | Dark control (flag on only). Before the build it edits the draft like any other control (Apply sends it); on a built deck
+  // it stages "Rebuild in dark / light" in this panel and sends nothing.
+  const deckModeControlFor = (variant: 'plain' | 'picker') => THEME_DARK_MODE ? (
+    <DeckModeControl
+      variant={variant}
+      locked={selectionLocked}
+      mode={effectivePaletteMode(draft, THEME_DARK_MODE)}
+      staged={stagedMode}
+      lightDisabled={lightDisabledFor(draft, THEME_DARK_MODE)}
+      onChange={next => updateDraft(withPaletteMode(draft, next, THEME_DARK_MODE))}
+      onStage={next => setStaged(next ? { deckKey, mode: next } : null)}
+    />
+  ) : null
 
   if (STUDIO_THEME_PICKER_V2 || STUDIO_THEME_DROPDOWN) {
     const currentSelection = normalizeThemePanelSelection(buildThemeSelection)
@@ -794,6 +826,7 @@ export function ThemePanel({
         customEditor={customEditor}
         advanced={advanced}
         presetPicker={presetPicker}
+        modeControl={deckModeControlFor('picker')}
         canApply={canApply}
         applyLabel={visibleSyncStatus === 'syncing'
           ? <><Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" /> Applying</>
@@ -811,6 +844,13 @@ export function ThemePanel({
     )
   }
 
+  const deckModeControl = deckModeControlFor('plain')
+  // The lock note as the base drew it (a const so the Light | Dark control can follow it without adding a child when there is none).
+  const lockedNotice = selectionLocked && (
+    <div data-studio-theme-notice={STUDIO_THEME_PANEL ? 'locked' : undefined} tabIndex={STUDIO_THEME_PANEL ? 0 : undefined} className="border-b border-amber-200 bg-amber-50 px-3 py-2 text-[11px] leading-4 text-amber-800">
+      Template and theme choices are locked once generation starts. Start a new chat to choose different build settings.
+    </div>
+  )
   return (
     <div data-studio-theme={STUDIO_THEME_PANEL ? 'true' : undefined} data-studio-v4-dialog={process.env.NEXT_PUBLIC_STUDIO_V4_SHELL === 'true' ? 'theme' : undefined} role="dialog" aria-modal="false" aria-label="Deck theme" className="fixed inset-y-0 left-0 z-50 flex w-96 flex-col border-r border-gray-200 bg-white shadow-2xl">
       <div data-studio-theme-part={STUDIO_THEME_PANEL ? 'header' : undefined} className="flex items-center justify-between border-b border-gray-200 bg-gray-50 px-3 py-2">
@@ -836,11 +876,7 @@ export function ThemePanel({
         </div>
       )}
 
-      {selectionLocked && (
-        <div data-studio-theme-notice={STUDIO_THEME_PANEL ? 'locked' : undefined} tabIndex={STUDIO_THEME_PANEL ? 0 : undefined} className="border-b border-amber-200 bg-amber-50 px-3 py-2 text-[11px] leading-4 text-amber-800">
-          Template and theme choices are locked once generation starts. Start a new chat to choose different build settings.
-        </div>
-      )}
+      {deckModeControl ? <>{lockedNotice}{deckModeControl}</> : lockedNotice}
 
       <div className="border-b border-gray-200 px-3 py-2">
         <div className="flex rounded-lg bg-gray-100 p-0.5">
