@@ -16,8 +16,17 @@ const fontPickers = "            {THEME_FONT_SELECTION_ENABLED && draft.mode !==
 const fontSentence = "{THEME_FONT_SELECTION_ENABLED ? 'Website extraction and AI theme chat are not connected in this workspace. Colors and fonts above are editable now.' : 'Website extraction, font editing, and AI theme chat are not connected in this workspace. Colors above are editable now.'}"
 const baseSentence = 'Website extraction, font editing, and AI theme chat are not connected in this workspace. Colors above are editable now.'
 assert.equal(source.split(fontPickers).length - 1, 1, 'Only the picker line added'); assert.equal(source.split(fontSentence).length - 1, 1, 'Only the sentence gated')
+// P2C (reviewed): the palette-mode select and the custom-palette default come from the import-free lib/studio-theme-dark-toggle.ts; with the flag off
+// (the default) each renders and computes today's markup and value (proven in test-studio-theme-dark-toggle.mjs). Normalized back here for the equality.
+const p2cSwaps = [
+  ['value={paletteModeSelectValue(draft, THEME_DARK_MODE)}', "value={draft.palette_mode || 'both'}"],
+  ['{paletteModeChoices(THEME_DARK_MODE).map(choice => <option key={choice.value} value={choice.value}>{choice.label}</option>)}', '<option value="light">Light</option><option value="dark">Dark</option><option value="both">Both</option>'],
+  ['palette_mode: customEntryPaletteMode(draft, THEME_DARK_MODE)', "palette_mode: draft.palette_mode || 'both'"],
+]
+for (const [changed] of p2cSwaps) assert.equal(source.split(changed).length - 1, 1, `P2C: ${changed.slice(0, 48)} appears once`)
+const unP2c = code => p2cSwaps.reduce((out, [changed, original]) => out.replaceAll(changed, original), code)
 const ast = code => ts.createSourceFile('themes.tsx', code, ts.ScriptTarget.Latest, true, ts.ScriptKind.TSX)
-const currentAst = ast(source.replaceAll('if (!mounted.current || !accountIsCurrent()) return; ', '').replaceAll(fontPickers, '').replaceAll(fontSentence, baseSentence)), priorAst = ast(baseline)
+const currentAst = ast(unP2c(source.replaceAll('if (!mounted.current || !accountIsCurrent()) return; ', '').replaceAll(fontPickers, '').replaceAll(fontSentence, baseSentence))), priorAst = ast(baseline)
 const findNode = (node,predicate) => { if(predicate(node))return node;let result;ts.forEachChild(node,child=>{if(!result)result=findNode(child,predicate)});return result }
 const printer=ts.createPrinter({removeComments:true})
 for(const predicate of [node=>ts.isFunctionDeclaration(node)&&node.name?.text==='ColorField',node=>ts.isJsxElement(node)&&node.openingElement.tagName.getText()==='fieldset',...['changePreset','setOverride'].map(name=>node=>ts.isVariableDeclaration(node)&&node.name.getText()===name)]){
@@ -42,6 +51,7 @@ function load(path, imports = {}) {
 }
 const builder = load('lib/theme-builder.ts')
 const themeFonts = load('lib/theme-fonts.ts') // J4-FONTS: import-free helper the workspace now imports (flag off here)
+const darkToggle = load('lib/studio-theme-dark-toggle.ts') // P2C: import-free helper the workspace now imports (flag off here)
 const preview = load('components/studio-libraries/theme-preview.tsx', { '@/lib/theme-builder': builder, 'react/jsx-runtime': { jsx, jsxs: jsx } })
 const a = { id: 'local-A', name: 'Local A', description: 'A description', theme_payload: { mode: 'preset', preset_id: 'minimal', color_overrides: { accent: '#aabbcc' } }, is_standard: false }
 const b = { id: 'local-B', name: 'Local B', description: 'B description', theme_payload: { mode: 'custom', primary_hex: '#112233', palette_mode: 'both', color_overrides: { private_color: '#445566' } }, is_standard: true }
@@ -63,7 +73,7 @@ function harness({ owner = 'account-A', ready = true, current = { current: { own
   }
   const accountHelper = load('components/studio-libraries/library-account-boundary.tsx', { react, 'react/jsx-runtime': { jsx, jsxs: jsx }, '@/hooks/use-auth': { useAuth: refuse } })
   if (initialList) api.listThemes = initialList
-  const imports = { './themes-fidelity.css': {}, react, 'react/jsx-runtime': { jsx, jsxs: jsx }, '@/hooks/use-theme-profiles': { useThemeProfiles: () => stableApi }, '@/lib/theme-builder': builder, '@/lib/theme-fonts': themeFonts, './theme-preview': preview,
+  const imports = { './themes-fidelity.css': {}, react, 'react/jsx-runtime': { jsx, jsxs: jsx }, '@/hooks/use-theme-profiles': { useThemeProfiles: () => stableApi }, '@/lib/theme-builder': builder, '@/lib/theme-fonts': themeFonts, '@/lib/studio-theme-dark-toggle': darkToggle, './theme-preview': preview,
     '@/lib/studio-inspector-focus': { keepStudioScrollFocusVisible: refuse }, './library-account-boundary': accountHelper, './studio-workflow-action': { StudioWorkflowAction: 'StudioWorkflowAction' },
     './library-controls': Object.fromEntries(['FittedLibraryStage', 'LibraryLoading', 'LibraryNotice', 'LibrarySearch', 'LibraryWorkspace', 'MetadataDisclosure', 'ReadValue', 'StudioWorkflowLink'].map(n => [n, n])),
     'lucide-react': Object.fromEntries(['ArrowRight', 'Check', 'Copy', 'Palette', 'RefreshCw', 'RotateCcw', 'Save', 'Star'].map(n => [n, n])),

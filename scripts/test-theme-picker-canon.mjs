@@ -53,6 +53,7 @@ function renderPanel(env, props, swatchFetch) {
   const jsx = (type, props) => ({ type, props })
   const icons = new Proxy({}, { get: (_, name) => `Icon:${String(name)}` })
   const builder = load('lib/theme-builder.ts', { env })
+  const darkToggle = load('lib/studio-theme-dark-toggle.ts', { env })
   const swatches = fs.existsSync(new URL('lib/theme-preset-swatches.ts', root)) ? load('lib/theme-preset-swatches.ts', { fetch: swatchFetch }) : {}
   const panel = load('components/theme-panel.tsx', {
     env,
@@ -60,6 +61,8 @@ function renderPanel(env, props, swatchFetch) {
       './studio-editor-dialogs.css': {},
       './studio-theme-panel.css': {},
       './theme-dropdown-picker': {}, // PASS2-PK-FOUR item 3: only called with NEXT_PUBLIC_STUDIO_THEME_DROPDOWN on
+      './theme-deck-mode-control': {}, // P2C: only drawn with NEXT_PUBLIC_THEME_DARK_MODE_ENABLED on
+      '@/lib/studio-theme-dark-toggle': darkToggle, // P2C: import-free helper; its flag read is exact "true", unset here
       react,
       'react/jsx-runtime': { jsx, jsxs: jsx, Fragment: 'Fragment' },
       'lucide-react': icons,

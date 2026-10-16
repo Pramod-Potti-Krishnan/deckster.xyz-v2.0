@@ -503,7 +503,8 @@ await run('the picker adds no state, effect, request or env read of its own, and
   // the panel's own imports are untouched apart from icons, a type and (PASS2-PK-FOUR item 3) the dropdown module
   const imports = ts.createSourceFile('theme-panel.tsx', source, ts.ScriptTarget.Latest, true, ts.ScriptKind.TSX).statements
     .filter(ts.isImportDeclaration).map(node => node.moduleSpecifier.text)
-  assert.deepEqual(imports.sort(), ['./studio-editor-dialogs.css', './studio-theme-panel.css', './theme-dropdown-picker', '@/components/ui/button', '@/lib/config', '@/lib/theme-builder', '@/lib/theme-preset-swatches', '@/lib/theme-sync', '@/lib/utils', 'lucide-react', 'next/link', 'react'].sort())
+  // P2C adds '@/lib/studio-theme-dark-toggle' and './theme-deck-mode-control' (the Light | Dark control; flag NEXT_PUBLIC_THEME_DARK_MODE_ENABLED, proven in test-studio-theme-dark-toggle.mjs)
+  assert.deepEqual(imports.sort(), ['./studio-editor-dialogs.css', './studio-theme-panel.css', './theme-deck-mode-control', './theme-dropdown-picker', '@/components/ui/button', '@/lib/config', '@/lib/studio-theme-dark-toggle', '@/lib/theme-builder', '@/lib/theme-preset-swatches', '@/lib/theme-sync', '@/lib/utils', 'lucide-react', 'next/link', 'react'].sort())
 })
 
 await run('flag on, no Theme Builder answer (offline): the picker still renders every preset with a neutral preview, and nothing throws', async () => {
