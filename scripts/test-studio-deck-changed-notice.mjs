@@ -602,7 +602,7 @@ async function run(sources) {
     const handler = page.slice(at, page.indexOf('const handleActiveBuildThemeProfileChange', at))
     await check(assert.ok, at > 0 && handler.length > 300, 'found handleBuildThemeChange')
     await check(assert.doesNotMatch, handler, /themePickedAt|themeAnnounce|reportDeckChange|DECK_CHANGED/, 'handleBuildThemeChange carries nothing of this change')
-    await check(assert.match, handler, /themeSelectionChangedLocallyRef\.current = true\n    setBuildThemeSelection\(next\)\n  \}, \[toast, saveSessionOnFirstAction\]\)/, 'and still ends as it did')
+    await check(assert.match, handler, /themeSelectionChangedLocallyRef\.current = true\n    setBuildThemeSelection\((?:next|carried)\)\n  \}, \[toast, saveSessionOnFirstAction\]\)/, 'and still ends as it did (NEXT_PUBLIC_STUDIO_THEME_DARK_PERSIST stores the carried pick, which is `next` itself flag off)')
   }
   await check(assert.equal, (page.match(/reportDeckChange\('theme'\)/g) || []).length, 1, 'exactly one theme site')
   {

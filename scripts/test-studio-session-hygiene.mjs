@@ -1292,7 +1292,8 @@ async function handlerSuite(sources = SRC) {
   for (const locked of [false, true]) {
     const t = make(locked)
     const fn = pageHandler(page, 'handleBuildThemeChange', { ...t.common, buildThemeProfileMatchesSelection: () => true,
-      themeSelectionChangedLocallyRef: { current: false }, setBuildThemeSelection: () => t.log.push('apply') })
+      themeSelectionChangedLocallyRef: { current: false }, setBuildThemeSelection: () => t.log.push('apply'),
+      carryPaletteMode: next => next, buildThemeSelectionRef: { current: { mode: 'auto' } } }) // NEXT_PUBLIC_STUDIO_THEME_DARK_PERSIST: flag off, the pick as it is
     fn({ mode: 'preset', preset_id: 'gilded_noir' })
     check(assert.deepEqual, t.log, locked ? ['toast'] : ['save', 'apply'], locked ? 'a locked selection: only the notice, no row saved' : 'a theme pick saves the row, then applies the theme')
   }
@@ -1398,7 +1399,7 @@ async function mutantSuite() {
   mutate('held metadata is sent again', P, "    deferredMetadataRef.current = null;\n    try {", "    try {", ['first'])
   mutate('held metadata is sent with the flag off', P, 'if (!STUDIO_SESSION_HYGIENE_ENABLED) return;\n    const held', 'const held', ['wiring'])
   mutate('director\'s frame saves the row', PG, "persistenceRef.current.updateMetadata(updates)\n      } else {\n        console.error('PERSISTENCE BLOCKED:'", "persistenceRef.current.updateMetadata(updates)\n        saveSessionOnFirstAction()\n      } else {\n        console.error('PERSISTENCE BLOCKED:'", ['wiring'])
-  mutate('theme pick does not save', PG, "    saveSessionOnFirstAction()\n    setActiveBuildThemeProfile(current => (", "    setActiveBuildThemeProfile(current => (", ['handlers', 'wiring'])
+  mutate('theme pick does not save', PG, "    saveSessionOnFirstAction()\n    // NEXT_PUBLIC_STUDIO_THEME_DARK_PERSIST:", "    // NEXT_PUBLIC_STUDIO_THEME_DARK_PERSIST:", ['handlers', 'wiring'])
   mutate('locked theme pick saves', PG, "const handleBuildThemeChange = useCallback((next: BuildThemeSelection) => {\n    if (templateSelectionLockedRef.current) {", "const handleBuildThemeChange = useCallback((next: BuildThemeSelection) => {\n    saveSessionOnFirstAction()\n    if (templateSelectionLockedRef.current) {", ['handlers'])
   mutate('locked template pick saves', PG, "const handleSelectTemplate = useCallback((template: BuilderTemplateSelection) => {\n    if (templateSelectionLockedRef.current) {", "const handleSelectTemplate = useCallback((template: BuilderTemplateSelection) => {\n    saveSessionOnFirstAction()\n    if (templateSelectionLockedRef.current) {", ['handlers'])
   mutate('saved theme does not save', PG, 'if (profile) saveSessionOnFirstAction()', '', ['handlers'])

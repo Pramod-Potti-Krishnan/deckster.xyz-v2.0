@@ -88,6 +88,7 @@
     "test:theme-font-selection": "node scripts/test-theme-font-selection.mjs",
     "test:studio-theme-restore": "node scripts/test-studio-theme-restore.mjs",
     "test:studio-theme-dark-toggle": "node scripts/test-studio-theme-dark-toggle.mjs",
+    "test:studio-theme-dark-persist": "node scripts/test-studio-theme-dark-persist.mjs",
     "test:studio-theme-delete-undo": "node scripts/test-studio-theme-delete-undo.mjs",
     "test:studio-build-resume": "node scripts/test-studio-build-resume.mjs",
     "test:stage-f-thumbnails": "node scripts/test-stage-f-thumbnails.mjs",

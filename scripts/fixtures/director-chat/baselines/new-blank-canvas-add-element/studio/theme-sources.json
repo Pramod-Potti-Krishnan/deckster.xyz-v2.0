@@ -12,7 +12,7 @@
   {"chars":68,"label":"page.ensureThemeReady.deps","sha256":"aebf8a103e76734c"},
   {"chars":26,"label":"page.getThemeSyncSnapshot","sha256":"a5fedf000f72b76b"},
   {"chars":2,"label":"page.getThemeSyncSnapshot.deps","sha256":"4f53cda18c2baa0c"},
-  {"chars":473,"label":"page.handleBuildThemeChange","sha256":"b55c23d3ee0daaa5"},
+  {"chars":922,"label":"page.handleBuildThemeChange","sha256":"f088b4de165a67e5"},
   {"chars":33,"label":"page.handleBuildThemeChange.deps","sha256":"060a06f880876491"},
   {"chars":2679,"label":"page.requestThemeSyncForPresentation","sha256":"5aec02829210713e"},
   {"chars":60,"label":"page.requestThemeSyncForPresentation.deps","sha256":"bd9744d0a02e8e0b"},

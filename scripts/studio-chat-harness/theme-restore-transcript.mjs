@@ -13,6 +13,7 @@
 //
 // Director's side is recorded frames: THEME-2's (director !485 @ 50772ff, real connect handler on a fake socket) and the
 // real `_send_theme_sync` acknowledgement template. Each run records every byte the tab put on the socket.
+import fs from 'node:fs'
 import path from 'node:path'
 import React from 'react'
 import ts from 'typescript'
@@ -120,6 +121,8 @@ export async function runThemeRestoreTranscript({ root, fixture, mode }) {
   const { getLayoutServiceUrl } = loader.load('lib/layout-service-client.ts')
   const { resolveEffectivePresentation } = loader.load('lib/builder-presentation-ownership.ts')
   const restoreLib = T.restore ? loader.load('lib/studio-theme-restore.ts') : {}
+  // NEXT_PUBLIC_STUDIO_THEME_DARK_PERSIST: handleBuildThemeChange reads carryPaletteMode where the tree has the lib (the base tree does not).
+  const darkToggleLib = fs.existsSync(path.join(root, 'lib/studio-theme-dark-toggle.ts')) ? loader.load('lib/studio-theme-dark-toggle.ts') : {}
   const voice = loader.load('lib/studio-voice-interactive.ts')
   const { attachmentsFromPayload } = loader.load('lib/user-message-attachments.ts')
 
@@ -158,11 +161,14 @@ export async function runThemeRestoreTranscript({ root, fixture, mode }) {
     const [themeSync, setThemeSync] = R.useState(themeSyncLib.IDLE_THEME_SYNC)
     const themeSyncRef = R.useRef(themeSync)
     themeSyncRef.current = themeSync
+    const buildThemeSelectionRef = R.useRef(buildThemeSelection)
+    buildThemeSelectionRef.current = buildThemeSelection
     const theme = {
-      ...themeSyncLib, themeSelectionFingerprint: themeBuilderLib.themeSelectionFingerprint, themeFontsEqual, composerThemeSyncBlocked, getLayoutServiceUrl,
+      ...themeSyncLib,
+      ...(darkToggleLib.carryPaletteMode ? { carryPaletteMode: darkToggleLib.carryPaletteMode } : {}), themeSelectionFingerprint: themeBuilderLib.themeSelectionFingerprint, themeFontsEqual, composerThemeSyncBlocked, getLayoutServiceUrl,
       ...restoreLib,
       process: env.globals.process, crypto: env.crypto, console: env.console, setTimeout: env.clock.setTimeout, clearTimeout: env.clock.clearTimeout,
-      buildThemeSelection, setBuildThemeSelection, activeBuildThemeProfile, setActiveBuildThemeProfile, themeSync, setThemeSync, themeSyncRef,
+      buildThemeSelection, setBuildThemeSelection, buildThemeSelectionRef, activeBuildThemeProfile, setActiveBuildThemeProfile, themeSync, setThemeSync, themeSyncRef,
       latestThemeSyncRequestRef: R.useRef(null), latestThemeSyncKeyRef: R.useRef(null), themeSyncTimeoutRef: R.useRef(null),
       themeSelectionChangedLocallyRef: R.useRef(false), templateSelectionLockedRef: R.useRef(false), templateModeOn: false,
       toast, saveSessionOnFirstAction,

@@ -198,6 +198,7 @@ import {
   type BuildThemeSelection,
 } from '@/lib/theme-builder'
 import { themeFontFields, themeFontsEqual } from '@/lib/theme-fonts'
+import { carryPaletteMode, presetPaletteModeField } from '@/lib/studio-theme-dark-toggle'
 import {
   advanceThemeRestoreGate,
   isFreshThemeRestoreGate,
@@ -359,7 +360,7 @@ function normalizeStoredBuildThemeSelection(value: unknown): BuildThemeSelection
   const raw = value as Partial<BuildThemeSelection>
   if (raw.mode === 'preset') {
     return typeof raw.preset_id === 'string'
-      ? { mode: 'preset', preset_id: raw.preset_id, ...themeFontFields(raw) }
+      ? { mode: 'preset', preset_id: raw.preset_id, ...presetPaletteModeField(raw), ...themeFontFields(raw) }
       : { mode: 'auto' }
   }
 
@@ -2081,11 +2082,14 @@ function AuthenticatedBuilderContent({ authScopeUserId }: { authScopeUserId: str
       return
     }
     saveSessionOnFirstAction()
+    // NEXT_PUBLIC_STUDIO_THEME_DARK_PERSIST: a pick (preset chip, brand colour, saved theme) that names no Light / Dark keeps the one chosen in the theme panel,
+    // and the active saved theme then holds the same payload, so it still matches. Flag off, `carried` is `next` itself and nothing below differs.
+    const carried = carryPaletteMode(next, buildThemeSelectionRef.current)
     setActiveBuildThemeProfile(current => (
-      buildThemeProfileMatchesSelection(current, next) ? current : null
+      buildThemeProfileMatchesSelection(current, next) ? (current && carried !== next ? { ...current, theme_payload: carried } : current) : null
     ))
     themeSelectionChangedLocallyRef.current = true
-    setBuildThemeSelection(next)
+    setBuildThemeSelection(carried)
   }, [toast, saveSessionOnFirstAction])
 
   const handleActiveBuildThemeProfileChange = useCallback((profile: ActiveBuildThemeProfile | null) => {

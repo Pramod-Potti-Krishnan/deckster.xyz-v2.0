@@ -76,8 +76,12 @@ export async function runTranscript({ root, fixture, profile, processEnv: caller
   // generation hook (page-theme-sources.mjs, `useTextLabsGeneration`), against a synthetic Text Labs that only answers them.
   const preflightOn = Boolean(fixture.elementPreflight)
   const themeSources = preflightOn ? pageThemeSources(root) : null
+  // NEXT_PUBLIC_STUDIO_THEME_DARK_PERSIST: the page's handleBuildThemeChange reads carryPaletteMode where the tree has the lib (the base tree does not, and then
+  // the page's own code runs, which never reads it).
+  const darkToggleLib = preflightOn && fs.existsSync(path.join(root, 'lib/studio-theme-dark-toggle.ts')) ? loader.load('lib/studio-theme-dark-toggle.ts') : {}
   const themeLibs = preflightOn ? {
     ...loader.load('lib/theme-sync.ts'),
+    ...(darkToggleLib.carryPaletteMode ? { carryPaletteMode: darkToggleLib.carryPaletteMode } : {}),
     themeSelectionFingerprint: loader.load('lib/theme-builder.ts').themeSelectionFingerprint,
     composerThemeSyncBlocked: loader.load('lib/composer-theme-policy.ts').composerThemeSyncBlocked,
     getLayoutServiceUrl: loader.load('lib/layout-service-client.ts').getLayoutServiceUrl,
@@ -212,10 +216,12 @@ export async function runTranscript({ root, fixture, profile, processEnv: caller
       const [themeSync, setThemeSync] = R.useState(themeLibs.IDLE_THEME_SYNC)
       const themeSyncRef = R.useRef(themeSync)
       themeSyncRef.current = themeSync
+      const buildThemeSelectionRef = R.useRef(buildThemeSelection)
+      buildThemeSelectionRef.current = buildThemeSelection
       const scope = {
         ...themeLibs, process: env.globals.process, crypto: env.crypto, console: env.console,
         setTimeout: env.clock.setTimeout, clearTimeout: env.clock.clearTimeout,
-        buildThemeSelection, setBuildThemeSelection, activeBuildThemeProfile, setActiveBuildThemeProfile, themeSync, setThemeSync, themeSyncRef,
+        buildThemeSelection, setBuildThemeSelection, buildThemeSelectionRef, activeBuildThemeProfile, setActiveBuildThemeProfile, themeSync, setThemeSync, themeSyncRef,
         latestThemeSyncRequestRef: R.useRef(null), latestThemeSyncKeyRef: R.useRef(null), themeSyncTimeoutRef: R.useRef(null),
         themeSelectionChangedLocallyRef: R.useRef(false), templateSelectionLockedRef: R.useRef(false), templateModeOn: false,
         toast, saveSessionOnFirstAction: () => call('page.saveSessionOnFirstAction', []),

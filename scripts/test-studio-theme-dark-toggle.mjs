@@ -261,7 +261,8 @@ function pureSuite(overrides = {}) {
   const OFF = false, ON = true
 
   // import-free: it loads with no stubs at all, and its source has no import or require
-  const code = (overrides[FILES.lib] ?? read(FILES.lib)).replace(/\/\*[\s\S]*?\*\//g, '').replace(/^\s*\/\/.*$/gm, '')
+  // (the follow-up flag NEXT_PUBLIC_STUDIO_THEME_DARK_PERSIST reads its two literals in ONE function, as lib/theme-fonts.ts does; test-studio-theme-dark-persist.mjs pins it)
+  const code = (overrides[FILES.lib] ?? read(FILES.lib)).replace(/\/\*[\s\S]*?\*\//g, '').replace(/^\s*\/\/.*$/gm, '').replace(/function readDarkPersistFlag\(\)[\s\S]*?\n\}\n/, '')
   check(assert.doesNotMatch, code, /^\s*import\b|\brequire\s*\(|\bprocess\b/m, 'the helper is import-free and reads no env itself')
 
   // the flag: the exact string "true"
@@ -769,8 +770,12 @@ function pinSuite(sources = {}) {
   check(assert.equal, [...page.matchAll(/palette_mode/g)].length, 7, 'the page only reads the stored mode back and compares selections, as the base did (7 mentions)')
 
   // the page, the viewer, the presentation area and the socket hook know nothing of this feature: the staged mode lives only in the panel
-  for (const [name, source] of [['page', page], ['viewer', viewer], ['presentation area', area], ['socket hook', hook]])
+  for (const [name, source] of [['viewer', viewer], ['presentation area', area], ['socket hook', hook]])
     check(assert.doesNotMatch, source, /stagedPaletteMode|StagedPaletteMode|THEME_DARK_MODE|studio-theme-dark-toggle|DeckPaletteMode/, `${name} is untouched`)
+  // the page: since NEXT_PUBLIC_STUDIO_THEME_DARK_PERSIST (test-studio-theme-dark-persist.mjs) it imports exactly two helpers of the same file and still knows nothing of the control
+  check(assert.doesNotMatch, page, /stagedPaletteMode|StagedPaletteMode|THEME_DARK_MODE|DeckPaletteMode/, 'page is untouched')
+  check(assert.deepStrictEqual, [...page.matchAll(/studio-theme-dark-toggle/g)].length, 1, 'page: one import of the helper file')
+  check(assert.match, page, /import \{ carryPaletteMode, presetPaletteModeField \} from '@\/lib\/studio-theme-dark-toggle'/, 'page: the persistence helpers only')
   for (const send of ['handleBuildThemeChange', 'buildSendOptions', 'requestThemeSyncForPresentation']) {
     const at = page.indexOf(`const ${send} =`)
     check(assert.ok, at > 0, send)
