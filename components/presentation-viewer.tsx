@@ -77,6 +77,7 @@ import { STUDIO_DECK_MUTATION_REFRESH_ENABLED, onSlideRailRefreshRequest } from 
 import { STUDIO_DECK_CHANGED_NOTICE_ENABLED, reportDeckChange, reportLayoutCommandAck, reportOwnDeckEdit, reportViewerDeckState } from '@/lib/studio-deck-changed-notice'
 import { STUDIO_SLIDE_RAIL_V2, SLIDE_RAIL_V2_DEFAULT_WIDTH } from '@/lib/studio-slide-rail-v2'
 import { STUDIO_TOP_BAR_V2_ENABLED, publishStudioDeckSaveState } from '@/lib/studio-top-bar-v2'
+import { STUDIO_THEME_BLANK_NOTE_ENABLED, themeBlankNote } from '@/lib/studio-theme-blank-note'
 import {
   DropdownMenu,
   DropdownMenuCheckboxItem,
@@ -908,6 +909,8 @@ export function PresentationViewer({
     templateModeOn,
   })
   const canSaveTemplate = !studioPartialArtifact && templateSaveGate.canSave
+  // PASS2D A3 (NEXT_PUBLIC_STUDIO_THEME_BLANK_NOTE, default off): what the Theme dialog says on the blank canvas. Null with the flag off, and then the dialog gets no new prop.
+  const themeBlankCopy = themeBlankNote(STUDIO_THEME_BLANK_NOTE_ENABLED, isBlankPresentation)
   const resolvedTemplateSavePresentationId = studioPartialArtifact ? null : templateSaveGate.sourcePresentationId
   // View mode toggles (grid, borders, edit) - only shown in non-fullscreen
   const [isGridActive, setIsGridActive] = useState(false)
@@ -4959,6 +4962,7 @@ export function PresentationViewer({
         presentationId={presentationId}
         buildThemeSelection={buildThemeSelection}
         themeSync={themeSync}
+        {...(themeBlankCopy ? { blankNote: themeBlankCopy } : {})}
         selectionLocked={templateSelectionLocked}
         onBuildThemeChange={onBuildThemeChange}
       />

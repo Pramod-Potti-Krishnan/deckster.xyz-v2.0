@@ -374,7 +374,9 @@ function wiringChecks() {
     // the viewer diff is one import, the gate and the strip prop; the strip diff is the imports, the prop and the footer line
     assert.deepEqual(changed(VIEWER).filter(line => line.startsWith('-')), [], 'the viewer loses no line')
     assert.deepEqual(changed(STRIP).filter(line => line.startsWith('-')), [], 'the strip loses no line')
-    assert.equal(changed(VIEWER).filter(line => line.startsWith('+')).length, 1 + 13 + 1, 'the viewer gains an import, the gate and the prop')
+    // + PASS2D A3 (NEXT_PUBLIC_STUDIO_THEME_BLANK_NOTE) adds four flag-gated lines to the viewer (an import, a const with its comment, one conditional prop on the Theme Panel);
+    //   scripts/test-studio-theme-blank-note.mjs proves them.
+    assert.equal(changed(VIEWER).filter(line => line.startsWith('+')).length, 1 + 13 + 1 + 4, 'the viewer gains an import, the gate and the prop (+ the four PASS2D A3 lines)')
     assert.equal(changed(STRIP).filter(line => line.startsWith('+')).length, 2 + 3 + 1 + 1, 'the strip gains two imports, the prop, its destructuring and the footer')
     // + PASS2B J2-04 (NEXT_PUBLIC_STUDIO_ADD_SLIDE_STATUS) adds flag-gated lines to both; scripts/studio-add-slide-status-strip.mjs takes them out first.
     for (const rel of [PAGE, ENTRY]) assert.equal(stripDarkPersist(rel, stripAddSlideStatus(rel, read(rel))), baseSource(rel), `${rel}: the page and the Add Slide entry are untouched`)

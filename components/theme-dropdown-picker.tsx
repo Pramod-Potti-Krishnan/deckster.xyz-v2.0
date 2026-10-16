@@ -76,6 +76,8 @@ export type ThemeDropdownPreviewData =
       body: string
       headingFont?: string
       bodyFont?: string
+      /** PASS2D A3 (NEXT_PUBLIC_STUDIO_THEME_BLANK_NOTE): replaces the closing "A preview only" sentence. Absent: the sentence below. */
+      applyNote?: string
     }
 
 // ── colour helpers (pure) ──────────────────────────────────────────────────────────────────────────────────────────────
@@ -264,7 +266,7 @@ function ThemeDropdownPreview({ preview, locked }: { preview: ThemeDropdownPrevi
         {preview.headingFont || preview.bodyFont
           ? `Fonts: ${[preview.headingFont && `${preview.headingFont} for headings`, preview.bodyFont && `${preview.bodyFont} for body text`].filter(Boolean).join(', ')}. `
           : 'Fonts: the theme’s own. '}
-        A preview only: your deck changes when you apply the theme.
+        {preview.applyNote ?? 'A preview only: your deck changes when you apply the theme.'}
       </p>
     </section>
   )
