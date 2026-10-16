@@ -32,6 +32,7 @@ import type { BuildThemeSelection } from '@/lib/theme-builder'
 import { themeSelectionFingerprint } from '@/lib/theme-builder'
 import { themeFontFields } from '@/lib/theme-fonts'
 import type { ThemeSyncState } from '@/lib/theme-sync'
+import { presetPaletteModeField } from '@/lib/studio-theme-dark-toggle'
 
 export const THEME_RESTORED_STATUS = 'restored'
 
@@ -73,6 +74,7 @@ function colorOverrides(value: unknown): Record<string, string> | undefined {
  * Director's stored selection (normalize_build_theme_selection: preset | custom, either with color_overrides and fonts,
  * or an explicit auto) as the Builder's BuildThemeSelection. `null` when nothing usable is stored: the caller shows Auto
  * and sends nothing. Fonts survive only with NEXT_PUBLIC_THEME_FONT_SELECTION_ENABLED (themeFontFields), as everywhere else.
+ * A preset keeps its palette_mode 'light' | 'dark' only with NEXT_PUBLIC_STUDIO_THEME_DARK_PERSIST (presetPaletteModeField); off, it comes back without it.
  */
 export function restoredThemeSelection(theme: unknown): BuildThemeSelection | null {
   if (!isRecord(theme)) return null
@@ -85,6 +87,7 @@ export function restoredThemeSelection(theme: unknown): BuildThemeSelection | nu
     return {
       mode: 'preset',
       preset_id: theme.preset_id,
+      ...presetPaletteModeField(theme),
       ...(overrides ? { color_overrides: overrides } : {}),
       ...fonts,
     }

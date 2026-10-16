@@ -128,3 +128,53 @@ export function nextStagedMode(builtMode: DeckPaletteMode, staged: DeckPaletteMo
   const target = otherPaletteMode(builtMode)
   return staged === target ? null : target
 }
+
+// ---------------------------------------------------------------------------------------------------------------- persistence
+// Follow-up flag NEXT_PUBLIC_STUDIO_THEME_DARK_PERSIST (exact "true", default off; it acts only while NEXT_PUBLIC_THEME_DARK_MODE_ENABLED is on too).
+// Two gaps in the choice above, both about a Dark picked in the theme panel on a PRESET:
+//   1. a quick pick in the composer (preset chip, brand colour, saved theme) builds a whole new selection and left the mode behind;
+//   2. the stored-selection restore (session reload, saved-theme profile) and the Director restore read a preset as just { mode, preset_id } (plus
+//      fonts), so the mode did not survive a reload or a saved-theme load.
+// Flag off, every function below returns what the code it serves computed before (the same object, or `{}`).
+
+/** The follow-up's switch: the toggle itself and its own flag, both exact "true". */
+export function darkPersistEnabled(darkModeRaw: string | undefined, persistRaw: string | undefined): boolean {
+  return themeDarkModeEnabled(darkModeRaw) && persistRaw === 'true'
+}
+
+/** Next inlines each literal `process.env.NEXT_PUBLIC_...`; the try only guards sandboxes without `process` (the node tests), as lib/theme-fonts.ts does. */
+function readDarkPersistFlag(): boolean {
+  try {
+    return darkPersistEnabled(process.env.NEXT_PUBLIC_THEME_DARK_MODE_ENABLED, process.env.NEXT_PUBLIC_STUDIO_THEME_DARK_PERSIST)
+  } catch {
+    return false
+  }
+}
+
+export const THEME_DARK_PERSIST = readDarkPersistFlag()
+
+/**
+ * A quick pick (composer preset chip, brand colour, saved theme) replaces the whole selection. Flag on, the deck choice already made (`current`'s
+ * palette_mode 'light' | 'dark') rides along when the pick says nothing about the mode; a pick that carries its own mode (a saved theme) keeps it.
+ * Auto is a reset, so an Auto pick takes nothing. 'both' is not a choice the control offers, so it is never carried. A dark-only preset still ends on
+ * Dark (clampDarkOnlyPaletteMode). Flag off (the default is the env flag), `picked` itself.
+ */
+export function carryPaletteMode<T extends PaletteModeSelection>(picked: T, current: PaletteModeSelection | null | undefined, flagOn: boolean = THEME_DARK_PERSIST): T {
+  if (!flagOn) return picked
+  const chosen = current?.palette_mode
+  const inherits = picked.mode !== 'auto' && picked.palette_mode == null && (chosen === 'light' || chosen === 'dark')
+  return clampDarkOnlyPaletteMode(inherits ? { ...picked, palette_mode: chosen } : picked, flagOn)
+}
+
+/**
+ * The palette_mode a stored or restored PRESET selection keeps: `{ palette_mode }` when `source` holds 'light' or 'dark' (a dark-only preset always reads
+ * Dark), else `{}`. 'both' is not carried: with the flag on the control only offers Light and Dark. Flag off (the default is the env flag), `{}`, which is
+ * the drop the code did before.
+ */
+export function presetPaletteModeField(source: { palette_mode?: unknown; preset_id?: unknown } | null | undefined, flagOn: boolean = THEME_DARK_PERSIST): { palette_mode?: 'light' | 'dark' } {
+  if (!flagOn) return {}
+  const mode = source?.palette_mode
+  if (mode !== 'light' && mode !== 'dark') return {}
+  return { palette_mode: isDarkOnlyPreset({ mode: 'preset', preset_id: source?.preset_id }) ? 'dark' : mode }
+}
+

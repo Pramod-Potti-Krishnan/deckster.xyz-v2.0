@@ -196,7 +196,9 @@ function pageFunctions(rootDir, env, themeFontsLoader, overrides = {}) {
   file.forEachChild(node => { if (ts.isFunctionDeclaration(node) && node.name && names.includes(node.name.text)) found[node.name.text] = node.getText(file) })
   for (const name of names) assert.ok(found[name], `${name} found in the page`)
   const js = ts.transpileModule(`${Object.values(found).join('\n')}\nmodule.exports = { ${names.join(', ')} }`, { compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022 } }).outputText
-  const context = { module: { exports: null }, ...(themeFontsLoader ? { themeFontFields: themeFontsLoader.themeFontFields, themeFontsEqual: themeFontsLoader.themeFontsEqual } : {}) }
+  // NEXT_PUBLIC_STUDIO_THEME_DARK_PERSIST: normalizeStoredBuildThemeSelection reads presetPaletteModeField where the tree has the lib (flag unset here, so it adds nothing).
+  const darkToggle = fs.existsSync(path.join(rootDir, 'lib/studio-theme-dark-toggle.ts')) ? createLoader(rootDir, { env }).load('lib/studio-theme-dark-toggle.ts') : null
+  const context = { module: { exports: null }, ...(themeFontsLoader ? { themeFontFields: themeFontsLoader.themeFontFields, themeFontsEqual: themeFontsLoader.themeFontsEqual } : {}), ...(darkToggle ? { presetPaletteModeField: darkToggle.presetPaletteModeField } : {}) }
   vm.runInNewContext(js, context)
   return context.module.exports
 }
@@ -671,7 +673,7 @@ const MUTATIONS = [
   ['preset switch drops the fonts', 'lib/theme-builder.ts', text => text.replace('return carryThemeFonts(selection, {', 'return ((_from: object, to: BuildThemeSelection) => to)(selection, {')],
   ['hook keeps server fonts with the flag off', 'hooks/use-theme-profiles.ts', text => text.replace('const next = applyThemeFontPolicy(payload)', 'const next = payload')],
   ['hook skips the standard theme', 'hooks/use-theme-profiles.ts', text => text.replace('(data.theme ? withThemeFontPolicy(data.theme) : data.theme)', 'data.theme')],
-  ['page forgets the stored fonts', 'app/builder/page.tsx', text => text.replace("{ mode: 'preset', preset_id: raw.preset_id, ...themeFontFields(raw) }", "{ mode: 'preset', preset_id: raw.preset_id }")],
+  ['page forgets the stored fonts', 'app/builder/page.tsx', text => text.replace("...presetPaletteModeField(raw), ...themeFontFields(raw) }", "...presetPaletteModeField(raw) }")],
   ['page custom selection forgets the fonts', 'app/builder/page.tsx', text => text.replace('Object.assign(next, themeFontFields(raw))', '')],
   ['page equality ignores the fonts', 'app/builder/page.tsx', text => text.replace('a.preset_id === b.preset_id && themeFontsEqual(a, b)', 'a.preset_id === b.preset_id')],
   ['theme panel custom switch drops the fonts', 'components/theme-panel.tsx', text => text.replace('updateDraft(carryThemeFonts(draft, {', 'updateDraft(((_from: object, to: BuildThemeSelection) => to)(draft, {')],
