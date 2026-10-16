@@ -90,3 +90,24 @@
 @media (max-width: 480px) {
   [data-studio-authoring-menu][data-studio-element-gallery] { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 }
+
+/* PASS2D B3a (flag NEXT_PUBLIC_STUDIO_ELEMENT_GALLERY_FIT, default off): every rule below hangs on [data-studio-element-gallery-fit="true"], which the gallery
+   sets only with the flag on (lib/studio-element-gallery-fit.ts), so with it off none of this applies.
+   Size from the room Radix reports (it already subtracts collisionPadding), never past the viewport; at 480 px and below keep three compact
+   columns (names only; the one-line description stays as the accessible description) so all nine cards fit a 420 px wide, 560 px tall viewport. */
+[data-studio-authoring-menu="add-element"][data-studio-element-gallery="true"][data-studio-element-gallery-fit="true"] {
+  --seg-fit-room: min(448px, var(--radix-dropdown-menu-content-available-width, 448px), calc(100vw - 24px));
+  width: var(--seg-fit-room);
+  max-width: var(--seg-fit-room);
+}
+@media (max-width: 480px) {
+  [data-studio-authoring-menu][data-studio-element-gallery][data-studio-element-gallery-fit="true"] {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 6px;
+    padding: 6px;
+  }
+  [data-studio-authoring-menu][data-studio-element-gallery][data-studio-element-gallery-fit="true"] [role^="menuitem"].seg-card { padding: 4px 4px 6px; }
+  [data-studio-authoring-menu][data-studio-element-gallery][data-studio-element-gallery-fit="true"] .seg-art { aspect-ratio: 5 / 2.6; margin-bottom: 2px; }
+  [data-studio-authoring-menu][data-studio-element-gallery][data-studio-element-gallery-fit="true"] .seg-desc { display: none; }
+  [data-studio-authoring-menu][data-studio-element-gallery][data-studio-element-gallery-fit="true"] .seg-name { font-size: 11px; }
+}

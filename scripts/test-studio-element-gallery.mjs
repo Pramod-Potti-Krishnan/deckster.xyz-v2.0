@@ -109,6 +109,13 @@ function loadGallery() {
   const requireFn = id => {
     if (id in stubs) return stubs[id]
     if (id.endsWith('.css')) return {}
+    // PASS2D B3a: the gallery imports the import-free fit helper (flag NEXT_PUBLIC_STUDIO_ELEMENT_GALLERY_FIT); here, flag unset = off.
+    if (id === '@/lib/studio-element-gallery-fit') {
+      const lib = { exports: {} }
+      vm.runInNewContext(ts.transpileModule(read('lib/studio-element-gallery-fit.ts'), { compilerOptions: JSX_OPTIONS, fileName: 'lib/studio-element-gallery-fit.ts' }).outputText,
+        { module: lib, exports: lib.exports, process: { env: {} } })
+      return lib.exports
+    }
     throw new Error(`gallery imported an unexpected module: ${id}`)
   }
   vm.runInNewContext(js, { module: mod, exports: mod.exports, require: requireFn, __jsx: jsx, [FRAGMENT]: FRAGMENT, console })
@@ -327,7 +334,8 @@ run('an element the gallery has no illustration for still renders as a plain lab
 // ---- scope: presentation only ------------------------------------------------------------------------------------------
 run('the gallery module only imports the dropdown parts and its own stylesheet (no panel, no service, no state)', () => {
   const imports = [...read(GALLERY).matchAll(/^import .* from ["']([^"']+)["']|^import ["']([^"']+)["']/gm)].map(match => match[1] || match[2])
-  assert.deepEqual(imports.sort(), ['./studio-element-gallery.css', '@/components/ui/dropdown-menu', 'lucide-react', 'react'].sort())
+  // PASS2D B3a: plus the import-free fit helper (lib/studio-element-gallery-fit.ts)
+  assert.deepEqual(imports.sort(), ['./studio-element-gallery.css', '@/components/ui/dropdown-menu', '@/lib/studio-element-gallery-fit', 'lucide-react', 'react'].sort())
   assert.doesNotMatch(read(GALLERY), /fetch\(|useState|useEffect|onOpenGenerationPanel|process\.env/)
 })
 
