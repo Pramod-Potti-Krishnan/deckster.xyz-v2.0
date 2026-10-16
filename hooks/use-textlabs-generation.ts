@@ -103,6 +103,11 @@ import {
   isBlankPlaceholderInsert,
   type PlaceholderDeferral,
 } from '@/lib/element-placeholder-defer'
+import {
+  STUDIO_ELEMENT_FREE_SPOT_ENABLED,
+  pickElementFreeSpot,
+  type FreeSpot,
+} from '@/lib/element-free-spot'
 
 export type TextLabsGenerationResult =
   | { status: 'inserted'; presentationId: string | null; slideIndex: number; elementIds: string[] }
@@ -306,6 +311,9 @@ export function useTextLabsGeneration({
     && process.env.NEXT_PUBLIC_ELEMENT_FAILURE_IMMEDIATE_FEEDBACK_ENABLED === 'true'
   const pendingPlaceholderAddsRef = useRef<Set<string>>(new Set())
   const placeholderSequenceRef = useRef(0)
+  // PASS2D (NEXT_PUBLIC_STUDIO_ELEMENT_FREE_SPOT): the spot handleOpenPanelFreeSpot found for the card being opened, handed to handleOpenPanel.
+  const freeSpotRef = useRef<FreeSpot | null>(null)
+  const freeSpotOpeningRef = useRef<Set<string>>(new Set())
   const placeholderMountRevisionRef = useRef(0)
   const activeGenerationKeysRef = useRef<Set<string>>(new Set())
   const retryCandidateRef = useRef<DiagramRetryCandidate | null>(null)
@@ -2376,8 +2384,8 @@ export function useTextLabsGeneration({
     if (studio && !ownerIsCurrent()) return
     const componentType = type as TextLabsComponentType
     const defaults = getDefaultSize(componentType)
-    const startCol = 2
-    const startRow = 4
+    const startCol = freeSpotRef.current?.startCol ?? 2
+    const startRow = freeSpotRef.current?.startRow ?? 4
 
     const pendingKey = JSON.stringify([expectedMountRevision, expectedPresentationTarget.epoch, expectedPresentationTarget.presentationId, studioTargetSlideIndex, componentType])
     if (studio && pendingPlaceholderAddsRef.current.has(pendingKey)) return
@@ -2514,6 +2522,34 @@ export function useTextLabsGeneration({
     }
   }, [placeholderDeferral, sweepPanelBlankId])
 
+  // PASS2D (flag NEXT_PUBLIC_STUDIO_ELEMENT_FREE_SPOT, Studio shell only, default off): choosing a card first asks the viewer where the slide's
+  // elements are (lib/element-free-spot.ts) and hands the first free spot to the same open handler, which then runs as before. The read is
+  // done up front, outside the open handler, so the placeholder insertion stays in the open handler's own synchronous window (the hold-back
+  // window of NEXT_PUBLIC_STUDIO_ELEMENT_PLACEHOLDER_FIX). No room, no answer or a viewer that moved on: the open handler's own position.
+  const handleOpenPanelFreeSpot = useCallback(async (type: string) => {
+    const open = placeholderDeferral ? handleOpenPanelDeferred : handleOpenPanel
+    const sendElementCommand = layoutServiceApis?.sendElementCommand
+    if (!sendElementCommand) { freeSpotRef.current = null; return open(type) }
+    // A second click on the same card while the first is still reading is dropped, as handleOpenPanel drops one while its insertion is out.
+    if (freeSpotOpeningRef.current.has(type)) return
+    freeSpotOpeningRef.current.add(type)
+    let spot: FreeSpot | null = null
+    try {
+      const slideIndex = getCurrentSlideIndex?.() ?? currentSlideIndex
+      const defaults = getDefaultSize(type as TextLabsComponentType)
+      spot = await pickElementFreeSpot({ sendElementCommand, slideIndex, width: defaults.width, height: defaults.height })
+      // The open handler takes the slide current when it runs, and drops the click itself if the deck changed meanwhile (its owner check).
+      if ((getCurrentSlideIndex?.() ?? currentSlideIndex) !== slideIndex) spot = null
+    } finally {
+      freeSpotOpeningRef.current.delete(type)
+    }
+    freeSpotRef.current = spot // read by the open handler's first lines, in this same synchronous stretch; every open sets it afresh
+    await open(type)
+  }, [handleOpenPanel, handleOpenPanelDeferred, placeholderDeferral, layoutServiceApis, getCurrentSlideIndex, currentSlideIndex])
+
+  if (studio && STUDIO_ELEMENT_FREE_SPOT_ENABLED) {
+    return { handleGenerate: placeholderDeferral ? handleGenerateDeferred : handleGenerate, handleOpenPanel: handleOpenPanelFreeSpot }
+  }
   if (placeholderDeferral) return { handleGenerate: handleGenerateDeferred, handleOpenPanel: handleOpenPanelDeferred }
   return { handleGenerate, handleOpenPanel }
 }

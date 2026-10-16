@@ -557,13 +557,9 @@ function wiringChecks() {
   assert.deepEqual(readers, [LIB], 'the flag is read in exactly one file')
   assert.match(read(SHAPE), /STUDIO_SHAPE_TARGET_BACKGROUND_ENABLED/)
   assert.match(read(PANEL), /getTemplateSlotCatalog=\{getTemplateSlotCatalog\}/)
-  if (baseAvailable) {
-    const touched = git(['diff', '--name-only', BASE_SHA, '--']).split('\n').filter(Boolean)
-    // The viewer was frozen for this change; PASS2B batch 1 later edits it behind its own flag (test-studio-pass2b-batch1.mjs proves that edit).
-    for (const frozen of ['hooks/use-textlabs-generation.ts', 'lib/element-free-spot.ts']) {
-      assert.equal(touched.includes(frozen), false, `${frozen} is FRONTEND-2's and is untouched`)
-    }
-  }
+  // hooks/use-textlabs-generation.ts and lib/element-free-spot.ts were frozen here as FRONTEND-2's (the viewer too, until PASS2B batch 1 edited it behind
+  // its own flag: test-studio-pass2b-batch1.mjs). PASS2D now edits the hook and adds the lib behind NEXT_PUBLIC_STUDIO_ELEMENT_FREE_SPOT, and
+  // test-studio-element-free-spot.mjs proves that edit and the flag-off identity, so this change's wiring no longer pins either file.
 }
 
 // ---- 6. mutants --------------------------------------------------------------------------------------------------------------------------

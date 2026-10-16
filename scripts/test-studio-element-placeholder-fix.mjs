@@ -416,8 +416,11 @@ await check('flag: exact "true", Studio shell only, documented off in .env.examp
       assert.ok(found, name)
       return found
     }
+    // PASS2D (NEXT_PUBLIC_STUDIO_ELEMENT_FREE_SPOT) later changed the two lines handleOpenPanel takes its start from; with them put back it is this base's
+    // (scripts/test-studio-element-free-spot.mjs proves that edit and the flag-off identity).
+    const freeSpotLines = /const startCol = freeSpotRef\.current\?\.startCol \?\? 2;\s*const startRow = freeSpotRef\.current\?\.startRow \?\? 4;/
     for (const name of ['handleGenerate', 'handleOpenPanel']) {
-      assert.equal(decl(read('hooks/use-textlabs-generation.ts'), name), decl(read('hooks/use-textlabs-generation.ts', BASE), name), `${name} is unchanged`)
+      assert.equal(decl(read('hooks/use-textlabs-generation.ts'), name).replace(freeSpotLines, 'const startCol = 2;\n    const startRow = 4;'), decl(read('hooks/use-textlabs-generation.ts', BASE), name), `${name} is unchanged`)
     }
     const fn = source => { const m = source.match(/function buildPlaceholderHtml[\s\S]*?\n\}\n/); assert.ok(m); return m[0] }
     assert.equal(fn(read('hooks/use-textlabs-generation.ts')), fn(read('hooks/use-textlabs-generation.ts', BASE)), 'the placeholder markup is unchanged')

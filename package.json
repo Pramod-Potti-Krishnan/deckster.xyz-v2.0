@@ -50,6 +50,7 @@
     "test:studio-model-catalog-2026-10": "node scripts/test-studio-model-catalog-2026-10.mjs",
     "test:studio-intelligence-polish": "node scripts/test-studio-intelligence-polish.mjs",
     "test:studio-element-placeholder-fix": "node scripts/test-studio-element-placeholder-fix.mjs",
+    "test:studio-element-free-spot": "node scripts/test-studio-element-free-spot.mjs",
     "test:studio-one-live-tab": "node scripts/test-studio-one-live-tab.mjs",
     "test:studio-pass2b-chat": "node scripts/test-studio-pass2b-chat.mjs",
     "test:element-theme-variants": "node scripts/test-element-theme-variants.mjs",
