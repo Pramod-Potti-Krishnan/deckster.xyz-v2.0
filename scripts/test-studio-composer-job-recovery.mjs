@@ -141,6 +141,8 @@ function createLoader({ sources, env, stubs, globals }) {
       if (spec.startsWith('@/lib/')) return run(resolve(spec))
       // NEXT_PUBLIC_STUDIO_TEMPLATE_PROGRESS (default off): the dialog's new hook is loaded for real (flag off it is inert: the trees and requests below still equal the base's).
       if (spec === '@/components/builder/composer-template-progress') return run(resolve(spec))
+      // NEXT_PUBLIC_STUDIO_TEMPLATE_ADMISSION_REPORT (default off): the dialog's report wrapper is loaded for real (flag off it hands the row's block back as it is).
+      if (spec === '@/components/builder/composer-admission-report') return run(resolve(spec))
       throw new Error(`unexpected import ${spec} in ${rel}`)
     }
     vm.runInNewContext(transpiled.get(key), { module: mod, exports: mod.exports, process: { env }, console, ...globals, require: requireFor })
