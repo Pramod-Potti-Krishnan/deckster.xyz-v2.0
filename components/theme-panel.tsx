@@ -37,7 +37,7 @@ import {
   type CanonicalThemePresetId,
 } from '@/lib/theme-builder'
 import { loadPresetSwatchPalettes } from '@/lib/theme-preset-swatches'
-import { customEntryPaletteMode, paletteModeOf, themeDarkModeEnabled, withPaletteMode, type DeckPaletteMode } from '@/lib/studio-theme-dark-toggle'
+import { clampDarkOnlyPaletteMode, customEntryPaletteMode, effectivePaletteMode, lightDisabledFor, themeDarkModeEnabled, withPaletteMode, type DeckPaletteMode } from '@/lib/studio-theme-dark-toggle'
 import type { ThemeSyncState, ThemeSyncStatus } from '@/lib/theme-sync'
 import { DeckModeControl } from './theme-deck-mode-control'
 import {
@@ -654,7 +654,7 @@ export function ThemePanel({
 
   const applyTheme = () => {
     if (selectionLocked || !canApply || !onBuildThemeChange) return
-    const next = normalizeThemePanelSelection(draft)
+    const next = clampDarkOnlyPaletteMode(normalizeThemePanelSelection(draft), THEME_DARK_MODE)
     setSubmittedFromRequestId(themeSync.requestId)
     onBuildThemeChange(next)
   }
@@ -665,8 +665,9 @@ export function ThemePanel({
     <DeckModeControl
       variant={variant}
       locked={selectionLocked}
-      mode={paletteModeOf(draft)}
+      mode={effectivePaletteMode(draft, THEME_DARK_MODE)}
       staged={stagedMode}
+      lightDisabled={lightDisabledFor(draft, THEME_DARK_MODE)}
       onChange={next => updateDraft(withPaletteMode(draft, next, THEME_DARK_MODE))}
       onStage={next => setStaged(next ? { deckKey, mode: next } : null)}
     />

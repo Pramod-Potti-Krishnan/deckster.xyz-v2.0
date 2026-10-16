@@ -7,6 +7,8 @@
 //   pure   the helper: flag, default Light, payload shape on / off, custom default, select choices, existing-deck label / note / staging.
 //   panel  the real panel: flag off is the base (hashes of the whole rendered tree and of the Apply payloads, captured from the base sources);
 //          flag on: the control for preset and custom, the payload each choice sends, and the built-deck action that stages and sends nothing.
+//   dark-only  corporate_dark, gilded_noir, mission_amber: "Light" is disabled (with the reason as a tooltip), the control reads Dark, and the
+//          selection that goes out can never carry palette_mode 'light' for them; a normal preset and the flag-off panel are unaffected.
 //   pins   where the choice goes (the build message and the existing set_theme frame, untouched), that the staged mode lives only in the panel and
 //          never reaches the wire, that the page, viewer, presentation area and socket hook are untouched, Themes & brand shares the helper, and the
 //          flag is documented.
@@ -30,11 +32,13 @@ const FLAG = 'NEXT_PUBLIC_THEME_DARK_MODE_ENABLED'
 const SHELL = 'NEXT_PUBLIC_STUDIO_V4_SHELL'
 const PICKER = 'NEXT_PUBLIC_STUDIO_THEME_PICKER_V2'
 const DROPDOWN = 'NEXT_PUBLIC_STUDIO_THEME_DROPDOWN'
+const CANON = 'NEXT_PUBLIC_THEME_PICKER_CANON_ENABLED'
 const FILES = {
   lib: 'lib/studio-theme-dark-toggle.ts',
   panel: 'components/theme-panel.tsx',
   control: 'components/theme-deck-mode-control.tsx',
   workspace: 'components/studio-libraries/themes-workspace.tsx',
+  builder: 'lib/theme-builder.ts',
   page: 'app/builder/page.tsx',
   area: 'components/builder/presentation-area.tsx',
   viewer: 'components/presentation-viewer.tsx',
@@ -324,6 +328,73 @@ function pureSuite(overrides = {}) {
   check(assert.match, lib.existingDeckNote('light', 'dark'), /^Dark is staged\. It applies the next time this deck is rebuilt\./)
   check(assert.match, lib.existingDeckNote('dark', 'light'), /^Light is staged\./)
   check(assert.doesNotMatch, lib.existingDeckNote('light', 'light'), /staged\./, 'staged equal to the built mode is not shown as staged')
+
+  // dark-only presets: the three, by id (Theme Builder's preset data has no dark-only field to read), nothing else
+  const DARK_ONLY = ['corporate_dark', 'gilded_noir', 'mission_amber']
+  const NORMAL = ['corporate_light', 'minimal', 'vibrant', 'executive', 'pastel', 'concrete_acid', 'espresso_editorial']
+  check(assert.equal, lib.DARK_ONLY_REASON, 'This theme is dark only')
+  for (const id of DARK_ONLY) check(assert.ok, lib.DARK_ONLY_PRESET_IDS.includes(id), `${id} is listed as dark only`)
+  for (const id of NORMAL) check(assert.ok, !lib.DARK_ONLY_PRESET_IDS.includes(id), `${id} is not listed as dark only`)
+  for (const id of DARK_ONLY) check(assert.equal, lib.isDarkOnlyPreset({ mode: 'preset', preset_id: id }), true, `${id} is dark only`)
+  for (const id of NORMAL) check(assert.equal, lib.isDarkOnlyPreset({ mode: 'preset', preset_id: id }), false, `${id} is not dark only`)
+  for (const id of ['Gilded Noir', ' MISSION_AMBER ', 'Corporate  Dark', 'dark-mode', 'dark_mode', 'Dark Mode'])
+    check(assert.equal, lib.isDarkOnlyPreset({ mode: 'preset', preset_id: id }), true, `the same normalisation as normalizeThemePresetId: ${JSON.stringify(id)}`)
+  for (const selection of [undefined, null, {}, { mode: 'preset' }, { mode: 'preset', preset_id: 7 }, { mode: 'preset', preset_id: '' }, { mode: 'preset', preset_id: 'corporate_dark_2' },
+    { mode: 'auto' }, { mode: 'auto', preset_id: 'gilded_noir' }, { mode: 'custom', preset_id: 'gilded_noir', primary_hex: '#1e40af' }, { preset_id: 'corporate_dark' }])
+    check(assert.equal, lib.isDarkOnlyPreset(selection), false, `not dark only: ${JSON.stringify(selection)}`)
+  for (const id of DARK_ONLY) {
+    const selection = { mode: 'preset', preset_id: id }
+    check(assert.equal, lib.lightDisabledFor(selection, ON), true, `${id}: Light disabled, flag on`)
+    check(assert.equal, lib.lightDisabledFor(selection, OFF), false, `${id}: nothing disabled, flag off`)
+    // the control reads Dark whatever the selection says (flag on); flag off it is today's reading
+    for (const stored of [undefined, 'light', 'both', 'dark'])
+      check(assert.equal, lib.effectivePaletteMode({ ...selection, palette_mode: stored }, ON), 'dark', `${id}: reads Dark (stored ${stored})`)
+    check(assert.equal, lib.effectivePaletteMode(selection, OFF), 'light', `${id}: flag off reads as before`)
+    check(assert.equal, lib.effectivePaletteMode({ ...selection, palette_mode: 'dark' }, OFF), 'dark')
+    // asking for Light writes Dark; asking for Dark writes Dark; the other keys are carried, the input is not mutated, flag off is the same object
+    for (const asked of ['light', 'dark', 'both', undefined]) {
+      const written = lib.withPaletteMode({ ...selection, palette_mode: 'light', color_overrides: { accent: '#123456' } }, asked, ON)
+      check(assert.equal, written.palette_mode, 'dark', `${id}: ${String(asked)} is written as dark`)
+      check(assert.equal, written.preset_id, id)
+      check(deepEqual, written.color_overrides, { accent: '#123456' })
+    }
+    const input = { ...selection }
+    check(assert.equal, JSON.stringify(lib.withPaletteMode(input, 'light', ON)), `{"mode":"preset","preset_id":"${id}","palette_mode":"dark"}`, `${id}: frame JSON, Light asked`)
+    check(assert.equal, 'palette_mode' in input, false, `${id}: the input is not mutated`)
+    check(assert.equal, lib.withPaletteMode(input, 'light', OFF), input, `${id}: flag off, same object`)
+    // the last gate: an explicit light / both becomes dark; dark and absent are the same object; flag off never touches it
+    for (const stored of ['light', 'both']) {
+      const heldInput = { ...selection, palette_mode: stored, font_family: 'Lato' }
+      const clamped = lib.clampDarkOnlyPaletteMode(heldInput, ON)
+      check(assert.equal, JSON.stringify(clamped), `{"mode":"preset","preset_id":"${id}","palette_mode":"dark","font_family":"Lato"}`, `${id}: ${stored} is sent as dark (key order kept)`)
+      check(assert.equal, heldInput.palette_mode, stored, `${id}: the input is not mutated`)
+      check(assert.equal, lib.clampDarkOnlyPaletteMode(heldInput, OFF), heldInput, `${id}: flag off, same object (${stored})`)
+      check(assert.equal, lib.clampDarkOnlyPaletteMode(heldInput, OFF).palette_mode, stored, `${id}: flag off keeps ${stored}`)
+    }
+    const dark = { ...selection, palette_mode: 'dark' }
+    check(assert.equal, lib.clampDarkOnlyPaletteMode(dark, ON), dark, `${id}: dark stays the same object`)
+    check(assert.equal, lib.clampDarkOnlyPaletteMode(selection, ON), selection, `${id}: untouched adds nothing`)
+    check(assert.equal, 'palette_mode' in lib.clampDarkOnlyPaletteMode(selection, ON), false, `${id}: no key is added`)
+    const undef = { ...selection, palette_mode: undefined }
+    check(assert.equal, lib.clampDarkOnlyPaletteMode(undef, ON), undef, `${id}: an undefined key stays undefined`)
+    // a custom palette started from it follows the mode the control showed
+    check(assert.equal, lib.customEntryPaletteMode(selection, ON), 'dark', `${id}: a custom palette starts at Dark`)
+    check(assert.equal, lib.customEntryPaletteMode({ ...selection, palette_mode: 'light' }, ON), 'dark')
+    check(assert.equal, lib.customEntryPaletteMode(selection, OFF), 'both', `${id}: flag off starts at both as before`)
+  }
+  // a normal preset, Auto and custom colours are unaffected: nothing is disabled, the asked mode is written, nothing is clamped
+  for (const selection of [...NORMAL.map(id => ({ mode: 'preset', preset_id: id })), { mode: 'auto' }, { mode: 'custom', preset_id: 'gilded_noir', primary_hex: '#1e40af' }]) {
+    check(assert.equal, lib.lightDisabledFor(selection, ON), false, `Light stays available: ${JSON.stringify(selection)}`)
+    check(assert.equal, lib.effectivePaletteMode(selection, ON), 'light')
+    check(assert.equal, lib.effectivePaletteMode({ ...selection, palette_mode: 'dark' }, ON), 'dark')
+    check(assert.equal, lib.withPaletteMode(selection, 'light', ON).palette_mode, 'light', `light is written: ${JSON.stringify(selection)}`)
+    check(assert.equal, lib.withPaletteMode(selection, 'dark', ON).palette_mode, 'dark')
+    const light = { ...selection, palette_mode: 'light' }
+    check(assert.equal, lib.clampDarkOnlyPaletteMode(light, ON), light, `an explicit light is kept: ${JSON.stringify(selection)}`)
+    const both = { ...selection, palette_mode: 'both' }
+    check(assert.equal, lib.clampDarkOnlyPaletteMode(both, ON), both, 'a stored both is carried unchanged')
+  }
+  check(assert.equal, lib.customEntryPaletteMode({ mode: 'preset', preset_id: 'minimal' }, ON), 'light', 'a normal preset still starts a custom palette at Light')
 }
 
 // ---------------------------------------------------------------- the real panel
@@ -492,6 +563,195 @@ async function panelSuite(overrides = {}, thorough = true) {
     // closed: nothing
     check(assert.equal, await mountPanel(env, overrides).render(baseProps({ isOpen: false })), null)
   }
+
+  // ---- dark-only presets (corporate_dark, gilded_noir, mission_amber): Light disabled with the reason, Dark shown, 'light' never goes out
+  const REASON = 'This theme is dark only'
+  const DARK_ONLY = [['corporate_dark', 'Corporate Dark'], ['gilded_noir', 'Gilded Noir'], ['mission_amber', 'Mission Amber']]
+  const NORMAL = [['corporate_light', 'Corporate Light'], ['minimal', 'Minimal'], ['vibrant', 'Vibrant'], ['executive', 'Executive'], ['pastel', 'Pastel'], ['concrete_acid', 'Concrete Acid'], ['espresso_editorial', 'Espresso Editorial']]
+  const CANON_ON = { [CANON]: 'true' }
+  const pickPreset = (tree, picker, id, label) => picker
+    ? flat(tree).find(node => node.type === 'button' && node.props['data-studio-theme-preset'] === id)
+    : flat(tree).find(node => node.type === 'button' && text(node).includes(label))
+  for (const [name, panelEnv] of Object.entries(PANELS)) {
+    const env = { ...panelEnv, ...CANON_ON }
+    const dropdown = env[DROPDOWN] === 'true'
+    const picker = env[PICKER] === 'true' && !dropdown // the picker's grid has a button per preset id; the dropdown has none
+
+    for (const [id, label] of DARK_ONLY) {
+      // before the build, untouched: Dark is shown, Light is disabled with the reason, nothing is pending
+      {
+        const sent = []
+        const props = baseProps({ buildThemeSelection: { mode: 'preset', preset_id: id }, onBuildThemeChange: next => sent.push(next) })
+        const panel = mountPanel(env, overrides)
+        let tree = await panel.render(props)
+        const root = controlRoot(tree)
+        check(assert.equal, root.props['data-studio-theme-palette-state'], 'draft', `${name}/${id}`)
+        check(deepEqual, flat(root).filter(node => node.type === 'button').map(node => text(node)), ['Light', 'Dark'], `${name}/${id}: both options are still drawn, never "both"`)
+        check(assert.equal, paletteButton(tree, 'light').props.disabled, true, `${name}/${id}: Light is disabled`)
+        check(assert.equal, paletteButton(tree, 'light').props.title, REASON, `${name}/${id}: the tooltip gives the reason`)
+        check(assert.equal, paletteButton(tree, 'light').props['aria-pressed'], false, `${name}/${id}: Light is not selected`)
+        check(assert.equal, paletteButton(tree, 'dark').props['aria-pressed'], true, `${name}/${id}: Dark is selected`)
+        check(assert.ok, !paletteButton(tree, 'dark').props.disabled, `${name}/${id}: Dark is not disabled`)
+        check(assert.equal, paletteButton(tree, 'dark').props.title, undefined, `${name}/${id}: Dark has no tooltip`)
+        check(assert.match, text(root), /This theme is dark only\./, `${name}/${id}: the reason is also in the note`)
+        check(assert.equal, applyButton(tree).props.disabled, true, `${name}/${id}: nothing to apply yet`)
+        // a click that gets past the disabled button (a test, a script) still cannot send Light
+        paletteButton(tree, 'light').props.onClick()
+        tree = await panel.render(props)
+        check(assert.equal, paletteButton(tree, 'dark').props['aria-pressed'], true, `${name}/${id}: still Dark after a click on Light`)
+        check(assert.equal, paletteButton(tree, 'light').props['aria-pressed'], false)
+        if (!applyButton(tree).props.disabled) applyButton(tree).props.onClick()
+        check(assert.ok, sent.every(next => next.palette_mode !== 'light'), `${name}/${id}: no light payload from a click on Light`)
+        // Dark picked: the payload carries dark
+        sent.length = 0
+        paletteButton(tree, 'dark').props.onClick()
+        tree = await panel.render(props)
+        check(assert.equal, applyButton(tree).props.disabled, false, `${name}/${id}: Dark is an applicable change`)
+        applyButton(tree).props.onClick()
+        check(assert.equal, JSON.stringify(sent[0]), `{"mode":"preset","preset_id":"${id}","palette_mode":"dark"}`, `${name}/${id}: Dark payload`)
+      }
+      // a stored light / both on a dark-only preset: the control reads Dark
+      for (const stored of ['light', 'both']) {
+        const tree = await mountPanel(env, overrides).render(baseProps({ buildThemeSelection: { mode: 'preset', preset_id: id, palette_mode: stored } }))
+        check(assert.equal, paletteButton(tree, 'dark').props['aria-pressed'], true, `${name}/${id}: a stored ${stored} reads as Dark`)
+        check(assert.equal, paletteButton(tree, 'light').props.disabled, true)
+      }
+      // a built deck: the only action would be "Rebuild in light", which cannot be done: disabled with the reason, reads as built in dark
+      for (const stored of [undefined, 'dark', 'light']) {
+        const tree = await mountPanel(env, overrides).render(baseProps({ buildThemeSelection: { mode: 'preset', preset_id: id, palette_mode: stored }, selectionLocked: true }))
+        const root = controlRoot(tree)
+        check(assert.equal, root.props['data-studio-theme-palette-state'], 'built', `${name}/${id}: built`)
+        check(assert.equal, text(rebuildButton(tree)).trim(), 'Rebuild in light', `${name}/${id}: the only action names Light`)
+        check(assert.equal, rebuildButton(tree).props.disabled, true, `${name}/${id}: Rebuild in light is disabled (stored ${stored})`)
+        check(assert.equal, rebuildButton(tree).props.title, REASON, `${name}/${id}: and says why`)
+        check(assert.equal, rebuildButton(tree).props['aria-pressed'], false)
+        check(assert.match, text(root), /^.*This deck was built in dark\./, `${name}/${id}: reads as built in dark`)
+        check(assert.match, text(root), /This theme is dark only\.$/, `${name}/${id}: the note gives the reason`)
+        check(assert.match, text(root), /Nothing is rebuilt or sent now\./)
+      }
+      // a custom palette started from it starts at Dark, and Light is available there (custom colours are not dark only)
+      {
+        const sent = []
+        const enterCustom = tree => env[PICKER] === 'true' ? byText(tree, 'Build a custom palette') : byText(tree, 'Build custom')
+        const props = baseProps({ buildThemeSelection: { mode: 'preset', preset_id: id }, onBuildThemeChange: next => sent.push(next) })
+        const panel = mountPanel(env, overrides)
+        let tree = await panel.render(props)
+        enterCustom(tree).props.onClick()
+        tree = await panel.render(props)
+        check(assert.equal, paletteButton(tree, 'dark').props['aria-pressed'], true, `${name}/${id}: a custom palette from it starts at Dark`)
+        check(assert.ok, !paletteButton(tree, 'light').props.disabled, `${name}/${id}: Light is available for custom colours`)
+        check(assert.equal, paletteButton(tree, 'light').props.title, undefined)
+        paletteButton(tree, 'light').props.onClick()
+        tree = await panel.render(props)
+        check(assert.equal, paletteButton(tree, 'light').props['aria-pressed'], true, `${name}/${id}: custom colours can be Light`)
+        applyButton(tree).props.onClick()
+        check(assert.equal, sent[0].mode, 'custom')
+        check(assert.equal, sent[0].palette_mode, 'light', `${name}/${id}: a custom palette is not clamped`)
+      }
+      // Auto: not dark only
+      {
+        const tree = await mountPanel(env, overrides).render(baseProps({ buildThemeSelection: { mode: 'auto' } }))
+        check(assert.ok, !paletteButton(tree, 'light').props.disabled, `${name}: Auto offers Light`)
+      }
+    }
+
+    // a normal preset is unaffected: Light is enabled, no tooltip, no reason, and an explicit Light still goes out as light
+    for (const [id] of NORMAL) {
+      const sent = []
+      const props = baseProps({ buildThemeSelection: { mode: 'preset', preset_id: id }, onBuildThemeChange: next => sent.push(next) })
+      const panel = mountPanel(env, overrides)
+      let tree = await panel.render(props)
+      check(assert.ok, !paletteButton(tree, 'light').props.disabled, `${name}/${id}: Light is enabled`)
+      check(assert.ok, !paletteButton(tree, 'dark').props.disabled)
+      check(assert.equal, paletteButton(tree, 'light').props.title, undefined, `${name}/${id}: no tooltip`)
+      check(assert.equal, paletteButton(tree, 'light').props['aria-pressed'], true, `${name}/${id}: Light is the default`)
+      check(assert.doesNotMatch, text(controlRoot(tree)), /dark only/i, `${name}/${id}: no reason shown`)
+      paletteButton(tree, 'dark').props.onClick()
+      tree = await panel.render(props)
+      paletteButton(tree, 'light').props.onClick()
+      tree = await panel.render(props)
+      check(assert.equal, paletteButton(tree, 'light').props['aria-pressed'], true, `${name}/${id}: Light can be picked`)
+      applyButton(tree).props.onClick()
+      check(assert.equal, JSON.stringify(sent[0]), `{"mode":"preset","preset_id":"${id}","palette_mode":"light"}`, `${name}/${id}: an explicit Light is sent as light`)
+    }
+
+    // a Light chosen on a normal preset rides along when the dark-only preset is picked (selectCanonicalThemePreset carries it): the payload is dark, and
+    // going back to the normal preset gives the user's Light back
+    if (!dropdown) {
+      for (const [id, label] of DARK_ONLY) {
+        // nothing chosen on a normal preset: picking the dark-only preset reads Dark and, as with every untouched selection, adds no palette_mode
+        {
+          const sent = []
+          const props = baseProps({ buildThemeSelection: { mode: 'preset', preset_id: 'minimal' }, onBuildThemeChange: next => sent.push(next) })
+          const panel = mountPanel(env, overrides)
+          let tree = await panel.render(props)
+          pickPreset(tree, picker, id, label).props.onClick()
+          tree = await panel.render(props)
+          check(assert.equal, paletteButton(tree, 'dark').props['aria-pressed'], true, `${name}/${id}: untouched, picking it reads Dark`)
+          applyButton(tree).props.onClick()
+          check(assert.equal, JSON.stringify(sent[0]), `{"mode":"preset","preset_id":"${id}"}`, `${name}/${id}: untouched adds no palette_mode`)
+        }
+        for (const stored of ['light', 'both']) {
+          const sent = []
+          const props = baseProps({ buildThemeSelection: { mode: 'preset', preset_id: 'minimal', palette_mode: stored }, onBuildThemeChange: next => sent.push(next) })
+          const panel = mountPanel(env, overrides)
+          let tree = await panel.render(props)
+          check(assert.equal, paletteButton(tree, 'light').props['aria-pressed'], true, `${name}: starts at Light on Minimal (stored ${stored})`)
+          pickPreset(tree, picker, id, label).props.onClick()
+          tree = await panel.render(props)
+          check(assert.equal, paletteButton(tree, 'dark').props['aria-pressed'], true, `${name}/${id}: picking it shows Dark (carried ${stored})`)
+          check(assert.equal, paletteButton(tree, 'light').props.disabled, true)
+          check(assert.equal, applyButton(tree).props.disabled, false)
+          applyButton(tree).props.onClick()
+          check(assert.equal, sent.length, 1)
+          check(assert.equal, sent[0].preset_id, id)
+          check(assert.equal, sent[0].palette_mode, 'dark', `${name}/${id}: ${stored} carried over is sent as dark`)
+          check(assert.ok, !JSON.stringify(sent).includes('"light"'), `${name}/${id}: no light anywhere in the payload`)
+          // back to a normal preset: the earlier choice is what the control shows again
+          pickPreset(tree, picker, 'minimal', 'Minimal').props.onClick()
+          tree = await panel.render(props)
+          check(assert.ok, !paletteButton(tree, 'light').props.disabled, `${name}/${id}: Light is available again on Minimal`)
+          check(assert.equal, paletteButton(tree, 'light').props['aria-pressed'], true, `${name}/${id}: and shows the earlier choice again (${stored} reads as Light)`)
+        }
+        // Dark picked on a normal preset, then the dark-only preset: still dark
+        const sent = []
+        const props = baseProps({ buildThemeSelection: { mode: 'preset', preset_id: 'minimal' }, onBuildThemeChange: next => sent.push(next) })
+        const panel = mountPanel(env, overrides)
+        let tree = await panel.render(props)
+        paletteButton(tree, 'dark').props.onClick()
+        tree = await panel.render(props)
+        pickPreset(tree, picker, id, label).props.onClick()
+        tree = await panel.render(props)
+        applyButton(tree).props.onClick()
+        check(assert.equal, sent[0].palette_mode, 'dark', `${name}/${id}: Dark then ${id} sends dark`)
+      }
+    }
+  }
+
+  // flag off, the three presets: no control, no new words, and the payload is what the base sent (a carried light is NOT clamped)
+  for (const [name, baseEnv] of Object.entries(ENVS)) {
+    const picker = baseEnv[PICKER] === 'true' && baseEnv[DROPDOWN] !== 'true'
+    for (const extra of [{}, { [FLAG]: 'false' }, { [FLAG]: '1' }]) {
+      const env = { ...baseEnv, ...CANON_ON, ...extra }
+      for (const [id, label] of DARK_ONLY) {
+        for (const locked of [false, true]) {
+          const tree = await mountPanel(env, overrides).render(baseProps({ buildThemeSelection: { mode: 'preset', preset_id: id }, selectionLocked: locked }))
+          check(assert.equal, controlRoot(tree), undefined, `flag off ${JSON.stringify(extra)}: no control (${name}, ${id}, locked=${locked})`)
+          check(assert.doesNotMatch, text(tree), /dark only|Deck mode|Rebuild in/i, `flag off: no new words (${name}, ${id})`)
+          check(assert.equal, flat(tree).filter(node => node.props?.title === REASON || node.props?.['data-studio-theme-palette'] !== undefined).length, 0, `flag off: no tooltip or palette attribute (${name}, ${id})`)
+        }
+        if (name === 'shell+dropdown') continue
+        const sent = []
+        const props = baseProps({ buildThemeSelection: { mode: 'preset', preset_id: 'minimal', palette_mode: 'light' }, onBuildThemeChange: next => sent.push(next) })
+        const panel = mountPanel(env, overrides)
+        let tree = await panel.render(props)
+        pickPreset(tree, picker, id, label).props.onClick()
+        tree = await panel.render(props)
+        applyButton(tree).props.onClick()
+        check(assert.equal, JSON.stringify(sent[0]), `{"mode":"preset","preset_id":"${id}","palette_mode":"light"}`, `flag off ${JSON.stringify(extra)}: the payload is the base's, light kept (${name}, ${id})`)
+      }
+    }
+  }
 }
 
 // ---------------------------------------------------------------- where the choice goes (source pins)
@@ -528,6 +788,14 @@ function pinSuite(sources = {}) {
   check(assert.match, panel, /onChange=\{next => updateDraft\(withPaletteMode\(draft, next, THEME_DARK_MODE\)\)\}/, 'a mode pick edits the draft like any other control')
   check(assert.equal, [...panel.matchAll(/onBuildThemeChange\(/g)].length, 1, 'the panel sends through onBuildThemeChange in exactly one place (Apply)')
   check(assert.match, panel, /const applyTheme = \(\) => \{\n    if \(selectionLocked \|\| !canApply \|\| !onBuildThemeChange\) return/, 'Apply is still refused on a built deck')
+
+  // dark-only presets: the last gate sits between normalising and sending, the control is told, and the three ids are Theme Builder's own
+  check(assert.match, panel, /const next = clampDarkOnlyPaletteMode\(normalizeThemePanelSelection\(draft\), THEME_DARK_MODE\)\n    setSubmittedFromRequestId\(themeSync\.requestId\)\n    onBuildThemeChange\(next\)/, 'the dark-only gate is the last step before onBuildThemeChange')
+  check(assert.match, panel, /mode=\{effectivePaletteMode\(draft, THEME_DARK_MODE\)\}/, 'the control shows the mode the payload will carry')
+  check(assert.match, panel, /lightDisabled=\{lightDisabledFor\(draft, THEME_DARK_MODE\)\}/, 'the control is told when Light is not available')
+  const builder = src('builder')
+  for (const id of ['corporate_dark', 'gilded_noir', 'mission_amber'])
+    check(assert.match, builder, new RegExp(`preset_id: '${id}',`), `${id} is one of Theme Builder's presets (lib/theme-builder.ts)`)
 
   // Themes & brand shares the helper (one source of truth for the choices)
   check(assert.match, workspace, /import \{ customEntryPaletteMode, paletteModeChoices, paletteModeSelectValue, themeDarkModeEnabled \} from '@\/lib\/studio-theme-dark-toggle'/)
@@ -567,18 +835,18 @@ const mutants = [
   ['label: Light and Dark swapped', 'lib', "return mode === 'dark' ? 'Dark' : 'Light'", "return mode === 'dark' ? 'Light' : 'Dark'", ['pure', 'panel']],
   // the payload
   ['payload: written with the flag off', 'lib', 'if (!flagOn) return selection\n', '', ['pure']],
-  ['payload: the mode is passed through unchecked', 'lib', "palette_mode: mode === 'dark' ? 'dark' : 'light'", 'palette_mode: mode as never', ['pure']],
-  ['payload: "both" is written', 'lib', "palette_mode: mode === 'dark' ? 'dark' : 'light'", "palette_mode: mode === 'dark' ? 'dark' : 'both'", ['pure', 'panel']],
+  ['payload: the mode is passed through unchecked', 'lib', "palette_mode: lightDisabledFor(selection, flagOn) || mode === 'dark' ? 'dark' : 'light'", 'palette_mode: mode as never', ['pure']],
+  ['payload: "both" is written', 'lib', "palette_mode: lightDisabledFor(selection, flagOn) || mode === 'dark' ? 'dark' : 'light'", "palette_mode: lightDisabledFor(selection, flagOn) || mode === 'dark' ? 'dark' : 'both'", ['pure', 'panel']],
   ['payload: the other keys are dropped', 'lib', 'return { ...selection, palette_mode:', 'return { mode: (selection as never as { mode: string }).mode, palette_mode:', ['pure', 'panel']],
-  ['payload: the input object is mutated', 'lib', 'return { ...selection, palette_mode: mode === \'dark\' ? \'dark\' : \'light\' }', "(selection as { palette_mode?: string }).palette_mode = mode === 'dark' ? 'dark' : 'light'; return selection", ['pure']],
+  ['payload: the input object is mutated', 'lib', "return { ...selection, palette_mode: lightDisabledFor(selection, flagOn) || mode === 'dark' ? 'dark' : 'light' }", "(selection as { palette_mode?: string }).palette_mode = mode === 'dark' ? 'dark' : 'light'; return selection", ['pure']],
   ['payload: Dark picked but Light written', 'panel', 'onChange={next => updateDraft(withPaletteMode(draft, next, THEME_DARK_MODE))}', "onChange={() => updateDraft(withPaletteMode(draft, 'light', THEME_DARK_MODE))}", ['panel', 'pins']],
   ['payload: the pick is written with the flag off', 'panel', 'onChange={next => updateDraft(withPaletteMode(draft, next, THEME_DARK_MODE))}', 'onChange={next => updateDraft(withPaletteMode(draft, next, true))}', ['pins']],
   ['payload: a pick is sent at once', 'panel', 'onChange={next => updateDraft(withPaletteMode(draft, next, THEME_DARK_MODE))}', 'onChange={next => { onBuildThemeChange?.(withPaletteMode(draft, next, true)); updateDraft(withPaletteMode(draft, next, THEME_DARK_MODE)) }}', ['panel', 'pins']],
   // custom
-  ['custom: starts at "both" with the flag on', 'lib', 'return flagOn ? paletteModeOf(selection) : selection.palette_mode || \'both\'\n}\n\nexport interface PaletteModeChoice', 'return selection.palette_mode || \'both\'\n}\n\nexport interface PaletteModeChoice', ['pure', 'panel']],
-  ['custom: flag off no longer starts at "both"', 'lib', "export function customEntryPaletteMode(selection: PaletteModeSelection, flagOn: boolean): 'light' | 'dark' | 'both' {\n  return flagOn ? paletteModeOf(selection) : selection.palette_mode || 'both'", "export function customEntryPaletteMode(selection: PaletteModeSelection, flagOn: boolean): 'light' | 'dark' | 'both' {\n  return paletteModeOf(selection)", ['pure', 'panel']],
+  ['custom: starts at "both" with the flag on', 'lib', 'return flagOn ? effectivePaletteMode(selection, flagOn) : selection.palette_mode || \'both\'\n}\n\nexport interface PaletteModeChoice', 'return selection.palette_mode || \'both\'\n}\n\nexport interface PaletteModeChoice', ['pure', 'panel']],
+  ['custom: flag off no longer starts at "both"', 'lib', "export function customEntryPaletteMode(selection: PaletteModeSelection, flagOn: boolean): 'light' | 'dark' | 'both' {\n  return flagOn ? effectivePaletteMode(selection, flagOn) : selection.palette_mode || 'both'", "export function customEntryPaletteMode(selection: PaletteModeSelection, flagOn: boolean): 'light' | 'dark' | 'both' {\n  return paletteModeOf(selection)", ['pure', 'panel']],
   ['custom: the panel ignores the helper', 'panel', 'palette_mode: customEntryPaletteMode(draft, THEME_DARK_MODE),', "palette_mode: draft.palette_mode || 'both',", ['panel', 'pins']],
-  ['custom: the mode is lost on entering a custom palette', 'lib', 'return flagOn ? paletteModeOf(selection) : selection.palette_mode ||', "return flagOn ? 'light' : selection.palette_mode ||", ['pure', 'panel']],
+  ['custom: the mode is lost on entering a custom palette', 'lib', 'return flagOn ? effectivePaletteMode(selection, flagOn) : selection.palette_mode ||', "return flagOn ? 'light' : selection.palette_mode ||", ['pure', 'panel']],
   // Themes & brand
   ['choices: "Both" offered with the flag on', 'lib', 'return flagOn ? choices : [...choices, { value: \'both\', label: \'Both\' }]', "return [...choices, { value: 'both', label: 'Both' }]", ['pure']],
   ['choices: "Both" missing with the flag off', 'lib', 'return flagOn ? choices : [...choices, { value: \'both\', label: \'Both\' }]', 'return choices', ['pure']],
@@ -603,8 +871,8 @@ const mutants = [
   ['built: every deck shares one key', 'panel', "const deckKey = presentationId ?? ''", "const deckKey = ''", ['panel']],
   ['built: staging is dropped on the way', 'panel', 'onStage={next => setStaged(next ? { deckKey, mode: next } : null)}', 'onStage={() => undefined}', ['panel', 'pins']],
   ['built: the control is the pre-build segment', 'panel', 'locked={selectionLocked}', 'locked={false}', ['panel']],
-  ['built: the deck mode is always light', 'panel', 'mode={paletteModeOf(draft)}', "mode={'light'}", ['panel']],
-  ['built: not a live status', 'control', '<p role="status" className={styles.note}>{existingDeckNote(mode, staged)}</p>', '<p className={styles.note}>{existingDeckNote(mode, staged)}</p>', ['panel']],
+  ['built: the deck mode is always light', 'panel', 'mode={effectivePaletteMode(draft, THEME_DARK_MODE)}', "mode={'light'}", ['panel']],
+  ['built: not a live status', 'control', '<p role="status" className={styles.note}>', '<p className={styles.note}>', ['panel']],
   ['built: not marked pressed when staged', 'control', 'aria-pressed={pending}', 'aria-pressed={false}', ['panel']],
   ['built: Apply is allowed on a built deck', 'panel', 'if (selectionLocked || !canApply || !onBuildThemeChange) return', 'if (!canApply || !onBuildThemeChange) return', ['pins']],
   // placement
@@ -613,7 +881,47 @@ const mutants = [
   ['placement: the plain panel drops the control', 'panel', '{deckModeControl ? <>{lockedNotice}{deckModeControl}</> : lockedNotice}', '{lockedNotice}', ['panel']],
   ['placement: flag off adds an empty child to the picker', 'panel', '{modeControl ? <>{currentRow}{modeControl}</> : currentRow}', '{currentRow}{modeControl}', ['panel']],
   ['placement: flag off adds an empty child to the plain panel', 'panel', '{deckModeControl ? <>{lockedNotice}{deckModeControl}</> : lockedNotice}', '{lockedNotice}{deckModeControl}', ['panel']],
-  ['wording: "both" offered in the control', 'control', "{(['light', 'dark'] as const).map(value => (", "{(['light', 'dark', 'both'] as unknown as readonly ('light' | 'dark')[]).map(value => (", ['panel']],
+  ['wording: "both" offered in the control', 'control', "{(['light', 'dark'] as const).map(value => {", "{(['light', 'dark', 'both'] as unknown as readonly ('light' | 'dark')[]).map(value => {", ['panel']],
+  // dark-only presets: the list
+  ['dark only: corporate_dark is not listed', 'lib', "['corporate_dark', 'gilded_noir',", "['gilded_noir',", ['pure', 'panel']],
+  ['dark only: gilded_noir is not listed', 'lib', "'gilded_noir', 'mission_amber'", "'mission_amber'", ['pure', 'panel']],
+  ['dark only: mission_amber is not listed', 'lib', "'mission_amber', 'dark-mode'", "'dark-mode'", ['pure', 'panel']],
+  ['dark only: a normal preset is listed', 'lib', "'mission_amber', 'dark-mode'", "'mission_amber', 'vibrant', 'dark-mode'", ['pure', 'panel']],
+  ['dark only: the dark-mode aliases are not listed', 'lib', ", 'dark-mode', 'dark_mode']", ']', ['pure']],
+  ['dark only: the reason is reworded', 'lib', "export const DARK_ONLY_REASON = 'This theme is dark only'", "export const DARK_ONLY_REASON = 'Dark only'", ['pure', 'panel']],
+  ['dark only: custom colours count as dark only', 'lib', "if (selection?.mode !== 'preset' || typeof selection.preset_id !== 'string') return false", "if (typeof selection?.preset_id !== 'string') return false", ['pure', 'panel']],
+  ['dark only: the id is case-sensitive', 'lib', '.trim().toLowerCase().replace(', '.trim().replace(', ['pure']],
+  ['dark only: the id is not trimmed', 'lib', '.trim().toLowerCase()', '.toLowerCase()', ['pure']],
+  ['dark only: spaces in the id are not normalised', 'lib', ".replace(/\\s+/g, '_')", ".replace(/\\s+/g, '')", ['pure']],
+  // dark only: Light disabled, the control reads Dark
+  ['dark only: Light is never disabled', 'lib', 'return flagOn && isDarkOnlyPreset(selection)', 'return false', ['pure', 'panel']],
+  ['dark only: Light is disabled with the flag off', 'lib', 'return flagOn && isDarkOnlyPreset(selection)', 'return isDarkOnlyPreset(selection)', ['pure']],
+  ['dark only: Light is disabled for every preset', 'lib', 'return flagOn && isDarkOnlyPreset(selection)', "return flagOn && selection.mode === 'preset'", ['pure', 'panel']],
+  ['dark only: the control still reads Light', 'lib', "return lightDisabledFor(selection, flagOn) ? 'dark' : paletteModeOf(selection)", 'return paletteModeOf(selection)', ['pure', 'panel']],
+  ['dark only: the reading changes with the flag off', 'lib', "return lightDisabledFor(selection, flagOn) ? 'dark' : paletteModeOf(selection)", "return isDarkOnlyPreset(selection) ? 'dark' : paletteModeOf(selection)", ['pure']],
+  ['dark only: Light is written when asked', 'lib', "palette_mode: lightDisabledFor(selection, flagOn) || mode === 'dark' ? 'dark' : 'light'", "palette_mode: mode === 'dark' ? 'dark' : 'light'", ['pure', 'panel']],
+  ['dark only: the panel ignores the helper for the mode', 'panel', 'mode={effectivePaletteMode(draft, THEME_DARK_MODE)}', "mode={draft.palette_mode === 'dark' ? 'dark' : 'light'}", ['panel', 'pins']],
+  ['dark only: the panel never tells the control', 'panel', '      lightDisabled={lightDisabledFor(draft, THEME_DARK_MODE)}\n', '', ['panel', 'pins']],
+  ['dark only: a custom palette from it ignores the mode shown', 'lib', 'return flagOn ? effectivePaletteMode(selection, flagOn) : selection.palette_mode || \'both\'\n}\n\nexport interface PaletteModeChoice', 'return flagOn ? paletteModeOf(selection) : selection.palette_mode || \'both\'\n}\n\nexport interface PaletteModeChoice', ['pure', 'panel']],
+  // dark only: the control
+  ['dark only: Light is not disabled', 'control', 'disabled={blocked}', 'disabled={false}', ['panel']],
+  ['dark only: Dark is disabled instead', 'control', "const blocked = lightDisabled && value === 'light'", "const blocked = lightDisabled && value === 'dark'", ['panel']],
+  ['dark only: both options are disabled', 'control', "const blocked = lightDisabled && value === 'light'", 'const blocked = lightDisabled', ['panel']],
+  ['dark only: Light has no tooltip', 'control', 'title={blocked ? DARK_ONLY_REASON : undefined}', 'title={undefined}', ['panel']],
+  ['dark only: every option has the tooltip', 'control', 'title={blocked ? DARK_ONLY_REASON : undefined}', 'title={lightDisabled ? DARK_ONLY_REASON : undefined}', ['panel']],
+  ['dark only: the note does not give the reason', 'control', "{'Chosen before the build. Switching a built deck later means a rebuild.' + (lightDisabled ? ` ${DARK_ONLY_REASON}.` : '')}", "{'Chosen before the build. Switching a built deck later means a rebuild.'}", ['panel']],
+  ['dark only: Rebuild in light stays enabled', 'control', "const rebuildBlocked = lightDisabled && otherPaletteMode(mode) === 'light'", 'const rebuildBlocked = false', ['panel']],
+  ['dark only: Rebuild in light has no tooltip', 'control', 'title={rebuildBlocked ? DARK_ONLY_REASON : undefined}', 'title={undefined}', ['panel']],
+  ['dark only: the built note does not give the reason', 'control', "{existingDeckNote(mode, staged) + (lightDisabled ? ` ${DARK_ONLY_REASON}.` : '')}", '{existingDeckNote(mode, staged)}', ['panel']],
+  // dark only: the payload can never carry light
+  ['dark only: Apply does not clamp', 'panel', 'const next = clampDarkOnlyPaletteMode(normalizeThemePanelSelection(draft), THEME_DARK_MODE)', 'const next = normalizeThemePanelSelection(draft)', ['panel', 'pins']],
+  ['dark only: Apply clamps with the flag off', 'panel', 'const next = clampDarkOnlyPaletteMode(normalizeThemePanelSelection(draft), THEME_DARK_MODE)', 'const next = clampDarkOnlyPaletteMode(normalizeThemePanelSelection(draft), true)', ['panel', 'pins']],
+  ['dark only: the clamp is a no-op', 'lib', "  return { ...selection, palette_mode: 'dark' }\n}", '  return selection\n}', ['pure', 'panel']],
+  ['dark only: the clamp ignores the flag', 'lib', 'if (!lightDisabledFor(selection, flagOn)) return selection\n  if (selection.palette_mode == null', 'if (!isDarkOnlyPreset(selection)) return selection\n  if (selection.palette_mode == null', ['pure', 'panel']],
+  ['dark only: the clamp adds dark to an untouched selection', 'lib', "if (selection.palette_mode == null || selection.palette_mode === 'dark') return selection", "if (selection.palette_mode === 'dark') return selection", ['pure', 'panel']],
+  ['dark only: the clamp lets both through', 'lib', "if (selection.palette_mode == null || selection.palette_mode === 'dark') return selection", "if (selection.palette_mode == null || selection.palette_mode === 'dark' || selection.palette_mode === 'both') return selection", ['pure', 'panel']],
+  ['dark only: the clamp mutates its input', 'lib', "  return { ...selection, palette_mode: 'dark' }\n}", "  ;(selection as { palette_mode?: string }).palette_mode = 'dark'\n  return selection\n}", ['pure']],
+  ['dark only: the preset is not in Theme Builder', 'builder', "preset_id: 'gilded_noir',", "preset_id: 'gilded_noir_x',", ['pins']],
   // the page and the wire
   ['page: the build message reads the staged mode', 'page', '      theme: buildThemeSelection,\n      ...(deckIdentity', '      theme: { ...buildThemeSelection, palette_mode: stagedPaletteMode ?? buildThemeSelection.palette_mode },\n      ...(deckIdentity', ['pins']],
   ['page: the page edits palette_mode itself', 'page', 'const THEME_SYNC_TIMEOUT_MS = 20_000', 'const THEME_SYNC_TIMEOUT_MS = 20_000\nconst PALETTE_MODE_KEY = "palette_mode"', ['pins']],

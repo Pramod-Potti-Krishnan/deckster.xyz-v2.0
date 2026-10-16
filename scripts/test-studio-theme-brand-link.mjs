@@ -83,7 +83,7 @@ const BASE_USE = `            {!locked && (
 // are listed here, [P2C text, base text]; with the flag off the panel renders the base's tree, so turning them back must give the base file.
 const P2C_SWAPS = [
   // import: helper
-  ["import { customEntryPaletteMode, paletteModeOf, themeDarkModeEnabled, withPaletteMode, type DeckPaletteMode } from '@/lib/studio-theme-dark-toggle'\n", ""],
+  ["import { clampDarkOnlyPaletteMode, customEntryPaletteMode, effectivePaletteMode, lightDisabledFor, themeDarkModeEnabled, withPaletteMode, type DeckPaletteMode } from '@/lib/studio-theme-dark-toggle'\n", ""],
   // import: control
   ["import { DeckModeControl } from './theme-deck-mode-control'\n", ""],
   // flag const
@@ -101,7 +101,9 @@ const P2C_SWAPS = [
   // custom entry
   ["palette_mode: customEntryPaletteMode(draft, THEME_DARK_MODE),", "palette_mode: draft.palette_mode || 'both',"],
   // control factory
-  ["  // P2C: the Light | Dark control (flag on only). Before the build it edits the draft like any other control (Apply sends it); on a built deck\n  // it stages \"Rebuild in dark / light\" in this panel and sends nothing.\n  const deckModeControlFor = (variant: 'plain' | 'picker') => THEME_DARK_MODE ? (\n    <DeckModeControl\n      variant={variant}\n      locked={selectionLocked}\n      mode={paletteModeOf(draft)}\n      staged={stagedMode}\n      onChange={next => updateDraft(withPaletteMode(draft, next, THEME_DARK_MODE))}\n      onStage={next => setStaged(next ? { deckKey, mode: next } : null)}\n    />\n  ) : null\n\n", ""],
+  ["  // P2C: the Light | Dark control (flag on only). Before the build it edits the draft like any other control (Apply sends it); on a built deck\n  // it stages \"Rebuild in dark / light\" in this panel and sends nothing.\n  const deckModeControlFor = (variant: 'plain' | 'picker') => THEME_DARK_MODE ? (\n    <DeckModeControl\n      variant={variant}\n      locked={selectionLocked}\n      mode={effectivePaletteMode(draft, THEME_DARK_MODE)}\n      staged={stagedMode}\n      lightDisabled={lightDisabledFor(draft, THEME_DARK_MODE)}\n      onChange={next => updateDraft(withPaletteMode(draft, next, THEME_DARK_MODE))}\n      onStage={next => setStaged(next ? { deckKey, mode: next } : null)}\n    />\n  ) : null\n\n", ""],
+  // dark-only presets: the last gate before Apply sends the selection (flag on only; a no-op otherwise)
+  ["    const next = clampDarkOnlyPaletteMode(normalizeThemePanelSelection(draft), THEME_DARK_MODE)\n", "    const next = normalizeThemePanelSelection(draft)\n"],
   // picker prop passed
   ["        modeControl={deckModeControlFor('picker')}\n", ""],
   // plain control
