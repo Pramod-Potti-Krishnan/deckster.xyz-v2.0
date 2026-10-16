@@ -24,6 +24,15 @@
 //   3. flag on: the report is drawn under the rows that have one, none under those that have none; the tracked upload's job read (with slides) wins for its own template only
 //      and the strip goes with the card's Dismiss; no extra request or storage access; a row with nothing to show is the flag-off tree;
 //   4. mutations: every rule above fails when its line is broken.
+// The template read (the slide strip of a list report, flag on only; ruling by COMPOSER-1, 16 Oct 2026):
+//   5. Director's GET /api/template-ingest/stage/templates/{id} (stage_template_router.py:163, owner-scoped, the front-door token + X-Composer-User-Id of composer_library.py:680)
+//      answers the whole stored row; its real answers are scripts/fixtures/template-admission-report/director-admission-report-detail.json (same capture script, Director uat). The
+//      Studio proxy lets that ONE read-only GET through, gated on the flag (flag off it is the same 404 as before, proved against the base route on a request matrix) and
+//      trimmed to { id, ingest_source: { admission_report } } (the whole row is megabytes, past a Vercel function's answer limit); allowed GET, every other method, bad ids,
+//      sub-paths, the token and user id the server sets, and every way the answer can fail are proved on the real route;
+//   6. the hook (components/builder/composer-admission-detail.ts) on its own: one read per template, one at a time, kept, quiet on failure, aborted with the dialog, inert flag off;
+//   7. the real dialog: a list report without slides asks once when it is opened (at once when it opens by itself), draws the strip from the answer (display only), never when
+//      the tracked job already has one, never flag off; mutations of every rule.
 import assert from 'node:assert/strict'
 import crypto from 'node:crypto'
 import fs from 'node:fs'
@@ -47,6 +56,9 @@ const CSS = 'components/builder/studio-template-admission-report.css'
 const LIBRARY_CSS = 'components/builder/studio-composer-library.css'
 const FIXTURE = 'scripts/fixtures/template-admission-report/director-admission-report-reads.json'
 const FIXTURE_BIG = 'scripts/fixtures/template-admission-report/director-admission-report-big-deck.json'
+const FIXTURE_DETAIL = 'scripts/fixtures/template-admission-report/director-admission-report-detail.json'
+const ROUTE = 'app/api/composer-library/[...path]/route.ts'
+const DETAIL = 'components/builder/composer-admission-detail.ts'
 const read = rel => fs.readFileSync(path.join(root, rel), 'utf8')
 const sha = text => crypto.createHash('sha256').update(text).digest('hex')
 const ser = value => JSON.stringify(value, (key, item) => typeof item === 'function' ? '[fn]' : item === undefined ? '__undefined__' : item)
@@ -55,9 +67,12 @@ const deq = (actual, expected, message) => message === undefined ? assert.deepSt
 const tick = () => new Promise(resolve => setTimeout(resolve, 0))
 let checks = 0
 const check = (fn, ...args) => { fn(...args); checks++ }
+const unhandled = [] // a rejection nobody handles (a failed template read must raise nothing); recorded, so a mutant that raises one fails a check instead of ending the run
+process.on('unhandledRejection', reason => { unhandled.push(reason) })
 
-const branchSources = { [DIALOG]: read(DIALOG), [HOOK]: read(HOOK), [VIEW]: read(VIEW), [LIB]: read(LIB) }
+const branchSources = { [DIALOG]: read(DIALOG), [HOOK]: read(HOOK), [VIEW]: read(VIEW), [LIB]: read(LIB), [DETAIL]: read(DETAIL), [ROUTE]: read(ROUTE) }
 const baseDialog = execFileSync('git', ['show', `${BASE}:${DIALOG}`], { cwd: root, encoding: 'utf8' })
+const baseRoute = execFileSync('git', ['show', `${BASE}:${ROUTE}`], { cwd: root, encoding: 'utf8' })
 const baseSources = { [DIALOG]: baseDialog }
 
 // ---- 0. the fixtures: the answers of Director's routes for reports Composer wrote ----------------------------------------------------------------
@@ -185,6 +200,10 @@ function createRuntime() {
   }
   return {
     react,
+    /** Runs every effect's cleanup, as React does when the component goes away. */
+    unmount() { for (const cell of cells) cell?.cleanup?.() },
+    /** A state change is waiting for a render (after an unmount, a late answer must not leave one). */
+    pending: () => dirty,
     render(Component, props) {
       for (let attempt = 0; attempt < 14; attempt++) {
         cursor = 0; dirty = false
@@ -220,17 +239,28 @@ const LIST = () => [row('admitted-clean', ID.clean), row('admitted-no-changes', 
 
 /**
  * `templates`: what GET templates gives; `saved`: the template the list gains once a job answer carried its id. `jobs`: job id -> what each GET gives in turn (the last
- * repeats). `queue`: what each POST creates next: {job_id, answers}. Every request, session create, upload and storage access is logged in order.
+ * repeats). `queue`: what each POST creates next: {job_id, answers}. `details`: template id -> what GET templates/{id} gives: {status, json}, 'throw' (the network fails), or a
+ * function returning one (maybe a promise); an id it does not name answers 404. Every request, session create, upload and storage access is logged in order.
  */
-function mount({ sources, flag, progress = false, shell = true, templates = [], jobs = {}, queue = [], saved = null, env: extraEnv = {} }) {
+function mount({ sources, flag, progress = false, shell = true, templates = [], jobs = {}, queue = [], saved = null, details = {}, env: extraEnv = {} }) {
   const log = [], store = new Map(), answers = new Map(Object.entries(jobs).map(([id, list]) => [id, [...list]]))
   const pending = [...queue]
-  let sessions = 0, listIncludesSaved = false
+  let sessions = 0, listIncludesSaved = false, reading = 0, mostReading = 0
   const reply = (status, data) => ({ ok: status < 400, status, json: async () => plain(data) })
   const fetch = async (url, init = {}) => {
     log.push(['fetch', init.method, url, init.body ?? null])
     const route = url.replace('/api/composer-library/', '')
     if (init.method === 'GET' && route === 'templates') return reply(200, { templates: [...(listIncludesSaved && saved ? [saved] : []), ...templates] })
+    const detail = /^templates\/([^/]+)$/.exec(route)
+    if (init.method === 'GET' && detail) { // the Studio proxy's trim of Director's template read
+      reading++; mostReading = Math.max(mostReading, reading)
+      try {
+        const answer = details[decodeURIComponent(detail[1])]
+        const value = typeof answer === 'function' ? await answer() : answer
+        if (value === 'throw') throw new TypeError('network')
+        return value ? reply(value.status ?? 200, value.json) : reply(404, { detail: 'Stage template not found' })
+      } finally { reading-- }
+    }
     const job = /^jobs\/([^/]+)$/.exec(route)
     if (init.method === 'GET' && job) {
       const list = answers.get(decodeURIComponent(job[1]))
@@ -286,6 +316,8 @@ function mount({ sources, flag, progress = false, shell = true, templates = [], 
   const ui = {
     log, store,
     get tree() { return tree },
+    /** The most template reads that were on their way at the same moment. */
+    get mostReading() { return mostReading },
     render(next = {}) { props = { ...props, ...next }; tree = runtime.render(Dialog, props); return tree },
     async settle(turns = 12) { ui.render(); for (let i = 0; i < turns; i++) { await tick(); ui.render() } return tree },
     all: () => flat(expand(tree)),
@@ -658,10 +690,15 @@ async function flagOnChecks(sources) {
       check(assert.equal, kids.length, 1)
       check(assert.deepStrictEqual, ['Use original', 'Rebuild from own content', 'New topic'].map(label => flat(record).some(node => node.type === 'Button' && squash(text(node)) === label)), [true, true, true])
     }
-    // no extra request, no storage access, no session: the same trace as the flag off
+    // no storage access, no session, no write: the flag-off trace, plus the template reads (here answered "not found", so nothing is drawn from them) of the two reports that
+    // open by themselves (something left out: partial, floor); the closed ones and the rows with nothing to open ask nothing
     const off = mount({ sources, flag: undefined, shell, templates: LIST() }); await off.settle()
-    check(assert.equal, ser(ui.log), ser(off.log), `shell ${shell}: the same requests and storage access as flag off`)
-    check(assert.deepStrictEqual, ui.log.map(entry => entry[0] === 'fetch' ? `${entry[1]} ${entry[2]}` : entry[0]), ['GET /api/composer-library/templates', 'getItem'], 'one list read and the dialog\'s own read of its stored job; nothing else')
+    const isRead = entry => entry[0] === 'fetch' && /\/templates\/[^/]+$/.test(entry[2])
+    check(assert.equal, ser(ui.log.filter(entry => !isRead(entry))), ser(off.log), `shell ${shell}: the same requests and storage access as flag off, but for the template reads`)
+    check(assert.deepStrictEqual, ui.log.map(entry => entry[0] === 'fetch' ? `${entry[1]} ${entry[2]}` : entry[0]),
+      ['GET /api/composer-library/templates', 'getItem', `GET /api/composer-library/templates/${ID.partial}`, `GET /api/composer-library/templates/${ID.floor}`],
+      'one list read, the dialog\'s own read of its stored job, and one template read for each report that opens by itself; nothing else')
+    check(assert.equal, ui.mostReading, 1, 'one template read at a time')
     // the markers exist only in the studio shell
     check(assert.equal, flat(expand(ui.tree)).some(node => Object.entries(node.props ?? {}).some(([name, value]) => name.startsWith('data-studio-admission') && value !== undefined)), shell, `markers in shell ${shell}: ${shell}`)
     await ui.close(); await off.close()
@@ -738,14 +775,499 @@ async function flagOnChecks(sources) {
   }
 }
 
+// ---- 5. the template read: Director's real answers, the Studio proxy, the hook, the dialog --------------------------------------------------------
+const DET = JSON.parse(read(FIXTURE_DETAIL))
+const DETAIL_NAMES = NAMES.filter(name => name !== 'refused') // a file-level refusal saves no template, so there is nothing to read
+const DETAIL_FIELDS = ['id', 'user_id', 'name', 'description', 'created_at', 'updated_at', 'usage_count', 'source_session_id', 'source_presentation_id', 'source_fact_manifest',
+  'blueprint_enrichment_status', 'blueprint_enrichment_error', 'blueprint_enriched_at', 'template_purity_status', 'template_purity_error', 'template_purified_at', 'presentation_brief',
+  'deck_arc', 'slide_style_preset', 'strawman_frozen', 'slots', 'frozen_plan', 'template_blueprint', 'ingest_source', 'stage_template'] // TemplateSnapshot (src/models/template.py:166) as model_dump gives it
+const SECRET = /eyJ|sk-[A-Za-z0-9]|Bearer|password|secret|@[a-z0-9-]+\.[a-z]{2,}/i
+const detailRow = name => structuredClone(DET.cases[name].detail.json)
+/** What the Studio proxy answers for a template read: Director's row trimmed to its id and its report. */
+const trim = row => ({ id: row.id, ingest_source: row.ingest_source?.admission_report ? { admission_report: row.ingest_source.admission_report } : {} })
+/** The proxy's answer for the template `id` whose report is the one of the fixture case `name` (no report: the case has none). */
+const proxied = (id, name) => ({ json: { id, ingest_source: reportOf(name) ? { admission_report: reportOf(name) } : {} } })
+const withoutSlides = report => { const { slides, ...rest } = report; return rest }
+
+function detailFixtureChecks() {
+  const { director, how } = DET.source
+  check(assert.match, director.sha, /^[0-9a-f]{40}$/, 'the Director commit (uat, which holds !502) is named')
+  deq([director.mr, director.branch], ['!502', 'seat2/director-admission-report'])
+  check(assert.ok, director.code.some(item => item.startsWith('src/services/stage_template_router.py (GET /templates/{template_id}')), 'the route is named')
+  check(assert.ok, director.code.some(item => item.startsWith('src/services/composer_library.py (identity')), "the route's auth is named")
+  check(assert.match, how, /Director's own offline world \(real router, real worker client, real template store/)
+  deq(Object.keys(DET.cases), DETAIL_NAMES, 'every case that saved a template')
+  for (const name of DETAIL_NAMES) {
+    const { detail } = DET.cases[name], job = jobOf(name)
+    check(assert.equal, detail.status_code, 200, name)
+    check(assert.equal, detail.template_id, job.template_id, `${name}: the template the job saved`)
+    check(assert.equal, detail.json.id, job.template_id)
+    check(assert.equal, JSON.stringify(DET.cases[name]).match(SECRET), null, `${name}: nothing secret and no address in it`)
+    deq(Object.keys(detail.json), DETAIL_FIELDS, `${name}: the whole row, field for field`)
+    check(assert.ok, detail.json.stage_template && typeof detail.json.stage_template === 'object', `${name}: the stored template is in the row (what the proxy trims)`)
+    const stored = detail.json.ingest_source
+    if (WITH_REPORT.includes(name)) {
+      deq(stored.admission_report, reportOf(name), `${name}: the report stored with the template is the job read's, slides and all`)
+      deq(withoutSlides(stored.admission_report), rowOf(name).admission_report, `${name}: the list row is that report without its slides`)
+      check(assert.ok, stored.admission_report.slides.length > 0)
+    } else {
+      check(assert.equal, 'admission_report' in stored, false, `${name}: no report stored, no key`)
+    }
+  }
+  deq(DET.cases['progress-flow-mid-run'].detail.json.ingest_source, DET.cases['progress-flow-done'].detail.json.ingest_source, 'the as-is template already holds the report the finished one holds')
+  check(assert.ok, JSON.stringify(detailRow('big-deck')).length > 60000, 'a long deck: the row is large')
+  check(assert.ok, DETAIL_NAMES.every(name => JSON.stringify(trim(detailRow(name))).length < JSON.stringify(detailRow(name)).length), 'the trim is smaller than the row, every case')
+}
+
+function detailPureChecks(sources) {
+  const lib = createLoader({ sources, env: {}, stubs: {}, globals: {} }).load(LIB)
+  const { templateDetailReport, admissionReportFor, admissionReportView } = lib
+  for (const name of DETAIL_NAMES) {
+    const row = detailRow(name), id = row.id
+    const report = templateDetailReport(row, id)
+    if (WITH_REPORT.includes(name)) {
+      deq(report, reportOf(name), `${name}: the report of Director's row`)
+      check(assert.ok, Array.isArray(admissionReportView(report).strip), `${name}: it has the slides, so the strip`)
+    } else check(assert.equal, report, null, `${name}: no report in the row`)
+    deq(templateDetailReport(trim(row), id), report, `${name}: the proxy's trim reads the same`)
+    check(assert.equal, templateDetailReport(row, `${id}x`), null, `${name}: the row of another template is not this one's`)
+    check(assert.equal, templateDetailReport({ ...row, id: undefined }, id), null)
+  }
+  for (const bad of [undefined, null, 0, 'x', true, [], [1], {}, { id: 't' }, { id: 't', ingest_source: null }, { id: 't', ingest_source: 'x' }, { id: 't', ingest_source: [] }, { id: 't', ingest_source: {} },
+    { id: 't', ingest_source: { admission_report: null } }, { id: 't', ingest_source: { admission_report: 'x' } }, { id: 't', ingest_source: { admission_report: [] } },
+    { id: 't', ingest_source: { admission_report: 7 } }, { id: 7, ingest_source: { admission_report: {} } }]) check(assert.equal, templateDetailReport(bad, 't'), null, `garbage ${ser(bad)}`)
+  check(assert.equal, templateDetailReport({ id: 't', ingest_source: { admission_report: { a: 1 } } }, 't').a, 1, 'the report is handed on whole (admissionReportView checks it)')
+  // which report a row draws: the tracked job's, else the template read's, else the list's
+  const clean = reportOf('admitted-clean'), partial = reportOf('partially-admitted'), floor = reportOf('floor-slide'), listed = withoutSlides(partial)
+  const headline = (job, row, read) => admissionReportFor(job, row, read)?.headline ?? null
+  check(assert.equal, headline(clean, listed, floor), clean.headline, 'the tracked job wins')
+  check(assert.equal, headline(null, listed, floor), floor.headline, 'then the template read')
+  check(assert.equal, headline(null, listed, null), partial.headline, 'then the list')
+  check(assert.equal, headline(null, listed, undefined), partial.headline, 'no template read yet')
+  check(assert.equal, headline({ version: 'x' }, listed, floor), floor.headline, 'an unreadable job report gives way to the template read')
+  check(assert.equal, headline(null, listed, { version: 'x' }), partial.headline, 'an unreadable template read gives way to the list')
+  check(assert.equal, headline(null, null, floor), floor.headline, 'the template read alone')
+  check(assert.equal, headline(null, null, null), null)
+  check(assert.equal, admissionReportFor(clean, listed).headline, clean.headline, 'two arguments, as before')
+  check(assert.equal, admissionReportFor(null, listed).strip, null, 'the list has no slides')
+  check(assert.ok, Array.isArray(admissionReportFor(null, listed, partial).strip), 'the template read has them')
+  deq(admissionReportFor(null, listed, partial).strip, admissionReportView(partial).strip)
+}
+
+// ---- the Studio proxy (app/api/composer-library/[...path]/route.ts) on the real route ----------------------------------------------------------------
+const FRONTDOOR_HOST = 'directorv40-uat.up.railway.app'
+const FRONTDOOR_TOKEN = 'unit-test-placeholder'
+/** One route module on a fake session, database and Director: `request` runs one request and records what left (the Director calls, the database queries). */
+function routeWorld(routeSource, envExtra = {}) {
+  const world = { calls: [], queries: [], identity: { user: { id: 'untrusted-stale-id', email: 'owner@example.test' } }, dbUser: { id: 'trusted-user' }, dbFails: false,
+    upstream: () => Response.json({ templates: [] }) }
+  const env = { NEXT_PUBLIC_COMPOSER_LIBRARY_ENABLED: 'true', COMPOSER_DIRECTOR_URL: `https://${FRONTDOOR_HOST}`, COMPOSER_FRONTDOOR_TOKEN: FRONTDOOR_TOKEN, ...envExtra }
+  const stubs = {
+    'next/server': { NextResponse: Response },
+    'next-auth': { getServerSession: async () => world.identity },
+    '@/lib/auth-options': { authOptions: {} },
+    '@/lib/prisma': { prisma: {
+      user: { findUnique: async query => { world.queries.push(['user', query.where.email]); if (world.dbFails) throw new Error('database down'); return world.dbUser } },
+      chatSession: { findFirst: async query => { world.queries.push(['session', query.where.id, query.where.userId]); return { id: query.where.id } } },
+    } },
+  }
+  const globals = { fetch: async (url, init) => { world.calls.push({ url, init }); const answer = await world.upstream(url, init); if (answer instanceof Error) throw answer; return answer }, URL, Buffer, AbortSignal, DOMException }
+  const route = createLoader({ sources: { [ROUTE]: routeSource }, env, stubs, globals }).load(ROUTE)
+  Object.assign(world, { env, route })
+  world.request = async (method, path, { body, headers = {} } = {}) => {
+    world.calls = []; world.queries = []
+    const handler = method === 'HEAD' ? route.GET : route[method]
+    if (!handler) return { handler: false, calls: [], queries: [] }
+    const req = new Request('http://localhost/api/composer-library/x', { method, headers: { ...(body === undefined ? {} : { 'Content-Type': 'application/json' }), ...headers },
+      ...(body === undefined ? {} : { body: JSON.stringify(body) }) })
+    const res = await handler(req, { params: Promise.resolve({ path }) })
+    const text = await res.text()
+    return { handler: true, status: res.status, cache: res.headers.get('cache-control'), text, body: text ? JSON.parse(text) : null,
+      calls: world.calls.map(call => ({ url: call.url, method: call.init.method, headers: { ...call.init.headers }, body: call.init.body ?? null, redirect: call.init.redirect, cache: call.init.cache })),
+      queries: world.queries }
+  }
+  return world
+}
+const GOOD_ID = '00000000-0000-0000-0000-000000000002'
+const NOT_FOUND = { error: 'Not found' }
+
+async function routeChecks(sources) {
+  const source = sources[ROUTE]
+  const on = (extra = {}) => routeWorld(source, { [FLAG]: 'true', ...extra })
+  // 1. the allowed GET, on every real answer of Director's: the trim, the request that leaves
+  for (const name of DETAIL_NAMES) {
+    const world = on(), row = detailRow(name)
+    world.upstream = () => Response.json(structuredClone(row))
+    const out = await world.request('GET', ['templates', row.id])
+    check(assert.equal, out.status, 200, name)
+    deq(out.body, trim(row), `${name}: the answer is the report of the row and nothing else`)
+    deq(Object.keys(out.body), ['id', 'ingest_source'], `${name}: the keys`)
+    check(assert.equal, out.cache, 'no-store')
+    check(assert.equal, /stage_template|user_id|storage_path|frozen_plan|source_fact_manifest|presentation_brief/.test(out.text), false, `${name}: no part of the stored template goes on`)
+    deq(out.calls, [{ url: `https://${FRONTDOOR_HOST}/api/template-ingest/stage/templates/${row.id}`, method: 'GET', body: null, redirect: 'error', cache: 'no-store',
+      headers: { Authorization: `Bearer ${FRONTDOOR_TOKEN}`, 'X-Composer-User-Id': 'trusted-user' } }], `${name}: one GET to Director's route with the front door's token and the signed-in user`)
+    deq(out.queries, [['user', 'owner@example.test']], `${name}: the signed-in user is looked up; nothing else is read or written`)
+  }
+  { // what the browser sends never decides who is asking
+    const world = on(); world.upstream = () => Response.json(detailRow('admitted-clean'))
+    const out = await world.request('GET', ['templates', GOOD_ID], { headers: { Authorization: 'Bearer attacker', 'X-Composer-User-Id': 'attacker', Cookie: 'a=b', 'X-Forwarded-For': '1.2.3.4' } })
+    check(assert.equal, out.status, 200)
+    deq(out.calls[0].headers, { Authorization: `Bearer ${FRONTDOOR_TOKEN}`, 'X-Composer-User-Id': 'trusted-user' }, 'the token and the user id are the server\'s own; nothing of the browser\'s goes on')
+    check(assert.equal, JSON.stringify(out.calls[0]).includes('attacker'), false)
+    check(assert.equal, out.calls[0].body, null, 'a read has no body')
+  }
+  // 2. sign-in, account and configuration: the same refusals as for the list, and nothing leaves
+  const refused = async (label, mutate, status) => {
+    const world = on(); mutate(world); world.upstream = () => Response.json(detailRow('admitted-clean'))
+    const out = await world.request('GET', ['templates', GOOD_ID])
+    check(assert.equal, out.status, status, label); check(assert.equal, out.calls.length, 0, `${label}: nothing left for Director`)
+    return out
+  }
+  await refused('no session', world => { world.identity = null }, 401)
+  await refused('a session with no email', world => { world.identity = { user: { id: 'x' } } }, 401)
+  await refused('an account the database does not know', world => { world.dbUser = null }, 401)
+  await refused('the database is down', world => { world.dbFails = true }, 503)
+  await refused('no front-door token', world => { delete world.env.COMPOSER_FRONTDOOR_TOKEN }, 503)
+  await refused('no Director address', world => { delete world.env.COMPOSER_DIRECTOR_URL }, 503)
+  await refused('an address that is not approved', world => { world.env.COMPOSER_DIRECTOR_URL = 'https://unapproved.example' }, 503)
+  { const out = await refused('the library is off', world => { world.env.NEXT_PUBLIC_COMPOSER_LIBRARY_ENABLED = 'false' }, 404); deq(out.queries, [], 'the library off: not even a lookup') }
+  // 3. the id: only [A-Za-z0-9_-], 1 to 200 characters (the allow-list the job and use routes already apply)
+  for (const id of ['..', '.', '', ' ', '%2e%2e', '%2E%2E', 'a/b', '../x', 'a\\b', 'a b', 'a.b', 'a?x=1', 'a#b', 'a%2Fb', 'a;b', 'a\nb', 'a\u0000b', 'é', 'a'.repeat(201), '😀', 'id/', '/id', 'a:b', 'a@b', 'a%00']) {
+    const world = on(), out = await world.request('GET', ['templates', id])
+    check(assert.equal, out.status, 404, `id ${JSON.stringify(id)}`); deq(out.body, NOT_FOUND); check(assert.equal, out.calls.length, 0, `id ${JSON.stringify(id)}: nothing left for Director`)
+  }
+  for (const id of [GOOD_ID, 'a', 'Template_1-b', 'x'.repeat(200), '0'.repeat(200)]) {
+    const world = on(); world.upstream = () => Response.json({ id, ingest_source: {} })
+    const out = await world.request('GET', ['templates', id])
+    check(assert.equal, out.status, 200, `id ${id.slice(0, 20)}`); check(assert.equal, out.calls[0].url, `https://${FRONTDOOR_HOST}/api/template-ingest/stage/templates/${id}`)
+  }
+  // 4. only this one shape: no sub-path (the template's uses, infographics, use), no neighbour, no other segment count or name
+  for (const path of [['templates', GOOD_ID, 'uses'], ['templates', GOOD_ID, 'infographics'], ['templates', GOOD_ID, 'use'], ['templates', GOOD_ID, 'fill-infographic'], ['templates', GOOD_ID, 'x'],
+    ['templates', GOOD_ID, ''], ['template', GOOD_ID], ['Templates', GOOD_ID], ['TEMPLATES', GOOD_ID], ['jobs', 'x', GOOD_ID], ['upload-reference', GOOD_ID], ['x', GOOD_ID], [GOOD_ID], ['templates', '', GOOD_ID], [], ['']]) {
+    const world = on(), out = await world.request('GET', path)
+    check(assert.equal, out.status, 404, `GET ${path.join('/')}`); deq(out.body, NOT_FOUND); check(assert.equal, out.calls.length, 0, `GET ${path.join('/')}: nothing left for Director`)
+  }
+  // 5. the other answers of the proxy are what they were: the list is not trimmed, the job read is not trimmed
+  { const world = on(), listBody = { templates: [{ id: GOOD_ID, name: 'n', stage_template_summary: { slide_count: 1 }, ingest_source: { more: true } }] }
+    world.upstream = () => Response.json(structuredClone(listBody))
+    const out = await world.request('GET', ['templates']); deq(out.body, listBody, 'the list passes through whole'); check(assert.equal, out.calls[0].url, `https://${FRONTDOOR_HOST}/api/template-ingest/stage/templates`)
+    const job = { job_id: 'j1', status: 'complete', admission_report: reportOf('admitted-clean'), checkpoint: { a: 1 } }
+    world.upstream = () => Response.json(structuredClone(job))
+    deq((await world.request('GET', ['jobs', 'j1'])).body, job, 'the job read passes through whole') }
+  // 6. every method but GET: Next answers 405 for the verbs the route does not export; the ones it exports (POST) and HEAD (served by GET) never read a template
+  deq(Object.keys(on().route).sort(), ['GET', 'POST', 'dynamic'], 'the route exports GET and POST only (PUT, PATCH, DELETE and OPTIONS get no handler)')
+  for (const [method, body, headers] of [['POST', { session_id: 's' }], ['POST', undefined], ['POST', 'x'], ['HEAD'], ['PUT', undefined], ['PATCH', undefined], ['DELETE', undefined], ['OPTIONS', undefined]]) {
+    const world = on(), out = await world.request(method, ['templates', GOOD_ID], { body, headers })
+    if (!out.handler) { check(assert.ok, ['PUT', 'PATCH', 'DELETE', 'OPTIONS'].includes(method), `${method} has no handler`); continue }
+    check(assert.equal, out.status, 404, `${method} templates/{id}`); deq(out.body, NOT_FOUND); check(assert.equal, out.calls.length, 0, `${method}: nothing left for Director`)
+  }
+  // 7. every way Director's answer can go wrong: its error is the browser's error (untrimmed); a 200 that is not a row trims to nothing; never a crash
+  for (const [status, json] of [[404, { detail: 'Stage template not found' }], [401, { detail: 'Authenticated Composer proxy is required' }], [403, { detail: 'no' }], [422, { detail: [{ loc: ['x'] }] }], [500, { detail: 'boom' }], [503, { detail: 'down' }]]) {
+    const world = on(); world.upstream = () => Response.json(structuredClone(json), { status })
+    const out = await world.request('GET', ['templates', GOOD_ID])
+    check(assert.equal, out.status, status, `Director ${status}`); deq(out.body, json, `Director ${status}: its answer, not trimmed`)
+  }
+  for (const json of [null, 7, 'x', true, [], [detailRow('admitted-clean')], {}, { id: 7 }, { ingest_source: 'x' }, { ingest_source: null }, { ingest_source: [] }, { ingest_source: {} }, { ingest_source: { admission_report: null } },
+    { ingest_source: { admission_report: 'x' } }, { ingest_source: { admission_report: [1] } }, { ingest_source: { admission_report: 7 } }]) {
+    const world = on(); world.upstream = () => Response.json(json)
+    const out = await world.request('GET', ['templates', GOOD_ID])
+    check(assert.equal, out.status, 200, `a 200 of ${ser(json)}`)
+    deq(out.body, { ...(json && typeof json === 'object' && !Array.isArray(json) && typeof json.id === 'string' ? { id: json.id } : {}), ingest_source: {} }, `a 200 of ${ser(json)} trims to nothing`)
+  }
+  for (const [label, upstream] of [['the network fails', () => new TypeError('fetch failed')], ['the answer is not JSON', () => new Response('<html>', { status: 200 })], ['an empty answer', () => new Response('', { status: 200 })]]) {
+    const world = on(); world.upstream = upstream
+    const out = await world.request('GET', ['templates', GOOD_ID])
+    check(assert.equal, out.status, 502, label); deq(out.body, { error: 'Template library is temporarily unavailable.' })
+  }
+  // 8. flag off: the request is the base route's 404 (and every other request is exactly the base's): measured on a matrix against the base route itself
+  const upload = { session_id: 's1', researcher_session_id: 's1', storage_path: 's1/deck.pptx', file_name: 'deck.pptx', kind: 'pptx' }
+  const MATRIX = [['GET', ['templates']], ['GET', ['templates', GOOD_ID]], ['GET', ['templates', '..']], ['GET', ['templates', GOOD_ID, 'uses']],
+    ['GET', ['templates', GOOD_ID, 'infographics']], ['GET', ['jobs', 'j1']], ['GET', ['jobs']], ['GET', []], ['GET', ['nope']], ['HEAD', ['templates', GOOD_ID]], ['HEAD', ['templates']],
+    ['POST', ['templates', GOOD_ID], { session_id: 's1' }], ['POST', ['templates', GOOD_ID, 'use'], { session_id: 's1' }], ['POST', ['upload-reference'], upload], ['POST', ['upload']],
+    ['PUT', ['templates', GOOD_ID]], ['DELETE', ['templates', GOOD_ID]]]
+  const run = async (world, upstream) => { world.upstream = upstream; const out = []; for (const [method, path, body] of MATRIX) out.push(await world.request(method, path, { body })); return out }
+  const upstream = (url, init) => Response.json(url.endsWith(`/templates/${GOOD_ID}`) ? detailRow('partially-admitted') : { ok: true, url: url.slice(-30), method: init.method }, { status: 200 })
+  const baseOut = await run(routeWorld(baseRoute), upstream)
+  for (const spelling of [undefined, 'false', '1', 'TRUE', ' true', 'yes', '']) {
+    const out = await run(routeWorld(source, spelling === undefined ? {} : { [FLAG]: spelling }), upstream)
+    deq(out, baseOut, `flag ${JSON.stringify(spelling)}: every request answers, queries and sends exactly what the base route does`)
+  }
+  { // flag on: the same, but for the one request that is now allowed
+    const out = await run(routeWorld(source, { [FLAG]: 'true' }), upstream)
+    const index = MATRIX.findIndex(([method, path]) => method === 'GET' && path.join('/') === `templates/${GOOD_ID}`)
+    out.forEach((item, at) => { if (at !== index) deq(item, baseOut[at], `flag on: ${MATRIX[at][0]} ${MATRIX[at][1].join('/')} is the base's`) })
+    check(assert.equal, baseOut[index].status, 404); check(assert.equal, out[index].status, 200)
+    deq(out[index].body, trim(detailRow('partially-admitted')))
+  }
+}
+
+// ---- the hook on its own (components/builder/composer-admission-detail.ts) -----------------------------------------------------------------------------
+async function hookChecks(sources) {
+  const make = (enabled = true, { ignoreAbort = false } = {}) => {
+    const runtime = createRuntime(), asks = []
+    const composerRequest = (path, body, signal) => new Promise((resolve, reject) => {
+      asks.push({ path, body, signal, resolve, reject })
+      if (!ignoreAbort) signal?.addEventListener('abort', () => reject(new DOMException('Aborted', 'AbortError')), { once: true })
+    })
+    const mod = createLoader({ sources, env: {}, stubs: { react: runtime.react, '@/lib/composer-library': { composerRequest } }, globals: { DOMException, AbortController } }).load(DETAIL)
+    const world = { runtime, asks, enabled, render: () => runtime.render(() => mod.useAdmissionDetails(world.enabled)) }
+    return world
+  }
+  const R = reportOf('partially-admitted'), answer = (id, report = R) => ({ id, ingest_source: { admission_report: report } })
+  { // flag off: nothing is asked, kept or returned, however it is called
+    const w = make(false), details = w.render()
+    details.open('a'); details.want('a'); details.want('b'); w.render(); await tick(); w.render(); await tick()
+    check(assert.equal, w.asks.length, 0, 'flag off: no read')
+    check(assert.equal, w.render().report('a'), null)
+    check(assert.equal, w.runtime.pending(), false, 'flag off: no state is ever changed')
+  }
+  { // a read: GET, the template's own path, once; kept; shown on the next render
+    const w = make(), details = w.render()
+    check(assert.equal, details.report('a'), null, 'nothing before it is asked')
+    details.open('a'); await tick()
+    deq(w.asks.map(item => [item.path, item.body]), [['templates/a', undefined]], 'a GET of the template, with no body')
+    check(assert.ok, w.asks[0].signal && !w.asks[0].signal.aborted)
+    details.open('a'); details.open('a'); w.render(); await tick()
+    check(assert.equal, w.asks.length, 1, 'asked once, however often it is opened')
+    w.asks[0].resolve(answer('a')); await tick()
+    check(assert.equal, w.runtime.pending(), true, 'the answer changes state')
+    deq(w.render().report('a'), R, 'kept')
+    check(assert.equal, w.render().report('b'), null, 'for that template only')
+    w.render().open('a'); await tick()
+    check(assert.equal, w.asks.length, 1, 'answered once, never asked again')
+    deq(w.render().report('a'), R)
+  }
+  { // one read at a time, in the order asked
+    const w = make(), details = w.render()
+    for (const id of ['a', 'b', 'c']) details.open(id)
+    await tick()
+    deq(w.asks.map(item => item.path), ['templates/a'], 'the first is on its way, the others wait')
+    w.asks[0].resolve(answer('a')); await tick()
+    deq(w.asks.map(item => item.path), ['templates/a', 'templates/b'])
+    w.asks[1].reject(new Error('down')); await tick()
+    deq(w.asks.map(item => item.path), ['templates/a', 'templates/b', 'templates/c'], 'a read that fails does not hold the next')
+    w.asks[2].resolve(answer('c')); await tick()
+    deq([w.render().report('a'), w.render().report('b'), w.render().report('c')], [R, null, R])
+  }
+  { // quietly: a failure, an answer with no report, an answer for another template: nothing shown, nothing raised, never asked again
+    const w = make(), details = w.render()
+    const results = ['fail', 'no-report', 'other-template', 'garbage', 'wrong-report']
+    results.forEach(id => details.open(id)); await tick()
+    for (let i = 0; i < results.length; i++) {
+      await tick(); check(assert.equal, w.asks.length, i + 1, `read ${i + 1} starts after the one before it ended`)
+      const ask = w.asks[i]
+      if (results[i] === 'fail') ask.reject(new TypeError('network'))
+      else if (results[i] === 'no-report') ask.resolve({ id: results[i], ingest_source: {} })
+      else if (results[i] === 'other-template') ask.resolve(answer('someone-else'))
+      else if (results[i] === 'garbage') ask.resolve('<html>')
+      else ask.resolve({ id: results[i], ingest_source: { admission_report: 'x' } })
+      await tick()
+    }
+    for (const id of results) check(assert.equal, w.render().report(id), null, `${id}: nothing to show`)
+    await tick(); await tick()
+    check(assert.equal, unhandled.length, 0, 'a failed read raises nothing')
+    results.forEach(id => details.open(id)); w.render(); await tick(); await tick()
+    check(assert.equal, w.asks.length, results.length, 'a failed read is not asked again')
+    check(assert.equal, w.runtime.pending(), false, 'and changed nothing')
+  }
+  { // an id is encoded into the path
+    const w = make(), details = w.render()
+    details.open('a b/c?d'); await tick()
+    check(assert.equal, w.asks[0].path, 'templates/a%20b%2Fc%3Fd')
+  }
+  { // a report that opens by itself is asked after the render that drew it, once
+    const w = make(), details = w.render()
+    details.want('w'); check(assert.equal, w.asks.length, 0, 'registering asks nothing yet')
+    w.render(); await tick()
+    deq(w.asks.map(item => item.path), ['templates/w'], 'asked once the render is on screen')
+    for (let i = 0; i < 4; i++) { w.render().want('w'); w.render(); await tick() }
+    check(assert.equal, w.asks.length, 1, 'registered on every render, asked once')
+  }
+  { // the dialog going away: what is on its way is stopped, nothing more is asked, a late answer changes nothing
+    const w = make(true, { ignoreAbort: true }), details = w.render()
+    details.open('u1'); details.open('u2'); await tick()
+    check(assert.equal, w.asks.length, 1)
+    w.runtime.unmount(); await tick()
+    check(assert.equal, w.asks[0].signal.aborted, true, 'the read on its way is aborted')
+    w.asks[0].resolve(answer('u1')); await tick(); await tick()
+    check(assert.equal, w.asks.length, 1, 'the one waiting is never asked')
+    check(assert.equal, w.runtime.pending(), false, 'a late answer changes no state')
+    // React\'s development double-mount runs the cleanup and then the effects again: the next render asks again, with a signal that is not aborted
+    const again = w.render(); again.want('u1'); w.render(); await tick()
+    check(assert.equal, w.asks.length, 2, 'after the cleanup a render asks again')
+    check(assert.equal, w.asks[1].signal.aborted, false, 'with a fresh signal')
+  }
+}
+
+// ---- the real dialog: when a report asks for its slides, what it draws ------------------------------------------------------------------------------
+const traceOf = ui => ui.log.map(entry => entry[0] === 'fetch' ? `${entry[1]} ${entry[2].replace('/api/composer-library/', '')}` : entry[0])
+const reads = ui => traceOf(ui).filter(line => /^GET templates\/[^/]+$/.test(line))
+/** The block of a row's report, in either shell, and the person opening or closing its list of changes. */
+const blockIn = (ui, id, shell = true) => shell ? blockOf(ui, id) : readBlockById(ui, id)
+const toggle = (ui, id, open = true, shell = true) => readBlock(blockIn(ui, id, shell)).details.props.onToggle({ currentTarget: { open } })
+
+async function dialogDetailChecks(sources) {
+  const answers = () => ({ [ID.partial]: proxied(ID.partial, 'partially-admitted'), [ID.floor]: proxied(ID.floor, 'floor-slide'), [ID.clean]: proxied(ID.clean, 'admitted-clean'), [ID.many]: proxied(ID.many, 'many-changes') })
+  for (const shell of [true, false]) {
+    const ui = mount({ sources, flag: 'true', shell, templates: LIST(), details: answers() })
+    await ui.settle(20)
+    const find = id => blockIn(ui, id, shell)
+    const chipsOf = id => readBlock(find(id)).chips
+    // the reports that open by themselves are asked, one at a time, in list order; the others, and the rows with nothing to open, are not
+    deq(reads(ui), [`GET templates/${ID.partial}`, `GET templates/${ID.floor}`], `shell ${shell}: only the reports that open by themselves are asked`)
+    check(assert.equal, ui.mostReading, 1, `shell ${shell}: one read at a time`)
+    const shown = chips => chips.map(chip => [chip.slide, shell ? chip.kind : null, chip.label]) // the plain shell carries no markers, so no kind
+    const wanted = name => expectedView(reportOf(name)).strip.map(chip => [String(chip.slide), shell ? chip.kind : null, chip.label])
+    deq(shown(chipsOf(ID.partial)), wanted('partially-admitted'), `shell ${shell}: the strip of the partly admitted deck`)
+    deq(shown(chipsOf(ID.floor)), wanted('floor-slide'), `shell ${shell}: the floor slide's strip`)
+    for (const id of [ID.clean, ID.many, ID.quiet]) check(assert.equal, chipsOf(id).length, 0, `shell ${shell}: ${id}: closed, or nothing to open: no strip`)
+    for (const id of [ID.none, ID.garbage, ID.off]) check(assert.equal, find(id), null, `shell ${shell}: ${id}: no report, nothing drawn`)
+    const partial = readBlock(find(ID.partial))
+    deq(partial.lines.map(line => line.text), expectedView(reportOf('partially-admitted')).rows.map(item => item.text), 'the changes are as before')
+    check(assert.equal, partial.headline, reportOf('partially-admitted').headline)
+    check(assert.equal, partial.details.props.open, true, 'still open')
+    check(assert.ok, partial.paragraphs.includes('Slide by slide'))
+    // display only: no chip does anything, and nothing in the strip can be pressed or focused
+    const strip = flat(find(ID.partial)).find(node => node.type === 'ul' && node.props['aria-label'] === 'Slide by slide')
+    const parts = flat(strip)
+    check(assert.equal, parts.some(node => ['Button', 'button', 'a', 'input', 'select'].includes(node.type)), false, 'no control in the strip')
+    check(assert.equal, parts.some(node => Object.keys(node.props ?? {}).some(name => /^on[A-Z]|tabIndex|role|href/.test(name))), false, 'no handler, focus stop, role or link on a chip')
+    // a closed report asks when the person opens it, once
+    const before = reads(ui).length
+    toggle(ui, ID.clean, false, shell); await ui.settle(20)
+    check(assert.equal, reads(ui).length, before, `shell ${shell}: closing a list asks nothing`)
+    for (const open of [true, true, false, true]) toggle(ui, ID.clean, open, shell) // opened, opened again, closed, opened: before the answer is back
+    await ui.settle(20)
+    deq(reads(ui).slice(before), [`GET templates/${ID.clean}`], `shell ${shell}: opening it asks for its template, once`)
+    deq(shown(chipsOf(ID.clean)), wanted('admitted-clean'), 'and the strip appears')
+    check(assert.equal, readBlock(find(ID.clean)).details.props.onToggle, undefined, 'a list with its strip has nothing left to ask')
+    check(assert.equal, readBlock(find(ID.partial)).details.props.onToggle, undefined)
+    check(assert.equal, ui.mostReading, 1)
+    // the answers are kept while the dialog lives: closed and opened again, the list is read again and the templates are not
+    const logBefore = ui.log.length
+    await ui.close(); ui.render({ open: true }); await ui.settle(20)
+    deq(traceOf(ui).slice(logBefore).filter(line => line !== 'getItem'), ['GET templates'], `shell ${shell}: closed and opened again: the list is read, no template is`)
+    check(assert.equal, chipsOf(ID.partial).length, expectedView(reportOf('partially-admitted')).strip.length, 'the strips are still there')
+    check(assert.equal, chipsOf(ID.clean).length, 6)
+    // the person opens the rest
+    toggle(ui, ID.many, true, shell); await ui.settle(20)
+    check(assert.equal, chipsOf(ID.many).length, expectedView(reportOf('many-changes')).strip.length)
+    deq(reads(ui).map(line => line.slice(14)), [ID.partial, ID.floor, ID.clean, ID.many])
+    // nothing but reads: no session, no storage write, no upload, no other request
+    check(assert.equal, ui.log.every(entry => entry[0] === 'fetch' ? entry[1] === 'GET' : entry[0] === 'getItem'), true, 'only GETs and the dialog\'s own read of its stored job')
+    await ui.close()
+  }
+  { // quietly: whatever goes wrong with the read, the list's report stays as it was, no message, no second try
+    const bad = {
+      [ID.partial]: 'throw', [ID.floor]: { status: 502, json: { error: 'Template library is temporarily unavailable.' } },
+      [ID.clean]: { json: { id: ID.clean, ingest_source: {} } }, [ID.many]: { json: { id: 'a-different-template', ingest_source: { admission_report: reportOf('many-changes') } } },
+    }
+    const ui = mount({ sources, flag: 'true', templates: LIST(), details: bad })
+    await ui.settle(20); toggle(ui, ID.clean); toggle(ui, ID.many); await ui.settle(20)
+    deq(reads(ui).map(line => line.slice(14)), [ID.partial, ID.floor, ID.clean, ID.many], 'each is asked, once')
+    for (const id of [ID.partial, ID.floor, ID.clean, ID.many]) check(assert.equal, readBlock(blockOf(ui, id)).chips.length, 0, `${id}: no strip`)
+    deq(readBlock(blockOf(ui, ID.partial)).lines.map(line => line.text), expectedView(reportOf('partially-admitted')).rows.map(item => item.text), 'the list\'s report is as it was')
+    check(assert.equal, ui.all().some(node => node.props?.['data-studio-composer-error'] !== undefined || node.props?.role === 'alert'), false, 'no message')
+    for (let i = 0; i < 4; i++) { await ui.settle(10); toggle(ui, ID.partial); toggle(ui, ID.clean) }
+    check(assert.equal, reads(ui).length, 4, 'no second try')
+    await ui.close()
+  }
+  { // an answer that does not read as a report draws nothing new
+    const odd = { [ID.partial]: { json: { id: ID.partial, ingest_source: { admission_report: { ...reportOf('partially-admitted'), version: 'composer-admission-report-v9' } } } } }
+    const ui = mount({ sources, flag: 'true', templates: LIST(), details: odd })
+    await ui.settle(20)
+    check(assert.equal, readBlock(blockOf(ui, ID.partial)).chips.length, 0)
+    check(assert.equal, readBlock(blockOf(ui, ID.partial)).headline, reportOf('partially-admitted').headline, 'the list\'s headline stays')
+    await ui.close()
+  }
+  { // a slow read holds the ones behind it
+    let release
+    const gate = new Promise(resolve => { release = resolve })
+    const ui = mount({ sources, flag: 'true', templates: LIST(), details: { ...answers(), [ID.partial]: async () => { await gate; return proxied(ID.partial, 'partially-admitted') } } })
+    await ui.settle(20)
+    deq(reads(ui), [`GET templates/${ID.partial}`], 'the second report waits for the first read')
+    release(); await ui.settle(20)
+    deq(reads(ui), [`GET templates/${ID.partial}`, `GET templates/${ID.floor}`])
+    check(assert.equal, ui.mostReading, 1)
+    await ui.close()
+  }
+  { // the tracked upload's job read has the slides: the job wins and nothing is asked for its template; the other row is asked. A library opened afresh (card gone) asks.
+    const mid = framesJob('progress-flow-mid-run'), done = framesJob('progress-flow-done')
+    const ui = mount({ sources, flag: 'true', progress: true, templates: [row('partially-admitted', ID.partial)], saved: SAVED(), queue: [{ job_id: UPLOAD_JOB, answers: [mid, done] }],
+      details: { [ID.partial]: proxied(ID.partial, 'partially-admitted'), [TEMPLATE_ID]: proxied(TEMPLATE_ID, 'progress-flow-mid-run') } })
+    await ui.settle(20)
+    deq(reads(ui), [`GET templates/${ID.partial}`], 'before the upload: the one row with a report asks')
+    ui.chooseFile({ name: 'Deck04_Fabrikam_Review.pptx', size: 4096 }); await ui.settle(2); ui.click('Upload template'); await ui.settle(40)
+    check(assert.equal, readBlock(blockOf(ui, TEMPLATE_ID)).chips.length, expectedView(reportOf('progress-flow-mid-run')).strip.length, 'the saved template has its strip from the job read')
+    deq(reads(ui), [`GET templates/${ID.partial}`], 'the tracked job has the slides: its template is not asked for')
+    await ui.close()
+    const fresh = mount({ sources, flag: 'true', progress: true, templates: [SAVED()], details: { [TEMPLATE_ID]: proxied(TEMPLATE_ID, 'progress-flow-mid-run') } })
+    await fresh.settle(20)
+    deq(reads(fresh), [`GET templates/${TEMPLATE_ID}`], 'a library opened afresh has no card: the template is asked for')
+    deq(readBlock(blockOf(fresh, TEMPLATE_ID)).chips.map(chip => [chip.slide, chip.kind]), expectedView(reportOf('progress-flow-mid-run')).strip.map(chip => [String(chip.slide), chip.kind]), 'and the strip is drawn')
+    await fresh.close()
+  }
+  { // a report with nothing to open (no changes listed) has no list and so asks nothing; rows with no report, or one that does not read, ask nothing
+    const ui = mount({ sources, flag: 'true', templates: [row('admitted-no-changes', ID.quiet), noKey(ID.none, 'composer-flag-off'), { ...noKey(ID.garbage, 'composer-flag-off'), admission_report: { version: 'x' } }],
+      details: { [ID.quiet]: proxied(ID.quiet, 'admitted-no-changes') } })
+    await ui.settle(20)
+    check(assert.equal, reads(ui).length, 0)
+    check(assert.equal, readBlock(blockOf(ui, ID.quiet)).details, null)
+    await ui.close()
+  }
+  { // flag off: the same library, the same answers on offer: nothing is asked, whatever is opened (the rest of flag off is in section 2)
+    for (const flag of [undefined, 'false', '1', 'TRUE']) {
+      const ui = mount({ sources, flag, templates: LIST(), details: answers() })
+      await ui.settle(20)
+      check(assert.equal, reads(ui).length, 0, `flag ${JSON.stringify(flag)}: no template read`)
+      check(assert.equal, ui.all().some(node => node.props?.['aria-label'] === 'What changed'), false)
+      await ui.close()
+    }
+  }
+}
+/** The plain shell has no markers: a row's report is found by position. */
+function readBlockById(ui, id) {
+  const rows = flat(expand(ui.tree)).filter(node => node.type === 'div' && node.props?.className === 'space-y-3 rounded-md border p-3')
+  return flat(rows[ids().indexOf(id)]).find(node => node.type === 'div' && node.props?.['aria-label'] === 'What changed') ?? null
+}
+
+// the lines the route, the hook and the dialog gain, as source pins
+const ROUTE_ADDITIONS = [
+  [/\/\/ Director's GET templates\/\{id\} is the whole stored template[^\n]*\n\/\/ [^\n]*Template library wants only[^\n]*\nfunction admissionTemplate\(row: unknown\) \{\n(?: {2}[^\n]*\n)+\}\n\n/, ''],
+  [/ {2}\/\/ NEXT_PUBLIC_STUDIO_TEMPLATE_ADMISSION_REPORT \(exact "true", default off\): one read-only GET[^\n]*\n {2}\/\/ not a route at all[^\n]*\n {2}const detail = [^\n]*\n/, ''],
+  [/ && !detail/, ''],
+  [/ {4}const answer = await response\.json\(\)\n {4}return NextResponse\.json\(detail && response\.ok \? admissionTemplate\(answer\) : answer, /, '    return NextResponse.json(await response.json(), '],
+]
+function detailSourceChecks(sources) {
+  const route = sources[ROUTE], detail = sources[DETAIL], view = sources[VIEW]
+  const code = value => value.replace(/\/\*[\s\S]*?\*\//g, '').replace(/^\s*\/\/.*$/gm, '')
+  const stripped = ROUTE_ADDITIONS.reduce((out, [from, to]) => out.replace(from, to), route)
+  check(assert.equal, stripped, baseRoute, `the route without the added lines is ${BASE}'s`)
+  for (const [from] of ROUTE_ADDITIONS) check(assert.equal, (route.match(new RegExp(from.source, 'g')) ?? []).length, 1, `one: ${from.source.slice(0, 70)}`)
+  check(assert.equal, /dmission/.test(stripped), false, 'nothing of this change is left after the strip')
+  check(assert.equal, (code(route).match(/NEXT_PUBLIC_STUDIO_TEMPLATE_ADMISSION_REPORT/g) ?? []).length, 1, 'the route reads the flag once')
+  check(assert.equal, code(route).includes("process.env.NEXT_PUBLIC_STUDIO_TEMPLATE_ADMISSION_REPORT === 'true' && req.method === 'GET'"), true, 'as the exact string "true", and only for GET')
+  check(assert.equal, /process\.env|NEXT_PUBLIC/.test(code(detail)), false, 'the hook reads no environment')
+  check(assert.equal, /sessionStorage|localStorage|document\.|window\.|\bfetch\b|XMLHttpRequest|WebSocket/.test(code(detail)), false, 'the hook uses no storage and no request of its own')
+  check(assert.equal, code(detail).includes("composerRequest<unknown>(`templates/${encodeURIComponent(templateId)}`, undefined, signal)"), true, 'its one request is a GET of the template, by the library proxy')
+  check(assert.equal, (code(detail).match(/composerRequest\(|composerRequest</g) ?? []).length, 1)
+  check(assert.equal, (code(view).match(/onToggle/g) ?? []).length, 1, 'the block listens to the list being opened, nowhere else')
+  check(assert.equal, /onClick|onKeyDown|onPointer|onMouse|tabIndex|role=/.test(code(view).split('<ul aria-label="Slide by slide"')[1] ?? 'x'), false, 'the strip is display only')
+}
+
 // ---- 4. mutations ---------------------------------------------------------------------------------------------------------------------------
 /** `source: false` skips the source pins (a mutant of the dialog is meant to be caught by what the dialog DOES, not by its text). */
-async function suite(sources, { source = true, light = false } = {}) {
+async function suite(sources, { source = true, light = false, route = true } = {}) {
   checks = 0
   if (source) sourceChecks(sources)
+  if (source && route) detailSourceChecks(sources)
   pureChecks(sources)
+  detailPureChecks(sources)
   await flagOffChecks(sources, light)
   await flagOnChecks(sources)
+  await routeChecks(sources)
+  await hookChecks(sources)
+  await dialogDetailChecks(sources)
 }
 
 const MUTANTS = [
@@ -803,15 +1325,15 @@ const MUTANTS = [
   [LIB, 'the note says "is" for many', "plural(quiet, 'is', 'are')", "'is'"],
   [LIB, 'a plural piece of text', "plural(row.textListed, 'piece', 'pieces')", "'piece'"],
   [LIB, 'a plural picture', "plural(row.picture, 'a picture', 'pictures')", "'a picture'"],
-  [LIB, 'the job report loses to the row', 'return admissionReportView(jobReport) ?? admissionReportView(rowReport)', 'return admissionReportView(rowReport) ?? admissionReportView(jobReport)'],
-  [LIB, 'an unreadable job report hides the row', 'return admissionReportView(jobReport) ?? admissionReportView(rowReport)', 'return jobReport === null || jobReport === undefined ? admissionReportView(rowReport) : admissionReportView(jobReport)'],
+  [LIB, 'the job report loses to the row', 'return admissionReportView(jobReport) ?? admissionReportView(detailReport) ?? admissionReportView(rowReport)', 'return admissionReportView(rowReport) ?? admissionReportView(detailReport) ?? admissionReportView(jobReport)'],
+  [LIB, 'an unreadable job report hides the row', 'return admissionReportView(jobReport) ?? admissionReportView(detailReport) ?? admissionReportView(rowReport)', 'return jobReport === null || jobReport === undefined ? (admissionReportView(detailReport) ?? admissionReportView(rowReport)) : admissionReportView(jobReport)'],
   [LIB, 'the words of an outcome change', "text_left_out: 'Text left out', floor: 'Slide rebuilt over a picture', dropped: 'Left out'", "text_left_out: 'Text left out', floor: 'Slide rebuilt over a picture', dropped: 'Dropped'"],
   // the component
   [VIEW, 'flag off draws the report', 'if (!enabled) return node\n', ''],
-  [VIEW, 'flag on draws a wrapper with nothing in it', 'return view ? <>{node}<AdmissionReportBlock view={view} studioShell={studioShell} /></> : node', 'return <>{node}{view && <AdmissionReportBlock view={view} studioShell={studioShell} />}</>'],
+  [VIEW, 'flag on draws a wrapper with nothing in it', '  if (!view) return node\n', '  if (!view) return <>{node}</>\n'],
   [VIEW, 'the row\'s own report is ignored', '(template as { admission_report?: unknown }).admission_report', 'undefined'],
   [VIEW, 'the job report is ignored', 'admissionReportFor(jobReport, ', 'admissionReportFor(null, '],
-  [VIEW, 'the report goes before the row', '<>{node}<AdmissionReportBlock view={view} studioShell={studioShell} /></>', '<><AdmissionReportBlock view={view} studioShell={studioShell} />{node}</>'],
+  [VIEW, 'the report goes before the row', '<>{node}<AdmissionReportBlock view={view} studioShell={studioShell} onOpen={askable ? () => details.open(templateId) : undefined} /></>', '<><AdmissionReportBlock view={view} studioShell={studioShell} onOpen={askable ? () => details.open(templateId) : undefined} />{node}</>'],
   [VIEW, 'the group has no name', 'role="group" aria-label="What changed"', 'role="group"'],
   [VIEW, 'the caption goes', '<p className="font-medium">What changed</p>', ''],
   [VIEW, 'the headline is not shown', "{view.headline}</p>", '</p>'],
@@ -845,7 +1367,63 @@ const MUTANTS = [
   [DIALOG, 'the tracked job is not offered', 'templateProgress.report(template.id)', 'null'],
   [DIALOG, 'the tracked job is offered to every row', 'templateProgress.report(template.id)', "templateProgress.report(templateProgress.view?.templateId ?? '')"],
   [DIALOG, 'the report is drawn for the wrong template', 'admissionReportAround(ADMISSION_REPORT, template, ', 'admissionReportAround(ADMISSION_REPORT, templates[0], '],
-  [DIALOG, 'the shell flag is not handed on', ', studioShell)}\n                {newTopicEnabled', ', true)}\n                {newTopicEnabled'],
+  [DIALOG, 'the shell flag is not handed on', ', studioShell, admissionDetails)}\n                {newTopicEnabled', ', true, admissionDetails)}\n                {newTopicEnabled'],
+  // the template read (section 5): the Studio proxy
+  [ROUTE, 'the template read ignores the flag', "process.env.NEXT_PUBLIC_STUDIO_TEMPLATE_ADMISSION_REPORT === 'true' && req.method === 'GET'", "req.method === 'GET'"],
+  [ROUTE, 'the flag is read loosely (route)', "process.env.NEXT_PUBLIC_STUDIO_TEMPLATE_ADMISSION_REPORT === 'true'", "process.env.NEXT_PUBLIC_STUDIO_TEMPLATE_ADMISSION_REPORT !== 'false'"],
+  [ROUTE, 'the flag is on whatever is set (route)', "process.env.NEXT_PUBLIC_STUDIO_TEMPLATE_ADMISSION_REPORT === 'true'", "!!process.env.NEXT_PUBLIC_STUDIO_TEMPLATE_ADMISSION_REPORT"],
+  [ROUTE, 'any method reads a template', "=== 'true' && req.method === 'GET' && path.length === 2 && path[0] === 'templates' && safeId(path[1])\n  const upload", "=== 'true' && path.length === 2 && path[0] === 'templates' && safeId(path[1])\n  const upload"],
+  [ROUTE, 'the template id is not checked', "&& path.length === 2 && path[0] === 'templates' && safeId(path[1])\n  const upload", "&& path.length === 2 && path[0] === 'templates'\n  const upload"],
+  [ROUTE, 'a deeper path reads a template', "&& path.length === 2 && path[0] === 'templates' && safeId(path[1])\n  const upload", "&& path.length >= 2 && path[0] === 'templates' && safeId(path[1])\n  const upload"],
+  [ROUTE, 'any first segment reads a template', "&& path.length === 2 && path[0] === 'templates' && safeId(path[1])\n  const upload", "&& path.length === 2 && safeId(path[1])\n  const upload"],
+  [ROUTE, 'the whole template goes on', 'detail && response.ok ? admissionTemplate(answer) : answer', 'answer'],
+  [ROUTE, 'Director\'s error is trimmed', 'detail && response.ok ? admissionTemplate(answer) : answer', 'detail ? admissionTemplate(answer) : answer'],
+  [ROUTE, 'the list and the job read are trimmed', 'detail && response.ok ? admissionTemplate(answer) : answer', 'response.ok ? admissionTemplate(answer) : answer'],
+  [ROUTE, 'the trim keeps the whole row', "{ ...(record(row) && typeof row.id === 'string' ? { id: row.id } : {}), ingest_source:", "{ ...(record(row) ? row : {}), ingest_source:"],
+  [ROUTE, 'the trim keeps the whole ingest_source', 'ingest_source: record(source.admission_report) ? { admission_report: source.admission_report } : {} }', 'ingest_source: source }'],
+  [ROUTE, 'the trim passes a report that is not an object', 'ingest_source: record(source.admission_report) ?', 'ingest_source: source.admission_report !== undefined ?'],
+  [ROUTE, 'the trim drops the id', "record(row) && typeof row.id === 'string' ?", 'false ?'],
+  [ROUTE, 'the browser\'s user id is forwarded', "'X-Composer-User-Id': userId,", "'X-Composer-User-Id': req.headers.get('x-composer-user-id') ?? userId,"],
+  [ROUTE, 'the browser\'s token is forwarded', 'Authorization: `Bearer ${token}`,', 'Authorization: req.headers.get(\'authorization\') ?? `Bearer ${token}`,'],
+  [ROUTE, 'redirects are followed', "redirect: 'error',", "redirect: 'follow',"],
+  [ROUTE, 'every read goes out as a GET', 'method: req.method,', "method: 'GET',"],
+  [ROUTE, 'the answer may be cached', "headers: { 'Cache-Control': 'no-store' } })", 'headers: {} })'],
+  [ROUTE, 'the library flag no longer gates', "if (process.env.NEXT_PUBLIC_COMPOSER_LIBRARY_ENABLED !== 'true') {", 'if (false) {'],
+  [ROUTE, 'no sign-in is asked for', "if (!session?.user?.email) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })", ''],
+  // the hook
+  [DETAIL, 'a template is asked again whenever its list is opened', 'if (asked.current.has(templateId)) return', ''],
+  [DETAIL, 'the hook is live with the flag off', 'if (!enabled) return INERT\n', ''],
+  [DETAIL, 'the reads run together', 'queue.current = queue.current.then(async () => {', 'queue.current = Promise.resolve().then(async () => {'],
+  [DETAIL, 'a failed read is asked again', 'catch { /* quietly: the row stays as the list drew it */ }', 'catch { asked.current.delete(templateId) }'],
+  [DETAIL, 'a failed read is raised', 'catch { /* quietly: the row stays as the list drew it */ }', 'catch (error) { throw error }'],
+  [DETAIL, 'an answer for another template is kept', 'templateDetailReport(row, templateId)', 'templateDetailReport(row, (row as { id?: string })?.id ?? templateId)'],
+  [DETAIL, 'a late answer is kept', 'if (report && !signal.aborted) setReports', 'if (report) setReports'],
+  [DETAIL, 'the dialog going away stops nothing', '    controller.current?.abort()\n', ''],
+  [DETAIL, 'a read that was waiting still runs after the dialog goes', '      if (signal.aborted) return\n      try {', '      try {'],
+  [DETAIL, 'a report that opens by itself is never asked', 'useEffect(() => { wanted.current.forEach(open) })', 'useEffect(() => { /* never */ })'],
+  [DETAIL, 'the cleanup forgets nothing', '    asked.current = new Set()\n', ''],
+  [DETAIL, 'the cleanup keeps the aborted signal', '    controller.current = null\n', ''],
+  [DETAIL, 'the id is not encoded', '${encodeURIComponent(templateId)}', '${templateId}'],
+  [DETAIL, 'the read has a body', 'undefined, signal)', '{}, signal)'],
+  [DETAIL, 'an answer with no report is kept as one', 'if (report && !signal.aborted)', 'if (!signal.aborted)'],
+  // the block and the wrapper
+  [VIEW, 'opening the list is not heard', 'onToggle={onOpen && (event => { if (event.currentTarget.open) onOpen() })}', 'onToggle={undefined}'],
+  [VIEW, 'closing the list asks too', 'if (event.currentTarget.open) onOpen()', 'onOpen()'],
+  [VIEW, 'a report that has its strip asks', 'view.strip === null && ', ''],
+  [VIEW, 'a report with no list asks', 'view.rows.length > 0 && details !== undefined', 'details !== undefined'],
+  [VIEW, 'a closed report asks at once', 'if (askable && view.open) details.want(templateId)', 'if (askable) details.want(templateId)'],
+  [VIEW, 'an open report waits to be touched', 'if (askable && view.open) details.want(templateId)', 'if (false) details.want(templateId)'],
+  [VIEW, 'the template read is ignored', 'templateId === null ? null : details?.report(templateId)', 'null'],
+  [VIEW, 'the wrong template is asked for', '() => details.open(templateId)', '() => details.open(`${templateId}!`)'],
+  [VIEW, 'a chip can be pressed', 'className="min-w-[1.5rem] rounded border px-1 text-center">{chip.slide}</li>', 'onClick={() => {}} className="min-w-[1.5rem] rounded border px-1 text-center">{chip.slide}</li>'],
+  [VIEW, 'a chip takes focus', '<li key={chip.slide}', '<li tabIndex={0} key={chip.slide}'],
+  [LIB, 'the template read ignores which template', 'row.id !== templateId || ', ''],
+  [LIB, 'a report that is not an object is handed on', 'return isRecord(report) ? report : null', 'return (report as Record<string, unknown>) ?? null'],
+  [LIB, 'the template read wins over the tracked job', 'return admissionReportView(jobReport) ?? admissionReportView(detailReport) ?? admissionReportView(rowReport)', 'return admissionReportView(detailReport) ?? admissionReportView(jobReport) ?? admissionReportView(rowReport)'],
+  [LIB, 'the list wins over the template read', 'return admissionReportView(jobReport) ?? admissionReportView(detailReport) ?? admissionReportView(rowReport)', 'return admissionReportView(jobReport) ?? admissionReportView(rowReport) ?? admissionReportView(detailReport)'],
+  [LIB, 'the template read is not given a row\'s ingest_source', ' || !isRecord(row.ingest_source)) return null', ') return null'],
+  [DIALOG, 'the template reads are not handed to the wrapper', ', studioShell, admissionDetails)}\n                {newTopicEnabled', ', studioShell)}\n                {newTopicEnabled'],
+  [DIALOG, 'the hook is given the wrong flag', 'useAdmissionDetails(ADMISSION_REPORT)', 'useAdmissionDetails(false)'],
 ]
 
 const started = Date.now()
@@ -854,6 +1432,7 @@ if (process.env.AR_MUTANT_TARGETS_ONLY) { // a quick look that every mutant stil
   console.log(`${MUTANTS.length} mutant targets match`); process.exit(0)
 }
 fixtureChecks()
+detailFixtureChecks()
 await suite(branchSources)
 const total = checks
 if (process.env.AR_NO_MUTANTS) { console.log(`PASS (no mutants run): studio template admission report (${total} checks)`); process.exit(0) }
@@ -863,7 +1442,8 @@ for (const [rel, name, from, to] of MUTANTS) {
   const source = branchSources[rel]
   assert.equal(source.split(from).length, 2, `mutant "${name}" must match exactly one place in ${rel}`)
   let failure = null
-  try { await suite({ ...branchSources, [rel]: source.replace(from, () => to) }, { source: rel !== DIALOG, light: true }) } catch (error) { failure = error }
+  // a mutant of the dialog or of the route is meant to be caught by what it DOES, not by its text (the pins compare those files to the base's, line for line)
+  try { await suite({ ...branchSources, [rel]: source.replace(from, () => to) }, { source: rel !== DIALOG, route: rel !== ROUTE, light: true }) } catch (error) { failure = error }
   if (!failure) { survivors.push(name); console.log(`  MUTANT SURVIVED: ${name}`); continue }
   caught++
   console.log(`  mutation caught: ${name} (${String(failure.message).split('\n')[0].slice(0, 100)})`)

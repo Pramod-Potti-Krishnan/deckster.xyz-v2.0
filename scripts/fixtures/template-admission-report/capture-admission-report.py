@@ -11,6 +11,7 @@ Nothing in the JSON is hand-written. The chain run for every case is the real on
      -> job.upload_ref -> template_configs.ingest_source.admission_report, job checkpoint.admission_report
   Director  GET /jobs/{id}      -> body["admission_report"]   (stage_template_router.py, object or null)
   Director  GET /templates      -> each row's admission_report without its slides (template_store.list_templates + list_view)
+  Director  GET /templates/{id} -> the whole row (TemplateSnapshot.model_dump); the report, with its slides, is at ingest_source.admission_report
 
 Director's own offline world is used (tests/test_composer_admission_report.py + tests/test_composer_template_progress.py: the real router, the real
 worker client, the real template store, an in-memory template table, a scripted Composer transport). The only synthetic inputs are the RAW
@@ -21,7 +22,8 @@ key, no model call, no deck text (synthetic ids and counts only).
 Run (Director checkout of branch seat2/director-admission-report, Composer checkout of seat2/composer-p3-4-floor-report; system python with
 fastapi, httpx, pydantic, pytest):
   DIRECTOR_SHA=<sha> COMPOSER_SHA=<sha> python3 capture-admission-report.py <director-dir> <composer-dir> <out-dir>
-writes <out-dir>/director-admission-report-reads.json and <out-dir>/director-admission-report-big-deck.json (the 450-slide case, kept apart for its size).
+writes <out-dir>/director-admission-report-reads.json and <out-dir>/director-admission-report-big-deck.json (the 450-slide case, kept apart for its size),
+and <out-dir>/director-admission-report-detail.json (the template detail read, GET /templates/{id}, of every case that saved a template).
 """
 import asyncio
 import copy
@@ -139,6 +141,14 @@ def prepared(user_report, raw_report=None):
     return {"stage_template": tpt.final_carrier(), "capacity_summary": {"admission": admission}}
 
 
+async def detail_read(client, template_id):
+    """GET /templates/{id} of the template the job saved (None when it saved none: a refusal): the whole row, as Director's router dumps it."""
+    if not template_id:
+        return None
+    response = await client.get("/api/template-ingest/stage/templates/" + template_id)
+    return {"template_id": template_id, "status_code": response.status_code, "json": response.json()}
+
+
 async def reads(state, *, with_template=True):
     async with state.client() as client:
         response = await client.post("/api/template-ingest/stage/upload-reference", json={
@@ -147,7 +157,8 @@ async def reads(state, *, with_template=True):
         job_id = response.json()["job_id"]
         job = await client.get("/api/template-ingest/stage/jobs/" + job_id)
         listing = await client.get("/api/template-ingest/stage/templates")
-    return {"job": {"status_code": job.status_code, "json": job.json()}, "list": {"status_code": listing.status_code, "json": listing.json()}}
+        detail = await detail_read(client, job.json().get("template_id"))
+    return {"job": {"status_code": job.status_code, "json": job.json()}, "list": {"status_code": listing.status_code, "json": listing.json()}, "detail": detail}
 
 
 def run_case(*, director_flag=True, progress_on=False, final=None, script=None):
@@ -235,13 +246,14 @@ def scenarios():
             async with state.client() as client:
                 response = await client.get("/api/template-ingest/stage/jobs/" + seen["job"].job_id)
                 listing = await client.get("/api/template-ingest/stage/templates")
-            return {"status_code": response.status_code, "json": response.json()}, {"status_code": listing.status_code, "json": listing.json()}
-        mid_job, mid_list = asyncio.run(midrun())
+                detail = await detail_read(client, response.json().get("template_id"))
+            return {"status_code": response.status_code, "json": response.json()}, {"status_code": listing.status_code, "json": listing.json()}, detail
+        mid_job, mid_list, mid_detail = asyncio.run(midrun())
     finally:
         mp.undo()
     assert mid_job["json"]["status"] == "cracking" and mid_job["json"]["admission_report"], "the mid-run read carries the report"
     out["progress-flow-mid-run"] = {"what": "Director's progress flow on: as-is template saved, Composer still locking (status cracking): the job read and the list already carry the report",
-                                    "director_flag": True, "composer_flag": True, "job": mid_job, "list": mid_list}
+                                    "director_flag": True, "composer_flag": True, "job": mid_job, "list": mid_list, "detail": mid_detail}
     out["progress-flow-done"] = {"what": "The same upload finished", "director_flag": True, "composer_flag": True, **strip(final)}
     return out
 
@@ -263,10 +275,20 @@ def main():
                "scripts/fixtures/template-admission-report/capture-admission-report.py regenerates these files. No network, no key, no model call, no deck text. "
                "The job rows are Director's test world (slide_count 1, a fixed clock and ids), not a real deck's.",
     }
+    compact = lambda value: json.dumps(value, separators=(",", ":"), ensure_ascii=False)  # noqa: E731  (one case per line keeps the file small)
+    without_detail = lambda entry: {key: value for key, value in entry.items() if key != "detail"}  # noqa: E731  (the detail read has its own file)
     for name, content in (("director-admission-report-reads.json", cases), ("director-admission-report-big-deck.json", big)):
-        compact = lambda value: json.dumps(value, separators=(",", ":"), ensure_ascii=False)  # noqa: E731  (one case per line keeps the file small)
         with open(os.path.join(OUT, name), "w", encoding="utf-8") as handle:
-            handle.write('{"source":' + compact(source) + ',\n"cases":{\n' + ",\n".join(compact(key) + ":" + compact(value) for key, value in content.items()) + "\n}}\n")
+            handle.write('{"source":' + compact(source) + ',\n"cases":{\n' + ",\n".join(compact(key) + ":" + compact(without_detail(value)) for key, value in content.items()) + "\n}}\n")
+    # The template detail read (GET /templates/{id}): the whole row Director's router dumps, for every case that saved a template.
+    detail_source = {**source, "director": {**source["director"], "code": source["director"]["code"] + [
+        "src/services/stage_template_router.py (GET /templates/{template_id}: lookup -> TemplateSnapshot.model_dump(mode='json'))",
+        "src/services/composer_library.py (identity: the front-door token + X-Composer-User-Id, the dependency of every route)",
+        "src/storage/template_store.py (get_template: select *, owner-scoped)"]}}
+    details = {key: {"what": value["what"], "director_flag": value["director_flag"], "composer_flag": value["composer_flag"], "detail": value["detail"]}
+               for key, value in {**cases, **big}.items() if value.get("detail")}
+    with open(os.path.join(OUT, "director-admission-report-detail.json"), "w", encoding="utf-8") as handle:
+        handle.write('{"source":' + compact(detail_source) + ',\n"cases":{\n' + ",\n".join(compact(key) + ":" + compact(value) for key, value in details.items()) + "\n}}\n")
     for name, entry in {**cases, **big}.items():
         body = entry["job"]["json"]
         rows = entry["list"]["json"].get("templates", [])

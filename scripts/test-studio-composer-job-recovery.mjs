@@ -143,6 +143,8 @@ function createLoader({ sources, env, stubs, globals }) {
       if (spec === '@/components/builder/composer-template-progress') return run(resolve(spec))
       // NEXT_PUBLIC_STUDIO_TEMPLATE_ADMISSION_REPORT (default off): the dialog's report wrapper is loaded for real (flag off it hands the row's block back as it is).
       if (spec === '@/components/builder/composer-admission-report') return run(resolve(spec))
+      // ... and the hook that reads a template's slides for its strip (flag off it is inert: nothing is asked)
+      if (spec === '@/components/builder/composer-admission-detail') return run(resolve(spec))
       throw new Error(`unexpected import ${spec} in ${rel}`)
     }
     vm.runInNewContext(transpiled.get(key), { module: mod, exports: mod.exports, process: { env }, console, ...globals, require: requireFor })

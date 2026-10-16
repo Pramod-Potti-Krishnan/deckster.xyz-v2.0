@@ -11,6 +11,14 @@ export const dynamic = 'force-dynamic'
 
 type RouteContext = { params: Promise<{ path: string[] }> }
 
+// Director's GET templates/{id} is the whole stored template (carrier, assets, every slide's HTML: it can run to megabytes, and a Vercel function may answer with 4.5 MB
+// at most). The Template library wants only the "What changed" report with its slides, at ingest_source.admission_report: that is all that goes on to the browser.
+function admissionTemplate(row: unknown) {
+  const record = (value: unknown): value is Record<string, unknown> => !!value && typeof value === 'object' && !Array.isArray(value)
+  const source = record(row) && record(row.ingest_source) ? row.ingest_source : {}
+  return { ...(record(row) && typeof row.id === 'string' ? { id: row.id } : {}), ingest_source: record(source.admission_report) ? { admission_report: source.admission_report } : {} }
+}
+
 async function proxy(req: NextRequest, context: RouteContext) {
   if (process.env.NEXT_PUBLIC_COMPOSER_LIBRARY_ENABLED !== 'true') {
     return NextResponse.json({ error: 'Not found' }, { status: 404 })
@@ -30,9 +38,12 @@ async function proxy(req: NextRequest, context: RouteContext) {
   const safeId = (value: string | undefined) => !!value && /^[a-zA-Z0-9_-]{1,200}$/.test(value)
   const list = req.method === 'GET' && path.length === 1 && path[0] === 'templates'
   const job = req.method === 'GET' && path.length === 2 && path[0] === 'jobs' && safeId(path[1])
+  // NEXT_PUBLIC_STUDIO_TEMPLATE_ADMISSION_REPORT (exact "true", default off): one read-only GET of a template (its "What changed" report with the slides). Flag off it is
+  // not a route at all: the request ends in the 404 below, as it always did. Only this exact shape: no sub-path (/uses, /infographics, /use), no other method.
+  const detail = process.env.NEXT_PUBLIC_STUDIO_TEMPLATE_ADMISSION_REPORT === 'true' && req.method === 'GET' && path.length === 2 && path[0] === 'templates' && safeId(path[1])
   const upload = req.method === 'POST' && path.length === 1 && path[0] === 'upload-reference'
   const use = req.method === 'POST' && path.length === 3 && path[0] === 'templates' && safeId(path[1]) && path[2] === 'use'
-  if (!list && !job && !upload && !use) return NextResponse.json({ error: 'Not found' }, { status: 404 })
+  if (!list && !job && !detail && !upload && !use) return NextResponse.json({ error: 'Not found' }, { status: 404 })
 
   let body: string | undefined
   if (upload || use) {
@@ -113,7 +124,8 @@ async function proxy(req: NextRequest, context: RouteContext) {
       redirect: 'error',
       signal: AbortSignal.timeout(25000),
     })
-    return NextResponse.json(await response.json(), { status: response.status, headers: { 'Cache-Control': 'no-store' } })
+    const answer = await response.json()
+    return NextResponse.json(detail && response.ok ? admissionTemplate(answer) : answer, { status: response.status, headers: { 'Cache-Control': 'no-store' } })
   } catch {
     return NextResponse.json({ error: 'Template library is temporarily unavailable.' }, { status: 502 })
   }

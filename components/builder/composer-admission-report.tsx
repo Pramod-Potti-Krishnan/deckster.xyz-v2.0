@@ -5,24 +5,31 @@
 // admissionReportAround(...): flag off it returns that block itself (the row is the tree it always was); flag on it returns the block with the report after it,
 // or the block itself when there is no report to show. The report's rules (what reads as one, the rank order, the emphasised outcomes, the strip) are in
 // lib/studio-template-admission-report.ts (pure, pinned by scripts/test-studio-template-admission-report.mjs); this file is the React around them.
+// A list report has no slides: when its list of changes is opened, the block asks `details` (composer-admission-detail.ts) for the template read once, and the
+// strip is drawn from it when it arrives (display only).
 import type { ReactNode } from 'react'
 import { EyeOff, Image as ImageIcon, Info, Layers, ScanSearch, Scissors, SlidersHorizontal, Type, Wrench } from 'lucide-react'
 import {
   ADMISSION_OUTCOME_WORDS, admissionReportFor, type AdmissionOutcomeOrOther, type AdmissionReportView,
 } from '@/lib/studio-template-admission-report'
+import type { AdmissionDetails } from '@/components/builder/composer-admission-detail'
 import './studio-template-admission-report.css'
 
 const OUTCOME_ICON: Record<AdmissionOutcomeOrOther, typeof Info> = {
   text_left_out: Type, floor: Layers, dropped: EyeOff, picture: ImageIcon, check: ScanSearch, rebuilt: Wrench, simplified: SlidersHorizontal, text_split: Scissors, other: Info,
 }
 
-/** One template's report: the headline, the changes in rank order (the four that need a look emphasised), and the slide strip when the answer has slides. */
-export function AdmissionReportBlock({ view, studioShell }: { view: AdmissionReportView; studioShell: boolean }) {
+/**
+ * One template's report: the headline, the changes in rank order (the four that need a look emphasised), and the slide strip when the answer has slides.
+ * `onOpen`, when given, is called each time the list of changes is opened by the person (the block holds no state of its own).
+ */
+export function AdmissionReportBlock({ view, studioShell, onOpen }: { view: AdmissionReportView; studioShell: boolean; onOpen?: () => void }) {
   return (
     <div data-studio-admission-report={studioShell ? 'true' : undefined} role="group" aria-label="What changed" className="space-y-2 rounded-md bg-muted/40 p-3 text-xs">
       <p className="font-medium">What changed</p>
       <p data-studio-admission-headline={studioShell ? 'true' : undefined} className="text-muted-foreground">{view.headline}</p>
-      {view.rows.length > 0 && <details data-studio-admission-details={studioShell ? 'true' : undefined} open={view.open}>
+      {view.rows.length > 0 && <details data-studio-admission-details={studioShell ? 'true' : undefined} open={view.open}
+        onToggle={onOpen && (event => { if (event.currentTarget.open) onOpen() })}>
         <summary className="cursor-pointer text-muted-foreground">List of changes</summary>
         <ul aria-label="Changes" className="mt-2 max-h-56 space-y-1.5 overflow-y-auto">
           {view.rows.map((row, index) => {
@@ -50,10 +57,17 @@ export function AdmissionReportBlock({ view, studioShell }: { view: AdmissionRep
 
 /**
  * The row's first block `node`, with the template's report after it. `template.admission_report` is the library list's (no slides); `jobReport` is the tracked
- * upload's job read for this template (with slides), or null: it wins when it reads as a report. Flag off, or no report to show: `node` itself.
+ * upload's job read for this template (with slides), or null: it wins when it reads as a report. `details` (composer-admission-detail.ts) holds the template read the
+ * library asks for once when a report without slides is opened: it comes next, then the list's. Flag off, or no report to show: `node` itself.
  */
-export function admissionReportAround(enabled: boolean, template: object, jobReport: unknown, node: ReactNode, studioShell: boolean): ReactNode {
+export function admissionReportAround(enabled: boolean, template: object, jobReport: unknown, node: ReactNode, studioShell: boolean, details?: AdmissionDetails): ReactNode {
   if (!enabled) return node
-  const view = admissionReportFor(jobReport, (template as { admission_report?: unknown }).admission_report)
-  return view ? <>{node}<AdmissionReportBlock view={view} studioShell={studioShell} /></> : node
+  const id = (template as { id?: unknown }).id
+  const templateId = typeof id === 'string' ? id : null
+  const view = admissionReportFor(jobReport, (template as { admission_report?: unknown }).admission_report, templateId === null ? null : details?.report(templateId))
+  if (!view) return node
+  // No slides yet and a list to open: the strip is asked for once, when the list is opened (at once when it opens by itself).
+  const askable = templateId !== null && view.strip === null && view.rows.length > 0 && details !== undefined
+  if (askable && view.open) details.want(templateId)
+  return <>{node}<AdmissionReportBlock view={view} studioShell={studioShell} onOpen={askable ? () => details.open(templateId) : undefined} /></>
 }

@@ -123,8 +123,9 @@ function createLoader({ sources, env, stubs, globals }) {
     const requireFor = spec => {
       if (spec in stubs) return stubs[spec]
       if (spec.endsWith('.css')) return {}
-      // the dialog's report wrapper (NEXT_PUBLIC_STUDIO_TEMPLATE_ADMISSION_REPORT, default off) is loaded for real: flag off it hands the row's block back as it is
-      if (spec.startsWith('@/lib/') || spec === '@/components/builder/composer-template-progress' || spec === '@/components/builder/composer-admission-report') return run(resolve(spec))
+      // the dialog's report wrapper and the hook that reads a template's slides (NEXT_PUBLIC_STUDIO_TEMPLATE_ADMISSION_REPORT, default off) are loaded for real: flag off the
+      // wrapper hands the row's block back as it is and the hook asks for nothing
+      if (spec.startsWith('@/lib/') || spec === '@/components/builder/composer-template-progress' || spec === '@/components/builder/composer-admission-report' || spec === '@/components/builder/composer-admission-detail') return run(resolve(spec))
       throw new Error(`unexpected import ${spec} in ${rel}`)
     }
     vm.runInNewContext(transpiled.get(key), { module: mod, exports: mod.exports, process: { env }, console, ...globals, require: requireFor })
