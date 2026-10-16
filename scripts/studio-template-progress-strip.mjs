@@ -6,6 +6,8 @@
 // Every addition is inert with the flag off: `templateProgress` is the hook's inert answer (enabled false, no view, `uploadHeld` false, `held()` false,
 // `around(node)` returns `node` itself), so each expression below has the value the line had before.
 
+import { stripAdmissionReport } from './studio-template-admission-report-strip.mjs'
+
 const DIALOG = 'components/builder/composer-library-dialog.tsx'
 
 export const DIALOG_ADDITIONS = [
@@ -25,7 +27,10 @@ export const DIALOG_ADDITIONS = [
   [/ \|\| templateProgress\.held\(template\.id, 'new-topic'\)/, ''],
 ]
 
-/** `text` of repo file `rel` without this change's additions (any other file comes back as it is). */
+/**
+ * `text` of repo file `rel` without this change's additions (any other file comes back as it is). The "What changed" admission report's lines
+ * (scripts/studio-template-admission-report-strip.mjs) come out first, so the pins that hold the dialog to an older base keep holding.
+ */
 export function stripTemplateProgress(rel, text) {
-  return rel === DIALOG ? DIALOG_ADDITIONS.reduce((out, [from, to]) => out.replace(from, to), text) : text
+  return rel === DIALOG ? DIALOG_ADDITIONS.reduce((out, [from, to]) => out.replace(from, to), stripAdmissionReport(rel, text)) : text
 }

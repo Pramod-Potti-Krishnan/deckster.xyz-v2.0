@@ -22,6 +22,8 @@ import {
 import { composerBriefLengthValid, composerBriefLimitMessage, composerBriefMax } from '@/lib/composer-long-brief'
 // NEXT_PUBLIC_STUDIO_TEMPLATE_PROGRESS (default off): an uploaded template is read in the background and shown as progress; Use original opens as soon as the as-is template is saved.
 import { useTemplateProgress } from '@/components/builder/composer-template-progress'
+// NEXT_PUBLIC_STUDIO_TEMPLATE_ADMISSION_REPORT (default off): a template's "What changed" report (Director's admission_report) is drawn under its row.
+import { admissionReportAround } from '@/components/builder/composer-admission-report'
 import type { ComposerLibraryRequest } from '@/lib/studio-composer-popups'
 import { studioTemplateShownName } from '@/lib/studio-template-display-name'
 import './studio-composer-library.css'
@@ -30,6 +32,8 @@ interface PendingJob { job_id: string; session_id: string; kind: 'upload' | 'use
 // PASS2B G38 (NEXT_PUBLIC_STUDIO_TEMPLATE_DISPLAY_NAMES, default off): templates are drawn by a short display name; the full stored name stays in a tooltip and in every payload.
 const TEMPLATE_DISPLAY_NAMES = process.env.NEXT_PUBLIC_STUDIO_TEMPLATE_DISPLAY_NAMES === 'true'
 const displayName = (name: string) => studioTemplateShownName(name, TEMPLATE_DISPLAY_NAMES)
+// NEXT_PUBLIC_STUDIO_TEMPLATE_ADMISSION_REPORT (exact "true", default off). Off, admissionReportAround hands the row's block back as it is.
+const ADMISSION_REPORT = process.env.NEXT_PUBLIC_STUDIO_TEMPLATE_ADMISSION_REPORT === 'true'
 
 export function ComposerLibraryDialog({ open, onOpenChange, request = null, onRequestTaken }: {
   open: boolean
@@ -280,7 +284,7 @@ export function ComposerLibraryDialog({ open, onOpenChange, request = null, onRe
           {loading && !templates.length ? <p className="text-sm text-muted-foreground">Loading templates…</p>
             : !templates.length ? <p className="text-sm text-muted-foreground">Your uploaded templates will appear here.</p>
               : templates.map(template => <div data-studio-composer-record={studioShell ? template.id : undefined} key={template.id} className="space-y-3 rounded-md border p-3">
-                <div data-studio-composer-record-row={studioShell ? 'true' : undefined} className="flex items-center justify-between gap-3">
+                {admissionReportAround(ADMISSION_REPORT, template, templateProgress.report(template.id), <div data-studio-composer-record-row={studioShell ? 'true' : undefined} className="flex items-center justify-between gap-3">
                   <div data-studio-composer-record-info={studioShell ? 'true' : undefined} className="min-w-0">
                     <p data-studio-composer-name={studioShell ? 'true' : undefined} className="truncate text-sm font-medium" title={template.name}>{displayName(template.name)}</p>
                     <p data-studio-composer-count={studioShell ? 'true' : undefined} className="text-xs text-muted-foreground">{template.stage_template_summary?.slide_count ?? template.slide_count ?? 0} slides</p>
@@ -291,7 +295,7 @@ export function ComposerLibraryDialog({ open, onOpenChange, request = null, onRe
                     {newTopicEnabled && <Button data-studio-composer-action={studioShell ? 'new-topic' : undefined} size="sm" variant="outline" disabled={busy || !userId || templateProgress.held(template.id, 'new-topic')}
                       onClick={() => { setNewTopicTemplateId(template.id); setNewBrief(''); setError(null) }}>New topic</Button>}
                   </div>
-                </div>
+                </div>, studioShell)}
                 {newTopicEnabled && newTopicTemplateId === template.id && <div data-studio-composer-topic={studioShell ? 'true' : undefined} className="space-y-2">
                   <label htmlFor="composer-new-brief" className="text-sm font-medium">Describe the new presentation</label>
                   <Textarea id="composer-new-brief" value={newBrief} disabled={busy} maxLength={composerBriefMax(longBriefEnabled)}

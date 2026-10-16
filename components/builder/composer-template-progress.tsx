@@ -35,10 +35,15 @@ export interface TemplateProgressControls {
   held: (templateId: string, action: TemplateRowAction) => boolean
   /** `node` (the dialog's own progress line) with the card for the tracked job above it; `node` itself when nothing is tracked. */
   around: (node: ReactNode, studioShell: boolean) => ReactNode
+  /**
+   * The `admission_report` of the tracked job's latest read when that job saved `templateId` (Director's job read: the whole report, with its slides), else null.
+   * The "What changed" admission report under the template's row reads it (components/builder/composer-admission-report.tsx); nothing here looks inside it.
+   */
+  report: (templateId: string) => unknown
 }
 
 const INERT: TemplateProgressControls = {
-  enabled: false, view: null, uploadHeld: false, track() {}, held: () => false, around: node => node,
+  enabled: false, view: null, uploadHeld: false, track() {}, held: () => false, around: node => node, report: () => null,
 }
 
 export function useTemplateProgress({ enabled, userId, refresh, onEnd, retryUpload }: {
@@ -131,6 +136,7 @@ export function useTemplateProgress({ enabled, userId, refresh, onEnd, retryUplo
     uploadHeld: templateUploadHeld(!!tracked, view, problem !== null),
     track,
     held: (templateId, action) => templateActionHeld(view, templateId, action),
+    report: templateId => job && job.template_id === templateId ? (job as { admission_report?: unknown }).admission_report ?? null : null,
     // `around` runs while the dialog draws, after its own handlers exist: `retryUpload` is asked here, not when the hook is called.
     around: (node, studioShell) => {
       if (!(tracked && (view || problem))) return node
