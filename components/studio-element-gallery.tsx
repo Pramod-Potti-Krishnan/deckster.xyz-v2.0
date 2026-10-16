@@ -3,6 +3,7 @@
 import type { ReactNode } from "react"
 import type { LucideIcon } from "lucide-react"
 import { DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel } from "@/components/ui/dropdown-menu"
+import { STUDIO_ELEMENT_GALLERY_FIT_ENABLED, studioElementGalleryFitProps } from "@/lib/studio-element-gallery-fit"
 import "./studio-element-gallery.css"
 
 /**
@@ -149,6 +150,9 @@ const GALLERY_REASON_ID = "studio-element-gallery-disabled-reason"
 const slug = (label: string) => label.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "")
 
 /**
+ * PASS2D B3a (NEXT_PUBLIC_STUDIO_ELEMENT_GALLERY_FIT, default off): `studioElementGalleryFitProps` is empty with the flag off, so the content gets exactly the props it always had;
+ * on, it adds a collision margin and the `data-studio-element-gallery-fit` marker the stylesheet's narrow-width rules hang on (lib/studio-element-gallery-fit.ts).
+ *
  * `disabledReason` (PASS2B batch 1, NEXT_PUBLIC_STUDIO_DISABLED_REASONS; the viewer passes it only with that flag on): why the disabled cards are
  * disabled ("Loading the slide…", "Exit Template Mode to add elements", ...). Shown as one line under the header (role="status"), and each
  * disabled card gets it as its title and in aria-describedby. Not passed (undefined): the gallery is exactly what it was.
@@ -162,6 +166,7 @@ export function StudioElementGalleryMenu({ items, disabledReason }: { items: rea
       align="start"
       sideOffset={8}
       className="p-1"
+      {...studioElementGalleryFitProps(STUDIO_ELEMENT_GALLERY_FIT_ENABLED)}
     >
       <DropdownMenuLabel className="seg-head">
         <span className="seg-title">Add an element</span>
