@@ -76,6 +76,7 @@ import { STUDIO_RAIL_SLIDE_IDENTITY_ENABLED } from '@/lib/slide-rail-identity'
 import { STUDIO_DECK_MUTATION_REFRESH_ENABLED, onSlideRailRefreshRequest } from '@/lib/studio-deck-mutation-refresh'
 import { STUDIO_SLIDE_DELETE_CANVAS_REFRESH_ENABLED, studioSlideDeleteRefresh } from '@/lib/studio-slide-delete-refresh' // PASS2D B4
 import { StudioSlideDeleteRefreshVeil } from '@/components/builder/studio-slide-delete-refresh-veil' // PASS2D B4
+import { STUDIO_SLIDE_OPS_VIA_VIEWER_ENABLED, SLIDE_OP_VIEWER_TIMEOUT_MS, isSlideOpViewerAction, slideTotalAfterAck } from '@/lib/studio-slide-ops-via-viewer' // SLIDE-OPS-VIA-VIEWER
 import { STUDIO_DECK_CHANGED_NOTICE_ENABLED, reportDeckChange, reportLayoutCommandAck, reportOwnDeckEdit, reportViewerDeckState } from '@/lib/studio-deck-changed-notice'
 import { STUDIO_SLIDE_RAIL_V2, SLIDE_RAIL_V2_DEFAULT_WIDTH } from '@/lib/studio-slide-rail-v2'
 import { STUDIO_TOP_BAR_V2_ENABLED, publishStudioDeckSaveState } from '@/lib/studio-top-bar-v2'
@@ -3124,6 +3125,18 @@ export function PresentationViewer({
       'getElementThemeVariants', 'getSelectionInfo',
     ].includes(action)) viewerInteractionIntentRef.current += 1
 
+    if (STUDIO_SLIDE_OPS_VIA_VIEWER_ENABLED && isSlideOpViewerAction(action)) { // SLIDE-OPS-VIA-VIEWER: the slide panel's duplicate / delete / layout change are the viewer's own commands
+      const loadRevisionAtSend = studioComposeLoadRevisionRef.current // SLIDE-OPS-VIA-VIEWER: the frame lifetime when the command goes out
+      const result = await sendCommand(iframeRef.current, action, params, { timeoutMs: SLIDE_OP_VIEWER_TIMEOUT_MS }) // SLIDE-OPS-VIA-VIEWER: it saves what is pending first, so it gets the mutating-command budget
+      if (action === 'deleteSlides' && STUDIO_SLIDE_DELETE_CANVAS_REFRESH_ENABLED && studioShell) studioSlideDeleteRefresh.acknowledged({ revisionAtSend: loadRevisionAtSend, revisionNow: studioComposeLoadRevisionRef.current }) // SLIDE-OPS-VIA-VIEWER: the same veil path as the rail's delete
+      const newTotal = slideTotalAfterAck(action, result) // SLIDE-OPS-VIA-VIEWER: the rail's own count commits for a delete or a duplicate, so the footer and the rail agree before the reloaded frame reports
+      if (newTotal !== null) { // SLIDE-OPS-VIA-VIEWER
+        setTotalSlides(newTotal) // SLIDE-OPS-VIA-VIEWER
+        if (STUDIO_SLIDE_COUNT_SYNC_ENABLED) setVisualTotalSlides(visualTotalAfterCommit({ totalBefore: slideTotalsRef.current.total, visualBefore: slideTotalsRef.current.visual, totalAfter: newTotal })) // SLIDE-OPS-VIA-VIEWER
+        setSlidesModifiedByCrud(true) // SLIDE-OPS-VIA-VIEWER
+      } // SLIDE-OPS-VIA-VIEWER
+      return result // SLIDE-OPS-VIA-VIEWER
+    } // SLIDE-OPS-VIA-VIEWER
     // Direct Layout Service command - send to iframe
     if (commandType === 'layout-service') {
       debugLog(`[ElementCommand] Layout Service: ${action}`, params)

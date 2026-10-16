@@ -38,6 +38,7 @@ import {
   duplicateSlide,
   deleteSlide,
 } from '@/lib/layout-service-client'
+import { STUDIO_SLIDE_OPS_VIA_VIEWER_ENABLED, runSlideOpViaViewer, duplicateSlideCommand, deleteSlideCommand, changeSlideLayoutCommand } from '@/lib/studio-slide-ops-via-viewer' // SLIDE-OPS-VIA-VIEWER
 
 interface SlideFormatPanelProps {
   slideIndex: number
@@ -205,7 +206,10 @@ export function SlideFormatPanel({
     setIsProcessing(true)
 
     try {
-      const result = await duplicateSlide(presentationId, slideIndex)
+      // SLIDE-OPS-VIA-VIEWER: with the flag on the viewer runs it (it saves what is pending first); off, this panel calls Layout itself.
+      const result = STUDIO_SLIDE_OPS_VIA_VIEWER_ENABLED
+        ? await runSlideOpViaViewer(onSendCommand, duplicateSlideCommand(slideIndex), 'Failed to duplicate slide')
+        : await duplicateSlide(presentationId, slideIndex)
       if (result.success) {
         onSlideAdded?.()
       } else {
@@ -224,7 +228,10 @@ export function SlideFormatPanel({
     setIsProcessing(true)
 
     try {
-      const result = await deleteSlide(presentationId, slideIndex)
+      // SLIDE-OPS-VIA-VIEWER: the viewer's deleteSlides command (the slide rail's), so pending edits are saved first (and the canvas veil of the slide-delete refresh applies).
+      const result = STUDIO_SLIDE_OPS_VIA_VIEWER_ENABLED
+        ? await runSlideOpViaViewer(onSendCommand, deleteSlideCommand(slideIndex), 'Failed to delete slide')
+        : await deleteSlide(presentationId, slideIndex)
       if (result.success) {
         onSlideDeleted?.()
       } else {
@@ -243,9 +250,12 @@ export function SlideFormatPanel({
     setIsProcessing(true)
 
     try {
-      const result = await changeSlideLayout(presentationId, slideIndex, newLayout, {
-        preserve_content: true,
-      })
+      // SLIDE-OPS-VIA-VIEWER: the viewer's changeSlideLayout command, same reason.
+      const result = STUDIO_SLIDE_OPS_VIA_VIEWER_ENABLED
+        ? await runSlideOpViaViewer(onSendCommand, changeSlideLayoutCommand(slideIndex, newLayout), 'Failed to change layout')
+        : await changeSlideLayout(presentationId, slideIndex, newLayout, {
+          preserve_content: true,
+        })
       if (result.success) {
         onLayoutChanged?.()
       } else {

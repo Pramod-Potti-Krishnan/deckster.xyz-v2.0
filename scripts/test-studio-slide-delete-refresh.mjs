@@ -213,7 +213,8 @@ function suiteViewer(src = {}) {
   // the viewer reads the flag only through the helper (one reader of the environment)
   check(assert.doesNotMatch, viewer, new RegExp(`process\\.env\\.${FLAG}`))
   // nothing else in the viewer mentions the store
-  const mentions = lines.filter(line => /studioSlideDeleteRefresh|StudioSlideDeleteRefreshVeil|STUDIO_SLIDE_DELETE_CANVAS_REFRESH_ENABLED|deleteLoadRevision/.test(line))
+  // (+ the one SLIDE-OPS-VIA-VIEWER line that takes this same veil path for the slide panel's delete; scripts/test-studio-slide-ops-via-viewer.mjs pins it)
+  const mentions = lines.filter(line => /studioSlideDeleteRefresh|StudioSlideDeleteRefreshVeil|STUDIO_SLIDE_DELETE_CANVAS_REFRESH_ENABLED|deleteLoadRevision/.test(line) && !line.includes('SLIDE-OPS-VIA-VIEWER'))
   check(assert.equal, mentions.length, INSERTS.length, 'only the marked lines mention the store, the veil, the flag or the captured revision')
 }
 function suiteWiring(src = {}) {

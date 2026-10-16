@@ -368,7 +368,8 @@ function wiringChecks() {
   const baseViewer = baseSource(VIEWER), baseStripText = baseSource(STRIP)
   if (baseViewer && baseStripText) {
     // + PASS2D B4 (NEXT_PUBLIC_STUDIO_SLIDE_DELETE_CANVAS_REFRESH) marks its own viewer lines "PASS2D B4"; scripts/test-studio-slide-delete-refresh.mjs pins them, so they are not counted here.
-    const changed = (rel, base) => git(['diff', '--no-color', '-U0', BASE_COMMIT, '--', rel]).split('\n').filter(line => /^[+-](?![+-])/.test(line) && !line.includes('PASS2D B4'))
+    // + SLIDE-OPS-VIA-VIEWER (NEXT_PUBLIC_STUDIO_SLIDE_OPS_VIA_VIEWER) marks its own viewer lines "SLIDE-OPS-VIA-VIEWER"; scripts/test-studio-slide-ops-via-viewer.mjs pins them, so they are not counted here.
+    const changed = (rel, base) => git(['diff', '--no-color', '-U0', BASE_COMMIT, '--', rel]).split('\n').filter(line => /^[+-](?![+-])/.test(line) && !line.includes('PASS2D B4') && !line.includes('SLIDE-OPS-VIA-VIEWER'))
     for (const [rel, base] of [[VIEWER, baseViewer], [STRIP, baseStripText]]) {
       for (const line of changed(rel)) assert.doesNotMatch(line, COMMAND, `${rel} diff touches a Layout command: ${line}`)
     }
