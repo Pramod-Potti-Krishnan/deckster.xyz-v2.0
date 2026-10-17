@@ -5,6 +5,8 @@ import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth-options'
 import { isKgEntitled } from '@/lib/kg-entitlement'
 import { prisma } from '@/lib/prisma'
+import { isWsBqClaimEnabled } from '@/lib/quota/build-quota'
+import { mintBuildQuotaClaim } from '@/lib/quota/build-quota-claim'
 import { getUserSubscription } from '@/lib/stripe/stripe-utils'
 
 export const runtime = 'nodejs'
@@ -79,6 +81,14 @@ export async function GET(request: NextRequest) {
     console.error('[Director WS Auth] live KG entitlement lookup failed:', error)
   }
 
+  // Signed build-quota claim (contract F-quota-bq-claim v1). Dark: only minted
+  // when DECKSTER_WS_BQ_CLAIM_ENABLED=true; off leaves the payload and this
+  // response exactly as they were. It is computed from the live database by
+  // user id alone; the session JWT's tier / approved / wallet are
+  // client-writable and are never read for it. A lookup failure never fails
+  // the mint: it becomes ok:null and Director decides whether to retry.
+  const bq = isWsBqClaimEnabled() ? await mintBuildQuotaClaim(session.user.id) : null
+
   const now = Math.floor(Date.now() / 1000)
   const payload = base64UrlJson({
     sub: session.user.id,
@@ -86,6 +96,7 @@ export async function GET(request: NextRequest) {
     iat: now,
     exp: now + TOKEN_TTL_SECONDS,
     kg_entitled: kgEntitled,
+    ...(bq ? { bq } : {}),
   })
   const signature = createHmac('sha256', secret).update(payload).digest('base64url')
 
@@ -93,5 +104,8 @@ export async function GET(request: NextRequest) {
     auth_enabled: true,
     auth_token: `${payload}.${signature}`,
     expires_in: TOKEN_TTL_SECONDS,
+    // Tells the browser a claim rides in this token, so it re-mints on
+    // redeem / top-up / checkout. Absent with the flag off.
+    ...(bq ? { bq_claim: true } : {}),
   })
 }

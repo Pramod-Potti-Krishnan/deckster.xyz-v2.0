@@ -8,6 +8,7 @@ import { Input } from '@/components/ui/input'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Sparkles, Ticket, LogOut, Loader2 } from 'lucide-react'
 import Link from 'next/link'
+import { requestBqClaimRefresh } from '@/lib/ws-bq-refresh'
 
 const PLAN_LABELS: Record<string, string> = {
   starter: 'Starter',
@@ -80,6 +81,9 @@ function RedeemContent() {
       } catch {
         /* ignore */
       }
+      // The plan and wallet just changed in the database: any open builder
+      // re-mints its Director token now (inert unless the build-quota claim is on).
+      requestBqClaimRefresh('redeem')
       await update({
         approved: true,
         walletBalanceCents: data.balanceCents,
