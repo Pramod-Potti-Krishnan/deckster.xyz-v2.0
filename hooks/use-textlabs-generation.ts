@@ -108,6 +108,10 @@ import {
   pickElementFreeSpot,
   type FreeSpot,
 } from '@/lib/element-free-spot'
+// IMAGE-PENDING-WRITE begin
+import { STUDIO_IMAGE_PENDING_WRITE_ENABLED, imageJobWritesPending, type ImageJobEnd, type ImagePendingJob } from '@/lib/studio-image-pending-write'
+import { startImagePendingJob } from '@/lib/studio-image-pending-runtime'
+// IMAGE-PENDING-WRITE end
 
 export type TextLabsGenerationResult =
   | { status: 'inserted'; presentationId: string | null; slideIndex: number; elementIds: string[] }
@@ -559,6 +563,10 @@ export function useTextLabsGeneration({
     let captionRefineState: CaptionRowRefineState | null = null
     let captionRowInserted = false
     let captionRowInsertFailed = false
+    // IMAGE-PENDING-WRITE begin (NEXT_PUBLIC_STUDIO_IMAGE_PENDING_WRITE): the stored "image job pending" state of a hero-background image job, and how the job ended.
+    let imagePendingJob: ImagePendingJob | null = null
+    let imagePendingOutcome: ImageJobEnd = 'failed'
+    // IMAGE-PENDING-WRITE end
     const captionNotices: string[] = []
     let dispatchedDiagramRequestFingerprint: string | null = null
     let diagramRequestWasDispatched = false
@@ -659,6 +667,7 @@ export function useTextLabsGeneration({
     const cleanupGenerationLifecycle = async () => {
       if (generationLifecycleCleaned) return
       generationLifecycleCleaned = true
+      if (imagePendingJob) void imagePendingJob.end(imagePendingOutcome) // IMAGE-PENDING-WRITE: ready or failed, in the background; never rejects
       const refineOverlayTargetSurvived = !refineElementDeleted
         || Boolean(refineContext && insertedElementIds.includes(refineContext.elementId))
       if ((!studio || presentationIsStillAuthoritative())
@@ -1406,6 +1415,11 @@ export function useTextLabsGeneration({
     const lifecycleMutationId = createLayoutMutationId(
       refineContext ? `refine:${refineContext.elementId}` : 'generate',
     )
+    // IMAGE-PENDING-WRITE begin: the request is about to go out. A hero-background image job stores "pending" on its slide (in the background; the job never waits for it).
+    if (STUDIO_IMAGE_PENDING_WRITE_ENABLED && imageJobWritesPending({ componentType: formData.componentType, slotName: formData.slotName })) {
+      imagePendingJob = startImagePendingJob(expectedPresentationTarget.presentationId ?? '', generationSlideIndex)
+    }
+    // IMAGE-PENDING-WRITE end
 
     try {
       const sessionId = await textLabsSession.ensureSession(controller.signal)
@@ -2134,6 +2148,7 @@ export function useTextLabsGeneration({
           + (captionNotices.length > 0 ? `. ${captionNotices.join(' ')}` : ''),
       })
       console.log(`[TextLabs] Generated ${elements.length} ${formData.componentType} element(s)`)
+      imagePendingOutcome = 'ready' // IMAGE-PENDING-WRITE
       return { status: 'inserted', presentationId: expectedPresentationTarget.presentationId,
         slideIndex: generationSlideIndex, elementIds: [...insertedElementIds] }
     } catch (err) {

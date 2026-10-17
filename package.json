@@ -131,7 +131,8 @@
     "test:studio-element-gallery": "node scripts/test-studio-element-gallery.mjs",
     "test:studio-element-gallery-fit": "node scripts/test-studio-element-gallery-fit.mjs",
     "test:studio-slide-delete-refresh": "node scripts/test-studio-slide-delete-refresh.mjs",
-    "test:studio-slide-ops-via-viewer": "node scripts/test-studio-slide-ops-via-viewer.mjs"
+    "test:studio-slide-ops-via-viewer": "node scripts/test-studio-slide-ops-via-viewer.mjs",
+    "test:studio-image-pending-write": "node scripts/test-studio-image-pending-write.mjs"
   },
   "dependencies": {
     "@auth/prisma-adapter": "^2.10.0",

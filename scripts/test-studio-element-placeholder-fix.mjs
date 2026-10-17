@@ -408,7 +408,11 @@ await check('flag: exact "true", Studio shell only, documented off in .env.examp
   // The two original handlers are byte-for-byte the base's: the fix only wraps them.
   if (baseAvailable) {
     const printer = ts.createPrinter({ removeComments: true })
+    // IMAGE-PENDING-WRITE (NEXT_PUBLIC_STUDIO_IMAGE_PENDING_WRITE) later added marked lines to handleGenerate; with exactly those lines removed it is this base's
+    // (scripts/test-studio-image-pending-write.mjs proves the hook minus those lines is the base file, byte for byte).
+    const withoutImagePendingLines = source => { let inBlock = false; return source.split('\n').filter(line => { if (line.includes('// IMAGE-PENDING-WRITE begin')) { inBlock = true; return false } if (line.includes('// IMAGE-PENDING-WRITE end')) { inBlock = false; return false } return !inBlock && !line.includes('// IMAGE-PENDING-WRITE') }).join('\n') }
     const decl = (source, name) => {
+      source = withoutImagePendingLines(source)
       const sf = ts.createSourceFile('x.ts', source, ts.ScriptTarget.Latest, true, ts.ScriptKind.TS)
       let found
       const visit = node => { if (!found && ts.isVariableDeclaration(node) && node.name.getText(sf) === name) found = printer.printNode(ts.EmitHint.Unspecified, node.initializer, sf); else ts.forEachChild(node, visit) }
