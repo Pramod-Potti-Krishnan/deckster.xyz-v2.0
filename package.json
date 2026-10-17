@@ -111,6 +111,8 @@
     "test:studio-new-session-theme-policy": "node scripts/test-studio-new-session-theme-policy.mjs",
     "test:template-save-gate": "node scripts/test-template-save-gate.mjs",
     "test:upload-status-contract": "node scripts/test-upload-status-contract.mjs",
+    "test:upload-owner-id": "node scripts/test-upload-owner-id.mjs",
+    "test:identity-token": "node scripts/test-identity-token.mjs && node scripts/test-identity-token-client.mjs",
     "test:research-mode-contract": "node scripts/test-research-mode-contract.mjs",
     "test:researcher-ingest-status-auth": "node scripts/test-researcher-ingest-status-auth.mjs",
     "start": "next start",

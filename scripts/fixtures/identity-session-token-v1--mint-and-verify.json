@@ -1,0 +1,46 @@
+{
+  "contract": "identity/v1",
+  "provenance": "captured",
+  "on_uat": true,
+  "hop": "O15",
+  "state": "before",
+  "researcher_sha": "523cf9168a780b8d043006e83c29e06990330160",
+  "secret": "synthetic fixture value (not a real secret)",
+  "format": "v1.<b64url(session_id)>.<b64url(user_id)>.<exp>.<b64url(HMAC-SHA256(secret, 'sid|uid|exp'))>",
+  "description": "Deterministic test vector from K-06's own mint/verify (services/session_auth_report.py:141-190). The mint accepts ANY printable uid without '|', so an e-mail uid mints and verifies. Proposed: the mint route refuses a non-canonical uid, and the verifier rejects '@' under enforce.",
+  "mint_inputs": {
+    "session_id": "session-fixture-0001",
+    "exp": 1790000000,
+    "verify_now": 1789999100
+  },
+  "vector": {
+    "token_for_cuid": "v1.c2Vzc2lvbi1maXh0dXJlLTAwMDE.Y3VpZC1maXh0dXJlLTAwMDE.1790000000.fg7lwbbKSSqUEgcTrzjMiePAz-yIpNY5TYbfoW9vK3o",
+    "verify_cuid": {
+      "state": "valid",
+      "session_id": "session-fixture-0001",
+      "user_id": "cuid-fixture-0001",
+      "exp": 1790000000
+    },
+    "verify_cuid_after_exp": {
+      "state": "expired",
+      "session_id": "session-fixture-0001",
+      "user_id": "cuid-fixture-0001",
+      "exp": 1790000000
+    },
+    "verify_wrong_secret": {
+      "state": "invalid",
+      "session_id": null,
+      "user_id": null,
+      "exp": null
+    },
+    "token_for_email_uid": "v1.c2Vzc2lvbi1maXh0dXJlLTAwMDE.dXNlckBleGFtcGxlLmludmFsaWQ.1790000000.mMz2Y2HpkxPdWIKZcR9v7NHOfYW87elY5t6dF3CpEd8",
+    "verify_email_uid": {
+      "state": "valid",
+      "session_id": "session-fixture-0001",
+      "user_id": "user@example.invalid",
+      "exp": 1790000000
+    },
+    "mint_uid_with_pipe": "refused: ValueError(invalid token claims)",
+    "mint_empty_uid": "refused: ValueError(invalid token claims)"
+  }
+}
