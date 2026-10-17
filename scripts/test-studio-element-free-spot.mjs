@@ -875,7 +875,11 @@ function wiringChecks() {
   if (!baseAvailable || !resultAvailable) { console.log(`  note: base commit ${BASE.slice(0, 8)} or result commit ${RESULT.slice(0, 8)} not in this clone: the diff checks are skipped`); return }
   // the handlers are the base's, except the two lines handleOpenPanel takes its start from
   const printer = ts.createPrinter({ removeComments: true })
+  // IMAGE-PENDING-WRITE (NEXT_PUBLIC_STUDIO_IMAGE_PENDING_WRITE) later added marked lines to handleGenerate; with exactly those lines removed it is this base's
+  // (scripts/test-studio-image-pending-write.mjs proves the hook minus those lines is the base file, byte for byte).
+  const withoutImagePendingLines = source => { let inBlock = false; return source.split('\n').filter(line => { if (line.includes('// IMAGE-PENDING-WRITE begin')) { inBlock = true; return false } if (line.includes('// IMAGE-PENDING-WRITE end')) { inBlock = false; return false } return !inBlock && !line.includes('// IMAGE-PENDING-WRITE') }).join('\n') }
   const decl = (source, name) => {
+    source = withoutImagePendingLines(source)
     const sf = ts.createSourceFile('x.ts', source, ts.ScriptTarget.Latest, true, ts.ScriptKind.TS)
     let found
     const visit = node => { if (!found && ts.isVariableDeclaration(node) && node.name.getText(sf) === name) found = printer.printNode(ts.EmitHint.Unspecified, node.initializer, sf); else ts.forEachChild(node, visit) }
