@@ -6,11 +6,14 @@
 //
 //   - GET /api/template-ingest/stage/jobs/{job_id}   -> `admission_report`: the whole report (with `slides`), or null until Composer has sent one. With Director's flag
 //     off the key is absent. It arrives with the early as-is template, before locking ends;
-//   - GET /api/template-ingest/stage/templates       -> each row's `admission_report` WITHOUT `slides`; a row with no stored report has no key.
+//   - GET /api/template-ingest/stage/templates       -> each row's `admission_report` WITHOUT `slides`; a row with no stored report has no key;
+//   - GET /api/template-ingest/stage/templates/{id}  -> the whole row (section 2.3): the report WITH `slides` at `ingest_source.admission_report`. The Studio proxy
+//     (app/api/composer-library) lets one read-only GET of it through with the flag on, trimmed to `{ id, ingest_source: { admission_report } }`.
 //
 // With the flag on, the Template library draws the report under the template's row: the headline, the changes in rank order (the four that need a look,
-// text left out / slide floor / left out / kept as a picture, are emphasised), "and N more small changes", and, when the report has `slides` (the job read), a
-// slide-by-slide strip. No report (absent, null, or anything that does not read as one) shows nothing.
+// text left out / slide floor / left out / kept as a picture, are emphasised), "and N more small changes", and, when the report has `slides` (the job read, or the
+// template read the library asks for once when a list report is opened), a slide-by-slide strip. No report (absent, null, or anything that does not read as one)
+// shows nothing.
 //
 // This module is pure and has no imports (no React, no network, no environment): scripts/test-studio-template-admission-report.mjs runs it on the answers of
 // Director's own routes (scripts/fixtures/template-admission-report/). Its rules:
@@ -184,9 +187,19 @@ export function admissionReportView(raw: unknown): AdmissionReportView | null {
 }
 
 /**
- * The report to draw for a library row: the tracked job's (the job read, with its slides) when it reads as a report, else the row's own (the list, without
- * slides). Either may be absent, null or garbage.
+ * The report to draw for a library row: the tracked job's (the job read, with its slides) when it reads as a report, else the template read's (with its slides, once
+ * the library has asked for it), else the row's own (the list, without slides). Any may be absent, null or garbage.
  */
-export function admissionReportFor(jobReport: unknown, rowReport: unknown): AdmissionReportView | null {
-  return admissionReportView(jobReport) ?? admissionReportView(rowReport)
+export function admissionReportFor(jobReport: unknown, rowReport: unknown, detailReport: unknown = null): AdmissionReportView | null {
+  return admissionReportView(jobReport) ?? admissionReportView(detailReport) ?? admissionReportView(rowReport)
+}
+
+/**
+ * The report in a template read (Director's GET templates/{id}, or the proxy's trim of it): `ingest_source.admission_report`, when the row is the one asked for.
+ * Not looked into here: admissionReportView reads it. Null when there is none (a row with no stored report has no key).
+ */
+export function templateDetailReport(row: unknown, templateId: string): unknown {
+  if (!isRecord(row) || row.id !== templateId || !isRecord(row.ingest_source)) return null
+  const report = row.ingest_source.admission_report
+  return isRecord(report) ? report : null
 }

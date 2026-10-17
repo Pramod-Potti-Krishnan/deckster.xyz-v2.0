@@ -24,6 +24,8 @@ import { composerBriefLengthValid, composerBriefLimitMessage, composerBriefMax }
 import { useTemplateProgress } from '@/components/builder/composer-template-progress'
 // NEXT_PUBLIC_STUDIO_TEMPLATE_ADMISSION_REPORT (default off): a template's "What changed" report (Director's admission_report) is drawn under its row.
 import { admissionReportAround } from '@/components/builder/composer-admission-report'
+// NEXT_PUBLIC_STUDIO_TEMPLATE_ADMISSION_REPORT: a report without slides asks for its template once, when it is opened, to draw the slide strip.
+import { useAdmissionDetails } from '@/components/builder/composer-admission-detail'
 import type { ComposerLibraryRequest } from '@/lib/studio-composer-popups'
 import { studioTemplateShownName } from '@/lib/studio-template-display-name'
 import './studio-composer-library.css'
@@ -150,6 +152,9 @@ export function ComposerLibraryDialog({ open, onOpenChange, request = null, onRe
     // The card's Retry for a failed upload is #406's: the dialog's own upload of the same chosen file (below), or none when it cannot run.
     retryUpload: () => { const retry: ComposerRetryAction = { action: 'upload' }; return retryable(retry) ? () => retryJob(retry) : null },
   })
+
+  // NEXT_PUBLIC_STUDIO_TEMPLATE_ADMISSION_REPORT (exact "true"). Off: an inert answer, nothing is asked and nothing is kept.
+  const admissionDetails = useAdmissionDetails(ADMISSION_REPORT)
 
   const upload = () => {
     if (!file || !userId || busy) return
@@ -295,7 +300,7 @@ export function ComposerLibraryDialog({ open, onOpenChange, request = null, onRe
                     {newTopicEnabled && <Button data-studio-composer-action={studioShell ? 'new-topic' : undefined} size="sm" variant="outline" disabled={busy || !userId || templateProgress.held(template.id, 'new-topic')}
                       onClick={() => { setNewTopicTemplateId(template.id); setNewBrief(''); setError(null) }}>New topic</Button>}
                   </div>
-                </div>, studioShell)}
+                </div>, studioShell, admissionDetails)}
                 {newTopicEnabled && newTopicTemplateId === template.id && <div data-studio-composer-topic={studioShell ? 'true' : undefined} className="space-y-2">
                   <label htmlFor="composer-new-brief" className="text-sm font-medium">Describe the new presentation</label>
                   <Textarea id="composer-new-brief" value={newBrief} disabled={busy} maxLength={composerBriefMax(longBriefEnabled)}
