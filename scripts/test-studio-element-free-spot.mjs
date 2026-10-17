@@ -47,8 +47,10 @@ globalThis.fetch = denied
 
 const here = path.dirname(fileURLToPath(import.meta.url))
 const root = path.resolve(here, '..')
-/** studio-v4-dev-preparation-code at #416: flag off must behave exactly as this. */
-const BASE = '80dfde44a9ac5fc07bbb419deb3f62ff9d0180f6'
+/** studio-v4-dev-preparation-code just before #421 merged (the merge of #418, #421's merge parent): flag off must behave exactly as this. */
+const BASE = 'c482f136afc8cfc635fc54a1a3725ddf6cb3a45d'
+/** #421's own merge commit: BASE..RESULT is this change's diff, which the wiring checks measure (the working tree also carries the changes merged after it). */
+const RESULT = '9f49e94b55ec87487e19c7418f02944d648d3f69'
 /** layout-builder uat the frames were recorded from. */
 const LAYOUT_SHA = '71f463109e8b91dc94c2543caa04e3248b7acba0'
 const LAYOUT_REPO = process.env.LAYOUT_REPO || path.resolve(root, '..', '..', 'backend', 'layout-builder')
@@ -64,6 +66,8 @@ const gitIn = (cwd, args) => execFileSync('git', args, { cwd, env: gitEnv, encod
 const git = args => gitIn(root, args)
 let baseAvailable = true
 try { git(['cat-file', '-e', `${BASE}^{commit}`]) } catch { baseAvailable = false }
+let resultAvailable = true
+try { git(['cat-file', '-e', `${RESULT}^{commit}`]) } catch { resultAvailable = false }
 let layoutAvailable = true
 try { gitIn(LAYOUT_REPO, ['cat-file', '-e', `${LAYOUT_SHA}^{commit}`]) } catch { layoutAvailable = false }
 
@@ -868,7 +872,7 @@ function wiringChecks() {
   assert.match(hook, /\n {2}if \(placeholderDeferral\) return \{ handleGenerate: handleGenerateDeferred, handleOpenPanel: handleOpenPanelDeferred \}\n {2}return \{ handleGenerate, handleOpenPanel \}\n\}/, 'flag off returns the handlers it returned before')
   assert.match(read('.env.example'), /^NEXT_PUBLIC_STUDIO_ELEMENT_FREE_SPOT="false"$/m, '.env.example documents the flag, off')
   assert.equal(JSON.parse(read('package.json')).scripts['test:studio-element-free-spot'], 'node scripts/test-studio-element-free-spot.mjs', 'registered in package.json')
-  if (!baseAvailable) { console.log(`  note: base commit ${BASE.slice(0, 8)} not in this clone: the diff checks are skipped`); return }
+  if (!baseAvailable || !resultAvailable) { console.log(`  note: base commit ${BASE.slice(0, 8)} or result commit ${RESULT.slice(0, 8)} not in this clone: the diff checks are skipped`); return }
   // the handlers are the base's, except the two lines handleOpenPanel takes its start from
   const printer = ts.createPrinter({ removeComments: true })
   const decl = (source, name) => {
@@ -888,13 +892,13 @@ function wiringChecks() {
   assert.notEqual(putBack, decl(hook, 'handleOpenPanel'), 'the free-spot lines are in handleOpenPanel')
   assert.equal(putBack, decl(baseHook, 'handleOpenPanel'), 'handleOpenPanel is the base\'s once the two lines are put back')
   // the diff is the hook, the helper, .env.example, package.json and scripts; it adds no viewer command beyond the existing read
-  // (Application paths only: other tests of the suite write evidence copies under docs/, which this check must not see.)
-  const touched = git(['diff', '--name-only', BASE, '--', 'app', 'components', 'hooks', 'lib', 'types', 'prisma', 'migrations', 'public', 'middleware.ts', 'next.config.mjs',
+  // (The diff is #421's own, BASE..RESULT, application paths only; the working tree is not part of it.)
+  const touched = git(['diff', '--name-only', BASE, RESULT, '--', 'app', 'components', 'hooks', 'lib', 'types', 'prisma', 'migrations', 'public', 'middleware.ts', 'next.config.mjs',
     'tsconfig.json', 'package.json', 'pnpm-lock.yaml', '.env.example']).split('\n').filter(Boolean).filter(file => file !== LIB)
   assert.deepEqual(touched.sort(), ['.env.example', HOOK, 'package.json'].sort(), `the change touches only the hook, the new lib, .env.example and package.json: ${JSON.stringify(touched)}`)
-  const added = git(['diff', BASE, '--', HOOK]).split('\n').filter(line => /^\+(?!\+\+)/.test(line))
+  const added = git(['diff', BASE, RESULT, '--', HOOK]).split('\n').filter(line => /^\+(?!\+\+)/.test(line))
   for (const line of added) assert.doesNotMatch(line, /postMessage|iframeRef|contentWindow|createViewerRequestId|sendCommand\(|sendElementCommand\('|action:/, `the hook diff adds no viewer command: ${line}`)
-  const removed = git(['diff', BASE, '--', HOOK]).split('\n').filter(line => /^-(?!--)/.test(line)).map(line => line.slice(1).trim())
+  const removed = git(['diff', BASE, RESULT, '--', HOOK]).split('\n').filter(line => /^-(?!--)/.test(line)).map(line => line.slice(1).trim())
   assert.deepEqual(removed, ['const startCol = 2', 'const startRow = 4'], 'the hook diff removes only the two literal starts')
 }
 

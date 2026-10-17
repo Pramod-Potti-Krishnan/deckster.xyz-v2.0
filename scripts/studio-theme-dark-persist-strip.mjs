@@ -1,7 +1,7 @@
 // Studio theme Dark persistence (flag NEXT_PUBLIC_STUDIO_THEME_DARK_PERSIST): the lines this change adds to app/builder/page.tsx and
 // lib/studio-theme-restore.ts, which other pins hold to a base commit ("without the added lines the file is <base>'s"). Sibling pins call
 // stripDarkPersist(rel, text) first and then do what they always did, the way they already strip the J2-04 status lines
-// (scripts/studio-add-slide-status-strip.mjs). scripts/test-studio-theme-dark-persist.mjs proves the strip against the merge of #416 (80dfde4) and that
+// (scripts/studio-add-slide-status-strip.mjs). scripts/test-studio-theme-dark-persist.mjs proves the strip against the merge parent of #422 (9f49e94, the merge of #421) and that
 // every addition is inert with the flag off.
 
 export const PAGE = 'app/builder/page.tsx'

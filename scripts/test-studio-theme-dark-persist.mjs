@@ -44,8 +44,9 @@ const FILES = {
   builder: 'lib/theme-builder.ts',
   panel: 'components/theme-panel.tsx',
 }
-// The base the flag-off identity is checked against: the merge of #416 (the toggle), where this change starts. Skipped, loudly, where the commit is not in the clone.
-const BASE_COMMIT = process.env.DARK_PERSIST_BASE || '80dfde4'
+// The base the page and the restore helper are checked against: studio-v4-dev-preparation-code just before #422 merged (the merge of #421, #422's merge parent), which is
+// the page with the toggle of #416 and the other changes merged since. Skipped, loudly, where the commit is not in the clone.
+const BASE_COMMIT = process.env.DARK_PERSIST_BASE || '9f49e94b55ec87487e19c7418f02944d648d3f69'
 function baseSource(rel) {
   try {
     execFileSync('git', ['cat-file', '-e', `${BASE_COMMIT}^{commit}`], { cwd: repoRoot, stdio: 'ignore' })
