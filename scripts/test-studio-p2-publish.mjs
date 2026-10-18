@@ -18,7 +18,7 @@ let checks = 0
 // ---------------------------------------------------------------- 1. flag-off identity
 let baseAvailable = true
 try { git(['cat-file', '-e', `${BASE_COMMIT}^{commit}`]) } catch { baseAvailable = false }
-const NEW_FILES = new Set(['lib/studio-p2-publish.ts', 'components/publish-p2.tsx', 'scripts/studio-p2-publish-strip.mjs', 'scripts/test-studio-p2-publish.mjs', 'package.json', '.env.example'])
+const NEW_FILES = new Set(['lib/studio-p2-publish.ts', 'components/publish-p2.tsx', 'scripts/studio-p2-publish-strip.mjs', 'scripts/test-studio-p2-publish.mjs', 'package.json', '.env.example', 'scripts/test-studio-top-bar-v2.mjs'])
 if (baseAvailable) {
   for (const rel of P2_FILES) {
     assert.equal(stripP2Publish(rel, read(rel)), git(['show', `${BASE_COMMIT}:${rel}`]), `${rel}: stripped == base`); checks++
