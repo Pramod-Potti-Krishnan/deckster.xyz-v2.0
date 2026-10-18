@@ -31,6 +31,13 @@
 [data-studio-knowledge-inspector="true"] .ski-identity > p { display: flex; align-items: center; gap: 7px; color: var(--ss-muted); font-size: 10px; text-transform: uppercase; letter-spacing: .1em; }
 [data-studio-knowledge-inspector="true"] .ski-identity h3 { margin-top: 9px; font-family: Georgia, serif; font-size: 23px; line-height: 1.25; font-weight: 400; overflow-wrap: anywhere; }
 [data-studio-knowledge-inspector="true"] .ski-identity > span { display: block; color: var(--ss-muted); font-size: 10px; line-height: 1.6; margin-top: 7px; }
+/* NEXT_PUBLIC_STUDIO_P2_SECOND_BRAIN (SB-08): the three-number strip and the rule under it; the markup exists only with the flag. */
+[data-studio-knowledge-inspector="true"] .ski-identity > .ski-p2-stats { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; margin: 16px 0 0; }
+[data-studio-knowledge-inspector="true"] .ski-p2-stats > div { min-width: 0; }
+[data-studio-knowledge-inspector="true"] .ski-p2-stats dd { order: -1; margin: 0; color: var(--ss-text); font-size: 24px; line-height: 1.15; font-weight: 400; font-variant-numeric: tabular-nums; }
+[data-studio-knowledge-inspector="true"] .ski-p2-stats > div { display: flex; flex-direction: column; }
+[data-studio-knowledge-inspector="true"] .ski-p2-stats dt { margin-top: 4px; color: var(--ss-muted); font-size: 10px; line-height: 1.4; }
+[data-studio-knowledge-inspector="true"] .ski-identity > .ski-p2-rule { display: block; height: 3px; margin-top: 14px; border-radius: 999px; background: linear-gradient(90deg, var(--ss-accent), var(--ss-teal)); opacity: .75; }
 [data-studio-knowledge-inspector="true"] .ski-tabs { display: flex; gap: 3px; padding: 3px; background: var(--ss-surface); border: 1px solid var(--ss-line); border-radius: 7px; margin-top: 15px; }
 [data-studio-knowledge-inspector="true"] .ski-tabs button { flex: 1; display: flex; flex-wrap: wrap; justify-content: center; align-items: center; gap: 4px; background: transparent; border: 0; border-radius: 4px; color: var(--ss-muted); font-size: 10px; padding: 6px 3px; }
 [data-studio-knowledge-inspector="true"] .ski-tabs button[aria-pressed="true"] { background: var(--ss-panel); color: var(--ss-text); }
