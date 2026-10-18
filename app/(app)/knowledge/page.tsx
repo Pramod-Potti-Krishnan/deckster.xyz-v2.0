@@ -27,6 +27,7 @@ import {
 import { useKnowledgeGraph } from "@/hooks/use-knowledge-graph"
 import { KgGraphView, typeColor } from "@/components/knowledge/kg-graph-view"
 import { StudioKnowledgeInspector } from "@/components/knowledge/studio-knowledge-inspector"
+import { StudioKnowledgeSourcesMenu } from "@/components/knowledge/studio-knowledge-sources-menu"
 import { KnowledgeSectionBoundary } from "@/components/knowledge/knowledge-section-boundary"
 import { KnowledgeImportConfirm } from "@/components/knowledge/knowledge-import-confirm"
 import { StudioKnowledgeFilterTabs } from "@/components/knowledge/studio-knowledge-filter-tabs"
@@ -46,6 +47,8 @@ const STUDIO_SHELL = process.env.NEXT_PUBLIC_STUDIO_V4_SHELL === "true"
 const KNOWLEDGE_FIXES = process.env.NEXT_PUBLIC_STUDIO_KNOWLEDGE_FIXES === "true"
 // J6 finding L4 (card PASS2-J6-FINDINGS): the map filter as "Everything N" + one tab per kind in plain words (the Studio shell only). Exact "true" enables it; default off.
 const KNOWLEDGE_FILTER_TABS = STUDIO_SHELL && process.env.NEXT_PUBLIC_STUDIO_KNOWLEDGE_FILTER_TABS === "true"
+// J6 finding L5 (card PASS2-J6-FINDINGS): one "Sources" menu and the search field in the header (the Studio shell only). Exact "true" enables it; default off.
+const KNOWLEDGE_HEADER_ACTIONS = STUDIO_SHELL && process.env.NEXT_PUBLIC_STUDIO_KNOWLEDGE_HEADER_ACTIONS === "true"
 
 interface KgStats {
   node_count: number
@@ -1061,6 +1064,66 @@ stats && stats.nodes_by_type.length > 0 && (
             </p>
           )}
   </>
+  // Flag on (J6 L5): the search field sits in the header; the one block of markup, the same handlers. Flag off: rendered in the map header, as before.
+  const knowledgeSearch = (
+    <div data-studio-knowledge-role="search" className="relative w-full lg:max-w-sm">
+      <form
+        onSubmit={(event) => { event.preventDefault(); void runSearch() }}
+        className="flex gap-2"
+        role="search"
+      >
+        <div className="relative min-w-0 flex-1">
+          <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
+          <Input
+            ref={STUDIO_SHELL ? searchInputRef : undefined}
+            value={searchQuery}
+            onChange={(event) => {
+              setSearchQuery(event.target.value)
+              clearSearchResults()
+            }}
+            className="pl-9 pr-8"
+            placeholder="Search your knowledge…"
+            aria-label="Search your knowledge graph"
+          />
+          {searchQuery && (
+            <button
+              type="button"
+              onClick={() => { setSearchQuery(""); clearSearchResults(); if (STUDIO_SHELL) searchInputRef.current?.focus() }}
+              className="absolute right-2 top-1/2 -translate-y-1/2 rounded p-1 text-slate-400 hover:text-slate-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-violet-500 dark:hover:text-slate-200"
+              aria-label="Clear search"
+            >
+              <X className="h-3.5 w-3.5" />
+            </button>
+          )}
+        </div>
+        <Button type="submit" variant="outline" size="icon" disabled={searchLoading} aria-label="Run search">
+          {searchLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : <ArrowRight className="h-4 w-4" />}
+        </Button>
+      </form>
+
+      {searchHits !== null && (
+        <div data-studio-knowledge-role={STUDIO_SHELL ? "search-results" : undefined} className="absolute right-0 top-[calc(100%+0.5rem)] z-30 w-full overflow-hidden rounded-xl border border-slate-200 bg-white shadow-2xl dark:border-slate-700 dark:bg-slate-900">
+          {STUDIO_SHELL && <div className="sk-search-summary"><span>{searchError ? "Search unavailable" : `${searchHits.length} returned results`}</span><button type="button" aria-label="Close knowledge search results" onClick={() => { clearSearchResults(); searchInputRef.current?.focus() }}><X size={13} /></button></div>}
+          {searchError && (KNOWLEDGE_FIXES
+            ? <div className="flex items-center justify-between gap-3 px-3 py-3"><p className="min-w-0 text-sm text-amber-700 dark:text-amber-300">{searchError}</p><button type="button" onClick={() => void runSearch()} className="shrink-0 rounded-md border border-amber-300 px-2.5 py-0.5 text-xs font-medium text-amber-900 hover:bg-amber-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber-500 dark:border-amber-800 dark:text-amber-100 dark:hover:bg-amber-950/50">Retry</button></div>
+            : <p className="px-3 py-3 text-sm text-amber-700 dark:text-amber-300">{searchError}</p>)}
+          {!searchError && searchHits.length === 0 && <p className="px-3 py-3 text-sm text-slate-500">No matching entities found.</p>}
+          {!searchError && searchHits.map((node) => (
+            <button
+              key={node.node_id}
+              type="button"
+              onClick={() => { setSelectedId(node.node_id); clearSearchResults() }}
+              className="flex w-full items-center gap-2 border-b border-slate-100 px-3 py-2.5 text-left last:border-0 hover:bg-slate-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-violet-500 dark:border-slate-800 dark:hover:bg-slate-800"
+            >
+              <span className="h-2.5 w-2.5 shrink-0 rounded-full" style={{ backgroundColor: typeColor(node.entity_type) }} />
+              <span className="min-w-0 flex-1 truncate text-sm font-medium text-slate-800 dark:text-slate-200">{node.name}</span>
+              <span className="text-[10px] uppercase text-slate-400">{node.entity_type}</span>
+            </button>
+          ))}
+        </div>
+      )}
+    </div>
+  )
 
   return (
     <main data-studio-knowledge="true" data-studio-intro-surface="knowledge" className="mx-auto min-h-[calc(100vh-3.5rem)] max-w-[1600px] px-4 py-5 sm:px-6 lg:px-8 lg:py-7">
@@ -1075,17 +1138,32 @@ stats && stats.nodes_by_type.length > 0 && (
           {STUDIO_SHELL && <p className="sk-page-subtitle">Your sources and ideas, connected in one view.</p>}
           {STUDIO_SHELL ? <details data-studio-knowledge-role="context"><summary>About this knowledge{lastUpdated ? ` · Updated ${lastUpdated}` : ""}</summary>{headerContext}</details> : headerContext}
         </div>
-        <div data-studio-knowledge-role="actions" className="flex flex-wrap gap-2">
-          {STUDIO_SHELL && <Button variant="outline" disabled={dataLoading || importing} onClick={() => void loadData()}><RefreshCw className={cn("mr-2 h-4 w-4", dataLoading && "animate-spin")} />{dataLoading ? "Refreshing…" : "Refresh"}</Button>}
-          <Button variant="outline" onClick={KNOWLEDGE_FIXES ? requestImport : runImport} disabled={importing}>
-            {importing ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Import className="mr-2 h-4 w-4" />}
-            {importing ? "Importing…" : "Import past sessions"}
-          </Button>
-          <Button asChild variant="ghost" size="icon">
-            <Link href="/settings/knowledge-graph" aria-label="Knowledge Graph settings" title="Knowledge settings">
-              <Settings className="h-4 w-4" />
-            </Link>
-          </Button>
+        <div data-studio-knowledge-role={KNOWLEDGE_HEADER_ACTIONS ? "header-tools" : "actions"} className="flex flex-wrap gap-2">
+          {KNOWLEDGE_HEADER_ACTIONS && (
+            <StudioKnowledgeSourcesMenu
+              sessions={stats?.sessions_consolidated}
+              importing={importing}
+              loading={dataLoading}
+              onImport={KNOWLEDGE_FIXES ? requestImport : runImport}
+              onRefresh={() => void loadData()}
+              settingsHref="/settings/knowledge-graph"
+            />
+          )}
+          {KNOWLEDGE_HEADER_ACTIONS && knowledgeSearch}
+          {!KNOWLEDGE_HEADER_ACTIONS && STUDIO_SHELL && <Button variant="outline" disabled={dataLoading || importing} onClick={() => void loadData()}><RefreshCw className={cn("mr-2 h-4 w-4", dataLoading && "animate-spin")} />{dataLoading ? "Refreshing…" : "Refresh"}</Button>}
+          {!KNOWLEDGE_HEADER_ACTIONS && (
+            <Button variant="outline" onClick={KNOWLEDGE_FIXES ? requestImport : runImport} disabled={importing}>
+              {importing ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Import className="mr-2 h-4 w-4" />}
+              {importing ? "Importing…" : "Import past sessions"}
+            </Button>
+          )}
+          {!KNOWLEDGE_HEADER_ACTIONS && (
+            <Button asChild variant="ghost" size="icon">
+              <Link href="/settings/knowledge-graph" aria-label="Knowledge Graph settings" title="Knowledge settings">
+                <Settings className="h-4 w-4" />
+              </Link>
+            </Button>
+          )}
         </div>
       </header>
 
@@ -1151,63 +1229,7 @@ stats && stats.nodes_by_type.length > 0 && (
                 </p>
               </div>
 
-              <div data-studio-knowledge-role="search" className="relative w-full lg:max-w-sm">
-                <form
-                  onSubmit={(event) => { event.preventDefault(); void runSearch() }}
-                  className="flex gap-2"
-                  role="search"
-                >
-                  <div className="relative min-w-0 flex-1">
-                    <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
-                    <Input
-                      ref={STUDIO_SHELL ? searchInputRef : undefined}
-                      value={searchQuery}
-                      onChange={(event) => {
-                        setSearchQuery(event.target.value)
-                        clearSearchResults()
-                      }}
-                      className="pl-9 pr-8"
-                      placeholder="Search your knowledge…"
-                      aria-label="Search your knowledge graph"
-                    />
-                    {searchQuery && (
-                      <button
-                        type="button"
-                        onClick={() => { setSearchQuery(""); clearSearchResults(); if (STUDIO_SHELL) searchInputRef.current?.focus() }}
-                        className="absolute right-2 top-1/2 -translate-y-1/2 rounded p-1 text-slate-400 hover:text-slate-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-violet-500 dark:hover:text-slate-200"
-                        aria-label="Clear search"
-                      >
-                        <X className="h-3.5 w-3.5" />
-                      </button>
-                    )}
-                  </div>
-                  <Button type="submit" variant="outline" size="icon" disabled={searchLoading} aria-label="Run search">
-                    {searchLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : <ArrowRight className="h-4 w-4" />}
-                  </Button>
-                </form>
-
-                {searchHits !== null && (
-                  <div data-studio-knowledge-role={STUDIO_SHELL ? "search-results" : undefined} className="absolute right-0 top-[calc(100%+0.5rem)] z-30 w-full overflow-hidden rounded-xl border border-slate-200 bg-white shadow-2xl dark:border-slate-700 dark:bg-slate-900">
-                    {STUDIO_SHELL && <div className="sk-search-summary"><span>{searchError ? "Search unavailable" : `${searchHits.length} returned results`}</span><button type="button" aria-label="Close knowledge search results" onClick={() => { clearSearchResults(); searchInputRef.current?.focus() }}><X size={13} /></button></div>}
-                    {searchError && (KNOWLEDGE_FIXES
-                      ? <div className="flex items-center justify-between gap-3 px-3 py-3"><p className="min-w-0 text-sm text-amber-700 dark:text-amber-300">{searchError}</p><button type="button" onClick={() => void runSearch()} className="shrink-0 rounded-md border border-amber-300 px-2.5 py-0.5 text-xs font-medium text-amber-900 hover:bg-amber-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber-500 dark:border-amber-800 dark:text-amber-100 dark:hover:bg-amber-950/50">Retry</button></div>
-                      : <p className="px-3 py-3 text-sm text-amber-700 dark:text-amber-300">{searchError}</p>)}
-                    {!searchError && searchHits.length === 0 && <p className="px-3 py-3 text-sm text-slate-500">No matching entities found.</p>}
-                    {!searchError && searchHits.map((node) => (
-                      <button
-                        key={node.node_id}
-                        type="button"
-                        onClick={() => { setSelectedId(node.node_id); clearSearchResults() }}
-                        className="flex w-full items-center gap-2 border-b border-slate-100 px-3 py-2.5 text-left last:border-0 hover:bg-slate-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-violet-500 dark:border-slate-800 dark:hover:bg-slate-800"
-                      >
-                        <span className="h-2.5 w-2.5 shrink-0 rounded-full" style={{ backgroundColor: typeColor(node.entity_type) }} />
-                        <span className="min-w-0 flex-1 truncate text-sm font-medium text-slate-800 dark:text-slate-200">{node.name}</span>
-                        <span className="text-[10px] uppercase text-slate-400">{node.entity_type}</span>
-                      </button>
-                    ))}
-                  </div>
-                )}
-              </div>
+              {KNOWLEDGE_HEADER_ACTIONS ? null : knowledgeSearch}
             </div>
 
             {typeFilters}

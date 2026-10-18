@@ -1103,6 +1103,7 @@ check('safety wiring: runImport is started from exactly the dialog\'s confirm (a
   const uses = [...source.matchAll(/\brunImport\b/g)].map(match => source.slice(source.lastIndexOf('\n', match.index) + 1, source.indexOf('\n', match.index)).trim())
   assert.deepEqual(uses.map(line => line.replace(/\s+/g, ' ')), [
     'const runImport = useCallback(async () => {',
+    'onImport={KNOWLEDGE_FIXES ? requestImport : runImport}', // the header's "Sources" menu (NEXT_PUBLIC_STUDIO_KNOWLEDGE_HEADER_ACTIONS): the same choice the header button makes
     '<Button variant="outline" onClick={KNOWLEDGE_FIXES ? requestImport : runImport} disabled={importing}>',
     '<Button onClick={KNOWLEDGE_FIXES ? requestImport : runImport} disabled={importing}><Import className="mr-2 h-4 w-4" /> Import past sessions</Button>',
     'onConfirm={() => { setImportConfirm(null); if (!importActiveRef.current) void runImport() }}',
