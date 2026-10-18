@@ -10,7 +10,7 @@
 // a finished deck its final deck.
 //
 // The count is not wrong, it is the plan. So the card says which it is: a finished deck keeps "<n> slides" (singular "1 slide", where the old text said "1 slides"); a deck that
-// is not finished says "<n> slides planned" ("1 slide planned"), and one with no count yet says "No slides yet". Only fields the card already has are used.
+// is not finished says "<n> planned" (short, so the status pill stays on the same line), and one with no count yet says "No slides yet". Only fields the card already has are used.
 
 /** The slide count as a non-negative whole number; anything else (missing, NaN, negative, fractional, a string) is 0. */
 export function studioDeckCardSlideCount(slideCount: unknown): number {
@@ -22,7 +22,7 @@ export function studioDeckCardCountLabel(slideCount: unknown, status: unknown): 
   const count = studioDeckCardSlideCount(slideCount)
   const noun = count === 1 ? 'slide' : 'slides'
   if (status === 'completed') return `${count} ${noun}`
-  return count > 0 ? `${count} ${noun} planned` : 'No slides yet'
+  return count > 0 ? `${count} planned` : 'No slides yet'
 }
 
 /** What a deck card's thumbnail previews. Unfinished (anything but "completed") with a strawman: the strawman; otherwise the final deck, then the strawman, as before. */

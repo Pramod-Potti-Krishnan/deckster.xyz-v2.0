@@ -2,7 +2,7 @@
 //   Two sources: the session row's slideCount (the card's "<n> slides") and the Layout presentation behind the live thumbnail (its own counter). For a finished deck they are one
 //   deck's count; for a deck still in progress the row holds the OUTLINE's count, while the card previewed the FINAL deck first, which for Pilot Results (a row the build before #389 had
 //   polluted) was the blank one-slide deck: 3 vs "1 / 1". With the flag on an unfinished deck that has a strawman previews the strawman (the deck its count describes); a finished deck
-//   keeps "<n> slides" (and "1 slide"), an unfinished one says "<n> slides planned", and one with no count says "No slides yet".
+//   keeps "<n> slides" (and "1 slide"), an unfinished one says "<n> planned", and one with no count says "No slides yet".
 //
 // Run: node scripts/test-studio-deck-card-count.mjs   (plain node: transpile + vm, no network, no browser, no env)
 //
@@ -56,7 +56,7 @@ function oracleLabel(n, status) {
   const c = oracleCount(n)
   const noun = c === 1 ? 'slide' : 'slides'
   if (status === 'completed') return c + ' ' + noun
-  return c > 0 ? c + ' ' + noun + ' planned' : 'No slides yet'
+  return c > 0 ? c + ' planned' : 'No slides yet'
 }
 const nonEmpty = v => typeof v === 'string' && v !== '' ? v : null
 function oraclePreview(card) {
@@ -71,8 +71,8 @@ function proveLib(libSource, label = 'lib') {
     eq(lib.studioDeckCardSlideCount(n), oracleCount(n), `${label}: count of ${String(n)}`)
     for (const status of STATUSES) eq(lib.studioDeckCardCountLabel(n, status), oracleLabel(n, status), `${label}: label for ${String(n)} / ${String(status)}`)
   }
-  eq(lib.studioDeckCardCountLabel(3, 'in-progress'), '3 slides planned', `${label}: the Pilot Results case`)
-  eq(lib.studioDeckCardCountLabel(1, 'in-progress'), '1 slide planned', `${label}: singular planned`)
+  eq(lib.studioDeckCardCountLabel(3, 'in-progress'), '3 planned', `${label}: the Pilot Results case`)
+  eq(lib.studioDeckCardCountLabel(1, 'in-progress'), '1 planned', `${label}: one planned`)
   eq(lib.studioDeckCardCountLabel(30, 'completed'), '30 slides', `${label}: a finished deck keeps its words`)
   eq(lib.studioDeckCardCountLabel(1, 'completed'), '1 slide', `${label}: singular finished`)
   eq(lib.studioDeckCardCountLabel(0, 'in-progress'), 'No slides yet', `${label}: no count yet`)
@@ -218,7 +218,7 @@ const mutants = [
   [LIB, 'singular dropped', s => s.replace("count === 1 ? 'slide' : 'slides'", "'slides'")],
   [LIB, 'singular for zero', s => s.replace("count === 1 ? 'slide' : 'slides'", "count <= 1 ? 'slide' : 'slides'")],
   [LIB, 'finished deck says planned', s => s.replace("if (status === 'completed') return `${count} ${noun}`", '')],
-  [LIB, 'unfinished deck not planned', s => s.replace("return count > 0 ? `${count} ${noun} planned` : 'No slides yet'", "return count > 0 ? `${count} ${noun}` : 'No slides yet'")],
+  [LIB, 'unfinished deck not planned', s => s.replace("return count > 0 ? `${count} planned` : 'No slides yet'", "return count > 0 ? `${count} ${noun}` : 'No slides yet'")],
   [LIB, 'no-count words drift', s => s.replace("'No slides yet'", "'0 slides planned'")],
   [LIB, 'finished status loosened', s => s.replace("status === 'completed'", "status !== 'draft'")],
   [LIB, 'finished status case-folded', s => s.replace("status === 'completed'", "String(status).toLowerCase() === 'completed'")],
