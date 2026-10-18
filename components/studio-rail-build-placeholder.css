@@ -1,0 +1,4 @@
+/* RAIL-SLIDES-1-MIDBUILD (NEXT_PUBLIC_STUDIO_RAIL_BUILD_COUNT): a planned slide the frame does not hold yet is inert, so it does not answer to hover like a real row.
+   Its own file, scoped to its own attribute: studio-thumbnails.css stays the base's (scripts/test-studio-rail-add-slide.mjs pins that). */
+[data-studio-thumbnail-strip="true"] [data-studio-thumbnail-card="true"][data-studio-thumbnail-build-placeholder="true"] { cursor: default; }
+[data-studio-thumbnail-strip="true"] [data-studio-thumbnail-card="true"][data-studio-thumbnail-build-placeholder="true"]:hover { border-color: var(--st-line); box-shadow: 0 1px 3px rgb(10 26 24 / 5%); }

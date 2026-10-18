@@ -36,6 +36,7 @@ import type { AddSlideV2Settings } from '@/lib/studio-add-slide-v2'
 import type { ThemeSyncState } from '@/lib/theme-sync'
 import type { SlideThumbnailUrlsByPresentation } from '@/lib/stage-f-thumbnails'
 import type { ComposerLibraryRequest } from '@/lib/studio-composer-popups'
+import { STUDIO_RAIL_BUILD_COUNT_ENABLED, railBuildPlanFor } from '@/lib/studio-rail-build-count' // RAIL-SLIDES-1-MIDBUILD
 
 /** Check if a selected element is a blank placeholder; if so, open generation panel instead of format panel */
 export function handleBlankElementClick(
@@ -291,6 +292,8 @@ export function PresentationArea({
   const studioShell = process.env.NEXT_PUBLIC_STUDIO_V4_SHELL === 'true'
   const narrationActive = !!(buildNarration && buildNarration.active)
   const narrationPhase = buildNarration?.phase ?? 'idle'
+  // RAIL-SLIDES-1-MIDBUILD (NEXT_PUBLIC_STUDIO_RAIL_BUILD_COUNT, default off): while the viewer shows this build's filling deck the rail keeps the plan's slide count (the frame only holds the slides persisted when it loaded). Null otherwise; then nothing extra reaches the viewer.
+  const railBuildPlan = railBuildPlanFor({ enabled: STUDIO_RAIL_BUILD_COUNT_ENABLED, studioShell, partialArtifact: Boolean(studioPartialArtifact), narrationActive, phase: narrationPhase, slideCount: buildNarration?.slideCount ?? 0, buildPresentationId: buildNarration?.buildPresentationId, presentationId, ghosts: buildNarration?.ghosts, slideStates: buildNarration?.slideStates }) // RAIL-SLIDES-1-MIDBUILD
   // Canvas v2 R3: the deck walkthrough — auto-step the real strawman once,
   // then follow freshly built slides during the write phases; user navigation
   // cancels automation for the remainder of the phase.
@@ -430,6 +433,7 @@ export function PresentationArea({
                 }
               : null
             }
+            {...(railBuildPlan ? { railBuildPlan } : {})} // RAIL-SLIDES-1-MIDBUILD
             slideStructure={slideStructure}
             strawmanPreviewUrl={strawmanPreviewUrl}
             finalPresentationUrl={finalPresentationUrl}

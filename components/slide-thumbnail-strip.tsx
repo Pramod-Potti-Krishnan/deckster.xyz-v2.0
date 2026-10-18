@@ -36,6 +36,8 @@ import { RailLivePreview } from './rail-live-preview'
 import { STUDIO_SLIDE_RAIL_V2, slideRailV2Number } from '@/lib/studio-slide-rail-v2'
 import { STUDIO_RAIL_LAYOUT_LABELS, railLayoutName } from '@/lib/studio-rail-layout-label'
 import { STUDIO_RAIL_ADD_SLIDE } from '@/lib/studio-rail-add-slide'
+import type { RailBuildPlaceholder } from '@/lib/studio-rail-build-count' // RAIL-SLIDES-1-MIDBUILD
+import { RailBuildPlaceholderCard } from './studio-rail-build-placeholder' // RAIL-SLIDES-1-MIDBUILD
 import { RailAddSlideButton, type RailAddSlideProps } from './studio-rail-add-slide'
 import './studio-thumbnails.css'
 
@@ -96,6 +98,8 @@ export interface SlideThumbnail {
   thumbnailUrl?: string
   /** F8/S-03 (rail identity flag only): `pending` = a preview is expected, shown as a spinner instead of "No preview". */
   thumbnailStatus?: 'fresh' | 'stale' | 'pending' | 'none'
+  /** RAIL-SLIDES-1-MIDBUILD: set only on the inert rows the viewer adds while a build fills the deck (NEXT_PUBLIC_STUDIO_RAIL_BUILD_COUNT). */
+  buildPlaceholder?: RailBuildPlaceholder // RAIL-SLIDES-1-MIDBUILD
 }
 
 export interface SlideComposeThumbnailJob {
@@ -145,6 +149,10 @@ export interface SlideThumbnailStripProps {
   /** PASS2B G21 (flag NEXT_PUBLIC_STUDIO_RAIL_ADD_SLIDE, Studio shell, vertical rail only): the footer's "+ Add slide" button, given by the viewer
    *  (it owns the Add Slide panel's handler and the toolbar's gating). Ignored when the flag is off. */
   addSlide?: RailAddSlideProps
+  /** RAIL-SLIDES-1-MIDBUILD (NEXT_PUBLIC_STUDIO_RAIL_BUILD_COUNT): inert rows after the real ones while a build fills the deck, one per planned slide the frame lacks. Absent = today's strip. */
+  buildPlaceholders?: RailBuildPlaceholder[] // RAIL-SLIDES-1-MIDBUILD
+  /** RAIL-SLIDES-1-MIDBUILD: the heading's number only. The delete / select-all / reorder guards keep reading the real total. */
+  headingTotal?: number // RAIL-SLIDES-1-MIDBUILD
 }
 
 /**
@@ -180,6 +188,8 @@ export function SlideThumbnailStrip({
   keyBySlideId = false,
   livePreviewViewerUrl = null,
   addSlide,
+  buildPlaceholders, // RAIL-SLIDES-1-MIDBUILD
+  headingTotal, // RAIL-SLIDES-1-MIDBUILD
 }: SlideThumbnailStripProps) {
   const [draggedSlide, setDraggedSlide] = useState<number | null>(null)
   const [dropTarget, setDropTarget] = useState<number | null>(null)
@@ -265,7 +275,7 @@ export function SlideThumbnailStrip({
     return () => window.removeEventListener('keydown', handleKeyDown)
   }, [currentSlide, onDeleteSlide, onDeleteSlides, selectedSlides, slidesTotal, isProcessing, onSelectionChange])
 
-  if (slides.length === 0 && composeJobs.length === 0) {
+  if (slides.length === 0 && composeJobs.length === 0 && !buildPlaceholders?.length) { // RAIL-SLIDES-1-MIDBUILD
     return null
   }
 
@@ -274,6 +284,8 @@ export function SlideThumbnailStrip({
 
   const composeInsertJobs = composeJobs.filter(job => job.kind !== 'refine')
   const orderedItems = buildSlideComposeVisualOrder(slides, composeInsertJobs)
+  const placeholderBase = orderedItems.length // RAIL-SLIDES-1-MIDBUILD: the inert rows follow the real ones in the same list, so the rendered tree keeps its shape
+  if (buildPlaceholders?.length) orderedItems.push(...buildPlaceholders.map((placeholder, offset) => ({ kind: 'slide' as const, slide: { slideNumber: placeholder.slideNumber, buildPlaceholder: placeholder }, layoutIndex: slides.length + offset, visualIndex: placeholderBase + offset, visualNumber: placeholderBase + offset + 1 }))) // RAIL-SLIDES-1-MIDBUILD
 
   const isRefineTargetBusy = (slide: SlideThumbnail, slideIndex: number) => {
     return composeJobs.some(job => {
@@ -450,6 +462,7 @@ export function SlideThumbnailStrip({
   }
 
   const renderThumbnail = (slide: SlideThumbnail, visualNumber: number) => {
+    if (slide.buildPlaceholder) return <RailBuildPlaceholderCard key={`build-placeholder-${slide.slideNumber}`} placeholder={slide.buildPlaceholder} studio={STUDIO_THUMBNAILS} railV2={RAIL_V2} /> // RAIL-SLIDES-1-MIDBUILD
     const realSlideNumber = slide.slideNumber
     const slideIndex = realSlideNumber - 1  // 0-based index
     const itemKey = keyBySlideId && slide.slideId ? `slide-${slide.slideId}` : realSlideNumber
@@ -814,7 +827,7 @@ export function SlideThumbnailStrip({
         className
       )}
     >
-      {STUDIO_THUMBNAILS && <div className="studio-thumbnail-heading"><strong>Slides</strong><span title={`${slidesTotal} slides${selectedSlides.length ? ` · ${selectedSlides.length} selected` : ''}`}>{selectedSlides.length > 1 ? `${selectedSlides.length} selected` : slidesTotal}</span></div>}
+      {STUDIO_THUMBNAILS && <div className="studio-thumbnail-heading"><strong>Slides</strong><span title={`${headingTotal ?? slidesTotal} slides${selectedSlides.length ? ` · ${selectedSlides.length} selected` : ''}`}>{selectedSlides.length > 1 ? `${selectedSlides.length} selected` : headingTotal ?? slidesTotal}</span></div>}
       <div data-studio-thumbnail-list={STUDIO_THUMBNAILS} className={cn(
         isVertical
           ? "flex flex-col items-center gap-2 overflow-y-auto h-full pt-2 pb-12 scrollbar-thin scrollbar-thumb-gray-400 scrollbar-track-gray-200"

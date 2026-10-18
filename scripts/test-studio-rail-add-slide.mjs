@@ -28,6 +28,7 @@ import { createRequire } from 'node:module'
 import ts from 'typescript'
 import { stripAddSlideStatus } from './studio-add-slide-status-strip.mjs'
 import { stripDarkPersist } from './studio-theme-dark-persist-strip.mjs'
+import { belongsToRailBuildCount } from './studio-rail-build-count-strip.mjs'
 
 const repoRoot = path.resolve(new URL('..', import.meta.url).pathname)
 const nodeRequire = createRequire(path.join(repoRoot, 'package.json'))
@@ -369,7 +370,9 @@ function wiringChecks() {
   if (baseViewer && baseStripText) {
     // + PASS2D B4 (NEXT_PUBLIC_STUDIO_SLIDE_DELETE_CANVAS_REFRESH) marks its own viewer lines "PASS2D B4"; scripts/test-studio-slide-delete-refresh.mjs pins them, so they are not counted here.
     // + SLIDE-OPS-VIA-VIEWER (NEXT_PUBLIC_STUDIO_SLIDE_OPS_VIA_VIEWER) marks its own viewer lines "SLIDE-OPS-VIA-VIEWER"; scripts/test-studio-slide-ops-via-viewer.mjs pins them, so they are not counted here.
-    const changed = (rel, base) => git(['diff', '--no-color', '-U0', BASE_COMMIT, '--', rel]).split('\n').filter(line => /^[+-](?![+-])/.test(line) && !line.includes('PASS2D B4') && !line.includes('SLIDE-OPS-VIA-VIEWER'))
+    // + RAIL-SLIDES-1-MIDBUILD (NEXT_PUBLIC_STUDIO_RAIL_BUILD_COUNT) marks its own viewer and strip lines, and replaces three base lines (the rail's render condition, the strip's early return and the
+    //   heading's number); scripts/studio-rail-build-count-strip.mjs names them and scripts/test-studio-rail-build-count.mjs pins them, so they are not counted here.
+    const changed = (rel, base) => git(['diff', '--no-color', '-U0', BASE_COMMIT, '--', rel]).split('\n').filter(line => /^[+-](?![+-])/.test(line) && !line.includes('PASS2D B4') && !line.includes('SLIDE-OPS-VIA-VIEWER') && !belongsToRailBuildCount(line))
     for (const [rel, base] of [[VIEWER, baseViewer], [STRIP, baseStripText]]) {
       for (const line of changed(rel)) assert.doesNotMatch(line, COMMAND, `${rel} diff touches a Layout command: ${line}`)
     }

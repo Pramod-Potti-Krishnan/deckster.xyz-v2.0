@@ -19,6 +19,7 @@ import vm from 'node:vm'
 import { execFileSync } from 'node:child_process'
 import { createRequire } from 'node:module'
 import ts from 'typescript'
+import { stripRailBuildCount } from './studio-rail-build-count-strip.mjs'
 
 const repoRoot = path.resolve(new URL('..', import.meta.url).pathname)
 const nodeRequire = createRequire(path.join(repoRoot, 'package.json'))
@@ -179,7 +180,8 @@ function proveArea(area, label = 'area') {
   ok(open > 0 && at - open < 300 && !area.slice(open, at).includes('/>'), `${label}: it is on <PresentationDownloadControls>`)
   match(area.slice(open, at), /stage=\{currentStage\}\n\s*$/, `${label}: after the stage prop`)
   eq(area.split('hasFinalDeck={hasFinalDeck}').length - 1, 2, `${label}: the Publish control already had it; the Export control is the second`)
-  if (basePage) eq(area.replace(PROP, ''), basePage, `${label}: without that one line the file is ${BASE_COMMIT}'s`)
+  // + RAIL-SLIDES-1-MIDBUILD (NEXT_PUBLIC_STUDIO_RAIL_BUILD_COUNT): its marked lines come out first (scripts/studio-rail-build-count-strip.mjs).
+  if (basePage) eq(stripRailBuildCount(area).replace(PROP, ''), basePage, `${label}: without that one line the file is ${BASE_COMMIT}'s`)
 }
 proveArea(SOURCES[AREA])
 
