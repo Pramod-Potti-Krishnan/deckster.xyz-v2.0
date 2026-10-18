@@ -22,6 +22,7 @@ import vm from 'node:vm'
 import { execFileSync } from 'node:child_process'
 import { createRequire } from 'node:module'
 import ts from 'typescript'
+import { stripDeckTitle } from './studio-deck-title-strip.mjs'
 
 const repoRoot = path.resolve(new URL('..', import.meta.url).pathname)
 const nodeRequire = createRequire(path.join(repoRoot, 'package.json'))
@@ -158,7 +159,7 @@ const LATER_DASH = [
   ['  // PASS2B G53 (NEXT_PUBLIC_STUDIO_DECK_GRID_4, default off, Studio shell only): four cards per row from the xl breakpoint (1280 px), as in the mockup.\n  const deckGrid4 = studioShell && process.env.NEXT_PUBLIC_STUDIO_DECK_GRID_4 === "true"\n', ''],
   ['className={deckGrid4 ? "grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6" : "grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6"}', 'className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6"'],
 ]
-const stripDash = text => LATER_DASH.reduce((result, [from, to]) => result.replace(from, to), text.replace(DASH_CONST, '').replace(DASH_TAB, DASH_TAB_BASE))
+const stripDash = text => LATER_DASH.reduce((result, [from, to]) => result.replace(from, to), stripDeckTitle(text).replace(DASH_CONST, '').replace(DASH_TAB, DASH_TAB_BASE))
 function tabComponent(snippet) {
   const source = `module.exports = ({ studioShell, flag, strawmanPresentations }) => {\n  const plainNavLabels = studioShell && flag === 'true'\n  return <span>\n${snippet}</span>\n}\n`
   const module = { exports: {} }

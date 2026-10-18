@@ -27,6 +27,8 @@ import { evaluateLayoutViewerUrl } from "@/lib/layout-viewer-url-policy"
 import { viewOnlyIfEnabled } from "@/lib/present-view-only"
 import { deckCardDescription, deckCardStatusLabel } from "@/lib/studio-deck-cards"
 import { studioCreateLabel } from "@/lib/studio-create-word"
+import { studioDeckShownTitle, studioDeckTitleProps } from "@/lib/studio-deck-title"
+import { studioTemplateDisplayName } from "@/lib/studio-template-display-name"
 
 interface Presentation {
   id: string
@@ -43,6 +45,11 @@ interface Presentation {
   finalPresentationUrl?: string | null
   currentStage?: number
 }
+
+// PASS2D T (NEXT_PUBLIC_STUDIO_DECK_TITLE_NAMES, default off): a deck titled with a stored upload name ("Deck03_Northwind_QBR.pptx — upload 2026-10-12 22:53 UTC [id]") is drawn by
+// its clean name ("Deck03 Northwind QBR"); the stored title stays in a tooltip and in search, and any other title is drawn as it is. Off, this returns the stored title.
+const DECK_TITLE_NAMES = process.env.NEXT_PUBLIC_STUDIO_DECK_TITLE_NAMES === "true"
+const deckTitle = (presentation: { title: string }) => DECK_TITLE_NAMES ? studioDeckShownTitle(presentation.title, studioTemplateDisplayName) : presentation.title
 
 interface Folder {
   id: string
@@ -66,7 +73,7 @@ function PresentationPreview({ presentation }: { presentation: Presentation }) {
       <iframe
         src={viewOnlyIfEnabled(decision.url)}
         className="w-full h-full pointer-events-none"
-        title={presentation.title}
+        title={deckTitle(presentation)}
         loading="lazy"
         tabIndex={-1}
       />
@@ -77,7 +84,7 @@ function PresentationPreview({ presentation }: { presentation: Presentation }) {
     <div className="relative h-full w-full">
       <img
         src="/placeholder.svg"
-        alt={presentation.title}
+        alt={deckTitle(presentation)}
         className="w-full h-full object-cover"
       />
       {decision.status === 'blocked' && (
@@ -101,9 +108,9 @@ function PresentationCard({ presentation, onOpen, getStatusColor, getStageName, 
   const cardsV2 = process.env.NEXT_PUBLIC_STUDIO_DECK_CARDS_V2 === "true"
   const description = cardsV2 ? deckCardDescription(presentation.title, presentation.description) : presentation.description
   return <Card data-studio-deck-card="true" className="hover:shadow-lg transition-shadow cursor-pointer" onClick={() => onOpen(presentation.id)}>
-    <Link href={href} onClick={event => event.stopPropagation()} aria-label={`Open ${presentation.title} in Studio`} data-studio-deck-preview="true" className="block aspect-video bg-slate-100 rounded-t-lg overflow-hidden"><PresentationPreview presentation={presentation} /></Link>
-    <CardHeader data-studio-deck-card-header="true"><div className="flex items-start justify-between gap-2"><div className="min-w-0 flex-1"><CardTitle className="text-lg line-clamp-1"><Link href={href} onClick={event => event.stopPropagation()}>{presentation.title}</Link></CardTitle>{(!cardsV2 || description !== null) && <CardDescription className="line-clamp-2 mt-1">{description}</CardDescription>}</div>
-      <DropdownMenu><DropdownMenuTrigger asChild><Button variant="ghost" className="h-8 w-8 p-0 shrink-0" aria-label={`Manage ${presentation.title}`} onClick={event => event.stopPropagation()} onPointerDown={event => event.stopPropagation()}><MoreVertical className="h-4 w-4" /></Button></DropdownMenuTrigger><DropdownMenuContent align="end" data-studio-deck-menu="true" onClick={event => event.stopPropagation()}><DropdownMenuItem asChild><Link href={href}>Edit</Link></DropdownMenuItem><DropdownMenuItem disabled aria-describedby={unavailableNote}>Duplicate</DropdownMenuItem>{onDelete ? <DropdownMenuItem disabled={deleteDisabled} data-studio-deck-delete="true" className="text-red-600" onSelect={() => onDelete(presentation)}>Delete session…</DropdownMenuItem> : <DropdownMenuItem disabled className="text-red-600" aria-describedby={unavailableNote}>Delete</DropdownMenuItem>}<p id={unavailableNote} className="max-w-56 px-2 py-2 text-xs text-muted-foreground">{onDelete ? "Duplicate is not connected in this library." : "Duplicate and delete are not connected in this library."}</p></DropdownMenuContent></DropdownMenu>
+    <Link href={href} onClick={event => event.stopPropagation()} aria-label={`Open ${deckTitle(presentation)} in Studio`} data-studio-deck-preview="true" className="block aspect-video bg-slate-100 rounded-t-lg overflow-hidden"><PresentationPreview presentation={presentation} /></Link>
+    <CardHeader data-studio-deck-card-header="true"><div className="flex items-start justify-between gap-2"><div className="min-w-0 flex-1"><CardTitle className="text-lg line-clamp-1"><Link href={href} onClick={event => event.stopPropagation()} {...(DECK_TITLE_NAMES ? studioDeckTitleProps(presentation.title, deckTitle(presentation)) : {})}>{deckTitle(presentation)}</Link></CardTitle>{(!cardsV2 || description !== null) && <CardDescription className="line-clamp-2 mt-1">{description}</CardDescription>}</div>
+      <DropdownMenu><DropdownMenuTrigger asChild><Button variant="ghost" className="h-8 w-8 p-0 shrink-0" aria-label={`Manage ${deckTitle(presentation)}`} onClick={event => event.stopPropagation()} onPointerDown={event => event.stopPropagation()}><MoreVertical className="h-4 w-4" /></Button></DropdownMenuTrigger><DropdownMenuContent align="end" data-studio-deck-menu="true" onClick={event => event.stopPropagation()}><DropdownMenuItem asChild><Link href={href}>Edit</Link></DropdownMenuItem><DropdownMenuItem disabled aria-describedby={unavailableNote}>Duplicate</DropdownMenuItem>{onDelete ? <DropdownMenuItem disabled={deleteDisabled} data-studio-deck-delete="true" className="text-red-600" onSelect={() => onDelete(presentation)}>Delete session…</DropdownMenuItem> : <DropdownMenuItem disabled className="text-red-600" aria-describedby={unavailableNote}>Delete</DropdownMenuItem>}<p id={unavailableNote} className="max-w-56 px-2 py-2 text-xs text-muted-foreground">{onDelete ? "Duplicate is not connected in this library." : "Duplicate and delete are not connected in this library."}</p></DropdownMenuContent></DropdownMenu>
     </div></CardHeader>
     <CardContent data-studio-deck-card-content="true"><div className="space-y-3"><div className="flex items-center justify-between"><div data-studio-deck-meta="true" className="flex items-center space-x-4 text-sm text-slate-500"><span>{presentation.slideCount} slides</span><span>Updated {new Date(presentation.updatedAt).toLocaleDateString()}</span></div><div className="flex gap-2"><Badge data-studio-deck-status={presentation.status} className={getStatusColor(presentation.status)}>{cardsV2 ? deckCardStatusLabel(presentation) : presentation.status}</Badge>{!cardsV2 && presentation.currentStage && <Badge variant="outline" className="text-xs">Stage {presentation.currentStage}: {getStageName(presentation.currentStage)}</Badge>}</div></div>{presentation.tags.length > 0 && <div className="flex flex-wrap gap-1">{presentation.tags.slice(0, 3).map(tag => <Badge key={tag} variant="outline" className="text-xs"><Tag className="h-3 w-3 mr-1" />{tag}</Badge>)}{presentation.tags.length > 3 && <Badge variant="outline" className="text-xs">+{presentation.tags.length - 3}</Badge>}</div>}</div></CardContent>
   </Card>
@@ -295,7 +302,7 @@ function DashboardForAccount({ user, isLoading }: Pick<ReturnType<typeof useAuth
         setPagination(adjusted)
       }
       setDeleteTarget(null)
-      setDeleteNotice(`“${target.presentation.title}” was removed from Decks and session history.${cacheCleared ? '' : ' Your browser could not clear every local reference.'}`)
+      setDeleteNotice(`“${deckTitle(target.presentation)}” was removed from Decks and session history.${cacheCleared ? '' : ' Your browser could not clear every local reference.'}`)
     } catch {
       if (attempt === deletion.current && currentOwner.current === target.owner) setDeleteError("Deletion could not be confirmed. This session is still shown. Try again, or cancel and refresh the library.")
     } finally {
@@ -629,7 +636,7 @@ function DashboardForAccount({ user, isLoading }: Pick<ReturnType<typeof useAuth
             <AlertDialogTitle>Delete this session?</AlertDialogTitle>
             <AlertDialogDescription data-studio-deck-delete-description="true">This removes the session and its presentation from your Decks library and session history. There is no restore option here. Exported files and shared presentation links are not deleted.</AlertDialogDescription>
           </AlertDialogHeader>
-          <div data-studio-deck-delete-summary="true"><strong>{deleteTarget?.presentation.title}</strong><span>{deleteTarget?.presentation.slideCount} slides · {deleteTarget?.presentation.status}</span></div>
+          <div data-studio-deck-delete-summary="true"><strong>{deleteTarget ? deckTitle(deleteTarget.presentation) : undefined}</strong><span>{deleteTarget?.presentation.slideCount} slides · {deleteTarget?.presentation.status}</span></div>
           {deleteError && <p data-studio-deck-delete-error="true" role="alert">{deleteError}</p>}
           <AlertDialogFooter>
             <AlertDialogCancel disabled={isDeletingSession}>Cancel</AlertDialogCancel>
