@@ -28,6 +28,8 @@ import { useKnowledgeGraph } from "@/hooks/use-knowledge-graph"
 import { KgGraphView, typeColor } from "@/components/knowledge/kg-graph-view"
 import { StudioKnowledgeInspector } from "@/components/knowledge/studio-knowledge-inspector"
 import { StudioKnowledgeSourcesMenu } from "@/components/knowledge/studio-knowledge-sources-menu"
+import { StudioKnowledgeEmptyMap } from "@/components/knowledge/studio-knowledge-empty-state"
+import { isEmptyGraph } from "@/lib/studio-knowledge-empty-state"
 import { KnowledgeSectionBoundary } from "@/components/knowledge/knowledge-section-boundary"
 import { KnowledgeImportConfirm } from "@/components/knowledge/knowledge-import-confirm"
 import { StudioKnowledgeFilterTabs } from "@/components/knowledge/studio-knowledge-filter-tabs"
@@ -49,6 +51,8 @@ const KNOWLEDGE_FIXES = process.env.NEXT_PUBLIC_STUDIO_KNOWLEDGE_FIXES === "true
 const KNOWLEDGE_FILTER_TABS = STUDIO_SHELL && process.env.NEXT_PUBLIC_STUDIO_KNOWLEDGE_FILTER_TABS === "true"
 // J6 finding L5 (card PASS2-J6-FINDINGS): one "Sources" menu and the search field in the header (the Studio shell only). Exact "true" enables it; default off.
 const KNOWLEDGE_HEADER_ACTIONS = STUDIO_SHELL && process.env.NEXT_PUBLIC_STUDIO_KNOWLEDGE_HEADER_ACTIONS === "true"
+// J6 finding L9 (card PASS2-J6-FINDINGS): the empty map on the map's own dark canvas, and a side panel that says there is nothing to follow yet (the Studio shell only). Exact "true" enables it; default off.
+const KNOWLEDGE_EMPTY_STATE = STUDIO_SHELL && process.env.NEXT_PUBLIC_STUDIO_KNOWLEDGE_EMPTY_STATE === "true"
 
 interface KgStats {
   node_count: number
@@ -302,6 +306,7 @@ function Inspector({
   selectedId,
   onRetry,
   onClear,
+  emptyGraph,
 }: {
   selected: KgNodeDetail | null
   loading: boolean
@@ -311,8 +316,9 @@ function Inspector({
   selectedId: string | null
   onRetry: () => void
   onClear: () => void
+  emptyGraph?: boolean
 }) {
-  if (STUDIO_SHELL) return <StudioKnowledgeInspector key={selectedId || "unselected"} selected={selected?.node.node_id === selectedId ? selected : null} selectedId={selectedId} loading={loading} error={error} topEntities={topEntities} onSelect={onSelect} onRetry={onRetry} onClear={onClear} />
+  if (STUDIO_SHELL) return <StudioKnowledgeInspector key={selectedId || "unselected"} selected={selected?.node.node_id === selectedId ? selected : null} selectedId={selectedId} loading={loading} error={error} topEntities={topEntities} onSelect={onSelect} onRetry={onRetry} onClear={onClear} emptyGraph={emptyGraph} />
   return (
     <aside data-studio-knowledge-role="inspector" className="min-w-0 rounded-2xl border border-slate-200 bg-white shadow-sm dark:border-slate-800 dark:bg-slate-900/80 xl:sticky xl:top-20 xl:max-h-[calc(100vh-6rem)] xl:overflow-y-auto">
       <div className="border-b border-slate-200 px-4 py-4 dark:border-slate-800">
@@ -988,6 +994,8 @@ function KnowledgePageForAccount({ kg }: { kg: KnowledgeGraphAccess }) {
   const visibleNodes = filteredGraph?.nodes.length ?? 0
   const selectedMapNode = selectedId ? graph?.nodes.find(node => node.node_id === selectedId) : undefined
   const selectionOutsideMap = Boolean(selectedId && graph && !filteredGraph?.nodes.some(node => node.node_id === selectedId))
+  // Flag on: the graph loaded and has nothing in it (the page's own empty-map condition).
+  const graphIsEmpty = KNOWLEDGE_EMPTY_STATE && isEmptyGraph({ dataLoading, graph, loadError })
 
   // Flag on: a render error inside one section shows a plain notice in that section's place; the rest of the page keeps working.
   // Flag off: returns the node untouched.
@@ -1249,7 +1257,10 @@ stats && stats.nodes_by_type.length > 0 && (
               </div>
             )}
 
-            {!dataLoading && graph && graph.nodes.length === 0 && !loadError && (
+            {graphIsEmpty && (
+              <StudioKnowledgeEmptyMap importing={importing} onImport={KNOWLEDGE_FIXES ? requestImport : runImport} />
+            )}
+            {!KNOWLEDGE_EMPTY_STATE && !dataLoading && graph && graph.nodes.length === 0 && !loadError && (
               <div data-studio-knowledge-role={STUDIO_SHELL ? "map-empty" : undefined} className="flex min-h-[520px] flex-col items-center justify-center rounded-2xl bg-[#070b18] px-6 text-center">
                 <div className="rounded-2xl border border-violet-400/20 bg-violet-500/10 p-4 text-violet-300">
                   <Brain className="h-8 w-8" />
@@ -1296,6 +1307,7 @@ stats && stats.nodes_by_type.length > 0 && (
             selectedId={selectedId}
             onRetry={() => setDetailAttempt(attempt => attempt + 1)}
             onClear={() => setSelectedId(null)}
+            {...(KNOWLEDGE_EMPTY_STATE ? { emptyGraph: graphIsEmpty } : {})}
           />
         ), selected ?? selectedId)}
       </div>
