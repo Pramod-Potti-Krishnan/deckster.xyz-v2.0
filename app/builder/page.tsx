@@ -2431,7 +2431,7 @@ function AuthenticatedBuilderContent({ authScopeUserId }: { authScopeUserId: str
           console.log('Saving final URLs:', { url: state.presentationUrl, id: state.presentationId, activeVersion: state.activeVersion })
         }
 
-        persistenceRef.current.updateMetadata(updates)
+        persistenceRef.current.updateMetadata(updates, { passive: true }) // NEXT_PUBLIC_STUDIO_SESSION_OPEN_READ_ONLY: Director's own state frame
       } else {
         console.error('PERSISTENCE BLOCKED:', {
           reason: !currentSessionIdRef.current ? 'No currentSessionId' : 'No persistenceRef.current',
@@ -3795,7 +3795,7 @@ function AuthenticatedBuilderContent({ authScopeUserId }: { authScopeUserId: str
           // NEXT_PUBLIC_STUDIO_BLANK_DECK_RELOAD_FIX: on, a blank deck's count goes to the blank slots (off: strawman, else final).
           ...deckSlotUpdates(STUDIO_BLANK_DECK_RELOAD_FIX_ENABLED, activeVersion, nextPresentationUrl, effectivePresentationId),
         }
-        persistenceRef.current.updateMetadata(updates)
+        persistenceRef.current.updateMetadata(updates, { passive: true }) // NEXT_PUBLIC_STUDIO_SESSION_OPEN_READ_ONLY: the page's own count reconcile
       }
     })()
 

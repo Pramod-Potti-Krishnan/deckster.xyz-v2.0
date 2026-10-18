@@ -29,6 +29,7 @@ import ts from 'typescript'
 import { stripAddSlideStatus } from './studio-add-slide-status-strip.mjs'
 import { stripDarkPersist } from './studio-theme-dark-persist-strip.mjs'
 import { belongsToRailBuildCount } from './studio-rail-build-count-strip.mjs'
+import { stripOpenReadOnly } from './studio-open-read-only-strip.mjs'
 
 const repoRoot = path.resolve(new URL('..', import.meta.url).pathname)
 const nodeRequire = createRequire(path.join(repoRoot, 'package.json'))
@@ -384,7 +385,7 @@ function wiringChecks() {
     assert.equal(changed(VIEWER).filter(line => line.startsWith('+')).length, 1 + 13 + 1 + 4, 'the viewer gains an import, the gate and the prop (+ the four PASS2D A3 lines)')
     assert.equal(changed(STRIP).filter(line => line.startsWith('+')).length, 2 + 3 + 1 + 1, 'the strip gains two imports, the prop, its destructuring and the footer')
     // + PASS2B J2-04 (NEXT_PUBLIC_STUDIO_ADD_SLIDE_STATUS) adds flag-gated lines to both; scripts/studio-add-slide-status-strip.mjs takes them out first.
-    for (const rel of [PAGE, ENTRY]) assert.equal(stripDarkPersist(rel, stripAddSlideStatus(rel, read(rel))), baseSource(rel), `${rel}: the page and the Add Slide entry are untouched`)
+    for (const rel of [PAGE, ENTRY]) assert.equal(stripDarkPersist(rel, stripAddSlideStatus(rel, stripOpenReadOnly(rel, read(rel)))), baseSource(rel), `${rel}: the page and the Add Slide entry are untouched`)
     // the toolbar's own Add Slide block is untouched
     const block = text => text.slice(text.indexOf('{/* Add Slide */}'), text.indexOf("'add-slide', 'Add Slide')}"))
     assert.equal(block(SOURCES[VIEWER]), block(baseViewer), 'the toolbar\'s Add Slide block is the base\'s')
