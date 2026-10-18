@@ -3,7 +3,7 @@
  * Metrics inserts showed "Saved" but never reached Layout, and a Table insert came back after reload with its "Click to configure"
  * placeholder saved over it.
  *
- * Root cause (Layout uat @ 457c32d). Layout's autosave drops every change made while the viewer is not in edit mode:
+ * Root cause (Layout uat @ d86814a, unchanged since 457c32d). Layout's autosave drops every change made while the viewer is not in edit mode:
  * src/utils/auto-save.js markContentChanged() returns early when `body[data-mode] !== 'edit'` unless `options.force` is set. insertTextBox
  * and deleteElement (src/utils/element-manager.js) call the non-forced triggerAutoSave; only upsertCitedElement / upsertSemanticElement call
  * triggerPersistentAutoSave (force) and forceSave. Studio's Add Element path never enters edit mode itself: it is entered only when the user
@@ -12,7 +12,8 @@
  *   - Shape / Metrics (no citations) go through insertTextBox: change dropped, nothing pending, the indicator stays "Saved", nothing PUT.
  *   - Table goes through upsertCitedElement (forced): saved, together with the placeholder still on the slide at that moment; the
  *     placeholder's later deleteElement is dropped, so the saved slide keeps both.
- * The viewer's `forceSave` command cannot rescue this: with nothing pending, triggerSave() returns without a PUT.
+ * The viewer's `forceSave` / `saveAllChanges` commands cannot rescue this: edit-mode.js saveAllChanges returns outside edit mode, and with
+ * nothing pending auto-save.js triggerSave() returns without a PUT.
  *
  * Fix: before Studio sends an element mutation whose persistence rides on the non-forced autosave, it makes sure the viewer is in edit
  * mode (isEditModeActive, then enterEditMode if needed) — exactly what selecting an element already does. Then the insert and the
@@ -22,7 +23,7 @@
  */
 export const STUDIO_INSERT_PERSIST_ENABLED = process.env.NEXT_PUBLIC_STUDIO_INSERT_PERSIST === 'true'
 
-/** Viewer element mutations whose save depends on Layout's edit-mode-gated triggerAutoSave (element-manager.js, uat @ 457c32d). */
+/** Viewer element mutations whose save depends on Layout's edit-mode-gated triggerAutoSave (element-manager.js, uat @ d86814a). */
 export const AUTOSAVE_GATED_ELEMENT_ACTIONS: readonly string[] = [
   'insertTextBox',
   'insertTable',
