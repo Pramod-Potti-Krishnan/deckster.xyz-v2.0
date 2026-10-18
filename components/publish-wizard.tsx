@@ -32,6 +32,8 @@ import { resolveBudget, suggestedReserveMinutes } from '@/lib/narration/budget'
 import type { SerializedPublishedDeck } from '@/lib/publish/serialize'
 import type { StudioPublishPreviewSource } from '@/lib/studio-publish-preview'
 import { StudioPublishPreview } from '@/components/studio-publish-preview'
+import { PublishDoneLink, PublishPasscodeCounter, PublishPasscodeInput, PublishRecordReview } from '@/components/publish-p2'
+import { audienceCopy, passcodeShortBy, publishChoicesFor, STUDIO_P2_PUBLISH_ENABLED as STUDIO_P2_PUBLISH } from '@/lib/studio-p2-publish'
 import './studio-publish.css'
 
 const STUDIO_PUBLISH = process.env.NEXT_PUBLIC_STUDIO_V4_SHELL === 'true'
@@ -48,6 +50,8 @@ export interface WizardChoices {
   qaReserveMinutes: number | null
   writeScript: boolean
   recordNarration: boolean
+  /** NEXT_PUBLIC_STUDIO_P2_PUBLISH: the recording estimate (cents) the owner ticked on the review step; recording needs it. */
+  recordConsentCents?: number | null
 }
 
 export interface WizardStepResult {
@@ -106,7 +110,8 @@ export function PublishWizard({
     // Both default ON when narration is being switched on, because a deck that
     // narrates but has no script and no audio is a setting, not a feature.
     writeScript: true,
-    recordNarration: true,
+    // NEXT_PUBLIC_STUDIO_P2_PUBLISH: recording is a charge, so it starts off and needs the estimate ticked on the review step.
+    recordNarration: STUDIO_P2_PUBLISH ? false : true,
   }))
 
   const stepBodyRef = useRef<HTMLDivElement>(null)
@@ -130,7 +135,8 @@ export function PublishWizard({
   )
 
   const budget = resolveBudget(choices.narrationBudgetMinutes, choices.qaReserveMinutes)
-  const needsPasscode = choices.visibility === 'restricted' && !choices.passcode && !record?.hasPasscode
+  const needsPasscode = (choices.visibility === 'restricted' && !choices.passcode && !record?.hasPasscode)
+    || (STUDIO_P2_PUBLISH && choices.visibility === 'restricted' && passcodeShortBy(choices.passcode) > 0)
 
   // Steps that are switched off are skipped entirely rather than shown empty.
   const visibleSteps = useMemo(() => [0, 1, 2, 3], [])
@@ -178,6 +184,7 @@ export function PublishWizard({
             </li>
           ))}
         </ul>
+        {STUDIO_P2_PUBLISH && published && !busy && record?.publicUrl && <PublishDoneLink url={record.publicUrl} />}
         {STUDIO_PUBLISH && !busy && (
           <div className="studio-publish-progress-actions">
             <p className="text-xs text-muted-foreground">
@@ -253,7 +260,7 @@ export function PublishWizard({
                     <input type="radio" name="wiz-audience" value={value}
                       checked={choices.visibility === value} onChange={() => set('visibility', value)} />
                     <Icon size={17} aria-hidden="true" />
-                    <span><strong>{title}</strong><small>{hint}</small></span>
+                    <span><strong>{STUDIO_P2_PUBLISH ? audienceCopy(value)?.title ?? title : title}</strong><small>{STUDIO_P2_PUBLISH ? audienceCopy(value)?.hint ?? hint : hint}</small></span>
                   </label>
                 ))}
               </fieldset>
@@ -275,6 +282,10 @@ export function PublishWizard({
             {choices.visibility === 'restricted' && (
               <div className="space-y-1.5">
                 <Label htmlFor="wiz-passcode">Passcode</Label>
+                {STUDIO_P2_PUBLISH ? (
+                  <PublishPasscodeInput fieldId="wiz-passcode" describedBy="wiz-passcode-hint" text={choices.passcode} onText={(next) => set('passcode', next)}
+                    placeholder={record?.hasPasscode ? 'Unchanged' : 'At least 6 characters'} />
+                ) : (
                 <Input
                   id="wiz-passcode"
                   aria-describedby={STUDIO_PUBLISH ? 'wiz-passcode-hint' : undefined}
@@ -283,6 +294,8 @@ export function PublishWizard({
                   onChange={(e) => set('passcode', e.target.value)}
                   placeholder={record?.hasPasscode ? 'Unchanged' : 'At least 6 characters'}
                 />
+                )}
+                {STUDIO_P2_PUBLISH && <PublishPasscodeCounter text={choices.passcode} />}
                 {STUDIO_PUBLISH && <p id="wiz-passcode-hint" className="text-xs text-muted-foreground">{record?.hasPasscode ? 'Leave blank to keep the current passcode, or use at least six characters to replace it.' : 'Use at least six characters. This passcode is applied when you publish.'}</p>}
               </div>
             )}
@@ -413,7 +426,7 @@ export function PublishWizard({
             <Header icon={Check} title="Ready to publish" hint="Here's what happens next." />
             <ul className="space-y-1.5 text-sm">
               <Summary label="Who can view">
-                {choices.visibility === 'public'
+                {STUDIO_P2_PUBLISH ? audienceCopy(choices.visibility)?.title : choices.visibility === 'public'
                   ? STUDIO_PUBLISH ? 'Anyone · search engines may index' : 'Anyone, listed publicly'
                   : choices.visibility === 'restricted'
                     ? 'Only with the passcode'
@@ -447,7 +460,11 @@ export function PublishWizard({
                 <Button type="button" variant="outline" size="sm" disabled={busy} onClick={() => setStep(2)}>Set session length</Button>
               </div>
             )}
-            {choices.narrationEnabled && (
+            {choices.narrationEnabled && (STUDIO_P2_PUBLISH ? (
+              <PublishRecordReview deckSessionId={sessionId} deckSlides={slideCount} budget={budget} scriptOn={choices.writeScript} recordOn={choices.recordNarration}
+                busyNow={busy} onScriptToggle={(next) => set('writeScript', next)} onRecordToggle={(next) => set('recordNarration', next)}
+                onConsent={(cents) => set('recordConsentCents', cents)} />
+            ) : (
               <div className="space-y-2 rounded-md border border-gray-200 p-3 dark:border-slate-700">
                 <Toggle
                   id="wiz-write"
@@ -466,7 +483,7 @@ export function PublishWizard({
                   onChange={(v) => set('recordNarration', v)}
                 />
               </div>
-            )}
+            ))}
           </div>
         )}
       </div>
@@ -476,7 +493,7 @@ export function PublishWizard({
           <StudioPublishPreview sessionId={sessionId} source={deckPreview} />
           <p className="studio-publish-preview-count">{slideCount === null ? 'A view-only presentation' : `${slideCount} slides · view-only`}</p>
           <ul>
-            <li><Users size={15} /><span><strong>{AUDIENCES.find((item) => item.value === choices.visibility)?.title}</strong><small>Access follows your audience choice.</small></span></li>
+            <li><Users size={15} /><span><strong>{STUDIO_P2_PUBLISH ? audienceCopy(choices.visibility)?.title : AUDIENCES.find((item) => item.value === choices.visibility)?.title}</strong><small>Access follows your audience choice.</small></span></li>
             <li><Download size={15} /><span><strong>{[choices.allowPdf && 'PDF', choices.allowPptx && 'PowerPoint'].filter(Boolean).join(' and ') || 'No downloads'}</strong><small>Only allowed formats appear to viewers.</small></span></li>
             <li><MessageSquare size={15} /><span><strong>Questions {choices.qaEnabled ? 'on' : 'off'}</strong><small>{choices.qaEnabled ? 'Answer sources are prepared after publishing.' : 'New questions are switched off.'}</small></span></li>
             <li><Volume2 size={15} /><span><strong>Narration {choices.narrationEnabled ? 'on' : 'off'}</strong><small>{choices.narrationEnabled ? 'Requires a script and recorded audio. Playback never autoplays.' : 'Viewers move through the slides themselves.'}</small></span></li>
@@ -500,7 +517,7 @@ export function PublishWizard({
             {STUDIO_PUBLISH ? `Next · ${STEPS[step + 1]}` : 'Next'} <ArrowRight className="ml-1 h-3.5 w-3.5" />
           </Button>
         ) : (
-          <Button size="sm" onClick={() => onPublish(choices)} disabled={busy}>
+          <Button size="sm" onClick={() => onPublish(STUDIO_P2_PUBLISH ? publishChoicesFor(choices, budget !== null) : choices)} disabled={busy}>
             {busy && <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" />}
             {record ? 'Republish' : 'Publish'}
           </Button>
