@@ -38,6 +38,7 @@ import {
 } from '@/lib/theme-builder'
 import { loadPresetSwatchPalettes } from '@/lib/theme-preset-swatches'
 import { STUDIO_THEME_AUTO_NO_PILL_ENABLED, themeAppliedPillHidden } from '@/lib/studio-theme-auto-pill'
+import { STUDIO_THEME_PLAIN_WORDS_ENABLED, themePlainDescription } from '@/lib/studio-theme-plain-words'
 import { clampDarkOnlyPaletteMode, customEntryPaletteMode, effectivePaletteMode, lightDisabledFor, themeDarkModeEnabled, withPaletteMode, type DeckPaletteMode } from '@/lib/studio-theme-dark-toggle'
 import type { ThemeSyncState, ThemeSyncStatus } from '@/lib/theme-sync'
 import { DeckModeControl } from './theme-deck-mode-control'
@@ -117,10 +118,11 @@ const PENDING_PREVIEW_PALETTE: PreviewPalette = {
   text: '#374151',
 }
 
-const THEME_PREVIEWS = CANONICAL_THEME_PRESET_IDS.map(id => ({
-  id,
-  ...FALLBACK_THEME_PRESETS.find(preset => preset.preset_id === id)!,
-}))
+const THEME_PREVIEWS = CANONICAL_THEME_PRESET_IDS.map(id => {
+  const preset = FALLBACK_THEME_PRESETS.find(item => item.preset_id === id)!
+  // PASS2D 4b (NEXT_PUBLIC_STUDIO_THEME_PLAIN_WORDS, default off): the description in plain words; off, the preset's own.
+  return { id, ...preset, description: themePlainDescription(STUDIO_THEME_PLAIN_WORDS_ENABLED, id, preset.description) }
+})
 
 /** T-06 flag on: swatches from Theme Builder's own preset contracts (GET /presets/{id}). */
 function useCanonPresetPalettes(): Partial<Record<CanonicalThemePresetId, PreviewPalette>> {
