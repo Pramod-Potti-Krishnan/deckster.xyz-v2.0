@@ -1,0 +1,21 @@
+/* PASS2 PRO-02/04/05/06/07/08/10 (NEXT_PUBLIC_STUDIO_P2_PROFILE_MENU): every rule is scoped to the P2 menu's own markers, so no other menu is touched.
+   It stacks on user-profile-studio-v4.css (the --sp-* palette and the 295px fidelity block); the extra attribute keeps these rules ahead of it. */
+
+/* Identity: avatar disc, name over email, plan badge at the end. */
+[data-studio-p2-profile="true"][data-studio-v4-profile="true"] [data-studio-p2-identity="true"] { display: flex; align-items: center; gap: 10px; padding: 0 0 6px; }
+[data-studio-p2-profile="true"][data-studio-v4-profile="true"] [data-studio-p2-disc="true"] { width: 34px; height: 34px; flex-shrink: 0; border: 2px solid var(--sp-panel); box-shadow: 0 0 0 1px var(--sp-line); }
+[data-studio-p2-profile="true"][data-studio-v4-profile="true"] [data-studio-p2-disc-fallback="true"] { background-image: none; background-color: var(--sp-soft); color: var(--sp-muted); font-size: 11px; font-weight: 600; }
+[data-studio-p2-profile="true"][data-studio-v4-profile="true"] [data-studio-p2-identity-text="true"] { min-width: 0; flex: 1; display: flex; flex-direction: column; gap: 4px; }
+[data-studio-p2-profile="true"][data-studio-v4-profile="true"] [data-studio-p2-identity="true"] [data-studio-v4-profile-role="tier"] { flex-shrink: 0; margin-left: auto; }
+
+/* Rows: trailing chevron. */
+[data-studio-p2-profile="true"][data-studio-v4-profile="true"] [data-studio-p2-chevron="true"] { margin-left: auto; width: 14px; height: 14px; flex-shrink: 0; opacity: .7; }
+
+/* Appearance: "APPEARANCE" eyebrow and a three-way segmented control (Light / Dark / Auto). */
+[data-studio-p2-profile="true"][data-studio-v4-profile="true"] [data-studio-p2-eyebrow="true"] { padding: 12px 4px 6px; font-size: 9.5px; line-height: 14px; font-weight: 600; letter-spacing: .12em; text-transform: uppercase; color: var(--sp-muted); }
+[data-studio-p2-profile="true"][data-studio-v4-profile="true"] [data-studio-p2-appearance="true"] { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 2px; margin: 0 0 6px; padding: 3px; border-radius: 9px; background-color: var(--sp-soft); }
+[data-studio-p2-profile="true"][data-studio-v4-profile="true"] [data-studio-p2-appearance="true"] [role="menuitemradio"] { min-height: 30px; justify-content: center; gap: 6px; padding: 5px 4px; border-radius: 7px; font-size: 11px; line-height: 16px; color: var(--sp-muted); }
+[data-studio-p2-profile="true"][data-studio-v4-profile="true"] [data-studio-p2-appearance="true"] [role="menuitemradio"] > span:first-child { display: none; }
+[data-studio-p2-profile="true"][data-studio-v4-profile="true"] [data-studio-p2-appearance="true"] [role="menuitemradio"] > svg { width: 13px; height: 13px; flex-shrink: 0; color: currentColor; }
+[data-studio-p2-profile="true"][data-studio-v4-profile="true"] [data-studio-p2-appearance="true"] [role="menuitemradio"]:is(:hover, :focus, [data-highlighted]) { color: var(--sp-text); background-color: color-mix(in srgb, var(--sp-line) 45%, transparent); }
+[data-studio-p2-profile="true"][data-studio-v4-profile="true"] [data-studio-p2-appearance="true"] [role="menuitemradio"][data-state="checked"] { color: var(--sp-text); font-weight: 600; background-color: var(--sp-panel); box-shadow: 0 0 0 1px var(--sp-line); }
