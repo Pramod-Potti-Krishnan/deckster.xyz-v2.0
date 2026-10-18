@@ -33,6 +33,7 @@ import {
 import { useTheme } from "next-themes"
 import { cn } from "@/lib/utils"
 import { StudioNavigationHint } from "@/components/layout/studio-navigation-hint"
+import { StudioProfileMenuP2 } from "@/components/user-profile-menu-p2"
 import "./user-profile-studio-v4.css"
 
 // ---------------------------------------------------------------------------
@@ -130,6 +131,8 @@ export function UserProfileMenu({ studioLabels = false, studioPalette = false, s
   const [quota, setQuota] = useState<QuotaSnapshot | null>(null)
   const [isUsageExpanded, setIsUsageExpanded] = useState(false)
   const studioProfile = process.env.NEXT_PUBLIC_STUDIO_V4_SHELL === 'true' && studioPalette
+  // PASS2 PRO-02/04/05/06/07/08/10 (NEXT_PUBLIC_STUDIO_P2_PROFILE_MENU, default off, only where the Studio account presentation is on): the mockup's menu body.
+  const p2Menu = studioProfile && process.env.NEXT_PUBLIC_STUDIO_P2_PROFILE_MENU === 'true'
 
   // Fetch quota when dropdown opens (lightweight GET, cached by React state)
   const fetchQuota = useCallback(async () => {
@@ -205,6 +208,7 @@ export function UserProfileMenu({ studioLabels = false, studioPalette = false, s
           </Button>
         </DropdownMenuTrigger>
       </StudioNavigationHint>
+      {p2Menu ? <StudioProfileMenuP2 name={user.name} email={user.email} image={user.image} initials={userInitials} tierLabel={quota?.tierLabel} sessionUsage={sessionUsage} usage={quota && <UsageRemaining data={quota} isExpanded={isUsageExpanded} onToggle={() => setIsUsageExpanded(v => !v)} />} theme={theme} onTheme={setTheme} onNavigate={handleNavigation} onAbout={() => { setIsOpen(false); setAboutOpen(true) }} onLogout={handleLogout} /> : (
       <DropdownMenuContent data-studio-v4-profile={studioPalette ? "true" : undefined} data-studio-profile-fidelity={studioProfile ? "true" : undefined} side={studioProfile ? "right" : undefined} sideOffset={studioProfile ? 8 : undefined} align="end" className="w-64">
         <DropdownMenuLabel data-studio-profile-identity={studioProfile ? "true" : undefined} className="font-normal">
           <div className="flex flex-col space-y-1">
@@ -279,6 +283,7 @@ export function UserProfileMenu({ studioLabels = false, studioPalette = false, s
           <span>Sign Out</span>
         </DropdownMenuItem>
       </DropdownMenuContent>
+      )}
     </DropdownMenu>
     {process.env.NEXT_PUBLIC_STUDIO_V4_SHELL === 'true' && <StudioAboutDialog open={aboutOpen} onOpenChange={setAboutOpen} onCloseAutoFocus={aboutReplay.onCloseAutoFocus} onReplay={aboutReplay.intro ? aboutReplay.requestFromAbout : undefined} replayEnabled={aboutReplay.intro?.availableIgnoringOwnAboutModal} />}
     </>
