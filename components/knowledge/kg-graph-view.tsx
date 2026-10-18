@@ -14,8 +14,12 @@ import {
 import { Focus, List, Minus, Network, Plus, RotateCcw, ScanSearch } from "lucide-react"
 
 import './studio-graph-controls.css'
+import { StudioKnowledgeMapToolbar } from './studio-knowledge-map-toolbar'
+import { knowledgeFitScale } from '@/lib/studio-knowledge-map-toolbar'
 
 const STUDIO_GRAPH_CONTROLS = process.env.NEXT_PUBLIC_STUDIO_V4_SHELL === 'true'
+// J6 finding L6 (card PASS2-J6-FINDINGS): "- 100% +" read against the fitted view, one "Reset map", "Focus entity" only while something is selected (Studio controls only). Exact "true" enables it; default off.
+const MAP_TOOLBAR = STUDIO_GRAPH_CONTROLS && process.env.NEXT_PUBLIC_STUDIO_KNOWLEDGE_MAP_TOOLBAR === 'true'
 
 export interface KgViewNode {
   node_id: string
@@ -321,6 +325,8 @@ export function KgGraphView({
     [nodes, edges, width, height]
   )
   const byId = useMemo(() => new Map(layout.map((point) => [point.node_id, point])), [layout])
+  // Flag on: the scale fitGraph() gives this layout, which is what the readout calls 100%.
+  const fitScale = useMemo(() => MAP_TOOLBAR ? knowledgeFitScale(layout, width, height) : 1, [layout, width, height])
 
   const labeledIds = useMemo(() => {
     const sorted = [...layout].sort((a, b) => b.salience - a.salience)
@@ -502,51 +508,66 @@ export function KgGraphView({
         </ul>
       </div>
 
-      <div data-studio-graph-toolbar={STUDIO_GRAPH_CONTROLS ? 'true' : undefined} role="group" aria-label="Knowledge map controls" className="absolute right-3 top-3 z-10 hidden items-center gap-1 rounded-xl border border-white/10 bg-slate-950/80 p-1 shadow-xl backdrop-blur lg:flex">
-        {STUDIO_GRAPH_CONTROLS && <button type="button" onClick={() => setShowList(current => !current)} aria-pressed={showList} aria-label={showList ? "Show knowledge map" : "Show entity list"} title={showList ? "Show map" : "Entity list"}>{showList ? <Network className="h-4 w-4" /> : <List className="h-4 w-4" />}<span>{showList ? "Map" : "Entity list"}</span></button>}
-        <button
-          type="button"
-          onClick={() => zoomAround(view.scale * 1.2)}
-          disabled={STUDIO_GRAPH_CONTROLS && showList}
-          className="rounded-lg p-2 text-slate-300 transition hover:bg-white/10 hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-violet-400"
-          aria-label="Zoom in"
-          title="Zoom in"
-        >
-          <Plus className="h-4 w-4" />
-        </button>
-        <button
-          type="button"
-          onClick={() => zoomAround(view.scale / 1.2)}
-          disabled={STUDIO_GRAPH_CONTROLS && showList}
-          className="rounded-lg p-2 text-slate-300 transition hover:bg-white/10 hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-violet-400"
-          aria-label="Zoom out"
-          title="Zoom out"
-        >
-          <Minus className="h-4 w-4" />
-        </button>
-        {STUDIO_GRAPH_CONTROLS && <output className="skg-zoom" aria-label="Map zoom">{Math.round(view.scale * 100)}%</output>}
-        <button
-          type="button"
-          onClick={fitGraph}
-          disabled={STUDIO_GRAPH_CONTROLS && showList}
-          className="rounded-lg p-2 text-slate-300 transition hover:bg-white/10 hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-violet-400"
-          aria-label="Fit graph to view"
-          title="Fit graph"
-        >
-          <Focus className="h-4 w-4" />
-        </button>
-        {STUDIO_GRAPH_CONTROLS && <button type="button" onClick={focusSelected} disabled={showList || !selectedPoint} aria-label="Focus selected entity" title={selectedPoint ? `Focus ${selectedPoint.name}` : "Select an entity on this map to focus it"}><ScanSearch className="h-4 w-4" /><span>Focus entity</span></button>}
-        <button
-          type="button"
-          onClick={() => setView({ x: 0, y: 0, scale: 1 })}
-          disabled={STUDIO_GRAPH_CONTROLS && showList}
-          className="rounded-lg p-2 text-slate-300 transition hover:bg-white/10 hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-violet-400"
-          aria-label="Reset graph view"
-          title="Reset view"
-        >
-          <RotateCcw className="h-4 w-4" />
-        </button>
-      </div>
+      {MAP_TOOLBAR ? (
+        <StudioKnowledgeMapToolbar
+          showList={showList}
+          viewScale={view.scale}
+          fitScale={fitScale}
+          selectedName={selectedPoint?.name}
+          hasSelection={Boolean(selectedPoint)}
+          onToggleList={() => setShowList(current => !current)}
+          onZoomIn={() => zoomAround(view.scale * 1.2)}
+          onZoomOut={() => zoomAround(view.scale / 1.2)}
+          onReset={fitGraph}
+          onFocus={focusSelected}
+        />
+      ) : (
+        <div data-studio-graph-toolbar={STUDIO_GRAPH_CONTROLS ? 'true' : undefined} role="group" aria-label="Knowledge map controls" className="absolute right-3 top-3 z-10 hidden items-center gap-1 rounded-xl border border-white/10 bg-slate-950/80 p-1 shadow-xl backdrop-blur lg:flex">
+          {STUDIO_GRAPH_CONTROLS && <button type="button" onClick={() => setShowList(current => !current)} aria-pressed={showList} aria-label={showList ? "Show knowledge map" : "Show entity list"} title={showList ? "Show map" : "Entity list"}>{showList ? <Network className="h-4 w-4" /> : <List className="h-4 w-4" />}<span>{showList ? "Map" : "Entity list"}</span></button>}
+          <button
+            type="button"
+            onClick={() => zoomAround(view.scale * 1.2)}
+            disabled={STUDIO_GRAPH_CONTROLS && showList}
+            className="rounded-lg p-2 text-slate-300 transition hover:bg-white/10 hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-violet-400"
+            aria-label="Zoom in"
+            title="Zoom in"
+          >
+            <Plus className="h-4 w-4" />
+          </button>
+          <button
+            type="button"
+            onClick={() => zoomAround(view.scale / 1.2)}
+            disabled={STUDIO_GRAPH_CONTROLS && showList}
+            className="rounded-lg p-2 text-slate-300 transition hover:bg-white/10 hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-violet-400"
+            aria-label="Zoom out"
+            title="Zoom out"
+          >
+            <Minus className="h-4 w-4" />
+          </button>
+          {STUDIO_GRAPH_CONTROLS && <output className="skg-zoom" aria-label="Map zoom">{Math.round(view.scale * 100)}%</output>}
+          <button
+            type="button"
+            onClick={fitGraph}
+            disabled={STUDIO_GRAPH_CONTROLS && showList}
+            className="rounded-lg p-2 text-slate-300 transition hover:bg-white/10 hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-violet-400"
+            aria-label="Fit graph to view"
+            title="Fit graph"
+          >
+            <Focus className="h-4 w-4" />
+          </button>
+          {STUDIO_GRAPH_CONTROLS && <button type="button" onClick={focusSelected} disabled={showList || !selectedPoint} aria-label="Focus selected entity" title={selectedPoint ? `Focus ${selectedPoint.name}` : "Select an entity on this map to focus it"}><ScanSearch className="h-4 w-4" /><span>Focus entity</span></button>}
+          <button
+            type="button"
+            onClick={() => setView({ x: 0, y: 0, scale: 1 })}
+            disabled={STUDIO_GRAPH_CONTROLS && showList}
+            className="rounded-lg p-2 text-slate-300 transition hover:bg-white/10 hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-violet-400"
+            aria-label="Reset graph view"
+            title="Reset view"
+          >
+            <RotateCcw className="h-4 w-4" />
+          </button>
+        </div>
+      )}
 
       <div data-studio-graph-hint={STUDIO_GRAPH_CONTROLS ? 'true' : undefined} className="pointer-events-none absolute bottom-3 left-3 z-10 hidden rounded-lg border border-white/10 bg-slate-950/65 px-2.5 py-1.5 text-[11px] text-slate-400 backdrop-blur lg:block">
         Scroll to zoom · drag to explore
