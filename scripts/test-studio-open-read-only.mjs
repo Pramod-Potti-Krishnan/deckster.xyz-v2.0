@@ -275,6 +275,7 @@ function proveSources(src, label = 'sources') {
   match(builder, /const PASSIVE_WRITE = \{ passive: true \} as const/, `${label}: the passive mark is passive`)
   match(builder, /if \(STUDIO_SESSION_OPEN_READ_ONLY_ENABLED\) persistence\?\.beginOpenQuiet\?\.\(session\.id, session\)/, `${label}: the row that was read begins the quiet period`)
   ok(builder.indexOf('persistence?.beginOpenQuiet?.(session.id, session)') > builder.indexOf('setCurrentSessionId(session.id)\n            setSessionStoreName'), `${label}: after the session id is set`)
+  ok(builder.indexOf('persistence?.beginOpenQuiet?.(session.id, session)') > builder.indexOf("debugLog('✅ Session loaded successfully')") && builder.indexOf('persistence?.beginOpenQuiet?.(session.id, session)') < builder.indexOf('if (session.title) {'), `${label}: right after the load is reported done, before the title is read`)
   eq((builder.match(/PASSIVE_WRITE/g) || []).length, 1 + 4 + 2, `${label}: the constant and seven marks`)
   eq((builder.match(/queueMessage\([^)]*PASSIVE_WRITE\)|\} as DirectorMessage, text, PASSIVE_WRITE\)/g) || []).length, 4, `${label}: four passive message writes`)
   eq((builder.match(/\}, PASSIVE_WRITE\)/g) || []).length, 2, `${label}: two passive title writes`)

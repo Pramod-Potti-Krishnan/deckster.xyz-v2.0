@@ -433,8 +433,6 @@ export function useBuilderSession({
             })
             setCurrentSessionId(session.id)
             setSessionStoreName(session.geminiStoreName || null)
-            // NEXT_PUBLIC_STUDIO_SESSION_OPEN_READ_ONLY: this session was opened, not created: it stays read-only until the user acts.
-            if (STUDIO_SESSION_OPEN_READ_ONLY_ENABLED) persistence?.beginOpenQuiet?.(session.id, session)
             if (STUDIO_SESSION_HYGIENE_ENABLED) {
               // The history has a row for this id, so it is saved, whatever an unsaved flag left over from the previous session
               // (bare /builder, then a click on a saved one in the sidebar) or a stale marker says. With the flag on an unsaved
@@ -445,6 +443,8 @@ export function useBuilderSession({
               } catch {}
             }
             debugLog('✅ Session loaded successfully')
+            // NEXT_PUBLIC_STUDIO_SESSION_OPEN_READ_ONLY: this session was opened, not created: it stays read-only until the user acts.
+            if (STUDIO_SESSION_OPEN_READ_ONLY_ENABLED) persistence?.beginOpenQuiet?.(session.id, session)
 
             if (session.title) {
               debugLog('📝 Session already has title:', session.title)
