@@ -10,6 +10,7 @@ import { StudioWorkflowAction } from "@/components/studio-libraries/studio-workf
 import { StudioIntroReplay } from "@/components/studio-intro-replay"
 import "@/components/studio-libraries/destination-intros.css"
 import "./personal-workspaces.css"
+import { STUDIO_P2_DETAILS_ENABLED as p2Details, contactLine, httpsLogoUrl, logoUrlProblem } from "@/lib/studio-p2-details"
 
 type DetailsDraft = { author: string; role: string; company: string; email: string; footer: "author" | "title" | "pages" | "none"; confidentiality: string }
 type LocalLogo = { url: string; name: string }
@@ -34,7 +35,10 @@ export function DetailsWorkspace({ accountName, accountEmail, accountImage }: { 
   const currentLogo = useRef<LocalLogo | null>(logo)
   currentLogo.current = logo
   const [status, setStatus] = useState("")
-  const dirty = JSON.stringify(draft) !== JSON.stringify(initialDraft(accountName)) || Boolean(logo)
+  // DET-03 (p2Details): the website and the logo URL of this local preview; never saved.
+  const [p2Fields, setP2Fields] = useState({ website: "", logoUrl: "" })
+  const p2LogoUrl = p2Details ? httpsLogoUrl(p2Fields.logoUrl) : null
+  const dirty = JSON.stringify(draft) !== JSON.stringify(initialDraft(accountName)) || Boolean(logo) || (p2Details && Boolean(p2Fields.website || p2Fields.logoUrl))
 
   useEffect(() => {
     if (!logo) return
@@ -105,9 +109,14 @@ export function DetailsWorkspace({ accountName, accountEmail, accountImage }: { 
             <div className="sp-form-intro"><h2>A familiar introduction</h2><p>Explore how your name and professional details could appear across your slides.</p></div>
             <div className="sp-field-grid">
               <label className="sp-field sp-field-wide"><span>Author name</span><input value={draft.author} maxLength={80} placeholder="Your name" autoComplete="off" onChange={event => update("author", event.target.value)} /><small>Starts with your account name. Editing here changes only this preview.</small></label>
-              <label className="sp-field"><span>Job title</span><input value={draft.role} maxLength={80} placeholder="e.g. Product Director" autoComplete="off" onChange={event => update("role", event.target.value)} /></label>
+              <label className="sp-field"><span>{p2Details ? "Professional title" : "Job title"}</span><input value={draft.role} maxLength={80} placeholder="e.g. Product Director" autoComplete="off" onChange={event => update("role", event.target.value)} /></label>
               <label className="sp-field"><span>Organization</span><input value={draft.company} maxLength={120} placeholder="Your organization" autoComplete="off" onChange={event => update("company", event.target.value)} /></label>
-              <label className="sp-field sp-field-wide"><span>Contact line <small>Optional</small></span><input value={draft.email} maxLength={120} placeholder="Email or website to show on slides" autoComplete="off" onChange={event => update("email", event.target.value)} /></label>
+              {p2Details ? <>
+                <label className="sp-field"><span>Contact email <small>Optional</small></span><input type="email" value={draft.email} maxLength={120} placeholder="name@example.com" autoComplete="off" onChange={event => update("email", event.target.value)} /></label>
+                <label className="sp-field"><span>Website <small>Optional</small></span><input value={p2Fields.website} maxLength={120} placeholder="example.com" autoComplete="off" onChange={event => { setP2Fields(previous => ({ ...previous, website: event.target.value })); setStatus("Preview updated. Your account and presentations are unchanged.") }} /></label>
+                <label className="sp-field sp-field-wide"><span>Confidentiality line <small>Optional</small></span><input value={draft.confidentiality} maxLength={120} placeholder="e.g. Internal discussion" onChange={event => update("confidentiality", event.target.value)} /></label>
+                <label className="sp-field sp-field-wide"><span>Logo URL <small>Optional · https only</small></span><input type="url" value={p2Fields.logoUrl} maxLength={500} placeholder="https://example.com/logo.png" autoComplete="off" aria-invalid={logoUrlProblem(p2Fields.logoUrl) ? true : undefined} onChange={event => { setP2Fields(previous => ({ ...previous, logoUrl: event.target.value })); setStatus("Preview updated. Your account and presentations are unchanged.") }} />{logoUrlProblem(p2Fields.logoUrl) ? <small className="sp-error" role="alert">{logoUrlProblem(p2Fields.logoUrl)}</small> : <small>Shown in this preview only. A chosen logo file in Footer &amp; logo takes its place.</small>}</label>
+              </> : <label className="sp-field sp-field-wide"><span>Contact line <small>Optional</small></span><input value={draft.email} maxLength={120} placeholder="Email or website to show on slides" autoComplete="off" onChange={event => update("email", event.target.value)} /></label>}
             </div>
             <div className="sp-inline-note"><FileText size={16} aria-hidden="true" /><p>One reusable identity is the direction. Saving defaults and applying them to decks are not connected in this candidate.</p></div>
           </div> : section === "footer" ? <div className="sp-form-section">
@@ -122,9 +131,9 @@ export function DetailsWorkspace({ accountName, accountEmail, accountImage }: { 
         <aside className="sp-identity-preview" hidden={section === "account"} aria-label="Sample slide preview">
           <div className="sp-preview-heading"><span>SLIDE PREVIEW</span><div className="sp-preview-switcher" role="group" aria-label="Sample slide"><button type="button" aria-pressed={preview === "title"} onClick={() => setPreview("title")}>Title</button><button type="button" aria-pressed={preview === "content"} onClick={() => setPreview("content")}>Content</button></div></div>
           <div className="sp-sample-slide" data-preview-slide={preview}>
-            <div className="sp-sample-slide-top"><span>{draft.company.trim() || "YOUR ORGANIZATION"}</span>{logo && <img key={logo.url} src={logo.url} alt="Your selected logo preview" onError={() => discardFailedLogo(logo.url)} />}</div>
+            <div className="sp-sample-slide-top"><span>{draft.company.trim() || "YOUR ORGANIZATION"}</span>{logo && <img key={logo.url} src={logo.url} alt="Your selected logo preview" onError={() => discardFailedLogo(logo.url)} />}{p2Details && !logo && p2LogoUrl && <img key={p2LogoUrl} src={p2LogoUrl} alt="Your logo URL preview" referrerPolicy="no-referrer" />}</div>
             <div className="sp-sample-slide-body">
-              {preview === "title" ? <><div className="sp-sample-line" /><h2>{sampleTitle}</h2><div className="sp-sample-byline"><strong>{draft.author.trim() || "Your name"}</strong><span>{draft.role.trim() || "Your professional introduction"}</span>{draft.email.trim() && <small>{draft.email.trim()}</small>}</div></> : <><p className="sp-sample-kicker">A SHARED PERSPECTIVE</p><h2>One idea.<br />A lasting impression.</h2><div className="sp-sample-content"><span /><span /><span /></div><small className="sp-sample-content-label">Illustrative content</small></>}
+              {preview === "title" ? <><div className="sp-sample-line" /><h2>{sampleTitle}</h2><div className="sp-sample-byline"><strong>{draft.author.trim() || "Your name"}</strong><span>{draft.role.trim() || "Your professional introduction"}</span>{p2Details ? contactLine(draft.email, p2Fields.website) && <small>{contactLine(draft.email, p2Fields.website)}</small> : draft.email.trim() && <small>{draft.email.trim()}</small>}</div></> : <><p className="sp-sample-kicker">A SHARED PERSPECTIVE</p><h2>One idea.<br />A lasting impression.</h2><div className="sp-sample-content"><span /><span /><span /></div><small className="sp-sample-content-label">Illustrative content</small></>}
             </div>
             <div className="sp-sample-footer"><span>{draft.confidentiality}</span><span>{footer}</span></div>
           </div>
