@@ -70,13 +70,13 @@
   [data-studio-v4-shell="true"] [data-studio-v4-shell-workspace]:has(> [data-studio-v4-shell-presentation][data-studio-first-run-stage="true"]):has([data-studio-workspace-drawer="deck"][data-studio-workspace-visible="true"] [data-studio-first-run]) [data-studio-director-welcome][data-studio-first-run] h2 { font-size: clamp(26px, 2.6vw, 32px); }
 }
 
-/* PASS2D W (flag NEXT_PUBLIC_STUDIO_WELCOME_WIDTH_560, PK decision #6): the welcome column is 560 px, composer included, so the column and the box under it line up.
+/* PASS2D W (flag NEXT_PUBLIC_STUDIO_WELCOME_WIDTH_560, PK decision #6): the welcome column is 560 px and the composer's visible box is 560 px too (its element adds its 12 px padding on each side), so the column and the box under it line up.
    Keyed to the marker the head carries only with the flag on (data-studio-first-run-width), so with it off none of this matches anything. */
 [data-studio-v4-shell="true"] [data-studio-v4-shell-workspace]:has(> [data-studio-v4-shell-presentation][data-studio-first-run-stage="true"]):has([data-studio-workspace-drawer="deck"][data-studio-workspace-visible="true"] [data-studio-first-run][data-studio-first-run-width="560"]) div:has(> [data-studio-first-run]) > * {
   width: min(560px, 100%);
 }
 [data-studio-v4-shell="true"] [data-studio-v4-shell-workspace]:has(> [data-studio-v4-shell-presentation][data-studio-first-run-stage="true"]):has([data-studio-workspace-drawer="deck"][data-studio-workspace-visible="true"] [data-studio-first-run][data-studio-first-run-width="560"]) [data-studio-v4-composer] {
-  width: min(560px, 100%);
+  width: min(calc(560px + 24px), 100%);
 }
 [data-studio-v4-shell="true"] [data-studio-v4-shell-workspace]:has(> [data-studio-v4-shell-presentation][data-studio-first-run-stage="true"]):has([data-studio-workspace-drawer="deck"][data-studio-workspace-visible="true"] [data-studio-first-run][data-studio-first-run-width="560"]) [data-studio-director-welcome][data-studio-first-run] {
   max-width: 560px;

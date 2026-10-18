@@ -9,6 +9,12 @@
 /** The column width, in CSS pixels, that the marked welcome uses. The stylesheet's `560px` must stay equal to it (scripts/test-studio-welcome-width.mjs checks). */
 export const STUDIO_WELCOME_WIDTH_PX = 560
 
+/**
+ * The composer's own padding on both sides (its `p-3`, 12 px each, in components/builder/chat-input.tsx): the composer element is this much wider than the box you see, so for the
+ * visible box to be as wide as the column the element is STUDIO_WELCOME_WIDTH_PX + this. The stylesheet's `24px` must stay equal to it (the test checks, and checks the `p-3`).
+ */
+export const STUDIO_WELCOME_COMPOSER_INSET_PX = 24
+
 /** The attribute the welcome head carries when the narrower column is on. */
 export const STUDIO_WELCOME_WIDTH_ATTRIBUTE = 'data-studio-first-run-width'
 
