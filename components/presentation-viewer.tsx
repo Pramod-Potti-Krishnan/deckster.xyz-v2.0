@@ -78,6 +78,7 @@ import { STUDIO_DECK_MUTATION_REFRESH_ENABLED, onSlideRailRefreshRequest } from 
 import { STUDIO_SLIDE_DELETE_CANVAS_REFRESH_ENABLED, studioSlideDeleteRefresh } from '@/lib/studio-slide-delete-refresh' // PASS2D B4
 import { StudioSlideDeleteRefreshVeil } from '@/components/builder/studio-slide-delete-refresh-veil' // PASS2D B4
 import { STUDIO_SLIDE_OPS_VIA_VIEWER_ENABLED, SLIDE_OP_VIEWER_TIMEOUT_MS, isSlideOpViewerAction, slideTotalAfterAck } from '@/lib/studio-slide-ops-via-viewer' // SLIDE-OPS-VIA-VIEWER
+import { STUDIO_INSERT_PERSIST_ENABLED, shouldEnsureEditModeForPersistence, ensureViewerTracksEdits } from '@/lib/studio-insert-persist' // INSERT-PERSIST
 import { STUDIO_DECK_CHANGED_NOTICE_ENABLED, reportDeckChange, reportLayoutCommandAck, reportOwnDeckEdit, reportViewerDeckState } from '@/lib/studio-deck-changed-notice'
 import { STUDIO_SLIDE_RAIL_V2, SLIDE_RAIL_V2_DEFAULT_WIDTH } from '@/lib/studio-slide-rail-v2'
 import { STUDIO_TOP_BAR_V2_ENABLED, publishStudioDeckSaveState } from '@/lib/studio-top-bar-v2'
@@ -818,6 +819,8 @@ export function PresentationViewer({
   const diagramStateTimersRef = useRef<Map<string, number>>(new Map())
   const pendingDiagramStatesRef = useRef<Map<string, DiagramRendererStateUpdate>>(new Map())
   const onSlideChangeRef = useRef(onSlideChange)
+  const onEditModeChangeRef = useRef(onEditModeChange) // INSERT-PERSIST: read at call time so the element-command callback keeps its identity
+  onEditModeChangeRef.current = onEditModeChange // INSERT-PERSIST
   const [saveStatus, setSaveStatus] = useState<SaveStatus>('saved')
   // Native saves can race React renders. Only a trusted saved/no-pending event
   // clears a dirty history; forceSave/getPendingChanges fallbacks do not prove it.
@@ -3146,6 +3149,11 @@ export function PresentationViewer({
     // Direct Layout Service command - send to iframe
     if (commandType === 'layout-service') {
       debugLog(`[ElementCommand] Layout Service: ${action}`, params)
+      if (shouldEnsureEditModeForPersistence(action, { enabled: STUDIO_INSERT_PERSIST_ENABLED, studioShell })) { // INSERT-PERSIST: Layout autosave drops changes made outside edit mode
+        const targetIframe = iframeRef.current // INSERT-PERSIST
+        const tracked = await ensureViewerTracksEdits((a, p) => sendCommand(targetIframe, a, p ?? {})) // INSERT-PERSIST
+        if (tracked.entered) { setIsEditMode(true); onEditModeChangeRef.current?.(true) } // INSERT-PERSIST
+      } // INSERT-PERSIST
       const timeoutMs = LAYOUT_ELEMENT_COMMAND_TIMEOUTS[action] ?? DEFAULT_LAYOUT_COMMAND_TIMEOUT_MS
       return sendCommand(iframeRef.current, action, params, { timeoutMs })
     }
