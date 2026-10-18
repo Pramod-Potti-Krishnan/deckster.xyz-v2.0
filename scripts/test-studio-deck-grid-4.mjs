@@ -18,6 +18,7 @@ import assert from 'node:assert/strict'
 import fs from 'node:fs'
 import path from 'node:path'
 import vm from 'node:vm'
+import { stripDeckCardCount } from './studio-deck-card-count-strip.mjs'
 import { execFileSync } from 'node:child_process'
 import { createRequire } from 'node:module'
 import ts from 'typescript'
@@ -75,6 +76,7 @@ const modules = {
   '@/components/studio-intro-replay': { StudioIntroReplay: () => null }, '@/lib/layout-service-client': { LAYOUT_VIEWER_URL_POLICY: {} },
   '@/lib/layout-viewer-url-policy': { evaluateLayoutViewerUrl: () => ({ status: 'empty' }) }, '@/lib/present-view-only': { viewOnlyIfEnabled: url => url },
   '@/lib/studio-deck-cards': { deckCardDescription: (title, description) => description, deckCardStatusLabel: deck => deck.status }, '@/lib/studio-create-word': createWordLib,
+  '@/lib/studio-deck-card-count': { studioDeckCardCountLabel: () => { throw new Error('flag off: not called') } }, // PASS2D R5: flag NEXT_PUBLIC_STUDIO_DECK_CARD_SLIDE_COUNT is off here, so the label helper is never called
 }
 function renderPage(source, env, overrides = {}) {
   const names = [...source.matchAll(/const \[(\w+),\s*\w+\]\s*=\s*useState/g)].map(match => match[1])
@@ -139,7 +141,7 @@ function proveSource(source, tailwind, label = 'source') {
   eq((source.match(/data-studio-deck-grid="true"/g) ?? []).length, 1, `${label}: it is the deck grid's class`)
   match(source, new RegExp(`<div data-studio-deck-grid="true" data-studio-deck-view=\\{view\\} ${EXPR.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}>`), `${label}: on the grid div`)
   const basePage = baseSource(DASH)
-  if (basePage) eq(revertG56(source.replace(CONST, '').replace(EXPR, PLAIN)), basePage, `${label}: without the G53 text the page is ${BASE_COMMIT}'s`)
+  if (basePage) eq(revertG56(stripDeckCardCount(source).replace(CONST, '').replace(EXPR, PLAIN)), basePage, `${label}: without the G53 text the page is ${BASE_COMMIT}'s`)
   if (basePage) eq(basePage.split(`<div data-studio-deck-grid="true" data-studio-deck-view={view} ${PLAIN}>`).length - 1, 1, `${label}: the base's grid is the plain class`)
   // the config scans the page
   const content = tailwind.match(/content:\s*\[([\s\S]*?)\]/)?.[1] ?? ''

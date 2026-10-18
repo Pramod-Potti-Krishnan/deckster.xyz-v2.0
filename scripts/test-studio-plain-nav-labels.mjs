@@ -19,6 +19,7 @@ import assert from 'node:assert/strict'
 import fs from 'node:fs'
 import path from 'node:path'
 import vm from 'node:vm'
+import { stripDeckCardCount } from './studio-deck-card-count-strip.mjs'
 import { execFileSync } from 'node:child_process'
 import { createRequire } from 'node:module'
 import ts from 'typescript'
@@ -173,7 +174,7 @@ function proveDash(page, label = 'dashboard') {
   const tabAt = page.indexOf(DASH_TAB), triggerAt = page.lastIndexOf('<TabsTrigger value="strawman">', tabAt)
   ok(triggerAt > 0 && tabAt - triggerAt < 60, `${label}: it is the strawman tab's trigger`)
   const basePage = baseSource(DASH)
-  if (basePage) eq(stripDash(page), basePage, `${label}: without the G54 text the page is ${BASE_COMMIT}'s`)
+  if (basePage) eq(stripDash(stripDeckCardCount(page)), basePage, `${label}: without the G54 text the page is ${BASE_COMMIT}'s`)
   // the tab's text nodes: off exactly the base's (renderToString keeps the node boundaries), on the plain words
   const Work = tabComponent(DASH_TAB), Base = tabComponent(DASH_TAB_BASE)
   for (const count of [0, 1, 7, 12]) {
