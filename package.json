@@ -112,6 +112,7 @@
     "test:studio-theme-plain-words": "node scripts/test-studio-theme-plain-words.mjs",
     "test:studio-theme-base-dropdown": "node scripts/test-studio-theme-base-dropdown.mjs",
     "test:studio-theme-saved-chips": "node scripts/test-studio-theme-saved-chips.mjs",
+    "test:studio-theme-preview-canon": "node scripts/test-studio-theme-preview-canon.mjs",
     "test:studio-knowledge-fixes": "node scripts/test-studio-knowledge-fixes.mjs",
     "test:studio-new-session-theme-policy": "node scripts/test-studio-new-session-theme-policy.mjs",
     "test:template-save-gate": "node scripts/test-template-save-gate.mjs",
