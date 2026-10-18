@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import { Badge } from "@/components/ui/badge"
+import { p2AccountAttr, STUDIO_P2_ACCOUNT_ENABLED } from "@/lib/studio-p2-account"
 import {
   Command,
   Search,
@@ -104,7 +105,7 @@ export default function ShortcutsPage() {
   }
 
   return (
-    <main className="container mx-auto px-4 py-8 max-w-4xl">
+    <main data-studio-shortcuts={p2AccountAttr(STUDIO_P2_ACCOUNT_ENABLED)} className="container mx-auto px-4 py-8 max-w-4xl">
         <div className="mb-8 text-center">
           <div className="flex justify-center mb-4">
             <div className="p-3 bg-purple-100 rounded-lg">

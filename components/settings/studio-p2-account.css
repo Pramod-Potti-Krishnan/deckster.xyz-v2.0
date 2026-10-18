@@ -1,0 +1,39 @@
+/* NEXT_PUBLIC_STUDIO_P2_ACCOUNT (lib/studio-p2-account.ts). Every rule needs the frame's data-studio-p2-account="true", which exists only with the flag. */
+
+/* ACC-04: primary actions are ink-slate, as in the mock; violet stays for AI / generation. */
+[data-studio-v4-shell="true"][data-studio-p2-account="true"] [data-studio-settings-profile-save],
+[data-studio-v4-shell="true"][data-studio-p2-account="true"] [data-studio-billing-plan-summary] button,
+[data-studio-v4-shell="true"][data-studio-p2-account="true"] [data-studio-billing-upgrade] button { background: var(--ss-action); color: var(--ss-on-action); }
+[data-studio-v4-shell="true"][data-studio-p2-account="true"] [data-studio-settings-profile-save]:hover:not(:disabled),
+[data-studio-v4-shell="true"][data-studio-p2-account="true"] [data-studio-billing-plan-summary] button:hover:not(:disabled),
+[data-studio-v4-shell="true"][data-studio-p2-account="true"] [data-studio-billing-upgrade] button:hover:not(:disabled) { background: var(--ss-action-hover); color: var(--ss-on-action); }
+
+/* ACC-17: /shortcuts on the Studio tokens (the mock's "A little faster" list: flat rows, hairlines, outlined mono key chips). */
+[data-studio-v4-shell="true"][data-studio-p2-account="true"] [data-studio-shortcuts="true"] { max-width: 760px; padding: 24px clamp(16px,2.8vw,32px) 28px; color: var(--ss-text); }
+[data-studio-v4-shell="true"][data-studio-p2-account="true"] [data-studio-shortcuts="true"] > div:first-child { margin-bottom: 20px; text-align: left; }
+[data-studio-v4-shell="true"][data-studio-p2-account="true"] [data-studio-shortcuts="true"] > div:first-child > div:first-child { display: none; }
+[data-studio-v4-shell="true"][data-studio-p2-account="true"] [data-studio-shortcuts="true"] > div:first-child > h1 { font-size: 24px; line-height: 32px; font-weight: 600; letter-spacing: -.025em; margin-bottom: 5px; color: var(--ss-text); }
+[data-studio-v4-shell="true"][data-studio-p2-account="true"] [data-studio-shortcuts="true"] > div:first-child > p { font-size: 12px; line-height: 20px; color: var(--ss-muted); }
+[data-studio-v4-shell="true"][data-studio-p2-account="true"] [data-studio-shortcuts="true"] > .rounded-lg.border { background: var(--ss-panel); border-color: var(--ss-line); border-radius: 12px; box-shadow: none; color: var(--ss-text); }
+[data-studio-v4-shell="true"][data-studio-p2-account="true"] [data-studio-shortcuts="true"] > .rounded-lg.border > div:first-child { padding: 20px 22px 14px; border-bottom: 1px solid var(--ss-line); }
+[data-studio-v4-shell="true"][data-studio-p2-account="true"] [data-studio-shortcuts="true"] > .rounded-lg.border > div:first-child h3 { font-size: 16px; line-height: 23px; font-weight: 600; }
+[data-studio-v4-shell="true"][data-studio-p2-account="true"] [data-studio-shortcuts="true"] > .rounded-lg.border > div:first-child p { font-size: 12px; line-height: 20px; color: var(--ss-muted); }
+[data-studio-v4-shell="true"][data-studio-p2-account="true"] [data-studio-shortcuts="true"] > .rounded-lg.border > div:last-child { padding: 16px 22px 22px; }
+[data-studio-v4-shell="true"][data-studio-p2-account="true"] [data-studio-shortcuts="true"] input { height: 36px; border-radius: 7px; border-color: var(--ss-line); background: var(--ss-field); color: var(--ss-text); font-size: 13px; }
+[data-studio-v4-shell="true"][data-studio-p2-account="true"] [data-studio-shortcuts="true"] input::placeholder { color: var(--ss-muted); }
+[data-studio-v4-shell="true"][data-studio-p2-account="true"] [data-studio-shortcuts="true"] button { height: 30px; border-radius: 999px; border: 1px solid var(--ss-line); background: var(--ss-panel); color: var(--ss-muted); font-size: 11px; font-weight: 500; box-shadow: none; }
+[data-studio-v4-shell="true"][data-studio-p2-account="true"] [data-studio-shortcuts="true"] button:hover { background: var(--ss-soft); color: var(--ss-text); }
+[data-studio-v4-shell="true"][data-studio-p2-account="true"] [data-studio-shortcuts="true"] button.bg-primary { border-color: transparent; background: var(--ss-active); color: var(--ss-teal); }
+[data-studio-v4-shell="true"][data-studio-p2-account="true"] [data-studio-shortcuts="true"] :is(button,input):focus-visible { outline: 2px solid var(--ss-accent); outline-offset: 2px; box-shadow: none; }
+[data-studio-v4-shell="true"][data-studio-p2-account="true"] [data-studio-shortcuts="true"] h3.font-medium.text-sm { margin-bottom: 4px; font-size: 11px; line-height: 18px; font-weight: 600; letter-spacing: .06em; text-transform: uppercase; color: var(--ss-muted); }
+[data-studio-v4-shell="true"][data-studio-p2-account="true"] [data-studio-shortcuts="true"] .space-y-2 > :not([hidden]) ~ :not([hidden]) { margin-top: 0; }
+[data-studio-v4-shell="true"][data-studio-p2-account="true"] [data-studio-shortcuts="true"] .space-y-2 > div.justify-between { padding: 12px 0; border-radius: 0; border-bottom: 1px solid var(--ss-line); background: transparent; }
+[data-studio-v4-shell="true"][data-studio-p2-account="true"] [data-studio-shortcuts="true"] .space-y-2 > div.justify-between:hover { background: transparent; }
+[data-studio-v4-shell="true"][data-studio-p2-account="true"] [data-studio-shortcuts="true"] .space-y-2 > div.justify-between > span { font-size: 12px; line-height: 20px; color: var(--ss-text); }
+[data-studio-v4-shell="true"][data-studio-p2-account="true"] [data-studio-shortcuts="true"] .space-y-2 > div.justify-between .font-mono { padding: 2px 7px; border: 1px solid var(--ss-line); border-radius: 5px; background: transparent; color: var(--ss-text); font-size: 10px; font-weight: 400; line-height: 16px; }
+[data-studio-v4-shell="true"][data-studio-p2-account="true"] [data-studio-shortcuts="true"] .space-y-2 > div.justify-between .text-muted-foreground { color: var(--ss-muted); }
+[data-studio-v4-shell="true"][data-studio-p2-account="true"] [data-studio-shortcuts="true"] .mt-8.p-4 { margin-top: 22px; padding: 12px 14px; border: 1px solid var(--ss-line); border-radius: 10px; background: var(--ss-surface); }
+[data-studio-v4-shell="true"][data-studio-p2-account="true"] [data-studio-shortcuts="true"] .mt-8.p-4 h3 { font-size: 12px; font-weight: 600; color: var(--ss-text); }
+[data-studio-v4-shell="true"][data-studio-p2-account="true"] [data-studio-shortcuts="true"] .mt-8.p-4 p { font-size: 11px; line-height: 18px; color: var(--ss-muted); }
+[data-studio-v4-shell="true"][data-studio-p2-account="true"] [data-studio-shortcuts="true"] .mt-8.p-4 kbd { border-color: var(--ss-line); background: var(--ss-panel); color: var(--ss-text); font-family: ui-monospace, SFMono-Regular, Menlo, monospace; }
+[data-studio-v4-shell="true"][data-studio-p2-account="true"] [data-studio-shortcuts="true"] .text-center.py-8 p { font-size: 12px; color: var(--ss-muted); }
