@@ -568,4 +568,6 @@
 
 /* The scroll container is html, so this route-scoped exception cannot descend from .mv3. */
 html.snap-deck.mv3-page{scroll-padding-top:56px}
+/* NEXT_PUBLIC_STUDIO_P2_LANDING (LAND-01): the canvas behind the page is night, as in the mock; mv3-night exists only with the flag. */
+html.mv3-page.mv3-night{background:#0C0D13}
 @media (prefers-reduced-motion:reduce){html.snap-deck.mv3-page{scroll-behavior:auto}}

@@ -3,6 +3,7 @@
 import { useEffect } from "react"
 import { usePathname } from "next/navigation"
 import { useReveal } from "./use-reveal"
+import { MV3_NIGHT_CLASS, STUDIO_P2_LANDING_ENABLED } from "@/lib/studio-p2-landing"
 
 export function useV3Deck() {
   const pathname = usePathname()
@@ -12,6 +13,7 @@ export function useV3Deck() {
     const header = document.querySelector<HTMLElement>(".mv3 [data-v3-header]")
     const slides = Array.from(document.querySelectorAll<HTMLElement>(".mv3 main > section.slide"))
     html.classList.add("mv3-page")
+    if (STUDIO_P2_LANDING_ENABLED) html.classList.add(MV3_NIGHT_CLASS) // LAND-01
     let raf: number | null = null
     const update = () => {
       if (raf !== null) return
@@ -33,6 +35,7 @@ export function useV3Deck() {
       window.removeEventListener("resize", update)
       if (raf !== null) cancelAnimationFrame(raf)
       html.classList.remove("mv3-page")
+      if (STUDIO_P2_LANDING_ENABLED) html.classList.remove(MV3_NIGHT_CLASS) // LAND-01
     }
   }, [pathname])
 }
