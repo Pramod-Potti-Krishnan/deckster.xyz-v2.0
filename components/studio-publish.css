@@ -326,3 +326,21 @@
 @media (max-width: 700px) {
   [data-studio-publish="true"] .studio-publish-viewer-grid { grid-template-columns: minmax(0, 1fr); gap: 14px; }
 }
+
+/* NEXT_PUBLIC_STUDIO_P2_PUBLISH (components/publish-p2.tsx): masked passcode with an eye and a counter, the recording estimate, the done-screen link. */
+[data-studio-publish="true"] .studio-publish-passcode { position: relative; flex: 1 1 auto; min-width: 0; }
+[data-studio-publish="true"] .studio-publish-passcode > input { width: 100%; }
+[data-studio-publish="true"] .studio-publish-passcode-eye { position: absolute; top: 50%; right: 5px; transform: translateY(-50%); display: grid; place-items: center; width: 28px; height: 28px; border: 0; border-radius: 6px; background: transparent; color: var(--sp-muted); cursor: pointer; }
+[data-studio-publish="true"] .studio-publish-passcode-eye:hover { background: var(--sp-surface); color: var(--sp-teal); }
+[data-studio-publish="true"] .studio-publish-passcode-count { margin: 4px 0 0; font-size: 11px; line-height: 1.5; color: var(--sp-danger); }
+[data-studio-publish="true"] .studio-publish-record-estimate { display: grid; }
+[data-studio-publish="true"] .studio-publish-record-estimate > label { display: flex; align-items: flex-start; gap: 10px; padding: 12px; border: 1px solid var(--sp-line); border-radius: 10px; background: var(--sp-surface); cursor: pointer; }
+[data-studio-publish="true"] .studio-publish-record-estimate > label:focus-within { outline: 2px solid var(--sp-accent); outline-offset: 2px; }
+[data-studio-publish="true"] .studio-publish-record-estimate input[type="checkbox"] { flex-shrink: 0; width: 15px; height: 15px; margin-top: 2px; accent-color: var(--sp-accent); cursor: pointer; }
+[data-studio-publish="true"] .studio-publish-record-estimate > label > span { display: grid; gap: 5px; min-width: 0; font-size: 12px; line-height: 1.5; }
+[data-studio-publish="true"] .studio-publish-record-estimate > label strong { font-weight: 600; }
+[data-studio-publish="true"] .studio-publish-record-estimate small { color: var(--sp-muted); font-size: 11px; line-height: 1.6; }
+[data-studio-publish="true"] .studio-publish-record-estimate > p { display: flex; align-items: center; gap: 8px; margin: 0; padding: 10px 12px; border: 1px dashed var(--sp-line); border-radius: 10px; color: var(--sp-muted); font-size: 11px; line-height: 1.6; }
+[data-studio-publish="true"] .studio-publish-done-link { display: grid; gap: 10px; margin-top: 4px; padding: 14px; border: 1px solid var(--sp-line); border-radius: 10px; background: var(--sp-surface); }
+[data-studio-publish="true"] .studio-publish-done-link .studio-publish-link-actions { background: var(--sp-panel); }
+[data-studio-publish="true"] .studio-publish-done-link .studio-publish-view-as-viewer { justify-self: start; }

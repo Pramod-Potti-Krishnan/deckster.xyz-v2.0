@@ -10,6 +10,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { requireDeckOwner } from '@/lib/publish/qa-owner'
 import { serializeQuestionForOwner } from '@/lib/publish/qa-serialize'
+import { STUDIO_P2_PUBLISH_INBOX_ENABLED } from '@/lib/studio-p2-publish'
 
 export const dynamic = 'force-dynamic'
 
@@ -45,6 +46,8 @@ export async function GET(
       // second count query.
       take: PAGE_SIZE + 1,
       ...(cursor ? { cursor: { id: cursor }, skip: 1 } : {}),
+      // NEXT_PUBLIC_STUDIO_P2_PUBLISH_INBOX: also read the FAQ entry each question was published as, so the inbox can offer Remove from FAQ.
+      ...(STUDIO_P2_PUBLISH_INBOX_ENABLED ? { include: { faq: { select: { id: true, published: true } } } } : {}),
     })
 
     const hasMore = rows.length > PAGE_SIZE
@@ -57,7 +60,12 @@ export async function GET(
     })
 
     return NextResponse.json({
-      questions: page.map(serializeQuestionForOwner),
+      questions: STUDIO_P2_PUBLISH_INBOX_ENABLED
+        ? page.map((row) => {
+            const faq = (row as { faq?: { id: string; published: boolean } | null }).faq
+            return { ...serializeQuestionForOwner(row), faqItemId: faq && faq.published ? faq.id : null }
+          })
+        : page.map(serializeQuestionForOwner),
       nextCursor: hasMore ? page[page.length - 1].id : null,
       unansweredCount,
       qaEnabled: owned.deck.qaEnabled,

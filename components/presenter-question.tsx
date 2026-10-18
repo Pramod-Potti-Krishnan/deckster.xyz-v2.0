@@ -30,6 +30,7 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import { Loader2, MessageCircleQuestion, Send, X } from 'lucide-react'
 import { AnswerBody } from '@/components/published-qa-panel'
 import { rememberThread } from '@/lib/publish/qa-threads'
+import { STUDIO_P2_PUBLISH_ENABLED } from '@/lib/studio-p2-publish'
 
 export type AskMode = 'written' | 'presenter'
 
@@ -148,6 +149,8 @@ export function PresenterQuestion({
 
   return (
     <aside
+      data-studio-v4-shell={STUDIO_P2_PUBLISH_ENABLED ? 'true' : undefined}
+      data-studio-published-ask={STUDIO_P2_PUBLISH_ENABLED ? 'true' : undefined}
       className="pointer-events-auto absolute right-3 top-3 flex w-full max-w-sm flex-col overflow-hidden rounded-lg border border-gray-200 bg-white shadow-2xl dark:border-slate-700 dark:bg-slate-900"
       style={{ maxHeight: 'calc(100% - 1.5rem)' }}
     >

@@ -21,6 +21,7 @@ import vm from 'node:vm'
 import { fileURLToPath } from 'node:url'
 import ts from 'typescript'
 import postcss from 'postcss'
+import { stripP2Publish } from './studio-p2-publish-strip.mjs'
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..')
 const read = file => fs.existsSync(path.join(root, file)) ? fs.readFileSync(path.join(root, file), 'utf8') : null
@@ -478,7 +479,8 @@ const CHECKS = {
     for (const tree of offRenders) assert.doesNotMatch(serialise(tree), /data-studio-top-bar|data-studio-export-chevron/)
   },
   'scope: the change talks to no service and adds no request': src => {
-    for (const key of ['header', 'download', 'publish']) assert.equal(src[key].split('fetch(').length, ORIGINAL_FETCH_COUNTS[key], `${key}: no new fetch`)
+    // + NEXT_PUBLIC_STUDIO_P2_PUBLISH adds one flag-gated estimate fetch to the dialog; scripts/test-studio-p2-publish.mjs pins it, so it is taken out first.
+    for (const key of ['header', 'download', 'publish']) assert.equal((key === 'publish' ? stripP2Publish('components/publish-dialog.tsx', src[key]) : src[key]).split('fetch(').length, ORIGINAL_FETCH_COUNTS[key], `${key}: no new fetch`)
     assert.equal([...src.header.matchAll(/studioTopBarV2/g)].length, 10, 'header: declared once; the store gate (2), the marker, the breadcrumb, the deck marker, Saved and the three New deck strings')
   },
   'the flag is documented in .env.example, default "false", and has an npm script': () => {
