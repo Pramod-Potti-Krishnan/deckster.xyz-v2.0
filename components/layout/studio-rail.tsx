@@ -8,6 +8,7 @@ import { UserProfileMenu } from "@/components/user-profile-menu"
 import { StudioNavigationHint } from "@/components/layout/studio-navigation-hint"
 import { studioNavLabels } from "@/lib/studio-nav-labels"
 import "./studio-shell.css"
+import { STUDIO_P2_LIBRARY_SHELL_ENABLED as p2Shell } from "@/lib/studio-p2-library-shell"
 
 /** Navigation only. Session and workspace ownership remain with the existing pages. */
 export function StudioRail({ studioEntry, homeHref = "/", sessionUsage }: { studioEntry?: ReactElement; homeHref?: string; sessionUsage?: ReactNode }) {
@@ -16,7 +17,7 @@ export function StudioRail({ studioEntry, homeHref = "/", sessionUsage }: { stud
   // PASS2B G43 (NEXT_PUBLIC_STUDIO_PLAIN_NAV_LABELS, default off): "Your decks" and "Second brain" for the tooltip and the accessible name.
   const navLabels = studioNavLabels(process.env.NEXT_PUBLIC_STUDIO_PLAIN_NAV_LABELS === 'true')
   return (
-    <aside data-studio-v4-rail="true" aria-label="Workspace navigation">
+    <aside data-studio-v4-rail="true" data-studio-p2-shell={p2Shell ? "true" : undefined} aria-label="Workspace navigation">
       <StudioNavigationHint enabled label="Deckster home">
         <Link href={homeHref} className="studio-rail-brand" aria-label="Deckster home"><Layers className="h-5 w-5" /></Link>
       </StudioNavigationHint>

@@ -1,0 +1,10 @@
+/* NEXT_PUBLIC_STUDIO_P2_LIBRARY_SHELL (lib/studio-p2-library-shell.ts): every rule needs markup that exists only with the flag. */
+[data-studio-v4-shell="true"] [data-studio-p2-new-deck="true"] { display: inline-flex; align-items: center; gap: 6px; flex-shrink: 0; height: 32px; margin-left: auto; padding: 0 12px; border: 1px solid var(--ss-line); border-radius: 7px; background: var(--ss-panel); color: var(--ss-text); font-size: 12px; font-weight: 500; }
+[data-studio-v4-shell="true"] [data-studio-library-back="true"] + [data-studio-p2-new-deck="true"] { margin-left: 0; }
+[data-studio-v4-shell="true"] [data-studio-p2-new-deck="true"]:hover { background: var(--ss-active); }
+[data-studio-v4-shell="true"] [data-studio-p2-new-deck="true"]:focus-visible { outline: 2px solid var(--ss-accent); outline-offset: 2px; }
+[data-studio-v4-shell="true"] [data-studio-p2-new-deck="true"] > svg { width: 14px; height: 14px; stroke-width: 1.8; }
+[data-studio-v4-rail][data-studio-p2-shell="true"] .studio-rail-brand { position: relative; margin-bottom: 10px; }
+[data-studio-v4-rail][data-studio-p2-shell="true"] .studio-rail-brand::after { content: ""; position: absolute; left: 4px; right: 4px; bottom: -10px; height: 1px; background: var(--ss-line); }
+[data-studio-v4-rail][data-studio-p2-shell="true"] nav [aria-current="page"] { position: relative; overflow: visible; }
+[data-studio-v4-rail][data-studio-p2-shell="true"] nav [aria-current="page"]::before { content: ""; position: absolute; left: -8px; top: 9px; bottom: 9px; width: 3px; border-radius: 0 3px 3px 0; background: var(--ss-teal); }
