@@ -26,7 +26,7 @@ import { LAYOUT_VIEWER_URL_POLICY } from "@/lib/layout-service-client"
 import { evaluateLayoutViewerUrl } from "@/lib/layout-viewer-url-policy"
 import { viewOnlyIfEnabled } from "@/lib/present-view-only"
 import { deckCardDescription, deckCardStatusLabel } from "@/lib/studio-deck-cards"
-import { studioDeckCardCountLabel } from "@/lib/studio-deck-card-count"
+import { studioDeckCardCountLabel, studioDeckCardPreviewUrl } from "@/lib/studio-deck-card-count"
 import { studioCreateLabel } from "@/lib/studio-create-word"
 
 interface Presentation {
@@ -59,7 +59,8 @@ interface DeckPagination {
 }
 
 function PresentationPreview({ presentation }: { presentation: Presentation }) {
-  const candidate = presentation.finalPresentationUrl || presentation.strawmanPreviewUrl
+  // PASS2D R5 (NEXT_PUBLIC_STUDIO_DECK_CARD_SLIDE_COUNT, default off): an unfinished deck previews its strawman, the deck its count describes (not a blank final deck).
+  const candidate = process.env.NEXT_PUBLIC_STUDIO_DECK_CARD_SLIDE_COUNT === "true" ? studioDeckCardPreviewUrl(presentation) : presentation.finalPresentationUrl || presentation.strawmanPreviewUrl
   const decision = evaluateLayoutViewerUrl(candidate, LAYOUT_VIEWER_URL_POLICY)
 
   if (decision.status === 'allowed') {

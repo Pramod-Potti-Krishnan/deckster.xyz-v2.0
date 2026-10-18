@@ -1,15 +1,16 @@
 // PASS2D R5 (FRONTEND-1): a deck card no longer says "3 slides" over a "1 / 1" thumbnail. Flag NEXT_PUBLIC_STUDIO_DECK_CARD_SLIDE_COUNT (exact "true"), default off.
 //   Two sources: the session row's slideCount (the card's "<n> slides") and the Layout presentation behind the live thumbnail (its own counter). For a finished deck they are one
-//   deck's count; for a deck still in progress the row holds the OUTLINE's count while the thumbnail shows what Layout holds so far (Pilot Results: 3 vs "1 / 1"). With the flag on a
-//   finished deck keeps "<n> slides" (and "1 slide"), an unfinished one says "<n> slides planned", and one with no count says "No slides yet".
+//   deck's count; for a deck still in progress the row holds the OUTLINE's count, while the card previewed the FINAL deck first, which for Pilot Results (a row the build before #389 had
+//   polluted) was the blank one-slide deck: 3 vs "1 / 1". With the flag on an unfinished deck that has a strawman previews the strawman (the deck its count describes); a finished deck
+//   keeps "<n> slides" (and "1 slide"), an unfinished one says "<n> slides planned", and one with no count says "No slides yet".
 //
 // Run: node scripts/test-studio-deck-card-count.mjs   (plain node: transpile + vm, no network, no browser, no env)
 //
-// Proven on the REAL sources: lib/studio-deck-card-count.ts and app/(app)/dashboard/page.tsx (PresentationCard):
-//   1. the helper over a grid of counts x statuses against an independent oracle (non-integers, negatives, strings and missing counts are 0);
+// Proven on the REAL sources: lib/studio-deck-card-count.ts and app/(app)/dashboard/page.tsx (PresentationCard, PresentationPreview):
+//   1. the helper over a grid of counts x statuses against an independent oracle (non-integers, negatives, strings and missing counts are 0), and the preview choice over statuses x addresses;
 //   2. the card, rendered: flag off (unset, "false", near-misses) every card equals the card of the page with PASS2D R5's lines stripped (the base's), for every count and status;
-//      flag on, only the count span changes (its text and a marker attribute), and its words are the helper's for the card's own count and status;
-//   3. the page source: the flag is read once, exact "true"; the label is built from the card's own fields; the strip module removes exactly PASS2D R5's lines;
+//      flag on, only the count span changes (its text and a marker attribute) and the thumbnail's address (the strawman for an unfinished deck that has one), and the words are the helper's;
+//   3. the page source: the flag is read twice (the card, the preview), exact "true"; the label is built from the card's own fields; the strip module removes exactly PASS2D R5's lines;
 //   4. mutation check: every mutant of the helper and the page is killed by sections 1-3.
 import assert from 'node:assert/strict'
 import fs from 'node:fs'
@@ -57,6 +58,13 @@ function oracleLabel(n, status) {
   if (status === 'completed') return c + ' ' + noun
   return c > 0 ? c + ' ' + noun + ' planned' : 'No slides yet'
 }
+const nonEmpty = v => typeof v === 'string' && v !== '' ? v : null
+function oraclePreview(card) {
+  if (!card || typeof card !== 'object') return null
+  const finalUrl = nonEmpty(card.finalPresentationUrl), strawUrl = nonEmpty(card.strawmanPreviewUrl)
+  if (card.status !== 'completed' && strawUrl) return strawUrl
+  return finalUrl || strawUrl
+}
 function proveLib(libSource, label = 'lib') {
   const lib = loadModule(libSource, LIB, { fallback: false })
   for (const n of COUNTS) {
@@ -70,6 +78,17 @@ function proveLib(libSource, label = 'lib') {
   eq(lib.studioDeckCardCountLabel(0, 'in-progress'), 'No slides yet', `${label}: no count yet`)
   eq(lib.studioDeckCardCountLabel(0, 'draft'), 'No slides yet', `${label}: a draft with no count`)
   eq(lib.studioDeckCardCountLabel(0, 'completed'), '0 slides', `${label}: a finished deck with no count says what the base says`)
+  // the preview choice
+  const URLS = [null, undefined, '', 'http://l/p/final', 5, {}]
+  const STRAWS = [null, undefined, '', 'http://l/p/straw', 5]
+  for (const status of STATUSES) for (const finalUrl of URLS) for (const strawmanUrl of STRAWS) {
+    const input = { status, finalPresentationUrl: finalUrl, strawmanPreviewUrl: strawmanUrl }
+    eq(lib.studioDeckCardPreviewUrl(input), oraclePreview(input), `${label}: preview for ${JSON.stringify(input)}`)
+  }
+  for (const bad of [null, undefined, 0, 'x', []]) eq(lib.studioDeckCardPreviewUrl(bad), null, `${label}: preview of ${JSON.stringify(bad)}`)
+  eq(lib.studioDeckCardPreviewUrl({ status: 'in-progress', finalPresentationUrl: 'http://l/p/blank', strawmanPreviewUrl: 'http://l/p/straw' }), 'http://l/p/straw', `${label}: the Pilot Results case previews the strawman`)
+  eq(lib.studioDeckCardPreviewUrl({ status: 'completed', finalPresentationUrl: 'http://l/p/final', strawmanPreviewUrl: 'http://l/p/straw' }), 'http://l/p/final', `${label}: a finished deck previews its final deck`)
+  eq(lib.studioDeckCardPreviewUrl({ status: 'in-progress', finalPresentationUrl: 'http://l/p/final', strawmanPreviewUrl: null }), 'http://l/p/final', `${label}: no strawman, the final deck as before`)
 }
 
 // ---------------------------------------------------------------- 2. the card
@@ -117,7 +136,8 @@ const getStageName = stage => ({ 4: 'Preview Ready', 6: 'Complete' }[stage] ?? '
 const deck = (id, status, slideCount, extra = {}) => ({ id, title: `Deck ${id}`, description: `Deck ${id}`, createdAt: '2026-10-10T09:00:00Z', updatedAt: '2026-10-10T09:30:00Z', slideCount, status, thumbnail: '/placeholder.svg', folder: 'general', tags: [], strawmanPreviewUrl: null, finalPresentationUrl: `${LAYOUT}p/${id}`, currentStage: status === 'completed' ? 6 : 4, ...extra })
 const FIXTURES = []
 for (const status of ['completed', 'in-progress', 'draft']) for (const n of [0, 1, 3, 30, 62]) FIXTURES.push(deck(`${status}-${n}`, status, n))
-FIXTURES.push(deck('strawman-3', 'in-progress', 3, { finalPresentationUrl: null, strawmanPreviewUrl: `${LAYOUT}p/strawman-3` }), deck('nopreview-6', 'in-progress', 6, { finalPresentationUrl: null }))
+FIXTURES.push(deck('strawman-3', 'in-progress', 3, { finalPresentationUrl: null, strawmanPreviewUrl: `${LAYOUT}p/strawman-3` }), deck('nopreview-6', 'in-progress', 6, { finalPresentationUrl: null }),
+  deck('pilot', 'in-progress', 3, { finalPresentationUrl: `${LAYOUT}p/blank-1`, strawmanPreviewUrl: `${LAYOUT}p/straw-3` }), deck('done-with-strawman', 'completed', 12, { strawmanPreviewUrl: `${LAYOUT}p/straw-12` }), deck('draft-with-both', 'draft', 0, { strawmanPreviewUrl: `${LAYOUT}p/straw-d` }))
 const render = (Card, presentation, withDelete) => Card({ presentation, onOpen() {}, getStatusColor, getStageName, ...(withDelete ? { onDelete() {}, deleteDisabled: false } : {}) })
 const NEAR_MISSES = [undefined, '', 'false', '1', 'TRUE', 'True', ' true', 'true ', 'yes']
 const countSpan = card => findAll(card, node => node.type === 'span' && node.props['data-studio-deck-count'] === 'true')
@@ -141,11 +161,17 @@ function proveCard(pageSource, libSource, label = 'card') {
       eq(spans.length, 1, `${label}: ${presentation.id}: flag on, one count span`)
       eq(visibleText(spans[0]).join(''), lib.studioDeckCardCountLabel(presentation.slideCount, presentation.status), `${label}: ${presentation.id}: the count words`)
       eq(visibleText(spans[0]).join(''), oracleLabel(presentation.slideCount, presentation.status), `${label}: ${presentation.id}: the count words per the oracle`)
-      // only that span differs: the rest of the card is the base's
+      // only that span and the thumbnail's address differ: the rest of the card is the base's
       const baseHtml = serialise(baseTree), onHtml = serialise(onTree)
       const baseSpan = metaSpans(baseTree)[0], onSpan = metaSpans(onTree)[0]
       eq(serialise(baseSpan), `<span>${presentation.slideCount} slides</span>`, `${label}: the base's span`)
-      eq(onHtml.replace(serialise(onSpan), serialise(baseSpan)), baseHtml, `${label}: ${presentation.id}: nothing else on the card changes`)
+      const baseSrc = nonEmpty(presentation.finalPresentationUrl) || nonEmpty(presentation.strawmanPreviewUrl)
+      const wantSrc = oraclePreview(presentation)
+      const frames = findAll(onTree, node => node.type === 'iframe')
+      eq(frames.length, wantSrc ? 1 : 0, `${label}: ${presentation.id}: one thumbnail frame when there is a deck to preview`)
+      if (wantSrc) eq(frames[0].props.src, wantSrc, `${label}: ${presentation.id}: the thumbnail previews ${wantSrc}`)
+      const expectedHtml = baseSrc && wantSrc && baseSrc !== wantSrc ? baseHtml.replace(`src=${JSON.stringify(baseSrc)}`, `src=${JSON.stringify(wantSrc)}`) : baseHtml
+      eq(onHtml.replace(serialise(onSpan), serialise(baseSpan)), expectedHtml, `${label}: ${presentation.id}: nothing else on the card changes`)
       // the thumbnail, title, status pill and the other meta span are untouched
       eq(visibleText(metaSpans(onTree)[1]).join(''), visibleText(metaSpans(baseTree)[1]).join(''), `${label}: the Updated span is the base's`)
     }
@@ -160,15 +186,18 @@ function proveCard(pageSource, libSource, label = 'card') {
 
 // ---------------------------------------------------------------- 3. the page source
 function proveSource(pageSource, label = 'page') {
-  eq(pageSource.match(/process\.env\.NEXT_PUBLIC_STUDIO_DECK_CARD_SLIDE_COUNT === "true"/g)?.length, 1, `${label}: the flag is read once, exact "true"`)
-  eq((pageSource.match(/NEXT_PUBLIC_STUDIO_DECK_CARD_SLIDE_COUNT/g) || []).length >= 2, true, `${label}: the flag name is spelled the same everywhere`)
-  match(pageSource, /import \{ studioDeckCardCountLabel \} from "@\/lib\/studio-deck-card-count"/, `${label}: the helper is imported`)
+  eq(pageSource.match(/process\.env\.NEXT_PUBLIC_STUDIO_DECK_CARD_SLIDE_COUNT === "true"/g)?.length, 2, `${label}: the flag is read twice (the card, the preview), exact "true"`)
+  eq((pageSource.match(/NEXT_PUBLIC_STUDIO_DECK_CARD_SLIDE_COUNT/g) || []).length >= 3, true, `${label}: the flag name is spelled the same everywhere`)
+  match(pageSource, /import \{ studioDeckCardCountLabel, studioDeckCardPreviewUrl \} from "@\/lib\/studio-deck-card-count"/, `${label}: the helpers are imported`)
+  match(pageSource, /const candidate = process\.env\.NEXT_PUBLIC_STUDIO_DECK_CARD_SLIDE_COUNT === "true" \? studioDeckCardPreviewUrl\(presentation\) : presentation\.finalPresentationUrl \|\| presentation\.strawmanPreviewUrl/, `${label}: the preview's address, flag on and the base's expression off`)
+  eq((pageSource.match(/studioDeckCardPreviewUrl\(/g) || []).length, 1, `${label}: one preview call`)
   eq((pageSource.match(/studioDeckCardCountLabel\(/g) || []).length, 1, `${label}: one call`)
   match(pageSource, /studioDeckCardCountLabel\(presentation\.slideCount, presentation\.status\)/, `${label}: built from the card's own count and status`)
   match(pageSource, /\{slideCountLabel \? <span data-studio-deck-count="true">/, `${label}: gated by the flag constant, on the span`)
   match(pageSource, /: <span>\{presentation\.slideCount\} slides<\/span>\}/, `${label}: the base's span is the other branch`)
   const stripped = stripDeckCardCount(pageSource)
-  nomatch(stripped, /slideCountLabel|studio-deck-card-count|DECK_CARD_SLIDE_COUNT|studioDeckCardCountLabel/, `${label}: the strip removes every trace`)
+  nomatch(stripped, /slideCountLabel|studio-deck-card-count|DECK_CARD_SLIDE_COUNT|studioDeckCardCountLabel|studioDeckCardPreviewUrl/, `${label}: the strip removes every trace`)
+  match(stripped, /const candidate = presentation\.finalPresentationUrl \|\| presentation\.strawmanPreviewUrl\n/, `${label}: the strip restores the base's preview address`)
   for (const [added] of DECK_CARD_COUNT_ADDITIONS) eq(pageSource.split(added).length - 1, 1, `${label}: strip entry applies once`)
   eq(stripped.split('<span>{presentation.slideCount} slides</span>').length - 1, 1, `${label}: the base's span is back after the strip`)
 }
@@ -194,6 +223,16 @@ const mutants = [
   [LIB, 'finished status loosened', s => s.replace("status === 'completed'", "status !== 'draft'")],
   [LIB, 'finished status case-folded', s => s.replace("status === 'completed'", "String(status).toLowerCase() === 'completed'")],
   [LIB, 'planned word drifts', s => s.replace('} planned`', '} outlined`')],
+  [LIB, 'preview: unfinished with strawman still previews final', s => s.replace("if (card.status !== 'completed' && strawmanUrl) return strawmanUrl\n", '')],
+  [LIB, 'preview: finished previews the strawman', s => s.replace("card.status !== 'completed' && strawmanUrl", "strawmanUrl")],
+  [LIB, 'preview: strawman never', s => s.replace('return finalUrl || strawmanUrl', 'return finalUrl')],
+  [LIB, 'preview: final never', s => s.replace('return finalUrl || strawmanUrl', 'return strawmanUrl')],
+  [LIB, 'preview: empty strawman accepted', s => s.replace("typeof card.strawmanPreviewUrl === 'string' && card.strawmanPreviewUrl !== '' ? card.strawmanPreviewUrl : null", "typeof card.strawmanPreviewUrl === 'string' ? card.strawmanPreviewUrl : null")],
+  [LIB, 'preview: non-string final accepted', s => s.replace("typeof card.finalPresentationUrl === 'string' && card.finalPresentationUrl !== '' ? card.finalPresentationUrl : null", "card.finalPresentationUrl ?? null")],
+  [LIB, 'preview: status read as in-progress only', s => s.replace("card.status !== 'completed'", "card.status === 'in-progress'")],
+  [PAGE, 'preview without the flag', s => s.replace('const candidate = process.env.NEXT_PUBLIC_STUDIO_DECK_CARD_SLIDE_COUNT === "true" ? studioDeckCardPreviewUrl(presentation) :', 'const candidate = studioDeckCardPreviewUrl(presentation) ?? ')],
+  [PAGE, 'preview flag inverted', s => s.replace('const candidate = process.env.NEXT_PUBLIC_STUDIO_DECK_CARD_SLIDE_COUNT === "true" ?', 'const candidate = process.env.NEXT_PUBLIC_STUDIO_DECK_CARD_SLIDE_COUNT !== "true" ?')],
+  [PAGE, 'preview base expression changed', s => s.replace(': presentation.finalPresentationUrl || presentation.strawmanPreviewUrl\n', ': presentation.strawmanPreviewUrl || presentation.finalPresentationUrl\n')],
   [PAGE, 'flag loosened', s => s.replace('process.env.NEXT_PUBLIC_STUDIO_DECK_CARD_SLIDE_COUNT === "true"', 'process.env.NEXT_PUBLIC_STUDIO_DECK_CARD_SLIDE_COUNT !== undefined')],
   [PAGE, 'flag inverted', s => s.replace('process.env.NEXT_PUBLIC_STUDIO_DECK_CARD_SLIDE_COUNT === "true"', 'process.env.NEXT_PUBLIC_STUDIO_DECK_CARD_SLIDE_COUNT !== "true"')],
   [PAGE, 'flag wrong name', s => s.replace('process.env.NEXT_PUBLIC_STUDIO_DECK_CARD_SLIDE_COUNT', 'process.env.NEXT_PUBLIC_STUDIO_DECK_CARD_COUNT')],
@@ -204,7 +243,6 @@ const mutants = [
   [PAGE, 'never the helper', s => s.replace('{slideCountLabel ? <span data-studio-deck-count="true">', '{false ? <span data-studio-deck-count="true">')],
   [PAGE, 'base branch reworded', s => s.replace(': <span>{presentation.slideCount} slides</span>}', ': <span>{presentation.slideCount} slide(s)</span>}')],
   [PAGE, 'base branch dropped', s => s.replace(' : <span>{presentation.slideCount} slides</span>}', ' : null}')],
-  [PAGE, 'import dropped from the strip list', s => s.replace('import { studioDeckCardCountLabel } from "@/lib/studio-deck-card-count"\n', 'import { studioDeckCardCountLabel } from "@/lib/studio-deck-card-count"\nimport { studioDeckCardCountLabel as unused } from "@/lib/studio-deck-card-count"\n')],
 ]
 let killed = 0
 const survivors = []
