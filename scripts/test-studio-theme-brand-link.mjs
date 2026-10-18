@@ -114,6 +114,13 @@ const P2C_SWAPS = [
   ["      {deckModeControl ? <>{lockedNotice}{deckModeControl}</> : lockedNotice}\n", "      {selectionLocked && (\n        <div data-studio-theme-notice={STUDIO_THEME_PANEL ? 'locked' : undefined} tabIndex={STUDIO_THEME_PANEL ? 0 : undefined} className=\"border-b border-amber-200 bg-amber-50 px-3 py-2 text-[11px] leading-4 text-amber-800\">\n          Template and theme choices are locked once generation starts. Start a new chat to choose different build settings.\n        </div>\n      )}\n"],
 ]
 const unP2c = text => P2C_SWAPS.reduce((out, [mine, base]) => { eq(out.split(mine).length - 1, 1, `P2C: ${mine.slice(0, 48).trim()} appears once`); return out.replace(mine, () => base) }, text)
+// PASS2D 4c (NEXT_PUBLIC_STUDIO_THEME_AUTO_NO_PILL): the panel's two edits for the header pill, as [text in the panel, the base's text]. Proven in test-studio-theme-auto-pill.mjs;
+// turning them back is how this test still shows the panel is the base commit's file.
+const AUTO_PILL_REVERSALS = [
+  ["import { STUDIO_THEME_AUTO_NO_PILL_ENABLED, themeAppliedPillHidden } from '@/lib/studio-theme-auto-pill'\n", ""],
+  ["          {syncStatus !== 'idle' && !themeAppliedPillHidden(STUDIO_THEME_AUTO_NO_PILL_ENABLED, syncStatus, autoCurrent) && <SyncBadge status={syncStatus} />}\n",
+   "          {syncStatus !== 'idle' && <SyncBadge status={syncStatus} />}\n"],
+]
 const RULE = '[data-studio-theme-picker="v2"] .stpv2-brandkit { margin: 12px 2px 4px; padding-top: 12px; border-top: 1px solid var(--stp-line); }\n'
 // PASS2D A3 (NEXT_PUBLIC_STUDIO_THEME_BLANK_NOTE): the panel's edits for the blank-canvas note, as [text in the panel, the base's text]. Turning them back is how
 // this test still proves the panel is the base commit's file; test-studio-theme-blank-note.mjs proves the edits themselves.
@@ -150,6 +157,7 @@ function proveSource(source, label = 'panel') {
   ok(source.lastIndexOf(') : (\n          <>', at) > source.indexOf('<div className="stpv2-custom">') && source.indexOf('{advanced}', at) > at && source.indexOf('{presetPicker ?? <div className="stpv2-grid">') < at, `${label}: in the preset branch, after the cards, before {advanced}`)
   let reversed = source
   for (const [edited, original] of A3_REVERSALS) { eq(reversed.split(edited).length - 1, 1, `${label}: the blank-canvas note edit, once: ${edited.slice(0, 50)}`); reversed = reversed.replace(edited, () => original) }
+  for (const [edited, original] of AUTO_PILL_REVERSALS) { eq(reversed.split(edited).length - 1, 1, `${label}: the auto-pill edit, once: ${edited.slice(0, 50)}`); reversed = reversed.replace(edited, () => original) }
   eq(unP2c(reversed.replace(CONSTS, '').replace(USE, BASE_USE).replace(IMPORT, '').replace(ICON, '')), BASE[PANEL], `${label}: with the blank-canvas note edits, the two consts, the one body line, and the two imports turned back into the base's, the file is ${BASE_COMMIT}'s`)
   ok(source.indexOf('const hint = ') > source.indexOf(CONSTS), `${label}: with the flag off the body's last child is the base's own expression (no extra child)`)
 }

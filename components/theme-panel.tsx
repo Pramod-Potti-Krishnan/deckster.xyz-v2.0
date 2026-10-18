@@ -37,6 +37,7 @@ import {
   type CanonicalThemePresetId,
 } from '@/lib/theme-builder'
 import { loadPresetSwatchPalettes } from '@/lib/theme-preset-swatches'
+import { STUDIO_THEME_AUTO_NO_PILL_ENABLED, themeAppliedPillHidden } from '@/lib/studio-theme-auto-pill'
 import { clampDarkOnlyPaletteMode, customEntryPaletteMode, effectivePaletteMode, lightDisabledFor, themeDarkModeEnabled, withPaletteMode, type DeckPaletteMode } from '@/lib/studio-theme-dark-toggle'
 import type { ThemeSyncState, ThemeSyncStatus } from '@/lib/theme-sync'
 import { DeckModeControl } from './theme-deck-mode-control'
@@ -427,7 +428,7 @@ function ThemePickerV2({
           <p>Choose how the whole deck looks.</p>
         </div>
         <div className="stpv2-header-actions">
-          {syncStatus !== 'idle' && <SyncBadge status={syncStatus} />}
+          {syncStatus !== 'idle' && !themeAppliedPillHidden(STUDIO_THEME_AUTO_NO_PILL_ENABLED, syncStatus, autoCurrent) && <SyncBadge status={syncStatus} />}
           <button
             type="button"
             onClick={onClose}
