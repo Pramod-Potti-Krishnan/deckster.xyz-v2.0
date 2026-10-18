@@ -1,7 +1,7 @@
 // INSERT-PERSIST (NEXT_PUBLIC_STUDIO_INSERT_PERSIST): blank-canvas Shape / Metrics inserts must reach Layout, and a Table insert must not
 // keep its "Click to configure" placeholder after reload. Fails on base (lib/studio-insert-persist.ts and its wiring do not exist).
 //
-// The fake viewer below models Layout uat @ 457c32d exactly where it matters:
+// The fake viewer below models Layout uat @ d86814a (unchanged since 457c32d) exactly where it matters:
 //   src/utils/auto-save.js markContentChanged(): returns early unless body[data-mode] === 'edit' or options.force === true.
 //   src/utils/element-manager.js insertTextBox / deleteElement -> triggerAutoSave (not forced);
 //   upsertCitedElement -> triggerPersistentAutoSave (force) and the viewer then awaits forceSave.
