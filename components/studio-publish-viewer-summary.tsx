@@ -1,4 +1,5 @@
 import type { SerializedPublishedDeck } from '@/lib/publish/serialize'
+import { audienceCopy, STUDIO_P2_PUBLISH_ENABLED } from '@/lib/studio-p2-publish'
 
 interface Props {
   record: SerializedPublishedDeck | null
@@ -30,7 +31,7 @@ export function StudioPublishViewerSummary({ record, sessionId, isLoading, loadE
   const title = confirmedText(record.title) ? record.title : 'Published title not confirmed'
   const count = typeof record.slideCount === 'number' && Number.isSafeInteger(record.slideCount) && record.slideCount >= 0
     ? `${record.slideCount} ${record.slideCount === 1 ? 'slide' : 'slides'}` : 'Slide count not confirmed'
-  const access = record.visibility === 'public' ? 'Public'
+  const access = STUDIO_P2_PUBLISH_ENABLED ? audienceCopy(record.visibility)?.title ?? 'Not confirmed' : record.visibility === 'public' ? 'Public'
     : record.visibility === 'unlisted' ? 'Unlisted'
     : record.visibility === 'restricted' ? 'Restricted' : 'Not confirmed'
   const passcode = record.hasPasscode === true ? 'Set in saved settings'
