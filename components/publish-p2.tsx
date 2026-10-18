@@ -6,7 +6,8 @@
  *
  *   PublishPasscodeInput / PublishPasscodeCounter  PUB-02  masked passcode, eye toggle, "N more characters needed"
  *   PublishRecordReview                             PUB-06 + PUB-07  script and recording choices on the review step
- *   PublishDoneLink                                 PUB-10  the link, copy, open and "View as a viewer" on the done screen
+ *   PublishDoneLink                                 PUB-10  the link, copy, open and "View as a viewer" on the done screen (on this page's origin
+ *                                                           when the record points at production from a non-production build)
  */
 
 import { useEffect, useMemo, useRef, useState } from 'react'
@@ -17,7 +18,7 @@ import { Label } from '@/components/ui/label'
 import { Switch } from '@/components/ui/switch'
 import { useToast } from '@/hooks/use-toast'
 import { useCopyToClipboard } from '@/hooks/use-copy-to-clipboard'
-import { estimateRecording, passcodeCounter, voiceRateFrom, type RecordingBudget } from '@/lib/studio-p2-publish'
+import { estimateRecording, passcodeCounter, publicUrlForThisOrigin, voiceRateFrom, type RecordingBudget } from '@/lib/studio-p2-publish'
 
 /** PUB-02: the field is masked, with an eye to show it. Same controlled value and placeholder as the field it replaces. */
 export function PublishPasscodeInput({
@@ -201,9 +202,12 @@ export function PublishRecordReview({
 }
 
 /** PUB-10: the finished deck's link, with copy, open, and "View as a viewer" (the public page, in a new tab). */
-export function PublishDoneLink({ url }: { url: string }) {
+export function PublishDoneLink({ url: recordUrl }: { url: string }) {
   const { copied, copy } = useCopyToClipboard()
   const { toast } = useToast()
+  // A dev / UAT build without NEXT_PUBLIC_APP_URL stores production links; show this environment's copy instead.
+  const [url, setUrl] = useState(recordUrl)
+  useEffect(() => { setUrl(publicUrlForThisOrigin(recordUrl, window.location.origin)) }, [recordUrl])
   return (
     <div className="studio-publish-done-link">
       <span className="studio-publish-eyebrow">Your link</span>

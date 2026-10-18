@@ -1,7 +1,7 @@
 // PASS2-PAGES publish flow + public viewer (E2E-1 read, streams/ops/PASS2-PAGES/publish.md): the "move to mock" rows PUB-01 (one audience vocabulary),
 // PUB-02 (masked passcode with a counter), PUB-06 (recording defaults off and shows an estimate before anything is charged), PUB-07 (no script
-// request without a session length), PUB-10 (the done screen carries the link), VIEW-07 (the narrated run's Ask popover on the viewer tokens) and
-// VIEW-04 (the viewer follows the visitor's system theme when nothing is stored). PUB-16 (Unblock / Remove from FAQ) has its own flag.
+// request without a session length), PUB-10 (the done screen carries the link) and VIEW-07 (the narrated run's Ask popover on the viewer tokens).
+// PUB-16 (Unblock / Remove from FAQ) has its own flag. VIEW-04 (viewer follows the system theme) is a "third option" row and is not built here.
 // Flag NEXT_PUBLIC_STUDIO_P2_PUBLISH: exact "true", Studio shell only (NEXT_PUBLIC_STUDIO_V4_SHELL), default off. Off: every surface is exactly as before
 // and nothing here is read.
 // Import-free on purpose, so scripts/test-studio-p2-publish.mjs can run the real file in a bare vm.
@@ -122,17 +122,20 @@ export function recordingVerdict(consentCents: number | null | undefined, estima
   return { proceed: true }
 }
 
-// ---- VIEW-04: which pages follow the visitor's system theme -----------------------------------------------------------------------------
+// ---- PUB-10: the done screen's link on the environment the owner is on -------------------------------------------------------------------
 
-/** The public viewer and its answer pages: /p/<slug> and /p/<slug>/q/<token>. */
-export function isPublishedViewerPath(pathname: string | null | undefined): boolean {
-  return typeof pathname === 'string' && /^\/p\/[^/]+/.test(pathname)
-}
+/** The production app origins (lib/publish/service-urls.ts PROD_APP_ORIGINS). */
+export const PROD_APP_ORIGINS: readonly string[] = ['https://deckster.xyz', 'https://www.deckster.xyz']
 
-/** The default theme (what a visitor with nothing stored gets). Only the viewer pages change, and only with the flag on; a stored choice still wins
- *  because next-themes reads storage before it reads the default. */
-export function viewerDefaultTheme(pathname: string | null | undefined, enabled: boolean, fallback: string | undefined): string | undefined {
-  return enabled && isPublishedViewerPath(pathname) ? 'system' : fallback
+/** record.publicUrl comes from NEXT_PUBLIC_APP_URL || 'https://deckster.xyz' (lib/publish/serialize.ts). On a dev / UAT build without that variable
+ *  the done link would send the owner to production. When the record points at a production origin and the page is NOT on one, the same path is
+ *  shown on the page's own origin; otherwise the record's URL is used as it is. */
+export function publicUrlForThisOrigin(publicUrl: string, pageOrigin: string | null | undefined): string {
+  let parsed: URL
+  try { parsed = new URL(publicUrl) } catch { return publicUrl }
+  if (typeof pageOrigin !== 'string' || !/^https?:\/\/[^/]+$/.test(pageOrigin)) return publicUrl
+  if (!PROD_APP_ORIGINS.includes(parsed.origin) || PROD_APP_ORIGINS.includes(pageOrigin)) return publicUrl
+  return `${pageOrigin}${parsed.pathname}${parsed.search}${parsed.hash}`
 }
 
 // ---- PUB-16: which actions an owner's question row offers ---------------------------------------------------------------------------------

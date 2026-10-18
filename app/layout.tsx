@@ -4,8 +4,6 @@ import { Analytics } from '@vercel/analytics/next'
 import './globals.css'
 import { SessionProvider } from '@/components/providers/session-provider'
 import { ThemeProvider } from '@/components/theme-provider'
-import { StudioViewerThemeProvider } from '@/components/studio-viewer-theme-provider'
-import { STUDIO_P2_PUBLISH_ENABLED } from '@/lib/studio-p2-publish'
 import { Toaster } from '@/components/ui/toaster'
 
 const inter = Inter({ subsets: ['latin'] })
@@ -69,9 +67,6 @@ export const viewport = {
   initialScale: 1,
 }
 
-// NEXT_PUBLIC_STUDIO_P2_PUBLISH (VIEW-04): the published viewer follows the visitor's system theme when nothing is stored. Off: the provider is as before.
-const AppThemeProvider = STUDIO_P2_PUBLISH_ENABLED ? StudioViewerThemeProvider : ThemeProvider
-
 export default function RootLayout({
   children,
 }: Readonly<{
@@ -84,7 +79,7 @@ export default function RootLayout({
       </head>
       <body className={inter.className} suppressHydrationWarning>
         <SessionProvider>
-          <AppThemeProvider
+          <ThemeProvider
             attribute="class"
             defaultTheme="light"
             enableSystem
@@ -92,7 +87,7 @@ export default function RootLayout({
           >
             {children}
             <Toaster />
-          </AppThemeProvider>
+          </ThemeProvider>
         </SessionProvider>
         <Analytics />
       </body>

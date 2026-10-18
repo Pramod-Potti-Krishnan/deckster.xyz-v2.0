@@ -1,4 +1,4 @@
-// Studio publish flow + viewer, PASS2-PAGES rows PUB-01/02/06/07/10/16 and VIEW-04/07 (flags NEXT_PUBLIC_STUDIO_P2_PUBLISH and NEXT_PUBLIC_STUDIO_P2_PUBLISH_INBOX): the
+// Studio publish flow + viewer, PASS2-PAGES rows PUB-01/02/06/07/10/16 and VIEW-07 (flags NEXT_PUBLIC_STUDIO_P2_PUBLISH and NEXT_PUBLIC_STUDIO_P2_PUBLISH_INBOX): the
 // exact text this change adds to or swaps in the files it touches, so a pin that holds one of them to an earlier commit can first put the base text
 // back (stripP2Publish(rel, text)), the way the other *-strip.mjs files do. scripts/test-studio-p2-publish.mjs proves that stripping gives back the
 // base commit's file byte for byte, so nothing is changed that is not listed here, and that every listed change is inert with the flags off.
@@ -40,12 +40,6 @@ const CHANGES = {
   "components/presenter-question.tsx": [
     ["import { rememberThread } from '@/lib/publish/qa-threads'\nimport { STUDIO_P2_PUBLISH_ENABLED } from '@/lib/studio-p2-publish'\n", "import { rememberThread } from '@/lib/publish/qa-threads'\n"],
     ["    <aside\n      data-studio-v4-shell={STUDIO_P2_PUBLISH_ENABLED ? 'true' : undefined}\n      data-studio-published-ask={STUDIO_P2_PUBLISH_ENABLED ? 'true' : undefined}\n      className=\"pointer-events-auto absolute right-3 top-3 flex", "    <aside\n      className=\"pointer-events-auto absolute right-3 top-3 flex"],
-  ],
-  "app/layout.tsx": [
-    ["import { ThemeProvider } from '@/components/theme-provider'\nimport { StudioViewerThemeProvider } from '@/components/studio-viewer-theme-provider'\nimport { STUDIO_P2_PUBLISH_ENABLED } from '@/lib/studio-p2-publish'\n", "import { ThemeProvider } from '@/components/theme-provider'\n"],
-    ["// NEXT_PUBLIC_STUDIO_P2_PUBLISH (VIEW-04): the published viewer follows the visitor's system theme when nothing is stored. Off: the provider is as before.\nconst AppThemeProvider = STUDIO_P2_PUBLISH_ENABLED ? StudioViewerThemeProvider : ThemeProvider\n\nexport default function RootLayout({", "export default function RootLayout({"],
-    ["          <AppThemeProvider\n            attribute=\"class\"", "          <ThemeProvider\n            attribute=\"class\""],
-    ["          </AppThemeProvider>", "          </ThemeProvider>"],
   ],
   "components/deck-qa-inbox.tsx": [
     ["import { useToast } from '@/hooks/use-toast'\nimport { faqItemIdOf, inboxRowActions, STUDIO_P2_PUBLISH_INBOX_ENABLED as STUDIO_P2_INBOX } from '@/lib/studio-p2-publish'\n\nimport './studio-qa-inbox.css'\n", "import { useToast } from '@/hooks/use-toast'\n\nimport './studio-qa-inbox.css'\n"],
