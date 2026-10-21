@@ -266,8 +266,12 @@ const VIEWS = [
   { name: 'an entity with relations selected', nodes: GNODES, edges: GEDGES, selectedId: 'n5' },
 ]
 const envFor = (shell, flag) => ({ ...(shell ? { NEXT_PUBLIC_STUDIO_V4_SHELL: 'true' } : {}), ...(flag ? { [FLAG]: 'true' } : {}) })
+// KNOWLEDGE-MAP-TOOLBAR (a sibling change, when it is on this branch): kg-graph-view imports its toolbar and helper. Its flag is unset in every render here, so the markup is unaffected;
+// the modules only have to resolve. Files that are not there (this change alone on the base) are left out.
+const SIBLINGS = ['components/knowledge/studio-knowledge-map-toolbar.tsx', 'lib/studio-knowledge-map-toolbar.ts'].filter(rel => fs.existsSync(path.join(root, rel)))
+const siblingSources = () => Object.fromEntries(SIBLINGS.map(rel => [rel, read(rel)]))
 function staticMarkup(graphSource, helperSource, env, view) {
-  const { KgGraphView } = loadModule(GRAPH, { [GRAPH]: graphSource, [HELPER]: helperSource }, env)
+  const { KgGraphView } = loadModule(GRAPH, { ...siblingSources(), [GRAPH]: graphSource, [HELPER]: helperSource }, env)
   return renderToStaticMarkup(React.createElement(KgGraphView, { nodes: view.nodes, edges: view.edges, selectedId: view.selectedId, width: view.width, height: view.height }))
 }
 const labelGroups = html => [...html.matchAll(/<g data-studio-graph-label="entity"[\s\S]*?<\/g>/g)].map(match => match[0])

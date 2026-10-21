@@ -177,7 +177,11 @@ const VIEWS = [
   { name: 'two entities, one relation', nodes: NODES.slice(0, 2), edges: EDGES.slice(0, 1), selectedId: 'n2' },
   { name: 'a small panel', nodes: NODES, edges: EDGES, selectedId: null, width: 600, height: 400 },
 ]
-const sourcesFor = (graph, extra = {}) => ({ [GRAPH]: graph, [TOOLBAR]: read(TOOLBAR), [HELPER]: read(HELPER), ...extra })
+// KNOWLEDGE-MAP-LABELS (a sibling change, when it is on this branch): kg-graph-view imports its label helper. Its flag is unset in every render here, so the markup is unaffected;
+// the module only has to resolve. A file that is not there (this change alone on the base) is left out.
+const LABELS_HELPER = 'lib/studio-knowledge-map-labels.ts'
+const siblingSources = () => fs.existsSync(path.join(root, LABELS_HELPER)) ? { [LABELS_HELPER]: read(LABELS_HELPER) } : {}
+const sourcesFor = (graph, extra = {}) => ({ ...siblingSources(), [GRAPH]: graph, [TOOLBAR]: read(TOOLBAR), [HELPER]: read(HELPER), ...extra })
 const envFor = (shell, flag) => ({ ...(shell ? { NEXT_PUBLIC_STUDIO_V4_SHELL: 'true' } : {}), ...(flag ? { [FLAG]: 'true' } : {}) })
 
 function staticMarkup(graphSource, helperSource, env, view) {
