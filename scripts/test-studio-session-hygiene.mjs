@@ -1222,7 +1222,7 @@ function wiringSuite(sources = SRC, envex = ENVEX, pkg = PKG) {
   check(assert.match, sources.page, /const saveSessionOnFirstAction = useCallback\(\(\) => \{ void saveSessionOnFirstActionRef\.current\?\.\(\) \}, \[\]\)/, 'one stable trigger for every handler')
   {
     const stateChange = sources.page.slice(sources.page.indexOf('onSessionStateChange: (state) => {'), sources.page.indexOf('onMessage: (message) => {'))
-    check(assert.ok, stateChange.length > 300 && stateChange.includes('persistenceRef.current.updateMetadata(updates)'), 'found Director\'s state-change callback')
+    check(assert.ok, stateChange.length > 300 && /persistenceRef\.current\.updateMetadata\(updates(?:, \{ passive: true \})?\)/.test(stateChange), 'found Director\'s state-change callback') // PASS2D R6 marks this call { passive: true } (flag NEXT_PUBLIC_STUDIO_SESSION_OPEN_READ_ONLY)
     check(assert.doesNotMatch, stateChange, /saveSessionOnFirstAction/, 'Director\'s automatic frames (presentation_init) never save the row')
   }
   check(assert.match, sources.page, /onUserDeckEdit=\{STUDIO_SESSION_HYGIENE_ENABLED \? saveSessionOnFirstAction : undefined\}/, 'manual slide edits reach the trigger, only with the flag on')
@@ -1398,7 +1398,7 @@ async function mutantSuite() {
   mutate('metadata is not held while unsaved', P, "deferredMetadataRef.current = deferMetadata(deferredMetadataRef.current, currentSessionId, updates);\n      return;", "return;", ['first', 'wiring'])
   mutate('held metadata is sent again', P, "    deferredMetadataRef.current = null;\n    try {", "    try {", ['first'])
   mutate('held metadata is sent with the flag off', P, 'if (!STUDIO_SESSION_HYGIENE_ENABLED) return;\n    const held', 'const held', ['wiring'])
-  mutate('director\'s frame saves the row', PG, "persistenceRef.current.updateMetadata(updates)\n      } else {\n        console.error('PERSISTENCE BLOCKED:'", "persistenceRef.current.updateMetadata(updates)\n        saveSessionOnFirstAction()\n      } else {\n        console.error('PERSISTENCE BLOCKED:'", ['wiring'])
+  mutate('director\'s frame saves the row', PG, "persistenceRef.current.updateMetadata(updates, { passive: true }) // NEXT_PUBLIC_STUDIO_SESSION_OPEN_READ_ONLY: Director's own state frame\n      } else {\n        console.error('PERSISTENCE BLOCKED:'", "persistenceRef.current.updateMetadata(updates, { passive: true }) // NEXT_PUBLIC_STUDIO_SESSION_OPEN_READ_ONLY: Director's own state frame\n        saveSessionOnFirstAction()\n      } else {\n        console.error('PERSISTENCE BLOCKED:'", ['wiring']) // PASS2D R6: the anchor carries the passive mark
   mutate('theme pick does not save', PG, "    saveSessionOnFirstAction()\n    // NEXT_PUBLIC_STUDIO_THEME_DARK_PERSIST:", "    // NEXT_PUBLIC_STUDIO_THEME_DARK_PERSIST:", ['handlers', 'wiring'])
   mutate('locked theme pick saves', PG, "const handleBuildThemeChange = useCallback((next: BuildThemeSelection) => {\n    if (templateSelectionLockedRef.current) {", "const handleBuildThemeChange = useCallback((next: BuildThemeSelection) => {\n    saveSessionOnFirstAction()\n    if (templateSelectionLockedRef.current) {", ['handlers'])
   mutate('locked template pick saves', PG, "const handleSelectTemplate = useCallback((template: BuilderTemplateSelection) => {\n    if (templateSelectionLockedRef.current) {", "const handleSelectTemplate = useCallback((template: BuilderTemplateSelection) => {\n    saveSessionOnFirstAction()\n    if (templateSelectionLockedRef.current) {", ['handlers'])

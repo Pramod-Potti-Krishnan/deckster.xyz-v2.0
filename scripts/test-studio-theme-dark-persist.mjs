@@ -28,6 +28,7 @@ import { execFileSync } from 'node:child_process'
 import { fileURLToPath } from 'node:url'
 import ts from 'typescript'
 import { stripDarkPersist } from './studio-theme-dark-persist-strip.mjs'
+import { stripOpenReadOnly } from './studio-open-read-only-strip.mjs'
 
 const repoRoot = process.env.DARK_PERSIST_ROOT
   ? path.resolve(process.env.DARK_PERSIST_ROOT)
@@ -512,7 +513,7 @@ function pinSuite(sources = {}) {
   for (const key of ['page', 'restore']) {
     const base = baseSource(FILES[key])
     if (base === null) console.log(`  SKIP ${FILES[key]} without this change is ${BASE_COMMIT}'s: the commit is not in this clone`)
-    else check(assert.equal, stripDarkPersist(FILES[key], src(key)), base, `${FILES[key]} without this change is ${BASE_COMMIT}'s (the strip the sibling pins use)`)
+    else check(assert.equal, stripDarkPersist(FILES[key], stripOpenReadOnly(FILES[key], src(key))), base, `${FILES[key]} without this change is ${BASE_COMMIT}'s (the strip the sibling pins use)`)
   }
   check(assert.equal, stripDarkPersist(FILES.chat, chat), chat, 'the strip leaves every other file alone')
   for (const sibling of ['studio-first-run-poster-hide', 'studio-rail-add-slide', 'studio-welcome-polish'])

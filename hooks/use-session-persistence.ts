@@ -5,6 +5,7 @@ import { useSessionCache } from './use-session-cache';
 import { debugLog } from '@/lib/debug-log';
 import { DirectorChatSaveQueue } from '@/lib/director-chat-history';
 import { STUDIO_SESSION_HYGIENE_ENABLED, deferMetadata, takeDeferredMetadata, type DeferredMetadata } from '@/lib/studio-session-hygiene';
+import { STUDIO_SESSION_OPEN_READ_ONLY_ENABLED, beginOpenQuiet, isOpenQuiet, openQuietHoldMessage, openQuietMetadata, releaseOpenQuiet, type OpenQuiet, type OpenQuietHeld } from '@/lib/studio-open-read-only';
 
 type PersistableDirectorMessage = Exclude<DirectorMessage, { type: 'token_usage' }>;
 
@@ -28,6 +29,11 @@ export interface SessionMetadataUpdates {
     slideStructure?: unknown;
     activeVersion?: 'blank' | 'strawman' | 'final';
   };
+}
+
+/** NEXT_PUBLIC_STUDIO_SESSION_OPEN_READ_ONLY: `passive` marks a write that Director's frames or the page's own reconcile make on their own (see lib/studio-open-read-only.ts). Ignored with the flag off. */
+export interface SessionWriteOptions {
+  passive?: boolean;
 }
 
 export interface SessionPersistenceOptions {
@@ -59,6 +65,8 @@ export function useSessionPersistence(options: SessionPersistenceOptions) {
   const activeSaveRef = useRef<Promise<void> | null>(null);
   // NEXT_PUBLIC_STUDIO_SESSION_HYGIENE: blank-deck metadata Director sent while the session had no row (see sendDeferredMetadata).
   const deferredMetadataRef = useRef<DeferredMetadata<SessionMetadataUpdates> | null>(null);
+  // NEXT_PUBLIC_STUDIO_SESSION_OPEN_READ_ONLY: set by beginOpenQuiet when an existing session's row has been opened; see lib/studio-open-read-only.ts.
+  const openQuietRef = useRef<OpenQuiet | null>(null);
 
   const flushMessages = useCallback((): Promise<void> => {
     if (!enabledRef.current || !userIdRef.current) return Promise.resolve();
@@ -100,13 +108,34 @@ export function useSessionPersistence(options: SessionPersistenceOptions) {
     return save;
   }, [saveMessages]);
 
-  const queueMessage = useCallback((message: DirectorMessage, userText?: string) => {
+  // NEXT_PUBLIC_STUDIO_SESSION_OPEN_READ_ONLY: the first action in an opened session ends its quiet period; what was held goes into the save queue first, in order.
+  const enqueueHeld = useCallback((held: OpenQuietHeld[], ownerUserId: string, sessionId: string) => {
+    for (const { message, userText } of held) {
+      const m = message as PersistableDirectorMessage;
+      messageQueueRef.current.enqueue(ownerUserId, sessionId, {
+        id: m.message_id,
+        messageType: m.type,
+        timestamp: m.timestamp,
+        payload: m.payload,
+        userText: userText || undefined,
+      });
+    }
+  }, []);
+
+  const queueMessage = useCallback((message: DirectorMessage, userText?: string, options?: SessionWriteOptions) => {
     if (!isPersistableMessage(message) || !enabledRef.current) return;
     const currentSessionId = sessionIdRef.current;
     const ownerUserId = userIdRef.current;
     if (!currentSessionId || !ownerUserId || message.session_id !== currentSessionId) return;
 
     sessionCache.appendMessage(message, userText);
+    if (STUDIO_SESSION_OPEN_READ_ONLY_ENABLED && openQuietRef.current && isOpenQuiet(openQuietRef.current, currentSessionId)) {
+      if (options?.passive) {
+        if (openQuietHoldMessage(openQuietRef.current, currentSessionId, message, userText)) return;
+      } else {
+        enqueueHeld(releaseOpenQuiet(openQuietRef.current), ownerUserId, currentSessionId);
+      }
+    }
     messageQueueRef.current.enqueue(ownerUserId, currentSessionId, {
       id: message.message_id,
       messageType: message.type,
@@ -121,7 +150,7 @@ export function useSessionPersistence(options: SessionPersistenceOptions) {
     } else {
       saveTimeoutRef.current = setTimeout(() => { void flushMessages(); }, debounceMs);
     }
-  }, [debounceMs, flushMessages, sessionCache]);
+  }, [debounceMs, enqueueHeld, flushMessages, sessionCache]);
 
   const saveBatch = useCallback(async (messages: DirectorMessage[], userText?: string) => {
     for (const message of messages) queueMessage(message, userText);
@@ -140,7 +169,7 @@ export function useSessionPersistence(options: SessionPersistenceOptions) {
    * Update session metadata
    * FIX 8: Uses sessionIdRef to avoid stale closure
    */
-  const updateMetadata = useCallback(async (updates: SessionMetadataUpdates) => {
+  const updateMetadata = useCallback(async (updates: SessionMetadataUpdates, options?: SessionWriteOptions) => {
     // FIX 8: Use ref instead of closure value
     const currentSessionId = sessionIdRef.current;
     if (!currentSessionId) {
@@ -161,12 +190,33 @@ export function useSessionPersistence(options: SessionPersistenceOptions) {
       return;
     }
 
+    // NEXT_PUBLIC_STUDIO_SESSION_OPEN_READ_ONLY: an opened session is read-only until the user acts. A passive write (Director's state frames, the Layout count reconcile) sends only what
+    // is new, and never lastMessageAt; any other write is the user's and ends the quiet period.
+    let effective = updates;
+    if (STUDIO_SESSION_OPEN_READ_ONLY_ENABLED && openQuietRef.current && isOpenQuiet(openQuietRef.current, currentSessionId)) {
+      if (options?.passive) {
+        const trimmed = openQuietMetadata(openQuietRef.current, updates as Record<string, unknown>);
+        if (!trimmed) {
+          debugLog('[OPEN-READ-ONLY] passive metadata write skipped - nothing new for the opened session:', currentSessionId);
+          return;
+        }
+        effective = trimmed as SessionMetadataUpdates;
+      } else {
+        const held = releaseOpenQuiet(openQuietRef.current);
+        const ownerUserId = userIdRef.current;
+        if (held.length > 0 && ownerUserId) {
+          enqueueHeld(held, ownerUserId, currentSessionId);
+          void flushMessages();
+        }
+      }
+    }
+
     try {
       const normalizedUpdates = {
-        ...updates,
-        lastMessageAt: updates.lastMessageAt instanceof Date
-          ? updates.lastMessageAt.toISOString()
-          : updates.lastMessageAt,
+        ...effective,
+        lastMessageAt: effective.lastMessageAt instanceof Date
+          ? effective.lastMessageAt.toISOString()
+          : effective.lastMessageAt,
       };
       debugLog('📝 Updating session metadata:', normalizedUpdates);
       await updateSession(currentSessionId, normalizedUpdates);
@@ -176,7 +226,7 @@ export function useSessionPersistence(options: SessionPersistenceOptions) {
         onError(error instanceof Error ? error : new Error('Unknown error'));
       }
     }
-  }, [updateSession, onError]);  // FIX 8: Remove 'enabled' and 'sessionId' from deps
+  }, [updateSession, onError, enqueueHeld, flushMessages]);  // FIX 8: Remove 'enabled' and 'sessionId' from deps
 
   /**
    * NEXT_PUBLIC_STUDIO_SESSION_HYGIENE: send, once, the metadata that updateMetadata held back while the session had no row.
@@ -206,6 +256,12 @@ export function useSessionPersistence(options: SessionPersistenceOptions) {
       }
     }
   }, [updateSession, onError]);
+
+  /** NEXT_PUBLIC_STUDIO_SESSION_OPEN_READ_ONLY: an existing session's row has just been opened; it is quiet until the user acts (lib/studio-open-read-only.ts). Flag off: does nothing. */
+  const beginOpenQuietFor = useCallback((forSessionId: string, row: unknown) => {
+    if (!STUDIO_SESSION_OPEN_READ_ONLY_ENABLED || !forSessionId) return;
+    openQuietRef.current = beginOpenQuiet(forSessionId, row);
+  }, []);
 
   /**
    * Generate title from first user message or presentation metadata
@@ -281,6 +337,7 @@ export function useSessionPersistence(options: SessionPersistenceOptions) {
     flushMessages,
     updateMetadata,
     sendDeferredMetadata,
+    beginOpenQuiet: beginOpenQuietFor,
     generateTitle,
     pendingCount: messageQueueRef.current.size(userIdRef.current),
   };

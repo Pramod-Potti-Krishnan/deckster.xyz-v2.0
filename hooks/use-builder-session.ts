@@ -33,6 +33,7 @@ import {
 } from '@/lib/studio-session-hygiene'
 import { STUDIO_VOICE_INTERACTIVE_ENABLED } from '@/lib/studio-voice-interactive'
 import { STUDIO_BLANK_DECK_LEGACY_ROWS_ENABLED, isLegacyBlankDeckRow } from '@/lib/studio-legacy-blank-deck-row'
+import { STUDIO_SESSION_OPEN_READ_ONLY_ENABLED } from '@/lib/studio-open-read-only'
 import {
   attachmentsFromPayload,
   type UserChatMessage,
@@ -47,6 +48,9 @@ export interface StudioFrontendTranscriptReceipt {
   readonly restoredAssistantIds: readonly string[]
 }
 
+/** NEXT_PUBLIC_STUDIO_SESSION_OPEN_READ_ONLY: a write that Director's frames make on their own; the persistence hook ignores the mark with the flag off. */
+const PASSIVE_WRITE = { passive: true } as const
+
 interface UseBuilderSessionParams {
   user: any
   isAuthLoading: boolean
@@ -56,8 +60,10 @@ interface UseBuilderSessionParams {
   loadSessionResult?: (sessionId: string) => Promise<SessionLoadOutcome<any>>
   createSession: (sessionId: string) => Promise<any>
   persistence: {
-    queueMessage: (msg: DirectorMessage, userText?: string) => void
-    updateMetadata: (data: any) => void
+    queueMessage: (msg: DirectorMessage, userText?: string, options?: { passive?: boolean }) => void
+    updateMetadata: (data: any, options?: { passive?: boolean }) => void
+    /** NEXT_PUBLIC_STUDIO_SESSION_OPEN_READ_ONLY: an existing session's row has been opened (lib/studio-open-read-only.ts). */
+    beginOpenQuiet?: (sessionId: string, row: unknown) => void
     generateTitle: (text: string) => string
   } | null
   // WebSocket methods
@@ -251,7 +257,7 @@ export function useBuilderSession({
             timestamp: m.timestamp,
             type: 'chat_message',
             payload: attachments.length > 0 ? { text, attachments } : { text }
-          } as DirectorMessage, text);
+          } as DirectorMessage, text, PASSIVE_WRITE);
         });
       }
 
@@ -437,6 +443,8 @@ export function useBuilderSession({
               } catch {}
             }
             debugLog('✅ Session loaded successfully')
+            // NEXT_PUBLIC_STUDIO_SESSION_OPEN_READ_ONLY: this session was opened, not created: it stays read-only until the user acts.
+            if (STUDIO_SESSION_OPEN_READ_ONLY_ENABLED) persistence?.beginOpenQuiet?.(session.id, session)
 
             if (session.title) {
               debugLog('📝 Session already has title:', session.title)
@@ -502,7 +510,8 @@ export function useBuilderSession({
                 }
               }
 
-              if (Object.keys(normalizedSessionUrls).length > 0) {
+              // NEXT_PUBLIC_STUDIO_SESSION_OPEN_READ_ONLY: opening writes nothing; the recovered URLs are used in memory and recomputed on the next open.
+              if (Object.keys(normalizedSessionUrls).length > 0 && !STUDIO_SESSION_OPEN_READ_ONLY_ENABLED) {
                 try {
                   const response = await fetch(`/api/sessions/${encodeURIComponent(session.id)}`, {
                     method: 'PATCH',
@@ -924,18 +933,18 @@ export function useBuilderSession({
         debugLog('💾 Persisting Director-replayed user message:', msg.message_id, userText.substring(0, 30))
         persistedMessageIdsRef.current.add(msg.message_id)
         userMessageIdsRef.current.add(msg.message_id)
-        persistence.queueMessage(msg, userText)
+        persistence.queueMessage(msg, userText, PASSIVE_WRITE)
         continue
       }
 
       if (msg.type !== 'chat_message') {
         debugLog('💾 Persisting bot message:', msg.type, msg.message_id)
         persistedMessageIdsRef.current.add(msg.message_id)
-        persistence.queueMessage(msg)
+        persistence.queueMessage(msg, undefined, PASSIVE_WRITE)
       } else if (!userMessageIdsRef.current.has(msg.message_id)) {
         debugLog('💾 Persisting bot chat_message (welcome/initial):', msg.message_id)
         persistedMessageIdsRef.current.add(msg.message_id)
-        persistence.queueMessage(msg)
+        persistence.queueMessage(msg, undefined, PASSIVE_WRITE)
       }
 
       if (msg.type === 'slide_update') {
@@ -947,7 +956,7 @@ export function useBuilderSession({
           debugLog('📝 Updating session title from presentation:', presentationTitle)
           persistence.updateMetadata({
             title: presentationTitle
-          })
+          }, PASSIVE_WRITE)
           hasTitleFromPresentationRef.current = true
         }
       }
@@ -967,7 +976,7 @@ export function useBuilderSession({
         debugLog('📝 Updating session title from presentation:', presentationTitle)
         persistence.updateMetadata({
           title: presentationTitle
-        })
+        }, PASSIVE_WRITE)
         hasTitleFromPresentationRef.current = true
       }
     }
