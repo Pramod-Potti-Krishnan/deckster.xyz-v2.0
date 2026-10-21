@@ -5,6 +5,8 @@
 //   ACC-13 the price shown is the plan's price from that list, never a fixed literal;
 //   ACC-14 the included list is the plan's own features (no "4 AI agents", no "Enterprise"), and the next plan up is the next entry of the list.
 // The plan is matched from the account's tier (free / starter / pro / premium). A tier that matches no plan falls back to the billing cycle in words.
+// KNOWN (backend, not fixed here): the Stripe webhook (app/api/webhooks/stripe/route.ts) writes tier "pro" for every paid subscription, so until it maps the price to its
+// plan a Starter or Max subscriber is shown as Pro. /api/subscription also returns no amount, so a yearly subscriber sees the plan's monthly list price plus "Billed yearly".
 //
 // ACC-12 the usage card on Billing shows the SAME daily / weekly numbers the account menu shows (/api/usage/quota), in place of the "Planned" row.
 
