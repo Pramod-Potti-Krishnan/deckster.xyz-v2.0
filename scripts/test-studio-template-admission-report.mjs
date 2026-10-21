@@ -9,8 +9,9 @@
 // emphasised), "and N more small changes", and, from the job read, a slide-by-slide strip. No report (absent, null, or anything that does not read as one) shows nothing.
 //
 // Run: node scripts/test-studio-template-admission-report.mjs   (plain node: transpile + vm, a small hooks runtime, no network, no writes)
-//   ADMISSION_REPORT_BASE=<commit> picks the base the flag-off identity is measured against (default 80dfde4, the studio-v4-dev-preparation-code commit this branch was
-//   cut from; the repository needs that commit in its history).
+//   ADMISSION_REPORT_BASE=<commit> picks the base the flag-off identity is measured against (default 7a4d894, the commit #423, this report's own PR, was merged onto; the
+//   dialog, the library CSS and the route are the same files there as at 80dfde4, where this branch was cut; the repository needs that commit in its history). The strip
+//   takes out #423's lines and #425's (the template read), so the base is the one before both; a later parent (d502be2, 8aa5f8e) already carries #423's lines and fails.
 //
 // What is proved, on the REAL dialog, the REAL hook, the REAL component and the REAL lib (the requests run for real against a fake /api/composer-library):
 //   0. the fixtures are the answers of Director's own routes for reports Composer's own builder wrote (scripts/fixtures/template-admission-report/capture-admission-report.py runs
@@ -44,7 +45,7 @@ import ts from 'typescript'
 import { ADMISSION_ADDITIONS, stripAdmissionReport } from './studio-template-admission-report-strip.mjs'
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..')
-const BASE = process.env.ADMISSION_REPORT_BASE || '80dfde4'
+const BASE = process.env.ADMISSION_REPORT_BASE || '7a4d89472681c0046ce7446ea4392ebe4df5e2b0'
 const FLAG = 'NEXT_PUBLIC_STUDIO_TEMPLATE_ADMISSION_REPORT'
 const PROGRESS = 'NEXT_PUBLIC_STUDIO_TEMPLATE_PROGRESS'
 const SHELL = 'NEXT_PUBLIC_STUDIO_V4_SHELL'
