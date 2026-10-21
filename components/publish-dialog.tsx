@@ -46,8 +46,8 @@ import { useCopyToClipboard } from '@/hooks/use-copy-to-clipboard'
 import type { SerializedPublishedDeck } from '@/lib/publish/serialize'
 import type { StudioPublishPreviewSource } from '@/lib/studio-publish-preview'
 import { STUDIO_TOP_BAR_V2_ENABLED } from '@/lib/studio-top-bar-v2'
-import { PublishPasscodeCounter, PublishPasscodeInput } from '@/components/publish-p2'
-import { audienceCopy, passcodeShortBy, recordingVerdict, STUDIO_P2_PUBLISH_ENABLED as STUDIO_P2_PUBLISH } from '@/lib/studio-p2-publish'
+import { PublishPasscodeCounter, PublishPasscodeInput, PublishQuestionsBadge, publishedLink, useP2ManageFacts } from '@/components/publish-p2'
+import { audienceCopy, dialogSubtitle, narrationFact, passcodeShortBy, questionsFact, recordingVerdict, STUDIO_P2_PUBLISH_ENABLED as STUDIO_P2_PUBLISH } from '@/lib/studio-p2-publish'
 import './studio-publish.css'
 
 const STUDIO_PUBLISH = process.env.NEXT_PUBLIC_STUDIO_V4_SHELL === 'true'
@@ -262,6 +262,8 @@ export function PublishDialog({
   const isLive = Boolean(record && !record.revokedAt)
   const isStale = staleness === 'stale'
   const busy = isPublishing || savingField !== null || isRotating || isUnpublishing
+  // NEXT_PUBLIC_STUDIO_P2_PUBLISH (PUB-11): question counts and narration state of the live copy. Flag off: no request, nothing returned.
+  const p2Facts = useP2ManageFacts(record, open)
 
 
   /**
@@ -841,7 +843,7 @@ export function PublishDialog({
 
   const handleCopy = useCallback(async () => {
     if (!record) return
-    const ok = await copy(record.publicUrl)
+    const ok = await copy(publishedLink(record))
     if (!ok) {
       toast({
         title: 'Copy failed',
@@ -1006,6 +1008,7 @@ export function PublishDialog({
             at the switch that turns it on. */}
         <TabsTrigger value="qa" aria-describedby={STUDIO_PUBLISH && !record.qaEnabled ? 'publish-feature-help' : undefined} disabled={!record.qaEnabled} title={!record.qaEnabled ? 'Turn on questions in Sharing to configure them' : undefined}>
           Questions
+          {STUDIO_P2_PUBLISH && <PublishQuestionsBadge counts={p2Facts.questions} />}
           {STUDIO_PUBLISH && !record.qaEnabled && <span className="studio-publish-off">Off</span>}
           {record.qaEnabled && (
             <span
@@ -1065,7 +1068,7 @@ export function PublishDialog({
         />
       </TabsContent>
       {STUDIO_PUBLISH && <TabsContent value="viewer" className="mt-4">
-        <StudioPublishViewerSummary record={record} sessionId={sessionId} isLoading={isLoading} loadError={loadError} staleness={staleness} />
+        <StudioPublishViewerSummary record={record} sessionId={sessionId} isLoading={isLoading} loadError={loadError} staleness={staleness} {...(STUDIO_P2_PUBLISH ? { deckPreview } : {})} />
       </TabsContent>}
     </Tabs>
   ) : (
@@ -1150,7 +1153,7 @@ export function PublishDialog({
             {STUDIO_PUBLISH ? isLive ? 'Deck published' : 'Publish this deck' : isLive ? 'Deck published' : 'Publish deck'}
           </DialogTitle>
           <DialogDescription>
-            {isLive
+            {STUDIO_P2_PUBLISH ? dialogSubtitle({ live: isLive, title: deckTitle, slideCount: isLive ? record!.slideCount : slideCount }) : isLive
               ? STUDIO_PUBLISH && deckTitle ? `“${deckTitle}” · Anyone with access can view its frozen published copy.` : 'Anyone with access can view a frozen copy of this deck.'
               : `Share a view-only copy of ${deckTitle ? `“${deckTitle}”` : 'this deck'}${
                   slideCount ? ` (${slideCount} slides)` : ''
@@ -1220,7 +1223,7 @@ export function PublishDialog({
             <div className="space-y-1.5 studio-publish-link">
               <Label>Public link</Label>
               <div className="flex items-center gap-2 studio-publish-link-actions">
-                <Input readOnly value={record!.publicUrl} aria-label="Published deck link" className="font-mono text-xs" />
+                <Input readOnly value={publishedLink(record!)} aria-label="Published deck link" className="font-mono text-xs" />
                 <Button
                   type="button"
                   variant="outline"
@@ -1241,7 +1244,7 @@ export function PublishDialog({
                   aria-label="Open published link"
                   className="flex-shrink-0"
                 >
-                  <a href={record!.publicUrl} target="_blank" rel="noopener noreferrer">
+                  <a href={publishedLink(record!)} target="_blank" rel="noopener noreferrer">
                     <ExternalLink className="h-4 w-4" />
                   </a>
                 </Button>
@@ -1318,8 +1321,8 @@ export function PublishDialog({
                 <span>{record!.slideCount} slides · frozen copy</span>
                 <span><Globe size={13} />{STUDIO_P2_PUBLISH ? audienceCopy(record!.visibility)?.title ?? record!.visibility : VISIBILITY_LABELS[record!.visibility as PublishVisibility]?.label ?? record!.visibility}</span>
                 <span>Downloads: {[record!.allowPdf && 'PDF', record!.allowPptx && 'PowerPoint'].filter(Boolean).join(', ') || 'off'}</span>
-                <span>Questions: {record!.qaEnabled ? 'on' : 'off'}</span>
-                <span>Narration: {record!.narrationEnabled ? 'on' : 'off'}</span>
+                {STUDIO_P2_PUBLISH ? <span>{questionsFact(record!.qaEnabled, p2Facts.questions)}</span> : <span>Questions: {record!.qaEnabled ? 'on' : 'off'}</span>}
+                {STUDIO_P2_PUBLISH ? <span>{narrationFact(record!.narrationEnabled, p2Facts.narration)}</span> : <span>Narration: {record!.narrationEnabled ? 'on' : 'off'}</span>}
               </div>
             )}
             {STUDIO_PUBLISH && freshnessNotice}

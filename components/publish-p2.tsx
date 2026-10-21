@@ -7,17 +7,39 @@
  *   PublishPasscodeInput / PublishPasscodeCounter  PUB-02  masked passcode, eye toggle, "N more characters needed"
  *   PublishRecordReview                             PUB-06 + PUB-07  script and recording choices on the review step
  *   PublishDoneLink                                 PUB-10  the link, copy, open and "View as a viewer" on the done screen
+ *   PublishCapabilityRows                           PUB-08 + PUB-15  one on/off row per thing the viewer page does (wizard aside, Viewer page tab)
+ *   PublishQuestionsNote                            PUB-04  one line on the Questions step
+ *   PublishQuestionsBadge                           PUB-11  the waiting count on the Questions tab
+ *   useP2ManageFacts                                PUB-11  question counts and narration state for the manage view and the Questions tab badge
+ *   publishedLink                                   NEXT_PUBLIC_STUDIO_P2_PUBLISH_ORIGIN_URL  the link on the page the owner is on
  */
 
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { ArrowRight, Check, Copy, ExternalLink, Eye, EyeOff, Loader2 } from 'lucide-react'
+import { ArrowRight, Check, Copy, ExternalLink, Eye, EyeOff, Loader2, Minus } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Switch } from '@/components/ui/switch'
 import { useToast } from '@/hooks/use-toast'
 import { useCopyToClipboard } from '@/hooks/use-copy-to-clipboard'
-import { estimateRecording, passcodeCounter, voiceRateFrom, type RecordingBudget } from '@/lib/studio-p2-publish'
+import type { SerializedPublishedDeck } from '@/lib/publish/serialize'
+import {
+  capabilityRows,
+  estimateRecording,
+  parseNarrationState,
+  parseQuestionCounts,
+  passcodeCounter,
+  QUESTIONS_AFTER_PUBLISH_NOTE,
+  questionsBadge,
+  STUDIO_P2_PUBLISH_ENABLED,
+  STUDIO_P2_PUBLISH_ORIGIN_ENABLED,
+  viewerLinkFor,
+  voiceRateFrom,
+  type CapabilityInput,
+  type NarrationState,
+  type QuestionCounts,
+  type RecordingBudget,
+} from '@/lib/studio-p2-publish'
 
 /** PUB-02: the field is masked, with an eye to show it. Same controlled value and placeholder as the field it replaces. */
 export function PublishPasscodeInput({
@@ -233,4 +255,89 @@ export function PublishDoneLink({ url }: { url: string }) {
       </Button>
     </div>
   )
+}
+
+/** PUB-08 / PUB-15: what the viewer page offers, one row per choice, on or off. Words as well as a mark, so the state is never colour alone. */
+export function PublishCapabilityRows({ input, label }: { input: CapabilityInput; label: string }) {
+  const rows = capabilityRows(input)
+  return (
+    <ul className="studio-publish-caps" aria-label={label}>
+      {rows.map((row) => (
+        <li key={row.id} data-capability={row.id} data-on={row.on ? 'true' : 'false'}>
+          {row.on ? <Check size={14} aria-hidden="true" /> : <Minus size={14} aria-hidden="true" />}
+          <span><strong>{row.label}</strong><small>{row.note}</small></span>
+          <em>{row.on ? 'On' : 'Off'}</em>
+        </li>
+      ))}
+    </ul>
+  )
+}
+
+/** PUB-11: the number of questions waiting on the owner, on the Questions tab. Nothing when none wait or the count is not known. */
+export function PublishQuestionsBadge({ counts }: { counts: QuestionCounts | null }) {
+  const badge = questionsBadge(counts)
+  if (!badge) return null
+  return (
+    <>
+      <span className="studio-publish-badge" aria-hidden="true">{badge.text}</span>
+      <span className="sr-only">{badge.label}</span>
+    </>
+  )
+}
+
+/** PUB-04: the Questions step stays short; the rest is set in Questions after publishing. */
+export function PublishQuestionsNote() {
+  return <p className="studio-publish-step-note" data-publish-questions-note="true">{QUESTIONS_AFTER_PUBLISH_NOTE}</p>
+}
+
+/** The link the owner copies and opens. Unchanged unless NEXT_PUBLIC_STUDIO_P2_PUBLISH_ORIGIN_URL is on, NEXT_PUBLIC_APP_URL is unset and the page knows its origin. */
+export function publishedLink(record: Pick<SerializedPublishedDeck, 'slug' | 'publicUrl'>): string {
+  return viewerLinkFor(record, process.env.NEXT_PUBLIC_APP_URL, typeof window === 'undefined' ? null : window.location.origin, STUDIO_P2_PUBLISH_ORIGIN_ENABLED)
+}
+
+/**
+ * PUB-11: the facts the manage view adds, read when the dialog is open on a live copy. Two small owner-only reads, nothing written:
+ *   GET /api/publish/{slug}/questions?summary=1   (counts only, flag on only)
+ *   GET /api/narration/manifest?slug={slug}       (the voice and which slides have a current recording; the owner's own read of the published copy)
+ * Each fact belongs to the slug it was read for, so a rotated link or another deck never shows the last one's numbers. A read that fails shows nothing extra.
+ * With the flag off nothing is requested.
+ */
+export function useP2ManageFacts(record: SerializedPublishedDeck | null, open: boolean): { questions: QuestionCounts | null; narration: NarrationState | null } {
+  const [questionsRead, setQuestionsRead] = useState<{ slug: string; counts: QuestionCounts } | null>(null)
+  const [narrationRead, setNarrationRead] = useState<{ slug: string; state: NarrationState } | null>(null)
+  const slug = STUDIO_P2_PUBLISH_ENABLED && open && record && !record.revokedAt ? record.slug : null
+  const asks = record?.qaEnabled === true
+  const narrates = record?.narrationEnabled === true
+  const version = record?.republishedAt ?? record?.publishedAt ?? null
+
+  useEffect(() => {
+    if (!slug || !asks) return
+    let cancelled = false
+    fetch(`/api/publish/${encodeURIComponent(slug)}/questions?summary=1`)
+      .then((response) => (response.ok ? response.json() : null))
+      .then((data) => {
+        const counts = parseQuestionCounts(data)
+        if (!cancelled && counts) setQuestionsRead({ slug, counts })
+      })
+      .catch(() => {})
+    return () => { cancelled = true }
+  }, [slug, asks, version])
+
+  useEffect(() => {
+    if (!slug || !narrates) return
+    let cancelled = false
+    fetch(`/api/narration/manifest?slug=${encodeURIComponent(slug)}`)
+      .then((response) => (response.ok ? response.json() : null))
+      .then((data) => {
+        const state = parseNarrationState(data)
+        if (!cancelled && state) setNarrationRead({ slug, state })
+      })
+      .catch(() => {})
+    return () => { cancelled = true }
+  }, [slug, narrates, version])
+
+  return {
+    questions: slug && asks && questionsRead?.slug === slug ? questionsRead.counts : null,
+    narration: slug && narrates && narrationRead?.slug === slug ? narrationRead.state : null,
+  }
 }

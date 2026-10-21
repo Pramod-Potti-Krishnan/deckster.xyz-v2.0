@@ -32,7 +32,7 @@ import { resolveBudget, suggestedReserveMinutes } from '@/lib/narration/budget'
 import type { SerializedPublishedDeck } from '@/lib/publish/serialize'
 import type { StudioPublishPreviewSource } from '@/lib/studio-publish-preview'
 import { StudioPublishPreview } from '@/components/studio-publish-preview'
-import { PublishDoneLink, PublishPasscodeCounter, PublishPasscodeInput, PublishRecordReview } from '@/components/publish-p2'
+import { PublishCapabilityRows, PublishDoneLink, PublishPasscodeCounter, PublishPasscodeInput, PublishQuestionsNote, PublishRecordReview, publishedLink } from '@/components/publish-p2'
 import { audienceCopy, passcodeShortBy, publishChoicesFor, STUDIO_P2_PUBLISH_ENABLED as STUDIO_P2_PUBLISH } from '@/lib/studio-p2-publish'
 import './studio-publish.css'
 
@@ -184,7 +184,7 @@ export function PublishWizard({
             </li>
           ))}
         </ul>
-        {STUDIO_P2_PUBLISH && published && !busy && record?.publicUrl && <PublishDoneLink url={record.publicUrl} />}
+        {STUDIO_P2_PUBLISH && published && !busy && record?.publicUrl && <PublishDoneLink url={publishedLink(record)} />}
         {STUDIO_PUBLISH && !busy && (
           <div className="studio-publish-progress-actions">
             <p className="text-xs text-muted-foreground">
@@ -345,6 +345,7 @@ export function PublishWizard({
                 />
               </div>
             )}
+            {STUDIO_P2_PUBLISH && choices.qaEnabled && <PublishQuestionsNote />}
           </div>
         )}
 
@@ -492,12 +493,17 @@ export function PublishWizard({
           <span className="studio-publish-eyebrow">What viewers get</span>
           <StudioPublishPreview sessionId={sessionId} source={deckPreview} />
           <p className="studio-publish-preview-count">{slideCount === null ? 'A view-only presentation' : `${slideCount} slides · view-only`}</p>
+          {STUDIO_P2_PUBLISH ? (
+            <PublishCapabilityRows label="What viewers get, from your choices"
+              input={{ visibility: choices.visibility, allowPdf: choices.allowPdf, allowPptx: choices.allowPptx, qaEnabled: choices.qaEnabled, qaAutoAnswer: choices.qaAutoAnswer, narrationEnabled: choices.narrationEnabled }} />
+          ) : (
           <ul>
-            <li><Users size={15} /><span><strong>{STUDIO_P2_PUBLISH ? audienceCopy(choices.visibility)?.title : AUDIENCES.find((item) => item.value === choices.visibility)?.title}</strong><small>Access follows your audience choice.</small></span></li>
+            <li><Users size={15} /><span><strong>{AUDIENCES.find((item) => item.value === choices.visibility)?.title}</strong><small>Access follows your audience choice.</small></span></li>
             <li><Download size={15} /><span><strong>{[choices.allowPdf && 'PDF', choices.allowPptx && 'PowerPoint'].filter(Boolean).join(' and ') || 'No downloads'}</strong><small>Only allowed formats appear to viewers.</small></span></li>
             <li><MessageSquare size={15} /><span><strong>Questions {choices.qaEnabled ? 'on' : 'off'}</strong><small>{choices.qaEnabled ? 'Answer sources are prepared after publishing.' : 'New questions are switched off.'}</small></span></li>
             <li><Volume2 size={15} /><span><strong>Narration {choices.narrationEnabled ? 'on' : 'off'}</strong><small>{choices.narrationEnabled ? 'Requires a script and recorded audio. Playback never autoplays.' : 'Viewers move through the slides themselves.'}</small></span></li>
           </ul>
+          )}
           <p className="studio-publish-summary-note">These are your selected settings. Publication and setup results appear after you publish.</p>
         </aside>
       )}

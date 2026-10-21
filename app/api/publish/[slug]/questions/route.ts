@@ -10,7 +10,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { requireDeckOwner } from '@/lib/publish/qa-owner'
 import { serializeQuestionForOwner } from '@/lib/publish/qa-serialize'
-import { STUDIO_P2_PUBLISH_INBOX_ENABLED } from '@/lib/studio-p2-publish'
+import { STUDIO_P2_PUBLISH_ENABLED, STUDIO_P2_PUBLISH_INBOX_ENABLED } from '@/lib/studio-p2-publish'
 
 export const dynamic = 'force-dynamic'
 
@@ -32,6 +32,15 @@ export async function GET(
 
     if (status && !VALID_STATUSES.includes(status)) {
       return NextResponse.json({ error: 'Invalid status filter' }, { status: 400 })
+    }
+
+    // NEXT_PUBLIC_STUDIO_P2_PUBLISH (PUB-11): ?summary=1 answers with the three counts the manage view shows and no rows. Flag off, the parameter is not read.
+    if (STUDIO_P2_PUBLISH_ENABLED && url.searchParams.get('summary') === '1') {
+      const [totalCount, unansweredCount] = await Promise.all([
+        prisma.deckQuestion.count({ where: { publishedDeckId: owned.deck.id } }),
+        prisma.deckQuestion.count({ where: { publishedDeckId: owned.deck.id, ownerAnswer: null, status: { not: 'blocked' } } }),
+      ])
+      return NextResponse.json({ totalCount, unansweredCount, qaEnabled: owned.deck.qaEnabled })
     }
 
     const where = {

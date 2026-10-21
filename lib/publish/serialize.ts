@@ -2,6 +2,7 @@
 // browser. Never expose passcodeHash — clients only get hasPasscode.
 
 import type { PublishedDeck } from '@prisma/client'
+import { publicBaseUrl, STUDIO_P2_PUBLISH_ORIGIN_ENABLED } from '@/lib/studio-p2-publish'
 
 export const PUBLISH_VISIBILITIES = ['public', 'unlisted', 'restricted'] as const
 export type PublishVisibility = (typeof PUBLISH_VISIBILITIES)[number]
@@ -10,12 +11,14 @@ export function isPublishVisibility(value: unknown): value is PublishVisibility 
   return typeof value === 'string' && (PUBLISH_VISIBILITIES as readonly string[]).includes(value)
 }
 
-export function getPublicAppUrl(): string {
+// `origin`: the origin the request came in on (NEXT_PUBLIC_STUDIO_P2_PUBLISH_ORIGIN_URL); read only with that flag on and NEXT_PUBLIC_APP_URL unset.
+export function getPublicAppUrl(origin?: string | null): string {
+  if (STUDIO_P2_PUBLISH_ORIGIN_ENABLED) return publicBaseUrl(process.env.NEXT_PUBLIC_APP_URL, origin, true)
   return process.env.NEXT_PUBLIC_APP_URL || 'https://deckster.xyz'
 }
 
-export function publicUrlForSlug(slug: string): string {
-  return `${getPublicAppUrl()}/p/${slug}`
+export function publicUrlForSlug(slug: string, origin?: string | null): string {
+  return `${getPublicAppUrl(origin)}/p/${slug}`
 }
 
 export interface SerializedPublishedDeck {
@@ -53,7 +56,7 @@ export interface SerializedPublishedDeck {
   qaReserveMinutes: number | null
 }
 
-export function serializePublishedDeck(deck: PublishedDeck): SerializedPublishedDeck {
+export function serializePublishedDeck(deck: PublishedDeck, origin?: string | null): SerializedPublishedDeck {
   return {
     id: deck.id,
     slug: deck.slug,
@@ -71,7 +74,7 @@ export function serializePublishedDeck(deck: PublishedDeck): SerializedPublished
     republishedAt: deck.republishedAt ? deck.republishedAt.toISOString() : null,
     revokedAt: deck.revokedAt ? deck.revokedAt.toISOString() : null,
     sourceUpdatedAt: deck.sourceUpdatedAt ?? null,
-    publicUrl: publicUrlForSlug(deck.slug),
+    publicUrl: publicUrlForSlug(deck.slug, origin),
     qaEnabled: deck.qaEnabled,
     qaCorpusStatus: deck.qaCorpusStatus,
     qaDailyCap: deck.qaDailyCap,
