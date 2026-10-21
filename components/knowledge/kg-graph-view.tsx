@@ -16,10 +16,13 @@ import { Focus, List, Minus, Network, Plus, RotateCcw, ScanSearch } from "lucide
 import './studio-graph-controls.css'
 import { StudioKnowledgeMapToolbar } from './studio-knowledge-map-toolbar'
 import { knowledgeFitScale } from '@/lib/studio-knowledge-map-toolbar'
+import { placeCleanLabels } from '@/lib/studio-knowledge-map-labels'
 
 const STUDIO_GRAPH_CONTROLS = process.env.NEXT_PUBLIC_STUDIO_V4_SHELL === 'true'
 // J6 finding L6 (card PASS2-J6-FINDINGS): "- 100% +" read against the fitted view, one "Reset map", "Focus entity" only while something is selected (Studio controls only). Exact "true" enables it; default off.
 const MAP_TOOLBAR = STUDIO_GRAPH_CONTROLS && process.env.NEXT_PUBLIC_STUDIO_KNOWLEDGE_MAP_TOOLBAR === 'true'
+// J6 finding L7 (card PASS2-J6-FINDINGS): entity names as clean text under the node (no dark plate), wrapped instead of cut at 25 characters (Studio controls only). Exact "true" enables it; default off.
+const MAP_LABELS = STUDIO_GRAPH_CONTROLS && process.env.NEXT_PUBLIC_STUDIO_KNOWLEDGE_MAP_LABELS === 'true'
 
 export interface KgViewNode {
   node_id: string
@@ -224,7 +227,7 @@ function graphLabelWidth(text: string, fontSize: number, minimum = 40): number {
 }
 
 interface LabelBox { x: number; y: number; width: number; height: number }
-interface EntityLabelPlacement extends LabelBox { point: LayoutNode; fontSize: number; offsetY: number }
+interface EntityLabelPlacement extends LabelBox { point: LayoutNode; fontSize: number; offsetY: number; lines?: string[]; lineHeight?: number; extraRow?: boolean }
 function labelBoxesOverlap(a: LabelBox, b: LabelBox): boolean {
   const gap = 5
   return a.x < b.x + b.width + gap && a.x + a.width + gap > b.x && a.y < b.y + b.height + gap && a.y + a.height + gap > b.y
@@ -352,7 +355,7 @@ export function KgGraphView({
     return ids
   }, [activeId, edges])
 
-  const studioLabels = useMemo(() => STUDIO_GRAPH_CONTROLS ? placeStudioLabels(layout, edges, labeledIds, selectedId, hoverId, activeId, canvasScale * view.scale, { x: -view.x * canvasScale, y: -view.y * canvasScale, width: width * canvasScale, height: height * canvasScale }) : null, [layout, edges, labeledIds, selectedId, hoverId, activeId, canvasScale, view.scale, view.x, view.y, width, height])
+  const studioLabels = useMemo<ReturnType<typeof placeStudioLabels> | null>(() => STUDIO_GRAPH_CONTROLS ? (MAP_LABELS ? placeCleanLabels : placeStudioLabels)(layout, edges, labeledIds, selectedId, hoverId, activeId, canvasScale * view.scale, { x: -view.x * canvasScale, y: -view.y * canvasScale, width: width * canvasScale, height: height * canvasScale }) : null, [layout, edges, labeledIds, selectedId, hoverId, activeId, canvasScale, view.scale, view.x, view.y, width, height])
 
   const fitGraph = useCallback(() => {
     if (layout.length === 0) {
@@ -742,7 +745,18 @@ export function KgGraphView({
               </g>
             )
           })}
-          {studioLabels?.entities.map(({ point, width: plateWidth, height: plateHeight, fontSize, offsetY }) => {
+          {MAP_LABELS && studioLabels?.entities.map(({ point, height: textHeight, fontSize, offsetY, lines = [], lineHeight = fontSize + 3, extraRow = false }) => {
+            const dimmed = neighborIds ? !neighborIds.has(point.node_id) : false
+            const radius = point.r * canvasScale * view.scale
+            const emphasised = point.node_id === selectedId || point.node_id === hoverId
+            return <g key={`entity-label-${point.node_id}`} data-studio-graph-label="entity" data-studio-graph-label-node={point.node_id} data-studio-graph-label-clean="true" aria-hidden="true" className="pointer-events-none" opacity={dimmed ? .18 : 1} transform={`translate(${point.x} ${point.y}) scale(${labelScale})`}>
+              {extraRow && <line data-studio-graph-label-leader="true" x1={0} y1={-radius} x2={0} y2={offsetY + textHeight} stroke="#81949f" strokeWidth={.7} opacity={.6} />}
+              <text x={0} textAnchor="middle" fill={emphasised ? "#FFFFFF" : "#DCE6F2"} fontSize={fontSize} fontWeight={emphasised ? 600 : 500} paintOrder="stroke" stroke="#10182B" strokeWidth={3} strokeLinejoin="round">
+                {lines.map((line, index) => <tspan key={index} x={0} y={offsetY + fontSize + index * lineHeight}>{line}</tspan>)}
+              </text>
+            </g>
+          })}
+          {!MAP_LABELS && studioLabels?.entities.map(({ point, width: plateWidth, height: plateHeight, fontSize, offsetY }) => {
             const dimmed = neighborIds ? !neighborIds.has(point.node_id) : false
             const radius = point.r * canvasScale * view.scale
             const extraRow = offsetY < -radius - 29
