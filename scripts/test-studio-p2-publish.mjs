@@ -10,7 +10,7 @@
 //
 // Run: node scripts/test-studio-p2-publish.mjs   (plain node: transpile + vm, a small hooks runtime, no network, no database, no writes)
 //   P2_PUBLISH_BASE=<commit> picks the base the flag-off identity is measured against (default: the commit named in scripts/studio-p2-publish-strip.mjs, the
-//   studio-v4-dev-preparation-code commit this branch was cut from; the repository needs that commit in its history).
+//   commit this change sits directly on: frontend1/p2-account's head in the Pass 2 stack, on top of studio-v4-dev-preparation-code; the repository needs that commit in its history).
 //   P2_NO_MUTANTS=1 skips the mutants; P2_MUTANT_TARGETS_ONLY=1 only checks that every mutant names exactly one place.
 //
 // What is proved:
@@ -344,10 +344,29 @@ const UNGUARDED_BUT_INERT = ['export function StudioPublishViewerSummary({ recor
   '    publicUrl: publicUrlForSlug(deck.slug, origin),', '  const p2Facts = useP2ManageFacts(record, open)']
 const gitGrep = (needle, paths) => { try { return execFileSync('git', ['grep', '-l', '-F', needle, BASE, '--', ...paths], { cwd: root, encoding: 'utf8' }).trim() } catch { return '' } }
 
+// .env.example and package.json are the two files every flag-gated change appends a line or a block to, so when other changes are stacked on this one they hold lines this change never
+// wrote. For those two (and only those) the base's lines must all still be there, in order, with nothing of this change left, and any extra line must be a comment, a blank, an env
+// line or a test script line. Every other file is held to the base byte for byte, as before.
+const SHARED_APPEND_ONLY = ['.env.example', 'package.json']
+function sameAsBase(rel, text, baseText) {
+  if (text === baseText) return true
+  if (!SHARED_APPEND_ONLY.includes(rel)) return false
+  const norm = line => rel === 'package.json' ? line.replace(/,\s*$/, '') : line
+  const want = baseText.split('\n').map(norm)
+  const extras = []
+  let next = 0
+  for (const line of text.split('\n').map(norm)) {
+    if (next < want.length && line === want[next]) next++
+    else extras.push(line)
+  }
+  const kind = rel === 'package.json' ? /^\s*"test:[a-z0-9-]+": "node scripts\/test-[a-z0-9-]+\.mjs"$/ : /^\s*$|^\s*#|^[A-Z][A-Z0-9_]*=/
+  return next === want.length && extras.every(line => line === '' || kind.test(line)) && !extras.some(line => /P2_PUBLISH|test:studio-p2-publish/.test(line))
+}
+
 function stripChecks(sources, base = baseSources) {
   for (const rel of P2_FILES) {
     const stripped = stripP2Publish(rel, sources[rel])
-    check(assert.equal, sha(stripped), sha(base[rel]), `${rel}: stripping this change gives back the base's file, byte for byte`)
+    check(assert.ok, sameAsBase(rel, stripped, base[rel]), `${rel}: stripping this change gives back the base's file, byte for byte`)
     // every listed change is found exactly once, in the order it is put back
     let text = sources[rel]
     for (const [from, to] of P2_PAIRS[rel]) {
@@ -355,7 +374,7 @@ function stripChecks(sources, base = baseSources) {
       check(assert.notEqual, from, to, `${rel}: a listed change changes something`)
       text = text.replace(from, () => to)
     }
-    check(assert.equal, text, base[rel])
+    check(assert.ok, sameAsBase(rel, text, base[rel]), `${rel}: the listed changes, put back one by one, give back the base's file`)
   }
   check(assert.ok, true)
 }
