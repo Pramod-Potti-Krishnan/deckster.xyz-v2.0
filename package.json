@@ -116,6 +116,7 @@
     "test:studio-theme-preview-canon": "node scripts/test-studio-theme-preview-canon.mjs",
     "test:studio-knowledge-fixes": "node scripts/test-studio-knowledge-fixes.mjs",
     "test:studio-new-session-theme-policy": "node scripts/test-studio-new-session-theme-policy.mjs",
+    "test:studio-p2-account": "node scripts/test-studio-p2-account.mjs",
     "test:template-save-gate": "node scripts/test-template-save-gate.mjs",
     "test:upload-status-contract": "node scripts/test-upload-status-contract.mjs",
     "test:research-mode-contract": "node scripts/test-research-mode-contract.mjs",

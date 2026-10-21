@@ -12,6 +12,7 @@ import {
   Search,
   Keyboard
 } from "lucide-react"
+import { StudioShortcutsPage } from "@/components/settings/studio-p2-shortcuts"
 
 // Force dynamic rendering to prevent build-time errors
 export const dynamic = 'force-dynamic'
@@ -22,7 +23,14 @@ interface Shortcut {
   category: string
 }
 
+// PASS2 ACC-16/17 (NEXT_PUBLIC_STUDIO_P2_ACCOUNT, default off, Studio shell only): the shortcuts that really have a handler, in the shell's tokens. Anything else: the page below.
+const STUDIO_P2_SHORTCUTS = process.env.NEXT_PUBLIC_STUDIO_V4_SHELL === "true" && process.env.NEXT_PUBLIC_STUDIO_P2_ACCOUNT === "true"
+
 export default function ShortcutsPage() {
+  return STUDIO_P2_SHORTCUTS ? <StudioShortcutsPage /> : <LegacyShortcutsPage />
+}
+
+function LegacyShortcutsPage() {
   const { user, isLoading } = useAuth()
   const router = useRouter()
   const [searchQuery, setSearchQuery] = useState("")

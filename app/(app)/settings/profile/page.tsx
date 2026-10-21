@@ -12,10 +12,13 @@ import { Separator } from "@/components/ui/separator"
 import { Badge } from "@/components/ui/badge"
 import { Camera, Crown, Mail, Shield, Sparkles, User, Loader2 } from "lucide-react"
 import Link from "next/link"
+import "@/components/settings/studio-p2-account.css"
 
 // Force dynamic rendering to prevent build-time errors
 export const dynamic = "force-dynamic"
 const STUDIO_SHELL = process.env.NEXT_PUBLIC_STUDIO_V4_SHELL === "true"
+// PASS2 ACC-04 (NEXT_PUBLIC_STUDIO_P2_ACCOUNT, default off, Studio shell only): "Save" is the ink action colour (violet stays for AI and generation). Marker only; the rule is in studio-p2-account.css.
+const STUDIO_P2_ACCOUNT = STUDIO_SHELL && process.env.NEXT_PUBLIC_STUDIO_P2_ACCOUNT === "true"
 
 export default function ProfileSettingsPage() {
   const { user, isLoading } = useAuth()
@@ -122,7 +125,7 @@ export default function ProfileSettingsPage() {
   }
 
   return (
-    <Card data-studio-settings-profile={STUDIO_SHELL ? "true" : undefined} aria-busy={STUDIO_SHELL ? isSaving || isUploading : undefined}>
+    <Card data-studio-settings-profile={STUDIO_SHELL ? "true" : undefined} data-studio-p2-account={STUDIO_P2_ACCOUNT ? "true" : undefined} aria-busy={STUDIO_SHELL ? isSaving || isUploading : undefined}>
       <CardHeader data-studio-settings-profile-header={STUDIO_SHELL ? "true" : undefined}>
         <div className="flex items-center justify-between">
           <CardTitle>Profile Information</CardTitle>

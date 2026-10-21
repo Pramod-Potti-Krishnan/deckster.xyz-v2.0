@@ -1,0 +1,20 @@
+/* PASS2 ACC-04 / ACC-12 (NEXT_PUBLIC_STUDIO_P2_ACCOUNT): the account pages' primary actions in the ink action token (violet stays for AI and generation), and the Billing
+   capacity meters. Every rule is scoped to the page's own marker, so nothing else changes. Palette tokens only: the shell's --ss-* set carries dark mode. */
+
+/* ACC-04: Profile "Save", Billing "Upgrade Now" (the plan summary's button) and "View Plans" (the free-plan alert, for consistency). */
+[data-studio-v4-shell="true"] [data-studio-p2-account="true"] [data-studio-settings-profile-save] { color: var(--ss-on-action); background: var(--ss-action); }
+[data-studio-v4-shell="true"] [data-studio-p2-account="true"] [data-studio-settings-profile-save]:hover:not(:disabled) { background: var(--ss-action-hover); }
+[data-studio-v4-shell="true"] [data-studio-p2-account="true"] :is([data-studio-billing-plan-summary], [data-studio-billing-upgrade]) button { color: var(--ss-on-action); background: var(--ss-action); }
+[data-studio-v4-shell="true"] [data-studio-p2-account="true"] :is([data-studio-billing-plan-summary], [data-studio-billing-upgrade]) button:hover:not(:disabled) { background: var(--ss-action-hover); }
+
+/* ACC-12: the capacity row of the usage card. */
+[data-studio-v4-shell="true"] [data-studio-p2-account="true"] [data-studio-billing-capacity="true"] { display: block; }
+[data-studio-v4-shell="true"] [data-studio-p2-account="true"] [data-studio-billing-capacity-head="true"] { display: flex; justify-content: space-between; gap: 12px; font-size: 11px; line-height: 18px; color: var(--ss-text); }
+[data-studio-v4-shell="true"] [data-studio-p2-account="true"] [data-studio-billing-capacity-head="true"] > span:last-child { color: var(--ss-muted); }
+[data-studio-v4-shell="true"] [data-studio-p2-account="true"] [data-studio-billing-meter] { margin-top: 10px; }
+[data-studio-v4-shell="true"] [data-studio-p2-account="true"] [data-studio-billing-meter-head="true"] { display: flex; align-items: baseline; justify-content: space-between; gap: 8px; font-size: 11px; line-height: 16px; font-variant-numeric: tabular-nums; color: var(--ss-text); }
+[data-studio-v4-shell="true"] [data-studio-p2-account="true"] [data-studio-billing-meter-head="true"] > span:first-child { color: var(--ss-muted); }
+[data-studio-v4-shell="true"] [data-studio-p2-account="true"] [data-studio-billing-meter-bar="true"] { height: 4px; margin: 6px 0 5px; border-radius: 5px; background: var(--ss-line); overflow: hidden; }
+[data-studio-v4-shell="true"] [data-studio-p2-account="true"] [data-studio-billing-meter-bar="true"] > i { display: block; height: 100%; border-radius: 5px; background: var(--ss-teal); }
+[data-studio-v4-shell="true"] [data-studio-p2-account="true"] [data-studio-billing-meter] > small { display: block; font-size: 10px; line-height: 14px; color: var(--ss-muted); }
+[data-studio-v4-shell="true"] [data-studio-p2-account="true"] [data-studio-billing-feature-lead="true"] { margin: 0; font-size: 11px; line-height: 18px; color: var(--ss-muted); }

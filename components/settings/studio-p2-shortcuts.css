@@ -1,0 +1,16 @@
+/* PASS2 ACC-16/17 (NEXT_PUBLIC_STUDIO_P2_ACCOUNT): the shortcuts page in the shell's tokens (the same --ss-* set every other Studio account page uses, light and dark).
+   Compact rows as the mockup's dialog: label left, mono key chip right, a thin line between rows. Every rule is scoped to the page's own marker. */
+[data-studio-v4-shell="true"] [data-studio-p2-shortcuts="true"] { max-width: 640px; margin: 0 auto; padding: 24px clamp(16px, 2.8vw, 32px) 32px; color: var(--ss-text); }
+[data-studio-v4-shell="true"] [data-studio-p2-shortcuts-heading="true"] { margin-bottom: 18px; }
+[data-studio-v4-shell="true"] [data-studio-p2-shortcuts-heading="true"] h1 { margin: 0 0 5px; font-size: 24px; line-height: 32px; font-weight: 600; letter-spacing: -.025em; }
+[data-studio-v4-shell="true"] [data-studio-p2-shortcuts-heading="true"] p { margin: 0; font-size: 12px; line-height: 20px; color: var(--ss-muted); }
+[data-studio-v4-shell="true"] [data-studio-p2-shortcuts="true"] section { margin-top: 18px; padding: 4px 18px 6px; border: 1px solid var(--ss-line); border-radius: 12px; background: var(--ss-panel); }
+[data-studio-v4-shell="true"] [data-studio-p2-shortcuts="true"] h2 { margin: 12px 0 2px; font-size: 9.5px; line-height: 14px; font-weight: 600; letter-spacing: .12em; text-transform: uppercase; color: var(--ss-muted); }
+[data-studio-v4-shell="true"] [data-studio-p2-shortcuts="true"] ul { margin: 0; padding: 0; list-style: none; }
+[data-studio-v4-shell="true"] [data-studio-p2-shortcuts="true"] li { display: flex; align-items: center; justify-content: space-between; gap: 16px; padding: 11px 0; border-top: 1px solid var(--ss-line); font-size: 12px; line-height: 18px; color: var(--ss-text); }
+[data-studio-v4-shell="true"] [data-studio-p2-shortcuts="true"] li:first-child { border-top: 0; }
+[data-studio-v4-shell="true"] [data-studio-p2-shortcuts="true"] li > span { min-width: 0; }
+[data-studio-v4-shell="true"] [data-studio-p2-shortcuts="true"] kbd { flex-shrink: 0; padding: 3px 8px; border: 1px solid var(--ss-line); border-radius: 6px; background: var(--ss-surface); color: var(--ss-text); font: 500 10.5px/16px ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; white-space: nowrap; }
+@media (max-width: 520px) {
+  [data-studio-v4-shell="true"] [data-studio-p2-shortcuts="true"] li { flex-wrap: wrap; row-gap: 6px; }
+}
