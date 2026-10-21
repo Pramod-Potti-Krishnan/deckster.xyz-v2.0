@@ -109,8 +109,9 @@ function welcomeComponent(welcomeSource, libSource, { clockAvailable }) {
   const stubs = {
     react: clockAvailable ? { ...React, useSyncExternalStore: (_subscribe, getSnapshot) => getSnapshot() } : React,
     'react/jsx-runtime': jsxRuntime, 'lucide-react': lucide, '@/lib/studio-welcome-polish': lib,
+    '@/lib/studio-welcome-width': { studioWelcomeWidthProps: () => ({}) }, // PASS2D W: flag NEXT_PUBLIC_STUDIO_WELCOME_WIDTH_560 is off here, so the marker is never added
   }
-  vm.runInNewContext(compile(welcomeSource, WELCOME), { module, exports: module.exports, Date: FakeDate, require: spec => { if (!(spec in stubs)) throw new Error(`unexpected import ${spec}`); return stubs[spec] } })
+  vm.runInNewContext(compile(welcomeSource, WELCOME), { module, exports: module.exports, Date: FakeDate, process: { env: {} }, require: spec => { if (!(spec in stubs)) throw new Error(`unexpected import ${spec}`); return stubs[spec] } })
   return module.exports
 }
 const render = (Welcome, props) => renderToStaticMarkup(React.createElement(Welcome.StudioWelcome, props))

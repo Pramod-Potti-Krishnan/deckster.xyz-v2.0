@@ -2,6 +2,7 @@
 
 import { useSyncExternalStore, type ReactNode } from "react"
 import { studioWelcomeEyebrow } from "@/lib/studio-welcome-polish"
+import { studioWelcomeWidthProps } from "@/lib/studio-welcome-width"
 import { ArrowUpRight, BookOpen, Lightbulb, ListChecks, Sparkles } from "lucide-react"
 
 export type StudioDirectorConnectionState = "connecting" | "connected" | "disconnected" | "error"
@@ -153,10 +154,13 @@ export function StudioWelcome({ onDraftPrompt, connectionState, busy = false, pr
   )
 }
 
+// PASS2D W (NEXT_PUBLIC_STUDIO_WELCOME_WIDTH_560, default off): the first-run column is 560 px wide (stylesheet rules keyed to the marker below). Off, no attribute is added.
+const WELCOME_WIDTH_560 = process.env.NEXT_PUBLIC_STUDIO_WELCOME_WIDTH_560 === "true"
+
 /** PASS2 #2: one centred head instead of the brief scaffold. The same guidance, in one line. */
 function StudioFirstRunHead({ greeting }: { greeting?: StudioWelcomeGreeting }) {
   return (
-    <section data-studio-director-welcome="true" data-studio-first-run="true" aria-label="Getting started with your presentation">
+    <section data-studio-director-welcome="true" data-studio-first-run="true" {...studioWelcomeWidthProps(WELCOME_WIDTH_560)} aria-label="Getting started with your presentation">
       <span data-studio-first-run-part="mark" aria-hidden="true"><Sparkles size={22} /></span>
       <div data-studio-director-welcome-part="eyebrow">{greeting ? <StudioGreetingText greeting={greeting} fallback={FIRST_RUN_COPY.eyebrow} /> : FIRST_RUN_COPY.eyebrow}</div>
       <h2>{FIRST_RUN_COPY.heading}</h2>
