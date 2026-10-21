@@ -497,8 +497,8 @@ export function KgGraphView({
 
   if (nodes.length === 0) return null
 
-  // SB-06 (flag on): the Full screen button; one element, drawn in the map's own toolbar or, with the J6 toolbar on, handed to it as `extra`.
-  const p2FullscreenButton = <button type="button" data-studio-p2-fullscreen="true" onClick={toggleFullscreen} aria-pressed={fullscreen} aria-label={studioFullscreenLabel(fullscreen)} title={studioFullscreenLabel(fullscreen)}>{fullscreen ? <Minimize2 className="h-4 w-4" /> : <Maximize2 className="h-4 w-4" />}<span>{studioFullscreenLabel(fullscreen)}</span></button>
+  // SB-06 (flag on): the Full screen button, drawn in the map's own toolbar or, with the J6 toolbar on, handed to it as `extra`. Off, or where the browser cannot, it is `false`.
+  const p2FullscreenButton = STUDIO_P2_MAP && canFullscreen && <button type="button" data-studio-p2-fullscreen="true" onClick={toggleFullscreen} aria-pressed={fullscreen} aria-label={studioFullscreenLabel(fullscreen)} title={studioFullscreenLabel(fullscreen)}>{fullscreen ? <Minimize2 className="h-4 w-4" /> : <Maximize2 className="h-4 w-4" />}<span>{studioFullscreenLabel(fullscreen)}</span></button>
 
   return (
     <div ref={rootRef} data-studio-graph-view={STUDIO_GRAPH_CONTROLS ? 'true' : undefined} data-studio-p2-map={STUDIO_P2_MAP ? 'true' : undefined} data-studio-graph-mode={showList ? 'list' : 'map'} className="relative h-full overflow-hidden rounded-2xl bg-[#070b18] lg:min-h-[520px]">
@@ -550,7 +550,7 @@ export function KgGraphView({
           onZoomOut={() => zoomAround(view.scale / 1.2)}
           onReset={fitGraph}
           onFocus={focusSelected}
-          {...(STUDIO_P2_MAP && canFullscreen ? { extra: p2FullscreenButton } : {})}
+          {...(p2FullscreenButton ? { extra: p2FullscreenButton } : {})}
         />
       ) : (
         <div data-studio-graph-toolbar={STUDIO_GRAPH_CONTROLS ? 'true' : undefined} role="group" aria-label="Knowledge map controls" className="absolute right-3 top-3 z-10 hidden items-center gap-1 rounded-xl border border-white/10 bg-slate-950/80 p-1 shadow-xl backdrop-blur lg:flex">
@@ -597,7 +597,7 @@ export function KgGraphView({
           >
             <RotateCcw className="h-4 w-4" />
           </button>
-          {STUDIO_P2_MAP && canFullscreen && p2FullscreenButton}
+          {p2FullscreenButton}
         </div>
       )}
 

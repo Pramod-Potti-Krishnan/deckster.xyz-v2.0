@@ -8,7 +8,7 @@
 //   NOT built: SB-01 (deck nodes in the graph) and SB-12 (Ask Knowledge) are backlog by ruling; SB-17 (+ Presentation / rail cue) is Builder D's DET-12.
 //
 // Run: node scripts/test-studio-p2-second-brain.mjs   (plain node: transpile + vm, no network, no browser, no env)
-//   P2_SB_BASE=<commit> overrides the base commit flag-off identity is checked against (default 70b9277c, the studio-v4-dev-preparation-code tip the work was rebased onto).
+//   P2_SB_BASE=<commit> overrides the base commit flag-off identity is checked against (default d7c7751d, the studio-v4-dev-preparation-code tip the work was rebased onto: the Knowledge batch #440-#444 is in it).
 //
 // Proven on the REAL sources:
 //   1. lib/studio-p2-second-brain.ts: import-free; the flag rule, words, routes, strip, source aggregation, deck resolution, badge, halo id, full-screen rules;
@@ -26,7 +26,7 @@ import ts from 'typescript'
 import postcss from 'postcss'
 
 const repoRoot = path.resolve(new URL('..', import.meta.url).pathname)
-const BASE_COMMIT = process.env.P2_SB_BASE || '70b9277c5e210f120a209fe572ca4f013247d403'
+const BASE_COMMIT = process.env.P2_SB_BASE || 'd7c7751d0306f97ffa8d07eea3ded80b38035593'
 const read = rel => fs.readFileSync(path.join(repoRoot, rel), 'utf8')
 const baseCache = new Map()
 const baseSource = rel => {
@@ -491,9 +491,9 @@ const G_NODES = [
   { node_id: 'c', name: 'Ada', entity_type: 'PERSON', salience: 1, mention_count: 0 },
 ]
 const G_EDGES = [{ src_node_id: 'a', dst_node_id: 'b', relation: 'REPORTS', weight: 1 }]
-const graphWorld = (source, env, doc) => createWorld({ real: new Set([LIB, GRAPH]), sources: { [GRAPH]: source }, env, globals: { document: doc ?? fakeDocument(), Promise, Set, Map, Math, Number, Array, Object, JSON, String, Infinity, NaN, ResizeObserver: class { observe() {} disconnect() {} } } })
-function graphView(source, env, props = {}, doc) {
-  const world = graphWorld(source, env, doc)
+const graphWorld = (source, env, doc, extraReal = []) => createWorld({ real: new Set([LIB, GRAPH, ...extraReal]), sources: { [GRAPH]: source }, env, globals: { document: doc ?? fakeDocument(), Promise, Set, Map, Math, Number, Array, Object, JSON, String, Infinity, NaN, ResizeObserver: class { observe() {} disconnect() {} } } })
+function graphView(source, env, props = {}, doc, extraReal = []) {
+  const world = graphWorld(source, env, doc, extraReal)
   const { KgGraphView } = world.load(GRAPH)
   const render = () => world.runtime.render(KgGraphView, { nodes: G_NODES, edges: G_EDGES, selectedId: null, ...props })
   return { world, render }
@@ -576,6 +576,19 @@ async function proveGraphFullscreen(source, label = 'graph') {
   const offDoc = fakeDocument()
   const off2 = graphView(source, { NEXT_PUBLIC_STUDIO_V4_SHELL: 'true' }, {}, offDoc); off2.render()
   eq((offDoc.listeners.get('fullscreenchange') ?? []).length, 0, `${label}: flag off adds no listener`)
+  // With the J6 map toolbar on as well (NEXT_PUBLIC_STUDIO_KNOWLEDGE_MAP_TOOLBAR, a separate component) the Full screen button reaches it as `extra`; with only that flag on, the toolbar gets none.
+  const TOOLBAR_LIB = 'lib/studio-knowledge-map-toolbar.ts'
+  const J6 = { NEXT_PUBLIC_STUDIO_V4_SHELL: 'true', NEXT_PUBLIC_STUDIO_KNOWLEDGE_MAP_TOOLBAR: 'true' }
+  const j6Toolbar = tree => all(tree, i => i.type === 'StudioKnowledgeMapToolbar')[0]
+  const both = graphView(source, { ...J6, [FLAG]: 'true' }, {}, doc, [TOOLBAR_LIB]).render()
+  ok(j6Toolbar(both), `${label}: both flags: the J6 toolbar is drawn`)
+  eq(j6Toolbar(both).props.extra?.props?.['data-studio-p2-fullscreen'], 'true', `${label}: both flags: Full screen is the J6 toolbar's extra control`)
+  eq(all(both, i => i.props?.['data-studio-p2-fullscreen']).length, 0, `${label}: both flags: not drawn a second time outside the J6 toolbar`)
+  const only = graphView(source, J6, {}, doc, [TOOLBAR_LIB]).render()
+  ok(j6Toolbar(only) && !('extra' in j6Toolbar(only).props), `${label}: J6 toolbar alone: no extra prop`)
+  same(ser(only), ser(graphView(baseSource(GRAPH), J6, {}, doc, [TOOLBAR_LIB]).render()), `${label}: J6 toolbar alone: the base's map`)
+  const bothDenied = graphView(source, { ...J6, [FLAG]: 'true' }, {}, fakeDocument({ fullscreenEnabled: false }), [TOOLBAR_LIB]).render()
+  ok(!('extra' in j6Toolbar(bothDenied).props), `${label}: both flags, browser forbids full screen: no extra prop`)
 }
 
 // ---------------------------------------------------------------- 3. the page wiring
@@ -784,7 +797,10 @@ const MUTANTS = [
   [GRAPH, 'badge counts salience', 'studioNodeBadge(point.mention_count, point.r)', 'studioNodeBadge(point.salience, point.r)'],
   [GRAPH, 'plates without the outline', 'style={STUDIO_P2_MAP ? { stroke: typeColor(point.entity_type), strokeWidth: 1, strokeOpacity: .75 } : undefined}', 'style={undefined}'],
   [GRAPH, 'plate text not semi-bold', 'fontWeight={STUDIO_P2_MAP ? 600 : 500}', 'fontWeight={500}'],
-  [GRAPH, 'button before support is known', '{STUDIO_P2_MAP && canFullscreen && <button', '{STUDIO_P2_MAP && <button'],
+  [GRAPH, 'button before support is known', 'STUDIO_P2_MAP && canFullscreen && <button', 'STUDIO_P2_MAP && <button'],
+  [GRAPH, 'J6 toolbar loses Full screen', '{...(p2FullscreenButton ? { extra: p2FullscreenButton } : {})}', ''],
+  [GRAPH, 'J6 toolbar extra even when forbidden', '{...(p2FullscreenButton ? { extra: p2FullscreenButton } : {})}', '{...{ extra: p2FullscreenButton }}'],
+  [GRAPH, 'legacy toolbar loses Full screen', '          {p2FullscreenButton}\n', ''],
   [GRAPH, 'support assumed', 'setCanFullscreen(studioFullscreenSupported(document))', 'setCanFullscreen(true)'],
   [GRAPH, 'full screen listener leaks', 'document.removeEventListener("fullscreenchange", sync)', ''],
   [GRAPH, 'cannot leave full screen', 'void Promise.resolve(document.exitFullscreen?.()).catch(() => undefined)', 'void 0'],
@@ -800,7 +816,7 @@ const MUTANTS = [
   [PAGE, 'deck list wanted at once', 'enabled={selectedId !== null}', 'enabled={true}'],
   [PAGE, 'provider without the flag', 'P2_SB ? <StudioP2DeckProvider', 'true ? <StudioP2DeckProvider'],
   [PAGE, 'decks prop always present', '      {...(decks ? { decks } : {})}\n    />\n  )\n  const summaryCards', '      decks={decks}\n    />\n  )\n  const summaryCards'],
-  [PAGE, 'studio inspector loses the decks', 'onClear={onClear} {...(decks ? { decks } : {})} />', 'onClear={onClear} />'],
+  [PAGE, 'studio inspector loses the decks', 'onClear={onClear} emptyGraph={emptyGraph} {...(decks ? { decks } : {})} />', 'onClear={onClear} emptyGraph={emptyGraph} />'],
   // the CSS
   [CSS, 'a rule loses its anchor', '[data-studio-v4-shell="true"] [data-studio-p2-sources="true"] { position: relative; display: inline-flex; }', '[data-studio-p2-sources="true"] { position: relative; display: inline-flex; }'],
   [CSS, 'a rule without a marker', '[data-studio-graph-view="true"][data-studio-p2-map="true"]:fullscreen > svg[role="group"] { height: auto; min-height: 0; }', '[data-studio-graph-view="true"][data-studio-p2-map="true"]:fullscreen > svg[role="group"] { height: auto; min-height: 0; }\n[data-studio-graph-view="true"] svg { height: 1px; }'],

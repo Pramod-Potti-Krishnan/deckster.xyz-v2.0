@@ -180,7 +180,9 @@ const VIEWS = [
 // KNOWLEDGE-MAP-LABELS (a sibling change, when it is on this branch): kg-graph-view imports its label helper. Its flag is unset in every render here, so the markup is unaffected;
 // the module only has to resolve. A file that is not there (this change alone on the base) is left out.
 const LABELS_HELPER = 'lib/studio-knowledge-map-labels.ts'
-const siblingSources = () => fs.existsSync(path.join(root, LABELS_HELPER)) ? { [LABELS_HELPER]: read(LABELS_HELPER) } : {}
+// PASS2 Second Brain (NEXT_PUBLIC_STUDIO_P2_SECOND_BRAIN, a sibling change, when it is on this branch): kg-graph-view imports its import-free helper. Its flag is unset in every render here; the module only has to resolve.
+const P2_SB_HELPER = 'lib/studio-p2-second-brain.ts'
+const siblingSources = () => ({ ...(fs.existsSync(path.join(root, LABELS_HELPER)) ? { [LABELS_HELPER]: read(LABELS_HELPER) } : {}), ...(fs.existsSync(path.join(root, P2_SB_HELPER)) ? { [P2_SB_HELPER]: read(P2_SB_HELPER) } : {}) })
 const sourcesFor = (graph, extra = {}) => ({ ...siblingSources(), [GRAPH]: graph, [TOOLBAR]: read(TOOLBAR), [HELPER]: read(HELPER), ...extra })
 const envFor = (shell, flag) => ({ ...(shell ? { NEXT_PUBLIC_STUDIO_V4_SHELL: 'true' } : {}), ...(flag ? { [FLAG]: 'true' } : {}) })
 
@@ -316,7 +318,8 @@ function sourceChecks(graph, css) {
   check(assert.ok, graph.indexOf('const STUDIO_GRAPH_CONTROLS =') < graph.indexOf('const MAP_TOOLBAR ='), 'STUDIO_GRAPH_CONTROLS is defined first')
   check(assert.equal, (graph.match(/\bMAP_TOOLBAR\b/g) ?? []).length, 3, 'defined, the fit scale, the toolbar')
   check(assert.ok, graph.includes("const fitScale = useMemo(() => MAP_TOOLBAR ? knowledgeFitScale(layout, width, height) : 1, [layout, width, height])"), 'the fit scale: computed only for the flag')
-  const branch = /\{MAP_TOOLBAR \? \(\n {8}<StudioKnowledgeMapToolbar\n {10}showList=\{showList\}\n {10}viewScale=\{view\.scale\}\n {10}fitScale=\{fitScale\}\n {10}selectedName=\{selectedPoint\?\.name\}\n {10}hasSelection=\{Boolean\(selectedPoint\)\}\n {10}onToggleList=\{\(\) => setShowList\(current => !current\)\}\n {10}onZoomIn=\{\(\) => zoomAround\(view\.scale \* 1\.2\)\}\n {10}onZoomOut=\{\(\) => zoomAround\(view\.scale \/ 1\.2\)\}\n {10}onReset=\{fitGraph\}\n {10}onFocus=\{focusSelected\}\n {8}\/>\n {6}\) : \(\n {8}<div data-studio-graph-toolbar=\{STUDIO_GRAPH_CONTROLS \? 'true' : undefined\}/
+  // + PASS2 Second Brain (NEXT_PUBLIC_STUDIO_P2_SECOND_BRAIN) hands its Full screen button to this toolbar as `extra` (one optional line, pinned by scripts/test-studio-p2-second-brain.mjs).
+  const branch = /\{MAP_TOOLBAR \? \(\n {8}<StudioKnowledgeMapToolbar\n {10}showList=\{showList\}\n {10}viewScale=\{view\.scale\}\n {10}fitScale=\{fitScale\}\n {10}selectedName=\{selectedPoint\?\.name\}\n {10}hasSelection=\{Boolean\(selectedPoint\)\}\n {10}onToggleList=\{\(\) => setShowList\(current => !current\)\}\n {10}onZoomIn=\{\(\) => zoomAround\(view\.scale \* 1\.2\)\}\n {10}onZoomOut=\{\(\) => zoomAround\(view\.scale \/ 1\.2\)\}\n {10}onReset=\{fitGraph\}\n {10}onFocus=\{focusSelected\}\n(?: {10}\{\.\.\.\(p2FullscreenButton \? \{ extra: p2FullscreenButton \} : \{\}\)\}\n)? {8}\/>\n {6}\) : \(\n {8}<div data-studio-graph-toolbar=\{STUDIO_GRAPH_CONTROLS \? 'true' : undefined\}/
   check(assert.match, graph, branch, 'the new toolbar is the flag-on branch, with the view\'s own handlers; the old toolbar is the other branch')
   for (const part of ['aria-label="Zoom in"', 'aria-label="Zoom out"', 'aria-label="Fit graph to view"', 'aria-label="Reset graph view"', "aria-label=\"Focus selected entity\"", "{Math.round(view.scale * 100)}%",
     'onClick={() => setView({ x: 0, y: 0, scale: 1 })}', 'onClick={fitGraph}', 'disabled={showList || !selectedPoint}']) check(assert.ok, graph.includes(part), `the old toolbar keeps: ${part}`)

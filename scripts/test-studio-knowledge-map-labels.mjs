@@ -268,7 +268,8 @@ const VIEWS = [
 const envFor = (shell, flag) => ({ ...(shell ? { NEXT_PUBLIC_STUDIO_V4_SHELL: 'true' } : {}), ...(flag ? { [FLAG]: 'true' } : {}) })
 // KNOWLEDGE-MAP-TOOLBAR (a sibling change, when it is on this branch): kg-graph-view imports its toolbar and helper. Its flag is unset in every render here, so the markup is unaffected;
 // the modules only have to resolve. Files that are not there (this change alone on the base) are left out.
-const SIBLINGS = ['components/knowledge/studio-knowledge-map-toolbar.tsx', 'lib/studio-knowledge-map-toolbar.ts'].filter(rel => fs.existsSync(path.join(root, rel)))
+// + PASS2 Second Brain (NEXT_PUBLIC_STUDIO_P2_SECOND_BRAIN): kg-graph-view imports its import-free helper; its flag is unset in every render here.
+const SIBLINGS = ['components/knowledge/studio-knowledge-map-toolbar.tsx', 'lib/studio-knowledge-map-toolbar.ts', 'lib/studio-p2-second-brain.ts'].filter(rel => fs.existsSync(path.join(root, rel)))
 const siblingSources = () => Object.fromEntries(SIBLINGS.map(rel => [rel, read(rel)]))
 function staticMarkup(graphSource, helperSource, env, view) {
   const { KgGraphView } = loadModule(GRAPH, { ...siblingSources(), [GRAPH]: graphSource, [HELPER]: helperSource }, env)
@@ -354,8 +355,10 @@ function sourceChecks(graph) {
   check(assert.ok, graph.includes('useMemo<ReturnType<typeof placeStudioLabels> | null>(() => STUDIO_GRAPH_CONTROLS ? (MAP_LABELS ? placeCleanLabels : placeStudioLabels)(layout, edges, labeledIds, selectedId, hoverId, activeId, canvasScale * view.scale, { x: -view.x * canvasScale, y: -view.y * canvasScale, width: width * canvasScale, height: height * canvasScale }) : null, [layout, edges, labeledIds, selectedId, hoverId, activeId, canvasScale, view.scale, view.x, view.y, width, height])'), 'the placement is the flag-on choice of one call, with the same arguments and dependencies')
   check(assert.ok, graph.includes('{MAP_LABELS && studioLabels?.entities.map('), 'the clean labels')
   check(assert.ok, graph.includes('{!MAP_LABELS && studioLabels?.entities.map(({ point, width: plateWidth, height: plateHeight, fontSize, offsetY }) => {'), 'the plates are the flag-off branch, as they were')
+  // + PASS2 Second Brain (NEXT_PUBLIC_STUDIO_P2_SECOND_BRAIN) outlines the plates and sets their text semi-bold on its own flag; those swaps come out first (scripts/test-studio-p2-second-brain.mjs pins them).
+  const plateGraph = graph.replace(' style={STUDIO_P2_MAP ? { stroke: typeColor(point.entity_type), strokeWidth: 1, strokeOpacity: .75 } : undefined}', '').replace('fill={STUDIO_P2_MAP ? "#F8FAFC" : "#E2E8F0"}', 'fill="#E2E8F0"').replace('fontWeight={STUDIO_P2_MAP ? 600 : 500}', 'fontWeight={500}')
   for (const part of ['<rect x={-plateWidth / 2} y={offsetY} width={plateWidth} height={plateHeight} rx={8} fill="#020617" opacity={.92} />', "<text x={0} y={offsetY + 17} textAnchor=\"middle\" fill=\"#E2E8F0\" fontSize={fontSize} fontWeight={500}>{compactGraphLabel(point.name, 25)}</text>",
-    'function placeStudioLabels(', 'const width = graphLabelWidth(compactGraphLabel(point.name, 25), fontSize), height = 24']) check(assert.ok, graph.includes(part), `the plate code is untouched: ${part.slice(0, 60)}`)
+    'function placeStudioLabels(', 'const width = graphLabelWidth(compactGraphLabel(point.name, 25), fontSize), height = 24']) check(assert.ok, plateGraph.includes(part), `the plate code is untouched: ${part.slice(0, 60)}`)
   check(assert.ok, graph.includes('if (STUDIO_GRAPH_CONTROLS && !studioLabels?.relations.has('), 'the relation labels read the placement as before')
 }
 

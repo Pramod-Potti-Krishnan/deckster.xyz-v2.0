@@ -179,7 +179,9 @@ const PANEL_STATES = [
   { name: 'an entity selected', props: { selected: DETAIL, selectedId: 'n1', loading: false, error: null, topEntities: TOP } },
 ]
 const panelHtml = (source, props, extra = {}, sourcesOverride = {}) => {
-  const { StudioKnowledgeInspector } = loadModule(INSPECTOR, { [INSPECTOR]: source, [HELPER]: read(HELPER), ...sourcesOverride })
+  // + PASS2 Second Brain (NEXT_PUBLIC_STUDIO_P2_SECOND_BRAIN): the inspector imports its import-free helper; the flag is unset in every render here, so the module only has to resolve.
+  const P2_SB_HELPER = 'lib/studio-p2-second-brain.ts'
+  const { StudioKnowledgeInspector } = loadModule(INSPECTOR, { [INSPECTOR]: source, [HELPER]: read(HELPER), ...(fs.existsSync(path.join(root, P2_SB_HELPER)) ? { [P2_SB_HELPER]: read(P2_SB_HELPER) } : {}), ...sourcesOverride })
   return renderToStaticMarkup(React.createElement(StudioKnowledgeInspector, { onSelect() {}, onRetry() {}, onClear() {}, ...props, ...extra }))
 }
 
@@ -226,12 +228,15 @@ function pageChecks(page, css, inspector) {
     check(assert.ok, page.includes(part), `the pale box keeps: ${part.slice(0, 70)}`)
   }
   // the panel is told only with the flag on: no extra prop flag off
-  check(assert.ok, page.includes('            {...(KNOWLEDGE_EMPTY_STATE ? { emptyGraph: graphIsEmpty } : {})}\n          />'), 'the panel is told only with the flag on (a spread, so there is no extra prop flag off)')
-  check(assert.ok, page.includes('  emptyGraph,\n}: {') && page.includes('  emptyGraph?: boolean\n}) {'), 'Inspector takes it')
-  check(assert.ok, page.includes('onRetry={onRetry} onClear={onClear} emptyGraph={emptyGraph} />\n'), 'and hands it to the Studio panel only')
+  // + PASS2 Second Brain (NEXT_PUBLIC_STUDIO_P2_SECOND_BRAIN) adds its own optional `decks` next to this one (the call sits in renderInspector, after it: the page's other consumers pin that).
+  check(assert.match, page, /\{\.\.\.\(KNOWLEDGE_EMPTY_STATE \? \{ emptyGraph: graphIsEmpty \} : \{\}\)\}\n(?: {10}\/>| {6}\{\.\.\.\(decks \? \{ decks \} : \{\}\)\}\n {4}\/>)/, 'the panel is told only with the flag on (a spread, so there is no extra prop flag off)')
+  check(assert.match, page, /  emptyGraph,\n(?:  decks,\n)?\}: \{/, 'Inspector takes it')
+  check(assert.match, page, /  emptyGraph\?: boolean\n(?:  decks\?: StudioDeckDirectory\n)?\}\) \{/, 'Inspector types it')
+  check(assert.match, page, /onRetry=\{onRetry\} onClear=\{onClear\} emptyGraph=\{emptyGraph\}(?: \{\.\.\.\(decks \? \{ decks \} : \{\}\)\})? \/>\n/, 'and hands it to the Studio panel only')
   check(assert.equal, occurrences(page, 'emptyGraph'), 5, 'the spread, the parameter, its type, the hand-over (twice in the line above counts once each): the legacy panel gets nothing')
   // the panel component
-  check(assert.ok, inspector.includes('emptyGraph = false }: {') && inspector.includes('  emptyGraph?: boolean\n}) {'), 'the panel\'s prop defaults to false')
+  check(assert.match, inspector, /emptyGraph = false(?:, decks)? \}: \{/, 'the panel\'s prop defaults to false')
+  check(assert.match, inspector, /  emptyGraph\?: boolean\n(?:  \/\*\* Flag on only: the deck list[^\n]*\n  decks\?: StudioDeckDirectory\n)?\}\) \{/, 'the panel types it')
   check(assert.ok, inspector.includes('<strong>{emptyGraph ? EMPTY_PANEL_TITLE : "Follow an idea to its sources."}</strong><p>{emptyGraph ? EMPTY_PANEL_BODY : "Select an entity on the map or in search to inspect its recorded relationships and evidence."}</p>'), 'the words follow the prop; the old words are the other branch')
   // css
   const selectors = selectorsOf(css)
@@ -288,7 +293,7 @@ const MUTANTS = [
   ['map', '<Button asChild variant="outline"><Link href="/builder">Build a deck</Link></Button>', '', 'no Build a deck'],
   ['map', '<Import className="mr-2 h-4 w-4" /> Import past sessions', 'Import', 'the button is renamed'],
   // panel
-  ['inspector', 'emptyGraph = false }: {', 'emptyGraph = true }: {', 'the panel says empty by default'],
+  ['inspector', 'emptyGraph = false, decks }: {', 'emptyGraph = true, decks }: {', 'the panel says empty by default'],
   ['inspector', '<strong>{emptyGraph ? EMPTY_PANEL_TITLE : "Follow an idea to its sources."}</strong>', '<strong>{emptyGraph ? "Follow an idea to its sources." : EMPTY_PANEL_TITLE}</strong>', 'the title is inverted'],
   ['inspector', '<p>{emptyGraph ? EMPTY_PANEL_BODY : "Select an entity on the map or in search to inspect its recorded relationships and evidence."}</p>', '<p>{"Select an entity on the map or in search to inspect its recorded relationships and evidence."}</p>', 'the body is never new'],
   ['inspector', '<strong>{emptyGraph ? EMPTY_PANEL_TITLE : "Follow an idea to its sources."}</strong>', '<strong>{"Follow an idea to its sources."}</strong>', 'the title is never new'],
@@ -310,7 +315,7 @@ const MUTANTS = [
   ['page', '{graphIsEmpty && (\n              <StudioKnowledgeEmptyMap', '{graphIsEmpty && graph && (\n              <StudioKnowledgeEmptyMap', 'the new map has another condition'],
   ['page', '{...(KNOWLEDGE_EMPTY_STATE ? { emptyGraph: graphIsEmpty } : {})}', 'emptyGraph={graphIsEmpty}', 'the panel is told flag off too'],
   ['page', '{...(KNOWLEDGE_EMPTY_STATE ? { emptyGraph: graphIsEmpty } : {})}', '{...(KNOWLEDGE_EMPTY_STATE ? { emptyGraph: true } : {})}', 'the panel is always told empty'],
-  ['page', 'onClear={onClear} emptyGraph={emptyGraph} />', 'onClear={onClear} />', 'the panel is not told'],
+  ['page', 'onClear={onClear} emptyGraph={emptyGraph} {...(decks ? { decks } : {})} />', 'onClear={onClear} {...(decks ? { decks } : {})} />', 'the panel is not told'],
   ['page', 'className="flex min-h-[520px] flex-col items-center justify-center rounded-2xl bg-[#070b18] px-6 text-center"', 'className="flex min-h-[480px] flex-col items-center justify-center rounded-2xl bg-[#070b18] px-6 text-center"', 'the pale box is changed'],
   ['page', '<h3 className="mt-4 text-lg font-semibold text-white">Your graph is ready to grow</h3>', '<h3 className="mt-4 text-lg font-semibold text-white">Your graph is empty</h3>', 'the pale box\'s words are changed'],
   ['page', 'import { isEmptyGraph } from "@/lib/studio-knowledge-empty-state"\n', 'import { isEmptyGraph, EMPTY_MAP_TITLE } from "@/lib/studio-knowledge-empty-state"\n', 'another import of the helper'],
