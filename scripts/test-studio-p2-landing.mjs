@@ -400,7 +400,9 @@ function proveCss(sources, label = 'css') {
 function proveEnv(sources, label = 'env') {
   const lines = sources[ENV].split('\n')
   eq(lines.filter(l => l === `${FLAG}="false"`).length, 1, `${label}: the flag is documented once, off`)
-  eq(lines.filter(l => l.trim() !== '').at(-1), `${FLAG}="false"`, `${label}: at the end of the file`)
+  // the flag line closes its own block: what follows it, if anything, is the next block's comment (other P2 builders append their blocks after this one)
+  const after = lines.slice(lines.indexOf(`${FLAG}="false"`) + 1).find(l => l.trim() !== '')
+  ok(after === undefined || after.startsWith('#'), `${label}: the flag line is the last line of its own block`)
   const block = lines.slice(lines.lastIndexOf(`${FLAG}="false"`) - 5, lines.lastIndexOf(`${FLAG}="false"`)).join('\n')
   for (const word of ['LAND-01', 'LAND-05', 'LAND-06', 'READ AT BUILD TIME', 'exact "true"', 'default off']) ok(block.includes(word), `${label}: the block says "${word}"`)
   eq(JSON.parse(sources[PKG]).scripts['test:studio-p2-landing'], 'node scripts/test-studio-p2-landing.mjs', `${label}: the package script`)
