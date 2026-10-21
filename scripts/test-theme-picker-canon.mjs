@@ -64,6 +64,7 @@ function renderPanel(env, props, swatchFetch) {
       './theme-deck-mode-control': {}, // P2C: only drawn with NEXT_PUBLIC_THEME_DARK_MODE_ENABLED on
       '@/lib/studio-theme-dark-toggle': darkToggle, // P2C: import-free helper; its flag read is exact "true", unset here
       '@/lib/studio-theme-auto-pill': load('lib/studio-theme-auto-pill.ts', { env }), // PASS2D 4c: import-free helper; its flag is unset here, so the header pill is the base's
+      '@/lib/studio-theme-plain-words': load('lib/studio-theme-plain-words.ts', { env }), // PASS2D 4b: import-free helper; its flag is unset here, so every description is the preset's own
       react,
       'react/jsx-runtime': { jsx, jsxs: jsx, Fragment: 'Fragment' },
       'lucide-react': icons,

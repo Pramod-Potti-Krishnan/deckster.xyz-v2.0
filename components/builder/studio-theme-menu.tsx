@@ -6,6 +6,7 @@ import { isValidThemeHex, type BuildThemeSelection, type ThemePresetSummary } fr
 import type { SavedThemeProfile } from '@/hooks/use-theme-profiles'
 import { ThemeDropdownPicker, type ThemeDropdownCopy, type ThemeDropdownOption } from '@/components/theme-dropdown-picker'
 import { STUDIO_THEME_DELETE_UNDO_ENABLED, STUDIO_THEME_DELETE_UNDO_MS, themeDeleteUndo } from '@/lib/studio-theme-delete-undo'
+import { STUDIO_THEME_PLAIN_WORDS_ENABLED, themePlainDescription, themeSearchText } from '@/lib/studio-theme-plain-words'
 import './studio-theme-menu.css'
 import './studio-composer-popups-v2.css'
 
@@ -164,7 +165,7 @@ function StudioThemeMenuView(p: StudioThemeMenuProps) {
   const decksterSelected = p.selectedId ? null : p.selection.mode === 'auto' ? 'auto' : p.selection.mode === 'preset' ? p.selection.preset_id ?? null : null
   const decksterOptions: ThemeDropdownOption[] = p.dropdowns ? [
     { id: 'auto', name: 'Auto', hint: 'Auto / default', swatches: [], current: false, sub: p.standardTheme ? `Your standard theme · ${p.standardTheme.name}` : 'Use the default theme' },
-    ...p.presets.map(preset => ({ id: preset.preset_id, name: preset.name, hint: preset.description, swatches: [], current: false, sub: '', search: `${preset.name} ${preset.description}` })),
+    ...p.presets.map(preset => ({ id: preset.preset_id, name: preset.name, hint: themePlainDescription(STUDIO_THEME_PLAIN_WORDS_ENABLED, preset.preset_id, preset.description), swatches: [], current: false, sub: '', search: themeSearchText(STUDIO_THEME_PLAIN_WORDS_ENABLED, preset.name, preset.description) })),
   ] : []
   const myThemeOptions: ThemeDropdownOption[] = p.dropdowns ? p.themes.map(theme => {
     const color = savedPrimaryColor(theme.theme_payload)
@@ -189,7 +190,7 @@ function StudioThemeMenuView(p: StudioThemeMenuProps) {
     {p.view === 'choices' ? <>
       {p.dropdowns ? dropdownChoices : <div className="studio-theme-choices" aria-label="Build theme choices">
         {row('auto', 'Auto', p.selection.mode === 'auto' && !p.selectedId, () => p.onPreset('auto'), undefined, true, p.locked || p.presetsLoading)}
-        {p.presets.map(preset => row(`preset:${preset.preset_id}`, preset.name, p.selection.mode === 'preset' && p.selection.preset_id === preset.preset_id && !p.selectedId, () => p.onPreset(preset.preset_id), preset.description, false, p.locked || p.presetsLoading))}
+        {p.presets.map(preset => row(`preset:${preset.preset_id}`, preset.name, p.selection.mode === 'preset' && p.selection.preset_id === preset.preset_id && !p.selectedId, () => p.onPreset(preset.preset_id), themePlainDescription(STUDIO_THEME_PLAIN_WORDS_ENABLED, preset.preset_id, preset.description), false, p.locked || p.presetsLoading))}
       </div>}
       {p.dropdowns ? null : <div className="studio-theme-library">
         {libraryHeading}

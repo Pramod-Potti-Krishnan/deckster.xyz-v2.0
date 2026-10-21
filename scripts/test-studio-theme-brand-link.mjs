@@ -121,6 +121,13 @@ const AUTO_PILL_REVERSALS = [
   ["          {syncStatus !== 'idle' && !themeAppliedPillHidden(STUDIO_THEME_AUTO_NO_PILL_ENABLED, syncStatus, autoCurrent) && <SyncBadge status={syncStatus} />}\n",
    "          {syncStatus !== 'idle' && <SyncBadge status={syncStatus} />}\n"],
 ]
+// PASS2D 4b (NEXT_PUBLIC_STUDIO_THEME_PLAIN_WORDS): the panel's two edits for plain-words descriptions, as [text in the panel, the base's text]. Proven in
+// test-studio-theme-plain-words.mjs; turning them back is how this test still shows the panel is the base commit's file.
+const PLAIN_WORDS_REVERSALS = [
+  ["import { STUDIO_THEME_PLAIN_WORDS_ENABLED, themePlainDescription } from '@/lib/studio-theme-plain-words'\n", ""],
+  ["const THEME_PREVIEWS = CANONICAL_THEME_PRESET_IDS.map(id => {\n  const preset = FALLBACK_THEME_PRESETS.find(item => item.preset_id === id)!\n  // PASS2D 4b (NEXT_PUBLIC_STUDIO_THEME_PLAIN_WORDS, default off): the description in plain words; off, the preset's own.\n  return { id, ...preset, description: themePlainDescription(STUDIO_THEME_PLAIN_WORDS_ENABLED, id, preset.description) }\n})\n",
+   "const THEME_PREVIEWS = CANONICAL_THEME_PRESET_IDS.map(id => ({\n  id,\n  ...FALLBACK_THEME_PRESETS.find(preset => preset.preset_id === id)!,\n}))\n"],
+]
 const RULE = '[data-studio-theme-picker="v2"] .stpv2-brandkit { margin: 12px 2px 4px; padding-top: 12px; border-top: 1px solid var(--stp-line); }\n'
 // PASS2D A3 (NEXT_PUBLIC_STUDIO_THEME_BLANK_NOTE): the panel's edits for the blank-canvas note, as [text in the panel, the base's text]. Turning them back is how
 // this test still proves the panel is the base commit's file; test-studio-theme-blank-note.mjs proves the edits themselves.
@@ -158,6 +165,7 @@ function proveSource(source, label = 'panel') {
   let reversed = source
   for (const [edited, original] of A3_REVERSALS) { eq(reversed.split(edited).length - 1, 1, `${label}: the blank-canvas note edit, once: ${edited.slice(0, 50)}`); reversed = reversed.replace(edited, () => original) }
   for (const [edited, original] of AUTO_PILL_REVERSALS) { eq(reversed.split(edited).length - 1, 1, `${label}: the auto-pill edit, once: ${edited.slice(0, 50)}`); reversed = reversed.replace(edited, () => original) }
+  for (const [edited, original] of PLAIN_WORDS_REVERSALS) { eq(reversed.split(edited).length - 1, 1, `${label}: the plain-words edit, once: ${edited.slice(0, 50)}`); reversed = reversed.replace(edited, () => original) }
   eq(unP2c(reversed.replace(CONSTS, '').replace(USE, BASE_USE).replace(IMPORT, '').replace(ICON, '')), BASE[PANEL], `${label}: with the blank-canvas note edits, the two consts, the one body line, and the two imports turned back into the base's, the file is ${BASE_COMMIT}'s`)
   ok(source.indexOf('const hint = ') > source.indexOf(CONSTS), `${label}: with the flag off the body's last child is the base's own expression (no extra child)`)
 }
