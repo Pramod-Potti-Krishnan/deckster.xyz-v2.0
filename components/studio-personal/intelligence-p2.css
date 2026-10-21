@@ -54,15 +54,3 @@
 @media (max-width: 620px) {
   .sp-p2-row { grid-template-columns: minmax(0, 1fr); }
 }
-
-/* "+ Presentation" in the Studio top bar (the bar is the shared shell's; the link is placed there only by this page). */
-.sp-p2-new { display: inline-flex; align-items: center; flex-shrink: 0; gap: 6px; height: 34px; margin-left: 8px; padding: 0 12px; border: 1px solid var(--ss-line, var(--sp-line)); border-radius: 8px; background: var(--ss-panel, var(--sp-panel)); color: var(--ss-text, var(--sp-text)); font-size: 13px; font-weight: 500; text-decoration: none; }
-.sp-p2-new:hover { background: var(--ss-active, var(--sp-active)); }
-.sp-p2-new:focus-visible { outline: 2px solid var(--ss-accent, var(--sp-accent)); outline-offset: 2px; }
-[data-studio-v4-shell-header] > div > span:first-child + .sp-p2-new { margin-left: auto; }
-
-/* The rail on this page: a divider under the brand tile and a teal bar at the left edge of the active destination (the mockup's). Scoped by :has() to the page's own marker. */
-[data-studio-v4-shell="true"]:has([data-intelligence-p2="true"]) > [data-studio-v4-rail] .studio-rail-brand { position: relative; }
-[data-studio-v4-shell="true"]:has([data-intelligence-p2="true"]) > [data-studio-v4-rail] .studio-rail-brand::after { content: ""; position: absolute; left: 50%; bottom: -9px; width: 26px; height: 1px; transform: translateX(-50%); background: var(--ss-line); }
-[data-studio-v4-shell="true"]:has([data-intelligence-p2="true"]) > [data-studio-v4-rail] nav [aria-current="page"] { position: relative; }
-[data-studio-v4-shell="true"]:has([data-intelligence-p2="true"]) > [data-studio-v4-rail] nav [aria-current="page"]::before { content: ""; position: absolute; left: -8px; top: 9px; bottom: 9px; width: 3px; border-radius: 0 3px 3px 0; background: var(--ss-teal); }

@@ -1,9 +1,7 @@
 "use client"
 
 import { useEffect, useState } from "react"
-import { createPortal } from "react-dom"
-import Link from "next/link"
-import { ArrowDownUp, AudioLines, CheckCircle2, AlertCircle, Info, Plus, RotateCcw } from "lucide-react"
+import { ArrowDownUp, AudioLines, CheckCircle2, AlertCircle, Info, RotateCcw } from "lucide-react"
 import { catalog, catalogRefreshed, DISABLED_ACTION_OPAQUE, draftStorageKey, inputsLabel, IntelligenceReadiness, IntelligenceScope, ManagedByDeckster, parseSavedDraft, priceLabel, provenanceText, releaseLabel, taskDetails } from "./intelligence-workspace"
 import {
   P2_DEFAULT_CHOICE, P2_ONE_LINE, P2_ONE_LINE_NO_STORAGE, P2_RESET_FEEDBACK, P2_RESET_LABEL, P2_TASKS, P2_VOICE_MODELS,
@@ -74,7 +72,6 @@ export function IntelligenceChooser() {
   const activeLabel = P2_TASKS.find(task => task.id === activeTask)?.label ?? ""
 
   return <>
-    <NewPresentationEntry />
     <header className="sp-heading"><div><p className="sp-eyebrow">WORK WITH DECKSTER</p><h1>Intelligence</h1><p>Choose the model behind each part of your story.</p></div>
       <span className="sp-draft-badge sp-ip-pill sp-p2-pill" data-state={status.state === "saved" ? "kept" : status.state} data-p2-status={status.state}>
         {status.state === "saved" ? <CheckCircle2 size={14} aria-hidden="true" /> : status.state === "session" ? <AlertCircle size={14} aria-hidden="true" /> : <span />}{status.label}
@@ -160,11 +157,4 @@ function VoiceInspector() {
     <ul>{P2_VOICE_MODELS.map(model => <li key={model.id}><strong>{model.name}</strong><span>{model.provider} · {model.voices.map(voice => voice.name).join(", ")}</span></li>)}</ul>
     <p className="sp-comparison-note">Narration models are not compared here. Narration still uses the existing delivery controls.</p>
   </div>
-}
-
-/** The mockup's "+ Presentation" in the Studio top bar. The bar belongs to the shared shell, so this puts the entry into it from this page only, and only while the page is open. */
-function NewPresentationEntry() {
-  const [slot, setSlot] = useState<Element | null>(null)
-  useEffect(() => { setSlot(document.querySelector('[data-studio-v4-shell-header="true"] > div')) }, [])
-  return slot ? createPortal(<Link href="/builder" className="sp-p2-new" data-p2-new-presentation="true"><Plus size={14} aria-hidden="true" /><span>Presentation</span></Link>, slot) : null
 }

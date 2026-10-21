@@ -4,7 +4,7 @@
 //   INT-03 a fifth row, Voice & Narration, with the registry's voices      INT-04 each row names its current model and "Recommended" / "Your choice"
 //   INT-05 the select offers the recommendation, Best / Balanced / Economy presets, the specific models and (narration) the voices
 //   INT-07 a choice applies on change and is kept in this browser; "Reset to recommendations" only when something changed; the dead "Apply to Deckster" button is gone
-//   INT-15 "+ Presentation" in the Studio top bar and the rail's divider and active bar (from this page only; the shared shell files are not edited)
+//   INT-15 ("+ Presentation" in the top bar, the rail's divider and active bar) is NOT built here: it is shared shell work, done for every library page by DET-12 on frontend1/p2-details
 //   kept: the live catalog (and its 2026-10 flag), the model comparison, "Your own intelligence", "Managed by Deckster", the scope toggle, "About this catalog"
 //
 // Run: node scripts/test-studio-p2-intelligence.mjs   (plain node: transpile + vm, no network, no browser, no env)
@@ -102,8 +102,6 @@ function loadChooser(source, { lib, workspace, hooks, win, doc }) {
   const deps = {
     react: hooks ?? React,
     'react/jsx-runtime': hooks ? { jsx: mockJsx, jsxs: mockJsx, Fragment: 'Fragment' } : reactJsxRuntime,
-    'react-dom': { createPortal: (child, slot) => hooks ? { type: 'Portal', props: { slot, children: child } } : null },
-    'next/link': { default: 'a' },
     'lucide-react': new Proxy({}, { get: (_, name) => hooks ? String(name) : icon(name) }),
     './intelligence-workspace': workspace,
     '@/lib/studio-intelligence-p2': lib,
@@ -125,15 +123,13 @@ function makeStorage(mode = {}) {
     removeItem(key) { log.push(`remove ${key}`); if (mode.remove) throw new Error('SecurityError'); map.delete(key) },
   }
 }
-const SLOT = { slot: true }
-/** Mounts the chooser (from the given sources) under a hook runtime. `slotPresent` says whether the shell's top-bar slot exists. */
-function mount({ sources = SOURCES, catalogFlag, storage, accessThrows = false, slotPresent = true } = {}) {
+/** Mounts the chooser (from the given sources) under a hook runtime. */
+function mount({ sources = SOURCES, catalogFlag, storage, accessThrows = false } = {}) {
   const listeners = { window: new Map(), document: new Map() }
   const win = { innerWidth: 1440, innerHeight: 900, addEventListener: (name, fn) => listeners.window.set(name, fn), removeEventListener: name => listeners.window.delete(name) }
   if (accessThrows) Object.defineProperty(win, 'localStorage', { get() { throw new Error('SecurityError') } })
   else win.localStorage = storage
-  const queries = []
-  const doc = { addEventListener: (name, fn) => listeners.document.set(name, fn), removeEventListener: name => listeners.document.delete(name), querySelector: selector => { queries.push(selector); return slotPresent ? SLOT : null } }
+  const doc = { addEventListener: (name, fn) => listeners.document.set(name, fn), removeEventListener: name => listeners.document.delete(name) } // no querySelector: the page must not reach into the shell's DOM
   let current
   const fibers = new Map(), queue = []
   let dirty = false
@@ -172,7 +168,7 @@ function mount({ sources = SOURCES, catalogFlag, storage, accessThrows = false, 
     return { type: node.type, props: { ...node.props, children: resolve(node.props.children, `${where}.c`) } }
   }
   const rt = {
-    storage, win, doc, listeners, queries, lib, tree: null,
+    storage, win, doc, listeners, lib, tree: null,
     flush() {
       for (let pass = 0; pass < 40; pass++) {
         dirty = false; queue.length = 0
@@ -586,16 +582,12 @@ function verify(S) {
       rt.choose('imagery', 'best'); eq(rt.text(rt.pill()), 'Session only')
     }
   }
-  // the "+ Presentation" entry in the shell's top bar
+  // the shell (top bar, rail) is not this page's: no portal, no "+ Presentation", no query into the document
   {
-    const withSlot = mount({ sources: S, storage: makeStorage() })
-    const portal = withSlot.find(node => node.type === 'Portal')
-    eq(portal.props.slot, SLOT)
-    const link = withSlot.find(node => node.props?.['data-p2-new-presentation'] === 'true')
-    eq(link.type, 'a'); eq(link.props.href, '/builder'); eq(link.props.className, 'sp-p2-new'); eq(withSlot.text(link), 'Presentation')
-    ok(withSlot.queries.includes('[data-studio-v4-shell-header="true"] > div'), 'the entry goes into the shell header’s row')
-    const noSlot = mount({ sources: S, storage: makeStorage(), slotPresent: false })
-    eq(noSlot.maybe(node => node.type === 'Portal'), undefined); eq(noSlot.maybe(node => node.props?.['data-p2-new-presentation']), undefined)
+    const rt = mount({ sources: S, storage: makeStorage() })
+    eq(rt.maybe(node => node.type === 'Portal'), undefined); eq(rt.maybe(node => node.props?.['data-p2-new-presentation']), undefined)
+    ok(!rt.nodes().some(node => rt.text(node) === 'Presentation' || node.props?.href === '/builder'), 'no new-presentation entry from this page')
+    nomatch(S[CHOOSER], /createPortal|querySelector|document\.|next\/link|react-dom|\bLink\b/, 'the chooser does not reach into the shell')
   }
   // no request of any kind: the sandbox has no fetch, XMLHttpRequest, WebSocket, sendBeacon or navigator (any use would have thrown above); the source has none either
   nomatch(S[CHOOSER], /\bfetch\b|XMLHttpRequest|WebSocket|sendBeacon|navigator\b|sessionStorage|\/api\//, 'the chooser makes no request and touches no account')
@@ -619,18 +611,12 @@ function verify(S) {
     root.walkRules(rule => { if (rule.parent.type === 'atrule' && /keyframes/.test(rule.parent.name)) return; for (const selector of rule.selectors) selectors.push(selector.trim()) })
     ok(selectors.length > 30)
     for (const selector of selectors) ok(/sp-p2-|data-intelligence-p2|data-p2-/.test(selector), `unscoped selector: ${selector}`)
-    // the rail and the top bar: only through this page's marker
-    for (const selector of selectors.filter(sel => /data-studio-v4-rail|data-studio-v4-shell-header/.test(sel))) ok(/:has\(\[data-intelligence-p2="true"\]\)|\.sp-p2-new/.test(selector), `a shell selector must be tied to this page: ${selector}`)
-    ok(selectors.some(sel => /\.studio-rail-brand::after$/.test(sel)), 'the divider under the brand tile')
-    ok(selectors.some(sel => /\[aria-current="page"\]::before$/.test(sel)), 'the active bar')
-    match(css, /\[aria-current="page"\]::before \{[^}]*width: 3px[^}]*background: var\(--ss-teal\)/)
-    match(css, /\.studio-rail-brand::after \{[^}]*height: 1px[^}]*background: var\(--ss-line\)/)
-    match(css, /\.sp-p2-new \{[^}]*border: 1px solid/)
+    // the shell (rail, top bar) is not styled from this page
+    nomatch(css, /data-studio-v4-rail|data-studio-v4-shell-header|studio-rail|aria-current|:has\(|sp-p2-new/, 'no shell rule')
     match(css, /\.sp-p2-row \{ display: grid;/)
     match(css, /\.sp-workspace\[data-intelligence-p2\] \{ overflow-y: auto;/)
     match(css, /\[data-intelligence-p2\] \.sp-model-layout\.sp-p2-layout \{ flex: 0 0 auto; grid-template-rows: none;/)
     match(css, /\.sp-model-layout\.sp-p2-layout \{ align-items: start; grid-template-columns: minmax\(0, 1\.9fr\)/)
-    match(css, /\.sp-p2-new \{[^}]*height: 34px;[^}]*font-size: 13px/)
     match(css, /\.sp-p2-how > summary \{ display: flex;/)
     eq((css.match(/!important/g) || []).length, 1, 'one !important, on the note’s margin'); match(css, /\.sp-p2-note \{[^}]*margin: -4px 0 10px !important;[^}]*\}/)
   }
@@ -688,9 +674,6 @@ if (!process.env.P2_INTEL_NO_MUTANTS) {
     [CHOOSER, "raw !== null ? p2Parse(catalog, raw) : p2FromLegacyDraft(", "p2Parse(catalog, raw) ?? p2FromLegacyDraft("],
     [CHOOSER, "if (!changed || storage !== \"unavailable\") return", "if (!changed) return"],
     [CHOOSER, "onUse={id => choose(activeTask, `model:${id}`)}", "onUse={id => choose(activeTask, id)}"],
-    [CHOOSER, "<Link href=\"/builder\" className=\"sp-p2-new\"", "<Link href=\"/dashboard\" className=\"sp-p2-new\""],
-    [CHOOSER, "return slot ? createPortal(", "return createPortal("],
-    [CHOOSER, "document.querySelector('[data-studio-v4-shell-header=\"true\"] > div')", "document.querySelector('header')"],
     [CHOOSER, "<h1>Intelligence</h1><p>Choose the model behind each part of your story.</p>", "<h1>Intelligence</h1><p>Give each part of your story a clear direction.</p>"],
     [CHOOSER, "<label className=\"sr-only\" htmlFor={`sp-p2-model-${task.id}`}>", "<label htmlFor={`sp-p2-model-${task.id}`}>"],
     [CHOOSER, " aria-describedby=\"sp-p2-note\" value={choices[task.id]}", " value={choices[task.id]}"],
@@ -728,12 +711,12 @@ if (!process.env.P2_INTEL_NO_MUTANTS) {
     [PAGE, "process.env.NEXT_PUBLIC_STUDIO_P2_INTELLIGENCE === \"true\" ? <IntelligenceChooser /> : undefined", "<IntelligenceChooser />"],
     [PAGE, "if (process.env.NEXT_PUBLIC_STUDIO_V4_SHELL !== \"true\") notFound()", "if (process.env.NEXT_PUBLIC_STUDIO_V4_SHELL === \"false\") notFound()"],
     // the CSS
-    [CSS, "[data-studio-v4-shell=\"true\"]:has([data-intelligence-p2=\"true\"]) > [data-studio-v4-rail] .studio-rail-brand::after", "[data-studio-v4-shell=\"true\"] > [data-studio-v4-rail] .studio-rail-brand::after"],
-    [CSS, "[data-studio-v4-shell=\"true\"]:has([data-intelligence-p2=\"true\"]) > [data-studio-v4-rail] nav [aria-current=\"page\"]::before", "[data-studio-v4-shell=\"true\"] > [data-studio-v4-rail] nav [aria-current=\"page\"]::before"],
-    [CSS, "width: 3px; border-radius: 0 3px 3px 0; background: var(--ss-teal);", "width: 3px; border-radius: 0 3px 3px 0;"],
-    [CSS, "width: 26px; height: 1px;", "width: 26px; height: 0;"],
     [CSS, ".sp-p2-how > summary { display", ".sp-p2-howx > summary { display"],
-    [CSS, "height: 34px; margin-left: 8px; padding: 0 12px; border: 1px solid", "height: 34px; margin-left: 8px; padding: 0 12px; border: 0 solid"],
+    [CSS, ".sp-p2-main { min-width: 0; }", ".sp-p2-main { min-width: 0; }\n[data-studio-v4-rail] nav [aria-current=\"page\"] { position: relative; }"],
+    [CSS, ".sp-p2-main { min-width: 0; }", ".sp-p2-main { min-width: 0; }\n.sp-p2-new { height: 34px; }"],
+    [CSS, ".sp-p2-main { min-width: 0; }", ".sp-p2-main { min-width: 0; }\n[data-intelligence-p2] [data-studio-v4-shell-header] { display: none; }"],
+    [CHOOSER, "  const [storage, setStorage] = useState<P2Storage>(\"pending\")", "  const slot = document.querySelector('header')\n  const [storage, setStorage] = useState<P2Storage>(\"pending\")"],
+    [CHOOSER, "    <header className=\"sp-heading\">", "    {createPortal(<a href=\"/builder\" data-p2-new-presentation=\"true\">Presentation</a>, document.body)}\n    <header className=\"sp-heading\">"],
     [CSS, ".sp-p2-row { display: grid;", "p { display: grid;"],
     [CSS, ".sp-workspace[data-intelligence-p2] { overflow-y: auto;", ".sp-workspace[data-intelligence-p2] { overflow-y: hidden;"],
     [CSS, "[data-intelligence-p2] .sp-model-layout.sp-p2-layout { flex: 0 0 auto;", "[data-intelligence-p2] .sp-model-layout.sp-p2-layout { flex: 1;"],
