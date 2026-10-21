@@ -396,6 +396,8 @@ function proveCss(css, label = 'css') {
   const head = decls('[data-studio-p2-meter-head="true"]'); eq(head.display, 'flex', `${label}: meter head is a row`); eq(head['justify-content'], 'space-between', `${label}: label left, share right`)
   eq(decls('[data-studio-p2-usage="true"] [data-studio-p2-meter] + [data-studio-p2-meter]')['margin-top'], '10px', `${label}: space between the meters`)
   eq(decls('[data-studio-p2-meter] > small').color, 'var(--sp-muted)', `${label}: reset text is muted`)
+  const upgradeHover = decls('[data-studio-p2-upgrade="true"]:is(:hover, :focus, [data-highlighted])')
+  eq(upgradeHover['background-color'], 'var(--sp-panel)', `${label}: the upgrade item lifts onto the panel inside the soft card, not the shadcn accent`); eq(upgradeHover.color, 'var(--sp-text)', `${label}: upgrade item text on hover`)
   eq(decls(SCOPE.length ? `.dark ${SCOPE}` : '')['--sp-meter'], '#7fb7aa', `${label}: dark meter colour`)
   eq(Object.fromEntries(rules.find(r => r.selectors.includes(SCOPE)).nodes.map(n => [n.prop, n.value]))['--sp-meter'], '#34857b', `${label}: light meter colour`)
   postcss.parse(css).walkDecls(decl => { if (decl.prop !== '--sp-meter') nomatch(decl.value, /#[0-9a-f]{3,8}\b|rgba?\(|hsla?\(/i, `${label}: palette tokens only in ${decl.prop} (dark mode comes from the --sp-* variables)`) })
@@ -621,6 +623,9 @@ const MUTANTS = [
   [CSS, 'meters touch', '[data-studio-p2-meter] + [data-studio-p2-meter] { margin-top: 10px; }', '[data-studio-p2-meter] + [data-studio-p2-meter] { margin-top: 0; }'],
   [CSS, 'reset not muted', '[data-studio-p2-meter] > small { display: block; font-size: 9px; line-height: 13px; color: var(--sp-muted); }', '[data-studio-p2-meter] > small { display: block; font-size: 9px; line-height: 13px; color: var(--sp-text); }'],
   [CSS, 'usage rule not scoped', '[data-studio-p2-profile="true"][data-studio-v4-profile="true"] [data-studio-p2-usage-title="true"] {', '[data-studio-p2-usage-title="true"] {'],
+  [CSS, 'upgrade hover surface', '[data-highlighted]) { background-color: var(--sp-panel); color: var(--sp-text); }', '[data-highlighted]) { background-color: var(--sp-accent); color: var(--sp-text); }'],
+  [CSS, 'upgrade hover text', '[data-highlighted]) { background-color: var(--sp-panel); color: var(--sp-text); }', '[data-highlighted]) { background-color: var(--sp-panel); color: var(--sp-muted); }'],
+  [CSS, 'upgrade hover keyboard dropped', ':is(:hover, :focus, [data-highlighted]) { background-color: var(--sp-panel);', ':is(:hover) { background-color: var(--sp-panel);'],
   [CSS, 'literal colour in the card', 'background-color: var(--sp-soft); }\n[data-studio-p2-profile="true"][data-studio-v4-profile="true"] [data-studio-p2-usage-title', 'background-color: #edf2f0; }\n[data-studio-p2-profile="true"][data-studio-v4-profile="true"] [data-studio-p2-usage-title'],
   [CSS, 'literal colour', 'color: var(--sp-muted); font-size: 11px; font-weight: 600; }', 'color: #566965; font-size: 11px; font-weight: 600; }'],
   [ENV, 'default on', `${FLAG}="false"`, `${FLAG}="true"`],

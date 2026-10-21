@@ -33,3 +33,4 @@
 [data-studio-p2-profile="true"][data-studio-v4-profile="true"] [data-studio-p2-meter-bar="true"] > i { display: block; height: 100%; border-radius: 5px; background-color: var(--sp-meter); }
 [data-studio-p2-profile="true"][data-studio-v4-profile="true"] [data-studio-p2-meter] > small { display: block; font-size: 9px; line-height: 13px; color: var(--sp-muted); }
 [data-studio-p2-profile="true"][data-studio-v4-profile="true"] [data-studio-p2-upgrade="true"] { min-height: 0; margin: 10px -4px -6px; padding: 6px 4px; border-radius: 5px; font-size: 10px; line-height: 14px; }
+[data-studio-p2-profile="true"][data-studio-v4-profile="true"] [data-studio-p2-upgrade="true"]:is(:hover, :focus, [data-highlighted]) { background-color: var(--sp-panel); color: var(--sp-text); }
