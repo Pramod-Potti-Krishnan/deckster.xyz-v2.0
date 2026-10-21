@@ -21,9 +21,11 @@ import vm from 'node:vm'
 import { fileURLToPath } from 'node:url'
 import ts from 'typescript'
 import postcss from 'postcss'
+import { stripP2Publish } from './studio-p2-publish-strip.mjs'
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..')
-const read = file => fs.existsSync(path.join(root, file)) ? fs.readFileSync(path.join(root, file), 'utf8') : null
+// PASS2-PAGES publish (NEXT_PUBLIC_STUDIO_P2_PUBLISH, default off): the Publish dialog is pinned as it was; the flag-gated additions come out first.
+const read = file => fs.existsSync(path.join(root, file)) ? stripP2Publish(file, fs.readFileSync(path.join(root, file), 'utf8')) : null
 const FILES = {
   header: 'components/builder/builder-header.tsx',
   download: 'components/presentation-download-controls.tsx',
