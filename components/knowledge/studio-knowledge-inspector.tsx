@@ -3,6 +3,7 @@
 import { useRef, useState } from "react"
 import { AlertCircle, FileText, Network, RefreshCw, Search, X } from "lucide-react"
 import { typeColor, type KgViewNode } from "./kg-graph-view"
+import { EMPTY_PANEL_BODY, EMPTY_PANEL_TITLE } from "@/lib/studio-knowledge-empty-state"
 
 /** Presentation of the existing node-detail response; no additional source requests. */
 interface KnowledgeDetail {
@@ -30,7 +31,7 @@ function addedDate(value?: string | null) {
   return Number.isNaN(date.getTime()) ? null : date.toLocaleDateString(undefined, { month: "short", day: "numeric", year: "numeric" })
 }
 
-export function StudioKnowledgeInspector({ selected, selectedId, loading, error, topEntities, onSelect, onRetry, onClear }: {
+export function StudioKnowledgeInspector({ selected, selectedId, loading, error, topEntities, onSelect, onRetry, onClear, emptyGraph = false }: {
   selected: KnowledgeDetail | null
   selectedId: string | null
   loading: boolean
@@ -39,6 +40,8 @@ export function StudioKnowledgeInspector({ selected, selectedId, loading, error,
   onSelect: (nodeId: string) => void
   onRetry: () => void
   onClear: () => void
+  /** NEXT_PUBLIC_STUDIO_KNOWLEDGE_EMPTY_STATE (J6 L9): the graph loaded and has nothing in it, so there is nothing to select. */
+  emptyGraph?: boolean
 }) {
   const [view, setView] = useState<"overview" | "evidence" | "relations">("overview")
   const [query, setQuery] = useState("")
@@ -51,7 +54,7 @@ export function StudioKnowledgeInspector({ selected, selectedId, loading, error,
     <div className="ski-body">
       {loading && <div className="ski-loading" role="status"><span /><span /><span /><p>Loading entity and recorded evidence…</p></div>}
       {!loading && error && <div className="ski-notice" role="alert"><AlertCircle size={18} /><strong>Entity details unavailable</strong><p>{error}</p><button type="button" className="ski-button" onClick={onRetry}><RefreshCw size={13} />Retry details</button></div>}
-      {!loading && !error && !selected && <><div className="ski-notice"><Network size={26} /><strong>Follow an idea to its sources.</strong><p>Select an entity on the map or in search to inspect its recorded relationships and evidence.</p></div>{topEntities.length > 0 && <section><h3 className="ski-label">Most reinforced</h3><div className="ski-entity-list">{topEntities.map(entity => <button type="button" key={entity.node_id} onClick={() => onSelect(entity.node_id)}><i style={{ backgroundColor: typeColor(entity.entity_type) }} /><span><strong>{entity.name}</strong><small>{friendly(entity.entity_type)}</small></span></button>)}</div></section>}</>}
+      {!loading && !error && !selected && <><div className="ski-notice"><Network size={26} /><strong>{emptyGraph ? EMPTY_PANEL_TITLE : "Follow an idea to its sources."}</strong><p>{emptyGraph ? EMPTY_PANEL_BODY : "Select an entity on the map or in search to inspect its recorded relationships and evidence."}</p></div>{topEntities.length > 0 && <section><h3 className="ski-label">Most reinforced</h3><div className="ski-entity-list">{topEntities.map(entity => <button type="button" key={entity.node_id} onClick={() => onSelect(entity.node_id)}><i style={{ backgroundColor: typeColor(entity.entity_type) }} /><span><strong>{entity.name}</strong><small>{friendly(entity.entity_type)}</small></span></button>)}</div></section>}</>}
       {!loading && !error && selected && <>
         <div className="ski-identity"><p><i style={{ backgroundColor: typeColor(selected.node.entity_type) }} />{friendly(selected.node.entity_type)}</p><h3>{selected.node.name}</h3><span>{selected.node.mention_count ?? 0} mentions · {selected.provenance_session_ids.length} contributing sessions</span></div>
         <div className="ski-tabs" role="group" aria-label="Entity inspection view"><button type="button" aria-pressed={view === "overview"} onClick={() => setView("overview")}>Overview</button><button type="button" aria-pressed={view === "evidence"} onClick={() => setView("evidence")}>Evidence <span>{selected.evidence.length}</span></button><button type="button" aria-pressed={view === "relations"} onClick={() => setView("relations")}>Relations <span>{selected.edges.length}</span></button></div>

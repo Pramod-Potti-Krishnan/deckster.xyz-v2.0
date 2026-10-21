@@ -142,7 +142,8 @@
     "test:studio-knowledge-filter-tabs": "node scripts/test-studio-knowledge-filter-tabs.mjs",
     "test:studio-knowledge-header-actions": "node scripts/test-studio-knowledge-header-actions.mjs",
     "test:studio-knowledge-map-toolbar": "node scripts/test-studio-knowledge-map-toolbar.mjs",
-    "test:studio-knowledge-map-labels": "node scripts/test-studio-knowledge-map-labels.mjs"
+    "test:studio-knowledge-map-labels": "node scripts/test-studio-knowledge-map-labels.mjs",
+    "test:studio-knowledge-empty-state": "node scripts/test-studio-knowledge-empty-state.mjs"
   },
   "dependencies": {
     "@auth/prisma-adapter": "^2.10.0",
