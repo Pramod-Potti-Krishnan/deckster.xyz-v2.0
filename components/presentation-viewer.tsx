@@ -70,6 +70,7 @@ import {
   resolveSlideViewerNavigationInfo,
 } from '@/lib/slide-compose-async'
 import { applyStageFThumbnailUrls, ownedRestoredThumbnailUrl } from '@/lib/stage-f-thumbnails'
+import { railBuildHeadingTotal, railBuildPlaceholders, type RailBuildPlan } from '@/lib/studio-rail-build-count' // RAIL-SLIDES-1-MIDBUILD
 import { slideTitleLabel } from '@/lib/studio-slide-title-label'
 import { useSlideRailIdentity } from '@/hooks/use-slide-rail-identity'
 import { STUDIO_RAIL_SLIDE_IDENTITY_ENABLED } from '@/lib/slide-rail-identity'
@@ -282,6 +283,8 @@ interface PresentationViewerProps {
   presentationId: string | null
   slideCount: number | null
   completedBuildSnapshot?: CompletedBuildSnapshot | null
+  /** RAIL-SLIDES-1-MIDBUILD (NEXT_PUBLIC_STUDIO_RAIL_BUILD_COUNT): the running build's plan, set only while this viewer shows its filling deck; the rail never counts below it. Absent = the rail reads the frame's own count. */
+  railBuildPlan?: RailBuildPlan | null // RAIL-SLIDES-1-MIDBUILD
   slideStructure?: any // SlideUpdate payload from WebSocket
   showControls?: boolean
   downloadControls?: React.ReactNode
@@ -688,6 +691,7 @@ export function PresentationViewer({
   studioIntroReplay,
   stageChrome = null,
   completedBuildSnapshot = null,
+  railBuildPlan = null, // RAIL-SLIDES-1-MIDBUILD
   sessionId,
   deckOwnerSessionId,
   templateSavePresentationId,
@@ -1519,6 +1523,8 @@ export function PresentationViewer({
     return applyStageFThumbnailUrls(structureSlides, thumbnailUrlsBySlide)
   }, [railIdentityRows, slideStructure, totalSlides, slidesModifiedByCrud, thumbnailUrlsBySlide, studioShell, presentationId, studioCanonicalThumbnails, renderSlideMutationOwner])
 
+  // RAIL-SLIDES-1-MIDBUILD: while a build fills the deck the rail keeps the plan's count (inert rows after the frame's real ones); null with the flag off or no running build.
+  const railBuildRows = useMemo(() => railBuildPlan ? railBuildPlaceholders({ rows: slideThumbnails.length, plan: railBuildPlan, thumbnailUrlsBySlide }) : null, [railBuildPlan, slideThumbnails.length, thumbnailUrlsBySlide]) // RAIL-SLIDES-1-MIDBUILD
   // Define handlers FIRST (before effects that use them)
   const handleNextSlide = useCallback(async () => {
     debugLog('🔘 Next button clicked!')
@@ -4897,7 +4903,7 @@ export function PresentationViewer({
             !studioShell && "transition-[width] duration-300 ease-out",
             showThumbnails ? "w-36" : "w-0"
           )}>
-            {showThumbnails && (slideThumbnails.length > 0 || composeJobs.length > 0) && (
+            {showThumbnails && (slideThumbnails.length > 0 || composeJobs.length > 0 || Boolean(railBuildRows?.length)) && ( // RAIL-SLIDES-1-MIDBUILD
               <SlideThumbnailStrip
                 slides={slideThumbnails}
                 currentSlide={currentSlide}
@@ -4921,6 +4927,7 @@ export function PresentationViewer({
                 keyBySlideId={railIdentityRows !== null}
                 livePreviewViewerUrl={approvedPresentationUrl}
                 {...(railAddSlide ? { addSlide: railAddSlide } : {})}
+                {...(railBuildPlan && railBuildRows ? { buildPlaceholders: railBuildRows, headingTotal: railBuildHeadingTotal({ totalSlides, rows: slideThumbnails.length, plan: railBuildPlan }) } : {})} // RAIL-SLIDES-1-MIDBUILD
               />
             )}
           </div>

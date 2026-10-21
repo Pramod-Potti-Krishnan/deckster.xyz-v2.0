@@ -12,6 +12,7 @@ import path from 'node:path'
 import { execFileSync } from 'node:child_process'
 import { createRequire } from 'node:module'
 import ts from 'typescript'
+import { restoreRailCondition } from './studio-rail-build-count-strip.mjs'
 
 const repoRoot = path.resolve(new URL('..', import.meta.url).pathname)
 const nodeRequire = createRequire(path.join(repoRoot, 'package.json'))
@@ -208,7 +209,7 @@ const page = read('app/builder/page.tsx')
     // + PASS2B G09 (NEXT_PUBLIC_STUDIO_FIRST_RUN_POSTER_HIDE): studioBriefSent and its decision, and the one spread it adds to the two StudioWelcomeStage draws
     //   (flag off the spread is empty; scripts/test-studio-first-run-poster-hide.mjs compares this file, minus the G09 text, with the base commit's).
     //   + PASS2B G16 (9a9f0e4, NEXT_PUBLIC_STUDIO_EXPORT_AFTER_BUILD): the one `hasFinalDeck` line on <PresentationDownloadControls> (PublishControls already had its own).
-    const stripped = area.replace(/(stage=\{currentStage\}\n)\s*hasFinalDeck=\{hasFinalDeck\}\n/, '$1').split('\n').map(line => line.replace(' {...studioPosterPlanning}', '')).filter(line => !/studioRailCollapsed|onStudioRailReveal|onUserDeckEdit|PASS2 #3|onComposerTemplateAction|onOpenComposerLibrary|Toolbar template picker fix-forward|ComposerLibraryRequest|NEXT_PUBLIC_STUDIO_ONE_LIVE_TAB|studioTabPausedHint|PASS2B G09|studioBriefSent|studioPosterPlanning/.test(line)).join('\n')
+    const stripped = area.replace(/(stage=\{currentStage\}\n)\s*hasFinalDeck=\{hasFinalDeck\}\n/, '$1').split('\n').map(line => line.replace(' {...studioPosterPlanning}', '')).filter(line => !/studioRailCollapsed|onStudioRailReveal|onUserDeckEdit|PASS2 #3|onComposerTemplateAction|onOpenComposerLibrary|Toolbar template picker fix-forward|ComposerLibraryRequest|NEXT_PUBLIC_STUDIO_ONE_LIVE_TAB|studioTabPausedHint|PASS2B G09|studioBriefSent|studioPosterPlanning|RAIL-SLIDES-1-MIDBUILD/.test(line)).join('\n')
     check(assert.equal, stripped, baseArea, 'PresentationArea: only the pass-through lines were added (the rail props, the session-hygiene onUserDeckEdit one, the toolbar template picker\'s two callbacks, and the one-live-tab studioTabPausedHint one)')
   }
 }
@@ -302,7 +303,8 @@ const silence = fn => { const e = console.error, w = console.warn; console.error
   }, [railFocusHidden, onStudioRailReveal])`), 'the handle and Escape share one toggle')
   check(assert.equal, (viewer.match(/setShowThumbnails\(/g) ?? []).length, 2, 'the user choice is written only by the toggle and the first-mount rule')
   check(assert.ok, viewer.includes(`style={studioShell ? { width: showThumbnails ? thumbnailWidth : 0, ...(railFocusHidden ? STUDIO_RAIL_FOCUS_HIDDEN_STYLE : undefined) } : undefined}`))
-  check(assert.ok, viewer.includes(`{showThumbnails && (slideThumbnails.length > 0 || composeJobs.length > 0) && (`), 'the strip mounts on the user choice alone')
+  // + RAIL-SLIDES-1-MIDBUILD (NEXT_PUBLIC_STUDIO_RAIL_BUILD_COUNT): the condition gains `|| Boolean(railBuildRows?.length)` (null without the flag); restored here, so the pin still reads the base line.
+  check(assert.ok, restoreRailCondition(viewer).includes(`{showThumbnails && (slideThumbnails.length > 0 || composeJobs.length > 0) && (`), 'the strip mounts on the user choice alone')
   check(assert.match, viewer, /studioRailCollapsed = false,\n {2}onStudioRailReveal,/)
 }
 

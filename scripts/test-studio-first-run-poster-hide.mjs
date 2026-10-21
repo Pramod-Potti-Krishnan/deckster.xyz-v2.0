@@ -23,6 +23,7 @@ import { createRequire } from 'node:module'
 import ts from 'typescript'
 import { stripAddSlideStatus } from './studio-add-slide-status-strip.mjs'
 import { stripDarkPersist } from './studio-theme-dark-persist-strip.mjs'
+import { stripRailBuildCount } from './studio-rail-build-count-strip.mjs'
 
 const repoRoot = path.resolve(new URL('..', import.meta.url).pathname)
 const nodeRequire = createRequire(path.join(repoRoot, 'package.json'))
@@ -123,7 +124,8 @@ function proveArea(source, label = 'area') {
   assert.match(source, /studioBriefSent\?: boolean\n/, `${label}: a boolean prop`)
   assert.equal((source.match(/process\.env\.NEXT_PUBLIC_STUDIO_FIRST_RUN_POSTER_HIDE/g) ?? []).length, 1, `${label}: the flag is read once, inline`)
   const baseArea = baseSource(AREA)
-  if (baseArea) assert.equal(stripG09(source), baseArea, `${label}: without the G09 text the file is ${BASE_COMMIT}'s`)
+  // + RAIL-SLIDES-1-MIDBUILD (NEXT_PUBLIC_STUDIO_RAIL_BUILD_COUNT): its marked lines come out first (scripts/studio-rail-build-count-strip.mjs).
+  if (baseArea) assert.equal(stripRailBuildCount(stripG09(source)), baseArea, `${label}: without the G09 text the file is ${BASE_COMMIT}'s`)
 }
 proveArea(SOURCES[AREA]); checks += 80 + 10
 
