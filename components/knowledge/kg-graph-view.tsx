@@ -11,18 +11,24 @@ import {
   type PointerEvent as ReactPointerEvent,
   type WheelEvent as ReactWheelEvent,
 } from "react"
-import { Focus, List, Minus, Network, Plus, RotateCcw, ScanSearch } from "lucide-react"
+import { Focus, List, Maximize2, Minimize2, Minus, Network, Plus, RotateCcw, ScanSearch } from "lucide-react"
+import {
+  STUDIO_NODE_HALO, studioFullscreenActive, studioFullscreenLabel, studioFullscreenSupported, studioHaloId, studioNodeBadge, studioP2SecondBrainOn,
+} from "@/lib/studio-p2-second-brain"
 
 import './studio-graph-controls.css'
 import { StudioKnowledgeMapToolbar } from './studio-knowledge-map-toolbar'
 import { knowledgeFitScale } from '@/lib/studio-knowledge-map-toolbar'
 import { placeCleanLabels } from '@/lib/studio-knowledge-map-labels'
+import './studio-p2-second-brain.css'
 
 const STUDIO_GRAPH_CONTROLS = process.env.NEXT_PUBLIC_STUDIO_V4_SHELL === 'true'
 // J6 finding L6 (card PASS2-J6-FINDINGS): "- 100% +" read against the fitted view, one "Reset map", "Focus entity" only while something is selected (Studio controls only). Exact "true" enables it; default off.
 const MAP_TOOLBAR = STUDIO_GRAPH_CONTROLS && process.env.NEXT_PUBLIC_STUDIO_KNOWLEDGE_MAP_TOOLBAR === 'true'
 // J6 finding L7 (card PASS2-J6-FINDINGS): entity names as clean text under the node (no dark plate), wrapped instead of cut at 25 characters (Studio controls only). Exact "true" enables it; default off.
 const MAP_LABELS = STUDIO_GRAPH_CONTROLS && process.env.NEXT_PUBLIC_STUDIO_KNOWLEDGE_MAP_LABELS === 'true'
+// PASS2 SB-05/06 (NEXT_PUBLIC_STUDIO_P2_SECOND_BRAIN, default off; needs the Studio shell): a soft glow and a count badge on each node, clearer label plates, and Full screen.
+const STUDIO_P2_MAP = studioP2SecondBrainOn(process.env.NEXT_PUBLIC_STUDIO_P2_SECOND_BRAIN, process.env.NEXT_PUBLIC_STUDIO_V4_SHELL)
 
 export interface KgViewNode {
   node_id: string
@@ -295,6 +301,7 @@ export function KgGraphView({
   presentation?: KgGraphPresentation
 }) {
   const svgRef = useRef<SVGSVGElement | null>(null)
+  const rootRef = useRef<HTMLDivElement | null>(null)
   const panRef = useRef<{ pointerId: number; x: number; y: number } | null>(null)
   const [hoverId, setHoverId] = useState<string | null>(null)
   const [initialPresentation] = useState(() => readPresentation(presentation, width, height))
@@ -303,6 +310,23 @@ export function KgGraphView({
   const restoredInputsRef = useRef<LayoutInputs | null>(initialPresentation ? { nodes, edges, width, height } : null)
   const [fittedInputs, setFittedInputs] = useState<LayoutInputs | null>(() => initialPresentation ? { nodes, edges, width, height } : null)
   const [canvasScale, setCanvasScale] = useState(1)
+  // SB-06 (flag on): whether the browser can show the map full screen, and whether it does now (Esc leaves it, which this learns from the browser's own event).
+  const [canFullscreen, setCanFullscreen] = useState(false)
+  const [fullscreen, setFullscreen] = useState(false)
+  useEffect(() => {
+    if (!STUDIO_P2_MAP) return
+    setCanFullscreen(studioFullscreenSupported(document))
+    const sync = () => setFullscreen(studioFullscreenActive(document, rootRef.current))
+    document.addEventListener("fullscreenchange", sync)
+    return () => document.removeEventListener("fullscreenchange", sync)
+  }, [])
+  const toggleFullscreen = () => {
+    const root = rootRef.current
+    if (!root) return
+    // A refused request (the browser said no) changes nothing; the button stays as it was.
+    if (studioFullscreenActive(document, root)) void Promise.resolve(document.exitFullscreen?.()).catch(() => undefined)
+    else void Promise.resolve(root.requestFullscreen?.()).catch(() => undefined)
+  }
 
   // Keep the accepted graph/layout transform, but make Studio labels readable at
   // their painted CSS size even when the SVG is letterboxed or the map is zoomed.
@@ -473,8 +497,11 @@ export function KgGraphView({
 
   if (nodes.length === 0) return null
 
+  // SB-06 (flag on): the Full screen button; one element, drawn in the map's own toolbar or, with the J6 toolbar on, handed to it as `extra`.
+  const p2FullscreenButton = <button type="button" data-studio-p2-fullscreen="true" onClick={toggleFullscreen} aria-pressed={fullscreen} aria-label={studioFullscreenLabel(fullscreen)} title={studioFullscreenLabel(fullscreen)}>{fullscreen ? <Minimize2 className="h-4 w-4" /> : <Maximize2 className="h-4 w-4" />}<span>{studioFullscreenLabel(fullscreen)}</span></button>
+
   return (
-    <div data-studio-graph-view={STUDIO_GRAPH_CONTROLS ? 'true' : undefined} data-studio-graph-mode={showList ? 'list' : 'map'} className="relative h-full overflow-hidden rounded-2xl bg-[#070b18] lg:min-h-[520px]">
+    <div ref={rootRef} data-studio-graph-view={STUDIO_GRAPH_CONTROLS ? 'true' : undefined} data-studio-p2-map={STUDIO_P2_MAP ? 'true' : undefined} data-studio-graph-mode={showList ? 'list' : 'map'} className="relative h-full overflow-hidden rounded-2xl bg-[#070b18] lg:min-h-[520px]">
       <div data-studio-graph-controls={STUDIO_GRAPH_CONTROLS ? 'mobile' : undefined} className={STUDIO_GRAPH_CONTROLS && showList ? "skg-entity-view" : "lg:hidden"}>
         <div data-studio-graph-control={STUDIO_GRAPH_CONTROLS ? 'heading' : undefined} className="border-b border-white/10 px-4 py-3">
           <p className="text-sm font-medium text-white">Entities by relevance</p>
@@ -523,6 +550,7 @@ export function KgGraphView({
           onZoomOut={() => zoomAround(view.scale / 1.2)}
           onReset={fitGraph}
           onFocus={focusSelected}
+          {...(STUDIO_P2_MAP && canFullscreen ? { extra: p2FullscreenButton } : {})}
         />
       ) : (
         <div data-studio-graph-toolbar={STUDIO_GRAPH_CONTROLS ? 'true' : undefined} role="group" aria-label="Knowledge map controls" className="absolute right-3 top-3 z-10 hidden items-center gap-1 rounded-xl border border-white/10 bg-slate-950/80 p-1 shadow-xl backdrop-blur lg:flex">
@@ -569,6 +597,7 @@ export function KgGraphView({
           >
             <RotateCcw className="h-4 w-4" />
           </button>
+          {STUDIO_P2_MAP && canFullscreen && p2FullscreenButton}
         </div>
       )}
 
@@ -600,6 +629,13 @@ export function KgGraphView({
           <pattern id="kg-dot-grid" width="28" height="28" patternUnits="userSpaceOnUse">
             <circle cx="1" cy="1" r="1" fill="#94a3b8" opacity="0.13" />
           </pattern>
+          {STUDIO_P2_MAP && entityTypes.map(type => (
+            <radialGradient key={`halo-${type}`} id={studioHaloId(entityTypes, type)} cx="50%" cy="50%" r="50%">
+              <stop offset="0%" stopColor={typeColor(type)} stopOpacity="0.5" />
+              <stop offset="55%" stopColor={typeColor(type)} stopOpacity="0.16" />
+              <stop offset="100%" stopColor={typeColor(type)} stopOpacity="0" />
+            </radialGradient>
+          ))}
           <filter id="kg-node-glow" x="-120%" y="-120%" width="340%" height="340%">
             <feGaussianBlur stdDeviation="5" result="blur" />
             <feMerge>
@@ -701,6 +737,7 @@ export function KgGraphView({
                 onFocus={() => setHoverId(point.node_id)}
                 onBlur={() => setHoverId(null)}
               >
+                {STUDIO_P2_MAP && <circle data-studio-p2-halo="true" r={point.r * STUDIO_NODE_HALO} fill={`url(#${studioHaloId(entityTypes, point.entity_type)})`} className="pointer-events-none" />}
                 {(isSelected || isHovered) && (
                   <circle
                     r={point.r + 11}
@@ -720,6 +757,10 @@ export function KgGraphView({
                   <title>{`${point.name} (${point.entity_type}) — seen ${point.mention_count}×`}</title>
                 </circle>
                 <circle r={Math.max(point.r - 4, 2)} fill="#FFFFFF" opacity={0.08} />
+                {STUDIO_P2_MAP && (() => {
+                  const badge = studioNodeBadge(point.mention_count, point.r)
+                  return badge ? <text data-studio-p2-badge="true" textAnchor="middle" dominantBaseline="central" fontSize={badge.fontSize} fontWeight={700} fill="#0B1220" className="pointer-events-none select-none">{badge.text}</text> : null
+                })()}
                 {showLabel && !STUDIO_GRAPH_CONTROLS && (
                   <g className="pointer-events-none">
                     <rect
@@ -762,8 +803,8 @@ export function KgGraphView({
             const extraRow = offsetY < -radius - 29
             return <g key={`entity-label-${point.node_id}`} data-studio-graph-label="entity" data-studio-graph-label-node={point.node_id} aria-hidden="true" className="pointer-events-none" opacity={dimmed ? .18 : 1} transform={`translate(${point.x} ${point.y}) scale(${labelScale})`}>
               {extraRow && <line data-studio-graph-label-leader="true" x1={0} y1={-radius} x2={0} y2={offsetY + plateHeight} stroke="#81949f" strokeWidth={.7} opacity={.6} />}
-              <rect x={-plateWidth / 2} y={offsetY} width={plateWidth} height={plateHeight} rx={8} fill="#020617" opacity={.92} />
-              <text x={0} y={offsetY + 17} textAnchor="middle" fill="#E2E8F0" fontSize={fontSize} fontWeight={500}>{compactGraphLabel(point.name, 25)}</text>
+              <rect x={-plateWidth / 2} y={offsetY} width={plateWidth} height={plateHeight} rx={8} fill="#020617" opacity={.92} style={STUDIO_P2_MAP ? { stroke: typeColor(point.entity_type), strokeWidth: 1, strokeOpacity: .75 } : undefined} />
+              <text x={0} y={offsetY + 17} textAnchor="middle" fill={STUDIO_P2_MAP ? "#F8FAFC" : "#E2E8F0"} fontSize={fontSize} fontWeight={STUDIO_P2_MAP ? 600 : 500}>{compactGraphLabel(point.name, 25)}</text>
             </g>
           })}
         </g>

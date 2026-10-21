@@ -1,9 +1,16 @@
 "use client"
 
 import { useRef, useState } from "react"
+import Link from "next/link"
 import { AlertCircle, FileText, Network, RefreshCw, Search, X } from "lucide-react"
 import { typeColor, type KgViewNode } from "./kg-graph-view"
 import { EMPTY_PANEL_BODY, EMPTY_PANEL_TITLE } from "@/lib/studio-knowledge-empty-state"
+import type { StudioDeckDirectory } from "@/hooks/use-studio-p2-deck-titles"
+import { STUDIO_SB_WORDS, studioMissingDecksText, studioP2SecondBrainOn, studioResolveDecks, studioSlidesText, studioStatStrip } from "@/lib/studio-p2-second-brain"
+import "./studio-p2-second-brain.css"
+
+// PASS2 SB-08 / SB-10 (NEXT_PUBLIC_STUDIO_P2_SECOND_BRAIN, default off; needs the Studio shell): the three-number strip and "Used in your decks". Off, this file renders exactly as before.
+const STUDIO_P2_SB = studioP2SecondBrainOn(process.env.NEXT_PUBLIC_STUDIO_P2_SECOND_BRAIN, process.env.NEXT_PUBLIC_STUDIO_V4_SHELL)
 
 /** Presentation of the existing node-detail response; no additional source requests. */
 interface KnowledgeDetail {
@@ -31,7 +38,24 @@ function addedDate(value?: string | null) {
   return Number.isNaN(date.getTime()) ? null : date.toLocaleDateString(undefined, { month: "short", day: "numeric", year: "numeric" })
 }
 
-export function StudioKnowledgeInspector({ selected, selectedId, loading, error, topEntities, onSelect, onRetry, onClear, emptyGraph = false }: {
+/** SB-10: the deck titles behind an entity's contributing sessions, from the person's own deck list (read once by the page). */
+function UsedInDecks({ sessionIds, decks }: { sessionIds: string[]; decks: StudioDeckDirectory }) {
+  const { decks: rows, missing } = studioResolveDecks(sessionIds, decks.byId)
+  const missingText = studioMissingDecksText(missing)
+  return <section data-studio-p2-decks="true" aria-label={STUDIO_SB_WORDS.usedInDecks}>
+    <h3 className="ski-label">{STUDIO_SB_WORDS.usedInDecks}</h3>
+    {sessionIds.length === 0 && <p>{STUDIO_SB_WORDS.decksNone}</p>}
+    {sessionIds.length > 0 && (decks.status === "idle" || decks.status === "loading") && <p role="status">{STUDIO_SB_WORDS.decksLoading}</p>}
+    {sessionIds.length > 0 && decks.status === "error" && <p role="alert">{STUDIO_SB_WORDS.decksError} <button type="button" className="ski-button" onClick={decks.reload}><RefreshCw size={13} />{STUDIO_SB_WORDS.decksRetry}</button></p>}
+    {sessionIds.length > 0 && decks.status === "ready" && <>
+      {rows.length > 0 && <ul>{rows.map(deck => <li key={deck.id}><Link href={deck.href}><strong>{deck.title}</strong>{studioSlidesText(deck.slideCount) && <small>{studioSlidesText(deck.slideCount)}</small>}</Link></li>)}</ul>}
+      {rows.length === 0 && <p>{STUDIO_SB_WORDS.decksNone}</p>}
+      {missingText && <p>{missingText}</p>}
+    </>}
+  </section>
+}
+
+export function StudioKnowledgeInspector({ selected, selectedId, loading, error, topEntities, onSelect, onRetry, onClear, emptyGraph = false, decks }: {
   selected: KnowledgeDetail | null
   selectedId: string | null
   loading: boolean
@@ -42,6 +66,8 @@ export function StudioKnowledgeInspector({ selected, selectedId, loading, error,
   onClear: () => void
   /** NEXT_PUBLIC_STUDIO_KNOWLEDGE_EMPTY_STATE (J6 L9): the graph loaded and has nothing in it, so there is nothing to select. */
   emptyGraph?: boolean
+  /** Flag on only: the deck list the page read. Absent, or with the flag off, the "Used in your decks" section is not drawn. */
+  decks?: StudioDeckDirectory
 }) {
   const [view, setView] = useState<"overview" | "evidence" | "relations">("overview")
   const [query, setQuery] = useState("")
@@ -56,10 +82,10 @@ export function StudioKnowledgeInspector({ selected, selectedId, loading, error,
       {!loading && error && <div className="ski-notice" role="alert"><AlertCircle size={18} /><strong>Entity details unavailable</strong><p>{error}</p><button type="button" className="ski-button" onClick={onRetry}><RefreshCw size={13} />Retry details</button></div>}
       {!loading && !error && !selected && <><div className="ski-notice"><Network size={26} /><strong>{emptyGraph ? EMPTY_PANEL_TITLE : "Follow an idea to its sources."}</strong><p>{emptyGraph ? EMPTY_PANEL_BODY : "Select an entity on the map or in search to inspect its recorded relationships and evidence."}</p></div>{topEntities.length > 0 && <section><h3 className="ski-label">Most reinforced</h3><div className="ski-entity-list">{topEntities.map(entity => <button type="button" key={entity.node_id} onClick={() => onSelect(entity.node_id)}><i style={{ backgroundColor: typeColor(entity.entity_type) }} /><span><strong>{entity.name}</strong><small>{friendly(entity.entity_type)}</small></span></button>)}</div></section>}</>}
       {!loading && !error && selected && <>
-        <div className="ski-identity"><p><i style={{ backgroundColor: typeColor(selected.node.entity_type) }} />{friendly(selected.node.entity_type)}</p><h3>{selected.node.name}</h3><span>{selected.node.mention_count ?? 0} mentions · {selected.provenance_session_ids.length} contributing sessions</span></div>
+        <div className="ski-identity"><p><i style={{ backgroundColor: typeColor(selected.node.entity_type) }} />{friendly(selected.node.entity_type)}</p><h3>{selected.node.name}</h3>{STUDIO_P2_SB ? <div data-studio-p2-strip="true" role="group" aria-label="Counts for this entity">{studioStatStrip(selected.node.mention_count, selected.evidence.length, selected.provenance_session_ids.length).map(stat => <div key={stat.id}><strong>{stat.value}</strong><span>{stat.label}</span></div>)}</div> : <span>{selected.node.mention_count ?? 0} mentions · {selected.provenance_session_ids.length} contributing sessions</span>}</div>
         <div className="ski-tabs" role="group" aria-label="Entity inspection view"><button type="button" aria-pressed={view === "overview"} onClick={() => setView("overview")}>Overview</button><button type="button" aria-pressed={view === "evidence"} onClick={() => setView("evidence")}>Evidence <span>{selected.evidence.length}</span></button><button type="button" aria-pressed={view === "relations"} onClick={() => setView("relations")}>Relations <span>{selected.edges.length}</span></button></div>
         <p className="ski-scope">Recorded detail returned for this entity. Counts describe this response; they may not include every source in your graph.</p>
-        {view === "overview" && <section className="ski-overview"><p>{selected.node.description || "No entity description was recorded."}</p><div className="ski-overview-actions"><button type="button" className="ski-button" onClick={() => setView("evidence")}><FileText size={14} />Review source evidence</button><button type="button" className="ski-button" onClick={() => setView("relations")}><Network size={14} />Explore relations</button></div><details className="ski-details"><summary>Contributing session references <span>{selected.provenance_session_ids.length}</span></summary><p className="ski-scope">Recorded identifiers only. This inspector does not load or change those presentations.</p>{selected.provenance_session_ids.length ? <ul>{selected.provenance_session_ids.map((id, index) => <li key={`${id}-${index}`}><code>{id}</code></li>)}</ul> : <p>No contributing session references were returned.</p>}</details></section>}
+        {view === "overview" && <section className="ski-overview"><p>{selected.node.description || "No entity description was recorded."}</p><div className="ski-overview-actions"><button type="button" className="ski-button" onClick={() => setView("evidence")}><FileText size={14} />Review source evidence</button><button type="button" className="ski-button" onClick={() => setView("relations")}><Network size={14} />Explore relations</button></div>{STUDIO_P2_SB && decks && <UsedInDecks sessionIds={selected.provenance_session_ids} decks={decks} />}<details className="ski-details"><summary>Contributing session references <span>{selected.provenance_session_ids.length}</span></summary><p className="ski-scope">Recorded identifiers only. This inspector does not load or change those presentations.</p>{selected.provenance_session_ids.length ? <ul>{selected.provenance_session_ids.map((id, index) => <li key={`${id}-${index}`}><code>{id}</code></li>)}</ul> : <p>No contributing session references were returned.</p>}</details></section>}
         {view === "evidence" && <section aria-label="Returned source evidence"><div className="ski-search"><Search size={14} /><input ref={evidenceInput} value={query} onChange={event => setQuery(event.target.value)} aria-label="Filter recorded evidence" placeholder="Find a passage or source" />{query && <button type="button" aria-label="Clear evidence filter" onClick={clearFilter}><X size={13} /></button>}</div><p className="ski-scope" role="status">{evidence.length} of {selected.evidence.length} returned snippets{query.trim() ? " match this local filter" : " shown"}.</p>{evidence.length ? <div className="ski-evidence-list">{evidence.map(item => {
           const date = addedDate(item.created_at)
           return <article className="ski-evidence" key={`${item.session_id}-${selected.evidence.indexOf(item)}`}><header><FileText size={15} /><div><h4>{item.document_filename || sourceLabel(item.source_type)}</h4><p>{sourceLabel(item.source_type)}{item.page_number != null ? ` · p.${item.page_number}` : ""}{date ? ` · Added ${date}` : ""}</p></div></header>{item.snippet.length > 210 ? <details className="ski-passage"><summary><span>“{item.snippet.slice(0, 209)}…”</span><small>Read full returned passage</small></summary><blockquote>{item.snippet}</blockquote></details> : <blockquote>{item.snippet || "No passage text was returned."}</blockquote>}<details className="ski-details"><summary>Source session reference</summary><code>{item.session_id || "No session reference returned"}</code></details></article>

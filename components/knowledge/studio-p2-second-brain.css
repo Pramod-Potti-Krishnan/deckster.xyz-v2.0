@@ -1,0 +1,55 @@
+/* PASS2 Second Brain (flag NEXT_PUBLIC_STUDIO_P2_SECOND_BRAIN, default off). Every rule below hangs on a marker that only the flag-on markup carries
+   (data-studio-p2-sources, data-studio-p2-strip, data-studio-p2-decks, data-studio-p2-map), so with the flag off none of them matches anything. Tokens only (--ss-*). */
+
+/* SB-02: the read-only Sources popover beside Refresh / Import. The page's header rule styles every button and link inside "actions" (34px, bordered), so the panel resets them. */
+[data-studio-v4-shell="true"] [data-studio-p2-sources="true"] { position: relative; display: inline-flex; }
+[data-studio-v4-shell="true"] [data-studio-p2-sources="true"] [data-studio-p2-sources-count="true"] {
+  margin-left: 8px; padding: 0 6px; border-radius: 999px; background: var(--ss-soft); color: var(--ss-muted); font-size: 11px; line-height: 18px; font-variant-numeric: tabular-nums;
+}
+[data-studio-v4-shell="true"] [data-studio-p2-sources="true"] [data-studio-p2-sources-panel="true"] {
+  position: absolute; top: calc(100% + 8px); right: 0; z-index: 40; width: min(380px, calc(100vw - 32px)); max-height: min(70vh, 460px); overflow-y: auto; overscroll-behavior: contain;
+  padding: 14px; border: 1px solid var(--ss-line); border-radius: 12px; background: var(--ss-panel); color: var(--ss-text); box-shadow: 0 12px 32px rgb(0 0 0 / 16%); text-align: left;
+}
+[data-studio-v4-shell="true"] [data-studio-p2-sources="true"] [data-studio-p2-sources-panel="true"] > header { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-bottom: 10px; }
+[data-studio-v4-shell="true"] [data-studio-p2-sources="true"] [data-studio-p2-sources-panel="true"] h2 { margin: 0; font-size: 14px; font-weight: 600; color: var(--ss-text); }
+[data-studio-v4-shell="true"] [data-studio-p2-sources="true"] [data-studio-p2-sources-panel="true"] :is(button, a) {
+  height: auto; border: 0; border-radius: 6px; background: transparent; color: var(--ss-teal); font-size: 12px; box-shadow: none;
+}
+[data-studio-v4-shell="true"] [data-studio-p2-sources="true"] [data-studio-p2-sources-panel="true"] > header button { display: grid; place-items: center; width: 28px; height: 28px; padding: 0; color: var(--ss-muted); }
+[data-studio-v4-shell="true"] [data-studio-p2-sources="true"] [data-studio-p2-sources-panel="true"] :is(button, a):hover { background: var(--ss-active); color: var(--ss-text); }
+[data-studio-v4-shell="true"] [data-studio-p2-sources="true"] [data-studio-p2-sources-panel="true"] p { margin: 0 0 10px; color: var(--ss-muted); font-size: 12px; line-height: 1.6; }
+[data-studio-v4-shell="true"] [data-studio-p2-sources="true"] [data-studio-p2-sources-panel="true"] p > svg { display: inline-block; margin-right: 6px; vertical-align: -2px; }
+[data-studio-v4-shell="true"] [data-studio-p2-sources="true"] [data-studio-p2-sources-panel="true"] p button { display: inline; padding: 0 4px; text-decoration: underline; }
+[data-studio-v4-shell="true"] [data-studio-p2-sources="true"] [data-studio-p2-sources-panel="true"] ul { margin: 0 0 10px; padding: 0; list-style: none; display: flex; flex-direction: column; gap: 4px; }
+[data-studio-v4-shell="true"] [data-studio-p2-sources="true"] [data-studio-p2-sources-panel="true"] li { display: flex; align-items: flex-start; gap: 9px; padding: 8px 6px; border-top: 1px solid var(--ss-line); }
+[data-studio-v4-shell="true"] [data-studio-p2-sources="true"] [data-studio-p2-sources-panel="true"] li > svg { flex-shrink: 0; margin-top: 2px; color: var(--ss-teal); }
+[data-studio-v4-shell="true"] [data-studio-p2-sources="true"] [data-studio-p2-sources-panel="true"] li strong { display: block; color: var(--ss-text); font-size: 12px; font-weight: 600; overflow-wrap: anywhere; }
+[data-studio-v4-shell="true"] [data-studio-p2-sources="true"] [data-studio-p2-sources-panel="true"] li small { display: block; margin-top: 2px; color: var(--ss-muted); font-size: 11px; }
+[data-studio-v4-shell="true"] [data-studio-p2-sources="true"] [data-studio-p2-sources-panel="true"] > footer { display: flex; flex-direction: column; align-items: flex-start; gap: 4px; padding-top: 10px; border-top: 1px solid var(--ss-line); }
+[data-studio-v4-shell="true"] [data-studio-p2-sources="true"] [data-studio-p2-sources-panel="true"] > footer a { display: inline-flex; align-items: center; padding: 6px 8px; margin-left: -8px; font-weight: 600; }
+[data-studio-v4-shell="true"] [data-studio-p2-sources="true"] [data-studio-p2-sources-panel="true"] > footer small { color: var(--ss-muted); font-size: 11px; line-height: 1.5; }
+
+/* SB-08: the inspector's three-number strip (mentions / evidence / sessions) in place of the one text line. */
+[data-studio-knowledge-inspector="true"] [data-studio-p2-strip="true"] {
+  display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; margin-top: 12px; padding: 12px 0; border-block: 1px solid var(--ss-line);
+}
+[data-studio-knowledge-inspector="true"] [data-studio-p2-strip="true"] > div { min-width: 0; }
+[data-studio-knowledge-inspector="true"] [data-studio-p2-strip="true"] strong { display: block; color: var(--ss-text); font-family: Georgia, "Times New Roman", serif; font-size: 26px; font-weight: 400; line-height: 1.1; font-variant-numeric: tabular-nums; }
+[data-studio-knowledge-inspector="true"] [data-studio-p2-strip="true"] span { display: block; margin-top: 4px; color: var(--ss-muted); font-size: 10px; letter-spacing: .06em; text-transform: uppercase; }
+
+/* SB-10: "Used in your decks". */
+[data-studio-knowledge-inspector="true"] [data-studio-p2-decks="true"] { margin-block: 15px; }
+[data-studio-knowledge-inspector="true"] [data-studio-p2-decks="true"] ul { margin: 8px 0 0; padding: 0; list-style: none; display: flex; flex-direction: column; gap: 6px; }
+[data-studio-knowledge-inspector="true"] [data-studio-p2-decks="true"] a {
+  display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 9px 10px; border: 1px solid var(--ss-line); border-radius: 8px;
+  background: var(--ss-panel); color: var(--ss-text); font-size: 12px; text-decoration: none;
+}
+[data-studio-knowledge-inspector="true"] [data-studio-p2-decks="true"] a:hover { background: var(--ss-active); }
+[data-studio-knowledge-inspector="true"] [data-studio-p2-decks="true"] a strong { min-width: 0; font-weight: 500; overflow-wrap: anywhere; }
+[data-studio-knowledge-inspector="true"] [data-studio-p2-decks="true"] a small { flex-shrink: 0; color: var(--ss-muted); font-size: 10px; }
+[data-studio-knowledge-inspector="true"] [data-studio-p2-decks="true"] p { margin: 8px 0 0; color: var(--ss-muted); font-size: 11px; line-height: 1.6; }
+
+/* SB-06: the map fills the screen in the browser's own full screen (Esc leaves it); the toolbar and legend stay at the bottom. */
+[data-studio-graph-view="true"][data-studio-p2-map="true"]:fullscreen { width: 100vw; height: 100vh; min-height: 0; border-radius: 0; }
+[data-studio-graph-view="true"][data-studio-p2-map="true"]:-webkit-full-screen { width: 100vw; height: 100vh; min-height: 0; border-radius: 0; }
+[data-studio-graph-view="true"][data-studio-p2-map="true"]:fullscreen > svg[role="group"] { height: auto; min-height: 0; }
