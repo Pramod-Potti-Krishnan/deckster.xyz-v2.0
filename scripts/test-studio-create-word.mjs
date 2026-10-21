@@ -21,6 +21,7 @@ import vm from 'node:vm'
 import { execFileSync } from 'node:child_process'
 import { createRequire } from 'node:module'
 import ts from 'typescript'
+import { stripDeckTitle } from './studio-deck-title-strip.mjs'
 
 const repoRoot = path.resolve(new URL('..', import.meta.url).pathname)
 const nodeRequire = createRequire(path.join(repoRoot, 'package.json'))
@@ -95,6 +96,7 @@ const pageModules = lib => ({
   '@/hooks/use-session-cache': { sessionCacheKey: (o, s) => `${o}:${s}`, sessionMetadataCacheKey: (o, s) => `${o}:meta:${s}` }, '@/lib/last-builder-session': { lastBuilderSessionKey: o => `last:${o}` },
   '@/components/studio-intro-replay': { StudioIntroReplay: () => null }, '@/lib/layout-service-client': { LAYOUT_VIEWER_URL_POLICY: {} },
   '@/lib/layout-viewer-url-policy': { evaluateLayoutViewerUrl: () => ({ status: 'empty' }) }, '@/lib/present-view-only': { viewOnlyIfEnabled: url => url },
+  '@/lib/studio-deck-title': { studioDeckShownTitle: title => title, studioDeckTitleProps: () => ({}) }, '@/lib/studio-template-display-name': { studioTemplateDisplayName: name => name }, // PASS2D T: flag NEXT_PUBLIC_STUDIO_DECK_TITLE_NAMES is off here, so the stored title is drawn
   '@/lib/studio-deck-cards': { deckCardDescription: (title, description) => description, deckCardStatusLabel: deck => deck.status }, '@/lib/studio-create-word': lib,
 })
 function renderPage(source, env, lib, overrides = {}) {
@@ -218,7 +220,7 @@ const G53_CONST = `  // PASS2B G53 (NEXT_PUBLIC_STUDIO_DECK_GRID_4, default off,
   const deckGrid4 = studioShell && process.env.NEXT_PUBLIC_STUDIO_DECK_GRID_4 === "true"
 `
 const G53_EXPR = 'className={deckGrid4 ? "grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6" : "grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6"}'
-const revertPage = text => text.replace(IMPORT_PAGE, '').replace(CONST_PAGE, '').replace(G53_CONST, '').replace(G53_EXPR, 'className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6"')
+const revertPage = text => stripDeckTitle(text).replace(IMPORT_PAGE, '').replace(CONST_PAGE, '').replace(G53_CONST, '').replace(G53_EXPR, 'className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6"')
   .replace('{studioCreateLabel(createWord, "New Presentation")}', 'New Presentation').replace('{studioCreateLabel(createWord, "Create Presentation")}', 'Create Presentation')
 const revertSidebar = text => text.replace(IMPORT_SIDEBAR, '').replace(CONST_SIDEBAR, '').replace("studioCreateLabel(createWord, 'Presentation')", "'Presentation'")
 const revertHeader = text => text.replace(IMPORT_HEADER, '').replace(CONST_HEADER, '').replaceAll('studioCreateLabel(studioCreateWord, "Add presentation")', '"Add presentation"').replace('studioCreateLabel(studioCreateWord, "Presentation")', '"Presentation"')
