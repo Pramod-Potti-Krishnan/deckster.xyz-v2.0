@@ -1,5 +1,6 @@
 import type { CSSProperties } from "react"
 import { showcaseAlt } from "@/lib/marketing/v3-content"
+import { studioP2Ladder, studioP2LandingOn } from "@/lib/studio-p2-landing"
 import { AudienceQA, type AudienceQACopy } from "../AudienceQA"
 import { SlideChip } from "../SlideChip"
 import { Waveform } from "../Waveform"
@@ -14,7 +15,11 @@ export interface PresentCopy {
   ladder: readonly { status: "live" | "build" | "next"; statusLabel: string; text: string }[]
 }
 
+// PASS2 LAND-05 (flag NEXT_PUBLIC_STUDIO_P2_LANDING, default off): the Narration chip reads "Live" like Publish and Viewers ask. Off, the ladder is exactly as written.
+const STUDIO_P2_LANDING = studioP2LandingOn(process.env.NEXT_PUBLIC_STUDIO_P2_LANDING)
+
 export function Present({ copy }: { copy: PresentCopy }) {
+  const ladder = studioP2Ladder(copy.ladder, STUDIO_P2_LANDING)
   return (
     <section className="slide slide--night compact" id="present" data-snap="slide" data-slide-label={copy.label} data-label={copy.label}>
       <div className="glow glow--coral" style={{ width: "50vw", height: "50vw", right: "-14vw", top: "-10vh", opacity: 0.28 }} />
@@ -46,7 +51,7 @@ export function Present({ copy }: { copy: PresentCopy }) {
           <AudienceQA copy={copy.qa} />
         </div>
         <div className="ladder pub--sm" data-reveal style={{ "--d": 2 } as CSSProperties}>
-          {copy.ladder.map((item) => (
+          {ladder.map((item) => (
             <div key={item.text}><span className={`pill pill--${item.status}`}>{item.statusLabel}</span>{item.text}</div>
           ))}
         </div>

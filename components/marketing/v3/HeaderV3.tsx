@@ -5,6 +5,11 @@ import { usePathname } from "next/navigation"
 import { useSession } from "next-auth/react"
 import { trackCta } from "@/lib/analytics"
 import { V3_CONTENT } from "@/lib/marketing/v3-content"
+import { studioP2LandingOn } from "@/lib/studio-p2-landing"
+import { HeaderMenuP2 } from "./HeaderMenuP2"
+
+// PASS2 LAND-06 (flag NEXT_PUBLIC_STUDIO_P2_LANDING, default off): the phone menu beside the header's buttons. Off, the header is exactly as before.
+const STUDIO_P2_LANDING = studioP2LandingOn(process.env.NEXT_PUBLIC_STUDIO_P2_LANDING)
 
 export function HeaderV3() {
   const { data: session, status } = useSession()
@@ -32,6 +37,7 @@ export function HeaderV3() {
               <Link className="btn btn--primary" href={session ? "/builder" : "/pricing"} onClick={() => trackCta("v3_header_build")}>{header.build}</Link>
             </>
           )}
+          {STUDIO_P2_LANDING && <HeaderMenuP2 />}
         </div>
       </div>
     </header>
