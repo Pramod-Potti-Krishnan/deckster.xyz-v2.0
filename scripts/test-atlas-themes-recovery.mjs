@@ -66,7 +66,8 @@ function load(path, imports = {}) {
 const builder = load('lib/theme-builder.ts')
 const themeFonts = load('lib/theme-fonts.ts') // J4-FONTS: import-free helper the workspace now imports (flag off here)
 const darkToggle = load('lib/studio-theme-dark-toggle.ts') // P2C: import-free helper the workspace now imports (flag off here)
-const preview = load('components/studio-libraries/theme-preview.tsx', { '@/lib/theme-builder': builder, 'react/jsx-runtime': { jsx, jsxs: jsx } })
+// PASS2D 5: the preview reads an import-free helper for Theme Builder's canon palettes; it is only called when a palette map is passed, which these tests never do (flag off)
+const preview = load('components/studio-libraries/theme-preview.tsx', { '@/lib/theme-builder': builder, '@/lib/studio-theme-preview-canon': load('lib/studio-theme-preview-canon.ts'), 'react/jsx-runtime': { jsx, jsxs: jsx } })
 const workflow = load('lib/studio-workflow.ts')
 const a = { id: 'local-A', name: 'Local A', description: 'A description', theme_payload: { mode: 'preset', preset_id: 'minimal', color_overrides: { accent: '#aabbcc' } }, is_standard: false }
 const b = { id: 'local-B', name: 'Local B', description: 'B description', theme_payload: { mode: 'custom', primary_hex: '#112233', palette_mode: 'both', color_overrides: { private_color: '#445566' } }, is_standard: true }
@@ -95,6 +96,8 @@ function harness(code = source) {
   imports['./library-controls'].libraryDate = String
   // PASS2D 6b: the flag-gated base-theme dropdown (default off, so never drawn here; proven in test-studio-theme-base-dropdown.mjs)
   Object.assign(imports, { './base-theme-picker': { BaseThemePicker: 'BaseThemePicker' }, '@/lib/studio-theme-base-dropdown': { STUDIO_THEME_BASE_DROPDOWN_ENABLED: false } })
+  // PASS2D 5: the flag-gated canon preview palettes (default off: the hook answers undefined; proven in test-studio-theme-preview-canon.mjs)
+  imports['./use-canon-preview-palettes'] = { useCanonPreviewPalettes: () => undefined }
   const mod = { exports: {} }, context = { module: mod, exports: mod.exports, process: { env: { NEXT_PUBLIC_STUDIO_V4_SHELL: 'true' } }, window: { addEventListener() {}, removeEventListener() {} }, fetch: refuse, require: name => { assert.ok(name in imports, name); return imports[name] } }
   const point = '  return <LibraryWorkspace'
   assert.equal(code.split(point).length, 2)

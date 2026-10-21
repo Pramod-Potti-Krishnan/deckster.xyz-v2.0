@@ -1,5 +1,7 @@
 import type { CSSProperties } from 'react'
-import { isCanonicalThemePresetId, isValidThemeHex, normalizeThemePresetId, type BuildThemeSelection, type CanonicalThemePresetId } from '@/lib/theme-builder'
+import { CANON_ONLY_THEME_PRESET_IDS, isCanonicalThemePresetId, isValidThemeHex, normalizeThemePresetId, type BuildThemeSelection, type CanonicalThemePresetId } from '@/lib/theme-builder'
+import { previewBaseFor } from '@/lib/studio-theme-preview-canon'
+import type { PresetSwatchPalette } from '@/lib/theme-preset-swatches'
 
 // Palette guides match the existing ThemePanel. The authoritative rendered
 // theme (including generated harmony and typography) remains Director-owned.
@@ -12,10 +14,15 @@ const PREVIEW_PALETTES: Partial<Record<CanonicalThemePresetId, Record<string, st
   pastel: { background: '#fdf2f8', surface: '#ecfeff', primary: '#8b5cf6', accent: '#2dd4bf', text_primary: '#3f3a52' },
 }
 
-export function themePreviewPalette(selection: BuildThemeSelection) {
+/** PASS2D 5 (NEXT_PUBLIC_STUDIO_THEME_PREVIEW_CANON): what Theme Builder has answered so far, by preset id. Absent (flag off): the guides above, as before. */
+export type CanonPreviewPalettes = Record<string, PresetSwatchPalette>
+
+export function themePreviewPalette(selection: BuildThemeSelection, canon?: CanonPreviewPalettes) {
   const id = normalizeThemePresetId(selection.preset_id)
   // T-07: a canon-only id (flag on) has no specimen palette here; it keeps today's corporate_light guide.
-  const base = (isCanonicalThemePresetId(id) && PREVIEW_PALETTES[id]) || PREVIEW_PALETTES.corporate_light
+  const legacy = (isCanonicalThemePresetId(id) && PREVIEW_PALETTES[id]) || undefined
+  // PASS2D 5: with the canon palettes in hand (lib/studio-theme-preview-canon.ts) the preset's own colours come first; without them (flag off) the line is the one above it was.
+  const base = canon ? previewBaseFor({ id, canon, legacy, canonOnlyIds: CANON_ONLY_THEME_PRESET_IDS, fallback: PREVIEW_PALETTES.corporate_light }) : legacy || PREVIEW_PALETTES.corporate_light
   const palette: Record<string, string> = { ...base, secondary: base.accent, tertiary: base.primary, neutral: '#64748b', text_body: base.text_primary, border: '#94a3b8' }
   for (const key of ['primary', 'secondary', 'tertiary', 'neutral'] as const) {
     const color = selection[`${key}_hex`]
@@ -34,15 +41,15 @@ export const THEME_TOKENS = [
   ['text_primary', 'Heading text'], ['text_body', 'Body text'], ['border', 'Border'],
 ] as const
 
-export function ThemeSwatches({ selection }: { selection: BuildThemeSelection }) {
-  const palette = themePreviewPalette(selection)
+export function ThemeSwatches({ selection, canon }: { selection: BuildThemeSelection; canon?: CanonPreviewPalettes }) {
+  const palette = themePreviewPalette(selection, canon)
   return <span className="sl-swatches" aria-hidden="true">{['primary', 'accent', 'surface', 'background'].map(token => <i key={token} style={{ backgroundColor: palette[token] }} />)}</span>
 }
 
 export type ThemeSpecimen = 'title' | 'data' | 'content'
 
-export function ThemePreview({ selection, specimen, name }: { selection: BuildThemeSelection; specimen: ThemeSpecimen; name: string }) {
-  const palette = themePreviewPalette(selection)
+export function ThemePreview({ selection, specimen, name, canon }: { selection: BuildThemeSelection; specimen: ThemeSpecimen; name: string; canon?: CanonPreviewPalettes }) {
+  const palette = themePreviewPalette(selection, canon)
   const style = Object.fromEntries(Object.entries(palette).map(([key, value]) => [`--spec-${key}`, value])) as CSSProperties
   // J4-FONTS: a selection that names fonts (only with NEXT_PUBLIC_THEME_FONT_SELECTION_ENABLED) shows them in the specimen.
   const headingFont = typeof selection.font_family_heading === 'string' ? selection.font_family_heading : undefined
