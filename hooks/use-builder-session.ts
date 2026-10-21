@@ -32,6 +32,7 @@ import {
   type StudioSessionProblem,
 } from '@/lib/studio-session-hygiene'
 import { STUDIO_VOICE_INTERACTIVE_ENABLED } from '@/lib/studio-voice-interactive'
+import { STUDIO_BLANK_DECK_LEGACY_ROWS_ENABLED, isLegacyBlankDeckRow } from '@/lib/studio-legacy-blank-deck-row'
 import {
   attachmentsFromPayload,
   type UserChatMessage,
@@ -442,6 +443,12 @@ export function useBuilderSession({
               hasTitleFromPresentationRef.current = true
             }
 
+            // NEXT_PUBLIC_STUDIO_BLANK_DECK_LEGACY_ROWS: a row the pre-#389 build saved with the untouched blank deck in its final slots too is restored as the blank deck it is: the loaded copy of the
+            // row reads its final slots as empty (in memory only; nothing is written).
+            if (STUDIO_BLANK_DECK_LEGACY_ROWS_ENABLED && isLegacyBlankDeckRow(session)) {
+              session.finalPresentationUrl = null
+              session.finalPresentationId = null
+            }
             const restoredSessionState = {
               // The loaded record owns this metadata even before React commits
               // the selected session and the socket adopts its new identity.
