@@ -29,6 +29,7 @@ import { KgGraphView, typeColor } from "@/components/knowledge/kg-graph-view"
 import { StudioKnowledgeInspector } from "@/components/knowledge/studio-knowledge-inspector"
 import { KnowledgeSectionBoundary } from "@/components/knowledge/knowledge-section-boundary"
 import { KnowledgeImportConfirm } from "@/components/knowledge/knowledge-import-confirm"
+import { StudioKnowledgeFilterTabs } from "@/components/knowledge/studio-knowledge-filter-tabs"
 import {
   clearImportMarker, IMPORT_FAILED_TEXT, importConfirmWarning, importFailureText, normalizeKgGraph, normalizeKgStats, OFFLINE_IMPORT_TEXT, ownerTag,
   plainKnowledgeError, readImportMarker, resumedImportNotice, touchImportMarker, writeImportMarker,
@@ -43,6 +44,8 @@ export const dynamic = "force-dynamic"
 const STUDIO_SHELL = process.env.NEXT_PUBLIC_STUDIO_V4_SHELL === "true"
 // J6 pass-2 fixes (card PASS2-J6-FINDINGS). Exact "true" enables them; default off, and then the page is exactly as before.
 const KNOWLEDGE_FIXES = process.env.NEXT_PUBLIC_STUDIO_KNOWLEDGE_FIXES === "true"
+// J6 finding L4 (card PASS2-J6-FINDINGS): the map filter as "Everything N" + one tab per kind in plain words (the Studio shell only). Exact "true" enables it; default off.
+const KNOWLEDGE_FILTER_TABS = STUDIO_SHELL && process.env.NEXT_PUBLIC_STUDIO_KNOWLEDGE_FILTER_TABS === "true"
 
 interface KgStats {
   node_count: number
@@ -1043,7 +1046,9 @@ stats && stats.nodes_by_type.length > 0 && (
             )
   )
   // Flag on: evaluated inside its own boundary, so a bad field here cannot throw from the page body itself.
-  const typeFilters = KNOWLEDGE_FIXES
+  const typeFilters = KNOWLEDGE_FILTER_TABS
+    ? <StudioKnowledgeFilterTabs nodesByType={stats?.nodes_by_type} hiddenTypes={hiddenTypes} onPick={setHiddenTypes} colorFor={typeColor} />
+    : KNOWLEDGE_FIXES
     ? <KnowledgeSectionBoundary label="type filters" resetKey={stats}><LazySection render={renderTypeFilters} /></KnowledgeSectionBoundary>
     : renderTypeFilters()
   const headerContext = <>
