@@ -147,6 +147,7 @@ function proveLib(sources, label = 'lib') {
   eq(l.STUDIO_P2_NIGHT_CLASS, 'mv3-p2-night', `${label}: the <html> marker`)
   eq(l.STUDIO_P2_NIGHT_COLOR, '#0C0D13', `${label}: the night value`)
   eq(l.STUDIO_P2_MENU_ATTR, 'data-p2-landing-menu', `${label}: the menu marker`)
+  eq(l.STUDIO_P2_HEADER_ATTR, 'data-p2-landing', `${label}: the header marker`)
   deepEq(l.STUDIO_P2_MENU_LABELS, ['Bring', 'Present', 'Experts', 'Pricing'], `${label}: the four pages, in order`)
   deepEq({ ...l.STUDIO_P2_MENU_WORDS }, { open: 'Open menu', close: 'Close menu', navLabel: 'Site menu' }, `${label}: the menu's words`)
   const ladder = [
@@ -284,9 +285,10 @@ function proveHeader(sources, label = 'header') {
     const stripped = JSON.parse(norm(on))
     const strip = n => {
       if (Array.isArray(n)) { const kept = n.filter(x => x?.type !== 'HeaderMenuP2'); const out = kept.map(strip); return kept.length === 1 && n.length !== 1 ? out[0] : out }
-      return n && typeof n === 'object' ? Object.fromEntries(Object.entries(n).map(([k, v]) => [k, k === 'children' || k === 'props' ? strip(v) : v])) : n
+      return n && typeof n === 'object' ? Object.fromEntries(Object.entries(n).filter(([k]) => k !== 'data-p2-landing').map(([k, v]) => [k, k === 'children' || k === 'props' ? strip(v) : v])) : n
     }
-    eq(JSON.stringify(strip(stripped)), want, `${label}: ${session.label}, ${pathname}: on is the base tree plus the menu and nothing else`)
+    eq(nodes(on).find(n => n.type === 'header').props['data-p2-landing'], 'true', `${label}: ${session.label}, ${pathname}: on, the header carries its marker`)
+    eq(JSON.stringify(strip(stripped)), want, `${label}: ${session.label}, ${pathname}: on is the base tree plus the menu and the header's marker, nothing else`)
   }
   match(sources[HEADER], /^import \{ HeaderMenuP2 \} from "\.\/HeaderMenuP2"$/m, `${label}: imports the menu`)
   match(sources[HEADER], /process\.env\.NEXT_PUBLIC_STUDIO_P2_LANDING\)/, `${label}: reads the flag as Next inlines it`)
@@ -345,7 +347,7 @@ function proveHook(sources, label = 'hook') {
 }
 
 // ---------------------------------------------------------------- 5. the CSS
-const MARKERS = ['html.mv3-p2-night', '.mv3 [data-p2-landing-menu]']
+const MARKERS = ['html.mv3-p2-night', '.mv3 [data-p2-landing-menu]', '.mv3 .hdr[data-p2-landing]']
 function proveCss(sources, label = 'css') {
   const root = postcss.parse(sources[CSS])
   const rules = []
@@ -364,7 +366,16 @@ function proveCss(sources, label = 'css') {
   root.walkAtRules('media', at => { if (/max-width:\s*900px/.test(at.params)) media = at })
   ok(media, `${label}: a 900px media rule (the width at which the header's links go)`)
   eq(decl(find('.mv3 [data-p2-landing-menu]', media), 'display'), 'block', `${label}: shown at 900px and below`)
-  eq(root.nodes.filter(n => n.type === 'atrule' && n.name === 'media').length, 1, `${label}: one media rule`)
+  eq(root.nodes.filter(n => n.type === 'atrule' && n.name === 'media').length, 3, `${label}: three media rules`)
+  const mediaAt = width => { let found = null; root.walkAtRules('media', at => { if (new RegExp(`max-width:\\s*${width}px`).test(at.params)) found = at }); return found }
+  const m520 = mediaAt(520), m400 = mediaAt(400)
+  ok(m520 && m400, `${label}: 520px and 400px media rules (room for the menu button beside Sign in and Build a deck)`)
+  const hdrIn = find('.mv3 .hdr[data-p2-landing] .hdr__in', m520)
+  eq(decl(hdrIn, 'width'), 'calc(100% - 24px)', `${label}: the header's side margins tighten at 520px`)
+  eq(decl(hdrIn, 'gap'), '8px', `${label}: the header's gap tightens`)
+  eq(decl(find('.mv3 .hdr[data-p2-landing] .hdr__cta', m520), 'margin-left'), '0', `${label}: the buttons' row loses its left margin`)
+  eq(decl(find('.mv3 .hdr[data-p2-landing] .hdr__cta .btn', m520), 'padding'), '0 12px', `${label}: the two buttons tighten`)
+  eq(decl(find('.mv3 .hdr[data-p2-landing] .hdr__logo .wm', m400), 'display'), 'none', `${label}: the wordmark goes at 400px and below, the mark stays`)
   const btn = find('.mv3 [data-p2-landing-menu] .p2-menu__btn')
   eq(decl(btn, 'width'), '44px', `${label}: 44px target wide`)
   eq(decl(btn, 'height'), '44px', `${label}: 44px target high`)
@@ -444,6 +455,8 @@ const MUTANTS = [
   // the wiring
   [HEADER, 'header: the menu shows with the flag off', '{STUDIO_P2_LANDING && <HeaderMenuP2 />}', '{<HeaderMenuP2 />}'],
   [HEADER, 'header: the menu leads the buttons', '          {STUDIO_P2_LANDING && <HeaderMenuP2 />}\n', ''],
+  [HEADER, 'header: the marker is dropped', '{...(STUDIO_P2_LANDING ? { [STUDIO_P2_HEADER_ATTR]: "true" } : {})}', ''],
+  [HEADER, 'header: the marker is there with the flag off', '{...(STUDIO_P2_LANDING ? { [STUDIO_P2_HEADER_ATTR]: "true" } : {})}', '{...{ [STUDIO_P2_HEADER_ATTR]: "true" }}'],
   [HEADER, 'header: another flag name', 'process.env.NEXT_PUBLIC_STUDIO_P2_LANDING)', 'process.env.NEXT_PUBLIC_STUDIO_P2_LANDING2)'],
   [HOOK, 'hook: the marker is added with the flag off', 'if (STUDIO_P2_LANDING) html.classList.add(STUDIO_P2_NIGHT_CLASS)', 'html.classList.add(STUDIO_P2_NIGHT_CLASS)'],
   [HOOK, 'hook: the marker is never removed', '      if (STUDIO_P2_LANDING) html.classList.remove(STUDIO_P2_NIGHT_CLASS)\n', ''],
@@ -461,6 +474,10 @@ const MUTANTS = [
   [CSS, 'css: a hidden panel shows', '.mv3 [data-p2-landing-menu] .p2-menu__panel[hidden] { display: none; }\n', ''],
   [CSS, 'css: a link is 30px', 'display: flex; align-items: center; min-height: 44px;', 'display: flex; align-items: center; min-height: 30px;'],
   [CSS, 'css: a rule leaks to every page', '.mv3 [data-p2-landing-menu] .p2-menu__panel a:hover,', '.mv3 a:hover,'],
+  [CSS, 'css: the header gap stays', '.mv3 .hdr[data-p2-landing] .hdr__in { width: calc(100% - 24px); gap: 8px; }', '.mv3 .hdr[data-p2-landing] .hdr__in { width: calc(100% - 24px); gap: 18px; }'],
+  [CSS, 'css: the buttons keep their padding', '.mv3 .hdr[data-p2-landing] .hdr__cta .btn { padding: 0 12px; }', '.mv3 .hdr[data-p2-landing] .hdr__cta .btn { padding: 0 16px; }'],
+  [CSS, 'css: the wordmark stays', '.mv3 .hdr[data-p2-landing] .hdr__logo .wm { display: none; }', '.mv3 .hdr[data-p2-landing] .hdr__logo .wm { display: inline; }'],
+  [CSS, 'css: the header rules reach every header', '.mv3 .hdr[data-p2-landing] .hdr__cta { margin-left: 0; gap: 6px; }', '.mv3 .hdr__cta { margin-left: 0; gap: 6px; }'],
   [CSS, 'css: the panel is light', 'background: var(--night-2); color: var(--snow);', 'background: #fff; color: var(--snow);'],
   // the env block, the package script
   [ENV, 'env: the flag defaults on', `${FLAG}="false"`, `${FLAG}="true"`],

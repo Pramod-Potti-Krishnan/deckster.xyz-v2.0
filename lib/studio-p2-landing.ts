@@ -16,8 +16,11 @@ export const STUDIO_P2_NIGHT_CLASS = 'mv3-p2-night'
 /** `--night` of styles/marketing-v3.css (declared on .mv3, so not visible on <html>). */
 export const STUDIO_P2_NIGHT_COLOR = '#0C0D13'
 
-/** The wrapper's marker attribute: every rule of styles/marketing-v3-p2.css is scoped to it (or to the html marker above). */
+/** The wrapper's marker attribute: every rule of styles/marketing-v3-p2.css is scoped to it, to the header's marker below, or to the html marker above. */
 export const STUDIO_P2_MENU_ATTR = 'data-p2-landing-menu'
+
+/** The header's marker attribute (only with the flag on): the phone widths make room in the header for the menu button. */
+export const STUDIO_P2_HEADER_ATTR = 'data-p2-landing'
 
 export interface StudioP2LadderItem { status: 'live' | 'build' | 'next'; statusLabel: string; text: string }
 

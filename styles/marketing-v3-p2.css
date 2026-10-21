@@ -1,5 +1,5 @@
 /* PASS2 LAND-01 and LAND-06 (flag NEXT_PUBLIC_STUDIO_P2_LANDING, default off). Every rule is scoped to a marker that exists only with the flag on:
-   `html.mv3-p2-night` (added by hooks/use-v3-deck.ts) and `[data-p2-landing-menu]` (the phone menu, rendered by HeaderV3). Without the flag nothing here matches. */
+   `html.mv3-p2-night` (added by hooks/use-v3-deck.ts), `[data-p2-landing-menu]` (the phone menu) and `.hdr[data-p2-landing]` (the header, both rendered by HeaderV3). Without the flag nothing here matches. */
 
 /* LAND-01: the mockup's `html{background:var(--night)}`. The tokens are declared on .mv3, which <html> sits outside of, so the literal value of --night is used. */
 html.mv3-p2-night { background: #0C0D13; }
@@ -33,3 +33,14 @@ html.mv3-p2-night { background: #0C0D13; }
 .mv3 [data-p2-landing-menu] .p2-menu__panel a:hover,
 .mv3 [data-p2-landing-menu] .p2-menu__panel a.is-here { background: rgba(244, 241, 234, .1); }
 .mv3 [data-p2-landing-menu] .p2-menu__panel a:focus-visible { outline: 2px solid var(--violet-d); outline-offset: -2px; }
+
+/* LAND-06: room for the button. Logo + Sign in + Build a deck already fill a 390px header, so with the menu beside them the margins, gaps and button padding tighten at 520px and
+   below, and the logo shows its mark only at 400px and below (the wordmark is back above it). Nothing here applies above 520px. */
+@media (max-width: 520px) {
+  .mv3 .hdr[data-p2-landing] .hdr__in { width: calc(100% - 24px); gap: 8px; }
+  .mv3 .hdr[data-p2-landing] .hdr__cta { margin-left: 0; gap: 6px; }
+  .mv3 .hdr[data-p2-landing] .hdr__cta .btn { padding: 0 12px; }
+}
+@media (max-width: 400px) {
+  .mv3 .hdr[data-p2-landing] .hdr__logo .wm { display: none; }
+}

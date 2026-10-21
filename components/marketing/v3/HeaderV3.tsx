@@ -5,7 +5,7 @@ import { usePathname } from "next/navigation"
 import { useSession } from "next-auth/react"
 import { trackCta } from "@/lib/analytics"
 import { V3_CONTENT } from "@/lib/marketing/v3-content"
-import { studioP2LandingOn } from "@/lib/studio-p2-landing"
+import { STUDIO_P2_HEADER_ATTR, studioP2LandingOn } from "@/lib/studio-p2-landing"
 import { HeaderMenuP2 } from "./HeaderMenuP2"
 
 // PASS2 LAND-06 (flag NEXT_PUBLIC_STUDIO_P2_LANDING, default off): the phone menu beside the header's buttons. Off, the header is exactly as before.
@@ -16,7 +16,7 @@ export function HeaderV3() {
   const pathname = usePathname()
   const { nav, header } = V3_CONTENT
   return (
-    <header className="hdr" data-v3-header>
+    <header className="hdr" data-v3-header {...(STUDIO_P2_LANDING ? { [STUDIO_P2_HEADER_ATTR]: "true" } : {})}>
       <div className="hdr__in">
         <Link className="hdr__logo" href="/" aria-label={header.home}>
           <svg className="lg" aria-hidden="true"><use href="#logo" /></svg>
