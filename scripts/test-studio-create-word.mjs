@@ -18,6 +18,7 @@ import assert from 'node:assert/strict'
 import fs from 'node:fs'
 import path from 'node:path'
 import vm from 'node:vm'
+import { stripDeckCardCount } from './studio-deck-card-count-strip.mjs'
 import { execFileSync } from 'node:child_process'
 import { createRequire } from 'node:module'
 import ts from 'typescript'
@@ -98,6 +99,7 @@ const pageModules = lib => ({
   '@/lib/layout-viewer-url-policy': { evaluateLayoutViewerUrl: () => ({ status: 'empty' }) }, '@/lib/present-view-only': { viewOnlyIfEnabled: url => url },
   '@/lib/studio-deck-title': { studioDeckShownTitle: title => title, studioDeckTitleProps: () => ({}) }, '@/lib/studio-template-display-name': { studioTemplateDisplayName: name => name }, // PASS2D T: flag NEXT_PUBLIC_STUDIO_DECK_TITLE_NAMES is off here, so the stored title is drawn
   '@/lib/studio-deck-cards': { deckCardDescription: (title, description) => description, deckCardStatusLabel: deck => deck.status }, '@/lib/studio-create-word': lib,
+  '@/lib/studio-deck-card-count': { studioDeckCardCountLabel: () => { throw new Error('flag off: not called') } }, // PASS2D R5: flag NEXT_PUBLIC_STUDIO_DECK_CARD_SLIDE_COUNT is off here, so the label helper is never called
 })
 function renderPage(source, env, lib, overrides = {}) {
   const names = [...source.matchAll(/const \[(\w+),\s*\w+\]\s*=\s*useState/g)].map(match => match[1])
@@ -233,7 +235,7 @@ function proveSource(file, source, label = file) {
   const wanted = file === DASH ? [['createWord', 'New Presentation'], ['createWord', 'Create Presentation']] : file === SIDEBAR ? [['createWord', 'Presentation']] : [['studioCreateWord', 'Add presentation'], ['studioCreateWord', 'Add presentation'], ['studioCreateWord', 'Presentation']]
   assert.deepEqual(calls, wanted, `${label}: the helper's fallbacks are the base's own literals, in place`); checks++
   const baseText = baseSource(file)
-  if (baseText) eq(revert(source), baseText, `${label}: without the G56 lines the file is ${BASE_COMMIT}'s`)
+  if (baseText) eq(revert(stripDeckCardCount(source)), baseText, `${label}: without the G56 lines the file is ${BASE_COMMIT}'s`)
   if (baseText) for (const [, literal] of wanted) ok(baseText.includes(literal), `${label}: "${literal}" is a literal of the base`)
 }
 for (const file of [DASH, SIDEBAR, HEADER]) proveSource(file, SOURCES[file])
