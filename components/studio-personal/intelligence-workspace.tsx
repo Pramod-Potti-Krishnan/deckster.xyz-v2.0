@@ -1,6 +1,6 @@
 "use client"
 
-import { useEffect, useRef, useState, type CSSProperties } from "react"
+import { useEffect, useRef, useState, type CSSProperties, type ReactNode } from "react"
 import { AlertCircle, ArrowDownUp, ArrowRight, AudioLines, BookOpen, CheckCircle2, ChevronDown, Compass, Database, FileText, ImageIcon, Info, LockKeyhole, PenLine, Presentation, RotateCcw, Search, Settings2, SlidersHorizontal, Sparkles, UserRound, X } from "lucide-react"
 import { StudioWorkflowAction } from "@/components/studio-libraries/studio-workflow-action"
 import { BackToBuilderButton } from "@/components/layout/app-header"
@@ -13,7 +13,7 @@ import "./intelligence-workspace.css"
 import "./intelligence-polish.css"
 
 type TaskId = keyof typeof baseCatalog.tasks
-type CatalogModel = {
+export type CatalogModel = {
   name: string; provider: string; contextWindow: number; imageOutput: boolean; tools: boolean
   releaseStage?: string; inputModalities?: string[]; structuredOutput?: boolean; pricePerMillionTokens?: { input: number; output: number }; priceNote?: string
 }
@@ -26,8 +26,8 @@ type Catalog = {
 /** NEXT_PUBLIC_STUDIO_MODEL_CATALOG_2026_10 (default off; build-time). On: the 2026-10-13.1 snapshot replaces 2026-08-20.1, with the retiring
  * Gemini 2.5 Flash, Flash Lite and Pro swapped for their 3.x successors, and the comparison shows release status, inputs, structured output and
  * list price. Off: the 2026-08-20.1 catalog and every rendered byte are unchanged. */
-const catalogRefreshed = process.env.NEXT_PUBLIC_STUDIO_MODEL_CATALOG_2026_10 === "true"
-const catalog: Catalog = catalogRefreshed ? refreshedCatalog : baseCatalog
+export const catalogRefreshed = process.env.NEXT_PUBLIC_STUDIO_MODEL_CATALOG_2026_10 === "true"
+export const catalog: Catalog = catalogRefreshed ? refreshedCatalog : baseCatalog
 type ModelId = keyof typeof catalog.models
 type Draft = Record<TaskId, string>
 /** NEXT_PUBLIC_STUDIO_INTELLIGENCE_POLISH (default off; build-time), independent of the catalog flag. On, in Design preview only: the draft is kept in this
@@ -35,12 +35,15 @@ type Draft = Record<TaskId, string>
  * the "Your own intelligence" readiness popup, the "Managed by Deckster" section and a single save-status pill appear; and the repeated "not connected"
  * disclaimers become one note. No request is made, nothing is sent to a model, nothing is saved to the account. Off: every rendered byte is unchanged. */
 const polish = process.env.NEXT_PUBLIC_STUDIO_INTELLIGENCE_POLISH === "true"
+/** NEXT_PUBLIC_STUDIO_P2_INTELLIGENCE (default off; build-time). On, and with the chooser the page hands in (components/studio-personal/intelligence-p2.tsx): the page opens on the
+ * model chooser and the current-workflows guide folds into a "How it works" section. The guide below is the same markup either way. Off: every rendered byte is unchanged. */
+const p2Intelligence = process.env.NEXT_PUBLIC_STUDIO_P2_INTELLIGENCE === "true"
 type DraftStorage = "pending" | "ok" | "unavailable"
 type DraftStatus = { changed: number; storage: DraftStorage }
 type SavedDraft = { draft: Draft; activeTask: TaskId; view: "current" | "design" }
 const emptyBriefs = (): Draft => ({ planning_strategy: "", content_writing: "", research_analysis: "", imagery: "" })
 const taskIds = Object.keys(catalog.tasks) as TaskId[]
-const taskDetails = {
+export const taskDetails = {
   planning_strategy: { icon: Compass, description: "Structure, storyline, and the big picture", example: "Turn a brief into a clear narrative and slide outline." },
   content_writing: { icon: PenLine, description: "Titles, slide copy, and thoughtful edits", example: "Shape a headline, explain an idea, or refine slide copy." },
   research_analysis: { icon: Search, description: "Sources, evidence, and deeper understanding", example: "Explore a topic and organize the evidence behind your story." },
@@ -74,7 +77,8 @@ const currentWorkflows: Record<TaskId, { where: string; controls: string[]; note
 }
 
 /** Current controls guide, alongside an opt-in prototype comparison. No model routing contract. */
-export function IntelligenceWorkspace() {
+export function IntelligenceWorkspace({ chooser }: { chooser?: ReactNode } = {}) {
+  const p2 = p2Intelligence && Boolean(chooser)
   const [view, setView] = useState<"current" | "design">("current")
   const [activeTask, setActiveTask] = useState<TaskId>("planning_strategy")
   const [briefs, setBriefs] = useState<Draft>(emptyBriefs)
@@ -106,11 +110,7 @@ export function IntelligenceWorkspace() {
     window.addEventListener("beforeunload", beforeUnload)
     return () => window.removeEventListener("beforeunload", beforeUnload)
   }, [dirty])
-  return <main className="sp-workspace sp-intelligence" data-studio-personal="intelligence" data-studio-intro-surface="models" data-intelligence-polish={polish ? "true" : undefined}>
-    <header className="sp-heading"><div><p className="sp-eyebrow">WORK WITH DECKSTER</p><h1>Intelligence</h1><p>Give each part of your story a clear direction.</p></div>{polish && view === "design" ? <DraftStatusPill status={draftStatus} /> : <span className="sp-draft-badge"><span />{view === "current" ? "Current workflows" : "Design preview only"}</span>}</header>
-    {polish && view === "design"
-      ? <div className="sp-context-bar sp-ip-bar"><IntelligenceScope /><div className="sp-ip-bar-end"><IntelligenceReadiness />{viewSwitcher}</div></div>
-      : <div className="sp-context-bar"><span><SlidersHorizontal size={16} aria-hidden="true" /> {view === "current" ? "Available controls · service-managed model routing" : "Prototype model catalog · local comparison"}</span>{viewSwitcher}</div>}
+  const guide = (
     <div className="sp-intelligence-view" hidden={view !== "current"}>
       <div className="sp-workflow-layout">
         <section className="sp-workflow-tasks" aria-labelledby="sp-workflows-heading"><div className="sp-section-heading"><h2 id="sp-workflows-heading">Choose the work you want to do</h2></div>{taskIds.map(id => { const Icon = taskDetails[id].icon; return <button type="button" key={id} className="sp-workflow-task" aria-pressed={activeTask === id} onClick={() => setActiveTask(id)}><span className="sp-task-icon"><Icon size={20} aria-hidden="true" /></span><span><strong>{catalog.tasks[id].label}</strong><small>{taskDetails[id].description}</small>{briefs[id] && <em>Local brief drafted</em>}</span><ArrowRight size={15} aria-hidden="true" /></button> })}<div className="sp-inline-note"><Info size={16} aria-hidden="true" /><p>Model assignments and reusable model preferences are not connected. Studio’s existing settings and permission checks remain authoritative.</p></div></section>
@@ -125,7 +125,16 @@ export function IntelligenceWorkspace() {
       </div>
       <div className="sp-draft-actions"><div><p><Info size={15} aria-hidden="true" /> Briefs stay while switching tasks and views. Leaving this page discards any brief you have not taken to Studio.</p><span className="sp-feedback" role="status">{briefFeedback}</span></div><div className="sp-action-buttons">{resetBriefs && <button className="sp-button" type="button" onClick={undoReset}>Undo reset</button>}<button className="sp-button" type="button" disabled={!taskIds.some(id => Boolean(briefs[id]))} onClick={resetLocalBriefs}><RotateCcw size={14} aria-hidden="true" />Reset local briefs</button></div></div>
     </div>
-    <div className="sp-intelligence-view" hidden={view !== "design"}><ModelDesignPreview viewIsDesign={view === "design"} onRestoreView={() => setView("design")} onStatus={status => setDraftStatus(previous => previous.changed === status.changed && previous.storage === status.storage ? previous : status)} /></div>
+  )
+  return <main className="sp-workspace sp-intelligence" data-studio-personal="intelligence" data-studio-intro-surface="models" data-intelligence-polish={polish ? "true" : undefined} data-intelligence-p2={p2 ? "true" : undefined}>
+    {p2 ? chooser : <>
+    <header className="sp-heading"><div><p className="sp-eyebrow">WORK WITH DECKSTER</p><h1>Intelligence</h1><p>Give each part of your story a clear direction.</p></div>{polish && view === "design" ? <DraftStatusPill status={draftStatus} /> : <span className="sp-draft-badge"><span />{view === "current" ? "Current workflows" : "Design preview only"}</span>}</header>
+    {polish && view === "design"
+      ? <div className="sp-context-bar sp-ip-bar"><IntelligenceScope /><div className="sp-ip-bar-end"><IntelligenceReadiness />{viewSwitcher}</div></div>
+      : <div className="sp-context-bar"><span><SlidersHorizontal size={16} aria-hidden="true" /> {view === "current" ? "Available controls · service-managed model routing" : "Prototype model catalog · local comparison"}</span>{viewSwitcher}</div>}
+    </>}
+    {p2 ? <details className="sp-p2-how" data-intelligence-how="true"><summary>How it works<small>Where each kind of work happens in Studio today</small></summary>{guide}</details> : guide}
+    {!p2 && <div className="sp-intelligence-view" hidden={view !== "design"}><ModelDesignPreview viewIsDesign={view === "design"} onRestoreView={() => setView("design")} onStatus={status => setDraftStatus(previous => previous.changed === status.changed && previous.storage === status.storage ? previous : status)} /></div>}
     <StudioIntroReplay screen="models" autoStart={true} targetSelector='[data-studio-intro-surface="models"]' className="studio-destination-intro-replay" />
   </main>
 }
@@ -189,12 +198,12 @@ export function parseSavedDraft(raw: string | null): SavedDraft | null {
 
 /** Flag on: the longer comparison scrolls under the sticky action, and a disabled button is 60% opaque so the rows show through it.
  * Disabled keeps its look (the same 60% blend) on a fully opaque button. */
-const DISABLED_ACTION_OPAQUE = { opacity: 1, background: "color-mix(in srgb, var(--sp-active) 60%, var(--sp-panel))", color: "color-mix(in srgb, var(--sp-teal) 60%, var(--sp-panel))" }
-const releaseLabel = (stage?: string) => stage === "ga" ? "Stable (GA)" : stage === "preview" ? "Preview" : "Not stated"
-const inputsLabel = (inputs?: string[]) => inputs?.length ? inputs.map(kind => kind === "file" ? "files" : kind).join(", ").replace(/^./, first => first.toUpperCase()) : "Not listed"
-const priceLabel = (model: CatalogModel) => model.pricePerMillionTokens ? `$${model.pricePerMillionTokens.input.toFixed(2)} in / $${model.pricePerMillionTokens.output.toFixed(2)} out` : model.priceNote || "Not listed"
+export const DISABLED_ACTION_OPAQUE = { opacity: 1, background: "color-mix(in srgb, var(--sp-active) 60%, var(--sp-panel))", color: "color-mix(in srgb, var(--sp-teal) 60%, var(--sp-panel))" }
+export const releaseLabel = (stage?: string) => stage === "ga" ? "Stable (GA)" : stage === "preview" ? "Preview" : "Not stated"
+export const inputsLabel = (inputs?: string[]) => inputs?.length ? inputs.map(kind => kind === "file" ? "files" : kind).join(", ").replace(/^./, first => first.toUpperCase()) : "Not listed"
+export const priceLabel = (model: CatalogModel) => model.pricePerMillionTokens ? `$${model.pricePerMillionTokens.input.toFixed(2)} in / $${model.pricePerMillionTokens.output.toFixed(2)} out` : model.priceNote || "Not listed"
 
-const provenanceText = "Model names, task defaults, and specifications come from the accepted Studio v4 prototype catalog. They are examples for reviewing this experience, not your account permissions or current service routing. No connected model catalog, benchmark results, or preference-saving service is used here."
+export const provenanceText = "Model names, task defaults, and specifications come from the accepted Studio v4 prototype catalog. They are examples for reviewing this experience, not your account permissions or current service routing. No connected model catalog, benchmark results, or preference-saving service is used here."
 
 /** A design candidate. The draft lives in memory; with the polish flag on it is also kept in this browser (localStorage, never the account). No catalog fetch or generation. */
 function ModelDesignPreview({ viewIsDesign = false, onRestoreView, onStatus }: { viewIsDesign?: boolean; onRestoreView?: () => void; onStatus?: (status: DraftStatus) => void } = {}) {
@@ -339,7 +348,7 @@ function DraftStatusPill({ status }: { status: DraftStatus }) {
 }
 
 /** Flag on: where a preference applies. Only reusable defaults exist here; This presentation has no backing in this page, so it is shown disabled with a note. */
-function IntelligenceScope() {
+export function IntelligenceScope() {
   return <div className="sp-ip-scope-group">
     <div className="sp-preview-switcher sp-ip-scope" role="group" aria-label="Model preference scope">
       <button type="button" aria-pressed={true}><UserRound size={15} aria-hidden="true" />Reusable defaults</button>
@@ -356,7 +365,7 @@ const readinessCollections = [
 ]
 
 /** Flag on: "Your own intelligence". A static concept popup: it reads none of the viewer's documents, datasets or presentations, so it shows no counts and starts nothing. */
-function IntelligenceReadiness() {
+export function IntelligenceReadiness() {
   const [open, setOpen] = useState(false)
   const [position, setPosition] = useState<CSSProperties>({})
   const trigger = useRef<HTMLButtonElement>(null)
@@ -415,7 +424,7 @@ const managedTasks = [
 ]
 
 /** Flag on: the tasks Deckster picks for itself. Names only; the catalog lists no model for them, so none is shown. */
-function ManagedByDeckster() {
+export function ManagedByDeckster() {
   return <details className="sp-ip-managed"><summary><span><LockKeyhole size={15} aria-hidden="true" /><strong>Managed by Deckster</strong><small>{managedTasks.length} supporting tasks</small></span><ChevronDown size={15} aria-hidden="true" /></summary>
     <div className="sp-ip-managed-grid">{managedTasks.map(task => <div key={task.id}><Settings2 size={15} aria-hidden="true" /><h3>{task.label}</h3><p>{task.description}</p></div>)}</div>
   </details>
