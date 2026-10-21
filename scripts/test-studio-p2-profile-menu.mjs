@@ -4,14 +4,16 @@
 //   PRO-04 "Your details" row   PRO-07 "Workspace & billing" row   PRO-08 "Keyboard shortcuts" row
 //   PRO-05 "Dashboard" and "Knowledge" are not in the menu (the rail beside it has both)
 //   PRO-06 Appearance is a Light / Dark / Auto control; Auto stores next-themes' "system"
+//   PRO-03 "Your creative capacity": the mockup's card, always open, with the REAL daily and weekly shares left (two thin meters + when each resets)
 //   PRO-10 "Settings & preferences", sentence case ("Sign out"), trailing chevrons
 //
 // Run: node scripts/test-studio-p2-profile-menu.mjs   (plain node: transpile + vm, no network, no browser, no env)
+//   PRO-09 (Version history) is NOT built: nothing in Studio opens the viewer's version panel and the panel's message envelope is one the viewer ignores (see the PR).
 //   P2_PROFILE_BASE=<commit> overrides the base commit flag-off identity is checked against (default fbc77c0, the studio-v4-dev-preparation-code tip the work started from).
 //
 // Proven on the REAL sources lib/studio-profile-menu.ts, components/user-profile-menu-p2.tsx, components/user-profile-menu.tsx and components/user-profile-menu-p2.css:
 //   1. the helper is import-free; the words, routes (each is a real route file), order and the theme mapping are exact;
-//   2. the P2 menu body (executed): identity, rows in order with chevrons and their routes, the Appearance control and what it stores, About, usage, Sign out;
+//   2. the P2 menu body (executed): identity, the usage card, rows in order with chevrons and their routes, the Appearance control and what it stores, About, Sign out;
 //   3. the wiring in the real component (executed): only the exact flag + shell + palette renders the P2 body, with the real handlers; every other combination
 //      renders the same tree as the base commit's component, before and after the quota read;
 //   4. the CSS: every rule is scoped to the P2 menu's markers; the segmented control, disc and chevron rules are there;
@@ -97,7 +99,37 @@ function proveLib(source, label = 'lib') {
   ok(!lib.STUDIO_PROFILE_LAYOUT.some(entry => entry.kind === 'row' && /dashboard|knowledge/i.test(`${entry.id} ${entry.label} ${entry.href}`)), `${label}: no Dashboard or Knowledge row (the rail has both)`)
   deepEq({ ...lib.STUDIO_PROFILE_WORDS }, { appearance: 'Appearance', about: 'About Studio', signOut: 'Sign out' }, `${label}: the other words`)
   for (const entry of lib.STUDIO_PROFILE_LAYOUT) if (entry.kind === 'row') ok(fs.existsSync(path.join(repoRoot, ROUTE_FILES[entry.href] ?? '__missing__')), `${label}: ${entry.href} is a real route`)
+  proveUsageHelpers(lib, label)
   return lib
+}
+
+// PRO-03: the usage meters
+const attempt = fn => { try { return fn() } catch (error) { return { threw: String(error) } } } // a mutant that crashes must fail an assertion, not the run
+const NOW = new Date('2099-01-01T00:00:00Z')
+const AT = hours => new Date(NOW.getTime() + hours * 3_600_000).toISOString()
+const stamp = date => `D:${date.toISOString()}`
+function proveUsageHelpers(lib, label) {
+  deepEq({ ...lib.STUDIO_USAGE_WORDS }, { title: 'Your creative capacity', left: 'left', upgrade: 'Upgrade for more usage', upgradeHref: '/billing' }, `${label}: the usage words`)
+  ok(fs.existsSync(path.join(repoRoot, ROUTE_FILES[lib.STUDIO_USAGE_WORDS.upgradeHref] ?? '__missing__')), `${label}: the upgrade link goes to a real route`)
+  for (const [share, want] of [[0, 0], [1, 100], [.37, 37], [.82, 82], [.29, 29], [.005, 1], [.004, 0], [.125, 13], [.375, 38], [1.5, 100], [-.2, 0], [NaN, null], [Infinity, null], [-Infinity, null], ['0.5', null], ['', null], [null, null], [undefined, null], [{}, null], [true, null]]) {
+    eq(attempt(() => lib.studioUsagePercent(share)), want, `${label}: percent left for ${String(share)}`)
+  }
+  for (const [resetAt, want] of [
+    [AT(5.5), 'Resets in 5h'], [AT(1), 'Resets in 1h'], [AT(23.999), 'Resets in 23h'], [AT(.5), 'Resets in under 1h'], [AT(.999), 'Resets in under 1h'],
+    [AT(24), `Resets ${stamp(new Date(AT(24)))}`], [AT(24 * 7), `Resets ${stamp(new Date(AT(24 * 7)))}`], [AT(0), 'Resets now'], [AT(-3), 'Resets now'],
+    ['not a date', ''], ['', ''], [undefined, ''], [null, ''], [42, ''], [{}, ''],
+  ]) eq(attempt(() => lib.studioUsageResetText(resetAt, NOW, stamp)), want, `${label}: reset text for ${String(resetAt)}`)
+  match(attempt(() => lib.studioUsageResetText(AT(24 * 7 + 12), NOW)), /^Resets [A-Za-z]{3,4}\.? \d{1,2}$/, `${label}: the default date is a short month and day`)
+  const quota = { remainingPct: { daily: .37, weekly: .82 }, resetAt: { daily: AT(5.5), weekly: AT(24 * 7) } }
+  const meters = attempt(() => lib.studioUsageMeters(quota, NOW, stamp))
+  deepEq(meters, [{ id: 'daily', label: 'Daily', percent: 37, reset: 'Resets in 5h' }, { id: 'weekly', label: 'Weekly', percent: 82, reset: `Resets ${stamp(new Date(AT(24 * 7)))}` }], `${label}: daily then weekly, real shares and reset times`)
+  deepEq(attempt(() => lib.studioUsageMeters({ resetAt: quota.resetAt, remainingPct: { weekly: .82, daily: .37 } }, NOW, stamp)).map(m => m.id), ['daily', 'weekly'], `${label}: the order does not follow the read's key order`)
+  deepEq(attempt(() => lib.studioUsageMeters({ remainingPct: { daily: .37, weekly: .82 } }, NOW, stamp)).map(m => m.reset), ['', ''], `${label}: no reset times in the read: no reset text`)
+  deepEq(attempt(() => lib.studioUsageMeters({ remainingPct: { daily: .37, weekly: .82 }, resetAt: { daily: 'x' } }, NOW, stamp)).map(m => m.reset), ['', ''], `${label}: an unreadable or missing reset time: no reset text`)
+  deepEq(attempt(() => lib.studioUsageMeters({ remainingPct: { daily: NaN, weekly: .5 }, resetAt: quota.resetAt }, NOW, stamp)).map(m => [m.id, m.percent]), [['weekly', 50]], `${label}: an unreadable share leaves its meter out`)
+  deepEq(attempt(() => lib.studioUsageMeters({ remainingPct: { daily: .5, weekly: 'x' } }, NOW, stamp)).map(m => [m.id, m.percent]), [['daily', 50]], `${label}: an unreadable weekly share leaves its meter out`)
+  for (const empty of [null, undefined, {}, { remainingPct: null }, { remainingPct: {} }, { remainingPct: { daily: 'a', weekly: null } }]) deepEq(attempt(() => lib.studioUsageMeters(empty, NOW, stamp)), [], `${label}: no meters for ${JSON.stringify(empty)}`)
+  deepEq(attempt(() => lib.studioUsageMeters(quota)).map(m => m.id), ['daily', 'weekly'], `${label}: the clock and formatter are optional`)
 }
 
 // ---------------------------------------------------------------- 2. the P2 menu body
@@ -106,7 +138,7 @@ function proveBody(source, lib, label = 'body') {
   match(source, /^import "\.\/user-profile-menu-p2\.css"$/m, `${label}: the P2 body imports its own stylesheet`)
   const { StudioProfileMenuP2 } = loadP2(source, lib)
   const events = []
-  const props = (extra = {}) => ({ ...account, initials: 'AM', tierLabel: undefined, theme: 'light', sessionUsage: undefined, usage: undefined, onTheme: v => events.push(['theme', v]), onNavigate: p => events.push(['navigate', p]), onAbout: () => events.push(['about']), onLogout: () => events.push(['logout']), ...extra })
+  const props = (extra = {}) => ({ ...account, initials: 'AM', tierLabel: undefined, theme: 'light', sessionUsage: undefined, quota: undefined, onTheme: v => events.push(['theme', v]), onNavigate: p => events.push(['navigate', p]), onAbout: () => events.push(['about']), onLogout: () => events.push(['logout']), ...extra })
   const tree = StudioProfileMenuP2(props())
   const all = nodes(tree)
   eq(tree.type, 'DropdownMenuContent', `${label}: root`)
@@ -155,8 +187,10 @@ function proveBody(source, lib, label = 'body') {
   for (const word of ['Dashboard', 'Knowledge', 'Dark Mode', 'Light Mode', 'Sign Out', 'Settings']) ok(!rows.some(x => text(x) === word), `${label}: no "${word}" row`)
   // order against the separators, the appearance block and the groups
   const order = tree.props.children.flat(Infinity).filter(x => x && typeof x === 'object')
-  const orderOf = x => (x.type === 'DropdownMenuSeparator' ? 'sep' : x.type === 'DropdownMenuLabel' ? 'identity' : x.type === 'div' && x.props['data-studio-p2-appearance-block'] ? 'appearance' : x.type === 'div' ? 'usage-slot' : x.type === 'DropdownMenuItem' ? (x.props['data-studio-p2-row'] ?? 'signout') : x.type === 'Fragment' ? 'usage' : String(x.type))
+  const orderOf = x => (x.type === 'DropdownMenuSeparator' ? 'sep' : x.type === 'DropdownMenuLabel' ? 'identity' : x.type === 'div' && x.props['data-studio-p2-appearance-block'] ? 'appearance' : x.type === 'div' && x.props['data-studio-p2-usage'] ? 'usage' : x.type === 'div' ? 'session' : x.type === 'DropdownMenuItem' ? (x.props['data-studio-p2-row'] ?? 'signout') : String(x.type))
   deepEq(order.map(orderOf), ['identity', 'sep', 'details', 'appearance', 'settings', 'shortcuts', 'billing', 'sep', 'help', 'about', 'sep', 'signout'], `${label}: the body's order`)
+  const fullOrder = StudioProfileMenuP2(props({ quota: usageQuota(), sessionUsage: { type: 'S', props: {} } })).props.children.flat(Infinity).filter(x => x && typeof x === 'object')
+  deepEq(fullOrder.map(orderOf), ['identity', 'usage', 'session', 'sep', 'details', 'appearance', 'settings', 'shortcuts', 'billing', 'sep', 'help', 'about', 'sep', 'signout'], `${label}: with the usage card and the session strip: card under the identity, strip under the card`)
   // appearance
   const group = all.find(x => x.type === 'DropdownMenuRadioGroup')
   ok(group && group.props['data-studio-p2-appearance'] === 'true', `${label}: appearance group`)
@@ -185,13 +219,63 @@ function proveBody(source, lib, label = 'body') {
   const supplied = { type: 'SuppliedUsage', props: { children: 'Exact supplied session total' } }
   const strip = StudioProfileMenuP2(props({ sessionUsage: supplied })).props.children.flat(Infinity).find(x => x?.props?.['data-studio-session-usage'])
   ok(strip && strip.props.role === 'group' && strip.props['aria-label'] === 'Current session token usage' && strip.props.children === supplied, `${label}: the session strip is the supplied node, same wrapper`)
-  const usage = { type: 'SuppliedQuota', props: {} }
-  const withUsage = StudioProfileMenuP2(props({ usage })).props.children.flat(Infinity).filter(x => x && typeof x === 'object')
-  ok(withUsage.some(x => x.type === 'Fragment' && [].concat(x.props.children).includes(usage)), `${label}: the usage disclosure is the supplied node`)
-  eq(nodes(StudioProfileMenuP2(props({ usage }))).filter(x => x.type === 'DropdownMenuSeparator').length, 4, `${label}: usage adds one separator`)
-  eq(nodes(StudioProfileMenuP2(props())).filter(x => x.type === 'DropdownMenuSeparator').length, 3, `${label}: three separators without usage`)
+  proveUsageCard(StudioProfileMenuP2, props, label)
+  eq(nodes(StudioProfileMenuP2(props())).filter(x => x.type === 'DropdownMenuSeparator').length, 3, `${label}: three separators without the card`)
+  eq(nodes(StudioProfileMenuP2(props({ quota: usageQuota() }))).filter(x => x.type === 'DropdownMenuSeparator').length, 3, `${label}: the card adds no separator`)
 }
 
+// PRO-03: the card in the body
+const usageQuota = () => ({ tierLabel: 'Actual supplied plan', remainingPct: { daily: .37, weekly: .82 }, resetAt: { daily: new Date(Date.now() + 5.5 * 3_600_000).toISOString(), weekly: new Date(Date.now() + (24 * 7 + 12) * 3_600_000).toISOString() }, flags: {}, caps: {}, spent: {} }) // the component reads the real clock
+function proveUsageCard(StudioProfileMenuP2, props, label) {
+  const find = (tree, marker) => nodes(tree).filter(x => x.props?.[marker] !== undefined)
+  const first = (tree, marker, what) => { const [found] = find(tree, marker); ok(found, `${label}: ${what} exists`); return found }
+  for (const quota of [undefined, null, {}, { remainingPct: null }, { remainingPct: { daily: 'x', weekly: NaN } }]) {
+    const tree = StudioProfileMenuP2(props({ quota }))
+    eq(find(tree, 'data-studio-p2-usage').length, 0, `${label}: no card for ${JSON.stringify(quota)}`)
+    eq(find(tree, 'data-studio-p2-upgrade').length, 0, `${label}: no upgrade item without a card`)
+  }
+  const events = []
+  const tree = StudioProfileMenuP2(props({ quota: usageQuota(), onNavigate: p => events.push(p) }))
+  const [card, ...more] = find(tree, 'data-studio-p2-usage')
+  ok(card && more.length === 0 && card.type === 'div', `${label}: one card, always open (no disclosure button)`)
+  eq(card.props.role, 'group', `${label}: card is a group`)
+  eq(card.props['aria-label'], 'Your creative capacity', `${label}: card is named`)
+  eq(text(first(card, 'data-studio-p2-usage-title', 'card title')), 'Your creative capacity', `${label}: card title`)
+  const meters = find(card, 'data-studio-p2-meter')
+  deepEq(meters.map(x => x.props['data-studio-p2-meter']), ['daily', 'weekly'], `${label}: daily then weekly`)
+  const wantMeters = [['Daily', '37% left', 37, 'Resets in 5h'], ['Weekly', '82% left', 82, null]]
+  meters.forEach((meter, index) => {
+    const [name, share, percent, reset] = wantMeters[index]
+    const head = first(meter, 'data-studio-p2-meter-head', `${name} head`)
+    deepEq([].concat(head.props.children).map(x => text(x)), [name, share], `${label}: ${name} head`)
+    const bar = first(meter, 'data-studio-p2-meter-bar', `${name} bar`)
+    eq(bar.props.role, 'progressbar', `${label}: ${name} bar is a progressbar`)
+    eq(bar.props['aria-valuemin'], 0, `${label}: ${name} min`)
+    eq(bar.props['aria-valuemax'], 100, `${label}: ${name} max`)
+    eq(bar.props['aria-valuenow'], percent, `${label}: ${name} now`)
+    eq(bar.props['aria-label'], `${name} usage left`, `${label}: ${name} bar name`)
+    const fill = nodes(bar).find(x => x.type === 'i')
+    ok(fill, `${label}: ${name} fill exists`)
+    eq(fill.props.style.width, `${percent}%`, `${label}: ${name} fill width is the share left`)
+    const small = nodes(meter).find(x => x.type === 'small')
+    ok(small, `${label}: ${name} reset caption exists`)
+    if (reset) eq(text(small), reset, `${label}: ${name} reset text`)
+    else match(text(small), /^Resets /, `${label}: ${name} reset text starts with Resets`)
+  })
+  const upgrade = first(card, 'data-studio-p2-upgrade', 'the upgrade item')
+  eq(upgrade.type, 'DropdownMenuItem', `${label}: the upgrade link is a real menu item (keyboard reachable)`)
+  eq(upgrade.props['data-studio-v4-profile-role'], 'upgrade', `${label}: upgrade keeps the role the palette styles`)
+  eq(text(upgrade), 'Upgrade for more usage', `${label}: upgrade word`)
+  ok(nodes(upgrade).some(x => x.type === 'ChevronRight' && x.props['data-studio-p2-chevron'] === 'true'), `${label}: upgrade has the trailing chevron`)
+  upgrade.props.onClick()
+  deepEq(events, ['/billing'], `${label}: upgrade goes to billing through the parent`)
+  // a single readable share: one meter, the card stays
+  const one = StudioProfileMenuP2(props({ quota: { remainingPct: { daily: 'x', weekly: 0 } } }))
+  deepEq(find(one, 'data-studio-p2-meter').map(x => x.props['data-studio-p2-meter']), ['weekly'], `${label}: an unreadable share has no meter`)
+  ok(find(one, 'data-studio-p2-meter').length === 1 && nodes(find(one, 'data-studio-p2-meter')[0]).some(x => x.type === 'i'), `${label}: the 0 percent meter is there`)
+  eq(nodes(find(one, 'data-studio-p2-meter')[0]).find(x => x.type === 'i').props.style.width, '0%', `${label}: 0 percent left is an empty meter, still shown`)
+  eq([].concat(find(one, 'data-studio-p2-meter')[0].props.children).filter(Boolean).length, 2, `${label}: no reset text, no empty caption`)
+}
 // ---------------------------------------------------------------- 3. the wiring in the real component
 const user = { id: 'owned', name: 'Ada Morgan', email: 'owned@example.invalid', image: '/owned-avatar.png' }
 const quotaBody = { tierLabel: 'Actual supplied plan', remainingPct: { daily: .37, weekly: .82 }, flags: { dailyNear: true, dailyAt: false, weeklyNear: false, weeklyAt: false }, resetAt: { daily: '2099-01-01T00:00:00Z', weekly: '2099-01-08T00:00:00Z' }, caps: { dailyCents: 10, weeklyCents: 20 }, spent: { dailyCents: 6, weeklyCents: 3 } }
@@ -237,17 +321,15 @@ async function proveWiring(parentSource, label = 'wiring') {
   const on = harness({ code: parentSource })
   ok(on.p2 && !on.content, `${label}: on renders the P2 body and not the original content`)
   eq(on.p2.type, 'StudioProfileMenuP2', `${label}: P2 element`)
-  for (const [key, want] of [['name', user.name], ['email', user.email], ['image', user.image], ['initials', 'AM'], ['theme', 'light'], ['tierLabel', undefined], ['usage', null]]) eq(on.p2.props[key], want, `${label}: prop ${key} before the quota read`)
+  for (const [key, want] of [['name', user.name], ['email', user.email], ['image', user.image], ['initials', 'AM'], ['theme', 'light'], ['tierLabel', undefined], ['quota', null]]) eq(on.p2.props[key], want, `${label}: prop ${key} before the quota read`)
   eq(on.p2.props.sessionUsage?.props?.children, 'Exact supplied session total', `${label}: the session usage node is passed through`)
   ok(!nodes(on.tree).some(x => x.props?.['data-studio-session-usage']), `${label}: the original session wrapper is not rendered twice`)
   on.open(true); await on.flush()
   deepEq(on.events.map(e => e.slice(0, 2)), [['read', '/api/usage/quota']], `${label}: the same single quota read on open`)
   eq(on.p2.props.tierLabel, 'Actual supplied plan', `${label}: tier label from the quota read`)
-  eq(on.p2.props.usage?.props?.data?.tierLabel, 'Actual supplied plan', `${label}: the usage disclosure carries the quota`)
-  eq(on.p2.props.usage?.props?.isExpanded, false, `${label}: collapsed at first`)
-  ok(typeof on.p2.props.usage?.props?.onToggle === 'function', `${label}: the disclosure has a toggle`)
-  on.p2.props.usage.props.onToggle(); on.render()
-  eq(on.p2.props.usage?.props?.isExpanded, true, `${label}: the disclosure toggles`)
+  deepEq(on.p2.props.quota?.remainingPct, quotaBody.remainingPct, `${label}: the card gets the real shares left`)
+  deepEq(on.p2.props.quota?.resetAt, quotaBody.resetAt, `${label}: the card gets the real reset times`)
+  eq(on.p2.props.usage, undefined, `${label}: no collapsed disclosure is passed (the card is always open)`)
   on.events.length = 0
   on.p2.props.onNavigate('/billing'); on.render()
   deepEq(on.events, [['navigate', '/billing']], `${label}: navigation goes through the router`)
@@ -289,9 +371,13 @@ const SCOPE = '[data-studio-p2-profile="true"][data-studio-v4-profile="true"]'
 function proveCss(css, label = 'css') {
   const rules = []
   postcss.parse(css).walkRules(rule => rules.push(rule))
-  ok(rules.length >= 10, `${label}: has its rules`)
-  for (const rule of rules) for (const selector of rule.selectors) ok(selector.startsWith(`${SCOPE} `), `${label}: scoped to the P2 menu: ${selector}`)
-  const decls = selector => { const rule = rules.find(r => r.selectors.includes(`${SCOPE} ${selector}`)); ok(rule, `${label}: rule ${selector}`); return Object.fromEntries(rule.nodes.filter(n => n.type === 'decl').map(n => [n.prop, n.value])) }
+  ok(rules.length >= 20, `${label}: has its rules`)
+  const tokenRules = [SCOPE, `.dark ${SCOPE}`]
+  for (const rule of rules) for (const selector of rule.selectors) {
+    if (tokenRules.includes(selector)) deepEq(rule.nodes.map(n => n.prop), ['--sp-meter'], `${label}: ${selector} declares the meter colour and nothing else`)
+    else ok(selector.startsWith(`${SCOPE} `), `${label}: scoped to the P2 menu: ${selector}`)
+  }
+  const decls = selector => { const rule = rules.find(r => r.selectors.includes(selector.startsWith('.dark') ? selector : `${SCOPE} ${selector}`)); ok(rule, `${label}: rule ${selector}`); return Object.fromEntries(rule.nodes.filter(n => n.type === 'decl').map(n => [n.prop, n.value])) }
   const disc = decls('[data-studio-p2-disc="true"]'); eq(disc.width, '34px', `${label}: disc width`); eq(disc.height, '34px', `${label}: disc height`)
   eq(decls('[data-studio-p2-identity="true"]').display, 'flex', `${label}: identity is a row`)
   eq(decls('[data-studio-p2-appearance="true"]').display, 'grid', `${label}: the control is a grid`)
@@ -300,7 +386,19 @@ function proveCss(css, label = 'css') {
   eq(decls('[data-studio-p2-appearance="true"] [role="menuitemradio"][data-state="checked"]')['background-color'], 'var(--sp-panel)', `${label}: the selected segment is the raised panel`)
   eq(decls('[data-studio-p2-eyebrow="true"]')['text-transform'], 'uppercase', `${label}: eyebrow`)
   eq(decls('[data-studio-p2-chevron="true"]')['margin-left'], 'auto', `${label}: chevron at the end`)
-  ok(!/#[0-9a-f]{3,8}\b/i.test(css), `${label}: palette tokens only, no literal colours (dark mode comes from the --sp-* variables)`)
+  // PRO-03: the card (the mockup's: soft panel, 1px line, 8px radius, 4px meter)
+  const card = decls('[data-studio-p2-usage="true"]')
+  eq(card.border, '1px solid var(--sp-line)', `${label}: card border`); eq(card['border-radius'], '8px', `${label}: card radius`); eq(card['background-color'], 'var(--sp-soft)', `${label}: card surface`); eq(card.padding, '12px', `${label}: card padding`)
+  const bar = decls('[data-studio-p2-meter-bar="true"]')
+  eq(bar.height, '4px', `${label}: thin meter`); eq(bar['border-radius'], '5px', `${label}: meter radius`); eq(bar['background-color'], 'var(--sp-line)', `${label}: meter track`); eq(bar.overflow, 'hidden', `${label}: the fill is clipped to the track`)
+  const fill = decls('[data-studio-p2-meter-bar="true"] > i')
+  eq(fill['background-color'], 'var(--sp-meter)', `${label}: meter fill`); eq(fill.height, '100%', `${label}: fill height`); eq(fill.display, 'block', `${label}: fill is a block`)
+  const head = decls('[data-studio-p2-meter-head="true"]'); eq(head.display, 'flex', `${label}: meter head is a row`); eq(head['justify-content'], 'space-between', `${label}: label left, share right`)
+  eq(decls('[data-studio-p2-usage="true"] [data-studio-p2-meter] + [data-studio-p2-meter]')['margin-top'], '10px', `${label}: space between the meters`)
+  eq(decls('[data-studio-p2-meter] > small').color, 'var(--sp-muted)', `${label}: reset text is muted`)
+  eq(decls(SCOPE.length ? `.dark ${SCOPE}` : '')['--sp-meter'], '#7fb7aa', `${label}: dark meter colour`)
+  eq(Object.fromEntries(rules.find(r => r.selectors.includes(SCOPE)).nodes.map(n => [n.prop, n.value]))['--sp-meter'], '#34857b', `${label}: light meter colour`)
+  postcss.parse(css).walkDecls(decl => { if (decl.prop !== '--sp-meter') nomatch(decl.value, /#[0-9a-f]{3,8}\b|rgba?\(|hsla?\(/i, `${label}: palette tokens only in ${decl.prop} (dark mode comes from the --sp-* variables)`) })
 }
 
 // ---------------------------------------------------------------- .env.example
@@ -345,6 +443,41 @@ const MUTANTS = [
   [LIB, 'sign out word', "signOut: 'Sign out'", "signOut: 'Sign Out'"],
   [LIB, 'about word', "about: 'About Studio'", "about: 'About'"],
   [LIB, 'appearance word', "appearance: 'Appearance'", "appearance: 'Theme'"],
+  [LIB, 'usage title', "title: 'Your creative capacity'", "title: 'Usage remaining'"],
+  [LIB, 'usage left word', "left: 'left'", "left: 'used'"],
+  [LIB, 'usage upgrade word', "upgrade: 'Upgrade for more usage'", "upgrade: 'Upgrade'"],
+  [LIB, 'usage upgrade route', "upgradeHref: '/billing'", "upgradeHref: '/pricing'"],
+  [LIB, 'percent not clamped high', 'Math.max(0, Math.min(1, share))', 'Math.max(0, share)'],
+  [LIB, 'percent not clamped low', 'Math.max(0, Math.min(1, share))', 'Math.min(1, share)'],
+  [LIB, 'percent floored', 'Math.round(Math.max(0', 'Math.floor(Math.max(0'],
+  [LIB, 'percent as a fraction', 'Math.min(1, share)) * 100)', 'Math.min(1, share)) * 10)'],
+  [LIB, 'percent takes NaN', "typeof share === 'number' && Number.isFinite(share)", "typeof share === 'number'"],
+  [LIB, 'percent takes strings', "typeof share === 'number' && Number.isFinite(share)", 'Number.isFinite(Number(share))'],
+  [LIB, 'reset: equal time is not now', 'if (ms <= 0)', 'if (ms < 0)'],
+  [LIB, 'reset: past is not now', "return 'Resets now'", "return ''"],
+  [LIB, 'reset: hours rounded up', 'Math.floor(ms / HOUR_MS)', 'Math.ceil(ms / HOUR_MS)'],
+  [LIB, 'reset: hour unit', 'const HOUR_MS = 3_600_000', 'const HOUR_MS = 60_000'],
+  [LIB, 'reset: under an hour', 'if (hours < 1)', 'if (hours < 2)'],
+  [LIB, 'reset: under an hour word', "'Resets in under 1h'", "'Resets soon'"],
+  [LIB, 'reset: a day is hours', 'hours < 24 ?', 'hours <= 24 ?'],
+  [LIB, 'reset: two days are hours', 'hours < 24 ?', 'hours < 48 ?'],
+  [LIB, 'reset: hours word', '`Resets in ${hours}h`', '`In ${hours}h`'],
+  [LIB, 'reset: date word', '`Resets ${formatDate(at)}`', '`${formatDate(at)}`'],
+  [LIB, 'reset: unreadable time kept', "if (Number.isNaN(ms)) return ''", ''],
+  [LIB, 'reset: non-text accepted', "if (typeof resetAt !== 'string') return ''", "if (resetAt == null) return ''"],
+  [LIB, 'reset: default date long month', "{ month: 'short', day: 'numeric' }", "{ month: 'long', day: 'numeric' }"],
+  [LIB, 'reset: default date has a year', "{ month: 'short', day: 'numeric' }", "{ month: 'short', day: 'numeric', year: 'numeric' }"],
+  [LIB, 'meters: weekly first', "  { id: 'daily', label: 'Daily' },\n  { id: 'weekly', label: 'Weekly' },", "  { id: 'weekly', label: 'Weekly' },\n  { id: 'daily', label: 'Daily' },"],
+  [LIB, 'meters: daily word', "label: 'Daily'", "label: 'Today'"],
+  [LIB, 'meters: weekly word', "label: 'Weekly'", "label: 'Week'"],
+  [LIB, 'meters: unreadable share kept', 'if (percent === null) continue', ''],
+  [LIB, 'meters: unreadable share read as 0', 'const percent = studioUsagePercent(quota.remainingPct?.[id])', 'const percent = studioUsagePercent(quota.remainingPct?.[id]) ?? 0'],
+  [LIB, 'meters: no quota is a crash', 'if (!quota) return []', ''],
+  [LIB, 'meters: reset from the wrong window', 'quota.resetAt?.[id]', "quota.resetAt?.['daily']"],
+  [LIB, 'meters: share from the wrong window', 'quota.remainingPct?.[id]', "quota.remainingPct?.['daily']"],
+  [LIB, 'meters: reset text dropped', "reset: studioUsageResetText(quota.resetAt?.[id], now, formatDate) })", "reset: '' })"],
+  [LIB, 'meters: formatter ignored', 'studioUsageResetText(quota.resetAt?.[id], now, formatDate)', 'studioUsageResetText(quota.resetAt?.[id], now)'],
+  [LIB, 'meters: clock ignored', 'studioUsageResetText(quota.resetAt?.[id], now, formatDate)', 'studioUsageResetText(quota.resetAt?.[id], new Date(), formatDate)'],
   [LIB, 'an import added', "export type StudioAppearance", "import { cn } from '@/lib/utils'\nexport type StudioAppearance"],
   [P2, 'root flag marker dropped', ' data-studio-p2-profile="true"', ''],
   [P2, 'palette marker dropped', 'data-studio-v4-profile="true" data-studio-profile-fidelity', 'data-studio-profile-fidelity'],
@@ -389,13 +522,42 @@ const MUTANTS = [
   [P2, 'about closes by itself', 'onSelect={(event) => { event.preventDefault(); onAbout() }}', 'onSelect={() => onAbout()}'],
   [P2, 'about does nothing', 'onSelect={(event) => { event.preventDefault(); onAbout() }}', 'onSelect={(event) => { event.preventDefault() }}'],
   [P2, 'about word', '<span>{STUDIO_PROFILE_WORDS.about}</span>', '<span>About</span>'],
-  [P2, 'usage always', '{usage && (', '{(usage || true) && ('],
-  [P2, 'usage separator dropped', '          <DropdownMenuSeparator data-studio-v4-profile-role="separator" />\n          {usage}', '          {usage}'],
   [P2, 'last separator dropped', '      <DropdownMenuSeparator data-studio-v4-profile-role="separator" />\n\n      <DropdownMenuItem data-studio-v4-profile-role="danger"', '      <DropdownMenuItem data-studio-v4-profile-role="danger"'],
   [P2, 'sign out role dropped', 'data-studio-v4-profile-role="danger" onClick={onLogout}', 'data-studio-v4-profile-role="item" onClick={onLogout}'],
   [P2, 'sign out not red', 'className="text-red-600 dark:text-red-400"', 'className=""'],
   [P2, 'sign out does nothing', 'onClick={onLogout}', 'onClick={() => undefined}'],
   [P2, 'sign out word', '<span>{STUDIO_PROFILE_WORDS.signOut}</span>', '<span>Sign Out</span>'],
+  [P2, 'card dropped', '      {usageCard(quota, onNavigate)}\n', ''],
+  [P2, 'card above the identity', '      {usageCard(quota, onNavigate)}\n      {sessionUsage', '      {sessionUsage'],
+  [P2, 'card after the session strip', '      {usageCard(quota, onNavigate)}\n      {sessionUsage && <div data-studio-session-usage="true" role="group" aria-label="Current session token usage">{sessionUsage}</div>}', '      {sessionUsage && <div data-studio-session-usage="true" role="group" aria-label="Current session token usage">{sessionUsage}</div>}\n      {usageCard(quota, onNavigate)}'],
+  [P2, 'card without a read', 'if (meters.length === 0) return null', ''],
+  [P2, 'card from no quota', 'const meters = studioUsageMeters(quota)', 'const meters = studioUsageMeters(null)'],
+  [P2, 'card marker dropped', 'data-studio-p2-usage="true" role="group"', 'role="group"'],
+  [P2, 'card not a group', '<div data-studio-p2-usage="true" role="group" aria-label={STUDIO_USAGE_WORDS.title}>', '<div data-studio-p2-usage="true" aria-label={STUDIO_USAGE_WORDS.title}>'],
+  [P2, 'card unnamed', 'role="group" aria-label={STUDIO_USAGE_WORDS.title}>', 'role="group">'],
+  [P2, 'card title dropped', '<p data-studio-p2-usage-title="true">{STUDIO_USAGE_WORDS.title}</p>', ''],
+  [P2, 'card title word', '<p data-studio-p2-usage-title="true">{STUDIO_USAGE_WORDS.title}</p>', '<p data-studio-p2-usage-title="true">Usage</p>'],
+  [P2, 'meter marker dropped', '<div key={meter.id} data-studio-p2-meter={meter.id}>', '<div key={meter.id}>'],
+  [P2, 'meter head dropped', '          <div data-studio-p2-meter-head="true">', '          <div>'],
+  [P2, 'meter label dropped', '            <span>{meter.label}</span>\n', ''],
+  [P2, 'meter share word', '<span>{meter.percent}% {STUDIO_USAGE_WORDS.left}</span>', '<span>{meter.percent}%</span>'],
+  [P2, 'meter share used', '<span>{meter.percent}% {STUDIO_USAGE_WORDS.left}</span>', '<span>{100 - meter.percent}% used</span>'],
+  [P2, 'bar not a progressbar', 'role="progressbar"', 'role="presentation"'],
+  [P2, 'bar value dropped', 'aria-valuenow={meter.percent}', ''],
+  [P2, 'bar max changed', 'aria-valuemax={100}', 'aria-valuemax={1}'],
+  [P2, 'bar min changed', 'aria-valuemin={0}', 'aria-valuemin={1}'],
+  [P2, 'bar unnamed', 'aria-label={`${meter.label} usage left`}', 'aria-label="Usage"'],
+  [P2, 'bar marker dropped', '<div data-studio-p2-meter-bar="true" role="progressbar"', '<div role="progressbar"'],
+  [P2, 'fill ignores the share', 'style={{ width: `${meter.percent}%` }}', 'style={{ width: "100%" }}'],
+  [P2, 'fill inverted', 'style={{ width: `${meter.percent}%` }}', 'style={{ width: `${100 - meter.percent}%` }}'],
+  [P2, 'reset always rendered', '{meter.reset && <small>', '{true && <small>'],
+  [P2, 'reset dropped', '          {meter.reset && <small>{meter.reset}</small>}\n', ''],
+  [P2, 'upgrade not an item', '<DropdownMenuItem data-studio-v4-profile-role="upgrade" data-studio-p2-upgrade="true"', '<div data-studio-v4-profile-role="upgrade" data-studio-p2-upgrade="true"'],
+  [P2, 'upgrade role dropped', 'data-studio-v4-profile-role="upgrade" data-studio-p2-upgrade="true"', 'data-studio-p2-upgrade="true"'],
+  [P2, 'upgrade goes elsewhere', 'onClick={() => onNavigate(STUDIO_USAGE_WORDS.upgradeHref)}', 'onClick={() => onNavigate("/dashboard")}'],
+  [P2, 'upgrade does nothing', 'onClick={() => onNavigate(STUDIO_USAGE_WORDS.upgradeHref)}', 'onClick={() => undefined}'],
+  [P2, 'upgrade word', '<span>{STUDIO_USAGE_WORDS.upgrade}</span>', '<span>Upgrade</span>'],
+  [P2, 'upgrade chevron dropped', '        <span>{STUDIO_USAGE_WORDS.upgrade}</span>\n        <ChevronRight data-studio-p2-chevron="true" />', '        <span>{STUDIO_USAGE_WORDS.upgrade}</span>'],
   [P2, 'stylesheet not imported', 'import "./user-profile-menu-p2.css"', '// import "./user-profile-menu-p2.css"'],
   [P2, 'an unexpected import', 'import { Badge } from "@/components/ui/badge"', 'import { Badge } from "@/components/ui/badge"\nconst unexpected = require("@/lib/utils")'],
   [PARENT, 'flag read loosely', "process.env.NEXT_PUBLIC_STUDIO_P2_PROFILE_MENU === 'true'", "process.env.NEXT_PUBLIC_STUDIO_P2_PROFILE_MENU !== 'false'"],
@@ -410,10 +572,11 @@ const MUTANTS = [
   [PARENT, 'photo not passed', 'image={user.image} initials', 'image={null} initials'],
   [PARENT, 'initials not passed', 'initials={userInitials} tierLabel', 'initials="U" tierLabel'],
   [PARENT, 'tier not passed', 'tierLabel={quota?.tierLabel}', 'tierLabel="Pro"'],
-  [PARENT, 'session usage not passed', 'sessionUsage={sessionUsage} usage=', 'sessionUsage={undefined} usage='],
-  [PARENT, 'usage not built', 'usage={quota && <UsageRemaining data={quota} isExpanded={isUsageExpanded} onToggle={() => setIsUsageExpanded(v => !v)} />}', 'usage={null}'],
-  [PARENT, 'usage toggle dead', 'onToggle={() => setIsUsageExpanded(v => !v)} />} theme', 'onToggle={() => undefined} />} theme'],
-  [PARENT, 'usage data wrong', 'usage={quota && <UsageRemaining data={quota}', 'usage={quota && <UsageRemaining data={{ ...quota, tierLabel: "x" }}'],
+  [PARENT, 'session usage not passed', 'sessionUsage={sessionUsage} quota=', 'sessionUsage={undefined} quota='],
+  [PARENT, 'quota not passed', 'quota={quota} theme', 'quota={null} theme'],
+  [PARENT, 'quota shares wrong', 'quota={quota} theme', 'quota={quota && { ...quota, remainingPct: { daily: 0, weekly: 0 } }} theme'],
+  [PARENT, 'quota reset times wrong', 'quota={quota} theme', 'quota={quota && { ...quota, resetAt: undefined }} theme'],
+  [PARENT, 'collapsed disclosure passed again', 'quota={quota} theme', 'quota={quota} usage={quota && <UsageRemaining data={quota} isExpanded={isUsageExpanded} onToggle={() => setIsUsageExpanded(v => !v)} />} theme'],
   [PARENT, 'theme not passed', 'theme={theme} onTheme', 'theme="light" onTheme'],
   [PARENT, 'setTheme not wired', 'onTheme={setTheme}', 'onTheme={() => undefined}'],
   [PARENT, 'theme toggles instead', 'onTheme={setTheme}', 'onTheme={() => toggleTheme()}'],
@@ -438,6 +601,27 @@ const MUTANTS = [
   [CSS, 'selected not raised', 'font-weight: 600; background-color: var(--sp-panel);', 'font-weight: 600; background-color: var(--sp-soft);'],
   [CSS, 'eyebrow not uppercase', 'text-transform: uppercase;', 'text-transform: none;'],
   [CSS, 'chevron not at the end', '[data-studio-p2-chevron="true"] { margin-left: auto;', '[data-studio-p2-chevron="true"] { margin-left: 0;'],
+  [CSS, 'meter colour not scoped', '[data-studio-p2-profile="true"][data-studio-v4-profile="true"] { --sp-meter: #34857b; }', '[data-studio-v4-profile="true"] { --sp-meter: #34857b; }'],
+  [CSS, 'meter colour light', '--sp-meter: #34857b;', '--sp-meter: #6a4fc0;'],
+  [CSS, 'meter colour dark', '--sp-meter: #7fb7aa;', '--sp-meter: #34857b;'],
+  [CSS, 'meter colour rule widened', '{ --sp-meter: #34857b; }', '{ --sp-meter: #34857b; color: red; }'],
+  [CSS, 'card has no border', 'border: 1px solid var(--sp-line); border-radius: 8px; background-color: var(--sp-soft);', 'border: 0; border-radius: 8px; background-color: var(--sp-soft);'],
+  [CSS, 'card radius', 'border: 1px solid var(--sp-line); border-radius: 8px;', 'border: 1px solid var(--sp-line); border-radius: 4px;'],
+  [CSS, 'card surface', 'border-radius: 8px; background-color: var(--sp-soft); }', 'border-radius: 8px; background-color: var(--sp-panel); }'],
+  [CSS, 'card padding', 'margin: 12px 0; padding: 12px; border: 1px solid', 'margin: 12px 0; padding: 4px; border: 1px solid'],
+  [CSS, 'meter thick', 'height: 4px; margin: 6px 0 5px;', 'height: 8px; margin: 6px 0 5px;'],
+  [CSS, 'meter square', 'margin: 6px 0 5px; border-radius: 5px;', 'margin: 6px 0 5px; border-radius: 0;'],
+  [CSS, 'meter track', 'border-radius: 5px; background-color: var(--sp-line); overflow: hidden;', 'border-radius: 5px; background-color: var(--sp-panel); overflow: hidden;'],
+  [CSS, 'meter not clipped', 'background-color: var(--sp-line); overflow: hidden;', 'background-color: var(--sp-line);'],
+  [CSS, 'fill colour', 'height: 100%; border-radius: 5px; background-color: var(--sp-meter);', 'height: 100%; border-radius: 5px; background-color: var(--sp-accent);'],
+  [CSS, 'fill height', 'display: block; height: 100%;', 'display: block; height: 50%;'],
+  [CSS, 'fill inline', 'display: block; height: 100%;', 'display: inline; height: 100%;'],
+  [CSS, 'head not a row', 'display: flex; align-items: baseline; justify-content: space-between;', 'display: block; align-items: baseline; justify-content: space-between;'],
+  [CSS, 'head not spread', 'justify-content: space-between; gap: 8px;', 'justify-content: flex-start; gap: 8px;'],
+  [CSS, 'meters touch', '[data-studio-p2-meter] + [data-studio-p2-meter] { margin-top: 10px; }', '[data-studio-p2-meter] + [data-studio-p2-meter] { margin-top: 0; }'],
+  [CSS, 'reset not muted', '[data-studio-p2-meter] > small { display: block; font-size: 9px; line-height: 13px; color: var(--sp-muted); }', '[data-studio-p2-meter] > small { display: block; font-size: 9px; line-height: 13px; color: var(--sp-text); }'],
+  [CSS, 'usage rule not scoped', '[data-studio-p2-profile="true"][data-studio-v4-profile="true"] [data-studio-p2-usage-title="true"] {', '[data-studio-p2-usage-title="true"] {'],
+  [CSS, 'literal colour in the card', 'background-color: var(--sp-soft); }\n[data-studio-p2-profile="true"][data-studio-v4-profile="true"] [data-studio-p2-usage-title', 'background-color: #edf2f0; }\n[data-studio-p2-profile="true"][data-studio-v4-profile="true"] [data-studio-p2-usage-title'],
   [CSS, 'literal colour', 'color: var(--sp-muted); font-size: 11px; font-weight: 600; }', 'color: #566965; font-size: 11px; font-weight: 600; }'],
   [ENV, 'default on', `${FLAG}="false"`, `${FLAG}="true"`],
   [ENV, 'not documented', `${FLAG}="false"\n`, ''],
@@ -465,4 +649,4 @@ counting = true
 assert.deepEqual(survivors, [], `mutants survived: ${survivors.join(', ')}`)
 eq(killed, MUTANTS.length)
 
-console.log(`Studio P2 profile menu (PRO-02/04/05/06/07/08/10): ${checks} checks passed, ${killed}/${MUTANTS.length} mutants killed; no network.`)
+console.log(`Studio P2 profile menu (PRO-02/03/04/05/06/07/08/10): ${checks} checks passed, ${killed}/${MUTANTS.length} mutants killed; no network.`)

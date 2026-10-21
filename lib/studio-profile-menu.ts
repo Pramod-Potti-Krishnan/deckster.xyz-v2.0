@@ -1,4 +1,4 @@
-// PASS2 PRO-02/04/05/06/07/08/10 (flag NEXT_PUBLIC_STUDIO_P2_PROFILE_MENU, default off). Import-free: words, routes and the theme mapping only.
+// PASS2 PRO-02/03/04/05/06/07/08/10 (flag NEXT_PUBLIC_STUDIO_P2_PROFILE_MENU, default off). Import-free: words, routes, the theme mapping and the usage meters only.
 //
 // The Studio account menu (the rail avatar) follows the accepted v4 mockup: "Your details", a three-way Appearance control (Light / Dark / Auto),
 // "Settings & preferences", "Keyboard shortcuts", "Workspace & billing", trailing chevrons, sentence-case "Sign out". "Dashboard" and "Knowledge"
@@ -54,3 +54,68 @@ export const STUDIO_PROFILE_WORDS = {
   about: 'About Studio',
   signOut: 'Sign out',
 } as const
+
+// PRO-03: "Your creative capacity" is always visible, as the mockup's card, with the REAL numbers: the daily and weekly share of the allowance that is
+// left (what /api/usage/quota already returns for the old collapsed "Usage remaining" row), one thin meter each, and when it resets. Nothing is invented:
+// no token counts (the quota read has none), no plan simulator.
+
+export type StudioUsageMeterId = 'daily' | 'weekly'
+
+export interface StudioUsageMeter {
+  id: StudioUsageMeterId
+  label: string
+  /** Whole percent of the allowance that is left, 0 to 100. */
+  percent: number
+  /** "Resets in 5h" or "Resets Oct 28"; empty when the read carries no usable reset time. */
+  reset: string
+}
+
+/** The part of the quota read the card uses (the same shape the menu already fetches). */
+export interface StudioQuotaForMeters {
+  remainingPct?: { daily?: unknown; weekly?: unknown } | null
+  resetAt?: { daily?: unknown; weekly?: unknown } | null
+}
+
+export const STUDIO_USAGE_WORDS = {
+  title: 'Your creative capacity',
+  left: 'left',
+  upgrade: 'Upgrade for more usage',
+  upgradeHref: '/billing',
+} as const
+
+const METERS: readonly { id: StudioUsageMeterId; label: string }[] = [
+  { id: 'daily', label: 'Daily' },
+  { id: 'weekly', label: 'Weekly' },
+]
+
+/** Whole percent left for a 0..1 share (clamped, like the old row); null for anything that is not a finite number, so no meter shows a made-up value. */
+export function studioUsagePercent(share: unknown): number | null {
+  return typeof share === 'number' && Number.isFinite(share) ? Math.round(Math.max(0, Math.min(1, share)) * 100) : null
+}
+
+const HOUR_MS = 3_600_000
+const shortDate = (date: Date): string => date.toLocaleDateString([], { month: 'short', day: 'numeric' })
+
+/** When the allowance resets: hours while under a day away, the date after that; empty for a missing or unreadable time. */
+export function studioUsageResetText(resetAt: unknown, now: Date, formatDate: (date: Date) => string = shortDate): string {
+  if (typeof resetAt !== 'string') return ''
+  const at = new Date(resetAt)
+  const ms = at.getTime() - now.getTime()
+  if (Number.isNaN(ms)) return ''
+  if (ms <= 0) return 'Resets now'
+  const hours = Math.floor(ms / HOUR_MS)
+  if (hours < 1) return 'Resets in under 1h'
+  return hours < 24 ? `Resets in ${hours}h` : `Resets ${formatDate(at)}`
+}
+
+/** The card's meters, daily then weekly; a meter whose share is unreadable is left out (none at all when the read has neither). */
+export function studioUsageMeters(quota: StudioQuotaForMeters | null | undefined, now: Date = new Date(), formatDate?: (date: Date) => string): StudioUsageMeter[] {
+  if (!quota) return []
+  const meters: StudioUsageMeter[] = []
+  for (const { id, label } of METERS) {
+    const percent = studioUsagePercent(quota.remainingPct?.[id])
+    if (percent === null) continue
+    meters.push({ id, label, percent, reset: studioUsageResetText(quota.resetAt?.[id], now, formatDate) })
+  }
+  return meters
+}
