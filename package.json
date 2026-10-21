@@ -139,7 +139,8 @@
     "test:studio-slide-delete-refresh": "node scripts/test-studio-slide-delete-refresh.mjs",
     "test:studio-slide-ops-via-viewer": "node scripts/test-studio-slide-ops-via-viewer.mjs",
     "test:studio-image-pending-write": "node scripts/test-studio-image-pending-write.mjs",
-    "test:studio-knowledge-filter-tabs": "node scripts/test-studio-knowledge-filter-tabs.mjs"
+    "test:studio-knowledge-filter-tabs": "node scripts/test-studio-knowledge-filter-tabs.mjs",
+    "test:studio-knowledge-header-actions": "node scripts/test-studio-knowledge-header-actions.mjs"
   },
   "dependencies": {
     "@auth/prisma-adapter": "^2.10.0",
