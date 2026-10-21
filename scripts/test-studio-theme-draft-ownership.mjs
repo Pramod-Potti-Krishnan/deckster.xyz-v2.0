@@ -113,7 +113,10 @@ const p2cSwaps=[
 ]
 for(const [changed] of p2cSwaps)assert.equal(currentText.split(changed).length-1,1,'P2C: '+changed.slice(0,48)+' appears once')
 const unP2c=code=>p2cSwaps.reduce((out,[changed,original])=>out.replaceAll(changed,original),code)
-const restored=unP2c(currentText)
+// PASS2D 6b (NEXT_PUBLIC_STUDIO_THEME_BASE_DROPDOWN): the one line that holds the flag-gated dropdown beside the native select it replaces, and the comment above it. Turned back
+// into the select here for the equality; test-studio-theme-base-dropdown.mjs proves the dropdown itself.
+const unBase6b = code => code.replace(/ *\{\/\* PASS2D 6b[^\n]*\*\/\}\n/, '').replace(/\{STUDIO_THEME_BASE_DROPDOWN_ENABLED \? <BaseThemePicker [^\n]*? \/> : (<label className="sl-field">Base theme<select[^\n]*<\/select><\/label>)\}\n/, '$1\n')
+const restored=unBase6b(unP2c(currentText))
  .replace(fontPickers,'')
  .replace(fontSentence,baseSentence)
  .replace("    // A previously opened confirmation can outlive the click that starts save.\n    if (!mounted.current || !accountCanStart() || busy.current) return\n",'')

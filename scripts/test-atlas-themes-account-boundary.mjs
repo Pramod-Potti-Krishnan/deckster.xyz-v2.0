@@ -26,7 +26,10 @@ const p2cSwaps = [
 for (const [changed] of p2cSwaps) assert.equal(source.split(changed).length - 1, 1, `P2C: ${changed.slice(0, 48)} appears once`)
 const unP2c = code => p2cSwaps.reduce((out, [changed, original]) => out.replaceAll(changed, original), code)
 const ast = code => ts.createSourceFile('themes.tsx', code, ts.ScriptTarget.Latest, true, ts.ScriptKind.TSX)
-const currentAst = ast(unP2c(source.replaceAll('if (!mounted.current || !accountIsCurrent()) return; ', '').replaceAll(fontPickers, '').replaceAll(fontSentence, baseSentence))), priorAst = ast(baseline)
+// PASS2D 6b (NEXT_PUBLIC_STUDIO_THEME_BASE_DROPDOWN): the one line that holds the flag-gated dropdown beside the native select it replaces, and the comment above it. Turned back
+// into the select here for the equality; test-studio-theme-base-dropdown.mjs proves the dropdown itself.
+const unBase6b = code => code.replace(/ *\{\/\* PASS2D 6b[^\n]*\*\/\}\n/, '').replace(/\{STUDIO_THEME_BASE_DROPDOWN_ENABLED \? <BaseThemePicker [^\n]*? \/> : (<label className="sl-field">Base theme<select[^\n]*<\/select><\/label>)\}\n/, '$1\n')
+const currentAst = ast(unBase6b(unP2c(source.replaceAll('if (!mounted.current || !accountIsCurrent()) return; ', '').replaceAll(fontPickers, '').replaceAll(fontSentence, baseSentence)))), priorAst = ast(baseline)
 const findNode = (node,predicate) => { if(predicate(node))return node;let result;ts.forEachChild(node,child=>{if(!result)result=findNode(child,predicate)});return result }
 const printer=ts.createPrinter({removeComments:true})
 for(const predicate of [node=>ts.isFunctionDeclaration(node)&&node.name?.text==='ColorField',node=>ts.isJsxElement(node)&&node.openingElement.tagName.getText()==='fieldset',...['changePreset','setOverride'].map(name=>node=>ts.isVariableDeclaration(node)&&node.name.getText()===name)]){
@@ -79,6 +82,8 @@ function harness({ owner = 'account-A', ready = true, current = { current: { own
     'lucide-react': Object.fromEntries(['ArrowRight', 'Check', 'Copy', 'Palette', 'RefreshCw', 'RotateCcw', 'Save', 'Star'].map(n => [n, n])),
   }
   imports['./library-controls'].libraryDate = String
+  // PASS2D 6b: the flag-gated base-theme dropdown (default off, so never drawn here; proven in test-studio-theme-base-dropdown.mjs)
+  Object.assign(imports, { './base-theme-picker': { BaseThemePicker: 'BaseThemePicker' }, '@/lib/studio-theme-base-dropdown': { STUDIO_THEME_BASE_DROPDOWN_ENABLED: false } })
   const mod = { exports: {} }, context = { module: mod, exports: mod.exports, process: { env: { NEXT_PUBLIC_STUDIO_V4_SHELL: 'true' } }, window: { addEventListener() {}, removeEventListener() {} }, fetch: refuse, require: name => { assert.ok(name in imports, name); return imports[name] } }
   const point = '  return <LibraryWorkspace'
   assert.equal(source.split(point).length, 2)

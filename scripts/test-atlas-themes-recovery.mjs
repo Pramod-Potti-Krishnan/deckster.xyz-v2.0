@@ -34,7 +34,10 @@ const equalitySource = source
   .replaceAll('if (!mounted.current || !accountCanStart() || busy.current) return', 'if (busy.current) return')
   .replaceAll(fontPickers, '')
   .replaceAll(fontSentence, baseSentence)
-const currentAst = ast(unP2c(equalitySource)), originalAst = ast(baseline), printer = ts.createPrinter({ removeComments: true })
+// PASS2D 6b (NEXT_PUBLIC_STUDIO_THEME_BASE_DROPDOWN): the one line that holds the flag-gated dropdown beside the native select it replaces, and the comment above it. Turned back
+// into the select here for the equality; test-studio-theme-base-dropdown.mjs proves the dropdown itself.
+const unBase6b = code => code.replace(/ *\{\/\* PASS2D 6b[^\n]*\*\/\}\n/, '').replace(/\{STUDIO_THEME_BASE_DROPDOWN_ENABLED \? <BaseThemePicker [^\n]*? \/> : (<label className="sl-field">Base theme<select[^\n]*<\/select><\/label>)\}\n/, '$1\n')
+const currentAst = ast(unBase6b(unP2c(equalitySource))), originalAst = ast(baseline), printer = ts.createPrinter({ removeComments: true })
 for (const [label, predicate] of [
   ['ColorField', node => ts.isFunctionDeclaration(node) && node.name?.text === 'ColorField'],
   ['all native editable fields and options', node => ts.isJsxElement(node) && node.openingElement.tagName.getText() === 'fieldset'],
@@ -90,6 +93,8 @@ function harness(code = source) {
     'lucide-react': Object.fromEntries(['ArrowRight', 'Check', 'Copy', 'Palette', 'RefreshCw', 'RotateCcw', 'Save', 'Star'].map(n => [n, n])),
   }
   imports['./library-controls'].libraryDate = String
+  // PASS2D 6b: the flag-gated base-theme dropdown (default off, so never drawn here; proven in test-studio-theme-base-dropdown.mjs)
+  Object.assign(imports, { './base-theme-picker': { BaseThemePicker: 'BaseThemePicker' }, '@/lib/studio-theme-base-dropdown': { STUDIO_THEME_BASE_DROPDOWN_ENABLED: false } })
   const mod = { exports: {} }, context = { module: mod, exports: mod.exports, process: { env: { NEXT_PUBLIC_STUDIO_V4_SHELL: 'true' } }, window: { addEventListener() {}, removeEventListener() {} }, fetch: refuse, require: name => { assert.ok(name in imports, name); return imports[name] } }
   const point = '  return <LibraryWorkspace'
   assert.equal(code.split(point).length, 2)
