@@ -5,6 +5,8 @@ import { ArrowRight, Check, ChevronLeft, Loader2, Palette, Sparkles, X } from 'l
 import { isValidThemeHex, type BuildThemeSelection, type ThemePresetSummary } from '@/lib/theme-builder'
 import type { SavedThemeProfile } from '@/hooks/use-theme-profiles'
 import { ThemeDropdownPicker, type ThemeDropdownCopy, type ThemeDropdownOption } from '@/components/theme-dropdown-picker'
+import { SavedThemePicker } from './studio-saved-theme-picker'
+import { STUDIO_THEME_SAVED_CHIPS_ENABLED } from '@/lib/studio-theme-saved-chips'
 import { STUDIO_THEME_DELETE_UNDO_ENABLED, STUDIO_THEME_DELETE_UNDO_MS, themeDeleteUndo } from '@/lib/studio-theme-delete-undo'
 import { STUDIO_THEME_PLAIN_WORDS_ENABLED, themePlainDescription, themeSearchText } from '@/lib/studio-theme-plain-words'
 import './studio-theme-menu.css'
@@ -176,7 +178,8 @@ function StudioThemeMenuView(p: StudioThemeMenuProps) {
       <ThemeDropdownPicker options={decksterOptions} selectedId={decksterSelected} locked={presetsLocked} onSelect={p.onPreset} copy={DECKSTER_THEMES_COPY} />
     </div>
     <div className="studio-theme-dd" data-studio-theme-dd="mine">
-      <ThemeDropdownPicker options={myThemeOptions} selectedId={p.selectedId} locked={p.locked} onSelect={p.onSaved} copy={MY_THEMES_COPY} labelAccessory={refreshButton} />
+      {/* PASS2D 6a (NEXT_PUBLIC_STUDIO_THEME_SAVED_CHIPS, default off): a colour chip strip on every saved theme; same rows, same handlers. */}
+      {STUDIO_THEME_SAVED_CHIPS_ENABLED ? <SavedThemePicker themes={p.themes} options={myThemeOptions} selectedId={p.selectedId} locked={p.locked} onSelect={p.onSaved} copy={MY_THEMES_COPY} labelAccessory={refreshButton} /> : <ThemeDropdownPicker options={myThemeOptions} selectedId={p.selectedId} locked={p.locked} onSelect={p.onSaved} copy={MY_THEMES_COPY} labelAccessory={refreshButton} />}
       {empty}
       {p.currentProfile && p.selectedId === p.currentProfile.id && !p.themes.some(theme => theme.id === p.selectedId) && <p data-studio-theme-current="true" className="studio-theme-empty">Current theme: {p.currentProfile.name}</p>}
     </div>
