@@ -1,0 +1,6 @@
+/* Second Brain map toolbar (NEXT_PUBLIC_STUDIO_KNOWLEDGE_MAP_TOOLBAR): "- 100% +" as one group, like the accepted mock's `km-map-controls`. The buttons themselves are
+   styled by studio-graph-controls.css (same data-studio-graph-toolbar container). Every rule hangs on data-studio-graph-toolbar-kind, which exists only with the flag on. */
+[data-studio-graph-toolbar-kind="map"] .skmt-zoom { display: inline-flex; align-items: center; gap: 0; border: 1px solid var(--skg-line); border-radius: 6px; background: var(--skg-control); }
+[data-studio-graph-toolbar-kind="map"] .skmt-zoom button { border: 0; background: transparent; padding: 7px 8px; }
+[data-studio-graph-toolbar-kind="map"] .skmt-zoom button:hover:not(:disabled) { background: #2a3e48; }
+[data-studio-graph-toolbar-kind="map"] .skmt-zoom .skg-zoom { min-width: 44px; padding: 0 2px; }

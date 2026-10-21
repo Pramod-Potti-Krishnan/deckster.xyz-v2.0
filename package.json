@@ -140,7 +140,8 @@
     "test:studio-slide-ops-via-viewer": "node scripts/test-studio-slide-ops-via-viewer.mjs",
     "test:studio-image-pending-write": "node scripts/test-studio-image-pending-write.mjs",
     "test:studio-knowledge-filter-tabs": "node scripts/test-studio-knowledge-filter-tabs.mjs",
-    "test:studio-knowledge-header-actions": "node scripts/test-studio-knowledge-header-actions.mjs"
+    "test:studio-knowledge-header-actions": "node scripts/test-studio-knowledge-header-actions.mjs",
+    "test:studio-knowledge-map-toolbar": "node scripts/test-studio-knowledge-map-toolbar.mjs"
   },
   "dependencies": {
     "@auth/prisma-adapter": "^2.10.0",
