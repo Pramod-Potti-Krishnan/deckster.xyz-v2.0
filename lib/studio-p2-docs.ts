@@ -2,6 +2,8 @@
 // The shapes below are the ones of types/docs.ts (DocSection / DocItem); the test pins them to content/docs.ts and lib/docs.ts.
 // Content pass (PROGRAM-1, 22 Oct): the docs text names the current agents (the rules are content/studio-p2-docs-agents.ts), /docs/api says it is not available yet, the footers drop the links to it and to the two redirects
 // (/integrations, /agents), and the Landing footer gains Help, Docs, Security and Cookies.
+// Content pass 2 (PROGRAM-1, 22 Oct): the docs name the real plans and the Google sign-in (content/studio-p2-docs-facts.ts), the other pages that named the old agents (the comparisons, the example and template cards)
+// read the current names through studioReword / studioAgentId, /docs/api has no "v1.0 Beta" badge, and the agent not-found page points at /experts.
 
 export interface StudioDocItem { id: string; title: string; slug: string; category: string; content: string }
 export interface StudioDocSection { id: string; title: string; items: StudioDocItem[] }
@@ -186,4 +188,27 @@ export function studioDocsFooterLinks<T extends StudioFooterLink>(links: readonl
   const help = [{ label: 'Help', href: '/help' }, { label: 'Docs', href: '/docs' }].filter(link => !has(link.href))
   const policy = [{ label: 'Security', href: '/legal/security' }, { label: 'Cookies', href: '/legal/cookies' }].filter(link => !has(link.href))
   return [...head, ...help, ...tail, ...policy]
+}
+
+/** The agents the old data and text named otherwise: the old id (as content/examples.ts and content/templates.ts hold it) -> the id (the agent page's slug) and name the team has now. The same three renames as content/studio-p2-docs-agents.ts. */
+export const STUDIO_AGENT_RENAMES = {
+  scripter: { id: 'content-generator', name: 'Content Generator' },
+  'graphic-artist': { id: 'slide-composer', name: 'Slide Composer' },
+  'data-visualizer': { id: 'visualizer', name: 'Visualizer' },
+} as const
+
+/** The current id for an agent id of the old data ('scripter' -> 'content-generator'); any other id (director, or one that is already current) comes back as it was. */
+export function studioAgentId(id: string): string {
+  return Object.prototype.hasOwnProperty.call(STUDIO_AGENT_RENAMES, id) ? STUDIO_AGENT_RENAMES[id as keyof typeof STUDIO_AGENT_RENAMES].id : id
+}
+
+/** One piece of text to swap for the current one: `from` is found once in the data, inside whichever string holds it. */
+export interface StudioTextRule { from: string; to: string }
+
+/** The value with each rule's text swapped once, in order, in every string that holds it; objects and arrays are copied all the way down and the value handed in is never changed. No rule, or a rule whose text is not found, changes nothing. */
+export function studioReword<T>(value: T, rules: readonly StudioTextRule[]): T {
+  if (typeof value === 'string') return rules.reduce((out, rule) => out.replace(rule.from, () => rule.to), value as string) as unknown as T
+  if (Array.isArray(value)) return value.map(item => studioReword(item, rules)) as unknown as T
+  if (value !== null && typeof value === 'object') return Object.fromEntries(Object.entries(value).map(([key, item]) => [key, studioReword(item, rules)])) as T
+  return value
 }

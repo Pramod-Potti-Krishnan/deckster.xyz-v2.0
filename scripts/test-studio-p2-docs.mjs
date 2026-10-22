@@ -24,6 +24,11 @@
 //   5. no link to /integrations or /agents in either footer, on the agent pages or on /compare (the routes and pages stay; /agents/<agent> links stay);
 //   6. no per-agent rainbow: every per-agent colour on the agent pages is flattened by the CSS, none comes from anywhere else.
 //   Flag off (or any spelling but "true") = the same tree as the base commit's for every file changed here.
+// The content pass 2 (PROGRAM-1 rulings of 22 Oct, second set, same flag), each item proven on the real sources and on the base commit's files:
+//   1. the docs name the real plans: every Free / Pro / Enterprise line and plan tag is gone or restated from lib/marketing/homepage-v2-pricing.ts (Starter / Pro / Max), the pricing page's tier table and the Help FAQ (what the code does not say is not said);
+//   2. the Quick Start describes the Google sign-in (no password, no verification email), checked against app/auth and lib/auth-options.ts;
+//   3. current agent names in the comparison pages, the example and template data (read through lib/examples.ts and lib/templates.ts) and their cards, and the types; on the onboarding flag-on path there is no old name to change (pinned), the old page and modal are the base commit's;
+//   4. /docs/api has no "v1.0 Beta" badge;   5. the agent not-found page links to /experts.
 import assert from 'node:assert/strict'
 import fs from 'node:fs'
 import path from 'node:path'
@@ -86,6 +91,19 @@ const HELP_CSS = 'components/help/studio-p2-help.css'
 const SHELL_CSS = 'components/layout/studio-shell.css'
 const API_NOTICE = 'components/studio-docs/studio-p2-docs-api-notice.tsx'
 const AGENT_RULES = 'content/studio-p2-docs-agents.ts'
+const FACT_RULES = 'content/studio-p2-docs-facts.ts'
+const COMPARISON_RULES = 'content/studio-p2-comparisons.ts'
+const LIB_COMPARISONS = 'lib/comparisons.ts'
+const LIB_EXAMPLES = 'lib/examples.ts'
+const LIB_TEMPLATES = 'lib/templates.ts'
+const CARD_EXAMPLE = 'components/marketing/ExampleShowcase/ExampleCard.tsx'
+const CARD_TEMPLATE = 'components/marketing/TemplateGallery/TemplateCard.tsx'
+const TYPES_EXAMPLE = 'types/example.ts'
+const TYPES_TEMPLATE = 'types/template.ts'
+const DATA_COMPARISONS = 'content/comparisons.ts'
+const DATA_EXAMPLES = 'content/examples.ts'
+const DATA_TEMPLATES = 'content/templates.ts'
+const PRICING_SOURCE = 'lib/marketing/homepage-v2-pricing.ts'
 const FOOTER = 'components/layout/Footer.tsx'
 const FOOTER_V3 = 'components/marketing/v3/FooterV3.tsx'
 const PAGE_API = 'app/docs/api/page.tsx'
@@ -96,7 +114,7 @@ const V3_SOURCE = 'lib/marketing/v3-content.ts'
 const ENV = '.env.example'
 const PKG = 'package.json'
 const TITLE_FIXES = [['app/docs/api/layout.tsx', 'API Documentation'], ['app/legal/cookies/layout.tsx', 'Cookie Policy'], ['app/legal/security/layout.tsx', 'Security & Compliance']]
-const SOURCES = Object.fromEntries([LIB, UI, FRAME, API_NOTICE, AGENT_RULES, FOOTER, FOOTER_V3, PAGE_API, PAGE_AGENT, PAGE_COMPARE, CSS, HELP_TEMPLATE, HELP_CSS, PAGE_INDEX, PAGE_ARTICLE, LAYOUT_DOCS, LAYOUT_LEGAL, LAYOUT_AGENTS, META_PRIVACY, META_TERMS, META_ARTICLE, META_AGENT, ...TITLE_FIXES.map(([file]) => file), ENV, PKG].map(rel => [rel, read(rel)]))
+const SOURCES = Object.fromEntries([LIB, UI, FRAME, API_NOTICE, AGENT_RULES, FACT_RULES, COMPARISON_RULES, LIB_COMPARISONS, LIB_EXAMPLES, LIB_TEMPLATES, CARD_EXAMPLE, CARD_TEMPLATE, TYPES_EXAMPLE, TYPES_TEMPLATE, FOOTER, FOOTER_V3, PAGE_API, PAGE_AGENT, PAGE_COMPARE, CSS, HELP_TEMPLATE, HELP_CSS, PAGE_INDEX, PAGE_ARTICLE, LAYOUT_DOCS, LAYOUT_LEGAL, LAYOUT_AGENTS, META_PRIVACY, META_TERMS, META_ARTICLE, META_AGENT, ...TITLE_FIXES.map(([file]) => file), ENV, PKG].map(rel => [rel, read(rel)]))
 const FLAG = 'NEXT_PUBLIC_STUDIO_P2_DOCS'
 const ON = { [FLAG]: 'true' }
 const OFF_SPELLINGS = [{}, { [FLAG]: 'false' }, { [FLAG]: 'TRUE' }, { [FLAG]: 'True' }, { [FLAG]: '1' }, { [FLAG]: ' true' }, { [FLAG]: 'true ' }, { [FLAG]: '' }, { [FLAG]: 'yes' }, { NEXT_PUBLIC_STUDIO_V4_SHELL: 'true' }]
@@ -154,7 +172,9 @@ for (const doc of ALL_DOCS) deepEq(Object.keys(doc).sort(), ['category', 'conten
 for (const section of SECTIONS) { deepEq(Object.keys(section).sort(), ['id', 'items', 'title'], `real section ${section.id}: the DocSection shape`); for (const doc of section.items) eq(doc.category, section.id, `real article ${doc.slug}: its category is its section`) }
 
 // the content pass reads these real files: the rules, the team, the Landing's links
-const RULES = load(SOURCES[AGENT_RULES], AGENT_RULES).STUDIO_DOCS_AGENT_RULES
+const AGENT_RULE_LIST = load(SOURCES[AGENT_RULES], AGENT_RULES).STUDIO_DOCS_AGENT_RULES
+const FACT_RULE_LIST = load(SOURCES[FACT_RULES], FACT_RULES).STUDIO_DOCS_FACT_RULES
+const RULES = [...AGENT_RULE_LIST, ...FACT_RULE_LIST] // what the pages apply: the agent rules, then the fact rules (plans, sign-in)
 const TEAM = load(read(TEAM_SOURCE), TEAM_SOURCE, { deps: { '@/types/elements': { CHART_TYPES: [] } } }).AGENT_TEAM
 const V3 = load(read(V3_SOURCE), V3_SOURCE, { deps: { '@/lib/marketing/homepage-v2-content': { AGENT_TEAM: TEAM } } }).V3_CONTENT
 const V3_LINKS = plain(V3.footer.links)
@@ -356,6 +376,28 @@ function proveLib(source, label = 'lib') {
   { const given = [{ label: 'Home', href: '/', extra: 1 }]; const out = L.studioDocsFooterLinks(given); ok(out !== given && given.length === 1 && out[0].extra === 1, `${label}: footer: a copy; the links keep their own fields`) }
   eq(new Set(L.studioDocsFooterLinks(V3_LINKS).map(link => link.href)).size, 12, `${label}: footer: no address twice`)
 
+  // content pass 2: who the old agents are now, and the reword
+  deepEq(L.STUDIO_AGENT_RENAMES, { scripter: { id: 'content-generator', name: 'Content Generator' }, 'graphic-artist': { id: 'slide-composer', name: 'Slide Composer' }, 'data-visualizer': { id: 'visualizer', name: 'Visualizer' } }, `${label}: renames: the three old agents of the data and who they are now`)
+  for (const [id, expected] of [['scripter', 'content-generator'], ['graphic-artist', 'slide-composer'], ['data-visualizer', 'visualizer'], ['director', 'director'], ['content-generator', 'content-generator'], ['slide-composer', 'slide-composer'], ['visualizer', 'visualizer'], ['', ''], ['unknown', 'unknown'], ['Scripter', 'Scripter'], ['constructor', 'constructor'], ['toString', 'toString'], ['__proto__', '__proto__'], ['hasOwnProperty', 'hasOwnProperty']]) eq(L.studioAgentId(id), expected, `${label}: studioAgentId(${JSON.stringify(id)})`)
+  {
+    const rules = [{ from: 'Scripter', to: 'Content Generator' }]
+    const data = { a: 'x Scripter y', list: ['Scripter', { deep: 'Scripter, Scripter' }], n: 3, yes: true, none: null, Scripter: 'key' }
+    const snapshot = JSON.stringify(data)
+    const out = L.studioReword(data, rules)
+    deepEq(out, { a: 'x Content Generator y', list: ['Content Generator', { deep: 'Content Generator, Scripter' }], n: 3, yes: true, none: null, Scripter: 'key' }, `${label}: reword: each string once, all the way down; numbers, booleans, null and the keys stay`)
+    eq(JSON.stringify(data), snapshot, `${label}: reword: the value handed in is not changed`)
+    ok(out !== data && out.list !== data.list && out.list[1] !== data.list[1], `${label}: reword: copies all the way down`)
+    ok(Array.isArray(out.list), `${label}: reword: an array stays an array`)
+    deepEq(L.studioReword(data, []), data, `${label}: reword: no rules, the same text`)
+    deepEq(L.studioReword(data, [{ from: 'Absent', to: 'X' }]), data, `${label}: reword: a rule whose text is not found changes nothing`)
+    eq(L.studioReword('Scripter and Scripter', rules), 'Content Generator and Scripter', `${label}: reword: a string, once`)
+    for (const value of [7, null, undefined, true]) eq(L.studioReword(value, rules), value, `${label}: reword: ${String(value)} stays`)
+    eq(L.studioReword('abc', [{ from: 'b', to: '$&$&' }]), 'a$&$&c', `${label}: reword: the new text is text, not a replacement pattern`)
+    eq(L.studioReword('one', [{ from: 'one', to: 'two' }, { from: 'two', to: 'three' }]), 'three', `${label}: reword: the rules run in order, each on the result of the one before`)
+    eq(L.studioReword('one', [{ from: 'two', to: 'three' }, { from: 'one', to: 'two' }]), 'two', `${label}: reword: ... and only in that order`)
+    deepEq(L.studioReword([], rules), [], `${label}: reword: an empty array`)
+    deepEq(L.studioReword({}, rules), {}, `${label}: reword: an empty object`)
+  }
   // the real articles
   for (const doc of ALL_DOCS) {
     const excerpt = L.studioDocsExcerpt(doc.content)
@@ -407,7 +449,8 @@ function mount(uiSource, libSource = SOURCES[LIB], { params = {}, docs = DOCS_AP
     'remark-gfm': { __esModule: true, default: 'remarkGfm' },
     '@/lib/docs': docs,
     '@/lib/studio-p2-docs': lib,
-    '@/content/studio-p2-docs-agents': { STUDIO_DOCS_AGENT_RULES: RULES },
+    '@/content/studio-p2-docs-agents': { STUDIO_DOCS_AGENT_RULES: AGENT_RULE_LIST },
+    '@/content/studio-p2-docs-facts': { STUDIO_DOCS_FACT_RULES: FACT_RULE_LIST },
   }
   const mod = load(uiSource, UI, { deps })
   const render = name => { react.reset(); return expand(mod[name]()) }
@@ -419,7 +462,7 @@ const links = tree => byType(tree, 'Link')
 function proveComponents(uiSource = SOURCES[UI], label = 'ui', libSource = SOURCES[LIB], frameSource = SOURCES[FRAME]) {
   const W = WORDS
   const total = ALL_DOCS.length
-  const CURRENT = REAL_LIB.studioDocsCurrent(SECTIONS, RULES) // what the pages show: the docs with the agent-name rules applied
+  const CURRENT = REAL_LIB.studioDocsCurrent(SECTIONS, RULES) // what the pages show: the docs with the agent-name rules and the fact rules applied
   const ALL_CURRENT = CURRENT.flatMap(section => section.items)
   const cur = doc => ALL_CURRENT.find(item => item.id === doc.id)
   const { render, mod } = mount(uiSource, libSource)
@@ -909,22 +952,31 @@ proveNotice(SOURCES[API_NOTICE])
 
 // the page itself: the notice is the one addition; off, the page is the base commit's
 const undoAll = (code, pairs) => pairs.reduce((out, [to, from]) => { eq(out.split(to).length - 1, 1, `the addition is found once: ${to.slice(0, 60).replace(/\n/g, ' ')}`); return out.replace(to, () => from) }, code)
+const BADGE_JSON = ',"badge":{"text":"v1.0 Beta","icon":{"type":"Zap","props":{"className":"h-3 w-3"}}}'
 function proveApiPage(code, label = 'api page') {
   const prior = baseSource(PAGE_API)
   const run = (source, env) => load(source, PAGE_API, { env }).default()
-  for (const env of OFF_SPELLINGS) eq(rendered(run(code, env)), rendered(run(prior, env)), `${label}: env ${JSON.stringify(env)}: the tree equals the base commit's`)
+  for (const env of OFF_SPELLINGS) {
+    eq(rendered(run(code, env)), rendered(run(prior, env)), `${label}: env ${JSON.stringify(env)}: the tree equals the base commit's`)
+    ok(rendered(run(code, env)).includes('v1.0 Beta'), `${label}: env ${JSON.stringify(env)}: the "v1.0 Beta" badge is still there`)
+  }
   for (const env of [ON, { ...ON, NEXT_PUBLIC_STUDIO_V4_SHELL: 'true' }]) {
     const top = run(code, env)
     const kids = top.props.children.filter(child => child !== false)
     deepEq(kids.map(child => child.type), ['Header', 'StudioApiNotice', 'PageHeader', 'Section', 'Footer'], `${label}: on: the notice sits under the site's header, before the title`)
     deepEq(Object.keys(kids[1].props), [], `${label}: on: the notice takes no props`)
-    eq(rendered({ ...top, props: { ...top.props, children: kids.filter(kid => kid.type !== 'StudioApiNotice') } }), rendered(run(prior, env)), `${label}: on: take the notice away and it is the base commit's page, word for word`)
+    const base = rendered(run(prior, env))
+    eq(base.split(BADGE_JSON).length - 1, 1, `${label}: on: the base commit's page has the badge once`)
+    ok(!rendered(top).includes('v1.0 Beta') && !rendered(top).includes('"badge"'), `${label}: on: no "v1.0 Beta" badge`)
+    eq(rendered({ ...top, props: { ...top.props, children: kids.filter(kid => kid.type !== 'StudioApiNotice') } }), base.replace(BADGE_JSON, ''), `${label}: on: take the notice away and put the badge back and it is the base commit's page, word for word`)
+    deepEq([kids[2].props.title, kids[2].props.subtitle], ['Deckster API', 'Build powerful presentation workflows with our API'], `${label}: on: the title and subtitle are as they were`)
   }
   eq(undoAll(code, [
     ["import { StudioApiNotice } from '@/components/studio-docs/studio-p2-docs-api-notice';\n", ''],
-    ["// PASS2 Docs (NEXT_PUBLIC_STUDIO_P2_DOCS, default off): this page documents an API that is not open yet; with the flag on a notice says so under the header and the page below it is muted. Off: the page as it was.\nconst STUDIO_P2_DOCS = process.env.NEXT_PUBLIC_STUDIO_P2_DOCS === 'true';\n\n", ''],
+    ["// PASS2 Docs (NEXT_PUBLIC_STUDIO_P2_DOCS, default off): this page documents an API that is not open yet; with the flag on a notice says so under the header, the page below it is muted and it has no \"v1.0 Beta\" badge. Off: the page as it was.\nconst STUDIO_P2_DOCS = process.env.NEXT_PUBLIC_STUDIO_P2_DOCS === 'true';\n\n", ''],
     ['            {STUDIO_P2_DOCS && <StudioApiNotice />}\n', ''],
-  ]), prior, `${label}: removing the three additions gives back the base commit's page byte for byte`)
+    ['badge={STUDIO_P2_DOCS ? undefined : { text: "v1.0 Beta", icon: <Zap className="h-3 w-3" /> }}', 'badge={{ text: "v1.0 Beta", icon: <Zap className="h-3 w-3" /> }}'],
+  ]), prior, `${label}: removing the four additions gives back the base commit's page byte for byte`)
   match(code, /const STUDIO_P2_DOCS = process\.env\.NEXT_PUBLIC_STUDIO_P2_DOCS === 'true';/, `${label}: flag read inline, exact true`)
   match(code, /^'use client';/, `${label}: still a client page`)
   for (const claim of ['Authentication', 'Core Endpoints', '/v1/presentations/generate', 'Rate Limits', '100 requests per minute for Pro plans']) ok(code.includes(claim), `${label}: the page keeps its words ("${claim}")`)
@@ -1011,7 +1063,17 @@ function proveAgentPage(code, label = 'agent page') {
   for (const slug of slugs) {
     for (const env of OFF_SPELLINGS) eq(rendered(expand(run(code, env, slug))), rendered(expand(run(prior, env, slug))), `${label}: ${slug}: env ${JSON.stringify(env)}: the tree equals the base commit's`)
     const base = expand(run(prior, {}, slug)), on = expand(run(code, ON, slug))
-    eq(rendered(on), rendered(prune(base)), `${label}: ${slug}: on: the base commit's page without the links to /agents, and nothing else`)
+    if (slug === 'nope') {
+      const was = rendered(base)
+      eq(was.split('"href":"/agents"').length - 1, 1, `${label}: ${slug}: the base page's one link is to /agents`)
+      eq(was.split('Back to Agents').length - 1, 1, `${label}: ${slug}: ... and says "Back to Agents"`)
+      eq(rendered(on), was.replace('"href":"/agents"', '"href":"/experts"').replace('Back to Agents', 'Back to Experts'), `${label}: ${slug}: on: the base commit's page with that one link pointing at /experts ("Back to Experts"), and nothing else`)
+      deepEq(hrefsOf(on).filter(href => href === '/experts'), ['/experts'], `${label}: ${slug}: on: the not-found page links /experts once`)
+      eq(text(byType(on, 'Link')[0]), 'Back to Experts', `${label}: ${slug}: on: the link reads "Back to Experts"`)
+    } else {
+      eq(rendered(on), rendered(prune(base)), `${label}: ${slug}: on: the base commit's page without the links to /agents, and nothing else`)
+      ok(!hrefsOf(on).includes('/experts'), `${label}: ${slug}: on: no link to /experts on a real agent page`)
+    }
     ok(!hrefsOf(on).includes('/agents'), `${label}: ${slug}: on: no link to /agents`)
     eq(hrefsOf(base).filter(href => href === '/agents').length, slug === 'nope' ? 1 : 2, `${label}: ${slug}: the base page linked /agents ${slug === 'nope' ? 'once' : 'twice'}`)
     if (slug !== 'nope') {
@@ -1019,8 +1081,26 @@ function proveAgentPage(code, label = 'agent page') {
       ok(hrefsOf(on).filter(href => href === '/builder').length === 2, `${label}: ${slug}: on: both builder links stay`)
     }
   }
-  eq(unwrapFlag(undoAll(code, [["// PASS2 Docs (NEXT_PUBLIC_STUDIO_P2_DOCS, default off): /agents is a redirect (next.config.mjs), so with the flag on the three links to it are not shown. The links to the agent pages (/agents/<agent>) stay. Off: the page as it was.\nconst STUDIO_P2_DOCS = process.env.NEXT_PUBLIC_STUDIO_P2_DOCS === 'true';\n\n", '']])), prior, `${label}: removing the flag and unwrapping the three links gives back the base commit's page byte for byte`)
-  eq(code.split('{!STUDIO_P2_DOCS && (').length - 1, 3, `${label}: exactly three links are wrapped`)
+  eq(unwrapFlag(undoAll(code, [
+    ["// PASS2 Docs (NEXT_PUBLIC_STUDIO_P2_DOCS, default off): /agents is a redirect (next.config.mjs), so with the flag on the two links to it on an agent page are not shown, and the not-found page's link goes to /experts, where /agents redirects to. The links to the agent pages (/agents/<agent>) stay. Off: the page as it was.\nconst STUDIO_P2_DOCS = process.env.NEXT_PUBLIC_STUDIO_P2_DOCS === 'true';\n\n", ''],
+    [`          <Link
+            href={STUDIO_P2_DOCS ? '/experts' : '/agents'}
+            className="inline-flex items-center gap-2 text-primary hover:underline"
+          >
+            <ArrowLeft className="h-4 w-4" />
+            {STUDIO_P2_DOCS ? 'Back to Experts' : 'Back to Agents'}
+          </Link>
+`, `          <Link
+            href="/agents"
+            className="inline-flex items-center gap-2 text-primary hover:underline"
+          >
+            <ArrowLeft className="h-4 w-4" />
+            Back to Agents
+          </Link>
+`],
+  ])), prior, `${label}: removing the flag, putting the not-found link back and unwrapping the two links gives back the base commit's page byte for byte`)
+  eq(code.split('{!STUDIO_P2_DOCS && (').length - 1, 2, `${label}: exactly two links are wrapped (the not-found link is not: it goes to /experts)`)
+  eq(code.split("STUDIO_P2_DOCS ? '/experts' : '/agents'").length - 1, 1, `${label}: the not-found link chooses its address by the flag`)
   match(code, /^'use client';/, `${label}: still a client page`)
 }
 proveAgentPage(SOURCES[PAGE_AGENT])
@@ -1075,6 +1155,324 @@ function proveHelpTemplate(code, label = 'help template') {
   nomatch(code, /use client|metadata/, `${label}: a plain server template`)
 }
 proveHelpTemplate(SOURCES[HELP_TEMPLATE])
+
+// ---------------------------------------------------------------- 3c. the content pass 2 (PROGRAM-1 rulings, 22 Oct, second set)
+const PRICING = plain(load(read(PRICING_SOURCE), PRICING_SOURCE).PRICING_TIERS)
+const [STARTER, PRO, MAX] = PRICING
+deepEq(PRICING.map(tier => [tier.id, tier.name]), [['starter', 'Starter'], ['pro', 'Pro'], ['premium', 'Max']], 'the real plans (lib/marketing/homepage-v2-pricing.ts): Starter, Pro, Max, in that order')
+const EX_DOC = 'builder-guide/exports', SE_DOC = 'builder-guide/slide-editing'
+const TIER_RE = /\bFree\b|\bEnterprise\b|\bPro Tier\b|\((?:Pro|Pro\/Enterprise)\)/
+const PLAN_TAG_RE = / \((?:Pro|Pro\/Enterprise)\)$/
+const countOf = (re, haystack) => (haystack.match(re) ?? []).length
+
+// ruling 1 (the real plans) and ruling 2 (the Google sign-in): the fact rules, each proven against the code that says what is true
+function proveFactRules(rulesSource, label = 'fact rules') {
+  nomatch(rulesSource, /^\s*import\s(?!type\s)/m, `${label}: data only (a type import at most)`)
+  match(rulesSource, /^import type \{ StudioDocRule \} from "@\/lib\/studio-p2-docs"$/m, `${label}: the one import is the rule's type`)
+  const facts = plain(load(rulesSource, FACT_RULES).STUDIO_DOCS_FACT_RULES)
+  const agents = plain(AGENT_RULE_LIST)
+  eq(facts.length, 12, `${label}: twelve rules`)
+  const textOf = list => Object.fromEntries(REAL_LIB.studioDocsCurrent(SECTIONS, list).flatMap(section => section.items).map(item => [`${item.category}/${item.slug}`, item.content]))
+  const afterAgents = textOf(agents)
+  facts.forEach((rule, i) => {
+    deepEq(Object.keys(rule).sort(), ['doc', 'from', 'to'], `${label}: rule ${i}: a doc, the text, its replacement`)
+    ok(rule.doc in afterAgents, `${label}: rule ${i}: ${rule.doc} is an article that exists`)
+    eq(afterAgents[rule.doc]?.split(rule.from).length - 1, 1, `${label}: rule ${i}: its text is found once in ${rule.doc}, as the agent rules leave it`)
+    ok(rule.to !== rule.from && !rule.to.includes(rule.from), `${label}: rule ${i}: the new text is new, and applying the rules twice is applying them once`)
+    nomatch(rule.to, TIER_RE, `${label}: rule ${i}: the new text has no Free / Enterprise / Pro Tier line and no plan tag`)
+    nomatch(rule.to, /password|verif/i, `${label}: rule ${i}: the new text has no password and no verification email`)
+    nomatch(rule.to, /Scripter|Graphic Artist|Data Visualizer/, `${label}: rule ${i}: the new text names none of the old agents`)
+  })
+  deepEq(facts.map(rule => rule.doc), [QS_DOC, UA_DOC, DA_DOC, SE_DOC, SE_DOC, SE_DOC, EX_DOC, EX_DOC, EX_DOC, EX_DOC, EX_DOC, EX_DOC], `${label}: the five articles that carried an old plan line, a plan tag or the old sign-in steps, in order`)
+  const all = [...agents, ...facts]
+  const now = textOf(all)
+  // nothing but the rules changed: put each rule's new text back, last rule first (the fact rules, then the agent rules), and every article is the base commit's, byte for byte
+  for (const doc of ALL_DOCS) {
+    const key = `${doc.category}/${doc.slug}`
+    let back = now[key]
+    for (const rule of all.filter(r => r.doc === key).reverse()) { eq(back.split(rule.to).length - 1, 1, `${label}: ${key}: the new text of a rule is found once`); back = back.replace(rule.to, () => rule.from) }
+    eq(back, doc.content, `${label}: ${key}: put the old text back and the article is the base commit's, byte for byte`)
+    if (!all.some(rule => rule.doc === key)) eq(now[key], doc.content, `${label}: ${key}: no rule names it, so it reads as before`)
+    nomatch(now[key], TIER_RE, `${label}: ${key}: no Free / Enterprise / Pro Tier line and no plan tag is left`)
+  }
+  const before = ALL_DOCS.map(doc => doc.content).join('\n'), after = Object.values(now).join('\n')
+  deepEq([/\bFree\b/g, /\bEnterprise\b/g, /\bPro Tier\b/g, /\((?:Pro|Pro\/Enterprise)\)/g].map(re => countOf(re, before)), [5, 4, 3, 8], `${label}: the base text had "Free" x5, "Enterprise" x4, "Pro Tier" x3 and eight plan tags`)
+  deepEq([/\bFree\b/g, /\bEnterprise\b/g, /\bPro Tier\b/g, /\((?:Pro|Pro\/Enterprise)\)/g].map(re => countOf(re, after)), [0, 0, 0, 0], `${label}: ... and none of them is left`)
+  const qs = now[QS_DOC], ua = now[UA_DOC], da = now[DA_DOC], ex = now[EX_DOC]
+  // understanding: the plans, from the plan list (the pricing page's table and the Help FAQ say the same)
+  const lines = /^## Agent Access by Plan\n\n((?:- .+\n?)+)/m.exec(ua)?.[1].trim().split('\n') ?? []
+  eq(lines.length, 3, `${label}: understanding: a line for each of the three plans`)
+  eq(lines[0], `- **${STARTER.name}**: ${STARTER.features[0]}`, `${label}: understanding: Starter's line is the plan's own first feature, word for word`)
+  ok(PRO.features[0] === 'Everything in Starter, plus:' && MAX.features[0] === 'Everything in Pro, plus:', `${label}: understanding: the plan list builds Pro on Starter and Max on Pro`)
+  match(lines[1], /^- \*\*Pro\*\*: Everything in Starter, plus the Researcher \(.+\) and the Analyst \(.+\)$/, `${label}: understanding: Pro is Starter plus the Researcher and the Analyst`)
+  match(lines[2], /^- \*\*Max\*\*: Everything in Pro, plus the Knowledge Graph \(.+\) and a priority generation queue$/, `${label}: understanding: Max is Pro plus the Knowledge Graph and a priority generation queue`)
+  ok(PRO.features.some(f => f.startsWith('Researcher')) && PRO.features.some(f => f.startsWith('Analyst')), `${label}: understanding: the plan list puts the Researcher and the Analyst in Pro`)
+  ok(MAX.features.some(f => f.startsWith('Knowledge Graph')) && MAX.features.some(f => /^Priority generation queue$/i.test(f)), `${label}: understanding: the plan list puts the Knowledge Graph and the priority queue in Max`)
+  for (const part of ['live data from the open web', 'your own files as source material', 'finds the story in your numbers']) { ok(PRO.features.some(f => f.includes(part)), `${label}: Pro's plan list says "${part}"`); ok(lines[1].includes(part), `${label}: understanding: Pro's line says "${part}"`) }
+  ok(MAX.features.some(f => f.includes('agents learn your domain across decks')) && lines[2].includes('the agents learn your domain across decks'), `${label}: understanding: Max's line has the plan list's words for the Knowledge Graph`)
+  nomatch(lines.join('\n'), /Element Generator|Free|Enterprise|\d+ agents|all agents|credits|unlimited|collaborat/i, `${label}: understanding: nothing the plan list does not say (no count, no credits, no Element Generator: no plan places it)`)
+  const help = read('app/help/page.tsx')
+  ok(help.includes('Starter covers the full creation engine. Pro adds the Researcher (live web + your uploaded files) and the Analyst. Max adds the Knowledge Graph, which learns your domain across decks.'), `${label}: the Help FAQ splits the plans the same way`)
+  ok(help.includes('the Researcher and Analyst are on Pro and up'), `${label}: ... and says the Researcher and Analyst are on Pro and up`)
+  const v3Tiers = plain(V3.pages.pricing.start.tiers)
+  deepEq(v3Tiers.map(tier => tier.name), ['Starter', 'Pro', 'Max'], `${label}: the pricing page lists the same three plans`)
+  ok(v3Tiers[1].features.some(f => f.startsWith('Researcher')) && v3Tiers[1].features.some(f => f.startsWith('Analyst')) && v3Tiers[2].features.some(f => f.startsWith('Knowledge Graph')), `${label}: ... with the same split`)
+  const rows = plain(V3.pages.pricing.matrix.rows)
+  deepEq(['Research', 'Your files', 'Analyst', 'Knowledge graph', 'Priority queue'].map(name => rows.find(row => row.name === name).values), [[false, true, true], [false, true, true], [false, true, true], [false, false, true], [false, false, true]], `${label}: the pricing page's table: research, files and Analyst from Pro, Knowledge graph and the priority queue from Max`)
+  counting && notes.push('plans: no plan lists the Element Generator (the plan list, the pricing table and the Help FAQ do not say), so the plan lines do not mention it')
+  // the Director: on every plan
+  match(da, /^## The Director on Every Plan\n\nThe Director is part of Starter, Pro and Max\. Pro adds the Researcher and the Analyst to the team it works with, and Max adds the Knowledge Graph and a priority generation queue\.\n/m, `${label}: director: the Director is on every plan; what Pro and Max add is the plan list's`)
+  ok(STARTER.features[0].startsWith('Director'), `${label}: director: the plan list puts the Director in Starter (and Pro and Max are Starter plus)`)
+  nomatch(da, /Basic structure planning|Essential decision making|Standard templates|Advanced strategic planning|Complex multi-section|Custom structures|Industry-specific templates/, `${label}: director: no claim of a plan-specific Director`)
+  // downloads: PowerPoint and PDF without a watermark on every plan, and nothing about counts
+  match(ex, /^## Downloads on Every Plan\n\nStarter, Pro and Max can all download PowerPoint and PDF, with no watermark\.\n/m, `${label}: exports: PowerPoint and PDF, no watermark, on every plan`)
+  ok(STARTER.features.includes('PowerPoint & PDF export — no watermark'), `${label}: exports: the plan list puts PowerPoint & PDF export without a watermark in Starter`)
+  ok(plain(V3.pages.pricing.faq.questions).some(q => q.answer === 'Never. PowerPoint and PDF exports are clean on every tier.'), `${label}: exports: the pricing page says exports are clean on every tier`)
+  deepEq(rows.find(row => row.name === 'Export').values, [true, true, true], `${label}: exports: the pricing page's table has Export on all three`)
+  nomatch(ex, /3 exports|Unlimited exports|Bulk export|API access|Standard quality only|Priority export queue/, `${label}: exports: no export count, quality or queue claim (the code says none)`)
+  // the plan tags: only the tag goes; the code does not say which plan has these features
+  const tagRules = facts.filter(rule => PLAN_TAG_RE.test(rule.from))
+  eq(tagRules.length, 8, `${label}: eight plan tags are taken out`)
+  for (const rule of tagRules) eq(rule.to, rule.from.replace(PLAN_TAG_RE, ''), `${label}: "${rule.from}": only the plan tag goes`)
+  const present = rows.find(row => row.name === 'Present')
+  ok(/decision pending/.test(present.tag) && present.values.every(value => value === null), `${label}: the pricing page's table leaves publishing, sharing and Q&A "decision pending" by tier`)
+  nomatch(JSON.stringify(PRICING), /analytics|collaborat|style transfer|team shar|image/i, `${label}: the plan list says nothing of analytics, collaboration, style transfer, team sharing or images`)
+  // the Quick Start: Google
+  match(qs, /^## Step 1: Sign Up\n\n1\. Click "Get Started" on the homepage\n2\. Choose "Sign up with Google" and pick your Google account\n\n## Step 2: /m, `${label}: quick start: step 1 is the Google sign-up`)
+  nomatch(qs, /password|verif/i, `${label}: quick start: no password and no verification email`)
+  eq(STARTER.ctaLabel, 'Get Started', `${label}: quick start: "Get Started" is the plans' own button`)
+  const signup = read('app/auth/signup/page.tsx'), signin = read('app/auth/signin/page.tsx'), auth = read('lib/auth-options.ts')
+  ok(signup.includes('Sign up with Google') && signin.includes('Continue with Google'), `${label}: quick start: the sign-up page says "Sign up with Google" and the sign-in page "Continue with Google"`)
+  nomatch(`${signup}\n${signin}`, /<input|<Input|type="password"|type='password'/i, `${label}: quick start: neither page has a password or email field`)
+  match(auth, /providers: \[\s*GoogleProvider\(\{/, `${label}: quick start: the first provider is Google`)
+  eq(auth.split('CredentialsProvider(').length - 1, 1, `${label}: quick start: one other provider`)
+  match(auth, /\.\.\.\(DEV_LOGIN_ENABLED\s*\?\s*\[\s*CredentialsProvider\(/, `${label}: quick start: ... and it is the dev login, present only when DEV_LOGIN_ENABLED`)
+  match(auth, /process\.env\.NODE_ENV !== "production"/, `${label}: quick start: ... which is off in production`)
+  counting && notes.push('Quick Start: whether a new account needs an access code or an approval depends on NEXT_PUBLIC_COUPON_AUTH_ENABLED (app/auth/signup), which the code cannot tell, so the step does not mention either')
+  return { now, lines }
+}
+proveFactRules(SOURCES[FACT_RULES])
+
+// ruling 3: the comparison pages
+const stringsOf = value => typeof value === 'string' ? [value] : Array.isArray(value) ? value.flatMap(stringsOf) : value && typeof value === 'object' ? Object.values(value).flatMap(stringsOf) : []
+const CMP_REAL = () => load(read(DATA_COMPARISONS), DATA_COMPARISONS, { deps: { '@/types/comparison': {} } })
+const COMPARISON_RULE_LIST = load(SOURCES[COMPARISON_RULES], COMPARISON_RULES).STUDIO_COMPARISON_RULES
+const OLD_RE = /Scripter|Graphic Artist|Data Visualizer/
+const FOUR_RE = /\b(?:four|4)\b[^.\n]{0,30}\bagents?\b/gi // a count of four agents, with up to 30 characters between ("four specialized AI agents")
+function proveComparisonRules(rulesSource, label = 'comparison rules', lib = REAL_LIB) {
+  nomatch(rulesSource, /^\s*import\s(?!type\s)/m, `${label}: data only (a type import at most)`)
+  match(rulesSource, /^import type \{ StudioTextRule \} from "@\/lib\/studio-p2-docs"$/m, `${label}: the one import is the rule's type`)
+  const rules = plain(load(rulesSource, COMPARISON_RULES).STUDIO_COMPARISON_RULES)
+  eq(rules.length, 11, `${label}: eleven rules`)
+  const pages = plain(CMP_REAL().comparisonPages)
+  const strings = stringsOf(pages)
+  rules.forEach((rule, i) => {
+    deepEq(Object.keys(rule).sort(), ['from', 'to'], `${label}: rule ${i}: the text and its replacement`)
+    eq(strings.filter(string => string.includes(rule.from)).length, 1, `${label}: rule ${i}: its text is in exactly one string of the comparison pages`)
+    eq(strings.join('\n').split(rule.from).length - 1, 1, `${label}: rule ${i}: ... and once in it`)
+    ok(rule.to !== rule.from && !rule.to.includes(rule.from), `${label}: rule ${i}: the new text is new, and applying the rules twice is applying them once`)
+    nomatch(rule.to, OLD_RE, `${label}: rule ${i}: the new text names none of the old agents`)
+  })
+  // a rename is nothing but a rename: each new text is its old text with the three old names and the count swapped (the one list is the whole team, in order)
+  const word0 = NUMBER_WORDS[AGENT_NAMES.length]
+  const derive = from => from.replace(/\bScripter\b/g, 'Content Generator').replace(/\bGraphic Artist\b/g, 'Slide Composer').replace(/\bData Visualizer\b/g, 'Visualizer').replace(/\bfour\b/g, word0).replace(/\b4\b/g, String(AGENT_NAMES.length))
+  rules.forEach((rule, i) => eq(rule.to, rule.from.includes('(Director, Scripter,') ? `${word0} specialized AI agents (${AGENT_NAMES.join(', ')}) working together` : derive(rule.from), `${label}: rule ${i}: the new text is the old text with the names and the count swapped, and nothing else`))
+  const snapshot = JSON.stringify(pages)
+  const now = plain(lib.studioReword(pages, rules))
+  eq(JSON.stringify(pages), snapshot, `${label}: the data handed in is not changed`)
+  deepEq(lib.studioReword(now, rules), now, `${label}: the rules applied to the current text change nothing`)
+  // nothing but the rules changed: exactly one string per rule differs, and putting the new text back gives the base commit's data
+  const nowStrings = stringsOf(now)
+  eq(nowStrings.length, strings.length, `${label}: the same strings`)
+  eq(nowStrings.filter((string, i) => string !== strings[i]).length, rules.length, `${label}: one string per rule differs, no other`)
+  rules.forEach((rule, i) => eq(nowStrings.join('\n').split(rule.to).length - 1, 1, `${label}: rule ${i}: the new text is found once`))
+  deepEq(lib.studioReword(now, [...rules].reverse().map(rule => ({ from: rule.to, to: rule.from }))), pages, `${label}: put the old text back and the data is the base commit's`)
+  // the old agents and the count of four are gone; the count and the list follow the team
+  const before = strings.join('\n'), after = nowStrings.join('\n')
+  deepEq(OLD_NAMES.map(name => before.split(name).length - 1), [5, 4, 3], `${label}: the base data named Scripter x5, Graphic Artist x4, Data Visualizer x3`)
+  eq((before.match(FOUR_RE) ?? []).length, 5, `${label}: ... and counted its agents five times ("four" / "4")`)
+  nomatch(after, OLD_RE, `${label}: none of the old agents is named`)
+  eq((after.match(FOUR_RE) ?? []).length, 0, `${label}: no count of four agents`)
+  const word = NUMBER_WORDS[AGENT_NAMES.length]
+  ok(after.includes(`${word} specialized AI agents that collaborate`) && after.includes(`employs ${word} specialized agents`), `${label}: "${word}" specialized agents, twice`)
+  ok(after.includes(`${AGENT_NAMES.length} specialized AI agents`) && after.includes(`${AGENT_NAMES.length} specialist agents`), `${label}: ${AGENT_NAMES.length} specialized AI agents and ${AGENT_NAMES.length} specialist agents`)
+  ok(after.includes(`${word} specialized AI agents (${AGENT_NAMES.join(', ')}) working together`), `${label}: the list names the current team, in order`)
+  for (const [name, expected] of [['Content Generator agent writes compelling narratives', 1], ['writing (Content Generator), design (Slide Composer), data (Visualizer)', 1], ['Dedicated Content Generator agent', 1], ['Specialist Slide Composer', 1], ['Visualizer agent analyzes your data', 1], ['Content Generator writes persuasive copy, Slide Composer designs professional slides', 1]]) eq(after.split(name).length - 1, expected, `${label}: "${name}"`)
+  return { now, rules }
+}
+proveComparisonRules(SOURCES[COMPARISON_RULES])
+{ // the oracle for the agent names: the same three renames the docs rules make
+  const renames = plain(REAL_LIB.STUDIO_AGENT_RENAMES), ruleText = JSON.stringify(plain(AGENT_RULE_LIST))
+  deepEq(Object.keys(renames), ['scripter', 'graphic-artist', 'data-visualizer'], 'renames: the three old agents of the data')
+  for (const [old, now] of Object.entries(renames)) {
+    const agent = AGENTS_CONTENT.agents.find(candidate => candidate.id === now.id)
+    ok(agent && agent.name === now.name && agent.slug === now.id, `renames: ${old} is ${now.name}, the agent page /agents/${now.id} (content/agents.ts)`)
+    ok(AGENT_NAMES.includes(now.name), `renames: ${now.name} is on the team (AGENT_TEAM)`)
+    ok(ruleText.includes(now.name), `renames: the docs rules (content/studio-p2-docs-agents.ts) name ${now.name} too`)
+    ok(!AGENT_NAMES.includes(old.split('-').map(word => word[0].toUpperCase() + word.slice(1)).join(' ')), `renames: ${old} is not a name on the team`)
+  }
+}
+function proveComparisonsLib(code, label = 'comparisons lib', libSource = SOURCES[LIB]) {
+  const prior = baseSource(LIB_COMPARISONS)
+  const pack = source => env => { const data = CMP_REAL(); return { mod: load(source, LIB_COMPARISONS, { env, deps: { '@/content/comparisons': data, '@/content/studio-p2-comparisons': { STUDIO_COMPARISON_RULES: COMPARISON_RULE_LIST }, '@/lib/studio-p2-docs': load(libSource, LIB), '@/types/comparison': {} } }), data } }
+  const slugs = plain(CMP_REAL().competitors).map(competitor => competitor.slug)
+  eq(slugs.length, 4, `${label}: the real competitors (${slugs.join(', ')})`)
+  for (const env of OFF_SPELLINGS) {
+    const { mod, data } = pack(code)(env), base = pack(prior)(env)
+    for (const slug of slugs) {
+      eq(mod.getComparisonBySlug(slug), data.comparisonPages.find(page => page.competitor.slug === slug), `${label}: env ${JSON.stringify(env)}: ${slug}: the content's own page, not a copy`)
+      deepEq(mod.getComparisonBySlug(slug), base.mod.getComparisonBySlug(slug), `${label}: env ${JSON.stringify(env)}: ${slug}: the same page as the base commit's lib gives`)
+    }
+  }
+  for (const env of [ON, { ...ON, NEXT_PUBLIC_STUDIO_V4_SHELL: 'true' }]) {
+    const { mod, data } = pack(code)(env)
+    for (const slug of slugs) {
+      const page = mod.getComparisonBySlug(slug), original = data.comparisonPages.find(candidate => candidate.competitor.slug === slug)
+      deepEq(page, REAL_LIB.studioReword(plain(original), plain(COMPARISON_RULE_LIST)), `${label}: on: ${slug}: the page with the rules applied`)
+      nomatch(JSON.stringify(page), OLD_RE, `${label}: on: ${slug}: no old agent is named`)
+      eq((stringsOf(page).join('\n').match(FOUR_RE) ?? []).length, 0, `${label}: on: ${slug}: no count of four agents`)
+    }
+    eq(mod.getComparisonBySlug('nope'), undefined, `${label}: on: an unknown page is still not found`)
+    eq(mod.getAllCompetitors(), data.competitors, `${label}: on: the competitors are the content's own`)
+    eq(mod.getCompetitorsNavigation(), data.competitorsNavigation, `${label}: on: the navigation is the content's own`)
+    deepEq(mod.getRelatedCompetitors(slugs[0], 3), data.competitors.filter(c => c.slug !== slugs[0]).slice(0, 3), `${label}: on: the related competitors are as before`)
+    eq(mod.getCompetitorBySlug(slugs[1]), data.competitors[1], `${label}: on: a competitor is the content's own`)
+  }
+  eq(undoAll(code, [
+    ["import { competitors, comparisonPages as baseComparisonPages, competitorsNavigation } from '@/content/comparisons';\nimport { STUDIO_COMPARISON_RULES } from '@/content/studio-p2-comparisons';\nimport { studioReword } from '@/lib/studio-p2-docs';\n", "import { competitors, comparisonPages, competitorsNavigation } from '@/content/comparisons';\n"],
+    ["\n// PASS2 Docs (NEXT_PUBLIC_STUDIO_P2_DOCS, default off): with the flag on the comparison pages name the current agents (content/studio-p2-comparisons.ts). Off: the content as it was, the same array.\nconst STUDIO_P2_DOCS = process.env.NEXT_PUBLIC_STUDIO_P2_DOCS === 'true';\nconst comparisonPages: ComparisonPage[] = STUDIO_P2_DOCS ? studioReword(baseComparisonPages, STUDIO_COMPARISON_RULES) : baseComparisonPages;\n", ''],
+  ]), prior, `${label}: removing the additions gives back the base commit's lib byte for byte`)
+  match(code, /const STUDIO_P2_DOCS = process\.env\.NEXT_PUBLIC_STUDIO_P2_DOCS === 'true';/, `${label}: flag read inline, exact true`)
+}
+proveComparisonsLib(SOURCES[LIB_COMPARISONS])
+
+// ruling 3: the example and template data (read through their libs) and their cards and types
+const AGENT_KINDS = {
+  examples: { lib: LIB_EXAMPLES, data: DATA_EXAMPLES, card: CARD_EXAMPLE, types: TYPES_EXAMPLE, typeDep: '@/types/example', one: 'example', Card: 'ExampleCard', count: 8 },
+  templates: { lib: LIB_TEMPLATES, data: DATA_TEMPLATES, card: CARD_TEMPLATE, types: TYPES_TEMPLATE, typeDep: '@/types/template', one: 'template', Card: 'TemplateCard', count: 15 },
+}
+const freshData = kind => load(read(AGENT_KINDS[kind].data), AGENT_KINDS[kind].data, { deps: { [AGENT_KINDS[kind].typeDep]: {} } })
+const OLD_IDS = ['scripter', 'graphic-artist', 'data-visualizer'], NEW_IDS = ['content-generator', 'slide-composer', 'visualizer']
+const NEW_OF = { scripter: 'content-generator', 'graphic-artist': 'slide-composer', 'data-visualizer': 'visualizer' }
+const NAME_OF = Object.fromEntries(AGENTS_CONTENT.agents.map(agent => [agent.id, agent.name]))
+const OLD_NAME_OF = { director: 'Director', scripter: 'Scripter', 'graphic-artist': 'Graphic Artist', 'data-visualizer': 'Data Visualizer' }
+for (const kind of Object.keys(AGENT_KINDS)) {
+  const list = plain(freshData(kind)[kind])
+  eq(list.length, AGENT_KINDS[kind].count, `the real ${kind}: ${AGENT_KINDS[kind].count} of them`)
+  ok(list.every(item => item.agents.every(id => id === 'director' || OLD_IDS.includes(id))), `the real ${kind}: they name only director and the three old ids`)
+  ok(OLD_IDS.every(id => list.some(item => item.agents.includes(id))), `the real ${kind}: each of the three old ids is used`)
+  notes.push(`${kind} data: ${list.filter(item => item.agents.some(id => OLD_IDS.includes(id))).length} of ${list.length} name an old agent (${OLD_IDS.map(id => `${id} x${list.filter(item => item.agents.includes(id)).length}`).join(', ')}); the data files are not edited`)
+}
+{ // /examples and /templates are redirects (next.config.mjs): the cards have no route today
+  match(read('next.config.mjs'), /source: '\/templates', destination: '\/bring#library'/, '/templates still redirects to /bring#library (the template cards have no route today)')
+  match(read('next.config.mjs'), /source: '\/examples', destination: '\/bring#library'/, '/examples still redirects to /bring#library (the example cards have no route today)')
+}
+function proveAgentsLib(kind, code, label = `${kind} lib`, libSource = SOURCES[LIB]) {
+  const K = AGENT_KINDS[kind]
+  const prior = baseSource(K.lib)
+  const pack = source => env => { const data = freshData(kind); return { mod: load(source, K.lib, { env, deps: { [`@/content/${kind}`]: data, [K.typeDep]: {}, '@/lib/studio-p2-docs': load(libSource, LIB) } }), list: data[kind] } }
+  const sample = (mod, list) => kind === 'examples'
+    ? [mod.getAllExamples(), mod.getExampleById(list[0].id), mod.getExampleById('nope'), mod.getFeaturedExamples(), mod.filterExamples({}), mod.filterExamples({ search: 'sales', sortBy: 'alphabetical' }), mod.getExamplesByIndustry('technology'), mod.searchExamples('a')]
+    : [mod.getAllTemplates(), mod.getTemplateById(list[0].id), mod.getTemplateById('nope'), mod.getFeaturedTemplates(), mod.getPopularTemplates(), mod.getNewTemplates(), mod.filterTemplates({}), mod.filterTemplates({ search: 'sales', sortBy: 'alphabetical' }), mod.getTemplatesByCategory('business'), mod.searchTemplates('a')]
+  const getAll = mod => kind === 'examples' ? mod.getAllExamples() : mod.getAllTemplates()
+  for (const env of OFF_SPELLINGS) {
+    const { mod, list } = pack(code)(env), base = pack(prior)(env)
+    eq(getAll(mod), list, `${label}: env ${JSON.stringify(env)}: the content's own array, not a copy`)
+    deepEq(sample(mod, list), sample(base.mod, base.list), `${label}: env ${JSON.stringify(env)}: every function gives what the base commit's lib gives`)
+  }
+  const original = plain(freshData(kind)[kind])
+  for (const env of [ON, { ...ON, NEXT_PUBLIC_STUDIO_V4_SHELL: 'true' }]) {
+    const { mod, list } = pack(code)(env)
+    const out = plain(getAll(mod))
+    eq(out.length, original.length, `${label}: on: the same ${kind}`)
+    deepEq(out.map(item => ({ ...item, agents: 0 })), original.map(item => ({ ...item, agents: 0 })), `${label}: on: nothing but the agents differs`)
+    deepEq(out.map(item => item.agents), original.map(item => item.agents.map(id => NEW_OF[id] ?? id)), `${label}: on: scripter -> content-generator, graphic-artist -> slide-composer, data-visualizer -> visualizer; director and the order stay`)
+    ok(out.every(item => item.agents.every(id => id === 'director' || NEW_IDS.includes(id))), `${label}: on: no old id is left`)
+    ok(out.every(item => item.agents.every(id => id in NAME_OF)), `${label}: on: every id is an agent of content/agents.ts`)
+    ok(out.every((item, i) => item.agents.length === original[i].agents.length && new Set(item.agents).size === item.agents.length), `${label}: on: the same number of agents, none twice`)
+    deepEq(plain(list), original, `${label}: on: the content handed in is not changed`)
+    deepEq(plain(sample(mod, list)[1]), out[0], `${label}: on: by id: the same item`)
+    deepEq(plain(kind === 'examples' ? mod.filterExamples({}) : mod.filterTemplates({})).map(item => item.agents), out.map(item => item.agents), `${label}: on: the filters read the same data`)
+  }
+  const importLine = `import { ${kind === 'examples' ? 'Example, ExampleFilters' : 'Template, TemplateFilters'} } from '${K.typeDep}';\nimport { ${kind} } from '@/content/${kind}';\n`
+  const newImport = `import { ${kind === 'examples' ? 'Example, ExampleFilters, AgentType' : 'Template, TemplateFilters, AgentType'} } from '${K.typeDep}';\nimport { ${kind} as base${kind[0].toUpperCase()}${kind.slice(1)} } from '@/content/${kind}';\nimport { studioAgentId } from '@/lib/studio-p2-docs';\n`
+  const Kind = kind[0].toUpperCase() + kind.slice(1), one = K.one, One = Kind.slice(0, -1)
+  eq(undoAll(code, [
+    [newImport, importLine],
+    [`\n// PASS2 Docs (NEXT_PUBLIC_STUDIO_P2_DOCS, default off): with the flag on the ${kind} name the current agents (content-generator, slide-composer, visualizer) in place of scripter, graphic-artist and data-visualizer. Off: the content as it was, the same array.\nconst STUDIO_P2_DOCS = process.env.NEXT_PUBLIC_STUDIO_P2_DOCS === 'true';\nconst ${kind}: ${One}[] = STUDIO_P2_DOCS ? base${Kind}.map((${one}) => ({ ...${one}, agents: ${one}.agents.map((agent) => studioAgentId(agent) as AgentType) })) : base${Kind};\n`, ''],
+  ]), prior, `${label}: removing the additions gives back the base commit's lib byte for byte`)
+  match(code, /const STUDIO_P2_DOCS = process\.env\.NEXT_PUBLIC_STUDIO_P2_DOCS === 'true';/, `${label}: flag read inline, exact true`)
+}
+for (const kind of Object.keys(AGENT_KINDS)) proveAgentsLib(kind, SOURCES[AGENT_KINDS[kind].lib])
+
+function proveCard(kind, code, label = `${kind} card`) {
+  const K = AGENT_KINDS[kind]
+  const prior = baseSource(K.card)
+  const render = (source, item) => expand(load(source, K.card, { deps: { [K.typeDep]: {}, 'next/link': LINK } })[K.Card]({ [K.one]: item }))
+  const agentBadges = tree => byType(tree, 'Badge').filter(node => attr(node, 'variant') === 'secondary')
+  const list = plain(freshData(kind)[kind])
+  for (const item of list) {
+    const mapped = { ...item, agents: item.agents.map(id => NEW_OF[id] ?? id) }
+    eq(rendered(render(code, item)), rendered(render(prior, item)), `${label}: ${item.id}: the card of the old data is the base commit's card, tree for tree`)
+    deepEq(agentBadges(render(code, item)).map(node => text(node)), item.agents.map(id => OLD_NAME_OF[id]), `${label}: ${item.id}: the old ids still read Director, Scripter, Graphic Artist, Data Visualizer`)
+    deepEq(agentBadges(render(code, mapped)).map(node => text(node)), mapped.agents.map(id => NAME_OF[id]), `${label}: ${item.id}: the current ids read the names of content/agents.ts`)
+    deepEq(agentBadges(render(code, mapped)).map(node => attr(node, 'className')), agentBadges(render(code, item)).map(node => attr(node, 'className')), `${label}: ${item.id}: ... in the same colours as the agents they replace`)
+    const flat = rendered(render(code, mapped))
+    for (const id of NEW_IDS) eq(flat.split(`"${NAME_OF[id]}"`).length - 1, mapped.agents.filter(agent => agent === id).length, `${label}: ${item.id}: ${NAME_OF[id]} is named once for each time the item has it, and nowhere else on the card`)
+  }
+  const maps = name => { const body = new RegExp(`const ${name} = \\{([^}]*)\\}`).exec(code)?.[1] ?? ''; return Object.fromEntries([...body.matchAll(/'([\w-]+)':\s*'([^']*)'/g)].map(m => [m[1], m[2]])) }
+  const colors = maps('agentColors'), names = maps('agentNames')
+  const union = /export type AgentType = ([^;]+);/.exec(read(K.types))[1].split('|').map(member => member.trim().replace(/'/g, ''))
+  deepEq(Object.keys(colors), union, `${label}: a colour for each agent id of the type, in its order`)
+  deepEq(Object.keys(names), union, `${label}: a name for each agent id of the type, in its order`)
+  for (const [old, now] of Object.entries(NEW_OF)) eq(colors[now], colors[old], `${label}: ${now} has ${old}'s colours`)
+  for (const id of NEW_IDS) eq(names[id], NAME_OF[id], `${label}: ${id} is named as content/agents.ts names it`)
+  for (const id of ['director', ...OLD_IDS]) eq(names[id], OLD_NAME_OF[id], `${label}: ${id} keeps its old name (flag off reads it)`)
+  eq(undoAll(code, [
+    [`// PASS2 Docs (NEXT_PUBLIC_STUDIO_P2_DOCS): with the flag on, lib/${kind}.ts hands this card the current agents' ids (content-generator, slide-composer, visualizer) in place of scripter, graphic-artist and data-visualizer; the data files are not edited.\n// With the flag off no card has those ids, so the three extra entries below (the same colours as the three they replace) are never read.\n`, ''],
+    [`  'content-generator': 'bg-blue-100 text-blue-700 dark:bg-blue-900 dark:text-blue-300',\n  'slide-composer': 'bg-pink-100 text-pink-700 dark:bg-pink-900 dark:text-pink-300',\n  'visualizer': 'bg-green-100 text-green-700 dark:bg-green-900 dark:text-green-300',\n`, ''],
+    [`  'content-generator': 'Content Generator',\n  'slide-composer': 'Slide Composer',\n  'visualizer': 'Visualizer',\n`, ''],
+  ]), prior, `${label}: removing the additions gives back the base commit's card byte for byte`)
+  match(code, /^'use client';/, `${label}: still a client component`)
+  nomatch(code, /process\.env/, `${label}: the card reads no flag (the lib hands it the ids)`)
+}
+for (const kind of Object.keys(AGENT_KINDS)) proveCard(kind, SOURCES[AGENT_KINDS[kind].card])
+function proveTypes(kind, code, label = `${kind} types`) {
+  const K = AGENT_KINDS[kind]
+  const prior = baseSource(K.types)
+  const union = /export type AgentType = ([^;]+);/.exec(code)?.[1].split('|').map(member => member.trim().replace(/'/g, ''))
+  deepEq(union, ['director', ...OLD_IDS, ...NEW_IDS], `${label}: AgentType: the four it had, then the three current ids`)
+  for (const id of NEW_IDS) ok(id in NAME_OF, `${label}: ${id} is an agent of content/agents.ts`)
+  eq(undoAll(code, [
+    ["// PASS2 Docs (NEXT_PUBLIC_STUDIO_P2_DOCS): the data keeps its old ids (scripter, graphic-artist, data-visualizer); with the flag on the card reads them as the current agents (lib/studio-p2-docs.ts, studioAgentId), whose ids are the three that follow.\n", ''],
+    ["export type AgentType = 'director' | 'scripter' | 'graphic-artist' | 'data-visualizer' | 'content-generator' | 'slide-composer' | 'visualizer';\n", "export type AgentType = 'director' | 'scripter' | 'graphic-artist' | 'data-visualizer';\n"],
+  ]), prior, `${label}: removing the additions gives back the base commit's types byte for byte`)
+}
+for (const kind of Object.keys(AGENT_KINDS)) proveTypes(kind, SOURCES[AGENT_KINDS[kind].types])
+for (const file of [DATA_COMPARISONS, DATA_EXAMPLES, DATA_TEMPLATES, 'app/examples/page.tsx', 'app/templates/page.tsx', 'app/compare/[competitor]/page.tsx', PRICING_SOURCE, 'lib/auth-options.ts', 'app/auth/signup/page.tsx', 'app/auth/signin/page.tsx']) eq(read(file), baseSource(file), `${file} is the base commit's, byte for byte`)
+
+// ruling 3, onboarding: with NEXT_PUBLIC_STUDIO_P2_ONBOARDING and the shell on there is no old agent name to change (the wizard and the Studio introduction name none); the old page and the classic modal, which do, are the flag-off text and are not touched
+const ONB_FILES = ['lib/studio-onboarding.ts', 'components/studio-p2-onboarding.tsx', 'app/onboarding/layout.tsx', 'components/onboarding-modal.tsx', 'app/onboarding/page.tsx']
+const ONB_SOURCES = Object.fromEntries(ONB_FILES.map(file => [file, read(file)]))
+SOURCES['lib/studio-onboarding.ts'] = ONB_SOURCES['lib/studio-onboarding.ts']; SOURCES['components/studio-p2-onboarding.tsx'] = ONB_SOURCES['components/studio-p2-onboarding.tsx']
+SOURCES['app/onboarding/layout.tsx'] = ONB_SOURCES['app/onboarding/layout.tsx']; SOURCES['components/onboarding-modal.tsx'] = ONB_SOURCES['components/onboarding-modal.tsx']; SOURCES['app/onboarding/page.tsx'] = ONB_SOURCES['app/onboarding/page.tsx']
+function proveOnboardingNames(sources = ONB_SOURCES, label = 'onboarding') {
+  for (const file of ['lib/studio-onboarding.ts', 'components/studio-p2-onboarding.tsx', 'app/onboarding/layout.tsx']) nomatch(sources[file], OLD_RE, `${label}: ${file} (the flag-on path) names none of the old agents`)
+  const modal = sources['components/onboarding-modal.tsx']
+  const start = modal.indexOf('const studioChapters = ['), end = modal.indexOf('interface OnboardingModalProps')
+  ok(start > 0 && end > start && end - start > 500, `${label}: the Studio introduction's chapters are found in the modal`)
+  nomatch(modal.slice(start, end), OLD_RE, `${label}: the Studio introduction's chapters (the modal with the shell on) name none of the old agents`)
+  match(modal, /if \(STUDIO_ONBOARDING\) \{\s*const chapter = studioChapters\[currentStep\]/, `${label}: the modal shows those chapters whenever the shell is on`)
+  match(sources['app/onboarding/layout.tsx'], /process\.env\.NEXT_PUBLIC_STUDIO_P2_ONBOARDING === "true" && process\.env\.NEXT_PUBLIC_STUDIO_V4_SHELL === "true"\) return <StudioP2Onboarding \/>/, `${label}: the layout picks the wizard only with the flag and the shell on`)
+  deepEq([...sources['lib/studio-onboarding.ts'].matchAll(/title: '(The [A-Za-z ]+)', text/g)].map(m => m[1]), ['The Director', 'The canvas', 'The Inspector'], `${label}: the wizard's welcome step names the Director, the canvas and the Inspector, no other agent`)
+  for (const file of ['app/onboarding/page.tsx', 'components/onboarding-modal.tsx']) {
+    eq(sources[file], baseSource(file), `${label}: ${file} is the base commit's, byte for byte (flag off = today)`)
+    match(sources[file], OLD_RE, `${label}: ${file} still holds the old names: it is the flag-off text`)
+  }
+}
+proveOnboardingNames()
+notes.push('onboarding: the flag-on path (wizard, Studio introduction) names no old agent; app/onboarding/page.tsx and the classic modal still do, are the flag-off text, and are the base commit\'s bytes')
+
 
 // ---------------------------------------------------------------- 4. the CSS
 const rulesOf = css => { const rules = []; postcss.parse(css).walkRules(rule => rules.push(rule)); return rules }
@@ -1295,6 +1693,12 @@ function proveEnv(env, label = 'env') {
   match(comment, /neither footer links \/integrations or \/agents, and \/compare drops "Meet the Team"/, `${label}: the comment says which links go`)
   match(comment, /the Landing footer gains Help, Docs, Security and Cookies beside Privacy and Terms/, `${label}: the comment says what the Landing footer gains`)
   match(comment, /The words of the legal pages are not touched\./, `${label}: the comment says the legal words are untouched`)
+  const flat = comment.replace(/\n# /g, ' ')
+  match(flat, /Content pass 2 \(PROGRAM-1, 22 Oct\), same flag: the docs name the real plans \(Starter, Pro, Max; the plan tags the code does not back are taken out\) and the Google sign-in \(content\/studio-p2-docs-facts\.ts\)/, `${label}: the comment names the second content pass, the real plans and the Google sign-in`)
+  match(flat, /the comparison pages and the example and template cards read the current agents \(content\/studio-p2-comparisons\.ts, lib\/studio-p2-docs\.ts; \/examples and \/templates are redirects today\)/, `${label}: the comment says which pages read the current agents, and that two of them are redirects`)
+  match(flat, /\/docs\/api loses its "v1\.0 Beta" badge; the agent not-found page links to \/experts\./, `${label}: the comment says the badge goes and the not-found link moves`)
+  match(flat, /With NEXT_PUBLIC_STUDIO_P2_ONBOARDING and the shell on there is no old agent name left to change \(the wizard and the Studio introduction name none\); the old \/onboarding page and the old modal, which still do, are the flag-off text and stay as they were\./, `${label}: the comment says onboarding has no old name to change on its flag-on path`)
+  eq(comment.split('\n').filter(line => !line.startsWith('# ')).length, 0, `${label}: the whole block is comment lines`)
   nomatch(comment, /exact "true" enables it/, `${label}: the comment does not use the phrase another flag's test pins`)
   eq(lines.filter(l => /^NEXT_PUBLIC_STUDIO_P2_[A-Z_]+="false"$/.test(l) && /DOC/.test(l)).length, 1, `${label}: no second flag for the content pass`)
   ok(lines[index + 1] === '', `${label}: the flag closes its block (a blank line or the end of the file follows; later changes' blocks may come after)`)
@@ -1826,7 +2230,14 @@ mutant(PAGE_API, 'api page: flag spelling', "=== 'true';", "!== 'false';")
 mutant(PAGE_API, 'api page: flag name', 'process.env.NEXT_PUBLIC_STUDIO_P2_DOCS', 'process.env.NEXT_PUBLIC_STUDIO_DOCS')
 mutant(PAGE_API, 'api page: always the notice', '{STUDIO_P2_DOCS && <StudioApiNotice />}', '<StudioApiNotice />')
 mutant(PAGE_API, 'api page: never the notice', '{STUDIO_P2_DOCS && <StudioApiNotice />}', '{false && <StudioApiNotice />}')
-mutant(PAGE_API, 'api page: the notice after the title', ['{STUDIO_P2_DOCS && <StudioApiNotice />}\n            <PageHeader', '                badge={{ text: "v1.0 Beta", icon: <Zap className="h-3 w-3" /> }}\n            />'], ['<PageHeader', '                badge={{ text: "v1.0 Beta", icon: <Zap className="h-3 w-3" /> }}\n            />{STUDIO_P2_DOCS && <StudioApiNotice />}'])
+mutant(PAGE_API, 'api page: the notice after the title', ['{STUDIO_P2_DOCS && <StudioApiNotice />}\n            <PageHeader', '                badge={STUDIO_P2_DOCS ? undefined : { text: "v1.0 Beta", icon: <Zap className="h-3 w-3" /> }}\n            />'], ['<PageHeader', '                badge={STUDIO_P2_DOCS ? undefined : { text: "v1.0 Beta", icon: <Zap className="h-3 w-3" /> }}\n            />{STUDIO_P2_DOCS && <StudioApiNotice />}'])
+mutant(PAGE_API, 'api page: the badge is always shown', 'badge={STUDIO_P2_DOCS ? undefined : {', 'badge={false ? undefined : {')
+mutant(PAGE_API, 'api page: the badge is never shown', 'badge={STUDIO_P2_DOCS ? undefined : {', 'badge={true ? undefined : {')
+mutant(PAGE_API, 'api page: the badge is shown only with the flag on', 'badge={STUDIO_P2_DOCS ? undefined : {', 'badge={!STUDIO_P2_DOCS ? undefined : {')
+mutant(PAGE_API, 'api page: the badge word', '{ text: "v1.0 Beta", icon', '{ text: "v1.0", icon')
+mutant(PAGE_API, 'api page: the badge icon', 'icon: <Zap className="h-3 w-3" /> }}', 'icon: <Key className="h-3 w-3" /> }}')
+mutant(PAGE_API, 'api page: the badge removed for good', 'badge={STUDIO_P2_DOCS ? undefined : { text: "v1.0 Beta", icon: <Zap className="h-3 w-3" /> }}\n', '')
+mutant(PAGE_API, 'api page: the comment', 'the page below it is muted and it has no "v1.0 Beta" badge.', 'the page below it is muted.')
 mutant(PAGE_API, 'api page: the import', "'@/components/studio-docs/studio-p2-docs-api-notice'", "'@/components/studio-docs/studio-p2-docs-api'")
 mutant(PAGE_API, 'api page: a word changed', 'title="Deckster API"', 'title="Deckster API v2"')
 mutant(PAGE_API, 'api page: a claim cut', 'Authenticate your requests using Bearer tokens.', 'Authenticate your requests.')
@@ -1858,7 +2269,17 @@ mutant(FOOTER_V3, 'landing footer: a client component', 'import Link from "next/
 // ---- the pages that lose a link
 mutant(PAGE_AGENT, 'agent page: flag spelling', "=== 'true';\n\nconst iconMap", "!== 'false';\n\nconst iconMap")
 mutant(PAGE_AGENT, 'agent page: flag name', 'process.env.NEXT_PUBLIC_STUDIO_P2_DOCS', 'process.env.NEXT_PUBLIC_STUDIO_DOCS')
-mutant(PAGE_AGENT, 'agent page: the not-found link kept', '          {!STUDIO_P2_DOCS && (\n            <Link', '          {true && (\n            <Link')
+mutant(PAGE_AGENT, 'agent page: the not-found link still to /agents', "href={STUDIO_P2_DOCS ? '/experts' : '/agents'}", 'href="/agents"')
+mutant(PAGE_AGENT, 'agent page: the not-found link to /experts with the flag off', "href={STUDIO_P2_DOCS ? '/experts' : '/agents'}", 'href="/experts"')
+mutant(PAGE_AGENT, 'agent page: the not-found link branches swapped', "href={STUDIO_P2_DOCS ? '/experts' : '/agents'}", "href={STUDIO_P2_DOCS ? '/agents' : '/experts'}")
+mutant(PAGE_AGENT, 'agent page: the not-found link to another address', "href={STUDIO_P2_DOCS ? '/experts' : '/agents'}", "href={STUDIO_P2_DOCS ? '/expert' : '/agents'}")
+mutant(PAGE_AGENT, 'agent page: the not-found link to the old place off', "href={STUDIO_P2_DOCS ? '/experts' : '/agents'}", "href={STUDIO_P2_DOCS ? '/experts' : '/agent'}")
+mutant(PAGE_AGENT, 'agent page: the not-found label unchanged', "{STUDIO_P2_DOCS ? 'Back to Experts' : 'Back to Agents'}", 'Back to Agents')
+mutant(PAGE_AGENT, 'agent page: the not-found label changed with the flag off', "{STUDIO_P2_DOCS ? 'Back to Experts' : 'Back to Agents'}", 'Back to Experts')
+mutant(PAGE_AGENT, 'agent page: the not-found label branches swapped', "{STUDIO_P2_DOCS ? 'Back to Experts' : 'Back to Agents'}", "{STUDIO_P2_DOCS ? 'Back to Agents' : 'Back to Experts'}")
+mutant(PAGE_AGENT, 'agent page: the not-found label reworded', "'Back to Experts' : 'Back to Agents'", "'Back to the Experts' : 'Back to Agents'")
+mutant(PAGE_AGENT, 'agent page: the not-found link gone', ["          <Link\n            href={STUDIO_P2_DOCS ? '/experts' : '/agents'}", "{STUDIO_P2_DOCS ? 'Back to Experts' : 'Back to Agents'}\n          </Link>\n"], ["          {false && <Link\n            href={STUDIO_P2_DOCS ? '/experts' : '/agents'}", "{STUDIO_P2_DOCS ? 'Back to Experts' : 'Back to Agents'}\n          </Link>}\n"])
+mutant(PAGE_AGENT, 'agent page: the not-found link gone with the flag on', ["          <Link\n            href={STUDIO_P2_DOCS ? '/experts' : '/agents'}", "{STUDIO_P2_DOCS ? 'Back to Experts' : 'Back to Agents'}\n          </Link>\n"], ["          {!STUDIO_P2_DOCS && <Link\n            href={STUDIO_P2_DOCS ? '/experts' : '/agents'}", "{STUDIO_P2_DOCS ? 'Back to Experts' : 'Back to Agents'}\n          </Link>}\n"])
 mutant(PAGE_AGENT, 'agent page: the hero link kept', '              {!STUDIO_P2_DOCS && (\n                <Button', '              {true && (\n                <Button')
 mutant(PAGE_AGENT, 'agent page: the closing link kept', '                {!STUDIO_P2_DOCS && (\n                  <Button', '                {true && (\n                  <Button')
 mutant(PAGE_AGENT, 'agent page: the hero link hidden with the flag off', '              {!STUDIO_P2_DOCS && (\n                <Button', '              {false && (\n                <Button')
@@ -1900,6 +2321,179 @@ mutant(CSS, 'css api: notice offset', '.sd-api-notice { box-sizing: border-box; 
 mutant(CSS, 'css api: notice sets its own width', '.sd-api-notice { box-sizing: border-box; padding-top: 24px; }', '.sd-api-notice { box-sizing: border-box; padding-top: 24px; width: 90%; }')
 mutant(CSS, 'css api: important', '.sd-api-notice ~ section { --sd-text: var(--sd-muted);', '.sd-api-notice ~ section { --sd-text: var(--sd-muted) !important;')
 
+// ---- content pass 2: the lib (who the old agents are now, the reword)
+mutant(LIB, 'agent id: scripter unchanged', "scripter: { id: 'content-generator', name: 'Content Generator' }", "scripter: { id: 'scripter', name: 'Content Generator' }")
+mutant(LIB, 'agent id: scripter to another agent', "scripter: { id: 'content-generator',", "scripter: { id: 'visualizer',")
+mutant(LIB, 'agent id: graphic-artist unchanged', "'graphic-artist': { id: 'slide-composer', name: 'Slide Composer' }", "'graphic-artist': { id: 'graphic-artist', name: 'Slide Composer' }")
+mutant(LIB, 'agent id: graphic-artist to another agent', "'graphic-artist': { id: 'slide-composer',", "'graphic-artist': { id: 'content-generator',")
+mutant(LIB, 'agent id: data-visualizer unchanged', "'data-visualizer': { id: 'visualizer', name: 'Visualizer' }", "'data-visualizer': { id: 'data-visualizer', name: 'Visualizer' }")
+mutant(LIB, 'agent id: data-visualizer to another agent', "'data-visualizer': { id: 'visualizer',", "'data-visualizer': { id: 'analyst',")
+mutant(LIB, 'agent id: a name changed (Content Generator)', "name: 'Content Generator' }", "name: 'Content Writer' }")
+mutant(LIB, 'agent id: a name changed (Slide Composer)', "name: 'Slide Composer' }", "name: 'Slide Composers' }")
+mutant(LIB, 'agent id: a name changed (Visualizer)', "name: 'Visualizer' },\n} as const", "name: 'Data Visualizer' },\n} as const")
+mutant(LIB, 'agent id: a rename dropped', "  'data-visualizer': { id: 'visualizer', name: 'Visualizer' },\n", '')
+mutant(LIB, 'agent id: an extra rename', "} as const\n\n/** The current id", "  director: { id: 'orchestrator', name: 'Orchestrator' },\n} as const\n\n/** The current id")
+mutant(LIB, 'agent id: inherited keys read', 'Object.prototype.hasOwnProperty.call(STUDIO_AGENT_RENAMES, id) ?', 'id in STUDIO_AGENT_RENAMES ?')
+mutant(LIB, 'agent id: everything renamed', '].id : id\n}', '].id : STUDIO_AGENT_RENAMES.scripter.id\n}')
+mutant(LIB, 'agent id: the name instead of the id', '].id : id\n}', '].name : id\n}')
+mutant(LIB, 'agent id: an import added', 'export const STUDIO_AGENT_RENAMES', "import { cn } from '@/lib/utils'\nexport const STUDIO_AGENT_RENAMES")
+mutant(LIB, 'reword: every occurrence', 'out.replace(rule.from, () => rule.to)', 'out.split(rule.from).join(rule.to)')
+mutant(LIB, 'reword: replacement patterns read', 'out.replace(rule.from, () => rule.to)', 'out.replace(rule.from, rule.to)')
+mutant(LIB, 'reword: the rules run backwards', 'rules.reduce((out, rule)', '[...rules].reverse().reduce((out, rule)')
+mutant(LIB, 'reword: only the first rule', 'rules.reduce((out, rule)', '[rules[0]].reduce((out, rule)')
+mutant(LIB, 'reword: strings not reached', "if (typeof value === 'string') return rules.reduce", "if (typeof value === 'string') return value as unknown as T; if (false) return rules.reduce")
+mutant(LIB, 'reword: arrays not reached', 'return value.map(item => studioReword(item, rules)) as unknown as T', 'return value as unknown as T')
+mutant(LIB, 'reword: arrays shallow', 'value.map(item => studioReword(item, rules))', 'value.map(item => item)')
+mutant(LIB, 'reword: arrays become objects', 'return value.map(item => studioReword(item, rules)) as unknown as T', 'return { ...value.map(item => studioReword(item, rules)) } as unknown as T')
+mutant(LIB, 'reword: objects not reached', "  if (value !== null && typeof value === 'object') return Object.fromEntries(Object.entries(value).map(([key, item]) => [key, studioReword(item, rules)])) as T\n", '')
+mutant(LIB, 'reword: objects shallow', '[key, studioReword(item, rules)]', '[key, item]')
+mutant(LIB, 'reword: keys reworded', '[key, studioReword(item, rules)]', '[studioReword(key, rules), studioReword(item, rules)]')
+mutant(LIB, 'reword: null read as an object', "value !== null && typeof value === 'object'", "typeof value === 'object'")
+mutant(LIB, 'reword: an import added', 'export interface StudioTextRule', "import { cn } from '@/lib/utils'\nexport interface StudioTextRule")
+mutant(LIB, 'reword: the value changed in place', 'if (Array.isArray(value)) return value.map(item => studioReword(item, rules)) as unknown as T', 'if (Array.isArray(value)) { value.forEach((item, i) => { value[i] = studioReword(item, rules) }); return value as unknown as T }')
+// ---- the fact rules (plans, sign-in)
+const FACT_MUTANTS = [
+  ['an import added', 'import type { StudioDocRule }', 'import { cn } from "@/lib/utils"\nimport type { StudioDocRule }'],
+  ['an article renamed', 'doc: "getting-started/understanding-agents",', 'doc: "getting-started/understanding-agent",'],
+  ['the sign-in text misquoted', '2. Enter your email and create a password\n3. Verify your email address`,\n    to', '2. Enter your e-mail and create a password\n3. Verify your email address`,\n    to'],
+  ['the password step kept', 'to: `2. Choose "Sign up with Google" and pick your Google account`', 'to: `2. Choose "Sign up with Google" and pick your Google account\n3. Choose a password`'],
+  ['the verification step kept', 'to: `2. Choose "Sign up with Google" and pick your Google account`', 'to: `2. Choose "Sign up with Google" and pick your Google account\n3. Verify your email address`'],
+  ['sign-in by email', 'Choose "Sign up with Google" and pick your Google account', 'Enter your email to sign up'],
+  ['sign-in with another button', 'Choose "Sign up with Google"', 'Choose "Continue with Google"'],
+  ['the sign-in step gone', 'to: `2. Choose "Sign up with Google" and pick your Google account`', 'to: ``'],
+  ['the sign-in step is Apple', 'pick your Google account', 'pick your Apple account'],
+  ['the plans heading', '## Agent Access by Plan', '## Agent Access'],
+  ['the heading keeps Free', '## Agent Access by Plan', '## Free vs Pro Agent Access'],
+  ['a Free line kept', '- **Starter**: Director, Content Generator, Visualizer', '- **Free**: Director, Content Generator\n- **Starter**: Director, Content Generator, Visualizer'],
+  ['Starter loses an agent', 'Slide Composer, Theme Builder\n- **Pro**', 'Slide Composer\n- **Pro**'],
+  ['Starter gains the Researcher', 'Slide Composer, Theme Builder\n- **Pro**', 'Slide Composer, Theme Builder, Researcher\n- **Pro**'],
+  ['Starter gains the Element Generator', 'Slide Composer, Theme Builder\n- **Pro**', 'Slide Composer, Theme Builder, Element Generator\n- **Pro**'],
+  ['Pro loses the Analyst', ' and the Analyst (finds the story in your numbers)', ''],
+  ['Pro loses the files', 'live data from the open web, and your own files as source material', 'live data from the open web'],
+  ['Pro reworded', 'finds the story in your numbers', 'finds the insight in your numbers'],
+  ['Pro claims credits', ' and the Analyst (finds the story in your numbers)', ' and the Analyst (finds the story in your numbers), with unlimited credits'],
+  ['Pro is not built on Starter', '- **Pro**: Everything in Starter, plus', '- **Pro**: Everything, plus'],
+  ['Max loses the queue', ' and a priority generation queue`', '`'],
+  ['Max reworded', '(the agents learn your domain across decks)', '(the agents learn your domain)'],
+  ['Max is not built on Pro', '- **Max**: Everything in Pro, plus', '- **Max**: Everything, plus'],
+  ['an Enterprise line', '- **Max**: Everything in Pro', '- **Enterprise**: Everything in Max, plus API access\n- **Max**: Everything in Pro'],
+  ['a plan counts its agents', '- **Starter**: Director, Content Generator', '- **Starter** (2 agents): Director, Content Generator'],
+  ['the Director is plan-specific', 'The Director is part of Starter, Pro and Max.', 'The Director is part of Starter, Pro and Max. Starter works with the Content Generator only.'],
+  ['the Director has the old plans', 'part of Starter, Pro and Max', 'part of Free, Pro and Max'],
+  ['the Director: Pro adds one agent', 'Pro adds the Researcher and the Analyst', 'Pro adds the Researcher'],
+  ['the Director: Max adds nothing', ', and Max adds the Knowledge Graph and a priority generation queue.', '.'],
+  ['the Director heading', '## The Director on Every Plan', '## Free vs. Pro Director'],
+  ['downloads: Starter only', 'Starter, Pro and Max can all download PowerPoint and PDF', 'Starter can download PowerPoint and PDF'],
+  ['downloads: a watermark', 'with no watermark', 'with a watermark on Starter'],
+  ['downloads: a count', 'with no watermark.`', 'with no watermark, 3 exports per presentation.`'],
+  ['downloads: another format', 'download PowerPoint and PDF', 'download PowerPoint, PDF and Google Slides'],
+  ['downloads: the old heading', '## Downloads on Every Plan', '## Download Limits'],
+  ['downloads: the old text misquoted', '- 3 exports per presentation', '- 3 exports for each presentation'],
+  ['a plan tag kept: AI-generate', 'to: `   - AI-generate`', 'to: `   - AI-generate (Max)`'],
+  ['a plan tag kept: Collaboration Features', 'to: `## Collaboration Features`', 'to: `## Collaboration Features (Max)`'],
+  ['a plan tag kept: Style Transfer', 'to: `### Style Transfer`', 'to: `### Style Transfer (Max)`'],
+  ['a plan tag kept: Analytics tracking', 'to: `- Analytics tracking`', 'to: `- Analytics tracking (Max)`'],
+  ['a plan tag kept: Track who viewed', 'to: `- Track who viewed`', 'to: `- Track who viewed (Max)`'],
+  ['a plan tag kept: Team Sharing', 'to: `### Team Sharing`', 'to: `### Team Sharing (Max)`'],
+  ['a plan tag kept: Real-Time Collaboration', 'to: `### Real-Time Collaboration`', 'to: `### Real-Time Collaboration (Max)`'],
+  ['a plan tag kept: Analytics', 'to: `## Analytics`', 'to: `## Analytics (Max)`'],
+  ['a tag line reworded', 'to: `- Track who viewed`', 'to: `- Track who viewed it`'],
+  ['a tag rule on the wrong article', 'doc: "builder-guide/slide-editing",\n    from: `### Style Transfer (Pro)`', 'doc: "builder-guide/exports",\n    from: `### Style Transfer (Pro)`'],
+  ['a rule dropped', '  {\n    doc: "builder-guide/exports",\n    from: `## Analytics (Pro)`,\n    to: `## Analytics`,\n  },\n', ''],
+  ['a rule misquoted', '- Industry-specific templates`,\n    to', '- Industry specific templates`,\n    to'],
+]
+for (const [name, from, to] of FACT_MUTANTS) mutant(FACT_RULES, `facts: ${name}`, from, to)
+// ---- the docs component applies them
+mutant(UI, 'ui: the fact rules are not applied', 'const RULES = [...STUDIO_DOCS_AGENT_RULES, ...STUDIO_DOCS_FACT_RULES]', 'const RULES = [...STUDIO_DOCS_AGENT_RULES]')
+mutant(UI, 'ui: only the fact rules are applied', 'const RULES = [...STUDIO_DOCS_AGENT_RULES, ...STUDIO_DOCS_FACT_RULES]', 'const RULES = [...STUDIO_DOCS_FACT_RULES]')
+mutant(UI, 'ui: the fact rules run first', 'const RULES = [...STUDIO_DOCS_AGENT_RULES, ...STUDIO_DOCS_FACT_RULES]', 'const RULES = [...STUDIO_DOCS_FACT_RULES, ...STUDIO_DOCS_AGENT_RULES]')
+// ---- the comparison rules and their lib
+const CMP_MUTANTS = [
+  ['an import added', 'import type { StudioTextRule }', 'import { cn } from "@/lib/utils"\nimport type { StudioTextRule }'],
+  ["a rule's old text misquoted", 'from: `Dedicated Scripter agent`', 'from: `Dedicated Scripter agents`'],
+  ['a count left at four', 'to: `eight specialized AI agents that collaborate`', 'to: `four specialized AI agents that collaborate`'],
+  ['a count wrong', 'to: `8 specialized AI agents`', 'to: `7 specialized AI agents`'],
+  ['a count wrong (specialist)', 'to: `8 specialist agents`', 'to: `4 specialist agents`'],
+  ['a count wrong (employs)', 'to: `employs eight specialized agents`', 'to: `employs seven specialized agents`'],
+  ['the list names an old agent', 'Researcher, Analyst, Content Generator, Visualizer', 'Researcher, Analyst, Scripter, Visualizer'],
+  ['the list lacks an agent', 'Slide Composer, Element Generator) working together`', 'Slide Composer) working together`'],
+  ['the list is reordered', 'Director, Researcher, Analyst, Content Generator', 'Director, Analyst, Researcher, Content Generator'],
+  ['the writing agent is another', 'to: `Content Generator agent writes compelling narratives`', 'to: `Slide Composer agent writes compelling narratives`'],
+  ['the design agent is another', 'to: `Specialist Slide Composer`', 'to: `Specialist Visualizer`'],
+  ['the data agent is another', 'to: `Visualizer agent analyzes your data`', 'to: `Analyst agent analyzes your data`'],
+  ['a sentence reworded', 'persuasive copy, Slide Composer designs professional slides`', 'persuasive copy, Slide Composer designs slides`'],
+  ['a claim added', 'to: `Dedicated Content Generator agent`', 'to: `Dedicated Content Generator agent with research`'],
+  ['the list of three reworded', 'writing (Content Generator), design', 'writing (Content Generators), design'],
+  ['a rule dropped', "  { from: `Specialist Graphic Artist`, to: `Specialist Slide Composer` },\n", ''],
+  ['a rule repeated', "  { from: `Specialist Graphic Artist`, to: `Specialist Slide Composer` },\n", "  { from: `Specialist Graphic Artist`, to: `Specialist Slide Composer` },\n  { from: `Specialist Graphic Artist`, to: `Specialist Slide Composer` },\n"],
+  ['a rule whose text is in two places', 'from: `4 specialist agents`', 'from: `specialist agents`'],
+]
+for (const [name, from, to] of CMP_MUTANTS) mutant(COMPARISON_RULES, `comparison rules: ${name}`, from, to)
+mutant(LIB_COMPARISONS, 'comparisons lib: flag spelling', "=== 'true';\nconst comparisonPages", "!== 'false';\nconst comparisonPages")
+mutant(LIB_COMPARISONS, 'comparisons lib: flag name', 'process.env.NEXT_PUBLIC_STUDIO_P2_DOCS', 'process.env.NEXT_PUBLIC_STUDIO_DOCS')
+mutant(LIB_COMPARISONS, 'comparisons lib: always reworded', 'STUDIO_P2_DOCS ? studioReword(', 'true ? studioReword(')
+mutant(LIB_COMPARISONS, 'comparisons lib: never reworded', 'STUDIO_P2_DOCS ? studioReword(', 'false ? studioReword(')
+mutant(LIB_COMPARISONS, 'comparisons lib: reworded with the flag off', 'STUDIO_P2_DOCS ? studioReword(', '!STUDIO_P2_DOCS ? studioReword(')
+mutant(LIB_COMPARISONS, 'comparisons lib: no rules', 'studioReword(baseComparisonPages, STUDIO_COMPARISON_RULES)', 'studioReword(baseComparisonPages, [])')
+mutant(LIB_COMPARISONS, 'comparisons lib: the page is read from the content', 'return comparisonPages.find(page => page.competitor.slug === slug);', 'return baseComparisonPages.find(page => page.competitor.slug === slug);')
+mutant(LIB_COMPARISONS, 'comparisons lib: the competitors are reworded too', 'export function getAllCompetitors(): Competitor[] {\n  return competitors;', 'export function getAllCompetitors(): Competitor[] {\n  return studioReword(competitors, STUDIO_COMPARISON_RULES);')
+mutant(LIB_COMPARISONS, 'comparisons lib: the rules import', "'@/content/studio-p2-comparisons'", "'@/content/studio-p2-comparison'")
+mutant(LIB_COMPARISONS, 'comparisons lib: a page looked up wrongly', 'page.competitor.slug === slug', 'page.competitor.id === slug')
+// ---- the example and template libs, cards and types
+for (const [kind, K] of Object.entries(AGENT_KINDS)) {
+  const Kind = kind[0].toUpperCase() + kind.slice(1), one = K.one
+  mutant(K.lib, `${kind} lib: flag spelling`, `=== 'true';\nconst ${kind}`, `!== 'false';\nconst ${kind}`)
+  mutant(K.lib, `${kind} lib: flag name`, 'process.env.NEXT_PUBLIC_STUDIO_P2_DOCS', 'process.env.NEXT_PUBLIC_STUDIO_DOCS')
+  mutant(K.lib, `${kind} lib: always renamed`, `STUDIO_P2_DOCS ? base${Kind}.map(`, `true ? base${Kind}.map(`)
+  mutant(K.lib, `${kind} lib: never renamed`, `STUDIO_P2_DOCS ? base${Kind}.map(`, `false ? base${Kind}.map(`)
+  mutant(K.lib, `${kind} lib: renamed with the flag off`, `STUDIO_P2_DOCS ? base${Kind}.map(`, `!STUDIO_P2_DOCS ? base${Kind}.map(`)
+  mutant(K.lib, `${kind} lib: the agents are not mapped`, `agents: ${one}.agents.map((agent) => studioAgentId(agent) as AgentType)`, `agents: ${one}.agents`)
+  mutant(K.lib, `${kind} lib: the ids are not mapped`, 'studioAgentId(agent) as AgentType', 'agent as AgentType')
+  mutant(K.lib, `${kind} lib: the other fields are lost`, `({ ...${one}, agents:`, '({ agents:')
+  mutant(K.lib, `${kind} lib: the agents are lost`, `({ ...${one}, agents: ${one}.agents.map((agent) => studioAgentId(agent) as AgentType) })`, `({ ...${one}, agents: [] })`)
+  mutant(K.lib, `${kind} lib: the content is changed in place`, `base${Kind}.map((${one}) => ({ ...${one}, agents: ${one}.agents.map((agent) => studioAgentId(agent) as AgentType) }))`, `base${Kind}.map((${one}) => { ${one}.agents = ${one}.agents.map((agent) => studioAgentId(agent) as AgentType); return ${one} })`)
+  mutant(K.lib, `${kind} lib: the import`, "from '@/lib/studio-p2-docs';", "from '@/lib/studio-p2-docs-x';")
+  mutant(K.lib, `${kind} lib: a function reads the content`, `export function getAll${Kind}(): ${Kind.slice(0, -1)}[] {\n  return ${kind};`, `export function getAll${Kind}(): ${Kind.slice(0, -1)}[] {\n  return base${Kind};`)
+  mutant(K.card, `${kind} card: Scripter's name`, "'scripter': 'Scripter',", "'scripter': 'Scripter Agent',")
+  mutant(K.card, `${kind} card: the Director's name`, "'director': 'Director',", "'director': 'The Director',")
+  mutant(K.card, `${kind} card: Data Visualizer's name`, "'data-visualizer': 'Data Visualizer',", "'data-visualizer': 'Data Visualiser',")
+  mutant(K.card, `${kind} card: Content Generator's name`, "'content-generator': 'Content Generator',", "'content-generator': 'Content Writer',")
+  mutant(K.card, `${kind} card: Slide Composer's name`, "'slide-composer': 'Slide Composer',", "'slide-composer': 'Slide Composers',")
+  mutant(K.card, `${kind} card: Visualizer's name`, "'visualizer': 'Visualizer',\n};", "'visualizer': 'Visualizers',\n};")
+  mutant(K.card, `${kind} card: Content Generator's colour`, "'content-generator': 'bg-blue-100 text-blue-700 dark:bg-blue-900 dark:text-blue-300',", "'content-generator': 'bg-pink-100 text-pink-700 dark:bg-pink-900 dark:text-pink-300',")
+  mutant(K.card, `${kind} card: Slide Composer's colour`, "'slide-composer': 'bg-pink-100 text-pink-700 dark:bg-pink-900 dark:text-pink-300',", "'slide-composer': 'bg-blue-100 text-blue-700 dark:bg-blue-900 dark:text-blue-300',")
+  mutant(K.card, `${kind} card: Visualizer's colour`, "'visualizer': 'bg-green-100 text-green-700 dark:bg-green-900 dark:text-green-300',", "'visualizer': 'bg-purple-100 text-purple-700 dark:bg-purple-900 dark:text-purple-300',")
+  mutant(K.card, `${kind} card: a name dropped`, "  'visualizer': 'Visualizer',\n", '')
+  mutant(K.card, `${kind} card: a colour dropped`, "  'visualizer': 'bg-green-100 text-green-700 dark:bg-green-900 dark:text-green-300',\n", '')
+  mutant(K.card, `${kind} card: reads a flag`, 'const complexityColors = {', "const STUDIO_P2_DOCS = process.env.NEXT_PUBLIC_STUDIO_P2_DOCS === 'true';\nconst complexityColors = {")
+  mutant(K.card, `${kind} card: the badges`, `{${one}.agents.map((agent) => (`, `{${one}.agents.slice(1).map((agent) => (`)
+  mutant(K.types, `${kind} types: a current id missing`, "'data-visualizer' | 'content-generator' |", "'data-visualizer' |")
+  mutant(K.types, `${kind} types: a current id misspelt`, "'slide-composer'", "'slide-composers'")
+  mutant(K.types, `${kind} types: an old id dropped`, "'scripter' | ", '')
+  mutant(K.types, `${kind} types: the order`, "'content-generator' | 'slide-composer'", "'slide-composer' | 'content-generator'")
+  mutant(K.types, `${kind} types: the comment`, 'the card reads them as the current agents', 'the card reads them as agents')
+}
+// ---- onboarding: nothing to rename on the flag-on path, the flag-off text is not touched
+mutant('lib/studio-onboarding.ts', 'onboarding: the wizard names the Scripter', "title: 'The Director'", "title: 'The Scripter'")
+mutant('lib/studio-onboarding.ts', 'onboarding: the wizard names the Graphic Artist', "title: 'The Inspector'", "title: 'The Graphic Artist'")
+mutant('lib/studio-onboarding.ts', 'onboarding: the wizard names a fourth card', "] as const\n\nexport const STUDIO_ONBOARDING_WORDS", "  { id: 'extra', title: 'The Visualizer', text: 'Draws the charts.' },\n] as const\n\nexport const STUDIO_ONBOARDING_WORDS")
+mutant('components/studio-p2-onboarding.tsx', 'onboarding: the component names the Data Visualizer', '"use client"\n', '"use client"\n// the Data Visualizer\n')
+mutant('app/onboarding/layout.tsx', 'onboarding: the layout names the Scripter', 'export default function OnboardingLayout', '// The Scripter\nexport default function OnboardingLayout')
+mutant('app/onboarding/layout.tsx', 'onboarding: the layout picks the wizard without the shell', ' && process.env.NEXT_PUBLIC_STUDIO_V4_SHELL === "true"', '')
+mutant('components/onboarding-modal.tsx', 'onboarding: a Studio chapter names the Scripter', "{ title: 'Start with a spark.',", "{ title: 'The Scripter starts with a spark.',")
+mutant('components/onboarding-modal.tsx', 'onboarding: the classic modal is renamed', '<h4 className="font-semibold">The Scripter</h4>', '<h4 className="font-semibold">The Content Generator</h4>')
+mutant('components/onboarding-modal.tsx', 'onboarding: the shell no longer picks the chapters', 'if (STUDIO_ONBOARDING) {\n    const chapter', 'if (!STUDIO_ONBOARDING) {\n    const chapter')
+mutant('app/onboarding/page.tsx', 'onboarding: the old page is renamed', '<h4 className="font-semibold">Scripter</h4>', '<h4 className="font-semibold">Content Generator</h4>')
+mutant('app/onboarding/page.tsx', 'onboarding: the old page loses a name', '<h4 className="font-semibold">Data Visualizer</h4>', '<h4 className="font-semibold">Visualizer</h4>')
+// ---- the env block
+mutant(ENV, 'env: the second pass is not named', 'Content pass 2 (PROGRAM-1, 22 Oct), same flag:', 'Content pass 2 (PROGRAM-1, 22 Oct):')
+mutant(ENV, 'env: a plan is named wrongly', 'the real plans (Starter, Pro, Max;', 'the real plans (Free, Pro, Max;')
+mutant(ENV, 'env: the redirects are not mentioned', '; /examples and /templates are redirects today)', ')')
+mutant(ENV, 'env: the badge', '/docs/api loses its "v1.0 Beta" badge;', '/docs/api keeps its "v1.0 Beta" badge;')
+mutant(ENV, 'env: the not-found link', 'the agent not-found page links to /experts.', 'the agent not-found page links to /agents.')
+mutant(ENV, 'env: onboarding', 'there is no old agent name left to change', 'the old agent names are changed')
+mutant(ENV, 'env: the phrase another test pins', 'Content pass 2 (PROGRAM-1, 22 Oct), same flag:', 'Content pass 2 (PROGRAM-1, 22 Oct), same flag (exact "true" enables it):')
+
 let killed = 0, byAssertion = 0, byCrash = 0
 const survivors = [], invalid = [], compileOnly = []
 counting = false
@@ -1916,7 +2510,7 @@ for (const [file, name, from, to] of MUTANTS) {
   let survived = false
   try {
     const page = PAGES.find(p => p.file === file), layout = LAYOUTS.find(l => l[0] === file)
-    if (file === LIB) { proveLib(mutated, name); proveComponents(SOURCES[UI], name, mutated); proveFooter(SOURCES[FOOTER], name, mutated); proveFooterV3(SOURCES[FOOTER_V3], name, mutated); proveNotice(SOURCES[API_NOTICE], name, mutated) }
+    if (file === LIB) { proveLib(mutated, name); proveComponents(SOURCES[UI], name, mutated); proveFooter(SOURCES[FOOTER], name, mutated); proveFooterV3(SOURCES[FOOTER_V3], name, mutated); proveNotice(SOURCES[API_NOTICE], name, mutated); proveComparisonRules(SOURCES[COMPARISON_RULES], name, load(mutated, LIB)); proveComparisonsLib(SOURCES[LIB_COMPARISONS], name, mutated); proveAgentsLib('examples', SOURCES[LIB_EXAMPLES], name, mutated); proveAgentsLib('templates', SOURCES[LIB_TEMPLATES], name, mutated) }
     else if (file === UI) proveComponents(mutated, name)
     else if (file === FRAME) proveComponents(SOURCES[UI], name, SOURCES[LIB], mutated)
     else if (page) provePage(page, mutated, name)
@@ -1934,6 +2528,16 @@ for (const [file, name, from, to] of MUTANTS) {
     else if (file === PAGE_AGENT) { proveAgentPage(mutated, name); proveNoRainbow(mutated, name) }
     else if (file === PAGE_COMPARE) proveComparePage(mutated, name)
     else if (file === HELP_TEMPLATE) proveHelpTemplate(mutated, name)
+    else if (file === FACT_RULES) proveFactRules(mutated, name)
+    else if (file === COMPARISON_RULES) proveComparisonRules(mutated, name)
+    else if (file === LIB_COMPARISONS) proveComparisonsLib(mutated, name)
+    else if (file === LIB_EXAMPLES) proveAgentsLib('examples', mutated, name)
+    else if (file === LIB_TEMPLATES) proveAgentsLib('templates', mutated, name)
+    else if (file === CARD_EXAMPLE) proveCard('examples', mutated, name)
+    else if (file === CARD_TEMPLATE) proveCard('templates', mutated, name)
+    else if (file === TYPES_EXAMPLE) proveTypes('examples', mutated, name)
+    else if (file === TYPES_TEMPLATE) proveTypes('templates', mutated, name)
+    else if (ONB_FILES.includes(file)) proveOnboardingNames({ ...ONB_SOURCES, [file]: mutated }, name)
     else if (file === HELP_CSS) proveHelpCss(mutated, name)
     else if (file === ENV) proveEnv(mutated, name)
     else if (file === PKG) provePackage(mutated, name)
