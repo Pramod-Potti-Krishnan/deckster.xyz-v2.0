@@ -8,6 +8,7 @@ import { AccountProfileEditor } from "./account-profile-editor"
 import { AccountIdentityPreview } from "./account-identity-preview"
 import { StudioWorkflowAction } from "@/components/studio-libraries/studio-workflow-action"
 import { StudioIntroReplay } from "@/components/studio-intro-replay"
+import { StudioP2DetailsWorkspace } from "./studio-p2-details"
 import "@/components/studio-libraries/destination-intros.css"
 import "./personal-workspaces.css"
 
@@ -21,6 +22,8 @@ export function AccountDetailsWorkspace() {
   const { user, isLoading } = useAuth()
   if (isLoading && !user) return <div className="sp-workspace" role="status">Loading your account…</div>
   if (!user?.id) return <div className="sp-workspace" role="alert">Your account session is unavailable. Reload to try again.</div>
+  // PASS2 DET-01..06 (NEXT_PUBLIC_STUDIO_P2_DETAILS, default off): the mockup's Your details wired to the open deck. Off: the page below, unchanged.
+  if (process.env.NEXT_PUBLIC_STUDIO_P2_DETAILS === "true") return <StudioP2DetailsWorkspace key={user.id} userId={user.id} accountName={user.name || ""} accountEmail={user.email} accountImage={user.image} />
   return <DetailsWorkspace key={user.id} accountName={user.name || ""} accountEmail={user.email} accountImage={user.image} />
 }
 

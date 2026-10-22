@@ -7,10 +7,11 @@ import { UserProfileMenu } from "@/components/user-profile-menu"
 import { cn } from "@/lib/utils"
 import { useAuth } from "@/hooks/use-auth"
 import { lastBuilderSessionKey } from "@/lib/last-builder-session"
-import { ArrowLeft, Brain, LayoutDashboard, Layers } from "lucide-react"
+import { ArrowLeft, Brain, LayoutDashboard, Layers, Plus } from "lucide-react"
 import { StudioNavigationHint } from "@/components/layout/studio-navigation-hint"
 import { studioNavLabels } from "@/lib/studio-nav-labels"
 import "./studio-library-back.css"
+import "./studio-p2-shell.css"
 
 /**
  * PASS2B G45 (NEXT_PUBLIC_STUDIO_LIBRARY_BACK_LINK, default off): the library pages, i.e. the Studio rail's destinations besides Studio itself, by the same
@@ -79,7 +80,9 @@ export function AppHeader() {
     // PASS2B G45 (NEXT_PUBLIC_STUDIO_LIBRARY_BACK_LINK, default off): "Back to Studio" at the right of the library pages' top bar, the existing
     // return button (last builder session, else a fresh builder). Null with the flag off, and on every other route.
     const libraryBack = process.env.NEXT_PUBLIC_STUDIO_LIBRARY_BACK_LINK === "true" && STUDIO_LIBRARY_BACK_PATHS.includes(pathname) ? <div data-studio-library-back="true"><BackToBuilderButton label="Back to Studio" /></div> : null
-    return <header data-studio-v4-shell-header="true"><div className="flex h-full items-center"><span className="text-sm font-semibold">{pathname === "/dashboard" ? navLabels.decks : pathname === "/knowledge" ? navLabels.knowledge : pathname === "/profile" || pathname === "/studio/details" ? "Your details" : pathname === "/studio/templates" ? "Templates" : pathname === "/studio/themes" ? "Themes & brand" : pathname === "/studio/intelligence" ? "Intelligence" : "Account"}</span>{libraryBack}</div></header>
+    // PASS2 DET-12 (NEXT_PUBLIC_STUDIO_P2_DETAILS, default off): the mockup's bordered "+ Presentation" on the same library pages, a plain link to a fresh Studio session.
+    const newDeck = process.env.NEXT_PUBLIC_STUDIO_P2_DETAILS === "true" && STUDIO_LIBRARY_BACK_PATHS.includes(pathname) ? <Link data-studio-p2-new-deck="true" href="/builder?session_id=new"><Plus className="h-4 w-4" aria-hidden="true" /><span>Presentation</span></Link> : null
+    return <header data-studio-v4-shell-header="true"><div className="flex h-full items-center"><span className="text-sm font-semibold">{pathname === "/dashboard" ? navLabels.decks : pathname === "/knowledge" ? navLabels.knowledge : pathname === "/profile" || pathname === "/studio/details" ? "Your details" : pathname === "/studio/templates" ? "Templates" : pathname === "/studio/themes" ? "Themes & brand" : pathname === "/studio/intelligence" ? "Intelligence" : "Account"}</span>{libraryBack}{newDeck}</div></header>
   }
 
   const navItems = [
