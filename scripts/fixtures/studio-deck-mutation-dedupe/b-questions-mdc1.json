@@ -1,0 +1,157 @@
+{
+  "scenario": "b-questions-mdc1",
+  "description": "Structured questions on a fresh session: action_request carrying question_set (sc_ask_questions).",
+  "client_caps": [
+    "mdc1"
+  ],
+  "director_commit": "19d09d603095e263ea87ab55af79fa59a8ad2370",
+  "flags": {
+    "MULTI_INTENT_ENABLED": "true",
+    "DIRECTOR_MDC_HONEST_REPLIES_ENABLED": "true",
+    "DIRECTOR_MDC_SESSION_SCOPE_ENABLED": "true",
+    "DIRECTOR_MDC_COMPOSER_FLAG_GATE_ENABLED": "true",
+    "SLIDE_COMPOSER_ENABLED": "true",
+    "SLIDE_COMPOSER_ASYNC_ENABLED": "true"
+  },
+  "recorded_by": "preview-b/record.py (offline harness of tests/test_mdc_chat_e2e.py: real _process_message + real DecisionEngine.decide over a scripted model output; Layout DELETE and compose stubbed by that harness)",
+  "scripted_model_output": [
+    {
+      "action_type": "ask_questions",
+      "response_text": "A couple of quick questions first.",
+      "target_slide_indices": [],
+      "op_brief": null,
+      "new_topic": null,
+      "questions": [
+        "Who is the audience?",
+        "How long is the talk?"
+      ],
+      "structured_questions": [
+        {
+          "id": "q_aud",
+          "text": "Who is the audience?",
+          "suggestions": [
+            {
+              "label": "Executives",
+              "recommended": true
+            },
+            {
+              "label": "Sales team",
+              "recommended": false
+            }
+          ],
+          "allow_free_text": true
+        },
+        {
+          "id": "q_len",
+          "text": "How long is the talk?",
+          "suggestions": [
+            {
+              "label": "10 minutes",
+              "recommended": false
+            },
+            {
+              "label": "20 minutes",
+              "recommended": true
+            }
+          ],
+          "allow_free_text": false
+        }
+      ]
+    }
+  ],
+  "stubbed_outside_world": {
+    "layout_deletes": [],
+    "composes": []
+  },
+  "session_at_start": {
+    "id": "s_e2e",
+    "presentation_id": null,
+    "presentation_url": null,
+    "slide_titles": null
+  },
+  "frame_counts": {
+    "in": 1,
+    "out": 1,
+    "total": 2
+  },
+  "outbound_frame_types_per_turn": [
+    [
+      "action_request"
+    ]
+  ],
+  "frames": [
+    {
+      "seq": 1,
+      "turn": 0,
+      "direction": "in",
+      "frame": {
+        "type": "user_message",
+        "data": {
+          "text": "Build me a deck about Q4 sales",
+          "client_caps": [
+            "mdc1"
+          ]
+        }
+      }
+    },
+    {
+      "seq": 2,
+      "turn": 0,
+      "direction": "out",
+      "frame": {
+        "message_id": "msg_844fa1bb",
+        "session_id": "s_e2e",
+        "timestamp": "2026-10-22T16:32:34.502113Z",
+        "type": "action_request",
+        "role": "assistant",
+        "payload": {
+          "prompt_text": "A couple of quick questions first.\n\n• Who is the audience?\n\n• How long is the talk?",
+          "actions": [
+            {
+              "label": "Skip — use sensible defaults",
+              "value": "skip_questions",
+              "primary": false,
+              "requires_input": false
+            }
+          ],
+          "question_set": {
+            "id": "qs_1",
+            "questions": [
+              {
+                "id": "q_aud",
+                "text": "Who is the audience?",
+                "suggestions": [
+                  {
+                    "label": "Executives",
+                    "recommended": true
+                  },
+                  {
+                    "label": "Sales team",
+                    "recommended": false
+                  }
+                ],
+                "allow_free_text": true
+              },
+              {
+                "id": "q_len",
+                "text": "How long is the talk?",
+                "suggestions": [
+                  {
+                    "label": "10 minutes",
+                    "recommended": false
+                  },
+                  {
+                    "label": "20 minutes",
+                    "recommended": true
+                  }
+                ],
+                "allow_free_text": false
+              }
+            ],
+            "intro": "A couple of quick questions first."
+          }
+        }
+      }
+    }
+  ]
+}

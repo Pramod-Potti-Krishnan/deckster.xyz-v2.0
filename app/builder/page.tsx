@@ -65,6 +65,8 @@ import {
   planDeckMutationRefresh,
   requestSlideRailRefresh,
 } from '@/lib/studio-deck-mutation-refresh'
+import { STUDIO_DECK_MUTATION_DEDUPE_ENABLED, createDeckMutationCountSettler } from '@/lib/studio-deck-mutation-dedupe'
+import { fetchSlideInventory } from '@/lib/slide-rail-identity'
 import { STUDIO_DECK_CHANGED_NOTICE_ENABLED, reportDeckChange, themeAnnounceDecision } from '@/lib/studio-deck-changed-notice'
 import { useDeckChangedNotice } from '@/hooks/use-deck-changed-notice'
 import { StudioDeckChangedNotice } from '@/components/builder/studio-deck-changed-notice'
@@ -1057,6 +1059,21 @@ function AuthenticatedBuilderContent({ authScopeUserId }: { authScopeUserId: str
   })
   const slideComposeJobsRef = useRef<Record<string, SlideComposeJobState>>({})
   const deckMutationSeenRef = useRef(createDeckMutationSeen())
+  // NEXT_PUBLIC_STUDIO_DECK_MUTATION_DEDUPE: a deck_mutation's count comes from Layout's slide inventory (the rail list's read), so a chat
+  // add-slide that slide_ready already counted is not counted again. Off: null, and the handler below commits the plan as before.
+  const deckMutationCountSettlerRef = useRef(STUDIO_DECK_MUTATION_DEDUPE_ENABLED ? createDeckMutationCountSettler({
+    readLayoutCount: async id => {
+      const result = await fetchSlideInventory({ baseUrl: getLayoutServiceUrl(), presentationId: id, fetchImpl: (input, init) => fetch(input, init) })
+      return result.kind === 'ok' ? result.inventory.slideCount : null
+    },
+    getDisplayed: () => slideComposerPresentationRef.current,
+    commit: override => {
+      slideComposerPresentationRef.current = { ...slideComposerPresentationRef.current, ...override }
+      setSlideComposerOverride(override)
+      requestSlideRailRefresh(override.presentationId)
+      reportDeckChange('slide')
+    },
+  }) : null)
   const studioSlideComposeOwnerRef = useRef({
     key: '',
     sessionId: null as string | null,
@@ -2371,6 +2388,7 @@ function AuthenticatedBuilderContent({ authScopeUserId }: { authScopeUserId: str
           displayed, now: Date.now(), seen: deckMutationSeenRef.current,
         })
         if (!plan) return
+        if (deckMutationCountSettlerRef.current) { void deckMutationCountSettlerRef.current(plan.override, owner.isCurrent); return } // NEXT_PUBLIC_STUDIO_DECK_MUTATION_DEDUPE
         slideComposerPresentationRef.current = { ...displayed, ...plan.override }
         setSlideComposerOverride(plan.override)
         requestSlideRailRefresh(plan.override.presentationId)
