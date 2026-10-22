@@ -31,12 +31,15 @@ export function appendOnlyOver(rel, text, baseText) {
 }
 /** `stripped` is the file with this change's lines out: the base's file, or (for the two shared append-only files) the base's lines plus other changes' comments, blanks and env lines. */
 export const isBaseFile = (rel, stripped, baseText) => stripped === baseText || (['.env.example', 'package.json'].includes(rel) && appendOnlyOver(rel, stripped, baseText))
-// The other FRONTEND-2 Pass 3 changes that may be stacked on the same base (#460 Ask your second brain, #464 Duplicate a deck, #469 deck-mutation dedupe). Their files are not this change's, and none of them is a library file;
+// The other FRONTEND-2 Pass 3 changes that may be stacked on the same base (#460 Ask your second brain, #464 Duplicate a deck, #469 deck-mutation dedupe, BY10 narration via the router). Their files are not this change's, and none of them is a library file;
 // the diff-scope check below allows exactly these on top of this change's own files and nothing else.
 export const STACKED_PASS3_FILES = [
   'app/(app)/knowledge/page.tsx', 'app/api/knowledge-graph/query/route.ts', 'components/knowledge/studio-kg-ask.css', 'components/knowledge/studio-kg-ask.tsx', 'hooks/use-studio-kg-ask.ts', 'lib/studio-kg-ask.ts',
   'app/(app)/dashboard/page.tsx', 'app/builder/page.tsx', 'components/builder/studio-copied-from-note.tsx', 'components/builder/studio-duplicate-deck.css', 'lib/studio-duplicate-deck.ts',
   'lib/studio-deck-mutation-dedupe.ts',
+  // BY10 narration through the model router (NARRATION_VIA_ROUTER): the library files and the four routes that hand the call its identity.
+  'lib/narration/model-router.ts', 'lib/narration/draft.ts', 'lib/narration/tts.ts', 'lib/narration/spoken.ts',
+  'app/api/narration/render/route.ts', 'app/api/narration/script/route.ts', 'app/api/narration/speak/route.ts', 'app/api/narration/voice/sample/[voiceId]/route.ts',
 ]
 export const sha = text => crypto.createHash('sha256').update(text).digest('hex')
 export const plain = value => JSON.parse(JSON.stringify(value))
