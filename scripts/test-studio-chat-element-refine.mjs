@@ -671,12 +671,14 @@ await check(`identity: stripping this change gives back ${BASE_COMMIT.slice(0, 7
   const NEW = /^(lib\/chat-element-refine(-wire)?\.ts|scripts\/(test-studio-chat-element-refine|studio-chat-element-refine-(layout|strip))\.mjs|scripts\/fixtures\/chat-element-refine\/.+|docs\/pass3\/chat-element-refine\/LIVE-CHECK-PLAN\.md)$/
   const READS_THROUGH_STRIP = ['scripts/studio-add-slide-status-strip.mjs', 'scripts/studio-open-read-only-strip.mjs', 'scripts/studio-theme-dark-persist-strip.mjs',
     'scripts/test-studio-add-element-ownership.mjs', 'scripts/test-studio-director-transport.mjs', 'scripts/test-studio-element-free-spot.mjs',
-    'scripts/test-studio-element-placeholder-fix.mjs', 'scripts/test-studio-image-pending-write.mjs', 'scripts/test-theme-font-selection.mjs']
+    'scripts/test-studio-element-placeholder-fix.mjs', 'scripts/test-studio-image-pending-write.mjs', 'scripts/test-theme-font-selection.mjs',
+    // after the fae96200 base merge: the merged Pass 3 pins that hold the hook / types/mdc.ts to their own bases, and the library-manage stacked-file list
+    'scripts/test-studio-duplicate-deck.mjs', 'scripts/test-studio-deck-mutation-dedupe.mjs', 'scripts/studio-library-manage-harness.mjs']
   for (const rel of READS_THROUGH_STRIP) {
     const removed = git('diff', '-U0', BASE_COMMIT, '--', rel).split('\n').filter(line => line.startsWith('-') && !line.startsWith('---'))
     const added = git('diff', '-U0', BASE_COMMIT, '--', rel).split('\n').filter(line => line.startsWith('+') && !line.startsWith('+++'))
     assert.ok(added.length <= 5 && removed.length <= 2, `${rel}: an import and one call (${added.length}+/${removed.length}-)`)
-    assert.ok(added.some(line => /stripChatElementRefine|CHAT_ELEMENT_REFINE_ENABLED: false/.test(line)), rel)
+    assert.ok(added.some(line => /stripChatElementRefine|CHAT_ELEMENT_REFINE_ENABLED: false|chat-element-refine/.test(line)), rel)
   }
   for (const rel of [...changed, ...untracked]) assert.ok(CHAT_ELEMENT_REFINE_FILES.includes(rel) || NEW.test(rel) || READS_THROUGH_STRIP.includes(rel), `unexpected change: ${rel}`)
 })
