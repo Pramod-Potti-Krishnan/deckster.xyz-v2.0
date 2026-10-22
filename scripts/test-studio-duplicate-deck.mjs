@@ -37,11 +37,23 @@ const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..')
 const args = process.argv.slice(2)
 const optionValue = name => { const i = args.indexOf(name); return i === -1 ? null : args[i + 1] }
 const BASE_ROOT = optionValue('--base-root') ? path.resolve(optionValue('--base-root')) : null
-// DUPLICATE_DECK_BASE=<commit> overrides the base commit the flag-off identity is checked against (default bcd8aed, the head this was built on: studio-v4-dev-preparation-code after #458).
-const BASE_COMMIT = process.env.DUPLICATE_DECK_BASE || 'bcd8aed'
+// DUPLICATE_DECK_BASE=<commit> overrides the base commit the flag-off identity is checked against (default 1079ba4, the studio-v4-dev-preparation-code tip this change is stacked on: #459 added only the Profile page,
+// its .env.example block and its package script on top of bcd8aed, and none of the files this change touches).
+const BASE_COMMIT = process.env.DUPLICATE_DECK_BASE || '1079ba4b7cd277ece7cc46ee7624d74419c3a5aa'
 const git = gitArgs => execFileSync('git', gitArgs, { cwd: root, encoding: 'utf8', maxBuffer: 64 * 1024 * 1024, stdio: ['ignore', 'pipe', 'ignore'] })
 function baseSource(rel) {
   try { git(['cat-file', '-e', `${BASE_COMMIT}^{commit}`]); return git(['show', `${BASE_COMMIT}:${rel}`]) } catch { return null }
+}
+// .env.example and package.json are the two files every flag-gated change appends a line or a block to, so once other changes are stacked on this one (Ask your second brain, Themes/Templates manage ...)
+// they hold lines this change never wrote. For those two (and only those) the base's lines must all still be there, in order, with nothing of this change left, and any extra line must be a comment, a
+// blank, an env line or a test script line (the rule scripts/test-studio-p2-polish.mjs and scripts/test-studio-p2-publish.mjs use). Every other file is held to the base byte for byte, as before.
+function appendOnlyOver(rel, text, baseText) {
+  const norm = line => rel === 'package.json' ? line.replace(/,\s*$/, '') : line
+  const want = baseText.split('\n').map(norm), extras = []
+  let next = 0
+  for (const line of text.split('\n').map(norm)) { if (next < want.length && line === want[next]) next++; else extras.push(line) }
+  const kind = rel === 'package.json' ? /^\s*"test:[a-z0-9-]+": "node scripts\/test-[a-z0-9-]+\.mjs"$/ : /^\s*$|^\s*#|^[A-Z][A-Z0-9_]*=/
+  return next === want.length && extras.every(line => line === '' || kind.test(line)) && !extras.some(line => /DUPLICATE_DECK|duplicate-deck/.test(line))
 }
 const PAGE = 'app/(app)/dashboard/page.tsx'
 const BUILDER = 'app/builder/page.tsx'
@@ -172,10 +184,16 @@ run('the flag is read as the exact string "true" inline in the dashboard and the
   assert.doesNotMatch(read(LIB), /process\.env/)
   assert.doesNotMatch(read(NOTE), /process\.env/)
 })
-run('the flag is documented in .env.example, default "false"; package.json is not touched (other pins hold it to their base byte for byte)', () => {
+run('the flag is documented in .env.example, default "false", after the polish block; package.json is not touched (it is the base\'s, or the base\'s plus other changes\' test scripts)', () => {
   assert.match(read('.env.example'), /^NEXT_PUBLIC_STUDIO_DUPLICATE_DECK="false"$/m)
+  // test-studio-p2-polish holds .env.example to its own earlier base up to ITS block, so this change's block sits after that block (and is the one just above the Profile page block)
+  const env = read('.env.example')
+  assert.ok(env.indexOf('NEXT_PUBLIC_STUDIO_P2_POLISH="false"') > 0 && env.indexOf('# PASS3 DUPLICATE A DECK') > env.indexOf('NEXT_PUBLIC_STUDIO_P2_POLISH="false"'), 'the block comes after the polish flag')
+  assert.equal(env.split('# PASS3 DUPLICATE A DECK').length - 1, 1, 'the block is there once')
   const base = baseSource('package.json')
-  if (base !== null) assert.equal(read('package.json'), base, 'package.json is untouched')
+  if (base !== null) {
+    assert.ok(read('package.json') === base || appendOnlyOver('package.json', read('package.json'), base), 'package.json is untouched (other changes may add their test scripts)')
+  }
 })
 
 // ====== 2. which decks can be copied =====================================================================================================================================
@@ -491,6 +509,7 @@ run('the strip: without this change\'s lines each page (and .env.example) is the
     assert.doesNotMatch(stripped, /DUPLICATE_DECK|studio-duplicate-deck|StudioCopiedFrom|duplicateControl|duplicateSession|DuplicateControl/, `${rel}: no trace left`)
     const base = baseSource(rel)
     if (base === null) console.log(`  SKIP base-commit identity of ${rel}: ${BASE_COMMIT} is not in this clone`)
+    else if (rel === ENV_FILE) assert.ok(stripped === base || appendOnlyOver(rel, stripped, base), `${rel}: without the added lines the file is ${BASE_COMMIT}'s lines, in order (a later change's block may follow)`)
     else assert.equal(stripped, base, `${rel}: without the added lines the page is ${BASE_COMMIT}'s`)
   }
   assert.equal(stripDuplicateDeck('lib/other.ts', 'x'), 'x')
