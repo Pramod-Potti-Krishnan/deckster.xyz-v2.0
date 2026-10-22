@@ -611,7 +611,9 @@ await check('theme runner: not_owner, the composer-frozen / pending templates, a
 const NEW = /^(lib\/chat-theme-export(-wire)?\.ts|scripts\/(test-studio-chat-theme-export|studio-chat-theme-export-strip)\.mjs|scripts\/fixtures\/chat-theme-export\/.+|docs\/pass3\/chat-theme-export\/LIVE-CHECK-PLAN\.md)$/
 // Older pins and strip roots that now read through scripts/studio-chat-theme-export-strip.mjs (an import and one call each).
 const READS_THROUGH_STRIP = ['scripts/studio-add-slide-status-strip.mjs', 'scripts/studio-open-read-only-strip.mjs', 'scripts/studio-theme-dark-persist-strip.mjs',
-  'scripts/test-studio-director-transport.mjs', 'scripts/test-theme-font-selection.mjs']
+  'scripts/test-studio-director-transport.mjs', 'scripts/test-theme-font-selection.mjs',
+  // After the fae96200 merge (#464 duplicate deck, #469 deck-mutation dedupe, #465 library manage): the merged Pass 3 pins see the hook through the strip / the stacked list.
+  'scripts/test-studio-duplicate-deck.mjs', 'scripts/test-studio-deck-mutation-dedupe.mjs', 'scripts/studio-library-manage-harness.mjs']
 await check(`identity: stripping this change gives back ${BASE_COMMIT.slice(0, 7)}'s files byte for byte; every added literal occurs once`, async () => {
   assert.deepEqual(CHAT_THEME_EXPORT_FILES, ['.env.example', 'package.json', PAGE, HOOK])
   assert.equal(JSON.parse(read('package.json')).scripts['test:studio-chat-theme-export'], 'node scripts/test-studio-chat-theme-export.mjs', 'registered in package.json')
@@ -627,7 +629,7 @@ await check(`identity: stripping this change gives back ${BASE_COMMIT.slice(0, 7
     const diff = git('diff', '-U0', BASE_COMMIT, '--', rel).split('\n')
     const removed = diff.filter(line => line.startsWith('-') && !line.startsWith('---')), added = diff.filter(line => line.startsWith('+') && !line.startsWith('+++'))
     assert.ok(added.length <= 5 && removed.length <= 2, `${rel}: an import and one call (${added.length}+/${removed.length}-)`)
-    assert.ok(added.some(line => /stripChatThemeExport|CHAT_THEME_EXPORT_CAPS: \[\]/.test(line)), rel)
+    assert.ok(added.some(line => /stripChatThemeExport|CHAT_THEME_EXPORT_CAPS: \[\]|lib\/chat-theme-export-wire\.ts/.test(line)), rel)
   }
   for (const rel of [...changed, ...untracked]) assert.ok(CHAT_THEME_EXPORT_FILES.includes(rel) || NEW.test(rel) || READS_THROUGH_STRIP.includes(rel), `unexpected change: ${rel}`)
 })

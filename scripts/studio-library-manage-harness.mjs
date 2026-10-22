@@ -37,6 +37,8 @@ export const STACKED_PASS3_FILES = [
   'app/(app)/knowledge/page.tsx', 'app/api/knowledge-graph/query/route.ts', 'components/knowledge/studio-kg-ask.css', 'components/knowledge/studio-kg-ask.tsx', 'hooks/use-studio-kg-ask.ts', 'lib/studio-kg-ask.ts',
   'app/(app)/dashboard/page.tsx', 'app/builder/page.tsx', 'components/builder/studio-copied-from-note.tsx', 'components/builder/studio-duplicate-deck.css', 'lib/studio-duplicate-deck.ts',
   'lib/studio-deck-mutation-dedupe.ts',
+  // FRONTEND-2 Pass 3 change the theme / export from chat (NEXT_PUBLIC_CHAT_THEME_CHANGE, NEXT_PUBLIC_CHAT_EXPORT, #472): its flag-gated hook lines and two new libs.
+  'hooks/use-deckster-websocket-v2.ts', 'lib/chat-theme-export-wire.ts', 'lib/chat-theme-export.ts',
 ]
 export const sha = text => crypto.createHash('sha256').update(text).digest('hex')
 export const plain = value => JSON.parse(JSON.stringify(value))
