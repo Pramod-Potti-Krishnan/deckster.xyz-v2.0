@@ -57,9 +57,10 @@
 
 /* NEXT_PUBLIC_STUDIO_P2_POLISH (lib/studio-p2-polish.ts), PP-5 / PP-7. Every rule carries [data-p2-polish="true"], which exists only with that flag on. */
 /* PP-5: the comparison panel scrolls on its own again, within the window, so "Use this model" pins to the panel's own bottom edge and the note above it is never cut mid-line at rest.
-   (The rule above lets the whole page scroll, which left the button pinned to the page's bottom edge, over the note.) The cap is the window less the top bar and the panel's own gaps. */
+   (The rule above lets the whole page scroll, which left the button pinned to the page's bottom edge, over the note.) The cap is the window less what sits above the panel at rest (the top
+   bar, the title, the tabs and the notes: 251px in the 1440x900 shot) and a gap below it, so the whole panel, button included, is in the window at rest. */
 @media (min-width: 851px) {
-  [data-intelligence-p2] .sp-p2-inspector[data-p2-polish="true"] { max-height: calc(100dvh - 104px); overflow-y: auto; overscroll-behavior: contain; scrollbar-width: thin; }
+  [data-intelligence-p2] .sp-p2-inspector[data-p2-polish="true"] { max-height: calc(100dvh - 262px); overflow-y: auto; overscroll-behavior: contain; scrollbar-width: thin; }
 }
 /* PP-7: "Managed by Deckster" is four columns on a wide window, as in the mock. */
 @media (min-width: 1200px) {

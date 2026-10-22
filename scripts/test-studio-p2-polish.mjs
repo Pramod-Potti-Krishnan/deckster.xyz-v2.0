@@ -600,7 +600,7 @@ function proveCss(S, label = 'css') {
   ok(m851 && m1200, `${label}: PP-5/7: an 851px and a 1200px rule`)
   const insp = find(intel, '[data-intelligence-p2] .sp-p2-inspector[data-p2-polish="true"]', m851)
   eq(decl(insp, 'overflow-y'), 'auto', `${label}: PP-5: the comparison panel scrolls on its own`)
-  eq(decl(insp, 'max-height'), 'calc(100dvh - 104px)', `${label}: PP-5: within the window less the top bar and its own gaps`)
+  eq(decl(insp, 'max-height'), 'calc(100dvh - 262px)', `${label}: PP-5: within the window less what sits above the panel at rest and a gap, so the button is in the window`)
   eq(decl(insp, 'overscroll-behavior'), 'contain', `${label}: PP-5: without chaining`)
   const managed = find(intel, '[data-intelligence-p2] .sp-p2-main[data-p2-polish="true"] .sp-ip-managed-grid', m1200)
   eq(decl(managed, 'grid-template-columns'), 'repeat(4, minmax(0, 1fr))', `${label}: PP-7: four columns from 1200px`)
@@ -705,8 +705,8 @@ const MUTANTS = [
   [CSS.landing, 'PP-4 a hidden scrim shows', '.p2-menu__scrim[hidden] { display: none; }', '.p2-menu__scrim[hidden] { display: block; }'],
   // PP-5
   [CHOOSER, 'PP-5 the inspector marker is always on', '{...(STUDIO_P2_POLISH_ENABLED ? { [STUDIO_P2_POLISH_ATTR]: "true" } : {})}>\n        <div className="sp-inspector-top">', '{...({ [STUDIO_P2_POLISH_ATTR]: "true" })}>\n        <div className="sp-inspector-top">'],
-  [CSS.intelligence, 'PP-5 the panel does not scroll', 'max-height: calc(100dvh - 104px); overflow-y: auto;', 'max-height: calc(100dvh - 104px); overflow-y: visible;'],
-  [CSS.intelligence, 'PP-5 the panel has no cap', 'max-height: calc(100dvh - 104px); overflow-y: auto;', 'overflow-y: auto;'],
+  [CSS.intelligence, 'PP-5 the panel does not scroll', 'max-height: calc(100dvh - 262px); overflow-y: auto;', 'max-height: calc(100dvh - 104px); overflow-y: visible;'],
+  [CSS.intelligence, 'PP-5 the panel has no cap', 'max-height: calc(100dvh - 262px); overflow-y: auto;', 'overflow-y: auto;'],
   [CSS.intelligence, 'PP-5 the panel rule leaks to the flag-off page', '[data-intelligence-p2] .sp-p2-inspector[data-p2-polish="true"] { max-height', '[data-intelligence-p2] .sp-p2-inspector { max-height'],
   // PP-6
   [PROFILE, 'PP-6 the badge waits for the read', 'const badgeLabel = STUDIO_P2_POLISH_ENABLED ? polishTierLabel(tierLabel, sessionTier) : tierLabel', 'const badgeLabel = tierLabel'],
