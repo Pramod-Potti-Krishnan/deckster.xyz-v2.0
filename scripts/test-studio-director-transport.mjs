@@ -7,6 +7,9 @@ import path from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { execFileSync } from 'node:child_process'
 import ts from 'typescript'
+// FRONTEND-2 Pass 3 (NEXT_PUBLIC_CHAT_ELEMENT_REFINE) added one flag-gated line to buildUserMessage and one branch to the socket's message handler;
+// the preservation guards compare the hook with them taken out.
+import { stripChatElementRefine } from './studio-chat-element-refine-strip.mjs'
 import { createFirstSendHookHarness } from '../docs/studio-v4/eight-hour-parity-20261005/builder1/director-transport/test-fixtures/actual-hook.mjs'
 
 const root = path.resolve(fileURLToPath(new URL('../', import.meta.url)))
@@ -170,7 +173,7 @@ function declaration(text, name) {
   }
   visit(ast); assert.ok(found, `Actual declaration ${name} exists`); return found
 }
-for (const name of ['buildUserMessage', 'setStateWithCache', 'clearAwaitReply', 'beginAwaitReply', 'clearAuthRefreshTimer', 'clearReconnectTimer', 'clearReconnectStabilityTimer', 'clearPongDeadline', 'stopHeartbeat', 'acknowledgeHeartbeat', 'startHeartbeat', 'scheduleReconnect', 'ensureConnected', 'connect', 'connectOnMount', 'disconnect', 'sendMessageWhenConnected', 'sendElementDirectiveResult', 'sendControlMessage', 'sendThemeSelection', 'sendBuildControl', 'applyTemplateIngestReady', 'clearEphemeralIds', 'updateCacheUserMessages']) await check(`unchanged actual ${name} preservation source guard`, async () => assert.equal(declaration(source, name), declaration(before, name)))
+for (const name of ['buildUserMessage', 'setStateWithCache', 'clearAwaitReply', 'beginAwaitReply', 'clearAuthRefreshTimer', 'clearReconnectTimer', 'clearReconnectStabilityTimer', 'clearPongDeadline', 'stopHeartbeat', 'acknowledgeHeartbeat', 'startHeartbeat', 'scheduleReconnect', 'ensureConnected', 'connect', 'connectOnMount', 'disconnect', 'sendMessageWhenConnected', 'sendElementDirectiveResult', 'sendControlMessage', 'sendThemeSelection', 'sendBuildControl', 'applyTemplateIngestReady', 'clearEphemeralIds', 'updateCacheUserMessages']) await check(`unchanged actual ${name} preservation source guard`, async () => assert.equal(declaration(stripChatElementRefine(file, source), name), declaration(before, name)))
 await check('auth refresh scheduling is byte-exact except truthful local-send log', async () => {
   const reverted = declaration(source, 'scheduleAuthRefresh').replace("// Browser send is not the server's auth_refreshed acknowledgement.\n        debugLog('🔐 Director WS auth refresh sent; awaiting acknowledgement');", "debugLog('🔐 Director WS token refreshed');")
   assert.equal(reverted, declaration(before, 'scheduleAuthRefresh'))

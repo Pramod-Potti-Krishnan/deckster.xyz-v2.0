@@ -656,7 +656,9 @@ await check('generation: with the flag on, kind chat-refine runs the REAL hook\'
 // ---- 5. flag off is identical -------------------------------------------------------------------------------------------------------
 await check(`identity: stripping this change gives back ${BASE_COMMIT.slice(0, 7)}'s files byte for byte; every added literal occurs once`, async () => {
   const strip = await import('./studio-chat-element-refine-strip.mjs')
-  assert.deepEqual(CHAT_ELEMENT_REFINE_FILES, ['.env.example', 'app/builder/page.tsx', HOOK, 'hooks/use-textlabs-generation.ts', 'types/mdc.ts'])
+  assert.deepEqual(CHAT_ELEMENT_REFINE_FILES, ['.env.example', 'package.json', 'app/builder/page.tsx', HOOK, 'hooks/use-textlabs-generation.ts', 'types/mdc.ts'])
+  assert.equal(JSON.parse(read('package.json')).scripts['test:studio-chat-element-refine'], 'node scripts/test-studio-chat-element-refine.mjs', 'registered in package.json')
+  assert.ok(read('.env.example').endsWith('NEXT_PUBLIC_CHAT_ELEMENT_REFINE="false"\n'), 'the flag block is the last block of .env.example')
   for (const rel of CHAT_ELEMENT_REFINE_FILES) {
     const head = read(rel)
     for (const [added] of strip.CHAT_ELEMENT_REFINE_CHANGES[rel]) assert.equal(head.split(added).length, 2, `${rel}: one occurrence`)
@@ -665,16 +667,26 @@ await check(`identity: stripping this change gives back ${BASE_COMMIT.slice(0, 7
   // Nothing else in the tree differs from the base but this change's new files.
   const changed = git('diff', '--name-only', BASE_COMMIT, '--', '.').split('\n').filter(Boolean)
   const untracked = git('ls-files', '--others', '--exclude-standard').split('\n').filter(Boolean)
-  const NEW = /^(lib\/chat-element-refine(-wire)?\.ts|scripts\/(test-studio-chat-element-refine|studio-chat-element-refine-(layout|strip))\.mjs|scripts\/fixtures\/chat-element-refine\/.+|LIVE-CHECK-PLAN\.md|scripts\/test-studio-add-element-ownership\.mjs|scripts\/test-studio-director-transport\.mjs)$/
-  for (const rel of [...changed, ...untracked]) assert.ok(CHAT_ELEMENT_REFINE_FILES.includes(rel) || NEW.test(rel), `unexpected change: ${rel}`)
+  // New files, and the older pins / strip roots that now read through scripts/studio-chat-element-refine-strip.mjs (one import + one call each).
+  const NEW = /^(lib\/chat-element-refine(-wire)?\.ts|scripts\/(test-studio-chat-element-refine|studio-chat-element-refine-(layout|strip))\.mjs|scripts\/fixtures\/chat-element-refine\/.+|docs\/pass3\/chat-element-refine\/LIVE-CHECK-PLAN\.md)$/
+  const READS_THROUGH_STRIP = ['scripts/studio-add-slide-status-strip.mjs', 'scripts/studio-open-read-only-strip.mjs', 'scripts/studio-theme-dark-persist-strip.mjs',
+    'scripts/test-studio-add-element-ownership.mjs', 'scripts/test-studio-director-transport.mjs', 'scripts/test-studio-element-free-spot.mjs',
+    'scripts/test-studio-element-placeholder-fix.mjs', 'scripts/test-studio-image-pending-write.mjs', 'scripts/test-theme-font-selection.mjs']
+  for (const rel of READS_THROUGH_STRIP) {
+    const removed = git('diff', '-U0', BASE_COMMIT, '--', rel).split('\n').filter(line => line.startsWith('-') && !line.startsWith('---'))
+    const added = git('diff', '-U0', BASE_COMMIT, '--', rel).split('\n').filter(line => line.startsWith('+') && !line.startsWith('+++'))
+    assert.ok(added.length <= 5 && removed.length <= 2, `${rel}: an import and one call (${added.length}+/${removed.length}-)`)
+    assert.ok(added.some(line => /stripChatElementRefine|CHAT_ELEMENT_REFINE_ENABLED: false/.test(line)), rel)
+  }
+  for (const rel of [...changed, ...untracked]) assert.ok(CHAT_ELEMENT_REFINE_FILES.includes(rel) || NEW.test(rel) || READS_THROUGH_STRIP.includes(rel), `unexpected change: ${rel}`)
 })
 
 await check('identity: every added piece is behind the flag (or is a type, a comment or the flag-gated import)', async () => {
   const strip = await import('./studio-chat-element-refine-strip.mjs')
   for (const rel of CHAT_ELEMENT_REFINE_FILES) for (const [added, original] of strip.CHAT_ELEMENT_REFINE_CHANGES[rel]) {
     const addedLines = added.split('\n').filter(line => !original.split('\n').includes(line)).join('\n')
-    // types/mdc.ts is types only (no runtime); .env.example documents the flag; every other hunk names the flag or the chat-refine kind.
-    const gated = rel === 'types/mdc.ts' || /NEXT_PUBLIC_CHAT_ELEMENT_REFINE|CHAT_ELEMENT_REFINE_ENABLED|chat-refine/.test(addedLines)
+    // types/mdc.ts is types only (no runtime); package.json registers the test; .env.example documents the flag; every other hunk names the flag or the chat-refine kind.
+    const gated = rel === 'types/mdc.ts' || rel === 'package.json' || /NEXT_PUBLIC_CHAT_ELEMENT_REFINE|CHAT_ELEMENT_REFINE_ENABLED|chat-refine/.test(addedLines)
     assert.ok(gated, `${rel}: ${addedLines.slice(0, 200)}`)
   }
 })

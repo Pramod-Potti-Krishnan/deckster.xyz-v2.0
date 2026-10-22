@@ -38,6 +38,8 @@ import { fileURLToPath } from 'node:url'
 import React from 'react'
 import * as jsxRuntime from 'react/jsx-runtime'
 import ts from 'typescript'
+// FRONTEND-2 Pass 3 (NEXT_PUBLIC_CHAT_ELEMENT_REFINE) added flag-gated lines to the hook; with them taken out it is the file this pin holds it to.
+import { stripChatElementRefine } from './studio-chat-element-refine-strip.mjs'
 
 for (const name of Object.keys(process.env)) if (/KEY|TOKEN|SECRET|CREDENTIAL|PASSWORD/i.test(name)) delete process.env[name]
 const denied = () => { throw new Error('Offline harness forbids network') }
@@ -879,7 +881,7 @@ function wiringChecks() {
   // (scripts/test-studio-image-pending-write.mjs proves the hook minus those lines is the base file, byte for byte).
   const withoutImagePendingLines = source => { let inBlock = false; return source.split('\n').filter(line => { if (line.includes('// IMAGE-PENDING-WRITE begin')) { inBlock = true; return false } if (line.includes('// IMAGE-PENDING-WRITE end')) { inBlock = false; return false } return !inBlock && !line.includes('// IMAGE-PENDING-WRITE') }).join('\n') }
   const decl = (source, name) => {
-    source = withoutImagePendingLines(source)
+    source = withoutImagePendingLines(stripChatElementRefine(HOOK, source)) // NEXT_PUBLIC_CHAT_ELEMENT_REFINE
     const sf = ts.createSourceFile('x.ts', source, ts.ScriptTarget.Latest, true, ts.ScriptKind.TS)
     let found
     const visit = node => { if (!found && ts.isVariableDeclaration(node) && node.name.getText(sf) === name) found = printer.printNode(ts.EmitHint.Unspecified, node.initializer, sf); else ts.forEachChild(node, visit) }
