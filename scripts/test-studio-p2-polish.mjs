@@ -226,8 +226,8 @@ function proveStrip(S) {
     if (fs.readFileSync(path.join(repoRoot, rel), 'utf8').includes('studio-p2-polish')) ok(changedFiles.includes(rel) || POLISH_NEW_FILES.includes(rel), `${rel} mentions the polish lib and is in the strip table`)
   }
   eq(attempt(() => git('ls-tree', '-r', '--name-only', BASE_COMMIT, '--', LIB)), '', `${LIB} does not exist in the base`)
-  // the four earlier Pass 2 tests read their files with this change put back out first (one import, one read(), nothing else of theirs is touched here)
-  for (const rel of ['scripts/test-studio-p2-landing.mjs', 'scripts/test-studio-p2-profile-menu.mjs', 'scripts/test-studio-p2-intelligence.mjs', 'scripts/test-studio-p2-publish.mjs']) {
+  // the earlier tests that hold these files read them with this change put back out first (one import, one read(), nothing else of theirs is touched here)
+  for (const rel of ['scripts/test-studio-p2-landing.mjs', 'scripts/test-studio-p2-profile-menu.mjs', 'scripts/test-studio-p2-intelligence.mjs', 'scripts/test-studio-p2-publish.mjs', 'scripts/test-studio-version-history-v2.mjs']) {
     const test = read(rel)
     eq(test.split("import { stripP2Polish } from './studio-p2-polish-strip.mjs'\n").length - 1, 1, `${rel}: imports the strip once`)
     eq(test.split("const read = rel => stripP2Polish(rel, fs.readFileSync(").length - 1, 1, `${rel}: its read() puts this change back out first`)
