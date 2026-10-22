@@ -8,7 +8,7 @@
 //
 // The 17 responses RECORDED from Director's real code (scripts/fixtures/deck-import/, byte copies of streams/director2/deck-import/ in the workspace, pinned by sha256 below) are replayed three ways:
 // through the proxy routes (Director stubbed with the recorded status and body), through the pure rules, and through the dialog (browser -> real proxy routes -> recorded Director).
-//   1. carried files: lib/director-rest-entitlement.ts, its golden vector and its test are OPS-2's PR #312, byte for byte (git blob hashes pinned); golden vector reproduced by the real helper;
+//   1. carried files: lib/director-rest-entitlement.ts and its golden vector are OPS-2's PR #312, byte for byte (git blob hashes pinned; #312's own test comes with #312); golden vector reproduced by the real helper;
 //   2. lib/studio-deck-import.ts: the flag rule, the file check, the one start body, the refusals in the contract's words, every recorded job read, the finished-deck shape;
 //   3. the two proxy routes (executed with stubs): 404 before any session read, signed-in only, exact Director requests, pass-through of every recorded status, the entitlement header
 //      (present only when BOTH flags are on and the secret is set; the secret is never read otherwise; claims checked by an independent verifier);
@@ -48,7 +48,6 @@ const START = 'app/api/studio-deck-import/route.ts'
 const JOBS = 'app/api/studio-deck-import/jobs/[jobId]/route.ts'
 const HELPER = 'lib/director-rest-entitlement.ts'
 const GOLDEN = 'scripts/fixtures/rest-entitlement-golden-vector.json'
-const PR312_TEST = 'scripts/test-rest-entitlement-header.mjs'
 const DASHBOARD = 'app/(app)/dashboard/page.tsx'
 const ENVFILE = '.env.example'
 const PKG = 'package.json'
@@ -199,9 +198,8 @@ const directorFromRecorded = () => (url, init) => {
 // ================================================================ 1. carried files, blobs, base identity
 async function secBlobs() {
   // OPS-2's PR #312 (origin/ops2/rest-entitlement-header-studio @ 93c1c94), carried byte for byte: the git blob ids are those of that branch
-  const PINNED = { [HELPER]: '10dace49fee5c21ca93b4c3b6e3bd7e4f32d55f1', [GOLDEN]: '1d25f7b248d14311d6ca16c4784a0ca3fb4850c3', [PR312_TEST]: '647925b7f8271debd346ad3e2f853371828356af' }
+  const PINNED = { [HELPER]: '10dace49fee5c21ca93b4c3b6e3bd7e4f32d55f1', [GOLDEN]: '1d25f7b248d14311d6ca16c4784a0ca3fb4850c3' }
   for (const [rel, blob] of Object.entries(PINNED)) {
-    if (rel === PR312_TEST && !fs.existsSync(path.join(root, rel))) continue // PR #312's own test is carried in a commit of its own so it can be left out (it asserts the 13 proxies are signed, which this change does not do)
     const bytes = Buffer.from(src(rel), 'utf8')
     eq(crypto.createHash('sha1').update(`blob ${bytes.length}\0`).update(bytes).digest('hex'), blob, `${rel} is PR #312's blob, byte for byte`)
   }
