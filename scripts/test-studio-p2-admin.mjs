@@ -1391,10 +1391,13 @@ async function proveRoutes(over = {}, label = 'routes') {
       eq(result.status, name.startsWith('POST') ? 201 : 200, `${label}: ${name}, the admin, flag ${JSON.stringify(flag)}: succeeds`)
       ok(w.log.length > 0, `${label}: ${name}, the admin, flag ${JSON.stringify(flag)}: and uses the database`)
     }
-    // nobody is admin when DEV_BYPASS_EMAIL is not set (coupons); the users route has always compared with ===, so a session with no email equals an unset variable: not changed here
+    // nobody is admin when DEV_BYPASS_EMAIL is not set, whether or not the session carries an email: every admin route (the users routes since #468) needs a non-empty email equal to a non-empty variable
     for (const flag of ['true', undefined]) {
-      const w = world({ flag, session: MEMBER, adminEmail: null }); const result = await run(() => request(w))
-      eq(result.status, 403, `${label}: ${name}, flag ${JSON.stringify(flag)}, no admin configured: a signed-in account is refused`)
+      for (const [who, session] of [['a signed-in account', MEMBER], ['a session with no email', { user: {} }], ['a session with an empty email', { user: { email: '' } }]]) {
+        const w = world({ flag, session, adminEmail: null }); const result = await run(() => request(w))
+        eq(result.status, 403, `${label}: ${name}, flag ${JSON.stringify(flag)}, no admin configured: ${who} is refused`)
+        deepEq(w.log, [], `${label}: ${name}, flag ${JSON.stringify(flag)}, no admin configured: ${who}: the database is not asked anything`)
+      }
     }
   }
   // ---- flag off: the base commit's routes and these routes answer the same, ask the database the same, and leave the same state
