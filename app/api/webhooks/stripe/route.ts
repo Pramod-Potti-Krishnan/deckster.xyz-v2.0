@@ -3,6 +3,7 @@ import { headers } from 'next/headers'
 import { getStripe } from '@/lib/stripe/stripe'
 import { prisma } from '@/lib/prisma'
 import { creditWallet } from '@/lib/wallet'
+import { resolveStripeSubscriptionPlan } from '@/lib/stripe/subscription-plan'
 import Stripe from 'stripe'
 
 export async function POST(req: NextRequest) {
@@ -124,6 +125,18 @@ async function handleWalletTopup(session: Stripe.Checkout.Session) {
 async function handleSubscriptionUpdated(subscription: Stripe.Subscription) {
   console.log('📝 Subscription updated:', subscription.id)
 
+  // Validate before any writes. Unset/false preserves the legacy webhook payloads.
+  const mappedPlan = process.env.STRIPE_REAL_TIER_MAPPING_ENABLED === 'true'
+    ? resolveStripeSubscriptionPlan(subscription.items, {
+        STRIPE_STARTER_MONTHLY_PRICE_ID: process.env.STRIPE_STARTER_MONTHLY_PRICE_ID,
+        STRIPE_STARTER_YEARLY_PRICE_ID: process.env.STRIPE_STARTER_YEARLY_PRICE_ID,
+        STRIPE_PRO_MONTHLY_PRICE_ID: process.env.STRIPE_PRO_MONTHLY_PRICE_ID,
+        STRIPE_PRO_YEARLY_PRICE_ID: process.env.STRIPE_PRO_YEARLY_PRICE_ID,
+        STRIPE_MAX_MONTHLY_PRICE_ID: process.env.STRIPE_MAX_MONTHLY_PRICE_ID,
+        STRIPE_MAX_YEARLY_PRICE_ID: process.env.STRIPE_MAX_YEARLY_PRICE_ID,
+      })
+    : null
+
   let userId = subscription.metadata.userId
 
   if (!userId) {
@@ -138,14 +151,17 @@ async function handleSubscriptionUpdated(subscription: Stripe.Subscription) {
     userId = user.id
   }
 
-  const priceId = subscription.items.data[0]?.price.id
-  const productId = subscription.items.data[0]?.price.product as string
+  const priceId = mappedPlan ? mappedPlan.priceId : subscription.items.data[0]?.price.id
+  const productId = mappedPlan ? mappedPlan.productId : subscription.items.data[0]?.price.product as string
 
   // Determine tier and billing cycle
   let tier = 'pro'
   let billingCycle = 'monthly'
 
-  if (priceId === process.env.STRIPE_PRO_YEARLY_PRICE_ID) {
+  if (mappedPlan) {
+    tier = mappedPlan.tier
+    billingCycle = mappedPlan.billingCycle
+  } else if (priceId === process.env.STRIPE_PRO_YEARLY_PRICE_ID) {
     billingCycle = 'yearly'
   }
 
@@ -153,6 +169,7 @@ async function handleSubscriptionUpdated(subscription: Stripe.Subscription) {
   await prisma.subscription.upsert({
     where: { stripeSubscriptionId: subscription.id },
     update: {
+      ...(mappedPlan ? { tier, billingCycle } : {}),
       status: subscription.status,
       stripePriceId: priceId,
       stripeProductId: productId,
