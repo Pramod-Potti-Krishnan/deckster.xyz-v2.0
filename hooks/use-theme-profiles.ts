@@ -145,6 +145,30 @@ export function useThemeProfiles() {
     }
   }, [])
 
+  // NEXT_PUBLIC_STUDIO_THEME_LIBRARY_MANAGE: rename one saved theme. PATCH /api/themes/{id} with { name } only (Director leaves description, palette and standard as they are);
+  // the saved profile comes back, or null when the rename was not confirmed (the error says why).
+  const renameTheme = useCallback(async (id: string, name: string): Promise<SavedThemeProfile | null> => {
+    setLoading(true)
+    setError(null)
+    try {
+      const res = await fetch(`/api/themes/${encodeURIComponent(id)}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name }),
+      })
+      const data = await res.json().catch(() => ({}))
+      if (!res.ok) {
+        throw new Error(data?.detail || data?.error || `rename failed: HTTP ${res.status}`)
+      }
+      return data as SavedThemeProfile
+    } catch (e) {
+      setError(e instanceof Error ? e : new Error(String(e)))
+      return null
+    } finally {
+      setLoading(false)
+    }
+  }, [])
+
   return {
     loading,
     error,
@@ -154,5 +178,6 @@ export function useThemeProfiles() {
     setStandardTheme,
     clearStandardTheme,
     deleteTheme,
+    renameTheme,
   }
 }

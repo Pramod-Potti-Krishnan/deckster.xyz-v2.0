@@ -14,11 +14,16 @@ import { libraryAccountCanStart, libraryAccountIsCurrent, useStudioLibraryAccoun
 import { keepStudioScrollFocusVisible } from '@/lib/studio-inspector-focus'
 import { THEME_FONT_FAMILIES, THEME_FONT_SELECTION_ENABLED, ensureThemeFontStylesheet, setThemeFont, themeFontCss, themeFontRefusal, themeFontsEqual, type ThemeFontField } from '@/lib/theme-fonts'
 import { customEntryPaletteMode, paletteModeChoices, paletteModeSelectValue, themeDarkModeEnabled } from '@/lib/studio-theme-dark-toggle'
+// FRONTEND-2 Pass 3 track 4 (NEXT_PUBLIC_STUDIO_THEME_LIBRARY_MANAGE): rename / delete on a saved theme's row.
+import { ManagedLibraryRow, type ManagedRowChild } from './library-manage'
+import { BUSY_TEXT, isUserOwnedLibraryItem, runLibraryDelete, runLibraryRename, selectionAfterRemoval } from '@/lib/studio-library-manage'
 import './themes-fidelity.css'
 
 const INITIAL_THEME: BuildThemeSelection = { mode: 'preset', preset_id: 'minimal' }
 // P2C (NEXT_PUBLIC_THEME_DARK_MODE_ENABLED, exact "true", default off): the palette-mode choices are the build panel's Light and Dark (no "Both"), from the same helper.
 const THEME_DARK_MODE = themeDarkModeEnabled(process.env.NEXT_PUBLIC_THEME_DARK_MODE_ENABLED)
+// FRONTEND-2 Pass 3 track 4 (NEXT_PUBLIC_STUDIO_THEME_LIBRARY_MANAGE, exact "true", default off, read at build time): the person's own saved themes get a ⋮ menu with Rename and Delete (lib/studio-library-manage.ts). Off: the rows are exactly as before.
+const THEME_LIBRARY_MANAGE = process.env.NEXT_PUBLIC_STUDIO_THEME_LIBRARY_MANAGE === 'true'
 const CUSTOM_FIELDS = [['primary_hex', 'Primary / brand'], ['secondary_hex', 'Secondary'], ['tertiary_hex', 'Tertiary'], ['neutral_hex', 'Neutral']] as const
 
 function revealStudioThemeColor(target: EventTarget | null, group: HTMLElement | null, invalid: boolean) {
@@ -66,7 +71,7 @@ function FontFields({ draft, onChange }: { draft: BuildThemeSelection; onChange:
 }
 
 export function ThemesWorkspace() {
-  const { error: profilesError, listThemes, saveTheme, setStandardTheme, clearStandardTheme } = useThemeProfiles()
+  const { error: profilesError, listThemes, saveTheme, setStandardTheme, clearStandardTheme, renameTheme, deleteTheme } = useThemeProfiles()
   const account = useStudioLibraryAccount()
   const accountScope = useRef(account)
   accountScope.current = account
@@ -227,6 +232,29 @@ export function ThemesWorkspace() {
     }
   }
 
+  // NEXT_PUBLIC_STUDIO_THEME_LIBRARY_MANAGE: rename / delete one saved theme. lib/studio-library-manage.ts runs it (optimistic rename with rollback; delete leaves the list only once Director confirms); ./library-manage.tsx draws the menu, the field and the dialog. Never called with the flag off.
+  const manageDeps = () => { const scope = accountScope.current; return { getItems: () => themes, setItems: setThemes, isCurrent: () => mounted.current && accountIsCurrent(scope) } }
+  const manageRename = async (theme: SavedThemeProfile, nextName: string) => {
+    if (!mounted.current || !accountCanStart() || busy.current) return { ok: false as const, message: BUSY_TEXT }
+    listRequest.current += 1; setLoading(false) // a library read already in flight must not put the old name back over the new one
+    setActionError(''); setNotice('')
+    const result = await runLibraryRename('theme', { ...manageDeps(), commit: (id, name) => renameTheme(id, name) }, theme.id, nextName)
+    if (result.ok && result.name !== theme.name && mounted.current) setNotice(`“${theme.name}” is now “${result.name}”.`)
+    return result
+  }
+  const manageDelete = async (theme: SavedThemeProfile) => {
+    if (!mounted.current || !accountCanStart() || busy.current) return { ok: false as const, message: BUSY_TEXT }
+    listRequest.current += 1; setLoading(false)
+    const before = themes ?? []
+    setActionError(''); setNotice('')
+    const result = await runLibraryDelete('theme', { ...manageDeps(), commit: id => deleteTheme(id) }, theme.id)
+    if (result.ok && mounted.current) { setSelectedId(current => selectionAfterRemoval(before, theme.id, current)); setCompareBase(false); setNotice(`“${theme.name}” was deleted from your library.`) }
+    return result
+  }
+  const manageRow = (theme: SavedThemeProfile, row: ManagedRowChild) => THEME_LIBRARY_MANAGE && isUserOwnedLibraryItem(theme)
+    ? <ManagedLibraryRow key={theme.id} kind="theme" name={theme.name} isStandard={Boolean(theme.is_standard)} disabled={!accountReady || loading || Boolean(operation)} otherNames={(themes ?? []).filter(item => item.id !== theme.id).map(item => item.name)} onRename={nextName => manageRename(theme, nextName)} onDelete={() => manageDelete(theme)}>{row}</ManagedLibraryRow>
+    : row
+
   const changePreset = (id: string) => {
     if (id === 'auto') { const retained = selectCanonicalThemePreset(draft, draft.preset_id || 'corporate_light'); patchDraft({ mode: 'auto', harmony_preference: draft.harmony_preference, palette_mode: draft.palette_mode, color_overrides: retained.color_overrides }); return }
     patchDraft(selectCanonicalThemePreset(draft, id))
@@ -266,7 +294,7 @@ export function ThemesWorkspace() {
         </> : <>
           <div className="sl-side-heading"><div className="sl-section-line"><h2>Your themes</h2><button type="button" className="sl-icon-button" aria-label="Refresh themes" disabled={!accountReady || loading || Boolean(operation)} onClick={() => void refresh()}><RefreshCw size={15} /></button></div><LibrarySearch label="Search saved themes" value={query} onChange={setQuery} /><div className="sl-segment sl-library-filters" aria-label="Theme library filter"><button type="button" aria-pressed={filter === 'all'} onClick={() => setFilter('all')}>All themes</button><button type="button" aria-pressed={filter === 'standard'} onClick={() => setFilter('standard')}><Star size={12} />Standard</button></div><p className="sl-result-count" role="status">{loading ? themes === null ? 'Loading library…' : 'Refreshing library…' : themes === null ? 'Library not loaded' : `${filtered.length} ${filtered.length === 1 ? 'theme' : 'themes'}${hasFilters ? ' match' : ' in your library'}`}</p></div>
           {listError && <LibraryNotice error>{listError}{themes && <p>Showing the last loaded library. Refresh to check for updates.</p>}</LibraryNotice>}
-          <div className="sl-library-list">{loading && themes === null ? <LibraryLoading /> : filtered.length ? filtered.map(theme => <button type="button" className="sl-record" key={theme.id} aria-pressed={selectedId === theme.id} onClick={() => { setSelectedId(theme.id); setActionError(''); setCompareBase(false) }}><ThemeSwatches selection={theme.theme_payload} {...canonProp} /><span><strong>{theme.name}</strong><small>{theme.description || `${theme.theme_payload.mode === 'custom' ? 'Custom' : 'Saved'} palette`}</small></span>{theme.is_standard && <Star size={14} aria-label="Standard theme" />}</button>) : <div className="sl-empty"><Palette size={24} /><h3>{listError && themes === null ? 'Library unavailable' : hasFilters ? filter === 'standard' && !query ? 'No standard in this view' : 'No matching themes' : listError ? 'Library unavailable' : 'Your identity starts here.'}</h3><p>{listError && themes === null ? 'Refresh to load your saved themes.' : hasFilters ? filter === 'standard' && !query ? 'Preview a saved theme and choose Set as standard for future presentations.' : 'Try another name or description, or clear the filters.' : listError ? 'Refresh to try again. Your draft is still available in Create.' : 'Create a palette and save it here for your next presentation.'}</p>{listError && themes === null ? <button type="button" className="sl-button" disabled={!accountReady || loading} onClick={() => void refresh()}>Retry library</button> : hasFilters ? <button type="button" className="sl-button" onClick={() => { setQuery(''); setFilter('all') }}>Show all themes</button> : listError ? <button type="button" className="sl-button" disabled={!accountReady || loading} onClick={() => void refresh()}>Retry library</button> : <button type="button" className="sl-button" onClick={() => setMode('create')}>Create a theme</button>}</div>}</div>
+          <div className="sl-library-list">{loading && themes === null ? <LibraryLoading /> : filtered.length ? filtered.map(theme => manageRow(theme, <button type="button" className="sl-record" key={theme.id} aria-pressed={selectedId === theme.id} onClick={() => { setSelectedId(theme.id); setActionError(''); setCompareBase(false) }}><ThemeSwatches selection={theme.theme_payload} {...canonProp} /><span><strong>{theme.name}</strong><small>{theme.description || `${theme.theme_payload.mode === 'custom' ? 'Custom' : 'Saved'} palette`}</small></span>{theme.is_standard && <Star size={14} aria-label="Standard theme" />}</button>)) : <div className="sl-empty"><Palette size={24} /><h3>{listError && themes === null ? 'Library unavailable' : hasFilters ? filter === 'standard' && !query ? 'No standard in this view' : 'No matching themes' : listError ? 'Library unavailable' : 'Your identity starts here.'}</h3><p>{listError && themes === null ? 'Refresh to load your saved themes.' : hasFilters ? filter === 'standard' && !query ? 'Preview a saved theme and choose Set as standard for future presentations.' : 'Try another name or description, or clear the filters.' : listError ? 'Refresh to try again. Your draft is still available in Create.' : 'Create a palette and save it here for your next presentation.'}</p>{listError && themes === null ? <button type="button" className="sl-button" disabled={!accountReady || loading} onClick={() => void refresh()}>Retry library</button> : hasFilters ? <button type="button" className="sl-button" onClick={() => { setQuery(''); setFilter('all') }}>Show all themes</button> : listError ? <button type="button" className="sl-button" disabled={!accountReady || loading} onClick={() => void refresh()}>Retry library</button> : <button type="button" className="sl-button" onClick={() => setMode('create')}>Create a theme</button>}</div>}</div>
           <div className="sl-side-footer"><p className="sl-helper">Selecting a theme here opens its preview. It does not restyle a deck or change your standard.</p></div>
         </>}
       </aside>

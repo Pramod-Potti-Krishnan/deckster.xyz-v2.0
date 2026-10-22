@@ -3,11 +3,12 @@ import fs from 'node:fs'
 import vm from 'node:vm'
 import { readAtlasBaseline } from './atlas-witness-baseline.mjs'
 import ts from 'typescript'
+import { stripLibraryManage } from './studio-library-manage-strip.mjs'
 
 // Actual Themes leaf callbacks, native payload, preview helpers and safe handoff
 // props. Deferred receipts are local fixtures; all external operations refuse.
 const root = new URL('../', import.meta.url), file = 'components/studio-libraries/themes-workspace.tsx'
-const source = fs.readFileSync(new URL(file, root), 'utf8')
+const source = stripLibraryManage(file, fs.readFileSync(new URL(file, root), 'utf8')) // FRONTEND-2 Pass 3 track 4 (NEXT_PUBLIC_STUDIO_THEME_LIBRARY_MANAGE / NEXT_PUBLIC_STUDIO_TEMPLATE_LIBRARY_MANAGE): that change's lines are not part of what this pin holds (scripts/studio-library-manage-strip.mjs)
 // Preserve the actual editable schema/palette algorithms. Only the two text
 // handlers gain a live owner guard; normalize that intentional guard for equality.
 const baseline = readAtlasBaseline(`a8a0667:${file}`)
