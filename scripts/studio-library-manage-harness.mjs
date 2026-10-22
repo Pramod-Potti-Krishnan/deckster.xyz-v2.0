@@ -11,12 +11,32 @@ import { fileURLToPath } from 'node:url'
 import ts from 'typescript'
 
 export const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..')
-// LIBRARY_MANAGE_BASE=<commit> overrides the commit the flag-off identity is checked against (default bcd8aed: studio-v4-dev-preparation-code after #458, the head this was built on).
-export const BASE_COMMIT = process.env.LIBRARY_MANAGE_BASE || 'bcd8aed'
+// LIBRARY_MANAGE_BASE=<commit> overrides the commit the flag-off identity is checked against (default 1079ba4, the studio-v4-dev-preparation-code tip this change is stacked on: #459 added only the Profile page,
+// its .env.example block and its package script on top of bcd8aed, and none of the files this change touches).
+export const BASE_COMMIT = process.env.LIBRARY_MANAGE_BASE || '1079ba4b7cd277ece7cc46ee7624d74419c3a5aa'
 const git = args => execFileSync('git', args, { cwd: root, encoding: 'utf8', maxBuffer: 64 * 1024 * 1024, stdio: ['ignore', 'pipe', 'ignore'] })
 export function baseSource(rel) {
   try { git(['cat-file', '-e', `${BASE_COMMIT}^{commit}`]); return git(['show', `${BASE_COMMIT}:${rel}`]) } catch { return null }
 }
+// .env.example and package.json are the two files every flag-gated change appends a line or a block to, so once other changes are stacked on this one (Ask your second brain, Duplicate a deck ...) they hold
+// lines this change never wrote. For those two (and only those) the base's lines must all still be there, in order, with nothing of this change left, and any extra line must be a comment, a blank, an env
+// line or a test script line (the rule scripts/test-studio-p2-polish.mjs and scripts/test-studio-p2-publish.mjs use). Every other file is held to the base byte for byte, as before.
+export function appendOnlyOver(rel, text, baseText) {
+  const norm = line => rel === 'package.json' ? line.replace(/,\s*$/, '') : line
+  const want = baseText.split('\n').map(norm), extras = []
+  let next = 0
+  for (const line of text.split('\n').map(norm)) { if (next < want.length && line === want[next]) next++; else extras.push(line) }
+  const kind = rel === 'package.json' ? /^\s*"test:[a-z0-9-]+": "node scripts\/test-[a-z0-9-]+\.mjs"$/ : /^\s*$|^\s*#|^[A-Z][A-Z0-9_]*=/
+  return next === want.length && extras.every(line => line === '' || kind.test(line)) && !extras.some(line => /LIBRARY_MANAGE|library-manage/.test(line))
+}
+/** `stripped` is the file with this change's lines out: the base's file, or (for the two shared append-only files) the base's lines plus other changes' comments, blanks and env lines. */
+export const isBaseFile = (rel, stripped, baseText) => stripped === baseText || (['.env.example', 'package.json'].includes(rel) && appendOnlyOver(rel, stripped, baseText))
+// The other FRONTEND-2 Pass 3 changes that may be stacked on the same base (#460 Ask your second brain, #464 Duplicate a deck). Their files are not this change's, and none of them is a library file;
+// the diff-scope check below allows exactly these on top of this change's own files and nothing else.
+export const STACKED_PASS3_FILES = [
+  'app/(app)/knowledge/page.tsx', 'app/api/knowledge-graph/query/route.ts', 'components/knowledge/studio-kg-ask.css', 'components/knowledge/studio-kg-ask.tsx', 'hooks/use-studio-kg-ask.ts', 'lib/studio-kg-ask.ts',
+  'app/(app)/dashboard/page.tsx', 'app/builder/page.tsx', 'components/builder/studio-copied-from-note.tsx', 'components/builder/studio-duplicate-deck.css', 'lib/studio-duplicate-deck.ts',
+]
 export const sha = text => crypto.createHash('sha256').update(text).digest('hex')
 export const plain = value => JSON.parse(JSON.stringify(value))
 

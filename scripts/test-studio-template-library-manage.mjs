@@ -21,7 +21,7 @@ import fs from 'node:fs'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { LIBRARY_MANAGE_ADDITIONS, ENV_FILE, LIBRARY_MANAGE_NEW_FILES, TEMPLATES_WORKSPACE, THEME_HOOK, THEMES_WORKSPACE, stripLibraryManage } from './studio-library-manage-strip.mjs'
-import { BASE_COMMIT, baseSource, createRuntime, deferred, jsxRuntime, loadSource, makeReader, plain, root, sha, text, tick } from './studio-library-manage-harness.mjs'
+import { BASE_COMMIT, STACKED_PASS3_FILES, baseSource, createRuntime, deferred, isBaseFile, jsxRuntime, loadSource, makeReader, plain, root, sha, text, tick } from './studio-library-manage-harness.mjs'
 
 const here = fileURLToPath(import.meta.url)
 const FLAG = 'NEXT_PUBLIC_STUDIO_TEMPLATE_LIBRARY_MANAGE'
@@ -91,6 +91,7 @@ const lib = loadSource(read(LIB), {}, { file: LIB })
   eq(reads, [TEMPLATES_WORKSPACE], 'only the Templates workspace reads the flag (not the page, the row, the hook or the lib)')
   is(WORKSPACE_SOURCE.split(`process.env.${FLAG} === 'true'`).length - 1, 1, 'exact "true", read inline once'); is(WORKSPACE_SOURCE.split(`process.env.${FLAG}`).length - 1, 1)
   is((read('.env.example').match(new RegExp(`^${FLAG}="false"$`, 'gm')) ?? []).length, 1, '.env.example documents the flag, default "false", once')
+  ok(read('.env.example').indexOf('# PASS3 LIBRARY MANAGE') > read('.env.example').indexOf('NEXT_PUBLIC_STUDIO_P2_POLISH="false"') && read('.env.example').indexOf('NEXT_PUBLIC_STUDIO_P2_POLISH="false"') > 0, '.env.example: the block comes after the polish flag\'s block (the polish pin holds everything before that block to its base)')
   ok(!read('.env.example').split('\n').some(line => /^NEXT_PUBLIC_STUDIO_TEMPLATE_LIBRARY_MANAGE=/.test(line) && !/="false"$/.test(line)), 'and it is never documented as on')
   ok(/There is NO Rename for a template/.test(read('.env.example').replace(/\n# ?/g, ' ')), '.env.example says plainly that templates have no Rename')
   const basePage = baseSource(PAGE); if (basePage !== null) is(read(PAGE), basePage, 'the Templates page file is the base\'s')
@@ -248,11 +249,11 @@ function mountWorkspace({ source = WORKSPACE_SOURCE, flag, templates = [QBR, BOA
     const baseFrames = await scenario(baseWorkspace, undefined)
     eq(branchOff, baseFrames, `flag off: create, library, selected, search, filtered and composer-template frames equal the base's (${BASE_COMMIT})`)
     is(hashOff, sha(JSON.stringify(baseFrames))); console.log(`flag-off frames sha256 ${hashOff.slice(0, 16)} == base ${sha(JSON.stringify(baseFrames)).slice(0, 16)}`)
-    for (const rel of [TEMPLATES_WORKSPACE, ENV_FILE]) is(stripLibraryManage(rel, read(rel)), baseSource(rel), `${rel}: without this change's lines it is the base commit's file, byte for byte`)
+    for (const rel of [TEMPLATES_WORKSPACE, ENV_FILE]) ok(isBaseFile(rel, stripLibraryManage(rel, read(rel)), baseSource(rel)), `${rel}: without this change's lines it is the base commit's file${rel === ENV_FILE ? ' (its lines in order; a later change\'s block may follow)' : ', byte for byte'}`)
     for (const [rel, table] of Object.entries(LIBRARY_MANAGE_ADDITIONS)) for (const [added] of table) is(read(rel).split(added).length - 1, 1, `${rel}: each added literal occurs exactly once`)
     const changed = spawnSync('git', ['diff', '--name-only', BASE_COMMIT, '--', 'app', 'components', 'lib', 'hooks', 'middleware.ts'], { cwd: root, encoding: 'utf8' }).stdout.split('\n').filter(Boolean)
-    const allowed = new Set([THEMES_WORKSPACE, TEMPLATES_WORKSPACE, THEME_HOOK, ...LIBRARY_MANAGE_NEW_FILES])
-    ok(changed.every(file => allowed.has(file)), `this change touches only the two workspaces, the theme hook and its own three new files: ${changed.filter(file => !allowed.has(file)).join(', ') || 'ok'}`)
+    const allowed = new Set([THEMES_WORKSPACE, TEMPLATES_WORKSPACE, THEME_HOOK, ...LIBRARY_MANAGE_NEW_FILES, ...STACKED_PASS3_FILES])
+    ok(changed.every(file => allowed.has(file)), `this change touches only the two workspaces, the theme hook and its own three new files (the other Pass 3 changes' files may be stacked on it): ${changed.filter(file => !allowed.has(file)).join(', ') || 'ok'}`)
     ok(!changed.some(file => /^app\/api\/(templates|themes)\//.test(file) || /admission/i.test(file)), 'no API proxy and nothing of the admission report is touched')
   }
 

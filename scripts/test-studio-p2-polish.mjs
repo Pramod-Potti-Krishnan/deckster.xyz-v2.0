@@ -34,12 +34,10 @@ import { execFileSync } from 'node:child_process'
 import ts from 'typescript'
 import postcss from 'postcss'
 import { BASE_COMMIT as STRIP_BASE, POLISH_APPENDED, POLISH_FILES, POLISH_NEW_FILES, POLISH_PAIRS, stripP2Polish } from './studio-p2-polish-strip.mjs'
-import { stripLibraryManage } from './studio-library-manage-strip.mjs'
 
 const repoRoot = path.resolve(new URL('..', import.meta.url).pathname)
 const BASE_COMMIT = process.env.P2_POLISH_BASE || STRIP_BASE
-// the library-manage flags' block in .env.example (scripts/studio-library-manage-strip.mjs) is put back out first: this pin holds the file to the commit before the polish block
-const read = rel => stripLibraryManage(rel, fs.readFileSync(path.join(repoRoot, rel), 'utf8'))
+const read = rel => fs.readFileSync(path.join(repoRoot, rel), 'utf8')
 const baseCache = new Map()
 // .env.example and package.json are the two files every flag-gated change appends a line or a block to, so once other changes are stacked on this one they hold lines this change never wrote.
 // For those two (and only those) the base's lines must all still be there, in order, with nothing of this change left, and any extra line must be a comment, a blank, an env line or a test
