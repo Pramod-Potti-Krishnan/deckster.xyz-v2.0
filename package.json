@@ -124,6 +124,7 @@
     "test:research-mode-contract": "node scripts/test-research-mode-contract.mjs",
     "test:researcher-ingest-status-auth": "node scripts/test-researcher-ingest-status-auth.mjs",
     "test:studio-p2-details": "node scripts/test-studio-p2-details.mjs",
+    "test:studio-p2-onboarding": "node scripts/test-studio-p2-onboarding.mjs",
     "start": "next start",
     "postinstall": "prisma generate",
     "test:qa-citation-tiers": "node scripts/test-qa-citation-tiers.mjs",
