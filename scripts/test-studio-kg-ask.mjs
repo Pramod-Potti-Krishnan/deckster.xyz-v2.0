@@ -23,6 +23,7 @@ import vm from 'node:vm'
 import { execFileSync } from 'node:child_process'
 import ts from 'typescript'
 import postcss from 'postcss'
+import { KG_ASK_ENV_FROM, KG_ASK_ENV_TO, KG_ASK_FILES, KG_ASK_PAGE_ADDED, stripKgAsk } from './studio-kg-ask-strip.mjs'
 
 const repoRoot = path.resolve(new URL('..', import.meta.url).pathname)
 const BASE_COMMIT = process.env.KG_ASK_BASE || 'bcd8aed0d0e8d202c8859c4fd45ccae06de8e307'
@@ -654,7 +655,7 @@ const ACCESS = { accountKey: 'user:fixture', userId: 'fixture', isAuthenticated:
 function pageWorld(source, env) {
   const fetchFn = createFetch({ '/api/knowledge-graph/stats': () => respond(200, STATS), '/api/knowledge-graph/graph': () => respond(200, GRAPH_DATA), '/api/knowledge-graph/nodes/': () => respond(200, DETAIL), '/api/sessions': () => respond(200, { sessions: [], pagination: { hasMore: false } }) })
   const world = createWorld({
-    real: new Set([PAGE, LIB]), sources: { [PAGE]: source }, env,
+    real: new Set([PAGE]), sources: { [PAGE]: source }, env,
     stubs: { '@/lib/utils': { cn: (...values) => values.filter(Boolean).join(' ') }, '@/components/knowledge/kg-graph-view': { KgGraphView: 'KgGraphView', typeColor: () => '#60A5FA' }, '@/hooks/use-knowledge-graph': { useKnowledgeGraph: () => ACCESS }, 'next/link': { default: 'Link', __esModule: true } },
     globals: { fetch: fetchFn, AbortController, Intl, Set, Map, Promise, JSON, Math, Number, String, Object, Array, Boolean, Error, TypeError, Date, URL, console: { warn() {}, error() {}, log() {}, info() {}, debug() {} }, window: { addEventListener() {}, removeEventListener() {}, location: { reload() {} } } },
   })
@@ -706,7 +707,8 @@ async function provePage(source, label = 'page') {
     same(ser(without(withBox.loaded, 'StudioKgAsk')), ser(off.loaded), `${label}: ${Object.keys(extra)[0]} + flag: nothing else changes`)
     deepEq(withBox.calls, off.calls, `${label}: ${Object.keys(extra)[0]} + flag: the same requests`)
   }
-  match(source, /const KG_ASK = studioKgAskOn\(process\.env\.NEXT_PUBLIC_STUDIO_KG_ASK, process\.env\.NEXT_PUBLIC_STUDIO_V4_SHELL\)/, `${label}: the page's rule is the helper's (exact "true" AND the shell)`)
+  match(source, /const KG_ASK = process\.env\.NEXT_PUBLIC_STUDIO_KG_ASK === "true" && STUDIO_SHELL/, `${label}: the page's rule is the other flags' (exact "true" AND the shell), the helper's studioKgAskOn says the same`)
+  nomatch(source, /@\/lib\/studio-kg-ask/, `${label}: the page calls nothing from the helper at load (the older page harnesses run the page with inert imports)`)
   match(source, /\{KG_ASK && <StudioKgAsk \/>\}/, `${label}: the box is guarded by the flag`)
   // the diff against the base is only the box
   const added = source.split('\n').filter(line => !baseSource(PAGE).split('\n').includes(line))
@@ -768,6 +770,20 @@ function proveEnv(source, label = 'env') {
   eq(kept.length, 0, `${label}: every line of the base's example is still there`)
 }
 
+// ---------------------------------------------------------------- 5b. the strip table: nothing else of the two shared files is changed
+function proveStrip(S, label = 'strip') {
+  deepEq(KG_ASK_FILES, [ENV, PAGE], `${label}: the two shared files this change touches`)
+  for (const rel of KG_ASK_FILES) ok(stripKgAsk(rel, S[rel]) === baseSource(rel), `${label}: ${rel}: stripping this change gives back the base's file, byte for byte`)
+  for (const added of KG_ASK_PAGE_ADDED) eq(S[PAGE].split(added).length - 1, 1, `${label}: the page has ${JSON.stringify(added.slice(0, 50))} exactly once`)
+  eq(S[ENV].split(KG_ASK_ENV_FROM).length - 1, 1, `${label}: the env example has the block once`); ok(S[ENV].indexOf(KG_ASK_ENV_TO) > S[ENV].indexOf(KG_ASK_ENV_FROM), `${label}: ...ending with the flag line`)
+  eq(stripKgAsk('lib/other.ts', 'x'), 'x', `${label}: any other file is left alone`)
+  // the older pin that holds .env.example to an earlier commit puts this change back out first
+  const pin = read('scripts/test-studio-p2-polish.mjs')
+  eq(pin.split("import { stripKgAsk } from './studio-kg-ask-strip.mjs'\n").length - 1, 1, `${label}: test-studio-p2-polish imports the strip once`)
+  eq(pin.split("const read = rel => stripKgAsk(rel, fs.readFileSync(").length - 1, 1, `${label}: ...its read() puts this change back out first`)
+  eq(pin.split('stripKgAsk(').length - 1, 1, `${label}: ...and uses it nowhere else`)
+}
+
 // ---------------------------------------------------------------- run
 async function proveAll(replaced = {}, only = null) {
   overrides = replaced
@@ -780,6 +796,7 @@ async function proveAll(replaced = {}, only = null) {
   await run('page', () => provePage(s(PAGE)))
   await run('css', () => proveCss(s(CSS)))
   await run('env', () => proveEnv(s(ENV)))
+  await run('strip', () => proveStrip({ ...SOURCES, ...replaced }))
 }
 
 const t0 = Date.now()
@@ -790,7 +807,7 @@ counting = false
 if (process.env.KG_ASK_QUICK) { console.log(`Studio KG Ask (quick, mutants skipped): ${realChecks} checks passed in ${realMs} ms; no network.`); process.exit(0) }
 
 // ---------------------------------------------------------------- 6. mutation check: [file, name, from, to]; every one must be killed by an assertion (not a crash)
-const ONLY = { [LIB]: null, [ROUTE]: ['route'], [HOOK]: ['hook', 'ui'], [UI]: ['ui'], [PAGE]: ['page'], [CSS]: ['css'], [ENV]: ['env'] }
+const ONLY = { [LIB]: null, [ROUTE]: ['route'], [HOOK]: ['hook', 'ui'], [UI]: ['ui'], [PAGE]: ['page', 'strip'], [CSS]: ['css'], [ENV]: ['env', 'strip'] }
 const MUTANTS = [
   // the helper
   [LIB, 'flag: either one is enough', "flag === 'true' && shell === 'true'", "flag === 'true' || shell === 'true'"],
@@ -909,10 +926,13 @@ const MUTANTS = [
   [UI, 'marker dropped', '<section data-studio-kg-ask="true"', '<section'],
   [UI, 'state not exposed', 'data-studio-kg-ask-state={state.phase}', ''],
   // the page
-  [PAGE, 'box always on', 'const KG_ASK = studioKgAskOn(process.env.NEXT_PUBLIC_STUDIO_KG_ASK, process.env.NEXT_PUBLIC_STUDIO_V4_SHELL)', 'const KG_ASK = true'],
-  [PAGE, 'box ignores the shell', 'process.env.NEXT_PUBLIC_STUDIO_KG_ASK, process.env.NEXT_PUBLIC_STUDIO_V4_SHELL)', 'process.env.NEXT_PUBLIC_STUDIO_KG_ASK, "true")'],
+  [PAGE, 'box always on', 'const KG_ASK = process.env.NEXT_PUBLIC_STUDIO_KG_ASK === "true" && STUDIO_SHELL', 'const KG_ASK = true'],
+  [PAGE, 'box ignores the shell', 'process.env.NEXT_PUBLIC_STUDIO_KG_ASK === "true" && STUDIO_SHELL', 'process.env.NEXT_PUBLIC_STUDIO_KG_ASK === "true"'],
+  [PAGE, 'box on for any value', 'process.env.NEXT_PUBLIC_STUDIO_KG_ASK === "true" && STUDIO_SHELL', 'Boolean(process.env.NEXT_PUBLIC_STUDIO_KG_ASK) && STUDIO_SHELL'],
   [PAGE, 'box unguarded', '{KG_ASK && <StudioKgAsk />}', '<StudioKgAsk />'],
   [PAGE, 'box below the map', '      {KG_ASK && <StudioKgAsk />}\n\n      <div data-studio-knowledge-role="layout"', '      <div data-studio-knowledge-role="layout"'],
+  [PAGE, 'an unlisted change to the page', 'export const dynamic = "force-dynamic"', 'export const dynamic = "force-dynamic" // changed'],
+  [ENV, 'an unlisted change to the example', 'NEXT_PUBLIC_STUDIO_P2_SECOND_BRAIN="false"\n', 'NEXT_PUBLIC_STUDIO_P2_SECOND_BRAIN="false" # changed\n'],
   // the sheet and the example
   [CSS, 'a hex colour', 'color: var(--ss-text); font-size: 14px; font-weight: 600; white-space: nowrap;', 'color: #123456; font-size: 14px; font-weight: 600; white-space: nowrap;'],
   [CSS, 'an unanchored rule', '[data-studio-v4-shell="true"] [data-studio-kg-ask="true"] [data-studio-kg-ask-form="true"] { display: flex;', '[data-studio-kg-ask-form="true"] { display: flex;'],

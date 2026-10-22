@@ -37,7 +37,6 @@ import { StudioP2Sources } from "@/components/knowledge/studio-p2-sources"
 import { StudioP2SourcesMenu } from "@/components/knowledge/studio-p2-sources-menu"
 import { StudioP2DeckProvider } from "@/components/knowledge/studio-p2-deck-provider"
 import { StudioKgAsk } from "@/components/knowledge/studio-kg-ask"
-import { studioKgAskOn } from "@/lib/studio-kg-ask"
 import type { StudioDeckDirectory } from "@/hooks/use-studio-p2-deck-titles"
 import {
   clearImportMarker, IMPORT_FAILED_TEXT, importConfirmWarning, importFailureText, normalizeKgGraph, normalizeKgStats, OFFLINE_IMPORT_TEXT, ownerTag,
@@ -62,7 +61,7 @@ const KNOWLEDGE_EMPTY_STATE = STUDIO_SHELL && process.env.NEXT_PUBLIC_STUDIO_KNO
 // PASS2 Second Brain (SB-02/05/06/08/10, lib/studio-p2-second-brain.ts). Exact "true" AND the Studio shell; default off, and then the page is exactly as before.
 const P2_SB = process.env.NEXT_PUBLIC_STUDIO_P2_SECOND_BRAIN === "true" && STUDIO_SHELL
 // "Ask your second brain" (lib/studio-kg-ask.ts): a question box above the map that shows the passages the graph holds on a question, with their sources. Exact "true" AND the Studio shell; default off, and then the page is exactly as before.
-const KG_ASK = studioKgAskOn(process.env.NEXT_PUBLIC_STUDIO_KG_ASK, process.env.NEXT_PUBLIC_STUDIO_V4_SHELL)
+const KG_ASK = process.env.NEXT_PUBLIC_STUDIO_KG_ASK === "true" && STUDIO_SHELL
 
 interface KgStats {
   node_count: number

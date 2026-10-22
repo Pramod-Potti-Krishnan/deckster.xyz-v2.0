@@ -34,10 +34,12 @@ import { execFileSync } from 'node:child_process'
 import ts from 'typescript'
 import postcss from 'postcss'
 import { BASE_COMMIT as STRIP_BASE, POLISH_APPENDED, POLISH_FILES, POLISH_NEW_FILES, POLISH_PAIRS, stripP2Polish } from './studio-p2-polish-strip.mjs'
+import { stripKgAsk } from './studio-kg-ask-strip.mjs'
 
 const repoRoot = path.resolve(new URL('..', import.meta.url).pathname)
 const BASE_COMMIT = process.env.P2_POLISH_BASE || STRIP_BASE
-const read = rel => fs.readFileSync(path.join(repoRoot, rel), 'utf8')
+// the Ask-your-second-brain flag's lines in .env.example (scripts/studio-kg-ask-strip.mjs) are put back out first: this pin holds the file to the commit before the polish block
+const read = rel => stripKgAsk(rel, fs.readFileSync(path.join(repoRoot, rel), 'utf8'))
 const baseCache = new Map()
 const baseSource = rel => {
   if (!baseCache.has(rel)) {
