@@ -6,9 +6,11 @@ import { stripDuplicateDeck } from './studio-duplicate-deck-strip.mjs'
 
 export const PAGE = 'app/builder/page.tsx'
 
+import { DECK_MUTATION_DEDUPE_PAGE_ADDITION } from './studio-deck-mutation-dedupe-strip.mjs'
 const PAGE_ADDITIONS = [
   ["persistenceRef.current.updateMetadata(updates, { passive: true }) // NEXT_PUBLIC_STUDIO_SESSION_OPEN_READ_ONLY: Director's own state frame\n", 'persistenceRef.current.updateMetadata(updates)\n'],
   ["persistenceRef.current.updateMetadata(updates, { passive: true }) // NEXT_PUBLIC_STUDIO_SESSION_OPEN_READ_ONLY: the page's own count reconcile\n", 'persistenceRef.current.updateMetadata(updates)\n'],
+  DECK_MUTATION_DEDUPE_PAGE_ADDITION, // FRONTEND-2 #469 (NEXT_PUBLIC_STUDIO_DECK_MUTATION_DEDUPE): its page lines come out too (scripts/studio-deck-mutation-dedupe-strip.mjs)
 ]
 
 /** `text` is the file at `rel`; only app/builder/page.tsx has lines of this change, any other file is returned as it is. */

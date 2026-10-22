@@ -1,0 +1,134 @@
+{
+  "scenario": "a-qa-mdc1",
+  "description": "Q&A about the built deck: two questions, two answers (sc_qa).",
+  "client_caps": [
+    "mdc1"
+  ],
+  "director_commit": "19d09d603095e263ea87ab55af79fa59a8ad2370",
+  "flags": {
+    "MULTI_INTENT_ENABLED": "true",
+    "DIRECTOR_MDC_HONEST_REPLIES_ENABLED": "true",
+    "DIRECTOR_MDC_SESSION_SCOPE_ENABLED": "true",
+    "DIRECTOR_MDC_COMPOSER_FLAG_GATE_ENABLED": "true",
+    "SLIDE_COMPOSER_ENABLED": "true",
+    "SLIDE_COMPOSER_ASYNC_ENABLED": "true"
+  },
+  "recorded_by": "preview-b/record.py (offline harness of tests/test_mdc_chat_e2e.py: real _process_message + real DecisionEngine.decide over a scripted model output; Layout DELETE and compose stubbed by that harness)",
+  "scripted_model_output": [
+    {
+      "action_type": "respond",
+      "response_text": "Slide 3, Churn Drivers, breaks churn down by cohort.",
+      "target_slide_indices": [],
+      "op_brief": null,
+      "new_topic": null,
+      "questions": null,
+      "structured_questions": []
+    },
+    {
+      "action_type": "respond",
+      "response_text": "Five slides.",
+      "target_slide_indices": [],
+      "op_brief": null,
+      "new_topic": null,
+      "questions": null,
+      "structured_questions": []
+    }
+  ],
+  "stubbed_outside_world": {
+    "layout_deletes": [],
+    "composes": []
+  },
+  "session_at_start": {
+    "id": "s_e2e",
+    "presentation_id": "pres-e2e",
+    "presentation_url": "https://layout.synthetic.invalid/p/pres-e2e",
+    "slide_titles": [
+      "Q4 Revenue Overview",
+      "Pipeline Health",
+      "Churn Drivers",
+      "Regional Mix",
+      "Next Quarter Plan"
+    ]
+  },
+  "frame_counts": {
+    "in": 2,
+    "out": 2,
+    "total": 4
+  },
+  "outbound_frame_types_per_turn": [
+    [
+      "chat_message"
+    ],
+    [
+      "chat_message"
+    ]
+  ],
+  "frames": [
+    {
+      "seq": 1,
+      "turn": 0,
+      "direction": "in",
+      "frame": {
+        "type": "user_message",
+        "data": {
+          "text": "What is slide 3 about?",
+          "client_caps": [
+            "mdc1"
+          ]
+        }
+      }
+    },
+    {
+      "seq": 2,
+      "turn": 0,
+      "direction": "out",
+      "frame": {
+        "message_id": "msg_87f7a42e",
+        "session_id": "s_e2e",
+        "timestamp": "2026-10-22T16:32:34.380441Z",
+        "type": "chat_message",
+        "role": "assistant",
+        "payload": {
+          "text": "Slide 3, Churn Drivers, breaks churn down by cohort.",
+          "sub_title": null,
+          "list_items": null,
+          "format": "markdown",
+          "ephemeral": false
+        }
+      }
+    },
+    {
+      "seq": 3,
+      "turn": 1,
+      "direction": "in",
+      "frame": {
+        "type": "user_message",
+        "data": {
+          "text": "How many slides are there?",
+          "client_caps": [
+            "mdc1"
+          ]
+        }
+      }
+    },
+    {
+      "seq": 4,
+      "turn": 1,
+      "direction": "out",
+      "frame": {
+        "message_id": "msg_ad367bd0",
+        "session_id": "s_e2e",
+        "timestamp": "2026-10-22T16:32:34.399591Z",
+        "type": "chat_message",
+        "role": "assistant",
+        "payload": {
+          "text": "Five slides.",
+          "sub_title": null,
+          "list_items": null,
+          "format": "markdown",
+          "ephemeral": false
+        }
+      }
+    }
+  ]
+}
