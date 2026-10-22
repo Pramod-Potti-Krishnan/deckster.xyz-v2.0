@@ -149,7 +149,9 @@
     "test:studio-knowledge-map-toolbar": "node scripts/test-studio-knowledge-map-toolbar.mjs",
     "test:studio-knowledge-map-labels": "node scripts/test-studio-knowledge-map-labels.mjs",
     "test:studio-knowledge-empty-state": "node scripts/test-studio-knowledge-empty-state.mjs",
-    "test:studio-insert-persist": "node scripts/test-studio-insert-persist.mjs"
+    "test:studio-insert-persist": "node scripts/test-studio-insert-persist.mjs",
+    "test:studio-p2-landing": "node scripts/test-studio-p2-landing.mjs",
+    "test:studio-p2-second-brain": "node scripts/test-studio-p2-second-brain.mjs"
   },
   "dependencies": {
     "@auth/prisma-adapter": "^2.10.0",

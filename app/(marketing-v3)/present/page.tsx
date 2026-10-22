@@ -5,9 +5,12 @@ import { AudienceQA } from "@/components/marketing/v3/AudienceQA"
 import { BuildCta } from "@/components/marketing/v3/BuildCta"
 import { FooterV3 } from "@/components/marketing/v3/FooterV3"
 import { SlideChip } from "@/components/marketing/v3/SlideChip"
+import { studioP2LandingOn, studioP2Status } from "@/lib/studio-p2-landing"
 
 const copy = V3_CONTENT.pages.present
 export const metadata: Metadata = { title: { absolute: copy.title }, alternates: { canonical: "/present" } }
+// PASS2 LAND-05 (flag NEXT_PUBLIC_STUDIO_P2_LANDING, default off): the Narrate card reads "Live" like Publish and Answer. Off, every status is as written.
+const STUDIO_P2_LANDING = studioP2LandingOn(process.env.NEXT_PUBLIC_STUDIO_P2_LANDING)
 const reveal = (delay: number) => ({ "--d": delay } as CSSProperties)
 
 function Status({ value }: { value: "Live" | "In build" | "Next" }) {
@@ -35,7 +38,7 @@ function Four() {
   const c = copy.four
   return <section className="slide slide--paper" id="four" data-snap="slide" data-label={c.label} data-slide-label={c.label}>
     <div className="grain" /><div className="slide__inner"><div className="center"><span className="eyebrow" data-reveal>{c.eyebrow}</span><h2 className="h2 balance" data-reveal style={reveal(1)}>{c.title}</h2><p className="lede balance" data-reveal style={reveal(2)}>{c.lede}</p></div>
-      <div className="grid4" style={{ marginTop: 30 }}>{c.cards.map((card, i) => <div className="card" key={card.title} data-reveal style={reveal(i + 3)}><Status value={card.status} /><h3 className="h3">{card.title}</h3><p>{card.body}</p></div>)}</div>
+      <div className="grid4" style={{ marginTop: 30 }}>{c.cards.map((card, i) => <div className="card" key={card.title} data-reveal style={reveal(i + 3)}><Status value={studioP2Status(card.status, STUDIO_P2_LANDING)} /><h3 className="h3">{card.title}</h3><p>{card.body}</p></div>)}</div>
       <div className="rooms" data-reveal style={reveal(7)}>{c.rooms.map((room) => <div className="room" key={room.name}><i /><div><b>{room.name}</b><span>{room.detail}</span></div></div>)}</div>
       <p className="small center" style={{ marginTop: 14, marginBottom: 14 }}>{c.url}<b>{c.slug}</b>{c.roomNote}</p>
     </div><SlideChip number={2} total={5} label={c.label} />

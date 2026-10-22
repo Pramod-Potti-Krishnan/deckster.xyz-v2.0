@@ -33,6 +33,9 @@ import { isEmptyGraph } from "@/lib/studio-knowledge-empty-state"
 import { KnowledgeSectionBoundary } from "@/components/knowledge/knowledge-section-boundary"
 import { KnowledgeImportConfirm } from "@/components/knowledge/knowledge-import-confirm"
 import { StudioKnowledgeFilterTabs } from "@/components/knowledge/studio-knowledge-filter-tabs"
+import { StudioP2Sources } from "@/components/knowledge/studio-p2-sources"
+import { StudioP2DeckProvider } from "@/components/knowledge/studio-p2-deck-provider"
+import type { StudioDeckDirectory } from "@/hooks/use-studio-p2-deck-titles"
 import {
   clearImportMarker, IMPORT_FAILED_TEXT, importConfirmWarning, importFailureText, normalizeKgGraph, normalizeKgStats, OFFLINE_IMPORT_TEXT, ownerTag,
   plainKnowledgeError, readImportMarker, resumedImportNotice, touchImportMarker, writeImportMarker,
@@ -53,6 +56,8 @@ const KNOWLEDGE_FILTER_TABS = STUDIO_SHELL && process.env.NEXT_PUBLIC_STUDIO_KNO
 const KNOWLEDGE_HEADER_ACTIONS = STUDIO_SHELL && process.env.NEXT_PUBLIC_STUDIO_KNOWLEDGE_HEADER_ACTIONS === "true"
 // J6 finding L9 (card PASS2-J6-FINDINGS): the empty map on the map's own dark canvas, and a side panel that says there is nothing to follow yet (the Studio shell only). Exact "true" enables it; default off.
 const KNOWLEDGE_EMPTY_STATE = STUDIO_SHELL && process.env.NEXT_PUBLIC_STUDIO_KNOWLEDGE_EMPTY_STATE === "true"
+// PASS2 Second Brain (SB-02/05/06/08/10, lib/studio-p2-second-brain.ts). Exact "true" AND the Studio shell; default off, and then the page is exactly as before.
+const P2_SB = process.env.NEXT_PUBLIC_STUDIO_P2_SECOND_BRAIN === "true" && STUDIO_SHELL
 
 interface KgStats {
   node_count: number
@@ -307,6 +312,7 @@ function Inspector({
   onRetry,
   onClear,
   emptyGraph,
+  decks,
 }: {
   selected: KgNodeDetail | null
   loading: boolean
@@ -317,8 +323,9 @@ function Inspector({
   onRetry: () => void
   onClear: () => void
   emptyGraph?: boolean
+  decks?: StudioDeckDirectory
 }) {
-  if (STUDIO_SHELL) return <StudioKnowledgeInspector key={selectedId || "unselected"} selected={selected?.node.node_id === selectedId ? selected : null} selectedId={selectedId} loading={loading} error={error} topEntities={topEntities} onSelect={onSelect} onRetry={onRetry} onClear={onClear} emptyGraph={emptyGraph} />
+  if (STUDIO_SHELL) return <StudioKnowledgeInspector key={selectedId || "unselected"} selected={selected?.node.node_id === selectedId ? selected : null} selectedId={selectedId} loading={loading} error={error} topEntities={topEntities} onSelect={onSelect} onRetry={onRetry} onClear={onClear} emptyGraph={emptyGraph} {...(decks ? { decks } : {})} />
   return (
     <aside data-studio-knowledge-role="inspector" className="min-w-0 rounded-2xl border border-slate-200 bg-white shadow-sm dark:border-slate-800 dark:bg-slate-900/80 xl:sticky xl:top-20 xl:max-h-[calc(100vh-6rem)] xl:overflow-y-auto">
       <div className="border-b border-slate-200 px-4 py-4 dark:border-slate-800">
@@ -1002,6 +1009,21 @@ function KnowledgePageForAccount({ kg }: { kg: KnowledgeGraphAccess }) {
   const guardSection = (label: string, node: ReactNode, resetKey?: unknown) =>
     KNOWLEDGE_FIXES ? <KnowledgeSectionBoundary label={label} resetKey={resetKey}>{node}</KnowledgeSectionBoundary> : node
 
+  // Flag on (SB-10): `decks` is the person's deck list, read once by StudioP2DeckProvider. Off, renderInspector() is called without it and the element is the base's.
+  const renderInspector = (decks?: StudioDeckDirectory) => (
+    <Inspector
+      selected={selected}
+      loading={selectedLoading}
+      error={selectedError}
+      topEntities={stats?.top_entities ?? []}
+      onSelect={selectKnowledgeNode}
+      selectedId={selectedId}
+      onRetry={() => setDetailAttempt(attempt => attempt + 1)}
+      onClear={() => setSelectedId(null)}
+      {...(KNOWLEDGE_EMPTY_STATE ? { emptyGraph: graphIsEmpty } : {})}
+      {...(decks ? { decks } : {})}
+    />
+  )
   const summaryCards = (
 <section data-studio-knowledge-role="summary" className="mb-4 grid gap-3 sm:grid-cols-2 xl:grid-cols-4" aria-label="Knowledge graph summary">
         {dataLoading && !stats ? (
@@ -1147,6 +1169,7 @@ stats && stats.nodes_by_type.length > 0 && (
           {STUDIO_SHELL ? <details data-studio-knowledge-role="context"><summary>About this knowledge{lastUpdated ? ` · Updated ${lastUpdated}` : ""}</summary>{headerContext}</details> : headerContext}
         </div>
         <div data-studio-knowledge-role={KNOWLEDGE_HEADER_ACTIONS ? "header-tools" : "actions"} className="flex flex-wrap gap-2">
+          {P2_SB && <StudioP2Sources entities={stats?.top_entities ?? []} />}
           {KNOWLEDGE_HEADER_ACTIONS && (
             <StudioKnowledgeSourcesMenu
               sessions={stats?.sessions_consolidated}
@@ -1297,19 +1320,7 @@ stats && stats.nodes_by_type.length > 0 && (
           </div>
         </section>
 
-        {guardSection("entity inspector", (
-          <Inspector
-            selected={selected}
-            loading={selectedLoading}
-            error={selectedError}
-            topEntities={stats?.top_entities ?? []}
-            onSelect={selectKnowledgeNode}
-            selectedId={selectedId}
-            onRetry={() => setDetailAttempt(attempt => attempt + 1)}
-            onClear={() => setSelectedId(null)}
-            {...(KNOWLEDGE_EMPTY_STATE ? { emptyGraph: graphIsEmpty } : {})}
-          />
-        ), selected ?? selectedId)}
+        {guardSection("entity inspector", P2_SB ? <StudioP2DeckProvider enabled={selectedId !== null}>{renderInspector}</StudioP2DeckProvider> : renderInspector(), selected ?? selectedId)}
       </div>
       {KNOWLEDGE_FIXES && (
         <KnowledgeImportConfirm

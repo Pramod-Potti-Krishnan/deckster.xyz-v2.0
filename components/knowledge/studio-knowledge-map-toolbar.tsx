@@ -1,5 +1,6 @@
 "use client"
 
+import type { ReactNode } from "react"
 import { List, Minus, Network, Plus, RotateCcw, ScanSearch } from "lucide-react"
 import { focusTitle, RESET_LABEL, toolbarState, zoomPercent } from "@/lib/studio-knowledge-map-toolbar"
 import "./studio-knowledge-map-toolbar.css"
@@ -9,7 +10,7 @@ import "./studio-knowledge-map-toolbar.css"
  * lib/studio-knowledge-map-toolbar.ts). Drawn by KgGraphView only with NEXT_PUBLIC_STUDIO_KNOWLEDGE_MAP_TOOLBAR on, in place of its own toolbar, with the same
  * container (so the map's own stylesheet places it) and the same handlers.
  */
-export function StudioKnowledgeMapToolbar({ showList, viewScale, fitScale, selectedName, hasSelection, onToggleList, onZoomIn, onZoomOut, onReset, onFocus }: {
+export function StudioKnowledgeMapToolbar({ showList, viewScale, fitScale, selectedName, hasSelection, onToggleList, onZoomIn, onZoomOut, onReset, onFocus, extra }: {
   showList: boolean
   viewScale: number
   fitScale: number
@@ -20,6 +21,8 @@ export function StudioKnowledgeMapToolbar({ showList, viewScale, fitScale, selec
   onZoomOut: () => void
   onReset: () => void
   onFocus: () => void
+  /** One more control after "Reset map" (the Second Brain Full screen button, NEXT_PUBLIC_STUDIO_P2_SECOND_BRAIN). Absent: the toolbar is exactly as it was. */
+  extra?: ReactNode
 }) {
   const state = toolbarState({ showList, hasSelection })
   return (
@@ -32,6 +35,7 @@ export function StudioKnowledgeMapToolbar({ showList, viewScale, fitScale, selec
       <button type="button" onClick={onToggleList} aria-pressed={showList} aria-label={state.listAriaLabel} title={state.listTitle}>{showList ? <Network className="h-4 w-4" /> : <List className="h-4 w-4" />}<span>{state.listLabel}</span></button>
       {state.showFocus && <button type="button" onClick={onFocus} disabled={state.focusDisabled} aria-label="Focus selected entity" title={focusTitle(selectedName)}><ScanSearch className="h-4 w-4" /><span>Focus entity</span></button>}
       <button type="button" onClick={onReset} disabled={state.resetDisabled} aria-label={RESET_LABEL} title="Fit the whole map in the panel again"><RotateCcw className="h-4 w-4" /><span>{RESET_LABEL}</span></button>
+      {extra}
     </div>
   )
 }
