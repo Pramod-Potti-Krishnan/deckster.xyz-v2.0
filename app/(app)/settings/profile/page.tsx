@@ -13,14 +13,21 @@ import { Badge } from "@/components/ui/badge"
 import { Camera, Crown, Mail, Shield, Sparkles, User, Loader2 } from "lucide-react"
 import Link from "next/link"
 import "@/components/settings/studio-p2-account.css"
+import { StudioProfilePage } from "@/components/settings/studio-p2-profile-page"
 
 // Force dynamic rendering to prevent build-time errors
 export const dynamic = "force-dynamic"
 const STUDIO_SHELL = process.env.NEXT_PUBLIC_STUDIO_V4_SHELL === "true"
 // PASS2 ACC-04 (NEXT_PUBLIC_STUDIO_P2_ACCOUNT, default off, Studio shell only): "Save" is the ink action colour (violet stays for AI and generation). Marker only; the rule is in studio-p2-account.css.
 const STUDIO_P2_ACCOUNT = STUDIO_SHELL && process.env.NEXT_PUBLIC_STUDIO_P2_ACCOUNT === "true"
+// PASS2 Profile page (NEXT_PUBLIC_STUDIO_P2_PROFILE_PAGE, default off, Studio shell only): the profile card in the shell's tokens with every state spoken. Anything else: the page below, untouched.
+const STUDIO_P2_PROFILE_PAGE = STUDIO_SHELL && process.env.NEXT_PUBLIC_STUDIO_P2_PROFILE_PAGE === "true"
 
 export default function ProfileSettingsPage() {
+  return STUDIO_P2_PROFILE_PAGE ? <StudioProfilePage /> : <LegacyProfileSettingsPage />
+}
+
+function LegacyProfileSettingsPage() {
   const { user, isLoading } = useAuth()
   const { update } = useSession()
 
