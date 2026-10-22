@@ -373,7 +373,8 @@ function wiringChecks() {
     // + SLIDE-OPS-VIA-VIEWER (NEXT_PUBLIC_STUDIO_SLIDE_OPS_VIA_VIEWER) marks its own viewer lines "SLIDE-OPS-VIA-VIEWER"; scripts/test-studio-slide-ops-via-viewer.mjs pins them, so they are not counted here.
     // + RAIL-SLIDES-1-MIDBUILD (NEXT_PUBLIC_STUDIO_RAIL_BUILD_COUNT) marks its own viewer and strip lines, and replaces three base lines (the rail's render condition, the strip's early return and the
     //   heading's number); scripts/studio-rail-build-count-strip.mjs names them and scripts/test-studio-rail-build-count.mjs pins them, so they are not counted here.
-    const changed = (rel, base) => git(['diff', '--no-color', '-U0', BASE_COMMIT, '--', rel]).split('\n').filter(line => /^[+-](?![+-])/.test(line) && !line.includes('PASS2D B4') && !line.includes('SLIDE-OPS-VIA-VIEWER') && !belongsToRailBuildCount(line))
+    // + INSERT-PERSIST (NEXT_PUBLIC_STUDIO_INSERT_PERSIST) marks its own viewer lines "INSERT-PERSIST"; scripts/test-studio-insert-persist.mjs pins them, so they are not counted here.
+    const changed = (rel, base) => git(['diff', '--no-color', '-U0', BASE_COMMIT, '--', rel]).split('\n').filter(line => /^[+-](?![+-])/.test(line) && !line.includes('PASS2D B4') && !line.includes('SLIDE-OPS-VIA-VIEWER') && !line.includes('INSERT-PERSIST') && !belongsToRailBuildCount(line))
     for (const [rel, base] of [[VIEWER, baseViewer], [STRIP, baseStripText]]) {
       for (const line of changed(rel)) assert.doesNotMatch(line, COMMAND, `${rel} diff touches a Layout command: ${line}`)
     }
