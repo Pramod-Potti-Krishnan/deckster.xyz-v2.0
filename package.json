@@ -101,6 +101,7 @@
     "test:studio-slide-rail-v2": "node scripts/test-studio-slide-rail-v2.mjs",
     "test:studio-rail-build-count": "node scripts/test-studio-rail-build-count.mjs",
     "test:studio-deck-mutation-refresh": "node scripts/test-studio-deck-mutation-refresh.mjs",
+    "test:studio-deck-mutation-dedupe": "node scripts/test-studio-deck-mutation-dedupe.mjs",
     "test:studio-add-slide-v2": "node scripts/test-studio-add-slide-v2.mjs",
     "test:studio-add-slide-status": "node scripts/test-studio-add-slide-status.mjs",
     "test:studio-first-run-v2": "node scripts/test-studio-first-run-v2.mjs",

@@ -1,0 +1,134 @@
+// FRONTEND-2 Pass 3 track 4: the shared harness of scripts/test-studio-theme-library-manage.mjs and scripts/test-studio-template-library-manage.mjs. Not a test itself (the suite only runs test-*.mjs).
+// Plain node: the real TypeScript is transpiled and run in a vm, with a small fake React (hooks keep their state between renders; a state write asks for another render) and the
+// JSX runtime answering plain {type, props, key} nodes. No browser, no network, no services: every import a module asks for must be handed in, and an unknown one fails loudly.
+import assert from 'node:assert/strict'
+import crypto from 'node:crypto'
+import fs from 'node:fs'
+import path from 'node:path'
+import vm from 'node:vm'
+import { execFileSync } from 'node:child_process'
+import { fileURLToPath } from 'node:url'
+import ts from 'typescript'
+
+export const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..')
+// LIBRARY_MANAGE_BASE=<commit> overrides the commit the flag-off identity is checked against (default 4c5fd0f, the studio-v4-dev-preparation-code tip this change is stacked on: #459 added only the Profile page and #468 only the admin email guard,
+// its .env.example block and its package script on top of bcd8aed, and none of the files this change touches).
+export const BASE_COMMIT = process.env.LIBRARY_MANAGE_BASE || '4c5fd0fbe6500afeb8218075261e268157706eed'
+const git = args => execFileSync('git', args, { cwd: root, encoding: 'utf8', maxBuffer: 64 * 1024 * 1024, stdio: ['ignore', 'pipe', 'ignore'] })
+export function baseSource(rel) {
+  try { git(['cat-file', '-e', `${BASE_COMMIT}^{commit}`]); return git(['show', `${BASE_COMMIT}:${rel}`]) } catch { return null }
+}
+// .env.example and package.json are the two files every flag-gated change appends a line or a block to, so once other changes are stacked on this one (Ask your second brain, Duplicate a deck ...) they hold
+// lines this change never wrote. For those two (and only those) the base's lines must all still be there, in order, with nothing of this change left, and any extra line must be a comment, a blank, an env
+// line or a test script line (the rule scripts/test-studio-p2-polish.mjs and scripts/test-studio-p2-publish.mjs use). Every other file is held to the base byte for byte, as before.
+export function appendOnlyOver(rel, text, baseText) {
+  const norm = line => rel === 'package.json' ? line.replace(/,\s*$/, '') : line
+  const want = baseText.split('\n').map(norm), extras = []
+  let next = 0
+  for (const line of text.split('\n').map(norm)) { if (next < want.length && line === want[next]) next++; else extras.push(line) }
+  const kind = rel === 'package.json' ? /^\s*"test:[a-z0-9-]+": "node scripts\/test-[a-z0-9-]+\.mjs"$/ : /^\s*$|^\s*#|^[A-Z][A-Z0-9_]*=/
+  return next === want.length && extras.every(line => line === '' || kind.test(line)) && !extras.some(line => /LIBRARY_MANAGE|library-manage/.test(line))
+}
+/** `stripped` is the file with this change's lines out: the base's file, or (for the two shared append-only files) the base's lines plus other changes' comments, blanks and env lines. */
+export const isBaseFile = (rel, stripped, baseText) => stripped === baseText || (['.env.example', 'package.json'].includes(rel) && appendOnlyOver(rel, stripped, baseText))
+// The other FRONTEND-2 Pass 3 changes that may be stacked on the same base (#460 Ask your second brain, #464 Duplicate a deck, #469 deck-mutation dedupe). Their files are not this change's, and none of them is a library file;
+// the diff-scope check below allows exactly these on top of this change's own files and nothing else.
+export const STACKED_PASS3_FILES = [
+  'app/(app)/knowledge/page.tsx', 'app/api/knowledge-graph/query/route.ts', 'components/knowledge/studio-kg-ask.css', 'components/knowledge/studio-kg-ask.tsx', 'hooks/use-studio-kg-ask.ts', 'lib/studio-kg-ask.ts',
+  'app/(app)/dashboard/page.tsx', 'app/builder/page.tsx', 'components/builder/studio-copied-from-note.tsx', 'components/builder/studio-duplicate-deck.css', 'lib/studio-duplicate-deck.ts',
+  'lib/studio-deck-mutation-dedupe.ts',
+]
+export const sha = text => crypto.createHash('sha256').update(text).digest('hex')
+export const plain = value => JSON.parse(JSON.stringify(value))
+
+// ---- in-memory mutations (--mutation-check): a child run applies one source edit, the suite must then fail ---------------------------------------------------------
+export function makeReader(mutations, envName) {
+  const index = process.env[envName] === undefined ? null : Number(process.env[envName])
+  return rel => {
+    let source = fs.readFileSync(path.join(root, rel), 'utf8')
+    const mutation = index === null ? null : mutations[index]
+    if (mutation && mutation.file === rel) {
+      assert.ok(source.includes(mutation.from), `mutation "${mutation.name}" no longer applies; update MUTATIONS`)
+      source = source.replace(mutation.from, () => mutation.to)
+    }
+    return source
+  }
+}
+
+// ---- compile + run ------------------------------------------------------------------------------------------------------------------------------------------------------
+export function compile(code, file = 'module.tsx') {
+  const out = ts.transpileModule(code, { fileName: file, reportDiagnostics: true, compilerOptions: { module: ts.ModuleKind.CommonJS, jsx: ts.JsxEmit.ReactJSX, target: ts.ScriptTarget.ES2022 } })
+  assert.equal(out.diagnostics.filter(d => d.category === ts.DiagnosticCategory.Error).length, 0, `${file} transpiles`)
+  return out.outputText
+}
+export const jsx = (type, props, key) => ({ type, props: props ?? {}, key })
+export const jsxRuntime = { jsx, jsxs: jsx, Fragment: 'Fragment' }
+export const refuse = () => assert.fail('No network, storage, navigation or services allowed')
+
+/** Runs `code` as a CommonJS module. `imports` is the closed list of modules it may require. */
+export function loadSource(code, imports = {}, { env = {}, globals = {}, file = 'module.tsx' } = {}) {
+  const mod = { exports: {} }
+  const context = { module: mod, exports: mod.exports, process: { env: { ...env } }, console, URLSearchParams, encodeURIComponent, decodeURIComponent, Promise, fetch: refuse, ...globals,
+    require: name => { assert.ok(name in imports, `${file} asked for an import nobody handed in: ${name}`); return imports[name] } }
+  vm.runInNewContext(compile(code, file), context)
+  return mod.exports
+}
+
+export const flat = value => Array.isArray(value) ? value.flatMap(flat) : !value || typeof value !== 'object' ? [] : [value, ...flat(value.props?.children)]
+export const text = value => Array.isArray(value) ? value.map(text).join('') : value == null || typeof value === 'boolean' ? '' : typeof value === 'object' ? text(value.props?.children) : String(value)
+export const tick = async (times = 16) => { for (let i = 0; i < times; i++) await new Promise(resolve => setImmediate(resolve)) }
+export const deferred = () => { let resolve, reject; const promise = new Promise((res, rej) => { resolve = res; reject = rej }); return { promise, resolve, reject } }
+
+/**
+ * Mounts one function component with a fake React. `renderFn()` (it calls the component) is called for every render; its hooks keep their cells between renders. A state write marks the tree dirty;
+ * `settle()` renders again until nothing is dirty and every effect ran. `refs` of drawn nodes are given a stub element so focus/closest/querySelector calls are recorded.
+ */
+export function createRuntime(renderFn, { elementFor = () => ({}) } = {}) {
+  const cells = [], pendingEffects = [], focused = []
+  let cursor = 0, dirty = false, tree = null, unmounted = false, renders = 0
+  const react = {
+    useState(initial) {
+      const i = cursor++
+      cells[i] ??= { value: typeof initial === 'function' ? initial() : initial }
+      const cell = cells[i]
+      return [cell.value, update => {
+        if (unmounted) return
+        const next = typeof update === 'function' ? update(cell.value) : update
+        if (!Object.is(next, cell.value)) { cell.value = next; dirty = true }
+      }]
+    },
+    useRef(initial) { const i = cursor++; return cells[i] ??= { current: initial } },
+    useCallback(callback, deps) { const i = cursor++, old = cells[i]; if (!old || !deps || deps.some((v, j) => !Object.is(v, old.deps?.[j]))) cells[i] = { callback, deps }; return cells[i].callback },
+    useMemo(factory, deps) { const i = cursor++, old = cells[i]; if (!old || !deps || deps.some((v, j) => !Object.is(v, old.deps?.[j]))) cells[i] = { value: factory(), deps }; return cells[i].value },
+    useEffect(effect, deps) {
+      const i = cursor++, old = cells[i]
+      if (!old || !deps || deps.some((v, j) => !Object.is(v, old.deps?.[j]))) {
+        cells[i] = { deps, effect, cleanup: old?.cleanup }
+        pendingEffects.push(() => { const cell = cells[i]; cell.cleanup?.(); cell.cleanup = effect() })
+      }
+    },
+    useLayoutEffect() {}, useId: () => 'id-1',
+  }
+  const attachRefs = node => {
+    for (const n of flat(node)) if (n.props?.ref && typeof n.props.ref === 'object') n.props.ref.current = elementFor(n, focused)
+  }
+  const api = {
+    react, focused,
+    render() {
+      for (let attempts = 0; ; attempts++) {
+        assert.ok(attempts < 20, 'render settles')
+        cursor = 0; dirty = false; renders++
+        tree = renderFn()
+        attachRefs(tree)
+        while (pendingEffects.length) pendingEffects.shift()()
+        if (!dirty) return tree
+      }
+    },
+    async settle() { for (let i = 0; i < 20; i++) { await Promise.resolve(); if (dirty || pendingEffects.length) api.render() } await tick(2); if (dirty) api.render(); return tree },
+    unmount() { unmounted = true; cells.forEach(cell => { cell?.cleanup?.(); if (cell) cell.cleanup = undefined }) },
+    find: predicate => flat(tree).filter(predicate),
+    one: predicate => { const found = flat(tree).filter(predicate); assert.equal(found.length, 1, `exactly one node matches (found ${found.length})`); return found[0] },
+    get tree() { return tree }, get renders() { return renders },
+  }
+  return api
+}

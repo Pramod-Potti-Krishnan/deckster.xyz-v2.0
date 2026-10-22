@@ -17,6 +17,7 @@ import path from 'node:path'
 import vm from 'node:vm'
 import { fileURLToPath } from 'node:url'
 import ts from 'typescript'
+import { stripLibraryManage } from './studio-library-manage-strip.mjs'
 
 const FLAG = 'NEXT_PUBLIC_THEME_FONT_SELECTION_ENABLED'
 const treeRoot = path.resolve(fileURLToPath(new URL('../', import.meta.url)))
@@ -49,7 +50,7 @@ function createLoader(rootDir, { env = {}, stubs = {}, overrides = {}, globals =
   }
   function run(file) {
     if (cache.has(file)) return cache.get(file)
-    const text = overrides[path.relative(rootDir, file)] ?? fs.readFileSync(file, 'utf8')
+    const text = overrides[path.relative(rootDir, file)] ?? stripLibraryManage(path.relative(rootDir, file), fs.readFileSync(file, 'utf8')) // FRONTEND-2 Pass 3 track 4 (NEXT_PUBLIC_STUDIO_THEME_LIBRARY_MANAGE / NEXT_PUBLIC_STUDIO_TEMPLATE_LIBRARY_MANAGE): that change's lines are not part of what this pin holds (scripts/studio-library-manage-strip.mjs)
     const mod = { exports: {} }
     cache.set(file, mod.exports)
     const out = ts.transpileModule(text, { fileName: file, compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022, jsx: ts.JsxEmit.ReactJSX } }).outputText
@@ -170,7 +171,7 @@ function createDirector({ fonts = true, allowed = FAMILIES } = {}) {
 // ── the actual WebSocket user_message constructor, extracted from the hook source ────────────────────
 function userMessageBuilder(rootDir, overrides = {}) {
   const rel = 'hooks/use-deckster-websocket-v2.ts'
-  const source = overrides[rel] ?? fs.readFileSync(path.join(rootDir, rel), 'utf8')
+  const source = overrides[rel] ?? stripLibraryManage(rel, fs.readFileSync(path.join(rootDir, rel), 'utf8'))
   const file = ts.createSourceFile(rel, source, ts.ScriptTarget.Latest, true, ts.ScriptKind.TS)
   let arrow
   const visit = node => { if (ts.isVariableDeclaration(node) && node.name.getText(file) === 'buildUserMessage') arrow = node.initializer; else if (!arrow) ts.forEachChild(node, visit) }
@@ -190,7 +191,7 @@ function userMessageBuilder(rootDir, overrides = {}) {
 // ── actual functions of app/builder/page.tsx (the file itself cannot be loaded) ──────────────────────
 function pageFunctions(rootDir, env, themeFontsLoader, overrides = {}) {
   const rel = 'app/builder/page.tsx'
-  const source = overrides[rel] ?? fs.readFileSync(path.join(rootDir, rel), 'utf8')
+  const source = overrides[rel] ?? stripLibraryManage(rel, fs.readFileSync(path.join(rootDir, rel), 'utf8'))
   const file = ts.createSourceFile(rel, source, ts.ScriptTarget.Latest, true, ts.ScriptKind.TSX)
   const names = ['normalizeStoredBuildThemeSelection', 'stableStringifyRecord', 'buildThemeSelectionsEqual', 'buildThemeProfileMatchesSelection']
   const found = {}
@@ -664,7 +665,7 @@ await suite()
 console.log(`PASS ${checks} theme-font-selection checks (flag off is the base; flag on carries both fonts)`)
 
 // ═══════════════════════════ mutation check: break each rule, expect the suite to notice ═════════════
-const read = rel => fs.readFileSync(path.join(treeRoot, rel), 'utf8')
+const read = rel => stripLibraryManage(rel, fs.readFileSync(path.join(treeRoot, rel), 'utf8'))
 const MUTATIONS = [
   ['wire field renamed', 'lib/theme-fonts.ts', text => text.replace("'font_family_heading']", "'fontFamilyHeading']")],
   ['flag gate dropped from themeFontFields', 'lib/theme-fonts.ts', text => text.replace('if (!THEME_FONT_SELECTION_ENABLED || !source || typeof source', 'if (!source || typeof source')],

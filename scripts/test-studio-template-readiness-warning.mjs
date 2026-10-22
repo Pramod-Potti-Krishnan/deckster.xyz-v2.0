@@ -4,6 +4,7 @@ import vm from 'node:vm'
 import { readAtlasBaseline } from './atlas-witness-baseline.mjs'
 import ts from 'typescript'
 import postcss from 'postcss'
+import { stripLibraryManage } from './studio-library-manage-strip.mjs'
 
 const path = 'components/studio-libraries/library-controls.tsx'
 const source = fs.readFileSync(path, 'utf8')
@@ -16,7 +17,7 @@ const restored = source.replace('children, actions, workspaceId }: {', 'children
   .replace(/ data-studio-library-notice-reading=\{studioReading \? 'true' : undefined\} tabIndex=\{studioReading \? 0 : undefined\} aria-label=\{studioReading \? readingLabel : undefined\}/, '')
 assert.equal(restored, baseline, 'All original library controls/notice children/roles remain exact')
 const workspacePath = 'components/studio-libraries/templates-workspace.tsx'
-const workspace = fs.readFileSync(workspacePath, 'utf8')
+const workspace = stripLibraryManage(workspacePath, fs.readFileSync(workspacePath, 'utf8')) // FRONTEND-2 Pass 3 track 4 (NEXT_PUBLIC_STUDIO_THEME_LIBRARY_MANAGE / NEXT_PUBLIC_STUDIO_TEMPLATE_LIBRARY_MANAGE): that change's lines are not part of what this pin holds (scripts/studio-library-manage-strip.mjs)
 // Exact retained readiness notice and read-only status/inspector/optimization
 // contracts. Account guards deliberately change starts/continuations; they do
 // not make the old whole-leaf equality claim truthful.

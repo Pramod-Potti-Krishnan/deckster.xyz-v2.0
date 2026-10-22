@@ -3,12 +3,13 @@ import fs from 'node:fs'
 import vm from 'node:vm'
 import ts from 'typescript'
 import { readAtlasBaseline } from './atlas-witness-baseline.mjs'
+import { stripLibraryManage } from './studio-library-manage-strip.mjs'
 
 // Actual leaf render/effects, private element/timer witnesses. No browser,
 // service, upload, session creation, storage or navigation can run here.
 const root = new URL('../', import.meta.url)
 const path = 'components/studio-libraries/templates-workspace.tsx'
-const source = fs.readFileSync(new URL(path, root), 'utf8')
+const source = stripLibraryManage(path, fs.readFileSync(new URL(path, root), 'utf8')) // FRONTEND-2 Pass 3 track 4 (NEXT_PUBLIC_STUDIO_THEME_LIBRARY_MANAGE / NEXT_PUBLIC_STUDIO_TEMPLATE_LIBRARY_MANAGE): that change's lines are not part of what this pin holds (scripts/studio-library-manage-strip.mjs)
 const prior = readAtlasBaseline(`0f690ec:${path}`)
 const compile = value => {
   const result = ts.transpileModule(value, { reportDiagnostics: true, compilerOptions: { jsx: ts.JsxEmit.ReactJSX, module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022 } })
