@@ -668,7 +668,8 @@ function suiteWiring(src = {}) {
     walk(rel)
   }
   check(assert.deepEqual, readers, [FILES.lib], 'the flag is read in exactly one file')
-  check(assert.deepEqual, users.sort(), [FILES.history, FILES.viewer, FILES.panel].sort(), 'exactly the three components import the helper')
+  // + VERSION-HISTORY-V2: its panel reuses the helper's proven restore flush (scripts/test-studio-version-history-v2.mjs pins how); the old panel above stays the one this flag guards.
+  check(assert.deepEqual, users.sort(), [FILES.history, FILES.viewer, FILES.panel, 'components/version-history-panel-v2.tsx', 'lib/studio-image-pending-runtime.ts'].sort(), 'exactly the three components import the helper (+ the Version history v2 panel, which reuses its flush, + IMAGE-PENDING-WRITE\'s runtime, which was already on the base)')
   // the older rail add-slide test counts the viewer's added lines against a fixed commit; it skips the marked ones, and only the marked ones
   const rail = read('scripts/test-studio-rail-add-slide.mjs')
   check(assert.match, rail, /!line\.includes\('PASS2D B4'\) && !line\.includes\('SLIDE-OPS-VIA-VIEWER'\)/, 'the rail test skips this flag\'s marked lines')

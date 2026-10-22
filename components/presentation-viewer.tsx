@@ -121,6 +121,8 @@ import { generateTableHTML } from './table-insert-popover'
 import { InsertChartParams, generateChartConfig } from './chart-picker-popover'
 import { ElementType, ElementProperties, BaseElementProperties, ChartType } from '@/types/elements'
 import { VersionHistoryPanel } from './version-history-panel'
+import { VersionHistoryPanelV2 } from './version-history-panel-v2' // VERSION-HISTORY-V2
+import { STUDIO_VERSION_HISTORY_V2_ENABLED, versionHistoryBridge } from '@/lib/studio-version-history-v2' // VERSION-HISTORY-V2
 import { PresentationSettingsPanel } from './presentation-settings-panel'
 import { ThemePanel } from './theme-panel'
 import { TemplateModeOverlay } from './builder/template-mode-overlay'
@@ -928,6 +930,13 @@ export function PresentationViewer({
   const approvedIframeNavigationUrl = useMemo(() => {
     return buildSnapshotNavigationUrl(approvedPresentationUrl, studioShell ? buildSnapshotRevision : 0)
   }, [approvedPresentationUrl, studioShell, buildSnapshotRevision])
+  // VERSION-HISTORY-V2 (NEXT_PUBLIC_STUDIO_VERSION_HISTORY_V2, default off): the profile menu's "Version history" opens the panel of the deck on screen. The opener exists only while a deck is loaded.
+  const [versionHistoryV2Open, setVersionHistoryV2Open] = useState(false) // VERSION-HISTORY-V2
+  useEffect(() => { // VERSION-HISTORY-V2
+    if (!STUDIO_VERSION_HISTORY_V2_ENABLED || !VIEWER_ORIGIN || LAYOUT_URL_CONFIG_ERROR) return // VERSION-HISTORY-V2
+    if (!approvedIframeNavigationUrl) { setVersionHistoryV2Open(false); return } // VERSION-HISTORY-V2: no deck on screen, nothing to open
+    return versionHistoryBridge.register(() => setVersionHistoryV2Open(true)) // VERSION-HISTORY-V2
+  }, [approvedIframeNavigationUrl]) // VERSION-HISTORY-V2
   const presentViewOnlyActive = presentViewOnlyEnabled && isFullscreen && !presentFrameFailed && !!approvedIframeNavigationUrl
   presentViewOnlyActiveRef.current = presentViewOnlyActive
   // A4: the deck size the Present slide index stays inside (the visual count includes in-deck placeholders).
@@ -4977,6 +4986,7 @@ export function PresentationViewer({
         iframeRef={iframeRef}
         viewerOrigin={VIEWER_ORIGIN}
       />}
+      {STUDIO_VERSION_HISTORY_V2_ENABLED && VIEWER_ORIGIN && !LAYOUT_URL_CONFIG_ERROR && <VersionHistoryPanelV2 isOpen={versionHistoryV2Open} onClose={() => setVersionHistoryV2Open(false)} iframeRef={iframeRef} viewerOrigin={VIEWER_ORIGIN} deckKey={approvedIframeNavigationUrl} building={Boolean(isGenerating)} studio={studioShell} />}{/* VERSION-HISTORY-V2: the profile menu opens it; the old panel above stays unreachable */}
 
       {/* Presentation Settings Panel (Footer, Logo) */}
       {VIEWER_ORIGIN && !LAYOUT_URL_CONFIG_ERROR && <PresentationSettingsPanel
