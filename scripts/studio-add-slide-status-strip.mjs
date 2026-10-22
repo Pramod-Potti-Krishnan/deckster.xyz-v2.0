@@ -6,6 +6,7 @@
 // Every addition is flag-gated or inert flag off (false / undefined / not drawn): scripts/test-studio-add-slide-status.mjs hashes the panel's
 // markup and a scripted session against the base's, and runs the page's own handlers on recorded frames with the flag off and on.
 
+import { stripDuplicateDeck } from './studio-duplicate-deck-strip.mjs'
 import { stripChatElementRefine } from './studio-chat-element-refine-strip.mjs'
 
 const PAGE = 'app/builder/page.tsx'
@@ -37,6 +38,7 @@ const PANEL_ADDITIONS = [
 /** `text` of repo file `rel` without this change's additions (any other file comes back as it is). */
 export function stripAddSlideStatus(rel, text) {
   const table = rel === PAGE ? PAGE_ADDITIONS : rel === PANEL ? PANEL_ADDITIONS : []
+  // FRONTEND-2 Pass 3 (NEXT_PUBLIC_STUDIO_DUPLICATE_DECK): the Builder page's import and one gated element come out first (scripts/studio-duplicate-deck-strip.mjs).
   // FRONTEND-2 Pass 3 (NEXT_PUBLIC_CHAT_ELEMENT_REFINE): that change's flag-gated lines come out first (scripts/studio-chat-element-refine-strip.mjs).
-  return table.reduce((out, [from, to]) => out.replace(from, to), stripChatElementRefine(rel, text))
+  return table.reduce((out, [from, to]) => out.replace(from, to), stripDuplicateDeck(rel, stripChatElementRefine(rel, text)))
 }

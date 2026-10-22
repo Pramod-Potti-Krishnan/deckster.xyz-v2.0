@@ -65,6 +65,8 @@ import {
   planDeckMutationRefresh,
   requestSlideRailRefresh,
 } from '@/lib/studio-deck-mutation-refresh'
+import { createDeckMutationCountSettler } from '@/lib/studio-deck-mutation-dedupe'
+import { fetchSlideInventory } from '@/lib/slide-rail-identity'
 import { STUDIO_DECK_CHANGED_NOTICE_ENABLED, reportDeckChange, themeAnnounceDecision } from '@/lib/studio-deck-changed-notice'
 import { useDeckChangedNotice } from '@/hooks/use-deck-changed-notice'
 import { StudioDeckChangedNotice } from '@/components/builder/studio-deck-changed-notice'
@@ -110,6 +112,7 @@ import { studioChatEditPromptActive } from '@/lib/studio-pass2b-chat'
 import { useStudioStaleErrorNotice } from '@/hooks/use-studio-stale-error-notice'
 import { StudioBlockedSendNotice } from '@/components/builder/studio-blocked-send-notice'
 import { StudioSupersededNotice } from '@/components/builder/studio-superseded-notice'
+import { StudioCopiedFromNote } from '@/components/builder/studio-copied-from-note'
 import {
   STUDIO_ONE_LIVE_TAB_ENABLED,
   SUPERSEDED_NOTICE_DETAIL,
@@ -1062,6 +1065,22 @@ function AuthenticatedBuilderContent({ authScopeUserId }: { authScopeUserId: str
   })
   const slideComposeJobsRef = useRef<Record<string, SlideComposeJobState>>({})
   const deckMutationSeenRef = useRef(createDeckMutationSeen())
+  // NEXT_PUBLIC_STUDIO_DECK_MUTATION_DEDUPE: a deck_mutation's count comes from Layout's slide inventory (the rail list's read), so a chat
+  // add-slide that slide_ready already counted is not counted again. Off: null, and the handler below commits the plan as before.
+  // The flag is read inline (not imported), so a harness that stubs the page's imports never switches the settler on.
+  const deckMutationCountSettlerRef = useRef(process.env.NEXT_PUBLIC_STUDIO_DECK_MUTATION_DEDUPE === 'true' ? createDeckMutationCountSettler({
+    readLayoutCount: async id => {
+      const result = await fetchSlideInventory({ baseUrl: getLayoutServiceUrl(), presentationId: id, fetchImpl: (input, init) => fetch(input, init) })
+      return result.kind === 'ok' ? result.inventory.slideCount : null
+    },
+    getDisplayed: () => slideComposerPresentationRef.current,
+    commit: override => {
+      slideComposerPresentationRef.current = { ...slideComposerPresentationRef.current, ...override }
+      setSlideComposerOverride(override)
+      requestSlideRailRefresh(override.presentationId)
+      reportDeckChange('slide')
+    },
+  }) : null)
   const studioSlideComposeOwnerRef = useRef({
     key: '',
     sessionId: null as string | null,
@@ -2376,6 +2395,7 @@ function AuthenticatedBuilderContent({ authScopeUserId }: { authScopeUserId: str
           displayed, now: Date.now(), seen: deckMutationSeenRef.current,
         })
         if (!plan) return
+        if (deckMutationCountSettlerRef.current) { void deckMutationCountSettlerRef.current(plan.override, owner.isCurrent); return } // NEXT_PUBLIC_STUDIO_DECK_MUTATION_DEDUPE
         slideComposerPresentationRef.current = { ...displayed, ...plan.override }
         setSlideComposerOverride(plan.override)
         requestSlideRailRefresh(plan.override.presentationId)
@@ -7402,6 +7422,8 @@ function AuthenticatedBuilderContent({ authScopeUserId }: { authScopeUserId: str
                     handoffStatus={handoffRequestStatus?.sessionId === (currentSessionId || wsSessionId) ? handoffRequestStatus : null}
                   />}
                   {studioShell && <StudioSupersededNotice className="mx-3 mt-2" active={oneLiveTabSuperseded} onUseHere={connect} />}
+                  {/* NEXT_PUBLIC_STUDIO_DUPLICATE_DECK: the copy's one line, "Copied from <title>. Chat history stays with the original." Its own small element, read from the session's stored marker; never a chat message. Only a saved session whose chat is fresh (nothing restored) reads it. */}
+                  {process.env.NEXT_PUBLIC_STUDIO_DUPLICATE_DECK === 'true' && !session.isLoadingSession && !session.isResumedSession && !isUnsavedSession && <StudioCopiedFromNote className="mx-3 mt-2" studioShell={studioShell} sessionId={currentSessionId} />}
                   {studioShell && handoffStorageWarning?.sessionId === (currentSessionId || wsSessionId) && (
                     <p role="alert" className="mx-3 mt-2 rounded-lg border border-[var(--ss-line)] bg-[var(--ss-panel)] p-3 text-xs text-[var(--ss-text)]">
                       {handoffStorageWarning.text}
