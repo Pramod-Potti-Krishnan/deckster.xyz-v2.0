@@ -8,6 +8,7 @@ import {
   isP2Choice, p2ChangedCount, p2ChoiceFeedback, p2ComparisonFor, p2DefaultChoices, p2FromLegacyDraft, p2OriginLine, p2Options, p2Parse, p2Resolve, p2Serialize, p2StorageKey, p2Status,
   type P2Choices, type P2Storage, type P2TaskId,
 } from "@/lib/studio-intelligence-p2"
+import { STUDIO_P2_POLISH_ATTR, STUDIO_P2_POLISH_ENABLED } from "@/lib/studio-p2-polish"
 import "./intelligence-p2.css"
 
 /** NEXT_PUBLIC_STUDIO_P2_INTELLIGENCE (default off; build-time). The Intelligence page's model chooser, as the accepted v4 mockup has it: five task rows (Planning & Strategy,
@@ -81,7 +82,7 @@ export function IntelligenceChooser() {
     <span className="sp-feedback sp-p2-feedback" role="status">{feedback}</span>
 
     <div className="sp-model-layout sp-p2-layout">
-      <div className="sp-p2-main">
+      <div className="sp-p2-main" {...(STUDIO_P2_POLISH_ENABLED ? { [STUDIO_P2_POLISH_ATTR]: "true" } : {})}>
       <section className="sp-p2-card" aria-labelledby="sp-p2-tasks-heading">
         <div className="sp-p2-card-head"><h2 id="sp-p2-tasks-heading">FIVE TASKS, FIVE CHOICES</h2>
           {changed > 0 && <button type="button" className="sp-p2-reset" data-p2-reset="true" onClick={reset}><RotateCcw size={12} aria-hidden="true" /><span>{P2_RESET_LABEL}</span></button>}
@@ -114,7 +115,7 @@ export function IntelligenceChooser() {
       <details className="sp-provenance sp-p2-provenance"><summary>About this catalog <span>Design snapshot · {catalog.version}</span></summary><p>{provenanceText}</p></details>
       </div>
 
-      <aside className="sp-model-inspector sp-p2-inspector" aria-labelledby="sp-comparison-heading" data-p2-inspector={activeTask}>
+      <aside className="sp-model-inspector sp-p2-inspector" aria-labelledby="sp-comparison-heading" data-p2-inspector={activeTask} {...(STUDIO_P2_POLISH_ENABLED ? { [STUDIO_P2_POLISH_ATTR]: "true" } : {})}>
         <div className="sp-inspector-top"><span className="sp-eyebrow"><ArrowDownUp size={14} aria-hidden="true" /> MODEL COMPARISON</span><h2 id="sp-comparison-heading">{activeLabel}</h2>
           <p>{activeTask === "voice_narration" ? "Pick the model and voice that read your presentation aloud." : taskDetails[activeTask].example}</p></div>
         <div className="sp-current-model"><span>Your current choice</span><strong>{active.name}</strong><small>{p2OriginLine(active)}</small></div>

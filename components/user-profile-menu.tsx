@@ -35,6 +35,7 @@ import { useTheme } from "next-themes"
 import { cn } from "@/lib/utils"
 import { StudioNavigationHint } from "@/components/layout/studio-navigation-hint"
 import { StudioProfileMenuP2 } from "@/components/user-profile-menu-p2"
+import { STUDIO_P2_POLISH_ENABLED } from "@/lib/studio-p2-polish"
 import "./user-profile-studio-v4.css"
 
 // ---------------------------------------------------------------------------
@@ -130,6 +131,8 @@ export function UserProfileMenu({ studioLabels = false, studioPalette = false, s
   const accountTrigger = useRef<HTMLButtonElement>(null)
   const aboutReplay = useStudioAboutReplay({ onOpenChange: setAboutOpen, restoreFocus: () => accountTrigger.current?.focus() })
   const [quota, setQuota] = useState<QuotaSnapshot | null>(null)
+  // NEXT_PUBLIC_STUDIO_P2_POLISH (PP-6): the last quota read failed. Only set with the flag on, so the capacity card can say "Usage unavailable" instead of silently not being there.
+  const [quotaFailed, setQuotaFailed] = useState(false)
   const [isUsageExpanded, setIsUsageExpanded] = useState(false)
   const studioProfile = process.env.NEXT_PUBLIC_STUDIO_V4_SHELL === 'true' && studioPalette
   // PASS2 PRO-02/03/04/05/06/07/08/10 (NEXT_PUBLIC_STUDIO_P2_PROFILE_MENU, default off, only where the Studio account presentation is on): the mockup's menu body.
@@ -150,9 +153,11 @@ export function UserProfileMenu({ studioLabels = false, studioPalette = false, s
           caps: data.caps,
           spent: data.spent,
         })
-      }
+        if (STUDIO_P2_POLISH_ENABLED) setQuotaFailed(false)
+      } else if (STUDIO_P2_POLISH_ENABLED) setQuotaFailed(true)
     } catch {
       // Non-fatal — dropdown still works without bars
+      if (STUDIO_P2_POLISH_ENABLED) setQuotaFailed(true)
     }
   }, [])
 
@@ -210,7 +215,7 @@ export function UserProfileMenu({ studioLabels = false, studioPalette = false, s
           </Button>
         </DropdownMenuTrigger>
       </StudioNavigationHint>
-      {p2Menu ? <StudioProfileMenuP2 name={user.name} email={user.email} image={user.image} initials={userInitials} tierLabel={quota?.tierLabel} sessionUsage={sessionUsage} quota={quota} theme={theme} onTheme={setTheme} onNavigate={handleNavigation} onAbout={() => { setIsOpen(false); setAboutOpen(true) }} onLogout={handleLogout} {...(versionHistoryRow ? { versionHistoryRow /* VERSION-HISTORY-V2 */ } : {})} /> : (
+      {p2Menu ? <StudioProfileMenuP2 name={user.name} email={user.email} image={user.image} initials={userInitials} tierLabel={quota?.tierLabel} sessionTier={user.tier} quotaFailed={quotaFailed} sessionUsage={sessionUsage} quota={quota} theme={theme} onTheme={setTheme} onNavigate={handleNavigation} onAbout={() => { setIsOpen(false); setAboutOpen(true) }} onLogout={handleLogout} {...(versionHistoryRow ? { versionHistoryRow /* VERSION-HISTORY-V2 */ } : {})} /> : (
       <DropdownMenuContent data-studio-v4-profile={studioPalette ? "true" : undefined} data-studio-profile-fidelity={studioProfile ? "true" : undefined} side={studioProfile ? "right" : undefined} sideOffset={studioProfile ? 8 : undefined} align="end" className="w-64">
         <DropdownMenuLabel data-studio-profile-identity={studioProfile ? "true" : undefined} className="font-normal">
           <div className="flex flex-col space-y-1">

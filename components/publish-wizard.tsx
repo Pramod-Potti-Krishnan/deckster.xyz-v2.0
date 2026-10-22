@@ -34,9 +34,12 @@ import type { StudioPublishPreviewSource } from '@/lib/studio-publish-preview'
 import { StudioPublishPreview } from '@/components/studio-publish-preview'
 import { PublishCapabilityRows, PublishDoneLink, PublishPasscodeCounter, PublishPasscodeInput, PublishQuestionsNote, PublishRecordReview, publishedLink } from '@/components/publish-p2'
 import { audienceCopy, passcodeShortBy, publishChoicesFor, STUDIO_P2_PUBLISH_ENABLED as STUDIO_P2_PUBLISH } from '@/lib/studio-p2-publish'
+import { STUDIO_P2_POLISH_ATTR, STUDIO_P2_POLISH_ENABLED } from '@/lib/studio-p2-polish'
 import './studio-publish.css'
 
 const STUDIO_PUBLISH = process.env.NEXT_PUBLIC_STUDIO_V4_SHELL === 'true'
+/** NEXT_PUBLIC_STUDIO_P2_POLISH, with the page's own flag. */
+const STUDIO_P2_POLISH = STUDIO_P2_PUBLISH && STUDIO_P2_POLISH_ENABLED
 
 export interface WizardChoices {
   visibility: 'public' | 'unlisted' | 'restricted'
@@ -125,6 +128,8 @@ export function PublishWizard({
     if (!stepBody) return
     const scrollBody = stepBody.closest<HTMLElement>('.studio-publish-body')
     if (scrollBody) scrollBody.scrollTop = 0
+    // NEXT_PUBLIC_STUDIO_P2_POLISH (PP-1): the step body and the panel beside it scroll on their own, so they start at the top of each step too.
+    if (STUDIO_P2_POLISH && stepBody.parentElement) for (const pane of [stepBody.parentElement, ...Array.from(stepBody.parentElement.children)]) (pane as HTMLElement).scrollTop = 0
     stepBody.querySelector<HTMLElement>('[data-studio-publish-step-title="true"]')?.focus({ preventScroll: true })
   }, [step, progress])
 
@@ -205,7 +210,7 @@ export function PublishWizard({
   }
 
   return (
-    <div className="space-y-4 studio-publish-wizard" data-studio-publish-wizard={STUDIO_PUBLISH}>
+    <div className="space-y-4 studio-publish-wizard" data-studio-publish-wizard={STUDIO_PUBLISH} {...(STUDIO_P2_POLISH ? { [STUDIO_P2_POLISH_ATTR]: 'true' } : {})}>
       {/* Where you are, and what is still to come. A wizard that hides its own
           length is just a form that keeps asking for one more thing. */}
       {STUDIO_PUBLISH ? (

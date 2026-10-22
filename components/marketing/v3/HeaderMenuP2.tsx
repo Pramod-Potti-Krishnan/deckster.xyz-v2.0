@@ -13,6 +13,7 @@ import {
   studioP2MenuRestoresFocus,
   type StudioP2MenuEvent,
 } from "@/lib/studio-p2-landing"
+import { STUDIO_P2_POLISH_ATTR, STUDIO_P2_POLISH_ENABLED } from "@/lib/studio-p2-polish"
 import "@/styles/marketing-v3-p2.css"
 
 /**
@@ -53,7 +54,7 @@ export function HeaderMenuP2() {
   }, [open])
 
   return (
-    <div ref={wrapRef} className="p2-menu" {...{ [STUDIO_P2_MENU_ATTR]: "true" }} data-open={open ? "true" : "false"}>
+    <div ref={wrapRef} className="p2-menu" {...{ [STUDIO_P2_MENU_ATTR]: "true" }} {...(STUDIO_P2_POLISH_ENABLED ? { [STUDIO_P2_POLISH_ATTR]: "true" } : {})} data-open={open ? "true" : "false"}>
       <button
         ref={buttonRef}
         type="button"
@@ -70,6 +71,8 @@ export function HeaderMenuP2() {
           <Link key={item.label} href={item.href} className={pathname === item.href.split("#")[0] ? "is-here" : undefined} onClick={() => send("choose")}>{item.label}</Link>
         ))}
       </nav>
+      {/* NEXT_PUBLIC_STUDIO_P2_POLISH (PP-4): the page behind the open menu is dimmed; a press on it closes the menu like a press outside does. */}
+      {STUDIO_P2_POLISH_ENABLED && <span className="p2-menu__scrim" aria-hidden="true" hidden={!open} onClick={() => send("outside")} />}
     </div>
   )
 }
