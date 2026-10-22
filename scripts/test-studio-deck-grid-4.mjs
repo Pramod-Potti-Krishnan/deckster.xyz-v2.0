@@ -79,6 +79,7 @@ const modules = {
   '@/lib/studio-deck-title': { studioDeckShownTitle: title => title, studioDeckTitleProps: () => ({}) }, '@/lib/studio-template-display-name': { studioTemplateDisplayName: name => name }, // PASS2D T: flag NEXT_PUBLIC_STUDIO_DECK_TITLE_NAMES is off here, so the stored title is drawn
   '@/lib/studio-deck-cards': { deckCardDescription: (title, description) => description, deckCardStatusLabel: deck => deck.status }, '@/lib/studio-create-word': createWordLib,
   '@/lib/studio-deck-card-count': { studioDeckCardCountLabel: () => { throw new Error('flag off: not called') } }, // PASS2D R5: flag NEXT_PUBLIC_STUDIO_DECK_CARD_SLIDE_COUNT is off here, so the label helper is never called
+  '@/hooks/use-toast': { toast: () => { throw new Error('flag off: not called') } }, '@/lib/studio-duplicate-deck': { duplicateTargetFor: () => { throw new Error('flag off: not called') }, runDuplicateDeck: () => { throw new Error('flag off: not called') } }, // FRONTEND-2 Pass 3: flag NEXT_PUBLIC_STUDIO_DUPLICATE_DECK is off here, so neither is ever called
 }
 function renderPage(source, env, overrides = {}) {
   const names = [...source.matchAll(/const \[(\w+),\s*\w+\]\s*=\s*useState/g)].map(match => match[1])
