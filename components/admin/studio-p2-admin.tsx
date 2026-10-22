@@ -5,7 +5,7 @@
 // sign-in redirect, the same "Access denied" for a 403 (lib/studio-p2-admin.ts holds the words and rules). The admin chrome (links to the other admin page and to Studio) is drawn only once the
 // route has said yes to this account; until then, and for a 403 or a failed read, the page is one neutral panel, as before.
 // HARDENING (same flag): both lists are read a page at a time. The users page asks the route for its page, approval filter and search (so the figures and the filter counts are the route's, over everyone),
-// the coupons page for its page; both show a pager under the rows when there is more than one page, and a new page starts at the top of the list. A new coupon's expiry goes with the admin's time zone offset (lib/studio-p2-admin.ts).
+// the coupons page for its page; both show a pager under the rows when there is more than one page, and a new page that has arrived starts at the top of the list (a page that failed leaves the view, and the message above it, where they are). A new coupon's expiry goes with the admin's time zone offset (lib/studio-p2-admin.ts).
 
 import { useEffect, useRef, useState, type FormEvent } from "react"
 import Link from "next/link"
@@ -104,7 +104,8 @@ function useAdminList<Row, Ask extends { page: number }, Extra>(page: Page, firs
   const asked = useRef<Ask>(first)
   const newest = useRef(0)
 
-  const readAs = async (wanted: Ask) => {
+  /** Reads the list as asked; true when its answer was the newest one and a good one. */
+  const readAs = async (wanted: Ask): Promise<boolean> => {
     const mine = ++newest.current
     setRefreshing(true)
     let outcome: StudioP2AdminListOutcome = "failed"
@@ -115,7 +116,7 @@ function useAdminList<Row, Ask extends { page: number }, Extra>(page: Page, firs
       outcome = studioP2AdminListOutcome(response.status)
       if (outcome === "ready") { data = await response.json(); next = studioP2AdminRows<Row>(data, key) }
     } catch { outcome = "failed" }
-    if (mine !== newest.current) return // a newer read is on its way; this answer is out of date
+    if (mine !== newest.current) return false // a newer read is on its way; this answer is out of date
     if (outcome === "ready") {
       const info = studioP2AdminPageInfo(data, next.length)
       hasRows.current = true; setRows(next); setReply({ info, extra: extraOf(data, next) }); setLoad("ready"); setNotice(null)
@@ -125,6 +126,7 @@ function useAdminList<Row, Ask extends { page: number }, Extra>(page: Page, firs
     else setLoad(outcome)
     setRefreshing(false)
     setMoving(false)
+    return outcome === "ready"
   }
   const read = () => readAs(asked.current)
   /** Read another page / filter / search. */
@@ -220,7 +222,7 @@ export function StudioP2AdminUsers() {
                 )
               })}
             </ul>}
-        {info.pageCount > 1 && <Pager info={info} shown={shown.length} busy={list.refreshing} onPage={page => { void list.goto({ ...list.current(), page }).then(() => top.current?.scrollIntoView?.({ block: "start" })) }} />}
+        {info.pageCount > 1 && <Pager info={info} shown={shown.length} busy={list.refreshing} onPage={page => { void list.goto({ ...list.current(), page }).then(ok => { if (ok) top.current?.scrollIntoView?.({ block: "start" }) }) }} />}
       </section>
     </Frame>
   )
@@ -361,7 +363,7 @@ export function StudioP2AdminCoupons() {
                 )
               })}
             </ul>}
-        {info.pageCount > 1 && <Pager info={info} shown={list.rows.length} busy={list.refreshing} onPage={page => { void list.goto({ page }).then(() => top.current?.scrollIntoView?.({ block: "start" })) }} />}
+        {info.pageCount > 1 && <Pager info={info} shown={list.rows.length} busy={list.refreshing} onPage={page => { void list.goto({ page }).then(ok => { if (ok) top.current?.scrollIntoView?.({ block: "start" }) }) }} />}
       </section>
     </Frame>
   )
