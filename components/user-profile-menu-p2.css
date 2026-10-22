@@ -34,3 +34,9 @@
 [data-studio-p2-profile="true"][data-studio-v4-profile="true"] [data-studio-p2-meter] > small { display: block; font-size: 9px; line-height: 13px; color: var(--sp-muted); }
 [data-studio-p2-profile="true"][data-studio-v4-profile="true"] [data-studio-p2-upgrade="true"] { min-height: 0; margin: 10px -4px -6px; padding: 6px 4px; border-radius: 5px; font-size: 10px; line-height: 14px; }
 [data-studio-p2-profile="true"][data-studio-v4-profile="true"] [data-studio-p2-upgrade="true"]:is(:hover, :focus, [data-highlighted]) { background-color: var(--sp-panel); color: var(--sp-text); }
+
+/* NEXT_PUBLIC_STUDIO_P2_POLISH (lib/studio-p2-polish.ts), PP-6: the capacity card's "Usage unavailable" line. It exists only with that flag on, and only when the quota read gave nothing to show. */
+[data-studio-p2-profile="true"][data-studio-v4-profile="true"] [data-studio-p2-usage-unavailable="true"][data-p2-polish="true"] > [data-studio-p2-usage-title="true"] { margin-bottom: 6px; }
+[data-studio-p2-profile="true"][data-studio-v4-profile="true"] [data-studio-p2-usage-unavailable-line="true"] { display: grid; gap: 2px; margin: 0; font-size: 10px; line-height: 14px; color: var(--sp-muted); }
+[data-studio-p2-profile="true"][data-studio-v4-profile="true"] [data-studio-p2-usage-unavailable-line="true"] > strong { font-weight: 500; color: var(--sp-text); }
+[data-studio-p2-profile="true"][data-studio-v4-profile="true"] [data-studio-p2-usage-unavailable-line="true"] > small { font-size: 9px; line-height: 13px; }

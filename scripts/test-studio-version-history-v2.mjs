@@ -16,6 +16,7 @@ import path from 'node:path'
 import { execFileSync } from 'node:child_process'
 import { pathToFileURL } from 'node:url'
 import * as nodeModule from 'node:module'
+import { stripP2Polish } from './studio-p2-polish-strip.mjs'
 
 const repoRoot = path.resolve(new URL('..', import.meta.url).pathname)
 const FLAG = 'NEXT_PUBLIC_STUDIO_VERSION_HISTORY_V2'
@@ -32,7 +33,8 @@ const FILES = {
   menuP2: 'components/user-profile-menu-p2.tsx',
   oldPanel: 'components/version-history-panel.tsx',
 }
-const read = rel => fs.readFileSync(path.join(repoRoot, rel), 'utf8')
+// the Pass 2 polish change (scripts/test-studio-p2-polish.mjs) is put back out first: this test holds the files as this feature's change left them
+const read = rel => stripP2Polish(rel, fs.readFileSync(path.join(repoRoot, rel), 'utf8'))
 const SRC = Object.fromEntries(Object.entries(FILES).map(([key, rel]) => [key, read(rel)]))
 const CONTRACT = JSON.parse(read('scripts/fixtures/studio-version-history-v2/layout-contract.json'))
 const git = args => execFileSync('git', args, { cwd: repoRoot, encoding: 'utf8', maxBuffer: 64 * 1024 * 1024, stdio: ['ignore', 'pipe', 'ignore'] })

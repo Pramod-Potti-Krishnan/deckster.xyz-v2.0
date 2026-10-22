@@ -24,6 +24,7 @@ import {
   type StudioProfileRowId,
   type StudioQuotaForMeters,
 } from "@/lib/studio-profile-menu"
+import { polishTierLabel, polishUsageState, POLISH_USAGE_UNAVAILABLE, STUDIO_P2_POLISH_ATTR, STUDIO_P2_POLISH_ENABLED } from "@/lib/studio-p2-polish"
 import "./user-profile-menu-p2.css"
 
 // PASS2 PRO-02/03/04/05/06/07/08/10 (NEXT_PUBLIC_STUDIO_P2_PROFILE_MENU, default off): the Studio account menu as the accepted v4 mockup has it.
@@ -47,6 +48,9 @@ export interface StudioProfileMenuP2Props {
   initials: string
   /** The plan badge: only once the quota read has returned, as in the original menu. */
   tierLabel?: string
+  /** NEXT_PUBLIC_STUDIO_P2_POLISH (PP-6): the session's tier, the badge's fallback when the quota read gave no label, and whether the last quota read failed. */
+  sessionTier?: string
+  quotaFailed?: boolean
   sessionUsage?: ReactNode
   /** The quota read the menu already makes on open; the usage card appears once it returns (and has a readable share). */
   quota?: StudioQuotaForMeters | null
@@ -60,8 +64,17 @@ export interface StudioProfileMenuP2Props {
 }
 
 /** PRO-03: the mockup's capacity card with the real daily and weekly shares, always open (no disclosure). */
-function usageCard(quota: StudioQuotaForMeters | null | undefined, onNavigate: (path: string) => void) {
+function usageCard(quota: StudioQuotaForMeters | null | undefined, onNavigate: (path: string) => void, failed?: boolean) {
   const meters = studioUsageMeters(quota)
+  if (STUDIO_P2_POLISH_ENABLED && polishUsageState({ meters: meters.length, hasQuota: Boolean(quota), failed: Boolean(failed) }) === "unavailable") {
+    // PP-6: a read that failed (or had no readable share) is said, not left as a card that is simply not there.
+    return (
+      <div data-studio-p2-usage="true" data-studio-p2-usage-unavailable="true" {...{ [STUDIO_P2_POLISH_ATTR]: "true" }} role="group" aria-label={STUDIO_USAGE_WORDS.title}>
+        <p data-studio-p2-usage-title="true">{STUDIO_USAGE_WORDS.title}</p>
+        <p data-studio-p2-usage-unavailable-line="true" role="status"><strong>{POLISH_USAGE_UNAVAILABLE.line}</strong><small>{POLISH_USAGE_UNAVAILABLE.hint}</small></p>
+      </div>
+    )
+  }
   if (meters.length === 0) return null
   return (
     <div data-studio-p2-usage="true" role="group" aria-label={STUDIO_USAGE_WORDS.title}>
@@ -86,7 +99,9 @@ function usageCard(quota: StudioQuotaForMeters | null | undefined, onNavigate: (
   )
 }
 
-export function StudioProfileMenuP2({ name, email, image, initials, tierLabel, sessionUsage, quota, theme, onTheme, onNavigate, onAbout, onLogout, versionHistoryRow }: StudioProfileMenuP2Props) { // VERSION-HISTORY-V2
+export function StudioProfileMenuP2({ name, email, image, initials, tierLabel, sessionTier, quotaFailed, sessionUsage, quota, theme, onTheme, onNavigate, onAbout, onLogout, versionHistoryRow }: StudioProfileMenuP2Props) { // VERSION-HISTORY-V2
+  // PP-6: the plan badge no longer waits on (or dies with) the quota read; the session's tier, which that route reads too, stands in.
+  const badgeLabel = STUDIO_P2_POLISH_ENABLED ? polishTierLabel(tierLabel, sessionTier) : tierLabel
   return (
     <DropdownMenuContent data-studio-v4-profile="true" data-studio-profile-fidelity="true" data-studio-p2-profile="true" side="right" sideOffset={8} align="end" className="w-64">
       <DropdownMenuLabel data-studio-profile-identity="true" data-studio-p2-identity="true" className="font-normal">
@@ -98,17 +113,17 @@ export function StudioProfileMenuP2({ name, email, image, initials, tierLabel, s
           <p data-studio-profile-name="true" className="text-sm font-medium leading-none">{name}</p>
           <p data-studio-profile-email="true" className="text-xs leading-none text-muted-foreground">{email}</p>
         </div>
-        {tierLabel && (
+        {badgeLabel && (
           <Badge
             data-studio-v4-profile-role="tier"
             variant="outline"
             className="h-4 border-purple-200 bg-purple-50 px-1.5 py-0 text-[9px] font-semibold uppercase tracking-wide text-purple-700 dark:border-purple-800 dark:bg-purple-950/40 dark:text-purple-300"
           >
-            {tierLabel}
+            {badgeLabel}
           </Badge>
         )}
       </DropdownMenuLabel>
-      {usageCard(quota, onNavigate)}
+      {usageCard(quota, onNavigate, quotaFailed)}
       {sessionUsage && <div data-studio-session-usage="true" role="group" aria-label="Current session token usage">{sessionUsage}</div>}
 
       <DropdownMenuSeparator data-studio-v4-profile-role="separator" />

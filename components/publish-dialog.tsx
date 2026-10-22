@@ -46,7 +46,7 @@ import { useCopyToClipboard } from '@/hooks/use-copy-to-clipboard'
 import type { SerializedPublishedDeck } from '@/lib/publish/serialize'
 import type { StudioPublishPreviewSource } from '@/lib/studio-publish-preview'
 import { STUDIO_TOP_BAR_V2_ENABLED } from '@/lib/studio-top-bar-v2'
-import { PublishPasscodeCounter, PublishPasscodeInput, PublishQuestionsBadge, publishedLink, useP2ManageFacts } from '@/components/publish-p2'
+import { PublishManageDock, PublishPasscodeCounter, PublishPasscodeInput, PublishQuestionsBadge, publishedLink, useP2ManageFacts } from '@/components/publish-p2'
 import { audienceCopy, dialogSubtitle, narrationFact, passcodeShortBy, questionsFact, recordingVerdict, STUDIO_P2_PUBLISH_ENABLED as STUDIO_P2_PUBLISH } from '@/lib/studio-p2-publish'
 import './studio-publish.css'
 
@@ -1336,6 +1336,7 @@ export function PublishDialog({
                 <Button type="button" size="sm" variant="outline" disabled={busy} onClick={() => setConfirmUnpublish(false)}>Keep published</Button>
               </div>
             )}
+            <PublishManageDock onDone={() => onOpenChange(false)}>
             <DialogFooter className="sm:justify-between studio-publish-management-actions">
               {STUDIO_PUBLISH && !confirmUnpublish && <div className="studio-publish-manage-copy"><strong>Manage the published copy</strong><small>Republish updates this link with your latest slides and settings.</small></div>}
               {confirmUnpublish ? (
@@ -1393,6 +1394,7 @@ export function PublishDialog({
                 </Button>
               )}
             </DialogFooter>
+            </PublishManageDock>
           </div>
         )}
         </PublishDialogBody>

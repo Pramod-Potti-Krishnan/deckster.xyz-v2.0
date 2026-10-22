@@ -360,3 +360,25 @@
 [data-studio-publish="true"] ul.studio-publish-caps > li[data-on="true"] em { border-color: var(--sp-teal); background: var(--sp-teal-soft); color: var(--sp-teal); }
 [data-studio-publish="true"] .studio-publish-badge { display: inline-grid; place-items: center; min-width: 16px; height: 16px; margin-left: 6px; padding: 0 4px; border-radius: 999px; background: var(--sp-accent); color: var(--sp-panel); font-size: 10px; font-weight: 700; line-height: 1; }
 [data-studio-publish="true"] .studio-publish-viewer-preview-note { margin: 0; color: var(--sp-muted); font-size: 10px; line-height: 1.5; }
+
+/* NEXT_PUBLIC_STUDIO_P2_POLISH (lib/studio-p2-polish.ts), PP-1 / PP-2 / PP-3. Every rule below carries [data-p2-polish="true"], which exists only with the flag on. */
+/* PP-1: the setup wizard stops laying its sticky footer over its own content. The steps stay on top and the footer below; the step body and the "What viewers get" panel
+   scroll on their own in the room between them (one scroller for the whole grid on a phone, where the two stack). Nothing is hidden under the footer, and nothing peeks below it. */
+[data-studio-publish="true"] .studio-publish-body:has(> .studio-publish-wizard[data-p2-polish="true"]) { display: flex; flex-direction: column; overflow: hidden; }
+[data-studio-publish="true"] .studio-publish-wizard[data-p2-polish="true"] { display: flex; flex-direction: column; flex: 1 1 auto; min-height: 0; }
+[data-studio-publish="true"] .studio-publish-wizard[data-p2-polish="true"] > :is(.studio-publish-steps, .studio-publish-wizard-actions) { position: static; flex-shrink: 0; }
+[data-studio-publish="true"] .studio-publish-wizard[data-p2-polish="true"] > .studio-publish-setup-grid { flex: 1 1 auto; min-height: 0; grid-template-rows: minmax(0, 1fr); align-items: stretch; }
+[data-studio-publish="true"] .studio-publish-wizard[data-p2-polish="true"] > .studio-publish-setup-grid > :is(.studio-publish-step-body, .studio-publish-viewer-summary) { min-height: 0; overflow-y: auto; overscroll-behavior: contain; scrollbar-width: thin; scrollbar-color: var(--sp-line) transparent; }
+[data-studio-publish="true"] .studio-publish-wizard[data-p2-polish="true"] > .studio-publish-setup-grid > .studio-publish-viewer-summary { align-content: start; grid-auto-rows: max-content; }
+[data-studio-publish="true"] .studio-publish-wizard[data-p2-polish="true"] > .studio-publish-setup-grid > .studio-publish-step-body { padding: 4px; margin: -4px; }
+@media (max-width: 700px) {
+  [data-studio-publish="true"] .studio-publish-wizard[data-p2-polish="true"] > .studio-publish-setup-grid { grid-template-rows: none; align-items: start; overflow-y: auto; overscroll-behavior: contain; scrollbar-width: thin; scrollbar-color: var(--sp-line) transparent; }
+  [data-studio-publish="true"] .studio-publish-wizard[data-p2-polish="true"] > .studio-publish-setup-grid > :is(.studio-publish-step-body, .studio-publish-viewer-summary) { overflow: visible; min-height: auto; }
+}
+/* PP-2: "View as a viewer" is an anchor, which the button.bg-primary rule above never reaches, so it fell back to the app's violet primary. The mock's primary is the shell's action colour. */
+[data-studio-publish="true"] a.studio-publish-view-as-viewer[data-p2-polish="true"] { background: var(--ss-action, var(--sp-primary)); color: var(--ss-on-action, var(--sp-primary-text)); }
+[data-studio-publish="true"] a.studio-publish-view-as-viewer[data-p2-polish="true"]:hover { background: var(--ss-action-hover, var(--sp-primary)); }
+/* PP-3: the manage footer and the mock's Done button share one sticky dock, Done on its own row at the right under a hairline. */
+[data-studio-publish="true"] .studio-publish-dock[data-p2-polish="true"] { position: sticky; bottom: 0; z-index: 12; display: grid; gap: 12px; padding-bottom: 4px; background: var(--sp-panel); box-shadow: 0 -8px 12px var(--sp-panel); }
+[data-studio-publish="true"] .studio-publish-dock[data-p2-polish="true"] > .studio-publish-management-actions { position: static; box-shadow: none; }
+[data-studio-publish="true"] .studio-publish-dock[data-p2-polish="true"] > .studio-publish-done-row { display: flex; justify-content: flex-end; padding-top: 12px; border-top: 1px solid var(--sp-line); }

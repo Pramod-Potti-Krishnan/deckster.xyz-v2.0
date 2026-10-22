@@ -25,10 +25,12 @@ import vm from 'node:vm'
 import { execFileSync } from 'node:child_process'
 import ts from 'typescript'
 import postcss from 'postcss'
+import { stripP2Polish } from './studio-p2-polish-strip.mjs'
 
 const repoRoot = path.resolve(new URL('..', import.meta.url).pathname)
 const BASE_COMMIT = process.env.P2_PROFILE_BASE || 'fbc77c0430099ec7e11a188307ee5521b6937719'
-const read = rel => fs.readFileSync(path.join(repoRoot, rel), 'utf8')
+// the Pass 2 polish change (scripts/test-studio-p2-polish.mjs) is put back out first: this test holds the files as this page's change left them
+const read = rel => stripP2Polish(rel, fs.readFileSync(path.join(repoRoot, rel), 'utf8'))
 const baseSource = rel => {
   try { return execFileSync('git', ['show', `${BASE_COMMIT}:${rel}`], { cwd: repoRoot, encoding: 'utf8', maxBuffer: 64 * 1024 * 1024 }) }
   catch (error) { throw new Error(`base commit ${BASE_COMMIT} is not in this clone (fetch the full history): ${error.message}`) }

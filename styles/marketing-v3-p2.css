@@ -44,3 +44,16 @@ html.mv3-p2-night { background: #0C0D13; }
 @media (max-width: 400px) {
   .mv3 .hdr[data-p2-landing] .hdr__logo .wm { display: none; }
 }
+
+/* NEXT_PUBLIC_STUDIO_P2_POLISH (lib/studio-p2-polish.ts), PP-4. Every rule carries [data-p2-landing-menu][data-p2-polish="true"], which exists only with that flag on.
+   The open menu is no longer a small card laid over the hero headline: the page behind it is dimmed (a press on it closes the menu), and at 520px and below the panel is
+   a sheet the width of the header's content, so it reads as the menu and not as something cutting the headline off. The wrapper stops being the anchor, so both hang from the header. */
+@media (max-width: 900px) {
+  .mv3 [data-p2-landing-menu][data-p2-polish="true"] { position: static; }
+  .mv3 [data-p2-landing-menu][data-p2-polish="true"] .p2-menu__panel { right: 28px; }
+  .mv3 [data-p2-landing-menu][data-p2-polish="true"] .p2-menu__scrim { position: absolute; top: 100%; left: 0; right: 0; height: 100vh; height: 100dvh; background: rgba(8, 9, 14, .62); cursor: pointer; }
+  .mv3 [data-p2-landing-menu][data-p2-polish="true"] .p2-menu__scrim[hidden] { display: none; }
+}
+@media (max-width: 520px) {
+  .mv3 [data-p2-landing-menu][data-p2-polish="true"] .p2-menu__panel { left: 12px; right: 12px; min-width: 0; }
+}

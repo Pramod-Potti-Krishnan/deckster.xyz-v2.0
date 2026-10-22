@@ -12,9 +12,10 @@
  *   PublishQuestionsBadge                           PUB-11  the waiting count on the Questions tab
  *   useP2ManageFacts                                PUB-11  question counts and narration state for the manage view and the Questions tab badge
  *   publishedLink                                   NEXT_PUBLIC_STUDIO_P2_PUBLISH_ORIGIN_URL  the link on the page the owner is on
+ *   PublishManageDock                               NEXT_PUBLIC_STUDIO_P2_POLISH, PP-3  the manage view's Done button (and the footer it sits under)
  */
 
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import { ArrowRight, Check, Copy, ExternalLink, Eye, EyeOff, Loader2, Minus } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -23,6 +24,7 @@ import { Switch } from '@/components/ui/switch'
 import { useToast } from '@/hooks/use-toast'
 import { useCopyToClipboard } from '@/hooks/use-copy-to-clipboard'
 import type { SerializedPublishedDeck } from '@/lib/publish/serialize'
+import { STUDIO_P2_POLISH_ATTR, STUDIO_P2_POLISH_ENABLED } from '@/lib/studio-p2-polish'
 import {
   capabilityRows,
   estimateRecording,
@@ -40,6 +42,9 @@ import {
   type QuestionCounts,
   type RecordingBudget,
 } from '@/lib/studio-p2-publish'
+
+/** NEXT_PUBLIC_STUDIO_P2_POLISH, with the page's own flag. */
+const STUDIO_P2_POLISH = STUDIO_P2_PUBLISH_ENABLED && STUDIO_P2_POLISH_ENABLED
 
 /** PUB-02: the field is masked, with an eye to show it. Same controlled value and placeholder as the field it replaces. */
 export function PublishPasscodeInput({
@@ -250,9 +255,22 @@ export function PublishDoneLink({ url }: { url: string }) {
           <a href={url} target="_blank" rel="noopener noreferrer"><ExternalLink className="h-4 w-4" /></a>
         </Button>
       </div>
-      <Button type="button" size="sm" asChild className="studio-publish-view-as-viewer">
+      <Button type="button" size="sm" asChild className="studio-publish-view-as-viewer" {...(STUDIO_P2_POLISH ? { [STUDIO_P2_POLISH_ATTR]: 'true' } : {})}>
         <a href={url} target="_blank" rel="noopener noreferrer">View as a viewer<ArrowRight className="ml-1 h-3.5 w-3.5" /></a>
       </Button>
+    </div>
+  )
+}
+
+/** PP-3 (NEXT_PUBLIC_STUDIO_P2_POLISH): the mock's Done button under the manage footer. The dialog renders the footer inside this; flag off, it is the footer and nothing else. */
+export function PublishManageDock({ children, onDone }: { children: ReactNode; onDone: () => void }) {
+  if (!STUDIO_P2_POLISH) return <>{children}</>
+  return (
+    <div className="studio-publish-dock" {...{ [STUDIO_P2_POLISH_ATTR]: 'true' }}>
+      {children}
+      <div className="studio-publish-done-row">
+        <Button type="button" size="sm" onClick={onDone}>Done</Button>
+      </div>
     </div>
   )
 }
