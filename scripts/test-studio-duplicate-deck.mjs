@@ -510,6 +510,9 @@ run('the strip: without this change\'s lines each page (and .env.example) is the
     const base = baseSource(rel)
     if (base === null) console.log(`  SKIP base-commit identity of ${rel}: ${BASE_COMMIT} is not in this clone`)
     else if (rel === ENV_FILE) assert.ok(stripped === base || appendOnlyOver(rel, stripped, base), `${rel}: without the added lines the file is ${BASE_COMMIT}'s lines, in order (a later change's block may follow)`)
+    // The Builder page also carries later stacked changes (e.g. NEXT_PUBLIC_STUDIO_DECK_MUTATION_DEDUPE), and each chains its strip into stripOpenReadOnly:
+    // alone this change must give back the base exactly; stacked, the page and the base must agree once every chained strip has run.
+    else if (rel === BUILDER_PAGE) assert.ok(stripped === base || stripOpenReadOnly(rel, read(rel)) === stripOpenReadOnly(rel, base), `${rel}: without the added lines the page is ${BASE_COMMIT}'s (or differs only by lines a stacked change strips through stripOpenReadOnly)`)
     else assert.equal(stripped, base, `${rel}: without the added lines the page is ${BASE_COMMIT}'s`)
   }
   assert.equal(stripDuplicateDeck('lib/other.ts', 'x'), 'x')
