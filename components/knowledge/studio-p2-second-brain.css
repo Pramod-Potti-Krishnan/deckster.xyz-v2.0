@@ -29,6 +29,29 @@
 [data-studio-v4-shell="true"] [data-studio-p2-sources="true"] [data-studio-p2-sources-panel="true"] > footer a { display: inline-flex; align-items: center; padding: 6px 8px; margin-left: -8px; font-weight: 600; }
 [data-studio-v4-shell="true"] [data-studio-p2-sources="true"] [data-studio-p2-sources-panel="true"] > footer small { color: var(--ss-muted); font-size: 11px; line-height: 1.5; }
 
+/* SB-02 with the Knowledge header-actions flag also on (data-studio-p2-sources-menu, StudioP2SourcesMenu): the header's one Sources control. The panel is the popover above (title, close,
+   the sources, "Add a file or link"); the sources scroll inside it so the title, the upload link and the three maintenance actions stay in view; the actions are the header-actions
+   menu's rows (same tokens) under the upload link. Every rule needs the menu marker, so the stand-alone popover and the menu alone are not touched. */
+[data-studio-v4-shell="true"] [data-studio-p2-sources-menu="true"] [data-studio-p2-sources-panel="true"] { display: flex; flex-direction: column; overflow: hidden; max-height: min(78vh, 600px); }
+[data-studio-v4-shell="true"] [data-studio-p2-sources-menu="true"] [data-studio-p2-sources-panel="true"] > :is(header, footer, [data-studio-p2-sources-actions="true"]) { flex: 0 0 auto; }
+[data-studio-v4-shell="true"] [data-studio-p2-sources-menu="true"] [data-studio-p2-sources-body="true"] { flex: 1 1 auto; min-height: 0; overflow-y: auto; overscroll-behavior: contain; }
+[data-studio-v4-shell="true"] [data-studio-p2-sources-menu="true"] [data-studio-p2-sources-actions="true"] { display: flex; flex-direction: column; gap: 2px; margin-top: 10px; padding-top: 8px; border-top: 1px solid var(--ss-line); }
+[data-studio-v4-shell="true"] [data-studio-p2-sources-menu="true"] [data-studio-p2-sources-panel="true"] [data-studio-p2-sources-actions="true"] :is(button, a) {
+  display: flex; align-items: flex-start; gap: 10px; width: 100%; padding: 8px; border-radius: 7px; color: var(--ss-text); text-align: left; text-decoration: none; cursor: pointer;
+}
+[data-studio-v4-shell="true"] [data-studio-p2-sources-menu="true"] [data-studio-p2-sources-actions="true"] :is(button, a) > svg { flex-shrink: 0; margin-top: 2px; color: var(--ss-accent); }
+[data-studio-v4-shell="true"] [data-studio-p2-sources-menu="true"] [data-studio-p2-sources-actions="true"] strong { display: block; color: var(--ss-text); font-size: 12px; font-weight: 600; }
+[data-studio-v4-shell="true"] [data-studio-p2-sources-menu="true"] [data-studio-p2-sources-actions="true"] small { display: block; margin-top: 2px; color: var(--ss-muted); font-size: 11px; line-height: 1.45; }
+[data-studio-v4-shell="true"] [data-studio-p2-sources-menu="true"] [data-studio-p2-sources-actions="true"] :is(button, a):focus-visible,
+[data-studio-v4-shell="true"] [data-studio-p2-sources-menu="true"] [data-studio-p2-sources-panel="true"] :is(button, a):focus-visible { outline: 2px solid var(--ss-accent); outline-offset: 2px; }
+[data-studio-v4-shell="true"] [data-studio-p2-sources-menu="true"] [data-studio-p2-sources-panel="true"] [data-studio-p2-sources-actions="true"] button:disabled { opacity: .55; cursor: default; }
+[data-studio-v4-shell="true"] [data-studio-p2-sources-menu="true"] [data-studio-p2-sources-panel="true"] [data-studio-p2-sources-actions="true"] button:disabled:hover { background: transparent; }
+/* On a narrow screen the trigger is not at the right edge (the header's row starts at the left, and the search field sits beside it), so a panel hung from its right edge would run off the left side:
+   hang it from the left edge, and keep it clear of the right one (the shell's rail and the page's gutters take about 80px of the width before the trigger). */
+@media (max-width: 768px) {
+  [data-studio-v4-shell="true"] [data-studio-p2-sources-menu="true"] [data-studio-p2-sources-panel="true"] { left: 0; right: auto; max-width: calc(100vw - 96px); }
+}
+
 /* SB-08: the inspector's three-number strip (mentions / evidence / sessions) in place of the one text line. */
 [data-studio-knowledge-inspector="true"] [data-studio-p2-strip="true"] {
   display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; margin-top: 12px; padding: 12px 0; border-block: 1px solid var(--ss-line);

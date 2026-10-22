@@ -1,6 +1,8 @@
 // PASS2 Second Brain (FRONTEND-1): the Knowledge page as the accepted v4 mockup has it, on the REAL knowledge graph. Flag NEXT_PUBLIC_STUDIO_P2_SECOND_BRAIN (exact "true"),
 // default off, and only with the Studio shell (NEXT_PUBLIC_STUDIO_V4_SHELL "true"). Rows (PROGRAM-1 table D + the "move to mock" verdicts):
-//   SB-02 a read-only "Sources" popover: the sources the graph's own evidence names + the link to where uploads live (no connections, no "This Mac", nothing writes)
+//   SB-02 a read-only "Sources" popover: the sources the graph's own evidence names + the link to where uploads live (no connections, no "This Mac", nothing writes); with
+//         NEXT_PUBLIC_STUDIO_KNOWLEDGE_HEADER_ACTIONS also on, that list is folded into the header-actions menu (StudioP2SourcesMenu: the sources above Import / Refresh / Settings),
+//         so the header has ONE Sources control; each flag alone renders exactly its own component as before (proven against P2_SB_FOLD_BASE)
 //   SB-05 the real 2D map restyled: a soft glow, a count badge in each node, clearer label plates (no 3D)
 //   SB-06 "Full screen" in the map toolbar (the browser's full screen; Esc leaves it); no orbit animation
 //   SB-08 the inspector's three-number strip (mentions / evidence / sessions) in place of the text line; no "Coverage"
@@ -9,12 +11,14 @@
 //
 // Run: node scripts/test-studio-p2-second-brain.mjs   (plain node: transpile + vm, no network, no browser, no env)
 //   P2_SB_BASE=<commit> overrides the base commit flag-off identity is checked against (default d7c7751d, the studio-v4-dev-preparation-code tip the work was rebased onto: the Knowledge batch #440-#444 is in it).
+//   P2_SB_FOLD_BASE=<commit> overrides the commit "each flag alone is as before the Sources fold" is checked against (default 55cef1d2, studio-v4-dev-preparation-code with the P2 Second Brain work merged).
 //
 // Proven on the REAL sources:
 //   1. lib/studio-p2-second-brain.ts: import-free; the flag rule, words, routes, strip, source aggregation, deck resolution, badge, halo id, full-screen rules;
-//   2. the components (executed with a small hooks runtime): the Sources popover, the deck-list hook + provider, the inspector, the graph view;
+//   2. the components (executed with a small hooks runtime): the Sources popover, the header menu that holds the Sources list (both flags), the deck-list hook + provider, the inspector, the graph view;
 //   3. the wiring (executed against the base commit's files): flag off, or flag on without the shell = the same trees and the same requests as the base, for the page,
-//      the inspector and the graph view; flag on = the rows above;
+//      the inspector and the graph view; flag on = the rows above; the Sources fold: each of the two flags alone = the same trees, requests and component renders as P2_SB_FOLD_BASE,
+//      both on = one Sources control, fed the page's own numbers and handlers;
 //   4. the CSS: every rule hangs on a marker only the flag-on markup carries; tokens only;
 //   5. mutation check: every mutant of the sources is killed by sections 1-4.
 import assert from 'node:assert/strict'
@@ -27,14 +31,16 @@ import postcss from 'postcss'
 
 const repoRoot = path.resolve(new URL('..', import.meta.url).pathname)
 const BASE_COMMIT = process.env.P2_SB_BASE || 'd7c7751d0306f97ffa8d07eea3ded80b38035593'
+const FOLD_BASE = process.env.P2_SB_FOLD_BASE || '55cef1d29341ed9cf4bc1c1d93657e644ded4de4' // the tip the Sources fold was built on: what "each flag alone, exactly as before" means
 const read = rel => fs.readFileSync(path.join(repoRoot, rel), 'utf8')
 const baseCache = new Map()
-const baseSource = rel => {
-  if (!baseCache.has(rel)) {
-    try { baseCache.set(rel, execFileSync('git', ['show', `${BASE_COMMIT}:${rel}`], { cwd: repoRoot, encoding: 'utf8', maxBuffer: 64 * 1024 * 1024 })) }
-    catch (error) { throw new Error(`base commit ${BASE_COMMIT} is not in this clone (fetch the full history): ${error.message}`) }
+const baseSource = (rel, commit = BASE_COMMIT) => {
+  const key = `${commit}:${rel}`
+  if (!baseCache.has(key)) {
+    try { baseCache.set(key, execFileSync('git', ['show', key], { cwd: repoRoot, encoding: 'utf8', maxBuffer: 64 * 1024 * 1024 })) }
+    catch (error) { throw new Error(`base commit ${commit} is not in this clone (fetch the full history): ${error.message}`) }
   }
-  return baseCache.get(rel)
+  return baseCache.get(key)
 }
 let checks = 0
 let counting = true
@@ -46,6 +52,10 @@ const attempt = fn => { try { return fn() } catch (error) { return { threw: Stri
 
 const LIB = 'lib/studio-p2-second-brain.ts'
 const SOURCES_UI = 'components/knowledge/studio-p2-sources.tsx'
+const SOURCES_PARTS = 'components/knowledge/studio-p2-sources-parts.tsx'
+const SOURCES_MENU = 'components/knowledge/studio-p2-sources-menu.tsx'
+const SOURCES_HOOK = 'hooks/use-studio-p2-sources.ts'
+const MENU_LIB = 'lib/studio-knowledge-sources-menu.ts'
 const HOOK = 'hooks/use-studio-p2-deck-titles.ts'
 const PROVIDER = 'components/knowledge/studio-p2-deck-provider.tsx'
 const INSPECTOR = 'components/knowledge/studio-knowledge-inspector.tsx'
@@ -54,7 +64,8 @@ const PAGE = 'app/(app)/knowledge/page.tsx'
 const CSS = 'components/knowledge/studio-p2-second-brain.css'
 const ENV = '.env.example'
 const FLAG = 'NEXT_PUBLIC_STUDIO_P2_SECOND_BRAIN'
-const SOURCES = Object.fromEntries([LIB, SOURCES_UI, HOOK, PROVIDER, INSPECTOR, GRAPH, PAGE, CSS, ENV].map(rel => [rel, read(rel)]))
+const HEADER_FLAG = 'NEXT_PUBLIC_STUDIO_KNOWLEDGE_HEADER_ACTIONS'
+const SOURCES = Object.fromEntries([LIB, SOURCES_UI, SOURCES_PARTS, SOURCES_MENU, SOURCES_HOOK, HOOK, PROVIDER, INSPECTOR, GRAPH, PAGE, CSS, ENV].map(rel => [rel, read(rel)]))
 
 // ---------------------------------------------------------------- loading: transpile + vm, a small hooks runtime, inert strings for everything else
 const jsx = (type, props, key) => ({ type, props: props ?? {}, key: key ?? null })
@@ -190,7 +201,7 @@ function proveLib(source, label = 'lib') {
   }
   deepEq({ ...lib.STUDIO_SB_WORDS }, {
     sources: 'Sources', sourcesTitle: 'Sources feeding your graph', sourcesClose: 'Close sources', sourcesLoading: 'Reading the evidence behind your strongest entities…',
-    sourcesEmpty: 'No sources are recorded in your graph yet.', sourcesPartial: 'Some entities could not be read, so this list may be incomplete.', sourcesRetry: 'Try again',
+    sourcesEmpty: 'No sources are recorded in your graph yet.', sourcesPartial: 'Some entities could not be read, so this list may be incomplete.', sourcesRetry: 'Try again', sourcesActions: 'Knowledge actions',
     upload: 'Add a file or link in Studio', uploadHint: 'Uploads live in the chat composer in Studio. Nothing is added from this page.',
     fullScreen: 'Full screen', exitFullScreen: 'Exit full screen', usedInDecks: 'Used in your decks', decksLoading: 'Looking up your decks…',
     decksNone: 'No deck is recorded for this entity yet.', decksError: 'Your deck list could not be loaded.', decksRetry: 'Retry', untitledDeck: 'Untitled presentation',
@@ -282,10 +293,10 @@ const STUBS = { 'next/link': { default: 'Link', __esModule: true }, '@/lib/utils
 async function proveSourcesUi(source, label = 'sources') {
   const doc = fakeDocument()
   const fetchFn = createFetch({ '/api/knowledge-graph/nodes/': url => { const id = decodeURIComponent(url.split('/').pop()); return DETAILS[id] ? respond(200, DETAILS[id]) : respond(200, { evidence: [] }) } })
-  const world = createWorld({ real: new Set([LIB, SOURCES_UI]), sources: { [SOURCES_UI]: source }, stubs: STUBS, globals: { document: doc, fetch: fetchFn, AbortController, Promise, Set, Map, Array, Object, JSON, encodeURIComponent, decodeURIComponent, structuredClone } })
+  const world = createWorld({ real: new Set([LIB, SOURCES_UI, SOURCES_PARTS, SOURCES_HOOK]), sources: { [SOURCES_UI]: source }, stubs: STUBS, globals: { document: doc, fetch: fetchFn, AbortController, Promise, Set, Map, Array, Object, JSON, encodeURIComponent, decodeURIComponent, structuredClone } })
   const { StudioP2Sources } = world.load(SOURCES_UI)
   const props = { entities: TOP }
-  const view = () => world.runtime.render(StudioP2Sources, props)
+  const view = () => expand(world.runtime.render(StudioP2Sources, props)) // the shared list and footer are hook-free function components: expanded, the tree is the host markup
   let tree = view()
   const buttonOf = t => all(t, i => i.type === 'Button')[0]
   eq(buttonOf(tree).props['aria-expanded'], false, `${label}: closed at first`)
@@ -293,6 +304,7 @@ async function proveSourcesUi(source, label = 'sources') {
   eq(fetchFn.calls.length, 0, `${label}: nothing is read before it is opened`)
   eq(flat(buttonOf(tree)).replace(/\s/g, ''), 'Sources', `${label}: the button says Sources, with no count before the read`)
   const root = all(tree, i => i.props?.['data-studio-p2-sources'] === 'true')[0]
+  ok(root, `${label}: the popover carries its marker (the sheet hangs on it)`)
   const focused = []
   root.props.ref.current = { contains: node => node === 'inside' }
   buttonOf(tree).props.ref.current = { focus: () => focused.push(1) }
@@ -337,27 +349,268 @@ async function proveSourcesUi(source, label = 'sources') {
   eq(focused.length, 2, `${label}: ...and returns focus`)
   // a failed read: partial note, no count, retry reads again
   const failing = createFetch({ '/api/knowledge-graph/nodes/': url => (url.endsWith('/n2') ? respond(500, {}) : respond(200, DETAILS[decodeURIComponent(url.split('/').pop())] ?? { evidence: [] })) })
-  const world2 = createWorld({ real: new Set([LIB, SOURCES_UI]), sources: { [SOURCES_UI]: source }, stubs: STUBS, globals: { document: fakeDocument(), fetch: failing, AbortController, Promise, Set, Map, Array, Object, JSON, encodeURIComponent, decodeURIComponent, structuredClone } })
+  const world2 = createWorld({ real: new Set([LIB, SOURCES_UI, SOURCES_PARTS, SOURCES_HOOK]), sources: { [SOURCES_UI]: source }, stubs: STUBS, globals: { document: fakeDocument(), fetch: failing, AbortController, Promise, Set, Map, Array, Object, JSON, encodeURIComponent, decodeURIComponent, structuredClone } })
   const comp = world2.load(SOURCES_UI).StudioP2Sources
-  let t2 = world2.runtime.render(comp, props)
+  let t2 = expand(world2.runtime.render(comp, props))
   all(t2, i => i.type === 'Button')[0].props.ref.current = { focus() {} }
   all(t2, i => i.props?.['data-studio-p2-sources'])[0].props.ref.current = { contains: () => true }
-  all(t2, i => i.type === 'Button')[0].props.onClick(); t2 = world2.runtime.render(comp, props); await settle(); t2 = world2.runtime.render(comp, props)
+  all(t2, i => i.type === 'Button')[0].props.onClick(); t2 = expand(world2.runtime.render(comp, props)); await settle(); t2 = expand(world2.runtime.render(comp, props))
   eq(all(t2, i => i.props?.['data-studio-p2-sources-state'] === 'partial').length, 1, `${label}: an unreadable entity shows the partial note`)
   eq(all(t2, i => i.props?.['data-studio-p2-sources-count']).length, 0, `${label}: ...and no count that could mislead`)
   eq(all(t2, i => i.props?.['data-studio-p2-source'] === 'true').length, 2, `${label}: ...while the sources that were read are still listed`)
   const before = failing.calls.length
-  all(t2, i => i.type === 'button' && flat(i) === 'Try again')[0].props.onClick(); t2 = world2.runtime.render(comp, props); await settle()
+  all(t2, i => i.type === 'button' && flat(i) === 'Try again')[0].props.onClick(); t2 = expand(world2.runtime.render(comp, props)); await settle()
   eq(failing.calls.length, before + 8, `${label}: Try again reads the eight entities again`)
   // empty graph
   const empty = createFetch({ '/api/knowledge-graph/nodes/': respond(200, { evidence: [] }) })
-  const world3 = createWorld({ real: new Set([LIB, SOURCES_UI]), sources: { [SOURCES_UI]: source }, stubs: STUBS, globals: { document: fakeDocument(), fetch: empty, AbortController, Promise, Set, Map, Array, Object, JSON, encodeURIComponent, decodeURIComponent, structuredClone } })
+  const world3 = createWorld({ real: new Set([LIB, SOURCES_UI, SOURCES_PARTS, SOURCES_HOOK]), sources: { [SOURCES_UI]: source }, stubs: STUBS, globals: { document: fakeDocument(), fetch: empty, AbortController, Promise, Set, Map, Array, Object, JSON, encodeURIComponent, decodeURIComponent, structuredClone } })
   const comp3 = world3.load(SOURCES_UI).StudioP2Sources
-  let t3 = world3.runtime.render(comp3, { entities: [] })
+  let t3 = expand(world3.runtime.render(comp3, { entities: [] }))
   all(t3, i => i.type === 'Button')[0].props.ref.current = { focus() {} }
-  all(t3, i => i.type === 'Button')[0].props.onClick(); t3 = world3.runtime.render(comp3, { entities: [] }); await settle(); t3 = world3.runtime.render(comp3, { entities: [] })
+  all(t3, i => i.type === 'Button')[0].props.onClick(); t3 = expand(world3.runtime.render(comp3, { entities: [] })); await settle(); t3 = expand(world3.runtime.render(comp3, { entities: [] }))
   match(flat(t3), /No sources are recorded in your graph yet\./, `${label}: an empty graph says so`)
   eq(empty.calls.length, 0, `${label}: with no entities there is nothing to read`)
+}
+
+// ---------------------------------------------------------------- 2a'. the Sources popover alone is what it was (flag SB-02 on, header actions off)
+/** The tree as the DOM gets it: fragments flattened, null / boolean children dropped, refs and function values not recorded. */
+const domOf = node => {
+  if (node === null || node === undefined || typeof node === 'boolean') return []
+  if (Array.isArray(node)) return node.flatMap(domOf)
+  if (typeof node !== 'object') return [String(node)]
+  if (node.type === 'Fragment') return domOf(node.props?.children)
+  const { children, ...rest } = node.props ?? {}
+  return [{ type: node.type, key: node.key ?? null, props: rest, children: domOf(children) }]
+}
+// (the small runtime's useId is the hook's position, so an id is recorded as "an id": the markup is compared, not how many hooks sit above it)
+const serDom = node => JSON.stringify(domOf(node), (key, item) => key === 'ref' ? undefined : typeof item === 'function' ? '[fn]' : typeof item === 'string' && /^:r\d+:$/.test(item) ? ':id:' : item)
+/** One scripted visit to the stand-alone popover: closed, opened (reading), read, closed with Escape, an outside press, a partly failed read and its retry, an empty graph. Returns what the DOM got and the requests. */
+async function popoverTrace(componentSource, parts) {
+  const run = async (routes, entities, steps) => {
+    const doc = fakeDocument()
+    const fetchFn = createFetch(routes)
+    const real = new Set([LIB, SOURCES_UI, ...(parts ? [SOURCES_PARTS, SOURCES_HOOK] : [])])
+    const world = createWorld({ real, sources: { [SOURCES_UI]: componentSource }, stubs: STUBS, globals: { document: doc, fetch: fetchFn, AbortController, Promise, Set, Map, Array, Object, JSON, encodeURIComponent, decodeURIComponent, structuredClone } })
+    const { StudioP2Sources } = world.load(SOURCES_UI)
+    const view = () => expand(world.runtime.render(StudioP2Sources, { entities }))
+    const trace = []
+    const snap = name => trace.push([name, serDom(view())])
+    let tree = view()
+    const button = t => all(t, i => i.type === 'Button')[0]
+    const marked = all(tree, i => i.props?.['data-studio-p2-sources'] === 'true')[0]
+    ok(marked, 'the popover carries its marker')
+    marked.props.ref.current = { contains: node => node === 'inside' }
+    button(tree).props.ref.current = { focus() {} }
+    await steps({ snap, view, doc, button, settle, all })
+    return { trace, calls: fetchFn.calls.map(c => `${c.method} ${c.url}`), listeners: [...doc.listeners.entries()].map(([type, list]) => `${type}:${list.length}`).sort() }
+  }
+  const good = { '/api/knowledge-graph/nodes/': url => { const id = decodeURIComponent(url.split('/').pop()); return DETAILS[id] ? respond(200, DETAILS[id]) : respond(200, { evidence: [] }) } }
+  const results = []
+  results.push(await run(good, TOP, async ({ snap, view, doc, button }) => {
+    snap('closed')
+    button(view()).props.onClick(); snap('opened'); await settle(); snap('read')
+    doc.fire('mousedown', { target: 'inside' }); snap('press inside'); doc.fire('keydown', { key: 'Enter' }); snap('other key')
+    doc.fire('keydown', { key: 'Escape' }); snap('escape'); button(view()).props.onClick(); snap('reopened')
+    doc.fire('mousedown', { target: 'outside' }); snap('press outside'); button(view()).props.onClick()
+    all(view(), i => i.type === 'button' && i.props['aria-label'] === 'Close sources')[0].props.onClick(); snap('close button')
+  }))
+  results.push(await run({ '/api/knowledge-graph/nodes/': url => (url.endsWith('/n2') ? respond(500, {}) : respond(200, DETAILS[decodeURIComponent(url.split('/').pop())] ?? { evidence: [] })) }, TOP, async ({ snap, view, button }) => {
+    button(view()).props.onClick(); snap('opened'); await settle(); snap('partial')
+    all(view(), i => i.type === 'button' && flat(i) === 'Try again')[0].props.onClick(); snap('retry'); await settle(); snap('retried')
+  }))
+  results.push(await run(good, [], async ({ snap, view, button }) => { button(view()).props.onClick(); snap('opened'); await settle(); snap('empty') }))
+  return results
+}
+async function proveSourcesAlone(source, label = 'sources alone') {
+  const before = await popoverTrace(baseSource(SOURCES_UI, FOLD_BASE), false)
+  const after = await popoverTrace(source, true)
+  eq(after.length, before.length, `${label}: the same three visits`)
+  after.forEach((visit, index) => {
+    deepEq(visit.trace.map(([name]) => name), before[index].trace.map(([name]) => name), `${label}: visit ${index}: the same steps`)
+    visit.trace.forEach(([name, dom], step) => same(dom, before[index].trace[step][1], `${label}: visit ${index}: ${name}: the popover's markup is what it was before the fold`))
+    deepEq(visit.calls, before[index].calls, `${label}: visit ${index}: the same requests`)
+    deepEq(visit.listeners, before[index].listeners, `${label}: visit ${index}: the same document listeners`)
+  })
+  ok(before[0].trace.length >= 9 && before[0].trace.some(([, dom]) => dom.includes('data-studio-p2-source')), `${label}: (sanity) the base trace shows the panel and its rows`)
+  // The header menu, its helper and its sheet are not touched: each flag alone renders them as before.
+  for (const rel of ['components/knowledge/studio-knowledge-sources-menu.tsx', MENU_LIB, 'components/knowledge/studio-knowledge-header-actions.css']) {
+    same(read(rel), baseSource(rel, FOLD_BASE), `${label}: ${rel} is byte for byte what it was`)
+  }
+}
+
+// ---------------------------------------------------------------- 2a''. the header menu that holds the Sources list (both flags on)
+async function proveSourcesMenuUi(source, label = 'sources menu') {
+  const doc = fakeDocument()
+  const nodeRoute = url => { const id = decodeURIComponent(url.split('/').pop()); return DETAILS[id] ? respond(200, DETAILS[id]) : respond(200, { evidence: [] }) }
+  const fetchFn = createFetch({ '/api/knowledge-graph/nodes/': nodeRoute })
+  const globals = fetch => ({ document: doc, fetch, AbortController, Promise, Set, Map, Array, Object, JSON, Intl, encodeURIComponent, decodeURIComponent, structuredClone })
+  const real = new Set([LIB, MENU_LIB, SOURCES_MENU, SOURCES_PARTS, SOURCES_HOOK])
+  const mk = (fetch, document = doc) => {
+    const world = createWorld({ real, sources: { [SOURCES_MENU]: source }, stubs: STUBS, globals: { ...globals(fetch), document } })
+    const { StudioP2SourcesMenu } = world.load(SOURCES_MENU)
+    return { world, StudioP2SourcesMenu }
+  }
+  const { world, StudioP2SourcesMenu } = mk(fetchFn)
+  const calls = []
+  const baseProps = { entities: TOP, sessions: 3, importing: false, loading: false, onImport: () => calls.push('import'), onRefresh: () => calls.push('refresh'), settingsHref: '/settings/knowledge-graph' }
+  let props = baseProps
+  const view = next => { if (next) props = next; return expand(world.runtime.render(StudioP2SourcesMenu, props)) }
+  const trigger = t => all(t, i => i.type === 'button' && i.props.className === 'sksm-trigger')[0]
+  const rootOf = t => all(t, i => i.props?.['data-studio-p2-sources-menu'] === 'true')[0]
+  const panelOf = t => all(t, i => i.props?.['data-studio-p2-sources-panel'])[0]
+  const actionsOf = t => all(t, i => i.props?.['data-studio-p2-sources-actions'])[0]
+  const itemsOf = t => [].concat(actionsOf(t).props.children).filter(Boolean)
+  const focused = []
+  let tree = view()
+  ok(rootOf(tree), `${label}: the control carries the menu marker (the sheet hangs on it)`)
+  ok(trigger(tree), `${label}: its button is the header menu's trigger`)
+  rootOf(tree).props.ref.current = { contains: node => node === 'inside' }
+  trigger(tree).props.ref.current = { focus: () => focused.push(1) }
+  // closed: ONE control, the header menu's trigger
+  eq(all(tree, i => i.type === 'button').length, 1, `${label}: closed, the header holds one button`)
+  eq(flat(trigger(tree)), 'Sources 3', `${label}: it says Sources, with the number of sessions that contribute (there at rest, as the header menu has it)`)
+  eq(trigger(tree).props['aria-label'], 'Sources, 3 sessions contribute to your knowledge', `${label}: ...and announces what the number is`)
+  eq(trigger(tree).props['aria-expanded'], false, `${label}: closed at first`)
+  ok(!('aria-controls' in trigger(tree).props) || trigger(tree).props['aria-controls'] === undefined, `${label}: closed, nothing to control`)
+  eq('aria-haspopup' in trigger(tree).props, false, `${label}: a disclosure, not a menu: no aria-haspopup`)
+  eq(trigger(tree).props.type, 'button', `${label}: a plain button`)
+  eq(all(trigger(tree), i => i.type === 'Plug').length, 1, `${label}: the mock's plug icon`)
+  eq(all(trigger(tree), i => i.type === 'ChevronDown').length, 1, `${label}: ...and the chevron`)
+  eq(rootOf(tree).props.className, 'sksm', `${label}: the header menu's wrapper class (its sheet positions it)`)
+  eq(rootOf(tree).props['data-studio-knowledge-sources'], 'true', `${label}: it is the header-actions Sources control...`)
+  eq(rootOf(tree).props['data-studio-p2-sources'], 'true', `${label}: ...and the Second Brain one: the same element`)
+  eq(all(tree, i => i.props?.['data-studio-p2-sources-panel']).length, 0, `${label}: no panel while closed`)
+  eq(fetchFn.calls.length, 0, `${label}: nothing is read before it is opened`)
+  eq(all(view({ ...baseProps, sessions: undefined }), i => i.props?.className === 'sksm-count').length, 0, `${label}: no number until the stats are loaded`)
+  eq(trigger(view()).props['aria-label'], 'Sources', `${label}: no number, no count in the name`)
+  eq(flat(trigger(view({ ...baseProps, sessions: 12345 }))), 'Sources 12,345', `${label}: grouped`)
+  eq(flat(trigger(view({ ...baseProps, sessions: 0 }))), 'Sources 0', `${label}: zero is a number`)
+  view(baseProps)
+  // open
+  trigger(view()).props.onClick(); tree = view()
+  eq(trigger(tree).props['aria-expanded'], true, `${label}: open after a click`)
+  eq(panelOf(tree).props.id, trigger(tree).props['aria-controls'], `${label}: aria-controls names the panel`)
+  eq(panelOf(tree).type, 'section', `${label}: the panel is a section...`)
+  eq(panelOf(tree).props['aria-label'], 'Sources feeding your graph', `${label}: ...named for what it lists`)
+  eq(all(tree, i => i.props?.role === 'menu' || i.props?.role === 'menuitem').length, 0, `${label}: not a role="menu" (it holds read-only rows)`)
+  deepEq([].concat(panelOf(tree).props.children).filter(Boolean).map(child => child.type + (child.props?.['data-studio-p2-sources-body'] ? '[body]' : child.props?.['data-studio-p2-sources-actions'] ? '[actions]' : '')), ['header', 'div[body]', 'footer', 'div[actions]'], `${label}: title and close, the sources, "Add a file or link", the actions: the mock's order`)
+  match(flat(all(tree, i => i.props?.['data-studio-p2-sources-body'])[0]), /Reading the evidence behind your strongest entities…/, `${label}: reading state first, in the scrolling body`)
+  await settle(); tree = view()
+  deepEq(fetchFn.calls.map(c => c.url), TOP.slice(0, 8).map(e => `/api/knowledge-graph/nodes/${e.node_id}`), `${label}: one detail read for each of the 8 strongest entities, no more`)
+  ok(fetchFn.calls.every(c => c.method === 'GET'), `${label}: every read is a GET (nothing writes)`)
+  const body = all(tree, i => i.props?.['data-studio-p2-sources-body'])[0]
+  deepEq(all(body, i => i.props?.['data-studio-p2-source'] === 'true').map(r => flat(r)), ['q3.pdf Uploaded document · 3 passages', 'notes.docx Uploaded document · 1 passage', 'Web research Web research · 1 passage'], `${label}: the real sources, in the body`)
+  eq(all(tree, i => i.props?.['data-studio-p2-sources-count']).length, 0, `${label}: the number on the button is the sessions': no second count`)
+  const upload = all(tree, i => i.props?.['data-studio-p2-sources-upload'])[0]
+  eq(upload.type, 'Link', `${label}: the upload entry is a link`)
+  eq(upload.props.href, '/builder?session_id=new', `${label}: ...to a fresh Studio session`)
+  match(flat(panelOf(tree)), /Uploads live in the chat composer in Studio\. Nothing is added from this page\./, `${label}: says where uploads live`)
+  nomatch(flat(tree), /Connections|This Mac|Include for Director|Remove|Drive|Dropbox/i, `${label}: no simulated connections or write controls`)
+  eq(all(tree, i => i.type === 'input' || i.type === 'Input').length, 0, `${label}: no inputs`)
+  eq(actionsOf(tree).props.role, 'group', `${label}: the actions are a group...`)
+  eq(actionsOf(tree).props['aria-label'], 'Knowledge actions', `${label}: ...named`)
+  deepEq(itemsOf(tree).map(item => [item.type, flat(item)]), [
+    ['button', 'Import past sessions Add eligible past sessions to your knowledge'], ['button', 'Refresh Reload the map and the counts'], ['Link', 'Knowledge settings Turn Knowledge on or off, or delete what it holds'],
+  ], `${label}: Import past sessions, Refresh, Knowledge settings: the header menu's three, in its order`)
+  deepEq(itemsOf(tree).map(item => all(item, i => ['Import', 'RefreshCw', 'Settings'].includes(i.type)).map(i => i.type)), [['Import'], ['RefreshCw'], ['Settings']], `${label}: their icons`)
+  eq(itemsOf(tree)[2].props.href, '/settings/knowledge-graph', `${label}: settings goes to the page's own address`)
+  ok(itemsOf(tree).slice(0, 2).every(item => item.props.type === 'button'), `${label}: the two actions are plain buttons`)
+  eq(all(tree, i => i.type === 'button' && i.props['aria-label'] === 'Close sources').length, 1, `${label}: one close button`)
+  deepEq(calls, [], `${label}: opening starts nothing`)
+  // choosing: exactly that one thing, and the panel closes
+  itemsOf(tree)[0].props.onClick(); tree = view()
+  deepEq(calls.splice(0), ['import'], `${label}: Import past sessions starts the import (the page decides how)`)
+  eq(trigger(tree).props['aria-expanded'], false, `${label}: ...and closes the panel`)
+  trigger(tree).props.onClick(); tree = view(); itemsOf(tree)[1].props.onClick(); tree = view()
+  deepEq(calls.splice(0), ['refresh'], `${label}: Refresh reloads`)
+  eq(trigger(tree).props['aria-expanded'], false, `${label}: ...and closes the panel`)
+  trigger(tree).props.onClick(); tree = view()
+  eq(typeof itemsOf(tree)[2].props.onClick, 'function', `${label}: Knowledge settings is a link that closes the panel as it goes`)
+  itemsOf(tree)[2].props.onClick(); tree = view()
+  deepEq(calls, [], `${label}: Knowledge settings is a link: nothing is called`)
+  eq(trigger(tree).props['aria-expanded'], false, `${label}: ...and the panel closes as it opens the page`)
+  eq(fetchFn.calls.length, 8, `${label}: reopening does not read again`)
+  trigger(tree).props.onClick(); tree = view()
+  eq(all(all(tree, i => i.props?.['data-studio-p2-sources-body'])[0], i => i.props?.['data-studio-p2-source'] === 'true').length, 3, `${label}: the list is kept`)
+  // busy rules are the header menu's
+  tree = view({ ...baseProps, importing: true })
+  deepEq(itemsOf(tree).map(item => Boolean(item.props.disabled)), [true, true, false], `${label}: importing: Import and Refresh are off`)
+  eq(flat(itemsOf(tree)[0]).startsWith('Importing…'), true, `${label}: ...and Import says it is running`)
+  eq(trigger(tree).props['aria-busy'], true, `${label}: the button is busy`)
+  eq(all(trigger(tree), i => i.type === 'Loader2').length, 1, `${label}: ...with the spinner in place of the icon`)
+  eq(all(trigger(tree), i => i.type === 'Plug').length, 0, `${label}: ...no plug then`)
+  tree = view({ ...baseProps, loading: true })
+  deepEq(itemsOf(tree).map(item => Boolean(item.props.disabled)), [false, true, false], `${label}: loading: only Refresh is off`)
+  eq(flat(itemsOf(tree)[1]).startsWith('Refreshing…'), true, `${label}: ...and says it is refreshing`)
+  eq(trigger(tree).props['aria-busy'], undefined, `${label}: loading is not the button's busy state`)
+  tree = view(baseProps)
+  eq(trigger(tree).props['aria-busy'], undefined, `${label}: idle: not busy`)
+  deepEq(itemsOf(tree).map(item => Boolean(item.props.disabled)), [false, false, false], `${label}: idle: all three are on`)
+  // closing: Escape returns focus to the button; a press outside does not steal it; a press inside stays open; focus leaving closes unless the blur has no target
+  doc.fire('pointerdown', { target: 'inside' }); tree = view()
+  eq(trigger(tree).props['aria-expanded'], true, `${label}: a press inside keeps it open`)
+  doc.fire('keydown', { key: 'Enter' }); tree = view()
+  eq(trigger(tree).props['aria-expanded'], true, `${label}: another key keeps it open`)
+  eq(focused.length, 0, `${label}: (nothing has taken focus yet)`)
+  doc.fire('keydown', { key: 'Escape' }); tree = view()
+  eq(trigger(tree).props['aria-expanded'], false, `${label}: Escape closes`)
+  eq(focused.length, 1, `${label}: ...and returns focus to the button`)
+  eq((doc.listeners.get('keydown') ?? []).length + (doc.listeners.get('pointerdown') ?? []).length, 0, `${label}: closed, no document listeners are left`)
+  trigger(tree).props.onClick(); tree = view()
+  eq((doc.listeners.get('keydown') ?? []).length + (doc.listeners.get('pointerdown') ?? []).length, 2, `${label}: open, one key and one press listener`)
+  doc.fire('pointerdown', { target: 'outside' }); tree = view()
+  eq(trigger(tree).props['aria-expanded'], false, `${label}: a press outside closes`)
+  eq(focused.length, 1, `${label}: ...without moving focus`)
+  trigger(tree).props.onClick(); tree = view()
+  all(tree, i => i.type === 'button' && i.props['aria-label'] === 'Close sources')[0].props.onClick(); tree = view()
+  eq(trigger(tree).props['aria-expanded'], false, `${label}: the close button closes`)
+  eq(focused.length, 2, `${label}: ...and returns focus`)
+  trigger(tree).props.onClick(); tree = view()
+  rootOf(tree).props.onBlur({ relatedTarget: 'inside' }); tree = view()
+  eq(trigger(tree).props['aria-expanded'], true, `${label}: focus moving inside keeps it open`)
+  rootOf(tree).props.onBlur({ relatedTarget: null }); tree = view()
+  eq(trigger(tree).props['aria-expanded'], true, `${label}: a blur with no target (a click on a button that takes no focus, as in Safari) does not close it before the click lands`)
+  rootOf(tree).props.onBlur({ relatedTarget: 'outside' }); tree = view()
+  eq(trigger(tree).props['aria-expanded'], false, `${label}: focus leaving closes it`)
+  rootOf(tree).props.onBlur({ relatedTarget: 'outside' }); tree = view()
+  eq(trigger(tree).props['aria-expanded'], false, `${label}: a blur while closed is nothing`)
+  // a refreshed graph with other strongest entities reads again the next time the panel is open
+  const readsBefore = fetchFn.calls.length
+  view({ ...baseProps, entities: TOP.slice(1) })
+  trigger(view()).props.onClick(); view(); await settle()
+  eq(fetchFn.calls.length, readsBefore + 8, `${label}: other strongest entities are read when the panel is next opened`)
+  deepEq(fetchFn.calls.slice(readsBefore).map(c => c.url), TOP.slice(1, 9).map(e => `/api/knowledge-graph/nodes/${e.node_id}`), `${label}: ...those 8`)
+  view(baseProps)
+  // a failed read: partial note, the sources that were read are still listed, Try again reads again; an empty graph says so and reads nothing
+  const failing = createFetch({ '/api/knowledge-graph/nodes/': url => (url.endsWith('/n2') ? respond(500, {}) : nodeRoute(url)) })
+  const second = mk(failing, fakeDocument())
+  const view2 = () => expand(second.world.runtime.render(second.StudioP2SourcesMenu, baseProps))
+  let t2 = view2()
+  trigger(t2).props.ref.current = { focus() {} }
+  trigger(t2).props.onClick(); view2(); await settle(); t2 = view2()
+  eq(all(t2, i => i.props?.['data-studio-p2-sources-state'] === 'partial').length, 1, `${label}: an unreadable entity shows the partial note`)
+  eq(all(t2, i => i.props?.['data-studio-p2-source'] === 'true').length, 2, `${label}: ...while the sources that were read are still listed`)
+  const before = failing.calls.length
+  all(t2, i => i.type === 'button' && flat(i) === 'Try again')[0].props.onClick(); view2(); await settle()
+  eq(failing.calls.length, before + 8, `${label}: Try again reads the eight entities again`)
+  const emptyFetch = createFetch({ '/api/knowledge-graph/nodes/': respond(200, { evidence: [] }) })
+  const third = mk(emptyFetch, fakeDocument())
+  const view3 = () => expand(third.world.runtime.render(third.StudioP2SourcesMenu, { ...baseProps, entities: [] }))
+  let t3 = view3()
+  trigger(t3).props.onClick(); view3(); await settle(); t3 = view3()
+  match(flat(t3), /No sources are recorded in your graph yet\./, `${label}: an empty graph says so`)
+  eq(emptyFetch.calls.length, 0, `${label}: with no entities there is nothing to read`)
+  eq(itemsOf(t3).length, 3, `${label}: ...and the three actions are still there`)
+  // leaving the page stops a read that is still in flight
+  const signals = []
+  const hanging = (url, init = {}) => { signals.push(init.signal); return new Promise(() => {}) }
+  const fourth = mk(hanging, fakeDocument())
+  const view4 = () => expand(fourth.world.runtime.render(fourth.StudioP2SourcesMenu, baseProps))
+  trigger(view4()).props.onClick(); view4(); await settle()
+  eq(signals.length, 8, `${label}: eight reads are in flight`)
+  ok(signals.every(signal => signal && signal.aborted === false), `${label}: ...none stopped`)
+  fourth.world.runtime.unmount()
+  ok(signals.every(signal => signal.aborted === true), `${label}: leaving the page stops them`)
 }
 
 // ---------------------------------------------------------------- 2b. the deck list hook + provider (SB-10)
@@ -656,13 +909,75 @@ async function provePage(source, label = 'page') {
   match(source, /const P2_SB = process\.env\.NEXT_PUBLIC_STUDIO_P2_SECOND_BRAIN === "true" && STUDIO_SHELL/, `${label}: the page's rule is the helper's (exact "true" AND the shell)`)
 }
 
+/** The Sources fold: each flag alone is the page it was (same trees, same requests), both on is ONE Sources control on the page's own numbers and handlers. */
+async function provePageFold(source, label = 'page fold') {
+  const SHELL = { NEXT_PUBLIC_STUDIO_V4_SHELL: 'true' }
+  const previous = baseSource(PAGE, FOLD_BASE)
+  const CONTROLS = ['StudioP2Sources', 'StudioP2SourcesMenu', 'StudioKnowledgeSourcesMenu']
+  const controls = tree => all(tree, i => CONTROLS.includes(i.type)).map(i => i.type)
+  for (const [name, env] of [
+    ['neither flag', SHELL], ['the Second Brain flag only', { ...SHELL, [FLAG]: 'true' }], ['the header-actions flag only', { ...SHELL, [HEADER_FLAG]: 'true' }],
+    ['both flags without the shell (the classic page)', { NEXT_PUBLIC_STUDIO_V4_SHELL: 'false', [FLAG]: 'true', [HEADER_FLAG]: 'true' }],
+  ]) {
+    const got = await pageStates(source, env)
+    const was = await pageStates(previous, env)
+    same(ser(got.loaded), ser(was.loaded), `${label}: ${name}: the loaded page is what it was`)
+    same(ser(got.selected), ser(was.selected), `${label}: ${name}: the selected page is what it was`)
+    deepEq(got.calls, was.calls, `${label}: ${name}: the same requests`)
+  }
+  const wasP2 = await pageStates(previous, { ...SHELL, [FLAG]: 'true' })
+  const wasHeader = await pageStates(previous, { ...SHELL, [HEADER_FLAG]: 'true' })
+  deepEq(controls(wasP2.loaded), ['StudioP2Sources'], `${label}: (sanity) before the fold the Second Brain flag alone had the popover`)
+  deepEq(controls(wasHeader.loaded), ['StudioKnowledgeSourcesMenu'], `${label}: (sanity) before the fold the header-actions flag alone had the menu`)
+  const BOTH = { ...SHELL, [FLAG]: 'true', [HEADER_FLAG]: 'true' }
+  deepEq(controls((await pageStates(previous, BOTH)).loaded), ['StudioP2Sources', 'StudioKnowledgeSourcesMenu'], `${label}: (sanity) before the fold both flags drew two Sources controls`)
+  // both on
+  const both = await pageStates(source, BOTH)
+  deepEq(controls(both.loaded), ['StudioP2SourcesMenu'], `${label}: both flags: ONE Sources control, the one that holds the list`)
+  deepEq(controls(both.selected), ['StudioP2SourcesMenu'], `${label}: ...also with an entity selected`)
+  const menu = all(both.loaded, i => i.type === 'StudioP2SourcesMenu')[0]
+  deepEq(menu.props.entities, STATS.top_entities, `${label}: it is fed the graph's own most reinforced entities`)
+  eq(menu.props.sessions, STATS.sessions_consolidated, `${label}: ...and the number of sessions that contribute`)
+  const alone = await pageStates(source, { ...SHELL, [HEADER_FLAG]: 'true' })
+  const { entities, ...rest } = menu.props
+  const plain = all(alone.loaded, i => i.type === 'StudioKnowledgeSourcesMenu')[0]
+  same(ser(rest), ser(plain.props), `${label}: it gets the same numbers and handlers as the header menu alone gets`)
+  const row = all(both.loaded, i => i.props?.['data-studio-knowledge-role'] === 'header-tools')[0]
+  ok(row, `${label}: both flags: the header's row is the header-tools one`)
+  const kids = [].concat(row.props.children).filter(child => child && typeof child === 'object')
+  deepEq([kids[0].type, kids[1].props['data-studio-knowledge-role']], ['StudioP2SourcesMenu', 'search'], `${label}: the Sources control comes first, then the search field`)
+  eq(all(row, i => i.type === 'Button' && i.props['aria-label'] !== 'Run search').length, 0, `${label}: no Refresh, Import or settings button beside it (the search field's own submit is the only button)`)
+  eq(kids.length, 2, `${label}: nothing else in the row`)
+  const p2Only = await pageStates(source, { ...SHELL, [FLAG]: 'true' })
+  deepEq(both.calls, p2Only.calls, `${label}: both flags: the same requests as the Second Brain flag alone (nothing is read for the sources before the panel is opened)`)
+  eq(both.calls.filter(c => c.url.startsWith('/api/knowledge-graph/nodes/')).length, 1, `${label}: only the selected entity's detail is read`)
+  const provider = tree => all(tree, i => i.type === 'StudioP2DeckProvider')[0]
+  eq(provider(both.loaded).props.enabled, false, `${label}: both flags: the deck list is still not wanted before a selection`)
+  eq(provider(both.selected).props.enabled, true, `${label}: ...and is after it`)
+  // the handlers are the page's: Refresh reads the stats again, Import starts the import
+  const { fetchFn, render } = pageWorld(source, BOTH)
+  render(); await settle(); let tree = render()
+  const live = () => all(tree, i => i.type === 'StudioP2SourcesMenu')[0]
+  const statsReads = () => fetchFn.calls.filter(c => c.url.startsWith('/api/knowledge-graph/stats')).length
+  const before = statsReads()
+  eq(live().props.importing, false, `${label}: idle at first`)
+  eq(fetchFn.calls.some(c => c.method === 'POST'), false, `${label}: opening the page writes nothing`)
+  live().props.onRefresh(); await settle(); tree = render()
+  eq(statsReads(), before + 1, `${label}: Refresh reads the stats again`)
+  live().props.onImport(); await settle(); tree = render()
+  deepEq(fetchFn.calls.filter(c => c.method === 'POST').map(c => c.url), ['/api/knowledge-graph/backfill?cursor=0'], `${label}: Import starts the page's import (its first batch request, and nothing else is written)`)
+  match(source, /\{P2_SB && !KNOWLEDGE_HEADER_ACTIONS && <StudioP2Sources entities=\{stats\?\.top_entities \?\? \[\]\} \/>\}/, `${label}: the popover is guarded by the other flag`)
+}
+
 // ---------------------------------------------------------------- 4. the CSS
 function proveCss(source, label = 'css') {
   const root = postcss.parse(source)
-  const MARKERS = ['[data-studio-p2-sources="true"]', '[data-studio-p2-strip="true"]', '[data-studio-p2-decks="true"]', '[data-studio-p2-map="true"]']
+  const MARKERS = ['[data-studio-p2-sources="true"]', '[data-studio-p2-sources-menu="true"]', '[data-studio-p2-strip="true"]', '[data-studio-p2-decks="true"]', '[data-studio-p2-map="true"]']
   let rules = 0
   root.walkRules(rule => {
     rules++
+    // the fold's own pieces (the menu, its scrolling body, its actions) are styled only inside the menu, so the stand-alone popover never picks them up
+    for (const selector of rule.selectors) if (/data-studio-p2-sources-(menu|body|actions)/.test(selector)) ok(selector.includes('[data-studio-p2-sources-menu="true"]'), `${label}: "${selector.slice(0, 110)}" needs the menu marker`)
     for (const selector of rule.selectors) ok(MARKERS.some(m => selector.includes(m)), `${label}: "${selector.slice(0, 90)}" hangs on a P2 marker`)
     for (const selector of rule.selectors) ok(/^\[data-studio-(v4-shell|knowledge-inspector|graph-view)="true"\]/.test(selector), `${label}: "${selector.slice(0, 60)}" is anchored to the shell, the inspector or the graph view`)
   })
@@ -678,6 +993,20 @@ function proveCss(source, label = 'css') {
     ok(light && dark, `${label}: ${token} exists in light and dark in studio-shell.css`)
   }
   ok(/\[data-studio-p2-map="true"\]:fullscreen \{[^}]*height: 100vh/.test(source), `${label}: the map fills the screen in full screen`)
+  // the fold: the panel keeps its title and actions in view while the sources scroll; and every rule that was there before is still there, unchanged (each flag alone looks as before)
+  ok(/\[data-studio-p2-sources-menu="true"\] \[data-studio-p2-sources-panel="true"\] \{ display: flex; flex-direction: column; overflow: hidden; max-height: min\(78vh, 600px\); \}/.test(source), `${label}: the menu's panel is a column that does not scroll as a whole`)
+  ok(/\[data-studio-p2-sources-menu="true"\] \[data-studio-p2-sources-body="true"\] \{ flex: 1 1 auto; min-height: 0; overflow-y: auto;/.test(source), `${label}: ...its sources scroll inside it`)
+  ok(/\[data-studio-p2-sources-actions="true"\] \{ display: flex; flex-direction: column;[^}]*border-top: 1px solid var\(--ss-line\)/.test(source), `${label}: ...and the actions sit under a divider`)
+  ok(/button:disabled \{ opacity: \.55; cursor: default; \}/.test(source), `${label}: a busy action is dimmed`)
+  let narrow = false
+  root.walkAtRules('media', at => { if (at.params === '(max-width: 768px)') at.walkRules(rule => { if (rule.selector === '[data-studio-v4-shell="true"] [data-studio-p2-sources-menu="true"] [data-studio-p2-sources-panel="true"]' && rule.toString().replace(/\s+/g, ' ').includes('{ left: 0; right: auto; max-width: calc(100vw - 96px); }')) narrow = true }) })
+  ok(narrow, `${label}: on a narrow screen the menu's panel hangs from the trigger's left edge and stays clear of the right one`)
+  const keyOf = rule => `${rule.selector.replace(/\s+/g, ' ')}{${rule.nodes.map(node => node.toString().replace(/\s+/g, ' ')).join(';')}}`
+  const have = new Set()
+  root.walkRules(rule => have.add(keyOf(rule)))
+  let before = 0
+  postcss.parse(baseSource(CSS, FOLD_BASE)).walkRules(rule => { before++; ok(have.has(keyOf(rule)), `${label}: the rule is still there, unchanged: ${rule.selector.slice(0, 100)}`) })
+  ok(before >= 30, `${label}: (sanity) the rules of the sheet as it was`)
   ok(/:-webkit-full-screen/.test(source), `${label}: ...also in the prefixed form`)
 }
 
@@ -700,6 +1029,15 @@ function proveEnv(source, label = 'env') {
   match(body, /BUILD TIME/, `${label}: says it is read at build time`)
   match(body, /Not built: SB-01 \(deck nodes in the graph\) and SB-12 \(Ask Knowledge\) are backlog by ruling/, `${label}: says what is not built (SB-01, SB-12)`)
   match(body, /DET-12/, `${label}: says who owns the "+ Presentation" button`)
+  match(body, /NEXT_PUBLIC_STUDIO_KNOWLEDGE_HEADER_ACTIONS also on the header\s+# still shows ONE "Sources" control: that flag's menu holds this read-only list too/, `${label}: says both flags give one Sources control`)
+  nomatch(body, /two "Sources" controls/, `${label}: no longer says the header shows two`)
+  const header = (() => {
+    const at2 = lines.findIndex(line => line.trim() === 'NEXT_PUBLIC_STUDIO_KNOWLEDGE_HEADER_ACTIONS="false"')
+    const out = []
+    for (let i = at2 - 1; i >= 0 && lines[i].startsWith('#'); i--) out.unshift(lines[i])
+    return out.join(' ')
+  })()
+  match(header, /With NEXT_PUBLIC_STUDIO_P2_SECOND_BRAIN also on, the same "Sources" button opens one panel that lists the sources feeding the graph above those three actions \(no second Sources button\)/, `${label}: the header-actions flag's note says the same`)
 }
 
 // ---------------------------------------------------------------- run
@@ -710,10 +1048,13 @@ async function proveAll(replaced = {}, only = null) {
   let lib
   await run('lib', async () => { lib = proveLib(s(LIB)) })
   await run('sources', () => proveSourcesUi(s(SOURCES_UI)))
+  await run('sources', () => proveSourcesAlone(s(SOURCES_UI)))
+  await run('sources', () => proveSourcesMenuUi(s(SOURCES_MENU)))
   await run('decks', () => proveDeckHook(s(HOOK), s(PROVIDER)))
   await run('inspector', () => proveInspector(s(INSPECTOR)))
   await run('graph', async () => { await proveGraph(s(GRAPH)); await proveGraphFullscreen(s(GRAPH)) })
   await run('page', () => provePage(s(PAGE)))
+  await run('page', () => provePageFold(s(PAGE)))
   await run('css', () => proveCss(s(CSS)))
   await run('env', () => proveEnv(s(ENV)))
   return lib
@@ -756,20 +1097,67 @@ const MUTANTS = [
   [LIB, 'one slide reads slides', "slideCount === 1 ? 'slide' : 'slides'", "slideCount === 1 ? 'slides' : 'slides'"],
   [LIB, 'upload hint loses its promise', ' Nothing is added from this page.', ''],
   // the Sources popover
-  [SOURCES_UI, 'reads again on every open', 'if (!open || startedRef.current === attempt) return', 'if (!open) return'],
-  [SOURCES_UI, 'reads every top entity', 'entities.slice(0, STUDIO_SB_MAX_SOURCE_ENTITIES)', 'entities'],
+  [SOURCES_HOOK, 'reads again on every open', 'if (!open || startedRef.current === attempt) return', 'if (!open) return'],
+  [SOURCES_HOOK, 'reads every top entity', 'entities.slice(0, STUDIO_SB_MAX_SOURCE_ENTITIES)', 'entities'],
+  [SOURCES_HOOK, 'a new entity list is not read', '    startedRef.current = -1\n    setPhase("idle")\n  }, [idsKey])', '    setPhase("idle")\n  }, [idsKey])'],
+  [SOURCES_HOOK, 'reads before it is opened', 'if (!open || startedRef.current === attempt) return', 'if (startedRef.current === attempt) return'],
+  [SOURCES_HOOK, 'a failed read reads as a full list', 'unreadable += 1', ''],
+  [SOURCES_HOOK, 'unmount does not stop the read', 'abortRef.current?.abort()\n    }\n  }, [])', '}\n  }, [])'],
   [SOURCES_UI, 'Escape does not close', 'event.key === "Escape"', 'event.key === "Enter"'],
   [SOURCES_UI, 'a press inside closes', '!rootRef.current.contains(event.target as Node)', 'rootRef.current.contains(event.target as Node)'],
   [SOURCES_UI, 'focus not returned', 'if (returnFocus) buttonRef.current?.focus()', 'if (!returnFocus) buttonRef.current?.focus()'],
   [SOURCES_UI, 'keydown listener leaks', 'document.removeEventListener("keydown", onKey)', ''],
   [SOURCES_UI, 'count shown after a partial read', 'phase === "ready" && failed === 0', 'phase === "ready"'],
-  [SOURCES_UI, 'upload link goes elsewhere', 'href={STUDIO_SB_UPLOAD_HREF}', 'href="/builder"'],
-  [SOURCES_UI, 'reads with POST', 'fetch(`/api/knowledge-graph/nodes/${encodeURIComponent(id)}`, { signal: controller.signal })', 'fetch(`/api/knowledge-graph/nodes/${encodeURIComponent(id)}`, { method: "POST", signal: controller.signal })'],
+  [SOURCES_PARTS, 'upload link goes elsewhere', 'href={STUDIO_SB_UPLOAD_HREF}', 'href="/builder"'],
+  [SOURCES_HOOK, 'reads with POST', 'fetch(`/api/knowledge-graph/nodes/${encodeURIComponent(id)}`, { signal: controller.signal })', 'fetch(`/api/knowledge-graph/nodes/${encodeURIComponent(id)}`, { method: "POST", signal: controller.signal })'],
   [SOURCES_UI, 'aria-expanded inverted', 'aria-expanded={open}', 'aria-expanded={!open}'],
   [SOURCES_UI, 'aria-controls dropped', 'aria-controls={open ? panelId : undefined}', 'aria-controls={undefined}'],
-  [SOURCES_UI, 'no partial note', '{phase === "ready" && failed > 0 && (', '{false && ('],
-  [SOURCES_UI, 'no empty state', 'sources.length === 0 &&', 'sources.length === 99 &&'],
-  [SOURCES_UI, 'a Connections entry appears', '<footer>', '<footer><span>Connections</span>'],
+  [SOURCES_PARTS, 'no partial note', '{phase === "ready" && failed > 0 && (', '{false && ('],
+  [SOURCES_PARTS, 'no empty state', 'sources.length === 0 &&', 'sources.length === 99 &&'],
+  [SOURCES_PARTS, 'a Connections entry appears', '<footer>', '<footer><span>Connections</span>'],
+  [SOURCES_PARTS, 'the partial note has no retry', 'onClick={onRetry}', 'onClick={() => undefined}'],
+  [SOURCES_PARTS, 'passages are not counted', '{source.kind} · {studioPassagesText(source.passages)}', '{source.kind}'],
+  [SOURCES_PARTS, 'no reading state', '{phase !== "ready" && <p role="status"', '{false && <p role="status"'],
+  [SOURCES_UI, 'the popover loses its marker', '<div ref={rootRef} data-studio-p2-sources="true">', '<div ref={rootRef}>'],
+  [SOURCES_UI, 'the popover reads before it is opened', 'useStudioP2Sources(entities, open)', 'useStudioP2Sources(entities, true)'],
+  // the header menu that holds the Sources list (both flags on)
+  [SOURCES_MENU, 'aria-expanded inverted', 'aria-expanded={open}', 'aria-expanded={!open}'],
+  [SOURCES_MENU, 'aria-controls dropped', 'aria-controls={open ? panelId : undefined}', 'aria-controls={undefined}'],
+  [SOURCES_MENU, 'the number is not announced', 'aria-label={sourcesButtonLabel(sessions)}', 'aria-label={SOURCES_LABEL}'],
+  [SOURCES_MENU, 'a number that is not there', '{count !== null && <span className="sksm-count">', '{<span className="sksm-count">'],
+  [SOURCES_MENU, 'the number is the source count', 'new Intl.NumberFormat().format(count)', 'String(sources.length)'],
+  [SOURCES_MENU, 'busy follows loading', 'aria-busy={importing || undefined}', 'aria-busy={loading || undefined}'],
+  [SOURCES_MENU, 'no spinner while importing', '{importing ? <Loader2 size={15} className="sksm-spin" aria-hidden="true" /> : <Plug size={15} aria-hidden="true" />}', '<Plug size={15} aria-hidden="true" />'],
+  [SOURCES_MENU, 'busy states swapped', 'sourcesMenuItems({ importing, loading })', 'sourcesMenuItems({ importing: loading, loading: importing })'],
+  [SOURCES_MENU, 'reads before it is opened', 'useStudioP2Sources(entities, open)', 'useStudioP2Sources(entities, true)'],
+  [SOURCES_MENU, 'always open', '{open && (\n        <section', '{(\n        <section'],
+  [SOURCES_MENU, 'Escape does not close', 'event.key === "Escape"', 'event.key === "Enter"'],
+  [SOURCES_MENU, 'focus not returned', 'if (returnFocus) trigger.current?.focus()', 'if (!returnFocus) trigger.current?.focus()'],
+  [SOURCES_MENU, 'a press inside closes', 'if (!root.current?.contains(event.target as Node)) close(false)', 'if (root.current?.contains(event.target as Node)) close(false)'],
+  [SOURCES_MENU, 'listens to the wrong event', 'document.addEventListener("pointerdown", outside)', 'document.addEventListener("click", outside)'],
+  [SOURCES_MENU, 'the key listener leaks', 'document.removeEventListener("keydown", onKey)', ''],
+  [SOURCES_MENU, 'the press listener leaks', 'document.removeEventListener("pointerdown", outside)', ''],
+  [SOURCES_MENU, 'a blur with no target closes before the click lands', 'if (open && next && !root.current?.contains(next)) setOpen(false)', 'if (open && !root.current?.contains(next)) setOpen(false)'],
+  [SOURCES_MENU, 'focus leaving keeps it open', 'if (open && next && !root.current?.contains(next)) setOpen(false)', 'if (open && next && !root.current?.contains(next)) {}'],
+  [SOURCES_MENU, 'focus moving inside closes', 'if (open && next && !root.current?.contains(next)) setOpen(false)', 'if (open) setOpen(false)'],
+  [SOURCES_MENU, 'the close button does nothing', 'onClick={() => close(true)}', 'onClick={() => undefined}'],
+  [SOURCES_MENU, 'choosing leaves the panel open', 'const choose = (action: SourcesAction) => { setOpen(false); if', 'const choose = (action: SourcesAction) => { if'],
+  [SOURCES_MENU, 'choosing starts both', 'if (action === "import") onImport(); else if (action === "refresh") onRefresh() }', 'onImport(); onRefresh() }'],
+  [SOURCES_MENU, 'the actions are swapped', 'if (action === "import") onImport(); else if (action === "refresh") onRefresh() }', 'if (action === "import") onRefresh(); else if (action === "refresh") onImport() }'],
+  [SOURCES_MENU, 'settings does not close the panel', 'href={settingsHref} onClick={() => setOpen(false)}', 'href={settingsHref}'],
+  [SOURCES_MENU, 'settings goes elsewhere', 'href={settingsHref}', 'href="/settings"'],
+  [SOURCES_MENU, 'a busy action can be pressed', 'disabled={item.disabled}', 'disabled={false}'],
+  [SOURCES_MENU, 'the panel is a menu', '<section id={panelId}', '<section role="menu" id={panelId}'],
+  [SOURCES_MENU, 'the button claims a menu', 'className="sksm-trigger"', 'className="sksm-trigger" aria-haspopup="menu"'],
+  [SOURCES_MENU, 'the actions are menu items', 'role="group" aria-label={STUDIO_SB_WORDS.sourcesActions}', 'role="menu" aria-label={STUDIO_SB_WORDS.sourcesActions}'],
+  [SOURCES_MENU, 'the actions group is unnamed', 'aria-label={STUDIO_SB_WORDS.sourcesActions}', 'aria-label="x"'],
+  [SOURCES_MENU, 'no upload entry', '<StudioP2SourcesUpload />', ''],
+  [SOURCES_MENU, 'the sources are outside the scrolling body', '<div data-studio-p2-sources-body="true">', '<div>'],
+  [SOURCES_MENU, 'icons swapped', 'const ICONS = { import: Import, refresh: RefreshCw, settings: Settings } as const', 'const ICONS = { import: Settings, refresh: RefreshCw, settings: Import } as const'],
+  [SOURCES_MENU, 'the menu marker is lost', 'data-studio-p2-sources-menu="true"', 'data-studio-p2-sources-menu="false"'],
+  [SOURCES_MENU, 'it is not the header-actions control', 'data-studio-knowledge-sources="true"', 'data-studio-knowledge-menu="true"'],
+  [SOURCES_MENU, 'it is not the Second Brain control', 'data-studio-p2-sources="true"', 'data-studio-p2-sources="false"'],
+  [SOURCES_MENU, 'the wrapper class is lost', 'className="sksm"', 'className="sksm-x"'],
   // the deck list hook + provider
   [HOOK, 'reads again when turned off and on', 'if (!enabled || startedRef.current === attempt) return', 'if (!enabled) return'],
   [HOOK, 'reads while disabled', 'if (!enabled || startedRef.current === attempt) return', 'if (startedRef.current === attempt) return'],
@@ -811,7 +1199,16 @@ const MUTANTS = [
   [GRAPH, 'one gradient for every type', 'id={studioHaloId(entityTypes, type)}', 'id="kg-p2-halo-0"'],
   // the page
   [PAGE, 'flag without the shell', 'process.env.NEXT_PUBLIC_STUDIO_P2_SECOND_BRAIN === "true" && STUDIO_SHELL', 'process.env.NEXT_PUBLIC_STUDIO_P2_SECOND_BRAIN === "true"'],
-  [PAGE, 'Sources without the flag', '{P2_SB && <StudioP2Sources entities={stats?.top_entities ?? []} />}', '{<StudioP2Sources entities={stats?.top_entities ?? []} />}'],
+  [PAGE, 'Sources without the flag', '{P2_SB && !KNOWLEDGE_HEADER_ACTIONS && <StudioP2Sources entities={stats?.top_entities ?? []} />}', '{!KNOWLEDGE_HEADER_ACTIONS && <StudioP2Sources entities={stats?.top_entities ?? []} />}'],
+  [PAGE, 'both flags: two Sources controls', '{P2_SB && !KNOWLEDGE_HEADER_ACTIONS && <StudioP2Sources', '{P2_SB && <StudioP2Sources'],
+  [PAGE, 'both flags: the menu has no sources list', '{KNOWLEDGE_HEADER_ACTIONS && (P2_SB\n', '{KNOWLEDGE_HEADER_ACTIONS && (false\n'],
+  [PAGE, 'the header-actions flag alone gets the sources list', '{KNOWLEDGE_HEADER_ACTIONS && (P2_SB\n', '{KNOWLEDGE_HEADER_ACTIONS && (true\n'],
+  [PAGE, 'the sources menu is fed the map nodes', '<StudioP2SourcesMenu entities={stats?.top_entities ?? []}', '<StudioP2SourcesMenu entities={graph?.nodes ?? []}'],
+  [PAGE, 'the sources menu loses the numbers and handlers', '<StudioP2SourcesMenu entities={stats?.top_entities ?? []} {...sourcesMenuProps} />', '<StudioP2SourcesMenu entities={stats?.top_entities ?? []} />'],
+  [PAGE, 'the plain menu loses the numbers and handlers', '<StudioKnowledgeSourcesMenu {...sourcesMenuProps} />)}', '<StudioKnowledgeSourcesMenu />)}'],
+  [PAGE, 'the number is the entity count', 'sessions: stats?.sessions_consolidated,', 'sessions: stats?.node_count,'],
+  [PAGE, 'Refresh imports', 'onRefresh: () => void loadData(),', 'onRefresh: () => void runImport(),'],
+  [PAGE, 'Import does nothing', 'onImport: KNOWLEDGE_FIXES ? requestImport : runImport,', 'onImport: () => undefined,'],
   [PAGE, 'Sources fed the map nodes', 'entities={stats?.top_entities ?? []}', 'entities={graph?.nodes ?? []}'],
   [PAGE, 'deck list wanted at once', 'enabled={selectedId !== null}', 'enabled={true}'],
   [PAGE, 'provider without the flag', 'P2_SB ? <StudioP2DeckProvider', 'true ? <StudioP2DeckProvider'],
@@ -823,14 +1220,28 @@ const MUTANTS = [
   [CSS, 'an important', 'height: auto; border: 0;', 'height: auto !important; border: 0;'],
   [CSS, 'a hex colour', 'border-radius: 12px; background: var(--ss-panel);', 'border-radius: 12px; background: #ffffff;'],
   [CSS, 'a token that does not exist', 'background: var(--ss-soft);', 'background: var(--ss-nope);'],
+  [CSS, 'a menu rule loses its menu marker', '[data-studio-v4-shell="true"] [data-studio-p2-sources-menu="true"] [data-studio-p2-sources-body="true"] { flex: 1 1 auto;', '[data-studio-v4-shell="true"] [data-studio-p2-sources="true"] [data-studio-p2-sources-body="true"] { flex: 1 1 auto;'],
+  [CSS, 'an actions rule loses every marker', '[data-studio-v4-shell="true"] [data-studio-p2-sources-menu="true"] [data-studio-p2-sources-actions="true"] strong {', '[data-studio-v4-shell="true"] [data-studio-p2-sources-actions="true"] strong {'],
+  [CSS, 'the menu panel scrolls as a whole', 'flex-direction: column; overflow: hidden; max-height: min(78vh, 600px);', 'flex-direction: column; overflow: auto; max-height: min(78vh, 600px);'],
+  [CSS, 'the sources do not scroll', 'flex: 1 1 auto; min-height: 0; overflow-y: auto;', 'flex: 1 1 auto; min-height: 0; overflow-y: visible;'],
+  [CSS, 'no divider over the actions', 'margin-top: 10px; padding-top: 8px; border-top: 1px solid var(--ss-line); }', 'margin-top: 10px; padding-top: 8px; }'],
+  [CSS, 'a busy action is not dimmed', 'button:disabled { opacity: .55; cursor: default; }', 'button:disabled { cursor: default; }'],
+  [CSS, 'the popover rule is changed', '[data-studio-v4-shell="true"] [data-studio-p2-sources="true"] { position: relative; display: inline-flex; }', '[data-studio-v4-shell="true"] [data-studio-p2-sources="true"] { position: relative; display: flex; }'],
+  [CSS, 'the panel runs off a narrow screen', '@media (max-width: 768px) {', '@media (max-width: 20px) {'],
+  [CSS, 'the narrow panel keeps its right edge', '{ left: 0; right: auto; max-width: calc(100vw - 96px); }', '{ left: 0; max-width: calc(100vw - 96px); }'],
+  [CSS, 'the narrow panel runs off the right edge', 'right: auto; max-width: calc(100vw - 96px); }', 'right: auto; }'],
+  [CSS, 'a hex colour in the actions', 'color: var(--ss-text); text-align: left; text-decoration: none; cursor: pointer;', 'color: #123456; text-align: left; text-decoration: none; cursor: pointer;'],
+  [CSS, 'an unknown token in the actions', 'margin-top: 2px; color: var(--ss-accent); }', 'margin-top: 2px; color: var(--ss-nope); }'],
   [CSS, 'full screen is half the screen', ':fullscreen { width: 100vw; height: 100vh;', ':fullscreen { width: 100vw; height: 50vh;'],
   // the env example
   [ENV, 'flag documented on', 'NEXT_PUBLIC_STUDIO_P2_SECOND_BRAIN="false"', 'NEXT_PUBLIC_STUDIO_P2_SECOND_BRAIN="true"'],
   [ENV, 'shell not mentioned', 'Needs the Studio shell\n# (NEXT_PUBLIC_STUDIO_V4_SHELL "true")', 'Needs the Studio shell\n# (the shell)'],
   [ENV, 'build time not mentioned', 'untouched. READ AT BUILD TIME', 'untouched. read later'],
   [ENV, 'backlog rows not mentioned', 'Not built: SB-01', 'Not built: none'],
+  [ENV, 'the fold is not documented', 'still shows ONE "Sources" control: that flag', 'still shows two "Sources" controls: that flag'],
+  [ENV, 'the header-actions note is silent about the fold', 'no second Sources button', 'two Sources buttons'],
 ]
-const ONLY = { [SOURCES_UI]: 'sources', [HOOK]: 'decks', [PROVIDER]: 'decks', [INSPECTOR]: 'inspector', [GRAPH]: 'graph', [PAGE]: 'page', [CSS]: 'css', [ENV]: 'env' }
+const ONLY = { [SOURCES_UI]: 'sources', [SOURCES_PARTS]: 'sources', [SOURCES_MENU]: 'sources', [SOURCES_HOOK]: 'sources', [HOOK]: 'decks', [PROVIDER]: 'decks', [INSPECTOR]: 'inspector', [GRAPH]: 'graph', [PAGE]: 'page', [CSS]: 'css', [ENV]: 'env' }
 let killed = 0
 const survivors = []
 for (const [file, name, from, to] of MUTANTS) {
@@ -845,4 +1256,4 @@ counting = true
 assert.deepEqual(survivors, [], `mutants survived: ${survivors.join('; ')}`)
 eq(killed, MUTANTS.length)
 checks = realChecks + 1
-console.log(`Studio P2 Second Brain (SB-02/05/06/08/10): ${realChecks} checks passed, ${killed}/${MUTANTS.length} mutants killed; no network.`)
+console.log(`Studio P2 Second Brain (SB-02/05/06/08/10, with the Sources fold into the header menu): ${realChecks} checks passed, ${killed}/${MUTANTS.length} mutants killed; no network.`)
