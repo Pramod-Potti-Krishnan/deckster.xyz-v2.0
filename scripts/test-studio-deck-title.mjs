@@ -18,6 +18,7 @@ import path from 'node:path'
 import vm from 'node:vm'
 import ts from 'typescript'
 import { stripDeckTitle, DECK_TITLE_ADDITIONS } from './studio-deck-title-strip.mjs'
+import { stripDuplicateDeck } from './studio-duplicate-deck-strip.mjs' // FRONTEND-2 Pass 3: that flag's lines on the Decks page are not part of this change; its pins read the page without them
 
 const root = path.resolve(new URL('..', import.meta.url).pathname)
 const read = rel => fs.readFileSync(path.join(root, rel), 'utf8')
@@ -27,7 +28,7 @@ const CLEANER = 'lib/studio-template-display-name.ts'
 const CARDS = 'lib/studio-deck-cards.ts'
 const FLAG = 'NEXT_PUBLIC_STUDIO_DECK_TITLE_NAMES'
 const CARDS_V2 = 'NEXT_PUBLIC_STUDIO_DECK_CARDS_V2' // the dev project has it on: a description that repeats the title is not drawn
-const SOURCES = { [PAGE]: read(PAGE), [LIB]: read(LIB) }
+const SOURCES = { [PAGE]: stripDuplicateDeck(PAGE, read(PAGE)), [LIB]: read(LIB) }
 const CLEANER_SOURCE = read(CLEANER), CARDS_SOURCE = read(CARDS)
 
 let checks = 0

@@ -108,6 +108,7 @@ import { studioChatEditPromptActive } from '@/lib/studio-pass2b-chat'
 import { useStudioStaleErrorNotice } from '@/hooks/use-studio-stale-error-notice'
 import { StudioBlockedSendNotice } from '@/components/builder/studio-blocked-send-notice'
 import { StudioSupersededNotice } from '@/components/builder/studio-superseded-notice'
+import { StudioCopiedFromNote } from '@/components/builder/studio-copied-from-note'
 import {
   STUDIO_ONE_LIVE_TAB_ENABLED,
   SUPERSEDED_NOTICE_DETAIL,
@@ -7343,6 +7344,8 @@ function AuthenticatedBuilderContent({ authScopeUserId }: { authScopeUserId: str
                     handoffStatus={handoffRequestStatus?.sessionId === (currentSessionId || wsSessionId) ? handoffRequestStatus : null}
                   />}
                   {studioShell && <StudioSupersededNotice className="mx-3 mt-2" active={oneLiveTabSuperseded} onUseHere={connect} />}
+                  {/* NEXT_PUBLIC_STUDIO_DUPLICATE_DECK: the copy's one line, "Copied from <title>. Chat history stays with the original." Its own small element, read from the session's stored marker; never a chat message. Only a saved session whose chat is fresh (nothing restored) reads it. */}
+                  {process.env.NEXT_PUBLIC_STUDIO_DUPLICATE_DECK === 'true' && !session.isLoadingSession && !session.isResumedSession && !isUnsavedSession && <StudioCopiedFromNote className="mx-3 mt-2" studioShell={studioShell} sessionId={currentSessionId} />}
                   {studioShell && handoffStorageWarning?.sessionId === (currentSessionId || wsSessionId) && (
                     <p role="alert" className="mx-3 mt-2 rounded-lg border border-[var(--ss-line)] bg-[var(--ss-panel)] p-3 text-xs text-[var(--ss-text)]">
                       {handoffStorageWarning.text}
