@@ -92,6 +92,9 @@ import { useGenerationPanel } from '@/hooks/use-generation-panel'
 import { useElementRefinement } from '@/hooks/use-element-refinement'
 import { shouldOpenAsBlankPlaceholder } from '@/lib/element-blank-policy'
 import { isTextLabsMappable } from '@/lib/element-type-mapping'
+// NEXT_PUBLIC_CHAT_THEME_CHANGE / NEXT_PUBLIC_CHAT_EXPORT (each default off): change the theme / export the deck from chat (lib/chat-theme-export.ts).
+import { runExportDirective, runThemeDirective, type ThemeExportDirectiveMessage, type ThemeExportDirectiveOwner, type ThemeExportResultData } from '@/lib/chat-theme-export'
+import { downloadPDF, downloadPPTX } from '@/lib/api/download-service'
 import { useBlankElements } from '@/hooks/use-blank-elements'
 import { useTextLabsSession } from '@/hooks/use-textlabs-session'
 import type {
@@ -662,6 +665,8 @@ function AuthenticatedBuilderContent({ authScopeUserId }: { authScopeUserId: str
   // hook below; the WS options are declared earlier).
   const elementDirectiveRunnerRef = useRef<((payload: import('@/types/mdc').ElementDirectivePayload) => void) | null>(null)
   const templateSelectionLockedRef = useRef(false)
+  // NEXT_PUBLIC_CHAT_THEME_CHANGE / NEXT_PUBLIC_CHAT_EXPORT: the late-bound theme / export directive runner (defined beside the K5 add runner below).
+  const themeExportDirectiveRunnerRef = useRef<((message: ThemeExportDirectiveMessage, owner: ThemeExportDirectiveOwner) => void) | null>(null)
   const [templateModeOn, setTemplateModeOn] = useState(false)
   const studioFormatTemplateModeRef = useRef(templateModeOn)
   const studioFormatTemplateModeObservedRef = useRef(templateModeOn)
@@ -2559,6 +2564,12 @@ function AuthenticatedBuilderContent({ authScopeUserId }: { authScopeUserId: str
         setInputMessage(prefill)
       }
     },
+    // NEXT_PUBLIC_CHAT_THEME_CHANGE / NEXT_PUBLIC_CHAT_EXPORT: the runner of Director's theme_directive / export_directive. Both off: not passed.
+    ...(process.env.NEXT_PUBLIC_CHAT_THEME_CHANGE === 'true' || process.env.NEXT_PUBLIC_CHAT_EXPORT === 'true' ? {
+      onThemeExportDirective: (message: ThemeExportDirectiveMessage, owner: ThemeExportDirectiveOwner) => {
+        themeExportDirectiveRunnerRef.current?.(message, owner)
+      },
+    } : {}),
     // Build Narration: typed-frame ref-forwarders (WS options precede the
     // useBuildNarration hook, so the handlers land via a ref).
     onBuildPhase: (payload, ownerSessionId) => buildNarrationHandlersRef.current.onBuildPhase?.(payload, ownerSessionId),
@@ -5131,6 +5142,61 @@ function AuthenticatedBuilderContent({ authScopeUserId }: { authScopeUserId: str
         report('failed', error instanceof Error ? error.message : 'generation failed')
       }
     })()
+  }
+
+  // NEXT_PUBLIC_CHAT_THEME_CHANGE / NEXT_PUBLIC_CHAT_EXPORT: Director's theme_directive / export_directive, beside the add runner above and on
+  // the same owner record (lib/chat-theme-export.ts). Theme: the picker's own apply, handleBuildThemeChange's body WITHOUT its build-selection
+  // lock (Director sends the directive only for a built deck, which the picker locks; PROGRAM-1's E4a ruling), then the deck-theme effect's
+  // set_theme with Studio's own request id, answered from that request's terminal theme_sync. Export: the Download menu's downloadPDF /
+  // downloadPPTX with its default quality and enable rule. One of each at a time (a second is dismissed); answered on the delivering socket
+  // only. Studio adds no chat line of its own: Director closes the turn. Both flags off: no runner.
+  const chatThemeExportInFlightRef = useRef({ theme: false, export: false })
+  const applyChatThemeSelection = (next: BuildThemeSelection): BuildThemeSelection => {
+    saveSessionOnFirstAction()
+    const carried = carryPaletteMode(next, buildThemeSelectionRef.current)
+    setActiveBuildThemeProfile(current => (
+      buildThemeProfileMatchesSelection(current, next) ? (current && carried !== next ? { ...current, theme_payload: carried } : current) : null
+    ))
+    themeSelectionChangedLocallyRef.current = true
+    setBuildThemeSelection(carried)
+    return carried
+  }
+  themeExportDirectiveRunnerRef.current = !(process.env.NEXT_PUBLIC_CHAT_THEME_CHANGE === 'true' || process.env.NEXT_PUBLIC_CHAT_EXPORT === 'true') ? null : (message, owner) => {
+    const kind = message.type === 'theme_directive' ? 'theme' : 'export'
+    const send = (result: ThemeExportResultData) => {
+      if (owner.isCurrent()) sendElementDirectiveResult(result as unknown as import('@/types/mdc').ElementDirectiveResult['data'])
+    }
+    if (chatThemeExportInFlightRef.current[kind]) {
+      send({ directive_id: String(message.payload?.directive_id), status: 'dismissed', error_code: null })
+      return
+    }
+    chatThemeExportInFlightRef.current[kind] = true
+    const run = message.type === 'theme_directive'
+      ? runThemeDirective(message, owner, {
+        displayed: () => elementDirectiveGenerationOwnerRef.current,
+        locks: () => ({ composerBlocked: themeSyncTargetRef.current.composerThemeBlocked, composerFrozen: themeSyncTargetRef.current.composerThemeFrozen,
+          templateMode: themeSyncTargetRef.current.templateModeOn, generating: isGeneratingFinal || isGeneratingStrawman || templateReuseAwaitingInput }),
+        apply: applyChatThemeSelection,
+        themeSync: () => themeSyncRef.current,
+        wait: () => new Promise<void>(resolve => setTimeout(resolve, 100)),
+        now: () => Date.now(),
+        timeoutMs: THEME_SYNC_TIMEOUT_MS + 5_000,
+      })
+      : runExportDirective(message, owner, {
+        displayed: () => elementDirectiveGenerationOwnerRef.current,
+        // What <PresentationArea> renders the Download menu with (presentationUrl, slideCount, currentStage, hasFinalDeck, studioPartialArtifact, buildNarration).
+        exportState: () => ({
+          presentationUrl: effectivePresentationUrl ?? null, slideCount: effectiveSlideCount ?? null, stage: currentStage,
+          hasFinalDeck: Boolean(finalPresentationId || finalPresentationUrl),
+          exportAfterBuild: process.env.NEXT_PUBLIC_STUDIO_V4_SHELL === 'true' && process.env.NEXT_PUBLIC_STUDIO_EXPORT_AFTER_BUILD === 'true',
+          partialArtifact: Boolean(studioShell && studioPartialMetadata),
+          narrationActive: Boolean(effectiveBuildNarrationEnabled && buildNarration?.active),
+          narrationPhase: (effectiveBuildNarrationEnabled ? buildNarration?.phase : null) ?? 'idle',
+        }),
+        downloadPDF,
+        downloadPPTX,
+      })
+    void run.then(send).finally(() => { chatThemeExportInFlightRef.current[kind] = false })
   }
 
   // File upload state

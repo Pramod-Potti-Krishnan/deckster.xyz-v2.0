@@ -7,6 +7,8 @@ import { CHAT_DIRECTIVES, CHAT_MENTIONS } from '@/lib/mdc-flags'
 import { parseSlideMentions } from '@/lib/mdc-mentions';
 import type { BuildThemeSelection } from '@/lib/theme-builder';
 import type { TemplateOverrides } from '@/lib/template-mode';
+// NEXT_PUBLIC_CHAT_THEME_CHANGE / NEXT_PUBLIC_CHAT_EXPORT (each default off): change the theme / export from chat; the caps and the two directives.
+import { CHAT_THEME_EXPORT_CAPS, chatThemeExportDirectiveKind, themeExportDirectiveId } from '@/lib/chat-theme-export-wire';
 import type { ManualDeckContext } from '@/lib/manual-deck-workflow';
 import type { DeckFooterConfig, DeckIdentity } from '@/lib/deck-identity';
 import {
@@ -742,6 +744,8 @@ export interface UseDecksterWebSocketV2Options {
   onSlideBuilt?: (message: SlideBuilt, owner?: DirectorTransportOwner) => void;
   // MDC P4 (K3): Director instructs a capable client to start a new session.
   onSessionDirective?: (payload: import('@/types/mdc').SessionDirectivePayload) => void;
+  // NEXT_PUBLIC_CHAT_THEME_CHANGE / NEXT_PUBLIC_CHAT_EXPORT: run Director's theme_directive / export_directive. Unused with both flags off.
+  onThemeExportDirective?: (message: import('@/lib/chat-theme-export-wire').ThemeExportDirectiveMessage, owner: import('@/lib/chat-theme-export-wire').ThemeExportDirectiveOwner) => void;
   // MDC P8 (K5): run an element generation through the FE panel pipeline.
   onElementDirective?: (payload: import('@/types/mdc').ElementDirectivePayload) => void;
   onSlideComposeReady?: (message: SlideComposeReady) => void;
@@ -1890,6 +1894,19 @@ export function useDecksterWebSocketV2(options: UseDecksterWebSocketV2Options = 
             }
 
             const parsedMessage = normalizeDirectorMessageFrame(rawMessage) as DirectorMessage & { type?: unknown };
+            // NEXT_PUBLIC_CHAT_THEME_CHANGE / NEXT_PUBLIC_CHAT_EXPORT: Director's theme_directive / export_directive (each only with its own flag on)
+            // unlocks the turn and goes to the page's runner, here, ahead of the allowlist, so it never reaches the reducer, the transcript or
+            // the cache. Flags off: chatThemeExportDirectiveKind is null, and the frame is an unknown type, dropped below as before.
+            if (chatThemeExportDirectiveKind(parsedMessage.type)) {
+              clearAwaitReply();
+              if (themeExportDirectiveId(parsedMessage)) {
+                transportCallbacksRef.current.onThemeExportDirective?.(
+                  parsedMessage as unknown as import('@/lib/chat-theme-export-wire').ThemeExportDirectiveMessage,
+                  { sessionId: socketSessionId, isCurrent: isCurrentSocket },
+                );
+              }
+              return;
+            }
             // Client replay provenance is assigned only after owned terminal
             // state validates the wire frame; never accept a supplied marker.
             delete (parsedMessage as DirectorMessage & { clientOutlineReplayOf?: string; clientTerminalOutlineRevisionOf?: string }).clientOutlineReplayOf;
@@ -3337,6 +3354,8 @@ export function useDecksterWebSocketV2(options: UseDecksterWebSocketV2Options = 
           // MDC K6 (P4): advertise client capabilities on every message so the
           // Director only sends the new frame types to capable clients.
           ...(CHAT_DIRECTIVES && { client_caps: ['mdc1'] }),
+          // NEXT_PUBLIC_CHAT_THEME_CHANGE / NEXT_PUBLIC_CHAT_EXPORT: theme1 / export1 after mdc1. Both off: the list is empty and nothing is added.
+          ...(CHAT_THEME_EXPORT_CAPS.length > 0 && { client_caps: [...(CHAT_DIRECTIVES ? ['mdc1'] : []), ...CHAT_THEME_EXPORT_CAPS] }),
           // MDC K1 (P6): typed slide references parsed from @[Slide N: …]
           // mention tokens (v1: slides only, §12-Q5).
           ...(options?.displayText ? { display_text: options.displayText } : {}),

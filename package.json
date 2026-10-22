@@ -156,7 +156,8 @@
     "test:studio-p2-second-brain": "node scripts/test-studio-p2-second-brain.mjs",
     "test:studio-version-history-v2": "node scripts/test-studio-version-history-v2.mjs",
     "test:studio-p2-polish": "node scripts/test-studio-p2-polish.mjs",
-    "test:studio-p2-profile-page": "node scripts/test-studio-p2-profile-page.mjs"
+    "test:studio-p2-profile-page": "node scripts/test-studio-p2-profile-page.mjs",
+    "test:studio-chat-theme-export": "node scripts/test-studio-chat-theme-export.mjs"
   },
   "dependencies": {
     "@auth/prisma-adapter": "^2.10.0",
