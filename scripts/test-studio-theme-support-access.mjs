@@ -4,9 +4,10 @@ import vm from 'node:vm'
 import { readAtlasBaseline } from './atlas-witness-baseline.mjs'
 import ts from 'typescript'
 import postcss from 'postcss'
+import { stripLibraryManage } from './studio-library-manage-strip.mjs'
 
 const path = 'components/studio-libraries/themes-workspace.tsx'
-const source = fs.readFileSync(new URL(`../${path}`, import.meta.url), 'utf8')
+const source = stripLibraryManage(path, fs.readFileSync(new URL(`../${path}`, import.meta.url), 'utf8')) // FRONTEND-2 Pass 3 track 4 (NEXT_PUBLIC_STUDIO_THEME_LIBRARY_MANAGE / NEXT_PUBLIC_STUDIO_TEMPLATE_LIBRARY_MANAGE): that change's lines are not part of what this pin holds (scripts/studio-library-manage-strip.mjs)
 const original = readAtlasBaseline(`af16640:${path}`)
 // Only the approved generic handoff row changes the support subtree. Require
 // its exact source before normalizing back to the historical reading anchor;

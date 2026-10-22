@@ -3,9 +3,10 @@ import fs from 'node:fs'
 import vm from 'node:vm'
 import { readAtlasBaseline } from './atlas-witness-baseline.mjs'
 import ts from 'typescript'
+import { stripLibraryManage } from './studio-library-manage-strip.mjs'
 
 // Real hook, deliberate offline responses. No connected reads or mutation receipts.
-const source = fs.readFileSync('hooks/use-theme-profiles.ts', 'utf8')
+const source = stripLibraryManage('hooks/use-theme-profiles.ts', fs.readFileSync('hooks/use-theme-profiles.ts', 'utf8')) // FRONTEND-2 Pass 3 track 4 (NEXT_PUBLIC_STUDIO_THEME_LIBRARY_MANAGE / NEXT_PUBLIC_STUDIO_TEMPLATE_LIBRARY_MANAGE): that change's lines are not part of what this pin holds (scripts/studio-library-manage-strip.mjs)
 // J4-FONTS: the hook's one other import is the import-free font policy (flag off here, so a payload passes through untouched).
 const themeFonts = (() => {
   const mod = { exports: {} }
