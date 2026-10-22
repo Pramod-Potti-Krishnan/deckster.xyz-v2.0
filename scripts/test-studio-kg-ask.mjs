@@ -6,7 +6,7 @@
 // So the box shows the cited passages, each with its source link and its deck, and says so. The fixture below is shaped exactly like KgQueryResponse as the retriever builds it.
 //
 // Run: node scripts/test-studio-kg-ask.mjs   (plain node: transpile + vm, no network, no browser, no env)
-//   KG_ASK_BASE=<commit>        the commit flag-off identity is checked against (default bcd8aed0, the studio-v4-dev-preparation-code tip the work was branched from).
+//   KG_ASK_BASE=<commit>        the commit flag-off identity is checked against (default 1079ba4b, the studio-v4-dev-preparation-code tip this change is stacked on; the Knowledge page is the same file as at bcd8aed).
 //   KG_ASK_SCHEMA=<file>        optional: a copy of backend/researcher schemas_kg.py (git show origin/uat:schemas_kg.py); the request shape is then also checked against the real KgQueryRequest.
 //
 // Proven on the REAL sources:
@@ -26,7 +26,7 @@ import postcss from 'postcss'
 import { KG_ASK_ENV_FROM, KG_ASK_ENV_TO, KG_ASK_FILES, KG_ASK_PAGE_ADDED, stripKgAsk } from './studio-kg-ask-strip.mjs'
 
 const repoRoot = path.resolve(new URL('..', import.meta.url).pathname)
-const BASE_COMMIT = process.env.KG_ASK_BASE || 'bcd8aed0d0e8d202c8859c4fd45ccae06de8e307'
+const BASE_COMMIT = process.env.KG_ASK_BASE || '1079ba4b7cd277ece7cc46ee7624d74419c3a5aa'
 const read = rel => fs.readFileSync(path.join(repoRoot, rel), 'utf8')
 const baseCache = new Map()
 const baseSource = (rel, commit = BASE_COMMIT) => {
@@ -36,6 +36,15 @@ const baseSource = (rel, commit = BASE_COMMIT) => {
     catch (error) { throw new Error(`base commit ${commit} is not in this clone (fetch the full history): ${error.message}`) }
   }
   return baseCache.get(key)
+}
+// .env.example is the one shared file every flag-gated change appends a block to, so once other changes are stacked on this one (Profile page, Duplicate a deck, Themes/Templates manage ...) it holds lines
+// this change never wrote. For it (and only it) the base's lines must all still be there, in order, with nothing of this change left, and any extra line must be a comment, a blank or an env line (the rule
+// scripts/test-studio-p2-polish.mjs and scripts/test-studio-p2-publish.mjs use). Every other file is held to the base byte for byte, as before.
+function appendOnlyOver(text, baseText) {
+  const want = baseText.split('\n'), extras = []
+  let next = 0
+  for (const line of text.split('\n')) { if (next < want.length && line === want[next]) next++; else extras.push(line) }
+  return next === want.length && extras.every(line => /^\s*$|^\s*#|^[A-Z][A-Z0-9_]*=/.test(line)) && !extras.some(line => line.includes('STUDIO_KG_ASK'))
 }
 let checks = 0
 let counting = true
@@ -773,15 +782,21 @@ function proveEnv(source, label = 'env') {
 // ---------------------------------------------------------------- 5b. the strip table: nothing else of the two shared files is changed
 function proveStrip(S, label = 'strip') {
   deepEq(KG_ASK_FILES, [ENV, PAGE], `${label}: the two shared files this change touches`)
-  for (const rel of KG_ASK_FILES) ok(stripKgAsk(rel, S[rel]) === baseSource(rel), `${label}: ${rel}: stripping this change gives back the base's file, byte for byte`)
+  for (const rel of KG_ASK_FILES) {
+    const stripped = stripKgAsk(rel, S[rel])
+    if (rel === ENV) ok(stripped === baseSource(rel) || appendOnlyOver(stripped, baseSource(rel)), `${label}: ${rel}: stripping this change gives back the base's lines, in order (a later change's block may follow)`)
+    else ok(stripped === baseSource(rel), `${label}: ${rel}: stripping this change gives back the base's file, byte for byte`)
+  }
   for (const added of KG_ASK_PAGE_ADDED) eq(S[PAGE].split(added).length - 1, 1, `${label}: the page has ${JSON.stringify(added.slice(0, 50))} exactly once`)
   eq(S[ENV].split(KG_ASK_ENV_FROM).length - 1, 1, `${label}: the env example has the block once`); ok(S[ENV].indexOf(KG_ASK_ENV_TO) > S[ENV].indexOf(KG_ASK_ENV_FROM), `${label}: ...ending with the flag line`)
   eq(stripKgAsk('lib/other.ts', 'x'), 'x', `${label}: any other file is left alone`)
-  // the older pin that holds .env.example to an earlier commit puts this change back out first
+  // the older pin that holds .env.example to an earlier commit (test-studio-p2-polish: everything before ITS block is its base's file) is left exactly as it is: this change's block sits after that pin's block,
+  // at the end of the file with the other late flags' blocks, so the pin needs no help from this change
   const pin = read('scripts/test-studio-p2-polish.mjs')
-  eq(pin.split("import { stripKgAsk } from './studio-kg-ask-strip.mjs'\n").length - 1, 1, `${label}: test-studio-p2-polish imports the strip once`)
-  eq(pin.split("const read = rel => stripKgAsk(rel, fs.readFileSync(").length - 1, 1, `${label}: ...its read() puts this change back out first`)
-  eq(pin.split('stripKgAsk(').length - 1, 1, `${label}: ...and uses it nowhere else`)
+  nomatch(pin, /stripKgAsk|studio-kg-ask/, `${label}: test-studio-p2-polish does not know this change`)
+  const env = S[ENV]
+  ok(env.indexOf('NEXT_PUBLIC_STUDIO_P2_POLISH="false"') > 0 && env.indexOf(KG_ASK_ENV_FROM) > env.indexOf('NEXT_PUBLIC_STUDIO_P2_POLISH="false"'), `${label}: the block comes after the polish flag's block (the pin holds everything before that block to its base)`)
+  ok(env.indexOf(KG_ASK_ENV_FROM) > env.indexOf('NEXT_PUBLIC_STUDIO_P2_PROFILE_PAGE="false"'), `${label}: ...and after the Profile page flag's block`)
 }
 
 // ---------------------------------------------------------------- run
