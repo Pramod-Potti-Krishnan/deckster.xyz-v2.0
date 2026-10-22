@@ -665,8 +665,8 @@ await check(`identity: stripping this change gives back ${BASE_COMMIT.slice(0, 7
     assert.equal(sha(stripChatElementRefine(rel, head)), sha(baseFile(rel)), rel)
   }
   // Nothing else in the tree differs from the base but this change's new files.
-  const changed = git('diff', '--name-only', BASE_COMMIT, '--', '.').split('\n').filter(Boolean)
-  const untracked = git('ls-files', '--others', '--exclude-standard').split('\n').filter(Boolean)
+  // The committed tree against the base (not the working tree: a suite neighbour that rewrites docs/ while it runs must not count).
+  const changed = git('diff', '--name-only', BASE_COMMIT, 'HEAD', '--', '.').split('\n').filter(Boolean)
   // New files, and the older pins / strip roots that now read through scripts/studio-chat-element-refine-strip.mjs (one import + one call each).
   const NEW = /^(lib\/chat-element-refine(-wire)?\.ts|scripts\/(test-studio-chat-element-refine|studio-chat-element-refine-(layout|strip))\.mjs|scripts\/fixtures\/chat-element-refine\/.+|docs\/pass3\/chat-element-refine\/LIVE-CHECK-PLAN\.md)$/
   const READS_THROUGH_STRIP = ['scripts/studio-add-slide-status-strip.mjs', 'scripts/studio-open-read-only-strip.mjs', 'scripts/studio-theme-dark-persist-strip.mjs',
@@ -680,7 +680,7 @@ await check(`identity: stripping this change gives back ${BASE_COMMIT.slice(0, 7
     assert.ok(added.length <= 5 && removed.length <= 2, `${rel}: an import and one call (${added.length}+/${removed.length}-)`)
     assert.ok(added.some(line => /stripChatElementRefine|CHAT_ELEMENT_REFINE_ENABLED: false|chat-element-refine/.test(line)), rel)
   }
-  for (const rel of [...changed, ...untracked]) assert.ok(CHAT_ELEMENT_REFINE_FILES.includes(rel) || NEW.test(rel) || READS_THROUGH_STRIP.includes(rel), `unexpected change: ${rel}`)
+  for (const rel of changed) assert.ok(CHAT_ELEMENT_REFINE_FILES.includes(rel) || NEW.test(rel) || READS_THROUGH_STRIP.includes(rel), `unexpected change: ${rel}`)
 })
 
 await check('identity: every added piece is behind the flag (or is a type, a comment or the flag-gated import)', async () => {
