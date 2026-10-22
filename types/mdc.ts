@@ -123,9 +123,12 @@ export interface ElementDirectiveResult {
   type: 'element_directive_result'
   data: {
     directive_id: string
-    status: 'inserted' | 'failed' | 'dismissed'
+    // 'refined' answers an element_refine_directive (NEXT_PUBLIC_CHAT_ELEMENT_REFINE, lib/chat-element-refine.ts).
+    status: 'inserted' | 'failed' | 'dismissed' | 'refined'
     element_id?: string | null
     error?: string | null
+    /** Refine directives only: why it failed (design §5); null otherwise. */
+    error_code?: import('@/lib/chat-element-refine-wire').ElementRefineErrorCode | null
   }
 }
 
