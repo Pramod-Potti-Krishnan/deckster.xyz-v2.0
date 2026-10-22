@@ -1,5 +1,6 @@
 import type { CSSProperties } from "react"
 import { PRICING_TIERS } from "@/lib/marketing/homepage-v2-pricing"
+import { studioLandingTiers } from "@/lib/studio-billing"
 import { TrackedLink } from "../BuildCta"
 import { SlideChip } from "../SlideChip"
 
@@ -23,6 +24,9 @@ export interface PricingHomeCopy {
   moreLink: string
 }
 
+// PASS2 ACC-14 (NEXT_PUBLIC_STUDIO_P2_ACCOUNT, default off): the plan words come from the shared plan list (PRICING_TIERS), the list Billing reads too. Off: the copy as written.
+const STUDIO_P2_ACCOUNT = process.env.NEXT_PUBLIC_STUDIO_P2_ACCOUNT === "true"
+
 const tierHref = (id: "starter" | "pro" | "max") =>
   PRICING_TIERS.find((tier) => tier.id === (id === "max" ? "premium" : id))?.ctaHref ?? "/pricing"
 
@@ -30,6 +34,7 @@ const tierLocation = (id: "starter" | "pro" | "max") =>
   (`v3_pricing_${id}` as const)
 
 export function Pricing({ copy }: { copy: PricingHomeCopy }) {
+  const tiers = studioLandingTiers(copy.tiers, PRICING_TIERS, STUDIO_P2_ACCOUNT)
   return (
     <section className="slide slide--paper" id="pricing" data-snap="slide" data-slide-label={copy.label} data-label={copy.label}>
       <div className="grain" />
@@ -40,7 +45,7 @@ export function Pricing({ copy }: { copy: PricingHomeCopy }) {
           <p className="lede balance" data-reveal style={{ "--d": 2 } as CSSProperties}>{copy.lede}</p>
         </div>
         <div className="tiers" data-reveal style={{ "--d": 3 } as CSSProperties}>
-          {copy.tiers.map((tier) => (
+          {tiers.map((tier) => (
             <div className={`tier${tier.id === "pro" ? " tier--hi" : ""}`} key={tier.id}>
               {tier.tag && <span className="pill pill--agent tier__tag">{tier.tag}</span>}
               <div className="tier__name">{tier.name}</div>
