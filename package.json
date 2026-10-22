@@ -51,6 +51,7 @@
     "test:studio-model-catalog-2026-10": "node scripts/test-studio-model-catalog-2026-10.mjs",
     "test:studio-intelligence-polish": "node scripts/test-studio-intelligence-polish.mjs",
     "test:studio-p2-profile-menu": "node scripts/test-studio-p2-profile-menu.mjs",
+    "test:studio-p2-intelligence": "node scripts/test-studio-p2-intelligence.mjs",
     "test:studio-element-placeholder-fix": "node scripts/test-studio-element-placeholder-fix.mjs",
     "test:studio-element-free-spot": "node scripts/test-studio-element-free-spot.mjs",
     "test:studio-one-live-tab": "node scripts/test-studio-one-live-tab.mjs",
