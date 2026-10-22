@@ -477,18 +477,35 @@ async function identity() {
   pin('flag-off identity: the hook (deck_mutation and slide_ready paths, message cache, history, send payloads), the viewer, the rail and every count lib are byte-identical to the base', () => {
     for (const rel of UNTOUCHED) assert.equal(sha(read(rel)), sha(baseSource(rel)), rel)
   })
-  pin('flag-off identity: the page is the base plus only the flag-gated lines (cut them and the bytes are the base\'s)', () => {
-    const head = read(PAGE)
-    let cut = head
+  const { stripDeckMutationDedupe, DECK_MUTATION_DEDUPE_PAGE_ADDITION } = await import('./studio-deck-mutation-dedupe-strip.mjs')
+  const { stripOpenReadOnly } = await import('./studio-open-read-only-strip.mjs')
+  // This change's page lines, cut by hand (independent of the strip helper, which is checked against it below).
+  const cutMine = head => {
     const settler = cutSettler(head)
     const settlerFrom = head.indexOf(SETTLER_START)
-    assert.ok(settler && settlerFrom >= 0)
-    cut = cut.replace(head.slice(settlerFrom, head.indexOf(settler) + settler.length + 1), '')
-    cut = cut.replace("import { createDeckMutationCountSettler } from '@/lib/studio-deck-mutation-dedupe'\n", '')
-    cut = cut.replace("import { fetchSlideInventory } from '@/lib/slide-rail-identity'\n", '')
-    cut = cut.replace('        if (deckMutationCountSettlerRef.current) { void deckMutationCountSettlerRef.current(plan.override, owner.isCurrent); return } // NEXT_PUBLIC_STUDIO_DECK_MUTATION_DEDUPE\n', '')
-    assert.equal(sha(cut), sha(baseSource(PAGE)))
+    assert.ok(settler && settlerFrom >= 0, 'settler block not found')
+    return head.replace(head.slice(settlerFrom, head.indexOf(settler) + settler.length + 1), '')
+      .replace("import { createDeckMutationCountSettler } from '@/lib/studio-deck-mutation-dedupe'\n", '')
+      .replace("import { fetchSlideInventory } from '@/lib/slide-rail-identity'\n", '')
+      .replace('        if (deckMutationCountSettlerRef.current) { void deckMutationCountSettlerRef.current(plan.override, owner.isCurrent); return } // NEXT_PUBLIC_STUDIO_DECK_MUTATION_DEDUPE\n', '')
+  }
+  pin('flag-off identity: the page is the base plus only the flag-gated lines (cut them and the bytes are the base\'s; stacking-tolerant through stripOpenReadOnly, which later page changes chain into)', () => {
+    assert.equal(sha(stripOpenReadOnly(PAGE, cutMine(read(PAGE)))), sha(stripOpenReadOnly(PAGE, baseSource(PAGE))))
   })
+  {
+    pin('sibling-pin strip: studio-deck-mutation-dedupe-strip.mjs removes exactly this change\'s page lines, and stripOpenReadOnly (which the base-holding pins call) carries it', () => {
+      assert.equal(sha(stripDeckMutationDedupe(PAGE, read(PAGE))), sha(cutMine(read(PAGE))))
+      assert.equal(stripDeckMutationDedupe('components/presentation-viewer.tsx', 'x'), 'x')
+      assert.ok(DECK_MUTATION_DEDUPE_PAGE_ADDITION[0].global)
+      assert.equal(sha(stripOpenReadOnly(PAGE, read(PAGE))), sha(stripOpenReadOnly(PAGE, baseSource(PAGE))))
+      assert.doesNotMatch(stripOpenReadOnly(PAGE, read(PAGE)), /DECK_MUTATION_DEDUPE|deckMutationCountSettler|fetchSlideInventory/)
+      const helper = read('scripts/studio-open-read-only-strip.mjs')
+      // One import line and one additive table line, nothing else of this change in FRONTEND-1's helper.
+      assert.equal(helper.split('\n').filter(line => /DECK_MUTATION_DEDUPE/.test(line)).length, 2)
+      assert.match(helper, /^import \{ DECK_MUTATION_DEDUPE_PAGE_ADDITION \} from '\.\/studio-deck-mutation-dedupe-strip\.mjs'$/m)
+      assert.match(helper, /^  DECK_MUTATION_DEDUPE_PAGE_ADDITION, \/\/ FRONTEND-2 #469/m)
+    })
+  }
   // The pinned model rules (so the replay model above cannot drift from the code it stands in for).
   pin('model pins: viewer prop effect, poll, footer and strip header; page slide_ready commit and raise-only Layout reconcile', () => {
     const viewer = read('components/presentation-viewer.tsx')
