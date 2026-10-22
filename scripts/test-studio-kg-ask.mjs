@@ -765,7 +765,7 @@ function proveEnv(source, label = 'env') {
   const block = []
   for (let i = at - 1; i >= 0 && lines[i].startsWith('#'); i--) block.unshift(lines[i])
   const body = block.join(' ')
-  match(body, /exact "true"/i, `${label}: says exact "true"`)
+  match(body, /exact value "true"/i, `${label}: says only the exact value "true" turns it on`) // worded apart from other blocks: p2-onboarding's mutants find its own block by lastIndexOf of its phrases
   match(body, /default off/i, `${label}: says default off`)
   match(body, /answers 404/, `${label}: says the route answers 404 with the flag off`)
   match(body, /NEXT_PUBLIC_STUDIO_V4_SHELL/, `${label}: says it needs the Studio shell`)
