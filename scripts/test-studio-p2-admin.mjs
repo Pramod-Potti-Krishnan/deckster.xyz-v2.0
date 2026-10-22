@@ -1,7 +1,7 @@
 // PASS2 ADMIN USERS + COUPONS (FRONTEND-1): /admin/users and /admin/coupons in the Studio shell's look, with what was broken on them fixed. Flag NEXT_PUBLIC_STUDIO_P2_ADMIN (exact "true"), default off.
 //
 // Run: node scripts/test-studio-p2-admin.mjs   (plain node: transpile + vm, no network, no browser, no env)
-//   P2_ADMIN_BASE=<commit> overrides the base commit the flag-off identity and the old pages' own code are read from (default 4d2765a, the studio-v4-dev-preparation-code tip the work started from).
+//   P2_ADMIN_BASE=<commit> overrides the base commit the flag-off identity and the old pages' own code are read from (default fae9620, the studio-v4-dev-preparation-code tip this stack sits on (#468's admin email guard and #460 #464 #465 #469 included)).
 //
 // Proven on the REAL sources:
 //   1. lib/studio-p2-admin.ts: import-free; the routes, requests, bodies, filter, counts, totals and tier names are the OLD pages' own (their code is read from the base commit and executed, not retyped);
@@ -24,7 +24,7 @@ import postcss from 'postcss'
 const repoRoot = path.resolve(new URL('..', import.meta.url).pathname)
 const requireFromRepo = createRequire(path.join(repoRoot, 'package.json'))
 const { format: dateFnsFormat } = requireFromRepo('date-fns')
-const BASE_COMMIT = process.env.P2_ADMIN_BASE || '4d2765a0eb08b99b23ab3a32efdf3a4731f61b0d'
+const BASE_COMMIT = process.env.P2_ADMIN_BASE || 'fae962006b080e26eb70c2add7066ca1edf8eca2'
 const read = rel => fs.readFileSync(path.join(repoRoot, rel), 'utf8')
 const baseCache = new Map()
 const baseSource = rel => {
@@ -1092,18 +1092,30 @@ function proveCss(css, label = 'css', ui = SOURCES[UI]) {
 proveCss(SOURCES[CSS])
 
 // ---------------------------------------------------------------- 5. env + package
+// .env.example holds every flag's block, and later changes reuse this one's wording: the flag's OWN block is found by the flag, never by a phrase. It runs from the line after the previous variable's
+// assignment to the end of this flag's own assignment line (the comment above it is inside), so no other flag's block can be read, or mutated, in its place.
+function ownBlock(env) {
+  const flagAt = env.indexOf(`${FLAG}=`)
+  const before = env.slice(0, flagAt)
+  const previous = [...before.matchAll(/^[A-Za-z_][A-Za-z0-9_]*=.*\n/gm)].pop()
+  const start = previous ? previous.index + previous[0].length : 0
+  const lineEnd = env.indexOf('\n', flagAt)
+  return { start, end: lineEnd === -1 ? env.length : lineEnd + 1 }
+}
 function proveEnv(env, label = 'env') {
   match(env, new RegExp(`^${FLAG}="false"$`, 'm'), `${label}: documented, default off`)
   eq(env.split(`${FLAG}=`).length - 1, 1, `${label}: once`)
-  const block = env.slice(env.lastIndexOf('# PASS2 ADMIN'), env.indexOf(`${FLAG}=`))
+  const { start } = ownBlock(env)
+  const block = env.slice(start, env.indexOf(`${FLAG}=`))
+  match(block.trimStart(), /^# PASS2 ADMIN \(FRONTEND-1/, `${label}: under its own heading`)
   match(block, /an exact "true" turns it on/, `${label}: says what turns it on`)
   nomatch(block, /exact "true" enables it/, `${label}: without the phrase the onboarding test keys on`)
   match(block, /READ AT BUILD TIME/, `${label}: and that it is read at build time`)
   match(block, /It needs no other flag/, `${label}: and that it needs no other flag`)
   match(block, /nothing here is a\n# permission rule/, `${label}: and that it is not a permission rule`)
   match(block, /Nothing is added that an admin could not do before/, `${label}: and that nothing is added`)
-  ok(env.indexOf('# PASS2 ADMIN') < env.indexOf(`${FLAG}=`), `${label}: with its comment above`)
-  ok(env.lastIndexOf('# PASS2 ADMIN') > env.lastIndexOf('# PASS2 ONBOARDING'), `${label}: after the onboarding block`)
+  ok(start < env.indexOf(`${FLAG}=`), `${label}: with its comment above`)
+  ok(start > env.indexOf('NEXT_PUBLIC_STUDIO_P2_ONBOARDING='), `${label}: after the onboarding block`)
   eq(env.slice(env.indexOf(`${FLAG}=`)).split('\n')[0], `${FLAG}="false"`, `${label}: the value line`)
 }
 function provePackage(pkg, label = 'package') {
@@ -1591,7 +1603,12 @@ for (const [file, name, from, to] of MUTANTS) {
   assert.ok(!seen.has(`${file}\0${name}`), `mutant name "${name}" is unique for ${file}`); seen.add(`${file}\0${name}`)
   const source = SOURCES[file]
   assert.ok(source.includes(from), `mutant "${name}": the text it replaces exists in ${file}`)
-  const at = file === ENV ? source.lastIndexOf(from) : source.indexOf(from) // .env.example holds every flag's block; this change's is the last
+  let at = source.indexOf(from)
+  if (file === ENV) { // .env.example holds every flag's block: the text is replaced inside this flag's own block, wherever else its wording is used
+    const { start, end } = ownBlock(source), inBlock = source.slice(start, end).indexOf(from)
+    assert.ok(inBlock !== -1, `mutant "${name}": the text it replaces is in ${FLAG}'s own block`)
+    at = start + inBlock
+  }
   const mutated = source.slice(0, at) + to + source.slice(at + from.length)
   assert.notEqual(mutated, source, `mutant "${name}" changes the source`)
   let survived = false
