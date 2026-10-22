@@ -548,12 +548,12 @@ function mount(which, { server: given, status = 'authenticated', clipboard = 'ok
   const Component = isLegacy ? mod.default : mod[which === 'users' ? 'StudioP2AdminUsers' : 'StudioP2AdminCoupons']
   const view = {
     react, router, pushes, timers, written, server, session, clip,
-    focusLog: [],
+    focusLog: [], scrollLog: [],
     render() {
       let tree
       for (let pass = 0; pass < 6; pass++) { // the old pages filter in an effect: draw again until no state moved
         react.dirty = false; react.reset(); tree = expand(Component())
-        for (const n of nodes(tree)) { const r = n.props?.ref; if (r && typeof r === 'object' && 'current' in r && !r.current) r.current = { focus: () => view.focusLog.push(n.props.id ?? n.type) } } // a ref that would hold the element holds a stand-in
+        for (const n of nodes(tree)) { const r = n.props?.ref; if (r && typeof r === 'object' && 'current' in r && !r.current) r.current = { focus: () => view.focusLog.push(n.props.id ?? n.type), scrollIntoView: options => view.scrollLog.push(options) } } // a ref that would hold the element holds a stand-in
         react.flushEffects()
         if (!react.dirty) break
       }
@@ -1117,16 +1117,19 @@ async function provePager(uiSource, libSource, tag = 'pager') {
   p = bits(tree)
   const going = p.next.props.onClick(); tree = view.render()
   eq(view.server.log.at(-1).url, U(2, 'pending'), `${tag}: users: Next reads page 2 of the same filter`)
+  deepEq(view.scrollLog, [], `${tag}: users: the list is not scrolled while the page is on its way`)
   p = bits(tree)
   deepEq([p.prev.props.disabled, p.next.props.disabled], [true, true], `${tag}: users: both buttons are off while a page is on its way`)
   eq(rowList(tree).props['aria-busy'], true, `${tag}: users: the list says it is busy`)
   deepEq(emails(tree), pendingEmails.slice(0, 25), `${tag}: users: and still shows the page it had`)
   view.server.release(); await going; tree = await view.settle()
+  deepEq(view.scrollLog, [{ block: 'start' }], `${tag}: users: when page 2 is there the list is scrolled to its top, once`)
   p = bits(tree)
   deepEq(emails(tree), pendingEmails.slice(25), `${tag}: users: page 2 holds the last 13`)
   deepEq([p.range, p.page, p.prev.props.disabled, p.next.props.disabled], ['Showing 26–38 of 38', 'Page 2 of 2', false, true], `${tag}: users: and the pager follows: Next is off on the last page`)
   eq(rowList(tree).props['aria-busy'], undefined, `${tag}: users: no longer busy`)
   await p.prev.props.onClick(); tree = await view.settle()
+  eq(view.scrollLog.length, 2, `${tag}: users: and Previous scrolls to the top too`)
   eq(view.server.log.at(-1).url, U(1, 'pending'), `${tag}: users: Previous reads page 1`)
   deepEq(emails(tree), pendingEmails.slice(0, 25), `${tag}: users: and shows it`)
   // an action on page 2 reads page 2 again
@@ -1140,6 +1143,7 @@ async function provePager(uiSource, libSource, tag = 'pager') {
   view = make('users', makeServer({}, { users: MANY_USERS })); tree = await view.settle()
   await bits(tree).next.props.onClick(); tree = await view.settle()
   filterButton(tree, 0).props.onClick(); tree = await view.settle()
+  eq(view.scrollLog.length, 1, `${tag}: users: (only the page change scrolled: a filter does not)`)
   eq(view.server.log.at(-1).url, U(1, 'all'), `${tag}: users: a filter from page 2 reads page 1`)
   eq(bits(tree).page, 'Page 1 of 3', `${tag}: users: of the 57`)
   eq(bits(tree).range, 'Showing 1–25 of 57', `${tag}: users: with its range`)
@@ -1220,6 +1224,7 @@ async function provePager(uiSource, libSource, tag = 'pager') {
     eq(bits(tree).next.props.disabled, false, `${tag}: users: ${JSON.stringify(reply)}: Next is back`)
     await bits(tree).next.props.onClick(); tree = await view.settle()
     deepEq(alerts(tree), [], `${tag}: users: ${JSON.stringify(reply)}: trying again works and clears it`)
+    eq(view.scrollLog.length, 2, `${tag}: users: ${JSON.stringify(reply)}: each page change scrolls to the top, when its read is over`)
     eq(bits(tree).page, 'Page 2 of 2', `${tag}: users: ${JSON.stringify(reply)}: on page 2`)
   }
   for (const [status, state, pushes] of [[403, 'forbidden', ['/builder']], [401, 'signin', []]]) {
@@ -1252,6 +1257,7 @@ async function provePager(uiSource, libSource, tag = 'pager') {
   await bits(tree).next.props.onClick(); tree = await view.settle()
   p = bits(tree)
   deepEq([rowsOf(tree).length, p.range, p.page, p.next.props.disabled], [5, 'Showing 51–55 of 55', 'Page 3 of 3', true], `${tag}: coupons: the last page holds 5, and Next is off`)
+  eq(view.scrollLog.length, 2, `${tag}: coupons: two page changes, two scrolls (a switch does not scroll)`)
   // a new coupon is on the first page
   newButtonOf(tree).props.onClick(); tree = view.render()
   typeInto(tree, 'code', 'zzz-new'); typeInto(view.render(), 'value', '5'); tree = view.render()
@@ -1263,8 +1269,10 @@ async function provePager(uiSource, libSource, tag = 'pager') {
   view = make('coupons', makeServer({ 'GET /api/admin/coupons': n => (n === 2 ? 'hold' : 'ok') }, { coupons: MANY_COUPONS })); tree = await view.settle()
   const coupling = bits(tree).next.props.onClick(); tree = view.render()
   deepEq([bits(tree).prev.props.disabled, bits(tree).next.props.disabled, rowList(tree).props['aria-busy']], [true, true, true], `${tag}: coupons: busy while a page is on its way`)
+  eq(view.scrollLog.length, 0, `${tag}: coupons: not scrolled while it is on its way`)
   view.server.release(); await coupling; tree = await view.settle()
   eq(bits(tree).page, 'Page 2 of 3', `${tag}: coupons: then page 2`)
+  deepEq(view.scrollLog, [{ block: 'start' }], `${tag}: coupons: and the list is scrolled to its top`)
   view = make('coupons', makeServer({ 'GET /api/admin/coupons': n => (n === 2 ? [500, {}] : 'ok') }, { coupons: MANY_COUPONS })); tree = await view.settle()
   await bits(tree).next.props.onClick(); tree = await view.settle()
   deepEq(alerts(tree), ['The list could not be refreshed. What is shown is the last list that loaded.'], `${tag}: coupons: a page that fails says so`)
@@ -1755,6 +1763,7 @@ function proveCss(css, label = 'css', ui = SOURCES[UI]) {
   eq(decl('.sa-panel', 'border-radius'), '14px', `${label}: the shell's panel radius`)
   eq(decl('.sa-panel', 'border'), '1px solid var(--sa-line)', `${label}: and hairline`)
   eq(decl('.sa-panel', 'background'), 'var(--sa-panel)', `${label}: on the panel colour`)
+  eq(decl('.sa-panel', 'scroll-margin-top'), '64px', `${label}: a panel scrolled to stops below the sticky bar`)
   eq(decl('.sa-row + .sa-row', 'border-top'), '1px solid var(--sa-line)', `${label}: rows are separated by a hairline`)
   eq(decl('.sa-avatar', 'border-radius'), '50%', `${label}: a round avatar`)
   eq(decl('.sa-avatar', 'background'), 'var(--sa-soft)', `${label}: on the soft tile (no gradient)`)
@@ -2250,7 +2259,7 @@ mutant(CSS, 'figure size', `${M} .sa-stats dd { margin: 4px 0 0; font-size: 24px
 mutant(CSS, 'figures jump', 'letter-spacing: -.025em; font-variant-numeric: tabular-nums; }', 'letter-spacing: -.025em; font-variant-numeric: normal; }')
 mutant(CSS, 'panel radius', `${M} .sa-panel { overflow: hidden; border: 1px solid var(--sa-line); border-radius: 14px;`, `${M} .sa-panel { overflow: hidden; border: 1px solid var(--sa-line); border-radius: 6px;`)
 mutant(CSS, 'panel hairline', `${M} .sa-panel { overflow: hidden; border: 1px solid var(--sa-line);`, `${M} .sa-panel { overflow: hidden; border: 0;`)
-mutant(CSS, 'panel colour', 'border-radius: 14px; background: var(--sa-panel); }', 'border-radius: 14px; background: var(--sa-soft); }')
+mutant(CSS, 'panel colour', 'border-radius: 14px; background: var(--sa-panel); scroll-margin-top', 'border-radius: 14px; background: var(--sa-soft); scroll-margin-top')
 mutant(CSS, 'rows run together', `${M} .sa-row + .sa-row { border-top: 1px solid var(--sa-line); }`, `${M} .sa-row + .sa-row { border-top: 0; }`)
 mutant(CSS, 'avatar shape', 'overflow: hidden; border-radius: 50%; background: var(--sa-soft); color: var(--sa-teal);', 'overflow: hidden; border-radius: 6px; background: var(--sa-soft); color: var(--sa-teal);')
 mutant(CSS, 'avatar fill', 'overflow: hidden; border-radius: 50%; background: var(--sa-soft); color: var(--sa-teal);', 'overflow: hidden; border-radius: 50%; background: var(--sa-accent); color: var(--sa-teal);')
@@ -2296,6 +2305,7 @@ mutant(CSS, 'keyframes gone', '@keyframes sa-spin { to { transform: rotate(360de
 mutant(CSS, 'code is not mono', 'font: 700 14px/1.4 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;', 'font: 700 14px/1.4 system-ui, sans-serif;')
 mutant(CSS, 'inactive code is not muted', `${M} .sa-row[data-active="false"] .sa-code { color: var(--sa-muted); }`, `${M} .sa-row[data-active="false"] .sa-code { color: var(--sa-text); }`)
 // css: the phone
+mutant(CSS, 'a scrolled-to panel hides under the bar', 'background: var(--sa-panel); scroll-margin-top: 64px; }', 'background: var(--sa-panel); }')
 mutant(CSS, 'the bar does not wrap on a phone', '  [data-studio-p2-admin="true"] .sa-bar-in { flex-wrap: wrap;', '  [data-studio-p2-admin="true"] .sa-bar-in { flex-wrap: nowrap;')
 mutant(CSS, 'the nav is not on its own line', '.sa-nav { order: 3; width: 100%; margin-left: 0; }', '.sa-nav { order: 0; width: 100%; margin-left: 0; }')
 mutant(CSS, 'the nav is not full width', '.sa-nav { order: 3; width: 100%; margin-left: 0; }', '.sa-nav { order: 3; width: auto; margin-left: 0; }')
@@ -2471,9 +2481,16 @@ mutant(UI, 'the users pager is always there', "{info.pageCount > 1 && <Pager inf
 mutant(UI, 'the users pager is never there', "{info.pageCount > 1 && <Pager info={info} shown={shown.length}", "{info.pageCount > 99 && <Pager info={info} shown={shown.length}")
 mutant(UI, 'the coupons pager is always there', "{info.pageCount > 1 && <Pager info={info} shown={list.rows.length}", "{info.pageCount > 0 && <Pager info={info} shown={list.rows.length}")
 mutant(UI, 'the coupons pager is never there', "{info.pageCount > 1 && <Pager info={info} shown={list.rows.length}", "{info.pageCount > 99 && <Pager info={info} shown={list.rows.length}")
-mutant(UI, 'the users pager is not busy', "busy={list.refreshing} onPage={page => { void list.goto({ ...list.current(), page }) }}", "busy={false} onPage={page => { void list.goto({ ...list.current(), page }) }}")
-mutant(UI, 'the users pager drops the filter', "onPage={page => { void list.goto({ ...list.current(), page }) }}", "onPage={page => { void list.goto({ page, filter: STUDIO_P2_ADMIN_DEFAULT_FILTER, q: \"\" }) }}")
-mutant(UI, 'the coupons pager is not busy', "busy={list.refreshing} onPage={page => { void list.goto({ page }) }}", "busy={false} onPage={page => { void list.goto({ page }) }}")
+mutant(UI, 'the users pager is not busy', "busy={list.refreshing} onPage={page => { void list.goto({ ...list.current(), page }).then(", "busy={false} onPage={page => { void list.goto({ ...list.current(), page }).then(")
+mutant(UI, 'the users pager drops the filter', "onPage={page => { void list.goto({ ...list.current(), page }).then(", "onPage={page => { void list.goto({ page, filter: STUDIO_P2_ADMIN_DEFAULT_FILTER, q: \"\" }).then(")
+mutant(UI, 'the coupons pager is not busy', "busy={list.refreshing} onPage={page => { void list.goto({ page }).then(", "busy={false} onPage={page => { void list.goto({ page }).then(")
+mutant(UI, 'a new users page is not scrolled to', "void list.goto({ ...list.current(), page }).then(() => top.current?.scrollIntoView?.({ block: \"start\" }))", "void list.goto({ ...list.current(), page })")
+mutant(UI, 'a new coupons page is not scrolled to', "void list.goto({ page }).then(() => top.current?.scrollIntoView?.({ block: \"start\" }))", "void list.goto({ page })")
+mutant(UI, 'a new users page is scrolled to its end', "void list.goto({ ...list.current(), page }).then(() => top.current?.scrollIntoView?.({ block: \"start\" }))", "void list.goto({ ...list.current(), page }).then(() => top.current?.scrollIntoView?.({ block: \"end\" }))")
+mutant(UI, 'a new users page is scrolled to before it is there', "void list.goto({ ...list.current(), page }).then(() => top.current?.scrollIntoView?.({ block: \"start\" }))", "{ void list.goto({ ...list.current(), page }); top.current?.scrollIntoView?.({ block: \"start\" }) }")
+mutant(UI, 'a new coupons page is scrolled to before it is there', "void list.goto({ page }).then(() => top.current?.scrollIntoView?.({ block: \"start\" }))", "{ void list.goto({ page }); top.current?.scrollIntoView?.({ block: \"start\" }) }")
+mutant(UI, 'a filter scrolls too', "if (option !== list.current().filter) void list.goto({ ...list.current(), filter: option, page: 1 })", "if (option !== list.current().filter) void list.goto({ ...list.current(), filter: option, page: 1 }).then(() => top.current?.scrollIntoView?.({ block: \"start\" }))")
+mutant(UI, 'the scroll target is not the list', "<section ref={top} className=\"sa-panel\" aria-label={WORDS.usersTitle}>", "<section className=\"sa-panel\" aria-label={WORDS.usersTitle}>")
 mutant(UI, 'Previous goes nowhere', "onClick={() => onPage(info.page - 1)}", "onClick={() => onPage(info.page)}")
 mutant(UI, 'Next goes two pages', "onClick={() => onPage(info.page + 1)}", "onClick={() => onPage(info.page + 2)}")
 mutant(UI, 'Previous is on at the first page', "disabled={busy || info.page <= 1}", "disabled={busy}")

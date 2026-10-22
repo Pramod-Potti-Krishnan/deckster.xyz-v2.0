@@ -33,7 +33,7 @@
 [data-studio-p2-admin="true"] .sa-stats dt { font-size: 12px; color: var(--sa-muted); }
 [data-studio-p2-admin="true"] .sa-stats dd { margin: 4px 0 0; font-size: 24px; font-weight: 600; line-height: 1.2; letter-spacing: -.025em; font-variant-numeric: tabular-nums; }
 [data-studio-p2-admin="true"] .sa-stats small { display: block; margin-top: 2px; font-size: 12px; color: var(--sa-muted); }
-[data-studio-p2-admin="true"] .sa-panel { overflow: hidden; border: 1px solid var(--sa-line); border-radius: 14px; background: var(--sa-panel); }
+[data-studio-p2-admin="true"] .sa-panel { overflow: hidden; border: 1px solid var(--sa-line); border-radius: 14px; background: var(--sa-panel); scroll-margin-top: 64px; }
 [data-studio-p2-admin="true"] .sa-toolbar { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 10px 12px; padding: 12px 16px; border-bottom: 1px solid var(--sa-line); }
 [data-studio-p2-admin="true"] .sa-filters { display: flex; gap: 4px; }
 [data-studio-p2-admin="true"] .sa-filter { height: 32px; padding: 0 12px; border: 1px solid transparent; border-radius: 8px; background: transparent; color: var(--sa-muted); font: inherit; font-weight: 500; cursor: pointer; }

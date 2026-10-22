@@ -5,7 +5,7 @@
 // sign-in redirect, the same "Access denied" for a 403 (lib/studio-p2-admin.ts holds the words and rules). The admin chrome (links to the other admin page and to Studio) is drawn only once the
 // route has said yes to this account; until then, and for a 403 or a failed read, the page is one neutral panel, as before.
 // HARDENING (same flag): both lists are read a page at a time. The users page asks the route for its page, approval filter and search (so the figures and the filter counts are the route's, over everyone),
-// the coupons page for its page; both show a pager under the rows when there is more than one page. A new coupon's expiry goes with the admin's time zone offset (lib/studio-p2-admin.ts).
+// the coupons page for its page; both show a pager under the rows when there is more than one page, and a new page starts at the top of the list. A new coupon's expiry goes with the admin's time zone offset (lib/studio-p2-admin.ts).
 
 import { useEffect, useRef, useState, type FormEvent } from "react"
 import Link from "next/link"
@@ -150,6 +150,7 @@ export function StudioP2AdminUsers() {
   )
   const [query, setQuery] = useState("")
   const [busyId, setBusyId] = useState<string | null>(null)
+  const top = useRef<HTMLElement>(null)
 
   // The route does the search: a read goes out when the typing stops, from the first page.
   useEffect(() => {
@@ -183,7 +184,7 @@ export function StudioP2AdminUsers() {
       <div className="sa-head"><div><h1>{WORDS.usersTitle}</h1><p>{WORDS.usersLead}</p></div></div>
       {list.notice && <p className="sa-notice" role="alert">{list.notice}</p>}
       <Stats items={[{ label: WORDS.statTotalUsers, value: counts.total }, { label: WORDS.statPending, value: counts.pending }, { label: WORDS.statApproved, value: counts.approved }]} />
-      <section className="sa-panel" aria-label={WORDS.usersTitle}>
+      <section ref={top} className="sa-panel" aria-label={WORDS.usersTitle}>
         <div className="sa-toolbar">
           <div className="sa-filters" role="group" aria-label="Show">
             {STUDIO_P2_ADMIN_USER_FILTERS.map(option => <button key={option} type="button" className="sa-filter" aria-pressed={list.ask.filter === option} onClick={() => { if (option !== list.current().filter) void list.goto({ ...list.current(), filter: option, page: 1 }) }}>{STUDIO_P2_ADMIN_FILTER_LABELS[option]} <span>({option === "all" ? counts.total : option === "pending" ? counts.pending : counts.approved})</span></button>)}
@@ -219,7 +220,7 @@ export function StudioP2AdminUsers() {
                 )
               })}
             </ul>}
-        {info.pageCount > 1 && <Pager info={info} shown={shown.length} busy={list.refreshing} onPage={page => { void list.goto({ ...list.current(), page }) }} />}
+        {info.pageCount > 1 && <Pager info={info} shown={shown.length} busy={list.refreshing} onPage={page => { void list.goto({ ...list.current(), page }).then(() => top.current?.scrollIntoView?.({ block: "start" })) }} />}
       </section>
     </Frame>
   )
@@ -234,6 +235,7 @@ export function StudioP2AdminCoupons() {
   const [togglingId, setTogglingId] = useState<string | null>(null)
   const [copiedId, setCopiedId] = useState<string | null>(null)
   const codeField = useRef<HTMLInputElement>(null)
+  const top = useRef<HTMLElement>(null)
   const copiedTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
   const set = (field: keyof StudioP2AdminCouponForm, value: string) => setForm(previous => ({ ...previous, [field]: value }))
 
@@ -326,7 +328,7 @@ export function StudioP2AdminCoupons() {
           </form>
         </section>
       )}
-      <section className="sa-panel" aria-label={WORDS.couponsTitle}>
+      <section ref={top} className="sa-panel" aria-label={WORDS.couponsTitle}>
         {list.rows.length === 0
           ? <Empty title={WORDS.noCoupons} body="" />
           : <ul className="sa-rows" aria-busy={list.moving || undefined}>
@@ -359,7 +361,7 @@ export function StudioP2AdminCoupons() {
                 )
               })}
             </ul>}
-        {info.pageCount > 1 && <Pager info={info} shown={list.rows.length} busy={list.refreshing} onPage={page => { void list.goto({ page }) }} />}
+        {info.pageCount > 1 && <Pager info={info} shown={list.rows.length} busy={list.refreshing} onPage={page => { void list.goto({ page }).then(() => top.current?.scrollIntoView?.({ block: "start" })) }} />}
       </section>
     </Frame>
   )
