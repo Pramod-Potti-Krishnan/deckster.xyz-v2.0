@@ -145,6 +145,15 @@
 [data-studio-p2-docs] section.bg-background .space-y-12 .text-muted-foreground { color: var(--sd-muted); }
 [data-studio-p2-docs] section.bg-background .space-y-12 .rounded-full { border-color: var(--sd-line); background: var(--sd-active); color: var(--sd-teal); }
 
+/* /docs/api documents an API that is not open yet: a notice under the site's header (components/studio-docs/studio-p2-docs-api-notice.tsx), and every section after it is muted: the secondary text colour for text, headings, code, icons and the badge (no accent, no teal), dashed cards. Still readable at AA. */
+[data-studio-p2-docs] .sd-api-notice { box-sizing: border-box; padding-top: 24px; }
+[data-studio-p2-docs] .sd-api-notice__box { padding: 12px 16px; border: 1px solid var(--sd-line); border-left: 3px solid var(--sd-action); border-radius: 10px; background: var(--sd-panel); }
+[data-studio-p2-docs] .sd-api-notice__title { margin: 0; color: var(--sd-text); font-size: 13px; line-height: 1.5; font-weight: 600; }
+[data-studio-p2-docs] .sd-api-notice__text { max-width: 650px; margin: 4px 0 0; color: var(--sd-muted); font-size: 12px; line-height: 1.7; }
+[data-studio-p2-docs] .sd-api-notice ~ section { --sd-text: var(--sd-muted); --sd-accent: var(--sd-muted); --sd-teal: var(--sd-muted); }
+[data-studio-p2-docs] .sd-api-notice ~ section :is(h2, code) { color: var(--sd-muted); }
+[data-studio-p2-docs] .sd-api-notice ~ section .space-y-12 .rounded-lg:not(.bg-muted) { border-style: dashed; border-color: var(--sd-muted); }
+
 /* /agents/<agent>: its slides keep their layout; the per-agent colour gradients become the shell's ink and one accent. */
 [data-studio-p2-docs="agents"] .-z-10 { background-image: none; background-color: var(--sd-action); }
 [data-studio-p2-docs="agents"] [class*="radial-gradient"] { display: none; }

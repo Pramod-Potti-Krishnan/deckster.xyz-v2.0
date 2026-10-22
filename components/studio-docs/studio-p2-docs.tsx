@@ -7,23 +7,27 @@ import ReactMarkdown from "react-markdown"
 import remarkGfm from "remark-gfm"
 import { ArrowRight, Search } from "lucide-react"
 import { Header, Footer } from "@/components/layout"
-import { getAllDocs, getDocBySlug, getRelatedDocs } from "@/lib/docs"
+import { getAllDocs } from "@/lib/docs"
+import { STUDIO_DOCS_AGENT_RULES } from "@/content/studio-p2-docs-agents"
 import {
   STUDIO_DOCS_WORDS as W,
   studioDocsCategoryTitle,
+  studioDocsCurrent,
   studioDocsExcerpt,
   studioDocsFilter,
   studioDocsHref,
+  studioDocsItem,
   studioDocsLinkKind,
   studioDocsLinkLands,
   studioDocsNav,
+  studioDocsRelated,
   studioDocsResultLine,
   studioDocsSplit,
 } from "@/lib/studio-p2-docs"
 import "./studio-p2-docs.css"
 
 // PASS2 Docs (NEXT_PUBLIC_STUDIO_P2_DOCS): /docs and /docs/<category>/<article> in the Studio shell's tokens. The site's own header and footer stay (these are public pages); the body is the shell's.
-// The same articles, the same search, the same links as before. No new action.
+// The same articles, the same search, the same links as before. No new action. The text names the current agents (content/studio-p2-docs-agents.ts); content/docs.ts itself is not changed.
 
 function Page({ kind, children }: { kind: string; children: ReactNode }) {
   return (
@@ -49,7 +53,7 @@ function HelpBand({ title, body, secondary }: { title: string; body: string; sec
 }
 
 export function StudioDocsIndex() {
-  const sections = getAllDocs()
+  const sections = studioDocsCurrent(getAllDocs(), STUDIO_DOCS_AGENT_RULES)
   const [query, setQuery] = useState("")
   const found = studioDocsFilter(sections, query)
   return (
@@ -122,8 +126,8 @@ export function StudioDocArticle() {
   const pick = (value: string | string[] | undefined) => (Array.isArray(value) ? value[0] : value) ?? ""
   const category = pick(params?.category)
   const slug = pick(params?.slug)
-  const sections = getAllDocs()
-  const doc = getDocBySlug(category, slug)
+  const sections = studioDocsCurrent(getAllDocs(), STUDIO_DOCS_AGENT_RULES)
+  const doc = studioDocsItem(sections, category, slug)
 
   if (!doc) {
     return (
@@ -144,7 +148,7 @@ export function StudioDocArticle() {
 
   const nav = studioDocsNav(sections, doc.category, doc.slug)
   const { title, body } = studioDocsSplit(doc.content, doc.title)
-  const related = getRelatedDocs(doc)
+  const related = studioDocsRelated(sections, doc)
   return (
     <Page kind="article">
       <nav className="sd-crumbs container mx-auto px-4" aria-label={W.breadcrumb}>

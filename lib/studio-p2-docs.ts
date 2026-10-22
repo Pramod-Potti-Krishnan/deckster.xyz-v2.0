@@ -1,5 +1,7 @@
 // PASS2 Docs (NEXT_PUBLIC_STUDIO_P2_DOCS): the words and the small rules of /docs and /docs/<category>/<article> in the Studio shell's tokens. Import-free, so the test runs it as plain code.
 // The shapes below are the ones of types/docs.ts (DocSection / DocItem); the test pins them to content/docs.ts and lib/docs.ts.
+// Content pass (PROGRAM-1, 22 Oct): the docs text names the current agents (the rules are content/studio-p2-docs-agents.ts), /docs/api says it is not available yet, the footers drop the links to it and to the two redirects
+// (/integrations, /agents), and the Landing footer gains Help, Docs, Security and Cookies.
 
 export interface StudioDocItem { id: string; title: string; slug: string; category: string; content: string }
 export interface StudioDocSection { id: string; title: string; items: StudioDocItem[] }
@@ -32,6 +34,8 @@ export const STUDIO_DOCS_WORDS = {
   notFoundTitle: 'Article not found',
   notFoundBody: 'This documentation page does not exist, or it has moved. The list of articles has what is here today.',
   backToDocs: 'Browse documentation',
+  apiNoticeTitle: 'Not available yet',
+  apiNoticeBody: 'The Deckster API is not open yet. There is no API key to generate, and the endpoints below cannot be called today. This page stays for reference.',
 } as const
 
 /** "7 articles in 3 categories" with no search; "2 of 7 articles match “chart”" with one ("0 of 7 ..." when none do). */
@@ -138,4 +142,48 @@ export function studioDocsLinkLands(href: unknown, sections: readonly StudioDocS
   const parts = path.split('/').filter(Boolean)
   if (parts.length === 1 || (parts.length === 2 && parts[1] === 'api')) return true
   return parts.length === 3 && sections.some(section => section.id === parts[1] && section.items.some(item => item.slug === parts[2]))
+}
+
+/** One piece of article text to swap for the current one: `doc` is "<category>/<slug>"; `from` is found once in that article's text. */
+export interface StudioDocRule { doc: string; from: string; to: string }
+
+/** The docs with the rules applied: each rule's text is swapped once, in order, in its own article, wherever it is found; an article no rule names, and a rule whose text is not found, change nothing. The sections handed in are never changed. */
+export function studioDocsCurrent(sections: readonly StudioDocSection[], rules: readonly StudioDocRule[]): StudioDocSection[] {
+  return sections.map(section => ({
+    ...section,
+    items: section.items.map(item => {
+      const own = rules.filter(rule => rule.doc === `${item.category}/${item.slug}`)
+      return { ...item, content: own.reduce((text, rule) => text.replace(rule.from, () => rule.to), item.content) }
+    }),
+  }))
+}
+
+/** The article at /docs/<category>/<slug> in these sections (the category is the section's id), or undefined. */
+export function studioDocsItem(sections: readonly StudioDocSection[], category: string, slug: string): StudioDocItem | undefined {
+  return sections.find(section => section.id === category)?.items.find(item => item.slug === slug)
+}
+
+/** The other articles in the open one's category, at most `limit`, in order (the same rule as lib/docs.ts, on these sections). */
+export function studioDocsRelated(sections: readonly StudioDocSection[], current: StudioDocItem, limit: number = 3): StudioDocItem[] {
+  const section = sections.find(candidate => candidate.id === current.category)
+  return section ? section.items.filter(item => item.id !== current.id).slice(0, limit) : []
+}
+
+/** Pages the footers do not link to: /docs/api (not available yet), and /integrations and /agents (both redirect: next.config.mjs). The agent pages themselves (/agents/<agent>) are real pages and are not hidden. */
+export function studioDocsHiddenHref(href: unknown): boolean {
+  const path = typeof href === 'string' ? href.trim().split(/[?#]/)[0].replace(/\/+$/, '') : ''
+  return path === '/docs/api' || path === '/integrations' || path === '/agents'
+}
+
+export interface StudioFooterLink { label: string; href: string }
+
+/** The Landing footer with Help and Docs before the legal links and Security and Cookies after them; a link already there (Privacy, Terms) is never added twice. */
+export function studioDocsFooterLinks<T extends StudioFooterLink>(links: readonly T[]): Array<T | StudioFooterLink> {
+  const has = (href: string) => links.some(link => link.href === href)
+  const legal = links.findIndex(link => link.href === '/legal/privacy' || link.href === '/legal/terms')
+  const head = legal < 0 ? [...links] : links.slice(0, legal)
+  const tail = legal < 0 ? [] : links.slice(legal)
+  const help = [{ label: 'Help', href: '/help' }, { label: 'Docs', href: '/docs' }].filter(link => !has(link.href))
+  const policy = [{ label: 'Security', href: '/legal/security' }, { label: 'Cookies', href: '/legal/cookies' }].filter(link => !has(link.href))
+  return [...head, ...help, ...tail, ...policy]
 }
