@@ -343,6 +343,7 @@ export type ModelRow = {
   maxOutput: string | null
   speed: string | null
   premium: boolean
+  /** On the proposed shortlist. Marked only under "Show all models": the default list IS the shortlist (the router's selectable_models is its shortlist and presets), so every row there would carry it. */
   suggested: boolean
   /** The task weights the shortlist suggests it for (simple / moderate / heavy), for the tooltip. */
   suggestedFor: string[]
@@ -352,7 +353,7 @@ export type ModelRow = {
 export type GroupView = { key: string; label: string; rows: ModelRow[]; certified: number; total: number | null; hasMore: boolean }
 export type ModelsView = { groups: GroupView[]; empty: boolean; certifiedTotal: number; nextOffset: number | null }
 
-function rowFor(slug: string, group: CatalogueGroup, models: Record<string, CatalogueModel>, selectable: boolean, listedAsRecommended: boolean): ModelRow {
+function rowFor(slug: string, group: CatalogueGroup, models: Record<string, CatalogueModel>, selectable: boolean, listedAsRecommended: boolean, markSuggested: boolean): ModelRow {
   const model = models[slug]
   const weights = group.suggested[slug] ?? []
   const provider = providerOf(slug, model)
@@ -365,8 +366,8 @@ function rowFor(slug: string, group: CatalogueGroup, models: Record<string, Cata
     maxOutput: model?.maxOutput ? formatTokenCount(model.maxOutput) : null,
     speed: speedOf(model),
     premium: Boolean(model?.premiumGroups.includes(group.key)),
-    suggested: weights.length > 0 || listedAsRecommended,
-    suggestedFor: WEIGHTS.filter(weight => weights.includes(weight)).concat(weights.filter(weight => !WEIGHTS.includes(weight))),
+    suggested: markSuggested && (weights.length > 0 || listedAsRecommended),
+    suggestedFor: markSuggested ? WEIGHTS.filter(weight => weights.includes(weight)).concat(weights.filter(weight => !WEIGHTS.includes(weight))) : [],
     selectable,
   }
 }
@@ -381,8 +382,8 @@ export function buildModelsView(catalogue: Catalogue, showAll: boolean): ModelsV
     for (const slug of group.selectable) certified.add(slug)
     const open = new Set(group.selectable)
     const rows = showAll
-      ? group.available.map(entry => rowFor(entry.model, group, catalogue.models, open.has(entry.model), entry.recommended))
-      : group.selectable.map(slug => rowFor(slug, group, catalogue.models, true, false))
+      ? group.available.map(entry => rowFor(entry.model, group, catalogue.models, open.has(entry.model), entry.recommended, true))
+      : group.selectable.map(slug => rowFor(slug, group, catalogue.models, true, false, false))
     groups.push({ key: group.key, label: group.label, rows, certified: group.selectable.length, total: group.availableCount, hasMore: group.nextOffset !== null })
   }
   return { groups, empty: groups.every(group => group.rows.length === 0), certifiedTotal: certified.size, nextOffset: nextCatalogueOffset(catalogue) }

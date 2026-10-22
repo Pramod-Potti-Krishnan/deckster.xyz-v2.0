@@ -10,8 +10,8 @@ import "./intelligence-models.css"
 
 /** NEXT_PUBLIC_STUDIO_MODEL_CATALOG (exact "true", default off; build-time). The Intelligence page's "Models" section (mounted by app/(app)/studio/intelligence/layout.tsx, below the page, so the page itself is
  * untouched): the models Deckster can use for each kind of work, read from Director's read-only model catalogue through the Studio route /api/models/catalogue (never from the browser to Director). Certified
- * models only, with their vendor, capabilities, context window and output size, a Premium badge and, where it is known, a speed class; "Suggested" marks the proposed shortlist. "Show all models" adds the
- * rest (page by page, each marked as open for selection or not). No prices: Director's catalogue carries none. Read-only: nothing is chosen, sent or saved here. The static excerpt in the chooser above is
+ * models only, with their vendor, capabilities, context window and output size, a Premium badge and, where it is known, a speed class. "Show all models" adds the
+ * rest (page by page, each marked as open for selection or not) and marks the proposed shortlist "Suggested" (the default list is that shortlist, so it is not marked there). No prices: Director's catalogue carries none. Read-only: nothing is chosen, sent or saved here. The static excerpt in the chooser above is
  * unchanged. */
 
 const browserFetch: FetchJson = async url => {

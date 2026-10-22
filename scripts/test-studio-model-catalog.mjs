@@ -282,11 +282,11 @@ async function proveLib(S, label = 'lib') {
   const rowOf = (v, group, slug) => v.groups.find(item => item.key === group).rows.find(item => item.slug === slug)
   deepEq(rowOf(view, 'planning_strategy', 'anthropic/claude-opus-5.5'), {
     slug: 'anthropic/claude-opus-5.5', title: 'Claude Opus 5.5', provider: 'Anthropic', chips: ['Vision', 'Tools', 'Structured output'], contextWindow: '1M', maxOutput: '128K',
-    speed: null, premium: true, suggested: true, suggestedFor: ['moderate', 'heavy'], selectable: true,
-  }, `${label}: Claude Opus 5.5: premium, no speed (unverified), suggested for moderate and heavy`)
+    speed: null, premium: true, suggested: false, suggestedFor: [], selectable: true,
+  }, `${label}: Claude Opus 5.5: premium, no speed (unverified), not marked Suggested in the default view`)
   deepEq(rowOf(view, 'planning_strategy', 'deepseek/deepseek-v4.1-flash'), {
     slug: 'deepseek/deepseek-v4.1-flash', title: 'DeepSeek V4.1 Flash', provider: 'DeepSeek', chips: ['Vision', 'Tools', 'Structured output'], contextWindow: '1M', maxOutput: '384K',
-    speed: 'fast', premium: false, suggested: true, suggestedFor: ['simple'], selectable: true,
+    speed: 'fast', premium: false, suggested: false, suggestedFor: [], selectable: true,
   }, `${label}: DeepSeek V4.1 Flash: a speed class that says something is shown`)
   deepEq(rowOf(view, 'planning_strategy', 'moonshotai/kimi-k3').maxOutput, '944K', `${label}: sizes round to the nearest thousand`)
   deepEq(rowOf(view, 'planning_strategy', 'nvidia/nemotron-3.5-lightning').chips, ['Tools', 'Structured output'], `${label}: only the capabilities a model has`)
@@ -305,7 +305,8 @@ async function proveLib(S, label = 'lib') {
         const model = body.models[row.slug]
         const flag = raw.available.find(item => item.model === row.slug)
         eq(row.selectable, showAll ? open.has(row.slug) : true, `${where}: ${row.slug}: open for selection`)
-        eq(row.suggested, recommended.has(row.slug) || (showAll && Boolean(flag?.recommended)), `${where}: ${row.slug}: suggested`)
+        eq(row.suggested, showAll && (recommended.has(row.slug) || Boolean(flag?.recommended)), `${where}: ${row.slug}: suggested only under Show all models`)
+        if (!showAll) deepEq(row.suggestedFor, [], `${where}: ${row.slug}: no shortlist weights in the default view`)
         if (!model) {
           eq(row.title, row.slug, `${where}: ${row.slug} is listed under its slug`)
           deepEq([row.chips, row.contextWindow, row.maxOutput, row.speed, row.premium], [[], null, null, null, false], `${where}: ${row.slug}: nothing is made up`)
@@ -337,6 +338,11 @@ async function proveLib(S, label = 'lib') {
   deepEq(viewAv.groups.map(group => group.total), USER_GROUPS.map(key => FAV.groups[key].available_count), `${label}: "of N" is available_count`)
   deepEq(viewAv.groups.map(group => group.hasMore), USER_GROUPS.map(key => FAV.groups[key].available_next_offset !== null), `${label}: which groups have another page`)
   eq(viewAv.nextOffset, 10, `${label}: "Show more" continues at offset 10`)
+  { const opusAll = rowOf(viewAv, 'planning_strategy', 'anthropic/claude-opus-5.5'); deepEq([opusAll.suggested, opusAll.suggestedFor], [true, ['moderate', 'heavy']], `${label}: all: Claude Opus 5.5 is Suggested, for moderate and heavy`)
+    const notRecommended = rowOf(viewAv, 'planning_strategy', 'openai/gpt-6.1-sol-pro'); deepEq([notRecommended.suggested, notRecommended.suggestedFor], [false, []], `${label}: all: a model off the shortlist is not`)
+    // an entry the router itself flags recommended is Suggested even when no weight lists it
+    const flagged = clone(FAV); flagged.groups.planning_strategy.available.find(item => item.model === 'openai/gpt-6.1-sol-pro').recommended = true
+    const flaggedRow = rowOf(L.buildModelsView(ready(cls(200, flagged)), true), 'planning_strategy', 'openai/gpt-6.1-sol-pro'); deepEq([flaggedRow.suggested, flaggedRow.suggestedFor], [true, []], `${label}: all: the router's own recommended flag counts`) }
   ok(viewAv.groups.find(group => group.key === 'imagery').rows.every(row => row.selectable === false), `${label}: nothing in Imagery is certified yet: listed, not open for selection`)
   ok(viewAv.groups.find(group => group.key === 'voice_narration').rows.every(row => row.selectable === false), `${label}: nor in Voice & Narration`)
   ok(viewAv.groups.find(group => group.key === 'planning_strategy').rows.every(row => row.selectable === true), `${label}: Planning & Strategy's first page is all certified`)
@@ -555,9 +561,7 @@ async function proveUi(S, label = 'ui') {
     match(markup, /<span class="sp-mc-badge sp-mc-badge-premium">Premium<\/span>/, `${label}: ready: a premium badge`)
     const premiumRows = USER_GROUPS.reduce((n, key) => n + F200.groups[key].selectable_models.filter(slug => F200.models[slug].premium[key] === true).length, 0)
     eq((markup.match(/sp-mc-badge-premium/g) ?? []).length, premiumRows, `${label}: ready: Premium exactly where the catalogue says (${premiumRows})`)
-    const suggestedRows = USER_GROUPS.reduce((n, key) => { const rec = new Set(Object.values(F200.groups[key].recommended).flatMap(list => list.map(item => item.model))); return n + F200.groups[key].selectable_models.filter(slug => rec.has(slug)).length }, 0)
-    eq((markup.match(/sp-mc-badge-suggested/g) ?? []).length, suggestedRows, `${label}: ready: Suggested exactly on the shortlist (${suggestedRows})`)
-    match(markup, /title="Suggested for moderate, heavy work\. A proposed shortlist, not final\."/, `${label}: ready: Suggested says it is proposed`)
+    none(markup, /Suggested|sp-mc-badge-suggested/, 'ready: no "Suggested" in the default view (the list is the shortlist, so every row would carry it)')
     none(markup, /Not open for selection/, 'ready: every row in the default view is open for selection')
     match(markup, /No models are open for selection yet\./, `${label}: ready: a group with none says so (Imagery, Voice & Narration)`)
     match(markup, /Catalog 2026-09-30\.wp1-stage25-proposed-mapping-revision-two-layer\+shortlist:2026-10-02-shortlist-v1/, `${label}: ready: the catalogue version`)
@@ -569,6 +573,10 @@ async function proveUi(S, label = 'ui') {
     const markup = section({ showAll: true, result: readyOf(FAV) })
     match(markup, /<input type="checkbox" checked=""\/><span>Show all models<\/span>/, `${label}: all: the switch is on`); match(markup, /<span class="sp-mc-summary">Showing all models<\/span>/, `${label}: all: header`)
     eq(markup.match(/<li class="sp-mc-row"/g).length, USER_GROUPS.reduce((n, key) => n + FAV.groups[key].available.length, 0), `${label}: all: one page of every shown group`)
+    const suggestedAll = USER_GROUPS.reduce((n, key) => { const rec = new Set(Object.values(FAV.groups[key].recommended).flatMap(list => list.map(item => item.model))); return n + FAV.groups[key].available.filter(item => rec.has(item.model) || item.recommended).length }, 0)
+    ok(suggestedAll > 0 && suggestedAll < markup.match(/<li class="sp-mc-row"/g).length, `${label}: all: some rows are on the shortlist and some are not (${suggestedAll})`)
+    eq((markup.match(/sp-mc-badge-suggested/g) ?? []).length, suggestedAll, `${label}: all: Suggested exactly on the shortlist (${suggestedAll})`)
+    match(markup, /<span class="sp-mc-badge sp-mc-badge-suggested" title="Suggested for moderate, heavy work\. A proposed shortlist, not final\.">Suggested<\/span>/, `${label}: all: Suggested says it is proposed, and for which weights`)
     match(markup, /Showing 10 of 51/, `${label}: all: "Showing 10 of 51"`); match(markup, /Showing 2 of 2|Showing 4 of 4/, `${label}: all: and a group that fits says so`)
     match(markup, /<span class="sp-mc-badge sp-mc-badge-closed" title="Not certified yet, so it cannot be picked\.">Not open for selection<\/span>/, `${label}: all: a model that is not certified says so`)
     match(markup, /data-mc-selectable="false"/, `${label}: all: and is marked`)
@@ -828,9 +836,14 @@ const MUTANTS = [
   [LIB, 'merge keeps repeats', t => swap(t, 'next.available.filter(entry => !listed.has(entry.model))', 'next.available')],
   [LIB, 'versions not compared', t => swap(t, 'if (base.version !== page.version) return null', '')],
   [LIB, 'paging offset wrong', t => swap(t, 'return offsets.length ? Math.min(...offsets) : null', 'return offsets.length ? Math.max(...offsets) + 10 : null')],
-  [LIB, 'uncertified rows look certified', t => swap(t, 'open.has(entry.model), entry.recommended)', 'true, entry.recommended)')],
-  [LIB, 'every certified model listed in the shortlist view', t => swap(t, ': group.selectable.map(slug => rowFor(slug, group, catalogue.models, true, false))', ': group.available.map(entry => rowFor(entry.model, group, catalogue.models, true, false))')],
-  [LIB, 'suggested ignored', t => swap(t, 'suggested: weights.length > 0 || listedAsRecommended', 'suggested: false')],
+  [LIB, 'uncertified rows look certified', t => swap(t, 'open.has(entry.model), entry.recommended, true)', 'true, entry.recommended, true)')],
+  [LIB, 'every certified model listed in the shortlist view', t => swap(t, ': group.selectable.map(slug => rowFor(slug, group, catalogue.models, true, false, false))', ': group.available.map(entry => rowFor(entry.model, group, catalogue.models, true, false, false))')],
+  [LIB, 'suggested ignored', t => swap(t, 'suggested: markSuggested && (weights.length > 0 || listedAsRecommended)', 'suggested: false')],
+  [LIB, 'suggested marked in the default view too', t => swap(t, 'suggested: markSuggested && (weights.length > 0 || listedAsRecommended)', 'suggested: weights.length > 0 || listedAsRecommended')],
+  [LIB, 'suggested weights shown in the default view', t => swap(t, 'suggestedFor: markSuggested ? ', 'suggestedFor: true ? ')],
+  [LIB, 'default view marks suggested', t => swap(t, 'rowFor(slug, group, catalogue.models, true, false, false))', 'rowFor(slug, group, catalogue.models, true, false, true))')],
+  [LIB, 'all view never marks suggested', t => swap(t, 'entry.recommended, true))', 'entry.recommended, false))')],
+  [LIB, 'the shortlist flag of an entry ignored', t => swap(t, 'weights.length > 0 || listedAsRecommended)', 'weights.length > 0)')],
   [LIB, 'premium ignored', t => swap(t, 'premium: Boolean(model?.premiumGroups.includes(group.key))', 'premium: false')],
   [LIB, 'premium for any group', t => swap(t, 'premium: Boolean(model?.premiumGroups.includes(group.key))', 'premium: Boolean(model?.premiumGroups.length)')],
   [LIB, 'a price read', t => swap(t, "chips: capabilityChips(model),", "chips: capabilityChips(model).concat(model ? ['$1 per 1M'] : []),")],
