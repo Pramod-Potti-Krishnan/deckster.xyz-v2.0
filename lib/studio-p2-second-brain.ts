@@ -1,6 +1,7 @@
 // PASS2 SB-02/05/06/08/10 (flag NEXT_PUBLIC_STUDIO_P2_SECOND_BRAIN, default off). Import-free: the flag rule, the words, the routes and the small pure rules the Second Brain
 // pieces use. The page keeps its own real Knowledge Graph (entities, relations, evidence); nothing here invents data, and nothing here writes.
-//   SB-02  a read-only "Sources feeding your graph" list built from the evidence the graph already returns (no connections, no "This Mac") + the link to where uploads live
+//   SB-02  a read-only "Sources feeding your graph" list built from the evidence the graph already returns (no connections, no "This Mac") + the link to where uploads live;
+//          with the Knowledge header-actions flag also on, that list sits in the header menu beside Import / Refresh / Settings (one Sources control, not two)
 //   SB-05  the real 2D map, restyled toward the mockup: a soft glow, a count badge in each node, clearer label plates (no 3D)
 //   SB-06  "Full screen" in the map toolbar (the browser's own full screen; Esc leaves it). No orbit animation.
 //   SB-08  a three-number strip at the top of the inspector with the live numbers (mentions, evidence, sessions); no "Coverage" (it was sample-goal arithmetic)
@@ -19,6 +20,7 @@ export const STUDIO_SB_WORDS = {
   sourcesEmpty: 'No sources are recorded in your graph yet.',
   sourcesPartial: 'Some entities could not be read, so this list may be incomplete.',
   sourcesRetry: 'Try again',
+  sourcesActions: 'Knowledge actions',
   upload: 'Add a file or link in Studio',
   uploadHint: 'Uploads live in the chat composer in Studio. Nothing is added from this page.',
   fullScreen: 'Full screen',

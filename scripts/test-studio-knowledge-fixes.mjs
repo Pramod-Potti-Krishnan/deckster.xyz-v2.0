@@ -1103,7 +1103,7 @@ check('safety wiring: runImport is started from exactly the dialog\'s confirm (a
   const uses = [...source.matchAll(/\brunImport\b/g)].map(match => source.slice(source.lastIndexOf('\n', match.index) + 1, source.indexOf('\n', match.index)).trim())
   assert.deepEqual(uses.map(line => line.replace(/\s+/g, ' ')), [
     'const runImport = useCallback(async () => {',
-    'onImport={KNOWLEDGE_FIXES ? requestImport : runImport}', // the header's "Sources" menu (NEXT_PUBLIC_STUDIO_KNOWLEDGE_HEADER_ACTIONS): the same choice the header button makes
+    'onImport: KNOWLEDGE_FIXES ? requestImport : runImport,', // the header's "Sources" menu (NEXT_PUBLIC_STUDIO_KNOWLEDGE_HEADER_ACTIONS), in the one props object both of its renderings share (the menu alone, and with NEXT_PUBLIC_STUDIO_P2_SECOND_BRAIN the one that also lists the sources): the same choice the header button makes
     '<Button variant="outline" onClick={KNOWLEDGE_FIXES ? requestImport : runImport} disabled={importing}>',
     '<StudioKnowledgeEmptyMap importing={importing} onImport={KNOWLEDGE_FIXES ? requestImport : runImport} />', // the empty map on the dark canvas (NEXT_PUBLIC_STUDIO_KNOWLEDGE_EMPTY_STATE): the same choice the empty map's own button makes
     '<Button onClick={KNOWLEDGE_FIXES ? requestImport : runImport} disabled={importing}><Import className="mr-2 h-4 w-4" /> Import past sessions</Button>',

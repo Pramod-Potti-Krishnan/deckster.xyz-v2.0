@@ -1,73 +1,24 @@
 "use client"
 
 import { useCallback, useEffect, useId, useRef, useState } from "react"
-import Link from "next/link"
-import { ChevronDown, FileText, Loader2, Plug, X } from "lucide-react"
+import { ChevronDown, Plug, X } from "lucide-react"
 import { Button } from "@/components/ui/button"
-import {
-  STUDIO_SB_MAX_SOURCE_ENTITIES, STUDIO_SB_UPLOAD_HREF, STUDIO_SB_WORDS, studioAggregateSources, studioPassagesText, type StudioSource,
-} from "@/lib/studio-p2-second-brain"
+import { STUDIO_SB_WORDS } from "@/lib/studio-p2-second-brain"
+import { useStudioP2Sources } from "@/hooks/use-studio-p2-sources"
+import { StudioP2SourcesList, StudioP2SourcesUpload } from "./studio-p2-sources-parts"
 import "./studio-p2-second-brain.css"
 
 // PASS2 SB-02 (NEXT_PUBLIC_STUDIO_P2_SECOND_BRAIN): the mockup's "Sources" button, made honest. Read only: the sources the graph's own evidence names, taken from the node-detail
 // reads of the most reinforced entities (GET /api/knowledge-graph/nodes/<id>, the same read the inspector makes), and a link to where uploads really live. No connections, no
-// "This Mac", no Include / Remove: nothing here writes. Reads only after it is first opened.
-type Phase = "idle" | "loading" | "ready"
+// "This Mac", no Include / Remove: nothing here writes. Reads only after it is first opened (hooks/use-studio-p2-sources.ts). With NEXT_PUBLIC_STUDIO_KNOWLEDGE_HEADER_ACTIONS also on the page
+// renders StudioP2SourcesMenu instead, so the header has one Sources control, not two.
 
 export function StudioP2Sources({ entities }: { entities: ReadonlyArray<{ node_id: string }> }) {
   const [open, setOpen] = useState(false)
-  const [phase, setPhase] = useState<Phase>("idle")
-  const [sources, setSources] = useState<StudioSource[]>([])
-  const [failed, setFailed] = useState(0)
-  const [attempt, setAttempt] = useState(0)
   const rootRef = useRef<HTMLDivElement | null>(null)
   const buttonRef = useRef<HTMLButtonElement | null>(null)
-  const startedRef = useRef(-1)
-  const abortRef = useRef<AbortController | null>(null)
-  const mountedRef = useRef(true)
   const panelId = useId()
-  const ids = entities.slice(0, STUDIO_SB_MAX_SOURCE_ENTITIES).map(entity => entity.node_id).filter(Boolean)
-  const idsKey = ids.join("|")
-
-  useEffect(() => {
-    mountedRef.current = true
-    return () => {
-      mountedRef.current = false
-      abortRef.current?.abort()
-    }
-  }, [])
-
-  // The list belongs to the entities it was read for: a refreshed graph with other top entities reads again the next time the panel is open.
-  useEffect(() => {
-    startedRef.current = -1
-    setPhase("idle")
-  }, [idsKey])
-
-  useEffect(() => {
-    if (!open || startedRef.current === attempt) return
-    startedRef.current = attempt
-    const controller = new AbortController()
-    abortRef.current?.abort()
-    abortRef.current = controller
-    setPhase("loading")
-    void (async () => {
-      const details: unknown[] = []
-      let unreadable = 0
-      await Promise.all(ids.map(async id => {
-        try {
-          const response = await fetch(`/api/knowledge-graph/nodes/${encodeURIComponent(id)}`, { signal: controller.signal })
-          if (!response.ok) throw new Error("unreadable")
-          details.push(await response.json())
-        } catch {
-          unreadable += 1
-        }
-      }))
-      if (!mountedRef.current || controller.signal.aborted) return
-      setSources(studioAggregateSources(details))
-      setFailed(unreadable)
-      setPhase("ready")
-    })()
-  }, [open, attempt, idsKey])
+  const { phase, sources, failed, retry } = useStudioP2Sources(entities, open)
 
   const close = useCallback((returnFocus: boolean) => {
     setOpen(false)
@@ -98,25 +49,8 @@ export function StudioP2Sources({ entities }: { entities: ReadonlyArray<{ node_i
             <h2>{STUDIO_SB_WORDS.sourcesTitle}</h2>
             <button type="button" aria-label={STUDIO_SB_WORDS.sourcesClose} onClick={() => close(true)}><X className="h-4 w-4" /></button>
           </header>
-          {phase !== "ready" && <p role="status" data-studio-p2-sources-state="loading"><Loader2 className="h-3.5 w-3.5 animate-spin" />{STUDIO_SB_WORDS.sourcesLoading}</p>}
-          {phase === "ready" && sources.length === 0 && <p data-studio-p2-sources-state="empty">{STUDIO_SB_WORDS.sourcesEmpty}</p>}
-          {phase === "ready" && sources.length > 0 && (
-            <ul>
-              {sources.map(source => (
-                <li key={source.key} data-studio-p2-source="true">
-                  <FileText className="h-4 w-4" />
-                  <span><strong>{source.name}</strong><small>{source.kind} · {studioPassagesText(source.passages)}</small></span>
-                </li>
-              ))}
-            </ul>
-          )}
-          {phase === "ready" && failed > 0 && (
-            <p data-studio-p2-sources-state="partial" role="status">{STUDIO_SB_WORDS.sourcesPartial} <button type="button" onClick={() => setAttempt(current => current + 1)}>{STUDIO_SB_WORDS.sourcesRetry}</button></p>
-          )}
-          <footer>
-            <Link href={STUDIO_SB_UPLOAD_HREF} data-studio-p2-sources-upload="true">{STUDIO_SB_WORDS.upload}</Link>
-            <small>{STUDIO_SB_WORDS.uploadHint}</small>
-          </footer>
+          <StudioP2SourcesList phase={phase} sources={sources} failed={failed} onRetry={retry} />
+          <StudioP2SourcesUpload />
         </section>
       )}
     </div>

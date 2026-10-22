@@ -4,8 +4,9 @@
 //   helper     lib/studio-knowledge-sources-menu.ts on its own (import-free): the number, the menu and its busy rules, arrow-key movement;
 //   component  components/knowledge/studio-knowledge-sources-menu.tsx: markup (real React) and behaviour (a small hooks runtime with fake elements): open, focus, keys,
 //              outside press, choosing an item starts exactly that one thing, the busy states;
-//   page       app/(app)/knowledge/page.tsx: the flag is read once (exact "true", AND the Studio shell); the menu is given the page's own handlers and numbers; the search
-//              block is one piece of markup that renders in the header (flag on) or in the map header (flag off); the three old buttons are the flag-off branch, untouched;
+//   page       app/(app)/knowledge/page.tsx: the flag is read once (exact "true", AND the Studio shell); the menu is given the page's own handlers and numbers (one props object,
+//              which the Second Brain flag's menu, StudioP2SourcesMenu, gets as well, so with both flags on there is ONE Sources control: proven in test-studio-p2-second-brain.mjs);
+//              the search block is one piece of markup that renders in the header (flag on) or in the map header (flag off); the three old buttons are the flag-off branch, untouched;
 //   css        every rule of the new stylesheet hangs on data-studio-knowledge-role="header-tools" or the menu's own attribute, which exist only with the flag on.
 // Flag-off identity of the whole page is held by the render goldens of scripts/test-studio-knowledge-fixes.mjs and scripts/test-atlas-knowledge-recovery.mjs (they run the real
 // page with the flag unset).
@@ -312,14 +313,18 @@ function pageChecks(page, css) {
   check(assert.equal, occurrences(page, FLAG), 1, 'the flag is named once in the page')
   check(assert.ok, page.includes(`const KNOWLEDGE_HEADER_ACTIONS = STUDIO_SHELL && process.env.${FLAG} === "true"\n`), 'read once, exact "true", AND the Studio shell')
   check(assert.ok, page.indexOf('const STUDIO_SHELL =') < page.indexOf('const KNOWLEDGE_HEADER_ACTIONS ='), 'STUDIO_SHELL is defined first')
-  check(assert.equal, (page.match(/\bKNOWLEDGE_HEADER_ACTIONS\b/g) ?? []).length, 8, 'defined, then used: the row\'s role, the menu, the search, the three old buttons, the old search place')
+  check(assert.equal, (page.match(/\bKNOWLEDGE_HEADER_ACTIONS\b/g) ?? []).length, 9, 'defined, then used: the row\'s role, the stand-alone Sources popover\'s guard, the menu, the search, the three old buttons, the old search place')
   check(assert.equal, occurrences(page, 'StudioKnowledgeSourcesMenu'), 2, 'imported and used once')
   check(assert.ok, page.includes('import { StudioKnowledgeSourcesMenu } from "@/components/knowledge/studio-knowledge-sources-menu"\n'), 'the import')
   check(assert.ok, !page.includes('@/lib/studio-knowledge-sources-menu'), 'the page does not import the helper (the component does); the sibling page tests stub every import but their own four modules')
-  // the action row: its role says header-tools only with the flag on; the menu gets the page's own handlers and numbers
+  // the action row: its role says header-tools only with the flag on; the menu gets the page's own handlers and numbers (one props object, shared with the Second Brain flag's menu)
   check(assert.ok, page.includes('<div data-studio-knowledge-role={KNOWLEDGE_HEADER_ACTIONS ? "header-tools" : "actions"} className="flex flex-wrap gap-2">'), 'the row')
-  const menu = /\{KNOWLEDGE_HEADER_ACTIONS && \(\n {12}<StudioKnowledgeSourcesMenu\n {14}sessions=\{stats\?\.sessions_consolidated\}\n {14}importing=\{importing\}\n {14}loading=\{dataLoading\}\n {14}onImport=\{KNOWLEDGE_FIXES \? requestImport : runImport\}\n {14}onRefresh=\{\(\) => void loadData\(\)\}\n {14}settingsHref="\/settings\/knowledge-graph"\n {12}\/>\n {10}\)\}\n {10}\{KNOWLEDGE_HEADER_ACTIONS && knowledgeSearch\}\n/
-  check(assert.match, page, menu, 'the menu and the search, with the page\'s own handlers')
+  const props = /const sourcesMenuProps = \{\n {4}sessions: stats\?\.sessions_consolidated,\n {4}importing,\n {4}loading: dataLoading,\n {4}onImport: KNOWLEDGE_FIXES \? requestImport : runImport,\n {4}onRefresh: \(\) => void loadData\(\),\n {4}settingsHref: "\/settings\/knowledge-graph",\n {2}\}\n/
+  check(assert.match, page, props, 'the numbers and handlers are the page\'s own')
+  const menu = /\{P2_SB && !KNOWLEDGE_HEADER_ACTIONS && <StudioP2Sources entities=\{stats\?\.top_entities \?\? \[\]\} \/>\}\n {10}\{KNOWLEDGE_HEADER_ACTIONS && \(P2_SB\n {12}\? <StudioP2SourcesMenu entities=\{stats\?\.top_entities \?\? \[\]\} \{\.\.\.sourcesMenuProps\} \/>\n {12}: <StudioKnowledgeSourcesMenu \{\.\.\.sourcesMenuProps\} \/>\)\}\n {10}\{KNOWLEDGE_HEADER_ACTIONS && knowledgeSearch\}\n/
+  check(assert.match, page, menu, 'the menu (or, with the Second Brain flag also on, the one menu that holds its Sources list) and the search')
+  check(assert.equal, occurrences(page, 'sourcesMenuProps'), 3, 'defined, and given to each of the two menus')
+  check(assert.ok, page.indexOf('const sourcesMenuProps =') < page.indexOf('const knowledgeSearch ='), 'built before the markup that uses it')
   // flag off: the three old buttons are still the row's own children, each only guarded (no wrapper: the sibling page tests hash the element tree)
   const row = page.slice(page.indexOf('<div data-studio-knowledge-role={KNOWLEDGE_HEADER_ACTIONS ?'), page.indexOf('        </div>\n      </header>'))
   check(assert.ok, !row.includes('<>') && !row.includes('Fragment'), 'no fragment in the row')
@@ -418,12 +423,16 @@ const MUTANTS = [
   ['page', 'const KNOWLEDGE_HEADER_ACTIONS = STUDIO_SHELL && process.env.NEXT_PUBLIC_STUDIO_KNOWLEDGE_HEADER_ACTIONS === "true"', 'const KNOWLEDGE_HEADER_ACTIONS = STUDIO_SHELL && process.env.NEXT_PUBLIC_STUDIO_KNOWLEDGE_HEADER_ACTIONS !== "false"', 'on unless "false"'],
   ['page', 'data-studio-knowledge-role={KNOWLEDGE_HEADER_ACTIONS ? "header-tools" : "actions"}', 'data-studio-knowledge-role="header-tools"', 'the row is header-tools flag off too'],
   ['page', 'data-studio-knowledge-role={KNOWLEDGE_HEADER_ACTIONS ? "header-tools" : "actions"}', 'data-studio-knowledge-role="actions"', 'the row never says header-tools'],
-  ['page', 'sessions={stats?.sessions_consolidated}', 'sessions={stats?.node_count}', 'the number is the entity count'],
-  ['page', 'importing={importing}\n              loading={dataLoading}', 'importing={dataLoading}\n              loading={importing}', 'busy states swapped'],
-  ['page', 'onImport={KNOWLEDGE_FIXES ? requestImport : runImport}', 'onImport={runImport}', 'Import skips the confirm dialog'],
-  ['page', 'onImport={KNOWLEDGE_FIXES ? requestImport : runImport}', 'onImport={requestImport}', 'Import asks even when the page does not'],
-  ['page', 'onRefresh={() => void loadData()}', 'onRefresh={() => void runImport()}', 'Refresh imports'],
-  ['page', 'settingsHref="/settings/knowledge-graph"', 'settingsHref="/settings"', 'settings goes elsewhere'],
+  ['page', 'sessions: stats?.sessions_consolidated,', 'sessions: stats?.node_count,', 'the number is the entity count'],
+  ['page', 'importing,\n    loading: dataLoading,', 'importing: dataLoading,\n    loading: importing,', 'busy states swapped'],
+  ['page', 'onImport: KNOWLEDGE_FIXES ? requestImport : runImport,', 'onImport: runImport,', 'Import skips the confirm dialog'],
+  ['page', 'onImport: KNOWLEDGE_FIXES ? requestImport : runImport,', 'onImport: requestImport,', 'Import asks even when the page does not'],
+  ['page', 'onRefresh: () => void loadData(),', 'onRefresh: () => void runImport(),', 'Refresh imports'],
+  ['page', 'settingsHref: "/settings/knowledge-graph",', 'settingsHref: "/settings",', 'settings goes elsewhere'],
+  ['page', '{P2_SB && !KNOWLEDGE_HEADER_ACTIONS && <StudioP2Sources', '{P2_SB && <StudioP2Sources', 'both flags: two Sources buttons'],
+  ['page', '{KNOWLEDGE_HEADER_ACTIONS && (P2_SB\n', '{KNOWLEDGE_HEADER_ACTIONS && (false\n', 'both flags: the menu without the sources list'],
+  ['page', '<StudioKnowledgeSourcesMenu {...sourcesMenuProps} />)}', '<StudioKnowledgeSourcesMenu />)}', 'the menu loses the page\'s handlers and numbers'],
+  ['page', '<StudioP2SourcesMenu entities={stats?.top_entities ?? []} {...sourcesMenuProps} />', '<StudioP2SourcesMenu entities={stats?.top_entities ?? []} />', 'the Sources-list menu loses the page\'s handlers and numbers'],
   ['page', '          {KNOWLEDGE_HEADER_ACTIONS && knowledgeSearch}\n', '', 'no search in the header'],
   ['page', '          {KNOWLEDGE_HEADER_ACTIONS && knowledgeSearch}\n', '          <>{KNOWLEDGE_HEADER_ACTIONS && knowledgeSearch}</>\n', 'a fragment around the search'],
   ['page', '          {KNOWLEDGE_HEADER_ACTIONS && knowledgeSearch}\n', '          {knowledgeSearch}\n', 'the search is in the header flag off too'],

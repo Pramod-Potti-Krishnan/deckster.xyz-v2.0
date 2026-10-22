@@ -34,6 +34,7 @@ import { KnowledgeSectionBoundary } from "@/components/knowledge/knowledge-secti
 import { KnowledgeImportConfirm } from "@/components/knowledge/knowledge-import-confirm"
 import { StudioKnowledgeFilterTabs } from "@/components/knowledge/studio-knowledge-filter-tabs"
 import { StudioP2Sources } from "@/components/knowledge/studio-p2-sources"
+import { StudioP2SourcesMenu } from "@/components/knowledge/studio-p2-sources-menu"
 import { StudioP2DeckProvider } from "@/components/knowledge/studio-p2-deck-provider"
 import type { StudioDeckDirectory } from "@/hooks/use-studio-p2-deck-titles"
 import {
@@ -1094,6 +1095,16 @@ stats && stats.nodes_by_type.length > 0 && (
             </p>
           )}
   </>
+  // Flag on (J6 L5): the header's one "Sources" menu, with the page's own handlers and numbers. With the Second Brain flag also on (PASS2 SB-02) the same props go to the menu that holds the
+  // read-only sources list too (StudioP2SourcesMenu), so the header has one Sources control, not two.
+  const sourcesMenuProps = {
+    sessions: stats?.sessions_consolidated,
+    importing,
+    loading: dataLoading,
+    onImport: KNOWLEDGE_FIXES ? requestImport : runImport,
+    onRefresh: () => void loadData(),
+    settingsHref: "/settings/knowledge-graph",
+  }
   // Flag on (J6 L5): the search field sits in the header; the one block of markup, the same handlers. Flag off: rendered in the map header, as before.
   const knowledgeSearch = (
     <div data-studio-knowledge-role="search" className="relative w-full lg:max-w-sm">
@@ -1169,17 +1180,10 @@ stats && stats.nodes_by_type.length > 0 && (
           {STUDIO_SHELL ? <details data-studio-knowledge-role="context"><summary>About this knowledge{lastUpdated ? ` · Updated ${lastUpdated}` : ""}</summary>{headerContext}</details> : headerContext}
         </div>
         <div data-studio-knowledge-role={KNOWLEDGE_HEADER_ACTIONS ? "header-tools" : "actions"} className="flex flex-wrap gap-2">
-          {P2_SB && <StudioP2Sources entities={stats?.top_entities ?? []} />}
-          {KNOWLEDGE_HEADER_ACTIONS && (
-            <StudioKnowledgeSourcesMenu
-              sessions={stats?.sessions_consolidated}
-              importing={importing}
-              loading={dataLoading}
-              onImport={KNOWLEDGE_FIXES ? requestImport : runImport}
-              onRefresh={() => void loadData()}
-              settingsHref="/settings/knowledge-graph"
-            />
-          )}
+          {P2_SB && !KNOWLEDGE_HEADER_ACTIONS && <StudioP2Sources entities={stats?.top_entities ?? []} />}
+          {KNOWLEDGE_HEADER_ACTIONS && (P2_SB
+            ? <StudioP2SourcesMenu entities={stats?.top_entities ?? []} {...sourcesMenuProps} />
+            : <StudioKnowledgeSourcesMenu {...sourcesMenuProps} />)}
           {KNOWLEDGE_HEADER_ACTIONS && knowledgeSearch}
           {!KNOWLEDGE_HEADER_ACTIONS && STUDIO_SHELL && <Button variant="outline" disabled={dataLoading || importing} onClick={() => void loadData()}><RefreshCw className={cn("mr-2 h-4 w-4", dataLoading && "animate-spin")} />{dataLoading ? "Refreshing…" : "Refresh"}</Button>}
           {!KNOWLEDGE_HEADER_ACTIONS && (
