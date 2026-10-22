@@ -11,9 +11,9 @@ import { fileURLToPath } from 'node:url'
 import ts from 'typescript'
 
 export const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..')
-// LIBRARY_MANAGE_BASE=<commit> overrides the commit the flag-off identity is checked against (default 1079ba4, the studio-v4-dev-preparation-code tip this change is stacked on: #459 added only the Profile page,
+// LIBRARY_MANAGE_BASE=<commit> overrides the commit the flag-off identity is checked against (default 4c5fd0f, the studio-v4-dev-preparation-code tip this change is stacked on: #459 added only the Profile page and #468 only the admin email guard,
 // its .env.example block and its package script on top of bcd8aed, and none of the files this change touches).
-export const BASE_COMMIT = process.env.LIBRARY_MANAGE_BASE || '1079ba4b7cd277ece7cc46ee7624d74419c3a5aa'
+export const BASE_COMMIT = process.env.LIBRARY_MANAGE_BASE || '4c5fd0fbe6500afeb8218075261e268157706eed'
 const git = args => execFileSync('git', args, { cwd: root, encoding: 'utf8', maxBuffer: 64 * 1024 * 1024, stdio: ['ignore', 'pipe', 'ignore'] })
 export function baseSource(rel) {
   try { git(['cat-file', '-e', `${BASE_COMMIT}^{commit}`]); return git(['show', `${BASE_COMMIT}:${rel}`]) } catch { return null }
