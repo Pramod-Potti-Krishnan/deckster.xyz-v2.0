@@ -11,7 +11,7 @@
 //     with its postMessage bridge, and element-manager.js + request-element-refine.js, run in a node vm (scripts/studio-chat-element-refine-layout.mjs),
 //     reached through Studio's REAL viewer bridge (sendCommand, cut out of components/presentation-viewer.tsx) the way handleSendElementCommand
 //     sends an unrouted command. Offline, the viewer's replies come from layout-replies.json, which that real code recorded;
-//  3. the 12 transcripts DIRECTOR-2 RECORDED from Director !511's real code (scripts/fixtures/chat-element-refine/director-frames, copied verbatim)
+//  3. the 13 transcripts DIRECTOR-2 RECORDED from Director !511 (01-12, head 19d09d60) and !512 (13, head e29e1566) (scripts/fixtures/chat-element-refine/director-frames, copied verbatim)
 //     replayed through the REAL Director socket hook: what Studio sends (client_caps, references) and what it answers to element_refine_directive
 //     (element_directive_result) equal the recorded inbound frames, with message_id / directive_id / timestamp normalised;
 //  4. the chat refine reaches the Element panel's refine branch of the REAL useTextLabsGeneration (Text Labs is asked to refine, in place);
@@ -77,6 +77,7 @@ const DIRECTOR_DIR = path.join(FIXTURES, 'director-frames')
 const transcripts = Object.fromEntries(fs.readdirSync(DIRECTOR_DIR).filter(name => /^\d\d-.*\.json$/.test(name)).sort()
   .map(name => [name.replace(/\.json$/, ''), JSON.parse(fs.readFileSync(path.join(DIRECTOR_DIR, name), 'utf8'))]))
 const DIRECTOR_COMMIT = '19d09d603095e263ea87ab55af79fa59a8ad2370'
+const DIRECTOR_COMMIT_13 = 'e29e1566d4483bb6b213d4a65c4e92daf9078253'
 // message_id, directive_id and timestamp vary per recording run; everything else is compared as recorded.
 function normalise(frame, ids = new Map()) {
   const walk = value => {
@@ -95,11 +96,12 @@ function normalise(frame, ids = new Map()) {
   return walk(frame)
 }
 
-await check('fixtures: the 12 recorded Director transcripts are from Director !511 head 19d09d60 with the planned flags', async () => {
+await check('fixtures: the 13 recorded Director transcripts are from Director !511 head 19d09d60 with the planned flags', async () => {
   assert.deepEqual(Object.keys(transcripts), ['01-success', '02-failed', '03-dismissed', '04-g3-no-element-reference', '05-g5-slide-op-in-flight', '06-no-cap',
-    '07-failed-viewer-unavailable', '08-failed-element-not-found', '09-failed-timeout', '10-two-elements', '11-off-list-type', '12-long-id'])
+    '07-failed-viewer-unavailable', '08-failed-element-not-found', '09-failed-timeout', '10-two-elements', '11-off-list-type', '12-long-id', '13-non-refinable-type'])
   for (const [name, t] of Object.entries(transcripts)) {
-    assert.equal(t.director_commit, DIRECTOR_COMMIT, name)
+    // 13 was recorded on DIRECTOR-2's follow-up (seat2/director-mdc-refine-element-types e29e1566, stacked on !511): the narrowed refinable set.
+    assert.equal(t.director_commit, name === '13-non-refinable-type' ? DIRECTOR_COMMIT_13 : DIRECTOR_COMMIT, name)
     assert.equal(t.flags.DIRECTOR_MDC_REFINE_ELEMENT_ENABLED, 'true', name)
     assert.equal(t.flags.CHAT_CAP_REFINE_ELEMENT, 'true', name)
     const outTypes = t.frames.filter(f => f.direction === 'out').map(f => f.frame.type)
@@ -526,8 +528,15 @@ await check('runner: not_owner, a busy panel mid-run, a slide the viewer cannot 
   assert.equal(status(await run({ sendElementCommand: null })), 'failed:viewer_unavailable')
   let calls = 0
   assert.equal(status(await run({ isBusy: () => calls++ > 0 })), 'dismissed', 'the panel opened while the payload was read')
-  assert.equal(status(await run({ componentTypeOf: () => null })), 'failed:generation_failed')
-  assert.equal(status(await run({ isBlankPlaceholder: () => true })), 'failed:generation_failed')
+  // DIRECTOR-2's answer 4 (22 Oct): outside the 7 K5 types, or a blank placeholder: unsupported_type, and nothing is generated.
+  const started = []
+  for (const type of ['INFOGRAPHIC', 'DIAGRAM', null]) {
+    assert.equal(status(await run({ componentTypeOf: () => type, generate: async () => { started.push(type); throw new Error('must not start') } })), 'failed:unsupported_type', String(type))
+  }
+  assert.equal(status(await run({ isBlankPlaceholder: () => true, generate: async () => { started.push('blank'); throw new Error('must not start') } })), 'failed:unsupported_type')
+  assert.deepEqual(started, [], 'no generation was started')
+  for (const type of ['TEXT_BOX', 'METRICS', 'TABLE', 'CHART', 'IMAGE', 'ICON_LABEL', 'SHAPE']) assert.equal(status(await run({ componentTypeOf: () => type })), 'refined', type)
+  assert.ok(refine.chatElementReferenceFor({ elementId: 'el_infographic_2b9e', elementType: 'infographic', slideIndex: 2, slideId: 'L2' }), 'references are still sent for all 19 types')
   assert.equal(status(await run({}, { ...directive, payload: { ...directive.payload, instruction: '  ' } })), 'failed:generation_failed')
   assert.equal(status(await run({ generate: async () => { throw new Error('boom') } })), 'failed:generation_failed')
   assert.equal(status(await run({ generate: async () => ({ status: 'inserted', presentationId: 'pres-other', slideIndex: 2, elementIds: ['x'] }) })), 'failed:not_owner')
@@ -555,3 +564,337 @@ await check('hook (flag on): a directive without a usable directive_id is droppe
   assert.equal(hook.seen.refineDirectives.length, 1, 'a closed socket\'s frame never reaches the runner')
   hook.unmount()
 })
+
+// ---- 4. the chat refine reaches the Element panel's refine branch of the REAL useTextLabsGeneration ----------------------------------
+// The complete hook and the complete useGenerationPanel run with plain hook bindings (the way scripts/test-metrics-card-refine-integration.mjs
+// runs them); Layout and Text Labs are local stand-ins that only record. The refine context is the page's buildRefineContext of the payload
+// the REAL Layout command returned (layout-replies.json), and the form is the runner's.
+async function generateThrough(invocationKind, processEnv) {
+  const equalDeps = (a, b) => a?.length === b?.length && a.every((value, index) => Object.is(value, b[index]))
+  let active
+  const hooks = {
+    useRef(value) { const s = active, i = s.cursor++; return s.slots[i] ??= { current: value } },
+    useState(value) { const s = active, i = s.cursor++; if (!(i in s.slots)) s.slots[i] = typeof value === 'function' ? value() : value; return [s.slots[i], next => { const old = s.slots[i], v = typeof next === 'function' ? next(old) : next; if (!Object.is(old, v)) { s.slots[i] = v; s.dirty = true } }] },
+    useCallback(fn, deps) { const s = active, i = s.cursor++, old = s.slots[i]; if (!old || !equalDeps(deps, old.deps)) s.slots[i] = { value: fn, deps }; return s.slots[i].value },
+    useMemo(fn, deps) { const s = active, i = s.cursor++, old = s.slots[i]; if (!old || !equalDeps(deps, old.deps)) s.slots[i] = { value: fn(), deps }; return s.slots[i].value },
+    useEffect(fn, deps) { const s = active, i = s.cursor++, old = s.slots[i]; if (!old || !equalDeps(deps, old.deps)) s.pending.push(() => { old?.cleanup?.(); s.slots[i] = { deps, cleanup: fn() } }) },
+  }
+  const scope = () => ({ slots: [], cursor: 0, pending: [], dirty: false })
+  const render = (s, fn) => { let result, n = 0; do { s.cursor = 0; s.pending = []; s.dirty = false; active = s; result = fn(); s.pending.forEach(effect => effect()); assert.ok(++n < 20) } while (s.dirty); return result }
+  const cache = new Map(), fetches = [], commands = [], toasts = []
+  const load = file => {
+    if (cache.has(file)) return cache.get(file).exports
+    const module = { exports: {} }; cache.set(file, module)
+    const out = ts.transpileModule(read(file), { fileName: file, compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022, jsx: ts.JsxEmit.ReactJSX } }).outputText
+    vm.runInNewContext(out, { module, exports: module.exports, process: { env: processEnv }, Error, TypeError, DOMException, AbortController, URL, Date, Map, Set, setTimeout, clearTimeout,
+      crypto: { randomUUID: () => crypto.randomUUID() }, FormData, Blob, console: { log() {}, info() {}, debug() {}, warn() {}, error() {} },
+      fetch: async (url, init) => {
+        const body = typeof init?.body === 'string' ? JSON.parse(init.body) : init?.body instanceof FormData ? Object.fromEntries(init.body.entries()) : null
+        fetches.push({ url: String(url), body })
+        return { ok: true, status: 200, headers: { get: () => null }, json: async () => ({ success: true, elements: [{ element_id: 'tl-chart-1', component_type: 'CHART', html: '<div>Synthetic bar chart</div>', content: '<div>Synthetic bar chart</div>' }] }) }
+      },
+      WebSocket: () => { throw new Error('no sockets') },
+      require: spec => spec === 'react' ? hooks : spec.startsWith('@/') ? load([`${spec.slice(2)}.ts`, `${spec.slice(2)}.tsx`].find(f => fs.existsSync(path.join(root, f)))) : (() => { throw new Error(`unexpected ${spec}`) })() }, { filename: file })
+    return module.exports
+  }
+  const { useTextLabsGeneration } = load('hooks/use-textlabs-generation.ts')
+  const { useGenerationPanel } = load('hooks/use-generation-panel.ts')
+  const panelScope = scope(), genScope = scope()
+  const panel = render(panelScope, useGenerationPanel)
+  const api = {
+    sendElementCommand: async (action, params) => {
+      commands.push({ action, params: plain(params) })
+      if (action === 'getElementGeometry') return { success: true, action, elementId: params.elementId, position: { gridRow: '5/18', gridColumn: '2/16' }, componentType: 'CHART', themeVariantId: 'solid', themeBindings: { fill: 'primary' } }
+      if (action === 'getSlideGenerationContext') return { success: true, slide_index: params.slideIndex, elements: [] }
+      if (action.startsWith('insert') || action.startsWith('upsert')) return { success: true, elementId: 'el_chart_7f3a_refined' }
+      return { success: true }
+    },
+  }
+  api.captureStudioElementGeneration = () => ({ isCurrent: () => true, sendElementCommand: api.sendElementCommand })
+  const themeSync = { status: 'applied', requestId: 'synthetic-theme-request', presentationId: PRESENTATION, themeFingerprint: 'synthetic-theme', error: null }
+  const params = { generationPanel: panel, blankElements: { getElement: () => undefined, updatePosition() {}, setStatus() {}, updateGenerationMetadata() {}, removeElement() {}, addElement() {}, trackElement() {} },
+    textLabsSession: { ensureSession: async () => 'synthetic-textlabs-session' }, layoutServiceApis: api, presentationId: PRESENTATION, currentSlideIndex: 2, getCurrentSlideIndex: () => 2,
+    researchCapabilities: { web: false, uploadedDocuments: false, knowledgeGraph: false }, getThemeSyncSnapshot: () => ({ ...themeSync }),
+    ensureThemeReady: async () => ({ ready: true, source: 'director', sync: { ...themeSync } }), toast: value => toasts.push(plain(value)) }
+  const driver = render(genScope, () => useTextLabsGeneration(params))
+  const payload = recorded.replies.on[0].reply.data
+  const refineContext = realBuildRefineContext()(payload, 'CHART')
+  const formData = refine.chatRefineFormData('CHART', 'make it a bar chart', refineContext)
+  const invocation = invocationKind === 'chat-refine' ? { kind: 'chat-refine', slideIndex: 2, refineContext } : { kind: 'chat-add', slideIndex: 2 }
+  const outcome = await driver.handleGenerate(formData, 'generate', invocation)
+  return { outcome: plain(outcome), fetches, commands, toasts, panel: plain({ isOpen: panelScope.slots && render(panelScope, useGenerationPanel).isOpen }) }
+}
+const SHELL = { NEXT_PUBLIC_STUDIO_V4_SHELL: 'true', NEXT_PUBLIC_TEXT_LABS_URL: 'https://textlabs.synthetic.test', NEXT_PUBLIC_ELEMENTOR_URL: 'https://textlabs.synthetic.test' }
+await check('generation: with the flag on, kind chat-refine runs the REAL hook\'s refine branch (Text Labs refines; the original is replaced in place)', async () => {
+  const run = await generateThrough('chat-refine', { ...SHELL, NEXT_PUBLIC_CHAT_ELEMENT_REFINE: 'true' })
+  assert.deepEqual(run.outcome, { status: 'inserted', presentationId: PRESENTATION, slideIndex: 2, elementIds: ['el_chart_7f3a_refined'] })
+  assert.equal(run.fetches.length, 1, 'one Text Labs request')
+  const { url, body } = run.fetches[0]
+  assert.equal(url, 'https://textlabs.synthetic.test/api/chat/message')
+  assert.equal(body.refine, true, 'a refine, not an add')
+  assert.equal(body.replace_element_id, 'el_chart_7f3a'); assert.equal(body.existing_element.element_id, 'el_chart_7f3a')
+  assert.equal(body.existing_element.component_type, 'CHART'); assert.deepEqual(body.existing_element.generation_config, { prompt: 'Revenue by region', chart_type: 'line' })
+  assert.equal(body.message, 'make it a bar chart'); assert.equal(body.component_type, 'CHART'); assert.equal(body.slide_index, 2)
+  assert.equal(body.use_deck_theme, true); assert.equal(body.theme_variant_id, 'solid'); assert.deepEqual(body.theme_bindings, { fill: 'primary' })
+  assert.deepEqual(body.position_config, { start_col: 2, start_row: 5, position_width: 14, position_height: 13, auto_position: false }, 'the live geometry, so it stays in place')
+  assert.deepEqual(run.commands.map(c => c.action), ['setElementGenerationState', 'getElementGeometry', 'getSlideGenerationContext', 'insertChart', 'deleteElement'])
+  assert.deepEqual(run.commands[0].params, { elementId: 'el_chart_7f3a', generating: true, label: 'Regenerating…' })
+  assert.equal(run.commands[3].params.gridRow, '5/18'); assert.equal(run.commands[3].params.gridColumn, '2/16')
+  assert.equal(run.commands[4].params.elementId, 'el_chart_7f3a', 'the original goes once its replacement is in')
+  assert.match(run.commands[3].params.mutationId, /^refine:el_chart_7f3a:/)
+  // The same call with the flag off is NOT a refine (the invocation's target is ignored): only the flag-on runner ever builds it.
+  const off = await generateThrough('chat-refine', { ...SHELL })
+  assert.equal(off.fetches.length, 1); assert.equal(off.fetches[0].body.refine, undefined); assert.equal(off.fetches[0].body.replace_element_id, undefined)
+  assert.deepEqual(off.commands.map(c => c.action), ['getSlideGenerationContext', 'insertChart'])
+  // And chat-add, flag on or off, is exactly what it was: no refine.
+  for (const env of [SHELL, { ...SHELL, NEXT_PUBLIC_CHAT_ELEMENT_REFINE: 'true' }]) {
+    const add = await generateThrough('chat-add', env)
+    assert.equal(add.fetches[0].body.refine, undefined); assert.deepEqual(add.commands.map(c => c.action), ['getSlideGenerationContext', 'insertChart'])
+  }
+})
+
+// ---- 5. flag off is identical -------------------------------------------------------------------------------------------------------
+await check(`identity: stripping this change gives back ${BASE_COMMIT.slice(0, 7)}'s files byte for byte; every added literal occurs once`, async () => {
+  const strip = await import('./studio-chat-element-refine-strip.mjs')
+  assert.deepEqual(CHAT_ELEMENT_REFINE_FILES, ['.env.example', 'app/builder/page.tsx', HOOK, 'hooks/use-textlabs-generation.ts', 'types/mdc.ts'])
+  for (const rel of CHAT_ELEMENT_REFINE_FILES) {
+    const head = read(rel)
+    for (const [added] of strip.CHAT_ELEMENT_REFINE_CHANGES[rel]) assert.equal(head.split(added).length, 2, `${rel}: one occurrence`)
+    assert.equal(sha(stripChatElementRefine(rel, head)), sha(baseFile(rel)), rel)
+  }
+  // Nothing else in the tree differs from the base but this change's new files.
+  const changed = git('diff', '--name-only', BASE_COMMIT, '--', '.').split('\n').filter(Boolean)
+  const untracked = git('ls-files', '--others', '--exclude-standard').split('\n').filter(Boolean)
+  const NEW = /^(lib\/chat-element-refine(-wire)?\.ts|scripts\/(test-studio-chat-element-refine|studio-chat-element-refine-(layout|strip))\.mjs|scripts\/fixtures\/chat-element-refine\/.+|LIVE-CHECK-PLAN\.md|scripts\/test-studio-add-element-ownership\.mjs|scripts\/test-studio-director-transport\.mjs)$/
+  for (const rel of [...changed, ...untracked]) assert.ok(CHAT_ELEMENT_REFINE_FILES.includes(rel) || NEW.test(rel), `unexpected change: ${rel}`)
+})
+
+await check('identity: every added piece is behind the flag (or is a type, a comment or the flag-gated import)', async () => {
+  const strip = await import('./studio-chat-element-refine-strip.mjs')
+  for (const rel of CHAT_ELEMENT_REFINE_FILES) for (const [added, original] of strip.CHAT_ELEMENT_REFINE_CHANGES[rel]) {
+    const addedLines = added.split('\n').filter(line => !original.split('\n').includes(line)).join('\n')
+    // types/mdc.ts is types only (no runtime); .env.example documents the flag; every other hunk names the flag or the chat-refine kind.
+    const gated = rel === 'types/mdc.ts' || /NEXT_PUBLIC_CHAT_ELEMENT_REFINE|CHAT_ELEMENT_REFINE_ENABLED|chat-refine/.test(addedLines)
+    assert.ok(gated, `${rel}: ${addedLines.slice(0, 200)}`)
+  }
+})
+
+// The reducer, cache, history-restore and send code paths: unchanged declarations hash-equal the base; the two that gained one flag-gated
+// branch (buildUserMessage and so sendMessage, startConnection) hash-equal the base once that branch is stripped. The session cache and history restore files are untouched.
+function declarations(text, names, file = HOOK) {
+  const ast = ts.createSourceFile(file, text, ts.ScriptTarget.Latest, true, file.endsWith('x') ? ts.ScriptKind.TSX : ts.ScriptKind.TS)
+  const found = {}
+  const visit = node => {
+    if ((ts.isVariableDeclaration(node) || ts.isFunctionDeclaration(node)) && names.includes(node.name?.getText(ast)) && !found[node.name.getText(ast)]) found[node.name.getText(ast)] = node.getText(ast)
+    ts.forEachChild(node, visit)
+  }
+  visit(ast)
+  for (const name of names) assert.ok(found[name], `${file} declares ${name}`)
+  return found
+}
+const UNCHANGED_HOOK = ['setStateWithCache', 'clearAwaitReply', 'beginAwaitReply', 'sendMessageWhenConnected', 'sendElementDirectiveResult', 'sendControlMessage',
+  'sendThemeSelection', 'restoreMessages', 'updateCacheUserMessages', 'clearMessages', 'ensureConnected', 'connect', 'disconnect', 'scheduleReconnect']
+const STRIPPED_HOOK = ['buildUserMessage', 'sendMessage', 'startConnection']
+const PAGE_PATHS = ['handleSendMessage', 'preflightDirectorTurn', 'handleActionClick', 'handleRefineElementRequested', 'getTemplateSlotCatalog']
+const identityHashes = {}
+await check('identity: reducer / cache / history-restore / send paths hash-equal the base (stripped only where the flag branch sits)', async () => {
+  const head = read(HOOK), base = baseFile(HOOK)
+  const h = declarations(head, [...UNCHANGED_HOOK, ...STRIPPED_HOOK]), b = declarations(base, [...UNCHANGED_HOOK, ...STRIPPED_HOOK])
+  for (const name of UNCHANGED_HOOK) { assert.equal(sha(h[name]), sha(b[name]), name); identityHashes[`hook.${name}`] = sha(h[name]) }
+  const hs = declarations(stripChatElementRefine(HOOK, head), STRIPPED_HOOK)
+  for (const name of STRIPPED_HOOK) { assert.notEqual(sha(h[name]), sha(b[name]), `${name} carries the flag branch`); assert.equal(sha(hs[name]), sha(b[name]), name); identityHashes[`hook.${name}(stripped)`] = sha(hs[name]) }
+  // The reducer: the onmessage setState through the transcript exclusion list is untouched text (it sits inside startConnection).
+  const reducer = text => text.slice(text.indexOf('            // Turn gate: any reply-bearing frame unlocks the input.'), text.indexOf("            if ((message.type as string) === 'session_directive') {"))
+  assert.ok(reducer(head).length > 2000); assert.equal(sha(reducer(head)), sha(reducer(base))); identityHashes['hook.reducer'] = sha(reducer(head))
+  for (const rel of ['hooks/use-session-cache.ts', 'hooks/use-builder-session.ts', 'components/builder/message-list.tsx', 'lib/director-chat-history.ts', 'lib/mdc-element-directive.ts', 'components/presentation-viewer.tsx', 'lib/element-command-router.ts']) {
+    assert.equal(sha(read(rel)), sha(baseFile(rel)), rel); identityHashes[rel] = sha(read(rel))
+  }
+  const page = read('app/builder/page.tsx'), basePage = baseFile('app/builder/page.tsx')
+  const p = declarations(page, PAGE_PATHS, 'app/builder/page.tsx'), bp = declarations(basePage, PAGE_PATHS, 'app/builder/page.tsx')
+  for (const name of PAGE_PATHS) { assert.equal(sha(p[name]), sha(bp[name]), `page ${name}`); identityHashes[`page.${name}`] = sha(p[name]) }
+})
+
+/** Every frame of every transcript, then a send of each kind: what the hook does with them, as bytes and state. */
+async function hookTrace({ refineFlag, hookText, extraEnv }) {
+  const hook = await mountHook({ refineFlag, hookText, extraEnv })
+  hook.probe.reference = refine.chatElementReferenceFor(SELECTED_CHART)
+  const trace = []
+  await hook.send('Make this a bar chart')
+  await hook.send('@[Slide 1: Overview] make it shorter')
+  for (const [name, transcript] of Object.entries(transcripts)) {
+    for (const entry of transcript.frames) if (entry.direction === 'out') { await hook.deliver({ ...entry.frame, message_id: `${name}-${entry.seq}` }); trace.push(hook.state()) }
+  }
+  hook.api.sendElementDirectiveResult({ directive_id: 'el_synthetic', status: 'inserted', element_id: 'x', error: null })
+  await hook.settle()
+  const result = { sent: hook.sent(), trace, refineDirectives: hook.seen.refineDirectives.length, onMessage: hook.seen.onMessage, elementDirectives: hook.seen.elementDirectives }
+  hook.unmount()
+  return result
+}
+await check('identity: the base hook and this hook, flag off, give the same bytes, transcript, cache and callbacks for all 13 transcripts and the sends', async () => {
+  for (const extraEnv of [{}, { NEXT_PUBLIC_CHAT_MENTIONS: 'true' }, { NEXT_PUBLIC_CHAT_DIRECTIVES: 'false' }]) {
+    const base = await hookTrace({ refineFlag: false, hookText: baseFile(HOOK), extraEnv })
+    for (const flagValue of [undefined, 'false', '1', 'TRUE']) {
+      const head = await hookTrace({ refineFlag: false, hookText: null, extraEnv: { ...extraEnv, ...(flagValue === undefined ? {} : { NEXT_PUBLIC_CHAT_ELEMENT_REFINE: flagValue }) } })
+      assert.deepEqual(head, base, `${JSON.stringify(extraEnv)} flag=${flagValue}`)
+    }
+    assert.equal(base.refineDirectives, 0)
+    for (const [index, data] of base.sent.entries()) if (data.startsWith('{"type":"user_message"')) identityHashes[`send.${JSON.stringify(extraEnv)}.${index}`] = sha(data)
+  }
+  const on = await hookTrace({ refineFlag: true, hookText: null, extraEnv: {} })
+  const off = await hookTrace({ refineFlag: false, hookText: null, extraEnv: {} })
+  assert.equal(on.refineDirectives, 6, 'flag on: the six recorded directives (01, 02, 03, 07, 08, 09) reach the runner')
+  // Flag on, the sends differ only by the cap and the reference; the transcript and cache are the same frame for frame.
+  const strip = data => { const frame = JSON.parse(data); if (frame.type === 'user_message') { frame.data.client_caps = frame.data.client_caps.filter(c => c !== 'element_refine1'); frame.data.references = frame.data.references?.filter(r => r.kind !== 'element'); if (!frame.data.references?.length) delete frame.data.references } return JSON.stringify(frame) }
+  assert.deepEqual(on.sent.map(strip), off.sent, 'sends')
+  // ... and the transcript and the cache are the same after every frame (only the turn gate differs: a directive unlocks it with the flag on).
+  const view = trace => trace.map(({ messages, cache, presentationId }) => ({ messages, cache, presentationId }))
+  assert.deepEqual(view(on.trace), view(off.trace), 'transcript and cache')
+})
+
+// ---- 6. the page's own wiring, executed ---------------------------------------------------------------------------------------------
+const PAGE = 'app/builder/page.tsx'
+const pageText = read(PAGE)
+const pageAst = ts.createSourceFile(PAGE, pageText, ts.ScriptTarget.Latest, true, ts.ScriptKind.TSX)
+function findNode(predicate, node = pageAst) {
+  if (predicate(node)) return node
+  let hit = null
+  ts.forEachChild(node, child => { if (!hit) hit = findNode(predicate, child) })
+  return hit
+}
+const jsOf = text => ts.transpileModule(`(${text})`, { compilerOptions: { target: ts.ScriptTarget.ES2022, jsx: ts.JsxEmit.ReactJSX } }).outputText
+const runnerNode = findNode(node => ts.isBinaryExpression(node) && node.left.getText(pageAst) === 'elementRefineDirectiveRunnerRef.current')
+const addRunnerNode = findNode(node => ts.isBinaryExpression(node) && node.left.getText(pageAst) === 'elementDirectiveRunnerRef.current')
+const selectionEffects = []
+findNode(node => {
+  if (ts.isCallExpression(node) && node.expression.getText(pageAst) === 'useEffect' && node.arguments[0]?.getText(pageAst).includes('chatElementSelectionRef.current =')) selectionEffects.push(node)
+  return false
+})
+const hookCall = findNode(node => ts.isCallExpression(node) && node.expression.getText(pageAst) === 'useDecksterWebSocketV2')
+const refineOptions = hookCall && hookCall.arguments[0].properties.find(p => ts.isSpreadAssignment(p) && p.getText(pageAst).includes('onElementRefineDirective'))
+
+await check('page: wired only behind the flag, next to the K5 add runner, on the same owner record', async () => {
+  assert.ok(runnerNode && addRunnerNode && refineOptions)
+  assert.ok(runnerNode.getStart(pageAst) > addRunnerNode.getEnd(), 'after the add runner')
+  assert.ok(pageText.slice(addRunnerNode.getEnd(), runnerNode.getStart(pageAst)).split('\n').length < 40, 'right beside it')
+  assert.match(runnerNode.right.getText(pageAst), /^!CHAT_ELEMENT_REFINE_ENABLED \? null : \(message, owner\) => \{/)
+  assert.match(refineOptions.expression.getText(pageAst), /^\(CHAT_ELEMENT_REFINE_ENABLED \? \{[\s\S]*\} : \{\}\)$/)
+  assert.match(refineOptions.getText(pageAst), /getChatElementReference: \(\) => chatElementReferenceFor\(chatElementSelectionRef\.current\)/)
+  assert.equal(selectionEffects.length, 2)
+  for (const effect of selectionEffects) assert.match(effect.arguments[0].getText(pageAst), /^\(\) => \{\n    if \(!CHAT_ELEMENT_REFINE_ENABLED\) return\n/)
+  assert.match(pageText, /function normalizeTextLabsElementType\(value: unknown\): TextLabsComponentType \| null \{\n  return normalizeSemanticComponentType\(value\)\n\}/, 'the type mapping the runner test uses')
+  assert.match(pageText, /import \{ CHAT_ELEMENT_REFINE_ENABLED, chatElementReferenceFor, runElementRefineDirective, type ChatElementSelection, type ElementRefineDirectiveMessage, type ElementRefineDirectiveOwner \} from '@\/lib\/chat-element-refine'\n/)
+})
+
+/** The page's runner expression, evaluated with the page's names bound to local stand-ins (the generation is the recorded case's). */
+function pageRunner(scope) {
+  return vm.runInNewContext(jsOf(runnerNode.right.getText(pageAst)), { ...scope, Promise, setTimeout: (fn) => { fn(); return 0 }, String })
+}
+await check('page: its runner answers on the delivering socket only, once per directive, and turns a second directive away while one runs', async () => {
+  const sentResults = []
+  const generations = []
+  const { deps } = caseDeps('01-success', generations, { current: 2 })
+  let release
+  const gate = new Promise(resolve => { release = resolve })
+  const scope = {
+    CHAT_ELEMENT_REFINE_ENABLED: true, runElementRefineDirective: refine.runElementRefineDirective,
+    chatElementRefineInFlightRef: { current: false },
+    elementDirectiveGenerationOwnerRef: { current: { sessionId: SESSION, deckOwnerSessionId: SESSION, presentationId: PRESENTATION, epoch: 3 } },
+    generationPanel: { hasActiveGenerations: false, getSnapshot: () => ({ isOpen: false }) },
+    slideStructure: { slides: [{}, {}, {}] }, currentSlideIndexRef: { current: 2 },
+    layoutServiceApis: { goToSlide: deps.goToSlide, sendElementCommand: deps.sendElementCommand },
+    normalizeTextLabsElementType: semantic.normalizeSemanticComponentType, shouldOpenAsBlankPlaceholder: blankPolicy.shouldOpenAsBlankPlaceholder,
+    blankElements: { getElement: () => undefined }, buildRefineContext: deps.buildRefineContext,
+    handleApprovedTextLabsGenerate: async (formData, intent, invocation) => { assert.equal(intent, 'generate'); await gate; return deps.generate(formData, invocation) },
+    sendElementDirectiveResult: data => { sentResults.push(plain(data)); return true },
+  }
+  const runner = pageRunner(scope)
+  const directive = transcripts['01-success'].frames[1].frame
+  let current = true
+  runner(directive, { sessionId: SESSION, isCurrent: () => current })
+  for (let i = 0; i < 20 && !generations.length && scope.chatElementRefineInFlightRef.current; i++) await new Promise(resolve => setImmediate(resolve))
+  runner({ ...directive, payload: { ...directive.payload, directive_id: 'elr_000000000002' } }, { sessionId: SESSION, isCurrent: () => true })
+  for (let i = 0; i < 20 && sentResults.length < 1; i++) await new Promise(resolve => setImmediate(resolve))
+  assert.deepEqual(sentResults, [{ directive_id: 'elr_000000000002', status: 'dismissed', element_id: 'el_chart_7f3a', error_code: null }], 'the second waits for nothing: dismissed')
+  release()
+  for (let i = 0; i < 40 && sentResults.length < 2; i++) await new Promise(resolve => setImmediate(resolve))
+  assert.deepEqual(sentResults[1], { directive_id: directive.payload.directive_id, status: 'refined', element_id: 'el_chart_7f3a', error_code: null })
+  assert.equal(scope.chatElementRefineInFlightRef.current, false, 'free again')
+  // A socket that retired meanwhile gets no answer.
+  current = false
+  runner(directive, { sessionId: SESSION, isCurrent: () => current })
+  for (let i = 0; i < 40; i++) await new Promise(resolve => setImmediate(resolve))
+  assert.equal(sentResults.length, 2)
+  assert.equal(vm.runInNewContext(jsOf(runnerNode.right.getText(pageAst)), { ...scope, CHAT_ELEMENT_REFINE_ENABLED: false }), null, 'flag off: no runner')
+})
+
+await check('page: the selection effects record the slide on screen at selection time and clear with the selection; flag off they record nothing', async () => {
+  const [textEffect, elementEffect] = selectionEffects.map(effect => jsOf(effect.arguments[0].getText(pageAst)))
+  const run = (code, scope) => vm.runInNewContext(code, scope)()
+  const ref = { current: null }
+  const slideStructure = { slides: [{ slide_id: 'L0' }, { slide_id: 'L1' }, { slide_id: 'L2' }] }
+  const base = { CHAT_ELEMENT_REFINE_ENABLED: true, chatElementSelectionRef: ref, slideStructure, currentSlideIndexRef: { current: 2 } }
+  run(elementEffect, { ...base, selectedElementId: 'el_chart_7f3a', selectedElementType: 'chart' })
+  assert.deepEqual(plain(ref.current), SELECTED_CHART)
+  assert.deepEqual(plain(refine.chatElementReferenceFor(ref.current)), transcripts['01-success'].frames[0].frame.data.references[0], 'exactly the recorded reference')
+  run(textEffect, { ...base, selectedTextBoxId: null })
+  assert.ok(ref.current, 'a text box deselect leaves an element selection alone')
+  run(textEffect, { ...base, selectedTextBoxId: 'el_title_0', currentSlideIndexRef: { current: 0 } })
+  assert.deepEqual(plain(ref.current), { elementId: 'el_title_0', elementType: 'TEXT_BOX', slideIndex: 0, slideId: 'L0' })
+  run(elementEffect, { ...base, selectedElementId: null, selectedElementType: null })
+  assert.ok(ref.current, 'an element deselect leaves a text box selection alone')
+  run(textEffect, { ...base, selectedTextBoxId: null })
+  assert.equal(ref.current, null)
+  const off = { current: null }
+  run(elementEffect, { ...base, CHAT_ELEMENT_REFINE_ENABLED: false, chatElementSelectionRef: off, selectedElementId: 'el_chart_7f3a', selectedElementType: 'chart' })
+  assert.equal(off.current, null)
+})
+
+// ---- negative controls: each piece is load-bearing --------------------------------------------------------------------------------
+await check('mutation: without the hook interception the directive never reaches the runner', async () => {
+  const mutated = read(HOOK).replace('if (CHAT_ELEMENT_REFINE_ENABLED && (parsedMessage.type as unknown) === ELEMENT_REFINE_DIRECTIVE_TYPE) {', 'if (false) {')
+  assert.notEqual(mutated, read(HOOK))
+  const hook = await mountHook({ refineFlag: true, hookText: mutated })
+  await hook.deliver(transcripts['01-success'].frames[1].frame)
+  assert.equal(hook.seen.refineDirectives.length, 0)
+  hook.unmount()
+})
+await check('mutation: without the send line there is no element_refine1 and no reference', async () => {
+  const mutated = read(HOOK).replace('      if (CHAT_ELEMENT_REFINE_ENABLED) addChatElementRefineFields(', '      if (false) addChatElementRefineFields(')
+  assert.notEqual(mutated, read(HOOK))
+  const hook = await mountHook({ refineFlag: true, hookText: mutated })
+  hook.probe.reference = refine.chatElementReferenceFor(SELECTED_CHART)
+  await hook.send('Make this a bar chart')
+  const data = JSON.parse(hook.sent().at(-1)).data
+  assert.deepEqual(data.client_caps, ['mdc1']); assert.equal(data.references, undefined)
+  hook.unmount()
+})
+await check('mutation: the base refineContext line in useTextLabsGeneration makes the chat refine an add (the refine-branch check catches it)', async () => {
+  const head = read('hooks/use-textlabs-generation.ts')
+  const mutated = stripChatElementRefine('hooks/use-textlabs-generation.ts', head)
+  assert.equal(mutated, baseFile('hooks/use-textlabs-generation.ts'))
+  const original = fs.readFileSync
+  const target = path.join(root, 'hooks/use-textlabs-generation.ts')
+  fs.readFileSync = function (file, ...rest) { return path.resolve(String(file)) === target ? mutated : original.call(this, file, ...rest) }
+  let run
+  try { run = await generateThrough('chat-refine', { ...SHELL, NEXT_PUBLIC_CHAT_ELEMENT_REFINE: 'true' }) } finally { fs.readFileSync = original }
+  assert.equal(run.fetches[0].body.refine, undefined, 'no refine without the change')
+})
+await check('mutation: dropping the blank-placeholder rule would start a generation for a blank (an INFOGRAPHIC still has no form)', async () => {
+  const text = read('lib/chat-element-refine.ts')
+  const mutated = text.replace(' || deps.isBlankPlaceholder(refinePayload)) {', ') {')
+  assert.notEqual(mutated, text)
+  const weak = loadPure('lib/chat-element-refine.ts', { NEXT_PUBLIC_CHAT_ELEMENT_REFINE: 'true' }, { 'lib/chat-element-refine.ts': mutated })
+  const generations = []
+  const { deps } = caseDeps('01-success', generations, { current: 2 })
+  const owner = { sessionId: SESSION, isCurrent: () => true }, directive = transcripts['01-success'].frames[1].frame
+  assert.equal((await weak.runElementRefineDirective(directive, owner, { ...deps, isBlankPlaceholder: () => true })).status, 'refined')
+  assert.equal(generations.length, 1, 'the mutation starts a generation; the real rule does not (runner check above)')
+  // Without the 7-type rule an INFOGRAPHIC is still refused, by the missing K5 form (defence in depth), and nothing starts.
+  const noTypeRule = loadPure('lib/chat-element-refine.ts', { NEXT_PUBLIC_CHAT_ELEMENT_REFINE: 'true' }, { 'lib/chat-element-refine.ts': text.replace("!(DIRECTIVE_TYPES as readonly string[]).includes(componentType) || ", '') })
+  assert.equal((await noTypeRule.runElementRefineDirective(directive, owner, { ...deps, componentTypeOf: () => 'INFOGRAPHIC' })).error_code, 'unsupported_type')
+  assert.equal(generations.length, 1)
+})
+
+if (process.argv.includes('--print-hashes')) console.log(JSON.stringify(identityHashes, null, 2))
+console.log(`${passed} chat element refine checks passed; ${failed.length} failed. ${live ? 'Layout: live real code.' : 'Layout: recorded real replies.'} Recorded Director frames, offline, no network.`)
+if (failed.length) process.exitCode = 1

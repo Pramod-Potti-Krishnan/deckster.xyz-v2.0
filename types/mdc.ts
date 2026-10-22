@@ -127,7 +127,7 @@ export interface ElementDirectiveResult {
     status: 'inserted' | 'failed' | 'dismissed' | 'refined'
     element_id?: string | null
     error?: string | null
-    /** Refine directives only: why it failed (design §5); null otherwise. */
+    /** Refine directives only: why it failed (design §5, plus unsupported_type); null otherwise. */
     error_code?: import('@/lib/chat-element-refine-wire').ElementRefineErrorCode | null
   }
 }

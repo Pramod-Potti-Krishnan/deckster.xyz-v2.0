@@ -13,7 +13,8 @@ export const ELEMENT_REFINE_CLIENT_CAP = 'element_refine1'
 export const ELEMENT_REFINE_DIRECTIVE_TYPE = 'element_refine_directive'
 
 export type ElementRefineStatus = 'refined' | 'failed' | 'dismissed'
-export type ElementRefineErrorCode = 'not_owner' | 'element_not_found' | 'viewer_unavailable' | 'generation_failed' | 'timeout'
+// unsupported_type (DIRECTOR-2, 22 Oct): a type Studio's chat refine cannot run (outside the 7 K5 types) or a blank placeholder; no generation.
+export type ElementRefineErrorCode = 'not_owner' | 'element_not_found' | 'viewer_unavailable' | 'generation_failed' | 'timeout' | 'unsupported_type'
 
 /** Outbound `element_directive_result.data` for a refine directive (design §5). */
 export interface ElementRefineResultData {

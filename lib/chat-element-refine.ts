@@ -16,7 +16,7 @@
 import type { RefineContext } from '@/hooks/use-element-refinement'
 import type { TextLabsGenerationResult } from '@/hooks/use-textlabs-generation'
 import type { TextLabsComponentType, TextLabsFormData } from '@/types/textlabs'
-import { buildFormDataForDirective } from '@/lib/mdc-element-directive'
+import { DIRECTIVE_TYPES, buildFormDataForDirective } from '@/lib/mdc-element-directive'
 import { normalizeSemanticComponentType } from '@/lib/element-semantic-type'
 import type {
   ChatElementReference, ElementRefineDirectiveMessage, ElementRefineDirectiveOwner, ElementRefineDirectivePayload, ElementRefineErrorCode,
@@ -203,8 +203,12 @@ async function runSteps(
   if (refinePayload.elementId !== elementId
     || (typeof refinePayload.slideIndex === 'number' && refinePayload.slideIndex !== target)) return result('failed', 'element_not_found')
   // 5. The same refine the Element panel runs (handleApprovedTextLabsGenerate, refine branch).
+  // Only the 7 K5 types are refined from chat (DIRECTOR-2, 22 Oct); any other type, or a blank placeholder, is unsupported_type and no
+  // generation starts. References are still sent for all 19 allow-listed types (Director answers those itself).
   const componentType = deps.componentTypeOf(refinePayload)
-  if (!componentType || deps.isBlankPlaceholder(refinePayload)) return result('failed', 'generation_failed')
+  if (!componentType || !(DIRECTIVE_TYPES as readonly string[]).includes(componentType) || deps.isBlankPlaceholder(refinePayload)) {
+    return result('failed', 'unsupported_type')
+  }
   let refineContext: RefineContext
   let formData: TextLabsFormData | null
   try {
@@ -215,7 +219,7 @@ async function runSteps(
   } catch {
     return result('failed', 'generation_failed')
   }
-  if (!formData) return result('failed', 'generation_failed')
+  if (!formData) return result('failed', typeof payload.instruction === 'string' && payload.instruction.trim() ? 'unsupported_type' : 'generation_failed')
   if (deps.isBusy()) return result('dismissed')
   let outcome: TextLabsGenerationResult
   try {
