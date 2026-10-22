@@ -56,6 +56,7 @@ export interface StudioProfileMenuP2Props {
   onNavigate: (path: string) => void
   onAbout: () => void
   onLogout: () => void | Promise<void>
+  versionHistoryRow?: ReactNode // VERSION-HISTORY-V2: the Version history row (components/version-history-menu-item.tsx), set by the parent only with its flag on
 }
 
 /** PRO-03: the mockup's capacity card with the real daily and weekly shares, always open (no disclosure). */
@@ -85,7 +86,7 @@ function usageCard(quota: StudioQuotaForMeters | null | undefined, onNavigate: (
   )
 }
 
-export function StudioProfileMenuP2({ name, email, image, initials, tierLabel, sessionUsage, quota, theme, onTheme, onNavigate, onAbout, onLogout }: StudioProfileMenuP2Props) {
+export function StudioProfileMenuP2({ name, email, image, initials, tierLabel, sessionUsage, quota, theme, onTheme, onNavigate, onAbout, onLogout, versionHistoryRow }: StudioProfileMenuP2Props) { // VERSION-HISTORY-V2
   return (
     <DropdownMenuContent data-studio-v4-profile="true" data-studio-profile-fidelity="true" data-studio-p2-profile="true" side="right" sideOffset={8} align="end" className="w-64">
       <DropdownMenuLabel data-studio-profile-identity="true" data-studio-p2-identity="true" className="font-normal">
@@ -148,13 +149,14 @@ export function StudioProfileMenuP2({ name, email, image, initials, tierLabel, s
           )
         }
         const Icon = ROW_ICONS[entry.id]
-        return (
+        const row = ( // VERSION-HISTORY-V2
           <DropdownMenuItem key={entry.id} data-studio-v4-profile-role="item" data-studio-p2-row={entry.id} onClick={() => onNavigate(entry.href)}>
             <Icon className="mr-2 h-4 w-4" />
             <span>{entry.label}</span>
             <ChevronRight data-studio-p2-chevron="true" />
           </DropdownMenuItem>
         )
+        return entry.id === "settings" && versionHistoryRow ? [row, versionHistoryRow] : row // VERSION-HISTORY-V2: the mockup's order, Settings then Version history
       })}
 
       <DropdownMenuItem data-studio-v4-profile-role="item" data-studio-p2-row="about" onSelect={(event) => { event.preventDefault(); onAbout() }}>

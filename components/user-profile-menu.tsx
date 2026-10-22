@@ -13,6 +13,7 @@ import {
 } from "@/components/ui/dropdown-menu"
 import { useStudioAboutReplay } from "@/components/builder/studio-introduction"
 import { StudioAboutDialog } from "@/components/studio-about-dialog"
+import { VersionHistoryMenuItem } from "@/components/version-history-menu-item" // VERSION-HISTORY-V2
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
@@ -133,6 +134,7 @@ export function UserProfileMenu({ studioLabels = false, studioPalette = false, s
   const studioProfile = process.env.NEXT_PUBLIC_STUDIO_V4_SHELL === 'true' && studioPalette
   // PASS2 PRO-02/03/04/05/06/07/08/10 (NEXT_PUBLIC_STUDIO_P2_PROFILE_MENU, default off, only where the Studio account presentation is on): the mockup's menu body.
   const p2Menu = studioProfile && process.env.NEXT_PUBLIC_STUDIO_P2_PROFILE_MENU === 'true'
+  const versionHistoryRow = process.env.NEXT_PUBLIC_STUDIO_VERSION_HISTORY_V2 === 'true' ? <VersionHistoryMenuItem key="version-history" chevron={p2Menu} /> : null // VERSION-HISTORY-V2: exact flag; the row itself renders nothing unless a deck is on screen (Studio), so never on the library pages
 
   // Fetch quota when dropdown opens (lightweight GET, cached by React state)
   const fetchQuota = useCallback(async () => {
@@ -208,7 +210,7 @@ export function UserProfileMenu({ studioLabels = false, studioPalette = false, s
           </Button>
         </DropdownMenuTrigger>
       </StudioNavigationHint>
-      {p2Menu ? <StudioProfileMenuP2 name={user.name} email={user.email} image={user.image} initials={userInitials} tierLabel={quota?.tierLabel} sessionUsage={sessionUsage} quota={quota} theme={theme} onTheme={setTheme} onNavigate={handleNavigation} onAbout={() => { setIsOpen(false); setAboutOpen(true) }} onLogout={handleLogout} /> : (
+      {p2Menu ? <StudioProfileMenuP2 name={user.name} email={user.email} image={user.image} initials={userInitials} tierLabel={quota?.tierLabel} sessionUsage={sessionUsage} quota={quota} theme={theme} onTheme={setTheme} onNavigate={handleNavigation} onAbout={() => { setIsOpen(false); setAboutOpen(true) }} onLogout={handleLogout} {...(versionHistoryRow ? { versionHistoryRow /* VERSION-HISTORY-V2 */ } : {})} /> : (
       <DropdownMenuContent data-studio-v4-profile={studioPalette ? "true" : undefined} data-studio-profile-fidelity={studioProfile ? "true" : undefined} side={studioProfile ? "right" : undefined} sideOffset={studioProfile ? 8 : undefined} align="end" className="w-64">
         <DropdownMenuLabel data-studio-profile-identity={studioProfile ? "true" : undefined} className="font-normal">
           <div className="flex flex-col space-y-1">
@@ -247,6 +249,7 @@ export function UserProfileMenu({ studioLabels = false, studioPalette = false, s
           <Settings className="mr-2 h-4 w-4" />
           <span>Settings</span>
         </DropdownMenuItem>
+        {versionHistoryRow}{/* VERSION-HISTORY-V2: null with the flag off, so no node */}
 
         <DropdownMenuItem data-studio-v4-profile-role="item" onClick={toggleTheme}>
           {theme === "dark" ? (
