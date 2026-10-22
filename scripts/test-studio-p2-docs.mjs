@@ -6,7 +6,7 @@
 //   inside an article to a docs page that does not exist went to a dead end.
 //
 // Run: node scripts/test-studio-p2-docs.mjs   (plain node: transpile + vm, no network, no browser, no env)
-//   P2_DOCS_BASE=<commit> overrides the base commit flag-off identity is checked against (default bcd8aed, the studio-v4-dev-preparation-code tip the PR is based on: #458 polish).
+//   P2_DOCS_BASE=<commit> overrides the base commit flag-off identity is checked against (default fae9620, the studio-v4-dev-preparation-code tip the PR is based on: #468 admin email guard, #460 #464 #465 #469).
 //
 // Proven on the REAL sources:
 //   1. lib/studio-p2-docs.ts: import-free; every word; the result line, the filter, the side list, the title split, the card text (on every real article too), the link kinds, which docs links land;
@@ -25,7 +25,7 @@ import ts from 'typescript'
 import postcss from 'postcss'
 
 const repoRoot = path.resolve(new URL('..', import.meta.url).pathname)
-const BASE_COMMIT = process.env.P2_DOCS_BASE || 'bcd8aed0d0e8d202c8859c4fd45ccae06de8e307'
+const BASE_COMMIT = process.env.P2_DOCS_BASE || 'fae962006b080e26eb70c2add7066ca1edf8eca2'
 const read = rel => fs.readFileSync(path.join(repoRoot, rel), 'utf8')
 const baseCache = new Map()
 const baseSource = rel => {
@@ -34,6 +34,22 @@ const baseSource = rel => {
     catch (error) { throw new Error(`base commit ${BASE_COMMIT} is not in this clone (fetch the full history): ${error.message}`) }
   }
   return baseCache.get(rel)
+}
+// .env.example and package.json are the two files every flag-gated change appends a line or a block to, so when other changes are stacked under this one they hold lines this change never wrote.
+// For those two (and only those) the base's lines must all still be there, in order, with nothing of this change left, and any extra line must be a comment, a blank, an env line or a test script
+// line (the rule scripts/test-studio-p2-publish.mjs and test-studio-p2-polish.mjs use). Every other file is held to the base byte for byte.
+function sameAsBase(rel, text, baseText) {
+  if (text === baseText) return true
+  const norm = line => rel === 'package.json' ? line.replace(/,\s*$/, '') : line
+  const want = baseText.split('\n').map(norm)
+  const extras = []
+  let next = 0
+  for (const line of text.split('\n').map(norm)) {
+    if (next < want.length && line === want[next]) next++
+    else extras.push(line)
+  }
+  const kind = rel === 'package.json' ? /^\s*"test:[a-z0-9-]+": "node scripts\/test-[a-z0-9-]+\.mjs"$/ : /^\s*$|^\s*#|^[A-Z][A-Z0-9_]*=/
+  return next === want.length && extras.every(line => line === '' || kind.test(line)) && !extras.some(line => /P2_DOCS|test:studio-p2-docs/.test(line))
 }
 let checks = 0
 let counting = true
@@ -872,15 +888,19 @@ function proveEnv(env, label = 'env') {
   match(comment, /No new action/, `${label}: the comment says no new action`)
   for (const route of ['/docs', '/docs/api', '/legal/', '/agents/<agent>', '/help', '/integrations']) ok(comment.includes(route), `${label}: the comment names ${route}`)
   match(comment, /redirects \(next\.config\.mjs\)/, `${label}: the comment says /integrations and /agents are redirects`)
-  ok(env.endsWith(`${FLAG}="false"\n`), `${label}: the flag block is the file's last`)
-  ok(env.startsWith(baseSource(ENV)), `${label}: everything before is the base commit's .env.example`)
+  ok(lines[index + 1] === '', `${label}: the flag closes its block (a blank line or the end of the file follows; later changes' blocks may come after)`)
+  const without = [...lines.slice(0, index - block), ...lines.slice(index + 1)].join('\n')
+  ok(sameAsBase(ENV, without, baseSource(ENV)), `${label}: without its block the file is the base commit's .env.example (plus, at most, other changes' comments, blanks and env lines)`)
 }
 proveEnv(SOURCES[ENV])
 function provePackage(pkg, label = 'package') {
   const json = JSON.parse(pkg)
   eq(json.scripts['test:studio-p2-docs'], 'node scripts/test-studio-p2-docs.mjs', `${label}: the test script`)
   const base = JSON.parse(baseSource(PKG))
-  deepEq(Object.keys(json.scripts).filter(key => !(key in base.scripts)), ['test:studio-p2-docs'], `${label}: the only new script`)
+  ok(!('test:studio-p2-docs' in base.scripts), `${label}: the base does not have the script yet`)
+  const without = JSON.parse(pkg)
+  delete without.scripts['test:studio-p2-docs']
+  ok(sameAsBase(PKG, JSON.stringify(without, null, 2) + '\n', baseSource(PKG)), `${label}: without its script the scripts are the base commit's (plus, at most, other changes' test scripts)`)
   for (const key of Object.keys(base.scripts)) eq(json.scripts[key], base.scripts[key], `${label}: ${key} is unchanged`)
   deepEq({ ...json, scripts: null }, { ...base, scripts: null }, `${label}: nothing but the scripts changed`)
 }
