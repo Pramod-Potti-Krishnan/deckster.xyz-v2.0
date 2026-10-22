@@ -1,0 +1,1868 @@
+{
+  "catalogue_version": "2026-09-30.wp1-stage25-proposed-mapping-revision-two-layer+shortlist:2026-10-02-shortlist-v1",
+  "schema_version": 1,
+  "groups": {
+    "planning_strategy": {
+      "label": "Planning & Strategy",
+      "visibility": "user",
+      "unit": "tokens",
+      "presets": {
+        "best": "moonshotai/kimi-k3",
+        "balanced": "google/gemini-3.8-flash",
+        "economy": "openai/gpt-6-luna"
+      },
+      "recommended": {
+        "simple": [
+          {
+            "model": "google/gemini-3.8-flash",
+            "tier": "balanced"
+          },
+          {
+            "model": "openai/gpt-6-luna",
+            "tier": "best"
+          },
+          {
+            "model": "qwen/qwen3.8-flash",
+            "tier": "economy"
+          },
+          {
+            "model": "deepseek/deepseek-v4.1-flash",
+            "tier": "economy"
+          }
+        ],
+        "moderate": [
+          {
+            "model": "google/gemini-3.8-flash",
+            "tier": "balanced"
+          },
+          {
+            "model": "nvidia/nemotron-3.5-lightning",
+            "tier": "economy"
+          },
+          {
+            "model": "moonshotai/kimi-k3",
+            "tier": "best"
+          },
+          {
+            "model": "x-ai/grok-4.6",
+            "tier": "balanced"
+          },
+          {
+            "model": "anthropic/claude-opus-5.5",
+            "tier": "best"
+          },
+          {
+            "model": "openai/gpt-6.1-sol",
+            "tier": "best"
+          }
+        ],
+        "heavy": [
+          {
+            "model": "moonshotai/kimi-k3",
+            "tier": "best"
+          },
+          {
+            "model": "google/gemini-3.8-flash",
+            "tier": "balanced"
+          },
+          {
+            "model": "openai/gpt-6-luna",
+            "tier": "economy"
+          },
+          {
+            "model": "x-ai/grok-4.6",
+            "tier": "balanced"
+          },
+          {
+            "model": "anthropic/claude-opus-5.5",
+            "tier": "best"
+          },
+          {
+            "model": "openai/gpt-6.1-sol",
+            "tier": "best"
+          }
+        ]
+      },
+      "selectable_models": [
+        "amazon/nova-2-lite-v1",
+        "amazon/nova-micro-v1",
+        "anthropic/claude-fable-5.1",
+        "anthropic/claude-haiku-4.5",
+        "anthropic/claude-opus-5.5",
+        "anthropic/claude-sonnet-5.5",
+        "bytedance-seed/seed-2-1-turbo",
+        "bytedance-seed/seed-2.0-lite",
+        "bytedance-seed/seed-2.0-mini",
+        "cohere/command-a-plus",
+        "cohere/command-r-08-2024",
+        "cohere/command-r7b-12-2024",
+        "deepseek/deepseek-v4-pro-0813",
+        "deepseek/deepseek-v4.1-flash",
+        "google/gemini-3.1-pro-preview",
+        "google/gemini-3.5-flash-lite",
+        "google/gemini-3.8-flash",
+        "google/gemma-4-26b-a4b-it",
+        "ibm-granite/granite-4.2-8b",
+        "inception/mercury-2.5",
+        "meta-llama/llama-3.2-3b-instruct",
+        "meta-llama/llama-4-maverick",
+        "meta-llama/llama-4-scout",
+        "meta/muse-glimmer-30b",
+        "microsoft/phi-4",
+        "minimax/minimax-m3",
+        "mistralai/ministral-14b-2512",
+        "mistralai/mistral-large-2512",
+        "mistralai/mistral-medium-3-5",
+        "mistralai/mistral-small-2603",
+        "moonshotai/kimi-k3",
+        "nvidia/nemotron-3-super-120b-a12b",
+        "nvidia/nemotron-3-ultra-550b-a55b",
+        "nvidia/nemotron-3.5-lightning",
+        "openai/gpt-6-astra",
+        "openai/gpt-6-luna",
+        "openai/gpt-6.1-sol",
+        "openai/gpt-6.1-sol-pro",
+        "qwen/qwen3.7-plus",
+        "qwen/qwen3.8-flash",
+        "qwen/qwen3.8-omni-flash",
+        "stepfun/step-3.7-flash",
+        "tencent/hy4-preview",
+        "x-ai/grok-4.6",
+        "x-ai/grok-4.7",
+        "xiaomi/mimo-v2.6-flash",
+        "xiaomi/mimo-v2.6-pro",
+        "z-ai/glm-5.3",
+        "z-ai/glm-5.3-flash",
+        "z-ai/glm-5.3-flashx",
+        "z-ai/glm-5.3-prime"
+      ],
+      "available_count": 51,
+      "available_offset": 0,
+      "available_next_offset": 10,
+      "available": [
+        {
+          "model": "openai/gpt-6.1-sol-pro",
+          "recommended": false
+        },
+        {
+          "model": "openai/gpt-6.1-sol",
+          "recommended": true
+        },
+        {
+          "model": "anthropic/claude-sonnet-5.5",
+          "recommended": false
+        },
+        {
+          "model": "z-ai/glm-5.3-prime",
+          "recommended": false
+        },
+        {
+          "model": "cohere/command-a-plus",
+          "recommended": false
+        },
+        {
+          "model": "openai/gpt-6-luna",
+          "recommended": true
+        },
+        {
+          "model": "anthropic/claude-opus-5.5",
+          "recommended": true
+        },
+        {
+          "model": "xiaomi/mimo-v2.6-flash",
+          "recommended": false
+        },
+        {
+          "model": "xiaomi/mimo-v2.6-pro",
+          "recommended": false
+        },
+        {
+          "model": "x-ai/grok-4.7",
+          "recommended": false
+        }
+      ]
+    },
+    "content_writing": {
+      "label": "Content Writing",
+      "visibility": "user",
+      "unit": "tokens",
+      "presets": {
+        "best": "anthropic/claude-sonnet-5.5",
+        "balanced": "openai/gpt-6-luna",
+        "economy": "openai/gpt-6-luna"
+      },
+      "recommended": {
+        "simple": [
+          {
+            "model": "openai/gpt-6-luna",
+            "tier": "balanced"
+          },
+          {
+            "model": "deepseek/deepseek-v4.1-flash",
+            "tier": "economy"
+          },
+          {
+            "model": "qwen/qwen3.8-flash",
+            "tier": "economy"
+          }
+        ],
+        "moderate": [
+          {
+            "model": "openai/gpt-6-luna",
+            "tier": "balanced"
+          },
+          {
+            "model": "anthropic/claude-sonnet-5.5",
+            "tier": "best"
+          },
+          {
+            "model": "moonshotai/kimi-k3",
+            "tier": "best"
+          },
+          {
+            "model": "anthropic/claude-opus-5.5",
+            "tier": "best"
+          },
+          {
+            "model": "openai/gpt-6.1-sol",
+            "tier": "best"
+          },
+          {
+            "model": "x-ai/grok-4.7",
+            "tier": "best"
+          }
+        ],
+        "heavy": [
+          {
+            "model": "anthropic/claude-sonnet-5.5",
+            "tier": "best"
+          },
+          {
+            "model": "openai/gpt-6-luna",
+            "tier": "balanced"
+          },
+          {
+            "model": "moonshotai/kimi-k3",
+            "tier": "best"
+          },
+          {
+            "model": "anthropic/claude-opus-5.5",
+            "tier": "best"
+          },
+          {
+            "model": "openai/gpt-6.1-sol",
+            "tier": "best"
+          },
+          {
+            "model": "x-ai/grok-4.7",
+            "tier": "best"
+          }
+        ]
+      },
+      "selectable_models": [
+        "amazon/nova-2-lite-v1",
+        "amazon/nova-micro-v1",
+        "amazon/nova-pro-v1",
+        "anthropic/claude-fable-5.1",
+        "anthropic/claude-haiku-4.5",
+        "anthropic/claude-opus-5.5",
+        "anthropic/claude-sonnet-5.5",
+        "bytedance-seed/seed-2-1-turbo",
+        "bytedance-seed/seed-2.0-lite",
+        "bytedance-seed/seed-2.0-mini",
+        "cohere/command-a-plus",
+        "cohere/command-r-08-2024",
+        "cohere/command-r7b-12-2024",
+        "deepseek/deepseek-v4-pro-0813",
+        "deepseek/deepseek-v4.1-flash",
+        "google/gemini-3.1-pro-preview",
+        "google/gemini-3.5-flash-lite",
+        "google/gemini-3.8-flash",
+        "google/gemma-4-26b-a4b-it",
+        "ibm-granite/granite-4.2-8b",
+        "inception/mercury-2.5",
+        "meta-llama/llama-3.2-3b-instruct",
+        "meta-llama/llama-4-maverick",
+        "meta-llama/llama-4-scout",
+        "meta/muse-glimmer-30b",
+        "microsoft/phi-4",
+        "minimax/minimax-m3",
+        "mistralai/ministral-14b-2512",
+        "mistralai/mistral-large-2512",
+        "mistralai/mistral-medium-3-5",
+        "mistralai/mistral-small-2603",
+        "moonshotai/kimi-k3",
+        "nvidia/nemotron-3-super-120b-a12b",
+        "nvidia/nemotron-3-ultra-550b-a55b",
+        "nvidia/nemotron-3.5-lightning",
+        "openai/gpt-6-astra",
+        "openai/gpt-6-luna",
+        "openai/gpt-6.1-sol",
+        "openai/gpt-6.1-sol-pro",
+        "qwen/qwen3.7-plus",
+        "qwen/qwen3.8-flash",
+        "qwen/qwen3.8-omni-flash",
+        "stepfun/step-3.7-flash",
+        "tencent/hy4-preview",
+        "x-ai/grok-4.6",
+        "x-ai/grok-4.7",
+        "xiaomi/mimo-v2.6-flash",
+        "xiaomi/mimo-v2.6-pro",
+        "z-ai/glm-5.3",
+        "z-ai/glm-5.3-flash",
+        "z-ai/glm-5.3-flashx",
+        "z-ai/glm-5.3-prime"
+      ],
+      "available_count": 53,
+      "available_offset": 0,
+      "available_next_offset": 10,
+      "available": [
+        {
+          "model": "openai/gpt-6.1-sol-pro",
+          "recommended": false
+        },
+        {
+          "model": "openai/gpt-6.1-sol",
+          "recommended": true
+        },
+        {
+          "model": "anthropic/claude-sonnet-5.5",
+          "recommended": true
+        },
+        {
+          "model": "z-ai/glm-5.3-prime",
+          "recommended": false
+        },
+        {
+          "model": "cohere/command-a-plus",
+          "recommended": false
+        },
+        {
+          "model": "openai/gpt-6-luna",
+          "recommended": true
+        },
+        {
+          "model": "anthropic/claude-opus-5.5",
+          "recommended": true
+        },
+        {
+          "model": "xiaomi/mimo-v2.6-flash",
+          "recommended": false
+        },
+        {
+          "model": "xiaomi/mimo-v2.6-pro",
+          "recommended": false
+        },
+        {
+          "model": "x-ai/grok-4.7",
+          "recommended": true
+        }
+      ]
+    },
+    "research_analysis": {
+      "label": "Research & Analysis",
+      "visibility": "user",
+      "unit": "tokens",
+      "presets": {
+        "best": "anthropic/claude-opus-5.5",
+        "balanced": "openai/gpt-6-luna",
+        "economy": "openai/gpt-6-luna"
+      },
+      "recommended": {
+        "simple": [
+          {
+            "model": "openai/gpt-6-luna",
+            "tier": "balanced"
+          },
+          {
+            "model": "qwen/qwen3.8-flash",
+            "tier": "economy"
+          },
+          {
+            "model": "deepseek/deepseek-v4.1-flash",
+            "tier": "economy"
+          },
+          {
+            "model": "google/gemini-3.5-flash-lite",
+            "tier": "economy"
+          }
+        ],
+        "moderate": [
+          {
+            "model": "openai/gpt-6-luna",
+            "tier": "balanced"
+          },
+          {
+            "model": "anthropic/claude-opus-5.5",
+            "tier": "best"
+          },
+          {
+            "model": "moonshotai/kimi-k3",
+            "tier": "best"
+          },
+          {
+            "model": "openai/gpt-6.1-sol",
+            "tier": "best"
+          },
+          {
+            "model": "anthropic/claude-sonnet-5.5",
+            "tier": "best"
+          },
+          {
+            "model": "x-ai/grok-4.7",
+            "tier": "best"
+          }
+        ],
+        "heavy": [
+          {
+            "model": "anthropic/claude-opus-5.5",
+            "tier": "best"
+          },
+          {
+            "model": "openai/gpt-6-luna",
+            "tier": "balanced"
+          },
+          {
+            "model": "moonshotai/kimi-k3",
+            "tier": "best"
+          },
+          {
+            "model": "openai/gpt-6.1-sol",
+            "tier": "best"
+          },
+          {
+            "model": "anthropic/claude-sonnet-5.5",
+            "tier": "best"
+          },
+          {
+            "model": "x-ai/grok-4.7",
+            "tier": "best"
+          }
+        ]
+      },
+      "selectable_models": [
+        "amazon/nova-2-lite-v1",
+        "amazon/nova-micro-v1",
+        "anthropic/claude-fable-5.1",
+        "anthropic/claude-haiku-4.5",
+        "anthropic/claude-opus-5.5",
+        "anthropic/claude-sonnet-5.5",
+        "bytedance-seed/seed-2-1-turbo",
+        "bytedance-seed/seed-2.0-lite",
+        "bytedance-seed/seed-2.0-mini",
+        "cohere/command-a-plus",
+        "cohere/command-r-08-2024",
+        "cohere/command-r7b-12-2024",
+        "deepseek/deepseek-v4-pro-0813",
+        "deepseek/deepseek-v4.1-flash",
+        "google/gemini-3.1-pro-preview",
+        "google/gemini-3.5-flash-lite",
+        "google/gemini-3.8-flash",
+        "google/gemma-4-26b-a4b-it",
+        "ibm-granite/granite-4.2-8b",
+        "inception/mercury-2.5",
+        "meta-llama/llama-3.2-3b-instruct",
+        "meta-llama/llama-4-maverick",
+        "meta-llama/llama-4-scout",
+        "meta/muse-glimmer-30b",
+        "microsoft/phi-4",
+        "minimax/minimax-m3",
+        "mistralai/ministral-14b-2512",
+        "mistralai/mistral-large-2512",
+        "mistralai/mistral-medium-3-5",
+        "mistralai/mistral-small-2603",
+        "moonshotai/kimi-k3",
+        "nvidia/nemotron-3-super-120b-a12b",
+        "nvidia/nemotron-3-ultra-550b-a55b",
+        "nvidia/nemotron-3.5-lightning",
+        "openai/gpt-6-astra",
+        "openai/gpt-6-luna",
+        "openai/gpt-6.1-sol",
+        "openai/gpt-6.1-sol-pro",
+        "qwen/qwen3.7-plus",
+        "qwen/qwen3.8-flash",
+        "qwen/qwen3.8-omni-flash",
+        "stepfun/step-3.7-flash",
+        "tencent/hy4-preview",
+        "x-ai/grok-4.6",
+        "x-ai/grok-4.7",
+        "xiaomi/mimo-v2.6-flash",
+        "xiaomi/mimo-v2.6-pro",
+        "z-ai/glm-5.3",
+        "z-ai/glm-5.3-flash",
+        "z-ai/glm-5.3-flashx",
+        "z-ai/glm-5.3-prime"
+      ],
+      "available_count": 51,
+      "available_offset": 0,
+      "available_next_offset": 10,
+      "available": [
+        {
+          "model": "openai/gpt-6.1-sol-pro",
+          "recommended": false
+        },
+        {
+          "model": "openai/gpt-6.1-sol",
+          "recommended": true
+        },
+        {
+          "model": "anthropic/claude-sonnet-5.5",
+          "recommended": true
+        },
+        {
+          "model": "z-ai/glm-5.3-prime",
+          "recommended": false
+        },
+        {
+          "model": "cohere/command-a-plus",
+          "recommended": false
+        },
+        {
+          "model": "openai/gpt-6-luna",
+          "recommended": true
+        },
+        {
+          "model": "anthropic/claude-opus-5.5",
+          "recommended": true
+        },
+        {
+          "model": "xiaomi/mimo-v2.6-flash",
+          "recommended": false
+        },
+        {
+          "model": "xiaomi/mimo-v2.6-pro",
+          "recommended": false
+        },
+        {
+          "model": "x-ai/grok-4.7",
+          "recommended": true
+        }
+      ]
+    },
+    "imagery": {
+      "label": "Imagery",
+      "visibility": "user",
+      "unit": "images",
+      "presets": {
+        "best": "google/gemini-3.1-flash-image-preview",
+        "balanced": "google/gemini-2.5-flash-image",
+        "economy": "google/gemini-2.5-flash-image"
+      },
+      "recommended": {},
+      "selectable_models": [],
+      "available_count": 2,
+      "available_offset": 0,
+      "available_next_offset": null,
+      "available": [
+        {
+          "model": "google/gemini-2.5-flash-image",
+          "recommended": false
+        },
+        {
+          "model": "google/gemini-3.1-flash-image-preview",
+          "recommended": false
+        }
+      ]
+    },
+    "voice_narration": {
+      "label": "Voice & Narration",
+      "visibility": "user",
+      "unit": "characters",
+      "presets": {
+        "best": "fish-audio/s2.1-pro",
+        "balanced": "microsoft/mai-voice-2-flash",
+        "economy": "hexgrad/kokoro-82m"
+      },
+      "recommended": {},
+      "selectable_models": [],
+      "available_count": 4,
+      "available_offset": 0,
+      "available_next_offset": null,
+      "available": [
+        {
+          "model": "fish-audio/s2.1-pro",
+          "recommended": false
+        },
+        {
+          "model": "microsoft/mai-voice-2-flash",
+          "recommended": false
+        },
+        {
+          "model": "hexgrad/kokoro-82m",
+          "recommended": false
+        },
+        {
+          "model": "google/gemini-3.1-flash-tts-preview",
+          "recommended": false
+        }
+      ]
+    },
+    "structure_layout": {
+      "label": "Structure & Layout",
+      "visibility": "system",
+      "unit": "tokens",
+      "presets": {
+        "best": "anthropic/claude-opus-5.5",
+        "balanced": "openai/gpt-6-luna",
+        "economy": "openai/gpt-6-luna"
+      },
+      "recommended": {
+        "simple": [
+          {
+            "model": "openai/gpt-6-luna",
+            "tier": "balanced"
+          },
+          {
+            "model": "google/gemini-3.5-flash-lite",
+            "tier": "best"
+          },
+          {
+            "model": "qwen/qwen3.8-flash",
+            "tier": "economy"
+          },
+          {
+            "model": "deepseek/deepseek-v4.1-flash",
+            "tier": "economy"
+          }
+        ],
+        "moderate": [
+          {
+            "model": "openai/gpt-6-luna",
+            "tier": "balanced"
+          },
+          {
+            "model": "anthropic/claude-opus-5.5",
+            "tier": "best"
+          },
+          {
+            "model": "openai/gpt-6.1-sol",
+            "tier": "best"
+          },
+          {
+            "model": "anthropic/claude-sonnet-5.5",
+            "tier": "best"
+          },
+          {
+            "model": "z-ai/glm-5.3-flash",
+            "tier": "economy"
+          },
+          {
+            "model": "xiaomi/mimo-v2.6-flash",
+            "tier": "economy"
+          }
+        ],
+        "heavy": [
+          {
+            "model": "anthropic/claude-opus-5.5",
+            "tier": "best"
+          },
+          {
+            "model": "openai/gpt-6-luna",
+            "tier": "balanced"
+          },
+          {
+            "model": "openai/gpt-6.1-sol",
+            "tier": "best"
+          },
+          {
+            "model": "anthropic/claude-sonnet-5.5",
+            "tier": "best"
+          },
+          {
+            "model": "z-ai/glm-5.3-flash",
+            "tier": "economy"
+          },
+          {
+            "model": "deepseek/deepseek-v4.1-flash",
+            "tier": "economy"
+          }
+        ]
+      },
+      "selectable_models": [],
+      "available_count": 41,
+      "available_offset": 0,
+      "available_next_offset": 10,
+      "available": [
+        {
+          "model": "openai/gpt-6.1-sol-pro",
+          "recommended": false
+        },
+        {
+          "model": "openai/gpt-6.1-sol",
+          "recommended": true
+        },
+        {
+          "model": "anthropic/claude-sonnet-5.5",
+          "recommended": true
+        },
+        {
+          "model": "openai/gpt-6-luna",
+          "recommended": true
+        },
+        {
+          "model": "anthropic/claude-opus-5.5",
+          "recommended": true
+        },
+        {
+          "model": "xiaomi/mimo-v2.6-flash",
+          "recommended": true
+        },
+        {
+          "model": "xiaomi/mimo-v2.6-pro",
+          "recommended": false
+        },
+        {
+          "model": "x-ai/grok-4.7",
+          "recommended": false
+        },
+        {
+          "model": "qwen/qwen3.8-omni-flash",
+          "recommended": false
+        },
+        {
+          "model": "deepseek/deepseek-v4.1-flash",
+          "recommended": true
+        }
+      ]
+    },
+    "visual_review": {
+      "label": "Visual Review",
+      "visibility": "system",
+      "unit": "tokens",
+      "presets": {
+        "best": "openai/gpt-6.1-sol",
+        "balanced": "openai/gpt-6-luna",
+        "economy": "xiaomi/mimo-v2.6-flash"
+      },
+      "recommended": {
+        "simple": [
+          {
+            "model": "openai/gpt-6-luna",
+            "tier": "balanced"
+          },
+          {
+            "model": "qwen/qwen3.8-flash",
+            "tier": "economy"
+          },
+          {
+            "model": "google/gemini-3.5-flash-lite",
+            "tier": "economy"
+          }
+        ],
+        "moderate": [
+          {
+            "model": "openai/gpt-6-luna",
+            "tier": "balanced"
+          },
+          {
+            "model": "xiaomi/mimo-v2.6-flash",
+            "tier": "economy"
+          },
+          {
+            "model": "openai/gpt-6.1-sol",
+            "tier": "best"
+          },
+          {
+            "model": "moonshotai/kimi-k3",
+            "tier": "best"
+          },
+          {
+            "model": "anthropic/claude-opus-5.5",
+            "tier": "best"
+          },
+          {
+            "model": "anthropic/claude-sonnet-5.5",
+            "tier": "best"
+          }
+        ],
+        "heavy": [
+          {
+            "model": "openai/gpt-6.1-sol",
+            "tier": "best"
+          },
+          {
+            "model": "openai/gpt-6-luna",
+            "tier": "balanced"
+          },
+          {
+            "model": "xiaomi/mimo-v2.6-flash",
+            "tier": "economy"
+          },
+          {
+            "model": "moonshotai/kimi-k3",
+            "tier": "best"
+          },
+          {
+            "model": "anthropic/claude-opus-5.5",
+            "tier": "best"
+          },
+          {
+            "model": "anthropic/claude-sonnet-5.5",
+            "tier": "best"
+          }
+        ]
+      },
+      "selectable_models": [],
+      "available_count": 33,
+      "available_offset": 0,
+      "available_next_offset": 10,
+      "available": [
+        {
+          "model": "openai/gpt-6.1-sol-pro",
+          "recommended": false
+        },
+        {
+          "model": "openai/gpt-6.1-sol",
+          "recommended": true
+        },
+        {
+          "model": "anthropic/claude-sonnet-5.5",
+          "recommended": true
+        },
+        {
+          "model": "cohere/command-a-plus",
+          "recommended": false
+        },
+        {
+          "model": "openai/gpt-6-luna",
+          "recommended": true
+        },
+        {
+          "model": "anthropic/claude-opus-5.5",
+          "recommended": true
+        },
+        {
+          "model": "xiaomi/mimo-v2.6-flash",
+          "recommended": true
+        },
+        {
+          "model": "xiaomi/mimo-v2.6-pro",
+          "recommended": false
+        },
+        {
+          "model": "x-ai/grok-4.7",
+          "recommended": false
+        },
+        {
+          "model": "qwen/qwen3.8-omni-flash",
+          "recommended": false
+        }
+      ]
+    },
+    "utilities": {
+      "label": "Utilities",
+      "visibility": "system",
+      "unit": "tokens",
+      "presets": {
+        "best": "qwen/qwen3.8-flash",
+        "balanced": "openai/gpt-6-luna",
+        "economy": "qwen/qwen3.8-flash"
+      },
+      "recommended": {
+        "simple": [
+          {
+            "model": "openai/gpt-6-luna",
+            "tier": "balanced"
+          },
+          {
+            "model": "qwen/qwen3.8-flash",
+            "tier": "best"
+          },
+          {
+            "model": "deepseek/deepseek-v4.1-flash",
+            "tier": "economy"
+          },
+          {
+            "model": "google/gemini-3.5-flash-lite",
+            "tier": "economy"
+          }
+        ],
+        "moderate": [
+          {
+            "model": "openai/gpt-6-luna",
+            "tier": "balanced"
+          },
+          {
+            "model": "qwen/qwen3.8-flash",
+            "tier": "best"
+          },
+          {
+            "model": "deepseek/deepseek-v4.1-flash",
+            "tier": "economy"
+          },
+          {
+            "model": "google/gemini-3.5-flash-lite",
+            "tier": "economy"
+          }
+        ],
+        "heavy": [
+          {
+            "model": "openai/gpt-6-luna",
+            "tier": "balanced"
+          },
+          {
+            "model": "qwen/qwen3.8-flash",
+            "tier": "best"
+          },
+          {
+            "model": "deepseek/deepseek-v4.1-flash",
+            "tier": "economy"
+          },
+          {
+            "model": "google/gemini-3.5-flash-lite",
+            "tier": "economy"
+          }
+        ]
+      },
+      "selectable_models": [],
+      "available_count": 51,
+      "available_offset": 0,
+      "available_next_offset": 10,
+      "available": [
+        {
+          "model": "openai/gpt-6.1-sol-pro",
+          "recommended": false
+        },
+        {
+          "model": "openai/gpt-6.1-sol",
+          "recommended": false
+        },
+        {
+          "model": "anthropic/claude-sonnet-5.5",
+          "recommended": false
+        },
+        {
+          "model": "z-ai/glm-5.3-prime",
+          "recommended": false
+        },
+        {
+          "model": "cohere/command-a-plus",
+          "recommended": false
+        },
+        {
+          "model": "openai/gpt-6-luna",
+          "recommended": true
+        },
+        {
+          "model": "anthropic/claude-opus-5.5",
+          "recommended": false
+        },
+        {
+          "model": "xiaomi/mimo-v2.6-flash",
+          "recommended": false
+        },
+        {
+          "model": "xiaomi/mimo-v2.6-pro",
+          "recommended": false
+        },
+        {
+          "model": "x-ai/grok-4.7",
+          "recommended": false
+        }
+      ]
+    },
+    "embeddings": {
+      "label": "Embeddings",
+      "visibility": "system",
+      "unit": "tokens",
+      "presets": {},
+      "recommended": {},
+      "selectable_models": [],
+      "available_count": 1,
+      "available_offset": 0,
+      "available_next_offset": null,
+      "available": [
+        {
+          "model": "gemini-embedding-001",
+          "recommended": false
+        }
+      ]
+    }
+  },
+  "models": {
+    "anthropic/claude-opus-5.5": {
+      "name": "Anthropic: Claude Opus 5.5",
+      "provider": "anthropic",
+      "speed_class": "unverified",
+      "capabilities": {
+        "json_schema": true,
+        "tools": true,
+        "vision": true,
+        "audio_input": false,
+        "image_output": false,
+        "speech_output": false,
+        "context_window": 1000000,
+        "max_output": 128000
+      },
+      "premium": {
+        "planning_strategy": true,
+        "content_writing": true,
+        "research_analysis": true,
+        "imagery": false,
+        "voice_narration": false,
+        "structure_layout": true,
+        "visual_review": true,
+        "utilities": true,
+        "embeddings": false
+      }
+    },
+    "anthropic/claude-sonnet-5.5": {
+      "name": "Anthropic: Claude Sonnet 5.5",
+      "provider": "anthropic",
+      "speed_class": "unverified",
+      "capabilities": {
+        "json_schema": true,
+        "tools": true,
+        "vision": true,
+        "audio_input": false,
+        "image_output": false,
+        "speech_output": false,
+        "context_window": 1000000,
+        "max_output": 128000
+      },
+      "premium": {
+        "planning_strategy": true,
+        "content_writing": true,
+        "research_analysis": true,
+        "imagery": false,
+        "voice_narration": false,
+        "structure_layout": true,
+        "visual_review": true,
+        "utilities": true,
+        "embeddings": false
+      }
+    },
+    "cohere/command-a-plus": {
+      "name": "Cohere: Command A+",
+      "provider": "cohere",
+      "speed_class": "unverified",
+      "capabilities": {
+        "json_schema": true,
+        "tools": true,
+        "vision": true,
+        "audio_input": false,
+        "image_output": false,
+        "speech_output": false,
+        "context_window": 192000,
+        "max_output": 64000
+      },
+      "premium": {
+        "planning_strategy": true,
+        "content_writing": true,
+        "research_analysis": true,
+        "imagery": false,
+        "voice_narration": false,
+        "structure_layout": false,
+        "visual_review": true,
+        "utilities": true,
+        "embeddings": false
+      }
+    },
+    "deepseek/deepseek-v4.1-flash": {
+      "name": "DeepSeek: DeepSeek V4.1 Flash",
+      "provider": "deepseek",
+      "speed_class": "fast",
+      "capabilities": {
+        "json_schema": true,
+        "tools": true,
+        "vision": true,
+        "audio_input": false,
+        "image_output": false,
+        "speech_output": false,
+        "context_window": 1048576,
+        "max_output": 384000
+      },
+      "premium": {
+        "planning_strategy": false,
+        "content_writing": false,
+        "research_analysis": false,
+        "imagery": false,
+        "voice_narration": false,
+        "structure_layout": false,
+        "visual_review": false,
+        "utilities": false,
+        "embeddings": false
+      }
+    },
+    "fish-audio/s2.1-pro": {
+      "name": "Fish Audio S2.1 Pro",
+      "provider": "fish-audio",
+      "speed_class": "unverified",
+      "capabilities": {
+        "json_schema": false,
+        "tools": false,
+        "vision": false,
+        "audio_input": false,
+        "image_output": false,
+        "speech_output": true,
+        "context_window": 0,
+        "max_output": null
+      },
+      "premium": {
+        "planning_strategy": false,
+        "content_writing": false,
+        "research_analysis": false,
+        "imagery": false,
+        "voice_narration": false,
+        "structure_layout": false,
+        "visual_review": false,
+        "utilities": false,
+        "embeddings": false
+      }
+    },
+    "gemini-embedding-001": {
+      "name": "Gemini Embedding 001 (Vertex-pinned)",
+      "provider": null,
+      "speed_class": "unverified",
+      "capabilities": {
+        "json_schema": false,
+        "tools": false,
+        "vision": false,
+        "audio_input": false,
+        "image_output": false,
+        "speech_output": false,
+        "context_window": null,
+        "max_output": 768
+      },
+      "premium": {
+        "planning_strategy": false,
+        "content_writing": false,
+        "research_analysis": false,
+        "imagery": false,
+        "voice_narration": false,
+        "structure_layout": false,
+        "visual_review": false,
+        "utilities": false,
+        "embeddings": false
+      }
+    },
+    "google/gemini-2.5-flash": {
+      "name": "Google: Gemini 2.5 Flash",
+      "provider": "google",
+      "speed_class": "unverified",
+      "capabilities": {
+        "json_schema": true,
+        "tools": true,
+        "vision": true,
+        "audio_input": true,
+        "image_output": false,
+        "speech_output": false,
+        "context_window": 1048576,
+        "max_output": 65535
+      },
+      "premium": {
+        "planning_strategy": false,
+        "content_writing": false,
+        "research_analysis": false,
+        "imagery": false,
+        "voice_narration": false,
+        "structure_layout": false,
+        "visual_review": false,
+        "utilities": false,
+        "embeddings": false
+      }
+    },
+    "google/gemini-2.5-flash-image": {
+      "name": "Gemini 2.5 Flash Image",
+      "provider": "google",
+      "speed_class": "unverified",
+      "capabilities": {
+        "json_schema": true,
+        "tools": false,
+        "vision": true,
+        "audio_input": false,
+        "image_output": true,
+        "speech_output": false,
+        "context_window": 32768,
+        "max_output": null
+      },
+      "premium": {
+        "planning_strategy": false,
+        "content_writing": false,
+        "research_analysis": false,
+        "imagery": false,
+        "voice_narration": false,
+        "structure_layout": false,
+        "visual_review": false,
+        "utilities": false,
+        "embeddings": false
+      }
+    },
+    "google/gemini-2.5-flash-lite": {
+      "name": "Google: Gemini 2.5 Flash Lite",
+      "provider": "google",
+      "speed_class": "fast",
+      "capabilities": {
+        "json_schema": true,
+        "tools": true,
+        "vision": true,
+        "audio_input": true,
+        "image_output": false,
+        "speech_output": false,
+        "context_window": 1048576,
+        "max_output": 65535
+      },
+      "premium": {
+        "planning_strategy": false,
+        "content_writing": false,
+        "research_analysis": false,
+        "imagery": false,
+        "voice_narration": false,
+        "structure_layout": false,
+        "visual_review": false,
+        "utilities": false,
+        "embeddings": false
+      }
+    },
+    "google/gemini-2.5-pro": {
+      "name": "Google: Gemini 2.5 Pro",
+      "provider": "google",
+      "speed_class": "unverified",
+      "capabilities": {
+        "json_schema": true,
+        "tools": true,
+        "vision": true,
+        "audio_input": true,
+        "image_output": false,
+        "speech_output": false,
+        "context_window": 1048576,
+        "max_output": 65536
+      },
+      "premium": {
+        "planning_strategy": false,
+        "content_writing": false,
+        "research_analysis": false,
+        "imagery": false,
+        "voice_narration": false,
+        "structure_layout": false,
+        "visual_review": false,
+        "utilities": false,
+        "embeddings": false
+      }
+    },
+    "google/gemini-3-flash-preview": {
+      "name": "Google: Gemini 3 Flash Preview",
+      "provider": "google",
+      "speed_class": "unverified",
+      "capabilities": {
+        "json_schema": true,
+        "tools": true,
+        "vision": true,
+        "audio_input": true,
+        "image_output": false,
+        "speech_output": false,
+        "context_window": 1048576,
+        "max_output": 65536
+      },
+      "premium": {
+        "planning_strategy": false,
+        "content_writing": false,
+        "research_analysis": false,
+        "imagery": false,
+        "voice_narration": false,
+        "structure_layout": false,
+        "visual_review": false,
+        "utilities": false,
+        "embeddings": false
+      }
+    },
+    "google/gemini-3.1-flash-image-preview": {
+      "name": "Gemini 3.1 Flash Image Preview",
+      "provider": "google",
+      "speed_class": "unverified",
+      "capabilities": {
+        "json_schema": true,
+        "tools": false,
+        "vision": true,
+        "audio_input": false,
+        "image_output": true,
+        "speech_output": false,
+        "context_window": 65536,
+        "max_output": null
+      },
+      "premium": {
+        "planning_strategy": false,
+        "content_writing": false,
+        "research_analysis": false,
+        "imagery": false,
+        "voice_narration": false,
+        "structure_layout": false,
+        "visual_review": false,
+        "utilities": false,
+        "embeddings": false
+      }
+    },
+    "google/gemini-3.1-flash-tts-preview": {
+      "name": "Gemini 3.1 Flash TTS Preview",
+      "provider": "google",
+      "speed_class": "unverified",
+      "capabilities": {
+        "json_schema": false,
+        "tools": false,
+        "vision": false,
+        "audio_input": false,
+        "image_output": false,
+        "speech_output": true,
+        "context_window": 32768,
+        "max_output": null
+      },
+      "premium": {
+        "planning_strategy": false,
+        "content_writing": false,
+        "research_analysis": false,
+        "imagery": false,
+        "voice_narration": false,
+        "structure_layout": false,
+        "visual_review": false,
+        "utilities": false,
+        "embeddings": false
+      }
+    },
+    "google/gemini-3.1-pro-preview": {
+      "name": "Google: Gemini 3.1 Pro Preview",
+      "provider": "google",
+      "speed_class": "unverified",
+      "capabilities": {
+        "json_schema": true,
+        "tools": true,
+        "vision": true,
+        "audio_input": true,
+        "image_output": false,
+        "speech_output": false,
+        "context_window": 1048576,
+        "max_output": 65536
+      },
+      "premium": {
+        "planning_strategy": true,
+        "content_writing": true,
+        "research_analysis": true,
+        "imagery": false,
+        "voice_narration": false,
+        "structure_layout": true,
+        "visual_review": true,
+        "utilities": true,
+        "embeddings": false
+      }
+    },
+    "google/gemini-3.5-flash": {
+      "name": "Google: Gemini 3.5 Flash",
+      "provider": "google",
+      "speed_class": "unverified",
+      "capabilities": {
+        "json_schema": true,
+        "tools": true,
+        "vision": true,
+        "audio_input": true,
+        "image_output": false,
+        "speech_output": false,
+        "context_window": 1048576,
+        "max_output": 65536
+      },
+      "premium": {
+        "planning_strategy": false,
+        "content_writing": false,
+        "research_analysis": false,
+        "imagery": false,
+        "voice_narration": false,
+        "structure_layout": false,
+        "visual_review": false,
+        "utilities": false,
+        "embeddings": false
+      }
+    },
+    "google/gemini-3.5-flash-lite": {
+      "name": "Google: Gemini 3.5 Flash Lite",
+      "provider": "google",
+      "speed_class": "fast",
+      "capabilities": {
+        "json_schema": true,
+        "tools": true,
+        "vision": true,
+        "audio_input": true,
+        "image_output": false,
+        "speech_output": false,
+        "context_window": 1048576,
+        "max_output": 65536
+      },
+      "premium": {
+        "planning_strategy": false,
+        "content_writing": false,
+        "research_analysis": false,
+        "imagery": false,
+        "voice_narration": false,
+        "structure_layout": false,
+        "visual_review": false,
+        "utilities": false,
+        "embeddings": false
+      }
+    },
+    "google/gemini-3.7-flash": {
+      "name": "Google: Gemini 3.7 Flash",
+      "provider": "google",
+      "speed_class": "unverified",
+      "capabilities": {
+        "json_schema": true,
+        "tools": true,
+        "vision": true,
+        "audio_input": true,
+        "image_output": false,
+        "speech_output": false,
+        "context_window": 1048576,
+        "max_output": 65536
+      },
+      "premium": {
+        "planning_strategy": false,
+        "content_writing": false,
+        "research_analysis": false,
+        "imagery": false,
+        "voice_narration": false,
+        "structure_layout": false,
+        "visual_review": false,
+        "utilities": false,
+        "embeddings": false
+      }
+    },
+    "google/gemini-3.8-flash": {
+      "name": "Google: Gemini 3.8 Flash",
+      "provider": "google",
+      "speed_class": "unverified",
+      "capabilities": {
+        "json_schema": true,
+        "tools": true,
+        "vision": true,
+        "audio_input": true,
+        "image_output": false,
+        "speech_output": false,
+        "context_window": 1048576,
+        "max_output": 65536
+      },
+      "premium": {
+        "planning_strategy": false,
+        "content_writing": false,
+        "research_analysis": false,
+        "imagery": false,
+        "voice_narration": false,
+        "structure_layout": false,
+        "visual_review": false,
+        "utilities": false,
+        "embeddings": false
+      }
+    },
+    "hexgrad/kokoro-82m": {
+      "name": "Kokoro 82M",
+      "provider": "hexgrad",
+      "speed_class": "unverified",
+      "capabilities": {
+        "json_schema": false,
+        "tools": false,
+        "vision": false,
+        "audio_input": false,
+        "image_output": false,
+        "speech_output": true,
+        "context_window": 4096,
+        "max_output": null
+      },
+      "premium": {
+        "planning_strategy": false,
+        "content_writing": false,
+        "research_analysis": false,
+        "imagery": false,
+        "voice_narration": false,
+        "structure_layout": false,
+        "visual_review": false,
+        "utilities": false,
+        "embeddings": false
+      }
+    },
+    "microsoft/mai-voice-2-flash": {
+      "name": "Microsoft MAI Voice 2 Flash",
+      "provider": "microsoft",
+      "speed_class": "unverified",
+      "capabilities": {
+        "json_schema": false,
+        "tools": false,
+        "vision": false,
+        "audio_input": false,
+        "image_output": false,
+        "speech_output": true,
+        "context_window": 0,
+        "max_output": null
+      },
+      "premium": {
+        "planning_strategy": false,
+        "content_writing": false,
+        "research_analysis": false,
+        "imagery": false,
+        "voice_narration": false,
+        "structure_layout": false,
+        "visual_review": false,
+        "utilities": false,
+        "embeddings": false
+      }
+    },
+    "moonshotai/kimi-k3": {
+      "name": "MoonshotAI: Kimi K3",
+      "provider": "moonshotai",
+      "speed_class": "unverified",
+      "capabilities": {
+        "json_schema": true,
+        "tools": true,
+        "vision": true,
+        "audio_input": false,
+        "image_output": false,
+        "speech_output": false,
+        "context_window": 1048576,
+        "max_output": 943718
+      },
+      "premium": {
+        "planning_strategy": true,
+        "content_writing": true,
+        "research_analysis": true,
+        "imagery": false,
+        "voice_narration": false,
+        "structure_layout": true,
+        "visual_review": true,
+        "utilities": true,
+        "embeddings": false
+      }
+    },
+    "nvidia/nemotron-3.5-lightning": {
+      "name": "NVIDIA: Nemotron 3.5 Lightning",
+      "provider": "nvidia",
+      "speed_class": "unverified",
+      "capabilities": {
+        "json_schema": true,
+        "tools": true,
+        "vision": false,
+        "audio_input": false,
+        "image_output": false,
+        "speech_output": false,
+        "context_window": 262144,
+        "max_output": 32768
+      },
+      "premium": {
+        "planning_strategy": false,
+        "content_writing": false,
+        "research_analysis": false,
+        "imagery": false,
+        "voice_narration": false,
+        "structure_layout": false,
+        "visual_review": false,
+        "utilities": false,
+        "embeddings": false
+      }
+    },
+    "openai/gpt-4o-mini": {
+      "name": "GPT-4o Mini",
+      "provider": "openai",
+      "speed_class": "unverified",
+      "capabilities": {
+        "json_schema": true,
+        "tools": true,
+        "vision": true,
+        "audio_input": false,
+        "image_output": false,
+        "speech_output": false,
+        "context_window": 128000,
+        "max_output": null
+      },
+      "premium": {
+        "planning_strategy": false,
+        "content_writing": false,
+        "research_analysis": false,
+        "imagery": false,
+        "voice_narration": false,
+        "structure_layout": false,
+        "visual_review": false,
+        "utilities": false,
+        "embeddings": false
+      }
+    },
+    "openai/gpt-6-luna": {
+      "name": "OpenAI: GPT-6 Luna",
+      "provider": "openai",
+      "speed_class": "fast",
+      "capabilities": {
+        "json_schema": true,
+        "tools": true,
+        "vision": true,
+        "audio_input": false,
+        "image_output": false,
+        "speech_output": false,
+        "context_window": 1050000,
+        "max_output": 128000
+      },
+      "premium": {
+        "planning_strategy": false,
+        "content_writing": false,
+        "research_analysis": false,
+        "imagery": false,
+        "voice_narration": false,
+        "structure_layout": false,
+        "visual_review": false,
+        "utilities": false,
+        "embeddings": false
+      }
+    },
+    "openai/gpt-6.1-sol": {
+      "name": "OpenAI: GPT-6.1 Sol",
+      "provider": "openai",
+      "speed_class": "unverified",
+      "capabilities": {
+        "json_schema": true,
+        "tools": true,
+        "vision": true,
+        "audio_input": false,
+        "image_output": false,
+        "speech_output": false,
+        "context_window": 1050000,
+        "max_output": 128000
+      },
+      "premium": {
+        "planning_strategy": false,
+        "content_writing": false,
+        "research_analysis": false,
+        "imagery": false,
+        "voice_narration": false,
+        "structure_layout": false,
+        "visual_review": false,
+        "utilities": false,
+        "embeddings": false
+      }
+    },
+    "openai/gpt-6.1-sol-pro": {
+      "name": "OpenAI: GPT-6.1 Sol Pro",
+      "provider": "openai",
+      "speed_class": "unverified",
+      "capabilities": {
+        "json_schema": true,
+        "tools": true,
+        "vision": true,
+        "audio_input": false,
+        "image_output": false,
+        "speech_output": false,
+        "context_window": 1050000,
+        "max_output": 128000
+      },
+      "premium": {
+        "planning_strategy": true,
+        "content_writing": true,
+        "research_analysis": true,
+        "imagery": false,
+        "voice_narration": false,
+        "structure_layout": true,
+        "visual_review": true,
+        "utilities": true,
+        "embeddings": false
+      }
+    },
+    "qwen/qwen3.8-flash": {
+      "name": "Qwen: Qwen3.8 Flash",
+      "provider": "qwen",
+      "speed_class": "balanced",
+      "capabilities": {
+        "json_schema": true,
+        "tools": true,
+        "vision": true,
+        "audio_input": false,
+        "image_output": false,
+        "speech_output": false,
+        "context_window": 1000000,
+        "max_output": 131072
+      },
+      "premium": {
+        "planning_strategy": false,
+        "content_writing": false,
+        "research_analysis": false,
+        "imagery": false,
+        "voice_narration": false,
+        "structure_layout": false,
+        "visual_review": false,
+        "utilities": false,
+        "embeddings": false
+      }
+    },
+    "qwen/qwen3.8-omni-flash": {
+      "name": "Qwen: Qwen3.8 Omni Flash",
+      "provider": "qwen",
+      "speed_class": "unverified",
+      "capabilities": {
+        "json_schema": true,
+        "tools": true,
+        "vision": true,
+        "audio_input": true,
+        "image_output": false,
+        "speech_output": false,
+        "context_window": 1000000,
+        "max_output": 131072
+      },
+      "premium": {
+        "planning_strategy": false,
+        "content_writing": false,
+        "research_analysis": false,
+        "imagery": false,
+        "voice_narration": false,
+        "structure_layout": false,
+        "visual_review": false,
+        "utilities": false,
+        "embeddings": false
+      }
+    },
+    "x-ai/grok-4.6": {
+      "name": "SpaceXAI: Grok 4.6",
+      "provider": "x-ai",
+      "speed_class": "deep",
+      "capabilities": {
+        "json_schema": true,
+        "tools": true,
+        "vision": true,
+        "audio_input": false,
+        "image_output": false,
+        "speech_output": false,
+        "context_window": 500000,
+        "max_output": 450000
+      },
+      "premium": {
+        "planning_strategy": false,
+        "content_writing": false,
+        "research_analysis": false,
+        "imagery": false,
+        "voice_narration": false,
+        "structure_layout": false,
+        "visual_review": false,
+        "utilities": false,
+        "embeddings": false
+      }
+    },
+    "x-ai/grok-4.7": {
+      "name": "SpaceXAI: Grok 4.7",
+      "provider": "x-ai",
+      "speed_class": "unverified",
+      "capabilities": {
+        "json_schema": true,
+        "tools": true,
+        "vision": true,
+        "audio_input": false,
+        "image_output": false,
+        "speech_output": false,
+        "context_window": 500000,
+        "max_output": 450000
+      },
+      "premium": {
+        "planning_strategy": true,
+        "content_writing": true,
+        "research_analysis": true,
+        "imagery": false,
+        "voice_narration": false,
+        "structure_layout": true,
+        "visual_review": true,
+        "utilities": true,
+        "embeddings": false
+      }
+    },
+    "xiaomi/mimo-v2.6-flash": {
+      "name": "Xiaomi: MiMo-V2.6-Flash",
+      "provider": "xiaomi",
+      "speed_class": "unverified",
+      "capabilities": {
+        "json_schema": true,
+        "tools": true,
+        "vision": true,
+        "audio_input": true,
+        "image_output": false,
+        "speech_output": false,
+        "context_window": 1050000,
+        "max_output": 131072
+      },
+      "premium": {
+        "planning_strategy": false,
+        "content_writing": false,
+        "research_analysis": false,
+        "imagery": false,
+        "voice_narration": false,
+        "structure_layout": false,
+        "visual_review": false,
+        "utilities": false,
+        "embeddings": false
+      }
+    },
+    "xiaomi/mimo-v2.6-pro": {
+      "name": "Xiaomi: MiMo-V2.6-Pro",
+      "provider": "xiaomi",
+      "speed_class": "unverified",
+      "capabilities": {
+        "json_schema": true,
+        "tools": true,
+        "vision": true,
+        "audio_input": true,
+        "image_output": false,
+        "speech_output": false,
+        "context_window": 1050000,
+        "max_output": 131072
+      },
+      "premium": {
+        "planning_strategy": true,
+        "content_writing": true,
+        "research_analysis": true,
+        "imagery": false,
+        "voice_narration": false,
+        "structure_layout": true,
+        "visual_review": true,
+        "utilities": true,
+        "embeddings": false
+      }
+    },
+    "z-ai/glm-5.3-flash": {
+      "name": "Z.ai: GLM 5.3 Flash",
+      "provider": "z-ai",
+      "speed_class": "unverified",
+      "capabilities": {
+        "json_schema": true,
+        "tools": true,
+        "vision": true,
+        "audio_input": false,
+        "image_output": false,
+        "speech_output": false,
+        "context_window": 1048576,
+        "max_output": 943718
+      },
+      "premium": {
+        "planning_strategy": false,
+        "content_writing": false,
+        "research_analysis": false,
+        "imagery": false,
+        "voice_narration": false,
+        "structure_layout": false,
+        "visual_review": false,
+        "utilities": false,
+        "embeddings": false
+      }
+    },
+    "z-ai/glm-5.3-prime": {
+      "name": "Z.ai: GLM 5.3 Prime",
+      "provider": "z-ai",
+      "speed_class": "unverified",
+      "capabilities": {
+        "json_schema": false,
+        "tools": true,
+        "vision": false,
+        "audio_input": false,
+        "image_output": false,
+        "speech_output": false,
+        "context_window": 1000000,
+        "max_output": 131072
+      },
+      "premium": {
+        "planning_strategy": true,
+        "content_writing": true,
+        "research_analysis": true,
+        "imagery": false,
+        "voice_narration": false,
+        "structure_layout": false,
+        "visual_review": false,
+        "utilities": true,
+        "embeddings": false
+      }
+    }
+  }
+}
