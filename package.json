@@ -123,6 +123,7 @@
     "test:upload-status-contract": "node scripts/test-upload-status-contract.mjs",
     "test:research-mode-contract": "node scripts/test-research-mode-contract.mjs",
     "test:researcher-ingest-status-auth": "node scripts/test-researcher-ingest-status-auth.mjs",
+    "test:admin-email-guard": "node scripts/test-admin-email-guard.mjs",
     "test:studio-p2-details": "node scripts/test-studio-p2-details.mjs",
     "test:studio-p2-onboarding": "node scripts/test-studio-p2-onboarding.mjs",
     "start": "next start",
