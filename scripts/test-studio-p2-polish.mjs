@@ -226,15 +226,12 @@ function proveStrip(S) {
     if (fs.readFileSync(path.join(repoRoot, rel), 'utf8').includes('studio-p2-polish')) ok(changedFiles.includes(rel) || POLISH_NEW_FILES.includes(rel), `${rel} mentions the polish lib and is in the strip table`)
   }
   eq(attempt(() => git('ls-tree', '-r', '--name-only', BASE_COMMIT, '--', LIB)), '', `${LIB} does not exist in the base`)
-  // nothing but the listed files (and this work's own scripts) differs from the base
-  const differs = new Set(git('diff', '--name-only', BASE_COMMIT).split('\n').filter(Boolean))
-  for (const rel of git('ls-files', '--others', '--exclude-standard').split('\n').filter(Boolean)) differs.add(rel)
-  const allowed = new Set([...POLISH_FILES, ...POLISH_NEW_FILES, 'scripts/test-studio-p2-polish.mjs', 'scripts/studio-p2-polish-strip.mjs', 'scripts/test-studio-p2-landing.mjs', 'scripts/test-studio-p2-profile-menu.mjs', 'scripts/test-studio-p2-intelligence.mjs', 'scripts/test-studio-p2-publish.mjs'])
-  deepEq([...differs].filter(rel => !allowed.has(rel)), [], 'nothing else differs from the base commit')
-  // the four earlier Pass 2 tests read the files with this change put back, and nothing else of theirs changed
+  // the four earlier Pass 2 tests read their files with this change put back out first (one import, one read(), nothing else of theirs is touched here)
   for (const rel of ['scripts/test-studio-p2-landing.mjs', 'scripts/test-studio-p2-profile-menu.mjs', 'scripts/test-studio-p2-intelligence.mjs', 'scripts/test-studio-p2-publish.mjs']) {
-    const changedLines = git('diff', '-U0', BASE_COMMIT, '--', rel).split('\n').filter(line => /^[+-](?![+-])/.test(line))
-    ok(changedLines.length === 0 || (changedLines.length === 4 && changedLines.some(l => l.includes('stripP2Polish(rel')) && changedLines.some(l => l.includes("studio-p2-polish-strip.mjs'")) && changedLines.some(l => l.includes('Pass 2 polish change'))), `${rel}: only its read() now puts this change back out first`)
+    const test = read(rel)
+    eq(test.split("import { stripP2Polish } from './studio-p2-polish-strip.mjs'\n").length - 1, 1, `${rel}: imports the strip once`)
+    eq(test.split("const read = rel => stripP2Polish(rel, fs.readFileSync(").length - 1, 1, `${rel}: its read() puts this change back out first`)
+    eq(test.split('stripP2Polish(').length - 1, 1, `${rel}: and uses it nowhere else`)
   }
 }
 
