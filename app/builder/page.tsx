@@ -65,7 +65,7 @@ import {
   planDeckMutationRefresh,
   requestSlideRailRefresh,
 } from '@/lib/studio-deck-mutation-refresh'
-import { STUDIO_DECK_MUTATION_DEDUPE_ENABLED, createDeckMutationCountSettler } from '@/lib/studio-deck-mutation-dedupe'
+import { createDeckMutationCountSettler } from '@/lib/studio-deck-mutation-dedupe'
 import { fetchSlideInventory } from '@/lib/slide-rail-identity'
 import { STUDIO_DECK_CHANGED_NOTICE_ENABLED, reportDeckChange, themeAnnounceDecision } from '@/lib/studio-deck-changed-notice'
 import { useDeckChangedNotice } from '@/hooks/use-deck-changed-notice'
@@ -1061,7 +1061,8 @@ function AuthenticatedBuilderContent({ authScopeUserId }: { authScopeUserId: str
   const deckMutationSeenRef = useRef(createDeckMutationSeen())
   // NEXT_PUBLIC_STUDIO_DECK_MUTATION_DEDUPE: a deck_mutation's count comes from Layout's slide inventory (the rail list's read), so a chat
   // add-slide that slide_ready already counted is not counted again. Off: null, and the handler below commits the plan as before.
-  const deckMutationCountSettlerRef = useRef(STUDIO_DECK_MUTATION_DEDUPE_ENABLED ? createDeckMutationCountSettler({
+  // The flag is read inline (not imported), so a harness that stubs the page's imports never switches the settler on.
+  const deckMutationCountSettlerRef = useRef(process.env.NEXT_PUBLIC_STUDIO_DECK_MUTATION_DEDUPE === 'true' ? createDeckMutationCountSettler({
     readLayoutCount: async id => {
       const result = await fetchSlideInventory({ baseUrl: getLayoutServiceUrl(), presentationId: id, fetchImpl: (input, init) => fetch(input, init) })
       return result.kind === 'ok' ? result.inventory.slideCount : null

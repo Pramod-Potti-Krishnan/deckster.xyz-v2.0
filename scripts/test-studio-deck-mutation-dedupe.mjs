@@ -231,7 +231,7 @@ async function replay(transcript, { sources, dedupe, refreshFlag = true, order =
     createDeckMutationCountSettler: dedupeLib?.createDeckMutationCountSettler, fetchSlideInventory: rail.fetchSlideInventory,
     getLayoutServiceUrl: () => LAYOUT, fetch: layout.fetch, Date: globals.Date }
   const settlerText = cutSettler(page)
-  pageDeps.deckMutationCountSettlerRef = settlerText ? evalPageSnippet(settlerText, 'deckMutationCountSettlerRef', globals, ['deckMutationCountSettlerRef'])(pageDeps) : { current: null }
+  pageDeps.deckMutationCountSettlerRef = settlerText ? evalPageSnippet(settlerText, 'deckMutationCountSettlerRef', { ...globals, process: { env } }, ['deckMutationCountSettlerRef'])(pageDeps) : { current: null }
   const handlerText = cutArrow(page, 'onDeckMutation: (message')
   const onDeckMutation = refreshFlag && handlerText ? evalPageSnippet('', `(${handlerText})`, globals)(pageDeps) : null
 
@@ -442,11 +442,13 @@ async function suite(sources, { log = false } = {}) {
   const pageText = sources[PAGE]
   const has = (text, re) => assert.ok(re.test(text ?? ''), `missing: ${re}`) // never dumps the 400 KB page into the log
   await check('page: the settler exists only with the flag on and reads Layout\'s inventory the way the rail list does', () => {
-    has(pageText, /^import \{ STUDIO_DECK_MUTATION_DEDUPE_ENABLED, createDeckMutationCountSettler \} from '@\/lib\/studio-deck-mutation-dedupe'$/m)
+    has(pageText, /^import \{ createDeckMutationCountSettler \} from '@\/lib\/studio-deck-mutation-dedupe'$/m)
     has(pageText, /^import \{ fetchSlideInventory \} from '@\/lib\/slide-rail-identity'$/m)
     const settler = cutSettler(pageText)
     assert.ok(settler, 'settler block missing')
-    has(settler, /useRef\(STUDIO_DECK_MUTATION_DEDUPE_ENABLED \? createDeckMutationCountSettler\(\{/)
+    has(settler, /useRef\(process\.env\.NEXT_PUBLIC_STUDIO_DECK_MUTATION_DEDUPE === 'true' \? createDeckMutationCountSettler\(\{/)
+    // Inline, never an imported flag: older page harnesses stub every import with a truthy string.
+    assert.ok(!/STUDIO_DECK_MUTATION_DEDUPE_ENABLED/.test(pageText), 'the page must not import the flag constant')
     has(settler, /fetchSlideInventory\(\{ baseUrl: getLayoutServiceUrl\(\), presentationId: id, fetchImpl: \(input, init\) => fetch\(input, init\) \}\)/)
     has(settler, /return result\.kind === 'ok' \? result\.inventory\.slideCount : null/)
     // The commit is the flag-off handler's four steps, in the same order.
@@ -482,7 +484,7 @@ async function identity() {
     const settlerFrom = head.indexOf(SETTLER_START)
     assert.ok(settler && settlerFrom >= 0)
     cut = cut.replace(head.slice(settlerFrom, head.indexOf(settler) + settler.length + 1), '')
-    cut = cut.replace("import { STUDIO_DECK_MUTATION_DEDUPE_ENABLED, createDeckMutationCountSettler } from '@/lib/studio-deck-mutation-dedupe'\n", '')
+    cut = cut.replace("import { createDeckMutationCountSettler } from '@/lib/studio-deck-mutation-dedupe'\n", '')
     cut = cut.replace("import { fetchSlideInventory } from '@/lib/slide-rail-identity'\n", '')
     cut = cut.replace('        if (deckMutationCountSettlerRef.current) { void deckMutationCountSettlerRef.current(plan.override, owner.isCurrent); return } // NEXT_PUBLIC_STUDIO_DECK_MUTATION_DEDUPE\n', '')
     assert.equal(sha(cut), sha(baseSource(PAGE)))
@@ -563,7 +565,8 @@ const MUTANTS = [
   [PAGE, 'if (deckMutationCountSettlerRef.current) { void deckMutationCountSettlerRef.current(plan.override, owner.isCurrent); return }', ''],
   [PAGE, "return result.kind === 'ok' ? result.inventory.slideCount : null", 'return null'],
   [PAGE, '      requestSlideRailRefresh(override.presentationId)\n', ''],
-  [PAGE, 'useRef(STUDIO_DECK_MUTATION_DEDUPE_ENABLED ? createDeckMutationCountSettler({', 'useRef(true ? createDeckMutationCountSettler({'],
+  [PAGE, "useRef(process.env.NEXT_PUBLIC_STUDIO_DECK_MUTATION_DEDUPE === 'true' ? createDeckMutationCountSettler({", 'useRef(true ? createDeckMutationCountSettler({'],
+  [PAGE, "useRef(process.env.NEXT_PUBLIC_STUDIO_DECK_MUTATION_DEDUPE === 'true' ? createDeckMutationCountSettler({", "useRef(process.env.NEXT_PUBLIC_STUDIO_DECK_MUTATION_DEDUPE !== 'false' ? createDeckMutationCountSettler({"],
 ]
 
 const head = sourceSet('head')
