@@ -3,7 +3,7 @@
 // base commit's files byte for byte, so nothing is changed that is not listed here, and that every listed change is inert with the flag off. New files (no base text to put back):
 // lib/studio-p2-polish.ts, scripts/test-studio-p2-polish.mjs, scripts/studio-p2-polish-strip.mjs.
 
-export const BASE_COMMIT = "fad999537e6da24b8020365ace9ac6a3d05a1143"
+export const BASE_COMMIT = "4d2765a0eb08b99b23ab3a32efdf3a4731f61b0d"
 
 // [text this change has, text the base has]; each "has" text is found exactly once in the branch's file
 export const POLISH_PAIRS = {
