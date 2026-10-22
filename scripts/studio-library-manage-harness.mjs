@@ -35,6 +35,8 @@ export const isBaseFile = (rel, stripped, baseText) => stripped === baseText || 
 // the diff-scope check below allows exactly these on top of this change's own files and nothing else.
 export const STACKED_PASS3_FILES = [
   'app/(app)/knowledge/page.tsx', 'app/api/knowledge-graph/query/route.ts', 'components/knowledge/studio-kg-ask.css', 'components/knowledge/studio-kg-ask.tsx', 'hooks/use-studio-kg-ask.ts', 'lib/studio-kg-ask.ts',
+  // deck import (NEXT_PUBLIC_STUDIO_DECK_IMPORT): a new Decks layout, two proxy routes, the dialog and entry, their hook and rules, and OPS-2's REST entitlement minter carried verbatim (PR #312); no library file
+  'app/(app)/dashboard/layout.tsx', 'app/api/studio-deck-import/route.ts', 'app/api/studio-deck-import/jobs/[jobId]/route.ts', 'components/studio-deck-import/studio-deck-import-dialog.tsx', 'components/studio-deck-import/studio-deck-import-entry.tsx', 'components/studio-deck-import/studio-deck-import.css', 'hooks/use-studio-deck-import.ts', 'lib/studio-deck-import.ts', 'lib/director-rest-entitlement.ts',
   'app/(app)/dashboard/page.tsx', 'app/builder/page.tsx', 'components/builder/studio-copied-from-note.tsx', 'components/builder/studio-duplicate-deck.css', 'lib/studio-duplicate-deck.ts',
   'lib/studio-deck-mutation-dedupe.ts',
 ]

@@ -1,0 +1,1190 @@
+// STUDIO DECK IMPORT, "Import a PowerPoint as an editable deck" (FRONTEND-2, Pass 3): a button above the Decks page opens a dialog that uploads a .pptx, starts Director's import
+// (POST /api/template-ingest/stage/import-reference), polls the job's `deck_import` block and opens the Builder on the finished deck. Flag NEXT_PUBLIC_STUDIO_DECK_IMPORT (exact "true"),
+// default off, and only with the Studio shell. Director half: Director !518 (DIRECTOR_DECK_IMPORT_ENABLED); contract streams/director2/deck-import/CONTRACT.md.
+//
+// Run: node scripts/test-studio-deck-import.mjs   (plain node: transpile + vm, no network, no browser, no secrets; every secret below is made up at run time and never printed)
+//   DECK_IMPORT_BASE=<commit>     the commit flag-off identity is checked against (default fae96200, the studio-v4-dev-preparation-code tip this change is based on)
+//   DECK_IMPORT_QUICK=1           skip the mutants
+//
+// The 17 responses RECORDED from Director's real code (scripts/fixtures/deck-import/, byte copies of streams/director2/deck-import/ in the workspace, pinned by sha256 below) are replayed three ways:
+// through the proxy routes (Director stubbed with the recorded status and body), through the pure rules, and through the dialog (browser -> real proxy routes -> recorded Director).
+//   1. carried files: lib/director-rest-entitlement.ts, its golden vector and its test are OPS-2's PR #312, byte for byte (git blob hashes pinned); golden vector reproduced by the real helper;
+//   2. lib/studio-deck-import.ts: the flag rule, the file check, the one start body, the refusals in the contract's words, every recorded job read, the finished-deck shape;
+//   3. the two proxy routes (executed with stubs): 404 before any session read, signed-in only, exact Director requests, pass-through of every recorded status, the entitlement header
+//      (present only when BOTH flags are on and the secret is set; the secret is never read otherwise; claims checked by an independent verifier);
+//   4. the dialog and its hook (executed with a small hooks runtime): choose, upload, start, waiting/placing/opening/ready, what changed, every failure, Try again, resume, guards;
+//   5. flag-off identity: the Decks page is the base's file byte for byte, the new layout hands the page back with no wrapper, every other changed file is a listed new file;
+//   6. static: no 'use client' module reaches the minter, the minter is imported by the two routes only, the CSS, the env example, package.json;
+//   7. mutants: every one is killed by an assertion.
+import assert from 'node:assert/strict'
+import crypto from 'node:crypto'
+import fs from 'node:fs'
+import path from 'node:path'
+import vm from 'node:vm'
+import { execFileSync } from 'node:child_process'
+import ts from 'typescript'
+import postcss from 'postcss'
+import { appendOnlyOver, createRuntime, jsxRuntime, root, text as nodeText } from './studio-library-manage-harness.mjs'
+
+const BASE_COMMIT = process.env.DECK_IMPORT_BASE || 'fae962006b080e26eb70c2add7066ca1edf8eca2'
+const read = rel => fs.readFileSync(path.join(root, rel), 'utf8')
+// `git cat-file -e` first: `git show <rev>:<path with [brackets]>` prints nothing and exits 0 for a path that does not exist
+const gitShow = (commit, rel) => {
+  try {
+    execFileSync('git', ['cat-file', '-e', `${commit}:${rel}`], { cwd: root, stdio: 'ignore' })
+    return execFileSync('git', ['show', `${commit}:${rel}`], { cwd: root, encoding: 'utf8', maxBuffer: 64 * 1024 * 1024, stdio: ['ignore', 'pipe', 'ignore'] })
+  } catch { return null }
+}
+const baseSource = rel => { const text = gitShow(BASE_COMMIT, rel); if (text === null) throw new Error(`base commit ${BASE_COMMIT} is not in this clone (fetch the full history)`); return text }
+
+const FLAG = 'NEXT_PUBLIC_STUDIO_DECK_IMPORT'
+const LIB = 'lib/studio-deck-import.ts'
+const HOOK = 'hooks/use-studio-deck-import.ts'
+const DIALOG = 'components/studio-deck-import/studio-deck-import-dialog.tsx'
+const ENTRY = 'components/studio-deck-import/studio-deck-import-entry.tsx'
+const CSS = 'components/studio-deck-import/studio-deck-import.css'
+const LAYOUT = 'app/(app)/dashboard/layout.tsx'
+const START = 'app/api/studio-deck-import/route.ts'
+const JOBS = 'app/api/studio-deck-import/jobs/[jobId]/route.ts'
+const HELPER = 'lib/director-rest-entitlement.ts'
+const GOLDEN = 'scripts/fixtures/rest-entitlement-golden-vector.json'
+const PR312_TEST = 'scripts/test-rest-entitlement-header.mjs'
+const DASHBOARD = 'app/(app)/dashboard/page.tsx'
+const ENVFILE = '.env.example'
+const PKG = 'package.json'
+const RECORDED = 'scripts/fixtures/deck-import'
+const NEW_FILES = [LIB, HOOK, DIALOG, ENTRY, CSS, LAYOUT, START, JOBS, HELPER]
+
+// ---------------------------------------------------------------- counting and overrides (for the mutants)
+let checks = 0
+let counting = true
+const count = fn => (...args) => { if (counting) checks++; return fn(...args) }
+const eq = count(assert.equal), ok = count(assert.ok), match = count(assert.match), nomatch = count(assert.doesNotMatch)
+const plain = value => JSON.parse(JSON.stringify(value === undefined ? null : value)) // values built inside a vm carry its realm's prototypes
+const deepEq = count((actual, expected, ...message) => assert.deepStrictEqual(plain(actual), plain(expected), ...message)) // no explicit undefined message: Node 26 rejects it when the assertion fails
+const sha = value => crypto.createHash('sha256').update(typeof value === 'string' || Buffer.isBuffer(value) ? value : JSON.stringify(value)).digest('hex')
+let OVER = {}
+const src = rel => OVER[rel] ?? read(rel)
+
+// ---------------------------------------------------------------- the recorded responses
+const recordedNames = fs.readdirSync(path.join(root, RECORDED)).filter(name => /^\d\d-.*\.json$/.test(name)).sort()
+const REC = Object.fromEntries(recordedNames.map(name => [name.slice(0, 2), JSON.parse(read(`${RECORDED}/${name}`))]))
+// what a poll of the recorded job answers: file 06 wraps the job next to the Composer requests Director made
+const jobReply = n => REC[n].body.job ?? REC[n].body
+const RECORDED_SHA256 = {
+  '01': '57b2f31214b945d76df0a4b8', '02': '3b0c7c0fe0333404a0950cec', '03': 'f28744dd54bdf7206e6127a0', '04': '5b49532fcfb4b6727aa82c40', '05': 'dc1629fc62fde2f398e2c002', '06': '13bdc8314dc0fc6f9274daeb',
+  '07': '7758bd0eb554149caaec8eb9', '08': '06af8fd8c824e601f82f6cb2', '09': '84af1af3e5a358e58a597d8f', '10': '30860a8b237a9f68f58c44f4', '11': '40257bcc28aaacd51f9fce89', '12': '697d1b4988aafbd4c2d12af1',
+  '13': '818e7978bdb7226c2d65fe06', '14': '784c23741672cda8417c4d96', '15': '81c7048caacb5aaad96ab453', '16': 'd3041762818d76ee93bf12ae', '17': 'efac6f4b940271c6600c1e50',
+}
+const SESSION = 'fresh-session' // the id every recorded response carries
+const JOB_ID = REC['01'].body.job_id
+const USER_ID = 'user-db-7f3a' // the database id the proxies send as X-Composer-User-Id; the session's own id below differs on purpose
+const EMAIL = 'person@example.test'
+const FILE = { name: 'Q3 Board Review.pptx', size: 3073, type: 'application/vnd.openxmlformats-officedocument.presentationml.presentation' }
+const DIRECTOR_URL = 'https://directorv40-uat.up.railway.app'
+// made up for this run only: never a literal, never printed
+const TEST_SECRET = crypto.randomBytes(24).toString('hex')
+const TEST_TOKEN = crypto.randomBytes(16).toString('hex')
+const FIXED_NOW = 1790000000
+
+// ---------------------------------------------------------------- loading: transpile + vm, a closed list of imports
+const compiled = new Map()
+function compile(rel, source) {
+  const key = `${rel}\0${source}`
+  if (!compiled.has(key)) {
+    const out = ts.transpileModule(source, { fileName: rel, reportDiagnostics: true, compilerOptions: { target: ts.ScriptTarget.ES2022, module: ts.ModuleKind.CommonJS, jsx: ts.JsxEmit.ReactJSX } })
+    assert.equal((out.diagnostics ?? []).filter(d => d.category === ts.DiagnosticCategory.Error).length, 0, `${rel} compiles`)
+    compiled.set(key, out.outputText)
+  }
+  return compiled.get(key)
+}
+function createWorld({ real, stubs = {}, globals = {} }) {
+  const cache = new Map()
+  const resolve = (spec, from) => {
+    if (!spec.startsWith('@/') && !spec.startsWith('.')) return null
+    const base = spec.startsWith('@/') ? spec.slice(2) : path.posix.normalize(path.posix.join(path.posix.dirname(from), spec))
+    return ['.ts', '.tsx'].map(suffix => base + suffix).find(file => fs.existsSync(path.join(root, file))) ?? null
+  }
+  const requireFor = (spec, from) => {
+    if (spec in stubs) return stubs[spec]
+    if (spec === 'react/jsx-runtime') return jsxRuntime
+    if (spec.endsWith('.css')) return {}
+    const rel = resolve(spec, from)
+    if (rel && real.includes(rel)) return load(rel)
+    return assert.fail(`${from} asked for an import nobody handed in: ${spec}`)
+  }
+  function load(rel) {
+    if (cache.has(rel)) return cache.get(rel)
+    const mod = { exports: {} }
+    cache.set(rel, mod.exports)
+    const context = { module: mod, exports: mod.exports, console, URL, URLSearchParams, Buffer, Response, Request, Headers, AbortController, AbortSignal, TextEncoder, ...globals, require: spec => requireFor(spec, rel) }
+    vm.runInNewContext(compile(rel, src(rel)), context, { filename: rel })
+    cache.set(rel, mod.exports)
+    return mod.exports
+  }
+  return { load }
+}
+const libWorld = () => createWorld({ real: [LIB, 'lib/studio-template-progress.ts'] })
+const loadLib = () => libWorld().load(LIB)
+
+// ---------------------------------------------------------------- the independent verifier of the REST entitlement header (written from F-rest-entitlement.md; imports nothing of the minter)
+function verifyRestHeader(header, secret, { method, sub, now }) {
+  const fail = why => ({ ok: false, why })
+  if (typeof header !== 'string' || Buffer.byteLength(header, 'utf8') > 4096) return fail('shape')
+  const parts = header.split('.')
+  if (parts.length !== 2 || !parts.every(part => /^[A-Za-z0-9_-]+$/.test(part))) return fail('shape')
+  const expected = crypto.createHmac('sha256', secret).update('deckster-rest-v1.' + parts[0], 'ascii').digest()
+  const got = Buffer.from(parts[1], 'base64url')
+  if (got.length !== expected.length || !crypto.timingSafeEqual(got, expected)) return fail('signature')
+  const claims = JSON.parse(Buffer.from(parts[0], 'base64url').toString('utf8'))
+  if (claims.v !== 1 || claims.typ !== 'rest' || 'sid' in claims) return fail('claims')
+  if (claims.m !== method) return fail('method')
+  if (sub !== undefined && claims.sub !== sub) return fail('sub')
+  if (!Number.isInteger(claims.iat) || !Number.isInteger(claims.exp) || claims.exp - claims.iat !== 120) return fail('lifetime')
+  if (now < claims.iat - 60 || now >= claims.exp) return fail('expired')
+  return { ok: true, claims }
+}
+
+// ---------------------------------------------------------------- a rig for the two proxy routes: stubs for the session, the database, Next and Director
+function routeRig({ flag = 'true', helperFlag, secret, session = 'in', userLookup = 'ok', ownsSession = true, directorUrl = DIRECTOR_URL, token = TEST_TOKEN, director } = {}) {
+  const envObject = {
+    ...(flag === null ? {} : { [FLAG]: flag }), // null = not set (a default parameter would swallow undefined)
+    ...(directorUrl === null ? {} : { COMPOSER_DIRECTOR_URL: directorUrl }),
+    ...(token === null ? {} : { COMPOSER_FRONTDOOR_TOKEN: token }),
+    ...(helperFlag === undefined ? {} : { DECKSTER_REST_ENTITLEMENT_HEADER_ENABLED: helperFlag }),
+    ...(secret === undefined ? {} : { DIRECTOR_WS_AUTH_SECRET: secret }),
+  }
+  const reads = []
+  const env = new Proxy(envObject, { get: (target, key) => { reads.push(String(key)); return target[key] } })
+  const calls = { session: 0, user: [], chat: [], fetch: [] }
+  const reply = director ?? (() => ({ status: 200, body: {} }))
+  const directorFetch = async (url, init) => {
+    calls.fetch.push({ url: String(url), init })
+    const answer = await reply(String(url), init)
+    if (answer.throws) throw answer.throws
+    return new Response(answer.raw ?? JSON.stringify(answer.body), { status: answer.status })
+  }
+  const stubs = {
+    'next/server': { NextResponse: { json: (body, init) => Response.json(body, init) } },
+    'next-auth': { getServerSession: async () => { calls.session++; return session === 'in' ? { user: { email: EMAIL, id: 'session-token-id' } } : null } },
+    '@/lib/auth-options': { authOptions: {} },
+    '@/lib/prisma': { prisma: {
+      user: { findUnique: async arg => { calls.user.push(arg); if (userLookup === 'throws') throw new Error('db down'); return userLookup === 'none' ? null : { id: USER_ID } } },
+      chatSession: { findFirst: async arg => { calls.chat.push(arg); return ownsSession ? { id: arg.where.id } : null } },
+    } },
+    crypto,
+  }
+  const world = createWorld({
+    real: [START, JOBS, HELPER, LIB, 'lib/studio-template-progress.ts', 'lib/service-url.ts', 'lib/composer-library.ts'],
+    stubs, globals: { process: { env }, fetch: directorFetch, Date: { now: () => FIXED_NOW * 1000 } },
+  })
+  const start = async (body, { headers = { 'content-type': 'application/json' }, raw } = {}) => {
+    const { POST } = world.load(START)
+    const res = await POST(new Request('http://localhost/api/studio-deck-import', { method: 'POST', headers, body: raw ?? JSON.stringify(body) }))
+    return { res, json: await res.clone().json().catch(() => null) }
+  }
+  const job = async jobId => {
+    const { GET } = world.load(JOBS)
+    const res = await GET(new Request(`http://localhost/api/studio-deck-import/jobs/${jobId}`), { params: Promise.resolve({ jobId }) })
+    return { res, json: await res.clone().json().catch(() => null) }
+  }
+  return { start, job, calls, reads, env: envObject }
+}
+const START_BODY = { session_id: SESSION, researcher_session_id: SESSION, storage_path: `${SESSION}/1_Q3 Board Review.pptx`, file_name: FILE.name, kind: 'pptx' }
+const directorFromRecorded = () => (url, init) => {
+  if ((init?.method ?? 'GET') === 'POST') return { status: REC['01'].status, body: REC['01'].body }
+  return { status: 200, body: jobReply(directorFromRecorded.current ?? '02') }
+}
+
+// ================================================================ 1. carried files, blobs, base identity
+async function secBlobs() {
+  // OPS-2's PR #312 (origin/ops2/rest-entitlement-header-studio @ 93c1c94), carried byte for byte: the git blob ids are those of that branch
+  const PINNED = { [HELPER]: '10dace49fee5c21ca93b4c3b6e3bd7e4f32d55f1', [GOLDEN]: '1d25f7b248d14311d6ca16c4784a0ca3fb4850c3', [PR312_TEST]: '647925b7f8271debd346ad3e2f853371828356af' }
+  for (const [rel, blob] of Object.entries(PINNED)) {
+    if (rel === PR312_TEST && !fs.existsSync(path.join(root, rel))) continue // PR #312's own test is carried in a commit of its own so it can be left out (it asserts the 13 proxies are signed, which this change does not do)
+    const bytes = Buffer.from(src(rel), 'utf8')
+    eq(crypto.createHash('sha1').update(`blob ${bytes.length}\0`).update(bytes).digest('hex'), blob, `${rel} is PR #312's blob, byte for byte`)
+  }
+  for (const [name, digest] of Object.entries(RECORDED_SHA256)) eq(sha(fs.readFileSync(path.join(root, RECORDED, recordedNames.find(n => n.startsWith(name))))).slice(0, 24), digest, `recorded response ${name} is Director's, byte for byte`)
+  eq(recordedNames.length, 17, 'all 17 recorded responses are here')
+  // the golden vector, reproduced by the real helper (flag on, a key from the fixture; a different key must not reproduce it)
+  const vector = JSON.parse(read(GOLDEN))
+  eq(vector.dummy, true)
+  const key = Buffer.from(vector.test_hmac_key_hex, 'hex').toString('utf8')
+  const makeHelper = (env, clockSeconds) => createWorld({ real: [HELPER], stubs: { crypto }, globals: { process: { env }, Date: { now: () => clockSeconds * 1000 } } }).load(HELPER)
+  for (const c of vector.cases) {
+    const helper = makeHelper({ DECKSTER_REST_ENTITLEMENT_HEADER_ENABLED: 'true', DIRECTOR_WS_AUTH_SECRET: key }, vector.fixed_clock.mint_now)
+    deepEq(helper.restEntitlementHeaders(c.inputs.sub, c.inputs.method, c.inputs.bq ?? undefined), { [vector.header_name]: c.header }, `${c.id}: the golden header, through the flag-gated helper`)
+    ok(verifyRestHeader(c.header, key, { method: c.verify.method, sub: c.inputs.sub, now: c.verify.now }).ok, `${c.id}: the independent verifier accepts it`)
+  }
+  // flag-off identity of the rest of the app: the Decks page and every file this change does not list are the base's, byte for byte
+  eq(src(DASHBOARD), baseSource(DASHBOARD), 'the Decks page (app/(app)/dashboard/page.tsx) is the base commit\'s file, byte for byte')
+  const changed = execFileSync('git', ['diff', '--name-only', BASE_COMMIT, '--', 'app', 'components', 'lib', 'hooks', 'middleware.ts', 'contexts', 'types', 'prisma', 'next.config.mjs', 'public', 'styles'], { cwd: root, encoding: 'utf8' }).split('\n').filter(Boolean)
+  const untracked = execFileSync('git', ['ls-files', '--others', '--exclude-standard', '--', 'app', 'components', 'lib', 'hooks'], { cwd: root, encoding: 'utf8' }).split('\n').filter(Boolean)
+  deepEq([...new Set([...changed, ...untracked])].sort(), [...NEW_FILES].sort(), 'the only files under app, components, lib and hooks that differ from the base are this change\'s nine new ones')
+  for (const rel of NEW_FILES.filter(file => file !== HELPER)) ok(gitShow(BASE_COMMIT, rel) === null, `${rel} is new (the base has no such file)`)
+  eq(gitShow(BASE_COMMIT, HELPER), null, 'the minter is not on the base: it is carried from PR #312')
+}
+
+// ================================================================ 2. the pure rules
+async function secLib() {
+  const L = loadLib()
+  // the flag rule
+  for (const [flag, shell, want] of [['true', 'true', true], ['true', undefined, false], ['true', 'false', false], [undefined, 'true', false], ['false', 'true', false], ['TRUE', 'true', false], ['1', 'true', false], ['true ', 'true', false], ['', 'true', false], [null, 'true', false]]) {
+    eq(L.studioDeckImportOn(flag, shell), want, `flag ${JSON.stringify(flag)} with shell ${JSON.stringify(shell)}`)
+  }
+  eq(L.DECK_IMPORT_START_ENDPOINT, '/api/studio-deck-import')
+  eq(L.deckImportJobEndpoint('stage-import-abc'), '/api/studio-deck-import/jobs/stage-import-abc')
+  eq(L.deckImportJobEndpoint('a/b c'), '/api/studio-deck-import/jobs/a%2Fb%20c', 'a job id is encoded')
+  eq(L.DECK_IMPORT_MAX_BYTES, 100 * 1024 * 1024)
+  eq(L.DECK_IMPORT_POLL_FALLBACK_MS, 3000)
+  eq(L.DECK_IMPORT_POLL_RETRIES, 3)
+  eq(L.DECK_IMPORT_WATCH_LIMIT_MS, 90 * 60 * 1000)
+
+  // the file, checked before anything is uploaded (the contract's sentences, word for word)
+  const PDF = 'Import the PowerPoint this PDF came from. PDF import is coming.'
+  const NOT_PPTX = 'Only PowerPoint (.pptx) files can be imported. Save the file as .pptx and try again.'
+  const TOO_LARGE = 'This file is too large to import. Files up to 100 MB can be imported.'
+  for (const [file, want] of [
+    [{ name: 'deck.pptx', size: 10 }, null], [{ name: 'DECK.PPTX', size: 10 }, null], [{ name: ' deck.pptx ', size: 10 }, null], [{ name: 'a.b.pptx', size: 100 * 1024 * 1024 }, null],
+    [{ name: 'deck.pdf', size: 10 }, PDF], [{ name: 'DECK.PDF', size: 10 }, PDF], [{ name: 'deck.pdf', size: 0 }, PDF],
+    [{ name: 'deck.key', size: 10 }, NOT_PPTX], [{ name: 'deck.ppt', size: 10 }, NOT_PPTX], [{ name: 'deck.pptm', size: 10 }, NOT_PPTX], [{ name: 'deckpptx', size: 10 }, NOT_PPTX], [{ name: '', size: 10 }, NOT_PPTX], [{}, NOT_PPTX], [null, NOT_PPTX],
+    [{ name: 'deck.pptx', size: 0 }, 'This file is empty. Choose a PowerPoint (.pptx) file.'], [{ name: 'deck.pptx' }, 'This file is empty. Choose a PowerPoint (.pptx) file.'],
+    [{ name: 'deck.pptx', size: 100 * 1024 * 1024 + 1 }, TOO_LARGE],
+  ]) {
+    eq(L.deckImportFileError(file), want, `file ${JSON.stringify(file)}`)
+    eq(L.checkDeckImportFile(file).ok, want === null)
+  }
+  deepEq(L.checkDeckImportFile({ name: 'deck.pdf', size: 1 }), { ok: false, code: 'FILE_IS_PDF', message: PDF })
+  eq(L.deckImportTitle('Q3 Board Review.pptx'), 'Q3 Board Review')
+  eq(L.deckImportTitle('  Report.PPTX '), 'Report')
+  eq(L.deckImportTitle('.pptx'), 'Imported deck')
+  eq(L.deckImportTitle('x'.repeat(300) + '.pptx').length, 150, 'a title is cut at 150 characters')
+
+  // the one start body
+  deepEq(L.deckImportStartBody({ sessionId: SESSION, researcherSessionId: SESSION, storagePath: START_BODY.storage_path, fileName: FILE.name }), START_BODY)
+  deepEq(Object.keys(L.deckImportStartBody({ sessionId: 'a', researcherSessionId: 'a', storagePath: 'a/b', fileName: 'c.pptx' })), ['session_id', 'researcher_session_id', 'storage_path', 'file_name', 'kind'])
+  deepEq(L.DECK_IMPORT_START_KEYS, ['session_id', 'researcher_session_id', 'storage_path', 'file_name', 'kind'])
+  ok(L.parseDeckImportStart(START_BODY).ok)
+  deepEq(L.parseDeckImportStart(START_BODY), { ok: true, body: START_BODY })
+  const bad = patch => L.parseDeckImportStart({ ...START_BODY, ...patch }).ok
+  const dropped = key => { const { [key]: _gone, ...rest } = START_BODY; return L.parseDeckImportStart(rest).ok }
+  for (const key of Object.keys(START_BODY)) eq(dropped(key), false, `missing ${key}`)
+  eq(bad({ extra: 'x' }), false, 'a sixth key')
+  eq(bad({ kind: 'pdf' }), false); eq(bad({ kind: undefined }), false); eq(bad({ kind: 'PPTX' }), false)
+  eq(bad({ researcher_session_id: 'other' }), false, 'the Researcher session is the same id')
+  eq(bad({ session_id: 'a b', researcher_session_id: 'a b', storage_path: 'a b/f.pptx' }), false); eq(bad({ session_id: 'x'.repeat(201), researcher_session_id: 'x'.repeat(201), storage_path: `${'x'.repeat(201)}/f.pptx` }), false)
+  for (const storage_path of ['other/f.pptx', `${SESSION}/`, `${SESSION}/..`, `${SESSION}/.`, `${SESSION}/a/b.pptx`, `${SESSION}`, `/${SESSION}/f.pptx`, `${SESSION}/a%2Fb.pptx`, `${SESSION}/a\\b.pptx`, `${SESSION}/a?b.pptx`, `${SESSION}/a#b.pptx`, `${SESSION}/a:b.pptx`, `${SESSION}/a\nb.pptx`, `${SESSION}/a\0b.pptx`, '']) eq(bad({ storage_path }), false, `storage path ${JSON.stringify(storage_path)}`)
+  for (const file_name of ['', 5, null]) eq(bad({ file_name }), false, `file name ${JSON.stringify(file_name)}`)
+  eq(bad({ file_name: 'Keynote.key' }), true, 'the extension is Director\'s to refuse, in its own words')
+  for (const payload of [null, undefined, 'x', 5, [], [START_BODY]]) eq(L.parseDeckImportStart(payload).ok, false, `payload ${JSON.stringify(payload)}`)
+
+  // ids
+  for (const [id, want] of [['stage-import-50b26aee-7a38', true], ['stage-import-', false], ['stage-import', false], ['stage-abc', false], ['upload-0123456789abcdef', false], ['stage-0123456789abcdef-import', false], ['../stage-import-x', false], ['stage-import-a/b', false], ['stage-import-a b', false], [`stage-import-${'x'.repeat(200)}`, false], [5, false], [null, false]]) eq(L.deckImportJobIdValid(id), want, `job id ${JSON.stringify(id)}`)
+  eq(L.deckImportAcceptedJobId(REC['01'].body), JOB_ID)
+  for (const body of [null, {}, { job_id: 'upload-123' }, { job_id: 5 }, 'x']) eq(L.deckImportAcceptedJobId(body), null, `accepted ${JSON.stringify(body)}`)
+
+  // the refusals at the start, in the contract's words (17-route-refusals.json, all nine)
+  const refusal = REC['17'].body
+  const words = {
+    pdf: [PDF, false], keynote: [NOT_PPTX, false], incomplete: ['The import request is incomplete. Upload the file again.', false],
+    session_mismatch: ['Upload must use the authenticated Builder session', false],
+    storage_path: ['Invalid upload storage reference', false], session_not_fresh: ['A fresh Director session is required', false],
+    composer_async_off: ['Deck import is not available right now.', false], flag_off: ['Deck import is not available right now.', false],
+    entitlement_w_missing_header: ['We could not confirm your sign-in for this request. Please reload the page and try again.', false],
+  }
+  deepEq(Object.keys(refusal).sort(), Object.keys(words).sort(), 'every recorded refusal has its words here')
+  for (const [name, [message, retryable]] of Object.entries(words)) deepEq(L.deckImportStartFailure(refusal[name].status, refusal[name].body), { message, retryable }, `refusal ${name} (${refusal[name].status})`)
+  deepEq(L.deckImportStartFailure(401, { detail: 'Authenticated Composer proxy is required' }), { message: L.DECK_IMPORT_WORDS.SIGN_IN, retryable: false }, 'the front door\'s bare 401 is not shown as developer text')
+  deepEq(L.deckImportStartFailure(401, { error: 'Sign in to import a deck.' }), { message: 'Sign in to import a deck.', retryable: false }, 'Studio\'s own 401 words')
+  deepEq(L.deckImportStartFailure(401, { code: 'ENTITLEMENT_INVALID', detail: 'Reload and retry.', error: 'Reload and retry.', retryable: true }), { message: 'Reload and retry.', retryable: true }, 'an entitlement refusal that says retryable')
+  deepEq(L.deckImportStartFailure(502, { error: 'Deck import is temporarily unavailable. Try again.' }), { message: 'Deck import is temporarily unavailable. Try again.', retryable: true })
+  deepEq(L.deckImportStartFailure(413, { error: 'Reference is too large.' }), { message: 'Reference is too large.', retryable: false })
+  deepEq(L.deckImportStartFailure(500, null), { message: 'The import could not be started. Try again.', retryable: true })
+  deepEq(L.deckImportStartFailure(0, 'junk'), { message: 'The import could not be started. Try again.', retryable: true })
+  deepEq(L.deckImportStartFailure(400, {}), { message: 'The import could not be started. Try again.', retryable: false })
+
+  // every recorded job read (02-16)
+  const view = n => plain(L.deckImportView(jobReply(n)))
+  const working = (n, stage, wordsOut, extra) => deepEq(view(n), { kind: 'working', stage, words: wordsOut, detail: null, progress: null, eta: null, waiting: false, nextMs: 3000, ...extra }, `recorded ${n}: working, ${stage}`)
+  working('02', 'waiting', 'Waiting for a free slot…', { detail: 'Another file is being read first. Trying again in about 30 seconds.', waiting: true })
+  working('03', 'placing', 'Placing your slides…', { progress: { label: '0 of 1 slide', done: 0, total: 1 }, eta: 'about 2 minutes left' })
+  working('04', 'opening', 'Opening your deck…')
+  const ready05 = view('05'), ready06 = view('06')
+  eq(ready05.kind, 'ready'); eq(ready06.kind, 'ready')
+  deepEq(ready05.result, REC['05'].body.deck_import.result, 'the finished deck is the recorded result')
+  deepEq(ready05.summary, {
+    title: 'Q3 Board Review', slideCount: 3, banner: '2 items changed. See What changed',
+    headline: 'Template ready: 6 slides. All 107 pieces of text are editable. 85 of 85 elements are editable. 2 small changes are listed below.',
+    lines: [{ text: 'On slide 1, letter spacing is set to normal in 1 text box.', slides: [1], source: 'composer' }, { text: 'On slide 4, a dashed outline is drawn solid.', slides: [4], source: 'composer' }],
+    notesLine: null,
+  }, 'recorded 05: what changed, notes copied')
+  deepEq(ready06.summary, {
+    title: 'Q3 Board Review', slideCount: 1, banner: '1 item changed. See What changed', headline: null,
+    lines: [{ text: 'Speaker notes were not kept.', slides: [], source: 'director' }], notesLine: null,
+  }, 'recorded 06: notes not kept, said once (it is already a line)')
+  const failures = {
+    '07': ['UPLOAD_FILE_NOT_16X9', 'Only widescreen (16:9) decks can be imported today.', false], '08': ['UPLOAD_FILE_PASSWORD_PROTECTED', 'This file is password-protected. Remove the password and try again.', false],
+    '09': ['UPLOAD_FILE_TOO_LARGE', TOO_LARGE, false], '10': ['UPLOAD_FILE_TOO_MANY_SLIDES', 'This deck has more than 120 slides. Split it into smaller decks and try again.', false],
+    '11': ['COMPOSER_JOB_LOST', 'Import stopped. Try again.', true], '12': ['OPEN_FAILED', 'Your file was read, but the deck could not be opened. Try again.', true],
+    '13': ['IMPORT_UNAVAILABLE', 'Deck import is not available right now.', false], '14': ['PREPARE_AS_IS_FAILED', 'Your file could not be imported. Try again.', false],
+    '15': ['TIMEOUT', 'This is taking too long. Try again.', true], '16': ['UPLOAD_FILE_TOO_LARGE', TOO_LARGE, false],
+  }
+  for (const [n, [code, message, retryable]] of Object.entries(failures)) deepEq(view(n), { kind: 'failed', code, message, retryable }, `recorded ${n}: ${code}`)
+  // the other branches of the reading
+  eq(L.deckImportView(null).kind, 'failed'); eq(L.deckImportView('x').kind, 'failed'); eq(L.deckImportView(undefined).retryable, true)
+  deepEq(plain(L.deckImportView({ status: 'cracking' })), { kind: 'failed', code: 'IMPORT_UNAVAILABLE', message: 'Deck import is not available right now.', retryable: false }, 'a job without deck_import: Director\'s flag went off')
+  deepEq(plain(L.deckImportView({ status: 'failed', errors: ['Boom.'] })), { kind: 'failed', code: null, message: 'Boom.', retryable: false })
+  deepEq(plain(L.deckImportView({ status: 'failed', errors: [] })), { kind: 'failed', code: null, message: 'Your file could not be imported. Try again.', retryable: false })
+  deepEq(plain(L.deckImportView({ status: 'cancelled', deck_import: { stage: 'opening' } })), { kind: 'failed', code: null, message: 'Your file could not be imported. Try again.', retryable: false }, 'a cancelled job is a failure')
+  deepEq(plain(L.deckImportView({ status: 'failed', deck_import: { stage: 'failed', error: { code: 'X', message: 'Edge.', retryable: 'yes' } } })), { kind: 'failed', code: 'X', message: 'Edge.', retryable: false }, 'retryable only when exactly true')
+  deepEq(plain(L.deckImportView({ status: 'failed', errors: ['From errors.'], deck_import: { stage: 'failed', error: null } })), { kind: 'failed', code: null, message: 'From errors.', retryable: false })
+  eq(L.deckImportView({ status: 'assembling', deck_import: { stage: 'ready', result: {} } }).kind, 'working', 'ready needs the job complete too')
+  eq(L.deckImportView({ status: 'complete', deck_import: { stage: 'opening', result: {} } }).kind, 'working', 'and the stage ready')
+  deepEq(plain(L.deckImportView({ status: 'complete', deck_import: { stage: 'ready', result: null } })), { kind: 'failed', code: 'OPEN_FAILED', message: 'Your file was read, but the deck could not be opened. Try again.', retryable: true }, 'ready without a deck')
+  eq(L.deckImportView({ status: 'cracking', deck_import: { stage: 'mystery' } }).words, 'Working on your deck…')
+  for (const [stage, wordsOut] of [['queued', 'Getting started…'], ['converting', 'Reading your file…'], ['placing', 'Placing your slides…'], ['checking', 'Checking every slide…'], ['opening', 'Opening your deck…'], ['waiting', 'Waiting for a free slot…']]) eq(L.deckImportView({ status: 'cracking', deck_import: { stage } }).words, wordsOut, `stage ${stage}`)
+  const waitingDuringOpening = L.deckImportView({ status: 'assembling', deck_import: { stage: 'opening', waiting: { retry_after_s: 1, since: 'x' } } })
+  eq(waitingDuringOpening.waiting, true, 'waiting can also appear during opening'); eq(waitingDuringOpening.detail, 'Another file is being read first. Trying again in about 1 second.')
+  eq(L.deckImportView({ status: 'cracking', deck_import: { stage: 'waiting', waiting: {} } }).detail, 'Another file is being read first.', 'no Retry-After: no promise of a time')
+  deepEq(L.deckImportView({ status: 'cracking', deck_import: { stage: 'placing', progress: { slide_count: 30, slides_done: 12, eta_s: 95 } } }).progress, { label: '12 of 30 slides', done: 12, total: 30 })
+  eq(L.deckImportView({ status: 'cracking', deck_import: { stage: 'placing', progress: { slide_count: 30, slides_done: 12, eta_s: 95 } } }).eta, 'about 2 minutes left')
+  deepEq(L.deckImportView({ status: 'cracking', deck_import: { stage: 'placing', progress: { slide_count: 3, slides_done: 9 } } }).progress, { label: '3 of 3 slides', done: 3, total: 3 }, 'done never passes the total')
+  eq(L.deckImportView({ status: 'cracking', deck_import: { stage: 'placing', progress: { slide_count: 0, slides_done: 0 } } }).progress, null)
+  eq(L.deckImportView({ status: 'cracking', deck_import: { stage: 'waiting', waiting: { retry_after_s: 30 }, progress: { slide_count: 3, slides_done: 1, eta_s: 60 } } }).eta, null, 'no time left while waiting')
+  // the summary
+  const summarise = block => plain(L.deckImportView({ status: 'complete', deck_import: { stage: 'ready', result: {}, ...block } }).summary)
+  eq(summarise({ what_changed: { items: [] } }).banner, null); eq(summarise({}).banner, null); eq(summarise({ what_changed: { items: [{ text: 'a' }, { text: 'b' }, { text: 'c' }] } }).banner, '3 items changed. See What changed')
+  deepEq(summarise({ what_changed: { items: [{ text: 'a', slides: [2, 'x', 0, 3.5, 4] }, { text: '  ' }, { nope: 1 }, null, 'x'] } }).lines, [{ text: 'a', slides: [2, 4], source: null }], 'junk items and slide numbers are dropped')
+  eq(summarise({ notes: { state: 'partial', message: 'Speaker notes were not kept on slides 2, 3.' }, what_changed: { items: [] } }).notesLine, 'Speaker notes were not kept on slides 2, 3.', 'a notes sentence the list does not carry')
+  eq(summarise({ notes: { state: 'copied', message: 'Never shown.' } }).notesLine, null); eq(summarise({ notes: { state: 'none', message: 'x' } }).notesLine, null); eq(summarise({ notes: null }).notesLine, null)
+  eq(summarise({ notes: { state: 'not_kept', message: 'Same.' }, what_changed: { items: [{ text: 'Same.' }] } }).notesLine, null, 'said once')
+  eq(L.deckImportBanner(0), null); eq(L.deckImportBanner(1), '1 item changed. See What changed'); eq(L.deckImportBanner(12), '12 items changed. See What changed')
+  // poll interval
+  for (const [asked, want] of [[3000, 3000], [2000, 2000], [500, 1000], [999999, 60000], [1500.4, 1500], [0, 3000], [-5, 3000], [NaN, 3000], ['3000', 3000], [undefined, 3000]]) eq(L.deckImportNextPollMs({ poll: { next_interval_ms: asked } }), want, `interval ${asked}`)
+  eq(L.deckImportNextPollMs({}), 3000); eq(L.deckImportNextPollMs(null), 3000); eq(L.deckImportNextPollMs({ poll: null }), 3000)
+
+  // the finished deck, in the shape "Use original" stages: the same fields and adoption block composerReadyResult builds, and the same refusals
+  const composer = createWorld({ real: ['lib/composer-library.ts'] }).load('lib/composer-library.ts')
+  const result = REC['05'].body.deck_import.result
+  deepEq(L.deckImportReadyResult(result, SESSION), composer.composerReadyResult({ status: 'complete', ...result }, SESSION), 'same as composerReadyResult for the same deck')
+  deepEq(L.deckImportReadyResult({ ...result, slide_count: undefined }, SESSION), composer.composerReadyResult({ status: 'complete', ...result, slide_count: undefined }, SESSION))
+  eq(L.deckImportReadyResult(result, 'another-session'), null, 'not this session\'s deck')
+  for (const key of ['template_id', 'presentation_id', 'viewer_url']) eq(L.deckImportReadyResult({ ...result, [key]: '' }, SESSION), null, `no ${key}`)
+  eq(L.deckImportReadyResult(null, SESSION), null); eq(L.deckImportReadyResult([], SESSION), null)
+  eq(L.deckImportBuilderHref('a b/c'), '/builder?session_id=a%20b%2Fc')
+
+  // what the browser gets of a job, and the record kept for a reload
+  deepEq(Object.keys(plain(L.projectDeckImportJob(jobReply('05')))).sort(), ['deck_import', 'errors', 'job_id', 'poll', 'session_id', 'status'])
+  deepEq(L.projectDeckImportJob({ job_id: 'j', user_id: 'u', upload_ref: { storage_path: 'p' }, checkpoint: {}, status: 's' }), { job_id: 'j', status: 's' })
+  eq(L.projectDeckImportJob(null), null); eq(L.projectDeckImportJob([1]), null); eq(L.projectDeckImportJob('x'), null)
+  eq(L.deckImportPendingKey('a@b.c'), 'deckster_deck_import_job_a%40b.c')
+  deepEq(L.parseDeckImportPending({ job_id: JOB_ID, session_id: SESSION, file_name: FILE.name }), { job_id: JOB_ID, session_id: SESSION, file_name: FILE.name })
+  for (const record of [null, {}, { job_id: 'upload-1', session_id: SESSION, file_name: 'x' }, { job_id: JOB_ID, session_id: 'a b', file_name: 'x' }, { job_id: JOB_ID, session_id: SESSION, file_name: '' }, 'x']) eq(L.parseDeckImportPending(record), null, `record ${JSON.stringify(record)}`)
+  // the lib reads nothing from outside and keeps no secret
+  const lib = src(LIB)
+  nomatch(lib, /process\.env|fetch\(|window\.|document\.|sessionStorage|localStorage/, 'the rules are pure')
+  nomatch(lib, /DIRECTOR_WS_AUTH_SECRET|X-Deckster-Entitlement|Authorization/i, 'no secret, no header')
+}
+
+// ================================================================ 3. the proxy routes
+const nine = Object.entries(REC['17'].body)
+async function secRoutes() {
+  // ---- flag off: 404 before the session is read, the database is asked, or Director is called; nothing but the flag is read from the environment
+  for (const flag of [null, 'false', 'TRUE', '1', '', 'true ', 'yes']) {
+    for (const kind of ['start', 'job']) {
+      const rig = routeRig({ flag, helperFlag: 'true', secret: TEST_SECRET, director: () => assert.fail('Director must not be called') })
+      const { res, json } = kind === 'start' ? await rig.start(START_BODY) : await rig.job(JOB_ID)
+      eq(res.status, 404, `${kind}: flag ${JSON.stringify(flag)} is a 404`)
+      deepEq(json, { error: 'Not found' })
+      eq(rig.calls.session, 0, 'no session read'); eq(rig.calls.user.length + rig.calls.chat.length, 0, 'no database read'); eq(rig.calls.fetch.length, 0, 'no Director call')
+      deepEq(rig.reads, [FLAG], 'only the flag is read: not the secret, not the token')
+    }
+  }
+  // ---- signed in only, and only the person's own session
+  for (const kind of ['start', 'job']) {
+    const run = rig => kind === 'start' ? rig.start(START_BODY) : rig.job(JOB_ID)
+    let rig = routeRig({ session: 'out' }); let out = await run(rig)
+    eq(out.res.status, 401, `${kind}: signed out`); deepEq(out.json, { error: 'Sign in to import a deck.' }); eq(rig.calls.fetch.length, 0); eq(rig.calls.user.length, 0)
+    rig = routeRig({ userLookup: 'none' }); out = await run(rig)
+    eq(out.res.status, 401, `${kind}: no such account`); eq(rig.calls.fetch.length, 0)
+    rig = routeRig({ userLookup: 'throws' }); out = await run(rig)
+    eq(out.res.status, 503, `${kind}: database down`); eq(rig.calls.fetch.length, 0)
+    deepEq(rig.calls.user, [{ where: { email: EMAIL }, select: { id: true } }], `${kind}: the account is looked up by the session's e-mail`)
+  }
+  // ---- start: the request body
+  let rig = routeRig()
+  let out = await rig.start(START_BODY, { headers: { 'content-type': 'text/plain' } })
+  eq(out.res.status, 415); eq(rig.calls.chat.length, 0); eq(rig.calls.fetch.length, 0)
+  rig = routeRig(); out = await rig.start(null, { raw: 'x'.repeat(8193) })
+  eq(out.res.status, 413); deepEq(out.json, { error: 'Reference is too large.' }); eq(rig.calls.fetch.length, 0)
+  rig = routeRig(); out = await rig.start(null, { raw: JSON.stringify(START_BODY) + ' '.repeat(8192) })
+  eq(out.res.status, 413, 'the cap counts every byte')
+  rig = routeRig(); out = await rig.start(null, { raw: '{not json' })
+  eq(out.res.status, 400); deepEq(out.json, { error: 'The import could not be started. Try again.' })
+  for (const body of [{ ...START_BODY, kind: 'pdf' }, { ...START_BODY, extra: 1 }, { ...START_BODY, researcher_session_id: 'other' }, { ...START_BODY, storage_path: 'other/f.pptx' }, { ...START_BODY, user_id: 'x' }, [], 'x']) {
+    rig = routeRig(); out = await rig.start(body)
+    eq(out.res.status, 400, `refused before Director: ${JSON.stringify(body).slice(0, 60)}`); eq(rig.calls.fetch.length, 0); eq(rig.calls.chat.length, 0, 'not even the database')
+  }
+  rig = routeRig({ ownsSession: false }); out = await rig.start(START_BODY)
+  eq(out.res.status, 404, 'a session that is not the person\'s own'); deepEq(out.json, { error: 'The import session was not found. Upload the file again.' }); eq(rig.calls.fetch.length, 0)
+  deepEq(rig.calls.chat, [{ where: { id: SESSION, userId: USER_ID, status: { not: 'deleted' } }, select: { id: true } }], 'the session must be this person\'s and not deleted')
+  // ---- configuration
+  for (const options of [{ directorUrl: null }, { token: null }, { directorUrl: 'https://directorv33-production.up.railway.app' }, { directorUrl: 'http://directorv40-uat.up.railway.app' }, { directorUrl: 'not a url' }]) {
+    for (const kind of ['start', 'job']) {
+      rig = routeRig(options); out = kind === 'start' ? await rig.start(START_BODY) : await rig.job(JOB_ID)
+      eq(out.res.status, 503, `${kind}: ${JSON.stringify(Object.keys(options))} is not configured`); eq(out.json.error, 'Deck import is not available right now.'); eq(rig.calls.fetch.length, 0)
+      nomatch(JSON.stringify(out.json), new RegExp(`${TEST_TOKEN}|railway`, 'i'), 'no URL and no token in the answer')
+    }
+  }
+  // ---- start: the exact request to Director, and every recorded answer passed through
+  rig = routeRig({ director: () => ({ status: REC['01'].status, body: REC['01'].body }) })
+  out = await rig.start(START_BODY)
+  eq(out.res.status, 202); deepEq(out.json, REC['01'].body, 'recorded 01: the 202 passes through')
+  eq(out.res.headers.get('cache-control'), 'no-store')
+  eq(rig.calls.fetch.length, 1)
+  const call = rig.calls.fetch[0]
+  eq(call.url, `${DIRECTOR_URL}/api/template-ingest/stage/import-reference`)
+  eq(call.init.method, 'POST'); eq(call.init.cache, 'no-store'); eq(call.init.redirect, 'error'); ok(call.init.signal instanceof AbortSignal, 'a timeout')
+  deepEq(Object.keys(call.init.headers).sort(), ['Authorization', 'Content-Type', 'X-Composer-User-Id'], 'flag-gated entitlement off: exactly the template upload\'s three headers')
+  eq(call.init.headers.Authorization, `Bearer ${TEST_TOKEN}`); eq(call.init.headers['X-Composer-User-Id'], USER_ID, 'the database id, not the session\'s'); eq(call.init.headers['Content-Type'], 'application/json')
+  deepEq(JSON.parse(call.init.body), START_BODY, 'the five keys, nothing else'); deepEq(Object.keys(JSON.parse(call.init.body)), Object.keys(START_BODY))
+  deepEq(rig.reads.filter(key => key === 'DIRECTOR_WS_AUTH_SECRET'), [], 'the secret is not read with the entitlement flag off')
+  rig = routeRig({ director: () => ({ status: 202, body: REC['01'].body }) })
+  out = await rig.start(null, { raw: JSON.stringify(START_BODY, null, 4) })
+  eq(out.res.status, 202); eq(rig.calls.fetch[0].init.body, JSON.stringify(START_BODY), 'what Director gets is the checked body, written again, not the browser\'s bytes')
+  for (const [name, answer] of nine) {
+    rig = routeRig({ director: () => ({ status: answer.status, body: answer.body }) })
+    out = await rig.start(START_BODY)
+    eq(out.res.status, answer.status, `recorded 17 ${name}: status passes through`); deepEq(out.json, answer.body, `recorded 17 ${name}: body passes through`)
+  }
+  rig = routeRig({ director: () => ({ status: 200, raw: '<html>gateway</html>' }) }); out = await rig.start(START_BODY)
+  eq(out.res.status, 502); deepEq(out.json, { error: 'Deck import is temporarily unavailable. Try again.' })
+  rig = routeRig({ director: () => ({ throws: new Error(`connect ECONNREFUSED ${DIRECTOR_URL}`) }) }); out = await rig.start(START_BODY)
+  eq(out.res.status, 502); nomatch(JSON.stringify(out.json), /ECONNREFUSED|railway/, 'no Director detail')
+
+  // ---- job: ids, the exact request, every recorded job projected
+  for (const jobId of ['stage-abc', 'upload-1', 'stage-import-', 'stage-import-a%2Fb', 'stage-import-a.b', '..', 'stage-import-' + 'x'.repeat(200)]) {
+    rig = routeRig({ director: () => assert.fail('Director must not be called') }); out = await rig.job(jobId)
+    eq(out.res.status, 404, `job id ${jobId.slice(0, 30)} is not an import job`); eq(rig.calls.fetch.length, 0)
+  }
+  rig = routeRig({ director: () => ({ status: 200, body: jobReply('02') }) })
+  out = await rig.job(JOB_ID)
+  const jcall = rig.calls.fetch[0]
+  eq(jcall.url, `${DIRECTOR_URL}/api/template-ingest/stage/jobs/${JOB_ID}`); eq(jcall.init.method, 'GET'); eq(jcall.init.cache, 'no-store'); eq(jcall.init.redirect, 'error'); eq(jcall.init.body, undefined)
+  deepEq(Object.keys(jcall.init.headers).sort(), ['Authorization', 'X-Composer-User-Id']); eq(jcall.init.headers['X-Composer-User-Id'], USER_ID)
+  eq(out.res.headers.get('cache-control'), 'no-store')
+  for (const n of ['02', '03', '04', '05', '06', '07', '08', '09', '10', '11', '12', '13', '14', '15', '16']) {
+    rig = routeRig({ director: () => ({ status: REC[n].status, body: jobReply(n) }) })
+    out = await rig.job(JOB_ID)
+    const recorded = jobReply(n)
+    eq(out.res.status, 200, `recorded ${n}`)
+    deepEq(out.json.deck_import, recorded.deck_import, `recorded ${n}: deck_import reaches the browser whole`)
+    deepEq(out.json.status, recorded.status); deepEq(out.json.errors, recorded.errors); deepEq(out.json.poll ?? null, recorded.poll ?? null); eq(out.json.job_id, recorded.job_id)
+    deepEq(Object.keys(out.json).sort(), ['deck_import', 'errors', 'job_id', 'poll', 'session_id', 'status'].filter(key => key in recorded), `recorded ${n}: only what the dialog reads leaves the server (a failed job has no poll key)`)
+    for (const key of ['user_id', 'upload_ref', 'checkpoint', 'template_progress', 'admission_report', 'capabilities', 'per_slide_fidelity', 'viewer_url']) ok(!(key in out.json), `recorded ${n}: ${key} stays on the server`)
+  }
+  // a job answer that is an error passes through as it is (no projection of a refusal)
+  const refusal = { code: 'ENTITLEMENT_REQUIRED', detail: 'x', error: 'x', retryable: false }
+  rig = routeRig({ director: () => ({ status: 401, body: refusal }) }); out = await rig.job(JOB_ID)
+  eq(out.res.status, 401); deepEq(out.json, refusal)
+  rig = routeRig({ director: () => ({ status: 404, body: { detail: 'Not Found' } }) }); out = await rig.job(JOB_ID)
+  eq(out.res.status, 404); deepEq(out.json, { detail: 'Not Found' })
+  rig = routeRig({ director: () => ({ status: 200, body: [1, 2] }) }); out = await rig.job(JOB_ID)
+  eq(out.res.status, 502, 'a 200 that is not a job')
+  rig = routeRig({ director: () => ({ status: 200, raw: 'not json' }) }); out = await rig.job(JOB_ID)
+  eq(out.res.status, 502)
+  rig = routeRig({ director: () => ({ throws: new Error('boom') }) }); out = await rig.job(JOB_ID)
+  eq(out.res.status, 502); deepEq(out.json, { error: 'Deck import is temporarily unavailable. Try again.' })
+}
+
+// ================================================================ 3b. the REST entitlement header
+async function secEntitlement() {
+  for (const kind of ['start', 'job']) {
+    const method = kind === 'start' ? 'POST' : 'GET'
+    const run = rig => kind === 'start' ? rig.start(START_BODY) : rig.job(JOB_ID)
+    const answer = () => kind === 'start' ? { status: 202, body: REC['01'].body } : { status: 200, body: jobReply('02') }
+    // both flags on and the secret set: the header is on the one Director call, signed for the database id, with the right method and a 120 s life
+    let rig = routeRig({ helperFlag: 'true', secret: TEST_SECRET, director: answer })
+    let out = await run(rig)
+    eq(rig.calls.fetch.length, 1)
+    const headers = rig.calls.fetch[0].init.headers
+    ok(typeof headers['X-Deckster-Entitlement'] === 'string' && headers['X-Deckster-Entitlement'].split('.').length === 2, `${kind}: the header is on the Director call`)
+    const verdict = verifyRestHeader(headers['X-Deckster-Entitlement'], TEST_SECRET, { method, sub: USER_ID, now: FIXED_NOW + 30 })
+    ok(verdict.ok, `${kind}: signed for ${method} and the id sent as X-Composer-User-Id (${verdict.why})`)
+    eq(verdict.claims.sub, headers['X-Composer-User-Id'], `${kind}: sub is that same id`); ok(verdict.claims.sub !== 'session-token-id' && verdict.claims.sub !== EMAIL)
+    eq(verdict.claims.iat, FIXED_NOW); eq(verdict.claims.exp, FIXED_NOW + 120); ok(!('bq' in verdict.claims), 'no quota claim on these routes')
+    eq(verifyRestHeader(headers['X-Deckster-Entitlement'], TEST_SECRET, { method: method === 'POST' ? 'GET' : 'POST', now: FIXED_NOW }).ok, false, `${kind}: not valid for the other method`)
+    eq(verifyRestHeader(headers['X-Deckster-Entitlement'], TEST_SECRET + 'x', { method, now: FIXED_NOW }).ok, false, `${kind}: not valid under another key`)
+    deepEq(Object.keys(headers).sort(), kind === 'start' ? ['Authorization', 'Content-Type', 'X-Composer-User-Id', 'X-Deckster-Entitlement'] : ['Authorization', 'X-Composer-User-Id', 'X-Deckster-Entitlement'], `${kind}: the template upload's headers plus the one`)
+    // never to the browser: not in the headers, not in the body
+    ok(![...out.res.headers.keys()].some(key => /entitlement/i.test(key)), `${kind}: no entitlement header in the browser's answer`)
+    nomatch(JSON.stringify(out.json), new RegExp(`${headers['X-Deckster-Entitlement'].slice(0, 20)}|${TEST_SECRET}|${TEST_TOKEN}`), `${kind}: nothing secret in the browser's body`)
+    // minted per request: a second call mints again (never cached)
+    const again = routeRig({ helperFlag: 'true', secret: TEST_SECRET, director: answer }); await run(again)
+    eq(again.calls.fetch[0].init.headers['X-Deckster-Entitlement'], headers['X-Deckster-Entitlement'], 'same clock, same claims, same bytes (deterministic, not a cached value)')
+
+    // either flag off, or no secret: no header, and the secret is never read
+    for (const [label, options] of [
+      ['helper flag unset', { helperFlag: undefined, secret: TEST_SECRET }], ['helper flag "false"', { helperFlag: 'false', secret: TEST_SECRET }], ['helper flag "TRUE"', { helperFlag: 'TRUE', secret: TEST_SECRET }],
+      ['helper flag "1"', { helperFlag: '1', secret: TEST_SECRET }], ['helper flag "true " with a space', { helperFlag: 'true ', secret: TEST_SECRET }],
+    ]) {
+      rig = routeRig({ ...options, director: answer }); out = await run(rig)
+      ok(!('X-Deckster-Entitlement' in rig.calls.fetch[0].init.headers), `${kind}: ${label}: no header`)
+      deepEq(rig.reads.filter(key => key === 'DIRECTOR_WS_AUTH_SECRET'), [], `${kind}: ${label}: the secret is never read`)
+    }
+    rig = routeRig({ helperFlag: 'true', secret: undefined, director: answer }); out = await run(rig)
+    ok(!('X-Deckster-Entitlement' in rig.calls.fetch[0].init.headers), `${kind}: helper flag on, no secret: no header (the import then runs while Director enforces nothing)`)
+    eq(out.res.status, kind === 'start' ? 202 : 200)
+    rig = routeRig({ helperFlag: 'true', secret: '', director: answer }); await run(rig)
+    ok(!('X-Deckster-Entitlement' in rig.calls.fetch[0].init.headers), `${kind}: an empty secret signs nothing`)
+    // the deck-import flag off: no header and no read, whatever else is on (the route is a 404 first)
+    rig = routeRig({ flag: 'false', helperFlag: 'true', secret: TEST_SECRET, director: answer }); out = await run(rig)
+    eq(out.res.status, 404); eq(rig.calls.fetch.length, 0); deepEq(rig.reads, [FLAG], `${kind}: deck-import flag off: only the flag is read`)
+    // a refusal from Director passes through unchanged with the header on
+    rig = routeRig({ helperFlag: 'true', secret: TEST_SECRET, director: () => ({ status: 401, body: REC['17'].body.entitlement_w_missing_header.body }) }); out = await run(rig)
+    eq(out.res.status, 401); deepEq(out.json, REC['17'].body.entitlement_w_missing_header.body)
+  }
+  // email-keyed accounts: sub is whatever the route sends as X-Composer-User-Id (the database id)
+  const rig = routeRig({ helperFlag: 'true', secret: TEST_SECRET, director: () => ({ status: 202, body: REC['01'].body }) })
+  await rig.start(START_BODY)
+  eq(JSON.parse(Buffer.from(rig.calls.fetch[0].init.headers['X-Deckster-Entitlement'].split('.')[0], 'base64url').toString('utf8')).sub, USER_ID)
+}
+
+// ================================================================ 4. the dialog and its hook
+function createNet(handler) {
+  const log = []
+  const fetch = async (url, init = {}) => {
+    const entry = { url: String(url), method: init.method ?? 'GET', headers: init.headers ?? {}, body: init.body, cache: init.cache, signal: init.signal }
+    log.push(entry)
+    if (init.signal?.aborted) throw Object.assign(new Error('aborted'), { name: 'AbortError' })
+    const reply = await handler(entry)
+    if (reply.throws) throw reply.throws
+    return new Response(reply.raw ?? JSON.stringify(reply.body), { status: reply.status, headers: { 'content-type': 'application/json' } })
+  }
+  return { fetch, log, jobs: () => log.filter(entry => entry.url.startsWith('/api/studio-deck-import/jobs/')), starts: () => log.filter(entry => entry.url === '/api/studio-deck-import') }
+}
+/** The browser's fetch, answered by the REAL proxy routes with Director stubbed by the recorded responses (`director(url, init)` -> {status, body}). */
+function proxiedNet({ director, rigOptions = {} }) {
+  const rig = routeRig({ helperFlag: undefined, ...rigOptions, director })
+  const net = createNet(async entry => {
+    if (entry.method === 'POST') { const { res, json } = await rig.start(JSON.parse(entry.body)); return { status: res.status, body: json } }
+    const { res, json } = await rig.job(decodeURIComponent(entry.url.split('/jobs/')[1])); return { status: res.status, body: json }
+  })
+  net.rig = rig
+  return net
+}
+
+const mountedUis = []
+function mountDialog({ entry = false, extraAllowed = '', net, userId = USER_ID, uuids = [SESSION, 'fresh-session-2', 'fresh-session-3'], layoutOrigin = 'http://127.0.0.1:8544', researcherUrl = 'http://127.0.0.1:8000', storage = new Map(), createSessionFails = false, uploadFails = null, open = true } = {}) {
+  const clock = { now: 1_000_000 }
+  const delays = []
+  const pending = new Set()
+  const sessions = [], uploads = [], assigned = [], closed = []
+  let runaway = false
+  const setTimeoutFake = (fn, ms) => { if (delays.length > 400) { runaway = true; return 0 } /* a loop that never ends stalls here instead of spinning */ delays.push(ms); const id = setImmediate(() => { pending.delete(id); clock.now += ms; fn() }); pending.add(id); return id }
+  const clearTimeoutFake = id => { clearImmediate(id); pending.delete(id) }
+  const policyModule = createWorld({ real: ['lib/layout-viewer-url-policy.ts'] }).load('lib/layout-viewer-url-policy.ts')
+  const props = { open, onOpenChange: value => closed.push(value) }
+  let Comp = null
+  const rt = createRuntime(() => Comp(props))
+  const stubs = {
+    react: rt.react,
+    '@/hooks/use-auth': { useAuth: () => ({ user: userId ? { id: userId, email: EMAIL } : undefined }) },
+    '@/hooks/use-chat-sessions': { useChatSessions: () => ({ createSession: async (id, title) => { sessions.push({ id, title }); return createSessionFails ? null : { id } } }) },
+    '@/lib/researcher-upload': { uploadFileToResearcher: async options => {
+      uploads.push(options)
+      if (uploadFails) throw new Error(uploadFails)
+      options.onProgress?.({ percent: 40, stage: 'upload' }); options.onProgress?.({ percent: 100, stage: 'upload' })
+      return { researcherSessionId: options.sessionId, storagePath: `${options.sessionId}/1_${options.file.name}`, jobId: null, fileName: options.file.name }
+    } },
+    '@/lib/layout-viewer-url-policy': policyModule,
+    '@/lib/layout-service-client': { LAYOUT_VIEWER_URL_POLICY: policyModule.createLayoutViewerUrlPolicy(layoutOrigin, extraAllowed) },
+    '@/components/ui/button': { Button: 'Button' },
+    '@/components/ui/dialog': { Dialog: 'Dialog', DialogContent: 'DialogContent', DialogDescription: 'DialogDescription', DialogHeader: 'DialogHeader', DialogTitle: 'DialogTitle' },
+    'lucide-react': { FileUp: 'FileUp', Loader2: 'Loader2' },
+  }
+  const world = createWorld({
+    real: [DIALOG, HOOK, ENTRY, LIB, 'lib/studio-template-progress.ts', 'lib/composer-library.ts', 'lib/service-url.ts'], stubs,
+    globals: {
+      process: { env: { NEXT_PUBLIC_KNOWLEDGE_SERVICE_URL: researcherUrl, NEXT_PUBLIC_LAYOUT_SERVICE_URL: layoutOrigin } },
+      fetch: net.fetch, setTimeout: setTimeoutFake, clearTimeout: clearTimeoutFake, Date: { now: () => clock.now },
+      sessionStorage: { getItem: key => storage.get(key) ?? null, setItem: (key, value) => { storage.set(key, String(value)) }, removeItem: key => { storage.delete(key) } },
+      window: { location: { assign: href => assigned.push(href) } }, crypto: { randomUUID: () => uuids.shift() ?? `extra-session-${uuids.length}` },
+    },
+  })
+  Comp = entry ? () => world.load(ENTRY).StudioDeckImportEntry() : world.load(DIALOG).StudioDeckImportDialog
+  const api = {
+    rt, net, storage, sessions, uploads, assigned, closed, delays, clock, world, props,
+    mount() { rt.render() },
+    async idle() { let stable = 0, last = ''; for (let i = 0; i < 600 && stable < 8; i++) { await rt.settle(); const sig = `${net.log.length}:${pending.size}:${rt.renders}`; if (sig === last) stable++; else { stable = 0; last = sig } } assert.ok(!runaway, 'the dialog polls without end') },
+    action: name => rt.find(node => node.props?.['data-studio-deck-import-action'] === name)[0] ?? null,
+    async click(name) { const node = api.action(name); assert.ok(node, `the ${name} button is shown`); assert.ok(!node.props.disabled, `the ${name} button is enabled`); node.props.onClick(); await api.idle() },
+    async choose(file) { const input = rt.one(node => node.type === 'input' && node.props.type === 'file'); input.props.onChange({ target: { files: file ? [file] : [] } }); await api.idle() },
+    words: () => nodeText(rt.find(node => node.props?.['data-studio-deck-import-words'] === 'true')[0] ?? null).replace(/\s+/g, ' ').trim(),
+    shown: name => nodeText(rt.find(node => node.props?.[`data-studio-deck-import-${name}`] === 'true')[0] ?? null).replace(/\s+/g, ' ').trim(),
+    has: name => rt.find(node => node.props?.[`data-studio-deck-import-${name}`] !== undefined).length > 0,
+    phase: () => ['choose', 'working', 'ready', 'failed'].find(name => api.has(name)),
+    dialog: () => rt.one(node => node.type === 'Dialog'),
+  }
+  mountedUis.push(api)
+  return api
+}
+const recordedDirector = (sequence, { start = () => ({ status: REC['01'].status, body: REC['01'].body }) } = {}) => {
+  const queue = [...sequence]
+  return (url, init) => {
+    if ((init?.method ?? 'GET') === 'POST') return start()
+    const next = queue.length > 1 ? queue.shift() : queue[0]
+    return typeof next === 'string' ? { status: REC[next].status, body: jobReply(next) } : { status: next.status ?? 200, body: next.body }
+  }
+}
+const importFlow = async (ui, file = FILE) => { ui.mount(); await ui.choose(file); await ui.click('start') }
+
+async function secUi() {
+  // ---- nothing runs until a file is chosen; the picker allows .pptx and .pdf (the PDF only to be told it is coming)
+  let ui = mountDialog({ net: createNet(() => assert.fail('no request before a file is chosen')) })
+  ui.mount(); await ui.idle()
+  eq(ui.phase(), 'choose'); eq(ui.net.log.length, 0); eq(ui.sessions.length, 0)
+  const input = ui.rt.one(node => node.type === 'input')
+  eq(input.props.accept, '.pptx,.pdf'); eq(input.props.id, 'studio-deck-import-file')
+  ok(ui.rt.find(node => node.type === 'label' && node.props.htmlFor === 'studio-deck-import-file').length === 1, 'the picker has its label')
+  ok(ui.action('start').props.disabled, 'Import deck waits for a file')
+  match(nodeText(ui.rt.tree), /Import a PowerPoint deck/); match(nodeText(ui.rt.tree), /widescreen \(16:9\), up to 100 MB/)
+  match(nodeText(ui.rt.tree), /It keeps the design of your file; every word stays editable text/)
+  // ---- local refusals: the contract's own sentences, nothing uploaded
+  for (const [file, sentence] of [
+    [{ name: 'Board.pdf', size: 5000 }, 'Import the PowerPoint this PDF came from. PDF import is coming.'],
+    [{ name: 'Board.key', size: 5000 }, 'Only PowerPoint (.pptx) files can be imported. Save the file as .pptx and try again.'],
+    [{ name: 'Board.pptx', size: 0 }, 'This file is empty. Choose a PowerPoint (.pptx) file.'],
+    [{ name: 'Board.pptx', size: 100 * 1024 * 1024 + 1 }, 'This file is too large to import. Files up to 100 MB can be imported.'],
+  ]) {
+    ui = mountDialog({ net: createNet(() => assert.fail('a refused file is never uploaded')) })
+    ui.mount(); await ui.choose(file)
+    eq(ui.shown('error'), sentence, `${file.name} ${file.size}`); ok(ui.action('start').props.disabled, 'and Import deck stays disabled')
+    eq(ui.uploads.length + ui.sessions.length + ui.net.log.length, 0)
+    ui.action('start').props.onClick(); await ui.idle()
+    eq(ui.uploads.length + ui.sessions.length + ui.net.log.length, 0, 'even when clicked')
+    await ui.choose({ name: 'Board.pptx', size: 5000 })
+    eq(ui.has('error'), false, 'choosing a good file clears the note'); ok(!ui.action('start').props.disabled)
+    await ui.choose(null)
+    ok(ui.action('start').props.disabled, 'clearing the choice disables Import deck again')
+  }
+  // ---- the happy path, step by step, through the REAL proxy routes with the recorded Director answers
+  const director = recordedDirector(['02', '03', '04', '05'])
+  ui = mountDialog({ net: proxiedNet({ director }) })
+  await importFlow(ui)
+  eq(ui.phase(), 'ready'); eq(ui.net.jobs().length, 4, 'start once, then four reads: waiting, placing, opening, ready')
+  deepEq(ui.sessions, [{ id: SESSION, title: 'Q3 Board Review' }], 'one fresh session, titled with the file name without .pptx')
+  eq(ui.uploads.length, 1); const upload = ui.uploads[0]
+  eq(upload.sessionId, SESSION); eq(upload.userId, USER_ID); eq(upload.storageOnly, true, 'storage only, as the template upload'); eq(upload.intent, 'composer_template'); eq(upload.file, FILE)
+  eq(ui.net.starts().length, 1); const started = ui.net.starts()[0]
+  eq(started.method, 'POST'); deepEq(JSON.parse(started.body), { session_id: SESSION, researcher_session_id: SESSION, storage_path: `${SESSION}/1_${FILE.name}`, file_name: FILE.name, kind: 'pptx' }, 'one id is the Researcher session and the Director session')
+  deepEq(started.headers, { 'Content-Type': 'application/json' }, 'the browser sends no credential of any kind'); eq(started.cache, 'no-store'); ok(started.signal instanceof AbortSignal)
+  for (const entry of ui.net.jobs()) { eq(entry.method, 'GET'); eq(entry.url, `/api/studio-deck-import/jobs/${JOB_ID}`); deepEq(entry.headers, {}); eq(entry.cache, 'no-store') }
+  deepEq(ui.delays.filter(ms => ms !== 0), [3000, 3000, 3000], 'Director\'s poll.next_interval_ms (3000) between the reads')
+  // staged like "Use original"; the pending record is gone; the Builder is not opened until the person has read what changed
+  deepEq([...ui.storage.keys()], [`deckster_composer_ready_${SESSION}`], 'only the staged result remains')
+  const composer = ui.world.load('lib/composer-library.ts')
+  deepEq(JSON.parse(ui.storage.get(`deckster_composer_ready_${SESSION}`)), { user_id: USER_ID, result: composer.composerReadyResult({ status: 'complete', ...REC['05'].body.deck_import.result }, SESSION) }, 'the staged record is the Use-original shape')
+  eq(ui.assigned.length, 0, 'banner to read first: the Builder is not opened on its own')
+  eq(ui.words(), 'Your deck is ready.'); match(ui.shown('count'), /Q3 Board Review · 3 slides/); eq(ui.shown('banner'), '2 items changed. See What changed')
+  deepEq(ui.rt.find(node => node.type === 'li').map(node => nodeText(node)), ['On slide 1, letter spacing is set to normal in 1 text box.', 'On slide 4, a dashed outline is drawn solid.'])
+  ui.action('open').props.onClick()
+  deepEq(ui.assigned, [`/builder?session_id=${SESSION}`], 'Open deck opens the Builder on the session')
+  ok(ui.net.log.every(entry => !JSON.stringify(entry.headers).match(/entitlement|authorization|bearer/i)), 'no secret or entitlement header ever leaves the browser')
+  // ---- the words shown at each step (held reads)
+  {
+    const held = []
+    const net = createNet(async entry => {
+      if (entry.method === 'POST') return { status: 202, body: REC['01'].body }
+      return new Promise(resolve => held.push(resolve))
+    })
+    ui = mountDialog({ net })
+    ui.mount(); await ui.choose(FILE); ui.action('start').props.onClick(); await ui.idle()
+    eq(held.length, 1, 'the first read is waiting')
+    eq(ui.phase(), 'working'); eq(ui.words(), 'Starting the import…', 'the start went through; the first read is awaited'); ok(!ui.has('choose') && !ui.has('failed'))
+    ok(ui.rt.find(node => node.type === 'Loader2').length >= 1, 'a spinner')
+    const answerWith = async n => { const resolve = held.shift(); const body = (({ job_id, status, session_id, errors, poll, deck_import }) => ({ job_id, status, session_id, errors, poll, deck_import }))(jobReply(n)); resolve({ status: 200, body }); await ui.idle() }
+    await answerWith('02')
+    eq(ui.words(), 'Waiting for a free slot…'); eq(ui.shown('detail'), 'Another file is being read first. Trying again in about 30 seconds.', 'a busy slot is a note, not an error'); ok(!ui.has('error')); eq(ui.has('meter'), false)
+    await answerWith('03')
+    eq(ui.words(), 'Placing your slides…'); eq(ui.has('detail'), false); eq(ui.shown('count'), '0 of 1 slide · about 2 minutes left')
+    const meter = ui.rt.one(node => node.props?.role === 'progressbar'); eq(meter.props['aria-valuenow'], 0); eq(meter.props['aria-valuemax'], 1)
+    ok(ui.rt.one(node => node.props?.['data-studio-deck-import-working'] === 'true').props.role === 'status', 'announced politely')
+    await answerWith('04')
+    eq(ui.words(), 'Opening your deck…'); eq(ui.has('meter'), false); eq(ui.has('count'), false)
+    eq(ui.action('start'), null, 'no second start while it works')
+    ui.dialog().props.onOpenChange(false); await ui.idle()
+    deepEq(ui.closed, [], 'the dialog cannot be closed while it works')
+    // a 4-of-12 read shows the bar
+    held.length = 0
+  }
+  // ---- nothing to report: the Builder opens on its own (derived from recorded 05: no changes, no notes)
+  {
+    const clean = jobReply('05'), derived = { ...clean, deck_import: { ...clean.deck_import, what_changed: { headline: null, items: [] }, notes: { state: 'none', copied: 0, message: null, reason: null, slides_not_kept: [] } } }
+    ui = mountDialog({ net: proxiedNet({ director: recordedDirector([{ body: derived }]) }) })
+    await importFlow(ui)
+    deepEq(ui.assigned, [`/builder?session_id=${SESSION}`], 'with nothing changed, straight into the Builder'); eq(ui.words(), 'Opening your deck…'); eq(ui.action('open'), null)
+    ok(ui.storage.has(`deckster_composer_ready_${SESSION}`), 'staged before it opens')
+  }
+  // ---- recorded 06: the notes were not kept (said once, as a change)
+  ui = mountDialog({ net: proxiedNet({ director: recordedDirector(['06']) }) })
+  await importFlow(ui)
+  eq(ui.phase(), 'ready'); eq(ui.shown('banner'), '1 item changed. See What changed'); deepEq(ui.rt.find(node => node.type === 'li').map(node => nodeText(node)), ['Speaker notes were not kept.'])
+  eq(ui.assigned.length, 0); ok(ui.action('open'), 'Open deck is offered')
+  // ---- partial notes: Director's notes sentence is shown even when no list line carries it
+  {
+    const derived = { ...jobReply('05'), deck_import: { ...jobReply('05').deck_import, what_changed: { headline: null, items: [] }, notes: { state: 'partial', copied: 1, message: 'Speaker notes were not kept on slides 2, 3.', reason: 'too_long', slides_not_kept: [2, 3] } } }
+    ui = mountDialog({ net: proxiedNet({ director: recordedDirector([{ body: derived }]) }) })
+    await importFlow(ui)
+    deepEq(ui.rt.find(node => node.type === 'li').map(node => nodeText(node)), ['Speaker notes were not kept on slides 2, 3.']); eq(ui.has('banner'), false, 'no "N items changed" banner for a notes line alone'); ok(ui.action('open'))
+  }
+  // ---- every failure (07-16): Director's words as they are; "Try again" only when retryable
+  const retryable = { '11': true, '12': true, '15': true }
+  for (const n of ['07', '08', '09', '10', '11', '12', '13', '14', '15', '16']) {
+    ui = mountDialog({ net: proxiedNet({ director: recordedDirector(['03', n]) }) })
+    await importFlow(ui)
+    const message = REC[n].body.deck_import.error.message
+    eq(ui.phase(), 'failed', `recorded ${n}`); eq(ui.shown('error'), message, `recorded ${n}: the words as they are`)
+    eq(!!ui.action('retry'), !!retryable[n], `recorded ${n}: Try again only when retryable`)
+    ok(ui.action('another'), `recorded ${n}: Choose another file`)
+    eq(ui.assigned.length, 0, 'nothing opens'); eq(ui.storage.size, 0, 'nothing staged, nothing kept to resume')
+    eq(ui.net.jobs().length, 2, 'polling ends at the failure')
+    ok(ui.rt.find(node => node.props?.role === 'alert').length >= 1, 'announced as an alert')
+    ui.dialog().props.onOpenChange(false); await ui.idle(); deepEq(ui.closed, [false], 'a failure can be closed'); eq(ui.phase(), 'choose', 'and closing starts the next visit from the picker')
+  }
+  // ---- Try again is a NEW import: a new session id, a new upload, a new job
+  {
+    ui = mountDialog({ net: proxiedNet({ director: recordedDirector(['11']) }) })
+    await importFlow(ui)
+    eq(ui.phase(), 'failed'); eq(ui.shown('error'), 'Import stopped. Try again.')
+    await ui.click('retry')
+    eq(ui.sessions.length, 2, 'a second session'); deepEq(ui.sessions.map(s => s.id), [SESSION, 'fresh-session-2'])
+    eq(ui.uploads.length, 2, 'a second upload'); eq(ui.uploads[1].sessionId, 'fresh-session-2'); eq(ui.uploads[1].file, FILE, 'of the same file')
+    eq(ui.net.starts().length, 2); eq(JSON.parse(ui.net.starts()[1].body).session_id, 'fresh-session-2'); eq(JSON.parse(ui.net.starts()[1].body).researcher_session_id, 'fresh-session-2')
+    eq(ui.phase(), 'failed', 'and the recorded loss answers again'); ui.action('another').props.onClick(); await ui.idle()
+    eq(ui.phase(), 'choose'); ok(ui.action('start').props.disabled, 'Choose another file starts over with no file'); eq(ui.has('error'), false)
+  }
+  // ---- a retried import that succeeds opens ITS session, not the first one
+  {
+    const second = { ...jobReply('05'), session_id: 'fresh-session-2', deck_import: { ...jobReply('05').deck_import, what_changed: { headline: null, items: [] }, result: { ...jobReply('05').deck_import.result, session_id: 'fresh-session-2' } } }
+    let reads = 0
+    ui = mountDialog({ net: proxiedNet({ director: (url, init) => (init?.method === 'POST' ? { status: 202, body: REC['01'].body } : ++reads === 1 ? { status: 200, body: jobReply('11') } : { status: 200, body: second }) }) })
+    await importFlow(ui); await ui.click('retry')
+    deepEq(ui.assigned, ['/builder?session_id=fresh-session-2']); ok(ui.storage.has('deckster_composer_ready_fresh-session-2'))
+  }
+  // ---- every refusal at the start (17): the contract's words, no polling, nothing kept
+  const startWords = {
+    pdf: 'Import the PowerPoint this PDF came from. PDF import is coming.', keynote: 'Only PowerPoint (.pptx) files can be imported. Save the file as .pptx and try again.', incomplete: 'The import request is incomplete. Upload the file again.',
+    session_mismatch: 'Upload must use the authenticated Builder session', storage_path: 'Invalid upload storage reference', session_not_fresh: 'A fresh Director session is required',
+    composer_async_off: 'Deck import is not available right now.', flag_off: 'Deck import is not available right now.', entitlement_w_missing_header: 'We could not confirm your sign-in for this request. Please reload the page and try again.',
+  }
+  for (const [name, answer] of nine) {
+    ui = mountDialog({ net: proxiedNet({ director: () => ({ status: answer.status, body: answer.body }) }) })
+    await importFlow(ui)
+    eq(ui.phase(), 'failed', `refusal ${name}`); eq(ui.shown('error'), startWords[name], `refusal ${name}: the words`)
+    eq(ui.net.jobs().length, 0, `refusal ${name}: no polling`); eq(ui.storage.size, 0); eq(ui.action('retry'), null, `refusal ${name}: a refusal that cannot succeed offers no Try again`); ok(ui.action('another'))
+  }
+  // ---- transport trouble: the proxy answering 502 while polling is retried three times in a row, then it ends
+  {
+    const bad = { status: 502, body: { error: 'Deck import is temporarily unavailable. Try again.' } }
+    ui = mountDialog({ net: createNet(entry => entry.method === 'POST' ? { status: 202, body: REC['01'].body } : [bad, bad, bad, { status: 200, body: jobReply('04') }, { status: 200, body: jobReply('05') }][ui.net.jobs().length - 1]) })
+    await importFlow(ui)
+    eq(ui.net.jobs().length, 5, 'three 502s are tolerated on the same job'); eq(ui.phase(), 'ready'); eq(ui.net.starts().length, 1, 'and the job is never started twice')
+    ui = mountDialog({ net: createNet(entry => entry.method === 'POST' ? { status: 202, body: REC['01'].body } : bad) })
+    await importFlow(ui)
+    eq(ui.net.jobs().length, 4, 'the fourth 502 in a row ends it'); eq(ui.phase(), 'failed'); eq(ui.shown('error'), 'Deck import is temporarily unavailable. Try again.'); ok(ui.action('retry'), 'a transport failure can be tried again'); eq(ui.storage.size, 0)
+    ui = mountDialog({ net: createNet(entry => entry.method === 'POST' ? { status: 202, body: REC['01'].body } : { throws: new TypeError('network down') }) })
+    await importFlow(ui)
+    eq(ui.net.jobs().length, 4, 'a dropped connection is tolerated three times too'); eq(ui.shown('error'), 'We lost touch with the import. Try again.'); ok(ui.action('retry'))
+    ui = mountDialog({ net: createNet(entry => entry.method === 'POST' ? { status: 202, body: REC['01'].body } : { status: 404, body: { detail: 'Not Found' } }) })
+    await importFlow(ui)
+    eq(ui.net.jobs().length, 1, 'a 404 ends it at once'); eq(ui.shown('error'), 'Deck import is not available right now.'); eq(ui.action('retry'), null)
+    ui = mountDialog({ net: createNet(entry => entry.method === 'POST' ? { status: 202, body: REC['01'].body } : { status: 200, body: { job_id: JOB_ID, status: 'cracking' } }) })
+    await importFlow(ui)
+    eq(ui.shown('error'), 'Deck import is not available right now.', 'a job without deck_import (Director\'s flag went off)'); eq(ui.action('retry'), null)
+    ui = mountDialog({ net: createNet(entry => entry.method === 'POST' ? { status: 200, body: { nope: 1 } } : assert.fail('no job, no read')) })
+    await importFlow(ui)
+    eq(ui.shown('error'), 'The import could not be started. Try again.', 'a start with no job id'); ok(ui.action('retry'))
+    ui = mountDialog({ net: createNet(entry => entry.method === 'POST' ? { status: 202, body: { job_id: 'upload-0123456789abcdef' } } : assert.fail('not an import job, no read')) })
+    await importFlow(ui)
+    eq(ui.shown('error'), 'The import could not be started. Try again.', 'a start that names some other kind of job'); eq(ui.storage.size, 0)
+    ui = mountDialog({ net: createNet(entry => entry.method === 'POST' ? { throws: new TypeError('network down') } : assert.fail('no job, no read')) })
+    await importFlow(ui)
+    eq(ui.shown('error'), 'The import could not be started. Try again.', 'a start that cannot connect'); ok(ui.action('retry'))
+  }
+  // ---- steps before the start
+  ui = mountDialog({ net: createNet(() => assert.fail('no request')), createSessionFails: true }); await importFlow(ui)
+  eq(ui.shown('error'), 'The import could not be started. Try again.'); eq(ui.uploads.length, 0, 'no session, no upload'); ok(ui.action('retry'))
+  ui = mountDialog({ net: createNet(() => assert.fail('no request')), uploadFails: 'Storage upload failed (403)' }); await importFlow(ui)
+  eq(ui.shown('error'), 'Storage upload failed (403)'); ok(ui.action('retry')); eq(ui.net.log.length, 0, 'no start after a failed upload')
+  ui = mountDialog({ net: createNet(() => assert.fail('no request')), researcherUrl: 'https://researcher-v1.up.railway.app' }); await importFlow(ui)
+  eq(ui.shown('error'), 'Deck import is not available right now.', 'the Researcher must be the UAT one or a local one, as for the template upload'); eq(ui.sessions.length, 0); eq(ui.action('retry'), null)
+  ui = mountDialog({ net: createNet(() => assert.fail('no request')), userId: null }); ui.mount(); await ui.choose(FILE)
+  ok(ui.action('start').props.disabled, 'no account, no import')
+  ui.action('start').props.onClick(); await ui.idle()
+  eq(ui.sessions.length + ui.uploads.length + ui.net.log.length, 0, 'and a forced click starts nothing')
+  // ---- the deck is not opened when the result is not the approved one
+  for (const [label, patch] of [['an origin Layout does not serve', { viewer_url: 'https://evil.example/p/x' }], ['another session', { session_id: 'not-mine' }], ['no viewer address', { viewer_url: '' }]]) {
+    const derived = { ...jobReply('05'), deck_import: { ...jobReply('05').deck_import, result: { ...jobReply('05').deck_import.result, ...patch } } }
+    ui = mountDialog({ net: proxiedNet({ director: recordedDirector([{ body: derived }]) }) })
+    await importFlow(ui)
+    eq(ui.shown('error'), 'Your file was read, but the deck could not be opened. Try again.', label); ok(ui.action('retry')); eq(ui.assigned.length, 0); eq(ui.storage.size, 0, 'nothing staged')
+  }
+  {
+    const elsewhere = { ...jobReply('05'), deck_import: { ...jobReply('05').deck_import, what_changed: { headline: null, items: [] }, result: { ...jobReply('05').deck_import.result, viewer_url: 'https://prod-layout.example/p/x' } } }
+    ui = mountDialog({ net: proxiedNet({ director: recordedDirector([{ body: elsewhere }]) }), extraAllowed: 'https://prod-layout.example' }); await importFlow(ui)
+    eq(ui.shown('error'), 'Your file was read, but the deck could not be opened. Try again.', 'a viewer on an origin the policy lists but UAT and local do not'); eq(ui.assigned.length, 0); eq(ui.storage.size, 0)
+  }
+  ui = mountDialog({ net: proxiedNet({ director: recordedDirector(['05']) }), layoutOrigin: 'http://127.0.0.1:9999' }); await importFlow(ui)
+  eq(ui.shown('error'), 'Your file was read, but the deck could not be opened. Try again.', 'a viewer on another origin than Layout\'s'); eq(ui.assigned.length, 0)
+  // ---- reopening picks a stored import up again, without a new upload
+  {
+    const storage = new Map([[`deckster_deck_import_job_${USER_ID}`, JSON.stringify({ job_id: JOB_ID, session_id: SESSION, file_name: FILE.name })]])
+    ui = mountDialog({ net: proxiedNet({ director: recordedDirector(['03', '05']) }), storage })
+    ui.mount(); await ui.idle()
+    eq(ui.sessions.length + ui.uploads.length + ui.net.starts().length, 0, 'no new session, upload or start'); eq(ui.net.jobs().length, 2); eq(ui.phase(), 'ready')
+    ok(!storage.has(`deckster_deck_import_job_${USER_ID}`) && storage.has(`deckster_composer_ready_${SESSION}`), 'the record is exchanged for the staged result')
+    storage.set(`deckster_deck_import_job_${USER_ID}`, 'not json')
+    ui = mountDialog({ net: createNet(() => assert.fail('a broken record starts nothing')), storage }); ui.mount(); await ui.idle(); eq(ui.phase(), 'choose')
+    storage.set(`deckster_deck_import_job_${USER_ID}`, JSON.stringify({ job_id: 'upload-1', session_id: SESSION, file_name: 'x' }))
+    ui = mountDialog({ net: createNet(() => assert.fail('a record for another kind of job starts nothing')), storage }); ui.mount(); await ui.idle(); eq(ui.phase(), 'choose')
+    ui = mountDialog({ net: createNet(() => assert.fail('a closed dialog polls nothing')), storage: new Map([[`deckster_deck_import_job_${USER_ID}`, JSON.stringify({ job_id: JOB_ID, session_id: SESSION, file_name: 'x' })]]), open: false }); ui.mount(); await ui.idle()
+    eq(ui.net.log.length, 0)
+  }
+  // ---- the stored record exists while the import runs
+  {
+    const held = []
+    const storage = new Map()
+    ui = mountDialog({ net: createNet(entry => entry.method === 'POST' ? { status: 202, body: REC['01'].body } : new Promise(resolve => held.push(resolve))), storage })
+    ui.mount(); await ui.choose(FILE); ui.action('start').props.onClick(); await ui.idle()
+    ok(storage.has(`deckster_deck_import_job_${USER_ID}`), 'the job is kept')
+    deepEq(JSON.parse(storage.get(`deckster_deck_import_job_${USER_ID}`)), { job_id: JOB_ID, session_id: SESSION, file_name: FILE.name }, 'the job is kept so a reload can pick it up')
+    // unmounting stops the polling: nothing is asked afterwards, and the record stays for the next time
+    ui.rt.unmount(); const before = ui.net.log.length; held.shift()({ status: 200, body: jobReply('02') }); await ui.idle()
+    eq(ui.net.log.length, before, 'no read after the dialog is gone'); ok(storage.has(`deckster_deck_import_job_${USER_ID}`))
+  }
+  // ---- a job that never finishes ends at the watch limit
+  {
+    ui = mountDialog({ net: createNet(entry => entry.method === 'POST' ? { status: 202, body: REC['01'].body } : { status: 200, body: { ...jobReply('03'), poll: { next_interval_ms: 60000 } } }) })
+    await importFlow(ui)
+    eq(ui.phase(), 'failed'); eq(ui.shown('error'), 'This is taking too long. Try again.'); ok(ui.action('retry'))
+    ok(ui.clock.now - 1_000_000 > 90 * 60 * 1000, 'after more than 90 minutes'); eq(ui.net.jobs().length, 92, 'one read a minute until then')
+  }
+  // ---- the entry: a button, the dialog only while open
+  {
+    const entryUi = mountDialog({ entry: true, net: createNet(() => assert.fail('no request')) })
+    const rt = entryUi.rt
+    let tree = rt.render()
+    const button = rt.one(node => node.props?.['data-studio-deck-import-open'] === 'true')
+    eq(nodeText(button).trim(), 'Import a PowerPoint'); eq(button.props.variant, 'outline'); eq(rt.find(node => typeof node.type === 'function').length, 0, 'closed: no dialog is mounted')
+    eq(tree.props['data-studio-deck-import-bar'], 'true')
+    button.props.onClick(); tree = rt.render()
+    ok(rt.find(node => typeof node.type === 'function').length === 1, 'open: the dialog is mounted')
+  }
+}
+
+// ================================================================ 5. the layout: flag off hands the page back as it was
+async function secLayout() {
+  const SENTINEL = { type: 'main', props: { 'data-studio-decks': 'true', children: 'the page' }, key: null }
+  const layoutFor = env => createWorld({ real: [LAYOUT], stubs: { '@/components/studio-deck-import/studio-deck-import-entry': { StudioDeckImportEntry: 'StudioDeckImportEntry' } }, globals: { process: { env } } }).load(LAYOUT).default
+  const render = env => layoutFor(env)({ children: SENTINEL })
+  const hashes = []
+  for (const shell of [undefined, 'false', 'true']) {
+    for (const flag of [undefined, 'false', 'TRUE', '1', '', 'yes', 'true ', 'true']) {
+      const env = { ...(shell === undefined ? {} : { NEXT_PUBLIC_STUDIO_V4_SHELL: shell }), ...(flag === undefined ? {} : { [FLAG]: flag }) }
+      const tree = render(env)
+      if (shell === 'true' && flag === 'true') {
+        eq(tree.type, 'Fragment'); deepEq(tree.props.children.map(child => child.type), ['StudioDeckImportEntry', 'main'], 'on: the button, then the page'); ok(tree.props.children[1] === SENTINEL, 'the page itself, untouched')
+      } else {
+        eq(tree.type, 'Fragment', 'off: a bare fragment'); ok(tree.props.children === SENTINEL, `off (shell ${shell}, flag ${JSON.stringify(flag)}): exactly the page, no wrapper, no button`); deepEq(Object.keys(tree.props), ['children'])
+        hashes.push(sha(plain(tree)))
+      }
+    }
+  }
+  eq(new Set(hashes).size, 1, 'every "off" rendering is the same bytes')
+  // reading the flag: inline and exact
+  const layout = src(LAYOUT)
+  match(layout, /process\.env\.NEXT_PUBLIC_STUDIO_DECK_IMPORT !== "true"/); match(layout, /process\.env\.NEXT_PUBLIC_STUDIO_V4_SHELL !== "true"/)
+  nomatch(layout, /process\.env\[|\{ *NEXT_PUBLIC|= process\.env;?$/m, 'read inline, as Next needs')
+  return hashes[0]
+}
+
+// ================================================================ 6. static checks
+const walk = (dir, out = []) => {
+  for (const entry of fs.readdirSync(path.join(root, dir), { withFileTypes: true })) {
+    if (entry.name === 'node_modules' || entry.name === '.next' || entry.name.startsWith('.')) continue
+    const rel = `${dir}/${entry.name}`
+    if (entry.isDirectory()) walk(rel, out); else if (/\.(ts|tsx|js|jsx|mjs)$/.test(entry.name)) out.push(rel)
+  }
+  return out
+}
+async function secStatic() {
+  // ---- the minter is server-only: imported by the two routes and nothing else; no 'use client' module reaches it, directly or through anything it imports
+  const files = ['app', 'components', 'hooks', 'lib', 'contexts'].filter(dir => fs.existsSync(path.join(root, dir))).flatMap(dir => walk(dir))
+  const text = new Map(files.map(rel => [rel, OVER[rel] ?? read(rel)]))
+  for (const rel of NEW_FILES) if (!text.has(rel)) text.set(rel, src(rel))
+  const resolve = (spec, from) => {
+    if (!spec.startsWith('@/') && !spec.startsWith('.')) return null
+    const base = spec.startsWith('@/') ? spec.slice(2) : path.posix.normalize(path.posix.join(path.posix.dirname(from), spec))
+    return [base, `${base}.ts`, `${base}.tsx`, `${base}/index.ts`, `${base}/index.tsx`, `${base}.js`, `${base}.mjs`].find(candidate => text.has(candidate)) ?? null
+  }
+  const importsOf = rel => [...text.get(rel).matchAll(/(?:\bfrom\s*|\bimport\s*\(?\s*|\brequire\(\s*)['"]([^'"]+)['"]/g)].map(found => resolve(found[1], rel)).filter(Boolean)
+  const isClient = rel => /^\s*(?:\/\*[\s\S]*?\*\/\s*|\/\/[^\n]*\n\s*)*['"]use client['"]/.test(text.get(rel))
+  const clientRoots = [...text.keys()].filter(isClient)
+  ok(clientRoots.length > 100, `the walk sees the app's client modules (${clientRoots.length})`)
+  ok(clientRoots.includes(HOOK) && clientRoots.includes(DIALOG) && clientRoots.includes(ENTRY), 'this change\'s client modules are client modules')
+  const seen = new Set()
+  const stack = [...clientRoots]
+  while (stack.length) { const rel = stack.pop(); if (seen.has(rel)) continue; seen.add(rel); stack.push(...importsOf(rel)) }
+  ok(seen.size > clientRoots.length, 'the closure follows imports')
+  ok(!seen.has(HELPER), 'no "use client" module, and nothing a client module imports, reaches lib/director-rest-entitlement')
+  deepEq([...text.keys()].filter(rel => rel !== HELPER && /director-rest-entitlement/.test(text.get(rel))).sort(), [JOBS, START].sort(), 'the minter is imported by the two import routes only')
+  for (const rel of [START, JOBS]) { ok(!isClient(rel), `${rel} is server code`); match(text.get(rel), /from '@\/lib\/director-rest-entitlement'/); eq((text.get(rel).match(/restEntitlementHeaders\(/g) ?? []).length, 1, `${rel}: one signed call`); eq((text.get(rel).match(/\bfetch\(/g) ?? []).length, 1, `${rel}: one Director fetch`) }
+  match(text.get(START), /restEntitlementHeaders\(userId, 'POST'\)/); match(text.get(JOBS), /restEntitlementHeaders\(userId, 'GET'\)/)
+  for (const rel of [START, JOBS]) match(text.get(rel), /process\.env\.NEXT_PUBLIC_STUDIO_DECK_IMPORT === 'true' && process\.env\.DECKSTER_REST_ENTITLEMENT_HEADER_ENABLED === 'true'\s*\? restEntitlementHeaders/, `${rel}: signed only when both flags are on`)
+  for (const rel of [START, JOBS]) { const s = text.get(rel); ok(s.indexOf("NEXT_PUBLIC_STUDIO_DECK_IMPORT !== 'true'") < s.indexOf('getServerSession('), `${rel}: the flag is checked before the session is read`); nomatch(s, /\bprocess\.env\.DIRECTOR_WS_AUTH_SECRET/, `${rel}: never reads the secret itself`) }
+  const helper = text.get(HELPER)
+  nomatch(helper, /\bconsole\b|NEXT_PUBLIC_|['"]use client['"]/, 'the minter never logs, reads only server env, and is not a client module')
+  // nothing a browser runs names the secret, the header or the minter
+  const mine = [HOOK, DIALOG, ENTRY, LIB, LAYOUT, CSS]
+  for (const rel of mine) nomatch(text.get(rel) ?? src(rel), /DIRECTOR_WS_AUTH_SECRET|X-Deckster-Entitlement|director-rest-entitlement|DECKSTER_REST_ENTITLEMENT/i, `${rel}: no secret, no header, no minter`)
+  for (const rel of [HOOK, DIALOG, ENTRY, LIB]) nomatch(text.get(rel), /COMPOSER_FRONTDOOR_TOKEN|COMPOSER_DIRECTOR_URL|Authorization/, `${rel}: no server credential in browser code`)
+  // no literal secret anywhere in the files this change adds (a bearer, an api key, a signed blob)
+  for (const rel of NEW_FILES.filter(file => file !== HELPER)) nomatch(text.get(rel), /Bearer [A-Za-z0-9._-]{16,}|\bsk-[A-Za-z0-9]{16,}|\beyJ[A-Za-z0-9_-]{20,}|[A-Fa-f0-9]{40,}/, `${rel}: no literal secret`)
+  nomatch(read('scripts/test-studio-deck-import.mjs'), /Bearer [A-Za-z0-9._-]{16,}|\bsk-[A-Za-z0-9]{16,}|\beyJ[A-Za-z0-9_-]{20,}/, 'the test: no literal bearer, key or signed blob (its secrets are made up at run time)')
+  // ---- the sheet: every rule hangs on this change's markers; tokens are defined for light and dark; nothing forced
+  const root_ = postcss.parse(src(CSS))
+  const selectors = []
+  root_.walkRules(rule => { for (const selector of rule.selectors) selectors.push({ selector, rule }) })
+  ok(selectors.length > 25, `the sheet has ${selectors.length} selectors`)
+  for (const { selector } of selectors) match(selector, /data-studio-deck-import/, `anchored: ${selector.slice(0, 70)}`)
+  root_.walkDecls(decl => { ok(!decl.important, `no !important: ${decl.prop}`) })
+  const defined = (selector) => { const out = new Set(); root_.walkRules(rule => { if (rule.selectors.includes(selector)) rule.walkDecls(decl => { if (decl.prop.startsWith('--sdi-')) out.add(decl.prop) }) }); return out }
+  const light = defined('[data-studio-deck-import-dialog="true"]'), dark = defined('.dark [data-studio-deck-import-dialog="true"]')
+  ok(light.size >= 9, 'the dialog defines its own tokens'); deepEq([...dark].sort(), [...light].sort(), 'dark redefines every token light defines')
+  const used = new Set(); root_.walkDecls(decl => { for (const found of decl.value.matchAll(/var\((--[a-z-]+)/g)) used.add(found[1]) })
+  for (const name of used) ok(name.startsWith('--sdi-') ? light.has(name) : ['--ss-line', '--ss-panel', '--ss-text', '--ss-teal', '--ss-surface', '--ss-accent'].includes(name), `${name} is a token that exists`)
+  eq(root_.nodes.filter(node => node.type === 'rule' && node.selector.startsWith('[data-studio-v4-shell="true"] [data-studio-deck-import-bar')).length, 2, 'the entry bar is scoped to the Studio shell')
+  // ---- the example: the flag's block is last, documents the flag off, names no other change's flag, and the base's lines are all still there in order
+  const env = src(ENVFILE)
+  const baseEnv = baseSource(ENVFILE)
+  const blockStart = env.indexOf('# STUDIO DECK IMPORT, ')
+  ok(blockStart > 0, 'the block is there'); eq(env.split(`${FLAG}="false"`).length - 1, 1, 'one line sets the flag, to "false"')
+  const block = env.slice(blockStart)
+  ok(block.trimEnd().endsWith(`${FLAG}="false"`), 'the block is the last thing in the file')
+  const before = env.slice(0, blockStart)
+  ok(appendOnlyOver(ENVFILE, before, baseEnv), 'without the block the file is the base\'s lines in order (a later change\'s block may sit after)')
+  eq(before, baseEnv, 'and here it is exactly the base\'s file')
+  ok(env.startsWith(baseEnv), 'append-only')
+  const blockFlags = [...block.matchAll(/\b[A-Z][A-Z0-9]+(?:_[A-Z0-9]+){2,}\b/g)].map(found => found[0])
+  deepEq([...new Set(blockFlags)].sort(), ['COMPOSER_DIRECTOR_URL', 'COMPOSER_FRONTDOOR_TOKEN', 'DECKSTER_REST_ENTITLEMENT_HEADER_ENABLED', 'DIRECTOR_DECK_IMPORT_ENABLED', FLAG].sort(), 'the block names this flag, Director\'s, and the existing front-door settings only')
+  nomatch(block, /^DECKSTER_REST_ENTITLEMENT_HEADER_ENABLED=|^DIRECTOR_WS_AUTH_SECRET/m, 'the helper\'s flag is documented where it belongs, not here')
+  ok(block.split('\n').every(line => line === '' || line.startsWith('#') || /^[A-Z][A-Z0-9_]*=/.test(line)), 'comments, blanks and one env line')
+  match(block, /both routes named below answer 404/); match(block, /exact value "true" turns it on; default off/); match(block, /calls no AI model/)
+  for (const other of ['STUDIO_KG_ASK', 'LIBRARY_MANAGE', 'library-manage', 'DUPLICATE_DECK', 'duplicate-deck', 'P2_POLISH', 'P2_PUBLISH', 'DECK_MUTATION_DEDUPE']) nomatch(block, new RegExp(other), `the block reuses nothing of ${other}`)
+  // ---- package.json: one added script, nothing else
+  const pkg = src(PKG), basePkg = baseSource(PKG)
+  eq(pkg.replace(/,\n    "test:studio-deck-import": "node scripts\/test-studio-deck-import\.mjs"/, ''), basePkg, 'package.json is the base plus the one script')
+  ok(appendOnlyOver(PKG, pkg, basePkg), 'and an append-only change for the sibling pins')
+  eq(JSON.parse(pkg).scripts['test:studio-deck-import'], 'node scripts/test-studio-deck-import.mjs'); deepEq(JSON.parse(pkg).dependencies, JSON.parse(basePkg).dependencies, 'no dependency added'); deepEq(JSON.parse(pkg).devDependencies, JSON.parse(basePkg).devDependencies)
+  eq(execFileSync('git', ['diff', '--name-only', BASE_COMMIT, '--', 'pnpm-lock.yaml', 'next.config.mjs', 'middleware.ts', 'vercel.json', 'prisma'], { cwd: root, encoding: 'utf8' }), '', 'no lock file, config or schema change')
+}
+
+// ================================================================ run
+const SECTIONS = { blobs: secBlobs, lib: secLib, routes: secRoutes, entitlement: secEntitlement, ui: secUi, layout: secLayout, static: secStatic }
+async function proveAll(over = {}, only = null) {
+  OVER = over
+  const out = {}
+  try { for (const [name, fn] of Object.entries(SECTIONS)) if (!only || only.includes(name)) out[name] = await fn() } finally { OVER = {}; for (const ui of mountedUis.splice(0)) ui.rt.unmount() }
+  return out
+}
+const t0 = Date.now()
+const real = await proveAll()
+const realChecks = checks
+const realMs = Date.now() - t0
+counting = false
+console.log(`flag-off layout sha256 ${real.layout.slice(0, 16)} (every shell/flag combination except shell+flag "true" renders these bytes)`)
+if (process.env.DECK_IMPORT_QUICK) { console.log(`Studio deck import (quick, mutants skipped): ${realChecks} checks passed in ${realMs} ms; no network.`); process.exit(0) }
+
+// ================================================================ 7. mutants: [file, name, from, to, sections that must notice]
+const M = [
+  // the rules
+  [LIB, 'flag: either one is enough', "flag === 'true' && shell === 'true'", "flag === 'true' || shell === 'true'", ['lib']],
+  [LIB, 'flag: any value is on', "return flag === 'true' && shell === 'true'", "return Boolean(flag) && shell === 'true'", ['lib']],
+  [LIB, 'start endpoint', "'/api/studio-deck-import'\nexport", "'/api/studio-deck-import/start'\nexport", ['lib', 'ui']],
+  [LIB, 'job endpoint not encoded', 'encodeURIComponent(jobId)', 'jobId', ['lib']],
+  [LIB, 'size cap moved', 'DECK_IMPORT_MAX_BYTES = 100 * 1024 * 1024', 'DECK_IMPORT_MAX_BYTES = 200 * 1024 * 1024', ['lib']],
+  [LIB, 'size cap off by one', 'size > DECK_IMPORT_MAX_BYTES', 'size >= DECK_IMPORT_MAX_BYTES', ['lib']],
+  [LIB, 'poll fallback moved', 'DECK_IMPORT_POLL_FALLBACK_MS = 3000', 'DECK_IMPORT_POLL_FALLBACK_MS = 5000', ['lib', 'ui']],
+  [LIB, 'retries moved', 'DECK_IMPORT_POLL_RETRIES = 3', 'DECK_IMPORT_POLL_RETRIES = 30', ['lib', 'ui']],
+  [LIB, 'PDF sentence', 'PDF import is coming.', 'PDF import is not coming.', ['lib', 'ui']],
+  [LIB, 'PDF treated as not pptx', "if (name.endsWith('.pdf')) return refuse('FILE_IS_PDF')\n", '', ['lib']],
+  [LIB, 'extension check dropped', "if (!name.endsWith('.pptx')) return refuse('FILE_NOT_PPTX')", '', ['lib']],
+  [LIB, 'case-sensitive extension', 'file.name.trim().toLowerCase()', 'file.name.trim()', ['lib']],
+  [LIB, 'empty file passes', "if (!(size > 0)) return refuse('FILE_EMPTY')", '', ['lib']],
+  [LIB, 'too large passes', "if (size > DECK_IMPORT_MAX_BYTES) return refuse('UPLOAD_FILE_TOO_LARGE')", '', ['lib']],
+  [LIB, 'title keeps the extension', ".replace(/\\.pptx$/i, '')", '', ['lib']],
+  [LIB, 'kind sent as pdf', "file_name: parts.fileName, kind: 'pptx' }", "file_name: parts.fileName, kind: 'pdf' }", ['lib', 'ui']],
+  [LIB, 'start body gains a user id', "kind: 'pptx' }\n}\n\n/**\n * The proxy's", "kind: 'pptx', user_id: parts.sessionId } as DeckImportStartBody\n}\n\n/**\n * The proxy's", ['lib', 'ui']],
+  [LIB, 'researcher session may differ', 'researcher_session_id !== session_id', 'false', ['lib', 'routes']],
+  [LIB, 'storage namespace unchecked', "parts[0] !== session_id ||", '', ['lib', 'routes']],
+  [LIB, 'traversal allowed', "parts[1] === '..' ||", '', ['lib', 'routes']],
+  [LIB, 'special characters allowed', '/[\\\\%?#:\\x00-\\x1f]/.test(path)', 'false', ['lib', 'routes']],
+  [LIB, 'extension enforced at the proxy', "if (kind !== 'pptx' ||", "if (kind !== 'pptx' || !String(file_name).endsWith('.pptx') ||", ['lib', 'routes']],
+  [LIB, 'job prefix dropped', 'value.startsWith(DECK_IMPORT_JOB_PREFIX) && ', '', ['lib', 'routes']],
+  [LIB, 'entitlement words lost', "str(data.error) ?? str(data.detail) ?? DECK_IMPORT_WORDS.SIGN_IN, retryable: data.retryable === true", 'DECK_IMPORT_WORDS.SIGN_IN, retryable: data.retryable === true', ['lib', 'ui']],
+  [LIB, 'coded refusal retryable', "return { message: detail.message as string, retryable: false }", "return { message: detail.message as string, retryable: true }", ['lib', 'ui']],
+  [LIB, '404 words', "if (status === 404) return { message: DECK_IMPORT_WORDS.IMPORT_UNAVAILABLE, retryable: false }", "if (status === 404) return { message: DECK_IMPORT_WORDS.START_FAILED, retryable: false }", ['lib', 'ui']],
+  [LIB, '5xx not retryable', "retryable: status >= 500 }\n  return { message: DECK_IMPORT_WORDS.START_FAILED", "retryable: false }\n  return { message: DECK_IMPORT_WORDS.START_FAILED", ['lib', 'ui']],
+  [LIB, 'failed job shown retryable', "error.retryable === true)", "error.retryable !== false)", ['lib', 'ui']],
+  [LIB, 'failure words replaced', "str(error.message) ?? firstError", "firstError", ['lib', 'ui']],
+  [LIB, 'ready without complete', "if (stage === 'ready' && status === 'complete')", "if (stage === 'ready')", ['lib']],
+  [LIB, 'ready without result', "if (!isDict(block.result)) return failed('OPEN_FAILED'", "if (false) return failed('OPEN_FAILED'", ['lib']],
+  [LIB, 'waiting is an error', "words: waitingNow ? STAGE_WORDS.waiting", "words: waitingNow ? DECK_IMPORT_WORDS.NOT_IMPORTED", ['lib', 'ui']],
+  [LIB, 'waiting only by stage', "const waitingNow = stage === 'waiting' || waiting !== null", "const waitingNow = stage === 'waiting'", ['lib']],
+  [LIB, 'retry-after promised', "Trying again in about ${retryAfter}", "Trying again in about ${retryAfter + 1}", ['lib', 'ui']],
+  [LIB, 'plural seconds', "retryAfter === 1 ? 'second' : 'seconds'", "'seconds'", ['lib']],
+  [LIB, 'done passes the total', 'Math.min(done, total), total }', 'done, total }', ['lib']],
+  [LIB, 'time left while waiting', 'eta: waitingNow ? null :', 'eta:', ['lib']],
+  [LIB, 'poll clamp low', 'Math.max(TEMPLATE_POLL_MIN_MS', 'Math.max(0', ['lib']],
+  [LIB, 'poll clamp high', 'Math.min(TEMPLATE_POLL_MAX_MS', 'Math.min(600000', ['lib']],
+  [LIB, 'banner singular', "${items === 1 ? 'item' : 'items'}", "items", ['lib', 'ui']],
+  [LIB, 'banner when none', 'return items > 0 ?', 'return items >= 0 ?', ['lib']],
+  [LIB, 'junk items kept', "if (!isDict(item) || !str(item.text)) continue", '', ['lib']],
+  [LIB, 'notes said twice', 'notesMessage && !lines.some(line => line.text === notesMessage) ? notesMessage : null', 'notesMessage', ['lib', 'ui']],
+  [LIB, 'copied notes shown', "(notes.state === 'not_kept' || notes.state === 'partial')", "(notes.state !== 'none')", ['lib']],
+  [LIB, 'adoption not frozen', 'frozen_theme: true }', 'frozen_theme: false } as never', ['lib', 'ui']],
+  [LIB, 'other session accepted', 'session_id !== expectedSessionId ||', '', ['lib', 'ui']],
+  [LIB, 'viewer address optional', ' || !str(viewer_url)) return null', ') return null', ['lib', 'ui']],
+  [LIB, 'builder href not encoded', 'encodeURIComponent(sessionId)}`', 'sessionId}`', ['lib']],
+  [LIB, 'projection leaks the upload', "['job_id', 'status', 'session_id', 'errors', 'poll', 'deck_import']", "['job_id', 'status', 'session_id', 'errors', 'poll', 'deck_import', 'upload_ref']", ['lib', 'routes']],
+  [LIB, 'pending key shared', 'deckster_deck_import_job_${encodeURIComponent(userId)}', 'deckster_deck_import_job_${userId}', ['lib']],
+  [LIB, 'pending accepts other jobs', 'if (!isDict(raw) || !deckImportJobIdValid(raw.job_id) ||', 'if (!isDict(raw) ||', ['lib', 'ui']],
+  // the routes
+  [START, 'start: flag ignored', "if (process.env.NEXT_PUBLIC_STUDIO_DECK_IMPORT !== 'true') {", 'if (false) {', ['routes', 'entitlement', 'static']],
+  [START, 'start: flag read after the session', "  if (process.env.NEXT_PUBLIC_STUDIO_DECK_IMPORT !== 'true') {\n    return NextResponse.json({ error: 'Not found' }, { status: 404 })\n  }\n  const session = await getServerSession(authOptions)", "  const session = await getServerSession(authOptions)\n  if (process.env.NEXT_PUBLIC_STUDIO_DECK_IMPORT !== 'true') {\n    return NextResponse.json({ error: 'Not found' }, { status: 404 })\n  }", ['routes', 'static']],
+  [START, 'start: signed-out allowed', "if (!session?.user?.email) return", "if (false) return", ['routes']],
+  [START, 'start: ownership unchecked', 'if (!ownedSession) return', 'if (false) return', ['routes']],
+  [START, 'start: deleted session allowed', "status: { not: 'deleted' }", "status: { not: 'none' }", ['routes']],
+  [START, 'start: any person\'s session', 'where: { id: checked.body.session_id, userId, status', 'where: { id: checked.body.session_id, status', ['routes']],
+  [START, 'start: body cap off', 'bytes > DECK_IMPORT_START_MAX_BYTES', 'bytes > 10 * DECK_IMPORT_START_MAX_BYTES', ['routes']],
+  [START, 'start: browser body forwarded', 'body = JSON.stringify(checked.body)', 'body = Buffer.concat(chunks).toString(\'utf8\')', ['routes']],
+  [START, 'start: wrong Director path', '/api/template-ingest/stage/import-reference`', '/api/template-ingest/stage/upload-reference`', ['routes', 'ui']],
+  [START, 'start: wrong method', "method: 'POST',\n      headers: {\n        Authorization", "method: 'PUT',\n      headers: {\n        Authorization", ['routes']],
+  [START, 'start: no front-door token', 'Authorization: `Bearer ${token}`,', '', ['routes']],
+  [START, 'start: session id as the user', "'X-Composer-User-Id': userId,\n        'Content-Type'", "'X-Composer-User-Id': session.user.email,\n        'Content-Type'", ['routes']],
+  [START, 'start: production Director allowed', "requireComposerServiceUrl(configured, 'directorv40-uat.up.railway.app')", 'configured', ['routes']],
+  [START, 'start: redirects followed', "redirect: 'error',", '', ['routes']],
+  [START, 'start: cached', "cache: 'no-store',\n      redirect", "redirect", ['routes']],
+  [START, 'start: refusal swallowed', 'return NextResponse.json(answer, { status: response.status,', 'return NextResponse.json(answer, { status: 200,', ['routes', 'ui']],
+  [START, 'start: detail leaked', "{ error: 'Deck import is temporarily unavailable. Try again.' }, { status: 502 })\n  }\n}", "{ error: String(error) }, { status: 502 })\n  }\n}", ['routes']],
+  [START, 'start: signed with both flags needed', "process.env.DECKSTER_REST_ENTITLEMENT_HEADER_ENABLED === 'true'\n      ? restEntitlementHeaders(userId, 'POST')", "true\n      ? restEntitlementHeaders(userId, 'POST')", ['entitlement', 'static']],
+  [START, 'start: signed whatever the deck flag', "process.env.NEXT_PUBLIC_STUDIO_DECK_IMPORT === 'true' && process.env.DECKSTER_REST_ENTITLEMENT_HEADER_ENABLED === 'true'\n      ? restEntitlementHeaders(userId, 'POST')", "process.env.DECKSTER_REST_ENTITLEMENT_HEADER_ENABLED === 'true'\n      ? restEntitlementHeaders(userId, 'POST')", ['static']],
+  [START, 'start: signed for the wrong method', "restEntitlementHeaders(userId, 'POST')", "restEntitlementHeaders(userId, 'GET')", ['entitlement', 'static']],
+  [START, 'start: signed for the e-mail', "restEntitlementHeaders(userId, 'POST')", "restEntitlementHeaders(session.user.email, 'POST')", ['entitlement', 'static']],
+  [START, 'start: never signed', ': {}\n    const response', ': {}\n    const response = await fetch(`${base}/api/template-ingest/stage/import-reference`, { method: \'POST\', headers: { Authorization: `Bearer ${token}`, \'X-Composer-User-Id\': userId, \'Content-Type\': \'application/json\' }, body, cache: \'no-store\', redirect: \'error\', signal: AbortSignal.timeout(25000) })\n    const unused', ['entitlement', 'static']],
+  [JOBS, 'job: flag ignored', "if (process.env.NEXT_PUBLIC_STUDIO_DECK_IMPORT !== 'true') {", 'if (false) {', ['routes', 'entitlement', 'static']],
+  [JOBS, 'job: any job id', 'if (!deckImportJobIdValid(jobId))', 'if (false)', ['routes']],
+  [JOBS, 'job: signed-out allowed', "if (!session?.user?.email) return", "if (false) return", ['routes']],
+  [JOBS, 'job: wrong path', '/api/template-ingest/stage/jobs/${encodeURIComponent(jobId)}', '/api/template-ingest/stage/jobs/${jobId}/x', ['routes', 'ui']],
+  [JOBS, 'job: whole job leaks', 'const job = response.ok ? projectDeckImportJob(answer) : answer', 'const job = answer', ['routes']],
+  [JOBS, 'job: signed for the wrong method', "restEntitlementHeaders(userId, 'GET')", "restEntitlementHeaders(userId, 'POST')", ['entitlement', 'static']],
+  [JOBS, 'job: signed whatever the deck flag', "process.env.NEXT_PUBLIC_STUDIO_DECK_IMPORT === 'true' && process.env.DECKSTER_REST_ENTITLEMENT_HEADER_ENABLED === 'true'\n      ? restEntitlementHeaders(userId, 'GET')", "process.env.DECKSTER_REST_ENTITLEMENT_HEADER_ENABLED === 'true'\n      ? restEntitlementHeaders(userId, 'GET')", ['static']],
+  [JOBS, 'job: never signed', "? restEntitlementHeaders(userId, 'GET')\n      : {}", "? {}\n      : {}", ['entitlement', 'static']],
+  [JOBS, 'job: cached', "cache: 'no-store',\n      redirect", "redirect", ['routes']],
+  [JOBS, 'job: a body on a GET', "method: 'GET',\n      headers", "method: 'GET',\n      body: '{}',\n      headers", ['routes']],
+  // the carried minter: any edit is caught by the blob pin
+  [HELPER, 'minter edited', "const SIGNING_DOMAIN = 'deckster-rest-v1.'", "const SIGNING_DOMAIN = 'deckster-rest-v2.'", ['blobs']],
+  [HELPER, 'minter ignores its flag', "return process.env.DECKSTER_REST_ENTITLEMENT_HEADER_ENABLED === 'true'", 'return true', ['blobs', 'entitlement']],
+  // the hook
+  [HOOK, 'upload not storage-only', 'storageOnly: true', 'storageOnly: false', ['ui']],
+  [HOOK, 'start without a fresh id', 'const sessionId = crypto.randomUUID()', "const sessionId = 'fixed-session'", ['ui']],
+  [HOOK, 'session title', 'deckImportTitle(file.name)', 'file.name', ['ui']],
+  [HOOK, 'researcher guard dropped', "try { requireComposerServiceUrl(process.env.NEXT_PUBLIC_KNOWLEDGE_SERVICE_URL, 'researcher-v11-uat.up.railway.app') }", 'try { }', ['ui']],
+  [HOOK, 'layout guard dropped', "requireComposerServiceUrl(new URL(ready.viewer_url).origin, 'layout-builder-v75-uat.up.railway.app')", '', ['ui']],
+  [HOOK, 'viewer policy dropped', "if (evaluateLayoutViewerUrl(ready.viewer_url, LAYOUT_VIEWER_URL_POLICY).status !== 'allowed') throw new Error('unapproved viewer address')", '', ['ui']],
+  [HOOK, 'result not staged', "sessionStorage.setItem(`${COMPOSER_READY_KEY_PREFIX}${pending.session_id}`, JSON.stringify({ user_id: uid, result: ready }))", '', ['ui']],
+  [HOOK, 'staged for nobody', '{ user_id: uid, result: ready }', '{ result: ready }', ['ui']],
+  [HOOK, 'always opens', 'if (!view.summary.banner && !view.summary.notesLine) window.location.assign(href)', 'window.location.assign(href)', ['ui']],
+  [HOOK, 'never opens', 'if (!view.summary.banner && !view.summary.notesLine) window.location.assign(href)', '', ['ui']],
+  [HOOK, 'pending kept after ready', 'sessionStorage.removeItem(pendingKey)\n        } catch', '} catch', ['ui']],
+  [HOOK, 'pending not kept', 'try { sessionStorage.setItem(deckImportPendingKey(userId), JSON.stringify(pending)) }', 'try { }', ['ui']],
+  [HOOK, 'failure keeps the record', "if (pendingKey) { try { sessionStorage.removeItem(pendingKey) } catch { /* nothing stored */ } }", '', ['ui']],
+  [HOOK, 'poll without no-store', "fetch(deckImportJobEndpoint(pending.job_id), { cache: 'no-store', signal })", 'fetch(deckImportJobEndpoint(pending.job_id), { signal })', ['ui']],
+  [HOOK, 'start with credentials', "signal, headers: { 'Content-Type': 'application/json' },", "signal, headers: { 'Content-Type': 'application/json', Authorization: 'Bearer x' },", ['ui']],
+  [HOOK, 'retries not bounded', '++transient <= DECK_IMPORT_POLL_RETRIES) {\n            if', 'true) {\n            if', ['ui']],
+  [HOOK, 'any status retried', '[502, 503, 504].includes(response.status) &&', 'response.status >= 400 &&', ['ui']],
+  [HOOK, 'watch limit ignored', 'Date.now() - startedAt > DECK_IMPORT_WATCH_LIMIT_MS', 'false', ['ui']],
+  [HOOK, 'failed job keeps polling', "if (view.kind === 'failed') return fail(", "if (view.kind === 'failed') fail(", ['ui']],
+  [HOOK, 'wait ignores the interval', 'if (!await pause(view.nextMs, signal)) return', 'if (!await pause(1, signal)) return', ['ui']],
+  [HOOK, 'unmount does not stop', 'useEffect(() => () => { controllerRef.current?.abort() }, [])', 'useEffect(() => () => { }, [])', ['ui']],
+  [HOOK, 'resume ignored', 'if (!pending) return\n    const controller', 'return\n    const controller', ['ui']],
+  [HOOK, 'resume while closed', 'if (!open || !userId) return\n    let pending', 'if (!userId) return\n    let pending', ['ui']],
+  [HOOK, 'no account needed', 'if (!file || !userId || phase', 'if (!file || phase', ['ui']],
+  [HOOK, 'file check skipped', "if (refusal) { setFileError(refusal); return }", '', ['ui']],
+  [HOOK, 'retry keeps the old session', 'const sessionId = crypto.randomUUID()', 'const sessionId = retried.current ??= crypto.randomUUID()', ['ui']],
+  [HOOK, 'start answer unchecked', 'const jobId = response.ok ? deckImportAcceptedJobId(body) : null', 'const jobId = (body as { job_id?: string } | null)?.job_id ?? null', ['ui']],
+  [HOOK, 'refusal words lost', ': deckImportStartFailure(response.status, body))', ': { message: DECK_IMPORT_WORDS.START_FAILED, retryable: true })', ['ui']],
+  [HOOK, 'reset keeps the file', 'setFile(null); setFileError(null); setFailure(null)', 'setFileError(null); setFailure(null)', ['ui']],
+  // the dialog
+  [DIALOG, 'closable while working', "if (phase === 'working') return\n", '', ['ui']],
+  [DIALOG, 'picker refuses a PDF', 'accept=".pptx,.pdf"', 'accept=".pptx"', ['ui']],
+  [DIALOG, 'retry always offered', '{failure.retryable && <Button', '{<Button', ['ui']],
+  [DIALOG, 'retry never offered', '{failure.retryable && <Button', '{false && <Button', ['ui']],
+  [DIALOG, 'error not an alert', 'data-studio-deck-import-error="true" role="alert">{failure.message}', 'data-studio-deck-import-error="true">{failure.message}', ['ui']],
+  [DIALOG, 'status not announced', 'role="status" aria-live="polite" tabIndex={0} aria-label="Import status"', 'tabIndex={0} aria-label="Import status"', ['ui']],
+  [DIALOG, 'no open button for a banner', "{(summary.banner || summary.notesLine) && <Button data-studio-deck-import-action=\"open\"", "{false && <Button data-studio-deck-import-action=\"open\"", ['ui']],
+  [DIALOG, 'banner dropped', '{summary.banner && <p data-studio-deck-import-banner="true">', '{false && <p data-studio-deck-import-banner="true">', ['ui']],
+  [DIALOG, 'bar without numbers', 'aria-valuenow={working.progress.done}', '', ['ui']],
+  [DIALOG, 'another file keeps the choice', 'onClick={imp.reset}', 'onClick={() => {}}', ['ui']],
+  [DIALOG, 'close does not reset', "if (!next) imp.reset()\n", '', ['ui']],
+  [DIALOG, 'start enabled without a file', 'disabled={!imp.canStart}', 'disabled={false}', ['ui']],
+  [ENTRY, 'dialog always mounted', '{open && <StudioDeckImportDialog', '{<StudioDeckImportDialog', ['ui']],
+  [ENTRY, 'button label', 'Import a PowerPoint\n', 'Import deck\n', ['ui']],
+  // the layout
+  [LAYOUT, 'layout: flag ignored', ' || process.env.NEXT_PUBLIC_STUDIO_DECK_IMPORT !== "true"', '', ['layout']],
+  [LAYOUT, 'layout: shell ignored', 'process.env.NEXT_PUBLIC_STUDIO_V4_SHELL !== "true" || ', '', ['layout']],
+  [LAYOUT, 'layout: wrapper when off', 'return <>{children}</>\n  return', 'return <div>{children}</div>\n  return', ['layout']],
+  [LAYOUT, 'layout: button below the page', '<StudioDeckImportEntry />\n    {children}', '{children}\n    <StudioDeckImportEntry />', ['layout']],
+  // the sheet, the example and the manifest
+  [CSS, 'css: an unanchored rule', '[data-studio-deck-import-hint="true"], [data-studio-deck-import-detail="true"]', '.hint, [data-studio-deck-import-detail="true"]', ['static']],
+  [CSS, 'css: forced', 'font-size: 12px; box-shadow: none; white-space: nowrap;', 'font-size: 12px !important; box-shadow: none; white-space: nowrap;', ['static']],
+  [CSS, 'css: a token that does not exist', 'background: var(--sdi-error-bg); color: var(--sdi-danger); font-size: 12px;', 'background: var(--sdi-nonexistent); color: var(--sdi-danger); font-size: 12px;', ['static']],
+  [CSS, 'css: dark misses a token', '--sdi-error-bg: #322728;', '', ['static']],
+  [ENVFILE, 'env: default on', `${FLAG}="false"`, `${FLAG}="true"`, ['static']],
+  [ENVFILE, 'env: undocumented', `${FLAG}="false"`, `${FLAG}_X="false"`, ['static']],
+  [ENVFILE, 'env: names the helper\'s flag as a setting', 'NEXT_PUBLIC_STUDIO_DECK_IMPORT="false"', 'DECKSTER_REST_ENTITLEMENT_HEADER_ENABLED="false"\nNEXT_PUBLIC_STUDIO_DECK_IMPORT="false"', ['static']],
+  [ENVFILE, 'env: claims AI', 'The import calls no AI model.', 'The import calls an AI model.', ['static']],
+  [ENVFILE, 'env: an unlisted change to the example', 'NEXT_PUBLIC_STUDIO_KG_ASK="false"\n', 'NEXT_PUBLIC_STUDIO_KG_ASK="false" # changed\n', ['static']],
+  [PKG, 'package: script renamed', '"test:studio-deck-import": "node scripts/test-studio-deck-import.mjs"', '"test:studio-deck-imports": "node scripts/test-studio-deck-import.mjs"', ['static']],
+  [DASHBOARD, 'page: touched', 'export default function DashboardPage', 'export default function DashboardPage2', ['blobs']],
+]
+const missing = M.filter(([file, , from]) => !(OVERFILE(file)).includes(from)).map(([file, name]) => `${file}: ${name}`)
+function OVERFILE(file) { return read(file) }
+assert.deepEqual(missing, [], `mutants whose text is not in the source: ${missing.join('; ')}`)
+const survivors = []
+const stray = []
+const crashKills = []
+let killed = 0
+for (const [file, name, from, to, sections] of M) {
+  const source = read(file)
+  const mutated = source.replace(from, () => to)
+  assert.notEqual(mutated, source, `mutant "${name}" changes the source`)
+  try { await proveAll({ [file]: mutated }, sections); survivors.push(`${file}: ${name}`) }
+  catch (error) {
+    // killed by an assertion, or by the code under test failing on the mutated input (a TypeError inside lib/hook/route, matched by name: an error made inside the vm is not an
+    // instance of this realm's classes); never by a source that no longer compiles, never by the harness itself
+    const assertion = error?.code === 'ERR_ASSERTION'
+    if (!(assertion || ['TypeError', 'ReferenceError'].includes(error?.name)) || / compiles$/.test(String(error?.message))) { stray.push(`${file}: ${name}: ${String(error?.stack ?? error).split('\n').slice(0, 3).join(' | ')}`); continue }
+    killed++
+    if (!assertion) crashKills.push(name)
+  }
+}
+counting = true
+assert.deepEqual(stray, [], `mutants that broke the harness or the source instead of a check: ${stray.join('\n')}`)
+assert.deepEqual(survivors, [], `mutants survived: ${survivors.join('; ')}`)
+eq(killed, M.length)
+checks = realChecks + 1
+console.log(`Studio deck import: ${realChecks} checks passed in ${realMs} ms, ${killed}/${M.length} mutants killed (${crashKills.length} by the code under test failing on the mutated input: ${crashKills.join('; ') || 'none'}); no network.`)
+process.exit(0)
