@@ -41,6 +41,24 @@ const BASE_COMMIT = process.env.P2_POLISH_BASE || STRIP_BASE
 // the library-manage flags' block in .env.example (scripts/studio-library-manage-strip.mjs) is put back out first: this pin holds the file to the commit before the polish block
 const read = rel => stripLibraryManage(rel, fs.readFileSync(path.join(repoRoot, rel), 'utf8'))
 const baseCache = new Map()
+// .env.example and package.json are the two files every flag-gated change appends a line or a block to, so once other changes are stacked on this one they hold lines this change never wrote.
+// For those two (and only those) the base's lines must all still be there, in order, with nothing of this change left, and any extra line must be a comment, a blank, an env line or a test
+// script line (the rule scripts/test-studio-p2-publish.mjs uses). Every other file is held to the base byte for byte, as before.
+const SHARED_APPEND_ONLY = ['.env.example', 'package.json']
+function sameAsBase(rel, text, baseText) {
+  if (text === baseText) return true
+  if (!SHARED_APPEND_ONLY.includes(rel)) return false
+  const norm = line => rel === 'package.json' ? line.replace(/,\s*$/, '') : line
+  const want = baseText.split('\n').map(norm)
+  const extras = []
+  let next = 0
+  for (const line of text.split('\n').map(norm)) {
+    if (next < want.length && line === want[next]) next++
+    else extras.push(line)
+  }
+  const kind = rel === 'package.json' ? /^\s*"test:[a-z0-9-]+": "node scripts\/test-[a-z0-9-]+\.mjs"$/ : /^\s*$|^\s*#|^[A-Z][A-Z0-9_]*=/
+  return next === want.length && extras.every(line => line === '' || kind.test(line)) && !extras.some(line => /P2_POLISH|test:studio-p2-polish/.test(line))
+}
 const baseSource = rel => {
   if (!baseCache.has(rel)) {
     try { baseCache.set(rel, execFileSync('git', ['show', `${BASE_COMMIT}:${rel}`], { cwd: repoRoot, encoding: 'utf8', maxBuffer: 64 * 1024 * 1024 })) }
@@ -197,7 +215,7 @@ function proveStrip(S) {
   const changedFiles = POLISH_FILES
   for (const rel of changedFiles) {
     const stripped = stripP2Polish(rel, S[rel])
-    ok(stripped === baseSource(rel), `${rel}: stripping this change gives back the base's file, byte for byte`)
+    ok(sameAsBase(rel, stripped, baseSource(rel)), `${rel}: stripping this change gives back the base's file, byte for byte`)
     let textNow = S[rel]
     for (const [from, to] of POLISH_PAIRS[rel] ?? []) {
       eq(textNow.split(from).length - 1, 1, `${rel}: one place for ${JSON.stringify(from.slice(0, 70))}`)
@@ -208,7 +226,7 @@ function proveStrip(S) {
     if (marker !== undefined) {
       eq(S[rel].split(marker).length - 1, 1, `${rel}: the appended block starts once`)
       ok(S[rel].indexOf(marker) > 0 && baseSource(rel) === S[rel].slice(0, S[rel].indexOf(marker)), `${rel}: everything before the appended block is the base's file`)
-    } else ok(textNow === baseSource(rel), `${rel}: the listed changes, put back one by one, give back the base's file`)
+    } else ok(sameAsBase(rel, textNow, baseSource(rel)), `${rel}: the listed changes, put back one by one, give back the base's file`)
     // each pair that adds code mentions the flag (or a state it guards), unless it adds only imports, comments, JSX closers or optional type members
     for (const [from, to] of POLISH_PAIRS[rel] ?? []) {
       const had = new Map()
@@ -618,8 +636,8 @@ function proveCss(S, label = 'css') {
 function proveEnv(S, label = 'env') {
   const env = S[ENV]
   eq(env.split(`${FLAG}=`).length - 1, 1, `${label}: the flag is documented once`)
-  match(env, new RegExp(`\\n${FLAG}="false"\\n$`), `${label}: default off, the last line of the file`)
-  const block = env.slice(env.indexOf('# PASS2 POLISH PP-1..PP-7'))
+  match(env, new RegExp(`\\n${FLAG}="false"\\n(?:$|\\n)`), `${label}: default off, the last line of its own block (a later change's block may follow)`)
+  const block = env.slice(env.indexOf('# PASS2 POLISH PP-1..PP-7'), env.indexOf(`${FLAG}=`) + FLAG.length + '="false"'.length)
   for (const id of ['PP-1/2/3', 'PP-4', 'PP-5/PP-7', 'PP-6']) ok(block.includes(id), `${label}: the block says what ${id} does`)
   for (const page of ['NEXT_PUBLIC_STUDIO_P2_PUBLISH', 'NEXT_PUBLIC_STUDIO_P2_LANDING', 'NEXT_PUBLIC_STUDIO_P2_INTELLIGENCE', 'NEXT_PUBLIC_STUDIO_P2_PROFILE_MENU']) ok(block.includes(page), `${label}: the block names ${page}`)
   match(block, /READ AT BUILD TIME/, `${label}: and says it is read at build time`)

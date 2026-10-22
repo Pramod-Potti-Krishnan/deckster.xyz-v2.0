@@ -51,7 +51,7 @@ export const POLISH_PAIRS = {
     ["      </DropdownMenuLabel>\n      {usageCard(quota, onNavigate, quotaFailed)}\n      {sessionUsage && <div data-studio-session-usage=\"true\" role=\"group\" aria-label=\"Current session token usage\">{sessionUsage}</div>}\n", "      </DropdownMenuLabel>\n      {usageCard(quota, onNavigate)}\n      {sessionUsage && <div data-studio-session-usage=\"true\" role=\"group\" aria-label=\"Current session token usage\">{sessionUsage}</div>}\n"],
   ],
   "package.json": [
-    ["    \"test:studio-p2-second-brain\": \"node scripts/test-studio-p2-second-brain.mjs\",\n    \"test:studio-version-history-v2\": \"node scripts/test-studio-version-history-v2.mjs\",\n    \"test:studio-p2-polish\": \"node scripts/test-studio-p2-polish.mjs\"\n  },\n", "    \"test:studio-p2-second-brain\": \"node scripts/test-studio-p2-second-brain.mjs\",\n    \"test:studio-version-history-v2\": \"node scripts/test-studio-version-history-v2.mjs\"\n  },\n"],
+    ["    \"test:studio-p2-polish\": \"node scripts/test-studio-p2-polish.mjs\",\n", ""],
   ],
 }
 
