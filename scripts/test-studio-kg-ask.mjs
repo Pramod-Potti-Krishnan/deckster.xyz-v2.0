@@ -959,7 +959,7 @@ const MUTANTS = [
   [CSS, '!important', 'text-transform: uppercase; }', 'text-transform: uppercase !important; }'],
   [ENV, 'flag default on', `${FLAG}="false"`, `${FLAG}="true"`],
   [ENV, 'flag undocumented', `${FLAG}="false"`, `${FLAG}_X="false"`],
-  [ENV, 'no 404 note', 'answers 404', 'answers'],
+  [ENV, 'no 404 note', 'the route below answers 404', 'the route below answers'], // this block's own wording: another stacked block (Duplicate a deck) also says "answers 404", earlier in the file
   [ENV, 'claims an answer', 'It is not a written\n# answer', 'It is a written\n# answer'],
 ]
 const missing = MUTANTS.filter(([file, , from]) => !SOURCES[file].includes(from)).map(([file, name]) => `${file}: ${name}`)
