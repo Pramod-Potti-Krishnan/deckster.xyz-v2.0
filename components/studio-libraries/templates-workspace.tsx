@@ -9,10 +9,15 @@ import { isTemplateGenerationReady, templateGenerationStatus, templateGeneration
 import { FittedLibraryStage, LibraryLoading, LibraryNotice, LibrarySearch, LibraryWorkspace, MetadataDisclosure, ReadValue, StudioWorkflowLink, libraryDate, type LibraryMode } from './library-controls'
 import './templates-fidelity.css'
 import { templatesNoticeText } from '@/lib/studio-templates-notice'
+// FRONTEND-2 Pass 3 track 4 (NEXT_PUBLIC_STUDIO_TEMPLATE_LIBRARY_MANAGE): delete on a saved template's row (a Composer template shows Delete disabled, with the reason).
+import { ManagedLibraryRow, type ManagedRowChild } from './library-manage'
+import { BUSY_TEXT, COMPOSER_TEMPLATE_DELETE_REASON, isUserOwnedLibraryItem, runLibraryDelete, selectionAfterRemoval } from '@/lib/studio-library-manage'
 
 const TEMPLATES_ENABLED = process.env.NEXT_PUBLIC_TEMPLATE_BUILDER_ENABLED === 'true'
 const COMPOSER_ENABLED = process.env.NEXT_PUBLIC_COMPOSER_LIBRARY_ENABLED === 'true'
 const INGEST_ENABLED = process.env.NEXT_PUBLIC_TEMPLATE_INGEST_ENABLED === 'true'
+// FRONTEND-2 Pass 3 track 4 (NEXT_PUBLIC_STUDIO_TEMPLATE_LIBRARY_MANAGE, exact "true", default off, read at build time): the person's own saved templates get a ⋮ menu with Delete (lib/studio-library-manage.ts). Rename is not offered: Director has no template rename route. Off: the rows are exactly as before.
+const TEMPLATE_LIBRARY_MANAGE = process.env.NEXT_PUBLIC_STUDIO_TEMPLATE_LIBRARY_MANAGE === 'true'
 type DraftSlide = { title: string; purpose: string; inputs: string }
 const EMPTY_SLIDE: DraftSlide = { title: '', purpose: '', inputs: '' }
 
@@ -70,7 +75,7 @@ export function TemplatesWorkspace() {
   const accountCurrent = account?.current
   const accountReady = account === null || account.ready
   const standaloneStudio = process.env.NEXT_PUBLIC_STUDIO_V4_SHELL === 'true' && account !== null
-  const { listTemplates, getTemplate, reoptimizeTemplate, watchTemplateStatus } = useTemplates()
+  const { listTemplates, getTemplate, reoptimizeTemplate, watchTemplateStatus, deleteTemplate } = useTemplates()
   const [mode, setMode] = useState<LibraryMode>('create')
   const [templates, setTemplates] = useState<SavedTemplate[] | null>(null)
   const [selectedId, setSelectedId] = useState<string | null>(null)
@@ -259,6 +264,20 @@ export function TemplatesWorkspace() {
     }
   }
 
+  // NEXT_PUBLIC_STUDIO_TEMPLATE_LIBRARY_MANAGE: delete one saved template. lib/studio-library-manage.ts runs it (the template leaves the list only once Director confirms); ./library-manage.tsx draws the menu and the dialog. Never called with the flag off.
+  const manageDelete = async (template: SavedTemplate) => {
+    if ('stage_template_summary' in template) return { ok: false as const, message: COMPOSER_TEMPLATE_DELETE_REASON } // a Composer template (the page's own test for one) is never deleted from here
+    if (!canStartAccountAction() || optimizeBusy.current) return { ok: false as const, message: BUSY_TEXT }
+    const before = templates ?? []
+    listRequest.current += 1; setLoading(false); setActionError(''); setActionNotice('') // a library read already in flight must not bring the template back
+    const result = await runLibraryDelete('template', { getItems: () => templates, setItems: setTemplates, isCurrent: isCurrentAccount, commit: id => deleteTemplate(id) }, template.id)
+    if (result.ok && isCurrentAccount()) { setSelectedId(current => selectionAfterRemoval(before, template.id, current)); setActionNotice(`“${template.name}” was deleted from your templates.`) }
+    return result
+  }
+  const manageRow = (template: SavedTemplate, row: ManagedRowChild) => TEMPLATE_LIBRARY_MANAGE && isUserOwnedLibraryItem(template)
+    ? <ManagedLibraryRow key={template.id} kind="template" name={template.name} disabled={!accountReady || loading || Boolean(optimizingId)} deleteBlockedReason={'stage_template_summary' in template ? COMPOSER_TEMPLATE_DELETE_REASON : undefined} onDelete={() => manageDelete(template)}>{row}</ManagedLibraryRow>
+    : row
+
   return <LibraryWorkspace introScreen={standaloneStudio ? "templates" : undefined} introAutoStart={standaloneStudio} introEnabled={accountReady && !importOpen} title="Templates" description={standaloneStudio ? 'Reusable story structure, slide roles, and content slots.' : 'Start with the shape of a story. Bring fresh content, evidence, and your own theme.'} mode={mode} onModeChange={setMode} actions={INGEST_ENABLED ? <button ref={standaloneStudio ? importTrigger : undefined} type="button" className="sl-button" disabled={!accountReady} onClick={() => { if (canStartAccountAction()) setImportOpen(true) }} title="Import PowerPoint or PDF into a new Studio session"><FileUp size={15} />Import presentation</button> : undefined}>
     <div className="sl-context" data-studio-templates-fidelity={standaloneStudio ? 'true' : undefined}><Layers size={15} /><span>Reusable structure, intent, and content roles</span><span>{mode === 'create' ? 'Local planning draft' : 'Your saved library'}</span></div>
     {!accountReady && <LibraryNotice>Verifying your account… Your current library and local draft are still here. Connected actions resume after verification.</LibraryNotice>}
@@ -284,7 +303,7 @@ export function TemplatesWorkspace() {
         </> : <>
           <div className="sl-side-heading"><div className="sl-section-line"><h2>Your templates</h2><button className="sl-icon-button" type="button" onClick={() => { void refresh(); if (selectedId && !isComposerCarrier) void loadPreview(selectedId) }} disabled={loading || previewLoading || Boolean(optimizingId) || !TEMPLATES_ENABLED || !accountReady} aria-label="Refresh templates"><RefreshCw size={15} /></button></div><LibrarySearch label="Search saved templates" value={query} onChange={setQuery} /><label className="sl-field sl-filter">Readiness<select value={statusFilter} onChange={event => setStatusFilter(event.target.value)}><option value="all">All templates</option><option value="ready">Ready</option><option value="optimizing">Optimizing</option><option value="needs_optimization">Needs optimization</option><option value="needs_cleanup">Needs cleanup</option><option value="failed">Failed</option></select></label></div>
           {listError && <LibraryNotice error>{listError}{templates && <p>Showing the last loaded library. Refresh to check for updates.</p>}</LibraryNotice>}
-          <div className="sl-library-list">{loading && templates === null ? <LibraryLoading /> : filtered.length ? filtered.map(template => <button type="button" key={template.id} className="sl-record sl-template-record" aria-pressed={template.id === selectedId} disabled={!accountReady} onClick={() => { if (canStartAccountAction()) setSelectedId(template.id) }}><div className="sl-mini-blueprint" aria-hidden="true"><i /><i /><i /></div><span><strong>{template.name}</strong><small>{template.slide_count != null ? `${template.slide_count} slides` : 'Saved template'}{template.description ? ` · ${template.description}` : ''}</small>{'stage_template_summary' in template ? <span className="sl-badge">Composer template</span> : <TemplateStatus template={template} />}</span></button>) : <div className="sl-empty"><LayoutTemplate size={26} /><h3>{listError && templates === null ? 'Library unavailable' : query || statusFilter !== 'all' ? 'No matching templates' : listError ? 'Library unavailable' : 'Your best stories belong here.'}</h3><p>{listError && templates === null ? 'Refresh to load your templates.' : query || statusFilter !== 'all' ? 'Try another search or readiness filter.' : listError ? 'Refresh to try again.' : TEMPLATES_ENABLED ? 'Build a deck in Studio, then use Save as Template to create your first reusable story.' : 'The connected template library is not enabled.'}</p>{listError && <button type="button" className="sl-button" disabled={!accountReady || loading || Boolean(optimizingId)} onClick={() => void refresh()}>Retry library</button>}{(query || statusFilter !== 'all') && <button type="button" className="sl-button" onClick={() => { setQuery(''); setStatusFilter('all') }}>Clear filters</button>}</div>}</div>
+          <div className="sl-library-list">{loading && templates === null ? <LibraryLoading /> : filtered.length ? filtered.map(template => manageRow(template, <button type="button" key={template.id} className="sl-record sl-template-record" aria-pressed={template.id === selectedId} disabled={!accountReady} onClick={() => { if (canStartAccountAction()) setSelectedId(template.id) }}><div className="sl-mini-blueprint" aria-hidden="true"><i /><i /><i /></div><span><strong>{template.name}</strong><small>{template.slide_count != null ? `${template.slide_count} slides` : 'Saved template'}{template.description ? ` · ${template.description}` : ''}</small>{'stage_template_summary' in template ? <span className="sl-badge">Composer template</span> : <TemplateStatus template={template} />}</span></button>)) : <div className="sl-empty"><LayoutTemplate size={26} /><h3>{listError && templates === null ? 'Library unavailable' : query || statusFilter !== 'all' ? 'No matching templates' : listError ? 'Library unavailable' : 'Your best stories belong here.'}</h3><p>{listError && templates === null ? 'Refresh to load your templates.' : query || statusFilter !== 'all' ? 'Try another search or readiness filter.' : listError ? 'Refresh to try again.' : TEMPLATES_ENABLED ? 'Build a deck in Studio, then use Save as Template to create your first reusable story.' : 'The connected template library is not enabled.'}</p>{listError && <button type="button" className="sl-button" disabled={!accountReady || loading || Boolean(optimizingId)} onClick={() => void refresh()}>Retry library</button>}{(query || statusFilter !== 'all') && <button type="button" className="sl-button" onClick={() => { setQuery(''); setStatusFilter('all') }}>Clear filters</button>}</div>}</div>
           <div className="sl-side-footer"><p className="sl-result-count" role="status">{loading ? templates === null ? 'Loading library…' : 'Refreshing library…' : templates === null ? 'Library not loaded' : `${filtered.length} ${filtered.length === 1 ? 'template' : 'templates'}${query || statusFilter !== 'all' ? ' match' : ' in your library'}`}</p><p className="sl-helper">A template is ready for generation only after optimization completes and source cleanup is verified.</p></div>
         </>}
       </aside>
