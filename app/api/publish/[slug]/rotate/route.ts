@@ -15,6 +15,7 @@ import {
   snapshotPresentation,
 } from '@/lib/publish/layout';
 import { serializePublishedDeck } from '@/lib/publish/serialize';
+import { linkOriginOf } from '@/lib/studio-p2-publish';
 
 /**
  * POST /api/publish/[slug]/rotate
@@ -234,7 +235,7 @@ export async function POST(
       return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
     }
 
-    return NextResponse.json({ deck: serializePublishedDeck(updated), snapshotDeleted });
+    return NextResponse.json({ deck: serializePublishedDeck(updated, linkOriginOf(req)), snapshotDeleted });
 
   } catch (error) {
     if (error instanceof ServiceUrlConfigError) return NextResponse.json({ error: error.message, code: error.code }, { status: 503 })

@@ -326,3 +326,37 @@
 @media (max-width: 700px) {
   [data-studio-publish="true"] .studio-publish-viewer-grid { grid-template-columns: minmax(0, 1fr); gap: 14px; }
 }
+
+/* NEXT_PUBLIC_STUDIO_P2_PUBLISH (components/publish-p2.tsx): masked passcode with an eye and a counter, the recording estimate, the done-screen link. */
+[data-studio-publish="true"] .studio-publish-passcode { position: relative; flex: 1 1 auto; min-width: 0; }
+[data-studio-publish="true"] .studio-publish-passcode > input { width: 100%; }
+[data-studio-publish="true"] .studio-publish-passcode-eye { position: absolute; top: 50%; right: 5px; transform: translateY(-50%); display: grid; place-items: center; width: 28px; height: 28px; border: 0; border-radius: 6px; background: transparent; color: var(--sp-muted); cursor: pointer; }
+[data-studio-publish="true"] .studio-publish-passcode-eye:hover { background: var(--sp-surface); color: var(--sp-teal); }
+[data-studio-publish="true"] .studio-publish-passcode-count { margin: 4px 0 0; font-size: 11px; line-height: 1.5; color: var(--sp-danger); }
+[data-studio-publish="true"] .studio-publish-record-estimate { display: grid; }
+[data-studio-publish="true"] .studio-publish-record-estimate > label { display: flex; align-items: flex-start; gap: 10px; padding: 12px; border: 1px solid var(--sp-line); border-radius: 10px; background: var(--sp-surface); cursor: pointer; }
+[data-studio-publish="true"] .studio-publish-record-estimate > label:focus-within { outline: 2px solid var(--sp-accent); outline-offset: 2px; }
+[data-studio-publish="true"] .studio-publish-record-estimate input[type="checkbox"] { flex-shrink: 0; width: 15px; height: 15px; margin-top: 2px; accent-color: var(--sp-accent); cursor: pointer; }
+[data-studio-publish="true"] .studio-publish-record-estimate > label > span { display: grid; gap: 5px; min-width: 0; font-size: 12px; line-height: 1.5; }
+[data-studio-publish="true"] .studio-publish-record-estimate > label strong { font-weight: 600; }
+[data-studio-publish="true"] .studio-publish-record-estimate small { color: var(--sp-muted); font-size: 11px; line-height: 1.6; }
+[data-studio-publish="true"] .studio-publish-record-estimate > p { display: flex; align-items: center; gap: 8px; margin: 0; padding: 10px 12px; border: 1px dashed var(--sp-line); border-radius: 10px; color: var(--sp-muted); font-size: 11px; line-height: 1.6; }
+[data-studio-publish="true"] .studio-publish-done-link { display: grid; gap: 10px; margin-top: 4px; padding: 14px; border: 1px solid var(--sp-line); border-radius: 10px; background: var(--sp-surface); }
+[data-studio-publish="true"] .studio-publish-done-link .studio-publish-link-actions { background: var(--sp-panel); }
+[data-studio-publish="true"] .studio-publish-done-link .studio-publish-view-as-viewer { justify-self: start; }
+
+/* NEXT_PUBLIC_STUDIO_P2_PUBLISH, PUB-04 / PUB-08 / PUB-11 / PUB-15 (components/publish-p2.tsx): the Questions-step line, the on/off capability rows (wizard aside and Viewer
+   page tab), the waiting badge on the Questions tab, and the freshness line under the Viewer page thumbnail. State is a word as well as a mark, never colour alone. */
+[data-studio-publish="true"] .studio-publish-step-note { margin: 0; padding: 10px 12px; border: 1px dashed var(--sp-line); border-radius: 9px; color: var(--sp-muted); font-size: 11px; line-height: 1.6; }
+[data-studio-publish="true"] ul.studio-publish-caps { display: grid; gap: 9px; margin: 0; padding: 0; list-style: none; }
+[data-studio-publish="true"] ul.studio-publish-caps > li { display: grid; grid-template-columns: 14px minmax(0, 1fr) auto; align-items: start; gap: 9px; }
+[data-studio-publish="true"] ul.studio-publish-caps > li > svg { margin-top: 2px; color: var(--sp-teal); }
+[data-studio-publish="true"] ul.studio-publish-caps > li[data-on="false"] > svg { color: var(--sp-muted); }
+[data-studio-publish="true"] ul.studio-publish-caps > li > span { display: grid; gap: 2px; min-width: 0; }
+[data-studio-publish="true"] ul.studio-publish-caps strong { font-size: 11px; font-weight: 600; }
+[data-studio-publish="true"] ul.studio-publish-caps > li[data-on="false"] strong { color: var(--sp-muted); font-weight: 500; }
+[data-studio-publish="true"] ul.studio-publish-caps small { color: var(--sp-muted); font-size: 10px; line-height: 1.5; }
+[data-studio-publish="true"] ul.studio-publish-caps em { padding: 1px 7px; border: 1px solid var(--sp-line); border-radius: 999px; color: var(--sp-muted); font-size: 9px; font-style: normal; font-weight: 700; letter-spacing: .6px; text-transform: uppercase; line-height: 1.5; }
+[data-studio-publish="true"] ul.studio-publish-caps > li[data-on="true"] em { border-color: var(--sp-teal); background: var(--sp-teal-soft); color: var(--sp-teal); }
+[data-studio-publish="true"] .studio-publish-badge { display: inline-grid; place-items: center; min-width: 16px; height: 16px; margin-left: 6px; padding: 0 4px; border-radius: 999px; background: var(--sp-accent); color: var(--sp-panel); font-size: 10px; font-weight: 700; line-height: 1; }
+[data-studio-publish="true"] .studio-publish-viewer-preview-note { margin: 0; color: var(--sp-muted); font-size: 10px; line-height: 1.5; }

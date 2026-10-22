@@ -46,6 +46,8 @@ import { useCopyToClipboard } from '@/hooks/use-copy-to-clipboard'
 import type { SerializedPublishedDeck } from '@/lib/publish/serialize'
 import type { StudioPublishPreviewSource } from '@/lib/studio-publish-preview'
 import { STUDIO_TOP_BAR_V2_ENABLED } from '@/lib/studio-top-bar-v2'
+import { PublishPasscodeCounter, PublishPasscodeInput, PublishQuestionsBadge, publishedLink, useP2ManageFacts } from '@/components/publish-p2'
+import { audienceCopy, dialogSubtitle, narrationFact, passcodeShortBy, questionsFact, recordingVerdict, STUDIO_P2_PUBLISH_ENABLED as STUDIO_P2_PUBLISH } from '@/lib/studio-p2-publish'
 import './studio-publish.css'
 
 const STUDIO_PUBLISH = process.env.NEXT_PUBLIC_STUDIO_V4_SHELL === 'true'
@@ -260,6 +262,8 @@ export function PublishDialog({
   const isLive = Boolean(record && !record.revokedAt)
   const isStale = staleness === 'stale'
   const busy = isPublishing || savingField !== null || isRotating || isUnpublishing
+  // NEXT_PUBLIC_STUDIO_P2_PUBLISH (PUB-11): question counts and narration state of the live copy. Flag off: no request, nothing returned.
+  const p2Facts = useP2ManageFacts(record, open)
 
 
   /**
@@ -497,7 +501,9 @@ export function PublishDialog({
         setPasscode('')
         toast({
           title: 'Discarded the unsaved passcode',
-          description: `${VISIBILITY_LABELS[next].label} viewers don't need one. Nothing was saved — switch back to Restricted to set one.`,
+          description: STUDIO_P2_PUBLISH
+            ? `${audienceCopy(next)?.title ?? VISIBILITY_LABELS[next].label} needs no passcode. Nothing was saved — choose “Only people with a passcode” again to set one.`
+            : `${VISIBILITY_LABELS[next].label} viewers don't need one. Nothing was saved — switch back to Restricted to set one.`,
         })
       }
 
@@ -693,6 +699,18 @@ export function PublishDialog({
         )
       }
 
+      if (STUDIO_P2_PUBLISH && steps[3].status === 'pending') {
+        // NEXT_PUBLIC_STUDIO_P2_PUBLISH: recording starts only if the price, checked against the script just written, is not above what was ticked.
+        // The estimate mode generates nothing and charges nothing.
+        const priced = await fetch('/api/narration/render', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ slug: deck.slug, estimate: true }),
+        }).then((response) => response.json().catch(() => null)).catch(() => null)
+        const verdict = recordingVerdict(choices.recordConsentCents, priced)
+        if (!verdict.proceed) update(3, { status: 'skipped', detail: verdict.detail })
+      }
+
       if (steps[3].status === 'pending') {
         update(3, { status: 'running' })
         const render = await fetch('/api/narration/render', {
@@ -825,7 +843,7 @@ export function PublishDialog({
 
   const handleCopy = useCallback(async () => {
     if (!record) return
-    const ok = await copy(record.publicUrl)
+    const ok = await copy(publishedLink(record))
     if (!ok) {
       toast({
         title: 'Copy failed',
@@ -866,12 +884,12 @@ export function PublishDialog({
         <SelectContent data-studio-v4-shell={STUDIO_PUBLISH} data-studio-publish-popup={STUDIO_PUBLISH}>
           {(Object.keys(VISIBILITY_LABELS) as PublishVisibility[]).map((value) => (
             <SelectItem key={value} value={value}>
-              {VISIBILITY_LABELS[value].label}
+              {STUDIO_P2_PUBLISH ? audienceCopy(value)?.title : VISIBILITY_LABELS[value].label}
             </SelectItem>
           ))}
         </SelectContent>
       </Select>
-      <p id="publish-visibility-hint" className="text-xs text-muted-foreground">{VISIBILITY_LABELS[visibility]?.hint ?? 'The saved access setting is not confirmed.'}</p>
+      <p id="publish-visibility-hint" className="text-xs text-muted-foreground">{(STUDIO_P2_PUBLISH ? audienceCopy(visibility)?.hint : VISIBILITY_LABELS[visibility]?.hint) ?? 'The saved access setting is not confirmed.'}</p>
     </div>
   )
 
@@ -885,6 +903,10 @@ export function PublishDialog({
         <div className="space-y-1.5">
           <Label htmlFor="publish-passcode">Passcode</Label>
           <div className="flex items-center gap-2">
+            {STUDIO_P2_PUBLISH ? (
+              <PublishPasscodeInput fieldId="publish-passcode" describedBy="publish-passcode-help" text={passcode} onText={setPasscode} locked={busy}
+                placeholder={record?.hasPasscode ? 'Unchanged — type to replace' : 'Choose a passcode for viewers'} />
+            ) : (
             <Input
               id="publish-passcode"
               aria-describedby={STUDIO_PUBLISH ? 'publish-passcode-help' : undefined}
@@ -897,12 +919,13 @@ export function PublishDialog({
               disabled={busy}
               autoComplete="off"
             />
+            )}
             <Button
               type="button"
               variant="outline"
               size="sm"
               onClick={handlePasscodeSubmit}
-              disabled={busy || !passcode}
+              disabled={busy || !passcode || (STUDIO_P2_PUBLISH && passcodeShortBy(passcode) > 0)}
               className="flex-shrink-0"
             >
               {savingField === 'passcode' ? (
@@ -911,15 +934,20 @@ export function PublishDialog({
               Update passcode
             </Button>
           </div>
+          {STUDIO_P2_PUBLISH && <PublishPasscodeCounter text={passcode} />}
           {STUDIO_PUBLISH && <p id="publish-passcode-help" className="text-xs text-muted-foreground">Use at least six characters. Apply the passcode with Update passcode.</p>}
-          {pendingRestricted && (
+          {pendingRestricted && (STUDIO_P2_PUBLISH ? (
+            <p className="text-xs text-amber-700 dark:text-amber-400">
+              The passcode lock starts once you set a passcode. Until then the deck stays {audienceCopy(record!.visibility)?.stays ?? record!.visibility}.
+            </p>
+          ) : (
             <p className="text-xs text-amber-700 dark:text-amber-400">
               Restricted takes effect once you set a passcode — the deck is still{' '}
               {VISIBILITY_LABELS[record!.visibility as PublishVisibility]?.label.toLowerCase() ??
                 record!.visibility}
               .
             </p>
-          )}
+          ))}
           {!pendingRestricted && pendingPasscode && (
             <p className="text-xs text-amber-700 dark:text-amber-400">
               Unsaved passcode — press “Update passcode” to apply it.
@@ -980,6 +1008,7 @@ export function PublishDialog({
             at the switch that turns it on. */}
         <TabsTrigger value="qa" aria-describedby={STUDIO_PUBLISH && !record.qaEnabled ? 'publish-feature-help' : undefined} disabled={!record.qaEnabled} title={!record.qaEnabled ? 'Turn on questions in Sharing to configure them' : undefined}>
           Questions
+          {STUDIO_P2_PUBLISH && <PublishQuestionsBadge counts={p2Facts.questions} />}
           {STUDIO_PUBLISH && !record.qaEnabled && <span className="studio-publish-off">Off</span>}
           {record.qaEnabled && (
             <span
@@ -1039,7 +1068,7 @@ export function PublishDialog({
         />
       </TabsContent>
       {STUDIO_PUBLISH && <TabsContent value="viewer" className="mt-4">
-        <StudioPublishViewerSummary record={record} sessionId={sessionId} isLoading={isLoading} loadError={loadError} staleness={staleness} />
+        <StudioPublishViewerSummary record={record} sessionId={sessionId} isLoading={isLoading} loadError={loadError} staleness={staleness} {...(STUDIO_P2_PUBLISH ? { deckPreview } : {})} />
       </TabsContent>}
     </Tabs>
   ) : (
@@ -1124,7 +1153,7 @@ export function PublishDialog({
             {STUDIO_PUBLISH ? isLive ? 'Deck published' : 'Publish this deck' : isLive ? 'Deck published' : 'Publish deck'}
           </DialogTitle>
           <DialogDescription>
-            {isLive
+            {STUDIO_P2_PUBLISH ? dialogSubtitle({ live: isLive, title: deckTitle, slideCount: isLive ? record!.slideCount : slideCount }) : isLive
               ? STUDIO_PUBLISH && deckTitle ? `“${deckTitle}” · Anyone with access can view its frozen published copy.` : 'Anyone with access can view a frozen copy of this deck.'
               : `Share a view-only copy of ${deckTitle ? `“${deckTitle}”` : 'this deck'}${
                   slideCount ? ` (${slideCount} slides)` : ''
@@ -1194,7 +1223,7 @@ export function PublishDialog({
             <div className="space-y-1.5 studio-publish-link">
               <Label>Public link</Label>
               <div className="flex items-center gap-2 studio-publish-link-actions">
-                <Input readOnly value={record!.publicUrl} aria-label="Published deck link" className="font-mono text-xs" />
+                <Input readOnly value={publishedLink(record!)} aria-label="Published deck link" className="font-mono text-xs" />
                 <Button
                   type="button"
                   variant="outline"
@@ -1215,7 +1244,7 @@ export function PublishDialog({
                   aria-label="Open published link"
                   className="flex-shrink-0"
                 >
-                  <a href={record!.publicUrl} target="_blank" rel="noopener noreferrer">
+                  <a href={publishedLink(record!)} target="_blank" rel="noopener noreferrer">
                     <ExternalLink className="h-4 w-4" />
                   </a>
                 </Button>
@@ -1290,10 +1319,10 @@ export function PublishDialog({
             {STUDIO_PUBLISH && (
               <div className="studio-publish-features" aria-label="Published capabilities">
                 <span>{record!.slideCount} slides · frozen copy</span>
-                <span><Globe size={13} />{VISIBILITY_LABELS[record!.visibility as PublishVisibility]?.label ?? record!.visibility}</span>
+                <span><Globe size={13} />{STUDIO_P2_PUBLISH ? audienceCopy(record!.visibility)?.title ?? record!.visibility : VISIBILITY_LABELS[record!.visibility as PublishVisibility]?.label ?? record!.visibility}</span>
                 <span>Downloads: {[record!.allowPdf && 'PDF', record!.allowPptx && 'PowerPoint'].filter(Boolean).join(', ') || 'off'}</span>
-                <span>Questions: {record!.qaEnabled ? 'on' : 'off'}</span>
-                <span>Narration: {record!.narrationEnabled ? 'on' : 'off'}</span>
+                {STUDIO_P2_PUBLISH ? <span>{questionsFact(record!.qaEnabled, p2Facts.questions)}</span> : <span>Questions: {record!.qaEnabled ? 'on' : 'off'}</span>}
+                {STUDIO_P2_PUBLISH ? <span>{narrationFact(record!.narrationEnabled, p2Facts.narration)}</span> : <span>Narration: {record!.narrationEnabled ? 'on' : 'off'}</span>}
               </div>
             )}
             {STUDIO_PUBLISH && freshnessNotice}

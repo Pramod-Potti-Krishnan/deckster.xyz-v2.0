@@ -18,6 +18,7 @@ import {
   snapshotPresentation,
 } from '@/lib/publish/layout';
 import { isPublishVisibility, serializePublishedDeck } from '@/lib/publish/serialize';
+import { linkOriginOf } from '@/lib/studio-p2-publish';
 import { refreshQaCorpus } from '@/lib/publish/qa-corpus';
 
 /**
@@ -329,7 +330,7 @@ export async function POST(req: NextRequest) {
       after(() => refreshQaCorpus(record.id));
     }
 
-    return NextResponse.json({ deck: serializePublishedDeck(record), snapshotDeleted });
+    return NextResponse.json({ deck: serializePublishedDeck(record, linkOriginOf(req)), snapshotDeleted });
 
   } catch (error) {
     if (error instanceof ServiceUrlConfigError) return NextResponse.json({ error: error.message, code: error.code }, { status: 503 })
