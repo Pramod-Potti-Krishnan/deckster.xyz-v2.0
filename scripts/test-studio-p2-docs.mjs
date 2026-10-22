@@ -50,9 +50,19 @@ const baseSource = rel => {
 }
 // .env.example and package.json are the two files every flag-gated change appends a line or a block to, so when other changes are stacked under this one they hold lines this change never wrote.
 // For those two (and only those) the base's lines must all still be there, in order, with nothing of this change left, and any extra line must be a comment, a blank, an env line or a test script
-// line (the rule scripts/test-studio-p2-publish.mjs and test-studio-p2-polish.mjs use). Every other file is held to the base byte for byte.
+// line (the rule scripts/test-studio-p2-publish.mjs and test-studio-p2-polish.mjs use; in .env.example only the base's assignments, not its prose, must be there unchanged). Every other file is held to
+// the base byte for byte.
 function sameAsBase(rel, text, baseText) {
   if (text === baseText) return true
+  // .env.example: a flag's comment is prose that a later change may reword in place (PP-8 rewords the polish block's), so what must survive, in order, is every env assignment of the base
+  if (rel === '.env.example') {
+    const assignment = line => /^[A-Z][A-Z0-9_]*=/.test(line)
+    const want = baseText.split('\n').filter(assignment)
+    const lines = text.split('\n')
+    let next = 0
+    for (const line of lines.filter(assignment)) if (next < want.length && line === want[next]) next++
+    return next === want.length && lines.every(line => /^\s*$|^\s*#/.test(line) || assignment(line)) && !lines.some(line => /P2_DOCS/.test(line))
+  }
   const norm = line => rel === 'package.json' ? line.replace(/,\s*$/, '') : line
   const want = baseText.split('\n').map(norm)
   const extras = []
