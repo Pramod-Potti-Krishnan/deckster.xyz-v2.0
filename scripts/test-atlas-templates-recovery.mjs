@@ -3,12 +3,13 @@ import fs from 'node:fs'
 import vm from 'node:vm'
 import { readAtlasBaseline } from './atlas-witness-baseline.mjs'
 import ts from 'typescript'
+import { stripLibraryManage } from './studio-library-manage-strip.mjs'
 
 // Actual leaf callbacks and actual readiness helpers, with no network, storage,
 // navigation, server, browser, or service acknowledgement. Fixtures stay local.
 const root = new URL('../', import.meta.url)
 const path = 'components/studio-libraries/templates-workspace.tsx'
-const source = fs.readFileSync(new URL(path, root), 'utf8')
+const source = stripLibraryManage(path, fs.readFileSync(new URL(path, root), 'utf8')) // FRONTEND-2 Pass 3 track 4 (NEXT_PUBLIC_STUDIO_THEME_LIBRARY_MANAGE / NEXT_PUBLIC_STUDIO_TEMPLATE_LIBRARY_MANAGE): that change's lines are not part of what this pin holds (scripts/studio-library-manage-strip.mjs)
 const baseline = readAtlasBaseline(`63e0eb2:${path}`)
 const jsx = (type, props, key) => ({ type, props, key })
 const flat = value => Array.isArray(value) ? value.flatMap(flat) : !value || typeof value !== 'object' ? [] : [value, ...flat(value.props?.children)]

@@ -36,6 +36,7 @@ import { StudioKnowledgeFilterTabs } from "@/components/knowledge/studio-knowled
 import { StudioP2Sources } from "@/components/knowledge/studio-p2-sources"
 import { StudioP2SourcesMenu } from "@/components/knowledge/studio-p2-sources-menu"
 import { StudioP2DeckProvider } from "@/components/knowledge/studio-p2-deck-provider"
+import { StudioKgAsk } from "@/components/knowledge/studio-kg-ask"
 import type { StudioDeckDirectory } from "@/hooks/use-studio-p2-deck-titles"
 import {
   clearImportMarker, IMPORT_FAILED_TEXT, importConfirmWarning, importFailureText, normalizeKgGraph, normalizeKgStats, OFFLINE_IMPORT_TEXT, ownerTag,
@@ -59,6 +60,8 @@ const KNOWLEDGE_HEADER_ACTIONS = STUDIO_SHELL && process.env.NEXT_PUBLIC_STUDIO_
 const KNOWLEDGE_EMPTY_STATE = STUDIO_SHELL && process.env.NEXT_PUBLIC_STUDIO_KNOWLEDGE_EMPTY_STATE === "true"
 // PASS2 Second Brain (SB-02/05/06/08/10, lib/studio-p2-second-brain.ts). Exact "true" AND the Studio shell; default off, and then the page is exactly as before.
 const P2_SB = process.env.NEXT_PUBLIC_STUDIO_P2_SECOND_BRAIN === "true" && STUDIO_SHELL
+// "Ask your second brain" (lib/studio-kg-ask.ts): a question box above the map that shows the passages the graph holds on a question, with their sources. Exact "true" AND the Studio shell; default off, and then the page is exactly as before.
+const KG_ASK = process.env.NEXT_PUBLIC_STUDIO_KG_ASK === "true" && STUDIO_SHELL
 
 interface KgStats {
   node_count: number
@@ -1248,6 +1251,8 @@ stats && stats.nodes_by_type.length > 0 && (
           </Button>
         </section>
       )}
+
+      {KG_ASK && <StudioKgAsk />}
 
       <div data-studio-knowledge-role="layout" className="grid min-w-0 gap-4 xl:grid-cols-[minmax(0,1fr)_370px]">
         <section data-studio-knowledge-role="map-panel" className="min-w-0 overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm dark:border-slate-800 dark:bg-slate-900/80">

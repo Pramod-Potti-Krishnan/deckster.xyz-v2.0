@@ -3,6 +3,8 @@
 // strip the J2-04 status lines (scripts/studio-add-slide-status-strip.mjs). scripts/test-studio-deck-title.mjs proves the strip against the merge parent of this change and that every
 // addition is inert with the flag off.
 
+import { stripDuplicateDeck } from './studio-duplicate-deck-strip.mjs'
+
 export const PAGE = 'app/(app)/dashboard/page.tsx'
 
 const PAGE_ADDITIONS = [
@@ -19,7 +21,8 @@ const PAGE_ADDITIONS = [
 
 /** The Decks page without PASS2D T's lines: two imports, one constant block and seven title reads put back to the stored title. */
 export function stripDeckTitle(text) {
-  return PAGE_ADDITIONS.reduce((result, [added, original]) => result.replace(added, original), text)
+  // FRONTEND-2 Pass 3 (NEXT_PUBLIC_STUDIO_DUPLICATE_DECK): that flag's lines come out first (scripts/studio-duplicate-deck-strip.mjs), so every pin that holds this page to a base commit still sees the base.
+  return PAGE_ADDITIONS.reduce((result, [added, original]) => result.replace(added, original), stripDuplicateDeck(PAGE, text))
 }
 
 export const DECK_TITLE_ADDITIONS = PAGE_ADDITIONS

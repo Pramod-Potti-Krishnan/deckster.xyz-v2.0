@@ -1,6 +1,7 @@
 "use client"
 
 import "@/components/builder/studio-decks.css"
+import "@/components/builder/studio-duplicate-deck.css"
 
 import { useState, useEffect, useCallback, useRef } from "react"
 import { useAuth } from "@/hooks/use-auth"
@@ -22,7 +23,7 @@ import Link from "next/link"
 import { StudioIntroReplay } from "@/components/studio-intro-replay"
 import "@/components/studio-libraries/destination-intros.css"
 import { useRouter } from "next/navigation"
-import { LAYOUT_VIEWER_URL_POLICY } from "@/lib/layout-service-client"
+import { LAYOUT_VIEWER_URL_POLICY, getLayoutServiceUrl } from "@/lib/layout-service-client"
 import { evaluateLayoutViewerUrl } from "@/lib/layout-viewer-url-policy"
 import { viewOnlyIfEnabled } from "@/lib/present-view-only"
 import { deckCardDescription, deckCardStatusLabel } from "@/lib/studio-deck-cards"
@@ -30,6 +31,9 @@ import { studioDeckCardCountLabel, studioDeckCardPreviewUrl } from "@/lib/studio
 import { studioCreateLabel } from "@/lib/studio-create-word"
 import { studioDeckShownTitle, studioDeckTitleProps } from "@/lib/studio-deck-title"
 import { studioTemplateDisplayName } from "@/lib/studio-template-display-name"
+// FRONTEND-2 Pass 3 (NEXT_PUBLIC_STUDIO_DUPLICATE_DECK, default off): the deck list can copy a deck. Everything below is behind the flag; off, the Duplicate item stays disabled as it was.
+import { toast } from "@/hooks/use-toast"
+import { duplicateTargetFor, runDuplicateDeck } from "@/lib/studio-duplicate-deck"
 
 interface Presentation {
   id: string
@@ -98,9 +102,13 @@ function PresentationPreview({ presentation }: { presentation: Presentation }) {
   )
 }
 
-function PresentationCard({ presentation, onOpen, getStatusColor, getStageName, onDelete, deleteDisabled }: {
+// NEXT_PUBLIC_STUDIO_DUPLICATE_DECK: what the page passes a card when the flag is on. Undefined (flag off) renders the disabled "Duplicate" item and its note exactly as before.
+// `reason` is why this deck cannot be copied (null = it can); `state` is idle, busy (this card is being copied) or locked (another copy or a library read is running).
+interface DuplicateControl { reason: string | null; state: "idle" | "busy" | "locked"; onSelect: () => void }
+
+function PresentationCard({ presentation, onOpen, getStatusColor, getStageName, onDelete, deleteDisabled, duplicate }: {
   presentation: Presentation; onOpen: (id: string) => void
-  onDelete?: (presentation: Presentation) => void; deleteDisabled?: boolean
+  onDelete?: (presentation: Presentation) => void; deleteDisabled?: boolean; duplicate?: DuplicateControl
   getStatusColor: (status: string) => string; getStageName: (stage: number) => string
 }) {
   const href = `/builder?session_id=${encodeURIComponent(presentation.id)}`
@@ -111,10 +119,11 @@ function PresentationCard({ presentation, onOpen, getStatusColor, getStageName, 
   // PASS2D R5 (flag NEXT_PUBLIC_STUDIO_DECK_CARD_SLIDE_COUNT, default off): an unfinished deck's count is the outline's, so the card says "3 slides planned", not "3 slides" over a "1 / 1" thumbnail.
   const slideCountLabel = process.env.NEXT_PUBLIC_STUDIO_DECK_CARD_SLIDE_COUNT === "true"
   const description = cardsV2 ? deckCardDescription(presentation.title, presentation.description) : presentation.description
-  return <Card data-studio-deck-card="true" className="hover:shadow-lg transition-shadow cursor-pointer" onClick={() => onOpen(presentation.id)}>
+  const duplicateNote = duplicate ? [duplicate.reason, onDelete ? null : "Delete is not connected in this library."].filter(Boolean).join(" ") : ""
+  return <Card data-studio-deck-card="true" className={duplicate?.state === "busy" ? "hover:shadow-lg transition-shadow cursor-pointer opacity-70" : "hover:shadow-lg transition-shadow cursor-pointer"} {...(duplicate?.state === "busy" ? { "data-studio-deck-duplicating": "true" } : {})} onClick={() => onOpen(presentation.id)}>
     <Link href={href} onClick={event => event.stopPropagation()} aria-label={`Open ${deckTitle(presentation)} in Studio`} data-studio-deck-preview="true" className="block aspect-video bg-slate-100 rounded-t-lg overflow-hidden"><PresentationPreview presentation={presentation} /></Link>
     <CardHeader data-studio-deck-card-header="true"><div className="flex items-start justify-between gap-2"><div className="min-w-0 flex-1"><CardTitle className="text-lg line-clamp-1"><Link href={href} onClick={event => event.stopPropagation()} {...(DECK_TITLE_NAMES ? studioDeckTitleProps(presentation.title, deckTitle(presentation)) : {})}>{deckTitle(presentation)}</Link></CardTitle>{(!cardsV2 || description !== null) && <CardDescription className="line-clamp-2 mt-1">{description}</CardDescription>}</div>
-      <DropdownMenu><DropdownMenuTrigger asChild><Button variant="ghost" className="h-8 w-8 p-0 shrink-0" aria-label={`Manage ${deckTitle(presentation)}`} onClick={event => event.stopPropagation()} onPointerDown={event => event.stopPropagation()}><MoreVertical className="h-4 w-4" /></Button></DropdownMenuTrigger><DropdownMenuContent align="end" data-studio-deck-menu="true" onClick={event => event.stopPropagation()}><DropdownMenuItem asChild><Link href={href}>Edit</Link></DropdownMenuItem><DropdownMenuItem disabled aria-describedby={unavailableNote}>Duplicate</DropdownMenuItem>{onDelete ? <DropdownMenuItem disabled={deleteDisabled} data-studio-deck-delete="true" className="text-red-600" onSelect={() => onDelete(presentation)}>Delete session…</DropdownMenuItem> : <DropdownMenuItem disabled className="text-red-600" aria-describedby={unavailableNote}>Delete</DropdownMenuItem>}<p id={unavailableNote} className="max-w-56 px-2 py-2 text-xs text-muted-foreground">{onDelete ? "Duplicate is not connected in this library." : "Duplicate and delete are not connected in this library."}</p></DropdownMenuContent></DropdownMenu>
+      <DropdownMenu><DropdownMenuTrigger asChild><Button variant="ghost" className="h-8 w-8 p-0 shrink-0" aria-label={`Manage ${deckTitle(presentation)}`} onClick={event => event.stopPropagation()} onPointerDown={event => event.stopPropagation()}>{duplicate?.state === "busy" ? <Loader2 className="h-4 w-4 animate-spin" /> : <MoreVertical className="h-4 w-4" />}</Button></DropdownMenuTrigger><DropdownMenuContent align="end" data-studio-deck-menu="true" onClick={event => event.stopPropagation()}><DropdownMenuItem asChild><Link href={href}>Edit</Link></DropdownMenuItem>{duplicate && !duplicate.reason ? <DropdownMenuItem data-studio-deck-duplicate="true" disabled={duplicate.state !== "idle"} onSelect={() => duplicate?.onSelect()}>{duplicate.state === "busy" ? "Copying…" : "Duplicate"}</DropdownMenuItem> : <DropdownMenuItem disabled aria-describedby={unavailableNote}>Duplicate</DropdownMenuItem>}{onDelete ? <DropdownMenuItem disabled={deleteDisabled} data-studio-deck-delete="true" className="text-red-600" onSelect={() => onDelete(presentation)}>Delete session…</DropdownMenuItem> : <DropdownMenuItem disabled className="text-red-600" aria-describedby={unavailableNote}>Delete</DropdownMenuItem>}{duplicate ? duplicateNote ? <p id={unavailableNote} className="max-w-56 px-2 py-2 text-xs text-muted-foreground">{duplicateNote}</p> : null : <p id={unavailableNote} className="max-w-56 px-2 py-2 text-xs text-muted-foreground">{onDelete ? "Duplicate is not connected in this library." : "Duplicate and delete are not connected in this library."}</p>}</DropdownMenuContent></DropdownMenu>
     </div></CardHeader>
     <CardContent data-studio-deck-card-content="true"><div className="space-y-3"><div className="flex items-center justify-between"><div data-studio-deck-meta="true" className="flex items-center space-x-4 text-sm text-slate-500">{slideCountLabel ? <span data-studio-deck-count="true">{studioDeckCardCountLabel(presentation.slideCount, presentation.status)}</span> : <span>{presentation.slideCount} slides</span>}<span>Updated {new Date(presentation.updatedAt).toLocaleDateString()}</span></div><div className="flex gap-2"><Badge data-studio-deck-status={presentation.status} className={getStatusColor(presentation.status)}>{cardsV2 ? deckCardStatusLabel(presentation) : presentation.status}</Badge>{!cardsV2 && presentation.currentStage && <Badge variant="outline" className="text-xs">Stage {presentation.currentStage}: {getStageName(presentation.currentStage)}</Badge>}</div></div>{presentation.tags.length > 0 && <div className="flex flex-wrap gap-1">{presentation.tags.slice(0, 3).map(tag => <Badge key={tag} variant="outline" className="text-xs"><Tag className="h-3 w-3 mr-1" />{tag}</Badge>)}{presentation.tags.length > 3 && <Badge variant="outline" className="text-xs">+{presentation.tags.length - 3}</Badge>}</div>}</div></CardContent>
   </Card>
@@ -159,6 +168,11 @@ function DashboardForAccount({ user, isLoading }: Pick<ReturnType<typeof useAuth
   const [isDeletingSession, setIsDeletingSession] = useState(false)
   const [deleteError, setDeleteError] = useState("")
   const [deleteNotice, setDeleteNotice] = useState("")
+  // FRONTEND-2 Pass 3 (NEXT_PUBLIC_STUDIO_DUPLICATE_DECK, exact "true", default off, read at build time): a deck's card menu can copy it (lib/studio-duplicate-deck.ts). Off, none of this runs.
+  const duplicateDeckEnabled = process.env.NEXT_PUBLIC_STUDIO_DUPLICATE_DECK === "true"
+  const [duplicating, setDuplicating] = useState<{ id: string; title: string } | null>(null)
+  const [duplicateError, setDuplicateError] = useState("")
+  const duplicationPending = useRef(false)
   const deletion = useRef(0)
   const deletionPending = useRef(false)
   const request = useRef(0)
@@ -317,6 +331,56 @@ function DashboardForAccount({ user, isLoading }: Pick<ReturnType<typeof useAuth
     }
   }
 
+  const duplicateSession = async (presentation: Presentation) => {
+    if (!duplicateDeckEnabled || !owner || !hasLoadedSessions || duplicationPending.current || requestPending.current || deletionPending.current) return
+    const target = duplicateTargetFor(presentation, url => evaluateLayoutViewerUrl(url, LAYOUT_VIEWER_URL_POLICY))
+    if (!target.ok) return
+    const copyOwner = owner
+    const shownTitle = deckTitle(presentation)
+    duplicationPending.current = true
+    setDuplicating({ id: presentation.id, title: shownTitle }); setDuplicateError("")
+    try {
+      // Layout copies the deck first; then the new session row; a failure after the Layout copy soft-deletes the new session (see lib/studio-duplicate-deck.ts).
+      const result = await runDuplicateDeck({
+        source: { sessionId: presentation.id, shownTitle, currentStage: presentation.currentStage, slideCount: presentation.slideCount },
+        target,
+        deps: {
+          fetch: (input, init) => fetch(input, init),
+          layoutBaseUrl: () => getLayoutServiceUrl(),
+          newId: () => crypto.randomUUID(),
+          now: () => new Date(),
+          sleep: ms => new Promise(resolve => setTimeout(resolve, ms)),
+        },
+      })
+      if (currentOwner.current !== copyOwner) return
+      if (!result.ok) { setDuplicateError(result.message); return }
+      const stamp = (value: unknown) => typeof value === "string" && value ? value : new Date().toISOString()
+      const copy: Presentation = {
+        id: result.sessionId, title: result.title, description: result.title,
+        createdAt: stamp(result.session?.createdAt), updatedAt: stamp(result.session?.updatedAt),
+        slideCount: result.slideCount, status: getStatusFromStage(result.currentStage), thumbnail: '/placeholder.svg', folder: 'general', tags: [],
+        strawmanPreviewUrl: result.slot === "strawman" ? result.presentationUrl : null,
+        finalPresentationUrl: result.slot === "final" ? result.presentationUrl : null,
+        currentStage: result.currentStage,
+      }
+      // The new card goes first (its lastMessageAt is now), without a reload; the paging offset moves with it, as it does when a loaded deck is deleted.
+      setPresentations(items => [copy, ...items.filter(item => item.id !== copy.id)])
+      loadedSessionIds.current.add(copy.id)
+      if (paginationRef.current) {
+        const page = paginationRef.current
+        const adjusted = { ...page, nextOffset: page.nextOffset + 1, sessionCount: loadedSessionIds.current.size }
+        paginationRef.current = adjusted
+        setPagination(adjusted)
+      }
+      toast({ title: "Deck copied", description: `“${result.title}” is in your decks. Chat history stays with the original.` })
+    } catch {
+      if (currentOwner.current === copyOwner) setDuplicateError("The deck could not be copied. Nothing was created.")
+    } finally {
+      duplicationPending.current = false
+      if (currentOwner.current === copyOwner) setDuplicating(null)
+    }
+  }
+
   // Keep folder structure for future use
   useEffect(() => {
     setFolders([
@@ -324,6 +388,17 @@ function DashboardForAccount({ user, isLoading }: Pick<ReturnType<typeof useAuth
       { id: "general", name: "General", color: "purple", count: presentations.length },
     ])
   }, [presentations])
+
+  // NEXT_PUBLIC_STUDIO_DUPLICATE_DECK: undefined with the flag off, so a card renders exactly as before.
+  const duplicateControl = (presentation: Presentation): DuplicateControl | undefined => {
+    if (!duplicateDeckEnabled) return undefined
+    const target = duplicateTargetFor(presentation, url => evaluateLayoutViewerUrl(url, LAYOUT_VIEWER_URL_POLICY))
+    return {
+      reason: target.ok ? null : target.reason,
+      state: duplicating?.id === presentation.id ? "busy" : duplicating || isLoadingSessions || isLoadingMore || isDeletingSession ? "locked" : "idle",
+      onSelect: () => { void duplicateSession(presentation) },
+    }
+  }
 
   const getStatusColor = (status: string) => {
     switch (status) {
@@ -558,6 +633,9 @@ function DashboardForAccount({ user, isLoading }: Pick<ReturnType<typeof useAuth
 
           {studioShell && deleteNotice && <p data-studio-deck-delete-notice="true" role="status">{deleteNotice}</p>}
 
+          {duplicateDeckEnabled && duplicating && <p data-studio-deck-duplicate-status="true" role="status" className="flex items-center gap-2 text-xs text-slate-600 dark:text-slate-300"><Loader2 className="h-3.5 w-3.5 animate-spin" />Copying “{duplicating.title}”… This can take a moment.</p>}
+          {duplicateDeckEnabled && duplicateError && <div data-studio-deck-duplicate-error="true" role="alert" className="flex items-start justify-between gap-3 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-xs text-red-800 dark:border-red-900 dark:bg-red-950 dark:text-red-200"><p>{duplicateError}</p><Button variant="ghost" size="sm" className="h-6 shrink-0 px-2 text-xs" onClick={() => setDuplicateError("")}>Dismiss</Button></div>}
+
           {/* Filter Panel */}
           {showFilters && (
             <Card id="deck-filter-panel" data-studio-deck-filters="true" className="p-4">
@@ -624,7 +702,7 @@ function DashboardForAccount({ user, isLoading }: Pick<ReturnType<typeof useAuth
 
           {(["completed", "strawman"] as const).map(tab => <TabsContent key={tab} value={tab} className="space-y-6">
             {!hasLoadedSessions && !sessionsError ? <div data-studio-deck-loading="true" role="status" className="flex items-center justify-center gap-3 py-12 text-sm text-muted-foreground"><Loader2 className="h-5 w-5 animate-spin" />Loading presentations…</div> : !hasLoadedSessions && sessionsError ? <div data-studio-deck-empty="true" className="text-center py-12"><h3 className="text-lg font-semibold mb-2">Your library is unavailable</h3><p className="text-slate-600">Retry the library above to load your presentations.</p></div> : <>
-              <div data-studio-deck-grid="true" data-studio-deck-view={view} className={deckGrid4 ? "grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6" : "grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6"}>{filteredPresentations.map(presentation => <PresentationCard key={presentation.id} presentation={presentation} onOpen={id => router.push(`/builder?session_id=${encodeURIComponent(id)}`)} getStatusColor={getStatusColor} getStageName={getStageName} onDelete={studioShell && hasLoadedSessions ? requestDelete : undefined} deleteDisabled={isLoadingSessions || isLoadingMore || isDeletingSession} />)}</div>
+              <div data-studio-deck-grid="true" data-studio-deck-view={view} className={deckGrid4 ? "grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6" : "grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6"}>{filteredPresentations.map(presentation => <PresentationCard key={presentation.id} presentation={presentation} onOpen={id => router.push(`/builder?session_id=${encodeURIComponent(id)}`)} getStatusColor={getStatusColor} getStageName={getStageName} onDelete={studioShell && hasLoadedSessions ? requestDelete : undefined} deleteDisabled={isLoadingSessions || isLoadingMore || isDeletingSession} duplicate={duplicateControl(presentation)} />)}</div>
               {filteredPresentations.length === 0 && hasLoadedSessions && <div data-studio-deck-empty="true" className="text-center py-12"><Sparkles className="h-12 w-12 text-slate-400 mx-auto mb-4" /><h3 className="text-lg font-semibold mb-2">{hasActiveCriteria ? "No matching presentations" : tab === "completed" ? "No completed presentations found" : "No strawman previews found"}</h3><p className="text-slate-600 mb-4">{hasActiveCriteria ? "Try a different search or clear the folder, tag, and status filters." : tab === "completed" ? "Complete a strawman preview to create your first presentation." : "Create a presentation to generate a strawman preview."}</p>{hasActiveCriteria ? <Button variant="outline" onClick={clearFilters}><X className="mr-2 h-4 w-4" />Clear search and filters</Button> : <Button data-studio-deck-primary="true" asChild><Link href="/builder"><Plus className="mr-2 h-4 w-4" />{studioCreateLabel(createWord, "Create Presentation")}</Link></Button>}</div>}
             </>}
           </TabsContent>)}

@@ -2,6 +2,7 @@ import assert from 'node:assert/strict'
 import fs from 'node:fs'
 import vm from 'node:vm'
 import ts from 'typescript'
+import { stripLibraryManage } from './studio-library-manage-strip.mjs'
 
 // Real read-only components and local selection callbacks only; no service hook runs.
 let flag = 'true', cells = [], cursor = 0
@@ -23,7 +24,7 @@ const imports = { './templates-fidelity.css': {}, './library-account-boundary': 
   '@/hooks/use-templates': { useTemplates: refuse, isTemplateGenerationReady: refuse, templateGenerationStatus: refuse, templateGenerationStatusLabel: refuse, templateGenerationUnavailableReason: refuse },
 }
 function load(relative, suffix = '') {
-  const source = fs.readFileSync(new URL(relative, import.meta.url), 'utf8') + suffix
+  const source = stripLibraryManage(relative.replace(/^\.\.\//, ''), fs.readFileSync(new URL(relative, import.meta.url), 'utf8')) + suffix // FRONTEND-2 Pass 3 track 4 (NEXT_PUBLIC_STUDIO_THEME_LIBRARY_MANAGE / NEXT_PUBLIC_STUDIO_TEMPLATE_LIBRARY_MANAGE): that change's lines are not part of what this pin holds (scripts/studio-library-manage-strip.mjs)
   const compiled = ts.transpileModule(source, { reportDiagnostics: true, compilerOptions: { jsx: ts.JsxEmit.ReactJSX, module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2020 } })
   assert.equal((compiled.diagnostics || []).filter(entry => entry.category === ts.DiagnosticCategory.Error).length, 0)
   const mod = { exports: {} }

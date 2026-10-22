@@ -1,0 +1,92 @@
+/* "Ask your second brain" (flag NEXT_PUBLIC_STUDIO_KG_ASK, default off). Every rule hangs on data-studio-kg-ask, a marker only the flag-on markup carries, so with the flag off none of
+   them matches anything. Tokens only (--ss-*), so light and dark both follow the shell. The look is the Second Brain's own: panel, hairline border, teal caption, the inspector's evidence cards. */
+[data-studio-v4-shell="true"] [data-studio-kg-ask="true"] {
+  position: relative; z-index: 20; margin-bottom: 12px; padding: 10px 14px; border: 1px solid var(--ss-line); border-radius: 12px; background: var(--ss-panel); color: var(--ss-text);
+}
+[data-studio-v4-shell="true"] [data-studio-kg-ask="true"] [data-studio-kg-ask-row="true"] { display: flex; align-items: center; gap: 16px; }
+[data-studio-v4-shell="true"] [data-studio-kg-ask="true"] [data-studio-kg-ask-title="true"] { display: inline-flex; flex: 0 0 auto; align-items: center; gap: 7px; color: var(--ss-teal); }
+[data-studio-v4-shell="true"] [data-studio-kg-ask="true"] [data-studio-kg-ask-title="true"] h2 { margin: 0; color: var(--ss-text); font-size: 14px; font-weight: 600; white-space: nowrap; }
+
+[data-studio-v4-shell="true"] [data-studio-kg-ask="true"] [data-studio-kg-ask-form="true"] { display: flex; flex: 1 1 auto; align-items: center; gap: 8px; min-width: 0; }
+[data-studio-v4-shell="true"] [data-studio-kg-ask="true"] [data-studio-kg-ask-form="true"] input {
+  flex: 1 1 auto; min-width: 0; height: 34px; padding: 0 11px; border: 1px solid var(--ss-line); border-radius: 7px; background: var(--ss-field); color: var(--ss-text); font-size: 12px;
+}
+[data-studio-v4-shell="true"] [data-studio-kg-ask="true"] [data-studio-kg-ask-form="true"] input::placeholder { color: var(--ss-muted); }
+[data-studio-v4-shell="true"] [data-studio-kg-ask="true"] [data-studio-kg-ask-form="true"] input[aria-invalid="true"] { border-color: var(--ss-accent); }
+[data-studio-v4-shell="true"] [data-studio-kg-ask="true"] [data-studio-kg-ask-submit="true"] {
+  display: inline-flex; align-items: center; gap: 6px; flex: 0 0 auto; height: 34px; padding: 0 14px; border: 0; border-radius: 7px; background: var(--ss-action); color: var(--ss-on-action); font-size: 12px; font-weight: 600; cursor: pointer;
+}
+[data-studio-v4-shell="true"] [data-studio-kg-ask="true"] [data-studio-kg-ask-submit="true"]:hover:not(:disabled) { background: var(--ss-action-hover); }
+[data-studio-v4-shell="true"] [data-studio-kg-ask="true"] [data-studio-kg-ask-submit="true"]:disabled { opacity: .65; cursor: default; }
+[data-studio-v4-shell="true"] [data-studio-kg-ask="true"] [data-studio-kg-ask-clear="true"] {
+  display: grid; place-items: center; flex: 0 0 auto; width: 28px; height: 28px; border: 0; border-radius: 6px; background: transparent; color: var(--ss-muted); cursor: pointer;
+}
+[data-studio-v4-shell="true"] [data-studio-kg-ask="true"] [data-studio-kg-ask-clear="true"]:hover { background: var(--ss-active); color: var(--ss-text); }
+[data-studio-v4-shell="true"] [data-studio-kg-ask="true"] [data-studio-kg-ask-note="true"] { margin: 6px 0 0; color: var(--ss-muted); font-size: 11px; line-height: 1.5; }
+[data-studio-v4-shell="true"] [data-studio-kg-ask="true"] [data-studio-kg-ask-note="true"][data-over="true"] { color: var(--ss-text); font-weight: 600; }
+[data-studio-v4-shell="true"] [data-studio-kg-ask="true"] [data-studio-kg-ask-note="true"] span { font-variant-numeric: tabular-nums; }
+
+/* The hint stays under the field in every state, so the box never changes height. Whatever is asked opens in a panel under the box, over the map and the inspector (the way the search results and the
+   Sources list open), so the page never reflows; a long answer scrolls inside the panel. Escape or Clear closes it. */
+[data-studio-v4-shell="true"] [data-studio-kg-ask="true"] [data-studio-kg-ask-hint="true"] { margin: 6px 0 0; color: var(--ss-muted); font-size: 11px; line-height: 1.65; max-width: 720px; }
+[data-studio-v4-shell="true"] [data-studio-kg-ask="true"] [data-studio-kg-ask-result="true"] { margin: 0; }
+[data-studio-v4-shell="true"] [data-studio-kg-ask="true"] [data-studio-kg-ask-result="true"][data-open="true"] {
+  position: absolute; z-index: 30; top: calc(100% + 6px); left: 0; right: 0; max-height: min(58vh, 540px); overflow-y: auto; overscroll-behavior: contain; scrollbar-width: thin;
+  padding: 14px; border: 1px solid var(--ss-line); border-radius: 12px; background: var(--ss-panel); box-shadow: 0 12px 32px rgb(0 0 0 / 18%);
+}
+[data-studio-v4-shell="true"] [data-studio-kg-ask="true"] [data-studio-kg-ask-loading="true"] { display: flex; align-items: center; gap: 8px; margin: 0; color: var(--ss-muted); font-size: 12px; }
+[data-studio-v4-shell="true"] [data-studio-kg-ask="true"] [data-studio-kg-ask-loading="true"] svg { color: var(--ss-teal); }
+
+[data-studio-v4-shell="true"] [data-studio-kg-ask="true"] [data-studio-kg-ask-summary="true"] { margin: 0 0 4px; font-size: 12px; line-height: 1.6; color: var(--ss-muted); }
+[data-studio-v4-shell="true"] [data-studio-kg-ask="true"] [data-studio-kg-ask-summary="true"] strong { color: var(--ss-text); font-weight: 600; }
+[data-studio-v4-shell="true"] [data-studio-kg-ask="true"] [data-studio-kg-ask-answer="true"] h3 { margin: 12px 0 6px; color: var(--ss-teal); font-size: 10px; font-weight: 600; letter-spacing: .13em; text-transform: uppercase; }
+
+[data-studio-v4-shell="true"] [data-studio-kg-ask="true"] [data-studio-kg-ask-columns="true"] { display: grid; gap: 0 22px; }
+@media (min-width: 900px) {
+  [data-studio-v4-shell="true"] [data-studio-kg-ask="true"] [data-studio-kg-ask-columns="true"][data-two="true"] { grid-template-columns: minmax(0, 1fr) minmax(240px, 320px); align-items: start; }
+}
+[data-studio-v4-shell="true"] [data-studio-kg-ask="true"] [data-studio-kg-ask-passages="true"] { display: flex; flex-direction: column; gap: 8px; margin: 0; padding: 0; list-style: none; }
+[data-studio-v4-shell="true"] [data-studio-kg-ask="true"] [data-studio-kg-ask-passage="true"] { display: flex; gap: 10px; padding: 11px; border: 1px solid var(--ss-line); border-radius: 8px; background: var(--ss-surface); }
+[data-studio-v4-shell="true"] [data-studio-kg-ask="true"] [data-studio-kg-ask-passage="true"] > div { min-width: 0; flex: 1 1 auto; }
+[data-studio-v4-shell="true"] [data-studio-kg-ask="true"] [data-studio-kg-ask-number="true"] {
+  display: grid; place-items: center; flex: 0 0 22px; width: 22px; height: 22px; border-radius: 50%; background: var(--ss-soft); color: var(--ss-teal); font-size: 11px; font-variant-numeric: tabular-nums;
+}
+[data-studio-v4-shell="true"] [data-studio-kg-ask="true"] [data-studio-kg-ask-passage="true"] blockquote { margin: 0; color: var(--ss-text); font-size: 12px; line-height: 1.75; white-space: pre-wrap; overflow-wrap: anywhere; }
+[data-studio-v4-shell="true"] [data-studio-kg-ask="true"] [data-studio-kg-ask-source="true"] { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; margin: 8px 0 0; color: var(--ss-muted); font-size: 11px; }
+[data-studio-v4-shell="true"] [data-studio-kg-ask="true"] [data-studio-kg-ask-source="true"] svg { flex-shrink: 0; color: var(--ss-teal); }
+[data-studio-v4-shell="true"] [data-studio-kg-ask="true"] [data-studio-kg-ask-source="true"] strong { color: var(--ss-text); font-weight: 600; overflow-wrap: anywhere; }
+[data-studio-v4-shell="true"] [data-studio-kg-ask="true"] [data-studio-kg-ask-source="true"] small { font-size: 10px; }
+[data-studio-v4-shell="true"] [data-studio-kg-ask="true"] [data-studio-kg-ask-links="true"] { display: flex; flex-wrap: wrap; gap: 14px; margin: 6px 0 0; }
+[data-studio-v4-shell="true"] [data-studio-kg-ask="true"] [data-studio-kg-ask-links="true"] a { display: inline-flex; align-items: center; gap: 4px; color: var(--ss-teal); font-size: 11px; font-weight: 600; text-decoration: none; }
+[data-studio-v4-shell="true"] [data-studio-kg-ask="true"] [data-studio-kg-ask-links="true"] a:hover { text-decoration: underline; }
+
+[data-studio-v4-shell="true"] [data-studio-kg-ask="true"] [data-studio-kg-ask-entities="true"] { display: flex; flex-wrap: wrap; gap: 6px; margin: 0; padding: 0; list-style: none; }
+[data-studio-v4-shell="true"] [data-studio-kg-ask="true"] [data-studio-kg-ask-entities="true"] li { display: inline-flex; align-items: baseline; gap: 6px; padding: 4px 10px; border: 1px solid var(--ss-line); border-radius: 999px; background: var(--ss-surface); color: var(--ss-text); font-size: 11px; }
+[data-studio-v4-shell="true"] [data-studio-kg-ask="true"] [data-studio-kg-ask-entities="true"] li[data-best="true"] { border-color: var(--ss-teal); }
+[data-studio-v4-shell="true"] [data-studio-kg-ask="true"] [data-studio-kg-ask-entities="true"] small { color: var(--ss-muted); font-size: 10px; }
+[data-studio-v4-shell="true"] [data-studio-kg-ask="true"] [data-studio-kg-ask-connections="true"] { display: flex; flex-direction: column; gap: 4px; margin: 0; padding: 0; list-style: none; }
+[data-studio-v4-shell="true"] [data-studio-kg-ask="true"] [data-studio-kg-ask-connections="true"] li { color: var(--ss-text); font-size: 11.5px; line-height: 1.7; overflow-wrap: anywhere; }
+[data-studio-v4-shell="true"] [data-studio-kg-ask="true"] [data-studio-kg-ask-connections="true"] li strong { font-weight: 500; }
+[data-studio-v4-shell="true"] [data-studio-kg-ask="true"] [data-studio-kg-ask-connections="true"] li span { margin: 0 7px; color: var(--ss-teal); }
+
+[data-studio-v4-shell="true"] [data-studio-kg-ask="true"] [data-studio-kg-ask-empty="true"] { padding: 4px 0; }
+[data-studio-v4-shell="true"] [data-studio-kg-ask="true"] [data-studio-kg-ask-empty="true"] strong { display: block; color: var(--ss-text); font-size: 13px; font-weight: 500; }
+[data-studio-v4-shell="true"] [data-studio-kg-ask="true"] [data-studio-kg-ask-empty="true"] p { margin: 4px 0 0; max-width: 620px; color: var(--ss-muted); font-size: 11px; line-height: 1.65; }
+
+[data-studio-v4-shell="true"] [data-studio-kg-ask="true"] [data-studio-kg-ask-error="true"] {
+  display: flex; align-items: center; gap: 10px; padding: 10px 12px; border: 1px solid var(--ss-line); border-radius: 9px; background: var(--ss-surface);
+}
+[data-studio-v4-shell="true"] [data-studio-kg-ask="true"] [data-studio-kg-ask-error="true"] svg { flex-shrink: 0; color: var(--ss-accent); }
+[data-studio-v4-shell="true"] [data-studio-kg-ask="true"] [data-studio-kg-ask-error="true"] p { flex: 1 1 auto; margin: 0; color: var(--ss-text); font-size: 12px; line-height: 1.55; }
+[data-studio-v4-shell="true"] [data-studio-kg-ask="true"] [data-studio-kg-ask-error="true"] button {
+  flex: 0 0 auto; padding: 5px 11px; border: 1px solid var(--ss-line); border-radius: 6px; background: var(--ss-panel); color: var(--ss-teal); font-size: 11px; cursor: pointer;
+}
+[data-studio-v4-shell="true"] [data-studio-kg-ask="true"] [data-studio-kg-ask-error="true"] button:hover { background: var(--ss-active); }
+
+@media (max-width: 720px) {
+  [data-studio-v4-shell="true"] [data-studio-kg-ask="true"] [data-studio-kg-ask-row="true"] { flex-wrap: wrap; gap: 8px; }
+  [data-studio-v4-shell="true"] [data-studio-kg-ask="true"] [data-studio-kg-ask-form="true"] { flex-basis: 100%; }
+}
+@media (max-width: 640px) {
+  [data-studio-v4-shell="true"] [data-studio-kg-ask="true"] [data-studio-kg-ask-error="true"] { flex-wrap: wrap; }
+}

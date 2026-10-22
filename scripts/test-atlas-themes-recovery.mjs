@@ -3,11 +3,12 @@ import fs from 'node:fs'
 import vm from 'node:vm'
 import { readAtlasBaseline } from './atlas-witness-baseline.mjs'
 import ts from 'typescript'
+import { stripLibraryManage } from './studio-library-manage-strip.mjs'
 
 // Actual Themes leaf callbacks, native payload, preview helpers and safe handoff
 // props. Deferred receipts are local fixtures; all external operations refuse.
 const root = new URL('../', import.meta.url), file = 'components/studio-libraries/themes-workspace.tsx'
-const source = fs.readFileSync(new URL(file, root), 'utf8')
+const source = stripLibraryManage(file, fs.readFileSync(new URL(file, root), 'utf8')) // FRONTEND-2 Pass 3 track 4 (NEXT_PUBLIC_STUDIO_THEME_LIBRARY_MANAGE / NEXT_PUBLIC_STUDIO_TEMPLATE_LIBRARY_MANAGE): that change's lines are not part of what this pin holds (scripts/studio-library-manage-strip.mjs)
 const baseline = readAtlasBaseline(`b1e8370:${file}`)
 // J4-FONTS (reviewed): the only fieldset additions are the flag-gated pickers and the flag-gated sentence; flag off both are today's markup.
 const fontPickers = "            {THEME_FONT_SELECTION_ENABLED && draft.mode !== 'auto' && <FontFields draft={draft} onChange={patchDraft} />}\n"

@@ -6,6 +6,8 @@
 // Every addition is flag-gated or inert flag off (false / undefined / not drawn): scripts/test-studio-add-slide-status.mjs hashes the panel's
 // markup and a scripted session against the base's, and runs the page's own handlers on recorded frames with the flag off and on.
 
+import { stripDuplicateDeck } from './studio-duplicate-deck-strip.mjs'
+
 const PAGE = 'app/builder/page.tsx'
 const PANEL = 'components/studio-add-slide-v2.tsx'
 
@@ -35,5 +37,6 @@ const PANEL_ADDITIONS = [
 /** `text` of repo file `rel` without this change's additions (any other file comes back as it is). */
 export function stripAddSlideStatus(rel, text) {
   const table = rel === PAGE ? PAGE_ADDITIONS : rel === PANEL ? PANEL_ADDITIONS : []
-  return table.reduce((out, [from, to]) => out.replace(from, to), text)
+  // FRONTEND-2 Pass 3 (NEXT_PUBLIC_STUDIO_DUPLICATE_DECK): the Builder page's import and one gated element come out first (scripts/studio-duplicate-deck-strip.mjs).
+  return table.reduce((out, [from, to]) => out.replace(from, to), stripDuplicateDeck(rel, text))
 }

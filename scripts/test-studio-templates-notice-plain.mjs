@@ -21,6 +21,7 @@ import vm from 'node:vm'
 import { execFileSync } from 'node:child_process'
 import { createRequire } from 'node:module'
 import ts from 'typescript'
+import { stripLibraryManage } from './studio-library-manage-strip.mjs'
 
 const repoRoot = path.resolve(new URL('..', import.meta.url).pathname)
 const nodeRequire = createRequire(path.join(repoRoot, 'package.json'))
@@ -28,7 +29,7 @@ const React = nodeRequire('react')
 const jsxRuntime = nodeRequire('react/jsx-runtime')
 const { renderToStaticMarkup } = nodeRequire('react-dom/server')
 const BASE_COMMIT = process.env.TEMPLATES_NOTICE_PLAIN_BASE || 'e9503ae'
-const read = rel => fs.readFileSync(path.join(repoRoot, rel), 'utf8')
+const read = rel => stripLibraryManage(rel, fs.readFileSync(path.join(repoRoot, rel), 'utf8')) // FRONTEND-2 Pass 3 track 4 (NEXT_PUBLIC_STUDIO_THEME_LIBRARY_MANAGE / NEXT_PUBLIC_STUDIO_TEMPLATE_LIBRARY_MANAGE): that change's lines are not part of what this pin holds (scripts/studio-library-manage-strip.mjs)
 const baseSource = rel => execFileSync('git', ['show', `${BASE_COMMIT}:${rel}`], { cwd: repoRoot, encoding: 'utf8', maxBuffer: 64 * 1024 * 1024 })
 let checks = 0
 let counting = true
