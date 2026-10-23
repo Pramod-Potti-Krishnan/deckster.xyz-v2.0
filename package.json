@@ -162,7 +162,8 @@
     "test:studio-p2-profile-page": "node scripts/test-studio-p2-profile-page.mjs",
     "test:studio-chat-element-refine": "node scripts/test-studio-chat-element-refine.mjs",
     "test:studio-chat-theme-export": "node scripts/test-studio-chat-theme-export.mjs",
-    "test:studio-model-catalog": "node scripts/test-studio-model-catalog.mjs"
+    "test:studio-model-catalog": "node scripts/test-studio-model-catalog.mjs",
+    "test:studio-narration-router": "node scripts/test-studio-narration-router.mjs"
   },
   "dependencies": {
     "@auth/prisma-adapter": "^2.10.0",
