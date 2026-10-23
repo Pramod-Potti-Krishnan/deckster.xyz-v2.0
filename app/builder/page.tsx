@@ -114,6 +114,9 @@ import { studioComposerContextLabel } from '@/lib/studio-chat-composer-context'
 import { studioChatEditPromptActive } from '@/lib/studio-pass2b-chat'
 import { useStudioStaleErrorNotice } from '@/hooks/use-studio-stale-error-notice'
 import { StudioBlockedSendNotice } from '@/components/builder/studio-blocked-send-notice'
+// NEXT_PUBLIC_STUDIO_JOB_LEDGER (P3-4c, default off): Director's failed or timed-out jobs as calm cards at the end of the chat (lib/studio-job-ledger.ts).
+import { STUDIO_JOB_LEDGER_ENABLED } from '@/lib/studio-job-ledger'
+import { StudioJobLedgerCards, studioJobLedger } from '@/components/builder/chat/studio-job-ledger-card'
 import { StudioSupersededNotice } from '@/components/builder/studio-superseded-notice'
 import { StudioCopiedFromNote } from '@/components/builder/studio-copied-from-note'
 // NEXT_PUBLIC_STUDIO_DECK_IMPORT (default off): the note on an imported deck, loaded only when it is drawn (a build or page that does not draw it ships nothing of it).
@@ -2605,6 +2608,8 @@ function AuthenticatedBuilderContent({ authScopeUserId }: { authScopeUserId: str
         themeExportDirectiveRunnerRef.current?.(message, owner)
       },
     } : {}),
+    // NEXT_PUBLIC_STUDIO_JOB_LEDGER: Director's job rows (job_update, sync_response jobs) go to this tab's ledger. Off: not passed.
+    ...(STUDIO_JOB_LEDGER_ENABLED ? { onJobUpdate: studioJobLedger.onJobUpdate, onJobsSync: studioJobLedger.onJobsSync } : {}),
     // Build Narration: typed-frame ref-forwarders (WS options precede the
     // useBuildNarration hook, so the handlers land via a ref).
     onBuildPhase: (payload, ownerSessionId) => buildNarrationHandlersRef.current.onBuildPhase?.(payload, ownerSessionId),
@@ -7625,6 +7630,10 @@ function AuthenticatedBuilderContent({ authScopeUserId }: { authScopeUserId: str
                         isGeneratingFinal={isGeneratingFinal}
                         suppressEphemeral={effectiveBuildNarrationEnabled}
                       />
+                      {/* NEXT_PUBLIC_STUDIO_JOB_LEDGER (Studio shell): a card per failed or timed-out job of this session; Retry sends job_retry. */}
+                      {STUDIO_JOB_LEDGER_ENABLED && studioShell && (
+                        <StudioJobLedgerCards sessionId={currentSessionId || wsSessionId} sendJobRetry={jobId => sendControlMessage('job_retry', { job_id: jobId })} />
+                      )}
                       {STUDIO_BLOCKED_SEND_FEEDBACK_ENABLED && blockedSendNotice && (
                         <div ref={blockedSendNoticeRef}>
                           <StudioBlockedSendNotice notice={blockedSendNotice} onDismiss={() => setBlockedSendNotice(null)} />
