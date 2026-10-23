@@ -3296,6 +3296,7 @@ function AuthenticatedBuilderContent({ authScopeUserId }: { authScopeUserId: str
     sessionId: currentSessionId || wsSessionId,
     presentationId: effectivePresentationId,
     onReload: reloadDeckFromOtherTab,
+    connectionGeneration, // P3-4 NEXT_PUBLIC_STUDIO_RECONNECT_RESYNC: a reconnect resyncs the shown deck (the hook ignores it with the flag off)
   })
   // Applying a theme changes the shared deck: tell the other tabs once Director confirms it (the theme sync turns applied, within a minute
   // of the pick). Only a theme picked here counts: the connect-time sync, a restored theme or another tab's pick never stamp a pick.

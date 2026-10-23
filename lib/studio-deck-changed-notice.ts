@@ -26,6 +26,12 @@
 
 /** Read as a literal so the Next build inlines it into client bundles. */
 export const STUDIO_DECK_CHANGED_NOTICE_ENABLED = process.env.NEXT_PUBLIC_STUDIO_DECK_CHANGED_NOTICE === 'true'
+/** P3-4 (flag NEXT_PUBLIC_STUDIO_RECONNECT_RESYNC, exact "true", default off; acts only with the notice flag on): after Director's
+ * socket reconnects, the tab reads the slide inventory once and, when the deck differs from what it shows, reloads it (no unsaved
+ * edits) or shows the notice (unsaved edits: the user decides). Off: resyncAfterReconnect is never called. */
+export const STUDIO_RECONNECT_RESYNC_ENABLED = process.env.NEXT_PUBLIC_STUDIO_RECONNECT_RESYNC === 'true'
+/** At most one reconnect resync read per this gap (a reconnect loop, or two tabs fighting over one session, cannot hammer Layout). */
+export const RECONNECT_RESYNC_MIN_GAP_MS = 10_000
 
 export type DeckChangeKind = 'slide' | 'element' | 'theme'
 
@@ -147,7 +153,7 @@ export function inventoryDiffers(input: { viewerSlideCount: number | null; readC
 
 // ---------------------------------------------------------------- controller
 
-export type DeckChangedNoticeSource = 'broadcast' | 'visibility' | 'focus'
+export type DeckChangedNoticeSource = 'broadcast' | 'visibility' | 'focus' | 'reconnect'
 
 export interface DeckChangedNotice {
   id: number
@@ -201,6 +207,10 @@ export interface DeckChangedControllerDeps {
   /** Circuit breaker: at most this many sends in `breakerWindowMs`. */
   breakerMaxSends?: number
   breakerWindowMs?: number
+  /** P3-4 reconnect resync: the page's deck reload, run when a reconnect finds the deck changed and the viewer has no unsaved edits. */
+  onResync?: () => void
+  /** Minimum gap between two reconnect resync reads (RECONNECT_RESYNC_MIN_GAP_MS). */
+  reconnectMinGapMs?: number
 }
 
 export interface DeckChangedController {
@@ -215,6 +225,8 @@ export interface DeckChangedController {
   dismiss(): void
   dispose(): void
   getNotice(): DeckChangedNotice | null
+  /** P3-4: Director's socket reconnected. Read the inventory once; a changed deck is reloaded (onResync, no unsaved edits) or noticed. */
+  resyncAfterReconnect(): Promise<'reloaded' | 'notice' | 'same' | 'skipped'>
 }
 
 export function createDeckChangedController(deps: DeckChangedControllerDeps): DeckChangedController {
@@ -227,6 +239,8 @@ export function createDeckChangedController(deps: DeckChangedControllerDeps): De
   const checkMinGapMs = deps.checkMinGapMs ?? 5000
   const breakerMaxSends = deps.breakerMaxSends ?? 20
   const breakerWindowMs = deps.breakerWindowMs ?? 10_000
+  const reconnectMinGapMs = deps.reconnectMinGapMs ?? RECONNECT_RESYNC_MIN_GAP_MS
+  let nextReconnectAt = 0
 
   let disposed = false
   let notice: DeckChangedNotice | null = null
@@ -387,6 +401,32 @@ export function createDeckChangedController(deps: DeckChangedControllerDeps): De
       notice = null
     },
     getNotice: () => notice,
+    async resyncAfterReconnect() {
+      if (disposed || checking) return 'skipped'
+      // A hidden tab waits: its visibility check reads the inventory when the user comes back.
+      if (deps.doc && deps.doc.visibilityState && deps.doc.visibilityState !== 'visible') return 'skipped'
+      const t = now()
+      if (t < nextReconnectAt || t < ownChangeQuietUntil) return 'skipped'
+      nextReconnectAt = t + reconnectMinGapMs
+      checking = true
+      try {
+        const read = await readOnce()
+        if (!read || disposed) return 'skipped'
+        if (now() < ownChangeQuietUntil) return 'skipped' // this tab changed the deck while the read was in flight
+        const viewer = deps.getViewerState()
+        const previous = knownSignature
+        knownSignature = read.signature
+        if (viewer.presentationId !== deps.presentationId) return 'skipped'
+        if (!inventoryDiffers({ viewerSlideCount: viewer.slideCount, readCount: read.count, readSignature: read.signature, knownSignature: previous })) return 'same'
+        if (notice) return 'notice' // a notice is already up: the user decides
+        if (viewer.unsaved || !deps.onResync) { show('reconnect', null); return 'notice' }
+        api.markReloaded()
+        deps.onResync()
+        return 'reloaded'
+      } finally {
+        checking = false
+      }
+    },
   }
   return api
 }
