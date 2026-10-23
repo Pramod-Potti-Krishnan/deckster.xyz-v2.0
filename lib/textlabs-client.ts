@@ -30,6 +30,8 @@ import { isNonResearchVisualElement } from '@/lib/element-research-policy'
 
 // Same service as Elementor - reuse the URL
 import { inspectServiceUrl, requireServiceUrl } from '@/lib/service-url'
+// NEXT_PUBLIC_STUDIO_TL_SIGNED_REQUESTS (default off): Text Labs' two paid routes carry Studio's short-lived identity token.
+import { STUDIO_TL_SIGNED_REQUESTS_ENABLED, textLabsGateCode, textLabsGateMessage, textLabsSignedFetch } from '@/lib/text-labs-signed-fetch'
 
 const textLabsCandidates = () => [{ name: 'NEXT_PUBLIC_ELEMENTOR_URL', value: process.env.NEXT_PUBLIC_ELEMENTOR_URL }]
 export const getTextLabsServiceUrl = () => requireServiceUrl('Text Labs service', textLabsCandidates())
@@ -497,7 +499,7 @@ export async function sendMessage(
   const textLabsBaseUrl = getTextLabsServiceUrl()
   let response: Response
   try {
-    response = await fetch(`${textLabsBaseUrl}/api/chat/message`, {
+    response = await (STUDIO_TL_SIGNED_REQUESTS_ENABLED ? textLabsSignedFetch : fetch)(`${textLabsBaseUrl}/api/chat/message`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -532,6 +534,19 @@ export async function sendMessage(
 
   if (!response.ok) {
     const errorData = await readErrorResponse(response, signal)
+    // NEXT_PUBLIC_STUDIO_TL_SIGNED_REQUESTS: a gate refusal left after the one resend is final (the gate refuses before the handler runs).
+    const gateMessage = STUDIO_TL_SIGNED_REQUESTS_ENABLED ? textLabsGateMessage(textLabsGateCode(errorData)) : null
+    if (gateMessage) {
+      throw new TextLabsRequestError(gateMessage, {
+        kind: 'http',
+        status: response.status,
+        errorCode: textLabsGateCode(errorData),
+        requestId: options.generationAttemptId ?? null,
+        retryable: false,
+        ambiguousCompletion: false,
+        retryStrategy: 'do_not_retry',
+      })
+    }
     const retryable = (
       [408, 425, 429, 502, 503, 504].includes(response.status)
       || responseBoolean(errorData, 'retryable', 'retryable')
@@ -684,7 +699,7 @@ export async function generateInfographic(
     formData.append('infographic_config', JSON.stringify(config))
   }
 
-  const response = await fetch(`${getTextLabsServiceUrl()}/api/infographic/generate`, {
+  const response = await (STUDIO_TL_SIGNED_REQUESTS_ENABLED ? textLabsSignedFetch : fetch)(`${getTextLabsServiceUrl()}/api/infographic/generate`, {
     method: 'POST',
     body: formData,
     signal,
@@ -692,7 +707,8 @@ export async function generateInfographic(
 
   if (!response.ok) {
     const errorData = await response.json().catch(() => ({}))
-    throw new Error(formatBackendError(errorData, `Infographic upload failed: ${response.status}`))
+    const gateMessage = STUDIO_TL_SIGNED_REQUESTS_ENABLED ? textLabsGateMessage(textLabsGateCode(errorData)) : null // NEXT_PUBLIC_STUDIO_TL_SIGNED_REQUESTS
+    throw new Error(gateMessage ?? formatBackendError(errorData, `Infographic upload failed: ${response.status}`))
   }
 
   return response.json()
