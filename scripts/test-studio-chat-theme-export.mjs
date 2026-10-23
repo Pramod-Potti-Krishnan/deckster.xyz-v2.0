@@ -38,6 +38,7 @@ import { pageThemeSources } from './studio-chat-harness/page-theme-sources.mjs'
 import { pageSources } from './studio-chat-harness/page-sources.mjs'
 import { stripChatThemeExport, BASE_COMMIT, CHAT_THEME_EXPORT_FILES, CHAT_THEME_EXPORT_CHANGES } from './studio-chat-theme-export-strip.mjs'
 import { stripNarrationRouter } from './studio-narration-router-strip.mjs' // #475 (NARRATION_VIA_ROUTER) is stacked on #473 on this change: its .env.example block and package.json line come out first
+import { stripJobDeadlines } from './studio-job-deadlines-strip.mjs' // stacked after #475: P3-4b (NEXT_PUBLIC_STUDIO_JOB_DEADLINES) puts its export deadline lines in download-service.ts
 import { sameAsBase } from './studio-env-append-tolerant.mjs' // stacked after #475: the .env.example rule that takes a later change's block (scripts/studio-env-append-tolerant.mjs)
 import { stripModelCatalog } from './studio-model-catalog-strip.mjs' // #473 (NEXT_PUBLIC_STUDIO_MODEL_CATALOG) is stacked on this change: its .env.example block and package.json line come out first
 import { STACK, stackFileTolerant, stackMutants, stackScope, sameOrTolerant, stripMutants } from './studio-stack-tolerant.mjs' // stacked after #475: a later PR's files are not this change's to answer for, and a shared file a later PR edits too keeps its base lines and this change's (scripts/studio-stack-tolerant.mjs)
@@ -699,6 +700,7 @@ await check('identity: reducer / cache / history-restore / send / theme paths ha
   for (const rel of ['hooks/use-session-cache.ts', 'hooks/use-builder-session.ts', 'components/builder/message-list.tsx', 'lib/director-chat-history.ts', 'lib/theme-sync.ts',
     'lib/theme-builder.ts', 'lib/api/download-service.ts', 'components/presentation-download-controls.tsx', 'components/builder/presentation-area.tsx', 'components/theme-panel.tsx',
     'components/presentation-viewer.tsx', 'lib/studio-export-gate.ts', 'types/mdc.ts']) {
+    if (rel === 'lib/api/download-service.ts' && read(rel) !== baseFile(rel)) { assert.equal(sha(stripJobDeadlines(rel, read(rel))), sha(baseFile(rel)), rel); identityHashes[rel] = sha(baseFile(rel)); continue } // stacked after #475: P3-4b's export deadline lines come out first
     assert.equal(sha(read(rel)), sha(baseFile(rel)), rel); identityHashes[rel] = sha(read(rel))
   }
   const page = read(PAGE), basePage = baseFile(PAGE)
