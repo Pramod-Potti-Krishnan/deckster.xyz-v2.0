@@ -216,10 +216,14 @@ async function clientChecks(clientText) {
 
 function staticChecks() {
   const tl = SRC[TL]
-  const signedCalls = tl.match(/\(STUDIO_TL_SIGNED_REQUESTS_ENABLED \? textLabsSignedFetch : fetch\)\(`\$\{[^}]+\}\/api\/[a-z/]+`/g) || []
+  // The client loads the signing module only with the browser flag on (a dynamic import): no static import, so every loader that
+  // stubs textlabs-client.ts's imports is unchanged, and flag off nothing extra is even loaded.
+  ok(!/^import [^\n]*text-labs-signed-fetch/m.test(tl), 'no static import of the signing module')
+  eq((tl.match(/const signed = process\.env\.NEXT_PUBLIC_STUDIO_TL_SIGNED_REQUESTS === 'true' \? await import\('@\/lib\/text-labs-signed-fetch'\) : null/g) || []).length, 2, 'loaded only with the exact flag, in the two paid calls')
+  const signedCalls = tl.match(/\(signed \? signed\.textLabsSignedFetch : fetch\)\(`\$\{[^}]+\}\/api\/[a-z/]+`/g) || []
   eq(signedCalls.map(c => c.replace(/.*\/api\//, '/api/').replace('`', '')), ['/api/chat/message', '/api/infographic/generate'], 'the header goes only on the two paid routes')
-  eq((tl.match(/textLabsSignedFetch/g) || []).length, 3, 'textLabsSignedFetch: one import, two calls')
-  eq((tl.match(/STUDIO_TL_SIGNED_REQUESTS_ENABLED \? textLabsGateMessage\(textLabsGateCode\(errorData\)\) : null/g) || []).length, 2, 'the gate message only with the flag on, on both routes')
+  eq((tl.match(/textLabsSignedFetch/g) || []).length, 2, 'textLabsSignedFetch: the two calls only')
+  eq((tl.match(/signed \? signed\.textLabsGateMessage\(signed\.textLabsGateCode\(errorData\)\) : null/g) || []).length, 2, 'the gate message only with the flag on, on both routes')
   // The secret never reaches the browser: only the server route's lib reads it, and no client module imports that lib.
   const files = execFileSync('git', ['ls-files', '--cached', '--others', '--exclude-standard', 'app', 'lib', 'hooks', 'components'], { cwd: root, encoding: 'utf8' }).split('\n').filter(f => /\.(ts|tsx)$/.test(f))
   const readers = files.filter(f => read(f).includes('TEXT_LABS_IDENTITY_SECRET'))
