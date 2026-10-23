@@ -5,9 +5,11 @@ import { FooterV3 } from "@/components/marketing/v3/FooterV3"
 import { KnowledgeGraphCanvas } from "@/components/marketing/v3/KnowledgeGraphCanvas"
 import { SlideChip } from "@/components/marketing/v3/SlideChip"
 import { V3_CONTENT, showcaseAlt } from "@/lib/marketing/v3-content"
+import { uatMarketingMetadata } from "@/components/marketing/v3-uat/pages/metadata"
 
 const copy = V3_CONTENT.pages.bring
-export const metadata: Metadata = { title: { absolute: copy.title }, alternates: { canonical: "/bring" } }
+// NEXT_PUBLIC_STUDIO_UAT_MARKETING (default off): with the flag on this page is the UAT design (components/marketing/v3-uat). Off: the page below, as it was.
+export const metadata: Metadata = process.env.NEXT_PUBLIC_STUDIO_UAT_MARKETING === "true" ? uatMarketingMetadata.bring : { title: { absolute: copy.title }, alternates: { canonical: "/bring" } }
 
 const reveal = (delay: number) => ({ "--d": delay } as CSSProperties)
 const slideImage = (name: string) => `/marketing/v3/slides/${name}.jpg`
@@ -144,4 +146,9 @@ function Close() {
   </section>
 }
 
-export default function BringPage() { return <main><BringHero /><Template /><Library /><Knowledge /><InOut /><Close /></main> }
+export default async function BringPage() {
+  if (process.env.NEXT_PUBLIC_STUDIO_UAT_MARKETING === "true") {
+    const { UatBringPage } = await import("@/components/marketing/v3-uat/pages/bring")
+    return <UatBringPage />
+  }
+  return <main><BringHero /><Template /><Library /><Knowledge /><InOut /><Close /></main> }

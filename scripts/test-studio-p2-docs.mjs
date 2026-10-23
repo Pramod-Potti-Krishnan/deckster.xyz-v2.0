@@ -18,7 +18,8 @@
 //   6. mutation check: every mutant of the sources is killed by sections 1-5.
 // The content pass (PROGRAM-1 rulings of 22 Oct, same flag), each item proven on the real sources and on the base commit's files:
 //   1. /docs/api says "Not available yet" (a notice under the header, the content muted at AA) and no footer links to it;
-//   2. the legal and security wording is not touched (every legal page is the base commit's, byte for byte; the footers' trust lines are kept);
+//   2. the Privacy, Terms and Cookies wording is not touched (each page is the base commit's, byte for byte; the footers' SSL Encrypted and Privacy First lines are kept). Ruling 2 was lifted on 23 Oct (PROGRAM-1) for the claims nobody has verified that `uat` already removed:
+//      the Security page, its tab description and the footers' "GDPR Compliant" and "99.9% Uptime" lines say only what is true today (content/studio-p2-docs-security.ts), flag off every word as before;
 //   3. the docs text names the current eight agents (the set is read from AGENT_TEAM, content/agents.ts and the Help page, which must agree): old -> new table, counts, the seven new sections are content/agents.ts's own words;
 //   4. the Landing footer gains Help, Docs, Security and Cookies (Privacy and Terms were there);
 //   5. no link to /integrations or /agents in either footer, on the agent pages or on /compare (the routes and pages stay; /agents/<agent> links stay);
@@ -125,8 +126,11 @@ const TEAM_SOURCE = 'lib/marketing/homepage-v2-content.ts'
 const V3_SOURCE = 'lib/marketing/v3-content.ts'
 const ENV = '.env.example'
 const PKG = 'package.json'
+const SECURITY_PAGE = 'app/legal/security/page.tsx'
+const SECURITY_LAYOUT = 'app/legal/security/layout.tsx'
+const SECURITY_FACTS = 'content/studio-p2-docs-security.ts'
 const TITLE_FIXES = [['app/docs/api/layout.tsx', 'API Documentation'], ['app/legal/cookies/layout.tsx', 'Cookie Policy'], ['app/legal/security/layout.tsx', 'Security & Compliance']]
-const SOURCES = Object.fromEntries([LIB, UI, FRAME, API_NOTICE, AGENT_RULES, FACT_RULES, COMPARISON_RULES, LIB_COMPARISONS, LIB_EXAMPLES, LIB_TEMPLATES, CARD_EXAMPLE, CARD_TEMPLATE, TYPES_EXAMPLE, TYPES_TEMPLATE, FOOTER, FOOTER_V3, PAGE_API, PAGE_AGENT, PAGE_COMPARE, CSS, HELP_TEMPLATE, HELP_CSS, PAGE_INDEX, PAGE_ARTICLE, LAYOUT_DOCS, LAYOUT_LEGAL, LAYOUT_AGENTS, META_PRIVACY, META_TERMS, META_ARTICLE, META_AGENT, ...TITLE_FIXES.map(([file]) => file), ENV, PKG].map(rel => [rel, read(rel)]))
+const SOURCES = Object.fromEntries([SECURITY_PAGE, SECURITY_FACTS, LIB, UI, FRAME, API_NOTICE, AGENT_RULES, FACT_RULES, COMPARISON_RULES, LIB_COMPARISONS, LIB_EXAMPLES, LIB_TEMPLATES, CARD_EXAMPLE, CARD_TEMPLATE, TYPES_EXAMPLE, TYPES_TEMPLATE, FOOTER, FOOTER_V3, PAGE_API, PAGE_AGENT, PAGE_COMPARE, CSS, HELP_TEMPLATE, HELP_CSS, PAGE_INDEX, PAGE_ARTICLE, LAYOUT_DOCS, LAYOUT_LEGAL, LAYOUT_AGENTS, META_PRIVACY, META_TERMS, META_ARTICLE, META_AGENT, ...TITLE_FIXES.map(([file]) => file), ENV, PKG].map(rel => [rel, read(rel)]))
 const FLAG = 'NEXT_PUBLIC_STUDIO_P2_DOCS'
 const ON = { [FLAG]: 'true' }
 const OFF_SPELLINGS = [{}, { [FLAG]: 'false' }, { [FLAG]: 'TRUE' }, { [FLAG]: 'True' }, { [FLAG]: '1' }, { [FLAG]: ' true' }, { [FLAG]: 'true ' }, { [FLAG]: '' }, { [FLAG]: 'yes' }, { NEXT_PUBLIC_STUDIO_V4_SHELL: 'true' }]
@@ -774,15 +778,16 @@ function proveLayout(file, area, name, code, label = 'layout') {
 for (const [file, area, name] of LAYOUTS) proveLayout(file, area, name, SOURCES[file])
 // every page this PR does not change is the base commit's, byte for byte
 const UNCHANGED = [
-  'app/legal/privacy/page.tsx', 'app/legal/terms/page.tsx', 'app/legal/security/page.tsx', 'app/legal/cookies/page.tsx',
+  'app/legal/privacy/page.tsx', 'app/legal/terms/page.tsx', 'app/legal/cookies/page.tsx',
   'app/help/page.tsx', 'app/help/layout.tsx', 'components/help/studio-help.tsx', 'components/help/studio-help.css',
   'app/integrations/page.tsx', 'next.config.mjs',
   'components/layout/Header.tsx', 'components/marketing/PageHeader.tsx', 'components/marketing/Section.tsx',
   'content/docs.ts', 'lib/docs.ts', 'types/docs.ts', 'content/agents.ts', 'lib/agents.ts',
 ]
 for (const file of UNCHANGED) eq(read(file), baseSource(file), `${file} is the base commit's, byte for byte`)
-// ruling 2 (no legal or security wording is changed): the four legal pages are in that list
-for (const file of ['app/legal/privacy/page.tsx', 'app/legal/terms/page.tsx', 'app/legal/security/page.tsx', 'app/legal/cookies/page.tsx']) ok(UNCHANGED.includes(file), `${file} is pinned to the base commit`)
+// ruling 2 (no legal wording is changed): the Privacy, Terms and Cookies pages are in that list. The Security page left it on 23 Oct (PROGRAM-1 lifted the ruling for the claims `uat` already removed): proveSecurityPage holds it instead.
+for (const file of ['app/legal/privacy/page.tsx', 'app/legal/terms/page.tsx', 'app/legal/cookies/page.tsx']) ok(UNCHANGED.includes(file), `${file} is pinned to the base commit`)
+ok(!UNCHANGED.includes(SECURITY_PAGE), `${SECURITY_PAGE} is no longer pinned byte for byte (ruling 2 lifted for it); it is held by its own proof`)
 // the redirects that make /integrations and /agents unreachable are still there (so those two pages are not restyled)
 match(read('next.config.mjs'), /source: '\/integrations', destination: '\/bring#inout'/, '/integrations still redirects to /bring#inout')
 match(read('next.config.mjs'), /source: '\/agents', destination: '\/experts'/, '/agents still redirects to /experts (exact path: /agents/<agent> is served)')
@@ -792,17 +797,20 @@ match(read('next.config.mjs'), /source: '\/agents', destination: '\/experts'/, '
 const AGENTS_CONTENT = load(read('content/agents.ts'), 'content/agents.ts', { deps: { '@/types/agents': {} } })
 const AGENTS_API = load(read('lib/agents.ts'), 'lib/agents.ts', { deps: { '@/content/agents': AGENTS_CONTENT, '@/types/agents': {} } })
 const SUFFIX_NOTE = name => `    // PASS2 Docs (NEXT_PUBLIC_STUDIO_P2_DOCS): the root layout's title template already adds " | Deckster"; the tab read "${name} | Deckster | Deckster".\n`
+const SECURITY_FACTS_DATA = load(SOURCES[SECURITY_FACTS], SECURITY_FACTS).STUDIO_SECURITY_FACTS
+const SECURITY_LAYOUT_PAIR = ["    // PASS2 Docs (same flag; ruling 2 lifted for this page, 23 Oct): the description names no certification the product does not have. Off: as before.\n    description: process.env.NEXT_PUBLIC_STUDIO_P2_DOCS === 'true' ? 'How Deckster protects your data: encryption in transit, where it runs, Google sign-in, and how to report a vulnerability.' : 'Learn about our commitment to security. SOC 2 Type II compliant, end-to-end encryption, and GDPR ready.',\n", "    description: 'Learn about our commitment to security. SOC 2 Type II compliant, end-to-end encryption, and GDPR ready.',\n"] // [with the flag's description, as before]
 function proveTitleFix(file, name, code, label = 'title') {
   const prior = baseSource(file)
   const run = env => load(code, file, { env })
   const baseMeta = load(prior, file).metadata
   match(baseMeta.title, / \| Deckster$/, `${label}: ${file}: the base title carries the suffix the root template adds again`)
   for (const env of OFF_SPELLINGS) deepEq(run(env).metadata, baseMeta, `${label}: ${file}: env ${JSON.stringify(env)}: the metadata equals the base commit's`)
-  deepEq(run(ON).metadata, { title: name, description: baseMeta.description }, `${label}: ${file}: on: the title without the suffix, the description as before`)
+  deepEq(run(ON).metadata, { title: name, description: file === SECURITY_LAYOUT ? SECURITY_FACTS_DATA.description : baseMeta.description }, file === SECURITY_LAYOUT ? `${label}: ${file}: on: the title without the suffix, the description UAT carries (no certification named)` : `${label}: ${file}: on: the title without the suffix, the description as before`)
   const from = `    title: '${name} | Deckster',\n`
   const to = `${SUFFIX_NOTE(name)}    title: process.env.NEXT_PUBLIC_STUDIO_P2_DOCS === 'true' ? '${name}' : '${name} | Deckster',\n`
-  eq(code.replace(to, from), prior, `${label}: ${file}: undoing the one edit gives back the base commit's file byte for byte`)
-  eq(code.length - prior.length, to.length - from.length, `${label}: ${file}: and nothing else was added`)
+  const extra = file === SECURITY_LAYOUT ? [SECURITY_LAYOUT_PAIR] : []
+  eq(extra.reduce((out, [t, f]) => out.replace(t, f), code.replace(to, from)), prior, `${label}: ${file}: undoing the ${extra.length ? 'two edits' : 'one edit'} gives back the base commit's file byte for byte`)
+  eq(code.length - prior.length, to.length - from.length + extra.reduce((n, [t, f]) => n + t.length - f.length, 0), `${label}: ${file}: and nothing else was added`)
   eq(run(ON).default({ children: 'x' }).props.children, 'x', `${label}: ${file}: the layout still hands the page through`)
 }
 for (const [file, name] of TITLE_FIXES) proveTitleFix(file, name, SOURCES[file])
@@ -1022,6 +1030,15 @@ function prune(node) {
   return { ...node, props: { ...node.props, children: next === DROP ? undefined : next } }
 }
 const hrefsOf = tree => nodes(tree).filter(node => node.type === 'Link' || node.type === 'a').map(node => node.props.href)
+const FOOTER_CLAIMS = ['GDPR Compliant', '99.9% Uptime']
+function pruneClaims(node) {
+  if (Array.isArray(node)) return node.map(pruneClaims).filter(item => item !== DROP)
+  if (!isElement(node)) return node
+  if (node.type === 'div' && FOOTER_CLAIMS.includes(text(node))) return DROP
+  if (!('children' in node.props)) return node
+  const next = pruneClaims(node.props.children)
+  return { ...node, props: { ...node.props, children: next === DROP ? undefined : next } }
+}
 function proveFooter(code, label = 'footer', libSource = SOURCES[LIB]) {
   const prior = baseSource(FOOTER)
   const render = (source, env, props) => load(source, FOOTER, { env, deps: { 'next/link': LINK, '@/lib/studio-p2-docs': load(libSource, LIB) } }).Footer(props)
@@ -1031,26 +1048,77 @@ function proveFooter(code, label = 'footer', libSource = SOURCES[LIB]) {
     const base = expand(render(prior, {}, props))
     for (const env of [ON, { ...ON, NEXT_PUBLIC_STUDIO_V4_SHELL: 'true' }]) {
       const on = expand(render(code, env, props))
-      eq(rendered(on), rendered(prune(base)), `${label}: ${mode}: on: the base commit's footer without the links to /agents, /integrations and /docs/api, and nothing else`)
+      eq(rendered(on), rendered(prune(pruneClaims(base))), `${label}: ${mode}: on: the base commit's footer without the links to /agents, /integrations and /docs/api and without the two unverified trust lines, and nothing else`)
       for (const href of HIDDEN) ok(!hrefsOf(on).includes(href), `${label}: ${mode}: on: no link to ${href}`)
     }
     const dropped = hrefsOf(base).filter(href => HIDDEN.includes(href))
     deepEq(dropped, props ? ['/agents'] : ['/agents', '/docs/api'], `${label}: ${mode}: the base footer linked ${props ? '/agents' : '/agents and /docs/api'}, so that is what goes`)
     for (const href of ['/help', '/docs', '/legal/privacy', '/legal/terms', ...(props ? ['/pricing', '/compare', '/about'] : ['/legal/security', '/legal/cookies', '/templates', '/builder'])]) ok(hrefsOf(expand(render(code, ON, props))).includes(href), `${label}: ${mode}: on: the link to ${href} stays`)
   }
-  // ruling 2: the footer's claims are not touched
-  const on = text(expand(render(code, ON)))
-  for (const claim of ['SSL Encrypted', 'GDPR Compliant', '99.9% Uptime', 'Privacy First']) ok(on.includes(claim), `${label}: on: "${claim}" is as it was`)
+  // ruling 2 lifted for the two claims nobody has verified (PROGRAM-1, 23 Oct): off, all four trust lines are there; on, "GDPR Compliant" and "99.9% Uptime" go and the other two stay
+  const on = text(expand(render(code, ON))), off = text(expand(render(code, {})))
+  for (const claim of ['SSL Encrypted', 'Privacy First']) { ok(on.includes(claim), `${label}: on: "${claim}" is as it was`); ok(off.includes(claim), `${label}: off: "${claim}" is as it was`) }
+  for (const claim of FOOTER_CLAIMS) { ok(!on.includes(claim), `${label}: on: "${claim}" is not shown`); ok(off.includes(claim), `${label}: off: "${claim}" is as it was`) }
+  eq(code.split('{!STUDIO_P2_DOCS && (').length - 1, 2, `${label}: exactly the two unverified trust lines are wrapped`)
   eq(undoAll(code, [
     ["import { studioDocsHiddenHref } from '@/lib/studio-p2-docs';\n\n// PASS2 Docs (NEXT_PUBLIC_STUDIO_P2_DOCS, default off): /docs/api is not available yet, and /integrations and /agents are redirects, so with the flag on neither footer links them. Off: every link as before.\nconst STUDIO_P2_DOCS = process.env.NEXT_PUBLIC_STUDIO_P2_DOCS === 'true';\nconst linked = (href: string) => !(STUDIO_P2_DOCS && studioDocsHiddenHref(href));\n", ''],
     [`{linked('/agents') && <li><Link href="/agents" className="text-sm text-muted-foreground hover:text-foreground transition-colors">AI Agents</Link></li>}`, `<li><Link href="/agents" className="text-sm text-muted-foreground hover:text-foreground transition-colors">AI Agents</Link></li>`],
     ['footerLinks.resources.filter((link) => linked(link.href)).map((link) => (', 'footerLinks.resources.map((link) => ('],
     ['links.filter((l) => linked(l.href)).map((l) => (', 'links.map((l) => ('],
+    ["            {/* PASS2 Docs (NEXT_PUBLIC_STUDIO_P2_DOCS, default off; PROGRAM-1 lifted ruling 2 for these two claims on 23 Oct): no certification or uptime figure is verified, so with the flag on the two lines are not shown (SSL Encrypted and Privacy First stay). Off: as before. */}\n            {!STUDIO_P2_DOCS && (\n              <div className=\"flex items-center gap-2 text-sm text-muted-foreground\">\n                <Award className=\"h-4 w-4 text-blue-600\" />\n                <span>GDPR Compliant</span>\n              </div>\n            )}\n", "            <div className=\"flex items-center gap-2 text-sm text-muted-foreground\">\n              <Award className=\"h-4 w-4 text-blue-600\" />\n              <span>GDPR Compliant</span>\n            </div>\n"],
+    ["            {!STUDIO_P2_DOCS && (\n              <div className=\"flex items-center gap-2 text-sm text-muted-foreground\">\n                <Shield className=\"h-4 w-4 text-orange-600\" />\n                <span>99.9% Uptime</span>\n              </div>\n            )}\n", "            <div className=\"flex items-center gap-2 text-sm text-muted-foreground\">\n              <Shield className=\"h-4 w-4 text-orange-600\" />\n              <span>99.9% Uptime</span>\n            </div>\n"],
   ]), prior, `${label}: removing the additions gives back the base commit's footer byte for byte`)
   match(code, /const STUDIO_P2_DOCS = process\.env\.NEXT_PUBLIC_STUDIO_P2_DOCS === 'true';/, `${label}: flag read inline, exact true`)
   match(code, /^'use client';/, `${label}: still a client component`)
 }
 proveFooter(SOURCES[FOOTER])
+
+// ruling 2, lifted for the Security page on 23 Oct (PROGRAM-1): the page, its tab description (proveTitleFix) and the footers' two trust lines (proveFooter) say only what is true today. The oracle for the wording is `uat`'s own page,
+// read from the commit it comes from; the oracle for flag off is the base commit's page.
+const UAT_COMMIT = process.env.P2_DOCS_UAT || 'ee532fab4b84a6883f8a5b50675ccab692b62240'
+const uatSource = file => {
+  try { return execFileSync('git', ['show', `${UAT_COMMIT}:${file}`], { cwd: repoRoot, encoding: 'utf8', maxBuffer: 64 * 1024 * 1024 }) }
+  catch (error) { throw new Error(`the uat commit ${UAT_COMMIT} is not in this clone (fetch the full history): ${error.message}`) }
+}
+const UNVERIFIED = /SOC ?2|GDPR|\bAWS\b|99\.9|security@|penetration|\baudits?\b|\bRBAC\b|Enterprise|compliance reports|certification|sales team/i
+const MOTION = new Proxy({}, { get: (_target, key) => `motion.${String(key)}` })
+const SECURITY_UNDO = [["import { motion } from 'framer-motion';\nimport { STUDIO_SECURITY_FACTS } from '@/content/studio-p2-docs-security';\n\n// PASS2 Docs (NEXT_PUBLIC_STUDIO_P2_DOCS, default off; PROGRAM-1 lifted ruling 2 for this page on 23 Oct): with the flag on the page says only what is true today (content/studio-p2-docs-security.ts, the wording `uat` already carries): no SOC 2, GDPR, AWS, audit, MFA or security@ claim. Off: every word as before.\nconst STUDIO_P2_DOCS = process.env.NEXT_PUBLIC_STUDIO_P2_DOCS === 'true';\nconst FACT_ICONS = { lock: Lock, filecheck: FileCheck, server: Server, key: Key };\n", "import { motion } from 'framer-motion';\n"], ["subtitle={STUDIO_P2_DOCS ? STUDIO_SECURITY_FACTS.subtitle : \"We maintain the highest standards of security to protect your data and privacy.\"}", "subtitle=\"We maintain the highest standards of security to protect your data and privacy.\""], ["<div className={`grid grid-cols-1 md:grid-cols-2 ${STUDIO_P2_DOCS ? 'lg:grid-cols-4' : 'lg:grid-cols-3'} gap-8 mb-16`}>", "<div className=\"grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8 mb-16\">"], ["                    {(STUDIO_P2_DOCS ? STUDIO_SECURITY_FACTS.cards.map((card) => ({ ...card, icon: FACT_ICONS[card.icon] })) : [\n                        { icon: Shield, title: \"SOC 2 Type II\"", "                    {[\n                        { icon: Shield, title: \"SOC 2 Type II\""], ["                    ]).map((item, i) => (", "                    ].map((item, i) => ("], ["                        {STUDIO_P2_DOCS ? STUDIO_SECURITY_FACTS.dataProtection : \"Your data belongs to you. We do not use your private presentation content to train our general AI models without your explicit permission. Enterprise customers have the option for private, isolated model instances.\"}\n", "                        Your data belongs to you. We do not use your private presentation content to train our general AI models without your explicit permission. Enterprise customers have the option for private, isolated model instances.\n"], ["                        {STUDIO_P2_DOCS ? STUDIO_SECURITY_FACTS.vulnerability : \"We value the security community's help in keeping our platform safe. If you believe you've found a security vulnerability, please report it to security@deckster.xyz. We respond to all reports within 24 hours.\"}\n", "                        We value the security community's help in keeping our platform safe. If you believe you've found a security vulnerability, please report it to security@deckster.xyz. We respond to all reports within 24 hours.\n"], ["<h2>{STUDIO_P2_DOCS ? STUDIO_SECURITY_FACTS.questionsHeading : \"Compliance Certifications\"}</h2>", "<h2>Compliance Certifications</h2>"], ["                        {STUDIO_P2_DOCS ? STUDIO_SECURITY_FACTS.questions : \"We maintain compliance with major industry standards to ensure your data is handled with the utmost care. You can request our latest compliance reports by contacting our sales team.\"}\n", "                        We maintain compliance with major industry standards to ensure your data is handled with the utmost care. You can request our latest compliance reports by contacting our sales team.\n"]]
+function runSecurity(code, env, factsSource = SOURCES[SECURITY_FACTS]) {
+  return load(code, SECURITY_PAGE, { env, deps: { 'framer-motion': { motion: MOTION }, '@/content/studio-p2-docs-security': load(factsSource, SECURITY_FACTS) } }).default()
+}
+function proveSecurityPage(code, label = 'security page', factsSource = SOURCES[SECURITY_FACTS]) {
+  const prior = baseSource(SECURITY_PAGE)
+  const uatPage = uatSource(SECURITY_PAGE)
+  const facts = load(factsSource, SECURITY_FACTS).STUDIO_SECURITY_FACTS
+  nomatch(factsSource, /^\s*import\b/m, `${label}: the facts are data only`)
+  const words = [facts.subtitle, facts.dataProtection, facts.vulnerability, facts.questionsHeading, facts.questions, ...facts.cards.flatMap(card => [card.title, card.desc])]
+  for (const word of [...words, ...facts.cards.map(card => card.color)]) ok(uatPage.includes(word), `${label}: "${word.slice(0, 50)}" is UAT's own word`)
+  ok(uatSource(SECURITY_LAYOUT).includes(facts.description), `${label}: the tab description is UAT's`)
+  for (const word of [...words, facts.description]) nomatch(word, UNVERIFIED, `${label}: no unverified claim in "${word.slice(0, 50)}"`)
+  deepEq(facts.cards.map(card => card.icon), ['lock', 'filecheck', 'server', 'key'], `${label}: four cards, with their icons`)
+  eq((facts.vulnerability + facts.questions).split('support@deckster.xyz').length - 1, 2, `${label}: the contact is support@deckster.xyz, in both places`)
+  // flag off, in any spelling: the base commit's tree
+  for (const env of OFF_SPELLINGS) eq(rendered(expand(runSecurity(code, env, factsSource))), rendered(expand(runSecurity(prior, env, factsSource))), `${label}: env ${JSON.stringify(env)}: the tree equals the base commit's`)
+  // flag on: UAT's page, and nothing unverified in a word of it
+  const on = expand(runSecurity(code, ON, factsSource))
+  eq(rendered(on), rendered(expand(load(uatPage, SECURITY_PAGE, { deps: { 'framer-motion': { motion: MOTION } } }).default())), `${label}: on: the very tree UAT's page renders`)
+  const shown = text(on)
+  for (const word of words.filter(word => word !== facts.subtitle)) ok(shown.includes(word), `${label}: on: shows "${word.slice(0, 50)}"`)
+  eq(nodes(on).find(node => node.type === 'PageHeader')?.props.subtitle, facts.subtitle, `${label}: on: the header's subtitle is the facts'`)
+  eq(nodes(runSecurity(code, {}, factsSource)).find(node => node.type === 'PageHeader')?.props.subtitle, nodes(runSecurity(prior, {}, factsSource)).find(node => node.type === 'PageHeader')?.props.subtitle, `${label}: off: the header's subtitle is the base's`)
+  nomatch(shown, UNVERIFIED, `${label}: on: no SOC 2, GDPR, AWS, uptime, audit, RBAC, Enterprise or security@ claim anywhere on the page`)
+  nomatch(shown, /Compliance Certifications|Secure Infrastructure|Access Controls|Regular Audits/, `${label}: on: the old headings are gone`)
+  match(rendered(on), /lg:grid-cols-4/, `${label}: on: four columns for four cards`)
+  match(rendered(expand(runSecurity(code, {}, factsSource))), /lg:grid-cols-3/, `${label}: off: three columns as before`)
+  eq(nodes(on).filter(node => typeof node.type === 'string' && /^(Lock|FileCheck|Server|Key)$/.test(node.type)).map(node => node.type).join(), 'Lock,FileCheck,Server,Key', `${label}: on: the four cards' icons`)
+  // the edits are additions around the base's own words
+  eq(undoAll(code, SECURITY_UNDO), prior, `${label}: removing the edits gives back the base commit's page byte for byte`)
+  eq(code.split('STUDIO_P2_DOCS ?').length - 1, 7, `${label}: seven places choose by the flag (subtitle, columns, cards, three paragraphs' words, the last heading)`)
+  match(code, /const STUDIO_P2_DOCS = process\.env\.NEXT_PUBLIC_STUDIO_P2_DOCS === 'true';/, `${label}: flag read inline, exact true`)
+  match(code, /^'use client';/, `${label}: still a client page`)
+  for (const claim of ['SOC 2 Type II', 'We are fully compliant with GDPR', 'Hosted on AWS', 'security@deckster.xyz', 'Compliance Certifications']) ok(code.includes(claim), `${label}: the flag-off words are still in the source ("${claim}")`)
+}
+proveSecurityPage(SOURCES[SECURITY_PAGE])
 
 // ruling 4: the Landing footer
 function proveFooterV3(code, label = 'landing footer', libSource = SOURCES[LIB]) {
@@ -1723,6 +1791,7 @@ function proveEnv(env, label = 'env') {
   match(flat, /Content pass 2 \(PROGRAM-1, 22 Oct\), same flag: the docs name the real plans \(Starter, Pro, Max; the plan tags the code does not back are taken out\) and the Google sign-in \(content\/studio-p2-docs-facts\.ts\)/, `${label}: the comment names the second content pass, the real plans and the Google sign-in`)
   match(flat, /the comparison pages and the example and template cards read the current agents \(content\/studio-p2-comparisons\.ts, lib\/studio-p2-docs\.ts; \/examples and \/templates are redirects today\)/, `${label}: the comment says which pages read the current agents, and that two of them are redirects`)
   match(flat, /\/docs\/api loses its "v1\.0 Beta" badge; the agent not-found page links to \/experts\./, `${label}: the comment says the badge goes and the not-found link moves`)
+  match(flat, /Content pass 4 \(PROGRAM-1, 23 Oct; Docs ruling 2 is lifted for what `uat` already removed, so this supersedes "The words of the legal pages are not touched\." above for the Security page only\), same flag: the Security page and its tab description say only what is true today \(content\/studio-p2-docs-security\.ts, the wording `uat` already carries\): no SOC 2 Type II, GDPR, AWS, audit, multi-factor or security@ claim; the footer drops its "GDPR Compliant" and "99\.9% Uptime" lines \(SSL Encrypted and Privacy First stay\)\. The words of the Privacy, Terms and Cookies pages are not touched\./, `${label}: the comment names the fourth pass and what it removes`)
   match(flat, /Content pass 3 \(PROGRAM-1, 22 Oct\), same flag: \/docs\/api loses its Rate Limits section, the heading with its lock icon and the line \("100 requests per minute for Pro plans and 1000 requests per minute for Enterprise plans": the API is not open and no plan is called Enterprise\); the rest of the page is as it was\./, `${label}: the comment names the third pass, the section that goes (heading, icon and line) and what stays`)
   match(flat, /With NEXT_PUBLIC_STUDIO_P2_ONBOARDING and the shell on there is no old agent name left to change \(the wizard and the Studio introduction name none\); the old \/onboarding page and the old modal, which still do, are the flag-off text and stay as they were\./, `${label}: the comment says onboarding has no old name to change on its flag-on path`)
   eq(comment.split('\n').filter(line => !line.startsWith('# ')).length, 0, `${label}: the whole block is comment lines`)
@@ -2094,10 +2163,54 @@ mutant(CSS, 'old pages: a gradient stays', 'section.bg-gradient-to-br { padding:
 for (const [file, name] of TITLE_FIXES) {
   mutant(file, `${name} tab: suffix kept with the flag on`, `'${name}' : '${name} | Deckster'`, `'${name} | Deckster' : '${name} | Deckster'`)
   mutant(file, `${name} tab: suffix lost with the flag off`, `'${name}' : '${name} | Deckster'`, `'${name}' : '${name}'`)
-  mutant(file, `${name} tab: flag spelling`, "=== 'true' ?", "!== 'false' ?")
-  mutant(file, `${name} tab: flag name`, 'NEXT_PUBLIC_STUDIO_P2_DOCS === ', 'NEXT_PUBLIC_STUDIO_DOCS === ')
+  mutant(file, `${name} tab: flag spelling`, `=== 'true' ? '${name}'`, `!== 'false' ? '${name}'`)
+  mutant(file, `${name} tab: flag name`, `NEXT_PUBLIC_STUDIO_P2_DOCS === 'true' ? '${name}'`, `NEXT_PUBLIC_STUDIO_DOCS === 'true' ? '${name}'`)
   mutant(file, `${name} tab: description lost`, '    description:', '    descr:')
 }
+// the Security tab's description (ruling 2 lifted for it on 23 Oct)
+const SEC_NEW = "How Deckster protects your data: encryption in transit, where it runs, Google sign-in, and how to report a vulnerability.", SEC_OLD = 'Learn about our commitment to security. SOC 2 Type II compliant, end-to-end encryption, and GDPR ready.'
+mutant(SECURITY_LAYOUT, 'security tab: the old description with the flag on', `'${SEC_NEW}'`, `'${SEC_OLD}'`)
+mutant(SECURITY_LAYOUT, 'security tab: the new description with the flag off', `: '${SEC_OLD}',`, `: '${SEC_NEW}',`)
+mutant(SECURITY_LAYOUT, 'security tab: description flag spelling', `=== 'true' ? '${SEC_NEW}'`, `!== 'false' ? '${SEC_NEW}'`)
+mutant(SECURITY_LAYOUT, 'security tab: description flag name', `NEXT_PUBLIC_STUDIO_P2_DOCS === 'true' ? '${SEC_NEW}'`, `NEXT_PUBLIC_STUDIO_DOCS === 'true' ? '${SEC_NEW}'`)
+mutant(SECURITY_LAYOUT, 'security tab: a claim comes back with the flag on', `'${SEC_NEW}'`, `'${SEC_NEW} SOC 2 Type II.'`)
+// the Security page and its facts
+mutant(SECURITY_PAGE, 'security page: flag spelling', "const STUDIO_P2_DOCS = process.env.NEXT_PUBLIC_STUDIO_P2_DOCS === 'true';", "const STUDIO_P2_DOCS = process.env.NEXT_PUBLIC_STUDIO_P2_DOCS !== 'false';")
+mutant(SECURITY_PAGE, 'security page: flag truthy', "const STUDIO_P2_DOCS = process.env.NEXT_PUBLIC_STUDIO_P2_DOCS === 'true';", "const STUDIO_P2_DOCS = Boolean(process.env.NEXT_PUBLIC_STUDIO_P2_DOCS);")
+mutant(SECURITY_PAGE, 'security page: flag name', "const STUDIO_P2_DOCS = process.env.NEXT_PUBLIC_STUDIO_P2_DOCS === 'true';", "const STUDIO_P2_DOCS = process.env.NEXT_PUBLIC_STUDIO_DOCS === 'true';")
+mutant(SECURITY_PAGE, 'security page: the subtitle is not switched', 'subtitle={STUDIO_P2_DOCS ? STUDIO_SECURITY_FACTS.subtitle : "We maintain', 'subtitle={false ? STUDIO_SECURITY_FACTS.subtitle : "We maintain')
+mutant(SECURITY_PAGE, 'security page: three columns for four cards', "${STUDIO_P2_DOCS ? 'lg:grid-cols-4' : 'lg:grid-cols-3'}", "${STUDIO_P2_DOCS ? 'lg:grid-cols-3' : 'lg:grid-cols-3'}")
+mutant(SECURITY_PAGE, 'security page: four columns with the flag off', "${STUDIO_P2_DOCS ? 'lg:grid-cols-4' : 'lg:grid-cols-3'}", "${STUDIO_P2_DOCS ? 'lg:grid-cols-4' : 'lg:grid-cols-4'}")
+mutant(SECURITY_PAGE, 'security page: the old cards stay', '{(STUDIO_P2_DOCS ? STUDIO_SECURITY_FACTS.cards.map', '{(false ? STUDIO_SECURITY_FACTS.cards.map')
+mutant(SECURITY_PAGE, 'security page: an icon is wrong', 'key: Key };', 'key: Lock };')
+mutant(SECURITY_PAGE, 'security page: the data protection words are not switched', '{STUDIO_P2_DOCS ? STUDIO_SECURITY_FACTS.dataProtection :', '{false ? STUDIO_SECURITY_FACTS.dataProtection :')
+mutant(SECURITY_PAGE, 'security page: the disclosure keeps security@', '{STUDIO_P2_DOCS ? STUDIO_SECURITY_FACTS.vulnerability :', '{false ? STUDIO_SECURITY_FACTS.vulnerability :')
+mutant(SECURITY_PAGE, 'security page: the certifications heading stays', '<h2>{STUDIO_P2_DOCS ? STUDIO_SECURITY_FACTS.questionsHeading :', '<h2>{false ? STUDIO_SECURITY_FACTS.questionsHeading :')
+mutant(SECURITY_PAGE, 'security page: the compliance reports line stays', '{STUDIO_P2_DOCS ? STUDIO_SECURITY_FACTS.questions :', '{false ? STUDIO_SECURITY_FACTS.questions :')
+mutant(SECURITY_PAGE, 'security page: a flag-off word changes', 'We are SOC 2 Type II compliant,', 'We are SOC 2 Type II compliant today,')
+mutant(SECURITY_PAGE, 'security page: the old heading is renamed', '"Compliance Certifications"', '"Compliance"')
+mutant(SECURITY_PAGE, 'security page: not a client page', "'use client';", "'use server';")
+mutant(SECURITY_FACTS, 'security facts: a claim added to a card', 'uses HTTPS (TLS).', 'uses HTTPS (TLS) and is SOC 2 Type II audited.')
+mutant(SECURITY_FACTS, 'security facts: GDPR named', 'what we collect, how it is used', 'what we collect for GDPR, how it is used')
+mutant(SECURITY_FACTS, 'security facts: the old address', 'please report it to support@deckster.xyz', 'please report it to security@deckster.xyz')
+mutant(SECURITY_FACTS, 'security facts: a card dropped', '    { icon: "server", title: "Where it runs", desc: "The web app runs on Vercel and the backend services on Railway.", color: "text-orange-600" },\n', '')
+mutant(SECURITY_FACTS, 'security facts: an icon swapped', 'icon: "server", title: "Where it runs"', 'icon: "lock", title: "Where it runs"')
+mutant(SECURITY_FACTS, 'security facts: AWS back', 'The web app runs on Vercel and the backend services on Railway.', 'The web app runs on Vercel and the backend services on AWS.')
+mutant(SECURITY_FACTS, 'security facts: the questions heading', 'questionsHeading: "Security Questions"', 'questionsHeading: "Compliance Certifications"')
+mutant(SECURITY_FACTS, 'security facts: a word is not UAT\'s', 'Need to know how we handle your data', 'Want to know how we handle your data')
+mutant(SECURITY_FACTS, 'security facts: the description names a certification', 'encryption in transit, where it runs', 'SOC 2, encryption in transit, where it runs')
+mutant(SECURITY_FACTS, 'security facts: imports something', 'export type StudioSecurityIcon', "import type { X } from '@/types/x'\nexport type StudioSecurityIcon")
+// the footer's two trust lines
+mutant(FOOTER, 'footer: the GDPR line stays with the flag on', '{!STUDIO_P2_DOCS && (\n              <div className="flex items-center gap-2 text-sm text-muted-foreground">\n                <Award', '{true && (\n              <div className="flex items-center gap-2 text-sm text-muted-foreground">\n                <Award')
+mutant(FOOTER, 'footer: the uptime line stays with the flag on', '{!STUDIO_P2_DOCS && (\n              <div className="flex items-center gap-2 text-sm text-muted-foreground">\n                <Shield', '{true && (\n              <div className="flex items-center gap-2 text-sm text-muted-foreground">\n                <Shield')
+mutant(FOOTER, 'footer: the GDPR line goes with the flag off', '{!STUDIO_P2_DOCS && (\n              <div className="flex items-center gap-2 text-sm text-muted-foreground">\n                <Award', '{STUDIO_P2_DOCS && (\n              <div className="flex items-center gap-2 text-sm text-muted-foreground">\n                <Award')
+mutant(FOOTER, 'footer: SSL Encrypted goes with the flag on', '<span>SSL Encrypted</span>', '<span>{!STUDIO_P2_DOCS && "SSL Encrypted"}</span>')
+mutant(FOOTER, 'footer: Privacy First goes with the flag on', '<span>Privacy First</span>', '<span>{!STUDIO_P2_DOCS && "Privacy First"}</span>')
+// the env block
+mutant(ENV, 'env: the fourth pass is not named', 'Content pass 4 (PROGRAM-1, 23 Oct;', 'Content pass 4 (PROGRAM-2, 23 Oct;')
+mutant(ENV, 'env: the supersession is not said', 'so this supersedes "The words of the legal pages are not touched." above for the Security page only', 'so nothing above changes')
+mutant(ENV, 'env: the Security claims are not listed', 'no SOC 2 Type II, GDPR, AWS, audit, multi-factor or security@ claim', 'no claim')
+
 for (const [file, name] of NEW_TITLES) {
   mutant(file, `${name} tab: flag spelling`, "=== 'true' ?", "!== 'false' ?")
   mutant(file, `${name} tab: flag name`, 'process.env.NEXT_PUBLIC_STUDIO_P2_DOCS', 'process.env.NEXT_PUBLIC_STUDIO_DOCS')
@@ -2570,6 +2683,8 @@ for (const [file, name, from, to] of MUTANTS) {
     else if (file === AGENT_RULES) proveRules(mutated, name)
     else if (file === API_NOTICE) proveNotice(mutated, name)
     else if (file === PAGE_API) proveApiPage(mutated, name)
+    else if (file === SECURITY_PAGE) proveSecurityPage(mutated, name)
+    else if (file === SECURITY_FACTS) proveSecurityPage(SOURCES[SECURITY_PAGE], name, mutated)
     else if (file === FOOTER) proveFooter(mutated, name)
     else if (file === FOOTER_V3) proveFooterV3(mutated, name)
     else if (file === PAGE_AGENT) { proveAgentPage(mutated, name); proveNoRainbow(mutated, name) }

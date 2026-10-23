@@ -44,6 +44,24 @@ export const STACKED_PASS3_FILES = [
   'app/(app)/knowledge/page.tsx', 'app/api/knowledge-graph/query/route.ts', 'components/knowledge/studio-kg-ask.css', 'components/knowledge/studio-kg-ask.tsx', 'hooks/use-studio-kg-ask.ts', 'lib/studio-kg-ask.ts',
   // deck import (NEXT_PUBLIC_STUDIO_DECK_IMPORT): a new Decks layout, two proxy routes, the dialog and entry, their hook and rules, and OPS-2's REST entitlement minter carried verbatim (PR #312); no library file
   'app/(app)/dashboard/layout.tsx', 'app/api/studio-deck-import/route.ts', 'app/api/studio-deck-import/jobs/[jobId]/route.ts', 'components/studio-deck-import/studio-deck-import-dialog.tsx', 'components/studio-deck-import/studio-deck-import-entry.tsx', 'components/studio-deck-import/studio-deck-import.css', 'hooks/use-studio-deck-import.ts', 'lib/studio-deck-import.ts', 'lib/director-rest-entitlement.ts',
+  // UAT marketing port, FRONTEND-1 (NEXT_PUBLIC_STUDIO_UAT_MARKETING): the seven Landing route files and their layout gain a flag dispatch; the share card and a sitemap; one new flag helper, UAT's copy of the copy and its metadata, the parallel tree under components/marketing/v3-uat, its hook, and a neutral edit of the rail; no library file
+  'app/(marketing-v3)/about/page.tsx', 'app/(marketing-v3)/bring/page.tsx', 'app/(marketing-v3)/experts/page.tsx', 'app/(marketing-v3)/layout.tsx', 'app/(marketing-v3)/learn/page.tsx',
+  'app/(marketing-v3)/page.tsx', 'app/(marketing-v3)/present/page.tsx', 'app/(marketing-v3)/pricing/page.tsx', 'app/opengraph-image.tsx', 'app/sitemap.ts',
+  'components/marketing/SnapDeck/SlideProgressRail.tsx', 'components/marketing/v3-uat/AudienceQA.tsx', 'components/marketing/v3-uat/BringFlow.tsx', 'components/marketing/v3-uat/BuildCta.tsx',
+  'components/marketing/v3-uat/CycleWord.tsx', 'components/marketing/v3-uat/ExpertsLoop.tsx', 'components/marketing/v3-uat/FooterV3.tsx', 'components/marketing/v3-uat/HeaderV3.tsx',
+  'components/marketing/v3-uat/HeroFilm.tsx', 'components/marketing/v3-uat/KnowledgeGraphCanvas.tsx', 'components/marketing/v3-uat/PlayerSlides.tsx', 'components/marketing/v3-uat/SlideChip.tsx',
+  'components/marketing/v3-uat/StatusPill.tsx', 'components/marketing/v3-uat/SvgDefs.tsx', 'components/marketing/v3-uat/ThemeSwitch.tsx', 'components/marketing/v3-uat/V3Runtime.tsx',
+  'components/marketing/v3-uat/V3Spotlight.tsx', 'components/marketing/v3-uat/Waveform.tsx', 'components/marketing/v3-uat/ZoomBuild.tsx', 'components/marketing/v3-uat/flag.ts',
+  'components/marketing/v3-uat/home/Begin.tsx', 'components/marketing/v3-uat/home/Bring.tsx', 'components/marketing/v3-uat/home/Experts.tsx', 'components/marketing/v3-uat/home/Gallery.tsx',
+  'components/marketing/v3-uat/home/Knowledge.tsx', 'components/marketing/v3-uat/home/Present.tsx', 'components/marketing/v3-uat/home/Pricing.tsx', 'components/marketing/v3-uat/home/RealDeck.tsx',
+  'components/marketing/v3-uat/home/Start.tsx', 'components/marketing/v3-uat/home/Themes.tsx', 'components/marketing/v3-uat/pages/about.tsx', 'components/marketing/v3-uat/pages/bring.tsx',
+  'components/marketing/v3-uat/pages/experts.tsx', 'components/marketing/v3-uat/pages/home.tsx', 'components/marketing/v3-uat/pages/learn.tsx', 'components/marketing/v3-uat/pages/metadata.ts',
+  'components/marketing/v3-uat/pages/present.tsx', 'components/marketing/v3-uat/pages/pricing.tsx', 'components/marketing/v3-uat/shell.tsx', 'hooks/use-v3-deck-uat.ts', 'lib/analytics.ts',
+  'lib/marketing/v3-metadata.ts', 'lib/marketing/v3-uat-content.ts', 'lib/marketing/v3-uat-view.ts', 'lib/studio-uat-marketing.ts',
+  // brand files (own commit, not behind a flag: UAT's logo and app icons, same names and sizes)
+  'app/apple-icon.png', 'app/icon.png', 'app/icon.svg',
+  // Security page under the Docs flag (own commit): the page, its tab layout and the footer's two trust lines
+  'app/legal/security/layout.tsx', 'app/legal/security/page.tsx', 'components/layout/Footer.tsx',
   // deck import, FRONTEND-1 (the Builder's welcome links and the imported-deck note): the adoption reader (keeps Director's import marker), the note, and the two welcome components that gain one flag-gated link each
   'lib/composer-theme-policy.ts', 'components/studio-deck-import/studio-deck-import-note.tsx', 'components/studio-deck-import/studio-deck-import-gate.tsx', 'components/builder/studio-first-run-actions.tsx', 'components/builder/studio-welcome-stage.tsx',
   'app/(app)/dashboard/page.tsx', 'app/builder/page.tsx', 'components/builder/studio-copied-from-note.tsx', 'components/builder/studio-duplicate-deck.css', 'lib/studio-duplicate-deck.ts',

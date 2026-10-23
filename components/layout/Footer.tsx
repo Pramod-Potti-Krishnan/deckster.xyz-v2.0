@@ -172,14 +172,19 @@ export function Footer({ compact = false }: FooterProps = {}) {
               <Lock className="h-4 w-4 text-green-600" />
               <span>SSL Encrypted</span>
             </div>
-            <div className="flex items-center gap-2 text-sm text-muted-foreground">
-              <Award className="h-4 w-4 text-blue-600" />
-              <span>GDPR Compliant</span>
-            </div>
-            <div className="flex items-center gap-2 text-sm text-muted-foreground">
-              <Shield className="h-4 w-4 text-orange-600" />
-              <span>99.9% Uptime</span>
-            </div>
+            {/* PASS2 Docs (NEXT_PUBLIC_STUDIO_P2_DOCS, default off; PROGRAM-1 lifted ruling 2 for these two claims on 23 Oct): no certification or uptime figure is verified, so with the flag on the two lines are not shown (SSL Encrypted and Privacy First stay). Off: as before. */}
+            {!STUDIO_P2_DOCS && (
+              <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                <Award className="h-4 w-4 text-blue-600" />
+                <span>GDPR Compliant</span>
+              </div>
+            )}
+            {!STUDIO_P2_DOCS && (
+              <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                <Shield className="h-4 w-4 text-orange-600" />
+                <span>99.9% Uptime</span>
+              </div>
+            )}
             <div className="flex items-center gap-2 text-sm text-muted-foreground">
               <Heart className="h-4 w-4 text-purple-600" />
               <span>Privacy First</span>

@@ -6,9 +6,13 @@ import { BuildCta } from "@/components/marketing/v3/BuildCta"
 import { FooterV3 } from "@/components/marketing/v3/FooterV3"
 import { SlideChip } from "@/components/marketing/v3/SlideChip"
 import { studioP2LandingOn, studioP2Status } from "@/lib/studio-p2-landing"
+import { studioUatMarketing } from "@/components/marketing/v3-uat/flag"
+import { uatMarketingMetadata } from "@/components/marketing/v3-uat/pages/metadata"
+import { UatPresentPage } from "@/components/marketing/v3-uat/pages/present"
 
 const copy = V3_CONTENT.pages.present
-export const metadata: Metadata = { title: { absolute: copy.title }, alternates: { canonical: "/present" } }
+// UAT marketing flag (default off; components/marketing/v3-uat/flag.ts): with it on this page is the UAT design (components/marketing/v3-uat). Off: the page below, as it was.
+export const metadata: Metadata = studioUatMarketing.on ? uatMarketingMetadata.present : { title: { absolute: copy.title }, alternates: { canonical: "/present" } }
 // PASS2 LAND-05 (flag NEXT_PUBLIC_STUDIO_P2_LANDING, default off): the Narrate card reads "Live" like Publish and Answer. Off, every status is as written.
 const STUDIO_P2_LANDING = studioP2LandingOn(process.env.NEXT_PUBLIC_STUDIO_P2_LANDING)
 const reveal = (delay: number) => ({ "--d": delay } as CSSProperties)
@@ -82,4 +86,6 @@ function Close() {
   </section>
 }
 
-export default function PresentPage() { return <main><Hero /><Four /><Grounded /><Time /><Close /></main> }
+export default function PresentPage() {
+  if (studioUatMarketing.on) return <UatPresentPage />
+  return <main><Hero /><Four /><Grounded /><Time /><Close /></main> }

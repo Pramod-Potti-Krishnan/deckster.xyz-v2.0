@@ -5,15 +5,21 @@ import type { Metadata } from "next"
 import { FooterV3 } from "@/components/marketing/v3/FooterV3"
 import { SlideChip } from "@/components/marketing/v3/SlideChip"
 import { BuildCta } from "@/components/marketing/v3/BuildCta"
+import { uatMarketingMetadata } from "@/components/marketing/v3-uat/pages/metadata"
 
 const copy = V3_CONTENT.pages.learn
 
-export const metadata: Metadata = {
+// NEXT_PUBLIC_STUDIO_UAT_MARKETING (default off): with the flag on this page is the UAT design (components/marketing/v3-uat). Off: the page below, as it was.
+export const metadata: Metadata = process.env.NEXT_PUBLIC_STUDIO_UAT_MARKETING === "true" ? uatMarketingMetadata.learn : {
   title: { absolute: copy.metadata.title },
   alternates: { canonical: "/learn" },
 }
 
-export default function LearnV3Page() {
+export default async function LearnV3Page() {
+  if (process.env.NEXT_PUBLIC_STUDIO_UAT_MARKETING === "true") {
+    const { UatLearnPage } = await import("@/components/marketing/v3-uat/pages/learn")
+    return <UatLearnPage />
+  }
   return (
     <main>
       <section className="slide slide--paper" id="start" data-snap="slide" data-slide-label={copy.start.label} data-label={copy.start.label}>
