@@ -634,6 +634,7 @@ function buildTests(S) {
     const names = gitOut('diff', '--name-only', BASE_COMMIT, 'HEAD', '--', '.')
     if (names == null) { console.log('SKIP stacked scope: the base commit is not in this clone'); return }
     const changed = names.split('\n').filter(Boolean)
+    changed.splice(0, changed.length, ...changed.filter(rel => !/^(app\/api\/templates\/\[id\]\/route\.ts|components\/studio-libraries\/(library-manage|templates-workspace)\.tsx|hooks\/use-templates\.ts|lib\/studio-library-manage\.ts|scripts\/(studio-library-manage-strip|test-studio-route-params|test-studio-template-library-manage|test-studio-theme-library-manage)\.mjs|scripts\/fixtures\/template-rename\/.+)$/.test(rel))) // stacked after #475: the template rename's own files (PR #477) are not this change's to answer for
     const SIBLINGS = ['scripts/test-studio-model-catalog.mjs', 'scripts/test-studio-chat-theme-export.mjs', 'scripts/test-studio-chat-element-refine.mjs'] // #473's, #472's and #470's tests accept this change's lines (tests only)
     const own = new Set([LIB, DRAFT, TTS, SPOKEN, R_SCRIPT, R_RENDER, R_SPEAK, R_SAMPLE, ENV, PKG, STRIP, HARNESS, 'scripts/test-studio-narration-router.mjs', ...SIBLINGS])
     for (const rel of changed) assert.ok(own.has(rel), `stacked scope: ${rel} is not this change's`)
@@ -644,7 +645,8 @@ function buildTests(S) {
     assert.ok(lines(PKG, '-').length <= 1 && lines(PKG, '-').every(line => /test:studio-model-catalog/.test(line)), 'stacked scope: package.json: at most #473\'s entry, which gains a comma')
     assert.ok(lines(PKG, '+').some(line => /test:studio-narration-router/.test(line)), 'stacked scope: package.json: this change\'s registration follows')
     assert.ok(lines(HARNESS, '-').length <= 1 && lines(HARNESS, '-').every(line => /#469 deck-mutation dedupe\)/.test(line)), 'stacked scope: the harness: at most its comment line was extended')
-    assert.ok(lines(HARNESS, '+').length >= 3 && lines(HARNESS, '+').every(line => /narration|NARRATION/.test(line)), 'stacked scope: the stacked list gains this change\'s files only')
+    const harnessAdded = lines(HARNESS, '+').filter(line => !/FRONTEND-1 template rename|'app\/api\/templates\/\[id\]\/route\.ts'/.test(line)) // minus the template rename's (PR #477) two lines in the stacked list
+    assert.ok(harnessAdded.length >= 3 && harnessAdded.every(line => /narration|NARRATION/.test(line)), 'stacked scope: the stacked list gains this change\'s files only')
     for (const rel of SIBLINGS.filter(rel => changed.includes(rel))) {
       assert.ok(lines(rel, '+').every(line => /NarrationRouter|narration-router|NARRATION_ROUTER|#475/.test(line)), `stacked scope: ${rel}: every added line names this change`)
       assert.ok(lines(rel, '-').length <= 8, `stacked scope: ${rel}: only a few lines were extended`)

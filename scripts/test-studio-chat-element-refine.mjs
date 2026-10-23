@@ -680,6 +680,7 @@ await check(`identity: stripping this change gives back ${BASE_COMMIT.slice(0, 7
   // Nothing else in the tree differs from the base but this change's new files.
   // The committed tree against the base (not the working tree: a suite neighbour that rewrites docs/ while it runs must not count).
   const changed = git('diff', '--name-only', BASE_COMMIT, 'HEAD', '--', '.').split('\n').filter(Boolean)
+  changed.splice(0, changed.length, ...changed.filter(rel => !/^(app\/api\/templates\/\[id\]\/route\.ts|components\/studio-libraries\/(library-manage|templates-workspace)\.tsx|hooks\/use-templates\.ts|lib\/studio-library-manage\.ts|scripts\/(studio-library-manage-strip|test-studio-route-params|test-studio-template-library-manage|test-studio-theme-library-manage)\.mjs|scripts\/fixtures\/template-rename\/.+)$/.test(rel))) // stacked after #475: the template rename's own files (PR #477) are not this change's to answer for
   // New files, and the older pins / strip roots that now read through scripts/studio-chat-element-refine-strip.mjs (one import + one call each).
   const NEW = /^(lib\/chat-element-refine(-wire)?\.ts|scripts\/(test-studio-chat-element-refine|studio-chat-element-refine-(layout|strip))\.mjs|scripts\/fixtures\/chat-element-refine\/.+|docs\/pass3\/chat-element-refine\/LIVE-CHECK-PLAN\.md)$/
   const READS_THROUGH_STRIP = ['scripts/studio-add-slide-status-strip.mjs', 'scripts/studio-open-read-only-strip.mjs', 'scripts/studio-theme-dark-persist-strip.mjs',
@@ -691,7 +692,7 @@ await check(`identity: stripping this change gives back ${BASE_COMMIT.slice(0, 7
     const removed = git('diff', '-U0', BASE_COMMIT, '--', rel).split('\n').filter(line => line.startsWith('-') && !line.startsWith('---'))
     const added = git('diff', '-U0', BASE_COMMIT, '--', rel).split('\n').filter(line => line.startsWith('+') && !line.startsWith('+++'))
     const stacked = added.some(line => /chat-theme-export|CHAT_THEME_EXPORT/.test(line)) // #472's own import and call on the same lines
-    assert.ok(added.length <= (stacked ? 10 : 5) && removed.length <= 2, `${rel}: an import and one call (${added.length}+/${removed.length}-)`)
+    assert.ok(added.filter(line => !/FRONTEND-1 template rename|'app\/api\/templates\/\[id\]\/route\.ts'/.test(line)).length <= (stacked ? 10 : 5) && removed.length <= 2, `${rel}: an import and one call (${added.length}+/${removed.length}-)`) // stacked after #475: minus the template rename's (PR #477) two lines in the stacked list
     assert.ok(added.some(line => /stripChatElementRefine|CHAT_ELEMENT_REFINE_ENABLED: false|chat-element-refine/.test(line)), rel)
   }
   for (const rel of changed) assert.ok(CHAT_ELEMENT_REFINE_FILES.includes(rel) || NEW.test(rel) || READS_THROUGH_STRIP.includes(rel) || STACKED_THEME_EXPORT.test(rel) || STACKED_MODEL_CATALOG.test(rel) || STACKED_NARRATION_ROUTER.test(rel), `unexpected change: ${rel}`) // #475's files are stacked
