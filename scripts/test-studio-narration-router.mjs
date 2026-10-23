@@ -26,6 +26,7 @@ import path from 'node:path'
 import { fileURLToPath } from 'node:url'
 import vm from 'node:vm'
 import ts from 'typescript'
+import { stripStripeRealTier } from './studio-stripe-real-tier-strip.mjs' // Stripe real tier (STRIPE_REAL_TIER_MAPPING_ENABLED, P2-STRIPE-TIER) is stacked on #475: its .env.example block comes out of the file first
 
 const repoRoot = path.resolve(fileURLToPath(new URL('../', import.meta.url)))
 const nodeRequire = createRequire(import.meta.url)
@@ -619,8 +620,8 @@ function buildTests(S) {
     for (const rel of NARRATION_ROUTER_FILES) {
       const baseText = baseSource(rel)
       if (baseText == null) { console.log(`SKIP ${rel} strip against the base: the base commit is not in this clone`); continue }
-      assert.equal(stripNarrationRouter(rel, S[rel]), baseText, `${rel} without this change's lines is ${BASE_COMMIT.slice(0, 7)}'s file byte for byte`)
-      assert.equal(stripNarrationRouter(rel, stripNarrationRouter(rel, S[rel])), baseText, `${rel}: stripping twice changes nothing more`)
+      assert.equal(stripNarrationRouter(rel, stripStripeRealTier(rel, S[rel])), baseText, `${rel} without this change's lines (and the Stripe real tier's, stacked on it) is ${BASE_COMMIT.slice(0, 7)}'s file byte for byte`)
+      assert.equal(stripNarrationRouter(rel, stripNarrationRouter(rel, stripStripeRealTier(rel, S[rel]))), baseText, `${rel}: stripping twice changes nothing more`)
       assert.equal(stripNarrationRouter(rel, baseText), baseText, `${rel}: a file without the lines comes back as it is`)
     }
     for (const other of ['app/builder/page.tsx', LIB, 'README.md']) assert.equal(stripNarrationRouter(other, 'some text'), 'some text', `${other} comes back as it is`)
@@ -636,11 +637,12 @@ function buildTests(S) {
     const changed = names.split('\n').filter(Boolean)
     const SIBLINGS = ['scripts/test-studio-model-catalog.mjs', 'scripts/test-studio-chat-theme-export.mjs', 'scripts/test-studio-chat-element-refine.mjs'] // #473's, #472's and #470's tests accept this change's lines (tests only)
     const own = new Set([LIB, DRAFT, TTS, SPOKEN, R_SCRIPT, R_RENDER, R_SPEAK, R_SAMPLE, ENV, PKG, STRIP, HARNESS, 'scripts/test-studio-narration-router.mjs', ...SIBLINGS])
-    for (const rel of changed) assert.ok(own.has(rel), `stacked scope: ${rel} is not this change's`)
+    const STACKED_STRIPE_REAL_TIER = /^(app\/api\/webhooks\/stripe\/route\.ts|lib\/stripe\/subscription-plan\.ts|docs\/stripe-real-tier-mapping\.md|scripts\/(test-stripe-real-tier-webhook|studio-stripe-real-tier-strip)\.mjs)$/ // Stripe real tier's own files (stacked on this change)
+    for (const rel of changed) assert.ok(own.has(rel) || STACKED_STRIPE_REAL_TIER.test(rel), `stacked scope: ${rel} is not this change's (or the Stripe real tier's, stacked on it)`)
     for (const rel of [LIB, DRAFT, TTS, SPOKEN, R_SCRIPT, R_RENDER, R_SPEAK, R_SAMPLE, ENV, PKG, STRIP, HARNESS]) assert.ok(changed.includes(rel), `stacked scope: ${rel} is part of this change`)
     const lines = (rel, sign) => (gitOut('diff', '-U0', BASE_COMMIT, 'HEAD', '--', rel) ?? '').split('\n').filter(line => line.startsWith(sign) && !line.startsWith(sign.repeat(3)))
     assert.equal(lines(ENV, '-').length, 0, 'stacked scope: .env.example only gains lines (a pure insertion)')
-    assert.ok(lines(ENV, '+').every(line => /^\+(#|NARRATION_VIA_ROUTER=|MODEL_ROUTER_URL=|MODEL_ROUTER_STUDIO_KEY=|$)/.test(line)), 'stacked scope: and they are this block')
+    assert.ok(lines(ENV, '+').every(line => /^\+(#|NARRATION_VIA_ROUTER=|MODEL_ROUTER_URL=|MODEL_ROUTER_STUDIO_KEY=|STRIPE_REAL_TIER_MAPPING_ENABLED=|STRIPE_(STARTER|MAX)_(MONTHLY|YEARLY)_PRICE_ID=|$)/.test(line)), 'stacked scope: and they are this block (or the Stripe real tier\'s, stacked on it)')
     assert.ok(lines(PKG, '-').length <= 1 && lines(PKG, '-').every(line => /test:studio-model-catalog/.test(line)), 'stacked scope: package.json: at most #473\'s entry, which gains a comma')
     assert.ok(lines(PKG, '+').some(line => /test:studio-narration-router/.test(line)), 'stacked scope: package.json: this change\'s registration follows')
     assert.ok(lines(HARNESS, '-').length <= 1 && lines(HARNESS, '-').every(line => /#469 deck-mutation dedupe\)/.test(line)), 'stacked scope: the harness: at most its comment line was extended')

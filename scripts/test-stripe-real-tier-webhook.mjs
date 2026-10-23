@@ -607,6 +607,31 @@ for (const values of [{}, { [FLAG]: 'false' }, enabled()]) {
   eq(diagnostics.map(d => ts.flattenDiagnosticMessageText(d.messageText, '\n')), [], 'Helper type-checks against Stripe 17.4.0 Subscription.items')
 }
 
+// Stacked on #475 (and under the Pass 3 pins that hold .env.example to an earlier commit): the only change to .env.example is this block,
+// next to the existing STRIPE_* lines; stripping it gives the base's file back byte for byte (the pins read it through the same strip).
+{
+  const { stripStripeRealTier, STRIPE_REAL_TIER_FILES } = await import('./studio-stripe-real-tier-strip.mjs')
+  eq(STRIPE_REAL_TIER_FILES, ['.env.example'], 'The strip module names the one shared file')
+  const env = read('.env.example')
+  const baseEnv = execFileSync('git', ['show', `${BASE}:.env.example`], { cwd: ROOT, encoding: 'utf8', maxBuffer: 64 * 1024 * 1024 })
+  ok(env !== baseEnv, 'The Stripe real tier block is in .env.example')
+  ok(stripStripeRealTier('.env.example', env) === baseEnv, 'Without its block .env.example is the base\'s file byte for byte (a pure insertion)')
+  ok(stripStripeRealTier('.env.example', stripStripeRealTier('.env.example', env)) === baseEnv, 'Stripping twice changes nothing more')
+  ok(stripStripeRealTier('.env.example', baseEnv) === baseEnv, 'A file without the block comes back as it is')
+  for (const other of ['package.json', ROUTE, 'README.md']) eq(stripStripeRealTier(other, 'some text'), 'some text', `${other} comes back as it is`)
+  const at = env.indexOf('STRIPE_REAL_TIER_MAPPING_ENABLED="false"\n')
+  ok(env.split('STRIPE_REAL_TIER_MAPPING_ENABLED=').length === 2, 'The flag is documented once, default "false"')
+  ok(env.lastIndexOf('STRIPE_PRO_YEARLY_PRICE_ID=', at) > 0 && at - env.lastIndexOf('STRIPE_PRO_YEARLY_PRICE_ID=', at) < 600 && env.indexOf('# Note: NEXT_PUBLIC_APP_URL', at) > at, 'The block sits next to the existing STRIPE_* lines, before their trailing note')
+  ok(at < env.indexOf('# PASS2 ADMIN') && env.indexOf('# PASS2 ADMIN') < env.indexOf('# PASS2 Docs') && env.endsWith('NEXT_PUBLIC_STUDIO_P2_DOCS="false"\n'), '# PASS2 ADMIN then # PASS2 Docs are still the last two blocks')
+  for (const name of Object.keys(ENV).filter(key => !key.startsWith('STRIPE_PRO_'))) ok(env.split(`\n${name}="price_your_`).length === 2, `${name} is a placeholder, once`)
+  for (const name of Object.keys(ENV)) ok(!new RegExp(`^NEXT_PUBLIC_${name}`, 'm').test(env), `${name} has no NEXT_PUBLIC_ alias`)
+}
+
+// No key-shaped literal in what this change adds (the workspace secret scan reads added lines): the test builds its signing secret at run time.
+for (const rel of ['scripts/test-stripe-real-tier-webhook.mjs', 'scripts/studio-stripe-real-tier-strip.mjs', 'lib/stripe/subscription-plan.ts', ROUTE, 'docs/stripe-real-tier-mapping.md']) {
+  ok(!/\b(sk|rk|pk)_(live|test)_[A-Za-z0-9]{4,}|whsec_[A-Za-z0-9]{8,}|(secret|token)['"]?\s*[=:]\s*['"][A-Za-z0-9_./+-]{20,}/i.test(read(rel)), `${rel}: no key-shaped literal`)
+}
+
 eq(networkAttempts, 0, 'No network access was attempted')
 ok(postExecutions > 1500, 'Actual POST was exercised across enabled, disabled and baseline fixtures')
 console.log(`Stripe real-tier offline proof passed: ${checks} assertions; ${postExecutions} actual POST executions; exact BASE/OFF parity (output sha256 ${offDigest.current.slice(0, 16)} on both sides, ${OFF_SPELLINGS.length} flag spellings); real SDK 17.4.0 type witness; network attempts=${networkAttempts}; Node ${process.version}, TypeScript ${ts.version}.`)

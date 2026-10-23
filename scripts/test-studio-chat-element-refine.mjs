@@ -38,6 +38,8 @@ import { stripChatElementRefine, BASE_COMMIT, CHAT_ELEMENT_REFINE_FILES } from '
 import { stripChatThemeExport } from './studio-chat-theme-export-strip.mjs'
 import { stripModelCatalog } from './studio-model-catalog-strip.mjs' // #473 (NEXT_PUBLIC_STUDIO_MODEL_CATALOG), stacked on #472 on this change: its .env.example block and package.json line come out first
 import { stripNarrationRouter } from './studio-narration-router-strip.mjs' // #475 (NARRATION_VIA_ROUTER), stacked on #473 on #472 on this change: its .env.example block and package.json line come out first
+import { stripStripeRealTier } from './studio-stripe-real-tier-strip.mjs' // Stripe real tier (STRIPE_REAL_TIER_MAPPING_ENABLED, P2-STRIPE-TIER) is stacked on #475: its .env.example block comes out first
+const STACKED_STRIPE_REAL_TIER = /^(app\/api\/webhooks\/stripe\/route\.ts|lib\/stripe\/subscription-plan\.ts|docs\/stripe-real-tier-mapping\.md|scripts\/(test-stripe-real-tier-webhook|studio-stripe-real-tier-strip)\.mjs)$/ // Stripe real tier's own files (stacked on #475)
 const STACKED_NARRATION_ROUTER = /^(lib\/narration\/(model-router|draft|tts|spoken)\.ts|app\/api\/narration\/(render|script|speak)\/route\.ts|app\/api\/narration\/voice\/sample\/\[voiceId\]\/route\.ts|scripts\/(test-studio-narration-router|studio-narration-router-strip)\.mjs)$/ // #475's own files (stacked on #473)
 const STACKED_MODEL_CATALOG = /^(app\/\(app\)\/studio\/intelligence\/layout\.tsx|app\/api\/models\/catalogue\/route\.ts|components\/studio-personal\/intelligence-models\.(css|tsx)|lib\/studio-model-catalog\.ts|scripts\/(test-studio-model-catalog|studio-model-catalog-strip)\.mjs|scripts\/fixtures\/studio-model-catalog\/.+)$/ // #473's own files (stacked on #472 on this change)
 const STACKED_THEME_EXPORT = /^(lib\/chat-theme-export(-wire)?\.ts|scripts\/(test-studio-chat-theme-export|studio-chat-theme-export-strip)\.mjs|scripts\/fixtures\/chat-theme-export\/.+|docs\/pass3\/chat-theme-export\/LIVE-CHECK-PLAN\.md)$/
@@ -673,7 +675,7 @@ await check(`identity: stripping this change gives back ${BASE_COMMIT.slice(0, 7
     assert.ok(!env.slice(env.indexOf('# PASS3 REFINE AN ELEMENT FROM CHAT'), env.indexOf(line)).includes(phrase), `the block reuses no other block's phrase: ${phrase}`)
   }
   for (const rel of CHAT_ELEMENT_REFINE_FILES) {
-    const head = stripChatThemeExport(rel, stripModelCatalog(rel, stripNarrationRouter(rel, read(rel)))) // #475's lines out first (stacked), then #473's, then #472's (all stacked on this change)
+    const head = stripChatThemeExport(rel, stripModelCatalog(rel, stripNarrationRouter(rel, stripStripeRealTier(rel, read(rel))))) // the Stripe real tier block (stacked on #475) out first, then #475's lines (stacked), then #473's, then #472's (all stacked on this change)
     for (const [added] of strip.CHAT_ELEMENT_REFINE_CHANGES[rel]) assert.equal(head.split(added).length, 2, `${rel}: one occurrence`)
     assert.equal(sha(stripChatElementRefine(rel, head)), sha(baseFile(rel)), rel)
   }
@@ -694,7 +696,7 @@ await check(`identity: stripping this change gives back ${BASE_COMMIT.slice(0, 7
     assert.ok(added.length <= (stacked ? 10 : 5) && removed.length <= 2, `${rel}: an import and one call (${added.length}+/${removed.length}-)`)
     assert.ok(added.some(line => /stripChatElementRefine|CHAT_ELEMENT_REFINE_ENABLED: false|chat-element-refine/.test(line)), rel)
   }
-  for (const rel of changed) assert.ok(CHAT_ELEMENT_REFINE_FILES.includes(rel) || NEW.test(rel) || READS_THROUGH_STRIP.includes(rel) || STACKED_THEME_EXPORT.test(rel) || STACKED_MODEL_CATALOG.test(rel) || STACKED_NARRATION_ROUTER.test(rel), `unexpected change: ${rel}`) // #475's files are stacked
+  for (const rel of changed) assert.ok(CHAT_ELEMENT_REFINE_FILES.includes(rel) || NEW.test(rel) || READS_THROUGH_STRIP.includes(rel) || STACKED_THEME_EXPORT.test(rel) || STACKED_MODEL_CATALOG.test(rel) || STACKED_NARRATION_ROUTER.test(rel) || STACKED_STRIPE_REAL_TIER.test(rel), `unexpected change: ${rel}`) // #475's files are stacked, and so are the Stripe real tier's (on #475)
 })
 
 await check('identity: every added piece is behind the flag (or is a type, a comment or the flag-gated import)', async () => {
