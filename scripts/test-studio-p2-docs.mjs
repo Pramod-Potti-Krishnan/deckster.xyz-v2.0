@@ -1786,12 +1786,12 @@ function proveEnv(env, label = 'env') {
   match(comment, /\/docs\/api says "Not available yet" in a notice under the site header with its content muted, and no footer links to/, `${label}: the comment says what /docs/api shows`)
   match(comment, /neither footer links \/integrations or \/agents, and \/compare drops "Meet the Team"/, `${label}: the comment says which links go`)
   match(comment, /the Landing footer gains Help, Docs, Security and Cookies beside Privacy and Terms/, `${label}: the comment says what the Landing footer gains`)
-  match(comment, /The words of the Privacy, Terms and Cookies pages are not touched\./, `${label}: the comment says the legal words are untouched`)
+  match(comment, /The words of the legal pages are not touched\./, `${label}: the comment says the legal words are untouched`)
   const flat = comment.replace(/\n# /g, ' ')
   match(flat, /Content pass 2 \(PROGRAM-1, 22 Oct\), same flag: the docs name the real plans \(Starter, Pro, Max; the plan tags the code does not back are taken out\) and the Google sign-in \(content\/studio-p2-docs-facts\.ts\)/, `${label}: the comment names the second content pass, the real plans and the Google sign-in`)
   match(flat, /the comparison pages and the example and template cards read the current agents \(content\/studio-p2-comparisons\.ts, lib\/studio-p2-docs\.ts; \/examples and \/templates are redirects today\)/, `${label}: the comment says which pages read the current agents, and that two of them are redirects`)
   match(flat, /\/docs\/api loses its "v1\.0 Beta" badge; the agent not-found page links to \/experts\./, `${label}: the comment says the badge goes and the not-found link moves`)
-  match(flat, /Content pass 4 \(PROGRAM-1, 23 Oct; Docs ruling 2 is lifted for what `uat` already removed\), same flag: the Security page and its tab description say only what is true today \(content\/studio-p2-docs-security\.ts, the wording `uat` already carries\): no SOC 2 Type II, GDPR, AWS, audit, multi-factor or security@ claim; the footer drops its "GDPR Compliant" and "99\.9% Uptime" lines \(SSL Encrypted and Privacy First stay\)\. The words of the Privacy, Terms and Cookies pages are not touched\./, `${label}: the comment names the fourth pass and what it removes`)
+  match(flat, /Content pass 4 \(PROGRAM-1, 23 Oct; Docs ruling 2 is lifted for what `uat` already removed, so this supersedes "The words of the legal pages are not touched\." above for the Security page only\), same flag: the Security page and its tab description say only what is true today \(content\/studio-p2-docs-security\.ts, the wording `uat` already carries\): no SOC 2 Type II, GDPR, AWS, audit, multi-factor or security@ claim; the footer drops its "GDPR Compliant" and "99\.9% Uptime" lines \(SSL Encrypted and Privacy First stay\)\. The words of the Privacy, Terms and Cookies pages are not touched\./, `${label}: the comment names the fourth pass and what it removes`)
   match(flat, /Content pass 3 \(PROGRAM-1, 22 Oct\), same flag: \/docs\/api loses its Rate Limits section, the heading with its lock icon and the line \("100 requests per minute for Pro plans and 1000 requests per minute for Enterprise plans": the API is not open and no plan is called Enterprise\); the rest of the page is as it was\./, `${label}: the comment names the third pass, the section that goes (heading, icon and line) and what stays`)
   match(flat, /With NEXT_PUBLIC_STUDIO_P2_ONBOARDING and the shell on there is no old agent name left to change \(the wizard and the Studio introduction name none\); the old \/onboarding page and the old modal, which still do, are the flag-off text and stay as they were\./, `${label}: the comment says onboarding has no old name to change on its flag-on path`)
   eq(comment.split('\n').filter(line => !line.startsWith('# ')).length, 0, `${label}: the whole block is comment lines`)
@@ -2208,7 +2208,8 @@ mutant(FOOTER, 'footer: SSL Encrypted goes with the flag on', '<span>SSL Encrypt
 mutant(FOOTER, 'footer: Privacy First goes with the flag on', '<span>Privacy First</span>', '<span>{!STUDIO_P2_DOCS && "Privacy First"}</span>')
 // the env block
 mutant(ENV, 'env: the fourth pass is not named', 'Content pass 4 (PROGRAM-1, 23 Oct;', 'Content pass 4 (PROGRAM-2, 23 Oct;')
-mutant(ENV, 'env: the Security claims are not listed', 'no SOC 2 Type II,\n# GDPR, AWS, audit, multi-factor or security@ claim', 'no claim')
+mutant(ENV, 'env: the supersession is not said', 'so this supersedes "The words of the legal pages are not touched." above for the Security page only', 'so nothing above changes')
+mutant(ENV, 'env: the Security claims are not listed', 'no SOC 2 Type II, GDPR, AWS, audit, multi-factor or security@ claim', 'no claim')
 
 for (const [file, name] of NEW_TITLES) {
   mutant(file, `${name} tab: flag spelling`, "=== 'true' ?", "!== 'false' ?")
