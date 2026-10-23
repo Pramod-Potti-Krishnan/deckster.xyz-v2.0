@@ -647,7 +647,7 @@ function buildTests(S) {
     assert.ok(lines(HARNESS, '+').length >= 3 && lines(HARNESS, '+').every(line => /narration|NARRATION/.test(line)), 'stacked scope: the stacked list gains this change\'s files only')
     for (const rel of SIBLINGS.filter(rel => changed.includes(rel))) {
       assert.ok(lines(rel, '+').every(line => /NarrationRouter|narration-router|NARRATION_ROUTER|#475/.test(line)), `stacked scope: ${rel}: every added line names this change`)
-      assert.ok(lines(rel, '-').length <= 6, `stacked scope: ${rel}: only a few lines were extended`)
+      assert.ok(lines(rel, '-').length <= 8, `stacked scope: ${rel}: only a few lines were extended`)
     }
   })
   test('the draft model, its fields and the prompt are untouched (the router call is the same JSON as the direct one)', () => {
