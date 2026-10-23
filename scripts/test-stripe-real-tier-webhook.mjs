@@ -627,7 +627,7 @@ const git = args => execFileSync('git', args, { cwd: ROOT, encoding: 'utf8', max
   eq(scope.missing, [], 'Every frozen file of this change is changed against the base')
   eq(scope.stray, [], 'No file of this change\'s path family is outside its frozen list')
   ok(changed.includes(ROUTE) && changed.includes(HELPER), 'The route and the resolver are changed')
-  ok(!changed.includes('package.json'), 'package.json is not touched (the suite finds this test by its name)')
+  ok(!/stripe[-_]real[-_]tier/i.test(read('package.json')), 'package.json registers nothing of this change (the suite finds this test by its name); what a later PR adds to it is not this test\'s to judge')
   eq(scope.checked.slice().sort(), OWN_CHANGE.files.slice().sort(), 'The files this change answers for are exactly its frozen files')
   for (const [label, verdict] of stackMutants({ change: OWN_CHANGE, changed, shared: [], kept: [] })) ok(verdict, `scope rules: ${label}`)
 }
