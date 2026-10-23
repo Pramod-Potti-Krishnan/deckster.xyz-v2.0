@@ -14,6 +14,8 @@
 //      exists; a read timeout, a reset after sending, 429, any other status and any router error object are final (one call, never a second charge)
 //   4  X-MR-* ids: opaque ids only (an e-mail is never sent); 5 a missing or unusable router variable is the base's direct call, logged once without values
 //   6  no key value in any log line or error message; 7 the wiring (routes, spoken lines, .env.example, package.json)
+//   8  the stack: this change sits on #473 (model catalog) on #472 on #470 on 8d5c494, i.e. 13c90ea. Its block and line come out through scripts/studio-narration-router-strip.mjs and give back
+//      13c90ea's .env.example and package.json byte for byte, the block sits after #473's block and before PASS2 ADMIN, and the committed tree differs from 13c90ea in this change's files only
 // then a mutation check: every mutant of the new code must fail at least one check.
 import assert from 'node:assert/strict'
 import { createHash, randomBytes } from 'node:crypto'
@@ -27,7 +29,9 @@ import ts from 'typescript'
 
 const repoRoot = path.resolve(fileURLToPath(new URL('../', import.meta.url)))
 const nodeRequire = createRequire(import.meta.url)
-const BASE_COMMIT = 'fae962006b080e26eb70c2add7066ca1edf8eca2' // studio-v4-dev-preparation-code when this change branched
+// The base this change is stacked on: #473 (model catalog) at 13c90ea, which holds #472, #470 and studio-v4-dev-preparation-code at 8d5c494. lib/narration/ and app/api/narration/ are the same text there as at fae9620 (where
+// this change branched), so the flag-off comparison is unchanged; .env.example and package.json are held to 13c90ea through scripts/studio-narration-router-strip.mjs (this change's block and line come out).
+const BASE_COMMIT = '13c90ea9c94dc2b426c98bf775b870f890b99fab'
 
 const LIB = 'lib/narration/model-router.ts'
 const DRAFT = 'lib/narration/draft.ts'
@@ -43,6 +47,8 @@ const R_SPEAK = 'app/api/narration/speak/route.ts'
 const R_SAMPLE = 'app/api/narration/voice/sample/[voiceId]/route.ts'
 const ENV = '.env.example'
 const PKG = 'package.json'
+const STRIP = 'scripts/studio-narration-router-strip.mjs'
+const HARNESS = 'scripts/studio-library-manage-harness.mjs'
 
 const tryRead = rel => { try { return fs.readFileSync(path.join(repoRoot, rel), 'utf8') } catch { return null } }
 const baseCache = new Map()
@@ -55,13 +61,17 @@ const baseSource = rel => {
   return baseCache.get(rel)
 }
 const sha = text => createHash('sha256').update(text).digest('hex')
+/** `git <args>` from the repo root; null when git cannot answer (the base commit is not in this clone). */
+const gitOut = (...args) => { try { return execFileSync('git', args, { cwd: repoRoot, encoding: 'utf8', maxBuffer: 64 * 1024 * 1024, stdio: ['ignore', 'pipe', 'ignore'] }) } catch { return null } }
+/** The strip module's exports from its source text (a mutant's text too): the file is plain JavaScript with two top-level exports. */
+const loadStrip = source => new Function(`${source.replace(/^export /gm, '')}\nreturn { stripNarrationRouter, NARRATION_ROUTER_FILES }`)()
 
 const STUB_MEDIA_STORE = `
 export function contentKey(parts: unknown): string { return 'k' }
 export async function getMedia(path: string): Promise<null> { return null }
 export async function putMedia(path: string, body: unknown, contentType: string): Promise<{ ok: boolean }> { return { ok: true } }
 `
-const HEAD_FILES = [LIB, DRAFT, TTS, SPOKEN, VOICES, BUDGET, WAV, R_SCRIPT, R_RENDER, R_SPEAK, R_SAMPLE, ENV, PKG]
+const HEAD_FILES = [LIB, DRAFT, TTS, SPOKEN, VOICES, BUDGET, WAV, R_SCRIPT, R_RENDER, R_SPEAK, R_SAMPLE, ENV, PKG, STRIP]
 const headSources = () => ({ ...Object.fromEntries(HEAD_FILES.map(rel => [rel, tryRead(rel)])), [MEDIA_STORE]: STUB_MEDIA_STORE })
 // The branch's untouched helpers with the BASE's three changed library files: what shipped.
 const baseSources = head => {
@@ -574,7 +584,7 @@ function buildTests(S) {
     assert.deepEqual(hits, [LIB])
     assert.ok(!/['"]use client['"]/.test(lib))
   })
-  test('.env.example: the flag "false" and the two empty variables, once each, in a block after the base\'s last line; package.json registers the test; both append-only', () => {
+  test('.env.example: the flag "false" and the two empty variables, once each, in a block after #473\'s model catalog block and before PASS2 ADMIN; package.json registers the test last; both append-only over 13c90ea', () => {
     const env = S[ENV]
     assert.equal(env.split('\nNARRATION_VIA_ROUTER="false"\n').length - 1, 1)
     assert.equal(env.split('\nMODEL_ROUTER_URL=\n').length - 1, 1); assert.equal(env.split('\nMODEL_ROUTER_STUDIO_KEY=\n').length - 1, 1)
@@ -590,14 +600,55 @@ function buildTests(S) {
       const kind = rel === PKG ? /^\s*"test:[a-z0-9-]+": "node scripts\/test-[a-z0-9-]+\.mjs"$/ : /^\s*$|^\s*#|^[A-Z][A-Z0-9_]*=/
       assert.equal(next, want.length, `${rel}: a base line is missing or out of order`)
       assert.ok(extras.every(line => line === '' || kind.test(line)), `${rel}: an unexpected extra line: ${extras.find(line => line !== '' && !kind.test(line))}`)
-      if (rel === ENV) {
-        const baseLines = baseText.trimEnd().split('\n'), last = baseLines[baseLines.length - 1]
-        assert.ok(env.lastIndexOf('NARRATION_VIA_ROUTER="false"') > env.lastIndexOf(last), 'the block is not after the base\'s end')
-      }
     }
-    const block = env.slice(env.lastIndexOf('# STUDIO NARRATION THROUGH THE MODEL ROUTER'))
+    // Stacked order: after #473's model catalog block (the last PASS3 block), before FRONTEND-1's PASS2 ADMIN and Docs blocks (their mutants find a block with lastIndexOf, so those stay last).
+    const at = env.lastIndexOf('# STUDIO NARRATION THROUGH THE MODEL ROUTER')
+    assert.ok(at > 0 && env.indexOf('# STUDIO NARRATION THROUGH THE MODEL ROUTER') === at, 'one block')
+    for (const earlier of ['NEXT_PUBLIC_CHAT_ELEMENT_REFINE="false"', 'NEXT_PUBLIC_CHAT_EXPORT="false"', 'NEXT_PUBLIC_STUDIO_MODEL_CATALOG="false"']) if (env.includes(earlier)) assert.ok(env.indexOf(earlier) < at, `after ${earlier.split('=')[0]}'s block`)
+    for (const later of ['# PASS2 ADMIN', '# PASS2 Docs / Help / Legal / Agents']) if (env.includes(later)) assert.ok(at < env.indexOf(later), `before FRONTEND-1's ${later}`)
+    if (env.includes('NEXT_PUBLIC_STUDIO_P2_DOCS="false"')) assert.ok(env.indexOf('NEXT_PUBLIC_STUDIO_P2_ADMIN="false"') < env.indexOf('NEXT_PUBLIC_STUDIO_P2_DOCS="false"') && env.endsWith('NEXT_PUBLIC_STUDIO_P2_DOCS="false"\n'), 'ADMIN then DOCS are still the last two blocks')
+    const block = env.slice(at, env.indexOf('MODEL_ROUTER_STUDIO_KEY=\n', at))
     for (const phrase of ['only the string "true"', 'no public prefix', 'never committed', 'ONLY when the router cannot be', '401 or 403', '502, 503 or 504', 'a 429', 'second charge', 'X-MR-Service "studio"']) assert.ok(block.includes(phrase), `the .env.example block lost: ${phrase}`)
-    assert.ok(!/READ AT BUILD TIME|exact value "true"|exact "true"|default off|Needs the Studio shell|Nothing is sent or stored/.test(block), 'the block reuses another block\'s phrase')
+    assert.ok(!/READ AT BUILD TIME|exact value "true"|exact "true"|default off|Needs the Studio shell|Nothing is sent or stored|Build-time flag|PASS2|PASS3/.test(block), 'the block reuses another block\'s phrase')
+    for (const line of block.split('\n')) if (line.length > 40) assert.equal(env.split(line).length - 1, 1, `no line of the block is repeated elsewhere: ${line.slice(0, 50)}`)
+  })
+  test('the strip module: without this change\'s block and line .env.example and package.json are 13c90ea\'s files byte for byte (a pure insertion); every other file comes back as it is', () => {
+    assert.ok(S[STRIP] != null, `${STRIP} exists`)
+    const { stripNarrationRouter, NARRATION_ROUTER_FILES } = loadStrip(S[STRIP])
+    assert.deepEqual(NARRATION_ROUTER_FILES, [ENV, PKG], 'the two shared files')
+    for (const rel of NARRATION_ROUTER_FILES) {
+      const baseText = baseSource(rel)
+      if (baseText == null) { console.log(`SKIP ${rel} strip against the base: the base commit is not in this clone`); continue }
+      assert.equal(stripNarrationRouter(rel, S[rel]), baseText, `${rel} without this change's lines is ${BASE_COMMIT.slice(0, 7)}'s file byte for byte`)
+      assert.equal(stripNarrationRouter(rel, stripNarrationRouter(rel, S[rel])), baseText, `${rel}: stripping twice changes nothing more`)
+      assert.equal(stripNarrationRouter(rel, baseText), baseText, `${rel}: a file without the lines comes back as it is`)
+    }
+    for (const other of ['app/builder/page.tsx', LIB, 'README.md']) assert.equal(stripNarrationRouter(other, 'some text'), 'some text', `${other} comes back as it is`)
+    // the registration stays strippable when something is stacked after it (not the last entry)
+    const mid = S[PKG].replace('"node scripts/test-studio-narration-router.mjs"', '"node scripts/test-studio-narration-router.mjs",\n    "test:studio-later": "node scripts/test-later.mjs"')
+    assert.notEqual(mid, S[PKG], 'a later registration was put in')
+    const baseText = baseSource(PKG)
+    if (baseText != null) assert.equal(stripNarrationRouter(PKG, mid), baseText.replace(/\n  \},\n  "dependencies"/, ',\n    "test:studio-later": "node scripts/test-later.mjs"\n  },\n  "dependencies"'), 'package.json: the registration comes out of the middle of the list')
+  })
+  test('stacked scope: the committed tree (git diff BASE HEAD, not the working tree) differs from 13c90ea in this change\'s files only, and only by its lines', () => {
+    const names = gitOut('diff', '--name-only', BASE_COMMIT, 'HEAD', '--', '.')
+    if (names == null) { console.log('SKIP stacked scope: the base commit is not in this clone'); return }
+    const changed = names.split('\n').filter(Boolean)
+    const SIBLINGS = ['scripts/test-studio-model-catalog.mjs', 'scripts/test-studio-chat-theme-export.mjs', 'scripts/test-studio-chat-element-refine.mjs'] // #473's, #472's and #470's tests accept this change's lines (tests only)
+    const own = new Set([LIB, DRAFT, TTS, SPOKEN, R_SCRIPT, R_RENDER, R_SPEAK, R_SAMPLE, ENV, PKG, STRIP, HARNESS, 'scripts/test-studio-narration-router.mjs', ...SIBLINGS])
+    for (const rel of changed) assert.ok(own.has(rel), `stacked scope: ${rel} is not this change's`)
+    for (const rel of [LIB, DRAFT, TTS, SPOKEN, R_SCRIPT, R_RENDER, R_SPEAK, R_SAMPLE, ENV, PKG, STRIP, HARNESS]) assert.ok(changed.includes(rel), `stacked scope: ${rel} is part of this change`)
+    const lines = (rel, sign) => (gitOut('diff', '-U0', BASE_COMMIT, 'HEAD', '--', rel) ?? '').split('\n').filter(line => line.startsWith(sign) && !line.startsWith(sign.repeat(3)))
+    assert.equal(lines(ENV, '-').length, 0, 'stacked scope: .env.example only gains lines (a pure insertion)')
+    assert.ok(lines(ENV, '+').every(line => /^\+(#|NARRATION_VIA_ROUTER=|MODEL_ROUTER_URL=|MODEL_ROUTER_STUDIO_KEY=|$)/.test(line)), 'stacked scope: and they are this block')
+    assert.ok(lines(PKG, '-').length <= 1 && lines(PKG, '-').every(line => /test:studio-model-catalog/.test(line)), 'stacked scope: package.json: at most #473\'s entry, which gains a comma')
+    assert.ok(lines(PKG, '+').some(line => /test:studio-narration-router/.test(line)), 'stacked scope: package.json: this change\'s registration follows')
+    assert.ok(lines(HARNESS, '-').length <= 1 && lines(HARNESS, '-').every(line => /#469 deck-mutation dedupe\)/.test(line)), 'stacked scope: the harness: at most its comment line was extended')
+    assert.ok(lines(HARNESS, '+').length >= 3 && lines(HARNESS, '+').every(line => /narration|NARRATION/.test(line)), 'stacked scope: the stacked list gains this change\'s files only')
+    for (const rel of SIBLINGS.filter(rel => changed.includes(rel))) {
+      assert.ok(lines(rel, '+').every(line => /NarrationRouter|narration-router|NARRATION_ROUTER|#475/.test(line)), `stacked scope: ${rel}: every added line names this change`)
+      assert.ok(lines(rel, '-').length <= 6, `stacked scope: ${rel}: only a few lines were extended`)
+    }
   })
   test('the draft model, its fields and the prompt are untouched (the router call is the same JSON as the direct one)', () => {
     const body = S[DRAFT].slice(S[DRAFT].indexOf('const requestBody = JSON.stringify({'), S[DRAFT].indexOf('const { response } = await callModel'))
@@ -691,7 +742,19 @@ const MUTANTS = [
   [ENV, '\nMODEL_ROUTER_STUDIO_KEY=\n', '\nMODEL_ROUTER_STUDIO_KEY=placeholder\n', 'a value in the key line'],
   [ENV, '\nMODEL_ROUTER_URL=\n', '\nNEXT_PUBLIC_MODEL_ROUTER_URL=\n', 'the URL is public'],
   [ENV, 'ONLY when the router cannot be', 'whenever the router cannot be', 'the example misstates the fallback'],
-  [PKG, '"test:studio-narration-router": "node scripts/test-studio-narration-router.mjs",\n', '', 'the test is not registered'],
+  [ENV, '# STUDIO NARRATION THROUGH THE MODEL ROUTER', t => { const at = t.indexOf('# STUDIO NARRATION THROUGH THE MODEL ROUTER'); const end = t.indexOf('MODEL_ROUTER_STUDIO_KEY=\n', at) + 'MODEL_ROUTER_STUDIO_KEY=\n'.length; return t.slice(0, at) + t.slice(end + 1) + '\n' + t.slice(at, end) }, 'the block moved after the PASS2 ADMIN and Docs blocks'],
+  [ENV, '# STUDIO NARRATION THROUGH THE MODEL ROUTER', t => { const at = t.indexOf('# STUDIO NARRATION THROUGH THE MODEL ROUTER'); const end = t.indexOf('MODEL_ROUTER_STUDIO_KEY=\n', at) + 'MODEL_ROUTER_STUDIO_KEY=\n'.length; const block = t.slice(at, end); const rest = t.slice(0, at) + t.slice(end + 1); const refine = rest.indexOf('# PASS3 REFINE AN ELEMENT FROM CHAT'); return rest.slice(0, refine) + block + '\n' + rest.slice(refine) }, 'the block moved above the refine and theme / export blocks'],
+  [ENV, '# STUDIO NARRATION THROUGH THE MODEL ROUTER', t => { const at = t.indexOf('# STUDIO NARRATION THROUGH THE MODEL ROUTER'); const end = t.indexOf('MODEL_ROUTER_STUDIO_KEY=\n', at) + 'MODEL_ROUTER_STUDIO_KEY=\n'.length; const block = t.slice(at, end); const rest = t.slice(0, at) + t.slice(end + 1); const catalog = rest.indexOf('# PASS3 MODEL CATALOG'); return rest.slice(0, catalog) + block + '\n' + rest.slice(catalog) }, 'the block moved above #473\'s model catalog block'],
+  [ENV, 'NEXT_PUBLIC_STUDIO_P2_ADMIN="false"', 'NEXT_PUBLIC_STUDIO_P2_ADMIN="true"', 'a base line changed'],
+  [STRIP, "return text.replace(ENV_BLOCK, '')", 'return text', 'the env block is not stripped'],
+  [STRIP, 'MODEL_ROUTER_STUDIO_KEY=\\n\\n/', 'MODEL_ROUTER_STUDIO_KEY=\\n/', 'the env block strip leaves its blank line'],
+  [STRIP, "text.includes(last) ? text.replace(last, '\\n') : text.replace(`${PACKAGE_LINE},\\n`, '')", 'text', 'the registration is not stripped'],
+  [STRIP, "text.replace(last, '\\n')", "text.replace(last, ',\\n')", 'the previous entry keeps its comma'],
+  [STRIP, ": text.replace(`${PACKAGE_LINE},\\n`, '')", ': text', 'the middle of the list is not handled'],
+  [STRIP, '  return text\n}', "  return text + ' '\n}", 'another file is changed'],
+  [STRIP, "export const NARRATION_ROUTER_FILES = ['.env.example', 'package.json']", "export const NARRATION_ROUTER_FILES = ['.env.example', 'package.json', 'README.md']", 'a third file is claimed'],
+  [PKG, ',\n    "test:studio-narration-router": "node scripts/test-studio-narration-router.mjs"', '', 'the test is not registered'],
+  [PKG, '"test:studio-narration-router": "node scripts/test-studio-narration-router.mjs"', '"test:studio-narration-router": "node scripts/test-studio-narration-router-2.mjs"', 'the test is registered to another file'],
 ]
 
 // ---------- run ----------
@@ -704,7 +767,7 @@ if (failures.length === 0) {
   for (const [rel, from, to, why] of MUTANTS) {
     assert.ok(head[rel]?.includes(from), `mutant anchor missing in ${rel}: ${from}`)
     assert.equal(head[rel].split(from).length - 1, 1, `mutant anchor is not unique in ${rel}: ${from}`)
-    const mutated = await runSuite({ ...head, [rel]: head[rel].replace(from, () => to) })
+    const mutated = await runSuite({ ...head, [rel]: typeof to === 'function' ? to(head[rel]) : head[rel].replace(from, () => to) })
     if (mutated.failures.length === 0) survivors.push(`${rel}: ${why}`)
     else killed++
   }
