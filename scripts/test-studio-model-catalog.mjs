@@ -29,6 +29,7 @@ import { fileURLToPath } from 'node:url'
 import ts from 'typescript'
 import { stripNarrationRouter } from './studio-narration-router-strip.mjs' // #475 (NARRATION_VIA_ROUTER) is stacked on this change: its .env.example block and package.json line come out first
 import { sameAsBase } from './studio-env-append-tolerant.mjs' // stacked after #475: the .env.example rule that takes a later change's block (scripts/studio-env-append-tolerant.mjs)
+import { STACK, stackMutants, stackScope, sameOrTolerant } from './studio-stack-tolerant.mjs' // stacked after #475: a later PR's files are not this change's to answer for, and a shared file a later PR edits too keeps its base lines and this change's (scripts/studio-stack-tolerant.mjs)
 import postcss from 'postcss'
 import React from 'react'
 import jsxRuntimeReal from 'react/jsx-runtime'
@@ -65,6 +66,7 @@ const PKG = 'package.json'
 const FLAG = 'NEXT_PUBLIC_STUDIO_MODEL_CATALOG'
 const STRIP = 'scripts/studio-model-catalog-strip.mjs'
 const HARNESS = 'scripts/studio-library-manage-harness.mjs'
+const STACK_PKG_CHANGES = [['    "test:studio-model-catalog": "node scripts/test-studio-model-catalog.mjs"', '']] // stacked after #475: this change's one package.json line, for scripts/studio-stack-tolerant.mjs
 const OWN = [LIB, ROUTE, UI, CSS, LAYOUT, ENV, PKG, STRIP]
 for (const rel of [LIB, ROUTE, UI, CSS, LAYOUT, STRIP]) assert.ok(fs.existsSync(path.join(ROOT, rel)), `${rel} exists`)
 const read = rel => fs.readFileSync(path.join(ROOT, rel), 'utf8')
@@ -809,7 +811,7 @@ async function proveStrip(S, label = 'strip') {
   const { stripModelCatalog, MODEL_CATALOG_FILES } = load(STRIP, { sources: S })
   deepEq(MODEL_CATALOG_FILES, ['.env.example', 'package.json'], `${label}: the two shared files`)
   for (const rel of MODEL_CATALOG_FILES) {
-    ok(sameAsBase(rel, stripModelCatalog(rel, stripNarrationRouter(rel, S[rel])), baseSource(rel), /NEXT_PUBLIC_STUDIO_MODEL_CATALOG\b/), `${label}: ${rel} without this change's lines (and #475's, stacked on it) is ${BASE_COMMIT.slice(0, 7)}'s file byte for byte (.env.example: a later change's block may follow)`)
+    ok(sameAsBase(rel, stripModelCatalog(rel, stripNarrationRouter(rel, S[rel])), baseSource(rel), /NEXT_PUBLIC_STUDIO_MODEL_CATALOG\b/) || (rel === PKG && sameOrTolerant(rel, stripNarrationRouter(rel, S[rel]), stripModelCatalog(rel, stripNarrationRouter(rel, S[rel])), baseSource(rel), STACK_PKG_CHANGES).ok), `${label}: ${rel} without this change's lines (and #475's, stacked on it) is ${BASE_COMMIT.slice(0, 7)}'s file byte for byte (.env.example: a later change's block may follow; package.json: a later PR's lines, its base lines kept in order, stacked after #475)`)
     eq(stripModelCatalog(rel, stripModelCatalog(rel, stripNarrationRouter(rel, S[rel]))), stripModelCatalog(rel, stripNarrationRouter(rel, S[rel])), `${label}: ${rel}: stripping twice changes nothing more (#475's lines out first)`)
     eq(stripModelCatalog(rel, baseSource(rel)), baseSource(rel), `${label}: ${rel}: a file without the lines comes back as it is`)
   }
@@ -825,6 +827,10 @@ function proveStackedScope() {
   const SIBLINGS = ['scripts/test-studio-chat-element-refine.mjs', 'scripts/test-studio-chat-theme-export.mjs']
   const own = new Set([...OWN, HARNESS, 'scripts/test-studio-model-catalog.mjs', ...SIBLINGS])
   const STACKED_NARRATION_ROUTER = /^(lib\/narration\/(model-router|draft|tts|spoken)\.ts|app\/api\/narration\/(render|script|speak)\/route\.ts|app\/api\/narration\/voice\/sample\/\[voiceId\]\/route\.ts|scripts\/(test-studio-narration-router|studio-narration-router-strip)\.mjs)$/ // #475's own files (stacked on this change)
+  const STACK_KNOWN = rel => own.has(rel) || STACKED_NARRATION_ROUTER.test(rel) || /^scripts\/(test-)?studio-env-append-tolerant\.mjs$/.test(rel), scope = stackScope(changed, STACK[473], STACK_KNOWN) // stacked after #475: the stack this test declares, for scripts/studio-stack-tolerant.mjs
+  deepEq(git('diff', '--name-only', STACK[473].base, STACK[473].head).split('\n').filter(Boolean), STACK[473].files, 'stacked scope: the frozen files are #473\'s own diff'); deepEq({ missing: scope.missing, stray: scope.stray }, { missing: [], stray: [] }, 'stacked scope: every frozen file is changed, no stray in its family (stacked after #475)'); console.log(scope.line)
+  { const results = stackMutants({ change: STACK[473], changed, known: STACK_KNOWN, shared: [{ rel: PKG, head: stripNarrationRouter(PKG, SOURCES[PKG]), strip: text => load(STRIP, { sources: SOURCES }).stripModelCatalog(PKG, text), base: baseSource(PKG), changes: STACK_PKG_CHANGES }] }); for (const [label, held] of results) ok(held, `stacked scope: stack-tolerant (#475's rule): ${label}`); console.log(`stack-tolerant (#473): ${results.filter(([label]) => label.includes('mutant:')).length} mutants caught, ${results.filter(([label]) => label.includes('control:')).length} controls taken`) } // stacked after #475
+  changed.splice(0, changed.length, ...scope.checked) // stacked after #475: only this change's files, its family and its declared stack are checked below; a later PR's files are ignored, with a count
   for (const rel of changed) ok(own.has(rel) || rel.startsWith('scripts/fixtures/studio-model-catalog/') || STACKED_NARRATION_ROUTER.test(rel) || /^scripts\/(test-)?studio-env-append-tolerant\.mjs$/.test(rel), `stacked scope: ${rel} is this change's (or #475's, stacked on it, or the append-tolerant .env.example rule's)`)
   for (const rel of [...OWN, HARNESS]) ok(changed.includes(rel), `stacked scope: ${rel} is part of this change`)
   const lines = (rel, sign) => git('diff', '-U0', BASE_COMMIT, 'HEAD', '--', rel).split('\n').filter(line => line.startsWith(sign) && !line.startsWith(sign.repeat(3)))
