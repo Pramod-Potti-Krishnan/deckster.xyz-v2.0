@@ -1,0 +1,10 @@
+/* PASS2 Docs (NEXT_PUBLIC_STUDIO_P2_DOCS), /help. The page is already inside the Studio shell in the shell's tokens (studio-help.css); this settles what that left uneven: the header's label sat at the top of its bar while the link beside it was
+   centred (and touched the window's edge when signed out), the quick-start step titles and the agent and tip lines were 14-17px among 12-13px text, "Start Creating" was the violet primary where the shell's action colour is ink, and a search with no
+   hit was a bare line. Every rule hangs on the marker app/help/layout.tsx adds (only with the flag and the shell on); every colour is the shell's own token. */
+[data-studio-p2-help="true"] [data-studio-help="true"] [data-studio-help-part="header"] > div { align-items: center; padding: 0 16px; }
+[data-studio-p2-help="true"] [data-studio-help="true"] [data-studio-help-card] h4 { font-size: 13px; line-height: 1.5; font-weight: 500; }
+[data-studio-p2-help="true"] [data-studio-help="true"] [data-studio-help-card] :is(p, li, span, a, ul).text-sm { font-size: 12px; line-height: 1.7; }
+[data-studio-p2-help="true"] [data-studio-help="true"] [data-studio-help-card] .border-t > h3 { font-size: 13px; line-height: 1.5; font-weight: 600; }
+[data-studio-p2-help="true"] [data-studio-help="true"] [data-studio-help-card] a.bg-primary { background: var(--ss-action); color: var(--ss-on-action); }
+[data-studio-p2-help="true"] [data-studio-help="true"] [data-studio-help-card] a.bg-primary:hover { background: var(--ss-action-hover); }
+[data-studio-p2-help="true"] [data-studio-help="true"] [data-studio-help-card] .text-center.py-8 { margin-top: 4px; padding: 28px 16px; border: 1px dashed var(--ss-line); border-radius: 10px; background: var(--ss-surface); }
