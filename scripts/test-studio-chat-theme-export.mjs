@@ -38,6 +38,7 @@ import { pageThemeSources } from './studio-chat-harness/page-theme-sources.mjs'
 import { pageSources } from './studio-chat-harness/page-sources.mjs'
 import { stripChatThemeExport, BASE_COMMIT, CHAT_THEME_EXPORT_FILES, CHAT_THEME_EXPORT_CHANGES } from './studio-chat-theme-export-strip.mjs'
 import { stripNarrationRouter } from './studio-narration-router-strip.mjs' // #475 (NARRATION_VIA_ROUTER) is stacked on #473 on this change: its .env.example block and package.json line come out first
+import { sameAsBase } from './studio-env-append-tolerant.mjs' // stacked after #475: the .env.example rule that takes a later change's block (scripts/studio-env-append-tolerant.mjs)
 import { stripModelCatalog } from './studio-model-catalog-strip.mjs' // #473 (NEXT_PUBLIC_STUDIO_MODEL_CATALOG) is stacked on this change: its .env.example block and package.json line come out first
 
 for (const name of Object.keys(process.env)) if (/KEY|TOKEN|SECRET|CREDENTIAL|PASSWORD/i.test(name)) delete process.env[name]
@@ -633,6 +634,7 @@ await check(`identity: stripping this change gives back ${BASE_COMMIT.slice(0, 7
   for (const rel of CHAT_THEME_EXPORT_FILES) {
     const head = stripModelCatalog(rel, stripNarrationRouter(rel, read(rel))) // #475's block / registration out first (stacked), then #473's (stacked on this change)
     for (const [added] of CHAT_THEME_EXPORT_CHANGES[rel]) assert.equal(head.split(added).length, 2, `${rel}: one occurrence`)
+    if (rel === '.env.example') { assert.ok(sameAsBase(rel, stripChatThemeExport(rel, head), baseFile(rel), new RegExp(`${THEME_FLAG}\\b|${EXPORT_FLAG}\\b`)), rel); continue } // stacked after #475: .env.example may take a later change's block; every other file stays byte for byte, below
     assert.equal(sha(stripChatThemeExport(rel, head)), sha(baseFile(rel)), rel)
   }
   // The committed tree against the base (not the working tree: a suite neighbour that rewrites docs/ while it runs must not count).
@@ -650,7 +652,7 @@ await check(`identity: stripping this change gives back ${BASE_COMMIT.slice(0, 7
     const added = git('diff', '-U0', BASE_COMMIT, 'HEAD', '--', rel).split('\n').filter(line => line.startsWith('+') && !line.startsWith('+++'))
     for (const line of added) assert.match(line, /ThemeExport|THEME_EXPORT|chat-theme-export|#472|stacked/i, `${rel}: ${line.slice(0, 160)}`)
   }
-  for (const rel of changed) assert.ok(CHAT_THEME_EXPORT_FILES.includes(rel) || NEW.test(rel) || READS_THROUGH_STRIP.includes(rel) || STACKED_SIBLING_TESTS.includes(rel) || STACKED_MODEL_CATALOG.test(rel) || STACKED_NARRATION_ROUTER.test(rel), `unexpected change: ${rel}`) // #475's files are stacked
+  for (const rel of changed) assert.ok(CHAT_THEME_EXPORT_FILES.includes(rel) || NEW.test(rel) || READS_THROUGH_STRIP.includes(rel) || STACKED_SIBLING_TESTS.includes(rel) || STACKED_MODEL_CATALOG.test(rel) || STACKED_NARRATION_ROUTER.test(rel) || /^scripts\/(test-)?studio-env-append-tolerant\.mjs$/.test(rel), `unexpected change: ${rel}`) // #475's files are stacked, and so are the append-tolerant .env.example rule and its test
 })
 
 await check('identity: every added piece names a flag (or is the package.json registration / the .env.example documentation)', async () => {
@@ -903,6 +905,7 @@ await check('mutation: dropping the build-running lock, or reading any Downloads
   assert.equal((await lenient.runExportDirective(directiveOf(transcripts.export_failed), OWNER, exportDeps(world))).status, 'done', 'the mutant says done for a refusal')
   assert.equal(status(await runner.runExportDirective(directiveOf(transcripts.export_failed), OWNER, exportDeps(world))), 'failed:export_failed')
 })
+await check('mutation: the .env.example rule refuses an edited base line and takes a later block of another flag (stacked after #475)', async () => { const base = baseFile('.env.example'), edited = base.replace(/^NEXTAUTH_URL=.*$/m, '$&x'), own = new RegExp(`${THEME_FLAG}\\b|${EXPORT_FLAG}\\b`); assert.ok(edited !== base && !sameAsBase('.env.example', edited, base, own) && sameAsBase('.env.example', `${base}\n# a later change\nNEXT_PUBLIC_SOME_OTHER_FLAG="false"\n`, base, own)) }) // stacked after #475, #473's rule
 
 if (process.argv.includes('--print-hashes')) console.log(JSON.stringify(identityHashes, null, 2))
 console.log(`${passed} chat theme/export checks passed; ${failed.length} failed. Recorded Director frames (Director !513), real hook + page theme regions + real Downloads client, offline, no network.`)

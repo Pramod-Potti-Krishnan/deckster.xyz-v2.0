@@ -26,6 +26,7 @@ import path from 'node:path'
 import { fileURLToPath } from 'node:url'
 import vm from 'node:vm'
 import ts from 'typescript'
+import { sameAsBase } from './studio-env-append-tolerant.mjs' // the .env.example rule that takes a later change's block, for the pins that hold the file to an earlier commit
 
 const repoRoot = path.resolve(fileURLToPath(new URL('../', import.meta.url)))
 const nodeRequire = createRequire(import.meta.url)
@@ -606,7 +607,7 @@ function buildTests(S) {
     assert.ok(at > 0 && env.indexOf('# STUDIO NARRATION THROUGH THE MODEL ROUTER') === at, 'one block')
     for (const earlier of ['NEXT_PUBLIC_CHAT_ELEMENT_REFINE="false"', 'NEXT_PUBLIC_CHAT_EXPORT="false"', 'NEXT_PUBLIC_STUDIO_MODEL_CATALOG="false"']) if (env.includes(earlier)) assert.ok(env.indexOf(earlier) < at, `after ${earlier.split('=')[0]}'s block`)
     for (const later of ['# PASS2 ADMIN', '# PASS2 Docs / Help / Legal / Agents']) if (env.includes(later)) assert.ok(at < env.indexOf(later), `before FRONTEND-1's ${later}`)
-    if (env.includes('NEXT_PUBLIC_STUDIO_P2_DOCS="false"')) assert.ok(env.indexOf('NEXT_PUBLIC_STUDIO_P2_ADMIN="false"') < env.indexOf('NEXT_PUBLIC_STUDIO_P2_DOCS="false"') && env.endsWith('NEXT_PUBLIC_STUDIO_P2_DOCS="false"\n'), 'ADMIN then DOCS are still the last two blocks')
+    if (env.includes('NEXT_PUBLIC_STUDIO_P2_DOCS="false"')) assert.ok(env.indexOf('NEXT_PUBLIC_STUDIO_P2_ADMIN="false"') < env.indexOf('NEXT_PUBLIC_STUDIO_P2_DOCS="false"') && env.slice(env.indexOf('NEXT_PUBLIC_STUDIO_P2_DOCS="false"\n') + 'NEXT_PUBLIC_STUDIO_P2_DOCS="false"\n'.length).split('\n').every(line => /^\s*$|^\s*#|^[A-Z][A-Z0-9_]*=/.test(line)), 'ADMIN then DOCS are still the last two of FRONTEND-1\'s blocks (only a later change\'s comments, blanks and assignments may follow)')
     const block = env.slice(at, env.indexOf('MODEL_ROUTER_STUDIO_KEY=\n', at))
     for (const phrase of ['only the string "true"', 'no public prefix', 'never committed', 'ONLY when the router cannot be', '401 or 403', '502, 503 or 504', 'a 429', 'second charge', 'X-MR-Service "studio"']) assert.ok(block.includes(phrase), `the .env.example block lost: ${phrase}`)
     assert.ok(!/READ AT BUILD TIME|exact value "true"|exact "true"|default off|Needs the Studio shell|Nothing is sent or stored|Build-time flag|PASS2|PASS3/.test(block), 'the block reuses another block\'s phrase')
@@ -619,8 +620,8 @@ function buildTests(S) {
     for (const rel of NARRATION_ROUTER_FILES) {
       const baseText = baseSource(rel)
       if (baseText == null) { console.log(`SKIP ${rel} strip against the base: the base commit is not in this clone`); continue }
-      assert.equal(stripNarrationRouter(rel, S[rel]), baseText, `${rel} without this change's lines is ${BASE_COMMIT.slice(0, 7)}'s file byte for byte`)
-      assert.equal(stripNarrationRouter(rel, stripNarrationRouter(rel, S[rel])), baseText, `${rel}: stripping twice changes nothing more`)
+      assert.ok(sameAsBase(rel, stripNarrationRouter(rel, S[rel]), baseText, /NARRATION_VIA_ROUTER|MODEL_ROUTER_URL|MODEL_ROUTER_STUDIO_KEY/), `${rel} without this change's lines is ${BASE_COMMIT.slice(0, 7)}'s file byte for byte (.env.example: a later change's block may follow)`)
+      assert.equal(stripNarrationRouter(rel, stripNarrationRouter(rel, S[rel])), stripNarrationRouter(rel, S[rel]), `${rel}: stripping twice changes nothing more`)
       assert.equal(stripNarrationRouter(rel, baseText), baseText, `${rel}: a file without the lines comes back as it is`)
     }
     for (const other of ['app/builder/page.tsx', LIB, 'README.md']) assert.equal(stripNarrationRouter(other, 'some text'), 'some text', `${other} comes back as it is`)
@@ -635,12 +636,12 @@ function buildTests(S) {
     if (names == null) { console.log('SKIP stacked scope: the base commit is not in this clone'); return }
     const changed = names.split('\n').filter(Boolean)
     const SIBLINGS = ['scripts/test-studio-model-catalog.mjs', 'scripts/test-studio-chat-theme-export.mjs', 'scripts/test-studio-chat-element-refine.mjs'] // #473's, #472's and #470's tests accept this change's lines (tests only)
-    const own = new Set([LIB, DRAFT, TTS, SPOKEN, R_SCRIPT, R_RENDER, R_SPEAK, R_SAMPLE, ENV, PKG, STRIP, HARNESS, 'scripts/test-studio-narration-router.mjs', ...SIBLINGS])
+    const own = new Set([LIB, DRAFT, TTS, SPOKEN, R_SCRIPT, R_RENDER, R_SPEAK, R_SAMPLE, ENV, PKG, STRIP, HARNESS, 'scripts/test-studio-narration-router.mjs', ...SIBLINGS, 'scripts/studio-env-append-tolerant.mjs', 'scripts/test-studio-env-append-tolerant.mjs'])
     for (const rel of changed) assert.ok(own.has(rel), `stacked scope: ${rel} is not this change's`)
     for (const rel of [LIB, DRAFT, TTS, SPOKEN, R_SCRIPT, R_RENDER, R_SPEAK, R_SAMPLE, ENV, PKG, STRIP, HARNESS]) assert.ok(changed.includes(rel), `stacked scope: ${rel} is part of this change`)
     const lines = (rel, sign) => (gitOut('diff', '-U0', BASE_COMMIT, 'HEAD', '--', rel) ?? '').split('\n').filter(line => line.startsWith(sign) && !line.startsWith(sign.repeat(3)))
     assert.equal(lines(ENV, '-').length, 0, 'stacked scope: .env.example only gains lines (a pure insertion)')
-    assert.ok(lines(ENV, '+').every(line => /^\+(#|NARRATION_VIA_ROUTER=|MODEL_ROUTER_URL=|MODEL_ROUTER_STUDIO_KEY=|$)/.test(line)), 'stacked scope: and they are this block')
+    assert.ok(lines(ENV, '+').every(line => /^\+(#|[A-Z][A-Z0-9_]*=|$)/.test(line)) && lines(ENV, '+').some(line => line.startsWith('+NARRATION_VIA_ROUTER=')), 'stacked scope: and they are comments, blanks and assignments, this block among them (a later change\'s block may follow)')
     assert.ok(lines(PKG, '-').length <= 1 && lines(PKG, '-').every(line => /test:studio-model-catalog/.test(line)), 'stacked scope: package.json: at most #473\'s entry, which gains a comma')
     assert.ok(lines(PKG, '+').some(line => /test:studio-narration-router/.test(line)), 'stacked scope: package.json: this change\'s registration follows')
     assert.ok(lines(HARNESS, '-').length <= 1 && lines(HARNESS, '-').every(line => /#469 deck-mutation dedupe\)/.test(line)), 'stacked scope: the harness: at most its comment line was extended')

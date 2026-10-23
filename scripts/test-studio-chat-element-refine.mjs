@@ -38,6 +38,7 @@ import { stripChatElementRefine, BASE_COMMIT, CHAT_ELEMENT_REFINE_FILES } from '
 import { stripChatThemeExport } from './studio-chat-theme-export-strip.mjs'
 import { stripModelCatalog } from './studio-model-catalog-strip.mjs' // #473 (NEXT_PUBLIC_STUDIO_MODEL_CATALOG), stacked on #472 on this change: its .env.example block and package.json line come out first
 import { stripNarrationRouter } from './studio-narration-router-strip.mjs' // #475 (NARRATION_VIA_ROUTER), stacked on #473 on #472 on this change: its .env.example block and package.json line come out first
+import { sameAsBase } from './studio-env-append-tolerant.mjs' // stacked after #475: the .env.example rule that takes a later change's block (scripts/studio-env-append-tolerant.mjs)
 const STACKED_NARRATION_ROUTER = /^(lib\/narration\/(model-router|draft|tts|spoken)\.ts|app\/api\/narration\/(render|script|speak)\/route\.ts|app\/api\/narration\/voice\/sample\/\[voiceId\]\/route\.ts|scripts\/(test-studio-narration-router|studio-narration-router-strip)\.mjs)$/ // #475's own files (stacked on #473)
 const STACKED_MODEL_CATALOG = /^(app\/\(app\)\/studio\/intelligence\/layout\.tsx|app\/api\/models\/catalogue\/route\.ts|components\/studio-personal\/intelligence-models\.(css|tsx)|lib\/studio-model-catalog\.ts|scripts\/(test-studio-model-catalog|studio-model-catalog-strip)\.mjs|scripts\/fixtures\/studio-model-catalog\/.+)$/ // #473's own files (stacked on #472 on this change)
 const STACKED_THEME_EXPORT = /^(lib\/chat-theme-export(-wire)?\.ts|scripts\/(test-studio-chat-theme-export|studio-chat-theme-export-strip)\.mjs|scripts\/fixtures\/chat-theme-export\/.+|docs\/pass3\/chat-theme-export\/LIVE-CHECK-PLAN\.md)$/
@@ -675,6 +676,7 @@ await check(`identity: stripping this change gives back ${BASE_COMMIT.slice(0, 7
   for (const rel of CHAT_ELEMENT_REFINE_FILES) {
     const head = stripChatThemeExport(rel, stripModelCatalog(rel, stripNarrationRouter(rel, read(rel)))) // #475's lines out first (stacked), then #473's, then #472's (all stacked on this change)
     for (const [added] of strip.CHAT_ELEMENT_REFINE_CHANGES[rel]) assert.equal(head.split(added).length, 2, `${rel}: one occurrence`)
+    if (rel === '.env.example') { assert.ok(sameAsBase(rel, stripChatElementRefine(rel, head), baseFile(rel), /NEXT_PUBLIC_CHAT_ELEMENT_REFINE\b/), rel); continue } // stacked after #475: .env.example may take a later change's block; every other file stays byte for byte, below
     assert.equal(sha(stripChatElementRefine(rel, head)), sha(baseFile(rel)), rel)
   }
   // Nothing else in the tree differs from the base but this change's new files.
@@ -694,7 +696,7 @@ await check(`identity: stripping this change gives back ${BASE_COMMIT.slice(0, 7
     assert.ok(added.length <= (stacked ? 10 : 5) && removed.length <= 2, `${rel}: an import and one call (${added.length}+/${removed.length}-)`)
     assert.ok(added.some(line => /stripChatElementRefine|CHAT_ELEMENT_REFINE_ENABLED: false|chat-element-refine/.test(line)), rel)
   }
-  for (const rel of changed) assert.ok(CHAT_ELEMENT_REFINE_FILES.includes(rel) || NEW.test(rel) || READS_THROUGH_STRIP.includes(rel) || STACKED_THEME_EXPORT.test(rel) || STACKED_MODEL_CATALOG.test(rel) || STACKED_NARRATION_ROUTER.test(rel), `unexpected change: ${rel}`) // #475's files are stacked
+  for (const rel of changed) assert.ok(CHAT_ELEMENT_REFINE_FILES.includes(rel) || NEW.test(rel) || READS_THROUGH_STRIP.includes(rel) || STACKED_THEME_EXPORT.test(rel) || STACKED_MODEL_CATALOG.test(rel) || STACKED_NARRATION_ROUTER.test(rel) || /^scripts\/(test-)?studio-env-append-tolerant\.mjs$/.test(rel), `unexpected change: ${rel}`) // #475's files are stacked, and so are the append-tolerant .env.example rule and its test
 })
 
 await check('identity: every added piece is behind the flag (or is a type, a comment or the flag-gated import)', async () => {
@@ -922,6 +924,7 @@ await check('mutation: dropping the blank-placeholder rule would start a generat
   assert.equal((await noTypeRule.runElementRefineDirective(directive, owner, { ...deps, componentTypeOf: () => 'INFOGRAPHIC' })).error_code, 'unsupported_type')
   assert.equal(generations.length, 1)
 })
+await check('mutation: the .env.example rule refuses an edited base line and takes a later block of another flag (stacked after #475)', async () => { const base = baseFile('.env.example'), edited = base.replace(/^NEXTAUTH_URL=.*$/m, '$&x'), own = /NEXT_PUBLIC_CHAT_ELEMENT_REFINE\b/; assert.ok(edited !== base && !sameAsBase('.env.example', edited, base, own) && sameAsBase('.env.example', `${base}\n# a later change\nNEXT_PUBLIC_SOME_OTHER_FLAG="false"\n`, base, own)) }) // stacked after #475, #473's rule
 
 if (process.argv.includes('--print-hashes')) console.log(JSON.stringify(identityHashes, null, 2))
 console.log(`${passed} chat element refine checks passed; ${failed.length} failed. ${live ? 'Layout: live real code.' : 'Layout: recorded real replies.'} Recorded Director frames, offline, no network.`)
