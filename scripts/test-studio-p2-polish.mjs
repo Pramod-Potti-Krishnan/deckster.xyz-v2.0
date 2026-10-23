@@ -7,7 +7,7 @@
 //   PP-5 Intelligence   the comparison panel scrolls inside the window, so "Use this model" pins to its own bottom edge and the note above it is not cut mid-line
 //   PP-6 Profile menu   a failed quota read keeps the plan badge (the session's tier) and says "Usage unavailable"
 //   PP-7 Intelligence   "Managed by Deckster" is four columns from 1200px
-//   PP-8 Profile menu   the vertical rhythm is tighter: 32px rows (were 38), 8px between sections with ONE hairline (were three), a tighter capacity card (the Appearance control is untouched)
+//   PP-8 Profile menu   the vertical rhythm is tighter: 32px rows (were 38), 4px between groups (8px at first, 12px before PP-8) with ONE hairline (were three), a tighter capacity card (the Appearance control is untouched)
 //
 // Run: node scripts/test-studio-p2-polish.mjs   (plain node: transpile + vm, no network, no browser, no env)
 //   P2_POLISH_BASE=<commit> overrides the base commit flag-off identity is checked against (default: scripts/studio-p2-polish-strip.mjs's BASE_COMMIT, the studio-v4-dev-preparation-code
@@ -636,8 +636,11 @@ function proveCss(S, label = 'css') {
 // ---------------------------------------------------------------- 5b. PP-8: the account menu's vertical rhythm
 /** What Chromium measured on the real menu (next dev of this tree, 1x, light and dark, at 1440 and at 390 wide, a good quota read; Playwright getBoundingClientRect) with the flag off, then on.
  *  The CSS of PP-8 is added up below and must give these on-numbers. Before (flag off): rows 38 (9px padding on a 20px line), the capacity card 174 (meters 42, 10px between them, 6px label to
- *  meter, 5px meter to Resets, a 26px upgrade row), 12px either side of the card, three hairlines, the menu 640px tall. */
-const RHYTHM_MEASURED = { row: 32, rowBefore: 38, upgrade: 32, meter: 37, card: 152, cardBefore: 174, gap: 8, hairlinesVisible: 1, hairlinesBefore: 3, identity: 35, menu: 540, menuBefore: 640 }
+ *  meter, 5px meter to Resets, a 26px upgrade row), 12px either side of the card, three hairlines, the menu 640px tall. PK's review of the first PP-8 build (8px between groups, the menu 540px) asked
+ *  for half the gap between groups: `gap` is now 4 (`gapFirst` 8), the menu 520px; the gap inside the capacity card between Daily and Weekly (`meterGap`) is not a group gap and stays 8.
+ *  `groupGaps` is each gap between two groups as the browser measured it (box edge to box edge, the APPEARANCE label's from its first line of text), all halved from `gapFirst`. */
+const RHYTHM_MEASURED = { row: 32, rowBefore: 38, upgrade: 32, meter: 37, card: 152, cardBefore: 174, gap: 4, gapFirst: 8, meterGap: 8, hairlinesVisible: 1, hairlinesBefore: 3, identity: 35, menu: 520, menuFirst: 540, menuBefore: 640,
+  groupGaps: { headerToCard: 4, cardToDetails: 4, detailsToAppearance: 4, appearanceToSettings: 4, billingToHelp: 4, aboutToHairline: 4, hairlineToSignOut: 4 } }
 const px = value => { const m = /^(-?\d+(?:\.\d+)?)(?:px)?$/.exec(String(value).trim()); assert.ok(m && (m[0].endsWith('px') || Number(m[1]) === 0), `a px value: ${value}`); tick(); return Number(m[1]) }
 const box = value => { const v = String(value).trim().split(/\s+/).map(px); return { top: v[0], right: v[1] ?? v[0], bottom: v[2] ?? v[0], left: v[3] ?? v[1] ?? v[0] } }
 function proveRhythm(S, label = 'PP-8') {
@@ -670,7 +673,7 @@ function proveRhythm(S, label = 'PP-8') {
   eq(pp8('', 'padding'), null, `${label}: the sides are not touched`)
   // header
   eq(pp8('[data-studio-p2-identity="true"]', 'padding'), '0', `${label}: the header carries no padding of its own`)
-  eq(pp8('[data-studio-p2-identity="true"]', 'margin-bottom'), `${RHYTHM_MEASURED.gap}px`, `${label}: and 8px under it`)
+  eq(pp8('[data-studio-p2-identity="true"]', 'margin-bottom'), `${RHYTHM_MEASURED.gap}px`, `${label}: and ${RHYTHM_MEASURED.gap}px under it (the gap to the capacity card)`)
   // rows: 32px, 8px above and below a 16px line, the touch-target floor
   const rowRule = rule(rhythm, `${R} ${ROWS}`)
   ok(rowRule, `${label}: one rule for the rows and Sign out`)
@@ -684,21 +687,38 @@ function proveRhythm(S, label = 'PP-8') {
   ok(rowHeight < RHYTHM_MEASURED.rowBefore, `${label}: and shorter than the ${RHYTHM_MEASURED.rowBefore}px it was`)
   nomatch(css.slice(at), /font-size/, `${label}: no type size is set by the block`)
   eq(/min-height:\s*36px;\s*padding:\s*9px 4px/.test(read('components/user-profile-studio-v4.css')), true, `${label}: the 36px rows it replaces are the fidelity block's (9px padding on a 20px line is ${9 + 9 + 20}px)`)
-  // sections: eight apart, one hairline, and it is the one above Sign out
+  // sections: four apart (half of the first build's eight), one hairline, and it is the one above Sign out
   const hide = rule(rhythm, `${R} ${SEP}:not(:has(+ ${DANGER}))`)
   ok(hide, `${label}: every hairline but the one before Sign out is taken out`)
   eq(declOf(hide, 'display'), 'none', `${label}: removed (and from the accessibility tree), not just made invisible`)
   eq(rhythm.filter(r => ruleKey(r).includes(SEP)).map(ruleKey).filter(k => !k.includes(':has(+ ')).length, 1, `${label}: only the separator that follows a hairline gets a gap rule`)
-  eq(pp8(`${SEP} + [data-studio-p2-row]`, 'margin-top'), `${RHYTHM_MEASURED.gap}px`, `${label}: a row that follows a taken-out hairline starts 8px below the section above`)
-  eq(pp8('[data-studio-p2-eyebrow="true"]', 'padding'), '8px 4px 4px', `${label}: the APPEARANCE label: 8px above (a section gap), 4px to its control`)
-  eq(pp8('[data-studio-p2-appearance-block="true"]', 'padding-bottom'), '2px', `${label}: with the control's own 6px bottom margin, 8px under the control`)
-  eq(box(base('[data-studio-p2-appearance="true"]', 'margin')).bottom + px(pp8('[data-studio-p2-appearance-block="true"]', 'padding-bottom')), RHYTHM_MEASURED.gap, `${label}: the control, then 8px`)
+  eq(pp8(`${SEP} + [data-studio-p2-row]`, 'margin-top'), `${RHYTHM_MEASURED.gap}px`, `${label}: a row that follows a taken-out hairline starts ${RHYTHM_MEASURED.gap}px below the section above`)
+  eq(pp8('[data-studio-p2-eyebrow="true"]', 'padding'), '4px', `${label}: the APPEARANCE label: 4px above (a group gap), 4px to its control`)
+  eq(pp8('[data-studio-p2-appearance-block="true"]', 'margin-bottom'), '-2px', `${label}: the Appearance block takes 2px off the control's own 6px bottom margin, so Settings starts 4px below the control`)
+  eq(pp8('[data-studio-p2-appearance-block="true"]', 'padding-bottom'), null, `${label}: and pads nothing under it (the control's margin collapses through the block)`)
+  eq(box(base('[data-studio-p2-appearance="true"]', 'margin')).bottom + px(pp8('[data-studio-p2-appearance-block="true"]', 'margin-bottom')), RHYTHM_MEASURED.gap, `${label}: the control, then ${RHYTHM_MEASURED.gap}px`)
+  // PK: "the gap between groups still reads a little large" -> every gap between two groups is half of what the first build had (8px), and they are all the same: header | capacity card | Your details | APPEARANCE |
+  // Settings, Shortcuts, Workspace & billing | Help, About | Sign out. A gap is what the CSS gives, added up the way the browser lays it out (adjacent block margins collapse to the larger).
+  const G = RHYTHM_MEASURED.groupGaps
+  const collapse = (a, b) => Math.max(a, b)
+  const cardMargin = box(pp8('[data-studio-p2-usage="true"]', 'margin')), sessionMargin = box(pp8('[data-studio-session-usage="true"]', 'margin')), afterHairline = px(pp8(`${SEP} + [data-studio-p2-row]`, 'margin-top'))
+  const mine = {
+    headerToCard: px(pp8('[data-studio-p2-identity="true"]', 'margin-bottom')),
+    cardToDetails: collapse(cardMargin.bottom, afterHairline), // the first hairline is display: none, so the card's bottom margin and Your details' top margin are adjacent
+    detailsToAppearance: box(pp8('[data-studio-p2-eyebrow="true"]', 'padding')).top,
+    appearanceToSettings: box(base('[data-studio-p2-appearance="true"]', 'margin')).bottom + px(pp8('[data-studio-p2-appearance-block="true"]', 'margin-bottom')),
+    billingToHelp: afterHairline,
+    aboutToHairline: 4, hairlineToSignOut: 4, // the shadcn hairline's own my-1 (asserted below with the menu's height)
+  }
+  deepEq(mine, G, `${label}: every gap between two groups adds up to what the browser measured`)
+  for (const [name, gap] of Object.entries(G)) { eq(gap, RHYTHM_MEASURED.gap, `${label}: ${name} is ${RHYTHM_MEASURED.gap}px`); eq(gap * 2, RHYTHM_MEASURED.gapFirst, `${label}: ${name} is half of the first build's ${RHYTHM_MEASURED.gapFirst}px`); ok(gap < RHYTHM_MEASURED.gapFirst, `${label}: ${name} is shorter than before`) }
+  eq(sessionMargin.bottom, RHYTHM_MEASURED.gap, `${label}: the session usage block sits the same ${RHYTHM_MEASURED.gap}px above what follows`)
   // capacity card
   const cardPad = box(pp8('[data-studio-p2-usage="true"]', 'padding'))
   eq(pp8('[data-studio-p2-usage="true"]', 'padding'), '10px 12px', `${label}: the card's padding`)
-  eq(pp8('[data-studio-p2-usage="true"]', 'margin'), '0 0 8px', `${label}: 8px under the card (the header's own 8px is above it)`)
+  eq(pp8('[data-studio-p2-usage="true"]', 'margin'), '0 0 4px', `${label}: 4px under the card (the header's own 4px is above it)`)
   eq(pp8('[data-studio-p2-usage-title="true"]', 'margin-bottom'), '6px', `${label}: the card's title, 6px to the first meter`)
-  eq(pp8('[data-studio-p2-usage="true"] [data-studio-p2-meter] + [data-studio-p2-meter]', 'margin-top'), `${RHYTHM_MEASURED.gap}px`, `${label}: 8px between Daily and Weekly`)
+  eq(pp8('[data-studio-p2-usage="true"] [data-studio-p2-meter] + [data-studio-p2-meter]', 'margin-top'), `${RHYTHM_MEASURED.meterGap}px`, `${label}: 8px between Daily and Weekly (inside the card, not a group gap)`)
   eq(pp8('[data-studio-p2-meter-bar="true"]', 'margin'), '4px 0 2px', `${label}: 4px from the label to the meter, 2px from the meter to "Resets"`)
   const bar = box(eff('[data-studio-p2-meter-bar="true"]', 'margin'))
   eq(bar.top, 4, `${label}: label to meter`); eq(bar.bottom, 2, `${label}: meter to Resets`)
@@ -710,20 +730,22 @@ function proveRhythm(S, label = 'PP-8') {
   eq(pp8('[data-studio-p2-upgrade="true"]', 'padding'), '9px 4px', `${label}: the upgrade row's padding`)
   eq(pp8('[data-studio-p2-upgrade="true"]', 'margin'), '2px -4px -6px', `${label}: and its margin`)
   const border = px(String(base('[data-studio-p2-usage="true"]', 'border')).split(' ')[0])
-  const card = 2 * border + cardPad.top + cardPad.bottom + px(base('[data-studio-p2-usage-title="true"]', 'line-height')) + px(pp8('[data-studio-p2-usage-title="true"]', 'margin-bottom')) + 2 * meter + RHYTHM_MEASURED.gap + upMargin.top + upgrade + upMargin.bottom
+  const card = 2 * border + cardPad.top + cardPad.bottom + px(base('[data-studio-p2-usage-title="true"]', 'line-height')) + px(pp8('[data-studio-p2-usage-title="true"]', 'margin-bottom')) + 2 * meter + RHYTHM_MEASURED.meterGap + upMargin.top + upgrade + upMargin.bottom
   eq(card, RHYTHM_MEASURED.card, `${label}: the capacity card adds up to the measured ${RHYTHM_MEASURED.card}px`)
-  eq(pp8('[data-studio-session-usage="true"]', 'margin'), '0 0 8px', `${label}: the session usage block is 8px from what follows`)
+  eq(pp8('[data-studio-session-usage="true"]', 'margin'), '0 0 4px', `${label}: the session usage block is 4px from what follows`)
   ok(card < RHYTHM_MEASURED.cardBefore, `${label}: the card is shorter than the ${RHYTHM_MEASURED.cardBefore}px it was`)
-  // the whole menu: border, 12px, the header, 8px, the card, 8px, seven 32px rows, the label and the control, one 8px section gap, the one hairline (1px between two 4px margins)
+  // the whole menu: border, 12px, the header, 4px, the card, 4px, seven 32px rows, the label and the control, one 4px group gap, the one hairline (1px between two 4px margins)
   const menuCss = read('components/ui/dropdown-menu.tsx')
   match(menuCss, /"z-50 min-w-\[8rem\] overflow-hidden rounded-md border bg-popover p-1 /, `${label}: the menu's own border is the shadcn 1px`)
   match(menuCss, /cn\("-mx-1 my-1 h-px bg-muted", className\)/, `${label}: and its hairline is 1px between two 4px margins`)
   const root = box(`${pp8('', 'padding-top')} 0 ${pp8('', 'padding-bottom')}`)
   const label14 = px(base('[data-studio-p2-eyebrow="true"]', 'line-height'))
   const eyebrow = box(pp8('[data-studio-p2-eyebrow="true"]', 'padding')).top + label14 + box(pp8('[data-studio-p2-eyebrow="true"]', 'padding')).bottom
-  const control = box(base('[data-studio-p2-appearance="true"]', 'padding')).top * 2 + px(base('[data-studio-p2-appearance="true"] [role="menuitemradio"]', 'min-height')) + box(base('[data-studio-p2-appearance="true"]', 'margin')).bottom + px(pp8('[data-studio-p2-appearance-block="true"]', 'padding-bottom'))
+  const control = box(base('[data-studio-p2-appearance="true"]', 'padding')).top * 2 + px(base('[data-studio-p2-appearance="true"] [role="menuitemradio"]', 'min-height')) + box(base('[data-studio-p2-appearance="true"]', 'margin')).bottom + px(pp8('[data-studio-p2-appearance-block="true"]', 'margin-bottom'))
   const menu = 2 + root.top + root.bottom + RHYTHM_MEASURED.identity + px(pp8('[data-studio-p2-identity="true"]', 'margin-bottom')) + card + box(pp8('[data-studio-p2-usage="true"]', 'margin')).bottom + 7 * rowHeight + eyebrow + control + px(pp8(`${SEP} + [data-studio-p2-row]`, 'margin-top')) + (1 + 4 + 4)
-  eq(menu, RHYTHM_MEASURED.menu, `${label}: the whole menu adds up to the measured ${RHYTHM_MEASURED.menu}px (it was ${RHYTHM_MEASURED.menuBefore}px)`)
+  eq(menu, RHYTHM_MEASURED.menu, `${label}: the whole menu adds up to the measured ${RHYTHM_MEASURED.menu}px (it was ${RHYTHM_MEASURED.menuFirst}px at the first PP-8 build and ${RHYTHM_MEASURED.menuBefore}px before PP-8)`)
+  ok(menu < RHYTHM_MEASURED.menuFirst, `${label}: and shorter than the first build's ${RHYTHM_MEASURED.menuFirst}px`)
+  eq(RHYTHM_MEASURED.menuFirst - RHYTHM_MEASURED.menu, 5 * (RHYTHM_MEASURED.gapFirst - RHYTHM_MEASURED.gap), `${label}: the 20px it gave back are the five group gaps, 4px each`)
   // the Appearance control is exactly as it was: its own rules are pinned (they are the base's, which section 2 holds byte for byte)
   const ctl = '[data-studio-p2-appearance="true"]'
   for (const [suffix, prop, want] of [
@@ -863,28 +885,39 @@ const MUTANTS = [
   [CSS.profile, 'PP-8 rows set a type size', 'padding: 8px 4px; line-height: 16px; }', 'padding: 8px 4px; line-height: 16px; font-size: 14px; }'],
   [CSS.profile, 'PP-8 every hairline stays', '[data-studio-v4-profile-role="separator"]:not(:has(+ [data-studio-v4-profile-role="danger"])) { display: none; }', '[data-studio-v4-profile-role="separator"]:not(:has(+ [data-studio-v4-profile-role="danger"])) { display: block; }'],
   [CSS.profile, 'PP-8 every hairline goes, the one above Sign out too', '[data-studio-v4-profile-role="separator"]:not(:has(+ [data-studio-v4-profile-role="danger"])) { display: none; }', '[data-studio-v4-profile-role="separator"] { display: none; }'],
-  [CSS.profile, 'PP-8 the gap after a taken-out hairline is 12px', '[data-studio-v4-profile-role="separator"] + [data-studio-p2-row] { margin-top: 8px; }', '[data-studio-v4-profile-role="separator"] + [data-studio-p2-row] { margin-top: 12px; }'],
-  [CSS.profile, 'PP-8 no gap after a taken-out hairline', '[data-studio-v4-profile-role="separator"] + [data-studio-p2-row] { margin-top: 8px; }', '[data-studio-v4-profile-role="separator"] + [data-studio-p2-row] { margin-top: 0; }'],
-  [CSS.profile, 'PP-8 the APPEARANCE label is as loose as before', '[data-p2-polish="true"] [data-studio-p2-eyebrow="true"] { padding: 8px 4px 4px; }', '[data-p2-polish="true"] [data-studio-p2-eyebrow="true"] { padding: 12px 4px 6px; }'],
-  [CSS.profile, 'PP-8 the APPEARANCE label sets a colour', '[data-p2-polish="true"] [data-studio-p2-eyebrow="true"] { padding: 8px 4px 4px; }', '[data-p2-polish="true"] [data-studio-p2-eyebrow="true"] { padding: 8px 4px 4px; color: var(--sp-text); }'],
-  [CSS.profile, 'PP-8 the APPEARANCE label leaks to the flag-off menu', '[data-p2-polish="true"] [data-studio-p2-eyebrow="true"] { padding: 8px 4px 4px; }', '[data-studio-p2-eyebrow="true"] { padding: 8px 4px 4px; }'],
-  [CSS.profile, 'PP-8 nothing under the Appearance control', '[data-studio-p2-appearance-block="true"] { padding-bottom: 2px; }', '[data-studio-p2-appearance-block="true"] { padding-bottom: 0; }'],
-  [CSS.profile, 'PP-8 the Appearance control gets a rule of its own', '[data-studio-p2-appearance-block="true"] { padding-bottom: 2px; }', '[data-studio-p2-appearance="true"] { margin-bottom: 8px; }'],
+  [CSS.profile, 'PP-8 the gap after a taken-out hairline is 12px', '[data-studio-v4-profile-role="separator"] + [data-studio-p2-row] { margin-top: 4px; }', '[data-studio-v4-profile-role="separator"] + [data-studio-p2-row] { margin-top: 12px; }'],
+  [CSS.profile, 'PP-8 no gap after a taken-out hairline', '[data-studio-v4-profile-role="separator"] + [data-studio-p2-row] { margin-top: 4px; }', '[data-studio-v4-profile-role="separator"] + [data-studio-p2-row] { margin-top: 0; }'],
+  [CSS.profile, 'PP-8 the APPEARANCE label is as loose as before', '[data-p2-polish="true"] [data-studio-p2-eyebrow="true"] { padding: 4px; }', '[data-p2-polish="true"] [data-studio-p2-eyebrow="true"] { padding: 12px 4px 6px; }'],
+  [CSS.profile, 'PP-8 the APPEARANCE label sets a colour', '[data-p2-polish="true"] [data-studio-p2-eyebrow="true"] { padding: 4px; }', '[data-p2-polish="true"] [data-studio-p2-eyebrow="true"] { padding: 4px; color: var(--sp-text); }'],
+  [CSS.profile, 'PP-8 the APPEARANCE label leaks to the flag-off menu', '[data-p2-polish="true"] [data-studio-p2-eyebrow="true"] { padding: 4px; }', '[data-studio-p2-eyebrow="true"] { padding: 4px; }'],
+  [CSS.profile, 'PP-8 nothing taken off under the Appearance control', '[data-studio-p2-appearance-block="true"] { margin-bottom: -2px; }', '[data-studio-p2-appearance-block="true"] { margin-bottom: 0; }'],
+  [CSS.profile, 'PP-8 the Appearance control gets a rule of its own', '[data-studio-p2-appearance-block="true"] { margin-bottom: -2px; }', '[data-studio-p2-appearance="true"] { margin-bottom: -2px; }'],
   [CSS.profile, 'PP-8 the Appearance options are 32px', '[data-studio-p2-appearance="true"] [role="menuitemradio"] { min-height: 30px;', '[data-studio-p2-appearance="true"] [role="menuitemradio"] { min-height: 32px;'],
   [CSS.profile, 'PP-8 the Appearance control is padded 4px', 'gap: 2px; margin: 0 0 6px; padding: 3px;', 'gap: 2px; margin: 0 0 6px; padding: 4px;'],
-  [CSS.profile, 'PP-8 the capacity card keeps 12px of padding', '[data-studio-p2-usage="true"] { margin: 0 0 8px; padding: 10px 12px; }', '[data-studio-p2-usage="true"] { margin: 0 0 8px; padding: 12px; }'],
-  [CSS.profile, 'PP-8 the capacity card keeps its 12px margins', '[data-studio-p2-usage="true"] { margin: 0 0 8px; padding: 10px 12px; }', '[data-studio-p2-usage="true"] { margin: 12px 0; padding: 10px 12px; }'],
+  [CSS.profile, 'PP-8 the capacity card keeps 12px of padding', '[data-studio-p2-usage="true"] { margin: 0 0 4px; padding: 10px 12px; }', '[data-studio-p2-usage="true"] { margin: 0 0 4px; padding: 12px; }'],
+  [CSS.profile, 'PP-8 the capacity card keeps its 12px margins', '[data-studio-p2-usage="true"] { margin: 0 0 4px; padding: 10px 12px; }', '[data-studio-p2-usage="true"] { margin: 12px 0; padding: 10px 12px; }'],
   [CSS.profile, 'PP-8 the capacity card title keeps its 10px', '[data-p2-polish="true"] [data-studio-p2-usage-title="true"] { margin-bottom: 6px; }', '[data-p2-polish="true"] [data-studio-p2-usage-title="true"] { margin-bottom: 10px; }'],
   [CSS.profile, 'PP-8 Daily and Weekly are 10px apart', '[data-studio-p2-meter] + [data-studio-p2-meter] { margin-top: 8px; }', '[data-studio-p2-meter] + [data-studio-p2-meter] { margin-top: 10px; }'],
   [CSS.profile, 'PP-8 the meter is 6px from its label and 5px from Resets', '[data-studio-p2-meter-bar="true"] { margin: 4px 0 2px; }', '[data-studio-p2-meter-bar="true"] { margin: 6px 0 5px; }'],
   [CSS.profile, 'PP-8 the meter is flush with Resets', '[data-studio-p2-meter-bar="true"] { margin: 4px 0 2px; }', '[data-studio-p2-meter-bar="true"] { margin: 4px 0 0; }'],
   [CSS.profile, 'PP-8 the upgrade row falls under the touch floor', '{ min-height: 32px; margin: 2px -4px -6px; padding: 9px 4px; }', '{ min-height: 0; margin: 2px -4px -6px; padding: 6px 4px; }'],
   [CSS.profile, 'PP-8 the upgrade row is 10px from Resets', '{ min-height: 32px; margin: 2px -4px -6px; padding: 9px 4px; }', '{ min-height: 32px; margin: 10px -4px -6px; padding: 9px 4px; }'],
-  [CSS.profile, 'PP-8 the session usage block keeps its 12px margins', '[data-studio-session-usage="true"] { margin: 0 0 8px; }', '[data-studio-session-usage="true"] { margin: 12px 0; }'],
+  [CSS.profile, 'PP-8 the session usage block keeps its 12px margins', '[data-studio-session-usage="true"] { margin: 0 0 4px; }', '[data-studio-session-usage="true"] { margin: 12px 0; }'],
   [CSS.profile, 'PP-8 the menu keeps its 18px top and bottom', '[data-p2-polish="true"] { padding-top: 12px; padding-bottom: 12px; }', '[data-p2-polish="true"] { padding-top: 18px; padding-bottom: 18px; }'],
   [CSS.profile, 'PP-8 the menu padding takes the sides too', '[data-p2-polish="true"] { padding-top: 12px; padding-bottom: 12px; }', '[data-p2-polish="true"] { padding: 12px; }'],
-  [CSS.profile, 'PP-8 the header keeps its 6px of padding', '[data-studio-p2-identity="true"] { margin-bottom: 8px; padding: 0; }', '[data-studio-p2-identity="true"] { margin-bottom: 8px; padding: 0 0 6px; }'],
-  [CSS.profile, 'PP-8 the header is 12px from what follows', '[data-studio-p2-identity="true"] { margin-bottom: 8px; padding: 0; }', '[data-studio-p2-identity="true"] { margin-bottom: 12px; padding: 0; }'],
+  [CSS.profile, 'PP-8 the header keeps its 6px of padding', '[data-studio-p2-identity="true"] { margin-bottom: 4px; padding: 0; }', '[data-studio-p2-identity="true"] { margin-bottom: 4px; padding: 0 0 6px; }'],
+  [CSS.profile, 'PP-8 the header is 12px from what follows', '[data-studio-p2-identity="true"] { margin-bottom: 4px; padding: 0; }', '[data-studio-p2-identity="true"] { margin-bottom: 12px; padding: 0; }'],
+  // PP-8, PK's review ("the gap between groups still reads a little large"): every gap between two groups is 4px; each mutant puts one of the first build's 8px back
+  [CSS.profile, 'PP-8 the group gap Workspace & billing / Help is 8px again', '[data-studio-v4-profile-role="separator"] + [data-studio-p2-row] { margin-top: 4px; }', '[data-studio-v4-profile-role="separator"] + [data-studio-p2-row] { margin-top: 8px; }'],
+  [CSS.profile, 'PP-8 the group gap header / capacity card is 8px again', '[data-studio-p2-identity="true"] { margin-bottom: 4px; padding: 0; }', '[data-studio-p2-identity="true"] { margin-bottom: 8px; padding: 0; }'],
+  [CSS.profile, 'PP-8 the group gap capacity card / Your details is 8px again', '[data-studio-p2-usage="true"] { margin: 0 0 4px; padding: 10px 12px; }', '[data-studio-p2-usage="true"] { margin: 0 0 8px; padding: 10px 12px; }'],
+  [CSS.profile, 'PP-8 the group gap Your details / APPEARANCE is 8px again', '[data-p2-polish="true"] [data-studio-p2-eyebrow="true"] { padding: 4px; }', '[data-p2-polish="true"] [data-studio-p2-eyebrow="true"] { padding: 8px 4px 4px; }'],
+  [CSS.profile, 'PP-8 the group gap Appearance control / Settings is 8px again', '[data-studio-p2-appearance-block="true"] { margin-bottom: -2px; }', '[data-studio-p2-appearance-block="true"] { padding-bottom: 2px; }'],
+  [CSS.profile, 'PP-8 the group gap Appearance control / Settings is 6px (the control alone)', '[data-studio-p2-appearance-block="true"] { margin-bottom: -2px; }', '[data-studio-p2-appearance-block="true"] { padding-bottom: 0; }'],
+  [CSS.profile, 'PP-8 the session usage block is 8px from what follows again', '[data-studio-session-usage="true"] { margin: 0 0 4px; }', '[data-studio-session-usage="true"] { margin: 0 0 8px; }'],
+  [CSS.profile, 'PP-8 the gap is taken from the Appearance control itself', 'gap: 2px; margin: 0 0 6px; padding: 3px;', 'gap: 2px; margin: 0 0 4px; padding: 3px;'],
+  [CSS.profile, 'PP-8 the group gap leaks to the flag-off menu', '[data-p2-polish="true"] [data-studio-v4-profile-role="separator"] + [data-studio-p2-row] { margin-top: 4px; }', '[data-studio-v4-profile-role="separator"] + [data-studio-p2-row] { margin-top: 4px; }'],
+  [CSS.profile, 'PP-8 the gap between Daily and Weekly is halved too', '[data-studio-p2-meter] + [data-studio-p2-meter] { margin-top: 8px; }', '[data-studio-p2-meter] + [data-studio-p2-meter] { margin-top: 4px; }'],
   [PROFILE, 'PP-8 the menu root carries the marker with the flag off', '{...(STUDIO_P2_POLISH_ENABLED ? { [STUDIO_P2_POLISH_ATTR]: "true" } : {})} side="right"', '{...({ [STUDIO_P2_POLISH_ATTR]: "true" })} side="right"'],
   [PROFILE, 'PP-8 the menu root never carries the marker', '{...(STUDIO_P2_POLISH_ENABLED ? { [STUDIO_P2_POLISH_ATTR]: "true" } : {})} side="right"', 'side="right"'],
   // the env block and the package script
