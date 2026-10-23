@@ -6,7 +6,7 @@
 //
 // What it proves:
 //  1. lib/studio-job-ledger.ts (pure, import-free): the seq rule, terminal rows, the sync merge and [], the words for every failure code,
-//     the Retry state machine (DIRECTOR-2's four rules: re-enable before the dedupe, the 15 s timeout, a retried row hides its Retry,
+//     the Retry state machine (DIRECTOR-2's four rules: re-enable before the dedupe, the 15 s timeout, a retried row shows no card,
 //     the newest row of a retry chain offers it), deck_build and the client route without Retry, Dismiss, the directive join;
 //  2. the REAL Director socket hook, fed DIRECTOR-2's five RECORDED frame files (scripts/fixtures/studio-job-ledger, copied verbatim from
 //     deckster-workspace 561f004ba29; sha256 checked below) one frame at a time, as the socket text of each frame: the page's callbacks get
@@ -163,7 +163,7 @@ async function libChecks(src) {
   })
   await check('lib: the cards are the failed (lost_on_restart included) and timed-out rows, newest first; done, cancelled, queued and running show nothing', () => {
     const all = apply(L, ...EACH_ORDER.map(k => EACH[k].payload))
-    assert.deepEqual(cards(all).map(c => [c.jobId, c.state]), [[LOST, 'failed'], [EL, 'timed_out'], [A, 'failed']], 'same updated_at: the latest change first')
+    assert.deepEqual(cards(all).map(c => [c.jobId, c.state]), [[LOST, 'failed'], [EL, 'timed_out']], 'same updated_at: the latest change first; A is retried by the done row, so it has no card')
     const later = apply(all, ...STALL.map(f => f.payload))
     assert.equal(cards(later)[0].jobId, BUILD, 'a later updated_at comes first')
     for (const state of ['done', 'cancelled', 'queued', 'running']) assert.equal(lib.isShownJobState(state), false, state)
@@ -180,7 +180,9 @@ async function libChecks(src) {
       [EACH.cancelled.payload, 'Changing the theme was stopped', 'It was stopped on request, so nothing more will happen.'],
       [derive(EACH.cancelled.payload, { state: 'failed', failure: { code: 'refused', retryable: false } }), "Changing the theme wasn't accepted", 'Nothing was changed.'],
       [derive(failedA, { kind: 'slide_refine', failure: { code: 'not_found', retryable: false }, retry: null }), "Refining slide 4 couldn't go ahead", "What it was meant to change isn't there any more."],
-      [derive(SYNC.payload.jobs[1], { state: 'timed_out', failure: { code: 'deadline_exceeded', retryable: true } }), 'The export ran out of time', 'It may still have gone through. Check the deck before you try again.'],
+      [derive(SYNC.payload.jobs[1], { state: 'timed_out', failure: { code: 'deadline_exceeded', retryable: true } }), 'The export ran out of time', 'It may still have finished. Check your downloads before you try again.'],
+      [derive(EACH.cancelled.payload, { state: 'timed_out', failure: { code: 'deadline_exceeded', retryable: true } }), 'Changing the theme ran out of time', 'It may still have gone through. Check the deck before you try again.'],
+      [derive(failedA, { state: 'timed_out', failure: { code: 'deadline_exceeded', retryable: true } }), 'Adding a slide ran out of time', 'It may still have gone through. Check slide 4 before you try again.'],
       [derive(failedA, { kind: 'element_refine', slide_index: 0 }), "Refining an element on slide 1 didn't finish", 'Something it relies on had a problem.'],
       [derive(failedA, { kind: 'slide_refine', slide_index: null }), "Refining a slide didn't finish", 'Something it relies on had a problem.'],
       [derive(failedA, { failure: { code: 'brand_new_code', retryable: true } }), "Adding a slide didn't finish", ''],
@@ -234,36 +236,40 @@ async function libChecks(src) {
     assert.equal(again.send, A)
     assert.equal(card(again.ledger, A, 16_001).retry, 'waiting')
   })
-  await check('lib rule 3: once a row retries it, the old row keeps its state and route but shows no Retry: by frame, by sync, in either order', () => {
+  await check('lib rule 3: once a row retries it, the old row keeps its state and route but shows no card (and no Retry): by frame, by sync, in either order', () => {
     const waiting = lib.startJobRetry(one, A, 1_000).ledger
+    assert.equal(card(waiting, A, 1_000).retry, 'waiting', 'until the reply: Retrying…')
     const retried = lib.applyJobUpdate(waiting, queuedB) // recorded: the retry's row, retry_of A
-    assert.equal(card(retried, A, 1_001).retry, 'none')
+    assert.equal(card(retried, A, 1_001), null, 'the retry row arrives: the old card goes away')
+    assert.deepEqual(cards(retried, 1_001), [], 'and the queued retry shows nothing: the chat\'s own progress takes over')
     assert.deepEqual(plain(retried.pending), {}, 'the retry row is the reply')
     const finished = apply(retried, runningB, doneB, ROUND['4_second_job_retry_same_old_id_answers'][0].payload)
     assert.deepEqual(plain(finished.rows[A]), failedA, 'the old row never changes: still failed, still its retry route')
-    assert.deepEqual(cards(finished).map(c => [c.jobId, c.retry]), [[A, 'none']])
+    assert.deepEqual(cards(finished), [])
     assert.equal(lib.isJobRetried(finished, A), true)
+    assert.equal(lib.jobRetryState(finished, finished.rows[A], 2_000), 'none', 'belt and braces: no Retry either')
     assert.equal(lib.startJobRetry(finished, A, 2_000).send, null)
     for (const order of [[failedA, doneB], [doneB, failedA]]) {
-      assert.equal(card(sync(L, order), A).retry, 'none', 'sync, both rows')
-      assert.equal(card(apply(L, ...order), A).retry, 'none', 'frames, both rows')
+      assert.equal(card(sync(L, order), A), null, 'sync, both rows')
+      assert.equal(card(apply(L, ...order), A), null, 'frames, both rows')
+      assert.equal(card(sync(apply(L, order[0]), [order[1]]), A), null, 'one by frame, the other by sync')
     }
-    assert.equal(card(sync(lib.startJobRetry(one, A, 1_000).ledger, [doneB]), A, 1_001).retry, 'none', 'a reconnect that brings the retry back')
+    assert.equal(card(sync(lib.startJobRetry(one, A, 1_000).ledger, [doneB]), A, 1_001), null, 'a reconnect that brings the retry back')
     assert.deepEqual(plain(sync(lib.startJobRetry(one, A, 1_000).ledger, [doneB]).pending), {}, 'a synced retry row ends the wait')
   })
-  await check('lib rule 4 (derived chain): a retry that fails offers Retry on the NEWEST row, with its own id; the original stays without', () => {
+  await check('lib rule 4 (derived chain): a retry that fails gets its own card and Retry, with its own id; the original shows no card', () => {
     const failedB = derive(queuedB, { state: 'failed', seq: 3, failure: { code: 'service_unavailable', retryable: true }, retry: { via: 'frame', job_id: B } }) // derived
     const chain = apply(one, queuedB, runningB, failedB)
-    assert.deepEqual(cards(chain).map(c => [c.jobId, c.retry]), [[B, 'ready'], [A, 'none']])
+    assert.deepEqual(cards(chain).map(c => [c.jobId, c.retry]), [[B, 'ready']])
     assert.equal(lib.startJobRetry(chain, A, 1_000).send, null)
     const click = lib.startJobRetry(chain, B, 1_000)
     assert.equal(click.send, B)
     const C = 'mdc_0c0ffee00003'
     const queuedC = derive(queuedB, { job_id: C, retry_of: B, seq: 1 }) // derived
     const third = lib.applyJobUpdate(click.ledger, queuedC)
-    assert.deepEqual(cards(third, 1_001).map(c => [c.jobId, c.retry]), [[B, 'none'], [A, 'none']])
+    assert.deepEqual(cards(third, 1_001), [], 'the third try is under way: no card for A or B')
     const failedC = derive(queuedC, { state: 'timed_out', seq: 2, failure: { code: 'deadline_exceeded', retryable: true }, retry: { via: 'frame', job_id: C } }) // derived
-    assert.equal(card(lib.applyJobUpdate(third, failedC), C, 1_002).retry, 'ready')
+    assert.deepEqual(cards(lib.applyJobUpdate(third, failedC), 1_002).map(c => [c.jobId, c.retry]), [[C, 'ready']])
   })
   await check('lib: deck_build never offers Retry (recorded stall; derived row with a frame route too); its timed-out words point at Resume', () => {
     const stalled = apply(L, ...STALL.map(f => f.payload))
@@ -431,7 +437,7 @@ async function hookChecks(src) {
     assert.deepEqual(studio.seen.messages, [], 'no job frame reaches onMessage')
     assert.deepEqual(studio.state().messages, [])
     assert.ok(!JSON.stringify(studio.state().cache).includes('job_update'), 'nor the cache')
-    assert.deepEqual(studio.cards().map(c => [c.jobId, c.state, c.retry?.label ?? null]), [[EL, 'timed_out', 'Retry'], [A, 'failed', null]], 'the retried row A shows no Retry (the done row retries it)')
+    assert.deepEqual(studio.cards().map(c => [c.jobId, c.state, c.retry?.label ?? null]), [[EL, 'timed_out', 'Retry']], 'the retried row A shows no card (the done row retries it)')
     studio.unmount()
     const other = await mountStudio({ src, flag: 'true', session: RESTART_SESSION })
     await other.deliver(EACH.failed_lost_on_restart)
@@ -453,8 +459,10 @@ async function hookChecks(src) {
     await studio.click(A, 'retry') // a double click: the disabled button's handler, or a click before the re-render
     assert.deepEqual(studio.sent().slice(before), [JOB_RETRY_BYTES], 'one job_retry, byte for byte the recorded inbound frame')
     assert.equal(JOB_RETRY_BYTES, `{"type":"job_retry","data":{"job_id":"${A}"}}`)
-    for (const frame of ROUND['3_outbound_after_job_retry']) await studio.deliver(frame)
-    assert.deepEqual(studio.cards(), [{ jobId: A, state: 'failed', title: "Adding a slide didn't finish", body: 'Something it relies on had a problem.', retry: null }], 'the retried row keeps its card without Retry; the done retry shows nothing')
+    await studio.deliver(ROUND['3_outbound_after_job_retry'][0]) // the retry's queued row (retry_of A): the reply
+    assert.deepEqual(studio.cards(), [], 'the old card goes away when the retry row arrives; the chat\'s own progress takes over')
+    for (const frame of ROUND['3_outbound_after_job_retry'].slice(1)) await studio.deliver(frame)
+    assert.deepEqual(studio.cards(), [], 'the done retry shows nothing')
     for (const frame of ROUND['4_second_job_retry_same_old_id_answers']) await studio.deliver(frame)
     assert.deepEqual(studio.seen.jobUpdates.map(u => u.row), jobRows([...ROUND['1_chat_compose_fails'], ...ROUND['3_outbound_after_job_retry'], ...ROUND['4_second_job_retry_same_old_id_answers']]))
     assert.equal(studio.sent().slice(before).length, 1, 'nothing is retried automatically')
@@ -617,6 +625,7 @@ function staticChecks(src) {
     const card = src[CARD]
     const imports = [...card.matchAll(/^import (?:.* from )?"([^"]+)"$/gm)].map(m => m[1])
     assert.deepEqual(imports, ['react', 'lucide-react', '@/lib/studio-job-ledger', './studio-job-ledger-card.css'])
+    assert.ok(card.includes('import { AlertCircle } from "lucide-react"') && card.includes('<AlertCircle size={14} aria-hidden="true" />'), 'an alert icon, 14 px, hidden from assistive tech')
     assert.ok(!/fetch\(|WebSocket|\.send\(|localStorage|sessionStorage/.test(card), 'the card sends and stores nothing itself')
     const css = src[CSS].replace(/\/\*[\s\S]*?\*\//g, '')
     const rules = css.split('}').map(r => r.trim()).filter(Boolean)
@@ -688,7 +697,8 @@ const MUTANTS = [
   ['the intake not gated on the flag (sync jobs)', HOOK, "if (STUDIO_JOB_LEDGER_ENABLED && parsedMessage.type === 'sync_response'", "if (parsedMessage.type === 'sync_response'"],
   ['the job_retry shape', PAGE, "sendControlMessage('job_retry', { job_id: jobId })", "sendControlMessage('job_retry', { job_id: jobId, session_id: currentSessionId || wsSessionId } as { job_id: string })"],
   ['Dismiss sends something', CARD, 'onClick={() => store.dismiss(sessionId, card.jobId)}', 'onClick={() => { store.dismiss(sessionId, card.jobId); sendJobRetry(card.jobId) }}'],
-  ['a retried row keeps its Retry (rule 3)', LIB, "if (!offersFrameRetry(row) || isJobRetried(ledger, row.job_id)) return 'none'", "if (!offersFrameRetry(row)) return 'none'"],
+  ['a retried row keeps its card (rule 3)', LIB, ' && !ledger.dismissed[row.job_id] && !isJobRetried(ledger, row.job_id))', ' && !ledger.dismissed[row.job_id])'],
+  ['a retried row keeps its Retry (rule 3, belt and braces)', LIB, "if (!offersFrameRetry(row) || isJobRetried(ledger, row.job_id)) return 'none'", "if (!offersFrameRetry(row)) return 'none'"],
   ["another session's job_update taken", HOOK, 'const row = parsedMessage.session_id === socketSessionId ? jobLedgerRow(parsedMessage.payload) : null;', 'const row = jobLedgerRow(parsedMessage.payload);'],
   ['a job_update unlocks the turn', HOOK, "if (STUDIO_JOB_LEDGER_ENABLED && (parsedMessage.type as unknown) === JOB_UPDATE_TYPE) {\n", "if (STUDIO_JOB_LEDGER_ENABLED && (parsedMessage.type as unknown) === JOB_UPDATE_TYPE) {\n              clearAwaitReply();\n"],
   ['a raw failure code in the words', LIB, "return { title: `${subject} didn't finish`, body: 'Something it relies on had a problem.' }", "return { title: `${subject} didn't finish (${row.failure?.code})`, body: 'Something it relies on had a problem.' }"],
