@@ -22,6 +22,23 @@ import { AlertTriangle, Check, FileText, Loader2, Pause, Play, Volume2, Zap } fr
 import { Button } from '@/components/ui/button'
 import { useToast } from '@/hooks/use-toast'
 
+// NEXT_PUBLIC_STUDIO_JOB_DEADLINES (P3-4, default off): a narration request that hangs is aborted at its deadline (script / render 315 s,
+// the voice 30 s) and ends in the toast and button state the request already has. Off: the plain fetch, and nothing extra is loaded.
+async function narrationFetch(input: string, init: RequestInit | undefined, kind: 'long' | 'voice'): Promise<Response> {
+  if (process.env.NEXT_PUBLIC_STUDIO_JOB_DEADLINES !== 'true') return fetch(input, init)
+  const jobs = await import('@/lib/studio-job-deadlines')
+  const ms = kind === 'long' ? jobs.NARRATION_LONG_DEADLINE_MS : jobs.NARRATION_VOICE_DEADLINE_MS
+  const deadline = jobs.startJobDeadline(ms)
+  try {
+    return await fetch(input, { ...init, signal: deadline.signal })
+  } catch (error) {
+    if (deadline.timedOut()) throw new Error(jobs.jobDeadlineMessage(kind === 'long' ? 'Narration' : 'Loading the voice', ms))
+    throw error
+  } finally {
+    deadline.clear()
+  }
+}
+
 const STUDIO_NARRATION = process.env.NEXT_PUBLIC_STUDIO_V4_SHELL === 'true'
 
 interface VoiceOption {
@@ -116,7 +133,7 @@ export function NarrationVoicePicker({ sessionId, slideCount, slug, hasBudget }:
     let cancelled = false
     ;(async () => {
       try {
-        const response = await fetch(`/api/narration/voice?sessionId=${sessionId}`)
+        const response = await narrationFetch(`/api/narration/voice?sessionId=${sessionId}`, undefined, 'voice')
         const data = await response.json()
         if (cancelled || !response.ok) return
         setVoices(data.voices ?? [])
@@ -173,11 +190,11 @@ export function NarrationVoicePicker({ sessionId, slideCount, slug, hasBudget }:
       setSelected(voice.id)
       setEffective(voice.id)
       try {
-        const response = await fetch('/api/narration/voice', {
+        const response = await narrationFetch('/api/narration/voice', {
           method: 'PATCH',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ sessionId, voiceId: voice.id }),
-        })
+        }, 'voice')
         const data = await response.json().catch(() => ({}))
         if (!response.ok) throw new Error(data.error || 'Could not save that voice')
         setPersistenceReady(data.persistenceReady !== false)
@@ -206,11 +223,11 @@ export function NarrationVoicePicker({ sessionId, slideCount, slug, hasBudget }:
     setDrafting(true)
     setScriptResult(null)
     try {
-      const response = await fetch('/api/narration/script', {
+      const response = await narrationFetch('/api/narration/script', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ slug, overwrite }),
-      })
+      }, 'long')
       const data = await response.json().catch(() => ({}))
       if (!response.ok) throw new Error(data.error || 'Could not generate the script')
       setScriptResult(data as ScriptResult)
@@ -250,11 +267,11 @@ export function NarrationVoicePicker({ sessionId, slideCount, slug, hasBudget }:
     setRendering(true)
     if (!confirmed) setRenderResult(null)
     try {
-      const response = await fetch('/api/narration/render', {
+      const response = await narrationFetch('/api/narration/render', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ slug, estimate: !confirmed }),
-      })
+      }, 'long')
       const data = await response.json().catch(() => ({}))
       if (!response.ok) throw new Error(data.error || 'Could not render the narration')
       if (confirmed) {

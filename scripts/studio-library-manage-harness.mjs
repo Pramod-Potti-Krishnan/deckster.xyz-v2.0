@@ -65,6 +65,8 @@ export const STACKED_PASS3_FILES = [
   'lib/studio-deck-changed-notice.ts', 'hooks/use-deck-changed-notice.ts', 'components/builder/studio-deck-changed-notice.tsx',
   // Text Labs signed requests (NEXT_PUBLIC_STUDIO_TL_SIGNED_REQUESTS / TEXT_LABS_SIGNED_REQUESTS_ENABLED, stacked): the mint route, its lib, the browser half, the client.
   'app/api/identity/text-labs-token/route.ts', 'lib/text-labs-identity-mint.ts', 'lib/text-labs-signed-fetch.ts', 'lib/textlabs-client.ts',
+  // P3-4b every long Studio request ends (NEXT_PUBLIC_STUDIO_JOB_DEADLINES, stacked): the deadlines module, the export service, the narration picker.
+  'lib/studio-job-deadlines.ts', 'lib/api/download-service.ts', 'components/narration-voice-picker.tsx',
   // P3-4c Director's job ledger in Studio (NEXT_PUBLIC_STUDIO_JOB_LEDGER, stacked): its lib and the chat card (tsx and css).
   'lib/studio-job-ledger.ts', 'components/builder/chat/studio-job-ledger-card.tsx', 'components/builder/chat/studio-job-ledger-card.css',
 ]
