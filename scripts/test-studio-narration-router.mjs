@@ -34,6 +34,8 @@ const nodeRequire = createRequire(import.meta.url)
 // The base this change is stacked on: #473 (model catalog) at 13c90ea, which holds #472, #470 and studio-v4-dev-preparation-code at 8d5c494. lib/narration/ and app/api/narration/ are the same text there as at fae9620 (where
 // this change branched), so the flag-off comparison is unchanged; .env.example and package.json are held to 13c90ea through scripts/studio-narration-router-strip.mjs (this change's block and line come out).
 const BASE_COMMIT = '13c90ea9c94dc2b426c98bf775b870f890b99fab'
+// This change's own head (its PR's last commit, c1a7378): the strip is held to it and to the base above, byte for byte, as fixed inputs (whatever later PRs put in HEAD, and wherever).
+const OWN_HEAD = 'c1a7378752f6d7c90baecefb5a07fc33f4c9d6cd'
 
 const LIB = 'lib/narration/model-router.ts'
 const DRAFT = 'lib/narration/draft.ts'
@@ -56,6 +58,8 @@ const NR_PKG_CHANGES = [['    "test:studio-narration-router": "node scripts/test
 
 const tryRead = rel => { try { return fs.readFileSync(path.join(repoRoot, rel), 'utf8') } catch { return null } }
 const baseCache = new Map()
+const headCache = new Map()
+const ownHeadSource = rel => { if (!headCache.has(rel)) headCache.set(rel, gitOut('show', `${OWN_HEAD}:${rel}`)); return headCache.get(rel) }
 const baseSource = rel => {
   if (!baseCache.has(rel)) {
     let text = null
@@ -622,6 +626,12 @@ function buildTests(S) {
     assert.ok(S[STRIP] != null, `${STRIP} exists`)
     const { stripNarrationRouter, NARRATION_ROUTER_FILES } = loadStrip(S[STRIP])
     assert.deepEqual(NARRATION_ROUTER_FILES, [ENV, PKG], 'the two shared files')
+    assert.equal(loadStack(S[STACK_TOLERANT]).STACK[475].head, OWN_HEAD, 'the helper names the same head')
+    for (const rel of NARRATION_ROUTER_FILES) {
+      const own = ownHeadSource(rel), baseText = baseSource(rel)
+      if (own == null || baseText == null) { console.log(`SKIP ${rel} strip on this change's own head: a commit is not in this clone`); continue }
+      assert.equal(stripNarrationRouter(rel, own), baseText, `${rel}: this change's own head (${OWN_HEAD.slice(0, 7)}) without its lines is ${BASE_COMMIT.slice(0, 7)}'s file byte for byte (fixed inputs: HEAD's later blocks change nothing here)`)
+    }
     for (const rel of NARRATION_ROUTER_FILES) {
       const baseText = baseSource(rel)
       if (baseText == null) { console.log(`SKIP ${rel} strip against the base: the base commit is not in this clone`); continue }
