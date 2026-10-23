@@ -6,10 +6,14 @@
 //     file is a later PR's: ignored, and counted on one printed line.
 //  2. Every frozen file is still changed against the base (an own file missing is refused).
 //  3. A shared file (sameOrTolerant): strip(HEAD) equal to the base byte for byte, as before. Only when it is not (a later PR edited the file too): every base line is still there, in order; none of
-//     this change's added lines is left after its strip; and every one of them is in HEAD. package.json lines are compared without a trailing comma in the last two (an entry's comma depends on
-//     what follows it); the base lines must still be there exactly. .env.example keeps scripts/studio-env-append-tolerant.mjs (sameAsBase, #480), which is stricter about what may be added.
-// stackMutants() runs a test's own data through these rules with their mutants (a base line dropped, this change's line left after its strip, its lines gone from HEAD, an own file missing, a stray
-// in its family) and controls. Plain JavaScript with no imports and no I/O: the tests hand in git's answers, and scripts/test-studio-narration-router.mjs loads this file from its text to mutate it.
+//     this change's added lines is left after its strip; and every one of them is in HEAD. In package.json the base's last entry of a list may carry the one trailing comma a later append gives it
+//     (only that comma, only once, and only with an entry after it), the result must still parse, and this change's lines are compared without their trailing comma (an entry's comma depends on
+//     what follows it). .env.example keeps scripts/studio-env-append-tolerant.mjs (sameAsBase, #480), which is stricter about what may be added.
+//  4. A shared file the stack edits with no strip module (stackFileTolerant: scripts/studio-library-manage-harness.mjs): the file as the stack left it (STACK[475].head) byte for byte, as before; or
+//     every line of it still there, in order, with only a later PR's lines added.
+// stackMutants() runs a test's own data through these rules with their mutants (a base line dropped or a base script changed, this change's line left after its strip, its lines gone from HEAD or a later
+// line taken for its own, an own file missing, a stray in its family, a line of the stack's harness dropped or edited) and controls. Plain JavaScript with no imports and no I/O: the tests hand in git's
+// answers, and scripts/test-studio-narration-router.mjs loads this file from its text to mutate it.
 
 const REFINE_FIXTURES = ['01-success', '02-failed', '03-dismissed', '04-g3-no-element-reference', '05-g5-slide-op-in-flight', '06-no-cap', '07-failed-viewer-unavailable',
   '08-failed-element-not-found', '09-failed-timeout', '10-two-elements', '11-off-list-type', '12-long-id', '13-non-refinable-type'].map(name => `scripts/fixtures/chat-element-refine/director-frames/${name}.json`)
@@ -84,10 +88,16 @@ export function ownLines(rel, changes, baseText) {
 /** Rule 3: `head` is the file with the stacked changes' lines out, `stripped` the same with this change's lines out too. { ok, exact, reason }. */
 export function sameOrTolerant(rel, head, stripped, baseText, changes) {
   if (stripped === baseText) return { ok: true, exact: true, reason: 'byte for byte' }
-  const want = baseText.split('\n'), have = stripped.split('\n')
-  let next = 0
-  for (const line of have) if (next < want.length && line === want[next]) next++
+  const want = baseText.split('\n'), have = stripped.split('\n'), json = rel === 'package.json', closes = line => /^\s*\}/.test(line ?? '')
+  let next = 0, commas = 0
+  for (const [at, line] of have.entries()) {
+    if (next >= want.length) break
+    if (line === want[next]) next++
+    // package.json: the base's last entry of a list followed now by a later PR's entry, with the comma that append gave it
+    else if (json && commas === 0 && line === `${want[next]},` && closes(want[next + 1]) && !closes(have[at + 1])) { next++; commas++ }
+  }
   if (next < want.length) return { ok: false, exact: false, reason: `base line ${next + 1} is missing or out of order: ${want[next].slice(0, 120)}` }
+  if (json) { try { JSON.parse(stripped) } catch { return { ok: false, exact: false, reason: 'package.json does not parse after the strip' } } }
   const key = lineKey(rel), own = ownLines(rel, changes, baseText)
   if (own.length === 0) return { ok: false, exact: false, reason: 'this change has no added line here to look for' }
   const left = new Set(have.map(key)), inHead = new Set(head.split('\n').map(key))
@@ -98,8 +108,19 @@ export function sameOrTolerant(rel, head, stripped, baseText, changes) {
   return { ok: true, exact: false, reason: `${have.length - want.length} line(s) of a later PR taken` }
 }
 
-/** The rules on a test's own data, with their mutants. `shared`: [{ rel, head, strip, base, changes }] as for sameOrTolerant. Returns [label, true when the mutant is refused / the control taken]. */
-export function stackMutants({ change, changed, known = () => false, shared }) {
+/** Rule 4: `stackText` is the file as the stack left it (git show STACK[475].head:<rel>), `headText` the file now. { ok, exact, reason }. */
+export function stackFileTolerant(stackText, headText) {
+  if (headText === stackText) return { ok: true, exact: true, reason: 'byte for byte as the stack left it' }
+  const keep = stackText.split('\n'), now = headText.split('\n')
+  let kept = 0
+  for (const line of now) if (kept < keep.length && line === keep[kept]) kept++
+  if (kept < keep.length) return { ok: false, exact: false, reason: `the stack's line ${kept + 1} is missing or out of order: ${keep[kept].slice(0, 120)}` }
+  return { ok: true, exact: false, reason: `${now.length - keep.length} line(s) of a later PR taken` }
+}
+
+/** The rules on a test's own data, with their mutants. `shared`: [{ rel, head, strip, base, changes }] as for sameOrTolerant; `kept`: [{ rel, stack, head }] as for stackFileTolerant.
+ * Returns [label, true when the mutant is refused / the control taken]. */
+export function stackMutants({ change, changed, known = () => false, shared, kept = [] }) {
   const out = []
   const scope = list => stackScope(list, change, known)
   const clean = s => s.missing.length === 0 && s.stray.length === 0
@@ -121,6 +142,29 @@ export function stackMutants({ change, changed, known = () => false, shared }) {
     out.push([`${rel}: mutant: this change's line left behind after its strip is refused`, own.length > 0 && !verdict(`${put(lines, later)}\n${own[0]}\n`).ok])
     out.push([`${rel}: mutant: this change's lines gone from HEAD (the base with a later PR's line) are refused`, !verdict(put(baseLines, later)).ok])
     out.push([`${rel}: mutant: no line of this change to look for is refused`, !sameOrTolerant(rel, put(lines, later), strip(put(lines, later)), base, []).ok])
+    if (rel !== 'package.json') continue
+    // package.json, built on the base so that it holds whatever HEAD carries: this change's line as the last entry, then a later registration appended after it (this change's line gains a comma)
+    // `line` after the last entry of `list` (that entry gains its comma); with no `line`, only the comma: what a strip that forgot to take it back leaves
+    const append = (text, list, line) => { const at = text.split('\n'), open = at.findIndex(l => l === `  "${list}": {`), end = at.findIndex((l, i) => i > open && /^  \},?$/.test(l)); return open < 0 || end <= open + 1 ? null : [...at.slice(0, end - 1), `${at[end - 1]},`, ...(line === undefined ? [] : [line]), ...at.slice(end)].join('\n') }
+    const laterLast = '    "test:studio-later": "node scripts/test-studio-later.mjs"', mine = own[0] === undefined ? null : append(base, 'scripts', own[0]), both = mine && append(mine, 'scripts', laterLast)
+    const script = baseLines.find(line => /^ {4}"test:[^"]+": "node [^"]+\.mjs",$/.test(line) && once(baseLines, line))
+    out.push([`${rel}: control: this change's line as the last entry comes out byte for byte`, mine !== null && (v => v.ok && v.exact)(verdict(mine))])
+    out.push([`${rel}: control: a later registration appended after it (its entry gains a comma) is taken`, both !== null && (v => v.ok && !v.exact)(verdict(both))])
+    out.push([`${rel}: mutant: ... and a base script line changed is refused`, both !== null && script !== undefined && !verdict(both.replace(script, script.replace('.mjs",', '-changed.mjs",'))).ok])
+    out.push([`${rel}: mutant: ... and this change's line left behind after its strip is refused`, both !== null && !verdict(both.replace('  "scripts": {\n', `  "scripts": {\n${own[0]},\n`)).ok])
+    out.push([`${rel}: mutant: an appended later line taken for this change's (its line gone, a later one appended) is refused`, (text => text !== null && !verdict(text).ok)(append(base, 'scripts', laterLast))])
+    out.push([`${rel}: mutant: the entry before this change's removed last line keeps its comma is refused`, mine !== null && (text => text !== null && !sameOrTolerant(rel, mine, text, base, changes).ok)(append(base, 'scripts'))])
+    out.push([`${rel}: mutant: a comma gained on two base lines (two lists appended to) is refused`, both !== null && (text => text !== null && !verdict(text).ok)(append(both, 'devDependencies', '    "later-package": "1.0.0"') ?? append(both, 'dependencies', '    "later-package": "1.0.0"'))])
+  }
+  for (const { rel, stack, head } of kept) {
+    const lines = stack.split('\n'), once = line => lines.filter(other => other === line).length === 1
+    const later = '  // a later PR\'s line (made up, for this check)', put = list => [list[0], later, ...list.slice(1)].join('\n')
+    const at = lines.findIndex((line, i) => i > 0 && line.trim() !== '' && once(line))
+    out.push([`${rel}: control: the file as the stack left it is byte for byte`, (v => v.ok && v.exact)(stackFileTolerant(stack, stack))])
+    out.push([`${rel}: control: the file as it is now`, stackFileTolerant(stack, head).ok])
+    out.push([`${rel}: control: a later PR's line is taken, not as byte for byte`, (v => v.ok && !v.exact)(stackFileTolerant(stack, put(lines)))])
+    out.push([`${rel}: mutant: a line of the stack dropped is refused`, at > 0 && !stackFileTolerant(stack, put(lines.filter((_, i) => i !== at))).ok])
+    out.push([`${rel}: mutant: a line of the stack edited is refused`, at > 0 && !stackFileTolerant(stack, put(lines.map((line, i) => (i === at ? `${line} // edited` : line)))).ok])
   }
   return out
 }

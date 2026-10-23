@@ -7,13 +7,17 @@
 
 export const BASE_COMMIT = '8d5c494a7abcbfaf3d1b69eda257a5100013cb18'
 
+// The test registration this change adds to package.json (the line, without the comma that depends on what follows it).
+const PACKAGE_LINE = '    "test:studio-chat-element-refine": "node scripts/test-studio-chat-element-refine.mjs"'
+
 // [text this change has, text the base has]; each `added` is a literal that occurs once in the file.
 const CHANGES = {
   ".env.example": [
     ["\n# PASS3 REFINE AN ELEMENT FROM CHAT (FRONTEND-2, Studio half; ops/program/pass3/DIRECTOR-2-REFINE-ELEMENT-DESIGN.md): on only for the exact value \"true\"; default off, and then the chat sends, the socket\n# handling and the page are exactly as before. It is read when Studio is built, so change it on Vercel and redeploy. Needs, in the same environment, Director's DIRECTOR_MDC_REFINE_ELEMENT_ENABLED + CHAT_CAP_REFINE_ELEMENT\n# (Director !511, narrowed by !512) and Layout's LAYOUT_REQUEST_ELEMENT_REFINE_ENABLED (layout-builder !245); with Layout's off, every refine answers \"failed / viewer_unavailable\" and Director says so in chat.\n# On: every user_message carries client_caps \"element_refine1\", and, while an element is selected on the canvas, ONE references entry {kind:\"element\", element_id, element_type, slide_index,\n# slide_id, label} (none for a type off Director's list or an id over 128 characters). Director's element_refine_directive is run like the Element panel's Refine (the element's payload from the\n# viewer's requestElementRefine, then the same Text Labs refine, swapped in place) and answered with element_directive_result {directive_id, status, element_id, error_code}. Only the 7 types\n# TEXT_BOX, METRICS, TABLE, CHART, IMAGE, ICON_LABEL, SHAPE are refined from chat; any other type or a blank placeholder answers \"failed / unsupported_type\" with no generation.\nNEXT_PUBLIC_CHAT_ELEMENT_REFINE=\"false\"\n\n", "\n"],
   ],
   "package.json": [
-    ["    \"test:studio-p2-polish\": \"node scripts/test-studio-p2-polish.mjs\",\n    \"test:studio-p2-profile-page\": \"node scripts/test-studio-p2-profile-page.mjs\",\n    \"test:studio-chat-element-refine\": \"node scripts/test-studio-chat-element-refine.mjs\"\n", "    \"test:studio-p2-polish\": \"node scripts/test-studio-p2-polish.mjs\",\n    \"test:studio-p2-profile-page\": \"node scripts/test-studio-p2-profile-page.mjs\"\n"],
+    // This change's one script line. It comes out wherever it is in the list (PACKAGE_LINE below), so a later PR's registration before or after it changes nothing.
+    [PACKAGE_LINE, ''],
   ],
   "app/builder/page.tsx": [
     ["import { shouldOpenAsBlankPlaceholder } from '@/lib/element-blank-policy'\n// NEXT_PUBLIC_CHAT_ELEMENT_REFINE (default off): refine the selected element from chat (lib/chat-element-refine.ts).\nimport { CHAT_ELEMENT_REFINE_ENABLED, chatElementReferenceFor, runElementRefineDirective, type ChatElementSelection, type ElementRefineDirectiveMessage, type ElementRefineDirectiveOwner } from '@/lib/chat-element-refine'\n", "import { shouldOpenAsBlankPlaceholder } from '@/lib/element-blank-policy'\n"],
@@ -43,6 +47,10 @@ export const CHAT_ELEMENT_REFINE_FILES = Object.keys(CHANGES)
 
 /** The file without this change's lines. Any other file is returned as it is. */
 export function stripChatElementRefine(rel, text) {
+  if (rel === 'package.json') {
+    const last = `,\n${PACKAGE_LINE}\n` // the last entry: the one before it loses its comma again
+    return text.includes(last) ? text.replace(last, '\n') : text.replace(`${PACKAGE_LINE},\n`, '') // anywhere else: the line goes with its own comma, and a later entry after it stays as it is
+  }
   return (CHANGES[rel] ?? []).reduce((result, [added, original]) => result.replace(added, () => original), text)
 }
 
