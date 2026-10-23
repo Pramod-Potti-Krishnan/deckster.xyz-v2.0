@@ -9,6 +9,7 @@ import { ArrowRight, Search } from "lucide-react"
 import { Header, Footer } from "@/components/layout"
 import { getAllDocs } from "@/lib/docs"
 import { STUDIO_DOCS_AGENT_RULES } from "@/content/studio-p2-docs-agents"
+import { STUDIO_DOCS_FACT_RULES } from "@/content/studio-p2-docs-facts"
 import {
   STUDIO_DOCS_WORDS as W,
   studioDocsCategoryTitle,
@@ -27,7 +28,9 @@ import {
 import "./studio-p2-docs.css"
 
 // PASS2 Docs (NEXT_PUBLIC_STUDIO_P2_DOCS): /docs and /docs/<category>/<article> in the Studio shell's tokens. The site's own header and footer stay (these are public pages); the body is the shell's.
-// The same articles, the same search, the same links as before. No new action. The text names the current agents (content/studio-p2-docs-agents.ts); content/docs.ts itself is not changed.
+// The same articles, the same search, the same links as before. No new action. The text names the current agents (content/studio-p2-docs-agents.ts) and says what the product does today: the plans, the Google sign-in
+// (content/studio-p2-docs-facts.ts, applied after the agent rules); content/docs.ts itself is not changed.
+const RULES = [...STUDIO_DOCS_AGENT_RULES, ...STUDIO_DOCS_FACT_RULES]
 
 function Page({ kind, children }: { kind: string; children: ReactNode }) {
   return (
@@ -53,7 +56,7 @@ function HelpBand({ title, body, secondary }: { title: string; body: string; sec
 }
 
 export function StudioDocsIndex() {
-  const sections = studioDocsCurrent(getAllDocs(), STUDIO_DOCS_AGENT_RULES)
+  const sections = studioDocsCurrent(getAllDocs(), RULES)
   const [query, setQuery] = useState("")
   const found = studioDocsFilter(sections, query)
   return (
@@ -126,7 +129,7 @@ export function StudioDocArticle() {
   const pick = (value: string | string[] | undefined) => (Array.isArray(value) ? value[0] : value) ?? ""
   const category = pick(params?.category)
   const slug = pick(params?.slug)
-  const sections = studioDocsCurrent(getAllDocs(), STUDIO_DOCS_AGENT_RULES)
+  const sections = studioDocsCurrent(getAllDocs(), RULES)
   const doc = studioDocsItem(sections, category, slug)
 
   if (!doc) {

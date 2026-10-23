@@ -3,7 +3,7 @@
 // Each rule swaps one piece of an article's text (once, where it is found) when the flag is on; content/docs.ts itself is not touched, so with the flag off every article reads as before. Data only (one type import), so the test runs it as plain code.
 // Old -> new: Scripter -> Content Generator; Graphic Artist -> Slide Composer (layout, balance, focus); Data Visualizer -> Visualizer; "four" / "4" agents -> "eight" / "8"; Researcher, Analyst, Theme Builder and Element Generator are new to the text.
 // The words of the seven sections added to "Understanding AI Agents" are content/agents.ts's own (role = the agent's title; the first sentence of its description; its first four capabilities).
-// The Free / Pro lines in those articles are unchanged but for the names and the count (the plans are Starter / Pro / Max): a content call, see the PR.
+// The Free / Pro / Enterprise lines in those articles carry the new names and the count here and are then replaced by the real plans (Starter / Pro / Max) in content/studio-p2-docs-facts.ts, which is applied after these rules.
 import type { StudioDocRule } from "@/lib/studio-p2-docs"
 
 export const STUDIO_DOCS_AGENT_RULES: readonly StudioDocRule[] = [

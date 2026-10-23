@@ -27,7 +27,7 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 
-// PASS2 Docs (NEXT_PUBLIC_STUDIO_P2_DOCS, default off): /agents is a redirect (next.config.mjs), so with the flag on the three links to it are not shown. The links to the agent pages (/agents/<agent>) stay. Off: the page as it was.
+// PASS2 Docs (NEXT_PUBLIC_STUDIO_P2_DOCS, default off): /agents is a redirect (next.config.mjs), so with the flag on the two links to it on an agent page are not shown, and the not-found page's link goes to /experts, where /agents redirects to. The links to the agent pages (/agents/<agent>) stay. Off: the page as it was.
 const STUDIO_P2_DOCS = process.env.NEXT_PUBLIC_STUDIO_P2_DOCS === 'true';
 
 const iconMap = {
@@ -60,15 +60,13 @@ export default function AgentDetailPage() {
           <p className="mb-8 text-muted-foreground">
             The agent you&apos;re looking for doesn&apos;t exist.
           </p>
-          {!STUDIO_P2_DOCS && (
-            <Link
-              href="/agents"
-              className="inline-flex items-center gap-2 text-primary hover:underline"
-            >
-              <ArrowLeft className="h-4 w-4" />
-              Back to Agents
-            </Link>
-          )}
+          <Link
+            href={STUDIO_P2_DOCS ? '/experts' : '/agents'}
+            className="inline-flex items-center gap-2 text-primary hover:underline"
+          >
+            <ArrowLeft className="h-4 w-4" />
+            {STUDIO_P2_DOCS ? 'Back to Experts' : 'Back to Agents'}
+          </Link>
         </div>
         <Footer />
       </div>
