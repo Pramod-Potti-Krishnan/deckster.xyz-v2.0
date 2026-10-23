@@ -37,6 +37,7 @@ import * as extract from './studio-chat-harness/page-extract.mjs'
 import { pageThemeSources } from './studio-chat-harness/page-theme-sources.mjs'
 import { pageSources } from './studio-chat-harness/page-sources.mjs'
 import { stripChatThemeExport, BASE_COMMIT, CHAT_THEME_EXPORT_FILES, CHAT_THEME_EXPORT_CHANGES } from './studio-chat-theme-export-strip.mjs'
+import { stripModelCatalog } from './studio-model-catalog-strip.mjs' // #473 (NEXT_PUBLIC_STUDIO_MODEL_CATALOG) is stacked on this change: its .env.example block and package.json line come out first
 
 for (const name of Object.keys(process.env)) if (/KEY|TOKEN|SECRET|CREDENTIAL|PASSWORD/i.test(name)) delete process.env[name]
 const root = path.resolve(fileURLToPath(new URL('../', import.meta.url)))
@@ -609,6 +610,7 @@ await check('theme runner: not_owner, the composer-frozen / pending templates, a
 
 // ---- 5. flags off is identical -----------------------------------------------------------------------------------------------------
 const NEW = /^(lib\/chat-theme-export(-wire)?\.ts|scripts\/(test-studio-chat-theme-export|studio-chat-theme-export-strip)\.mjs|scripts\/fixtures\/chat-theme-export\/.+|docs\/pass3\/chat-theme-export\/LIVE-CHECK-PLAN\.md)$/
+const STACKED_MODEL_CATALOG = /^(app\/\(app\)\/studio\/intelligence\/layout\.tsx|app\/api\/models\/catalogue\/route\.ts|components\/studio-personal\/intelligence-models\.(css|tsx)|lib\/studio-model-catalog\.ts|scripts\/(test-studio-model-catalog|studio-model-catalog-strip)\.mjs|scripts\/fixtures\/studio-model-catalog\/.+)$/ // #473's own files (stacked on this change)
 // Older pins and strip roots that now read through scripts/studio-chat-theme-export-strip.mjs (an import and one call each).
 const READS_THROUGH_STRIP = ['scripts/studio-add-slide-status-strip.mjs', 'scripts/studio-open-read-only-strip.mjs', 'scripts/studio-theme-dark-persist-strip.mjs',
   'scripts/test-studio-director-transport.mjs', 'scripts/test-theme-font-selection.mjs',
@@ -627,7 +629,7 @@ await check(`identity: stripping this change gives back ${BASE_COMMIT.slice(0, 7
   if (refine !== -1) assert.ok(at > refine, 'after the refine block')
   if (admin === -1) assert.ok(env.endsWith(block), 'no later block: it is last')
   for (const rel of CHAT_THEME_EXPORT_FILES) {
-    const head = read(rel)
+    const head = stripModelCatalog(rel, read(rel)) // #473's block / registration out first (stacked on this change)
     for (const [added] of CHAT_THEME_EXPORT_CHANGES[rel]) assert.equal(head.split(added).length, 2, `${rel}: one occurrence`)
     assert.equal(sha(stripChatThemeExport(rel, head)), sha(baseFile(rel)), rel)
   }
@@ -645,7 +647,7 @@ await check(`identity: stripping this change gives back ${BASE_COMMIT.slice(0, 7
     const added = git('diff', '-U0', BASE_COMMIT, 'HEAD', '--', rel).split('\n').filter(line => line.startsWith('+') && !line.startsWith('+++'))
     for (const line of added) assert.match(line, /ThemeExport|THEME_EXPORT|chat-theme-export|#472|stacked/i, `${rel}: ${line.slice(0, 160)}`)
   }
-  for (const rel of changed) assert.ok(CHAT_THEME_EXPORT_FILES.includes(rel) || NEW.test(rel) || READS_THROUGH_STRIP.includes(rel) || STACKED_SIBLING_TESTS.includes(rel), `unexpected change: ${rel}`)
+  for (const rel of changed) assert.ok(CHAT_THEME_EXPORT_FILES.includes(rel) || NEW.test(rel) || READS_THROUGH_STRIP.includes(rel) || STACKED_SIBLING_TESTS.includes(rel) || STACKED_MODEL_CATALOG.test(rel), `unexpected change: ${rel}`)
 })
 
 await check('identity: every added piece names a flag (or is the package.json registration / the .env.example documentation)', async () => {
