@@ -20,6 +20,7 @@ import path from 'node:path'
 import { fileURLToPath } from 'node:url'
 import vm from 'node:vm'
 import ts from 'typescript'
+import { stripChatElementRefine } from './studio-chat-element-refine-strip.mjs' // NEXT_PUBLIC_CHAT_ELEMENT_REFINE (#470): its flag-gated lines in the hook and types/mdc.ts come out first
 import { stripChatThemeExport } from './studio-chat-theme-export-strip.mjs' // NEXT_PUBLIC_CHAT_THEME_CHANGE / NEXT_PUBLIC_CHAT_EXPORT (#472): its flag-gated hook lines come out first
 
 const repoRoot = path.resolve(fileURLToPath(new URL('../', import.meta.url)))
@@ -476,7 +477,7 @@ async function identity() {
     'lib/builder-presentation-ownership.ts', 'lib/studio-slide-count-sync.ts', 'types/mdc.ts', 'hooks/use-builder-session.ts',
     'lib/studio-deck-changed-notice.ts', 'scripts/test-studio-deck-mutation-refresh.mjs']
   pin('flag-off identity: the hook (deck_mutation and slide_ready paths, message cache, history, send payloads), the viewer, the rail and every count lib are byte-identical to the base', () => {
-    for (const rel of UNTOUCHED) assert.equal(sha(stripChatThemeExport(rel, read(rel))), sha(baseSource(rel)), rel)
+    for (const rel of UNTOUCHED) assert.equal(sha(stripChatElementRefine(rel, stripChatThemeExport(rel, read(rel)))), sha(baseSource(rel)), rel)
   })
   const { stripDeckMutationDedupe, DECK_MUTATION_DEDUPE_PAGE_ADDITION } = await import('./studio-deck-mutation-dedupe-strip.mjs')
   const { stripOpenReadOnly } = await import('./studio-open-read-only-strip.mjs')
@@ -550,10 +551,13 @@ async function identity() {
   pin('.env.example and package.json: the base\'s lines all kept in order (append-only, stacking-tolerant); the flag documented "false" in a block after the base\'s last line', () => {
     for (const rel of SHARED_APPEND_ONLY) {
       const norm = line => rel === 'package.json' ? line.replace(/,\s*$/, '') : line
-      const want = baseSource(rel).split('\n').map(norm)
-      const extras = []
+      // a flag's comment is prose that a later change may reword in place (PP-8 rewords the polish block's), so for .env.example what must survive, in order, is every env assignment of the base; every other line must be a comment or a blank
+      const assignment = line => /^[A-Z][A-Z0-9_]*=/.test(line)
+      const keep = rel === '.env.example' ? assignment : () => true
+      const want = baseSource(rel).split('\n').map(norm).filter(keep)
+      const extras = rel === '.env.example' ? read(rel).split('\n').filter(line => !assignment(line) && !/^\s*$|^\s*#/.test(line)) : []
       let next = 0
-      for (const line of read(rel).split('\n').map(norm)) {
+      for (const line of read(rel).split('\n').map(norm).filter(keep)) {
         if (next < want.length && line === want[next]) next++
         else extras.push(line)
       }

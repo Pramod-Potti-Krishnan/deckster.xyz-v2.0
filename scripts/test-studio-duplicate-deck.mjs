@@ -31,6 +31,7 @@ import { stripDuplicateDeck, DUPLICATE_DECK_ADDITIONS, DASHBOARD_PAGE, BUILDER_P
 import { stripAddSlideStatus } from './studio-add-slide-status-strip.mjs'
 import { stripOpenReadOnly } from './studio-open-read-only-strip.mjs'
 import { stripDarkPersist } from './studio-theme-dark-persist-strip.mjs'
+import { stripChatElementRefine } from './studio-chat-element-refine-strip.mjs' // NEXT_PUBLIC_CHAT_ELEMENT_REFINE (#470): its flag-gated lines in the hook and types/mdc.ts come out first
 import { stripDeckTitle } from './studio-deck-title-strip.mjs'
 import { stripChatThemeExport } from './studio-chat-theme-export-strip.mjs' // NEXT_PUBLIC_CHAT_THEME_CHANGE / NEXT_PUBLIC_CHAT_EXPORT (#472): its flag-gated hook lines come out first
 
@@ -49,6 +50,13 @@ function baseSource(rel) {
 // they hold lines this change never wrote. For those two (and only those) the base's lines must all still be there, in order, with nothing of this change left, and any extra line must be a comment, a
 // blank, an env line or a test script line (the rule scripts/test-studio-p2-polish.mjs and scripts/test-studio-p2-publish.mjs use). Every other file is held to the base byte for byte, as before.
 function appendOnlyOver(rel, text, baseText) {
+  if (rel === '.env.example') { // a flag's comment is prose that a later change may reword in place (PP-8 rewords the polish block's), so for .env.example what must survive, in order, is every env assignment of the base; every other line must be a comment or a blank
+    const assignment = line => /^[A-Z][A-Z0-9_]*=/.test(line)
+    const want = baseText.split('\n').filter(assignment), lines = text.split('\n')
+    let next = 0
+    for (const line of lines.filter(assignment)) if (next < want.length && line === want[next]) next++
+    return next === want.length && lines.every(line => /^\s*$|^\s*#/.test(line) || assignment(line)) && !lines.some(line => /DUPLICATE_DECK|duplicate-deck/.test(line))
+  }
   const norm = line => rel === 'package.json' ? line.replace(/,\s*$/, '') : line
   const want = baseText.split('\n').map(norm), extras = []
   let next = 0
@@ -532,7 +540,7 @@ run('the chat hard rule, against the base commit: the reducer, cache, history re
   for (const rel of files) {
     const base = baseSource(rel)
     if (base === null) { console.log(`  SKIP ${rel}: ${BASE_COMMIT} is not in this clone`); continue }
-    assert.equal(stripChatThemeExport(rel, read(rel)), base, `${rel} is untouched`)
+    assert.equal(stripChatElementRefine(rel, stripChatThemeExport(rel, read(rel))), base, `${rel} is untouched`)
   }
 })
 run('the builder page mounts the note once, as a sibling beside the other chat notices, gated on the flag; the page adds no other reference', () => {

@@ -5,6 +5,8 @@ import { useSessionCache, CachedSessionState } from './use-session-cache';
 import { debugLog } from '@/lib/debug-log'
 import { CHAT_DIRECTIVES, CHAT_MENTIONS } from '@/lib/mdc-flags'
 import { parseSlideMentions } from '@/lib/mdc-mentions';
+// NEXT_PUBLIC_CHAT_ELEMENT_REFINE (default off): refine an element from chat; the cap, the reference and element_refine_directive.
+import { CHAT_ELEMENT_REFINE_ENABLED, ELEMENT_REFINE_DIRECTIVE_TYPE, addChatElementRefineFields, elementRefineDirectiveId } from '@/lib/chat-element-refine-wire';
 import type { BuildThemeSelection } from '@/lib/theme-builder';
 import type { TemplateOverrides } from '@/lib/template-mode';
 // NEXT_PUBLIC_CHAT_THEME_CHANGE / NEXT_PUBLIC_CHAT_EXPORT (each default off): change the theme / export from chat; the caps and the two directives.
@@ -748,6 +750,10 @@ export interface UseDecksterWebSocketV2Options {
   onThemeExportDirective?: (message: import('@/lib/chat-theme-export-wire').ThemeExportDirectiveMessage, owner: import('@/lib/chat-theme-export-wire').ThemeExportDirectiveOwner) => void;
   // MDC P8 (K5): run an element generation through the FE panel pipeline.
   onElementDirective?: (payload: import('@/types/mdc').ElementDirectivePayload) => void;
+  // NEXT_PUBLIC_CHAT_ELEMENT_REFINE: run Director's element_refine_directive (refine one element from chat), and the selected
+  // element a send names (null when none). Both unused with the flag off.
+  onElementRefineDirective?: (message: import('@/lib/chat-element-refine-wire').ElementRefineDirectiveMessage, owner: import('@/lib/chat-element-refine-wire').ElementRefineDirectiveOwner) => void;
+  getChatElementReference?: () => import('@/lib/chat-element-refine-wire').ChatElementReference | null;
   onSlideComposeReady?: (message: SlideComposeReady) => void;
   onSlideComposeFailed?: (message: SlideComposeFailed) => void;
   onTemplateIngestReady?: (message: TemplateIngestReady) => void;
@@ -1911,6 +1917,18 @@ export function useDecksterWebSocketV2(options: UseDecksterWebSocketV2Options = 
             // state validates the wire frame; never accept a supplied marker.
             delete (parsedMessage as DirectorMessage & { clientOutlineReplayOf?: string; clientTerminalOutlineRevisionOf?: string }).clientOutlineReplayOf;
             delete (parsedMessage as DirectorMessage & { clientTerminalOutlineRevisionOf?: string }).clientTerminalOutlineRevisionOf;
+            // NEXT_PUBLIC_CHAT_ELEMENT_REFINE: Director's element_refine_directive unlocks the turn and goes to the page's runner, here,
+            // ahead of the allowlist, so it never reaches the reducer, the transcript or the cache. Flag off: unknown, dropped below as before.
+            if (CHAT_ELEMENT_REFINE_ENABLED && (parsedMessage.type as unknown) === ELEMENT_REFINE_DIRECTIVE_TYPE) {
+              clearAwaitReply();
+              if (elementRefineDirectiveId(parsedMessage)) {
+                transportCallbacksRef.current.onElementRefineDirective?.(
+                  parsedMessage as unknown as import('@/lib/chat-element-refine-wire').ElementRefineDirectiveMessage,
+                  { sessionId: socketSessionId, isCurrent: isCurrentSocket },
+                );
+              }
+              return;
+            }
             if (!isKnownDirectorMessageType(parsedMessage.type)) {
               return;
             }
@@ -3368,6 +3386,8 @@ export function useDecksterWebSocketV2(options: UseDecksterWebSocketV2Options = 
           })()),
         },
       };
+      // NEXT_PUBLIC_CHAT_ELEMENT_REFINE: element_refine1 in client_caps, and the selected element as one reference. Off: nothing.
+      if (CHAT_ELEMENT_REFINE_ENABLED) addChatElementRefineFields(message.data as unknown as Record<string, unknown>, transportCallbacksRef.current.getChatElementReference?.() ?? null);
       return message;
     };
 

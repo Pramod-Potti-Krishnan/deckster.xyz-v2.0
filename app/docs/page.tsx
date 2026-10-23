@@ -9,8 +9,16 @@ import { Separator } from '@/components/ui/separator';
 import { BookOpen, Search, ArrowRight } from 'lucide-react';
 import Link from 'next/link';
 import { useState } from 'react';
+import { StudioDocsIndex } from '@/components/studio-docs/studio-p2-docs';
+
+// PASS2 Docs (NEXT_PUBLIC_STUDIO_P2_DOCS, default off): the index in the Studio shell's tokens. Anything else: the page below, untouched.
+const STUDIO_P2_DOCS = process.env.NEXT_PUBLIC_STUDIO_P2_DOCS === 'true';
 
 export default function DocsPage() {
+  return STUDIO_P2_DOCS ? <StudioDocsIndex /> : <LegacyDocsPage />;
+}
+
+function LegacyDocsPage() {
   const sections = getAllDocs();
   const [searchQuery, setSearchQuery] = useState('');
 

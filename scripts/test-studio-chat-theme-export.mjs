@@ -617,7 +617,15 @@ const READS_THROUGH_STRIP = ['scripts/studio-add-slide-status-strip.mjs', 'scrip
 await check(`identity: stripping this change gives back ${BASE_COMMIT.slice(0, 7)}'s files byte for byte; every added literal occurs once`, async () => {
   assert.deepEqual(CHAT_THEME_EXPORT_FILES, ['.env.example', 'package.json', PAGE, HOOK])
   assert.equal(JSON.parse(read('package.json')).scripts['test:studio-chat-theme-export'], 'node scripts/test-studio-chat-theme-export.mjs', 'registered in package.json')
-  assert.ok(read('.env.example').endsWith(`${THEME_FLAG}="false"\n${EXPORT_FLAG}="false"\n`), 'the two flags close the last block of .env.example')
+  // The block is present once and ends with the two flags. Stacked (8d5c494 + #470): after the refine block and before FRONTEND-1's PASS2 ADMIN / Docs
+  // blocks, whose mutants find their own blocks with lastIndexOf, so those stay last.
+  const env = read('.env.example'), block = `${THEME_FLAG}="false"\n${EXPORT_FLAG}="false"\n`
+  assert.equal(env.split(block).length, 2, 'the two flags appear once, together')
+  assert.equal(env.split('# PASS3 THEME CHANGE AND EXPORT FROM CHAT').length, 2, 'one block')
+  const at = env.indexOf(block), admin = env.indexOf('# PASS2 ADMIN'), refine = env.indexOf('NEXT_PUBLIC_CHAT_ELEMENT_REFINE="false"')
+  if (admin !== -1) assert.ok(at < admin, 'before FRONTEND-1\'s PASS2 ADMIN block')
+  if (refine !== -1) assert.ok(at > refine, 'after the refine block')
+  if (admin === -1) assert.ok(env.endsWith(block), 'no later block: it is last')
   for (const rel of CHAT_THEME_EXPORT_FILES) {
     const head = read(rel)
     for (const [added] of CHAT_THEME_EXPORT_CHANGES[rel]) assert.equal(head.split(added).length, 2, `${rel}: one occurrence`)
@@ -778,7 +786,9 @@ await check('identity: the theme picker\'s build-selection lock is unchanged wit
 await check('page: wired only behind the flags (read inline), next to the K5 add runner, on the same owner record', async () => {
   assert.ok(runnerAssign && addRunnerAssign && hookSpread && applyNode)
   assert.ok(runnerAssign.getStart(pageAst) > addRunnerAssign.getEnd(), 'after the add runner')
-  assert.ok(pageText.slice(addRunnerAssign.getEnd(), runnerAssign.getStart(pageAst)).split('\n').length < 40, 'right beside it')
+  // Right beside it: only this change's own lines, or, stacked on #470, the refine runner's region (its selection effects and runner), sit between.
+  const between = pageText.slice(addRunnerAssign.getEnd(), runnerAssign.getStart(pageAst))
+  assert.ok(between.split('\n').length < 40 || (between.includes('elementRefineDirectiveRunnerRef.current =') && between.split('\n').length < 100), 'right beside it')
   const gate = "process.env.NEXT_PUBLIC_CHAT_THEME_CHANGE === 'true' || process.env.NEXT_PUBLIC_CHAT_EXPORT === 'true'"
   assert.ok(runnerAssign.right.getText(pageAst).startsWith(`!(${gate}) ? null : (message, owner) => {`))
   assert.match(hookSpread.expression.getText(pageAst), new RegExp(`^\\(${gate.replace(/[.|()]/g, '\\$&')} \\? \\{[\\s\\S]*\\} : \\{\\}\\)$`))

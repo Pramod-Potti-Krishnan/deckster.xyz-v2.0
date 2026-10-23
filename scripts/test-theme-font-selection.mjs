@@ -178,8 +178,9 @@ function userMessageBuilder(rootDir, overrides = {}) {
   visit(file)
   assert.ok(arrow, 'buildUserMessage found in the hook')
   const js = ts.transpileModule(`module.exports = ${arrow.getText(file)}`, { compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022 } }).outputText
+  // CHAT_ELEMENT_REFINE_ENABLED: NEXT_PUBLIC_CHAT_ELEMENT_REFINE's one flag-gated line in buildUserMessage, off here like the other two flags.
   // CHAT_THEME_EXPORT_CAPS: NEXT_PUBLIC_CHAT_THEME_CHANGE / NEXT_PUBLIC_CHAT_EXPORT's one flag-gated line in buildUserMessage, empty (both off) here.
-  const context = { module: { exports: null }, CHAT_DIRECTIVES: false, CHAT_MENTIONS: false, CHAT_THEME_EXPORT_CAPS: [], slideStructureRef: { current: null }, parseSlideMentions: () => [] }
+  const context = { module: { exports: null }, CHAT_DIRECTIVES: false, CHAT_MENTIONS: false, CHAT_ELEMENT_REFINE_ENABLED: false, CHAT_THEME_EXPORT_CAPS: [], slideStructureRef: { current: null }, parseSlideMentions: () => [] }
   vm.runInNewContext(js, context)
   // The frame the socket would send for `buildSendOptions` ({ theme, ... }), exactly as JSON.stringify writes it.
   return (theme, extra = {}) => {

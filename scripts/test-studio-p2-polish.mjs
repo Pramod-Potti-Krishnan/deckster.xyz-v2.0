@@ -1,4 +1,4 @@
-// PASS2 polish (FRONTEND-1): PP-1..PP-7 of ops/program/cards/FE-P2-POLISH-FROM-SHOTS.md, seven gaps seen in the mock | before | after shots of the merged Pass 2 pages.
+// PASS2 polish (FRONTEND-1): PP-1..PP-7 of ops/program/cards/FE-P2-POLISH-FROM-SHOTS.md, seven gaps seen in the mock | before | after shots of the merged Pass 2 pages, and PP-8 (PK's note on the account menu).
 // ONE flag, NEXT_PUBLIC_STUDIO_P2_POLISH (exact "true", default off); every fix also needs its page's own Pass 2 flag.
 //   PP-1 Publish        the wizard's "What viewers get" panel is not clipped under the sticky footer: the step body and the panel scroll on their own above it
 //   PP-2 Publish        "View as a viewer" takes the shell's action colour (--ss-action), not the violet primary
@@ -7,6 +7,7 @@
 //   PP-5 Intelligence   the comparison panel scrolls inside the window, so "Use this model" pins to its own bottom edge and the note above it is not cut mid-line
 //   PP-6 Profile menu   a failed quota read keeps the plan badge (the session's tier) and says "Usage unavailable"
 //   PP-7 Intelligence   "Managed by Deckster" is four columns from 1200px
+//   PP-8 Profile menu   the vertical rhythm is tighter: 32px rows (were 38), 8px between sections with ONE hairline (were three), a tighter capacity card (the Appearance control is untouched)
 //
 // Run: node scripts/test-studio-p2-polish.mjs   (plain node: transpile + vm, no network, no browser, no env)
 //   P2_POLISH_BASE=<commit> overrides the base commit flag-off identity is checked against (default: scripts/studio-p2-polish-strip.mjs's BASE_COMMIT, the studio-v4-dev-preparation-code
@@ -22,7 +23,8 @@
 //   4. flag on: PP-3 and PP-2 (executed publish-p2.tsx), PP-4 (the executed landing menu: scrim, its press closes, the rest unchanged), PP-6 (the executed Pass 2 menu: badge from the tier,
 //      "Usage unavailable" for a failed or unreadable read, meters win, pending shows nothing) and the quota state in the parent menu;
 //   5. the CSS: every rule of each appended block is scoped to a marker that exists only with the flag on; the declarations that carry each fix (and the two this work's browser runs showed
-//      matter: the phone grid's `min-height: auto` and the panel's `grid-auto-rows: max-content`) are pinned;
+//      matter: the phone grid's `min-height: auto` and the panel's `grid-auto-rows: max-content`) are pinned; PP-8's geometry is added up from the rules (row, capacity card, section gaps)
+//      and held equal to what Chromium measured on the real menu, and the Appearance control's own rules are held as they were;
 //   6. the env block and the package script;
 //   7. mutation check: every mutant of the sources (at least one per gap) is killed by sections 1, 3-6 (the identity checks of section 2 are switched off for it, so a mutant dies
 //      of its own rule and not just of "this file is not the base's").
@@ -630,13 +632,121 @@ function proveCss(S, label = 'css') {
   eq(decl(line, 'color'), 'var(--sp-muted)', `${label}: PP-6: muted`)
 }
 
+// ---------------------------------------------------------------- 5b. PP-8: the account menu's vertical rhythm
+/** What Chromium measured on the real menu (next dev of this tree, 1x, light and dark, at 1440 and at 390 wide, a good quota read; Playwright getBoundingClientRect) with the flag off, then on.
+ *  The CSS of PP-8 is added up below and must give these on-numbers. Before (flag off): rows 38 (9px padding on a 20px line), the capacity card 174 (meters 42, 10px between them, 6px label to
+ *  meter, 5px meter to Resets, a 26px upgrade row), 12px either side of the card, three hairlines, the menu 640px tall. */
+const RHYTHM_MEASURED = { row: 32, rowBefore: 38, upgrade: 32, meter: 37, card: 152, cardBefore: 174, gap: 8, hairlinesVisible: 1, hairlinesBefore: 3, identity: 35, menu: 540, menuBefore: 640 }
+const px = value => { const m = /^(-?\d+(?:\.\d+)?)(?:px)?$/.exec(String(value).trim()); assert.ok(m && (m[0].endsWith('px') || Number(m[1]) === 0), `a px value: ${value}`); tick(); return Number(m[1]) }
+const box = value => { const v = String(value).trim().split(/\s+/).map(px); return { top: v[0], right: v[1] ?? v[0], bottom: v[2] ?? v[0], left: v[3] ?? v[1] ?? v[0] } }
+function proveRhythm(S, label = 'PP-8') {
+  const css = S[CSS.profile]
+  const at = css.indexOf('/* PP-8 vertical rhythm')
+  ok(at > css.indexOf(POLISH_APPENDED[CSS.profile]), `${label}: the rhythm block is inside the appended polish block`)
+  eq(css.split('/* PP-8 vertical rhythm').length - 1, 1, `${label}: and starts once`)
+  const baseRules = postcss.parse(css.slice(0, css.indexOf(POLISH_APPENDED[CSS.profile]))).nodes.filter(n => n.type === 'rule')
+  const rhythm = postcss.parse(css.slice(at)).nodes.filter(n => n.type === 'rule')
+  const P = '[data-studio-p2-profile="true"][data-studio-v4-profile="true"]'
+  const R = `${P}[data-p2-polish="true"]`
+  const rule = (rules, selector) => rules.find(r => ruleKey(r) === selector)
+  const declOf = (r, prop) => { let v = null; r?.walkDecls(prop, d => { v = d.value.replace(/\s+/g, ' ') }); return v }
+  const pp8 = (suffix, prop) => declOf(rule(rhythm, suffix ? `${R} ${suffix}` : R), prop)
+  const base = (suffix, prop) => declOf(rule(baseRules, `${P} ${suffix}`), prop)
+  const eff = (suffix, prop) => pp8(suffix, prop) ?? base(suffix, prop) // PP-8's rule has the higher specificity wherever both name the property
+  const ROWS = ':is([data-studio-p2-row], [data-studio-v4-profile-role="danger"])'
+  const SEP = '[data-studio-v4-profile-role="separator"]'
+  const DANGER = '[data-studio-v4-profile-role="danger"]'
+  // every rule of the block: on the root's marker, no colour, background, border or type size of its own (the same tokens, the same text sizes), and nothing for the Appearance control
+  eq(rhythm.length, 13, `${label}: thirteen rules`)
+  for (const r of rhythm) {
+    ok(ruleKey(r).startsWith(`${R} `) || ruleKey(r) === R, `${label}: "${ruleKey(r).slice(R.length)}" hangs on the root's marker`)
+    r.walkDecls(d => ok(/^(padding|padding-top|padding-bottom|margin|margin-top|margin-bottom|min-height|line-height|display)$/.test(d.prop), `${label}: ${ruleKey(r).slice(R.length)}: ${d.prop} is geometry only`))
+    nomatch(ruleKey(r), /appearance(-option)?="true"\]|appearance-option|menuitemradio/, `${label}: ${ruleKey(r).slice(R.length)} does not touch the Appearance control`)
+  }
+  // the root: 12px above and below (the sides stay the fidelity block's 18px)
+  eq(pp8('', 'padding-top'), '12px', `${label}: 12px above the header`)
+  eq(pp8('', 'padding-bottom'), '12px', `${label}: and below the last row`)
+  eq(pp8('', 'padding'), null, `${label}: the sides are not touched`)
+  // header
+  eq(pp8('[data-studio-p2-identity="true"]', 'padding'), '0', `${label}: the header carries no padding of its own`)
+  eq(pp8('[data-studio-p2-identity="true"]', 'margin-bottom'), `${RHYTHM_MEASURED.gap}px`, `${label}: and 8px under it`)
+  // rows: 32px, 8px above and below a 16px line, the touch-target floor
+  const rowRule = rule(rhythm, `${R} ${ROWS}`)
+  ok(rowRule, `${label}: one rule for the rows and Sign out`)
+  eq(declOf(rowRule, 'min-height'), '32px', `${label}: rows are at least 32px`)
+  eq(declOf(rowRule, 'padding'), '8px 4px', `${label}: 8px above and below`)
+  eq(declOf(rowRule, 'line-height'), '16px', `${label}: on a 16px line (the type stays 11px: the fidelity block's)`)
+  const rowPad = box(declOf(rowRule, 'padding'))
+  const rowHeight = Math.max(px(declOf(rowRule, 'min-height')), rowPad.top + rowPad.bottom + px(declOf(rowRule, 'line-height')))
+  eq(rowHeight, RHYTHM_MEASURED.row, `${label}: a row adds up to the measured ${RHYTHM_MEASURED.row}px`)
+  ok(rowHeight >= 32, `${label}: a touch target of 32px or more`)
+  ok(rowHeight < RHYTHM_MEASURED.rowBefore, `${label}: and shorter than the ${RHYTHM_MEASURED.rowBefore}px it was`)
+  nomatch(css.slice(at), /font-size/, `${label}: no type size is set by the block`)
+  eq(/min-height:\s*36px;\s*padding:\s*9px 4px/.test(read('components/user-profile-studio-v4.css')), true, `${label}: the 36px rows it replaces are the fidelity block's (9px padding on a 20px line is ${9 + 9 + 20}px)`)
+  // sections: eight apart, one hairline, and it is the one above Sign out
+  const hide = rule(rhythm, `${R} ${SEP}:not(:has(+ ${DANGER}))`)
+  ok(hide, `${label}: every hairline but the one before Sign out is taken out`)
+  eq(declOf(hide, 'display'), 'none', `${label}: removed (and from the accessibility tree), not just made invisible`)
+  eq(rhythm.filter(r => ruleKey(r).includes(SEP)).map(ruleKey).filter(k => !k.includes(':has(+ ')).length, 1, `${label}: only the separator that follows a hairline gets a gap rule`)
+  eq(pp8(`${SEP} + [data-studio-p2-row]`, 'margin-top'), `${RHYTHM_MEASURED.gap}px`, `${label}: a row that follows a taken-out hairline starts 8px below the section above`)
+  eq(pp8('[data-studio-p2-eyebrow="true"]', 'padding'), '8px 4px 4px', `${label}: the APPEARANCE label: 8px above (a section gap), 4px to its control`)
+  eq(pp8('[data-studio-p2-appearance-block="true"]', 'padding-bottom'), '2px', `${label}: with the control's own 6px bottom margin, 8px under the control`)
+  eq(box(base('[data-studio-p2-appearance="true"]', 'margin')).bottom + px(pp8('[data-studio-p2-appearance-block="true"]', 'padding-bottom')), RHYTHM_MEASURED.gap, `${label}: the control, then 8px`)
+  // capacity card
+  const cardPad = box(pp8('[data-studio-p2-usage="true"]', 'padding'))
+  eq(pp8('[data-studio-p2-usage="true"]', 'padding'), '10px 12px', `${label}: the card's padding`)
+  eq(pp8('[data-studio-p2-usage="true"]', 'margin'), '0 0 8px', `${label}: 8px under the card (the header's own 8px is above it)`)
+  eq(pp8('[data-studio-p2-usage-title="true"]', 'margin-bottom'), '6px', `${label}: the card's title, 6px to the first meter`)
+  eq(pp8('[data-studio-p2-usage="true"] [data-studio-p2-meter] + [data-studio-p2-meter]', 'margin-top'), `${RHYTHM_MEASURED.gap}px`, `${label}: 8px between Daily and Weekly`)
+  eq(pp8('[data-studio-p2-meter-bar="true"]', 'margin'), '4px 0 2px', `${label}: 4px from the label to the meter, 2px from the meter to "Resets"`)
+  const bar = box(eff('[data-studio-p2-meter-bar="true"]', 'margin'))
+  eq(bar.top, 4, `${label}: label to meter`); eq(bar.bottom, 2, `${label}: meter to Resets`)
+  const meter = px(eff('[data-studio-p2-meter-head="true"]', 'line-height')) + bar.top + px(base('[data-studio-p2-meter-bar="true"]', 'height')) + bar.bottom + px(base('[data-studio-p2-meter] > small', 'line-height'))
+  eq(meter, RHYTHM_MEASURED.meter, `${label}: a meter adds up to the measured ${RHYTHM_MEASURED.meter}px`)
+  const upPad = box(pp8('[data-studio-p2-upgrade="true"]', 'padding')), upMargin = box(pp8('[data-studio-p2-upgrade="true"]', 'margin'))
+  const upgrade = Math.max(px(pp8('[data-studio-p2-upgrade="true"]', 'min-height')), upPad.top + upPad.bottom + px(base('[data-studio-p2-upgrade="true"]', 'line-height')))
+  eq(upgrade, RHYTHM_MEASURED.upgrade, `${label}: the upgrade row is the measured ${RHYTHM_MEASURED.upgrade}px (a touch target)`)
+  eq(pp8('[data-studio-p2-upgrade="true"]', 'padding'), '9px 4px', `${label}: the upgrade row's padding`)
+  eq(pp8('[data-studio-p2-upgrade="true"]', 'margin'), '2px -4px -6px', `${label}: and its margin`)
+  const border = px(String(base('[data-studio-p2-usage="true"]', 'border')).split(' ')[0])
+  const card = 2 * border + cardPad.top + cardPad.bottom + px(base('[data-studio-p2-usage-title="true"]', 'line-height')) + px(pp8('[data-studio-p2-usage-title="true"]', 'margin-bottom')) + 2 * meter + RHYTHM_MEASURED.gap + upMargin.top + upgrade + upMargin.bottom
+  eq(card, RHYTHM_MEASURED.card, `${label}: the capacity card adds up to the measured ${RHYTHM_MEASURED.card}px`)
+  eq(pp8('[data-studio-session-usage="true"]', 'margin'), '0 0 8px', `${label}: the session usage block is 8px from what follows`)
+  ok(card < RHYTHM_MEASURED.cardBefore, `${label}: the card is shorter than the ${RHYTHM_MEASURED.cardBefore}px it was`)
+  // the whole menu: border, 12px, the header, 8px, the card, 8px, seven 32px rows, the label and the control, one 8px section gap, the one hairline (1px between two 4px margins)
+  const menuCss = read('components/ui/dropdown-menu.tsx')
+  match(menuCss, /"z-50 min-w-\[8rem\] overflow-hidden rounded-md border bg-popover p-1 /, `${label}: the menu's own border is the shadcn 1px`)
+  match(menuCss, /cn\("-mx-1 my-1 h-px bg-muted", className\)/, `${label}: and its hairline is 1px between two 4px margins`)
+  const root = box(`${pp8('', 'padding-top')} 0 ${pp8('', 'padding-bottom')}`)
+  const label14 = px(base('[data-studio-p2-eyebrow="true"]', 'line-height'))
+  const eyebrow = box(pp8('[data-studio-p2-eyebrow="true"]', 'padding')).top + label14 + box(pp8('[data-studio-p2-eyebrow="true"]', 'padding')).bottom
+  const control = box(base('[data-studio-p2-appearance="true"]', 'padding')).top * 2 + px(base('[data-studio-p2-appearance="true"] [role="menuitemradio"]', 'min-height')) + box(base('[data-studio-p2-appearance="true"]', 'margin')).bottom + px(pp8('[data-studio-p2-appearance-block="true"]', 'padding-bottom'))
+  const menu = 2 + root.top + root.bottom + RHYTHM_MEASURED.identity + px(pp8('[data-studio-p2-identity="true"]', 'margin-bottom')) + card + box(pp8('[data-studio-p2-usage="true"]', 'margin')).bottom + 7 * rowHeight + eyebrow + control + px(pp8(`${SEP} + [data-studio-p2-row]`, 'margin-top')) + (1 + 4 + 4)
+  eq(menu, RHYTHM_MEASURED.menu, `${label}: the whole menu adds up to the measured ${RHYTHM_MEASURED.menu}px (it was ${RHYTHM_MEASURED.menuBefore}px)`)
+  // the Appearance control is exactly as it was: its own rules are pinned (they are the base's, which section 2 holds byte for byte)
+  const ctl = '[data-studio-p2-appearance="true"]'
+  for (const [suffix, prop, want] of [
+    [ctl, 'display', 'grid'], [ctl, 'grid-template-columns', 'repeat(3, minmax(0, 1fr))'], [ctl, 'gap', '2px'], [ctl, 'margin', '0 0 6px'], [ctl, 'padding', '3px'], [ctl, 'border-radius', '9px'],
+    [`${ctl} [role="menuitemradio"]`, 'min-height', '30px'], [`${ctl} [role="menuitemradio"]`, 'padding', '5px 4px'], [`${ctl} [role="menuitemradio"]`, 'border-radius', '7px'],
+    [`${ctl} [role="menuitemradio"]`, 'font-size', '11px'], [`${ctl} [role="menuitemradio"]`, 'line-height', '16px'], [`${ctl} [role="menuitemradio"]`, 'gap', '6px'],
+  ]) eq(base(suffix, prop), want, `${label}: the Appearance control keeps ${prop} ${want}`)
+  eq(rhythm.filter(r => /appearance/.test(ruleKey(r).replace('[data-studio-p2-appearance-block="true"]', ''))).length, 0, `${label}: and no rhythm rule names it`)
+  // the root carries the marker only with the flag on; flag off the menu root is the base's
+  const polishOn = loadProfile(S[PROFILE], envFor(ON), S[LIB])
+  eq(polishOn({ ...account }).props['data-p2-polish'], 'true', `${label}: on, the menu root carries the marker`)
+  eq(polishOn({ ...account }).props['data-studio-p2-profile'], 'true', `${label}: and is still the Pass 2 menu`)
+  for (const value of FLAG_COMBOS) eq(loadProfile(S[PROFILE], envFor(value), S[LIB])({ ...account }).props['data-p2-polish'], undefined, `${label}: polish ${JSON.stringify(value)}: the menu root has no marker`)
+  eq((S[PROFILE].match(/STUDIO_P2_POLISH_ATTR/g) ?? []).length, 3, `${label}: the profile body names the marker three times (import, the root, the unavailable card)`)
+  match(S[PROFILE], /<DropdownMenuContent data-studio-v4-profile="true" data-studio-profile-fidelity="true" data-studio-p2-profile="true" \{\.\.\.\(STUDIO_P2_POLISH_ENABLED \? \{ \[STUDIO_P2_POLISH_ATTR\]: "true" \} : \{\}\)\} side="right"/, `${label}: the root's marker follows the flag`)
+}
+
 // ---------------------------------------------------------------- 6. env + package
 function proveEnv(S, label = 'env') {
   const env = S[ENV]
   eq(env.split(`${FLAG}=`).length - 1, 1, `${label}: the flag is documented once`)
   match(env, new RegExp(`\\n${FLAG}="false"\\n(?:$|\\n)`), `${label}: default off, the last line of its own block (a later change's block may follow)`)
-  const block = env.slice(env.indexOf('# PASS2 POLISH PP-1..PP-7'), env.indexOf(`${FLAG}=`) + FLAG.length + '="false"'.length)
-  for (const id of ['PP-1/2/3', 'PP-4', 'PP-5/PP-7', 'PP-6']) ok(block.includes(id), `${label}: the block says what ${id} does`)
+  const block = env.slice(env.indexOf('# PASS2 POLISH PP-1..PP-8'), env.indexOf(`${FLAG}=`) + FLAG.length + '="false"'.length)
+  for (const id of ['PP-1/2/3', 'PP-4', 'PP-5/PP-7', 'PP-6', 'PP-8']) ok(block.includes(id), `${label}: the block says what ${id} does`)
   for (const page of ['NEXT_PUBLIC_STUDIO_P2_PUBLISH', 'NEXT_PUBLIC_STUDIO_P2_LANDING', 'NEXT_PUBLIC_STUDIO_P2_INTELLIGENCE', 'NEXT_PUBLIC_STUDIO_P2_PROFILE_MENU']) ok(block.includes(page), `${label}: the block names ${page}`)
   match(block, /READ AT BUILD TIME/, `${label}: and says it is read at build time`)
   eq(JSON.parse(S[PKG]).scripts['test:studio-p2-polish'], 'node scripts/test-studio-p2-polish.mjs', `${label}: the package script`)
@@ -650,6 +760,7 @@ function proveAll(S, { identity = true } = {}) {
   proveMenu(S)
   provePublish(S)
   proveCss(S)
+  proveRhythm(S)
   proveEnv(S)
 }
 
@@ -743,6 +854,38 @@ const MUTANTS = [
   [CSS.intelligence, 'PP-7 four columns from 900px', '@media (min-width: 1200px) {\n  [data-intelligence-p2] .sp-p2-main', '@media (min-width: 900px) {\n  [data-intelligence-p2] .sp-p2-main'],
   [CSS.intelligence, 'PP-7 four columns everywhere (the rule leaks)', '[data-intelligence-p2] .sp-p2-main[data-p2-polish="true"] .sp-ip-managed-grid', '[data-intelligence-p2] .sp-p2-main .sp-ip-managed-grid'],
   [CHOOSER, 'PP-7 the main column marker is always on', '<div className="sp-p2-main" {...(STUDIO_P2_POLISH_ENABLED ? { [STUDIO_P2_POLISH_ATTR]: "true" } : {})}>', '<div className="sp-p2-main" {...({ [STUDIO_P2_POLISH_ATTR]: "true" })}>'],
+  // PP-8
+  [CSS.profile, 'PP-8 rows are 36px again', 'min-height: 32px; padding: 8px 4px; line-height: 16px; }', 'min-height: 36px; padding: 8px 4px; line-height: 16px; }'],
+  [CSS.profile, 'PP-8 rows fall under the touch floor', 'min-height: 32px; padding: 8px 4px; line-height: 16px; }', 'min-height: 28px; padding: 6px 4px; line-height: 16px; }'],
+  [CSS.profile, 'PP-8 rows keep 9px of padding', 'min-height: 32px; padding: 8px 4px; line-height: 16px; }', 'min-height: 32px; padding: 9px 4px; line-height: 16px; }'],
+  [CSS.profile, 'PP-8 rows keep the 20px line', 'padding: 8px 4px; line-height: 16px; }', 'padding: 8px 4px; line-height: 20px; }'],
+  [CSS.profile, 'PP-8 rows set a type size', 'padding: 8px 4px; line-height: 16px; }', 'padding: 8px 4px; line-height: 16px; font-size: 14px; }'],
+  [CSS.profile, 'PP-8 every hairline stays', '[data-studio-v4-profile-role="separator"]:not(:has(+ [data-studio-v4-profile-role="danger"])) { display: none; }', '[data-studio-v4-profile-role="separator"]:not(:has(+ [data-studio-v4-profile-role="danger"])) { display: block; }'],
+  [CSS.profile, 'PP-8 every hairline goes, the one above Sign out too', '[data-studio-v4-profile-role="separator"]:not(:has(+ [data-studio-v4-profile-role="danger"])) { display: none; }', '[data-studio-v4-profile-role="separator"] { display: none; }'],
+  [CSS.profile, 'PP-8 the gap after a taken-out hairline is 12px', '[data-studio-v4-profile-role="separator"] + [data-studio-p2-row] { margin-top: 8px; }', '[data-studio-v4-profile-role="separator"] + [data-studio-p2-row] { margin-top: 12px; }'],
+  [CSS.profile, 'PP-8 no gap after a taken-out hairline', '[data-studio-v4-profile-role="separator"] + [data-studio-p2-row] { margin-top: 8px; }', '[data-studio-v4-profile-role="separator"] + [data-studio-p2-row] { margin-top: 0; }'],
+  [CSS.profile, 'PP-8 the APPEARANCE label is as loose as before', '[data-p2-polish="true"] [data-studio-p2-eyebrow="true"] { padding: 8px 4px 4px; }', '[data-p2-polish="true"] [data-studio-p2-eyebrow="true"] { padding: 12px 4px 6px; }'],
+  [CSS.profile, 'PP-8 the APPEARANCE label sets a colour', '[data-p2-polish="true"] [data-studio-p2-eyebrow="true"] { padding: 8px 4px 4px; }', '[data-p2-polish="true"] [data-studio-p2-eyebrow="true"] { padding: 8px 4px 4px; color: var(--sp-text); }'],
+  [CSS.profile, 'PP-8 the APPEARANCE label leaks to the flag-off menu', '[data-p2-polish="true"] [data-studio-p2-eyebrow="true"] { padding: 8px 4px 4px; }', '[data-studio-p2-eyebrow="true"] { padding: 8px 4px 4px; }'],
+  [CSS.profile, 'PP-8 nothing under the Appearance control', '[data-studio-p2-appearance-block="true"] { padding-bottom: 2px; }', '[data-studio-p2-appearance-block="true"] { padding-bottom: 0; }'],
+  [CSS.profile, 'PP-8 the Appearance control gets a rule of its own', '[data-studio-p2-appearance-block="true"] { padding-bottom: 2px; }', '[data-studio-p2-appearance="true"] { margin-bottom: 8px; }'],
+  [CSS.profile, 'PP-8 the Appearance options are 32px', '[data-studio-p2-appearance="true"] [role="menuitemradio"] { min-height: 30px;', '[data-studio-p2-appearance="true"] [role="menuitemradio"] { min-height: 32px;'],
+  [CSS.profile, 'PP-8 the Appearance control is padded 4px', 'gap: 2px; margin: 0 0 6px; padding: 3px;', 'gap: 2px; margin: 0 0 6px; padding: 4px;'],
+  [CSS.profile, 'PP-8 the capacity card keeps 12px of padding', '[data-studio-p2-usage="true"] { margin: 0 0 8px; padding: 10px 12px; }', '[data-studio-p2-usage="true"] { margin: 0 0 8px; padding: 12px; }'],
+  [CSS.profile, 'PP-8 the capacity card keeps its 12px margins', '[data-studio-p2-usage="true"] { margin: 0 0 8px; padding: 10px 12px; }', '[data-studio-p2-usage="true"] { margin: 12px 0; padding: 10px 12px; }'],
+  [CSS.profile, 'PP-8 the capacity card title keeps its 10px', '[data-p2-polish="true"] [data-studio-p2-usage-title="true"] { margin-bottom: 6px; }', '[data-p2-polish="true"] [data-studio-p2-usage-title="true"] { margin-bottom: 10px; }'],
+  [CSS.profile, 'PP-8 Daily and Weekly are 10px apart', '[data-studio-p2-meter] + [data-studio-p2-meter] { margin-top: 8px; }', '[data-studio-p2-meter] + [data-studio-p2-meter] { margin-top: 10px; }'],
+  [CSS.profile, 'PP-8 the meter is 6px from its label and 5px from Resets', '[data-studio-p2-meter-bar="true"] { margin: 4px 0 2px; }', '[data-studio-p2-meter-bar="true"] { margin: 6px 0 5px; }'],
+  [CSS.profile, 'PP-8 the meter is flush with Resets', '[data-studio-p2-meter-bar="true"] { margin: 4px 0 2px; }', '[data-studio-p2-meter-bar="true"] { margin: 4px 0 0; }'],
+  [CSS.profile, 'PP-8 the upgrade row falls under the touch floor', '{ min-height: 32px; margin: 2px -4px -6px; padding: 9px 4px; }', '{ min-height: 0; margin: 2px -4px -6px; padding: 6px 4px; }'],
+  [CSS.profile, 'PP-8 the upgrade row is 10px from Resets', '{ min-height: 32px; margin: 2px -4px -6px; padding: 9px 4px; }', '{ min-height: 32px; margin: 10px -4px -6px; padding: 9px 4px; }'],
+  [CSS.profile, 'PP-8 the session usage block keeps its 12px margins', '[data-studio-session-usage="true"] { margin: 0 0 8px; }', '[data-studio-session-usage="true"] { margin: 12px 0; }'],
+  [CSS.profile, 'PP-8 the menu keeps its 18px top and bottom', '[data-p2-polish="true"] { padding-top: 12px; padding-bottom: 12px; }', '[data-p2-polish="true"] { padding-top: 18px; padding-bottom: 18px; }'],
+  [CSS.profile, 'PP-8 the menu padding takes the sides too', '[data-p2-polish="true"] { padding-top: 12px; padding-bottom: 12px; }', '[data-p2-polish="true"] { padding: 12px; }'],
+  [CSS.profile, 'PP-8 the header keeps its 6px of padding', '[data-studio-p2-identity="true"] { margin-bottom: 8px; padding: 0; }', '[data-studio-p2-identity="true"] { margin-bottom: 8px; padding: 0 0 6px; }'],
+  [CSS.profile, 'PP-8 the header is 12px from what follows', '[data-studio-p2-identity="true"] { margin-bottom: 8px; padding: 0; }', '[data-studio-p2-identity="true"] { margin-bottom: 12px; padding: 0; }'],
+  [PROFILE, 'PP-8 the menu root carries the marker with the flag off', '{...(STUDIO_P2_POLISH_ENABLED ? { [STUDIO_P2_POLISH_ATTR]: "true" } : {})} side="right"', '{...({ [STUDIO_P2_POLISH_ATTR]: "true" })} side="right"'],
+  [PROFILE, 'PP-8 the menu root never carries the marker', '{...(STUDIO_P2_POLISH_ENABLED ? { [STUDIO_P2_POLISH_ATTR]: "true" } : {})} side="right"', 'side="right"'],
   // the env block and the package script
   [ENV, 'the flag defaults on', `${FLAG}="false"`, `${FLAG}="true"`],
   [PKG, 'no package script', '"test:studio-p2-polish": "node scripts/test-studio-p2-polish.mjs"', '"test:studio-p2-polish-x": "node scripts/test-studio-p2-polish.mjs"'],
@@ -771,7 +914,7 @@ else {
   }
   // control: the unmutated sources pass the same reduced checks, so a kill above is a mutant's own doing
   eq(killedBy(SOURCES), null, 'control: the unmutated sources pass the checks the mutants ran against')
-  const perGap = ['PP-1', 'PP-2', 'PP-3', 'PP-4', 'PP-5', 'PP-6', 'PP-7']
+  const perGap = ['PP-1', 'PP-2', 'PP-3', 'PP-4', 'PP-5', 'PP-6', 'PP-7', 'PP-8']
   for (const gap of perGap) ok(MUTANTS.some(([, name]) => name.startsWith(gap)), `every gap has a mutant: ${gap}`)
   assert.deepEqual(survivors, [], `mutants that survived: ${survivors.join('; ')}`)
   assert.equal(killed, MUTANTS.length)
