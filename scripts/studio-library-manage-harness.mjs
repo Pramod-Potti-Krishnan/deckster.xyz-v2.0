@@ -48,6 +48,8 @@ export const STACKED_PASS3_FILES = [
   'hooks/use-deckster-websocket-v2.ts', 'hooks/use-textlabs-generation.ts', 'lib/chat-element-refine-wire.ts', 'lib/chat-element-refine.ts', 'types/mdc.ts',
   // FRONTEND-2 Pass 3 change the theme / export from chat (NEXT_PUBLIC_CHAT_THEME_CHANGE, NEXT_PUBLIC_CHAT_EXPORT, #472): its flag-gated hook lines and two new libs.
   'lib/chat-theme-export-wire.ts', 'lib/chat-theme-export.ts',
+  // the model catalog on the Intelligence page (NEXT_PUBLIC_STUDIO_MODEL_CATALOG): a new layout, a new route, the Models section and its helper; no library file
+  'app/(app)/studio/intelligence/layout.tsx', 'app/api/models/catalogue/route.ts', 'components/studio-personal/intelligence-models.css', 'components/studio-personal/intelligence-models.tsx', 'lib/studio-model-catalog.ts',
 ]
 // The FRONTEND-1 Pass 2 changes that are stacked on the same base too (the /admin pages and their hardening, the Docs / Help / Legal / Agents pages and their content passes, the account menu's rhythm). None is a
 // library file; the diff-scope check allows exactly these as well, and nothing else.
