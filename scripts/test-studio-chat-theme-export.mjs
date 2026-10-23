@@ -38,9 +38,11 @@ import { pageThemeSources } from './studio-chat-harness/page-theme-sources.mjs'
 import { pageSources } from './studio-chat-harness/page-sources.mjs'
 import { stripChatThemeExport, BASE_COMMIT, CHAT_THEME_EXPORT_FILES, CHAT_THEME_EXPORT_CHANGES } from './studio-chat-theme-export-strip.mjs'
 import { stripNarrationRouter } from './studio-narration-router-strip.mjs' // #475 (NARRATION_VIA_ROUTER) is stacked on #473 on this change: its .env.example block and package.json line come out first
+import { stripJobDeadlines } from './studio-job-deadlines-strip.mjs' // stacked after #475: P3-4b (NEXT_PUBLIC_STUDIO_JOB_DEADLINES) puts its export deadline lines in download-service.ts
 import { sameAsBase } from './studio-env-append-tolerant.mjs' // stacked after #475: the .env.example rule that takes a later change's block (scripts/studio-env-append-tolerant.mjs)
 import { stripModelCatalog } from './studio-model-catalog-strip.mjs' // #473 (NEXT_PUBLIC_STUDIO_MODEL_CATALOG) is stacked on this change: its .env.example block and package.json line come out first
 import { STACK, stackFileTolerant, stackMutants, stackScope, sameOrTolerant, stripMutants } from './studio-stack-tolerant.mjs' // stacked after #475: a later PR's files are not this change's to answer for, and a shared file a later PR edits too keeps its base lines and this change's (scripts/studio-stack-tolerant.mjs)
+import { stripJobLedger } from './studio-job-ledger-strip.mjs' // stacked after #475: P3-4c (NEXT_PUBLIC_STUDIO_JOB_LEDGER) adds its flag-gated job_update intake to the hook's startConnection; declarations() takes its lines out first
 
 for (const name of Object.keys(process.env)) if (/KEY|TOKEN|SECRET|CREDENTIAL|PASSWORD/i.test(name)) delete process.env[name]
 const root = path.resolve(fileURLToPath(new URL('../', import.meta.url)))
@@ -647,6 +649,7 @@ await check(`identity: stripping this change gives back ${BASE_COMMIT.slice(0, 7
     if (rel === 'scripts/studio-library-manage-harness.mjs') { const v = stackFileTolerant(git('show', `${STACK[475].head}:${rel}`), read(rel)); assert.ok(v.ok, `${rel}: ${v.reason}`); if (!v.exact) continue } // stacked after #475: a later PR's lines in the harness are taken, the stack's (#475's head) kept in order (scripts/studio-stack-tolerant.mjs); as the stack left it, it is checked below as before
     const diff = git('diff', '-U0', BASE_COMMIT, '--', rel).split('\n')
     const removed = diff.filter(line => line.startsWith('-') && !line.startsWith('---')), added = diff.filter(line => line.startsWith('+') && !line.startsWith('+++'))
+    added.splice(0, added.length, ...added.filter(line => !/^\+import \{ stripNewDeckHandoffSend \} from '\.\/studio-new-deck-handoff-send-strip\.mjs'/.test(line))) // stacked after #475: the new-deck handoff send (NEXT_PUBLIC_STUDIO_NEW_DECK_HANDOFF_SEND) chains its strip into this root with one import line; that line is a later PR's, not this change's
     const stackedNarration = added.filter(line => /narration|NARRATION|FRONTEND-1 template rename|'app\/api\/templates\/\[id\]\/route\.ts'/.test(line)).length // #475's stacked lines in the harness (its extended comment line and its file list), and the template rename's two (PR #477, stacked after #475)
     assert.ok(added.length - stackedNarration <= 5 && removed.length <= 2, `${rel}: an import and one call (${added.length}+/${removed.length}-, ${stackedNarration} of the added lines are #475's, stacked)`)
     assert.ok(added.some(line => /stripChatThemeExport|CHAT_THEME_EXPORT_CAPS: \[\]|lib\/chat-theme-export-wire\.ts/.test(line)), rel)
@@ -671,6 +674,7 @@ await check('identity: every added piece names a flag (or is the package.json re
 })
 
 function declarations(text, names, file = HOOK) {
+  text = stripJobLedger(file, text) // stacked after #475: P3-4c's flag-gated hook and page lines come out first (scripts/studio-job-ledger-strip.mjs); a base text has none
   const ast = ts.createSourceFile(file, text, ts.ScriptTarget.Latest, true, file.endsWith('x') ? ts.ScriptKind.TSX : ts.ScriptKind.TS)
   const found = {}
   const visit = node => {
@@ -699,6 +703,7 @@ await check('identity: reducer / cache / history-restore / send / theme paths ha
   for (const rel of ['hooks/use-session-cache.ts', 'hooks/use-builder-session.ts', 'components/builder/message-list.tsx', 'lib/director-chat-history.ts', 'lib/theme-sync.ts',
     'lib/theme-builder.ts', 'lib/api/download-service.ts', 'components/presentation-download-controls.tsx', 'components/builder/presentation-area.tsx', 'components/theme-panel.tsx',
     'components/presentation-viewer.tsx', 'lib/studio-export-gate.ts', 'types/mdc.ts']) {
+    if (rel === 'lib/api/download-service.ts' && read(rel) !== baseFile(rel)) { assert.equal(sha(stripJobDeadlines(rel, read(rel))), sha(baseFile(rel)), rel); identityHashes[rel] = sha(baseFile(rel)); continue } // stacked after #475: P3-4b's export deadline lines come out first
     assert.equal(sha(read(rel)), sha(baseFile(rel)), rel); identityHashes[rel] = sha(read(rel))
   }
   const page = read(PAGE), basePage = baseFile(PAGE)

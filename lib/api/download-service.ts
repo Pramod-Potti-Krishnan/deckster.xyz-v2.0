@@ -51,7 +51,8 @@ export interface PPTXConversionRequest {
  */
 export async function downloadPDF(
   presentationUrl: string,
-  quality: DownloadQuality = 'high'
+  quality: DownloadQuality = 'high',
+  slideCount?: number | null
 ): Promise<DownloadResult> {
   if (!presentationUrl) {
     return {
@@ -60,6 +61,10 @@ export async function downloadPDF(
     };
   }
 
+  // NEXT_PUBLIC_STUDIO_JOB_DEADLINES (P3-4, default off): the export is aborted at its slide-scaled deadline and ends in the failure
+  // the caller already shows. Loaded only when on; off, the request is exactly as before.
+  const jobs = process.env.NEXT_PUBLIC_STUDIO_JOB_DEADLINES === 'true' ? await import('@/lib/studio-job-deadlines') : null
+  const deadline = jobs ? jobs.startJobDeadline(jobs.exportDeadlineMs(slideCount)) : null
   try {
     const request: PDFConversionRequest = withExportViewOnly({
       presentation_url: presentationUrl,
@@ -74,15 +79,18 @@ export async function downloadPDF(
         'Content-Type': 'application/json',
         'Accept': 'application/pdf'
       },
-      body: JSON.stringify(request)
+      body: JSON.stringify(request),
+      ...(deadline ? { signal: deadline.signal } : {})
     });
 
     if (!response.ok) {
+      deadline?.clear()
       return await handleErrorResponse(response, 'PDF');
     }
 
     // Get the blob
     const blob = await response.blob();
+    deadline?.clear()
 
     // Generate filename
     const filename = generateFilename(presentationUrl, 'pdf');
@@ -92,6 +100,8 @@ export async function downloadPDF(
 
     return { success: true };
   } catch (error) {
+    deadline?.clear()
+    if (jobs && deadline?.timedOut()) return { success: false, error: jobs.jobDeadlineMessage('The PDF export', jobs.exportDeadlineMs(slideCount)) };
     console.error('PDF download error:', error);
 
     return {
@@ -130,6 +140,9 @@ export async function downloadPPTX(
     };
   }
 
+  // NEXT_PUBLIC_STUDIO_JOB_DEADLINES (P3-4, default off): as for the PDF.
+  const jobs = process.env.NEXT_PUBLIC_STUDIO_JOB_DEADLINES === 'true' ? await import('@/lib/studio-job-deadlines') : null
+  const deadline = jobs ? jobs.startJobDeadline(jobs.exportDeadlineMs(slideCount)) : null
   try {
     const request: PPTXConversionRequest = withExportViewOnly({
       presentation_url: presentationUrl,
@@ -144,15 +157,18 @@ export async function downloadPPTX(
         'Content-Type': 'application/json',
         'Accept': 'application/vnd.openxmlformats-officedocument.presentationml.presentation'
       },
-      body: JSON.stringify(request)
+      body: JSON.stringify(request),
+      ...(deadline ? { signal: deadline.signal } : {})
     });
 
     if (!response.ok) {
+      deadline?.clear()
       return await handleErrorResponse(response, 'PPTX');
     }
 
     // Get the blob
     const blob = await response.blob();
+    deadline?.clear()
 
     // Generate filename
     const filename = generateFilename(presentationUrl, 'pptx');
@@ -162,6 +178,8 @@ export async function downloadPPTX(
 
     return { success: true };
   } catch (error) {
+    deadline?.clear()
+    if (jobs && deadline?.timedOut()) return { success: false, error: jobs.jobDeadlineMessage('The PowerPoint export', jobs.exportDeadlineMs(slideCount)) };
     console.error('PPTX download error:', error);
 
     return {
