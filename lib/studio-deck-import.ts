@@ -156,7 +156,7 @@ export interface DeckImportSummary {
   notesLine: string | null
 }
 export interface DeckImportReady {
-  composer_adoption: { schema_version: 'composer-adoption-v1'; template_id: string; presentation_id: string; frozen_theme: true }
+  composer_adoption: { schema_version: 'composer-adoption-v1'; template_id: string; presentation_id: string; frozen_theme: true; source: 'deck_import' }
   session_id: string; presentation_id: string; template_id: string; viewer_url: string; slide_count?: number
 }
 
@@ -278,7 +278,8 @@ export function deckImportReadyResult(result: unknown, expectedSessionId: string
   const { session_id, template_id, presentation_id, viewer_url } = result
   if (session_id !== expectedSessionId || !str(template_id) || !str(presentation_id) || !str(viewer_url)) return null
   return {
-    composer_adoption: { schema_version: 'composer-adoption-v1', template_id: template_id as string, presentation_id: presentation_id as string, frozen_theme: true },
+    // `source` is Director's own marker (composer_adoption.source, on the job result and on every sync_response); this flow knows it is an import, so the staged block carries it too
+    composer_adoption: { schema_version: 'composer-adoption-v1', template_id: template_id as string, presentation_id: presentation_id as string, frozen_theme: true, source: 'deck_import' },
     session_id: expectedSessionId,
     template_id: template_id as string,
     presentation_id: presentation_id as string,
@@ -324,11 +325,12 @@ export function deckImportEntryCleanUrl(location: { pathname?: unknown; search?:
   return `${pathname}${rest}${hash}`
 }
 
-// ---- an imported deck, remembered in this browser, and the note the Builder shows on it (contract section 3) -----------------------------------------------------
+// ---- the note the Builder shows on an imported deck (contract section 3), and this browser's memory of its imports ---------------------------------------------------
 /**
- * Director's `composer_adoption` marks every deck that keeps its source design (a "Use original" template deck and an import alike) and says nothing of where it came from, and the
- * Builder refuses a theme change and Add Element's deck-theme step on all of them in the same words ("This template keeps its stored source theme."). So that a deck the person
- * imported says so, this browser remembers the session ids it imported (per signed-in person); the note below is drawn only for those. Another browser has no record and shows nothing.
+ * The Builder refuses a theme change and Add Element's deck-theme step on every deck that keeps its source design (a "Use original" template deck and an import alike), in the same words
+ * ("This template keeps its stored source theme."). The note says why, in the person's terms, for an import. Director marks an import in `composer_adoption.source === "deck_import"` (persisted in
+ * the session, sent in every sync_response, so any device sees it; Director !521, only while DIRECTOR_DECK_IMPORT_ENABLED is on): that is the rule. Before Director sends it (or after its flag is
+ * turned off), this browser's own memory of the sessions it imported is the fallback.
  */
 export const DECK_IMPORT_DONE_LIMIT = 100
 export const deckImportDoneKey = (userId: string): string => `deckster_deck_import_done_${encodeURIComponent(userId)}`
@@ -364,8 +366,9 @@ function writeIdList(store: TextStore | null | undefined, key: string, sessionId
 /** Called when an import is ready. Never throws. */
 export function rememberDeckImported(store: TextStore | null | undefined, userId: string, sessionId: string): void { writeIdList(store, deckImportDoneKey(userId), sessionId) }
 export function dismissDeckImportNote(store: TextStore | null | undefined, userId: string, sessionId: string): void { writeIdList(store, deckImportNoteDismissedKey(userId), sessionId) }
-/** The note is drawn for a session this browser imported and the person has not dismissed it for. */
-export function deckImportNoteVisible(store: TextStore | null | undefined, userId: string | null | undefined, sessionId: string | null | undefined): boolean {
+/** The note is drawn for a deck Director marks as an import (`adopted`) or this browser imported, unless the person dismissed it for that session. Dismissal is kept per browser. */
+export function deckImportNoteVisible(store: TextStore | null | undefined, userId: string | null | undefined, sessionId: string | null | undefined, adopted = false): boolean {
   if (!userId || !deckImportSafeId(sessionId)) return false
-  return readIdList(store, deckImportDoneKey(userId)).includes(sessionId) && !readIdList(store, deckImportNoteDismissedKey(userId)).includes(sessionId)
+  if (readIdList(store, deckImportNoteDismissedKey(userId)).includes(sessionId)) return false
+  return adopted === true || readIdList(store, deckImportDoneKey(userId)).includes(sessionId)
 }

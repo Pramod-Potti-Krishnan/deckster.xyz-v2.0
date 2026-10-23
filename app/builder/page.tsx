@@ -111,6 +111,9 @@ import { useStudioStaleErrorNotice } from '@/hooks/use-studio-stale-error-notice
 import { StudioBlockedSendNotice } from '@/components/builder/studio-blocked-send-notice'
 import { StudioSupersededNotice } from '@/components/builder/studio-superseded-notice'
 import { StudioCopiedFromNote } from '@/components/builder/studio-copied-from-note'
+// NEXT_PUBLIC_STUDIO_DECK_IMPORT (default off): the note on an imported deck, loaded only when it is drawn (a build or page that does not draw it ships nothing of it).
+import nextDynamic from 'next/dynamic' // (this file already exports a route segment `dynamic`)
+const StudioDeckImportNote = nextDynamic(() => import('@/components/studio-deck-import/studio-deck-import-note').then(module => module.StudioDeckImportNote), { ssr: false })
 import {
   STUDIO_ONE_LIVE_TAB_ENABLED,
   SUPERSEDED_NOTICE_DETAIL,
@@ -7365,6 +7368,8 @@ function AuthenticatedBuilderContent({ authScopeUserId }: { authScopeUserId: str
                   {studioShell && <StudioSupersededNotice className="mx-3 mt-2" active={oneLiveTabSuperseded} onUseHere={connect} />}
                   {/* NEXT_PUBLIC_STUDIO_DUPLICATE_DECK: the copy's one line, "Copied from <title>. Chat history stays with the original." Its own small element, read from the session's stored marker; never a chat message. Only a saved session whose chat is fresh (nothing restored) reads it. */}
                   {process.env.NEXT_PUBLIC_STUDIO_DUPLICATE_DECK === 'true' && !session.isLoadingSession && !session.isResumedSession && !isUnsavedSession && <StudioCopiedFromNote className="mx-3 mt-2" studioShell={studioShell} sessionId={currentSessionId} />}
+                  {/* NEXT_PUBLIC_STUDIO_DECK_IMPORT: one note on an imported deck ("This deck keeps the design of your PowerPoint file..."). `adopted` is Director's marker, composer_adoption.source === "deck_import" (any device); the note falls back to this browser's own record of its imports. */}
+                  {process.env.NEXT_PUBLIC_STUDIO_DECK_IMPORT === 'true' && studioShell && !session.isLoadingSession && !!currentSessionId && currentSessionId !== 'new' && <StudioDeckImportNote className="mx-3 mt-2" sessionId={currentSessionId} adopted={composerAdoption?.source === 'deck_import' && composerAdoption.presentation_id === effectivePresentationId} />}
                   {studioShell && handoffStorageWarning?.sessionId === (currentSessionId || wsSessionId) && (
                     <p role="alert" className="mx-3 mt-2 rounded-lg border border-[var(--ss-line)] bg-[var(--ss-panel)] p-3 text-xs text-[var(--ss-text)]">
                       {handoffStorageWarning.text}

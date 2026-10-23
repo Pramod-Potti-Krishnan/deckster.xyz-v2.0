@@ -55,11 +55,10 @@
 [data-studio-deck-import-dialog="true"] button:disabled { opacity: .6; cursor: not-allowed; }
 [data-studio-deck-import-dialog="true"] > button:last-child { right: 12px; top: 12px; padding: 4px; min-height: 24px; color: var(--sdi-muted); opacity: 1; }
 
-/* Contract section 3: the note over the Builder for an imported deck (app/builder/layout.tsx). Fixed at the foot of the window, under the dialogs, clear of the shell's rails. */
+/* Contract section 3: the note in the Builder's chat column for an imported deck (drawn by the Builder page, in flow like the copied-from note; the page gives it its margins). */
 [data-studio-deck-import-note="true"] {
-  position: fixed; left: 50%; bottom: 16px; transform: translateX(-50%); z-index: 40; box-sizing: border-box;
-  width: min(560px, calc(100vw - 24px)); display: flex; align-items: flex-start; gap: 10px; padding: 10px 12px;
-  background: var(--sdi-panel); color: var(--sdi-text); border: 1px solid var(--sdi-line); border-left: 3px solid var(--sdi-accent); border-radius: 8px; box-shadow: 0 8px 28px rgb(10 26 24 / 16%);
+  box-sizing: border-box; min-width: 0; max-width: 100%; display: flex; align-items: flex-start; gap: 10px; padding: 10px 12px;
+  background: var(--sdi-panel); color: var(--sdi-text); border: 1px solid var(--sdi-line); border-left: 3px solid var(--sdi-accent); border-radius: 8px;
 }
 [data-studio-deck-import-note="true"] > svg { flex-shrink: 0; margin-top: 2px; color: var(--sdi-accent); }
 [data-studio-deck-import-note="true"] > div { min-width: 0; flex: 1; }
@@ -70,7 +69,7 @@
 }
 [data-studio-deck-import-note-dismiss="true"]:hover { color: var(--sdi-teal); border-color: var(--sdi-teal); background: var(--sdi-surface); }
 [data-studio-deck-import-note-dismiss="true"]:focus-visible { outline: 2px solid var(--sdi-accent); outline-offset: 2px; }
-@media (max-width: 420px) { [data-studio-deck-import-note="true"] { bottom: 8px; flex-wrap: wrap; } }
+@media (max-width: 420px) { [data-studio-deck-import-note="true"] { flex-wrap: wrap; } }
 @media (max-width: 640px) { [data-studio-v4-shell="true"] [data-studio-deck-import-bar="true"] { padding: 14px 16px 0; } }
 @media (max-width: 420px) { [data-studio-deck-import-dialog="true"] { padding: 16px; max-height: calc(100dvh - 24px); } }
 @media (prefers-reduced-motion: reduce) { [data-studio-deck-import-meter="true"] > span { transition: none; } }

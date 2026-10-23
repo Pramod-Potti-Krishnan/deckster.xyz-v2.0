@@ -1,0 +1,9 @@
+// FRONTEND-1 Pass 3 (flag NEXT_PUBLIC_STUDIO_DECK_IMPORT, default off): the lines this change adds to app/builder/page.tsx that other pins hold to a base commit ("without the added lines the file is <base>'s").
+// scripts/studio-duplicate-deck-strip.mjs spreads them into its Builder table, which every sibling strip (stripAddSlideStatus, stripDeckTitle, stripOpenReadOnly, stripThemeDarkPersist) already runs first, so no sibling
+// pin needs a change. scripts/test-studio-deck-import.mjs proves the strip against the base commit and that every addition is inert with the flag off.
+
+// [added, original]: each `added` is a literal that occurs exactly once in the page; the strip puts `original` back.
+export const DECK_IMPORT_BUILDER_ADDITIONS = [
+  ["// NEXT_PUBLIC_STUDIO_DECK_IMPORT (default off): the note on an imported deck, loaded only when it is drawn (a build or page that does not draw it ships nothing of it).\nimport nextDynamic from 'next/dynamic' // (this file already exports a route segment `dynamic`)\nconst StudioDeckImportNote = nextDynamic(() => import('@/components/studio-deck-import/studio-deck-import-note').then(module => module.StudioDeckImportNote), { ssr: false })\n", ""],
+  ["                  {/* NEXT_PUBLIC_STUDIO_DECK_IMPORT: one note on an imported deck (\"This deck keeps the design of your PowerPoint file...\"). `adopted` is Director's marker, composer_adoption.source === \"deck_import\" (any device); the note falls back to this browser's own record of its imports. */}\n                  {process.env.NEXT_PUBLIC_STUDIO_DECK_IMPORT === 'true' && studioShell && !session.isLoadingSession && !!currentSessionId && currentSessionId !== 'new' && <StudioDeckImportNote className=\"mx-3 mt-2\" sessionId={currentSessionId} adopted={composerAdoption?.source === 'deck_import' && composerAdoption.presentation_id === effectivePresentationId} />}\n", ""],
+]
