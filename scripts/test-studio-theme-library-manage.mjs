@@ -450,7 +450,7 @@ function mountWorkspace({ source = WORKSPACE_SOURCE, flag, themes = [EVERGREEN, 
     const changed = spawnSync('git', ['diff', '--name-only', BASE_COMMIT, '--', 'app', 'components', 'lib', 'hooks', 'middleware.ts'], { cwd: root, encoding: 'utf8' }).stdout.split('\n').filter(Boolean)
     const allowed = new Set([THEMES_WORKSPACE, TEMPLATES_WORKSPACE, THEME_HOOK, ...LIBRARY_MANAGE_NEW_FILES, ...STACKED_PASS3_FILES, ...STACKED_P2_FILES])
     ok(changed.every(file => allowed.has(file)), `this change touches only the two workspaces, the theme hook and its own three new files (the other Pass 3 changes' files and the Pass 2 pages' files may be stacked on it): ${changed.filter(file => !allowed.has(file)).join(', ') || 'ok'}`)
-    ok(!changed.includes('components/builder/chat-input.tsx') && !changed.some(file => /^app\/api\/(templates|themes)\//.test(file)), 'chat-input.tsx and every API proxy are untouched')
+    ok(!changed.includes('components/builder/chat-input.tsx') && !changed.some(file => /^app\/api\/(templates|themes)\//.test(file) && !STACKED_PASS3_FILES.includes(file)), 'chat-input.tsx and every API proxy but the template rename\'s are untouched')
     is(read(PAGE), baseSource(PAGE)); is(read('app/(app)/studio/templates/page.tsx'), baseSource('app/(app)/studio/templates/page.tsx'))
   }
 

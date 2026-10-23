@@ -11,7 +11,7 @@ const root = new URL('../', import.meta.url), require = createRequire(import.met
 const { NextResponse } = require('next/server')
 const beforeRevision = 'bd46f97'
 const specs = [
-  { file: 'app/api/templates/[id]/route.ts', key: 'id', methods: ['GET', 'DELETE'], suffix: '' },
+  { file: 'app/api/templates/[id]/route.ts', key: 'id', methods: ['GET', 'DELETE'], suffix: '', rename: true },
   { file: 'app/api/templates/[id]/blueprint/route.ts', key: 'id', methods: ['PATCH'], suffix: '/blueprint' },
   { file: 'app/api/ingest-jobs/[jobId]/route.ts', key: 'jobId', methods: ['GET'], suffix: '' },
 ]
@@ -25,8 +25,13 @@ const compile = source => {
 const plain = value => JSON.parse(JSON.stringify(value))
 let checks = 0
 
+// The template route also holds the rename: a PATCH appended after DELETE, behind NEXT_PUBLIC_STUDIO_TEMPLATE_LIBRARY_MANAGE (it forwards { name } only and answers 404 while the flag is off, so the generic payload
+// forwarding below does not describe it). scripts/test-studio-template-library-manage.mjs pins it; this suite checks the methods it lists on the file without it.
+const RENAME_MARK = '\n// PATCH /api/templates/{id}  body { name }'
 for (const spec of specs) {
-  const source = fs.readFileSync(new URL(spec.file, root), 'utf8')
+  const whole = fs.readFileSync(new URL(spec.file, root), 'utf8')
+  const source = spec.rename ? whole.slice(0, whole.indexOf(RENAME_MARK)) : whole
+  if (spec.rename) assert.ok(whole.includes(RENAME_MARK), 'the rename PATCH follows the methods listed here')
   const before = execFileSync('git', ['show', `${beforeRevision}:${spec.file}`], { cwd: root, encoding: 'utf8' })
   const signature = `params: Promise<{ ${spec.key}: string }>`
   const resolution = `  const { ${spec.key} } = await params;\n`

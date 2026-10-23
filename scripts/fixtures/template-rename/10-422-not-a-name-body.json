@@ -1,0 +1,22 @@
+{
+  "case": "422-not-a-name-body",
+  "what": "A body that is not exactly {name: <string>}.",
+  "request": {
+    "method": "PATCH",
+    "path": "/api/users/user-a/templates/t-plain",
+    "json_body": {
+      "name": "ok",
+      "description": "no"
+    },
+    "entitlement_header": "(none)"
+  },
+  "response": {
+    "status": 422,
+    "headers": {
+      "content-type": "application/json"
+    },
+    "json_body": {
+      "detail": "Only the template name can be changed here."
+    }
+  }
+}

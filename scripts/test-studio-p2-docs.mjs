@@ -29,6 +29,8 @@
 //   2. the Quick Start describes the Google sign-in (no password, no verification email), checked against app/auth and lib/auth-options.ts;
 //   3. current agent names in the comparison pages, the example and template data (read through lib/examples.ts and lib/templates.ts) and their cards, and the types; on the onboarding flag-on path there is no old name to change (pinned), the old page and modal are the base commit's;
 //   4. /docs/api has no "v1.0 Beta" badge;   5. the agent not-found page links to /experts.
+// The content pass 3 (PROGRAM-1 rulings of 22 Oct, same flag): /docs/api has no Rate Limits section, neither the line ("100 requests per minute for Pro plans and 1000 requests per minute for Enterprise plans": the API is not open, no plan is called Enterprise)
+//   nor the heading and the lock icon that would be left over it; every other word of the page is as it was, and flag off the page is the base commit's, byte for byte.
 import assert from 'node:assert/strict'
 import fs from 'node:fs'
 import path from 'node:path'
@@ -963,12 +965,17 @@ proveNotice(SOURCES[API_NOTICE])
 // the page itself: the notice is the one addition; off, the page is the base commit's
 const undoAll = (code, pairs) => pairs.reduce((out, [to, from]) => { eq(out.split(to).length - 1, 1, `the addition is found once: ${to.slice(0, 60).replace(/\n/g, ' ')}`); return out.replace(to, () => from) }, code)
 const BADGE_JSON = ',"badge":{"text":"v1.0 Beta","icon":{"type":"Zap","props":{"className":"h-3 w-3"}}}'
+const RATE_LINE = 'The API is currently rate limited to 100 requests per minute for Pro plans and 1000 requests per minute for Enterprise plans.'
+const RATE_JSON = `,{"type":"p","props":{"className":"text-muted-foreground","children":"${RATE_LINE}"}}`
+const RATE_HEAD_JSON = '{"type":"h2","props":{"className":"text-2xl font-bold mb-4 flex items-center gap-2","children":[{"type":"Lock","props":{"className":"h-6 w-6 text-red-500"}},"Rate Limits"]}}'
+const RATE_SECTION_JSON = `,{"type":"div","props":{"children":[${RATE_HEAD_JSON}${RATE_JSON}]}}`
 function proveApiPage(code, label = 'api page') {
   const prior = baseSource(PAGE_API)
   const run = (source, env) => load(source, PAGE_API, { env }).default()
   for (const env of OFF_SPELLINGS) {
     eq(rendered(run(code, env)), rendered(run(prior, env)), `${label}: env ${JSON.stringify(env)}: the tree equals the base commit's`)
     ok(rendered(run(code, env)).includes('v1.0 Beta'), `${label}: env ${JSON.stringify(env)}: the "v1.0 Beta" badge is still there`)
+    ok(text(run(code, env)).includes(RATE_LINE), `${label}: env ${JSON.stringify(env)}: the rate-limit line is still there, word for word`)
   }
   for (const env of [ON, { ...ON, NEXT_PUBLIC_STUDIO_V4_SHELL: 'true' }]) {
     const top = run(code, env)
@@ -978,18 +985,27 @@ function proveApiPage(code, label = 'api page') {
     const base = rendered(run(prior, env))
     eq(base.split(BADGE_JSON).length - 1, 1, `${label}: on: the base commit's page has the badge once`)
     ok(!rendered(top).includes('v1.0 Beta') && !rendered(top).includes('"badge"'), `${label}: on: no "v1.0 Beta" badge`)
-    eq(rendered({ ...top, props: { ...top.props, children: kids.filter(kid => kid.type !== 'StudioApiNotice') } }), base.replace(BADGE_JSON, ''), `${label}: on: take the notice away and put the badge back and it is the base commit's page, word for word`)
+    eq(base.split(RATE_JSON).length - 1, 1, `${label}: on: the base commit's page has the rate-limit line once, as the last element of its own section`)
+    eq(base.split(RATE_SECTION_JSON).length - 1, 1, `${label}: on: the base commit's page has the Rate Limits section once (the lock-icon heading, then the line), as the last block of the page's column`)
+    ok(base.indexOf(RATE_SECTION_JSON) > base.indexOf('Core Endpoints'), `${label}: on: the Rate Limits section comes after the Core Endpoints`)
+    nomatch(text(top), /requests per minute|rate limit|Enterprise/i, `${label}: on: no rate-limit line, no Rate Limits heading, no number of requests, no Enterprise plan`)
+    nomatch(rendered(top), /Lock|text-red-500/, `${label}: on: no lock icon (it went with the heading)`)
+    ok(text(top).includes('Authentication') && text(top).includes('Core Endpoints') && text(top).includes('/v1/presentations/generate'), `${label}: on: the sections before it are kept`)
+    eq(rendered({ ...top, props: { ...top.props, children: kids.filter(kid => kid.type !== 'StudioApiNotice') } }), base.replace(BADGE_JSON, '').replace(RATE_SECTION_JSON, ''), `${label}: on: take the notice away and put the badge and the Rate Limits section back and it is the base commit's page, word for word`)
     deepEq([kids[2].props.title, kids[2].props.subtitle], ['Deckster API', 'Build powerful presentation workflows with our API'], `${label}: on: the title and subtitle are as they were`)
   }
   eq(undoAll(code, [
     ["import { StudioApiNotice } from '@/components/studio-docs/studio-p2-docs-api-notice';\n", ''],
-    ["// PASS2 Docs (NEXT_PUBLIC_STUDIO_P2_DOCS, default off): this page documents an API that is not open yet; with the flag on a notice says so under the header, the page below it is muted and it has no \"v1.0 Beta\" badge. Off: the page as it was.\nconst STUDIO_P2_DOCS = process.env.NEXT_PUBLIC_STUDIO_P2_DOCS === 'true';\n\n", ''],
+    ["// PASS2 Docs (NEXT_PUBLIC_STUDIO_P2_DOCS, default off): this page documents an API that is not open yet; with the flag on a notice says so under the header, the page below it is muted, it has no \"v1.0 Beta\" badge and no Rate Limits section (there is no API to limit, and no Enterprise plan). Off: the page as it was.\nconst STUDIO_P2_DOCS = process.env.NEXT_PUBLIC_STUDIO_P2_DOCS === 'true';\n\n", ''],
     ['            {STUDIO_P2_DOCS && <StudioApiNotice />}\n', ''],
     ['badge={STUDIO_P2_DOCS ? undefined : { text: "v1.0 Beta", icon: <Zap className="h-3 w-3" /> }}', 'badge={{ text: "v1.0 Beta", icon: <Zap className="h-3 w-3" /> }}'],
-  ]), prior, `${label}: removing the four additions gives back the base commit's page byte for byte`)
+    [`{!STUDIO_P2_DOCS && (\n                        <div>\n                            <h2 className="text-2xl font-bold mb-4 flex items-center gap-2">\n                                <Lock className="h-6 w-6 text-red-500" />\n                                Rate Limits\n                            </h2>\n                            <p className="text-muted-foreground">\n                                ${RATE_LINE}\n                            </p>\n                        </div>\n                    )}`, `<div>\n                        <h2 className="text-2xl font-bold mb-4 flex items-center gap-2">\n                            <Lock className="h-6 w-6 text-red-500" />\n                            Rate Limits\n                        </h2>\n                        <p className="text-muted-foreground">\n                            ${RATE_LINE}\n                        </p>\n                    </div>`],
+  ]), prior, `${label}: removing the five additions gives back the base commit's page byte for byte`)
   match(code, /const STUDIO_P2_DOCS = process\.env\.NEXT_PUBLIC_STUDIO_P2_DOCS === 'true';/, `${label}: flag read inline, exact true`)
   match(code, /^'use client';/, `${label}: still a client page`)
   for (const claim of ['Authentication', 'Core Endpoints', '/v1/presentations/generate', 'Rate Limits', '100 requests per minute for Pro plans']) ok(code.includes(claim), `${label}: the page keeps its words ("${claim}")`)
+  eq(code.split(RATE_LINE).length - 1, 1, `${label}: the rate-limit line is in the source once (flag off shows it, word for word)`)
+  match(code, /\{!STUDIO_P2_DOCS && \(\s*<div>\s*<h2 className="text-2xl font-bold mb-4 flex items-center gap-2">\s*<Lock className="h-6 w-6 text-red-500" \/>\s*Rate Limits\s*<\/h2>\s*<p className="text-muted-foreground">\s*The API is currently rate limited/, `${label}: only the flag's absence shows the section, the heading with its icon and the line together`)
 }
 proveApiPage(SOURCES[PAGE_API])
 
@@ -1707,6 +1723,7 @@ function proveEnv(env, label = 'env') {
   match(flat, /Content pass 2 \(PROGRAM-1, 22 Oct\), same flag: the docs name the real plans \(Starter, Pro, Max; the plan tags the code does not back are taken out\) and the Google sign-in \(content\/studio-p2-docs-facts\.ts\)/, `${label}: the comment names the second content pass, the real plans and the Google sign-in`)
   match(flat, /the comparison pages and the example and template cards read the current agents \(content\/studio-p2-comparisons\.ts, lib\/studio-p2-docs\.ts; \/examples and \/templates are redirects today\)/, `${label}: the comment says which pages read the current agents, and that two of them are redirects`)
   match(flat, /\/docs\/api loses its "v1\.0 Beta" badge; the agent not-found page links to \/experts\./, `${label}: the comment says the badge goes and the not-found link moves`)
+  match(flat, /Content pass 3 \(PROGRAM-1, 22 Oct\), same flag: \/docs\/api loses its Rate Limits section, the heading with its lock icon and the line \("100 requests per minute for Pro plans and 1000 requests per minute for Enterprise plans": the API is not open and no plan is called Enterprise\); the rest of the page is as it was\./, `${label}: the comment names the third pass, the section that goes (heading, icon and line) and what stays`)
   match(flat, /With NEXT_PUBLIC_STUDIO_P2_ONBOARDING and the shell on there is no old agent name left to change \(the wizard and the Studio introduction name none\); the old \/onboarding page and the old modal, which still do, are the flag-off text and stay as they were\./, `${label}: the comment says onboarding has no old name to change on its flag-on path`)
   eq(comment.split('\n').filter(line => !line.startsWith('# ')).length, 0, `${label}: the whole block is comment lines`)
   nomatch(comment, /exact "true" enables it/, `${label}: the comment does not use the phrase another flag's test pins`)
@@ -2247,7 +2264,22 @@ mutant(PAGE_API, 'api page: the badge is shown only with the flag on', 'badge={S
 mutant(PAGE_API, 'api page: the badge word', '{ text: "v1.0 Beta", icon', '{ text: "v1.0", icon')
 mutant(PAGE_API, 'api page: the badge icon', 'icon: <Zap className="h-3 w-3" /> }}', 'icon: <Key className="h-3 w-3" /> }}')
 mutant(PAGE_API, 'api page: the badge removed for good', 'badge={STUDIO_P2_DOCS ? undefined : { text: "v1.0 Beta", icon: <Zap className="h-3 w-3" /> }}\n', '')
-mutant(PAGE_API, 'api page: the comment', 'the page below it is muted and it has no "v1.0 Beta" badge.', 'the page below it is muted.')
+mutant(PAGE_API, 'api page: the comment', 'the page below it is muted, it has no "v1.0 Beta" badge and no Rate Limits section (there is no API to limit, and no Enterprise plan).', 'the page below it is muted and it has no "v1.0 Beta" badge.')
+mutant(PAGE_API, 'api page: the comment forgets the section', ', it has no "v1.0 Beta" badge and no Rate Limits section (there is no API to limit, and no Enterprise plan).', ' and it has no "v1.0 Beta" badge.')
+// the Rate Limits section as the page has it: one flag-gated block holding the heading, its lock icon and the line
+const RATE_GATE = '{!STUDIO_P2_DOCS && (\n                        <div>\n                            <h2'
+const RATE_BLOCK = `{!STUDIO_P2_DOCS && (\n                        <div>\n                            <h2 className="text-2xl font-bold mb-4 flex items-center gap-2">\n                                <Lock className="h-6 w-6 text-red-500" />\n                                Rate Limits\n                            </h2>\n                            <p className="text-muted-foreground">\n                                ${RATE_LINE}\n                            </p>\n                        </div>\n                    )}\n`
+mutant(PAGE_API, 'api page: the Rate Limits section is always shown', RATE_GATE, '{true && (\n                        <div>\n                            <h2')
+mutant(PAGE_API, 'api page: the Rate Limits section is never shown', RATE_GATE, '{false && (\n                        <div>\n                            <h2')
+mutant(PAGE_API, 'api page: the Rate Limits section is shown only with the flag on', RATE_GATE, '{STUDIO_P2_DOCS && (\n                        <div>\n                            <h2')
+mutant(PAGE_API, 'api page: the Rate Limits section follows the shell flag', RATE_GATE, "{process.env.NEXT_PUBLIC_STUDIO_V4_SHELL !== 'true' && (\n                        <div>\n                            <h2")
+mutant(PAGE_API, 'api page: the Rate Limits section removed for good', RATE_BLOCK, '')
+mutant(PAGE_API, 'api page: only the line goes, the heading and icon stay (the first version of this change)', RATE_BLOCK, `<div>\n                        <h2 className="text-2xl font-bold mb-4 flex items-center gap-2">\n                            <Lock className="h-6 w-6 text-red-500" />\n                            Rate Limits\n                        </h2>\n                        {!STUDIO_P2_DOCS && (\n                            <p className="text-muted-foreground">\n                                ${RATE_LINE}\n                            </p>\n                        )}\n                    </div>\n`)
+mutant(PAGE_API, 'api page: only the heading goes, the line stays', RATE_BLOCK, `<div>\n                        {!STUDIO_P2_DOCS && (\n                            <h2 className="text-2xl font-bold mb-4 flex items-center gap-2">\n                                <Lock className="h-6 w-6 text-red-500" />\n                                Rate Limits\n                            </h2>\n                        )}\n                        <p className="text-muted-foreground">\n                            ${RATE_LINE}\n                        </p>\n                    </div>\n`)
+mutant(PAGE_API, 'api page: the lock icon stays behind', RATE_BLOCK, `<Lock className="h-6 w-6 text-red-500" />\n                    {!STUDIO_P2_DOCS && (\n                        <div>\n                            <h2 className="text-2xl font-bold mb-4 flex items-center gap-2">\n                                Rate Limits\n                            </h2>\n                            <p className="text-muted-foreground">\n                                ${RATE_LINE}\n                            </p>\n                        </div>\n                    )}\n`)
+mutant(PAGE_API, 'api page: the section is only half gone', '                        </div>\n                    )}\n                </div>\n            </Section>', '                        </div>\n                    )}\n                    {STUDIO_P2_DOCS && <p className="text-muted-foreground">Rate limits apply.</p>}\n                </div>\n            </Section>')
+mutant(PAGE_API, 'api page: the rate-limit line is reworded', 'per minute for Enterprise plans.', 'per minute for Max plans.')
+mutant(PAGE_API, 'api page: the Rate Limits heading is reworded', 'Rate Limits\n                            </h2>', 'Limits\n                            </h2>')
 mutant(PAGE_API, 'api page: the import', "'@/components/studio-docs/studio-p2-docs-api-notice'", "'@/components/studio-docs/studio-p2-docs-api'")
 mutant(PAGE_API, 'api page: a word changed', 'title="Deckster API"', 'title="Deckster API v2"')
 mutant(PAGE_API, 'api page: a claim cut', 'Authenticate your requests using Bearer tokens.', 'Authenticate your requests.')
@@ -2502,6 +2534,11 @@ mutant(ENV, 'env: the redirects are not mentioned', '; /examples and /templates 
 mutant(ENV, 'env: the badge', '/docs/api loses its "v1.0 Beta" badge;', '/docs/api keeps its "v1.0 Beta" badge;')
 mutant(ENV, 'env: the not-found link', 'the agent not-found page links to /experts.', 'the agent not-found page links to /agents.')
 mutant(ENV, 'env: onboarding', 'there is no old agent name left to change', 'the old agent names are changed')
+mutant(ENV, 'env: the third pass is not named', 'Content pass 3 (PROGRAM-1, 22 Oct), same flag:', 'Content pass 3 (PROGRAM-1, 22 Oct):')
+mutant(ENV, 'env: the section is said to be only a line', '/docs/api loses its Rate Limits section, the heading with its lock icon and the line (', '/docs/api loses its rate-limit line (')
+mutant(ENV, 'env: the heading is said to stay', '/docs/api loses its Rate Limits section, the heading with its lock icon and the line (', '/docs/api loses its Rate Limits line, the heading with its lock icon stays (')
+mutant(ENV, 'env: the icon is not mentioned', 'the heading with its lock icon and the line (', 'the heading and the line (')
+mutant(ENV, 'env: the rest of the page is said to change', ' the rest of the page is as it was.', ' the rest of the page is shortened too.')
 mutant(ENV, 'env: the phrase another test pins', 'Content pass 2 (PROGRAM-1, 22 Oct), same flag:', 'Content pass 2 (PROGRAM-1, 22 Oct), same flag (exact "true" enables it):')
 
 let killed = 0, byAssertion = 0, byCrash = 0
