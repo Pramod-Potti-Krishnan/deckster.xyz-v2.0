@@ -65,6 +65,8 @@ export const STACKED_PASS3_FILES = [
   'lib/studio-deck-changed-notice.ts', 'hooks/use-deck-changed-notice.ts', 'components/builder/studio-deck-changed-notice.tsx',
   // Text Labs signed requests (NEXT_PUBLIC_STUDIO_TL_SIGNED_REQUESTS / TEXT_LABS_SIGNED_REQUESTS_ENABLED, stacked): the mint route, its lib, the browser half, the client.
   'app/api/identity/text-labs-token/route.ts', 'lib/text-labs-identity-mint.ts', 'lib/text-labs-signed-fetch.ts', 'lib/textlabs-client.ts',
+  // P3-4b every long Studio request ends (NEXT_PUBLIC_STUDIO_JOB_DEADLINES, stacked): the deadlines module, the export service, the narration picker.
+  'lib/studio-job-deadlines.ts', 'lib/api/download-service.ts', 'components/narration-voice-picker.tsx',
 ]
 // The FRONTEND-1 Pass 2 changes that are stacked on the same base too (the /admin pages and their hardening, the Docs / Help / Legal / Agents pages and their content passes, the account menu's rhythm). None is a
 // library file; the diff-scope check allows exactly these as well, and nothing else.
