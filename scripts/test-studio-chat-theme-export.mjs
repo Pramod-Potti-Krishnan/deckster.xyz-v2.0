@@ -642,7 +642,7 @@ await check(`identity: stripping this change gives back ${BASE_COMMIT.slice(0, 7
   for (const rel of READS_THROUGH_STRIP.filter(rel => changed.includes(rel))) {
     const diff = git('diff', '-U0', BASE_COMMIT, '--', rel).split('\n')
     const removed = diff.filter(line => line.startsWith('-') && !line.startsWith('---')), added = diff.filter(line => line.startsWith('+') && !line.startsWith('+++'))
-    const stackedNarration = added.filter(line => /narration|NARRATION/.test(line)).length // #475's stacked lines in the harness (its extended comment line and its file list)
+    const stackedNarration = added.filter(line => /narration|NARRATION|Stripe real tier|webhooks\/stripe/.test(line)).length // #475's stacked lines in the harness (its extended comment line and its file list), and the Stripe real tier's two (stacked on #475)
     assert.ok(added.length - stackedNarration <= 5 && removed.length <= 2, `${rel}: an import and one call (${added.length}+/${removed.length}-, ${stackedNarration} of the added lines are #475's, stacked)`)
     assert.ok(added.some(line => /stripChatThemeExport|CHAT_THEME_EXPORT_CAPS: \[\]|lib\/chat-theme-export-wire\.ts/.test(line)), rel)
   }

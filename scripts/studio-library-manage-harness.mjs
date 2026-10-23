@@ -53,6 +53,8 @@ export const STACKED_PASS3_FILES = [
   // BY10 narration through the model router (NARRATION_VIA_ROUTER): the library files and the four routes that hand the call its identity.
   'lib/narration/model-router.ts', 'lib/narration/draft.ts', 'lib/narration/tts.ts', 'lib/narration/spoken.ts',
   'app/api/narration/render/route.ts', 'app/api/narration/script/route.ts', 'app/api/narration/speak/route.ts', 'app/api/narration/voice/sample/[voiceId]/route.ts',
+  // Stripe real tier (STRIPE_REAL_TIER_MAPPING_ENABLED, P2-STRIPE-TIER, stacked on #475): the webhook route and the price-to-plan table.
+  'app/api/webhooks/stripe/route.ts', 'lib/stripe/subscription-plan.ts',
 ]
 // The FRONTEND-1 Pass 2 changes that are stacked on the same base too (the /admin pages and their hardening, the Docs / Help / Legal / Agents pages and their content passes, the account menu's rhythm). None is a
 // library file; the diff-scope check allows exactly these as well, and nothing else.

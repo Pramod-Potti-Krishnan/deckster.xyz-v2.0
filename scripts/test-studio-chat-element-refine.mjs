@@ -693,7 +693,7 @@ await check(`identity: stripping this change gives back ${BASE_COMMIT.slice(0, 7
     const removed = git('diff', '-U0', BASE_COMMIT, '--', rel).split('\n').filter(line => line.startsWith('-') && !line.startsWith('---'))
     const added = git('diff', '-U0', BASE_COMMIT, '--', rel).split('\n').filter(line => line.startsWith('+') && !line.startsWith('+++'))
     const stacked = added.some(line => /chat-theme-export|CHAT_THEME_EXPORT/.test(line)) // #472's own import and call on the same lines
-    assert.ok(added.length <= (stacked ? 10 : 5) && removed.length <= 2, `${rel}: an import and one call (${added.length}+/${removed.length}-)`)
+    assert.ok(added.length <= (stacked ? 12 : 5) && removed.length <= 2, `${rel}: an import and one call (${added.length}+/${removed.length}-)`) // 12: +2 for the Stripe real tier's stacked harness lines (stacked on #475)
     assert.ok(added.some(line => /stripChatElementRefine|CHAT_ELEMENT_REFINE_ENABLED: false|chat-element-refine/.test(line)), rel)
   }
   for (const rel of changed) assert.ok(CHAT_ELEMENT_REFINE_FILES.includes(rel) || NEW.test(rel) || READS_THROUGH_STRIP.includes(rel) || STACKED_THEME_EXPORT.test(rel) || STACKED_MODEL_CATALOG.test(rel) || STACKED_NARRATION_ROUTER.test(rel) || STACKED_STRIPE_REAL_TIER.test(rel), `unexpected change: ${rel}`) // #475's files are stacked, and so are the Stripe real tier's (on #475)

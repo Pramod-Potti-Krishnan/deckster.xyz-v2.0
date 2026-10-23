@@ -646,7 +646,7 @@ function buildTests(S) {
     assert.ok(lines(PKG, '-').length <= 1 && lines(PKG, '-').every(line => /test:studio-model-catalog/.test(line)), 'stacked scope: package.json: at most #473\'s entry, which gains a comma')
     assert.ok(lines(PKG, '+').some(line => /test:studio-narration-router/.test(line)), 'stacked scope: package.json: this change\'s registration follows')
     assert.ok(lines(HARNESS, '-').length <= 1 && lines(HARNESS, '-').every(line => /#469 deck-mutation dedupe\)/.test(line)), 'stacked scope: the harness: at most its comment line was extended')
-    assert.ok(lines(HARNESS, '+').length >= 3 && lines(HARNESS, '+').every(line => /narration|NARRATION/.test(line)), 'stacked scope: the stacked list gains this change\'s files only')
+    assert.ok(lines(HARNESS, '+').length >= 3 && lines(HARNESS, '+').every(line => /narration|NARRATION|Stripe real tier|webhooks\/stripe/.test(line)), 'stacked scope: the stacked list gains this change\'s files only (and the Stripe real tier\'s, stacked on it)')
     for (const rel of SIBLINGS.filter(rel => changed.includes(rel))) {
       assert.ok(lines(rel, '+').every(line => /NarrationRouter|narration-router|NARRATION_ROUTER|#475/.test(line)), `stacked scope: ${rel}: every added line names this change`)
       assert.ok(lines(rel, '-').length <= 8, `stacked scope: ${rel}: only a few lines were extended`)
