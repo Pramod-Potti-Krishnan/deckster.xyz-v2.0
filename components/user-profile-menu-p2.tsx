@@ -103,7 +103,8 @@ export function StudioProfileMenuP2({ name, email, image, initials, tierLabel, s
   // PP-6: the plan badge no longer waits on (or dies with) the quota read; the session's tier, which that route reads too, stands in.
   const badgeLabel = STUDIO_P2_POLISH_ENABLED ? polishTierLabel(tierLabel, sessionTier) : tierLabel
   return (
-    <DropdownMenuContent data-studio-v4-profile="true" data-studio-profile-fidelity="true" data-studio-p2-profile="true" side="right" sideOffset={8} align="end" className="w-64">
+    // PP-8: with the polish flag the menu root carries the marker the vertical-rhythm block at the end of user-profile-menu-p2.css is scoped to.
+    <DropdownMenuContent data-studio-v4-profile="true" data-studio-profile-fidelity="true" data-studio-p2-profile="true" {...(STUDIO_P2_POLISH_ENABLED ? { [STUDIO_P2_POLISH_ATTR]: "true" } : {})} side="right" sideOffset={8} align="end" className="w-64">
       <DropdownMenuLabel data-studio-profile-identity="true" data-studio-p2-identity="true" className="font-normal">
         <Avatar data-studio-p2-disc="true" className="h-9 w-9">
           <AvatarImage src={image || undefined} alt={name || "User avatar"} />

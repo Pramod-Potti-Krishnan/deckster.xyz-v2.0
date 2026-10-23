@@ -9,7 +9,8 @@
  *
  * Offline and keyless: the auth session, the database and the environment are stubs defined in
  * this file (the addresses below are made-up .test strings), and the two real route files are
- * compiled and run unchanged. Mutation checks recompile each route with its guard removed and
+ * compiled and run unchanged. A route may also import lib/studio-p2-admin.ts (the NEXT_PUBLIC_STUDIO_P2_ADMIN
+ * flag test and query helpers): that file is import-free and is compiled and run for real, not stubbed. Mutation checks recompile each route with its guard removed and
  * require the same scenarios to fail. No git, no network, no real account.
  */
 import assert from 'node:assert/strict'
@@ -34,6 +35,24 @@ const read = relative => fs.readFileSync(path.join(REPO, relative), 'utf8')
 const transpile = source => ts.transpileModule(source, {
   compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022 },
 }).outputText
+
+// The one project module a route may import besides the stubs below. It has no imports of its own, so it is run as it is: a stub would hide what the route takes from it. The environment is the route's
+// (the flag arrives as an argument), and the file is only read when a route asks for it.
+const REAL_MODULES = { '@/lib/studio-p2-admin': 'lib/studio-p2-admin.ts' }
+const realExports = new Map()
+function loadReal(name) {
+  if (!realExports.has(name)) {
+    const file = REAL_MODULES[name], module = { exports: {} }
+    vm.runInNewContext(transpile(read(file)), {
+      module,
+      exports: module.exports,
+      Date, Promise, Object, Error,
+      require: dependency => { throw new Error(`${file} must have no imports of its own (${dependency})`) },
+    })
+    realExports.set(name, module.exports)
+  }
+  return realExports.get(name)
+}
 
 // ------------------------------------------------- the code under test
 // One sandbox per load: its own env, session and fake database, so scenarios never leak.
@@ -62,6 +81,7 @@ function load(source) {
     process: { env: state.env },
     console: { error: (...args) => state.errors.push(args.map(String).join(' ')), log() {}, warn() {}, info() {} },
     require: name => {
+      if (name in REAL_MODULES) return loadReal(name)
       if (!(name in imports)) throw new Error(`Unexpected import ${name}`)
       return imports[name]
     },

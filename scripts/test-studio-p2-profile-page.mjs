@@ -731,13 +731,15 @@ function proveEnv(env, label = 'env') {
   match(comment, /no mockup/, `${label}: the comment says there is no mockup`)
   match(comment, /no new action/, `${label}: the comment says no new action`)
   match(env, new RegExp(`\\n${FLAG}="false"\\n(?:$|\\n)`), `${label}: the flag ends its own block (a later change's block may follow)`)
-  // .env.example is a file every flag-gated change appends to: the base's lines must all still be there, in order, and what is added must be comments, blanks and env lines
-  const want = baseSource(ENV).split('\n'), extras = []
+  // .env.example is a file every flag-gated change appends to: every env assignment of the base must still be there, in order, and every other line must be a comment or a blank. A flag's comment is prose
+  // that a later change may reword in place (PP-8 rewords the polish block's), so the base's comment lines are not held to the letter.
+  const assignment = line => /^[A-Z][A-Z0-9_]*=/.test(line)
+  const want = baseSource(ENV).split('\n').filter(assignment), extras = []
   let next = 0
-  for (const line of env.split('\n')) { if (next < want.length && line === want[next]) next++; else extras.push(line) }
-  eq(next, want.length, `${label}: every line of the base commit's .env.example is still there, in order`)
-  ok(extras.every(line => /^\s*$|^\s*#|^[A-Z][A-Z0-9_]*=/.test(line)), `${label}: what is added is comments, blanks and env lines`)
-  ok(extras.includes(`${FLAG}="false"`), `${label}: the flag's line is among them`)
+  for (const line of lines.filter(assignment)) { if (next < want.length && line === want[next]) next++; else extras.push(line) }
+  eq(next, want.length, `${label}: every env assignment of the base commit's .env.example is still there, in order`)
+  ok(lines.every(line => /^\s*$|^\s*#/.test(line) || assignment(line)), `${label}: and every other line is a comment or a blank`)
+  ok(extras.includes(`${FLAG}="false"`), `${label}: the flag's line is among the added ones`)
 }
 proveEnv(SOURCES[ENV])
 function provePackage(pkg, label = 'package') {
