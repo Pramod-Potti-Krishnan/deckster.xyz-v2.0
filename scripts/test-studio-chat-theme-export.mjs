@@ -623,15 +623,15 @@ await check(`identity: stripping this change gives back ${BASE_COMMIT.slice(0, 7
     for (const [added] of CHAT_THEME_EXPORT_CHANGES[rel]) assert.equal(head.split(added).length, 2, `${rel}: one occurrence`)
     assert.equal(sha(stripChatThemeExport(rel, head)), sha(baseFile(rel)), rel)
   }
-  const changed = git('diff', '--name-only', BASE_COMMIT, '--', '.').split('\n').filter(Boolean)
-  const untracked = git('ls-files', '--others', '--exclude-standard').split('\n').filter(Boolean)
+  // The committed tree against the base (not the working tree: a suite neighbour that rewrites docs/ while it runs must not count).
+  const changed = git('diff', '--name-only', BASE_COMMIT, 'HEAD', '--', '.').split('\n').filter(Boolean)
   for (const rel of READS_THROUGH_STRIP.filter(rel => changed.includes(rel))) {
     const diff = git('diff', '-U0', BASE_COMMIT, '--', rel).split('\n')
     const removed = diff.filter(line => line.startsWith('-') && !line.startsWith('---')), added = diff.filter(line => line.startsWith('+') && !line.startsWith('+++'))
     assert.ok(added.length <= 5 && removed.length <= 2, `${rel}: an import and one call (${added.length}+/${removed.length}-)`)
     assert.ok(added.some(line => /stripChatThemeExport|CHAT_THEME_EXPORT_CAPS: \[\]|lib\/chat-theme-export-wire\.ts/.test(line)), rel)
   }
-  for (const rel of [...changed, ...untracked]) assert.ok(CHAT_THEME_EXPORT_FILES.includes(rel) || NEW.test(rel) || READS_THROUGH_STRIP.includes(rel), `unexpected change: ${rel}`)
+  for (const rel of changed) assert.ok(CHAT_THEME_EXPORT_FILES.includes(rel) || NEW.test(rel) || READS_THROUGH_STRIP.includes(rel), `unexpected change: ${rel}`)
 })
 
 await check('identity: every added piece names a flag (or is the package.json registration / the .env.example documentation)', async () => {
