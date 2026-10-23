@@ -1,0 +1,60 @@
+import type { CSSProperties } from "react"
+import { SHOWCASE_SLOTS, showcaseAlt, type V3Feature } from "@/lib/marketing/v3-uat-view"
+import { PlayerSlides } from "../PlayerSlides"
+import { AudienceQA, type AudienceQACopy } from "../AudienceQA"
+import { SlideChip } from "../SlideChip"
+import { StatusPill, statusOf } from "../StatusPill"
+import { Waveform } from "../Waveform"
+
+export interface PresentCopy {
+  label: string
+  eyebrow: string
+  title: string
+  lede: string
+  player: { urlPrefix: string; urlSlug: string; access: string; caption: string; time: string; voice: string; slides: readonly number[] }
+  qa: AudienceQACopy & { feature: V3Feature }
+  ladder: readonly { feature: V3Feature; text: string }[]
+}
+
+export function Present({ copy, n, total }: { copy: PresentCopy; n: number; total: number }) {
+  return (
+    <section className="slide slide--night compact" id="present" data-snap="slide" data-chapter="Present" data-slide-label={copy.label} data-label={copy.label}>
+      <div className="glow glow--coral" style={{ width: "50vw", height: "50vw", right: "-14vw", top: "-10vh", opacity: 0.28 }} />
+      <div className="glow glow--violet" style={{ width: "50vw", height: "50vw", left: "-16vw", bottom: "-20vh", opacity: 0.35 }} />
+      <div className="grain" />
+      <div className="slide__inner">
+        <div className="center">
+          <span className="eyebrow eyebrow--you" data-reveal>{copy.eyebrow}</span>
+          <h2 className="h2 balance" data-reveal style={{ "--d": 1 } as CSSProperties}>{copy.title}</h2>
+          <p className="lede balance" data-reveal style={{ "--d": 2 } as CSSProperties}>{copy.lede}</p>
+        </div>
+        <div className="pub pub--sm" style={{ marginTop: 24 }} data-reveal>
+          <div className="player">
+            <div className="player__url">
+              <span className="dots-3" aria-hidden="true"><i /><i /><i /></span>
+              {copy.player.urlPrefix}<b>{copy.player.urlSlug}</b><span className="lock">{copy.player.access}</span>
+            </div>
+            <PlayerSlides
+              captionLead="Slide"
+              total={16}
+              slides={copy.player.slides.map((slot) => ({ src: `/marketing/v3-uat/slides/deck-${String(slot).padStart(2, "0")}.jpg`, alt: showcaseAlt(slot), number: SHOWCASE_SLOTS[slot as keyof typeof SHOWCASE_SLOTS].slide }))}
+            />
+            <div className="player__bar">
+              <span className="play" aria-hidden="true"><svg width="12" height="14" viewBox="0 0 12 14"><path d="M0 0l12 7-12 7z" fill="currentColor" /></svg></span>
+              <Waveform count={40} />
+              <span className="player__t">{copy.player.time}</span>
+              <span className={`player__voice player__voice--${statusOf("narration").status}`}>{copy.player.voice}</span>
+            </div>
+          </div>
+          <AudienceQA copy={copy.qa} status={statusOf(copy.qa.feature)} />
+        </div>
+        <div className="ladder pub--sm" data-reveal style={{ "--d": 2 } as CSSProperties}>
+          {copy.ladder.map((item) => (
+            <div key={item.text}><StatusPill feature={item.feature} />{item.text}</div>
+          ))}
+        </div>
+      </div>
+      <SlideChip number={n} total={total} label={copy.label} />
+    </section>
+  )
+}

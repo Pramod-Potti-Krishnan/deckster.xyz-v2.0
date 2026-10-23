@@ -156,6 +156,7 @@
     "test:studio-insert-persist": "node scripts/test-studio-insert-persist.mjs",
     "test:studio-p2-landing": "node scripts/test-studio-p2-landing.mjs",
     "test:studio-p2-docs": "node scripts/test-studio-p2-docs.mjs",
+    "test:studio-uat-marketing": "node scripts/test-studio-uat-marketing.mjs",
     "test:studio-p2-second-brain": "node scripts/test-studio-p2-second-brain.mjs",
     "test:studio-version-history-v2": "node scripts/test-studio-version-history-v2.mjs",
     "test:studio-p2-polish": "node scripts/test-studio-p2-polish.mjs",

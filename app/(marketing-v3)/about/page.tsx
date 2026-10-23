@@ -4,10 +4,12 @@ import type { Metadata } from "next"
 import { FooterV3 } from "@/components/marketing/v3/FooterV3"
 import { SlideChip } from "@/components/marketing/v3/SlideChip"
 import { BuildCta } from "@/components/marketing/v3/BuildCta"
+import { uatMarketingMetadata } from "@/components/marketing/v3-uat/pages/metadata"
 
 const copy = V3_CONTENT.pages.about
 
-export const metadata: Metadata = {
+// NEXT_PUBLIC_STUDIO_UAT_MARKETING (default off): with the flag on this page is the UAT design (components/marketing/v3-uat). Off: the page below, as it was.
+export const metadata: Metadata = process.env.NEXT_PUBLIC_STUDIO_UAT_MARKETING === "true" ? uatMarketingMetadata.about : {
   title: { absolute: copy.metadata.title },
   alternates: { canonical: "/about" },
 }
@@ -20,7 +22,11 @@ const STACK_IMAGES = [
 
 const PRINCIPLE_COLORS = ["var(--coral)", "var(--violet)", "var(--mint)"] as const
 
-export default function AboutV3Page() {
+export default async function AboutV3Page() {
+  if (process.env.NEXT_PUBLIC_STUDIO_UAT_MARKETING === "true") {
+    const { UatAboutPage } = await import("@/components/marketing/v3-uat/pages/about")
+    return <UatAboutPage />
+  }
   return (
     <main>
       <section className="slide slide--night" id="start" data-snap="slide" data-slide-label={copy.start.label} data-label={copy.start.label}>

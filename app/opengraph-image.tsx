@@ -1,4 +1,6 @@
 import { ImageResponse } from "next/og"
+import { readFile } from "node:fs/promises"
+import { join } from "node:path"
 
 /**
  * Social share card (og:image), statically generated at build time via
@@ -6,11 +8,17 @@ import { ImageResponse } from "next/og"
  * near-black canvas with purple/cyan/pink radial blooms and the brand
  * gradient on the closing headline line.
  */
-export const alt = "Deckster — A team of AI agents builds your deck"
+// NEXT_PUBLIC_STUDIO_UAT_MARKETING (default off): with the flag on the card is UAT's (public/marketing/v3/og-image.jpg: the hero line, two real slides and the L-B logo). Off: the generated card below, as it was.
+const STUDIO_UAT_MARKETING = process.env.NEXT_PUBLIC_STUDIO_UAT_MARKETING === "true"
+export const alt = STUDIO_UAT_MARKETING ? "Deckster — Your knowledge. Your decks. Your voice." : "Deckster — A team of AI agents builds your deck"
 export const size = { width: 1200, height: 630 }
-export const contentType = "image/png"
+export const contentType = STUDIO_UAT_MARKETING ? "image/jpeg" : "image/png"
 
-export default function OpengraphImage() {
+export default async function OpengraphImage() {
+  if (STUDIO_UAT_MARKETING) {
+    const image = await readFile(join(process.cwd(), "public/marketing/v3/og-image.jpg"))
+    return new Response(image, { headers: { "Content-Type": contentType } })
+  }
   return new ImageResponse(
     (
       <div
