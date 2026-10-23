@@ -8,7 +8,7 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/com
 import { Badge } from "@/components/ui/badge"
 import { Code, Key, Lock, Zap } from "lucide-react"
 
-// PASS2 Docs (NEXT_PUBLIC_STUDIO_P2_DOCS, default off): this page documents an API that is not open yet; with the flag on a notice says so under the header, the page below it is muted and it has no "v1.0 Beta" badge. Off: the page as it was.
+// PASS2 Docs (NEXT_PUBLIC_STUDIO_P2_DOCS, default off): this page documents an API that is not open yet; with the flag on a notice says so under the header, the page below it is muted, it has no "v1.0 Beta" badge and no rate-limit line (there is no API to limit, and no Enterprise plan). Off: the page as it was.
 const STUDIO_P2_DOCS = process.env.NEXT_PUBLIC_STUDIO_P2_DOCS === 'true';
 
 export default function ApiDocsPage() {
@@ -85,9 +85,11 @@ export default function ApiDocsPage() {
                             <Lock className="h-6 w-6 text-red-500" />
                             Rate Limits
                         </h2>
-                        <p className="text-muted-foreground">
-                            The API is currently rate limited to 100 requests per minute for Pro plans and 1000 requests per minute for Enterprise plans.
-                        </p>
+                        {!STUDIO_P2_DOCS && (
+                            <p className="text-muted-foreground">
+                                The API is currently rate limited to 100 requests per minute for Pro plans and 1000 requests per minute for Enterprise plans.
+                            </p>
+                        )}
                     </div>
                 </div>
             </Section>
