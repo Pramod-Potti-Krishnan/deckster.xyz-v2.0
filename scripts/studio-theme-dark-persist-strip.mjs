@@ -9,6 +9,7 @@ import { stripChatElementRefine } from './studio-chat-element-refine-strip.mjs'
 import { stripChatThemeExport } from './studio-chat-theme-export-strip.mjs'
 import { stripReconnectResync } from './studio-reconnect-resync-strip.mjs' // P3-4 slice A (stacked)
 import { stripJobLedger } from './studio-job-ledger-strip.mjs' // P3-4 slice C (stacked)
+import { stripNewDeckHandoffSend } from './studio-new-deck-handoff-send-strip.mjs' // new-deck handoff send (stacked)
 
 export const PAGE = 'app/builder/page.tsx'
 export const RESTORE = 'lib/studio-theme-restore.ts'
@@ -44,5 +45,5 @@ export function stripDarkPersist(rel, text) {
   // FRONTEND-2 Pass 3 (NEXT_PUBLIC_STUDIO_DUPLICATE_DECK): that flag's import and gated element come out first (scripts/studio-duplicate-deck-strip.mjs).
   // FRONTEND-2 Pass 3 (NEXT_PUBLIC_CHAT_ELEMENT_REFINE): that flag's gated lines come out first (scripts/studio-chat-element-refine-strip.mjs).
   // FRONTEND-2 Pass 3 (NEXT_PUBLIC_CHAT_THEME_CHANGE / NEXT_PUBLIC_CHAT_EXPORT): those flags' gated lines come out first (scripts/studio-chat-theme-export-strip.mjs).
-  return additions ? additions.reduce((out, [from, to]) => out.replace(from, () => to), stripDuplicateDeck(rel, stripChatElementRefine(rel, stripChatThemeExport(rel, stripReconnectResync(rel, stripJobLedger(rel, text)))))) : text
+  return additions ? additions.reduce((out, [from, to]) => out.replace(from, () => to), stripDuplicateDeck(rel, stripChatElementRefine(rel, stripChatThemeExport(rel, stripReconnectResync(rel, stripJobLedger(rel, stripNewDeckHandoffSend(rel, text))))))) : text
 }
