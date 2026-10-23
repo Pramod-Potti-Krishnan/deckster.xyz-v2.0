@@ -477,8 +477,9 @@ async function identity() {
     'lib/builder-presentation-ownership.ts', 'lib/studio-slide-count-sync.ts', 'types/mdc.ts', 'hooks/use-builder-session.ts',
     'lib/studio-deck-changed-notice.ts', 'scripts/test-studio-deck-mutation-refresh.mjs']
   const { stripReconnectResync } = await import('./studio-reconnect-resync-strip.mjs') // P3-4 slice A (stacked): its notice-lib lines come out first
+  const { stripJobLedger } = await import('./studio-job-ledger-strip.mjs') // P3-4 slice C (stacked): its flag-gated hook lines come out first
   pin('flag-off identity: the hook (deck_mutation and slide_ready paths, message cache, history, send payloads), the viewer, the rail and every count lib are byte-identical to the base', () => {
-    for (const rel of UNTOUCHED) assert.equal(sha(stripChatElementRefine(rel, stripChatThemeExport(rel, stripReconnectResync(rel, read(rel))))), sha(baseSource(rel)), rel)
+    for (const rel of UNTOUCHED) assert.equal(sha(stripChatElementRefine(rel, stripChatThemeExport(rel, stripReconnectResync(rel, stripJobLedger(rel, read(rel)))))), sha(baseSource(rel)), rel)
   })
   const { stripDeckMutationDedupe, DECK_MUTATION_DEDUPE_PAGE_ADDITION } = await import('./studio-deck-mutation-dedupe-strip.mjs')
   const { stripOpenReadOnly } = await import('./studio-open-read-only-strip.mjs')
