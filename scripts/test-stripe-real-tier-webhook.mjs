@@ -608,7 +608,7 @@ for (const values of [{}, { [FLAG]: 'false' }, enabled()]) {
 }
 
 // Stacked on #475 (and under the Pass 3 pins that hold .env.example to an earlier commit): the only change to .env.example is this block,
-// next to the existing STRIPE_* lines; stripping it gives the base's file back byte for byte (the pins read it through the same strip).
+// after #475's narration block and before # PASS2 ADMIN (a pure insertion; the existing STRIPE_* lines stay as they are); stripping it gives the base's file back byte for byte (the pins read it through the same strip).
 {
   const { stripStripeRealTier, STRIPE_REAL_TIER_FILES } = await import('./studio-stripe-real-tier-strip.mjs')
   eq(STRIPE_REAL_TIER_FILES, ['.env.example'], 'The strip module names the one shared file')
@@ -621,7 +621,8 @@ for (const values of [{}, { [FLAG]: 'false' }, enabled()]) {
   for (const other of ['package.json', ROUTE, 'README.md']) eq(stripStripeRealTier(other, 'some text'), 'some text', `${other} comes back as it is`)
   const at = env.indexOf('STRIPE_REAL_TIER_MAPPING_ENABLED="false"\n')
   ok(env.split('STRIPE_REAL_TIER_MAPPING_ENABLED=').length === 2, 'The flag is documented once, default "false"')
-  ok(env.lastIndexOf('STRIPE_PRO_YEARLY_PRICE_ID=', at) > 0 && at - env.lastIndexOf('STRIPE_PRO_YEARLY_PRICE_ID=', at) < 600 && env.indexOf('# Note: NEXT_PUBLIC_APP_URL', at) > at, 'The block sits next to the existing STRIPE_* lines, before their trailing note')
+  ok(at > env.indexOf('MODEL_ROUTER_STUDIO_KEY=\n') && env.indexOf('MODEL_ROUTER_STUDIO_KEY=\n') > 0 && at < env.indexOf('# PASS2 ADMIN'), 'The block sits after the narration block, before # PASS2 ADMIN')
+  ok(env.includes('STRIPE_PRO_YEARLY_PRICE_ID="price_your_yearly_price_id"\n\n# Note: NEXT_PUBLIC_APP_URL'), 'The existing STRIPE_* lines are exactly where and as they were')
   ok(at < env.indexOf('# PASS2 ADMIN') && env.indexOf('# PASS2 ADMIN') < env.indexOf('# PASS2 Docs') && env.endsWith('NEXT_PUBLIC_STUDIO_P2_DOCS="false"\n'), '# PASS2 ADMIN then # PASS2 Docs are still the last two blocks')
   for (const name of Object.keys(ENV).filter(key => !key.startsWith('STRIPE_PRO_'))) ok(env.split(`\n${name}="price_your_`).length === 2, `${name} is a placeholder, once`)
   for (const name of Object.keys(ENV)) ok(!new RegExp(`^NEXT_PUBLIC_${name}`, 'm').test(env), `${name} has no NEXT_PUBLIC_ alias`)
