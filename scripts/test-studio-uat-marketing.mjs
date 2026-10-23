@@ -180,6 +180,17 @@ function proveCopies(sources = SOURCES, label = 'copies') {
     const copy = fs.readFileSync(path.join(repoRoot, rel(to)))
     eq(sha(copy), sha(port.uatBlob(from, 'buffer')), `${label}: ${to} is UAT's file`)
   }
+  // the brand files (their own commit; NOT behind the flag, they cannot be: same names, same places): UAT's, byte for byte, and the same pixel size as the file each replaces (so every <img> that names them lays out as before)
+  const pngSize = buffer => ({ w: buffer.readUInt32BE(16), h: buffer.readUInt32BE(20) })
+  for (const file of port.LOGO_FILES) eq(sha(fs.readFileSync(path.join(repoRoot, rel(file)))), sha(port.uatBlob(file, 'buffer')), `${label}: ${file} is UAT's file`)
+  eq(port.LOGO_FILES.length, 12, `${label}: twelve brand files`)
+  for (const file of port.LOGO_FILES.filter(f => f.endsWith('.png') && !/icon-192|icon-512|apple-touch-icon/.test(f))) deepEq(pngSize(fs.readFileSync(path.join(repoRoot, rel(file)))), pngSize(port.baseBlob(file, 'buffer')), `${label}: ${file} keeps its pixel size`)
+  for (const [file, size] of [['public/icon-192.png', 192], ['public/icon-512.png', 512], ['public/apple-touch-icon.png', 180]]) {
+    deepEq(pngSize(fs.readFileSync(path.join(repoRoot, rel(file)))), { w: size, h: size }, `${label}: ${file} is ${size}x${size} (the manifest and the touch icon ask for that; the placeholder it replaces was 256x144)`)
+    ok(fs.statSync(path.join(repoRoot, rel(file))).size > 2000, `${label}: ${file} is a real image, not the 568-byte placeholder`)
+  }
+  eq(JSON.parse(readFile('public/manifest.json')).icons.map(icon => icon.sizes).join(), '192x192,512x512', `${label}: the manifest asks for 192 and 512`)
+  for (const file of ['app/icon.svg', 'public/icon.svg', 'public/favicon.svg']) match(readFile(file), /<svg/, `${label}: ${file} is an svg`)
   // no reference to a still the UAT set does not hold; none to the unflagged folder
   const tree = []
   const walk = dir => { for (const entry of fs.readdirSync(path.join(repoRoot, rel(dir)), { withFileTypes: true })) { const p = `${dir}/${entry.name}`; if (entry.isDirectory()) walk(p); else if (/\.(tsx?|css)$/.test(entry.name)) tree.push(p) } }
