@@ -1,0 +1,68 @@
+{
+ "body": {
+  "checkpoint": {
+   "deck_import": {
+    "composer": {
+     "as_is_only": true,
+     "deployed_git_sha": "c1b0712553",
+     "health_read": true,
+     "template_progress": true
+    },
+    "error": {
+     "code": "COMPOSER_JOB_LOST",
+     "message": "Import stopped. Try again.",
+     "retryable": true
+    },
+    "phase": "failed",
+    "template_id": null,
+    "title": "Q3 Board Review",
+    "version": "director-deck-import-v1",
+    "waiting": null
+   }
+  },
+  "completed_at": null,
+  "created_at": null,
+  "deck_import": {
+   "error": {
+    "code": "COMPOSER_JOB_LOST",
+    "message": "Import stopped. Try again.",
+    "retryable": true
+   },
+   "notes": null,
+   "phase": "failed",
+   "progress": null,
+   "result": null,
+   "stage": "failed",
+   "title": "Q3 Board Review",
+   "version": "director-deck-import-v1",
+   "waiting": null,
+   "what_changed": {
+    "headline": null,
+    "items": []
+   }
+  },
+  "errors": [
+   "Import stopped. Try again."
+  ],
+  "job_id": "stage-import-f26852e8-d473-4000-8025-34f75151d819",
+  "per_slide_fidelity": [],
+  "presentation_id": null,
+  "session_id": "fresh-session",
+  "slide_count": null,
+  "status": "failed",
+  "template_id": null,
+  "updated_at": null,
+  "upload_ref": {
+   "file_name": "Q3 Board Review.pptx",
+   "kind": "pptx",
+   "purpose": "deck_import",
+   "researcher_session_id": "fresh-session",
+   "session_id": "fresh-session",
+   "storage_path": "fresh-session/1_Q3 Board Review.pptx"
+  },
+  "user_id": "owner",
+  "viewer_url": null
+ },
+ "description": "Composer restarted before the as-is result (job lost)",
+ "status": 200
+}

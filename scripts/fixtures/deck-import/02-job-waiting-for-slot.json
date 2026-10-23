@@ -1,0 +1,77 @@
+{
+ "body": {
+  "admission_report": null,
+  "capabilities": {
+   "new_topic": {
+    "invocation": "job",
+    "state": "processing"
+   },
+   "use_original": {
+    "state": "processing"
+   }
+  },
+  "checkpoint": {
+   "deck_import": {
+    "composer": {
+     "as_is_only": true,
+     "deployed_git_sha": "c1b0712553",
+     "health_read": true,
+     "template_progress": true
+    },
+    "phase": "preparing",
+    "title": "Q3 Board Review",
+    "version": "director-deck-import-v1",
+    "waiting": {
+     "retry_after_s": 30,
+     "since": "2026-10-22T21:15:38.203155+00:00"
+    }
+   }
+  },
+  "completed_at": null,
+  "created_at": null,
+  "deck_import": {
+   "error": null,
+   "notes": null,
+   "phase": "preparing",
+   "progress": null,
+   "result": null,
+   "stage": "waiting",
+   "title": "Q3 Board Review",
+   "version": "director-deck-import-v1",
+   "waiting": {
+    "retry_after_s": 30,
+    "since": "2026-10-22T21:15:38.203155+00:00"
+   },
+   "what_changed": {
+    "headline": null,
+    "items": []
+   }
+  },
+  "errors": [],
+  "job_id": "stage-import-50b26aee-7a38-47f2-a77f-60de75a5afbb",
+  "per_slide_fidelity": [],
+  "poll": {
+   "next_interval_ms": 3000,
+   "stalled": false
+  },
+  "presentation_id": null,
+  "session_id": "fresh-session",
+  "slide_count": null,
+  "status": "cracking",
+  "template_id": null,
+  "template_progress": null,
+  "updated_at": null,
+  "upload_ref": {
+   "file_name": "Q3 Board Review.pptx",
+   "kind": "pptx",
+   "purpose": "deck_import",
+   "researcher_session_id": "fresh-session",
+   "session_id": "fresh-session",
+   "storage_path": "fresh-session/1_Q3 Board Review.pptx"
+  },
+  "user_id": "owner",
+  "viewer_url": null
+ },
+ "description": "GET jobs/{id} while Composer's one slot is busy (429, Retry-After 30)",
+ "status": 200
+}

@@ -3,6 +3,8 @@
 // (the Builder page) both run stripDuplicateDeck first, then do what they always did. scripts/test-studio-duplicate-deck.mjs proves this strip against the merge parent of
 // this change (DUPLICATE_DECK_BASE, default bcd8aed) and that every addition is inert with the flag off.
 
+import { DECK_IMPORT_BUILDER_ADDITIONS } from './studio-deck-import-strip.mjs' // FRONTEND-1 (NEXT_PUBLIC_STUDIO_DECK_IMPORT): its two Builder-page additions come out too
+
 export const DASHBOARD_PAGE = 'app/(app)/dashboard/page.tsx'
 export const BUILDER_PAGE = 'app/builder/page.tsx'
 export const ENV_FILE = '.env.example'
@@ -27,6 +29,7 @@ const DASHBOARD_ADDITIONS = [
 ]
 
 const BUILDER_ADDITIONS = [
+  ...DECK_IMPORT_BUILDER_ADDITIONS,
   ["import { StudioCopiedFromNote } from '@/components/builder/studio-copied-from-note'\n", ""],
   ["                  {/* NEXT_PUBLIC_STUDIO_DUPLICATE_DECK: the copy's one line, \"Copied from <title>. Chat history stays with the original.\" Its own small element, read from the session's stored marker; never a chat message. Only a saved session whose chat is fresh (nothing restored) reads it. */}\n                  {process.env.NEXT_PUBLIC_STUDIO_DUPLICATE_DECK === 'true' && !session.isLoadingSession && !session.isResumedSession && !isUnsavedSession && <StudioCopiedFromNote className=\"mx-3 mt-2\" studioShell={studioShell} sessionId={currentSessionId} />}\n", ""],
 ]
