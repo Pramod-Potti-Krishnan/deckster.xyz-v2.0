@@ -7,13 +7,17 @@
 
 export const BASE_COMMIT = 'aa0cfeea25f4d8a7b8f82dc040a563034e8bc211'
 
+// The test registration this change adds to package.json (the line, without the comma that depends on what follows it).
+const PACKAGE_LINE = '    "test:studio-chat-theme-export": "node scripts/test-studio-chat-theme-export.mjs"'
+
 // [text this change has, text the base has]; each `added` is a literal that occurs once in the file.
 const CHANGES = {
   ".env.example": [
     ["\n# PASS3 THEME CHANGE AND EXPORT FROM CHAT (FRONTEND-2, Studio half of Director !513; streams/director2/theme-export/CONTRACT.md): two independent switches, each\n# active only when set to the string \"true\"; both default off, and then chat sends, socket handling and the page behave as before. Build-time values: change them\n# on Vercel and redeploy. They pair with Director's DIRECTOR_MDC_THEME_CHANGE_ENABLED and DIRECTOR_MDC_EXPORT_ENABLED (+ CHAT_CAP_CHANGE_THEME / CHAT_CAP_EXPORT).\n# NEXT_PUBLIC_CHAT_THEME_CHANGE: each user_message adds client_caps \"theme1\"; Director's theme_directive {selection: a preset or a #rrggbb brand colour} goes through\n# the theme picker's own apply (without the picker's built-deck lock, which a chat request on a built deck passes; a composer template that keeps its theme,\n# Template Mode or a running build still refuse it), the deck-theme set_theme, and is answered from that request's theme_sync. THIS WRITES THE DECK'S THEME.\n# NEXT_PUBLIC_CHAT_EXPORT: each user_message adds client_caps \"export1\"; Director's export_directive {format: pdf | pptx} runs the Download menu's own PDF / PowerPoint\n# call (its default quality, its enable rule) and answers \"done\" once that call has started the browser download. Both answer element_directive_result\n# {directive_id, status, error_code}; Studio shows no line of its own (Director's fixed line closes the turn).\nNEXT_PUBLIC_CHAT_THEME_CHANGE=\"false\"\nNEXT_PUBLIC_CHAT_EXPORT=\"false\"\n\n", "\n"],
   ],
   "package.json": [
-    ["    \"test:studio-p2-profile-page\": \"node scripts/test-studio-p2-profile-page.mjs\",\n    \"test:studio-chat-element-refine\": \"node scripts/test-studio-chat-element-refine.mjs\",\n    \"test:studio-chat-theme-export\": \"node scripts/test-studio-chat-theme-export.mjs\"\n", "    \"test:studio-p2-profile-page\": \"node scripts/test-studio-p2-profile-page.mjs\",\n    \"test:studio-chat-element-refine\": \"node scripts/test-studio-chat-element-refine.mjs\"\n"],
+    // This change's one script line. It comes out wherever it is in the list (PACKAGE_LINE below), so a later PR's registration before or after it changes nothing.
+    [PACKAGE_LINE, ''],
   ],
   "app/builder/page.tsx": [
     ["import { isTextLabsMappable } from '@/lib/element-type-mapping'\n// NEXT_PUBLIC_CHAT_THEME_CHANGE / NEXT_PUBLIC_CHAT_EXPORT (each default off): change the theme / export the deck from chat (lib/chat-theme-export.ts).\nimport { runExportDirective, runThemeDirective, type ThemeExportDirectiveMessage, type ThemeExportDirectiveOwner, type ThemeExportResultData } from '@/lib/chat-theme-export'\nimport { downloadPDF, downloadPPTX } from '@/lib/api/download-service'\n", "import { isTextLabsMappable } from '@/lib/element-type-mapping'\n"],
@@ -33,6 +37,10 @@ export const CHAT_THEME_EXPORT_FILES = Object.keys(CHANGES)
 
 /** The file without this change's lines. Any other file is returned as it is. */
 export function stripChatThemeExport(rel, text) {
+  if (rel === 'package.json') {
+    const last = `,\n${PACKAGE_LINE}\n` // the last entry: the one before it loses its comma again
+    return text.includes(last) ? text.replace(last, '\n') : text.replace(`${PACKAGE_LINE},\n`, '') // anywhere else: the line goes with its own comma, and a later entry after it stays as it is
+  }
   return (CHANGES[rel] ?? []).reduce((result, [added, original]) => result.replace(added, () => original), text)
 }
 

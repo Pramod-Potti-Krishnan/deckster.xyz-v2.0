@@ -70,7 +70,7 @@ const gitOut = (...args) => { try { return execFileSync('git', args, { cwd: repo
 /** The strip module's exports from its source text (a mutant's text too): the file is plain JavaScript with two top-level exports. */
 const loadStrip = source => new Function(`${source.replace(/^export /gm, '')}\nreturn { stripNarrationRouter, NARRATION_ROUTER_FILES }`)()
 /** scripts/studio-stack-tolerant.mjs from its source text (a mutant's too): plain JavaScript, no imports. */
-const loadStack = source => new Function(`${source.replace(/^export /gm, '')}\nreturn { STACK, stackScope, sameOrTolerant, stackMutants }`)()
+const loadStack = source => new Function(`${source.replace(/^export /gm, '')}\nreturn { STACK, stackScope, sameOrTolerant, stackFileTolerant, stackMutants }`)()
 
 const STUB_MEDIA_STORE = `
 export function contentKey(parts: unknown): string { return 'k' }
@@ -634,7 +634,8 @@ function buildTests(S) {
     const mid = S[PKG].replace('"node scripts/test-studio-narration-router.mjs"', '"node scripts/test-studio-narration-router.mjs",\n    "test:studio-later": "node scripts/test-later.mjs"')
     assert.notEqual(mid, S[PKG], 'a later registration was put in')
     const baseText = baseSource(PKG)
-    if (baseText != null) assert.equal(stripNarrationRouter(PKG, mid), baseText.replace(/\n  \},\n  "dependencies"/, ',\n    "test:studio-later": "node scripts/test-later.mjs"\n  },\n  "dependencies"'), 'package.json: the registration comes out of the middle of the list')
+    // the same file without this change's line, with the later entry where it was (after #473's entry, whose comma stays as it was: a later PR's entry after it stays too)
+    if (baseText != null) assert.equal(stripNarrationRouter(PKG, mid), stripNarrationRouter(PKG, S[PKG]).replace(/(\n {4}"test:studio-model-catalog": "node scripts\/test-studio-model-catalog\.mjs")(,?)\n/, (_, entry, comma) => `${entry},\n    "test:studio-later": "node scripts/test-later.mjs"${comma}\n`), 'package.json: the registration comes out of the middle of the list')
   })
   test('stacked scope: the committed tree (git diff BASE HEAD, not the working tree) differs from 13c90ea in this change\'s files only, and only by its lines', () => {
     const names = gitOut('diff', '--name-only', BASE_COMMIT, 'HEAD', '--', '.')
@@ -654,6 +655,7 @@ function buildTests(S) {
     assert.ok(lines(ENV, '+').every(line => /^\+(#|[A-Z][A-Z0-9_]*=|$)/.test(line)) && lines(ENV, '+').some(line => line.startsWith('+NARRATION_VIA_ROUTER=')), 'stacked scope: and they are comments, blanks and assignments, this block among them (a later change\'s block may follow)')
     assert.ok(lines(PKG, '-').length <= 1 && lines(PKG, '-').every(line => /test:studio-model-catalog/.test(line)), 'stacked scope: package.json: at most #473\'s entry, which gains a comma')
     assert.ok(lines(PKG, '+').some(line => /test:studio-narration-router/.test(line)), 'stacked scope: package.json: this change\'s registration follows')
+    { const v = stack.stackFileTolerant(gitOut('show', `${stack.STACK[475].head}:${HARNESS}`) ?? '', gitOut('show', `HEAD:${HARNESS}`) ?? ''); assert.ok(v.ok, `stacked scope: the harness: ${v.reason}`); if (!v.exact) { for (const rel of SIBLINGS.filter(rel => changed.includes(rel))) { assert.ok(lines(rel, '+').every(line => /NarrationRouter|narration-router|NARRATION_ROUTER|#475/.test(line)), `stacked scope: ${rel}: every added line names this change`); assert.ok(lines(rel, '-').length <= 8, `stacked scope: ${rel}: only a few lines were extended`) } return } } // a later PR's lines in the harness are taken, this change's head kept in order (scripts/studio-stack-tolerant.mjs); the harness as this change left it is checked below as before, then the siblings (the same two checks)
     assert.ok(lines(HARNESS, '-').length <= 1 && lines(HARNESS, '-').every(line => /#469 deck-mutation dedupe\)/.test(line)), 'stacked scope: the harness: at most its comment line was extended')
     assert.ok(lines(HARNESS, '+').length >= 3 && lines(HARNESS, '+').every(line => /narration|NARRATION/.test(line)), 'stacked scope: the stacked list gains this change\'s files only')
     for (const rel of SIBLINGS.filter(rel => changed.includes(rel))) {
@@ -666,7 +668,8 @@ function buildTests(S) {
     if (names == null || baseText == null) { console.log('SKIP stack-tolerant rules: the base commit is not in this clone'); return }
     const stack = loadStack(S[STACK_TOLERANT]), known = rel => stack.STACK[475].files.includes(rel) || /^scripts\/(test-)?studio-env-append-tolerant\.mjs$/.test(rel) // the stack declared in the scope test above
     const results = stack.stackMutants({ change: stack.STACK[475], changed: names.split('\n').filter(Boolean), known,
-      shared: [{ rel: PKG, head: S[PKG], strip: text => loadStrip(S[STRIP]).stripNarrationRouter(PKG, text), base: baseText, changes: NR_PKG_CHANGES }] })
+      shared: [{ rel: PKG, head: S[PKG], strip: text => loadStrip(S[STRIP]).stripNarrationRouter(PKG, text), base: baseText, changes: NR_PKG_CHANGES }],
+      kept: [{ rel: HARNESS, stack: gitOut('show', `${stack.STACK[475].head}:${HARNESS}`) ?? '', head: gitOut('show', `HEAD:${HARNESS}`) ?? '' }] })
     for (const [label, held] of results) assert.ok(held, label)
     console.log(`stack-tolerant (#475): ${results.filter(([label]) => label.includes('mutant:')).length} mutants caught, ${results.filter(([label]) => label.includes('control:')).length} controls taken`)
   })
@@ -775,7 +778,7 @@ const MUTANTS = [
   [STRIP, "export const NARRATION_ROUTER_FILES = ['.env.example', 'package.json']", "export const NARRATION_ROUTER_FILES = ['.env.example', 'package.json', 'README.md']", 'a third file is claimed'],
   [PKG, ',\n    "test:studio-narration-router": "node scripts/test-studio-narration-router.mjs"', '', 'the test is not registered'],
   [PKG, '"test:studio-narration-router": "node scripts/test-studio-narration-router.mjs"', '"test:studio-narration-router": "node scripts/test-studio-narration-router-2.mjs"', 'the test is registered to another file'],
-  // scripts/studio-stack-tolerant.mjs: each rule taken out must be caught (by the scope test, the strip test or the stack-tolerant test)
+  // scripts/studio-stack-tolerant.mjs: each rule taken out must be caught (by the scope test, the strip test or the stack-tolerant test); its package.json parse check is a second guard behind the comma rule, so it has no mutant of its own
   [STACK_TOLERANT, 'if (next < want.length) return { ok: false', 'if (false) return { ok: false', 'a base line may be dropped from a shared file'],
   [STACK_TOLERANT, 'if (leftover !== undefined) return', 'if (false) return', 'this change\'s line may stay after its strip'],
   [STACK_TOLERANT, 'if (gone !== undefined) return', 'if (false) return', 'this change\'s lines may be gone from HEAD'],
@@ -784,6 +787,10 @@ const MUTANTS = [
   [STACK_TOLERANT, 'const missing = change.files.filter(rel => !changed.includes(rel))', 'const missing = []', 'an own file may be missing'],
   [STACK_TOLERANT, 'else if (change.family.test(rel)) { checked.push(rel); stray.push(rel) }', 'else if (false) { checked.push(rel); stray.push(rel) }', 'a stray in this change\'s family is ignored like a later PR\'s file'],
   [STACK_TOLERANT, '    else ignored.push(rel)', '    else checked.push(rel)', 'a later PR\'s file is not ignored'],
+  [STACK_TOLERANT, "else if (json && commas === 0 && line === `${want[next]},`", "else if (false && commas === 0 && line === `${want[next]},`", 'a later append\'s comma on the base\'s last entry is refused'],
+  [STACK_TOLERANT, '{ next++; commas++ }', '{ next++ }', 'a comma may be gained on more than one base line'],
+  [STACK_TOLERANT, 'if (kept < keep.length) return', 'if (false) return', 'a line of the stack may be dropped from the harness'],
+  [STACK_TOLERANT, "if (headText === stackText) return { ok: true, exact: true", "if (false) return { ok: true, exact: true", 'the harness as the stack left it is not told apart'],
 ]
 
 // ---------- run ----------
