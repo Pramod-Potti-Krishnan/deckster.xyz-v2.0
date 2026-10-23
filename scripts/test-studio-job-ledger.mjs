@@ -638,7 +638,8 @@ function staticChecks(src) {
     for (const token of ['--ss-line', '--ss-surface', '--ss-text', '--ss-muted', '--ss-teal', '--ss-panel', '--ss-accent']) assert.ok(css.includes(`var(${token})`), token)
     const env = src[ENV]
     assert.equal((env.match(/^NEXT_PUBLIC_STUDIO_JOB_LEDGER="false"$/gm) || []).length, 1)
-    assert.ok(env.indexOf('TEXT_LABS_IDENTITY_SECRET=\n\n# P3-4 DIRECTOR\'S JOB LEDGER IN STUDIO') > 0, 'after the last FRONTEND-2 block')
+    const at = env.indexOf('\n\n# P3-4 DIRECTOR\'S JOB LEDGER IN STUDIO') // after the Text Labs block and any FRONTEND-2 block stacked since (P3-4b's)
+    assert.ok(at > env.indexOf('TEXT_LABS_IDENTITY_SECRET=') && /\(FRONTEND-2[,)]/.test(env.slice(env.lastIndexOf('\n\n', at - 1) + 2, at)), 'after the last FRONTEND-2 block')
     assert.ok(env.indexOf('NEXT_PUBLIC_STUDIO_JOB_LEDGER="false"\n\n# PASS2 ADMIN (FRONTEND-1') > 0, 'right before # PASS2 ADMIN')
   })
 }
