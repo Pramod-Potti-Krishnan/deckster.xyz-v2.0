@@ -2,7 +2,7 @@
 // NEXT_PUBLIC_STUDIO_NEW_LOGO (exact "true"), default off. The logo FILES themselves ship unflagged with the UAT marketing port (#483); this flag only puts one where the rail had an icon.
 //
 // Run: node scripts/test-studio-new-logo.mjs   (plain node: transpile + vm, no network, no browser, no env)
-//   STUDIO_NEW_LOGO_BASE=<commit> overrides the base the flag-off identity is checked against (default 6e0308e, the head of #483, the commit this change is stacked on).
+//   STUDIO_NEW_LOGO_BASE=<commit> overrides the base the flag-off identity is checked against (default 661b5b6, the head of #483 on the post-#489 base, the commit this change is stacked on).
 //
 // Proven on the REAL sources: lib/studio-new-logo.ts, components/layout/studio-rail.tsx, components/layout/studio-new-logo.css (and the shared files it must not touch):
 //   1. the lib: only a real `true` is on; it is import-free; the image it names is a real, square PNG with pixels to spare for a 32px tile; the size it names is the tile's CSS size;
@@ -28,7 +28,7 @@ const React = nodeRequire('react')
 const jsxRuntime = nodeRequire('react/jsx-runtime')
 const { renderToStaticMarkup } = nodeRequire('react-dom/server')
 const postcss = nodeRequire('postcss')
-const BASE_COMMIT = process.env.STUDIO_NEW_LOGO_BASE || '6e0308ebdc0057c33665ee86671c57a54c8daf88'
+const BASE_COMMIT = process.env.STUDIO_NEW_LOGO_BASE || '661b5b6dd398b3660e4775769b485b36b052498b'
 const read = rel => fs.readFileSync(path.join(repoRoot, rel), 'utf8')
 function baseSource(rel) {
   try {
