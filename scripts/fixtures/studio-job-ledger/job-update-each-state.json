@@ -1,0 +1,170 @@
+{
+ "queued": {
+  "message_id": "msg_job_64d9b64d",
+  "session_id": "s_e2e",
+  "timestamp": "2027-01-15T08:00:00.000Z",
+  "type": "job_update",
+  "role": "assistant",
+  "payload": {
+   "job_id": "mdc_84655ee777f4",
+   "kind": "slide_compose",
+   "state": "queued",
+   "seq": 1,
+   "started_at": "2027-01-15T08:00:00.000Z",
+   "updated_at": "2027-01-15T08:00:00.000Z",
+   "deadline_at": "2027-01-15T08:15:00.000Z",
+   "presentation_id": "pres-e2e",
+   "slide_index": 3,
+   "failure": null,
+   "retry": null,
+   "retry_of": null
+  }
+ },
+ "running": {
+  "message_id": "msg_job_a10c38c9",
+  "session_id": "s_e2e",
+  "timestamp": "2027-01-15T08:00:00.000Z",
+  "type": "job_update",
+  "role": "assistant",
+  "payload": {
+   "job_id": "mdc_84655ee777f4",
+   "kind": "slide_compose",
+   "state": "running",
+   "seq": 2,
+   "started_at": "2027-01-15T08:00:00.000Z",
+   "updated_at": "2027-01-15T08:00:00.000Z",
+   "deadline_at": "2027-01-15T08:15:00.000Z",
+   "presentation_id": "pres-e2e",
+   "slide_index": 3,
+   "failure": null,
+   "retry": null,
+   "retry_of": null
+  }
+ },
+ "failed": {
+  "message_id": "msg_job_083b9f68",
+  "session_id": "s_e2e",
+  "timestamp": "2027-01-15T08:00:00.000Z",
+  "type": "job_update",
+  "role": "assistant",
+  "payload": {
+   "job_id": "mdc_84655ee777f4",
+   "kind": "slide_compose",
+   "state": "failed",
+   "seq": 3,
+   "started_at": "2027-01-15T08:00:00.000Z",
+   "updated_at": "2027-01-15T08:00:00.000Z",
+   "deadline_at": "2027-01-15T08:15:00.000Z",
+   "presentation_id": "pres-e2e",
+   "slide_index": 3,
+   "failure": {
+    "code": "service_unavailable",
+    "retryable": true
+   },
+   "retry": {
+    "via": "frame",
+    "job_id": "mdc_84655ee777f4"
+   },
+   "retry_of": null
+  }
+ },
+ "done": {
+  "message_id": "msg_job_9698a61c",
+  "session_id": "s_e2e",
+  "timestamp": "2027-01-15T08:00:00.000Z",
+  "type": "job_update",
+  "role": "assistant",
+  "payload": {
+   "job_id": "mdc_224648c1d2a2",
+   "kind": "slide_compose",
+   "state": "done",
+   "seq": 3,
+   "started_at": "2027-01-15T08:00:00.000Z",
+   "updated_at": "2027-01-15T08:00:00.000Z",
+   "deadline_at": "2027-01-15T08:15:00.000Z",
+   "presentation_id": "pres-e2e",
+   "slide_index": 3,
+   "failure": null,
+   "retry": null,
+   "retry_of": "mdc_84655ee777f4"
+  }
+ },
+ "timed_out": {
+  "message_id": "msg_job_1059dcb2",
+  "session_id": "s_e2e",
+  "timestamp": "2027-01-15T08:00:00.000Z",
+  "type": "job_update",
+  "role": "assistant",
+  "payload": {
+   "job_id": "el_0e870f857120",
+   "kind": "element_directive",
+   "state": "timed_out",
+   "seq": 2,
+   "started_at": "2027-01-15T08:00:00.000Z",
+   "updated_at": "2027-01-15T08:00:00.000Z",
+   "deadline_at": "2027-01-15T08:05:00.000Z",
+   "presentation_id": "pres-e2e",
+   "slide_index": 3,
+   "failure": {
+    "code": "deadline_exceeded",
+    "retryable": true
+   },
+   "retry": {
+    "via": "frame",
+    "job_id": "el_0e870f857120"
+   },
+   "retry_of": null
+  }
+ },
+ "cancelled": {
+  "message_id": "msg_job_59a8c023",
+  "session_id": "s_e2e",
+  "timestamp": "2027-01-15T08:00:00.000Z",
+  "type": "job_update",
+  "role": "assistant",
+  "payload": {
+   "job_id": "thm_6907428b3b76",
+   "kind": "theme",
+   "state": "cancelled",
+   "seq": 2,
+   "started_at": "2027-01-15T08:00:00.000Z",
+   "updated_at": "2027-01-15T08:00:00.000Z",
+   "deadline_at": "2027-01-15T08:05:00.000Z",
+   "presentation_id": "pres-e2e",
+   "slide_index": null,
+   "failure": {
+    "code": "cancelled_by_user",
+    "retryable": false
+   },
+   "retry": null,
+   "retry_of": null
+  }
+ },
+ "failed_lost_on_restart": {
+  "message_id": "msg_job_e250e8b9",
+  "session_id": "sess-restart",
+  "timestamp": "2027-01-15T08:00:00.000Z",
+  "type": "job_update",
+  "role": "assistant",
+  "payload": {
+   "job_id": "mdc_lost00000001",
+   "kind": "slide_compose",
+   "state": "failed",
+   "seq": 3,
+   "started_at": "2027-01-15T07:58:00.000Z",
+   "updated_at": "2027-01-15T08:00:00.000Z",
+   "deadline_at": "2027-01-15T08:13:00.000Z",
+   "presentation_id": "deck-pres",
+   "slide_index": 3,
+   "failure": {
+    "code": "lost_on_restart",
+    "retryable": true
+   },
+   "retry": {
+    "via": "frame",
+    "job_id": "mdc_lost00000001"
+   },
+   "retry_of": null
+  }
+ }
+}

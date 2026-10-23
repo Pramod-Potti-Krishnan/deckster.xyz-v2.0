@@ -11,6 +11,8 @@ import type { BuildThemeSelection } from '@/lib/theme-builder';
 import type { TemplateOverrides } from '@/lib/template-mode';
 // NEXT_PUBLIC_CHAT_THEME_CHANGE / NEXT_PUBLIC_CHAT_EXPORT (each default off): change the theme / export from chat; the caps and the two directives.
 import { CHAT_THEME_EXPORT_CAPS, chatThemeExportDirectiveKind, themeExportDirectiveId } from '@/lib/chat-theme-export-wire';
+// NEXT_PUBLIC_STUDIO_JOB_LEDGER (P3-4c, default off): Director's job_update frames and sync_response.payload.jobs go to the page's ledger.
+import { STUDIO_JOB_LEDGER_ENABLED, JOB_UPDATE_TYPE, jobLedgerRow, jobLedgerRows } from '@/lib/studio-job-ledger';
 import type { ManualDeckContext } from '@/lib/manual-deck-workflow';
 import type { DeckFooterConfig, DeckIdentity } from '@/lib/deck-identity';
 import {
@@ -646,6 +648,11 @@ export type ControlMessage =
   | {
       type: 'template_ingest_cancel';
       data: { job_id: string };
+    }
+  // NEXT_PUBLIC_STUDIO_JOB_LEDGER (P3-4c): run a failed / timed-out Director job again (a frame-route row's retry.job_id; the user's click only).
+  | {
+      type: 'job_retry';
+      data: { job_id: string };
     };
 
 export interface SetThemeMessage {
@@ -754,6 +761,10 @@ export interface UseDecksterWebSocketV2Options {
   // element a send names (null when none). Both unused with the flag off.
   onElementRefineDirective?: (message: import('@/lib/chat-element-refine-wire').ElementRefineDirectiveMessage, owner: import('@/lib/chat-element-refine-wire').ElementRefineDirectiveOwner) => void;
   getChatElementReference?: () => import('@/lib/chat-element-refine-wire').ChatElementReference | null;
+  // NEXT_PUBLIC_STUDIO_JOB_LEDGER (P3-4c): Director's job rows for this socket's session (a job_update frame's row; sync_response's
+  // jobs list, possibly []). Never rendered in chat. Unused with the flag off.
+  onJobUpdate?: (row: import('@/lib/studio-job-ledger').JobLedgerRow, owner: import('@/lib/studio-job-ledger').JobLedgerOwner) => void;
+  onJobsSync?: (rows: import('@/lib/studio-job-ledger').JobLedgerRow[], owner: import('@/lib/studio-job-ledger').JobLedgerOwner) => void;
   onSlideComposeReady?: (message: SlideComposeReady) => void;
   onSlideComposeFailed?: (message: SlideComposeFailed) => void;
   onTemplateIngestReady?: (message: TemplateIngestReady) => void;
@@ -1928,6 +1939,18 @@ export function useDecksterWebSocketV2(options: UseDecksterWebSocketV2Options = 
                 );
               }
               return;
+            }
+            // NEXT_PUBLIC_STUDIO_JOB_LEDGER (P3-4c): Director's job_update (a state tick: it does not unlock the turn) goes to the page's ledger,
+            // here, ahead of the allowlist, so it never reaches the reducer, the transcript or the cache; sync_response's jobs go there too,
+            // and that frame then carries on as before. Only this socket's session. Flag off: job_update is unknown, dropped below as before.
+            if (STUDIO_JOB_LEDGER_ENABLED && (parsedMessage.type as unknown) === JOB_UPDATE_TYPE) {
+              const row = parsedMessage.session_id === socketSessionId ? jobLedgerRow(parsedMessage.payload) : null;
+              if (row) transportCallbacksRef.current.onJobUpdate?.(row, { sessionId: socketSessionId, isCurrent: isCurrentSocket });
+              return;
+            }
+            if (STUDIO_JOB_LEDGER_ENABLED && parsedMessage.type === 'sync_response' && parsedMessage.session_id === socketSessionId) {
+              const rows = jobLedgerRows((parsedMessage.payload as { jobs?: unknown } | null | undefined)?.jobs);
+              if (rows) transportCallbacksRef.current.onJobsSync?.(rows, { sessionId: socketSessionId, isCurrent: isCurrentSocket });
             }
             if (!isKnownDirectorMessageType(parsedMessage.type)) {
               return;

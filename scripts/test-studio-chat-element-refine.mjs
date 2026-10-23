@@ -41,6 +41,7 @@ import { stripNarrationRouter } from './studio-narration-router-strip.mjs' // #4
 import { sameAsBase } from './studio-env-append-tolerant.mjs' // stacked after #475: the .env.example rule that takes a later change's block (scripts/studio-env-append-tolerant.mjs)
 import { STACK, stackFileTolerant, stackMutants, stackScope, sameOrTolerant, stripMutants } from './studio-stack-tolerant.mjs' // stacked after #475: a later PR's files are not this change's to answer for, and a shared file a later PR edits too keeps its base lines and this change's (scripts/studio-stack-tolerant.mjs)
 import { stripLaunchWording } from './studio-launch-wording-strip.mjs' // NEXT_PUBLIC_STUDIO_LAUNCH_WORDING (launched wording): its flag-gated edits come out first, before every older change's strip
+import { stripJobLedger } from './studio-job-ledger-strip.mjs' // stacked after #475: P3-4c (NEXT_PUBLIC_STUDIO_JOB_LEDGER) adds its flag-gated job_update intake to the hook's startConnection; declarations() takes its lines out first
 const STACKED_NARRATION_ROUTER = /^(lib\/narration\/(model-router|draft|tts|spoken)\.ts|app\/api\/narration\/(render|script|speak)\/route\.ts|app\/api\/narration\/voice\/sample\/\[voiceId\]\/route\.ts|scripts\/(test-studio-narration-router|studio-narration-router-strip)\.mjs)$/ // #475's own files (stacked on #473)
 const STACKED_MODEL_CATALOG = /^(app\/\(app\)\/studio\/intelligence\/layout\.tsx|app\/api\/models\/catalogue\/route\.ts|components\/studio-personal\/intelligence-models\.(css|tsx)|lib\/studio-model-catalog\.ts|scripts\/(test-studio-model-catalog|studio-model-catalog-strip)\.mjs|scripts\/fixtures\/studio-model-catalog\/.+)$/ // #473's own files (stacked on #472 on this change)
 const STACKED_THEME_EXPORT = /^(lib\/chat-theme-export(-wire)?\.ts|scripts\/(test-studio-chat-theme-export|studio-chat-theme-export-strip)\.mjs|scripts\/fixtures\/chat-theme-export\/.+|docs\/pass3\/chat-theme-export\/LIVE-CHECK-PLAN\.md)$/
@@ -720,6 +721,7 @@ await check('identity: every added piece is behind the flag (or is a type, a com
 // The reducer, cache, history-restore and send code paths: unchanged declarations hash-equal the base; the two that gained one flag-gated
 // branch (buildUserMessage and so sendMessage, startConnection) hash-equal the base once that branch is stripped. The session cache and history restore files are untouched.
 function declarations(text, names, file = HOOK) {
+  text = stripJobLedger(file, text) // stacked after #475: P3-4c's flag-gated hook and page lines come out first (scripts/studio-job-ledger-strip.mjs); a base text has none
   const ast = ts.createSourceFile(file, text, ts.ScriptTarget.Latest, true, file.endsWith('x') ? ts.ScriptKind.TSX : ts.ScriptKind.TS)
   const found = {}
   const visit = node => {
