@@ -3,7 +3,7 @@
 // default off, and only with the Studio shell. Director half: Director !518 (DIRECTOR_DECK_IMPORT_ENABLED); contract streams/director2/deck-import/CONTRACT.md.
 //
 // Run: node scripts/test-studio-deck-import.mjs   (plain node: transpile + vm, no network, no browser, no secrets; every secret below is made up at run time and never printed)
-//   DECK_IMPORT_BASE=<commit>     the commit flag-off identity is checked against (default 8d5c494a, the studio-v4-dev-preparation-code tip this change is merged with)
+//   DECK_IMPORT_BASE=<commit>     the commit flag-off identity is checked against (default 8d5c494a, the studio-v4-dev-preparation-code tip this change was written on)
 //   DECK_IMPORT_QUICK=1           skip the mutants
 //
 // The 20 responses RECORDED from Director's real code (scripts/fixtures/deck-import/, byte copies of streams/director2/deck-import/ in the workspace, pinned by sha256 below) are replayed three ways:
@@ -13,7 +13,9 @@
 //   3. the two proxy routes (executed with stubs): 404 before any session read, signed-in only, exact Director requests, pass-through of every recorded status, the entitlement header
 //      (present only when BOTH flags are on and the secret is set; the secret is never read otherwise; claims checked by an independent verifier);
 //   4. the dialog and its hook (executed with a small hooks runtime): choose, upload, start, waiting/placing/opening/ready, what changed, every failure, Try again, resume, guards;
-//   5. flag-off identity: the Decks page is the base's file byte for byte, the new layout hands the page back with no wrapper, every other changed file is a listed new file;
+//   5. flag-off identity: the Decks page is the base's file byte for byte, the new layout hands the page back with no wrapper, and this change answers for ITS files only (scripts/studio-stack-tolerant.mjs, FRONTEND-2's
+//      rules): its 15 frozen files, its path family and nothing else; a file only a later PR changed is ignored (and counted on one printed line); a file this change edits that a later PR edited too is
+//      held to the base's lines, every one still there in order, with only the later PR's lines added; .env.example and package.json likewise (scripts/studio-env-append-tolerant.mjs);
 //   6. static: no 'use client' module reaches the minter, the minter is imported by the two routes only, the CSS, the env example, package.json;
 //   7. mutants: every one is killed by an assertion.
 import assert from 'node:assert/strict'
@@ -27,6 +29,10 @@ import ts from 'typescript'
 import postcss from 'postcss'
 import { DECK_IMPORT_BUILDER_ADDITIONS } from './studio-deck-import-strip.mjs'
 import { appendOnlyOver, createRuntime, flat, jsxRuntime, root, text as nodeText } from './studio-library-manage-harness.mjs'
+import { stripChatElementRefine } from './studio-chat-element-refine-strip.mjs' // NEXT_PUBLIC_CHAT_ELEMENT_REFINE (#470): its lines in the Builder page come out first
+import { stripChatThemeExport } from './studio-chat-theme-export-strip.mjs' // NEXT_PUBLIC_CHAT_THEME_CHANGE / NEXT_PUBLIC_CHAT_EXPORT (#472): so do its lines
+import { sameAsBase } from './studio-env-append-tolerant.mjs'
+import { sameOrTolerant, stackMutants, stackScope } from './studio-stack-tolerant.mjs'
 
 const BASE_COMMIT = process.env.DECK_IMPORT_BASE || '8d5c494a7abcbfaf3d1b69eda257a5100013cb18'
 const read = rel => fs.readFileSync(path.join(root, rel), 'utf8')
@@ -82,6 +88,20 @@ const EDITED_FILES = {
   ],
 }
 
+// What this change answers for (scripts/studio-stack-tolerant.mjs, FRONTEND-2's rules; the same shape as its STACK entries): its files frozen from its PR's own diff (git diff --name-only base head, inside SCOPE_DIRS;
+// checked against that diff below), the path family a stray would show up in, and `known`, the stack it declares (none: it is stacked on nothing). Any other changed file is a later PR's: ignored and counted.
+const SCOPE_DIRS = ['app', 'components', 'lib', 'hooks', 'middleware.ts', 'contexts', 'types', 'prisma', 'next.config.mjs', 'public', 'styles']
+const CHANGE = {
+  pr: 478, base: '8d5c494a7abcbfaf3d1b69eda257a5100013cb18', head: 'e5330d559f3a1158c766a5237f23aa1c2ea5c2f7', stray: 'lib/studio-deck-import-later.ts',
+  family: /^(lib\/studio-deck-import[^/]*|hooks\/use-studio-deck-import[^/]*|components\/studio-deck-import\/.+|app\/api\/studio-deck-import\/.+)$/,
+  files: [...NEW_FILES, ...Object.keys(EDITED_FILES)].sort(),
+}
+// package.json: this change's one registration. It is the last entry now and a middle one once a later PR appends after it; either way it comes out, and the entry before it loses the comma only when it was the last.
+const PKG_CHANGES = [['    "test:studio-deck-import": "node scripts/test-studio-deck-import.mjs"', '']]
+const stripDeckImportPkg = text => text.replace(/,\n    "test:studio-deck-import": "node scripts\/test-studio-deck-import\.mjs"(?=\n  \})/, '').replace(/\n    "test:studio-deck-import": "node scripts\/test-studio-deck-import\.mjs",(?=\n)/, '')
+// .env.example: a line naming one of these is this change's own block left behind by a strip
+const OWN_ENV_FLAGS = /STUDIO_DECK_IMPORT|DIRECTOR_DECK_IMPORT_ENABLED/
+let SCOPE_LINE = '', STACK_LINE = '' // printed once, after the real run (a mutant run of this section would print them again)
 
 // ---------------------------------------------------------------- counting and overrides (for the mutants)
 let checks = 0
@@ -248,14 +268,46 @@ async function secBlobs() {
   }
   // flag-off identity of the rest of the app: the Decks page and every file this change does not list are the base's, byte for byte
   eq(src(DASHBOARD), baseSource(DASHBOARD), 'the Decks page (app/(app)/dashboard/page.tsx) is the base commit\'s file, byte for byte')
-  const changed = execFileSync('git', ['diff', '--name-only', BASE_COMMIT, '--', 'app', 'components', 'lib', 'hooks', 'middleware.ts', 'contexts', 'types', 'prisma', 'next.config.mjs', 'public', 'styles'], { cwd: root, encoding: 'utf8' }).split('\n').filter(Boolean)
+  const names = (...revs) => {
+    try { return execFileSync('git', ['diff', '--name-only', ...revs, '--', ...SCOPE_DIRS], { cwd: root, encoding: 'utf8' }).split('\n').filter(Boolean) }
+    catch { throw new Error(`a commit of the scope check (${revs.map(rev => rev.slice(0, 8)).join(', ')}) is not in this clone (fetch the full history)`) }
+  }
   const untracked = execFileSync('git', ['ls-files', '--others', '--exclude-standard', '--', 'app', 'components', 'lib', 'hooks'], { cwd: root, encoding: 'utf8' }).split('\n').filter(Boolean)
-  deepEq([...new Set([...changed, ...untracked])].sort(), [...NEW_FILES, ...Object.keys(EDITED_FILES)].sort(), 'the only files under app, components, lib and hooks that differ from the base are this change\'s eleven new ones and the four existing files that gain a few flag-gated lines (the Builder page, the adoption reader and the two welcome components)')
-  // each of those four is the base's file plus exactly the listed lines (nothing else moved)
+  const changed = [...new Set([...names(BASE_COMMIT), ...untracked])].sort()
+  // the scope: this change's frozen files, its path family and nothing else. A file only a later PR changed (app/docs/api/page.tsx, the model catalog, the narration router...) is ignored and counted.
+  const scope = stackScope(changed, CHANGE)
+  SCOPE_LINE = scope.line
+  deepEq(names(CHANGE.base, CHANGE.head), CHANGE.files, 'the frozen files are this PR\'s own diff (git diff BASE head, inside the scope paths): its eleven new files and the four existing files that gain a few flag-gated lines (the Builder page, the adoption reader and the two welcome components)')
+  deepEq({ missing: scope.missing, stray: scope.stray }, { missing: [], stray: [] }, 'every frozen file is still changed against the base, and no file of this change\'s path family is outside the list')
+  deepEq([...scope.checked].sort(), CHANGE.files, 'the files this change answers for are exactly its frozen ones')
+  // the same rule on lists of names (no git): a later PR's file passes, an own file missing and a stray in the family do not
+  const clean = list => { const found = stackScope(list, CHANGE); return found.missing.length === 0 && found.stray.length === 0 }
+  ok(clean(changed), 'the tree as it is passes')
+  for (const later of ['app/docs/api/page.tsx', 'app/api/narration/speak/route.ts', 'lib/studio-model-catalog.ts', 'app/api/templates/[id]/route.ts', 'app/api/webhooks/stripe/route.ts']) ok(clean([...changed, later]) && stackScope([...changed, later], CHANGE).ignored.includes(later), `a later PR's file passes and is ignored: ${later}`)
+  for (const rel of CHANGE.files) ok(!clean(changed.filter(other => other !== rel)), `an own file missing is refused: ${rel}`)
+  ok(!clean([...changed, CHANGE.stray]), 'a file of this change\'s path family outside its list is refused')
+  for (const rel of ['components/studio-deck-import/studio-deck-import-later.tsx', 'app/api/studio-deck-import/later/route.ts', 'hooks/use-studio-deck-import-later.ts']) ok(!clean([...changed, rel]), `a stray in the family is refused: ${rel}`)
+  // each of the four existing files this change edits is the base's file plus exactly the listed lines (nothing else moved). The stacked refine and theme / export changes (#470, #472) edit the Builder page too, one of
+  // them a base line, so their lines come out first, as in every sibling pin (stripChatElementRefine, stripChatThemeExport); then FRONTEND-2's rule (sameOrTolerant): byte for byte, or every base line still there in
+  // order with only a later PR's lines added, none of this change's lines left after the strip, all of them in the file.
   for (const [rel, additions] of Object.entries(EDITED_FILES)) {
-    let text = src(rel)
+    const head = stripChatElementRefine(rel, stripChatThemeExport(rel, src(rel)))
+    let text = head
     for (const [added, original] of additions) { eq(text.split(added).length - 1, 1, `${rel}: the addition is there once: ${added.slice(0, 50)}`); text = text.replace(added, () => original) }
-    eq(text, baseSource(rel), `${rel} without this change's lines is the base's file, byte for byte`)
+    const baseText = baseSource(rel), verdict = sameOrTolerant(rel, head, text, baseText, additions)
+    ok(verdict.ok, `${rel} without this change's lines is the base's file (byte for byte, or with a later PR's lines added and every base line kept in order): ${verdict.reason}`)
+    // an edit outside this change's lines is refused: a base line (one the base has once, taken from the file with this change's lines out) changed or dropped
+    const have = text.split('\n'), baseLines = baseText.split('\n'), at = have.findIndex((line, i) => i > 0 && line.trim().length > 12 && have.filter(other => other === line).length === 1 && baseLines.filter(other => other === line).length === 1)
+    ok(at > 0, `${rel}: a base line to edit was found`)
+    ok(!sameOrTolerant(rel, head, have.map((line, i) => (i === at ? `${line} // edited` : line)).join('\n'), baseText, additions).ok, `${rel}: a base line edited outside this change's lines is refused`)
+    ok(!sameOrTolerant(rel, head, have.filter((_, i) => i !== at).join('\n'), baseText, additions).ok, `${rel}: a base line dropped is refused`)
+  }
+  // the stack rules on this change's own data, with their controls and mutants (scripts/studio-stack-tolerant.mjs stackMutants): an own file missing, a stray in the family, a later PR's file elsewhere; and package.json
+  // (a base script line dropped or changed, this change's line left after its strip or gone from HEAD, a later registration appended after it, two lists appended to)
+  {
+    const results = stackMutants({ change: CHANGE, changed, shared: [{ rel: PKG, head: src(PKG), strip: stripDeckImportPkg, base: baseSource(PKG), changes: PKG_CHANGES }] })
+    for (const [label, held] of results) ok(held, label)
+    STACK_LINE = `stack-tolerant (#478): ${results.filter(([label]) => label.includes('mutant:')).length} mutants caught, ${results.filter(([label]) => label.includes('control:')).length} controls taken`
   }
   for (const rel of NEW_FILES.filter(file => file !== HELPER)) ok(gitShow(BASE_COMMIT, rel) === null, `${rel} is new (the base has no such file)`)
   eq(gitShow(BASE_COMMIT, HELPER), null, 'the minter is not on the base: it is carried from PR #312')
@@ -1283,7 +1335,7 @@ async function secStatic() {
     for (const selector of ['[data-studio-deck-import-note="true"]', '.dark [data-studio-deck-import-note="true"]']) ok(selectors.some(entry => entry.rule.selectors.includes(selector) && entry.rule.nodes.some(node => node.type === 'decl' && node.prop === '--sdi-panel')), `${selector} defines the tokens`)
     ok(selectors.some(entry => entry.selector === '[data-studio-deck-import-note-dismiss="true"]:focus-visible'), 'its button shows focus')
   }
-  // ---- the example: the flag's block is last, documents the flag off, names no other change's flag, and the base's lines are all still there in order
+  // ---- the example: the flag's block documents the flag off, names no other change's flag, and the base's lines are all still there in order
   const env = src(ENVFILE)
   const baseEnv = baseSource(ENVFILE)
   const blockStart = env.indexOf('# STUDIO DECK IMPORT, ')
@@ -1298,7 +1350,7 @@ async function secStatic() {
   ok(adminAt > blockEnd, 'the block sits before the PASS2 ADMIN block'); eq(env.slice(blockEnd, blockEnd + 1), '\n', 'one blank line between this block and the PASS2 ADMIN block')
   eq(env.slice(blockEnd - flagLine.length - 1, blockEnd - flagLine.length), '\n', 'the block starts on its own line')
   const without = env.slice(0, blockStart) + env.slice(blockEnd)
-  eq(without, baseEnv, 'and here it is exactly the base\'s file: the block is inserted, nothing else moved')
+  ok(sameAsBase(ENVFILE, without, baseEnv, OWN_ENV_FLAGS), 'and here it is the base\'s file: the block is inserted, no base line moved or edited (a later change\'s block may follow: scripts/studio-env-append-tolerant.mjs)')
   const blockFlags = [...block.matchAll(/\b[A-Z][A-Z0-9]+(?:_[A-Z0-9]+){2,}\b/g)].map(found => found[0])
   deepEq([...new Set(blockFlags)].sort(), ['COMPOSER_DIRECTOR_URL', 'COMPOSER_FRONTDOOR_TOKEN', 'DECKSTER_REST_ENTITLEMENT_HEADER_ENABLED', 'DIRECTOR_DECK_IMPORT_ENABLED', FLAG].sort(), 'the block names this flag, Director\'s, and the existing front-door settings only')
   nomatch(block, /^DECKSTER_REST_ENTITLEMENT_HEADER_ENABLED=|^DIRECTOR_WS_AUTH_SECRET/m, 'the helper\'s flag is documented where it belongs, not here')
@@ -1308,10 +1360,10 @@ async function secStatic() {
   for (const other of ['STUDIO_KG_ASK', 'LIBRARY_MANAGE', 'library-manage', 'DUPLICATE_DECK', 'duplicate-deck', 'P2_POLISH', 'P2_PUBLISH', 'DECK_MUTATION_DEDUPE']) nomatch(block, new RegExp(other), `the block reuses nothing of ${other}`)
   // ---- package.json: one added script, nothing else
   const pkg = src(PKG), basePkg = baseSource(PKG)
-  eq(pkg.replace(/,\n    "test:studio-deck-import": "node scripts\/test-studio-deck-import\.mjs"/, ''), basePkg, 'package.json is the base plus the one script')
+  { const stripped = stripDeckImportPkg(pkg), verdict = sameOrTolerant(PKG, pkg, stripped, basePkg, PKG_CHANGES); ok(verdict.ok, `package.json is the base plus the one script (a later PR's scripts may be there too: every base line kept in order): ${verdict.reason}`) }
   ok(appendOnlyOver(PKG, pkg, basePkg), 'and an append-only change for the sibling pins')
   eq(JSON.parse(pkg).scripts['test:studio-deck-import'], 'node scripts/test-studio-deck-import.mjs'); deepEq(JSON.parse(pkg).dependencies, JSON.parse(basePkg).dependencies, 'no dependency added'); deepEq(JSON.parse(pkg).devDependencies, JSON.parse(basePkg).devDependencies)
-  eq(execFileSync('git', ['diff', '--name-only', BASE_COMMIT, '--', 'pnpm-lock.yaml', 'next.config.mjs', 'middleware.ts', 'vercel.json', 'prisma'], { cwd: root, encoding: 'utf8' }), '', 'no lock file, config or schema change')
+  eq(execFileSync('git', ['diff', '--name-only', CHANGE.base, CHANGE.head, '--', 'pnpm-lock.yaml', 'next.config.mjs', 'middleware.ts', 'vercel.json', 'prisma'], { cwd: root, encoding: 'utf8' }), '', 'no lock file, config or schema change (this PR\'s own diff; a later PR\'s is its own)')
 }
 
 // ================================================================ run
@@ -1327,6 +1379,8 @@ const real = await proveAll()
 const realChecks = checks
 const realMs = Date.now() - t0
 counting = false
+console.log(SCOPE_LINE)
+console.log(STACK_LINE)
 console.log(`flag-off layout sha256 ${real.layout.slice(0, 16)} (every shell/flag combination except shell+flag "true" renders these bytes)`)
 if (process.env.DECK_IMPORT_QUICK) { console.log(`Studio deck import (quick, mutants skipped): ${realChecks} checks passed in ${realMs} ms; no network.`); process.exit(0) }
 
@@ -1554,6 +1608,15 @@ const M = [
   [ENVFILE, 'env: an unlisted change to the example', 'NEXT_PUBLIC_STUDIO_KG_ASK="false"\n', 'NEXT_PUBLIC_STUDIO_KG_ASK="false" # changed\n', ['static']],
   [PKG, 'package: script renamed', '"test:studio-deck-import": "node scripts/test-studio-deck-import.mjs"', '"test:studio-deck-imports": "node scripts/test-studio-deck-import.mjs"', ['static']],
   [DASHBOARD, 'page: touched', 'export default function DashboardPage', 'export default function DashboardPage2', ['blobs']],
+  // a file this change edits, edited outside its flag-gated lines (the base's lines must all be there, in order; a later PR's added lines never excuse an edit)
+  [FIRSTRUN, 'first run: a base line edited outside the flag lines', '<Link href="/studio/templates" className="studio-first-run-link">', '<Link href="/studio/templates/all" className="studio-first-run-link">', ['blobs']],
+  [STAGE, 'stage: a base line edited outside the flag lines', 'export function StudioWelcomeStage(', 'export function StudioWelcomeStage2(', ['blobs']],
+  [POLICY, 'policy: a base line edited outside the flag lines', 'export function composerThemeSyncBlocked(', 'export function composerThemeSyncBlocked2(', ['blobs']],
+  [PAGE, 'page: a base line edited outside the flag lines', '  const templateSelectionLockedRef = useRef(false)\n', '  const templateSelectionLockedRef = useRef(true)\n', ['blobs']],
+  [PAGE, 'page: a base line dropped outside the flag lines', '  const templateSelectionLockedRef = useRef(false)\n', '', ['blobs']],
+  [PKG, 'package: a base script edited', '"test:studio-p2-polish": "node scripts/test-studio-p2-polish.mjs"', '"test:studio-p2-polish": "node scripts/test-studio-p2-polish-x.mjs"', ['static']],
+  [PKG, 'package: a base script dropped', '    "test:studio-p2-polish": "node scripts/test-studio-p2-polish.mjs",\n', '', ['static']],
+  [ENVFILE, 'env: a base line dropped', 'NEXT_PUBLIC_STUDIO_KG_ASK="false"\n', '', ['static']],
 ]
 const missing = M.filter(([file, , from]) => !(OVERFILE(file)).includes(from)).map(([file, name]) => `${file}: ${name}`)
 function OVERFILE(file) { return read(file) }
