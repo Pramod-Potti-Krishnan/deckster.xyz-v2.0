@@ -1,0 +1,84 @@
+{
+ "body": {
+  "composer_async_off": {
+   "body": {
+    "detail": {
+     "code": "IMPORT_UNAVAILABLE",
+     "message": "Deck import is not available right now."
+    }
+   },
+   "status": 503
+  },
+  "entitlement_w_missing_header": {
+   "body": {
+    "code": "ENTITLEMENT_REQUIRED",
+    "detail": "We could not confirm your sign-in for this request. Please reload the page and try again.",
+    "error": "We could not confirm your sign-in for this request. Please reload the page and try again.",
+    "retryable": false
+   },
+   "status": 401
+  },
+  "flag_off": {
+   "body": {
+    "detail": "Not Found"
+   },
+   "status": 404
+  },
+  "incomplete": {
+   "body": {
+    "detail": {
+     "code": "REQUEST_INVALID",
+     "message": "The import request is incomplete. Upload the file again."
+    }
+   },
+   "status": 422
+  },
+  "keynote": {
+   "body": {
+    "detail": {
+     "code": "FILE_NOT_PPTX",
+     "message": "Only PowerPoint (.pptx) files can be imported. Save the file as .pptx and try again."
+    }
+   },
+   "status": 422
+  },
+  "pdf": {
+   "body": {
+    "detail": {
+     "code": "FILE_IS_PDF",
+     "message": "Import the PowerPoint this PDF came from. PDF import is coming."
+    }
+   },
+   "status": 422
+  },
+  "session_mismatch": {
+   "body": {
+    "detail": {
+     "code": "SESSION_MISMATCH",
+     "message": "Upload must use the authenticated Builder session"
+    }
+   },
+   "status": 422
+  },
+  "session_not_fresh": {
+   "body": {
+    "detail": {
+     "code": "SESSION_NOT_FRESH",
+     "message": "A fresh Director session is required"
+    }
+   },
+   "status": 409
+  },
+  "storage_path": {
+   "body": {
+    "detail": {
+     "code": "STORAGE_REFERENCE_INVALID",
+     "message": "Invalid upload storage reference"
+    }
+   },
+   "status": 422
+  }
+ },
+ "description": "POST import-reference refusals: status and body for each",
+ "status": 200
+}

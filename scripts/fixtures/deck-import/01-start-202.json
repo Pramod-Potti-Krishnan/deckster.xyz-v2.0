@@ -1,0 +1,10 @@
+{
+ "body": {
+  "job_id": "stage-import-50b26aee-7a38-47f2-a77f-60de75a5afbb",
+  "poll": "/api/template-ingest/stage/jobs/stage-import-50b26aee-7a38-47f2-a77f-60de75a5afbb",
+  "session_id": "fresh-session",
+  "status": "queued"
+ },
+ "description": "POST /api/template-ingest/stage/import-reference accepted",
+ "status": 202
+}
