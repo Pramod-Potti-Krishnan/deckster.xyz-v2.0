@@ -49,6 +49,13 @@ function baseSource(rel) {
 // they hold lines this change never wrote. For those two (and only those) the base's lines must all still be there, in order, with nothing of this change left, and any extra line must be a comment, a
 // blank, an env line or a test script line (the rule scripts/test-studio-p2-polish.mjs and scripts/test-studio-p2-publish.mjs use). Every other file is held to the base byte for byte, as before.
 function appendOnlyOver(rel, text, baseText) {
+  if (rel === '.env.example') { // a flag's comment is prose that a later change may reword in place (PP-8 rewords the polish block's), so for .env.example what must survive, in order, is every env assignment of the base; every other line must be a comment or a blank
+    const assignment = line => /^[A-Z][A-Z0-9_]*=/.test(line)
+    const want = baseText.split('\n').filter(assignment), lines = text.split('\n')
+    let next = 0
+    for (const line of lines.filter(assignment)) if (next < want.length && line === want[next]) next++
+    return next === want.length && lines.every(line => /^\s*$|^\s*#/.test(line) || assignment(line)) && !lines.some(line => /DUPLICATE_DECK|duplicate-deck/.test(line))
+  }
   const norm = line => rel === 'package.json' ? line.replace(/,\s*$/, '') : line
   const want = baseText.split('\n').map(norm), extras = []
   let next = 0

@@ -658,7 +658,13 @@ await check(`identity: stripping this change gives back ${BASE_COMMIT.slice(0, 7
   const strip = await import('./studio-chat-element-refine-strip.mjs')
   assert.deepEqual(CHAT_ELEMENT_REFINE_FILES, ['.env.example', 'package.json', 'app/builder/page.tsx', HOOK, 'hooks/use-textlabs-generation.ts', 'types/mdc.ts'])
   assert.equal(JSON.parse(read('package.json')).scripts['test:studio-chat-element-refine'], 'node scripts/test-studio-chat-element-refine.mjs', 'registered in package.json')
-  assert.ok(read('.env.example').endsWith('NEXT_PUBLIC_CHAT_ELEMENT_REFINE="false"\n'), 'the flag block is the last block of .env.example')
+  // The flag's block appears once, after the base's Pass 3 blocks and before FRONTEND-1's PASS2 ADMIN block (its test applies mutants with lastIndexOf, so Admin and Docs stay last).
+  const env = read('.env.example'), line = 'NEXT_PUBLIC_CHAT_ELEMENT_REFINE="false"\n'
+  assert.equal(env.split(line).length, 2, 'the flag is documented once')
+  assert.ok(!env.includes('# PASS2 ADMIN') || env.indexOf(line) < env.indexOf('# PASS2 ADMIN'), 'the block sits before the PASS2 ADMIN block')
+  for (const phrase of ['an exact "true" turns it on', 'READ AT BUILD TIME: set it on Vercel', 'It needs no other flag', 'exact "true" enables it']) {
+    assert.ok(!env.slice(env.indexOf('# PASS3 REFINE AN ELEMENT FROM CHAT'), env.indexOf(line)).includes(phrase), `the block reuses no other block's phrase: ${phrase}`)
+  }
   for (const rel of CHAT_ELEMENT_REFINE_FILES) {
     const head = read(rel)
     for (const [added] of strip.CHAT_ELEMENT_REFINE_CHANGES[rel]) assert.equal(head.split(added).length, 2, `${rel}: one occurrence`)

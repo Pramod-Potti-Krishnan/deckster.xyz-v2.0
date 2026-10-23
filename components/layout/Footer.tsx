@@ -2,6 +2,11 @@
 
 import Link from 'next/link';
 import { Shield, Lock, Award, Heart } from 'lucide-react';
+import { studioDocsHiddenHref } from '@/lib/studio-p2-docs';
+
+// PASS2 Docs (NEXT_PUBLIC_STUDIO_P2_DOCS, default off): /docs/api is not available yet, and /integrations and /agents are redirects, so with the flag on neither footer links them. Off: every link as before.
+const STUDIO_P2_DOCS = process.env.NEXT_PUBLIC_STUDIO_P2_DOCS === 'true';
+const linked = (href: string) => !(STUDIO_P2_DOCS && studioDocsHiddenHref(href));
 
 interface FooterProps {
   /**
@@ -111,7 +116,7 @@ export function Footer({ compact = false }: FooterProps = {}) {
             <h3 className="font-semibold mb-4">Product</h3>
             <ul className="space-y-3">
               <li><Link href="/pricing" className="text-sm text-muted-foreground hover:text-foreground transition-colors">Pricing</Link></li>
-              <li><Link href="/agents" className="text-sm text-muted-foreground hover:text-foreground transition-colors">AI Agents</Link></li>
+              {linked('/agents') && <li><Link href="/agents" className="text-sm text-muted-foreground hover:text-foreground transition-colors">AI Agents</Link></li>}
               <li><Link href="/templates" className="text-sm text-muted-foreground hover:text-foreground transition-colors">Templates</Link></li>
               <li><Link href="/builder" className="text-sm text-muted-foreground hover:text-foreground transition-colors">Builder</Link></li>
             </ul>
@@ -129,7 +134,7 @@ export function Footer({ compact = false }: FooterProps = {}) {
           <div>
             <h3 className="font-semibold mb-4">Resources</h3>
             <ul className="space-y-3">
-              {footerLinks.resources.map((link) => (
+              {footerLinks.resources.filter((link) => linked(link.href)).map((link) => (
                 <li key={link.name}>
                   <Link
                     href={link.href}
@@ -225,7 +230,7 @@ function CompactFooter() {
           aria-label="Footer"
           className="order-1 flex flex-wrap items-center justify-center gap-x-4 gap-y-1.5 text-xs sm:order-2 sm:gap-x-5"
         >
-          {links.map((l) => (
+          {links.filter((l) => linked(l.href)).map((l) => (
             <Link
               key={l.href}
               href={l.href}

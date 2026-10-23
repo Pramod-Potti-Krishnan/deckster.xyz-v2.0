@@ -22,7 +22,7 @@ import path from 'node:path'
 import { spawnSync } from 'node:child_process'
 import { fileURLToPath } from 'node:url'
 import { LIBRARY_MANAGE_ADDITIONS, THEME_HOOK, THEMES_WORKSPACE, TEMPLATES_WORKSPACE, ENV_FILE, LIBRARY_MANAGE_NEW_FILES, stripLibraryManage } from './studio-library-manage-strip.mjs'
-import { BASE_COMMIT, STACKED_PASS3_FILES, baseSource, createRuntime, deferred, flat, isBaseFile, jsxRuntime, loadSource, makeReader, plain, refuse, root, sha, text, tick } from './studio-library-manage-harness.mjs'
+import { BASE_COMMIT, STACKED_P2_FILES, STACKED_PASS3_FILES, baseSource, createRuntime, deferred, flat, isBaseFile, jsxRuntime, loadSource, makeReader, plain, refuse, root, sha, text, tick } from './studio-library-manage-harness.mjs'
 
 const here = fileURLToPath(import.meta.url)
 const FLAG = 'NEXT_PUBLIC_STUDIO_THEME_LIBRARY_MANAGE'
@@ -448,8 +448,8 @@ function mountWorkspace({ source = WORKSPACE_SOURCE, flag, themes = [EVERGREEN, 
     for (const [rel, table] of Object.entries(LIBRARY_MANAGE_ADDITIONS)) for (const [added] of table) is(read(rel).split(added).length - 1, 1, `${rel}: each added literal occurs exactly once (${added.slice(0, 40).replace(/\n/g, ' ')}…)`)
     // ---- nothing else moved
     const changed = spawnSync('git', ['diff', '--name-only', BASE_COMMIT, '--', 'app', 'components', 'lib', 'hooks', 'middleware.ts'], { cwd: root, encoding: 'utf8' }).stdout.split('\n').filter(Boolean)
-    const allowed = new Set([THEMES_WORKSPACE, TEMPLATES_WORKSPACE, THEME_HOOK, ...LIBRARY_MANAGE_NEW_FILES, ...STACKED_PASS3_FILES])
-    ok(changed.every(file => allowed.has(file)), `this change touches only the two workspaces, the theme hook and its own three new files (the other Pass 3 changes' files may be stacked on it): ${changed.filter(file => !allowed.has(file)).join(', ') || 'ok'}`)
+    const allowed = new Set([THEMES_WORKSPACE, TEMPLATES_WORKSPACE, THEME_HOOK, ...LIBRARY_MANAGE_NEW_FILES, ...STACKED_PASS3_FILES, ...STACKED_P2_FILES])
+    ok(changed.every(file => allowed.has(file)), `this change touches only the two workspaces, the theme hook and its own three new files (the other Pass 3 changes' files and the Pass 2 pages' files may be stacked on it): ${changed.filter(file => !allowed.has(file)).join(', ') || 'ok'}`)
     ok(!changed.includes('components/builder/chat-input.tsx') && !changed.some(file => /^app\/api\/(templates|themes)\//.test(file)), 'chat-input.tsx and every API proxy are untouched')
     is(read(PAGE), baseSource(PAGE)); is(read('app/(app)/studio/templates/page.tsx'), baseSource('app/(app)/studio/templates/page.tsx'))
   }

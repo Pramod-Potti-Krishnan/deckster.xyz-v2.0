@@ -41,10 +41,12 @@ const baseSource = (rel, commit = BASE_COMMIT) => {
 // this change never wrote. For it (and only it) the base's lines must all still be there, in order, with nothing of this change left, and any extra line must be a comment, a blank or an env line (the rule
 // scripts/test-studio-p2-polish.mjs and scripts/test-studio-p2-publish.mjs use). Every other file is held to the base byte for byte, as before.
 function appendOnlyOver(text, baseText) {
-  const want = baseText.split('\n'), extras = []
+  // a flag's comment is prose that a later change may reword in place (PP-8 rewords the polish block's), so for .env.example what must survive, in order, is every env assignment of the base; every other line must be a comment or a blank
+  const assignment = line => /^[A-Z][A-Z0-9_]*=/.test(line)
+  const want = baseText.split('\n').filter(assignment), lines = text.split('\n')
   let next = 0
-  for (const line of text.split('\n')) { if (next < want.length && line === want[next]) next++; else extras.push(line) }
-  return next === want.length && extras.every(line => /^\s*$|^\s*#|^[A-Z][A-Z0-9_]*=/.test(line)) && !extras.some(line => line.includes('STUDIO_KG_ASK'))
+  for (const line of lines.filter(assignment)) if (next < want.length && line === want[next]) next++
+  return next === want.length && lines.every(line => /^\s*$|^\s*#/.test(line) || assignment(line)) && !lines.some(line => line.includes('STUDIO_KG_ASK'))
 }
 let checks = 0
 let counting = true
@@ -775,8 +777,8 @@ function proveEnv(source, label = 'env') {
   match(body, /RESEARCHER_KG_RETRIEVAL_ENABLED/, `${label}: says what the Researcher needs`)
   match(body, /one text embedding/, `${label}: says what a question costs`)
   const base = baseSource(ENV).split('\n')
-  const kept = base.filter(line => !lines.includes(line))
-  eq(kept.length, 0, `${label}: every line of the base's example is still there`)
+  const kept = base.filter(line => /^[A-Z][A-Z0-9_]*=/.test(line) && !lines.includes(line)) // the base's env assignments; its comment prose may be reworded by a later change
+  eq(kept.length, 0, `${label}: every env assignment of the base's example is still there`)
 }
 
 // ---------------------------------------------------------------- 5b. the strip table: nothing else of the two shared files is changed
