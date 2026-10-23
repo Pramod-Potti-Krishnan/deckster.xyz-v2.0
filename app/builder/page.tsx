@@ -93,6 +93,8 @@ import type { ElementGenerationSubmitIntent } from '@/lib/element-generation-ret
 import { useGenerationPanel } from '@/hooks/use-generation-panel'
 import { useElementRefinement } from '@/hooks/use-element-refinement'
 import { shouldOpenAsBlankPlaceholder } from '@/lib/element-blank-policy'
+// NEXT_PUBLIC_CHAT_ELEMENT_REFINE (default off): refine the selected element from chat (lib/chat-element-refine.ts).
+import { CHAT_ELEMENT_REFINE_ENABLED, chatElementReferenceFor, runElementRefineDirective, type ChatElementSelection, type ElementRefineDirectiveMessage, type ElementRefineDirectiveOwner } from '@/lib/chat-element-refine'
 import { isTextLabsMappable } from '@/lib/element-type-mapping'
 import { useBlankElements } from '@/hooks/use-blank-elements'
 import { useTextLabsSession } from '@/hooks/use-textlabs-session'
@@ -664,6 +666,9 @@ function AuthenticatedBuilderContent({ authScopeUserId }: { authScopeUserId: str
   // MDC P8: late-bound element-directive runner (defined after the Text Labs
   // hook below; the WS options are declared earlier).
   const elementDirectiveRunnerRef = useRef<((payload: import('@/types/mdc').ElementDirectivePayload) => void) | null>(null)
+  // NEXT_PUBLIC_CHAT_ELEMENT_REFINE: the late-bound refine runner (beside the add runner below) and the selection a send names.
+  const elementRefineDirectiveRunnerRef = useRef<((message: ElementRefineDirectiveMessage, owner: ElementRefineDirectiveOwner) => void) | null>(null)
+  const chatElementSelectionRef = useRef<ChatElementSelection | null>(null)
   const templateSelectionLockedRef = useRef(false)
   const [templateModeOn, setTemplateModeOn] = useState(false)
   const studioFormatTemplateModeRef = useRef(templateModeOn)
@@ -2563,6 +2568,13 @@ function AuthenticatedBuilderContent({ authScopeUserId }: { authScopeUserId: str
     onElementDirective: (payload) => {
       elementDirectiveRunnerRef.current?.(payload)
     },
+    // NEXT_PUBLIC_CHAT_ELEMENT_REFINE: the refine directive's runner and the element reference of a send. Off: not passed.
+    ...(CHAT_ELEMENT_REFINE_ENABLED ? {
+      onElementRefineDirective: (message: ElementRefineDirectiveMessage, owner: ElementRefineDirectiveOwner) => {
+        elementRefineDirectiveRunnerRef.current?.(message, owner)
+      },
+      getChatElementReference: () => chatElementReferenceFor(chatElementSelectionRef.current),
+    } : {}),
     onSessionDirective: (payload) => {
       if (payload.directive !== 'new_session') return
       const prefill = (payload.prefill_prompt || '').trim()
@@ -5017,7 +5029,7 @@ function AuthenticatedBuilderContent({ authScopeUserId }: { authScopeUserId: str
   const handleApprovedTextLabsGenerate = useCallback(async (
     formData: TextLabsFormData,
     submitIntent: ElementGenerationSubmitIntent,
-    invocation?: { kind: 'chat-add'; slideIndex: number },
+    invocation?: { kind: 'chat-add'; slideIndex: number } | import('@/lib/chat-element-refine').ChatRefineInvocation, // chat-refine: NEXT_PUBLIC_CHAT_ELEMENT_REFINE
   ): Promise<TextLabsGenerationResult> => {
     if (!layoutServiceApis?.sendElementCommand) {
       generationPanel.setError('The presentation viewer is unavailable. Reload the presentation and try again.')
@@ -5151,6 +5163,53 @@ function AuthenticatedBuilderContent({ authScopeUserId }: { authScopeUserId: str
         report('failed', error instanceof Error ? error.message : 'generation failed')
       }
     })()
+  }
+
+  // NEXT_PUBLIC_CHAT_ELEMENT_REFINE: the selection a chat send names (one element reference), with the slide it was selected on. The
+  // viewer only lets you select on the slide it shows, so that slide is the element's. Cleared with the selection. Off: nothing is kept.
+  useEffect(() => {
+    if (!CHAT_ELEMENT_REFINE_ENABLED) return
+    if (selectedTextBoxId) {
+      const slideIndex = currentSlideIndexRef.current
+      const slideId = (slideStructure?.slides?.[slideIndex] as { slide_id?: unknown } | undefined)?.slide_id
+      chatElementSelectionRef.current = { elementId: selectedTextBoxId, elementType: 'TEXT_BOX', slideIndex, slideId: typeof slideId === 'string' ? slideId : null }
+    } else if (chatElementSelectionRef.current?.elementType === 'TEXT_BOX') chatElementSelectionRef.current = null
+  }, [selectedTextBoxId]) // eslint-disable-line react-hooks/exhaustive-deps -- recorded when the selection changes, not when the deck does
+  useEffect(() => {
+    if (!CHAT_ELEMENT_REFINE_ENABLED) return
+    if (selectedElementId) {
+      const slideIndex = currentSlideIndexRef.current
+      const slideId = (slideStructure?.slides?.[slideIndex] as { slide_id?: unknown } | undefined)?.slide_id
+      chatElementSelectionRef.current = { elementId: selectedElementId, elementType: selectedElementType, slideIndex, slideId: typeof slideId === 'string' ? slideId : null }
+    } else if (chatElementSelectionRef.current && chatElementSelectionRef.current.elementType !== 'TEXT_BOX') chatElementSelectionRef.current = null
+  }, [selectedElementId, selectedElementType]) // eslint-disable-line react-hooks/exhaustive-deps -- as above
+
+  // NEXT_PUBLIC_CHAT_ELEMENT_REFINE: Director's element_refine_directive, beside the add runner above and on the same owner record. It reads
+  // the element's refine payload from the viewer (requestElementRefine, layout-builder !245), runs the Element panel's own refine
+  // (handleApprovedTextLabsGenerate with kind 'chat-refine') and answers element_directive_result on the socket that delivered it, with
+  // a known status every time. Studio adds no chat line of its own: Director closes the turn. Off: no runner.
+  const chatElementRefineInFlightRef = useRef(false)
+  elementRefineDirectiveRunnerRef.current = !CHAT_ELEMENT_REFINE_ENABLED ? null : (message, owner) => {
+    const another = chatElementRefineInFlightRef.current
+    if (!another) chatElementRefineInFlightRef.current = true
+    void runElementRefineDirective(message, owner, {
+      displayed: () => elementDirectiveGenerationOwnerRef.current,
+      isBusy: () => another || generationPanel.hasActiveGenerations || generationPanel.getSnapshot().isOpen,
+      slideCount: () => slideStructure?.slides?.length ?? 0,
+      currentSlideIndex: () => currentSlideIndexRef.current,
+      goToSlide: layoutServiceApis?.goToSlide ?? null,
+      sendElementCommand: layoutServiceApis?.sendElementCommand ?? null,
+      componentTypeOf: payload => normalizeTextLabsElementType(payload.componentType ?? payload.elementType),
+      isBlankPlaceholder: payload => shouldOpenAsBlankPlaceholder(payload as unknown as RefineElementRequest,
+        blankElements.getElement(String(payload.elementId))?.componentType),
+      buildRefineContext: (payload, componentType) => buildRefineContext(payload as unknown as RefineElementRequest, componentType),
+      generate: (formData, invocation) => handleApprovedTextLabsGenerate(formData, 'generate', invocation),
+      settle: () => new Promise(resolve => setTimeout(resolve, 400)),
+    }).then(result => {
+      if (owner.isCurrent()) sendElementDirectiveResult(result)
+    }).finally(() => {
+      if (!another) chatElementRefineInFlightRef.current = false
+    })
   }
 
   // File upload state

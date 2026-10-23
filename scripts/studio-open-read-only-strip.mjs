@@ -3,6 +3,7 @@
 // J2-04 status lines (scripts/studio-add-slide-status-strip.mjs). scripts/test-studio-open-read-only.mjs proves the strip and that every addition is inert with the flag off.
 
 import { stripDuplicateDeck } from './studio-duplicate-deck-strip.mjs'
+import { stripChatElementRefine } from './studio-chat-element-refine-strip.mjs'
 
 export const PAGE = 'app/builder/page.tsx'
 
@@ -17,5 +18,6 @@ const PAGE_ADDITIONS = [
 export function stripOpenReadOnly(rel, text) {
   if (rel !== PAGE) return text
   // FRONTEND-2 Pass 3 (NEXT_PUBLIC_STUDIO_DUPLICATE_DECK): that flag's import and gated element come out too (scripts/studio-duplicate-deck-strip.mjs), so a pin that holds the page to a base commit with this strip alone still sees the base.
-  return PAGE_ADDITIONS.reduce((result, [added, original]) => result.replace(added, original), stripDuplicateDeck(rel, text))
+  // FRONTEND-2 Pass 3 (NEXT_PUBLIC_CHAT_ELEMENT_REFINE): that flag's gated lines come out too (scripts/studio-chat-element-refine-strip.mjs), so a pin that holds the page to a base commit with this strip alone still sees the base.
+  return PAGE_ADDITIONS.reduce((result, [added, original]) => result.replace(added, original), stripDuplicateDeck(rel, stripChatElementRefine(rel, text)))
 }

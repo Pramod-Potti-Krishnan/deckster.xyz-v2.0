@@ -5,6 +5,7 @@
 // every addition is inert with the flag off.
 
 import { stripDuplicateDeck } from './studio-duplicate-deck-strip.mjs'
+import { stripChatElementRefine } from './studio-chat-element-refine-strip.mjs'
 
 export const PAGE = 'app/builder/page.tsx'
 export const RESTORE = 'lib/studio-theme-restore.ts'
@@ -38,5 +39,6 @@ const RESTORE_ADDITIONS = [
 export function stripDarkPersist(rel, text) {
   const additions = rel === PAGE ? PAGE_ADDITIONS : rel === RESTORE ? RESTORE_ADDITIONS : null
   // FRONTEND-2 Pass 3 (NEXT_PUBLIC_STUDIO_DUPLICATE_DECK): that flag's import and gated element come out first (scripts/studio-duplicate-deck-strip.mjs).
-  return additions ? additions.reduce((out, [from, to]) => out.replace(from, () => to), stripDuplicateDeck(rel, text)) : text
+  // FRONTEND-2 Pass 3 (NEXT_PUBLIC_CHAT_ELEMENT_REFINE): that flag's gated lines come out first (scripts/studio-chat-element-refine-strip.mjs).
+  return additions ? additions.reduce((out, [from, to]) => out.replace(from, () => to), stripDuplicateDeck(rel, stripChatElementRefine(rel, text))) : text
 }
