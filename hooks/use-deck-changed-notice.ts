@@ -4,6 +4,7 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import { getLayoutServiceUrl } from '@/lib/layout-service-client'
 import { fetchSlideInventory } from '@/lib/slide-rail-identity'
 import {
+  STUDIO_RECONNECT_RESYNC_ENABLED,
   createDeckChangedController,
   getDeckChangedTabId,
   getViewerDeckState,
@@ -24,17 +25,21 @@ const INVENTORY_TIMEOUT_MS = 8_000
  *
  * `enabled` false (the flag is off, or there is no session / deck yet) creates nothing: no channel, no listener, no request.
  * `onReload` is the page's existing deck reload; it runs only from the user's click on "Reload deck".
+ * P3-4 (NEXT_PUBLIC_STUDIO_RECONNECT_RESYNC): `connectionGeneration` is Director's socket counter (+1 per successful open). A rise
+ * for the same session and deck is a reconnect: one inventory read, then a reload when the deck changed and nothing is unsaved.
  */
 export function useDeckChangedNotice({
   enabled,
   sessionId,
   presentationId,
   onReload,
+  connectionGeneration,
 }: {
   enabled: boolean
   sessionId: string | null | undefined
   presentationId: string | null | undefined
   onReload: () => void
+  connectionGeneration?: number
 }): { notice: DeckChangedNotice | null; unsaved: boolean; reload: () => void; dismiss: () => void } {
   const [notice, setNotice] = useState<DeckChangedNotice | null>(null)
   const [unsaved, setUnsaved] = useState(false)
@@ -71,6 +76,7 @@ export function useDeckChangedNotice({
       },
       getViewerState: getViewerDeckState,
       onNotice: setNotice,
+      ...(STUDIO_RECONNECT_RESYNC_ENABLED && { onResync: () => onReloadRef.current() }),
       doc: typeof document !== 'undefined' ? document : null,
       win: typeof window !== 'undefined' ? window : null,
     })
@@ -89,6 +95,17 @@ export function useDeckChangedNotice({
       setNotice(null)
     }
   }, [active, sessionId, presentationId])
+
+  // P3-4: the first generation seen for a session + deck is its page-load connection, not a reconnect.
+  const generationSeenRef = useRef<{ key: string; generation: number } | null>(null)
+  useEffect(() => {
+    if (!STUDIO_RECONNECT_RESYNC_ENABLED || !active || typeof connectionGeneration !== 'number') return
+    const key = `${sessionId}|${presentationId}`
+    const seen = generationSeenRef.current
+    generationSeenRef.current = { key, generation: connectionGeneration }
+    if (!seen || seen.key !== key || connectionGeneration <= seen.generation) return
+    void controllerRef.current?.resyncAfterReconnect()
+  }, [active, sessionId, presentationId, connectionGeneration])
 
   const reload = useCallback(() => {
     controllerRef.current?.markReloaded()
