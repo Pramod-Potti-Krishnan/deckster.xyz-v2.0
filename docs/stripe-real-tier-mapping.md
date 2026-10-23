@@ -38,13 +38,34 @@ base plans. Unknown add-on prices may appear before or after that one base plan.
 recognized items fail even if they use the same price or the same tier. An expanded matched
 product is persisted using its string ID.
 
-A missing, blank or ambiguous configuration; missing or empty items; an unknown-only
-subscription; multiple recognized items; pagination; or a missing matched product ID throws
-before any database or wallet writes. The existing webhook error boundary responds with
-HTTP 500 and `{ "error": "Webhook processing failed" }`, allowing a later webhook retry.
+## When the plan cannot be resolved
+
+A missing, blank or ambiguous configuration (for example one price ID under two plans);
+missing or empty items; an unknown-only subscription (an unknown price ID); multiple
+recognized base-plan items; pagination; or a missing matched product ID is not an error.
+The mapping is validated before any database or wallet write, and a subscription it cannot
+resolve falls back to exactly the flag-off path:
+
+- `customer.subscription.created` stores tier `pro` (and the legacy billing cycle);
+- `customer.subscription.updated` writes no `tier` and no `billingCycle`, as before;
+- the user row gets the legacy tier, and the response is HTTP 200 `{ "received": true }`.
+
+(A payload with no items list at all fails in the flag-off route too, because it reads
+`subscription.items.data`; that stays an HTTP 500, now with the warning.)
+
+The webhook logs one `console.warn` line, `[stripe-real-tier] plan not resolved (<reason>),
+keeping the legacy tier; price ids: <ids>`, naming the reason (`price-config-missing`,
+`price-config-ambiguous`, `items-incomplete`, `no-item`, `unknown-price`,
+`multiple-base-plan-items` or `product-id-missing`) and the subscription's price IDs only:
+no email, user ID, customer ID, subscription ID or secret. It answers 200 so that Stripe does
+not retry a subscription that a retry cannot fix; fix the price-ID configuration or add the
+new price and replay `customer.subscription.updated` to store the real tier. A failure that
+is not a mapping failure (a database error, say) still returns HTTP 500 and is retried.
 The webhook does not make a remote lookup to guess or fetch a missing plan.
 
-For a valid subscription, both arms of the subscription upsert store the mapped `tier` and
+## Mapped subscriptions
+
+For a resolved subscription, both arms of the subscription upsert store the mapped `tier` and
 `billingCycle`, alongside the matched base plan's price and product. This updates existing
 rows during upgrades, downgrades and monthly/yearly switches. Active and trialing users get
 the mapped tier. Other statuses retain the existing user downgrade to `free` while the
@@ -81,15 +102,27 @@ loading a Stripe client.
 
 Coverage includes all six plans on created/updated events; active/trialing and inactive
 statuses; sequential upgrades/downgrades/cycle changes; add-on order and expanded products;
-invalid selection/configuration with zero writes; spoofed descriptors; customer fallback;
+unresolvable selection/configuration falling back to the exact flag-off writes with one
+warning and no personal data; spoofed descriptors; customer fallback;
 the existing quota consumer for Max; missing/invalid signatures; deletion; checkout;
 duplicate wallet credit; invoice success/failure and the existing duplicate-invoice retry.
 
 For disabled-mode proof, the script independently loads the exact route from git commit
-`55cef1d29341ed9cf4bc1c1d93657e644ded4de4`. It compares HTTP responses, database/wallet
-payloads and final in-memory state across ten off values, and verifies there are no new
-price configuration reads or resolver calls. That baseline commit must exist in local git
-history.
+`c1a7378752f6d7c90baecefb5a07fc33f4c9d6cd` (the base this change is stacked on). It compares
+HTTP responses, database/wallet payloads and final in-memory state across ten off values, and
+verifies there are no new price configuration reads or resolver calls. The same baseline is
+the reference for the fallback cases: with the flag on, an unresolvable subscription must
+produce the baseline's exact response and writes, plus one warning. That baseline commit must
+exist in local git history.
+
+The Pass 3 pins that hold `.env.example` to an earlier commit read it through
+`scripts/studio-stripe-real-tier-strip.mjs`, which takes this change's block out again; the
+proof checks that doing so gives back the base's file byte for byte.
+
+`node scripts/test-stripe-real-tier-webhook.mjs --mutation-check` runs the proof once clean
+and then once per mutant (a wrong flag check, a wrong tier, a missing update-arm write, a
+fallback that throws, a fallback that writes a mapped tier, a warning that names the user);
+every mutant must make the proof fail.
 
 The local worker proof ran on Node **24.4.1**, TypeScript **5.9.3**, with existing read-only
 Stripe **17.4.0** declarations. Node 22, full application checks and connected Stripe or

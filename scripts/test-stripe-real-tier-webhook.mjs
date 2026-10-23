@@ -4,9 +4,14 @@
  * and the pinned Stripe 17.4.0 declarations are read from an existing dependency directory.
  * Set DECKSTER_TEST_DEPENDENCY_PACKAGE to that checkout's package.json if this worktree has
  * no node_modules. The exact git baseline is executed separately for OFF parity.
+ *
+ * With the flag on, a subscription whose plan cannot be resolved takes exactly the flag-off path
+ * (tier 'pro' on create; no tier or billingCycle on update) and logs one warning; the baseline run
+ * is the reference for that too. `--mutation-check` re-runs this proof against deliberately broken
+ * copies of the route and resolver (in memory; the files are untouched) and requires each to fail.
  */
 import assert from 'node:assert/strict'
-import { execFileSync } from 'node:child_process'
+import { execFileSync, spawnSync } from 'node:child_process'
 import crypto from 'node:crypto'
 import fs from 'node:fs'
 import { createRequire } from 'node:module'
@@ -17,7 +22,7 @@ import { fileURLToPath } from 'node:url'
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..')
 const dependencyRequire = createRequire(process.env.DECKSTER_TEST_DEPENDENCY_PACKAGE || path.join(ROOT, 'package.json'))
 const ts = dependencyRequire('typescript')
-const BASE = '55cef1d29341ed9cf4bc1c1d93657e644ded4de4'
+const BASE = 'c1a7378752f6d7c90baecefb5a07fc33f4c9d6cd'
 const ROUTE = 'app/api/webhooks/stripe/route.ts'
 const HELPER = 'lib/stripe/subscription-plan.ts'
 const FLAG = 'STRIPE_REAL_TIER_MAPPING_ENABLED'
@@ -49,8 +54,61 @@ const eq = (actual, expected, message) => { assert.deepEqual(norm(actual), norm(
 const ok = (value, message) => { assert.ok(value, message); checks++ }
 const fails = (action, message) => { assert.throws(action, undefined, message); checks++ }
 const read = relative => fs.readFileSync(path.join(ROOT, relative), 'utf8')
+
+// Mutation check: each mutant breaks one behaviour in an in-memory copy of the route or resolver.
+// `from` must occur exactly once (otherwise the mutant is a no-op and the run exits 3, not "caught").
+const MUTANTS = {
+  'flag on unless exactly false': [ROUTE, `process.env.${FLAG} === 'true'`, `process.env.${FLAG} !== 'false'`],
+  'flag accepts any case': [ROUTE, `process.env.${FLAG} === 'true'`, `String(process.env.${FLAG}).toLowerCase() === 'true'`],
+  'Max stored as max': [HELPER, `['STRIPE_MAX_MONTHLY_PRICE_ID', 'premium', 'monthly']`, `['STRIPE_MAX_MONTHLY_PRICE_ID', 'max', 'monthly']`],
+  'Starter yearly stored as monthly': [HELPER, `['STRIPE_STARTER_YEARLY_PRICE_ID', 'starter', 'yearly']`, `['STRIPE_STARTER_YEARLY_PRICE_ID', 'starter', 'monthly']`],
+  'Pro yearly stored as Starter': [HELPER, `['STRIPE_PRO_YEARLY_PRICE_ID', 'pro', 'yearly']`, `['STRIPE_PRO_YEARLY_PRICE_ID', 'starter', 'yearly']`],
+  'update arm never writes the tier': [ROUTE, `...(mappedPlan ? { tier, billingCycle } : {}),`, ``],
+  'update arm always writes the tier': [ROUTE, `...(mappedPlan ? { tier, billingCycle } : {}),`, `tier, billingCycle,`],
+  'fallback tier is not pro': [ROUTE, `let tier = 'pro'`, `let tier = 'starter'`],
+  'fallback throws instead of continuing': [ROUTE, 'console.warn(`[stripe-real-tier]', 'throw new Error(`[stripe-real-tier]'],
+  'fallback is silent': [ROUTE, 'console.warn(`[stripe-real-tier]', 'void (`[stripe-real-tier]'],
+  'fallback warns twice': [ROUTE, `if (resolution && !resolution.ok) {`, `if (resolution && !resolution.ok) { console.warn('[stripe-real-tier] again');`],
+  'warning names the user': [ROUTE, `price ids: \${resolution.priceIds.join(', ') || 'none'}`, `price ids: \${resolution.priceIds.join(', ') || 'none'} user \${subscription.metadata.userId}`],
+  'warning names the customer': [ROUTE, `price ids: \${resolution.priceIds.join(', ') || 'none'}`, `price ids: \${resolution.priceIds.join(', ') || 'none'} \${subscription.customer}`],
+  'warning omits the price ids': [ROUTE, `price ids: \${resolution.priceIds.join(', ') || 'none'}`, `price ids: none`],
+  'duplicate price ids not detected': [HELPER, `if (prices.has(priceId)) {`, `if (false) {`],
+  'blank price id not detected': [HELPER, `if (!priceId || priceId.trim() !== priceId) {`, `if (!priceId) {`],
+  'pagination not detected': [HELPER, `items.has_more !== false || `, ``],
+  'second base-plan item allowed': [HELPER, `if (recognizedItems.length !== 1) {`, `if (recognizedItems.length < 1) {`],
+  'missing product id allowed': [HELPER, `if (!productId || productId.trim() !== productId) {`, `if (false) {`],
+  'non-mapping faults swallowed': [HELPER, `if (!(error instanceof StripePlanMappingError)) throw error`, ``],
+}
+const MUTANT = process.env.STRIPE_TIER_TEST_MUTANT
+const source = relative => {
+  const text = read(relative)
+  if (!MUTANT) return text
+  const [file, from, to] = MUTANTS[MUTANT] ?? (console.error(`Unknown mutant ${MUTANT}`), process.exit(3))
+  if (file !== relative) return text
+  if (text.split(from).length !== 2) { console.error(`Mutant "${MUTANT}" is a no-op: its target text is not in ${relative} exactly once`); process.exit(3) }
+  return text.replace(from, () => to)
+}
+
+if (process.argv.includes('--mutation-check')) {
+  // One child at a time: the clean run must pass, every mutant must fail (exit 1, not a no-op exit 3).
+  const run = mutant => spawnSync(process.execPath, [fileURLToPath(import.meta.url)], {
+    cwd: ROOT, encoding: 'utf8', env: { ...process.env, ...(mutant ? { STRIPE_TIER_TEST_MUTANT: mutant } : {}) },
+  })
+  const clean = run()
+  assert.equal(clean.status, 0, `The unmutated proof must pass first:\n${clean.stderr || clean.stdout}`)
+  let escaped = 0
+  for (const mutant of Object.keys(MUTANTS)) {
+    const result = run(mutant)
+    const caught = result.status === 1
+    const reason = (result.stderr.match(/AssertionError[^\n]*\n?[^\n]*|Error[^\n]*/) || [''])[0].replace(/\s+/g, ' ').slice(0, 150)
+    console.log(`${caught ? 'caught ' : 'ESCAPED'}  ${mutant}${caught ? `  <- ${reason}` : ` (exit ${result.status})`}`)
+    if (!caught) escaped++
+  }
+  console.log(`Mutation check: ${Object.keys(MUTANTS).length - escaped}/${Object.keys(MUTANTS).length} mutants caught; the unmutated proof passes.`)
+  process.exit(escaped ? 1 : 0)
+}
 const baselineSource = execFileSync('git', ['show', `${BASE}:${ROUTE}`], { cwd: ROOT, encoding: 'utf8' })
-const routeSource = read(ROUTE)
+const routeSource = source(ROUTE)
 
 function load(source, filename, imports = {}, globals = {}) {
   const compiled = ts.transpileModule(source, {
@@ -79,11 +137,12 @@ function load(source, filename, imports = {}, globals = {}) {
   return module.exports
 }
 
-const helper = load(read(HELPER), HELPER)
+const helper = load(source(HELPER), HELPER)
 const item = (priceId, product = 'prod_fixture_base') => ({ price: { id: priceId, product } })
 const items = data => ({ data, has_more: false })
+const PII_EMAIL = 'fixture.person@example.invalid'
 const subscription = (patch = {}) => ({
-  id: 'sub_fixture', customer: 'cus_fixture', metadata: { userId: 'user_fixture' },
+  id: 'sub_fixture', customer: 'cus_fixture', metadata: { userId: 'user_fixture', email: PII_EMAIL },
   status: 'active', items: items([item(ENV.STRIPE_PRO_MONTHLY_PRICE_ID)]),
   current_period_start: 1790000000, current_period_end: 1792678400,
   cancel_at_period_end: false, canceled_at: null, trial_start: null, trial_end: null,
@@ -105,6 +164,7 @@ function runtime(source = routeSource, values = {}, options = {}) {
   const environmentReads = []
   let helperCalls = 0
   let signatureCalls = 0
+  const warnings = []
   const users = new Map(options.noUser ? [] : [['cus_fixture', { id: 'user_fixture', tier: 'free', walletBalanceCents: 0 }]])
   const subscriptions = new Map(options.existing ? [['sub_fixture', { userId: 'user_fixture', tier: 'premium', billingCycle: 'yearly' }]] : [])
   const payments = new Map()
@@ -176,15 +236,15 @@ function runtime(source = routeSource, values = {}, options = {}) {
       user.walletBalanceCents += args.amountCents
       return { balanceAfterCents: user.walletBalanceCents }
     } },
-    '@/lib/stripe/subscription-plan': { resolveStripeSubscriptionPlan: (...args) => {
+    '@/lib/stripe/subscription-plan': { tryResolveStripeSubscriptionPlan: (...args) => {
       helperCalls++
-      return helper.resolveStripeSubscriptionPlan(...args)
+      return helper.tryResolveStripeSubscriptionPlan(...args)
     } },
-  }, { process: { env } })
+  }, { process: { env }, console: { log() {}, error() {}, warn: (...args) => { warnings.push(args.map(String).join(' ')) } } })
   let currentSignature
   let currentBody
   return {
-    calls, environmentReads, users, subscriptions, payments,
+    calls, environmentReads, users, subscriptions, payments, warnings,
     get helperCalls() { return helperCalls },
     get signatureCalls() { return signatureCalls },
     async post(payload, signature = SIGNATURE) {
@@ -247,59 +307,113 @@ for (const planItems of [
   eq(rt.subscriptions.get('sub_fixture').stripeProductId, planItems.find(i => i.price.id === ENV.STRIPE_STARTER_YEARLY_PRICE_ID).price.product.id ?? 'prod_fixture_base', 'The recognized base plan supplies the persisted product ID')
 }
 
-const invalidSelections = [
-  ['empty items', items([])],
-  ['unknown price', items([item('price_fixture_unknown')])],
-  ['empty price', items([item('')])],
-  ['two recognized prices', items([item(ENV.STRIPE_STARTER_MONTHLY_PRICE_ID), item(ENV.STRIPE_PRO_MONTHLY_PRICE_ID)])],
-  ['two copies of one recognized price', items([item(ENV.STRIPE_PRO_MONTHLY_PRICE_ID), item(ENV.STRIPE_PRO_MONTHLY_PRICE_ID)])],
-  ['two billing cycles for one plan', items([item(ENV.STRIPE_PRO_MONTHLY_PRICE_ID), item(ENV.STRIPE_PRO_YEARLY_PRICE_ID)])],
-  ['paginated recognized plan', { data: [item(ENV.STRIPE_PRO_MONTHLY_PRICE_ID)], has_more: true }],
-  ['unknown pagination completeness', { data: [item(ENV.STRIPE_PRO_MONTHLY_PRICE_ID)] }],
-  ['missing items', null],
-  ['missing item data', { has_more: false }],
-  ['empty matched product', items([item(ENV.STRIPE_PRO_MONTHLY_PRICE_ID, '')])],
-  ['missing matched product', items([item(ENV.STRIPE_PRO_MONTHLY_PRICE_ID, null)])],
-]
-for (const [label, selection] of invalidSelections) {
-  for (const type of ['customer.subscription.created', 'customer.subscription.updated']) {
-    const rt = runtime(routeSource, enabled(), { existing: true })
-    eq(await rt.post(event(type, subscription({ items: selection, metadata: { userId: 'user_fixture', tier: 'pro', plan: 'pro' } }))), retry, `${label} returns retryable failure`)
-    eq(writes(rt), [], `${label} causes no database or wallet writes`)
-    eq(rt.users.get('cus_fixture').tier, 'free', `${label} cannot invent a paid user tier`)
+// Flag ON, but the plan cannot be resolved: the webhook answers exactly as the flag-off route does
+// (same response, same database/wallet payloads and final state) and logs ONE warning that names the
+// reason and the subscription's price ids only. Create writes tier 'pro'; the update arm writes no
+// tier and no billingCycle. The baseline run (c1a7378's route) is the reference.
+const priceIdsOf = items => Array.isArray(items?.data) ? items.data.map(i => i?.price?.id).filter(id => typeof id === 'string' && id !== '') : []
+const baselineReference = (values, options, payload) => {
+  const rt = runtime(baselineSource, values, options)
+  return rt.post(payload).then(response => ({ rt, response }))
+}
+async function expectFallback(label, values, payload, options, reason) {
+  const baseline = await baselineReference(values, options, payload)
+  const current = runtime(routeSource, values, options)
+  const response = await current.post(payload)
+  eq(response, baseline.response, `${label}: the flag-off response, exactly`)
+  eq(current.snapshot(), baseline.rt.snapshot(), `${label}: the flag-off database/wallet payloads and state, exactly`)
+  eq(current.warnings.length, 1, `${label}: exactly one warning line`)
+  const priceIds = priceIdsOf(payload.data.object.items)
+  eq(current.warnings[0], `[stripe-real-tier] plan not resolved (${reason}), keeping the legacy tier; price ids: ${priceIds.join(', ') || 'none'}`, `${label}: the warning names the reason and the price ids and nothing else`)
+  for (const secret of ['user_fixture', 'cus_fixture', 'sub_fixture', PII_EMAIL, SECRET, SIGNATURE]) ok(!current.warnings[0].includes(secret), `${label}: the warning does not carry ${secret === SECRET ? 'the webhook secret' : secret}`)
+  const upsert = current.calls.find(call => call.operation === 'subscription.upsert')
+  if (upsert) {
+    eq(response, success, `${label}: 200, as the legacy path`)
+    eq(upsert.args.create.tier, 'pro', `${label}: create stores the legacy tier pro`)
+    ok(!('tier' in upsert.args.update) && !('billingCycle' in upsert.args.update), `${label}: the update arm writes no tier and no billingCycle`)
+  } else {
+    eq(writes(current), [], `${label}: no database or wallet write (the legacy route cannot read this payload either)`)
   }
+  return current
+}
+
+const SELECTION_FALLBACKS = [
+  ['empty items', items([]), 'no-item'],
+  ['unknown price', items([item('price_fixture_unknown')]), 'unknown-price'],
+  ['unknown price with an add-on', items([item('price_fixture_unknown'), item('price_fixture_addon')]), 'unknown-price'],
+  ['empty price', items([item('')]), 'unknown-price'],
+  ['two recognized prices', items([item(ENV.STRIPE_STARTER_MONTHLY_PRICE_ID), item(ENV.STRIPE_PRO_MONTHLY_PRICE_ID)]), 'multiple-base-plan-items'],
+  ['two copies of one recognized price', items([item(ENV.STRIPE_PRO_MONTHLY_PRICE_ID), item(ENV.STRIPE_PRO_MONTHLY_PRICE_ID)]), 'multiple-base-plan-items'],
+  ['two billing cycles for one plan', items([item(ENV.STRIPE_PRO_MONTHLY_PRICE_ID), item(ENV.STRIPE_PRO_YEARLY_PRICE_ID)]), 'multiple-base-plan-items'],
+  ['a Pro yearly first item with a second base plan', items([item(ENV.STRIPE_PRO_YEARLY_PRICE_ID), item(ENV.STRIPE_STARTER_MONTHLY_PRICE_ID)]), 'multiple-base-plan-items'],
+  ['paginated recognized plan', { data: [item(ENV.STRIPE_PRO_MONTHLY_PRICE_ID)], has_more: true }, 'items-incomplete'],
+  ['unknown pagination completeness', { data: [item(ENV.STRIPE_PRO_MONTHLY_PRICE_ID)] }, 'items-incomplete'],
+  ['empty matched product', items([item(ENV.STRIPE_PRO_MONTHLY_PRICE_ID, '')]), 'product-id-missing'],
+  ['missing matched product', items([item(ENV.STRIPE_PRO_MONTHLY_PRICE_ID, null)]), 'product-id-missing'],
+]
+// The legacy route itself cannot read these (it throws on subscription.items.data), so both answer 500 and neither writes.
+const MALFORMED_FALLBACKS = [
+  ['missing items', null, 'items-incomplete'],
+  ['missing item data', { has_more: false }, 'items-incomplete'],
+]
+const SUBSCRIPTION_TYPES = ['customer.subscription.created', 'customer.subscription.updated']
+for (const [label, selection, reason] of [...SELECTION_FALLBACKS, ...MALFORMED_FALLBACKS]) {
+  for (const type of SUBSCRIPTION_TYPES) {
+    for (const options of [{}, { existing: true }]) {
+      // Client metadata (a different tier or plan) never rescues an unresolvable selection.
+      const payload = event(type, subscription({ items: selection, metadata: { userId: 'user_fixture', email: PII_EMAIL, tier: 'premium', plan: 'max' } }))
+      await expectFallback(`${label} (${type}${options.existing ? ', existing row' : ''})`, enabled(), payload, options, reason)
+    }
+  }
+}
+// The legacy user tier follows the subscription status, exactly as the flag-off route does.
+for (const status of ['active', 'trialing', 'past_due', 'unpaid', 'canceled', 'incomplete', 'paused']) {
+  const rt = await expectFallback(`unknown price, status ${status}`, enabled(), event('customer.subscription.updated', subscription({ status, items: items([item('price_fixture_unknown')]) })), { existing: true }, 'unknown-price')
+  eq(rt.users.get('cus_fixture').tier, status === 'active' || status === 'trialing' ? 'pro' : 'free', `unknown price, status ${status}: the user keeps today's tier rule`)
+  eq([rt.subscriptions.get('sub_fixture').tier, rt.subscriptions.get('sub_fixture').billingCycle], ['premium', 'yearly'], `unknown price, status ${status}: an existing row keeps its tier and cycle`)
 }
 
 // An unknown price is never rescued by client metadata, recurring interval, amount or names.
 {
-  const rt = runtime(routeSource, enabled())
   const spoof = item('price_fixture_unknown', { id: 'prod_fixture', name: 'Pro', metadata: { tier: 'premium' } })
   Object.assign(spoof.price, { nickname: 'Max', unit_amount: 10000, recurring: { interval: 'year' }, metadata: { plan: 'premium' } })
-  eq(await rt.post(event('customer.subscription.updated', subscription({ items: items([spoof]), metadata: { userId: 'user_fixture', tier: 'premium', plan: 'max' } }))), retry, 'Untrusted descriptors cannot select a plan')
-  eq(writes(rt), [], 'Descriptor spoof causes no writes')
+  const rt = await expectFallback('Descriptor spoof', enabled(), event('customer.subscription.updated', subscription({ items: items([spoof]), metadata: { userId: 'user_fixture', email: PII_EMAIL, tier: 'premium', plan: 'max' } })), {}, 'unknown-price')
+  eq(rt.users.get('cus_fixture').tier, 'pro', 'Untrusted descriptors cannot select a paid plan; today\'s tier is stored')
 }
 
+// A missing, blank or padded price-id setting, or one id under two plans, is a configuration problem:
+// the same legacy fallback, never a 500 (every one of the six settings, both events).
 for (const key of Object.keys(ENV)) {
   for (const value of [undefined, '', ' ', ` ${ENV[key]}`, `${ENV[key]} `]) {
-    const rt = runtime(routeSource, enabled({ [key]: value }))
-    eq(await rt.post(event('customer.subscription.created', subscription())), retry, `Missing/blank/padded ${key} prevents processing`)
-    eq(writes(rt), [], `Invalid ${key} prevents all writes`)
+    for (const type of SUBSCRIPTION_TYPES) {
+      await expectFallback(`Missing/blank/padded ${key} (${type})`, enabled({ [key]: value }), event(type, subscription()), { existing: type.endsWith('updated') }, 'price-config-missing')
+    }
   }
 }
 for (let a = 0; a < PLANS.length; a++) for (let b = a + 1; b < PLANS.length; b++) {
-  const rt = runtime(routeSource, enabled({ [PLANS[a][0]]: ENV[PLANS[b][0]] }))
-  eq(await rt.post(event('customer.subscription.updated', subscription())), retry, 'Every duplicate configuration pairing fails, including unrelated plans')
-  eq(writes(rt), [], 'Ambiguous configuration prevents all writes')
+  for (const type of SUBSCRIPTION_TYPES) {
+    await expectFallback(`${PLANS[a][0]} duplicated by ${PLANS[b][0]} (${type})`, enabled({ [PLANS[a][0]]: ENV[PLANS[b][0]] }), event(type, subscription()), { existing: type.endsWith('updated') }, 'price-config-ambiguous')
+  }
 }
-
-// Mapping runs before even a fallback owner lookup; valid customer lookup is unchanged.
+// The mapping is decided before any database access (and before even the fallback owner lookup);
+// an unresolvable plan then goes through the legacy owner lookup exactly.
 {
-  const invalid = runtime(routeSource, enabled())
-  eq(await invalid.post(event('customer.subscription.updated', subscription({ items: items([]), metadata: {} }))), retry, 'Invalid plan fails without owner metadata')
-  eq(invalid.calls, [], 'Invalid mapping fails before fallback database lookup')
+  const noOwner = event('customer.subscription.updated', subscription({ items: items([]), metadata: {} }))
+  const lookup = await expectFallback('Unresolvable plan, owner found by customer', enabled(), noOwner, {}, 'no-item')
+  eq(lookup.calls.map(call => call.operation), ['user.findUnique', 'subscription.upsert', 'user.update'], 'The legacy owner lookup runs, then the legacy writes')
+  const missing = await expectFallback('Unresolvable plan, no owner at all', enabled(), noOwner, { noUser: true }, 'no-item')
+  eq(missing.calls.map(call => call.operation), ['user.findUnique'], 'No owner: the legacy route stops after the lookup, with a 200')
   const rt = runtime(routeSource, enabled())
   eq(await rt.post(event('customer.subscription.updated', subscription({ metadata: {}, items: items([item(ENV.STRIPE_MAX_MONTHLY_PRICE_ID)]) }))), success, 'Known customer resolves missing user metadata')
   eq(rt.users.get('cus_fixture').tier, 'premium', 'Fallback owner gets the mapped plan')
+  eq(rt.warnings, [], 'A resolved plan logs no warning')
+}
+
+// A fault that is not a mapping failure is not turned into the legacy fallback: the route still answers 500.
+{
+  const rt = runtime(routeSource, enabled(), { failOperation: 'subscription.upsert' })
+  eq(await rt.post(event('customer.subscription.created', subscription())), retry, 'A database failure on a mapped subscription is still retried')
+  eq(rt.warnings, [], 'A database failure is not a mapping fallback and logs no mapping warning')
 }
 
 // Execute the existing quota consumer with the resolver's actual Max result.
@@ -323,6 +437,21 @@ for (let a = 0; a < PLANS.length; a++) for (let b = a + 1; b < PLANS.length; b++
   eq(helper.resolveStripeSubscriptionPlan(input, ENV), { tier: 'pro', billingCycle: 'yearly', priceId: ENV.STRIPE_PRO_YEARLY_PRICE_ID, productId: 'prod_fixture_base' }, 'Pure resolver returns an explicit plan contract')
   eq(input, original, 'Resolver leaves subscription input untouched')
   fails(() => helper.resolveStripeSubscriptionPlan(input, {}), 'Resolver requires explicit complete configuration')
+}
+
+// The resolver still throws (typed, with the reason); the webhook's entry point turns that into a result.
+{
+  const unknown = items([item('price_fixture_unknown'), item('price_fixture_addon')])
+  let thrown
+  try { helper.resolveStripeSubscriptionPlan(unknown, ENV) } catch (error) { thrown = error }
+  eq([thrown?.name, thrown?.reason], ['StripePlanMappingError', 'unknown-price'], 'The resolver throws a typed mapping error with its reason')
+  eq(helper.tryResolveStripeSubscriptionPlan(unknown, ENV), { ok: false, plan: null, reason: 'unknown-price', priceIds: ['price_fixture_unknown', 'price_fixture_addon'] }, 'The entry point returns the reason and the price ids, not an exception')
+  eq(helper.tryResolveStripeSubscriptionPlan(items([item(ENV.STRIPE_PRO_YEARLY_PRICE_ID)]), ENV), { ok: true, plan: { tier: 'pro', billingCycle: 'yearly', priceId: ENV.STRIPE_PRO_YEARLY_PRICE_ID, productId: 'prod_fixture_base' } }, 'The entry point returns the resolved plan')
+  eq(helper.tryResolveStripeSubscriptionPlan(unknown, {}).reason, 'price-config-missing', 'Missing configuration is reported as such')
+  eq(helper.tryResolveStripeSubscriptionPlan(null, ENV), { ok: false, plan: null, reason: 'items-incomplete', priceIds: [] }, 'Missing items are reported without reading them')
+  // The fault happens on the first read only, so swallowing it (and reading again to build a result) would not throw a second time.
+  let reads = 0
+  fails(() => helper.tryResolveStripeSubscriptionPlan({ has_more: false, get data() { if (reads++ === 0) throw new TypeError('fixture fault'); return [] } }, ENV), 'A fault that is not a mapping failure still throws')
 }
 
 // Every non-subscription handler keeps its exact baseline effects, including duplicate wallet
@@ -353,17 +482,34 @@ const parityCases = [
   ...['active', 'trialing', 'past_due', 'unpaid', 'canceled', 'incomplete', 'incomplete_expired', 'paused'].map(status => [`legacy status ${status}`, [event('customer.subscription.updated', subscription({ status }))], {}]),
 ]
 
-for (const flag of [undefined, 'false', '', '0', '1', 'TRUE', 'True', 'yes', ' true', 'true ']) {
+// Every spelling other than the exact string "true" is OFF. The outputs (every response, every database/wallet
+// payload, the final state and the log warnings) are hashed per side; the two digests must be identical.
+const OFF_SPELLINGS = [undefined, 'false', '', '0', '1', 'TRUE', 'True', 'tRuE', 'yes', 'on', 'enabled', 'tru', 'truee', '2', 'null', 'undefined', '"true"', "'true'", ' true', 'true ', 'true\n', '\ttrue', 'TRUE ']
+const outputHash = { baseline: crypto.createHash('sha256'), current: crypto.createHash('sha256') }
+for (const flag of OFF_SPELLINGS) {
   for (const [label, events, options] of parityCases) {
     const values = { ...ENV, ...(flag === undefined ? {} : { [FLAG]: flag }) }
     const baseline = runtime(baselineSource, values, options)
     const current = runtime(routeSource, values, options)
-    for (const payload of events) eq(await current.post(payload), await baseline.post(payload), `OFF ${JSON.stringify(flag)} ${label}: exact HTTP response`)
+    const responses = { baseline: [], current: [] }
+    for (const payload of events) {
+      const currentResponse = await current.post(payload)
+      const baselineResponse = await baseline.post(payload)
+      responses.current.push(currentResponse)
+      responses.baseline.push(baselineResponse)
+      eq(currentResponse, baselineResponse, `OFF ${JSON.stringify(flag)} ${label}: exact HTTP response`)
+    }
     eq(current.snapshot(), baseline.snapshot(), `OFF ${JSON.stringify(flag)} ${label}: exact DB/wallet payloads and state`)
+    eq(current.warnings, [], `OFF ${JSON.stringify(flag)} ${label}: no warning is logged`)
+    outputHash.current.update(JSON.stringify([flag, label, responses.current, current.snapshot(), current.warnings]))
+    outputHash.baseline.update(JSON.stringify([flag, label, responses.baseline, baseline.snapshot(), baseline.warnings]))
     eq(current.helperCalls, 0, `OFF ${JSON.stringify(flag)} ${label}: no mapping lookup`)
     eq(current.environmentReads.filter(key => key !== FLAG), baseline.environmentReads, `OFF ${JSON.stringify(flag)} ${label}: no additional price configuration reads`)
   }
 }
+
+const offDigest = { baseline: outputHash.baseline.digest('hex'), current: outputHash.current.digest('hex') }
+eq(offDigest.current, offDigest.baseline, 'OFF: the sha256 of every output (responses, payloads, final state, warnings) is identical to the base route')
 
 // Missing new config is harmless while OFF, even if it would be invalid while enabled.
 for (const flag of [undefined, 'false']) {
@@ -430,12 +576,20 @@ for (const values of [{}, { [FLAG]: 'false' }, enabled()]) {
   const witnessPath = path.join(ROOT, 'scripts/__stripe_plan_type_witness__.ts')
   const witness = `
     import type Stripe from 'stripe'
-    import { resolveStripeSubscriptionPlan, type StripePlanPriceEnvironment, type ResolvedSubscriptionPlan } from '../lib/stripe/subscription-plan'
+    import { resolveStripeSubscriptionPlan, tryResolveStripeSubscriptionPlan, type StripePlanPriceEnvironment, type ResolvedSubscriptionPlan, type StripePlanMappingFailure } from '../lib/stripe/subscription-plan'
     declare const subscription: Stripe.Subscription
     declare const environment: StripePlanPriceEnvironment
+    declare const flagOn: boolean
     const resolved: ResolvedSubscriptionPlan = resolveStripeSubscriptionPlan(subscription.items, environment)
     const tier: 'starter' | 'pro' | 'premium' = resolved.tier
     const cycle: 'monthly' | 'yearly' = resolved.billingCycle
+    // The webhook's own use of the entry point (route.ts): the same narrowing, so a type slip shows here.
+    const resolution = flagOn ? tryResolveStripeSubscriptionPlan(subscription.items, environment) : null
+    const mappedPlan: ResolvedSubscriptionPlan | null = resolution?.ok ? resolution.plan : null
+    if (resolution && !resolution.ok) {
+      const reason: StripePlanMappingFailure = resolution.reason
+      const line: string = reason + resolution.priceIds.join(', ')
+    }
   `
   const compilerOptions = {
     noEmit: true, strict: true, skipLibCheck: true, types: [],
@@ -454,5 +608,5 @@ for (const values of [{}, { [FLAG]: 'false' }, enabled()]) {
 }
 
 eq(networkAttempts, 0, 'No network access was attempted')
-ok(postExecutions > 700, 'Actual POST was exercised across enabled, disabled and baseline fixtures')
-console.log(`Stripe real-tier offline proof passed: ${checks} assertions; ${postExecutions} actual POST executions; exact BASE/OFF parity; real SDK 17.4.0 type witness; network attempts=${networkAttempts}; Node ${process.version}, TypeScript ${ts.version}.`)
+ok(postExecutions > 1500, 'Actual POST was exercised across enabled, disabled and baseline fixtures')
+console.log(`Stripe real-tier offline proof passed: ${checks} assertions; ${postExecutions} actual POST executions; exact BASE/OFF parity (output sha256 ${offDigest.current.slice(0, 16)} on both sides, ${OFF_SPELLINGS.length} flag spellings); real SDK 17.4.0 type witness; network attempts=${networkAttempts}; Node ${process.version}, TypeScript ${ts.version}.`)

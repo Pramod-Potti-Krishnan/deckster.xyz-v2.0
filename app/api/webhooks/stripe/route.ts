@@ -3,7 +3,7 @@ import { headers } from 'next/headers'
 import { getStripe } from '@/lib/stripe/stripe'
 import { prisma } from '@/lib/prisma'
 import { creditWallet } from '@/lib/wallet'
-import { resolveStripeSubscriptionPlan } from '@/lib/stripe/subscription-plan'
+import { tryResolveStripeSubscriptionPlan } from '@/lib/stripe/subscription-plan'
 import Stripe from 'stripe'
 
 export async function POST(req: NextRequest) {
@@ -125,9 +125,12 @@ async function handleWalletTopup(session: Stripe.Checkout.Session) {
 async function handleSubscriptionUpdated(subscription: Stripe.Subscription) {
   console.log('📝 Subscription updated:', subscription.id)
 
-  // Validate before any writes. Unset/false preserves the legacy webhook payloads.
-  const mappedPlan = process.env.STRIPE_REAL_TIER_MAPPING_ENABLED === 'true'
-    ? resolveStripeSubscriptionPlan(subscription.items, {
+  // Validate before any writes. Unset/false preserves the legacy webhook payloads. With the flag on, a
+  // subscription whose plan cannot be resolved (unknown price, price config missing or ambiguous, no item
+  // or more than one base-plan item) takes exactly the legacy path below and logs one warning, so Stripe
+  // gets a 200 and does not retry.
+  const resolution = process.env.STRIPE_REAL_TIER_MAPPING_ENABLED === 'true'
+    ? tryResolveStripeSubscriptionPlan(subscription.items, {
         STRIPE_STARTER_MONTHLY_PRICE_ID: process.env.STRIPE_STARTER_MONTHLY_PRICE_ID,
         STRIPE_STARTER_YEARLY_PRICE_ID: process.env.STRIPE_STARTER_YEARLY_PRICE_ID,
         STRIPE_PRO_MONTHLY_PRICE_ID: process.env.STRIPE_PRO_MONTHLY_PRICE_ID,
@@ -136,6 +139,10 @@ async function handleSubscriptionUpdated(subscription: Stripe.Subscription) {
         STRIPE_MAX_YEARLY_PRICE_ID: process.env.STRIPE_MAX_YEARLY_PRICE_ID,
       })
     : null
+  const mappedPlan = resolution?.ok ? resolution.plan : null
+  if (resolution && !resolution.ok) {
+    console.warn(`[stripe-real-tier] plan not resolved (${resolution.reason}), keeping the legacy tier; price ids: ${resolution.priceIds.join(', ') || 'none'}`)
+  }
 
   let userId = subscription.metadata.userId
 
