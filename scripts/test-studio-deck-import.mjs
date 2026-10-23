@@ -1099,7 +1099,8 @@ async function secBuilder() {
 // ================================================================ 5. the layout: flag off hands the page back as it was
 async function secLayout() {
   const SENTINEL = { type: 'main', props: { 'data-studio-decks': 'true', children: 'the page' }, key: null }
-  const layoutFor = env => createWorld({ real: [LAYOUT], stubs: { '@/components/studio-deck-import/studio-deck-import-entry': { StudioDeckImportEntry: 'StudioDeckImportEntry' } }, globals: { process: { env } } }).load(LAYOUT).default
+  // next/dynamic is stubbed to hand back the component's name; the lazy import inside it is never run here (it is what keeps the button's module and stylesheet out of a build that has the flag off)
+  const layoutFor = env => createWorld({ real: [LAYOUT], stubs: { 'next/dynamic': { default: () => 'StudioDeckImportEntry' } }, globals: { process: { env } } }).load(LAYOUT).default
   const render = env => layoutFor(env)({ children: SENTINEL })
   const hashes = []
   for (const shell of [undefined, 'false', 'true']) {
@@ -1119,10 +1120,12 @@ async function secLayout() {
   const layout = src(LAYOUT)
   match(layout, /process\.env\.NEXT_PUBLIC_STUDIO_DECK_IMPORT !== "true"/); match(layout, /process\.env\.NEXT_PUBLIC_STUDIO_V4_SHELL !== "true"/)
   nomatch(layout, /process\.env\[|\{ *NEXT_PUBLIC|= process\.env;?$/m, 'read inline, as Next needs')
+  // the button's module (and its stylesheet) is loaded lazily, so a build with the flag off or unset ships neither: no static import of it
+  match(layout, /dynamic\(\(\) => import\("@\/components\/studio-deck-import\/studio-deck-import-entry"\)/); nomatch(layout, /^import .* from ["']@\/components\/studio-deck-import/m, 'no static import of the entry')
   // ---- the Builder's layout (app/builder/layout.tsx): the same rule; on, the page first and the imported-deck note after it
   {
     const PAGE = { type: 'main', props: { children: 'the builder' }, key: null }
-    const builderLayout = env => createWorld({ real: [BLAYOUT], stubs: { react: { Suspense: 'Suspense' }, '@/components/studio-deck-import/studio-deck-import-note': { StudioDeckImportNote: 'StudioDeckImportNote' } }, globals: { process: { env } } }).load(BLAYOUT).default
+    const builderLayout = env => createWorld({ real: [BLAYOUT], stubs: { react: { Suspense: 'Suspense' }, 'next/dynamic': { default: () => 'StudioDeckImportNote' } }, globals: { process: { env } } }).load(BLAYOUT).default
     const offHashes = []
     for (const shell of [undefined, 'false', 'true']) {
       for (const flag of [undefined, 'false', 'TRUE', '1', '', 'yes', 'true ', 'true']) {
@@ -1143,6 +1146,7 @@ async function secLayout() {
     match(source, /process\.env\.NEXT_PUBLIC_STUDIO_DECK_IMPORT !== "true"/); match(source, /process\.env\.NEXT_PUBLIC_STUDIO_V4_SHELL !== "true"/)
     nomatch(source, /process\.env\[|\{ *NEXT_PUBLIC|= process\.env;?$/m, 'read inline, as Next needs')
     nomatch(source, /['"]use client['"]/, 'a server layout')
+    match(source, /dynamic\(\(\) => import\("@\/components\/studio-deck-import\/studio-deck-import-note"\)/); nomatch(source, /^import .* from ["']@\/components\/studio-deck-import/m, 'no static import of the note (lazy, so a build without the flag ships neither the note nor its stylesheet)')
   }
   return hashes[0]
 }
@@ -1433,6 +1437,7 @@ const M = [
   [BLAYOUT, 'builder layout: shell ignored', 'process.env.NEXT_PUBLIC_STUDIO_V4_SHELL !== "true" || ', '', ['layout']],
   [BLAYOUT, 'builder layout: wrapper when off', 'return <>{children}</>\n  return', 'return <div>{children}</div>\n  return', ['layout']],
   [BLAYOUT, 'builder layout: note before the page', '    {children}\n    <Suspense fallback={null}><StudioDeckImportNote /></Suspense>', '    <Suspense fallback={null}><StudioDeckImportNote /></Suspense>\n    {children}', ['layout']],
+  [BLAYOUT, 'builder layout: note imported statically', 'const StudioDeckImportNote = dynamic(() => import("@/components/studio-deck-import/studio-deck-import-note").then(module => module.StudioDeckImportNote))', 'import { StudioDeckImportNote } from "@/components/studio-deck-import/studio-deck-import-note"', ['layout']],
   [BLAYOUT, 'builder layout: no Suspense', '<Suspense fallback={null}><StudioDeckImportNote /></Suspense>', '<StudioDeckImportNote />', ['layout']],
   [FIRSTRUN, 'first run: link always drawn', 'process.env.NEXT_PUBLIC_STUDIO_DECK_IMPORT === "true" && <Link', 'true && <Link', ['builder', 'blobs']],
   [FIRSTRUN, 'first run: any value draws it', 'process.env.NEXT_PUBLIC_STUDIO_DECK_IMPORT === "true" && <Link', 'process.env.NEXT_PUBLIC_STUDIO_DECK_IMPORT !== "false" && <Link', ['builder', 'blobs']],
@@ -1452,6 +1457,7 @@ const M = [
   [LAYOUT, 'layout: flag ignored', ' || process.env.NEXT_PUBLIC_STUDIO_DECK_IMPORT !== "true"', '', ['layout']],
   [LAYOUT, 'layout: shell ignored', 'process.env.NEXT_PUBLIC_STUDIO_V4_SHELL !== "true" || ', '', ['layout']],
   [LAYOUT, 'layout: wrapper when off', 'return <>{children}</>\n  return', 'return <div>{children}</div>\n  return', ['layout']],
+  [LAYOUT, 'layout: entry imported statically', 'const StudioDeckImportEntry = dynamic(() => import("@/components/studio-deck-import/studio-deck-import-entry").then(module => module.StudioDeckImportEntry))', 'import { StudioDeckImportEntry } from "@/components/studio-deck-import/studio-deck-import-entry"', ['layout']],
   [LAYOUT, 'layout: button below the page', '<StudioDeckImportEntry />\n    {children}', '{children}\n    <StudioDeckImportEntry />', ['layout']],
   // the sheet, the example and the manifest
   [CSS, 'css: an unanchored rule', '[data-studio-deck-import-hint="true"], [data-studio-deck-import-detail="true"]', '.hint, [data-studio-deck-import-detail="true"]', ['static']],
