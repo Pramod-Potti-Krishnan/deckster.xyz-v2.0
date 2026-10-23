@@ -20,11 +20,17 @@ const LIB_DEPS = `  /** P3-4 reconnect resync: the page's deck reload, run when 
 `
 
 const LIB_API = `  /** P3-4: Director's socket reconnected. Read the inventory once; a changed deck is reloaded (onResync, no unsaved edits) or noticed. */
-  resyncAfterReconnect(): Promise<'reloaded' | 'notice' | 'same' | 'skipped'>
+  resyncAfterReconnect(): Promise<'reloaded' | 'notice' | 'same' | 'skipped' | 'deferred'>
 `
 
 const LIB_STATE = `  const reconnectMinGapMs = deps.reconnectMinGapMs ?? RECONNECT_RESYNC_MIN_GAP_MS
   let nextReconnectAt = 0
+  let reconnectRetryTimer: unknown = null
+  /** This tab is editing (its own-change quiet window): resync once that window ends, never during the user's own edits. */
+  const deferReconnect = (t: number) => {
+    if (reconnectRetryTimer === null) reconnectRetryTimer = setTimer(() => { reconnectRetryTimer = null; void api.resyncAfterReconnect() }, ownChangeQuietUntil - t + 50)
+    return 'deferred' as const
+  }
 `
 
 const LIB_METHOD = `    async resyncAfterReconnect() {
@@ -32,13 +38,14 @@ const LIB_METHOD = `    async resyncAfterReconnect() {
       // A hidden tab waits: its visibility check reads the inventory when the user comes back.
       if (deps.doc && deps.doc.visibilityState && deps.doc.visibilityState !== 'visible') return 'skipped'
       const t = now()
-      if (t < nextReconnectAt || t < ownChangeQuietUntil) return 'skipped'
+      if (t < nextReconnectAt) return 'skipped'
+      if (t < ownChangeQuietUntil) return deferReconnect(t)
       nextReconnectAt = t + reconnectMinGapMs
       checking = true
       try {
         const read = await readOnce()
         if (!read || disposed) return 'skipped'
-        if (now() < ownChangeQuietUntil) return 'skipped' // this tab changed the deck while the read was in flight
+        if (now() < ownChangeQuietUntil) { nextReconnectAt = 0; return deferReconnect(now()) } // this tab edited while the read was in flight
         const viewer = deps.getViewerState()
         const previous = knownSignature
         knownSignature = read.signature
@@ -107,6 +114,7 @@ const CHANGES = {
     [LIB_API, ''],
     [LIB_STATE, ''],
     [LIB_METHOD, ''],
+    ['      if (reconnectRetryTimer !== null) { clearTimer(reconnectRetryTimer); reconnectRetryTimer = null }\n', ''],
   ],
 }
 

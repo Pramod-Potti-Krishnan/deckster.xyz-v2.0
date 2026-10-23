@@ -50,6 +50,7 @@ const inventory = (count, version = 'v1') => ({ slideCount: count, slides: Array
 function setup(lib, { viewer = { presentationId: 'p1', slideCount: 6, unsaved: false }, reads = [inventory(7)], onResync = true, hidden = false } = {}) {
   let t = 1_000_000
   const calls = { reads: 0, resync: 0, notices: [] }
+  const timers = []
   const doc = { visibilityState: hidden ? 'hidden' : 'visible', addEventListener() {}, removeEventListener() {} }
   const queue = [...reads]
   const controller = lib.createDeckChangedController({
@@ -60,9 +61,13 @@ function setup(lib, { viewer = { presentationId: 'p1', slideCount: 6, unsaved: f
     onNotice: n => calls.notices.push(n),
     doc, win: { addEventListener() {}, removeEventListener() {} },
     now: () => t,
+    setTimer: (fn, ms) => { const h = { fn, at: t + ms, done: false }; timers.push(h); return h },
+    clearTimer: h => { if (h) h.done = true },
     ...(onResync ? { onResync: () => { calls.resync++ } } : {}),
   })
-  return { controller, calls, viewer, doc, advance: ms => { t += ms }, push: inv => queue.push(inv) }
+  /** Advance the fake clock and run the timers that are due (in order). */
+  const advance = async ms => { t += ms; for (const h of timers) if (!h.done && h.at <= t) { h.done = true; h.fn(); await new Promise(r => setTimeout(r, 0)) } }
+  return { controller, calls, viewer, doc, timers, advance, push: inv => queue.push(inv) }
 }
 
 let checks = 0
@@ -107,11 +112,35 @@ async function scenarios(libText) {
     eq(await s.controller.resyncAfterReconnect(), 'skipped', 'a hidden tab skips the reconnect read')
     eq(s.calls.reads, 0, 'no read while hidden')
   }
-  { // this tab's own change: quiet
+  { // this tab is editing: the resync waits for the own-change quiet window, then runs once (it is never lost)
+    const s = setup(lib, { viewer: { presentationId: 'p1', slideCount: 6, unsaved: true } })
+    s.controller.noteOwnEdit()
+    eq(await s.controller.resyncAfterReconnect(), 'deferred', "during this tab's own edits the reconnect resync is deferred")
+    eq(s.calls.reads, 0, 'no read during the own-change quiet window')
+    eq(await s.controller.resyncAfterReconnect(), 'deferred', 'a second reconnect meanwhile adds no second timer')
+    eq(s.timers.filter(h => !h.done).length, 1, 'one deferred resync at a time')
+    await s.advance(4_000)
+    eq(s.calls.reads, 0, 'still quiet after 4 s')
+    await s.advance(1_100)
+    eq(s.calls.reads, 1, 'the deferred resync reads once the quiet window ends')
+    eq(s.controller.getNotice()?.source, 'reconnect', 'and, with unsaved edits, shows the reconnect notice')
+    eq(s.calls.resync, 0, 'never reloading the unsaved edits away')
+  }
+  { // deferred, then no unsaved edits by the time it runs: reloaded
     const s = setup(lib)
     s.controller.noteOwnEdit()
-    eq(await s.controller.resyncAfterReconnect(), 'skipped', "this tab's own recent edit is not another change")
-    eq(s.calls.reads, 0, 'no read during the own-change quiet window')
+    await s.controller.resyncAfterReconnect()
+    await s.advance(5_100)
+    eq(s.calls.resync, 1, 'a deferred resync with nothing unsaved reloads the deck')
+  }
+  { // a disposed controller drops its deferred resync
+    const s = setup(lib)
+    s.controller.noteOwnEdit()
+    await s.controller.resyncAfterReconnect()
+    s.controller.dispose()
+    eq(s.timers.filter(h => !h.done).length, 0, 'dispose clears the deferred timer')
+    await s.advance(5_100)
+    eq(s.calls.reads, 0, 'dispose cancels the deferred resync')
   }
   { // a failed read: nothing
     const s = setup(lib, { reads: [] })
@@ -207,8 +236,11 @@ async function stripChecks() {
 }
 
 const MUTANTS = [
-  ['no reconnect gap', s => s.replace('if (t < nextReconnectAt || t < ownChangeQuietUntil) return \'skipped\'', "if (t < ownChangeQuietUntil) return 'skipped'")],
-  ['no own-change quiet', s => s.replace('if (t < nextReconnectAt || t < ownChangeQuietUntil) return \'skipped\'', "if (t < nextReconnectAt) return 'skipped'")],
+  ['no reconnect gap', s => s.replace("if (t < nextReconnectAt) return 'skipped'", '')],
+  ['no own-change quiet', s => s.replace('if (t < ownChangeQuietUntil) return deferReconnect(t)', '')],
+  ['own edit drops the resync', s => s.replace('if (t < ownChangeQuietUntil) return deferReconnect(t)', "if (t < ownChangeQuietUntil) return 'skipped'")],
+  ['two deferred timers', s => s.replace('if (reconnectRetryTimer === null) reconnectRetryTimer = setTimer(', 'reconnectRetryTimer = setTimer(')],
+  ['dispose keeps the timer', s => s.replace('      if (reconnectRetryTimer !== null) { clearTimer(reconnectRetryTimer); reconnectRetryTimer = null }\n', '')],
   ['reload despite unsaved edits', s => s.replace('if (viewer.unsaved || !deps.onResync)', 'if (!deps.onResync)')],
   ['hidden tab reads', s => s.replace("if (deps.doc && deps.doc.visibilityState && deps.doc.visibilityState !== 'visible') return 'skipped'", '')],
   ['unchanged deck noticed', s => s.replace("knownSignature: previous })) return 'same'", "knownSignature: previous })) { show('reconnect', null); return 'notice' }")],
