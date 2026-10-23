@@ -639,7 +639,13 @@ await check(`identity: stripping this change gives back ${BASE_COMMIT.slice(0, 7
     assert.ok(added.length <= 5 && removed.length <= 2, `${rel}: an import and one call (${added.length}+/${removed.length}-)`)
     assert.ok(added.some(line => /stripChatThemeExport|CHAT_THEME_EXPORT_CAPS: \[\]|lib\/chat-theme-export-wire\.ts/.test(line)), rel)
   }
-  for (const rel of changed) assert.ok(CHAT_THEME_EXPORT_FILES.includes(rel) || NEW.test(rel) || READS_THROUGH_STRIP.includes(rel), `unexpected change: ${rel}`)
+  // Stacked on #470: its own test reads the hook and its listed files through this change's strip first and lists this change's files as stacked.
+  const STACKED_SIBLING_TESTS = ['scripts/test-studio-chat-element-refine.mjs']
+  for (const rel of STACKED_SIBLING_TESTS.filter(rel => changed.includes(rel))) {
+    const added = git('diff', '-U0', BASE_COMMIT, 'HEAD', '--', rel).split('\n').filter(line => line.startsWith('+') && !line.startsWith('+++'))
+    for (const line of added) assert.match(line, /ThemeExport|THEME_EXPORT|chat-theme-export|#472|stacked/i, `${rel}: ${line.slice(0, 160)}`)
+  }
+  for (const rel of changed) assert.ok(CHAT_THEME_EXPORT_FILES.includes(rel) || NEW.test(rel) || READS_THROUGH_STRIP.includes(rel) || STACKED_SIBLING_TESTS.includes(rel), `unexpected change: ${rel}`)
 })
 
 await check('identity: every added piece names a flag (or is the package.json registration / the .env.example documentation)', async () => {

@@ -34,6 +34,9 @@ import { createModuleLoader } from './studio-chat-harness/module-loader.mjs'
 import { BASE_ENV } from './studio-chat-harness/profiles.mjs'
 import { createLayoutViewer, registerSyntheticDeck, LAYOUT_SCRIPTS } from './studio-chat-element-refine-layout.mjs'
 import { stripChatElementRefine, BASE_COMMIT, CHAT_ELEMENT_REFINE_FILES } from './studio-chat-element-refine-strip.mjs'
+// #472 (NEXT_PUBLIC_CHAT_THEME_CHANGE / NEXT_PUBLIC_CHAT_EXPORT) is stacked on this change: its flag-gated lines come out first, and its files are its own.
+import { stripChatThemeExport } from './studio-chat-theme-export-strip.mjs'
+const STACKED_THEME_EXPORT = /^(lib\/chat-theme-export(-wire)?\.ts|scripts\/(test-studio-chat-theme-export|studio-chat-theme-export-strip)\.mjs|scripts\/fixtures\/chat-theme-export\/.+|docs\/pass3\/chat-theme-export\/LIVE-CHECK-PLAN\.md)$/
 
 const root = path.resolve(fileURLToPath(new URL('../', import.meta.url)))
 const FIXTURES = path.join(root, 'scripts/fixtures/chat-element-refine')
@@ -666,7 +669,7 @@ await check(`identity: stripping this change gives back ${BASE_COMMIT.slice(0, 7
     assert.ok(!env.slice(env.indexOf('# PASS3 REFINE AN ELEMENT FROM CHAT'), env.indexOf(line)).includes(phrase), `the block reuses no other block's phrase: ${phrase}`)
   }
   for (const rel of CHAT_ELEMENT_REFINE_FILES) {
-    const head = read(rel)
+    const head = stripChatThemeExport(rel, read(rel)) // #472's lines out first (stacked on this change)
     for (const [added] of strip.CHAT_ELEMENT_REFINE_CHANGES[rel]) assert.equal(head.split(added).length, 2, `${rel}: one occurrence`)
     assert.equal(sha(stripChatElementRefine(rel, head)), sha(baseFile(rel)), rel)
   }
@@ -683,10 +686,11 @@ await check(`identity: stripping this change gives back ${BASE_COMMIT.slice(0, 7
   for (const rel of READS_THROUGH_STRIP) {
     const removed = git('diff', '-U0', BASE_COMMIT, '--', rel).split('\n').filter(line => line.startsWith('-') && !line.startsWith('---'))
     const added = git('diff', '-U0', BASE_COMMIT, '--', rel).split('\n').filter(line => line.startsWith('+') && !line.startsWith('+++'))
-    assert.ok(added.length <= 5 && removed.length <= 2, `${rel}: an import and one call (${added.length}+/${removed.length}-)`)
+    const stacked = added.some(line => /chat-theme-export|CHAT_THEME_EXPORT/.test(line)) // #472's own import and call on the same lines
+    assert.ok(added.length <= (stacked ? 10 : 5) && removed.length <= 2, `${rel}: an import and one call (${added.length}+/${removed.length}-)`)
     assert.ok(added.some(line => /stripChatElementRefine|CHAT_ELEMENT_REFINE_ENABLED: false|chat-element-refine/.test(line)), rel)
   }
-  for (const rel of changed) assert.ok(CHAT_ELEMENT_REFINE_FILES.includes(rel) || NEW.test(rel) || READS_THROUGH_STRIP.includes(rel), `unexpected change: ${rel}`)
+  for (const rel of changed) assert.ok(CHAT_ELEMENT_REFINE_FILES.includes(rel) || NEW.test(rel) || READS_THROUGH_STRIP.includes(rel) || STACKED_THEME_EXPORT.test(rel), `unexpected change: ${rel}`)
 })
 
 await check('identity: every added piece is behind the flag (or is a type, a comment or the flag-gated import)', async () => {
@@ -721,7 +725,7 @@ await check('identity: reducer / cache / history-restore / send paths hash-equal
   const head = read(HOOK), base = baseFile(HOOK)
   const h = declarations(head, [...UNCHANGED_HOOK, ...STRIPPED_HOOK]), b = declarations(base, [...UNCHANGED_HOOK, ...STRIPPED_HOOK])
   for (const name of UNCHANGED_HOOK) { assert.equal(sha(h[name]), sha(b[name]), name); identityHashes[`hook.${name}`] = sha(h[name]) }
-  const hs = declarations(stripChatElementRefine(HOOK, head), STRIPPED_HOOK)
+  const hs = declarations(stripChatElementRefine(HOOK, stripChatThemeExport(HOOK, head)), STRIPPED_HOOK)
   for (const name of STRIPPED_HOOK) { assert.notEqual(sha(h[name]), sha(b[name]), `${name} carries the flag branch`); assert.equal(sha(hs[name]), sha(b[name]), name); identityHashes[`hook.${name}(stripped)`] = sha(hs[name]) }
   // The reducer: the onmessage setState through the transcript exclusion list is untouched text (it sits inside startConnection).
   const reducer = text => text.slice(text.indexOf('            // Turn gate: any reply-bearing frame unlocks the input.'), text.indexOf("            if ((message.type as string) === 'session_directive') {"))
