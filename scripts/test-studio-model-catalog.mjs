@@ -67,6 +67,7 @@ const FLAG = 'NEXT_PUBLIC_STUDIO_MODEL_CATALOG'
 const STRIP = 'scripts/studio-model-catalog-strip.mjs'
 const HARNESS = 'scripts/studio-library-manage-harness.mjs'
 const STACK_PKG_CHANGES = [['    "test:studio-model-catalog": "node scripts/test-studio-model-catalog.mjs"', '']] // stacked after #475: this change's one package.json line, for scripts/studio-stack-tolerant.mjs
+const STACK_SHOWN = new Map(), stackShow = (commit, rel) => { const key = `${commit}:${rel}`; if (!STACK_SHOWN.has(key)) STACK_SHOWN.set(key, git('show', key)); return STACK_SHOWN.get(key) } // stacked after #475: a commit's file, read once (the strip is held to fixed inputs, whatever HEAD carries)
 const OWN = [LIB, ROUTE, UI, CSS, LAYOUT, ENV, PKG, STRIP]
 for (const rel of [LIB, ROUTE, UI, CSS, LAYOUT, STRIP]) assert.ok(fs.existsSync(path.join(ROOT, rel)), `${rel} exists`)
 const read = rel => fs.readFileSync(path.join(ROOT, rel), 'utf8')
@@ -815,6 +816,7 @@ async function proveStrip(S, label = 'strip') {
     eq(stripModelCatalog(rel, stripModelCatalog(rel, stripNarrationRouter(rel, S[rel]))), stripModelCatalog(rel, stripNarrationRouter(rel, S[rel])), `${label}: ${rel}: stripping twice changes nothing more (#475's lines out first)`)
     eq(stripModelCatalog(rel, baseSource(rel)), baseSource(rel), `${label}: ${rel}: a file without the lines comes back as it is`)
   }
+  for (const rel of MODEL_CATALOG_FILES) eq(stripModelCatalog(rel, stackShow(STACK[473].head, rel)), stackShow(STACK[473].base, rel), `${label}: ${rel}: this change's own head (13c90ea) without its lines is its base (72606f6) byte for byte, whatever later PRs put in HEAD or where (stacked after #475)`)
   for (const other of ['app/builder/page.tsx', 'lib/studio-model-catalog.ts', 'README.md']) eq(stripModelCatalog(other, 'some text'), 'some text', `${label}: ${other} comes back as it is`)
   // the registration stays strippable when something is stacked after it (not the last entry), and the block when it is not followed by another
   const mid = S[PKG].replace('"node scripts/test-studio-model-catalog.mjs"', '"node scripts/test-studio-model-catalog.mjs",\n    "test:studio-later": "node scripts/test-later.mjs"')
