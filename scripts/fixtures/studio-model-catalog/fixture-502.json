@@ -1,0 +1,4 @@
+{
+  "error": "The model router refused Director's access.",
+  "code": "router_auth_rejected"
+}

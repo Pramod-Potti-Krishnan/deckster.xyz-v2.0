@@ -1,0 +1,194 @@
+/* PASS2 Docs (NEXT_PUBLIC_STUDIO_P2_DOCS). Public pages (/docs, /legal/*, /agents/<agent>) in the Studio shell's palette: the same tokens as components/layout/studio-shell.css (light, then dark), the Help page's type scale.
+   Every rule hangs on the frame's own marker [data-studio-p2-docs]; every colour is a token declared here. The site's header and footer are not restyled. */
+[data-studio-p2-docs] {
+  --sd-frame: #e8f0ed; --sd-panel: #ffffff; --sd-surface: #f5f7f6; --sd-soft: #edf2f0; --sd-line: #dde5e2;
+  --sd-text: #243438; --sd-muted: #566965; --sd-accent: #6a4fc0; --sd-accent-soft: #f1edfb;
+  --sd-action: #223a3f; --sd-on-action: #ffffff; --sd-active: #e8f2f0; --sd-teal: #1f6f72;
+  background: var(--sd-frame); color: var(--sd-text);
+}
+.dark [data-studio-p2-docs] {
+  --sd-frame: #1a2624; --sd-panel: #1b2426; --sd-surface: #141c1e; --sd-soft: #243034; --sd-line: #334245;
+  --sd-text: #e2ebe8; --sd-muted: #a0b1ad; --sd-accent: #b4a0f2; --sd-accent-soft: #2a2540;
+  --sd-action: #3d5c63; --sd-on-action: #ffffff; --sd-active: #1d3634; --sd-teal: #83c4bd;
+}
+
+/* ---- the page ---- */
+[data-studio-p2-docs] .sd-page { display: flex; flex-direction: column; min-height: 100dvh; background: var(--sd-frame); color: var(--sd-text); }
+/* The page's column is the site header's own (Tailwind's container, mx-auto, px-4), so the page, the header and the footer share their edges at every width. */
+[data-studio-p2-docs] .sd-main { box-sizing: border-box; flex: 1; padding-top: 8px; padding-bottom: 56px; }
+[data-studio-p2-docs] .sd-main--narrow { max-width: 640px; padding-top: 56px; }
+[data-studio-p2-docs] .sd-hero { padding: 32px 0 8px; }
+[data-studio-p2-docs] .sd-eyebrow { display: block; color: var(--sd-accent); font-size: 10px; font-weight: 600; text-transform: uppercase; letter-spacing: .07em; }
+[data-studio-p2-docs] .sd-hero h1,
+[data-studio-p2-docs] .sd-article__head h1,
+[data-studio-p2-docs] .sd-empty h1 { margin: 9px 0; color: var(--sd-text); font-size: clamp(23px, 3vw, 31px); line-height: 1.2; font-weight: 500; letter-spacing: -.025em; }
+[data-studio-p2-docs] .sd-hero p { max-width: 650px; margin: 0; color: var(--sd-muted); font-size: 13px; line-height: 1.7; }
+[data-studio-p2-docs] .sd-search { position: relative; max-width: 420px; margin-top: 18px; }
+[data-studio-p2-docs] .sd-search svg { position: absolute; top: 50%; left: 12px; transform: translateY(-50%); color: var(--sd-muted); pointer-events: none; }
+[data-studio-p2-docs] .sd-search input { box-sizing: border-box; width: 100%; height: 40px; padding: 0 12px 0 36px; border: 1px solid var(--sd-line); border-radius: 8px; background: var(--sd-panel); color: var(--sd-text); font: inherit; font-size: 13px; }
+[data-studio-p2-docs] .sd-search input::placeholder { color: var(--sd-muted); opacity: .85; }
+[data-studio-p2-docs] .sd-search input:focus-visible { outline: 2px solid var(--sd-accent); outline-offset: 2px; }
+[data-studio-p2-docs] .sd-hero .sd-count { margin-top: 10px; font-size: 11px; line-height: 1.5; }
+
+/* ---- sections and cards ---- */
+[data-studio-p2-docs] .sd-section { margin-top: 30px; }
+[data-studio-p2-docs] .sd-section h2 { margin: 0 0 12px; color: var(--sd-text); font-size: 17px; line-height: 1.4; font-weight: 600; letter-spacing: -.01em; }
+[data-studio-p2-docs] .sd-cards { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; margin: 0; padding: 0; list-style: none; }
+[data-studio-p2-docs] .sd-cards--three { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+[data-studio-p2-docs] .sd-cards li { display: flex; min-width: 0; }
+[data-studio-p2-docs] .sd-card { display: flex; flex-direction: column; gap: 6px; box-sizing: border-box; width: 100%; padding: 14px 16px; border: 1px solid var(--sd-line); border-radius: 10px; background: var(--sd-panel); color: var(--sd-text); text-decoration: none; transition: border-color .12s, background-color .12s; }
+[data-studio-p2-docs] .sd-card:hover { border-color: var(--sd-teal); background: var(--sd-surface); }
+[data-studio-p2-docs] .sd-card:focus-visible { outline: 2px solid var(--sd-accent); outline-offset: 2px; }
+[data-studio-p2-docs] .sd-card__title { display: flex; align-items: center; justify-content: space-between; gap: 8px; font-size: 13px; line-height: 1.5; font-weight: 600; }
+[data-studio-p2-docs] .sd-card__title svg { flex: none; color: var(--sd-muted); }
+[data-studio-p2-docs] .sd-card:hover .sd-card__title svg { color: var(--sd-teal); }
+[data-studio-p2-docs] .sd-card__text { display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 3; overflow: hidden; color: var(--sd-muted); font-size: 12px; line-height: 1.65; overflow-wrap: anywhere; }
+
+/* ---- buttons, the help band, the empty and not-found states ---- */
+[data-studio-p2-docs] .sd-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin-top: 14px; }
+[data-studio-p2-docs] .sd-button { display: inline-flex; align-items: center; justify-content: center; box-sizing: border-box; min-height: 36px; padding: 0 14px; border: 1px solid var(--sd-line); border-radius: 8px; background: var(--sd-panel); color: var(--sd-text); font: inherit; font-size: 12px; font-weight: 500; line-height: 1.2; text-decoration: none; cursor: pointer; transition: background-color .12s, border-color .12s; }
+[data-studio-p2-docs] .sd-button:hover { background: var(--sd-surface); }
+[data-studio-p2-docs] .sd-button--primary { border-color: var(--sd-action); background: var(--sd-action); color: var(--sd-on-action); }
+[data-studio-p2-docs] .sd-button--primary:hover { background: color-mix(in srgb, var(--sd-action) 86%, #000); }
+[data-studio-p2-docs] .sd-button:focus-visible { outline: 2px solid var(--sd-accent); outline-offset: 2px; }
+[data-studio-p2-docs] .sd-help { margin-top: 40px; padding: 20px; border: 1px solid var(--sd-line); border-radius: 12px; background: var(--sd-panel); }
+[data-studio-p2-docs] .sd-help h2 { margin: 0; color: var(--sd-text); font-size: 15px; line-height: 1.4; font-weight: 600; }
+[data-studio-p2-docs] .sd-help p { max-width: 560px; margin: 6px 0 0; color: var(--sd-muted); font-size: 12px; line-height: 1.7; }
+[data-studio-p2-docs] .sd-empty { margin-top: 28px; padding: 36px 24px; border: 1px solid var(--sd-line); border-radius: 12px; background: var(--sd-panel); text-align: center; }
+[data-studio-p2-docs] .sd-empty h1,
+[data-studio-p2-docs] .sd-empty h2 { margin: 0 0 8px; color: var(--sd-text); font-size: 17px; line-height: 1.4; font-weight: 600; }
+[data-studio-p2-docs] .sd-empty p { max-width: 460px; margin: 0 auto; color: var(--sd-muted); font-size: 12px; line-height: 1.7; }
+[data-studio-p2-docs] .sd-empty .sd-actions { justify-content: center; }
+
+/* ---- an article ---- */
+[data-studio-p2-docs] .sd-crumbs { box-sizing: border-box; padding-top: 16px; }
+[data-studio-p2-docs] .sd-crumbs ol { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 8px; margin: 0; padding: 0; list-style: none; color: var(--sd-muted); font-size: 11px; line-height: 1.5; }
+[data-studio-p2-docs] .sd-crumbs li + li::before { content: "/"; margin-right: 8px; opacity: .6; }
+[data-studio-p2-docs] .sd-crumbs a { color: var(--sd-muted); text-decoration: none; }
+[data-studio-p2-docs] .sd-crumbs a:hover { color: var(--sd-text); text-decoration: underline; }
+[data-studio-p2-docs] .sd-crumbs a:focus-visible { outline: 2px solid var(--sd-accent); outline-offset: 2px; border-radius: 3px; }
+[data-studio-p2-docs] .sd-crumbs [aria-current="page"] { color: var(--sd-text); font-weight: 500; }
+[data-studio-p2-docs] .sd-layout { display: grid; flex: 1; grid-template-columns: 220px minmax(0, 1fr); gap: 36px; box-sizing: border-box; padding-top: 8px; padding-bottom: 56px; }
+[data-studio-p2-docs] .sd-side { position: sticky; top: 64px; align-self: start; max-height: calc(100dvh - 80px); overflow-y: auto; padding-top: 16px; }
+[data-studio-p2-docs] .sd-side__title { margin: 18px 0 6px; padding: 0 10px; color: var(--sd-muted); font-size: 10px; font-weight: 600; text-transform: uppercase; letter-spacing: .07em; }
+[data-studio-p2-docs] .sd-side__group:first-child .sd-side__title { margin-top: 0; }
+[data-studio-p2-docs] .sd-side ul, [data-studio-p2-docs] .sd-side-mobile ul { margin: 0; padding: 0; list-style: none; }
+[data-studio-p2-docs] .sd-side a, [data-studio-p2-docs] .sd-side-mobile a { display: block; padding: 6px 10px; border-radius: 7px; color: var(--sd-muted); font-size: 12px; line-height: 1.5; text-decoration: none; }
+[data-studio-p2-docs] .sd-side a:hover, [data-studio-p2-docs] .sd-side-mobile a:hover { background: var(--sd-panel); color: var(--sd-text); }
+[data-studio-p2-docs] .sd-side a[aria-current="page"], [data-studio-p2-docs] .sd-side-mobile a[aria-current="page"] { background: var(--sd-active); color: var(--sd-teal); font-weight: 500; }
+[data-studio-p2-docs] .sd-side a:focus-visible, [data-studio-p2-docs] .sd-side-mobile a:focus-visible { outline: 2px solid var(--sd-accent); outline-offset: 2px; }
+[data-studio-p2-docs] .sd-side-mobile { display: none; margin-bottom: 16px; border: 1px solid var(--sd-line); border-radius: 10px; background: var(--sd-panel); }
+[data-studio-p2-docs] .sd-side-mobile summary { display: flex; align-items: center; min-height: 44px; padding: 0 14px; color: var(--sd-text); font-size: 12px; font-weight: 500; cursor: pointer; }
+[data-studio-p2-docs] .sd-side-mobile summary:focus-visible { outline: 2px solid var(--sd-accent); outline-offset: 2px; border-radius: 10px; }
+[data-studio-p2-docs] .sd-side-mobile nav { padding: 0 8px 10px; }
+[data-studio-p2-docs] .sd-article { min-width: 0; max-width: 760px; padding-top: 16px; }
+[data-studio-p2-docs] .sd-article__head { margin-bottom: 22px; padding-bottom: 14px; border-bottom: 1px solid var(--sd-line); }
+[data-studio-p2-docs] .sd-article__head h1 { margin-bottom: 0; }
+
+/* ---- the article's text ---- */
+[data-studio-p2-docs] .sd-prose { color: var(--sd-text); font-size: 14px; line-height: 1.8; overflow-wrap: anywhere; }
+[data-studio-p2-docs] .sd-prose h2 { margin: 34px 0 10px; font-size: 18px; line-height: 1.4; font-weight: 600; letter-spacing: -.01em; }
+[data-studio-p2-docs] .sd-prose h3 { margin: 24px 0 8px; font-size: 15px; line-height: 1.5; font-weight: 600; }
+[data-studio-p2-docs] .sd-prose h4 { margin: 18px 0 6px; font-size: 13px; line-height: 1.5; font-weight: 600; }
+[data-studio-p2-docs] .sd-prose > :first-child { margin-top: 0; }
+[data-studio-p2-docs] .sd-prose p { margin: 0 0 14px; }
+[data-studio-p2-docs] .sd-prose :is(ul, ol) { margin: 0 0 14px; padding-left: 22px; }
+[data-studio-p2-docs] .sd-prose ul { list-style: disc; }
+[data-studio-p2-docs] .sd-prose ol { list-style: decimal; }
+[data-studio-p2-docs] .sd-prose li { margin: 4px 0; }
+[data-studio-p2-docs] .sd-prose li::marker { color: var(--sd-muted); }
+[data-studio-p2-docs] .sd-prose strong { font-weight: 600; }
+[data-studio-p2-docs] .sd-prose a { color: var(--sd-accent); text-decoration: underline; text-underline-offset: 2px; }
+[data-studio-p2-docs] .sd-prose a:focus-visible { outline: 2px solid var(--sd-accent); outline-offset: 2px; border-radius: 3px; }
+[data-studio-p2-docs] .sd-prose code { padding: 1px 5px; border-radius: 4px; background: var(--sd-soft); font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-size: 12.5px; }
+[data-studio-p2-docs] .sd-prose pre { margin: 0 0 16px; padding: 14px 16px; overflow-x: auto; border: 1px solid var(--sd-line); border-radius: 8px; background: var(--sd-surface); line-height: 1.65; }
+[data-studio-p2-docs] .sd-prose pre code { padding: 0; background: transparent; font-size: 12.5px; }
+[data-studio-p2-docs] .sd-prose blockquote { margin: 0 0 16px; padding: 10px 14px; border-left: 3px solid var(--sd-teal); border-radius: 0 8px 8px 0; background: var(--sd-soft); color: var(--sd-muted); }
+[data-studio-p2-docs] .sd-prose blockquote p:last-child { margin-bottom: 0; }
+[data-studio-p2-docs] .sd-prose hr { margin: 24px 0; border: 0; border-top: 1px solid var(--sd-line); }
+[data-studio-p2-docs] .sd-prose img { max-width: 100%; border-radius: 8px; }
+[data-studio-p2-docs] .sd-table { margin: 0 0 16px; overflow-x: auto; }
+[data-studio-p2-docs] .sd-table table { width: 100%; border-collapse: collapse; font-size: 12.5px; line-height: 1.6; }
+[data-studio-p2-docs] .sd-table :is(th, td) { padding: 8px 12px; border-bottom: 1px solid var(--sd-line); text-align: left; vertical-align: top; }
+[data-studio-p2-docs] .sd-table th { background: var(--sd-soft); font-weight: 600; }
+[data-studio-p2-docs] .sd-article .sd-section { margin-top: 44px; }
+
+/* ---- the pages that keep their markup: /legal/*, /docs/api, /agents/<agent>. Their words and links are not touched; only their look. Every class named below is one those pages already carry (the test pins it). ---- */
+[data-studio-p2-docs] > .min-h-screen { background: var(--sd-frame); color: var(--sd-text); }
+[data-studio-p2-docs] section.bg-gradient-to-br { padding: 40px 0 20px; background: var(--sd-frame); border-bottom: 0; }
+[data-studio-p2-docs] section.bg-gradient-to-br > .container { text-align: left; }
+[data-studio-p2-docs] section.bg-gradient-to-br .max-w-4xl { max-width: 760px; margin: 0; }
+[data-studio-p2-docs] section.bg-gradient-to-br h1 { margin: 9px 0; color: var(--sd-text); font-size: clamp(23px, 3vw, 31px); line-height: 1.2; font-weight: 500; letter-spacing: -.025em; }
+[data-studio-p2-docs] section.bg-gradient-to-br p { max-width: 650px; margin: 0; color: var(--sd-muted); font-size: 13px; line-height: 1.7; }
+[data-studio-p2-docs] section.bg-gradient-to-br .bg-gradient-to-r { margin: 0; padding: 0; border: 0; background: none; color: var(--sd-accent); font-size: 10px; font-weight: 600; text-transform: uppercase; letter-spacing: .07em; box-shadow: none; }
+[data-studio-p2-docs] section.bg-gradient-to-br .bg-gradient-to-r svg { width: 11px; height: 11px; }
+[data-studio-p2-docs] section.bg-background { padding: 8px 0 56px; background: transparent; }
+[data-studio-p2-docs] section.bg-background > .container > .max-w-4xl, [data-studio-p2-docs] section.bg-background > .container > .max-w-3xl { max-width: 760px; margin-inline: 0; }
+[data-studio-p2-docs] section.bg-background .prose { max-width: 760px; margin-inline: 0; font-size: 14px; line-height: 1.8; --tw-prose-body: var(--sd-text); --tw-prose-headings: var(--sd-text); --tw-prose-lead: var(--sd-muted); --tw-prose-links: var(--sd-accent); --tw-prose-bold: var(--sd-text); --tw-prose-counters: var(--sd-muted); --tw-prose-bullets: var(--sd-muted); --tw-prose-hr: var(--sd-line); --tw-prose-quotes: var(--sd-text); --tw-prose-quote-borders: var(--sd-teal); --tw-prose-code: var(--sd-text); --tw-prose-pre-bg: var(--sd-surface); --tw-prose-invert-body: var(--sd-text); --tw-prose-invert-headings: var(--sd-text); --tw-prose-invert-lead: var(--sd-muted); --tw-prose-invert-links: var(--sd-accent); --tw-prose-invert-bold: var(--sd-text); --tw-prose-invert-counters: var(--sd-muted); --tw-prose-invert-bullets: var(--sd-muted); --tw-prose-invert-hr: var(--sd-line); --tw-prose-invert-quotes: var(--sd-text); --tw-prose-invert-code: var(--sd-text); }
+[data-studio-p2-docs] section.bg-background .prose :is(h2, h3) { margin: 30px 0 10px; font-weight: 600; letter-spacing: -.01em; }
+[data-studio-p2-docs] section.bg-background .prose h2 { font-size: 18px; line-height: 1.4; }
+[data-studio-p2-docs] section.bg-background .prose h3 { font-size: 15px; line-height: 1.5; }
+[data-studio-p2-docs] section.bg-background .prose :is(p, ul, ol) { margin: 0 0 14px; }
+[data-studio-p2-docs] section.bg-background .prose .lead { font-size: 14px; color: var(--sd-muted); }
+[data-studio-p2-docs] section.bg-background .prose li { margin: 4px 0; }
+[data-studio-p2-docs] section.bg-background .prose a { text-decoration: underline; text-underline-offset: 2px; }
+[data-studio-p2-docs] section.bg-background .grid .rounded-lg { border: 1px solid var(--sd-line); background: var(--sd-panel); color: var(--sd-text); box-shadow: none; }
+[data-studio-p2-docs] section.bg-background .grid .rounded-lg svg { width: 24px; height: 24px; color: var(--sd-teal); }
+[data-studio-p2-docs] section.bg-background .grid .rounded-lg > .p-6 { padding: 18px 18px 6px; }
+[data-studio-p2-docs] section.bg-background .grid .rounded-lg > .pt-0 { padding: 0 18px 18px; }
+[data-studio-p2-docs] section.bg-background .grid .rounded-lg :is(h3, .font-semibold) { font-size: 14px; line-height: 1.5; font-weight: 600; }
+[data-studio-p2-docs] section.bg-background .grid .rounded-lg .text-muted-foreground { color: var(--sd-muted); font-size: 12px; line-height: 1.7; }
+[data-studio-p2-docs] section.bg-background .space-y-12 > div > h2 { font-size: 18px; line-height: 1.4; font-weight: 600; letter-spacing: -.01em; }
+[data-studio-p2-docs] section.bg-background .space-y-12 svg { color: var(--sd-teal); }
+[data-studio-p2-docs] section.bg-background .space-y-12 :is(.bg-muted, pre) { border: 1px solid var(--sd-line); background: var(--sd-surface); color: var(--sd-text); }
+[data-studio-p2-docs] section.bg-background .space-y-12 .rounded-lg:not(.bg-muted) { border: 1px solid var(--sd-line); background: var(--sd-panel); color: var(--sd-text); box-shadow: none; }
+[data-studio-p2-docs] section.bg-background .space-y-12 .text-muted-foreground { color: var(--sd-muted); }
+[data-studio-p2-docs] section.bg-background .space-y-12 .rounded-full { border-color: var(--sd-line); background: var(--sd-active); color: var(--sd-teal); }
+
+/* /docs/api documents an API that is not open yet: a notice under the site's header (components/studio-docs/studio-p2-docs-api-notice.tsx), and every section after it is muted: the secondary text colour for text, headings, code, icons and the badge (no accent, no teal), dashed cards. Still readable at AA. */
+[data-studio-p2-docs] .sd-api-notice { box-sizing: border-box; padding-top: 24px; }
+[data-studio-p2-docs] .sd-api-notice__box { padding: 12px 16px; border: 1px solid var(--sd-line); border-left: 3px solid var(--sd-action); border-radius: 10px; background: var(--sd-panel); }
+[data-studio-p2-docs] .sd-api-notice__title { margin: 0; color: var(--sd-text); font-size: 13px; line-height: 1.5; font-weight: 600; }
+[data-studio-p2-docs] .sd-api-notice__text { max-width: 650px; margin: 4px 0 0; color: var(--sd-muted); font-size: 12px; line-height: 1.7; }
+[data-studio-p2-docs] .sd-api-notice ~ section { --sd-text: var(--sd-muted); --sd-accent: var(--sd-muted); --sd-teal: var(--sd-muted); }
+[data-studio-p2-docs] .sd-api-notice ~ section :is(h2, code) { color: var(--sd-muted); }
+[data-studio-p2-docs] .sd-api-notice ~ section .space-y-12 .rounded-lg:not(.bg-muted) { border-style: dashed; border-color: var(--sd-muted); }
+
+/* /agents/<agent>: its slides keep their layout; the per-agent colour gradients become the shell's ink and one accent. */
+[data-studio-p2-docs="agents"] .-z-10 { background-image: none; background-color: var(--sd-action); }
+[data-studio-p2-docs="agents"] [class*="radial-gradient"] { display: none; }
+[data-studio-p2-docs="agents"] [class*="bg-gradient-to-"]:not(.-z-10) { background-image: none; background-color: var(--sd-action); }
+[data-studio-p2-docs="agents"] [class*="bg-gradient-to-b "]:not(.-z-10) { background-color: var(--sd-line); opacity: 1; }
+[data-studio-p2-docs="agents"] .h-20 { display: flex; margin-inline: auto; }
+[data-studio-p2-docs="agents"] section[data-snap="slide"] h1 { font-size: clamp(30px, 5vw, 48px); line-height: 1.12; font-weight: 500; letter-spacing: -.025em; }
+[data-studio-p2-docs="agents"] section[data-snap="slide"] h2 { font-size: clamp(24px, 3.4vw, 34px); line-height: 1.2; font-weight: 500; letter-spacing: -.025em; }
+[data-studio-p2-docs="agents"] section[data-snap="slide"] h3 { font-size: 15px; line-height: 1.5; font-weight: 600; }
+[data-studio-p2-docs="agents"] .bg-card { border-color: var(--sd-line); background: var(--sd-panel); color: var(--sd-text); box-shadow: none; }
+[data-studio-p2-docs="agents"] .border-l-4 { border-left-color: var(--sd-accent); }
+[data-studio-p2-docs="agents"] .text-muted-foreground { color: var(--sd-muted); }
+[data-studio-p2-docs="agents"] .text-primary { color: var(--sd-accent); }
+[data-studio-p2-docs="agents"] [class*="bg-muted"] { background: var(--sd-soft); }
+
+/* The site's wordmark is dark violet on transparent; on the dark page it is lifted so it can be read. */
+.dark [data-studio-p2-docs] :is(header, footer) img[alt="Deckster"] { filter: brightness(2.8) saturate(.75); }
+
+@media (max-width: 1023px) {
+  [data-studio-p2-docs] .sd-layout { grid-template-columns: minmax(0, 1fr); gap: 0; }
+  [data-studio-p2-docs] .sd-side { display: none; }
+  [data-studio-p2-docs] .sd-side-mobile { display: block; }
+}
+@media (max-width: 760px) {
+  [data-studio-p2-docs] .sd-cards, [data-studio-p2-docs] .sd-cards--three { grid-template-columns: minmax(0, 1fr); }
+}
+@media (max-width: 640px) {
+  [data-studio-p2-docs] .sd-main { padding-top: 4px; padding-bottom: 40px; }
+  [data-studio-p2-docs] .sd-main--narrow { padding-top: 32px; }
+  [data-studio-p2-docs] .sd-crumbs { padding-top: 14px; }
+  [data-studio-p2-docs] .sd-layout { padding-top: 4px; padding-bottom: 40px; }
+  [data-studio-p2-docs] .sd-hero { padding-top: 22px; }
+  [data-studio-p2-docs] .sd-button { min-height: 44px; }
+  [data-studio-p2-docs] .sd-prose { font-size: 14px; }
+}
+@media (prefers-reduced-motion: reduce) {
+  [data-studio-p2-docs] * { transition: none !important; }
+}

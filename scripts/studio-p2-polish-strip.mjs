@@ -1,4 +1,4 @@
-// Studio Pass 2 polish, PP-1..PP-7 (flag NEXT_PUBLIC_STUDIO_P2_POLISH): the exact text this change adds to or swaps in the files it touches, so a pin that holds one of them to an earlier
+// Studio Pass 2 polish, PP-1..PP-8 (flag NEXT_PUBLIC_STUDIO_P2_POLISH): the exact text this change adds to or swaps in the files it touches, so a pin that holds one of them to an earlier
 // commit can first put the base text back (stripP2Polish(rel, text)), the way scripts/studio-p2-publish-strip.mjs does. scripts/test-studio-p2-polish.mjs proves that stripping gives back the
 // base commit's files byte for byte, so nothing is changed that is not listed here, and that every listed change is inert with the flag off. New files (no base text to put back):
 // lib/studio-p2-polish.ts, scripts/test-studio-p2-polish.mjs, scripts/studio-p2-polish-strip.mjs.
@@ -49,6 +49,7 @@ export const POLISH_PAIRS = {
     ["        </div>\n        {badgeLabel && (\n          <Badge\n", "        </div>\n        {tierLabel && (\n          <Badge\n"],
     ["          >\n            {badgeLabel}\n          </Badge>\n", "          >\n            {tierLabel}\n          </Badge>\n"],
     ["      </DropdownMenuLabel>\n      {usageCard(quota, onNavigate, quotaFailed)}\n      {sessionUsage && <div data-studio-session-usage=\"true\" role=\"group\" aria-label=\"Current session token usage\">{sessionUsage}</div>}\n", "      </DropdownMenuLabel>\n      {usageCard(quota, onNavigate)}\n      {sessionUsage && <div data-studio-session-usage=\"true\" role=\"group\" aria-label=\"Current session token usage\">{sessionUsage}</div>}\n"],
+    ["    // PP-8: with the polish flag the menu root carries the marker the vertical-rhythm block at the end of user-profile-menu-p2.css is scoped to.\n    <DropdownMenuContent data-studio-v4-profile=\"true\" data-studio-profile-fidelity=\"true\" data-studio-p2-profile=\"true\" {...(STUDIO_P2_POLISH_ENABLED ? { [STUDIO_P2_POLISH_ATTR]: \"true\" } : {})} side=\"right\" sideOffset={8} align=\"end\" className=\"w-64\">\n", "    <DropdownMenuContent data-studio-v4-profile=\"true\" data-studio-profile-fidelity=\"true\" data-studio-p2-profile=\"true\" side=\"right\" sideOffset={8} align=\"end\" className=\"w-64\">\n"],
   ],
   "package.json": [
     ["    \"test:studio-p2-polish\": \"node scripts/test-studio-p2-polish.mjs\",\n", ""],
@@ -61,7 +62,7 @@ export const POLISH_APPENDED = {
   "styles/marketing-v3-p2.css": "\n/* NEXT_PUBLIC_STUDIO_P2_POLISH (",
   "components/studio-personal/intelligence-p2.css": "\n/* NEXT_PUBLIC_STUDIO_P2_POLISH (",
   "components/user-profile-menu-p2.css": "\n/* NEXT_PUBLIC_STUDIO_P2_POLISH (",
-  ".env.example": "\n# PASS2 POLISH PP-1..PP-7",
+  ".env.example": "\n# PASS2 POLISH PP-1..PP-8",
 }
 
 export const POLISH_FILES = [...Object.keys(POLISH_PAIRS), ...Object.keys(POLISH_APPENDED)]

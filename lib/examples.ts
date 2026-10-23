@@ -1,5 +1,10 @@
-import { Example, ExampleFilters } from '@/types/example';
-import { examples } from '@/content/examples';
+import { Example, ExampleFilters, AgentType } from '@/types/example';
+import { examples as baseExamples } from '@/content/examples';
+import { studioAgentId } from '@/lib/studio-p2-docs';
+
+// PASS2 Docs (NEXT_PUBLIC_STUDIO_P2_DOCS, default off): with the flag on the examples name the current agents (content-generator, slide-composer, visualizer) in place of scripter, graphic-artist and data-visualizer. Off: the content as it was, the same array.
+const STUDIO_P2_DOCS = process.env.NEXT_PUBLIC_STUDIO_P2_DOCS === 'true';
+const examples: Example[] = STUDIO_P2_DOCS ? baseExamples.map((example) => ({ ...example, agents: example.agents.map((agent) => studioAgentId(agent) as AgentType) })) : baseExamples;
 
 export function getAllExamples(): Example[] {
   return examples;
