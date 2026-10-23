@@ -1,0 +1,74 @@
+{
+  "case": "200-ok-composer-carrier",
+  "what": "Rename a Composer stage-carrier template: name only, carrier untouched, stage_template_summary kept.",
+  "request": {
+    "method": "PATCH",
+    "path": "/api/users/user-a/templates/t-carrier",
+    "json_body": {
+      "name": "Quarterly original"
+    },
+    "entitlement_header": "(none)"
+  },
+  "response": {
+    "status": 200,
+    "headers": {
+      "content-type": "application/json"
+    },
+    "json_body": {
+      "id": "t-carrier",
+      "name": "Quarterly original",
+      "description": null,
+      "created_at": "2026-10-04T00:00:00+00:00",
+      "updated_at": "2026-10-04T00:00:00+00:00",
+      "usage_count": 3,
+      "slide_count": 7,
+      "source_session_id": "sess-1",
+      "source_presentation_id": "pres-1",
+      "blueprint_generation_method": "deterministic",
+      "blueprint_enrichment_status": "complete",
+      "blueprint_enrichment_error": null,
+      "blueprint_enriched_at": "2026-10-01T01:00:00+00:00",
+      "source_fact_manifest": {
+        "facts": [
+          "kept"
+        ]
+      },
+      "template_purity_status": "clean",
+      "template_purity_error": null,
+      "template_purified_at": "2026-10-01T02:00:00+00:00",
+      "stage_template_summary": {
+        "schema_version": "stage-v1",
+        "sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "slide_count": 7
+      }
+    }
+  },
+  "list_row_before_rename": {
+    "id": "t-carrier",
+    "name": "Stage original",
+    "description": null,
+    "created_at": "2026-10-04T00:00:00+00:00",
+    "updated_at": "2026-10-04T00:00:00+00:00",
+    "usage_count": 3,
+    "slide_count": 7,
+    "source_session_id": "sess-1",
+    "source_presentation_id": "pres-1",
+    "blueprint_generation_method": "deterministic",
+    "blueprint_enrichment_status": "complete",
+    "blueprint_enrichment_error": null,
+    "blueprint_enriched_at": "2026-10-01T01:00:00+00:00",
+    "source_fact_manifest": {
+      "facts": [
+        "kept"
+      ]
+    },
+    "template_purity_status": "clean",
+    "template_purity_error": null,
+    "template_purified_at": "2026-10-01T02:00:00+00:00",
+    "stage_template_summary": {
+      "schema_version": "stage-v1",
+      "sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "slide_count": 7
+    }
+  }
+}
