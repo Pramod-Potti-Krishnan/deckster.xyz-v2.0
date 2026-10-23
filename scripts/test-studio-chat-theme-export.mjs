@@ -38,7 +38,9 @@ import { pageThemeSources } from './studio-chat-harness/page-theme-sources.mjs'
 import { pageSources } from './studio-chat-harness/page-sources.mjs'
 import { stripChatThemeExport, BASE_COMMIT, CHAT_THEME_EXPORT_FILES, CHAT_THEME_EXPORT_CHANGES } from './studio-chat-theme-export-strip.mjs'
 import { stripNarrationRouter } from './studio-narration-router-strip.mjs' // #475 (NARRATION_VIA_ROUTER) is stacked on #473 on this change: its .env.example block and package.json line come out first
+import { sameAsBase } from './studio-env-append-tolerant.mjs' // stacked after #475: the .env.example rule that takes a later change's block (scripts/studio-env-append-tolerant.mjs)
 import { stripModelCatalog } from './studio-model-catalog-strip.mjs' // #473 (NEXT_PUBLIC_STUDIO_MODEL_CATALOG) is stacked on this change: its .env.example block and package.json line come out first
+import { STACK, stackMutants, stackScope, sameOrTolerant } from './studio-stack-tolerant.mjs' // stacked after #475: a later PR's files are not this change's to answer for, and a shared file a later PR edits too keeps its base lines and this change's (scripts/studio-stack-tolerant.mjs)
 
 for (const name of Object.keys(process.env)) if (/KEY|TOKEN|SECRET|CREDENTIAL|PASSWORD/i.test(name)) delete process.env[name]
 const root = path.resolve(fileURLToPath(new URL('../', import.meta.url)))
@@ -613,6 +615,7 @@ await check('theme runner: not_owner, the composer-frozen / pending templates, a
 const NEW = /^(lib\/chat-theme-export(-wire)?\.ts|scripts\/(test-studio-chat-theme-export|studio-chat-theme-export-strip)\.mjs|scripts\/fixtures\/chat-theme-export\/.+|docs\/pass3\/chat-theme-export\/LIVE-CHECK-PLAN\.md)$/
 const STACKED_NARRATION_ROUTER = /^(lib\/narration\/(model-router|draft|tts|spoken)\.ts|app\/api\/narration\/(render|script|speak)\/route\.ts|app\/api\/narration\/voice\/sample\/\[voiceId\]\/route\.ts|scripts\/(test-studio-narration-router|studio-narration-router-strip)\.mjs)$/ // #475's own files (stacked on #473 on this change)
 const STACKED_MODEL_CATALOG = /^(app\/\(app\)\/studio\/intelligence\/layout\.tsx|app\/api\/models\/catalogue\/route\.ts|components\/studio-personal\/intelligence-models\.(css|tsx)|lib\/studio-model-catalog\.ts|scripts\/(test-studio-model-catalog|studio-model-catalog-strip)\.mjs|scripts\/fixtures\/studio-model-catalog\/.+)$/ // #473's own files (stacked on this change)
+const STACKED_KNOWN = rel => STACKED_MODEL_CATALOG.test(rel) || STACKED_NARRATION_ROUTER.test(rel) || /^scripts\/(test-)?studio-env-append-tolerant\.mjs$/.test(rel) // stacked after #475: the stack this test declares (#473, #475 and #480's rule), for scripts/studio-stack-tolerant.mjs
 // Older pins and strip roots that now read through scripts/studio-chat-theme-export-strip.mjs (an import and one call each).
 const READS_THROUGH_STRIP = ['scripts/studio-add-slide-status-strip.mjs', 'scripts/studio-open-read-only-strip.mjs', 'scripts/studio-theme-dark-persist-strip.mjs',
   'scripts/test-studio-director-transport.mjs', 'scripts/test-theme-font-selection.mjs',
@@ -633,6 +636,8 @@ await check(`identity: stripping this change gives back ${BASE_COMMIT.slice(0, 7
   for (const rel of CHAT_THEME_EXPORT_FILES) {
     const head = stripModelCatalog(rel, stripNarrationRouter(rel, read(rel))) // #475's block / registration out first (stacked), then #473's (stacked on this change)
     for (const [added] of CHAT_THEME_EXPORT_CHANGES[rel]) assert.equal(head.split(added).length, 2, `${rel}: one occurrence`)
+    if (rel === '.env.example') { assert.ok(sameAsBase(rel, stripChatThemeExport(rel, head), baseFile(rel), new RegExp(`${THEME_FLAG}\\b|${EXPORT_FLAG}\\b`)), rel); continue } // stacked after #475: .env.example may take a later change's block; every other file stays byte for byte, below
+    { const v = sameOrTolerant(rel, head, stripChatThemeExport(rel, head), baseFile(rel), CHAT_THEME_EXPORT_CHANGES[rel]); assert.ok(v.ok, `${rel}: ${v.reason}`); if (!v.exact) continue } // stacked after #475: when a later PR edited this shared file too, its base lines stay in order and this change's lines are all in HEAD and none is left (scripts/studio-stack-tolerant.mjs); otherwise byte for byte, below
     assert.equal(sha(stripChatThemeExport(rel, head)), sha(baseFile(rel)), rel)
   }
   // The committed tree against the base (not the working tree: a suite neighbour that rewrites docs/ while it runs must not count).
@@ -650,7 +655,8 @@ await check(`identity: stripping this change gives back ${BASE_COMMIT.slice(0, 7
     const added = git('diff', '-U0', BASE_COMMIT, 'HEAD', '--', rel).split('\n').filter(line => line.startsWith('+') && !line.startsWith('+++'))
     for (const line of added) assert.match(line, /ThemeExport|THEME_EXPORT|chat-theme-export|#472|stacked/i, `${rel}: ${line.slice(0, 160)}`)
   }
-  for (const rel of changed) assert.ok(CHAT_THEME_EXPORT_FILES.includes(rel) || NEW.test(rel) || READS_THROUGH_STRIP.includes(rel) || STACKED_SIBLING_TESTS.includes(rel) || STACKED_MODEL_CATALOG.test(rel) || STACKED_NARRATION_ROUTER.test(rel), `unexpected change: ${rel}`) // #475's files are stacked
+  { const scope = stackScope(changed, STACK[472], STACKED_KNOWN); assert.equal(STACK[472].base, BASE_COMMIT); assert.deepEqual(git('diff', '--name-only', STACK[472].base, STACK[472].head).split('\n').filter(Boolean), STACK[472].files, 'the frozen files are #472\'s own diff'); assert.deepEqual({ missing: scope.missing, stray: scope.stray }, { missing: [], stray: [] }, 'every frozen file is changed, no stray in its family'); console.log(scope.line); changed.splice(0, changed.length, ...scope.checked) } // stacked after #475: only this change's files, its family and its declared stack are checked below; a later PR's files are ignored, with a count
+  for (const rel of changed) assert.ok(CHAT_THEME_EXPORT_FILES.includes(rel) || NEW.test(rel) || READS_THROUGH_STRIP.includes(rel) || STACKED_SIBLING_TESTS.includes(rel) || STACKED_MODEL_CATALOG.test(rel) || STACKED_NARRATION_ROUTER.test(rel) || /^scripts\/(test-)?studio-env-append-tolerant\.mjs$/.test(rel), `unexpected change: ${rel}`) // #475's files are stacked, and so are the append-tolerant .env.example rule and its test
 })
 
 await check('identity: every added piece names a flag (or is the package.json registration / the .env.example documentation)', async () => {
@@ -903,6 +909,8 @@ await check('mutation: dropping the build-running lock, or reading any Downloads
   assert.equal((await lenient.runExportDirective(directiveOf(transcripts.export_failed), OWNER, exportDeps(world))).status, 'done', 'the mutant says done for a refusal')
   assert.equal(status(await runner.runExportDirective(directiveOf(transcripts.export_failed), OWNER, exportDeps(world))), 'failed:export_failed')
 })
+await check('mutation: the .env.example rule refuses an edited base line and takes a later block of another flag (stacked after #475)', async () => { const base = baseFile('.env.example'), edited = base.replace(/^NEXTAUTH_URL=.*$/m, '$&x'), own = new RegExp(`${THEME_FLAG}\\b|${EXPORT_FLAG}\\b`); assert.ok(edited !== base && !sameAsBase('.env.example', edited, base, own) && sameAsBase('.env.example', `${base}\n# a later change\nNEXT_PUBLIC_SOME_OTHER_FLAG="false"\n`, base, own)) }) // stacked after #475, #473's rule
+await check('mutation: the stack-tolerant rules refuse a base line dropped from a shared file, this change\'s line left after its strip or gone from HEAD, an own file missing and a stray in its family; they take a later PR\'s line and file (stacked after #475)', async () => { const shared = CHAT_THEME_EXPORT_FILES.filter(rel => rel !== '.env.example').map(rel => ({ rel, head: stripModelCatalog(rel, stripNarrationRouter(rel, read(rel))), strip: text => stripChatThemeExport(rel, text), base: baseFile(rel), changes: CHAT_THEME_EXPORT_CHANGES[rel] })); const results = stackMutants({ change: STACK[472], changed: git('diff', '--name-only', BASE_COMMIT, 'HEAD', '--', '.').split('\n').filter(Boolean), known: STACKED_KNOWN, shared }); for (const [label, held] of results) assert.ok(held, label); console.log(`stack-tolerant (#472): ${results.filter(([label]) => label.includes('mutant:')).length} mutants caught, ${results.filter(([label]) => label.includes('control:')).length} controls taken`) }) // stacked after #475, scripts/studio-stack-tolerant.mjs
 
 if (process.argv.includes('--print-hashes')) console.log(JSON.stringify(identityHashes, null, 2))
 console.log(`${passed} chat theme/export checks passed; ${failed.length} failed. Recorded Director frames (Director !513), real hook + page theme regions + real Downloads client, offline, no network.`)

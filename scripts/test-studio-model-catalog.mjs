@@ -28,6 +28,8 @@ import { execFileSync } from 'node:child_process'
 import { fileURLToPath } from 'node:url'
 import ts from 'typescript'
 import { stripNarrationRouter } from './studio-narration-router-strip.mjs' // #475 (NARRATION_VIA_ROUTER) is stacked on this change: its .env.example block and package.json line come out first
+import { sameAsBase } from './studio-env-append-tolerant.mjs' // stacked after #475: the .env.example rule that takes a later change's block (scripts/studio-env-append-tolerant.mjs)
+import { STACK, stackMutants, stackScope, sameOrTolerant } from './studio-stack-tolerant.mjs' // stacked after #475: a later PR's files are not this change's to answer for, and a shared file a later PR edits too keeps its base lines and this change's (scripts/studio-stack-tolerant.mjs)
 import postcss from 'postcss'
 import React from 'react'
 import jsxRuntimeReal from 'react/jsx-runtime'
@@ -64,6 +66,7 @@ const PKG = 'package.json'
 const FLAG = 'NEXT_PUBLIC_STUDIO_MODEL_CATALOG'
 const STRIP = 'scripts/studio-model-catalog-strip.mjs'
 const HARNESS = 'scripts/studio-library-manage-harness.mjs'
+const STACK_PKG_CHANGES = [['    "test:studio-model-catalog": "node scripts/test-studio-model-catalog.mjs"', '']] // stacked after #475: this change's one package.json line, for scripts/studio-stack-tolerant.mjs
 const OWN = [LIB, ROUTE, UI, CSS, LAYOUT, ENV, PKG, STRIP]
 for (const rel of [LIB, ROUTE, UI, CSS, LAYOUT, STRIP]) assert.ok(fs.existsSync(path.join(ROOT, rel)), `${rel} exists`)
 const read = rel => fs.readFileSync(path.join(ROOT, rel), 'utf8')
@@ -779,6 +782,8 @@ function proveEnvAndPackage(env, pkg, label = 'env') {
   // Stacked order: after #470's refine block and #472's theme / export block, before FRONTEND-1's PASS2 ADMIN and Docs blocks (their onboarding / admin / docs mutants find a block with lastIndexOf, so they stay last).
   for (const earlier of ['NEXT_PUBLIC_CHAT_ELEMENT_REFINE="false"', 'NEXT_PUBLIC_CHAT_EXPORT="false"']) if (env.includes(earlier)) ok(env.indexOf(earlier) < start, `${label}: after ${earlier.split('=')[0]}'s block`)
   for (const later of ['# PASS2 ADMIN', '# PASS2 Docs / Help / Legal / Agents']) if (env.includes(later)) ok(start < env.indexOf(later), `${label}: before FRONTEND-1's ${later}`)
+  const docsAt = env.indexOf('NEXT_PUBLIC_STUDIO_P2_DOCS="false"\n') // stacked after #475: a later change's block may follow the Docs block
+  if (docsAt !== -1) { const docsEnd = docsAt + 'NEXT_PUBLIC_STUDIO_P2_DOCS="false"\n'.length; ok(env.slice(docsEnd).split('\n').every(line => /^\s*$|^\s*#|^[A-Z][A-Z0-9_]*=/.test(line)), `${label}: only a later change's comments, blanks and assignments follow the Docs block (stacked after #475)`); env = env.slice(0, docsEnd) } // #475: the Docs block is the last of FRONTEND-1's, checked below
   if (env.includes('NEXT_PUBLIC_STUDIO_P2_DOCS="false"')) ok(env.indexOf('NEXT_PUBLIC_STUDIO_P2_ADMIN="false"') < env.indexOf('NEXT_PUBLIC_STUDIO_P2_DOCS="false"') && env.endsWith('NEXT_PUBLIC_STUDIO_P2_DOCS="false"\n'), `${label}: ADMIN then DOCS are still the last two blocks`)
   // append-only against the base
   const want = baseSource(ENV).split('\n'), extras = []
@@ -806,8 +811,8 @@ async function proveStrip(S, label = 'strip') {
   const { stripModelCatalog, MODEL_CATALOG_FILES } = load(STRIP, { sources: S })
   deepEq(MODEL_CATALOG_FILES, ['.env.example', 'package.json'], `${label}: the two shared files`)
   for (const rel of MODEL_CATALOG_FILES) {
-    eq(stripModelCatalog(rel, stripNarrationRouter(rel, S[rel])), baseSource(rel), `${label}: ${rel} without this change's lines (and #475's, stacked on it) is ${BASE_COMMIT.slice(0, 7)}'s file byte for byte`)
-    eq(stripModelCatalog(rel, stripModelCatalog(rel, stripNarrationRouter(rel, S[rel]))), baseSource(rel), `${label}: ${rel}: stripping twice changes nothing more (#475's lines out first)`)
+    ok(sameAsBase(rel, stripModelCatalog(rel, stripNarrationRouter(rel, S[rel])), baseSource(rel), /NEXT_PUBLIC_STUDIO_MODEL_CATALOG\b/) || (rel === PKG && sameOrTolerant(rel, stripNarrationRouter(rel, S[rel]), stripModelCatalog(rel, stripNarrationRouter(rel, S[rel])), baseSource(rel), STACK_PKG_CHANGES).ok), `${label}: ${rel} without this change's lines (and #475's, stacked on it) is ${BASE_COMMIT.slice(0, 7)}'s file byte for byte (.env.example: a later change's block may follow; package.json: a later PR's lines, its base lines kept in order, stacked after #475)`)
+    eq(stripModelCatalog(rel, stripModelCatalog(rel, stripNarrationRouter(rel, S[rel]))), stripModelCatalog(rel, stripNarrationRouter(rel, S[rel])), `${label}: ${rel}: stripping twice changes nothing more (#475's lines out first)`)
     eq(stripModelCatalog(rel, baseSource(rel)), baseSource(rel), `${label}: ${rel}: a file without the lines comes back as it is`)
   }
   for (const other of ['app/builder/page.tsx', 'lib/studio-model-catalog.ts', 'README.md']) eq(stripModelCatalog(other, 'some text'), 'some text', `${label}: ${other} comes back as it is`)
@@ -822,11 +827,15 @@ function proveStackedScope() {
   const SIBLINGS = ['scripts/test-studio-chat-element-refine.mjs', 'scripts/test-studio-chat-theme-export.mjs']
   const own = new Set([...OWN, HARNESS, 'scripts/test-studio-model-catalog.mjs', ...SIBLINGS])
   const STACKED_NARRATION_ROUTER = /^(lib\/narration\/(model-router|draft|tts|spoken)\.ts|app\/api\/narration\/(render|script|speak)\/route\.ts|app\/api\/narration\/voice\/sample\/\[voiceId\]\/route\.ts|scripts\/(test-studio-narration-router|studio-narration-router-strip)\.mjs)$/ // #475's own files (stacked on this change)
-  for (const rel of changed) ok(own.has(rel) || rel.startsWith('scripts/fixtures/studio-model-catalog/') || STACKED_NARRATION_ROUTER.test(rel), `stacked scope: ${rel} is this change's (or #475's, stacked on it)`)
+  const STACK_KNOWN = rel => own.has(rel) || STACKED_NARRATION_ROUTER.test(rel) || /^scripts\/(test-)?studio-env-append-tolerant\.mjs$/.test(rel), scope = stackScope(changed, STACK[473], STACK_KNOWN) // stacked after #475: the stack this test declares, for scripts/studio-stack-tolerant.mjs
+  deepEq(git('diff', '--name-only', STACK[473].base, STACK[473].head).split('\n').filter(Boolean), STACK[473].files, 'stacked scope: the frozen files are #473\'s own diff'); deepEq({ missing: scope.missing, stray: scope.stray }, { missing: [], stray: [] }, 'stacked scope: every frozen file is changed, no stray in its family (stacked after #475)'); console.log(scope.line)
+  { const results = stackMutants({ change: STACK[473], changed, known: STACK_KNOWN, shared: [{ rel: PKG, head: stripNarrationRouter(PKG, SOURCES[PKG]), strip: text => load(STRIP, { sources: SOURCES }).stripModelCatalog(PKG, text), base: baseSource(PKG), changes: STACK_PKG_CHANGES }] }); for (const [label, held] of results) ok(held, `stacked scope: stack-tolerant (#475's rule): ${label}`); console.log(`stack-tolerant (#473): ${results.filter(([label]) => label.includes('mutant:')).length} mutants caught, ${results.filter(([label]) => label.includes('control:')).length} controls taken`) } // stacked after #475
+  changed.splice(0, changed.length, ...scope.checked) // stacked after #475: only this change's files, its family and its declared stack are checked below; a later PR's files are ignored, with a count
+  for (const rel of changed) ok(own.has(rel) || rel.startsWith('scripts/fixtures/studio-model-catalog/') || STACKED_NARRATION_ROUTER.test(rel) || /^scripts\/(test-)?studio-env-append-tolerant\.mjs$/.test(rel), `stacked scope: ${rel} is this change's (or #475's, stacked on it, or the append-tolerant .env.example rule's)`)
   for (const rel of [...OWN, HARNESS]) ok(changed.includes(rel), `stacked scope: ${rel} is part of this change`)
   const lines = (rel, sign) => git('diff', '-U0', BASE_COMMIT, 'HEAD', '--', rel).split('\n').filter(line => line.startsWith(sign) && !line.startsWith(sign.repeat(3)))
   eq(lines(ENV, '-').length, 0, 'stacked scope: .env.example only gains lines (a pure insertion)')
-  ok(lines(ENV, '+').every(line => /^\+(#|NEXT_PUBLIC_STUDIO_MODEL_CATALOG=|NARRATION_VIA_ROUTER=|MODEL_ROUTER_URL=|MODEL_ROUTER_STUDIO_KEY=|$)/.test(line)), 'stacked scope: and they are this block (or #475\'s stacked block)')
+  ok(lines(ENV, '+').every(line => /^\+(#|[A-Z][A-Z0-9_]*=|$)/.test(line)) && lines(ENV, '+').some(line => line.startsWith('+NEXT_PUBLIC_STUDIO_MODEL_CATALOG=')), 'stacked scope: and they are comments, blanks and assignments, this block among them (or #475\'s stacked block, or a later change\'s)')
   deepEq(lines(PKG, '-').map(line => line.replace(/,$/, '')), [lines(PKG, '-')[0]?.replace(/,$/, '')].filter(Boolean), 'stacked scope: package.json: at most the previous entry, which gains a comma')
   ok(lines(PKG, '-').every(line => /test:studio-chat-theme-export/.test(line)) && lines(PKG, '+').some(line => /test:studio-model-catalog/.test(line)), 'stacked scope: package.json: #472\'s entry gains its comma, this change\'s registration follows')
   ok(lines(HARNESS, '-').length <= 1 && lines(HARNESS, '-').every(line => /#469 deck-mutation dedupe\)/.test(line)), 'stacked scope: the harness only gains lines (#475 extends one comment line, stacked)')
@@ -850,6 +859,7 @@ async function proveAll(S, label, first) {
 
 // ---------------------------------------------------------------- run
 await proveAll(SOURCES, 'branch')
+await proveAll({ ...SOURCES, [ENV]: `${SOURCES[ENV]}\n# A LATER CHANGE (a made-up flag, for this check)\nNEXT_PUBLIC_SOME_LATER_FLAG="false"\n` }, 'a later block follows', 'strip') // stacked after #475: every section takes a later change's block
 const hashes = proveIdentity(SOURCES)
 proveUntouched()
 proveStackedScope()
@@ -968,6 +978,9 @@ const MUTANTS = [
   [ENV, 'the 503 unsaid', t => swap(t, `503 and the section says "The model catalog isn't available yet"`, '503')],
   [ENV, 'a phrase borrowed', t => swap(t, 'Build-time flag: set it on Vercel and redeploy.', 'READ AT BUILD TIME: set it on Vercel, then redeploy.')],
   [ENV, 'the base changed', t => swap(t, 'NEXT_PUBLIC_STUDIO_P2_POLISH="false"', 'NEXT_PUBLIC_STUDIO_P2_POLISH="true"')],
+  [ENV, 'a base env value is edited', t => swap(t, 'DATABASE_URL="postgresql://postgres:', 'DATABASE_URL="postgresql://admin:')], // stacked after #475: the .env.example rule takes a later block, never an edited base line
+  [ENV, 'a base env line is dropped', t => swap(t, 'DATABASE_URL="postgresql://postgres:[YOUR-PASSWORD]@db.[YOUR-PROJECT-REF].supabase.co:5432/postgres"\n', '')], // stacked after #475
+  [ENV, 'a line that is not a comment, a blank or an assignment is appended', t => `${t}this line is none of them\n`], // stacked after #475
   [ENV, 'moved above the polish block', t => { const at = t.indexOf('# PASS3 MODEL CATALOG'); const end = t.indexOf(`\n${FLAG}="false"\n`) + `\n${FLAG}="false"\n`.length; const block = t.slice(at, end); const rest = t.slice(0, at) + t.slice(end); const polish = rest.indexOf('# PASS2 POLISH PP-1'); return rest.slice(0, polish) + block + '\n' + rest.slice(polish) }],
   [ENV, 'moved after the PASS2 ADMIN and Docs blocks', t => { const at = t.indexOf('# PASS3 MODEL CATALOG'); const end = t.indexOf(`\n${FLAG}="false"\n`) + `\n${FLAG}="false"\n`.length; return t.slice(0, at) + t.slice(end + 1) + '\n' + t.slice(at, end) }],
   [ENV, 'moved above the refine and theme / export blocks', t => { const at = t.indexOf('# PASS3 MODEL CATALOG'); const end = t.indexOf(`\n${FLAG}="false"\n`) + `\n${FLAG}="false"\n`.length; const block = t.slice(at, end); const rest = t.slice(0, at) + t.slice(end + 1); const refine = rest.indexOf('# PASS3 REFINE AN ELEMENT FROM CHAT'); return rest.slice(0, refine) + block + '\n' + rest.slice(refine) }],

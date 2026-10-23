@@ -16,6 +16,7 @@
 //   6  no key value in any log line or error message; 7 the wiring (routes, spoken lines, .env.example, package.json)
 //   8  the stack: this change sits on #473 (model catalog) on #472 on #470 on 8d5c494, i.e. 13c90ea. Its block and line come out through scripts/studio-narration-router-strip.mjs and give back
 //      13c90ea's .env.example and package.json byte for byte, the block sits after #473's block and before PASS2 ADMIN, and the committed tree differs from 13c90ea in this change's files only
+//      (scripts/studio-stack-tolerant.mjs: only this change's frozen files, its path family and its declared stack; a later PR's files are ignored with a count, and package.json may keep a later PR's lines)
 // then a mutation check: every mutant of the new code must fail at least one check.
 import assert from 'node:assert/strict'
 import { createHash, randomBytes } from 'node:crypto'
@@ -26,6 +27,7 @@ import path from 'node:path'
 import { fileURLToPath } from 'node:url'
 import vm from 'node:vm'
 import ts from 'typescript'
+import { sameAsBase } from './studio-env-append-tolerant.mjs' // the .env.example rule that takes a later change's block, for the pins that hold the file to an earlier commit
 
 const repoRoot = path.resolve(fileURLToPath(new URL('../', import.meta.url)))
 const nodeRequire = createRequire(import.meta.url)
@@ -49,6 +51,8 @@ const ENV = '.env.example'
 const PKG = 'package.json'
 const STRIP = 'scripts/studio-narration-router-strip.mjs'
 const HARNESS = 'scripts/studio-library-manage-harness.mjs'
+const STACK_TOLERANT = 'scripts/studio-stack-tolerant.mjs' // the scope and shared-file rules for a tree that holds later PRs too (read from its text, so the mutants below can edit it)
+const NR_PKG_CHANGES = [['    "test:studio-narration-router": "node scripts/test-studio-narration-router.mjs"', '']] // this change's one package.json line
 
 const tryRead = rel => { try { return fs.readFileSync(path.join(repoRoot, rel), 'utf8') } catch { return null } }
 const baseCache = new Map()
@@ -65,13 +69,15 @@ const sha = text => createHash('sha256').update(text).digest('hex')
 const gitOut = (...args) => { try { return execFileSync('git', args, { cwd: repoRoot, encoding: 'utf8', maxBuffer: 64 * 1024 * 1024, stdio: ['ignore', 'pipe', 'ignore'] }) } catch { return null } }
 /** The strip module's exports from its source text (a mutant's text too): the file is plain JavaScript with two top-level exports. */
 const loadStrip = source => new Function(`${source.replace(/^export /gm, '')}\nreturn { stripNarrationRouter, NARRATION_ROUTER_FILES }`)()
+/** scripts/studio-stack-tolerant.mjs from its source text (a mutant's too): plain JavaScript, no imports. */
+const loadStack = source => new Function(`${source.replace(/^export /gm, '')}\nreturn { STACK, stackScope, sameOrTolerant, stackMutants }`)()
 
 const STUB_MEDIA_STORE = `
 export function contentKey(parts: unknown): string { return 'k' }
 export async function getMedia(path: string): Promise<null> { return null }
 export async function putMedia(path: string, body: unknown, contentType: string): Promise<{ ok: boolean }> { return { ok: true } }
 `
-const HEAD_FILES = [LIB, DRAFT, TTS, SPOKEN, VOICES, BUDGET, WAV, R_SCRIPT, R_RENDER, R_SPEAK, R_SAMPLE, ENV, PKG, STRIP]
+const HEAD_FILES = [LIB, DRAFT, TTS, SPOKEN, VOICES, BUDGET, WAV, R_SCRIPT, R_RENDER, R_SPEAK, R_SAMPLE, ENV, PKG, STRIP, STACK_TOLERANT]
 const headSources = () => ({ ...Object.fromEntries(HEAD_FILES.map(rel => [rel, tryRead(rel)])), [MEDIA_STORE]: STUB_MEDIA_STORE })
 // The branch's untouched helpers with the BASE's three changed library files: what shipped.
 const baseSources = head => {
@@ -606,7 +612,7 @@ function buildTests(S) {
     assert.ok(at > 0 && env.indexOf('# STUDIO NARRATION THROUGH THE MODEL ROUTER') === at, 'one block')
     for (const earlier of ['NEXT_PUBLIC_CHAT_ELEMENT_REFINE="false"', 'NEXT_PUBLIC_CHAT_EXPORT="false"', 'NEXT_PUBLIC_STUDIO_MODEL_CATALOG="false"']) if (env.includes(earlier)) assert.ok(env.indexOf(earlier) < at, `after ${earlier.split('=')[0]}'s block`)
     for (const later of ['# PASS2 ADMIN', '# PASS2 Docs / Help / Legal / Agents']) if (env.includes(later)) assert.ok(at < env.indexOf(later), `before FRONTEND-1's ${later}`)
-    if (env.includes('NEXT_PUBLIC_STUDIO_P2_DOCS="false"')) assert.ok(env.indexOf('NEXT_PUBLIC_STUDIO_P2_ADMIN="false"') < env.indexOf('NEXT_PUBLIC_STUDIO_P2_DOCS="false"') && env.endsWith('NEXT_PUBLIC_STUDIO_P2_DOCS="false"\n'), 'ADMIN then DOCS are still the last two blocks')
+    if (env.includes('NEXT_PUBLIC_STUDIO_P2_DOCS="false"')) assert.ok(env.indexOf('NEXT_PUBLIC_STUDIO_P2_ADMIN="false"') < env.indexOf('NEXT_PUBLIC_STUDIO_P2_DOCS="false"') && env.slice(env.indexOf('NEXT_PUBLIC_STUDIO_P2_DOCS="false"\n') + 'NEXT_PUBLIC_STUDIO_P2_DOCS="false"\n'.length).split('\n').every(line => /^\s*$|^\s*#|^[A-Z][A-Z0-9_]*=/.test(line)), 'ADMIN then DOCS are still the last two of FRONTEND-1\'s blocks (only a later change\'s comments, blanks and assignments may follow)')
     const block = env.slice(at, env.indexOf('MODEL_ROUTER_STUDIO_KEY=\n', at))
     for (const phrase of ['only the string "true"', 'no public prefix', 'never committed', 'ONLY when the router cannot be', '401 or 403', '502, 503 or 504', 'a 429', 'second charge', 'X-MR-Service "studio"']) assert.ok(block.includes(phrase), `the .env.example block lost: ${phrase}`)
     assert.ok(!/READ AT BUILD TIME|exact value "true"|exact "true"|default off|Needs the Studio shell|Nothing is sent or stored|Build-time flag|PASS2|PASS3/.test(block), 'the block reuses another block\'s phrase')
@@ -619,8 +625,8 @@ function buildTests(S) {
     for (const rel of NARRATION_ROUTER_FILES) {
       const baseText = baseSource(rel)
       if (baseText == null) { console.log(`SKIP ${rel} strip against the base: the base commit is not in this clone`); continue }
-      assert.equal(stripNarrationRouter(rel, S[rel]), baseText, `${rel} without this change's lines is ${BASE_COMMIT.slice(0, 7)}'s file byte for byte`)
-      assert.equal(stripNarrationRouter(rel, stripNarrationRouter(rel, S[rel])), baseText, `${rel}: stripping twice changes nothing more`)
+      assert.ok(sameAsBase(rel, stripNarrationRouter(rel, S[rel]), baseText, /NARRATION_VIA_ROUTER|MODEL_ROUTER_URL|MODEL_ROUTER_STUDIO_KEY/) || (rel === PKG && loadStack(S[STACK_TOLERANT]).sameOrTolerant(rel, S[rel], stripNarrationRouter(rel, S[rel]), baseText, NR_PKG_CHANGES).ok), `${rel} without this change's lines is ${BASE_COMMIT.slice(0, 7)}'s file byte for byte (.env.example: a later change's block may follow; package.json: a later PR's lines, every base line kept in order)`)
+      assert.equal(stripNarrationRouter(rel, stripNarrationRouter(rel, S[rel])), stripNarrationRouter(rel, S[rel]), `${rel}: stripping twice changes nothing more`)
       assert.equal(stripNarrationRouter(rel, baseText), baseText, `${rel}: a file without the lines comes back as it is`)
     }
     for (const other of ['app/builder/page.tsx', LIB, 'README.md']) assert.equal(stripNarrationRouter(other, 'some text'), 'some text', `${other} comes back as it is`)
@@ -635,12 +641,17 @@ function buildTests(S) {
     if (names == null) { console.log('SKIP stacked scope: the base commit is not in this clone'); return }
     const changed = names.split('\n').filter(Boolean)
     const SIBLINGS = ['scripts/test-studio-model-catalog.mjs', 'scripts/test-studio-chat-theme-export.mjs', 'scripts/test-studio-chat-element-refine.mjs'] // #473's, #472's and #470's tests accept this change's lines (tests only)
-    const own = new Set([LIB, DRAFT, TTS, SPOKEN, R_SCRIPT, R_RENDER, R_SPEAK, R_SAMPLE, ENV, PKG, STRIP, HARNESS, 'scripts/test-studio-narration-router.mjs', ...SIBLINGS])
-    for (const rel of changed) assert.ok(own.has(rel), `stacked scope: ${rel} is not this change's`)
+    const own = new Set([LIB, DRAFT, TTS, SPOKEN, R_SCRIPT, R_RENDER, R_SPEAK, R_SAMPLE, ENV, PKG, STRIP, HARNESS, 'scripts/test-studio-narration-router.mjs', ...SIBLINGS, 'scripts/studio-env-append-tolerant.mjs', 'scripts/test-studio-env-append-tolerant.mjs'])
+    const stack = loadStack(S[STACK_TOLERANT]), scope = stack.stackScope(changed, stack.STACK[475], rel => own.has(rel)) // only this change's frozen files, its family and the stack declared above are checked; a later PR's files are ignored
+    assert.equal(stack.STACK[475].base, BASE_COMMIT)
+    assert.deepEqual((gitOut('diff', '--name-only', stack.STACK[475].base, stack.STACK[475].head) ?? '').split('\n').filter(Boolean), stack.STACK[475].files, 'the frozen files are #475\'s own diff')
+    assert.deepEqual({ missing: scope.missing, stray: scope.stray }, { missing: [], stray: [] }, 'every frozen file is changed, no stray in its family')
+    console.log(scope.line)
+    for (const rel of scope.checked) assert.ok(own.has(rel), `stacked scope: ${rel} is not this change's`)
     for (const rel of [LIB, DRAFT, TTS, SPOKEN, R_SCRIPT, R_RENDER, R_SPEAK, R_SAMPLE, ENV, PKG, STRIP, HARNESS]) assert.ok(changed.includes(rel), `stacked scope: ${rel} is part of this change`)
     const lines = (rel, sign) => (gitOut('diff', '-U0', BASE_COMMIT, 'HEAD', '--', rel) ?? '').split('\n').filter(line => line.startsWith(sign) && !line.startsWith(sign.repeat(3)))
     assert.equal(lines(ENV, '-').length, 0, 'stacked scope: .env.example only gains lines (a pure insertion)')
-    assert.ok(lines(ENV, '+').every(line => /^\+(#|NARRATION_VIA_ROUTER=|MODEL_ROUTER_URL=|MODEL_ROUTER_STUDIO_KEY=|$)/.test(line)), 'stacked scope: and they are this block')
+    assert.ok(lines(ENV, '+').every(line => /^\+(#|[A-Z][A-Z0-9_]*=|$)/.test(line)) && lines(ENV, '+').some(line => line.startsWith('+NARRATION_VIA_ROUTER=')), 'stacked scope: and they are comments, blanks and assignments, this block among them (a later change\'s block may follow)')
     assert.ok(lines(PKG, '-').length <= 1 && lines(PKG, '-').every(line => /test:studio-model-catalog/.test(line)), 'stacked scope: package.json: at most #473\'s entry, which gains a comma')
     assert.ok(lines(PKG, '+').some(line => /test:studio-narration-router/.test(line)), 'stacked scope: package.json: this change\'s registration follows')
     assert.ok(lines(HARNESS, '-').length <= 1 && lines(HARNESS, '-').every(line => /#469 deck-mutation dedupe\)/.test(line)), 'stacked scope: the harness: at most its comment line was extended')
@@ -649,6 +660,15 @@ function buildTests(S) {
       assert.ok(lines(rel, '+').every(line => /NarrationRouter|narration-router|NARRATION_ROUTER|#475/.test(line)), `stacked scope: ${rel}: every added line names this change`)
       assert.ok(lines(rel, '-').length <= 8, `stacked scope: ${rel}: only a few lines were extended`)
     }
+  })
+  test('the stack-tolerant rules (scripts/studio-stack-tolerant.mjs) on this change: a base line dropped from package.json, this change\'s line left after its strip or gone from HEAD, an own file missing and a stray in its family are refused; a later PR\'s line and file are taken', () => {
+    const names = gitOut('diff', '--name-only', BASE_COMMIT, 'HEAD', '--', '.'), baseText = baseSource(PKG)
+    if (names == null || baseText == null) { console.log('SKIP stack-tolerant rules: the base commit is not in this clone'); return }
+    const stack = loadStack(S[STACK_TOLERANT]), known = rel => stack.STACK[475].files.includes(rel) || /^scripts\/(test-)?studio-env-append-tolerant\.mjs$/.test(rel) // the stack declared in the scope test above
+    const results = stack.stackMutants({ change: stack.STACK[475], changed: names.split('\n').filter(Boolean), known,
+      shared: [{ rel: PKG, head: S[PKG], strip: text => loadStrip(S[STRIP]).stripNarrationRouter(PKG, text), base: baseText, changes: NR_PKG_CHANGES }] })
+    for (const [label, held] of results) assert.ok(held, label)
+    console.log(`stack-tolerant (#475): ${results.filter(([label]) => label.includes('mutant:')).length} mutants caught, ${results.filter(([label]) => label.includes('control:')).length} controls taken`)
   })
   test('the draft model, its fields and the prompt are untouched (the router call is the same JSON as the direct one)', () => {
     const body = S[DRAFT].slice(S[DRAFT].indexOf('const requestBody = JSON.stringify({'), S[DRAFT].indexOf('const { response } = await callModel'))
@@ -755,6 +775,15 @@ const MUTANTS = [
   [STRIP, "export const NARRATION_ROUTER_FILES = ['.env.example', 'package.json']", "export const NARRATION_ROUTER_FILES = ['.env.example', 'package.json', 'README.md']", 'a third file is claimed'],
   [PKG, ',\n    "test:studio-narration-router": "node scripts/test-studio-narration-router.mjs"', '', 'the test is not registered'],
   [PKG, '"test:studio-narration-router": "node scripts/test-studio-narration-router.mjs"', '"test:studio-narration-router": "node scripts/test-studio-narration-router-2.mjs"', 'the test is registered to another file'],
+  // scripts/studio-stack-tolerant.mjs: each rule taken out must be caught (by the scope test, the strip test or the stack-tolerant test)
+  [STACK_TOLERANT, 'if (next < want.length) return { ok: false', 'if (false) return { ok: false', 'a base line may be dropped from a shared file'],
+  [STACK_TOLERANT, 'if (leftover !== undefined) return', 'if (false) return', 'this change\'s line may stay after its strip'],
+  [STACK_TOLERANT, 'if (gone !== undefined) return', 'if (false) return', 'this change\'s lines may be gone from HEAD'],
+  [STACK_TOLERANT, 'if (own.length === 0) return', 'if (false) return', 'a shared file with no line of this change to look for passes'],
+  [STACK_TOLERANT, 'if (stripped === baseText) return { ok: true, exact: true', 'if (false) return { ok: true, exact: true', 'the byte-for-byte case is not told apart'],
+  [STACK_TOLERANT, 'const missing = change.files.filter(rel => !changed.includes(rel))', 'const missing = []', 'an own file may be missing'],
+  [STACK_TOLERANT, 'else if (change.family.test(rel)) { checked.push(rel); stray.push(rel) }', 'else if (false) { checked.push(rel); stray.push(rel) }', 'a stray in this change\'s family is ignored like a later PR\'s file'],
+  [STACK_TOLERANT, '    else ignored.push(rel)', '    else checked.push(rel)', 'a later PR\'s file is not ignored'],
 ]
 
 // ---------- run ----------
