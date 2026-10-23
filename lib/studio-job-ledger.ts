@@ -107,7 +107,9 @@ export function applyJobsSync(ledger: JobLedger, rows: readonly JobLedgerRow[]):
 }
 
 /** True when some row retries this one (retry_of). The old row itself never changes after a retry: it stays failed / timed out and
- * keeps its retry route, so its Retry is hidden by this link, whichever of the two rows arrived first (frame or sync). */
+ * keeps its retry route, so this link is what hides it, whichever of the two rows arrived first (frame or sync): a retried row shows
+ * no card at all (jobLedgerCards), and no Retry (jobRetryState, belt and braces). The retry's own progress takes over; if the retry
+ * fails, its own row gets the card and the Retry. */
 export function isJobRetried(ledger: JobLedger, jobId: string): boolean {
   return Object.values(ledger.rows).some(row => row.retry_of === jobId)
 }
@@ -199,6 +201,7 @@ export function jobLedgerCopy(row: JobLedgerRow): { title: string; body: string 
   switch (row.failure?.code) {
     case 'deadline_exceeded':
       if (row.kind === 'deck_build') return { title: "The build hasn't made progress for a while", body: 'It may still pick up. If it has stopped, use Resume to continue it.' }
+      if (row.kind === 'export') return { title: `${subject} ran out of time`, body: 'It may still have finished. Check your downloads before you try again.' }
       return { title: `${subject} ran out of time`, body: `It may still have gone through. Check ${slide ? `slide ${slide}` : 'the deck'} before you try again.` }
     case 'service_unavailable':
       return { title: `${subject} didn't finish`, body: 'Something it relies on had a problem.' }
@@ -225,10 +228,11 @@ export interface JobLedgerCard {
   directiveId: string | null
 }
 
-/** The cards to show, newest first (updated_at, then the order the rows changed here). Dismissed rows are left out. */
+/** The cards to show, newest first (updated_at, then the order the rows changed here). Dismissed rows, and rows another row retries
+ * (isJobRetried: the newest row of a retry chain speaks for it), are left out. */
 export function jobLedgerCards(ledger: JobLedger, now: number): JobLedgerCard[] {
   return Object.values(ledger.rows)
-    .filter(row => isShownJobState(row.state) && !ledger.dismissed[row.job_id])
+    .filter(row => isShownJobState(row.state) && !ledger.dismissed[row.job_id] && !isJobRetried(ledger, row.job_id))
     .sort((a, b) => (a.updated_at === b.updated_at ? 0 : a.updated_at < b.updated_at ? 1 : -1) || (ledger.touched[b.job_id] ?? 0) - (ledger.touched[a.job_id] ?? 0))
     .map(row => ({ jobId: row.job_id, kind: row.kind, state: row.state, ...jobLedgerCopy(row), retry: jobRetryState(ledger, row, now), directiveId: jobDirectiveId(row) }))
 }

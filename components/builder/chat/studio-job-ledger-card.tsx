@@ -1,7 +1,7 @@
 "use client"
 
 import { useEffect, useState } from "react"
-import { ShieldCheck } from "lucide-react"
+import { AlertCircle } from "lucide-react"
 import { createJobLedgerStore, jobLedgerCards, nextJobRetryWakeAt, type JobLedgerStore } from "@/lib/studio-job-ledger"
 import "./studio-job-ledger-card.css"
 
@@ -10,9 +10,9 @@ export const studioJobLedger: JobLedgerStore = createJobLedgerStore()
 
 /**
  * P3-4 slice C (flag NEXT_PUBLIC_STUDIO_JOB_LEDGER, Studio shell only, default off). One calm card at the end of the chat for each
- * Director job of this session that failed or timed out, in the CHAT_RECOVERY card's look (studio-recovery-card.css): Studio's words,
- * Retry (frame-route rows only; it sends job_retry once and stays disabled until a reply or 15 s) and Dismiss (hides that card in this
- * tab; nothing is sent). Nothing here is retried automatically.
+ * Director job of this session that failed or timed out (a row another row retries shows none), in the CHAT_RECOVERY card's look
+ * (studio-recovery-card.css) with an alert icon: Studio's words, Retry (frame-route rows only; it sends job_retry once and stays
+ * disabled until a reply or 15 s) and Dismiss (hides that card in this tab; nothing is sent). Nothing here is retried automatically.
  */
 export function StudioJobLedgerCards({ sessionId, sendJobRetry, store = studioJobLedger }: {
   sessionId: string | null | undefined
@@ -40,7 +40,7 @@ export function StudioJobLedgerCards({ sessionId, sendJobRetry, store = studioJo
     <div data-studio-job-ledger-list="true">
       {cards.map(card => (
         <div key={card.jobId} data-studio-job-ledger={card.state} data-studio-job-ledger-kind={card.kind} data-studio-job-ledger-id={card.jobId} role="note" aria-label={card.title}>
-          <ShieldCheck size={14} aria-hidden="true" />
+          <AlertCircle size={14} aria-hidden="true" />
           <div>
             <p data-studio-job-ledger-part="title">{card.title}</p>
             {card.body ? <p data-studio-job-ledger-part="body">{card.body}</p> : null}
