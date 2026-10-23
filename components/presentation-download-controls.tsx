@@ -182,7 +182,7 @@ export function PresentationDownloadControls({
   // Get button tooltip
   const getTooltip = (format: string): string => {
     if (!isDownloadEnabled) {
-      return 'Presentation not ready yet. Waiting for Stage 4 (strawman)...';
+      return process.env.NEXT_PUBLIC_STUDIO_LAUNCH_WORDING === 'true' ? "Your presentation isn't ready to export." : 'Presentation not ready yet. Waiting for Stage 4 (strawman)...';
     }
     const stageLabel = getStageLabel();
     return `Download ${format} (${stageLabel} version, ${quality} quality)`;

@@ -86,6 +86,10 @@ export interface AddSlideV2PanelRegenerate<TTheme = unknown> {
 // A reason from the backend may or may not end in a full stop; the panel adds its own sentence after it.
 const withFullStop = (text: string) => (/[.!?]$/.test(text.trim()) ? text.trim() : `${text.trim()}.`)
 
+// NEXT_PUBLIC_STUDIO_LAUNCH_WORDING (default off): launched wording instead of promises and developer-speak; off, this file is exactly as before.
+const LAUNCH_WORDING = process.env.NEXT_PUBLIC_STUDIO_LAUNCH_WORDING === 'true'
+const launchedNeedsInput = (text: string) => (LAUNCH_WORDING && text.includes('Follow-up questions are coming in v2.1') ? 'This slide needs more detail than you gave. Add more detail to the box and try again.' : text)
+
 // Reading the property itself can throw (blocked site data), so it is guarded like every other access.
 function browserSessionStorage(): AddSlideV2DraftStorage | null {
   try {
@@ -223,7 +227,7 @@ export function AddSlideV2Panel<TTheme = unknown>({
         setQueued(`Queued. It appears right after slide ${context.currentSlide} when it is ready.`)
         if (statusSettings && result.jobId) setTracked({ jobId: result.jobId, status: null })
       } else {
-        setError(result.message)
+        setError(launchedNeedsInput(result.message))
       }
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Slide generation failed.')
@@ -249,7 +253,7 @@ export function AddSlideV2Panel<TTheme = unknown>({
       if (result.ok) {
         setRunSlideNumber(target.slideNumber)
         dispatchRegenRun({ type: 'start', jobId: result.jobId, oldSlideId: target.slideId })
-      } else setError(result.message)
+      } else setError(launchedNeedsInput(result.message))
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Slide regeneration failed.')
     } finally {

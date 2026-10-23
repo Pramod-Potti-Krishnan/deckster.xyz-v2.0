@@ -36,6 +36,9 @@ interface Usage {
 // reads with the flag on), the usage card shows the real daily / weekly meters instead of the "Planned" row, and the plan buttons are ink. Off: the page as before.
 const STUDIO_P2_ACCOUNT = process.env.NEXT_PUBLIC_STUDIO_V4_SHELL === "true" && process.env.NEXT_PUBLIC_STUDIO_P2_ACCOUNT === "true"
 
+// NEXT_PUBLIC_STUDIO_LAUNCH_WORDING (default off): launched wording instead of promises and developer-speak; off, this file is exactly as before.
+const LAUNCH_WORDING = process.env.NEXT_PUBLIC_STUDIO_LAUNCH_WORDING === "true"
+
 function formatBytes(bytes: number): string {
   if (!bytes) return "0 B"
   const units = ["B", "KB", "MB", "GB", "TB"]
@@ -508,7 +511,7 @@ function BillingPageContent() {
 
               {STUDIO_P2_ACCOUNT ? (
                 <StudioBillingCapacity quota={quota} />
-              ) : (
+              ) : LAUNCH_WORDING ? null : (
                 <div className="flex justify-between text-sm">
                   <span>AI Agent Interactions</span>
                   <Badge variant="outline" className="text-muted-foreground text-xs">

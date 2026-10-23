@@ -64,8 +64,10 @@ export const P2_DEFAULT_CHOICE = 'default'
 export const p2DefaultChoices = (): P2Choices => ({ planning_strategy: P2_DEFAULT_CHOICE, content_writing: P2_DEFAULT_CHOICE, research_analysis: P2_DEFAULT_CHOICE, imagery: P2_DEFAULT_CHOICE, voice_narration: P2_DEFAULT_CHOICE })
 export const p2ChangedCount = (choices: P2Choices) => P2_TASK_IDS.filter(id => choices[id] !== P2_DEFAULT_CHOICE).length
 export const p2TaskLabel = (id: P2TaskId) => P2_TASKS.find(task => task.id === id)?.label ?? id
-export const P2_ONE_LINE = 'Your choices are kept on this device. Deckster does not use them to pick models yet.'
-export const P2_ONE_LINE_NO_STORAGE = 'This browser cannot keep your choices, so they last only until you reload or leave. Deckster does not use them to pick models yet.'
+// NEXT_PUBLIC_STUDIO_LAUNCH_WORDING (default off): launched wording instead of promises and developer-speak; off, this file is exactly as before.
+const LAUNCH_WORDING = process.env.NEXT_PUBLIC_STUDIO_LAUNCH_WORDING === 'true'
+export const P2_ONE_LINE = LAUNCH_WORDING ? 'Your choices are kept on this device. They do not change which models Deckster uses.' : 'Your choices are kept on this device. Deckster does not use them to pick models yet.'
+export const P2_ONE_LINE_NO_STORAGE = LAUNCH_WORDING ? 'This browser cannot keep your choices, so they last only until you reload or leave. They do not change which models Deckster uses.' : 'This browser cannot keep your choices, so they last only until you reload or leave. Deckster does not use them to pick models yet.'
 
 /** A retired model id resolves to its successor; any other id passes through. The base catalog lists none, so with it this is the identity. */
 export function p2ResolveRetired(catalog: P2Catalog, id: string) {

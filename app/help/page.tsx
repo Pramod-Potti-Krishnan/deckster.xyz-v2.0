@@ -38,6 +38,9 @@ export const dynamic = 'force-dynamic'
 
 const STUDIO_HELP = process.env.NEXT_PUBLIC_STUDIO_V4_SHELL === "true"
 
+// NEXT_PUBLIC_STUDIO_LAUNCH_WORDING (default off): launched wording instead of promises and developer-speak; off, this file is exactly as before.
+const LAUNCH_WORDING = process.env.NEXT_PUBLIC_STUDIO_LAUNCH_WORDING === "true"
+
 interface FAQItem {
   question: string
   answer: string
@@ -107,7 +110,7 @@ export default function HelpPage() {
     {
       category: "Getting Started",
       question: "Can I use templates instead of starting from scratch?",
-      answer: "Absolutely! Visit the Templates page to browse professional starting points, then let the agents shape one into your deck."
+      answer: LAUNCH_WORDING ? "Yes. Upload a PowerPoint to turn it into a template, or save a finished deck as a template, then reuse it from the Templates page." : "Absolutely! Visit the Templates page to browse professional starting points, then let the agents shape one into your deck."
     },
     {
       category: "Features",
@@ -117,7 +120,7 @@ export default function HelpPage() {
     {
       category: "Features",
       question: "Can I share a presentation with someone?",
-      answer: "Yes — export to PowerPoint or PDF and send the file to anyone. (Live multi-user editing isn't available yet.)"
+      answer: LAUNCH_WORDING ? "Yes. Publish a link from the builder (Publish), or export to PowerPoint or PDF and send the file. Live multi-user editing is not available." : "Yes — export to PowerPoint or PDF and send the file to anyone. (Live multi-user editing isn't available yet.)"
     },
     {
       category: "AI Agents",
@@ -172,7 +175,7 @@ export default function HelpPage() {
     {
       category: "Troubleshooting",
       question: "My export is taking too long. Is this normal?",
-      answer: "Export times vary by presentation size. Most exports complete within 30-60 seconds. Large presentations (50+ slides) may take longer. You'll receive a notification when it's ready."
+      answer: LAUNCH_WORDING ? "Export times vary by presentation size. Most exports complete within 30-60 seconds. Large presentations (50+ slides) may take longer." : "Export times vary by presentation size. Most exports complete within 30-60 seconds. Large presentations (50+ slides) may take longer. You'll receive a notification when it's ready."
     },
     {
       category: "Troubleshooting",
@@ -458,7 +461,7 @@ export default function HelpPage() {
                     </li>
                     <li className="flex items-start gap-2">
                       <ChevronRight className="h-4 w-4 text-muted-foreground mt-0.5" />
-                      <span>Collaborate with team members by sharing presentations</span>
+                      <span>{LAUNCH_WORDING ? "Share a published link with your team" : "Collaborate with team members by sharing presentations"}</span>
                     </li>
                   </ul>
                 </CardContent>
@@ -536,12 +539,12 @@ export default function HelpPage() {
                       <Mail className="h-4 w-4" />
                       support@deckster.xyz
                     </a>
-                    {!STUDIO_HELP && <a href="#" className="flex items-center gap-2 text-sm hover:text-purple-600">
+                    {!STUDIO_HELP && !LAUNCH_WORDING && <a href="#" className="flex items-center gap-2 text-sm hover:text-purple-600">
                       <MessageSquare className="h-4 w-4" />
                       Join our Discord community
                       <ExternalLink className="h-3 w-3" />
                     </a>}
-                    {!STUDIO_HELP && <a href="#" className="flex items-center gap-2 text-sm hover:text-purple-600">
+                    {!STUDIO_HELP && !LAUNCH_WORDING && <a href="#" className="flex items-center gap-2 text-sm hover:text-purple-600">
                       <BookOpen className="h-4 w-4" />
                       Browse documentation
                       <ExternalLink className="h-3 w-3" />

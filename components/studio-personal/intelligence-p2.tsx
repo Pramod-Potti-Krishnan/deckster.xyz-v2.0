@@ -11,6 +11,9 @@ import {
 import { STUDIO_P2_POLISH_ATTR, STUDIO_P2_POLISH_ENABLED } from "@/lib/studio-p2-polish"
 import "./intelligence-p2.css"
 
+// NEXT_PUBLIC_STUDIO_LAUNCH_WORDING (default off): launched wording instead of promises and developer-speak; off, this file is exactly as before.
+const LAUNCH_WORDING = process.env.NEXT_PUBLIC_STUDIO_LAUNCH_WORDING === "true"
+
 /** NEXT_PUBLIC_STUDIO_P2_INTELLIGENCE (default off; build-time). The Intelligence page's model chooser, as the accepted v4 mockup has it: five task rows (Planning & Strategy,
  * Content Writing, Research & Analysis, Imagery, Voice & Narration), each naming its current model and where it came from, with a select of the recommendation, the presets,
  * the specific models and (narration) the voices. A choice applies on change and is kept in this browser (localStorage, never the account); "Reset to recommendations" appears
@@ -112,7 +115,7 @@ export function IntelligenceChooser() {
         </div>
       </section>
       <ManagedByDeckster />
-      <details className="sp-provenance sp-p2-provenance"><summary>About this catalog <span>Design snapshot · {catalog.version}</span></summary><p>{provenanceText}</p></details>
+      <details className="sp-provenance sp-p2-provenance"><summary>About this catalog <span>{LAUNCH_WORDING ? "Catalog snapshot · " : "Design snapshot · "}{catalog.version}</span></summary><p>{provenanceText}</p></details>
       </div>
 
       <aside className="sp-model-inspector sp-p2-inspector" aria-labelledby="sp-comparison-heading" data-p2-inspector={activeTask} {...(STUDIO_P2_POLISH_ENABLED ? { [STUDIO_P2_POLISH_ATTR]: "true" } : {})}>

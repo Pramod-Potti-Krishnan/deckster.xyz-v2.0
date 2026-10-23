@@ -8,6 +8,9 @@ import {
 } from "@/lib/studio-model-catalog"
 import "./intelligence-models.css"
 
+// NEXT_PUBLIC_STUDIO_LAUNCH_WORDING (default off): launched wording instead of promises and developer-speak; off, this file is exactly as before.
+const LAUNCH_WORDING = process.env.NEXT_PUBLIC_STUDIO_LAUNCH_WORDING === "true"
+
 /** NEXT_PUBLIC_STUDIO_MODEL_CATALOG (exact "true", default off; build-time). The Intelligence page's "Models" section (mounted by app/(app)/studio/intelligence/layout.tsx, below the page, so the page itself is
  * untouched): the models Deckster can use for each kind of work, read from Director's read-only model catalogue through the Studio route /api/models/catalogue (never from the browser to Director). Certified
  * models only, with their vendor, capabilities, context window and output size, a Premium badge and, where it is known, a speed class. "Show all models" adds the
@@ -76,7 +79,7 @@ export function ModelsSection({ open, showAll, result, more, onOpen, onShowAll, 
     <div id="sp-mc-panel" className="sp-mc-panel" hidden={!open}>
       <div className="sp-mc-inner">
         {result === null && <p className="sp-mc-state" role="status">Loading the model catalog…</p>}
-        {result?.kind === "not-available" && <div className="sp-mc-state" data-mc-state="not-available"><p><strong>{MODEL_CATALOG_NOT_AVAILABLE_TEXT}.</strong></p><p>It will appear here once it is set up. Nothing else on this page depends on it.</p></div>}
+        {result?.kind === "not-available" && <div className="sp-mc-state" data-mc-state="not-available"><p><strong>{MODEL_CATALOG_NOT_AVAILABLE_TEXT}.</strong></p><p>{LAUNCH_WORDING ? "Nothing else on this page depends on it." : "It will appear here once it is set up. Nothing else on this page depends on it."}</p></div>}
         {result?.kind === "unavailable" && <div className="sp-mc-state" data-mc-state="unavailable"><p><strong>The model catalog is unavailable.</strong></p><p>The answer was not one this page can read.</p></div>}
         {result?.kind === "error" && <div className="sp-mc-state" data-mc-state="error" role="alert">
           <p><strong>{result.reason === "signed-out" ? "Sign in again to see the model catalog." : "The model catalog could not be loaded right now."}</strong></p>
