@@ -1,0 +1,28 @@
+/* P3-4 slice C (flag NEXT_PUBLIC_STUDIO_JOB_LEDGER): one calm card per failed or timed-out Director job at the end of the chat, in the
+   CHAT_RECOVERY card's look (components/builder/chat/studio-recovery-card.css), plus its Retry and Dismiss buttons.
+   Every rule is keyed to [data-studio-job-ledger*], attributes only these cards carry, and the cards are rendered only with the flag on
+   (Studio shell only), so with the flag off none of this matches anything. The tokens are the Studio shell's own, so it follows light
+   and dark. */
+[data-studio-v4-shell="true"] [data-studio-job-ledger-list] { display: grid; gap: 8px; min-width: 0; }
+[data-studio-v4-shell="true"] [data-studio-job-ledger] {
+  display: flex; align-items: flex-start; gap: 9px; min-width: 0; padding: 10px 12px; box-sizing: border-box;
+  border: 1px solid var(--ss-line); border-radius: 10px; background: var(--ss-surface); color: var(--ss-text);
+}
+[data-studio-v4-shell="true"] [data-studio-job-ledger] > svg { flex: none; margin-top: 2px; color: var(--ss-teal); }
+[data-studio-v4-shell="true"] [data-studio-job-ledger] > div { min-width: 0; flex: 1 1 auto; }
+[data-studio-v4-shell="true"] [data-studio-job-ledger-part="title"] { margin: 0; color: var(--ss-text); font-size: 12px; font-weight: 600; line-height: 1.45; }
+[data-studio-v4-shell="true"] [data-studio-job-ledger-part="body"] { margin: 3px 0 0; color: var(--ss-muted); font-size: 11.5px; line-height: 1.55; overflow-wrap: anywhere; }
+[data-studio-v4-shell="true"] [data-studio-job-ledger-part="actions"] { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; }
+[data-studio-v4-shell="true"] [data-studio-job-ledger-part="actions"] > button {
+  border: 1px solid var(--ss-line); border-radius: 6px; padding: 3px 8px; background: var(--ss-panel); color: var(--ss-muted);
+  font-size: 11px; line-height: 17px; cursor: pointer;
+}
+[data-studio-v4-shell="true"] [data-studio-job-ledger-part="retry"] { color: var(--ss-teal); }
+[data-studio-v4-shell="true"] [data-studio-job-ledger-part="actions"] > button:not(:disabled):hover { border-color: var(--ss-teal); color: var(--ss-text); }
+[data-studio-v4-shell="true"] [data-studio-job-ledger-part="actions"] > button:disabled { opacity: 0.6; cursor: default; }
+[data-studio-v4-shell="true"] [data-studio-job-ledger-part="actions"] > button:focus-visible { outline: 2px solid var(--ss-accent); outline-offset: 2px; }
+@media (forced-colors: active) {
+  [data-studio-v4-shell="true"] [data-studio-job-ledger] { border-color: CanvasText; }
+  [data-studio-v4-shell="true"] [data-studio-job-ledger] > svg { color: CanvasText; }
+  [data-studio-v4-shell="true"] [data-studio-job-ledger-part="actions"] > button { border-color: ButtonText; }
+}
