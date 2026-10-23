@@ -58,6 +58,7 @@ export const LAUNCH_WORDS: readonly LaunchWord[] = [
   { id: 'intelligence-snapshot-label', file: 'components/studio-personal/intelligence-p2.tsx', kind: 'prototype', today: 'Design snapshot · ', launched: 'Catalog snapshot · ' },
   { id: 'intelligence-readiness-badge', file: 'components/studio-personal/intelligence-workspace.tsx', kind: 'promise', today: 'Preview', launched: 'Not available' },
   { id: 'intelligence-readiness-title', file: 'components/studio-personal/intelligence-workspace.tsx', kind: 'promise', today: 'Preview', launched: 'Personal models are not available' },
+  { id: 'intelligence-scope-note', file: 'components/studio-personal/intelligence-workspace.tsx', kind: 'prototype', today: 'Choices for one presentation aren’t available in this preview.', launched: 'Choices for one presentation aren’t available.' },
   { id: 'model-catalog-not-available', file: 'components/studio-personal/intelligence-models.tsx', todayFile: 'lib/studio-model-catalog.ts', kind: 'promise', today: "The model catalog isn't available yet", launched: "The model catalog isn't available right now" },
   { id: 'model-catalog-summary', file: 'components/studio-personal/intelligence-models.tsx', todayFile: 'lib/studio-model-catalog.ts', kind: 'promise', today: 'Not available yet', launched: 'Not available' },
   { id: 'model-catalog-none', file: 'components/studio-personal/intelligence-models.tsx', todayFile: 'lib/studio-model-catalog.ts', kind: 'promise', today: 'No models open for selection yet', launched: 'No models open for selection' },

@@ -357,7 +357,7 @@ export function IntelligenceScope() {
       <button type="button" aria-pressed={true}><UserRound size={15} aria-hidden="true" />Reusable defaults</button>
       <button type="button" aria-pressed={false} disabled aria-describedby="sp-ip-scope-note"><FileText size={15} aria-hidden="true" />This presentation</button>
     </div>
-    <span className="sp-ip-scope-note" id="sp-ip-scope-note">Choices for one presentation aren’t available in this preview.</span>
+    <span className="sp-ip-scope-note" id="sp-ip-scope-note">{LAUNCH_WORDING ? "Choices for one presentation aren’t available." : "Choices for one presentation aren’t available in this preview."}</span>
   </div>
 }
 
