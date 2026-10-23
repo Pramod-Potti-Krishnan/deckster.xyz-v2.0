@@ -549,10 +549,13 @@ async function identity() {
   pin('.env.example and package.json: the base\'s lines all kept in order (append-only, stacking-tolerant); the flag documented "false" in a block after the base\'s last line', () => {
     for (const rel of SHARED_APPEND_ONLY) {
       const norm = line => rel === 'package.json' ? line.replace(/,\s*$/, '') : line
-      const want = baseSource(rel).split('\n').map(norm)
-      const extras = []
+      // a flag's comment is prose that a later change may reword in place (PP-8 rewords the polish block's), so for .env.example what must survive, in order, is every env assignment of the base; every other line must be a comment or a blank
+      const assignment = line => /^[A-Z][A-Z0-9_]*=/.test(line)
+      const keep = rel === '.env.example' ? assignment : () => true
+      const want = baseSource(rel).split('\n').map(norm).filter(keep)
+      const extras = rel === '.env.example' ? read(rel).split('\n').filter(line => !assignment(line) && !/^\s*$|^\s*#/.test(line)) : []
       let next = 0
-      for (const line of read(rel).split('\n').map(norm)) {
+      for (const line of read(rel).split('\n').map(norm).filter(keep)) {
         if (next < want.length && line === want[next]) next++
         else extras.push(line)
       }
