@@ -1,0 +1,71 @@
+{
+ "body": {
+  "checkpoint": {
+   "deck_import": {
+    "composer": {
+     "as_is_only": true,
+     "deployed_git_sha": "c1b0712553",
+     "health_read": true,
+     "template_progress": true
+    },
+    "error": {
+     "code": "OPEN_FAILED",
+     "message": "Your file was read, but the deck could not be opened. Try again.",
+     "retryable": true
+    },
+    "path": "as_is_only",
+    "phase": "failed",
+    "template_id": "f16ad623-752b-42f3-8d82-4af8055f540f",
+    "title": "Q3 Board Review",
+    "version": "director-deck-import-v1",
+    "waiting": null
+   }
+  },
+  "completed_at": null,
+  "created_at": null,
+  "deck_import": {
+   "error": {
+    "code": "OPEN_FAILED",
+    "message": "Your file was read, but the deck could not be opened. Try again.",
+    "retryable": true
+   },
+   "notes": null,
+   "phase": "failed",
+   "progress": null,
+   "result": null,
+   "stage": "failed",
+   "title": "Q3 Board Review",
+   "version": "director-deck-import-v1",
+   "waiting": null,
+   "what_changed": {
+    "headline": null,
+    "items": []
+   }
+  },
+  "errors": [
+   "Your file was read, but the deck could not be opened. Try again."
+  ],
+  "job_id": "stage-import-3daa850f-c6e5-49aa-8542-157e0eb5e461",
+  "per_slide_fidelity": [],
+  "presentation_id": null,
+  "session_id": "fresh-session",
+  "slide_count": 1,
+  "status": "failed",
+  "template_id": "f16ad623-752b-42f3-8d82-4af8055f540f",
+  "updated_at": null,
+  "upload_ref": {
+   "bytes": 1564,
+   "file_name": "Q3 Board Review.pptx",
+   "kind": "pptx",
+   "purpose": "deck_import",
+   "researcher_session_id": "fresh-session",
+   "session_id": "fresh-session",
+   "sha256": "39c3f6c532963dff6555b47c62363b05ca846ae985caaaec5d6459583c8d987c",
+   "storage_path": "fresh-session/1_Q3 Board Review.pptx"
+  },
+  "user_id": "owner",
+  "viewer_url": null
+ },
+ "description": "As-is saved, but the deck build reported a model call (zero-model contract)",
+ "status": 200
+}

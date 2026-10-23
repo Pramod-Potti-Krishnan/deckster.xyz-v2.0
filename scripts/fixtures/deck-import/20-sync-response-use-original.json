@@ -1,0 +1,25 @@
+{
+ "description": "WebSocket sync_response frame for a \"Use original\" deck (any flag value): composer_adoption has no source key; a deck imported earlier is sent the same once DIRECTOR_DECK_IMPORT_ENABLED is off",
+ "frame": {
+  "message_id": "<message id>",
+  "payload": {
+   "action": "skip_history",
+   "composer_adoption": {
+    "frozen_theme": true,
+    "presentation_id": "5f0c7a52-6f5e-4c55-9a51-0d2b8f3a9c11",
+    "schema_version": "composer-adoption-v1",
+    "template_id": "tpl-1"
+   },
+   "current_state": "COMPLETE",
+   "has_strawman": true,
+   "message_count": 0,
+   "presentation_id": "5f0c7a52-6f5e-4c55-9a51-0d2b8f3a9c11",
+   "presentation_url": "http://127.0.0.1:8544/p/5f0c7a52-6f5e-4c55-9a51-0d2b8f3a9c11",
+   "slide_count": 1
+  },
+  "role": "assistant",
+  "session_id": "adopted-session",
+  "timestamp": "<iso timestamp>",
+  "type": "sync_response"
+ }
+}

@@ -4,6 +4,8 @@ export interface ComposerAdoption {
   template_id: string
   presentation_id: string
   frozen_theme: true
+  /** Director's marker for a deck imported from a PowerPoint file (NEXT_PUBLIC_STUDIO_DECK_IMPORT's other half, composer_adoption.source). Absent for every other adoption. */
+  source?: 'deck_import'
 }
 
 export interface ComposerThemeState {
@@ -16,7 +18,7 @@ export function readComposerAdoption(value: unknown, presentationId: string | nu
   const marker = value as Partial<ComposerAdoption>
   if (marker.schema_version !== 'composer-adoption-v1' || marker.frozen_theme !== true ||
       typeof marker.template_id !== 'string' || !marker.template_id || marker.presentation_id !== presentationId) return null
-  return { schema_version: marker.schema_version, template_id: marker.template_id, presentation_id: presentationId, frozen_theme: true }
+  return { schema_version: marker.schema_version, template_id: marker.template_id, presentation_id: presentationId, frozen_theme: true, ...(marker.source === 'deck_import' ? { source: 'deck_import' as const } : {}) }
 }
 
 /** A malformed marker or blocked URL must never unlock a theme mutation. */
