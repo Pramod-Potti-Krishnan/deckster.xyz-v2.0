@@ -38,6 +38,18 @@ export const STACKED_PASS3_FILES = [
   'app/(app)/dashboard/page.tsx', 'app/builder/page.tsx', 'components/builder/studio-copied-from-note.tsx', 'components/builder/studio-duplicate-deck.css', 'lib/studio-duplicate-deck.ts',
   'lib/studio-deck-mutation-dedupe.ts',
 ]
+// The FRONTEND-1 Pass 2 changes that are stacked on the same base too (the /admin pages and their hardening, the Docs / Help / Legal / Agents pages and their content passes, the account menu's rhythm). None is a
+// library file; the diff-scope check allows exactly these as well, and nothing else.
+export const STACKED_P2_FILES = [
+  'app/admin/coupons/layout.tsx', 'app/admin/users/layout.tsx', 'app/agents/[slug]/layout.tsx', 'app/agents/[slug]/page.tsx', 'app/agents/layout.tsx', 'app/api/admin/coupons/[id]/route.ts',
+  'app/api/admin/coupons/route.ts', 'app/api/admin/users/route.ts', 'app/compare/page.tsx', 'app/docs/[category]/[slug]/layout.tsx', 'app/docs/[category]/[slug]/page.tsx', 'app/docs/api/layout.tsx',
+  'app/docs/api/page.tsx', 'app/docs/layout.tsx', 'app/docs/page.tsx', 'app/help/template.tsx', 'app/legal/cookies/layout.tsx', 'app/legal/layout.tsx', 'app/legal/privacy/layout.tsx',
+  'app/legal/security/layout.tsx', 'app/legal/terms/layout.tsx', 'components/admin/studio-p2-admin.css', 'components/admin/studio-p2-admin.tsx', 'components/help/studio-p2-help.css',
+  'components/layout/Footer.tsx', 'components/marketing/ExampleShowcase/ExampleCard.tsx', 'components/marketing/TemplateGallery/TemplateCard.tsx', 'components/marketing/v3/FooterV3.tsx',
+  'components/studio-docs/studio-p2-docs-api-notice.tsx', 'components/studio-docs/studio-p2-docs-frame.tsx', 'components/studio-docs/studio-p2-docs.css', 'components/studio-docs/studio-p2-docs.tsx',
+  'components/user-profile-menu-p2.css', 'components/user-profile-menu-p2.tsx', 'lib/comparisons.ts', 'lib/examples.ts', 'lib/studio-p2-admin.ts', 'lib/studio-p2-docs.ts', 'lib/studio-p2-polish.ts',
+  'lib/templates.ts', 'middleware.ts',
+]
 export const sha = text => crypto.createHash('sha256').update(text).digest('hex')
 export const plain = value => JSON.parse(JSON.stringify(value))
 
