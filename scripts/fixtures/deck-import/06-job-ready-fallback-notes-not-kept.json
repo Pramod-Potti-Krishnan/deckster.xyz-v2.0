@@ -1,0 +1,235 @@
+{
+ "body": {
+  "composer_requests": [
+   [
+    "GET",
+    "/health"
+   ],
+   [
+    "POST",
+    "/v1/templates/prepare"
+   ],
+   [
+    "GET",
+    "/v1/jobs/<prepare>"
+   ],
+   [
+    "GET",
+    "/v1/jobs/<prepare>"
+   ],
+   [
+    "GET",
+    "/v1/jobs/<prepare>/as-is"
+   ],
+   [
+    "DELETE",
+    "/v1/jobs/<prepare>"
+   ],
+   [
+    "POST",
+    "/v1/templates/replay-reference"
+   ],
+   [
+    "GET",
+    "/v1/jobs/<replay>"
+   ]
+  ],
+  "job": {
+   "capabilities": {
+    "new_topic": {
+     "invocation": "job",
+     "reason_code": "SEMANTIC_NOT_RUN",
+     "state": "unavailable"
+    },
+    "use_original": {
+     "state": "available"
+    }
+   },
+   "checkpoint": {
+    "deck_import": {
+     "composer": {
+      "as_is_only": false,
+      "deployed_git_sha": "c1b0712553",
+      "health_read": true,
+      "template_progress": true
+     },
+     "notes": {
+      "copied": 0,
+      "message": "Speaker notes were not kept.",
+      "reason": "slide_count_differs",
+      "slides_not_kept": [],
+      "state": "not_kept"
+     },
+     "path": "fetch_then_cancel",
+     "phase": "ready",
+     "title": "Q3 Board Review",
+     "version": "director-deck-import-v1",
+     "waiting": null,
+     "what_changed": {
+      "headline": null,
+      "items": [
+       {
+        "count": 0,
+        "kind": "notes",
+        "outcome": "not_kept",
+        "slides": [],
+        "slides_total": 0,
+        "source": "director",
+        "text": "Speaker notes were not kept."
+       }
+      ]
+     }
+    },
+    "operation": "deck_import",
+    "result": {
+     "model_calls": 0,
+     "owner_html_replay": "BYTE_IDENTICAL",
+     "presentation_id": "5f0c7a52-6f5e-4c55-9a51-0d2b8f3a9c11",
+     "session_id": "fresh-session",
+     "slide_count": 1,
+     "spend_usd": 0,
+     "template_id": "4862ae92-02c8-4bd4-9886-b898162d8e7d",
+     "template_sha256": "c065e8b3a34f03f80ebb8f6c1d46e1182a4dc9cc26d079adb220c74225e3301b",
+     "viewer_url": "http://127.0.0.1:8544/p/5f0c7a52-6f5e-4c55-9a51-0d2b8f3a9c11"
+    },
+    "session_adoption": "verified",
+    "template_progress": {
+     "as_is": {
+      "changes": {
+       "misses": [
+        {
+         "count": 1,
+         "kind": "k",
+         "rule": "r1",
+         "rung": "S1"
+        }
+       ],
+       "slides_with_misses": [
+        1
+       ],
+       "totals": {
+        "misses": 1
+       }
+      },
+      "element_count": 4,
+      "slide_count": 1
+     },
+     "eta_s": 100,
+     "heartbeat_at": "2026-10-22T21:15:38.241537+00:00",
+     "locking": null,
+     "seq": 2,
+     "slide_count": 1,
+     "slides": [],
+     "slides_done": 0,
+     "stage": "checking",
+     "updated_at": "2026-10-22T21:15:38.241537+00:00",
+     "version": "director-template-progress-v1"
+    }
+   },
+   "completed_at": "2026-10-22T21:15:38.252907Z",
+   "created_at": null,
+   "deck_import": {
+    "error": null,
+    "notes": {
+     "copied": 0,
+     "message": "Speaker notes were not kept.",
+     "reason": "slide_count_differs",
+     "slides_not_kept": [],
+     "state": "not_kept"
+    },
+    "phase": "ready",
+    "progress": null,
+    "result": {
+     "composer_adoption": {
+      "frozen_theme": true,
+      "presentation_id": "5f0c7a52-6f5e-4c55-9a51-0d2b8f3a9c11",
+      "schema_version": "composer-adoption-v1",
+      "template_id": "4862ae92-02c8-4bd4-9886-b898162d8e7d"
+     },
+     "presentation_id": "5f0c7a52-6f5e-4c55-9a51-0d2b8f3a9c11",
+     "session_id": "fresh-session",
+     "slide_count": 1,
+     "template_id": "4862ae92-02c8-4bd4-9886-b898162d8e7d",
+     "title": "Q3 Board Review",
+     "viewer_url": "http://127.0.0.1:8544/p/5f0c7a52-6f5e-4c55-9a51-0d2b8f3a9c11"
+    },
+    "stage": "ready",
+    "title": "Q3 Board Review",
+    "version": "director-deck-import-v1",
+    "waiting": null,
+    "what_changed": {
+     "headline": null,
+     "items": [
+      {
+       "count": 0,
+       "kind": "notes",
+       "outcome": "not_kept",
+       "slides": [],
+       "slides_total": 0,
+       "source": "director",
+       "text": "Speaker notes were not kept."
+      }
+     ]
+    }
+   },
+   "errors": [],
+   "job_id": "stage-import-5df43459-4a76-41e0-bbfa-3b828e978124",
+   "per_slide_fidelity": [],
+   "poll": null,
+   "presentation_id": "5f0c7a52-6f5e-4c55-9a51-0d2b8f3a9c11",
+   "session_id": "fresh-session",
+   "slide_count": 1,
+   "status": "complete",
+   "template_id": "4862ae92-02c8-4bd4-9886-b898162d8e7d",
+   "template_progress": {
+    "as_is": {
+     "changes": {
+      "misses": [
+       {
+        "count": 1,
+        "kind": "k",
+        "rule": "r1",
+        "rung": "S1"
+       }
+      ],
+      "slides_with_misses": [
+       1
+      ],
+      "totals": {
+       "misses": 1
+      }
+     },
+     "element_count": 4,
+     "ready": true,
+     "slide_count": 1,
+     "template_id": "4862ae92-02c8-4bd4-9886-b898162d8e7d"
+    },
+    "eta_s": 0,
+    "heartbeat_at": "2026-10-22T21:15:38.241537+00:00",
+    "kept_as_is": [],
+    "locking": null,
+    "slide_count": 1,
+    "slides": [],
+    "slides_done": 0,
+    "stage": "ready",
+    "updated_at": "2026-10-22T21:15:38.241537+00:00",
+    "version": "director-template-progress-v1"
+   },
+   "updated_at": null,
+   "upload_ref": {
+    "bytes": 2520,
+    "file_name": "Q3 Board Review.pptx",
+    "kind": "pptx",
+    "purpose": "deck_import",
+    "researcher_session_id": "fresh-session",
+    "session_id": "fresh-session",
+    "sha256": "bc9263166efdb28c84fc25f5408572eeabb33be796718abc253745ba7fa04080",
+    "storage_path": "fresh-session/1_Q3 Board Review.pptx"
+   },
+   "user_id": "owner",
+   "viewer_url": "http://127.0.0.1:8544/p/5f0c7a52-6f5e-4c55-9a51-0d2b8f3a9c11"
+  }
+ },
+ "description": "Complete via fetch-the-as-is-then-cancel (Composer /health without as_is_only); the file's slide count differs, so notes are not kept",
+ "status": 200
+}
