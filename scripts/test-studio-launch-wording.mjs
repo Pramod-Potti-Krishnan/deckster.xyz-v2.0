@@ -24,6 +24,7 @@ import ts from 'typescript'
 import { BASE_COMMIT, LAUNCH_FILES, LAUNCH_NEW_FILES, LAUNCH_PAIRS, stripLaunchWording } from './studio-launch-wording-strip.mjs'
 import { sameOrTolerant, stackScope } from './studio-stack-tolerant.mjs'
 import { sameAsBase } from './studio-env-append-tolerant.mjs'
+import { stripJobDeadlines } from './studio-job-deadlines-strip.mjs' // P3-4b (NEXT_PUBLIC_STUDIO_JOB_DEADLINES) is in the base and edits components/narration-voice-picker.tsx too: its lines come out first
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..')
 const git = (...args) => execFileSync('git', args, { cwd: root, encoding: 'utf8', maxBuffer: 1 << 28 })
@@ -85,9 +86,10 @@ function proveFlag({ heads }) {
 // ---------------------------------------------------------------- 2. flag off is the base
 function proveOff({ heads, bases }, strip = stripLaunchWording) {
   for (const rel of LAUNCH_FILES) {
-    const stripped = strip(rel, heads[rel])
+    const head = stripJobDeadlines(rel, heads[rel]) // the base's P3-4b lines out first (they change a base line in narration-voice-picker.tsx); a text without them is returned as it is
+    const stripped = strip(rel, head)
     if (rel === '.env.example') { assert.ok(sameAsBase(rel, stripped, bases[rel], /LAUNCH_WORDING/), `${rel}: with this change's block out the file is the base's (or a later flag block was added after it)`); continue }
-    const verdict = sameOrTolerant(rel, heads[rel], stripped, bases[rel], LAUNCH_PAIRS[rel])
+    const verdict = sameOrTolerant(rel, head, stripped, bases[rel], LAUNCH_PAIRS[rel])
     assert.ok(verdict.ok, `${rel}: flag off is the base: ${verdict.reason}`)
   }
   for (const rel of LAUNCH_FILES) {
