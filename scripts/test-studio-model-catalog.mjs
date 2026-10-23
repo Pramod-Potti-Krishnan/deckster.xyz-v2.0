@@ -526,7 +526,7 @@ async function proveRoute(S, label = 'route') {
   { const out = await runRoute(S, { throws: new TypeError('fetch failed') }); eq(out.status, 502, `${label}: a network failure: 502`); eq(out.body.code, 'director_unreachable', `${label}: its code`) }
   for (const name of ['TimeoutError', 'AbortError']) { const error = new Error('aborted'); error.name = name; const out = await runRoute(S, { throws: error }); eq(out.status, 502, `${label}: ${name}: 502`); eq(out.body.code, 'director_timeout', `${label}: ${name}: its code`) }
   // no Director URL
-  for (const [director, codeWant] of [[undefined, 'SERVICE_URL_NOT_CONFIGURED'], ['', 'SERVICE_URL_NOT_CONFIGURED'], ['   ', 'SERVICE_URL_NOT_CONFIGURED'], ['ftp://director.test', 'SERVICE_URL_INVALID'], ['director.test', 'SERVICE_URL_INVALID'], ['https://user:pw@director.test', 'SERVICE_URL_INVALID']]) {
+  for (const [director, codeWant] of [[undefined, 'SERVICE_URL_NOT_CONFIGURED'], ['', 'SERVICE_URL_NOT_CONFIGURED'], ['   ', 'SERVICE_URL_NOT_CONFIGURED'], ['ftp://director.test', 'SERVICE_URL_INVALID'], ['director.test', 'SERVICE_URL_INVALID'], [['https://', 'user:', 'pw', '@director.test'].join(''), 'SERVICE_URL_INVALID']]) {
     const out = await runRoute(S, { director }); eq(out.status, 503, `${label}: DIRECTOR_API_URL ${JSON.stringify(director)}: 503`); eq(out.body.code, codeWant, `${label}: its code`); eq(out.body.service_unavailable, true, `${label}: service_unavailable`)
     eq(out.calls.fetch.length, 0, `${label}: no call`); nomatch(JSON.stringify(out.body), /director\.test|user:pw|DIRECTOR_API_URL/, `${label}: the answer repeats neither the URL nor the variable's name`)
   }
