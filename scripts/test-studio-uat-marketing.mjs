@@ -260,7 +260,7 @@ async function proveDispatch(sources = SOURCES, label = 'dispatch') {
       const result = await off.default()
       eq(result?.type, spec.page, `${label}: ${spec.name}: flag ${JSON.stringify(value)}, the page as it was`)
     }
-    match(sources[file], /if \(process\.env\.NEXT_PUBLIC_STUDIO_UAT_MARKETING === "true"\) \{\n    const \{ \w+ \} = await import\("@\/components\/marketing\/v3-uat\/pages\/\w+"\)/, `${label}: ${spec.name}: the UAT page is an import() inside the exact-true test (the build drops it with the flag off)`)
+    match(sources[file], /if \(process\.env\.NEXT_PUBLIC_STUDIO_UAT_MARKETING === "true"\) \{\n    const \{ \w+ \} = await import\("@\/components\/marketing\/v3-uat\/pages\/\w+"\)/, `${label}: ${spec.name}: the UAT page is an import() inside the exact-true test (loaded only then)`)
   }
   for (const [file, spec] of Object.entries(GOVERNED)) {
     const run = on => load(sources[file], file, { env: {}, stubs: { ...pageStubs, '@/components/marketing/v3-uat/pages/metadata': { uatMarketingMetadata: metaStub }, '@/components/marketing/v3-uat/flag': { studioUatMarketing: { on } }, '@/lib/marketing/v3-content': { V3_CONTENT: deep() }, '@/lib/studio-p2-landing': { studioP2LandingOn: () => false, studioP2Status: v => v } } })

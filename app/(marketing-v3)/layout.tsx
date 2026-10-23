@@ -15,7 +15,7 @@ const human = Instrument_Serif({ subsets: ["latin"], weight: "400", style: ["nor
 const mono = JetBrains_Mono({ subsets: ["latin"], weight: ["400", "500", "600"], variable: "--font-mono" })
 const slide = Inter({ subsets: ["latin"], weight: ["400", "600", "700"], variable: "--font-inter" })
 
-// NEXT_PUBLIC_STUDIO_UAT_MARKETING (default off): with the flag on the page is wrapped in UAT's shell (its header, runtime and pointer light; components/marketing/v3-uat/shell.tsx). The import() sits inside the flag test, so with it off the build drops the shell. Off: the layout below, as it was.
+// NEXT_PUBLIC_STUDIO_UAT_MARKETING (default off): with the flag on the page is wrapped in UAT's shell (its header, runtime and pointer light; components/marketing/v3-uat/shell.tsx). The import() sits inside the flag test: the shell is loaded only then (and a build that defines the variable as anything but true leaves it out of the bundle). Off: the layout below, as it was.
 export default async function MarketingV3Layout({ children }: Readonly<{ children: React.ReactNode }>) {
   if (process.env.NEXT_PUBLIC_STUDIO_UAT_MARKETING === "true") {
     const { UatMarketingShell } = await import("@/components/marketing/v3-uat/shell")

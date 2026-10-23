@@ -204,7 +204,7 @@ export const uatMarketingMetadata = {
 } as const
 `
 
-/** components/marketing/v3-uat/shell.tsx: UAT's (marketing-v3)/layout.tsx body. The layout renders it only with the flag on, through an import() the build drops with it off. (The stylesheet is imported by the layout itself, after the base sheet: see ROUTE_EDITS.) */
+/** components/marketing/v3-uat/shell.tsx: UAT's (marketing-v3)/layout.tsx body. The layout renders it only with the flag on, through an import() that runs only then (a build that defines the variable as anything but true leaves it out of the bundle altogether). The stylesheet is imported by the layout itself, after the base sheet: see ROUTE_EDITS. */
 export const SHELL_MODULE = `import type { ReactNode } from "react"
 import { SnapDeck } from "@/components/marketing/SnapDeck/SnapDeck"
 import { SlideProgressRail } from "@/components/marketing/SnapDeck/SlideProgressRail"
@@ -309,7 +309,7 @@ export const ROUTE_EDITS = {
   ],
   'app/(marketing-v3)/layout.tsx': [
     ['import "@/styles/marketing-v3.css"\n', 'import "@/styles/marketing-v3.css"\n// NEXT_PUBLIC_STUDIO_UAT_MARKETING: UAT\'s rules, every one scoped to .mv3:where(.mv3-uat), so inert on any page that is not the UAT tree. Imported here, straight after the base sheet, so they come after it in the cascade whatever the flag (a stylesheet pulled in only by the shell\'s import() lands before the base sheet).\nimport "@/styles/marketing-v3-uat.css"\n'],
-    ['export default function MarketingV3Layout({ children }: Readonly<{ children: React.ReactNode }>) {\n  return (', `// NEXT_PUBLIC_STUDIO_UAT_MARKETING (default off): with the flag on the page is wrapped in UAT's shell (its header, runtime and pointer light; components/marketing/v3-uat/shell.tsx). The import() sits inside the flag test, so with it off the build drops the shell. Off: the layout below, as it was.\nexport default async function MarketingV3Layout({ children }: Readonly<{ children: React.ReactNode }>) {\n  if (${FLAG_EXPR}) {\n    const { UatMarketingShell } = await import("@/components/marketing/v3-uat/shell")\n    return <UatMarketingShell fonts={\`\${display.variable} \${body.variable} \${human.variable} \${mono.variable} \${slide.variable}\`}>{children}</UatMarketingShell>\n  }\n  return (`],
+    ['export default function MarketingV3Layout({ children }: Readonly<{ children: React.ReactNode }>) {\n  return (', `// NEXT_PUBLIC_STUDIO_UAT_MARKETING (default off): with the flag on the page is wrapped in UAT's shell (its header, runtime and pointer light; components/marketing/v3-uat/shell.tsx). The import() sits inside the flag test: the shell is loaded only then (and a build that defines the variable as anything but true leaves it out of the bundle). Off: the layout below, as it was.\nexport default async function MarketingV3Layout({ children }: Readonly<{ children: React.ReactNode }>) {\n  if (${FLAG_EXPR}) {\n    const { UatMarketingShell } = await import("@/components/marketing/v3-uat/shell")\n    return <UatMarketingShell fonts={\`\${display.variable} \${body.variable} \${human.variable} \${mono.variable} \${slide.variable}\`}>{children}</UatMarketingShell>\n  }\n  return (`],
   ],
   // The share card every page without its own uses: with the flag on UAT's L-B card (a static JPEG), otherwise the generated card as it was.
   'app/opengraph-image.tsx': [
