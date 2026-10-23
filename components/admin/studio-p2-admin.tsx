@@ -4,20 +4,22 @@
 // app/admin/users/layout.tsx and app/admin/coupons/layout.tsx render these instead of the old pages; the old pages (page.tsx) are not touched. Same six requests with the same bodies, the same
 // sign-in redirect, the same "Access denied" for a 403 (lib/studio-p2-admin.ts holds the words and rules). The admin chrome (links to the other admin page and to Studio) is drawn only once the
 // route has said yes to this account; until then, and for a 403 or a failed read, the page is one neutral panel, as before.
+// HARDENING (same flag): both lists are read a page at a time. The users page asks the route for its page, approval filter and search (so the figures and the filter counts are the route's, over everyone),
+// the coupons page for its page; both show a pager under the rows when there is more than one page, and a new page that has arrived starts at the top of the list (a page that failed leaves the view, and the message above it, where they are). A new coupon's expiry goes with the admin's time zone offset (lib/studio-p2-admin.ts).
 
 import { useEffect, useRef, useState, type FormEvent } from "react"
 import Link from "next/link"
 import { useRouter } from "next/navigation"
 import { useSession } from "next-auth/react"
 import { format } from "date-fns"
-import { AlertCircle, Check, Copy, Layers, Plus, RefreshCw, Search, Ticket, ToggleLeft, ToggleRight, X } from "lucide-react"
+import { AlertCircle, Check, ChevronLeft, ChevronRight, Copy, Layers, Plus, RefreshCw, Search, Ticket, ToggleLeft, ToggleRight, X } from "lucide-react"
 import {
   STUDIO_P2_ADMIN_API, STUDIO_P2_ADMIN_COPIED_MS, STUDIO_P2_ADMIN_CREATE_FAILURE, STUDIO_P2_ADMIN_DEFAULT_FILTER, STUDIO_P2_ADMIN_EMPTY_FORM, STUDIO_P2_ADMIN_FILTER_LABELS,
-  STUDIO_P2_ADMIN_NAV, STUDIO_P2_ADMIN_ROUTES, STUDIO_P2_ADMIN_SIGN_IN, STUDIO_P2_ADMIN_USER_FILTERS, STUDIO_P2_ADMIN_WORDS as WORDS,
-  studioP2AdminApproveFailure, studioP2AdminApproveInit, studioP2AdminCopyFailure, studioP2AdminCouponTotals, studioP2AdminCreateInit, studioP2AdminDate, studioP2AdminExpiry, studioP2AdminFailureSentence,
-  studioP2AdminFilterUsers, studioP2AdminInitial, studioP2AdminListOutcome, studioP2AdminMoney, studioP2AdminRedeemed, studioP2AdminRows, studioP2AdminTierLabel, studioP2AdminToggleFailure,
-  studioP2AdminToggleInit, studioP2AdminUserCounts, studioP2AdminUsersEmpty,
-  type StudioP2AdminCoupon, type StudioP2AdminCouponForm, type StudioP2AdminListOutcome, type StudioP2AdminUser, type StudioP2AdminUserFilter,
+  STUDIO_P2_ADMIN_NAV, STUDIO_P2_ADMIN_ROUTES, STUDIO_P2_ADMIN_SEARCH_DELAY_MS, STUDIO_P2_ADMIN_SIGN_IN, STUDIO_P2_ADMIN_USER_FILTERS, STUDIO_P2_ADMIN_WORDS as WORDS,
+  studioP2AdminApproveFailure, studioP2AdminApproveInit, studioP2AdminCopyFailure, studioP2AdminCouponsUrl, studioP2AdminCouponTotalsOf, studioP2AdminCreateInit, studioP2AdminDate, studioP2AdminExpiry,
+  studioP2AdminFailureSentence, studioP2AdminInitial, studioP2AdminListOutcome, studioP2AdminMoney, studioP2AdminPageInfo, studioP2AdminPageRange, studioP2AdminRedeemed, studioP2AdminRows,
+  studioP2AdminTierLabel, studioP2AdminToggleFailure, studioP2AdminToggleInit, studioP2AdminUserCountsOf, studioP2AdminUsersEmpty, studioP2AdminUsersUrl,
+  type StudioP2AdminCoupon, type StudioP2AdminCouponForm, type StudioP2AdminListOutcome, type StudioP2AdminPageInfo, type StudioP2AdminUser, type StudioP2AdminUserFilter,
 } from "@/lib/studio-p2-admin"
 import "./studio-p2-admin.css"
 
@@ -71,31 +73,64 @@ function Empty({ title, body }: { title: string; body: string }) {
   return <div className="sa-empty" role="status"><b>{title}</b>{body && <> <span>{body}</span></>}</div>
 }
 
-/** The state both pages share: the session, the first read, what a read means, and the redirects the old pages made. */
-function useAdminList<Row>(page: Page, url: string, key: "users" | "coupons") {
+/** Under the rows when there is more than one page: which rows these are, and Previous / Next (off while a read is on its way, and at either end). */
+function Pager({ info, shown, busy, onPage }: { info: StudioP2AdminPageInfo; shown: number; busy: boolean; onPage: (page: number) => void }) {
+  const range = studioP2AdminPageRange(info, shown)
+  return (
+    <nav className="sa-pager" aria-label={WORDS.pagerLabel}>
+      <span className="sa-pager-range" aria-live="polite">{range && `Showing ${range}`}</span>
+      <div className="sa-pager-controls">
+        <button type="button" className="sa-btn" disabled={busy || info.page <= 1} aria-label={WORDS.previousLabel} onClick={() => onPage(info.page - 1)}><ChevronLeft aria-hidden="true" />{WORDS.previous}</button>
+        <span className="sa-pager-page">{`Page ${info.page} of ${info.pageCount}`}</span>
+        <button type="button" className="sa-btn" disabled={busy || info.page >= info.pageCount} aria-label={WORDS.nextLabel} onClick={() => onPage(info.page + 1)}>{WORDS.next}<ChevronRight aria-hidden="true" /></button>
+      </div>
+    </nav>
+  )
+}
+
+/** The state both pages share: the session, the first read, what a read means, the redirects the old pages made, and the ask (the page; for users also the filter and the search) the list is read with. */
+function useAdminList<Row, Ask extends { page: number }, Extra>(page: Page, first: Ask, urlOf: (request: Ask) => string, key: "users" | "coupons", extraOf: (data: unknown, rows: Row[]) => Extra) {
   const { status } = useSession()
   const router = useRouter()
   const [load, setLoad] = useState<Load>("loading")
   const [rows, setRows] = useState<Row[]>([])
+  const [reply, setReply] = useState<{ info: StudioP2AdminPageInfo; extra: Extra } | null>(null)
+  const [ask, setAsk] = useState<Ask>(first)
   const [refreshing, setRefreshing] = useState(false)
+  const [moving, setMoving] = useState(false) // a read for another page / filter / search is on its way (a plain refresh does not dim the list)
   const [notice, setNotice] = useState<string | null>(null)
   const started = useRef(false)
   const hasRows = useRef(false)
+  const asked = useRef<Ask>(first)
+  const newest = useRef(0)
 
-  const read = async () => {
+  /** Reads the list as asked; true when its answer was the newest one and a good one. */
+  const readAs = async (wanted: Ask): Promise<boolean> => {
+    const mine = ++newest.current
     setRefreshing(true)
     let outcome: StudioP2AdminListOutcome = "failed"
     let next: Row[] = []
+    let data: unknown = null
     try {
-      const response = await fetch(url)
+      const response = await fetch(urlOf(wanted))
       outcome = studioP2AdminListOutcome(response.status)
-      if (outcome === "ready") next = studioP2AdminRows<Row>(await response.json(), key)
+      if (outcome === "ready") { data = await response.json(); next = studioP2AdminRows<Row>(data, key) }
     } catch { outcome = "failed" }
-    if (outcome === "ready") { hasRows.current = true; setRows(next); setLoad("ready"); setNotice(null) }
+    if (mine !== newest.current) return false // a newer read is on its way; this answer is out of date
+    if (outcome === "ready") {
+      const info = studioP2AdminPageInfo(data, next.length)
+      hasRows.current = true; setRows(next); setReply({ info, extra: extraOf(data, next) }); setLoad("ready"); setNotice(null)
+      if (info.page !== wanted.page) { asked.current = { ...wanted, page: info.page }; setAsk(asked.current) } // the list got shorter: the route answered the last page
+    }
     else if (outcome === "failed" && hasRows.current) setNotice(WORDS.refreshFailed)
     else setLoad(outcome)
     setRefreshing(false)
+    setMoving(false)
+    return outcome === "ready"
   }
+  const read = () => readAs(asked.current)
+  /** Read another page / filter / search. */
+  const goto = (wanted: Ask) => { asked.current = wanted; setAsk(wanted); setMoving(true); return readAs(wanted) }
 
   useEffect(() => { if (status === "unauthenticated") router.push(STUDIO_P2_ADMIN_SIGN_IN[page]) }, [status, router, page])
   useEffect(() => { if (status === "authenticated" && !started.current) { started.current = true; void read() } }, [status])
@@ -108,14 +143,24 @@ function useAdminList<Row>(page: Page, url: string, key: "users" | "coupons") {
     if (load === "failed") return <Bare page={page} state="failed" title={failedTitle} body={WORDS.failedBody}><button type="button" className="sa-btn" data-primary="true" disabled={refreshing} onClick={read}>{WORDS.retry}</button></Bare>
     return null
   }
-  return { load, rows, refreshing, notice, setNotice, read, gate }
+  return { load, rows, reply, ask, current: () => asked.current, refreshing, moving, notice, setNotice, read, goto, gate }
 }
 
 export function StudioP2AdminUsers() {
-  const list = useAdminList<StudioP2AdminUser>("users", STUDIO_P2_ADMIN_API.users, "users")
-  const [filter, setFilter] = useState<StudioP2AdminUserFilter>(STUDIO_P2_ADMIN_DEFAULT_FILTER)
+  const list = useAdminList<StudioP2AdminUser, { page: number; filter: StudioP2AdminUserFilter; q: string }, ReturnType<typeof studioP2AdminUserCountsOf>>(
+    "users", { page: 1, filter: STUDIO_P2_ADMIN_DEFAULT_FILTER, q: "" }, studioP2AdminUsersUrl, "users", studioP2AdminUserCountsOf,
+  )
   const [query, setQuery] = useState("")
   const [busyId, setBusyId] = useState<string | null>(null)
+  const top = useRef<HTMLElement>(null)
+
+  // The route does the search: a read goes out when the typing stops, from the first page.
+  useEffect(() => {
+    const wanted = query.trim()
+    if (wanted === list.current().q) return undefined
+    const timer = setTimeout(() => { void list.goto({ ...list.current(), q: wanted, page: 1 }) }, STUDIO_P2_ADMIN_SEARCH_DELAY_MS)
+    return () => clearTimeout(timer)
+  }, [query])
 
   const decide = async (user: StudioP2AdminUser, approved: boolean) => {
     setBusyId(user.id)
@@ -132,19 +177,19 @@ export function StudioP2AdminUsers() {
   }
 
   const gated = list.gate(WORDS.loadingUsers, WORDS.failedUsersTitle)
-  if (gated) return gated
-  const counts = studioP2AdminUserCounts(list.rows)
-  const shown = studioP2AdminFilterUsers(list.rows, filter, query)
-  const empty = studioP2AdminUsersEmpty(filter, query, counts.total)
+  if (gated || !list.reply) return gated
+  const { info, extra: counts } = list.reply
+  const shown = list.rows
+  const empty = studioP2AdminUsersEmpty(list.ask.filter, list.ask.q, counts.total)
   return (
     <Frame page="users" state="ready">
       <div className="sa-head"><div><h1>{WORDS.usersTitle}</h1><p>{WORDS.usersLead}</p></div></div>
       {list.notice && <p className="sa-notice" role="alert">{list.notice}</p>}
       <Stats items={[{ label: WORDS.statTotalUsers, value: counts.total }, { label: WORDS.statPending, value: counts.pending }, { label: WORDS.statApproved, value: counts.approved }]} />
-      <section className="sa-panel" aria-label={WORDS.usersTitle}>
+      <section ref={top} className="sa-panel" aria-label={WORDS.usersTitle}>
         <div className="sa-toolbar">
           <div className="sa-filters" role="group" aria-label="Show">
-            {STUDIO_P2_ADMIN_USER_FILTERS.map(option => <button key={option} type="button" className="sa-filter" aria-pressed={filter === option} onClick={() => setFilter(option)}>{STUDIO_P2_ADMIN_FILTER_LABELS[option]} <span>({option === "all" ? counts.total : option === "pending" ? counts.pending : counts.approved})</span></button>)}
+            {STUDIO_P2_ADMIN_USER_FILTERS.map(option => <button key={option} type="button" className="sa-filter" aria-pressed={list.ask.filter === option} onClick={() => { if (option !== list.current().filter) void list.goto({ ...list.current(), filter: option, page: 1 }) }}>{STUDIO_P2_ADMIN_FILTER_LABELS[option]} <span>({option === "all" ? counts.total : option === "pending" ? counts.pending : counts.approved})</span></button>)}
           </div>
           <div className="sa-tools">
             <label className="sa-search"><Search aria-hidden="true" /><input type="search" aria-label={WORDS.searchLabel} placeholder={WORDS.searchPlaceholder} value={query} onChange={event => setQuery(event.target.value)} /></label>
@@ -153,7 +198,7 @@ export function StudioP2AdminUsers() {
         </div>
         {shown.length === 0
           ? <Empty title={empty.title} body={empty.body} />
-          : <ul className="sa-rows">
+          : <ul className="sa-rows" aria-busy={list.moving || undefined}>
               {shown.map(user => {
                 const name = user.name || WORDS.noName
                 const busy = busyId === user.id
@@ -177,13 +222,14 @@ export function StudioP2AdminUsers() {
                 )
               })}
             </ul>}
+        {info.pageCount > 1 && <Pager info={info} shown={shown.length} busy={list.refreshing} onPage={page => { void list.goto({ ...list.current(), page }).then(ok => { if (ok) top.current?.scrollIntoView?.({ block: "start" }) }) }} />}
       </section>
     </Frame>
   )
 }
 
 export function StudioP2AdminCoupons() {
-  const list = useAdminList<StudioP2AdminCoupon>("coupons", STUDIO_P2_ADMIN_API.coupons, "coupons")
+  const list = useAdminList<StudioP2AdminCoupon, { page: number }, ReturnType<typeof studioP2AdminCouponTotalsOf>>("coupons", { page: 1 }, studioP2AdminCouponsUrl, "coupons", studioP2AdminCouponTotalsOf)
   const [showCreate, setShowCreate] = useState(false)
   const [creating, setCreating] = useState(false)
   const [createError, setCreateError] = useState<string | null>(null)
@@ -191,6 +237,7 @@ export function StudioP2AdminCoupons() {
   const [togglingId, setTogglingId] = useState<string | null>(null)
   const [copiedId, setCopiedId] = useState<string | null>(null)
   const codeField = useRef<HTMLInputElement>(null)
+  const top = useRef<HTMLElement>(null)
   const copiedTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
   const set = (field: keyof StudioP2AdminCouponForm, value: string) => setForm(previous => ({ ...previous, [field]: value }))
 
@@ -207,7 +254,7 @@ export function StudioP2AdminCoupons() {
       if (!response.ok) { setCreateError(studioP2AdminFailureSentence(response.status, await readError(response), STUDIO_P2_ADMIN_CREATE_FAILURE)); return }
       setForm(STUDIO_P2_ADMIN_EMPTY_FORM)
       setShowCreate(false)
-      await list.read()
+      await list.goto({ page: 1 }) // the newest coupon is on the first page
     } catch {
       setCreateError(STUDIO_P2_ADMIN_CREATE_FAILURE)
     } finally {
@@ -244,8 +291,8 @@ export function StudioP2AdminCoupons() {
   }
 
   const gated = list.gate(WORDS.loadingCoupons, WORDS.failedCouponsTitle)
-  if (gated) return gated
-  const totals = studioP2AdminCouponTotals(list.rows)
+  if (gated || !list.reply) return gated
+  const { info, extra: totals } = list.reply
   const now = Date.now()
   return (
     <Frame page="coupons" state="ready">
@@ -283,10 +330,10 @@ export function StudioP2AdminCoupons() {
           </form>
         </section>
       )}
-      <section className="sa-panel" aria-label={WORDS.couponsTitle}>
+      <section ref={top} className="sa-panel" aria-label={WORDS.couponsTitle}>
         {list.rows.length === 0
           ? <Empty title={WORDS.noCoupons} body="" />
-          : <ul className="sa-rows">
+          : <ul className="sa-rows" aria-busy={list.moving || undefined}>
               {list.rows.map(coupon => {
                 const expiry = studioP2AdminExpiry(coupon.expiresAt, now)
                 const created = day(coupon.createdAt)
@@ -316,6 +363,7 @@ export function StudioP2AdminCoupons() {
                 )
               })}
             </ul>}
+        {info.pageCount > 1 && <Pager info={info} shown={list.rows.length} busy={list.refreshing} onPage={page => { void list.goto({ page }).then(ok => { if (ok) top.current?.scrollIntoView?.({ block: "start" }) }) }} />}
       </section>
     </Frame>
   )

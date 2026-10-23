@@ -1,9 +1,12 @@
 // PASS2 ADMIN USERS + COUPONS (flag NEXT_PUBLIC_STUDIO_P2_ADMIN, default off). Import-free: the flag, the words, the routes and the rules the two pages use. Nothing here is a permission rule:
 // who may open /admin/users and /admin/coupons is decided by the routes under app/api/admin (the signed-in email against DEV_BYPASS_EMAIL), and this file never looks at an email.
 //
-// What the pages keep: the six requests (GET + POST approve for users; GET + POST + PATCH for coupons) with the bodies they always sent, the filter / search / totals, "Access denied" for a 403 with the way to
+// What the pages keep: the six requests (GET + POST approve for users; GET + POST + PATCH for coupons) with the bodies they always sent (but see HARDENING), the filter / search / totals, "Access denied" for a 403 with the way to
 // Studio, and the sign-in redirect. What it fixes: a failed read is no longer "Access denied" (users) or a spinner that never ends (coupons); a failed action says so; a refresh does not blank the page;
 // the dates, initials and totals cannot throw; the tier reads "Max" on both pages.
+//
+// HARDENING (same flag): the two lists are read a page at a time (the routes take page / limit, the users route also filter / q, and answer with the page, the page count and the figures over the
+// whole table); a coupon's expiry is sent with the admin's time zone offset and read with it; the paging, search and expiry rules the routes and the pages share live in the last two sections below.
 
 /** Exact "true" turns it on. Anything else (unset, "false", "TRUE", " true") is off. The callers pass `process.env.NEXT_PUBLIC_STUDIO_P2_ADMIN` (Next inlines it at build time). */
 export function studioP2AdminOn(value: string | null | undefined): boolean {
@@ -82,6 +85,11 @@ export const STUDIO_P2_ADMIN_WORDS = {
   noCoupons: 'No coupons yet. Create one to get started.',
   labels: { code: 'Code', value: 'Value (USD)', tier: 'Plan tier', max: 'Max redemptions (blank = unlimited)', expires: 'Expires at (optional)', note: 'Note (internal)' },
   placeholders: { code: 'e.g. WELCOME50', value: 'e.g. 50.00', max: 'e.g. 100', note: 'e.g. For beta testers batch 1' },
+  pagerLabel: 'Pagination',
+  previous: 'Previous',
+  previousLabel: 'Previous page',
+  next: 'Next',
+  nextLabel: 'Next page',
 } as const
 
 // ---------------------------------------------------------------- reading a list
@@ -178,9 +186,10 @@ export function studioP2AdminCouponBody(form: StudioP2AdminCouponForm) {
   }
 }
 
-/** POST /api/admin/coupons. */
+/** POST /api/admin/coupons. The old body, except that the expiry carries the admin's time zone offset ("2026-12-31T23:59:00-05:00") instead of the bare wall time the form holds. */
 export function studioP2AdminCreateInit(form: StudioP2AdminCouponForm): StudioP2AdminInit {
-  return { method: 'POST', headers: { ...JSON_HEADERS }, body: JSON.stringify(studioP2AdminCouponBody(form)) }
+  const body = studioP2AdminCouponBody(form)
+  return { method: 'POST', headers: { ...JSON_HEADERS }, body: JSON.stringify({ ...body, expiresAt: body.expiresAt ? studioP2AdminLocalToOffsetIso(body.expiresAt) : null }) }
 }
 
 // ---------------------------------------------------------------- users
@@ -290,3 +299,178 @@ export function studioP2AdminRedeemed(times: number, max: number | null | undefi
 
 /** The "Copied" mark stays this long. */
 export const STUDIO_P2_ADMIN_COPIED_MS = 2000
+
+// ---------------------------------------------------------------- hardening: paging (the routes read it, the pages send it)
+
+/** Rows on a page when the caller says nothing, and the most a caller may ask for. */
+export const STUDIO_P2_ADMIN_PAGE_SIZE = 25
+export const STUDIO_P2_ADMIN_MAX_PAGE_SIZE = 100
+/** The longest search the users route reads (a longer one is cut), and the wait between the last key typed in the box and its read. */
+export const STUDIO_P2_ADMIN_MAX_SEARCH = 100
+export const STUDIO_P2_ADMIN_SEARCH_DELAY_MS = 300
+
+type StudioP2AdminQuery = (name: string) => string | null | undefined
+
+/** A whole number from 1 up out of a query value ("3"); anything else ("", "0", "-1", "2.5", "1e3", " 2", "abc", ten digits or more, nothing) is the fallback. */
+function wholeNumber(value: string | null | undefined, fallback: number): number {
+  if (typeof value !== 'string' || !/^\d{1,9}$/.test(value)) return fallback
+  const number = Number(value)
+  return number >= 1 ? number : fallback
+}
+
+export interface StudioP2AdminPaging { page: number; limit: number }
+
+/** `page` (from 1, default 1) and `limit` (default 25, at most 100) out of a request's query. Odd values fall back; none of them is an error. */
+export function studioP2AdminPaging(get: StudioP2AdminQuery): StudioP2AdminPaging {
+  return {
+    page: wholeNumber(get('page'), 1),
+    limit: Math.min(wholeNumber(get('limit'), STUDIO_P2_ADMIN_PAGE_SIZE), STUDIO_P2_ADMIN_MAX_PAGE_SIZE),
+  }
+}
+
+export interface StudioP2AdminUsersQuery extends StudioP2AdminPaging { filter: StudioP2AdminUserFilter; q: string }
+
+/** The users read: the paging, the approval filter (an unknown one is "all") and the search text (trimmed, cut at 100 characters). */
+export function studioP2AdminUsersQuery(get: StudioP2AdminQuery): StudioP2AdminUsersQuery {
+  const filter = get('filter')
+  return {
+    ...studioP2AdminPaging(get),
+    filter: STUDIO_P2_ADMIN_USER_FILTERS.find(option => option === filter) ?? 'all',
+    q: (get('q') ?? '').trim().slice(0, STUDIO_P2_ADMIN_MAX_SEARCH),
+  }
+}
+
+/** The database `where` for a users page: the approval filter, then the search over email and name (anywhere in the text, any case): the rules the old page applied in the browser. */
+export function studioP2AdminUsersWhere(filter: StudioP2AdminUserFilter, q: string) {
+  const needle = q.trim()
+  return {
+    ...(filter === 'pending' ? { approved: false } : filter === 'approved' ? { approved: true } : {}),
+    ...(needle ? { OR: [{ email: { contains: needle, mode: 'insensitive' as const } }, { name: { contains: needle, mode: 'insensitive' as const } }] } : {}),
+  }
+}
+
+/** Which rows a page holds. A page past the last is the last (the reply says which page it is), so a read never answers an empty page just because the list got shorter. */
+export function studioP2AdminPageWindow(total: number, page: number, limit: number) {
+  const size = Math.max(1, Math.floor(limit))
+  const pageCount = Math.max(1, Math.ceil(total / size))
+  const current = Math.min(Math.max(1, Math.floor(page)), pageCount)
+  return { page: current, pageCount, skip: (current - 1) * size, take: size }
+}
+
+/** The coupon figures over the whole table, from the database's own aggregates: how many, how many active, and the times redeemed per face value. */
+export function studioP2AdminTotalsFromGroups(total: number, active: number, groups: readonly { valueCents: number; _sum: { timesRedeemed: number | null } | null }[]) {
+  let redemptions = 0
+  let creditedCents = 0
+  for (const group of groups) {
+    const times = group._sum?.timesRedeemed ?? 0
+    redemptions += times
+    creditedCents += times * group.valueCents
+  }
+  return { total, active, redemptions, creditedCents }
+}
+
+// ---------------------------------------------------------------- hardening: paging (the pages read the reply)
+
+export interface StudioP2AdminPageInfo { page: number; limit: number; total: number; pageCount: number }
+
+/** The paging part of a list reply. Whatever is missing or odd reads as one page of the rows that came. */
+export function studioP2AdminPageInfo(data: unknown, shown: number): StudioP2AdminPageInfo {
+  const raw = data && typeof data === 'object' ? (data as Record<string, unknown>) : {}
+  const whole = (value: unknown, fallback: number) => (typeof value === 'number' && Number.isFinite(value) && value >= 0 ? Math.floor(value) : fallback)
+  const limit = Math.max(1, whole(raw.limit, STUDIO_P2_ADMIN_PAGE_SIZE))
+  const total = whole(raw.total, shown)
+  const pageCount = Math.max(1, whole(raw.pageCount, Math.ceil(total / limit)))
+  return { page: Math.min(Math.max(1, whole(raw.page, 1)), pageCount), limit, total, pageCount }
+}
+
+/** The three user figures over everyone (the reply's `counts`); a reply without them is counted from the rows that came. */
+export function studioP2AdminUserCountsOf(data: unknown, shown: readonly { approved: boolean }[]) {
+  const counts = data && typeof data === 'object' ? (data as Record<string, unknown>).counts : undefined
+  const raw = counts && typeof counts === 'object' ? (counts as Record<string, unknown>) : null
+  const whole = (value: unknown) => typeof value === 'number' && Number.isFinite(value) && value >= 0
+  if (raw && whole(raw.total) && whole(raw.pending) && whole(raw.approved)) return { total: raw.total as number, pending: raw.pending as number, approved: raw.approved as number }
+  return studioP2AdminUserCounts(shown)
+}
+
+/** The four coupon figures over every coupon (the reply's `totals`); a reply without them is totalled from the rows that came. */
+export function studioP2AdminCouponTotalsOf(data: unknown, shown: readonly { active: boolean; timesRedeemed: number; valueCents: number }[]) {
+  const totals = data && typeof data === 'object' ? (data as Record<string, unknown>).totals : undefined
+  const raw = totals && typeof totals === 'object' ? (totals as Record<string, unknown>) : null
+  const whole = (value: unknown) => typeof value === 'number' && Number.isFinite(value) && value >= 0
+  if (raw && whole(raw.total) && whole(raw.active) && whole(raw.redemptions) && whole(raw.creditedCents)) {
+    return { total: raw.total as number, active: raw.active as number, redemptions: raw.redemptions as number, creditedCents: raw.creditedCents as number }
+  }
+  return studioP2AdminCouponTotals(shown)
+}
+
+/** The users read the page sends: the page, the filter and (when there is one) the search. */
+export function studioP2AdminUsersUrl(request: { page: number; filter: StudioP2AdminUserFilter; q: string }): string {
+  const parts = [`page=${request.page}`, `limit=${STUDIO_P2_ADMIN_PAGE_SIZE}`, `filter=${request.filter}`]
+  const q = request.q.trim()
+  if (q) parts.push(`q=${encodeURIComponent(q)}`)
+  return `${STUDIO_P2_ADMIN_API.users}?${parts.join('&')}`
+}
+
+/** The coupons read the page sends. */
+export function studioP2AdminCouponsUrl(request: { page: number }): string {
+  return `${STUDIO_P2_ADMIN_API.coupons}?page=${request.page}&limit=${STUDIO_P2_ADMIN_PAGE_SIZE}`
+}
+
+/** "26–50 of 143" for the rows on screen ("" when there are none). */
+export function studioP2AdminPageRange(info: StudioP2AdminPageInfo, shown: number): string {
+  if (info.total === 0 || shown === 0) return ''
+  const first = (info.page - 1) * info.limit + 1
+  return `${first}–${first + shown - 1} of ${info.total}`
+}
+
+// ---------------------------------------------------------------- hardening: a coupon's expiry carries its time zone
+
+/** The sentence under a refused expiry (the page shows it as it stands). */
+export const STUDIO_P2_ADMIN_EXPIRY_ERROR = 'Expiry must be a date and time with a time zone, for example 2026-12-31T23:59:00-05:00.'
+
+const pad2 = (n: number) => String(n).padStart(2, '0')
+
+/**
+ * The browser's reading of a `datetime-local` value ("2026-12-31T23:59") as a date and time with the offset of the admin's own zone on that day ("2026-12-31T23:59:00-05:00"): the same instant the
+ * browser itself means by that wall time. A wall time that does not exist (the hour skipped when the clocks go forward) is the one the browser moves it to. Anything that is not a
+ * `datetime-local` value is returned as it came. An instant that cannot be written exactly as a wall time and an offset in whole minutes (a zone's offset before standard time was adopted) is sent as UTC.
+ */
+export function studioP2AdminLocalToOffsetIso(local: string): string {
+  const match = /^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2})(?::(\d{2})(?:\.\d+)?)?$/.exec(local)
+  if (!match) return local
+  const date = new Date(2000, 0, 1, 0, 0, 0, 0)
+  date.setFullYear(Number(match[1]), Number(match[2]) - 1, Number(match[3]))
+  date.setHours(Number(match[4]), Number(match[5]), Number(match[6] ?? 0), 0)
+  if (Number.isNaN(date.getTime())) return local
+  const offset = -date.getTimezoneOffset()
+  if (Number.isInteger(offset)) {
+    const sign = offset < 0 ? '-' : '+'
+    const abs = Math.abs(offset)
+    const written = `${String(date.getFullYear()).padStart(4, '0')}-${pad2(date.getMonth() + 1)}-${pad2(date.getDate())}T${pad2(date.getHours())}:${pad2(date.getMinutes())}:${pad2(date.getSeconds())}${sign}${pad2(Math.floor(abs / 60))}:${pad2(abs % 60)}`
+    if (Date.parse(written) === date.getTime()) return written
+  }
+  return date.toISOString()
+}
+
+export type StudioP2AdminExpiryResult = { ok: true; date: Date | null } | { ok: false; error: string }
+
+const ZONED = /^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2})(?::(\d{2})(?:\.\d{1,9})?)?(Z|[+-](\d{2}):(\d{2}))$/
+
+/**
+ * A coupon's expiry as the routes read it: nothing at all (absent, null or "") is no expiry; otherwise a text with a date, a time (seconds may be left out) and a zone ("2026-12-31T23:59:00-05:00" or "...Z"), with a real calendar
+ * day, an hour below 24, and an offset below 24:00. A zoneless text, a bare date, a day that rolls over (February 30) or anything that is not a text is refused with the sentence above.
+ */
+export function studioP2AdminParseExpiry(value: unknown): StudioP2AdminExpiryResult {
+  if (value === undefined || value === null || value === '') return { ok: true, date: null }
+  const refused: StudioP2AdminExpiryResult = { ok: false, error: STUDIO_P2_ADMIN_EXPIRY_ERROR }
+  if (typeof value !== 'string') return refused
+  const text = value.trim()
+  const match = ZONED.exec(text)
+  if (!match) return refused
+  const [year, month, day, hour, minute] = match.slice(1, 6).map(Number)
+  const second = Number(match[6] ?? 0)
+  if (match[8] !== undefined && (Number(match[8]) > 23 || Number(match[9]) > 59)) return refused
+  const wall = new Date(Date.UTC(year, month - 1, day, hour, minute, second))
+  if (wall.getUTCFullYear() !== year || wall.getUTCMonth() !== month - 1 || wall.getUTCDate() !== day || wall.getUTCHours() !== hour || wall.getUTCMinutes() !== minute || wall.getUTCSeconds() !== second) return refused
+  return { ok: true, date: new Date(text) }
+}
