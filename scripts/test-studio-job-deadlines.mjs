@@ -140,7 +140,7 @@ function staticChecks() {
 
 /** The strip module (for pins that hold these files to an earlier commit): it removes exactly this change's text. */
 async function stripChecks() {
-  const BASE_COMMIT = '35259670d1f2dbb70b90a1aacc7c3ea4c4ca6427' // studio-v4-dev-preparation-code when this change branched (#482's merge)
+  const BASE_COMMIT = 'cfc09f899ee47a5e828f2eb5fb0a7007dd3c694a' // studio-v4-dev-preparation-code this change is stacked on (#484's merge)
   const { stripJobDeadlines, JOB_DEADLINES_FILES } = await import('./studio-job-deadlines-strip.mjs')
   const git = args => execFileSync('git', args, { cwd: root, encoding: 'utf8', maxBuffer: 64 * 1024 * 1024, stdio: ['ignore', 'pipe', 'pipe'] })
   eq([...JOB_DEADLINES_FILES].sort(), ['.env.example', 'components/narration-voice-picker.tsx', DL].sort(), 'the strip covers exactly the 3 changed files')
