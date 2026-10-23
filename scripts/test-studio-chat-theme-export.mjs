@@ -41,11 +41,12 @@ import { stripNarrationRouter } from './studio-narration-router-strip.mjs' // #4
 import { sameAsBase } from './studio-env-append-tolerant.mjs' // stacked after #475: the .env.example rule that takes a later change's block (scripts/studio-env-append-tolerant.mjs)
 import { stripModelCatalog } from './studio-model-catalog-strip.mjs' // #473 (NEXT_PUBLIC_STUDIO_MODEL_CATALOG) is stacked on this change: its .env.example block and package.json line come out first
 import { STACK, stackFileTolerant, stackMutants, stackScope, sameOrTolerant, stripMutants } from './studio-stack-tolerant.mjs' // stacked after #475: a later PR's files are not this change's to answer for, and a shared file a later PR edits too keeps its base lines and this change's (scripts/studio-stack-tolerant.mjs)
+import { stripLaunchWording } from './studio-launch-wording-strip.mjs' // NEXT_PUBLIC_STUDIO_LAUNCH_WORDING (launched wording): its flag-gated edits come out first, before every older change's strip
 
 for (const name of Object.keys(process.env)) if (/KEY|TOKEN|SECRET|CREDENTIAL|PASSWORD/i.test(name)) delete process.env[name]
 const root = path.resolve(fileURLToPath(new URL('../', import.meta.url)))
 const FIXTURES = path.join(root, 'scripts/fixtures/chat-theme-export')
-const read = rel => fs.readFileSync(path.join(root, rel), 'utf8')
+const read = rel => stripLaunchWording(rel, fs.readFileSync(path.join(root, rel), 'utf8'))
 const sha = text => crypto.createHash('sha256').update(text).digest('hex')
 const plain = value => JSON.parse(JSON.stringify(value === undefined ? null : value))
 const git = (...args) => execFileSync('git', args, { cwd: root, encoding: 'utf8', maxBuffer: 64 * 1024 * 1024 })

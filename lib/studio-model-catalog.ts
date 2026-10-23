@@ -10,9 +10,6 @@
 // each Director answer becomes a Studio answer. The PAGE half (components/studio-personal/intelligence-models.tsx): how a Studio answer becomes a state, a cache entry, a page of
 // rows. Browsers only ever call the Studio route.
 
-// NEXT_PUBLIC_STUDIO_LAUNCH_WORDING (default off): launched wording instead of promises and developer-speak; off, this file is exactly as before.
-const LAUNCH_WORDING = process.env.NEXT_PUBLIC_STUDIO_LAUNCH_WORDING === 'true'
-
 export const MODEL_CATALOG_ENDPOINT = '/api/models/catalogue'
 /** The only schema this page understands (ROUTER-2's display rule): anything else reads as "catalog unavailable". */
 export const MODEL_CATALOG_SCHEMA_VERSION = 1
@@ -23,7 +20,7 @@ export const MODEL_CATALOG_LIMIT_MAX = 200
 /** Used when the answer names no ttl_seconds (Director's own cache holds an answer for 300 s). */
 export const MODEL_CATALOG_DEFAULT_TTL_SECONDS = 300
 export const MODEL_CATALOG_MAX_TTL_SECONDS = 3600
-export const MODEL_CATALOG_NOT_AVAILABLE_TEXT = LAUNCH_WORDING ? "The model catalog isn't available right now" : "The model catalog isn't available yet"
+export const MODEL_CATALOG_NOT_AVAILABLE_TEXT = "The model catalog isn't available yet"
 
 const isRecord = (value: unknown): value is Record<string, unknown> => typeof value === 'object' && value !== null && !Array.isArray(value)
 const nullMap = <T,>(): Record<string, T> => Object.create(null) as Record<string, T>
@@ -64,7 +61,7 @@ export function parseCatalogueQuery(entries: ReadonlyArray<readonly [string, str
 
 export type CatalogueRouteOutcome = { status: number; body: Record<string, unknown> }
 
-const NOT_YET_TEXT = LAUNCH_WORDING ? "The model catalog isn't available right now." : "The model catalog isn't available yet."
+const NOT_YET_TEXT = "The model catalog isn't available yet."
 const UNREACHABLE_TEXT = 'The model catalog could not be reached right now.'
 const FAILED_TEXT = 'The model catalog could not be loaded right now.'
 // Director's codes for "nothing is set up behind this yet" (the router is not configured on this environment; Director's own flag is off), plus Studio's own for a missing Director URL.
@@ -395,10 +392,10 @@ export function buildModelsView(catalogue: Catalogue, showAll: boolean): ModelsV
 /** The one line the section's header carries. The count is the pick list (the certified models the router suggests and presets); "Show all models" lists every certified model, so there the line stops counting. */
 export function catalogueSummary(result: CatalogueResult | null, showAll = false): string {
   if (result === null) return 'Loading…'
-  if (result.kind === 'not-available') return LAUNCH_WORDING ? 'Not available' : 'Not available yet'
+  if (result.kind === 'not-available') return 'Not available yet'
   if (result.kind === 'unavailable') return 'Unavailable'
   if (result.kind === 'error') return 'Could not be loaded'
   if (showAll) return 'Showing all models'
   const { certifiedTotal } = buildModelsView(result.catalogue, false)
-  return certifiedTotal === 0 ? (LAUNCH_WORDING ? 'No models open for selection' : 'No models open for selection yet') : `${certifiedTotal} ${certifiedTotal === 1 ? 'model' : 'models'} open for selection`
+  return certifiedTotal === 0 ? 'No models open for selection yet' : `${certifiedTotal} ${certifiedTotal === 1 ? 'model' : 'models'} open for selection`
 }

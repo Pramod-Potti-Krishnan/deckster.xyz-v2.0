@@ -141,32 +141,15 @@ function proveGreyed({ lib, heads }) {
   assert.ok(lib.LAUNCH_GREYED.length >= 12, 'the plan\'s greyed and removed rows are all listed')
 }
 
-// ---------------------------------------------------------------- 5. the pure word files, flag off / on / not the exact string
+// ---------------------------------------------------------------- 5. the pure word files stay pure; the words list reads no environment
 const NOT_TRUE = [undefined, '', 'false', 'TRUE', 'True', '1', 'yes', ' true', 'true ']
-function provePure({ lib, heads }, sources = {}) {
-  const P2 = 'lib/studio-intelligence-p2.ts', CAT = 'lib/studio-model-catalog.ts'
-  const textOf = rel => sources[rel] ?? heads[rel] ?? read(rel)
+// The pure word files the launched text sits beside (they say they read no environment, and their own pins hold them to that) do not know the flag, and still hold the sentences the table says they hold.
+const PURE = ['lib/studio-intelligence-p2.ts', 'lib/studio-model-catalog.ts', 'lib/studio-deck-import.ts', 'lib/studio-add-slide-v2-submit.ts', 'lib/studio-library-manage.ts', 'lib/studio-templates-notice.ts', 'lib/studio-template-progress.ts', 'lib/studio-kg-ask.ts', 'lib/studio-duplicate-deck.ts']
+function provePure({ lib }, sources = {}) {
+  const textOf = rel => sources[rel] ?? read(rel)
+  for (const rel of PURE) assert.doesNotMatch(textOf(rel), /LAUNCH_WORDING/, `${rel}: a pure word file does not know the flag (its launched text lives in the file that shows it)`)
+  for (const word of lib.LAUNCH_WORDS.filter(item => item.todayFile)) assert.ok(flat(textOf(word.todayFile)).includes(flat(word.today)), `${word.id}: the pure file ${word.todayFile} still holds today's sentence`)
   const byId = id => lib.LAUNCH_WORDS.find(word => word.id === id)
-  const p2 = env => loadTs(textOf(P2), P2, env), cat = env => loadTs(textOf(CAT), CAT, env)
-  const on = { [FLAG]: 'true' }
-  assert.equal(p2({}).P2_ONE_LINE, byId('intelligence-one-line').today, 'flag unset: today\'s one-liner')
-  assert.equal(p2(on).P2_ONE_LINE, byId('intelligence-one-line').launched, 'flag on: the launched one-liner')
-  assert.equal(p2({}).P2_ONE_LINE_NO_STORAGE, byId('intelligence-one-line-no-storage').today, 'flag unset: today\'s no-storage line')
-  assert.equal(p2(on).P2_ONE_LINE_NO_STORAGE, byId('intelligence-one-line-no-storage').launched, 'flag on: the launched no-storage line')
-  assert.equal(cat({}).MODEL_CATALOG_NOT_AVAILABLE_TEXT, byId('model-catalog-not-available').today, 'flag unset: today\'s catalog notice')
-  assert.equal(cat(on).MODEL_CATALOG_NOT_AVAILABLE_TEXT, byId('model-catalog-not-available').launched, 'flag on: the launched catalog notice')
-  assert.equal(cat({}).catalogueSummary({ kind: 'not-available' }), byId('model-catalog-summary').today, 'flag unset: today\'s summary')
-  assert.equal(cat(on).catalogueSummary({ kind: 'not-available' }), byId('model-catalog-summary').launched, 'flag on: the launched summary')
-  const empty = { kind: 'ready', catalogue: { groups: [], models: {}, version: 'x' } }
-  for (const [env, key] of [[{}, 'today'], [on, 'launched']]) {
-    let summary
-    try { summary = cat(env).catalogueSummary(empty) } catch { summary = null }
-    if (summary !== null) assert.equal(summary, byId('model-catalog-none')[key], `the empty catalog summary (${key})`)
-  }
-  for (const value of NOT_TRUE) {
-    assert.equal(p2({ [FLAG]: value }).P2_ONE_LINE, byId('intelligence-one-line').today, `${JSON.stringify(value)} is not a real true (one-liner)`)
-    assert.equal(cat({ [FLAG]: value }).MODEL_CATALOG_NOT_AVAILABLE_TEXT, byId('model-catalog-not-available').today, `${JSON.stringify(value)} is not a real true (catalog)`)
-  }
   const flagged = loadTs(textOf(WORDS_LIB), WORDS_LIB, null) // loads with no `process`: it reads no environment
   assert.equal(flagged.launchWord('help-share', 'true'), byId('help-share').launched, 'launchWord: exact true')
   for (const value of NOT_TRUE) assert.equal(flagged.launchWord('help-share', value), byId('help-share').today, `launchWord: ${JSON.stringify(value)} reads as off`)
@@ -182,7 +165,7 @@ function suite(input, extra = {}) {
   one('flag off is the base: every touched file with the edits put back is the base commit\'s', () => proveOff(input, extra.strip))
   one('the words: today is in the base, launched is in the file, nothing promises', () => proveWords(input))
   one('the greyed and removed controls are in the sources', () => proveGreyed(input))
-  one('the pure word files: today with the flag off or not "true", launched with "true"', () => provePure(input, extra.sources))
+  one('the pure word files do not know the flag; the words list is import-free and reads no environment', () => provePure(input, extra.sources))
   return run
 }
 
@@ -212,9 +195,9 @@ mutate('a today sentence that was never in the base', () => withWords(text => te
 mutate('a duplicate id', () => withWords(text => text.replace("id: 'help-tip'", "id: 'help-share'")))
 mutate('a greyed control gone from the source', () => swapHead('app/(app)/settings/notifications/page.tsx', 'const disabled = LAUNCH_WORDING || !owner', 'const disabled = !owner'))
 mutate('the Folders block drawn with the flag on', () => swapHead('app/(app)/dashboard/page.tsx', '{!LAUNCH_WORDING && <div data-studio-deck-folders="true"', '{<div data-studio-deck-folders="true"'))
-mutate('the intelligence one-liner changed with the flag off', () => clone(), { sources: { 'lib/studio-intelligence-p2.ts': read('lib/studio-intelligence-p2.ts').replace(": 'Your choices are kept on this device. Deckster does not use them to pick models yet.'", ": 'Your choices are kept on this device.'") } })
-mutate('the catalog notice launched with the flag off', () => clone(), { sources: { 'lib/studio-model-catalog.ts': read('lib/studio-model-catalog.ts').replace("const LAUNCH_WORDING = process.env.NEXT_PUBLIC_STUDIO_LAUNCH_WORDING === 'true'", 'const LAUNCH_WORDING = true') } })
-mutate('a flag that "1" turns on', () => clone(), { sources: { 'lib/studio-intelligence-p2.ts': read('lib/studio-intelligence-p2.ts').replace("process.env.NEXT_PUBLIC_STUDIO_LAUNCH_WORDING === 'true'", "process.env.NEXT_PUBLIC_STUDIO_LAUNCH_WORDING === '1' || process.env.NEXT_PUBLIC_STUDIO_LAUNCH_WORDING === 'true'") } })
+mutate('a pure word file reading the flag (it must read no environment)', () => clone(), { sources: { 'lib/studio-model-catalog.ts': baseOf('lib/studio-model-catalog.ts') + "\nexport const LAUNCH = process.env.NEXT_PUBLIC_STUDIO_LAUNCH_WORDING === 'true'\n" } })
+mutate('a pure word file with one sentence reworded', () => clone(), { sources: { 'lib/studio-intelligence-p2.ts': baseOf('lib/studio-intelligence-p2.ts').replace('pick models yet', 'pick models') } })
+mutate('a flag that "1" turns on', () => swapHead('app/help/page.tsx', 'process.env.NEXT_PUBLIC_STUDIO_LAUNCH_WORDING === "true"', 'process.env.NEXT_PUBLIC_STUDIO_LAUNCH_WORDING === "1" || process.env.NEXT_PUBLIC_STUDIO_LAUNCH_WORDING === "true"'))
 mutate('the words list reading the environment', () => withWords(text => text + "\nexport const LAUNCH_ON = process.env.NEXT_PUBLIC_STUDIO_LAUNCH_WORDING === 'true'\n"), { sources: { [WORDS_LIB]: input.wordsSource + "\nexport const LAUNCH_ON = process.env.NEXT_PUBLIC_STUDIO_LAUNCH_WORDING === 'true'\n" } })
 mutate('a strip that puts the wrong text back', () => clone(), { strip: (rel, text) => stripLaunchWording(rel, text).replace('Collaborate with team members', 'Collaborate with team mates') })
 

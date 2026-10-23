@@ -23,10 +23,11 @@ import vm from 'node:vm'
 import { execFileSync } from 'node:child_process'
 import ts from 'typescript'
 import postcss from 'postcss'
+import { stripLaunchWording } from './studio-launch-wording-strip.mjs' // NEXT_PUBLIC_STUDIO_LAUNCH_WORDING (launched wording): its flag-gated edits come out first, before every older change's strip
 
 const repoRoot = path.resolve(new URL('..', import.meta.url).pathname)
 const BASE_COMMIT = process.env.P2_DETAILS_BASE || '70b9277c5e210f120a209fe572ca4f013247d403'
-const read = rel => fs.readFileSync(path.join(repoRoot, rel), 'utf8')
+const read = rel => stripLaunchWording(rel, fs.readFileSync(path.join(repoRoot, rel), 'utf8'))
 const baseCache = new Map()
 const baseSource = rel => {
   if (!baseCache.has(rel)) {

@@ -81,7 +81,7 @@ export function IntelligenceChooser() {
         {status.state === "saved" ? <CheckCircle2 size={14} aria-hidden="true" /> : status.state === "session" ? <AlertCircle size={14} aria-hidden="true" /> : <span />}{status.label}
       </span></header>
     <div className="sp-context-bar sp-ip-bar"><IntelligenceScope /><div className="sp-ip-bar-end"><IntelligenceReadiness /></div></div>
-    <p className="sp-p2-note" id="sp-p2-note" data-p2-note="true"><Info size={14} aria-hidden="true" />{storage === "unavailable" ? P2_ONE_LINE_NO_STORAGE : P2_ONE_LINE}</p>
+    <p className="sp-p2-note" id="sp-p2-note" data-p2-note="true"><Info size={14} aria-hidden="true" />{LAUNCH_WORDING ? (storage === "unavailable" ? "This browser cannot keep your choices, so they last only until you reload or leave. They do not change which models Deckster uses." : "Your choices are kept on this device. They do not change which models Deckster uses.") : storage === "unavailable" ? P2_ONE_LINE_NO_STORAGE : P2_ONE_LINE}</p>
     <span className="sp-feedback sp-p2-feedback" role="status">{feedback}</span>
 
     <div className="sp-model-layout sp-p2-layout">

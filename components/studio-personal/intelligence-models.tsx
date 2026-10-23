@@ -10,6 +10,8 @@ import "./intelligence-models.css"
 
 // NEXT_PUBLIC_STUDIO_LAUNCH_WORDING (default off): launched wording instead of promises and developer-speak; off, this file is exactly as before.
 const LAUNCH_WORDING = process.env.NEXT_PUBLIC_STUDIO_LAUNCH_WORDING === "true"
+// The summary line comes from the pure word file (it reads no environment): with the flag on, the two lines that say "yet" are swapped here.
+const launchedSummary = (text: string) => (text === "Not available yet" ? "Not available" : text === "No models open for selection yet" ? "No models open for selection" : text)
 
 /** NEXT_PUBLIC_STUDIO_MODEL_CATALOG (exact "true", default off; build-time). The Intelligence page's "Models" section (mounted by app/(app)/studio/intelligence/layout.tsx, below the page, so the page itself is
  * untouched): the models Deckster can use for each kind of work, read from Director's read-only model catalogue through the Studio route /api/models/catalogue (never from the browser to Director). Certified
@@ -72,14 +74,14 @@ export function ModelsSection({ open, showAll, result, more, onOpen, onShowAll, 
     <h2 id="sp-mc-heading" className="sp-mc-heading">
       <button type="button" className="sp-mc-toggle" aria-expanded={open} aria-controls="sp-mc-panel" onClick={onOpen}>
         <span className="sp-mc-title">Models</span>
-        <span className="sp-mc-summary">{catalogueSummary(result, showAll)}</span>
+        <span className="sp-mc-summary">{LAUNCH_WORDING ? launchedSummary(catalogueSummary(result, showAll)) : catalogueSummary(result, showAll)}</span>
         <ChevronDown size={16} aria-hidden="true" className="sp-mc-chevron" />
       </button>
     </h2>
     <div id="sp-mc-panel" className="sp-mc-panel" hidden={!open}>
       <div className="sp-mc-inner">
         {result === null && <p className="sp-mc-state" role="status">Loading the model catalog…</p>}
-        {result?.kind === "not-available" && <div className="sp-mc-state" data-mc-state="not-available"><p><strong>{MODEL_CATALOG_NOT_AVAILABLE_TEXT}.</strong></p><p>{LAUNCH_WORDING ? "Nothing else on this page depends on it." : "It will appear here once it is set up. Nothing else on this page depends on it."}</p></div>}
+        {result?.kind === "not-available" && <div className="sp-mc-state" data-mc-state="not-available"><p><strong>{LAUNCH_WORDING ? "The model catalog isn't available right now" : MODEL_CATALOG_NOT_AVAILABLE_TEXT}.</strong></p><p>{LAUNCH_WORDING ? "Nothing else on this page depends on it." : "It will appear here once it is set up. Nothing else on this page depends on it."}</p></div>}
         {result?.kind === "unavailable" && <div className="sp-mc-state" data-mc-state="unavailable"><p><strong>The model catalog is unavailable.</strong></p><p>The answer was not one this page can read.</p></div>}
         {result?.kind === "error" && <div className="sp-mc-state" data-mc-state="error" role="alert">
           <p><strong>{result.reason === "signed-out" ? "Sign in again to see the model catalog." : "The model catalog could not be loaded right now."}</strong></p>

@@ -36,10 +36,11 @@ import { execFileSync } from 'node:child_process'
 import ts from 'typescript'
 import postcss from 'postcss'
 import { BASE_COMMIT as STRIP_BASE, POLISH_APPENDED, POLISH_FILES, POLISH_NEW_FILES, POLISH_PAIRS, stripP2Polish } from './studio-p2-polish-strip.mjs'
+import { stripLaunchWording } from './studio-launch-wording-strip.mjs' // NEXT_PUBLIC_STUDIO_LAUNCH_WORDING (launched wording): its flag-gated edits come out first, before every older change's strip
 
 const repoRoot = path.resolve(new URL('..', import.meta.url).pathname)
 const BASE_COMMIT = process.env.P2_POLISH_BASE || STRIP_BASE
-const read = rel => fs.readFileSync(path.join(repoRoot, rel), 'utf8')
+const read = rel => stripLaunchWording(rel, fs.readFileSync(path.join(repoRoot, rel), 'utf8'))
 const baseCache = new Map()
 // .env.example and package.json are the two files every flag-gated change appends a line or a block to, so once other changes are stacked on this one they hold lines this change never wrote.
 // For those two (and only those) the base's lines must all still be there, in order, with nothing of this change left, and any extra line must be a comment, a blank, an env line or a test
@@ -250,7 +251,7 @@ function proveStrip(S) {
   for (const rel of ['scripts/test-studio-p2-landing.mjs', 'scripts/test-studio-p2-profile-menu.mjs', 'scripts/test-studio-p2-intelligence.mjs', 'scripts/test-studio-p2-publish.mjs', 'scripts/test-studio-version-history-v2.mjs']) {
     const test = read(rel)
     eq(test.split("import { stripP2Polish } from './studio-p2-polish-strip.mjs'\n").length - 1, 1, `${rel}: imports the strip once`)
-    eq(test.split("const read = rel => stripP2Polish(rel, fs.readFileSync(").length - 1, 1, `${rel}: its read() puts this change back out first`)
+    eq(test.split("const read = rel => stripP2Polish(rel, ").length - 1, 1, `${rel}: its read() puts this change back out first`)
     eq(test.split('stripP2Polish(').length - 1, 1, `${rel}: and uses it nowhere else`)
   }
 }

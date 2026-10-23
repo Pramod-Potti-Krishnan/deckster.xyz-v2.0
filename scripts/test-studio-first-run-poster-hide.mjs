@@ -25,13 +25,14 @@ import { stripAddSlideStatus } from './studio-add-slide-status-strip.mjs'
 import { stripDarkPersist } from './studio-theme-dark-persist-strip.mjs'
 import { stripRailBuildCount } from './studio-rail-build-count-strip.mjs'
 import { stripOpenReadOnly } from './studio-open-read-only-strip.mjs'
+import { stripLaunchWording } from './studio-launch-wording-strip.mjs' // NEXT_PUBLIC_STUDIO_LAUNCH_WORDING (launched wording): its flag-gated edits come out first, before every older change's strip
 
 const repoRoot = path.resolve(new URL('..', import.meta.url).pathname)
 const nodeRequire = createRequire(path.join(repoRoot, 'package.json'))
 const React = nodeRequire('react')
 const { renderToStaticMarkup } = nodeRequire('react-dom/server')
 const BASE_COMMIT = process.env.FIRST_RUN_POSTER_BASE || '8df821b'
-const read = rel => fs.readFileSync(path.join(repoRoot, rel), 'utf8')
+const read = rel => stripLaunchWording(rel, fs.readFileSync(path.join(repoRoot, rel), 'utf8'))
 function baseSource(rel) {
   try {
     execFileSync('git', ['cat-file', '-e', `${BASE_COMMIT}^{commit}`], { cwd: repoRoot, stdio: 'ignore' })

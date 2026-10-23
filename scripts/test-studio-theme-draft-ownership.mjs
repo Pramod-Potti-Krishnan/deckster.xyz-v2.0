@@ -3,12 +3,13 @@ import fs from 'node:fs'
 import vm from 'node:vm'
 import { readAtlasBaseline } from './atlas-witness-baseline.mjs'
 import ts from 'typescript'
+import { stripLaunchWording } from './studio-launch-wording-strip.mjs' // NEXT_PUBLIC_STUDIO_LAUNCH_WORDING (launched wording): its flag-gated edits come out first, before every older change's strip
 
 // Native callbacks and native confirmation props extracted as AST. No save,
 // account or service request is made; deferred results are local test inputs.
 const root=new URL('../',import.meta.url), file='components/studio-libraries/themes-workspace.tsx'
 const rootURL=root
-const currentText=fs.readFileSync(new URL(file,root),'utf8')
+const currentText=stripLaunchWording(file,fs.readFileSync(new URL(file,root),'utf8'))
 const originalText=readAtlasBaseline(`4894987:${file}`)
 const parse=text=>ts.createSourceFile('themes.tsx',text,ts.ScriptTarget.Latest,true,ts.ScriptKind.TSX)
 const current=parse(currentText), original=parse(originalText)
