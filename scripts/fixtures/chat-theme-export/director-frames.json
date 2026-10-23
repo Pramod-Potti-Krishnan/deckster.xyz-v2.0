@@ -1,0 +1,788 @@
+[
+ {
+  "scenario": "theme_preset",
+  "description": "A preset by name, then Studio reports applied.",
+  "turns": [
+   {
+    "in": {
+     "type": "user_message",
+     "data": {
+      "text": "Switch the deck to the dark theme",
+      "client_caps": [
+       "mdc1",
+       "theme1"
+      ]
+     }
+    },
+    "out": [
+     {
+      "message_id": "msg_thmdir_2c911897",
+      "session_id": "s_e2e",
+      "timestamp": "2026-10-22T17:47:11.232326Z",
+      "type": "theme_directive",
+      "role": "assistant",
+      "payload": {
+       "directive_id": "thm_f18a5ac0140c",
+       "presentation_id": "pres-e2e",
+       "selection": {
+        "mode": "preset",
+        "preset_id": "corporate_dark"
+       },
+       "label": "Corporate Dark"
+      }
+     },
+     {
+      "message_id": "msg_d3fa0896",
+      "session_id": "s_e2e",
+      "timestamp": "2026-10-22T17:47:11.232398Z",
+      "type": "chat_message",
+      "role": "assistant",
+      "payload": {
+       "text": "Changing the theme to Corporate Dark. One moment while it applies to the deck.",
+       "sub_title": null,
+       "list_items": null,
+       "format": "markdown",
+       "ephemeral": false
+      }
+     }
+    ]
+   },
+   {
+    "in": {
+     "type": "element_directive_result",
+     "data": {
+      "directive_id": "thm_f18a5ac0140c",
+      "status": "applied"
+     }
+    },
+    "out": [
+     {
+      "message_id": "msg_8574ca4b",
+      "session_id": "s_e2e",
+      "timestamp": "2026-10-22T17:47:11.232493Z",
+      "type": "chat_message",
+      "role": "assistant",
+      "payload": {
+       "text": "Done. The deck now uses Corporate Dark.",
+       "sub_title": null,
+       "list_items": null,
+       "format": "markdown",
+       "ephemeral": false
+      }
+     }
+    ]
+   }
+  ]
+ },
+ {
+  "scenario": "theme_brand_hex",
+  "description": "A brand colour the user wrote, then Studio reports applied.",
+  "turns": [
+   {
+    "in": {
+     "type": "user_message",
+     "data": {
+      "text": "Use our brand colour #1A73E8 for the deck",
+      "client_caps": [
+       "mdc1",
+       "theme1"
+      ]
+     }
+    },
+    "out": [
+     {
+      "message_id": "msg_thmdir_ff9a6da1",
+      "session_id": "s_e2e",
+      "timestamp": "2026-10-22T17:47:11.324535Z",
+      "type": "theme_directive",
+      "role": "assistant",
+      "payload": {
+       "directive_id": "thm_7a6dd86a1092",
+       "presentation_id": "pres-e2e",
+       "selection": {
+        "mode": "custom",
+        "primary_hex": "#1a73e8"
+       },
+       "label": "your brand colour #1a73e8"
+      }
+     },
+     {
+      "message_id": "msg_ea53b628",
+      "session_id": "s_e2e",
+      "timestamp": "2026-10-22T17:47:11.324614Z",
+      "type": "chat_message",
+      "role": "assistant",
+      "payload": {
+       "text": "Changing the theme to your brand colour #1a73e8. One moment while it applies to the deck.",
+       "sub_title": null,
+       "list_items": null,
+       "format": "markdown",
+       "ephemeral": false
+      }
+     }
+    ]
+   },
+   {
+    "in": {
+     "type": "element_directive_result",
+     "data": {
+      "directive_id": "thm_7a6dd86a1092",
+      "status": "applied"
+     }
+    },
+    "out": [
+     {
+      "message_id": "msg_34524fd1",
+      "session_id": "s_e2e",
+      "timestamp": "2026-10-22T17:47:11.324767Z",
+      "type": "chat_message",
+      "role": "assistant",
+      "payload": {
+       "text": "Done. The deck now uses your brand colour #1a73e8.",
+       "sub_title": null,
+       "list_items": null,
+       "format": "markdown",
+       "ephemeral": false
+      }
+     }
+    ]
+   }
+  ]
+ },
+ {
+  "scenario": "theme_failed",
+  "description": "Studio reports failed (error text is never shown).",
+  "turns": [
+   {
+    "in": {
+     "type": "user_message",
+     "data": {
+      "text": "Make it minimal",
+      "client_caps": [
+       "mdc1",
+       "theme1"
+      ]
+     }
+    },
+    "out": [
+     {
+      "message_id": "msg_thmdir_adfb02a5",
+      "session_id": "s_e2e",
+      "timestamp": "2026-10-22T17:47:11.416422Z",
+      "type": "theme_directive",
+      "role": "assistant",
+      "payload": {
+       "directive_id": "thm_f319583d74d0",
+       "presentation_id": "pres-e2e",
+       "selection": {
+        "mode": "preset",
+        "preset_id": "minimal"
+       },
+       "label": "Minimal"
+      }
+     },
+     {
+      "message_id": "msg_a6cc9d5b",
+      "session_id": "s_e2e",
+      "timestamp": "2026-10-22T17:47:11.416482Z",
+      "type": "chat_message",
+      "role": "assistant",
+      "payload": {
+       "text": "Changing the theme to Minimal. One moment while it applies to the deck.",
+       "sub_title": null,
+       "list_items": null,
+       "format": "markdown",
+       "ephemeral": false
+      }
+     }
+    ]
+   },
+   {
+    "in": {
+     "type": "element_directive_result",
+     "data": {
+      "directive_id": "thm_f319583d74d0",
+      "status": "failed",
+      "error_code": "theme_locked",
+      "error": "raw text"
+     }
+    },
+    "out": [
+     {
+      "message_id": "msg_8a9f7455",
+      "session_id": "s_e2e",
+      "timestamp": "2026-10-22T17:47:11.416576Z",
+      "type": "chat_message",
+      "role": "assistant",
+      "payload": {
+       "text": "That theme didn't apply, so the deck is unchanged. You can choose it in the theme picker instead.",
+       "sub_title": null,
+       "list_items": null,
+       "format": "markdown",
+       "ephemeral": false
+      }
+     }
+    ]
+   }
+  ]
+ },
+ {
+  "scenario": "theme_dismissed",
+  "description": "",
+  "turns": [
+   {
+    "in": {
+     "type": "user_message",
+     "data": {
+      "text": "Make it minimal",
+      "client_caps": [
+       "mdc1",
+       "theme1"
+      ]
+     }
+    },
+    "out": [
+     {
+      "message_id": "msg_thmdir_a64d1e8d",
+      "session_id": "s_e2e",
+      "timestamp": "2026-10-22T17:47:11.508187Z",
+      "type": "theme_directive",
+      "role": "assistant",
+      "payload": {
+       "directive_id": "thm_e8640ccdd37f",
+       "presentation_id": "pres-e2e",
+       "selection": {
+        "mode": "preset",
+        "preset_id": "minimal"
+       },
+       "label": "Minimal"
+      }
+     },
+     {
+      "message_id": "msg_ec577b2d",
+      "session_id": "s_e2e",
+      "timestamp": "2026-10-22T17:47:11.508272Z",
+      "type": "chat_message",
+      "role": "assistant",
+      "payload": {
+       "text": "Changing the theme to Minimal. One moment while it applies to the deck.",
+       "sub_title": null,
+       "list_items": null,
+       "format": "markdown",
+       "ephemeral": false
+      }
+     }
+    ]
+   },
+   {
+    "in": {
+     "type": "element_directive_result",
+     "data": {
+      "directive_id": "thm_e8640ccdd37f",
+      "status": "dismissed"
+     }
+    },
+    "out": [
+     {
+      "message_id": "msg_c889b940",
+      "session_id": "s_e2e",
+      "timestamp": "2026-10-22T17:47:11.508367Z",
+      "type": "chat_message",
+      "role": "assistant",
+      "payload": {
+       "text": "No problem, I left the theme as it was.",
+       "sub_title": null,
+       "list_items": null,
+       "format": "markdown",
+       "ephemeral": false
+      }
+     }
+    ]
+   }
+  ]
+ },
+ {
+  "scenario": "theme_no_capability",
+  "description": "A client that did not send theme1: text fallback, no directive.",
+  "turns": [
+   {
+    "in": {
+     "type": "user_message",
+     "data": {
+      "text": "Switch to the dark theme",
+      "client_caps": [
+       "mdc1"
+      ]
+     }
+    },
+    "out": [
+     {
+      "message_id": "msg_e59299ed",
+      "session_id": "s_e2e",
+      "timestamp": "2026-10-22T17:47:11.599705Z",
+      "type": "chat_message",
+      "role": "assistant",
+      "payload": {
+       "text": "To change the theme, open the theme picker and choose Corporate Dark.",
+       "sub_title": null,
+       "list_items": null,
+       "format": "markdown",
+       "ephemeral": false
+      }
+     }
+    ]
+   }
+  ]
+ },
+ {
+  "scenario": "theme_unknown_preset_asks",
+  "description": "",
+  "turns": [
+   {
+    "in": {
+     "type": "user_message",
+     "data": {
+      "text": "Make it neon",
+      "client_caps": [
+       "mdc1",
+       "theme1"
+      ]
+     }
+    },
+    "out": [
+     {
+      "message_id": "msg_60c4a421",
+      "session_id": "s_e2e",
+      "timestamp": "2026-10-22T17:47:11.691259Z",
+      "type": "chat_message",
+      "role": "assistant",
+      "payload": {
+       "text": "Which theme would you like? I can use Corporate Light, Corporate Dark, Minimal, Vibrant, Executive or Pastel, or a brand colour written as a hex code like #1A73E8.",
+       "sub_title": null,
+       "list_items": null,
+       "format": "markdown",
+       "ephemeral": false
+      }
+     }
+    ]
+   }
+  ]
+ },
+ {
+  "scenario": "theme_invented_colour_asks",
+  "description": "The model proposes a colour the user did not write: the Director asks.",
+  "turns": [
+   {
+    "in": {
+     "type": "user_message",
+     "data": {
+      "text": "Use our brand colour",
+      "client_caps": [
+       "mdc1",
+       "theme1"
+      ]
+     }
+    },
+    "out": [
+     {
+      "message_id": "msg_fdf7c57d",
+      "session_id": "s_e2e",
+      "timestamp": "2026-10-22T17:47:11.778205Z",
+      "type": "chat_message",
+      "role": "assistant",
+      "payload": {
+       "text": "Which theme would you like? I can use Corporate Light, Corporate Dark, Minimal, Vibrant, Executive or Pastel, or a brand colour written as a hex code like #1A73E8.",
+       "sub_title": null,
+       "list_items": null,
+       "format": "markdown",
+       "ephemeral": false
+      }
+     }
+    ]
+   }
+  ]
+ },
+ {
+  "scenario": "theme_work_in_progress_g5",
+  "description": "",
+  "turns": [
+   {
+    "in": {
+     "type": "user_message",
+     "data": {
+      "text": "Switch to the dark theme",
+      "client_caps": [
+       "mdc1",
+       "theme1"
+      ]
+     }
+    },
+    "out": [
+     {
+      "message_id": "msg_24210ab9",
+      "session_id": "s_e2e",
+      "timestamp": "2026-10-22T17:47:11.866051Z",
+      "type": "chat_message",
+      "role": "assistant",
+      "payload": {
+       "text": "Work on the deck is still in progress \u2014 let it finish first, then ask me again and I'll make that change.",
+       "sub_title": null,
+       "list_items": null,
+       "format": "markdown",
+       "ephemeral": false
+      }
+     }
+    ]
+   }
+  ]
+ },
+ {
+  "scenario": "theme_no_deck_g6",
+  "description": "",
+  "turns": [
+   {
+    "in": {
+     "type": "user_message",
+     "data": {
+      "text": "Switch to the dark theme",
+      "client_caps": [
+       "mdc1",
+       "theme1"
+      ]
+     }
+    },
+    "out": [
+     {
+      "message_id": "msg_f9b6f87c",
+      "session_id": "s_e2e",
+      "timestamp": "2026-10-22T17:47:11.951716Z",
+      "type": "chat_message",
+      "role": "assistant",
+      "payload": {
+       "text": "There's no built deck to change yet \u2014 let's finish building it first.",
+       "sub_title": null,
+       "list_items": null,
+       "format": "markdown",
+       "ephemeral": false
+      }
+     }
+    ]
+   }
+  ]
+ },
+ {
+  "scenario": "export_pdf",
+  "description": "A PDF export, then Studio reports done.",
+  "turns": [
+   {
+    "in": {
+     "type": "user_message",
+     "data": {
+      "text": "Export this as a PDF",
+      "client_caps": [
+       "mdc1",
+       "export1"
+      ]
+     }
+    },
+    "out": [
+     {
+      "message_id": "msg_expdir_5aa7cafb",
+      "session_id": "s_e2e",
+      "timestamp": "2026-10-22T17:47:12.038843Z",
+      "type": "export_directive",
+      "role": "assistant",
+      "payload": {
+       "directive_id": "exp_2ad9c448ecbf",
+       "presentation_id": "pres-e2e",
+       "format": "pdf"
+      }
+     },
+     {
+      "message_id": "msg_2b4da523",
+      "session_id": "s_e2e",
+      "timestamp": "2026-10-22T17:47:12.038901Z",
+      "type": "chat_message",
+      "role": "assistant",
+      "payload": {
+       "text": "Exporting the deck as a PDF. Your download should start in a moment.",
+       "sub_title": null,
+       "list_items": null,
+       "format": "markdown",
+       "ephemeral": false
+      }
+     }
+    ]
+   },
+   {
+    "in": {
+     "type": "element_directive_result",
+     "data": {
+      "directive_id": "exp_2ad9c448ecbf",
+      "status": "done"
+     }
+    },
+    "out": [
+     {
+      "message_id": "msg_af7bbc17",
+      "session_id": "s_e2e",
+      "timestamp": "2026-10-22T17:47:12.038985Z",
+      "type": "chat_message",
+      "role": "assistant",
+      "payload": {
+       "text": "Done. Your PDF is downloading now.",
+       "sub_title": null,
+       "list_items": null,
+       "format": "markdown",
+       "ephemeral": false
+      }
+     }
+    ]
+   }
+  ]
+ },
+ {
+  "scenario": "export_pptx",
+  "description": "",
+  "turns": [
+   {
+    "in": {
+     "type": "user_message",
+     "data": {
+      "text": "Download it as PowerPoint",
+      "client_caps": [
+       "mdc1",
+       "export1"
+      ]
+     }
+    },
+    "out": [
+     {
+      "message_id": "msg_expdir_2bfea897",
+      "session_id": "s_e2e",
+      "timestamp": "2026-10-22T17:47:12.127080Z",
+      "type": "export_directive",
+      "role": "assistant",
+      "payload": {
+       "directive_id": "exp_b9bd683f9c7a",
+       "presentation_id": "pres-e2e",
+       "format": "pptx"
+      }
+     },
+     {
+      "message_id": "msg_95419306",
+      "session_id": "s_e2e",
+      "timestamp": "2026-10-22T17:47:12.127133Z",
+      "type": "chat_message",
+      "role": "assistant",
+      "payload": {
+       "text": "Exporting the deck as a PowerPoint (.pptx). Your download should start in a moment.",
+       "sub_title": null,
+       "list_items": null,
+       "format": "markdown",
+       "ephemeral": false
+      }
+     }
+    ]
+   },
+   {
+    "in": {
+     "type": "element_directive_result",
+     "data": {
+      "directive_id": "exp_b9bd683f9c7a",
+      "status": "done"
+     }
+    },
+    "out": [
+     {
+      "message_id": "msg_9b5c51de",
+      "session_id": "s_e2e",
+      "timestamp": "2026-10-22T17:47:12.127216Z",
+      "type": "chat_message",
+      "role": "assistant",
+      "payload": {
+       "text": "Done. Your PowerPoint is downloading now.",
+       "sub_title": null,
+       "list_items": null,
+       "format": "markdown",
+       "ephemeral": false
+      }
+     }
+    ]
+   }
+  ]
+ },
+ {
+  "scenario": "export_failed",
+  "description": "",
+  "turns": [
+   {
+    "in": {
+     "type": "user_message",
+     "data": {
+      "text": "Export this as a PDF",
+      "client_caps": [
+       "mdc1",
+       "export1"
+      ]
+     }
+    },
+    "out": [
+     {
+      "message_id": "msg_expdir_dc1c7bfb",
+      "session_id": "s_e2e",
+      "timestamp": "2026-10-22T17:47:12.213369Z",
+      "type": "export_directive",
+      "role": "assistant",
+      "payload": {
+       "directive_id": "exp_0cd2e0b86e35",
+       "presentation_id": "pres-e2e",
+       "format": "pdf"
+      }
+     },
+     {
+      "message_id": "msg_d8348c65",
+      "session_id": "s_e2e",
+      "timestamp": "2026-10-22T17:47:12.213422Z",
+      "type": "chat_message",
+      "role": "assistant",
+      "payload": {
+       "text": "Exporting the deck as a PDF. Your download should start in a moment.",
+       "sub_title": null,
+       "list_items": null,
+       "format": "markdown",
+       "ephemeral": false
+      }
+     }
+    ]
+   },
+   {
+    "in": {
+     "type": "element_directive_result",
+     "data": {
+      "directive_id": "exp_0cd2e0b86e35",
+      "status": "failed",
+      "error_code": "download_blocked"
+     }
+    },
+    "out": [
+     {
+      "message_id": "msg_3dfbc14d",
+      "session_id": "s_e2e",
+      "timestamp": "2026-10-22T17:47:12.213503Z",
+      "type": "chat_message",
+      "role": "assistant",
+      "payload": {
+       "text": "That export didn't complete, so nothing was downloaded. The Download menu above the slides will do it.",
+       "sub_title": null,
+       "list_items": null,
+       "format": "markdown",
+       "ephemeral": false
+      }
+     }
+    ]
+   }
+  ]
+ },
+ {
+  "scenario": "export_no_capability",
+  "description": "",
+  "turns": [
+   {
+    "in": {
+     "type": "user_message",
+     "data": {
+      "text": "Export this as a PDF",
+      "client_caps": [
+       "mdc1"
+      ]
+     }
+    },
+    "out": [
+     {
+      "message_id": "msg_373c3728",
+      "session_id": "s_e2e",
+      "timestamp": "2026-10-22T17:47:12.299601Z",
+      "type": "chat_message",
+      "role": "assistant",
+      "payload": {
+       "text": "To export, use the Download menu above the slides and choose PDF.",
+       "sub_title": null,
+       "list_items": null,
+       "format": "markdown",
+       "ephemeral": false
+      }
+     }
+    ]
+   }
+  ]
+ },
+ {
+  "scenario": "export_missing_format_asks",
+  "description": "",
+  "turns": [
+   {
+    "in": {
+     "type": "user_message",
+     "data": {
+      "text": "Download the deck",
+      "client_caps": [
+       "mdc1",
+       "export1"
+      ]
+     }
+    },
+    "out": [
+     {
+      "message_id": "msg_8c3f4018",
+      "session_id": "s_e2e",
+      "timestamp": "2026-10-22T17:47:12.386701Z",
+      "type": "chat_message",
+      "role": "assistant",
+      "payload": {
+       "text": "Which format would you like, PDF or PowerPoint (.pptx)?",
+       "sub_title": null,
+       "list_items": null,
+       "format": "markdown",
+       "ephemeral": false
+      }
+     }
+    ]
+   }
+  ]
+ },
+ {
+  "scenario": "export_work_in_progress_g5",
+  "description": "",
+  "turns": [
+   {
+    "in": {
+     "type": "user_message",
+     "data": {
+      "text": "Export this as a PDF",
+      "client_caps": [
+       "mdc1",
+       "export1"
+      ]
+     }
+    },
+    "out": [
+     {
+      "message_id": "msg_25deb325",
+      "session_id": "s_e2e",
+      "timestamp": "2026-10-22T17:47:12.471434Z",
+      "type": "chat_message",
+      "role": "assistant",
+      "payload": {
+       "text": "Work on the deck is still in progress \u2014 let it finish first, then ask me again and I'll export it.",
+       "sub_title": null,
+       "list_items": null,
+       "format": "markdown",
+       "ephemeral": false
+      }
+     }
+    ]
+   }
+  ]
+ }
+]

@@ -1,4 +1,4 @@
-// PASS2 POLISH PP-1..PP-7 (FRONTEND-1; ops/program/cards/FE-P2-POLISH-FROM-SHOTS.md): seven gaps seen in the mock | before | after shots of the merged Pass 2 pages.
+// PASS2 POLISH PP-1..PP-8 (FRONTEND-1; ops/program/cards/FE-P2-POLISH-FROM-SHOTS.md): seven gaps seen in the mock | before | after shots of the merged Pass 2 pages, and PP-8 (PK's note on the account menu).
 // ONE flag, NEXT_PUBLIC_STUDIO_P2_POLISH: exact "true", default off. Every fix also needs its page's own Pass 2 flag, so with this flag on and a page's flag off that page is untouched.
 //   PP-1  Publish   the wizard's "What viewers get" panel is no longer clipped under the sticky footer: the step body and the panel scroll in the room between the steps and the footer
 //   PP-2  Publish   "View as a viewer" is the shell's action colour (--ss-action), not the violet primary the anchor fell back to
@@ -7,6 +7,7 @@
 //   PP-5  Intelligence  the model comparison's note is no longer cut mid-line above "Use this model": the panel scrolls above the button
 //   PP-6  Profile menu  a failed (or unreadable) quota read keeps the plan badge (the session's tier) and says "Usage unavailable" instead of showing nothing
 //   PP-7  Intelligence  "Managed by Deckster" is four columns from 1200px, as in the mock
+//   PP-8  Profile menu  the vertical rhythm is tighter: 32px rows (were 38), 8px between sections with ONE hairline (were three), a tighter capacity card; the menu is 540px tall, was 640 (the Appearance control is untouched)
 // Import-free on purpose, so scripts/test-studio-p2-polish.mjs can run the real file in a bare vm.
 
 /** Exact "true" turns it on ("false", "TRUE", " true", "1" and unset are off). Next inlines the read at build time. This is the flag alone: each fix is also gated by its page's own Pass 2 flag,

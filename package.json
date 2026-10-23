@@ -127,6 +127,7 @@
     "test:admin-email-guard": "node scripts/test-admin-email-guard.mjs",
     "test:studio-p2-details": "node scripts/test-studio-p2-details.mjs",
     "test:studio-p2-onboarding": "node scripts/test-studio-p2-onboarding.mjs",
+    "test:studio-p2-admin": "node scripts/test-studio-p2-admin.mjs",
     "start": "next start",
     "postinstall": "prisma generate",
     "test:qa-citation-tiers": "node scripts/test-qa-citation-tiers.mjs",
@@ -154,11 +155,14 @@
     "test:studio-knowledge-empty-state": "node scripts/test-studio-knowledge-empty-state.mjs",
     "test:studio-insert-persist": "node scripts/test-studio-insert-persist.mjs",
     "test:studio-p2-landing": "node scripts/test-studio-p2-landing.mjs",
+    "test:studio-p2-docs": "node scripts/test-studio-p2-docs.mjs",
     "test:studio-p2-second-brain": "node scripts/test-studio-p2-second-brain.mjs",
     "test:studio-version-history-v2": "node scripts/test-studio-version-history-v2.mjs",
     "test:studio-p2-polish": "node scripts/test-studio-p2-polish.mjs",
-    "test:studio-model-catalog": "node scripts/test-studio-model-catalog.mjs",
-    "test:studio-p2-profile-page": "node scripts/test-studio-p2-profile-page.mjs"
+    "test:studio-p2-profile-page": "node scripts/test-studio-p2-profile-page.mjs",
+    "test:studio-chat-element-refine": "node scripts/test-studio-chat-element-refine.mjs",
+    "test:studio-chat-theme-export": "node scripts/test-studio-chat-theme-export.mjs",
+    "test:studio-model-catalog": "node scripts/test-studio-model-catalog.mjs"
   },
   "dependencies": {
     "@auth/prisma-adapter": "^2.10.0",

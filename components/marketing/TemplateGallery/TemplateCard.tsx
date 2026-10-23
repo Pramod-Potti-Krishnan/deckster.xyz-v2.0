@@ -12,11 +12,16 @@ interface TemplateCardProps {
   onUseTemplate?: (template: Template) => void;
 }
 
+// PASS2 Docs (NEXT_PUBLIC_STUDIO_P2_DOCS): with the flag on, lib/templates.ts hands this card the current agents' ids (content-generator, slide-composer, visualizer) in place of scripter, graphic-artist and data-visualizer; the data files are not edited.
+// With the flag off no card has those ids, so the three extra entries below (the same colours as the three they replace) are never read.
 const agentColors = {
   'director': 'bg-purple-100 text-purple-700 dark:bg-purple-900 dark:text-purple-300',
   'scripter': 'bg-blue-100 text-blue-700 dark:bg-blue-900 dark:text-blue-300',
   'graphic-artist': 'bg-pink-100 text-pink-700 dark:bg-pink-900 dark:text-pink-300',
   'data-visualizer': 'bg-green-100 text-green-700 dark:bg-green-900 dark:text-green-300',
+  'content-generator': 'bg-blue-100 text-blue-700 dark:bg-blue-900 dark:text-blue-300',
+  'slide-composer': 'bg-pink-100 text-pink-700 dark:bg-pink-900 dark:text-pink-300',
+  'visualizer': 'bg-green-100 text-green-700 dark:bg-green-900 dark:text-green-300',
 };
 
 const agentNames = {
@@ -24,6 +29,9 @@ const agentNames = {
   'scripter': 'Scripter',
   'graphic-artist': 'Graphic Artist',
   'data-visualizer': 'Data Visualizer',
+  'content-generator': 'Content Generator',
+  'slide-composer': 'Slide Composer',
+  'visualizer': 'Visualizer',
 };
 
 const complexityColors = {

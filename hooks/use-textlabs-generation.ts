@@ -417,7 +417,7 @@ export function useTextLabsGeneration({
   const handleGenerate = useCallback(async (
     formData: TextLabsFormData,
     submitIntent: ElementGenerationSubmitIntent = 'generate',
-    invocation?: { kind: 'chat-add'; slideIndex: number },
+    invocation?: { kind: 'chat-add'; slideIndex: number } | { kind: 'chat-refine'; slideIndex: number; refineContext: RefineContext }, // chat-refine: NEXT_PUBLIC_CHAT_ELEMENT_REFINE
   ): Promise<TextLabsGenerationResult> => {
     const expectedPresentationTarget = renderPresentationTarget
     const nativeGenerationLease = studio
@@ -513,7 +513,10 @@ export function useTextLabsGeneration({
       )
       return failureOutcome()
     }
-    const refineContext = !invocation && generationPanel.mode === 'refine' ? generationPanel.refineContext : null
+    // NEXT_PUBLIC_CHAT_ELEMENT_REFINE: a chat refine (lib/chat-element-refine.ts) brings its own target, read from the viewer, into the
+    // same refine branch the Element panel uses. Only that runner passes kind 'chat-refine', and only with the flag on.
+    const refineContext = invocation?.kind === 'chat-refine' && process.env.NEXT_PUBLIC_CHAT_ELEMENT_REFINE === 'true' ? invocation.refineContext
+      : !invocation && generationPanel.mode === 'refine' ? generationPanel.refineContext : null
     // Chart's explicit Manual control is request intent. Preserve that snapshot
     // while still reading the original native element for identity and metadata.
     // Other forms use auto_position:false by default and do not prove an edit.
@@ -2494,7 +2497,7 @@ export function useTextLabsGeneration({
   const handleGenerateDeferred = useCallback(async (
     formData: TextLabsFormData,
     submitIntent: ElementGenerationSubmitIntent = 'generate',
-    invocation?: { kind: 'chat-add'; slideIndex: number },
+    invocation?: { kind: 'chat-add'; slideIndex: number } | { kind: 'chat-refine'; slideIndex: number; refineContext: RefineContext }, // chat-refine: NEXT_PUBLIC_CHAT_ELEMENT_REFINE
   ): Promise<TextLabsGenerationResult> => {
     const blankId = invocation ? null : generationPanel.blankElementId
     const held = placeholderDeferral && blankId ? placeholderDeferral.get(blankId) : undefined

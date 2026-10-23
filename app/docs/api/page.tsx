@@ -1,20 +1,25 @@
 'use client';
 
 import { Header, Footer } from '@/components/layout';
+import { StudioApiNotice } from '@/components/studio-docs/studio-p2-docs-api-notice';
 import { PageHeader } from "@/components/marketing/PageHeader"
 import { Section } from "@/components/marketing/Section"
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Code, Key, Lock, Zap } from "lucide-react"
 
+// PASS2 Docs (NEXT_PUBLIC_STUDIO_P2_DOCS, default off): this page documents an API that is not open yet; with the flag on a notice says so under the header, the page below it is muted and it has no "v1.0 Beta" badge. Off: the page as it was.
+const STUDIO_P2_DOCS = process.env.NEXT_PUBLIC_STUDIO_P2_DOCS === 'true';
+
 export default function ApiDocsPage() {
     return (
         <div className="min-h-screen bg-background flex flex-col">
             <Header />
+            {STUDIO_P2_DOCS && <StudioApiNotice />}
             <PageHeader
                 title="Deckster API"
                 subtitle="Build powerful presentation workflows with our API"
-                badge={{ text: "v1.0 Beta", icon: <Zap className="h-3 w-3" /> }}
+                badge={STUDIO_P2_DOCS ? undefined : { text: "v1.0 Beta", icon: <Zap className="h-3 w-3" /> }}
             />
 
             <Section>

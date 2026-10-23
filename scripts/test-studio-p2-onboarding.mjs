@@ -486,15 +486,27 @@ function proveCss(css, label = 'css') {
 proveCss(SOURCES[CSS])
 
 // ---------------------------------------------------------------- 5. env + package
+// .env.example holds every flag's block, and later changes reuse this one's wording: the flag's OWN block is found by the flag, never by a phrase. It runs from the line after the previous variable's
+// assignment to the end of this flag's own assignment line (the comment above it is inside), so no other flag's block can be read, or mutated, in its place.
+function ownBlock(env) {
+  const flagAt = env.indexOf(`${FLAG}=`)
+  const before = env.slice(0, flagAt)
+  const previous = [...before.matchAll(/^[A-Za-z_][A-Za-z0-9_]*=.*\n/gm)].pop()
+  const start = previous ? previous.index + previous[0].length : 0
+  const lineEnd = env.indexOf('\n', flagAt)
+  return { start, end: lineEnd === -1 ? env.length : lineEnd + 1 }
+}
 function proveEnv(env, label = 'env') {
   match(env, new RegExp(`^${FLAG}="false"$`, 'm'), `${label}: documented, default off`)
   eq(env.split(`${FLAG}=`).length - 1, 1, `${label}: once`)
-  const block = env.slice(env.lastIndexOf('# PASS2 ONBOARDING'), env.indexOf(`${FLAG}=`))
+  const { start } = ownBlock(env)
+  const block = env.slice(start, env.indexOf(`${FLAG}=`))
+  match(block.trimStart(), /^# PASS2 ONBOARDING \(FRONTEND-1/, `${label}: under its own heading`)
   match(block, /exact "true"/, `${label}: says what turns it on`)
   match(block, /Needs the Studio shell \(NEXT_PUBLIC_STUDIO_V4_SHELL "true"/, `${label}: and that it needs the shell`)
   match(block, /READ AT BUILD TIME/, `${label}: and that it is read at build time`)
   match(block, /Nothing is sent or stored/, `${label}: and that nothing is sent or stored`)
-  ok(env.indexOf('# PASS2 ONBOARDING') < env.indexOf(`${FLAG}=`), `${label}: with its comment above`)
+  ok(start < env.indexOf(`${FLAG}=`), `${label}: with its comment above`)
 }
 function provePackage(pkg, label = 'package') {
   eq(JSON.parse(pkg).scripts['test:studio-p2-onboarding'], 'node scripts/test-studio-p2-onboarding.mjs', `${label}: registered`)
@@ -734,7 +746,12 @@ counting = false
 for (const [file, name, from, to] of MUTANTS) {
   const source = SOURCES[file]
   assert.ok(source.includes(from), `mutant "${name}": the text it replaces exists in ${file}`)
-  const at = file === ENV ? source.lastIndexOf(from) : source.indexOf(from) // .env.example holds every flag's block; this change's is the last
+  let at = source.indexOf(from)
+  if (file === ENV) { // .env.example holds every flag's block: the text is replaced inside this flag's own block, wherever else its wording is used
+    const { start, end } = ownBlock(source), inBlock = source.slice(start, end).indexOf(from)
+    assert.ok(inBlock !== -1, `mutant "${name}": the text it replaces is in ${FLAG}'s own block`)
+    at = start + inBlock
+  }
   const mutated = source.slice(0, at) + to + source.slice(at + from.length)
   assert.notEqual(mutated, source, `mutant "${name}" changes the source`)
   let survived = false
