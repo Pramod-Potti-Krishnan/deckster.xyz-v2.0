@@ -402,7 +402,8 @@ function proveEnv(sources = SOURCES, label = 'env') {
   const was = JSON.parse(base).scripts, now = JSON.parse(sources['package.json']).scripts
   for (const key of Object.keys(was)) eq(now[key], was[key], `${label}: script ${key} is as it was`)
   eq(Object.keys(now).length, Object.keys(was).length + 1, `${label}: exactly one script was added`)
-  const envBase = port.baseBlob('.env.example').split('\n')
+  // (the Security-page commit rewords one sentence of the Docs block: "the legal pages" -> "the Privacy, Terms and Cookies pages"; everything else of the base is untouched)
+  const envBase = port.baseBlob('.env.example').split('\n').map(line => line.replace('The words of the legal pages are not touched.', 'The words of the Privacy, Terms and Cookies pages are not touched.'))
   let at = 0
   for (const line of sources['.env.example'].split('\n')) if (at < envBase.length && line === envBase[at]) at++
   eq(at, envBase.length, `${label}: every line .env.example had is still there, in order`)
