@@ -1,7 +1,7 @@
-// FRONTEND-2 P2-STRIPE-TIER (Stripe real tier): the Stripe webhook stores the real plan (STRIPE_REAL_TIER_MAPPING_ENABLED, server-side, default off), stacked on #475. Its one change to a file the Pass 3 pins hold to an
-// earlier commit is the .env.example block after #475's narration block and before PASS2 ADMIN (package.json is not touched). A pin that holds that file to its own base reads it through stripStripeRealTier(rel, text) first and then does what
-// it always did, the way scripts/studio-narration-router-strip.mjs works (#475, which the Stripe real tier change is stacked on). scripts/test-stripe-real-tier-webhook.mjs proves that stripping gives back c1a7378's
-// .env.example byte for byte, so nothing else was added to it. Every other file comes back as it is. This file has no base text to put back: it is new.
+// FRONTEND-2 P2-STRIPE-TIER (Stripe real tier): the Stripe webhook stores the real plan (STRIPE_REAL_TIER_MAPPING_ENABLED, server-side, default off), stacked on the studio-v4-dev-preparation-code tip. Its one change to a shared
+// file is the .env.example block after #475's narration block and before PASS2 ADMIN (package.json is not touched). stripStripeRealTier(rel, text) takes that block out, and scripts/test-stripe-real-tier-webhook.mjs holds
+// what is left to the base's .env.example with scripts/studio-env-append-tolerant.mjs (sameAsBase), so nothing else was added to it and a later PR's block does not matter. Only that test reads this module: the Pass 3 pins
+// (#470, #472, #473, #475) answer for their own files only since 26003fc and no longer read .env.example through a strip of this change. Every other file comes back as it is. This file has no base text to put back: it is new.
 
 export const STRIPE_REAL_TIER_FILES = ['.env.example']
 

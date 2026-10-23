@@ -108,16 +108,19 @@ the existing quota consumer for Max; missing/invalid signatures; deletion; check
 duplicate wallet credit; invoice success/failure and the existing duplicate-invoice retry.
 
 For disabled-mode proof, the script independently loads the exact route from git commit
-`c1a7378752f6d7c90baecefb5a07fc33f4c9d6cd` (the base this change is stacked on). It compares
+`2dade1ff6b98525a1f11be00ae8b33b0ee51a9b2` (the studio-v4-dev-preparation-code tip this change is stacked on; its route is byte for byte the route of #475's head c1a7378, which this test was first written against). It compares
 HTTP responses, database/wallet payloads and final in-memory state across ten off values, and
 verifies there are no new price configuration reads or resolver calls. The same baseline is
 the reference for the fallback cases: with the flag on, an unresolvable subscription must
 produce the baseline's exact response and writes, plus one warning. That baseline commit must
 exist in local git history.
 
-The Pass 3 pins that hold `.env.example` to an earlier commit read it through
-`scripts/studio-stripe-real-tier-strip.mjs`, which takes this change's block out again; the
-proof checks that doing so gives back the base's file byte for byte.
+The proof is stack-tolerant: it never compares the whole tree with the base. It checks this change's
+own frozen files (a file of any later PR is ignored and counted) and holds `.env.example` to the base
+with this change's block taken out again (`scripts/studio-stripe-real-tier-strip.mjs`) under the shared
+append-tolerant rule (`scripts/studio-env-append-tolerant.mjs`): every base line is still there, in
+order, and whatever a later PR appended is tolerated. The Pass 3 pins no longer read `.env.example`
+through that module; they answer for their own files only.
 
 `node scripts/test-stripe-real-tier-webhook.mjs --mutation-check` runs the proof once clean
 and then once per mutant (a wrong flag check, a wrong tier, a missing update-arm write, a

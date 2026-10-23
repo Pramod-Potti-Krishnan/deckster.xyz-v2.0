@@ -3,7 +3,7 @@
  * Stripe client, database client or network module is loaded. Only the TypeScript compiler
  * and the pinned Stripe 17.4.0 declarations are read from an existing dependency directory.
  * Set DECKSTER_TEST_DEPENDENCY_PACKAGE to that checkout's package.json if this worktree has
- * no node_modules. The exact git baseline is executed separately for OFF parity.
+ * no node_modules. The exact git baseline (the studio-v4-dev-preparation-code tip this change is stacked on, BASE below) is executed separately for OFF parity.
  *
  * With the flag on, a subscription whose plan cannot be resolved takes exactly the flag-off path
  * (tier 'pro' on create; no tier or billingCycle on update) and logs one warning; the baseline run
@@ -18,11 +18,14 @@ import { createRequire } from 'node:module'
 import path from 'node:path'
 import vm from 'node:vm'
 import { fileURLToPath } from 'node:url'
+import { sameAsBase } from './studio-env-append-tolerant.mjs'
+import { stackMutants, stackScope } from './studio-stack-tolerant.mjs'
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..')
 const dependencyRequire = createRequire(process.env.DECKSTER_TEST_DEPENDENCY_PACKAGE || path.join(ROOT, 'package.json'))
 const ts = dependencyRequire('typescript')
-const BASE = 'c1a7378752f6d7c90baecefb5a07fc33f4c9d6cd'
+// The studio-v4-dev-preparation-code tip this change is stacked on (2dade1f: #480, #476 and #477 on top of #475). Its route is byte for byte the route of #475's head c1a7378, which this test was first written against.
+const BASE = '2dade1ff6b98525a1f11be00ae8b33b0ee51a9b2'
 const ROUTE = 'app/api/webhooks/stripe/route.ts'
 const HELPER = 'lib/stripe/subscription-plan.ts'
 const FLAG = 'STRIPE_REAL_TIER_MAPPING_ENABLED'
@@ -310,7 +313,7 @@ for (const planItems of [
 // Flag ON, but the plan cannot be resolved: the webhook answers exactly as the flag-off route does
 // (same response, same database/wallet payloads and final state) and logs ONE warning that names the
 // reason and the subscription's price ids only. Create writes tier 'pro'; the update arm writes no
-// tier and no billingCycle. The baseline run (c1a7378's route) is the reference.
+// tier and no billingCycle. The baseline run (BASE's route) is the reference.
 const priceIdsOf = items => Array.isArray(items?.data) ? items.data.map(i => i?.price?.id).filter(id => typeof id === 'string' && id !== '') : []
 const baselineReference = (values, options, payload) => {
   const rt = runtime(baselineSource, values, options)
@@ -607,23 +610,58 @@ for (const values of [{}, { [FLAG]: 'false' }, enabled()]) {
   eq(diagnostics.map(d => ts.flattenDiagnosticMessageText(d.messageText, '\n')), [], 'Helper type-checks against Stripe 17.4.0 Subscription.items')
 }
 
-// Stacked on #475 (and under the Pass 3 pins that hold .env.example to an earlier commit): the only change to .env.example is this block,
-// after #475's narration block and before # PASS2 ADMIN (a pure insertion; the existing STRIPE_* lines stay as they are); stripping it gives the base's file back byte for byte (the pins read it through the same strip).
+// Scope, stack-tolerant (scripts/studio-stack-tolerant.mjs, the rules of FRONTEND-2's Pass 3 pins): this change answers for its own frozen files and the files of its own path family; a file of any LATER PR
+// (FRONTEND-1's deck import, and so on) is ignored and counted on one printed line, never a failure. Nothing here compares the whole tree with the base. Every frozen file must still be changed against the base
+// (the committed tree, not the working tree), and a file of this path family that is not frozen is a stray. The shared files it edits are held to their rules below (.env.example) and by the library-manage pins
+// (scripts/studio-library-manage-harness.mjs: two STACKED_PASS3_FILES lines, which those pins need for this change's two library-free files).
+const OWN_CHANGE = {
+  pr: 479, stray: 'lib/stripe/subscription-plan-later.ts',
+  family: /^(lib\/stripe\/subscription-plan[^/]*|docs\/stripe-real-tier[^/]*|scripts\/(test-|studio-)?stripe-real-tier[^/]*)$/,
+  files: ['.env.example', ROUTE, 'docs/stripe-real-tier-mapping.md', HELPER, 'scripts/studio-library-manage-harness.mjs', 'scripts/studio-stripe-real-tier-strip.mjs', 'scripts/test-stripe-real-tier-webhook.mjs'],
+}
+const git = args => execFileSync('git', args, { cwd: ROOT, encoding: 'utf8', maxBuffer: 64 * 1024 * 1024 })
+{
+  const changed = git(['diff', '--name-only', BASE, 'HEAD']).split('\n').filter(Boolean)
+  const scope = stackScope(changed, OWN_CHANGE)
+  console.log(scope.line)
+  eq(scope.missing, [], 'Every frozen file of this change is changed against the base')
+  eq(scope.stray, [], 'No file of this change\'s path family is outside its frozen list')
+  ok(changed.includes(ROUTE) && changed.includes(HELPER), 'The route and the resolver are changed')
+  ok(!changed.includes('package.json'), 'package.json is not touched (the suite finds this test by its name)')
+  eq(scope.checked.slice().sort(), OWN_CHANGE.files.slice().sort(), 'The files this change answers for are exactly its frozen files')
+  for (const [label, verdict] of stackMutants({ change: OWN_CHANGE, changed, shared: [], kept: [] })) ok(verdict, `scope rules: ${label}`)
+}
+
+// .env.example: this change's only edit is one block, after #475's narration block and before # PASS2 ADMIN (a pure insertion; the existing STRIPE_* lines stay as they are). With the block taken out
+// (scripts/studio-stripe-real-tier-strip.mjs) the file is the base's under sameAsBase (scripts/studio-env-append-tolerant.mjs, #480): every base line still there, in order, and whatever a later PR appended
+// to the file (a comment or an env line of another flag) tolerated; a byte-for-byte compare would refuse every later PR's block.
 {
   const { stripStripeRealTier, STRIPE_REAL_TIER_FILES } = await import('./studio-stripe-real-tier-strip.mjs')
   eq(STRIPE_REAL_TIER_FILES, ['.env.example'], 'The strip module names the one shared file')
+  const OWN_FLAGS = /STRIPE_REAL_TIER|real-tier webhook mapping|STRIPE_(?:STARTER|MAX)_(?:MONTHLY|YEARLY)_PRICE_ID/
   const env = read('.env.example')
-  const baseEnv = execFileSync('git', ['show', `${BASE}:.env.example`], { cwd: ROOT, encoding: 'utf8', maxBuffer: 64 * 1024 * 1024 })
+  const baseEnv = git(['show', `${BASE}:.env.example`])
+  const own = stripStripeRealTier('.env.example', env)
   ok(env !== baseEnv, 'The Stripe real tier block is in .env.example')
-  ok(stripStripeRealTier('.env.example', env) === baseEnv, 'Without its block .env.example is the base\'s file byte for byte (a pure insertion)')
-  ok(stripStripeRealTier('.env.example', stripStripeRealTier('.env.example', env)) === baseEnv, 'Stripping twice changes nothing more')
+  ok(sameAsBase('.env.example', own, baseEnv, OWN_FLAGS), 'Without its block .env.example is the base\'s file: every base line in order, only a later PR\'s comments and env lines of other flags added')
+  ok(!OWN_FLAGS.test(own), 'Without its block no line of this change is left in .env.example')
+  ok(stripStripeRealTier('.env.example', own) === own, 'Stripping twice changes nothing more')
   ok(stripStripeRealTier('.env.example', baseEnv) === baseEnv, 'A file without the block comes back as it is')
   for (const other of ['package.json', ROUTE, 'README.md']) eq(stripStripeRealTier(other, 'some text'), 'some text', `${other} comes back as it is`)
+  // the rule is not a rubber stamp: a later PR's block after the last one is taken, a base line edited or dropped, or a second value for a base variable, is not
+  const later = '\n# A LATER CHANGE (a made-up flag, for this check)\nNEXT_PUBLIC_SOME_LATER_FLAG="false"\n'
+  ok(sameAsBase('.env.example', own + later, baseEnv, OWN_FLAGS), 'A later PR\'s block appended to .env.example is taken')
+  ok(!sameAsBase('.env.example', env, baseEnv, OWN_FLAGS), 'This change\'s block left in the file is refused')
+  ok(!sameAsBase('.env.example', own.replace('# PASS2 ADMIN', '# PASS2 ADMIN (edited)'), baseEnv, OWN_FLAGS), 'A base line edited is refused')
+  ok(!sameAsBase('.env.example', own.replace('MODEL_ROUTER_URL=\n', ''), baseEnv, OWN_FLAGS), 'A base line dropped is refused')
   const at = env.indexOf('STRIPE_REAL_TIER_MAPPING_ENABLED="false"\n')
   ok(env.split('STRIPE_REAL_TIER_MAPPING_ENABLED=').length === 2, 'The flag is documented once, default "false"')
   ok(at > env.indexOf('MODEL_ROUTER_STUDIO_KEY=\n') && env.indexOf('MODEL_ROUTER_STUDIO_KEY=\n') > 0 && at < env.indexOf('# PASS2 ADMIN'), 'The block sits after the narration block, before # PASS2 ADMIN')
   ok(env.includes('STRIPE_PRO_YEARLY_PRICE_ID="price_your_yearly_price_id"\n\n# Note: NEXT_PUBLIC_APP_URL'), 'The existing STRIPE_* lines are exactly where and as they were')
-  ok(at < env.indexOf('# PASS2 ADMIN') && env.indexOf('# PASS2 ADMIN') < env.indexOf('# PASS2 Docs') && env.endsWith('NEXT_PUBLIC_STUDIO_P2_DOCS="false"\n'), '# PASS2 ADMIN then # PASS2 Docs are still the last two blocks')
+  // # PASS2 ADMIN then # PASS2 Docs still follow the block, in that order; after the Docs flag only a later PR's comments, blanks and env lines (the template rename's comment block, #477) may stand
+  const docs = env.indexOf('NEXT_PUBLIC_STUDIO_P2_DOCS="false"\n')
+  ok(at < env.indexOf('# PASS2 ADMIN') && env.indexOf('# PASS2 ADMIN') < env.indexOf('# PASS2 Docs') && env.indexOf('# PASS2 Docs') < docs, '# PASS2 ADMIN then # PASS2 Docs still follow the block, in that order')
+  ok(env.slice(docs).split('\n').slice(1).every(line => /^\s*$|^\s*#|^[A-Z][A-Z0-9_]*=/.test(line) && !OWN_FLAGS.test(line)), 'After the Docs flag only later PRs\' comments and env lines stand, none of this change\'s')
   for (const name of Object.keys(ENV).filter(key => !key.startsWith('STRIPE_PRO_'))) ok(env.split(`\n${name}="price_your_`).length === 2, `${name} is a placeholder, once`)
   for (const name of Object.keys(ENV)) ok(!new RegExp(`^NEXT_PUBLIC_${name}`, 'm').test(env), `${name} has no NEXT_PUBLIC_ alias`)
 }
