@@ -429,7 +429,7 @@ async function secLib() {
   deepEq(L.deckImportIdListWith(['a'], 'x y'), ['a'], 'a bad id changes nothing'); deepEq(L.deckImportIdListWith(['a'], undefined), ['a']); eq(L.deckImportIdListWith(many.slice(0, 100), 'new').length, 100, 'at the limit, the oldest goes')
   eq(L.deckImportIdListWith(many.slice(0, 100), 'new')[0], 's1')
   const store = (initial = {}) => { const map = new Map(Object.entries(initial)); return { map, getItem: key => (map.has(key) ? map.get(key) : null), setItem: (key, value) => { map.set(key, String(value)) } } }
-  const throwing = { getItem() { throw new Error('blocked') }, setItem() { throw new Error('blocked') } }
+  const throwing = { getItem() { throw new TypeError('blocked') }, setItem() { throw new TypeError('blocked') } }
   let st = store()
   eq(L.deckImportNoteVisible(st, 'u1', 's1'), false, 'nothing remembered: no note')
   L.rememberDeckImported(st, 'u1', 's1'); L.rememberDeckImported(st, 'u1', 's1'); L.rememberDeckImported(st, 'u1', 's2')
@@ -645,7 +645,7 @@ function mountDialog({ entry = false, extraAllowed = '', net, userId = USER_ID, 
   const delays = []
   const pending = new Set()
   const sessions = [], uploads = [], assigned = [], closed = [], replaced = []
-  const localStorage = localBlocked ? { getItem() { throw new Error('blocked') }, setItem() { throw new Error('blocked') } } : { getItem: key => local.get(key) ?? null, setItem: (key, value) => { local.set(key, String(value)) } }
+  const localStorage = localBlocked === true ? { getItem() { throw new TypeError('blocked') }, setItem() { throw new TypeError('blocked') } } : { getItem: key => local.get(key) ?? null, setItem: (key, value) => { local.set(key, String(value)) } }
   let runaway = false
   const setTimeoutFake = (fn, ms) => { if (delays.length > 400) { runaway = true; return 0 } /* a loop that never ends stalls here instead of spinning */ delays.push(ms); const id = setImmediate(() => { pending.delete(id); clock.now += ms; fn() }); pending.add(id); return id }
   const clearTimeoutFake = id => { clearImmediate(id); pending.delete(id) }
@@ -675,7 +675,7 @@ function mountDialog({ entry = false, extraAllowed = '', net, userId = USER_ID, 
       process: { env: { NEXT_PUBLIC_KNOWLEDGE_SERVICE_URL: researcherUrl, NEXT_PUBLIC_LAYOUT_SERVICE_URL: layoutOrigin } },
       fetch: net.fetch, setTimeout: setTimeoutFake, clearTimeout: clearTimeoutFake, Date: { now: () => clock.now },
       sessionStorage: { getItem: key => storage.get(key) ?? null, setItem: (key, value) => { storage.set(key, String(value)) }, removeItem: key => { storage.delete(key) } },
-      window: { location: { assign: href => assigned.push(href), search, pathname: '/dashboard', hash: '' }, history: { state: { as: 'next' }, replaceState: (...args) => { if (historyFails) throw new Error('no history'); replaced.push(args) } }, localStorage }, crypto: { randomUUID: () => uuids.shift() ?? `extra-session-${uuids.length}` },
+      window: Object.defineProperty({ location: { assign: href => assigned.push(href), search, pathname: '/dashboard', hash: '' }, history: { state: { as: 'next' }, replaceState: (...args) => { if (historyFails) throw new TypeError('no history'); replaced.push(args) } } }, 'localStorage', localBlocked === 'access' ? { get() { throw new TypeError('blocked') } } : { value: localStorage }), crypto: { randomUUID: () => uuids.shift() ?? `extra-session-${uuids.length}` },
     },
   })
   Comp = entry ? () => world.load(ENTRY).StudioDeckImportEntry() : world.load(DIALOG).StudioDeckImportDialog
@@ -798,6 +798,9 @@ async function secUi() {
     ui = mountDialog({ net: proxiedNet({ director: recordedDirector([{ body: derived }]) }), localBlocked: true })
     await importFlow(ui)
     deepEq(ui.assigned, [`/builder?session_id=${SESSION}`], 'blocked local storage: the Builder still opens'); eq(ui.local.size, 0)
+    ui = mountDialog({ net: proxiedNet({ director: recordedDirector([{ body: derived }]) }), localBlocked: 'access' })
+    await importFlow(ui)
+    deepEq(ui.assigned, [`/builder?session_id=${SESSION}`], 'a browser that throws on reading localStorage at all: the Builder still opens'); eq(ui.local.size, 0)
   }
   // ---- recorded 06: the notes were not kept (said once, as a change)
   ui = mountDialog({ net: proxiedNet({ director: recordedDirector(['06']) }) })
@@ -978,13 +981,13 @@ async function secUi() {
 // ================================================================ 4b. the note over the Builder for a deck this browser imported (contract section 3)
 const NOTE_WORDS = { title: 'Imported from PowerPoint', body: 'This deck keeps the design of your PowerPoint file. Changing the theme and Add Element are not available for imported decks yet.', dismiss: 'Got it' }
 function mountNote({ userId = USER_ID, params = { session_id: SESSION }, local = new Map(), blocked = false, searchParamsNull = false, user = userId ? { id: userId, email: EMAIL } : undefined } = {}) {
-  const store = blocked ? { getItem() { throw new Error('blocked') }, setItem() { throw new Error('blocked') } } : { getItem: key => local.get(key) ?? null, setItem: (key, value) => { local.set(key, String(value)) } }
+  const store = blocked === true ? { getItem() { throw new TypeError('blocked') }, setItem() { throw new TypeError('blocked') } } : { getItem: key => local.get(key) ?? null, setItem: (key, value) => { local.set(key, String(value)) } }
   let Comp = null
   const rt = createRuntime(() => Comp())
   const world = createWorld({
     real: [NOTE, LIB, 'lib/studio-template-progress.ts'],
     stubs: { react: rt.react, 'next/navigation': { useSearchParams: () => (searchParamsNull ? null : { get: key => params[key] ?? null }) }, '@/hooks/use-auth': { useAuth: () => ({ user }) }, 'lucide-react': { Info: 'Info' } },
-    globals: { window: { localStorage: store }, fetch: () => assert.fail('the note asks for nothing'), sessionStorage: { getItem: () => assert.fail('the note reads no session storage'), setItem: () => assert.fail('no session storage') } },
+    globals: { window: Object.defineProperty({}, 'localStorage', blocked === 'access' ? { get() { throw new TypeError('blocked') } } : { value: store }), fetch: () => assert.fail('the note asks for nothing'), sessionStorage: { getItem: () => assert.fail('the note reads no session storage'), setItem: () => assert.fail('no session storage') } },
   })
   Comp = world.load(NOTE).StudioDeckImportNote
   const api = {
@@ -1015,6 +1018,7 @@ async function secNote() {
     ['no account', { local: done(SESSION), userId: null }],
     ['no search params at all', { local: done(SESSION), searchParamsNull: true }],
     ['blocked storage', { local: done(SESSION), blocked: true }],
+    ['a browser that throws on reading localStorage at all', { local: done(SESSION), blocked: 'access' }],
     ['a broken record', { local: new Map([[`deckster_deck_import_done_${USER_ID}`, 'not json']]) }],
     ['dismissed already', { local: new Map([[`deckster_deck_import_done_${USER_ID}`, JSON.stringify([SESSION])], [`deckster_deck_import_note_dismissed_${USER_ID}`, JSON.stringify([SESSION])]]) }],
   ]) {
@@ -1026,7 +1030,7 @@ async function secNote() {
   // "Got it" hides it, remembers it for this deck only, and writes nothing else
   n = await mountNote({ local: done(SESSION, 'second') }).show()
   n.dismiss().props.onClick(); await n.rt.settle()
-  eq(n.note(), null, 'gone at once'); deepEq(JSON.parse(n.local.get(`deckster_deck_import_note_dismissed_${USER_ID}`)), [SESSION], 'remembered for that deck')
+  eq(n.note(), null, 'gone at once'); ok(n.local.has(`deckster_deck_import_note_dismissed_${USER_ID}`), 'the dismissal is written'); deepEq(JSON.parse(n.local.get(`deckster_deck_import_note_dismissed_${USER_ID}`)), [SESSION], 'remembered for that deck')
   deepEq([...n.local.keys()].sort(), [`deckster_deck_import_done_${USER_ID}`, `deckster_deck_import_note_dismissed_${USER_ID}`].sort(), 'nothing else is written')
   deepEq(JSON.parse(n.local.get(`deckster_deck_import_done_${USER_ID}`)), [SESSION, 'second'], 'the import record is not touched')
   n = await mountNote({ local: n.local }).show(); eq(n.note(), null, 'and stays gone on the next visit')
@@ -1199,6 +1203,15 @@ async function secStatic() {
   const used = new Set(); root_.walkDecls(decl => { for (const found of decl.value.matchAll(/var\((--[a-z-]+)/g)) used.add(found[1]) })
   for (const name of used) ok(name.startsWith('--sdi-') ? light.has(name) : ['--ss-line', '--ss-panel', '--ss-text', '--ss-teal', '--ss-surface', '--ss-accent'].includes(name), `${name} is a token that exists`)
   eq(root_.nodes.filter(node => node.type === 'rule' && node.selector.startsWith('[data-studio-v4-shell="true"] [data-studio-deck-import-bar')).length, 2, 'the entry bar is scoped to the Studio shell')
+  // the note over the Builder: its own rule, fixed under the dialogs (z-index 40, the dialog is z-50), light and dark tokens shared with the dialog, a visible focus ring on its button
+  {
+    const noteRule = root_.nodes.find(node => node.type === 'rule' && node.selector === '[data-studio-deck-import-note="true"]')
+    ok(noteRule, 'the note has its own rule')
+    const decls = Object.fromEntries(noteRule.nodes.filter(node => node.type === 'decl').map(node => [node.prop, node.value]))
+    eq(decls.position, 'fixed'); ok(Number(decls['z-index']) > 0 && Number(decls['z-index']) < 50, 'drawn above the page but under the dialogs (z-50)')
+    for (const selector of ['[data-studio-deck-import-note="true"]', '.dark [data-studio-deck-import-note="true"]']) ok(selectors.some(entry => entry.rule.selectors.includes(selector) && entry.rule.nodes.some(node => node.type === 'decl' && node.prop === '--sdi-panel')), `${selector} defines the tokens`)
+    ok(selectors.some(entry => entry.selector === '[data-studio-deck-import-note-dismiss="true"]:focus-visible'), 'its button shows focus')
+  }
   // ---- the example: the flag's block is last, documents the flag off, names no other change's flag, and the base's lines are all still there in order
   const env = src(ENVFILE)
   const baseEnv = baseSource(ENVFILE)
@@ -1219,6 +1232,7 @@ async function secStatic() {
   deepEq([...new Set(blockFlags)].sort(), ['COMPOSER_DIRECTOR_URL', 'COMPOSER_FRONTDOOR_TOKEN', 'DECKSTER_REST_ENTITLEMENT_HEADER_ENABLED', 'DIRECTOR_DECK_IMPORT_ENABLED', FLAG].sort(), 'the block names this flag, Director\'s, and the existing front-door settings only')
   nomatch(block, /^DECKSTER_REST_ENTITLEMENT_HEADER_ENABLED=|^DIRECTOR_WS_AUTH_SECRET/m, 'the helper\'s flag is documented where it belongs, not here')
   ok(block.split('\n').every(line => line === '' || line.startsWith('#') || /^[A-Z][A-Z0-9_]*=/.test(line)), 'comments, blanks and one env line')
+  match(block, /\/dashboard\?import=pptx, which opens the same dialog/); match(block, /Changing the theme and Add Element are not available for imported decks yet\./)
   match(block, /both routes named below answer 404/); match(block, /exact value "true" turns it on; default off/); match(block, /calls no AI model/)
   for (const other of ['STUDIO_KG_ASK', 'LIBRARY_MANAGE', 'library-manage', 'DUPLICATE_DECK', 'duplicate-deck', 'P2_POLISH', 'P2_PUBLISH', 'DECK_MUTATION_DEDUPE']) nomatch(block, new RegExp(other), `the block reuses nothing of ${other}`)
   // ---- package.json: one added script, nothing else
@@ -1380,6 +1394,60 @@ const M = [
   [DIALOG, 'start enabled without a file', 'disabled={!imp.canStart}', 'disabled={false}', ['ui']],
   [ENTRY, 'dialog always mounted', '{open && <StudioDeckImportDialog', '{<StudioDeckImportDialog', ['ui']],
   [ENTRY, 'button label', 'Import a PowerPoint\n', 'Import deck\n', ['ui']],
+  // the Builder's welcome links, the query and the imported-deck note
+  [LIB, 'entry param moved', "DECK_IMPORT_ENTRY_PARAM = 'import'", "DECK_IMPORT_ENTRY_PARAM = 'open'", ['lib', 'builder']],
+  [LIB, 'any import value opens', 'get(DECK_IMPORT_ENTRY_PARAM) === DECK_IMPORT_ENTRY_VALUE', 'get(DECK_IMPORT_ENTRY_PARAM) !== null', ['lib', 'ui']],
+  [LIB, 'clean address keeps the query', '    params.delete(DECK_IMPORT_ENTRY_PARAM)\n', '', ['lib', 'ui']],
+  [LIB, 'clean address drops the hash', 'return `${pathname}${rest}${hash}`', 'return `${pathname}${rest}`', ['lib']],
+  [LIB, 'done key shared by everyone', 'deckster_deck_import_done_${encodeURIComponent(userId)}', 'deckster_deck_import_done', ['lib', 'note']],
+  [LIB, 'dismissed key is the done key', 'deckster_deck_import_note_dismissed_${encodeURIComponent(userId)}', 'deckster_deck_import_done_${encodeURIComponent(userId)}', ['lib', 'note']],
+  [LIB, 'bad ids kept in the list', 'if (deckImportSafeId(entry) && !seen.has(entry))', 'if (!seen.has(entry))', ['lib']],
+  [LIB, 'repeated ids kept', 'if (deckImportSafeId(entry) && !seen.has(entry)) { seen.add(entry); out.push(entry) }', 'if (deckImportSafeId(entry)) { out.push(entry) }', ['lib']],
+  [LIB, 'list limit dropped', 'return out.slice(-DECK_IMPORT_DONE_LIMIT)', 'return out', ['lib']],
+  [LIB, 'oldest kept at the limit', 'return out.slice(-DECK_IMPORT_DONE_LIMIT)', 'return out.slice(0, DECK_IMPORT_DONE_LIMIT)', ['lib']],
+  [LIB, 'remembering does not move to the end', 'list.filter(id => id !== sessionId)', 'list', ['lib']],
+  [LIB, 'dismissal ignored', '&& !readIdList(store, deckImportNoteDismissedKey(userId)).includes(sessionId)', '', ['lib', 'note']],
+  [LIB, 'import not required for the note', 'readIdList(store, deckImportDoneKey(userId)).includes(sessionId) && ', '', ['lib', 'note']],
+  [LIB, 'note words say AI', 'Changing the theme and Add Element are not', 'Changing the theme and AI Add Element are not', ['lib', 'note', 'static']],
+  [LIB, 'a failing write throws', 'catch { /* a full or blocked store: the note is simply not shown */ }', 'catch (error) { throw error }', ['lib']],
+  [LIB, 'a failing read answers nothing', 'catch { return [] }\n}\nfunction writeIdList', 'catch { return undefined as unknown as string[] }\n}\nfunction writeIdList', ['lib', 'note']],
+  [HOOK, 'import not remembered', 'try { rememberDeckImported(window.localStorage, uid, pending.session_id) } catch { /* no localStorage: the note is not shown */ }', '', ['ui']],
+  [HOOK, 'remembered for nobody', 'rememberDeckImported(window.localStorage, uid, pending.session_id)', "rememberDeckImported(window.localStorage, 'anyone', pending.session_id)", ['ui']],
+  [HOOK, 'remembered under the file name', 'rememberDeckImported(window.localStorage, uid, pending.session_id)', 'rememberDeckImported(window.localStorage, uid, pending.file_name)', ['ui']],
+  [HOOK, 'unreadable localStorage stops the open', 'try { rememberDeckImported(window.localStorage, uid, pending.session_id) } catch { /* no localStorage: the note is not shown */ }', 'rememberDeckImported(window.localStorage, uid, pending.session_id)', ['ui']],
+  [ENTRY, 'the query is ignored', 'if (!deckImportRequested(window.location.search)) return', 'return', ['ui']],
+  [ENTRY, 'any query opens', 'if (!deckImportRequested(window.location.search)) return', 'if (!window.location.search) return', ['ui']],
+  [ENTRY, 'the address keeps the query', "try { window.history.replaceState(window.history.state, '', deckImportEntryCleanUrl(window.location)) }", 'try { }', ['ui']],
+  [ENTRY, 'the router\'s history state dropped', "window.history.replaceState(window.history.state, ''", "window.history.replaceState(null, ''", ['ui']],
+  [ENTRY, 'a refusing history stops the dialog', "try { window.history.replaceState(window.history.state, '', deckImportEntryCleanUrl(window.location)) } catch { /* the address keeps the query; the dialog is open all the same */ }", "window.history.replaceState(window.history.state, '', deckImportEntryCleanUrl(window.location))", ['ui']],
+  [NOTE, 'note for every session', 'visible = deckImportNoteVisible(window.localStorage, userId, sessionId)', 'visible = true', ['note']],
+  [NOTE, 'note reads another parameter', "get('session_id')", "get('id')", ['note']],
+  [NOTE, 'dismissal not remembered', 'try { dismissDeckImportNote(window.localStorage, userId, sessionId) } catch { /* the note comes back next time */ }', '', ['note']],
+  [NOTE, 'dismissal for every deck', 'dismissDeckImportNote(window.localStorage, userId, sessionId)', "dismissDeckImportNote(window.localStorage, userId, 'all')", ['note']],
+  [NOTE, 'note stays after Got it', '        setShownFor(null)\n      }}>', '      }}>', ['note']],
+  [NOTE, 'note without a role', 'role="note" ', '', ['note']],
+  [NOTE, 'unreadable localStorage breaks the note', 'try { visible = deckImportNoteVisible(window.localStorage, userId, sessionId) } catch { /* no localStorage: no note */ }', 'visible = deckImportNoteVisible(window.localStorage, userId, sessionId)', ['note']],
+  [NOTE, 'note asks the network', 'const { user } = useAuth()', "const { user } = useAuth(); fetch('/api/x')", ['note']],
+  [NOTE, 'note for any session once it has a person', 'if (!userId || !sessionId || shownFor !== sessionId) return null', 'if (!userId || !sessionId) return null', ['note']],
+  [BLAYOUT, 'builder layout: flag ignored', ' || process.env.NEXT_PUBLIC_STUDIO_DECK_IMPORT !== "true"', '', ['layout']],
+  [BLAYOUT, 'builder layout: shell ignored', 'process.env.NEXT_PUBLIC_STUDIO_V4_SHELL !== "true" || ', '', ['layout']],
+  [BLAYOUT, 'builder layout: wrapper when off', 'return <>{children}</>\n  return', 'return <div>{children}</div>\n  return', ['layout']],
+  [BLAYOUT, 'builder layout: note before the page', '    {children}\n    <Suspense fallback={null}><StudioDeckImportNote /></Suspense>', '    <Suspense fallback={null}><StudioDeckImportNote /></Suspense>\n    {children}', ['layout']],
+  [BLAYOUT, 'builder layout: no Suspense', '<Suspense fallback={null}><StudioDeckImportNote /></Suspense>', '<StudioDeckImportNote />', ['layout']],
+  [FIRSTRUN, 'first run: link always drawn', 'process.env.NEXT_PUBLIC_STUDIO_DECK_IMPORT === "true" && <Link', 'true && <Link', ['builder', 'blobs']],
+  [FIRSTRUN, 'first run: any value draws it', 'process.env.NEXT_PUBLIC_STUDIO_DECK_IMPORT === "true" && <Link', 'process.env.NEXT_PUBLIC_STUDIO_DECK_IMPORT !== "false" && <Link', ['builder', 'blobs']],
+  [FIRSTRUN, 'first run: link goes elsewhere', 'href="/dashboard?import=pptx"', 'href="/dashboard"', ['builder', 'blobs']],
+  [FIRSTRUN, 'first run: link in the wrong style', 'className="studio-first-run-link" data-studio-deck-import-builder', 'className="x" data-studio-deck-import-builder', ['builder', 'blobs']],
+  [STAGE, 'stage: link always drawn', "process.env.NEXT_PUBLIC_STUDIO_DECK_IMPORT === 'true' && <Link", 'true && <Link', ['builder', 'blobs']],
+  [STAGE, 'stage: any value draws it', "process.env.NEXT_PUBLIC_STUDIO_DECK_IMPORT === 'true' && <Link", "process.env.NEXT_PUBLIC_STUDIO_DECK_IMPORT !== 'false' && <Link", ['builder', 'blobs']],
+  [STAGE, 'stage: link goes elsewhere', 'href="/dashboard?import=pptx"', 'href="/dashboard"', ['builder', 'blobs']],
+  [CSS, 'css: note over the dialogs', 'z-index: 40;', 'z-index: 60;', ['static']],
+  [CSS, 'css: note rule unanchored', '[data-studio-deck-import-note-dismiss="true"]:hover { color', '.dismiss:hover { color', ['static']],
+  [CSS, 'css: note token that does not exist', 'border-left: 3px solid var(--sdi-accent)', 'border-left: 3px solid var(--sdi-nonexistent)', ['static']],
+  [CSS, 'css: note has no dark tokens', '.dark [data-studio-deck-import-dialog="true"], .dark [data-studio-deck-import-note="true"] {', '.dark [data-studio-deck-import-dialog="true"] {', ['static']],
+  [ENVFILE, 'env: the block is not before the Admin block', '# PASS2 ADMIN (', '# PASS2 ADMIN-X (', ['static']],
+  [ENVFILE, 'env: the Builder link undocumented', '/dashboard?import=pptx, which opens the same dialog', '/dashboard, which opens the same dialog', ['static']],
+  [ENVFILE, 'env: the note undocumented', 'Changing the theme and Add Element are not available for imported decks yet.', 'Changing the theme is not available.', ['static']],
   // the layout
   [LAYOUT, 'layout: flag ignored', ' || process.env.NEXT_PUBLIC_STUDIO_DECK_IMPORT !== "true"', '', ['layout']],
   [LAYOUT, 'layout: shell ignored', 'process.env.NEXT_PUBLIC_STUDIO_V4_SHELL !== "true" || ', '', ['layout']],
