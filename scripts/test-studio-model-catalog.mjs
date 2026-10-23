@@ -36,8 +36,9 @@ const { renderToStaticMarkup } = ReactDOMServer
 const here = path.dirname(fileURLToPath(import.meta.url))
 const repoRoot = path.resolve(here, '..')
 const ROOT = path.resolve(process.env.MODEL_CATALOG_ROOT || repoRoot)
-// studio-v4-dev-preparation-code at the tip this change was built on (4c5fd0f)
-const BASE_COMMIT = process.env.MODEL_CATALOG_BASE || '4c5fd0fbe6500afeb8218075261e268157706eed'
+// The base this change is stacked on: #472 (theme / export from chat) at 72606f6, which holds #470 (refine an element) and studio-v4-dev-preparation-code at 8d5c494. This change adds a new layout,
+// route, section and helper, one block to .env.example, one line to package.json and its files to the stacked list of the library-manage harness; nothing else.
+const BASE_COMMIT = process.env.MODEL_CATALOG_BASE || '72606f6ea84590f818a36b4551093db3f5057923'
 const sha256 = value => crypto.createHash('sha256').update(value).digest('hex')
 
 let checks = 0
@@ -60,8 +61,10 @@ const CHOOSER = 'components/studio-personal/intelligence-p2.tsx'
 const ENV = '.env.example'
 const PKG = 'package.json'
 const FLAG = 'NEXT_PUBLIC_STUDIO_MODEL_CATALOG'
-const OWN = [LIB, ROUTE, UI, CSS, LAYOUT, ENV, PKG]
-for (const rel of [LIB, ROUTE, UI, CSS, LAYOUT]) assert.ok(fs.existsSync(path.join(ROOT, rel)), `${rel} exists`)
+const STRIP = 'scripts/studio-model-catalog-strip.mjs'
+const HARNESS = 'scripts/studio-library-manage-harness.mjs'
+const OWN = [LIB, ROUTE, UI, CSS, LAYOUT, ENV, PKG, STRIP]
+for (const rel of [LIB, ROUTE, UI, CSS, LAYOUT, STRIP]) assert.ok(fs.existsSync(path.join(ROOT, rel)), `${rel} exists`)
 const read = rel => fs.readFileSync(path.join(ROOT, rel), 'utf8')
 const SOURCES = Object.fromEntries(OWN.map(rel => [rel, read(rel)]))
 const stripComments = text => text.replace(/\/\*[\s\S]*?\*\//g, '').replace(/(^|[^:\\'"`])\/\/[^\n]*/g, '$1')
@@ -103,7 +106,8 @@ const compiled = new Map()
 const compile = (source, fileName) => {
   const key = `${fileName}\u0000${source}`
   if (compiled.has(key)) return compiled.get(key)
-  const out = ts.transpileModule(source, { fileName, reportDiagnostics: true, compilerOptions: { target: ts.ScriptTarget.ES2022, module: ts.ModuleKind.CommonJS, jsx: ts.JsxEmit.ReactJSX, esModuleInterop: true } })
+  const out = ts.transpileModule(source, { fileName: fileName.replace(/\.mjs$/, '.ts'), reportDiagnostics: true, // a .mjs file is plain JavaScript: compile it as a module like the rest
+    compilerOptions: { target: ts.ScriptTarget.ES2022, module: ts.ModuleKind.CommonJS, jsx: ts.JsxEmit.ReactJSX, esModuleInterop: true } })
   assert.equal((out.diagnostics ?? []).filter(item => item.category === ts.DiagnosticCategory.Error).length, 0, `${fileName} compiles`)
   compiled.set(key, out.outputText)
   return out.outputText
@@ -771,6 +775,10 @@ function proveEnvAndPackage(env, pkg, label = 'env') {
   nomatch(block, /READ AT BUILD TIME|exact "true" enables it|Needs the Studio shell \(|Nothing is sent or stored|P2_POLISH|PASS2/, `${label}: reuses no other block's phrases`)
   for (const line of block.split('\n')) { ok(/^#/.test(line), `${label}: only comments above the flag`); if (line.length > 40) eq(env.split(line).length - 1, 1, `${label}: no line of it is repeated elsewhere: ${line.slice(0, 50)}`) }
   ok(env.indexOf('NEXT_PUBLIC_STUDIO_P2_POLISH="false"') < start, `${label}: below the polish block (whose strip cuts from its marker on)`)
+  // Stacked order: after #470's refine block and #472's theme / export block, before FRONTEND-1's PASS2 ADMIN and Docs blocks (their onboarding / admin / docs mutants find a block with lastIndexOf, so they stay last).
+  for (const earlier of ['NEXT_PUBLIC_CHAT_ELEMENT_REFINE="false"', 'NEXT_PUBLIC_CHAT_EXPORT="false"']) if (env.includes(earlier)) ok(env.indexOf(earlier) < start, `${label}: after ${earlier.split('=')[0]}'s block`)
+  for (const later of ['# PASS2 ADMIN', '# PASS2 Docs / Help / Legal / Agents']) if (env.includes(later)) ok(start < env.indexOf(later), `${label}: before FRONTEND-1's ${later}`)
+  if (env.includes('NEXT_PUBLIC_STUDIO_P2_DOCS="false"')) ok(env.indexOf('NEXT_PUBLIC_STUDIO_P2_ADMIN="false"') < env.indexOf('NEXT_PUBLIC_STUDIO_P2_DOCS="false"') && env.endsWith('NEXT_PUBLIC_STUDIO_P2_DOCS="false"\n'), `${label}: ADMIN then DOCS are still the last two blocks`)
   // append-only against the base
   const want = baseSource(ENV).split('\n'), extras = []
   let next = 0
@@ -792,11 +800,46 @@ function proveEnvAndPackage(env, pkg, label = 'env') {
   eq(JSON.stringify(json.dependencies), JSON.stringify(baseJson.dependencies), `${label}: no dependency added`)
 }
 
+/** The strip module: without this change's block and line the two shared files are the stacked base's, byte for byte (a pure insertion); every other file comes back as it is. */
+async function proveStrip(S, label = 'strip') {
+  const { stripModelCatalog, MODEL_CATALOG_FILES } = load(STRIP, { sources: S })
+  deepEq(MODEL_CATALOG_FILES, ['.env.example', 'package.json'], `${label}: the two shared files`)
+  for (const rel of MODEL_CATALOG_FILES) {
+    eq(stripModelCatalog(rel, S[rel]), baseSource(rel), `${label}: ${rel} without this change's lines is ${BASE_COMMIT.slice(0, 7)}'s file byte for byte`)
+    eq(stripModelCatalog(rel, stripModelCatalog(rel, S[rel])), baseSource(rel), `${label}: ${rel}: stripping twice changes nothing more`)
+    eq(stripModelCatalog(rel, baseSource(rel)), baseSource(rel), `${label}: ${rel}: a file without the lines comes back as it is`)
+  }
+  for (const other of ['app/builder/page.tsx', 'lib/studio-model-catalog.ts', 'README.md']) eq(stripModelCatalog(other, 'some text'), 'some text', `${label}: ${other} comes back as it is`)
+  // the registration stays strippable when something is stacked after it (not the last entry), and the block when it is not followed by another
+  const mid = S[PKG].replace('"node scripts/test-studio-model-catalog.mjs"', '"node scripts/test-studio-model-catalog.mjs",\n    "test:studio-later": "node scripts/test-later.mjs"')
+  ok(mid !== S[PKG], `${label}: a later registration was put in`)
+  eq(stripModelCatalog(PKG, mid), baseSource(PKG).replace(/\n  \},\n  "dependencies"/, ',\n    "test:studio-later": "node scripts/test-later.mjs"\n  },\n  "dependencies"'), `${label}: package.json: the registration comes out of the middle of the list`)
+}
+/** The committed tree against the stacked base (not the working tree: a suite neighbour that rewrites docs/ while it runs must not count). */
+function proveStackedScope() {
+  const changed = git('diff', '--name-only', BASE_COMMIT, 'HEAD', '--', '.').split('\n').filter(Boolean)
+  const SIBLINGS = ['scripts/test-studio-chat-element-refine.mjs', 'scripts/test-studio-chat-theme-export.mjs']
+  const own = new Set([...OWN, HARNESS, 'scripts/test-studio-model-catalog.mjs', ...SIBLINGS])
+  for (const rel of changed) ok(own.has(rel) || rel.startsWith('scripts/fixtures/studio-model-catalog/'), `stacked scope: ${rel} is this change's`)
+  for (const rel of [...OWN, HARNESS]) ok(changed.includes(rel), `stacked scope: ${rel} is part of this change`)
+  const lines = (rel, sign) => git('diff', '-U0', BASE_COMMIT, 'HEAD', '--', rel).split('\n').filter(line => line.startsWith(sign) && !line.startsWith(sign.repeat(3)))
+  eq(lines(ENV, '-').length, 0, 'stacked scope: .env.example only gains lines (a pure insertion)')
+  ok(lines(ENV, '+').every(line => /^\+(#|NEXT_PUBLIC_STUDIO_MODEL_CATALOG=|$)/.test(line)), 'stacked scope: and they are this block')
+  deepEq(lines(PKG, '-').map(line => line.replace(/,$/, '')), [lines(PKG, '-')[0]?.replace(/,$/, '')].filter(Boolean), 'stacked scope: package.json: at most the previous entry, which gains a comma')
+  ok(lines(PKG, '-').every(line => /test:studio-chat-theme-export/.test(line)) && lines(PKG, '+').some(line => /test:studio-model-catalog/.test(line)), 'stacked scope: package.json: #472\'s entry gains its comma, this change\'s registration follows')
+  eq(lines(HARNESS, '-').length, 0, 'stacked scope: the harness only gains lines')
+  ok(lines(HARNESS, '+').length >= 2 && lines(HARNESS, '+').every(line => /model catalog|MODEL_CATALOG|studio-model-catalog|intelligence-models|models\/catalogue|intelligence\/layout/.test(line)), 'stacked scope: the stacked list gains this change\'s files only')
+  for (const rel of SIBLINGS.filter(rel => changed.includes(rel))) {
+    ok(lines(rel, '+').every(line => /MODEL_CATALOG|ModelCatalog|model-catalog|#473/.test(line)), `stacked scope: ${rel}: every added line names this change`)
+    ok(lines(rel, '-').length <= 3, `stacked scope: ${rel}: at most three lines were extended`)
+  }
+}
 const SECTIONS = {
   lib: proveLib, route: proveRoute, ui: proveUi,
+  strip: proveStrip,
   layout: async (S, label) => proveLayout(S, label), css: async (S, label) => proveCss(S, label), env: async (S, label) => proveEnvAndPackage(S[ENV], S[PKG], label),
 }
-const FIRST = { [LIB]: 'lib', [ROUTE]: 'route', [UI]: 'ui', [LAYOUT]: 'layout', [CSS]: 'css', [ENV]: 'env', [PKG]: 'env' }
+const FIRST = { [LIB]: 'lib', [ROUTE]: 'route', [UI]: 'ui', [LAYOUT]: 'layout', [CSS]: 'css', [ENV]: 'strip', [PKG]: 'strip', [STRIP]: 'strip' }
 /** Every section on `S`; for a mutant the section that watches the mutated file goes first, so a caught mutant costs one section. */
 async function proveAll(S, label, first) {
   const order = [...new Set([first, ...Object.keys(SECTIONS)].filter(Boolean))]
@@ -807,6 +850,7 @@ async function proveAll(S, label, first) {
 await proveAll(SOURCES, 'branch')
 const hashes = proveIdentity(SOURCES)
 proveUntouched()
+proveStackedScope()
 const checksBeforeMutants = checks
 
 // ---------------------------------------------------------------- mutants: each must be caught
@@ -923,8 +967,17 @@ const MUTANTS = [
   [ENV, 'a phrase borrowed', t => swap(t, 'Build-time flag: set it on Vercel and redeploy.', 'READ AT BUILD TIME: set it on Vercel, then redeploy.')],
   [ENV, 'the base changed', t => swap(t, 'NEXT_PUBLIC_STUDIO_P2_POLISH="false"', 'NEXT_PUBLIC_STUDIO_P2_POLISH="true"')],
   [ENV, 'moved above the polish block', t => { const at = t.indexOf('# PASS3 MODEL CATALOG'); const end = t.indexOf(`\n${FLAG}="false"\n`) + `\n${FLAG}="false"\n`.length; const block = t.slice(at, end); const rest = t.slice(0, at) + t.slice(end); const polish = rest.indexOf('# PASS2 POLISH PP-1'); return rest.slice(0, polish) + block + '\n' + rest.slice(polish) }],
+  [ENV, 'moved after the PASS2 ADMIN and Docs blocks', t => { const at = t.indexOf('# PASS3 MODEL CATALOG'); const end = t.indexOf(`\n${FLAG}="false"\n`) + `\n${FLAG}="false"\n`.length; return t.slice(0, at) + t.slice(end + 1) + '\n' + t.slice(at, end) }],
+  [ENV, 'moved above the refine and theme / export blocks', t => { const at = t.indexOf('# PASS3 MODEL CATALOG'); const end = t.indexOf(`\n${FLAG}="false"\n`) + `\n${FLAG}="false"\n`.length; const block = t.slice(at, end); const rest = t.slice(0, at) + t.slice(end + 1); const refine = rest.indexOf('# PASS3 REFINE AN ELEMENT FROM CHAT'); return rest.slice(0, refine) + block + '\n' + rest.slice(refine) }],
+  [STRIP, 'the env block is not stripped', t => swap(t, "return text.replace(ENV_BLOCK, '')", 'return text')],
+  [STRIP, 'the env block strip leaves its blank line', t => swap(t, 'NEXT_PUBLIC_STUDIO_MODEL_CATALOG="false"\\n\\n/', 'NEXT_PUBLIC_STUDIO_MODEL_CATALOG="false"\\n/')],
+  [STRIP, 'the registration is not stripped', t => swap(t, "text.includes(last) ? text.replace(last, '\\n') : text.replace(`${PACKAGE_LINE},\\n`, '')", 'text')],
+  [STRIP, 'the previous entry keeps its comma', t => swap(t, "text.replace(last, '\\n')", "text.replace(last, ',\\n')")],
+  [STRIP, 'the middle of the list is not handled', t => swap(t, ": text.replace(`${PACKAGE_LINE},\\n`, '')", ': text')],
+  [STRIP, 'another file is changed', t => swap(t, '  return text\n}', "  return text + ' '\n}")],
+  [STRIP, 'a third file is claimed', t => swap(t, "export const MODEL_CATALOG_FILES = ['.env.example', 'package.json']", "export const MODEL_CATALOG_FILES = ['.env.example', 'package.json', 'README.md']")],
   [PKG, 'test registered to another file', t => swap(t, 'node scripts/test-studio-model-catalog.mjs', 'node scripts/test-studio-model-catalog-2026-10.mjs')],
-  [PKG, 'test not registered', t => swap(t, '    "test:studio-model-catalog": "node scripts/test-studio-model-catalog.mjs",\n', '')],
+  [PKG, 'test not registered', t => swap(t, ',\n    "test:studio-model-catalog": "node scripts/test-studio-model-catalog.mjs"', '')],
   [PKG, 'a base script changed', t => swap(t, '"test:studio-p2-polish": "node scripts/test-studio-p2-polish.mjs"', '"test:studio-p2-polish": "node scripts/test-studio-p2-intelligence.mjs"')],
 ]
 counting = false
