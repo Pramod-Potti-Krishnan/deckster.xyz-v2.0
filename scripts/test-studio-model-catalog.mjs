@@ -27,6 +27,7 @@ import vm from 'node:vm'
 import { execFileSync } from 'node:child_process'
 import { fileURLToPath } from 'node:url'
 import ts from 'typescript'
+import { stripNarrationRouter } from './studio-narration-router-strip.mjs' // #475 (NARRATION_VIA_ROUTER) is stacked on this change: its .env.example block and package.json line come out first
 import postcss from 'postcss'
 import React from 'react'
 import jsxRuntimeReal from 'react/jsx-runtime'
@@ -805,30 +806,31 @@ async function proveStrip(S, label = 'strip') {
   const { stripModelCatalog, MODEL_CATALOG_FILES } = load(STRIP, { sources: S })
   deepEq(MODEL_CATALOG_FILES, ['.env.example', 'package.json'], `${label}: the two shared files`)
   for (const rel of MODEL_CATALOG_FILES) {
-    eq(stripModelCatalog(rel, S[rel]), baseSource(rel), `${label}: ${rel} without this change's lines is ${BASE_COMMIT.slice(0, 7)}'s file byte for byte`)
-    eq(stripModelCatalog(rel, stripModelCatalog(rel, S[rel])), baseSource(rel), `${label}: ${rel}: stripping twice changes nothing more`)
+    eq(stripModelCatalog(rel, stripNarrationRouter(rel, S[rel])), baseSource(rel), `${label}: ${rel} without this change's lines (and #475's, stacked on it) is ${BASE_COMMIT.slice(0, 7)}'s file byte for byte`)
+    eq(stripModelCatalog(rel, stripModelCatalog(rel, stripNarrationRouter(rel, S[rel]))), baseSource(rel), `${label}: ${rel}: stripping twice changes nothing more (#475's lines out first)`)
     eq(stripModelCatalog(rel, baseSource(rel)), baseSource(rel), `${label}: ${rel}: a file without the lines comes back as it is`)
   }
   for (const other of ['app/builder/page.tsx', 'lib/studio-model-catalog.ts', 'README.md']) eq(stripModelCatalog(other, 'some text'), 'some text', `${label}: ${other} comes back as it is`)
   // the registration stays strippable when something is stacked after it (not the last entry), and the block when it is not followed by another
   const mid = S[PKG].replace('"node scripts/test-studio-model-catalog.mjs"', '"node scripts/test-studio-model-catalog.mjs",\n    "test:studio-later": "node scripts/test-later.mjs"')
   ok(mid !== S[PKG], `${label}: a later registration was put in`)
-  eq(stripModelCatalog(PKG, mid), baseSource(PKG).replace(/\n  \},\n  "dependencies"/, ',\n    "test:studio-later": "node scripts/test-later.mjs"\n  },\n  "dependencies"'), `${label}: package.json: the registration comes out of the middle of the list`)
+  eq(stripModelCatalog(PKG, stripNarrationRouter(PKG, mid)), baseSource(PKG).replace(/\n  \},\n  "dependencies"/, ',\n    "test:studio-later": "node scripts/test-later.mjs"\n  },\n  "dependencies"'), `${label}: package.json: the registration comes out of the middle of the list (#475's stacked line out first)`)
 }
 /** The committed tree against the stacked base (not the working tree: a suite neighbour that rewrites docs/ while it runs must not count). */
 function proveStackedScope() {
   const changed = git('diff', '--name-only', BASE_COMMIT, 'HEAD', '--', '.').split('\n').filter(Boolean)
   const SIBLINGS = ['scripts/test-studio-chat-element-refine.mjs', 'scripts/test-studio-chat-theme-export.mjs']
   const own = new Set([...OWN, HARNESS, 'scripts/test-studio-model-catalog.mjs', ...SIBLINGS])
-  for (const rel of changed) ok(own.has(rel) || rel.startsWith('scripts/fixtures/studio-model-catalog/'), `stacked scope: ${rel} is this change's`)
+  const STACKED_NARRATION_ROUTER = /^(lib\/narration\/(model-router|draft|tts|spoken)\.ts|app\/api\/narration\/(render|script|speak)\/route\.ts|app\/api\/narration\/voice\/sample\/\[voiceId\]\/route\.ts|scripts\/(test-studio-narration-router|studio-narration-router-strip)\.mjs)$/ // #475's own files (stacked on this change)
+  for (const rel of changed) ok(own.has(rel) || rel.startsWith('scripts/fixtures/studio-model-catalog/') || STACKED_NARRATION_ROUTER.test(rel), `stacked scope: ${rel} is this change's (or #475's, stacked on it)`)
   for (const rel of [...OWN, HARNESS]) ok(changed.includes(rel), `stacked scope: ${rel} is part of this change`)
   const lines = (rel, sign) => git('diff', '-U0', BASE_COMMIT, 'HEAD', '--', rel).split('\n').filter(line => line.startsWith(sign) && !line.startsWith(sign.repeat(3)))
   eq(lines(ENV, '-').length, 0, 'stacked scope: .env.example only gains lines (a pure insertion)')
-  ok(lines(ENV, '+').every(line => /^\+(#|NEXT_PUBLIC_STUDIO_MODEL_CATALOG=|$)/.test(line)), 'stacked scope: and they are this block')
+  ok(lines(ENV, '+').every(line => /^\+(#|NEXT_PUBLIC_STUDIO_MODEL_CATALOG=|NARRATION_VIA_ROUTER=|MODEL_ROUTER_URL=|MODEL_ROUTER_STUDIO_KEY=|$)/.test(line)), 'stacked scope: and they are this block (or #475\'s stacked block)')
   deepEq(lines(PKG, '-').map(line => line.replace(/,$/, '')), [lines(PKG, '-')[0]?.replace(/,$/, '')].filter(Boolean), 'stacked scope: package.json: at most the previous entry, which gains a comma')
   ok(lines(PKG, '-').every(line => /test:studio-chat-theme-export/.test(line)) && lines(PKG, '+').some(line => /test:studio-model-catalog/.test(line)), 'stacked scope: package.json: #472\'s entry gains its comma, this change\'s registration follows')
-  eq(lines(HARNESS, '-').length, 0, 'stacked scope: the harness only gains lines')
-  ok(lines(HARNESS, '+').length >= 2 && lines(HARNESS, '+').every(line => /model catalog|MODEL_CATALOG|studio-model-catalog|intelligence-models|models\/catalogue|intelligence\/layout/.test(line)), 'stacked scope: the stacked list gains this change\'s files only')
+  ok(lines(HARNESS, '-').length <= 1 && lines(HARNESS, '-').every(line => /#469 deck-mutation dedupe\)/.test(line)), 'stacked scope: the harness only gains lines (#475 extends one comment line, stacked)')
+  ok(lines(HARNESS, '+').length >= 2 && lines(HARNESS, '+').every(line => /model catalog|MODEL_CATALOG|studio-model-catalog|intelligence-models|models\/catalogue|intelligence\/layout|narration|NARRATION/.test(line)), 'stacked scope: the stacked list gains this change\'s files only (and #475\'s, stacked)')
   for (const rel of SIBLINGS.filter(rel => changed.includes(rel))) {
     ok(lines(rel, '+').every(line => /MODEL_CATALOG|ModelCatalog|model-catalog|#473/.test(line)), `stacked scope: ${rel}: every added line names this change`)
     ok(lines(rel, '-').length <= 3, `stacked scope: ${rel}: at most three lines were extended`)
