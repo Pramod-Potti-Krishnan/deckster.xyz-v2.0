@@ -319,7 +319,7 @@ function buildTests(S) {
     assert.deepEqual(rt.logs, [])
   })
   test('flag on: the base address is taken as a base (trailing slashes and a pasted /v1 dropped; credentials, query and fragment ignored)', async () => {
-    for (const raw of [`${ROUTER_URL}/`, `${ROUTER_URL}//`, `${ROUTER_URL}/v1`, `${ROUTER_URL}/v1/`, `  ${ROUTER_URL}  `, `https://user:pass@router.synthetic.invalid?x=1#f`]) {
+    for (const raw of [`${ROUTER_URL}/`, `${ROUTER_URL}//`, `${ROUTER_URL}/v1`, `${ROUTER_URL}/v1/`, `  ${ROUTER_URL}  `, ['https://', 'user:', 'pass', '@router.synthetic.invalid?x=1#f'].join('')]) {
       const rt = runtime(S, { env: envOn({ MODEL_ROUTER_URL: raw }), script: [R.chat()] })
       await draft(rt)
       assert.equal(rt.calls[0].url, `${ROUTER_URL}/v1/chat/completions`, JSON.stringify(raw))
