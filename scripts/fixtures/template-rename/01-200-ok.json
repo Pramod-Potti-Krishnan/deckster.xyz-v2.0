@@ -1,0 +1,64 @@
+{
+  "case": "200-ok",
+  "what": "Rename an ordinary saved template. 200 is the list-row summary (same keys as a row of GET /api/users/{uid}/templates).",
+  "request": {
+    "method": "PATCH",
+    "path": "/api/users/user-a/templates/t-plain",
+    "json_body": {
+      "name": "  Q3 report  "
+    },
+    "entitlement_header": "(none)"
+  },
+  "response": {
+    "status": 200,
+    "headers": {
+      "content-type": "application/json"
+    },
+    "json_body": {
+      "id": "t-plain",
+      "name": "Q3 report",
+      "description": null,
+      "created_at": "2026-10-02T00:00:00+00:00",
+      "updated_at": "2026-10-02T00:00:00+00:00",
+      "usage_count": 3,
+      "slide_count": 2,
+      "source_session_id": "sess-1",
+      "source_presentation_id": "pres-1",
+      "blueprint_generation_method": "deterministic",
+      "blueprint_enrichment_status": "complete",
+      "blueprint_enrichment_error": null,
+      "blueprint_enriched_at": "2026-10-01T01:00:00+00:00",
+      "source_fact_manifest": {
+        "facts": [
+          "kept"
+        ]
+      },
+      "template_purity_status": "clean",
+      "template_purity_error": null,
+      "template_purified_at": "2026-10-01T02:00:00+00:00"
+    }
+  },
+  "list_row_before_rename": {
+    "id": "t-plain",
+    "name": "April report",
+    "description": null,
+    "created_at": "2026-10-02T00:00:00+00:00",
+    "updated_at": "2026-10-02T00:00:00+00:00",
+    "usage_count": 3,
+    "slide_count": 2,
+    "source_session_id": "sess-1",
+    "source_presentation_id": "pres-1",
+    "blueprint_generation_method": "deterministic",
+    "blueprint_enrichment_status": "complete",
+    "blueprint_enrichment_error": null,
+    "blueprint_enriched_at": "2026-10-01T01:00:00+00:00",
+    "source_fact_manifest": {
+      "facts": [
+        "kept"
+      ]
+    },
+    "template_purity_status": "clean",
+    "template_purity_error": null,
+    "template_purified_at": "2026-10-01T02:00:00+00:00"
+  }
+}

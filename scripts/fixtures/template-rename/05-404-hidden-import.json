@@ -1,0 +1,21 @@
+{
+  "case": "404-hidden-import",
+  "what": "An imported deck's hidden row (description marker): the same 404, never renamed.",
+  "request": {
+    "method": "PATCH",
+    "path": "/api/users/user-a/templates/t-hidden",
+    "json_body": {
+      "name": "Fresh name"
+    },
+    "entitlement_header": "(none)"
+  },
+  "response": {
+    "status": 404,
+    "headers": {
+      "content-type": "application/json"
+    },
+    "json_body": {
+      "detail": "template not found"
+    }
+  }
+}

@@ -38,7 +38,7 @@ export function appendOnlyOver(rel, text, baseText) {
 }
 /** `stripped` is the file with this change's lines out: the base's file, or (for the two shared append-only files) the base's lines plus other changes' comments, blanks and env lines. */
 export const isBaseFile = (rel, stripped, baseText) => stripped === baseText || (['.env.example', 'package.json'].includes(rel) && appendOnlyOver(rel, stripped, baseText))
-// The other FRONTEND-2 Pass 3 changes that may be stacked on the same base (#460 Ask your second brain, #464 Duplicate a deck, #469 deck-mutation dedupe). Their files are not this change's, and none of them is a library file;
+// The other FRONTEND-2 Pass 3 changes that may be stacked on the same base (#460 Ask your second brain, #464 Duplicate a deck, #469 deck-mutation dedupe, BY10 narration via the router). Their files are not this change's, and none of them is a library file;
 // the diff-scope check below allows exactly these on top of this change's own files and nothing else.
 export const STACKED_PASS3_FILES = [
   'app/(app)/knowledge/page.tsx', 'app/api/knowledge-graph/query/route.ts', 'components/knowledge/studio-kg-ask.css', 'components/knowledge/studio-kg-ask.tsx', 'hooks/use-studio-kg-ask.ts', 'lib/studio-kg-ask.ts',
@@ -48,6 +48,17 @@ export const STACKED_PASS3_FILES = [
   'lib/composer-theme-policy.ts', 'components/studio-deck-import/studio-deck-import-note.tsx', 'components/studio-deck-import/studio-deck-import-gate.tsx', 'components/builder/studio-first-run-actions.tsx', 'components/builder/studio-welcome-stage.tsx',
   'app/(app)/dashboard/page.tsx', 'app/builder/page.tsx', 'components/builder/studio-copied-from-note.tsx', 'components/builder/studio-duplicate-deck.css', 'lib/studio-duplicate-deck.ts',
   'lib/studio-deck-mutation-dedupe.ts',
+  // FRONTEND-2 Pass 3 refine an element from chat (NEXT_PUBLIC_CHAT_ELEMENT_REFINE, #470): its flag-gated hook lines and two new libs.
+  'hooks/use-deckster-websocket-v2.ts', 'hooks/use-textlabs-generation.ts', 'lib/chat-element-refine-wire.ts', 'lib/chat-element-refine.ts', 'types/mdc.ts',
+  // FRONTEND-2 Pass 3 change the theme / export from chat (NEXT_PUBLIC_CHAT_THEME_CHANGE, NEXT_PUBLIC_CHAT_EXPORT, #472): its flag-gated hook lines and two new libs.
+  'lib/chat-theme-export-wire.ts', 'lib/chat-theme-export.ts',
+  // the model catalog on the Intelligence page (NEXT_PUBLIC_STUDIO_MODEL_CATALOG): a new layout, a new route, the Models section and its helper; no library file
+  'app/(app)/studio/intelligence/layout.tsx', 'app/api/models/catalogue/route.ts', 'components/studio-personal/intelligence-models.css', 'components/studio-personal/intelligence-models.tsx', 'lib/studio-model-catalog.ts',
+  // BY10 narration through the model router (NARRATION_VIA_ROUTER): the library files and the four routes that hand the call its identity.
+  'lib/narration/model-router.ts', 'lib/narration/draft.ts', 'lib/narration/tts.ts', 'lib/narration/spoken.ts',
+  'app/api/narration/render/route.ts', 'app/api/narration/script/route.ts', 'app/api/narration/speak/route.ts', 'app/api/narration/voice/sample/[voiceId]/route.ts',
+  // FRONTEND-1 template rename (the template hook and its proxy gain the rename; test-studio-template-library-manage.mjs holds them to the base without it)
+  'app/api/templates/[id]/route.ts', 'hooks/use-templates.ts',
 ]
 // The FRONTEND-1 Pass 2 changes that are stacked on the same base too (the /admin pages and their hardening, the Docs / Help / Legal / Agents pages and their content passes, the account menu's rhythm). None is a
 // library file; the diff-scope check allows exactly these as well, and nothing else.

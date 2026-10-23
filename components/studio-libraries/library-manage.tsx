@@ -11,18 +11,20 @@ import './library-manage.css'
 export type ManagedRowChild = ReactNode
 
 // FRONTEND-2 Pass 3 track 4 (NEXT_PUBLIC_STUDIO_THEME_LIBRARY_MANAGE / NEXT_PUBLIC_STUDIO_TEMPLATE_LIBRARY_MANAGE, default off). One library row with a ⋮ menu (the Decks list's menu: the same
-// DropdownMenu, "Manage <name>" label, red Delete) and, for a theme, an inline Rename. Delete asks first in Studio's own AlertDialog (never window.confirm). The workspace passes in the row's
+// DropdownMenu, "Manage <name>" label, red Delete) and an inline Rename (a theme; a template once Director has the rename route). Delete asks first in Studio's own AlertDialog (never window.confirm). The workspace passes in the row's
 // normal button as `children` and does the state work (lib/studio-library-manage.ts); this component only draws the menu, the edit field and the dialog, and reports a failure as a toast.
-export function ManagedLibraryRow({ kind, name, isStandard = false, disabled = false, deleteBlockedReason, otherNames = [], onRename, onDelete, children }: {
+export function ManagedLibraryRow({ kind, name, isStandard = false, disabled = false, deleteBlockedReason, renameBlockedReason, otherNames = [], onRename, onDelete, children }: {
   kind: LibraryKind
   name: string
   isStandard?: boolean
   disabled?: boolean
   /** When set, Delete is shown disabled with this one line under it (the Decks list's pattern for an action that is not connected), and no delete can start. */
   deleteBlockedReason?: string
+  /** When set, Rename is shown disabled with this one line under it and no rename can start (a template whose rename Director has switched off). */
+  renameBlockedReason?: string
   /** Names of the library's other items, for the duplicate check while typing (only a rename uses it). */
   otherNames?: readonly string[]
-  /** Absent for a template: Director has no template rename route, so the menu then holds Delete only. */
+  /** Absent when the item cannot be renamed here: the menu then holds Delete only. A refusal marked `field` (a name Director refused) reopens the field with its message instead of a toast. */
   onRename?: (name: string) => Promise<ManageResult>
   onDelete: () => Promise<ManageResult>
   children: ReactNode
@@ -40,6 +42,7 @@ export function ManagedLibraryRow({ kind, name, isStandard = false, disabled = f
   const alive = useRef(true)
   const problemId = useId()
   const noteId = useId()
+  const renameNoteId = useId()
   useEffect(() => { alive.current = true; return () => { alive.current = false } }, [])
   useEffect(() => {
     if (editing) { field.current?.focus(); field.current?.select() }
@@ -58,6 +61,7 @@ export function ManagedLibraryRow({ kind, name, isStandard = false, disabled = f
     // Optimistic: the field closes at once and the row already shows the new name; a refused save puts the old one back and says so.
     setEditing(false); setProblem('')
     void onRename(draft).then(result => {
+      if (!result.ok && result.field && !result.stale && result.message && alive.current) { setProblem(result.message); setEditing(true); return } // a name Director refused: the field comes back with what was typed
       if (!result.ok && !result.stale && result.message) toast({ variant: 'destructive', title: 'Rename not saved', description: result.message })
     }, () => toast({ variant: 'destructive', title: 'Rename not saved', description: UNEXPECTED_TEXT }))
   }
@@ -95,7 +99,8 @@ export function ManagedLibraryRow({ kind, name, isStandard = false, disabled = f
         <button ref={trigger} type="button" className="sl-row-menu" aria-label={`Manage ${name}`} disabled={disabled} data-studio-library-menu={kind}><MoreVertical size={16} aria-hidden="true" /></button>
       </DropdownMenuTrigger>
       <DropdownMenuContent align="end" data-studio-library-menu-content={kind} onCloseAutoFocus={event => { if (field.current) event.preventDefault() }}>
-        {onRename && <DropdownMenuItem data-studio-library-rename="true" onSelect={startRename}>Rename</DropdownMenuItem>}
+        {onRename && <DropdownMenuItem data-studio-library-rename="true" disabled={Boolean(renameBlockedReason)} aria-describedby={renameBlockedReason ? renameNoteId : undefined} onSelect={() => { if (renameBlockedReason) return; startRename() }}>Rename</DropdownMenuItem>}
+        {onRename && renameBlockedReason && <p id={renameNoteId} className="max-w-56 px-2 py-2 text-xs text-muted-foreground" data-studio-library-rename-note="true">{renameBlockedReason}</p>}
         <DropdownMenuItem data-studio-library-delete="true" className="text-red-600" disabled={Boolean(deleteBlockedReason)} aria-describedby={deleteBlockedReason ? noteId : undefined} onSelect={() => { if (deleteBlockedReason) return; setDeleteError(''); setConfirming(true) }}>Delete…</DropdownMenuItem>
         {deleteBlockedReason && <p id={noteId} className="max-w-56 px-2 py-2 text-xs text-muted-foreground" data-studio-library-delete-note="true">{deleteBlockedReason}</p>}
       </DropdownMenuContent>

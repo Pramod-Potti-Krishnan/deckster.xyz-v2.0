@@ -4,7 +4,9 @@
 // What Director allows (backend/director main.py on origin/uat):
 //   theme    PATCH  /api/users/{uid}/themes/{id}     body { name } (name/description/theme/is_standard are all optional; an empty name is NOT refused there, so the guard is here)
 //            DELETE /api/users/{uid}/themes/{id}     200 { status: "deleted", id } (also when the row is already gone)
-//   template DELETE /api/users/{uid}/templates/{id}  200 { status: "deleted", id }; there is NO rename route for a template (only PATCH .../blueprint), so templates are delete-only
+//   template DELETE /api/users/{uid}/templates/{id}  200 { status: "deleted", id }
+//            PATCH  /api/users/{uid}/templates/{id}  body { name } (1-150 characters, trimmed): 200 the list-row summary; 404 { detail: "template not found" }; 409 a name the person already has; 422 a refused name;
+//                   405 Allow: GET while Director's DIRECTOR_TEMPLATE_RENAME_ENABLED is off (its default). The old PATCH .../blueprint replaces the blueprint and is not a rename.
 // Both tables have UNIQUE (user_id, name) (case-sensitive in the database; the check below is case-insensitive, like the create form's). A rename onto a taken name comes back
 // as a generic 500 from Director's PATCH (only the POST maps a duplicate to 409), so a failed rename says "another one may use that name" instead of naming a cause it cannot know.
 //
@@ -86,9 +88,30 @@ export const COMPOSER_TEMPLATE_DELETE_REASON = "Composer templates can't be dele
 export const UNEXPECTED_TEXT = 'Something went wrong and nothing was changed. Refresh the library to check, then try again.'
 export const GONE_TEXT = 'This item is no longer in your library. Refresh the library to see its current state.'
 
+// ---- template rename: Director's answers in plain words ---------------------------------------------------------------------------------------------------------------------------
+// hooks/use-templates.ts reads Director's answer as one of these reasons (templateRenameFailure); this turns a reason into the sentence the person sees. A Composer (stage-carrier) template renames like any other:
+// only its name changes (COMPOSER-2), unlike delete.
+export type TemplateRenameReason = 'gone' | 'taken' | 'invalid' | 'unavailable' | 'sign_in' | 'failed'
+export const TEMPLATE_RENAME_UNAVAILABLE_REASON = "Renaming templates isn't available yet."
+
+export function templateRenameRefusal(failure: { reason: TemplateRenameReason; detail?: string }, previousName: string): RenameRefusal {
+  switch (failure.reason) {
+    case 'gone': return { refused: true, message: `“${previousName}” is no longer available, so it was not renamed. Refresh the library to see your current templates.` }
+    case 'taken': return { refused: true, field: true, message: 'A template with that name already exists. Choose a different name.' }
+    case 'invalid': return { refused: true, field: true, message: failure.detail || `Use 1 to ${LIBRARY_NAME_MAX} characters.` }
+    case 'unavailable': return { refused: true, message: `${TEMPLATE_RENAME_UNAVAILABLE_REASON} “${previousName}” keeps its name.` }
+    case 'sign_in': return { refused: true, message: `We couldn't confirm your sign-in for this change, so “${previousName}” was not renamed. Reload the page and try again.` }
+    default: return { refused: true, message: `“${previousName}” was not renamed and keeps its old name. Try again, or refresh the library to check.` }
+  }
+}
+
 // ---- the two operations -----------------------------------------------------------------------------------------------------------------------------------------------------------
 
-export type ManageResult = { ok: true; name: string } | { ok: false; message: string; stale?: true }
+// `field`: the message is about the name itself (a name Director refused or one the person already has), so the row puts it under the name field and keeps what was typed, instead of a toast.
+export type ManageResult = { ok: true; name: string } | { ok: false; message: string; stale?: true; field?: true }
+
+/** What a rename's `commit` may resolve to instead of a saved item: Director said no, and why (see templateRenameRefusal). */
+export interface RenameRefusal { refused: true; message: string; field?: true }
 
 export interface ManageDeps<T extends LibraryItem> {
   /** The list as the page holds it right now (null before it has loaded). */
@@ -105,7 +128,7 @@ export interface ManageDeps<T extends LibraryItem> {
  */
 export async function runLibraryRename<T extends LibraryItem>(
   kind: LibraryKind,
-  deps: ManageDeps<T> & { commit: (id: string, name: string) => Promise<{ id?: string; name?: string } | null> },
+  deps: ManageDeps<T> & { commit: (id: string, name: string) => Promise<{ id?: string; name?: string } | RenameRefusal | null> },
   id: string,
   rawName: string,
 ): Promise<ManageResult> {
@@ -118,9 +141,14 @@ export async function runLibraryRename<T extends LibraryItem>(
   if (problem) return { ok: false, message: problem }
   const previous = item.name
   deps.setItems(list => renamedItems(list, id, name))
-  let saved: { id?: string; name?: string } | null = null
+  let saved: { id?: string; name?: string } | RenameRefusal | null = null
   try { saved = await deps.commit(id, name) } catch { saved = null }
   if (!deps.isCurrent()) return { ok: false, message: STALE_TEXT, stale: true }
+  if (saved && 'refused' in saved) {
+    // Director refused and said why (gone, a taken name, a refused name, the route off): the old name comes back, and the reason is the message.
+    deps.setItems(list => list ? list.map(candidate => candidate.id === id && candidate.name === name ? { ...candidate, name: previous } : candidate) : list)
+    return { ok: false, message: saved.message, ...(saved.field ? { field: true as const } : {}) }
+  }
   if (!saved || saved.id !== id) {
     // Only an item that still wears the optimistic name goes back: a later change of its name (a refresh, another action) is not undone.
     deps.setItems(list => list ? list.map(candidate => candidate.id === id && candidate.name === name ? { ...candidate, name: previous } : candidate) : list)

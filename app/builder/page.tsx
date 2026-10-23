@@ -93,7 +93,12 @@ import type { ElementGenerationSubmitIntent } from '@/lib/element-generation-ret
 import { useGenerationPanel } from '@/hooks/use-generation-panel'
 import { useElementRefinement } from '@/hooks/use-element-refinement'
 import { shouldOpenAsBlankPlaceholder } from '@/lib/element-blank-policy'
+// NEXT_PUBLIC_CHAT_ELEMENT_REFINE (default off): refine the selected element from chat (lib/chat-element-refine.ts).
+import { CHAT_ELEMENT_REFINE_ENABLED, chatElementReferenceFor, runElementRefineDirective, type ChatElementSelection, type ElementRefineDirectiveMessage, type ElementRefineDirectiveOwner } from '@/lib/chat-element-refine'
 import { isTextLabsMappable } from '@/lib/element-type-mapping'
+// NEXT_PUBLIC_CHAT_THEME_CHANGE / NEXT_PUBLIC_CHAT_EXPORT (each default off): change the theme / export the deck from chat (lib/chat-theme-export.ts).
+import { runExportDirective, runThemeDirective, type ThemeExportDirectiveMessage, type ThemeExportDirectiveOwner, type ThemeExportResultData } from '@/lib/chat-theme-export'
+import { downloadPDF, downloadPPTX } from '@/lib/api/download-service'
 import { useBlankElements } from '@/hooks/use-blank-elements'
 import { useTextLabsSession } from '@/hooks/use-textlabs-session'
 import type {
@@ -667,7 +672,12 @@ function AuthenticatedBuilderContent({ authScopeUserId }: { authScopeUserId: str
   // MDC P8: late-bound element-directive runner (defined after the Text Labs
   // hook below; the WS options are declared earlier).
   const elementDirectiveRunnerRef = useRef<((payload: import('@/types/mdc').ElementDirectivePayload) => void) | null>(null)
+  // NEXT_PUBLIC_CHAT_ELEMENT_REFINE: the late-bound refine runner (beside the add runner below) and the selection a send names.
+  const elementRefineDirectiveRunnerRef = useRef<((message: ElementRefineDirectiveMessage, owner: ElementRefineDirectiveOwner) => void) | null>(null)
+  const chatElementSelectionRef = useRef<ChatElementSelection | null>(null)
   const templateSelectionLockedRef = useRef(false)
+  // NEXT_PUBLIC_CHAT_THEME_CHANGE / NEXT_PUBLIC_CHAT_EXPORT: the late-bound theme / export directive runner (defined beside the K5 add runner below).
+  const themeExportDirectiveRunnerRef = useRef<((message: ThemeExportDirectiveMessage, owner: ThemeExportDirectiveOwner) => void) | null>(null)
   const [templateModeOn, setTemplateModeOn] = useState(false)
   const studioFormatTemplateModeRef = useRef(templateModeOn)
   const studioFormatTemplateModeObservedRef = useRef(templateModeOn)
@@ -2566,6 +2576,13 @@ function AuthenticatedBuilderContent({ authScopeUserId }: { authScopeUserId: str
     onElementDirective: (payload) => {
       elementDirectiveRunnerRef.current?.(payload)
     },
+    // NEXT_PUBLIC_CHAT_ELEMENT_REFINE: the refine directive's runner and the element reference of a send. Off: not passed.
+    ...(CHAT_ELEMENT_REFINE_ENABLED ? {
+      onElementRefineDirective: (message: ElementRefineDirectiveMessage, owner: ElementRefineDirectiveOwner) => {
+        elementRefineDirectiveRunnerRef.current?.(message, owner)
+      },
+      getChatElementReference: () => chatElementReferenceFor(chatElementSelectionRef.current),
+    } : {}),
     onSessionDirective: (payload) => {
       if (payload.directive !== 'new_session') return
       const prefill = (payload.prefill_prompt || '').trim()
@@ -2582,6 +2599,12 @@ function AuthenticatedBuilderContent({ authScopeUserId }: { authScopeUserId: str
         setInputMessage(prefill)
       }
     },
+    // NEXT_PUBLIC_CHAT_THEME_CHANGE / NEXT_PUBLIC_CHAT_EXPORT: the runner of Director's theme_directive / export_directive. Both off: not passed.
+    ...(process.env.NEXT_PUBLIC_CHAT_THEME_CHANGE === 'true' || process.env.NEXT_PUBLIC_CHAT_EXPORT === 'true' ? {
+      onThemeExportDirective: (message: ThemeExportDirectiveMessage, owner: ThemeExportDirectiveOwner) => {
+        themeExportDirectiveRunnerRef.current?.(message, owner)
+      },
+    } : {}),
     // Build Narration: typed-frame ref-forwarders (WS options precede the
     // useBuildNarration hook, so the handlers land via a ref).
     onBuildPhase: (payload, ownerSessionId) => buildNarrationHandlersRef.current.onBuildPhase?.(payload, ownerSessionId),
@@ -5020,7 +5043,7 @@ function AuthenticatedBuilderContent({ authScopeUserId }: { authScopeUserId: str
   const handleApprovedTextLabsGenerate = useCallback(async (
     formData: TextLabsFormData,
     submitIntent: ElementGenerationSubmitIntent,
-    invocation?: { kind: 'chat-add'; slideIndex: number },
+    invocation?: { kind: 'chat-add'; slideIndex: number } | import('@/lib/chat-element-refine').ChatRefineInvocation, // chat-refine: NEXT_PUBLIC_CHAT_ELEMENT_REFINE
   ): Promise<TextLabsGenerationResult> => {
     if (!layoutServiceApis?.sendElementCommand) {
       generationPanel.setError('The presentation viewer is unavailable. Reload the presentation and try again.')
@@ -5154,6 +5177,108 @@ function AuthenticatedBuilderContent({ authScopeUserId }: { authScopeUserId: str
         report('failed', error instanceof Error ? error.message : 'generation failed')
       }
     })()
+  }
+
+  // NEXT_PUBLIC_CHAT_ELEMENT_REFINE: the selection a chat send names (one element reference), with the slide it was selected on. The
+  // viewer only lets you select on the slide it shows, so that slide is the element's. Cleared with the selection. Off: nothing is kept.
+  useEffect(() => {
+    if (!CHAT_ELEMENT_REFINE_ENABLED) return
+    if (selectedTextBoxId) {
+      const slideIndex = currentSlideIndexRef.current
+      const slideId = (slideStructure?.slides?.[slideIndex] as { slide_id?: unknown } | undefined)?.slide_id
+      chatElementSelectionRef.current = { elementId: selectedTextBoxId, elementType: 'TEXT_BOX', slideIndex, slideId: typeof slideId === 'string' ? slideId : null }
+    } else if (chatElementSelectionRef.current?.elementType === 'TEXT_BOX') chatElementSelectionRef.current = null
+  }, [selectedTextBoxId]) // eslint-disable-line react-hooks/exhaustive-deps -- recorded when the selection changes, not when the deck does
+  useEffect(() => {
+    if (!CHAT_ELEMENT_REFINE_ENABLED) return
+    if (selectedElementId) {
+      const slideIndex = currentSlideIndexRef.current
+      const slideId = (slideStructure?.slides?.[slideIndex] as { slide_id?: unknown } | undefined)?.slide_id
+      chatElementSelectionRef.current = { elementId: selectedElementId, elementType: selectedElementType, slideIndex, slideId: typeof slideId === 'string' ? slideId : null }
+    } else if (chatElementSelectionRef.current && chatElementSelectionRef.current.elementType !== 'TEXT_BOX') chatElementSelectionRef.current = null
+  }, [selectedElementId, selectedElementType]) // eslint-disable-line react-hooks/exhaustive-deps -- as above
+
+  // NEXT_PUBLIC_CHAT_ELEMENT_REFINE: Director's element_refine_directive, beside the add runner above and on the same owner record. It reads
+  // the element's refine payload from the viewer (requestElementRefine, layout-builder !245), runs the Element panel's own refine
+  // (handleApprovedTextLabsGenerate with kind 'chat-refine') and answers element_directive_result on the socket that delivered it, with
+  // a known status every time. Studio adds no chat line of its own: Director closes the turn. Off: no runner.
+  const chatElementRefineInFlightRef = useRef(false)
+  elementRefineDirectiveRunnerRef.current = !CHAT_ELEMENT_REFINE_ENABLED ? null : (message, owner) => {
+    const another = chatElementRefineInFlightRef.current
+    if (!another) chatElementRefineInFlightRef.current = true
+    void runElementRefineDirective(message, owner, {
+      displayed: () => elementDirectiveGenerationOwnerRef.current,
+      isBusy: () => another || generationPanel.hasActiveGenerations || generationPanel.getSnapshot().isOpen,
+      slideCount: () => slideStructure?.slides?.length ?? 0,
+      currentSlideIndex: () => currentSlideIndexRef.current,
+      goToSlide: layoutServiceApis?.goToSlide ?? null,
+      sendElementCommand: layoutServiceApis?.sendElementCommand ?? null,
+      componentTypeOf: payload => normalizeTextLabsElementType(payload.componentType ?? payload.elementType),
+      isBlankPlaceholder: payload => shouldOpenAsBlankPlaceholder(payload as unknown as RefineElementRequest,
+        blankElements.getElement(String(payload.elementId))?.componentType),
+      buildRefineContext: (payload, componentType) => buildRefineContext(payload as unknown as RefineElementRequest, componentType),
+      generate: (formData, invocation) => handleApprovedTextLabsGenerate(formData, 'generate', invocation),
+      settle: () => new Promise(resolve => setTimeout(resolve, 400)),
+    }).then(result => {
+      if (owner.isCurrent()) sendElementDirectiveResult(result)
+    }).finally(() => {
+      if (!another) chatElementRefineInFlightRef.current = false
+    })
+  }
+
+  // NEXT_PUBLIC_CHAT_THEME_CHANGE / NEXT_PUBLIC_CHAT_EXPORT: Director's theme_directive / export_directive, beside the add runner above and on
+  // the same owner record (lib/chat-theme-export.ts). Theme: the picker's own apply, handleBuildThemeChange's body WITHOUT its build-selection
+  // lock (Director sends the directive only for a built deck, which the picker locks; PROGRAM-1's E4a ruling), then the deck-theme effect's
+  // set_theme with Studio's own request id, answered from that request's terminal theme_sync. Export: the Download menu's downloadPDF /
+  // downloadPPTX with its default quality and enable rule. One of each at a time (a second is dismissed); answered on the delivering socket
+  // only. Studio adds no chat line of its own: Director closes the turn. Both flags off: no runner.
+  const chatThemeExportInFlightRef = useRef({ theme: false, export: false })
+  const applyChatThemeSelection = (next: BuildThemeSelection): BuildThemeSelection => {
+    saveSessionOnFirstAction()
+    const carried = carryPaletteMode(next, buildThemeSelectionRef.current)
+    setActiveBuildThemeProfile(current => (
+      buildThemeProfileMatchesSelection(current, next) ? (current && carried !== next ? { ...current, theme_payload: carried } : current) : null
+    ))
+    themeSelectionChangedLocallyRef.current = true
+    setBuildThemeSelection(carried)
+    return carried
+  }
+  themeExportDirectiveRunnerRef.current = !(process.env.NEXT_PUBLIC_CHAT_THEME_CHANGE === 'true' || process.env.NEXT_PUBLIC_CHAT_EXPORT === 'true') ? null : (message, owner) => {
+    const kind = message.type === 'theme_directive' ? 'theme' : 'export'
+    const send = (result: ThemeExportResultData) => {
+      if (owner.isCurrent()) sendElementDirectiveResult(result as unknown as import('@/types/mdc').ElementDirectiveResult['data'])
+    }
+    if (chatThemeExportInFlightRef.current[kind]) {
+      send({ directive_id: String(message.payload?.directive_id), status: 'dismissed', error_code: null })
+      return
+    }
+    chatThemeExportInFlightRef.current[kind] = true
+    const run = message.type === 'theme_directive'
+      ? runThemeDirective(message, owner, {
+        displayed: () => elementDirectiveGenerationOwnerRef.current,
+        locks: () => ({ composerBlocked: themeSyncTargetRef.current.composerThemeBlocked, composerFrozen: themeSyncTargetRef.current.composerThemeFrozen,
+          templateMode: themeSyncTargetRef.current.templateModeOn, generating: isGeneratingFinal || isGeneratingStrawman || templateReuseAwaitingInput }),
+        apply: applyChatThemeSelection,
+        themeSync: () => themeSyncRef.current,
+        wait: () => new Promise<void>(resolve => setTimeout(resolve, 100)),
+        now: () => Date.now(),
+        timeoutMs: THEME_SYNC_TIMEOUT_MS + 5_000,
+      })
+      : runExportDirective(message, owner, {
+        displayed: () => elementDirectiveGenerationOwnerRef.current,
+        // What <PresentationArea> renders the Download menu with (presentationUrl, slideCount, currentStage, hasFinalDeck, studioPartialArtifact, buildNarration).
+        exportState: () => ({
+          presentationUrl: effectivePresentationUrl ?? null, slideCount: effectiveSlideCount ?? null, stage: currentStage,
+          hasFinalDeck: Boolean(finalPresentationId || finalPresentationUrl),
+          exportAfterBuild: process.env.NEXT_PUBLIC_STUDIO_V4_SHELL === 'true' && process.env.NEXT_PUBLIC_STUDIO_EXPORT_AFTER_BUILD === 'true',
+          partialArtifact: Boolean(studioShell && studioPartialMetadata),
+          narrationActive: Boolean(effectiveBuildNarrationEnabled && buildNarration?.active),
+          narrationPhase: (effectiveBuildNarrationEnabled ? buildNarration?.phase : null) ?? 'idle',
+        }),
+        downloadPDF,
+        downloadPPTX,
+      })
+    void run.then(send).finally(() => { chatThemeExportInFlightRef.current[kind] = false })
   }
 
   // File upload state

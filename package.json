@@ -160,6 +160,10 @@
     "test:studio-version-history-v2": "node scripts/test-studio-version-history-v2.mjs",
     "test:studio-p2-polish": "node scripts/test-studio-p2-polish.mjs",
     "test:studio-p2-profile-page": "node scripts/test-studio-p2-profile-page.mjs",
+    "test:studio-chat-element-refine": "node scripts/test-studio-chat-element-refine.mjs",
+    "test:studio-chat-theme-export": "node scripts/test-studio-chat-theme-export.mjs",
+    "test:studio-model-catalog": "node scripts/test-studio-model-catalog.mjs",
+    "test:studio-narration-router": "node scripts/test-studio-narration-router.mjs",
     "test:studio-deck-import": "node scripts/test-studio-deck-import.mjs"
   },
   "dependencies": {
