@@ -16,6 +16,14 @@
 //   4. the CSS: every rule scoped to the frame's marker, tokens equal to the shell's (light and dark), every colour a token, readable in both themes, every class named exists, focus rings, phone targets, reduced motion;
 //   5. the flag block in .env.example and the package script;
 //   6. mutation check: every mutant of the sources is killed by sections 1-5.
+// The content pass (PROGRAM-1 rulings of 22 Oct, same flag), each item proven on the real sources and on the base commit's files:
+//   1. /docs/api says "Not available yet" (a notice under the header, the content muted at AA) and no footer links to it;
+//   2. the legal and security wording is not touched (every legal page is the base commit's, byte for byte; the footers' trust lines are kept);
+//   3. the docs text names the current eight agents (the set is read from AGENT_TEAM, content/agents.ts and the Help page, which must agree): old -> new table, counts, the seven new sections are content/agents.ts's own words;
+//   4. the Landing footer gains Help, Docs, Security and Cookies (Privacy and Terms were there);
+//   5. no link to /integrations or /agents in either footer, on the agent pages or on /compare (the routes and pages stay; /agents/<agent> links stay);
+//   6. no per-agent rainbow: every per-agent colour on the agent pages is flattened by the CSS, none comes from anywhere else.
+//   Flag off (or any spelling but "true") = the same tree as the base commit's for every file changed here.
 import assert from 'node:assert/strict'
 import fs from 'node:fs'
 import path from 'node:path'
@@ -76,10 +84,19 @@ const LIB_DOCS = 'lib/docs.ts'
 const HELP_TEMPLATE = 'app/help/template.tsx'
 const HELP_CSS = 'components/help/studio-p2-help.css'
 const SHELL_CSS = 'components/layout/studio-shell.css'
+const API_NOTICE = 'components/studio-docs/studio-p2-docs-api-notice.tsx'
+const AGENT_RULES = 'content/studio-p2-docs-agents.ts'
+const FOOTER = 'components/layout/Footer.tsx'
+const FOOTER_V3 = 'components/marketing/v3/FooterV3.tsx'
+const PAGE_API = 'app/docs/api/page.tsx'
+const PAGE_AGENT = 'app/agents/[slug]/page.tsx'
+const PAGE_COMPARE = 'app/compare/page.tsx'
+const TEAM_SOURCE = 'lib/marketing/homepage-v2-content.ts'
+const V3_SOURCE = 'lib/marketing/v3-content.ts'
 const ENV = '.env.example'
 const PKG = 'package.json'
 const TITLE_FIXES = [['app/docs/api/layout.tsx', 'API Documentation'], ['app/legal/cookies/layout.tsx', 'Cookie Policy'], ['app/legal/security/layout.tsx', 'Security & Compliance']]
-const SOURCES = Object.fromEntries([LIB, UI, FRAME, CSS, HELP_TEMPLATE, HELP_CSS, PAGE_INDEX, PAGE_ARTICLE, LAYOUT_DOCS, LAYOUT_LEGAL, LAYOUT_AGENTS, META_PRIVACY, META_TERMS, META_ARTICLE, META_AGENT, ...TITLE_FIXES.map(([file]) => file), ENV, PKG].map(rel => [rel, read(rel)]))
+const SOURCES = Object.fromEntries([LIB, UI, FRAME, API_NOTICE, AGENT_RULES, FOOTER, FOOTER_V3, PAGE_API, PAGE_AGENT, PAGE_COMPARE, CSS, HELP_TEMPLATE, HELP_CSS, PAGE_INDEX, PAGE_ARTICLE, LAYOUT_DOCS, LAYOUT_LEGAL, LAYOUT_AGENTS, META_PRIVACY, META_TERMS, META_ARTICLE, META_AGENT, ...TITLE_FIXES.map(([file]) => file), ENV, PKG].map(rel => [rel, read(rel)]))
 const FLAG = 'NEXT_PUBLIC_STUDIO_P2_DOCS'
 const ON = { [FLAG]: 'true' }
 const OFF_SPELLINGS = [{}, { [FLAG]: 'false' }, { [FLAG]: 'TRUE' }, { [FLAG]: 'True' }, { [FLAG]: '1' }, { [FLAG]: ' true' }, { [FLAG]: 'true ' }, { [FLAG]: '' }, { [FLAG]: 'yes' }, { NEXT_PUBLIC_STUDIO_V4_SHELL: 'true' }]
@@ -136,6 +153,13 @@ ok(SECTIONS.length >= 3 && ALL_DOCS.length >= 7, 'the real docs: sections and ar
 for (const doc of ALL_DOCS) deepEq(Object.keys(doc).sort(), ['category', 'content', 'id', 'slug', 'title'], `real article ${doc.slug}: the DocItem shape the lib is typed to`)
 for (const section of SECTIONS) { deepEq(Object.keys(section).sort(), ['id', 'items', 'title'], `real section ${section.id}: the DocSection shape`); for (const doc of section.items) eq(doc.category, section.id, `real article ${doc.slug}: its category is its section`) }
 
+// the content pass reads these real files: the rules, the team, the Landing's links
+const RULES = load(SOURCES[AGENT_RULES], AGENT_RULES).STUDIO_DOCS_AGENT_RULES
+const TEAM = load(read(TEAM_SOURCE), TEAM_SOURCE, { deps: { '@/types/elements': { CHART_TYPES: [] } } }).AGENT_TEAM
+const V3 = load(read(V3_SOURCE), V3_SOURCE, { deps: { '@/lib/marketing/homepage-v2-content': { AGENT_TEAM: TEAM } } }).V3_CONTENT
+const V3_LINKS = plain(V3.footer.links)
+const HIDDEN = ['/agents', '/docs/api', '/integrations'] // the test's own list (the lib's function is checked against it)
+
 // ---------------------------------------------------------------- 1. the lib
 const WORDS = {
   eyebrow: 'Documentation',
@@ -163,6 +187,8 @@ const WORDS = {
   notFoundTitle: 'Article not found',
   notFoundBody: 'This documentation page does not exist, or it has moved. The list of articles has what is here today.',
   backToDocs: 'Browse documentation',
+  apiNoticeTitle: 'Not available yet',
+  apiNoticeBody: 'The Deckster API is not open yet. There is no API key to generate, and the endpoints below cannot be called today. This page stays for reference.',
 }
 const fixtureSections = () => [
   { id: 'a', title: 'Alpha Guides', items: [
@@ -277,6 +303,59 @@ function proveLib(source, label = 'lib') {
   const real = SECTIONS
   for (const [href, lands] of [['/docs', true], ['/docs/', true], ['/docs/api', true], ['/docs/api#x', true], ['/docs/getting-started/quick-start-guide', true], ['/docs/getting-started/quick-start-guide#step-1', true], ['/docs/getting-started/quick-start-guide?x=1', true], ['/docs/agent-reference/director-agent', true], ['/docs/features', false], ['/docs/agent-reference', false], ['/docs/getting-started/nope', false], ['/docs/nope/quick-start-guide', false], ['/docs/getting-started/quick-start-guide/extra', false], ['/docs/api/extra', false], ['/builder', true], ['/help', true], ['/docsx', true], ['/docsx/a/b', true], [' /docs/features ', false], [' /docs ', true], ['/resources', true], ['https://example.com/docs/x', true], [undefined, true]]) eq(L.studioDocsLinkLands(href, real), lands, `${label}: ${JSON.stringify(href)} ${lands ? 'lands' : 'is a dead end'}`)
 
+  // the content pass: the rules run in order, once, in their own article; the sections handed in are never changed
+  const rulesFx = [
+    { doc: 'a/first-steps', from: 'Begin here.', to: 'Start here.' },
+    { doc: 'a/first-steps', from: 'Start here.', to: 'Start now.' },
+    { doc: 'a/charts', from: 'no such text', to: 'x' },
+    { doc: 'b-two/export', from: 'Save as PDF.', to: 'Save as $& PDF.' },
+    { doc: 'b-two/other', from: 'Export', to: 'Wrong article' },
+  ]
+  const untouched = fixtureSections()
+  const now = L.studioDocsCurrent(untouched, rulesFx)
+  deepEq(untouched, fixtureSections(), `${label}: current: the sections handed in are never changed`)
+  eq(now[0].items[0].content, '# First Steps\n\nStart now.', `${label}: current: the rules run in order, each on the text the one before left`)
+  eq(now[0].items[1].content, untouched[0].items[1].content, `${label}: current: a rule whose text is not found changes nothing`)
+  eq(now[1].items[0].content, '# Export\n\nSave as $& PDF. A Chart can be exported too.', `${label}: current: the new text is literal (a "$&" stays "$&")`)
+  deepEq(now.map(section => [section.id, section.title, section.items.map(item => [item.id, item.title, item.slug, item.category])]), untouched.map(section => [section.id, section.title, section.items.map(item => [item.id, item.title, item.slug, item.category])]), `${label}: current: only the text changes (ids, titles, slugs, categories, sections)`)
+  ok(now !== untouched && now[0] !== untouched[0] && now[0].items !== untouched[0].items && now[0].items[1] !== untouched[0].items[1], `${label}: current: copies all the way down (an article no rule names too)`)
+  deepEq(L.studioDocsCurrent(untouched, []), fixtureSections(), `${label}: current: no rules, the same text`)
+  deepEq(L.studioDocsCurrent([], rulesFx), [], `${label}: current: no sections`)
+  const twice = [{ id: 't', title: 'T', items: [{ id: 't1', title: 'T1', slug: 's', category: 't', content: 'x x x' }] }]
+  eq(L.studioDocsCurrent(twice, [{ doc: 't/s', from: 'x', to: 'y' }])[0].items[0].content, 'y x x', `${label}: current: a rule swaps the first occurrence only`)
+  const clash = [{ id: 'a', title: 'A', items: [{ id: 'c1', title: 'Charts', slug: 'charts', category: 'a', content: 'x' }] }, { id: 'b', title: 'B', items: [{ id: 'c2', title: 'Charts', slug: 'charts', category: 'b', content: 'x' }] }]
+  deepEq(L.studioDocsCurrent(clash, [{ doc: 'a/charts', from: 'x', to: 'y' }]).map(section => section.items[0].content), ['y', 'x'], `${label}: current: a rule names its article by category and slug`)
+  // one article, by category and slug; the others in its category
+  eq(L.studioDocsItem(fixture, 'a', 'charts').id, 'a2', `${label}: item: found by category and slug`)
+  eq(L.studioDocsItem(fixture, 'b-two', 'export').id, 'b1', `${label}: item: ... in the other category too`)
+  eq(L.studioDocsItem(fixture, 'b-two', 'charts'), undefined, `${label}: item: the category counts, not the slug alone`)
+  eq(L.studioDocsItem(fixture, 'a', 'nope'), undefined, `${label}: item: no such slug`)
+  eq(L.studioDocsItem([], 'a', 'charts'), undefined, `${label}: item: no sections`)
+  const five = [{ id: 'f', title: 'F', items: ['1', '2', '3', '4', '5'].map(n => ({ id: `i${n}`, title: `T${n}`, slug: `s${n}`, category: 'f', content: `# T${n}` })) }]
+  deepEq(L.studioDocsRelated(five, five[0].items[0]).map(item => item.id), ['i2', 'i3', 'i4'], `${label}: related: the first three others, in order`)
+  deepEq(L.studioDocsRelated(five, five[0].items[3]).map(item => item.id), ['i1', 'i2', 'i3'], `${label}: related: never the open article`)
+  deepEq(L.studioDocsRelated(five, five[0].items[0], 2).map(item => item.id), ['i2', 'i3'], `${label}: related: the limit is a parameter`)
+  deepEq(L.studioDocsRelated(fixture, fixture[1].items[0]), [], `${label}: related: a lone article has none`)
+  deepEq(L.studioDocsRelated(fixture, { ...fixture[0].items[0], category: 'zz' }), [], `${label}: related: an unknown category has none`)
+  // the links the footers drop
+  for (const [href, hidden] of [['/docs/api', true], ['/docs/api/', true], [' /docs/api ', true], ['/docs/api#x', true], ['/docs/api?x=1', true], ['/integrations', true], ['/integrations/', true], ['/integrations#inout', true], ['/agents', true], ['/agents/', true], ['/agents?x=1', true], ['/agents/director', false], ['/agents/nope', false], ['/docs', false], ['/docs/getting-started/quick-start-guide', false], ['/docs/apix', false], ['/integrationsx', false], ['/agentsx', false], ['/experts', false], ['/pricing', false], ['https://example.com/agents', false], ['', false], [undefined, false], [5, false]]) {
+    eq(L.studioDocsHiddenHref(href), hidden, `${label}: ${JSON.stringify(href)} is ${hidden ? 'dropped' : 'kept'} by the footers`)
+  }
+  for (const href of HIDDEN) ok(L.studioDocsHiddenHref(href), `${label}: the test's own list: ${href} is dropped`)
+  // the Landing footer
+  const help = { label: 'Help', href: '/help' }, docsLink = { label: 'Docs', href: '/docs' }, security = { label: 'Security', href: '/legal/security' }, cookies = { label: 'Cookies', href: '/legal/cookies' }
+  eq(V3_LINKS[6].href, '/legal/privacy', `${label}: footer: the Landing's seventh link is Privacy`)
+  eq(V3_LINKS[7].href, '/legal/terms', `${label}: footer: ... the eighth Terms`)
+  deepEq(L.studioDocsFooterLinks(V3_LINKS), [...V3_LINKS.slice(0, 6), help, docsLink, ...V3_LINKS.slice(6), security, cookies], `${label}: footer: Help and Docs before the legal links, Security and Cookies after them; Privacy once`)
+  deepEq(L.studioDocsFooterLinks(V3_LINKS).map(link => link.label), ['Bring', 'Present', 'Experts', 'Pricing', 'Learn', 'About', 'Help', 'Docs', 'Privacy', 'Terms', 'Security', 'Cookies'], `${label}: footer: the Landing's twelve links`)
+  deepEq(L.studioDocsFooterLinks([]), [help, docsLink, security, cookies], `${label}: footer: no links, the four`)
+  deepEq(L.studioDocsFooterLinks([{ label: 'Home', href: '/' }]), [{ label: 'Home', href: '/' }, help, docsLink, security, cookies], `${label}: footer: no legal links, the four go last`)
+  deepEq(L.studioDocsFooterLinks([{ label: 'Terms', href: '/legal/terms' }]), [help, docsLink, { label: 'Terms', href: '/legal/terms' }, security, cookies], `${label}: footer: Terms alone is where the legal links start`)
+  deepEq(L.studioDocsFooterLinks([{ label: 'Help', href: '/help' }, { label: 'Privacy', href: '/legal/privacy' }, { label: 'Security', href: '/legal/security' }]), [{ label: 'Help', href: '/help' }, docsLink, { label: 'Privacy', href: '/legal/privacy' }, { label: 'Security', href: '/legal/security' }, cookies], `${label}: footer: a link already there is never added twice`)
+  { const all = L.studioDocsFooterLinks(L.studioDocsFooterLinks(V3_LINKS)); deepEq(all, L.studioDocsFooterLinks(V3_LINKS), `${label}: footer: twice is once`) }
+  { const given = [{ label: 'Home', href: '/', extra: 1 }]; const out = L.studioDocsFooterLinks(given); ok(out !== given && given.length === 1 && out[0].extra === 1, `${label}: footer: a copy; the links keep their own fields`) }
+  eq(new Set(L.studioDocsFooterLinks(V3_LINKS).map(link => link.href)).size, 12, `${label}: footer: no address twice`)
+
   // the real articles
   for (const doc of ALL_DOCS) {
     const excerpt = L.studioDocsExcerpt(doc.content)
@@ -288,6 +367,15 @@ function proveLib(source, label = 'lib') {
     eq(split.title, doc.content.split('\n')[0].replace(/^#\s+/, '').trim(), `${label}: real ${doc.slug}: the title is the first heading`)
     nomatch(split.body.split('\n').find(line => line.trim() !== '') ?? '', /^#\s/, `${label}: real ${doc.slug}: the body does not open with a level-1 heading`)
     ok(split.body.length > 100, `${label}: real ${doc.slug}: the body is the rest`)
+  }
+  { // the same articles, order and neighbours as lib/docs.ts, with the rules' text
+    const current = L.studioDocsCurrent(SECTIONS, RULES)
+    deepEq(current.map(section => [section.id, section.title, section.items.map(item => [item.id, item.slug, item.title, item.category])]), SECTIONS.map(section => [section.id, section.title, section.items.map(item => [item.id, item.slug, item.title, item.category])]), `${label}: real current: every section, article, slug and title as before`)
+    for (const doc of ALL_DOCS) {
+      eq(L.studioDocsItem(current, doc.category, doc.slug).id, DOCS_API.getDocBySlug(doc.category, doc.slug).id, `${label}: real current: ${doc.slug} is found where lib/docs.ts finds it`)
+      deepEq(L.studioDocsRelated(current, doc).map(item => item.id), DOCS_API.getRelatedDocs(doc).map(item => item.id), `${label}: real current: ${doc.slug} has the neighbours lib/docs.ts gives it`)
+    }
+    eq(L.studioDocsItem(current, 'agent-reference', 'scripter-agent'), undefined, `${label}: real current: the article nobody wrote is still not found`)
   }
   const realNav = L.studioDocsNav(SECTIONS, 'getting-started', 'quick-start-guide')
   eq(realNav.flatMap(section => section.items).length, ALL_DOCS.length, `${label}: the real side list has one entry per article`)
@@ -319,6 +407,7 @@ function mount(uiSource, libSource = SOURCES[LIB], { params = {}, docs = DOCS_AP
     'remark-gfm': { __esModule: true, default: 'remarkGfm' },
     '@/lib/docs': docs,
     '@/lib/studio-p2-docs': lib,
+    '@/content/studio-p2-docs-agents': { STUDIO_DOCS_AGENT_RULES: RULES },
   }
   const mod = load(uiSource, UI, { deps })
   const render = name => { react.reset(); return expand(mod[name]()) }
@@ -330,6 +419,9 @@ const links = tree => byType(tree, 'Link')
 function proveComponents(uiSource = SOURCES[UI], label = 'ui', libSource = SOURCES[LIB], frameSource = SOURCES[FRAME]) {
   const W = WORDS
   const total = ALL_DOCS.length
+  const CURRENT = REAL_LIB.studioDocsCurrent(SECTIONS, RULES) // what the pages show: the docs with the agent-name rules applied
+  const ALL_CURRENT = CURRENT.flatMap(section => section.items)
+  const cur = doc => ALL_CURRENT.find(item => item.id === doc.id)
   const { render, mod } = mount(uiSource, libSource)
   deepEq(Object.keys(mod).sort(), ['StudioDocArticle', 'StudioDocsIndex'], `${label}: the two components are exported`)
   nomatch(uiSource, /\bShare\b/, `${label}: no "Share" control (it did nothing)`)
@@ -372,7 +464,7 @@ function proveComponents(uiSource = SOURCES[UI], label = 'ui', libSource = SOURC
     const [title, excerpt] = card.props.children
     eq(text(title), doc.title, `${label}: index: ${doc.slug}: the card's title`)
     eq(attr(title, 'className'), 'sd-card__title', `${label}: index: ${doc.slug}: title class`)
-    eq(text(excerpt), REAL_LIB.studioDocsExcerpt(doc.content), `${label}: index: ${doc.slug}: the card's text is the article's first paragraph`)
+    eq(text(excerpt), REAL_LIB.studioDocsExcerpt(cur(doc).content), `${label}: index: ${doc.slug}: the card's text is the article's first paragraph`)
     eq(attr(excerpt, 'className'), 'sd-card__text', `${label}: index: ${doc.slug}: text class`)
     nomatch(text(excerpt), /[#`*_|]|\]\(/, `${label}: index: ${doc.slug}: no markdown shows on the card`)
     ok(byType(title, 'ArrowRight').length === 1 && attr(byType(title, 'ArrowRight')[0], 'aria-hidden') === 'true', `${label}: index: ${doc.slug}: the arrow is decoration`)
@@ -397,7 +489,7 @@ function proveComponents(uiSource = SOURCES[UI], label = 'ui', libSource = SOURC
   // ---- the search
   const type = value => { attr(byType(tree, 'input')[0], 'onChange')({ target: { value } }); tree = index.render('StudioDocsIndex') }
   type('chart')
-  const expected = REAL_LIB.studioDocsFilter(SECTIONS, 'chart')
+  const expected = REAL_LIB.studioDocsFilter(CURRENT, 'chart')
   eq(text(status()), `${expected.shown} of ${total} articles match “chart”`, `${label}: search: the count follows`)
   eq(links(byType(tree, 'section')).length, expected.shown, `${label}: search: only the matches`)
   eq(attr(byType(tree, 'input')[0], 'value'), 'chart', `${label}: search: the field keeps its text`)
@@ -421,6 +513,14 @@ function proveComponents(uiSource = SOURCES[UI], label = 'ui', libSource = SOURC
   eq(attr(byType(tree, 'input')[0], 'value'), '', `${label}: search: clearing empties the field`)
   eq(links(byType(tree, 'section')).length, total, `${label}: search: ... and brings every article back`)
   eq(text(status()), `${total} articles in ${SECTIONS.length} categories`, `${label}: search: ... and the plain count`)
+
+  type('scripter')
+  eq(text(status()), `0 of ${total} articles match “scripter”`, `${label}: search: the old agent names are not in the text any more`)
+  type('content generator')
+  { const hits = ALL_CURRENT.filter(item => `${item.title} ${item.content}`.toLowerCase().includes('content generator')).map(item => `/docs/${item.category}/${item.slug}`)
+    ok(hits.length === 3, `${label}: search: three articles name the Content Generator (${hits.length})`)
+    deepEq(links(byType(tree, 'section')).map(link => attr(link, 'href')), hits, `${label}: search: the current agent names are found`) }
+  attr(byType(tree, 'input')[0], 'onChange')({ target: { value: '' } }); tree = index.render('StudioDocsIndex')
 
   // ---- an article
   const first = ALL_DOCS[0]
@@ -461,7 +561,7 @@ function proveComponents(uiSource = SOURCES[UI], label = 'ui', libSource = SOURC
   ok(head, `${label}: article: a heading block`)
   eq(text(byType(head, 'span')[0]), SECTIONS.find(section => section.id === first.category).title, `${label}: article: the eyebrow is its category's title`)
   eq(byType(article, 'h1').length, 1, `${label}: article: one h1`)
-  const split = REAL_LIB.studioDocsSplit(first.content, first.title)
+  const split = REAL_LIB.studioDocsSplit(cur(first).content, first.title)
   eq(text(byType(article, 'h1')[0]), split.title, `${label}: article: the title is the article's own first heading`)
   const markdown = byType(article, 'ReactMarkdown')[0]
   eq(markdown.props.children, split.body, `${label}: article: the body without that heading (the title is shown once)`)
@@ -500,7 +600,7 @@ function proveComponents(uiSource = SOURCES[UI], label = 'ui', libSource = SOURC
   ok(relatedSection, `${label}: article: related articles`)
   eq(text(byType(relatedSection, 'h2')[0]), W.related, `${label}: article: related title`)
   const related = links(relatedSection)
-  const sameCategory = ALL_DOCS.filter(doc => doc.category === first.category && doc.id !== first.id).slice(0, 3)
+  const sameCategory = ALL_CURRENT.filter(doc => doc.category === first.category && doc.id !== first.id).slice(0, 3)
   deepEq(related.map(link => attr(link, 'href')), sameCategory.map(doc => `/docs/${doc.category}/${doc.slug}`), `${label}: article: the others in its category (never itself)`)
   related.forEach((link, i) => eq(text(link.props.children[1]), REAL_LIB.studioDocsExcerpt(sameCategory[i].content, 100), `${label}: article: a related card's text is its first paragraph, at most 100`))
   eq(attr(byType(relatedSection, 'ul')[0], 'className'), 'sd-cards sd-cards--three', `${label}: article: related cards: three across`)
@@ -514,7 +614,9 @@ function proveComponents(uiSource = SOURCES[UI], label = 'ui', libSource = SOURC
     const view = mount(uiSource, libSource, { params: { category: doc.category, slug: doc.slug } }).render('StudioDocArticle')
     eq(attr(view, 'data-studio-p2-docs-page'), 'article', `${label}: article ${doc.slug}: opens`)
     eq(byType(view, 'h1').length, 1, `${label}: article ${doc.slug}: one h1`)
-    eq(text(byType(view, 'h1')[0]), REAL_LIB.studioDocsSplit(doc.content, doc.title).title, `${label}: article ${doc.slug}: the heading is the article's own first heading`)
+    eq(text(byType(view, 'h1')[0]), REAL_LIB.studioDocsSplit(cur(doc).content, doc.title).title, `${label}: article ${doc.slug}: the heading is the article's own first heading`)
+    eq(byType(view, 'ReactMarkdown')[0].props.children, REAL_LIB.studioDocsSplit(cur(doc).content, doc.title).body, `${label}: article ${doc.slug}: its text is the current text (the agent names of the rules)`)
+    nomatch(byType(view, 'ReactMarkdown')[0].props.children, /Scripter|Graphic Artist|Data Visualizer/, `${label}: article ${doc.slug}: no agent of the old set is named`)
     eq(text(byType(byType(view, 'nav').find(n => attr(n, 'aria-label') === W.breadcrumb), 'li')[2]), doc.title, `${label}: article ${doc.slug}: the last crumb is the listed title`)
     eq(links(byType(view, 'nav').find(n => attr(n, 'className') === 'sd-side')).filter(l => attr(l, 'aria-current') === 'page').map(l => attr(l, 'href')).join(), `/docs/${doc.category}/${doc.slug}`, `${label}: article ${doc.slug}: marked in the list`)
   }
@@ -619,11 +721,13 @@ for (const [file, area, name] of LAYOUTS) proveLayout(file, area, name, SOURCES[
 const UNCHANGED = [
   'app/legal/privacy/page.tsx', 'app/legal/terms/page.tsx', 'app/legal/security/page.tsx', 'app/legal/cookies/page.tsx',
   'app/help/page.tsx', 'app/help/layout.tsx', 'components/help/studio-help.tsx', 'components/help/studio-help.css',
-  'app/docs/api/page.tsx', 'app/agents/[slug]/page.tsx', 'app/integrations/page.tsx', 'next.config.mjs',
-  'components/layout/Header.tsx', 'components/layout/Footer.tsx', 'components/marketing/PageHeader.tsx', 'components/marketing/Section.tsx',
+  'app/integrations/page.tsx', 'next.config.mjs',
+  'components/layout/Header.tsx', 'components/marketing/PageHeader.tsx', 'components/marketing/Section.tsx',
   'content/docs.ts', 'lib/docs.ts', 'types/docs.ts', 'content/agents.ts', 'lib/agents.ts',
 ]
 for (const file of UNCHANGED) eq(read(file), baseSource(file), `${file} is the base commit's, byte for byte`)
+// ruling 2 (no legal or security wording is changed): the four legal pages are in that list
+for (const file of ['app/legal/privacy/page.tsx', 'app/legal/terms/page.tsx', 'app/legal/security/page.tsx', 'app/legal/cookies/page.tsx']) ok(UNCHANGED.includes(file), `${file} is pinned to the base commit`)
 // the redirects that make /integrations and /agents unreachable are still there (so those two pages are not restyled)
 match(read('next.config.mjs'), /source: '\/integrations', destination: '\/bring#inout'/, '/integrations still redirects to /bring#inout')
 match(read('next.config.mjs'), /source: '\/agents', destination: '\/experts'/, '/agents still redirects to /experts (exact path: /agents/<agent> is served)')
@@ -680,6 +784,279 @@ await articleTab(SOURCES[META_ARTICLE])
 await agentTab(SOURCES[META_AGENT])
 ok(AGENTS_CONTENT.agents.length >= 8, 'the real agents are loaded')
 
+// ---------------------------------------------------------------- 3b. the content pass (PROGRAM-1 rulings, 22 Oct)
+// ruling 3: the docs name the current agents. The current set is read from three real places that must agree.
+const AGENT_NAMES = plain(TEAM).map(agent => agent.name)
+const OLD_NAMES = ['Scripter', 'Graphic Artist', 'Data Visualizer']
+const NUMBER_WORDS = ['zero', 'one', 'two', 'three', 'four', 'five', 'six', 'seven', 'eight', 'nine', 'ten']
+const EMOJI = { Researcher: '🔍', Analyst: '📈', 'Content Generator': '✍️', Visualizer: '📊', 'Theme Builder': '🎨', 'Slide Composer': '🎼', 'Element Generator': '🧱' }
+const QS_DOC = 'getting-started/quick-start-guide', UA_DOC = 'getting-started/understanding-agents', DA_DOC = 'agent-reference/director-agent'
+deepEq(AGENT_NAMES, ['Director', 'Researcher', 'Analyst', 'Content Generator', 'Visualizer', 'Theme Builder', 'Slide Composer', 'Element Generator'], 'the current team (AGENT_TEAM): these eight, in this order')
+deepEq(AGENTS_CONTENT.agents.map(agent => agent.name), AGENT_NAMES, 'content/agents.ts (the agent pages) names the same eight in the same order')
+{
+  const sentence = /Deckster runs as eight specialists:[^"]*/.exec(read('app/help/page.tsx'))?.[0]
+  ok(sentence, 'the Help page tells of the eight specialists')
+  for (const name of AGENT_NAMES) ok(sentence.includes(name), `the Help page's sentence names ${name}`)
+  eq(NUMBER_WORDS[AGENT_NAMES.length], 'eight', 'the Help page says eight, and the team is eight')
+  const experts = plain(V3.pages.experts.team.agents).map(agent => agent.name)
+  for (const name of AGENT_NAMES.slice(1)) ok(experts.includes(name), `the Experts page lists ${name}`)
+  notes.push(`the Experts page also lists "${experts.at(-1)}" (${V3.pages.experts.team.agents.at(-1).status}); the docs do not name it`)
+}
+for (const name of OLD_NAMES) ok(!AGENT_NAMES.includes(name), `${name} is not in the current team`)
+const COUNT_RE = /\b(?:four|4)\b[^.\n]{0,12}\bagents?\b/gi
+function proveRules(rulesSource, label = 'rules') {
+  nomatch(rulesSource, /^\s*import\s(?!type\s)/m, `${label}: data only (a type import at most)`)
+  match(rulesSource, /^import type \{ StudioDocRule \} from "@\/lib\/studio-p2-docs"$/m, `${label}: the one import is the rule's type`)
+  const rules = plain(load(rulesSource, AGENT_RULES).STUDIO_DOCS_AGENT_RULES)
+  eq(rules.length, 11, `${label}: eleven rules`)
+  const byKey = new Map(ALL_DOCS.map(doc => [`${doc.category}/${doc.slug}`, doc]))
+  rules.forEach((rule, i) => {
+    deepEq(Object.keys(rule).sort(), ['doc', 'from', 'to'], `${label}: rule ${i}: a doc, the text, its replacement`)
+    ok(byKey.has(rule.doc), `${label}: rule ${i}: ${rule.doc} is an article that exists`)
+    eq(byKey.get(rule.doc)?.content.split(rule.from).length - 1, 1, `${label}: rule ${i}: its text is found once in ${rule.doc}`)
+    ok(rule.to !== rule.from && !rule.to.includes(rule.from), `${label}: rule ${i}: the new text is new, and applying the rules twice is applying them once`)
+    nomatch(rule.to, /Scripter|Graphic Artist|Data Visualizer/, `${label}: rule ${i}: the new text names none of the old agents`)
+  })
+  deepEq([...new Set(rules.map(rule => rule.doc))].sort(), [DA_DOC, QS_DOC, UA_DOC], `${label}: the three articles that named the old agents`)
+  const current = REAL_LIB.studioDocsCurrent(SECTIONS, rules)
+  const now = Object.fromEntries(current.flatMap(section => section.items).map(item => [`${item.category}/${item.slug}`, item.content]))
+  deepEq(REAL_LIB.studioDocsCurrent(current, rules).flatMap(section => section.items).map(item => item.content), current.flatMap(section => section.items).map(item => item.content), `${label}: the rules applied to the current text change nothing`)
+  // nothing but the rules changed: put each rule's old text back, last rule first, and every article is the base commit's, byte for byte
+  for (const doc of ALL_DOCS) {
+    const key = `${doc.category}/${doc.slug}`
+    let back = now[key]
+    for (const rule of rules.filter(r => r.doc === key).reverse()) { eq(back.split(rule.to).length - 1, 1, `${label}: ${key}: the new text of a rule is found once`); back = back.replace(rule.to, () => rule.from) }
+    eq(back, doc.content, `${label}: ${key}: put the old text back and the article is the base commit's, byte for byte`)
+    if (!rules.some(rule => rule.doc === key)) eq(now[key], doc.content, `${label}: ${key}: no rule names it, so it reads as before`)
+    nomatch(now[key], /Scripter|Graphic Artist|Data Visualizer/, `${label}: ${key}: none of the old agents is named`)
+    nomatch(now[key], COUNT_RE, `${label}: ${key}: no count of four agents`)
+  }
+  const before = ALL_DOCS.map(doc => doc.content).join('\n')
+  const oldCounts = OLD_NAMES.map(name => before.split(name).length - 1)
+  ok(oldCounts.every(count => count >= 5), `${label}: the base text named each old agent at least five times (${oldCounts.join('/')})`)
+  eq((before.match(COUNT_RE) ?? []).length, 5, `${label}: the base text counted its agents five times ("four" / "4")`)
+  // the count follows the set
+  const word = NUMBER_WORDS[AGENT_NAMES.length], Word = word[0].toUpperCase() + word.slice(1)
+  const qs = now[QS_DOC], ua = now[UA_DOC], da = now[DA_DOC]
+  match(qs, new RegExp(`^Our ${word} AI agents will collaborate to create your presentation:$`, 'm'), `${label}: quick start: "Our ${word} AI agents"`)
+  match(ua, new RegExp(`^## The ${Word} AI Agents$`, 'm'), `${label}: understanding: "The ${Word} AI Agents"`)
+  match(ua, new RegExp(`^- \\*\\*Pro Tier\\*\\*: All ${AGENT_NAMES.length} agents with full collaboration$`, 'm'), `${label}: understanding: the Pro line counts ${AGENT_NAMES.length}`)
+  match(da, new RegExp(`^Agent collaboration: All ${word} agents needed$`, 'm'), `${label}: director: "All ${word} agents needed"`)
+  match(da, new RegExp(`^- Coordinates all ${AGENT_NAMES.length} agents$`, 'm'), `${label}: director: coordinates ${AGENT_NAMES.length}`)
+  // quick start: the list is the team, in order; the seven new lines are AGENT_TEAM's own roles; the Director keeps its line
+  const list = /Our eight AI agents will collaborate to create your presentation:\n\n((?:- \*\*.+\n)+)/.exec(qs)?.[1].trim().split('\n') ?? []
+  deepEq(list.map(line => /^- \*\*(.+?)\*\*: /.exec(line)?.[1]), AGENT_NAMES, `${label}: quick start: the list names the current team, in order`)
+  list.forEach((line, i) => eq(line, i === 0 ? '- **Director**: Plans the structure and flow' : `- **${TEAM[i].name}**: ${TEAM[i].role}`, `${label}: quick start: ${AGENT_NAMES[i]}'s line`))
+  // understanding: a section per agent, the Director's as before, the seven new ones in content/agents.ts's own words
+  const heads = [...ua.matchAll(/^### (\S+) (.+) Agent$/gm)].map(m => [m[1], m[2]])
+  deepEq(heads.map(head => head[1]), AGENT_NAMES, `${label}: understanding: a section per agent, in order`)
+  deepEq(heads.slice(1).map(head => head[0]), AGENT_NAMES.slice(1).map(name => EMOJI[name]), `${label}: understanding: each new section opens with its icon`)
+  let at = ua.indexOf('### 🎯 Director Agent')
+  ok(at >= 0, `${label}: understanding: the Director's section is first and as it was`)
+  AGENT_NAMES.slice(1).forEach((name, i) => {
+    const agent = AGENTS_CONTENT.agents.find(candidate => candidate.name === name)
+    const sentence = /^.*?\.(?=\s|$)/.exec(agent.description)[0]
+    const expected = `### ${EMOJI[name]} ${name} Agent\n**Role**: ${agent.title}\n\n${sentence} This agent:\n${agent.capabilities.slice(0, 4).map(capability => `- ${capability.title}`).join('\n')}\n\n`
+    const found = ua.indexOf(expected)
+    ok(found > at, `${label}: understanding: ${name}: the section is content/agents.ts's own words (role, first sentence, first four capabilities), after the one before`)
+    at = found
+    ok(i === AGENT_NAMES.length - 2 ? ua.startsWith('## How Agents Collaborate', found + expected.length) : ua.startsWith('### ', found + expected.length), `${label}: understanding: ${name}: followed by the next section`)
+  })
+  match(ua, /^3\. \*\*Content Generator\*\* and \*\*Slide Composer\*\* work together on each slide$/m, `${label}: understanding: Scripter and Graphic Artist -> Content Generator and Slide Composer`)
+  match(ua, /^4\. \*\*Visualizer\*\* is called when data needs visualization$/m, `${label}: understanding: Data Visualizer -> Visualizer`)
+  match(ua, /^Use the Visualizer to create charts showing our quarterly growth$/m, `${label}: understanding: the first prompt names the Visualizer`)
+  match(ua, /^Have the Content Generator and Slide Composer work together to make slide 5 more impactful$/m, `${label}: understanding: the second prompt names the Content Generator and Slide Composer`)
+  match(ua, /^- \*\*Free Tier\*\*: Director \+ Content Generator \(2 agents\)$/m, `${label}: understanding: the Free line names the Content Generator`)
+  match(da, /^- \*\*Content Generator\*\*: Write executive summary and conclusions$/m, `${label}: director: Scripter -> Content Generator`)
+  match(da, /^- \*\*Visualizer\*\*: Create charts for all metrics$/m, `${label}: director: Data Visualizer -> Visualizer`)
+  match(da, /^- \*\*Slide Composer\*\*: Design clean, professional layouts$/m, `${label}: director: Graphic Artist -> Slide Composer`)
+  match(da, /^- \*\*Sequence\*\*: Content Generator → Visualizer → Slide Composer per slide$/m, `${label}: director: the sequence`)
+  match(da, /^- Works with Content Generator only$/m, `${label}: director: the Free line`)
+  return { now, oldCounts }
+}
+{
+  const { oldCounts } = proveRules(SOURCES[AGENT_RULES])
+  notes.push(`docs text, before: Scripter x${oldCounts[0]}, Graphic Artist x${oldCounts[1]}, Data Visualizer x${oldCounts[2]}, a count of four agents x5; after: none`)
+}
+
+// ruling 1: /docs/api says it is not available yet. The notice component:
+function proveNotice(source, label = 'notice', libSource = SOURCES[LIB]) {
+  const mod = load(source, API_NOTICE, { deps: { '@/lib/studio-p2-docs': load(libSource, LIB) } })
+  deepEq(Object.keys(mod), ['StudioApiNotice'], `${label}: one component`)
+  const tree = mod.StudioApiNotice()
+  eq(tree.type, 'div', `${label}: one element`)
+  eq(attr(tree, 'className'), 'sd-api-notice container mx-auto px-4', `${label}: the site header's own column`)
+  eq(attr(tree, 'role'), 'note', `${label}: a note`)
+  eq(attr(tree, 'aria-labelledby'), 'sd-api-notice-title', `${label}: named by its title`)
+  const box = tree.props.children
+  eq(box.type, 'div', `${label}: the box`)
+  eq(attr(box, 'className'), 'sd-api-notice__box', `${label}: box class`)
+  const [title, body] = box.props.children
+  eq(title.type, 'p', `${label}: the title`)
+  eq(attr(title, 'id'), 'sd-api-notice-title', `${label}: title id`)
+  eq(attr(title, 'className'), 'sd-api-notice__title', `${label}: title class`)
+  eq(text(title), 'Not available yet', `${label}: it says "Not available yet"`)
+  eq(attr(body, 'className'), 'sd-api-notice__text', `${label}: text class`)
+  eq(text(body), WORDS.apiNoticeBody, `${label}: it says what that means`)
+  match(text(body), /no API key/, `${label}: ... there is no key to generate`)
+  match(text(body), /cannot be called/, `${label}: ... the endpoints cannot be called`)
+  eq(nodes(tree).filter(node => node.type === 'a' || node.type === 'Link' || node.type === 'button').length, 0, `${label}: no link, no button`)
+  nomatch(source, /use client/, `${label}: a plain component (the page that uses it is a client page)`)
+  match(source, /import "\.\/studio-p2-docs\.css"/, `${label}: loads the stylesheet`)
+  nomatch(source, /bg-gradient|from-purple|to-blue|text-purple|bg-purple|dark:/, `${label}: no utility colours or gradients`)
+}
+proveNotice(SOURCES[API_NOTICE])
+
+// the page itself: the notice is the one addition; off, the page is the base commit's
+const undoAll = (code, pairs) => pairs.reduce((out, [to, from]) => { eq(out.split(to).length - 1, 1, `the addition is found once: ${to.slice(0, 60).replace(/\n/g, ' ')}`); return out.replace(to, () => from) }, code)
+function proveApiPage(code, label = 'api page') {
+  const prior = baseSource(PAGE_API)
+  const run = (source, env) => load(source, PAGE_API, { env }).default()
+  for (const env of OFF_SPELLINGS) eq(rendered(run(code, env)), rendered(run(prior, env)), `${label}: env ${JSON.stringify(env)}: the tree equals the base commit's`)
+  for (const env of [ON, { ...ON, NEXT_PUBLIC_STUDIO_V4_SHELL: 'true' }]) {
+    const top = run(code, env)
+    const kids = top.props.children.filter(child => child !== false)
+    deepEq(kids.map(child => child.type), ['Header', 'StudioApiNotice', 'PageHeader', 'Section', 'Footer'], `${label}: on: the notice sits under the site's header, before the title`)
+    deepEq(Object.keys(kids[1].props), [], `${label}: on: the notice takes no props`)
+    eq(rendered({ ...top, props: { ...top.props, children: kids.filter(kid => kid.type !== 'StudioApiNotice') } }), rendered(run(prior, env)), `${label}: on: take the notice away and it is the base commit's page, word for word`)
+  }
+  eq(undoAll(code, [
+    ["import { StudioApiNotice } from '@/components/studio-docs/studio-p2-docs-api-notice';\n", ''],
+    ["// PASS2 Docs (NEXT_PUBLIC_STUDIO_P2_DOCS, default off): this page documents an API that is not open yet; with the flag on a notice says so under the header and the page below it is muted. Off: the page as it was.\nconst STUDIO_P2_DOCS = process.env.NEXT_PUBLIC_STUDIO_P2_DOCS === 'true';\n\n", ''],
+    ['            {STUDIO_P2_DOCS && <StudioApiNotice />}\n', ''],
+  ]), prior, `${label}: removing the three additions gives back the base commit's page byte for byte`)
+  match(code, /const STUDIO_P2_DOCS = process\.env\.NEXT_PUBLIC_STUDIO_P2_DOCS === 'true';/, `${label}: flag read inline, exact true`)
+  match(code, /^'use client';/, `${label}: still a client page`)
+  for (const claim of ['Authentication', 'Core Endpoints', '/v1/presentations/generate', 'Rate Limits', '100 requests per minute for Pro plans']) ok(code.includes(claim), `${label}: the page keeps its words ("${claim}")`)
+}
+proveApiPage(SOURCES[PAGE_API])
+
+// ruling 5 (and 1's footer link): the footers, the agent pages and /compare do not link /integrations, /agents or /docs/api. The oracle: the base commit's own tree with those elements taken out.
+const DROP = Symbol('drop')
+function prune(node) {
+  if (Array.isArray(node)) return node.map(prune).filter(item => item !== DROP)
+  if (!isElement(node)) return node
+  const kids = [node.props.children].flat()
+  if (typeof node.props.href === 'string' && HIDDEN.includes(node.props.href)) return DROP
+  if ((node.type === 'li' || node.type === 'Button') && kids.some(kid => isElement(kid) && HIDDEN.includes(kid.props.href))) return DROP
+  if (!('children' in node.props)) return node
+  const next = prune(node.props.children)
+  return { ...node, props: { ...node.props, children: next === DROP ? undefined : next } }
+}
+const hrefsOf = tree => nodes(tree).filter(node => node.type === 'Link' || node.type === 'a').map(node => node.props.href)
+function proveFooter(code, label = 'footer', libSource = SOURCES[LIB]) {
+  const prior = baseSource(FOOTER)
+  const render = (source, env, props) => load(source, FOOTER, { env, deps: { 'next/link': LINK, '@/lib/studio-p2-docs': load(libSource, LIB) } }).Footer(props)
+  for (const props of [undefined, { compact: true }]) {
+    const mode = props ? 'compact' : 'full'
+    for (const env of OFF_SPELLINGS) eq(rendered(expand(render(code, env, props))), rendered(expand(render(prior, env, props))), `${label}: ${mode}: env ${JSON.stringify(env)}: the tree equals the base commit's`)
+    const base = expand(render(prior, {}, props))
+    for (const env of [ON, { ...ON, NEXT_PUBLIC_STUDIO_V4_SHELL: 'true' }]) {
+      const on = expand(render(code, env, props))
+      eq(rendered(on), rendered(prune(base)), `${label}: ${mode}: on: the base commit's footer without the links to /agents, /integrations and /docs/api, and nothing else`)
+      for (const href of HIDDEN) ok(!hrefsOf(on).includes(href), `${label}: ${mode}: on: no link to ${href}`)
+    }
+    const dropped = hrefsOf(base).filter(href => HIDDEN.includes(href))
+    deepEq(dropped, props ? ['/agents'] : ['/agents', '/docs/api'], `${label}: ${mode}: the base footer linked ${props ? '/agents' : '/agents and /docs/api'}, so that is what goes`)
+    for (const href of ['/help', '/docs', '/legal/privacy', '/legal/terms', ...(props ? ['/pricing', '/compare', '/about'] : ['/legal/security', '/legal/cookies', '/templates', '/builder'])]) ok(hrefsOf(expand(render(code, ON, props))).includes(href), `${label}: ${mode}: on: the link to ${href} stays`)
+  }
+  // ruling 2: the footer's claims are not touched
+  const on = text(expand(render(code, ON)))
+  for (const claim of ['SSL Encrypted', 'GDPR Compliant', '99.9% Uptime', 'Privacy First']) ok(on.includes(claim), `${label}: on: "${claim}" is as it was`)
+  eq(undoAll(code, [
+    ["import { studioDocsHiddenHref } from '@/lib/studio-p2-docs';\n\n// PASS2 Docs (NEXT_PUBLIC_STUDIO_P2_DOCS, default off): /docs/api is not available yet, and /integrations and /agents are redirects, so with the flag on neither footer links them. Off: every link as before.\nconst STUDIO_P2_DOCS = process.env.NEXT_PUBLIC_STUDIO_P2_DOCS === 'true';\nconst linked = (href: string) => !(STUDIO_P2_DOCS && studioDocsHiddenHref(href));\n", ''],
+    [`{linked('/agents') && <li><Link href="/agents" className="text-sm text-muted-foreground hover:text-foreground transition-colors">AI Agents</Link></li>}`, `<li><Link href="/agents" className="text-sm text-muted-foreground hover:text-foreground transition-colors">AI Agents</Link></li>`],
+    ['footerLinks.resources.filter((link) => linked(link.href)).map((link) => (', 'footerLinks.resources.map((link) => ('],
+    ['links.filter((l) => linked(l.href)).map((l) => (', 'links.map((l) => ('],
+  ]), prior, `${label}: removing the additions gives back the base commit's footer byte for byte`)
+  match(code, /const STUDIO_P2_DOCS = process\.env\.NEXT_PUBLIC_STUDIO_P2_DOCS === 'true';/, `${label}: flag read inline, exact true`)
+  match(code, /^'use client';/, `${label}: still a client component`)
+}
+proveFooter(SOURCES[FOOTER])
+
+// ruling 4: the Landing footer
+function proveFooterV3(code, label = 'landing footer', libSource = SOURCES[LIB]) {
+  const prior = baseSource(FOOTER_V3)
+  const run = (source, env) => load(source, FOOTER_V3, { env, deps: { 'next/link': LINK, '@/lib/marketing/v3-content': { V3_CONTENT: V3 }, '@/lib/studio-p2-docs': load(libSource, LIB) } }).FooterV3()
+  const linksOf = tree => byType(tree, 'Link').map(link => [attr(link, 'href'), text(link)])
+  for (const env of OFF_SPELLINGS) {
+    eq(rendered(run(code, env)), rendered(run(prior, env)), `${label}: env ${JSON.stringify(env)}: the tree equals the base commit's`)
+    deepEq(linksOf(run(code, env)), V3_LINKS.map(link => [link.href, link.label]), `${label}: env ${JSON.stringify(env)}: the eight links it had`)
+  }
+  for (const env of [ON, { ...ON, NEXT_PUBLIC_STUDIO_V4_SHELL: 'true' }]) {
+    const on = run(code, env)
+    deepEq(linksOf(on), [['/bring', 'Bring'], ['/present', 'Present'], ['/experts', 'Experts'], ['/pricing', 'Pricing'], ['/learn', 'Learn'], ['/about', 'About'], ['/help', 'Help'], ['/docs', 'Docs'], ['/legal/privacy', 'Privacy'], ['/legal/terms', 'Terms'], ['/legal/security', 'Security'], ['/legal/cookies', 'Cookies']], `${label}: on: the eight it had, with Help, Docs, Security and Cookies`)
+    eq(linksOf(on).filter(([href]) => href === '/legal/privacy').length, 1, `${label}: on: Privacy once`)
+    eq(text(byType(on, 'span')[0]), V3.footer.copyright, `${label}: on: the copyright line as it was`)
+    eq(attr(byType(on, 'nav')[0], 'aria-label'), 'Footer navigation', `${label}: on: the navigation keeps its name`)
+    eq(attr(on, 'className'), 'ftr', `${label}: on: the footer keeps its class`)
+    eq(new Set(byType(on, 'Link').map(link => link.key)).size, 12, `${label}: on: a key for each link`)
+  }
+  eq(undoAll(code, [
+    ['import { studioDocsFooterLinks } from "@/lib/studio-p2-docs"\n\n// PASS2 Docs (NEXT_PUBLIC_STUDIO_P2_DOCS, default off): Help, Docs, Security and Cookies join Privacy and Terms (no other link on the Landing reached them). Off: the footer as it was.\nconst STUDIO_P2_DOCS = process.env.NEXT_PUBLIC_STUDIO_P2_DOCS === "true"\n', ''],
+    ['  const links = STUDIO_P2_DOCS ? studioDocsFooterLinks(V3_CONTENT.footer.links) : V3_CONTENT.footer.links\n', ''],
+    ['{links.map((link) =>', '{V3_CONTENT.footer.links.map((link) =>'],
+  ]), prior, `${label}: removing the additions gives back the base commit's footer byte for byte`)
+  match(code, /const STUDIO_P2_DOCS = process\.env\.NEXT_PUBLIC_STUDIO_P2_DOCS === "true"/, `${label}: flag read inline, exact true`)
+  nomatch(code, /use client/, `${label}: still a server component`)
+}
+proveFooterV3(SOURCES[FOOTER_V3])
+
+// ruling 5 on the pages: the agent pages and /compare
+const unwrapFlag = code => code.replace(/^( *)\{!STUDIO_P2_DOCS && \(\n((?:\1  .*\n)+?)\1\)\}\n/gm, (_m, _indent, body) => body.split('\n').slice(0, -1).map(line => line.slice(2)).join('\n') + '\n')
+function proveAgentPage(code, label = 'agent page') {
+  const prior = baseSource(PAGE_AGENT)
+  const run = (source, env, slug) => load(source, PAGE_AGENT, { env, deps: { 'next/link': LINK, 'next/navigation': { useParams: () => ({ slug }) }, '@/lib/agents': AGENTS_API } }).default()
+  const slugs = ['director', 'element-generator', 'nope']
+  for (const slug of slugs) {
+    for (const env of OFF_SPELLINGS) eq(rendered(expand(run(code, env, slug))), rendered(expand(run(prior, env, slug))), `${label}: ${slug}: env ${JSON.stringify(env)}: the tree equals the base commit's`)
+    const base = expand(run(prior, {}, slug)), on = expand(run(code, ON, slug))
+    eq(rendered(on), rendered(prune(base)), `${label}: ${slug}: on: the base commit's page without the links to /agents, and nothing else`)
+    ok(!hrefsOf(on).includes('/agents'), `${label}: ${slug}: on: no link to /agents`)
+    eq(hrefsOf(base).filter(href => href === '/agents').length, slug === 'nope' ? 1 : 2, `${label}: ${slug}: the base page linked /agents ${slug === 'nope' ? 'once' : 'twice'}`)
+    if (slug !== 'nope') {
+      eq(hrefsOf(on).filter(href => /^\/agents\/[\w-]+$/.test(href)).length, 3, `${label}: ${slug}: on: the three links to other agent pages stay`)
+      ok(hrefsOf(on).filter(href => href === '/builder').length === 2, `${label}: ${slug}: on: both builder links stay`)
+    }
+  }
+  eq(unwrapFlag(undoAll(code, [["// PASS2 Docs (NEXT_PUBLIC_STUDIO_P2_DOCS, default off): /agents is a redirect (next.config.mjs), so with the flag on the three links to it are not shown. The links to the agent pages (/agents/<agent>) stay. Off: the page as it was.\nconst STUDIO_P2_DOCS = process.env.NEXT_PUBLIC_STUDIO_P2_DOCS === 'true';\n\n", '']])), prior, `${label}: removing the flag and unwrapping the three links gives back the base commit's page byte for byte`)
+  eq(code.split('{!STUDIO_P2_DOCS && (').length - 1, 3, `${label}: exactly three links are wrapped`)
+  match(code, /^'use client';/, `${label}: still a client page`)
+}
+proveAgentPage(SOURCES[PAGE_AGENT])
+function proveComparePage(code, label = 'compare page') {
+  const prior = baseSource(PAGE_COMPARE)
+  const run = (source, env) => load(source, PAGE_COMPARE, { env, deps: { 'next/link': LINK } }).default()
+  for (const env of OFF_SPELLINGS) eq(rendered(expand(run(code, env))), rendered(expand(run(prior, env))), `${label}: env ${JSON.stringify(env)}: the tree equals the base commit's`)
+  const base = expand(run(prior, {})), on = expand(run(code, ON))
+  eq(rendered(on), rendered(prune(base)), `${label}: on: the base commit's page without "Meet the Team", and nothing else`)
+  eq(hrefsOf(base).filter(href => href === '/agents').length, 1, `${label}: the base page linked /agents once`)
+  ok(!hrefsOf(on).includes('/agents'), `${label}: on: no link to /agents`)
+  ok(hrefsOf(on).includes('/builder'), `${label}: on: the Get Started link stays`)
+  eq(unwrapFlag(undoAll(code, [["// PASS2 Docs (NEXT_PUBLIC_STUDIO_P2_DOCS, default off): /agents is a redirect (next.config.mjs), so with the flag on \"Meet the Team\" is not shown. Off: the page as it was.\nconst STUDIO_P2_DOCS = process.env.NEXT_PUBLIC_STUDIO_P2_DOCS === 'true';\n\n", '']])), prior, `${label}: removing the flag and unwrapping the link gives back the base commit's page byte for byte`)
+  eq(code.split('{!STUDIO_P2_DOCS && (').length - 1, 1, `${label}: exactly one link is wrapped`)
+  match(code, /^'use client';/, `${label}: still a client page`)
+}
+proveComparePage(SOURCES[PAGE_COMPARE])
+
+// ruling 6: no per-agent rainbow. Every per-agent colour on the agent pages is a gradient class the CSS flattens; nothing else carries one.
+function proveNoRainbow(pageSource = SOURCES[PAGE_AGENT], label = 'rainbow') {
+  const uses = [...pageSource.matchAll(/\.color\.(\w+)/g)].map(m => m[1])
+  ok(uses.length >= 6, `${label}: the page uses the agent's colour in ${uses.length} places`)
+  ok(uses.every(use => use === 'gradient'), `${label}: ... and only its gradient (not primary or secondary)`)
+  const templates = [...pageSource.matchAll(/`([^`]*\$\{(?:agent|relatedAgent)\.color\.gradient\}[^`]*)`/g)].map(m => m[1])
+  eq(templates.length, uses.length, `${label}: every use sits in a class template`)
+  for (const template of templates) match(template, /bg-gradient-to-(?:br|b) /, `${label}: ${template.slice(0, 50)}...: the gradient is on a bg-gradient-to-* class, which the CSS flattens`)
+  nomatch(pageSource, /(?:text|bg|border|from|to|via|ring|fill|stroke)-\$\{/, `${label}: no colour class is built from the agent's data`)
+  nomatch(pageSource, /AGENT_TEAM|homepage-v2-content|style=\{\{[^}]*(?:color|background)/, `${label}: the hex colours of the team list and inline colours are not used here`)
+  { const literals = pageSource.match(/#[0-9a-fA-F]{6}\b|rgba?\([^)]*\)|hsla?\([^)]*\)/g) ?? []
+    ok(literals.every(literal => /^rgba\(255,255,255,/.test(literal)), `${label}: the only literal colour in the page is the white glow (${literals.join(' ') || 'none'}), which the CSS hides`) }
+  const gradients = new Set(plain(AGENTS_CONTENT.agents).map(agent => agent.color.gradient))
+  ok(gradients.size >= 5, `${label}: the data has ${gradients.size} different gradients (that is what the CSS flattens)`)
+  notes.push(`agent colours: ${gradients.size} different gradients in content/agents.ts, all flattened to the ink colour by the CSS (${AGENTS_CONTENT.agents.length} agent pages)`)
+}
+proveNoRainbow()
+
 // /help: a template adds a display: contents marker (flag and shell on); the layout (pinned by the Atlas test), the page and the Help frame are the base commit's
 function proveHelpTemplate(code, label = 'help template') {
   const run = env => load(code, HELP_TEMPLATE, { env }).default
@@ -714,7 +1091,8 @@ const TOKENS = { frame: '--ss-frame', panel: '--ss-panel', surface: '--ss-surfac
 const classNamesOf = source => new Set([...source.matchAll(/className="([^"]*)"/g)].flatMap(m => m[1].split(/\s+/).filter(Boolean)))
 const LEGACY_SOURCES = ['app/legal/privacy/page.tsx', 'app/legal/terms/page.tsx', 'app/legal/security/page.tsx', 'app/legal/cookies/page.tsx', 'app/docs/api/page.tsx', 'app/agents/[slug]/page.tsx', 'components/marketing/PageHeader.tsx', 'components/marketing/Section.tsx', 'components/ui/card.tsx', 'components/ui/badge.tsx', 'components/ui/button.tsx', 'components/layout/Header.tsx', 'components/layout/Footer.tsx']
 const LEGACY_TEXT = LEGACY_SOURCES.map(read).join('\n')
-function proveCss(css, ui = SOURCES[UI], label = 'css') {
+const CSS_UI = `${SOURCES[UI]}\n${SOURCES[API_NOTICE]}` // the classes the CSS names are carried by the pages' components and by the API notice
+function proveCss(css, ui = CSS_UI, label = 'css') {
   const root = postcss.parse(css)
   const rules = rulesOf(css)
   ok(rules.length > 100, `${label}: a real stylesheet (${rules.length} rules)`)
@@ -745,7 +1123,7 @@ function proveCss(css, ui = SOURCES[UI], label = 'css') {
   root.walkDecls(d => nomatch(d.value, /gradient\(/, `${label}: ${d.prop}: no gradient value`))
   root.walkDecls(d => { if (d.important) { const at = d.parent.parent; ok(at?.type === 'atrule' && at.params === '(prefers-reduced-motion: reduce)' && d.prop === 'transition', `${label}: !important only to turn transitions off for reduced motion`) } })
   // 4. readable in both themes (WCAG AA 4.5:1 for text)
-  for (const [theme, set] of [['light', lightSet], ['dark', darkSet]]) for (const [fg, bg] of [['text', 'panel'], ['muted', 'panel'], ['text', 'frame'], ['muted', 'frame'], ['accent', 'frame'], ['accent', 'panel'], ['teal', 'panel'], ['teal', 'frame'], ['teal', 'active'], ['text', 'surface'], ['muted', 'surface'], ['text', 'soft'], ['muted', 'soft'], ['on-action', 'action'], ['teal', 'surface']]) {
+  for (const [theme, set] of [['light', lightSet], ['dark', darkSet]]) for (const [fg, bg] of [['text', 'panel'], ['muted', 'panel'], ['text', 'frame'], ['muted', 'frame'], ['accent', 'frame'], ['accent', 'panel'], ['teal', 'panel'], ['teal', 'frame'], ['teal', 'active'], ['text', 'surface'], ['muted', 'surface'], ['text', 'soft'], ['muted', 'soft'], ['on-action', 'action'], ['teal', 'surface'], ['muted', 'active']]) {
     const ratio = contrast(set[`--sd-${fg}`], set[`--sd-${bg}`])
     ok(ratio >= 4.5, `${label}: ${theme}: --sd-${fg} on --sd-${bg} is at least 4.5:1 (${ratio.toFixed(2)})`)
   }
@@ -819,6 +1197,25 @@ function proveCss(css, ui = SOURCES[UI], label = 'css') {
   eq(old('[class*="radial-gradient"]').display, 'none', `${label}: agents: the white glow is gone`)
   eq(old('.bg-card').background, 'var(--sd-panel)', `${label}: agents: a card is the panel colour`)
   eq(old('.text-primary').color, 'var(--sd-accent)', `${label}: agents: a "Learn more" link is the accent`)
+  // /docs/api: the notice, and everything after it muted with the tokens (no literal colour, no opacity: the text stays readable)
+  eq(rule('.sd-api-notice__title')['font-size'], '13px', `${label}: api: the notice's title is 13px`)
+  eq(rule('.sd-api-notice__title')['font-weight'], '600', `${label}: api: ... weight 600`)
+  eq(rule('.sd-api-notice__title').color, 'var(--sd-text)', `${label}: api: ... in the text colour`)
+  eq(rule('.sd-api-notice__text')['font-size'], '12px', `${label}: api: the notice's text is 12px`)
+  eq(rule('.sd-api-notice__text').color, 'var(--sd-muted)', `${label}: api: ... in the muted colour`)
+  eq(rule('.sd-api-notice__box').background, 'var(--sd-panel)', `${label}: api: the notice is a panel`)
+  eq(rule('.sd-api-notice__box')['border-left'], '3px solid var(--sd-action)', `${label}: api: ... with an ink edge (not an accent, not teal)`)
+  eq(rule('.sd-api-notice__box')['border-radius'], '10px', `${label}: api: ... with 10px corners`)
+  eq(rule('.sd-api-notice')['padding-top'], '24px', `${label}: api: the notice sits 24px under the header`)
+  for (const prop of ['width', 'margin', 'padding-left', 'padding-right', 'padding-inline']) ok(!(prop in rule('.sd-api-notice')), `${label}: api: the notice sets no ${prop} (its column is the site header's container)`)
+  { const muted = rule('.sd-api-notice ~ section')
+    deepEq(muted, { '--sd-text': 'var(--sd-muted)', '--sd-accent': 'var(--sd-muted)', '--sd-teal': 'var(--sd-muted)' }, `${label}: api: every section after the notice reads in the muted colour: text, accent and teal become it`)
+    root.walkDecls(d => { if (d.parent.selectors?.some(sel => sel.includes('.sd-api-notice ~ section'))) nomatch(d.prop, /^(opacity|filter)$/, `${label}: api: muted by colour, never by opacity or filter (the text stays readable)`) })
+    eq(rule('.sd-api-notice ~ section .space-y-12 .rounded-lg:not(.bg-muted)')['border-style'], 'dashed', `${label}: api: the endpoint cards are dashed (a cue that is not colour)`)
+    eq(rule('.sd-api-notice ~ section .space-y-12 .rounded-lg:not(.bg-muted)')['border-color'], 'var(--sd-muted)', `${label}: api: ... in the muted colour, so the dashes show`)
+    eq(rule('.sd-api-notice ~ section :is(h2, code)').color, 'var(--sd-muted)', `${label}: api: headings and code read in the muted colour too`) }
+  { const tail = rules.map(r => r.selectors.join(',')); const noticeAt = tail.findIndex(sel => sel.includes('.sd-api-notice ~ section .space-y-12')); const cardAt = tail.findIndex(sel => sel.includes('.space-y-12 .rounded-lg:not(.bg-muted)') && !sel.includes('.sd-api-notice'))
+    ok(cardAt >= 0 && noticeAt > cardAt, `${label}: api: the dashed rule comes after the solid card rule it overrides (same weight, later wins)`) }
   ok(inMedia('(max-width: 640px)').some(r => r.selectors.some(s => s.endsWith('.sd-button')) && r.nodes.some(n => n.prop === 'min-height' && n.value === '44px')), `${label}: phone: buttons are 44px high`)
   ok(inMedia('(max-width: 640px)').some(r => r.selectors.some(s => s.endsWith('.sd-main')) && r.nodes.some(n => n.prop === 'padding-bottom' && n.value === '40px')), `${label}: phone: a shorter page bottom`)
   eq(rule('.sd-main')['flex'], '1', `${label}: the page fills the window, so the footer sits at the bottom`)
@@ -888,6 +1285,18 @@ function proveEnv(env, label = 'env') {
   match(comment, /No new action/, `${label}: the comment says no new action`)
   for (const route of ['/docs', '/docs/api', '/legal/', '/agents/<agent>', '/help', '/integrations']) ok(comment.includes(route), `${label}: the comment names ${route}`)
   match(comment, /redirects \(next\.config\.mjs\)/, `${label}: the comment says /integrations and /agents are redirects`)
+  match(comment, /FRONTEND-1, the public pages \/docs, \/docs\/<category>\/<article>, \/docs\/api, \/legal\/\{privacy,terms,security,cookies\}, \/agents\/<agent> and, in the Studio shell, \/help; there is no mockup/, `${label}: the first line names the pages`)
+  // the content pass (same flag, no new one)
+  match(comment, /Content pass \(PROGRAM-1, 22 Oct\), same flag/, `${label}: the comment names the content pass and says it is the same flag`)
+  match(comment, /names the current eight agents \(Director, Researcher, Analyst, Content Generator, Visualizer, Theme Builder, Slide Composer, Element Generator\)/, `${label}: the comment lists the eight agents`)
+  match(comment, /instead of Scripter, Graphic Artist/, `${label}: the comment says which names go`)
+  match(comment, /content\/docs\.ts is not edited; content\/studio-p2-docs-agents\.ts swaps the text when the flag is on/, `${label}: the comment says where the swap lives`)
+  match(comment, /\/docs\/api says "Not available yet" in a notice under the site header with its content muted, and no footer links to/, `${label}: the comment says what /docs/api shows`)
+  match(comment, /neither footer links \/integrations or \/agents, and \/compare drops "Meet the Team"/, `${label}: the comment says which links go`)
+  match(comment, /the Landing footer gains Help, Docs, Security and Cookies beside Privacy and Terms/, `${label}: the comment says what the Landing footer gains`)
+  match(comment, /The words of the legal pages are not touched\./, `${label}: the comment says the legal words are untouched`)
+  nomatch(comment, /exact "true" enables it/, `${label}: the comment does not use the phrase another flag's test pins`)
+  eq(lines.filter(l => /^NEXT_PUBLIC_STUDIO_P2_[A-Z_]+="false"$/.test(l) && /DOC/.test(l)).length, 1, `${label}: no second flag for the content pass`)
   ok(lines[index + 1] === '', `${label}: the flag closes its block (a blank line or the end of the file follows; later changes' blocks may come after)`)
   const without = [...lines.slice(0, index - block), ...lines.slice(index + 1)].join('\n')
   ok(sameAsBase(ENV, without, baseSource(ENV)), `${label}: without its block the file is the base commit's .env.example (plus, at most, other changes' comments, blanks and env lines)`)
@@ -1067,7 +1476,7 @@ mutant(UI, 'ui: no help band on the index', "<HelpBand\n          title={W.helpT
 mutant(UI, 'ui: help body on the index', 'body={W.helpBody}', 'body={W.moreHelpBody}')
 mutant(UI, 'ui: params array', 'const pick = (value: string | string[] | undefined) => (Array.isArray(value) ? value[0] : value) ?? ""', 'const pick = (value: string | string[] | undefined) => (value as string) ?? ""')
 mutant(UI, 'ui: params null', 'pick(params?.category)', 'pick(params.category)')
-mutant(UI, 'ui: category not read', 'getDocBySlug(category, slug)', 'getDocBySlug("", slug)')
+mutant(UI, 'ui: category not read', 'studioDocsItem(sections, category, slug)', 'studioDocsItem(sections, "", slug)')
 mutant(UI, 'ui: missing article state', 'data-studio-p2-docs-state="not-found"', 'data-studio-p2-docs-state="empty"')
 mutant(UI, 'ui: missing article page', '<Page kind="not-found">', '<Page kind="missing">')
 mutant(UI, 'ui: missing article title', '<h1>{W.notFoundTitle}</h1>', '<h1>{W.emptyTitle}</h1>')
@@ -1105,7 +1514,7 @@ mutant(UI, 'ui: dead link marker', 'data-studio-p2-docs-dead-link="true"', 'data
 mutant(UI, 'ui: outside links stay', 'if (kind === "external") return <a href={href} target="_blank" rel="noopener noreferrer">{children}</a>', 'if (kind === "external") return <a href={href}>{children}</a>')
 mutant(UI, 'ui: outside links unsafe', 'rel="noopener noreferrer"', 'rel="noreferrer"')
 mutant(UI, 'ui: mail links open a tab', 'return <a href={href}>{children}</a>\n                },', 'return <a href={href} target="_blank">{children}</a>\n                },')
-mutant(UI, 'ui: related cut short', 'const related = getRelatedDocs(doc)', 'const related = getRelatedDocs(doc).slice(0, 1)')
+mutant(UI, 'ui: related cut short', 'const related = studioDocsRelated(sections, doc)', 'const related = studioDocsRelated(sections, doc).slice(0, 1)')
 mutant(UI, 'ui: related unnamed', '<section className="sd-section" aria-labelledby="sd-related-title">', '<section className="sd-section">')
 mutant(UI, 'ui: related title', '<h2 id="sd-related-title">{W.related}</h2>', '<h2 id="sd-related-title">{W.browseAll}</h2>')
 mutant(UI, 'ui: related cards wide', '<ul className="sd-cards sd-cards--three">', '<ul className="sd-cards">')
@@ -1324,6 +1733,173 @@ mutant(HELP_CSS, 'help css: a class the page lacks', '.text-center.py-8 {', '.te
 mutant(HELP_CSS, 'help css: a token the shell lacks', 'border: 1px dashed var(--ss-line);', 'border: 1px dashed var(--ss-border);')
 mutant(HELP_CSS, 'help css: important', 'a.bg-primary { background: var(--ss-action);', 'a.bg-primary { background: var(--ss-action) !important;')
 
+
+// ---- the content pass: the lib
+mutant(LIB, 'current: every rule on every article', 'rules.filter(rule => rule.doc === `${item.category}/${item.slug}`)', 'rules.filter(rule => true)')
+mutant(LIB, 'current: a rule names the slug alone', 'rule.doc === `${item.category}/${item.slug}`', 'rule.doc.endsWith(`/${item.slug}`)')
+mutant(LIB, 'current: a rule names the category alone', 'rule.doc === `${item.category}/${item.slug}`', 'rule.doc.startsWith(`${item.category}/`)')
+mutant(LIB, 'current: every occurrence', 'text.replace(rule.from, () => rule.to)', 'text.split(rule.from).join(rule.to)')
+mutant(LIB, 'current: replacement patterns read', 'text.replace(rule.from, () => rule.to)', 'text.replace(rule.from, rule.to)')
+mutant(LIB, 'current: the rules run backwards', 'own.reduce((text, rule)', '[...own].reverse().reduce((text, rule)')
+mutant(LIB, 'current: only the first rule', 'own.reduce((text, rule)', '[own[0]].reduce((text, rule)')
+mutant(LIB, 'current: the slug is lost', '{ ...item, content: own.reduce', '{ id: item.id, title: item.title, category: item.category, content: own.reduce')
+mutant(LIB, 'current: an article is handed back as it is', 'return { ...item, content: own.reduce((text, rule) => text.replace(rule.from, () => rule.to), item.content) }', 'item.content = own.reduce((text, rule) => text.replace(rule.from, () => rule.to), item.content); return item')
+mutant(LIB, 'item: any category', 'sections.find(section => section.id === category)?.items', 'sections[0]?.items')
+mutant(LIB, 'item: any slug', 'find(item => item.slug === slug)', 'find(item => true)')
+mutant(LIB, 'related: itself included', 'section.items.filter(item => item.id !== current.id)', 'section.items.filter(item => true)')
+mutant(LIB, 'related: the limit ignored', '.slice(0, limit) : []', '.slice(0, 3) : []')
+mutant(LIB, 'related: four', 'limit: number = 3', 'limit: number = 4')
+mutant(LIB, 'related: any category', 'candidate.id === current.category', 'true')
+mutant(LIB, 'related: an unknown category', '.slice(0, limit) : []', '.slice(0, limit) : [current]')
+mutant(LIB, 'hidden: the api page shown', "path === '/docs/api' || ", '')
+mutant(LIB, 'hidden: integrations shown', " || path === '/integrations'", '')
+mutant(LIB, 'hidden: agents shown', " || path === '/agents'", '')
+mutant(LIB, 'hidden: every docs page', "path === '/docs/api'", "path.startsWith('/docs')")
+mutant(LIB, 'hidden: a prefix of the api page', "path === '/docs/api'", "path.startsWith('/docs/api')")
+mutant(LIB, 'hidden: the agent pages too', "path === '/agents'", "path.startsWith('/agents')")
+mutant(LIB, 'hidden: the query kept', "href.trim().split(/[?#]/)[0]", "href.trim().split(/#/)[0]")
+mutant(LIB, 'hidden: the hash kept', "href.trim().split(/[?#]/)[0]", "href.trim().split(/\\?/)[0]")
+mutant(LIB, 'hidden: the slash kept', ".replace(/\\/+$/, '') : ''", " : ''")
+mutant(LIB, 'hidden: not trimmed', "href.trim().split(/[?#]/)[0]", "href.split(/[?#]/)[0]")
+mutant(LIB, 'footer: Help missing', "[{ label: 'Help', href: '/help' }, { label: 'Docs', href: '/docs' }]", "[{ label: 'Docs', href: '/docs' }]")
+mutant(LIB, 'footer: Docs missing', "[{ label: 'Help', href: '/help' }, { label: 'Docs', href: '/docs' }]", "[{ label: 'Help', href: '/help' }]")
+mutant(LIB, 'footer: Help word', "{ label: 'Help', href: '/help' }, { label: 'Docs'", "{ label: 'Help Center', href: '/help' }, { label: 'Docs'")
+mutant(LIB, 'footer: Docs word', "{ label: 'Docs', href: '/docs' }]", "{ label: 'Documentation', href: '/docs' }]")
+mutant(LIB, 'footer: Help address', "{ label: 'Help', href: '/help' }, { label: 'Docs'", "{ label: 'Help', href: '/support' }, { label: 'Docs'")
+mutant(LIB, 'footer: Security missing', "[{ label: 'Security', href: '/legal/security' }, { label: 'Cookies', href: '/legal/cookies' }]", "[{ label: 'Cookies', href: '/legal/cookies' }]")
+mutant(LIB, 'footer: Cookies missing', "[{ label: 'Security', href: '/legal/security' }, { label: 'Cookies', href: '/legal/cookies' }]", "[{ label: 'Security', href: '/legal/security' }]")
+mutant(LIB, 'footer: Cookies address', "href: '/legal/cookies' }].filter", "href: '/legal/cookie' }].filter")
+mutant(LIB, 'footer: Help after the legal links', 'return [...head, ...help, ...tail, ...policy]', 'return [...head, ...tail, ...help, ...policy]')
+mutant(LIB, 'footer: Security before the legal links', 'return [...head, ...help, ...tail, ...policy]', 'return [...head, ...help, ...policy, ...tail]')
+mutant(LIB, 'footer: Help twice', "{ label: 'Docs', href: '/docs' }].filter(link => !has(link.href))", "{ label: 'Docs', href: '/docs' }]")
+mutant(LIB, 'footer: Cookies twice', "{ label: 'Cookies', href: '/legal/cookies' }].filter(link => !has(link.href))", "{ label: 'Cookies', href: '/legal/cookies' }]")
+mutant(LIB, 'footer: Terms is not where the legal links start', "link.href === '/legal/privacy' || link.href === '/legal/terms'", "link.href === '/legal/privacy'")
+mutant(LIB, 'footer: Privacy is not where the legal links start', "link.href === '/legal/privacy' || link.href === '/legal/terms'", "link.href === '/legal/terms'")
+mutant(LIB, 'footer: no legal links, the head is lost', 'const head = legal < 0 ? [...links] : links.slice(0, legal)', 'const head = legal < 0 ? [] : links.slice(0, legal)')
+mutant(LIB, 'footer: no legal links, the tail is all', 'const tail = legal < 0 ? [] : links.slice(legal)', 'const tail = legal < 0 ? [...links] : links.slice(legal)')
+// ---- the rules
+const RULE_MUTANTS = [
+  ['an import added', 'import type { StudioDocRule }', 'import { cn } from "@/lib/utils"\nimport type { StudioDocRule }'],
+  ['an article renamed', 'doc: "getting-started/quick-start-guide",', 'doc: "getting-started/quick-start-guides",'],
+  ['a rule\'s old text misquoted', 'from: `Use the Data Visualizer to create charts showing our quarterly growth`', 'from: `Use the Data Visualiser to create charts showing our quarterly growth`'],
+  ['the count left at four', '- Coordinates all 8 agents', '- Coordinates all 4 agents'],
+  ['the heading count', '## The Eight AI Agents', '## The Seven AI Agents'],
+  ['the quick start count', 'Our eight AI agents will collaborate to create your presentation:\n\n- **Director**: Plans the structure and flow\n- **Researcher**', 'Our four AI agents will collaborate to create your presentation:\n\n- **Director**: Plans the structure and flow\n- **Researcher**'],
+  ['the Pro count', 'All 8 agents with full collaboration', 'All 4 agents with full collaboration'],
+  ['the example count', 'Agent collaboration: All eight agents needed', 'Agent collaboration: All four agents needed'],
+  ['the Free line names the old agent', '- **Free Tier**: Director + Content Generator (2 agents)', '- **Free Tier**: Director + Scripter (2 agents)'],
+  ['the Director article names the old agent', '- Works with Content Generator only', '- Works with Scripter only'],
+  ['the sequence keeps an old name', 'Content Generator → Visualizer → Slide Composer per slide', 'Content Generator → Data Visualizer → Slide Composer per slide'],
+  ['the sequence is reordered', 'Content Generator → Visualizer → Slide Composer per slide', 'Visualizer → Content Generator → Slide Composer per slide'],
+  ['the Director\'s line changed', '- **Director**: Plans the structure and flow\n- **Researcher**', '- **Director**: Builds the team and choreographs every step\n- **Researcher**'],
+  ['a role shortened', '- **Researcher**: Pulls facts from your data and the open web', '- **Researcher**: Pulls facts'],
+  ['a role of the team list changed', '- **Slide Composer**: Conducts each slide — pacing, balance, focus', '- **Slide Composer**: Conducts each slide'],
+  ['an agent missing from the list', '- **Element Generator**: Builds the atomic pieces every slide is made of`,\n  },\n  {\n    doc: "getting-started/understanding-agents"', '`,\n  },\n  {\n    doc: "getting-started/understanding-agents"'],
+  ['a role title changed', '**Role**: The Investigator', '**Role**: The Detective'],
+  ['an icon changed', '### 🔍 Researcher Agent', '### 🔎 Researcher Agent'],
+  ['an agent renamed', '### 📊 Visualizer Agent', '### 📊 Chart Maker Agent'],
+  ['a sentence shortened', 'The Analyst looks at the numbers and tells you what they mean. This agent:', 'The Analyst looks at the numbers. This agent:'],
+  ['a long sentence shortened', 'The Theme Builder builds your custom theme — palette, typography, surface treatments — and applies it consistently across every slide and every visual on the canvas. This agent:', 'The Theme Builder builds your custom theme. This agent:'],
+  ['a capability dropped', '- Searches your files and connected sources\n- Pulls public data on demand', '- Searches your files and connected sources'],
+  ['a capability invented', '- Keeps spacing and alignment tight across elements', '- Keeps spacing and alignment tight across elements\n- Writes your slides for you'],
+  ['the collaboration step', '3. **Content Generator** and **Slide Composer** work together on each slide', '3. **Content Generator** and **Theme Builder** work together on each slide'],
+  ['the first prompt', 'Use the Visualizer to create charts showing our quarterly growth`', 'Use the Visualizer to create charts for our quarterly growth`'],
+  ['the second prompt', 'Have the Content Generator and Slide Composer work together to make slide 5 more impactful', 'Have the Content Generator and Slide Composer work together to make slide 5 impactful'],
+  ['the layout line', '- **Slide Composer**: Design clean, professional layouts', '- **Slide Composer**: Design layouts'],
+]
+for (const [name, from, to] of RULE_MUTANTS) mutant(AGENT_RULES, `rules: ${name}`, from, to)
+// ---- the notice, the api page
+mutant(API_NOTICE, 'notice: not a note', ' role="note"', '')
+mutant(API_NOTICE, 'notice: unnamed', ' aria-labelledby="sd-api-notice-title"', '')
+mutant(API_NOTICE, 'notice: title id', 'id="sd-api-notice-title"', 'id="sd-api-title"')
+mutant(API_NOTICE, 'notice: not in the site\'s column', 'className="sd-api-notice container mx-auto px-4"', 'className="sd-api-notice"')
+mutant(API_NOTICE, 'notice: box class', 'className="sd-api-notice__box"', 'className="sd-api-notice__panel"')
+mutant(API_NOTICE, 'notice: title class', 'className="sd-api-notice__title"', 'className="sd-api-notice__head"')
+mutant(API_NOTICE, 'notice: text class', 'className="sd-api-notice__text"', 'className="sd-api-notice__body"')
+mutant(API_NOTICE, 'notice: title word', '{W.apiNoticeTitle}</p>', '{W.apiNoticeBody}</p>')
+mutant(API_NOTICE, 'notice: body word', '{W.apiNoticeBody}</p>', '{W.apiNoticeTitle}</p>')
+mutant(API_NOTICE, 'notice: stylesheet', 'import "./studio-p2-docs.css"', '')
+mutant(API_NOTICE, 'notice: a client component', 'import { STUDIO_DOCS_WORDS as W }', '"use client"\nimport { STUDIO_DOCS_WORDS as W }')
+mutant(API_NOTICE, 'notice: a link', '<p className="sd-api-notice__text">{W.apiNoticeBody}</p>', '<p className="sd-api-notice__text">{W.apiNoticeBody}</p><a href="/help">Help</a>')
+mutant(API_NOTICE, 'notice: a utility colour', 'className="sd-api-notice__box"', 'className="sd-api-notice__box bg-gradient-to-r"')
+mutant(PAGE_API, 'api page: flag spelling', "=== 'true';", "!== 'false';")
+mutant(PAGE_API, 'api page: flag name', 'process.env.NEXT_PUBLIC_STUDIO_P2_DOCS', 'process.env.NEXT_PUBLIC_STUDIO_DOCS')
+mutant(PAGE_API, 'api page: always the notice', '{STUDIO_P2_DOCS && <StudioApiNotice />}', '<StudioApiNotice />')
+mutant(PAGE_API, 'api page: never the notice', '{STUDIO_P2_DOCS && <StudioApiNotice />}', '{false && <StudioApiNotice />}')
+mutant(PAGE_API, 'api page: the notice after the title', ['{STUDIO_P2_DOCS && <StudioApiNotice />}\n            <PageHeader', '                badge={{ text: "v1.0 Beta", icon: <Zap className="h-3 w-3" /> }}\n            />'], ['<PageHeader', '                badge={{ text: "v1.0 Beta", icon: <Zap className="h-3 w-3" /> }}\n            />{STUDIO_P2_DOCS && <StudioApiNotice />}'])
+mutant(PAGE_API, 'api page: the import', "'@/components/studio-docs/studio-p2-docs-api-notice'", "'@/components/studio-docs/studio-p2-docs-api'")
+mutant(PAGE_API, 'api page: a word changed', 'title="Deckster API"', 'title="Deckster API v2"')
+mutant(PAGE_API, 'api page: a claim cut', 'Authenticate your requests using Bearer tokens.', 'Authenticate your requests.')
+mutant(PAGE_API, 'api page: not a client page', "'use client';", '')
+// ---- the footers
+mutant(FOOTER, 'footer: flag spelling', "=== 'true';\nconst linked", "!== 'false';\nconst linked")
+mutant(FOOTER, 'footer: flag name', 'process.env.NEXT_PUBLIC_STUDIO_P2_DOCS', 'process.env.NEXT_PUBLIC_STUDIO_DOCS')
+mutant(FOOTER, 'footer: the filter is inverted', '!(STUDIO_P2_DOCS && studioDocsHiddenHref(href))', '(STUDIO_P2_DOCS && studioDocsHiddenHref(href))')
+mutant(FOOTER, 'footer: the flag off hides too', '!(STUDIO_P2_DOCS && studioDocsHiddenHref(href))', '!studioDocsHiddenHref(href)')
+mutant(FOOTER, 'footer: the flag is not needed to show', '!(STUDIO_P2_DOCS && studioDocsHiddenHref(href))', '!(STUDIO_P2_DOCS || studioDocsHiddenHref(href))')
+mutant(FOOTER, 'footer: AI Agents kept', "{linked('/agents') && <li>", '{true && <li>')
+mutant(FOOTER, 'footer: AI Agents asked of another address', "{linked('/agents') && <li>", "{linked('/experts') && <li>")
+mutant(FOOTER, 'footer: the API link kept', 'footerLinks.resources.filter((link) => linked(link.href)).map', 'footerLinks.resources.map')
+mutant(FOOTER, 'footer: the compact link kept', 'links.filter((l) => linked(l.href)).map((l) => (', 'links.map((l) => (')
+mutant(FOOTER, 'footer: a claim changed', '<span>GDPR Compliant</span>', '<span>GDPR Ready</span>')
+mutant(FOOTER, 'footer: a claim cut', '<span>99.9% Uptime</span>', '<span>High uptime</span>')
+mutant(FOOTER, 'footer: the import', "import { studioDocsHiddenHref } from '@/lib/studio-p2-docs';", "import { studioDocsHiddenHref } from '@/lib/studio-p2-docs-x';")
+mutant(FOOTER, 'footer: not a client component', "'use client';", '')
+mutant(FOOTER_V3, 'landing footer: flag spelling', '=== "true"\n', '!== "false"\n')
+mutant(FOOTER_V3, 'landing footer: flag name', 'process.env.NEXT_PUBLIC_STUDIO_P2_DOCS', 'process.env.NEXT_PUBLIC_STUDIO_DOCS')
+mutant(FOOTER_V3, 'landing footer: always the long list', 'STUDIO_P2_DOCS ? studioDocsFooterLinks(V3_CONTENT.footer.links) : V3_CONTENT.footer.links', 'studioDocsFooterLinks(V3_CONTENT.footer.links)')
+mutant(FOOTER_V3, 'landing footer: never the long list', 'const links = STUDIO_P2_DOCS ?', 'const links = false ?')
+mutant(FOOTER_V3, 'landing footer: the old links are not the list', ': V3_CONTENT.footer.links\n', ': []\n')
+mutant(FOOTER_V3, 'landing footer: the list is not rendered', '{links.map((link) =>', '{V3_CONTENT.footer.links.map((link) =>')
+mutant(FOOTER_V3, 'landing footer: the navigation name', 'aria-label="Footer navigation"', 'aria-label="Footer"')
+mutant(FOOTER_V3, 'landing footer: the key', 'key={link.label}', 'key={link.href}')
+mutant(FOOTER_V3, 'landing footer: the copyright', '<span>{V3_CONTENT.footer.copyright}</span>', '<span>{V3_CONTENT.footer.copyright} </span>')
+mutant(FOOTER_V3, 'landing footer: a client component', 'import Link from "next/link"', '"use client"\nimport Link from "next/link"')
+// ---- the pages that lose a link
+mutant(PAGE_AGENT, 'agent page: flag spelling', "=== 'true';\n\nconst iconMap", "!== 'false';\n\nconst iconMap")
+mutant(PAGE_AGENT, 'agent page: flag name', 'process.env.NEXT_PUBLIC_STUDIO_P2_DOCS', 'process.env.NEXT_PUBLIC_STUDIO_DOCS')
+mutant(PAGE_AGENT, 'agent page: the not-found link kept', '          {!STUDIO_P2_DOCS && (\n            <Link', '          {true && (\n            <Link')
+mutant(PAGE_AGENT, 'agent page: the hero link kept', '              {!STUDIO_P2_DOCS && (\n                <Button', '              {true && (\n                <Button')
+mutant(PAGE_AGENT, 'agent page: the closing link kept', '                {!STUDIO_P2_DOCS && (\n                  <Button', '                {true && (\n                  <Button')
+mutant(PAGE_AGENT, 'agent page: the hero link hidden with the flag off', '              {!STUDIO_P2_DOCS && (\n                <Button', '              {false && (\n                <Button')
+mutant(PAGE_AGENT, 'agent page: a colour built from the agent', 'absolute bottom-0 left-4 top-0 w-0.5 bg-gradient-to-b ${agent.color.gradient} opacity-25', 'absolute bottom-0 left-4 top-0 w-0.5 bg-gradient-to-b ${agent.color.gradient} text-${agent.color.primary} opacity-25')
+mutant(PAGE_AGENT, 'agent page: the primary colour used', 'absolute bottom-0 left-4 top-0 w-0.5 bg-gradient-to-b ${agent.color.gradient} opacity-25', 'absolute bottom-0 left-4 top-0 w-0.5 bg-gradient-to-b ${agent.color.gradient} opacity-25 ${agent.color.primary}')
+mutant(PAGE_AGENT, 'agent page: a literal colour', 'absolute bottom-0 left-4 top-0 w-0.5 bg-gradient-to-b ${agent.color.gradient} opacity-25', 'absolute bottom-0 left-4 top-0 w-0.5 bg-gradient-to-b ${agent.color.gradient} opacity-25 text-[#a78bfa]')
+mutant(PAGE_AGENT, 'agent page: a gradient the CSS cannot reach', 'absolute bottom-0 left-4 top-0 w-0.5 bg-gradient-to-b ${agent.color.gradient} opacity-25', 'absolute bottom-0 left-4 top-0 w-0.5 ${agent.color.gradient} opacity-25')
+mutant(PAGE_AGENT, 'agent page: a word changed', 'All agents\n', 'All the agents\n')
+mutant(PAGE_AGENT, 'agent page: not a client page', "'use client';", '')
+mutant(PAGE_COMPARE, 'compare page: flag spelling', "=== 'true';\n\n// Real", "!== 'false';\n\n// Real")
+mutant(PAGE_COMPARE, 'compare page: flag name', 'process.env.NEXT_PUBLIC_STUDIO_P2_DOCS', 'process.env.NEXT_PUBLIC_STUDIO_DOCS')
+mutant(PAGE_COMPARE, 'compare page: Meet the Team kept', '{!STUDIO_P2_DOCS && (', '{true && (')
+mutant(PAGE_COMPARE, 'compare page: Meet the Team hidden with the flag off', '{!STUDIO_P2_DOCS && (', '{false && (')
+mutant(PAGE_COMPARE, 'compare page: a word changed', '>Meet the Team</Link>', '>Meet our Team</Link>')
+mutant(PAGE_COMPARE, 'compare page: not a client page', "'use client';", '')
+// ---- the CSS of the notice and the muted page
+mutant(CSS, 'css api: text stays', '--sd-text: var(--sd-muted); --sd-accent: var(--sd-muted); --sd-teal: var(--sd-muted);', '--sd-accent: var(--sd-muted); --sd-teal: var(--sd-muted);')
+mutant(CSS, 'css api: accent stays', '--sd-accent: var(--sd-muted); --sd-teal: var(--sd-muted); }', '--sd-teal: var(--sd-muted); }')
+mutant(CSS, 'css api: teal stays', '--sd-teal: var(--sd-muted); }\n[data-studio-p2-docs] .sd-api-notice ~ section :is(h2, code)', '}\n[data-studio-p2-docs] .sd-api-notice ~ section :is(h2, code)')
+mutant(CSS, 'css api: muted by opacity', '--sd-teal: var(--sd-muted); }\n[data-studio-p2-docs] .sd-api-notice ~ section :is(h2, code)', '--sd-teal: var(--sd-muted); opacity: .6; }\n[data-studio-p2-docs] .sd-api-notice ~ section :is(h2, code)')
+mutant(CSS, 'css api: muted by a filter', '--sd-teal: var(--sd-muted); }\n[data-studio-p2-docs] .sd-api-notice ~ section :is(h2, code)', '--sd-teal: var(--sd-muted); filter: grayscale(1); }\n[data-studio-p2-docs] .sd-api-notice ~ section :is(h2, code)')
+mutant(CSS, 'css api: the cards stay solid', 'border-style: dashed;', 'border-style: solid;')
+mutant(CSS, 'css api: the dashes are faint', 'border-style: dashed; border-color: var(--sd-muted); }', 'border-style: dashed; }')
+mutant(CSS, 'css api: the dashes are teal', 'border-style: dashed; border-color: var(--sd-muted); }', 'border-style: dashed; border-color: var(--sd-teal); }')
+mutant(CSS, 'css api: headings keep the text colour', '.sd-api-notice ~ section :is(h2, code) { color: var(--sd-muted); }', '.sd-api-notice ~ section :is(h2, code) { color: var(--sd-text); }')
+mutant(CSS, 'css api: code keeps its colour', '.sd-api-notice ~ section :is(h2, code) {', '.sd-api-notice ~ section :is(h2) {')
+mutant(CSS, 'css api: the dashed rule is weaker', '.sd-api-notice ~ section .space-y-12 .rounded-lg:not(.bg-muted) { border-style', '.sd-api-notice ~ section .space-y-12 .rounded-lg { border-style')
+mutant(CSS, 'css api: the muted rule reaches the footer', '.sd-api-notice ~ section {', '.sd-api-notice ~ * {')
+mutant(CSS, 'css api: title size', '.sd-api-notice__title { margin: 0; color: var(--sd-text); font-size: 13px;', '.sd-api-notice__title { margin: 0; color: var(--sd-text); font-size: 16px;')
+mutant(CSS, 'css api: title weight', 'font-size: 13px; line-height: 1.5; font-weight: 600; }\n[data-studio-p2-docs] .sd-api-notice__text', 'font-size: 13px; line-height: 1.5; font-weight: 400; }\n[data-studio-p2-docs] .sd-api-notice__text')
+mutant(CSS, 'css api: title colour', '.sd-api-notice__title { margin: 0; color: var(--sd-text);', '.sd-api-notice__title { margin: 0; color: var(--sd-accent);')
+mutant(CSS, 'css api: text size', 'margin: 4px 0 0; color: var(--sd-muted); font-size: 12px;', 'margin: 4px 0 0; color: var(--sd-muted); font-size: 11px;')
+mutant(CSS, 'css api: text colour', 'margin: 4px 0 0; color: var(--sd-muted); font-size: 12px;', 'margin: 4px 0 0; color: var(--sd-text); font-size: 12px;')
+mutant(CSS, 'css api: box edge', 'border-left: 3px solid var(--sd-action);', 'border-left: 3px solid var(--sd-accent);')
+mutant(CSS, 'css api: box edge literal', 'border-left: 3px solid var(--sd-action);', 'border-left: 3px solid #223a3f;')
+mutant(CSS, 'css api: box fill', 'border-radius: 10px; background: var(--sd-panel); }\n[data-studio-p2-docs] .sd-api-notice__title', 'border-radius: 10px; background: var(--sd-soft); }\n[data-studio-p2-docs] .sd-api-notice__title')
+mutant(CSS, 'css api: box corners', 'padding: 12px 16px; border: 1px solid var(--sd-line); border-left: 3px solid var(--sd-action); border-radius: 10px;', 'padding: 12px 16px; border: 1px solid var(--sd-line); border-left: 3px solid var(--sd-action); border-radius: 4px;')
+mutant(CSS, 'css api: notice offset', '.sd-api-notice { box-sizing: border-box; padding-top: 24px; }', '.sd-api-notice { box-sizing: border-box; padding-top: 0; }')
+mutant(CSS, 'css api: notice sets its own width', '.sd-api-notice { box-sizing: border-box; padding-top: 24px; }', '.sd-api-notice { box-sizing: border-box; padding-top: 24px; width: 90%; }')
+mutant(CSS, 'css api: important', '.sd-api-notice ~ section { --sd-text: var(--sd-muted);', '.sd-api-notice ~ section { --sd-text: var(--sd-muted) !important;')
+
 let killed = 0, byAssertion = 0, byCrash = 0
 const survivors = [], invalid = [], compileOnly = []
 counting = false
@@ -1340,16 +1916,23 @@ for (const [file, name, from, to] of MUTANTS) {
   let survived = false
   try {
     const page = PAGES.find(p => p.file === file), layout = LAYOUTS.find(l => l[0] === file)
-    if (file === LIB) { proveLib(mutated, name); proveComponents(SOURCES[UI], name, mutated) }
+    if (file === LIB) { proveLib(mutated, name); proveComponents(SOURCES[UI], name, mutated); proveFooter(SOURCES[FOOTER], name, mutated); proveFooterV3(SOURCES[FOOTER_V3], name, mutated); proveNotice(SOURCES[API_NOTICE], name, mutated) }
     else if (file === UI) proveComponents(mutated, name)
     else if (file === FRAME) proveComponents(SOURCES[UI], name, SOURCES[LIB], mutated)
     else if (page) provePage(page, mutated, name)
     else if (layout) { proveLayout(layout[0], layout[1], layout[2], mutated, name); if (file === LAYOUT_DOCS) proveDocsTab(mutated, name) }
-    else if (file === CSS) proveCss(mutated, SOURCES[UI], name)
+    else if (file === CSS) proveCss(mutated, CSS_UI, name)
     else if (TITLE_FIXES.some(([f]) => f === file)) proveTitleFix(file, TITLE_FIXES.find(([f]) => f === file)[1], mutated, name)
     else if (NEW_TITLES.some(([f]) => f === file)) proveNewTitle(file, NEW_TITLES.find(([f]) => f === file)[1], mutated, name)
     else if (file === META_ARTICLE) await articleTab(mutated, name)
     else if (file === META_AGENT) await agentTab(mutated, name)
+    else if (file === AGENT_RULES) proveRules(mutated, name)
+    else if (file === API_NOTICE) proveNotice(mutated, name)
+    else if (file === PAGE_API) proveApiPage(mutated, name)
+    else if (file === FOOTER) proveFooter(mutated, name)
+    else if (file === FOOTER_V3) proveFooterV3(mutated, name)
+    else if (file === PAGE_AGENT) { proveAgentPage(mutated, name); proveNoRainbow(mutated, name) }
+    else if (file === PAGE_COMPARE) proveComparePage(mutated, name)
     else if (file === HELP_TEMPLATE) proveHelpTemplate(mutated, name)
     else if (file === HELP_CSS) proveHelpCss(mutated, name)
     else if (file === ENV) proveEnv(mutated, name)

@@ -9,6 +9,9 @@ import { Button } from '@/components/ui/button';
 import { ArrowRight, CheckCircle2, Sparkles, Users, Zap, Award } from 'lucide-react';
 import Link from 'next/link';
 
+// PASS2 Docs (NEXT_PUBLIC_STUDIO_P2_DOCS, default off): /agents is a redirect (next.config.mjs), so with the flag on "Meet the Team" is not shown. Off: the page as it was.
+const STUDIO_P2_DOCS = process.env.NEXT_PUBLIC_STUDIO_P2_DOCS === 'true';
+
 // Real, specific differentiators per competitor — drawn from how Deckster's
 // 8-agent system actually compares to each one. Used by ComparisonCard below.
 type Differentiator = { title: string; body: string };
@@ -160,9 +163,11 @@ export default function ComparePage() {
                   Get Started
                 </Link>
               </Button>
-              <Button asChild variant="outline" size="lg">
-                <Link href="/agents">Meet the Team</Link>
-              </Button>
+              {!STUDIO_P2_DOCS && (
+                <Button asChild variant="outline" size="lg">
+                  <Link href="/agents">Meet the Team</Link>
+                </Button>
+              )}
             </div>
           </div>
         </section>
