@@ -21,6 +21,7 @@ import { fileURLToPath } from 'node:url'
 import vm from 'node:vm'
 import ts from 'typescript'
 import { stripChatElementRefine } from './studio-chat-element-refine-strip.mjs' // NEXT_PUBLIC_CHAT_ELEMENT_REFINE (#470): its flag-gated lines in the hook and types/mdc.ts come out first
+import { stripChatThemeExport } from './studio-chat-theme-export-strip.mjs' // NEXT_PUBLIC_CHAT_THEME_CHANGE / NEXT_PUBLIC_CHAT_EXPORT (#472): its flag-gated hook lines come out first
 
 const repoRoot = path.resolve(fileURLToPath(new URL('../', import.meta.url)))
 const BASE_COMMIT = '1079ba4b7cd277ece7cc46ee7624d74419c3a5aa' // studio-v4-dev-preparation-code when this change branched
@@ -476,7 +477,7 @@ async function identity() {
     'lib/builder-presentation-ownership.ts', 'lib/studio-slide-count-sync.ts', 'types/mdc.ts', 'hooks/use-builder-session.ts',
     'lib/studio-deck-changed-notice.ts', 'scripts/test-studio-deck-mutation-refresh.mjs']
   pin('flag-off identity: the hook (deck_mutation and slide_ready paths, message cache, history, send payloads), the viewer, the rail and every count lib are byte-identical to the base', () => {
-    for (const rel of UNTOUCHED) assert.equal(sha(stripChatElementRefine(rel, read(rel))), sha(baseSource(rel)), rel)
+    for (const rel of UNTOUCHED) assert.equal(sha(stripChatElementRefine(rel, stripChatThemeExport(rel, read(rel)))), sha(baseSource(rel)), rel)
   })
   const { stripDeckMutationDedupe, DECK_MUTATION_DEDUPE_PAGE_ADDITION } = await import('./studio-deck-mutation-dedupe-strip.mjs')
   const { stripOpenReadOnly } = await import('./studio-open-read-only-strip.mjs')

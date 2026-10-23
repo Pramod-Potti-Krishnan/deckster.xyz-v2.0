@@ -33,6 +33,7 @@ import { stripOpenReadOnly } from './studio-open-read-only-strip.mjs'
 import { stripDarkPersist } from './studio-theme-dark-persist-strip.mjs'
 import { stripChatElementRefine } from './studio-chat-element-refine-strip.mjs' // NEXT_PUBLIC_CHAT_ELEMENT_REFINE (#470): its flag-gated lines in the hook and types/mdc.ts come out first
 import { stripDeckTitle } from './studio-deck-title-strip.mjs'
+import { stripChatThemeExport } from './studio-chat-theme-export-strip.mjs' // NEXT_PUBLIC_CHAT_THEME_CHANGE / NEXT_PUBLIC_CHAT_EXPORT (#472): its flag-gated hook lines come out first
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..')
 const args = process.argv.slice(2)
@@ -539,7 +540,7 @@ run('the chat hard rule, against the base commit: the reducer, cache, history re
   for (const rel of files) {
     const base = baseSource(rel)
     if (base === null) { console.log(`  SKIP ${rel}: ${BASE_COMMIT} is not in this clone`); continue }
-    assert.equal(stripChatElementRefine(rel, read(rel)), base, `${rel} is untouched`)
+    assert.equal(stripChatElementRefine(rel, stripChatThemeExport(rel, read(rel))), base, `${rel} is untouched`)
   }
 })
 run('the builder page mounts the note once, as a sibling beside the other chat notices, gated on the flag; the page adds no other reference', () => {

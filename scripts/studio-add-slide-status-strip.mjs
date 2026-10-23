@@ -8,6 +8,7 @@
 
 import { stripDuplicateDeck } from './studio-duplicate-deck-strip.mjs'
 import { stripChatElementRefine } from './studio-chat-element-refine-strip.mjs'
+import { stripChatThemeExport } from './studio-chat-theme-export-strip.mjs'
 
 const PAGE = 'app/builder/page.tsx'
 const PANEL = 'components/studio-add-slide-v2.tsx'
@@ -40,5 +41,6 @@ export function stripAddSlideStatus(rel, text) {
   const table = rel === PAGE ? PAGE_ADDITIONS : rel === PANEL ? PANEL_ADDITIONS : []
   // FRONTEND-2 Pass 3 (NEXT_PUBLIC_STUDIO_DUPLICATE_DECK): the Builder page's import and one gated element come out first (scripts/studio-duplicate-deck-strip.mjs).
   // FRONTEND-2 Pass 3 (NEXT_PUBLIC_CHAT_ELEMENT_REFINE): that change's flag-gated lines come out first (scripts/studio-chat-element-refine-strip.mjs).
-  return table.reduce((out, [from, to]) => out.replace(from, to), stripDuplicateDeck(rel, stripChatElementRefine(rel, text)))
+  // FRONTEND-2 Pass 3 (NEXT_PUBLIC_CHAT_THEME_CHANGE / NEXT_PUBLIC_CHAT_EXPORT): those flags' gated lines come out first (scripts/studio-chat-theme-export-strip.mjs).
+  return table.reduce((out, [from, to]) => out.replace(from, to), stripDuplicateDeck(rel, stripChatElementRefine(rel, stripChatThemeExport(rel, text))))
 }
