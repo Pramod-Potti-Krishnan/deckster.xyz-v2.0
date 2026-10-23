@@ -45,7 +45,7 @@ export const STACKED_PASS3_FILES = [
   // deck import (NEXT_PUBLIC_STUDIO_DECK_IMPORT): a new Decks layout, two proxy routes, the dialog and entry, their hook and rules, and OPS-2's REST entitlement minter carried verbatim (PR #312); no library file
   'app/(app)/dashboard/layout.tsx', 'app/api/studio-deck-import/route.ts', 'app/api/studio-deck-import/jobs/[jobId]/route.ts', 'components/studio-deck-import/studio-deck-import-dialog.tsx', 'components/studio-deck-import/studio-deck-import-entry.tsx', 'components/studio-deck-import/studio-deck-import.css', 'hooks/use-studio-deck-import.ts', 'lib/studio-deck-import.ts', 'lib/director-rest-entitlement.ts',
   // deck import, FRONTEND-1 (the Builder's welcome links and the imported-deck note): the Builder layout, the note, and the two welcome components that gain one flag-gated link each
-  'app/builder/layout.tsx', 'components/studio-deck-import/studio-deck-import-note.tsx', 'components/builder/studio-first-run-actions.tsx', 'components/builder/studio-welcome-stage.tsx',
+  'app/builder/layout.tsx', 'components/studio-deck-import/studio-deck-import-note.tsx', 'components/studio-deck-import/studio-deck-import-gate.tsx', 'components/builder/studio-first-run-actions.tsx', 'components/builder/studio-welcome-stage.tsx',
   'app/(app)/dashboard/page.tsx', 'app/builder/page.tsx', 'components/builder/studio-copied-from-note.tsx', 'components/builder/studio-duplicate-deck.css', 'lib/studio-duplicate-deck.ts',
   'lib/studio-deck-mutation-dedupe.ts',
 ]

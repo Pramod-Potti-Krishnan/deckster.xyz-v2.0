@@ -43,6 +43,7 @@ const HOOK = 'hooks/use-studio-deck-import.ts'
 const DIALOG = 'components/studio-deck-import/studio-deck-import-dialog.tsx'
 const ENTRY = 'components/studio-deck-import/studio-deck-import-entry.tsx'
 const NOTE = 'components/studio-deck-import/studio-deck-import-note.tsx'
+const GATE = 'components/studio-deck-import/studio-deck-import-gate.tsx'
 const CSS = 'components/studio-deck-import/studio-deck-import.css'
 const LAYOUT = 'app/(app)/dashboard/layout.tsx'
 const BLAYOUT = 'app/builder/layout.tsx'
@@ -56,7 +57,7 @@ const DASHBOARD = 'app/(app)/dashboard/page.tsx'
 const ENVFILE = '.env.example'
 const PKG = 'package.json'
 const RECORDED = 'scripts/fixtures/deck-import'
-const NEW_FILES = [LIB, HOOK, DIALOG, ENTRY, NOTE, CSS, LAYOUT, BLAYOUT, START, JOBS, HELPER]
+const NEW_FILES = [LIB, HOOK, DIALOG, ENTRY, NOTE, GATE, CSS, LAYOUT, BLAYOUT, START, JOBS, HELPER]
 // the two existing Builder components that gain one flag-gated link each (ruling I5a): [what the change adds, what the base has]
 const EDITED_FILES = {
   [FIRSTRUN]: [
@@ -237,7 +238,7 @@ async function secBlobs() {
   eq(src(DASHBOARD), baseSource(DASHBOARD), 'the Decks page (app/(app)/dashboard/page.tsx) is the base commit\'s file, byte for byte')
   const changed = execFileSync('git', ['diff', '--name-only', BASE_COMMIT, '--', 'app', 'components', 'lib', 'hooks', 'middleware.ts', 'contexts', 'types', 'prisma', 'next.config.mjs', 'public', 'styles'], { cwd: root, encoding: 'utf8' }).split('\n').filter(Boolean)
   const untracked = execFileSync('git', ['ls-files', '--others', '--exclude-standard', '--', 'app', 'components', 'lib', 'hooks'], { cwd: root, encoding: 'utf8' }).split('\n').filter(Boolean)
-  deepEq([...new Set([...changed, ...untracked])].sort(), [...NEW_FILES, ...Object.keys(EDITED_FILES)].sort(), 'the only files under app, components, lib and hooks that differ from the base are this change\'s eleven new ones and the two Builder components that gain a link')
+  deepEq([...new Set([...changed, ...untracked])].sort(), [...NEW_FILES, ...Object.keys(EDITED_FILES)].sort(), 'the only files under app, components, lib and hooks that differ from the base are this change\'s twelve new ones and the two Builder components that gain a link')
   // each of those two is the base's file plus exactly the listed lines (nothing else moved)
   for (const [rel, additions] of Object.entries(EDITED_FILES)) {
     let text = src(rel)
@@ -1099,8 +1100,8 @@ async function secBuilder() {
 // ================================================================ 5. the layout: flag off hands the page back as it was
 async function secLayout() {
   const SENTINEL = { type: 'main', props: { 'data-studio-decks': 'true', children: 'the page' }, key: null }
-  // next/dynamic is stubbed to hand back the component's name; the lazy import inside it is never run here (it is what keeps the button's module and stylesheet out of a build that has the flag off)
-  const layoutFor = env => createWorld({ real: [LAYOUT], stubs: { 'next/dynamic': { default: () => 'StudioDeckImportEntry' } }, globals: { process: { env } } }).load(LAYOUT).default
+  // the layout hands the page back or puts the gate (a small client module that loads the button lazily) above it; the gate is a stub here and has its own checks below
+  const layoutFor = env => createWorld({ real: [LAYOUT], stubs: { '@/components/studio-deck-import/studio-deck-import-gate': { StudioDeckImportEntryGate: 'StudioDeckImportEntryGate' } }, globals: { process: { env } } }).load(LAYOUT).default
   const render = env => layoutFor(env)({ children: SENTINEL })
   const hashes = []
   for (const shell of [undefined, 'false', 'true']) {
@@ -1108,7 +1109,7 @@ async function secLayout() {
       const env = { ...(shell === undefined ? {} : { NEXT_PUBLIC_STUDIO_V4_SHELL: shell }), ...(flag === undefined ? {} : { [FLAG]: flag }) }
       const tree = render(env)
       if (shell === 'true' && flag === 'true') {
-        eq(tree.type, 'Fragment'); deepEq(tree.props.children.map(child => child.type), ['StudioDeckImportEntry', 'main'], 'on: the button, then the page'); ok(tree.props.children[1] === SENTINEL, 'the page itself, untouched')
+        eq(tree.type, 'Fragment'); deepEq(tree.props.children.map(child => child.type), ['StudioDeckImportEntryGate', 'main'], 'on: the button\'s gate, then the page'); ok(tree.props.children[1] === SENTINEL, 'the page itself, untouched')
       } else {
         eq(tree.type, 'Fragment', 'off: a bare fragment'); ok(tree.props.children === SENTINEL, `off (shell ${shell}, flag ${JSON.stringify(flag)}): exactly the page, no wrapper, no button`); deepEq(Object.keys(tree.props), ['children'])
         hashes.push(sha(plain(tree)))
@@ -1120,12 +1121,13 @@ async function secLayout() {
   const layout = src(LAYOUT)
   match(layout, /process\.env\.NEXT_PUBLIC_STUDIO_DECK_IMPORT !== "true"/); match(layout, /process\.env\.NEXT_PUBLIC_STUDIO_V4_SHELL !== "true"/)
   nomatch(layout, /process\.env\[|\{ *NEXT_PUBLIC|= process\.env;?$/m, 'read inline, as Next needs')
-  // the button's module (and its stylesheet) is loaded lazily, so a build with the flag off or unset ships neither: no static import of it
-  match(layout, /dynamic\(\(\) => import\("@\/components\/studio-deck-import\/studio-deck-import-entry"\)/); nomatch(layout, /^import .* from ["']@\/components\/studio-deck-import/m, 'no static import of the entry')
+  // the layout names the gate and nothing else of the feature: the button's module and stylesheet are not reachable from the layout, so its own script and stylesheet lists do not carry them
+  eq([...layout.matchAll(/^import .* from ["']([^"']+)["']/gm)].map(found => found[1]).sort().join(), '@/components/studio-deck-import/studio-deck-import-gate,react', 'the layout imports react and the gate, nothing else')
+  nomatch(layout, /next\/dynamic|\bimport\(/, 'and loads nothing itself')
   // ---- the Builder's layout (app/builder/layout.tsx): the same rule; on, the page first and the imported-deck note after it
   {
     const PAGE = { type: 'main', props: { children: 'the builder' }, key: null }
-    const builderLayout = env => createWorld({ real: [BLAYOUT], stubs: { react: { Suspense: 'Suspense' }, 'next/dynamic': { default: () => 'StudioDeckImportNote' } }, globals: { process: { env } } }).load(BLAYOUT).default
+    const builderLayout = env => createWorld({ real: [BLAYOUT], stubs: { react: { Suspense: 'Suspense' }, '@/components/studio-deck-import/studio-deck-import-gate': { StudioDeckImportNoteGate: 'StudioDeckImportNoteGate' } }, globals: { process: { env } } }).load(BLAYOUT).default
     const offHashes = []
     for (const shell of [undefined, 'false', 'true']) {
       for (const flag of [undefined, 'false', 'TRUE', '1', '', 'yes', 'true ', 'true']) {
@@ -1135,7 +1137,7 @@ async function secLayout() {
         if (shell === 'true' && flag === 'true') {
           eq(tree.props.children.length, 2); ok(tree.props.children[0] === PAGE, 'on: the Builder page first, untouched')
           const wrap = tree.props.children[1]
-          eq(wrap.type, 'Suspense'); eq(wrap.props.fallback, null, 'nothing shown while it waits for the address'); eq(wrap.props.children.type, 'StudioDeckImportNote')
+          eq(wrap.type, 'Suspense'); eq(wrap.props.fallback, null, 'nothing shown while it waits for the address'); eq(wrap.props.children.type, 'StudioDeckImportNoteGate')
         } else {
           ok(tree.props.children === PAGE, `off (shell ${shell}, flag ${JSON.stringify(flag)}): exactly the page, no wrapper, no note`); deepEq(Object.keys(tree.props), ['children']); offHashes.push(sha(plain(tree)))
         }
@@ -1146,7 +1148,20 @@ async function secLayout() {
     match(source, /process\.env\.NEXT_PUBLIC_STUDIO_DECK_IMPORT !== "true"/); match(source, /process\.env\.NEXT_PUBLIC_STUDIO_V4_SHELL !== "true"/)
     nomatch(source, /process\.env\[|\{ *NEXT_PUBLIC|= process\.env;?$/m, 'read inline, as Next needs')
     nomatch(source, /['"]use client['"]/, 'a server layout')
-    match(source, /dynamic\(\(\) => import\("@\/components\/studio-deck-import\/studio-deck-import-note"\)/); nomatch(source, /^import .* from ["']@\/components\/studio-deck-import/m, 'no static import of the note (lazy, so a build without the flag ships neither the note nor its stylesheet)')
+    eq([...source.matchAll(/^import .* from ["']([^"']+)["']/gm)].map(found => found[1]).sort().join(), '@/components/studio-deck-import/studio-deck-import-gate,react', 'the layout imports react and the gate, nothing else'); nomatch(source, /next\/dynamic|\bimport\(/, 'and loads nothing itself')
+  }
+  // ---- the gate: the one client module the layouts name; it loads the button (server-rendered, so there is no jump) and the note (client only) lazily, each from its own module
+  {
+    const loaded = []
+    const dynamic = (loader, options) => { const name = `lazy${loaded.length}`; loaded.push({ name, loader, options }); return name }
+    const entryModule = { StudioDeckImportEntry: 'EntryComponent' }, noteModule = { StudioDeckImportNote: 'NoteComponent' }
+    const gate = createWorld({ real: [GATE], stubs: { 'next/dynamic': { default: dynamic }, './studio-deck-import-entry': entryModule, './studio-deck-import-note': noteModule }, globals: { process: { env: {} } } }).load(GATE)
+    eq(loaded.length, 2, 'two lazy components, nothing else'); eq(gate.StudioDeckImportEntryGate().type, 'lazy0'); eq(gate.StudioDeckImportNoteGate().type, 'lazy1')
+    eq(loaded[0].options, undefined, 'the button is server-rendered (no jump when the page arrives)'); deepEq(plain(loaded[1].options), { ssr: false }, 'the note is client only (it needs this browser\'s storage)')
+    eq(await loaded[0].loader(), 'EntryComponent', 'the first loads the button\'s module'); eq(await loaded[1].loader(), 'NoteComponent', 'the second loads the note\'s module')
+    const source = src(GATE)
+    match(source, /^"use client"|^'use client'/m); eq([...source.matchAll(/^import .* from ["']([^"']+)["']/gm)].map(found => found[1]).join(), 'next/dynamic', 'its only import is next/dynamic')
+    nomatch(source.replace(/\/\/[^\n]*/g, ''), /process\.env|\bfetch\b|localStorage|sessionStorage/, 'it reads and does nothing itself')
   }
   return hashes[0]
 }
@@ -1436,9 +1451,6 @@ const M = [
   [BLAYOUT, 'builder layout: flag ignored', ' || process.env.NEXT_PUBLIC_STUDIO_DECK_IMPORT !== "true"', '', ['layout']],
   [BLAYOUT, 'builder layout: shell ignored', 'process.env.NEXT_PUBLIC_STUDIO_V4_SHELL !== "true" || ', '', ['layout']],
   [BLAYOUT, 'builder layout: wrapper when off', 'return <>{children}</>\n  return', 'return <div>{children}</div>\n  return', ['layout']],
-  [BLAYOUT, 'builder layout: note before the page', '    {children}\n    <Suspense fallback={null}><StudioDeckImportNote /></Suspense>', '    <Suspense fallback={null}><StudioDeckImportNote /></Suspense>\n    {children}', ['layout']],
-  [BLAYOUT, 'builder layout: note imported statically', 'const StudioDeckImportNote = dynamic(() => import("@/components/studio-deck-import/studio-deck-import-note").then(module => module.StudioDeckImportNote))', 'import { StudioDeckImportNote } from "@/components/studio-deck-import/studio-deck-import-note"', ['layout']],
-  [BLAYOUT, 'builder layout: no Suspense', '<Suspense fallback={null}><StudioDeckImportNote /></Suspense>', '<StudioDeckImportNote />', ['layout']],
   [FIRSTRUN, 'first run: link always drawn', 'process.env.NEXT_PUBLIC_STUDIO_DECK_IMPORT === "true" && <Link', 'true && <Link', ['builder', 'blobs']],
   [FIRSTRUN, 'first run: any value draws it', 'process.env.NEXT_PUBLIC_STUDIO_DECK_IMPORT === "true" && <Link', 'process.env.NEXT_PUBLIC_STUDIO_DECK_IMPORT !== "false" && <Link', ['builder', 'blobs']],
   [FIRSTRUN, 'first run: link goes elsewhere', 'href="/dashboard?import=pptx"', 'href="/dashboard"', ['builder', 'blobs']],
@@ -1457,8 +1469,17 @@ const M = [
   [LAYOUT, 'layout: flag ignored', ' || process.env.NEXT_PUBLIC_STUDIO_DECK_IMPORT !== "true"', '', ['layout']],
   [LAYOUT, 'layout: shell ignored', 'process.env.NEXT_PUBLIC_STUDIO_V4_SHELL !== "true" || ', '', ['layout']],
   [LAYOUT, 'layout: wrapper when off', 'return <>{children}</>\n  return', 'return <div>{children}</div>\n  return', ['layout']],
-  [LAYOUT, 'layout: entry imported statically', 'const StudioDeckImportEntry = dynamic(() => import("@/components/studio-deck-import/studio-deck-import-entry").then(module => module.StudioDeckImportEntry))', 'import { StudioDeckImportEntry } from "@/components/studio-deck-import/studio-deck-import-entry"', ['layout']],
-  [LAYOUT, 'layout: button below the page', '<StudioDeckImportEntry />\n    {children}', '{children}\n    <StudioDeckImportEntry />', ['layout']],
+  [LAYOUT, 'layout: button below the page', '<StudioDeckImportEntryGate />\n    {children}', '{children}\n    <StudioDeckImportEntryGate />', ['layout']],
+  [LAYOUT, 'layout: imports the button itself', 'import type { ReactNode } from "react"\n', 'import type { ReactNode } from "react"\nimport { StudioDeckImportEntry } from "@/components/studio-deck-import/studio-deck-import-entry"\n', ['layout']],
+  [BLAYOUT, 'builder layout: note before the page', '    {children}\n    <Suspense fallback={null}><StudioDeckImportNoteGate /></Suspense>', '    <Suspense fallback={null}><StudioDeckImportNoteGate /></Suspense>\n    {children}', ['layout']],
+  [BLAYOUT, 'builder layout: imports the note itself', 'import { Suspense, type ReactNode } from "react"\n', 'import { Suspense, type ReactNode } from "react"\nimport { StudioDeckImportNote } from "@/components/studio-deck-import/studio-deck-import-note"\n', ['layout']],
+  [BLAYOUT, 'builder layout: no Suspense', '<Suspense fallback={null}><StudioDeckImportNoteGate /></Suspense>', '<StudioDeckImportNoteGate />', ['layout']],
+  [GATE, 'gate: note rendered on the server', ', { ssr: false })', ')', ['layout']],
+  [GATE, 'gate: button client only', 'module.StudioDeckImportEntry))\n', 'module.StudioDeckImportEntry), { ssr: false })\n', ['layout']],
+  [GATE, 'gate: button loads the note', 'import("./studio-deck-import-entry")', 'import("./studio-deck-import-note")', ['layout']],
+  [GATE, 'gate: note loads the button', 'import("./studio-deck-import-note")', 'import("./studio-deck-import-entry")', ['layout']],
+  [GATE, 'gate: static import of the button', 'import dynamic from "next/dynamic"\n', 'import dynamic from "next/dynamic"\nimport { StudioDeckImportEntry } from "./studio-deck-import-entry"\n', ['layout']],
+  [GATE, 'gate: not a client module', '"use client"\n', '', ['layout']],
   // the sheet, the example and the manifest
   [CSS, 'css: an unanchored rule', '[data-studio-deck-import-hint="true"], [data-studio-deck-import-detail="true"]', '.hint, [data-studio-deck-import-detail="true"]', ['static']],
   [CSS, 'css: forced', 'font-size: 12px; box-shadow: none; white-space: nowrap;', 'font-size: 12px !important; box-shadow: none; white-space: nowrap;', ['static']],
