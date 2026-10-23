@@ -11,6 +11,7 @@
 //     what follows it). .env.example keeps scripts/studio-env-append-tolerant.mjs (sameAsBase, #480), which is stricter about what may be added.
 //  4. A shared file the stack edits with no strip module (stackFileTolerant: scripts/studio-library-manage-harness.mjs): the file as the stack left it (STACK[475].head) byte for byte, as before; or
 //     every line of it still there, in order, with only a later PR's lines added.
+// stripMutants() edits a strip module and holds it to fixed inputs: its change's own head file stripped is its base file byte for byte, whatever later blocks HEAD carries or where.
 // stackMutants() runs a test's own data through these rules with their mutants (a base line dropped or a base script changed, this change's line left after its strip, its lines gone from HEAD or a later
 // line taken for its own, an own file missing, a stray in its family, a line of the stack's harness dropped or edited) and controls. Plain JavaScript with no imports and no I/O: the tests hand in git's
 // answers, and scripts/test-studio-narration-router.mjs loads this file from its text to mutate it.
@@ -116,6 +117,14 @@ export function stackFileTolerant(stackText, headText) {
   for (const line of now) if (kept < keep.length && line === keep[kept]) kept++
   if (kept < keep.length) return { ok: false, exact: false, reason: `the stack's line ${kept + 1} is missing or out of order: ${keep[kept].slice(0, 120)}` }
   return { ok: true, exact: false, reason: `${now.length - keep.length} line(s) of a later PR taken` }
+}
+
+/** A strip module's mutants on FIXED inputs (its change's own head and base files, or a list built on the base), never on HEAD plus a tolerance: `holds(strip)` must be true for `source`
+ * as it is and false for each [from, to, why] edit of it (`load` turns a source text into the strip function). Returns [label, true when it holds as it should]. */
+export function stripMutants(source, load, holds, mutants) {
+  const out = [['control: the strip as it is holds on the fixed inputs', holds(load(source))]]
+  for (const [from, to, why] of mutants) out.push([`mutant: ${why}`, source.split(from).length === 2 && !holds(load(source.replace(from, () => to)))])
+  return out
 }
 
 /** The rules on a test's own data, with their mutants. `shared`: [{ rel, head, strip, base, changes }] as for sameOrTolerant; `kept`: [{ rel, stack, head }] as for stackFileTolerant.
