@@ -79,6 +79,10 @@ export const STACKED_PASS3_FILES = [
   'app/api/templates/[id]/route.ts', 'hooks/use-templates.ts',
   // Stripe real tier (STRIPE_REAL_TIER_MAPPING_ENABLED, P2-STRIPE-TIER, stacked on #475): the webhook route and the price-to-plan table.
   'app/api/webhooks/stripe/route.ts', 'lib/stripe/subscription-plan.ts',
+  // P3-4a resync after a reconnect (NEXT_PUBLIC_STUDIO_RECONNECT_RESYNC, #482, stacked): the deck-changed notice's lib, hook and strip.
+  'lib/studio-deck-changed-notice.ts', 'hooks/use-deck-changed-notice.ts', 'components/builder/studio-deck-changed-notice.tsx',
+  // Text Labs signed requests (NEXT_PUBLIC_STUDIO_TL_SIGNED_REQUESTS / TEXT_LABS_SIGNED_REQUESTS_ENABLED, stacked): the mint route, its lib, the browser half, the client.
+  'app/api/identity/text-labs-token/route.ts', 'lib/text-labs-identity-mint.ts', 'lib/text-labs-signed-fetch.ts', 'lib/textlabs-client.ts',
 ]
 // The FRONTEND-1 Pass 2 changes that are stacked on the same base too (the /admin pages and their hardening, the Docs / Help / Legal / Agents pages and their content passes, the account menu's rhythm). None is a
 // library file; the diff-scope check allows exactly these as well, and nothing else.

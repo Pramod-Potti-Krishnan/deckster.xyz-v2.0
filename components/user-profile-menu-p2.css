@@ -42,18 +42,19 @@
 [data-studio-p2-profile="true"][data-studio-v4-profile="true"] [data-studio-p2-usage-unavailable-line="true"] > small { font-size: 9px; line-height: 13px; }
 
 /* PP-8 vertical rhythm (NEXT_PUBLIC_STUDIO_P2_POLISH, with the menu's own flag): the menu's lines were far apart, so rows are 32px (8px padding on a 16px line, the touch-target floor),
-   sections are 8px apart with ONE hairline (the one above Sign out), and the capacity card is tighter inside. Same type sizes and tokens; the Appearance control's own rules are not touched.
+   groups are 4px apart (PK, on the first build's 8px: "the gap between groups still reads a little large") with ONE hairline (the one above Sign out), and the capacity card is tighter inside.
+   Same type sizes and tokens; the Appearance control's own rules are not touched (the block around it takes 2px off its own 6px bottom margin, so Settings starts 4px below it).
    Every selector hangs on the root's marker, which exists only with the flag on. */
 [data-studio-p2-profile="true"][data-studio-v4-profile="true"][data-p2-polish="true"] { padding-top: 12px; padding-bottom: 12px; }
-[data-studio-p2-profile="true"][data-studio-v4-profile="true"][data-p2-polish="true"] [data-studio-p2-identity="true"] { margin-bottom: 8px; padding: 0; }
+[data-studio-p2-profile="true"][data-studio-v4-profile="true"][data-p2-polish="true"] [data-studio-p2-identity="true"] { margin-bottom: 4px; padding: 0; }
 [data-studio-p2-profile="true"][data-studio-v4-profile="true"][data-p2-polish="true"] :is([data-studio-p2-row], [data-studio-v4-profile-role="danger"]) { min-height: 32px; padding: 8px 4px; line-height: 16px; }
 [data-studio-p2-profile="true"][data-studio-v4-profile="true"][data-p2-polish="true"] [data-studio-v4-profile-role="separator"]:not(:has(+ [data-studio-v4-profile-role="danger"])) { display: none; }
-[data-studio-p2-profile="true"][data-studio-v4-profile="true"][data-p2-polish="true"] [data-studio-v4-profile-role="separator"] + [data-studio-p2-row] { margin-top: 8px; }
-[data-studio-p2-profile="true"][data-studio-v4-profile="true"][data-p2-polish="true"] [data-studio-p2-eyebrow="true"] { padding: 8px 4px 4px; }
-[data-studio-p2-profile="true"][data-studio-v4-profile="true"][data-p2-polish="true"] [data-studio-p2-appearance-block="true"] { padding-bottom: 2px; }
-[data-studio-p2-profile="true"][data-studio-v4-profile="true"][data-p2-polish="true"] [data-studio-p2-usage="true"] { margin: 0 0 8px; padding: 10px 12px; }
+[data-studio-p2-profile="true"][data-studio-v4-profile="true"][data-p2-polish="true"] [data-studio-v4-profile-role="separator"] + [data-studio-p2-row] { margin-top: 4px; }
+[data-studio-p2-profile="true"][data-studio-v4-profile="true"][data-p2-polish="true"] [data-studio-p2-eyebrow="true"] { padding: 4px; }
+[data-studio-p2-profile="true"][data-studio-v4-profile="true"][data-p2-polish="true"] [data-studio-p2-appearance-block="true"] { margin-bottom: -2px; }
+[data-studio-p2-profile="true"][data-studio-v4-profile="true"][data-p2-polish="true"] [data-studio-p2-usage="true"] { margin: 0 0 4px; padding: 10px 12px; }
 [data-studio-p2-profile="true"][data-studio-v4-profile="true"][data-p2-polish="true"] [data-studio-p2-usage-title="true"] { margin-bottom: 6px; }
 [data-studio-p2-profile="true"][data-studio-v4-profile="true"][data-p2-polish="true"] [data-studio-p2-usage="true"] [data-studio-p2-meter] + [data-studio-p2-meter] { margin-top: 8px; }
 [data-studio-p2-profile="true"][data-studio-v4-profile="true"][data-p2-polish="true"] [data-studio-p2-meter-bar="true"] { margin: 4px 0 2px; }
 [data-studio-p2-profile="true"][data-studio-v4-profile="true"][data-p2-polish="true"] [data-studio-p2-upgrade="true"] { min-height: 32px; margin: 2px -4px -6px; padding: 9px 4px; }
-[data-studio-p2-profile="true"][data-studio-v4-profile="true"][data-p2-polish="true"] [data-studio-session-usage="true"] { margin: 0 0 8px; }
+[data-studio-p2-profile="true"][data-studio-v4-profile="true"][data-p2-polish="true"] [data-studio-session-usage="true"] { margin: 0 0 4px; }
