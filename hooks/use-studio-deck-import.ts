@@ -9,7 +9,7 @@ import { LAYOUT_VIEWER_URL_POLICY } from '@/lib/layout-service-client'
 import { uploadFileToResearcher } from '@/lib/researcher-upload'
 import {
   DECK_IMPORT_POLL_RETRIES, DECK_IMPORT_START_ENDPOINT, DECK_IMPORT_WATCH_LIMIT_MS, DECK_IMPORT_WORDS, deckImportAcceptedJobId, deckImportBuilderHref,
-  deckImportFileError, deckImportJobEndpoint, deckImportPendingKey, deckImportReadyResult, deckImportStartBody, deckImportStartFailure, deckImportTitle, deckImportView, parseDeckImportPending,
+  deckImportFileError, deckImportJobEndpoint, deckImportPendingKey, deckImportReadyResult, deckImportStartBody, deckImportStartFailure, deckImportTitle, deckImportView, parseDeckImportPending, rememberDeckImported,
   type DeckImportFailure, type DeckImportPending, type DeckImportSummary, type DeckImportView,
 } from '@/lib/studio-deck-import'
 
@@ -94,6 +94,8 @@ export function useStudioDeckImport(open: boolean) {
           return fail(signal, { message: DECK_IMPORT_WORDS.OPEN_FAILED, retryable: true }, pendingKey)
         }
         if (signal.aborted) return
+        // This browser now knows the session is an import: the Builder draws its note (the design is kept) only for such a session. Never fails the open.
+        try { rememberDeckImported(window.localStorage, uid, pending.session_id) } catch { /* no localStorage: the note is not shown */ }
         const href = deckImportBuilderHref(pending.session_id)
         setWorking(null)
         setSummary(view.summary)

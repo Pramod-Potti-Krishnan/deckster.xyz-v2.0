@@ -297,3 +297,75 @@ export function parseDeckImportPending(raw: unknown): DeckImportPending | null {
   if (!isDict(raw) || !deckImportJobIdValid(raw.job_id) || !deckImportSafeId(raw.session_id) || !str(raw.file_name)) return null
   return { job_id: raw.job_id as string, session_id: raw.session_id as string, file_name: raw.file_name as string }
 }
+
+// ---- the Builder's welcome links to the Decks page (ruling I5a) ----------------------------------------------------------------------------------------------
+/** The Builder's first-run welcome links here. The Decks page opens the import dialog when it arrives with this query; no dialog is mounted in the Builder. */
+export const DECK_IMPORT_ENTRY_PARAM = 'import'
+export const DECK_IMPORT_ENTRY_VALUE = 'pptx'
+export const DECK_IMPORT_BUILDER_HREF = `/dashboard?${DECK_IMPORT_ENTRY_PARAM}=${DECK_IMPORT_ENTRY_VALUE}`
+
+/** True only for `?import=pptx` (any other value, or no value, opens nothing). `search` is `location.search`. */
+export function deckImportRequested(search: unknown): boolean {
+  if (typeof search !== 'string') return false
+  try { return new URLSearchParams(search).get(DECK_IMPORT_ENTRY_PARAM) === DECK_IMPORT_ENTRY_VALUE } catch { return false }
+}
+
+/** The address to leave in the bar once the dialog is open (a reload must not open it again): the same path and hash, the same query without `import`. */
+export function deckImportEntryCleanUrl(location: { pathname?: unknown; search?: unknown; hash?: unknown }): string {
+  const pathname = typeof location.pathname === 'string' && location.pathname ? location.pathname : '/'
+  const hash = typeof location.hash === 'string' ? location.hash : ''
+  let rest = ''
+  try {
+    const params = new URLSearchParams(typeof location.search === 'string' ? location.search : '')
+    params.delete(DECK_IMPORT_ENTRY_PARAM)
+    const text = params.toString()
+    rest = text ? `?${text}` : ''
+  } catch { /* an unreadable query is dropped */ }
+  return `${pathname}${rest}${hash}`
+}
+
+// ---- an imported deck, remembered in this browser, and the note the Builder shows on it (contract section 3) -----------------------------------------------------
+/**
+ * Director's `composer_adoption` marks every deck that keeps its source design (a "Use original" template deck and an import alike) and says nothing of where it came from, and the
+ * Builder refuses a theme change and Add Element's deck-theme step on all of them in the same words ("This template keeps its stored source theme."). So that a deck the person
+ * imported says so, this browser remembers the session ids it imported (per signed-in person); the note below is drawn only for those. Another browser has no record and shows nothing.
+ */
+export const DECK_IMPORT_DONE_LIMIT = 100
+export const deckImportDoneKey = (userId: string): string => `deckster_deck_import_done_${encodeURIComponent(userId)}`
+export const deckImportNoteDismissedKey = (userId: string): string => `deckster_deck_import_note_dismissed_${encodeURIComponent(userId)}`
+/** Plain words, Studio's own: the contract's example, with the Builder's real name for the control ("Add Element"). */
+export const DECK_IMPORT_NOTE_WORDS = {
+  title: 'Imported from PowerPoint',
+  body: 'This deck keeps the design of your PowerPoint file. Changing the theme and Add Element are not available for imported decks yet.',
+  dismiss: 'Got it',
+} as const
+
+/** A stored list of session ids, checked (browser storage is read back as untyped JSON): only plain ids, newest last, at most the limit. */
+export function parseDeckImportIdList(raw: unknown): string[] {
+  if (!Array.isArray(raw)) return []
+  const seen = new Set<string>()
+  const out: string[] = []
+  for (const entry of raw) if (deckImportSafeId(entry) && !seen.has(entry)) { seen.add(entry); out.push(entry) }
+  return out.slice(-DECK_IMPORT_DONE_LIMIT)
+}
+/** `list` with `sessionId` last (moved there when already present), the oldest dropped past the limit. An id that is not a plain id changes nothing. */
+export function deckImportIdListWith(list: string[], sessionId: unknown): string[] {
+  if (!deckImportSafeId(sessionId)) return parseDeckImportIdList(list)
+  return parseDeckImportIdList([...list.filter(id => id !== sessionId), sessionId])
+}
+
+type TextStore = { getItem(key: string): string | null; setItem(key: string, value: string): void }
+function readIdList(store: TextStore | null | undefined, key: string): string[] {
+  try { return parseDeckImportIdList(JSON.parse(store?.getItem(key) || 'null')) } catch { return [] }
+}
+function writeIdList(store: TextStore | null | undefined, key: string, sessionId: string): void {
+  try { store?.setItem(key, JSON.stringify(deckImportIdListWith(readIdList(store, key), sessionId))) } catch { /* a full or blocked store: the note is simply not shown */ }
+}
+/** Called when an import is ready. Never throws. */
+export function rememberDeckImported(store: TextStore | null | undefined, userId: string, sessionId: string): void { writeIdList(store, deckImportDoneKey(userId), sessionId) }
+export function dismissDeckImportNote(store: TextStore | null | undefined, userId: string, sessionId: string): void { writeIdList(store, deckImportNoteDismissedKey(userId), sessionId) }
+/** The note is drawn for a session this browser imported and the person has not dismissed it for. */
+export function deckImportNoteVisible(store: TextStore | null | undefined, userId: string | null | undefined, sessionId: string | null | undefined): boolean {
+  if (!userId || !deckImportSafeId(sessionId)) return false
+  return readIdList(store, deckImportDoneKey(userId)).includes(sessionId) && !readIdList(store, deckImportNoteDismissedKey(userId)).includes(sessionId)
+}

@@ -1,9 +1,9 @@
-// STUDIO DECK IMPORT, "Import a PowerPoint as an editable deck" (FRONTEND-2, Pass 3): a button above the Decks page opens a dialog that uploads a .pptx, starts Director's import
+// STUDIO DECK IMPORT, "Import a PowerPoint as an editable deck" (FRONTEND-2 wrote the Studio half, FRONTEND-1 took it over and added the Builder welcome links and the imported-deck note): a button above the Decks page opens a dialog that uploads a .pptx, starts Director's import
 // (POST /api/template-ingest/stage/import-reference), polls the job's `deck_import` block and opens the Builder on the finished deck. Flag NEXT_PUBLIC_STUDIO_DECK_IMPORT (exact "true"),
 // default off, and only with the Studio shell. Director half: Director !518 (DIRECTOR_DECK_IMPORT_ENABLED); contract streams/director2/deck-import/CONTRACT.md.
 //
 // Run: node scripts/test-studio-deck-import.mjs   (plain node: transpile + vm, no network, no browser, no secrets; every secret below is made up at run time and never printed)
-//   DECK_IMPORT_BASE=<commit>     the commit flag-off identity is checked against (default fae96200, the studio-v4-dev-preparation-code tip this change is based on)
+//   DECK_IMPORT_BASE=<commit>     the commit flag-off identity is checked against (default 8d5c494a, the studio-v4-dev-preparation-code tip this change is merged with)
 //   DECK_IMPORT_QUICK=1           skip the mutants
 //
 // The 17 responses RECORDED from Director's real code (scripts/fixtures/deck-import/, byte copies of streams/director2/deck-import/ in the workspace, pinned by sha256 below) are replayed three ways:
@@ -24,9 +24,9 @@ import vm from 'node:vm'
 import { execFileSync } from 'node:child_process'
 import ts from 'typescript'
 import postcss from 'postcss'
-import { appendOnlyOver, createRuntime, jsxRuntime, root, text as nodeText } from './studio-library-manage-harness.mjs'
+import { appendOnlyOver, createRuntime, flat, jsxRuntime, root, text as nodeText } from './studio-library-manage-harness.mjs'
 
-const BASE_COMMIT = process.env.DECK_IMPORT_BASE || 'fae962006b080e26eb70c2add7066ca1edf8eca2'
+const BASE_COMMIT = process.env.DECK_IMPORT_BASE || '8d5c494a7abcbfaf3d1b69eda257a5100013cb18'
 const read = rel => fs.readFileSync(path.join(root, rel), 'utf8')
 // `git cat-file -e` first: `git show <rev>:<path with [brackets]>` prints nothing and exits 0 for a path that does not exist
 const gitShow = (commit, rel) => {
@@ -42,8 +42,12 @@ const LIB = 'lib/studio-deck-import.ts'
 const HOOK = 'hooks/use-studio-deck-import.ts'
 const DIALOG = 'components/studio-deck-import/studio-deck-import-dialog.tsx'
 const ENTRY = 'components/studio-deck-import/studio-deck-import-entry.tsx'
+const NOTE = 'components/studio-deck-import/studio-deck-import-note.tsx'
 const CSS = 'components/studio-deck-import/studio-deck-import.css'
 const LAYOUT = 'app/(app)/dashboard/layout.tsx'
+const BLAYOUT = 'app/builder/layout.tsx'
+const FIRSTRUN = 'components/builder/studio-first-run-actions.tsx'
+const STAGE = 'components/builder/studio-welcome-stage.tsx'
 const START = 'app/api/studio-deck-import/route.ts'
 const JOBS = 'app/api/studio-deck-import/jobs/[jobId]/route.ts'
 const HELPER = 'lib/director-rest-entitlement.ts'
@@ -52,7 +56,21 @@ const DASHBOARD = 'app/(app)/dashboard/page.tsx'
 const ENVFILE = '.env.example'
 const PKG = 'package.json'
 const RECORDED = 'scripts/fixtures/deck-import'
-const NEW_FILES = [LIB, HOOK, DIALOG, ENTRY, CSS, LAYOUT, START, JOBS, HELPER]
+const NEW_FILES = [LIB, HOOK, DIALOG, ENTRY, NOTE, CSS, LAYOUT, BLAYOUT, START, JOBS, HELPER]
+// the two existing Builder components that gain one flag-gated link each (ruling I5a): [what the change adds, what the base has]
+const EDITED_FILES = {
+  [FIRSTRUN]: [
+    ['import { FileUp, LayoutTemplate, RectangleHorizontal } from "lucide-react"', 'import { LayoutTemplate, RectangleHorizontal } from "lucide-react"'],
+    [' * NEXT_PUBLIC_STUDIO_DECK_IMPORT (default off): one more link, "Import a PowerPoint", to the Decks page, which opens its import dialog (ruling I5a). Off, it is not drawn.\n', ''],
+    ['      {process.env.NEXT_PUBLIC_STUDIO_DECK_IMPORT === "true" && <Link href="/dashboard?import=pptx" className="studio-first-run-link" data-studio-deck-import-builder="true"><FileUp size={13} aria-hidden="true" />Import a PowerPoint</Link>}\n', ''],
+  ],
+  [STAGE]: [
+    ["import { FileUp, Layers, Sparkles, LayoutTemplate } from 'lucide-react'", "import { Layers, Sparkles, LayoutTemplate } from 'lucide-react'"],
+    ['\n *  NEXT_PUBLIC_STUDIO_DECK_IMPORT (default off): the caption gains "Import a PowerPoint", a link to the Decks page, which opens its import dialog (ruling I5a). Off, it is not drawn. */', ' */'],
+    ["{process.env.NEXT_PUBLIC_STUDIO_DECK_IMPORT === 'true' && <Link href=\"/dashboard?import=pptx\" data-studio-deck-import-builder=\"true\"><FileUp size={14} aria-hidden=\"true\" />Import a PowerPoint</Link>}", ''],
+  ],
+}
+
 
 // ---------------------------------------------------------------- counting and overrides (for the mutants)
 let checks = 0
@@ -219,7 +237,13 @@ async function secBlobs() {
   eq(src(DASHBOARD), baseSource(DASHBOARD), 'the Decks page (app/(app)/dashboard/page.tsx) is the base commit\'s file, byte for byte')
   const changed = execFileSync('git', ['diff', '--name-only', BASE_COMMIT, '--', 'app', 'components', 'lib', 'hooks', 'middleware.ts', 'contexts', 'types', 'prisma', 'next.config.mjs', 'public', 'styles'], { cwd: root, encoding: 'utf8' }).split('\n').filter(Boolean)
   const untracked = execFileSync('git', ['ls-files', '--others', '--exclude-standard', '--', 'app', 'components', 'lib', 'hooks'], { cwd: root, encoding: 'utf8' }).split('\n').filter(Boolean)
-  deepEq([...new Set([...changed, ...untracked])].sort(), [...NEW_FILES].sort(), 'the only files under app, components, lib and hooks that differ from the base are this change\'s nine new ones')
+  deepEq([...new Set([...changed, ...untracked])].sort(), [...NEW_FILES, ...Object.keys(EDITED_FILES)].sort(), 'the only files under app, components, lib and hooks that differ from the base are this change\'s eleven new ones and the two Builder components that gain a link')
+  // each of those two is the base's file plus exactly the listed lines (nothing else moved)
+  for (const [rel, additions] of Object.entries(EDITED_FILES)) {
+    let text = src(rel)
+    for (const [added, original] of additions) { eq(text.split(added).length - 1, 1, `${rel}: the addition is there once: ${added.slice(0, 50)}`); text = text.replace(added, () => original) }
+    eq(text, baseSource(rel), `${rel} without this change's lines is the base's file, byte for byte`)
+  }
   for (const rel of NEW_FILES.filter(file => file !== HELPER)) ok(gitShow(BASE_COMMIT, rel) === null, `${rel} is new (the base has no such file)`)
   eq(gitShow(BASE_COMMIT, HELPER), null, 'the minter is not on the base: it is carried from PR #312')
 }
@@ -379,6 +403,48 @@ async function secLib() {
   eq(L.deckImportPendingKey('a@b.c'), 'deckster_deck_import_job_a%40b.c')
   deepEq(L.parseDeckImportPending({ job_id: JOB_ID, session_id: SESSION, file_name: FILE.name }), { job_id: JOB_ID, session_id: SESSION, file_name: FILE.name })
   for (const record of [null, {}, { job_id: 'upload-1', session_id: SESSION, file_name: 'x' }, { job_id: JOB_ID, session_id: 'a b', file_name: 'x' }, { job_id: JOB_ID, session_id: SESSION, file_name: '' }, 'x']) eq(L.parseDeckImportPending(record), null, `record ${JSON.stringify(record)}`)
+  // the Builder's welcome links to the Decks page, which opens the dialog from that query alone (ruling I5a)
+  eq(L.DECK_IMPORT_BUILDER_HREF, '/dashboard?import=pptx'); eq(L.DECK_IMPORT_ENTRY_PARAM, 'import'); eq(L.DECK_IMPORT_ENTRY_VALUE, 'pptx')
+  for (const [search, want] of [['?import=pptx', true], ['import=pptx', true], ['?a=1&import=pptx', true], ['?import=pptx&a=1', true], ['?import=PPTX', false], ['?import=pdf', false], ['?import=', false], ['?import', false], ['?imports=pptx', false], ['?x=import=pptx', false], ['', false], [undefined, false], [null, false], [{}, false], [5, false]]) {
+    eq(L.deckImportRequested(search), want, `search ${JSON.stringify(search)}`)
+  }
+  for (const [location, want] of [
+    [{ pathname: '/dashboard', search: '?import=pptx', hash: '' }, '/dashboard'],
+    [{ pathname: '/dashboard', search: '?import=pptx&a=1&b=2', hash: '#top' }, '/dashboard?a=1&b=2#top'],
+    [{ pathname: '/dashboard', search: '?a=1&import=pptx', hash: '' }, '/dashboard?a=1'],
+    [{ pathname: '/dashboard', search: '?a=1', hash: '' }, '/dashboard?a=1'],
+    [{ pathname: '/dashboard', search: '', hash: '' }, '/dashboard'],
+    [{ pathname: '', search: 5, hash: 5 }, '/'], [{}, '/'],
+  ]) eq(L.deckImportEntryCleanUrl(location), want, `address ${JSON.stringify(location)}`)
+
+  // an imported deck, remembered in this browser, and the note the Builder shows on it (contract section 3)
+  eq(L.deckImportDoneKey('a@b.c'), 'deckster_deck_import_done_a%40b.c'); eq(L.deckImportNoteDismissedKey('a@b.c'), 'deckster_deck_import_note_dismissed_a%40b.c')
+  ok(L.deckImportDoneKey('u') !== L.deckImportNoteDismissedKey('u'), 'two lists, two keys')
+  deepEq(L.DECK_IMPORT_NOTE_WORDS, { title: 'Imported from PowerPoint', body: 'This deck keeps the design of your PowerPoint file. Changing the theme and Add Element are not available for imported decks yet.', dismiss: 'Got it' })
+  deepEq(L.parseDeckImportIdList(['a', 'b', 'a', 'x y', 5, null, '', 'c/d', 'e']), ['a', 'b', 'e'], 'only plain ids, each once, in order')
+  for (const junk of [null, undefined, 'a', {}, 5]) deepEq(L.parseDeckImportIdList(junk), [], 'not a list')
+  const many = Array.from({ length: 130 }, (_, i) => `s${i}`)
+  eq(L.DECK_IMPORT_DONE_LIMIT, 100); deepEq(L.parseDeckImportIdList(many), many.slice(30), 'the newest hundred')
+  deepEq(L.deckImportIdListWith(['a', 'b'], 'c'), ['a', 'b', 'c']); deepEq(L.deckImportIdListWith(['a', 'b'], 'a'), ['b', 'a'], 'moved to the end, not repeated')
+  deepEq(L.deckImportIdListWith(['a'], 'x y'), ['a'], 'a bad id changes nothing'); deepEq(L.deckImportIdListWith(['a'], undefined), ['a']); eq(L.deckImportIdListWith(many.slice(0, 100), 'new').length, 100, 'at the limit, the oldest goes')
+  eq(L.deckImportIdListWith(many.slice(0, 100), 'new')[0], 's1')
+  const store = (initial = {}) => { const map = new Map(Object.entries(initial)); return { map, getItem: key => (map.has(key) ? map.get(key) : null), setItem: (key, value) => { map.set(key, String(value)) } } }
+  const throwing = { getItem() { throw new Error('blocked') }, setItem() { throw new Error('blocked') } }
+  let st = store()
+  eq(L.deckImportNoteVisible(st, 'u1', 's1'), false, 'nothing remembered: no note')
+  L.rememberDeckImported(st, 'u1', 's1'); L.rememberDeckImported(st, 'u1', 's1'); L.rememberDeckImported(st, 'u1', 's2')
+  deepEq(JSON.parse(st.map.get(L.deckImportDoneKey('u1'))), ['s1', 's2'], 'remembered once each')
+  eq(L.deckImportNoteVisible(st, 'u1', 's1'), true); eq(L.deckImportNoteVisible(st, 'u1', 's2'), true)
+  eq(L.deckImportNoteVisible(st, 'u1', 's3'), false, 'a deck this browser did not import'); eq(L.deckImportNoteVisible(st, 'u2', 's1'), false, 'another person on the same browser')
+  eq(L.deckImportNoteVisible(st, null, 's1'), false); eq(L.deckImportNoteVisible(st, '', 's1'), false); eq(L.deckImportNoteVisible(st, 'u1', null), false); eq(L.deckImportNoteVisible(st, 'u1', 'x y'), false); eq(L.deckImportNoteVisible(st, 'u1', undefined), false)
+  L.dismissDeckImportNote(st, 'u1', 's1')
+  eq(L.deckImportNoteVisible(st, 'u1', 's1'), false, 'dismissed for that deck'); eq(L.deckImportNoteVisible(st, 'u1', 's2'), true, 'and only that deck'); eq(L.deckImportNoteVisible(st, 'u2', 's1'), false)
+  deepEq(JSON.parse(st.map.get(L.deckImportNoteDismissedKey('u1'))), ['s1'])
+  st = store({ [L.deckImportDoneKey('u1')]: 'not json', [L.deckImportNoteDismissedKey('u1')]: '{"a":1}' })
+  eq(L.deckImportNoteVisible(st, 'u1', 's1'), false, 'a broken record is no record'); L.rememberDeckImported(st, 'u1', 's1'); eq(L.deckImportNoteVisible(st, 'u1', 's1'), true, 'and is replaced by a good one')
+  eq(L.deckImportNoteVisible(throwing, 'u1', 's1'), false, 'blocked storage: no note'); L.rememberDeckImported(throwing, 'u1', 's1'); L.dismissDeckImportNote(throwing, 'u1', 's1')
+  L.rememberDeckImported(null, 'u1', 's1'); L.rememberDeckImported(undefined, 'u1', 's1'); eq(L.deckImportNoteVisible(null, 'u1', 's1'), false, 'no storage at all: nothing happens, nothing throws')
+  st = store(); L.rememberDeckImported(st, 'u1', 'x y'); eq(st.map.size >= 0 && JSON.parse(st.map.get(L.deckImportDoneKey('u1')) ?? '[]').length, 0, 'a bad id is not remembered')
   // the lib reads nothing from outside and keeps no secret
   const lib = src(LIB)
   nomatch(lib, /process\.env|fetch\(|window\.|document\.|sessionStorage|localStorage/, 'the rules are pure')
@@ -574,11 +640,12 @@ function proxiedNet({ director, rigOptions = {} }) {
 }
 
 const mountedUis = []
-function mountDialog({ entry = false, extraAllowed = '', net, userId = USER_ID, uuids = [SESSION, 'fresh-session-2', 'fresh-session-3'], layoutOrigin = 'http://127.0.0.1:8544', researcherUrl = 'http://127.0.0.1:8000', storage = new Map(), createSessionFails = false, uploadFails = null, open = true } = {}) {
+function mountDialog({ entry = false, extraAllowed = '', net, userId = USER_ID, uuids = [SESSION, 'fresh-session-2', 'fresh-session-3'], layoutOrigin = 'http://127.0.0.1:8544', researcherUrl = 'http://127.0.0.1:8000', storage = new Map(), createSessionFails = false, uploadFails = null, open = true, search = '', local = new Map(), localBlocked = false, historyFails = false } = {}) {
   const clock = { now: 1_000_000 }
   const delays = []
   const pending = new Set()
-  const sessions = [], uploads = [], assigned = [], closed = []
+  const sessions = [], uploads = [], assigned = [], closed = [], replaced = []
+  const localStorage = localBlocked ? { getItem() { throw new Error('blocked') }, setItem() { throw new Error('blocked') } } : { getItem: key => local.get(key) ?? null, setItem: (key, value) => { local.set(key, String(value)) } }
   let runaway = false
   const setTimeoutFake = (fn, ms) => { if (delays.length > 400) { runaway = true; return 0 } /* a loop that never ends stalls here instead of spinning */ delays.push(ms); const id = setImmediate(() => { pending.delete(id); clock.now += ms; fn() }); pending.add(id); return id }
   const clearTimeoutFake = id => { clearImmediate(id); pending.delete(id) }
@@ -608,12 +675,12 @@ function mountDialog({ entry = false, extraAllowed = '', net, userId = USER_ID, 
       process: { env: { NEXT_PUBLIC_KNOWLEDGE_SERVICE_URL: researcherUrl, NEXT_PUBLIC_LAYOUT_SERVICE_URL: layoutOrigin } },
       fetch: net.fetch, setTimeout: setTimeoutFake, clearTimeout: clearTimeoutFake, Date: { now: () => clock.now },
       sessionStorage: { getItem: key => storage.get(key) ?? null, setItem: (key, value) => { storage.set(key, String(value)) }, removeItem: key => { storage.delete(key) } },
-      window: { location: { assign: href => assigned.push(href) } }, crypto: { randomUUID: () => uuids.shift() ?? `extra-session-${uuids.length}` },
+      window: { location: { assign: href => assigned.push(href), search, pathname: '/dashboard', hash: '' }, history: { state: { as: 'next' }, replaceState: (...args) => { if (historyFails) throw new Error('no history'); replaced.push(args) } }, localStorage }, crypto: { randomUUID: () => uuids.shift() ?? `extra-session-${uuids.length}` },
     },
   })
   Comp = entry ? () => world.load(ENTRY).StudioDeckImportEntry() : world.load(DIALOG).StudioDeckImportDialog
   const api = {
-    rt, net, storage, sessions, uploads, assigned, closed, delays, clock, world, props,
+    rt, net, storage, sessions, uploads, assigned, closed, delays, clock, world, props, local, replaced,
     mount() { rt.render() },
     async idle() { let stable = 0, last = ''; for (let i = 0; i < 600 && stable < 8; i++) { await rt.settle(); const sig = `${net.log.length}:${pending.size}:${rt.renders}`; if (sig === last) stable++; else { stable = 0; last = sig } } assert.ok(!runaway, 'the dialog polls without end') },
     action: name => rt.find(node => node.props?.['data-studio-deck-import-action'] === name)[0] ?? null,
@@ -689,6 +756,8 @@ async function secUi() {
   deepEq(ui.rt.find(node => node.type === 'li').map(node => nodeText(node)), ['On slide 1, letter spacing is set to normal in 1 text box.', 'On slide 4, a dashed outline is drawn solid.'])
   ui.action('open').props.onClick()
   deepEq(ui.assigned, [`/builder?session_id=${SESSION}`], 'Open deck opens the Builder on the session')
+  deepEq([...ui.local.keys()], [`deckster_deck_import_done_${USER_ID}`], 'this browser remembers the import (for the Builder\'s note), and writes nothing else to local storage')
+  deepEq(JSON.parse(ui.local.get(`deckster_deck_import_done_${USER_ID}`)), [SESSION], 'by session id')
   ok(ui.net.log.every(entry => !JSON.stringify(entry.headers).match(/entitlement|authorization|bearer/i)), 'no secret or entitlement header ever leaves the browser')
   // ---- the words shown at each step (held reads)
   {
@@ -724,6 +793,11 @@ async function secUi() {
     await importFlow(ui)
     deepEq(ui.assigned, [`/builder?session_id=${SESSION}`], 'with nothing changed, straight into the Builder'); eq(ui.words(), 'Opening your deck…'); eq(ui.action('open'), null)
     ok(ui.storage.has(`deckster_composer_ready_${SESSION}`), 'staged before it opens')
+    deepEq(JSON.parse(ui.local.get(`deckster_deck_import_done_${USER_ID}`)), [SESSION], 'remembered before it opens too')
+    // storage that refuses to be read or written must not stop the deck from opening
+    ui = mountDialog({ net: proxiedNet({ director: recordedDirector([{ body: derived }]) }), localBlocked: true })
+    await importFlow(ui)
+    deepEq(ui.assigned, [`/builder?session_id=${SESSION}`], 'blocked local storage: the Builder still opens'); eq(ui.local.size, 0)
   }
   // ---- recorded 06: the notes were not kept (said once, as a change)
   ui = mountDialog({ net: proxiedNet({ director: recordedDirector(['06']) }) })
@@ -746,7 +820,7 @@ async function secUi() {
     eq(ui.phase(), 'failed', `recorded ${n}`); eq(ui.shown('error'), message, `recorded ${n}: the words as they are`)
     eq(!!ui.action('retry'), !!retryable[n], `recorded ${n}: Try again only when retryable`)
     ok(ui.action('another'), `recorded ${n}: Choose another file`)
-    eq(ui.assigned.length, 0, 'nothing opens'); eq(ui.storage.size, 0, 'nothing staged, nothing kept to resume')
+    eq(ui.assigned.length, 0, 'nothing opens'); eq(ui.storage.size, 0, 'nothing staged, nothing kept to resume'); eq(ui.local.size, 0, 'a failed import is not remembered as an imported deck')
     eq(ui.net.jobs().length, 2, 'polling ends at the failure')
     ok(ui.rt.find(node => node.props?.role === 'alert').length >= 1, 'announced as an alert')
     ui.dialog().props.onOpenChange(false); await ui.idle(); deepEq(ui.closed, [false], 'a failure can be closed'); eq(ui.phase(), 'choose', 'and closing starts the next visit from the picker')
@@ -879,6 +953,142 @@ async function secUi() {
     eq(tree.props['data-studio-deck-import-bar'], 'true')
     button.props.onClick(); tree = rt.render()
     ok(rt.find(node => typeof node.type === 'function').length === 1, 'open: the dialog is mounted')
+    eq(entryUi.replaced.length, 0, 'arriving without the query leaves the address alone')
+  }
+  // ---- the Builder's welcome links to /dashboard?import=pptx: the Decks page opens the dialog once, and takes the query out of the address
+  for (const [search, opens] of [['?import=pptx', true], ['?a=1&import=pptx', true], ['?import=pdf', false], ['?import=', false], ['?imports=pptx', false], ['', false]]) {
+    const entryUi = mountDialog({ entry: true, search, net: createNet(() => assert.fail('opening the dialog asks for nothing')) })
+    entryUi.rt.render(); await entryUi.idle()
+    eq(entryUi.rt.find(node => typeof node.type === 'function').length, opens ? 1 : 0, `${JSON.stringify(search)}: the dialog is ${opens ? 'open' : 'closed'}`)
+    eq(entryUi.replaced.length, opens ? 1 : 0, `${JSON.stringify(search)}: the address is cleaned ${opens ? 'once' : 'never'}`)
+    if (opens) {
+      const [state, title, url] = entryUi.replaced[0]
+      deepEq(plain(state), { as: 'next' }, 'the router\'s own history state is kept'); eq(title, ''); eq(url, search === '?import=pptx' ? '/dashboard' : '/dashboard?a=1', 'same path, same other query, no import')
+      eq(entryUi.net.log.length + entryUi.sessions.length + entryUi.uploads.length, 0, 'opening is not starting')
+    }
+  }
+  {
+    const entryUi = mountDialog({ entry: true, search: '?import=pptx', historyFails: true, net: createNet(() => assert.fail('no request')) })
+    entryUi.rt.render(); await entryUi.idle()
+    eq(entryUi.rt.find(node => typeof node.type === 'function').length, 1, 'a history that refuses still leaves the dialog open')
+  }
+}
+
+
+// ================================================================ 4b. the note over the Builder for a deck this browser imported (contract section 3)
+const NOTE_WORDS = { title: 'Imported from PowerPoint', body: 'This deck keeps the design of your PowerPoint file. Changing the theme and Add Element are not available for imported decks yet.', dismiss: 'Got it' }
+function mountNote({ userId = USER_ID, params = { session_id: SESSION }, local = new Map(), blocked = false, searchParamsNull = false, user = userId ? { id: userId, email: EMAIL } : undefined } = {}) {
+  const store = blocked ? { getItem() { throw new Error('blocked') }, setItem() { throw new Error('blocked') } } : { getItem: key => local.get(key) ?? null, setItem: (key, value) => { local.set(key, String(value)) } }
+  let Comp = null
+  const rt = createRuntime(() => Comp())
+  const world = createWorld({
+    real: [NOTE, LIB, 'lib/studio-template-progress.ts'],
+    stubs: { react: rt.react, 'next/navigation': { useSearchParams: () => (searchParamsNull ? null : { get: key => params[key] ?? null }) }, '@/hooks/use-auth': { useAuth: () => ({ user }) }, 'lucide-react': { Info: 'Info' } },
+    globals: { window: { localStorage: store }, fetch: () => assert.fail('the note asks for nothing'), sessionStorage: { getItem: () => assert.fail('the note reads no session storage'), setItem: () => assert.fail('no session storage') } },
+  })
+  Comp = world.load(NOTE).StudioDeckImportNote
+  const api = {
+    rt, local, params,
+    async show() { rt.render(); await rt.settle(); return api },
+    note: () => rt.find(node => node.props?.['data-studio-deck-import-note'] === 'true')[0] ?? null,
+    dismiss: () => rt.one(node => node.props?.['data-studio-deck-import-note-dismiss'] === 'true'),
+  }
+  mountedUis.push(api)
+  return api
+}
+async function secNote() {
+  const done = (...ids) => new Map([[`deckster_deck_import_done_${USER_ID}`, JSON.stringify(ids)]])
+  // a deck this browser imported shows the note, in Studio's plain words
+  let n = await mountNote({ local: done(SESSION) }).show()
+  ok(n.note(), 'the imported deck has its note'); eq(n.note().type, 'aside'); eq(n.note().props.role, 'note'); eq(n.note().props['aria-label'], NOTE_WORDS.title)
+  const words = nodeText(n.note()).replace(/\s+/g, ' ').trim()
+  eq(words, `${NOTE_WORDS.title}${NOTE_WORDS.body}${NOTE_WORDS.dismiss}`, 'the title, the sentence, the button')
+  match(words, /Changing the theme and Add Element are not available for imported decks yet\./); nomatch(words, /Deck theme not ready|stored source theme|AI /, 'its own words, not the Builder\'s refusal')
+  eq(n.dismiss().type, 'button'); eq(n.dismiss().props.type, 'button')
+  // not imported here: nothing (a template deck, another browser, another person, a deck imported earlier by someone else)
+  for (const [label, options] of [
+    ['a session this browser did not import', { local: done('some-other-session') }],
+    ['no record at all', { local: new Map() }],
+    ['another person on this browser', { local: new Map([['deckster_deck_import_done_someone-else', JSON.stringify([SESSION])]]) }],
+    ['no session in the address', { local: done(SESSION), params: {} }],
+    ['the new-session address', { local: done(SESSION), params: { session_id: 'a b' } }],
+    ['no account', { local: done(SESSION), userId: null }],
+    ['no search params at all', { local: done(SESSION), searchParamsNull: true }],
+    ['blocked storage', { local: done(SESSION), blocked: true }],
+    ['a broken record', { local: new Map([[`deckster_deck_import_done_${USER_ID}`, 'not json']]) }],
+    ['dismissed already', { local: new Map([[`deckster_deck_import_done_${USER_ID}`, JSON.stringify([SESSION])], [`deckster_deck_import_note_dismissed_${USER_ID}`, JSON.stringify([SESSION])]]) }],
+  ]) {
+    n = await mountNote(options).show()
+    eq(n.note(), null, `${label}: no note`)
+  }
+  n = await mountNote({ local: new Map([[`deckster_deck_import_done_${USER_ID}`, JSON.stringify([SESSION])], [`deckster_deck_import_note_dismissed_${USER_ID}`, JSON.stringify(['another'])]]) }).show()
+  ok(n.note(), 'dismissed for another deck: this one still shows')
+  // "Got it" hides it, remembers it for this deck only, and writes nothing else
+  n = await mountNote({ local: done(SESSION, 'second') }).show()
+  n.dismiss().props.onClick(); await n.rt.settle()
+  eq(n.note(), null, 'gone at once'); deepEq(JSON.parse(n.local.get(`deckster_deck_import_note_dismissed_${USER_ID}`)), [SESSION], 'remembered for that deck')
+  deepEq([...n.local.keys()].sort(), [`deckster_deck_import_done_${USER_ID}`, `deckster_deck_import_note_dismissed_${USER_ID}`].sort(), 'nothing else is written')
+  deepEq(JSON.parse(n.local.get(`deckster_deck_import_done_${USER_ID}`)), [SESSION, 'second'], 'the import record is not touched')
+  n = await mountNote({ local: n.local }).show(); eq(n.note(), null, 'and stays gone on the next visit')
+  n = await mountNote({ local: n.local, params: { session_id: 'second' } }).show(); ok(n.note(), 'the other imported deck still has its note')
+  // the Builder can switch session without a reload: the note follows the address
+  n = await mountNote({ local: done(SESSION) }).show()
+  ok(n.note()); n.params.session_id = 'a-deck-built-here'; n.rt.render(); await n.rt.settle(); eq(n.note(), null, 'a deck built here has none')
+  n.params.session_id = SESSION; n.rt.render(); await n.rt.settle(); ok(n.note(), 'and the imported one has it again')
+  // a blocked store on dismiss does not throw
+  n = await mountNote({ local: done(SESSION) }).show(); n.local.set = () => assert.fail('unused')
+  // the component asks for nothing and stores nothing but the person's "Got it"
+  const note = src(NOTE)
+  nomatch(note.replace(/\/\*[\s\S]*?\*\//g, ''), /\bfetch\b|WebSocket|XMLHttpRequest|sessionStorage|sendBeacon|navigator\.|document\./, 'no request, socket, session storage or DOM reach-in')
+  match(note, /'use client'|"use client"/)
+}
+
+// ================================================================ 4c. the Builder's welcome links to the Decks page (ruling I5a)
+async function secBuilder() {
+  const L = loadLib()
+  const icons = { FileUp: 'FileUp', LayoutTemplate: 'LayoutTemplate', RectangleHorizontal: 'RectangleHorizontal', Layers: 'Layers', Sparkles: 'Sparkles' }
+  const stubs = { 'next/link': { default: 'Link' }, 'lucide-react': icons, '@/components/builder/studio-introduction': { StudioIntroductionButton: 'StudioIntroductionButton' }, '@/components/studio-intro-replay': { StudioIntroReplay: 'StudioIntroReplay' }, '@/components/builder/studio-first-run-actions': {} }
+  const component = (rel, env, name, base = false) => {
+    const previous = OVER
+    OVER = base ? { ...OVER, [rel]: baseSource(rel) } : OVER
+    try { return createWorld({ real: [rel], stubs, globals: { process: { env } } }).load(rel)[name] } finally { OVER = previous }
+  }
+  const links = tree => flat(tree).filter(node => node.props?.['data-studio-deck-import-builder'] === 'true')
+  // React draws nothing for `false`, `null` and `undefined` children, so the flag-off tree (which holds a `false` where the link would be) is compared with those left out
+  const isLink = child => !!child && typeof child === 'object' && child.props?.['data-studio-deck-import-builder'] === 'true'
+  const drawn = (tree, drop = false) => JSON.stringify(plain(tree), (key, value) => (Array.isArray(value) ? value.filter(child => child !== false && child !== null && !(drop && isLink(child))) : value))
+  const without = tree => drawn(tree, true)
+  const cases = [
+    [FIRSTRUN, 'StudioFirstRunActions', [{ onStartBlank: () => {} }, {}], 'studio-first-run-link'],
+    [STAGE, 'StudioWelcomeStage', [{}, { studioIntroReplay: 'the replay' }, { planning: true }], null],
+  ]
+  for (const [rel, name, propSets, className] of cases) {
+    for (const props of propSets) {
+      const baseTree = sha(drawn(component(rel, {}, name, true)(props)))
+      // off: every flag spelling but the exact one renders the base's bytes
+      for (const flag of [undefined, 'false', 'TRUE', '1', '', 'yes', 'true ', null]) {
+        const tree = component(rel, flag === undefined ? {} : { [FLAG]: flag }, name)(props)
+        eq(links(tree).length, 0, `${name}: flag ${JSON.stringify(flag)}: no link`)
+        eq(sha(drawn(tree)), baseTree, `${name}: flag ${JSON.stringify(flag)}: what is drawn is the base's, byte for byte`)
+      }
+      // on: the base plus one link to the Decks page (not on the planning poster, which has no caption)
+      const on = component(rel, { [FLAG]: 'true' }, name)(props)
+      const found = links(on)
+      if (props.planning) { eq(found.length, 0, `${name}: the planning poster has no actions to add to`); eq(sha(drawn(on)), baseTree); continue }
+      eq(found.length, 1, `${name}: one link`)
+      eq(found[0].type, 'Link'); eq(found[0].props.href, L.DECK_IMPORT_BUILDER_HREF, 'it goes to /dashboard?import=pptx'); eq(nodeText(found[0]).trim(), 'Import a PowerPoint')
+      ok(flat(found[0]).some(node => node.type === 'FileUp' && node.props['aria-hidden'] === 'true'), 'with a decorative icon'); if (className) eq(found[0].props.className, className, 'in the row\'s own link style')
+      eq(sha(without(on)), baseTree, `${name}: take the link out and it is the base's tree`)
+      const siblings = flat(on).filter(node => node.type === 'Link').map(node => node.props.href)
+      deepEq(siblings, ['/studio/templates', L.DECK_IMPORT_BUILDER_HREF], 'after Explore templates, not instead of it')
+    }
+  }
+  // the literal in both components is the lib's constant, and each reads the flag inline and exactly
+  for (const rel of [FIRSTRUN, STAGE]) {
+    const source = src(rel)
+    eq([...source.matchAll(/href="([^"]*import=pptx[^"]*)"/g)].map(found => found[1]).join(), L.DECK_IMPORT_BUILDER_HREF, `${rel}: the link is the lib's constant`)
+    match(source, /process\.env\.NEXT_PUBLIC_STUDIO_DECK_IMPORT === ["']true["'] &&/); nomatch(source, /process\.env\[|\{ *NEXT_PUBLIC/)
+    nomatch(source.replace(/\/\*[\s\S]*?\*\//g, ''), /\b(fetch|WebSocket|XMLHttpRequest|localStorage|sessionStorage|sendBeacon|navigator\.)\b/, `${rel}: no request, socket or storage`)
   }
 }
 
@@ -905,6 +1115,31 @@ async function secLayout() {
   const layout = src(LAYOUT)
   match(layout, /process\.env\.NEXT_PUBLIC_STUDIO_DECK_IMPORT !== "true"/); match(layout, /process\.env\.NEXT_PUBLIC_STUDIO_V4_SHELL !== "true"/)
   nomatch(layout, /process\.env\[|\{ *NEXT_PUBLIC|= process\.env;?$/m, 'read inline, as Next needs')
+  // ---- the Builder's layout (app/builder/layout.tsx): the same rule; on, the page first and the imported-deck note after it
+  {
+    const PAGE = { type: 'main', props: { children: 'the builder' }, key: null }
+    const builderLayout = env => createWorld({ real: [BLAYOUT], stubs: { react: { Suspense: 'Suspense' }, '@/components/studio-deck-import/studio-deck-import-note': { StudioDeckImportNote: 'StudioDeckImportNote' } }, globals: { process: { env } } }).load(BLAYOUT).default
+    const offHashes = []
+    for (const shell of [undefined, 'false', 'true']) {
+      for (const flag of [undefined, 'false', 'TRUE', '1', '', 'yes', 'true ', 'true']) {
+        const env = { ...(shell === undefined ? {} : { NEXT_PUBLIC_STUDIO_V4_SHELL: shell }), ...(flag === undefined ? {} : { [FLAG]: flag }) }
+        const tree = builderLayout(env)({ children: PAGE })
+        eq(tree.type, 'Fragment')
+        if (shell === 'true' && flag === 'true') {
+          eq(tree.props.children.length, 2); ok(tree.props.children[0] === PAGE, 'on: the Builder page first, untouched')
+          const wrap = tree.props.children[1]
+          eq(wrap.type, 'Suspense'); eq(wrap.props.fallback, null, 'nothing shown while it waits for the address'); eq(wrap.props.children.type, 'StudioDeckImportNote')
+        } else {
+          ok(tree.props.children === PAGE, `off (shell ${shell}, flag ${JSON.stringify(flag)}): exactly the page, no wrapper, no note`); deepEq(Object.keys(tree.props), ['children']); offHashes.push(sha(plain(tree)))
+        }
+      }
+    }
+    eq(new Set(offHashes).size, 1, 'every "off" Builder rendering is the same bytes')
+    const source = src(BLAYOUT)
+    match(source, /process\.env\.NEXT_PUBLIC_STUDIO_DECK_IMPORT !== "true"/); match(source, /process\.env\.NEXT_PUBLIC_STUDIO_V4_SHELL !== "true"/)
+    nomatch(source, /process\.env\[|\{ *NEXT_PUBLIC|= process\.env;?$/m, 'read inline, as Next needs')
+    nomatch(source, /['"]use client['"]/, 'a server layout')
+  }
   return hashes[0]
 }
 
@@ -931,7 +1166,7 @@ async function secStatic() {
   const isClient = rel => /^\s*(?:\/\*[\s\S]*?\*\/\s*|\/\/[^\n]*\n\s*)*['"]use client['"]/.test(text.get(rel))
   const clientRoots = [...text.keys()].filter(isClient)
   ok(clientRoots.length > 100, `the walk sees the app's client modules (${clientRoots.length})`)
-  ok(clientRoots.includes(HOOK) && clientRoots.includes(DIALOG) && clientRoots.includes(ENTRY), 'this change\'s client modules are client modules')
+  ok(clientRoots.includes(HOOK) && clientRoots.includes(DIALOG) && clientRoots.includes(ENTRY) && clientRoots.includes(NOTE), 'this change\'s client modules are client modules'); ok(!clientRoots.includes(LAYOUT) && !clientRoots.includes(BLAYOUT), 'and its two layouts are server code')
   const seen = new Set()
   const stack = [...clientRoots]
   while (stack.length) { const rel = stack.pop(); if (seen.has(rel)) continue; seen.add(rel); stack.push(...importsOf(rel)) }
@@ -945,9 +1180,9 @@ async function secStatic() {
   const helper = text.get(HELPER)
   nomatch(helper, /\bconsole\b|NEXT_PUBLIC_|['"]use client['"]/, 'the minter never logs, reads only server env, and is not a client module')
   // nothing a browser runs names the secret, the header or the minter
-  const mine = [HOOK, DIALOG, ENTRY, LIB, LAYOUT, CSS]
+  const mine = [HOOK, DIALOG, ENTRY, NOTE, LIB, LAYOUT, BLAYOUT, CSS, FIRSTRUN, STAGE]
   for (const rel of mine) nomatch(text.get(rel) ?? src(rel), /DIRECTOR_WS_AUTH_SECRET|X-Deckster-Entitlement|director-rest-entitlement|DECKSTER_REST_ENTITLEMENT/i, `${rel}: no secret, no header, no minter`)
-  for (const rel of [HOOK, DIALOG, ENTRY, LIB]) nomatch(text.get(rel), /COMPOSER_FRONTDOOR_TOKEN|COMPOSER_DIRECTOR_URL|Authorization/, `${rel}: no server credential in browser code`)
+  for (const rel of [HOOK, DIALOG, ENTRY, NOTE, LIB]) nomatch(text.get(rel), /COMPOSER_FRONTDOOR_TOKEN|COMPOSER_DIRECTOR_URL|Authorization/, `${rel}: no server credential in browser code`)
   // no literal secret anywhere in the files this change adds (a bearer, an api key, a signed blob)
   for (const rel of NEW_FILES.filter(file => file !== HELPER)) nomatch(text.get(rel), /Bearer [A-Za-z0-9._-]{16,}|\bsk-[A-Za-z0-9]{16,}|\beyJ[A-Za-z0-9_-]{20,}|[A-Fa-f0-9]{40,}/, `${rel}: no literal secret`)
   nomatch(read('scripts/test-studio-deck-import.mjs'), /Bearer [A-Za-z0-9._-]{16,}|\bsk-[A-Za-z0-9]{16,}|\beyJ[A-Za-z0-9_-]{20,}/, 'the test: no literal bearer, key or signed blob (its secrets are made up at run time)')
@@ -969,12 +1204,17 @@ async function secStatic() {
   const baseEnv = baseSource(ENVFILE)
   const blockStart = env.indexOf('# STUDIO DECK IMPORT, ')
   ok(blockStart > 0, 'the block is there'); eq(env.split(`${FLAG}="false"`).length - 1, 1, 'one line sets the flag, to "false"')
-  const block = env.slice(blockStart)
-  ok(block.trimEnd().endsWith(`${FLAG}="false"`), 'the block is the last thing in the file')
-  const before = env.slice(0, blockStart)
-  ok(appendOnlyOver(ENVFILE, before, baseEnv), 'without the block the file is the base\'s lines in order (a later change\'s block may sit after)')
-  eq(before, baseEnv, 'and here it is exactly the base\'s file')
-  ok(env.startsWith(baseEnv), 'append-only')
+  const flagLine = `${FLAG}="false"\n`
+  const blockEnd = env.indexOf(flagLine) + flagLine.length
+  ok(blockEnd > blockStart, 'the flag line closes the block')
+  const block = env.slice(blockStart, blockEnd)
+  ok(block.trimEnd().endsWith(`${FLAG}="false"`), 'the block ends with the flag line')
+  // PASS2 ADMIN stays the last of the Pass 2 blocks this change must not move: the block sits BEFORE it (FRONTEND-1 ruling, 23 Oct)
+  const adminAt = env.indexOf('# PASS2 ADMIN (')
+  ok(adminAt > blockEnd, 'the block sits before the PASS2 ADMIN block'); eq(env.slice(blockEnd, blockEnd + 1), '\n', 'one blank line between this block and the PASS2 ADMIN block')
+  eq(env.slice(blockEnd - flagLine.length - 1, blockEnd - flagLine.length), '\n', 'the block starts on its own line')
+  const without = env.slice(0, blockStart) + env.slice(blockEnd)
+  eq(without, baseEnv, 'and here it is exactly the base\'s file: the block is inserted, nothing else moved')
   const blockFlags = [...block.matchAll(/\b[A-Z][A-Z0-9]+(?:_[A-Z0-9]+){2,}\b/g)].map(found => found[0])
   deepEq([...new Set(blockFlags)].sort(), ['COMPOSER_DIRECTOR_URL', 'COMPOSER_FRONTDOOR_TOKEN', 'DECKSTER_REST_ENTITLEMENT_HEADER_ENABLED', 'DIRECTOR_DECK_IMPORT_ENABLED', FLAG].sort(), 'the block names this flag, Director\'s, and the existing front-door settings only')
   nomatch(block, /^DECKSTER_REST_ENTITLEMENT_HEADER_ENABLED=|^DIRECTOR_WS_AUTH_SECRET/m, 'the helper\'s flag is documented where it belongs, not here')
@@ -990,7 +1230,7 @@ async function secStatic() {
 }
 
 // ================================================================ run
-const SECTIONS = { blobs: secBlobs, lib: secLib, routes: secRoutes, entitlement: secEntitlement, ui: secUi, layout: secLayout, static: secStatic }
+const SECTIONS = { blobs: secBlobs, lib: secLib, routes: secRoutes, entitlement: secEntitlement, ui: secUi, note: secNote, builder: secBuilder, layout: secLayout, static: secStatic }
 async function proveAll(over = {}, only = null) {
   OVER = over
   const out = {}
