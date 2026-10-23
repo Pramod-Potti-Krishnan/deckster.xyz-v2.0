@@ -62,7 +62,9 @@ export function createTextLabsTokenCache(deps: { fetchImpl: FetchLike; now?: () 
     async header() {
       if (now() < disabledUntil) return {}
       if (!token || expiresAtMs - now() < TL_TOKEN_REFRESH_MARGIN_MS) await mint()
-      return token && expiresAtMs > now() ? { [TL_IDENTITY_HEADER]: token } : {}
+      const headers: Record<string, string> = {}
+      if (token && expiresAtMs > now()) headers[TL_IDENTITY_HEADER] = token
+      return headers
     },
     invalidate() {
       token = null
