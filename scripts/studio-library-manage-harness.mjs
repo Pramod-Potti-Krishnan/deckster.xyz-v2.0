@@ -63,6 +63,8 @@ export const STACKED_PASS3_FILES = [
   'app/api/webhooks/stripe/route.ts', 'lib/stripe/subscription-plan.ts',
   // P3-4a resync after a reconnect (NEXT_PUBLIC_STUDIO_RECONNECT_RESYNC, #482, stacked): the deck-changed notice's lib, hook and strip.
   'lib/studio-deck-changed-notice.ts', 'hooks/use-deck-changed-notice.ts', 'components/builder/studio-deck-changed-notice.tsx',
+  // Text Labs signed requests (NEXT_PUBLIC_STUDIO_TL_SIGNED_REQUESTS / TEXT_LABS_SIGNED_REQUESTS_ENABLED, stacked): the mint route, its lib, the browser half, the client.
+  'app/api/identity/text-labs-token/route.ts', 'lib/text-labs-identity-mint.ts', 'lib/text-labs-signed-fetch.ts', 'lib/textlabs-client.ts',
   // P3-4b every long Studio request ends (NEXT_PUBLIC_STUDIO_JOB_DEADLINES, stacked): the deadlines module, the export service, the narration picker.
   'lib/studio-job-deadlines.ts', 'lib/api/download-service.ts', 'components/narration-voice-picker.tsx',
 ]

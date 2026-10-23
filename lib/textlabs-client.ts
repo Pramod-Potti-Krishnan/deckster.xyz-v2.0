@@ -495,9 +495,11 @@ export async function sendMessage(
 
   // Configuration failures happen before dispatch, never as ambiguous network retries.
   const textLabsBaseUrl = getTextLabsServiceUrl()
+  // NEXT_PUBLIC_STUDIO_TL_SIGNED_REQUESTS (default off): the paid route carries Studio's short-lived identity token. Loaded only when on.
+  const signed = process.env.NEXT_PUBLIC_STUDIO_TL_SIGNED_REQUESTS === 'true' ? await import('@/lib/text-labs-signed-fetch') : null
   let response: Response
   try {
-    response = await fetch(`${textLabsBaseUrl}/api/chat/message`, {
+    response = await (signed ? signed.textLabsSignedFetch : fetch)(`${textLabsBaseUrl}/api/chat/message`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -532,6 +534,19 @@ export async function sendMessage(
 
   if (!response.ok) {
     const errorData = await readErrorResponse(response, signal)
+    // NEXT_PUBLIC_STUDIO_TL_SIGNED_REQUESTS: a gate refusal left after the one resend is final (the gate refuses before the handler runs).
+    const gateMessage = signed ? signed.textLabsGateMessage(signed.textLabsGateCode(errorData)) : null
+    if (signed && gateMessage) {
+      throw new TextLabsRequestError(gateMessage, {
+        kind: 'http',
+        status: response.status,
+        errorCode: signed.textLabsGateCode(errorData),
+        requestId: options.generationAttemptId ?? null,
+        retryable: false,
+        ambiguousCompletion: false,
+        retryStrategy: 'do_not_retry',
+      })
+    }
     const retryable = (
       [408, 425, 429, 502, 503, 504].includes(response.status)
       || responseBoolean(errorData, 'retryable', 'retryable')
@@ -684,7 +699,9 @@ export async function generateInfographic(
     formData.append('infographic_config', JSON.stringify(config))
   }
 
-  const response = await fetch(`${getTextLabsServiceUrl()}/api/infographic/generate`, {
+  // NEXT_PUBLIC_STUDIO_TL_SIGNED_REQUESTS (default off): the paid route carries Studio's short-lived identity token. Loaded only when on.
+  const signed = process.env.NEXT_PUBLIC_STUDIO_TL_SIGNED_REQUESTS === 'true' ? await import('@/lib/text-labs-signed-fetch') : null
+  const response = await (signed ? signed.textLabsSignedFetch : fetch)(`${getTextLabsServiceUrl()}/api/infographic/generate`, {
     method: 'POST',
     body: formData,
     signal,
@@ -692,7 +709,8 @@ export async function generateInfographic(
 
   if (!response.ok) {
     const errorData = await response.json().catch(() => ({}))
-    throw new Error(formatBackendError(errorData, `Infographic upload failed: ${response.status}`))
+    const gateMessage = signed ? signed.textLabsGateMessage(signed.textLabsGateCode(errorData)) : null // NEXT_PUBLIC_STUDIO_TL_SIGNED_REQUESTS
+    throw new Error(gateMessage ?? formatBackendError(errorData, `Infographic upload failed: ${response.status}`))
   }
 
   return response.json()
