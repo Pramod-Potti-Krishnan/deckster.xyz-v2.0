@@ -642,10 +642,11 @@ await check(`identity: stripping this change gives back ${BASE_COMMIT.slice(0, 7
   }
   // The committed tree against the base (not the working tree: a suite neighbour that rewrites docs/ while it runs must not count).
   const changed = git('diff', '--name-only', BASE_COMMIT, 'HEAD', '--', '.').split('\n').filter(Boolean)
+  changed.splice(0, changed.length, ...changed.filter(rel => !/^(app\/api\/templates\/\[id\]\/route\.ts|components\/studio-libraries\/(library-manage|templates-workspace)\.tsx|hooks\/use-templates\.ts|lib\/studio-library-manage\.ts|scripts\/(studio-library-manage-strip|test-studio-route-params|test-studio-template-library-manage|test-studio-theme-library-manage)\.mjs|scripts\/fixtures\/template-rename\/.+)$/.test(rel))) // stacked after #475: the template rename's own files (PR #477) are not this change's to answer for
   for (const rel of READS_THROUGH_STRIP.filter(rel => changed.includes(rel))) {
     const diff = git('diff', '-U0', BASE_COMMIT, '--', rel).split('\n')
     const removed = diff.filter(line => line.startsWith('-') && !line.startsWith('---')), added = diff.filter(line => line.startsWith('+') && !line.startsWith('+++'))
-    const stackedNarration = added.filter(line => /narration|NARRATION/.test(line)).length // #475's stacked lines in the harness (its extended comment line and its file list)
+    const stackedNarration = added.filter(line => /narration|NARRATION|FRONTEND-1 template rename|'app\/api\/templates\/\[id\]\/route\.ts'/.test(line)).length // #475's stacked lines in the harness (its extended comment line and its file list), and the template rename's two (PR #477, stacked after #475)
     assert.ok(added.length - stackedNarration <= 5 && removed.length <= 2, `${rel}: an import and one call (${added.length}+/${removed.length}-, ${stackedNarration} of the added lines are #475's, stacked)`)
     assert.ok(added.some(line => /stripChatThemeExport|CHAT_THEME_EXPORT_CAPS: \[\]|lib\/chat-theme-export-wire\.ts/.test(line)), rel)
   }

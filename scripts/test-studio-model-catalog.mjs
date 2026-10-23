@@ -824,6 +824,7 @@ async function proveStrip(S, label = 'strip') {
 /** The committed tree against the stacked base (not the working tree: a suite neighbour that rewrites docs/ while it runs must not count). */
 function proveStackedScope() {
   const changed = git('diff', '--name-only', BASE_COMMIT, 'HEAD', '--', '.').split('\n').filter(Boolean)
+  changed.splice(0, changed.length, ...changed.filter(rel => !/^(app\/api\/templates\/\[id\]\/route\.ts|components\/studio-libraries\/(library-manage|templates-workspace)\.tsx|hooks\/use-templates\.ts|lib\/studio-library-manage\.ts|scripts\/(studio-library-manage-strip|test-studio-route-params|test-studio-template-library-manage|test-studio-theme-library-manage)\.mjs|scripts\/fixtures\/template-rename\/.+)$/.test(rel))) // stacked after #475: the template rename's own files (PR #477) are not this change's to answer for
   const SIBLINGS = ['scripts/test-studio-chat-element-refine.mjs', 'scripts/test-studio-chat-theme-export.mjs']
   const own = new Set([...OWN, HARNESS, 'scripts/test-studio-model-catalog.mjs', ...SIBLINGS])
   const STACKED_NARRATION_ROUTER = /^(lib\/narration\/(model-router|draft|tts|spoken)\.ts|app\/api\/narration\/(render|script|speak)\/route\.ts|app\/api\/narration\/voice\/sample\/\[voiceId\]\/route\.ts|scripts\/(test-studio-narration-router|studio-narration-router-strip)\.mjs)$/ // #475's own files (stacked on this change)
@@ -839,7 +840,8 @@ function proveStackedScope() {
   deepEq(lines(PKG, '-').map(line => line.replace(/,$/, '')), [lines(PKG, '-')[0]?.replace(/,$/, '')].filter(Boolean), 'stacked scope: package.json: at most the previous entry, which gains a comma')
   ok(lines(PKG, '-').every(line => /test:studio-chat-theme-export/.test(line)) && lines(PKG, '+').some(line => /test:studio-model-catalog/.test(line)), 'stacked scope: package.json: #472\'s entry gains its comma, this change\'s registration follows')
   ok(lines(HARNESS, '-').length <= 1 && lines(HARNESS, '-').every(line => /#469 deck-mutation dedupe\)/.test(line)), 'stacked scope: the harness only gains lines (#475 extends one comment line, stacked)')
-  ok(lines(HARNESS, '+').length >= 2 && lines(HARNESS, '+').every(line => /model catalog|MODEL_CATALOG|studio-model-catalog|intelligence-models|models\/catalogue|intelligence\/layout|narration|NARRATION/.test(line)), 'stacked scope: the stacked list gains this change\'s files only (and #475\'s, stacked)')
+  const harnessAdded = lines(HARNESS, '+').filter(line => !/FRONTEND-1 template rename|'app\/api\/templates\/\[id\]\/route\.ts'/.test(line)) // stacked after #475: minus the template rename's (PR #477) two lines in the stacked list
+  ok(harnessAdded.length >= 2 && harnessAdded.every(line => /model catalog|MODEL_CATALOG|studio-model-catalog|intelligence-models|models\/catalogue|intelligence\/layout|narration|NARRATION/.test(line)), 'stacked scope: the stacked list gains this change\'s files only (and #475\'s, stacked)')
   for (const rel of SIBLINGS.filter(rel => changed.includes(rel))) {
     ok(lines(rel, '+').every(line => /MODEL_CATALOG|ModelCatalog|model-catalog|#473|#475/.test(line)), `stacked scope: ${rel}: every added line names this change (or #475, stacked on it)`)
     ok(lines(rel, '-').length <= 3, `stacked scope: ${rel}: at most three lines were extended`)

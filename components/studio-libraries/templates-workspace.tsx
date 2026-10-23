@@ -9,14 +9,14 @@ import { isTemplateGenerationReady, templateGenerationStatus, templateGeneration
 import { FittedLibraryStage, LibraryLoading, LibraryNotice, LibrarySearch, LibraryWorkspace, MetadataDisclosure, ReadValue, StudioWorkflowLink, libraryDate, type LibraryMode } from './library-controls'
 import './templates-fidelity.css'
 import { templatesNoticeText } from '@/lib/studio-templates-notice'
-// FRONTEND-2 Pass 3 track 4 (NEXT_PUBLIC_STUDIO_TEMPLATE_LIBRARY_MANAGE): delete on a saved template's row (a Composer template shows Delete disabled, with the reason).
+// FRONTEND-2 Pass 3 track 4 (NEXT_PUBLIC_STUDIO_TEMPLATE_LIBRARY_MANAGE): rename and delete on a saved template's row (a Composer template shows Delete disabled, with the reason; it renames like any other).
 import { ManagedLibraryRow, type ManagedRowChild } from './library-manage'
-import { BUSY_TEXT, COMPOSER_TEMPLATE_DELETE_REASON, isUserOwnedLibraryItem, runLibraryDelete, selectionAfterRemoval } from '@/lib/studio-library-manage'
+import { BUSY_TEXT, COMPOSER_TEMPLATE_DELETE_REASON, TEMPLATE_RENAME_UNAVAILABLE_REASON, isUserOwnedLibraryItem, runLibraryDelete, runLibraryRename, selectionAfterRemoval, templateRenameRefusal } from '@/lib/studio-library-manage'
 
 const TEMPLATES_ENABLED = process.env.NEXT_PUBLIC_TEMPLATE_BUILDER_ENABLED === 'true'
 const COMPOSER_ENABLED = process.env.NEXT_PUBLIC_COMPOSER_LIBRARY_ENABLED === 'true'
 const INGEST_ENABLED = process.env.NEXT_PUBLIC_TEMPLATE_INGEST_ENABLED === 'true'
-// FRONTEND-2 Pass 3 track 4 (NEXT_PUBLIC_STUDIO_TEMPLATE_LIBRARY_MANAGE, exact "true", default off, read at build time): the person's own saved templates get a ⋮ menu with Delete (lib/studio-library-manage.ts). Rename is not offered: Director has no template rename route. Off: the rows are exactly as before.
+// FRONTEND-2 Pass 3 track 4 (NEXT_PUBLIC_STUDIO_TEMPLATE_LIBRARY_MANAGE, exact "true", default off, read at build time): the person's own saved templates get a ⋮ menu with Rename and Delete (lib/studio-library-manage.ts). Rename needs Director's template rename route (its DIRECTOR_TEMPLATE_RENAME_ENABLED); while that is off Rename shows disabled, with the reason. Off: the rows are exactly as before.
 const TEMPLATE_LIBRARY_MANAGE = process.env.NEXT_PUBLIC_STUDIO_TEMPLATE_LIBRARY_MANAGE === 'true'
 type DraftSlide = { title: string; purpose: string; inputs: string }
 const EMPTY_SLIDE: DraftSlide = { title: '', purpose: '', inputs: '' }
@@ -75,7 +75,7 @@ export function TemplatesWorkspace() {
   const accountCurrent = account?.current
   const accountReady = account === null || account.ready
   const standaloneStudio = process.env.NEXT_PUBLIC_STUDIO_V4_SHELL === 'true' && account !== null
-  const { listTemplates, getTemplate, reoptimizeTemplate, watchTemplateStatus, deleteTemplate } = useTemplates()
+  const { listTemplates, getTemplate, reoptimizeTemplate, watchTemplateStatus, deleteTemplate, renameTemplate } = useTemplates()
   const [mode, setMode] = useState<LibraryMode>('create')
   const [templates, setTemplates] = useState<SavedTemplate[] | null>(null)
   const [selectedId, setSelectedId] = useState<string | null>(null)
@@ -99,6 +99,7 @@ export function TemplatesWorkspace() {
   const [actionError, setActionError] = useState('')
   const [actionNotice, setActionNotice] = useState('')
   const [watchExpired, setWatchExpired] = useState(false)
+  const [renameUnavailable, setRenameUnavailable] = useState(false)
   const optimizeBusy = useRef(false)
   const mounted = useRef(true)
   const mountEpoch = useRef({})
@@ -264,6 +265,24 @@ export function TemplatesWorkspace() {
     }
   }
 
+  // NEXT_PUBLIC_STUDIO_TEMPLATE_LIBRARY_MANAGE: rename one saved template (a Composer template too: only its name changes). lib/studio-library-manage.ts runs it (optimistic; the old name comes back, with the reason, if Director refuses). Director answering 405 / 404 means its rename route is off: Rename then shows disabled for the rest of this visit. Never called with the flag off.
+  const manageRename = async (template: SavedTemplate, nextName: string) => {
+    if (!canStartAccountAction() || optimizeBusy.current) return { ok: false as const, message: BUSY_TEXT }
+    listRequest.current += 1; setLoading(false); setActionError(''); setActionNotice('') // a library read already in flight must not put the old name back over the new one
+    const reply: { template: SavedTemplate | null } = { template: null }
+    const result = await runLibraryRename('template', { getItems: () => templates, setItems: setTemplates, isCurrent: isCurrentAccount, commit: async (id, name) => {
+      const answer = await renameTemplate(id, name).catch(() => ({ ok: false as const, reason: 'failed' as const }))
+      if (answer.ok) { reply.template = answer.template; return answer.template }
+      if (answer.reason === 'unavailable' && isCurrentAccount()) setRenameUnavailable(true)
+      return templateRenameRefusal(answer, template.name)
+    } }, template.id, nextName)
+    if (result.ok && reply.template && isCurrentAccount()) {
+      const { id, updated_at } = reply.template
+      setSnapshot(current => current?.id === id ? { ...current, name: result.name, ...(updated_at ? { updated_at } : {}) } : current)
+      if (result.name !== template.name) setActionNotice(`“${template.name}” is now “${result.name}”.`)
+    }
+    return result
+  }
   // NEXT_PUBLIC_STUDIO_TEMPLATE_LIBRARY_MANAGE: delete one saved template. lib/studio-library-manage.ts runs it (the template leaves the list only once Director confirms); ./library-manage.tsx draws the menu and the dialog. Never called with the flag off.
   const manageDelete = async (template: SavedTemplate) => {
     if ('stage_template_summary' in template) return { ok: false as const, message: COMPOSER_TEMPLATE_DELETE_REASON } // a Composer template (the page's own test for one) is never deleted from here
@@ -275,7 +294,7 @@ export function TemplatesWorkspace() {
     return result
   }
   const manageRow = (template: SavedTemplate, row: ManagedRowChild) => TEMPLATE_LIBRARY_MANAGE && isUserOwnedLibraryItem(template)
-    ? <ManagedLibraryRow key={template.id} kind="template" name={template.name} disabled={!accountReady || loading || Boolean(optimizingId)} deleteBlockedReason={'stage_template_summary' in template ? COMPOSER_TEMPLATE_DELETE_REASON : undefined} onDelete={() => manageDelete(template)}>{row}</ManagedLibraryRow>
+    ? <ManagedLibraryRow key={template.id} kind="template" name={template.name} disabled={!accountReady || loading || Boolean(optimizingId)} deleteBlockedReason={'stage_template_summary' in template ? COMPOSER_TEMPLATE_DELETE_REASON : undefined} renameBlockedReason={renameUnavailable ? TEMPLATE_RENAME_UNAVAILABLE_REASON : undefined} otherNames={(templates ?? []).filter(item => item.id !== template.id).map(item => item.name)} onRename={nextName => manageRename(template, nextName)} onDelete={() => manageDelete(template)}>{row}</ManagedLibraryRow>
     : row
 
   return <LibraryWorkspace introScreen={standaloneStudio ? "templates" : undefined} introAutoStart={standaloneStudio} introEnabled={accountReady && !importOpen} title="Templates" description={standaloneStudio ? 'Reusable story structure, slide roles, and content slots.' : 'Start with the shape of a story. Bring fresh content, evidence, and your own theme.'} mode={mode} onModeChange={setMode} actions={INGEST_ENABLED ? <button ref={standaloneStudio ? importTrigger : undefined} type="button" className="sl-button" disabled={!accountReady} onClick={() => { if (canStartAccountAction()) setImportOpen(true) }} title="Import PowerPoint or PDF into a new Studio session"><FileUp size={15} />Import presentation</button> : undefined}>

@@ -1,0 +1,21 @@
+{
+  "case": "409-duplicate-name",
+  "what": "The user already has another template called this (UNIQUE (user_id, name)).",
+  "request": {
+    "method": "PATCH",
+    "path": "/api/users/user-a/templates/t-plain",
+    "json_body": {
+      "name": "Board deck"
+    },
+    "entitlement_header": "(none)"
+  },
+  "response": {
+    "status": 409,
+    "headers": {
+      "content-type": "application/json"
+    },
+    "json_body": {
+      "detail": "A template with that name already exists."
+    }
+  }
+}
