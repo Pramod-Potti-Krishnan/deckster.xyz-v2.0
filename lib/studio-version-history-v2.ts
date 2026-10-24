@@ -262,10 +262,13 @@ export interface VersionHistoryBridge {
   open(): boolean
   isAvailable(): boolean
   subscribe(listener: () => void): () => void
+  /** NEXT_PUBLIC_STUDIO_VERSION_HISTORY_DECK_ONLY: the stage is showing the welcome, not a deck (the viewer can sit under it with a blank deck). While covered there is no deck on screen: isAvailable() is false and open() refuses. Only that flag's hook calls it. */
+  setCovered(covered: boolean): void
 }
 
 export function createVersionHistoryBridge(): VersionHistoryBridge {
   let opener: (() => void) | null = null
+  let covered = false // NEXT_PUBLIC_STUDIO_VERSION_HISTORY_DECK_ONLY: the welcome is on stage
   const listeners = new Set<() => void>()
   const notify = () => {
     for (const listener of Array.from(listeners)) {
@@ -284,13 +287,19 @@ export function createVersionHistoryBridge(): VersionHistoryBridge {
     },
     open() {
       if (!opener) return false
+      if (covered) return false
       opener()
       return true
     },
-    isAvailable: () => opener !== null,
+    isAvailable: () => opener !== null && !covered,
     subscribe(listener) {
       listeners.add(listener)
       return () => { listeners.delete(listener) }
+    },
+    setCovered(next) {
+      if (covered === next) return
+      covered = next
+      notify()
     },
   }
 }
