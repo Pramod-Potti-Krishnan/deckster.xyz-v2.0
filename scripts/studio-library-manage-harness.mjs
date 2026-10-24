@@ -112,6 +112,8 @@ export const STACKED_PASS3_FILES = [
   'hooks/use-studio-new-deck-handoff-send.ts',
   // Add Slide compose signs its user (STUDIO_COMPOSE_ENTITLEMENT_ENABLED, stacked on #475): the compose proxy and its lib.
   'app/api/slides/compose/route.ts', 'lib/studio-compose-entitlement.ts',
+  // Publish preview from Layout's inventory (NEXT_PUBLIC_STUDIO_PUBLISH_PREVIEW_INVENTORY_ENABLED, stacked): its hook and lib, and the preview component that reads through the hook.
+  'hooks/use-studio-publish-preview-inventory.ts', 'lib/studio-publish-preview-inventory.ts', 'components/studio-publish-preview.tsx',
   // Studio new logo (NEXT_PUBLIC_STUDIO_NEW_LOGO, FRONTEND-1, stacked on the UAT marketing port): the rail's brand tile, its flag helper and its sheet.
   'lib/studio-new-logo.ts', 'components/layout/studio-new-logo.css', 'components/layout/studio-rail.tsx',
   // Publish review fit (NEXT_PUBLIC_STUDIO_PUBLISH_REVIEW_FIT, stacked): its hook, and the Publish dialog's stylesheet (one block appended after the Pass 2 polish block).
