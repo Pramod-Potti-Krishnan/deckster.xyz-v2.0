@@ -94,6 +94,7 @@ function stubs(lib) {
     '@/components/ui/button': { Button: 'button' }, '@/lib/utils': { cn: (...parts) => parts.filter(Boolean).join(' ') },
     '@/hooks/use-auth': { useAuth: () => ({ user: null }) }, '@/lib/last-builder-session': { lastBuilderSessionKey: () => 'last-session' },
     '@/lib/studio-nav-labels': lib,
+    '@/lib/studio-new-logo': { studioNewLogoOn: value => value === 'true', STUDIO_NEW_LOGO_SRC: '/logo-icon-sm.png', STUDIO_NEW_LOGO_SIZE: 32 }, // NEXT_PUBLIC_STUDIO_NEW_LOGO, off here (scripts/test-studio-new-logo.mjs)
   }
 }
 function component(source, fileName, lib, name) {
