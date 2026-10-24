@@ -41,6 +41,7 @@ import { stripP2Polish } from './studio-p2-polish-strip.mjs'
 import { stripVersionHistoryDeckOnly } from './studio-version-history-deck-only-strip.mjs' // stacked: #493, after this change
 import { stripComposeEntitlement } from './studio-compose-entitlement-strip.mjs' // stacked: #494, after this change
 import { stripPublishPreviewInventory } from './studio-publish-preview-inventory-strip.mjs' // stacked: #495, after this change
+import { stripPaymentsOpenSoon } from './studio-payments-open-soon-strip.mjs' // stacked: payments open soon (billing), after #495 in the stack
 import { stripOpenReadOnly } from './studio-open-read-only-strip.mjs'
 import { stripDarkPersist } from './studio-theme-dark-persist-strip.mjs'
 import { stripAddSlideStatus } from './studio-add-slide-status-strip.mjs'
@@ -436,6 +437,7 @@ function pageChecks(page) {
   assert.ok(call.arguments.length === 0, 'no arguments')
 }
 function envChecks(env) {
+  env = stripPaymentsOpenSoon(ENV, env) // stacked: payments open soon's block (the last in the stack) comes out first
   env = stripPublishPreviewInventory(ENV, env) // stacked: #495's block comes out too
   env = stripComposeEntitlement(ENV, env) // stacked: #494's block (STUDIO_COMPOSE_ENTITLEMENT_ENABLED) comes out too
   env = stripVersionHistoryDeckOnly(ENV, env) // stacked: #493's .env.example block (NEXT_PUBLIC_STUDIO_VERSION_HISTORY_DECK_ONLY) sits between this block and # PASS2 ADMIN; it comes out first
@@ -478,7 +480,7 @@ async function staticChecks() {
     for (const rootFile of ['scripts/studio-open-read-only-strip.mjs', 'scripts/studio-theme-dark-persist-strip.mjs', 'scripts/studio-add-slide-status-strip.mjs']) {
       const text = read(rootFile)
       assert.equal((text.match(/import \{ stripPublishReviewFit \} from '\.\/studio-publish-review-fit-strip\.mjs'/g) || []).length, 1, `${rootFile}: one import`)
-      assert.equal((text.match(/stripPublishReviewFit\(rel, (?:stripVersionHistoryDeckOnly\(rel, )?(?:stripPublishPreviewInventory\(rel, )?text\)/g) || []).length, 1, `${rootFile}: chained once`) // stacked: #493 (version history deck only) nests its strip inside this one
+      assert.equal((text.match(/stripPublishReviewFit\(rel, (?:stripVersionHistoryDeckOnly\(rel, )?(?:stripPublishPreviewInventory\(rel, )?(?:stripPaymentsOpenSoon\(rel, )?text\)/g) || []).length, 1, `${rootFile}: chained once`) // stacked: #493 (version history deck only) nests its strip inside this one
     }
     assert.ok(STACKED_PASS3_FILES.includes(HOOK) && STACKED_PASS3_FILES.includes(CSS), 'the new hook and the changed stylesheet are in STACKED_PASS3_FILES')
   })

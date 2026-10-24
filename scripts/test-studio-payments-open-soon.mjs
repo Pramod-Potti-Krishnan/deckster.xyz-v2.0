@@ -21,6 +21,7 @@ import { fileURLToPath } from 'node:url'
 import ts from 'typescript'
 import postcss from 'postcss'
 import { BASE_COMMIT, PAYMENTS_OPEN_SOON_CHANGES, PAYMENTS_OPEN_SOON_FILES, PAYMENTS_OPEN_SOON_NEW_FILES, stripPaymentsOpenSoon } from './studio-payments-open-soon-strip.mjs'
+import { stripPublishPreviewInventory } from './studio-publish-preview-inventory-strip.mjs' // stacked: #495, below this change in the stack (its .env.example block sits between the base's file and this change's)
 import { stripOpenReadOnly } from './studio-open-read-only-strip.mjs'
 import { stripDarkPersist } from './studio-theme-dark-persist-strip.mjs'
 import { stripAddSlideStatus } from './studio-add-slide-status-strip.mjs'
@@ -680,13 +681,16 @@ const HELD = [ // files other changes' pins hold, the plan display and every cou
 const lineCounts = text => { const map = new Map(); for (const line of text.split('\n')) map.set(line, (map.get(line) ?? 0) + 1); return map }
 /** The lines of `text` that the base text does not have (as a multiset): what this change added. */
 function addedLines(text, baseText) { const have = lineCounts(baseText), out = []; for (const line of text.split('\n')) { const n = have.get(line) ?? 0; if (n > 0) have.set(line, n - 1); else out.push(line) } return out }
-const allChanged = () => [...new Set([...git('diff', '--name-only', BASE).split('\n'), ...git('ls-files', '--others', '--exclude-standard').split('\n')].filter(Boolean))]
+const STACK_BASE = process.env.PAYMENTS_OPEN_SOON_STACK_BASE || '419be9804bcdd7a39a2bb114a78700c8e1fdd55f' // #495's head: this change is stacked on it, so its own diff is what lies over that commit
+const allChanged = () => [...new Set([...git('diff', '--name-only', STACK_BASE).split('\n'), ...git('ls-files', '--others', '--exclude-standard').split('\n')].filter(Boolean))]
 function proveChange() {
   for (const rel of HELD) { let base; try { base = baseSource(rel) } catch { continue } eq(sha(read(rel)), sha(base), `${rel} is the base commit's file`) }
   // strip = base
   for (const rel of PAYMENTS_OPEN_SOON_FILES) {
     const text = read(rel), stripped = stripPaymentsOpenSoon(rel, text)
-    eq(stripped, baseSource(rel), `${rel}: with this change's lines out it is ${BASE.slice(0, 8)} byte for byte`)
+    const stripped495 = stripPublishPreviewInventory(rel, stripped) // stacked: #495's .env.example block is in this tree too, and is not this change's
+    eq(stripped495, baseSource(rel), `${rel}: with this change's lines out (and #495's block, for .env.example) it is ${BASE.slice(0, 8)} byte for byte`)
+    if (rel !== ENV) eq(stripped, baseSource(rel), `${rel}: with this change's lines out it is ${BASE.slice(0, 8)} byte for byte, with nothing else to take out`)
     ok(stripped !== text, `${rel}: the change is there to strip`)
     eq(stripPaymentsOpenSoon(rel, stripped), stripped, `${rel}: stripping twice changes nothing more`)
     for (const [added] of PAYMENTS_OPEN_SOON_CHANGES[rel]) eq(text.split(added).length - 1, 1, `${rel}: each added piece occurs once`)
@@ -700,7 +704,8 @@ function proveChange() {
   nomatch(stripAddSlideStatus(ENV, read(ENV)), /PAYMENTS_OPEN_SOON/, 'a root takes the .env.example block out')
   // scope
   const allowed = new Set([...PAYMENTS_OPEN_SOON_FILES, ...PAYMENTS_OPEN_SOON_NEW_FILES, 'scripts/studio-open-read-only-strip.mjs', 'scripts/studio-theme-dark-persist-strip.mjs', 'scripts/studio-add-slide-status-strip.mjs', 'scripts/studio-library-manage-harness.mjs',
-    'scripts/test-studio-job-ledger.mjs', 'scripts/test-studio-chat-theme-export.mjs', 'scripts/test-studio-new-deck-handoff-send.mjs'])
+    'scripts/test-studio-job-ledger.mjs', 'scripts/test-studio-chat-theme-export.mjs', 'scripts/test-studio-new-deck-handoff-send.mjs',
+    'scripts/test-studio-publish-review-fit.mjs', 'scripts/test-studio-version-history-deck-only.mjs', 'scripts/test-studio-compose-entitlement.mjs', 'scripts/test-studio-publish-preview-inventory.mjs', 'scripts/test-studio-chat-element-refine.mjs'])
   deepEq(allChanged().filter(rel => !allowed.has(rel)), [], 'no file outside this change\'s own, the three strip roots, the harness list and the three pins that read through the strip')
   for (const rel of [...PAYMENTS_OPEN_SOON_FILES, LIB, HOOK, MOUNT, CSS].filter(file => !file.startsWith('scripts/') && file !== ENV)) ok(STACKED_PASS3_FILES.includes(rel), `${rel} is in STACKED_PASS3_FILES`)
   // .env.example
@@ -708,7 +713,7 @@ function proveChange() {
   ok(start !== -1, '.env.example: the block is introduced'); eq((env.match(/^NEXT_PUBLIC_STUDIO_PAYMENTS_OPEN_SOON="false"$/gm) || []).length, 1, '.env.example: documented once, default "false"')
   const block = env.slice(start, env.indexOf('NEXT_PUBLIC_STUDIO_PAYMENTS_OPEN_SOON="false"\n', start) + 'NEXT_PUBLIC_STUDIO_PAYMENTS_OPEN_SOON="false"\n\n'.length)
   match(block, /exact value "true"/, '.env.example: the block says how the flag is read'); match(block, /Build-time/, '.env.example: build-time'); match(block, /503/, '.env.example: the route refusal'); match(block, /Manage Subscription/, '.env.example: the subscriber\'s link is named as left alone')
-  ok(env.slice(0, start).trimEnd().endsWith('NEXT_PUBLIC_STUDIO_NEW_DECK_HANDOFF_SEND="false"'), '.env.example: right after the last FRONTEND-2 block (the new-deck handoff send)')
+  ok(env.slice(0, start).trimEnd().endsWith('NEXT_PUBLIC_STUDIO_PUBLISH_PREVIEW_INVENTORY_ENABLED="false"'), '.env.example: right after the last FRONTEND-2 block below it in the stack (#495, publish preview inventory)')
   ok(env.slice(start + block.length).startsWith('# PASS2 ADMIN'), '.env.example: right before # PASS2 ADMIN')
   // the stylesheet: scoped to the flag's attribute, reaches only the attributes the pass sets, draws the line and nothing else
   const sheet = postcss.parse(read(CSS)); const contents = []; let rules = 0

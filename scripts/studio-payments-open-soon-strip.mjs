@@ -4,7 +4,7 @@
 // BASE_COMMIT's file byte for byte. Every piece is a pure insertion removed on its own (no neighbouring text is needed), .env.example's block included, except
 // the top-up modal's one `disabled` expression, which is a swap ([text this change has, text the base has]). New files (no base text to put back): PAYMENTS_OPEN_SOON_NEW_FILES below.
 
-export const BASE_COMMIT = 'c75e4c2d0e5f7319cce890b055567281fe265184'
+export const BASE_COMMIT = 'ae0885e8ce685e6eb1259f8fac10017685ca2c5f' // the studio-v4-dev-preparation-code tip with #492-#494; #495's .env.example block sits between this commit's file and this change's, and the tests take it out first
 
 const ENV_BLOCK = `# PAYMENTS OPEN SOON (FRONTEND-2, controlled release; there is no Stripe account yet). On for the exact value "true"; default off, and then nothing changes.
 # Build-time value: change it on Vercel and redeploy. On: every control that would start a NEW payment is disabled and says "Payments open soon": Billing's

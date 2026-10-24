@@ -39,6 +39,7 @@ import { BASE_ENV } from './studio-chat-harness/profiles.mjs'
 import { BASE_COMMIT, VERSION_HISTORY_DECK_ONLY_FILES, VERSION_HISTORY_DECK_ONLY_NEW_FILES, VERSION_HISTORY_DECK_ONLY_CHANGES, stripVersionHistoryDeckOnly } from './studio-version-history-deck-only-strip.mjs'
 import { stripComposeEntitlement } from './studio-compose-entitlement-strip.mjs' // stacked: #494, after this change
 import { stripPublishPreviewInventory } from './studio-publish-preview-inventory-strip.mjs' // stacked: #495, after this change
+import { stripPaymentsOpenSoon } from './studio-payments-open-soon-strip.mjs' // stacked: payments open soon (billing), after #495 in the stack
 import { stripOpenReadOnly } from './studio-open-read-only-strip.mjs'
 import { stripDarkPersist } from './studio-theme-dark-persist-strip.mjs'
 import { stripAddSlideStatus } from './studio-add-slide-status-strip.mjs'
@@ -315,7 +316,7 @@ async function staticChecks() {
     for (const rootFile of ['scripts/studio-open-read-only-strip.mjs', 'scripts/studio-theme-dark-persist-strip.mjs', 'scripts/studio-add-slide-status-strip.mjs']) {
       const text = read(rootFile)
       assert.equal((text.match(/import \{ stripVersionHistoryDeckOnly \} from '\.\/studio-version-history-deck-only-strip\.mjs'/g) || []).length, 1, `${rootFile}: one import`)
-      assert.equal((text.match(/stripVersionHistoryDeckOnly\(rel, (?:stripPublishPreviewInventory\(rel, )?text\)/g) || []).length, 1, `${rootFile}: chained once`)
+      assert.equal((text.match(/stripVersionHistoryDeckOnly\(rel, (?:stripPublishPreviewInventory\(rel, )?(?:stripPaymentsOpenSoon\(rel, )?text\)/g) || []).length, 1, `${rootFile}: chained once`)
     }
     assert.ok(STACKED_PASS3_FILES.includes(HOOK) && STACKED_PASS3_FILES.includes(LIB), 'the new hook and the changed lib are in STACKED_PASS3_FILES')
   })
@@ -323,6 +324,7 @@ async function staticChecks() {
   await check(".env.example: documented once, default off, right before # PASS2 ADMIN after the new-deck handoff block; no phrase FRONTEND-1's .env.example mutants replace", () => envChecks(read(ENV)))
 }
 function envChecks(env) {
+  env = stripPaymentsOpenSoon('.env.example', env) // stacked: payments open soon's block (the last in the stack) comes out first
   env = stripPublishPreviewInventory('.env.example', env) // stacked: #495's block comes out too
   env = stripComposeEntitlement('.env.example', env) // stacked: #494's .env.example block (STUDIO_COMPOSE_ENTITLEMENT_ENABLED) sits between this block and # PASS2 ADMIN; it comes out first
   assert.equal((env.match(new RegExp(`^${FLAG}="false"$`, 'gm')) || []).length, 1)
