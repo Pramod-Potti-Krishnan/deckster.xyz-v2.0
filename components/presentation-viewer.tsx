@@ -4384,6 +4384,7 @@ export function PresentationViewer({
                   disabled
                   className={cn(toolbarButtonClass, "text-slate-400 dark:text-slate-500 cursor-not-allowed")}
                   title="Templates — coming soon"
+                  {...(process.env.NEXT_PUBLIC_STUDIO_LAUNCH_WORDING === 'true' ? { title: "Templates are not available" } : undefined)}
                 >
                   <LayoutTemplate className="h-5 w-5" />
                   <span className={toolbarLabelClass}>Template</span>

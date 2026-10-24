@@ -42,12 +42,13 @@ import { stripJobDeadlines } from './studio-job-deadlines-strip.mjs' // stacked 
 import { sameAsBase } from './studio-env-append-tolerant.mjs' // stacked after #475: the .env.example rule that takes a later change's block (scripts/studio-env-append-tolerant.mjs)
 import { stripModelCatalog } from './studio-model-catalog-strip.mjs' // #473 (NEXT_PUBLIC_STUDIO_MODEL_CATALOG) is stacked on this change: its .env.example block and package.json line come out first
 import { STACK, stackFileTolerant, stackMutants, stackScope, sameOrTolerant, stripMutants } from './studio-stack-tolerant.mjs' // stacked after #475: a later PR's files are not this change's to answer for, and a shared file a later PR edits too keeps its base lines and this change's (scripts/studio-stack-tolerant.mjs)
+import { stripLaunchWording } from './studio-launch-wording-strip.mjs' // NEXT_PUBLIC_STUDIO_LAUNCH_WORDING (launched wording): its flag-gated edits come out first, before every older change's strip
 import { stripJobLedger } from './studio-job-ledger-strip.mjs' // stacked after #475: P3-4c (NEXT_PUBLIC_STUDIO_JOB_LEDGER) adds its flag-gated job_update intake to the hook's startConnection; declarations() takes its lines out first
 
 for (const name of Object.keys(process.env)) if (/KEY|TOKEN|SECRET|CREDENTIAL|PASSWORD/i.test(name)) delete process.env[name]
 const root = path.resolve(fileURLToPath(new URL('../', import.meta.url)))
 const FIXTURES = path.join(root, 'scripts/fixtures/chat-theme-export')
-const read = rel => fs.readFileSync(path.join(root, rel), 'utf8')
+const read = rel => stripLaunchWording(rel, fs.readFileSync(path.join(root, rel), 'utf8'))
 const sha = text => crypto.createHash('sha256').update(text).digest('hex')
 const plain = value => JSON.parse(JSON.stringify(value === undefined ? null : value))
 const git = (...args) => execFileSync('git', args, { cwd: root, encoding: 'utf8', maxBuffer: 64 * 1024 * 1024 })
@@ -649,7 +650,7 @@ await check(`identity: stripping this change gives back ${BASE_COMMIT.slice(0, 7
     if (rel === 'scripts/studio-library-manage-harness.mjs') { const v = stackFileTolerant(git('show', `${STACK[475].head}:${rel}`), read(rel)); assert.ok(v.ok, `${rel}: ${v.reason}`); if (!v.exact) continue } // stacked after #475: a later PR's lines in the harness are taken, the stack's (#475's head) kept in order (scripts/studio-stack-tolerant.mjs); as the stack left it, it is checked below as before
     const diff = git('diff', '-U0', BASE_COMMIT, '--', rel).split('\n')
     const removed = diff.filter(line => line.startsWith('-') && !line.startsWith('---')), added = diff.filter(line => line.startsWith('+') && !line.startsWith('+++'))
-    added.splice(0, added.length, ...added.filter(line => !/^\+import \{ stripNewDeckHandoffSend \} from '\.\/studio-new-deck-handoff-send-strip\.mjs'/.test(line))) // stacked after #475: the new-deck handoff send (NEXT_PUBLIC_STUDIO_NEW_DECK_HANDOFF_SEND) chains its strip into this root with one import line; that line is a later PR's, not this change's
+    added.splice(0, added.length, ...added.filter(line => !/^\+import \{ stripNewDeckHandoffSend \} from '\.\/studio-new-deck-handoff-send-strip\.mjs'/.test(line) && !/stripLaunchWording|STUDIO_LAUNCH_WORDING/.test(line))) // stacked after #475: the new-deck handoff send (NEXT_PUBLIC_STUDIO_NEW_DECK_HANDOFF_SEND) chains its strip into this root with one import line; that line is a later PR's, not this change's. So are the launched-wording import and call (NEXT_PUBLIC_STUDIO_LAUNCH_WORDING)
     added.splice(0, added.length, ...added.filter(line => !/^\+import \{ stripPublishReviewFit \} from '\.\/studio-publish-review-fit-strip\.mjs'/.test(line))) // stacked after #475: the publish review fit change (NEXT_PUBLIC_STUDIO_PUBLISH_REVIEW_FIT) chains its strip into this root with one import line; that line is a later PR's, not this change's
     const stackedNarration = added.filter(line => /narration|NARRATION|FRONTEND-1 template rename|'app\/api\/templates\/\[id\]\/route\.ts'/.test(line)).length // #475's stacked lines in the harness (its extended comment line and its file list), and the template rename's two (PR #477, stacked after #475)
     assert.ok(added.length - stackedNarration <= 5 && removed.length <= 2, `${rel}: an import and one call (${added.length}+/${removed.length}-, ${stackedNarration} of the added lines are #475's, stacked)`)
@@ -659,7 +660,7 @@ await check(`identity: stripping this change gives back ${BASE_COMMIT.slice(0, 7
   const STACKED_SIBLING_TESTS = ['scripts/test-studio-chat-element-refine.mjs']
   for (const rel of STACKED_SIBLING_TESTS.filter(rel => changed.includes(rel))) {
     const added = git('diff', '-U0', BASE_COMMIT, 'HEAD', '--', rel).split('\n').filter(line => line.startsWith('+') && !line.startsWith('+++'))
-    for (const line of added) assert.match(line, /ThemeExport|THEME_EXPORT|chat-theme-export|#472|stacked/i, `${rel}: ${line.slice(0, 160)}`)
+    for (const line of added) assert.match(line, /ThemeExport|THEME_EXPORT|chat-theme-export|#472|stacked|stripLaunchWording|STUDIO_LAUNCH_WORDING/i, `${rel}: ${line.slice(0, 160)}`)
   }
   { const scope = stackScope(changed, STACK[472], STACKED_KNOWN); assert.equal(STACK[472].base, BASE_COMMIT); assert.deepEqual(git('diff', '--name-only', STACK[472].base, STACK[472].head).split('\n').filter(Boolean), STACK[472].files, 'the frozen files are #472\'s own diff'); assert.deepEqual({ missing: scope.missing, stray: scope.stray }, { missing: [], stray: [] }, 'every frozen file is changed, no stray in its family'); console.log(scope.line); changed.splice(0, changed.length, ...scope.checked) } // stacked after #475: only this change's files, its family and its declared stack are checked below; a later PR's files are ignored, with a count
   for (const rel of changed) assert.ok(CHAT_THEME_EXPORT_FILES.includes(rel) || NEW.test(rel) || READS_THROUGH_STRIP.includes(rel) || STACKED_SIBLING_TESTS.includes(rel) || STACKED_MODEL_CATALOG.test(rel) || STACKED_NARRATION_ROUTER.test(rel) || /^scripts\/(test-)?studio-env-append-tolerant\.mjs$/.test(rel), `unexpected change: ${rel}`) // #475's files are stacked, and so are the append-tolerant .env.example rule and its test

@@ -12,6 +12,9 @@ import "@/components/settings/studio-notifications.css"
 // Force dynamic rendering to prevent build-time errors
 export const dynamic = "force-dynamic"
 
+// NEXT_PUBLIC_STUDIO_LAUNCH_WORDING (default off): launched wording instead of promises and developer-speak; off, this file is exactly as before.
+const LAUNCH_WORDING = process.env.NEXT_PUBLIC_STUDIO_LAUNCH_WORDING === "true"
+
 interface Preferences {
   emailAccountActivity: boolean
   emailProductUpdates: boolean
@@ -157,7 +160,7 @@ function StudioAccountNotifications({ owner, authLoading, email }: { owner: stri
     }
   }, [owner, confirmed])
 
-  const disabled = !owner || !confirmed || loading || saving !== null
+  const disabled = LAUNCH_WORDING || !owner || !confirmed || loading || saving !== null
   const status = authLoading ? "Checking your account…" : !owner ? "Sign in to load your account preferences." : loading ? confirmed ? "Refreshing your saved preferences…" : "Loading your saved preferences…" : loadError ? confirmed ? "Showing the last confirmed record. Refresh failed." : "Preferences unavailable. Switches are disabled until loaded." : confirmed ? "Account preference record loaded." : "Waiting for your preference record…"
 
   return (
@@ -171,8 +174,8 @@ function StudioAccountNotifications({ owner, authLoading, email }: { owner: stri
             const id = `notification-${row.key}`
             const hasChoice = choices[row.key] !== undefined
             return <div className="sn-row" key={row.key} data-studio-notification={row.key} data-unsaved={hasChoice ? "true" : "false"}>
-              <div><Label htmlFor={id}>{row.label}</Label><p id={`${id}-help`}>{row.desc}</p><p id={`${id}-status`} className={confirmed && !hasChoice ? "sn-confirmed" : undefined} role="status">{saving === row.key ? "Saving local choice…" : hasChoice ? `Unsaved local choice · last confirmed ${confirmed?.[row.key] ? "on" : "off"}` : confirmed ? `${savedKey === row.key ? "Save confirmed" : "Last confirmed"} · ${confirmed[row.key] ? "On" : "Off"}` : "Not loaded"}</p></div>
-              <Switch id={id} checked={choices[row.key] ?? confirmed?.[row.key] ?? false} onCheckedChange={(next) => void savePreference(row.key, next)} disabled={disabled} aria-describedby={`${id}-help ${id}-status${saveErrors[row.key] ? ` ${id}-error` : ""}`} />
+              <div><Label htmlFor={id}>{row.label}</Label><p id={`${id}-help`}>{row.desc}</p><p id={`${id}-status`} className={confirmed && !hasChoice ? "sn-confirmed" : undefined} role="status">{LAUNCH_WORDING ? "Not available" : saving === row.key ? "Saving local choice…" : hasChoice ? `Unsaved local choice · last confirmed ${confirmed?.[row.key] ? "on" : "off"}` : confirmed ? `${savedKey === row.key ? "Save confirmed" : "Last confirmed"} · ${confirmed[row.key] ? "On" : "Off"}` : "Not loaded"}</p></div>
+              <Switch id={id} checked={LAUNCH_WORDING ? false : choices[row.key] ?? confirmed?.[row.key] ?? false} onCheckedChange={(next) => void savePreference(row.key, next)} disabled={disabled} aria-describedby={`${id}-help ${id}-status${saveErrors[row.key] ? ` ${id}-error` : ""}`} />
               {hasChoice && saving !== row.key && <div className="sn-row-recovery">
                 {saveErrors[row.key] && <p id={`${id}-error`} className="sn-error" role="alert">{saveErrors[row.key]}</p>}
                 <button type="button" className="sn-action" disabled={disabled} onClick={() => void savePreference(row.key, choices[row.key]!)}>Retry choice</button>
@@ -180,10 +183,10 @@ function StudioAccountNotifications({ owner, authLoading, email }: { owner: stri
               </div>}
             </div>
           })}
-          <p className="sn-delivery"><Info className="h-3.5 w-3.5" aria-hidden="true" />Email delivery will activate when notifications ship.</p>
+          <p className="sn-delivery"><Info className="h-3.5 w-3.5" aria-hidden="true" />{LAUNCH_WORDING ? "Email notifications are not available, so these switches are off." : "Email delivery will activate when notifications ship."}</p>
         </CardContent>
       </Card>
-      <Card className="sn-card"><CardHeader className="sn-header"><CardTitle>Email Address</CardTitle><CardDescription>Your notification delivery address</CardDescription></CardHeader><CardContent className="sn-body"><div className="sn-email"><Mail className="h-5 w-5" aria-hidden="true" /><div><strong>{email || "Account email unavailable"}</strong>{email && <p>Verified via Google sign-in</p>}</div>{email && <span><CheckCircle2 className="h-4 w-4" aria-hidden="true" />Verified</span>}</div></CardContent></Card>
+      <Card className="sn-card"><CardHeader className="sn-header"><CardTitle>Email Address</CardTitle><CardDescription>{LAUNCH_WORDING ? "The email address on your account" : "Your notification delivery address"}</CardDescription></CardHeader><CardContent className="sn-body"><div className="sn-email"><Mail className="h-5 w-5" aria-hidden="true" /><div><strong>{email || "Account email unavailable"}</strong>{email && <p>Verified via Google sign-in</p>}</div>{email && <span><CheckCircle2 className="h-4 w-4" aria-hidden="true" />Verified</span>}</div></CardContent></Card>
     </div>
   )
 }
@@ -255,15 +258,15 @@ function ClassicNotificationsSettingsPage() {
                   <p className="text-sm text-muted-foreground">{row.desc}</p>
                 </div>
                 <Switch
-                  checked={prefs?.[row.key] ?? false}
+                  checked={LAUNCH_WORDING ? false : prefs?.[row.key] ?? false}
                   onCheckedChange={() => toggle(row.key)}
-                  disabled={saving === row.key}
+                  disabled={LAUNCH_WORDING || saving === row.key}
                 />
               </div>
             </div>
           ))}
           <p className="text-xs text-muted-foreground pt-2">
-            Preferences saved. Email delivery will activate when notifications ship.
+            {LAUNCH_WORDING ? "Email notifications are not available, so these switches are off." : "Preferences saved. Email delivery will activate when notifications ship."}
           </p>
         </CardContent>
       </Card>
@@ -271,7 +274,7 @@ function ClassicNotificationsSettingsPage() {
       <Card>
         <CardHeader>
           <CardTitle>Email Address</CardTitle>
-          <CardDescription>Your notification delivery address</CardDescription>
+          <CardDescription>{LAUNCH_WORDING ? "The email address on your account" : "Your notification delivery address"}</CardDescription>
         </CardHeader>
         <CardContent>
           <div className="flex items-center gap-3 rounded-lg border p-4">

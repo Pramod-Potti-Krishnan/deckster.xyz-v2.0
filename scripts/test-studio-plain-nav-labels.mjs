@@ -24,6 +24,7 @@ import { execFileSync } from 'node:child_process'
 import { createRequire } from 'node:module'
 import ts from 'typescript'
 import { stripDeckTitle } from './studio-deck-title-strip.mjs'
+import { stripLaunchWording } from './studio-launch-wording-strip.mjs' // NEXT_PUBLIC_STUDIO_LAUNCH_WORDING (launched wording): its flag-gated edits come out first, before every older change's strip
 
 const repoRoot = path.resolve(new URL('..', import.meta.url).pathname)
 const nodeRequire = createRequire(path.join(repoRoot, 'package.json'))
@@ -31,7 +32,7 @@ const React = nodeRequire('react')
 const jsxRuntime = nodeRequire('react/jsx-runtime')
 const { renderToStaticMarkup, renderToString } = nodeRequire('react-dom/server')
 const BASE_COMMIT = process.env.PLAIN_NAV_LABELS_BASE || '687b694'
-const read = rel => fs.readFileSync(path.join(repoRoot, rel), 'utf8')
+const read = rel => stripLaunchWording(rel, fs.readFileSync(path.join(repoRoot, rel), 'utf8'))
 function baseSource(rel) {
   try {
     execFileSync('git', ['cat-file', '-e', `${BASE_COMMIT}^{commit}`], { cwd: repoRoot, stdio: 'ignore' })
@@ -94,6 +95,7 @@ function stubs(lib) {
     '@/components/ui/button': { Button: 'button' }, '@/lib/utils': { cn: (...parts) => parts.filter(Boolean).join(' ') },
     '@/hooks/use-auth': { useAuth: () => ({ user: null }) }, '@/lib/last-builder-session': { lastBuilderSessionKey: () => 'last-session' },
     '@/lib/studio-nav-labels': lib,
+    '@/lib/studio-new-logo': { studioNewLogoOn: value => value === 'true', STUDIO_NEW_LOGO_SRC: '/logo-icon-sm.png', STUDIO_NEW_LOGO_SIZE: 32 }, // NEXT_PUBLIC_STUDIO_NEW_LOGO, off here (scripts/test-studio-new-logo.mjs)
   }
 }
 function component(source, fileName, lib, name) {

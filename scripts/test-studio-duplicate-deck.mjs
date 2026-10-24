@@ -34,6 +34,7 @@ import { stripDarkPersist } from './studio-theme-dark-persist-strip.mjs'
 import { stripChatElementRefine } from './studio-chat-element-refine-strip.mjs' // NEXT_PUBLIC_CHAT_ELEMENT_REFINE (#470): its flag-gated lines in the hook and types/mdc.ts come out first
 import { stripDeckTitle } from './studio-deck-title-strip.mjs'
 import { stripChatThemeExport } from './studio-chat-theme-export-strip.mjs' // NEXT_PUBLIC_CHAT_THEME_CHANGE / NEXT_PUBLIC_CHAT_EXPORT (#472): its flag-gated hook lines come out first
+import { stripLaunchWording } from './studio-launch-wording-strip.mjs' // NEXT_PUBLIC_STUDIO_LAUNCH_WORDING (launched wording): its flag-gated edits come out first, before every older change's strip
 import { stripJobLedger } from './studio-job-ledger-strip.mjs' // NEXT_PUBLIC_STUDIO_JOB_LEDGER (P3-4 slice C, stacked): its flag-gated hook lines come out first
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..')
@@ -87,6 +88,7 @@ const MUTATIONS = [
 const MUTATION = process.env.DUP_TEST_MUTATION === undefined ? null : Number(process.env.DUP_TEST_MUTATION)
 const read = (file, from = root) => {
   let text = fs.readFileSync(path.join(from, file), 'utf8')
+  text = stripLaunchWording(file, text) // NEXT_PUBLIC_STUDIO_LAUNCH_WORDING: its flag-gated edits come out first
   const mutation = from === root && MUTATION !== null ? MUTATIONS[MUTATION] : null
   if (mutation && mutation.file === file) {
     assert.ok(text.includes(mutation.from), `mutation "${mutation.name}" no longer applies; update MUTATIONS`)

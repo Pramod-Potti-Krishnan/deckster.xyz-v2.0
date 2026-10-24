@@ -30,6 +30,7 @@ import { stripAddSlideStatus } from './studio-add-slide-status-strip.mjs'
 import { stripDarkPersist } from './studio-theme-dark-persist-strip.mjs'
 import { belongsToRailBuildCount } from './studio-rail-build-count-strip.mjs'
 import { stripOpenReadOnly } from './studio-open-read-only-strip.mjs'
+import { stripLaunchWording } from './studio-launch-wording-strip.mjs' // NEXT_PUBLIC_STUDIO_LAUNCH_WORDING (launched wording): its flag-gated edits come out first, before every older change's strip
 
 const repoRoot = path.resolve(new URL('..', import.meta.url).pathname)
 const nodeRequire = createRequire(path.join(repoRoot, 'package.json'))
@@ -40,7 +41,7 @@ const FLAG = 'NEXT_PUBLIC_STUDIO_RAIL_ADD_SLIDE'
 const SHELL = 'NEXT_PUBLIC_STUDIO_V4_SHELL'
 const REASONS = 'NEXT_PUBLIC_STUDIO_DISABLED_REASONS'
 const BASE_COMMIT = process.env.RAIL_ADD_SLIDE_BASE || 'bb5a89f'
-const read = rel => fs.readFileSync(path.join(repoRoot, rel), 'utf8')
+const read = rel => stripLaunchWording(rel, fs.readFileSync(path.join(repoRoot, rel), 'utf8'))
 const git = args => execFileSync('git', args, { cwd: repoRoot, encoding: 'utf8', maxBuffer: 64 * 1024 * 1024, stdio: ['ignore', 'pipe', 'ignore'] })
 function baseSource(rel) {
   try { git(['cat-file', '-e', `${BASE_COMMIT}^{commit}`]); return git(['show', `${BASE_COMMIT}:${rel}`]) } catch { return null }
@@ -375,7 +376,8 @@ function wiringChecks() {
     // + RAIL-SLIDES-1-MIDBUILD (NEXT_PUBLIC_STUDIO_RAIL_BUILD_COUNT) marks its own viewer and strip lines, and replaces three base lines (the rail's render condition, the strip's early return and the
     //   heading's number); scripts/studio-rail-build-count-strip.mjs names them and scripts/test-studio-rail-build-count.mjs pins them, so they are not counted here.
     // + INSERT-PERSIST (NEXT_PUBLIC_STUDIO_INSERT_PERSIST) marks its own viewer lines "INSERT-PERSIST"; scripts/test-studio-insert-persist.mjs pins them, so they are not counted here.
-    const changed = (rel, base) => git(['diff', '--no-color', '-U0', BASE_COMMIT, '--', rel]).split('\n').filter(line => /^[+-](?![+-])/.test(line) && !line.includes('PASS2D B4') && !line.includes('SLIDE-OPS-VIA-VIEWER') && !line.includes('INSERT-PERSIST') && !line.includes('VERSION-HISTORY-V2') && !belongsToRailBuildCount(line))
+    // + LAUNCH-WORDING (NEXT_PUBLIC_STUDIO_LAUNCH_WORDING) adds one flag-gated line to the viewer (the disabled Template button's tooltip); scripts/test-studio-launch-wording.mjs pins it, so it is not counted here.
+    const changed = (rel, base) => git(['diff', '--no-color', '-U0', BASE_COMMIT, '--', rel]).split('\n').filter(line => /^[+-](?![+-])/.test(line) && !line.includes('PASS2D B4') && !line.includes('SLIDE-OPS-VIA-VIEWER') && !line.includes('INSERT-PERSIST') && !line.includes('STUDIO_LAUNCH_WORDING') && !line.includes('VERSION-HISTORY-V2') && !belongsToRailBuildCount(line))
     for (const [rel, base] of [[VIEWER, baseViewer], [STRIP, baseStripText]]) {
       for (const line of changed(rel)) assert.doesNotMatch(line, COMMAND, `${rel} diff touches a Layout command: ${line}`)
     }

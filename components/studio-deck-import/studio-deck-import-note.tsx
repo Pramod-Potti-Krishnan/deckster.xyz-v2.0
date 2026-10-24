@@ -6,6 +6,9 @@ import { useAuth } from '@/hooks/use-auth'
 import { DECK_IMPORT_NOTE_WORDS, deckImportNoteVisible, dismissDeckImportNote } from '@/lib/studio-deck-import'
 import './studio-deck-import.css'
 
+// NEXT_PUBLIC_STUDIO_LAUNCH_WORDING (default off): launched wording instead of promises and developer-speak; off, this file is exactly as before.
+const LAUNCH_WORDING = process.env.NEXT_PUBLIC_STUDIO_LAUNCH_WORDING === 'true'
+
 /**
  * STUDIO DECK IMPORT, contract section 3 (flag NEXT_PUBLIC_STUDIO_DECK_IMPORT, default off; the Builder page mounts it, loaded lazily, only with the flag on and the Studio shell).
  * One small note in the Builder's chat column for an imported deck: "This deck keeps the design of your PowerPoint file. Changing the theme and Add Element are not available for imported
@@ -28,7 +31,7 @@ export function StudioDeckImportNote({ sessionId, adopted = false, className = '
       <Info size={15} aria-hidden="true" />
       <div>
         <strong>{DECK_IMPORT_NOTE_WORDS.title}</strong>
-        <p>{DECK_IMPORT_NOTE_WORDS.body}</p>
+        <p>{LAUNCH_WORDING ? 'This deck keeps the design of your PowerPoint file. Changing the theme and Add Element are not available for imported decks.' : DECK_IMPORT_NOTE_WORDS.body}</p>
       </div>
       <button type="button" data-studio-deck-import-note-dismiss="true" onClick={() => {
         try { dismissDeckImportNote(window.localStorage, userId, sessionId) } catch { /* the note comes back next time */ }

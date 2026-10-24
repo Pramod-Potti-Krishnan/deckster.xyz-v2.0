@@ -24,7 +24,9 @@ interface Shortcut {
 }
 
 // PASS2 ACC-16/17 (NEXT_PUBLIC_STUDIO_P2_ACCOUNT, default off, Studio shell only): the shortcuts that really have a handler, in the shell's tokens. Anything else: the page below.
-const STUDIO_P2_SHORTCUTS = process.env.NEXT_PUBLIC_STUDIO_V4_SHELL === "true" && process.env.NEXT_PUBLIC_STUDIO_P2_ACCOUNT === "true"
+// NEXT_PUBLIC_STUDIO_LAUNCH_WORDING (default off): launched wording instead of promises and developer-speak; off, this file is exactly as before.
+const LAUNCH_WORDING = process.env.NEXT_PUBLIC_STUDIO_LAUNCH_WORDING === "true"
+const STUDIO_P2_SHORTCUTS = process.env.NEXT_PUBLIC_STUDIO_V4_SHELL === "true" && (process.env.NEXT_PUBLIC_STUDIO_P2_ACCOUNT === "true" || LAUNCH_WORDING)
 
 export default function ShortcutsPage() {
   return STUDIO_P2_SHORTCUTS ? <StudioShortcutsPage /> : <LegacyShortcutsPage />

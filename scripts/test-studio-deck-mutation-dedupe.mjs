@@ -22,6 +22,7 @@ import vm from 'node:vm'
 import ts from 'typescript'
 import { stripChatElementRefine } from './studio-chat-element-refine-strip.mjs' // NEXT_PUBLIC_CHAT_ELEMENT_REFINE (#470): its flag-gated lines in the hook and types/mdc.ts come out first
 import { stripChatThemeExport } from './studio-chat-theme-export-strip.mjs' // NEXT_PUBLIC_CHAT_THEME_CHANGE / NEXT_PUBLIC_CHAT_EXPORT (#472): its flag-gated hook lines come out first
+import { stripLaunchWording } from './studio-launch-wording-strip.mjs' // NEXT_PUBLIC_STUDIO_LAUNCH_WORDING (launched wording): its flag-gated edits come out first, before every older change's strip
 
 const repoRoot = path.resolve(fileURLToPath(new URL('../', import.meta.url)))
 const BASE_COMMIT = '1079ba4b7cd277ece7cc46ee7624d74419c3a5aa' // studio-v4-dev-preparation-code when this change branched
@@ -31,7 +32,7 @@ const PAGE = 'app/builder/page.tsx'
 const FLAG = 'NEXT_PUBLIC_STUDIO_DECK_MUTATION_DEDUPE'
 const SHARED_APPEND_ONLY = ['.env.example', 'package.json']
 
-const read = rel => readFileSync(path.join(repoRoot, rel), 'utf8')
+const read = rel => stripLaunchWording(rel, readFileSync(path.join(repoRoot, rel), 'utf8'))
 const readIf = rel => existsSync(path.join(repoRoot, rel)) ? read(rel) : null
 const baseCache = new Map()
 const baseSource = rel => {

@@ -13,7 +13,7 @@
 //   5. the dispatch, executed: each route file with the flag exactly "true" gives the UAT page / metadata / shell, and with any other spelling gives the page it gave before;
 //   6. the stylesheet: every selector is scoped to `.mv3:where(.mv3-uat)` (or a class only the UAT tree renders), so none of it can match another page, and the rules keep UAT's specificity;
 //   7. the pieces with behaviour: the phone menu (outside press, Escape + focus, choosing), the narration pill, the plan words and the footer links;
-//   8. env + package: the flag is documented once, off, and the script is registered.
+//   8. env + package: the flag is documented once, off, what follows its block is an append (a later PR's block is taken; an edited base line is not), and the script is registered.
 // Then every mutant below (a flipped rule, a loosened flag, a dropped scope...) must be caught by the proof written for it.
 import assert from 'node:assert/strict'
 import crypto from 'node:crypto'
@@ -29,6 +29,7 @@ const require = createRequire(import.meta.url)
 const ts = require('typescript')
 const postcss = require('postcss')
 const port = await import('./studio-uat-marketing-port.mjs')
+const { sameAsBase } = await import('./studio-env-append-tolerant.mjs')
 
 // ---------------------------------------------------------------- tiny harness
 let checks = 0
@@ -405,7 +406,10 @@ function proveEnv(sources = SOURCES, label = 'env') {
   for (const word of ['UAT MARKETING PORT', 'READ AT BUILD TIME', 'default off'.replace('default off', 'exactly as before'), 'Pass 2 Landing flag', 'Pass 2 Docs flag', 'Pass 2 Account flag', 'NOT behind this flag']) ok(block.includes(word), `${label}: the block says "${word}"`)
   nomatch(block, /exact "true" enables it/, `${label}: the block avoids the phrase the earlier flags' checks look for`)
   nomatch(block, /P2_(?:LANDING|DOCS|ACCOUNT|POLISH)/, `${label}: the block names no other flag (the Docs and Landing checks strip their own block and refuse a line that names their flag)`)
-  ok(lines.slice(index + 1).every(l => l.trim() === '' || l.startsWith('#')), `${label}: nothing but comments follows`)
+  // This block was the last the change wrote, but a later PR appends its own after it (#486's launched-wording block does): so what follows the flag is judged as an append, by the rule the other Pass 3 pins use
+  // (scripts/studio-env-append-tolerant.mjs, sameAsBase): every line up to and including the flag still there, in order, with the same values; the rest only comments, blank lines and assignments of OTHER flags
+  // (never a second value for a variable above it, never this flag again, no line that is not a comment, a blank or an assignment, no lone blank line).
+  ok(sameAsBase('.env.example', sources['.env.example'], `${lines.slice(0, index + 1).join('\n')}\n`, new RegExp(`${FLAG}\\b`)), `${label}: after the flag only comments and another flag's block follow (an append)`)
   eq(JSON.parse(sources['package.json']).scripts['test:studio-uat-marketing'], 'node scripts/test-studio-uat-marketing.mjs', `${label}: the package script`)
   ok(fs.existsSync(path.join(repoRoot, 'scripts/test-studio-uat-marketing.mjs')), `${label}: the script exists`)
   // no other flag's value or script is touched
@@ -544,6 +548,14 @@ mutant('env: uses the earlier flags\' phrase', '.env.example', 'Only the value t
 mutant('env: script renamed', 'package.json', '"test:studio-uat-marketing": "node scripts/test-studio-uat-marketing.mjs"', '"test:studio-uat-marketing-x": "node scripts/test-studio-uat-marketing.mjs"', ['env'])
 mutant('env: another script changed', 'package.json', '"test:studio-p2-landing": "node scripts/test-studio-p2-landing.mjs"', '"test:studio-p2-landing": "node scripts/test-studio-p2-landing.mjs --x"', ['env'])
 mutant('env: analytics type dropped', 'lib/analytics.ts', '  | "v3_menu"\n', '', ['env'])
+// the tail after the flag is an append: another PR's block is taken (controls below), an edit to a line the base had or a line that is not an env line is refused
+const BASE_ENV_ASSIGNMENTS = port.baseBlob('.env.example').split('\n').filter(l => /^NEXT_PUBLIC_[A-Z0-9_]+="[^"\n]*"$/.test(l))
+const [BASE_ENV_FIRST, BASE_ENV_LAST] = [BASE_ENV_ASSIGNMENTS[0], BASE_ENV_ASSIGNMENTS.at(-1)]
+mutant('env: the first base env line edited', '.env.example', `\n${BASE_ENV_FIRST}\n`, `\n${BASE_ENV_FIRST.slice(0, -1)}x"\n`, ['env'])
+mutant('env: the last base env line edited', '.env.example', `\n${BASE_ENV_LAST}\n`, `\n${BASE_ENV_LAST.slice(0, -1)}x"\n`, ['env'])
+mutant('env: a base env line dropped', '.env.example', `\n${BASE_ENV_LAST}\n`, '\n', ['env'])
+mutant('env: a base variable given a second value after the flag', '.env.example', `${FLAG}="false"\n`, `${FLAG}="false"\n\n# A LATER PR (made up, for this check)\n${BASE_ENV_FIRST.slice(0, -1)}x"\n`, ['env'])
+mutant('env: a line after the flag that is no comment, blank or assignment', '.env.example', `${FLAG}="false"\n`, `${FLAG}="false"\nnot a comment, a blank or an assignment\n`, ['env'])
 
 const runners = {
   helper: s => proveHelper(s[H], 'mutant'),
@@ -571,4 +583,16 @@ for (const m of MUTANTS) {
   if (caught) killed++; else survivors.push(m.name)
 }
 if (survivors.length) { console.error(`survivors: ${survivors.join('; ')}`); process.exit(1) }
-console.log(`Studio UAT marketing port: ${realChecks} checks passed, ${killed}/${MUTANTS.length} mutants killed; no network.`)
+// controls: what the env proof must TAKE (the mutants above are refused; these are not): a later PR's block (a comment, then an assignment of another flag) right after the flag, before the base comments that follow it
+// (the Template Rename block sits there: this block was inserted, not appended), appended after the real tail (#486 does), and two of them
+const ENV_TEXT = SOURCES['.env.example'], FLAG_LINE = `${FLAG}="false"\n`, AFTER_FLAG = ENV_TEXT.indexOf(FLAG_LINE) + FLAG_LINE.length
+const withEnv = text => ({ ...SOURCES, '.env.example': text })
+const LATER_BLOCK = '\n# A LATER PR (made up, for this check)\nNEXT_PUBLIC_STUDIO_SOME_LATER_FLAG="false"\n'
+const CONTROLS = [
+  ['a later PR\'s block right after the flag', withEnv(ENV_TEXT.slice(0, AFTER_FLAG) + LATER_BLOCK + ENV_TEXT.slice(AFTER_FLAG))],
+  ['a later PR\'s block appended after the real tail', withEnv(ENV_TEXT + LATER_BLOCK)],
+  ['two later blocks, one after the other', withEnv(ENV_TEXT + LATER_BLOCK + LATER_BLOCK.replace('SOME_LATER', 'ANOTHER_LATER'))],
+]
+const refusedControls = CONTROLS.map(([name, sources]) => [name, collect(() => proveEnv(sources, 'control'))]).filter(([, found]) => found.length > 0).map(([name, found]) => `${name} (${found[0]})`)
+if (refusedControls.length) { console.error(`controls refused: ${refusedControls.join('; ')}`); process.exit(1) }
+console.log(`Studio UAT marketing port: ${realChecks} checks passed, ${killed}/${MUTANTS.length} mutants killed, ${CONTROLS.length}/${CONTROLS.length} env controls taken; no network.`)
