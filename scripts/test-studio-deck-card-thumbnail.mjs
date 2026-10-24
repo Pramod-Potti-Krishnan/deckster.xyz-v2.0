@@ -341,7 +341,7 @@ match(read(COMPONENT), /\{lag \? \(/, 'component: no cue without lag')
 
 // .env.example is left alone; the block is ready
 {
-  ok(!read('.env.example').includes(FLAG), '.env.example carries no trace of the flag (this change leaves it alone)')
+  ok(read('.env.example').includes(FLAG) && read('.env.example').indexOf(FLAG) > read('.env.example').indexOf('# PASS2 ADMIN'), '.env.example documents the flag after the PASS2 ADMIN block (registered in scripts/studio-later-changes.mjs)')
   match(DECK_CARD_THUMBNAIL_ENV_BLOCK, new RegExp(`^# DECK CARD THUMBNAILS [\\s\\S]*\\n${FLAG}="false"\\n\\n$`), 'the ready-made block: its own flag, documented "false", a blank line after it')
   eq((DECK_CARD_THUMBNAIL_ENV_BLOCK.match(/^[A-Z][A-Z0-9_]*=/gm) ?? []).length, 1, 'the block assigns one variable')
   ok(DECK_CARD_THUMBNAIL_ENV_BLOCK.split('\n').filter(line => line.startsWith('#')).every(line => line.length <= 200), 'the block\'s comment lines are of the usual width')
