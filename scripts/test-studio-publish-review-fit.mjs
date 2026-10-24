@@ -38,6 +38,7 @@ import { createModuleLoader } from './studio-chat-harness/module-loader.mjs'
 import { BASE_ENV } from './studio-chat-harness/profiles.mjs'
 import { BASE_COMMIT, PUBLISH_REVIEW_FIT_FILES, PUBLISH_REVIEW_FIT_NEW_FILES, PUBLISH_REVIEW_FIT_CHANGES, PUBLISH_REVIEW_FIT_CSS_SELECTOR, stripPublishReviewFit } from './studio-publish-review-fit-strip.mjs'
 import { stripP2Polish } from './studio-p2-polish-strip.mjs'
+import { stripVersionHistoryDeckOnly } from './studio-version-history-deck-only-strip.mjs' // stacked: #493, after this change
 import { stripOpenReadOnly } from './studio-open-read-only-strip.mjs'
 import { stripDarkPersist } from './studio-theme-dark-persist-strip.mjs'
 import { stripAddSlideStatus } from './studio-add-slide-status-strip.mjs'
@@ -433,6 +434,7 @@ function pageChecks(page) {
   assert.ok(call.arguments.length === 0, 'no arguments')
 }
 function envChecks(env) {
+  env = stripVersionHistoryDeckOnly(ENV, env) // stacked: #493's .env.example block (NEXT_PUBLIC_STUDIO_VERSION_HISTORY_DECK_ONLY) sits between this block and # PASS2 ADMIN; it comes out first
   assert.equal((env.match(new RegExp(`^${FLAG}="false"$`, 'gm')) || []).length, 1)
   assert.ok(env.indexOf(`${FLAG}="false"\n\n# PASS2 ADMIN (FRONTEND-1`) > 0, 'right before # PASS2 ADMIN')
   assert.ok(env.indexOf(`${FLAG}="false"`) > env.indexOf('NEXT_PUBLIC_STUDIO_NEW_DECK_HANDOFF_SEND="false"'), 'after the last FRONTEND-2 block')
@@ -472,7 +474,7 @@ async function staticChecks() {
     for (const rootFile of ['scripts/studio-open-read-only-strip.mjs', 'scripts/studio-theme-dark-persist-strip.mjs', 'scripts/studio-add-slide-status-strip.mjs']) {
       const text = read(rootFile)
       assert.equal((text.match(/import \{ stripPublishReviewFit \} from '\.\/studio-publish-review-fit-strip\.mjs'/g) || []).length, 1, `${rootFile}: one import`)
-      assert.equal((text.match(/stripPublishReviewFit\(rel, text\)/g) || []).length, 1, `${rootFile}: chained once`)
+      assert.equal((text.match(/stripPublishReviewFit\(rel, (?:stripVersionHistoryDeckOnly\(rel, )?text\)/g) || []).length, 1, `${rootFile}: chained once`) // stacked: #493 (version history deck only) nests its strip inside this one
     }
     assert.ok(STACKED_PASS3_FILES.includes(HOOK) && STACKED_PASS3_FILES.includes(CSS), 'the new hook and the changed stylesheet are in STACKED_PASS3_FILES')
   })

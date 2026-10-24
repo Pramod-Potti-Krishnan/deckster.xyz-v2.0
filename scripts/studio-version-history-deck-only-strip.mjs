@@ -5,7 +5,7 @@
 // text is a literal that occurs once in the file (a pure insertion has '' as its second), .env.example's block included.
 // New files (no base text to put back): VERSION_HISTORY_DECK_ONLY_NEW_FILES below.
 
-export const BASE_COMMIT = '380a5caaa8a088f7cda27c464aa961a57b6276e5'
+export const BASE_COMMIT = 'c75e4c2d0e5f7319cce890b055567281fe265184'
 
 const ENV_BLOCK = `# VERSION HISTORY, DECK ONLY (FRONTEND-2, the Builder's profile menu; design #456). On for the exact value "true"; default off, and then
 # nothing changes. Build-time value: change it on Vercel and redeploy. It matters only with NEXT_PUBLIC_STUDIO_VERSION_HISTORY_V2 on. On: the
