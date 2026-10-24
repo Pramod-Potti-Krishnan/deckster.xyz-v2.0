@@ -706,6 +706,7 @@ async function suite() {
     const cases = {
       'right after the # PASS2 ADMIN block': [...lines.slice(0, adminEnd + 1), ...FAKE.split('\n'), '', ...lines.slice(adminEnd + 1)].join('\n'),
       'last in the file': `${original}\n${FAKE}\n`,
+      'last in the file, with a blank line of its own after it': `${original}\n${FAKE}\n\n`,
       'first in the file': `${FAKE}\n\n${original}`,
     }
     const baseChain = stripAddSlideStatus(ENV, baseOf(ENV)) // the root chain puts every stacked block back: what every pin compares against

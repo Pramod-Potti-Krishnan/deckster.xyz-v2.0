@@ -38,7 +38,7 @@ const lineEnd = (text, at) => at === text.length || text[at] === '\n'
 
 /**
  * `text` without the registered blocks, when `rel` is .env.example; every other file (and the empty registry) gives `text` back untouched.
- * A block comes out with the one blank line that separated it from its neighbour: the blank line after it when something follows, else the blank line before it (the block was the last thing in the file).
+ * A block comes out with the one blank line that separated it from its neighbour: the blank line after it when something follows, else the blank line before it (the block was the last thing in the file, with or without a blank line of its own after it).
  * Only the first whole occurrence of a block is taken (a block that is there twice is a merge mistake and the older pins must still see the second); stripping twice changes nothing more.
  */
 export function stripLaterEnvBlocks(rel, text) {
@@ -51,8 +51,8 @@ export function stripLaterEnvBlocks(rel, text) {
     while (at !== -1 && !(lineStart(out, at) && lineEnd(out, at + block.length))) at = out.indexOf(block, at + 1)
     if (at === -1) continue
     const before = out.slice(0, at), after = out.slice(at + block.length)
-    if (after.startsWith('\n\n')) out = before + after.slice(2) // the blank line after it goes with it
-    else if (after === '' || after === '\n') out = before.endsWith('\n\n') ? before.slice(0, -1) : before // last in the file: the blank line before it goes
+    if (/^\n*$/.test(after)) out = before.endsWith('\n\n') ? before.slice(0, -1) : before // last in the file (only newlines after it, whether or not the block carries its own trailing blank line): the blank line before it goes
+    else if (after.startsWith('\n\n')) out = before + after.slice(2) // the blank line after it goes with it
     else out = before + after.slice(1) // no blank line after it: only the block's own lines go
   }
   return out
