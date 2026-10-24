@@ -43,9 +43,11 @@ import { stripOpenReadOnly } from './studio-open-read-only-strip.mjs'
 import { stripDarkPersist } from './studio-theme-dark-persist-strip.mjs'
 import { stripAddSlideStatus } from './studio-add-slide-status-strip.mjs'
 import { STACKED_PASS3_FILES } from './studio-library-manage-harness.mjs'
+import { stripComposeEntitlement } from './studio-compose-entitlement-strip.mjs' // stacked after #475: Add Slide compose signs its user puts its .env.example block between this one and # PASS2 ADMIN
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..')
 const read = rel => fs.readFileSync(path.join(root, rel), 'utf8')
+const readWithoutComposeEntitlement = rel => stripComposeEntitlement(rel, read(rel)) // stacked after #475: Add Slide compose signs its user (STUDIO_COMPOSE_ENTITLEMENT_ENABLED) adds lines to .env.example and the compose route only; this reads a file without them
 const sha = text => crypto.createHash('sha256').update(text).digest('hex')
 const plain = value => JSON.parse(JSON.stringify(value === undefined ? null : value))
 const git = (...args) => execFileSync('git', args, { cwd: root, encoding: 'utf8', maxBuffer: 64 * 1024 * 1024, stdio: ['ignore', 'pipe', 'pipe'] })
@@ -555,6 +557,7 @@ async function staticChecks() {
     assert.ok(OUT.every(f => f.session_id === OLD))
   })
   await check('page and .env.example: one import, one hook call after the session hook, one flag branch in onSessionDirective; the flag documented once, right before # PASS2 ADMIN', () => {
+    const read = readWithoutComposeEntitlement // stacked after #475: the later .env.example block (STUDIO_COMPOSE_ENTITLEMENT_ENABLED) comes out first, so this block is still right before # PASS2 ADMIN
     const page = read(PAGE)
     assert.equal((page.match(/^import \{ STUDIO_NEW_DECK_HANDOFF_SEND_ENABLED, useStudioNewDeckHandoffSend \} from '@\/hooks\/use-studio-new-deck-handoff-send'$/gm) || []).length, 1)
     assert.equal((page.match(/useStudioNewDeckHandoffSend\(/g) || []).length, 1)
