@@ -121,6 +121,8 @@ export const STACKED_PASS3_FILES = [
   'lib/studio-duplicate-copy-title.ts', 'hooks/use-studio-duplicate-copy-title.ts', 'components/builder/studio-duplicate-copy-title.css', 'components/builder/studio-duplicate-copy-title-mount.tsx',
   // Thumbnail last good (NEXT_PUBLIC_STUDIO_THUMBNAIL_LAST_GOOD, stacked): its lib, cue and sheet, and the two rail files it adds lines to (the inventory rows and the strip); the Publish preview's lib is listed above.
   'lib/studio-thumbnail-last-good.ts', 'components/studio-thumbnail-lag-cue.tsx', 'components/studio-thumbnail-last-good.css', 'lib/slide-rail-identity.ts', 'components/slide-thumbnail-strip.tsx',
+  // Bulk edit + chat undo (NEXT_PUBLIC_STUDIO_BULK_EDIT / NEXT_PUBLIC_STUDIO_CHAT_UNDO, stacked): its wire adapter, store, card, chip and sheet, and the two shared files it adds marked lines to (the chat message list and the deck_mutation refresh planner); the socket hook, types/mdc.ts and .env.example are listed elsewhere here.
+  'lib/studio-bulk-edit-wire.ts', 'lib/studio-bulk-edit-store.ts', 'components/builder/chat/studio-bulk-edit-card.tsx', 'components/builder/chat/studio-undo-chip.tsx', 'components/builder/chat/studio-bulk-edit-undo.css', 'components/builder/message-list.tsx', 'lib/studio-deck-mutation-refresh.ts',
   // Studio new logo (NEXT_PUBLIC_STUDIO_NEW_LOGO, FRONTEND-1, stacked on the UAT marketing port): the rail's brand tile, its flag helper and its sheet.
   'lib/studio-new-logo.ts', 'components/layout/studio-new-logo.css', 'components/layout/studio-rail.tsx',
   // Publish review fit (NEXT_PUBLIC_STUDIO_PUBLISH_REVIEW_FIT, stacked): its hook, and the Publish dialog's stylesheet (one block appended after the Pass 2 polish block).

@@ -53,6 +53,10 @@ import { StudioOutlineCard } from "@/components/builder/chat/studio-outline-card
 import { StudioRecoveryCard } from "@/components/builder/chat/studio-recovery-card"
 import { studioChatRecoveryCard, type StudioChatRecoveryInput } from "@/lib/studio-chat-recovery"
 import { findAnsweredChoice, suggestionKey, type AnsweredChoice } from "@/lib/studio-chat-answered-choice"
+import { StudioBulkEditRow } from "@/components/builder/chat/studio-bulk-edit-card" // BULK-EDIT-UNDO
+import { StudioUndoChip } from "@/components/builder/chat/studio-undo-chip" // BULK-EDIT-UNDO
+import { STUDIO_BULK_EDIT_ENABLED, STUDIO_CHAT_UNDO_ENABLED } from "@/lib/studio-bulk-edit-wire" // BULK-EDIT-UNDO
+import { bulkEditAskDecision, chooseBulkEdit, sendStudioUndo } from "@/lib/studio-bulk-edit-store" // BULK-EDIT-UNDO
 import "./studio-director.css"
 import "./studio-chat-polish.css"
 import "./studio-chat-answered.css"
@@ -252,6 +256,9 @@ export function MessageList({
         if (activeActionsRef.current.has(messageId) && !answeredActionsRef.current.has(answerKeyFor(messageId))) onSubmitAnswers(text, displayText)
       }
     : undefined
+  // BULK-EDIT-UNDO (flags NEXT_PUBLIC_STUDIO_BULK_EDIT / NEXT_PUBLIC_STUDIO_CHAT_UNDO, default off): Director's whole-deck edit card and the Undo chip. Both send through onActionClick, the page's one answer path (user_message.data.action_value).
+  const bulkEditChoose = (action: ActionRequest['payload']['actions'][0], messageId: string) => chooseBulkEdit(action, messageId, { active: activeActionsRef.current, answered: answeredActionsRef.current, answerKey: answerKeyFor(messageId), send: onActionClick }) // BULK-EDIT-UNDO
+  const undoChange = (changeId: string, messageId: string) => sendStudioUndo(sessionId, changeId, messageId, { answered: answeredActionsRef.current, send: onActionClick }) // BULK-EDIT-UNDO
   // PASS2 #2 (flag NEXT_PUBLIC_STUDIO_FIRST_RUN_V2, default off): Director's opening greeting alone is still a first run, so the
   // welcome holds once Director has said hello. Off, only a blank-deck notice (or nothing) counts, exactly as before.
   const firstRunV2 = studio && process.env.NEXT_PUBLIC_STUDIO_FIRST_RUN_V2 === 'true'
@@ -913,11 +920,15 @@ export function MessageList({
                           ))}
                         </ul>
                       )}
+                      {STUDIO_CHAT_UNDO_ENABLED && studio && <StudioUndoChip sessionId={sessionId} messageId={chatMsg.message_id} undo={undoChange} />}{/* BULK-EDIT-UNDO: the Undo chip (default off) */}
                     </div>
                   </div>
                 )
               } else if (msg.type === 'action_request') {
                 const actionMsg = msg as ActionRequest
+                const bulkAsk = STUDIO_BULK_EDIT_ENABLED && studio ? bulkEditAskDecision(actionMsg, sessionId) : null // BULK-EDIT-UNDO
+                if (bulkAsk?.kind === 'hidden') return null // BULK-EDIT-UNDO: a bulk_edit_confirm that does not validate draws nothing
+                if (bulkAsk?.kind === 'card') return <StudioBulkEditRow ask={actionMsg} model={bulkAsk.model} sessionId={sessionId} status={historicalActions.get(actionMsg.message_id)} chosenValue={actionMsg.payload.actions[findAnsweredChoice(processedMessages, index, actionMsg)?.actionIndex ?? -1]?.value ?? null} choose={bulkEditChoose} rowProps={chatPolish()} /> // BULK-EDIT-UNDO
                 if (historicalActions.has(actionMsg.message_id)) {
                   return <HistoricalActionCard message={actionMsg} status={historicalActions.get(actionMsg.message_id)!} studio={studio} {...answeredChoiceProps(index, actionMsg, historicalActions.get(actionMsg.message_id)!)} />
                 }

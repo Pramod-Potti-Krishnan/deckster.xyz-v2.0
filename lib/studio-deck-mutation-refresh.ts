@@ -78,6 +78,7 @@ export function planDeckMutationRefresh(input: {
   }
   const count = displayed.slideCount
   const slideCount = typeof count !== 'number' || !Number.isFinite(count) ? null
+    : (payload as { restored?: unknown }).restored === true ? null // BULK-EDIT-UNDO: the socket hook marks an undo's deck_restored (NEXT_PUBLIC_STUDIO_CHAT_UNDO) with restored:true; a restored version may have another slide count, so none is guessed (the rail's re-read settles it)
     : payload.mutation === 'slide_added' ? count + 1
       : payload.mutation === 'slide_deleted' ? Math.max(0, count - 1)
         : count
