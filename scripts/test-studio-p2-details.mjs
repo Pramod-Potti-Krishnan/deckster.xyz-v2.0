@@ -522,6 +522,11 @@ const HEADER_NEWDECK = /    \/\/ PASS2 DET-12 [^\n]*\n    const newDeck = [^\n]*
 const RAIL_EDITS = [
   [' data-studio-p2-rail={process.env.NEXT_PUBLIC_STUDIO_P2_DETAILS === "true" ? "true" : undefined}', ''],
   ['import "./studio-shell.css"\nimport "./studio-p2-shell.css"', 'import "./studio-shell.css"'],
+  // NEXT_PUBLIC_STUDIO_NEW_LOGO (FRONTEND-1, stacked, scripts/test-studio-new-logo.mjs): the brand tile's image, its flag helper and its sheet; flag off the tile is the Layers icon the base has
+  ['import { STUDIO_NEW_LOGO_SIZE, STUDIO_NEW_LOGO_SRC, studioNewLogoOn } from "@/lib/studio-new-logo"\n', ''],
+  ['import "./studio-new-logo.css"\n', ''],
+  ["  // NEXT_PUBLIC_STUDIO_NEW_LOGO (default off): the brand tile shows the new logo mark in place of the Layers icon; the link, its name and its box are the same.\n  const newLogo = studioNewLogoOn(process.env.NEXT_PUBLIC_STUDIO_NEW_LOGO)\n", ''],
+  ['<Link href={homeHref} className="studio-rail-brand" aria-label="Deckster home" data-studio-new-logo={newLogo ? "true" : undefined}>{newLogo ? <img src={STUDIO_NEW_LOGO_SRC} width={STUDIO_NEW_LOGO_SIZE} height={STUDIO_NEW_LOGO_SIZE} alt="" aria-hidden="true" draggable={false} /> : <Layers className="h-5 w-5" />}</Link>', '<Link href={homeHref} className="studio-rail-brand" aria-label="Deckster home"><Layers className="h-5 w-5" /></Link>'],
 ]
 function identityOff(detailsSrc, headerSrc, railSrc, label) {
   eq(stripFlagged(detailsSrc, DETAILS_EDITS), baseSource(DETAILS), `${label}: details-workspace.tsx minus the flagged lines is the base file`)
@@ -597,7 +602,7 @@ function proveHeader(source, label = 'header') {
   for (const value of ['false', '', 'TRUE', '1', undefined]) eq(links(headerOut(source, '/dashboard', { ...SHELL, ...(value === undefined ? {} : { [FLAG]: value }) })).length, 0, `${label}: only the exact "true" (${JSON.stringify(value)})`)
 }
 function proveRail(source, label = 'rail') {
-  const rail = env => load(source, RAIL, { env, deps: { 'next/navigation': { usePathname: () => '/studio/details' }, '@/lib/studio-nav-labels': { studioNavLabels: () => ({ decks: 'Decks', knowledge: 'Knowledge' }) }, '@/components/user-profile-menu': { UserProfileMenu: 'UserProfileMenu' } } }).StudioRail({})
+  const rail = env => load(source, RAIL, { env, deps: { 'next/navigation': { usePathname: () => '/studio/details' }, '@/lib/studio-nav-labels': { studioNavLabels: () => ({ decks: 'Decks', knowledge: 'Knowledge' }) }, '@/lib/studio-new-logo': { studioNewLogoOn: value => value === 'true', STUDIO_NEW_LOGO_SRC: '/logo-icon-sm.png', STUDIO_NEW_LOGO_SIZE: 32 }, '@/components/user-profile-menu': { UserProfileMenu: 'UserProfileMenu' } } }).StudioRail({})
   const off = rail({}), on = rail({ [FLAG]: 'true' })
   eq(off.props['data-studio-p2-rail'], undefined, `${label}: off: no marker`)
   eq(on.props['data-studio-p2-rail'], 'true', `${label}: on: the marker`)
