@@ -57,6 +57,7 @@ import { StudioBulkEditRow } from "@/components/builder/chat/studio-bulk-edit-ca
 import { StudioUndoChip } from "@/components/builder/chat/studio-undo-chip" // BULK-EDIT-UNDO
 import { STUDIO_BULK_EDIT_ENABLED, STUDIO_CHAT_UNDO_ENABLED } from "@/lib/studio-bulk-edit-wire" // BULK-EDIT-UNDO
 import { bulkEditAskDecision, chooseBulkEdit, sendStudioUndo } from "@/lib/studio-bulk-edit-store" // BULK-EDIT-UNDO
+import { noteStudioChatLines } from "@/lib/studio-bulk-edit-store" // CHAT-UNDO-V2
 import "./studio-director.css"
 import "./studio-chat-polish.css"
 import "./studio-chat-answered.css"
@@ -619,6 +620,10 @@ export function MessageList({
     currentStatus,
     narrationOwnsChat: !!suppressEphemeral,
   })
+
+  // CHAT-UNDO-V2 (NEXT_PUBLIC_STUDIO_CHAT_UNDO, default off): tell the Undo chip's store which Director lines are in the chat, so a chip goes under its change's own anchor line (Director's anchor_message_id, else the replayed
+  // CHAT-UNDO-V2: anchor_history_id) and never under a line that is not here. Read-only on the list; the chips below draw in this same pass.
+  if (STUDIO_CHAT_UNDO_ENABLED && studio) noteStudioChatLines(sessionId, processedMessages, removedIds) // CHAT-UNDO-V2
 
   const welcomeBusy = isGeneratingFinal || currentStatus?.status === 'thinking' || currentStatus?.status === 'generating'
 
