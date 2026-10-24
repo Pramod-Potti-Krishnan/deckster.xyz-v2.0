@@ -36,6 +36,7 @@ import { stripDeckTitle } from './studio-deck-title-strip.mjs'
 import { stripChatThemeExport } from './studio-chat-theme-export-strip.mjs' // NEXT_PUBLIC_CHAT_THEME_CHANGE / NEXT_PUBLIC_CHAT_EXPORT (#472): its flag-gated hook lines come out first
 import { stripLaunchWording } from './studio-launch-wording-strip.mjs' // NEXT_PUBLIC_STUDIO_LAUNCH_WORDING (launched wording): its flag-gated edits come out first, before every older change's strip
 import { stripJobLedger } from './studio-job-ledger-strip.mjs' // NEXT_PUBLIC_STUDIO_JOB_LEDGER (P3-4 slice C, stacked): its flag-gated hook lines come out first
+import { stripBulkEditUndo } from './studio-bulk-edit-undo-strip.mjs' // NEXT_PUBLIC_STUDIO_BULK_EDIT / NEXT_PUBLIC_STUDIO_CHAT_UNDO (bulk edit + chat undo, stacked): its marked hook and message-list lines come out first
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..')
 const args = process.argv.slice(2)
@@ -543,6 +544,7 @@ run('the chat hard rule, against the base commit: the reducer, cache, history re
   for (const rel of files) {
     const base = baseSource(rel)
     if (base === null) { console.log(`  SKIP ${rel}: ${BASE_COMMIT} is not in this clone`); continue }
+    if (stripBulkEditUndo(rel, read(rel)) !== read(rel)) { assert.equal(stripChatElementRefine(rel, stripChatThemeExport(rel, stripJobLedger(rel, stripBulkEditUndo(rel, read(rel))))), base, `${rel} is untouched (bulk edit + chat undo, stacked: its marked lines out first)`); continue }
     if (rel === 'hooks/use-deckster-websocket-v2.ts' && stripJobLedger(rel, read(rel)) !== read(rel)) { assert.equal(stripChatElementRefine(rel, stripChatThemeExport(rel, stripJobLedger(rel, read(rel)))), base, `${rel} is untouched (P3-4 slice C, stacked: its flag-gated hook lines out first)`); continue }
     assert.equal(stripChatElementRefine(rel, stripChatThemeExport(rel, read(rel))), base, `${rel} is untouched`)
   }

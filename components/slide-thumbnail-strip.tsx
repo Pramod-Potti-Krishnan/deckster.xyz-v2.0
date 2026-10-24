@@ -33,6 +33,7 @@ import { slideTitleLabel } from '@/lib/studio-slide-title-label'
 import type { SlideRefineTarget } from '@/lib/slide-refinement'
 import { STUDIO_RAIL_LIVE_PREVIEW_FALLBACK_ENABLED, railLivePreviewCandidate } from '@/lib/rail-live-preview'
 import { RailLivePreview } from './rail-live-preview'
+import { StudioThumbnailLagCue } from './studio-thumbnail-lag-cue' // NEXT_PUBLIC_STUDIO_THUMBNAIL_LAST_GOOD (default off): the "May lag" cue on a card that shows its slide's last good preview
 import { STUDIO_SLIDE_RAIL_V2, slideRailV2Number } from '@/lib/studio-slide-rail-v2'
 import { STUDIO_RAIL_LAYOUT_LABELS, railLayoutName } from '@/lib/studio-rail-layout-label'
 import { STUDIO_RAIL_ADD_SLIDE } from '@/lib/studio-rail-add-slide'
@@ -98,6 +99,7 @@ export interface SlideThumbnail {
   thumbnailUrl?: string
   /** F8/S-03 (rail identity flag only): `pending` = a preview is expected, shown as a spinner instead of "No preview". */
   thumbnailStatus?: 'fresh' | 'stale' | 'pending' | 'none'
+  thumbnailLag?: 'content' | 'theme' // NEXT_PUBLIC_STUDIO_THUMBNAIL_LAST_GOOD: set only when `thumbnailUrl` is the slide's last good preview and not a fresh one; the card adds a "may lag" cue (content: edits since the capture, theme: a new deck theme)
   /** RAIL-SLIDES-1-MIDBUILD: set only on the inert rows the viewer adds while a build fills the deck (NEXT_PUBLIC_STUDIO_RAIL_BUILD_COUNT). */
   buildPlaceholder?: RailBuildPlaceholder // RAIL-SLIDES-1-MIDBUILD
 }
@@ -774,6 +776,7 @@ export function SlideThumbnailStrip({
         {STUDIO_THUMBNAILS && refineJob?.status === 'error' && (
           <ThumbnailFailureDetails slideNumber={visualNumber} kind="refine" reason={refineJob.errors?.filter(Boolean).join('; ') || 'Refinement failed'} />
         )}
+        {STUDIO_THUMBNAILS && slide.thumbnailLag && thumbnailUrl && !isRefining && <StudioThumbnailLagCue reason={slide.thumbnailLag} />}{/* NEXT_PUBLIC_STUDIO_THUMBNAIL_LAST_GOOD (default off): "May lag" over a preview that is the slide's last good one; a sibling of the button, over the preview's corner, no pointer events */}
         {/* F9-A: live mini-preview for a card that will never get a thumbnail. The last child of the card, so no existing
             sibling changes position; a sibling of the button, not inside it (an iframe is not valid button content). It
             lies over the preview area and takes no pointer events, so the card's click, drag and keyboard behaviour stay
