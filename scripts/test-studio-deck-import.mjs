@@ -1300,6 +1300,7 @@ async function secStatic() {
   while (stack.length) { const rel = stack.pop(); if (seen.has(rel)) continue; seen.add(rel); stack.push(...importsOf(rel)) }
   ok(seen.size > clientRoots.length, 'the closure follows imports')
   ok(!seen.has(HELPER), 'no "use client" module, and nothing a client module imports, reaches lib/director-rest-entitlement')
+  text.delete('lib/studio-compose-entitlement.ts') // stacked after #475: Add Slide compose signs its user (STUDIO_COMPOSE_ENTITLEMENT_ENABLED) also reaches the minter, from one server-only lib that the compose route alone imports (scripts/test-studio-compose-entitlement.mjs proves it); the closure walk above already ran over it
   deepEq([...text.keys()].filter(rel => rel !== HELPER && /director-rest-entitlement/.test(text.get(rel))).sort(), [JOBS, START].sort(), 'the minter is imported by the two import routes only')
   for (const rel of [START, JOBS]) { ok(!isClient(rel), `${rel} is server code`); match(text.get(rel), /from '@\/lib\/director-rest-entitlement'/); eq((text.get(rel).match(/restEntitlementHeaders\(/g) ?? []).length, 1, `${rel}: one signed call`); eq((text.get(rel).match(/\bfetch\(/g) ?? []).length, 1, `${rel}: one Director fetch`) }
   match(text.get(START), /restEntitlementHeaders\(userId, 'POST'\)/); match(text.get(JOBS), /restEntitlementHeaders\(userId, 'GET'\)/)

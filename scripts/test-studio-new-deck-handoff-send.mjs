@@ -43,11 +43,15 @@ import { stripPublishPreviewInventory } from './studio-publish-preview-inventory
 import { stripOpenReadOnly } from './studio-open-read-only-strip.mjs'
 import { stripDarkPersist } from './studio-theme-dark-persist-strip.mjs'
 import { stripAddSlideStatus } from './studio-add-slide-status-strip.mjs'
+import { stripPublishReviewFit } from './studio-publish-review-fit-strip.mjs' // stacked after #475: the publish review fit change (NEXT_PUBLIC_STUDIO_PUBLISH_REVIEW_FIT) puts its .env.example block between this change's block and # PASS2 ADMIN too
+import { stripVersionHistoryDeckOnly } from './studio-version-history-deck-only-strip.mjs' // stacked after #475: the version history deck-only change (NEXT_PUBLIC_STUDIO_VERSION_HISTORY_DECK_ONLY) puts its .env.example block between this change's block and # PASS2 ADMIN too
 import { STACKED_PASS3_FILES } from './studio-library-manage-harness.mjs'
 import { stripLaunchWording } from './studio-launch-wording-strip.mjs' // NEXT_PUBLIC_STUDIO_LAUNCH_WORDING (launched wording): its flag-gated edits come out first, before every older change's strip
+import { stripComposeEntitlement } from './studio-compose-entitlement-strip.mjs' // stacked after #475: Add Slide compose signs its user puts its .env.example block between this one and # PASS2 ADMIN
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..')
 const read = rel => stripLaunchWording(rel, fs.readFileSync(path.join(root, rel), 'utf8'))
+const readWithoutComposeEntitlement = rel => stripComposeEntitlement(rel, read(rel)) // stacked after #475: Add Slide compose signs its user (STUDIO_COMPOSE_ENTITLEMENT_ENABLED) adds lines to .env.example and the compose route only; this reads a file without them
 const sha = text => crypto.createHash('sha256').update(text).digest('hex')
 const plain = value => JSON.parse(JSON.stringify(value === undefined ? null : value))
 const git = (...args) => execFileSync('git', args, { cwd: root, encoding: 'utf8', maxBuffer: 64 * 1024 * 1024, stdio: ['ignore', 'pipe', 'pipe'] })
@@ -557,6 +561,7 @@ async function staticChecks() {
     assert.ok(OUT.every(f => f.session_id === OLD))
   })
   await check('page and .env.example: one import, one hook call after the session hook, one flag branch in onSessionDirective; the flag documented once, right before # PASS2 ADMIN', () => {
+    const read = rel => stripComposeEntitlement(rel, rel === ENV ? stripVersionHistoryDeckOnly(rel, stripPublishReviewFit(rel, fs.readFileSync(path.join(root, rel), 'utf8'))) : fs.readFileSync(path.join(root, rel), 'utf8')) // stacked after #475: the later .env.example blocks (NEXT_PUBLIC_STUDIO_PUBLISH_REVIEW_FIT, NEXT_PUBLIC_STUDIO_VERSION_HISTORY_DECK_ONLY, STUDIO_COMPOSE_ENTITLEMENT_ENABLED) come out first, so this block is still right before # PASS2 ADMIN
     const page = read(PAGE)
     assert.equal((page.match(/^import \{ STUDIO_NEW_DECK_HANDOFF_SEND_ENABLED, useStudioNewDeckHandoffSend \} from '@\/hooks\/use-studio-new-deck-handoff-send'$/gm) || []).length, 1)
     assert.equal((page.match(/useStudioNewDeckHandoffSend\(/g) || []).length, 1)

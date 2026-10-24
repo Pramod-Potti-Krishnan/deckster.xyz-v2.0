@@ -110,10 +110,16 @@ export const STACKED_PASS3_FILES = [
   'lib/studio-job-ledger.ts', 'components/builder/chat/studio-job-ledger-card.tsx', 'components/builder/chat/studio-job-ledger-card.css',
   // New-deck handoff send (NEXT_PUBLIC_STUDIO_NEW_DECK_HANDOFF_SEND, stacked): its hook.
   'hooks/use-studio-new-deck-handoff-send.ts',
+  // Add Slide compose signs its user (STUDIO_COMPOSE_ENTITLEMENT_ENABLED, stacked on #475): the compose proxy and its lib.
+  'app/api/slides/compose/route.ts', 'lib/studio-compose-entitlement.ts',
   // Publish preview from Layout's inventory (NEXT_PUBLIC_STUDIO_PUBLISH_PREVIEW_INVENTORY_ENABLED, stacked): its hook and lib, and the preview component that reads through the hook.
   'hooks/use-studio-publish-preview-inventory.ts', 'lib/studio-publish-preview-inventory.ts', 'components/studio-publish-preview.tsx',
   // Studio new logo (NEXT_PUBLIC_STUDIO_NEW_LOGO, FRONTEND-1, stacked on the UAT marketing port): the rail's brand tile, its flag helper and its sheet.
   'lib/studio-new-logo.ts', 'components/layout/studio-new-logo.css', 'components/layout/studio-rail.tsx',
+  // Publish review fit (NEXT_PUBLIC_STUDIO_PUBLISH_REVIEW_FIT, stacked): its hook, and the Publish dialog's stylesheet (one block appended after the Pass 2 polish block).
+  'hooks/use-studio-publish-review-fit.ts', 'components/studio-publish.css',
+  // Version history deck only (NEXT_PUBLIC_STUDIO_VERSION_HISTORY_DECK_ONLY, stacked): its hook, and the bridge's setCovered in the Version history lib.
+  'hooks/use-studio-version-history-deck-only.ts', 'lib/studio-version-history-v2.ts',
 ]
 // The FRONTEND-1 Pass 2 changes that are stacked on the same base too (the /admin pages and their hardening, the Docs / Help / Legal / Agents pages and their content passes, the account menu's rhythm). None is a
 // library file; the diff-scope check allows exactly these as well, and nothing else.
