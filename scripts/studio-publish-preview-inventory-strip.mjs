@@ -4,7 +4,7 @@
 // gives back BASE_COMMIT's file byte for byte. Every pair is context-free (its text occurs once and needs no neighbour): the two insertions are removed on their own and
 // the one swapped line goes back to its base line. New files (no base text to put back): PUBLISH_PREVIEW_INVENTORY_NEW_FILES below.
 
-export const BASE_COMMIT = 'c75e4c2d0e5f7319cce890b055567281fe265184'
+export const BASE_COMMIT = 'ae0885e8ce685e6eb1259f8fac10017685ca2c5f'
 
 const ENV_BLOCK = `# PUBLISH PREVIEW FROM LAYOUT'S INVENTORY (FRONTEND-2, the Publish dialog's "What viewers get"; THUMBNAILS-BLANK-UAT fix 1). On for the exact value "true"; default
 # off, and then nothing changes: no inventory read and the same preview as before. Build-time value: change it on Vercel and redeploy. On: when the preview has neither

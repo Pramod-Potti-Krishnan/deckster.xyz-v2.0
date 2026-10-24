@@ -468,8 +468,8 @@ function stripChecks() {
     const at = lines.findIndex(line => line.startsWith(`${FLAG}=`))
     assert.ok(at > 0); assert.equal(lines[at], `${FLAG}="false"`); assert.equal(lines[at + 1], ''); assert.ok(lines[at + 2].startsWith('# PASS2 ADMIN'))
     assert.equal(env.split(`${FLAG}=`).length - 1, 1)
-    const handoff = lines.findIndex(line => line.startsWith('NEXT_PUBLIC_STUDIO_NEW_DECK_HANDOFF_SEND='))
-    assert.ok(handoff > 0 && handoff < at, 'after the new-deck handoff block')
+    const handoff = lines.findIndex(line => line.startsWith('STUDIO_COMPOSE_ENTITLEMENT_ENABLED=')) // the last FRONTEND-2 block on ae0885e8 (#494)
+    assert.ok(handoff > 0 && handoff < at, 'after the last FRONTEND-2 block (#494)')
     assert.equal(lines.slice(handoff + 1, at).findIndex(line => /^[A-Z][A-Z0-9_]*=/.test(line)), -1, 'no other flag between them')
   })
   test('the new files are new, and the resolver, the inventory reader, the Layout client and the Publish call sites (FRONTEND-1\'s code) are untouched', () => {
