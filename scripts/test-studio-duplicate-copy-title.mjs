@@ -699,7 +699,8 @@ const HELD = [ // files other changes' pins hold, and the files the copy's data 
 const lineCounts = text => { const map = new Map(); for (const line of text.split('\n')) map.set(line, (map.get(line) ?? 0) + 1); return map }
 /** The lines of `text` that the base text does not have (as a multiset): what this change added. */
 function addedLines(text, baseText) { const have = lineCounts(baseText), out = []; for (const line of text.split('\n')) { const n = have.get(line) ?? 0; if (n > 0) have.set(line, n - 1); else out.push(line) } return out }
-const allChanged = () => [...new Set([...git('diff', '--name-only', BASE).split('\n'), ...git('ls-files', '--others', '--exclude-standard').split('\n')].filter(Boolean))]
+// The COMMITTED change only (BASE..HEAD): files other tests write into the working tree during a suite run are not this change's (stack gate 24 Oct).
+const allChanged = () => [...new Set(git('diff', '--name-only', BASE, 'HEAD').split('\n').filter(Boolean))]
 const baseOf = rel => { try { return baseSource(rel) } catch { return '' } }
 function proveChange() {
   for (const rel of HELD) { let base; try { base = baseSource(rel) } catch { continue } eq(sha(read(rel)), sha(base), `${rel} is the base commit's file`) }
