@@ -22,6 +22,7 @@ import { fileURLToPath } from 'node:url'
 import ts from 'typescript'
 import { BASE_COMMIT, PUBLISH_PREVIEW_INVENTORY_CHANGES, PUBLISH_PREVIEW_INVENTORY_FILES, PUBLISH_PREVIEW_INVENTORY_NEW_FILES, stripPublishPreviewInventory } from './studio-publish-preview-inventory-strip.mjs'
 import { stripPaymentsOpenSoon } from './studio-payments-open-soon-strip.mjs' // stacked: payments open soon (billing), after #495 in the stack
+import { stripDuplicateCopyTitle } from './studio-duplicate-copy-title-strip.mjs' // stacked: duplicate copy title (the Decks page's copy title and the copy's header), after #496 in the stack
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..')
 const FLAG = 'NEXT_PUBLIC_STUDIO_PUBLISH_PREVIEW_INVENTORY_ENABLED'
@@ -457,7 +458,7 @@ function stripChecks() {
   const test = (name, fn) => { fn(); out.push(name) }
   test('stripping this change gives back BASE_COMMIT\'s .env.example and component byte for byte', () => {
     for (const rel of PUBLISH_PREVIEW_INVENTORY_FILES) {
-      const head = stripPaymentsOpenSoon(rel, fs.readFileSync(path.join(root, rel), 'utf8')) // stacked: payments open soon's later .env.example block comes out first
+      const head = stripPaymentsOpenSoon(rel, stripDuplicateCopyTitle(rel, fs.readFileSync(path.join(root, rel), 'utf8'))) // stacked: payments open soon's and duplicate copy title's later .env.example blocks come out first
       assert.notEqual(head, baseOf(rel), `${rel} is changed`)
       assert.equal(sha(stripPublishPreviewInventory(rel, head)), sha(baseOf(rel)), rel)
       for (const [added] of PUBLISH_PREVIEW_INVENTORY_CHANGES[rel]) assert.equal(head.split(added).length - 1, 1, `${rel}: each pair occurs once`)
@@ -465,7 +466,7 @@ function stripChecks() {
     assert.equal(stripPublishPreviewInventory('app/builder/page.tsx', 'x'), 'x')
   })
   test('the .env.example block sits right before "# PASS2 ADMIN", after the last FRONTEND-2 block, and defaults the flag to "false"', () => {
-    const env = stripPaymentsOpenSoon('.env.example', fs.readFileSync(path.join(root, '.env.example'), 'utf8')), lines = env.split('\n') // stacked: payments open soon's block follows this one and comes out first
+    const env = stripPaymentsOpenSoon('.env.example', stripDuplicateCopyTitle('.env.example', fs.readFileSync(path.join(root, '.env.example'), 'utf8'))), lines = env.split('\n') // stacked: payments open soon's and duplicate copy title's blocks follow this one and come out first
     const at = lines.findIndex(line => line.startsWith(`${FLAG}=`))
     assert.ok(at > 0); assert.equal(lines[at], `${FLAG}="false"`); assert.equal(lines[at + 1], ''); assert.ok(lines[at + 2].startsWith('# PASS2 ADMIN'))
     assert.equal(env.split(`${FLAG}=`).length - 1, 1)
@@ -543,7 +544,7 @@ if (!process.env.PUBLISH_PREVIEW_INVENTORY_NO_MUTANTS) {
     else console.log(`KILLED ${name}: ${killed.length} check(s), first: ${killed[0][0].slice(0, 70)}`)
   }
   // strip mutants: a strip that puts the wrong text back, and an env block moved after "# PASS2 ADMIN"
-  const envHead = stripPaymentsOpenSoon('.env.example', fs.readFileSync(path.join(root, '.env.example'), 'utf8')) // stacked: payments open soon's later block comes out first
+  const envHead = stripPaymentsOpenSoon('.env.example', stripDuplicateCopyTitle('.env.example', fs.readFileSync(path.join(root, '.env.example'), 'utf8'))) // stacked: payments open soon's and duplicate copy title's later blocks come out first
   const wrong = stripPublishPreviewInventory('.env.example', envHead).replace('# PASS2 ADMIN', '# PASS2 ADMIN ')
   if (sha(wrong) === sha(baseOf('.env.example'))) survived.push('strip puts the wrong text back')
   else console.log('KILLED strip puts the wrong text back')
