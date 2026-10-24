@@ -8,10 +8,10 @@
  */
 import { useSyncExternalStore } from 'react'
 import {
-  STUDIO_BULK_EDIT_ENABLED, STUDIO_CHAT_UNDO_ENABLED, NO_CAPABILITIES, UNDO_COPY, BULK_EDIT_PROGRESS_TYPE, BULK_EDIT_SUMMARY_TYPE, CHANGE_RECORDED_TYPE, UNDO_RESULT_TYPE,
-  frameSessionId, frameType, isBulkEditConfirmFrame, parseBulkEditConfirm, parseBulkEditProgress, parseBulkEditSummary, parseChangeRecorded, parseChatCapabilities,
+  STUDIO_BULK_EDIT_ENABLED, STUDIO_CHAT_UNDO_ENABLED, UNDO_COPY, BULK_EDIT_PROGRESS_TYPE, BULK_EDIT_SUMMARY_TYPE, CHANGE_RECORDED_TYPE, UNDO_RESULT_TYPE,
+  frameSessionId, frameType, isBulkEditConfirmFrame, parseBulkEditConfirm, parseBulkEditProgress, parseBulkEditSummary, parseChangeRecorded,
   parseDirectorChatTurn, parseUndoResult, undoChangeAction,
-  type BulkEditConfirm, type BulkEditReceipt, type BulkEditSummary, type ChatCapabilities, type RecordedChange, type UndoResultStatus,
+  type BulkEditConfirm, type BulkEditReceipt, type BulkEditSummary, type RecordedChange, type UndoResultStatus,
 } from '@/lib/studio-bulk-edit-wire'
 
 /** A pending Undo with no answer comes back as failed after this long (the chip must not spin forever). */
@@ -49,7 +49,6 @@ export interface BulkEditRouteContext {
 export type BulkEditRoute = 'consumed' | 'pass'
 
 interface SessionData {
-  capabilities: ChatCapabilities
   bulks: Map<string, BulkRecord>
   changes: ChangeRecord[]
   lastDirectorChat: string | null
@@ -78,7 +77,7 @@ export function createBulkEditUndoStore() {
   const changed = () => { version++; for (const listener of Array.from(listeners)) { try { listener() } catch { /* a listener never breaks the frame path */ } } }
   const dataFor = (sessionId: string): SessionData => {
     let data = sessions.get(sessionId)
-    if (!data) { data = { capabilities: NO_CAPABILITIES, bulks: new Map(), changes: [], lastDirectorChat: null, seq: 0 }; sessions.set(sessionId, data) }
+    if (!data) { data = { bulks: new Map(), changes: [], lastDirectorChat: null, seq: 0 }; sessions.set(sessionId, data) }
     return data
   }
   const bulkFor = (data: SessionData, bulkId: string): BulkRecord => {
@@ -100,11 +99,6 @@ export function createBulkEditUndoStore() {
       if (!type || !sessionId || !context.isCurrent) return 'pass'
       const named = frameSessionId(frame)
       const foreign = named !== null && named !== sessionId // an envelope for another session is never this tab's state
-      if (type === 'sync_response') {
-        const capabilities = parseChatCapabilities(frame)
-        if (capabilities && !foreign) { dataFor(sessionId).capabilities = capabilities; changed() }
-        return 'pass'
-      }
       if (type === 'chat_message') {
         const turn = STUDIO_CHAT_UNDO_ENABLED && !foreign ? parseDirectorChatTurn(frame) : null
         if (turn) dataFor(sessionId).lastDirectorChat = turn.messageId
@@ -171,7 +165,6 @@ export function createBulkEditUndoStore() {
     route,
     subscribe(listener: () => void) { listeners.add(listener); return () => { listeners.delete(listener) } },
     version: () => version,
-    capabilities: (sessionId: string | null | undefined): ChatCapabilities => (sessionId ? sessions.get(sessionId)?.capabilities ?? NO_CAPABILITIES : NO_CAPABILITIES),
     bulk: (sessionId: string | null | undefined, bulkId: string): BulkRecord | null => (sessionId ? sessions.get(sessionId)?.bulks.get(bulkId) ?? null : null),
     /** The newest change recorded under this Director chat line, or null. */
     changeFor(sessionId: string | null | undefined, messageId: string): ChangeRecord | null {
@@ -241,15 +234,14 @@ export function useStudioBulkEditUndoVersion(store: BulkEditUndoStore = studioBu
 type AskLike = { message_id?: string; payload?: unknown }
 
 /**
- * How the chat draws an action_request. null = an ordinary ask (the card it always had): the flag is off, Director did not advertise bulk_edit, or the
- * frame is not a bulk_edit_confirm. 'hidden' = a bulk_edit_confirm that does not validate: nothing is drawn (a confirm without its slide list is never
+ * How the chat draws an action_request. null = an ordinary ask (the card it always had): the flag is off or the frame is not a bulk_edit_confirm. The frame is its own
+ * capability (Director sends it only to a client that advertised bulk_edit1), so no sync_response is needed. 'hidden' = a bulk_edit_confirm that does not validate: nothing is drawn (a confirm without its slide list is never
  * answered blind). 'card' = the confirm card.
  */
-export function bulkEditAskDecision(ask: AskLike, sessionId: string | null | undefined, store: BulkEditUndoStore = studioBulkEditUndo):
+export function bulkEditAskDecision(ask: AskLike):
   | { kind: 'card'; model: BulkEditConfirm } | { kind: 'hidden' } | null {
   try {
     if (!STUDIO_BULK_EDIT_ENABLED || !isBulkEditConfirmFrame({ type: 'action_request', payload: ask.payload })) return null
-    if (!store.capabilities(sessionId).bulkEdit) return null
     const model = parseBulkEditConfirm({ type: 'action_request', payload: ask.payload })
     return model ? { kind: 'card', model } : { kind: 'hidden' }
   } catch { return { kind: 'hidden' } }

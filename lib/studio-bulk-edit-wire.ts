@@ -4,11 +4,12 @@
  * from the page and never throws: a frame that does not validate gives null, and the caller then draws nothing.
  *
  * Two flags, each on only for the exact value "true", default off, read at build time, each independent of the other:
- *   NEXT_PUBLIC_STUDIO_BULK_EDIT -> client cap `bulk_edit1`, Director's capability `bulk_edit`:
+ *   NEXT_PUBLIC_STUDIO_BULK_EDIT -> client cap `bulk_edit1`:
  *       action_request {kind:"bulk_edit_confirm", bulk_edit:{...}}, bulk_edit_progress, bulk_edit_summary
- *   NEXT_PUBLIC_STUDIO_CHAT_UNDO -> client cap `undo1`,       Director's capability `chat_undo`:
+ *   NEXT_PUBLIC_STUDIO_CHAT_UNDO -> client cap `undo1`:
  *       change_recorded, the user_message action_value "undo_change:<change_id>", undo_result, deck_mutation {mutation:"deck_restored"}
- * A feature is drawn only when the flag is on AND sync_response.payload.chat_capabilities names it (K7). There are no credits on the wire: the cost is
+ * The frame itself is the capability: Director sends these frames only to a client whose user_message advertised bulk_edit1 / undo1, and Studio advertises them only with the flag on. So with the flag on a
+ * frame is drawn when it arrives, whether or not a sync_response was ever seen (a brand-new session never gets one). There are no credits on the wire: the cost is
  * estimate.label, Director's own words, and estimate.usd is parsed but never formatted here.
  *
  * Contract: DIRECTOR-2's FINAL I2 wire (relayed 24 Oct, FRONTEND-2 brief). Fixtures in scripts/test-studio-bulk-edit-undo.mjs are DERIVED from it until
@@ -37,13 +38,6 @@ export function addBulkEditUndoCaps(data: Record<string, unknown>): Record<strin
   data.client_caps = [...caps, ...BULK_EDIT_UNDO_CLIENT_CAPS.filter(cap => !caps.includes(cap))]
   return data
 }
-
-/** Director's capability keys on sync_response.payload.chat_capabilities (K7). */
-export const CAPABILITY_BULK_EDIT = 'bulk_edit'
-export const CAPABILITY_CHAT_UNDO = 'chat_undo'
-
-export interface ChatCapabilities { bulkEdit: boolean; chatUndo: boolean }
-export const NO_CAPABILITIES: ChatCapabilities = Object.freeze({ bulkEdit: false, chatUndo: false })
 
 // ---- names -----------------------------------------------------------------------------------------------------------------------------------------------
 
@@ -106,18 +100,6 @@ export function frameSessionId(frame: unknown): string | null {
 }
 export function frameType(frame: unknown): string | null {
   return isRecord(frame) && typeof frame.type === 'string' ? frame.type : null
-}
-
-// ---- K7: capabilities ----------------------------------------------------------------------------------------------------------------------------
-
-/** sync_response.payload.chat_capabilities; a key counts only when it is exactly true. A sync_response without the map advertises nothing. null = not a sync_response. */
-export function parseChatCapabilities(frame: unknown): ChatCapabilities | null {
-  try {
-    if (frameType(frame) !== 'sync_response') return null
-    const body = bodyOf(frame)
-    const caps = body && isRecord(body.chat_capabilities) ? body.chat_capabilities : null
-    return caps ? { bulkEdit: caps[CAPABILITY_BULK_EDIT] === true, chatUndo: caps[CAPABILITY_CHAT_UNDO] === true } : NO_CAPABILITIES
-  } catch { return null }
 }
 
 // ---- the confirm card ----------------------------------------------------------------------------------------------------------------------------

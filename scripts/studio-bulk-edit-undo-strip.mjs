@@ -7,8 +7,8 @@
 export const BASE_COMMIT = 'caf6577253ad0b30757dbc9f75d07608dbdbf9d3' // frontend2/thumbnail-last-good (#498), on #497 (8089eee2), on studio f9218b4f; the base's .env.example already holds the thumbnail last good block
 
 const ENV_BLOCK = `# STUDIO BULK EDIT + CHAT UNDO (FRONTEND-2, PROGRAM-1 SUPERCHARGE I2; the Studio side of DIRECTOR-2's whole-deck edits and chat undo). Two flags, each on only for the exact value "true"; default off, and then nothing changes: no cap is
-# sent, no frame is looked at and every chat line and ask is drawn exactly as before. Build-time values: change them on Vercel and redeploy. Studio draws a feature ONLY when Director advertises it in sync_response.payload.chat_capabilities
-# (bulk_edit, chat_undo); Director needs its own flags on (and, for the chip, a Director that records changes). Both are drawn in the Studio shell only.
+# sent, no frame is looked at and every chat line and ask is drawn exactly as before. Build-time values: change them on Vercel and redeploy. Director needs its own flags on, and sends these frames ONLY to a client whose user_message advertised
+# bulk_edit1 / undo1 (Studio does that only with its flag on), so the frame itself is the capability: it is drawn when it arrives, with or without a sync_response (a brand-new session never gets one). Both are drawn in the Studio shell only.
 # NEXT_PUBLIC_STUDIO_BULK_EDIT: every send also carries client_caps "bulk_edit1" (after the other caps). A whole-deck edit ("shorten every title") arrives as an ask (action_request, kind "bulk_edit_confirm") and is drawn as a card: your
 # instruction, "N slides", a chip per slide (its number, and its title when the deck's structure names it), Director's own estimate label (never a figure Studio works out), and Director's two answers ("Change N slides" and "Cancel"). The
 # answer is sent like any other ask: one user_message whose data.action_value is that action's value (confirm_bulk_edit:<bulk_id> or cancel_bulk_edit:<bulk_id>). One answer only; then both buttons are disabled and the chosen one is marked.
@@ -27,9 +27,10 @@ const HOOK_IMPORTS = `import { STUDIO_BULK_EDIT_UNDO_ENABLED, STUDIO_CHAT_UNDO_E
 import { bulkEditUndoContext, routeStudioBulkEditUndoFrame } from '@/lib/studio-bulk-edit-store'; // BULK-EDIT-UNDO
 `
 
-const HOOK_ROUTE = `            // BULK-EDIT-UNDO (NEXT_PUBLIC_STUDIO_BULK_EDIT / NEXT_PUBLIC_STUDIO_CHAT_UNDO, default off): sync_response's chat_capabilities, Director's chat lines, the bulk-edit confirm and its receipts and summary,
+const HOOK_ROUTE = `            // BULK-EDIT-UNDO (NEXT_PUBLIC_STUDIO_BULK_EDIT / NEXT_PUBLIC_STUDIO_CHAT_UNDO, default off): Director's chat lines (the Undo chip's anchor), the bulk-edit confirm (its chip titles) and its receipts and summary,
             // BULK-EDIT-UNDO: change_recorded and undo_result go to this tab's store (lib/studio-bulk-edit-store.ts), here, ahead of the allowlist. The frames it takes (receipts, summary, change_recorded, undo_result) stop
-            // BULK-EDIT-UNDO: here: they never reach the reducer, the transcript or the cache, and they do not unlock the turn. Every other frame carries on as before. Flags off: nothing is routed.
+            // BULK-EDIT-UNDO: here: they never reach the reducer, the transcript or the cache, and they do not unlock the turn. Director sends them only to a client that advertised bulk_edit1 / undo1 (the caps below, flag on only),
+            // BULK-EDIT-UNDO: so a frame is its own capability, with or without a sync_response. Every other frame carries on as before. Flags off: nothing is routed.
             if (STUDIO_BULK_EDIT_UNDO_ENABLED && routeStudioBulkEditUndoFrame(parsedMessage, bulkEditUndoContext(socketSessionId, deckMutationOwnerRef.current, slideStructureRef.current, isCurrentSocket())) === 'consumed') return; // BULK-EDIT-UNDO
             if (STUDIO_CHAT_UNDO_ENABLED) normaliseDeckRestored(parsedMessage); // BULK-EDIT-UNDO: an undo's deck_mutation {mutation:"deck_restored"} is read as a whole-viewer refresh (slide_replaced, restored:true) before the checks below; flag off: untouched, ignored as before
 `
@@ -51,7 +52,7 @@ const LIST_HELPERS = `  // BULK-EDIT-UNDO (flags NEXT_PUBLIC_STUDIO_BULK_EDIT / 
 const LIST_CHIP = `                      {STUDIO_CHAT_UNDO_ENABLED && studio && <StudioUndoChip sessionId={sessionId} messageId={chatMsg.message_id} undo={undoChange} />}{/* BULK-EDIT-UNDO: the Undo chip (default off) */}
 `
 
-const LIST_ASK = `                const bulkAsk = STUDIO_BULK_EDIT_ENABLED && studio ? bulkEditAskDecision(actionMsg, sessionId) : null // BULK-EDIT-UNDO
+const LIST_ASK = `                const bulkAsk = STUDIO_BULK_EDIT_ENABLED && studio ? bulkEditAskDecision(actionMsg) : null // BULK-EDIT-UNDO
                 if (bulkAsk?.kind === 'hidden') return null // BULK-EDIT-UNDO: a bulk_edit_confirm that does not validate draws nothing
                 if (bulkAsk?.kind === 'card') return <StudioBulkEditRow ask={actionMsg} model={bulkAsk.model} sessionId={sessionId} status={historicalActions.get(actionMsg.message_id)} chosenValue={actionMsg.payload.actions[findAnsweredChoice(processedMessages, index, actionMsg)?.actionIndex ?? -1]?.value ?? null} choose={bulkEditChoose} rowProps={chatPolish()} /> // BULK-EDIT-UNDO
 `

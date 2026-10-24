@@ -7,7 +7,7 @@ import { studioBulkEditUndo, useStudioBulkEditUndoVersion, UNDO_PENDING_TIMEOUT_
 import "./studio-bulk-edit-undo.css"
 
 /**
- * FRONTEND-2 (PROGRAM-1 SUPERCHARGE I2, flag NEXT_PUBLIC_STUDIO_CHAT_UNDO, Studio shell only, default off; drawn only when Director advertises `chat_undo`).
+ * FRONTEND-2 (PROGRAM-1 SUPERCHARGE I2, flag NEXT_PUBLIC_STUDIO_CHAT_UNDO, Studio shell only, default off; drawn when Director's change_recorded arrives, which it sends only to a client that advertised undo1).
  * A small "Undo" chip under the Director chat line that reported a change Director recorded (change_recorded). It sends ONE undo request, as a user_message
  * with data.action_value "undo_change:<change_id>" on the page's own answer path, and never writes to Layout. States: idle, pending (spinner, disabled),
  * "Undone", "Couldn't undo: <reason>", and "A later change replaced this" (a newer change was recorded, or Director says a later edit replaced it).
@@ -22,7 +22,7 @@ export function StudioUndoChip({ sessionId, messageId, undo, store = studioBulkE
   store?: BulkEditUndoStore
 }) {
   useStudioBulkEditUndoVersion(store)
-  const record = sessionId && store.capabilities(sessionId).chatUndo ? store.changeFor(sessionId, messageId) : null
+  const record = sessionId ? store.changeFor(sessionId, messageId) : null
   const pending = record?.state.phase === 'pending'
   useEffect(() => {
     if (!pending || !sessionId) return

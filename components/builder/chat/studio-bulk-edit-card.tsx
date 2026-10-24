@@ -9,7 +9,7 @@ import "./studio-bulk-edit-undo.css"
 type ChatAction = { label: string; value: string; primary: boolean; requires_input: boolean }
 
 /**
- * FRONTEND-2 (PROGRAM-1 SUPERCHARGE I2, flag NEXT_PUBLIC_STUDIO_BULK_EDIT, Studio shell only, default off; drawn only when Director advertises `bulk_edit`).
+ * FRONTEND-2 (PROGRAM-1 SUPERCHARGE I2, flag NEXT_PUBLIC_STUDIO_BULK_EDIT, Studio shell only, default off; drawn when Director's bulk_edit_confirm arrives, which it sends only to a client that advertised bulk_edit1).
  * Director's whole-deck edit, in chat: the confirm card (the user's instruction, how many slides, which ones, Director's own estimate, and the two answers
  * Director sent), then per-slide receipts as they arrive and a summary of counts. One answer only: after it both buttons are disabled and the chosen one is
  * shown. Nothing here is promised that was not sent: the cost is the estimate's own label, a failed or skipped slide says so with Director's reason, and a

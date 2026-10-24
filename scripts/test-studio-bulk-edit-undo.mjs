@@ -1,14 +1,15 @@
 // FRONTEND-2 (PROGRAM-1 SUPERCHARGE I2): proof for the Studio side of DIRECTOR-2's whole-deck edits and chat undo
 //   NEXT_PUBLIC_STUDIO_BULK_EDIT  (default off): the confirm card for a whole-deck edit, per-slide receipts as they arrive, an honest summary.
 //   NEXT_PUBLIC_STUDIO_CHAT_UNDO  (default off): a small "Undo" chip under the Director chat line that reported a change; one undo frame; deck_restored replaces the viewer.
-//   Both draw only when Director advertises it (sync_response.payload.chat_capabilities: bulk_edit, chat_undo); with both flags off nothing changes.
+//   The frame itself is the capability: Director sends these frames only to a client whose user_message advertised bulk_edit1 / undo1 (Studio does that only with its flag on), so with the flag on a frame is drawn
+//   when it arrives, with or without a sync_response (a brand-new session never gets one). With both flags off nothing changes.
 // Plain node, no browser, no network, no services, no paid call, one process (about a minute): the REAL TypeScript is transpiled and run in a vm; the REAL MessageList, confirm card and Undo chip are
 // server-rendered with react-dom, and the clicks go through the same components under a small hooks runtime (state kept between renders). The look is judged from the real stylesheet and the shell's own
 // colour tokens (contrast in light and dark); the before / after PNGs are the caller's (the steps are in the report).
 //   DERIVED  scripts/fixtures/bulk-edit-undo/*.json: frames built from the FINAL I2 wire as DIRECTOR-2 relayed it (not recordings). Each file says so in "provenance" and holds the frames in arrival order, so
 //            DIRECTOR-2's record.py frames replace them file for file. Nothing below is RECORDED.
 //   1. flags      exact "true" only, read in the modules that read them (and nowhere else)
-//   2. handshake  client_caps bulk_edit1 / undo1, each with its own flag, after the other caps; capabilities from sync_response; absent = nothing drawn
+//   2. handshake  client_caps bulk_edit1 / undo1, each with its own flag, after the other caps; the frame is the capability (a fresh session, no sync_response, still draws)
 //   3. wire       every frame parsed in lib/studio-bulk-edit-wire.ts: valid, malformed (null, never a throw), hostile objects
 //   4. store      routing, order, sessions, presentations, bulks kept apart, the latest-change-only rule, the one undo
 //   5. cards      confirm card (count, chips, Director's estimate label, one answer, disabled after), receipts any order, summaries, Undo chip states, the clicks and the exact frames sent
@@ -56,7 +57,7 @@ const ON = { [BULK]: 'true', [UNDO]: 'true', [SHELL]: 'true' }, OFF = { [SHELL]:
 // RECORDED  scripts/fixtures/bulk-edit-undo/0*.json: DIRECTOR-2's five offline record.py transcripts, copied verbatim (director_commit 8258481b, Director draft !542, branch seat2/director-bulk-edit-undo @ 89c51c57): the real
 //           WebSocketHandler and DecisionEngine over scripted model output and a fake socket, $0, no network. Each holds {direction: "in" | "out", frame}; "out" is exactly what Director sent, "in" what Studio sends.
 //           01 the confirm card, 02 a run with one failure, 03 every slide skipped, 04 undo restored, 05 undo superseded.
-// DERIVED   every other frame below says so: the sync_response that advertises the capabilities (the recorder drives _process_message and never a sync), the deck's titles (the wire carries none), the all-failed run
+// DERIVED   every other frame below says so: a sync_response carrying chat_capabilities and a presentation_init (the recorder drives _process_message and sends neither; both must change nothing and gate nothing), the deck's titles (the wire carries none), the all-failed run
 //           (recording 02 with every receipt failed), a newer change_recorded, a second bulk, and every malformed or hostile frame.
 const REC_NAMES = ['01-bulk-confirm-card', '02-bulk-run-one-failure', '03-bulk-all-skipped', '04-undo-restored', '05-undo-superseded']
 const REC = Object.fromEntries(REC_NAMES.map(name => [name, JSON.parse(fs.readFileSync(path.join(root, 'scripts/fixtures/bulk-edit-undo', `${name}.json`), 'utf8'))])) // RECORDED
@@ -68,13 +69,14 @@ const SID = CONFIRM.session_id, ASK_ID = CONFIRM.message_id, BULK_ID = CONFIRM.p
 const CHANGE_04 = out('04-undo-restored').find(frame => frame.type === 'change_recorded'), PRES = CHANGE_04.payload.presentation_id
 const IDS = CONFIRM.payload.bulk_edit.slide_ids, N = IDS.length
 const TITLES = ['Welcome', 'Why now', 'Market size', 'Our approach', 'Roadmap'] // DERIVED: the deck's own titles, which no frame carries
-const SYNC = { type: 'sync_response', message_id: 'msg_sync_derived', session_id: SID, timestamp: '2026-10-24T12:15:00.000Z', role: 'assistant', // DERIVED: Director's sync_response advertising both capabilities
+const SYNC = { type: 'sync_response', message_id: 'msg_sync_derived', session_id: SID, timestamp: '2026-10-24T12:15:00.000Z', role: 'assistant', // DERIVED: a sync_response that advertises both capabilities: it is ignored, nothing waits for it
   payload: { action: 'skip_history', message_count: 2, current_state: 'REFINE_STRAWMAN', has_strawman: true, presentation_id: PRES, slide_count: N, chat_capabilities: { bulk_edit: true, chat_undo: true } } }
 const DECK_RESTORED = out('04-undo-restored').find(frame => frame.type === 'deck_mutation' && frame.payload.mutation === 'deck_restored')
-const framesOf = name => [clone(SYNC), ...out(name)] // a socket's frames in arrival order, after the sync
+const PRES_INIT = { type: 'presentation_init', message_id: 'msg_init_derived', session_id: SID, timestamp: '2026-10-24T12:14:59.000Z', role: 'assistant', payload: { presentation_id: PRES, slide_count: N } } // DERIVED: what a brand-new session gets instead of a sync_response
+const framesOf = name => out(name) // a socket's frames in arrival order
+const freshOf = name => [clone(PRES_INIT), ...out(name)] // the same, on a brand-new session: presentation_init and no sync_response
 const askOf = name => out(name).find(frame => frame.type === 'action_request')
 const withBulk = (change, base = CONFIRM) => { const frame = clone(base); change(frame.payload.bulk_edit, frame.payload, frame); return frame }
-const syncWith = caps => { const frame = clone(SYNC); if (caps === undefined) delete frame.payload.chat_capabilities; else frame.payload.chat_capabilities = caps; return frame }
 const progressFrame = (index, status, reason, bulkId = BULK_ID, slideId) => ({ type: 'bulk_edit_progress', message_id: `p${index}`, session_id: SID, role: 'assistant', payload: { bulk_id: bulkId, slide_id: slideId === undefined ? IDS[index] : slideId, slide_index: index, status, reason: reason ?? null } }) // DERIVED
 const summaryFrame = (done, failed, skipped, total = N, bulkId = BULK_ID) => ({ type: 'bulk_edit_summary', message_id: 's1', session_id: SID, role: 'assistant', payload: { bulk_id: bulkId, done, failed, skipped, total } }) // DERIVED
 const changeFrame = (id, label = 'Changed 4 slides', kind = 'bulk_edit', presentation = PRES) => ({ type: 'change_recorded', message_id: `c_${id}`, session_id: SID, role: 'assistant', payload: { change_id: id, label, kind, presentation_id: presentation, undoable: true } }) // DERIVED
@@ -183,14 +185,11 @@ async function suite() {
     assert.match(hook, /if \(BULK_EDIT_UNDO_CLIENT_CAPS\.length > 0\) addBulkEditUndoCaps\(message\.data as unknown as Record<string, unknown>\); \/\/ BULK-EDIT-UNDO/, 'the hook adds the caps only when this build has any')
     assert.ok(hook.indexOf('addChatElementRefineFields(message.data') < hook.indexOf('addBulkEditUndoCaps(message.data'), 'after the element refine cap, like it')
   })
-  await check('capabilities: only sync_response.payload.chat_capabilities, a key counts only when exactly true', () => {
-    const { parseChatCapabilities } = wire()
-    const caps = frame => plain(parseChatCapabilities(frame))
-    assert.deepEqual(caps(SYNC), { bulkEdit: true, chatUndo: true }); assert.deepEqual(caps(syncWith({ bulk_edit: true })), { bulkEdit: true, chatUndo: false })
-    assert.deepEqual(caps(syncWith({ chat_undo: true, qa: true })), { bulkEdit: false, chatUndo: true })
-    assert.deepEqual(caps(syncWith({ bulk_edit: 'true', chat_undo: 1 })), { bulkEdit: false, chatUndo: false }); assert.deepEqual(caps(syncWith(undefined)), { bulkEdit: false, chatUndo: false })
-    assert.deepEqual(caps(syncWith([])), { bulkEdit: false, chatUndo: false }); assert.equal(caps({ type: 'chat_message', payload: {} }), null); assert.equal(caps(null), null); assert.equal(caps('x'), null)
-    assert.deepEqual(caps({ type: 'sync_response', payload: 'nope' }), { bulkEdit: false, chatUndo: false })
+  await check('sync_response: carrying chat_capabilities or not, it is ignored - it changes nothing and nothing waits for it', () => {
+    const { instance } = freshStore(); const before = instance.version()
+    for (const frame of [SYNC, { ...clone(SYNC), payload: { ...clone(SYNC).payload, chat_capabilities: { bulk_edit: false, chat_undo: false } } }, { ...clone(SYNC), payload: { action: 'skip_history' } }, { ...clone(SYNC), session_id: 'someone_else' }, PRES_INIT]) assert.equal(instance.route(frame, CTX()), 'pass')
+    assert.equal(instance.version(), before, 'no state was touched by any of them'); assert.equal(typeof instance.capabilities, 'undefined', 'the store keeps no capabilities')
+    const wr = wire(); assert.equal(wr.parseChatCapabilities, undefined, 'the adapter reads no capabilities'); assert.equal(wr.NO_CAPABILITIES, undefined)
   })
 
   // ---- 3. wire
@@ -279,7 +278,7 @@ async function suite() {
     const hostile = [boom(), getter, cyclic, { type: 'action_request', payload: boom() }, { type: 'action_request', payload: { kind: 'bulk_edit_confirm', bulk_edit: boom() } },
       { type: 'bulk_edit_progress', payload: boom() }, { type: 'bulk_edit_summary', payload: boom() }, { type: 'change_recorded', payload: boom() }, { type: 'undo_result', payload: boom() }, { type: 'sync_response', payload: boom() },
       { type: 'chat_message', payload: boom() }, { type: 'action_request', payload: { kind: 'bulk_edit_confirm', bulk_edit: { bulk_id: 'x', instruction: 'y', slide_indexes: Array.from({ length: 1_000_000 }, (_, i) => i) } } }]
-    for (const frame of hostile) for (const fn of ['parseChatCapabilities', 'parseBulkEditConfirm', 'isBulkEditConfirmFrame', 'parseBulkEditProgress', 'parseBulkEditSummary', 'parseChangeRecorded', 'parseUndoResult', 'parseDirectorChatTurn']) {
+    for (const frame of hostile) for (const fn of ['parseBulkEditConfirm', 'isBulkEditConfirmFrame', 'parseBulkEditProgress', 'parseBulkEditSummary', 'parseChangeRecorded', 'parseUndoResult', 'parseDirectorChatTurn']) {
       let outcome; assert.doesNotThrow(() => { outcome = wr[fn](frame) }, `${fn} on a hostile frame`); assert.ok(outcome === null || typeof outcome === 'boolean' || typeof outcome === 'object', fn)
     }
     const { instance } = freshStore()
@@ -300,15 +299,6 @@ async function suite() {
     for (const frame of [SYNC, { type: 'slide_update', payload: {} }, { type: 'nonsense' }, null, 5]) assert.equal(feed(ON, frame), 'pass')
     assert.equal(feed(ON, { ...changeFrame('c1'), session_id: 'someone_else' }), 'consumed')
     const { instance } = freshStore(); assert.equal(instance.route(progressFrame(0, 'done'), CTX({ sessionId: null })), 'pass'); assert.equal(instance.route(progressFrame(0, 'done'), CTX({ isCurrent: false })), 'pass')
-  })
-  await check('store: capabilities come from the socket\'s own sync_response and are replaced by the next one', () => {
-    const { instance } = freshStore()
-    assert.deepEqual(plain(instance.capabilities(SID)), { bulkEdit: false, chatUndo: false })
-    instance.route(SYNC, CTX()); assert.deepEqual(plain(instance.capabilities(SID)), { bulkEdit: true, chatUndo: true })
-    instance.route(syncWith({ chat_undo: true }), CTX()); assert.deepEqual(plain(instance.capabilities(SID)), { bulkEdit: false, chatUndo: true })
-    instance.route(syncWith(undefined), CTX()); assert.deepEqual(plain(instance.capabilities(SID)), { bulkEdit: false, chatUndo: false })
-    instance.route({ ...SYNC, session_id: 'someone_else' }, CTX()); assert.deepEqual(plain(instance.capabilities(SID)), { bulkEdit: false, chatUndo: false }, 'another session\'s sync_response is not this tab\'s')
-    assert.deepEqual(plain(instance.capabilities('someone_else')), { bulkEdit: false, chatUndo: false }); assert.deepEqual(plain(instance.capabilities(null)), { bulkEdit: false, chatUndo: false })
   })
   await check('store: receipts in any order, kept per bulk and per slide; the summary kept; the chip titles read from the deck structure', () => {
     const run = out('02-bulk-run-one-failure'), ask = askOf('02-bulk-run-one-failure'), bulkId = ask.payload.bulk_edit.bulk_id
@@ -341,13 +331,13 @@ async function suite() {
   })
   await check('store: changes - anchored to the latest Director chat line, this deck only, the latest one alone is undoable', () => {
     const rec = out('04-undo-restored'), at = rec.findIndex(frame => frame.type === 'change_recorded'), closing = rec[at - 1]
-    const { instance } = freshStore(); instance.route(SYNC, CTX())
+    const { instance } = freshStore(); 
     for (const frame of rec.slice(0, at + 1)) instance.route(frame, CTX())
     assert.equal(closing.type, 'chat_message'); assert.equal(instance.changeFor(SID, closing.message_id).change.changeId, CHANGE_04.payload.change_id, 'recorded: anchored to the closing line, not the first line')
     assert.equal(instance.changeFor(SID, rec[0].message_id), null); assert.equal(instance.changeFor(SID, closing.message_id).state.phase, 'idle')
     instance.route(CHANGE_04, CTX()); assert.equal(instance.changeFor(SID, closing.message_id).seq, 1, 'a replayed change_recorded is recorded once')
     // DERIVED: the same session goes on - ephemeral and user lines anchor nothing, a newer change turns the older chip off at once
-    const s = freshStore().instance; s.route(SYNC, CTX())
+    const s = freshStore().instance; 
     s.route(chatFrame('m1'), CTX()); s.route({ ...chatFrame('m_eph'), payload: { text: 'x', ephemeral: true } }, CTX()); s.route({ ...chatFrame('m_user'), role: 'user' }, CTX())
     s.route(changeFrame('c1', 'First'), CTX()); assert.equal(s.changeFor(SID, 'm1').change.changeId, 'c1'); assert.equal(s.changeFor(SID, 'm_eph'), null); assert.equal(s.changeFor(SID, 'm_user'), null)
     s.route(chatFrame('m2'), CTX()); s.route(changeFrame('c2', 'Second', 'slide_added'), CTX())
@@ -406,10 +396,10 @@ async function suite() {
     assert.equal(await store.sendStudioUndo(SID, 'chg_0002', 'm2', { answered: new Set(), send: () => { throw new Error('boom') } }, instance), false); assert.equal(instance.changeFor(SID, 'm2').state.phase, 'idle')
     assert.equal(await store.sendStudioUndo(null, 'chg_0002', 'm2', gate, instance), false); assert.equal(await store.sendStudioUndo(SID, 'unknown', 'm2', gate, instance), false)
     assert.equal(wd.fetches.length, 0, 'no network call from any sender')
-    const decide = (env, ask, caps) => { const s = freshStore(env); if (caps) s.instance.route(SYNC, CTX()); return s.store.bulkEditAskDecision(ask, SID, s.instance) }
-    assert.equal(decide({}, CONFIRM, true), null, 'flag off: an ordinary ask'); assert.equal(decide(ON, CONFIRM, false), null, 'Director did not advertise it: an ordinary ask'); assert.equal(plain(decide(ONLY_UNDO, CONFIRM, true)), null)
-    assert.equal(decide(ON, CONFIRM, true).kind, 'card'); assert.equal(decide(ON, { payload: { prompt_text: 'x', actions: [] } }, true), null)
-    assert.equal(decide(ON, withBulk(b => { b.slide_count = 9 }), true).kind, 'hidden', 'a malformed confirm draws nothing'); assert.equal(decide(ON, { payload: null }, true), null)
+    const decide = (env, ask) => freshStore(env).store.bulkEditAskDecision(ask)
+    assert.equal(decide({}, CONFIRM), null, 'flag off: an ordinary ask'); assert.equal(plain(decide(ONLY_UNDO, CONFIRM)), null, 'the undo flag alone: an ordinary ask'); assert.equal(decide(ON, CONFIRM).kind, 'card', 'flag on: the frame is the capability, no sync_response was seen')
+    assert.equal(decide(ONLY_BULK, CONFIRM).kind, 'card'); assert.equal(decide(ON, { payload: { prompt_text: 'x', actions: [] } }), null)
+    assert.equal(decide(ON, withBulk(b => { b.slide_count = 9 })).kind, 'hidden', 'a malformed confirm draws nothing'); assert.equal(decide(ON, { payload: null }), null)
   })
 
   // ---- 5. cards
@@ -417,7 +407,7 @@ async function suite() {
   const render = (element) => renderToStaticMarkup(element)
   const modelOf = w => w.wire.parseBulkEditConfirm(CONFIRM)
   const rowProps = (w, extra = {}) => ({ ask: { message_id: ASK_ID }, model: modelOf(w), sessionId: SID, choose: async () => true, store: w.instance, ...extra })
-  const prime = (instance, frames = []) => { instance.route(SYNC, CTX()); instance.route(CONFIRM, CTX()); for (const frame of frames) instance.route(frame, CTX()) }
+  const prime = (instance, frames = []) => { instance.route(CONFIRM, CTX()); for (const frame of frames) instance.route(frame, CTX()) }
   const cw = () => { const c = cardWorld(); const wr = c.wd.load(WIRE); return { ...c, wire: wr, instance: c.store.createBulkEditUndoStore() } }
   /** A recorded run's card: the run's own confirm ask and every frame of it routed, then the card drawn. */
   const runHtml = (c, frames) => {
@@ -443,7 +433,7 @@ async function suite() {
     assert.match(noTitles, /data-studio-bulk-edit-chip-part="number">3</); assert.doesNotMatch(noTitles, /data-studio-bulk-edit-chip-part="title"/, 'no titles known: numbers only')
   })
   await check('card: the cost is Director\'s estimate label - usd is never formatted, and no label draws no cost', () => {
-    const c = cw(); const lab = (frame) => { const s = c.store.createBulkEditUndoStore(); s.route(SYNC, CTX()); return render(React.createElement(c.card.StudioBulkEditRow, rowProps(c, { store: s, model: c.wire.parseBulkEditConfirm(frame) }))) }
+    const c = cw(); const lab = (frame) => { const s = c.store.createBulkEditUndoStore(); return render(React.createElement(c.card.StudioBulkEditRow, rowProps(c, { store: s, model: c.wire.parseBulkEditConfirm(frame) }))) }
     const html = lab(withBulk(b => { b.estimate = { usd: 0.0731, label: 'a few seconds' } })) // DERIVED from recording 01
     assert.match(text(html), /Estimate: a few seconds/); assert.doesNotMatch(html, /0\.07|\$/, 'usd is not formatted')
     const none = lab(withBulk(b => { b.estimate = { usd: 0.5 } })); assert.doesNotMatch(text(none), /Estimate|0\.5|\$/); assert.doesNotMatch(lab(withBulk(b => { delete b.estimate })), /Estimate/)
@@ -483,7 +473,7 @@ async function suite() {
   })
   await check('receipts: shown as they arrive in any order, with Director\'s reason in words; another bulk\'s, another slide\'s and a stranger\'s are not shown (recorded 02)', () => {
     const c = cw(), run = out('02-bulk-run-one-failure'), ask = askOf('02-bulk-run-one-failure'), bulkId = ask.payload.bulk_edit.bulk_id
-    const s = c.store.createBulkEditUndoStore(); s.route(SYNC, CTX()); s.route(ask, CTX())
+    const s = c.store.createBulkEditUndoStore(); s.route(ask, CTX())
     const show = () => render(React.createElement(c.card.StudioBulkEditRow, { ask: { message_id: ask.message_id }, model: c.wire.parseBulkEditConfirm(ask), sessionId: SID, choose: async () => true, store: s }))
     assert.doesNotMatch(show(), /reported|data-state="done"/)
     const receipts = run.filter(frame => frame.type === 'bulk_edit_progress')
@@ -496,7 +486,7 @@ async function suite() {
     s.route({ ...clone(receipts[1]), payload: { ...receipts[1].payload, bulk_id: 'bulk_other', status: 'failed' } }, CTX()); s.route({ ...clone(receipts[1]), payload: { ...receipts[1].payload, status: 'failed', slide_id: 'slide_zzz' } }, CTX()); s.route(progressFrame(9, 'done', undefined, bulkId, 'L9'), CTX())
     html = show(); assert.equal((html.match(/data-studio-bulk-edit-chip="" data-state="failed"/g) || []).length, 1, 'another bulk\'s receipt and a stranger slide\'s are not shown'); assert.match(text(html), /5 of 5 slides reported/); assert.doesNotMatch(text(html), /Slide 10|slide_zzz/)
     // a receipt that came in before its confirm is kept by the store (nothing to check it against yet); the card still shows only a receipt for the slide the confirm named at that position
-    const late = c.store.createBulkEditUndoStore(); late.route(SYNC, CTX()); late.route(progressFrame(1, 'failed', 'unavailable', bulkId, 'slide_zzz'), CTX()); late.route(ask, CTX())
+    const late = c.store.createBulkEditUndoStore(); late.route(progressFrame(1, 'failed', 'unavailable', bulkId, 'slide_zzz'), CTX()); late.route(ask, CTX())
     const lateHtml = render(React.createElement(c.card.StudioBulkEditRow, { ask: { message_id: ask.message_id }, model: c.wire.parseBulkEditConfirm(ask), sessionId: SID, choose: async () => true, store: late }))
     assert.doesNotMatch(lateHtml, /data-state="failed"/); assert.doesNotMatch(text(lateHtml), /reported|Slide 2/)
   })
@@ -505,39 +495,39 @@ async function suite() {
     const partial = runHtml(c, framesOf('02-bulk-run-one-failure'))
     assert.match(partial, /data-summary-state="partial"/); assert.deepEqual([...summaryOf(partial).matchAll(/<span>([^<]*)<\/span>/g)].map(m => m[1]), ['4 of 5 changed', '1 failed'], 'the partial reads "4 of 5 changed" then "1 failed"')
     assert.match(text(partial), /Slide 3 · Market size: Couldn't change — the new version didn't come out cleanly/); assert.doesNotMatch(partial, /reported/, 'the progress line gives way to the summary'); assert.doesNotMatch(text(partial), /refine_failed/)
-    const skipped = runHtml(c, framesOf('03-bulk-all-skipped')), failed = runHtml(c, [clone(SYNC), ...allFailed()])
+    const skipped = runHtml(c, framesOf('03-bulk-all-skipped')), failed = runHtml(c, allFailed())
     for (const html of [partial, skipped, failed]) assert.doesNotMatch(text(html), /\bdone\b|all changed|everything|success/i, 'no "Done" on a partial, a failure or a skip')
     assert.match(skipped, /data-summary-state="none-changed"/); assert.match(text(summaryOf(skipped)), /^0 of 5 changed 5 skipped$/)
     assert.equal((skipped.match(/data-studio-bulk-edit-chip="" data-state="skipped"/g) || []).length, 5); assert.match(text(skipped), /Slide 1 · Welcome: Skipped — the slide is no longer in the deck/); assert.doesNotMatch(text(skipped), /slide_missing/)
     assert.match(failed, /data-summary-state="none-changed"/); assert.match(text(summaryOf(failed)), /^0 of 5 changed 5 failed$/); assert.match(text(failed), /Slide 5 · Roadmap: Couldn't change — the new version didn't come out cleanly/)
-    const all = runHtml(c, [clone(SYNC), CONFIRM, summaryFrame(5, 0, 0)]); assert.match(all, /data-summary-state="all-changed"/); assert.match(text(summaryOf(all)), /^5 of 5 changed$/)
-    for (const [d, f, s] of [[4, 1, 0], [4, 0, 1], [1, 0, 0], [0, 0, 0]]) assert.doesNotMatch(runHtml(c, [clone(SYNC), CONFIRM, summaryFrame(d, f, s)]), /data-summary-state="all-changed"/, `${d}/${f}/${s} is not all changed`)
-    assert.match(text(summaryOf(runHtml(c, [clone(SYNC), CONFIRM, summaryFrame(2, 1, 1)]))), /^2 of 5 changed 1 failed 1 skipped 1 not finished$/, 'an unfinished remainder is said, not hidden')
+    const all = runHtml(c, [CONFIRM, summaryFrame(5, 0, 0)]); assert.match(all, /data-summary-state="all-changed"/); assert.match(text(summaryOf(all)), /^5 of 5 changed$/)
+    for (const [d, f, s] of [[4, 1, 0], [4, 0, 1], [1, 0, 0], [0, 0, 0]]) assert.doesNotMatch(runHtml(c, [CONFIRM, summaryFrame(d, f, s)]), /data-summary-state="all-changed"/, `${d}/${f}/${s} is not all changed`)
+    assert.match(text(summaryOf(runHtml(c, [CONFIRM, summaryFrame(2, 1, 1)]))), /^2 of 5 changed 1 failed 1 skipped 1 not finished$/, 'an unfinished remainder is said, not hidden')
     assert.doesNotMatch(summaryOf(partial), /\.</, 'counts, not a second sentence')
   })
-  const chipHtmlOf = (c, mutate, caps = SYNC, anchor = out('04-undo-restored')) => { // recorded 04's frames up to change_recorded, then whatever the state needs
-    const s = c.store.createBulkEditUndoStore(); s.route(caps, CTX()); const at = anchor.findIndex(frame => frame.type === 'change_recorded'); for (const frame of anchor.slice(0, at + 1)) s.route(frame, CTX()); mutate?.(s)
+  const chipHtmlOf = (c, mutate, anchor = out('04-undo-restored')) => { // recorded 04's frames up to change_recorded, then whatever the state needs
+    const s = c.store.createBulkEditUndoStore(); const at = anchor.findIndex(frame => frame.type === 'change_recorded'); for (const frame of anchor.slice(0, at + 1)) s.route(frame, CTX()); mutate?.(s)
     return render(React.createElement(c.chip.StudioUndoChip, { sessionId: SID, messageId: anchor[at - 1].message_id, undo: async () => true, store: s }))
   }
-  await check('undo chip: every state, its words, its accessible name, and nothing without the capability (recorded 04 and 05)', () => {
+  await check('undo chip: every state, its words, its accessible name, and only the line that reported the change (recorded 04 and 05)', () => {
     const c = cw(), id = CHANGE_04.payload.change_id, name = 'Undo: Refined slide 3'
     const idle = chipHtmlOf(c); assert.match(idle, new RegExp(`<button type="button" data-studio-chat-undo="idle" aria-label="${name}" title="${name}"`)); assert.match(text(idle), /^Undo$/); assert.doesNotMatch(idle, /disabled|tabindex/)
     const pending = chipHtmlOf(c, s => s.beginUndo(SID, id)); assert.match(pending, new RegExp(`<button type="button" data-studio-chat-undo="pending" disabled="" aria-busy="true" aria-label="${name}"`)); assert.match(text(pending), /^Undoing…$/); assert.match(pending, /<svg/)
     const restored = chipHtmlOf(c, s => { s.beginUndo(SID, id); for (const frame of out('04-undo-restored').filter(f => f.type === 'undo_result')) s.route(frame, CTX()) }); assert.match(restored, /<span data-studio-chat-undo="restored" role="status"/); assert.match(text(restored), /^Undone$/); assert.doesNotMatch(restored, /<button/)
-    const answered = chipHtmlOf(c, s => { const r = out('05-undo-superseded'); s.beginUndo(SID, r.find(f => f.type === 'change_recorded').payload.change_id); s.route(r.find(f => f.type === 'undo_result'), CTX()) }, SYNC, out('05-undo-superseded'))
+    const answered = chipHtmlOf(c, s => { const r = out('05-undo-superseded'); s.beginUndo(SID, r.find(f => f.type === 'change_recorded').payload.change_id); s.route(r.find(f => f.type === 'undo_result'), CTX()) }, out('05-undo-superseded'))
     const later = chipHtmlOf(c, s => { s.route(chatFrame('m2'), CTX()); s.route(changeFrame('chg_newer', 'Moved a slide', 'slide_reordered'), CTX()) }) // DERIVED: a newer change_recorded
     for (const html of [answered, later]) { assert.match(html, new RegExp(`<button type="button" data-studio-chat-undo="superseded" disabled="" aria-label="${name}\\. A later change replaced this"`)); assert.match(text(html), /^A later change replaced this$/) }
     const failedWith = reason => chipHtmlOf(c, s => { s.beginUndo(SID, id); s.route(undoResultFrame(id, 'failed', reason), CTX()) }) // DERIVED: the failure codes Director names
     assert.match(text(failedWith('version_missing')), /^Couldn't undo: the earlier version isn't available$/); assert.match(failedWith('busy'), /role="status"/); assert.match(text(failedWith('layout_unavailable')), /^Couldn't undo: the deck service was unavailable$/)
     assert.match(text(failedWith('restore_failed')), /^Couldn't undo: the restore didn't go through$/); assert.match(text(failedWith('no_deck')), /^Couldn't undo: there is no deck to restore$/); assert.match(text(failedWith('a_code_nobody_knows')), /^Couldn't undo$/, 'an unknown code is not drawn'); assert.match(text(failedWith(undefined)), /^Couldn't undo$/)
     assert.doesNotMatch(failedWith('version_missing'), /version_missing/, 'a raw code is never drawn')
-    assert.equal(chipHtmlOf(c, null, syncWith({ bulk_edit: true })), '', 'Director did not advertise chat_undo: nothing is drawn'); assert.equal(chipHtmlOf(c, null, syncWith(undefined)), '')
-    const s = c.store.createBulkEditUndoStore(); const rec = out('04-undo-restored'); s.route(SYNC, CTX()); for (const frame of rec.slice(0, 5)) s.route(frame, CTX())
+    assert.equal(chipHtmlOf(c), chipHtmlOf(c, null), 'no sync_response is needed')
+    const s = c.store.createBulkEditUndoStore(); const rec = out('04-undo-restored'); for (const frame of rec.slice(0, 5)) s.route(frame, CTX())
     assert.equal(render(React.createElement(c.chip.StudioUndoChip, { sessionId: SID, messageId: 'another', undo: async () => true, store: s })), '', 'only the line that reported the change'); assert.equal(render(React.createElement(c.chip.StudioUndoChip, { sessionId: null, messageId: rec[3].message_id, undo: async () => true, store: s })), '')
   })
   await check('undo chip click: ONE frame with action_value undo_change:<id> (the recorded one); the second click is not a second frame; never a write to Layout', async () => {
     const fake = fakeReact(), c = cardWorld(ON, fake), s = c.store.createBulkEditUndoStore(), wd = c.wd, rec = out('04-undo-restored')
-    s.route(SYNC, CTX()); for (const frame of rec.slice(0, 5)) s.route(frame, CTX())
+    for (const frame of rec.slice(0, 5)) s.route(frame, CTX())
     const closing = rec[3].message_id, sent = [], answered = new Set()
     const undo = (changeId, messageId) => c.store.sendStudioUndo(SID, changeId, messageId, { answered, send: (action, id, key) => { sent.push([plain(action), id, key]); answered.add(key) } }, s)
     const draw = () => { fake.begin(); return c.chip.StudioUndoChip({ sessionId: SID, messageId: closing, undo, store: s }) }
@@ -559,7 +549,7 @@ async function suite() {
     hasSeenWelcomeRef: { current: true }, answeredActionsRef: { current: answered }, messagesEndRef: { current: null }, onActionClick() {}, onSubmitAnswers() {} }))
   const feedAll = (lw, frames) => { lw.instance.reset(); for (const frame of frames) lw.instance.route(frame, CTX()) }
   const askTime = Date.parse(CONFIRM.timestamp)
-  await check('hookup: with both flags on and Director\'s capability, the ask is the confirm card (the generic card gives way) and the change reporter has its Undo chip (recorded 02, 04)', () => {
+  await check('hookup: with both flags on, the ask is the confirm card (the generic card gives way) and the change reporter has its Undo chip (recorded 02, 04)', () => {
     const lw = listWorld(ON), frames = framesOf('02-bulk-run-one-failure')
     feedAll(lw, frames)
     const html = listHtml(lw, { frames })
@@ -573,16 +563,27 @@ async function suite() {
     const skipped = framesOf('03-bulk-all-skipped'); feedAll(lw, skipped); const html4 = listHtml(lw, { frames: skipped }); assert.doesNotMatch(html4, /data-studio-chat-undo/, 'nothing changed: no change_recorded, no chip'); assert.match(text(html4), /0 of 5 changed 5 skipped/)
     const superseded = framesOf('05-undo-superseded'); feedAll(lw, superseded); assert.match(listHtml(lw, { frames: superseded }), /data-studio-chat-undo="superseded"/)
   })
-  await check('hookup: no capability, one flag, or flags off - the ordinary ask and no chip; a malformed confirm draws nothing at all', () => {
+  await check('hookup: a fresh session - presentation_init and no sync_response - still draws the card, the receipts, the summary and the chip (recorded 01, 02, 04)', () => {
+    const lw = listWorld(ON)
+    const cases = [
+      ['01-bulk-confirm-card', html => { assert.equal((html.match(/data-studio-bulk-edit="confirm"/g) || []).length, 1, 'the card'); assert.doesNotMatch(html, /data-studio-director-ask=/); assert.match(text(html), /Estimate: about \$0\.25 to \$0\.50/) }],
+      ['02-bulk-run-one-failure', html => { assert.match(text(html), /4 of 5 changed 1 failed/, 'receipts and summary'); assert.match(html, /data-studio-chat-undo="idle"/, 'and the chip under the closing line') }],
+      ['04-undo-restored', html => assert.match(html, /data-studio-chat-undo="restored"/)],
+    ]
+    for (const [name, probe] of cases) {
+      const frames = freshOf(name); assert.ok(!frames.some(frame => frame.type === 'sync_response') && frames[0].type === 'presentation_init', `${name}: a fresh socket's frames`)
+      feedAll(lw, frames); probe(listHtml(lw, { frames }))
+    }
+    const quiet = listWorld(OFF); feedAll(quiet, freshOf('01-bulk-confirm-card')); assert.doesNotMatch(listHtml(quiet, { frames: freshOf('01-bulk-confirm-card') }), /data-studio-bulk-edit=/, 'flag off: the same fresh session draws the ordinary ask')
+  })
+  await check('hookup: one flag, or flags off - the ordinary ask and no chip; a malformed confirm draws nothing at all', () => {
     const frames = framesOf('02-bulk-run-one-failure')
     const ordinary = html => { assert.doesNotMatch(html, /data-studio-bulk-edit=/); assert.match(html, /data-studio-director-ask="/); assert.match(text(html), /Change 5 slides \(slides 1, 2, 3, 4 and 5\)\? I'll apply/) }
-    const noCap = listWorld(ON); noCap.instance.reset(); for (const frame of frames.filter(f => f.type !== 'sync_response')) noCap.instance.route(frame, CTX())
-    const htmlNoCap = listHtml(noCap, { frames }); ordinary(htmlNoCap); assert.doesNotMatch(htmlNoCap, /data-studio-chat-undo/, 'no chat_undo advertised: no chip')
-    for (const env of [OFF, ONLY_UNDO]) { const lw = listWorld(env); feedAll(lw, frames); lw.instance.route(SYNC, CTX()); const html = listHtml(lw, { frames }); ordinary(html); if (env === OFF) assert.doesNotMatch(html, /data-studio-chat-undo/) }
+    for (const env of [OFF, ONLY_UNDO]) { const lw = listWorld(env); feedAll(lw, frames); const html = listHtml(lw, { frames }); ordinary(html); if (env === OFF) assert.doesNotMatch(html, /data-studio-chat-undo/) }
     const onlyBulk = listWorld(ONLY_BULK); feedAll(onlyBulk, frames); const htmlBulk = listHtml(onlyBulk, { frames }); assert.match(htmlBulk, /data-studio-bulk-edit="confirm"/); assert.doesNotMatch(htmlBulk, /data-studio-chat-undo/, 'bulk flag alone: no chip')
     const onlyUndo = listWorld(ONLY_UNDO); feedAll(onlyUndo, frames); assert.match(listHtml(onlyUndo, { frames }), /data-studio-chat-undo="idle"/, 'undo flag alone: the chip, and the ordinary ask')
     const lw = listWorld(ON); const bad = withBulk(b => { b.slide_count = 3 }) // DERIVED from recording 01
-    lw.instance.reset(); lw.instance.route(SYNC, CTX()); const html = listHtml(lw, { frames: [SYNC, bad] }); assert.doesNotMatch(html, /data-studio-bulk-edit=|data-studio-director-ask|data-director-action-id/); assert.doesNotThrow(() => listHtml(lw, { frames: [bad, { type: 'action_request', message_id: 'x', session_id: SID, timestamp: CONFIRM.timestamp, payload: { kind: 'bulk_edit_confirm', bulk_edit: null, actions: [] } }] }))
+    lw.instance.reset(); const html = listHtml(lw, { frames: [bad] }); assert.doesNotMatch(html, /data-studio-bulk-edit=|data-studio-director-ask|data-director-action-id/); assert.doesNotThrow(() => listHtml(lw, { frames: [bad, { type: 'action_request', message_id: 'x', session_id: SID, timestamp: CONFIRM.timestamp, payload: { kind: 'bulk_edit_confirm', bulk_edit: null, actions: [] } }] }))
   })
   await check('hookup: answered - the page\'s record or the transcript\'s reply disables the card and names the choice; the older chips give way to the newest', () => {
     const lw = listWorld(ON), frames = framesOf('01-bulk-confirm-card'); feedAll(lw, frames)
@@ -590,7 +591,7 @@ async function suite() {
     assert.match(answered, /data-studio-bulk-edit-state="answered"/); assert.match(text(answered), /You chose: Change 5 slides/); assert.equal((answered.match(/ disabled=""/g) || []).length, 2)
     const reloaded = listHtml(lw, { frames, userMessages: [{ id: 'u1', text: 'Cancel', timestamp: askTime + 5000 }] }); assert.match(text(reloaded), /You chose: Cancel/); assert.equal((reloaded.match(/ disabled=""/g) || []).length, 2, 'a reload (nothing recorded by the page) still shows it answered')
     const open = listHtml(lw, { frames }); assert.match(open, /data-studio-bulk-edit-state="ask"/); assert.doesNotMatch(open, / disabled=""/)
-    const chain = [SYNC, chatFrame('mA', 'Added a slide.'), changeFrame('cA', 'Added a slide', 'slide_added'), chatFrame('mB', 'Moved it.'), changeFrame('cB', 'Moved a slide', 'slide_reordered')] // DERIVED: two changes in a row
+    const chain = [chatFrame('mA', 'Added a slide.'), changeFrame('cA', 'Added a slide', 'slide_added'), chatFrame('mB', 'Moved it.'), changeFrame('cB', 'Moved a slide', 'slide_reordered')] // DERIVED: two changes in a row
     feedAll(lw, chain); const html = listHtml(lw, { frames: chain })
     assert.match(html.slice(html.indexOf('Added a slide.'), html.indexOf('Moved it.')), /data-studio-chat-undo="superseded"[^>]*disabled=""/); assert.match(html.slice(html.indexOf('Moved it.')), /data-studio-chat-undo="idle"/)
   })
@@ -628,7 +629,7 @@ async function suite() {
     const transcripts = [framesOf('01-bulk-confirm-card'), framesOf('02-bulk-run-one-failure'), framesOf('03-bulk-all-skipped'), framesOf('04-undo-restored'), framesOf('05-undo-superseded'), [SYNC, chatFrame('m1'), withBulk((_b, p) => { p.bulk_edit = null })]]
     const lw = listWorld(OFF), base = (() => { const wd = world({ env: OFF, ref: true }); return { list: wd.load(LIST) } })()
     for (const [at, frames] of transcripts.entries()) {
-      feedAll(lw, frames); lw.instance.route(SYNC, CTX()) // even a store that was told everything draws nothing with the flags off
+      feedAll(lw, frames); // even a store that was told everything draws nothing with the flags off
       const withUser = [{ id: 'u1', text: 'Change 5 slides', timestamp: askTime + 5000 }]
       for (const args of [{ frames }, { frames, userMessages: withUser }, { frames, userMessages: withUser, answered: new Set([ASK_ID]) }]) {
         const now = listHtml(lw, args), then = listHtml({ ...lw, list: base.list }, { ...args, messageList: base.list })
@@ -675,7 +676,7 @@ async function suite() {
     assert.equal(lines[at - 1], `${BULK}="false"`); assert.equal(lines[at + 1], ''); assert.equal(admin, at + 2, 'right before # PASS2 ADMIN')
     assert.ok(lines.indexOf('NEXT_PUBLIC_STUDIO_THUMBNAIL_LAST_GOOD="false"') < at, 'after the thumbnail last good block (which was last)')
     const block = lines.slice(lines.findIndex(line => line.startsWith('# STUDIO BULK EDIT + CHAT UNDO')), at + 1).join('\n')
-    for (const word of ['bulk_edit1', 'undo1', 'chat_capabilities', 'bulk_edit_confirm', 'confirm_bulk_edit:', 'cancel_bulk_edit:', 'undo_change:', 'change_recorded', 'undo_result', 'deck_restored', 'NEXT_PUBLIC_STUDIO_DECK_MUTATION_REFRESH_ENABLED', 'exact value "true"']) assert.ok(block.includes(word), `the block says ${word}`)
+    for (const word of ['bulk_edit1', 'undo1', 'advertised', 'bulk_edit_confirm', 'confirm_bulk_edit:', 'cancel_bulk_edit:', 'undo_change:', 'change_recorded', 'undo_result', 'deck_restored', 'NEXT_PUBLIC_STUDIO_DECK_MUTATION_REFRESH_ENABLED', 'exact value "true"']) assert.ok(block.includes(word), `the block says ${word}`)
     assert.ok(!/credit/i.test(block), 'no credits on this wire')
   })
   await check('scope: the COMMITTED diff BASE..HEAD answers for its own files only; the working tree is never read', () => {
@@ -719,12 +720,13 @@ async function suite() {
 }
 
 // ---------------------------------------------------------------- mutants
+const NEEDS_SYNC = (extra) => [[STORE, "export type BulkEditRoute = 'consumed' | 'pass'", "export type BulkEditRoute = 'consumed' | 'pass'\nconst SEEN_SYNC = new Set<string>()"], [STORE, '      const named = frameSessionId(frame)', "      if (type === 'sync_response') SEEN_SYNC.add(sessionId)\n      const named = frameSessionId(frame)"], ...extra] // the removed gate, put back: a frame is dropped until a sync_response was seen
 const MUTANTS = [
   { name: 'flag spelling (bulk): another variable name', edits: [[WIRE, "process.env.NEXT_PUBLIC_STUDIO_BULK_EDIT === 'true'", "process.env.NEXT_PUBLIC_STUDIO_BULKEDIT === 'true'"]] },
   { name: 'flag spelling (undo): truthy, not exact "true"', edits: [[WIRE, "process.env.NEXT_PUBLIC_STUDIO_CHAT_UNDO === 'true'", "!!process.env.NEXT_PUBLIC_STUDIO_CHAT_UNDO"]] },
-  { name: 'capability gate ignored (confirm card)', edits: [[STORE, 'if (!store.capabilities(sessionId).bulkEdit) return null', '']] },
-  { name: 'capability gate ignored (Undo chip)', edits: [[CHIP, 'sessionId && store.capabilities(sessionId).chatUndo ? ', 'sessionId ? ']] },
-  { name: 'capability read from the wrong key', edits: [[WIRE, 'bulkEdit: caps[CAPABILITY_BULK_EDIT] === true', 'bulkEdit: caps[CAPABILITY_BULK_EDIT] !== undefined']] },
+  { name: 'frame dropped when no sync_response was seen (the confirm card)', edits: NEEDS_SYNC([[STORE, "return null\n    const model = parseBulkEditConfirm(", "return null\n    if (SEEN_SYNC.size === 0) return null\n    const model = parseBulkEditConfirm("]]) },
+  { name: 'frame dropped when no sync_response was seen (the Undo chip)', edits: NEEDS_SYNC([[STORE, "        const change = parseChangeRecorded(frame)\n", "        const change = parseChangeRecorded(frame)\n        if (SEEN_SYNC.size === 0) return 'consumed'\n"]]) },
+  { name: 'frame dropped when no sync_response was seen (receipts)', edits: NEEDS_SYNC([[STORE, "        const receipt = parseBulkEditProgress(frame)\n", "        const receipt = parseBulkEditProgress(frame)\n        if (SEEN_SYNC.size === 0) return 'consumed'\n"]]) },
   { name: 'double answer allowed (the card does not lock)', edits: [[CARD, '    if (locked) return\n', '']] },
   { name: 'double answer allowed (an answered ask sends again)', edits: [[STORE, '|| gate.answered.has(gate.answerKey)) return false', ') return false']] },
   { name: '"Done" on a partial: the all-changed state needs only one slide', edits: [[WIRE, 'summary.total > 0 && summary.done === summary.total && summary.failed === 0 && summary.skipped === 0', 'summary.done > 0']] },
@@ -739,7 +741,7 @@ const MUTANTS = [
   { name: 'cross-bulk receipt mixing', edits: [[STORE, 'let bulk = data.bulks.get(bulkId)', "let bulk = data.bulks.get('shared')"], [STORE, 'data.bulks.set(bulkId, bulk)', "data.bulks.set('shared', bulk)"]] },
   { name: 'a receipt of another slide is shown on the slide at that position', edits: [[CARD, 'receipt.slideId !== null && model.slideIds[at] !== null && receipt.slideId !== model.slideIds[at]', 'false']] },
   { name: 'flag off changed: the hook routes frames without a flag', edits: [[HOOK, 'if (STUDIO_BULK_EDIT_UNDO_ENABLED && routeStudioBulkEditUndoFrame(', 'if (routeStudioBulkEditUndoFrame(']] },
-  { name: 'flag off changed: the card is drawn without the flag (both gates removed)', edits: [[LIST, 'const bulkAsk = STUDIO_BULK_EDIT_ENABLED && studio ? bulkEditAskDecision(actionMsg, sessionId) : null', 'const bulkAsk = studio ? bulkEditAskDecision(actionMsg, sessionId) : null'], [STORE, 'if (!STUDIO_BULK_EDIT_ENABLED || !isBulkEditConfirmFrame({ type', 'if (!isBulkEditConfirmFrame({ type']] },
+  { name: 'flag off changed: the card is drawn without the flag (both gates removed)', edits: [[LIST, 'const bulkAsk = STUDIO_BULK_EDIT_ENABLED && studio ? bulkEditAskDecision(actionMsg) : null', 'const bulkAsk = studio ? bulkEditAskDecision(actionMsg) : null'], [STORE, 'if (!STUDIO_BULK_EDIT_ENABLED || !isBulkEditConfirmFrame({ type', 'if (!isBulkEditConfirmFrame({ type']] },
   { name: 'flag off changed: the chip is drawn without the flag (both gates removed)', edits: [[LIST, '{STUDIO_CHAT_UNDO_ENABLED && studio && <StudioUndoChip', '{studio && <StudioUndoChip'], [STORE, "if (!STUDIO_CHAT_UNDO_ENABLED) return 'pass'\n        if (foreign) return 'consumed'\n        const change", "if (foreign) return 'consumed'\n        const change"]] },
   { name: 'caps sent with the flag off', edits: [[WIRE, '...(STUDIO_BULK_EDIT_ENABLED ? [BULK_EDIT_CLIENT_CAP] : []),', '...[BULK_EDIT_CLIENT_CAP],']] },
   { name: 'client cap misspelled', edits: [[WIRE, "export const UNDO_CLIENT_CAP = 'undo1'", "export const UNDO_CLIENT_CAP = 'undo_1'"]] },
