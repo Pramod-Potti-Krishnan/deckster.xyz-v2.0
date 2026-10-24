@@ -20,9 +20,12 @@ import path from 'node:path'
 import { fileURLToPath } from 'node:url'
 import vm from 'node:vm'
 import ts from 'typescript'
+import { stripFirstPaint } from './studio-first-paint-strip.mjs' // stacked: NEXT_PUBLIC_STUDIO_FIRST_PAINT_ENABLED (COMPOSER-2 first paint): its flag-gated viewer lines come out first, inside read(), next to stripLaunchWording
 import { stripChatElementRefine } from './studio-chat-element-refine-strip.mjs' // NEXT_PUBLIC_CHAT_ELEMENT_REFINE (#470): its flag-gated lines in the hook and types/mdc.ts come out first
 import { stripChatThemeExport } from './studio-chat-theme-export-strip.mjs' // NEXT_PUBLIC_CHAT_THEME_CHANGE / NEXT_PUBLIC_CHAT_EXPORT (#472): its flag-gated hook lines come out first
 import { stripLaunchWording } from './studio-launch-wording-strip.mjs' // NEXT_PUBLIC_STUDIO_LAUNCH_WORDING (launched wording): its flag-gated edits come out first, before every older change's strip
+import { stripThumbnailLastGood } from './studio-thumbnail-last-good-strip.mjs' // stacked: NEXT_PUBLIC_STUDIO_THUMBNAIL_LAST_GOOD (thumbnail last good) adds lines to the rail strip and the inventory lib this holds to the base; its strip puts them back first
+import { stripBulkEditUndo } from './studio-bulk-edit-undo-strip.mjs' // stacked: NEXT_PUBLIC_STUDIO_BULK_EDIT / NEXT_PUBLIC_STUDIO_CHAT_UNDO (bulk edit + chat undo) add marked lines to the hook, the refresh planner and the mdc types this holds to the base; its strip puts them back first
 
 const repoRoot = path.resolve(fileURLToPath(new URL('../', import.meta.url)))
 const BASE_COMMIT = '1079ba4b7cd277ece7cc46ee7624d74419c3a5aa' // studio-v4-dev-preparation-code when this change branched
@@ -32,7 +35,7 @@ const PAGE = 'app/builder/page.tsx'
 const FLAG = 'NEXT_PUBLIC_STUDIO_DECK_MUTATION_DEDUPE'
 const SHARED_APPEND_ONLY = ['.env.example', 'package.json']
 
-const read = rel => stripLaunchWording(rel, readFileSync(path.join(repoRoot, rel), 'utf8'))
+const read = rel => stripFirstPaint(rel, stripLaunchWording(rel, readFileSync(path.join(repoRoot, rel), 'utf8')))
 const readIf = rel => existsSync(path.join(repoRoot, rel)) ? read(rel) : null
 const baseCache = new Map()
 const baseSource = rel => {
@@ -480,7 +483,7 @@ async function identity() {
   const { stripReconnectResync } = await import('./studio-reconnect-resync-strip.mjs') // P3-4 slice A (stacked): its notice-lib lines come out first
   const { stripJobLedger } = await import('./studio-job-ledger-strip.mjs') // P3-4 slice C (stacked): its flag-gated hook lines come out first
   pin('flag-off identity: the hook (deck_mutation and slide_ready paths, message cache, history, send payloads), the viewer, the rail and every count lib are byte-identical to the base', () => {
-    for (const rel of UNTOUCHED) assert.equal(sha(stripChatElementRefine(rel, stripChatThemeExport(rel, stripReconnectResync(rel, stripJobLedger(rel, read(rel)))))), sha(baseSource(rel)), rel)
+    for (const rel of UNTOUCHED) assert.equal(sha(stripChatElementRefine(rel, stripChatThemeExport(rel, stripReconnectResync(rel, stripJobLedger(rel, stripThumbnailLastGood(rel, stripBulkEditUndo(rel, read(rel)))))))), sha(baseSource(rel)), rel)
   })
   const { stripDeckMutationDedupe, DECK_MUTATION_DEDUPE_PAGE_ADDITION } = await import('./studio-deck-mutation-dedupe-strip.mjs')
   const { stripOpenReadOnly } = await import('./studio-open-read-only-strip.mjs')

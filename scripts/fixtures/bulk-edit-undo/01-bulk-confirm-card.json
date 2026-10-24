@@ -1,0 +1,118 @@
+{
+ "scenario": "01-bulk-confirm-card",
+ "description": "'Shorten every title' (client_caps mdc1, bulk_edit1, undo1): ONE action_request, kind bulk_edit_confirm, 5 slides, estimate; nothing runs before the click.",
+ "director_commit": "8258481ba51a0c1279ef6bf7e76bee7c40a5b8c1",
+ "flags": {
+  "MULTI_INTENT_ENABLED": "true",
+  "DIRECTOR_MDC_BULK_EDIT_ENABLED": "true",
+  "DIRECTOR_MDC_CHAT_UNDO_ENABLED": "true",
+  "CHAT_CAP_BULK_EDIT": "true",
+  "CHAT_CAP_CHAT_UNDO": "true",
+  "SLIDE_COMPOSER_ENABLED": "true",
+  "SLIDE_COMPOSER_ASYNC_ENABLED": "true",
+  "SLIDE_REFINER_ENABLED": "true",
+  "DIRECTOR_MDC_REFINE_SLIDE_ENABLED": "true",
+  "CHAT_CAP_REFINE_SLIDE": "true",
+  "DIRECTOR_MDC_HONEST_REPLIES_ENABLED": "true",
+  "DIRECTOR_MDC_SESSION_SCOPE_ENABLED": "true"
+ },
+ "client_caps": [
+  "mdc1",
+  "bulk_edit1",
+  "undo1"
+ ],
+ "recorded_by": "docs/mdc/bulk-edit-undo-frames/record.py (offline, $0)",
+ "scripted_model_output": [
+  {
+   "action_type": "bulk_edit",
+   "response_text": null,
+   "questions": null,
+   "tool_calls": null,
+   "reasoning": "scripted",
+   "confidence": 0.95,
+   "requires_approval": false,
+   "extracted_context": null,
+   "target_slide_indices": [],
+   "new_topic": null,
+   "op_brief": "Shorten the title",
+   "element_type": null,
+   "structured_questions": []
+  }
+ ],
+ "frame_counts": {
+  "in": 1,
+  "out": 1
+ },
+ "outbound_frame_types": [
+  "action_request"
+ ],
+ "frames": [
+  {
+   "seq": 1,
+   "direction": "in",
+   "frame": {
+    "type": "user_message",
+    "data": {
+     "text": "Shorten every title",
+     "client_caps": [
+      "mdc1",
+      "bulk_edit1",
+      "undo1"
+     ]
+    }
+   }
+  },
+  {
+   "seq": 2,
+   "direction": "out",
+   "frame": {
+    "message_id": "msg_3f52cbb4",
+    "session_id": "s_e2e",
+    "timestamp": "2026-10-24T12:15:57.791757Z",
+    "type": "action_request",
+    "role": "assistant",
+    "payload": {
+     "prompt_text": "Change 5 slides (slides 1, 2, 3, 4 and 5)? I'll apply \"Shorten the title\" to each one, one or two at a time, keeping each slide in its place. Rough cost: about $0.25 to $0.50.",
+     "actions": [
+      {
+       "label": "Change 5 slides",
+       "value": "confirm_bulk_edit:bulk_72c5ff84eb2f",
+       "primary": true,
+       "requires_input": false
+      },
+      {
+       "label": "Cancel",
+       "value": "cancel_bulk_edit:bulk_72c5ff84eb2f",
+       "primary": false,
+       "requires_input": false
+      }
+     ],
+     "kind": "bulk_edit_confirm",
+     "bulk_edit": {
+      "bulk_id": "bulk_72c5ff84eb2f",
+      "instruction": "Shorten the title",
+      "slide_indexes": [
+       0,
+       1,
+       2,
+       3,
+       4
+      ],
+      "slide_ids": [
+       "L0",
+       "L1",
+       "L2",
+       "L3",
+       "L4"
+      ],
+      "slide_count": 5,
+      "estimate": {
+       "usd": 0.5,
+       "label": "about $0.25 to $0.50"
+      }
+     }
+    }
+   }
+  }
+ ]
+}
