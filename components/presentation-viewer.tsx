@@ -1772,7 +1772,7 @@ export function PresentationViewer({
           ? await sendCommand(polledFrame, 'composeGetState')
           : await sendCommand(polledFrame, 'getCurrentSlideInfo')
         if (iframeRef.current !== polledFrame || slideMutationOwnerRef.current !== polledOwner) return
-        if (firstTick && !isUsableFirstPollAnswer(result)) return // STUDIO-FIRST-PAINT: a hollow answer from a viewer that has not drawn its slides yet is dropped (the interval ticks carry on)
+        if (firstTick && !isUsableFirstPollAnswer(result)) return false // STUDIO-FIRST-PAINT: a hollow answer from a viewer that has not drawn its slides yet is dropped (the interval ticks carry on); false = one retry
         if (partialFrame?.isCurrent() && selectionIsCurrent() && presentationId) {
           // Read only the existing native response. Do not use retained totals,
           // typed build counts or a fallback floor as native count authority.
@@ -1855,7 +1855,7 @@ export function PresentationViewer({
         }
       } catch (error) {
         // Increment failure count and apply backoff
-        if (firstTick) { debugLog('⏸️ First poll got no usable answer; not counted'); return } // STUDIO-FIRST-PAINT: the head-start tick never counts a failure or starts a backoff
+        if (firstTick) { debugLog('⏸️ First poll got no usable answer; not counted'); return false } // STUDIO-FIRST-PAINT: the head-start tick never counts a failure or starts a backoff; false = one retry
         setPollingFailureCount(prev => prev + 1)
         debugLog(`⏸️ Polling failed (attempt ${pollingFailureCount + 1}/${MAX_FAILURES})`)
       }

@@ -25,7 +25,7 @@ function load({ env = {}, browser = false, text = source } = {}) {
   const compiled = ts.transpileModule(text, { fileName: LIB, reportDiagnostics: true, compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022 } })
   const errors = (compiled.diagnostics ?? []).filter(d => d.category === ts.DiagnosticCategory.Error)
   assert.equal(errors.length, 0, 'the lib transpiles')
-  const world = { preconnect: [], prefetchDNS: [], intervals: [], now: 1_000_000 }
+  const world = { preconnect: [], prefetchDNS: [], intervals: [], timeouts: [], now: 1_000_000 }
   const reactDom = {
     preconnect: (...args) => world.preconnect.push(args),
     prefetchDNS: (...args) => world.prefetchDNS.push(args),
@@ -36,6 +36,7 @@ function load({ env = {}, browser = false, text = source } = {}) {
     process: { env },
     require: spec => { assert.equal(spec, 'react-dom', 'the lib imports only react-dom'); return reactDom },
     setInterval: (fn, ms) => { world.intervals.push({ fn, ms }); return world.intervals.length },
+    setTimeout: (fn, ms) => { world.timeouts.push({ fn, ms }); return world.timeouts.length },
     Date: { now: () => world.now },
     ...(browser ? { document: {} } : {}),
   }
@@ -247,6 +248,58 @@ async function suites(text = source) {
     check(assert.deepEqual, calls, [[true], []], 'past the deadline the interval ticks run again')
     check(assert.equal, l.FIRST_POLL_MAX_HOLD_MS, 15_000, 'the hold is 15 s at most')
   }
+  // one retry: a head start the viewer could not answer yet (the tick resolves to exactly false) is tried ONCE more FIRST_POLL_RETRY_MS later,
+  // still with `true` (uncounted); a usable head start gets none; a frame that moved to another URL gets none; the interval waits for it
+  {
+    const { lib: l, world } = L({ env: on })
+    const calls = []
+    const tick = (...args) => { calls.push(args); return Promise.resolve(args[0] === true ? false : undefined) }
+    l.startStudioSlideInfoPoll({}, 'https://layout.example.com/p/9', tick, 3000)
+    await settle()
+    check(assert.equal, world.timeouts.length, 1, 'a rejected head start schedules one retry')
+    check(assert.equal, world.timeouts[0].ms, l.FIRST_POLL_RETRY_MS, 'the retry comes FIRST_POLL_RETRY_MS later')
+    check(assert.equal, l.FIRST_POLL_RETRY_MS, 500, 'the retry delay is 500 ms (Layout starts Reveal 300 ms after DOMContentLoaded)')
+    world.timeouts[0].fn(); await settle()
+    check(assert.deepEqual, calls, [[true], [true]], 'the retry is another head-start tick, called with true (uncounted)')
+    check(assert.equal, world.timeouts.length, 1, 'never more than one retry, even when the retry is rejected too')
+  }
+  {
+    const { lib: l, world } = L({ env: on })
+    l.startStudioSlideInfoPoll({}, 'u', () => Promise.resolve(undefined), 3000); await settle()
+    check(assert.equal, world.timeouts.length, 0, 'a head start that is not rejected schedules no retry')
+    const { lib: l2, world: w2 } = L({ env: on })
+    l2.startStudioSlideInfoPoll({}, 'u', () => Promise.resolve(true), 3000); await settle()
+    check(assert.equal, w2.timeouts.length, 0, 'only exactly false asks for a retry')
+  }
+  {
+    const { lib: l, world } = L({ env: on })
+    const calls = []
+    const tick = (...args) => { calls.push(args); return Promise.resolve(args[0] === true ? false : undefined) }
+    const frame = {}
+    l.startStudioSlideInfoPoll(frame, 'https://layout.example.com/p/1', tick, 3000); await settle()
+    l.startStudioSlideInfoPoll(frame, 'https://layout.example.com/p/2', tick, 3000); await settle()
+    const before = calls.length
+    world.timeouts[0].fn(); await settle()
+    check(assert.equal, calls.length, before, 'a retry for a frame that has moved to another URL does nothing')
+  }
+  {
+    const { lib: l, world } = L({ env: on })
+    const calls = []
+    let heads = 0, releaseRetry
+    const tick = (...args) => {
+      calls.push(args)
+      if (args[0] !== true) return Promise.resolve()
+      heads += 1
+      return heads === 1 ? Promise.resolve(false) : new Promise(resolve => { releaseRetry = resolve })
+    }
+    l.startStudioSlideInfoPoll({}, 'u', tick, 3000); await settle()
+    world.timeouts[0].fn()
+    world.intervals[0].fn()
+    check(assert.equal, calls.filter(c => c.length === 0).length, 0, 'an interval tick waits while the retry is in flight')
+    releaseRetry(); await settle()
+    world.intervals[0].fn()
+    check(assert.equal, calls.filter(c => c.length === 0).length, 1, 'after the retry settles the interval ticks run again')
+  }
   // the lib counts nothing: the failure count lives in the viewer (its catch skips the count for a first tick); the lib never calls anything but the tick, the timer and Date.now
   check(assert.doesNotMatch, text.replace(/\/\/.*$/gm, ''), /pollingFailure|setPollingFailureCount|sendCommand|postMessage|fetch\(|localStorage/, 'the lib has no request, no storage and no failure counter')
 }
@@ -283,6 +336,12 @@ const MUTANTS = [
   ['first tick once per frame regardless of URL', t => once(t, '!state || state.url !== url', '!state')],
   ['a rejected first tick escapes', t => once(t, 'Promise.resolve(running).catch(() => undefined).then(', 'Promise.resolve(running).then(')],
   ['a throwing first tick escapes', t => once(t, 'try { running = tick(true) } catch { running = undefined }', 'running = tick(true)')],
+  ['no retry after a rejected head start', t => once(t, 'if (outcome === false && !claimed.retried) {', 'if (false) {')],
+  ['retry after any head start', t => once(t, 'if (outcome === false && !claimed.retried) {', 'if (!claimed.retried) {')],
+  ['retry repeats', t => once(t, '          claimed.retried = true\n', '')],
+  ['retry ignores a moved frame', t => once(t, '            if (firstPolls.get(frame) !== claimed) return\n', '')],
+  ['retry does not hold the interval', t => once(t, '            claimed.inFlight = true\n', '')],
+  ['retry delay is not the constant', t => once(t, '}, FIRST_POLL_RETRY_MS)', '}, 0)')],
   ['interval passes the first-tick marker', t => once(t, '? undefined : tick()), intervalMs)', '? undefined : tick(true)), intervalMs)')],
 ]
 let killed = 0

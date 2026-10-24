@@ -83,6 +83,14 @@ export function warmStudioFirstPaintConnections(layoutUrl: string | null | undef
 /** The most a head-start tick can hold the interval ticks back, so a tick that never settles cannot stop the polling for good (every command has its own 5 s timeout; a snapshot restore chains up to three). */
 export const FIRST_POLL_MAX_HOLD_MS = 15_000
 
+/**
+ * One retry of the head-start tick, this long after a head start that got no usable answer (the tick resolved to `false`). Measured on the
+ * real Layout viewer (24 Oct, 13 trials): Studio's iframe onLoad comes ~160 ms after navigation and the head-start tick was rejected every
+ * time ("Reveal.getIndices is not a function"), because Layout starts Reveal in a setTimeout(300) after DOMContentLoaded. 500 ms later the
+ * viewer is up, so the retry lands a usable answer ~2.5 s before the first interval tick. Uncounted like the head start; never more than one.
+ */
+export const FIRST_POLL_RETRY_MS = 500
+
 const finite = (value: unknown): number | null => (typeof value === 'number' && Number.isFinite(value) ? value : null)
 
 /**
@@ -105,6 +113,7 @@ interface FirstPollState {
   readonly url: string
   readonly holdUntil: number
   inFlight: boolean
+  retried?: boolean
 }
 // One state per frame element; a frame that navigates to another URL gets a new state, so each loaded document gets its head start.
 const firstPolls = new WeakMap<object, FirstPollState>()
@@ -127,9 +136,24 @@ export function startStudioSlideInfoPoll(
     const claimed: FirstPollState = { url, holdUntil: Date.now() + FIRST_POLL_MAX_HOLD_MS, inFlight: true }
     state = claimed
     firstPolls.set(frame, claimed)
-    let running: unknown
-    try { running = tick(true) } catch { running = undefined }
-    Promise.resolve(running).catch(() => undefined).then(() => { claimed.inFlight = false })
+    const headStart = () => {
+      let running: unknown
+      try { running = tick(true) } catch { running = undefined }
+      Promise.resolve(running).catch(() => undefined).then((outcome) => {
+        claimed.inFlight = false
+        // A head start the viewer could not answer yet (the tick resolves to exactly false) gets ONE retry FIRST_POLL_RETRY_MS later, still
+        // uncounted; never for a frame that has since moved to another URL (its state was replaced).
+        if (outcome === false && !claimed.retried) {
+          claimed.retried = true
+          setTimeout(() => {
+            if (firstPolls.get(frame) !== claimed) return
+            claimed.inFlight = true
+            headStart()
+          }, FIRST_POLL_RETRY_MS)
+        }
+      })
+    }
+    headStart()
   }
   const current = state
   return setInterval(() => (current.inFlight && Date.now() < current.holdUntil ? undefined : tick()), intervalMs)

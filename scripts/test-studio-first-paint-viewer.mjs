@@ -419,11 +419,11 @@ const once = (text, from, to) => {
   return text.replace(from, () => to)
 }
 const MUTANTS = [
-  ['the catch guard is gone (a first poll\'s failure is counted)', t => once(t, `        if (firstTick) { debugLog('⏸️ First poll got no usable answer; not counted'); return } // STUDIO-FIRST-PAINT: the head-start tick never counts a failure or starts a backoff\n`, '')],
+  ['the catch guard is gone (a first poll\'s failure is counted)', t => once(t, `        if (firstTick) { debugLog('⏸️ First poll got no usable answer; not counted'); return false } // STUDIO-FIRST-PAINT: the head-start tick never counts a failure or starts a backoff; false = one retry\n`, '')],
   ['the guard is inverted (interval failures are not counted)', t => once(t, 'if (firstTick) { debugLog(', 'if (!firstTick) { debugLog(')],
   ['no frame handed to the poll (no head start)', t => once(t, 'startStudioSlideInfoPoll(iframeRef.current, approvedIframeNavigationUrl, async', 'startStudioSlideInfoPoll(null, approvedIframeNavigationUrl, async')],
   ['no URL handed to the poll (no head start)', t => once(t, 'startStudioSlideInfoPoll(iframeRef.current, approvedIframeNavigationUrl, async', 'startStudioSlideInfoPoll(iframeRef.current, null, async')],
-  ['the hollow-answer drop is gone', t => once(t, `        if (firstTick && !isUsableFirstPollAnswer(result)) return // STUDIO-FIRST-PAINT: a hollow answer from a viewer that has not drawn its slides yet is dropped (the interval ticks carry on)\n`, '')],
+  ['the hollow-answer drop is gone', t => once(t, `        if (firstTick && !isUsableFirstPollAnswer(result)) return false // STUDIO-FIRST-PAINT: a hollow answer from a viewer that has not drawn its slides yet is dropped (the interval ticks carry on); false = one retry\n`, '')],
   ['the preconnect call is gone', t => once(t, `  warmStudioFirstPaintConnections(VIEWER_ORIGIN) // STUDIO-FIRST-PAINT (NEXT_PUBLIC_STUDIO_FIRST_PAINT_ENABLED, default off): React hoists the preconnects for Layout and its CDNs into <head>; nothing with the flag off\n`, '')],
   ['the preconnect call has no Layout URL', t => once(t, 'warmStudioFirstPaintConnections(VIEWER_ORIGIN)', 'warmStudioFirstPaintConnections(undefined)')],
 ]

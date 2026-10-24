@@ -36,10 +36,10 @@ const VIEWER_POLL = `    const interval = startStudioSlideInfoPoll(iframeRef.cur
 const VIEWER_POLL_BASE = `    const interval = setInterval(async () => {
 `
 
-const VIEWER_DROP = `        if (firstTick && !isUsableFirstPollAnswer(result)) return // STUDIO-FIRST-PAINT: a hollow answer from a viewer that has not drawn its slides yet is dropped (the interval ticks carry on)
+const VIEWER_DROP = `        if (firstTick && !isUsableFirstPollAnswer(result)) return false // STUDIO-FIRST-PAINT: a hollow answer from a viewer that has not drawn its slides yet is dropped (the interval ticks carry on); false = one retry
 `
 
-const VIEWER_CATCH = `        if (firstTick) { debugLog('⏸️ First poll got no usable answer; not counted'); return } // STUDIO-FIRST-PAINT: the head-start tick never counts a failure or starts a backoff
+const VIEWER_CATCH = `        if (firstTick) { debugLog('⏸️ First poll got no usable answer; not counted'); return false } // STUDIO-FIRST-PAINT: the head-start tick never counts a failure or starts a backoff; false = one retry
 `
 
 const CHANGES = {
