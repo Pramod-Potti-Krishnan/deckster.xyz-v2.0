@@ -34,9 +34,10 @@ import { stripChatThemeExport } from './studio-chat-theme-export-strip.mjs' // N
 import { sameAsBase } from './studio-env-append-tolerant.mjs'
 import { sameOrTolerant, stackMutants, stackScope } from './studio-stack-tolerant.mjs'
 import { stripLaunchWording } from './studio-launch-wording-strip.mjs' // NEXT_PUBLIC_STUDIO_LAUNCH_WORDING (launched wording): its flag-gated edits come out first, before every older change's strip
+import { stripLaterChanges } from './studio-later-changes.mjs' // stacked: the later-changes registry (a change stacked after this one registers its files, its .env.example block and its strip there; every read of an app file goes through it first)
 
 const BASE_COMMIT = process.env.DECK_IMPORT_BASE || '8d5c494a7abcbfaf3d1b69eda257a5100013cb18'
-const read = rel => stripLaunchWording(rel, fs.readFileSync(path.join(root, rel), 'utf8'))
+const read = rel => stripLaunchWording(rel, stripLaterChanges(rel, fs.readFileSync(path.join(root, rel), 'utf8'))) // stacked: a later change's lines (scripts/studio-later-changes.mjs) come out first
 // `git cat-file -e` first: `git show <rev>:<path with [brackets]>` prints nothing and exits 0 for a path that does not exist
 const gitShow = (commit, rel) => {
   try {

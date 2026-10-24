@@ -37,6 +37,7 @@ import { stripChatThemeExport } from './studio-chat-theme-export-strip.mjs' // N
 import { stripLaunchWording } from './studio-launch-wording-strip.mjs' // NEXT_PUBLIC_STUDIO_LAUNCH_WORDING (launched wording): its flag-gated edits come out first, before every older change's strip
 import { stripJobLedger } from './studio-job-ledger-strip.mjs' // NEXT_PUBLIC_STUDIO_JOB_LEDGER (P3-4 slice C, stacked): its flag-gated hook lines come out first
 import { stripBulkEditUndo } from './studio-bulk-edit-undo-strip.mjs' // NEXT_PUBLIC_STUDIO_BULK_EDIT / NEXT_PUBLIC_STUDIO_CHAT_UNDO (bulk edit + chat undo, stacked): its marked hook and message-list lines come out first
+import { stripLaterChanges } from './studio-later-changes.mjs' // stacked: the later-changes registry (a change stacked after this one registers its files, its .env.example block and its strip there; every read of an app file goes through it first)
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..')
 const args = process.argv.slice(2)
@@ -89,6 +90,7 @@ const MUTATIONS = [
 const MUTATION = process.env.DUP_TEST_MUTATION === undefined ? null : Number(process.env.DUP_TEST_MUTATION)
 const read = (file, from = root) => {
   let text = fs.readFileSync(path.join(from, file), 'utf8')
+  text = stripLaterChanges(file, text) // stacked: a later change's lines (scripts/studio-later-changes.mjs) come out first
   text = stripLaunchWording(file, text) // NEXT_PUBLIC_STUDIO_LAUNCH_WORDING: its flag-gated edits come out first
   const mutation = from === root && MUTATION !== null ? MUTATIONS[MUTATION] : null
   if (mutation && mutation.file === file) {
