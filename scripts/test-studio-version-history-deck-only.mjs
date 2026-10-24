@@ -37,6 +37,7 @@ import { createEnvironment } from './studio-chat-harness/fake-env.mjs'
 import { createModuleLoader } from './studio-chat-harness/module-loader.mjs'
 import { BASE_ENV } from './studio-chat-harness/profiles.mjs'
 import { BASE_COMMIT, VERSION_HISTORY_DECK_ONLY_FILES, VERSION_HISTORY_DECK_ONLY_NEW_FILES, VERSION_HISTORY_DECK_ONLY_CHANGES, stripVersionHistoryDeckOnly } from './studio-version-history-deck-only-strip.mjs'
+import { stripComposeEntitlement } from './studio-compose-entitlement-strip.mjs' // stacked: #494, after this change
 import { stripOpenReadOnly } from './studio-open-read-only-strip.mjs'
 import { stripDarkPersist } from './studio-theme-dark-persist-strip.mjs'
 import { stripAddSlideStatus } from './studio-add-slide-status-strip.mjs'
@@ -321,6 +322,7 @@ async function staticChecks() {
   await check(".env.example: documented once, default off, right before # PASS2 ADMIN after the new-deck handoff block; no phrase FRONTEND-1's .env.example mutants replace", () => envChecks(read(ENV)))
 }
 function envChecks(env) {
+  env = stripComposeEntitlement('.env.example', env) // stacked: #494's .env.example block (STUDIO_COMPOSE_ENTITLEMENT_ENABLED) sits between this block and # PASS2 ADMIN; it comes out first
   assert.equal((env.match(new RegExp(`^${FLAG}="false"$`, 'gm')) || []).length, 1)
   assert.ok(env.indexOf(`${FLAG}="false"\n\n# PASS2 ADMIN (FRONTEND-1`) > 0, 'right before # PASS2 ADMIN')
   assert.ok(env.indexOf(`${FLAG}="false"`) > env.indexOf('NEXT_PUBLIC_STUDIO_NEW_DECK_HANDOFF_SEND="false"'), 'after the last FRONTEND-2 block')

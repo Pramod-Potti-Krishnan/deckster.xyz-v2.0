@@ -41,6 +41,7 @@ import { stripNewDeckHandoffSend } from './studio-new-deck-handoff-send-strip.mj
 import { stripLaunchWording } from './studio-launch-wording-strip.mjs' // NEXT_PUBLIC_STUDIO_LAUNCH_WORDING (launched wording): its flag-gated edits come out first, before every older change's strip
 import { stripPublishReviewFit } from './studio-publish-review-fit-strip.mjs' // stacked after #475: the publish review fit change puts its .env.example block between this block and # PASS2 ADMIN too
 import { stripVersionHistoryDeckOnly } from './studio-version-history-deck-only-strip.mjs' // stacked after #475: the version history deck-only change puts its .env.example block between this block and # PASS2 ADMIN too
+import { stripComposeEntitlement } from './studio-compose-entitlement-strip.mjs' // stacked after #475: Add Slide compose signs its user puts its .env.example block between that one and # PASS2 ADMIN
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..')
 const read = rel => stripLaunchWording(rel, fs.readFileSync(path.join(root, rel), 'utf8'))
@@ -83,6 +84,7 @@ const SOURCES = Object.fromEntries([LIB, HOOK, PAGE, CARD, CSS, ENV].map(rel => 
 SOURCES[ENV] = stripNewDeckHandoffSend(ENV, SOURCES[ENV]) // stacked after #475: that later block (NEXT_PUBLIC_STUDIO_NEW_DECK_HANDOFF_SEND) comes out first, so this block is still right before # PASS2 ADMIN
 SOURCES[ENV] = stripPublishReviewFit(ENV, SOURCES[ENV]) // stacked after #475: that later block (NEXT_PUBLIC_STUDIO_PUBLISH_REVIEW_FIT) comes out first too, so this block is still right before # PASS2 ADMIN
 SOURCES[ENV] = stripVersionHistoryDeckOnly(ENV, SOURCES[ENV]) // stacked after #475: that later block (NEXT_PUBLIC_STUDIO_VERSION_HISTORY_DECK_ONLY) comes out first too, so this block is still right before # PASS2 ADMIN
+SOURCES[ENV] = stripComposeEntitlement(ENV, SOURCES[ENV]) // stacked after #475: the block after that (STUDIO_COMPOSE_ENTITLEMENT_ENABLED) comes out too, so this block is still right before # PASS2 ADMIN
 
 let checks = 0
 const quiet = { on: false }
