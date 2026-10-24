@@ -32,6 +32,7 @@ export const LATER_ENV_BLOCKS = [
 
 /** One strip per later change, (rel, text) => text, in the order the changes were stacked. */
 export const LATER_STRIPS = [
+  (await import('./studio-first-paint-strip.mjs')).stripFirstPaint, // LATER-CHANGE: COMPOSER-2, studio first paint (NEXT_PUBLIC_STUDIO_FIRST_PAINT_ENABLED)
   // one line per later change, above this comment
 ]
 
