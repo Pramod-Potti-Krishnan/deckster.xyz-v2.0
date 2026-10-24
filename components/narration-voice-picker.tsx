@@ -40,6 +40,8 @@ async function narrationFetch(input: string, init: RequestInit | undefined, kind
 }
 
 const STUDIO_NARRATION = process.env.NEXT_PUBLIC_STUDIO_V4_SHELL === 'true'
+// NEXT_PUBLIC_STUDIO_LAUNCH_WORDING (default off): launched wording instead of promises and developer-speak; off, this file is exactly as before.
+const LAUNCH_WORDING = process.env.NEXT_PUBLIC_STUDIO_LAUNCH_WORDING === 'true'
 
 interface VoiceOption {
   id: string
@@ -200,8 +202,8 @@ export function NarrationVoicePicker({ sessionId, slideCount, slug, hasBudget }:
         setPersistenceReady(data.persistenceReady !== false)
         if (data.persistenceReady === false) {
           toast({
-            title: `${voice.name} selected, but not saved yet`,
-            description: STUDIO_NARRATION ? 'Your voice choice is not saved yet. Choose it again when saving is available.' : 'Narration storage is still being set up. Re-pick after it lands.',
+            title: LAUNCH_WORDING ? `${voice.name} selected, but not saved` : `${voice.name} selected, but not saved yet`,
+            description: LAUNCH_WORDING ? 'Your voice choice was not saved. Choose it again later.' : STUDIO_NARRATION ? 'Your voice choice is not saved yet. Choose it again when saving is available.' : 'Narration storage is still being set up. Re-pick after it lands.',
           })
         }
       } catch (error) {
@@ -324,7 +326,7 @@ export function NarrationVoicePicker({ sessionId, slideCount, slug, hasBudget }:
         <p data-narration-warning="samples" className="studio-narration-warning mb-1.5 flex items-start gap-1.5 rounded-md border border-amber-200 bg-amber-50 px-2 py-1.5 text-[11px] text-amber-700 dark:border-amber-900 dark:bg-amber-950/40 dark:text-amber-400">
           <AlertTriangle className="mt-px h-3 w-3 flex-shrink-0" />
           <span>
-            {STUDIO_NARRATION ? 'Voice samples are unavailable right now. You can compare descriptions and the estimated prices and start-up times below.' : <>Samples can&apos;t play on this deployment — <code>OPENROUTER_API_KEY</code> isn&apos;t set. Costs and speeds below are still accurate.</>}
+            {STUDIO_NARRATION || LAUNCH_WORDING ? 'Voice samples are unavailable right now. You can compare descriptions and the estimated prices and start-up times below.' : <>Samples can&apos;t play on this deployment — <code>OPENROUTER_API_KEY</code> isn&apos;t set. Costs and speeds below are still accurate.</>}
           </span>
         </p>
       )}
@@ -333,7 +335,7 @@ export function NarrationVoicePicker({ sessionId, slideCount, slug, hasBudget }:
         <p data-narration-warning="storage" className="studio-narration-warning mb-1.5 flex items-start gap-1.5 rounded-md border border-amber-200 bg-amber-50 px-2 py-1.5 text-[11px] text-amber-700 dark:border-amber-900 dark:bg-amber-950/40 dark:text-amber-400">
           <AlertTriangle className="mt-px h-3 w-3 flex-shrink-0" />
           <span>
-            {STUDIO_NARRATION ? "Recording is unavailable right now. Audio can't be saved, so nothing will be generated or charged. Try recording again when it is available." : <>Recording is unavailable — {storage.reason ?? 'the media store is unreachable'}. Audio can&apos;t be stored, so nothing will be generated or charged.</>}
+            {LAUNCH_WORDING ? "Recording is unavailable right now. Audio can't be saved, so nothing will be generated or charged." : STUDIO_NARRATION ? "Recording is unavailable right now. Audio can't be saved, so nothing will be generated or charged. Try recording again when it is available." : <>Recording is unavailable — {storage.reason ?? 'the media store is unreachable'}. Audio can&apos;t be stored, so nothing will be generated or charged.</>}
           </span>
         </p>
       )}
@@ -342,7 +344,7 @@ export function NarrationVoicePicker({ sessionId, slideCount, slug, hasBudget }:
         <p data-narration-warning="persistence" className="studio-narration-warning mb-1.5 flex items-start gap-1.5 rounded-md border border-amber-200 bg-amber-50 px-2 py-1.5 text-[11px] text-amber-700 dark:border-amber-900 dark:bg-amber-950/40 dark:text-amber-400">
           <AlertTriangle className="mt-px h-3 w-3 flex-shrink-0" />
           <span>
-            {STUDIO_NARRATION ? "Your voice choice isn't saved yet. You can compare the voices; choose it again when saving is available." : <>You can listen and pick, but the choice won&apos;t stick until narration storage is set up.</>}
+            {LAUNCH_WORDING ? "Your voice choice isn't saved. You can compare the voices; choose it again later." : STUDIO_NARRATION ? "Your voice choice isn't saved yet. You can compare the voices; choose it again when saving is available." : <>You can listen and pick, but the choice won&apos;t stick until narration storage is set up.</>}
           </span>
         </p>
       )}

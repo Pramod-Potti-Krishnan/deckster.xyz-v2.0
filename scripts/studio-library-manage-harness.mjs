@@ -9,6 +9,7 @@ import vm from 'node:vm'
 import { execFileSync } from 'node:child_process'
 import { fileURLToPath } from 'node:url'
 import ts from 'typescript'
+import { stripLaunchWording } from './studio-launch-wording-strip.mjs' // NEXT_PUBLIC_STUDIO_LAUNCH_WORDING (launched wording): its flag-gated edits come out first, before every older change's strip
 
 export const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..')
 // LIBRARY_MANAGE_BASE=<commit> overrides the commit the flag-off identity is checked against (default 4c5fd0f, the studio-v4-dev-preparation-code tip this change is stacked on: #459 added only the Profile page and #468 only the admin email guard,
@@ -79,6 +80,26 @@ export const STACKED_PASS3_FILES = [
   'app/api/templates/[id]/route.ts', 'hooks/use-templates.ts',
   // Stripe real tier (STRIPE_REAL_TIER_MAPPING_ENABLED, P2-STRIPE-TIER, stacked on #475): the webhook route and the price-to-plan table.
   'app/api/webhooks/stripe/route.ts', 'lib/stripe/subscription-plan.ts',
+  // launched wording (NEXT_PUBLIC_STUDIO_LAUNCH_WORDING): flag-gated edits to Settings, Billing, Shortcuts, Help, Decks, sign-up, Your details, Intelligence and the libraries, and the words list; scripts/test-studio-launch-wording.mjs holds them.
+  'app/(app)/billing/page.tsx',
+  'app/(app)/settings/notifications/page.tsx',
+  'app/(app)/settings/privacy/page.tsx',
+  'app/(app)/settings/security/page.tsx',
+  'app/(app)/shortcuts/page.tsx',
+  'app/auth/pending/page.tsx',
+  'app/auth/signup/page.tsx',
+  'app/help/page.tsx',
+  'components/narration-voice-picker.tsx',
+  'components/presentation-download-controls.tsx',
+  'components/presentation-viewer.tsx',
+  'components/studio-add-slide-v2.tsx',
+  'components/studio-libraries/templates-workspace.tsx',
+  'components/studio-libraries/themes-workspace.tsx',
+  'components/studio-personal/details-workspace.tsx',
+  'components/studio-personal/intelligence-p2.tsx',
+  'components/studio-personal/intelligence-workspace.tsx',
+  'components/studio-personal/studio-p2-details.tsx',
+  'lib/studio-launch-wording.ts',
   // P3-4a resync after a reconnect (NEXT_PUBLIC_STUDIO_RECONNECT_RESYNC, #482, stacked): the deck-changed notice's lib, hook and strip.
   'lib/studio-deck-changed-notice.ts', 'hooks/use-deck-changed-notice.ts', 'components/builder/studio-deck-changed-notice.tsx',
   // Text Labs signed requests (NEXT_PUBLIC_STUDIO_TL_SIGNED_REQUESTS / TEXT_LABS_SIGNED_REQUESTS_ENABLED, stacked): the mint route, its lib, the browser half, the client.
@@ -89,6 +110,8 @@ export const STACKED_PASS3_FILES = [
   'lib/studio-job-ledger.ts', 'components/builder/chat/studio-job-ledger-card.tsx', 'components/builder/chat/studio-job-ledger-card.css',
   // New-deck handoff send (NEXT_PUBLIC_STUDIO_NEW_DECK_HANDOFF_SEND, stacked): its hook.
   'hooks/use-studio-new-deck-handoff-send.ts',
+  // Studio new logo (NEXT_PUBLIC_STUDIO_NEW_LOGO, FRONTEND-1, stacked on the UAT marketing port): the rail's brand tile, its flag helper and its sheet.
+  'lib/studio-new-logo.ts', 'components/layout/studio-new-logo.css', 'components/layout/studio-rail.tsx',
   // Version history deck only (NEXT_PUBLIC_STUDIO_VERSION_HISTORY_DECK_ONLY, stacked): its hook, and the bridge's setCovered in the Version history lib.
   'hooks/use-studio-version-history-deck-only.ts', 'lib/studio-version-history-v2.ts',
 ]
@@ -112,6 +135,7 @@ export function makeReader(mutations, envName) {
   const index = process.env[envName] === undefined ? null : Number(process.env[envName])
   return rel => {
     let source = fs.readFileSync(path.join(root, rel), 'utf8')
+    source = stripLaunchWording(rel, source) // NEXT_PUBLIC_STUDIO_LAUNCH_WORDING: its flag-gated edits come out first
     const mutation = index === null ? null : mutations[index]
     if (mutation && mutation.file === rel) {
       assert.ok(source.includes(mutation.from), `mutation "${mutation.name}" no longer applies; update MUTATIONS`)

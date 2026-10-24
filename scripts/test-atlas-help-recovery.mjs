@@ -4,11 +4,12 @@ import vm from 'node:vm'
 import { readAtlasBaseline } from './atlas-witness-baseline.mjs'
 import ts from 'typescript'
 import postcss from 'postcss'
+import { stripLaunchWording } from './studio-launch-wording-strip.mjs' // NEXT_PUBLIC_STUDIO_LAUNCH_WORDING (launched wording): its flag-gated edits come out first, before every older change's strip
 
 // Actual public Help page and support leaf. All mail/network/navigation/timers
 // refuse. Clipboard requests use a local counter, never the system clipboard.
 const root = new URL('../', import.meta.url), checkpoint = 'fffd023'
-const read = path => fs.readFileSync(new URL(path, root), 'utf8')
+const read = path => stripLaunchWording(path, fs.readFileSync(new URL(path, root), 'utf8'))
 const pageSource = read('app/help/page.tsx'), supportSource = read('components/help/studio-help.tsx')
 const baseline = readAtlasBaseline(`${checkpoint}:app/help/page.tsx`)
 const jsx = (type, props, key) => ({ type, props, key })

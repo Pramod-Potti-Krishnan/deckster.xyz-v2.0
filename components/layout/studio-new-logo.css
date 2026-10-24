@@ -1,0 +1,7 @@
+/* STUDIO NEW LOGO (flag NEXT_PUBLIC_STUDIO_NEW_LOGO, default off; the marker below exists only with it on, so every rule here is inert without it).
+   The rail's brand tile paints the L-B mark instead of a white icon on a purple square. The mark is already a rounded square with its own gradient, so the tile's purple fill and its
+   rectangular shadow go (the shadow follows the mark's shape instead), the image fills the tile's own 32px box, and nothing else about the tile changes: same link, same box, same hairline
+   under it (studio-p2-shell.css). Works on the light and the dark frame, in the 56px rail and in the 48px rail (780px and narrower, the phone's). */
+[data-studio-v4-rail] .studio-rail-brand[data-studio-new-logo="true"] { background: transparent; box-shadow: none; }
+[data-studio-v4-rail] .studio-rail-brand[data-studio-new-logo="true"] > img { display: block; width: 100%; height: 100%; object-fit: contain; filter: drop-shadow(0 2px 5px rgb(68 51 230 / 22%)); user-select: none; }
+.dark [data-studio-v4-rail] .studio-rail-brand[data-studio-new-logo="true"] > img { filter: drop-shadow(0 2px 5px rgb(0 0 0 / 40%)); }

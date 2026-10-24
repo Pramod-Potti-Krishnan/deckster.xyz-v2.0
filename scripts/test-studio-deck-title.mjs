@@ -19,9 +19,10 @@ import vm from 'node:vm'
 import ts from 'typescript'
 import { stripDeckTitle, DECK_TITLE_ADDITIONS } from './studio-deck-title-strip.mjs'
 import { stripDuplicateDeck } from './studio-duplicate-deck-strip.mjs' // FRONTEND-2 Pass 3: that flag's lines on the Decks page are not part of this change; its pins read the page without them
+import { stripLaunchWording } from './studio-launch-wording-strip.mjs' // NEXT_PUBLIC_STUDIO_LAUNCH_WORDING (launched wording): its flag-gated edits come out first, before every older change's strip
 
 const root = path.resolve(new URL('..', import.meta.url).pathname)
-const read = rel => fs.readFileSync(path.join(root, rel), 'utf8')
+const read = rel => stripLaunchWording(rel, fs.readFileSync(path.join(root, rel), 'utf8'))
 const PAGE = 'app/(app)/dashboard/page.tsx'
 const LIB = 'lib/studio-deck-title.ts'
 const CLEANER = 'lib/studio-template-display-name.ts'

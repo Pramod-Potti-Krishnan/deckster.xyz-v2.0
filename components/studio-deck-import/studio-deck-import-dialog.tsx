@@ -6,6 +6,9 @@ import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } f
 import { useStudioDeckImport } from '@/hooks/use-studio-deck-import'
 import './studio-deck-import.css'
 
+// NEXT_PUBLIC_STUDIO_LAUNCH_WORDING (default off): launched wording instead of promises and developer-speak; off, this file is exactly as before.
+const LAUNCH_WORDING = process.env.NEXT_PUBLIC_STUDIO_LAUNCH_WORDING === 'true'
+
 /**
  * STUDIO DECK IMPORT (flag NEXT_PUBLIC_STUDIO_DECK_IMPORT, default off; only the entry next to the Decks page draws this, and only with the flag on and the Studio shell).
  * One dialog, four states: choose a file; working (upload, start, then Director's own stage words, slides done and time left; a busy slot is "Waiting for a free slot…", not an error);
@@ -58,7 +61,7 @@ export function StudioDeckImportDialog({ open, onOpenChange }: { open: boolean; 
             {(summary.banner || summary.notesLine) && <Button data-studio-deck-import-action="open" onClick={imp.openDeck}>Open deck</Button>}
           </div>}
           {phase === 'failed' && failure && <div data-studio-deck-import-failed="true">
-            <p data-studio-deck-import-error="true" role="alert">{failure.message}</p>
+            <p data-studio-deck-import-error="true" role="alert">{LAUNCH_WORDING && failure.message === 'Import the PowerPoint this PDF came from. PDF import is coming.' ? 'Only PowerPoint (.pptx) files can be imported. If you have a PDF, import the PowerPoint it came from.' : failure.message}</p>
             <div data-studio-deck-import-actions="true">
               {failure.retryable && <Button data-studio-deck-import-action="retry" disabled={!imp.canStart} onClick={() => { void imp.begin() }}>Try again</Button>}
               <Button data-studio-deck-import-action="another" variant="outline" onClick={imp.reset}>Choose another file</Button>

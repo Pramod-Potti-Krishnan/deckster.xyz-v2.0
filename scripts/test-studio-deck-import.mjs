@@ -33,9 +33,10 @@ import { stripChatElementRefine } from './studio-chat-element-refine-strip.mjs' 
 import { stripChatThemeExport } from './studio-chat-theme-export-strip.mjs' // NEXT_PUBLIC_CHAT_THEME_CHANGE / NEXT_PUBLIC_CHAT_EXPORT (#472): so do its lines
 import { sameAsBase } from './studio-env-append-tolerant.mjs'
 import { sameOrTolerant, stackMutants, stackScope } from './studio-stack-tolerant.mjs'
+import { stripLaunchWording } from './studio-launch-wording-strip.mjs' // NEXT_PUBLIC_STUDIO_LAUNCH_WORDING (launched wording): its flag-gated edits come out first, before every older change's strip
 
 const BASE_COMMIT = process.env.DECK_IMPORT_BASE || '8d5c494a7abcbfaf3d1b69eda257a5100013cb18'
-const read = rel => fs.readFileSync(path.join(root, rel), 'utf8')
+const read = rel => stripLaunchWording(rel, fs.readFileSync(path.join(root, rel), 'utf8'))
 // `git cat-file -e` first: `git show <rev>:<path with [brackets]>` prints nothing and exits 0 for a path that does not exist
 const gitShow = (commit, rel) => {
   try {
