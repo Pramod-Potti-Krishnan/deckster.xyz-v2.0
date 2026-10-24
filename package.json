@@ -13,6 +13,8 @@
     "lint": "next lint",
     "test:director-sync-recovery": "node scripts/test-director-sync-recovery.mjs",
     "test:studio-history-action-status": "node scripts/test-studio-history-action-status.mjs",
+    "test:studio-first-paint": "node scripts/test-studio-first-paint.mjs",
+    "test:studio-first-paint-viewer": "node scripts/test-studio-first-paint-viewer.mjs",
     "test:studio-ask-card-identity": "node scripts/test-studio-ask-card-identity.mjs",
     "test:studio-outline-canvas": "node scripts/test-studio-outline-canvas.mjs",
     "test:studio-toolbar-cleanup": "node scripts/test-studio-toolbar-cleanup.mjs",
