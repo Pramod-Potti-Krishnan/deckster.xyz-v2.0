@@ -117,6 +117,8 @@ import { StudioBlockedSendNotice } from '@/components/builder/studio-blocked-sen
 // NEXT_PUBLIC_STUDIO_JOB_LEDGER (P3-4c, default off): Director's failed or timed-out jobs as calm cards at the end of the chat (lib/studio-job-ledger.ts).
 import { STUDIO_JOB_LEDGER_ENABLED } from '@/lib/studio-job-ledger'
 import { StudioJobLedgerCards, studioJobLedger } from '@/components/builder/chat/studio-job-ledger-card'
+// NEXT_PUBLIC_STUDIO_PUBLISH_REVIEW_FIT (default off): the Publish wizard's setup grid does not scroll sideways at phone width (hooks/use-studio-publish-review-fit.ts, components/studio-publish.css).
+import { useStudioPublishReviewFit } from '@/hooks/use-studio-publish-review-fit'
 // NEXT_PUBLIC_STUDIO_NEW_DECK_HANDOFF_SEND (default off): Director's new-deck handoff sends its brief on the NEW session's socket, once (hooks/use-studio-new-deck-handoff-send.ts).
 import { STUDIO_NEW_DECK_HANDOFF_SEND_ENABLED, useStudioNewDeckHandoffSend } from '@/hooks/use-studio-new-deck-handoff-send'
 import { StudioSupersededNotice } from '@/components/builder/studio-superseded-notice'
@@ -4793,6 +4795,8 @@ function AuthenticatedBuilderContent({ authScopeUserId }: { authScopeUserId: str
   })
   // NEXT_PUBLIC_STUDIO_NEW_DECK_HANDOFF_SEND (default off): the brief of Director's new-deck handoff, sent on the NEW session's socket once it opens, once; not sent: back in the box.
   const armNewDeckHandoffSend = useStudioNewDeckHandoffSend({ currentSessionId, wsSessionId, socketSessionId, connected, connectionGeneration, sendMessageWhenConnected, setInputMessage, setUserMessages: session.setUserMessages, toast })
+  // NEXT_PUBLIC_STUDIO_PUBLISH_REVIEW_FIT (default off): marks the page so the Publish dialog's phone rule applies (the dialog is portalled out of the page).
+  useStudioPublishReviewFit()
 
   // NEXT_PUBLIC_STUDIO_BLANK_DECK_RELOAD_FIX: the session restore owns the deck. When it commits (a new transcript receipt, set in
   // the same batch as the restored deck), retire a local override it did not restore, as the override-retire effect does: an
