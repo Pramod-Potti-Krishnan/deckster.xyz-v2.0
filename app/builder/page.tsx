@@ -119,6 +119,8 @@ import { STUDIO_JOB_LEDGER_ENABLED } from '@/lib/studio-job-ledger'
 import { StudioJobLedgerCards, studioJobLedger } from '@/components/builder/chat/studio-job-ledger-card'
 // NEXT_PUBLIC_STUDIO_NEW_DECK_HANDOFF_SEND (default off): Director's new-deck handoff sends its brief on the NEW session's socket, once (hooks/use-studio-new-deck-handoff-send.ts).
 import { STUDIO_NEW_DECK_HANDOFF_SEND_ENABLED, useStudioNewDeckHandoffSend } from '@/hooks/use-studio-new-deck-handoff-send'
+// NEXT_PUBLIC_STUDIO_VERSION_HISTORY_DECK_ONLY (default off): the profile menu's Version history row shows only while a deck is on stage, not under the welcome (hooks/use-studio-version-history-deck-only.ts).
+import { useStudioVersionHistoryDeckOnly } from '@/hooks/use-studio-version-history-deck-only'
 import { StudioSupersededNotice } from '@/components/builder/studio-superseded-notice'
 import { StudioCopiedFromNote } from '@/components/builder/studio-copied-from-note'
 // NEXT_PUBLIC_STUDIO_DECK_IMPORT (default off): the note on an imported deck, loaded only when it is drawn (a build or page that does not draw it ships nothing of it).
@@ -3385,6 +3387,8 @@ function AuthenticatedBuilderContent({ authScopeUserId }: { authScopeUserId: str
     connecting,
   })
   const studioWelcome = studioShell && !studioPartialMetadata && studioCanvasLifecycle.showLanding
+  // NEXT_PUBLIC_STUDIO_VERSION_HISTORY_DECK_ONLY (default off): while the welcome is on stage no deck is, so the profile menu's Version history row waits for one.
+  useStudioVersionHistoryDeckOnly(studioWelcome)
   // The blank-canvas choice. One handler for the stage's own button and, with NEXT_PUBLIC_STUDIO_FIRST_RUN_V2, the first-run welcome's.
   const handleDismissBlankPlaceholder = () => {
     if (studioShell && studioSlideComposeOwnerRef.current !== studioInitialSelectedTarget.owner) return
