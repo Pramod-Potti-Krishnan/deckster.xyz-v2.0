@@ -102,7 +102,8 @@ function proveLib(text, at = '') {
     eq(lib.studioDecksEmptyCopy(true, notTrue), null, a(`lib: ${JSON.stringify(notTrue) ?? 'undefined'} is not a real true (labels)`))
   }
   nomatch(text.replace(/^\s*(\/\/|\*|\/\*\*).*$/gm, ''), /^import |require\(/m, a('lib: import-free'))
-  for (const word of ['strawman', 'Strawman', 'session', 'Failed', 'Complete a']) nomatch(JSON.stringify(plain(lib.STUDIO_POLISH_COPY)) + JSON.stringify(plain(lib.STUDIO_DECKS_EMPTY_COPY)), new RegExp(word), a(`lib: the plain words do not say "${word}"`))
+  const allWords = JSON.stringify(plain(lib.STUDIO_POLISH_COPY), (key, value) => value).replace(/"[A-Za-z]+":/g, '') + JSON.stringify(plain(lib.STUDIO_DECKS_EMPTY_COPY)).replace(/"[A-Za-z]+":/g, '') // the words only, not the keys
+  for (const word of ['strawman', 'Strawman', 'session', 'Failed', 'Complete a']) nomatch(allWords, new RegExp(word), a(`lib: the plain words do not say "${word}"`))
 }
 
 // ---------------------------------------------------------------- 2. the pins
@@ -414,7 +415,7 @@ console.log(`PASS lib, pins, viewer, builder, decks, dialog, change: ${checks} c
 
 // =========================================================== 8. mutants
 const killed = [], survived = []
-async function mutant(name, edits, { strip = stripPass3PolishB } = {}) {
+async function mutant(name, edits, { strip = stripPass3PolishB, only = '' } = {}) {
   const before = overrides
   try {
     overrides = { ...before }
@@ -423,7 +424,9 @@ async function mutant(name, edits, { strip = stripPass3PolishB } = {}) {
       assert.ok(mode ? n >= 1 : n === 1, `mutant "${name}" no longer applies to ${rel}: ${from.slice(0, 70)}`)
       overrides[rel] = mode === 'all' ? source.split(from).join(to) : source.replace(from, () => to)
     }
-    await proveAll(strip, name)
+    if (only === 'behaviour') { // the executed proofs alone (no text pin, no exact-lines check): the behaviour itself must catch the mutant
+      await proveViewer(read(VIEWER), name); proveBuilder(read(PAGE), name); proveDecks(read(DASH), name)
+    } else await proveAll(strip, name)
   } catch (error) {
     if (/no longer applies/.test(String(error.message))) throw error
     killed.push(name); if (process.env.PASS3_POLISH_B_VERBOSE) console.log(`  killed: ${name}\n    by: ${String(error.message).split('\n')[0].slice(0, 170)}`); return
@@ -448,9 +451,9 @@ await mutant('viewer: the shadow ignores the flag (flag off a confirmed answer i
 await mutant('viewer: the browser confirm is asked again after the Studio dialog', [[VIEWER, '(STUDIO_PASS3_POLISH_B_ENABLED && studioDiscardAnsweredRef.current ? true : window.confirm(message))', 'window.confirm(message)']])
 await mutant('viewer: the confirm handler does not mark the answer (nothing is discarded)', [[VIEWER, '    studioDiscardAnsweredRef.current = true', '    studioDiscardAnsweredRef.current = false']])
 await mutant('viewer: the answer is remembered (the next discard skips the dialog)', [[VIEWER, 'finally { studioDiscardAnsweredRef.current = false }', 'finally { }']])
-await mutant('viewer: the dialog stays open after the confirm', [[VIEWER, '    setStudioDiscardAsk(false)\n', '']])
+await mutant('viewer: the dialog stays open after the confirm', [[VIEWER, '    setStudioDiscardAsk(false) // PASS3-POLISH\n', '']])
 await mutant('viewer: the dialog opens even with the flag off', [[VIEWER, 'if (STUDIO_PASS3_POLISH_B_ENABLED && !studioDiscardAnsweredRef.current)', 'if (!studioDiscardAnsweredRef.current)']])
-await mutant('viewer: the save toast also raises the alert (no return)', [["components/presentation-viewer.tsx", "toast({ ...STUDIO_POLISH_COPY.saveFailed, variant: 'destructive' }); return }", "toast({ ...STUDIO_POLISH_COPY.saveFailed, variant: 'destructive' }) }"]])
+await mutant('viewer: the save toast also raises the alert (no return)', [[VIEWER, "toast({ ...STUDIO_POLISH_COPY.saveFailed, variant: 'destructive' }); return }", "toast({ ...STUDIO_POLISH_COPY.saveFailed, variant: 'destructive' }) }"]])
 await mutant('viewer: the save toast ignores the flag', [[VIEWER, "      if (STUDIO_PASS3_POLISH_B_ENABLED) { toast({ ...STUDIO_POLISH_COPY.saveFailed", "      if (true) { toast({ ...STUDIO_POLISH_COPY.saveFailed"]])
 await mutant('viewer: the save toast is not destructive', [[VIEWER, "toast({ ...STUDIO_POLISH_COPY.saveFailed, variant: 'destructive' })", "toast({ ...STUDIO_POLISH_COPY.saveFailed })"]])
 await mutant('viewer: the dialog is mounted without the flag', [[VIEWER, '{STUDIO_PASS3_POLISH_B_ENABLED && <StudioDiscardEditsDialog', '{true && <StudioDiscardEditsDialog']])
@@ -472,6 +475,20 @@ await mutant('decks: the heading fragment points at the wrong tab', [[DASH, '/* 
 await mutant('dialog: Keep editing is wired to onConfirm', [[DIALOG, '<AlertDialogCancel data-studio-slide-delete-part="cancel">', '<AlertDialogCancel data-studio-slide-delete-part="cancel" onClick={onConfirm}>']])
 await mutant('dialog: the confirm button does nothing', [[DIALOG, ' onClick={onConfirm} className', ' className']])
 await mutant('dialog: the Studio look attribute is gone', [[DIALOG, 'data-studio-slide-delete="true" data-studio-discard-edits="true"', 'data-studio-discard-edits="true"']])
+// behaviour alone: the same kinds of mutant, caught by running the real handlers / alert sites / ternaries, with the text pins switched off
+const BEH = { only: 'behaviour' }
+await mutant('behaviour: the gate is gone (no Studio dialog, the native confirm asks)', [[VIEWER, '    if (STUDIO_PASS3_POLISH_B_ENABLED && !studioDiscardAnsweredRef.current) { setStudioDiscardAsk(true); return }', '    if (false) { setStudioDiscardAsk(true); return }']], BEH)
+await mutant('behaviour: a cancelled confirm discards (the shadow always says yes)', [[VIEWER, '(STUDIO_PASS3_POLISH_B_ENABLED && studioDiscardAnsweredRef.current ? true : window.confirm(message))', 'true']], BEH)
+await mutant('behaviour: the browser confirm is asked again after the Studio dialog', [[VIEWER, '(STUDIO_PASS3_POLISH_B_ENABLED && studioDiscardAnsweredRef.current ? true : window.confirm(message))', 'window.confirm(message)']], BEH)
+await mutant('behaviour: the confirm handler does not mark the answer', [[VIEWER, '    studioDiscardAnsweredRef.current = true', '    studioDiscardAnsweredRef.current = false']], BEH)
+await mutant('behaviour: the answer is remembered', [[VIEWER, 'finally { studioDiscardAnsweredRef.current = false }', 'finally { }']], BEH)
+await mutant('behaviour: the dialog opens with the flag off', [[VIEWER, 'if (STUDIO_PASS3_POLISH_B_ENABLED && !studioDiscardAnsweredRef.current)', 'if (!studioDiscardAnsweredRef.current)']], BEH)
+await mutant('behaviour: the save toast also raises the alert', [[VIEWER, "toast({ ...STUDIO_POLISH_COPY.saveFailed, variant: 'destructive' }); return }", "toast({ ...STUDIO_POLISH_COPY.saveFailed, variant: 'destructive' }) }"]], BEH)
+await mutant('behaviour: the save toast ignores the flag', [[VIEWER, "      if (STUDIO_PASS3_POLISH_B_ENABLED) { toast({ ...STUDIO_POLISH_COPY.saveFailed", "      if (true) { toast({ ...STUDIO_POLISH_COPY.saveFailed"]], BEH)
+await mutant('behaviour: the Builder toast has no return', [[PAGE, "toast({ ...STUDIO_POLISH_COPY.deckStartFailed, variant: 'destructive' }); return }", "toast({ ...STUDIO_POLISH_COPY.deckStartFailed, variant: 'destructive' }) }"]], BEH)
+await mutant('behaviour: the second Builder toast loses the message', [[PAGE, 'description: deckStartErrorDescription(error), variant', "description: STUDIO_POLISH_COPY.deckStartFailed.description, variant"]], BEH)
+await mutant('behaviour: the Decks heading ignores the flag', [[DASH, 'studioDecksEmptyCopy(STUDIO_PASS3_POLISH_B_ENABLED, plainNavLabels)', 'studioDecksEmptyCopy(true, plainNavLabels)']], BEH)
+await mutant('behaviour: a filter result is replaced', [[DASH, '{hasActiveCriteria ? "No matching presentations" :', '{hasActiveCriteria ? decksEmptyCopy?.completed.title ?? "No matching presentations" :']], BEH)
 // change
 await mutant('strip: the marked fragments are not put back', [], { strip: (rel, text) => (PASS3_POLISH_B_FILES.includes(rel) ? text.split('\n').filter(line => !line.includes(PASS3_POLISH_MARKER)).join('\n') : text) })
 await mutant('strip: the fragments come out but the marked lines stay', [], { strip: (rel, text) => restored(rel, text) })
