@@ -112,6 +112,8 @@ export const STACKED_PASS3_FILES = [
   'hooks/use-studio-new-deck-handoff-send.ts',
   // Studio new logo (NEXT_PUBLIC_STUDIO_NEW_LOGO, FRONTEND-1, stacked on the UAT marketing port): the rail's brand tile, its flag helper and its sheet.
   'lib/studio-new-logo.ts', 'components/layout/studio-new-logo.css', 'components/layout/studio-rail.tsx',
+  // Publish review fit (NEXT_PUBLIC_STUDIO_PUBLISH_REVIEW_FIT, stacked): its hook, and the Publish dialog's stylesheet (one block appended after the Pass 2 polish block).
+  'hooks/use-studio-publish-review-fit.ts', 'components/studio-publish.css',
   // Version history deck only (NEXT_PUBLIC_STUDIO_VERSION_HISTORY_DECK_ONLY, stacked): its hook, and the bridge's setCovered in the Version history lib.
   'hooks/use-studio-version-history-deck-only.ts', 'lib/studio-version-history-v2.ts',
 ]
