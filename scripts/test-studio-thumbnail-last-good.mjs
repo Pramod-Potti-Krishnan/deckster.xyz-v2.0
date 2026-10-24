@@ -38,7 +38,7 @@ import { stripOpenReadOnly } from './studio-open-read-only-strip.mjs'
 import { stripDarkPersist } from './studio-theme-dark-persist-strip.mjs'
 import { stripAddSlideStatus } from './studio-add-slide-status-strip.mjs'
 import { STACKED_PASS3_FILES } from './studio-library-manage-harness.mjs'
-import { LATER_CHANGE_FILES, stripLaterEnvBlocks } from './studio-later-changes.mjs' // stacked: the later-changes registry (a change stacked after this one registers its files and its .env.example block there; scope checks skip its files, every read of .env.example goes through it first)
+import { LATER_CHANGE_FILES, stripLaterChanges } from './studio-later-changes.mjs' // stacked: the later-changes registry (a change stacked after this one registers its files, its .env.example block and its strip there; scope checks skip its files, every read of an app file or .env.example goes through it first)
 import { stripBulkEditUndo, BULK_EDIT_UNDO_FILES, BULK_EDIT_UNDO_NEW_FILES, BULK_EDIT_UNDO_PIN_FILES } from './studio-bulk-edit-undo-strip.mjs' // stacked: bulk edit + chat undo (a whole-deck edit card and an Undo chip in chat), after this change in the stack
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..')
@@ -48,7 +48,7 @@ const git = (...args) => execFileSync('git', args, { cwd: root, encoding: 'utf8'
 const baseCache = new Map()
 const baseOf = rel => { if (!baseCache.has(rel)) baseCache.set(rel, git('show', `${BASE}:${rel}`)); return baseCache.get(rel) }
 let overrides = {} // in-memory mutations: the suite reads every source through read()
-const read = rel => (rel in overrides ? overrides[rel] : stripBulkEditUndo(rel, stripLaterEnvBlocks(rel, fs.readFileSync(path.join(root, rel), 'utf8')))) // stacked: bulk edit + chat undo (after this change in the stack) adds its .env.example block and marked lines to files this proof reads; it reads past them
+const read = rel => (rel in overrides ? overrides[rel] : stripBulkEditUndo(rel, stripLaterChanges(rel, fs.readFileSync(path.join(root, rel), 'utf8')))) // stacked: bulk edit + chat undo (after this change in the stack) adds its .env.example block and marked lines to files this proof reads; it reads past them
 const sha = value => crypto.createHash('sha256').update(value).digest('hex')
 const plain = value => JSON.parse(JSON.stringify(value === undefined ? null : value))
 
