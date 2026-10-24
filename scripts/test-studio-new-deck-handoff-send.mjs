@@ -42,6 +42,7 @@ import { stripNewDeckHandoffSend, BASE_COMMIT, NEW_DECK_HANDOFF_SEND_FILES, NEW_
 import { stripOpenReadOnly } from './studio-open-read-only-strip.mjs'
 import { stripDarkPersist } from './studio-theme-dark-persist-strip.mjs'
 import { stripAddSlideStatus } from './studio-add-slide-status-strip.mjs'
+import { stripVersionHistoryDeckOnly } from './studio-version-history-deck-only-strip.mjs' // stacked after #475: the version history deck-only change (NEXT_PUBLIC_STUDIO_VERSION_HISTORY_DECK_ONLY) puts its .env.example block between this change's block and # PASS2 ADMIN too
 import { STACKED_PASS3_FILES } from './studio-library-manage-harness.mjs'
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..')
@@ -555,6 +556,7 @@ async function staticChecks() {
     assert.ok(OUT.every(f => f.session_id === OLD))
   })
   await check('page and .env.example: one import, one hook call after the session hook, one flag branch in onSessionDirective; the flag documented once, right before # PASS2 ADMIN', () => {
+    const read = rel => (rel === ENV ? stripVersionHistoryDeckOnly(rel, fs.readFileSync(path.join(root, rel), 'utf8')) : fs.readFileSync(path.join(root, rel), 'utf8')) // stacked after #475: that later block (NEXT_PUBLIC_STUDIO_VERSION_HISTORY_DECK_ONLY) comes out of .env.example first, so this change's block is still right before # PASS2 ADMIN (shadows the file's read inside this check only)
     const page = read(PAGE)
     assert.equal((page.match(/^import \{ STUDIO_NEW_DECK_HANDOFF_SEND_ENABLED, useStudioNewDeckHandoffSend \} from '@\/hooks\/use-studio-new-deck-handoff-send'$/gm) || []).length, 1)
     assert.equal((page.match(/useStudioNewDeckHandoffSend\(/g) || []).length, 1)
