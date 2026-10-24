@@ -125,6 +125,8 @@ import { STUDIO_NEW_DECK_HANDOFF_SEND_ENABLED, useStudioNewDeckHandoffSend } fro
 import { useStudioVersionHistoryDeckOnly } from '@/hooks/use-studio-version-history-deck-only'
 // NEXT_PUBLIC_STUDIO_PAYMENTS_OPEN_SOON (default off): the Builder's account menu upgrade row says "Payments open soon" (hooks/use-studio-payments-open-soon.ts); the top-up modal gates itself.
 import { useStudioPaymentsOpenSoon } from '@/hooks/use-studio-payments-open-soon'
+// NEXT_PUBLIC_STUDIO_DUPLICATE_COPY_TITLE (default off): a copied deck's header shows its own title, not "Studio" (hooks/use-studio-duplicate-copy-title.ts).
+import { useStudioDuplicateCopyTitleProps } from '@/hooks/use-studio-duplicate-copy-title'
 import { StudioSupersededNotice } from '@/components/builder/studio-superseded-notice'
 import { StudioCopiedFromNote } from '@/components/builder/studio-copied-from-note'
 // NEXT_PUBLIC_STUDIO_DECK_IMPORT (default off): the note on an imported deck, loaded only when it is drawn (a build or page that does not draw it ships nothing of it).
@@ -4807,6 +4809,9 @@ function AuthenticatedBuilderContent({ authScopeUserId }: { authScopeUserId: str
   // NEXT_PUBLIC_STUDIO_PAYMENTS_OPEN_SOON (default off): the account menu's upgrade row is disabled and says "Payments open soon". Flag off, the hook returns before it reads the document.
   useStudioPaymentsOpenSoon()
 
+  // NEXT_PUBLIC_STUDIO_DUPLICATE_COPY_TITLE (default off): a copied deck has no slideStructure, so its header said "Studio"; the open session's own title is read once, only while the header has none. Flag off: no props, nothing is read.
+  const studioDuplicateCopyTitleProps = useStudioDuplicateCopyTitleProps(currentSessionId, !isUnsavedSession && !slideStructure?.metadata?.main_title)
+
   // NEXT_PUBLIC_STUDIO_BLANK_DECK_RELOAD_FIX: the session restore owns the deck. When it commits (a new transcript receipt, set in
   // the same batch as the restored deck), retire a local override it did not restore, as the override-retire effect does: an
   // override left over a restore with no deck would be the selection with no owner ("Loading your selected deck…" forever).
@@ -7126,6 +7131,8 @@ function AuthenticatedBuilderContent({ authScopeUserId }: { authScopeUserId: str
           wsError={wsError}
           onNewPresentation={handleNewChatWrapped}
           deckTitle={slideStructure?.metadata?.main_title || "Studio"}
+          // NEXT_PUBLIC_STUDIO_DUPLICATE_COPY_TITLE (default off): a copied deck says its own title here, not "Studio"; flag off, nothing is spread.
+          {...studioDuplicateCopyTitleProps}
           onOpenChatHistory={() => setShowChatHistory((prev) => !prev)}
           isChatHistoryOpen={showChatHistory}
           toolbarSlotRef={setToolbarPortalTarget}
