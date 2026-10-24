@@ -22,14 +22,13 @@ import { execFileSync } from 'node:child_process'
 import { fileURLToPath } from 'node:url'
 import ts from 'typescript'
 import { BASE_COMMIT, LAUNCH_FILES, LAUNCH_NEW_FILES, LAUNCH_PAIRS, stripLaunchWording } from './studio-launch-wording-strip.mjs'
-import { stripFirstPaint } from './studio-first-paint-strip.mjs' // stacked: NEXT_PUBLIC_STUDIO_FIRST_PAINT_ENABLED (COMPOSER-2 first paint): its flag-gated viewer lines come out first, inside read(), next to stripLaunchWording
 import { sameOrTolerant, stackScope } from './studio-stack-tolerant.mjs'
 import { sameAsBase } from './studio-env-append-tolerant.mjs'
 import { stripJobDeadlines } from './studio-job-deadlines-strip.mjs' // P3-4b (NEXT_PUBLIC_STUDIO_JOB_DEADLINES) is in the base and edits components/narration-voice-picker.tsx too: its lines come out first
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..')
 const git = (...args) => execFileSync('git', args, { cwd: root, encoding: 'utf8', maxBuffer: 1 << 28 })
-const read = rel => stripFirstPaint(rel, fs.readFileSync(path.join(root, rel), 'utf8'))
+const read = rel => fs.readFileSync(path.join(root, rel), 'utf8')
 const baseOf = rel => git('show', `${BASE_COMMIT}:${rel}`)
 const FLAG = 'NEXT_PUBLIC_STUDIO_LAUNCH_WORDING'
 const WORDS_LIB = 'lib/studio-launch-wording.ts'

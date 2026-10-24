@@ -123,7 +123,7 @@ import { ElementType, ElementProperties, BaseElementProperties, ChartType } from
 import { VersionHistoryPanel } from './version-history-panel'
 import { VersionHistoryPanelV2 } from './version-history-panel-v2' // VERSION-HISTORY-V2
 import { STUDIO_VERSION_HISTORY_V2_ENABLED, versionHistoryBridge } from '@/lib/studio-version-history-v2' // VERSION-HISTORY-V2
-import { warmStudioFirstPaintConnections, startStudioSlideInfoPoll, isUsableFirstPollAnswer } from '@/lib/studio-first-paint' // STUDIO-FIRST-PAINT
+import { warmStudioFirstPaintConnections, studioSlideInfoPollWiring, isUsableFirstPollAnswer } from '@/lib/studio-first-paint' // STUDIO-FIRST-PAINT
 import { PresentationSettingsPanel } from './presentation-settings-panel'
 import { ThemePanel } from './theme-panel'
 import { TemplateModeOverlay } from './builder/template-mode-overlay'
@@ -1750,7 +1750,10 @@ export function PresentationViewer({
     const baseInterval = 3000
     const backoffInterval = Math.min(baseInterval * Math.pow(2, pollingFailureCount), 10000)
 
-    const interval = startStudioSlideInfoPoll(iframeRef.current, approvedIframeNavigationUrl, async (firstTick?: boolean) => { // STUDIO-FIRST-PAINT: flag off = setInterval(tick, ms); on = one head-start tick (firstTick) now, then the interval
+    const firstPaintPoll = studioSlideInfoPollWiring(iframeRef.current, approvedIframeNavigationUrl) // STUDIO-FIRST-PAINT (NEXT_PUBLIC_STUDIO_FIRST_PAINT_ENABLED, default off): the poll's timer and its head-start marker
+    const setInterval = firstPaintPoll.setInterval // STUDIO-FIRST-PAINT: flag off = the global setInterval itself (the same function); on = one head-start tick now (one retry 500 ms later), then the interval ticks; a const of this effect only
+    const interval = setInterval(async () => {
+      const firstTick = firstPaintPoll.firstTick() // STUDIO-FIRST-PAINT: true only in the head-start tick and its one retry; read before the first await
       if (!iframeRef.current || !viewerHasLoaded) return
       const polledFrame = iframeRef.current
       const polledOwner = renderSlideMutationOwner

@@ -3,7 +3,8 @@
 //
 // Part 1, the source pins:
 //  - flag-off identity: the viewer with this change's lines taken out through scripts/studio-first-paint-strip.mjs is the base commit's viewer, byte for byte; the same for .env.example;
-//  - every changed or added viewer line carries the marker STUDIO-FIRST-PAINT (the one base line this change swaps out is the only removed line);
+//  - every added viewer line carries the marker STUDIO-FIRST-PAINT, and no base line is changed or removed (the poll's `const interval = setInterval(async () => {` stays as it is);
+//  - the effect's local `setInterval` (TypeScript's own parse): declared once, in the poll effect's callback only, right above the base line, and used by that line only;
 //  - the flag is read in the lib only, and the .env.example block sits after the PASS2 ADMIN block (never right before it).
 // Part 2, the behaviour of the REAL viewer (actual hooks, effects and JSX under installed ReactDOM, in the inert DOM host the neighbouring scripts/test-studio-viewer-load-order.mjs uses; not a browser):
 //  - flag off (unset, "false"): the viewer's commands, timers (setInterval periods through every backoff step) and log lines are byte-identical to the base commit's viewer (hash compared) and no react-dom preconnect is made;
@@ -20,7 +21,7 @@ import { execFileSync } from 'node:child_process'
 import { fileURLToPath } from 'node:url'
 import ts from 'typescript'
 import React from 'react'
-import { FIRST_PAINT_BASE_COMMIT, FIRST_PAINT_ENV_BLOCK, FIRST_PAINT_FILES, FIRST_PAINT_MARKER, FIRST_PAINT_VIEWER_REMOVED_LINE, stripFirstPaint } from './studio-first-paint-strip.mjs'
+import { FIRST_PAINT_BASE_COMMIT, FIRST_PAINT_ENV_BLOCK, FIRST_PAINT_FILES, FIRST_PAINT_MARKER, stripFirstPaint } from './studio-first-paint-strip.mjs'
 
 const require = createRequire(import.meta.url)
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..')
@@ -44,21 +45,56 @@ check(assert.ok, !stripFirstPaint(VIEWER, viewerText).includes(FIRST_PAINT_MARKE
 check(assert.equal, stripFirstPaint('lib/other.ts', 'x'), 'x', 'any other file comes back as it is')
 check(assert.deepEqual, FIRST_PAINT_FILES, [VIEWER], 'the strip touches the viewer only (never app/layout.tsx or app/builder/page.tsx)')
 
-// every changed or added line carries the marker; the base line this change swaps is the only one removed
+// every added line carries the marker, and the change removes no base line
 {
   const diff = git(['diff', '--no-color', '-U0', FIRST_PAINT_BASE_COMMIT, '--', VIEWER]).split('\n').filter(line => /^[+-](?![+-])/.test(line))
   const added = diff.filter(line => line.startsWith('+')), removed = diff.filter(line => line.startsWith('-'))
   // The diff is read against the base commit, so lines other stacked changes add are in it too; each of them must carry a marker of its own, and this change's must carry ours.
   const mine = added.filter(line => line.includes(FIRST_PAINT_MARKER))
-  check(assert.equal, mine.length, 5, 'five added viewer lines carry the marker: import, preconnect call, swapped poll call, hollow-answer drop, catch guard')
-  check(assert.equal, viewerText.split('\n').filter(line => line.includes(FIRST_PAINT_MARKER)).length, 5, 'the marker is on exactly those five lines of the file')
-  check(assert.ok, removed.every(line => line === `-${FIRST_PAINT_VIEWER_REMOVED_LINE}` || !line.includes(FIRST_PAINT_MARKER)), 'the one base line this change swaps out is recognised')
-  check(assert.equal, removed.filter(line => line === `-${FIRST_PAINT_VIEWER_REMOVED_LINE}`).length, 1, 'the swapped base line is removed once')
-  const strippedDiff = git(['diff', '--no-color', '-U0', FIRST_PAINT_BASE_COMMIT, '--', VIEWER]).split('\n').filter(line => /^[+-](?![+-])/.test(line))
-    .filter(line => !line.includes(FIRST_PAINT_MARKER) && line !== `-${FIRST_PAINT_VIEWER_REMOVED_LINE}`)
-  // with this change's lines excluded, what is left in the diff is only other changes' own marked lines (none are expected on a branch cut from the base commit)
-  check(assert.deepEqual, strippedDiff.filter(line => line.startsWith('-')), [], 'the viewer loses no line besides the swapped one')
+  check(assert.equal, mine.length, 7, 'seven added viewer lines carry the marker: import, preconnect call, poll wiring, local setInterval, first-tick read, hollow-answer drop, catch guard')
+  check(assert.equal, viewerText.split('\n').filter(line => line.includes(FIRST_PAINT_MARKER)).length, 7, 'the marker is on exactly those seven lines of the file')
+  check(assert.deepEqual, removed, [], 'the viewer loses no base line and changes none (insertions only)')
+  check(assert.ok, viewerText.includes('\n    const interval = setInterval(async () => {\n'), 'the base poll line is in the viewer as it is')
   for (const line of mine) check(assert.doesNotMatch, line, /process\.env/, 'a marked viewer line reads no env')
+}
+// the effect's local setInterval: one declaration, inside the poll effect's own callback, used by the base line only; every other setInterval of the file is the global one
+function proveLocalSetInterval(text) {
+  const sf = ts.createSourceFile(VIEWER, text, ts.ScriptTarget.Latest, true, ts.ScriptKind.TSX)
+  const decls = [], uses = []
+  const visit = node => {
+    if (ts.isVariableDeclaration(node) && ts.isIdentifier(node.name) && node.name.text === 'setInterval') decls.push(node)
+    else if (ts.isIdentifier(node) && node.text === 'setInterval' && !(ts.isVariableDeclaration(node.parent) && node.parent.name === node)
+      && !(ts.isPropertyAccessExpression(node.parent) && node.parent.name === node)) uses.push(node)
+    ts.forEachChild(node, visit)
+  }
+  visit(sf)
+  check(assert.equal, decls.length, 1, 'one local setInterval in the viewer')
+  const decl = decls[0]
+  const list = decl.parent, statement = list.parent
+  check(assert.ok, ts.isVariableDeclarationList(list) && (list.flags & ts.NodeFlags.Const) !== 0, 'the local is a const')
+  check(assert.equal, decl.initializer?.getText(sf), 'firstPaintPoll.setInterval', 'the local is the wiring\'s setInterval')
+  const body = statement.parent, effectFn = body.parent, effectCall = effectFn.parent
+  check(assert.ok, ts.isBlock(body) && ts.isArrowFunction(effectFn) && ts.isCallExpression(effectCall) && effectCall.expression.getText(sf) === 'useEffect',
+    'it is declared directly in a useEffect callback\'s body (the poll effect), not in the component or the module')
+  const next = body.statements[body.statements.indexOf(statement) + 1]
+  check(assert.ok, next && next.getText(sf).startsWith('const interval = setInterval(async () => {'), 'the statement right after it is the base poll line')
+  const inside = uses.filter(id => id.getStart(sf) >= body.getStart(sf) && id.getEnd() <= body.getEnd())
+  check(assert.equal, inside.length, 1, 'inside the effect the local is used once: by the base poll line')
+  check(assert.ok, inside[0].getStart(sf) > decl.getEnd(), 'and only after its declaration (no temporal dead zone)')
+  check(assert.ok, uses.filter(id => !inside.includes(id)).every(id => !(id.getStart(sf) >= body.getStart(sf) && id.getEnd() <= body.getEnd())), 'no other setInterval of the file is in its scope')
+}
+proveLocalSetInterval(viewerText)
+// ... and the proof bites: each of these copies of the viewer must fail it (an assertion, not a crash)
+for (const [name, from, to] of [
+  ['the local is a let', '    const setInterval = firstPaintPoll.setInterval', '    let setInterval = firstPaintPoll.setInterval'],
+  ['the local is used again later in the effect', '    return () => clearInterval(interval)\n', '    void setInterval\n    return () => clearInterval(interval)\n'],
+  ['a second setInterval at component level', '  warmStudioFirstPaintConnections(VIEWER_ORIGIN) //', '  const setInterval = globalThis.setInterval\n  warmStudioFirstPaintConnections(VIEWER_ORIGIN) //'],
+  ['the local is not right above the base line', '    const interval = setInterval(async () => {\n', '    void 0\n    const interval = setInterval(async () => {\n'],
+]) {
+  check(assert.equal, viewerText.split(from).length - 1, 1, `scope probe text exists once: ${name}`)
+  let error = null
+  try { proveLocalSetInterval(viewerText.replace(from, to)) } catch (caught) { error = caught }
+  check(assert.equal, error?.code, 'ERR_ASSERTION', `the local-setInterval proof fails on a viewer where ${name}`)
 }
 // the flag is read in the lib only
 check(assert.doesNotMatch, viewerText, new RegExp(`process\\.env\\.${FLAG}`), 'the viewer reads the flag through the lib')
@@ -421,8 +457,11 @@ const once = (text, from, to) => {
 const MUTANTS = [
   ['the catch guard is gone (a first poll\'s failure is counted)', t => once(t, `        if (firstTick) { debugLog('⏸️ First poll got no usable answer; not counted'); return false } // STUDIO-FIRST-PAINT: the head-start tick never counts a failure or starts a backoff; false = one retry\n`, '')],
   ['the guard is inverted (interval failures are not counted)', t => once(t, 'if (firstTick) { debugLog(', 'if (!firstTick) { debugLog(')],
-  ['no frame handed to the poll (no head start)', t => once(t, 'startStudioSlideInfoPoll(iframeRef.current, approvedIframeNavigationUrl, async', 'startStudioSlideInfoPoll(null, approvedIframeNavigationUrl, async')],
-  ['no URL handed to the poll (no head start)', t => once(t, 'startStudioSlideInfoPoll(iframeRef.current, approvedIframeNavigationUrl, async', 'startStudioSlideInfoPoll(iframeRef.current, null, async')],
+  ['no frame handed to the poll (no head start)', t => once(t, 'studioSlideInfoPollWiring(iframeRef.current, approvedIframeNavigationUrl)', 'studioSlideInfoPollWiring(null, approvedIframeNavigationUrl)')],
+  ['no URL handed to the poll (no head start)', t => once(t, 'studioSlideInfoPollWiring(iframeRef.current, approvedIframeNavigationUrl)', 'studioSlideInfoPollWiring(iframeRef.current, null)')],
+  ['the local setInterval is gone (the base line takes the global one: no head start)', t => once(t, '    const setInterval = firstPaintPoll.setInterval // STUDIO-FIRST-PAINT', '    const unusedSetInterval = firstPaintPoll.setInterval // STUDIO-FIRST-PAINT')],
+  ['the first-tick read is always false (a head start is counted like an interval tick)', t => once(t, 'const firstTick = firstPaintPoll.firstTick()', 'const firstTick = false')],
+  ['the first-tick read is always true (an interval failure is not counted)', t => once(t, 'const firstTick = firstPaintPoll.firstTick()', 'const firstTick = true')],
   ['the hollow-answer drop is gone', t => once(t, `        if (firstTick && !isUsableFirstPollAnswer(result)) return false // STUDIO-FIRST-PAINT: a hollow answer from a viewer that has not drawn its slides yet is dropped (the interval ticks carry on); false = one retry\n`, '')],
   ['the preconnect call is gone', t => once(t, `  warmStudioFirstPaintConnections(VIEWER_ORIGIN) // STUDIO-FIRST-PAINT (NEXT_PUBLIC_STUDIO_FIRST_PAINT_ENABLED, default off): React hoists the preconnects for Layout and its CDNs into <head>; nothing with the flag off\n`, '')],
   ['the preconnect call has no Layout URL', t => once(t, 'warmStudioFirstPaintConnections(VIEWER_ORIGIN)', 'warmStudioFirstPaintConnections(undefined)')],
