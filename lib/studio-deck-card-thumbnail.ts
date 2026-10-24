@@ -1,5 +1,6 @@
 import { presentationIdFromViewerUrl } from './builder-presentation-ownership'
 import type { LayoutViewerUrlDecision } from './layout-viewer-url-policy'
+import { thumbnailLagReason, type ThumbnailLagReason } from './studio-thumbnail-last-good'
 
 /**
  * NEXT_PUBLIC_STUDIO_DECK_CARD_THUMBNAILS_ENABLED (exact "true", default off, build-time): PROGRAM-1 "thumbnails instead of live viewers in the deck list".
@@ -32,30 +33,9 @@ export function deckCardThumbnailsEnabled(value: string | undefined): boolean {
 export const DECK_CARD_THUMBNAIL_TIMEOUT_MS = 8_000
 
 // ---- the "may lag" cue ----
-// A LOCAL copy of FRONTEND-2's strings, behind this flag only: replace with an import from lib/studio-thumbnail-last-good.ts once FRONTEND-2's stack (#498) merges.
-// THUMBNAIL_LAG_TEXT, THUMBNAIL_LAG_LABELS, thumbnailLagReason() and thumbnailLagLabel() are copied from there word for word.
-
-/** Why the image is not fresh: the slide changed since the capture, or the deck's theme did. */
-export type ThumbnailLagReason = 'content' | 'theme'
-
-/** The visible cue on the card's preview (both reasons), small and plain. */
-export const THUMBNAIL_LAG_TEXT = 'May lag'
-
-/** The accessible label of the cue, by reason. */
-export const THUMBNAIL_LAG_LABELS: Readonly<Record<ThumbnailLagReason, string>> = {
-  content: 'Preview may not show recent edits',
-  theme: 'Preview shows the previous theme',
-}
-
-/** "theme" is the theme reason; null, absent and any other value read as the content reason. */
-export function thumbnailLagReason(value: unknown): ThumbnailLagReason {
-  return value === 'theme' ? 'theme' : 'content'
-}
-
-/** The accessible label for a reason (the content label for null or an unknown one). */
-export function thumbnailLagLabel(value: unknown): string {
-  return THUMBNAIL_LAG_LABELS[thumbnailLagReason(value)]
-}
+// FRONTEND-2's strings and reason rule (lib/studio-thumbnail-last-good.ts, #498), so a card's cue says exactly what the rail's does.
+export { THUMBNAIL_LAG_TEXT, THUMBNAIL_LAG_LABELS, thumbnailLagReason, thumbnailLagLabel } from './studio-thumbnail-last-good'
+export type { ThumbnailLagReason } from './studio-thumbnail-last-good'
 
 // ---- what a card draws ----
 

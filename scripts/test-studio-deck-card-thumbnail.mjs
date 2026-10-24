@@ -26,6 +26,7 @@ const git = (...args) => execFileSync('git', args, { cwd: root, encoding: 'utf8'
 const sha = text => crypto.createHash('sha256').update(text).digest('hex')
 const LIB = 'lib/studio-deck-card-thumbnail.ts'
 const OWNERSHIP = 'lib/builder-presentation-ownership.ts'
+const LAST_GOOD = 'lib/studio-thumbnail-last-good.ts'   // FRONTEND-2's lag strings (#498), import-free
 const HOOK = 'hooks/use-studio-deck-card-thumbnail.tsx'
 const COMPONENT = 'components/studio-deck-card-thumbnail.tsx'
 const CSS = 'components/studio-deck-card-thumbnail.css'
@@ -48,6 +49,7 @@ function loadLib(source, { env = {}, timers = { setTimeout, clearTimeout } } = {
   }
   return run(source, LIB, spec => {
     if (spec === './builder-presentation-ownership') return run(read(OWNERSHIP), OWNERSHIP, () => { throw new Error('ownership is import-free') })
+    if (spec === './studio-thumbnail-last-good') return run(read(LAST_GOOD), LAST_GOOD, () => { throw new Error('last-good is import-free') })
     throw new Error(`unexpected import ${spec}`)
   })
 }
