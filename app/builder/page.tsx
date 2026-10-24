@@ -125,6 +125,8 @@ import { STUDIO_NEW_DECK_HANDOFF_SEND_ENABLED, useStudioNewDeckHandoffSend } fro
 import { useStudioVersionHistoryDeckOnly } from '@/hooks/use-studio-version-history-deck-only'
 // NEXT_PUBLIC_STUDIO_PAYMENTS_OPEN_SOON (default off): the Builder's account menu upgrade row says "Payments open soon" (hooks/use-studio-payments-open-soon.ts); the top-up modal gates itself.
 import { useStudioPaymentsOpenSoon } from '@/hooks/use-studio-payments-open-soon'
+// NEXT_PUBLIC_STUDIO_PASS3_POLISH (default off): the Pass 3 polish set; with the flag on <html> carries data-studio-pass3-polish="true" and the set's stylesheet (every rule scoped to it) applies to the Builder (hooks/use-studio-pass3-polish.ts). // PASS3-POLISH
+import { useStudioPass3Polish } from '@/hooks/use-studio-pass3-polish' // PASS3-POLISH
 // NEXT_PUBLIC_STUDIO_DUPLICATE_COPY_TITLE (default off): a copied deck's header shows its own title, not "Studio" (hooks/use-studio-duplicate-copy-title.ts).
 import { useStudioDuplicateCopyTitleProps } from '@/hooks/use-studio-duplicate-copy-title'
 import { StudioSupersededNotice } from '@/components/builder/studio-superseded-notice'
@@ -4808,6 +4810,7 @@ function AuthenticatedBuilderContent({ authScopeUserId }: { authScopeUserId: str
 
   // NEXT_PUBLIC_STUDIO_PAYMENTS_OPEN_SOON (default off): the account menu's upgrade row is disabled and says "Payments open soon". Flag off, the hook returns before it reads the document.
   useStudioPaymentsOpenSoon()
+  useStudioPass3Polish() // PASS3-POLISH: NEXT_PUBLIC_STUDIO_PASS3_POLISH (default off) sets data-studio-pass3-polish on <html>; flag off, the hook returns before it reads the document.
 
   // NEXT_PUBLIC_STUDIO_DUPLICATE_COPY_TITLE (default off): a copied deck has no slideStructure, so its header said "Studio"; the open session's own title is read once, only while the header has none. Flag off: no props, nothing is read.
   const studioDuplicateCopyTitleProps = useStudioDuplicateCopyTitleProps(currentSessionId, !isUnsavedSession && !slideStructure?.metadata?.main_title)
