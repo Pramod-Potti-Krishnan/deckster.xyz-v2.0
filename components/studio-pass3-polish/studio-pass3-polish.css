@@ -12,7 +12,7 @@
      1. destination intros: the Decks and Knowledge pages' right gutter and the Replay-intro button, on a phone      (from the audit: #3)
      2. iOS focus zoom: text controls are 16px on a phone                                                           (from the audit: #2)
      3. the Builder root is 100dvh, not 100vh                                                                       (from the audit: #1)
-     4. (next PR) phone overflow wrappers from the rendered sweep                                                   (from the audit: #8)
+     4. phone tap targets: a 32px minimum in the Studio shell                                                       (from the rendered sweep)
    Phone means max-width: 640px, the breakpoint the Studio stylesheets (studio-decks.css, studio-settings.css ...) already use. */
 
 /* ===== SECTION 1: destination intros (Decks, Knowledge) on a phone ===== */
@@ -59,4 +59,33 @@
   }
 }
 
-/* ===== APPEND POINT: the next section (4, 5 ...) goes ABOVE this line, numbered, with its own comment; every rule starts with html[data-studio-pass3-polish="true"] ===== */
+/* ===== SECTION 4: phone tap targets (32px minimum) in the Studio shell ===== */
+/* The rendered sweep (196 variants, 25 Oct) found these controls under 32px on a phone: the Builder header's panel toggle (27x27), New deck (33x28) and Export (31x28); the composer's toolbar buttons (28x28:
+   attach, theme, template, research options, send); the Replay-intro button (28 to 30px on Templates, Intelligence, Details and the rest). Each gets min-width and min-height 32px: the content stays centred (they
+   are flex or inline-flex boxes, or buttons, which centre their content), the icons and the font sizes are not touched, and the boxes are never made smaller. The header is 48px tall and its items are centred, so
+   nothing moves; the composer's toolbar is 28px of button + 16px of padding over a 56px bottom padding, so 32px fits. The Slides / Director segments stay 22px tall inside the 36px pane bar (a taller box would push
+   the bar's height), so their hit area is extended 5px up and 5px down by an ::after instead (32px); the horizontal size is unchanged. Left alone on purpose: the 16px-wide SLIDE edge handle (a drag handle),
+   the settings switches (FRONTEND-1's area, a standard 44x24) and the theme colour inputs (a library editor). The Publish button beside Export is FRONTEND-1's and keeps its 28px. */
+@media (max-width: 640px) {
+  html[data-studio-pass3-polish="true"] [data-studio-v4-shell="true"] .studio-shell-heading > button,
+  html[data-studio-pass3-polish="true"] [data-studio-v4-shell="true"] .studio-shell-new,
+  html[data-studio-pass3-polish="true"] [data-studio-v4-shell="true"] [data-studio-v4-toolbar-target] [data-studio-v4-delivery] [data-studio-download-control="true"] > button,
+  html[data-studio-pass3-polish="true"] [data-studio-v4-shell="true"] [data-studio-v4-composer-toolbar="true"] button,
+  html[data-studio-pass3-polish="true"] button[data-studio-v4-shell="true"][data-studio-intro-replay="true"] {
+    min-width: 32px;
+    min-height: 32px;
+  }
+  html[data-studio-pass3-polish="true"] [data-studio-v4-shell="true"] [data-studio-workspace-switch-v2="true"] .swsv2-segments > button {
+    position: relative;
+  }
+  html[data-studio-pass3-polish="true"] [data-studio-v4-shell="true"] [data-studio-workspace-switch-v2="true"] .swsv2-segments > button::after {
+    content: "";
+    position: absolute;
+    left: 0;
+    right: 0;
+    top: -5px;
+    bottom: -5px;
+  }
+}
+
+/* ===== APPEND POINT: the next section (5, 6 ...) goes ABOVE this line, numbered, with its own comment; every rule starts with html[data-studio-pass3-polish="true"] ===== */
