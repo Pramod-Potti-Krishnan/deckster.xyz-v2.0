@@ -42,6 +42,7 @@ import { stripPublishPreviewInventory } from './studio-publish-preview-inventory
 import { stripPaymentsOpenSoon } from './studio-payments-open-soon-strip.mjs' // stacked after #475: the payments open soon change puts its .env.example block between this block and # PASS2 ADMIN too
 import { stripDuplicateCopyTitle } from './studio-duplicate-copy-title-strip.mjs' // stacked after #475: the duplicate copy title change puts its .env.example block between this block and # PASS2 ADMIN too
 import { stripThumbnailLastGood } from './studio-thumbnail-last-good-strip.mjs' // stacked after #475: the thumbnail last good change puts its .env.example block between this block and # PASS2 ADMIN too
+import { stripBulkEditUndo } from './studio-bulk-edit-undo-strip.mjs' // stacked after #475: the bulk edit + chat undo change puts its .env.example block between this block and # PASS2 ADMIN too
 import { stripLaunchWording } from './studio-launch-wording-strip.mjs' // NEXT_PUBLIC_STUDIO_LAUNCH_WORDING (launched wording): its flag-gated edits come out first, before every older change's strip
 import { stripPublishReviewFit } from './studio-publish-review-fit-strip.mjs' // stacked after #475: the publish review fit change puts its .env.example block between this block and # PASS2 ADMIN too
 import { stripVersionHistoryDeckOnly } from './studio-version-history-deck-only-strip.mjs' // stacked after #475: the version history deck-only change puts its .env.example block between this block and # PASS2 ADMIN too
@@ -93,6 +94,7 @@ SOURCES[ENV] = stripComposeEntitlement(ENV, SOURCES[ENV]) // stacked after #475:
 SOURCES[ENV] = stripPaymentsOpenSoon(ENV, SOURCES[ENV]) // stacked after #475: that later block (NEXT_PUBLIC_STUDIO_PAYMENTS_OPEN_SOON) comes out first too, so this block is still right before # PASS2 ADMIN
 SOURCES[ENV] = stripDuplicateCopyTitle(ENV, SOURCES[ENV]) // stacked after #475: that later block (NEXT_PUBLIC_STUDIO_DUPLICATE_COPY_TITLE) comes out first too, so this block is still right before # PASS2 ADMIN
 SOURCES[ENV] = stripThumbnailLastGood(ENV, SOURCES[ENV]) // stacked after #475: that later block (NEXT_PUBLIC_STUDIO_THUMBNAIL_LAST_GOOD) comes out first too, so this block is still right before # PASS2 ADMIN
+SOURCES[ENV] = stripBulkEditUndo(ENV, SOURCES[ENV]) // stacked after #475: that later block (NEXT_PUBLIC_STUDIO_BULK_EDIT / NEXT_PUBLIC_STUDIO_CHAT_UNDO) comes out first too, so this block is still right before # PASS2 ADMIN
 
 let checks = 0
 const quiet = { on: false }
