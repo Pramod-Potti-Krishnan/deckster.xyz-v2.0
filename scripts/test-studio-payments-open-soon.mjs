@@ -683,7 +683,9 @@ const lineCounts = text => { const map = new Map(); for (const line of text.spli
 /** The lines of `text` that the base text does not have (as a multiset): what this change added. */
 function addedLines(text, baseText) { const have = lineCounts(baseText), out = []; for (const line of text.split('\n')) { const n = have.get(line) ?? 0; if (n > 0) have.set(line, n - 1); else out.push(line) } return out }
 const STACK_BASE = process.env.PAYMENTS_OPEN_SOON_STACK_BASE || '419be9804bcdd7a39a2bb114a78700c8e1fdd55f' // #495's head: this change is stacked on it, so its own diff is what lies over that commit
-const allChanged = () => [...new Set([...git('diff', '--name-only', STACK_BASE).split('\n'), ...git('ls-files', '--others', '--exclude-standard').split('\n')].filter(Boolean))]
+// The COMMITTED change only (STACK_BASE..HEAD): files other tests write into the working tree while a suite runs (evidence JSON, copied
+// sources under docs/) are not this change's, so neither the working tree nor untracked files are read here (stack gate 24 Oct).
+const allChanged = () => [...new Set(git('diff', '--name-only', STACK_BASE, 'HEAD').split('\n').filter(Boolean))]
 function proveChange() {
   for (const rel of HELD) { let base; try { base = baseSource(rel) } catch { continue } eq(sha(read(rel)), sha(base), `${rel} is the base commit's file`) }
   // strip = base
