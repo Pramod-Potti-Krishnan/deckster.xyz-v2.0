@@ -23,6 +23,11 @@ export const STUDIO_RAIL_SLIDE_IDENTITY_ENABLED =
  *  untitled slide by its layout (lib/studio-rail-layout-label.ts). Off, rows are exactly as before. This module stays import-free. */
 const RAIL_LAYOUT_LABELS = process.env.NEXT_PUBLIC_STUDIO_RAIL_LAYOUT_LABELS === 'true'
 
+/** THUMBNAILS-BLANK-UAT "never blank" (NEXT_PUBLIC_STUDIO_THUMBNAIL_LAST_GOOD, exact 'true', default off): with Layout's LAYOUT_THUMBNAIL_LAST_GOOD_ENABLED each row also carries `last_good_thumbnail_url` (the slide's last registered
+ *  preview, fresh or stale, else null) and `thumbnail_stale_reason` (content | theme | null); absent keys read as null. A slide with no fresh preview then shows ITS OWN last good one, marked as possibly lagging (SlideRailRow.thumbnailLag).
+ *  Off, rows are exactly as before. This module stays import-free. */
+const THUMBNAIL_LAST_GOOD = process.env.NEXT_PUBLIC_STUDIO_THUMBNAIL_LAST_GOOD === 'true'
+
 export type SlideThumbnailStatus = 'fresh' | 'stale' | 'pending' | 'none'
 
 export interface SlideInventoryRow {
@@ -36,6 +41,10 @@ export interface SlideInventoryRow {
   /** `pending` = a preview is expected soon, `none` = none is coming, `stale` = changed since the capture.
    *  A v1 backend sends no status: derived from the URL and the stale flag (never `pending`). */
   thumbnailStatus: SlideThumbnailStatus
+  /** NEXT_PUBLIC_STUDIO_THUMBNAIL_LAST_GOOD only (absent otherwise): the slide's last registered preview, fresh or stale; null when there is none. */
+  lastGoodThumbnailUrl?: string | null
+  /** NEXT_PUBLIC_STUDIO_THUMBNAIL_LAST_GOOD only (absent otherwise): why a stale row is stale; null when fresh, not given or not a known reason. */
+  thumbnailStaleReason?: 'content' | 'theme' | null
   /** Contract v1.1: plain text, at most 200 characters, null when unknown or a stock placeholder. */
   title: string | null
 }
@@ -57,6 +66,8 @@ export interface SlideRailRow {
   thumbnailStatus: SlideThumbnailStatus
   /** Only with NEXT_PUBLIC_STUDIO_RAIL_LAYOUT_LABELS on, and only when the inventory names one. */
   layout?: string
+  /** NEXT_PUBLIC_STUDIO_THUMBNAIL_LAST_GOOD only: set when `thumbnailUrl` is this slide's last good preview and not a fresh one (the card adds its "may lag" cue); the reason says why it is not fresh. */
+  thumbnailLag?: 'content' | 'theme'
 }
 
 const MAX_URL_LENGTH = 8192
@@ -100,6 +111,12 @@ function previewStatus(slide: Record<string, unknown>, url: string | null): Slid
   return given === 'pending' || given === 'stale' ? given : 'none'
 }
 
+/** NEXT_PUBLIC_STUDIO_THUMBNAIL_LAST_GOOD: a row's two optional keys. An absent or unusable URL is null (only http(s) is kept, as for `thumbnail_url`); a reason other than content or theme is null. */
+function lastGoodFields(slide: Record<string, unknown>): Pick<SlideInventoryRow, 'lastGoodThumbnailUrl' | 'thumbnailStaleReason'> {
+  const reason = slide.thumbnail_stale_reason
+  return { lastGoodThumbnailUrl: safeThumbnailUrl(slide.last_good_thumbnail_url), thumbnailStaleReason: reason === 'content' || reason === 'theme' ? reason : null }
+}
+
 /**
  * Validates the inventory body. Returns null (treated as "unavailable") for anything that is
  * not an identity-bearing, ordered inventory of this exact presentation.
@@ -124,6 +141,7 @@ export function parseSlideInventory(body: unknown, expectedPresentationId: strin
       thumbnailUrl,
       thumbnailStale: slide.thumbnail_stale === true,
       thumbnailStatus: previewStatus(slide, thumbnailUrl),
+      ...(THUMBNAIL_LAST_GOOD ? lastGoodFields(slide) : {}),
       title: cleanTitle(slide.title),
     })
   }
@@ -136,6 +154,7 @@ function sameInventory(a: SlideInventory, b: SlideInventory): boolean {
   return a.slides.every((row, i) => {
     const other = b.slides[i]
     return row.slideId === other.slideId && row.layout === other.layout && row.contentVersion === other.contentVersion
+      && row.lastGoodThumbnailUrl === other.lastGoodThumbnailUrl && row.thumbnailStaleReason === other.thumbnailStaleReason
       && row.thumbnailUrl === other.thumbnailUrl && row.thumbnailStatus === other.thumbnailStatus && row.title === other.title
   })
 }
@@ -364,6 +383,8 @@ export function buildRailRows(inventory: SlideInventory, titles: RailTitleMemory
     actualSlideIndex: position,
     title: row.title ?? titles.get(row.slideId) ?? `Slide ${position + 1}`,
     ...(row.thumbnailUrl ? { thumbnailUrl: row.thumbnailUrl } : {}),
+    // NEXT_PUBLIC_STUDIO_THUMBNAIL_LAST_GOOD: no fresh preview but a last good one of THIS row (its own, never a neighbour's): show it, marked as possibly lagging. A fresh preview always wins.
+    ...(THUMBNAIL_LAST_GOOD && !row.thumbnailUrl && row.lastGoodThumbnailUrl ? { thumbnailUrl: row.lastGoodThumbnailUrl, thumbnailLag: row.thumbnailStaleReason === 'theme' ? 'theme' as const : 'content' as const } : {}),
     thumbnailStatus: row.thumbnailStatus,
     ...(RAIL_LAYOUT_LABELS && row.layout ? { layout: row.layout } : {}),
   }))

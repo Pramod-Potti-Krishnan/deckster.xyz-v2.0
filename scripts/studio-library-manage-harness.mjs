@@ -117,6 +117,10 @@ export const STACKED_PASS3_FILES = [
   // Payments open soon (NEXT_PUBLIC_STUDIO_PAYMENTS_OPEN_SOON, stacked): its lib, hook, mount and sheet, the account layout's one flag-gated element, the two checkout routes, the upgrade button and the top-up modal; no library file.
   'lib/studio-payments-open-soon.ts', 'hooks/use-studio-payments-open-soon.ts', 'components/billing/studio-payments-open-soon.css', 'components/billing/studio-payments-open-soon-mount.tsx',
   'app/(app)/layout.tsx', 'app/api/stripe/create-checkout-session/route.ts', 'app/api/stripe/create-topup-session/route.ts', 'components/billing/UpgradeButton.tsx', 'components/builder/topup-modal.tsx',
+  // Duplicate copy title (NEXT_PUBLIC_STUDIO_DUPLICATE_COPY_TITLE, stacked): its lib, hook, mount and sheet; the account layout's second flag-gated element and the Builder page's lines sit in files listed elsewhere here.
+  'lib/studio-duplicate-copy-title.ts', 'hooks/use-studio-duplicate-copy-title.ts', 'components/builder/studio-duplicate-copy-title.css', 'components/builder/studio-duplicate-copy-title-mount.tsx',
+  // Thumbnail last good (NEXT_PUBLIC_STUDIO_THUMBNAIL_LAST_GOOD, stacked): its lib, cue and sheet, and the two rail files it adds lines to (the inventory rows and the strip); the Publish preview's lib is listed above.
+  'lib/studio-thumbnail-last-good.ts', 'components/studio-thumbnail-lag-cue.tsx', 'components/studio-thumbnail-last-good.css', 'lib/slide-rail-identity.ts', 'components/slide-thumbnail-strip.tsx',
   // Studio new logo (NEXT_PUBLIC_STUDIO_NEW_LOGO, FRONTEND-1, stacked on the UAT marketing port): the rail's brand tile, its flag helper and its sheet.
   'lib/studio-new-logo.ts', 'components/layout/studio-new-logo.css', 'components/layout/studio-rail.tsx',
   // Publish review fit (NEXT_PUBLIC_STUDIO_PUBLISH_REVIEW_FIT, stacked): its hook, and the Publish dialog's stylesheet (one block appended after the Pass 2 polish block).
