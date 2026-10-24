@@ -45,6 +45,7 @@ import { STACK, stackFileTolerant, stackMutants, stackScope, sameOrTolerant, str
 import { stripLaunchWording } from './studio-launch-wording-strip.mjs' // NEXT_PUBLIC_STUDIO_LAUNCH_WORDING (launched wording): its flag-gated edits come out first, before every older change's strip
 import { stripFirstPaint } from './studio-first-paint-strip.mjs' // stacked: NEXT_PUBLIC_STUDIO_FIRST_PAINT_ENABLED (COMPOSER-2 first paint): its flag-gated viewer lines come out first, inside read(), next to stripLaunchWording
 import { stripJobLedger } from './studio-job-ledger-strip.mjs' // stacked after #475: P3-4c (NEXT_PUBLIC_STUDIO_JOB_LEDGER) adds its flag-gated job_update intake to the hook's startConnection; declarations() takes its lines out first
+import { stripBulkEditUndo } from './studio-bulk-edit-undo-strip.mjs' // stacked after #475: the bulk edit + chat undo change (NEXT_PUBLIC_STUDIO_BULK_EDIT / NEXT_PUBLIC_STUDIO_CHAT_UNDO) adds marked lines to the hook (a cap in buildUserMessage, a routing line in startConnection); declarations() takes them out first
 
 for (const name of Object.keys(process.env)) if (/KEY|TOKEN|SECRET|CREDENTIAL|PASSWORD/i.test(name)) delete process.env[name]
 const root = path.resolve(fileURLToPath(new URL('../', import.meta.url)))
@@ -657,6 +658,9 @@ await check(`identity: stripping this change gives back ${BASE_COMMIT.slice(0, 7
     added.splice(0, added.length, ...added.filter(line => !/^\+import \{ stripComposeEntitlement \} from '\.\/studio-compose-entitlement-strip\.mjs'/.test(line))) // stacked after #475: Add Slide compose signs its user (STUDIO_COMPOSE_ENTITLEMENT_ENABLED) chains its strip into this root with one import line; that line is a later PR's, not this change's
     added.splice(0, added.length, ...added.filter(line => !/^\+import \{ stripPublishPreviewInventory \} from '\.\/studio-publish-preview-inventory-strip\.mjs'/.test(line))) // #475 stacked: the Publish preview from Layout's inventory (NEXT_PUBLIC_STUDIO_PUBLISH_PREVIEW_INVENTORY_ENABLED) chains its strip into this root with one import line; that line is a later PR's, not this change's (its chained call only extends the line this change already counts)
     added.splice(0, added.length, ...added.filter(line => !/^\+import \{ stripPaymentsOpenSoon \} from '\.\/studio-payments-open-soon-strip\.mjs'/.test(line))) // stacked after #475: the payments open soon change (NEXT_PUBLIC_STUDIO_PAYMENTS_OPEN_SOON) chains its strip into this root with one import line; that line is a later PR's, not this change's
+    added.splice(0, added.length, ...added.filter(line => !/^\+import \{ stripDuplicateCopyTitle \} from '\.\/studio-duplicate-copy-title-strip\.mjs'/.test(line))) // stacked after #475: the duplicate copy title change (NEXT_PUBLIC_STUDIO_DUPLICATE_COPY_TITLE) chains its strip into this root with one import line; that line is a later PR's, not this change's
+    added.splice(0, added.length, ...added.filter(line => !/^\+import \{ stripThumbnailLastGood \} from '\.\/studio-thumbnail-last-good-strip\.mjs'/.test(line))) // stacked after #475: the thumbnail last good change (NEXT_PUBLIC_STUDIO_THUMBNAIL_LAST_GOOD) chains its strip into this root with one import line; that line is a later PR's, not this change's
+    added.splice(0, added.length, ...added.filter(line => !/^\+import \{ stripBulkEditUndo \} from '\.\/studio-bulk-edit-undo-strip\.mjs'/.test(line))) // stacked after #475: the bulk edit + chat undo change (NEXT_PUBLIC_STUDIO_BULK_EDIT / NEXT_PUBLIC_STUDIO_CHAT_UNDO) chains its strip into this root with one import line; that line is a later PR's, not this change's
     const stackedNarration = added.filter(line => /narration|NARRATION|FRONTEND-1 template rename|'app\/api\/templates\/\[id\]\/route\.ts'/.test(line)).length // #475's stacked lines in the harness (its extended comment line and its file list), and the template rename's two (PR #477, stacked after #475)
     assert.ok(added.length - stackedNarration <= 5 && removed.length <= 2, `${rel}: an import and one call (${added.length}+/${removed.length}-, ${stackedNarration} of the added lines are #475's, stacked)`)
     assert.ok(added.some(line => /stripChatThemeExport|CHAT_THEME_EXPORT_CAPS: \[\]|lib\/chat-theme-export-wire\.ts/.test(line)), rel)
@@ -682,6 +686,7 @@ await check('identity: every added piece names a flag (or is the package.json re
 
 function declarations(text, names, file = HOOK) {
   text = stripJobLedger(file, text) // stacked after #475: P3-4c's flag-gated hook and page lines come out first (scripts/studio-job-ledger-strip.mjs); a base text has none
+  text = stripBulkEditUndo(file, text) // stacked after #475: the bulk edit + chat undo change's marked hook lines come out too (scripts/studio-bulk-edit-undo-strip.mjs); a base text has none
   const ast = ts.createSourceFile(file, text, ts.ScriptTarget.Latest, true, file.endsWith('x') ? ts.ScriptKind.TSX : ts.ScriptKind.TS)
   const found = {}
   const visit = node => {
@@ -711,6 +716,7 @@ await check('identity: reducer / cache / history-restore / send / theme paths ha
     'lib/theme-builder.ts', 'lib/api/download-service.ts', 'components/presentation-download-controls.tsx', 'components/builder/presentation-area.tsx', 'components/theme-panel.tsx',
     'components/presentation-viewer.tsx', 'lib/studio-export-gate.ts', 'types/mdc.ts']) {
     if (rel === 'lib/api/download-service.ts' && read(rel) !== baseFile(rel)) { assert.equal(sha(stripJobDeadlines(rel, read(rel))), sha(baseFile(rel)), rel); identityHashes[rel] = sha(baseFile(rel)); continue } // stacked after #475: P3-4b's export deadline lines come out first
+    if (stripBulkEditUndo(rel, read(rel)) !== read(rel)) { assert.equal(sha(stripBulkEditUndo(rel, read(rel))), sha(baseFile(rel)), rel); identityHashes[rel] = sha(baseFile(rel)); continue } // stacked after #475: the bulk edit + chat undo change's marked lines (NEXT_PUBLIC_STUDIO_BULK_EDIT / NEXT_PUBLIC_STUDIO_CHAT_UNDO) in a file it shares with the chat hard rule come out first; flags off, the file is this base's byte for byte
     assert.equal(sha(read(rel)), sha(baseFile(rel)), rel); identityHashes[rel] = sha(read(rel))
   }
   const page = read(PAGE), basePage = baseFile(PAGE)

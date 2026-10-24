@@ -127,6 +127,8 @@ function strip(ref, studio) {
     './studio-rail-add-slide': {RailAddSlideButton:()=>null},
     // RAIL-SLIDES-1-MIDBUILD (flag NEXT_PUBLIC_STUDIO_RAIL_BUILD_COUNT, default off): flag-off stub; the card is drawn only for a row the viewer marks with buildPlaceholder, which these renders never do; older refs never import it.
     './studio-rail-build-placeholder': {RailBuildPlaceholderCard:()=>null},
+    // THUMBNAILS-BLANK-UAT "never blank" (flag NEXT_PUBLIC_STUDIO_THUMBNAIL_LAST_GOOD, default off): flag-off stub; the cue is drawn only for a row that carries thumbnailLag, which these renders never do; older refs never import it.
+    './studio-thumbnail-lag-cue': {StudioThumbnailLagCue:()=>null},
   }
   const parsed=ts.createSourceFile('strip.tsx',text,ts.ScriptTarget.Latest,true,ts.ScriptKind.TSX)
   for (const declaration of parsed.statements) {

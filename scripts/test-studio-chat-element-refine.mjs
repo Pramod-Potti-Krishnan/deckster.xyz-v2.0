@@ -43,6 +43,7 @@ import { STACK, stackFileTolerant, stackMutants, stackScope, sameOrTolerant, str
 import { stripLaunchWording } from './studio-launch-wording-strip.mjs' // NEXT_PUBLIC_STUDIO_LAUNCH_WORDING (launched wording): its flag-gated edits come out first, before every older change's strip
 import { stripFirstPaint } from './studio-first-paint-strip.mjs' // stacked: NEXT_PUBLIC_STUDIO_FIRST_PAINT_ENABLED (COMPOSER-2 first paint): its flag-gated viewer lines come out first, inside read(), next to stripLaunchWording
 import { stripJobLedger } from './studio-job-ledger-strip.mjs' // stacked after #475: P3-4c (NEXT_PUBLIC_STUDIO_JOB_LEDGER) adds its flag-gated job_update intake to the hook's startConnection; declarations() takes its lines out first
+import { stripBulkEditUndo } from './studio-bulk-edit-undo-strip.mjs' // stacked after #475: the bulk edit + chat undo change (NEXT_PUBLIC_STUDIO_BULK_EDIT / NEXT_PUBLIC_STUDIO_CHAT_UNDO) adds marked lines to the hook (a cap in buildUserMessage, a routing line in startConnection); declarations() takes them out first
 const STACKED_NARRATION_ROUTER = /^(lib\/narration\/(model-router|draft|tts|spoken)\.ts|app\/api\/narration\/(render|script|speak)\/route\.ts|app\/api\/narration\/voice\/sample\/\[voiceId\]\/route\.ts|scripts\/(test-studio-narration-router|studio-narration-router-strip)\.mjs)$/ // #475's own files (stacked on #473)
 const STACKED_MODEL_CATALOG = /^(app\/\(app\)\/studio\/intelligence\/layout\.tsx|app\/api\/models\/catalogue\/route\.ts|components\/studio-personal\/intelligence-models\.(css|tsx)|lib\/studio-model-catalog\.ts|scripts\/(test-studio-model-catalog|studio-model-catalog-strip)\.mjs|scripts\/fixtures\/studio-model-catalog\/.+)$/ // #473's own files (stacked on #472 on this change)
 const STACKED_THEME_EXPORT = /^(lib\/chat-theme-export(-wire)?\.ts|scripts\/(test-studio-chat-theme-export|studio-chat-theme-export-strip)\.mjs|scripts\/fixtures\/chat-theme-export\/.+|docs\/pass3\/chat-theme-export\/LIVE-CHECK-PLAN\.md)$/
@@ -702,6 +703,7 @@ await check(`identity: stripping this change gives back ${BASE_COMMIT.slice(0, 7
     const added = git('diff', '-U0', BASE_COMMIT, '--', rel).split('\n').filter(line => line.startsWith('+') && !line.startsWith('+++'))
     added.splice(0, added.length, ...added.filter(line => !/^\+import \{ strip(PublishReviewFit|VersionHistoryDeckOnly|ComposeEntitlement) \} from '\.\/studio-(publish-review-fit|version-history-deck-only|compose-entitlement)-strip\.mjs'/.test(line))) // stacked after #475: the E2E-2 stack (#492 publish review fit, #493 version history deck only, #494 compose entitlement) adds one strip import each to the roots
     added.splice(0, added.length, ...added.filter(line => !/^\+import \{ strip(PublishPreviewInventory|PaymentsOpenSoon) \} from '\.\/studio-(publish-preview-inventory|payments-open-soon)-strip\.mjs'/.test(line))) // #475 stacked: the strip roots' two later import lines (#495's publish preview inventory and payments open soon) are those changes', not this change's
+    added.splice(0, added.length, ...added.filter(line => !/^\+import \{ stripBulkEditUndo \} from '\.\/studio-bulk-edit-undo-strip\.mjs'/.test(line))) // stacked after #475: the bulk edit + chat undo change (NEXT_PUBLIC_STUDIO_BULK_EDIT / NEXT_PUBLIC_STUDIO_CHAT_UNDO) chains its strip into this root with one import line; that line is a later PR's, not this change's
     const stacked = added.some(line => /chat-theme-export|CHAT_THEME_EXPORT/.test(line)) // #472's own import and call on the same lines
     assert.ok(added.filter(line => !/FRONTEND-1 template rename|'app\/api\/templates\/\[id\]\/route\.ts'/.test(line)).length <= (stacked ? 10 : 5) && removed.length <= 2, `${rel}: an import and one call (${added.length}+/${removed.length}-)`) // stacked after #475: minus the template rename's (PR #477) two lines in the stacked list
     assert.ok(added.some(line => /stripChatElementRefine|CHAT_ELEMENT_REFINE_ENABLED: false|chat-element-refine/.test(line)), rel)
@@ -725,6 +727,7 @@ await check('identity: every added piece is behind the flag (or is a type, a com
 // branch (buildUserMessage and so sendMessage, startConnection) hash-equal the base once that branch is stripped. The session cache and history restore files are untouched.
 function declarations(text, names, file = HOOK) {
   text = stripJobLedger(file, text) // stacked after #475: P3-4c's flag-gated hook and page lines come out first (scripts/studio-job-ledger-strip.mjs); a base text has none
+  text = stripBulkEditUndo(file, text) // stacked after #475: the bulk edit + chat undo change's marked hook lines come out too (scripts/studio-bulk-edit-undo-strip.mjs); a base text has none
   const ast = ts.createSourceFile(file, text, ts.ScriptTarget.Latest, true, file.endsWith('x') ? ts.ScriptKind.TSX : ts.ScriptKind.TS)
   const found = {}
   const visit = node => {
@@ -750,6 +753,7 @@ await check('identity: reducer / cache / history-restore / send paths hash-equal
   const reducer = text => text.slice(text.indexOf('            // Turn gate: any reply-bearing frame unlocks the input.'), text.indexOf("            if ((message.type as string) === 'session_directive') {"))
   assert.ok(reducer(head).length > 2000); assert.equal(sha(reducer(head)), sha(reducer(base))); identityHashes['hook.reducer'] = sha(reducer(head))
   for (const rel of ['hooks/use-session-cache.ts', 'hooks/use-builder-session.ts', 'components/builder/message-list.tsx', 'lib/director-chat-history.ts', 'lib/mdc-element-directive.ts', 'components/presentation-viewer.tsx', 'lib/element-command-router.ts']) {
+    if (stripBulkEditUndo(rel, read(rel)) !== read(rel)) { assert.equal(sha(stripBulkEditUndo(rel, read(rel))), sha(baseFile(rel)), rel); identityHashes[rel] = sha(baseFile(rel)); continue } // stacked after #475: the bulk edit + chat undo change's marked lines (NEXT_PUBLIC_STUDIO_BULK_EDIT / NEXT_PUBLIC_STUDIO_CHAT_UNDO) in a file it shares with the chat hard rule come out first; flags off, the file is this base's byte for byte
     assert.equal(sha(read(rel)), sha(baseFile(rel)), rel); identityHashes[rel] = sha(read(rel))
   }
   const page = read('app/builder/page.tsx'), basePage = baseFile('app/builder/page.tsx')

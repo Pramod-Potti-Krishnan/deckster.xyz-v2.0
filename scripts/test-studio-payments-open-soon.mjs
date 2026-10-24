@@ -23,10 +23,14 @@ import postcss from 'postcss'
 import { FIRST_PAINT_SCOPE_FILES } from './studio-first-paint-strip.mjs' // stacked: COMPOSER-2 first paint (NEXT_PUBLIC_STUDIO_FIRST_PAINT_ENABLED), a later change: its committed files are not this change's to answer for
 import { BASE_COMMIT, PAYMENTS_OPEN_SOON_CHANGES, PAYMENTS_OPEN_SOON_FILES, PAYMENTS_OPEN_SOON_NEW_FILES, stripPaymentsOpenSoon } from './studio-payments-open-soon-strip.mjs'
 import { stripPublishPreviewInventory } from './studio-publish-preview-inventory-strip.mjs' // stacked: #495, below this change in the stack (its .env.example block sits between the base's file and this change's)
+import { stripDuplicateCopyTitle, DUPLICATE_COPY_TITLE_FILES, DUPLICATE_COPY_TITLE_NEW_FILES } from './studio-duplicate-copy-title-strip.mjs' // stacked: duplicate copy title, after this change in the stack
+import { stripThumbnailLastGood, THUMBNAIL_LAST_GOOD_FILES, THUMBNAIL_LAST_GOOD_NEW_FILES, THUMBNAIL_LAST_GOOD_PIN_FILES } from './studio-thumbnail-last-good-strip.mjs' // stacked: thumbnail last good (the Studio half of "never blank"), after duplicate copy title in the stack
+import { stripBulkEditUndo, BULK_EDIT_UNDO_FILES, BULK_EDIT_UNDO_NEW_FILES, BULK_EDIT_UNDO_PIN_FILES } from './studio-bulk-edit-undo-strip.mjs' // stacked: bulk edit + chat undo (a whole-deck edit card and an Undo chip in chat), after thumbnail last good in the stack
 import { stripOpenReadOnly } from './studio-open-read-only-strip.mjs'
 import { stripDarkPersist } from './studio-theme-dark-persist-strip.mjs'
 import { stripAddSlideStatus } from './studio-add-slide-status-strip.mjs'
 import { STACKED_PASS3_FILES } from './studio-library-manage-harness.mjs'
+import { LATER_CHANGE_FILES, stripLaterEnvBlocks } from './studio-later-changes.mjs' // stacked: the later-changes registry (a change stacked after this one registers its files and its .env.example block there; scope checks skip its files, every read of .env.example goes through it first)
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..')
 const BASE = process.env.PAYMENTS_OPEN_SOON_BASE || BASE_COMMIT
@@ -34,7 +38,7 @@ const git = (...args) => execFileSync('git', args, { cwd: root, encoding: 'utf8'
 const baseCache = new Map()
 const baseSource = rel => { if (!baseCache.has(rel)) baseCache.set(rel, git('show', `${BASE}:${rel}`)); return baseCache.get(rel) }
 let overrides = {} // in-memory mutations: the suite reads every source through read()
-const read = rel => (rel in overrides ? overrides[rel] : fs.readFileSync(path.join(root, rel), 'utf8'))
+const read = rel => (rel in overrides ? overrides[rel] : stripDuplicateCopyTitle(rel, stripThumbnailLastGood(rel, stripBulkEditUndo(rel, stripLaterEnvBlocks(rel, fs.readFileSync(path.join(root, rel), 'utf8')))))) // stacked: duplicate copy title (after this change in the stack) adds its own lines to the layout, the Builder page and .env.example; this proof reads past them
 const sha = value => crypto.createHash('sha256').update(value).digest('hex')
 
 let checks = 0
@@ -706,10 +710,13 @@ function proveChange() {
   }
   nomatch(stripAddSlideStatus(ENV, read(ENV)), /PAYMENTS_OPEN_SOON/, 'a root takes the .env.example block out')
   // scope
-  const allowed = new Set([...PAYMENTS_OPEN_SOON_FILES, ...PAYMENTS_OPEN_SOON_NEW_FILES, 'scripts/studio-open-read-only-strip.mjs', 'scripts/studio-theme-dark-persist-strip.mjs', 'scripts/studio-add-slide-status-strip.mjs', 'scripts/studio-library-manage-harness.mjs',
+  const allowed = new Set([...PAYMENTS_OPEN_SOON_FILES, ...PAYMENTS_OPEN_SOON_NEW_FILES, ...DUPLICATE_COPY_TITLE_FILES, ...DUPLICATE_COPY_TITLE_NEW_FILES, // stacked: duplicate copy title's own files (it is after this change in the stack)
+    ...THUMBNAIL_LAST_GOOD_FILES, ...THUMBNAIL_LAST_GOOD_NEW_FILES, ...THUMBNAIL_LAST_GOOD_PIN_FILES, // stacked: thumbnail last good's own files and the pins it teaches (after duplicate copy title in the stack)
+    ...BULK_EDIT_UNDO_FILES, ...BULK_EDIT_UNDO_NEW_FILES, ...BULK_EDIT_UNDO_PIN_FILES, // stacked: bulk edit + chat undo's own files and the pins it teaches (after thumbnail last good in the stack)
+    'scripts/studio-open-read-only-strip.mjs', 'scripts/studio-theme-dark-persist-strip.mjs', 'scripts/studio-add-slide-status-strip.mjs', 'scripts/studio-library-manage-harness.mjs',
     'scripts/test-studio-job-ledger.mjs', 'scripts/test-studio-chat-theme-export.mjs', 'scripts/test-studio-new-deck-handoff-send.mjs',
     'scripts/test-studio-publish-review-fit.mjs', 'scripts/test-studio-version-history-deck-only.mjs', 'scripts/test-studio-compose-entitlement.mjs', 'scripts/test-studio-publish-preview-inventory.mjs', 'scripts/test-studio-chat-element-refine.mjs'])
-  deepEq(allChanged().filter(rel => !allowed.has(rel)), [], 'no file outside this change\'s own, the three strip roots, the harness list and the three pins that read through the strip')
+  deepEq(allChanged().filter(rel => !allowed.has(rel) && !LATER_CHANGE_FILES.has(rel)), [], 'no file outside this change\'s own, the three strip roots, the harness list and the three pins that read through the strip (or a later change\'s, which registers its files in scripts/studio-later-changes.mjs)')
   for (const rel of [...PAYMENTS_OPEN_SOON_FILES, LIB, HOOK, MOUNT, CSS].filter(file => !file.startsWith('scripts/') && file !== ENV)) ok(STACKED_PASS3_FILES.includes(rel), `${rel} is in STACKED_PASS3_FILES`)
   // .env.example
   const env = read(ENV), start = env.indexOf('# PAYMENTS OPEN SOON (')

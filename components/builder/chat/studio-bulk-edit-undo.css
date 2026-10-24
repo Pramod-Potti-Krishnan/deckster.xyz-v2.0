@@ -1,0 +1,66 @@
+/* FRONTEND-2 (PROGRAM-1 SUPERCHARGE I2): the whole-deck edit card (flag NEXT_PUBLIC_STUDIO_BULK_EDIT) and the Undo chip (flag NEXT_PUBLIC_STUDIO_CHAT_UNDO).
+   Every rule is keyed to [data-studio-bulk-edit*] or [data-studio-chat-undo*], attributes only these two pieces carry, and they are rendered only with their flag
+   on AND Director's capability advertised (Studio shell only), so with the flags off none of this matches anything. The colours are the Studio shell's own tokens
+   (--ss-*), so they follow light and dark; a state is always said in words and an icon as well as colour. */
+[data-studio-v4-shell="true"] [data-studio-bulk-edit] {
+  display: grid; gap: 9px; min-width: 0; padding: 12px 13px; box-sizing: border-box;
+  border: 1px solid color-mix(in srgb, var(--ss-accent) 30%, var(--ss-line)); border-radius: 11px;
+  background: color-mix(in srgb, var(--ss-accent) 4%, var(--ss-panel)); color: var(--ss-text);
+}
+[data-studio-v4-shell="true"] [data-studio-bulk-edit-part="heading"] { display: flex; align-items: center; gap: 6px; margin: 0; color: var(--ss-accent); font-size: 9.5px; letter-spacing: .09em; text-transform: uppercase; }
+[data-studio-v4-shell="true"] [data-studio-bulk-edit-part="heading"] > svg { flex: none; width: 12px; height: 12px; }
+[data-studio-v4-shell="true"] [data-studio-bulk-edit-part="count"] { margin-left: auto; color: var(--ss-muted); font-size: 10px; letter-spacing: 0; text-transform: none; white-space: nowrap; }
+[data-studio-v4-shell="true"] [data-studio-bulk-edit-part="instruction"] { margin: 0; color: var(--ss-text); font-size: 12px; line-height: 1.55; overflow-wrap: anywhere; }
+[data-studio-v4-shell="true"] [data-studio-bulk-edit-part="chips"] { display: flex; flex-wrap: wrap; gap: 5px; margin: 0; padding: 0; list-style: none; max-height: 132px; overflow-y: auto; }
+[data-studio-v4-shell="true"] [data-studio-bulk-edit-chip] {
+  display: inline-flex; align-items: center; gap: 5px; max-width: 100%; min-width: 0; padding: 2px 8px; box-sizing: border-box;
+  border: 1px solid var(--ss-line); border-radius: 12px; background: var(--ss-panel); color: var(--ss-text); font-size: 11px; line-height: 17px;
+}
+[data-studio-v4-shell="true"] [data-studio-bulk-edit-chip] > svg { flex: none; width: 11px; height: 11px; }
+[data-studio-v4-shell="true"] [data-studio-bulk-edit-chip-part="number"] { flex: none; color: var(--ss-muted); }
+[data-studio-v4-shell="true"] [data-studio-bulk-edit-chip-part="title"] { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 22ch; }
+[data-studio-v4-shell="true"] [data-studio-bulk-edit-chip][data-state="done"] { border-color: color-mix(in srgb, var(--ss-teal) 55%, var(--ss-line)); }
+[data-studio-v4-shell="true"] [data-studio-bulk-edit-chip][data-state="done"] > svg { color: var(--ss-teal); }
+[data-studio-v4-shell="true"] [data-studio-bulk-edit-chip][data-state="failed"] { border-style: dashed; border-color: var(--ss-text); }
+[data-studio-v4-shell="true"] [data-studio-bulk-edit-chip][data-state="skipped"] { border-style: dotted; color: var(--ss-muted); }
+[data-studio-v4-shell="true"] [data-studio-bulk-edit-part="estimate"],
+[data-studio-v4-shell="true"] [data-studio-bulk-edit-part="progress"] { margin: 0; color: var(--ss-muted); font-size: 11px; line-height: 1.5; overflow-wrap: anywhere; }
+[data-studio-v4-shell="true"] [data-studio-bulk-edit-part="actions"] { display: flex; flex-wrap: wrap; gap: 6px; }
+[data-studio-v4-shell="true"] [data-studio-bulk-edit-option] {
+  display: inline-flex; align-items: center; gap: 5px; min-height: 30px; max-width: 100%; padding: 6px 11px; box-sizing: border-box;
+  border: 1px solid var(--ss-line); border-radius: 16px; background: var(--ss-panel); color: var(--ss-text);
+  font-size: 11.5px; line-height: 1.4; text-align: left; white-space: normal; overflow-wrap: anywhere; cursor: pointer;
+}
+[data-studio-v4-shell="true"] [data-studio-bulk-edit-option][data-primary="true"] { border-color: var(--ss-action); background: var(--ss-action); color: var(--ss-on-action); }
+[data-studio-v4-shell="true"] [data-studio-bulk-edit-option]:not(:disabled):hover { border-color: var(--ss-teal); }
+[data-studio-v4-shell="true"] [data-studio-bulk-edit-option]:disabled { cursor: default; opacity: 0.65; }
+[data-studio-v4-shell="true"] [data-studio-bulk-edit-option][aria-pressed="true"] { opacity: 1; box-shadow: 0 0 0 2px color-mix(in srgb, var(--ss-teal) 55%, transparent); }
+[data-studio-v4-shell="true"] [data-studio-bulk-edit-option]:focus-visible,
+[data-studio-v4-shell="true"] [data-studio-chat-undo] button:focus-visible { outline: 2px solid var(--ss-accent); outline-offset: 2px; }
+[data-studio-v4-shell="true"] [data-studio-bulk-edit-part="answer"] { display: flex; align-items: center; gap: 5px; margin: 0; color: var(--ss-muted); font-size: 11px; line-height: 1.5; }
+[data-studio-v4-shell="true"] [data-studio-bulk-edit-part="answer"] > svg { flex: none; width: 12px; height: 12px; color: var(--ss-teal); }
+[data-studio-v4-shell="true"] [data-studio-bulk-edit-part="summary"] { display: flex; flex-wrap: wrap; gap: 5px; margin: 0; }
+[data-studio-v4-shell="true"] [data-studio-bulk-edit-part="summary"] > span {
+  padding: 2px 8px; border: 1px solid var(--ss-line); border-radius: 12px; background: var(--ss-panel); color: var(--ss-text); font-size: 11px; line-height: 17px;
+}
+[data-studio-v4-shell="true"] [data-studio-bulk-edit-part="summary"][data-summary-state="all-changed"] > span:first-child { border-color: color-mix(in srgb, var(--ss-teal) 55%, var(--ss-line)); }
+[data-studio-v4-shell="true"] [data-studio-bulk-edit-part="reasons"] { display: grid; gap: 3px; margin: 0; padding: 0; list-style: none; }
+[data-studio-v4-shell="true"] [data-studio-bulk-edit-part="reasons"] > li { color: var(--ss-muted); font-size: 11px; line-height: 1.5; overflow-wrap: anywhere; }
+
+/* The Undo chip: a small control under the Director chat line that reported the change. */
+[data-studio-v4-shell="true"] [data-studio-chat-undo-slot] { margin-top: 6px; }
+[data-studio-v4-shell="true"] [data-studio-chat-undo] { display: inline-flex; align-items: center; gap: 5px; max-width: 100%; min-height: 24px; padding: 2px 9px; box-sizing: border-box;
+  border: 1px solid var(--ss-line); border-radius: 12px; background: var(--ss-panel); color: var(--ss-muted); font-size: 11px; line-height: 17px; overflow-wrap: anywhere; }
+[data-studio-v4-shell="true"] button[data-studio-chat-undo] { cursor: pointer; font-family: inherit; }
+[data-studio-v4-shell="true"] button[data-studio-chat-undo="idle"] { color: var(--ss-text); }
+[data-studio-v4-shell="true"] button[data-studio-chat-undo="idle"]:hover { border-color: var(--ss-teal); }
+[data-studio-v4-shell="true"] button[data-studio-chat-undo]:disabled { cursor: default; opacity: 0.8; }
+[data-studio-v4-shell="true"] [data-studio-chat-undo] > svg { flex: none; width: 12px; height: 12px; }
+[data-studio-v4-shell="true"] [data-studio-chat-undo="pending"] > svg { animation: studio-chat-undo-spin 0.9s linear infinite; }
+[data-studio-v4-shell="true"] [data-studio-chat-undo="restored"] > svg { color: var(--ss-teal); }
+@keyframes studio-chat-undo-spin { to { transform: rotate(360deg); } }
+@media (prefers-reduced-motion: reduce) { [data-studio-v4-shell="true"] [data-studio-chat-undo="pending"] > svg { animation: none; } }
+@media (forced-colors: active) {
+  [data-studio-v4-shell="true"] [data-studio-bulk-edit], [data-studio-v4-shell="true"] [data-studio-bulk-edit-chip], [data-studio-v4-shell="true"] [data-studio-chat-undo] { border-color: CanvasText; }
+  [data-studio-v4-shell="true"] [data-studio-bulk-edit-option] { border-color: ButtonText; }
+}

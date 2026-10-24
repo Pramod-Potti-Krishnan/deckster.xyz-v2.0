@@ -40,13 +40,17 @@ import { BASE_COMMIT, VERSION_HISTORY_DECK_ONLY_FILES, VERSION_HISTORY_DECK_ONLY
 import { stripComposeEntitlement } from './studio-compose-entitlement-strip.mjs' // stacked: #494, after this change
 import { stripPublishPreviewInventory } from './studio-publish-preview-inventory-strip.mjs' // stacked: #495, after this change
 import { stripPaymentsOpenSoon } from './studio-payments-open-soon-strip.mjs' // stacked: payments open soon (billing), after #495 in the stack
+import { stripDuplicateCopyTitle } from './studio-duplicate-copy-title-strip.mjs' // stacked: duplicate copy title (the Decks page's copy title and the copy's header), after #496 in the stack
+import { stripThumbnailLastGood } from './studio-thumbnail-last-good-strip.mjs' // stacked: thumbnail last good (the Studio half of "never blank": a rail card's last good preview and the Publish preview's fallback), after duplicate copy title in the stack
+import { stripBulkEditUndo } from './studio-bulk-edit-undo-strip.mjs' // stacked: bulk edit + chat undo (NEXT_PUBLIC_STUDIO_BULK_EDIT / NEXT_PUBLIC_STUDIO_CHAT_UNDO: a whole-deck edit card and an Undo chip in chat), after thumbnail last good in the stack
 import { stripOpenReadOnly } from './studio-open-read-only-strip.mjs'
 import { stripDarkPersist } from './studio-theme-dark-persist-strip.mjs'
 import { stripAddSlideStatus } from './studio-add-slide-status-strip.mjs'
 import { STACKED_PASS3_FILES } from './studio-library-manage-harness.mjs'
+import { stripLaterEnvBlocks } from './studio-later-changes.mjs' // stacked: the later-changes registry (a change stacked after this one registers its .env.example block there; every read of .env.example goes through it first)
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..')
-const read = rel => fs.readFileSync(path.join(root, rel), 'utf8')
+const read = rel => stripLaterEnvBlocks(rel, fs.readFileSync(path.join(root, rel), 'utf8')) // stacked: a later change's .env.example block comes out first (scripts/studio-later-changes.mjs)
 const sha = text => crypto.createHash('sha256').update(text).digest('hex')
 const plain = value => JSON.parse(JSON.stringify(value === undefined ? null : value))
 const git = (...args) => execFileSync('git', args, { cwd: root, encoding: 'utf8', maxBuffer: 64 * 1024 * 1024, stdio: ['ignore', 'pipe', 'pipe'] })
@@ -316,7 +320,7 @@ async function staticChecks() {
     for (const rootFile of ['scripts/studio-open-read-only-strip.mjs', 'scripts/studio-theme-dark-persist-strip.mjs', 'scripts/studio-add-slide-status-strip.mjs']) {
       const text = read(rootFile)
       assert.equal((text.match(/import \{ stripVersionHistoryDeckOnly \} from '\.\/studio-version-history-deck-only-strip\.mjs'/g) || []).length, 1, `${rootFile}: one import`)
-      assert.equal((text.match(/stripVersionHistoryDeckOnly\(rel, (?:stripPublishPreviewInventory\(rel, )?(?:stripPaymentsOpenSoon\(rel, )?text\)/g) || []).length, 1, `${rootFile}: chained once`)
+      assert.equal((text.match(/stripVersionHistoryDeckOnly\(rel, (?:stripPublishPreviewInventory\(rel, )?(?:stripPaymentsOpenSoon\(rel, )?(?:stripDuplicateCopyTitle\(rel, )?(?:stripThumbnailLastGood\(rel, )?(?:stripBulkEditUndo\(rel, )?text\)/g) || []).length, 1, `${rootFile}: chained once`)
     }
     assert.ok(STACKED_PASS3_FILES.includes(HOOK) && STACKED_PASS3_FILES.includes(LIB), 'the new hook and the changed lib are in STACKED_PASS3_FILES')
   })
@@ -324,6 +328,9 @@ async function staticChecks() {
   await check(".env.example: documented once, default off, right before # PASS2 ADMIN after the new-deck handoff block; no phrase FRONTEND-1's .env.example mutants replace", () => envChecks(read(ENV)))
 }
 function envChecks(env) {
+  env = stripBulkEditUndo('.env.example', env) // stacked: bulk edit + chat undo's block (the very last in the stack) comes out first
+  env = stripThumbnailLastGood('.env.example', env) // stacked: thumbnail last good's block comes out next
+  env = stripDuplicateCopyTitle('.env.example', env) // stacked: duplicate copy title's block comes out next
   env = stripPaymentsOpenSoon('.env.example', env) // stacked: payments open soon's block (the last in the stack) comes out first
   env = stripPublishPreviewInventory('.env.example', env) // stacked: #495's block comes out too
   env = stripComposeEntitlement('.env.example', env) // stacked: #494's .env.example block (STUDIO_COMPOSE_ENTITLEMENT_ENABLED) sits between this block and # PASS2 ADMIN; it comes out first
