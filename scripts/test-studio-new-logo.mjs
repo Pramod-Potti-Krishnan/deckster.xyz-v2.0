@@ -3,6 +3,7 @@
 //
 // Run: node scripts/test-studio-new-logo.mjs   (plain node: transpile + vm, no network, no browser, no env)
 //   STUDIO_NEW_LOGO_BASE=<commit> overrides the base the flag-off identity is checked against (default 661b5b6, the head of #483 on the post-#489 base, the commit this change is stacked on).
+//   STUDIO_NEW_LOGO_HEAD=<commit> overrides the head of this change's own PR (default 1f1f8fe, #488's head): its diff against the base is the list of files the change answers for, whatever was merged after it.
 //
 // Proven on the REAL sources: lib/studio-new-logo.ts, components/layout/studio-rail.tsx, components/layout/studio-new-logo.css (and the shared files it must not touch):
 //   1. the lib: only a real `true` is on; it is import-free; the image it names is a real, square PNG with pixels to spare for a 32px tile; the size it names is the tile's CSS size;
@@ -10,8 +11,8 @@
 //      on, the brand tile alone changes (one image of the right file and size, the same link, the same name, no Layers icon in it) and every other byte, every href and the Studio entry are the same;
 //   3. the CSS (parsed): every selector needs the marker the rail sets only with the flag on, so it is inert without it; it beats the tile's own rules; it changes the tile's fill and shadow and the
 //      image's fit and nothing about the tile's box (so the 32px tile, its link and the hairline under it stay), with a dark variant, and no media query (the 56px and the 48px rail get the same tile);
-//   4. the shared files: the rail minus this change's lines is the base file; the shell and the details CSS, the logo files and the other flags' files are not touched; .env.example and the harness list
-//      only gain lines; the flag is documented once, default "false"; nothing else reads it;
+//   4. the shared files: the rail minus this change's lines is the base file; the shell and the details CSS, the logo files and the other flags' files are not touched by this change's own PR diff (a later PR may edit them: only its own
+//      files are judged); .env.example and the harness list only gain lines (a later PR's lines are taken, an earlier line edited or dropped is not); the flag is documented once, default "false"; nothing else reads it;
 //   5. mutation check: every mutant of the lib, the rail, the CSS and .env.example is killed.
 import assert from 'node:assert/strict'
 import fs from 'node:fs'
@@ -29,6 +30,8 @@ const jsxRuntime = nodeRequire('react/jsx-runtime')
 const { renderToStaticMarkup } = nodeRequire('react-dom/server')
 const postcss = nodeRequire('postcss')
 const BASE_COMMIT = process.env.STUDIO_NEW_LOGO_BASE || '661b5b6dd398b3660e4775769b485b36b052498b'
+// The head of this change's own PR (#488), frozen: `git diff --name-only BASE_COMMIT OWN_HEAD` is what the change touches, however many PRs were merged on top of it since.
+const OWN_HEAD = process.env.STUDIO_NEW_LOGO_HEAD || '1f1f8fe7567ba919b6f93441a0c54f383816ed32'
 const read = rel => fs.readFileSync(path.join(repoRoot, rel), 'utf8')
 function baseSource(rel) {
   try {
@@ -42,6 +45,13 @@ function changedSinceBase() {
     // the working tree against the base (the same as HEAD once committed), new files included
     const run = args => execFileSync('git', args, { cwd: repoRoot, encoding: 'utf8' }).split('\n').filter(Boolean)
     return [...new Set([...run(['diff', '--name-only', BASE_COMMIT]), ...run(['ls-files', '--others', '--exclude-standard'])])].sort()
+  } catch { return null }
+}
+// the files this change's own PR touched (git's answer for BASE_COMMIT..OWN_HEAD), or null when either commit is not in this clone
+function frozenDiff() {
+  try {
+    for (const commit of [BASE_COMMIT, OWN_HEAD]) execFileSync('git', ['cat-file', '-e', `${commit}^{commit}`], { cwd: repoRoot, stdio: 'ignore' })
+    return execFileSync('git', ['diff', '--name-only', BASE_COMMIT, OWN_HEAD], { cwd: repoRoot, encoding: 'utf8' }).split('\n').filter(Boolean).sort()
   } catch { return null }
 }
 let checks = 0
@@ -252,17 +262,20 @@ proveShared(SOURCES[RAIL], SOURCES[ENV], read(HARNESS))
 const OWN = ['.env.example', 'components/layout/studio-new-logo.css', 'components/layout/studio-rail.tsx', 'lib/studio-new-logo.ts', 'scripts/studio-library-manage-harness.mjs', 'scripts/test-studio-new-logo.mjs', 'scripts/test-studio-p2-details.mjs', 'scripts/test-studio-plain-nav-labels.mjs']
 const OWN_EXTRA = [] // other registrations (package.json) are checked by their own tests
 const CHANGE = { pr: 'studio-new-logo', files: [...OWN, ...OWN_EXTRA], family: /^(lib\/studio-new-logo[^/]*|components\/layout\/studio-new-logo[^/]*|scripts\/(test-)?studio-new-logo[^/]*)$/, stray: 'lib/studio-new-logo-later.ts' }
-function proveScope(changed, label = 'scope') {
-  const scope = stackScope(changed, CHANGE, rel => CHANGE.files.includes(rel) || rel === 'package.json')
+// Files this change must not touch. A later PR may edit any of them (#486 edits app/builder/page.tsx), so "not touched" is judged on this change's OWN diff (`own`, the frozen PR diff), never on the diff of a tree
+// that later PRs were merged into; `changed` (that tree's diff against the base) only answers "are this change's own files still changed" and "is there a stray in its path family".
+const NOT_OWN = [SHELL_CSS, P2_CSS, 'components/layout/app-header.tsx', 'components/layout/Header.tsx', 'components/builder/builder-header.tsx', 'app/builder/page.tsx', LOGO_FILE, 'public/logo-icon.png', 'public/logo-wordmark.png', 'public/logo-wordmark-sm.png', 'app/icon.png']
+function proveScope(changed, own, label = 'scope', change = CHANGE) {
+  const scope = stackScope(changed, change, rel => change.files.includes(rel) || rel === 'package.json')
   deepEq(scope.stray, [], `${label}: no stray file in this change's path family`)
   for (const rel of OWN.filter(rel => rel !== 'scripts/studio-library-manage-harness.mjs')) ok(changed.includes(rel), `${label}: ${rel} is changed against the base`)
-  for (const rel of [SHELL_CSS, P2_CSS, 'components/layout/app-header.tsx', 'components/layout/Header.tsx', 'components/builder/builder-header.tsx', 'app/builder/page.tsx', LOGO_FILE, 'public/logo-icon.png', 'public/logo-wordmark.png', 'public/logo-wordmark-sm.png', 'app/icon.png'])
-    ok(!changed.includes(rel), `${label}: ${rel} is not touched`)
+  deepEq([...own].sort(), [...change.files].sort(), `${label}: the frozen list is this change's own PR diff (git diff --name-only ${BASE_COMMIT.slice(0, 7)} ${OWN_HEAD.slice(0, 7)})`)
+  for (const rel of NOT_OWN) ok(!own.includes(rel), `${label}: ${rel} is not touched by this change (a later PR's edit of it is not this change's)`)
   if (counting) console.log(`  ${scope.line}`)
 }
-const changed = changedSinceBase()
-if (changed) proveScope(changed)
-else console.log(`  SKIP diff scope: ${BASE_COMMIT} is not in this clone`)
+const changed = changedSinceBase(), frozen = frozenDiff()
+if (changed && frozen) proveScope(changed, frozen)
+else console.log(`  SKIP diff scope: ${BASE_COMMIT.slice(0, 7)} or ${OWN_HEAD.slice(0, 7)} is not in this clone`)
 // the flag is read in one place: the rail
 {
   const readers = []
@@ -379,18 +392,32 @@ for (const rel of [LIB, CSS, RAIL]) {
   try { proveShared(SOURCES[RAIL], SOURCES[ENV], mutated, `harness without ${rel}`); survived = true } catch (error) { assert.equal(error?.code, 'ERR_ASSERTION'); killed++ }
   assert.ok(!survived, `mutant survived: harness without ${rel}`)
 }
-// the scope: a later PR's stray file in this change's family and an own file missing are refused
+const refused = fn => { try { fn(); return false } catch (error) { return error?.code === 'ERR_ASSERTION' } }
+// an owned shared file keeps every line the base had: an earlier line of the harness list edited or dropped is refused (a later PR's added line is taken, below)
 {
-  const refused = fn => { try { fn(); return false } catch (error) { return error?.code === 'ERR_ASSERTION' } }
-  const clean = changed ?? CHANGE.files
-  assert.ok(refused(() => proveScope([...clean, CHANGE.stray], 'stray')), 'mutant: a stray file in this change\'s family is refused'); killed++
-  assert.ok(refused(() => proveScope(clean.filter(rel => rel !== CSS), 'own file missing')), 'mutant: an own file missing is refused'); killed++
-  assert.ok(refused(() => proveScope([...clean, SHELL_CSS], 'shell css touched')), 'mutant: the shell CSS touched is refused'); killed++
-  assert.ok(refused(() => proveScope([...clean, LOGO_FILE], 'logo file touched')), 'mutant: the logo file touched is refused'); killed++
-  assert.ok(!refused(() => proveScope([...clean, 'app/later-pr/page.tsx'], 'later pr')), 'control: a later PR\'s file elsewhere is ignored');
+  const baseHarness = baseSource(HARNESS)
+  const earlier = baseHarness?.split('\n').find((line, at, all) => at > 0 && line.includes("'app/") && all.filter(other => other === line).length === 1 && sh.split(line).length === 2)
+  if (earlier) {
+    assert.ok(refused(() => proveShared(SOURCES[RAIL], SOURCES[ENV], sh.replace(earlier, () => `${earlier} // edited`), 'harness edit')), 'mutant: an earlier line of the harness list edited is refused'); killed++
+    assert.ok(refused(() => proveShared(SOURCES[RAIL], SOURCES[ENV], sh.replace(`${earlier}\n`, () => ''), 'harness drop')), 'mutant: an earlier line of the harness list dropped is refused'); killed++
+  } else console.log(`  SKIP harness base-line mutants: ${BASE_COMMIT.slice(0, 7)} is not in this clone`)
+}
+// the scope: a later PR's stray file in this change's family, an own file missing, and a file this change must not touch showing up in its own PR diff are refused
+{
+  const clean = changed ?? CHANGE.files, own = frozen ?? CHANGE.files
+  assert.ok(refused(() => proveScope([...clean, CHANGE.stray], own, 'stray')), 'mutant: a stray file in this change\'s family is refused'); killed++
+  assert.ok(refused(() => proveScope(clean.filter(rel => rel !== CSS), own, 'own file missing')), 'mutant: an own file missing is refused'); killed++
+  assert.ok(refused(() => proveScope(clean, [...own, SHELL_CSS], 'shell css edited by this change\'s PR', { ...CHANGE, files: [...CHANGE.files, SHELL_CSS] })), 'mutant: the shell CSS touched by this change is refused'); killed++
+  assert.ok(refused(() => proveScope(clean, [...own, LOGO_FILE], 'logo file edited by this change\'s PR', { ...CHANGE, files: [...CHANGE.files, LOGO_FILE] })), 'mutant: the logo file touched by this change is refused'); killed++
+  assert.ok(refused(() => proveScope(clean, [...own, 'lib/studio-nav-labels.ts'], 'a file in the PR diff but not the frozen list')), 'mutant: a frozen list that misses a file the PR diff touches is refused'); killed++
+  assert.ok(!refused(() => proveScope([...clean, 'app/later-pr/page.tsx'], own, 'later pr')), 'control: a later PR\'s file elsewhere is ignored')
+  assert.ok(!refused(() => proveScope([...clean, 'app/builder/page.tsx', SHELL_CSS, 'components/layout/Header.tsx', LOGO_FILE], own, 'later pr edits files this change leaves alone')), 'control: a later PR\'s edit of a file this change does not touch (the Builder page, the shell CSS, a header, the logo) is not this change\'s')
+  // and a later PR's lines in the owned shared files are taken
+  assert.ok(!refused(() => proveShared(SOURCES[RAIL], SOURCES[ENV], `${sh}\n// a later PR's line (made up, for this check)\n`, 'later harness line')), 'control: a later PR\'s line in the harness list is taken')
+  assert.ok(!refused(() => proveShared(SOURCES[RAIL], `${SOURCES[ENV]}\n# A LATER PR (made up, for this check)\nNEXT_PUBLIC_STUDIO_SOME_LATER_FLAG="false"\n`, sh, 'later env block')), 'control: a later PR\'s block in .env.example is taken')
 }
 counting = true
-const TOTAL = MUTANTS.length + 3 + 4
+const TOTAL = MUTANTS.length + 3 + 2 + 5
 eq(killed, TOTAL)
 
 console.log(`Studio new logo (rail brand tile): ${checks} checks passed, ${killed}/${TOTAL} mutants killed (${killed - byThrow} by an assertion, ${byThrow} by the code throwing); no network.`)
