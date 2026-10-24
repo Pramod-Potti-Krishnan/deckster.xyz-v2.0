@@ -14,6 +14,7 @@ import { stripComposeEntitlement } from './studio-compose-entitlement-strip.mjs'
 import { stripPublishPreviewInventory } from './studio-publish-preview-inventory-strip.mjs' // Publish preview from Layout's inventory (stacked)
 import { stripPaymentsOpenSoon } from './studio-payments-open-soon-strip.mjs' // payments open soon (stacked)
 import { stripDuplicateCopyTitle } from './studio-duplicate-copy-title-strip.mjs' // duplicate copy title (stacked)
+import { stripThumbnailLastGood } from './studio-thumbnail-last-good-strip.mjs' // thumbnail last good (stacked)
 
 export const PAGE = 'app/builder/page.tsx'
 
@@ -30,5 +31,5 @@ export function stripOpenReadOnly(rel, text) {
   // FRONTEND-2 Pass 3 (NEXT_PUBLIC_STUDIO_DUPLICATE_DECK): that flag's import and gated element come out too (scripts/studio-duplicate-deck-strip.mjs), so a pin that holds the page to a base commit with this strip alone still sees the base.
   // FRONTEND-2 Pass 3 (NEXT_PUBLIC_CHAT_ELEMENT_REFINE): that flag's gated lines come out too (scripts/studio-chat-element-refine-strip.mjs), so a pin that holds the page to a base commit with this strip alone still sees the base.
   // FRONTEND-2 Pass 3 (NEXT_PUBLIC_CHAT_THEME_CHANGE / NEXT_PUBLIC_CHAT_EXPORT): those flags' gated lines come out first (scripts/studio-chat-theme-export-strip.mjs).
-  return PAGE_ADDITIONS.reduce((result, [added, original]) => result.replace(added, original), stripDuplicateDeck(rel, stripChatElementRefine(rel, stripChatThemeExport(rel, stripReconnectResync(rel, stripJobLedger(rel, stripComposeEntitlement(rel, stripNewDeckHandoffSend(rel, stripPublishReviewFit(rel, stripVersionHistoryDeckOnly(rel, stripPublishPreviewInventory(rel, stripPaymentsOpenSoon(rel, stripDuplicateCopyTitle(rel, text)))))))))))))
+  return PAGE_ADDITIONS.reduce((result, [added, original]) => result.replace(added, original), stripDuplicateDeck(rel, stripChatElementRefine(rel, stripChatThemeExport(rel, stripReconnectResync(rel, stripJobLedger(rel, stripComposeEntitlement(rel, stripNewDeckHandoffSend(rel, stripPublishReviewFit(rel, stripVersionHistoryDeckOnly(rel, stripPublishPreviewInventory(rel, stripPaymentsOpenSoon(rel, stripDuplicateCopyTitle(rel, stripThumbnailLastGood(rel, text))))))))))))))
 }
