@@ -110,6 +110,9 @@ export const STACKED_PASS3_FILES = [
   'lib/studio-job-ledger.ts', 'components/builder/chat/studio-job-ledger-card.tsx', 'components/builder/chat/studio-job-ledger-card.css',
   // New-deck handoff send (NEXT_PUBLIC_STUDIO_NEW_DECK_HANDOFF_SEND, stacked): its hook.
   'hooks/use-studio-new-deck-handoff-send.ts',
+  // Payments open soon (NEXT_PUBLIC_STUDIO_PAYMENTS_OPEN_SOON, stacked): its lib, hook, mount and sheet, the account layout's one flag-gated element, the two checkout routes, the upgrade button and the top-up modal; no library file.
+  'lib/studio-payments-open-soon.ts', 'hooks/use-studio-payments-open-soon.ts', 'components/billing/studio-payments-open-soon.css', 'components/billing/studio-payments-open-soon-mount.tsx',
+  'app/(app)/layout.tsx', 'app/api/stripe/create-checkout-session/route.ts', 'app/api/stripe/create-topup-session/route.ts', 'components/billing/UpgradeButton.tsx', 'components/builder/topup-modal.tsx',
   // Studio new logo (NEXT_PUBLIC_STUDIO_NEW_LOGO, FRONTEND-1, stacked on the UAT marketing port): the rail's brand tile, its flag helper and its sheet.
   'lib/studio-new-logo.ts', 'components/layout/studio-new-logo.css', 'components/layout/studio-rail.tsx',
 ]

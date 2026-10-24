@@ -119,6 +119,8 @@ import { STUDIO_JOB_LEDGER_ENABLED } from '@/lib/studio-job-ledger'
 import { StudioJobLedgerCards, studioJobLedger } from '@/components/builder/chat/studio-job-ledger-card'
 // NEXT_PUBLIC_STUDIO_NEW_DECK_HANDOFF_SEND (default off): Director's new-deck handoff sends its brief on the NEW session's socket, once (hooks/use-studio-new-deck-handoff-send.ts).
 import { STUDIO_NEW_DECK_HANDOFF_SEND_ENABLED, useStudioNewDeckHandoffSend } from '@/hooks/use-studio-new-deck-handoff-send'
+// NEXT_PUBLIC_STUDIO_PAYMENTS_OPEN_SOON (default off): the Builder's account menu upgrade row says "Payments open soon" (hooks/use-studio-payments-open-soon.ts); the top-up modal gates itself.
+import { useStudioPaymentsOpenSoon } from '@/hooks/use-studio-payments-open-soon'
 import { StudioSupersededNotice } from '@/components/builder/studio-superseded-notice'
 import { StudioCopiedFromNote } from '@/components/builder/studio-copied-from-note'
 // NEXT_PUBLIC_STUDIO_DECK_IMPORT (default off): the note on an imported deck, loaded only when it is drawn (a build or page that does not draw it ships nothing of it).
@@ -4793,6 +4795,9 @@ function AuthenticatedBuilderContent({ authScopeUserId }: { authScopeUserId: str
   })
   // NEXT_PUBLIC_STUDIO_NEW_DECK_HANDOFF_SEND (default off): the brief of Director's new-deck handoff, sent on the NEW session's socket once it opens, once; not sent: back in the box.
   const armNewDeckHandoffSend = useStudioNewDeckHandoffSend({ currentSessionId, wsSessionId, socketSessionId, connected, connectionGeneration, sendMessageWhenConnected, setInputMessage, setUserMessages: session.setUserMessages, toast })
+
+  // NEXT_PUBLIC_STUDIO_PAYMENTS_OPEN_SOON (default off): the account menu's upgrade row is disabled and says "Payments open soon". Flag off, the hook returns before it reads the document.
+  useStudioPaymentsOpenSoon()
 
   // NEXT_PUBLIC_STUDIO_BLANK_DECK_RELOAD_FIX: the session restore owns the deck. When it commits (a new transcript receipt, set in
   // the same batch as the restored deck), retire a local override it did not restore, as the override-retire effect does: an
