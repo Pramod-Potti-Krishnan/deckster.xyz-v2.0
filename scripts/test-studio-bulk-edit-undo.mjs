@@ -26,14 +26,14 @@ import path from 'node:path'
 import vm from 'node:vm'
 import { createRequire } from 'node:module'
 import { execFileSync } from 'node:child_process'
-import { fileURLToPath } from 'node:url'
+import { fileURLToPath, pathToFileURL } from 'node:url'
 import ts from 'typescript'
 import { BASE_COMMIT, BULK_EDIT_UNDO_CHANGES, BULK_EDIT_UNDO_FILES, BULK_EDIT_UNDO_NEW_FILES, BULK_EDIT_UNDO_PIN_FILES } from './studio-bulk-edit-undo-strip.mjs'
 import { stripOpenReadOnly } from './studio-open-read-only-strip.mjs'
 import { stripDarkPersist } from './studio-theme-dark-persist-strip.mjs'
 import { stripAddSlideStatus } from './studio-add-slide-status-strip.mjs'
 import { STACKED_PASS3_FILES } from './studio-library-manage-harness.mjs'
-import { LATER_CHANGE_FILES, stripLaterEnvBlocks } from './studio-later-changes.mjs' // stacked: the later-changes registry (a change stacked after this one registers its files and its .env.example block there; scope checks skip its files, every read of .env.example goes through it first)
+import { LATER_CHANGE_FILES, stripLaterChanges } from './studio-later-changes.mjs' // stacked: the later-changes registry (a change stacked after this one registers its files, its .env.example block and its strip there; scope checks skip its files, every read of an app file or .env.example goes through it first)
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..')
 const nodeRequire = createRequire(import.meta.url)
@@ -42,7 +42,7 @@ const git = (...args) => execFileSync('git', args, { cwd: root, encoding: 'utf8'
 const baseCache = new Map()
 const baseOf = rel => { if (!baseCache.has(rel)) baseCache.set(rel, git('show', `${BASE}:${rel}`)); return baseCache.get(rel) }
 let overrides = {} // in-memory mutations: the suite reads every source through read()
-const read = rel => (rel in overrides ? overrides[rel] : stripLaterEnvBlocks(rel, fs.readFileSync(path.join(root, rel), 'utf8')))
+const read = rel => (rel in overrides ? overrides[rel] : stripLaterChanges(rel, fs.readFileSync(path.join(root, rel), 'utf8')))
 const sha = value => crypto.createHash('sha256').update(value).digest('hex')
 const plain = value => JSON.parse(JSON.stringify(value === undefined ? null : value))
 
@@ -652,7 +652,7 @@ async function suite() {
   })
 
   // ---- 9. change
-  const stripFile = async () => (await import(`data:text/javascript;base64,${Buffer.from(read(STRIP_MODULE)).toString('base64')}`))
+  const stripFile = async () => (await import(`data:text/javascript;base64,${Buffer.from(read(STRIP_MODULE).replace("'./studio-later-changes.mjs'", JSON.stringify(pathToFileURL(path.join(root, 'scripts/studio-later-changes.mjs')).href))).toString('base64')}`)) // a data: module cannot resolve a relative import: the registry (which runs first inside this strip) is named by its absolute file URL
   await check('strip: stripping this change gives back the base files byte for byte; every piece occurs once and carries the marker', async () => {
     const mod = await stripFile()
     for (const rel of mod.BULK_EDIT_UNDO_FILES) {
@@ -691,12 +691,12 @@ async function suite() {
   })
   await check('registry: a later change registers with one marked line per list; registered, the scope checks and the .env.example pins see this change alone, unregistered they refuse its files and block', async () => {
     // (a) the committed lists hold marked registrations only (one line each, no test edit), and the code is run with its lists emptied: what is proved is the code, not whatever is registered today
-    const source = read(LATER), FILES_LIST = /(export const LATER_CHANGE_FILES = new Set\(\[)([\s\S]*?)(\n\]\))/, BLOCKS_LIST = /(export const LATER_ENV_BLOCKS = \[)([\s\S]*?)(\n\])/
-    const files = source.match(FILES_LIST), blocks = source.match(BLOCKS_LIST)
-    assert.ok(files && blocks, 'both lists are exported as written')
-    for (const body of [files[2], blocks[2]]) for (const line of body.split('\n').map(text => text.trim()).filter(text => text && !text.startsWith('//'))) assert.ok(line.includes('LATER-CHANGE'), `a registration is one marked line: ${line.slice(0, 80)}`)
-    const reg = await import(`data:text/javascript;base64,${Buffer.from(source.replace(FILES_LIST, '$1$3').replace(BLOCKS_LIST, '$1$3')).toString('base64')}`)
-    assert.deepEqual(Object.keys(reg).sort(), ['LATER_CHANGE_FILES', 'LATER_ENV_BLOCKS', 'stripLaterEnvBlocks'], 'the module exports the two lists and the strip, nothing else')
+    const source = read(LATER), FILES_LIST = /(export const LATER_CHANGE_FILES = new Set\(\[)([\s\S]*?)(\n\]\))/, BLOCKS_LIST = /(export const LATER_ENV_BLOCKS = \[)([\s\S]*?)(\n\])/, STRIPS_LIST = /(export const LATER_STRIPS = \[)([\s\S]*?)(\n\])/
+    const files = source.match(FILES_LIST), blocks = source.match(BLOCKS_LIST), strips = source.match(STRIPS_LIST)
+    assert.ok(files && blocks && strips, 'the three lists are exported as written')
+    for (const body of [files[2], blocks[2], strips[2]]) for (const line of body.split('\n').map(text => text.trim()).filter(text => text && !text.startsWith('//'))) assert.ok(line.includes('LATER-CHANGE'), `a registration is one marked line: ${line.slice(0, 80)}`)
+    const reg = await import(`data:text/javascript;base64,${Buffer.from(source.replace(FILES_LIST, '$1$3').replace(BLOCKS_LIST, '$1$3').replace(STRIPS_LIST, '$1$3')).toString('base64')}`)
+    assert.deepEqual(Object.keys(reg).sort(), ['LATER_CHANGE_FILES', 'LATER_ENV_BLOCKS', 'LATER_STRIPS', 'stripLaterChanges', 'stripLaterEnvBlocks'], 'the module exports the three lists and the two strips, nothing else')
     assert.ok(reg.LATER_CHANGE_FILES instanceof Set && Array.isArray(reg.LATER_ENV_BLOCKS) && reg.LATER_CHANGE_FILES.size === 0 && reg.LATER_ENV_BLOCKS.length === 0)
     // (b) a made-up later change (never committed): one file and one .env.example block after # PASS2 ADMIN, in three places
     const original = read(ENV), SYNTHETIC_FILE = 'lib/studio-synthetic-later-change.ts', OTHER_FILE = 'lib/studio-not-registered.ts'
@@ -743,7 +743,7 @@ async function suite() {
     }
     for (const name of ['compose-entitlement', 'payments-open-soon', 'publish-preview-inventory', 'template-library-manage', 'version-history-deck-only', 'publish-review-fit', 'duplicate-copy-title', 'thumbnail-last-good', 'bulk-edit-undo']) {
       const text = read(`scripts/test-studio-${name}.mjs`)
-      assert.match(text, /import \{[^}]*\bstripLaterEnvBlocks\b[^}]*\} from '\.\/studio-later-changes\.mjs'/, `${name}: imports the registry`); assert.match(text, /stripLaterEnvBlocks\((?:rel|'\.env\.example'), /, `${name}: reads .env.example through it`)
+      assert.match(text, /import \{[^}]*\bstripLaterChanges\b[^}]*\} from '\.\/studio-later-changes\.mjs'/, `${name}: imports the registry`); assert.match(text, /stripLaterChanges\((?:rel|'\.env\.example'), /, `${name}: reads .env.example through it`)
     }
   })
   await check('secrets: no line this change adds carries a credential-shaped literal', () => {
@@ -824,10 +824,10 @@ const MUTANTS = [
   { name: 'credits shown', edits: [[CARD, '{model.estimateLabel ? <p', '{model.estimateLabel ? <p title="credits"']] },
   { name: 'undo chip anchored to the first Director line, not the latest', edits: [[STORE, 'if (turn) dataFor(sessionId).lastDirectorChat = turn.messageId', 'if (turn && !dataFor(sessionId).lastDirectorChat) dataFor(sessionId).lastDirectorChat = turn.messageId']] },
   { name: 'receipts keyed by arrival, not by slide', edits: [[STORE, '.receipts[receipt.slideIndex] = receipt', '.receipts[Object.keys(bulkFor(dataFor(sessionId), receipt.bulkId).receipts).length] = receipt']] },
-  { name: 'strip: a piece of the strip is wrong', edits: [[STRIP_MODULE, 'export function stripBulkEditUndo(rel, text) {\n  const table = CHANGES[rel]\n  if (!table) return text\n', 'export function stripBulkEditUndo(rel, text) {\n  const table = CHANGES[rel]\n  if (!table || rel === \'types/mdc.ts\') return text\n']] },
+  { name: 'strip: a piece of the strip is wrong', edits: [[STRIP_MODULE, '  const table = CHANGES[rel]\n  if (!table) return inner\n', '  const table = CHANGES[rel]\n  if (!table || rel === \'types/mdc.ts\') return inner\n']] },
   { name: 'env block default on', edits: [[ENV, 'NEXT_PUBLIC_STUDIO_CHAT_UNDO="false"', 'NEXT_PUBLIC_STUDIO_CHAT_UNDO="true"']] },  // the registry of later changes (scripts/studio-later-changes.mjs)
   { name: 'registry ignored: a scope pin no longer skips the registered files', edits: [['scripts/test-studio-duplicate-copy-title.mjs', " && !LATER_CHANGE_FILES.has(rel)), [], 'no file outside", "), [], 'no file outside"]] },
-  { name: 'registry ignored: an .env.example pin reads the file as it is', edits: [['scripts/test-studio-compose-entitlement.mjs', "const read = rel => stripLaterEnvBlocks(rel, fs.readFileSync(path.join(root, rel), 'utf8'))", "const read = rel => fs.readFileSync(path.join(root, rel), 'utf8')"]] },
+  { name: 'registry ignored: an .env.example pin reads the file as it is', edits: [['scripts/test-studio-compose-entitlement.mjs', "const read = rel => stripLaterChanges(rel, fs.readFileSync(path.join(root, rel), 'utf8'))", "const read = rel => fs.readFileSync(path.join(root, rel), 'utf8')"]] },
   { name: 'registry ignored: the strip hands the text back', edits: [[LATER, "|| LATER_ENV_BLOCKS.length === 0) return text", "|| true) return text"]] },
   { name: 'strip removes too much: everything after the block goes with it', edits: [[LATER, "if (after.startsWith('\\n\\n')) out = before + after.slice(2)", "if (after.startsWith('\\n\\n')) out = before"]] },
   { name: 'strip removes too much: the blank lines on both sides go', edits: [[LATER, "if (after.startsWith('\\n\\n')) out = before + after.slice(2)", "if (after.startsWith('\\n\\n')) out = before.replace(/\\n+$/, '\\n') + after.slice(2)"]] },

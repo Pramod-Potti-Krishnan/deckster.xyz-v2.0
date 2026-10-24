@@ -4,6 +4,8 @@
 // neighbour): the insertions are removed on their own and there is no swapped line: every piece is a pure insertion, so a pin that tolerates a later change's ADDED lines tolerates this one.
 // Every line this change adds to a shared file carries the marker BULK-EDIT-UNDO. Each entry is [text this change has, text the base has]. New files (no base text to put back): BULK_EDIT_UNDO_NEW_FILES below.
 
+import { stripLaterChanges } from './studio-later-changes.mjs' // the registry of later changes: every strip a later change registers runs FIRST, innermost, so every pin and root that strips this change also takes those lines out
+
 export const BASE_COMMIT = 'caf6577253ad0b30757dbc9f75d07608dbdbf9d3' // frontend2/thumbnail-last-good (#498), on #497 (8089eee2), on studio f9218b4f; the base's .env.example already holds the thumbnail last good block
 
 const ENV_BLOCK = `# STUDIO BULK EDIT + CHAT UNDO (FRONTEND-2, PROGRAM-1 SUPERCHARGE I2; the Studio side of DIRECTOR-2's whole-deck edits and chat undo). Two flags, each on only for the exact value "true"; default off, and then nothing changes: no cap is
@@ -98,15 +100,16 @@ export const BULK_EDIT_UNDO_NEW_FILES = ['lib/studio-bulk-edit-wire.ts', 'lib/st
   'scripts/fixtures/bulk-edit-undo/01-bulk-confirm-card.json', 'scripts/fixtures/bulk-edit-undo/02-bulk-run-one-failure.json', 'scripts/fixtures/bulk-edit-undo/03-bulk-all-skipped.json',
   'scripts/fixtures/bulk-edit-undo/04-undo-restored.json', 'scripts/fixtures/bulk-edit-undo/05-undo-superseded.json',
   // the registry of LATER changes in the stack (a later change registers its files and .env.example block there; the scope checks and the .env.example pins read through it): tests only, scripts/ only.
-  'scripts/studio-later-changes.mjs']
+  'scripts/studio-later-changes.mjs', 'scripts/test-studio-later-changes.mjs']
 // The earlier tests this change teaches about its strip and .env.example block (tests only): the stacked ones (#492-#498), the Pass 3 pins that hold the hook, the message list or the mdc types to a base, and the
 // two that read the .env.example tail, and the library-manage pin that reads .env.example through the registry of later changes (scripts/studio-later-changes.mjs).
-export const BULK_EDIT_UNDO_PIN_FILES = ['scripts/test-studio-chat-element-refine.mjs', 'scripts/test-studio-chat-theme-export.mjs', 'scripts/test-studio-compose-entitlement.mjs', 'scripts/test-studio-deck-mutation-dedupe.mjs', 'scripts/test-studio-duplicate-copy-title.mjs', 'scripts/test-studio-duplicate-deck.mjs', 'scripts/test-studio-job-ledger.mjs', 'scripts/test-studio-new-deck-handoff-send.mjs', 'scripts/test-studio-payments-open-soon.mjs', 'scripts/test-studio-publish-preview-inventory.mjs', 'scripts/test-studio-publish-review-fit.mjs', 'scripts/test-studio-thumbnail-last-good.mjs', 'scripts/test-studio-template-library-manage.mjs', 'scripts/test-studio-version-history-deck-only.mjs', 'scripts/test-studio-welcome-polish.mjs', 'scripts/test-theme-font-selection.mjs']
+export const BULK_EDIT_UNDO_PIN_FILES = ['scripts/test-studio-chat-element-refine.mjs', 'scripts/test-studio-chat-theme-export.mjs', 'scripts/test-studio-compose-entitlement.mjs', 'scripts/test-studio-deck-mutation-dedupe.mjs', 'scripts/test-studio-duplicate-copy-title.mjs', 'scripts/test-studio-duplicate-deck.mjs', 'scripts/test-studio-job-ledger.mjs', 'scripts/test-studio-new-deck-handoff-send.mjs', 'scripts/test-studio-payments-open-soon.mjs', 'scripts/test-studio-publish-preview-inventory.mjs', 'scripts/test-studio-publish-review-fit.mjs', 'scripts/test-studio-thumbnail-last-good.mjs', 'scripts/test-studio-template-library-manage.mjs', 'scripts/test-studio-deck-import.mjs', 'scripts/test-studio-version-history-deck-only.mjs', 'scripts/test-studio-welcome-polish.mjs', 'scripts/test-theme-font-selection.mjs']
 export const BULK_EDIT_UNDO_CHANGES = CHANGES
 
 /** The file without this change's lines. Any other file (or a file that no longer carries them) is returned as it is. */
 export function stripBulkEditUndo(rel, text) {
+  const inner = stripLaterChanges(rel, text) // the lines of later changes (scripts/studio-later-changes.mjs) come out first, innermost; an empty registry changes nothing
   const table = CHANGES[rel]
-  if (!table) return text
-  return table.reduce((out, [added, original]) => out.replace(added, () => original), text)
+  if (!table) return inner
+  return table.reduce((out, [added, original]) => out.replace(added, () => original), inner)
 }
