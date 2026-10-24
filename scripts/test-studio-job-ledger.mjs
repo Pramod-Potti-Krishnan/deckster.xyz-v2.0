@@ -40,6 +40,7 @@ import { stripAddSlideStatus } from './studio-add-slide-status-strip.mjs'
 import { stripNewDeckHandoffSend } from './studio-new-deck-handoff-send-strip.mjs' // stacked after #475: the new-deck handoff send puts its .env.example block between this block and # PASS2 ADMIN
 import { stripPublishPreviewInventory } from './studio-publish-preview-inventory-strip.mjs' // #475 stacked: the Publish preview from Layout's inventory (NEXT_PUBLIC_STUDIO_PUBLISH_PREVIEW_INVENTORY_ENABLED) puts its .env.example block after the new-deck handoff's
 import { stripPaymentsOpenSoon } from './studio-payments-open-soon-strip.mjs' // stacked after #475: the payments open soon change puts its .env.example block between this block and # PASS2 ADMIN too
+import { stripDuplicateCopyTitle } from './studio-duplicate-copy-title-strip.mjs' // stacked after #475: the duplicate copy title change puts its .env.example block between this block and # PASS2 ADMIN too
 import { stripLaunchWording } from './studio-launch-wording-strip.mjs' // NEXT_PUBLIC_STUDIO_LAUNCH_WORDING (launched wording): its flag-gated edits come out first, before every older change's strip
 import { stripPublishReviewFit } from './studio-publish-review-fit-strip.mjs' // stacked after #475: the publish review fit change puts its .env.example block between this block and # PASS2 ADMIN too
 import { stripVersionHistoryDeckOnly } from './studio-version-history-deck-only-strip.mjs' // stacked after #475: the version history deck-only change puts its .env.example block between this block and # PASS2 ADMIN too
@@ -89,6 +90,7 @@ SOURCES[ENV] = stripPublishReviewFit(ENV, SOURCES[ENV]) // stacked after #475: t
 SOURCES[ENV] = stripVersionHistoryDeckOnly(ENV, SOURCES[ENV]) // stacked after #475: that later block (NEXT_PUBLIC_STUDIO_VERSION_HISTORY_DECK_ONLY) comes out first too, so this block is still right before # PASS2 ADMIN
 SOURCES[ENV] = stripComposeEntitlement(ENV, SOURCES[ENV]) // stacked after #475: the block after that (STUDIO_COMPOSE_ENTITLEMENT_ENABLED) comes out too, so this block is still right before # PASS2 ADMIN
 SOURCES[ENV] = stripPaymentsOpenSoon(ENV, SOURCES[ENV]) // stacked after #475: that later block (NEXT_PUBLIC_STUDIO_PAYMENTS_OPEN_SOON) comes out first too, so this block is still right before # PASS2 ADMIN
+SOURCES[ENV] = stripDuplicateCopyTitle(ENV, SOURCES[ENV]) // stacked after #475: that later block (NEXT_PUBLIC_STUDIO_DUPLICATE_COPY_TITLE) comes out first too, so this block is still right before # PASS2 ADMIN
 
 let checks = 0
 const quiet = { on: false }

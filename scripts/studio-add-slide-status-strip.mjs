@@ -17,6 +17,7 @@ import { stripVersionHistoryDeckOnly } from './studio-version-history-deck-only-
 import { stripComposeEntitlement } from './studio-compose-entitlement-strip.mjs' // Add Slide compose signs its user (stacked on #475)
 import { stripPublishPreviewInventory } from './studio-publish-preview-inventory-strip.mjs' // Publish preview from Layout's inventory (stacked)
 import { stripPaymentsOpenSoon } from './studio-payments-open-soon-strip.mjs' // payments open soon (stacked)
+import { stripDuplicateCopyTitle } from './studio-duplicate-copy-title-strip.mjs' // duplicate copy title (stacked)
 
 const PAGE = 'app/builder/page.tsx'
 const PANEL = 'components/studio-add-slide-v2.tsx'
@@ -50,5 +51,5 @@ export function stripAddSlideStatus(rel, text) {
   // FRONTEND-2 Pass 3 (NEXT_PUBLIC_STUDIO_DUPLICATE_DECK): the Builder page's import and one gated element come out first (scripts/studio-duplicate-deck-strip.mjs).
   // FRONTEND-2 Pass 3 (NEXT_PUBLIC_CHAT_ELEMENT_REFINE): that change's flag-gated lines come out first (scripts/studio-chat-element-refine-strip.mjs).
   // FRONTEND-2 Pass 3 (NEXT_PUBLIC_CHAT_THEME_CHANGE / NEXT_PUBLIC_CHAT_EXPORT): those flags' gated lines come out first (scripts/studio-chat-theme-export-strip.mjs).
-  return table.reduce((out, [from, to]) => out.replace(from, to), stripDuplicateDeck(rel, stripChatElementRefine(rel, stripChatThemeExport(rel, stripReconnectResync(rel, stripJobLedger(rel, stripComposeEntitlement(rel, stripNewDeckHandoffSend(rel, stripPublishReviewFit(rel, stripVersionHistoryDeckOnly(rel, stripPublishPreviewInventory(rel, stripPaymentsOpenSoon(rel, text))))))))))))
+  return table.reduce((out, [from, to]) => out.replace(from, to), stripDuplicateDeck(rel, stripChatElementRefine(rel, stripChatThemeExport(rel, stripReconnectResync(rel, stripJobLedger(rel, stripComposeEntitlement(rel, stripNewDeckHandoffSend(rel, stripPublishReviewFit(rel, stripVersionHistoryDeckOnly(rel, stripPublishPreviewInventory(rel, stripPaymentsOpenSoon(rel, stripDuplicateCopyTitle(rel, text)))))))))))))
 }

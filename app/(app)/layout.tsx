@@ -6,6 +6,9 @@ import "@/components/layout/studio-shell.css"
 // NEXT_PUBLIC_STUDIO_PAYMENTS_OPEN_SOON (default off): the account pages' "Payments open soon" gate (Billing's upgrade and credit-pack buttons, the account menu's upgrade row).
 import { STUDIO_PAYMENTS_OPEN_SOON_ENABLED } from "@/lib/studio-payments-open-soon"
 import { StudioPaymentsOpenSoonMount } from "@/components/billing/studio-payments-open-soon-mount"
+// NEXT_PUBLIC_STUDIO_DUPLICATE_COPY_TITLE (default off): a copied deck's card on the Decks page keeps its " (copy)" suffix visible (the deck cards' own files are held byte for byte, so the pass marks them from outside).
+import { STUDIO_DUPLICATE_COPY_TITLE_ENABLED } from "@/lib/studio-duplicate-copy-title"
+import { StudioDuplicateCopyTitleMount } from "@/components/builder/studio-duplicate-copy-title-mount"
 
 /**
  * Shared shell for the authenticated account area (dashboard, settings, billing,
@@ -22,6 +25,7 @@ export default function AppLayout({ children }: { children: ReactNode }) {
         <div data-studio-v4-shell-workspace="true">{children}</div>
       </div>
       {STUDIO_PAYMENTS_OPEN_SOON_ENABLED && <StudioPaymentsOpenSoonMount />}
+      {STUDIO_DUPLICATE_COPY_TITLE_ENABLED && <StudioDuplicateCopyTitleMount />}
     </div>
   )
 }
