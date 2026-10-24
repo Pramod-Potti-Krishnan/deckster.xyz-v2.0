@@ -382,3 +382,11 @@
 [data-studio-publish="true"] .studio-publish-dock[data-p2-polish="true"] { position: sticky; bottom: 0; z-index: 12; display: grid; gap: 12px; padding-bottom: 4px; background: var(--sp-panel); box-shadow: 0 -8px 12px var(--sp-panel); }
 [data-studio-publish="true"] .studio-publish-dock[data-p2-polish="true"] > .studio-publish-management-actions { position: static; box-shadow: none; }
 [data-studio-publish="true"] .studio-publish-dock[data-p2-polish="true"] > .studio-publish-done-row { display: flex; justify-content: flex-end; padding-top: 12px; border-top: 1px solid var(--sp-line); }
+
+/* NEXT_PUBLIC_STUDIO_PUBLISH_REVIEW_FIT (hooks/use-studio-publish-review-fit.ts), phone width only. Every rule below carries html[data-studio-publish-review-fit="true"], which exists only with the flag on.
+   PP-1 above gives the step body "padding: 4px; margin: -4px" so focus rings at its edges survive its own scrolling. At 700px and below the body no longer scrolls (the grid is the one scroller), but the
+   negative margin stays, so the body's box ends 4px past the grid's right edge: 4px of scrollable overflow (scrollWidth 332 over clientWidth 328 at 390px). With no padding and no margin the body is exactly
+   its track, and its content box (the track) is where it was. ("screen and": the Pass 2 polish pin reads its own phone media block by its exact query, and this block comes after it.) */
+@media screen and (max-width: 700px) {
+  html[data-studio-publish-review-fit="true"] [data-studio-publish="true"] .studio-publish-wizard[data-p2-polish="true"] > .studio-publish-setup-grid > .studio-publish-step-body { padding: 0; margin: 0; }
+}

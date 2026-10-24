@@ -12,11 +12,12 @@ import vm from 'node:vm'
 import { createRequire } from 'node:module'
 import { fileURLToPath } from 'node:url'
 import ts from 'typescript'
+import { stripLaunchWording } from './studio-launch-wording-strip.mjs' // NEXT_PUBLIC_STUDIO_LAUNCH_WORDING (launched wording): its flag-gated edits come out first, before every older change's strip
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..')
 const nodeRequire = createRequire(path.join(root, 'package.json'))
 const FLAG = 'NEXT_PUBLIC_STUDIO_RECONNECT_RESYNC'
-const read = rel => fs.readFileSync(path.join(root, rel), 'utf8')
+const read = rel => stripLaunchWording(rel, fs.readFileSync(path.join(root, rel), 'utf8'))
 const LIB = 'lib/studio-deck-changed-notice.ts'
 const HOOK = 'hooks/use-deck-changed-notice.ts'
 const COMPONENT = 'components/builder/studio-deck-changed-notice.tsx'

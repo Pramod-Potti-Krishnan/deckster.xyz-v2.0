@@ -8,6 +8,9 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Sparkles, Clock, Mail, LogOut, RefreshCw } from 'lucide-react';
 import Link from 'next/link';
 
+// NEXT_PUBLIC_STUDIO_LAUNCH_WORDING (default off): launched wording instead of promises and developer-speak; off, this file is exactly as before.
+const LAUNCH_WORDING = process.env.NEXT_PUBLIC_STUDIO_LAUNCH_WORDING === 'true';
+
 export default function PendingApprovalPage() {
   const { data: session, status, update } = useSession();
   const router = useRouter();
@@ -113,12 +116,12 @@ export default function PendingApprovalPage() {
             </div>
 
             {/* Expected Timeline */}
-            <div className="bg-blue-50 dark:bg-blue-950/30 border border-blue-200 dark:border-blue-800 rounded-lg p-4">
+            {!LAUNCH_WORDING && <div className="bg-blue-50 dark:bg-blue-950/30 border border-blue-200 dark:border-blue-800 rounded-lg p-4">
               <h4 className="font-semibold text-blue-900 dark:text-blue-100 mb-2">Expected Timeline</h4>
               <p className="text-sm text-blue-700 dark:text-blue-200">
                 We typically review new accounts within <strong>24-48 hours</strong>. You'll receive an email notification once your account is approved.
               </p>
-            </div>
+            </div>}
 
             {/* Actions */}
             <div className="flex flex-col sm:flex-row gap-3 pt-4">

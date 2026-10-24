@@ -12,6 +12,9 @@ import "./personal-workspaces.css"
 import "./intelligence-workspace.css"
 import "./intelligence-polish.css"
 
+// NEXT_PUBLIC_STUDIO_LAUNCH_WORDING (default off): launched wording instead of promises and developer-speak; off, this file is exactly as before.
+const LAUNCH_WORDING = process.env.NEXT_PUBLIC_STUDIO_LAUNCH_WORDING === "true"
+
 type TaskId = keyof typeof baseCatalog.tasks
 export type CatalogModel = {
   name: string; provider: string; contextWindow: number; imageOutput: boolean; tools: boolean
@@ -203,7 +206,7 @@ export const releaseLabel = (stage?: string) => stage === "ga" ? "Stable (GA)" :
 export const inputsLabel = (inputs?: string[]) => inputs?.length ? inputs.map(kind => kind === "file" ? "files" : kind).join(", ").replace(/^./, first => first.toUpperCase()) : "Not listed"
 export const priceLabel = (model: CatalogModel) => model.pricePerMillionTokens ? `$${model.pricePerMillionTokens.input.toFixed(2)} in / $${model.pricePerMillionTokens.output.toFixed(2)} out` : model.priceNote || "Not listed"
 
-export const provenanceText = "Model names, task defaults, and specifications come from the accepted Studio v4 prototype catalog. They are examples for reviewing this experience, not your account permissions or current service routing. No connected model catalog, benchmark results, or preference-saving service is used here."
+export const provenanceText = LAUNCH_WORDING ? "Model names, task defaults, and specifications are a snapshot of the catalog. They are not your account permissions or current service routing. No live model catalog, benchmark results, or preference-saving service is used here." : "Model names, task defaults, and specifications come from the accepted Studio v4 prototype catalog. They are examples for reviewing this experience, not your account permissions or current service routing. No connected model catalog, benchmark results, or preference-saving service is used here."
 
 /** A design candidate. The draft lives in memory; with the polish flag on it is also kept in this browser (localStorage, never the account). No catalog fetch or generation. */
 function ModelDesignPreview({ viewIsDesign = false, onRestoreView, onStatus }: { viewIsDesign?: boolean; onRestoreView?: () => void; onStatus?: (status: DraftStatus) => void } = {}) {
@@ -332,7 +335,7 @@ function ModelDesignPreview({ viewIsDesign = false, onRestoreView, onStatus }: {
         <div className="sp-action-buttons"><button className="sp-button" type="button" disabled={!changed} onClick={() => { setDraft(defaultDraft()); setFeedback("Draft reset to catalog starting points.") }}><RotateCcw size={14} aria-hidden="true" /> Reset draft</button><button className="sp-button sp-button-save" type="button" disabled aria-describedby={polish ? "sp-model-note" : "sp-model-save-note"}>Apply to Deckster</button></div>
       </div>
 
-      <details className="sp-provenance"><summary>About this catalog <span>Design snapshot · {catalog.version}</span></summary><p>{provenanceText + (polish ? "" : " Reloading or leaving this page discards the draft.")}</p></details>
+      <details className="sp-provenance"><summary>About this catalog <span>{LAUNCH_WORDING ? "Catalog snapshot · " : "Design snapshot · "}{catalog.version}</span></summary><p>{provenanceText + (polish ? "" : " Reloading or leaving this page discards the draft.")}</p></details>
     </div>
   )
 }
@@ -354,7 +357,7 @@ export function IntelligenceScope() {
       <button type="button" aria-pressed={true}><UserRound size={15} aria-hidden="true" />Reusable defaults</button>
       <button type="button" aria-pressed={false} disabled aria-describedby="sp-ip-scope-note"><FileText size={15} aria-hidden="true" />This presentation</button>
     </div>
-    <span className="sp-ip-scope-note" id="sp-ip-scope-note">Choices for one presentation aren’t available in this preview.</span>
+    <span className="sp-ip-scope-note" id="sp-ip-scope-note">{LAUNCH_WORDING ? "Choices for one presentation aren’t available." : "Choices for one presentation aren’t available in this preview."}</span>
   </div>
 }
 
@@ -403,7 +406,7 @@ export function IntelligenceReadiness() {
     }
   }, [open])
   return <>
-    <button ref={trigger} type="button" className="sp-ip-readiness-trigger" data-open={open ? "true" : undefined} aria-haspopup="dialog" aria-expanded={open} onClick={() => setOpen(current => !current)}><Sparkles size={16} aria-hidden="true" /><span>Your own intelligence</span><small>Preview</small><ChevronDown size={14} aria-hidden="true" /></button>
+    <button ref={trigger} type="button" className="sp-ip-readiness-trigger" data-open={open ? "true" : undefined} aria-haspopup="dialog" aria-expanded={open} onClick={() => setOpen(current => !current)} {...(LAUNCH_WORDING ? { disabled: true, title: "Personal models are not available", style: { opacity: 0.55, cursor: "not-allowed" } } : undefined)}><Sparkles size={16} aria-hidden="true" /><span>Your own intelligence</span><small>{LAUNCH_WORDING ? "Not available" : "Preview"}</small><ChevronDown size={14} aria-hidden="true" /></button>
     {open && <div ref={popup} className="sp-ip-popup" style={position} role="dialog" aria-labelledby="sp-ip-readiness-title">
       <header><span className="sp-ip-popup-mark"><Sparkles size={19} aria-hidden="true" /></span><div><h2 id="sp-ip-readiness-title">Your own intelligence</h2><p>See how your Second Brain could become a personal model.</p></div><button ref={closeButton} type="button" className="sp-icon-button" aria-label="Close intelligence readiness" onClick={() => { setOpen(false); trigger.current?.focus() }}><X size={16} aria-hidden="true" /></button></header>
       <div className="sp-ip-popup-body">

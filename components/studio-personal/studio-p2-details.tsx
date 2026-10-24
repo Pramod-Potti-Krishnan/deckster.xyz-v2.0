@@ -17,6 +17,9 @@ import "@/components/studio-libraries/destination-intros.css"
 import "./personal-workspaces.css"
 import "./studio-p2-details.css"
 
+// NEXT_PUBLIC_STUDIO_LAUNCH_WORDING (default off): launched wording instead of promises and developer-speak; off, this file is exactly as before.
+const LAUNCH_WORDING = process.env.NEXT_PUBLIC_STUDIO_LAUNCH_WORDING === "true"
+
 type Section = "account" | "profile" | "slides"
 type Deck = { status: "loading" } | { status: "none" } | { status: "error" } | { status: "ready"; presentationId: string; title: string; existing: StudioDeckDerivative | null }
 const SECTIONS: readonly { id: Section; label: string; Icon: typeof UserRound }[] = [{ id: "account", label: "Account", Icon: UserRound }, { id: "profile", label: "Profile", Icon: UserRound }, { id: "slides", label: "Slide details", Icon: FileText }]
@@ -181,7 +184,7 @@ export function StudioP2DetailsWorkspace({ userId, accountName, accountEmail, ac
         <div><p id="sp-details-save-note"><Info size={15} aria-hidden="true" /> {deck.status === "ready" ? STUDIO_DETAILS_WORDS.saveNote : STUDIO_DETAILS_WORDS.noteNone}</p><span className="sp-feedback" role="status">{status}</span></div>
         <div className="sp-action-buttons"><button className="sp-button" type="button" disabled={!dirty || saving} onClick={reset}><RotateCcw size={14} aria-hidden="true" /> Reset draft</button><button className="sp-button sp-button-save" type="button" disabled={!canSave} aria-describedby="sp-details-save-note" onClick={() => void save()}><Save size={14} aria-hidden="true" /> {saving ? STUDIO_DETAILS_WORDS.saving : STUDIO_DETAILS_WORDS.save}</button></div>
       </div>}
-      <p className="sp-later-note">Presenter avatars and voice are optional later additions.</p>
+      {!LAUNCH_WORDING && <p className="sp-later-note">Presenter avatars and voice are optional later additions.</p>}
       <StudioIntroReplay screen="details" autoStart={true} targetSelector='[data-studio-intro-surface="details"]' className="studio-destination-intro-replay" />
     </main>
   )

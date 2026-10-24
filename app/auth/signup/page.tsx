@@ -10,6 +10,9 @@ import Link from 'next/link';
 import { legalHref } from '@/lib/legal-links';
 import { features } from '@/lib/config';
 
+// NEXT_PUBLIC_STUDIO_LAUNCH_WORDING (default off): launched wording instead of promises and developer-speak; off, this file is exactly as before.
+const LAUNCH_WORDING = process.env.NEXT_PUBLIC_STUDIO_LAUNCH_WORDING === 'true';
+
 const PLAN_LABELS: Record<string, string> = {
   starter: 'Starter',
   pro: 'Pro',
@@ -105,10 +108,10 @@ function SignUpContent() {
                   'AI-powered presentation creation',
                   'Multi-agent collaboration system',
                   'Real-time slide editing',
-                  'Professional templates',
+                  LAUNCH_WORDING ? 'Reusable templates from your own decks' : 'Professional templates',
                   features.couponAuthEnabled
                     ? 'Instant access with an access code'
-                    : 'Manual approval for early access',
+                    : LAUNCH_WORDING ? 'Your account is approved by our team before first use' : 'Manual approval for early access',
                 ].map((benefit, i) => (
                   <div key={i} className="flex items-center gap-2 text-sm">
                     <Check className="h-4 w-4 text-purple-600 flex-shrink-0" />

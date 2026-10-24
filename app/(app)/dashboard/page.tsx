@@ -35,6 +35,9 @@ import { studioTemplateDisplayName } from "@/lib/studio-template-display-name"
 import { toast } from "@/hooks/use-toast"
 import { duplicateTargetFor, runDuplicateDeck } from "@/lib/studio-duplicate-deck"
 
+// NEXT_PUBLIC_STUDIO_LAUNCH_WORDING (default off): launched wording instead of promises and developer-speak; off, this file is exactly as before.
+const LAUNCH_WORDING = process.env.NEXT_PUBLIC_STUDIO_LAUNCH_WORDING === "true"
+
 interface Presentation {
   id: string
   title: string
@@ -119,11 +122,11 @@ function PresentationCard({ presentation, onOpen, getStatusColor, getStageName, 
   // PASS2D R5 (flag NEXT_PUBLIC_STUDIO_DECK_CARD_SLIDE_COUNT, default off): an unfinished deck's count is the outline's, so the card says "3 slides planned", not "3 slides" over a "1 / 1" thumbnail.
   const slideCountLabel = process.env.NEXT_PUBLIC_STUDIO_DECK_CARD_SLIDE_COUNT === "true"
   const description = cardsV2 ? deckCardDescription(presentation.title, presentation.description) : presentation.description
-  const duplicateNote = duplicate ? [duplicate.reason, onDelete ? null : "Delete is not connected in this library."].filter(Boolean).join(" ") : ""
+  const duplicateNote = duplicate ? [duplicate.reason, onDelete ? null : LAUNCH_WORDING ? "Deleting decks isn't available right now." : "Delete is not connected in this library."].filter(Boolean).join(" ") : ""
   return <Card data-studio-deck-card="true" className={duplicate?.state === "busy" ? "hover:shadow-lg transition-shadow cursor-pointer opacity-70" : "hover:shadow-lg transition-shadow cursor-pointer"} {...(duplicate?.state === "busy" ? { "data-studio-deck-duplicating": "true" } : {})} onClick={() => onOpen(presentation.id)}>
     <Link href={href} onClick={event => event.stopPropagation()} aria-label={`Open ${deckTitle(presentation)} in Studio`} data-studio-deck-preview="true" className="block aspect-video bg-slate-100 rounded-t-lg overflow-hidden"><PresentationPreview presentation={presentation} /></Link>
     <CardHeader data-studio-deck-card-header="true"><div className="flex items-start justify-between gap-2"><div className="min-w-0 flex-1"><CardTitle className="text-lg line-clamp-1"><Link href={href} onClick={event => event.stopPropagation()} {...(DECK_TITLE_NAMES ? studioDeckTitleProps(presentation.title, deckTitle(presentation)) : {})}>{deckTitle(presentation)}</Link></CardTitle>{(!cardsV2 || description !== null) && <CardDescription className="line-clamp-2 mt-1">{description}</CardDescription>}</div>
-      <DropdownMenu><DropdownMenuTrigger asChild><Button variant="ghost" className="h-8 w-8 p-0 shrink-0" aria-label={`Manage ${deckTitle(presentation)}`} onClick={event => event.stopPropagation()} onPointerDown={event => event.stopPropagation()}>{duplicate?.state === "busy" ? <Loader2 className="h-4 w-4 animate-spin" /> : <MoreVertical className="h-4 w-4" />}</Button></DropdownMenuTrigger><DropdownMenuContent align="end" data-studio-deck-menu="true" onClick={event => event.stopPropagation()}><DropdownMenuItem asChild><Link href={href}>Edit</Link></DropdownMenuItem>{duplicate && !duplicate.reason ? <DropdownMenuItem data-studio-deck-duplicate="true" disabled={duplicate.state !== "idle"} onSelect={() => duplicate?.onSelect()}>{duplicate.state === "busy" ? "Copying…" : "Duplicate"}</DropdownMenuItem> : <DropdownMenuItem disabled aria-describedby={unavailableNote}>Duplicate</DropdownMenuItem>}{onDelete ? <DropdownMenuItem disabled={deleteDisabled} data-studio-deck-delete="true" className="text-red-600" onSelect={() => onDelete(presentation)}>Delete session…</DropdownMenuItem> : <DropdownMenuItem disabled className="text-red-600" aria-describedby={unavailableNote}>Delete</DropdownMenuItem>}{duplicate ? duplicateNote ? <p id={unavailableNote} className="max-w-56 px-2 py-2 text-xs text-muted-foreground">{duplicateNote}</p> : null : <p id={unavailableNote} className="max-w-56 px-2 py-2 text-xs text-muted-foreground">{onDelete ? "Duplicate is not connected in this library." : "Duplicate and delete are not connected in this library."}</p>}</DropdownMenuContent></DropdownMenu>
+      <DropdownMenu><DropdownMenuTrigger asChild><Button variant="ghost" className="h-8 w-8 p-0 shrink-0" aria-label={`Manage ${deckTitle(presentation)}`} onClick={event => event.stopPropagation()} onPointerDown={event => event.stopPropagation()}>{duplicate?.state === "busy" ? <Loader2 className="h-4 w-4 animate-spin" /> : <MoreVertical className="h-4 w-4" />}</Button></DropdownMenuTrigger><DropdownMenuContent align="end" data-studio-deck-menu="true" onClick={event => event.stopPropagation()}><DropdownMenuItem asChild><Link href={href}>Edit</Link></DropdownMenuItem>{duplicate && !duplicate.reason ? <DropdownMenuItem data-studio-deck-duplicate="true" disabled={duplicate.state !== "idle"} onSelect={() => duplicate?.onSelect()}>{duplicate.state === "busy" ? "Copying…" : "Duplicate"}</DropdownMenuItem> : <DropdownMenuItem disabled aria-describedby={unavailableNote}>Duplicate</DropdownMenuItem>}{onDelete ? <DropdownMenuItem disabled={deleteDisabled} data-studio-deck-delete="true" className="text-red-600" onSelect={() => onDelete(presentation)}>Delete session…</DropdownMenuItem> : <DropdownMenuItem disabled className="text-red-600" aria-describedby={unavailableNote}>Delete</DropdownMenuItem>}{duplicate ? duplicateNote ? <p id={unavailableNote} className="max-w-56 px-2 py-2 text-xs text-muted-foreground">{duplicateNote}</p> : null : <p id={unavailableNote} className="max-w-56 px-2 py-2 text-xs text-muted-foreground">{LAUNCH_WORDING ? onDelete ? "Duplicating decks isn't available right now." : "Duplicating and deleting decks isn't available right now." : onDelete ? "Duplicate is not connected in this library." : "Duplicate and delete are not connected in this library."}</p>}</DropdownMenuContent></DropdownMenu>
     </div></CardHeader>
     <CardContent data-studio-deck-card-content="true"><div className="space-y-3"><div className="flex items-center justify-between"><div data-studio-deck-meta="true" className="flex items-center space-x-4 text-sm text-slate-500">{slideCountLabel ? <span data-studio-deck-count="true">{studioDeckCardCountLabel(presentation.slideCount, presentation.status)}</span> : <span>{presentation.slideCount} slides</span>}<span>Updated {new Date(presentation.updatedAt).toLocaleDateString()}</span></div><div className="flex gap-2"><Badge data-studio-deck-status={presentation.status} className={getStatusColor(presentation.status)}>{cardsV2 ? deckCardStatusLabel(presentation) : presentation.status}</Badge>{!cardsV2 && presentation.currentStage && <Badge variant="outline" className="text-xs">Stage {presentation.currentStage}: {getStageName(presentation.currentStage)}</Badge>}</div></div>{presentation.tags.length > 0 && <div className="flex flex-wrap gap-1">{presentation.tags.slice(0, 3).map(tag => <Badge key={tag} variant="outline" className="text-xs"><Tag className="h-3 w-3 mr-1" />{tag}</Badge>)}{presentation.tags.length > 3 && <Badge variant="outline" className="text-xs">+{presentation.tags.length - 3}</Badge>}</div>}</div></CardContent>
   </Card>
@@ -555,18 +558,18 @@ function DashboardForAccount({ user, isLoading }: Pick<ReturnType<typeof useAuth
 
           <Card data-studio-deck-stat="true">
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">{studioShell ? 'Outline previews' : 'AI Collaborations'}</CardTitle>
-              {studioShell ? <Folder className="h-4 w-4 text-muted-foreground" /> : <Users className="h-4 w-4 text-muted-foreground" />}
+              <CardTitle className="text-sm font-medium">{studioShell || LAUNCH_WORDING ? 'Outline previews' : 'AI Collaborations'}</CardTitle>
+              {studioShell || LAUNCH_WORDING ? <Folder className="h-4 w-4 text-muted-foreground" /> : <Users className="h-4 w-4 text-muted-foreground" />}
             </CardHeader>
             <CardContent data-studio-deck-card-content="true">
-              <div className="text-2xl font-bold text-muted-foreground">{studioShell && hasLoadedSessions ? strawmanPresentations.length : '—'}</div>
-              <p className="text-xs text-muted-foreground">{studioShell ? 'Loaded previews without a completed deck' : 'Coming soon'}</p>
+              <div className="text-2xl font-bold text-muted-foreground">{(studioShell || LAUNCH_WORDING) && hasLoadedSessions ? strawmanPresentations.length : '—'}</div>
+              <p className="text-xs text-muted-foreground">{studioShell || LAUNCH_WORDING ? 'Loaded previews without a completed deck' : 'Coming soon'}</p>
             </CardContent>
           </Card>
         </div>
 
         {/* Folders */}
-        <div data-studio-deck-folders="true" className="mb-6">
+        {!LAUNCH_WORDING && <div data-studio-deck-folders="true" className="mb-6">
           <div className="flex items-center gap-2 mb-4">
             <Folder className="h-5 w-5 text-slate-600" />
             <h2 className="text-lg font-semibold">Folders</h2>
@@ -590,7 +593,7 @@ function DashboardForAccount({ user, isLoading }: Pick<ReturnType<typeof useAuth
               </Button>
             ))}
           </div>
-        </div>
+        </div>}
 
         {/* Search and Filter */}
         <div data-studio-deck-search="true" className="space-y-4 mb-6">

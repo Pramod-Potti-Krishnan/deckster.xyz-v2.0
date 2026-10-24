@@ -165,7 +165,8 @@
     "test:studio-chat-theme-export": "node scripts/test-studio-chat-theme-export.mjs",
     "test:studio-model-catalog": "node scripts/test-studio-model-catalog.mjs",
     "test:studio-narration-router": "node scripts/test-studio-narration-router.mjs",
-    "test:studio-deck-import": "node scripts/test-studio-deck-import.mjs"
+    "test:studio-deck-import": "node scripts/test-studio-deck-import.mjs",
+    "test:studio-launch-wording": "node scripts/test-studio-launch-wording.mjs"
   },
   "dependencies": {
     "@auth/prisma-adapter": "^2.10.0",

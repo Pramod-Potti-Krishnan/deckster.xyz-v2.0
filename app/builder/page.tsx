@@ -117,8 +117,12 @@ import { StudioBlockedSendNotice } from '@/components/builder/studio-blocked-sen
 // NEXT_PUBLIC_STUDIO_JOB_LEDGER (P3-4c, default off): Director's failed or timed-out jobs as calm cards at the end of the chat (lib/studio-job-ledger.ts).
 import { STUDIO_JOB_LEDGER_ENABLED } from '@/lib/studio-job-ledger'
 import { StudioJobLedgerCards, studioJobLedger } from '@/components/builder/chat/studio-job-ledger-card'
+// NEXT_PUBLIC_STUDIO_PUBLISH_REVIEW_FIT (default off): the Publish wizard's setup grid does not scroll sideways at phone width (hooks/use-studio-publish-review-fit.ts, components/studio-publish.css).
+import { useStudioPublishReviewFit } from '@/hooks/use-studio-publish-review-fit'
 // NEXT_PUBLIC_STUDIO_NEW_DECK_HANDOFF_SEND (default off): Director's new-deck handoff sends its brief on the NEW session's socket, once (hooks/use-studio-new-deck-handoff-send.ts).
 import { STUDIO_NEW_DECK_HANDOFF_SEND_ENABLED, useStudioNewDeckHandoffSend } from '@/hooks/use-studio-new-deck-handoff-send'
+// NEXT_PUBLIC_STUDIO_VERSION_HISTORY_DECK_ONLY (default off): the profile menu's Version history row shows only while a deck is on stage, not under the welcome (hooks/use-studio-version-history-deck-only.ts).
+import { useStudioVersionHistoryDeckOnly } from '@/hooks/use-studio-version-history-deck-only'
 import { StudioSupersededNotice } from '@/components/builder/studio-superseded-notice'
 import { StudioCopiedFromNote } from '@/components/builder/studio-copied-from-note'
 // NEXT_PUBLIC_STUDIO_DECK_IMPORT (default off): the note on an imported deck, loaded only when it is drawn (a build or page that does not draw it ships nothing of it).
@@ -3385,6 +3389,8 @@ function AuthenticatedBuilderContent({ authScopeUserId }: { authScopeUserId: str
     connecting,
   })
   const studioWelcome = studioShell && !studioPartialMetadata && studioCanvasLifecycle.showLanding
+  // NEXT_PUBLIC_STUDIO_VERSION_HISTORY_DECK_ONLY (default off): while the welcome is on stage no deck is, so the profile menu's Version history row waits for one.
+  useStudioVersionHistoryDeckOnly(studioWelcome)
   // The blank-canvas choice. One handler for the stage's own button and, with NEXT_PUBLIC_STUDIO_FIRST_RUN_V2, the first-run welcome's.
   const handleDismissBlankPlaceholder = () => {
     if (studioShell && studioSlideComposeOwnerRef.current !== studioInitialSelectedTarget.owner) return
@@ -4793,6 +4799,8 @@ function AuthenticatedBuilderContent({ authScopeUserId }: { authScopeUserId: str
   })
   // NEXT_PUBLIC_STUDIO_NEW_DECK_HANDOFF_SEND (default off): the brief of Director's new-deck handoff, sent on the NEW session's socket once it opens, once; not sent: back in the box.
   const armNewDeckHandoffSend = useStudioNewDeckHandoffSend({ currentSessionId, wsSessionId, socketSessionId, connected, connectionGeneration, sendMessageWhenConnected, setInputMessage, setUserMessages: session.setUserMessages, toast })
+  // NEXT_PUBLIC_STUDIO_PUBLISH_REVIEW_FIT (default off): marks the page so the Publish dialog's phone rule applies (the dialog is portalled out of the page).
+  useStudioPublishReviewFit()
 
   // NEXT_PUBLIC_STUDIO_BLANK_DECK_RELOAD_FIX: the session restore owns the deck. When it commits (a new transcript receipt, set in
   // the same batch as the restored deck), retire a local override it did not restore, as the override-retire effect does: an
@@ -7101,7 +7109,7 @@ function AuthenticatedBuilderContent({ authScopeUserId }: { authScopeUserId: str
         <ThemePanel isOpen={workflowAction === 'theme' && !savedThemeWorkflowId} onClose={() => setDismissedWorkflowKey(workflowKey)} presentationId={null} buildThemeSelection={buildThemeSelection} themeSync={themeSync} selectionLocked={generationSelectionsLocked} onBuildThemeChange={handleBuildThemeChange} />
         <Dialog open={workflowAction === 'templates' || workflowAction === 'master'} onOpenChange={open => { if (!open) setDismissedWorkflowKey(workflowKey) }}>
           <DialogContent data-studio-v4-dialog="workflow"><DialogHeader><DialogTitle>{workflowAction === 'master' ? 'Open a deck to edit its footer and logo' : 'Choose a template'}</DialogTitle><DialogDescription>{workflowAction === 'master' ? 'Footer and logo belong to a presentation. Open an existing deck or build one with Director first.' : 'Choose the saved structure you want to reuse. Your message is sent only when you press Send.'}</DialogDescription></DialogHeader>
-            <div data-studio-workflow-body="true">{workflowAction === 'templates' && templateBuilderEnabled ? <TemplatePickerContent mode="generation" standalone preferredTemplateId={searchParams.get('studio_item')} onSelect={template => { handleSelectTemplate(template); setDismissedWorkflowKey(workflowKey) }} /> : workflowAction === 'templates' ? <p>Templates are not enabled in this environment.</p> : <div className="flex gap-3"><button type="button" onClick={() => router.push('/dashboard')}>Open Decks</button><button type="button" onClick={() => setDismissedWorkflowKey(workflowKey)}>Continue in chat</button></div>}</div>
+            <div data-studio-workflow-body="true">{workflowAction === 'templates' && templateBuilderEnabled ? <TemplatePickerContent mode="generation" standalone preferredTemplateId={searchParams.get('studio_item')} onSelect={template => { handleSelectTemplate(template); setDismissedWorkflowKey(workflowKey) }} /> : workflowAction === 'templates' ? <p>{process.env.NEXT_PUBLIC_STUDIO_LAUNCH_WORDING === 'true' ? "Templates aren't available right now." : 'Templates are not enabled in this environment.'}</p> : <div className="flex gap-3"><button type="button" onClick={() => router.push('/dashboard')}>Open Decks</button><button type="button" onClick={() => setDismissedWorkflowKey(workflowKey)}>Continue in chat</button></div>}</div>
           </DialogContent>
         </Dialog>
       </>}

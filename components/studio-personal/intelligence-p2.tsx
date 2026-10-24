@@ -11,6 +11,9 @@ import {
 import { STUDIO_P2_POLISH_ATTR, STUDIO_P2_POLISH_ENABLED } from "@/lib/studio-p2-polish"
 import "./intelligence-p2.css"
 
+// NEXT_PUBLIC_STUDIO_LAUNCH_WORDING (default off): launched wording instead of promises and developer-speak; off, this file is exactly as before.
+const LAUNCH_WORDING = process.env.NEXT_PUBLIC_STUDIO_LAUNCH_WORDING === "true"
+
 /** NEXT_PUBLIC_STUDIO_P2_INTELLIGENCE (default off; build-time). The Intelligence page's model chooser, as the accepted v4 mockup has it: five task rows (Planning & Strategy,
  * Content Writing, Research & Analysis, Imagery, Voice & Narration), each naming its current model and where it came from, with a select of the recommendation, the presets,
  * the specific models and (narration) the voices. A choice applies on change and is kept in this browser (localStorage, never the account); "Reset to recommendations" appears
@@ -78,7 +81,7 @@ export function IntelligenceChooser() {
         {status.state === "saved" ? <CheckCircle2 size={14} aria-hidden="true" /> : status.state === "session" ? <AlertCircle size={14} aria-hidden="true" /> : <span />}{status.label}
       </span></header>
     <div className="sp-context-bar sp-ip-bar"><IntelligenceScope /><div className="sp-ip-bar-end"><IntelligenceReadiness /></div></div>
-    <p className="sp-p2-note" id="sp-p2-note" data-p2-note="true"><Info size={14} aria-hidden="true" />{storage === "unavailable" ? P2_ONE_LINE_NO_STORAGE : P2_ONE_LINE}</p>
+    <p className="sp-p2-note" id="sp-p2-note" data-p2-note="true"><Info size={14} aria-hidden="true" />{LAUNCH_WORDING ? (storage === "unavailable" ? "This browser cannot keep your choices, so they last only until you reload or leave. They do not change which models Deckster uses." : "Your choices are kept on this device. They do not change which models Deckster uses.") : storage === "unavailable" ? P2_ONE_LINE_NO_STORAGE : P2_ONE_LINE}</p>
     <span className="sp-feedback sp-p2-feedback" role="status">{feedback}</span>
 
     <div className="sp-model-layout sp-p2-layout">
@@ -112,7 +115,7 @@ export function IntelligenceChooser() {
         </div>
       </section>
       <ManagedByDeckster />
-      <details className="sp-provenance sp-p2-provenance"><summary>About this catalog <span>Design snapshot · {catalog.version}</span></summary><p>{provenanceText}</p></details>
+      <details className="sp-provenance sp-p2-provenance"><summary>About this catalog <span>{LAUNCH_WORDING ? "Catalog snapshot · " : "Design snapshot · "}{catalog.version}</span></summary><p>{provenanceText}</p></details>
       </div>
 
       <aside className="sp-model-inspector sp-p2-inspector" aria-labelledby="sp-comparison-heading" data-p2-inspector={activeTask} {...(STUDIO_P2_POLISH_ENABLED ? { [STUDIO_P2_POLISH_ATTR]: "true" } : {})}>
