@@ -43,6 +43,7 @@ import { stripComposeEntitlement } from './studio-compose-entitlement-strip.mjs'
 import { stripPublishPreviewInventory } from './studio-publish-preview-inventory-strip.mjs' // stacked: #495, after this change
 import { stripPaymentsOpenSoon } from './studio-payments-open-soon-strip.mjs' // stacked: payments open soon (billing), after #495 in the stack
 import { stripDuplicateCopyTitle } from './studio-duplicate-copy-title-strip.mjs' // stacked: duplicate copy title (the Decks page's copy title and the copy's header), after #496 in the stack
+import { stripThumbnailLastGood } from './studio-thumbnail-last-good-strip.mjs' // stacked: thumbnail last good (the Studio half of "never blank": a rail card's last good preview and the Publish preview's fallback), after duplicate copy title in the stack
 import { stripOpenReadOnly } from './studio-open-read-only-strip.mjs'
 import { stripDarkPersist } from './studio-theme-dark-persist-strip.mjs'
 import { stripAddSlideStatus } from './studio-add-slide-status-strip.mjs'
@@ -438,7 +439,8 @@ function pageChecks(page) {
   assert.ok(call.arguments.length === 0, 'no arguments')
 }
 function envChecks(env) {
-  env = stripDuplicateCopyTitle(ENV, env) // stacked: duplicate copy title's block (the very last in the stack) comes out first
+  env = stripThumbnailLastGood(ENV, env) // stacked: thumbnail last good's block (the very last in the stack) comes out first
+  env = stripDuplicateCopyTitle(ENV, env) // stacked: duplicate copy title's block comes out next
   env = stripPaymentsOpenSoon(ENV, env) // stacked: payments open soon's block (the last in the stack) comes out first
   env = stripPublishPreviewInventory(ENV, env) // stacked: #495's block comes out too
   env = stripComposeEntitlement(ENV, env) // stacked: #494's block (STUDIO_COMPOSE_ENTITLEMENT_ENABLED) comes out too
@@ -482,7 +484,7 @@ async function staticChecks() {
     for (const rootFile of ['scripts/studio-open-read-only-strip.mjs', 'scripts/studio-theme-dark-persist-strip.mjs', 'scripts/studio-add-slide-status-strip.mjs']) {
       const text = read(rootFile)
       assert.equal((text.match(/import \{ stripPublishReviewFit \} from '\.\/studio-publish-review-fit-strip\.mjs'/g) || []).length, 1, `${rootFile}: one import`)
-      assert.equal((text.match(/stripPublishReviewFit\(rel, (?:stripVersionHistoryDeckOnly\(rel, )?(?:stripPublishPreviewInventory\(rel, )?(?:stripPaymentsOpenSoon\(rel, )?(?:stripDuplicateCopyTitle\(rel, )?text\)/g) || []).length, 1, `${rootFile}: chained once`) // stacked: #493 (version history deck only) nests its strip inside this one
+      assert.equal((text.match(/stripPublishReviewFit\(rel, (?:stripVersionHistoryDeckOnly\(rel, )?(?:stripPublishPreviewInventory\(rel, )?(?:stripPaymentsOpenSoon\(rel, )?(?:stripDuplicateCopyTitle\(rel, )?(?:stripThumbnailLastGood\(rel, )?text\)/g) || []).length, 1, `${rootFile}: chained once`) // stacked: #493 (version history deck only) nests its strip inside this one
     }
     assert.ok(STACKED_PASS3_FILES.includes(HOOK) && STACKED_PASS3_FILES.includes(CSS), 'the new hook and the changed stylesheet are in STACKED_PASS3_FILES')
   })
