@@ -62,8 +62,8 @@ export const FIRST_PAINT_PIN_FILES = ['scripts/test-studio-deck-mutation-dedupe.
   'scripts/test-studio-version-history-v2.mjs', 'scripts/studio-library-manage-harness.mjs']
 export const FIRST_PAINT_CHANGES = CHANGES
 /**
- * Every file this change's commit touches: the pins that read a COMMITTED diff for their own scope (test-studio-payments-open-soon.mjs) leave these out, the way they leave out any other
- * stacked change's files. (Scope pins that list their own allowed files cannot know a change that came after them.)
+ * Every file this change's commit touches. It is registered in scripts/studio-later-changes.mjs (LATER_CHANGE_FILES spreads it), so the pins that read a COMMITTED diff for their
+ * own scope leave these out, the way they leave out any other later change's files. (Scope pins that list their own allowed files cannot know a change that came after them.)
  */
 export const FIRST_PAINT_SCOPE_FILES = new Set([...FIRST_PAINT_FILES, ...FIRST_PAINT_NEW_FILES, ...FIRST_PAINT_PIN_FILES, 'package.json', 'lib/studio-first-paint.ts'])
 
