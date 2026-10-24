@@ -9,6 +9,9 @@ import { StudioPaymentsOpenSoonMount } from "@/components/billing/studio-payment
 // NEXT_PUBLIC_STUDIO_DUPLICATE_COPY_TITLE (default off): a copied deck's card on the Decks page keeps its " (copy)" suffix visible (the deck cards' own files are held byte for byte, so the pass marks them from outside).
 import { STUDIO_DUPLICATE_COPY_TITLE_ENABLED } from "@/lib/studio-duplicate-copy-title"
 import { StudioDuplicateCopyTitleMount } from "@/components/builder/studio-duplicate-copy-title-mount"
+// NEXT_PUBLIC_STUDIO_PASS3_POLISH (default off): the Pass 3 polish set; with the flag on <html> carries data-studio-pass3-polish="true" and the set's stylesheet (every rule scoped to it) applies to the account pages. // PASS3-POLISH
+import { STUDIO_PASS3_POLISH_ENABLED } from "@/lib/studio-pass3-polish" // PASS3-POLISH
+import { StudioPass3PolishMount } from "@/components/studio-pass3-polish/studio-pass3-polish-mount" // PASS3-POLISH
 
 /**
  * Shared shell for the authenticated account area (dashboard, settings, billing,
@@ -26,6 +29,7 @@ export default function AppLayout({ children }: { children: ReactNode }) {
       </div>
       {STUDIO_PAYMENTS_OPEN_SOON_ENABLED && <StudioPaymentsOpenSoonMount />}
       {STUDIO_DUPLICATE_COPY_TITLE_ENABLED && <StudioDuplicateCopyTitleMount />}
+      {STUDIO_PASS3_POLISH_ENABLED && <StudioPass3PolishMount />}{/* PASS3-POLISH */}
     </div>
   )
 }
