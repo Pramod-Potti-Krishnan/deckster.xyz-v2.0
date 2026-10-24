@@ -18,7 +18,7 @@ import { stripBulkEditUndo } from './studio-bulk-edit-undo-strip.mjs'
 import { stripOpenReadOnly } from './studio-open-read-only-strip.mjs'
 import { stripDarkPersist } from './studio-theme-dark-persist-strip.mjs'
 import { stripAddSlideStatus } from './studio-add-slide-status-strip.mjs'
-import { LATER_STRIPS, LATER_CHANGE_FILES } from './studio-later-changes.mjs'
+import { LATER_STRIPS, LATER_CHANGE_FILES, LATER_ENV_BLOCKS } from './studio-later-changes.mjs'
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..')
 const BASE = process.env.LATER_CHANGES_BASE || '74aaf20c5402f76268f93b8833a0b8c3830a73cc' // #499, frozen: bulk edit + chat undo and the registry v1
@@ -163,8 +163,9 @@ async function suite() {
   })
   await check('scope: the COMMITTED diff BASE..HEAD holds this change\'s files only (scripts/ only, no app code, no .env.example); secrets: no credential-shaped literal in what it adds', () => {
     const changed = git('diff', '--name-only', BASE, 'HEAD').split('\n').filter(Boolean), own = new Set(OWN_FILES)
-    const stray = changed.filter(rel => !own.has(rel) && !LATER_CHANGE_FILES.has(rel)); assert.deepEqual(stray, [], `files outside this change: ${stray.join(', ')}`) // a change stacked after this one registers its files and is not this change's to answer for
-    assert.ok(changed.filter(rel => !LATER_CHANGE_FILES.has(rel)).every(rel => rel.startsWith('scripts/')), 'scripts/ only'); assert.equal(git('diff', '--name-only', '--diff-filter=D', BASE, 'HEAD').trim(), '', 'nothing deleted')
+    const later = rel => LATER_CHANGE_FILES.has(rel) || (rel === ENV && LATER_ENV_BLOCKS.length > 0) // a change stacked after this one registers its files, and a registered .env.example block means it touched .env.example: not this change's to answer for
+    const stray = changed.filter(rel => !own.has(rel) && !later(rel)); assert.deepEqual(stray, [], `files outside this change: ${stray.join(', ')}`)
+    assert.ok(changed.filter(rel => !later(rel)).every(rel => rel.startsWith('scripts/')), 'scripts/ only'); assert.equal(git('diff', '--name-only', '--diff-filter=D', BASE, 'HEAD').trim(), '', 'nothing deleted')
     const added = git('diff', '-U0', BASE, 'HEAD').split('\n').filter(line => /^\+(?!\+\+)/.test(line)).join('\n')
     for (const pattern of [/AKIA[0-9A-Z]{16}/, /sk-[A-Za-z0-9]{20,}/, /xox[bap]-[A-Za-z0-9-]{10,}/, /-----BEGIN [A-Z ]*PRIVATE KEY-----/, /eyJ[A-Za-z0-9_-]{20,}\.[A-Za-z0-9_-]{20,}\./, /(?<![A-Za-z_])(?:password|secret|token|api[_-]?key)\s*[:=]\s*['"][^'"\s]{12,}['"]/i]) assert.ok(!pattern.test(added), `credential-shaped text: ${pattern}`)
     if (!STOP) process.stdout.write(`     (committed diff ${BASE.slice(0, 8)}..HEAD: ${changed.length} files)\n`)
