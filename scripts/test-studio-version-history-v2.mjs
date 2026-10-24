@@ -18,6 +18,7 @@ import { pathToFileURL } from 'node:url'
 import * as nodeModule from 'node:module'
 import { stripP2Polish } from './studio-p2-polish-strip.mjs'
 import { stripLaunchWording } from './studio-launch-wording-strip.mjs' // NEXT_PUBLIC_STUDIO_LAUNCH_WORDING (launched wording): its flag-gated edits come out first, before every older change's strip
+import { stripFirstPaint } from './studio-first-paint-strip.mjs' // stacked: NEXT_PUBLIC_STUDIO_FIRST_PAINT_ENABLED (COMPOSER-2 first paint): its flag-gated viewer lines come out first, inside read(), next to stripLaunchWording
 
 const repoRoot = path.resolve(new URL('..', import.meta.url).pathname)
 const FLAG = 'NEXT_PUBLIC_STUDIO_VERSION_HISTORY_V2'
@@ -35,7 +36,7 @@ const FILES = {
   oldPanel: 'components/version-history-panel.tsx',
 }
 // the Pass 2 polish change (scripts/test-studio-p2-polish.mjs) is put back out first: this test holds the files as this feature's change left them
-const read = rel => stripP2Polish(rel, stripLaunchWording(rel, fs.readFileSync(path.join(repoRoot, rel), 'utf8')))
+const read = rel => stripP2Polish(rel, stripFirstPaint(rel, stripLaunchWording(rel, fs.readFileSync(path.join(repoRoot, rel), 'utf8'))))
 const SRC = Object.fromEntries(Object.entries(FILES).map(([key, rel]) => [key, read(rel)]))
 const CONTRACT = JSON.parse(read('scripts/fixtures/studio-version-history-v2/layout-contract.json'))
 const git = args => execFileSync('git', args, { cwd: repoRoot, encoding: 'utf8', maxBuffer: 64 * 1024 * 1024, stdio: ['ignore', 'pipe', 'ignore'] })

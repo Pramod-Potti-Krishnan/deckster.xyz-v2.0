@@ -31,6 +31,7 @@ import { stripDarkPersist } from './studio-theme-dark-persist-strip.mjs'
 import { belongsToRailBuildCount } from './studio-rail-build-count-strip.mjs'
 import { stripOpenReadOnly } from './studio-open-read-only-strip.mjs'
 import { stripLaunchWording } from './studio-launch-wording-strip.mjs' // NEXT_PUBLIC_STUDIO_LAUNCH_WORDING (launched wording): its flag-gated edits come out first, before every older change's strip
+import { stripFirstPaint, belongsToFirstPaint } from './studio-first-paint-strip.mjs' // stacked: NEXT_PUBLIC_STUDIO_FIRST_PAINT_ENABLED (COMPOSER-2 first paint): marks its own viewer lines "STUDIO-FIRST-PAINT"; scripts/test-studio-first-paint-viewer.mjs pins them, so they are not counted here
 
 const repoRoot = path.resolve(new URL('..', import.meta.url).pathname)
 const nodeRequire = createRequire(path.join(repoRoot, 'package.json'))
@@ -41,7 +42,8 @@ const FLAG = 'NEXT_PUBLIC_STUDIO_RAIL_ADD_SLIDE'
 const SHELL = 'NEXT_PUBLIC_STUDIO_V4_SHELL'
 const REASONS = 'NEXT_PUBLIC_STUDIO_DISABLED_REASONS'
 const BASE_COMMIT = process.env.RAIL_ADD_SLIDE_BASE || 'bb5a89f'
-const read = rel => stripLaunchWording(rel, fs.readFileSync(path.join(repoRoot, rel), 'utf8'))
+const read = rel => stripFirstPaint(rel, stripLaunchWording(rel, fs.readFileSync(path.join(repoRoot, rel), 'utf8')))
+const withoutFirstPaint = lines => lines.filter(line => !belongsToFirstPaint(line))
 const git = args => execFileSync('git', args, { cwd: repoRoot, encoding: 'utf8', maxBuffer: 64 * 1024 * 1024, stdio: ['ignore', 'pipe', 'ignore'] })
 function baseSource(rel) {
   try { git(['cat-file', '-e', `${BASE_COMMIT}^{commit}`]); return git(['show', `${BASE_COMMIT}:${rel}`]) } catch { return null }
@@ -380,14 +382,14 @@ function wiringChecks() {
     // + LAUNCH-WORDING (NEXT_PUBLIC_STUDIO_LAUNCH_WORDING) adds one flag-gated line to the viewer (the disabled Template button's tooltip); scripts/test-studio-launch-wording.mjs pins it, so it is not counted here.
     const changed = (rel, base) => git(['diff', '--no-color', '-U0', BASE_COMMIT, '--', rel]).split('\n').filter(line => /^[+-](?![+-])/.test(line) && !line.includes('PASS2D B4') && !line.includes('SLIDE-OPS-VIA-VIEWER') && !line.includes('INSERT-PERSIST') && !line.includes('STUDIO_LAUNCH_WORDING') && !line.includes('VERSION-HISTORY-V2') && !line.includes('NEXT_PUBLIC_STUDIO_THUMBNAIL_LAST_GOOD') && !belongsToRailBuildCount(line))
     for (const [rel, base] of [[VIEWER, baseViewer], [STRIP, baseStripText]]) {
-      for (const line of changed(rel)) assert.doesNotMatch(line, COMMAND, `${rel} diff touches a Layout command: ${line}`)
+      for (const line of withoutFirstPaint(changed(rel))) assert.doesNotMatch(line, COMMAND, `${rel} diff touches a Layout command: ${line}`)
     }
     // the viewer diff is one import, the gate and the strip prop; the strip diff is the imports, the prop and the footer line
-    assert.deepEqual(changed(VIEWER).filter(line => line.startsWith('-')), [], 'the viewer loses no line')
+    assert.deepEqual(withoutFirstPaint(changed(VIEWER)).filter(line => line.startsWith('-')), [], 'the viewer loses no line')
     assert.deepEqual(changed(STRIP).filter(line => line.startsWith('-')), [], 'the strip loses no line')
     // + PASS2D A3 (NEXT_PUBLIC_STUDIO_THEME_BLANK_NOTE) adds four flag-gated lines to the viewer (an import, a const with its comment, one conditional prop on the Theme Panel);
     //   scripts/test-studio-theme-blank-note.mjs proves them.
-    assert.equal(changed(VIEWER).filter(line => line.startsWith('+')).length, 1 + 13 + 1 + 4, 'the viewer gains an import, the gate and the prop (+ the four PASS2D A3 lines)')
+    assert.equal(withoutFirstPaint(changed(VIEWER)).filter(line => line.startsWith('+')).length, 1 + 13 + 1 + 4, 'the viewer gains an import, the gate and the prop (+ the four PASS2D A3 lines)')
     assert.equal(changed(STRIP).filter(line => line.startsWith('+')).length, 2 + 3 + 1 + 1, 'the strip gains two imports, the prop, its destructuring and the footer')
     // + PASS2B J2-04 (NEXT_PUBLIC_STUDIO_ADD_SLIDE_STATUS) adds flag-gated lines to both; scripts/studio-add-slide-status-strip.mjs takes them out first.
     for (const rel of [PAGE, ENTRY]) assert.equal(stripDarkPersist(rel, stripAddSlideStatus(rel, stripOpenReadOnly(rel, read(rel)))), baseSource(rel), `${rel}: the page and the Add Slide entry are untouched`)
