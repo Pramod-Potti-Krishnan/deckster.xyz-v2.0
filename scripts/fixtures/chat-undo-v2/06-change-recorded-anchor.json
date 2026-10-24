@@ -1,0 +1,321 @@
+{
+ "scenario": "06-change-recorded-anchor",
+ "description": "Two chat changes in a row (a refine, then a confirmed delete). Each closing chat_message is followed by its change_recorded, whose anchor_message_id is that chat_message's message_id; only the latest change is undoable. A live frame has no 'replayed' key.",
+ "director_commit": "18fa6604434bd633f6970afcb4d3174a6df1e6bc",
+ "flags": {
+  "MULTI_INTENT_ENABLED": "true",
+  "DIRECTOR_MDC_BULK_EDIT_ENABLED": "true",
+  "DIRECTOR_MDC_CHAT_UNDO_ENABLED": "true",
+  "CHAT_CAP_BULK_EDIT": "true",
+  "CHAT_CAP_CHAT_UNDO": "true",
+  "SLIDE_COMPOSER_ENABLED": "true",
+  "SLIDE_COMPOSER_ASYNC_ENABLED": "true",
+  "SLIDE_REFINER_ENABLED": "true",
+  "DIRECTOR_MDC_REFINE_SLIDE_ENABLED": "true",
+  "CHAT_CAP_REFINE_SLIDE": "true",
+  "DIRECTOR_MDC_HONEST_REPLIES_ENABLED": "true",
+  "DIRECTOR_MDC_SESSION_SCOPE_ENABLED": "true"
+ },
+ "client_caps": [
+  "mdc1",
+  "bulk_edit1",
+  "undo1"
+ ],
+ "recorded_by": "docs/mdc/bulk-edit-undo-frames/record.py (offline, $0)",
+ "scripted_model_output": [
+  {
+   "action_type": "refine_slide",
+   "response_text": null,
+   "questions": null,
+   "tool_calls": null,
+   "reasoning": "scripted",
+   "confidence": 0.95,
+   "requires_approval": false,
+   "extracted_context": null,
+   "target_slide_indices": [
+    2
+   ],
+   "new_topic": null,
+   "op_brief": "More concise",
+   "element_type": null,
+   "structured_questions": []
+  },
+  {
+   "action_type": "delete_slide",
+   "response_text": null,
+   "questions": null,
+   "tool_calls": null,
+   "reasoning": "scripted",
+   "confidence": 0.95,
+   "requires_approval": false,
+   "extracted_context": null,
+   "target_slide_indices": [
+    1
+   ],
+   "new_topic": null,
+   "op_brief": null,
+   "element_type": null,
+   "structured_questions": []
+  }
+ ],
+ "frame_counts": {
+  "in": 3,
+  "out": 10
+ },
+ "outbound_frame_types": [
+  "action_request",
+  "change_recorded",
+  "chat_message",
+  "deck_mutation",
+  "slide_ready"
+ ],
+ "events": [],
+ "frames": [
+  {
+   "seq": 1,
+   "direction": "in",
+   "frame": {
+    "type": "user_message",
+    "data": {
+     "text": "Make slide 3 more concise",
+     "client_caps": [
+      "mdc1",
+      "bulk_edit1",
+      "undo1"
+     ]
+    }
+   }
+  },
+  {
+   "seq": 2,
+   "direction": "out",
+   "frame": {
+    "message_id": "msg_5923840d",
+    "session_id": "s_e2e",
+    "timestamp": "2026-10-24T14:48:25.771044Z",
+    "type": "chat_message",
+    "role": "assistant",
+    "payload": {
+     "text": "Refining slide 3 (\"Churn Drivers\"): \"More concise\". The current slide stays as it is until the refined version is ready, then it's swapped in place. You can keep chatting meanwhile.",
+     "sub_title": null,
+     "list_items": null,
+     "format": "markdown",
+     "ephemeral": false
+    }
+   }
+  },
+  {
+   "seq": 3,
+   "direction": "out",
+   "frame": {
+    "message_id": "msg_slide_ready_d2a558cc",
+    "session_id": "s_e2e",
+    "timestamp": "2026-10-24T14:48:25.779314Z",
+    "type": "slide_ready",
+    "role": "assistant",
+    "payload": {
+     "job_id": "mdc_5e57ba4f0a1f",
+     "kind": "refine",
+     "presentation_id": "pres-e2e",
+     "slide_index": 2,
+     "inserted_at_index": 2,
+     "presentation_url": null,
+     "real_slide_id": "R1-L2",
+     "replaced_slide_id": "L2",
+     "thumbnail_url": null,
+     "status": "built"
+    }
+   }
+  },
+  {
+   "seq": 4,
+   "direction": "out",
+   "frame": {
+    "message_id": "msg_dmut_9f1bd96a",
+    "session_id": "s_e2e",
+    "timestamp": "2026-10-24T14:48:25.781082Z",
+    "type": "deck_mutation",
+    "role": "assistant",
+    "payload": {
+     "mutation": "slide_replaced",
+     "slide_index": 2,
+     "new_slide_index": null,
+     "presentation_id": "pres-e2e",
+     "presentation_url": "https://layout.synthetic.invalid/p/pres-e2e",
+     "refresh_token": "dm_3ba1e87edff7"
+    }
+   }
+  },
+  {
+   "seq": 5,
+   "direction": "out",
+   "frame": {
+    "message_id": "msg_2dc4928d",
+    "session_id": "s_e2e",
+    "timestamp": "2026-10-24T14:48:25.782715Z",
+    "type": "chat_message",
+    "role": "assistant",
+    "payload": {
+     "text": "Done. Slide 3 is refined, in the same place.",
+     "sub_title": null,
+     "list_items": null,
+     "format": "markdown",
+     "ephemeral": false
+    }
+   }
+  },
+  {
+   "seq": 6,
+   "direction": "out",
+   "frame": {
+    "message_id": "msg_chg_f4c09b6e",
+    "session_id": "s_e2e",
+    "timestamp": "2026-10-24T14:48:25.787799Z",
+    "type": "change_recorded",
+    "role": "assistant",
+    "payload": {
+     "change_id": "chg_925dd45c6251",
+     "label": "Refined slide 3",
+     "kind": "slide_replaced",
+     "presentation_id": "pres-e2e",
+     "undoable": true,
+     "anchor_message_id": "msg_2dc4928d"
+    }
+   }
+  },
+  {
+   "seq": 7,
+   "direction": "in",
+   "frame": {
+    "type": "user_message",
+    "data": {
+     "text": "Delete slide 2",
+     "client_caps": [
+      "mdc1",
+      "bulk_edit1",
+      "undo1"
+     ]
+    }
+   }
+  },
+  {
+   "seq": 8,
+   "direction": "out",
+   "frame": {
+    "message_id": "msg_a079c035",
+    "session_id": "s_e2e",
+    "timestamp": "2026-10-24T14:48:25.884158Z",
+    "type": "action_request",
+    "role": "assistant",
+    "payload": {
+     "prompt_text": "Delete slide 2 — \"Pipeline Health\"? You can undo it from chat afterwards.",
+     "actions": [
+      {
+       "label": "Delete slide 2",
+       "value": "confirm_slide_op",
+       "primary": true,
+       "requires_input": false
+      },
+      {
+       "label": "Keep it",
+       "value": "decline_slide_op",
+       "primary": false,
+       "requires_input": false
+      }
+     ]
+    }
+   }
+  },
+  {
+   "seq": 9,
+   "direction": "in",
+   "frame": {
+    "type": "user_message",
+    "data": {
+     "text": "",
+     "client_caps": [
+      "mdc1",
+      "bulk_edit1",
+      "undo1"
+     ],
+     "action_value": "confirm_slide_op",
+     "action_label": "confirm_slide_op"
+    }
+   }
+  },
+  {
+   "seq": 10,
+   "direction": "out",
+   "frame": {
+    "message_id": "msg_af572bd8",
+    "session_id": "s_e2e",
+    "timestamp": "2026-10-24T14:48:25.885901Z",
+    "type": "chat_message",
+    "role": "assistant",
+    "payload": {
+     "text": "Deleting slide 2…",
+     "sub_title": null,
+     "list_items": null,
+     "format": "markdown",
+     "ephemeral": false
+    }
+   }
+  },
+  {
+   "seq": 11,
+   "direction": "out",
+   "frame": {
+    "message_id": "msg_dmut_0d0b7d88",
+    "session_id": "s_e2e",
+    "timestamp": "2026-10-24T14:48:25.925196Z",
+    "type": "deck_mutation",
+    "role": "assistant",
+    "payload": {
+     "mutation": "slide_deleted",
+     "slide_index": 1,
+     "new_slide_index": null,
+     "presentation_id": "pres-e2e",
+     "presentation_url": "https://layout.synthetic.invalid/p/pres-e2e",
+     "refresh_token": "dm_3e917cbce070"
+    }
+   }
+  },
+  {
+   "seq": 12,
+   "direction": "out",
+   "frame": {
+    "message_id": "msg_57d9f7d8",
+    "session_id": "s_e2e",
+    "timestamp": "2026-10-24T14:48:25.926843Z",
+    "type": "chat_message",
+    "role": "assistant",
+    "payload": {
+     "text": "Slide 2 is gone; the deck renumbered accordingly.",
+     "sub_title": null,
+     "list_items": null,
+     "format": "markdown",
+     "ephemeral": false
+    }
+   }
+  },
+  {
+   "seq": 13,
+   "direction": "out",
+   "frame": {
+    "message_id": "msg_chg_9e262228",
+    "session_id": "s_e2e",
+    "timestamp": "2026-10-24T14:48:25.931954Z",
+    "type": "change_recorded",
+    "role": "assistant",
+    "payload": {
+     "change_id": "chg_6a19ed25b60f",
+     "label": "Deleted slide 2",
+     "kind": "slide_deleted",
+     "presentation_id": "pres-e2e",
+     "undoable": true,
+     "anchor_message_id": "msg_57d9f7d8"
+    }
+   }
+  }
+ ]
+}

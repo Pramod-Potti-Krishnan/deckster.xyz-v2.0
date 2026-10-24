@@ -10,7 +10,7 @@ import { useSyncExternalStore } from 'react'
 import {
   STUDIO_BULK_EDIT_ENABLED, STUDIO_CHAT_UNDO_ENABLED, UNDO_COPY, BULK_EDIT_PROGRESS_TYPE, BULK_EDIT_SUMMARY_TYPE, CHANGE_RECORDED_TYPE, UNDO_RESULT_TYPE,
   frameSessionId, frameType, isBulkEditConfirmFrame, parseBulkEditConfirm, parseBulkEditProgress, parseBulkEditSummary, parseChangeRecorded,
-  parseDirectorChatTurn, parseUndoResult, undoChangeAction,
+  parseDirectorChatTurn, parseUndoResult, undoChangeAction, parseChangeAnchors, parseSyncedPresentation,
   type BulkEditConfirm, type BulkEditReceipt, type BulkEditSummary, type RecordedChange, type UndoResultStatus,
 } from '@/lib/studio-bulk-edit-wire'
 
@@ -26,7 +26,22 @@ export type UndoPhase =
   | { phase: 'failed'; reason: string | null }
   | { phase: 'superseded' }
 
-export interface ChangeRecord { change: RecordedChange; anchorMessageId: string | null; seq: number; state: UndoPhase }
+/**
+ * anchorMessageId = v1's rule: the latest Director line seen live before the change was recorded. liveAnchorId / historyAnchorId = Director's own anchors (undo v2: change_recorded.anchor_message_id and
+ * anchor_history_id); replayed = the frame was re-sent after a reconnect. Which chat line the chip sits under is undoHostOf(record, the lines in the chat).
+ */
+export interface ChangeRecord { change: RecordedChange; anchorMessageId: string | null; liveAnchorId: string | null; historyAnchorId: string | null; replayed: boolean; seq: number; state: UndoPhase }
+
+/**
+ * Undo v2: the chat line a change's chip sits under. The line whose id is the live anchor, if that line is in the chat; else the line whose id is the replayed history anchor, if that is; else v1's rule
+ * (the latest Director line seen live before the change). `present` = the ids of the Director chat lines the chat shows now; null = not known yet (nothing has been drawn): a live anchor stands, then
+ * the history anchor, then v1's line. A line that is not in the chat hosts nothing, so a chip is never drawn under a line that is not there.
+ */
+export function undoHostOf(record: Pick<ChangeRecord, 'liveAnchorId' | 'historyAnchorId' | 'anchorMessageId'>, present: ReadonlySet<string> | null): string | null {
+  if (record.liveAnchorId && (!present || present.has(record.liveAnchorId))) return record.liveAnchorId
+  if (record.historyAnchorId && (!present || present.has(record.historyAnchorId))) return record.historyAnchorId
+  return record.anchorMessageId
+}
 export interface BulkRecord {
   bulkId: string
   /** The chips' titles, read from the deck's structure when the confirm card arrived (null: number only). */
@@ -45,6 +60,8 @@ export interface BulkEditRouteContext {
   presentationId: string | null
   isCurrent: boolean
   slideTitles?: () => ReadonlyArray<{ slide_id?: unknown; title?: unknown }>
+  /** Whose deck the canvas shows (null/absent: not known yet). Another session's deck never lends this one its presentation id (undo v2). */
+  ownerSessionId?: string | null
 }
 export type BulkEditRoute = 'consumed' | 'pass'
 
@@ -53,6 +70,10 @@ interface SessionData {
   changes: ChangeRecord[]
   lastDirectorChat: string | null
   seq: number
+  /** The Director chat lines the chat shows (undo v2; set by MessageList on every render); null until a chat has been drawn. */
+  present: ReadonlySet<string> | null
+  /** The deck Director's latest sync_response named (undo v2). */
+  synced: string | null
 }
 
 const titleText = (value: unknown): string | null => {
@@ -77,7 +98,7 @@ export function createBulkEditUndoStore() {
   const changed = () => { version++; for (const listener of Array.from(listeners)) { try { listener() } catch { /* a listener never breaks the frame path */ } } }
   const dataFor = (sessionId: string): SessionData => {
     let data = sessions.get(sessionId)
-    if (!data) { data = { bulks: new Map(), changes: [], lastDirectorChat: null, seq: 0 }; sessions.set(sessionId, data) }
+    if (!data) { data = { bulks: new Map(), changes: [], lastDirectorChat: null, seq: 0, present: null, synced: null }; sessions.set(sessionId, data) }
     return data
   }
   const bulkFor = (data: SessionData, bulkId: string): BulkRecord => {
@@ -99,6 +120,11 @@ export function createBulkEditUndoStore() {
       if (!type || !sessionId || !context.isCurrent) return 'pass'
       const named = frameSessionId(frame)
       const foreign = named !== null && named !== sessionId // an envelope for another session is never this tab's state
+      if (type === 'sync_response') {
+        // UNDO V2: the deck Director names when a reconnect begins. A change re-sent at the end of that connect is for this deck, and it can arrive before the page has re-read which deck it shows.
+        if (STUDIO_CHAT_UNDO_ENABLED && !foreign) dataFor(sessionId).synced = parseSyncedPresentation(frame)
+        return 'pass'
+      }
       if (type === 'chat_message') {
         const turn = STUDIO_CHAT_UNDO_ENABLED && !foreign ? parseDirectorChatTurn(frame) : null
         if (turn) dataFor(sessionId).lastDirectorChat = turn.messageId
@@ -138,13 +164,24 @@ export function createBulkEditUndoStore() {
         if (!STUDIO_CHAT_UNDO_ENABLED) return 'pass'
         if (foreign) return 'consumed'
         const change = parseChangeRecorded(frame)
+        // UNDO V2: a re-send comes as the last frame of a reconnect, and the page may not have re-read which deck it shows by then: the deck Director's sync_response just named stands in, unless the canvas shows another session's deck.
+        if (!context.presentationId && (context.ownerSessionId ?? sessionId) === sessionId) context = { ...context, presentationId: sessions.get(sessionId)?.synced ?? null }
         // Only the deck this tab displays: a frame for another presentation (or when none is known) is not recorded.
         if (!change || !context.presentationId || change.presentationId !== context.presentationId) return 'consumed'
         const data = dataFor(sessionId)
-        if (findChange(data, change.changeId)) return 'consumed'
+        const anchors = parseChangeAnchors(frame), known = findChange(data, change.changeId)
+        if (known) {
+          // UNDO V2: Director re-sends the latest undoable change after a reconnect (replayed: true). The chip this tab already has for that change_id is REPLACED in place (its label and anchors), never doubled,
+          // and never revived: an Undone / Couldn't undo / pending / replaced chip keeps its state, an idle one stays idle. An anchor the re-send does not carry keeps the one it had.
+          const liveAnchorId = anchors.liveAnchorId ?? known.liveAnchorId, historyAnchorId = anchors.historyAnchorId ?? known.historyAnchorId
+          const moved = liveAnchorId !== known.liveAnchorId || historyAnchorId !== known.historyAnchorId || change.label !== known.change.label || change.kind !== known.change.kind
+          known.change = change; known.liveAnchorId = liveAnchorId; known.historyAnchorId = historyAnchorId; known.replayed = known.replayed || anchors.replayed
+          if (moved) changed()
+          return 'consumed'
+        }
         // Only the LATEST change can be undone: every older chip of this deck still waiting goes to "a later change replaced this" at once.
         for (const record of data.changes) if (record.change.presentationId === change.presentationId && record.state.phase === 'idle') record.state = { phase: 'superseded' }
-        data.changes.push({ change, anchorMessageId: data.lastDirectorChat, seq: ++data.seq, state: { phase: 'idle' } })
+        data.changes.push({ change, anchorMessageId: data.lastDirectorChat, ...anchors, seq: ++data.seq, state: { phase: 'idle' } })
         if (data.changes.length > MAX_CHANGES) data.changes.shift()
         changed()
         return 'consumed'
@@ -166,11 +203,16 @@ export function createBulkEditUndoStore() {
     subscribe(listener: () => void) { listeners.add(listener); return () => { listeners.delete(listener) } },
     version: () => version,
     bulk: (sessionId: string | null | undefined, bulkId: string): BulkRecord | null => (sessionId ? sessions.get(sessionId)?.bulks.get(bulkId) ?? null : null),
-    /** The newest change recorded under this Director chat line, or null. */
+    /** The newest change whose chip sits under this Director chat line (undoHostOf: its live anchor, else its history anchor, else the latest line seen live before it), or null. */
     changeFor(sessionId: string | null | undefined, messageId: string): ChangeRecord | null {
-      const hits = sessionId ? sessions.get(sessionId)?.changes.filter(record => record.anchorMessageId === messageId) ?? [] : []
+      const data = sessionId ? sessions.get(sessionId) : undefined
+      const hits = data ? data.changes.filter(record => undoHostOf(record, data.present) === messageId) : []
       return hits.length ? hits[hits.length - 1] : null
     },
+    /** The Director chat lines the chat shows now (MessageList reports them on every render, before its lines draw). Nothing is notified: the lines draw in the same pass. */
+    setChatLines(sessionId: string, ids: ReadonlySet<string> | null): void { dataFor(sessionId).present = ids },
+    /** The Director chat lines last reported for this session (null: none reported). */
+    chatLines: (sessionId: string | null | undefined): ReadonlySet<string> | null => (sessionId ? sessions.get(sessionId)?.present ?? null : null),
     /** idle -> pending, once. false = nothing to do (not idle, unknown, or already asked): the caller sends no frame. */
     beginUndo(sessionId: string, changeId: string, now = Date.now()): boolean {
       const record = findChange(sessions.get(sessionId), changeId)
@@ -215,6 +257,7 @@ export function bulkEditUndoContext(
   return {
     sessionId, isCurrent,
     presentationId: owner && owner.deckOwnerSessionId === sessionId && typeof owner.presentationId === 'string' && owner.presentationId ? owner.presentationId : null,
+    ownerSessionId: owner && typeof owner.deckOwnerSessionId === 'string' && owner.deckOwnerSessionId ? owner.deckOwnerSessionId : null,
     slideTitles: () => structure?.slides ?? [],
   }
 }
@@ -222,6 +265,22 @@ export function bulkEditUndoContext(
 /** The hook's single entry: one socket frame to this tab's store. */
 export function routeStudioBulkEditUndoFrame(frame: unknown, context: BulkEditRouteContext, store: BulkEditUndoStore = studioBulkEditUndo): BulkEditRoute {
   return store.route(frame, context)
+}
+
+/**
+ * Undo v2: MessageList tells the store which Director chat lines it is about to draw (an assistant chat_message that is not removed: the lines that host a chip), so a chip goes under its change's own anchor
+ * line and never under a line that is not in the chat. Read-only on the list; flag off: nothing is recorded.
+ */
+export function noteStudioChatLines(sessionId: string | null | undefined, items: ReadonlyArray<unknown>, removedIds?: ReadonlySet<string>, store: BulkEditUndoStore = studioBulkEditUndo): void {
+  try {
+    if (!STUDIO_CHAT_UNDO_ENABLED || !sessionId || !Array.isArray(items)) return
+    const ids = new Set<string>()
+    for (const item of items) {
+      const line = item as { messageType?: unknown; type?: unknown; message_id?: unknown } | null
+      if (line && line.messageType === 'bot' && line.type === 'chat_message' && typeof line.message_id === 'string' && !removedIds?.has(line.message_id)) ids.add(line.message_id)
+    }
+    store.setChatLines(sessionId, ids)
+  } catch { /* the chat never breaks over a chip */ }
 }
 
 /** Re-render the caller when the store changes (a receipt or a summary arrives, a change is recorded, an undo is answered): the confirm card and the Undo chip use it. Constant while nothing is routed, so with both flags off nothing re-renders. */

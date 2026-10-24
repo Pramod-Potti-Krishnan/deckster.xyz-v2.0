@@ -225,6 +225,29 @@ export function parseChangeRecorded(frame: unknown): RecordedChange | null {
   } catch { return null }
 }
 
+/**
+ * change_recorded's anchors (Director !544, undo v2). All three are optional and every other key stays ignored, so a v1 frame (none of them) reads as {null, null, false}:
+ * anchor_message_id = the LIVE id of the change's closing chat line (on the live frame and on every re-send); anchor_history_id = the msg_hist_* id of the REPLAYED closing line
+ * (only on a re-send, and only when that connect replayed the chat history); replayed = true on a frame re-sent after a reconnect. A value that is not a clean id is null.
+ */
+export interface ChangeAnchors { liveAnchorId: string | null; historyAnchorId: string | null; replayed: boolean }
+export function parseChangeAnchors(frame: unknown): ChangeAnchors {
+  try {
+    const body = frameType(frame) === CHANGE_RECORDED_TYPE ? bodyOf(frame) : null
+    if (!body) return { liveAnchorId: null, historyAnchorId: null, replayed: false }
+    return { liveAnchorId: cleanId(body.anchor_message_id), historyAnchorId: cleanId(body.anchor_history_id), replayed: body.replayed === true }
+  } catch { return { liveAnchorId: null, historyAnchorId: null, replayed: false } }
+}
+
+/** The deck a sync_response names (payload.presentation_id), or null: what Director says this session's deck is when a reconnect begins. */
+export function parseSyncedPresentation(frame: unknown): string | null {
+  try {
+    if (frameType(frame) !== 'sync_response') return null
+    const body = bodyOf(frame)
+    return body ? cleanId(body.presentation_id) : null
+  } catch { return null }
+}
+
 export type UndoResultStatus = 'restored' | 'failed' | 'superseded'
 export interface UndoResult { changeId: string; status: UndoResultStatus; reason: string | null }
 

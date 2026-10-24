@@ -1,0 +1,716 @@
+{
+ "scenario": "07-reconnect-replay",
+ "description": "A chat refine (closing chat_message + change_recorded with its anchor). Reconnect 1 (skip_history true, the client kept its chat): sync_response, slide_update, then the SAME change_recorded with replayed true and the same live anchor_message_id. Reconnect 2 (the Director replays the chat history, msg_hist_* ids): the history chat lines, then the same change_recorded with the live anchor_message_id AND anchor_history_id = the id of the replayed closing line. Then a person edits a slide on the canvas and the client reconnects again: nothing is re-sent.",
+ "director_commit": "18fa6604434bd633f6970afcb4d3174a6df1e6bc",
+ "flags": {
+  "MULTI_INTENT_ENABLED": "true",
+  "DIRECTOR_MDC_BULK_EDIT_ENABLED": "true",
+  "DIRECTOR_MDC_CHAT_UNDO_ENABLED": "true",
+  "CHAT_CAP_BULK_EDIT": "true",
+  "CHAT_CAP_CHAT_UNDO": "true",
+  "SLIDE_COMPOSER_ENABLED": "true",
+  "SLIDE_COMPOSER_ASYNC_ENABLED": "true",
+  "SLIDE_REFINER_ENABLED": "true",
+  "DIRECTOR_MDC_REFINE_SLIDE_ENABLED": "true",
+  "CHAT_CAP_REFINE_SLIDE": "true",
+  "DIRECTOR_MDC_HONEST_REPLIES_ENABLED": "true",
+  "DIRECTOR_MDC_SESSION_SCOPE_ENABLED": "true"
+ },
+ "client_caps": [
+  "mdc1",
+  "bulk_edit1",
+  "undo1"
+ ],
+ "recorded_by": "docs/mdc/bulk-edit-undo-frames/record.py (offline, $0)",
+ "scripted_model_output": [
+  {
+   "action_type": "refine_slide",
+   "response_text": null,
+   "questions": null,
+   "tool_calls": null,
+   "reasoning": "scripted",
+   "confidence": 0.95,
+   "requires_approval": false,
+   "extracted_context": null,
+   "target_slide_indices": [
+    2
+   ],
+   "new_topic": null,
+   "op_brief": "More concise",
+   "element_type": null,
+   "structured_questions": []
+  }
+ ],
+ "frame_counts": {
+  "in": 1,
+  "out": 16
+ },
+ "outbound_frame_types": [
+  "change_recorded",
+  "chat_message",
+  "deck_mutation",
+  "slide_ready",
+  "slide_update",
+  "sync_response"
+ ],
+ "events": [
+  {
+   "after_seq": 6,
+   "event": "websocket_reconnect",
+   "skip_history": true,
+   "note": "the deck is still at the change's version: change_recorded is re-sent, replayed true, with the live anchor_message_id only (the client kept its chat)"
+  },
+  {
+   "after_seq": 9,
+   "event": "websocket_reconnect",
+   "skip_history": false,
+   "note": "the Director replays the chat history first (msg_hist_* ids); change_recorded is re-sent with the live anchor_message_id AND anchor_history_id, the id of the replayed closing line"
+  },
+  {
+   "after_seq": 15,
+   "event": "canvas_edit",
+   "note": "a person edited slide 1 on the canvas: Layout kept a version"
+  },
+  {
+   "after_seq": 15,
+   "event": "websocket_reconnect",
+   "skip_history": true,
+   "note": "the deck changed since: the change can no longer be undone, nothing is re-sent"
+  }
+ ],
+ "frames": [
+  {
+   "seq": 1,
+   "direction": "in",
+   "frame": {
+    "type": "user_message",
+    "data": {
+     "text": "Make slide 3 more concise",
+     "client_caps": [
+      "mdc1",
+      "bulk_edit1",
+      "undo1"
+     ]
+    }
+   }
+  },
+  {
+   "seq": 2,
+   "direction": "out",
+   "frame": {
+    "message_id": "msg_3f96ca1e",
+    "session_id": "s_e2e",
+    "timestamp": "2026-10-24T14:48:26.140106Z",
+    "type": "chat_message",
+    "role": "assistant",
+    "payload": {
+     "text": "Refining slide 3 (\"Churn Drivers\"): \"More concise\". The current slide stays as it is until the refined version is ready, then it's swapped in place. You can keep chatting meanwhile.",
+     "sub_title": null,
+     "list_items": null,
+     "format": "markdown",
+     "ephemeral": false
+    }
+   }
+  },
+  {
+   "seq": 3,
+   "direction": "out",
+   "frame": {
+    "message_id": "msg_slide_ready_810ff96a",
+    "session_id": "s_e2e",
+    "timestamp": "2026-10-24T14:48:26.148463Z",
+    "type": "slide_ready",
+    "role": "assistant",
+    "payload": {
+     "job_id": "mdc_0c26928f15eb",
+     "kind": "refine",
+     "presentation_id": "pres-e2e",
+     "slide_index": 2,
+     "inserted_at_index": 2,
+     "presentation_url": null,
+     "real_slide_id": "R1-L2",
+     "replaced_slide_id": "L2",
+     "thumbnail_url": null,
+     "status": "built"
+    }
+   }
+  },
+  {
+   "seq": 4,
+   "direction": "out",
+   "frame": {
+    "message_id": "msg_dmut_6babbf6d",
+    "session_id": "s_e2e",
+    "timestamp": "2026-10-24T14:48:26.150159Z",
+    "type": "deck_mutation",
+    "role": "assistant",
+    "payload": {
+     "mutation": "slide_replaced",
+     "slide_index": 2,
+     "new_slide_index": null,
+     "presentation_id": "pres-e2e",
+     "presentation_url": "https://layout.synthetic.invalid/p/pres-e2e",
+     "refresh_token": "dm_93a199928c46"
+    }
+   }
+  },
+  {
+   "seq": 5,
+   "direction": "out",
+   "frame": {
+    "message_id": "msg_2408edaf",
+    "session_id": "s_e2e",
+    "timestamp": "2026-10-24T14:48:26.151779Z",
+    "type": "chat_message",
+    "role": "assistant",
+    "payload": {
+     "text": "Done. Slide 3 is refined, in the same place.",
+     "sub_title": null,
+     "list_items": null,
+     "format": "markdown",
+     "ephemeral": false
+    }
+   }
+  },
+  {
+   "seq": 6,
+   "direction": "out",
+   "frame": {
+    "message_id": "msg_chg_e4c87361",
+    "session_id": "s_e2e",
+    "timestamp": "2026-10-24T14:48:26.156839Z",
+    "type": "change_recorded",
+    "role": "assistant",
+    "payload": {
+     "change_id": "chg_97a65acad7db",
+     "label": "Refined slide 3",
+     "kind": "slide_replaced",
+     "presentation_id": "pres-e2e",
+     "undoable": true,
+     "anchor_message_id": "msg_2408edaf"
+    }
+   }
+  },
+  {
+   "seq": 7,
+   "direction": "out",
+   "frame": {
+    "message_id": "msg_sync_a8bda56a",
+    "session_id": "s_e2e",
+    "timestamp": "2026-10-24T14:48:26.157065Z",
+    "type": "sync_response",
+    "role": "assistant",
+    "payload": {
+     "action": "skip_history",
+     "message_count": 3,
+     "current_state": "CONTENT_GENERATED",
+     "has_strawman": true,
+     "presentation_url": "https://layout.synthetic.invalid/p/pres-e2e",
+     "presentation_id": "pres-e2e",
+     "slide_count": 5
+    }
+   }
+  },
+  {
+   "seq": 8,
+   "direction": "out",
+   "frame": {
+    "message_id": "msg_88a567c7",
+    "session_id": "s_e2e",
+    "timestamp": "2026-10-24T14:48:26.158785Z",
+    "type": "slide_update",
+    "role": "assistant",
+    "payload": {
+     "operation": "full_update",
+     "metadata": {
+      "main_title": "Q4 sales review",
+      "overall_theme": "professional",
+      "design_suggestions": "",
+      "target_audience": "executives",
+      "presentation_duration": 15,
+      "preview_url": "https://layout.synthetic.invalid/p/pres-e2e",
+      "preview_presentation_id": "pres-e2e"
+     },
+     "slides": [
+      {
+       "slide_id": "sid0",
+       "slide_number": 1,
+       "slide_type": "content",
+       "title": "Q4 Revenue Overview",
+       "subtitle": null,
+       "narrative": "Key content about Q4 Revenue Overview",
+       "key_points": [],
+       "variant_id": null,
+       "service": null,
+       "purpose": null,
+       "semantic_group": null,
+       "analytics_needed": null,
+       "visuals_needed": null,
+       "diagrams_needed": null,
+       "structure_preference": "L01",
+       "container_layout": null,
+       "speaker_notes": null
+      },
+      {
+       "slide_id": "sid1",
+       "slide_number": 2,
+       "slide_type": "content",
+       "title": "Pipeline Health",
+       "subtitle": null,
+       "narrative": "Key content about Pipeline Health",
+       "key_points": [],
+       "variant_id": null,
+       "service": null,
+       "purpose": null,
+       "semantic_group": null,
+       "analytics_needed": null,
+       "visuals_needed": null,
+       "diagrams_needed": null,
+       "structure_preference": "L01",
+       "container_layout": null,
+       "speaker_notes": null
+      },
+      {
+       "slide_id": "sid2",
+       "slide_number": 3,
+       "slide_type": "content",
+       "title": "Churn Drivers",
+       "subtitle": null,
+       "narrative": "Key content about Churn Drivers",
+       "key_points": [],
+       "variant_id": null,
+       "service": null,
+       "purpose": null,
+       "semantic_group": null,
+       "analytics_needed": null,
+       "visuals_needed": null,
+       "diagrams_needed": null,
+       "structure_preference": "L01",
+       "container_layout": null,
+       "speaker_notes": null
+      },
+      {
+       "slide_id": "sid3",
+       "slide_number": 4,
+       "slide_type": "content",
+       "title": "Regional Mix",
+       "subtitle": null,
+       "narrative": "Key content about Regional Mix",
+       "key_points": [],
+       "variant_id": null,
+       "service": null,
+       "purpose": null,
+       "semantic_group": null,
+       "analytics_needed": null,
+       "visuals_needed": null,
+       "diagrams_needed": null,
+       "structure_preference": "L01",
+       "container_layout": null,
+       "speaker_notes": null
+      },
+      {
+       "slide_id": "sid4",
+       "slide_number": 5,
+       "slide_type": "content",
+       "title": "Next Quarter Plan",
+       "subtitle": null,
+       "narrative": "Key content about Next Quarter Plan",
+       "key_points": [],
+       "variant_id": null,
+       "service": null,
+       "purpose": null,
+       "semantic_group": null,
+       "analytics_needed": null,
+       "visuals_needed": null,
+       "diagrams_needed": null,
+       "structure_preference": "L01",
+       "container_layout": null,
+       "speaker_notes": null
+      }
+     ],
+     "affected_slides": null,
+     "is_blank": false
+    }
+   }
+  },
+  {
+   "seq": 9,
+   "direction": "out",
+   "frame": {
+    "message_id": "msg_chg_997893b8",
+    "session_id": "s_e2e",
+    "timestamp": "2026-10-24T14:48:26.196084Z",
+    "type": "change_recorded",
+    "role": "assistant",
+    "payload": {
+     "change_id": "chg_97a65acad7db",
+     "label": "Refined slide 3",
+     "kind": "slide_replaced",
+     "presentation_id": "pres-e2e",
+     "undoable": true,
+     "anchor_message_id": "msg_2408edaf",
+     "replayed": true
+    }
+   }
+  },
+  {
+   "seq": 10,
+   "direction": "out",
+   "frame": {
+    "message_id": "msg_sync_ff12e172",
+    "session_id": "s_e2e",
+    "timestamp": "2026-10-24T14:48:26.196335Z",
+    "type": "sync_response",
+    "role": "assistant",
+    "payload": {
+     "action": "send_history",
+     "message_count": 3,
+     "current_state": "CONTENT_GENERATED",
+     "has_strawman": true,
+     "presentation_url": "https://layout.synthetic.invalid/p/pres-e2e",
+     "presentation_id": "pres-e2e",
+     "slide_count": 5
+    }
+   }
+  },
+  {
+   "seq": 11,
+   "direction": "out",
+   "frame": {
+    "message_id": "msg_hist_d02477907189",
+    "session_id": "s_e2e",
+    "timestamp": "2026-10-24T14:48:26.034141Z",
+    "type": "chat_message",
+    "role": "user",
+    "payload": {
+     "text": "Make slide 3 more concise",
+     "sub_title": null,
+     "list_items": null,
+     "format": "markdown",
+     "ephemeral": false
+    }
+   }
+  },
+  {
+   "seq": 12,
+   "direction": "out",
+   "frame": {
+    "message_id": "msg_hist_7039ecfdebeb",
+    "session_id": "s_e2e",
+    "timestamp": "2026-10-24T14:48:26.140093Z",
+    "type": "chat_message",
+    "role": "assistant",
+    "payload": {
+     "text": "Refining slide 3 (\"Churn Drivers\"): \"More concise\". The current slide stays as it is until the refined version is ready, then it's swapped in place. You can keep chatting meanwhile.",
+     "sub_title": null,
+     "list_items": null,
+     "format": "markdown",
+     "ephemeral": false
+    }
+   }
+  },
+  {
+   "seq": 13,
+   "direction": "out",
+   "frame": {
+    "message_id": "msg_hist_ff550276a426",
+    "session_id": "s_e2e",
+    "timestamp": "2026-10-24T14:48:26.151773Z",
+    "type": "chat_message",
+    "role": "assistant",
+    "payload": {
+     "text": "Done. Slide 3 is refined, in the same place.",
+     "sub_title": null,
+     "list_items": null,
+     "format": "markdown",
+     "ephemeral": false
+    }
+   }
+  },
+  {
+   "seq": 14,
+   "direction": "out",
+   "frame": {
+    "message_id": "msg_15f8ea60",
+    "session_id": "s_e2e",
+    "timestamp": "2026-10-24T14:48:26.198103Z",
+    "type": "slide_update",
+    "role": "assistant",
+    "payload": {
+     "operation": "full_update",
+     "metadata": {
+      "main_title": "Q4 sales review",
+      "overall_theme": "professional",
+      "design_suggestions": "",
+      "target_audience": "executives",
+      "presentation_duration": 15,
+      "preview_url": "https://layout.synthetic.invalid/p/pres-e2e",
+      "preview_presentation_id": "pres-e2e"
+     },
+     "slides": [
+      {
+       "slide_id": "sid0",
+       "slide_number": 1,
+       "slide_type": "content",
+       "title": "Q4 Revenue Overview",
+       "subtitle": null,
+       "narrative": "Key content about Q4 Revenue Overview",
+       "key_points": [],
+       "variant_id": null,
+       "service": null,
+       "purpose": null,
+       "semantic_group": null,
+       "analytics_needed": null,
+       "visuals_needed": null,
+       "diagrams_needed": null,
+       "structure_preference": "L01",
+       "container_layout": null,
+       "speaker_notes": null
+      },
+      {
+       "slide_id": "sid1",
+       "slide_number": 2,
+       "slide_type": "content",
+       "title": "Pipeline Health",
+       "subtitle": null,
+       "narrative": "Key content about Pipeline Health",
+       "key_points": [],
+       "variant_id": null,
+       "service": null,
+       "purpose": null,
+       "semantic_group": null,
+       "analytics_needed": null,
+       "visuals_needed": null,
+       "diagrams_needed": null,
+       "structure_preference": "L01",
+       "container_layout": null,
+       "speaker_notes": null
+      },
+      {
+       "slide_id": "sid2",
+       "slide_number": 3,
+       "slide_type": "content",
+       "title": "Churn Drivers",
+       "subtitle": null,
+       "narrative": "Key content about Churn Drivers",
+       "key_points": [],
+       "variant_id": null,
+       "service": null,
+       "purpose": null,
+       "semantic_group": null,
+       "analytics_needed": null,
+       "visuals_needed": null,
+       "diagrams_needed": null,
+       "structure_preference": "L01",
+       "container_layout": null,
+       "speaker_notes": null
+      },
+      {
+       "slide_id": "sid3",
+       "slide_number": 4,
+       "slide_type": "content",
+       "title": "Regional Mix",
+       "subtitle": null,
+       "narrative": "Key content about Regional Mix",
+       "key_points": [],
+       "variant_id": null,
+       "service": null,
+       "purpose": null,
+       "semantic_group": null,
+       "analytics_needed": null,
+       "visuals_needed": null,
+       "diagrams_needed": null,
+       "structure_preference": "L01",
+       "container_layout": null,
+       "speaker_notes": null
+      },
+      {
+       "slide_id": "sid4",
+       "slide_number": 5,
+       "slide_type": "content",
+       "title": "Next Quarter Plan",
+       "subtitle": null,
+       "narrative": "Key content about Next Quarter Plan",
+       "key_points": [],
+       "variant_id": null,
+       "service": null,
+       "purpose": null,
+       "semantic_group": null,
+       "analytics_needed": null,
+       "visuals_needed": null,
+       "diagrams_needed": null,
+       "structure_preference": "L01",
+       "container_layout": null,
+       "speaker_notes": null
+      }
+     ],
+     "affected_slides": null,
+     "is_blank": false
+    }
+   }
+  },
+  {
+   "seq": 15,
+   "direction": "out",
+   "frame": {
+    "message_id": "msg_chg_2d39fab4",
+    "session_id": "s_e2e",
+    "timestamp": "2026-10-24T14:48:26.235472Z",
+    "type": "change_recorded",
+    "role": "assistant",
+    "payload": {
+     "change_id": "chg_97a65acad7db",
+     "label": "Refined slide 3",
+     "kind": "slide_replaced",
+     "presentation_id": "pres-e2e",
+     "undoable": true,
+     "anchor_message_id": "msg_2408edaf",
+     "anchor_history_id": "msg_hist_ff550276a426",
+     "replayed": true
+    }
+   }
+  },
+  {
+   "seq": 16,
+   "direction": "out",
+   "frame": {
+    "message_id": "msg_sync_6f5a41b3",
+    "session_id": "s_e2e",
+    "timestamp": "2026-10-24T14:48:26.235716Z",
+    "type": "sync_response",
+    "role": "assistant",
+    "payload": {
+     "action": "skip_history",
+     "message_count": 3,
+     "current_state": "CONTENT_GENERATED",
+     "has_strawman": true,
+     "presentation_url": "https://layout.synthetic.invalid/p/pres-e2e",
+     "presentation_id": "pres-e2e",
+     "slide_count": 5
+    }
+   }
+  },
+  {
+   "seq": 17,
+   "direction": "out",
+   "frame": {
+    "message_id": "msg_f66f77cc",
+    "session_id": "s_e2e",
+    "timestamp": "2026-10-24T14:48:26.237486Z",
+    "type": "slide_update",
+    "role": "assistant",
+    "payload": {
+     "operation": "full_update",
+     "metadata": {
+      "main_title": "Q4 sales review",
+      "overall_theme": "professional",
+      "design_suggestions": "",
+      "target_audience": "executives",
+      "presentation_duration": 15,
+      "preview_url": "https://layout.synthetic.invalid/p/pres-e2e",
+      "preview_presentation_id": "pres-e2e"
+     },
+     "slides": [
+      {
+       "slide_id": "sid0",
+       "slide_number": 1,
+       "slide_type": "content",
+       "title": "Q4 Revenue Overview",
+       "subtitle": null,
+       "narrative": "Key content about Q4 Revenue Overview",
+       "key_points": [],
+       "variant_id": null,
+       "service": null,
+       "purpose": null,
+       "semantic_group": null,
+       "analytics_needed": null,
+       "visuals_needed": null,
+       "diagrams_needed": null,
+       "structure_preference": "L01",
+       "container_layout": null,
+       "speaker_notes": null
+      },
+      {
+       "slide_id": "sid1",
+       "slide_number": 2,
+       "slide_type": "content",
+       "title": "Pipeline Health",
+       "subtitle": null,
+       "narrative": "Key content about Pipeline Health",
+       "key_points": [],
+       "variant_id": null,
+       "service": null,
+       "purpose": null,
+       "semantic_group": null,
+       "analytics_needed": null,
+       "visuals_needed": null,
+       "diagrams_needed": null,
+       "structure_preference": "L01",
+       "container_layout": null,
+       "speaker_notes": null
+      },
+      {
+       "slide_id": "sid2",
+       "slide_number": 3,
+       "slide_type": "content",
+       "title": "Churn Drivers",
+       "subtitle": null,
+       "narrative": "Key content about Churn Drivers",
+       "key_points": [],
+       "variant_id": null,
+       "service": null,
+       "purpose": null,
+       "semantic_group": null,
+       "analytics_needed": null,
+       "visuals_needed": null,
+       "diagrams_needed": null,
+       "structure_preference": "L01",
+       "container_layout": null,
+       "speaker_notes": null
+      },
+      {
+       "slide_id": "sid3",
+       "slide_number": 4,
+       "slide_type": "content",
+       "title": "Regional Mix",
+       "subtitle": null,
+       "narrative": "Key content about Regional Mix",
+       "key_points": [],
+       "variant_id": null,
+       "service": null,
+       "purpose": null,
+       "semantic_group": null,
+       "analytics_needed": null,
+       "visuals_needed": null,
+       "diagrams_needed": null,
+       "structure_preference": "L01",
+       "container_layout": null,
+       "speaker_notes": null
+      },
+      {
+       "slide_id": "sid4",
+       "slide_number": 5,
+       "slide_type": "content",
+       "title": "Next Quarter Plan",
+       "subtitle": null,
+       "narrative": "Key content about Next Quarter Plan",
+       "key_points": [],
+       "variant_id": null,
+       "service": null,
+       "purpose": null,
+       "semantic_group": null,
+       "analytics_needed": null,
+       "visuals_needed": null,
+       "diagrams_needed": null,
+       "structure_preference": "L01",
+       "container_layout": null,
+       "speaker_notes": null
+      }
+     ],
+     "affected_slides": null,
+     "is_blank": false
+    }
+   }
+  }
+ ]
+}
