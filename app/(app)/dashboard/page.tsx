@@ -34,6 +34,7 @@ import { studioTemplateDisplayName } from "@/lib/studio-template-display-name"
 // FRONTEND-2 Pass 3 (NEXT_PUBLIC_STUDIO_DUPLICATE_DECK, default off): the deck list can copy a deck. Everything below is behind the flag; off, the Duplicate item stays disabled as it was.
 import { toast } from "@/hooks/use-toast"
 import { duplicateTargetFor, runDuplicateDeck } from "@/lib/studio-duplicate-deck"
+import { useStudioDeckCardThumbnail } from "@/hooks/use-studio-deck-card-thumbnail" // DECK-CARD-THUMBNAIL (NEXT_PUBLIC_STUDIO_DECK_CARD_THUMBNAILS_ENABLED, default off): a card shows its first-slide image instead of the live viewer
 
 // NEXT_PUBLIC_STUDIO_LAUNCH_WORDING (default off): launched wording instead of promises and developer-speak; off, this file is exactly as before.
 const LAUNCH_WORDING = process.env.NEXT_PUBLIC_STUDIO_LAUNCH_WORDING === "true"
@@ -76,6 +77,8 @@ function PresentationPreview({ presentation }: { presentation: Presentation }) {
   // PASS2D R5 (NEXT_PUBLIC_STUDIO_DECK_CARD_SLIDE_COUNT, default off): an unfinished deck previews its strawman, the deck its count describes (not a blank final deck).
   const candidate = process.env.NEXT_PUBLIC_STUDIO_DECK_CARD_SLIDE_COUNT === "true" ? studioDeckCardPreviewUrl(presentation) : presentation.finalPresentationUrl || presentation.strawmanPreviewUrl
   const decision = evaluateLayoutViewerUrl(candidate, LAYOUT_VIEWER_URL_POLICY)
+  const deckCardThumbnail = useStudioDeckCardThumbnail(decision, deckTitle(presentation)) // DECK-CARD-THUMBNAIL: null with the flag off, and whenever today's preview is to be drawn
+  if (deckCardThumbnail) return deckCardThumbnail // DECK-CARD-THUMBNAIL
 
   if (decision.status === 'allowed') {
     return (
