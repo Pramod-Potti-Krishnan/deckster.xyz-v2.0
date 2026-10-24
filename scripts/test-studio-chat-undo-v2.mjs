@@ -38,6 +38,8 @@ const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..')
 const nodeRequire = createRequire(import.meta.url)
 const BASE = process.env.CHAT_UNDO_V2_BASE || BASE_COMMIT
 const git = (...args) => execFileSync('git', args, { cwd: root, encoding: 'utf8', maxBuffer: 1 << 28, stdio: ['ignore', 'pipe', 'ignore'] })
+// This change's OWN committed files: the non-merge commits on the first-parent line BASE..HEAD. What a merged-in branch brings (COMPOSER-2's first paint and deck cards, once they are merged under or into this one) is that branch's, whatever it registers.
+const ownCommitted = (filter = '') => [...new Set(git('log', '--first-parent', '--no-merges', '--name-only', '--format=', ...(filter ? [`--diff-filter=${filter}`] : []), `${BASE}..HEAD`).split('\n').filter(Boolean))]
 const showCache = new Map()
 const show = (commit, rel) => { const ref = `${commit}:${rel}`; if (!showCache.has(ref)) showCache.set(ref, git('show', ref)); return showCache.get(ref) }
 const baseOf = rel => show(BASE, rel)
@@ -347,7 +349,7 @@ async function suite() {
     assert.equal(stripAddSlideStatus(LIST, read(LIST)), stripAddSlideStatus(LIST, baseOf(LIST)), 'the add-slide root takes this change\'s lines out as well')
     const blocks = registry.match(/export const LATER_ENV_BLOCKS = \[([\s\S]*?)\n\]/)[1]; assert.ok(!/chat-undo-v2/.test(blocks), 'no env block')
     assert.ok(!CHAT_UNDO_V2_FILES.includes(ENV) && !CHAT_UNDO_V2_OWN_EDITS.includes(ENV), 'no .env.example change')
-    if (!STOP) assert.equal(git('diff', '--name-only', BASE, 'HEAD', '--', ENV).trim(), '', '.env.example is the base\'s')
+    if (!STOP) assert.ok(!ownCommitted().includes(ENV), 'none of this change\'s own commits touches .env.example')
   })
   await check('registry: one marked line in LATER_CHANGE_FILES names this change\'s files (none in LATER_ENV_BLOCKS: no env block); scope: the COMMITTED diff BASE..HEAD holds those files only', async () => {
     const mod = await stripFile(), registry = read(REGISTRY)
@@ -355,10 +357,10 @@ async function suite() {
     assert.equal(lines.length, 2, 'two registration lines: its files and its strip (no env block)'); assert.equal(lines.filter(line => /^  \.\.\.\(await import\('\.\/studio-chat-undo-v2-strip\.mjs'\)\)\.CHAT_UNDO_V2_SCOPE_FILES, \/\/ LATER-CHANGE: /.test(line)).length, 1, 'the files line')
     const blocks = registry.match(/export const LATER_ENV_BLOCKS = \[([\s\S]*?)\n\]/)[1]; assert.ok(!/chat-undo-v2/.test(blocks), 'no env block')
     for (const rel of mod.CHAT_UNDO_V2_SCOPE_FILES) assert.ok(LATER_CHANGE_FILES.has(rel) || rel in overrides, `${rel} is registered`)
-    const own = new Set(mod.CHAT_UNDO_V2_SCOPE_FILES), changed = git('diff', '--name-only', BASE, 'HEAD').split('\n').filter(Boolean)
+    const own = new Set(mod.CHAT_UNDO_V2_SCOPE_FILES), changed = ownCommitted()
     const stray = changed.filter(rel => !own.has(rel)); assert.deepEqual(stray, [], `files outside this change: ${stray.join(', ')}`)
     for (const rel of mod.CHAT_UNDO_V2_NEW_FILES) assert.ok(fs.existsSync(path.join(root, rel)) || rel in overrides, `${rel} exists`)
-    assert.equal(git('diff', '--name-only', '--diff-filter=D', BASE, 'HEAD').trim(), '', 'nothing deleted')
+    assert.deepEqual(ownCommitted('D'), [], 'nothing deleted')
     if (!STOP) process.stdout.write(`     (committed diff ${BASE.slice(0, 8)}..HEAD: ${changed.length} files)\n`)
   })
   await check('secrets: no line this change adds carries a credential-shaped literal; no request, storage or viewer call in the new store code', () => {
