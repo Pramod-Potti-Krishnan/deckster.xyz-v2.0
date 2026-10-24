@@ -39,6 +39,7 @@ import { createModuleLoader } from './studio-chat-harness/module-loader.mjs'
 import { BASE_ENV } from './studio-chat-harness/profiles.mjs'
 import * as extract from './studio-chat-harness/page-extract.mjs'
 import { stripNewDeckHandoffSend, BASE_COMMIT, NEW_DECK_HANDOFF_SEND_FILES, NEW_DECK_HANDOFF_SEND_NEW_FILES, NEW_DECK_HANDOFF_SEND_CHANGES } from './studio-new-deck-handoff-send-strip.mjs'
+import { stripPublishPreviewInventory } from './studio-publish-preview-inventory-strip.mjs' // #475 stacked: the Publish preview from Layout's inventory (NEXT_PUBLIC_STUDIO_PUBLISH_PREVIEW_INVENTORY_ENABLED) puts its .env.example block after this change's, before # PASS2 ADMIN
 import { stripOpenReadOnly } from './studio-open-read-only-strip.mjs'
 import { stripDarkPersist } from './studio-theme-dark-persist-strip.mjs'
 import { stripAddSlideStatus } from './studio-add-slide-status-strip.mjs'
@@ -564,7 +565,7 @@ async function staticChecks() {
     assert.equal((directive.match(/STUDIO_NEW_DECK_HANDOFF_SEND_ENABLED/g) || []).length, 1)
     assert.ok(directive.indexOf('armNewDeckHandoffSend(') > directive.indexOf('session.setUserMessages(') && directive.indexOf('armNewDeckHandoffSend(') < directive.indexOf('void sendMessageWhenConnected(prefill'), 'between the bubble and the old send')
     assert.ok(read(HOOK).includes("process.env.NEXT_PUBLIC_STUDIO_NEW_DECK_HANDOFF_SEND === 'true'"), 'the flag read as a literal (build-time)')
-    const env = read(ENV)
+    const env = stripPublishPreviewInventory(ENV, read(ENV)) // #475 stacked: that later block comes out first, so this block is still right before # PASS2 ADMIN
     assert.equal((env.match(/^NEXT_PUBLIC_STUDIO_NEW_DECK_HANDOFF_SEND="false"$/gm) || []).length, 1)
     const at = env.indexOf('# NEW-DECK HANDOFF SEND (FRONTEND-2')
     assert.ok(at > env.indexOf('NEXT_PUBLIC_STUDIO_JOB_LEDGER="false"\n\n'), 'after the P3-4c job ledger block')

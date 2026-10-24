@@ -110,6 +110,8 @@ export const STACKED_PASS3_FILES = [
   'lib/studio-job-ledger.ts', 'components/builder/chat/studio-job-ledger-card.tsx', 'components/builder/chat/studio-job-ledger-card.css',
   // New-deck handoff send (NEXT_PUBLIC_STUDIO_NEW_DECK_HANDOFF_SEND, stacked): its hook.
   'hooks/use-studio-new-deck-handoff-send.ts',
+  // Publish preview from Layout's inventory (NEXT_PUBLIC_STUDIO_PUBLISH_PREVIEW_INVENTORY_ENABLED, stacked): its hook and lib, and the preview component that reads through the hook.
+  'hooks/use-studio-publish-preview-inventory.ts', 'lib/studio-publish-preview-inventory.ts', 'components/studio-publish-preview.tsx',
   // Studio new logo (NEXT_PUBLIC_STUDIO_NEW_LOGO, FRONTEND-1, stacked on the UAT marketing port): the rail's brand tile, its flag helper and its sheet.
   'lib/studio-new-logo.ts', 'components/layout/studio-new-logo.css', 'components/layout/studio-rail.tsx',
 ]
