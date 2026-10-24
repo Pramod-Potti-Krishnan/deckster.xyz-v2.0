@@ -123,6 +123,8 @@ import { useStudioPublishReviewFit } from '@/hooks/use-studio-publish-review-fit
 import { STUDIO_NEW_DECK_HANDOFF_SEND_ENABLED, useStudioNewDeckHandoffSend } from '@/hooks/use-studio-new-deck-handoff-send'
 // NEXT_PUBLIC_STUDIO_VERSION_HISTORY_DECK_ONLY (default off): the profile menu's Version history row shows only while a deck is on stage, not under the welcome (hooks/use-studio-version-history-deck-only.ts).
 import { useStudioVersionHistoryDeckOnly } from '@/hooks/use-studio-version-history-deck-only'
+// NEXT_PUBLIC_STUDIO_PAYMENTS_OPEN_SOON (default off): the Builder's account menu upgrade row says "Payments open soon" (hooks/use-studio-payments-open-soon.ts); the top-up modal gates itself.
+import { useStudioPaymentsOpenSoon } from '@/hooks/use-studio-payments-open-soon'
 import { StudioSupersededNotice } from '@/components/builder/studio-superseded-notice'
 import { StudioCopiedFromNote } from '@/components/builder/studio-copied-from-note'
 // NEXT_PUBLIC_STUDIO_DECK_IMPORT (default off): the note on an imported deck, loaded only when it is drawn (a build or page that does not draw it ships nothing of it).
@@ -4801,6 +4803,9 @@ function AuthenticatedBuilderContent({ authScopeUserId }: { authScopeUserId: str
   const armNewDeckHandoffSend = useStudioNewDeckHandoffSend({ currentSessionId, wsSessionId, socketSessionId, connected, connectionGeneration, sendMessageWhenConnected, setInputMessage, setUserMessages: session.setUserMessages, toast })
   // NEXT_PUBLIC_STUDIO_PUBLISH_REVIEW_FIT (default off): marks the page so the Publish dialog's phone rule applies (the dialog is portalled out of the page).
   useStudioPublishReviewFit()
+
+  // NEXT_PUBLIC_STUDIO_PAYMENTS_OPEN_SOON (default off): the account menu's upgrade row is disabled and says "Payments open soon". Flag off, the hook returns before it reads the document.
+  useStudioPaymentsOpenSoon()
 
   // NEXT_PUBLIC_STUDIO_BLANK_DECK_RELOAD_FIX: the session restore owns the deck. When it commits (a new transcript receipt, set in
   // the same batch as the restored deck), retire a local override it did not restore, as the override-retire effect does: an

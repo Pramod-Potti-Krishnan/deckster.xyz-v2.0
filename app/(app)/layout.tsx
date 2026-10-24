@@ -3,6 +3,9 @@ import { AppHeader, BackToBuilderButton } from "@/components/layout/app-header"
 import "./studio-v4-account.css"
 import { StudioRail } from "@/components/layout/studio-rail"
 import "@/components/layout/studio-shell.css"
+// NEXT_PUBLIC_STUDIO_PAYMENTS_OPEN_SOON (default off): the account pages' "Payments open soon" gate (Billing's upgrade and credit-pack buttons, the account menu's upgrade row).
+import { STUDIO_PAYMENTS_OPEN_SOON_ENABLED } from "@/lib/studio-payments-open-soon"
+import { StudioPaymentsOpenSoonMount } from "@/components/billing/studio-payments-open-soon-mount"
 
 /**
  * Shared shell for the authenticated account area (dashboard, settings, billing,
@@ -18,6 +21,7 @@ export default function AppLayout({ children }: { children: ReactNode }) {
         <AppHeader />
         <div data-studio-v4-shell-workspace="true">{children}</div>
       </div>
+      {STUDIO_PAYMENTS_OPEN_SOON_ENABLED && <StudioPaymentsOpenSoonMount />}
     </div>
   )
 }

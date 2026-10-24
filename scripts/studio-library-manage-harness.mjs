@@ -114,6 +114,9 @@ export const STACKED_PASS3_FILES = [
   'app/api/slides/compose/route.ts', 'lib/studio-compose-entitlement.ts',
   // Publish preview from Layout's inventory (NEXT_PUBLIC_STUDIO_PUBLISH_PREVIEW_INVENTORY_ENABLED, stacked): its hook and lib, and the preview component that reads through the hook.
   'hooks/use-studio-publish-preview-inventory.ts', 'lib/studio-publish-preview-inventory.ts', 'components/studio-publish-preview.tsx',
+  // Payments open soon (NEXT_PUBLIC_STUDIO_PAYMENTS_OPEN_SOON, stacked): its lib, hook, mount and sheet, the account layout's one flag-gated element, the two checkout routes, the upgrade button and the top-up modal; no library file.
+  'lib/studio-payments-open-soon.ts', 'hooks/use-studio-payments-open-soon.ts', 'components/billing/studio-payments-open-soon.css', 'components/billing/studio-payments-open-soon-mount.tsx',
+  'app/(app)/layout.tsx', 'app/api/stripe/create-checkout-session/route.ts', 'app/api/stripe/create-topup-session/route.ts', 'components/billing/UpgradeButton.tsx', 'components/builder/topup-modal.tsx',
   // Studio new logo (NEXT_PUBLIC_STUDIO_NEW_LOGO, FRONTEND-1, stacked on the UAT marketing port): the rail's brand tile, its flag helper and its sheet.
   'lib/studio-new-logo.ts', 'components/layout/studio-new-logo.css', 'components/layout/studio-rail.tsx',
   // Publish review fit (NEXT_PUBLIC_STUDIO_PUBLISH_REVIEW_FIT, stacked): its hook, and the Publish dialog's stylesheet (one block appended after the Pass 2 polish block).

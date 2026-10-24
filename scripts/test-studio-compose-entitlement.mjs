@@ -33,6 +33,7 @@ import { stripOpenReadOnly } from './studio-open-read-only-strip.mjs'
 import { stripPublishReviewFit } from './studio-publish-review-fit-strip.mjs' // stacked: #492, below this change
 import { stripVersionHistoryDeckOnly } from './studio-version-history-deck-only-strip.mjs' // stacked: #493, below this change
 import { stripPublishPreviewInventory } from './studio-publish-preview-inventory-strip.mjs' // stacked: #495, after this change
+import { stripPaymentsOpenSoon } from './studio-payments-open-soon-strip.mjs' // stacked: payments open soon (billing), after #495 in the stack
 import { stripDarkPersist } from './studio-theme-dark-persist-strip.mjs'
 import { stripAddSlideStatus } from './studio-add-slide-status-strip.mjs'
 import { STACKED_PASS3_FILES, isBaseFile } from './studio-library-manage-harness.mjs'
@@ -533,7 +534,7 @@ const TOUCHED = [...COMPOSE_ENTITLEMENT_FILES, ...COMPOSE_ENTITLEMENT_NEW_FILES,
 
 await t(`strip: stripping this change gives back ${BASE_COMMIT.slice(0, 8)}'s route and .env.example byte for byte`, async () => {
   for (const rel of COMPOSE_ENTITLEMENT_FILES) {
-    const stripped = stripComposeEntitlement(rel, rel === ENV ? stripPublishPreviewInventory(rel, stripVersionHistoryDeckOnly(rel, stripPublishReviewFit(rel, read(rel)))) : read(rel)) // stacked: #492/#493's .env.example blocks (below this change in the stack) come out too
+    const stripped = stripComposeEntitlement(rel, rel === ENV ? stripPublishPreviewInventory(rel, stripVersionHistoryDeckOnly(rel, stripPublishReviewFit(rel, stripPaymentsOpenSoon(rel, read(rel))))) : read(rel)) // stacked: #492/#493's .env.example blocks (below this change in the stack) come out too
     assert.ok(read(rel) !== stripped, `${rel}: the change is there to strip`)
     assert.ok(isBaseFile(rel, stripped, baseFile(rel)), `${rel}: stripped, it is the base's file`)
     if (rel !== ENV) assert.equal(stripped, baseFile(rel))
@@ -548,7 +549,7 @@ await t('strip roots: the three shared roots chain it (a root that acts on one o
       if (out !== current) assert.equal(out, root3(rel, baseFile(rel)), `${root3.name}(${rel}): a root that acts on this file gives the base's result, so this change's lines are out`)
     }
   }
-  for (const rel of ['scripts/studio-open-read-only-strip.mjs', 'scripts/studio-theme-dark-persist-strip.mjs', 'scripts/studio-add-slide-status-strip.mjs']) assert.match(read(rel), /stripComposeEntitlement\(rel, stripNewDeckHandoffSend\(rel, (?:stripPublishReviewFit\(rel, stripVersionHistoryDeckOnly\(rel, )?(?:stripPublishPreviewInventory\(rel, )?text\)/) // stacked: #492/#493 nest their strips inside
+  for (const rel of ['scripts/studio-open-read-only-strip.mjs', 'scripts/studio-theme-dark-persist-strip.mjs', 'scripts/studio-add-slide-status-strip.mjs']) assert.match(read(rel), /stripComposeEntitlement\(rel, stripNewDeckHandoffSend\(rel, (?:stripPublishReviewFit\(rel, stripVersionHistoryDeckOnly\(rel, )?(?:stripPublishPreviewInventory\(rel, )?(?:stripPaymentsOpenSoon\(rel, )?text\)/) // stacked: #492/#493 nest their strips inside
 })
 await t('STACKED_PASS3_FILES lists the route and the lib; the new files are what the strip module says', async () => {
   assert.ok(STACKED_PASS3_FILES.includes(ROUTE) && STACKED_PASS3_FILES.includes(LIB))
@@ -564,7 +565,7 @@ await t('no other file reaches the lib; no NEXT_PUBLIC_ alias of the flag anywhe
   assert.deepEqual(aliases.filter(rel => rel !== 'scripts/test-studio-compose-entitlement.mjs'), [])
 })
 await t('.env.example: one block, right after the new-deck handoff block and right before # PASS2 ADMIN; the flag is "false"', async () => {
-  const env = stripPublishPreviewInventory(ENV, read(ENV)) // stacked: #495's later block comes out first
+  const env = stripPublishPreviewInventory(ENV, stripPaymentsOpenSoon(ENV, read(ENV))) // stacked: #495's and payments open soon's later blocks come out first
   assert.equal(env.split('\n').filter(line => line.startsWith(`${FLAG}=`)).length, 1)
   assert.match(env, new RegExp(`\\n${FLAG}="false"\\n\\n# PASS2 ADMIN \\(FRONTEND-1,`))
   assert.ok(env.indexOf('NEXT_PUBLIC_STUDIO_NEW_DECK_HANDOFF_SEND="false"') < env.indexOf(`${FLAG}=`))
