@@ -89,6 +89,8 @@ export const STACKED_PASS3_FILES = [
   'lib/studio-job-ledger.ts', 'components/builder/chat/studio-job-ledger-card.tsx', 'components/builder/chat/studio-job-ledger-card.css',
   // New-deck handoff send (NEXT_PUBLIC_STUDIO_NEW_DECK_HANDOFF_SEND, stacked): its hook.
   'hooks/use-studio-new-deck-handoff-send.ts',
+  // Publish review fit (NEXT_PUBLIC_STUDIO_PUBLISH_REVIEW_FIT, stacked): its hook, and the Publish dialog's stylesheet (one block appended after the Pass 2 polish block).
+  'hooks/use-studio-publish-review-fit.ts', 'components/studio-publish.css',
 ]
 // The FRONTEND-1 Pass 2 changes that are stacked on the same base too (the /admin pages and their hardening, the Docs / Help / Legal / Agents pages and their content passes, the account menu's rhythm). None is a
 // library file; the diff-scope check allows exactly these as well, and nothing else.
