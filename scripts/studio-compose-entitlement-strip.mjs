@@ -5,7 +5,7 @@
 // is what stands there in the base ('' for a pure insertion), so removing one needs no neighbouring text. .env.example's block included.
 // New files (no base text to put back): COMPOSE_ENTITLEMENT_NEW_FILES below.
 
-export const BASE_COMMIT = '8e19f9f292fdedc431fe68038df92e455e6e3040'
+export const BASE_COMMIT = 'c75e4c2d0e5f7319cce890b055567281fe265184'
 
 const ENV_BLOCK = `# ADD SLIDE COMPOSE SIGNS ITS USER (FRONTEND-2, stacked on #475; the Next proxy POST /api/slides/compose only). A plain SERVER variable (no NEXT_PUBLIC_ prefix, no rebuild): it is read as each request
 # arrives, and only the exact value "true" turns it on; default off, and then the request to Director is byte-for-byte what it was. It pairs with Director !535 (DIRECTOR_ROUTER_COMPOSE_BIND_USER_ENABLED,

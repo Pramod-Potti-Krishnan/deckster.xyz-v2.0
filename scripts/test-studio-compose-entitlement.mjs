@@ -30,6 +30,8 @@ import { fileURLToPath } from 'node:url'
 import ts from 'typescript'
 import { stripComposeEntitlement, BASE_COMMIT, COMPOSE_ENTITLEMENT_FILES, COMPOSE_ENTITLEMENT_NEW_FILES } from './studio-compose-entitlement-strip.mjs'
 import { stripOpenReadOnly } from './studio-open-read-only-strip.mjs'
+import { stripPublishReviewFit } from './studio-publish-review-fit-strip.mjs' // stacked: #492, below this change
+import { stripVersionHistoryDeckOnly } from './studio-version-history-deck-only-strip.mjs' // stacked: #493, below this change
 import { stripDarkPersist } from './studio-theme-dark-persist-strip.mjs'
 import { stripAddSlideStatus } from './studio-add-slide-status-strip.mjs'
 import { STACKED_PASS3_FILES, isBaseFile } from './studio-library-manage-harness.mjs'
@@ -530,7 +532,7 @@ const TOUCHED = [...COMPOSE_ENTITLEMENT_FILES, ...COMPOSE_ENTITLEMENT_NEW_FILES,
 
 await t(`strip: stripping this change gives back ${BASE_COMMIT.slice(0, 8)}'s route and .env.example byte for byte`, async () => {
   for (const rel of COMPOSE_ENTITLEMENT_FILES) {
-    const stripped = stripComposeEntitlement(rel, read(rel))
+    const stripped = stripComposeEntitlement(rel, rel === ENV ? stripVersionHistoryDeckOnly(rel, stripPublishReviewFit(rel, read(rel))) : read(rel)) // stacked: #492/#493's .env.example blocks (below this change in the stack) come out too
     assert.ok(read(rel) !== stripped, `${rel}: the change is there to strip`)
     assert.ok(isBaseFile(rel, stripped, baseFile(rel)), `${rel}: stripped, it is the base's file`)
     if (rel !== ENV) assert.equal(stripped, baseFile(rel))
@@ -545,7 +547,7 @@ await t('strip roots: the three shared roots chain it (a root that acts on one o
       if (out !== current) assert.equal(out, root3(rel, baseFile(rel)), `${root3.name}(${rel}): a root that acts on this file gives the base's result, so this change's lines are out`)
     }
   }
-  for (const rel of ['scripts/studio-open-read-only-strip.mjs', 'scripts/studio-theme-dark-persist-strip.mjs', 'scripts/studio-add-slide-status-strip.mjs']) assert.match(read(rel), /stripComposeEntitlement\(rel, stripNewDeckHandoffSend\(rel, text\)\)/)
+  for (const rel of ['scripts/studio-open-read-only-strip.mjs', 'scripts/studio-theme-dark-persist-strip.mjs', 'scripts/studio-add-slide-status-strip.mjs']) assert.match(read(rel), /stripComposeEntitlement\(rel, stripNewDeckHandoffSend\(rel, (?:stripPublishReviewFit\(rel, stripVersionHistoryDeckOnly\(rel, )?text\)/) // stacked: #492/#493 nest their strips inside
 })
 await t('STACKED_PASS3_FILES lists the route and the lib; the new files are what the strip module says', async () => {
   assert.ok(STACKED_PASS3_FILES.includes(ROUTE) && STACKED_PASS3_FILES.includes(LIB))

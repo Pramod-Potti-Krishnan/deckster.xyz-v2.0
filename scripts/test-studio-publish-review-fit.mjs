@@ -39,6 +39,7 @@ import { BASE_ENV } from './studio-chat-harness/profiles.mjs'
 import { BASE_COMMIT, PUBLISH_REVIEW_FIT_FILES, PUBLISH_REVIEW_FIT_NEW_FILES, PUBLISH_REVIEW_FIT_CHANGES, PUBLISH_REVIEW_FIT_CSS_SELECTOR, stripPublishReviewFit } from './studio-publish-review-fit-strip.mjs'
 import { stripP2Polish } from './studio-p2-polish-strip.mjs'
 import { stripVersionHistoryDeckOnly } from './studio-version-history-deck-only-strip.mjs' // stacked: #493, after this change
+import { stripComposeEntitlement } from './studio-compose-entitlement-strip.mjs' // stacked: #494, after this change
 import { stripOpenReadOnly } from './studio-open-read-only-strip.mjs'
 import { stripDarkPersist } from './studio-theme-dark-persist-strip.mjs'
 import { stripAddSlideStatus } from './studio-add-slide-status-strip.mjs'
@@ -434,6 +435,7 @@ function pageChecks(page) {
   assert.ok(call.arguments.length === 0, 'no arguments')
 }
 function envChecks(env) {
+  env = stripComposeEntitlement(ENV, env) // stacked: #494's block (STUDIO_COMPOSE_ENTITLEMENT_ENABLED) comes out too
   env = stripVersionHistoryDeckOnly(ENV, env) // stacked: #493's .env.example block (NEXT_PUBLIC_STUDIO_VERSION_HISTORY_DECK_ONLY) sits between this block and # PASS2 ADMIN; it comes out first
   assert.equal((env.match(new RegExp(`^${FLAG}="false"$`, 'gm')) || []).length, 1)
   assert.ok(env.indexOf(`${FLAG}="false"\n\n# PASS2 ADMIN (FRONTEND-1`) > 0, 'right before # PASS2 ADMIN')
