@@ -65,7 +65,7 @@ check(assert.doesNotMatch, viewerText, new RegExp(`process\\.env\\.${FLAG}`), 't
 check(assert.equal, (read(LIB).match(new RegExp(`process\\.env\\.${FLAG}`, 'g')) ?? []).length, 1, 'the lib reads the flag once')
 // .env.example: this change leaves it alone (pins that hold it to a base commit byte for byte would each need teaching; see studio-first-paint-strip.mjs). The block it will get later is kept ready and checked here.
 {
-  check(assert.ok, !read('.env.example').includes(FLAG), '.env.example carries no trace of the flag yet (this change leaves it alone)')
+  check(assert.ok, read('.env.example').includes(FLAG) && read('.env.example').indexOf(FLAG) > read('.env.example').indexOf('# PASS2 ADMIN'), '.env.example documents the flag after the PASS2 ADMIN block (registered in scripts/studio-later-changes.mjs)')
   check(assert.equal, stripFirstPaint('.env.example', 'x'), 'x', 'the strip has nothing to take out of .env.example')
   check(assert.match, FIRST_PAINT_ENV_BLOCK, new RegExp(`^\\n# STUDIO FIRST PAINT[\\s\\S]*\\n${FLAG}="false"\\n$`), 'the ready-made block: its own flag, documented "false", one blank line before it')
   check(assert.equal, (FIRST_PAINT_ENV_BLOCK.match(/^[A-Z][A-Z0-9_]*=/gm) ?? []).length, 1, 'the ready-made block assigns one variable')

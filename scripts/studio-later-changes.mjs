@@ -18,10 +18,12 @@
 // Both lists are empty when nothing is stacked after bulk edit + chat undo, and then nothing here changes anything: stripLaterEnvBlocks returns its text as it was given.
 
 export const LATER_CHANGE_FILES = new Set([
+  ...(await import('./studio-first-paint-strip.mjs')).FIRST_PAINT_SCOPE_FILES, // LATER-CHANGE: COMPOSER-2, studio first paint (NEXT_PUBLIC_STUDIO_FIRST_PAINT_ENABLED)
   // one line per later change, above this comment
 ])
 
 export const LATER_ENV_BLOCKS = [
+  (await import('./studio-first-paint-strip.mjs')).FIRST_PAINT_ENV_BLOCK, // LATER-CHANGE: COMPOSER-2, studio first paint (NEXT_PUBLIC_STUDIO_FIRST_PAINT_ENABLED)
   // one line per later change, above this comment
 ]
 
