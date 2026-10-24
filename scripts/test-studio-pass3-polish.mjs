@@ -33,8 +33,16 @@ const { renderToStaticMarkup } = nodeRequire('react-dom/server')
 const jsxRuntime = nodeRequire('react/jsx-runtime')
 const BASE = process.env.PASS3_POLISH_BASE || BASE_COMMIT
 const git = (...args) => execFileSync('git', args, { cwd: root, encoding: 'utf8', maxBuffer: 1 << 28, stdio: ['ignore', 'pipe', 'ignore'] })
-// This change's OWN committed files: the non-merge commits on the first-parent line BASE..HEAD. The working tree is never consulted (the suites of other changes write into docs/ and scripts/).
-const ownCommitted = () => [...new Set(git('log', '--first-parent', '--no-merges', '--name-only', '--format=', `${BASE}..HEAD`).split('\n').filter(Boolean))]
+// This change's OWN committed files: the files of the non-merge commits in BASE..HEAD whose subject is this change's ("Pass 3 polish set, PR A: ..."), wherever they sit in the history: directly on the first-parent line or behind
+// the merge commit that carries the branch (the older first-parent scope pins want the line to hold merges only). The working tree is never consulted (the suites of other changes write into docs/ and scripts/).
+const ownCommitted = () => {
+  const files = new Set()
+  for (const block of git('log', '--no-merges', '--name-only', '--format=%x01%s', `${BASE}..HEAD`).split('\x01').filter(Boolean)) {
+    const [subject, ...names] = block.split('\n')
+    if (/^Pass 3 polish set, PR A:/.test(subject)) for (const name of names.filter(Boolean)) files.add(name)
+  }
+  return [...files]
+}
 const showCache = new Map()
 const baseOf = rel => { const ref = `${BASE}:${rel}`; if (!showCache.has(ref)) showCache.set(ref, git('show', ref)); return showCache.get(ref) }
 let overrides = {} // in-memory mutations: every proof reads its sources through read()
