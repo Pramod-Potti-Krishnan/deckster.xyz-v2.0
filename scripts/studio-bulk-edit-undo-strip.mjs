@@ -96,10 +96,12 @@ export const BULK_EDIT_UNDO_NEW_FILES = ['lib/studio-bulk-edit-wire.ts', 'lib/st
   'components/builder/chat/studio-bulk-edit-undo.css', 'scripts/studio-bulk-edit-undo-strip.mjs', 'scripts/test-studio-bulk-edit-undo.mjs',
   // DIRECTOR-2's five offline record.py transcripts (director_commit 8258481b, Director draft !542), copied verbatim: RECORDED.
   'scripts/fixtures/bulk-edit-undo/01-bulk-confirm-card.json', 'scripts/fixtures/bulk-edit-undo/02-bulk-run-one-failure.json', 'scripts/fixtures/bulk-edit-undo/03-bulk-all-skipped.json',
-  'scripts/fixtures/bulk-edit-undo/04-undo-restored.json', 'scripts/fixtures/bulk-edit-undo/05-undo-superseded.json']
+  'scripts/fixtures/bulk-edit-undo/04-undo-restored.json', 'scripts/fixtures/bulk-edit-undo/05-undo-superseded.json',
+  // the registry of LATER changes in the stack (a later change registers its files and .env.example block there; the scope checks and the .env.example pins read through it): tests only, scripts/ only.
+  'scripts/studio-later-changes.mjs']
 // The earlier tests this change teaches about its strip and .env.example block (tests only): the stacked ones (#492-#498), the Pass 3 pins that hold the hook, the message list or the mdc types to a base, and the
-// two that read the .env.example tail.
-export const BULK_EDIT_UNDO_PIN_FILES = ['scripts/test-studio-chat-element-refine.mjs', 'scripts/test-studio-chat-theme-export.mjs', 'scripts/test-studio-compose-entitlement.mjs', 'scripts/test-studio-deck-mutation-dedupe.mjs', 'scripts/test-studio-duplicate-copy-title.mjs', 'scripts/test-studio-duplicate-deck.mjs', 'scripts/test-studio-job-ledger.mjs', 'scripts/test-studio-new-deck-handoff-send.mjs', 'scripts/test-studio-payments-open-soon.mjs', 'scripts/test-studio-publish-preview-inventory.mjs', 'scripts/test-studio-publish-review-fit.mjs', 'scripts/test-studio-thumbnail-last-good.mjs', 'scripts/test-studio-version-history-deck-only.mjs', 'scripts/test-studio-welcome-polish.mjs', 'scripts/test-theme-font-selection.mjs']
+// two that read the .env.example tail, and the library-manage pin that reads .env.example through the registry of later changes (scripts/studio-later-changes.mjs).
+export const BULK_EDIT_UNDO_PIN_FILES = ['scripts/test-studio-chat-element-refine.mjs', 'scripts/test-studio-chat-theme-export.mjs', 'scripts/test-studio-compose-entitlement.mjs', 'scripts/test-studio-deck-mutation-dedupe.mjs', 'scripts/test-studio-duplicate-copy-title.mjs', 'scripts/test-studio-duplicate-deck.mjs', 'scripts/test-studio-job-ledger.mjs', 'scripts/test-studio-new-deck-handoff-send.mjs', 'scripts/test-studio-payments-open-soon.mjs', 'scripts/test-studio-publish-preview-inventory.mjs', 'scripts/test-studio-publish-review-fit.mjs', 'scripts/test-studio-thumbnail-last-good.mjs', 'scripts/test-studio-template-library-manage.mjs', 'scripts/test-studio-version-history-deck-only.mjs', 'scripts/test-studio-welcome-polish.mjs', 'scripts/test-theme-font-selection.mjs']
 export const BULK_EDIT_UNDO_CHANGES = CHANGES
 
 /** The file without this change's lines. Any other file (or a file that no longer carries them) is returned as it is. */

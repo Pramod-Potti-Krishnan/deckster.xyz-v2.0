@@ -37,12 +37,13 @@ import { stripPaymentsOpenSoon } from './studio-payments-open-soon-strip.mjs' //
 import { stripDuplicateCopyTitle } from './studio-duplicate-copy-title-strip.mjs' // stacked: duplicate copy title (the Decks page's copy title and the copy's header), after #496 in the stack
 import { stripThumbnailLastGood } from './studio-thumbnail-last-good-strip.mjs' // stacked: thumbnail last good (the Studio half of "never blank": a rail card's last good preview and the Publish preview's fallback), after duplicate copy title in the stack
 import { stripBulkEditUndo } from './studio-bulk-edit-undo-strip.mjs' // stacked: bulk edit + chat undo (NEXT_PUBLIC_STUDIO_BULK_EDIT / NEXT_PUBLIC_STUDIO_CHAT_UNDO: a whole-deck edit card and an Undo chip in chat), after thumbnail last good in the stack
+import { stripLaterEnvBlocks } from './studio-later-changes.mjs' // stacked: the later-changes registry (a change stacked after this one registers its .env.example block there; every read of .env.example goes through it first)
 import { stripDarkPersist } from './studio-theme-dark-persist-strip.mjs'
 import { stripAddSlideStatus } from './studio-add-slide-status-strip.mjs'
 import { STACKED_PASS3_FILES, isBaseFile } from './studio-library-manage-harness.mjs'
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..')
-const read = rel => fs.readFileSync(path.join(root, rel), 'utf8')
+const read = rel => stripLaterEnvBlocks(rel, fs.readFileSync(path.join(root, rel), 'utf8')) // stacked: a later change's .env.example block comes out first (scripts/studio-later-changes.mjs)
 const git = (...args) => execFileSync('git', args, { cwd: root, encoding: 'utf8', maxBuffer: 64 * 1024 * 1024, stdio: ['ignore', 'pipe', 'pipe'] })
 const baseFile = rel => git('show', `${BASE_COMMIT}:${rel}`)
 const sha = value => crypto.createHash('sha256').update(typeof value === 'string' ? value : JSON.stringify(value)).digest('hex')

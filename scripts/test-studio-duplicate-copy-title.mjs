@@ -34,6 +34,7 @@ import { stripOpenReadOnly } from './studio-open-read-only-strip.mjs'
 import { stripDarkPersist } from './studio-theme-dark-persist-strip.mjs'
 import { stripAddSlideStatus } from './studio-add-slide-status-strip.mjs'
 import { STACKED_PASS3_FILES } from './studio-library-manage-harness.mjs'
+import { LATER_CHANGE_FILES, stripLaterEnvBlocks } from './studio-later-changes.mjs' // stacked: the later-changes registry (a change stacked after this one registers its files and its .env.example block there; scope checks skip its files, every read of .env.example goes through it first)
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..')
 const BASE = process.env.DUPLICATE_COPY_TITLE_BASE || BASE_COMMIT
@@ -41,7 +42,7 @@ const git = (...args) => execFileSync('git', args, { cwd: root, encoding: 'utf8'
 const baseCache = new Map()
 const baseSource = rel => { if (!baseCache.has(rel)) baseCache.set(rel, git('show', `${BASE}:${rel}`)); return baseCache.get(rel) }
 let overrides = {} // in-memory mutations: the suite reads every source through read()
-const read = rel => (rel in overrides ? overrides[rel] : stripThumbnailLastGood(rel, stripBulkEditUndo(rel, fs.readFileSync(path.join(root, rel), 'utf8')))) // stacked: thumbnail last good (after this change in the stack) adds its own lines to the rail files, the Publish inventory lib and .env.example; this proof reads past them
+const read = rel => (rel in overrides ? overrides[rel] : stripThumbnailLastGood(rel, stripBulkEditUndo(rel, stripLaterEnvBlocks(rel, fs.readFileSync(path.join(root, rel), 'utf8'))))) // stacked: thumbnail last good (after this change in the stack) adds its own lines to the rail files, the Publish inventory lib and .env.example; this proof reads past them
 const sha = value => crypto.createHash('sha256').update(value).digest('hex')
 
 let checks = 0
@@ -731,7 +732,7 @@ function proveChange() {
   const allowed = new Set([...DUPLICATE_COPY_TITLE_FILES, ...DUPLICATE_COPY_TITLE_NEW_FILES, ...THUMBNAIL_LAST_GOOD_FILES, ...THUMBNAIL_LAST_GOOD_NEW_FILES, ...THUMBNAIL_LAST_GOOD_PIN_FILES, /* stacked: thumbnail last good, after this change in the stack */ ...BULK_EDIT_UNDO_FILES, ...BULK_EDIT_UNDO_NEW_FILES, ...BULK_EDIT_UNDO_PIN_FILES, /* stacked: bulk edit + chat undo, after thumbnail last good in the stack */ 'scripts/studio-open-read-only-strip.mjs', 'scripts/studio-theme-dark-persist-strip.mjs', 'scripts/studio-add-slide-status-strip.mjs', 'scripts/studio-library-manage-harness.mjs',
     'scripts/test-studio-job-ledger.mjs', 'scripts/test-studio-chat-theme-export.mjs', 'scripts/test-studio-new-deck-handoff-send.mjs', 'scripts/test-studio-payments-open-soon.mjs',
     'scripts/test-studio-publish-review-fit.mjs', 'scripts/test-studio-version-history-deck-only.mjs', 'scripts/test-studio-compose-entitlement.mjs', 'scripts/test-studio-publish-preview-inventory.mjs', 'scripts/test-studio-chat-element-refine.mjs'])
-  deepEq(allChanged().filter(rel => !allowed.has(rel)), [], 'no file outside this change\'s own, the three strip roots, the harness list and the pins that read through the strip')
+  deepEq(allChanged().filter(rel => !allowed.has(rel) && !LATER_CHANGE_FILES.has(rel)), [], 'no file outside this change\'s own, the three strip roots, the harness list and the pins that read through the strip')
   for (const rel of [LIB, HOOK, MOUNT, CSS, LAYOUT, BUILDER]) ok(STACKED_PASS3_FILES.includes(rel), `${rel} is in STACKED_PASS3_FILES`)
   // .env.example
   const env = read(ENV), start = env.indexOf('# DUPLICATE COPY TITLE (')

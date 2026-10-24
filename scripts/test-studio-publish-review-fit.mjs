@@ -49,9 +49,10 @@ import { stripOpenReadOnly } from './studio-open-read-only-strip.mjs'
 import { stripDarkPersist } from './studio-theme-dark-persist-strip.mjs'
 import { stripAddSlideStatus } from './studio-add-slide-status-strip.mjs'
 import { STACKED_PASS3_FILES } from './studio-library-manage-harness.mjs'
+import { stripLaterEnvBlocks } from './studio-later-changes.mjs' // stacked: the later-changes registry (a change stacked after this one registers its .env.example block there; every read of .env.example goes through it first)
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..')
-const read = rel => fs.readFileSync(path.join(root, rel), 'utf8')
+const read = rel => stripLaterEnvBlocks(rel, fs.readFileSync(path.join(root, rel), 'utf8')) // stacked: a later change's .env.example block comes out first (scripts/studio-later-changes.mjs)
 const sha = text => crypto.createHash('sha256').update(text).digest('hex')
 const plain = value => JSON.parse(JSON.stringify(value === undefined ? null : value))
 const git = (...args) => execFileSync('git', args, { cwd: root, encoding: 'utf8', maxBuffer: 64 * 1024 * 1024, stdio: ['ignore', 'pipe', 'pipe'] })

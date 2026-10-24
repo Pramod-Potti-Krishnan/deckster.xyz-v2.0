@@ -16,7 +16,8 @@
 //   6. hookup     the real MessageList: card and chip where they belong, the generic ask otherwise, malformed draws nothing
 //   7. deck       deck_restored: accepted with the undo flag only, a whole-viewer refresh plan; the other mutations are untouched
 //   8. flag off   MessageList markup and the deck_mutation plan are the base commit's, hashed
-//   9. change     strip = BASE_COMMIT byte for byte, the roots, the harness, .env.example, scope (the COMMITTED diff only), secret scan, no Layout write, the look
+//   9. change     strip = BASE_COMMIT byte for byte, the roots, the harness, .env.example, scope (the COMMITTED diff only), the registry of later changes (scripts/studio-later-changes.mjs: a made-up later change, a file and
+//                 an .env.example block after # PASS2 ADMIN, in memory and never committed: registered, the scope checks and the .env.example pins see this change alone; unregistered, they refuse it), secret scan, no Layout write, the look
 //  10. mutants    each one must make sections 1-9 fail
 import assert from 'node:assert/strict'
 import crypto from 'node:crypto'
@@ -32,6 +33,7 @@ import { stripOpenReadOnly } from './studio-open-read-only-strip.mjs'
 import { stripDarkPersist } from './studio-theme-dark-persist-strip.mjs'
 import { stripAddSlideStatus } from './studio-add-slide-status-strip.mjs'
 import { STACKED_PASS3_FILES } from './studio-library-manage-harness.mjs'
+import { LATER_CHANGE_FILES, stripLaterEnvBlocks } from './studio-later-changes.mjs' // stacked: the later-changes registry (a change stacked after this one registers its files and its .env.example block there; scope checks skip its files, every read of .env.example goes through it first)
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..')
 const nodeRequire = createRequire(import.meta.url)
@@ -40,7 +42,7 @@ const git = (...args) => execFileSync('git', args, { cwd: root, encoding: 'utf8'
 const baseCache = new Map()
 const baseOf = rel => { if (!baseCache.has(rel)) baseCache.set(rel, git('show', `${BASE}:${rel}`)); return baseCache.get(rel) }
 let overrides = {} // in-memory mutations: the suite reads every source through read()
-const read = rel => (rel in overrides ? overrides[rel] : fs.readFileSync(path.join(root, rel), 'utf8'))
+const read = rel => (rel in overrides ? overrides[rel] : stripLaterEnvBlocks(rel, fs.readFileSync(path.join(root, rel), 'utf8')))
 const sha = value => crypto.createHash('sha256').update(value).digest('hex')
 const plain = value => JSON.parse(JSON.stringify(value === undefined ? null : value))
 
@@ -48,6 +50,9 @@ const WIRE = 'lib/studio-bulk-edit-wire.ts', STORE = 'lib/studio-bulk-edit-store
 const CSS = 'components/builder/chat/studio-bulk-edit-undo.css', LIST = 'components/builder/message-list.tsx', HOOK = 'hooks/use-deckster-websocket-v2.ts', MDC = 'types/mdc.ts'
 const REFRESH = 'lib/studio-deck-mutation-refresh.ts', ENV = '.env.example', HARNESS = 'scripts/studio-library-manage-harness.mjs', STRIP_MODULE = 'scripts/studio-bulk-edit-undo-strip.mjs', SHELL_CSS = 'components/layout/studio-shell.css'
 const ROOTS = ['scripts/studio-open-read-only-strip.mjs', 'scripts/studio-theme-dark-persist-strip.mjs', 'scripts/studio-add-slide-status-strip.mjs']
+const LATER = 'scripts/studio-later-changes.mjs'
+const ownScope = () => new Set([...BULK_EDIT_UNDO_FILES, ...BULK_EDIT_UNDO_NEW_FILES, ...ROOTS, HARNESS, ...BULK_EDIT_UNDO_PIN_FILES])
+const strayOf = (changed, own) => changed.filter(rel => !own.has(rel) && !LATER_CHANGE_FILES.has(rel)) // a later change's files (scripts/studio-later-changes.mjs) are not this change's to answer for
 const BULK = 'NEXT_PUBLIC_STUDIO_BULK_EDIT', UNDO = 'NEXT_PUBLIC_STUDIO_CHAT_UNDO', SHELL = 'NEXT_PUBLIC_STUDIO_V4_SHELL'
 const MISSPELLED = [undefined, '', 'false', 'FALSE', 'TRUE', 'True', '1', 'yes', 'on', ' true', 'true ', 'true\n']
 const MARKER = 'BULK-EDIT-UNDO'
@@ -680,10 +685,66 @@ async function suite() {
     assert.ok(!/credit/i.test(block), 'no credits on this wire')
   })
   await check('scope: the COMMITTED diff BASE..HEAD answers for its own files only; the working tree is never read', () => {
-    const allowed = new Set([...BULK_EDIT_UNDO_FILES, ...BULK_EDIT_UNDO_NEW_FILES, ...ROOTS, HARNESS, ...BULK_EDIT_UNDO_PIN_FILES])
     const changed = git('diff', '--name-only', BASE, 'HEAD').split('\n').filter(Boolean)
-    const stray = changed.filter(rel => !allowed.has(rel)); assert.deepEqual(stray, [], `files outside this change: ${stray.join(', ')}`)
+    const stray = strayOf(changed, ownScope()); assert.deepEqual(stray, [], `files outside this change: ${stray.join(', ')}`)
     if (!STOP) process.stdout.write(`     (committed diff ${BASE.slice(0, 8)}..HEAD: ${changed.length} files)\n`)
+  })
+  await check('registry: a later change registers with one marked line per list; registered, the scope checks and the .env.example pins see this change alone, unregistered they refuse its files and block', async () => {
+    // (a) the committed lists hold marked registrations only (one line each, no test edit), and the code is run with its lists emptied: what is proved is the code, not whatever is registered today
+    const source = read(LATER), FILES_LIST = /(export const LATER_CHANGE_FILES = new Set\(\[)([\s\S]*?)(\n\]\))/, BLOCKS_LIST = /(export const LATER_ENV_BLOCKS = \[)([\s\S]*?)(\n\])/
+    const files = source.match(FILES_LIST), blocks = source.match(BLOCKS_LIST)
+    assert.ok(files && blocks, 'both lists are exported as written')
+    for (const body of [files[2], blocks[2]]) for (const line of body.split('\n').map(text => text.trim()).filter(text => text && !text.startsWith('//'))) assert.ok(line.includes('LATER-CHANGE'), `a registration is one marked line: ${line.slice(0, 80)}`)
+    const reg = await import(`data:text/javascript;base64,${Buffer.from(source.replace(FILES_LIST, '$1$3').replace(BLOCKS_LIST, '$1$3')).toString('base64')}`)
+    assert.deepEqual(Object.keys(reg).sort(), ['LATER_CHANGE_FILES', 'LATER_ENV_BLOCKS', 'stripLaterEnvBlocks'], 'the module exports the two lists and the strip, nothing else')
+    assert.ok(reg.LATER_CHANGE_FILES instanceof Set && Array.isArray(reg.LATER_ENV_BLOCKS) && reg.LATER_CHANGE_FILES.size === 0 && reg.LATER_ENV_BLOCKS.length === 0)
+    // (b) a made-up later change (never committed): one file and one .env.example block after # PASS2 ADMIN, in three places
+    const original = read(ENV), SYNTHETIC_FILE = 'lib/studio-synthetic-later-change.ts', OTHER_FILE = 'lib/studio-not-registered.ts'
+    const FAKE = '# SYNTHETIC LATER CHANGE (proof only; a made-up change, never committed). On for the exact value "true"; default off.\n# A second line, so that a partial match is not a block.\nNEXT_PUBLIC_STUDIO_SYNTHETIC_LATER_CHANGE="false"'
+    const lines = original.split('\n'), admin = lines.findIndex(line => line.startsWith('# PASS2 ADMIN')), adminEnd = lines.indexOf('', admin)
+    assert.ok(original.endsWith('\n') && admin > 0 && adminEnd > admin, '.env.example has the # PASS2 ADMIN block')
+    const cases = {
+      'right after the # PASS2 ADMIN block': [...lines.slice(0, adminEnd + 1), ...FAKE.split('\n'), '', ...lines.slice(adminEnd + 1)].join('\n'),
+      'last in the file': `${original}\n${FAKE}\n`,
+      'first in the file': `${FAKE}\n\n${original}`,
+    }
+    const baseChain = stripAddSlideStatus(ENV, baseOf(ENV)) // the root chain puts every stacked block back: what every pin compares against
+    assert.equal(stripAddSlideStatus(ENV, original), baseChain, 'the real file, with this change and the stack out, is the base\'s')
+    for (const [where, text] of Object.entries(cases)) {
+      assert.equal(reg.stripLaterEnvBlocks(ENV, text), text, `${where}: unregistered, the file is read as it is`)
+      assert.notEqual(stripAddSlideStatus(ENV, text), baseChain, `${where}: unregistered, the pins' byte-for-byte compare refuses the block`)
+    }
+    for (const variant of [FAKE, `\n${FAKE}\n`, `${FAKE}\n\n`]) {
+      reg.LATER_ENV_BLOCKS.push(variant)
+      try {
+        for (const [where, text] of Object.entries(cases)) {
+          assert.equal(reg.stripLaterEnvBlocks(ENV, text), original, `${where}: registered, the file is the one without the block, byte for byte`)
+          assert.equal(stripAddSlideStatus(ENV, reg.stripLaterEnvBlocks(ENV, text)), baseChain, `${where}: registered, the pins' compare passes`)
+          assert.equal(reg.stripLaterEnvBlocks(ENV, reg.stripLaterEnvBlocks(ENV, text)), original, `${where}: stripping twice changes nothing more`)
+          assert.equal(reg.stripLaterEnvBlocks('app/builder/page.tsx', text), text, 'any other file is returned as it is')
+        }
+        assert.equal(reg.stripLaterEnvBlocks(ENV, original), original, 'a registered block that is not in the file changes nothing')
+        const partial = `${original}\n${FAKE.split('\n')[0]}\n`, midLine = `${original}\nx${FAKE}\n`
+        assert.equal(reg.stripLaterEnvBlocks(ENV, partial), partial, 'a part of a block is not the block'); assert.equal(reg.stripLaterEnvBlocks(ENV, midLine), midLine, 'a block is taken at the start of a line only')
+        assert.equal(reg.stripLaterEnvBlocks(ENV, `${original}\n${FAKE}\n\n${FAKE}\n`), `${original}\n${FAKE}\n`, 'only the first whole occurrence is taken (a second one is a merge mistake the pins must still see)')
+      } finally { reg.LATER_ENV_BLOCKS.length = 0 }
+    }
+    // (c) scope: the files of a registered later change are skipped, a file that is in no list is still a stray
+    const own = ownScope(), mine = [...BULK_EDIT_UNDO_FILES, ...BULK_EDIT_UNDO_NEW_FILES]
+    assert.deepEqual(strayOf([...mine, SYNTHETIC_FILE, OTHER_FILE], own), [SYNTHETIC_FILE, OTHER_FILE], 'unregistered: a later change\'s file is a stray')
+    assert.ok(!LATER_CHANGE_FILES.has(SYNTHETIC_FILE) && !LATER_CHANGE_FILES.has(OTHER_FILE))
+    LATER_CHANGE_FILES.add(SYNTHETIC_FILE)
+    try { assert.deepEqual(strayOf([...mine, SYNTHETIC_FILE, OTHER_FILE], own), [OTHER_FILE], 'registered: only the registered file is skipped') } finally { LATER_CHANGE_FILES.delete(SYNTHETIC_FILE) }
+    assert.deepEqual(strayOf([SYNTHETIC_FILE], own), [SYNTHETIC_FILE], 'and once it is out of the list it is a stray again')
+    // (d) every pin that has a committed-diff scope check skips the registry's files, and every .env.example pin reads the file through the registry
+    for (const rel of ['scripts/test-studio-payments-open-soon.mjs', 'scripts/test-studio-duplicate-copy-title.mjs', 'scripts/test-studio-thumbnail-last-good.mjs', 'scripts/test-studio-bulk-edit-undo.mjs']) {
+      const text = read(rel)
+      assert.match(text, /import \{[^}]*\bLATER_CHANGE_FILES\b[^}]*\} from '\.\/studio-later-changes\.mjs'/, `${rel}: imports the registry`); assert.match(text, /!LATER_CHANGE_FILES\.has\(rel\)/, `${rel}: its scope check skips the registered files`)
+    }
+    for (const name of ['compose-entitlement', 'payments-open-soon', 'publish-preview-inventory', 'template-library-manage', 'version-history-deck-only', 'publish-review-fit', 'duplicate-copy-title', 'thumbnail-last-good', 'bulk-edit-undo']) {
+      const text = read(`scripts/test-studio-${name}.mjs`)
+      assert.match(text, /import \{[^}]*\bstripLaterEnvBlocks\b[^}]*\} from '\.\/studio-later-changes\.mjs'/, `${name}: imports the registry`); assert.match(text, /stripLaterEnvBlocks\((?:rel|'\.env\.example'), /, `${name}: reads .env.example through it`)
+    }
   })
   await check('secrets: no line this change adds carries a credential-shaped literal', () => {
     const added = git('diff', '-U0', BASE, 'HEAD').split('\n').filter(line => /^\+(?!\+\+)/.test(line)).join('\n') + '\n' + [WIRE, STORE, CARD, CHIP, CSS, 'scripts/test-studio-bulk-edit-undo.mjs'].map(rel => (fs.existsSync(path.join(root, rel)) ? fs.readFileSync(path.join(root, rel), 'utf8') : '')).join('\n')
@@ -764,7 +825,15 @@ const MUTANTS = [
   { name: 'undo chip anchored to the first Director line, not the latest', edits: [[STORE, 'if (turn) dataFor(sessionId).lastDirectorChat = turn.messageId', 'if (turn && !dataFor(sessionId).lastDirectorChat) dataFor(sessionId).lastDirectorChat = turn.messageId']] },
   { name: 'receipts keyed by arrival, not by slide', edits: [[STORE, '.receipts[receipt.slideIndex] = receipt', '.receipts[Object.keys(bulkFor(dataFor(sessionId), receipt.bulkId).receipts).length] = receipt']] },
   { name: 'strip: a piece of the strip is wrong', edits: [[STRIP_MODULE, 'export function stripBulkEditUndo(rel, text) {\n  const table = CHANGES[rel]\n  if (!table) return text\n', 'export function stripBulkEditUndo(rel, text) {\n  const table = CHANGES[rel]\n  if (!table || rel === \'types/mdc.ts\') return text\n']] },
-  { name: 'env block default on', edits: [[ENV, 'NEXT_PUBLIC_STUDIO_CHAT_UNDO="false"', 'NEXT_PUBLIC_STUDIO_CHAT_UNDO="true"']] },
+  { name: 'env block default on', edits: [[ENV, 'NEXT_PUBLIC_STUDIO_CHAT_UNDO="false"', 'NEXT_PUBLIC_STUDIO_CHAT_UNDO="true"']] },  // the registry of later changes (scripts/studio-later-changes.mjs)
+  { name: 'registry ignored: a scope pin no longer skips the registered files', edits: [['scripts/test-studio-duplicate-copy-title.mjs', " && !LATER_CHANGE_FILES.has(rel)), [], 'no file outside", "), [], 'no file outside"]] },
+  { name: 'registry ignored: an .env.example pin reads the file as it is', edits: [['scripts/test-studio-compose-entitlement.mjs', "const read = rel => stripLaterEnvBlocks(rel, fs.readFileSync(path.join(root, rel), 'utf8'))", "const read = rel => fs.readFileSync(path.join(root, rel), 'utf8')"]] },
+  { name: 'registry ignored: the strip hands the text back', edits: [[LATER, "|| LATER_ENV_BLOCKS.length === 0) return text", "|| true) return text"]] },
+  { name: 'strip removes too much: everything after the block goes with it', edits: [[LATER, "if (after.startsWith('\\n\\n')) out = before + after.slice(2)", "if (after.startsWith('\\n\\n')) out = before"]] },
+  { name: 'strip removes too much: the blank lines on both sides go', edits: [[LATER, "if (after.startsWith('\\n\\n')) out = before + after.slice(2)", "if (after.startsWith('\\n\\n')) out = before.replace(/\\n+$/, '\\n') + after.slice(2)"]] },
+  { name: 'strip removes too little: the blank line stays', edits: [[LATER, "if (after.startsWith('\\n\\n')) out = before + after.slice(2)", "if (after.startsWith('\\n\\n')) out = before + after.slice(1)"]] },
+  { name: 'strip applies to every file, not only .env.example', edits: [[LATER, "if (rel !== '.env.example' || typeof text", "if (typeof text"]] },
+  { name: 'strip takes a block anywhere in a line', edits: [[LATER, "while (at !== -1 && !(lineStart(out, at) && lineEnd(out, at + block.length))) at = out.indexOf(block, at + 1)", ""]] },
 ]
 
 console.log(`Studio bulk edit + chat undo (${BASE.slice(0, 8)} base)`)
