@@ -20,7 +20,7 @@ import fs from 'node:fs'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { LIBRARY_MANAGE_ADDITIONS, ENV_FILE, LIBRARY_MANAGE_NEW_FILES, TEMPLATES_WORKSPACE, THEME_HOOK, THEMES_WORKSPACE, stripLibraryManage } from './studio-library-manage-strip.mjs'
-import { stripLaterEnvBlocks } from './studio-later-changes.mjs' // stacked: the later-changes registry (a change stacked after this one registers its .env.example block there; every read of .env.example goes through it first)
+import { stripLaterChanges } from './studio-later-changes.mjs' // stacked: the later-changes registry (a change stacked after this one registers its files, its .env.example block and its strip there; every read of an app file or .env.example goes through it first)
 import { BASE_COMMIT, STACKED_P2_FILES, STACKED_PASS3_FILES, baseSource, createRuntime, deferred, isBaseFile, jsxRuntime, loadSource, makeReader, plain, root, sha, text, tick } from './studio-library-manage-harness.mjs'
 
 const here = fileURLToPath(import.meta.url)
@@ -109,7 +109,7 @@ const MUTATIONS = [
   { name: 'the Rename reason is not shown', file: ROW, from: '{onRename && renameBlockedReason && <p id={renameNoteId}', to: '{false && <p id={renameNoteId}' },
 ]
 const readFile = makeReader(MUTATIONS, 'TEMPLATE_MANAGE_TEST_MUTATION')
-const read = rel => stripLaterEnvBlocks(rel, readFile(rel)) // stacked: a later change's .env.example block comes out first (scripts/studio-later-changes.mjs)
+const read = rel => stripLaterChanges(rel, readFile(rel)) // stacked: a later change's lines and .env.example block come out first (scripts/studio-later-changes.mjs)
 // A mutant is judged by behaviour: with one applied, the byte-for-byte "without this change's lines it is the base's file" pins are skipped (they would trip on any edit of a pinned line and hide whether the behaviour checks notice it). The normal run keeps them.
 const MUTATING = process.env.TEMPLATE_MANAGE_TEST_MUTATION !== undefined
 

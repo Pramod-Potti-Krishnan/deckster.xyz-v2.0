@@ -9,6 +9,7 @@ import vm from 'node:vm'
 import { execFileSync } from 'node:child_process'
 import { fileURLToPath } from 'node:url'
 import ts from 'typescript'
+import { LATER_CHANGE_FILES } from './studio-later-changes.mjs' // the files of the changes stacked after bulk edit + chat undo (they register there) are stacked files too
 import { stripLaunchWording } from './studio-launch-wording-strip.mjs' // NEXT_PUBLIC_STUDIO_LAUNCH_WORDING (launched wording): its flag-gated edits come out first, before every older change's strip
 
 export const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..')
@@ -131,6 +132,8 @@ export const STACKED_PASS3_FILES = [
   'hooks/use-studio-publish-review-fit.ts', 'components/studio-publish.css',
   // Version history deck only (NEXT_PUBLIC_STUDIO_VERSION_HISTORY_DECK_ONLY, stacked): its hook, and the bridge's setCovered in the Version history lib.
   'hooks/use-studio-version-history-deck-only.ts', 'lib/studio-version-history-v2.ts',
+  // The changes stacked after bulk edit + chat undo (COMPOSER-2's first paint and deck card thumbnails, chat undo v2 ...): each registers its files once, in scripts/studio-later-changes.mjs, and they are stacked files here.
+  ...LATER_CHANGE_FILES,
 ]
 // The FRONTEND-1 Pass 2 changes that are stacked on the same base too (the /admin pages and their hardening, the Docs / Help / Legal / Agents pages and their content passes, the account menu's rhythm). None is a
 // library file; the diff-scope check allows exactly these as well, and nothing else.
