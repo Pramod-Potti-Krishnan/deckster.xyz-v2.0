@@ -114,6 +114,8 @@ import { StudioDisabledReason } from './studio-disabled-reason'
 import { STUDIO_DISABLED_REASONS_ENABLED, studioToolbarDisabledReason, studioElementCardsDisabledReason, type StudioToolbarControl } from '@/lib/studio-disabled-reasons'
 import { STUDIO_RAIL_ADD_SLIDE, railAddSlideState } from '@/lib/studio-rail-add-slide'
 import { useToast } from '@/hooks/use-toast'
+import { STUDIO_PASS3_POLISH_B_ENABLED, STUDIO_POLISH_COPY } from '@/lib/studio-pass3-polish-b' // PASS3-POLISH (NEXT_PUBLIC_STUDIO_PASS3_POLISH, default off): audit #7, the Studio dialog and toast instead of the browser's confirm and alert
+import { StudioDiscardEditsDialog } from '@/components/studio-pass3-polish/studio-discard-edits-dialog' // PASS3-POLISH
 // TextFormatPopover is now replaced by simple text box insertion button
 // Keeping FormatTextParams for backward compatibility if needed
 import { FormatTextParams } from './text-format-popover'
@@ -2020,6 +2022,7 @@ export function PresentationViewer({
     } catch (error) {
       if (!isCurrent()) return
       console.error('Error saving changes:', error)
+      if (STUDIO_PASS3_POLISH_B_ENABLED) { toast({ ...STUDIO_POLISH_COPY.saveFailed, variant: 'destructive' }); return } // PASS3-POLISH (default off): the Studio toast says it; the finally below runs as it does after the alert
       alert('Failed to save changes. Please try again.')
     } finally {
       if (isCurrent()) setIsSaving(false)
@@ -2027,9 +2030,13 @@ export function PresentationViewer({
     }
   }, [onEditModeChange, studioShell, beginStudioViewerInteraction])
 
+  const [studioDiscardAsk, setStudioDiscardAsk] = useState(false) // PASS3-POLISH (default off): the Studio dialog is open
+  const studioDiscardAnsweredRef = useRef(false) // PASS3-POLISH: true only while the Studio dialog's confirm re-runs handleCancelEdits
   const handleCancelEdits = useCallback(async () => {
     if (!iframeRef.current) return
 
+    if (STUDIO_PASS3_POLISH_B_ENABLED && !studioDiscardAnsweredRef.current) { setStudioDiscardAsk(true); return } // PASS3-POLISH (default off): the Studio dialog asks first; nothing is discarded until it is confirmed
+    const confirm = (message?: string) => (STUDIO_PASS3_POLISH_B_ENABLED && studioDiscardAnsweredRef.current ? true : window.confirm(message)) // PASS3-POLISH: asked already in the Studio dialog; otherwise the browser's own confirm, as before
     // Confirm before canceling
     if (!confirm('Are you sure you want to discard all changes?')) {
       return
@@ -2045,6 +2052,11 @@ export function PresentationViewer({
       console.error('Error canceling edits:', error)
     }
   }, [onEditModeChange, studioShell, beginStudioViewerInteraction])
+  const confirmStudioDiscard = useCallback(async () => { // PASS3-POLISH (default off): the Studio dialog's confirm button: run the discard once, already confirmed
+    studioDiscardAnsweredRef.current = true // PASS3-POLISH
+    setStudioDiscardAsk(false) // PASS3-POLISH
+    try { await handleCancelEdits() } finally { studioDiscardAnsweredRef.current = false } // PASS3-POLISH
+  }, [handleCancelEdits]) // PASS3-POLISH
 
   // Add slide handler
   const handleAddSlide = useCallback(async (layoutId: SlideLayoutType, options?: { position?: number; backgroundColor?: string }) => {
@@ -4967,6 +4979,7 @@ export function PresentationViewer({
         onConfirm={handleConfirmDelete}
         isDeleting={isDeleting}
       />
+      {STUDIO_PASS3_POLISH_B_ENABLED && <StudioDiscardEditsDialog open={studioDiscardAsk} onOpenChange={setStudioDiscardAsk} onConfirm={confirmStudioDiscard} /> /* PASS3-POLISH (default off): audit #7 */}
 
       {/* Save as Template (Template Builder) */}
       <TemplateSaveDialog
