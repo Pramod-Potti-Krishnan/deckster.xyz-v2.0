@@ -1,0 +1,495 @@
+{
+ "scenario": "02-bulk-run-one-failure",
+ "description": "Card, then confirm_bulk_edit:<id>; slide 3 (L2) fails to refine. Receipt, per-slide bulk_edit_progress (+ slide_ready / deck_mutation slide_replaced for done slides), bulk_edit_summary, the honest partial closing line, change_recorded (kind bulk_edit).",
+ "director_commit": "18fa6604434bd633f6970afcb4d3174a6df1e6bc",
+ "flags": {
+  "MULTI_INTENT_ENABLED": "true",
+  "DIRECTOR_MDC_BULK_EDIT_ENABLED": "true",
+  "DIRECTOR_MDC_CHAT_UNDO_ENABLED": "true",
+  "CHAT_CAP_BULK_EDIT": "true",
+  "CHAT_CAP_CHAT_UNDO": "true",
+  "SLIDE_COMPOSER_ENABLED": "true",
+  "SLIDE_COMPOSER_ASYNC_ENABLED": "true",
+  "SLIDE_REFINER_ENABLED": "true",
+  "DIRECTOR_MDC_REFINE_SLIDE_ENABLED": "true",
+  "CHAT_CAP_REFINE_SLIDE": "true",
+  "DIRECTOR_MDC_HONEST_REPLIES_ENABLED": "true",
+  "DIRECTOR_MDC_SESSION_SCOPE_ENABLED": "true"
+ },
+ "client_caps": [
+  "mdc1",
+  "bulk_edit1",
+  "undo1"
+ ],
+ "recorded_by": "docs/mdc/bulk-edit-undo-frames/record.py (offline, $0)",
+ "scripted_model_output": [
+  {
+   "action_type": "bulk_edit",
+   "response_text": null,
+   "questions": null,
+   "tool_calls": null,
+   "reasoning": "scripted",
+   "confidence": 0.95,
+   "requires_approval": false,
+   "extracted_context": null,
+   "target_slide_indices": [],
+   "new_topic": null,
+   "op_brief": "Make it more concise",
+   "element_type": null,
+   "structured_questions": []
+  }
+ ],
+ "frame_counts": {
+  "in": 2,
+  "out": 19
+ },
+ "outbound_frame_types": [
+  "action_request",
+  "bulk_edit_progress",
+  "bulk_edit_summary",
+  "change_recorded",
+  "chat_message",
+  "deck_mutation",
+  "slide_failed",
+  "slide_ready"
+ ],
+ "events": [],
+ "frames": [
+  {
+   "seq": 1,
+   "direction": "in",
+   "frame": {
+    "type": "user_message",
+    "data": {
+     "text": "Make every slide more concise",
+     "client_caps": [
+      "mdc1",
+      "bulk_edit1",
+      "undo1"
+     ]
+    }
+   }
+  },
+  {
+   "seq": 2,
+   "direction": "out",
+   "frame": {
+    "message_id": "msg_b59b63da",
+    "session_id": "s_e2e",
+    "timestamp": "2026-10-24T14:48:24.734281Z",
+    "type": "action_request",
+    "role": "assistant",
+    "payload": {
+     "prompt_text": "Change 5 slides (slides 1, 2, 3, 4 and 5)? I'll apply \"Make it more concise\" to each one, one or two at a time, keeping each slide in its place. Rough cost: about $0.25 to $0.50.",
+     "actions": [
+      {
+       "label": "Change 5 slides",
+       "value": "confirm_bulk_edit:bulk_cb4247a83241",
+       "primary": true,
+       "requires_input": false
+      },
+      {
+       "label": "Cancel",
+       "value": "cancel_bulk_edit:bulk_cb4247a83241",
+       "primary": false,
+       "requires_input": false
+      }
+     ],
+     "kind": "bulk_edit_confirm",
+     "bulk_edit": {
+      "bulk_id": "bulk_cb4247a83241",
+      "instruction": "Make it more concise",
+      "slide_indexes": [
+       0,
+       1,
+       2,
+       3,
+       4
+      ],
+      "slide_ids": [
+       "L0",
+       "L1",
+       "L2",
+       "L3",
+       "L4"
+      ],
+      "slide_count": 5,
+      "estimate": {
+       "usd": 0.5,
+       "label": "about $0.25 to $0.50"
+      }
+     }
+    }
+   }
+  },
+  {
+   "seq": 3,
+   "direction": "in",
+   "frame": {
+    "type": "user_message",
+    "data": {
+     "text": "",
+     "client_caps": [
+      "mdc1",
+      "bulk_edit1",
+      "undo1"
+     ],
+     "action_value": "confirm_bulk_edit:bulk_cb4247a83241",
+     "action_label": "confirm_bulk_edit:bulk_cb4247a83241"
+    }
+   }
+  },
+  {
+   "seq": 4,
+   "direction": "out",
+   "frame": {
+    "message_id": "msg_4721813c",
+    "session_id": "s_e2e",
+    "timestamp": "2026-10-24T14:48:24.781755Z",
+    "type": "chat_message",
+    "role": "assistant",
+    "payload": {
+     "text": "Changing 5 slides: \"Make it more concise\". I'll work through them one or two at a time; each slide stays as it is until its new version is ready.",
+     "sub_title": null,
+     "list_items": null,
+     "format": "markdown",
+     "ephemeral": false
+    }
+   }
+  },
+  {
+   "seq": 5,
+   "direction": "out",
+   "frame": {
+    "message_id": "msg_slide_ready_3472c880",
+    "session_id": "s_e2e",
+    "timestamp": "2026-10-24T14:48:24.811747Z",
+    "type": "slide_ready",
+    "role": "assistant",
+    "payload": {
+     "job_id": "mdc_d1a02164269e",
+     "kind": "refine",
+     "presentation_id": "pres-e2e",
+     "slide_index": 0,
+     "inserted_at_index": 0,
+     "presentation_url": null,
+     "real_slide_id": "R1-L0",
+     "replaced_slide_id": "L0",
+     "thumbnail_url": null,
+     "status": "built"
+    }
+   }
+  },
+  {
+   "seq": 6,
+   "direction": "out",
+   "frame": {
+    "message_id": "msg_slide_ready_4188f27b",
+    "session_id": "s_e2e",
+    "timestamp": "2026-10-24T14:48:24.813494Z",
+    "type": "slide_ready",
+    "role": "assistant",
+    "payload": {
+     "job_id": "mdc_a9ffeb3b5829",
+     "kind": "refine",
+     "presentation_id": "pres-e2e",
+     "slide_index": 1,
+     "inserted_at_index": 1,
+     "presentation_url": null,
+     "real_slide_id": "R2-L1",
+     "replaced_slide_id": "L1",
+     "thumbnail_url": null,
+     "status": "built"
+    }
+   }
+  },
+  {
+   "seq": 7,
+   "direction": "out",
+   "frame": {
+    "message_id": "msg_bep_0efe90da",
+    "session_id": "s_e2e",
+    "timestamp": "2026-10-24T14:48:24.815170Z",
+    "type": "bulk_edit_progress",
+    "role": "assistant",
+    "payload": {
+     "bulk_id": "bulk_cb4247a83241",
+     "slide_id": "L0",
+     "slide_index": 0,
+     "status": "done",
+     "reason": null
+    }
+   }
+  },
+  {
+   "seq": 8,
+   "direction": "out",
+   "frame": {
+    "message_id": "msg_dmut_e0f021c4",
+    "session_id": "s_e2e",
+    "timestamp": "2026-10-24T14:48:24.815202Z",
+    "type": "deck_mutation",
+    "role": "assistant",
+    "payload": {
+     "mutation": "slide_replaced",
+     "slide_index": 0,
+     "new_slide_index": null,
+     "presentation_id": "pres-e2e",
+     "presentation_url": "https://layout.synthetic.invalid/p/pres-e2e",
+     "refresh_token": "dm_2a7ddf1e038b"
+    }
+   }
+  },
+  {
+   "seq": 9,
+   "direction": "out",
+   "frame": {
+    "message_id": "msg_bep_7094987b",
+    "session_id": "s_e2e",
+    "timestamp": "2026-10-24T14:48:24.816848Z",
+    "type": "bulk_edit_progress",
+    "role": "assistant",
+    "payload": {
+     "bulk_id": "bulk_cb4247a83241",
+     "slide_id": "L1",
+     "slide_index": 1,
+     "status": "done",
+     "reason": null
+    }
+   }
+  },
+  {
+   "seq": 10,
+   "direction": "out",
+   "frame": {
+    "message_id": "msg_dmut_4b87b008",
+    "session_id": "s_e2e",
+    "timestamp": "2026-10-24T14:48:24.816863Z",
+    "type": "deck_mutation",
+    "role": "assistant",
+    "payload": {
+     "mutation": "slide_replaced",
+     "slide_index": 1,
+     "new_slide_index": null,
+     "presentation_id": "pres-e2e",
+     "presentation_url": "https://layout.synthetic.invalid/p/pres-e2e",
+     "refresh_token": "dm_c41d3fe0e29b"
+    }
+   }
+  },
+  {
+   "seq": 11,
+   "direction": "out",
+   "frame": {
+    "message_id": "msg_slide_failed_fd51ccf8",
+    "session_id": "s_e2e",
+    "timestamp": "2026-10-24T14:48:24.844666Z",
+    "type": "slide_failed",
+    "role": "assistant",
+    "payload": {
+     "job_id": "mdc_f0ad85ca5b62",
+     "kind": "refine",
+     "stage": "slide_builder",
+     "errors": [
+      "Slide Builder returned no slide"
+     ],
+     "presentation_id": "pres-e2e",
+     "status": "error"
+    }
+   }
+  },
+  {
+   "seq": 12,
+   "direction": "out",
+   "frame": {
+    "message_id": "msg_slide_ready_a90db17d",
+    "session_id": "s_e2e",
+    "timestamp": "2026-10-24T14:48:24.844741Z",
+    "type": "slide_ready",
+    "role": "assistant",
+    "payload": {
+     "job_id": "mdc_6c802b18952d",
+     "kind": "refine",
+     "presentation_id": "pres-e2e",
+     "slide_index": 3,
+     "inserted_at_index": 3,
+     "presentation_url": null,
+     "real_slide_id": "R3-L3",
+     "replaced_slide_id": "L3",
+     "thumbnail_url": null,
+     "status": "built"
+    }
+   }
+  },
+  {
+   "seq": 13,
+   "direction": "out",
+   "frame": {
+    "message_id": "msg_bep_58d4a170",
+    "session_id": "s_e2e",
+    "timestamp": "2026-10-24T14:48:24.846404Z",
+    "type": "bulk_edit_progress",
+    "role": "assistant",
+    "payload": {
+     "bulk_id": "bulk_cb4247a83241",
+     "slide_id": "L2",
+     "slide_index": 2,
+     "status": "failed",
+     "reason": "refine_failed"
+    }
+   }
+  },
+  {
+   "seq": 14,
+   "direction": "out",
+   "frame": {
+    "message_id": "msg_bep_95845511",
+    "session_id": "s_e2e",
+    "timestamp": "2026-10-24T14:48:24.846419Z",
+    "type": "bulk_edit_progress",
+    "role": "assistant",
+    "payload": {
+     "bulk_id": "bulk_cb4247a83241",
+     "slide_id": "L3",
+     "slide_index": 3,
+     "status": "done",
+     "reason": null
+    }
+   }
+  },
+  {
+   "seq": 15,
+   "direction": "out",
+   "frame": {
+    "message_id": "msg_dmut_f30e1805",
+    "session_id": "s_e2e",
+    "timestamp": "2026-10-24T14:48:24.846433Z",
+    "type": "deck_mutation",
+    "role": "assistant",
+    "payload": {
+     "mutation": "slide_replaced",
+     "slide_index": 3,
+     "new_slide_index": null,
+     "presentation_id": "pres-e2e",
+     "presentation_url": "https://layout.synthetic.invalid/p/pres-e2e",
+     "refresh_token": "dm_b355a86e38f3"
+    }
+   }
+  },
+  {
+   "seq": 16,
+   "direction": "out",
+   "frame": {
+    "message_id": "msg_slide_ready_2e600e6b",
+    "session_id": "s_e2e",
+    "timestamp": "2026-10-24T14:48:24.861229Z",
+    "type": "slide_ready",
+    "role": "assistant",
+    "payload": {
+     "job_id": "mdc_289e97aacc7a",
+     "kind": "refine",
+     "presentation_id": "pres-e2e",
+     "slide_index": 4,
+     "inserted_at_index": 4,
+     "presentation_url": null,
+     "real_slide_id": "R4-L4",
+     "replaced_slide_id": "L4",
+     "thumbnail_url": null,
+     "status": "built"
+    }
+   }
+  },
+  {
+   "seq": 17,
+   "direction": "out",
+   "frame": {
+    "message_id": "msg_bep_1c8a542a",
+    "session_id": "s_e2e",
+    "timestamp": "2026-10-24T14:48:24.862967Z",
+    "type": "bulk_edit_progress",
+    "role": "assistant",
+    "payload": {
+     "bulk_id": "bulk_cb4247a83241",
+     "slide_id": "L4",
+     "slide_index": 4,
+     "status": "done",
+     "reason": null
+    }
+   }
+  },
+  {
+   "seq": 18,
+   "direction": "out",
+   "frame": {
+    "message_id": "msg_dmut_7df3ede8",
+    "session_id": "s_e2e",
+    "timestamp": "2026-10-24T14:48:24.862980Z",
+    "type": "deck_mutation",
+    "role": "assistant",
+    "payload": {
+     "mutation": "slide_replaced",
+     "slide_index": 4,
+     "new_slide_index": null,
+     "presentation_id": "pres-e2e",
+     "presentation_url": "https://layout.synthetic.invalid/p/pres-e2e",
+     "refresh_token": "dm_d29ccf1a8a4e"
+    }
+   }
+  },
+  {
+   "seq": 19,
+   "direction": "out",
+   "frame": {
+    "message_id": "msg_bes_dab671ac",
+    "session_id": "s_e2e",
+    "timestamp": "2026-10-24T14:48:24.864648Z",
+    "type": "bulk_edit_summary",
+    "role": "assistant",
+    "payload": {
+     "bulk_id": "bulk_cb4247a83241",
+     "done": 4,
+     "failed": 1,
+     "skipped": 0,
+     "total": 5
+    }
+   }
+  },
+  {
+   "seq": 20,
+   "direction": "out",
+   "frame": {
+    "message_id": "msg_1220f52f",
+    "session_id": "s_e2e",
+    "timestamp": "2026-10-24T14:48:24.864670Z",
+    "type": "chat_message",
+    "role": "assistant",
+    "payload": {
+     "text": "I changed 4 of 5 slides. Slide 3 didn't change: the new version didn't come out cleanly, so it is as before.",
+     "sub_title": null,
+     "list_items": null,
+     "format": "markdown",
+     "ephemeral": false
+    }
+   }
+  },
+  {
+   "seq": 21,
+   "direction": "out",
+   "frame": {
+    "message_id": "msg_chg_9570837a",
+    "session_id": "s_e2e",
+    "timestamp": "2026-10-24T14:48:24.869819Z",
+    "type": "change_recorded",
+    "role": "assistant",
+    "payload": {
+     "change_id": "chg_7f47cbd5ae9e",
+     "label": "Changed 4 slides",
+     "kind": "bulk_edit",
+     "presentation_id": "pres-e2e",
+     "undoable": true,
+     "anchor_message_id": "msg_1220f52f"
+    }
+   }
+  }
+ ]
+}

@@ -1,0 +1,283 @@
+{
+ "scenario": "03-bulk-all-skipped",
+ "description": "Card, then every slide is replaced on the canvas before the click (new Layout ids), then confirm: every slide skipped (slide_missing), summary skipped=5, honest line, no change_recorded.",
+ "director_commit": "18fa6604434bd633f6970afcb4d3174a6df1e6bc",
+ "flags": {
+  "MULTI_INTENT_ENABLED": "true",
+  "DIRECTOR_MDC_BULK_EDIT_ENABLED": "true",
+  "DIRECTOR_MDC_CHAT_UNDO_ENABLED": "true",
+  "CHAT_CAP_BULK_EDIT": "true",
+  "CHAT_CAP_CHAT_UNDO": "true",
+  "SLIDE_COMPOSER_ENABLED": "true",
+  "SLIDE_COMPOSER_ASYNC_ENABLED": "true",
+  "SLIDE_REFINER_ENABLED": "true",
+  "DIRECTOR_MDC_REFINE_SLIDE_ENABLED": "true",
+  "CHAT_CAP_REFINE_SLIDE": "true",
+  "DIRECTOR_MDC_HONEST_REPLIES_ENABLED": "true",
+  "DIRECTOR_MDC_SESSION_SCOPE_ENABLED": "true"
+ },
+ "client_caps": [
+  "mdc1",
+  "bulk_edit1",
+  "undo1"
+ ],
+ "recorded_by": "docs/mdc/bulk-edit-undo-frames/record.py (offline, $0)",
+ "scripted_model_output": [
+  {
+   "action_type": "bulk_edit",
+   "response_text": null,
+   "questions": null,
+   "tool_calls": null,
+   "reasoning": "scripted",
+   "confidence": 0.95,
+   "requires_approval": false,
+   "extracted_context": null,
+   "target_slide_indices": [],
+   "new_topic": null,
+   "op_brief": "Shorten the title",
+   "element_type": null,
+   "structured_questions": []
+  }
+ ],
+ "frame_counts": {
+  "in": 2,
+  "out": 9
+ },
+ "outbound_frame_types": [
+  "action_request",
+  "bulk_edit_progress",
+  "bulk_edit_summary",
+  "chat_message"
+ ],
+ "events": [],
+ "frames": [
+  {
+   "seq": 1,
+   "direction": "in",
+   "frame": {
+    "type": "user_message",
+    "data": {
+     "text": "Shorten every title",
+     "client_caps": [
+      "mdc1",
+      "bulk_edit1",
+      "undo1"
+     ]
+    }
+   }
+  },
+  {
+   "seq": 2,
+   "direction": "out",
+   "frame": {
+    "message_id": "msg_15a4ff1e",
+    "session_id": "s_e2e",
+    "timestamp": "2026-10-24T14:48:25.032791Z",
+    "type": "action_request",
+    "role": "assistant",
+    "payload": {
+     "prompt_text": "Change 5 slides (slides 1, 2, 3, 4 and 5)? I'll apply \"Shorten the title\" to each one, one or two at a time, keeping each slide in its place. Rough cost: about $0.25 to $0.50.",
+     "actions": [
+      {
+       "label": "Change 5 slides",
+       "value": "confirm_bulk_edit:bulk_3218f91125c5",
+       "primary": true,
+       "requires_input": false
+      },
+      {
+       "label": "Cancel",
+       "value": "cancel_bulk_edit:bulk_3218f91125c5",
+       "primary": false,
+       "requires_input": false
+      }
+     ],
+     "kind": "bulk_edit_confirm",
+     "bulk_edit": {
+      "bulk_id": "bulk_3218f91125c5",
+      "instruction": "Shorten the title",
+      "slide_indexes": [
+       0,
+       1,
+       2,
+       3,
+       4
+      ],
+      "slide_ids": [
+       "L0",
+       "L1",
+       "L2",
+       "L3",
+       "L4"
+      ],
+      "slide_count": 5,
+      "estimate": {
+       "usd": 0.5,
+       "label": "about $0.25 to $0.50"
+      }
+     }
+    }
+   }
+  },
+  {
+   "seq": 3,
+   "direction": "in",
+   "frame": {
+    "type": "user_message",
+    "data": {
+     "text": "",
+     "client_caps": [
+      "mdc1",
+      "bulk_edit1",
+      "undo1"
+     ],
+     "action_value": "confirm_bulk_edit:bulk_3218f91125c5",
+     "action_label": "confirm_bulk_edit:bulk_3218f91125c5"
+    }
+   }
+  },
+  {
+   "seq": 4,
+   "direction": "out",
+   "frame": {
+    "message_id": "msg_3fa056e0",
+    "session_id": "s_e2e",
+    "timestamp": "2026-10-24T14:48:25.080339Z",
+    "type": "chat_message",
+    "role": "assistant",
+    "payload": {
+     "text": "Changing 5 slides: \"Shorten the title\". I'll work through them one or two at a time; each slide stays as it is until its new version is ready.",
+     "sub_title": null,
+     "list_items": null,
+     "format": "markdown",
+     "ephemeral": false
+    }
+   }
+  },
+  {
+   "seq": 5,
+   "direction": "out",
+   "frame": {
+    "message_id": "msg_bep_9643a8ce",
+    "session_id": "s_e2e",
+    "timestamp": "2026-10-24T14:48:25.083810Z",
+    "type": "bulk_edit_progress",
+    "role": "assistant",
+    "payload": {
+     "bulk_id": "bulk_3218f91125c5",
+     "slide_id": "L0",
+     "slide_index": 0,
+     "status": "skipped",
+     "reason": "slide_missing"
+    }
+   }
+  },
+  {
+   "seq": 6,
+   "direction": "out",
+   "frame": {
+    "message_id": "msg_bep_21c22fd9",
+    "session_id": "s_e2e",
+    "timestamp": "2026-10-24T14:48:25.083827Z",
+    "type": "bulk_edit_progress",
+    "role": "assistant",
+    "payload": {
+     "bulk_id": "bulk_3218f91125c5",
+     "slide_id": "L1",
+     "slide_index": 1,
+     "status": "skipped",
+     "reason": "slide_missing"
+    }
+   }
+  },
+  {
+   "seq": 7,
+   "direction": "out",
+   "frame": {
+    "message_id": "msg_bep_03c2904e",
+    "session_id": "s_e2e",
+    "timestamp": "2026-10-24T14:48:25.083839Z",
+    "type": "bulk_edit_progress",
+    "role": "assistant",
+    "payload": {
+     "bulk_id": "bulk_3218f91125c5",
+     "slide_id": "L2",
+     "slide_index": 2,
+     "status": "skipped",
+     "reason": "slide_missing"
+    }
+   }
+  },
+  {
+   "seq": 8,
+   "direction": "out",
+   "frame": {
+    "message_id": "msg_bep_bfda8040",
+    "session_id": "s_e2e",
+    "timestamp": "2026-10-24T14:48:25.083849Z",
+    "type": "bulk_edit_progress",
+    "role": "assistant",
+    "payload": {
+     "bulk_id": "bulk_3218f91125c5",
+     "slide_id": "L3",
+     "slide_index": 3,
+     "status": "skipped",
+     "reason": "slide_missing"
+    }
+   }
+  },
+  {
+   "seq": 9,
+   "direction": "out",
+   "frame": {
+    "message_id": "msg_bep_a3cf7c98",
+    "session_id": "s_e2e",
+    "timestamp": "2026-10-24T14:48:25.083859Z",
+    "type": "bulk_edit_progress",
+    "role": "assistant",
+    "payload": {
+     "bulk_id": "bulk_3218f91125c5",
+     "slide_id": "L4",
+     "slide_index": 4,
+     "status": "skipped",
+     "reason": "slide_missing"
+    }
+   }
+  },
+  {
+   "seq": 10,
+   "direction": "out",
+   "frame": {
+    "message_id": "msg_bes_f996c17b",
+    "session_id": "s_e2e",
+    "timestamp": "2026-10-24T14:48:25.083902Z",
+    "type": "bulk_edit_summary",
+    "role": "assistant",
+    "payload": {
+     "bulk_id": "bulk_3218f91125c5",
+     "done": 0,
+     "failed": 0,
+     "skipped": 5,
+     "total": 5
+    }
+   }
+  },
+  {
+   "seq": 11,
+   "direction": "out",
+   "frame": {
+    "message_id": "msg_877f1a06",
+    "session_id": "s_e2e",
+    "timestamp": "2026-10-24T14:48:25.083919Z",
+    "type": "chat_message",
+    "role": "assistant",
+    "payload": {
+     "text": "None of the 5 slides changed, so the deck is as it was. Slides 1, 2, 3, 4 and 5 were skipped: they are no longer in the deck.",
+     "sub_title": null,
+     "list_items": null,
+     "format": "markdown",
+     "ephemeral": false
+    }
+   }
+  }
+ ]
+}

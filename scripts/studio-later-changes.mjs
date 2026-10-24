@@ -21,6 +21,7 @@
 // All three lists are empty when nothing is stacked after bulk edit + chat undo, and then nothing here changes anything: stripLaterChanges returns its text as it was given, for every file.
 
 export const LATER_CHANGE_FILES = new Set([
+  ...(await import('./studio-chat-undo-v2-strip.mjs')).CHAT_UNDO_V2_SCOPE_FILES, // LATER-CHANGE: FRONTEND-2, chat undo v2 (NEXT_PUBLIC_STUDIO_CHAT_UNDO; no .env.example block)
   // one line per later change, above this comment
 ])
 
@@ -30,6 +31,7 @@ export const LATER_ENV_BLOCKS = [
 
 /** One strip per later change, (rel, text) => text, in the order the changes were stacked. */
 export const LATER_STRIPS = [
+  (await import('./studio-chat-undo-v2-strip.mjs')).stripChatUndoV2, // LATER-CHANGE: FRONTEND-2, chat undo v2 (NEXT_PUBLIC_STUDIO_CHAT_UNDO; no .env.example block)
   // one line per later change, above this comment
 ]
 
