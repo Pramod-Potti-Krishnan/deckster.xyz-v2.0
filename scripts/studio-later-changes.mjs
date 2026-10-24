@@ -21,16 +21,22 @@
 // All three lists are empty when nothing is stacked after bulk edit + chat undo, and then nothing here changes anything: stripLaterChanges returns its text as it was given, for every file.
 
 export const LATER_CHANGE_FILES = new Set([
+  ...(await import('./studio-first-paint-strip.mjs')).FIRST_PAINT_SCOPE_FILES, // LATER-CHANGE: COMPOSER-2, studio first paint (NEXT_PUBLIC_STUDIO_FIRST_PAINT_ENABLED)
+  ...(await import('./studio-deck-card-thumbnail-strip.mjs')).DECK_CARD_THUMBNAIL_SCOPE_FILES, // LATER-CHANGE: COMPOSER-2, deck card thumbnails (NEXT_PUBLIC_STUDIO_DECK_CARD_THUMBNAILS_ENABLED)
   ...(await import('./studio-chat-undo-v2-strip.mjs')).CHAT_UNDO_V2_SCOPE_FILES, // LATER-CHANGE: FRONTEND-2, chat undo v2 (NEXT_PUBLIC_STUDIO_CHAT_UNDO; no .env.example block)
   // one line per later change, above this comment
 ])
 
 export const LATER_ENV_BLOCKS = [
+  (await import('./studio-first-paint-strip.mjs')).FIRST_PAINT_ENV_BLOCK, // LATER-CHANGE: COMPOSER-2, studio first paint (NEXT_PUBLIC_STUDIO_FIRST_PAINT_ENABLED)
+  (await import('./studio-deck-card-thumbnail-strip.mjs')).DECK_CARD_THUMBNAIL_ENV_BLOCK, // LATER-CHANGE: COMPOSER-2, deck card thumbnails (NEXT_PUBLIC_STUDIO_DECK_CARD_THUMBNAILS_ENABLED)
   // one line per later change, above this comment
 ]
 
 /** One strip per later change, (rel, text) => text, in the order the changes were stacked. */
 export const LATER_STRIPS = [
+  (await import('./studio-first-paint-strip.mjs')).stripFirstPaint, // LATER-CHANGE: COMPOSER-2, studio first paint (NEXT_PUBLIC_STUDIO_FIRST_PAINT_ENABLED)
+  (await import('./studio-deck-card-thumbnail-strip.mjs')).stripDeckCardThumbnail, // LATER-CHANGE: COMPOSER-2, deck card thumbnails (NEXT_PUBLIC_STUDIO_DECK_CARD_THUMBNAILS_ENABLED)
   (await import('./studio-chat-undo-v2-strip.mjs')).stripChatUndoV2, // LATER-CHANGE: FRONTEND-2, chat undo v2 (NEXT_PUBLIC_STUDIO_CHAT_UNDO; no .env.example block)
   // one line per later change, above this comment
 ]
