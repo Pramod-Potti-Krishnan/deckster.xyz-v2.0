@@ -300,6 +300,64 @@ async function suites(text = source) {
     world.intervals[0].fn()
     check(assert.equal, calls.filter(c => c.length === 0).length, 1, 'after the retry settles the interval ticks run again')
   }
+  // ---- the viewer's wiring: studioSlideInfoPollWiring(frame, url) gives the poll effect its local setInterval and the head-start marker -----------
+  for (const [name, env, frame, url] of [['flag off', {}, {}, 'u'], ['flag "false"', { [FLAG]: 'false' }, {}, 'u'], ['flag on, no frame yet', on, null, 'u'], ['flag on, no URL yet', on, {}, null]]) {
+    const { lib: l, world } = L({ env })
+    const wiring = l.studioSlideInfoPollWiring(frame, url)
+    const handle = wiring.setInterval(() => undefined, 3000)
+    check(assert.equal, world.intervals.length, 1, `${name}: the local setInterval set one interval`)
+    check(assert.equal, handle, 1, `${name}: and handed back the global setInterval's own handle`)
+    check(assert.equal, wiring.firstTick(), false, `${name}: firstTick() is false`)
+    check(assert.equal, world.timeouts.length, 0, `${name}: no head start, no retry timer`)
+  }
+  {
+    // identity: flag off, the wiring's setInterval IS the module's global setInterval (compared in the lib's own context)
+    const compiled = ts.transpileModule(text, { fileName: LIB, compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022 } }).outputText
+    for (const [name, env, frame, url] of [['flag off', {}, {}, 'u'], ['flag on, no frame yet', on, null, 'u'], ['flag on, no URL yet', on, {}, null]]) {
+      const recorder = (fn, ms) => 1
+      const module = { exports: {} }
+      vm.runInNewContext(compiled, { module, exports: module.exports, URL, WeakMap, Set, Promise, process: { env }, require: () => ({ preconnect() {}, prefetchDNS() {} }),
+        setInterval: recorder, setTimeout: () => 1, Date: { now: () => 0 } }, { filename: LIB })
+      check(assert.equal, module.exports.studioSlideInfoPollWiring(frame, url).setInterval, recorder, `${name}: the wiring's setInterval is the global setInterval itself (the same function)`)
+    }
+    const module = { exports: {} }
+    const recorder = () => 1
+    vm.runInNewContext(compiled, { module, exports: module.exports, URL, WeakMap, Set, Promise, process: { env: on }, require: () => ({ preconnect() {}, prefetchDNS() {} }),
+      setInterval: recorder, setTimeout: () => 1, Date: { now: () => 0 } }, { filename: LIB })
+    check(assert.notEqual, module.exports.studioSlideInfoPollWiring({}, 'u').setInterval, recorder, 'flag on with a frame and URL: the wiring\'s setInterval is the head-start poll, not the global')
+  }
+  {
+    const { lib: l, world } = L({ env: on })
+    const wiring = l.studioSlideInfoPollWiring({}, 'https://layout.example.com/p/1')
+    const seen = []
+    let answer = Promise.resolve(false)
+    // the viewer's tick: it reads firstTick() as its first statement, then awaits, then reads it again (the second read must not see the head start)
+    const tick = async () => { const first = wiring.firstTick(); await settle(); seen.push([first, wiring.firstTick()]); return first ? answer : undefined }
+    const handle = wiring.setInterval(tick, 3000)
+    check(assert.equal, seen.length, 0, 'flag on: the head-start tick has started (its result comes after an await)')
+    check(assert.equal, wiring.firstTick(), false, 'flag on: firstTick() is false again as soon as the head-start call has returned its promise')
+    await settle(); await settle()
+    check(assert.deepEqual, seen, [[true, false]], 'flag on: the head-start tick read true at its start, and false after its await')
+    check(assert.equal, world.intervals.length, 1, 'flag on: one interval')
+    check(assert.equal, handle, 1, 'flag on: the interval\'s own handle, for clearInterval')
+    check(assert.equal, world.intervals[0].ms, 3000, 'flag on: the given period')
+    check(assert.equal, world.timeouts.length, 1, 'flag on: a head start that resolved to false gets its one retry timer')
+    answer = Promise.resolve(undefined)
+    world.timeouts[0].fn(); await settle(); await settle()
+    check(assert.deepEqual, seen.at(-1), [true, false], 'flag on: the retry tick reads firstTick() true at its start too')
+    world.intervals[0].fn(); await settle(); await settle()
+    check(assert.deepEqual, seen.at(-1), [false, false], 'flag on: an interval tick reads firstTick() false')
+    check(assert.equal, world.timeouts.length, 1, 'flag on: never a second retry')
+    // a tick that throws synchronously still leaves the marker false
+    const w2 = L({ env: on }).lib.studioSlideInfoPollWiring({}, 'u')
+    w2.setInterval(() => { throw new Error('boom') }, 3000)
+    check(assert.equal, w2.firstTick(), false, 'flag on: a head-start tick that throws leaves firstTick() false')
+    // two wirings (two effect runs) do not share the marker
+    const a = L({ env: on }).lib, wa = a.studioSlideInfoPollWiring({}, 'u'), wb = a.studioSlideInfoPollWiring({}, 'v')
+    let crossRead = null
+    wa.setInterval(() => { crossRead = wb.firstTick(); return undefined }, 3000)
+    check(assert.equal, crossRead, false, 'one effect run\'s head start is not another run\'s')
+  }
   // the lib counts nothing: the failure count lives in the viewer (its catch skips the count for a first tick); the lib never calls anything but the tick, the timer and Date.now
   check(assert.doesNotMatch, text.replace(/\/\/.*$/gm, ''), /pollingFailure|setPollingFailureCount|sendCommand|postMessage|fetch\(|localStorage/, 'the lib has no request, no storage and no failure counter')
 }
@@ -342,6 +400,12 @@ const MUTANTS = [
   ['retry ignores a moved frame', t => once(t, '            if (firstPolls.get(frame) !== claimed) return\n', '')],
   ['retry does not hold the interval', t => once(t, '            claimed.inFlight = true\n', '')],
   ['retry delay is not the constant', t => once(t, '}, FIRST_POLL_RETRY_MS)', '}, 0)')],
+  ['wiring: flag off wraps the global', t => once(t, 'if (!STUDIO_FIRST_PAINT_ENABLED || !frame || !url) return { setInterval, firstTick }', 'if (!STUDIO_FIRST_PAINT_ENABLED || !frame || !url) return { setInterval: (tick, ms) => setInterval(tick, ms), firstTick }')],
+  ['wiring: no head start with the flag on', t => once(t, 'if (!STUDIO_FIRST_PAINT_ENABLED || !frame || !url) return { setInterval, firstTick }', 'return { setInterval, firstTick }')],
+  ['wiring: the marker is never set', t => once(t, '      head = first === true\n', '')],
+  ['wiring: the marker is set for every tick', t => once(t, '      head = first === true\n', '      head = true\n')],
+  ['wiring: the marker is not reset', t => once(t, '      try { return tick() } finally { head = false }', '      return tick()')],
+  ['wiring: the marker is shared by every wiring', t => once(t, '  let head = false\n  const firstTick = () => head\n', '  const firstTick = () => sharedHead.value\n').replace('export function studioSlideInfoPollWiring(', 'const sharedHead = { value: false }\nexport function studioSlideInfoPollWiring(').replace(/\bhead = /g, 'sharedHead.value = ')],
   ['interval passes the first-tick marker', t => once(t, '? undefined : tick()), intervalMs)', '? undefined : tick(true)), intervalMs)')],
 ]
 let killed = 0

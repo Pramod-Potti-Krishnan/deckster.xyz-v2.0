@@ -158,3 +158,30 @@ export function startStudioSlideInfoPoll(
   const current = state
   return setInterval(() => (current.inFlight && Date.now() < current.holdUntil ? undefined : tick()), intervalMs)
 }
+
+/** The viewer's poll effect wiring: its `setInterval` and the head-start marker its tick reads. */
+export interface StudioSlideInfoPollWiring {
+  readonly setInterval: (tick: () => unknown, intervalMs: number) => ReturnType<typeof setInterval>
+  readonly firstTick: () => boolean
+}
+
+/**
+ * What lets the viewer keep its base line `const interval = setInterval(async () => {` as it is (NEXT_PUBLIC_STUDIO_FIRST_PAINT_ENABLED, default
+ * off). The poll effect declares `const setInterval = poll.setInterval` just above that line; the local is a const of that one effect callback,
+ * so nothing outside the effect sees it.
+ *  - Flag off, or no frame or URL yet: `setInterval` IS the global setInterval (the very same function) and `firstTick()` is always false.
+ *  - Flag on: `setInterval(tick, ms)` is startStudioSlideInfoPoll(frame, url, ..., ms), and `firstTick()` is true only while the head-start call
+ *    (or its one retry) runs the tick's synchronous start, so the tick reads it in its first statement, before any await.
+ */
+export function studioSlideInfoPollWiring(frame: object | null | undefined, url: string | null | undefined): StudioSlideInfoPollWiring {
+  let head = false
+  const firstTick = () => head
+  if (!STUDIO_FIRST_PAINT_ENABLED || !frame || !url) return { setInterval, firstTick }
+  return {
+    setInterval: (tick, intervalMs) => startStudioSlideInfoPoll(frame, url, (first?: boolean) => {
+      head = first === true
+      try { return tick() } finally { head = false }
+    }, intervalMs),
+    firstTick,
+  }
+}
