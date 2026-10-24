@@ -27,6 +27,7 @@ import { stripAddSlideStatus } from './studio-add-slide-status-strip.mjs'
 import { stripDarkPersist } from './studio-theme-dark-persist-strip.mjs'
 import { stripOpenReadOnly } from './studio-open-read-only-strip.mjs'
 import { stripLaunchWording } from './studio-launch-wording-strip.mjs' // NEXT_PUBLIC_STUDIO_LAUNCH_WORDING (launched wording): its flag-gated edits come out first, before every older change's strip
+import { stripBulkEditUndo } from './studio-bulk-edit-undo-strip.mjs' // stacked: bulk edit + chat undo (a whole-deck edit card and an Undo chip in chat): its marked message-list lines come out first
 
 const repoRoot = path.resolve(new URL('..', import.meta.url).pathname)
 const nodeRequire = createRequire(path.join(repoRoot, 'package.json'))
@@ -214,6 +215,7 @@ function proveList2(source, label = 'list') {
   const welcomeAt = source.indexOf('<StudioWelcome\n'), end = source.indexOf('/>', welcomeAt)
   ok(source.slice(welcomeAt, end).includes('studioWelcomeGreeting'), `${label}: it is on StudioWelcome`)
   const baseList = baseSource(LIST)
+  source = stripBulkEditUndo(LIST, source) // stacked: bulk edit + chat undo (NEXT_PUBLIC_STUDIO_BULK_EDIT / NEXT_PUBLIC_STUDIO_CHAT_UNDO, after this change) adds marked lines to the message list; its strip puts them back first
   if (baseList) eq(stripList(source), baseList, `${label}: without the G01 text the file is ${BASE_COMMIT}'s`)
 }
 provePage(SOURCES[PAGE]); proveList2(SOURCES[LIST])

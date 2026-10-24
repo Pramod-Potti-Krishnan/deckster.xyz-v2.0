@@ -80,6 +80,7 @@ export type DeckMutationKind =
   | 'slide_replaced'
   | 'slide_reordered'
   | 'slide_added'
+  | 'deck_restored' // BULK-EDIT-UNDO: an undo restored a version; the whole viewer is replaced (NEXT_PUBLIC_STUDIO_CHAT_UNDO)
 
 export interface DeckMutationPayload {
   mutation: DeckMutationKind
@@ -89,6 +90,7 @@ export interface DeckMutationPayload {
   presentation_url?: string | null
   /** Cache-buster for the viewer's ?sc_refresh reload idiom. */
   refresh_token: string
+  restored?: boolean // BULK-EDIT-UNDO: set by the socket hook on an undo's deck_restored (NEXT_PUBLIC_STUDIO_CHAT_UNDO); the mutation is then read as slide_replaced
 }
 
 export interface DeckMutationMessage {

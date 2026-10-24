@@ -38,6 +38,8 @@ import { stripOpenReadOnly } from './studio-open-read-only-strip.mjs'
 import { stripDarkPersist } from './studio-theme-dark-persist-strip.mjs'
 import { stripAddSlideStatus } from './studio-add-slide-status-strip.mjs'
 import { STACKED_PASS3_FILES } from './studio-library-manage-harness.mjs'
+import { LATER_CHANGE_FILES, stripLaterEnvBlocks } from './studio-later-changes.mjs' // stacked: the later-changes registry (a change stacked after this one registers its files and its .env.example block there; scope checks skip its files, every read of .env.example goes through it first)
+import { stripBulkEditUndo, BULK_EDIT_UNDO_FILES, BULK_EDIT_UNDO_NEW_FILES, BULK_EDIT_UNDO_PIN_FILES } from './studio-bulk-edit-undo-strip.mjs' // stacked: bulk edit + chat undo (a whole-deck edit card and an Undo chip in chat), after this change in the stack
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..')
 const nodeRequire = createRequire(import.meta.url)
@@ -46,7 +48,7 @@ const git = (...args) => execFileSync('git', args, { cwd: root, encoding: 'utf8'
 const baseCache = new Map()
 const baseOf = rel => { if (!baseCache.has(rel)) baseCache.set(rel, git('show', `${BASE}:${rel}`)); return baseCache.get(rel) }
 let overrides = {} // in-memory mutations: the suite reads every source through read()
-const read = rel => (rel in overrides ? overrides[rel] : fs.readFileSync(path.join(root, rel), 'utf8'))
+const read = rel => (rel in overrides ? overrides[rel] : stripBulkEditUndo(rel, stripLaterEnvBlocks(rel, fs.readFileSync(path.join(root, rel), 'utf8')))) // stacked: bulk edit + chat undo (after this change in the stack) adds its .env.example block and marked lines to files this proof reads; it reads past them
 const sha = value => crypto.createHash('sha256').update(value).digest('hex')
 const plain = value => JSON.parse(JSON.stringify(value === undefined ? null : value))
 
@@ -476,7 +478,7 @@ check('strip roots: the three shared roots chain it innermost, and a root gives 
   for (const rootFile of ROOTS) {
     const text = read(rootFile)
     assert.equal((text.match(/import \{ stripThumbnailLastGood \} from '\.\/studio-thumbnail-last-good-strip\.mjs'/g) || []).length, 1, `${rootFile}: one import`)
-    assert.equal((text.match(/stripDuplicateCopyTitle\(rel, stripThumbnailLastGood\(rel, text\)\)/g) || []).length, 1, `${rootFile}: chained once, innermost (applied first)`)
+    assert.equal((text.match(/stripDuplicateCopyTitle\(rel, stripThumbnailLastGood\(rel, (?:stripBulkEditUndo\(rel, )?text\)\)/g) || []).length, 1, `${rootFile}: chained once, innermost (applied first)`)
   }
   if (!ROOTS.some(rootFile => rootFile in overrides)) {
     // only the add-slide-status root runs the whole chain on any file (the other two act on the Builder page, and the theme restore, only): through it this change's lines are out of each file
@@ -507,8 +509,8 @@ check('no new request, storage, timer or socket: the new files and every added l
 })
 check('scope: the COMMITTED diff (BASE..HEAD) holds this change\'s files, the roots, the harness, the fixtures and the pins taught about it, and nothing else; the working tree is never read', async () => {
   const committed = [...new Set(git('diff', '--name-only', BASE, 'HEAD').split('\n').filter(Boolean))]
-  const allowed = new Set([...THUMBNAIL_LAST_GOOD_FILES, ...THUMBNAIL_LAST_GOOD_NEW_FILES, ...THUMBNAIL_LAST_GOOD_PIN_FILES, ...ROOTS, HARNESS])
-  const stray = committed.filter(rel => !allowed.has(rel))
+  const allowed = new Set([...THUMBNAIL_LAST_GOOD_FILES, ...THUMBNAIL_LAST_GOOD_NEW_FILES, ...THUMBNAIL_LAST_GOOD_PIN_FILES, ...BULK_EDIT_UNDO_FILES, ...BULK_EDIT_UNDO_NEW_FILES, ...BULK_EDIT_UNDO_PIN_FILES /* stacked: bulk edit + chat undo, after this change in the stack */, ...ROOTS, HARNESS])
+  const stray = committed.filter(rel => !allowed.has(rel) && !LATER_CHANGE_FILES.has(rel)) // stacked: a later change's files (scripts/studio-later-changes.mjs) are not this change's to answer for
   assert.deepEqual(stray, [], 'no file outside this change')
   assert.deepEqual(fs.readdirSync(path.join(root, 'scripts/fixtures/thumbnail-last-good')).map(name => `scripts/fixtures/thumbnail-last-good/${name}`).sort(), THUMBNAIL_LAST_GOOD_NEW_FILES.filter(rel => rel.startsWith('scripts/fixtures/')).sort(), 'the strip module lists every fixture')
   if (committed.length > 0) for (const rel of [...THUMBNAIL_LAST_GOOD_FILES, ...THUMBNAIL_LAST_GOOD_NEW_FILES, ...ROOTS, HARNESS]) assert.ok(committed.includes(rel), `${rel} is in the committed diff`)
@@ -577,7 +579,7 @@ if (!process.env.THUMBNAIL_LAST_GOOD_NO_MUTANTS) {
   await mutant(CSS, 'the cue names a colour of its own', 'color: var(--st-muted);', 'color: #9aa5a2;')
   await mutant(STRIP_MODULE, 'the strip puts the wrong text back', 'const PUBLISH_TYPE_BASE = `  slides: ReadonlyArray<{ thumbnailUrl: string | null; thumbnailStale: boolean }>', 'const PUBLISH_TYPE_BASE = `  slides: ReadonlyArray<{ thumbnailUrl: string | null; thumbnailStale: boolean; }>')
   await mutant(STRIP_MODULE, 'the strip leaves a piece behind', '    [RAIL_SAME_INVENTORY, \'\'],\n', '')
-  await mutant(ROOTS[0], 'the root does not chain it innermost', 'stripDuplicateCopyTitle(rel, stripThumbnailLastGood(rel, text))', 'stripThumbnailLastGood(rel, stripDuplicateCopyTitle(rel, text))')
+  await mutant(ROOTS[0], 'the root does not chain it innermost', 'stripDuplicateCopyTitle(rel, stripThumbnailLastGood(rel, stripBulkEditUndo(rel, text)))', 'stripThumbnailLastGood(rel, stripDuplicateCopyTitle(rel, stripBulkEditUndo(rel, text)))')
   await mutant(ENV, 'the block moves after # PASS2 ADMIN', '# THUMBNAIL LAST GOOD (FRONTEND-2', '# PASS2 ADMIN (FRONTEND-1, the internal', ['# PASS2 ADMIN (FRONTEND-1, the internal /admin/users', '# THUMBNAIL LAST GOOD (FRONTEND-2, the internal /admin/users'])
   await mutant(ENV, 'the flag defaults on', `${LG}="false"`, `${LG}="true"`)
   assert.deepEqual(survived, [], `mutants survived: ${survived.join('; ')}`)
