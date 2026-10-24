@@ -34,6 +34,7 @@ import postcss from 'postcss'
 import React from 'react'
 import jsxRuntimeReal from 'react/jsx-runtime'
 import ReactDOMServer from 'react-dom/server'
+import { stripLaunchWording } from './studio-launch-wording-strip.mjs' // NEXT_PUBLIC_STUDIO_LAUNCH_WORDING (launched wording): its flag-gated edits come out first, before every older change's strip
 
 const { renderToStaticMarkup } = ReactDOMServer
 const here = path.dirname(fileURLToPath(import.meta.url))
@@ -70,7 +71,7 @@ const STACK_PKG_CHANGES = [['    "test:studio-model-catalog": "node scripts/test
 const STACK_SHOWN = new Map(), stackShow = (commit, rel) => { const key = `${commit}:${rel}`; if (!STACK_SHOWN.has(key)) STACK_SHOWN.set(key, git('show', key)); return STACK_SHOWN.get(key) } // stacked after #475: a commit's file, read once (the strip is held to fixed inputs, whatever HEAD carries)
 const OWN = [LIB, ROUTE, UI, CSS, LAYOUT, ENV, PKG, STRIP]
 for (const rel of [LIB, ROUTE, UI, CSS, LAYOUT, STRIP]) assert.ok(fs.existsSync(path.join(ROOT, rel)), `${rel} exists`)
-const read = rel => fs.readFileSync(path.join(ROOT, rel), 'utf8')
+const read = rel => stripLaunchWording(rel, fs.readFileSync(path.join(ROOT, rel), 'utf8'))
 const SOURCES = Object.fromEntries(OWN.map(rel => [rel, read(rel)]))
 const stripComments = text => text.replace(/\/\*[\s\S]*?\*\//g, '').replace(/(^|[^:\\'"`])\/\/[^\n]*/g, '$1')
 const git = (...args) => execFileSync('git', args, { cwd: repoRoot, encoding: 'utf8', maxBuffer: 64 * 1024 * 1024 })
@@ -842,13 +843,13 @@ function proveStackedScope() {
   ok(lines(ENV, '+').every(line => /^\+(#|[A-Z][A-Z0-9_]*=|$)/.test(line)) && lines(ENV, '+').some(line => line.startsWith('+NEXT_PUBLIC_STUDIO_MODEL_CATALOG=')), 'stacked scope: and they are comments, blanks and assignments, this block among them (or #475\'s stacked block, or a later change\'s)')
   deepEq(lines(PKG, '-').map(line => line.replace(/,$/, '')), [lines(PKG, '-')[0]?.replace(/,$/, '')].filter(Boolean), 'stacked scope: package.json: at most the previous entry, which gains a comma')
   ok(lines(PKG, '-').every(line => /test:studio-chat-theme-export/.test(line)) && lines(PKG, '+').some(line => /test:studio-model-catalog/.test(line)), 'stacked scope: package.json: #472\'s entry gains its comma, this change\'s registration follows')
-  { const v = stackFileTolerant(git('show', `${STACK[475].head}:${HARNESS}`), git('show', `HEAD:${HARNESS}`)); ok(v.ok, `stacked scope: the harness: ${v.reason} (stacked after #475)`); if (!v.exact) { for (const rel of SIBLINGS.filter(rel => changed.includes(rel))) { ok(lines(rel, '+').every(line => /MODEL_CATALOG|ModelCatalog|model-catalog|#473|#475/.test(line)), `stacked scope: ${rel}: every added line names this change (or #475, stacked on it)`); ok(lines(rel, '-').length <= 3, `stacked scope: ${rel}: at most three lines were extended`) } return } } // stacked after #475: a later PR's lines in the harness are taken, the stack's (#475's head) kept in order (scripts/studio-stack-tolerant.mjs); the harness as the stack left it is checked below as before, then the siblings (the same two checks)
+  { const v = stackFileTolerant(git('show', `${STACK[475].head}:${HARNESS}`), git('show', `HEAD:${HARNESS}`)); ok(v.ok, `stacked scope: the harness: ${v.reason} (stacked after #475)`); if (!v.exact) { for (const rel of SIBLINGS.filter(rel => changed.includes(rel))) { ok(lines(rel, '+').every(line => /MODEL_CATALOG|ModelCatalog|model-catalog|#473|#475|stripLaunchWording|STUDIO_LAUNCH_WORDING/.test(line)), `stacked scope: ${rel}: every added line names this change (or #475, stacked on it)`); ok(lines(rel, '-').length <= 5, `stacked scope: ${rel}: at most five lines were extended (three of the stack, plus the two lines stripLaunchWording needs: its read() and its allowance)`) } return } } // stacked after #475: a later PR's lines in the harness are taken, the stack's (#475's head) kept in order (scripts/studio-stack-tolerant.mjs); the harness as the stack left it is checked below as before, then the siblings (the same two checks)
   ok(lines(HARNESS, '-').length <= 1 && lines(HARNESS, '-').every(line => /#469 deck-mutation dedupe\)/.test(line)), 'stacked scope: the harness only gains lines (#475 extends one comment line, stacked)')
   const harnessAdded = lines(HARNESS, '+').filter(line => !/FRONTEND-1 template rename|'app\/api\/templates\/\[id\]\/route\.ts'/.test(line)) // stacked after #475: minus the template rename's (PR #477) two lines in the stacked list
   ok(harnessAdded.length >= 2 && harnessAdded.every(line => /model catalog|MODEL_CATALOG|studio-model-catalog|intelligence-models|models\/catalogue|intelligence\/layout|narration|NARRATION/.test(line)), 'stacked scope: the stacked list gains this change\'s files only (and #475\'s, stacked)')
   for (const rel of SIBLINGS.filter(rel => changed.includes(rel))) {
-    ok(lines(rel, '+').every(line => /MODEL_CATALOG|ModelCatalog|model-catalog|#473|#475/.test(line)), `stacked scope: ${rel}: every added line names this change (or #475, stacked on it)`)
-    ok(lines(rel, '-').length <= 3, `stacked scope: ${rel}: at most three lines were extended`)
+    ok(lines(rel, '+').every(line => /MODEL_CATALOG|ModelCatalog|model-catalog|#473|#475|stripLaunchWording|STUDIO_LAUNCH_WORDING/.test(line)), `stacked scope: ${rel}: every added line names this change (or #475, stacked on it)`)
+    ok(lines(rel, '-').length <= 5, `stacked scope: ${rel}: at most five lines were extended (three of the stack, plus the two lines stripLaunchWording needs: its read() and its allowance)`)
   }
 }
 const SECTIONS = {

@@ -18,12 +18,13 @@ import path from 'node:path'
 import vm from 'node:vm'
 import { createRequire } from 'node:module'
 import ts from 'typescript'
+import { stripLaunchWording } from './studio-launch-wording-strip.mjs'
 
 export const repoRoot = path.resolve(new URL('..', import.meta.url).pathname)
 const nodeRequire = createRequire(path.join(repoRoot, 'package.json'))
 export const React = nodeRequire('react')
 export const { renderToStaticMarkup } = nodeRequire('react-dom/server')
-export const read = rel => fs.readFileSync(path.join(repoRoot, rel), 'utf8')
+export const read = rel => stripLaunchWording(rel, fs.readFileSync(path.join(repoRoot, rel), 'utf8')) // NEXT_PUBLIC_STUDIO_LAUNCH_WORDING (launched wording): its flag-gated edits come out first
 export const FIXTURES = 'scripts/fixtures/studio-add-slide-status'
 export const readFixture = name => JSON.parse(read(`${FIXTURES}/${name}`))
 

@@ -38,9 +38,10 @@ import { stripOpenReadOnly } from './studio-open-read-only-strip.mjs'
 import { stripDarkPersist } from './studio-theme-dark-persist-strip.mjs'
 import { stripAddSlideStatus } from './studio-add-slide-status-strip.mjs'
 import { stripNewDeckHandoffSend } from './studio-new-deck-handoff-send-strip.mjs' // stacked after #475: the new-deck handoff send puts its .env.example block between this block and # PASS2 ADMIN
+import { stripLaunchWording } from './studio-launch-wording-strip.mjs' // NEXT_PUBLIC_STUDIO_LAUNCH_WORDING (launched wording): its flag-gated edits come out first, before every older change's strip
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..')
-const read = rel => fs.readFileSync(path.join(root, rel), 'utf8')
+const read = rel => stripLaunchWording(rel, fs.readFileSync(path.join(root, rel), 'utf8'))
 const sha = text => crypto.createHash('sha256').update(text).digest('hex')
 const plain = value => JSON.parse(JSON.stringify(value === undefined ? null : value))
 const git = (...args) => execFileSync('git', args, { cwd: root, encoding: 'utf8', maxBuffer: 64 * 1024 * 1024, stdio: ['ignore', 'pipe', 'pipe'] })

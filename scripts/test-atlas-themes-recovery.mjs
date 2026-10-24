@@ -4,11 +4,12 @@ import vm from 'node:vm'
 import { readAtlasBaseline } from './atlas-witness-baseline.mjs'
 import ts from 'typescript'
 import { stripLibraryManage } from './studio-library-manage-strip.mjs'
+import { stripLaunchWording } from './studio-launch-wording-strip.mjs' // NEXT_PUBLIC_STUDIO_LAUNCH_WORDING (launched wording): its flag-gated edits come out first, before every older change's strip
 
 // Actual Themes leaf callbacks, native payload, preview helpers and safe handoff
 // props. Deferred receipts are local fixtures; all external operations refuse.
 const root = new URL('../', import.meta.url), file = 'components/studio-libraries/themes-workspace.tsx'
-const source = stripLibraryManage(file, fs.readFileSync(new URL(file, root), 'utf8')) // FRONTEND-2 Pass 3 track 4 (NEXT_PUBLIC_STUDIO_THEME_LIBRARY_MANAGE / NEXT_PUBLIC_STUDIO_TEMPLATE_LIBRARY_MANAGE): that change's lines are not part of what this pin holds (scripts/studio-library-manage-strip.mjs)
+const source = stripLibraryManage(file, stripLaunchWording(file, fs.readFileSync(new URL(file, root), 'utf8'))) // FRONTEND-2 Pass 3 track 4 (NEXT_PUBLIC_STUDIO_THEME_LIBRARY_MANAGE / NEXT_PUBLIC_STUDIO_TEMPLATE_LIBRARY_MANAGE): that change's lines are not part of what this pin holds (scripts/studio-library-manage-strip.mjs)
 const baseline = readAtlasBaseline(`b1e8370:${file}`)
 // J4-FONTS (reviewed): the only fieldset additions are the flag-gated pickers and the flag-gated sentence; flag off both are today's markup.
 const fontPickers = "            {THEME_FONT_SELECTION_ENABLED && draft.mode !== 'auto' && <FontFields draft={draft} onChange={patchDraft} />}\n"
@@ -61,7 +62,7 @@ const plain = v => JSON.parse(JSON.stringify(v))
 const deferred = () => { let resolve, reject; const promise = new Promise((r, j) => { resolve = r; reject = j }); return { promise, resolve, reject } }
 function load(path, imports = {}) {
   const mod = { exports: {} }
-  vm.runInNewContext(compile(fs.readFileSync(new URL(path, root), 'utf8')), { module: mod, exports: mod.exports, URLSearchParams, require: name => { assert.ok(name in imports, name); return imports[name] }, fetch: refuse })
+  vm.runInNewContext(compile(stripLaunchWording(path, fs.readFileSync(new URL(path, root), 'utf8'))), { module: mod, exports: mod.exports, URLSearchParams, require: name => { assert.ok(name in imports, name); return imports[name] }, fetch: refuse })
   return mod.exports
 }
 const builder = load('lib/theme-builder.ts')

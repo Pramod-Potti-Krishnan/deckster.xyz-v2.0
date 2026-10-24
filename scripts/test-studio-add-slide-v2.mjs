@@ -10,6 +10,7 @@ import assert from 'node:assert/strict'
 import fs from 'node:fs'
 import { createRequire } from 'node:module'
 import ts from 'typescript'
+import { stripLaunchWording } from './studio-launch-wording-strip.mjs'
 
 const require = createRequire(import.meta.url)
 const React = require('react')
@@ -20,7 +21,7 @@ const DISABLED_ENV = 'NEXT_PUBLIC_STUDIO_ADD_SLIDE_V2_DISABLED_OPTIONS'
 const ENABLED_ENV = 'NEXT_PUBLIC_STUDIO_ADD_SLIDE_V2_ENABLED_OPTIONS'
 // Every option on (the default hides the stage-2 ones; ENABLED=all shows them), so the suites can reach every style.
 const ALL_ENV = { [ENABLED_ENV]: 'all' }
-function read(relative) { return fs.readFileSync(new URL(relative, import.meta.url), 'utf8') }
+function read(relative) { return stripLaunchWording(relative.replace(/^\.\.\//, ''), fs.readFileSync(new URL(relative, import.meta.url), 'utf8')) } // NEXT_PUBLIC_STUDIO_LAUNCH_WORDING (launched wording): its flag-gated edits come out first
 function compile(source) {
   return ts.transpileModule(source, { compilerOptions: { module: ts.ModuleKind.CommonJS, jsx: ts.JsxEmit.ReactJSX, target: ts.ScriptTarget.ES2022 } }).outputText
 }
