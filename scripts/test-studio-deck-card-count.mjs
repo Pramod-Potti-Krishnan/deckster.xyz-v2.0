@@ -18,9 +18,10 @@ import path from 'node:path'
 import vm from 'node:vm'
 import ts from 'typescript'
 import { stripDeckCardCount, DECK_CARD_COUNT_ADDITIONS } from './studio-deck-card-count-strip.mjs'
+import { stripDeckCardThumbnail } from './studio-deck-card-thumbnail-strip.mjs' // DECK-CARD-THUMBNAIL (NEXT_PUBLIC_STUDIO_DECK_CARD_THUMBNAILS_ENABLED, COMPOSER-2): its marked lines on the Decks page come out first, before every older change's strip
 
 const root = path.resolve(new URL('..', import.meta.url).pathname)
-const read = rel => fs.readFileSync(path.join(root, rel), 'utf8')
+const read = rel => stripDeckCardThumbnail(rel, fs.readFileSync(path.join(root, rel), 'utf8')) // DECK-CARD-THUMBNAIL: its marked lines on the Decks page come out first
 const PAGE = 'app/(app)/dashboard/page.tsx'
 const LIB = 'lib/studio-deck-card-count.ts'
 const CARDS = 'lib/studio-deck-cards.ts'
