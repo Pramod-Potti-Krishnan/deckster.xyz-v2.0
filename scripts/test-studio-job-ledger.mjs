@@ -38,6 +38,7 @@ import { stripOpenReadOnly } from './studio-open-read-only-strip.mjs'
 import { stripDarkPersist } from './studio-theme-dark-persist-strip.mjs'
 import { stripAddSlideStatus } from './studio-add-slide-status-strip.mjs'
 import { stripNewDeckHandoffSend } from './studio-new-deck-handoff-send-strip.mjs' // stacked after #475: the new-deck handoff send puts its .env.example block between this block and # PASS2 ADMIN
+import { stripPublishPreviewInventory } from './studio-publish-preview-inventory-strip.mjs' // #475 stacked: the Publish preview from Layout's inventory (NEXT_PUBLIC_STUDIO_PUBLISH_PREVIEW_INVENTORY_ENABLED) puts its .env.example block after the new-deck handoff's
 import { stripPaymentsOpenSoon } from './studio-payments-open-soon-strip.mjs' // stacked after #475: the payments open soon change puts its .env.example block between this block and # PASS2 ADMIN too
 import { stripLaunchWording } from './studio-launch-wording-strip.mjs' // NEXT_PUBLIC_STUDIO_LAUNCH_WORDING (launched wording): its flag-gated edits come out first, before every older change's strip
 import { stripPublishReviewFit } from './studio-publish-review-fit-strip.mjs' // stacked after #475: the publish review fit change puts its .env.example block between this block and # PASS2 ADMIN too
@@ -82,6 +83,7 @@ const JOB_RETRY_BYTES = JSON.stringify(ROUND['2_inbound_job_retry']) // what Dir
 const derive = (row, patch) => ({ ...plain(row), ...patch })
 
 const SOURCES = Object.fromEntries([LIB, HOOK, PAGE, CARD, CSS, ENV].map(rel => [rel, read(rel)]))
+SOURCES[ENV] = stripPublishPreviewInventory(ENV, SOURCES[ENV]) // #475 stacked: that latest block (NEXT_PUBLIC_STUDIO_PUBLISH_PREVIEW_INVENTORY_ENABLED) comes out first, before the new-deck handoff's
 SOURCES[ENV] = stripNewDeckHandoffSend(ENV, SOURCES[ENV]) // stacked after #475: that later block (NEXT_PUBLIC_STUDIO_NEW_DECK_HANDOFF_SEND) comes out first, so this block is still right before # PASS2 ADMIN
 SOURCES[ENV] = stripPublishReviewFit(ENV, SOURCES[ENV]) // stacked after #475: that later block (NEXT_PUBLIC_STUDIO_PUBLISH_REVIEW_FIT) comes out first too, so this block is still right before # PASS2 ADMIN
 SOURCES[ENV] = stripVersionHistoryDeckOnly(ENV, SOURCES[ENV]) // stacked after #475: that later block (NEXT_PUBLIC_STUDIO_VERSION_HISTORY_DECK_ONLY) comes out first too, so this block is still right before # PASS2 ADMIN

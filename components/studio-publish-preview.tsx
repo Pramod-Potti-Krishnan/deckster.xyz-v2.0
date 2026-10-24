@@ -3,6 +3,7 @@
 import { useRef, useState, type SyntheticEvent } from 'react'
 import { ImageIcon } from 'lucide-react'
 import { resolveStudioPublishPreview, type StudioPublishPreviewSource } from '@/lib/studio-publish-preview'
+import { useStudioPublishPreviewInventory } from '@/hooks/use-studio-publish-preview-inventory'
 
 interface Props {
   sessionId: string
@@ -11,7 +12,9 @@ interface Props {
 
 /** A supplied current Final thumbnail, never proof of the published snapshot. */
 export function StudioPublishPreview({ sessionId, source }: Props) {
-  const preview = resolveStudioPublishPreview(sessionId, source)
+  const resolved = resolveStudioPublishPreview(sessionId, source)
+  // NEXT_PUBLIC_STUDIO_PUBLISH_PREVIEW_INVENTORY_ENABLED (default off): with no live or restored image, Layout's inventory slide 0 when fresh. Off: `resolved`, as before.
+  const preview = useStudioPublishPreviewInventory(sessionId, source, resolved)
   return (
     <figure className="studio-publish-deck-preview" aria-label="Current deck preview">
       <div className="studio-publish-preview-bar">Current deck preview</div>
