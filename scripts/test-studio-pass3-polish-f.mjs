@@ -269,7 +269,9 @@ function proveScope(at = '') {
     deep(committed.filter(rel => /^scripts\/test-/.test(rel)), [THIS_TEST], a('the only test it adds or edits is its own (no older test is edited)'))
     deep(committed.filter(rel => !/^scripts\//.test(rel)).sort(), [LAYOUT, CSS].sort(), a('the app files: the new stylesheet and the new Themes layout (no existing app file)'))
     deep(committed.filter(rel => /^scripts\//.test(rel) && rel !== THIS_TEST).sort(), [...PASS3_POLISH_F_OWN_EDITS, STRIP_MODULE].sort(), a('the other scripts: the registry and its own strip'))
-    nomatch(git('diff', '--name-status', `${BASE}..HEAD`), /^[MDR]\t(?!scripts\/studio-later-changes\.mjs)/m, a('the committed diff modifies no existing file but the registry (everything else is new)'))
+    // a change registered after this one (LATER_CHANGE_FILES, other than this change's own files) may modify existing files of its own; this change's own commits modify the registry only
+    const modified = git('diff', '--name-status', `${BASE}..HEAD`).split('\n').filter(line => /^[MDR]\t/.test(line)).map(line => line.split('\t').pop()).filter(rel => rel !== REGISTRY && !(LATER_CHANGE_FILES.has(rel) && !PASS3_POLISH_F_SCOPE_FILES.has(rel)))
+    deep(modified, [], a('the committed diff modifies no existing file but the registry and the files of changes registered after this one (everything else is new)'))
   }
 }
 function proveSecretScan(at = '') {

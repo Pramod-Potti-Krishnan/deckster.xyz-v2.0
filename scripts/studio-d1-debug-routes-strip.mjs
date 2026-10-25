@@ -3,7 +3,9 @@
 //   - GET /api/admin/cleanup-sessions (the dry run, which lists abandoned session ids with their owners' user ids) needs the Vercel cron's `Authorization: Bearer <CRON_SECRET>` with CRON_SECRET non-empty, or a signed-in
 //     admin by the coupons route's isAdmin (DEV_BYPASS_EMAIL). Anything else is 401 { error: 'Unauthorized' } before any database call. POST (the real delete) is unchanged. The dev branch's isStudioDevDeployment guard stays first.
 // The three blocks below are the change's ONLY added lines in the route, the same bytes on main and here (the dev file keeps its own guard lines, which main does not have).
-// How the older pins reach it: this change REGISTERS its files and its strip (scripts/studio-later-changes.mjs, two lines; no .env.example block: there is no flag). The strip takes the three blocks out of the cleanup-sessions
+// How the older pins reach it: this change REGISTERS its files and its strip (scripts/studio-later-changes.mjs, two lines; no .env.example block: there is no flag). The files line sits just BEFORE PR F's (a Set: the
+// order does not matter), so that it never shares an insertion point with another later change's line after PR F's (#512). It is the first later change to delete files and modify an existing app file, so three
+// FRONTEND-2 pins that checked the whole BASE..HEAD range get a one-line tolerance for a registered later change's files (later-changes and thumbnail-last-good: "nothing deleted"; pass3-polish-f: #512's exact line). The strip takes the three blocks out of the cleanup-sessions
 // route (exact text, each only when it is there exactly once), so a pin that reads that route through stripLaterChanges sees the base's file. Plain node, no imports, nothing read from disk or git here; any other file comes back as it is.
 
 export const BASE_COMMIT = '4b96755c27511fc408478eda5fd9138e32effad8' // studio-v4-dev-preparation-code (#511 merged), this change is cut from
@@ -53,8 +55,8 @@ export const D1_BLOCKS = [D1_IMPORTS, D1_HELPERS, D1_GATE]
 /** New files (no base text). */
 export const D1_NEW_FILES = ['scripts/studio-d1-debug-routes-strip.mjs', 'scripts/test-studio-d1-debug-routes.mjs']
 
-/** Files this change edits that are not app code: the registry (two lines: its files and its strip). No older test is edited. */
-export const D1_OWN_EDITS = ['scripts/studio-later-changes.mjs']
+/** Files this change edits that are not app code: the registry (two lines: its files and its strip) and the three FRONTEND-2 pins' one-line tolerances. No FRONTEND-1 test is edited. */
+export const D1_OWN_EDITS = ['scripts/studio-later-changes.mjs', 'scripts/test-studio-later-changes.mjs', 'scripts/test-studio-thumbnail-last-good.mjs', 'scripts/test-studio-pass3-polish-f.mjs']
 
 /** Every file this change's commits touch (the deleted routes too): what the older scope checks skip once the registry names it. */
 export const D1_SCOPE_FILES = new Set([D1_ROUTE, ...D1_DELETED, ...D1_NEW_FILES, ...D1_OWN_EDITS])

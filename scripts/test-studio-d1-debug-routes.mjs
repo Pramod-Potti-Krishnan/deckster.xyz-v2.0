@@ -8,7 +8,7 @@
 //   3. GET       no auth, a wrong bearer, an empty or unset CRON_SECRET with "Bearer " / "Bearer undefined", a non-admin, an email-less session, a failing session lookup: 401 { error: 'Unauthorized' } with no database
 //                access at all; the cron's bearer, or an admin session: 200 with the base route's dry-run body; the dev deployment: 404 before any of it
 //   4. POST      the base POST and this POST, run side by side in the same worlds, answer the same and touch the database the same (an admin session does NOT open POST)
-//   5. change    the strip, the registry (two lines, after PR F's), scope (the COMMITTED diff only, BASE..HEAD), no credential-shaped literal
+//   5. change    the strip, the registry (two lines: the files just before PR F's, the strip after it), scope (the COMMITTED diff only, BASE..HEAD), no credential-shaped literal
 //   6. mutants   each one must make sections 1-5 fail
 import assert from 'node:assert/strict'
 import fs from 'node:fs'
@@ -254,12 +254,13 @@ function proveChange() {
   const files = registry.indexOf('export const LATER_CHANGE_FILES'), blocks = registry.indexOf('export const LATER_ENV_BLOCKS'), strips = registry.indexOf('export const LATER_STRIPS')
   ok(files < at1 && at1 < blocks && strips < at2, 'registry: the files line is in LATER_CHANGE_FILES, the strip line in LATER_STRIPS')
   const fFiles = registry.indexOf("'./studio-pass3-polish-f-strip.mjs')).PASS3_POLISH_F_SCOPE_FILES"), fStrip = registry.indexOf("'./studio-pass3-polish-f-strip.mjs')).stripPass3PolishF")
-  ok(fFiles > 0 && fFiles < at1 && fStrip > 0 && fStrip < at2, 'registry: each comes after PR F\'s line in the same list')
+  ok(fFiles > 0 && at1 < fFiles && registry.indexOf('\n', at1) + 1 === registry.lastIndexOf('\n', fFiles) + 1, 'registry: the files line sits just before PR F\'s (never at the insertion point after it, which #512 uses)')
+  ok(fStrip > 0 && fStrip < at2, 'registry: the strip line comes after PR F\'s (strips run in stacking order)')
   ok(!registry.slice(blocks, strips).includes('studio-d1-debug-routes-strip'), 'registry: nothing of this change is in LATER_ENV_BLOCKS')
   ok(LATER_STRIPS.includes(stripD1DebugRoutes), 'registry: the registry holds the strip')
   ok([...D1_SCOPE_FILES].every(rel => LATER_CHANGE_FILES.has(rel)), 'registry: the registry names every file of this change')
   ok(!LATER_ENV_BLOCKS.some(block => /D1 security hotfix|CRON_SECRET/.test(String(block))), 'registry: no env block')
-  deep([...D1_SCOPE_FILES].sort(), [D1_ROUTE, ...D1_DELETED, ...D1_NEW_FILES, ...D1_OWN_EDITS].sort(), 'scope: the change is the route, the two deleted routes, its two scripts and the registry')
+  deep([...D1_SCOPE_FILES].sort(), [D1_ROUTE, ...D1_DELETED, ...D1_NEW_FILES, ...D1_OWN_EDITS].sort(), 'scope: the change is the route, the two deleted routes, its two scripts, the registry and the three FRONTEND-2 pins\' tolerances')
 }
 function proveScope() {
   // the COMMITTED diff only (BASE..HEAD): the working tree is never consulted (the suite writes into docs/)
@@ -314,6 +315,7 @@ const MUTANTS = [
   ['the coupons isAdmin drifts', { [COUPONS]: read(COUPONS).replace('  return !!email && email === process.env.DEV_BYPASS_EMAIL', '  return !!email && email.toLowerCase() === process.env.DEV_BYPASS_EMAIL') }],
   ['a new flag read', swap('  const cronSecret = process.env.CRON_SECRET\n', "  const cronSecret = process.env.NEXT_PUBLIC_D1_GATE === 'off' ? '' : process.env.CRON_SECRET\n")],
   ['the registry loses the strip line', { [REGISTRY]: read(REGISTRY).split('\n').filter(line => !line.includes('.stripD1DebugRoutes, // LATER-CHANGE')).join('\n') }],
+  ['the files line after PR F\'s (#512\'s insertion point)', { [REGISTRY]: (lines => { const at = lines.findIndex(line => line.includes('.D1_SCOPE_FILES, // LATER-CHANGE')); const [mine] = lines.splice(at, 1); lines.splice(at + 1, 0, mine); return lines.join('\n') })(read(REGISTRY).split('\n')) }],
 ]
 // the mutants of the route's code must ALSO be caught by running it (sections 3 and 4 alone), not only by its text
 const BEHAVIOURAL = new Set(['drop the check', 'invert the check', 'allow an empty secret', 'allow an empty-string secret', 'any signed-in user', 'no admin path', 'isAdmin without the email guard',
