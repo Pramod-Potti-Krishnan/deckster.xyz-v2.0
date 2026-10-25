@@ -147,7 +147,16 @@ function proveFacts(at = '') {
   const box = 96, toolbar = 8 + 32 + 8, top = box - toolbar
   eq(top, 48, a('the toolbar starts 48px below the top of the 96px box'))
   eq(12 + 18, 30, a("E1's one 18px line ends at 12 + 18 = 30px")); ok(12 + 18 <= top, a('which is above the toolbar (18px clear)'))
-  ok(12 + 2 * 20 > top, a('while two 20px lines at 13.6px (the original size) would end at 52px, under the toolbar: why E1 stays'))
+  ok(12 + 2 * 20 > top, a('while a hint wrapped onto two 20px lines (13.6px, the original size) would end at 52px, under the toolbar: why E1 stays (the hint is a placeholder: it does not size the box)'))
+  // TYPED text is a different case: the prompt is resized to its own scrollHeight (padding included), between 96px and 220px, on every change of the text, and the toolbar is absolute at the bottom of that box,
+  // so the last typed line is always (56px padding - 48px toolbar) = 8px above the toolbar, at the original 13.6px / 20px line and at #505's 16px / 24px alike. Nothing needs more padding.
+  match(chat, /const TEXTAREA_MIN_HEIGHT = 96\nconst TEXTAREA_MAX_HEIGHT = 220\n/, a('the prompt\'s box is 96px at least and 220px at most'))
+  eq(chat.split("const newHeight = Math.min(Math.max(textarea.scrollHeight, TEXTAREA_MIN_HEIGHT), TEXTAREA_MAX_HEIGHT)\n      textarea.style.height = `${newHeight}px`").length - 1, 2, a('and it is resized to its scrollHeight, padding included, when the text changes and when the pane is resized'))
+  match(chat, /useEffect\(\(\) => \{\n    const textarea = textareaRef\.current\n    if \(textarea\) \{\n      textarea\.style\.height = 'auto'\n[^\n]*\n[^\n]*\n    \}\n  \}, \[inputMessage\]\)/, a('on every change of the text'))
+  const clearance = (line, n) => { const height = Math.min(Math.max(12 + n * line + 56, box), 220); return (height - toolbar) - Math.min(12 + n * line, height - 56) }
+  for (const line of [20, 24]) for (let n = 1; n <= 12; n++) ok(clearance(line, n) >= 8, a(`${n} typed line(s) of ${line}px: the last one ends at least 8px above the 48px toolbar (${clearance(line, n)}px)`))
+  eq(clearance(20, 2), 8, a('two typed lines at the original 13.6px / 20px: the box grows to 108px, the toolbar starts at 60px, the second line ends at 52px: 8px clear'))
+  eq(12 + 2 * 20 + 56, 108, a('(108 = 12 + 2 x 20 + 56)'))
 }
 
 // ---------------------------------------------------------------- 2 and 3. the helper, the installer and the hook
@@ -479,6 +488,9 @@ await mutant("PR E's stylesheet: a text control is resized", [[E_CSS, '    paddi
 await mutant("PR F's stylesheet: the padding drifts", [[F_CSS, '    padding-right: 24px;', '    padding-right: 20px;']])
 await mutant('facts: the Studio resizes the prompt', [[POPUPS, 'textarea[data-studio-v4-type-role="prompt"] { font-size: 13.6px; line-height: 20px; }', 'textarea[data-studio-v4-type-role="prompt"] { font-size: 14px; line-height: 20px; }']])
 await mutant('facts: the toolbar grows', [[CHAT, 'absolute bottom-0 left-0 right-0 flex items-center justify-between px-3 py-2 ', 'absolute bottom-0 left-0 right-0 flex items-center justify-between px-3 py-4 ']])
+await mutant('facts: the prompt stops resizing to its text', [[CHAT, 'Math.max(textarea.scrollHeight, TEXTAREA_MIN_HEIGHT)', 'Math.max(0, TEXTAREA_MIN_HEIGHT)', 'all']])
+await mutant('facts: the prompt\'s bottom padding shrinks below the toolbar (pb-12)', [[CHAT, 'px-3 pt-3 pb-14 min-h-[96px]', 'px-3 pt-3 pb-12 min-h-[96px]']])
+await mutant('facts: the resize on a text change is gone', [[CHAT, '  }, [inputMessage])\n\n  // A resized Studio pane', '  }, [])\n\n  // A resized Studio pane']])
 await mutant('facts: the prompt box shrinks', [[CHAT, 'px-3 pt-3 pb-14 min-h-[96px]', 'px-3 pt-3 pb-14 min-h-[80px]']])
 // the helper
 await mutant('helper: Android is iOS', [lib("return /Macintosh/.test(ua) && typeof maxTouchPoints === 'number' && maxTouchPoints > 1", "return /Macintosh|Android/.test(ua) && typeof maxTouchPoints === 'number' && maxTouchPoints > 1")])
