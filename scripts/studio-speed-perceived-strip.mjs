@@ -43,9 +43,10 @@ export const SPEED_PERCEIVED_SCOPE_FILES = new Set([...SPEED_PERCEIVED_FILES, ..
 
 /** The whole .env.example block: its comment and its line. */
 export const SPEED_PERCEIVED_ENV_BLOCK = `# STUDIO SPEED PERCEIVED (FRONTEND-2; SPEED + ROUTER ACCELERATION, 25 Oct). On for the exact value "true"; default off, and then the chat and the composer get exactly the props they get today. Build-time value: change it on Vercel and redeploy.
-# On: a message typed in the composer shows in the chat at once as a quiet "Sending…" echo, instead of only after Studio has created the session row, checked a blank canvas with Layout and put the bytes on the socket (the first
-# message of a new deck waits 0.5-1.6 s for that today; a send on a reconnecting socket up to 12 s). The page still sends, commits and persists exactly as before: the echo leaves in the render where the real bubble appears. A send
-# that settles within 80 ms never shows one. When a send fails (the existing toast says why and keeps the draft), the echo reads "Not sent. Your message is still in the box." until the draft changes or 6 s pass. No Director change.
+# On: a message typed in the composer shows in the chat at once as a quiet "Sending…" echo while the first save of a new deck (the session row, and the blank-canvas check with Layout when there is one: 0.5-1.6 s today)
+# and a reconnect in flight finish; a socket already closed before Enter is refused in both builds (the existing "Reconnecting" toast keeps the draft). The page still sends, commits and persists exactly as before: the echo leaves
+# in the render where the real bubble appears. A send that settles within 80 ms never shows one. When a send fails (the existing toast says why and keeps the draft), the echo reads "Not sent. Your message is still in the box."
+# until the draft changes or 6 s pass. No Director change.
 NEXT_PUBLIC_STUDIO_SPEED_PERCEIVED="false"
 `
 
