@@ -29,10 +29,13 @@ export const SPEED_PERCEIVED_NEW_FILES = [
   'scripts/test-studio-speed-perceived.mjs',
 ]
 
-/** Files this change edits that are neither app code with marked lines nor new: its .env.example block and the registry (three lines). STACK: the two FRONTEND-2 proofs it used to edit (the polish F proof's
- *  assertion, the legal short links proof's GOOD_PROOF_DIFFS line) are no longer edited by it: phone shell 1 (below it in the stack) teaches both the same way (the registry read, the diff against the legal change's
- *  own newest commit), and the more general form stays. */
-export const SPEED_PERCEIVED_OWN_EDITS = ['.env.example', 'scripts/studio-later-changes.mjs']
+/** Files this change edits that are neither app code with marked lines nor new: its .env.example block and the registry (three lines). STACK: the two older proofs it used to edit (the polish F proof's assertion, the
+ *  legal short links proof's GOOD_PROOF_DIFFS line) are no longer edited by it: phone shell 1 (below it in the stack) teaches both the same way (the registry read, the diff against the legal change's own newest commit),
+ *  and the more general form stays. What it edits instead are the two phone shell proofs (FRONTEND-2's own, one assertion each): the end-of-file check of phone shell 1's .env.example block takes the blocks registered
+ *  after it out first, and phone shell 2's .env.example check reads both sides through the registry. */
+export const SPEED_PERCEIVED_PHONE_NAV_PROOF = 'scripts/test-studio-phone-shell-nav.mjs'
+export const SPEED_PERCEIVED_PHONE_TOP_PROOF = 'scripts/test-studio-phone-shell-builder-top.mjs'
+export const SPEED_PERCEIVED_OWN_EDITS = ['.env.example', 'scripts/studio-later-changes.mjs', SPEED_PERCEIVED_PHONE_NAV_PROOF, SPEED_PERCEIVED_PHONE_TOP_PROOF]
 
 /** Every file this change's commits touch: what the older scope checks skip once the registry names it (scripts/studio-later-changes.mjs, LATER_CHANGE_FILES). */
 export const SPEED_PERCEIVED_SCOPE_FILES = new Set([...SPEED_PERCEIVED_FILES, ...SPEED_PERCEIVED_NEW_FILES, ...SPEED_PERCEIVED_OWN_EDITS])
