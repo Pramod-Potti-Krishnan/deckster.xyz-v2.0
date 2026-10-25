@@ -27,6 +27,7 @@ export const LATER_CHANGE_FILES = new Set([
   ...(await import('./studio-pass3-polish-strip.mjs')).PASS3_POLISH_SCOPE_FILES, // LATER-CHANGE: FRONTEND-2, pass 3 polish set, PR A (NEXT_PUBLIC_STUDIO_PASS3_POLISH)
   ...(await import('./studio-pass3-polish-b-strip.mjs')).PASS3_POLISH_B_SCOPE_FILES, // LATER-CHANGE: FRONTEND-2, pass 3 polish set, PR B (NEXT_PUBLIC_STUDIO_PASS3_POLISH; no .env.example block of its own: the flag's block is PR A's)
   ...(await import('./studio-pass3-polish-c-strip.mjs')).PASS3_POLISH_C_SCOPE_FILES, // LATER-CHANGE: FRONTEND-2, pass 3 polish set, PR C (NEXT_PUBLIC_STUDIO_PASS3_POLISH; no .env.example block of its own: the flag's block is PR A's)
+  ...(await import('./studio-pass3-polish-d-strip.mjs')).PASS3_POLISH_D_SCOPE_FILES, // LATER-CHANGE: FRONTEND-2, pass 3 polish set, PR D (NEXT_PUBLIC_STUDIO_PASS3_POLISH; no .env.example block of its own: the flag's block is PR A's)
   // one line per later change, above this comment
 ])
 
@@ -45,6 +46,7 @@ export const LATER_STRIPS = [
   (await import('./studio-pass3-polish-strip.mjs')).stripPass3Polish, // LATER-CHANGE: FRONTEND-2, pass 3 polish set, PR A (NEXT_PUBLIC_STUDIO_PASS3_POLISH)
   (await import('./studio-pass3-polish-b-strip.mjs')).stripPass3PolishB, // LATER-CHANGE: FRONTEND-2, pass 3 polish set, PR B (NEXT_PUBLIC_STUDIO_PASS3_POLISH; no .env.example block of its own)
   (await import('./studio-pass3-polish-c-strip.mjs')).stripPass3PolishC, // LATER-CHANGE: FRONTEND-2, pass 3 polish set, PR C (NEXT_PUBLIC_STUDIO_PASS3_POLISH; no .env.example block of its own)
+  (await import('./studio-pass3-polish-d-strip.mjs')).stripPass3PolishD, // LATER-CHANGE: FRONTEND-2, pass 3 polish set, PR D (NEXT_PUBLIC_STUDIO_PASS3_POLISH; no .env.example block of its own)
   // one line per later change, above this comment
 ]
 
