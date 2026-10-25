@@ -271,7 +271,7 @@ function proveChange() {
   ok(LATER_STRIPS.includes(stripD1DebugRoutes), 'registry: the registry holds the strip')
   ok([...D1_SCOPE_FILES].every(rel => LATER_CHANGE_FILES.has(rel)), 'registry: the registry names every file of this change')
   ok(!LATER_ENV_BLOCKS.some(block => /D1 security hotfix|CRON_SECRET/.test(String(block))), 'registry: no env block')
-  deep([...D1_SCOPE_FILES].sort(), [D1_ROUTE, ...D1_DELETED, ...D1_NEW_FILES, ...D1_OWN_EDITS].sort(), 'scope: the change is the route, the two deleted routes, its two scripts, the registry and four FRONTEND-2 pins\' tolerances')
+  deep([...D1_SCOPE_FILES].sort(), [D1_ROUTE, ...D1_DELETED, ...D1_NEW_FILES, ...D1_OWN_EDITS].sort(), 'scope: the change is the route, the two deleted routes, its two scripts, the registry, four FRONTEND-2 pins\' tolerances and the p2-admin pin\'s registry read')
 }
 function proveScope() {
   // the COMMITTED diff only (BASE..HEAD): the working tree is never consulted (the suite writes into docs/)
