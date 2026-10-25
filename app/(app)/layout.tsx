@@ -12,6 +12,7 @@ import { StudioDuplicateCopyTitleMount } from "@/components/builder/studio-dupli
 // NEXT_PUBLIC_STUDIO_PASS3_POLISH (default off): the Pass 3 polish set; with the flag on <html> carries data-studio-pass3-polish="true" and the set's stylesheet (every rule scoped to it) applies to the account pages. // PASS3-POLISH
 import { STUDIO_PASS3_POLISH_ENABLED } from "@/lib/studio-pass3-polish" // PASS3-POLISH
 import { StudioPass3PolishMount } from "@/components/studio-pass3-polish/studio-pass3-polish-mount" // PASS3-POLISH
+import "@/components/studio-pass3-polish/studio-pass3-polish-e.css" // PASS3-POLISH-E (NEXT_PUBLIC_STUDIO_PASS3_POLISH, default off): every rule is scoped to data-studio-pass3-polish="true"; on a phone the Intelligence task selects end in an ellipsis before the chevron
 
 /**
  * Shared shell for the authenticated account area (dashboard, settings, billing,

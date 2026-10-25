@@ -129,6 +129,7 @@ import { useStudioVersionHistoryDeckOnly } from '@/hooks/use-studio-version-hist
 import { useStudioPaymentsOpenSoon } from '@/hooks/use-studio-payments-open-soon'
 // NEXT_PUBLIC_STUDIO_PASS3_POLISH (default off): the Pass 3 polish set; with the flag on <html> carries data-studio-pass3-polish="true" and the set's stylesheet (every rule scoped to it) applies to the Builder (hooks/use-studio-pass3-polish.ts). // PASS3-POLISH
 import { useStudioPass3Polish } from '@/hooks/use-studio-pass3-polish' // PASS3-POLISH
+import '@/components/studio-pass3-polish/studio-pass3-polish-e.css' // PASS3-POLISH-E (NEXT_PUBLIC_STUDIO_PASS3_POLISH, default off): every rule is scoped to data-studio-pass3-polish="true"; on a phone the prompt's empty hint fits one line
 // NEXT_PUBLIC_STUDIO_DUPLICATE_COPY_TITLE (default off): a copied deck's header shows its own title, not "Studio" (hooks/use-studio-duplicate-copy-title.ts).
 import { useStudioDuplicateCopyTitleProps } from '@/hooks/use-studio-duplicate-copy-title'
 import { StudioSupersededNotice } from '@/components/builder/studio-superseded-notice'
