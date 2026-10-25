@@ -9,6 +9,8 @@
 //                  (their attributes read from the real sources); the edge-tab mapping: every tab the stylesheet hides has a home
 //   2. stylesheet  outside the phone query only the two hides (menu, dot) and the desktop status line; every other rule inside (max-width: 640px); every selector needs PR 1's bar root or this change's own
 //                  elements; the dot is absolute (the segment keeps its size), green / amber / red, light and dark; the row goes only once the dot is placed and while it holds no control; no !important
+//   2b. row 1      the stylesheet resolved (a small selector engine) on a model of row 1 built as the real components nest it (facts read from the sources): Publish shown, at the far right, "..." just before it;
+//                  the title, New deck and Export hidden, Export by its own box (never by the strip it shares with Publish), shown while the menu opens it, its menu is open or it has focus
 //   3. render      the menu and the dot, portalled into the page's own row 1 and Director segment; the menu: a named trigger, the deck title, the entries; each entry runs the page's own control once the
 //                  menu has closed (Export opened the way a keyboard opens it, shown for that moment; a dialog keeps its focus; the rest give focus back to "..."); the dot's name for every state
 //   4. pin         the Builder page without this change's two marked lines is PR 1's head byte for byte, also through the registry; BuilderHeader, the switch, the Director header and the viewer are untouched
@@ -185,8 +187,8 @@ function proveCss(text, at = '') {
   const ACTIONS = `${ROOTSEL} > [data-studio-v4-shell-column] > [data-studio-v4-shell-header] .studio-shell-header-actions`
   eq(rule(`${ROOTSEL} > [data-studio-v4-shell-column] > [data-studio-v4-shell-header] .studio-shell-heading`).display, 'none', a('row 1: the title and the deck list button go (into the menu)'))
   eq(rule(`${ACTIONS} > .studio-shell-new`).display, 'none', a('row 1: New deck goes (into the menu)'))
-  eq(rule(`${ACTIONS}:not(:has(> [data-studio-phone-deck-menu="true"][data-export-open="true"])) [data-studio-v4-toolbar-target] :is([data-studio-download-control], :has(> [data-studio-download-control])):not(:focus-within):not(:has([aria-expanded="true"]))`).display, 'none',
-    a('row 1: Export goes (into the menu), except while the menu opens it, while its own menu is open and while it has focus'))
+  eq(rule(`${ACTIONS}:not(:has(> [data-studio-phone-deck-menu="true"][data-export-open="true"])) [data-studio-v4-toolbar-target] :is([data-studio-download-control], [data-studio-disabled-reason]:has(> [data-studio-download-control])):not(:focus-within):not(:has([aria-expanded="true"]))`).display, 'none',
+    a('row 1: Export goes (into the menu), by its own box or the blocked disabled-reason box around it, except while the menu opens it, while its own menu is open and while it has focus'))
   deep(rule(`${ACTIONS} > [data-studio-phone-deck-menu="true"]`), { display: 'inline-flex', order: '-1', 'flex-shrink': '0' }, a('row 1: "..." first in the action group, so Publish keeps its place at the right'))
   const trigger = rule('[data-studio-phone-deck-menu="true"] > button')
   ok(parseFloat(trigger.width) >= 44 && parseFloat(trigger.height) >= 32, a(`"..." is at least 44 x 32 px (${trigger.width} x ${trigger.height})`))
@@ -206,6 +208,132 @@ function proveCss(text, at = '') {
   const hidden = text.match(/\[data-studio-drawer-handle="(slide|director)"\]|\[data-studio-v4-thumbnail-toggle="true"\]|\[data-studio-notes-handle="true"\]/g).map(s => s.includes('slide') ? 'slide' : s.includes('director') ? 'director' : s.includes('thumbnail') ? 'thumbnails' : 'notes')
   deep([...new Set(hidden)].sort(), Object.keys(lib().STUDIO_PHONE_EDGE_TAB_HOMES).sort(), a('every edge tab the stylesheet hides has a home, and every one with a home is hidden'))
   match(read(DIRECTOR_CSS), /\[data-studio-chat-header\] > \[role="status"\]::before \{ content: ""; flex: none; width: 6px; height: 6px; border-radius: 50%;/, a('(desktop: the dot is the Director header\'s own status dot, 6 px, which keeps its colours)'))
+}
+
+// ---------------------------------------------------------------- 2b. row 1 at 640 px and narrower, flag on: the stylesheet resolved on a model of the real markup (Publish stays, at the far right)
+// A small selector engine (postcss-selector-parser, the one Tailwind ships, resolved from it) over a tree built the way the real components nest row 1. The facts the tree stands on are read from the sources
+// first, so a change of that markup fails here rather than passing on a stale model. Unsupported selector syntax throws (never a silent match).
+const selectorParser = createRequire(nodeRequire.resolve('tailwindcss/package.json'))('postcss-selector-parser')
+const el = (tag, attrs = {}, children = []) => { const node = { tag, attrs, classes: String(attrs.class || '').split(/\s+/).filter(Boolean), children, parent: null, focusWithin: false }; children.forEach(c => { c.parent = node }); return node }
+const parseCache = new Map()
+const parseSel = text => { if (!parseCache.has(text)) parseCache.set(text, selectorParser().astSync(text)); return parseCache.get(text) }
+const descendants = node => node.children.flatMap(c => [c, ...descendants(c)])
+function matchSimple(node, n) {
+  if (n.type === 'tag') return n.value === '*' || node.tag === n.value
+  if (n.type === 'universal') return true
+  if (n.type === 'class') return node.classes.includes(n.value)
+  if (n.type === 'attribute') { if (!(n.attribute in node.attrs)) return false; return n.operator ? (n.operator === '=' && String(node.attrs[n.attribute]) === n.value) : true }
+  if (n.type === 'pseudo') {
+    if (n.value === ':is') return n.nodes.some(s => matchComplex(node, s.nodes))
+    if (n.value === ':not') return !n.nodes.some(s => matchComplex(node, s.nodes))
+    if (n.value === ':has') return n.nodes.some(s => { const parts = s.nodes.filter(x => x.type !== 'comment'); const child = parts[0]?.type === 'combinator' && parts[0].value === '>'; const rest = child ? parts.slice(1) : parts; return (child ? node.children : descendants(node)).some(d => matchComplex(d, rest, child ? node : null, node)) })
+    if (n.value === ':focus-within') return node.focusWithin
+    if (n.value === ':first-child') return !!node.parent && node.parent.children[0] === node
+    throw new Error(`row-1 model: unsupported pseudo ${n.value}`)
+  }
+  throw new Error(`row-1 model: unsupported selector part ${n.type}`)
+}
+// parts: one complex selector's nodes; matched right to left. `childOf` / `inside`: a relative :has() anchor (the leftmost compound must be that node's child / descendant).
+function matchComplex(node, parts, childOf = null, inside = null) {
+  const seq = [[]]
+  for (const p of parts) { if (p.type === 'combinator') seq.push(p.value.trim() === '>' ? '>' : ' ', []); else if (p.type !== 'comment') seq[seq.length - 1].push(p) }
+  const go = (cur, i) => {
+    if (!seq[i].every(s => matchSimple(cur, s))) return false
+    if (i === 0) return childOf ? cur.parent === childOf : inside ? (() => { for (let p = cur.parent; p; p = p.parent) if (p === inside) return true; return false })() : true
+    const comb = seq[i - 1]
+    if (comb === '>') return !!cur.parent && go(cur.parent, i - 2)
+    for (let p = cur.parent; p; p = p.parent) if (go(p, i - 2)) return true
+    return false
+  }
+  return go(node, seq.length - 1)
+}
+const matches = (node, selector) => parseSel(selector).nodes.some(s => matchComplex(node, s.nodes))
+function specificity(nodes) {
+  let b = 0, c = 0
+  for (const n of nodes) {
+    if (n.type === 'class' || n.type === 'attribute') b++
+    else if (n.type === 'tag' && n.value !== '*') c++
+    else if (n.type === 'pseudo') {
+      if ([':is', ':not', ':has'].includes(n.value)) { const best = n.nodes.map(s => specificity(s.nodes)).sort((x, y) => y[0] - x[0] || y[1] - x[1])[0] || [0, 0]; b += best[0]; c += best[1] }
+      else if (!n.value.startsWith('::')) b++
+    }
+  }
+  return [b, c]
+}
+// the display this stylesheet gives a node at 640 px and narrower (null: none of its rules sets one)
+function displayOf(node, rules) {
+  let best = null
+  rules.forEach((r, order) => {
+    if (!('display' in r.decls) || !(r.media === null || r.media === `media ${PHONE}`)) return
+    for (const sel of parseSel(r.selector).nodes) {
+      if (!matchComplex(node, sel.nodes)) continue
+      const sp = specificity(sel.nodes)
+      if (!best || sp[0] > best.sp[0] || (sp[0] === best.sp[0] && (sp[1] > best.sp[1] || (sp[1] === best.sp[1] && order >= best.order)))) best = { sp, order, value: r.decls.display }
+    }
+  })
+  return best ? best.value : null
+}
+const hiddenBy = (node, rules) => { for (let p = node; p; p = p.parent) if (displayOf(p, rules) === 'none') return p; return null }
+// row 1 as the real components nest it: BuilderHeader's actions (New, the toolbar target, then the portalled "..."), the viewer's delivery strip in the target, and in it the Export control and PublishControls
+function row1Model({ exportWrap = null, exportOpen = false, expanded = false, focusExport = false } = {}) {
+  const exportTrigger = el('button', { 'aria-haspopup': 'menu', ...(expanded ? { 'aria-expanded': 'true' } : {}) })
+  const exportBox = el('div', { 'data-studio-v4-shell': 'true', 'data-studio-download-control': 'true', class: 'flex items-center' }, [exportTrigger])
+  if (focusExport) { exportBox.focusWithin = true }
+  const exportNode = exportWrap === 'allowed' ? el('span', { 'data-state': 'closed', class: 'inline-flex rounded-md' }, [exportBox])
+    : exportWrap === 'blocked' ? el('span', { 'data-studio-disabled-reason': 'true', 'data-state': 'closed', role: 'button', tabindex: '0', class: 'inline-flex rounded-md' }, [exportBox]) : exportBox
+  if (focusExport && exportNode !== exportBox) exportNode.focusWithin = true
+  const publishButton = el('button', { 'data-studio-publish-trigger': 'true' })
+  const publishBox = el('div', { class: 'flex items-center' }, [publishButton])
+  const strip = el('div', { class: 'flex flex-shrink-0 items-center gap-1' }, [exportNode, publishBox])
+  const delivery = el('div', { 'data-studio-v4-delivery': 'true' }, [strip])
+  const target = el('div', { 'data-studio-v4-toolbar-target': 'true', class: 'min-w-0 h-full overflow-hidden' }, [delivery])
+  if (focusExport) { strip.focusWithin = delivery.focusWithin = target.focusWithin = true }
+  const menuButton = el('button', { type: 'button', 'aria-label': 'Deck menu' })
+  const menuRoot = el('span', { 'data-studio-phone-deck-menu': 'true', ...(exportOpen ? { 'data-export-open': 'true' } : {}) }, [menuButton])
+  const newButton = el('button', { class: 'studio-shell-new' })
+  const actions = el('div', { class: 'studio-shell-header-actions' }, [newButton, target, menuRoot])
+  if (focusExport) actions.focusWithin = true
+  const deckList = el('button', {}), title = el('span', { title: 'Q4 sales review' })
+  const heading = el('div', { class: 'studio-shell-heading' }, [deckList, title])
+  const header = el('header', { 'data-studio-v4-shell-header': 'true' }, [el('div', { class: 'h-full px-4 flex items-center' }, [heading, actions])])
+  const column = el('div', { 'data-studio-v4-shell-column': 'true' }, [header])
+  const rail = el('aside', { 'data-studio-v4-rail': 'true' }), bar = el('nav', { 'data-studio-phone-tabbar': 'true' })
+  el('div', { 'data-studio-v4-shell': 'true' }, [rail, bar, column])
+  return { heading, newButton, exportNode, exportBox, exportTrigger, publishBox, publishButton, strip, menuRoot, menuButton, actions, target }
+}
+function proveRow1(text, at = '') {
+  const a = message => (at ? `${at}: row 1: ${message}` : `row 1: ${message}`)
+  // the markup the model stands on, read from the real sources
+  const viewer = read(VIEWER), area = read('components/builder/presentation-area.tsx'), download = read(DOWNLOAD), publish = read('components/publish-dialog.tsx'), reason = read('components/studio-disabled-reason.tsx'), header = read(HEADER)
+  ok(viewer.includes('studioShell ? <div data-studio-v4-delivery="true" className={cn(isGenerating && "pointer-events-none opacity-50")}>{deliveryControls}</div> : toolbarContent') && /const deliveryControls = \(\n\s+<div className="flex flex-shrink-0 items-center gap-1">/.test(viewer) && /\{viewerIsReady \? downloadControls : null\}\n\s+<\/div>\n\s+\)/.test(viewer),
+    a('(the viewer portals one delivery strip into the toolbar target; the download controls come last in it)'))
+  ok(/<>\n\s+<PresentationDownloadControls\n[\s\S]*?\/>\n\s+<PublishControls\n/.test(area) && /<div className="flex flex-shrink-0 items-center gap-1">\n\s+<PresentationDownloadControls presentationUrl=\{null\}[^\n]*\/>\n\s+<PublishControls /.test(area), a('(Export and Publish are siblings in that strip, Publish after Export, in both the deck and the deferred-start paths)'))
+  ok(/<div className=\{`flex items-center \$\{className\}`\} data-studio-v4-shell=\{STUDIO_DELIVERY\} data-studio-download-control=\{STUDIO_DELIVERY\}>/.test(download) && /return exportAfterBuild \? <StudioDisabledReason reason=\{exportBlockedReason\} label="Export">\{controls\}<\/StudioDisabledReason> : controls;/.test(download), a('(Export\'s own box, wrapped in the disabled-reason box only with the export-after-build flag)'))
+  ok(/return \(\n\s+<div className=\{`flex items-center \$\{className\}`\}>\n\s+<button\n\s+ref=\{publishTriggerRef\}\n\s+data-studio-publish-trigger=/.test(publish), a('(PublishControls: a plain box around the Publish button)'))
+  ok(/<span\n\s+data-studio-disabled-reason=\{blocked \? 'true' : undefined\}/.test(reason), a('(the disabled-reason box is marked only while Export is blocked)'))
+  ok(/<div className="studio-shell-header-actions">\n\s+<Button className="studio-shell-new"[^\n]*\n[^\n]*\n\s+<div data-studio-v4-toolbar-target="true" ref=\{toolbarSlotRef\}/.test(header), a('(BuilderHeader\'s actions: New, then the toolbar target; the "..." is portalled in after them)'))
+  const rules = cssRules(text)
+  for (const variant of [null, 'allowed', 'blocked']) {
+    const m = row1Model({ exportWrap: variant }), v = variant ?? 'no export-after-build'
+    eq(hiddenBy(m.publishButton, rules), null, a(`${v}: Publish is not hidden (nor any box around it)`))
+    eq(hiddenBy(m.menuButton, rules), null, a(`${v}: "..." is shown`))
+    eq(displayOf(m.menuRoot, rules), 'inline-flex', a(`${v}: as an inline-flex item`))
+    ok(hiddenBy(m.heading, rules) === m.heading && hiddenBy(m.newButton, rules) === m.newButton, a(`${v}: the title, the deck list button and New deck are hidden (into the menu)`))
+    ok(hiddenBy(m.exportTrigger, rules) !== null, a(`${v}: Export is hidden (into the menu)`))
+    ok(hiddenBy(m.exportTrigger, rules) === m.exportNode || hiddenBy(m.exportTrigger, rules) === m.exportBox, a(`${v}: by its own box (or the disabled-reason box around it), not by a box that also holds Publish`))
+    eq(hiddenBy(m.strip, rules), null, a(`${v}: the delivery strip (Export + Publish) itself is not hidden`))
+    for (const [label, opts] of [['the menu opening it', { exportOpen: true }], ['its own menu open', { expanded: true }], ['it has focus', { focusExport: true }]]) {
+      const o = row1Model({ exportWrap: variant === 'blocked' ? 'allowed' : variant, ...opts })
+      eq(hiddenBy(o.exportTrigger, rules), null, a(`${v}: Export shows while ${label}`))
+      eq(hiddenBy(o.publishButton, rules), null, a(`${v}: and Publish still shows`))
+    }
+  }
+  // the order on screen: "..." first in the action group (order -1), then the toolbar target, whose strip ends with Publish: Publish is the right-most control of row 1
+  const m = row1Model()
+  const orderOf = node => Number(rules.filter(r => r.media === `media ${PHONE}` && 'order' in r.decls && matches(node, r.selector)).map(r => r.decls.order).pop() ?? 0)
+  const shownActions = m.actions.children.filter(c => !hiddenBy(c, rules)).sort((x, y) => orderOf(x) - orderOf(y))
+  deep(shownActions.map(c => c === m.menuRoot ? 'menu' : c === m.target ? 'toolbar target' : 'other'), ['menu', 'toolbar target'], a('the shown action items, in order: "..." then the toolbar target'))
+  deep(m.strip.children.filter(c => !hiddenBy(c, rules)).map(c => c === m.publishBox ? 'publish' : 'other'), ['publish'], a('the strip shows Publish only, so Publish is the far-right control, "..." just before it'))
 }
 
 // ---------------------------------------------------------------- 3. the menu and the dot, rendered
@@ -439,6 +567,7 @@ function proveSecretScan(at = '') {
 function proveAll(stripFn = stripPhoneShellTop, at = '') {
   proveLib(at)
   proveCss(read(CSS), at)
+  proveRow1(read(CSS), at)
   proveRender(at)
   provePin(read(PAGE), stripFn, at)
   proveUntouched(at)
@@ -451,6 +580,14 @@ function proveAll(stripFn = stripPhoneShellTop, at = '') {
 proveAll()
 console.log(`flag off: the Builder page without this change's two lines is PR 1's head byte for byte (sha256 ${sha(stripPhoneShellTop(PAGE, read(PAGE))).slice(0, 16)} == ${sha(baseOf(PAGE)).slice(0, 16)}), and through the registry the studio base's; both lines gated on the flag`)
 console.log(`PASS lib, stylesheet, render, pin, flag off, change: ${checks} checks`)
+
+{ // the row-1 model alone (not only the selector-text check of section 2) catches the #517 defect: Export hidden through the strip it shares with Publish
+  const buggy = read(CSS).replace('[data-studio-disabled-reason]:has(> [data-studio-download-control])', ':has(> [data-studio-download-control])')
+  let caught = null
+  try { proveRow1(buggy, 'defect') } catch (error) { caught = String(error.message).split('\n')[0] }
+  if (buggy === read(CSS) || !caught || !/Publish is not hidden/.test(caught)) { console.log(`row 1: the structural check did NOT catch the #517 defect (${caught})`); process.exit(1) }
+  console.log(`row 1: the structural check alone catches the #517 defect: ${caught.slice(0, 140)}`)
+}
 
 // =========================================================== 7. mutants
 const killed = [], survived = []
@@ -497,8 +634,11 @@ await mutant('css: the Director row goes even with Reconnect in it', [css('[data
 await mutant('css: the Director tab goes without the switch', [css('[data-studio-v4-shell-workspace]:has(> [data-studio-workspace-switch]) [data-studio-drawer-handle="director"]', '[data-studio-v4-shell-workspace] [data-studio-drawer-handle="director"]')])
 await mutant('css: the Notes tab stays', [css(', [data-studio-notes-handle="true"]) { display: none; }', ') { display: none; }')])
 await mutant('css: the Element tab goes too', [css('[data-studio-drawer-handle="slide"], [data-studio-v4-thumbnail-toggle="true"]', '[data-studio-drawer-handle="slide"], [data-studio-drawer-handle="element"], [data-studio-v4-thumbnail-toggle="true"]')])
-await mutant('css: Export stays in row 1', [css('[data-studio-v4-toolbar-target] :is([data-studio-download-control], :has(> [data-studio-download-control])):not(:focus-within):not(:has([aria-expanded="true"])) { display: none; }', '[data-studio-v4-toolbar-target] .never { display: none; }')])
+await mutant('css: Export stays in row 1', [css('[data-studio-v4-toolbar-target] :is([data-studio-download-control], [data-studio-disabled-reason]:has(> [data-studio-download-control])):not(:focus-within):not(:has([aria-expanded="true"])) { display: none; }', '[data-studio-v4-toolbar-target] .never { display: none; }')])
 await mutant('css: Export hidden even while its menu is open', [css(':not(:focus-within):not(:has([aria-expanded="true"])) { display: none; }', ':not(:focus-within) { display: none; }')])
+await mutant('css: Export hidden with the box that also holds Publish (the #517 defect: no Publish on a phone)', [css('[data-studio-disabled-reason]:has(> [data-studio-download-control])', ':has(> [data-studio-download-control])')])
+await mutant('css: the whole toolbar target hidden', [css('\n  /* the menu (portalled', `\n  ${ROOTSEL} > [data-studio-v4-shell-column] > [data-studio-v4-shell-header] [data-studio-v4-toolbar-target] { display: none; }\n  /* the menu (portalled`)])
+await mutant('css: the blocked Export box stays (a focusable empty box in row 1)', [css('[data-studio-disabled-reason]:has(> [data-studio-download-control])', '[data-never]:has(> [data-studio-download-control])')])
 await mutant('css: "..." after Publish', [css('display: inline-flex; order: -1; flex-shrink: 0;', 'display: inline-flex; order: 9; flex-shrink: 0;')])
 await mutant('css: "..." is 28 px', [css('width: 44px; height: 34px;', 'width: 28px; height: 28px;')])
 await mutant('css: the title stays in row 1', [css(' .studio-shell-heading { display: none; }', ' .studio-shell-heading { display: flex; }')])

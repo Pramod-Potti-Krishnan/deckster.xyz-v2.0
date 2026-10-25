@@ -11,10 +11,11 @@
 [data-studio-v4-shell="true"]:has(> [data-studio-phone-tabbar="true"]) [data-studio-director-header="true"][data-studio-chat-header] > :nth-child(n+4) { margin-left: auto; }
 
 @media (max-width: 640px) {
-  /* row 1: the logo (PR 1), "...", Publish; the title, the deck list button, New deck and Export are in the menu */
+  /* row 1: the logo (PR 1), "...", Publish; the title, the deck list button, New deck and Export are in the menu. Export is hidden by its own box (and, while it is blocked, by the focusable
+     disabled-reason box around it), never by a box that also holds Publish: the delivery strip holds both. */
   [data-studio-v4-shell="true"]:has(> [data-studio-phone-tabbar="true"]) > [data-studio-v4-shell-column] > [data-studio-v4-shell-header] .studio-shell-heading { display: none; }
   [data-studio-v4-shell="true"]:has(> [data-studio-phone-tabbar="true"]) > [data-studio-v4-shell-column] > [data-studio-v4-shell-header] .studio-shell-header-actions > .studio-shell-new { display: none; }
-  [data-studio-v4-shell="true"]:has(> [data-studio-phone-tabbar="true"]) > [data-studio-v4-shell-column] > [data-studio-v4-shell-header] .studio-shell-header-actions:not(:has(> [data-studio-phone-deck-menu="true"][data-export-open="true"])) [data-studio-v4-toolbar-target] :is([data-studio-download-control], :has(> [data-studio-download-control])):not(:focus-within):not(:has([aria-expanded="true"])) { display: none; }
+  [data-studio-v4-shell="true"]:has(> [data-studio-phone-tabbar="true"]) > [data-studio-v4-shell-column] > [data-studio-v4-shell-header] .studio-shell-header-actions:not(:has(> [data-studio-phone-deck-menu="true"][data-export-open="true"])) [data-studio-v4-toolbar-target] :is([data-studio-download-control], [data-studio-disabled-reason]:has(> [data-studio-download-control])):not(:focus-within):not(:has([aria-expanded="true"])) { display: none; }
   [data-studio-v4-shell="true"]:has(> [data-studio-phone-tabbar="true"]) > [data-studio-v4-shell-column] > [data-studio-v4-shell-header] .studio-shell-header-actions > [data-studio-phone-deck-menu="true"] { display: inline-flex; order: -1; flex-shrink: 0; }
   [data-studio-phone-deck-menu="true"] > button { display: inline-flex; align-items: center; justify-content: center; width: 44px; height: 34px; border: 1px solid var(--ss-line); border-radius: 8px; background: var(--ss-panel); color: var(--ss-text); }
   [data-studio-phone-deck-menu="true"] > button:hover, [data-studio-phone-deck-menu="true"] > button[aria-expanded="true"] { background: var(--ss-active); }
