@@ -423,5 +423,21 @@ if (HEAD === BASE) {
   console.log(`PASS D  committed diff ${BASE.slice(0, 8)}..${HEAD.slice(0, 8)}: ${changed.length} files, all this change's; marked insertions only; strips give the base byte for byte`)
 }
 
+// ---- E. no credential-shaped literal in this change's new files and marked lines ----------------------------------------------------------------
+// The patterns of scripts/test-studio-thumbnail-last-good.mjs, whose added-lines scan leaves a registered later change's NEW files to their own proofs (this change's among them). Its bare "key" name is narrowed to api_key: a React
+// key (key: `speed-echo-${echo.token}`) and the synthetic scopeKey values of the scenarios are not credentials.
+{
+  const CRED_NAME = /(?:api[_-]?key|secret|token|passw(?:or)?d|credential)[A-Za-z0-9_]*['"]?\s*[:=]\s*['"`][^'"`\s]{8,}['"`]/i
+  const CRED_STRING = /eyJ[A-Za-z0-9_-]{10,}\.|AKIA[0-9A-Z]{16}|sk-[A-Za-z0-9]{20,}|ghp_[A-Za-z0-9]{20,}|xox[abp]-[A-Za-z0-9-]{10,}|-----BEGIN [A-Z ]*PRIVATE KEY|Bearer [A-Za-z0-9._-]{20,}/
+  const text = rel => fs.readFileSync(path.join(root, rel), 'utf8')
+  const added = [...stripModule.SPEED_PERCEIVED_NEW_FILES.map(text), ...stripModule.SPEED_PERCEIVED_FILES.flatMap(rel => text(rel).split('\n').filter(line => stripModule.SPEED_PERCEIVED_MARKER_RE.test(line))), stripModule.SPEED_PERCEIVED_ENV_BLOCK].join('\n')
+  ok(!CRED_NAME.test(added), 'E: no quoted literal assigned to a credential-shaped name in the new files, the marked lines and the .env.example block')
+  ok(!CRED_STRING.test(added), 'E: no token, key or bearer string there either')
+  // the scan bites: a credential-named literal, and a bearer string in an ordinary name, are both seen (built from parts so that this file does not match)
+  ok(CRED_NAME.test(`const ${['api', 'Key'].join('')} = '${['abcdefgh', '12345678'].join('')}'`), 'E: control: a credential-named literal is seen')
+  ok(CRED_STRING.test(`const note = '${['Bearer ', 'a'.repeat(24)].join('')}'`) && CRED_STRING.test(['AKIA', 'ABCDEFGH', '12345678'].join('')), 'E: control: a bearer string and a key id are seen')
+  console.log(`PASS E  no credential-shaped literal in ${stripModule.SPEED_PERCEIVED_NEW_FILES.length} new files, the marked lines and the .env.example block (the patterns of scripts/test-studio-thumbnail-last-good.mjs)`)
+}
+
 release()
 console.log(`\nStudio perceived speed (${FLAG}): ${checks} checks passed.`)

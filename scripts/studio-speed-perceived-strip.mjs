@@ -6,7 +6,7 @@
 // How the older pins reach it: this change REGISTERS its files, its .env.example block and this strip (scripts/studio-later-changes.mjs, three lines). The chat harness parses the page through the registry, so its
 // page-region anchors (scripts/fixtures/director-chat/baselines/_sources.json) stay the base's; this change's proof takes the strip out in its own process to run the page with its lines. Plain node, no imports, nothing read from disk or git here.
 
-export const BASE_COMMIT = '6c1afbb9a326b21d1dc15b398bf326eab723e95f' // PR 2's head (frontend2/phone-shell-builder-top, the top of the phone shell stack, itself stacked on Pass 3 polish G and D1 on the studio head fc97f2d5), the branch this change is stacked on (it was cut at 15e2d90f, #512)
+export const BASE_COMMIT = '480baddf73db4f801a0f568365343bc0bd8fd19e' // PR 2's head (frontend2/phone-shell-builder-top, the top of the phone shell stack, itself stacked on Pass 3 polish G and D1 on the studio head fc97f2d5), the branch this change is stacked on (it was cut at 15e2d90f, #512)
 export const SPEED_PERCEIVED_FLAG = 'NEXT_PUBLIC_STUDIO_SPEED_PERCEIVED'
 export const SPEED_PERCEIVED_MARKER = 'SPEED-PERCEIVED'
 /** The marker as a WHOLE token: SPEED-PERCEIVED-X or X-SPEED-PERCEIVED are not this change's. */
