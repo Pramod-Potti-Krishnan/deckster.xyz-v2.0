@@ -515,7 +515,7 @@ check('scope: the COMMITTED diff (BASE..HEAD) holds this change\'s files, the ro
   assert.deepEqual(fs.readdirSync(path.join(root, 'scripts/fixtures/thumbnail-last-good')).map(name => `scripts/fixtures/thumbnail-last-good/${name}`).sort(), THUMBNAIL_LAST_GOOD_NEW_FILES.filter(rel => rel.startsWith('scripts/fixtures/')).sort(), 'the strip module lists every fixture')
   if (committed.length > 0) for (const rel of [...THUMBNAIL_LAST_GOOD_FILES, ...THUMBNAIL_LAST_GOOD_NEW_FILES, ...ROOTS, HARNESS]) assert.ok(committed.includes(rel), `${rel} is in the committed diff`)
   assert.deepEqual(git('diff', '--name-only', '--diff-filter=D', BASE, 'HEAD').split('\n').filter(rel => rel && !LATER_CHANGE_FILES.has(rel)), [], 'nothing deleted (a registered later change\'s deletions are not this change\'s)')
-  const added = git('diff', '-U0', BASE, 'HEAD', '--', ...committed.filter(rel => !rel.startsWith('scripts/fixtures/'))).split('\n').filter(line => /^\+(?!\+\+)/.test(line)).join('\n')
+  const added = git('diff', '-U0', BASE, 'HEAD', '--', ...committed.filter(rel => !rel.startsWith('scripts/fixtures/') && (allowed.has(rel) || !LATER_CHANGE_FILES.has(rel) || git('ls-tree', '--name-only', BASE, '--', rel).trim() !== ''))).split('\n').filter(line => /^\+(?!\+\+)/.test(line)).join('\n') // LATER-CHANGES: registry read (PHONE-SHELL-NAV): the NEW files of a registered later change are not this change's to answer for (its own proof scans them); the existing files it edits, and this change's own, are still scanned
   scan('the added lines', added)
 })
 check('secret scan: this change\'s files and fixtures', async () => {
