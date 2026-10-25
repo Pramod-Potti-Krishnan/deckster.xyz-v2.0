@@ -537,7 +537,7 @@ await mutant('registry: the block line is in LATER_STRIPS, not LATER_ENV_BLOCKS'
 // scope: the committed diff
 const OWN = [...LEGAL_SHORT_LINKS_SCOPE_FILES]
 const status = (changes) => changes.map(([s, rel]) => `${s}\t${rel}`).join('\n') + '\n'
-const GOOD_PROOF_DIFFS = Object.fromEntries(LEGAL_SHORT_LINKS_OLDER_PROOFS.map(rel => [rel, git('diff', '-U0', BASE, '--', rel)])) // the base against the working tree: a faithful stand-in for the committed diff of those files
+const GOOD_PROOF_DIFFS = Object.fromEntries(LEGAL_SHORT_LINKS_OLDER_PROOFS.map(rel => [rel, git('diff', '-U0', BASE, ...(git('log', '--no-merges', '--format=%H %s', `${BASE}..HEAD`).split('\n').filter(line => LEGAL_SHORT_LINKS_COMMIT_SUBJECT.test(line.slice(41))).map(line => line.slice(0, 40)).slice(0, 1)), '--', rel)])) // the base against this change's newest own commit (the working tree before it is committed): a later registered change may edit those proofs too (SPEED-PERCEIVED)
 const GOOD_STATUS = [...LEGAL_SHORT_LINKS_NEW_FILES.map(rel => ['A', rel]), ...LEGAL_SHORT_LINKS_OWN_EDITS.map(rel => ['M', rel])]
 { // control: a faithful fake of the committed diff passes (so the scope mutants below are killed by their change, not by the fake)
   committedFake = { own: OWN, foreign: [], nameStatus: status(GOOD_STATUS), proofDiffs: GOOD_PROOF_DIFFS }

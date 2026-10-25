@@ -42,6 +42,9 @@ export function pageSources(root) {
   const normalTypedCall = typedCalls.at(-1)
   compiled.typedOptions = compile('page.sendTypedTurn(normal path)', normalTypedCall.arguments[0], page)
   note('page.handleSendMessage', extract.useCallbackFunction(page, 'handleSendMessage'), page)
+  // NEXT_PUBLIC_STUDIO_SPEED_PERCEIVED: the argument the page hands its echo hook, where the page has the call (the base page does not). SPEED-PERCEIVED
+  const speedEchoCalls = extract.findCalls(page, 'useStudioSpeedPerceivedEcho') // SPEED-PERCEIVED
+  compiled.speedEchoInput = speedEchoCalls.length === 1 ? compile('page.useStudioSpeedPerceivedEcho(input)', speedEchoCalls[0].arguments[0], page) : null // SPEED-PERCEIVED
 
   // use-builder-session: DB rows -> (user turns, Director frames), session state, receipt.
   const restore = extract.findIfStatement(session, node => node.expression.getText(session) === 'session.messages && session.messages.length > 0', '`if (session.messages && session.messages.length > 0)` restore block')

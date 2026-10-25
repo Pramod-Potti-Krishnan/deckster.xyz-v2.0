@@ -32,6 +32,7 @@ export const LATER_CHANGE_FILES = new Set([
   ...(await import('./studio-pass3-polish-e-strip.mjs')).PASS3_POLISH_E_SCOPE_FILES, // LATER-CHANGE: FRONTEND-2, pass 3 polish set, PR E (NEXT_PUBLIC_STUDIO_PASS3_POLISH; no .env.example block of its own: the flag's block is PR A's)
   ...(await import('./studio-pass3-polish-f-strip.mjs')).PASS3_POLISH_F_SCOPE_FILES, // LATER-CHANGE: FRONTEND-2, pass 3 polish set, PR F (NEXT_PUBLIC_STUDIO_PASS3_POLISH; no .env.example block of its own: the flag's block is PR A's)
   ...(await import('./studio-legal-short-links-strip.mjs')).LEGAL_SHORT_LINKS_SCOPE_FILES, // LATER-CHANGE: FRONTEND-2, legal short links and the marketing-slide cache header from uat, D16 a (NEXT_PUBLIC_STUDIO_LEGAL_SHORT_LINKS)
+  ...(await import('./studio-speed-perceived-strip.mjs')).SPEED_PERCEIVED_SCOPE_FILES, // LATER-CHANGE: FRONTEND-2, Studio perceived speed: the typed message echo (NEXT_PUBLIC_STUDIO_SPEED_PERCEIVED)
   // one line per later change, above this comment
 ])
 
@@ -41,6 +42,7 @@ export const LATER_ENV_BLOCKS = [
   (await import('./studio-pass3-polish-strip.mjs')).PASS3_POLISH_ENV_BLOCK, // LATER-CHANGE: FRONTEND-2, pass 3 polish set, PR A (NEXT_PUBLIC_STUDIO_PASS3_POLISH)
   (await import('./studio-bulk-edit-prompt-text-strip.mjs')).BULK_EDIT_PROMPT_TEXT_ENV_BLOCK, // LATER-CHANGE: FRONTEND-2, bulk edit prompt text (NEXT_PUBLIC_STUDIO_BULK_EDIT_PROMPT_TEXT)
   (await import('./studio-legal-short-links-strip.mjs')).LEGAL_SHORT_LINKS_ENV_BLOCK, // LATER-CHANGE: FRONTEND-2, legal short links and the marketing-slide cache header from uat, D16 a (NEXT_PUBLIC_STUDIO_LEGAL_SHORT_LINKS)
+  (await import('./studio-speed-perceived-strip.mjs')).SPEED_PERCEIVED_ENV_BLOCK, // LATER-CHANGE: FRONTEND-2, Studio perceived speed: the typed message echo (NEXT_PUBLIC_STUDIO_SPEED_PERCEIVED)
   // one line per later change, above this comment
 ]
 
@@ -56,6 +58,7 @@ export const LATER_STRIPS = [
   (await import('./studio-bulk-edit-prompt-text-strip.mjs')).stripBulkEditPromptText, // LATER-CHANGE: FRONTEND-2, bulk edit prompt text (NEXT_PUBLIC_STUDIO_BULK_EDIT_PROMPT_TEXT)
   (await import('./studio-pass3-polish-e-strip.mjs')).stripPass3PolishE, // LATER-CHANGE: FRONTEND-2, pass 3 polish set, PR E (NEXT_PUBLIC_STUDIO_PASS3_POLISH; no .env.example block of its own)
   (await import('./studio-pass3-polish-f-strip.mjs')).stripPass3PolishF, // LATER-CHANGE: FRONTEND-2, pass 3 polish set, PR F (NEXT_PUBLIC_STUDIO_PASS3_POLISH; no .env.example block of its own)
+  (await import('./studio-speed-perceived-strip.mjs')).stripSpeedPerceived, // LATER-CHANGE: FRONTEND-2, Studio perceived speed: the typed message echo (NEXT_PUBLIC_STUDIO_SPEED_PERCEIVED)
   // one line per later change, above this comment
 ]
 

@@ -303,6 +303,8 @@ import {
   markStudioHandoffSubmitted,
 } from '@/lib/studio-handoff-status'
 import type { DirectorHandoffRequestOwner, DirectorHandoffRequestStatus } from '@/hooks/use-deckster-websocket-v2'
+import { useStudioSpeedPerceivedEcho } from '@/hooks/use-studio-speed-perceived-echo' // SPEED-PERCEIVED (NEXT_PUBLIC_STUDIO_SPEED_PERCEIVED, default off): the user's message shows at once as a quiet "Sending…" echo
+import { StudioSpeedEcho } from '@/components/builder/studio-speed-echo' // SPEED-PERCEIVED
 
 // Force dynamic rendering to prevent build-time errors
 export const dynamic = 'force-dynamic'
@@ -6308,6 +6310,7 @@ function AuthenticatedBuilderContent({ authScopeUserId }: { authScopeUserId: str
     pendingManualDeckBuild, templateModeOn,
       canUseKnowledgeGraph, builderCacheOwner,
   ])
+  const speedPerceivedEcho = useStudioSpeedPerceivedEcho({ userMessages: session.userMessages, scopeKey: currentSessionId || wsSessionId, inputMessage, uploadedFiles, choiceOpen: Boolean(pendingManualDeckBuild) }) // SPEED-PERCEIVED: state only; the send and the commit stay handleSendMessage's
 
   const handleCancelManualDeckBuild = useCallback(() => {
     if (manualDeckHandoffBusy) return
@@ -7666,6 +7669,7 @@ function AuthenticatedBuilderContent({ authScopeUserId }: { authScopeUserId: str
                         isGeneratingFinal={isGeneratingFinal}
                         suppressEphemeral={effectiveBuildNarrationEnabled}
                       />
+                      {process.env.NEXT_PUBLIC_STUDIO_SPEED_PERCEIVED === 'true' && speedPerceivedEcho.echo && <StudioSpeedEcho key={speedPerceivedEcho.echo.key} echo={speedPerceivedEcho.echo} studio={studioShell} rootProps={studioShell && process.env.NEXT_PUBLIC_STUDIO_CHAT_POLISH === 'true' ? { 'data-studio-chat-polish': 'message' } : undefined} />}{/* SPEED-PERCEIVED: the echo right after the transcript, where the real bubble appears; off, nothing */}
                       {/* NEXT_PUBLIC_STUDIO_JOB_LEDGER (Studio shell): a card per failed or timed-out job of this session; Retry sends job_retry. */}
                       {STUDIO_JOB_LEDGER_ENABLED && studioShell && (
                         <StudioJobLedgerCards sessionId={currentSessionId || wsSessionId} sendJobRetry={jobId => sendControlMessage('job_retry', { job_id: jobId })} />
@@ -7718,6 +7722,7 @@ function AuthenticatedBuilderContent({ authScopeUserId }: { authScopeUserId: str
                     awaitingReply={awaitingDirectorReply}
                     onStopAwaiting={stopAwaitingReply}
                     onSubmit={handleSendMessage}
+                    {...((process.env.NEXT_PUBLIC_STUDIO_SPEED_PERCEIVED === 'true' ? { onSubmit: speedPerceivedEcho.wrapSubmit(handleSendMessage) } : {}) as { onSubmit?: typeof handleSendMessage })} // SPEED-PERCEIVED: the same handler, wrapped to start and settle the echo; off, nothing is added
                     uploadedFiles={uploadedFiles}
                     onFilesSelected={handleFilesSelected}
                     onRemoveFile={removeFile}

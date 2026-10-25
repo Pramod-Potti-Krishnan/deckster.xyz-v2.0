@@ -218,7 +218,7 @@ function proveLayout(text, at = '') {
 // ---------------------------------------------------------------- 4. untouched
 function proveUntouched(at = '') {
   const a = message => (at ? `${at}: ${message}` : message)
-  for (const rel of [ACCOUNT, BUILDER, THEMES_PAGE, THEMES, CONTROLS, LIBRARIES_CSS, THEMES_CSS, A_CSS, A_HOOK, A_LIB, E_CSS, E_STRIP, E_TEST]) eq(sha(read(rel)), sha(baseOf(rel)), a(`${rel} is the base commit's, byte for byte`))
+  for (const rel of [ACCOUNT, BUILDER, THEMES_PAGE, THEMES, CONTROLS, LIBRARIES_CSS, THEMES_CSS, A_CSS, A_HOOK, A_LIB, E_CSS, E_STRIP, E_TEST]) eq(sha(LATER_STRIPS.slice(LATER_STRIPS.indexOf(stripPass3PolishF) + 1).reduce((text, strip) => (typeof strip === 'function' ? strip(rel, text) : text), read(rel))), sha(baseOf(rel)), a(`${rel} is the base commit's, byte for byte (the marked lines of changes registered after this one out: LATER-CHANGES, SPEED-PERCEIVED)`))
   nomatch(read(ACCOUNT) + read(BUILDER) + read(THEMES_PAGE), /studio-pass3-polish-f|PASS3-POLISH-F/, a('no existing entry imports this change\'s stylesheet (only the new layout does)'))
   let found = false
   try { git('cat-file', '-e', `${BASE}:${LAYOUT}`); found = true } catch { found = false }
