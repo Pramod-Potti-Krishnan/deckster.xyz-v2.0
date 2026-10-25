@@ -1,0 +1,274 @@
+{
+ "scenario": "09-typed-undo",
+ "description": "Polish flag on. A chat refine (closing line + change_recorded), then the typed message 'Undo that' from a client that sent undo1: answered before the model with the Undo chip's own frames (undo_result restored, the 'Undone: ...' line, deck_mutation deck_restored). A second typed 'Undo that' finds nothing recorded: one chat line, no undo_result (no change_id to name).",
+ "director_commit": "4330151db84abc1efe09829358216179063eee71",
+ "flags": {
+  "MULTI_INTENT_ENABLED": "true",
+  "DIRECTOR_MDC_BULK_EDIT_ENABLED": "true",
+  "DIRECTOR_MDC_CHAT_UNDO_ENABLED": "true",
+  "CHAT_CAP_BULK_EDIT": "true",
+  "CHAT_CAP_CHAT_UNDO": "true",
+  "SLIDE_COMPOSER_ENABLED": "true",
+  "SLIDE_COMPOSER_ASYNC_ENABLED": "true",
+  "SLIDE_REFINER_ENABLED": "true",
+  "DIRECTOR_MDC_REFINE_SLIDE_ENABLED": "true",
+  "CHAT_CAP_REFINE_SLIDE": "true",
+  "DIRECTOR_MDC_HONEST_REPLIES_ENABLED": "true",
+  "DIRECTOR_MDC_SESSION_SCOPE_ENABLED": "true",
+  "DIRECTOR_MDC_BULK_EDIT_POLISH_ENABLED": "true",
+  "DIRECTOR_MDC_CANT_YET_HONEST_ENABLED": "true",
+  "DIRECTOR_MDC_RESOLVER_V2_ENABLED": "true"
+ },
+ "client_caps": [
+  "mdc1",
+  "bulk_edit1",
+  "undo1"
+ ],
+ "recorded_by": "docs/mdc/bulk-edit-undo-frames/record.py (offline, $0)",
+ "scripted_model_output": [
+  {
+   "action_type": "refine_slide",
+   "response_text": null,
+   "questions": null,
+   "tool_calls": null,
+   "reasoning": "scripted",
+   "confidence": 0.95,
+   "requires_approval": false,
+   "extracted_context": null,
+   "target_slide_indices": [
+    2
+   ],
+   "new_topic": null,
+   "op_brief": "More concise",
+   "element_type": null,
+   "structured_questions": []
+  }
+ ],
+ "frame_counts": {
+  "in": 3,
+  "out": 9
+ },
+ "outbound_frame_types": [
+  "change_recorded",
+  "chat_message",
+  "deck_mutation",
+  "slide_ready",
+  "undo_result"
+ ],
+ "events": [],
+ "frames": [
+  {
+   "seq": 1,
+   "direction": "in",
+   "frame": {
+    "type": "user_message",
+    "data": {
+     "text": "Make slide 3 more concise",
+     "client_caps": [
+      "mdc1",
+      "bulk_edit1",
+      "undo1"
+     ]
+    }
+   }
+  },
+  {
+   "seq": 2,
+   "direction": "out",
+   "frame": {
+    "message_id": "msg_1cee9663",
+    "session_id": "s_e2e",
+    "timestamp": "2026-10-25T00:39:43.677270Z",
+    "type": "chat_message",
+    "role": "assistant",
+    "payload": {
+     "text": "Refining slide 3 (\"Churn Drivers\"): \"More concise\". The current slide stays as it is until the refined version is ready, then it's swapped in place. You can keep chatting meanwhile.",
+     "sub_title": null,
+     "list_items": null,
+     "format": "markdown",
+     "ephemeral": false
+    }
+   }
+  },
+  {
+   "seq": 3,
+   "direction": "out",
+   "frame": {
+    "message_id": "msg_slide_ready_82970a00",
+    "session_id": "s_e2e",
+    "timestamp": "2026-10-25T00:39:43.685710Z",
+    "type": "slide_ready",
+    "role": "assistant",
+    "payload": {
+     "job_id": "mdc_4e3c60c38af7",
+     "kind": "refine",
+     "presentation_id": "pres-e2e",
+     "slide_index": 2,
+     "inserted_at_index": 2,
+     "presentation_url": null,
+     "real_slide_id": "R1-L2",
+     "replaced_slide_id": "L2",
+     "thumbnail_url": null,
+     "status": "built"
+    }
+   }
+  },
+  {
+   "seq": 4,
+   "direction": "out",
+   "frame": {
+    "message_id": "msg_dmut_b36c0785",
+    "session_id": "s_e2e",
+    "timestamp": "2026-10-25T00:39:43.687420Z",
+    "type": "deck_mutation",
+    "role": "assistant",
+    "payload": {
+     "mutation": "slide_replaced",
+     "slide_index": 2,
+     "new_slide_index": null,
+     "presentation_id": "pres-e2e",
+     "presentation_url": "https://layout.synthetic.invalid/p/pres-e2e",
+     "refresh_token": "dm_3ab2a5d94997"
+    }
+   }
+  },
+  {
+   "seq": 5,
+   "direction": "out",
+   "frame": {
+    "message_id": "msg_0a0212bd",
+    "session_id": "s_e2e",
+    "timestamp": "2026-10-25T00:39:43.689059Z",
+    "type": "chat_message",
+    "role": "assistant",
+    "payload": {
+     "text": "Done. Slide 3 is refined, in the same place.",
+     "sub_title": null,
+     "list_items": null,
+     "format": "markdown",
+     "ephemeral": false
+    }
+   }
+  },
+  {
+   "seq": 6,
+   "direction": "out",
+   "frame": {
+    "message_id": "msg_chg_f6c6fc33",
+    "session_id": "s_e2e",
+    "timestamp": "2026-10-25T00:39:43.694299Z",
+    "type": "change_recorded",
+    "role": "assistant",
+    "payload": {
+     "change_id": "chg_6a588780120a",
+     "label": "Refined slide 3",
+     "kind": "slide_replaced",
+     "presentation_id": "pres-e2e",
+     "undoable": true,
+     "anchor_message_id": "msg_0a0212bd"
+    }
+   }
+  },
+  {
+   "seq": 7,
+   "direction": "in",
+   "frame": {
+    "type": "user_message",
+    "data": {
+     "text": "Undo that",
+     "client_caps": [
+      "mdc1",
+      "bulk_edit1",
+      "undo1"
+     ]
+    }
+   }
+  },
+  {
+   "seq": 8,
+   "direction": "out",
+   "frame": {
+    "message_id": "msg_undo_2c1e9e5b",
+    "session_id": "s_e2e",
+    "timestamp": "2026-10-25T00:39:43.741057Z",
+    "type": "undo_result",
+    "role": "assistant",
+    "payload": {
+     "change_id": "chg_6a588780120a",
+     "status": "restored",
+     "reason": null
+    }
+   }
+  },
+  {
+   "seq": 9,
+   "direction": "out",
+   "frame": {
+    "message_id": "msg_1095103e",
+    "session_id": "s_e2e",
+    "timestamp": "2026-10-25T00:39:43.741083Z",
+    "type": "chat_message",
+    "role": "assistant",
+    "payload": {
+     "text": "Undone: Refined slide 3. The deck is back to how it was before that change.",
+     "sub_title": null,
+     "list_items": null,
+     "format": "markdown",
+     "ephemeral": false
+    }
+   }
+  },
+  {
+   "seq": 10,
+   "direction": "out",
+   "frame": {
+    "message_id": "msg_dmut_6668459b",
+    "session_id": "s_e2e",
+    "timestamp": "2026-10-25T00:39:43.742749Z",
+    "type": "deck_mutation",
+    "role": "assistant",
+    "payload": {
+     "mutation": "deck_restored",
+     "slide_index": 0,
+     "new_slide_index": null,
+     "presentation_id": "pres-e2e",
+     "presentation_url": "https://layout.synthetic.invalid/p/pres-e2e",
+     "refresh_token": "dm_9996206062ad"
+    }
+   }
+  },
+  {
+   "seq": 11,
+   "direction": "in",
+   "frame": {
+    "type": "user_message",
+    "data": {
+     "text": "undo that",
+     "client_caps": [
+      "mdc1",
+      "bulk_edit1",
+      "undo1"
+     ]
+    }
+   }
+  },
+  {
+   "seq": 12,
+   "direction": "out",
+   "frame": {
+    "message_id": "msg_658edd60",
+    "session_id": "s_e2e",
+    "timestamp": "2026-10-25T00:39:43.780657Z",
+    "type": "chat_message",
+    "role": "assistant",
+    "payload": {
+     "text": "There's no recent change from chat that I can undo, so I left the deck as it is. If you edited the deck on the canvas, you can restore an earlier version from Version history.",
+     "sub_title": null,
+     "list_items": null,
+     "format": "markdown",
+     "ephemeral": false
+    }
+   }
+  }
+ ]
+}

@@ -1,0 +1,540 @@
+{
+ "scenario": "10-bulk-polish-title-only",
+ "description": "Polish flag on. 'Shorten every title': the card says each slide is re-composed with the instruction to change only its title (not a promise of title-only), and the click runs the five refines with that constraint (refine_instructions lists what the refine runner was given per slide).",
+ "director_commit": "4330151db84abc1efe09829358216179063eee71",
+ "flags": {
+  "MULTI_INTENT_ENABLED": "true",
+  "DIRECTOR_MDC_BULK_EDIT_ENABLED": "true",
+  "DIRECTOR_MDC_CHAT_UNDO_ENABLED": "true",
+  "CHAT_CAP_BULK_EDIT": "true",
+  "CHAT_CAP_CHAT_UNDO": "true",
+  "SLIDE_COMPOSER_ENABLED": "true",
+  "SLIDE_COMPOSER_ASYNC_ENABLED": "true",
+  "SLIDE_REFINER_ENABLED": "true",
+  "DIRECTOR_MDC_REFINE_SLIDE_ENABLED": "true",
+  "CHAT_CAP_REFINE_SLIDE": "true",
+  "DIRECTOR_MDC_HONEST_REPLIES_ENABLED": "true",
+  "DIRECTOR_MDC_SESSION_SCOPE_ENABLED": "true",
+  "DIRECTOR_MDC_BULK_EDIT_POLISH_ENABLED": "true",
+  "DIRECTOR_MDC_CANT_YET_HONEST_ENABLED": "true",
+  "DIRECTOR_MDC_RESOLVER_V2_ENABLED": "true"
+ },
+ "client_caps": [
+  "mdc1",
+  "bulk_edit1",
+  "undo1"
+ ],
+ "recorded_by": "docs/mdc/bulk-edit-undo-frames/record.py (offline, $0)",
+ "scripted_model_output": [
+  {
+   "action_type": "bulk_edit",
+   "response_text": null,
+   "questions": null,
+   "tool_calls": null,
+   "reasoning": "scripted",
+   "confidence": 0.95,
+   "requires_approval": false,
+   "extracted_context": null,
+   "target_slide_indices": [],
+   "new_topic": null,
+   "op_brief": "Shorten the title",
+   "element_type": null,
+   "structured_questions": []
+  }
+ ],
+ "frame_counts": {
+  "in": 2,
+  "out": 20
+ },
+ "outbound_frame_types": [
+  "action_request",
+  "bulk_edit_progress",
+  "bulk_edit_summary",
+  "change_recorded",
+  "chat_message",
+  "deck_mutation",
+  "slide_ready"
+ ],
+ "events": [],
+ "frames": [
+  {
+   "seq": 1,
+   "direction": "in",
+   "frame": {
+    "type": "user_message",
+    "data": {
+     "text": "Shorten every title",
+     "client_caps": [
+      "mdc1",
+      "bulk_edit1",
+      "undo1"
+     ]
+    }
+   }
+  },
+  {
+   "seq": 2,
+   "direction": "out",
+   "frame": {
+    "message_id": "msg_9e592d6c",
+    "session_id": "s_e2e",
+    "timestamp": "2026-10-25T00:39:43.997009Z",
+    "type": "action_request",
+    "role": "assistant",
+    "payload": {
+     "prompt_text": "Change 5 slides (slides 1–5)? I'll apply \"Shorten the title\" to each one, one or two at a time, keeping each slide in its place. Each slide is re-composed with the instruction to change only its title, so its other text and layout should stay as they are but may shift slightly. Rough cost: about $0.25 to $0.50.",
+     "actions": [
+      {
+       "label": "Change 5 slides",
+       "value": "confirm_bulk_edit:bulk_b57cb3ac2fe9",
+       "primary": true,
+       "requires_input": false
+      },
+      {
+       "label": "Cancel",
+       "value": "cancel_bulk_edit:bulk_b57cb3ac2fe9",
+       "primary": false,
+       "requires_input": false
+      }
+     ],
+     "kind": "bulk_edit_confirm",
+     "bulk_edit": {
+      "bulk_id": "bulk_b57cb3ac2fe9",
+      "instruction": "Shorten the title",
+      "slide_indexes": [
+       0,
+       1,
+       2,
+       3,
+       4
+      ],
+      "slide_ids": [
+       "L0",
+       "L1",
+       "L2",
+       "L3",
+       "L4"
+      ],
+      "slide_count": 5,
+      "estimate": {
+       "usd": 0.5,
+       "label": "about $0.25 to $0.50"
+      }
+     }
+    }
+   }
+  },
+  {
+   "seq": 3,
+   "direction": "in",
+   "frame": {
+    "type": "user_message",
+    "data": {
+     "text": "",
+     "client_caps": [
+      "mdc1",
+      "bulk_edit1",
+      "undo1"
+     ],
+     "action_value": "confirm_bulk_edit:bulk_b57cb3ac2fe9",
+     "action_label": "confirm_bulk_edit:bulk_b57cb3ac2fe9"
+    }
+   }
+  },
+  {
+   "seq": 4,
+   "direction": "out",
+   "frame": {
+    "message_id": "msg_116aea9e",
+    "session_id": "s_e2e",
+    "timestamp": "2026-10-25T00:39:44.047022Z",
+    "type": "chat_message",
+    "role": "assistant",
+    "payload": {
+     "text": "Changing 5 slides: \"Shorten the title\". I'll work through them one or two at a time; each slide stays as it is until its new version is ready.",
+     "sub_title": null,
+     "list_items": null,
+     "format": "markdown",
+     "ephemeral": false
+    }
+   }
+  },
+  {
+   "seq": 5,
+   "direction": "out",
+   "frame": {
+    "message_id": "msg_slide_ready_4f823b9c",
+    "session_id": "s_e2e",
+    "timestamp": "2026-10-25T00:39:44.079063Z",
+    "type": "slide_ready",
+    "role": "assistant",
+    "payload": {
+     "job_id": "mdc_00368a393abd",
+     "kind": "refine",
+     "presentation_id": "pres-e2e",
+     "slide_index": 0,
+     "inserted_at_index": 0,
+     "presentation_url": null,
+     "real_slide_id": "R1-L0",
+     "replaced_slide_id": "L0",
+     "thumbnail_url": null,
+     "status": "built"
+    }
+   }
+  },
+  {
+   "seq": 6,
+   "direction": "out",
+   "frame": {
+    "message_id": "msg_slide_ready_d4c1a84b",
+    "session_id": "s_e2e",
+    "timestamp": "2026-10-25T00:39:44.080817Z",
+    "type": "slide_ready",
+    "role": "assistant",
+    "payload": {
+     "job_id": "mdc_517218b4e8e2",
+     "kind": "refine",
+     "presentation_id": "pres-e2e",
+     "slide_index": 1,
+     "inserted_at_index": 1,
+     "presentation_url": null,
+     "real_slide_id": "R2-L1",
+     "replaced_slide_id": "L1",
+     "thumbnail_url": null,
+     "status": "built"
+    }
+   }
+  },
+  {
+   "seq": 7,
+   "direction": "out",
+   "frame": {
+    "message_id": "msg_bep_d00bdc3f",
+    "session_id": "s_e2e",
+    "timestamp": "2026-10-25T00:39:44.082515Z",
+    "type": "bulk_edit_progress",
+    "role": "assistant",
+    "payload": {
+     "bulk_id": "bulk_b57cb3ac2fe9",
+     "slide_id": "L0",
+     "slide_index": 0,
+     "status": "done",
+     "reason": null
+    }
+   }
+  },
+  {
+   "seq": 8,
+   "direction": "out",
+   "frame": {
+    "message_id": "msg_dmut_ef902177",
+    "session_id": "s_e2e",
+    "timestamp": "2026-10-25T00:39:44.082541Z",
+    "type": "deck_mutation",
+    "role": "assistant",
+    "payload": {
+     "mutation": "slide_replaced",
+     "slide_index": 0,
+     "new_slide_index": null,
+     "presentation_id": "pres-e2e",
+     "presentation_url": "https://layout.synthetic.invalid/p/pres-e2e",
+     "refresh_token": "dm_2f0a5b88d445"
+    }
+   }
+  },
+  {
+   "seq": 9,
+   "direction": "out",
+   "frame": {
+    "message_id": "msg_bep_cd6552f5",
+    "session_id": "s_e2e",
+    "timestamp": "2026-10-25T00:39:44.084205Z",
+    "type": "bulk_edit_progress",
+    "role": "assistant",
+    "payload": {
+     "bulk_id": "bulk_b57cb3ac2fe9",
+     "slide_id": "L1",
+     "slide_index": 1,
+     "status": "done",
+     "reason": null
+    }
+   }
+  },
+  {
+   "seq": 10,
+   "direction": "out",
+   "frame": {
+    "message_id": "msg_dmut_595ef18a",
+    "session_id": "s_e2e",
+    "timestamp": "2026-10-25T00:39:44.084218Z",
+    "type": "deck_mutation",
+    "role": "assistant",
+    "payload": {
+     "mutation": "slide_replaced",
+     "slide_index": 1,
+     "new_slide_index": null,
+     "presentation_id": "pres-e2e",
+     "presentation_url": "https://layout.synthetic.invalid/p/pres-e2e",
+     "refresh_token": "dm_3f4762db1159"
+    }
+   }
+  },
+  {
+   "seq": 11,
+   "direction": "out",
+   "frame": {
+    "message_id": "msg_slide_ready_41813e5a",
+    "session_id": "s_e2e",
+    "timestamp": "2026-10-25T00:39:44.112615Z",
+    "type": "slide_ready",
+    "role": "assistant",
+    "payload": {
+     "job_id": "mdc_d064abc0ba1a",
+     "kind": "refine",
+     "presentation_id": "pres-e2e",
+     "slide_index": 2,
+     "inserted_at_index": 2,
+     "presentation_url": null,
+     "real_slide_id": "R3-L2",
+     "replaced_slide_id": "L2",
+     "thumbnail_url": null,
+     "status": "built"
+    }
+   }
+  },
+  {
+   "seq": 12,
+   "direction": "out",
+   "frame": {
+    "message_id": "msg_slide_ready_57fdc814",
+    "session_id": "s_e2e",
+    "timestamp": "2026-10-25T00:39:44.114364Z",
+    "type": "slide_ready",
+    "role": "assistant",
+    "payload": {
+     "job_id": "mdc_68aecc933903",
+     "kind": "refine",
+     "presentation_id": "pres-e2e",
+     "slide_index": 3,
+     "inserted_at_index": 3,
+     "presentation_url": null,
+     "real_slide_id": "R4-L3",
+     "replaced_slide_id": "L3",
+     "thumbnail_url": null,
+     "status": "built"
+    }
+   }
+  },
+  {
+   "seq": 13,
+   "direction": "out",
+   "frame": {
+    "message_id": "msg_bep_1d2acc29",
+    "session_id": "s_e2e",
+    "timestamp": "2026-10-25T00:39:44.116068Z",
+    "type": "bulk_edit_progress",
+    "role": "assistant",
+    "payload": {
+     "bulk_id": "bulk_b57cb3ac2fe9",
+     "slide_id": "L2",
+     "slide_index": 2,
+     "status": "done",
+     "reason": null
+    }
+   }
+  },
+  {
+   "seq": 14,
+   "direction": "out",
+   "frame": {
+    "message_id": "msg_dmut_f284bc1e",
+    "session_id": "s_e2e",
+    "timestamp": "2026-10-25T00:39:44.116087Z",
+    "type": "deck_mutation",
+    "role": "assistant",
+    "payload": {
+     "mutation": "slide_replaced",
+     "slide_index": 2,
+     "new_slide_index": null,
+     "presentation_id": "pres-e2e",
+     "presentation_url": "https://layout.synthetic.invalid/p/pres-e2e",
+     "refresh_token": "dm_f2ad893e23f5"
+    }
+   }
+  },
+  {
+   "seq": 15,
+   "direction": "out",
+   "frame": {
+    "message_id": "msg_bep_4144f835",
+    "session_id": "s_e2e",
+    "timestamp": "2026-10-25T00:39:44.117751Z",
+    "type": "bulk_edit_progress",
+    "role": "assistant",
+    "payload": {
+     "bulk_id": "bulk_b57cb3ac2fe9",
+     "slide_id": "L3",
+     "slide_index": 3,
+     "status": "done",
+     "reason": null
+    }
+   }
+  },
+  {
+   "seq": 16,
+   "direction": "out",
+   "frame": {
+    "message_id": "msg_dmut_5ce1e34e",
+    "session_id": "s_e2e",
+    "timestamp": "2026-10-25T00:39:44.117763Z",
+    "type": "deck_mutation",
+    "role": "assistant",
+    "payload": {
+     "mutation": "slide_replaced",
+     "slide_index": 3,
+     "new_slide_index": null,
+     "presentation_id": "pres-e2e",
+     "presentation_url": "https://layout.synthetic.invalid/p/pres-e2e",
+     "refresh_token": "dm_6c5b7d2607eb"
+    }
+   }
+  },
+  {
+   "seq": 17,
+   "direction": "out",
+   "frame": {
+    "message_id": "msg_slide_ready_6ed10677",
+    "session_id": "s_e2e",
+    "timestamp": "2026-10-25T00:39:44.132816Z",
+    "type": "slide_ready",
+    "role": "assistant",
+    "payload": {
+     "job_id": "mdc_8374c3a50bd9",
+     "kind": "refine",
+     "presentation_id": "pres-e2e",
+     "slide_index": 4,
+     "inserted_at_index": 4,
+     "presentation_url": null,
+     "real_slide_id": "R5-L4",
+     "replaced_slide_id": "L4",
+     "thumbnail_url": null,
+     "status": "built"
+    }
+   }
+  },
+  {
+   "seq": 18,
+   "direction": "out",
+   "frame": {
+    "message_id": "msg_bep_2e11b1ef",
+    "session_id": "s_e2e",
+    "timestamp": "2026-10-25T00:39:44.134505Z",
+    "type": "bulk_edit_progress",
+    "role": "assistant",
+    "payload": {
+     "bulk_id": "bulk_b57cb3ac2fe9",
+     "slide_id": "L4",
+     "slide_index": 4,
+     "status": "done",
+     "reason": null
+    }
+   }
+  },
+  {
+   "seq": 19,
+   "direction": "out",
+   "frame": {
+    "message_id": "msg_dmut_1643b93b",
+    "session_id": "s_e2e",
+    "timestamp": "2026-10-25T00:39:44.134519Z",
+    "type": "deck_mutation",
+    "role": "assistant",
+    "payload": {
+     "mutation": "slide_replaced",
+     "slide_index": 4,
+     "new_slide_index": null,
+     "presentation_id": "pres-e2e",
+     "presentation_url": "https://layout.synthetic.invalid/p/pres-e2e",
+     "refresh_token": "dm_84032864aa7c"
+    }
+   }
+  },
+  {
+   "seq": 20,
+   "direction": "out",
+   "frame": {
+    "message_id": "msg_bes_c9766ae2",
+    "session_id": "s_e2e",
+    "timestamp": "2026-10-25T00:39:44.136214Z",
+    "type": "bulk_edit_summary",
+    "role": "assistant",
+    "payload": {
+     "bulk_id": "bulk_b57cb3ac2fe9",
+     "done": 5,
+     "failed": 0,
+     "skipped": 0,
+     "total": 5
+    }
+   }
+  },
+  {
+   "seq": 21,
+   "direction": "out",
+   "frame": {
+    "message_id": "msg_c382e100",
+    "session_id": "s_e2e",
+    "timestamp": "2026-10-25T00:39:44.136236Z",
+    "type": "chat_message",
+    "role": "assistant",
+    "payload": {
+     "text": "Done. All 5 slides are changed: \"Shorten the title\".",
+     "sub_title": null,
+     "list_items": null,
+     "format": "markdown",
+     "ephemeral": false
+    }
+   }
+  },
+  {
+   "seq": 22,
+   "direction": "out",
+   "frame": {
+    "message_id": "msg_chg_c2b19481",
+    "session_id": "s_e2e",
+    "timestamp": "2026-10-25T00:39:44.141514Z",
+    "type": "change_recorded",
+    "role": "assistant",
+    "payload": {
+     "change_id": "chg_764d48ad851b",
+     "label": "Changed 5 slides",
+     "kind": "bulk_edit",
+     "presentation_id": "pres-e2e",
+     "undoable": true,
+     "anchor_message_id": "msg_c382e100"
+    }
+   }
+  }
+ ],
+ "refine_instructions": [
+  {
+   "slide_id": "L0",
+   "instruction": "Shorten the title. Change only the slide title; keep every other element, text and layout as they are."
+  },
+  {
+   "slide_id": "L1",
+   "instruction": "Shorten the title. Change only the slide title; keep every other element, text and layout as they are."
+  },
+  {
+   "slide_id": "L2",
+   "instruction": "Shorten the title. Change only the slide title; keep every other element, text and layout as they are."
+  },
+  {
+   "slide_id": "L3",
+   "instruction": "Shorten the title. Change only the slide title; keep every other element, text and layout as they are."
+  },
+  {
+   "slide_id": "L4",
+   "instruction": "Shorten the title. Change only the slide title; keep every other element, text and layout as they are."
+  }
+ ]
+}
