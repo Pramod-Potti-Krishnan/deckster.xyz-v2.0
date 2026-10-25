@@ -65,7 +65,7 @@ export const PHONE_SHELL_NAV_SCOPE_FILES = new Set([...PHONE_SHELL_NAV_FILES, ..
 export const PHONE_SHELL_NAV_ENV_BLOCK = `# STUDIO PHONE SHELL (FRONTEND-2; PK's phone review, 25 Oct, decisions A and B; two stacked PRs, ONE flag). On for the exact value "true" together with NEXT_PUBLIC_STUDIO_V4_SHELL; default off, and then nothing
 # changes: no element is drawn and no rule matches. Build-time value: change it on Vercel and redeploy. Phones only (640 px and narrower) unless said: tablets and desktops keep the rail. PR 1: the left icon rail
 # gives way to a bottom tab bar (Studio, Decks, Templates, Themes, More; the current tab in the accent colour, 44 x 48 px targets, above the home indicator's safe area); More is a sheet with Second brain,
-# Intelligence, Your details, Help and the account menu; the rail's brand tile (the new logo mark when NEXT_PUBLIC_STUDIO_NEW_LOGO is on) stays at the top left of the top bar; pages get bottom padding
+# Intelligence, Your details, Help and the account menu; the rail's brand tile (the new logo mark when the new-logo flag is on) stays at the top left of the top bar; pages get bottom padding
 # for the bar, and on /builder the bar steps aside while the Director prompt has focus. PR 2: the Builder top is one row (logo, a "..." menu with the deck title, the deck list, New deck, Export, Notes,
 # Thumbnails and the slide panel, then Publish) over today's Slides | Director switch, whose Director segment carries a connection dot; the separate "Director / Connected" row and the edge pull tabs go.
 # On desktop (PR 2) the Director panel's status line becomes a dot beside "Director", with words only when it is not connected.
