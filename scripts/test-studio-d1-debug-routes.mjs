@@ -18,7 +18,7 @@ import { execFileSync } from 'node:child_process'
 import { fileURLToPath } from 'node:url'
 import ts from 'typescript'
 import {
-  BASE_COMMIT, D1_BLOCKS, D1_DELETED, D1_GATE, D1_HELPERS, D1_IMPORTS, D1_NEW_FILES, D1_OWN_EDITS, D1_ROUTE, D1_SCOPE_FILES, D1_SUBJECT, stripD1DebugRoutes,
+  BASE_COMMIT, D1_BLOCKS, D1_DELETED, D1_GATE, D1_REMOVED_ROUTES, D1_HELPERS, D1_IMPORTS, D1_NEW_FILES, D1_OWN_EDITS, D1_ROUTE, D1_SCOPE_FILES, D1_SUBJECT, stripD1DebugRoutes,
 } from './studio-d1-debug-routes-strip.mjs'
 import { LATER_CHANGE_FILES, LATER_ENV_BLOCKS, LATER_STRIPS, stripLaterChanges } from './studio-later-changes.mjs'
 
@@ -48,6 +48,10 @@ const APP_DIRS = ['app', 'components', 'lib', 'hooks']
 const APP_FILES = ['middleware.ts', 'next.config.mjs', 'next.config.js', 'next.config.ts', 'vercel.json']
 
 // ---------------------------------------------------------------- 1. deleted
+// a route per app/**/page|route file, route groups dropped (the same rule as the legal-short-links proof)
+const routesOf = files => [...new Set(files
+  .filter(file => /^app\/(.*\/)?(page|route)\.(tsx|ts|jsx|js)$/.test(file))
+  .map(file => '/' + file.replace(/^app\//, '').replace(/(^|\/)(page|route)\.\w+$/, '').split('/').filter(segment => segment && !/^\(.*\)$/.test(segment)).join('/')))].sort()
 function proveDeleted() {
   for (const rel of D1_DELETED) {
     ok(!exists(rel), `deleted: ${rel} is not on disk`)
@@ -56,6 +60,13 @@ function proveDeleted() {
     ok(gitOk('cat-file', '-e', `${BASE}:${rel}`), `deleted: ${rel} was in the base`)
   }
   for (const rel of KEPT) eq(read(rel), baseOf(rel), `deleted: ${rel} (reviewed, left alone) is the base's, byte for byte`)
+  // the route list (the committed trees, with any in-memory mutation applied): the base's routes minus HEAD's are exactly D1's two (routes a later change ADDS, like #512's /terms and /privacy, are not removals)
+  const appFiles = ref => git('ls-tree', '-r', '--name-only', ref, '--', 'app').split('\n').filter(Boolean)
+  const headFiles = new Set(appFiles('HEAD'))
+  for (const [rel, text] of Object.entries(overrides)) if (rel.startsWith('app/')) { if (text === null) headFiles.delete(rel); else headFiles.add(rel) }
+  const before = routesOf(appFiles(BASE)), after = routesOf([...headFiles])
+  deep(before.filter(route => !after.includes(route)), D1_REMOVED_ROUTES, 'deleted: the route list loses exactly /api/debug/check-env and /api/test-env')
+  deep(routesOf(D1_DELETED), D1_REMOVED_ROUTES, 'deleted: and those are the routes the two deleted files served')
   let committed = ''
   try { committed = git('grep', '-l', '-I', '-E', '(^|[^A-Za-z0-9_-])(check-env|test-env)([^A-Za-z0-9_-]|$)', 'HEAD', '--', '.', ':!pnpm-lock.yaml', ':!package-lock.json') } catch { committed = '' }
   const links = new Set(committed.split('\n').filter(Boolean).map(line => line.replace(/^HEAD:/, '')))
@@ -260,7 +271,7 @@ function proveChange() {
   ok(LATER_STRIPS.includes(stripD1DebugRoutes), 'registry: the registry holds the strip')
   ok([...D1_SCOPE_FILES].every(rel => LATER_CHANGE_FILES.has(rel)), 'registry: the registry names every file of this change')
   ok(!LATER_ENV_BLOCKS.some(block => /D1 security hotfix|CRON_SECRET/.test(String(block))), 'registry: no env block')
-  deep([...D1_SCOPE_FILES].sort(), [D1_ROUTE, ...D1_DELETED, ...D1_NEW_FILES, ...D1_OWN_EDITS].sort(), 'scope: the change is the route, the two deleted routes, its two scripts, the registry and the three FRONTEND-2 pins\' tolerances')
+  deep([...D1_SCOPE_FILES].sort(), [D1_ROUTE, ...D1_DELETED, ...D1_NEW_FILES, ...D1_OWN_EDITS].sort(), 'scope: the change is the route, the two deleted routes, its two scripts, the registry and four FRONTEND-2 pins\' tolerances')
 }
 function proveScope() {
   // the COMMITTED diff only (BASE..HEAD): the working tree is never consulted (the suite writes into docs/)
@@ -271,8 +282,13 @@ function proveScope() {
   }
   deep([...own].sort(), [...D1_SCOPE_FILES].sort(), 'scope: the D1 commits touch exactly the D1 files')
   ok([...all].every(rel => LATER_CHANGE_FILES.has(rel)), `scope: every file committed since the base is a registered change's (strays: ${[...all].filter(rel => !LATER_CHANGE_FILES.has(rel)).join(', ') || 'none'})`)
-  const status = Object.fromEntries(git('diff', '--no-renames', '--name-status', BASE, 'HEAD', '--', ...D1_SCOPE_FILES).split('\n').filter(Boolean).map(line => line.split('\t').reverse()))
-  deep(Object.fromEntries([...D1_SCOPE_FILES].sort().map(rel => [rel, status[rel]])), Object.fromEntries([...D1_SCOPE_FILES].sort().map(rel => [rel, D1_DELETED.includes(rel) ? 'D' : D1_NEW_FILES.includes(rel) ? 'A' : 'M'])), 'scope: the two routes deleted, the two scripts added, the route and the registry modified')
+  // each file's status in the FIRST D1 commit that touches it (D1's own commits, oldest first): a file another change added after the base (#512's proof) is one D1 modifies
+  const status = {}
+  for (const block of git('log', '--reverse', '--no-merges', '--no-renames', '--name-status', '--format=%x01%s', `${BASE}..HEAD`).split('\x01').filter(Boolean)) {
+    const [subject, ...lines] = block.split('\n')
+    if (D1_SUBJECT.test(subject)) for (const line of lines.filter(Boolean)) { const [code, rel] = line.split('\t'); if (!(rel in status)) status[rel] = code }
+  }
+  deep(Object.fromEntries([...D1_SCOPE_FILES].sort().map(rel => [rel, status[rel]])), Object.fromEntries([...D1_SCOPE_FILES].sort().map(rel => [rel, D1_DELETED.includes(rel) ? 'D' : D1_NEW_FILES.includes(rel) ? 'A' : 'M'])), 'scope: the two routes deleted, the two scripts added, the route, the registry and the pins modified')
   // no credential-shaped literal in what this change adds (the patterns are built from pieces so this file does not match itself)
   const shapes = [['sk', '_(live|test)_[A-Za-z0-9]{8,}'], ['gh', 'p_[A-Za-z0-9]{20,}'], ['AK', 'IA[0-9A-Z]{16}'], ['-----BEGIN [A-Z ]*PRI', 'VATE KEY-----'], ['ey', 'J[A-Za-z0-9_-]{10,}\\.[A-Za-z0-9_-]{10,}'], ['xo', 'x[abps]-[A-Za-z0-9-]{10,}']].map(([a, b]) => new RegExp(a + b))
   const added = git('diff', '--no-renames', BASE, 'HEAD', '--', ...D1_SCOPE_FILES).split('\n').filter(line => line.startsWith('+') && !line.startsWith('+++')).join('\n')
@@ -312,6 +328,7 @@ const MUTANTS = [
   ['test-env restored', { [D1_DELETED[1]]: baseOf(D1_DELETED[1]) }],
   ['a new link to a removed route', { 'lib/d1-mutant-link.ts': "export const probe = () => fetch('/api/test-env')\n" }],
   ['a reviewed route touched', { [KEPT[0]]: `${baseOf(KEPT[0])}// touched\n` }],
+  ['another route removed', { 'app/api/version/route.ts': null }],
   ['the coupons isAdmin drifts', { [COUPONS]: read(COUPONS).replace('  return !!email && email === process.env.DEV_BYPASS_EMAIL', '  return !!email && email.toLowerCase() === process.env.DEV_BYPASS_EMAIL') }],
   ['a new flag read', swap('  const cronSecret = process.env.CRON_SECRET\n', "  const cronSecret = process.env.NEXT_PUBLIC_D1_GATE === 'off' ? '' : process.env.CRON_SECRET\n")],
   ['the registry loses the strip line', { [REGISTRY]: read(REGISTRY).split('\n').filter(line => !line.includes('.stripD1DebugRoutes, // LATER-CHANGE')).join('\n') }],
