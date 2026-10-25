@@ -14,6 +14,7 @@ import { askGatesLocked, lockApprovalGateStatuses } from '@/lib/director-ask-ide
 import { StudioRail } from '@/components/layout/studio-rail'
 import { StudioPhoneTabBar } from '@/components/layout/studio-phone-tab-bar' // PHONE-SHELL-NAV (NEXT_PUBLIC_STUDIO_PHONE_SHELL, default off): on a phone the rail gives way to a bottom tab bar
 import { STUDIO_PHONE_SHELL_ENABLED } from '@/lib/studio-phone-shell' // PHONE-SHELL-NAV
+import { StudioPhoneBuilderTop } from '@/components/builder/studio-phone-builder-top' // PHONE-SHELL-TOP (NEXT_PUBLIC_STUDIO_PHONE_SHELL, default off): on a phone one top row, the switch below it with a Director dot
 
 import { composerThemeSyncBlocked } from '@/lib/composer-theme-policy'
 
@@ -7129,6 +7130,7 @@ function AuthenticatedBuilderContent({ authScopeUserId }: { authScopeUserId: str
     <div data-studio-v4-shell={studioShell ? "true" : undefined} data-studio-v4-tokens={process.env.NEXT_PUBLIC_STUDIO_V4_TOKENS === 'true' ? 'true' : undefined} className="flex h-screen w-screen overflow-hidden bg-white text-slate-900 dark:bg-slate-900 dark:text-slate-100">
       {studioShell && <StudioRail homeHref="https://deckster.xyz" sessionUsage={<TokenUsageStrip tokenUsage={tokenUsage} displayMode="counter" />} />}
       {STUDIO_PHONE_SHELL_ENABLED && <StudioPhoneTabBar sessionUsage={<TokenUsageStrip tokenUsage={tokenUsage} displayMode="counter" />} />}{/* PHONE-SHELL-NAV: NEXT_PUBLIC_STUDIO_PHONE_SHELL (default off), drawn next to the rail; shown at 640 px and narrower only */}
+      {STUDIO_PHONE_SHELL_ENABLED && <StudioPhoneBuilderTop connectionState={connectionState} reconnectStatus={reconnectStatus} />}{/* PHONE-SHELL-TOP: NEXT_PUBLIC_STUDIO_PHONE_SHELL (default off); draws nothing here: the "..." menu and the Director dot are portalled into row 1 and row 2 */}
       {studioShell && !effectivePresentationUrl && !session.isLoadingSession && workflowKey !== dismissedWorkflowKey && <>
         <ThemePanel isOpen={workflowAction === 'theme' && !savedThemeWorkflowId} onClose={() => setDismissedWorkflowKey(workflowKey)} presentationId={null} buildThemeSelection={buildThemeSelection} themeSync={themeSync} selectionLocked={generationSelectionsLocked} onBuildThemeChange={handleBuildThemeChange} />
         <Dialog open={workflowAction === 'templates' || workflowAction === 'master'} onOpenChange={open => { if (!open) setDismissedWorkflowKey(workflowKey) }}>
