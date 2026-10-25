@@ -29,6 +29,7 @@ import { createRequire } from 'node:module'
 import { execFileSync } from 'node:child_process'
 import ts from 'typescript'
 import postcss from 'postcss'
+import { stripLaterChanges } from './studio-later-changes.mjs' // FRONTEND-2's registry: a later registered change's lines (D1 in the cleanup-sessions route) come out before the byte pin
 
 // the time zone of the admin's browser in every date check below (the machine's own would make the expiry and the "Expires" words depend on where this runs)
 process.env.TZ = 'America/New_York'
@@ -1657,7 +1658,7 @@ function proveIdentity(label = 'identity') {
   // what the admin pages call or are guarded by that this change does not touch: the old pages, the approval and clean-up routes, the redeem route, the session options, the root layout. (The three list / coupon
   // routes and the middleware ARE changed, behind the flag: their flag-off identity is proved by running them against the base commit's, in proveRoutes and proveMiddleware.)
   for (const rel of [PAGE_USERS, PAGE_COUPONS, ROUTE_APPROVE, 'app/api/admin/cleanup-sessions/route.ts', 'app/api/coupons/redeem/route.ts', 'lib/auth-options.ts', 'app/layout.tsx']) {
-    eq(read(rel), baseSource(rel), `${label}: ${rel} is the base commit's file, byte for byte`)
+    eq(rel === 'app/api/admin/cleanup-sessions/route.ts' ? stripLaterChanges(rel, read(rel)) : read(rel), baseSource(rel), `${label}: ${rel} is the base commit's file, byte for byte`)
   }
   deepEq(fs.readdirSync(path.join(repoRoot, 'app/admin/users')).sort(), ['layout.tsx', 'page.tsx'], `${label}: app/admin/users holds the page and the layout`)
   deepEq(fs.readdirSync(path.join(repoRoot, 'app/admin/coupons')).sort(), ['layout.tsx', 'page.tsx'], `${label}: app/admin/coupons holds the page and the layout`)
