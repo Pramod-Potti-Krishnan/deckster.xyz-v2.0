@@ -4,6 +4,7 @@ import fs from 'node:fs'
 import vm from 'node:vm'
 import { execFileSync } from 'node:child_process'
 import ts from 'typescript'
+import { stripLaterChanges } from './studio-later-changes.mjs' // LATER-CHANGES: registry read (PASS3-POLISH-B)
 
 // Blocked-send feedback (flag NEXT_PUBLIC_STUDIO_BLOCKED_SEND_FEEDBACK_ENABLED, default off).
 // Runs the REAL Builder gate (`preflightDirectorTurn`) and the REAL typed handler
@@ -146,7 +147,7 @@ check('leaf: one alert with the exact text, dismiss only when handed a handler',
 })
 
 // ---------------------------------------------------------------- the real gate and handler
-const pageText = read('app/builder/page.tsx')
+const pageText = stripLaterChanges('app/builder/page.tsx', read('app/builder/page.tsx')) // LATER-CHANGES: registry read (PASS3-POLISH-B)
 const basePage = parse('base-page.tsx', execFileSync('git', ['show', `${BASE}:app/builder/page.tsx`], { encoding: 'utf8', cwd: new URL('..', import.meta.url).pathname, maxBuffer: 64 * 1024 * 1024 }))
 const page = parse('page.tsx', pageText)
 assert.equal(page.parseDiagnostics.length, 0, 'Builder syntax')
