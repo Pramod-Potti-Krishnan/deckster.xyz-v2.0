@@ -56,6 +56,7 @@ const OLDER_PROOF_EDITS = {
   [POLISH_F_PROOF]: { removed: /^-    nomatch\(git\('diff', '--name-status'/, added: 3, about: /LATER_CHANGE_FILES|modified|later/, topic: 'the files of a later registered change' },
 }
 const HEADER_SOURCE = '/marketing/v3/slides/:path*'
+const HEADER_SOURCE_UAT_COPY = '/marketing/v3-uat/slides/:path*' // where NEXT_PUBLIC_STUDIO_UAT_MARKETING serves its stills
 const HEADER_VALUE = 'public, max-age=86400, stale-while-revalidate=604800'
 const NOT_FOUND = 'NEXT_HTTP_ERROR_FALLBACK;404'
 const OFF_SPELLINGS = [undefined, '', 'false', '0', '1', 'TRUE', 'True', ' true', 'true '] // nine spellings that are not the exact value "true"
@@ -92,7 +93,7 @@ function compile(rel, text) {
 }
 function loadHelper(text) {
   const module = { exports: {} }
-  vm.runInNewContext(compile(HELPER, text), { module, exports: module.exports, require: spec => { throw new Error(`unexpected import ${spec} in ${HELPER}`) }, process: { env: {} } }, { filename: HELPER })
+  vm.runInNewContext(compile(HELPER, text), { module, exports: module.exports, require: spec => { throw new Error(`unexpected import ${spec} in ${HELPER}`) }, process: { env: {} }, URLSearchParams }, { filename: HELPER })
   return module.exports
 }
 function loadPage(rel, text, helper, env, redirectFn = redirect) {
@@ -106,42 +107,85 @@ function loadPage(rel, text, helper, env, redirectFn = redirect) {
   return module.exports
 }
 /** What a visit does: the digest Next's redirect() / notFound() throws ("NEXT_REDIRECT;replace;<url>;307;" / "NEXT_HTTP_ERROR_FALLBACK;404"), or what the page returned. */
-function visit(rel, text, helper, env) {
+async function visit(rel, text, helper, env, searchParams = {}) {
   const mod = loadPage(rel, text, helper, env)
-  try { return { returned: mod.default() } } catch (error) { return { digest: error?.digest ?? `threw ${String(error?.message ?? error)}` } }
+  try { return { returned: await mod.default({ searchParams: Promise.resolve(searchParams) }) } } catch (error) { return { digest: error?.digest ?? `threw ${String(error?.message ?? error)}` } }
 }
+/** The query string cases: what a request carries, and the query string the redirect must carry (the request's OWN search parameters, percent-encoded, nothing else). */
+const INHERITED = Object.assign(Object.create({ inherited: 'x' }), { x: '1' })
+const QUERY_CASES = [
+  [{ x: '1' }, '?x=1'],
+  [{ a: '1', b: '2' }, '?a=1&b=2'],
+  [{ b: '2', a: '1' }, '?b=2&a=1'],
+  [{ tag: ['a', 'b'] }, '?tag=a&tag=b'],
+  [{ q: 'a b' }, '?q=a+b'],
+  [{ q: 'a&b=c#d' }, '?q=a%26b%3Dc%23d'],
+  [{ q: 'a;b' }, '?q=a%3Bb'],
+  [{ next: '//evil.example/x' }, '?next=%2F%2Fevil.example%2Fx'],
+  [{ next: 'https://evil.example' }, '?next=https%3A%2F%2Fevil.example'],
+  [{ next: '/legal/../../admin' }, '?next=%2Flegal%2F..%2F..%2Fadmin'],
+  [{ 'a=b': '1' }, '?a%3Db=1'],
+  [{ 'x y': 'z' }, '?x+y=z'],
+  [{ x: '' }, '?x='],
+  [{ q: '\r\nSet-Cookie: a=b' }, '?q=%0D%0ASet-Cookie%3A+a%3Db'],
+  [{ q: '\u00e9' }, '?q=%C3%A9'],
+  [{ q: '%2e%2e' }, '?q=%252e%252e'],
+  [{ x: undefined }, ''],
+  [{ n: 5 }, ''],
+  [{ a: ['1', 2] }, '?a=1'],
+  [{}, ''],
+  [INHERITED, '?x=1'], // a parameter the request did not carry is never echoed
+]
+const pairsOf = params => Object.entries(params).flatMap(([name, value]) => (typeof value === 'string' ? [[name, value]] : Array.isArray(value) ? value.filter(item => typeof item === 'string').map(item => [name, item]) : []))
 /** The text without comments (a comment may talk about process.env and imports). */
 const codeOf = text => text.replace(/\/\*[\s\S]*?\*\//g, '').split('\n').filter(line => !line.trim().startsWith('//')).join('\n')
 const envOf = value => (value === undefined ? {} : { [FLAG]: value })
 
 // ---------------------------------------------------------------- 1. the pages
-function provePages(at = '', ctx = {}) {
+async function provePages(at = '', ctx = {}) {
   const a = message => (at ? `${at}: pages: ${message}` : `pages: ${message}`)
   const helperText = read(HELPER), helper = loadHelper(helperText)
   const outcomes = []
   for (const [name, page] of Object.entries(PAGES)) {
     const text = read(page.file)
     for (const spelling of OFF_SPELLINGS) {
-      const out = visit(page.file, text, helper, envOf(spelling))
+      const out = await visit(page.file, text, helper, envOf(spelling))
       eq(out.digest, NOT_FOUND, a(`${page.from}: the flag ${JSON.stringify(spelling)} is off: the not-found page (404), no redirect`))
       outcomes.push(out.digest)
+      const withQuery = await visit(page.file, text, helper, envOf(spelling), { x: '1', tag: ['a', 'b'] })
+      eq(withQuery.digest, NOT_FOUND, a(`${page.from}: the flag ${JSON.stringify(spelling)} is off: a query string changes nothing, still the not-found page`))
+      outcomes.push(withQuery.digest)
     }
     // another flag set alone does not turn it on (the sign-in links' own flag, the legal pages' title flag)
     for (const other of ['NEXT_PUBLIC_LEGAL_LINKS_FIXED_ENABLED', 'NEXT_PUBLIC_STUDIO_P2_DOCS', 'NEXT_PUBLIC_STUDIO_V4_SHELL']) {
-      const out = visit(page.file, text, helper, { [other]: 'true' })
+      const out = await visit(page.file, text, helper, { [other]: 'true' }, { x: '1' })
       eq(out.digest, NOT_FOUND, a(`${page.from}: ${other} alone does not turn it on`))
       outcomes.push(out.digest)
     }
-    const on = visit(page.file, text, helper, envOf('true'))
+    const on = await visit(page.file, text, helper, envOf('true'))
     eq(on.digest, `NEXT_REDIRECT;replace;${page.to};307;`, a(`${page.from}: the flag "true": a redirect to ${page.to}, HTTP 307 (temporary, as uat's permanent: false), replace`))
     eq(helper.studioLegalShortLinkTarget(name, 'true'), page.to, a(`${page.from}: the helper's target with the flag on`))
+    eq(helper.studioLegalShortLinkTarget(name, 'true', {}), page.to, a(`${page.from}: the helper's target with the flag on and no query`))
     eq(helper.studioLegalShortLinkTarget(name, undefined), null, a(`${page.from}: the helper's target with the flag unset`))
+    eq(helper.studioLegalShortLinkTarget(name, undefined, { x: '1' }), null, a(`${page.from}: the helper's target with the flag unset and a query`))
+    // the query string: the request's own search parameters, percent-encoded, and nothing else
+    for (const [params, query] of QUERY_CASES) {
+      const carried = await visit(page.file, text, helper, envOf('true'), params)
+      eq(carried.digest, `NEXT_REDIRECT;replace;${page.to}${query};307;`, a(`${page.from}: ?${JSON.stringify(params)} is carried as ${JSON.stringify(query)} (HTTP 307, to ${page.to} and nowhere else)`))
+      eq(helper.studioLegalShortLinkQuery(params), query, a(`${page.from}: the helper's query for ${JSON.stringify(params)}`))
+      deep([...new URLSearchParams(query.slice(1)).entries()], pairsOf(params), a(`${page.from}: the carried query parses back to exactly the request's own parameters, in order (${JSON.stringify(params)})`))
+      nomatch(query, /[\r\n#\s;]|\/\/|^\?.*\?/, a(`${page.from}: the carried query has no raw whitespace, line break, fragment, semicolon, second query mark or protocol-relative path`))
+      ok(carried.digest.startsWith(`NEXT_REDIRECT;replace;${page.to}`) && /^(\?|;)/.test(carried.digest.slice(`NEXT_REDIRECT;replace;${page.to}`.length)), a(`${page.from}: the path part is ${page.to}, whatever the query`))
+    }
+    eq(await visit(page.file, text, helper, envOf('true'), null).then(out => out.digest), `NEXT_REDIRECT;replace;${page.to};307;`, a(`${page.from}: no search parameters object at all is no query`))
     // the page's structure
     nomatch(text, /use client/, a(`${page.file}: a server component`))
     eq((codeOf(text).match(/process\.env/g) || []).length, 1, a(`${page.file}: reads the environment once`))
     eq((codeOf(text).match(/process\.env\.NEXT_PUBLIC_STUDIO_LEGAL_SHORT_LINKS\b/g) || []).length, 1, a(`${page.file}: and that read is the flag, written inline (Next inlines NEXT_PUBLIC_ values at build time)`))
     match(text, /export const dynamic = 'force-dynamic'/, a(`${page.file}: dynamic: the redirect / not-found is decided per request, not prerendered`))
-    match(text, new RegExp(`export default function ${page.fn}\\(\\) \\{`), a(`${page.file}: a plain function component with no props (no params, no searchParams)`))
+    match(text, new RegExp(`export default async function ${page.fn}\\(\\{ searchParams \\}: \\{ searchParams: Promise<StudioLegalShortLinkSearchParams> \\}\\) \\{`), a(`${page.file}: an async function component taking searchParams as a Promise (Next 15) and nothing else (no params)`))
+    eq((codeOf(text).match(/searchParams/g) || []).length, 3, a(`${page.file}: searchParams is destructured once, typed once and awaited once`))
+    match(text, /studioLegalShortLinkTarget\('(terms|privacy)', process\.env\.NEXT_PUBLIC_STUDIO_LEGAL_SHORT_LINKS, await searchParams\)/, a(`${page.file}: the awaited search parameters go to the helper, and to nothing else`))
     match(text, /import \{ notFound, redirect \} from 'next\/navigation'/, a(`${page.file}: the framework's notFound and redirect (a temporary redirect, not permanentRedirect)`))
     nomatch(text, /permanentRedirect|NextResponse|headers\(\)|cookies\(\)|getServerSession|fetch\(/, a(`${page.file}: no permanent redirect, no request, no session`))
     ok(fs.existsSync(path.join(root, name === 'terms' ? 'app/legal/terms/page.tsx' : 'app/legal/privacy/page.tsx')), a(`${page.to} is a page that exists`))
@@ -151,7 +195,7 @@ function provePages(at = '', ctx = {}) {
   for (const spelling of OFF_SPELLINGS) eq(helper.studioLegalShortLinksOn(spelling), false, a(`the helper: ${JSON.stringify(spelling)} is off`))
   eq(helper.studioLegalShortLinksOn('true'), true, a('the helper: exactly "true" is on'))
   eq(helper.studioLegalShortLinksOn(null), false, a('the helper: null is off'))
-  nomatch(codeOf(helperText), /process\.env|^import |\bimport\(|\brequire\(/m, a('the helper is import-free and reads no environment (the callers pass the value)'))
+  nomatch(codeOf(helperText), /process\.env|^import |\bimport\(|\brequire\(|\bwindow\b|\bdocument\b|\blocation\b|\bnavigator\b|\bcookies\b|\bheaders\b/m, a('the helper is import-free and reads no environment, no browser global, no cookie, no header (the callers pass the value and the search parameters)'))
   // uat's own redirects: the same two pairs, temporary
   const uatRedirects = (ctx.uat ?? UAT)?.redirects ?? UAT_LITERAL.redirects
   for (const page of Object.values(PAGES)) {
@@ -181,11 +225,20 @@ function proveHeader(at = '', ctx = {}) {
   ok(uatEntry, a('uat has the entry'))
   deep(mine[0], uatEntry, a('byte equal to uat\'s headers() entry (read from uat\'s next.config.mjs): the same source, the same key, the same value'))
   eq(JSON.stringify(mine[0].headers), JSON.stringify(uatEntry.headers), a('and the same serialisation'))
-  eq(json.headers.length, base.headers.length + 1, a('one entry more than the base'))
-  deep(json.headers.filter(h => h.source !== HEADER_SOURCE), base.headers, a('every other headers entry (the /api CORS entry) is the base\'s'))
+  // the same header for the UAT marketing copy of the stills (NEXT_PUBLIC_STUDIO_UAT_MARKETING on: that is where UAT's design reads them): same value, unflagged
+  const copy = json.headers.filter(h => h.source === HEADER_SOURCE_UAT_COPY)
+  eq(copy.length, 1, a(`exactly one entry for ${HEADER_SOURCE_UAT_COPY}`))
+  deep(copy[0], { source: HEADER_SOURCE_UAT_COPY, headers: UAT_LITERAL.header.headers }, a('it is the same single Cache-Control header, nothing else'))
+  eq(JSON.stringify(copy[0].headers), JSON.stringify(uatEntry.headers), a('and byte equal to uat\'s header list (the same key and value, serialised alike)'))
+  eq(copy[0].headers[0].value, HEADER_VALUE, a('the same value'))
+  ok(fs.existsSync(path.join(root, 'public/marketing/v3-uat/slides/deck-01.jpg')) && fs.existsSync(path.join(root, 'public/marketing/v3/slides/deck-01.jpg')), a('both stills folders exist in public/'))
+  match(read('components/marketing/v3-uat/home/Gallery.tsx'), /\/marketing\/v3-uat\/slides\/deck-/, a('and the UAT marketing components read their stills from /marketing/v3-uat/slides/'))
+  eq(json.headers.length, base.headers.length + 2, a('two entries more than the base'))
+  deep(json.headers.filter(h => h.source !== HEADER_SOURCE && h.source !== HEADER_SOURCE_UAT_COPY), base.headers, a('every other headers entry (the /api CORS entry) is the base\'s'))
   deep(Object.fromEntries(Object.entries(json).filter(([key]) => key !== 'headers')), Object.fromEntries(Object.entries(base).filter(([key]) => key !== 'headers')), a('and every other key of vercel.json (redirects, crons, functions, git ...) is the base\'s'))
-  eq(JSON.stringify(json.headers.slice(0, base.headers.length)), JSON.stringify(base.headers), a('the new entry comes after the base\'s, so the base entries keep their order'))
-  nomatch(text, /v3-uat/, a('the /marketing/v3-uat stills (the UAT marketing copy) are not named: the brief asks for /marketing/v3/slides only'))
+  eq(JSON.stringify(json.headers.slice(0, base.headers.length)), JSON.stringify(base.headers), a('the new entries come after the base\'s, so the base entries keep their order'))
+  deep(json.headers.slice(base.headers.length).map(h => h.source), [HEADER_SOURCE, HEADER_SOURCE_UAT_COPY], a('in this order: the stills uat sets it on, then the UAT marketing copy'))
+  eq((text.match(/v3-uat/g) || []).length, 1, a('/marketing/v3-uat is named once, in that entry, and no other marketing path is'))
   nomatch(text, /STUDIO_LEGAL_SHORT_LINKS/, a('vercel.json does not name the flag (a deploy config cannot read it)'))
 }
 
@@ -244,6 +297,9 @@ function proveEnv(text, at = '') {
   match(LEGAL_SHORT_LINKS_ENV_BLOCK, /^# STUDIO LEGAL SHORT LINKS \(FRONTEND-2; PROGRAM-1 decision D16 a, 25 Oct\)\. On for the exact value "true"; default off/, a('the comment says exact "true", default off'))
   match(LEGAL_SHORT_LINKS_ENV_BLOCK, /Set it to "true" on UAT and on production for parity with `uat`/, a('the comment says where to set it'))
   match(LEGAL_SHORT_LINKS_ENV_BLOCK, /Build-time value: change it on Vercel and redeploy/, a('and that it is a build-time value'))
+  match(LEGAL_SHORT_LINKS_ENV_BLOCK, /the request's own query string is carried to the legal page/, a('and that the query string is carried'))
+  nomatch(LEGAL_SHORT_LINKS_ENV_BLOCK, /UAT_MARKETING|P2_(?:LANDING|DOCS|ACCOUNT|POLISH)/, a('the block names no other flag (the UAT marketing proof refuses a later line that names its flag)'))
+  match(LEGAL_SHORT_LINKS_ENV_BLOCK, /\/marketing\/v3\/slides\/\* and on \/marketing\/v3-uat\/slides\/\*/, a('and that the header is on both stills folders'))
   ok(LEGAL_SHORT_LINKS_ENV_BLOCK.endsWith(`${FLAG}="false"\n`), a('the block ends with the assignment'))
   eq(stripLaterEnvBlocks(ENV, text), stripLaterEnvBlocks(ENV, baseOf(ENV)), a('without the registered blocks the file is the base commit\'s .env.example'))
   ok(text.startsWith(baseOf(ENV).replace(/\n+$/, '\n')), a('and the base\'s lines are all still there, in order, ahead of this block'))
@@ -317,8 +373,8 @@ function proveSecretScan(at = '') {
 }
 
 // ---------------------------------------------------------------- run everything
-function proveAll(at = '', ctx = {}) {
-  const pages = provePages(at, ctx)
+async function proveAll(at = '', ctx = {}) {
+  const pages = await provePages(at, ctx)
   proveHeader(at, ctx)
   proveNotPorted(at, ctx)
   proveUntouched(at)
@@ -330,8 +386,8 @@ function proveAll(at = '', ctx = {}) {
   return { pages, routes }
 }
 ok(git('merge-base', '--is-ancestor', BASE, 'HEAD') === '', 'the base commit is an ancestor of HEAD')
-const { pages, routes } = proveAll()
-console.log(`flag off: both pages are the not-found page (404) in ${pages.states} runs (9 spellings x 2 pages, and 3 other flags set alone x 2; sha256 ${pages.sha.slice(0, 16)}); flag "true": a 307 to /legal/terms and /legal/privacy`)
+const { pages, routes } = await proveAll()
+console.log(`flag off: both pages are the not-found page (404) in ${pages.states} runs (9 spellings x 2 pages, each with and without a query string, and 3 other flags set alone x 2; sha256 ${pages.sha.slice(0, 16)}); flag "true": a 307 to /legal/terms and /legal/privacy`)
 console.log(`routes: ${routes.before} -> ${routes.after} (+/terms, +/privacy); uat's next.config.mjs ${UAT ? `read at ${UAT_COMMIT.slice(0, 8)} via git show` : `NOT in this clone: only the literals were compared`}`)
 console.log(`PASS pages, header, not ported, untouched, routes, env, registry, scope: ${checks} checks`)
 
@@ -345,9 +401,9 @@ async function mutant(name, edits, { ctx = {}, committed = null, routeFiles = nu
     for (const [rel, from, to, mode] of edits) {
       const source = read(rel), n = source.split(from).length - 1
       assert.ok(mode ? n >= 1 : n === 1, `mutant "${name}" no longer applies to ${rel}: ${from.slice(0, 70)}`)
-      overrides[rel] = mode === 'all' ? source.split(from).join(to) : source.replace(from, () => to)
+      if (mode === 'last') { const at = source.lastIndexOf(from); overrides[rel] = source.slice(0, at) + to + source.slice(at + from.length) } else overrides[rel] = mode === 'all' ? source.split(from).join(to) : source.replace(from, () => to)
     }
-    proveAll(name, ctx)
+    await proveAll(name, ctx)
   } catch (error) {
     if (/no longer applies/.test(String(error.message))) throw error
     killed.push(name); if (process.env.LEGAL_SHORT_LINKS_VERBOSE) console.log(`  killed: ${name}\n    by: ${String(error.message).split('\n')[0].slice(0, 170)}`); return
@@ -378,36 +434,70 @@ await mutant('helper: default on', [page(HELPER, "return value === 'true'", "ret
 await mutant('helper: always on', [page(HELPER, "return value === 'true'", 'return true')])
 await mutant('helper: reads the environment itself', [page(HELPER, "return value === 'true'", "return (value ?? process.env.NEXT_PUBLIC_STUDIO_LEGAL_SHORT_LINKS) === 'true'")])
 await mutant('helper: imports something', [page(HELPER, '/** Exact "true" turns it on.', "import { x } from 'y'\n/** Exact \"true\" turns it on.")])
-await mutant('helper: the null case is on', [page(HELPER, "return studioLegalShortLinksOn(value) ? STUDIO_LEGAL_SHORT_LINKS[page].destination : null", "return studioLegalShortLinksOn(value) ? STUDIO_LEGAL_SHORT_LINKS[page].destination : '/legal/terms'")])
-await mutant('terms page: reads the sign-in links flag instead', [page(TERMS, 'process.env.NEXT_PUBLIC_STUDIO_LEGAL_SHORT_LINKS)', 'process.env.NEXT_PUBLIC_LEGAL_LINKS_FIXED_ENABLED)')])
-await mutant('privacy page: reads the environment through a variable (not inlined at build)', [page(PRIVACY, "studioLegalShortLinkTarget('privacy', process.env.NEXT_PUBLIC_STUDIO_LEGAL_SHORT_LINKS)", "studioLegalShortLinkTarget('privacy', (process.env as Record<string, string | undefined>)['NEXT_PUBLIC_STUDIO_LEGAL_SHORT_LINKS'])")])
+await mutant('helper: the null case is on', [page(HELPER, '(searchParams)}` : null', "(searchParams)}` : '/legal/terms'")])
+await mutant('terms page: reads the sign-in links flag instead', [page(TERMS, 'process.env.NEXT_PUBLIC_STUDIO_LEGAL_SHORT_LINKS,', 'process.env.NEXT_PUBLIC_LEGAL_LINKS_FIXED_ENABLED,')])
+await mutant('privacy page: reads the environment through a variable (not inlined at build)', [page(PRIVACY, 'process.env.NEXT_PUBLIC_STUDIO_LEGAL_SHORT_LINKS, await searchParams)', "(process.env as Record<string, string | undefined>)['NEXT_PUBLIC_STUDIO_LEGAL_SHORT_LINKS'], await searchParams)")])
 await mutant('terms page: becomes a client component', [page(TERMS, "import { notFound, redirect }", "'use client'\nimport { notFound, redirect }")])
 await mutant('privacy page: loses force-dynamic', [page(PRIVACY, "export const dynamic = 'force-dynamic'\n\n", '')])
-await mutant('terms page: takes params', [page(TERMS, 'export default function TermsShortLink() {', 'export default function TermsShortLink(props: { params: Promise<{ x: string }> }) {')])
+await mutant('terms page: takes params', [page(TERMS, '{ searchParams }: { searchParams: Promise<StudioLegalShortLinkSearchParams> }', '{ searchParams, params }: { searchParams: Promise<StudioLegalShortLinkSearchParams>; params: Promise<{ x: string }> }')])
 await mutant('terms page: reads a second variable', [page(TERMS, "  if (target === null) notFound()", "  if (target === null || process.env.NODE_ENV === 'x') notFound()")])
 await mutant('privacy page: checks the session', [page(PRIVACY, "import { notFound, redirect } from 'next/navigation'", "import { notFound, redirect } from 'next/navigation'\nimport { getServerSession } from 'next-auth'")])
+// the query string
+const HQ = "const text = query.toString()\n  return text === '' ? '' : `?${text}`"
+await mutant('query: terms ignores the request\'s parameters', [page(TERMS, ', await searchParams)', ')')])
+await mutant('query: privacy ignores the request\'s parameters', [page(PRIVACY, ', await searchParams)', ')')])
+await mutant('query: terms passes the promise un-awaited', [page(TERMS, ', await searchParams)', ', searchParams as unknown as StudioLegalShortLinkSearchParams)')])
+await mutant('query: privacy reads a different prop', [page(PRIVACY, '({ searchParams }: { searchParams: Promise<', '({ params }: { params: Promise<')])
+await mutant('query: the page is not async', [page(TERMS, 'export default async function', 'export default function')])
+await mutant('query: raw concatenation (no encoding)', [page(HELPER, HQ, "const text = Object.entries(searchParams ?? {}).map(([name, value]) => `${name}=${value}`).join('&')\n  return text === '' ? '' : `?${text}`")])
+await mutant('query: encodeURI instead of URLSearchParams', [page(HELPER, HQ, "const text = Object.entries(searchParams ?? {}).map(([name, value]) => encodeURI(`${name}=${value}`)).join('&')\n  return text === '' ? '' : `?${text}`")])
+await mutant('query: a repeated parameter keeps only its first value', [page(HELPER, 'for (const item of value) if (typeof item === \'string\') query.append(name, item)', 'if (typeof value[0] === \'string\') query.append(name, value[0])')])
+await mutant('query: a repeated parameter is dropped', [page(HELPER, '    else if (Array.isArray(value)) for (const item of value) if (typeof item === \'string\') query.append(name, item)\n', '')])
+await mutant('query: a non-string value is echoed', [page(HELPER, "if (typeof value === 'string') query.append(name, value)", "if (typeof value === 'string' || typeof value === 'number') query.append(name, String(value))")])
+await mutant('query: an extra parameter is added', [page(HELPER, HQ, "query.append('from', 'short')\n  const text = query.toString()\n  return `?${text}`")])
+await mutant('query: inherited parameters are echoed (for in)', [page(HELPER, 'for (const [name, value] of Object.entries(searchParams)) {', 'for (const name in searchParams) {\n    const value = searchParams[name]')])
+await mutant('query: a bare question mark when there is no query', [page(HELPER, "return text === '' ? '' : `?${text}`", 'return `?${text}`')])
+await mutant('query: the query is put into the path', [page(HELPER, '`${STUDIO_LEGAL_SHORT_LINKS[page].destination}${studioLegalShortLinkQuery(searchParams)}`', '`${STUDIO_LEGAL_SHORT_LINKS[page].destination}${studioLegalShortLinkQuery(searchParams).replace(\'?\', \'/\')}`')])
+await mutant('query: a fragment is added', [page(HELPER, "return text === '' ? '' : `?${text}`", "return text === '' ? '' : `?${text}#top`")])
+await mutant('query: the flag off with a query still redirects', [page(HELPER, 'return studioLegalShortLinksOn(value) ? `', 'return studioLegalShortLinksOn(value) || searchParams ? `')])
+await mutant('query: the destination comes from the request', [page(HELPER, '`${STUDIO_LEGAL_SHORT_LINKS[page].destination}${studioLegalShortLinkQuery(searchParams)}`', '`${(searchParams as any)?.next ?? STUDIO_LEGAL_SHORT_LINKS[page].destination}${studioLegalShortLinkQuery(searchParams)}`')])
+await mutant('query: the helper reads the request itself', [page(HELPER, 'const query = new URLSearchParams()', "const query = new URLSearchParams(typeof window === 'undefined' ? '' : window.location.search)")])
 await mutant('uat parity: uat redirects /terms elsewhere', [], { ctx: { uat: { redirects: [{ source: '/terms', destination: '/legal/privacy', permanent: false }, UAT_LITERAL.redirects[1]], headers: [UAT_LITERAL.header] } } })
 await mutant('uat parity: uat\'s redirect is permanent', [], { ctx: { uat: { redirects: UAT_LITERAL.redirects.map(r => ({ ...r, permanent: true })), headers: [UAT_LITERAL.header] } } })
 // the header
 const V = read(VERCEL)
-await mutant('header: one hour, not one day', [page(VERCEL, 'max-age=86400', 'max-age=3600')])
-await mutant('header: a day of stale-while-revalidate, not a week', [page(VERCEL, 'stale-while-revalidate=604800', 'stale-while-revalidate=86400')])
-await mutant('header: no stale-while-revalidate', [page(VERCEL, ', stale-while-revalidate=604800', '')])
-await mutant('header: private, not public', [page(VERCEL, '"public, max-age=86400', '"private, max-age=86400')])
-await mutant('header: immutable', [page(VERCEL, 'stale-while-revalidate=604800"', 'stale-while-revalidate=604800, immutable"')])
+// the stills uat sets it on (the first occurrence in vercel.json) and the UAT marketing copy (the last): each value is mutated on its own
+for (const [which, mode] of [['v3 entry', 'first'], ['UAT copy', 'last']]) {
+  await mutant(`header: ${which}: one hour, not one day`, [[VERCEL, 'max-age=86400', 'max-age=3600', mode]])
+  await mutant(`header: ${which}: a day of stale-while-revalidate, not a week`, [[VERCEL, 'stale-while-revalidate=604800', 'stale-while-revalidate=86400', mode]])
+  await mutant(`header: ${which}: no stale-while-revalidate`, [[VERCEL, ', stale-while-revalidate=604800', '', mode]])
+  await mutant(`header: ${which}: private, not public`, [[VERCEL, '"public, max-age=86400', '"private, max-age=86400', mode]])
+  await mutant(`header: ${which}: immutable`, [[VERCEL, 'stale-while-revalidate=604800"', 'stale-while-revalidate=604800, immutable"', mode]])
+  await mutant(`header: ${which}: the key is lower-case`, [[VERCEL, '"key":\n            "Cache-Control"', '"key":\n            "cache-control"', mode]])
+  await mutant(`header: ${which}: a second header on the entry`, [[VERCEL, '"value": "public, max-age=86400, stale-while-revalidate=604800"\n        }', '"value": "public, max-age=86400, stale-while-revalidate=604800"\n        },\n        { "key": "X-Extra", "value": "1" }', mode]])
+}
 await mutant('header: the source is a prefix pattern', [page(VERCEL, '"/marketing/v3/slides/:path*"', '"/marketing/v3/slides/(.*)"')])
 await mutant('header: the source covers all of /marketing', [page(VERCEL, '"/marketing/v3/slides/:path*"', '"/marketing/:path*"')])
 await mutant('header: the source is the UAT marketing copy', [page(VERCEL, '"/marketing/v3/slides/:path*"', '"/marketing/v3-uat/slides/:path*"')])
-await mutant('header: also the UAT marketing copy (a second entry)', [page(VERCEL, '    {\n      "source": "/marketing/v3/slides/:path*"', `    ${JSON.stringify({ source: '/marketing/v3-uat/slides/:path*', headers: [headerOf('Cache-Control', HEADER_VALUE)] })},\n    {\n      "source": "/marketing/v3/slides/:path*"`)])
-await mutant('header: the key is lower-case', [page(VERCEL, '"key":\n            "Cache-Control"', '"key":\n            "cache-control"')])
-await mutant('header: a second header on the entry', [page(VERCEL, '"value": "public, max-age=86400, stale-while-revalidate=604800"\n        }', '"value": "public, max-age=86400, stale-while-revalidate=604800"\n        },\n        { "key": "X-Extra", "value": "1" }')])
-await mutant('header: the entry is gone', [page(VERCEL, V.slice(V.indexOf('    },\n    {\n      "source": "/marketing/v3/slides'), V.indexOf('  ],\n  "git"')), '    }\n')])
 await mutant('header: the /api CORS entry is changed', [page(VERCEL, '"value": "*"', '"value": "https://deckster.xyz"')])
-await mutant('header: the new entry comes first', [page(VERCEL, V.slice(V.indexOf('    },\n    {\n      "source": "/marketing/v3/slides'), V.indexOf('  ],\n  "git"')), '    }\n'), page(VERCEL, '  "headers": [\n    {\n      "source": "/api/(.*)"', `  "headers": [\n    ${JSON.stringify({ source: HEADER_SOURCE, headers: [headerOf('Cache-Control', HEADER_VALUE)] })},\n    {\n      "source": "/api/(.*)"`)])
 await mutant('header: the git block (dev deploys off) is dropped', [page(VERCEL, '  "git": {\n    "deploymentEnabled": {\n      "studio-v4-dev": false\n    }\n  }', '  "git": {}')])
 await mutant('header: a region is changed', [page(VERCEL, '"iad1"', '"sfo1"')])
 await mutant('header: vercel.json names the flag', [page(VERCEL, '"framework": "nextjs",', '"framework": "nextjs", "env": { "NEXT_PUBLIC_STUDIO_LEGAL_SHORT_LINKS": "true" },')])
 await mutant('header: vercel.json is not JSON', [page(VERCEL, '"framework": "nextjs",', '"framework": "nextjs"')])
+await mutant('header: a third entry (a second UAT copy)', [page(VERCEL, '    {\n      "source": "/marketing/v3-uat/slides/:path*"', `    ${JSON.stringify({ source: HEADER_SOURCE_UAT_COPY, headers: [headerOf('Cache-Control', HEADER_VALUE)] })},\n    {\n      "source": "/marketing/v3-uat/slides/:path*"`)])
+await mutant('header: the UAT copy is gone', [page(VERCEL, V.slice(V.indexOf('    },\n    {\n      "source": "/marketing/v3-uat/slides'), V.indexOf('  ],\n  "git"')), '    }\n')])
+await mutant('header: both new entries are gone', [page(VERCEL, V.slice(V.indexOf('    },\n    {\n      "source": "/marketing/v3/slides'), V.indexOf('  ],\n  "git"')), '    }\n')])
+await mutant('header: the v3 entry is gone', [page(VERCEL, V.slice(V.indexOf('    },\n    {\n      "source": "/marketing/v3/slides'), V.indexOf('    },\n    {\n      "source": "/marketing/v3-uat/slides')), '')])
+await mutant('header: the UAT copy covers the whole v3-uat folder', [page(VERCEL, '"/marketing/v3-uat/slides/:path*"', '"/marketing/v3-uat/:path*"')])
+await mutant('header: the UAT copy names the wrong folder', [page(VERCEL, '"/marketing/v3-uat/slides/:path*"', '"/marketing/v3-uat/slide/:path*"')])
+await mutant('header: the UAT copy is a prefix pattern', [page(VERCEL, '"/marketing/v3-uat/slides/:path*"', '"/marketing/v3-uat/slides/(.*)"')])
+await mutant('header: a third marketing folder is covered', [page(VERCEL, '  ],\n  "git"', `,\n    ${JSON.stringify({ source: '/marketing/v3/:path*', headers: [headerOf('Cache-Control', HEADER_VALUE)] })}\n  ],\n  "git"`)])
+{ // the entries in another order (JSON round trip; the text differs, the data is what is read)
+  const J = JSON.parse(V)
+  const swap = order => JSON.stringify({ ...J, headers: order.map(i => J.headers[i]) }, null, 2) + '\n'
+  await mutant('header: the UAT copy comes before the v3 entry', [page(VERCEL, V, swap([0, 2, 1]))])
+  await mutant('header: the new entries come before the /api entry', [page(VERCEL, V, swap([1, 2, 0]))])
+}
 await mutant('header: uat\'s header value differs (the proof reads uat)', [], { ctx: { uat: UAT_MUTANT ?? { redirects: UAT_LITERAL.redirects, headers: [{ source: HEADER_SOURCE, headers: [headerOf('Cache-Control', 'public, max-age=3600, stale-while-revalidate=604800')] }] } } })
 // not ported
 await mutant('not ported: vercel.json redirects /shortcuts', [page(VERCEL, '"source": "/slides",', '"source": "/shortcuts",')])
@@ -437,6 +527,7 @@ await mutant('env: the block is gone', [page(ENV, LEGAL_SHORT_LINKS_ENV_BLOCK, '
 await mutant('env: the block is there twice', [page(ENV, LEGAL_SHORT_LINKS_ENV_BLOCK, `${LEGAL_SHORT_LINKS_ENV_BLOCK}\n${LEGAL_SHORT_LINKS_ENV_BLOCK}`)])
 await mutant('env: a base line is changed', [page(ENV, 'NEXT_PUBLIC_LEGAL_LINKS_FIXED_ENABLED="false"', 'NEXT_PUBLIC_LEGAL_LINKS_FIXED_ENABLED="true"')])
 await mutant('env: another flag is added', [page(ENV, LEGAL_SHORT_LINKS_ENV_BLOCK, `${LEGAL_SHORT_LINKS_ENV_BLOCK}NEXT_PUBLIC_STUDIO_SOMETHING_ELSE="false"\n`)])
+await mutant('env: the comment names the UAT marketing flag', [page(ENV, 'the stills the UAT marketing copy serves', 'the stills NEXT_PUBLIC_STUDIO_UAT_MARKETING serves')])
 await mutant('env: the comment says the default is on', [page(ENV, 'default off, and then /terms and /privacy are the not-found page', 'default on, and then /terms and /privacy are the not-found page')])
 // registry
 await mutant('registry: the files line is gone', [page(REGISTRY, "  ...(await import('./studio-legal-short-links-strip.mjs')).LEGAL_SHORT_LINKS_SCOPE_FILES, // LATER-CHANGE: FRONTEND-2, legal short links and the marketing-slide cache header from uat, D16 a (NEXT_PUBLIC_STUDIO_LEGAL_SHORT_LINKS)\n", '')])
