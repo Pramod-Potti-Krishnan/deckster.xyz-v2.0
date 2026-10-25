@@ -61,6 +61,9 @@ const withoutOthers = (rel, text) => {
   try { return stripLaterChanges(rel, text) } finally { if (mine) LATER_STRIPS.splice(si, 0, mine) }
 }
 
+// FRONTEND-2, stack: the file with only the changes registered AFTER this one taken out (the registry's order), this change's own lines and every older change's left in.
+const withoutLater = (rel, text) => LATER_STRIPS.slice(LATER_STRIPS.indexOf(stripPass3PolishG) + 1).reduce((out, strip) => strip(rel, out), text)
+
 let checks = 0
 const count = fn => (...args) => { checks++; return fn(...args) }
 const eq = count(assert.equal), deep = count((actual, expected, message) => assert.deepStrictEqual(plain(actual), plain(expected), message)), ok = count(assert.ok), match = count(assert.match), nomatch = count(assert.doesNotMatch)
@@ -375,11 +378,19 @@ function proveStrip(stripFn, at = '') {
   eq(stripFn(E_CSS, PASS3_POLISH_G_SECTION_2_STUB), PASS3_POLISH_G_SECTION_2_STUB, a("PR E's stylesheet is never changed by it"))
   for (const rel of PASS3_POLISH_G_PIN_FILES) eq(stripFn(rel, baseOf(rel)), baseOf(rel), a(`${rel}: the base's proof has nothing to put back`))
 }
+// FRONTEND-2, stack: PR E's and PR F's proofs are taught the SAME reading line by a later change (phone shell 1, LATER_STRIPS.slice(indexOf(self) + 1)), the most general form: it strips every change registered after the proof's own entry, this one included. Where two stacked changes teach one line, that form stays and this change's narrower line and import go.
+const TAUGHT_LATER = ['scripts/test-studio-pass3-polish-e.mjs', 'scripts/test-studio-pass3-polish-f.mjs']
 function proveTaughtProofs(at = '') {
   const a = message => (at ? `${at}: ${message}` : message)
   deep(PASS3_POLISH_G_PIN_FILES, ['scripts/test-studio-pass3-polish.mjs', 'scripts/test-studio-pass3-polish-e.mjs', 'scripts/test-studio-pass3-polish-f.mjs'], a("the older proofs it teaches: PR A's, PR E's and PR F's (the ones that read PR A's stylesheet)"))
   for (const rel of PASS3_POLISH_G_PIN_FILES) {
     const text = read(rel)
+    if (TAUGHT_LATER.includes(rel)) { // STACK: a later change teaches this proof the general registry read, which already strips this change's lines (its own import and reading line are not there)
+      eq(sha(stripLaterChanges(rel, text)), sha(baseOf(rel)), a(`${rel}: taught by a later change: through the registry it is the base commit's proof, byte for byte`))
+      match(text, /LATER_STRIPS\.slice\(LATER_STRIPS\.indexOf\(stripPass3Polish[EF]\) \+ 1\)\.reduce\(\(out, strip\) => strip\(rel, out\), fs\.readFileSync\(path\.join\(root, rel\), 'utf8'\)\)\)/, a(`${rel}: it reads through the registry: every change registered after its own entry comes out, this one's too`))
+      nomatch(text, /stripPass3PolishG/, a(`${rel}: this change's narrower reading line and its import are gone`))
+      continue
+    }
     eq(sha(putBackPin(rel, text)), sha(baseOf(rel)), a(`${rel}: with its registry-read lines put back it is the base commit's proof, byte for byte`))
     eq(sha(stripLaterChanges(rel, text)), sha(stripLaterChanges(rel, baseOf(rel))), a(`${rel}: and through the registry too`))
     const edited = text.split('\n').filter(line => line.includes('LATER-CHANGES: registry read (PASS3-POLISH-G)'))
@@ -436,7 +447,7 @@ function proveAll(stripFn = stripPass3PolishG, at = '') {
   proveInstaller(read(LIB), at)
   provePin(PAGE, read(PAGE), stripFn, at)
   provePin(LAYOUT, read(LAYOUT), stripFn, at)
-  const digest = proveFlagOff(read(LAYOUT), at)
+  const digest = proveFlagOff(withoutLater(LAYOUT, read(LAYOUT)), at) // STACK: the layout is rendered without the lines of the changes registered after this one (phone shell 1 ...), as PR E's and PR F's proofs read theirs
   proveIntelligenceUntouched(at)
   proveStrip(stripFn, at)
   proveTaughtProofs(at)
@@ -555,8 +566,10 @@ await mutant('strip: drops the trailing newline', [], { strip: (rel, text) => st
 await mutant('strip: also removes an unmarked line', [], { strip: (rel, text) => (PASS3_POLISH_G_FILES.includes(rel) && typeof text === 'string' ? text.split('\n').filter(line => !marked(line) && !line.startsWith('import type { ReactNode }')).join('\n') : stripPass3PolishG(rel, text)) })
 await mutant("strip: does not put PR A's section 2 back", [], { strip: (rel, text) => (rel === A_CSS ? text : stripPass3PolishG(rel, text)) })
 await mutant("strip: puts section 2 back into PR E's stylesheet too", [], { strip: (rel, text) => (rel === E_CSS ? text.split(PASS3_POLISH_G_SECTION_2_STUB).join(PASS3_POLISH_G_SECTION_2) : stripPass3PolishG(rel, text)) })
-await mutant('taught proofs: PR E\'s reading line loses its marker', [['scripts/test-studio-pass3-polish-e.mjs', 'stripPass3PolishG(rel, fs.readFileSync(path.join(root, rel), \'utf8\'))) // LATER-CHANGES: registry read (PASS3-POLISH-G)', 'stripPass3PolishG(rel, fs.readFileSync(path.join(root, rel), \'utf8\'))) //']])
-await mutant('taught proofs: PR F reads raw again', [['scripts/test-studio-pass3-polish-f.mjs', 'stripPass3PolishG(rel, fs.readFileSync(path.join(root, rel), \'utf8\'))) // LATER-CHANGES: registry read (PASS3-POLISH-G)', 'fs.readFileSync(path.join(root, rel), \'utf8\')) // LATER-CHANGES: registry read (PASS3-POLISH-G)']])
+await mutant('taught proofs: PR E (taught by a later change) reads raw again, the registry read is gone', [['scripts/test-studio-pass3-polish-e.mjs', 'LATER_STRIPS.slice(LATER_STRIPS.indexOf(stripPass3PolishE) + 1).reduce((out, strip) => strip(rel, out), fs.readFileSync(path.join(root, rel), \'utf8\'))', 'fs.readFileSync(path.join(root, rel), \'utf8\')']])
+await mutant('taught proofs: PR E\'s registry read loses the later change\'s mark', [['scripts/test-studio-pass3-polish-e.mjs', ' // LATER-CHANGES: registry read (PHONE-SHELL-NAV)', ' //']])
+await mutant('taught proofs: PR F\'s registry read skips the first later change (+ 2)', [['scripts/test-studio-pass3-polish-f.mjs', 'indexOf(stripPass3PolishF) + 1', 'indexOf(stripPass3PolishF) + 2']])
+await mutant('taught proofs: PR F brings this change\'s narrower reading line back', [['scripts/test-studio-pass3-polish-f.mjs', 'LATER_STRIPS.slice(LATER_STRIPS.indexOf(stripPass3PolishF) + 1).reduce((out, strip) => strip(rel, out), fs.readFileSync(path.join(root, rel), \'utf8\'))', 'stripPass3PolishG(rel, fs.readFileSync(path.join(root, rel), \'utf8\'))']])
 await mutant("taught proofs: PR A's proof restores every file", [['scripts/test-studio-pass3-polish.mjs', "rel === 'components/studio-pass3-polish/studio-pass3-polish.css' ? stripPass3PolishG(rel, fs.readFileSync(path.join(root, rel), 'utf8')) : fs.readFileSync(path.join(root, rel), 'utf8')) // LATER", "stripPass3PolishG(rel, fs.readFileSync(path.join(root, rel), 'utf8'))) // LATER"]])
 await mutant('registry: the files line is gone', [[REGISTRY, "  ...(await import('./studio-pass3-polish-g-strip.mjs')).PASS3_POLISH_G_SCOPE_FILES, // LATER-CHANGE: FRONTEND-2, pass 3 polish set, PR G (NEXT_PUBLIC_STUDIO_PASS3_POLISH; no .env.example block of its own: the flag's block is PR A's)\n", '']])
 await mutant('registry: the strip line is gone', [[REGISTRY, "  (await import('./studio-pass3-polish-g-strip.mjs')).stripPass3PolishG, // LATER-CHANGE: FRONTEND-2, pass 3 polish set, PR G (NEXT_PUBLIC_STUDIO_PASS3_POLISH; no .env.example block of its own)\n", '']])

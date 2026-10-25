@@ -27,7 +27,6 @@ import {
   BASE_COMMIT, PASS3_POLISH_F_CSS, PASS3_POLISH_F_FILES, PASS3_POLISH_F_LAYOUT, PASS3_POLISH_F_MARKER_RE, PASS3_POLISH_F_OWN_EDITS, PASS3_POLISH_F_SCOPE_FILES, stripPass3PolishF,
 } from './studio-pass3-polish-f-strip.mjs'
 import { LATER_CHANGE_FILES, LATER_ENV_BLOCKS, LATER_STRIPS } from './studio-later-changes.mjs'
-import { stripPass3PolishG } from './studio-pass3-polish-g-strip.mjs' // LATER-CHANGES: registry read (PASS3-POLISH-G)
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..')
 const nodeRequire = createRequire(import.meta.url)
@@ -48,7 +47,7 @@ const ownCommitted = () => {
 const showCache = new Map()
 const baseOf = rel => { const ref = `${BASE}:${rel}`; if (!showCache.has(ref)) showCache.set(ref, git('show', ref)); return showCache.get(ref) }
 let overrides = {} // in-memory mutations: every proof reads its sources through read()
-const read = rel => (rel in overrides ? overrides[rel] : stripPass3PolishG(rel, fs.readFileSync(path.join(root, rel), 'utf8'))) // LATER-CHANGES: registry read (PASS3-POLISH-G)
+const read = rel => (rel in overrides ? overrides[rel] : LATER_STRIPS.slice(LATER_STRIPS.indexOf(stripPass3PolishF) + 1).reduce((out, strip) => strip(rel, out), fs.readFileSync(path.join(root, rel), 'utf8'))) // LATER-CHANGES: registry read (PHONE-SHELL-NAV): the changes registered after this one come out first
 const sha = value => crypto.createHash('sha256').update(value).digest('hex')
 const marked = line => PASS3_POLISH_F_MARKER_RE.test(line)
 

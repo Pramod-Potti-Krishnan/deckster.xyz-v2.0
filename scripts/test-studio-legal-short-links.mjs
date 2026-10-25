@@ -540,7 +540,7 @@ await mutant('registry: the block line is in LATER_STRIPS, not LATER_ENV_BLOCKS'
 // scope: the committed diff
 const OWN = [...LEGAL_SHORT_LINKS_SCOPE_FILES]
 const status = (changes) => changes.map(([s, rel]) => `${s}\t${rel}`).join('\n') + '\n'
-const GOOD_PROOF_DIFFS = Object.fromEntries(LEGAL_SHORT_LINKS_OLDER_PROOFS.map(rel => [rel, git('diff', '-U0', BASE, '--', rel)])) // the base against the working tree: a faithful stand-in for the committed diff of those files
+const GOOD_PROOF_DIFFS = Object.fromEntries(LEGAL_SHORT_LINKS_OLDER_PROOFS.map(rel => [rel, git('diff', '-U0', BASE, git('log', '-1', '--format=%H', '--extended-regexp', '--grep=^Legal short links:', 'HEAD').trim(), '--', rel)])) // LATER-CHANGES: registry read (PHONE-SHELL-NAV): the base against this change's own last commit (a later change may teach those proofs too), a faithful stand-in for the committed diff of those files
 const GOOD_STATUS = [...LEGAL_SHORT_LINKS_NEW_FILES.map(rel => ['A', rel]), ...LEGAL_SHORT_LINKS_OWN_EDITS.map(rel => ['M', rel])]
 { // control: a faithful fake of the committed diff passes (so the scope mutants below are killed by their change, not by the fake)
   committedFake = { own: OWN, foreign: [], nameStatus: status(GOOD_STATUS), proofDiffs: GOOD_PROOF_DIFFS }

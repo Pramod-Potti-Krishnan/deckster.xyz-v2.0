@@ -3,6 +3,8 @@ import { AppHeader, BackToBuilderButton } from "@/components/layout/app-header"
 import "./studio-v4-account.css"
 import { StudioRail } from "@/components/layout/studio-rail"
 import "@/components/layout/studio-shell.css"
+import { StudioPhoneTabBar } from "@/components/layout/studio-phone-tab-bar" // PHONE-SHELL-NAV (NEXT_PUBLIC_STUDIO_PHONE_SHELL, default off): on a phone the rail gives way to a bottom tab bar
+import { STUDIO_PHONE_SHELL_ENABLED } from "@/lib/studio-phone-shell" // PHONE-SHELL-NAV
 // NEXT_PUBLIC_STUDIO_PAYMENTS_OPEN_SOON (default off): the account pages' "Payments open soon" gate (Billing's upgrade and credit-pack buttons, the account menu's upgrade row).
 import { STUDIO_PAYMENTS_OPEN_SOON_ENABLED } from "@/lib/studio-payments-open-soon"
 import { StudioPaymentsOpenSoonMount } from "@/components/billing/studio-payments-open-soon-mount"
@@ -25,6 +27,7 @@ export default function AppLayout({ children }: { children: ReactNode }) {
   return (
     <div data-studio-v4-account-frame="true" data-studio-v4-shell={process.env.NEXT_PUBLIC_STUDIO_V4_SHELL === "true" ? "true" : undefined} data-studio-v4-account={process.env.NEXT_PUBLIC_STUDIO_V4_TOKENS === "true" ? "true" : undefined} className="min-h-screen bg-slate-50 dark:bg-slate-950">
       {process.env.NEXT_PUBLIC_STUDIO_V4_SHELL === "true" && <StudioRail studioEntry={<BackToBuilderButton rail />} />}
+      {STUDIO_PHONE_SHELL_ENABLED && <StudioPhoneTabBar />}{/* PHONE-SHELL-NAV: NEXT_PUBLIC_STUDIO_PHONE_SHELL (default off), drawn next to the rail; shown at 640 px and narrower only */}
       <div data-studio-v4-shell-column="true">
         <AppHeader />
         <div data-studio-v4-shell-workspace="true">{children}</div>
