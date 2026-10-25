@@ -1,6 +1,6 @@
 // FRONTEND-2 (PROGRAM-1 Saturday evening push, 24 Oct: the Pass 3 polish set, PR A): proof for the flag NEXT_PUBLIC_STUDIO_PASS3_POLISH (exact "true", default off, build-time; ONE flag for the whole set).
-// PR A holds three findings of the static audit and one of the rendered sweep: (1) Decks / Knowledge on a phone: the 64px right gutter is 16px and the Replay-intro button sits in the flow; (2) iOS focus zoom: text controls
-// are 16px on a phone; (3) the Builder root is 100dvh; (4) phone tap targets: a 32px minimum in the Studio shell. All of it is one stylesheet, every rule scoped to <html data-studio-pass3-polish="true">, which a tiny client mount sets while a Studio route is on screen.
+// PR A holds three findings of the static audit and two of the rendered sweep: (1) Decks / Knowledge on a phone: the 64px right gutter is 16px and the Replay-intro button sits in the flow; (2) iOS focus zoom: text controls
+// are 16px on a phone; (3) the Builder root is 100dvh; (4) phone tap targets: a 32px minimum in the Studio shell; (5) the Decks view toggle and the library buttons. All of it is one stylesheet, every rule scoped to <html data-studio-pass3-polish="true">, which a tiny client mount sets while a Studio route is on screen.
 // Run: node scripts/test-studio-pass3-polish.mjs   (plain node: TypeScript transpiled and run in a vm, react-dom server render, postcss parse, `git show` reads the base commit; no network, no browser, no model call)
 //
 //   1. lib        the flag rule (exact "true", and only with the Studio shell); the attribute is set once, comes off with the LAST holder, and a holder that lets go twice counts once; only documentElement is read
@@ -313,15 +313,15 @@ function proveCss(text, at = '') {
   const a = message => (at ? `${at}: css: ${message}` : `css: ${message}`)
   const css = parseCss(text)
   // sections 1 to 3 in order, then the append point as the last node
-  deep(css.sections.map(section => section.n), [1, 2, 3, 4], a('sections 1, 2, 3, 4, in order'))
-  deep(css.sections.map(section => section.title), ['destination intros (Decks, Knowledge) on a phone', 'iOS focus zoom (text controls are 16px on a phone)', 'the Builder root is 100dvh', 'phone tap targets (32px minimum) in the Studio shell'], a('their titles'))
+  deep(css.sections.map(section => section.n), [1, 2, 3, 4, 5], a('sections 1 to 5, in order'))
+  deep(css.sections.map(section => section.title), ['destination intros (Decks, Knowledge) on a phone', 'iOS focus zoom (text controls are 16px on a phone)', 'the Builder root is 100dvh', 'phone tap targets (32px minimum) in the Studio shell', 'phone tap targets: the Decks view toggle and the Templates / Themes library buttons'], a('their titles'))
   eq(css.appendPointAt, css.nodeCount - 1, a('the APPEND POINT comment is the last node of the file: later sections go above it'))
-  eq(css.rules.length, 9, a('nine rules in all: two in section 1, three in 2, one in 3, three in 4'))
+  eq(css.rules.length, 12, a('twelve rules in all: two in section 1, three in 2, one in 3, three in 4, three in 5'))
   // the scope rule: every selector of every rule starts with the attribute, and the only at-rules are the phone query and the dvh support query
   for (const rule of css.rules) for (const selector of rule.selectors) ok(selector.startsWith(`${SCOPE} `), a(`every selector starts with ${SCOPE}: ${selector.slice(0, 90)}`))
-  deep(css.sections.map(section => section.atRules.map(entry => `@${entry.name} ${entry.params}`)), [[`@media ${PHONE}`], [`@media ${PHONE}`], [`@supports ${DVH}`], [`@media ${PHONE}`]], a('the media query values: (max-width: 640px) three times, @supports (height: 100dvh) once, nothing else'))
+  deep(css.sections.map(section => section.atRules.map(entry => `@${entry.name} ${entry.params}`)), [[`@media ${PHONE}`], [`@media ${PHONE}`], [`@supports ${DVH}`], [`@media ${PHONE}`], [`@media ${PHONE}`]], a('the media query values: (max-width: 640px) four times, @supports (height: 100dvh) once, nothing else'))
   nomatch(text.replace(/\/\*[\s\S]*?\*\//g, ''), /@import|@font-face|@keyframes|url\(|expression\(|behavior:/, a('no import, font, animation or url()'))
-  const [s1, s2, s3, s4] = css.sections
+  const [s1, s2, s3, s4, s5] = css.sections
   // section 1: Decks / Knowledge on a phone
   eq(s1.atRules[0].rules.length, 2, a('section 1: two rules'))
   deep(s1.atRules[0].rules[0].selectors, [`${SCOPE} [data-studio-v4-shell="true"] ${DECKS_KNOWLEDGE}`], a('section 1: the gutter rule is for the Decks and Knowledge pages\' main only, inside the shell'))
@@ -369,8 +369,20 @@ function proveCss(text, at = '') {
   deep(declMap(t4[2]), { content: '""', position: 'absolute', left: '0', right: '0', top: '-5px', bottom: '-5px' }, a('section 4: 22px + 5px + 5px = a 32px hit area, no horizontal change'))
   for (const rule of t4) ok(rule.decls.every(d => ['min-width', 'min-height', 'position', 'content', 'left', 'right', 'top', 'bottom'].includes(d.prop)), a('section 4 changes no icon, font size, width, height, padding, margin or display'))
   nomatch(s4.atRules[0].rules.map(r => r.selector).join(' '), /publish|published|settings|billing|shortcut|profile|details|admin|docs|help|account|switch(?!-v2)|\.dark/, a('section 4 names no FRONTEND-1 area (the Publish button beside Export keeps its own size)'))
+  // section 5: the Decks view toggle and the library buttons
+  const t5 = s5.atRules[0].rules, SHELLED = `${SCOPE} [data-studio-v4-shell="true"]`
+  eq(s5.atRules.length, 1, a('section 5: one @media'))
+  eq(t5.length, 3, a('section 5: three rules'))
+  deep(t5[0].selectors, [`${SHELLED} [data-studio-deck-view-controls] button`], a('section 5: the Decks Grid / List toggle\'s buttons'))
+  deep(declMap(t5[0]), { 'min-height': '32px' }, a('section 5: 28px -> a 32px minimum height'))
+  deep(t5[1].selectors, [`${SHELLED} .studio-library .sl-text-button`, `${SHELLED} .studio-library .sl-workflow-link .sl-button`], a('section 5: the library pages\' "Start another draft" and "Back to Studio" buttons'))
+  deep(declMap(t5[1]), { 'min-height': '32px' }, a('section 5: 27px and 30.5px -> a 32px minimum height'))
+  deep(t5[2].selectors, [`${SHELLED} .studio-library .sl-disclosure summary`], a('section 5: the library pages\' disclosure summaries'))
+  deep(declMap(t5[2]), { 'padding-block': '8px' }, a('section 5: a summary keeps its text and gets 8px above and below (3px -> 8px: 22.5px -> 32.5px)'))
+  for (const rule of t5) ok(rule.decls.every(d => ['min-height', 'padding-block'].includes(d.prop)), a('section 5 changes a height and nothing else (no width, font size, display, margin)'))
+  nomatch(t5.map(r => r.selector).join(' '), /publish|published|settings|billing|shortcut|profile|details|admin|docs|help|account|\bsp-|intelligence/, a('section 5 names no FRONTEND-1 area and not the Intelligence or Details pages'))
   // !important lives in section 2 only
-  for (const section of [s1, s3, s4]) for (const entry of section.atRules) for (const rule of entry.rules) ok(rule.decls.every(d => !d.important), a('no !important outside section 2'))
+  for (const section of [s1, s3, s4, s5]) for (const entry of section.atRules) for (const rule of entry.rules) ok(rule.decls.every(d => !d.important), a('no !important outside section 2'))
   ok(!/<html[^>]*data-studio-pass3-polish/.test(text), a('(the stylesheet sets no attribute)'))
   return css
 }
@@ -397,6 +409,11 @@ function proveBefore() {
   match(intros, /width: 30px;\n  height: 30px;/, 'before: the Replay-intro button is 30x30')
   match(shell, /\[data-studio-v4-shell-header\] \{\n  height: 48px; min-height: 48px;/, 'before: the header is 48px tall, so a 32px item centred in it moves nothing')
   match(chat, /data-studio-v4-composer-toolbar="true"\n\s+className="absolute bottom-0 left-0 right-0 flex items-center justify-between px-3 py-2 /, 'before: the composer toolbar is an absolute row with 8px of padding above and below')
+  const libs = baseOf('components/studio-libraries/libraries.css'), decksCss = baseOf('components/builder/studio-decks.css')
+  match(decksCss, /\[data-studio-deck-view-controls\] button \{ height: 28px; font-size: 11px; \}/, 'before: the Decks Grid / List buttons are 28px tall')
+  match(libs, /\.studio-library \.sl-text-button \{[^}]*font-size: 11px; padding: 6px 0; \}/, 'before: the library text button is 11px type with 6px of padding (27px)')
+  match(libs, /\.studio-library \.sl-workflow-link button \{ font-size: 11px; color: var\(--sl-teal\); padding: 6px; \}/, 'before: "Back to Studio" is 11px type with 6px of padding (30.5px)')
+  match(libs, /\.studio-library \.sl-disclosure summary \{[^}]*padding: 3px 0; \}/, 'before: a disclosure summary has 3px above and below (22.5px)')
   match(chat, /px-3 pt-3 pb-14 min-h-\[96px\]/, 'before: the prompt keeps 56px of bottom padding for it, so a 32px + 16px = 48px toolbar fits')
   match(chat, /rounded-lg p-1\.5 text-gray-600[^"]*"\n\s+disabled=\{uploadedFiles\.length >= 5\}/, 'before: the attach button is a 16px icon with 6px of padding (28px)')
   match(chat, /data-studio-v4-send="true"[\s\S]{0,600}className=\{`h-7 w-7 rounded-lg/, 'before: the send button is h-7 w-7 (28px)')
@@ -430,7 +447,7 @@ function proveEnv(envText, at = '') {
   match(block, new RegExp(`^# STUDIO PASS 3 POLISH [\\s\\S]*\\n${FLAG}="false"\\n\\n$`), a('the block: its own flag documented "false", a blank line after it'))
   eq((block.match(/^[A-Z][A-Z0-9_]*=/gm) ?? []).length, 1, a('it assigns one variable'))
   ok(block.split('\n').filter(line => line.startsWith('#')).every(line => line.length <= 200), a('its comment lines are of the usual width'))
-  for (const word of ['default off', 'Build-time', 'Vercel', 'NEXT_PUBLIC_STUDIO_V4_SHELL', 'data-studio-pass3-polish="true"', '640 px', '64 px', '16 px', '52 px', '28 px', '13.6 px', '11.5 px', '1.5', '1.35', '100dvh', 'Settings and profile pages', 'Billing', 'Publish', 'Admin', 'Docs and Help', 'PR A has four sections', 'tap targets', '27 px', '22 px', '32 px', '::after']) ok(block.includes(word), a(`the block says "${word}"`))
+  for (const word of ['default off', 'Build-time', 'Vercel', 'NEXT_PUBLIC_STUDIO_V4_SHELL', 'data-studio-pass3-polish="true"', '640 px', '64 px', '16 px', '52 px', '28 px', '13.6 px', '11.5 px', '1.5', '1.35', '100dvh', 'Settings and profile pages', 'Billing', 'Publish', 'Admin', 'Docs and Help', 'PR A has five sections', 'tap targets', '27 px', '22 px', '32 px', '::after', 'Grid / List', 'Templates and Themes', '22.5 px', '8 px']) ok(block.includes(word), a(`the block says "${word}"`))
   const trimmed = block.replace(/\n+$/, '\n')
   eq(envText.split(trimmed).length - 1, 1, a('.env.example has the block exactly once'))
   ok(envText.indexOf(trimmed) > envText.indexOf('# DECK CARD THUMBNAILS'), a('after the last block that was there'))
@@ -541,9 +558,9 @@ const S4 = `@media ${PHONE} {\n  html[${ATTR}="true"] [data-studio-v4-shell="tru
 await mutant('css: the tap-target breakpoint is 700px', [sel(S4, S4.replace('640px', '700px'))])
 await mutant('css: the minimum is 28px', [sel('    min-width: 32px;\n    min-height: 32px;', '    min-width: 28px;\n    min-height: 28px;')])
 await mutant('css: the minimum is 44px', [sel('    min-width: 32px;\n    min-height: 32px;', '    min-width: 44px;\n    min-height: 44px;')])
-await mutant('css: a fixed height instead of a minimum', [sel('    min-height: 32px;\n  }\n  html', '    height: 32px;\n  }\n  html')])
-await mutant('css: the tap targets change the padding too', [sel('    min-height: 32px;\n  }\n  html', '    min-height: 32px;\n    padding: 8px;\n  }\n  html')])
-await mutant('css: the tap targets change the icons', [sel('    min-height: 32px;\n  }\n  html', '    min-height: 32px;\n    font-size: 14px;\n  }\n  html')])
+await mutant('css: a fixed height instead of a minimum', [sel('    min-height: 32px;\n  }\n  html', '    height: 32px;\n  }\n  html', 'first')])
+await mutant('css: the tap targets change the padding too', [sel('    min-height: 32px;\n  }\n  html', '    min-height: 32px;\n    padding: 8px;\n  }\n  html', 'first')])
+await mutant('css: the tap targets change the icons', [sel('    min-height: 32px;\n  }\n  html', '    min-height: 32px;\n    font-size: 14px;\n  }\n  html', 'first')])
 await mutant('css: the Publish button is in the tap-target list', [sel('.studio-shell-new,\n', '.studio-shell-new,\n  html[data-studio-pass3-polish="true"] [data-studio-v4-shell="true"] button[data-studio-publish-trigger="true"],\n')])
 await mutant('css: New deck loses the shell scope', [sel(`  html[${ATTR}="true"] [data-studio-v4-shell="true"] .studio-shell-new,`, `  html[${ATTR}="true"] .studio-shell-new,`)])
 await mutant('css: the composer toolbar is dropped from the list', [sel(`  html[${ATTR}="true"] [data-studio-v4-shell="true"] [data-studio-v4-composer-toolbar="true"] button,\n`, '')])
@@ -552,6 +569,18 @@ await mutant('css: the segments are not positioned', [sel('    position: relativ
 await mutant('css: the segments hit area is 3px short', [sel('    top: -5px;\n    bottom: -5px;', '    top: -3px;\n    bottom: -3px;')])
 await mutant('css: the segments hit area also grows sideways', [sel('    left: 0;\n    right: 0;\n    top: -5px;', '    left: -4px;\n    right: -4px;\n    top: -5px;')])
 await mutant('css: the segments box is made 32px tall instead', [sel('.swsv2-segments > button {\n    position: relative;', '.swsv2-segments > button {\n    height: 32px;\n    position: relative;')])
+
+// section 5: the Decks toggle and the library buttons
+const S5 = `@media ${PHONE} {\n  html[${ATTR}="true"] [data-studio-v4-shell="true"] [data-studio-deck-view-controls] button {`
+await mutant('css: the section 5 breakpoint is 700px', [sel(S5, S5.replace('640px', '700px'))])
+await mutant('css: the Decks toggle minimum is 30px', [sel('[data-studio-deck-view-controls] button {\n    min-height: 32px;', '[data-studio-deck-view-controls] button {\n    min-height: 30px;')])
+await mutant('css: the Decks toggle gets a fixed height', [sel('[data-studio-deck-view-controls] button {\n    min-height: 32px;', '[data-studio-deck-view-controls] button {\n    height: 32px;')])
+await mutant('css: the Decks toggle loses the shell scope', [sel(`  html[${ATTR}="true"] [data-studio-v4-shell="true"] [data-studio-deck-view-controls] button {`, `  html[${ATTR}="true"] [data-studio-deck-view-controls] button {`)])
+await mutant('css: the library text button is dropped', [sel(`  html[${ATTR}="true"] [data-studio-v4-shell="true"] .studio-library .sl-text-button,\n`, '')])
+await mutant('css: every library button is taller', [sel('.sl-workflow-link .sl-button {\n    min-height: 32px;', '.sl-workflow-link .sl-button {\n    min-height: 44px;')])
+await mutant('css: the summary padding is 4px', [sel('padding-block: 8px;', 'padding-block: 4px;')])
+await mutant('css: the summary is a flex box (its marker would go)', [sel('padding-block: 8px;', 'padding-block: 8px;\n    display: flex;')])
+await mutant('css: the Intelligence page is in the list', [sel('.sl-workflow-link .sl-button {', '.sl-workflow-link .sl-button,\n  html[data-studio-pass3-polish="true"] [data-studio-v4-shell="true"] .sp-workspace .sp-preview-switcher button {')])
 
 // the lib, the hook, the mount
 await mutant('lib: the flag rule loosened to anything set', [[LIB, `process.env.NEXT_PUBLIC_STUDIO_PASS3_POLISH === 'true'`, `Boolean(process.env.NEXT_PUBLIC_STUDIO_PASS3_POLISH)`]])
