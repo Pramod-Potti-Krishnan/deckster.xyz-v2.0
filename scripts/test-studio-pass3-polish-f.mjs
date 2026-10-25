@@ -47,7 +47,7 @@ const ownCommitted = () => {
 const showCache = new Map()
 const baseOf = rel => { const ref = `${BASE}:${rel}`; if (!showCache.has(ref)) showCache.set(ref, git('show', ref)); return showCache.get(ref) }
 let overrides = {} // in-memory mutations: every proof reads its sources through read()
-const read = rel => (rel in overrides ? overrides[rel] : fs.readFileSync(path.join(root, rel), 'utf8'))
+const read = rel => (rel in overrides ? overrides[rel] : LATER_STRIPS.slice(LATER_STRIPS.indexOf(stripPass3PolishF) + 1).reduce((out, strip) => strip(rel, out), fs.readFileSync(path.join(root, rel), 'utf8'))) // LATER-CHANGES: registry read (PHONE-SHELL-NAV): the changes registered after this one come out first
 const sha = value => crypto.createHash('sha256').update(value).digest('hex')
 const marked = line => PASS3_POLISH_F_MARKER_RE.test(line)
 

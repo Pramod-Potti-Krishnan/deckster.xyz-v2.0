@@ -282,9 +282,12 @@ const headRouteFiles = () => (routeFilesFake ?? git('ls-files', '-co', '--exclud
 function proveRoutes(at = '') {
   const a = message => (at ? `${at}: routes: ${message}` : `routes: ${message}`)
   const before = routesOf(git('ls-tree', '-r', '--name-only', BASE, '--', 'app').split('\n').filter(Boolean)), after = routesOf(headRouteFiles())
+  // a change registered after this one (LATER_CHANGE_FILES, other than this change's own files) may delete route files of its own (D1's two debug env routes): exactly those routes may be gone
+  const headFiles = new Set(headRouteFiles())
+  const laterRemoved = routesOf([...LATER_CHANGE_FILES].filter(rel => !LEGAL_SHORT_LINKS_SCOPE_FILES.has(rel) && !headFiles.has(rel))).filter(route => before.includes(route) && !after.includes(route))
   deep(after.filter(route => !before.includes(route)), ['/privacy', '/terms'], a('the flags-off build\'s route list gains exactly /privacy and /terms (+2)'))
-  deep(before.filter(route => !after.includes(route)), [], a('and loses none'))
-  eq(after.length, before.length + 2, a(`${before.length} routes become ${before.length + 2}`))
+  deep(before.filter(route => !after.includes(route)), laterRemoved, a('and loses none but the routes a later registered change deletes'))
+  eq(after.length, before.length + 2 - laterRemoved.length, a(`${before.length} routes become ${before.length + 2 - laterRemoved.length}`))
   ok(before.includes('/docs/api') && after.includes('/docs/api') && after.includes('/shortcuts'), a('/docs/api and /shortcuts are still the dev pages'))
   return { before: before.length, after: after.length }
 }
@@ -537,7 +540,7 @@ await mutant('registry: the block line is in LATER_STRIPS, not LATER_ENV_BLOCKS'
 // scope: the committed diff
 const OWN = [...LEGAL_SHORT_LINKS_SCOPE_FILES]
 const status = (changes) => changes.map(([s, rel]) => `${s}\t${rel}`).join('\n') + '\n'
-const GOOD_PROOF_DIFFS = Object.fromEntries(LEGAL_SHORT_LINKS_OLDER_PROOFS.map(rel => [rel, git('diff', '-U0', BASE, ...(git('log', '--no-merges', '--format=%H %s', `${BASE}..HEAD`).split('\n').filter(line => LEGAL_SHORT_LINKS_COMMIT_SUBJECT.test(line.slice(41))).map(line => line.slice(0, 40)).slice(0, 1)), '--', rel)])) // the base against this change's newest own commit (the working tree before it is committed): a later registered change may edit those proofs too (SPEED-PERCEIVED)
+const GOOD_PROOF_DIFFS = Object.fromEntries(LEGAL_SHORT_LINKS_OLDER_PROOFS.map(rel => [rel, git('diff', '-U0', BASE, git('log', '-1', '--format=%H', '--extended-regexp', '--grep=^Legal short links:', 'HEAD').trim(), '--', rel)])) // LATER-CHANGES: registry read (PHONE-SHELL-NAV): the base against this change's own last commit (a later change may teach those proofs too), a faithful stand-in for the committed diff of those files
 const GOOD_STATUS = [...LEGAL_SHORT_LINKS_NEW_FILES.map(rel => ['A', rel]), ...LEGAL_SHORT_LINKS_OWN_EDITS.map(rel => ['M', rel])]
 { // control: a faithful fake of the committed diff passes (so the scope mutants below are killed by their change, not by the fake)
   committedFake = { own: OWN, foreign: [], nameStatus: status(GOOD_STATUS), proofDiffs: GOOD_PROOF_DIFFS }

@@ -12,6 +12,9 @@ import { StudioFirstRunActions } from '@/components/builder/studio-first-run-act
 import { historicalActionStatuses } from '@/lib/director-history-presentation'
 import { askGatesLocked, lockApprovalGateStatuses } from '@/lib/director-ask-identity'
 import { StudioRail } from '@/components/layout/studio-rail'
+import { StudioPhoneTabBar } from '@/components/layout/studio-phone-tab-bar' // PHONE-SHELL-NAV (NEXT_PUBLIC_STUDIO_PHONE_SHELL, default off): on a phone the rail gives way to a bottom tab bar
+import { STUDIO_PHONE_SHELL_ENABLED } from '@/lib/studio-phone-shell' // PHONE-SHELL-NAV
+import { StudioPhoneBuilderTop } from '@/components/builder/studio-phone-builder-top' // PHONE-SHELL-TOP (NEXT_PUBLIC_STUDIO_PHONE_SHELL, default off): on a phone one top row, the switch below it with a Director dot
 
 import { composerThemeSyncBlocked } from '@/lib/composer-theme-policy'
 
@@ -130,6 +133,7 @@ import { useStudioPaymentsOpenSoon } from '@/hooks/use-studio-payments-open-soon
 // NEXT_PUBLIC_STUDIO_PASS3_POLISH (default off): the Pass 3 polish set; with the flag on <html> carries data-studio-pass3-polish="true" and the set's stylesheet (every rule scoped to it) applies to the Builder (hooks/use-studio-pass3-polish.ts). // PASS3-POLISH
 import { useStudioPass3Polish } from '@/hooks/use-studio-pass3-polish' // PASS3-POLISH
 import '@/components/studio-pass3-polish/studio-pass3-polish-e.css' // PASS3-POLISH-E (NEXT_PUBLIC_STUDIO_PASS3_POLISH, default off): every rule is scoped to data-studio-pass3-polish="true"; on a phone the prompt's empty hint fits one line
+import { useStudioPass3PolishGViewport } from '@/lib/studio-pass3-polish-g' // PASS3-POLISH-G (NEXT_PUBLIC_STUDIO_PASS3_POLISH, default off): on iPhone and iPad the viewport meta gets maximum-scale=1, so a focused text control does not zoom the page
 // NEXT_PUBLIC_STUDIO_DUPLICATE_COPY_TITLE (default off): a copied deck's header shows its own title, not "Studio" (hooks/use-studio-duplicate-copy-title.ts).
 import { useStudioDuplicateCopyTitleProps } from '@/hooks/use-studio-duplicate-copy-title'
 import { StudioSupersededNotice } from '@/components/builder/studio-superseded-notice'
@@ -4817,6 +4821,7 @@ function AuthenticatedBuilderContent({ authScopeUserId }: { authScopeUserId: str
   useStudioPaymentsOpenSoon()
   useStudioPass3Polish() // PASS3-POLISH: NEXT_PUBLIC_STUDIO_PASS3_POLISH (default off) sets data-studio-pass3-polish on <html>; flag off, the hook returns before it reads the document.
   useStudioPass3PolishDMain(workspaceRef) // PASS3-POLISH-D: NEXT_PUBLIC_STUDIO_PASS3_POLISH (default off) sets role="main" on the workspace container; flag off, the effect returns before it reads the ref
+  useStudioPass3PolishGViewport() // PASS3-POLISH-G: NEXT_PUBLIC_STUDIO_PASS3_POLISH (default off) adds maximum-scale=1 to the viewport meta on iPhone and iPad and puts it back on unmount; flag off, the effect returns before it reads the document.
 
   // NEXT_PUBLIC_STUDIO_DUPLICATE_COPY_TITLE (default off): a copied deck has no slideStructure, so its header said "Studio"; the open session's own title is read once, only while the header has none. Flag off: no props, nothing is read.
   const studioDuplicateCopyTitleProps = useStudioDuplicateCopyTitleProps(currentSessionId, !isUnsavedSession && !slideStructure?.metadata?.main_title)
@@ -7127,6 +7132,8 @@ function AuthenticatedBuilderContent({ authScopeUserId }: { authScopeUserId: str
       }}>
     <div data-studio-v4-shell={studioShell ? "true" : undefined} data-studio-v4-tokens={process.env.NEXT_PUBLIC_STUDIO_V4_TOKENS === 'true' ? 'true' : undefined} className="flex h-screen w-screen overflow-hidden bg-white text-slate-900 dark:bg-slate-900 dark:text-slate-100">
       {studioShell && <StudioRail homeHref="https://deckster.xyz" sessionUsage={<TokenUsageStrip tokenUsage={tokenUsage} displayMode="counter" />} />}
+      {STUDIO_PHONE_SHELL_ENABLED && <StudioPhoneTabBar sessionUsage={<TokenUsageStrip tokenUsage={tokenUsage} displayMode="counter" />} />}{/* PHONE-SHELL-NAV: NEXT_PUBLIC_STUDIO_PHONE_SHELL (default off), drawn next to the rail; shown at 640 px and narrower only */}
+      {STUDIO_PHONE_SHELL_ENABLED && <StudioPhoneBuilderTop connectionState={connectionState} reconnectStatus={reconnectStatus} />}{/* PHONE-SHELL-TOP: NEXT_PUBLIC_STUDIO_PHONE_SHELL (default off); draws nothing here: the "..." menu and the Director dot are portalled into row 1 and row 2 */}
       {studioShell && !effectivePresentationUrl && !session.isLoadingSession && workflowKey !== dismissedWorkflowKey && <>
         <ThemePanel isOpen={workflowAction === 'theme' && !savedThemeWorkflowId} onClose={() => setDismissedWorkflowKey(workflowKey)} presentationId={null} buildThemeSelection={buildThemeSelection} themeSync={themeSync} selectionLocked={generationSelectionsLocked} onBuildThemeChange={handleBuildThemeChange} />
         <Dialog open={workflowAction === 'templates' || workflowAction === 'master'} onOpenChange={open => { if (!open) setDismissedWorkflowKey(workflowKey) }}>
