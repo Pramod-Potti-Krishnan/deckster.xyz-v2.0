@@ -1,7 +1,7 @@
 // FRONTEND-2 (PROGRAM-1 Saturday evening push, 24 Oct: the Pass 3 polish set). Flag NEXT_PUBLIC_STUDIO_PASS3_POLISH (exact "true", default off, build-time), ONE flag for the whole set. This PR (A) holds the first three
 // findings of the static audit (the Decks / Knowledge gutter and the Replay-intro button on a phone, iOS focus zoom, the Builder root at 100dvh) and the rendered sweep's phone tap targets (sections 4 and 5). Later PRs append numbered sections to the same stylesheet.
 // The exact lines this change adds to the two app files that older pins hold to an earlier commit ("without this change's lines the file is the base's"): app/(app)/layout.tsx and app/builder/page.tsx.
-// Every line this change adds to either carries the marker PASS3-POLISH and NO base line is changed or removed, so the strip is one rule: a line with the marker goes (stripPass3Polish(rel, text)).
+// Every line this change adds to either carries the marker PASS3-POLISH (as a whole token: a later change's PASS3-POLISH-B is not it) and NO base line is changed or removed, so the strip is one rule: a line with the marker goes (stripPass3Polish(rel, text)).
 // The .env.example block is the exact text below, registered as PASS3_POLISH_ENV_BLOCK (scripts/studio-later-changes.mjs takes it out wherever it sits). scripts/test-studio-pass3-polish.mjs proves that the two files
 // without the marked lines, and .env.example without the block, are BASE_COMMIT's files byte for byte.
 // How the older pins reach it: this change REGISTERS the strip and the block (scripts/studio-later-changes.mjs, three lines), and stripBulkEditUndo calls the registry first, innermost, so every pin that already strips
@@ -9,6 +9,8 @@
 
 export const BASE_COMMIT = 'b2423e20338622d0a4a773db1d0758278e79d312' // studio dev head (Merge pull request #503, chat undo v2) this change is cut from
 export const PASS3_POLISH_MARKER = 'PASS3-POLISH'
+/** The marker as a WHOLE token: PASS3-POLISH is this change's; PASS3-POLISH-B (a later change stacked on it) and any other suffix are not. */
+export const PASS3_POLISH_MARKER_RE = /(?<![\w-])PASS3-POLISH(?![\w-])/
 export const PASS3_POLISH_LAYOUT = 'app/(app)/layout.tsx'
 export const PASS3_POLISH_BUILDER = 'app/builder/page.tsx'
 
@@ -52,5 +54,5 @@ NEXT_PUBLIC_STUDIO_PASS3_POLISH="false"
 /** The files without this change's lines: every line that carries the marker is taken out, every other byte stays. Any other file is returned as it is. */
 export function stripPass3Polish(rel, text) {
   if (!PASS3_POLISH_FILES.includes(rel) || typeof text !== 'string') return text
-  return text.split('\n').filter(line => !line.includes(PASS3_POLISH_MARKER)).join('\n')
+  return text.split('\n').filter(line => !PASS3_POLISH_MARKER_RE.test(line)).join('\n')
 }
