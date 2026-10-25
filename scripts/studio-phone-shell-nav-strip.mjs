@@ -45,6 +45,10 @@ export const PHONE_SHELL_NAV_PIN_EDITS = {
     ["const GOOD_PROOF_DIFFS = Object.fromEntries(LEGAL_SHORT_LINKS_OLDER_PROOFS.map(rel => [rel, git('diff', '-U0', BASE, git('log', '-1', '--format=%H', '--extended-regexp', '--grep=^Legal short links:', 'HEAD').trim(), '--', rel)])) // LATER-CHANGES: registry read (PHONE-SHELL-NAV): the base against this change's own last commit (a later change may teach those proofs too), a faithful stand-in for the committed diff of those files\n",
      "const GOOD_PROOF_DIFFS = Object.fromEntries(LEGAL_SHORT_LINKS_OLDER_PROOFS.map(rel => [rel, git('diff', '-U0', BASE, '--', rel)])) // the base against the working tree: a faithful stand-in for the committed diff of those files\n"],
   ],
+  "scripts/test-studio-thumbnail-last-good.mjs": [
+    ["  const added = git('diff', '-U0', BASE, 'HEAD', '--', ...committed.filter(rel => !rel.startsWith('scripts/fixtures/') && (allowed.has(rel) || !LATER_CHANGE_FILES.has(rel) || git('ls-tree', '--name-only', BASE, '--', rel).trim() !== ''))).split('\\n').filter(line => /^\\+(?!\\+\\+)/.test(line)).join('\\n') // LATER-CHANGES: registry read (PHONE-SHELL-NAV): the NEW files of a registered later change are not this change's to answer for (its own proof scans them); the existing files it edits, and this change's own, are still scanned\n",
+     "  const added = git('diff', '-U0', BASE, 'HEAD', '--', ...committed.filter(rel => !rel.startsWith('scripts/fixtures/'))).split('\\n').filter(line => /^\\+(?!\\+\\+)/.test(line)).join('\\n')\n"],
+  ],
 }
 
 /** The proof without this change's edits (the base commit's file). Used by the proof only. */
