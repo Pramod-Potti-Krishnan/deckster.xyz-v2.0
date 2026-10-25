@@ -564,6 +564,9 @@ function proveSecretScan(at = '') {
   const added = [LIB, COMP, CSS, STRIP_MODULE, THIS_TEST].map(read).concat(read(PAGE).split('\n').filter(marked)).join('\n')
   nomatch(added, /\b(api[_-]?key|secret|token|passw(or)?d)\w*\s*[:=]\s*['"`][^'"`\s]{8,}['"`]/i, a('no credential-shaped literal in the added lines'))
   nomatch(added, /\b[a-z][a-z0-9+.-]*:\/\/[^/\s:@'"`]+:[^@\s'"`]+@/i, a('no user:pass@ in an added URL'))
+  // the patterns of scripts/test-studio-thumbnail-last-good.mjs, whose added-lines scan leaves a registered later change's new files to their own proofs; its bare "key" name is left out (phone shell 1's link table is { key: 'knowledge', ... })
+  nomatch(added, /(?:secret|token|passw(?:or)?d|credential)[A-Za-z0-9_]*['"]?\s*[:=]\s*['"`][^'"`\s]{8,}['"`]/i, a('no quoted literal assigned to a credential-shaped name (the thumbnail proof\'s names)'))
+  nomatch(added, /eyJ[A-Za-z0-9_-]{10,}\.|AKIA[0-9A-Z]{16}|sk-[A-Za-z0-9]{20,}|ghp_[A-Za-z0-9]{20,}|xox[abp]-[A-Za-z0-9-]{10,}|-----BEGIN [A-Z ]*PRIVATE KEY|Bearer [A-Za-z0-9._-]{20,}/, a('no token, key or bearer string'))
 }
 
 function proveAll(stripFn = stripPhoneShellTop, at = '') {
@@ -682,6 +685,8 @@ await mutant('strip: the marker is a substring (PR 1\'s lines go too)', [], { st
 await mutant('strip: drops the trailing newline', [], { strip: (rel, text) => { const out = stripPhoneShellTop(rel, text); return PHONE_SHELL_TOP_FILES.includes(rel) && typeof out === 'string' ? out.replace(/\n$/, '') : out } })
 await mutant('registry: the files line is gone', [[REGISTRY, "  ...(await import('./studio-phone-shell-builder-top-strip.mjs')).PHONE_SHELL_TOP_SCOPE_FILES, // LATER-CHANGE: FRONTEND-2, phone shell 2, the Builder top on phones and the Director dot (NEXT_PUBLIC_STUDIO_PHONE_SHELL; no .env.example block of its own: the flag's block is PR 1's)\n", '']])
 await mutant('registry: the strip line is gone', [[REGISTRY, "  (await import('./studio-phone-shell-builder-top-strip.mjs')).stripPhoneShellTop, // LATER-CHANGE: FRONTEND-2, phone shell 2, the Builder top on phones and the Director dot (NEXT_PUBLIC_STUDIO_PHONE_SHELL; no .env.example block of its own: the flag's block is PR 1's)\n", '']])
+await mutant('secret scan: a bearer string in an ordinary name', [[STRIP_MODULE, "export const PHONE_SHELL_TOP_MARKER = 'PHONE-SHELL-TOP'", `export const PHONE_SHELL_TOP_MARKER = 'PHONE-SHELL-TOP'\nconst note = '${['Bearer ', 'a'.repeat(24)].join('')}'`]])
+await mutant('secret scan: a credential-named literal', [[STRIP_MODULE, "export const PHONE_SHELL_TOP_MARKER = 'PHONE-SHELL-TOP'", `export const PHONE_SHELL_TOP_MARKER = 'PHONE-SHELL-TOP'\nconst ${['user', 'Credential'].join('')} = '${['abcdefgh', '12345678'].join('')}'`]])
 await mutant('secret scan: a credential-shaped literal', [[STRIP_MODULE, "export const PHONE_SHELL_TOP_MARKER = 'PHONE-SHELL-TOP'", `export const PHONE_SHELL_TOP_MARKER = 'PHONE-SHELL-TOP'\nconst ${['api', 'Key'].join('')} = '${['AKIA', 'ABCDEFGH', '12345678'].join('')}'`]])
 
 console.log(`mutants: ${killed.length}/${killed.length + survived.length} killed`)
