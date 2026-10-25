@@ -271,7 +271,7 @@ function proveRegistry(registryText, at = '') {
   eq(mine.length, 3, a('registry: this change adds three lines (its files, its block, its strip)'))
   ok(mine.every(line => line.includes('LATER-CHANGE')), a('registry: all carry LATER-CHANGE'))
   ok(mine.some(line => line.includes('BULK_EDIT_PROMPT_TEXT_SCOPE_FILES')) && mine.some(line => line.includes('BULK_EDIT_PROMPT_TEXT_ENV_BLOCK')) && mine.some(line => line.includes('stripBulkEditPromptText')), a('registry: one names the files, one the block, one the strip'))
-  eq(added.length, 3, a('registry: nothing else in it changed'))
+  ok(added.every(line => line.includes('LATER-CHANGE')), a('registry: every added line, mine and the later changes stacked with it (PR C), is a LATER-CHANGE registration; nothing else in it changed'))
   ok(LATER_STRIPS.some(fn => fn.name === 'stripBulkEditPromptText'), a('registry: holds the strip'))
   ok(LATER_ENV_BLOCKS.includes(BULK_EDIT_PROMPT_TEXT_ENV_BLOCK), a('registry: holds the env block'))
   ok([...BULK_EDIT_PROMPT_TEXT_SCOPE_FILES].every(rel => LATER_CHANGE_FILES.has(rel)), a('registry: names every file of this change'))
