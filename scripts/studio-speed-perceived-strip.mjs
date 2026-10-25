@@ -6,7 +6,7 @@
 // How the older pins reach it: this change REGISTERS its files, its .env.example block and this strip (scripts/studio-later-changes.mjs, three lines). The chat harness parses the page through the registry, so its
 // page-region anchors (scripts/fixtures/director-chat/baselines/_sources.json) stay the base's; this change's proof takes the strip out in its own process to run the page with its lines. Plain node, no imports, nothing read from disk or git here.
 
-export const BASE_COMMIT = '15e2d90f1f9e6a876c2147ec002c076408e419cc' // studio-v4-dev-preparation-code at #512 (legal short links), the branch this change is cut from
+export const BASE_COMMIT = 'fe1bf8147ed70d476f4cddbcdefd1e1cdbf8db37' // PR 2's head (frontend2/phone-shell-builder-top, the top of the phone shell stack, itself stacked on Pass 3 polish G and D1 on the studio head fc97f2d5), the branch this change is stacked on (it was cut at 15e2d90f, #512)
 export const SPEED_PERCEIVED_FLAG = 'NEXT_PUBLIC_STUDIO_SPEED_PERCEIVED'
 export const SPEED_PERCEIVED_MARKER = 'SPEED-PERCEIVED'
 /** The marker as a WHOLE token: SPEED-PERCEIVED-X or X-SPEED-PERCEIVED are not this change's. */
@@ -29,14 +29,10 @@ export const SPEED_PERCEIVED_NEW_FILES = [
   'scripts/test-studio-speed-perceived.mjs',
 ]
 
-/** Files this change edits that are neither app code with marked lines nor new: its .env.example block, the registry (three lines) and those two proofs (one line each). */
-/** The one older proof this change edits, FRONTEND-2's own (not FRONTEND-1's): it held app/builder/page.tsx to its base byte for byte, so any later change to the page broke it. One assertion: it now takes the
- *  registered later changes' marked lines out first (its own strip excepted), as the legal-short-links change taught its scope check. */
-export const SPEED_PERCEIVED_POLISH_F_PROOF = 'scripts/test-studio-pass3-polish-f.mjs'
-/** And the proof that taught it first (legal short links): its control built "the committed diff" of those proofs from the WORKING TREE, so a later change's edit of the polish F proof read as its own. One line:
- *  it now diffs the base against its own newest commit (the working tree only before that commit exists). */
-export const SPEED_PERCEIVED_LEGAL_PROOF = 'scripts/test-studio-legal-short-links.mjs'
-export const SPEED_PERCEIVED_OWN_EDITS = ['.env.example', 'scripts/studio-later-changes.mjs', SPEED_PERCEIVED_POLISH_F_PROOF, SPEED_PERCEIVED_LEGAL_PROOF]
+/** Files this change edits that are neither app code with marked lines nor new: its .env.example block and the registry (three lines). STACK: the two FRONTEND-2 proofs it used to edit (the polish F proof's
+ *  assertion, the legal short links proof's GOOD_PROOF_DIFFS line) are no longer edited by it: phone shell 1 (below it in the stack) teaches both the same way (the registry read, the diff against the legal change's
+ *  own newest commit), and the more general form stays. */
+export const SPEED_PERCEIVED_OWN_EDITS = ['.env.example', 'scripts/studio-later-changes.mjs']
 
 /** Every file this change's commits touch: what the older scope checks skip once the registry names it (scripts/studio-later-changes.mjs, LATER_CHANGE_FILES). */
 export const SPEED_PERCEIVED_SCOPE_FILES = new Set([...SPEED_PERCEIVED_FILES, ...SPEED_PERCEIVED_NEW_FILES, ...SPEED_PERCEIVED_OWN_EDITS])

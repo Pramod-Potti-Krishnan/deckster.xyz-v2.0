@@ -496,8 +496,10 @@ function provePin(text, stripFn = stripPhoneShellTop, at = '') {
 }
 function proveUntouched(at = '') {
   const a = message => (at ? `${at}: ${message}` : message)
-  for (const rel of [HEADER, SWITCH, 'components/builder/studio-workspace-switch-v2.css', DIRECTOR, DIRECTOR_CSS, VIEWER, NOTES, DOWNLOAD, IDENTITY, 'components/layout/studio-rail.tsx', 'components/layout/app-header.tsx', PR1_LIB, PR1_BAR, PR1_CSS, 'app/(app)/layout.tsx', '.env.example'])
+  for (const rel of [HEADER, SWITCH, 'components/builder/studio-workspace-switch-v2.css', DIRECTOR, DIRECTOR_CSS, VIEWER, NOTES, DOWNLOAD, IDENTITY, 'components/layout/studio-rail.tsx', 'components/layout/app-header.tsx', PR1_LIB, PR1_BAR, PR1_CSS, 'app/(app)/layout.tsx'])
     eq(sha(read(rel)), sha(baseOf(rel)), a(`${rel} is the base commit's, byte for byte`))
+  // STACK: a change registered after this one (perceived speed) appends its own .env.example block; both sides are read through the registry, which takes every registered block out
+  eq(sha(stripLaterChanges('.env.example', read('.env.example'))), sha(stripLaterChanges('.env.example', baseOf('.env.example'))), a(".env.example is the base commit's, byte for byte (through the registry)"))
 }
 
 // ---------------------------------------------------------------- 5. flag off

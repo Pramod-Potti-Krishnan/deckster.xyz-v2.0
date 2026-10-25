@@ -442,7 +442,10 @@ function proveRegistry(registryText, at = '') {
   ok([...PHONE_SHELL_NAV_SCOPE_FILES].every(rel => LATER_CHANGE_FILES.has(rel)), a('the registry names every file of this change'))
   ok(LATER_ENV_BLOCKS.includes(PHONE_SHELL_NAV_ENV_BLOCK), a('and its block'))
 }
-function proveEnv(envText, at = '') {
+// STACK: a block registered after this one (perceived speed) is appended after it; it comes out first, so this change's block is the last one of its own tree.
+const withoutLaterEnvBlocks = text => LATER_ENV_BLOCKS.slice(LATER_ENV_BLOCKS.indexOf(PHONE_SHELL_NAV_ENV_BLOCK) + 1).reverse().reduce((out, block) => (out.endsWith(`\n${block}`) ? out.slice(0, out.length - block.length - 1) : out), text)
+function proveEnv(envText0, at = '') {
+  const envText = withoutLaterEnvBlocks(envText0)
   const a = message => (at ? `${at}: env: ${message}` : `env: ${message}`)
   ok(envText.endsWith(`\n\n${PHONE_SHELL_NAV_ENV_BLOCK}`), a('the block is appended at the end of the file, after one blank line'))
   eq(envText.slice(0, envText.length - PHONE_SHELL_NAV_ENV_BLOCK.length - 1), baseOf(ENV), a('and the file before it is the base commit\'s, byte for byte'))
