@@ -13,6 +13,7 @@ import {
   parseDirectorChatTurn, parseUndoResult, undoChangeAction, parseChangeAnchors, parseSyncedPresentation,
   type BulkEditConfirm, type BulkEditReceipt, type BulkEditSummary, type RecordedChange, type UndoResultStatus,
 } from '@/lib/studio-bulk-edit-wire'
+import { STUDIO_PASS3_POLISH_ENABLED } from '@/lib/studio-pass3-polish' // PASS3-POLISH-C (NEXT_PUBLIC_STUDIO_PASS3_POLISH, default off): a chip that is already Undone is final
 
 /** A pending Undo with no answer comes back as failed after this long (the chip must not spin forever). */
 export const UNDO_PENDING_TIMEOUT_MS = 60_000
@@ -191,6 +192,7 @@ export function createBulkEditUndoStore() {
         if (foreign) return 'consumed'
         const result = parseUndoResult(frame)
         const record = result ? findChange(sessions.get(sessionId), result.changeId) : undefined
+        if (STUDIO_PASS3_POLISH_ENABLED && record && record.state.phase === 'restored') return 'consumed' // PASS3-POLISH-C (default off): Undone stays Undone; a later undo_result for it (a click and a typed "undo that" in flight: restored, then superseded / not_latest) never overwrites it. Every other phase is as before: failed -> restored on a retry still works
         if (result && record) { record.state = undoPhaseOf(result.status, result.reason); changed() }
         return 'consumed'
       }
