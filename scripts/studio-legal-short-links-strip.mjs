@@ -19,8 +19,11 @@ export const LEGAL_SHORT_LINKS_NEW_FILES = [
   'scripts/test-studio-legal-short-links.mjs',
 ]
 
-/** Files this change edits that are not new: .env.example (its block), vercel.json (one headers entry) and the registry (two lines: its files and its block). No older test is edited. */
-export const LEGAL_SHORT_LINKS_OWN_EDITS = ['.env.example', 'vercel.json', 'scripts/studio-later-changes.mjs']
+/** The one older proof this change edits: FRONTEND-2's own (not FRONTEND-1's). It held .env.example to "the base plus my block, at the end", exactly, which any later change's block breaks; its assertion now accepts the later blocks the registry names. */
+export const LEGAL_SHORT_LINKS_BULK_EDIT_PROOF = 'scripts/test-studio-bulk-edit-prompt-text.mjs'
+
+/** Files this change edits that are not new: .env.example (its block), vercel.json (one headers entry), the registry (two lines: its files and its block) and that one proof (one assertion). No FRONTEND-1 test is edited. */
+export const LEGAL_SHORT_LINKS_OWN_EDITS = ['.env.example', 'vercel.json', 'scripts/studio-later-changes.mjs', LEGAL_SHORT_LINKS_BULK_EDIT_PROOF]
 
 /** Every file this change's commits touch: what the older scope checks skip once the registry names it (scripts/studio-later-changes.mjs, LATER_CHANGE_FILES). */
 export const LEGAL_SHORT_LINKS_SCOPE_FILES = new Set([...LEGAL_SHORT_LINKS_NEW_FILES, ...LEGAL_SHORT_LINKS_OWN_EDITS])
