@@ -47,7 +47,8 @@
       "source": "/marketing/v3/slides/:path*",
       "headers": [
         {
-          "key": "Cache-Control",
+          "key":
+            "Cache-Control",
           "value": "public, max-age=86400, stale-while-revalidate=604800"
         }
       ]

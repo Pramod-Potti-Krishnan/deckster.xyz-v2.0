@@ -25,7 +25,7 @@ import { execFileSync } from 'node:child_process'
 import { fileURLToPath, pathToFileURL } from 'node:url'
 import ts from 'typescript'
 import {
-  BASE_COMMIT, LEGAL_SHORT_LINKS_BULK_EDIT_PROOF, LEGAL_SHORT_LINKS_COMMIT_SUBJECT, LEGAL_SHORT_LINKS_ENV_BLOCK, LEGAL_SHORT_LINKS_FLAG, LEGAL_SHORT_LINKS_NEW_FILES, LEGAL_SHORT_LINKS_OWN_EDITS, LEGAL_SHORT_LINKS_SCOPE_FILES, UAT_COMMIT,
+  BASE_COMMIT, LEGAL_SHORT_LINKS_BULK_EDIT_PROOF, LEGAL_SHORT_LINKS_COMMIT_SUBJECT, LEGAL_SHORT_LINKS_OLDER_PROOFS, LEGAL_SHORT_LINKS_POLISH_F_PROOF, LEGAL_SHORT_LINKS_ENV_BLOCK, LEGAL_SHORT_LINKS_FLAG, LEGAL_SHORT_LINKS_NEW_FILES, LEGAL_SHORT_LINKS_OWN_EDITS, LEGAL_SHORT_LINKS_SCOPE_FILES, UAT_COMMIT,
 } from './studio-legal-short-links-strip.mjs'
 import { LATER_CHANGE_FILES, LATER_ENV_BLOCKS, LATER_STRIPS, stripLaterEnvBlocks } from './studio-later-changes.mjs'
 
@@ -48,18 +48,23 @@ const eq = count(assert.equal), deep = count(assert.deepEqual), ok = count(asser
 
 const FLAG = LEGAL_SHORT_LINKS_FLAG
 const HELPER = 'lib/studio-legal-short-links.ts', TERMS = 'app/terms/page.tsx', PRIVACY = 'app/privacy/page.tsx'
-const BULK_EDIT_PROOF = LEGAL_SHORT_LINKS_BULK_EDIT_PROOF
+const BULK_EDIT_PROOF = LEGAL_SHORT_LINKS_BULK_EDIT_PROOF, POLISH_F_PROOF = LEGAL_SHORT_LINKS_POLISH_F_PROOF
 const VERCEL = 'vercel.json', ENV = '.env.example', REGISTRY = 'scripts/studio-later-changes.mjs', STRIP_MODULE = 'scripts/studio-legal-short-links-strip.mjs', THIS_TEST = 'scripts/test-studio-legal-short-links.mjs'
 const PAGES = { terms: { file: TERMS, from: '/terms', to: '/legal/terms', fn: 'TermsShortLink' }, privacy: { file: PRIVACY, from: '/privacy', to: '/legal/privacy', fn: 'PrivacyShortLink' } }
+const OLDER_PROOF_EDITS = {
+  [BULK_EDIT_PROOF]: { removed: /^-  eq\(envText, `\$\{baseOf\(ENV\)\}/, added: 4, about: /LATER_ENV_BLOCKS|\bown\b|\blater\b|envText/, topic: 'the registered later .env.example blocks' },
+  [POLISH_F_PROOF]: { removed: /^-    nomatch\(git\('diff', '--name-status'/, added: 3, about: /LATER_CHANGE_FILES|modified|later/, topic: 'the files of a later registered change' },
+}
 const HEADER_SOURCE = '/marketing/v3/slides/:path*'
 const HEADER_VALUE = 'public, max-age=86400, stale-while-revalidate=604800'
 const NOT_FOUND = 'NEXT_HTTP_ERROR_FALLBACK;404'
 const OFF_SPELLINGS = [undefined, '', 'false', '0', '1', 'TRUE', 'True', ' true', 'true '] // nine spellings that are not the exact value "true"
 
+const headerOf = (name, value) => ({ key: name, value }) // one HTTP header the way next.config.mjs and vercel.json write it
 // `uat`'s own values, copied. The proof checks the dev tree against uat's next.config.mjs when this clone has the commit, and these literals always.
 const UAT_LITERAL = {
   redirects: [{ source: '/terms', destination: '/legal/terms', permanent: false }, { source: '/privacy', destination: '/legal/privacy', permanent: false }],
-  header: { source: HEADER_SOURCE, headers: [{ key: 'Cache-Control', value: HEADER_VALUE }] },
+  header: { source: HEADER_SOURCE, headers: [headerOf('Cache-Control', HEADER_VALUE)] },
   notPorted: [{ source: '/docs/api', destination: '/docs', permanent: false }, { source: '/shortcuts', destination: '/learn', permanent: false }],
 }
 
@@ -272,30 +277,33 @@ function committedInfo() {
     const [subject, ...names] = block.split('\n')
     if (LEGAL_SHORT_LINKS_COMMIT_SUBJECT.test(subject)) { for (const name of names) if (name) own.add(name) } else foreign.push(subject)
   }
-  return { own: [...own], foreign, nameStatus: git('diff', '--name-status', `${BASE}..HEAD`), bulkDiff: git('diff', '-U0', `${BASE}..HEAD`, '--', BULK_EDIT_PROOF) }
+  return { own: [...own], foreign, nameStatus: git('diff', '--name-status', `${BASE}..HEAD`), proofDiffs: Object.fromEntries(LEGAL_SHORT_LINKS_OLDER_PROOFS.map(rel => [rel, git('diff', '-U0', `${BASE}..HEAD`, '--', rel)])) }
 }
 function proveScope(at = '') {
   const a = message => (at ? `${at}: scope: ${message}` : `scope: ${message}`)
   ok([...LEGAL_SHORT_LINKS_SCOPE_FILES].every(rel => fs.existsSync(path.join(root, rel))), a('every file listed exists'))
   eq(LEGAL_SHORT_LINKS_SCOPE_FILES.size, LEGAL_SHORT_LINKS_NEW_FILES.length + LEGAL_SHORT_LINKS_OWN_EDITS.length, a('the list is the new files and the edits, with no overlap'))
-  deep([...LEGAL_SHORT_LINKS_OWN_EDITS].sort(), ['.env.example', BULK_EDIT_PROOF, 'scripts/studio-later-changes.mjs', 'vercel.json'].sort(), a('the existing files this change edits: .env.example (its block), vercel.json (one entry), the registry (two lines) and one assertion of FRONTEND-2\'s own bulk edit prompt text proof'))
-  const { own, foreign, nameStatus, bulkDiff } = committedInfo()
+  deep([...LEGAL_SHORT_LINKS_OWN_EDITS].sort(), ['.env.example', BULK_EDIT_PROOF, POLISH_F_PROOF, 'scripts/studio-later-changes.mjs', 'vercel.json'].sort(), a('the existing files this change edits: .env.example (its block), vercel.json (one entry), the registry (two lines) and one assertion each of FRONTEND-2\'s own bulk edit prompt text and Pass 3 polish F proofs'))
+  const { own, foreign, nameStatus, proofDiffs } = committedInfo()
   deep(own.filter(rel => !LEGAL_SHORT_LINKS_SCOPE_FILES.has(rel)), [], a(`every file in this change's committed diff (${BASE.slice(0, 8)}..HEAD) is its own`))
   if (own.length) {
     deep([...LEGAL_SHORT_LINKS_SCOPE_FILES].filter(rel => !own.includes(rel)), [], a('and every file of this change is in the committed diff'))
-    deep(own.filter(rel => /^scripts\/test-/.test(rel)).sort(), [BULK_EDIT_PROOF, THIS_TEST].sort(), a('the tests it adds or edits: its own, and FRONTEND-2\'s bulk edit prompt text proof (its .env.example assertion); no FRONTEND-1 test'))
+    deep(own.filter(rel => /^scripts\/test-/.test(rel)).sort(), [BULK_EDIT_PROOF, POLISH_F_PROOF, THIS_TEST].sort(), a('the tests it adds or edits: its own, and FRONTEND-2\'s bulk edit prompt text and Pass 3 polish F proofs (one assertion each); no FRONTEND-1 test'))
     deep(own.filter(rel => /^(app|lib|components|hooks|contexts|types|prisma|public|styles|migrations|content)\//.test(rel)).sort(), [PRIVACY, TERMS, HELPER].sort(), a('the app files: the two pages and the helper (no existing app file)'))
     nomatch(own.join('\n'), /^(next\.config\.mjs|middleware\.ts|package\.json|pnpm-lock\.yaml|vercel\.dev\.json|app\/layout\.tsx|app\/not-found\.tsx|app\/legal\/)/m, a('next.config.mjs, middleware, package files, the root layout, the not-found page and the legal pages are not in it'))
   }
   if (own.length && foreign.length === 0) {
-    // the one older proof this change edits: one hunk, one line out (the exact-equality assertion on .env.example), four lines in (a comment and the tolerant version)
-    const lines = bulkDiff.split('\n')
-    eq(lines.filter(line => line.startsWith('@@')).length, 1, a('the bulk edit prompt text proof: one hunk'))
-    const out = lines.filter(line => line.startsWith('-') && !line.startsWith('---')), into = lines.filter(line => line.startsWith('+') && !line.startsWith('+++'))
-    eq(out.length, 1, a('the bulk edit prompt text proof: one line removed'))
-    match(out[0], /^-  eq\(envText, `\$\{baseOf\(ENV\)\}\\n\$\{BULK_EDIT_PROMPT_TEXT_ENV_BLOCK\}`, a\('env: \.env\.example is the base plus this change\\'s block, after a blank line, at the end'\)\)$/, a('and it is the exact-equality .env.example assertion'))
-    eq(into.length, 4, a('the bulk edit prompt text proof: four lines added'))
-    ok(into.every(line => /LATER_ENV_BLOCKS|\bown\b|\blater\b|envText/.test(line)), a('and each is about the registered later .env.example blocks'))
+    // the two older proofs this change edits: one hunk each, one line out (the assertion that cannot see a later change), and only lines about that
+    for (const [rel, expect] of Object.entries(OLDER_PROOF_EDITS)) {
+      const lines = (proofDiffs[rel] ?? '').split('\n')
+      eq(lines.filter(line => line.startsWith('@@')).length, 1, a(`${rel}: one hunk`))
+      const out = lines.filter(line => line.startsWith('-') && !line.startsWith('---')), into = lines.filter(line => line.startsWith('+') && !line.startsWith('+++'))
+      eq(out.length, 1, a(`${rel}: one line removed`))
+      match(out[0], expect.removed, a(`${rel}: and it is the assertion this change must get past`))
+      ok(baseOf(rel).split('\n').includes(out[0].slice(1)), a(`${rel}: and it is a line of the base commit's file`))
+      eq(into.length, expect.added, a(`${rel}: ${expect.added} lines added`))
+      ok(into.every(line => expect.about.test(line)), a(`${rel}: and each is about ${expect.topic}`))
+    }
     const entries = nameStatus.split('\n').filter(Boolean).map(line => line.split('\t'))
     deep(entries.map(entry => entry[entry.length - 1]).sort(), [...LEGAL_SHORT_LINKS_SCOPE_FILES].sort(), a('every commit in the range is this change\'s, so the whole BASE..HEAD diff is exactly the list: no other file changed'))
     deep(entries.filter(entry => entry[0] !== 'A').map(entry => `${entry[0]}\t${entry[1]}`).sort(), LEGAL_SHORT_LINKS_OWN_EDITS.map(rel => `M\t${rel}`).sort(), a('and only the three edits modify an existing file; everything else is added'))
@@ -390,17 +398,17 @@ await mutant('header: immutable', [page(VERCEL, 'stale-while-revalidate=604800"'
 await mutant('header: the source is a prefix pattern', [page(VERCEL, '"/marketing/v3/slides/:path*"', '"/marketing/v3/slides/(.*)"')])
 await mutant('header: the source covers all of /marketing', [page(VERCEL, '"/marketing/v3/slides/:path*"', '"/marketing/:path*"')])
 await mutant('header: the source is the UAT marketing copy', [page(VERCEL, '"/marketing/v3/slides/:path*"', '"/marketing/v3-uat/slides/:path*"')])
-await mutant('header: also the UAT marketing copy (a second entry)', [page(VERCEL, '    {\n      "source": "/marketing/v3/slides/:path*"', '    {\n      "source": "/marketing/v3-uat/slides/:path*",\n      "headers": [{ "key": "Cache-Control", "value": "public, max-age=86400, stale-while-revalidate=604800" }]\n    },\n    {\n      "source": "/marketing/v3/slides/:path*"')])
-await mutant('header: the key is lower-case', [page(VERCEL, '"key": "Cache-Control"', '"key": "cache-control"')])
+await mutant('header: also the UAT marketing copy (a second entry)', [page(VERCEL, '    {\n      "source": "/marketing/v3/slides/:path*"', `    ${JSON.stringify({ source: '/marketing/v3-uat/slides/:path*', headers: [headerOf('Cache-Control', HEADER_VALUE)] })},\n    {\n      "source": "/marketing/v3/slides/:path*"`)])
+await mutant('header: the key is lower-case', [page(VERCEL, '"key":\n            "Cache-Control"', '"key":\n            "cache-control"')])
 await mutant('header: a second header on the entry', [page(VERCEL, '"value": "public, max-age=86400, stale-while-revalidate=604800"\n        }', '"value": "public, max-age=86400, stale-while-revalidate=604800"\n        },\n        { "key": "X-Extra", "value": "1" }')])
 await mutant('header: the entry is gone', [page(VERCEL, V.slice(V.indexOf('    },\n    {\n      "source": "/marketing/v3/slides'), V.indexOf('  ],\n  "git"')), '    }\n')])
 await mutant('header: the /api CORS entry is changed', [page(VERCEL, '"value": "*"', '"value": "https://deckster.xyz"')])
-await mutant('header: the new entry comes first', [page(VERCEL, V.slice(V.indexOf('    },\n    {\n      "source": "/marketing/v3/slides'), V.indexOf('  ],\n  "git"')), '    }\n'), page(VERCEL, '  "headers": [\n    {\n      "source": "/api/(.*)"', '  "headers": [\n    {\n      "source": "/marketing/v3/slides/:path*",\n      "headers": [{ "key": "Cache-Control", "value": "public, max-age=86400, stale-while-revalidate=604800" }]\n    },\n    {\n      "source": "/api/(.*)"')])
+await mutant('header: the new entry comes first', [page(VERCEL, V.slice(V.indexOf('    },\n    {\n      "source": "/marketing/v3/slides'), V.indexOf('  ],\n  "git"')), '    }\n'), page(VERCEL, '  "headers": [\n    {\n      "source": "/api/(.*)"', `  "headers": [\n    ${JSON.stringify({ source: HEADER_SOURCE, headers: [headerOf('Cache-Control', HEADER_VALUE)] })},\n    {\n      "source": "/api/(.*)"`)])
 await mutant('header: the git block (dev deploys off) is dropped', [page(VERCEL, '  "git": {\n    "deploymentEnabled": {\n      "studio-v4-dev": false\n    }\n  }', '  "git": {}')])
 await mutant('header: a region is changed', [page(VERCEL, '"iad1"', '"sfo1"')])
 await mutant('header: vercel.json names the flag', [page(VERCEL, '"framework": "nextjs",', '"framework": "nextjs", "env": { "NEXT_PUBLIC_STUDIO_LEGAL_SHORT_LINKS": "true" },')])
 await mutant('header: vercel.json is not JSON', [page(VERCEL, '"framework": "nextjs",', '"framework": "nextjs"')])
-await mutant('header: uat\'s header value differs (the proof reads uat)', [], { ctx: { uat: UAT_MUTANT ?? { redirects: UAT_LITERAL.redirects, headers: [{ source: HEADER_SOURCE, headers: [{ key: 'Cache-Control', value: 'public, max-age=3600, stale-while-revalidate=604800' }] }] } } })
+await mutant('header: uat\'s header value differs (the proof reads uat)', [], { ctx: { uat: UAT_MUTANT ?? { redirects: UAT_LITERAL.redirects, headers: [{ source: HEADER_SOURCE, headers: [headerOf('Cache-Control', 'public, max-age=3600, stale-while-revalidate=604800')] }] } } })
 // not ported
 await mutant('not ported: vercel.json redirects /shortcuts', [page(VERCEL, '"source": "/slides",', '"source": "/shortcuts",')])
 await mutant('not ported: vercel.json redirects /docs/api', [page(VERCEL, '"source": "/slides",\n      "destination": "/dashboard"', '"source": "/docs/api",\n      "destination": "/docs"')])
@@ -408,7 +416,7 @@ await mutant('not ported: next.config.mjs takes the short links', [page('next.co
 await mutant('not ported: next.config.mjs takes /shortcuts', [page('next.config.mjs', "{ source: '/agents', destination: '/experts', permanent: false },", "{ source: '/agents', destination: '/experts', permanent: false },\n      { source: '/shortcuts', destination: '/learn', permanent: false },")])
 await mutant('not ported: the helper names /shortcuts', [page(HELPER, '// FRONTEND-2 (PROGRAM-1', '// /shortcuts -> /learn\n// FRONTEND-2 (PROGRAM-1')])
 // untouched
-await mutant('untouched: next.config.mjs gains the header', [page('next.config.mjs', "      {\n        source: '/:path*',", "      {\n        source: '/marketing/v3/slides/:path*',\n        headers: [{ key: 'Cache-Control', value: 'public, max-age=86400, stale-while-revalidate=604800' }],\n      },\n      {\n        source: '/:path*',")])
+await mutant('untouched: next.config.mjs gains the header', [page('next.config.mjs', "      {\n        source: '/:path*',", `      {\n        source: '/marketing/v3/slides/:path*',\n        headers: [${JSON.stringify(headerOf('Cache-Control', HEADER_VALUE))}],\n      },\n      {\n        source: '/:path*',`)])
 await mutant('untouched: middleware.ts matches the short links', [page('middleware.ts', '    "/redeem",\n    "/admin/:path*",', '    "/redeem",\n    "/terms",\n    "/admin/:path*",')])
 await mutant('untouched: the not-found page changes', [page('app/not-found.tsx', 'export default async function NotFound() {', 'export default async function NotFound() {\n  // changed')])
 await mutant('untouched: a legal page changes', [page('app/legal/terms/page.tsx', 'export', '// changed\nexport', 'all')])
@@ -438,29 +446,31 @@ await mutant('registry: the block line is in LATER_STRIPS, not LATER_ENV_BLOCKS'
 // scope: the committed diff
 const OWN = [...LEGAL_SHORT_LINKS_SCOPE_FILES]
 const status = (changes) => changes.map(([s, rel]) => `${s}\t${rel}`).join('\n') + '\n'
-const realBulkDiff = () => git('diff', '-U0', BASE, '--', BULK_EDIT_PROOF) // the base against the working tree: a faithful stand-in for the committed diff of that one file
-const GOOD_BULK_DIFF = realBulkDiff()
+const GOOD_PROOF_DIFFS = Object.fromEntries(LEGAL_SHORT_LINKS_OLDER_PROOFS.map(rel => [rel, git('diff', '-U0', BASE, '--', rel)])) // the base against the working tree: a faithful stand-in for the committed diff of those files
 const GOOD_STATUS = [...LEGAL_SHORT_LINKS_NEW_FILES.map(rel => ['A', rel]), ...LEGAL_SHORT_LINKS_OWN_EDITS.map(rel => ['M', rel])]
 { // control: a faithful fake of the committed diff passes (so the scope mutants below are killed by their change, not by the fake)
-  committedFake = { own: OWN, foreign: [], nameStatus: status(GOOD_STATUS), bulkDiff: GOOD_BULK_DIFF }
+  committedFake = { own: OWN, foreign: [], nameStatus: status(GOOD_STATUS), proofDiffs: GOOD_PROOF_DIFFS }
   try { proveScope('control') } finally { committedFake = null }
 }
-await mutant('scope: next.config.mjs is in the commit', [], { committed: { bulkDiff: GOOD_BULK_DIFF, own: [...OWN, 'next.config.mjs'], foreign: [], nameStatus: status([...GOOD_STATUS, ['M', 'next.config.mjs']]) } })
-await mutant('scope: an older test is edited', [], { committed: { bulkDiff: GOOD_BULK_DIFF, own: [...OWN, 'scripts/test-studio-p2-docs.mjs'], foreign: [], nameStatus: status([...GOOD_STATUS, ['M', 'scripts/test-studio-p2-docs.mjs']]) } })
-await mutant('scope: a FRONTEND-1 test is edited', [], { committed: { bulkDiff: GOOD_BULK_DIFF, own: [...OWN, 'scripts/test-studio-launch-wording.mjs'], foreign: [], nameStatus: status([...GOOD_STATUS, ['M', 'scripts/test-studio-launch-wording.mjs']]) } })
-await mutant('scope: an existing app file is edited (the root layout)', [], { committed: { bulkDiff: GOOD_BULK_DIFF, own: [...OWN, 'app/layout.tsx'], foreign: [], nameStatus: status([...GOOD_STATUS, ['M', 'app/layout.tsx']]) } })
-await mutant('scope: a new /shortcuts page is in the commit', [], { committed: { bulkDiff: GOOD_BULK_DIFF, own: [...OWN, 'app/shortcuts/page.tsx'], foreign: [], nameStatus: status([...GOOD_STATUS, ['A', 'app/shortcuts/page.tsx']]) } })
-await mutant('scope: a file of the change is missing from the commit (vercel.json)', [], { committed: { bulkDiff: GOOD_BULK_DIFF, own: OWN.filter(rel => rel !== VERCEL), foreign: [], nameStatus: status(GOOD_STATUS.filter(([, rel]) => rel !== VERCEL)) } })
-await mutant('scope: a stray file is in the range (a foreign path, same subject)', [], { committed: { bulkDiff: GOOD_BULK_DIFF, own: [...OWN, 'docs/notes.md'], foreign: [], nameStatus: status([...GOOD_STATUS, ['A', 'docs/notes.md']]) } })
-await mutant('scope: the range has a file the change\'s subject does not own', [], { committed: { bulkDiff: GOOD_BULK_DIFF, own: OWN, foreign: [], nameStatus: status([...GOOD_STATUS, ['M', 'middleware.ts']]) } })
-const fakeScope = (bulkDiff) => ({ committed: { bulkDiff, own: OWN, foreign: [], nameStatus: status(GOOD_STATUS) } })
-await mutant('scope: the bulk edit proof loses a second line', [], fakeScope(GOOD_BULK_DIFF.replace(/\n\+/, '\n-removed line\n+')))
-await mutant('scope: the bulk edit proof has a second hunk', [], fakeScope(`${GOOD_BULK_DIFF}\n@@ -300,0 +301 @@\n+  // another edit about later .env.example blocks`))
-await mutant('scope: the bulk edit proof removes a different line', [], fakeScope(GOOD_BULK_DIFF.replace(/^-  eq\(envText.*$/m, '-  eq(stripLaterChanges(ENV, envText), stripLaterChanges(ENV, baseOf(ENV)), a(\'env: x\'))')))
-await mutant('scope: the bulk edit proof gains an unrelated line', [], fakeScope(`${GOOD_BULK_DIFF}\n+  ok(true)`))
-await mutant('scope: the bulk edit proof is not edited at all', [], fakeScope(''))
-await mutant('scope: a new page is modified, not added', [], { committed: { bulkDiff: GOOD_BULK_DIFF, own: OWN, foreign: [], nameStatus: status(GOOD_STATUS.map(([s, rel]) => (rel === TERMS ? ['M', rel] : [s, rel]))) } })
-await mutant('scope: vercel.json is added, not modified (the file was replaced)', [], { committed: { bulkDiff: GOOD_BULK_DIFF, own: OWN, foreign: [], nameStatus: status(GOOD_STATUS.map(([s, rel]) => (rel === VERCEL ? ['A', rel] : [s, rel]))) } })
+await mutant('scope: next.config.mjs is in the commit', [], { committed: { proofDiffs: GOOD_PROOF_DIFFS, own: [...OWN, 'next.config.mjs'], foreign: [], nameStatus: status([...GOOD_STATUS, ['M', 'next.config.mjs']]) } })
+await mutant('scope: an older test is edited', [], { committed: { proofDiffs: GOOD_PROOF_DIFFS, own: [...OWN, 'scripts/test-studio-p2-docs.mjs'], foreign: [], nameStatus: status([...GOOD_STATUS, ['M', 'scripts/test-studio-p2-docs.mjs']]) } })
+await mutant('scope: a FRONTEND-1 test is edited', [], { committed: { proofDiffs: GOOD_PROOF_DIFFS, own: [...OWN, 'scripts/test-studio-launch-wording.mjs'], foreign: [], nameStatus: status([...GOOD_STATUS, ['M', 'scripts/test-studio-launch-wording.mjs']]) } })
+await mutant('scope: an existing app file is edited (the root layout)', [], { committed: { proofDiffs: GOOD_PROOF_DIFFS, own: [...OWN, 'app/layout.tsx'], foreign: [], nameStatus: status([...GOOD_STATUS, ['M', 'app/layout.tsx']]) } })
+await mutant('scope: a new /shortcuts page is in the commit', [], { committed: { proofDiffs: GOOD_PROOF_DIFFS, own: [...OWN, 'app/shortcuts/page.tsx'], foreign: [], nameStatus: status([...GOOD_STATUS, ['A', 'app/shortcuts/page.tsx']]) } })
+await mutant('scope: a file of the change is missing from the commit (vercel.json)', [], { committed: { proofDiffs: GOOD_PROOF_DIFFS, own: OWN.filter(rel => rel !== VERCEL), foreign: [], nameStatus: status(GOOD_STATUS.filter(([, rel]) => rel !== VERCEL)) } })
+await mutant('scope: a stray file is in the range (a foreign path, same subject)', [], { committed: { proofDiffs: GOOD_PROOF_DIFFS, own: [...OWN, 'docs/notes.md'], foreign: [], nameStatus: status([...GOOD_STATUS, ['A', 'docs/notes.md']]) } })
+await mutant('scope: the range has a file the change\'s subject does not own', [], { committed: { proofDiffs: GOOD_PROOF_DIFFS, own: OWN, foreign: [], nameStatus: status([...GOOD_STATUS, ['M', 'middleware.ts']]) } })
+const fakeScope = (rel, diff) => ({ committed: { proofDiffs: { ...GOOD_PROOF_DIFFS, [rel]: diff }, own: OWN, foreign: [], nameStatus: status(GOOD_STATUS) } })
+for (const rel of LEGAL_SHORT_LINKS_OLDER_PROOFS) {
+  const good = GOOD_PROOF_DIFFS[rel]
+  await mutant(`scope: ${rel} loses a second line`, [], fakeScope(rel, good.replace(/\n\+/, '\n-removed line\n+')))
+  await mutant(`scope: ${rel} has a second hunk`, [], fakeScope(rel, `${good}\n@@ -300,0 +301 @@\n+  // another edit about later registered changes`))
+  await mutant(`scope: ${rel} removes a different line`, [], fakeScope(rel, good.replace(/^-.*$/m, '-  ok(true)')))
+  await mutant(`scope: ${rel} gains an unrelated line`, [], fakeScope(rel, `${good}\n+  ok(true)`))
+  await mutant(`scope: ${rel} is not edited at all`, [], fakeScope(rel, ''))
+}
+await mutant('scope: a new page is modified, not added', [], { committed: { proofDiffs: GOOD_PROOF_DIFFS, own: OWN, foreign: [], nameStatus: status(GOOD_STATUS.map(([s, rel]) => (rel === TERMS ? ['M', rel] : [s, rel]))) } })
+await mutant('scope: vercel.json is added, not modified (the file was replaced)', [], { committed: { proofDiffs: GOOD_PROOF_DIFFS, own: OWN, foreign: [], nameStatus: status(GOOD_STATUS.map(([s, rel]) => (rel === VERCEL ? ['A', rel] : [s, rel]))) } })
 // secret scan
 await mutant('secret scan: a credential-shaped literal', [page(STRIP_MODULE, "export const LEGAL_SHORT_LINKS_FLAG = 'NEXT_PUBLIC_STUDIO_LEGAL_SHORT_LINKS'", `export const LEGAL_SHORT_LINKS_FLAG = 'NEXT_PUBLIC_STUDIO_LEGAL_SHORT_LINKS'\nconst ${['api', 'Key'].join('')} = '${['AKIA', 'ABCDEFGH', '12345678'].join('')}'`)])
 await mutant('secret scan: a user:pass@ URL', [page(HELPER, '// FRONTEND-2 (PROGRAM-1', `// ${['https', '://', 'user', ':', 'hunter22', '@', 'example.com'].join('')}\n// FRONTEND-2 (PROGRAM-1`)])

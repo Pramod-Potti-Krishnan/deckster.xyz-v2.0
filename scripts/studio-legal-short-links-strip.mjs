@@ -19,11 +19,13 @@ export const LEGAL_SHORT_LINKS_NEW_FILES = [
   'scripts/test-studio-legal-short-links.mjs',
 ]
 
-/** The one older proof this change edits: FRONTEND-2's own (not FRONTEND-1's). It held .env.example to "the base plus my block, at the end", exactly, which any later change's block breaks; its assertion now accepts the later blocks the registry names. */
-export const LEGAL_SHORT_LINKS_BULK_EDIT_PROOF = 'scripts/test-studio-bulk-edit-prompt-text.mjs'
+/** The two older proofs this change edits, both FRONTEND-2's own (not FRONTEND-1's): each held something to "the change before it, exactly" that any later change breaks. One assertion each. */
+export const LEGAL_SHORT_LINKS_BULK_EDIT_PROOF = 'scripts/test-studio-bulk-edit-prompt-text.mjs' // held .env.example to "the base plus my block, at the end", byte for byte: it now accepts the later blocks the registry names
+export const LEGAL_SHORT_LINKS_POLISH_F_PROOF = 'scripts/test-studio-pass3-polish-f.mjs' // held its committed diff to "modifies no existing file but the registry": it now also accepts the files a later registered change modifies
+export const LEGAL_SHORT_LINKS_OLDER_PROOFS = [LEGAL_SHORT_LINKS_BULK_EDIT_PROOF, LEGAL_SHORT_LINKS_POLISH_F_PROOF]
 
-/** Files this change edits that are not new: .env.example (its block), vercel.json (one headers entry), the registry (two lines: its files and its block) and that one proof (one assertion). No FRONTEND-1 test is edited. */
-export const LEGAL_SHORT_LINKS_OWN_EDITS = ['.env.example', 'vercel.json', 'scripts/studio-later-changes.mjs', LEGAL_SHORT_LINKS_BULK_EDIT_PROOF]
+/** Files this change edits that are not new: .env.example (its block), vercel.json (one headers entry), the registry (two lines: its files and its block) and those two proofs (one assertion each). No FRONTEND-1 test is edited. */
+export const LEGAL_SHORT_LINKS_OWN_EDITS = ['.env.example', 'vercel.json', 'scripts/studio-later-changes.mjs', ...LEGAL_SHORT_LINKS_OLDER_PROOFS]
 
 /** Every file this change's commits touch: what the older scope checks skip once the registry names it (scripts/studio-later-changes.mjs, LATER_CHANGE_FILES). */
 export const LEGAL_SHORT_LINKS_SCOPE_FILES = new Set([...LEGAL_SHORT_LINKS_NEW_FILES, ...LEGAL_SHORT_LINKS_OWN_EDITS])
