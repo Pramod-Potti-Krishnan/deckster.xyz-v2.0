@@ -489,6 +489,9 @@ function proveSecretScan(at = '') {
   const added = [LIB, BAR, CSS, STRIP_MODULE, THIS_TEST].map(read).concat(read(PAGE).split('\n').filter(marked), read(LAYOUT).split('\n').filter(marked), [PHONE_SHELL_NAV_ENV_BLOCK]).join('\n')
   nomatch(added, /\b(api[_-]?key|secret|token|passw(or)?d)\w*\s*[:=]\s*['"`][^'"`\s]{8,}['"`]/i, a('no credential-shaped literal in the added lines'))
   nomatch(added, /\b[a-z][a-z0-9+.-]*:\/\/[^/\s:@'"`]+:[^@\s'"`]+@/i, a('no user:pass@ in an added URL'))
+  // the patterns of scripts/test-studio-thumbnail-last-good.mjs, whose added-lines scan leaves a registered later change's new files to their own proofs; its bare "key" name is left out: this change's link table is { key: 'knowledge', ... }
+  nomatch(added, /(?:secret|token|passw(?:or)?d|credential)[A-Za-z0-9_]*['"]?\s*[:=]\s*['"`][^'"`\s]{8,}['"`]/i, a('no quoted literal assigned to a credential-shaped name (the thumbnail proof\'s names)'))
+  nomatch(added, /eyJ[A-Za-z0-9_-]{10,}\.|AKIA[0-9A-Z]{16}|sk-[A-Za-z0-9]{20,}|ghp_[A-Za-z0-9]{20,}|xox[abp]-[A-Za-z0-9-]{10,}|-----BEGIN [A-Z ]*PRIVATE KEY|Bearer [A-Za-z0-9._-]{20,}/, a('no token, key or bearer string'))
 }
 
 // ---------------------------------------------------------------- run everything
@@ -605,6 +608,8 @@ await mutant('taught proof: polish E reads its files raw again (the edit is not 
 await mutant('taught proof: thumbnail last good scans a later change\'s new files again (the edit is not there)', [['scripts/test-studio-thumbnail-last-good.mjs', PHONE_SHELL_NAV_PIN_EDITS['scripts/test-studio-thumbnail-last-good.mjs'][0][0], PHONE_SHELL_NAV_PIN_EDITS['scripts/test-studio-thumbnail-last-good.mjs'][0][1]]])
 await mutant('taught proof: thumbnail last good loses the mark', [['scripts/test-studio-thumbnail-last-good.mjs', ` ${PHONE_SHELL_NAV_PIN_MARK}`, '']])
 await mutant('taught proof: polish F loses the mark', [['scripts/test-studio-pass3-polish-f.mjs', ` ${PHONE_SHELL_NAV_PIN_MARK}`, '']])
+await mutant('secret scan: a bearer string in an ordinary name', [[STRIP_MODULE, "export const PHONE_SHELL_NAV_MARKER = 'PHONE-SHELL-NAV'", `export const PHONE_SHELL_NAV_MARKER = 'PHONE-SHELL-NAV'\nconst note = '${['Bearer ', 'a'.repeat(24)].join('')}'`]])
+await mutant('secret scan: a credential-named literal', [[STRIP_MODULE, "export const PHONE_SHELL_NAV_MARKER = 'PHONE-SHELL-NAV'", `export const PHONE_SHELL_NAV_MARKER = 'PHONE-SHELL-NAV'\nconst ${['user', 'Credential'].join('')} = '${['abcdefgh', '12345678'].join('')}'`]])
 await mutant('secret scan: a credential-shaped literal', [[STRIP_MODULE, "export const PHONE_SHELL_NAV_MARKER = 'PHONE-SHELL-NAV'", `export const PHONE_SHELL_NAV_MARKER = 'PHONE-SHELL-NAV'\nconst ${['api', 'Key'].join('')} = '${['AKIA', 'ABCDEFGH', '12345678'].join('')}'`]])
 
 console.log(`mutants: ${killed.length}/${killed.length + survived.length} killed`)
