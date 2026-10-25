@@ -30,6 +30,7 @@ import {
   PHONE_SHELL_NAV_OWN_EDITS, PHONE_SHELL_NAV_PIN_EDITS, PHONE_SHELL_NAV_PIN_FILES, PHONE_SHELL_NAV_PIN_MARK, PHONE_SHELL_NAV_SCOPE_FILES, putBackPin, stripPhoneShellNav,
 } from './studio-phone-shell-nav-strip.mjs'
 import { LATER_CHANGE_FILES, LATER_ENV_BLOCKS, LATER_STRIPS, stripLaterChanges } from './studio-later-changes.mjs'
+import { stripPass3PolishF } from './studio-pass3-polish-f-strip.mjs' // STACK: the last registry entry the base commit has (see read)
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..')
 const nodeRequire = createRequire(import.meta.url)
@@ -52,7 +53,8 @@ const ownCommitted = () => {
 }
 let overrides = {} // in-memory mutations: every proof reads its sources through read()
 // A change registered after this one (PR 2, "Phone shell 2", and any later one) comes out first, so every check below sees this change's tree whatever is stacked on it.
-const read = rel => (rel in overrides ? overrides[rel] : LATER_STRIPS.slice(LATER_STRIPS.indexOf(stripPhoneShellNav) + 1).reduce((out, strip) => strip(rel, out), fs.readFileSync(path.join(root, rel), 'utf8')))
+// STACK: and the changes registered between the base commit's last entry (Pass 3 polish F) and this one (D1, Pass 3 polish G) are in the tree but not in the base commit's files either, so they come out too: every check below sees the base commit plus this change.
+const read = rel => (rel in overrides ? overrides[rel] : LATER_STRIPS.slice(LATER_STRIPS.indexOf(stripPass3PolishF) + 1).filter(strip => strip !== stripPhoneShellNav).reduce((out, strip) => strip(rel, out), fs.readFileSync(path.join(root, rel), 'utf8')))
 const sha = value => crypto.createHash('sha256').update(value).digest('hex')
 const marked = line => PHONE_SHELL_NAV_MARKER_RE.test(line)
 // What this change's own checks read: the file with every OTHER registered change's lines out (innermost, as every older pin reads it) and THIS change's own left in.

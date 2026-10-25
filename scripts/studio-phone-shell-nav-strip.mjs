@@ -8,7 +8,7 @@
 // The older proofs that read the two files raw (PHONE_SHELL_NAV_PIN_EDITS, all FRONTEND-2's own) read them through the registry after a one-line edit each, with the text they had kept here so the proof can put it back.
 // scripts/test-studio-phone-shell-nav.mjs proves all of it. Plain node, no imports, nothing read from disk or git here; any other file comes back as it is.
 
-export const BASE_COMMIT = '15e2d90f1f9e6a876c2147ec002c076408e419cc' // studio-v4-dev-preparation-code at #512 (legal short links), the branch this change is cut from
+export const BASE_COMMIT = 'fc97f2d5d0e99a12afee15343136f77c36191e26' // studio-v4-dev-preparation-code at #514 (D1), the branch this change is stacked on (it was cut at 15e2d90f, #512; #514 edited the legal proof, which the base files below must include)
 export const PHONE_SHELL_NAV_FLAG = 'NEXT_PUBLIC_STUDIO_PHONE_SHELL'
 export const PHONE_SHELL_NAV_COMMIT_SUBJECT = /^Phone shell 1:/
 export const PHONE_SHELL_NAV_MARKER = 'PHONE-SHELL-NAV'
