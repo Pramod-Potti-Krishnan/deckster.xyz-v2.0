@@ -1,0 +1,111 @@
+/* STUDIO PASS 3 POLISH (FRONTEND-2; flag NEXT_PUBLIC_STUDIO_PASS3_POLISH, exact "true", default off, build-time). The static audit's findings (POLISH-AUDIT.md) and the rendered sweep's, one small
+   presentation-only rule at a time, in ONE stylesheet.
+
+   THE SCOPE RULE. Every rule below starts with html[data-studio-pass3-polish="true"]. lib/studio-pass3-polish.ts sets that attribute on <html> while a Studio route is on screen (the account
+   layout and the Builder mount it) and only with the flag on, so with the flag off not one rule here matches anything. No rule is written outside it; no !important is used except in the
+   text-control section, where it has to beat one font-size rule per Studio surface.
+
+   FRONTEND-1's areas are not touched: Settings and the profile pages, Billing, Shortcuts, Your details, the account menu, Publish and the published viewer, Admin, Docs and Help. Where a rule is
+   written for every text control in the Studio (section 2) those areas appear ONLY inside a :not() guard that keeps the rule off them.
+
+   SECTIONS (numbered; a later PR appends the next number ABOVE the APPEND POINT line at the end of this file and adds nothing anywhere else):
+     1. destination intros: the Decks and Knowledge pages' right gutter and the Replay-intro button, on a phone      (from the audit: #3)
+     2. iOS focus zoom: text controls are 16px on a phone                                                           (from the audit: #2)
+     3. the Builder root is 100dvh, not 100vh                                                                       (from the audit: #1)
+     4. phone tap targets: a 32px minimum in the Studio shell                                                       (from the rendered sweep)
+     5. phone tap targets: the Decks view toggle and the Templates / Themes library buttons                         (from the rendered sweep)
+   Phone means max-width: 640px, the breakpoint the Studio stylesheets (studio-decks.css, studio-settings.css ...) already use. */
+
+/* ===== SECTION 1: destination intros (Decks, Knowledge) on a phone ===== */
+/* destination-intros.css keeps a 64px right gutter on these two pages (padding-inline-end) for a Replay-intro button fixed in the viewport corner. At 390px the Studio frame leaves 330px, so the
+   gutter took a fifth of the page (250px for a deck card). On a phone the gutter is the page's own 16px and the button sits in the flow, at the end of the page, right-aligned. The 52px of bottom
+   padding that reserved the corner for a button is no longer needed, and goes back to the 28px the Decks page has on a phone. */
+@media (max-width: 640px) {
+  html[data-studio-pass3-polish="true"] [data-studio-v4-shell="true"] main:is([data-studio-intro-surface="decks"], [data-studio-intro-surface="knowledge"]) {
+    padding-inline-end: 16px;
+    padding-bottom: 28px;
+  }
+  html[data-studio-pass3-polish="true"] [data-studio-v4-shell="true"] main:is([data-studio-intro-surface="decks"], [data-studio-intro-surface="knowledge"]) > [data-studio-intro-replay="true"].studio-destination-intro-replay {
+    position: static;
+    margin: 12px 0 0 auto;
+  }
+}
+
+/* ===== SECTION 2: iOS focus zoom (text controls are 16px on a phone) ===== */
+/* iOS Safari zooms the whole page when a text control under 16px takes focus, and does not zoom back. The Studio sets 11px to 13.6px on its controls (the Director prompt is 13.6px, the Decks search
+   13px, the composer menus 11.5px, and about thirty more rules), one rule per surface at different specificities, so this one wins with !important. It changes the font size and the line height and
+   nothing else: no padding, no height, no width (every Studio field is a fixed-height box, and the line height scales with the size so a taller line never clips). It is written for text inputs,
+   native selects, textareas and contenteditable; buttons, labels, links, icons, checkboxes, radios, ranges, colour and file inputs are not in it. The guard keeps it off FRONTEND-1's areas:
+   Settings and profile pages, Billing, Shortcuts, Your details, the account menu, Publish (dialog, wizard, popups, Q&A inbox), the published viewer and its ask panel, Admin, Docs and Help. */
+@media (max-width: 640px) {
+  html[data-studio-pass3-polish="true"] :is(input:not([type="checkbox"]):not([type="radio"]):not([type="range"]):not([type="file"]):not([type="color"]):not([type="button"]):not([type="submit"]):not([type="reset"]):not([type="image"]):not([type="hidden"]), select, textarea, [contenteditable]:not([contenteditable="false"])):not(:is([data-studio-settings], [data-studio-billing], [data-studio-p2-shortcuts], [data-studio-personal="details"], [data-studio-v4-profile], [data-studio-publish], [data-studio-publish-popup], [data-studio-publish-wizard], [data-studio-qa-inbox], [data-studio-published-viewer], [data-studio-published-ask], [data-studio-published-qa], [data-studio-p2-admin], [data-studio-p2-docs], [data-studio-p2-help], [data-studio-help-content]) *) {
+    font-size: 16px !important;
+  }
+  html[data-studio-pass3-polish="true"] :is(textarea, [contenteditable]:not([contenteditable="false"])):not(:is([data-studio-settings], [data-studio-billing], [data-studio-p2-shortcuts], [data-studio-personal="details"], [data-studio-v4-profile], [data-studio-publish], [data-studio-publish-popup], [data-studio-publish-wizard], [data-studio-qa-inbox], [data-studio-published-viewer], [data-studio-published-ask], [data-studio-published-qa], [data-studio-p2-admin], [data-studio-p2-docs], [data-studio-p2-help], [data-studio-help-content]) *) {
+    line-height: 1.5 !important;
+  }
+  html[data-studio-pass3-polish="true"] input:not([type="checkbox"]):not([type="radio"]):not([type="range"]):not([type="file"]):not([type="color"]):not([type="button"]):not([type="submit"]):not([type="reset"]):not([type="image"]):not([type="hidden"]):not(:is([data-studio-settings], [data-studio-billing], [data-studio-p2-shortcuts], [data-studio-personal="details"], [data-studio-v4-profile], [data-studio-publish], [data-studio-publish-popup], [data-studio-publish-wizard], [data-studio-qa-inbox], [data-studio-published-viewer], [data-studio-published-ask], [data-studio-published-qa], [data-studio-p2-admin], [data-studio-p2-docs], [data-studio-p2-help], [data-studio-help-content]) *) {
+    line-height: 1.35 !important;
+  }
+}
+
+/* ===== SECTION 3: the Builder root is 100dvh ===== */
+/* The Builder's root element is `flex h-screen w-screen overflow-hidden` (app/builder/page.tsx). h-screen is 100vh, which on iOS Safari and Chrome for Android is the LARGE viewport (the browser
+   toolbar hidden), so with the toolbar showing the bottom of the chat column, the composer and its send row, sat under it. The Studio rail beside it is already 100dvh (studio-shell.css), so the
+   two disagreed. Where dvh exists the root is 100dvh, the visible viewport; on a desktop browser dvh and vh are the same. It is the only element that carries both the Studio shell attribute and
+   h-screen, and scripts/test-studio-pass3-polish.mjs holds that. */
+@supports (height: 100dvh) {
+  html[data-studio-pass3-polish="true"] [data-studio-v4-shell="true"].h-screen {
+    height: 100dvh;
+  }
+}
+
+/* ===== SECTION 4: phone tap targets (32px minimum) in the Studio shell ===== */
+/* The rendered sweep (196 variants, 25 Oct) found these controls under 32px on a phone: the Builder header's panel toggle (27x27), New deck (33x28) and Export (31x28); the composer's toolbar buttons (28x28:
+   attach, theme, template, research options, send); the Replay-intro button (28 to 30px on Templates, Intelligence, Details and the rest). Each gets min-width and min-height 32px: the content stays centred (they
+   are flex or inline-flex boxes, or buttons, which centre their content), the icons and the font sizes are not touched, and the boxes are never made smaller. The header is 48px tall and its items are centred, so
+   nothing moves; the composer's toolbar is 28px of button + 16px of padding over a 56px bottom padding, so 32px fits. The Slides / Director segments stay 22px tall inside the 36px pane bar (a taller box would push
+   the bar's height), so their hit area is extended 5px up and 5px down by an ::after instead (32px); the horizontal size is unchanged. Left alone on purpose: the 16px-wide SLIDE edge handle (a drag handle),
+   the settings switches (FRONTEND-1's area, a standard 44x24) and the theme colour inputs (a library editor). The Publish button beside Export is FRONTEND-1's and keeps its 28px. */
+@media (max-width: 640px) {
+  html[data-studio-pass3-polish="true"] [data-studio-v4-shell="true"] .studio-shell-heading > button,
+  html[data-studio-pass3-polish="true"] [data-studio-v4-shell="true"] .studio-shell-new,
+  html[data-studio-pass3-polish="true"] [data-studio-v4-shell="true"] [data-studio-v4-toolbar-target] [data-studio-v4-delivery] [data-studio-download-control="true"] > button,
+  html[data-studio-pass3-polish="true"] [data-studio-v4-shell="true"] [data-studio-v4-composer-toolbar="true"] button,
+  html[data-studio-pass3-polish="true"] button[data-studio-v4-shell="true"][data-studio-intro-replay="true"] {
+    min-width: 32px;
+    min-height: 32px;
+  }
+  html[data-studio-pass3-polish="true"] [data-studio-v4-shell="true"] [data-studio-workspace-switch-v2="true"] .swsv2-segments > button {
+    position: relative;
+  }
+  html[data-studio-pass3-polish="true"] [data-studio-v4-shell="true"] [data-studio-workspace-switch-v2="true"] .swsv2-segments > button::after {
+    content: "";
+    position: absolute;
+    left: 0;
+    right: 0;
+    top: -5px;
+    bottom: -5px;
+  }
+}
+
+/* ===== SECTION 5: phone tap targets: the Decks view toggle and the Templates / Themes library buttons ===== */
+/* The rendered sweep also found, at 390px: the Decks page's Grid / List toggle 28px tall (78x28 and 74x28); on Templates and Themes the "Start another draft" text button 27px tall, "Back to Studio" 30.5px and the
+   "Continue in Studio" disclosure summary 22.5px (every disclosure summary of the two pages shares that rule). Each button gets min-height 32px (they are inline-flex boxes with centred content); a summary is a
+   list item, so it keeps its text and gets 8px of padding above and below instead of 3px (22.5px -> 32.5px). Only heights grow, by 2 to 10px, in the row that holds each; nothing else moves, and nothing changes
+   at desktop width. Left alone on purpose: the theme colour inputs and the theme dropdown chevron (30x30, inside a fixed-height field), the deck cards' title links (the whole card is the target), and the Intelligence
+   and Details pages. */
+@media (max-width: 640px) {
+  html[data-studio-pass3-polish="true"] [data-studio-v4-shell="true"] [data-studio-deck-view-controls] button {
+    min-height: 32px;
+  }
+  html[data-studio-pass3-polish="true"] [data-studio-v4-shell="true"] .studio-library .sl-text-button,
+  html[data-studio-pass3-polish="true"] [data-studio-v4-shell="true"] .studio-library .sl-workflow-link .sl-button {
+    min-height: 32px;
+  }
+  html[data-studio-pass3-polish="true"] [data-studio-v4-shell="true"] .studio-library .sl-disclosure summary {
+    padding-block: 8px;
+  }
+}
+
+/* ===== APPEND POINT: the next section (6, 7 ...) goes ABOVE this line, numbered, with its own comment; every rule starts with html[data-studio-pass3-polish="true"] ===== */

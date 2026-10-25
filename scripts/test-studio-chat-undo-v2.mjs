@@ -37,9 +37,21 @@ import { stripBulkEditUndo } from './studio-bulk-edit-undo-strip.mjs'
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..')
 const nodeRequire = createRequire(import.meta.url)
 const BASE = process.env.CHAT_UNDO_V2_BASE || BASE_COMMIT
+const OWN_SCOPE = new Set([...CHAT_UNDO_V2_FILES, ...CHAT_UNDO_V2_NEW_FILES, ...CHAT_UNDO_V2_OWN_EDITS]) // = CHAT_UNDO_V2_SCOPE_FILES of the strip module
 const git = (...args) => execFileSync('git', args, { cwd: root, encoding: 'utf8', maxBuffer: 1 << 28, stdio: ['ignore', 'pipe', 'ignore'] })
-// This change's OWN committed files: the non-merge commits on the first-parent line BASE..HEAD. What a merged-in branch brings (COMPOSER-2's first paint and deck cards, once they are merged under or into this one) is that branch's, whatever it registers.
-const ownCommitted = (filter = '') => [...new Set(git('log', '--first-parent', '--no-merges', '--name-only', '--format=', ...(filter ? [`--diff-filter=${filter}`] : []), `${BASE}..HEAD`).split('\n').filter(Boolean))]
+// This change's OWN committed files. The first-parent line BASE..HEAD has the non-merge commits that sit directly on it. A commit there is THIS change's only if it touches at least one of this change's own files (`own`: the strip module's
+// CHAT_UNDO_V2_SCOPE_FILES): a later change committed straight on top of this one (a stacked PR, before it is merged) touches none of them, so it is not this change's to answer for. What a merged-in branch brings (COMPOSER-2's first
+// paint and deck cards, once they are merged under or into this one) is that branch's, whatever it registers. And a file a LATER change has registered (scripts/studio-later-changes.mjs, LATER_CHANGE_FILES) is never a stray here.
+const firstParentCommits = () => git('log', '--first-parent', '--no-merges', '--name-only', '--format=%x01%H', `${BASE}..HEAD`).split('\x01').filter(Boolean).map(block => { const [id, ...files] = block.split('\n'); return { id, files: files.filter(Boolean) } })
+const firstParentDeleted = () => new Map(git('log', '--first-parent', '--no-merges', '--name-only', '--diff-filter=D', '--format=%x01%H', `${BASE}..HEAD`).split('\x01').filter(Boolean).map(block => { const [id, ...files] = block.split('\n'); return [id, files.filter(Boolean)] }))
+let history = null // a made-up first-parent history [{ id, files, deleted? }], in place of git's (the scope rule's own proof and its mutant); null: git's
+const commitsOf = () => history ?? firstParentCommits()
+const RULE = { touchesOwn: true, skipLater: true } // the two parts of the scope rule; a mutant switches one off
+const ownCommits = (own, commits = commitsOf()) => commits.filter(commit => !RULE.touchesOwn || commit.files.some(rel => own.has(rel)))
+const ownCommitted = (own, commits = commitsOf()) => [...new Set(ownCommits(own, commits).flatMap(commit => commit.files))]
+const ownDeleted = own => { const deleted = history ? null : firstParentDeleted(); return ownCommits(own).flatMap(commit => (deleted ? deleted.get(commit.id) : commit.deleted) ?? []) }
+/** The files of this change's own commits that are neither its files nor a registered later change's: what the scope check refuses. */
+const scopeStray = (own, later, commits = commitsOf()) => ownCommitted(own, commits).filter(rel => !own.has(rel) && !(RULE.skipLater && later.has(rel)))
 const showCache = new Map()
 const show = (commit, rel) => { const ref = `${commit}:${rel}`; if (!showCache.has(ref)) showCache.set(ref, git('show', ref)); return showCache.get(ref) }
 const baseOf = rel => show(BASE, rel)
@@ -349,7 +361,7 @@ async function suite() {
     assert.equal(stripAddSlideStatus(LIST, read(LIST)), stripAddSlideStatus(LIST, baseOf(LIST)), 'the add-slide root takes this change\'s lines out as well')
     const blocks = registry.match(/export const LATER_ENV_BLOCKS = \[([\s\S]*?)\n\]/)[1]; assert.ok(!/chat-undo-v2/.test(blocks), 'no env block')
     assert.ok(!CHAT_UNDO_V2_FILES.includes(ENV) && !CHAT_UNDO_V2_OWN_EDITS.includes(ENV), 'no .env.example change')
-    if (!STOP) assert.ok(!ownCommitted().includes(ENV), 'none of this change\'s own commits touches .env.example')
+    if (!STOP) assert.ok(!ownCommitted(OWN_SCOPE).filter(rel => !LATER_CHANGE_FILES.has(rel)).includes(ENV), 'none of this change\'s own commits touches .env.example (a later change\'s registered .env.example edit is not this change\'s)')
   })
   await check('registry: one marked line in LATER_CHANGE_FILES names this change\'s files (none in LATER_ENV_BLOCKS: no env block); scope: the COMMITTED diff BASE..HEAD holds those files only', async () => {
     const mod = await stripFile(), registry = read(REGISTRY)
@@ -357,11 +369,25 @@ async function suite() {
     assert.equal(lines.length, 2, 'two registration lines: its files and its strip (no env block)'); assert.equal(lines.filter(line => /^  \.\.\.\(await import\('\.\/studio-chat-undo-v2-strip\.mjs'\)\)\.CHAT_UNDO_V2_SCOPE_FILES, \/\/ LATER-CHANGE: /.test(line)).length, 1, 'the files line')
     const blocks = registry.match(/export const LATER_ENV_BLOCKS = \[([\s\S]*?)\n\]/)[1]; assert.ok(!/chat-undo-v2/.test(blocks), 'no env block')
     for (const rel of mod.CHAT_UNDO_V2_SCOPE_FILES) assert.ok(LATER_CHANGE_FILES.has(rel) || rel in overrides, `${rel} is registered`)
-    const own = new Set(mod.CHAT_UNDO_V2_SCOPE_FILES), changed = ownCommitted()
-    const stray = changed.filter(rel => !own.has(rel)); assert.deepEqual(stray, [], `files outside this change: ${stray.join(', ')}`)
+    const own = new Set(mod.CHAT_UNDO_V2_SCOPE_FILES), changed = ownCommitted(own)
+    const stray = scopeStray(own, LATER_CHANGE_FILES); assert.deepEqual(stray, [], `files outside this change: ${stray.join(', ')}`)
     for (const rel of mod.CHAT_UNDO_V2_NEW_FILES) assert.ok(fs.existsSync(path.join(root, rel)) || rel in overrides, `${rel} exists`)
-    assert.deepEqual(ownCommitted('D'), [], 'nothing deleted')
+    assert.deepEqual(ownDeleted(own), [], 'nothing deleted')
     if (!STOP) process.stdout.write(`     (committed diff ${BASE.slice(0, 8)}..HEAD: ${changed.length} files)\n`)
+  })
+  await check('scope rule (in memory, made-up histories): a commit is this change\'s only if it touches one of its files; a registered later change\'s files are never strays; a stacked PR\'s direct commits are not this change\'s', () => {
+    const own = OWN_SCOPE, later = LATER_CHANGE_FILES, aFile = [...own][0], laterFile = [...later].find(rel => !own.has(rel)), unregistered = 'lib/some-unregistered-file.ts'
+    assert.ok(aFile && laterFile && !later.has(unregistered) && !own.has(unregistered), 'the fixtures: an own file, a registered later file, a file nobody registered')
+    const stray = commits => scopeStray(own, later, commits)
+    assert.deepEqual(stray([]), [], 'no commits, no strays')
+    assert.deepEqual(stray([{ id: 'a', files: [aFile] }]), [], 'a commit of this change\'s files only')
+    assert.deepEqual(stray([{ id: 'b', files: [unregistered, laterFile] }]), [], 'a stacked PR\'s direct commit (it touches none of this change\'s files) is not this change\'s, whatever it adds')
+    assert.deepEqual(stray([{ id: 'c', files: [aFile, laterFile] }]), [], 'a commit of this change that also carries a REGISTERED later change\'s file: not a stray')
+    assert.deepEqual(stray([{ id: 'd', files: [aFile, unregistered] }]), [unregistered], 'a commit that touches this change\'s file AND an unregistered file outside it: that file is a stray')
+    assert.deepEqual(stray([{ id: 'e', files: [aFile] }, { id: 'f', files: [unregistered, laterFile] }]), [], 'this change\'s commit, then a stacked PR\'s commit on top: no strays')
+    assert.deepEqual(ownCommitted(own, [{ id: 'g', files: [aFile, laterFile] }, { id: 'h', files: [unregistered] }]).sort(), [aFile, laterFile].sort(), 'only the commits that touch one of its files are its own')
+    const before = history
+    try { history = [{ id: 'i', files: [aFile], deleted: [] }, { id: 'j', files: [unregistered], deleted: [laterFile] }]; assert.deepEqual(ownDeleted(own), [], 'a deletion in a stacked PR\'s commit is not this change\'s'); history = [{ id: 'k', files: [aFile], deleted: [aFile] }]; assert.deepEqual(ownDeleted(own), [aFile], 'a deletion in this change\'s own commit is') } finally { history = before }
   })
   await check('secrets: no line this change adds carries a credential-shaped literal; no request, storage or viewer call in the new store code', () => {
     const added = git('diff', '-U0', BASE, 'HEAD', '--', ...CHAT_UNDO_V2_OWN_EDITS.filter(rel => rel.startsWith('lib/')), LIST, 'scripts/studio-chat-undo-v2-strip.mjs', 'scripts/test-studio-chat-undo-v2.mjs').split('\n').filter(line => /^\+(?!\+\+)/.test(line)).join('\n')
@@ -394,6 +420,9 @@ const MUTANTS = [
   { name: 'strip: a piece of the strip is wrong', edits: [[STRIP_MODULE, "export function stripChatUndoV2(rel, text) {\n  const table = CHANGES[rel]\n  if (!table) return text\n", "export function stripChatUndoV2(rel, text) {\n  const table = CHANGES[rel]\n  if (!table || rel === 'components/builder/message-list.tsx') return text\n"]] },
   { name: 'the strip is not registered (the registry never runs it)', edits: [[REGISTRY, "  (await import('./studio-chat-undo-v2-strip.mjs')).stripChatUndoV2, // LATER-CHANGE: FRONTEND-2, chat undo v2 (NEXT_PUBLIC_STUDIO_CHAT_UNDO; no .env.example block)\n", '']] },
   { name: 'bulk edit + chat undo\'s strip no longer calls the registry first', edits: [[V1_STRIP, 'const inner = stripLaterChanges(rel, text)', 'const inner = text']] },
+  { name: 'scope rule: a commit that touches this change\'s file and also an unregistered file outside it (an in-memory history)', history: () => [{ id: 'm1', files: [...OWN_SCOPE].slice(0, 1).concat('lib/some-unregistered-file.ts') }] },
+  { name: 'scope rule: every commit on the line is this change\'s (the touches-one-of-its-files test is gone)', rule: { touchesOwn: false } },
+  { name: 'scope rule: a registered later change\'s file is a stray (the LATER_CHANGE_FILES skip is gone)', rule: { skipLater: false } },
   { name: 'the parser reads the history anchor from the live key', edits: [[WIRE, 'historyAnchorId: cleanId(body.anchor_history_id)', 'historyAnchorId: cleanId(body.anchor_message_id)']] },
   { name: 'replayed is read from any truthy value', edits: [[WIRE, 'replayed: body.replayed === true }', 'replayed: !!body.replayed }']] },
 ]
@@ -408,14 +437,15 @@ if (results.failed.length === 0 && !process.env.CHAT_UNDO_V2_NO_MUTANTS) {
   let killed = 0
   for (const mutant of MUTANTS) {
     overrides = {}
-    for (const [rel, from, to] of mutant.edits) {
+    history = mutant.history ? mutant.history() : null; Object.assign(RULE, { touchesOwn: true, skipLater: true }, mutant.rule ?? {})
+    for (const [rel, from, to] of mutant.edits ?? []) {
       const source = rel in overrides ? overrides[rel] : sourceOf(rel)
       assert.equal(source.split(from).length - 1, 1, `mutant "${mutant.name}" no longer applies to ${rel}: ${from.slice(0, 70)}`)
       overrides[rel] = source.replace(from, () => to)
     }
     let caught = false
     try { await suite() } catch { caught = true }
-    overrides = {}
+    overrides = {}; history = null; Object.assign(RULE, { touchesOwn: true, skipLater: true })
     if (process.env.CHAT_UNDO_V2_WHY) console.log(`  ${caught ? 'killed' : 'SURVIVED'} ${mutant.name}\n     by ${LAST}`)
     if (caught) killed++; else { escaped++; console.log(`SURVIVED mutant: ${mutant.name}`) }
   }
