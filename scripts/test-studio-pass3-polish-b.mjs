@@ -39,6 +39,9 @@ const baseOf = rel => { const ref = `${BASE}:${rel}`; if (!showCache.has(ref)) s
 let overrides = {} // in-memory mutations: every proof reads its sources through read()
 const read = rel => (rel in overrides ? overrides[rel] : fs.readFileSync(path.join(root, rel), 'utf8'))
 const sha = value => crypto.createHash('sha256').update(value).digest('hex')
+// A change stacked on this one (PR C, PR D ...) registers its own lines in the same two files, AFTER this change's strip in LATER_STRIPS. Those strips run first, here, and only those: this proof compares to the base commit with its
+// own and PR A's strips, as it did before anything was stacked on it, so the older changes' lines (first paint, chat undo ...) stay as they are in both. (PR D's edit to this file: it read the Builder page without the strips of later PRs.)
+const withoutPeers = (rel, text) => (LATER_STRIPS.includes(stripPass3PolishB) ? LATER_STRIPS.slice(LATER_STRIPS.indexOf(stripPass3PolishB) + 1).reduce((out, strip) => strip(rel, out), text) : text)
 const plain = value => (value === undefined ? undefined : JSON.parse(JSON.stringify(value)))
 
 let checks = 0
@@ -289,7 +292,7 @@ function proveSecretScan(texts, at = '') {
 
 // ---------------------------------------------------------------- run everything
 async function proveAll(stripFn = stripPass3PolishB, at = '') {
-  const texts = { [VIEWER]: read(VIEWER), [BUILDER_PAGE]: read(BUILDER_PAGE) }
+  const texts = { [VIEWER]: withoutPeers(VIEWER, read(VIEWER)), [BUILDER_PAGE]: withoutPeers(BUILDER_PAGE, read(BUILDER_PAGE)) }
   proveLib(read(LIB), at)
   for (const rel of PASS3_POLISH_B_FILES) provePin(rel, texts[rel], at, stripFn)
   const offHash = await proveViewer(texts[VIEWER], at)
@@ -318,7 +321,7 @@ async function mutant(name, edits, { strip = stripPass3PolishB, only = '' } = {}
       overrides[rel] = mode === 'all' ? source.split(from).join(to) : source.replace(from, () => to)
     }
     if (only === 'behaviour') { // the executed proofs alone (no text pin, no exact-lines check): the behaviour itself must catch the mutant
-      await proveViewer(read(VIEWER), name); proveBuilder(read(BUILDER_PAGE), name)
+      await proveViewer(withoutPeers(VIEWER, read(VIEWER)), name); proveBuilder(withoutPeers(BUILDER_PAGE, read(BUILDER_PAGE)), name)
     } else await proveAll(strip, name)
   } catch (error) {
     if (/no longer applies/.test(String(error.message))) throw error

@@ -52,6 +52,7 @@ import { DirectorPresence } from '@/components/build-narration/director-presence
 import { cn } from '@/lib/utils'
 import { useToast } from '@/hooks/use-toast'
 import { STUDIO_PASS3_POLISH_B_ENABLED, STUDIO_POLISH_COPY, deckStartErrorDescription } from '@/lib/studio-pass3-polish-b' // PASS3-POLISH-B (NEXT_PUBLIC_STUDIO_PASS3_POLISH, default off): audit #7, the Studio toast instead of the browser's alert
+import { STUDIO_PASS3_POLISH_D_ENABLED, builderHeading, useStudioPass3PolishDMain } from '@/lib/studio-pass3-polish-d' // PASS3-POLISH-D (NEXT_PUBLIC_STUDIO_PASS3_POLISH, default off): a main landmark and one hidden h1 for /builder
 import { SlideGenerationPanel, type SlideComposeAcceptedJob, type SlideComposeBuiltResult, type SlideComposePanelEvent, type StudioSlideBuiltSelection } from '@/components/slide-generation-panel'
 import { createAddSlideV2Hooks } from '@/lib/studio-add-slide-v2-submit'
 import { createAddSlideV2RegenerateHooks } from '@/lib/studio-add-slide-v2-submit'
@@ -4812,6 +4813,7 @@ function AuthenticatedBuilderContent({ authScopeUserId }: { authScopeUserId: str
   // NEXT_PUBLIC_STUDIO_PAYMENTS_OPEN_SOON (default off): the account menu's upgrade row is disabled and says "Payments open soon". Flag off, the hook returns before it reads the document.
   useStudioPaymentsOpenSoon()
   useStudioPass3Polish() // PASS3-POLISH: NEXT_PUBLIC_STUDIO_PASS3_POLISH (default off) sets data-studio-pass3-polish on <html>; flag off, the hook returns before it reads the document.
+  useStudioPass3PolishDMain(workspaceRef) // PASS3-POLISH-D: NEXT_PUBLIC_STUDIO_PASS3_POLISH (default off) sets role="main" on the workspace container; flag off, the effect returns before it reads the ref
 
   // NEXT_PUBLIC_STUDIO_DUPLICATE_COPY_TITLE (default off): a copied deck has no slideStructure, so its header said "Studio"; the open session's own title is read once, only while the header has none. Flag off: no props, nothing is read.
   const studioDuplicateCopyTitleProps = useStudioDuplicateCopyTitleProps(currentSessionId, !isUnsavedSession && !slideStructure?.metadata?.main_title)
@@ -7148,6 +7150,7 @@ function AuthenticatedBuilderContent({ authScopeUserId }: { authScopeUserId: str
 
         {/* Main Content Area */}
         <div ref={workspaceRef} data-studio-intro-surface={studioShell ? "builder" : undefined} data-studio-v4-shell-workspace="true" data-studio-workspace-welcome={studioWelcome ? "true" : undefined} data-studio-workspace-mode={studioShell ? workspaceLayout.dualPane ? 'dual' : 'single' : undefined} data-studio-workspace-overlay={studioShell ? String(studioOverlayWorkspace) : undefined} data-studio-panel-keep-canvas={studioShell && STUDIO_PANEL_KEEP_CANVAS_ENABLED ? "true" : undefined} data-studio-panel-focus={studioPanelFocus ? "true" : undefined} data-studio-chat-width-stage={studioShell && STUDIO_CHAT_WIDTH_V2_ENABLED ? studioChatWidthStage : undefined} className="flex-1 flex relative overflow-hidden" style={studioShell ? { '--studio-collapsed-inspector-width': `${studioTemplateVisible && templateParamsCollapsed ? TEMPLATE_PANEL_COLLAPSED_WIDTH : 0}px` } as React.CSSProperties : undefined}>
+          {STUDIO_PASS3_POLISH_D_ENABLED && <h1 className="sr-only">{builderHeading(slideStructure?.metadata?.main_title)}</h1>}{/* PASS3-POLISH-D */}
           {studioPopupsV2 && !workspaceLayout.dualPane && (
             <StudioWorkspaceSwitchV2
               showSlides={studioOverlayWorkspace}
