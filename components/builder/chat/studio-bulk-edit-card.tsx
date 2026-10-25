@@ -5,6 +5,8 @@ import { Check, Layers, Minus, Sparkles, X } from "lucide-react"
 import { BULK_EDIT_COPY, bulkEditChoiceOf, bulkEditSummaryParts, bulkReasonWords, type BulkEditConfirm, type BulkEditReceipt } from "@/lib/studio-bulk-edit-wire"
 import { studioBulkEditUndo, useStudioBulkEditUndoVersion, type BulkEditUndoStore } from "@/lib/studio-bulk-edit-store"
 import "./studio-bulk-edit-undo.css"
+import "./studio-bulk-edit-prompt-text.css" // BULK-EDIT-PROMPT-TEXT (NEXT_PUBLIC_STUDIO_BULK_EDIT_PROMPT_TEXT, default off): the one rule for Director's sentence
+import { bulkEditPromptCardModel } from "@/lib/studio-bulk-edit-prompt-text" // BULK-EDIT-PROMPT-TEXT
 
 type ChatAction = { label: string; value: string; primary: boolean; requires_input: boolean }
 
@@ -28,6 +30,7 @@ export function StudioBulkEditRow({ ask, model, sessionId, status, chosenValue =
   rowProps?: Record<string, string>
   store?: BulkEditUndoStore
 }) {
+  model = bulkEditPromptCardModel(model) // BULK-EDIT-PROMPT-TEXT (default off): Director's own sentence, when the model has one, already says the estimate, so the estimate line is not drawn a second time; no sentence: the same model
   useStudioBulkEditUndoVersion(store)
   const [sending, setSending] = useState<'confirm' | 'cancel' | null>(null)
   const bulk = store.bulk(sessionId, model.bulkId)
@@ -65,6 +68,7 @@ export function StudioBulkEditRow({ ask, model, sessionId, status, chosenValue =
         <p data-studio-director-part="speaker" className="text-[11px] font-medium text-gray-500 dark:text-slate-400 mb-0.5">Director</p>
         <div data-studio-bulk-edit="confirm" data-studio-bulk-edit-state={state} data-studio-bulk-id={model.bulkId} data-director-action-id={ask.message_id} role="group" aria-label={`${BULK_EDIT_COPY.heading}: ${count}`}>
           <p data-studio-bulk-edit-part="heading"><Layers aria-hidden="true" /><span>{BULK_EDIT_COPY.heading}</span><span data-studio-bulk-edit-part="count">{count}</span></p>
+          {model.promptText ? <p data-studio-bulk-edit-part="prompt">{model.promptText}</p> : null /* BULK-EDIT-PROMPT-TEXT (default off): Director's own sentence, once, as plain text */}
           <p data-studio-bulk-edit-part="instruction">&ldquo;{model.instruction}&rdquo;</p>
           <ul data-studio-bulk-edit-part="chips" aria-label="Slides this changes">
             {model.slideIndexes.map((_index, at) => {
