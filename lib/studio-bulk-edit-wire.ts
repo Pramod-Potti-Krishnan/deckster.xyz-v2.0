@@ -78,6 +78,8 @@ const MAX_INSTRUCTION = 400
 const MAX_LABEL = 160
 const MAX_REASON = 240
 const MAX_COUNT = 100_000
+const MAX_PROMPT_TEXT = 600 // BULK-EDIT-PROMPT-TEXT: Director's own sentence for the card (payload.prompt_text), cleaned like every other text here and capped at 600 characters
+const PROMPT_TEXT_ON = process.env.NEXT_PUBLIC_STUDIO_BULK_EDIT_PROMPT_TEXT === 'true' // BULK-EDIT-PROMPT-TEXT (NEXT_PUBLIC_STUDIO_BULK_EDIT_PROMPT_TEXT, default off): keep prompt_text in the card's model
 
 const isRecord = (value: unknown): value is Record<string, unknown> => typeof value === 'object' && value !== null && !Array.isArray(value)
 const cleanText = (value: unknown, max: number): string | null => {
@@ -117,6 +119,8 @@ export interface BulkEditConfirm {
   estimateLabel: string | null
   /** estimate.usd as sent. Never formatted or drawn by Studio. */
   estimateUsd: number | null
+  /** BULK-EDIT-PROMPT-TEXT (NEXT_PUBLIC_STUDIO_BULK_EDIT_PROMPT_TEXT): Director's own sentence for this card, plain text; the key is absent with the flag off. */
+  promptText?: string | null // BULK-EDIT-PROMPT-TEXT
   confirm: BulkEditAction
   cancel: BulkEditAction
 }
@@ -161,6 +165,7 @@ export function parseBulkEditConfirm(frame: unknown): BulkEditConfirm | null {
       bulkId, instruction, slideIndexes: [...indexes] as number[], slideIds, slideCount: indexes.length,
       estimateLabel: estimate ? cleanText(estimate.label, MAX_LABEL) : null,
       estimateUsd: estimate && typeof estimate.usd === 'number' && Number.isFinite(estimate.usd) && estimate.usd >= 0 ? estimate.usd : null,
+      ...(PROMPT_TEXT_ON ? { promptText: cleanText(payload.prompt_text, MAX_PROMPT_TEXT) } : {}), // BULK-EDIT-PROMPT-TEXT
       confirm, cancel,
     }
   } catch { return null }
