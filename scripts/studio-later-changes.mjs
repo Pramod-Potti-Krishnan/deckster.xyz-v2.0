@@ -33,6 +33,7 @@ export const LATER_CHANGE_FILES = new Set([
   ...(await import('./studio-d1-debug-routes-strip.mjs')).D1_SCOPE_FILES, // LATER-CHANGE: FRONTEND-2, D1 security hotfix: debug env routes removed, cleanup-sessions dry run gated (no flag: PK's ruling; no .env.example block)
   ...(await import('./studio-pass3-polish-f-strip.mjs')).PASS3_POLISH_F_SCOPE_FILES, // LATER-CHANGE: FRONTEND-2, pass 3 polish set, PR F (NEXT_PUBLIC_STUDIO_PASS3_POLISH; no .env.example block of its own: the flag's block is PR A's)
   ...(await import('./studio-legal-short-links-strip.mjs')).LEGAL_SHORT_LINKS_SCOPE_FILES, // LATER-CHANGE: FRONTEND-2, legal short links and the marketing-slide cache header from uat, D16 a (NEXT_PUBLIC_STUDIO_LEGAL_SHORT_LINKS)
+  ...(await import('./studio-pass3-polish-g-strip.mjs')).PASS3_POLISH_G_SCOPE_FILES, // LATER-CHANGE: FRONTEND-2, pass 3 polish set, PR G (NEXT_PUBLIC_STUDIO_PASS3_POLISH; no .env.example block of its own: the flag's block is PR A's)
   // one line per later change, above this comment
 ])
 
@@ -58,6 +59,7 @@ export const LATER_STRIPS = [
   (await import('./studio-pass3-polish-e-strip.mjs')).stripPass3PolishE, // LATER-CHANGE: FRONTEND-2, pass 3 polish set, PR E (NEXT_PUBLIC_STUDIO_PASS3_POLISH; no .env.example block of its own)
   (await import('./studio-pass3-polish-f-strip.mjs')).stripPass3PolishF, // LATER-CHANGE: FRONTEND-2, pass 3 polish set, PR F (NEXT_PUBLIC_STUDIO_PASS3_POLISH; no .env.example block of its own)
   (await import('./studio-d1-debug-routes-strip.mjs')).stripD1DebugRoutes, // LATER-CHANGE: FRONTEND-2, D1 security hotfix: debug env routes removed, cleanup-sessions dry run gated (no flag: PK's ruling; no .env.example block)
+  (await import('./studio-pass3-polish-g-strip.mjs')).stripPass3PolishG, // LATER-CHANGE: FRONTEND-2, pass 3 polish set, PR G (NEXT_PUBLIC_STUDIO_PASS3_POLISH; no .env.example block of its own)
   // one line per later change, above this comment
 ]
 
