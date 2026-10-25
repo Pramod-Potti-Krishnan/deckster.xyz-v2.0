@@ -27,6 +27,7 @@ import {
   BASE_COMMIT, PASS3_POLISH_BUILDER, PASS3_POLISH_ENV_BLOCK, PASS3_POLISH_FILES, PASS3_POLISH_LAYOUT, PASS3_POLISH_MARKER_RE, PASS3_POLISH_SCOPE_FILES, stripPass3Polish,
 } from './studio-pass3-polish-strip.mjs'
 import { LATER_CHANGE_FILES, LATER_ENV_BLOCKS, LATER_STRIPS, stripLaterChanges } from './studio-later-changes.mjs'
+import { stripPass3PolishG } from './studio-pass3-polish-g-strip.mjs' // LATER-CHANGES: registry read (PASS3-POLISH-G)
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..')
 const nodeRequire = createRequire(import.meta.url)
@@ -48,7 +49,7 @@ const ownCommitted = () => {
 const showCache = new Map()
 const baseOf = rel => { const ref = `${BASE}:${rel}`; if (!showCache.has(ref)) showCache.set(ref, git('show', ref)); return showCache.get(ref) }
 let overrides = {} // in-memory mutations: every proof reads its sources through read()
-const read = rel => (rel in overrides ? overrides[rel] : fs.readFileSync(path.join(root, rel), 'utf8'))
+const read = rel => (rel in overrides ? overrides[rel] : rel === 'components/studio-pass3-polish/studio-pass3-polish.css' ? stripPass3PolishG(rel, fs.readFileSync(path.join(root, rel), 'utf8')) : fs.readFileSync(path.join(root, rel), 'utf8')) // LATER-CHANGES: registry read (PASS3-POLISH-G)
 const sha = value => crypto.createHash('sha256').update(value).digest('hex')
 const plain = value => (value === undefined ? undefined : JSON.parse(JSON.stringify(value))) // objects made inside the vm have the vm's prototypes
 const marked = line => PASS3_POLISH_MARKER_RE.test(line) // this change's marker, as a WHOLE token (a later change's PASS3-POLISH-B is not it)

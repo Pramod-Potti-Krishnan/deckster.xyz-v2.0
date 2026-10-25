@@ -165,7 +165,7 @@ async function suite() {
     const changed = git('diff', '--name-only', BASE, 'HEAD').split('\n').filter(Boolean), own = new Set(OWN_FILES)
     const later = rel => LATER_CHANGE_FILES.has(rel) || (rel === ENV && LATER_ENV_BLOCKS.length > 0) // a change stacked after this one registers its files, and a registered .env.example block means it touched .env.example: not this change's to answer for
     const stray = changed.filter(rel => !own.has(rel) && !later(rel)); assert.deepEqual(stray, [], `files outside this change: ${stray.join(', ')}`)
-    assert.ok(changed.filter(rel => !later(rel)).every(rel => rel.startsWith('scripts/')), 'scripts/ only'); assert.equal(git('diff', '--name-only', '--diff-filter=D', BASE, 'HEAD').trim(), '', 'nothing deleted')
+    assert.ok(changed.filter(rel => !later(rel)).every(rel => rel.startsWith('scripts/')), 'scripts/ only'); assert.deepEqual(git('diff', '--name-only', '--diff-filter=D', BASE, 'HEAD').split('\n').filter(rel => rel && !later(rel)), [], 'nothing deleted (a registered later change\'s deletions are not this change\'s)')
     const added = git('diff', '-U0', BASE, 'HEAD').split('\n').filter(line => /^\+(?!\+\+)/.test(line)).join('\n')
     for (const pattern of [/AKIA[0-9A-Z]{16}/, /sk-[A-Za-z0-9]{20,}/, /xox[bap]-[A-Za-z0-9-]{10,}/, /-----BEGIN [A-Z ]*PRIVATE KEY-----/, /eyJ[A-Za-z0-9_-]{20,}\.[A-Za-z0-9_-]{20,}\./, /(?<![A-Za-z_])(?:password|secret|token|api[_-]?key)\s*[:=]\s*['"][^'"\s]{12,}['"]/i]) assert.ok(!pattern.test(added), `credential-shaped text: ${pattern}`)
     if (!STOP) process.stdout.write(`     (committed diff ${BASE.slice(0, 8)}..HEAD: ${changed.length} files)\n`)
