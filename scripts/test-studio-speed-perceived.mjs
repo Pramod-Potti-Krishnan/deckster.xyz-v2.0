@@ -398,6 +398,22 @@ if (HEAD === BASE) {
     ok(diff.length > 0 && diff.every(line => line.startsWith('+') && stripModule.SPEED_PERCEIVED_MARKER_RE.test(line)), `D: ${rel} gains only marked lines`)
   }
   eq(git('show', `${HEAD}:.env.example`), `${git('show', `${BASE}:.env.example`)}\n${stripModule.SPEED_PERCEIVED_ENV_BLOCK}`, 'D: .env.example is the base plus the block')
+  // the older proofs this change teaches (all FRONTEND-2's own): with their registry-read lines put back they are the base's files, byte for byte; each taught line is there once and carries the mark; an unmarked change is not put back
+  eq(stripModule.SPEED_PERCEIVED_PIN_FILES.length, 3, 'D: three older proofs are taught')
+  for (const rel of stripModule.SPEED_PERCEIVED_PIN_FILES) {
+    const head = git('show', `${HEAD}:${rel}`), base = git('show', `${BASE}:${rel}`)
+    ok(!/test-studio-p2-|launch-wording|env-append-tolerant|route-params|admin-email-guard|uat-marketing|docs|landing/.test(rel), `D: ${rel} is not a FRONTEND-1 test`)
+    eq(stripModule.putBackPin(rel, head), base, `D: ${rel} with its registry-read lines put back is the base, byte for byte`)
+    eq(stripModule.stripSpeedPerceived(rel, head), base, `D: ${rel} through the strip is the base, byte for byte`)
+    for (const [has, was] of stripModule.SPEED_PERCEIVED_PIN_EDITS[rel]) {
+      eq(head.split(has).length - 1, 1, `D: ${rel}: a taught line is there once`)
+      ok(has.endsWith('\n') && has.includes(stripModule.SPEED_PERCEIVED_PIN_MARK) && has.split('\n').length === 2 && (was === '' || (was.endsWith('\n') && was.split('\n').length === 2)), `D: ${rel}: one whole line, marked, for one whole line or none`)
+      ok(was === '' || base.includes(was), `D: ${rel}: the line it replaces is the base's`)
+    }
+    const [firstHas] = stripModule.SPEED_PERCEIVED_PIN_EDITS[rel][0]
+    ok(stripModule.putBackPin(rel, head.replace(firstHas, () => `${firstHas}const unmarked = 1\n`)) !== base, `D: ${rel}: an unmarked line added next to a taught one is not put back`)
+    ok(stripModule.putBackPin(rel, head.replace(stripModule.SPEED_PERCEIVED_PIN_MARK, () => '//')) !== base, `D: ${rel}: a taught line that loses its mark is not put back`)
+  }
   const registryDiff = git('diff', '-U0', `${BASE}..${HEAD}`, '--', 'scripts/studio-later-changes.mjs').split('\n').filter(line => /^[+-]/.test(line) && !/^(\+\+\+|---) /.test(line))
   eq(registryDiff.length, 3, 'D: the registry gains three lines')
   ok(registryDiff.every(line => line.startsWith('+') && line.includes('LATER-CHANGE') && line.includes('studio-speed-perceived-strip.mjs')), 'D: each is a LATER-CHANGE line naming this strip')

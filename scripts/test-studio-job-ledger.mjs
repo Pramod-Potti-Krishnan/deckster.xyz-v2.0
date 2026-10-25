@@ -611,7 +611,7 @@ async function identityChecks(src) {
 }
 
 function pageChecks(src) {
-  const page = src[PAGE]
+  const page = stripBulkEditUndo(PAGE, src[PAGE]) // LATER-CHANGES: registry read (SPEED-PERCEIVED): the lines of the changes registered after this one come out first (the registry runs innermost in the strip)
   return check("page: the card mounts only with the flag on (Studio shell), right after the transcript; the hook gets the ledger's intake only with it on", async () => {
     const parts = pageParts(page)
     assert.ok(parts.spread && parts.mount)
@@ -723,6 +723,7 @@ const MUTANTS = [
   ['a job_update unlocks the turn', HOOK, "if (STUDIO_JOB_LEDGER_ENABLED && (parsedMessage.type as unknown) === JOB_UPDATE_TYPE) {\n", "if (STUDIO_JOB_LEDGER_ENABLED && (parsedMessage.type as unknown) === JOB_UPDATE_TYPE) {\n              clearAwaitReply();\n"],
   ['a raw failure code in the words', LIB, "return { title: `${subject} didn't finish`, body: 'Something it relies on had a problem.' }", "return { title: `${subject} didn't finish (${row.failure?.code})`, body: 'Something it relies on had a problem.' }"],
   ['the card mounts without the flag', PAGE, '{STUDIO_JOB_LEDGER_ENABLED && studioShell && (\n                        <StudioJobLedgerCards', '{studioShell && (\n                        <StudioJobLedgerCards'],
+  ['an unmarked line between the MessageList and the card (not a registered later change\'s: the card must still follow the list closely)', PAGE, 'suppressEphemeral={effectiveBuildNarrationEnabled}\n                      />\n', 'suppressEphemeral={effectiveBuildNarrationEnabled}\n                      />\n{/* ' + 'x'.repeat(420) + ' */}\n'], // LATER-CHANGES: registry read (SPEED-PERCEIVED)
   ['the card never re-enables by itself (no wake timer)', CARD, 'const timer = setTimeout(() => rerender(n => n + 1), Math.max(0, wakeAt - Date.now()))', 'const timer = setTimeout(() => undefined, Math.max(0, wakeAt - Date.now()))'],
   ["another session's sync jobs taken", HOOK, "parsedMessage.type === 'sync_response' && parsedMessage.session_id === socketSessionId) {", "parsedMessage.type === 'sync_response') {"],
 ]

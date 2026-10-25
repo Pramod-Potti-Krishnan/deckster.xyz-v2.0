@@ -28,6 +28,7 @@ import vm from 'node:vm'
 import { createRequire } from 'node:module'
 import { fileURLToPath } from 'node:url'
 import ts from 'typescript'
+import { stripLaterChanges } from './studio-later-changes.mjs' // LATER-CHANGES: registry read (SPEED-PERCEIVED)
 
 const treeRoot = process.env.TOOLBAR_TEMPLATES_ROOT
   ? path.resolve(process.env.TOOLBAR_TEMPLATES_ROOT)
@@ -484,7 +485,7 @@ const GOLDEN = {
   chatInputWiring: 'cc14cd479d12c8a7060a516b03badf75c58797cc83ab9a1e73541876b728361f',
 }
 function wiringHashes(root = treeRoot) {
-  const page = fs.readFileSync(path.join(root, PAGE), 'utf8')
+  const page = stripLaterChanges(PAGE, fs.readFileSync(path.join(root, PAGE), 'utf8')) // LATER-CHANGES: registry read (SPEED-PERCEIVED): a registered later change's marked lines come out first (an unmarked line still counts)
   return {
     areaWiring: sha(withoutFix(oneElement(page, 'PresentationArea'))),
     dialogWiring: sha(withoutFix(oneElement(page, 'ComposerLibraryDialog'))),
@@ -856,6 +857,7 @@ mutant('the area passes the props on even when absent (new keys on every viewer 
   const area = mut(read(AREA), '{...(onComposerTemplateAction ? { onComposerTemplateAction, onOpenComposerLibrary } : {})}', 'onComposerTemplateAction={onComposerTemplateAction}')
   deq(oneElement(area, 'PresentationViewer').spreads.filter(s => FIX.test(s)), ['(onComposerTemplateAction ? { onComposerTemplateAction, onOpenComposerLibrary } : {})'])
 })
+mutant('the page hands ChatInput an unmarked extra spread (not a registered later change\'s: the wiring hash sees it)', async () => { const page = stripLaterChanges(PAGE, mut(read(PAGE), '<ChatInput\n', '<ChatInput\n                    {...({ extra: 1 })}\n')); deq(sha(withoutFix(oneElement(page, 'ChatInput'))), GOLDEN.chatInputWiring) }) // LATER-CHANGES: registry read (SPEED-PERCEIVED)
 mutant('the viewer drops the callbacks (the picker never gets them)', async () => {
   const viewer = mut(read(VIEWER), 'onComposerTemplateAction={onComposerTemplateAction}\n', '')
   assert.ok(oneElement(viewer, 'StudioTemplatePicker').attrs.includes('onComposerTemplateAction={onComposerTemplateAction}'))

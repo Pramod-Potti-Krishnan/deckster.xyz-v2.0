@@ -1531,7 +1531,7 @@ await run('fix: with saved templates too, "My templates" lists the library\'s te
 
 await run('fix (page.tsx): flag off, the page hands ChatInput and the library dialog exactly what it did before; flag on, the popup\'s action opens the dialog with the request, which is cleared once taken', async () => {
   const page = read(PAGE)
-  assert.equal(pageWiringHash(page), BASE_HASHES.pageWiring, 'both elements, without the fix\'s spreads, are the base\'s')
+  assert.equal(pageWiringHash((await import('./studio-later-changes.mjs')).stripLaterChanges(PAGE, page)), BASE_HASHES.pageWiring, 'both elements, without the fix\'s spreads, are the base\'s') // LATER-CHANGES: registry read (SPEED-PERCEIVED): a registered later change's marked lines come out first (an unmarked line still counts)
   const wiring = pageWiring(page)
   const chatSpread = wiring.ChatInput.spreads.filter(x => FIX_SPREAD.test(x))
   const dialogSpread = wiring.ComposerLibraryDialog.spreads.filter(x => FIX_SPREAD.test(x))
@@ -1566,6 +1566,7 @@ mutant('fix (page.tsx): the dialog gets the request with the flag off', async ()
   const spread = pageWiring(page).ComposerLibraryDialog.spreads.find(x => FIX_SPREAD.test(x))
   deq(Object.keys(compileJsx(spread, 'dialog spread')({ studioPopupsV2: false, studioTemplateWorkspace: false, composerLibraryRequest: null, setComposerLibraryRequest() {} })), [])
 })
+mutant('fix (page.tsx): an unmarked spread added to ChatInput is not a registered later change\'s (the wiring hash sees it)', async () => { const page = read(PAGE).replace('<ChatInput\n', '<ChatInput\n                    {...({ extra: 1 })}\n'); if (page === read(PAGE)) throw new MutationTargetMissing('page mutation did not apply'); assert.equal(pageWiringHash((await import('./studio-later-changes.mjs')).stripLaterChanges(PAGE, page)), BASE_HASHES.pageWiring) }) // LATER-CHANGES: registry read (SPEED-PERCEIVED)
 
 await run('fix: flag off (no request), the library dialog renders and requests exactly as the base did (16 states: tree and every request)', async () => {
   assert.equal(await dialogHash(), BASE_HASHES.dialog)
