@@ -249,7 +249,10 @@ function provePin(rel, text, at = '', stripFn = stripBulkEditPromptText) {
 }
 function proveEnv(envText, at = '') {
   const a = message => (at ? `${at}: ${message}` : message)
-  eq(envText, `${baseOf(ENV)}\n${BULK_EDIT_PROMPT_TEXT_ENV_BLOCK}`, a('env: .env.example is the base plus this change\'s block, after a blank line, at the end'))
+  // Later changes stacked after this one register their own .env.example block (scripts/studio-later-changes.mjs, LATER_ENV_BLOCKS) and append it at the end, after a blank line: the file is the base, this block, then those.
+  const own = `${baseOf(ENV)}\n${BULK_EDIT_PROMPT_TEXT_ENV_BLOCK}`
+  const later = LATER_ENV_BLOCKS.filter(block => block !== BULK_EDIT_PROMPT_TEXT_ENV_BLOCK && !own.includes(String(block).replace(/\n+$/, '')))
+  eq(envText, later.reduce((text, block) => (envText.includes(block) ? `${text}\n${block}` : text), own), a('env: .env.example is the base plus this change\'s block, after a blank line, then any later registered block (each after a blank line), at the end'))
   match(BULK_EDIT_PROMPT_TEXT_ENV_BLOCK, /NEXT_PUBLIC_STUDIO_BULK_EDIT_PROMPT_TEXT="false"\n$/, a('env: the flag is documented off'))
   match(BULK_EDIT_PROMPT_TEXT_ENV_BLOCK, /DIRECTOR_MDC_BULK_EDIT_POLISH_ENABLED/, a('env: it says it flips together with the Director polish flag'))
   eq(stripLaterChanges(ENV, envText), stripLaterChanges(ENV, baseOf(ENV)), a('env: through the registry it is the base\'s file'))
