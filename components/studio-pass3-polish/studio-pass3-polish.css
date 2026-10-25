@@ -13,6 +13,7 @@
      2. iOS focus zoom: text controls are 16px on a phone                                                           (from the audit: #2)
      3. the Builder root is 100dvh, not 100vh                                                                       (from the audit: #1)
      4. phone tap targets: a 32px minimum in the Studio shell                                                       (from the rendered sweep)
+     5. phone tap targets: the Decks view toggle and the Templates / Themes library buttons                         (from the rendered sweep)
    Phone means max-width: 640px, the breakpoint the Studio stylesheets (studio-decks.css, studio-settings.css ...) already use. */
 
 /* ===== SECTION 1: destination intros (Decks, Knowledge) on a phone ===== */
@@ -88,4 +89,23 @@
   }
 }
 
-/* ===== APPEND POINT: the next section (5, 6 ...) goes ABOVE this line, numbered, with its own comment; every rule starts with html[data-studio-pass3-polish="true"] ===== */
+/* ===== SECTION 5: phone tap targets: the Decks view toggle and the Templates / Themes library buttons ===== */
+/* The rendered sweep also found, at 390px: the Decks page's Grid / List toggle 28px tall (78x28 and 74x28); on Templates and Themes the "Start another draft" text button 27px tall, "Back to Studio" 30.5px and the
+   "Continue in Studio" disclosure summary 22.5px (every disclosure summary of the two pages shares that rule). Each button gets min-height 32px (they are inline-flex boxes with centred content); a summary is a
+   list item, so it keeps its text and gets 8px of padding above and below instead of 3px (22.5px -> 32.5px). Only heights grow, by 2 to 10px, in the row that holds each; nothing else moves, and nothing changes
+   at desktop width. Left alone on purpose: the theme colour inputs and the theme dropdown chevron (30x30, inside a fixed-height field), the deck cards' title links (the whole card is the target), and the Intelligence
+   and Details pages. */
+@media (max-width: 640px) {
+  html[data-studio-pass3-polish="true"] [data-studio-v4-shell="true"] [data-studio-deck-view-controls] button {
+    min-height: 32px;
+  }
+  html[data-studio-pass3-polish="true"] [data-studio-v4-shell="true"] .studio-library .sl-text-button,
+  html[data-studio-pass3-polish="true"] [data-studio-v4-shell="true"] .studio-library .sl-workflow-link .sl-button {
+    min-height: 32px;
+  }
+  html[data-studio-pass3-polish="true"] [data-studio-v4-shell="true"] .studio-library .sl-disclosure summary {
+    padding-block: 8px;
+  }
+}
+
+/* ===== APPEND POINT: the next section (6, 7 ...) goes ABOVE this line, numbered, with its own comment; every rule starts with html[data-studio-pass3-polish="true"] ===== */
