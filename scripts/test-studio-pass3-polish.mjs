@@ -10,6 +10,8 @@
 //   5. stylesheet every rule starts with the attribute; the only at-rules are (max-width: 640px) and (height: 100dvh); each section's declarations are exactly the audit's (before -> after px); no rule targets
 //                 FRONTEND-1's areas (they appear only inside the :not() guard, and the guard names all of them); buttons, labels and links are not in the text-control rule; the append point is last
 //   6. change     the strip, the registry lines, the .env.example block, scope (the COMMITTED diff only: a polluted working tree changes nothing), a secret scan
+//   6b. stacked   a later change registered after this one (PR B) adds lines to the two app files: every read that compares to the base or counts this change's lines goes through the registry first (withoutOthers), and this change's marker
+//                 is matched as a whole token (PASS3-POLISH, not PASS3-POLISH-B); a made-up later change proves it in memory, and a stray line nobody registered still fails
 //   7. mutants    each one must make sections 1-6 fail
 import assert from 'node:assert/strict'
 import crypto from 'node:crypto'
@@ -22,7 +24,7 @@ import { fileURLToPath } from 'node:url'
 import ts from 'typescript'
 import postcss from 'postcss'
 import {
-  BASE_COMMIT, PASS3_POLISH_BUILDER, PASS3_POLISH_ENV_BLOCK, PASS3_POLISH_FILES, PASS3_POLISH_LAYOUT, PASS3_POLISH_MARKER, PASS3_POLISH_SCOPE_FILES, stripPass3Polish,
+  BASE_COMMIT, PASS3_POLISH_BUILDER, PASS3_POLISH_ENV_BLOCK, PASS3_POLISH_FILES, PASS3_POLISH_LAYOUT, PASS3_POLISH_MARKER_RE, PASS3_POLISH_SCOPE_FILES, stripPass3Polish,
 } from './studio-pass3-polish-strip.mjs'
 import { LATER_CHANGE_FILES, LATER_ENV_BLOCKS, LATER_STRIPS, stripLaterChanges } from './studio-later-changes.mjs'
 
@@ -49,6 +51,14 @@ let overrides = {} // in-memory mutations: every proof reads its sources through
 const read = rel => (rel in overrides ? overrides[rel] : fs.readFileSync(path.join(root, rel), 'utf8'))
 const sha = value => crypto.createHash('sha256').update(value).digest('hex')
 const plain = value => (value === undefined ? undefined : JSON.parse(JSON.stringify(value))) // objects made inside the vm have the vm's prototypes
+const marked = line => PASS3_POLISH_MARKER_RE.test(line) // this change's marker, as a WHOLE token (a later change's PASS3-POLISH-B is not it)
+// What this change's own checks read: the file with every OTHER registered change's lines (and .env.example blocks) taken out, innermost, as every older pin reads it, and THIS change's own left in. This change registers itself too,
+// so for the length of the call the registry is told it is not there. A later change stacked on this one (PR B ...) registers its strip, and its lines vanish here before any count or byte check.
+const withoutOthers = (rel, text) => {
+  const si = LATER_STRIPS.indexOf(stripPass3Polish), ei = LATER_ENV_BLOCKS.indexOf(PASS3_POLISH_ENV_BLOCK)
+  const mine = si >= 0 ? LATER_STRIPS.splice(si, 1)[0] : null, myBlock = ei >= 0 ? LATER_ENV_BLOCKS.splice(ei, 1)[0] : null
+  try { return stripLaterChanges(rel, text) } finally { if (mine) LATER_STRIPS.splice(si, 0, mine); if (myBlock) LATER_ENV_BLOCKS.splice(ei, 0, myBlock) }
+}
 
 let checks = 0
 const count = fn => (...args) => { checks++; return fn(...args) }
@@ -195,7 +205,7 @@ function renderLayout(text, st, withMounts = true) {
 const baseRenders = new Map()
 function proveLayout(layoutText, at = '') {
   const a = message => (at ? `${at}: ${message}` : message)
-  const base = baseOf(LAYOUT)
+  const base = withoutOthers(LAYOUT, baseOf(LAYOUT))
   const baseOut = [], headOut = []
   for (const st of LAYOUT_STATES) {
     const key = JSON.stringify(st)
@@ -218,26 +228,26 @@ function proveLayout(layoutText, at = '') {
 // ---------------------------------------------------------------- 4. the page pin (the Builder page and the account layout)
 function provePin(rel, text, expectedMarked, at = '', stripFn = stripPass3Polish) {
   const a = message => (at ? `${at}: ${rel}: ${message}` : `${rel}: ${message}`)
-  const base = baseOf(rel)
+  const base = withoutOthers(rel, baseOf(rel))
   const stripped = stripFn(rel, text)
   eq(sha(stripped), sha(base), a('without this change\'s lines it is the base commit\'s file, byte for byte'))
-  ok(!stripped.includes(PASS3_POLISH_MARKER), a('the stripped file carries no marker'))
-  ok(!base.includes(PASS3_POLISH_MARKER), a('the base never carried the marker'))
+  ok(!stripped.split('\n').some(marked), a('the stripped file carries no marker'))
+  ok(!base.split('\n').some(marked), a('the base never carried the marker'))
   const lines = text.split('\n'), baseLines = base.split('\n')
-  const marked = lines.filter(line => line.includes(PASS3_POLISH_MARKER))
-  eq(marked.length, expectedMarked, a(`exactly ${expectedMarked} lines are this change's`))
+  const markedLines = lines.filter(marked)
+  eq(markedLines.length, expectedMarked, a(`exactly ${expectedMarked} lines are this change's`))
   const have = new Map()
   for (const line of baseLines) have.set(line, (have.get(line) ?? 0) + 1)
   const added = []
   for (const line of lines) { const n = have.get(line) ?? 0; if (n > 0) have.set(line, n - 1); else added.push(line) }
-  ok(added.every(line => line.includes(PASS3_POLISH_MARKER)), a(`every added line carries the marker (unmarked: ${JSON.stringify(added.filter(line => !line.includes(PASS3_POLISH_MARKER)))})`))
-  eq(added.length, marked.length, a('and every marked line is an added one'))
+  ok(added.every(marked), a(`every added line carries the marker (unmarked: ${JSON.stringify(added.filter(line => !marked(line)))})`))
+  eq(added.length, markedLines.length, a('and every marked line is an added one'))
   eq([...have.values()].reduce((sum, n) => sum + n, 0), 0, a('no base line is changed or removed'))
   let next = 0
   for (const line of lines) if (next < baseLines.length && line === baseLines[next]) next++
   eq(next, baseLines.length, a('the base lines are all there, in order'))
   nomatch(text.replace(/^\s*\/\/.*$/gm, '').replace(/\/\/ .*$/gm, ''), new RegExp(`process\\.env\\.${FLAG}`), a('the file does not read the flag itself (the lib does)'))
-  return { lines, marked }
+  return { lines, marked: markedLines }
 }
 function provePage(text, at = '', stripFn = stripPass3Polish) {
   const { lines, marked } = provePin(PAGE, text, 3, at, stripFn)
@@ -426,10 +436,11 @@ function proveChange(stripFn, at = '') {
   eq(stripFn(ENV, 'a\nb // PASS3-POLISH\n'), 'a\nb // PASS3-POLISH\n', a('.env.example is returned as it is (its block is the registry\'s)'))
   eq(stripFn(PAGE, 'a\nb // PASS3-POLISH\nc\n'), 'a\nc\n', a('a marked line goes, every other byte stays (trailing newline too)'))
   eq(stripFn(LAYOUT, 'a\n{x}{/* PASS3-POLISH */}\nc'), 'a\nc', a('the layout the same'))
+  eq(stripFn(PAGE, 'a\nb // PASS3-POLISH-B\nc // PASS3-POLISH: x\nd // XPASS3-POLISH\n'), 'a\nb // PASS3-POLISH-B\nd // XPASS3-POLISH\n', a('only this change\'s marker, as a whole token, takes a line out: a later change\'s PASS3-POLISH-B stays for its own strip'))
   eq(stripFn(PAGE, stripFn(PAGE, read(PAGE))), stripFn(PAGE, read(PAGE)), a('stripping twice changes nothing more'))
   eq(stripFn(PAGE, 7), 7, a('a non-string comes back'))
   deep(PASS3_POLISH_FILES, [LAYOUT, PAGE], a('the strip touches the account layout and the Builder page only'))
-  for (const rel of PASS3_POLISH_FILES) eq(sha(stripFn(rel, read(rel))), sha(baseOf(rel)), a(`${rel}: the strip gives the base commit's file`))
+  for (const rel of PASS3_POLISH_FILES) eq(sha(stripFn(rel, withoutOthers(rel, read(rel)))), sha(withoutOthers(rel, baseOf(rel))), a(`${rel}: the strip gives the base commit's file (the file read as every older pin reads it: a later change's lines already out)`))
 }
 function proveRegistry(registryText, at = '') {
   const a = message => (at ? `${at}: ${message}` : message)
@@ -441,7 +452,8 @@ function proveRegistry(registryText, at = '') {
   match(lines[2], /\(await import\('\.\/studio-pass3-polish-strip\.mjs'\)\)\.stripPass3Polish,/, a('line 3: the strip'))
   eq(registryText.indexOf(lines[0]) < registryText.indexOf('export const LATER_ENV_BLOCKS') && registryText.indexOf(lines[1]) > registryText.indexOf('export const LATER_ENV_BLOCKS') && registryText.indexOf(lines[1]) < registryText.indexOf('export const LATER_STRIPS') && registryText.indexOf(lines[2]) > registryText.indexOf('export const LATER_STRIPS'), true, a('each line is in its own list'))
 }
-function proveEnv(envText, at = '') {
+function proveEnv(envRaw, at = '') {
+  const envText = withoutOthers(ENV, envRaw) // this change's block and the base's own text: every other registered block (a later change's, the earlier ones') is out
   const a = message => (at ? `${at}: ${message}` : message)
   const block = PASS3_POLISH_ENV_BLOCK
   match(block, new RegExp(`^# STUDIO PASS 3 POLISH [\\s\\S]*\\n${FLAG}="false"\\n\\n$`), a('the block: its own flag documented "false", a blank line after it'))
@@ -450,10 +462,10 @@ function proveEnv(envText, at = '') {
   for (const word of ['default off', 'Build-time', 'Vercel', 'NEXT_PUBLIC_STUDIO_V4_SHELL', 'data-studio-pass3-polish="true"', '640 px', '64 px', '16 px', '52 px', '28 px', '13.6 px', '11.5 px', '1.5', '1.35', '100dvh', 'Settings and profile pages', 'Billing', 'Publish', 'Admin', 'Docs and Help', 'PR A has five sections', 'tap targets', '27 px', '22 px', '32 px', '::after', 'Grid / List', 'Templates and Themes', '22.5 px', '8 px']) ok(block.includes(word), a(`the block says "${word}"`))
   const trimmed = block.replace(/\n+$/, '\n')
   eq(envText.split(trimmed).length - 1, 1, a('.env.example has the block exactly once'))
-  ok(envText.indexOf(trimmed) > envText.indexOf('# DECK CARD THUMBNAILS'), a('after the last block that was there'))
+  ok(envRaw.indexOf(trimmed) > envRaw.indexOf('# DECK CARD THUMBNAILS'), a('after the last block that was there (a later change\'s block may follow it)'))
   const without = envText.replace(`\n${trimmed}`, '')
-  eq(sha(without), sha(baseOf(ENV)), a('.env.example without the block (and its separating blank line) is the base commit\'s, byte for byte'))
-  eq(sha(stripLaterChanges(ENV, envText)), sha(stripLaterChanges(ENV, baseOf(ENV))), a('and the registry takes it out the same way'))
+  eq(sha(without), sha(withoutOthers(ENV, baseOf(ENV))), a('.env.example without the block (and its separating blank line) is the base commit\'s, byte for byte'))
+  eq(sha(stripLaterChanges(ENV, envRaw)), sha(stripLaterChanges(ENV, baseOf(ENV))), a('and the registry takes it out the same way'))
 }
 function proveRegistryStripsToBase(texts, at = '') {
   const a = message => (at ? `${at}: ${message}` : message)
@@ -466,7 +478,7 @@ function proveScope(at = '') {
   const a = message => (at ? `${at}: ${message}` : message)
   ok([...PASS3_POLISH_SCOPE_FILES].every(rel => fs.existsSync(path.join(root, rel))), a('every file listed exists'))
   const family = ['lib', 'hooks', 'components', 'scripts'].flatMap(dir => fs.existsSync(path.join(root, dir)) ? fs.readdirSync(path.join(root, dir), { withFileTypes: true }).flatMap(entry => entry.isDirectory() ? (/pass3-polish/.test(entry.name) ? fs.readdirSync(path.join(root, dir, entry.name)).map(name => `${dir}/${entry.name}/${name}`) : []) : (/pass3-polish/.test(entry.name) ? [`${dir}/${entry.name}`] : [])) : [])
-  deep(family.filter(rel => !PASS3_POLISH_SCOPE_FILES.has(rel)), [], a('no file of this change\'s family is missing from its list'))
+  deep(family.filter(rel => !PASS3_POLISH_SCOPE_FILES.has(rel) && !LATER_CHANGE_FILES.has(rel)), [], a('no file of this change\'s family is missing from its list (a registered later change\'s files are its own)'))
   // FRONTEND-1's areas: not one file of this change is in them
   for (const rel of PASS3_POLISH_SCOPE_FILES) nomatch(rel, /^app\/admin|^components\/admin|^app\/docs|^components\/studio-docs|^app\/help|^components\/help|^app\/p\/|publish|published|^components\/settings|^app\/\(app\)\/settings|^app\/\(app\)\/billing|^components\/billing|user-profile-menu|^app\/\(app\)\/profile|^app\/\(app\)\/shortcuts|^components\/studio-personal\/(details|studio-p2-details|account)/, a(`${rel} is not in FRONTEND-1's areas`))
   // the committed diff only
@@ -480,14 +492,15 @@ function proveScope(at = '') {
 }
 function proveSecretScan(texts, at = '') {
   const a = message => (at ? `${at}: ${message}` : message)
-  const added = [LIB, HOOK, MOUNT, CSS, STRIP_MODULE, THIS_TEST].map(rel => (rel in texts ? texts[rel] : read(rel))).concat(texts[PAGE].split('\n').filter(line => line.includes(PASS3_POLISH_MARKER)), texts[LAYOUT].split('\n').filter(line => line.includes(PASS3_POLISH_MARKER))).join('\n')
+  const added = [LIB, HOOK, MOUNT, CSS, STRIP_MODULE, THIS_TEST].map(rel => (rel in texts ? texts[rel] : read(rel))).concat(texts[PAGE].split('\n').filter(marked), texts[LAYOUT].split('\n').filter(marked)).join('\n')
   nomatch(added, /\b(api[_-]?key|secret|token|passw(or)?d)\w*\s*[:=]\s*['"`][^'"`\s]{8,}['"`]/i, a('no credential-shaped literal in the added lines'))
   nomatch(added, /\b[a-z][a-z0-9+.-]*:\/\/[^/\s:@'"`]+:[^@\s'"`]+@/i, a('no user:pass@ in an added URL'))
 }
 
 // ---------------------------------------------------------------- run everything
 function proveAll(stripFn = stripPass3Polish, at = '') {
-  const texts = { [LAYOUT]: read(LAYOUT), [PAGE]: read(PAGE), [ENV]: read(ENV) }
+  const raw = { [LAYOUT]: read(LAYOUT), [PAGE]: read(PAGE), [ENV]: read(ENV) }                 // the files as they are, every registered change's lines in them
+  const texts = { [LAYOUT]: withoutOthers(LAYOUT, raw[LAYOUT]), [PAGE]: withoutOthers(PAGE, raw[PAGE]), [ENV]: withoutOthers(ENV, raw[ENV]) } // the same without any OTHER change's lines
   proveLib(read(LIB), at)
   proveHook(read(HOOK), read(MOUNT), at)
   const digest = proveLayout(texts[LAYOUT], at)
@@ -496,8 +509,8 @@ function proveAll(stripFn = stripPass3Polish, at = '') {
   proveCss(read(CSS), at)
   proveChange(stripFn, at)
   proveRegistry(read(REGISTRY), at)
-  proveEnv(texts[ENV], at)
-  proveRegistryStripsToBase(texts, at)
+  proveEnv(raw[ENV], at)
+  proveRegistryStripsToBase(raw, at)
   proveScope(at)
   proveSecretScan(texts, at)
   return digest
@@ -507,9 +520,42 @@ const digest = proveAll()
 console.log(`flag off: ${digest.states} layout states, sha256 base ${digest.base.slice(0, 16)} == head ${digest.head.slice(0, 16)}`)
 console.log(`PASS lib, hook, layout, page pin, stylesheet, change: ${checks} checks`)
 
+// =========================================================== 6b. a later change stacked on this one
+// PR B (PASS3-POLISH-B, three marked lines in the Builder page) is stacked on this change. This proof must not see it: whatever another registered change adds to the two app files is taken out by the registry first, innermost
+// (withoutOthers), and only then are this change's lines counted and compared to the base. A made-up later change proves it here, in memory, the way PR B registers: its own marker, its own strip in LATER_STRIPS.
+// The made-up markers are PASS3-POLISH-X (registered for the length of a call) and PASS3-POLISH-Z (never registered): neither is a real change's, so the proof means the same whether or not PR B is in the tree.
+const LATER_MARK = 'PASS3-POLISH-X', UNOWNED_MARK = 'PASS3-POLISH-Z'
+const stripMadeUpLater = (rel, text) => ((rel === LAYOUT || rel === PAGE) && typeof text === 'string' ? text.split('\n').filter(line => !line.includes(LATER_MARK)).join('\n') : text)
+const LAYOUT_ANCHOR = 'from "@/lib/studio-pass3-polish" // PASS3-POLISH', PAGE_ANCHOR = "import { useStudioPass3Polish } from '@/hooks/use-studio-pass3-polish' // PASS3-POLISH\n"
+const laterLine = `const laterChange = 1 // ${LATER_MARK}: a made-up later change stacked on this one\n`, unownedLine = `const laterChange = 1 // ${UNOWNED_MARK}: a line of a change that registered nothing\n`
+const stackLater = (line = laterLine) => [[LAYOUT, LAYOUT_ANCHOR, `${LAYOUT_ANCHOR}\n${line.replace(/\n$/, '')}`], [PAGE, PAGE_ANCHOR, `${PAGE_ANCHOR}${line}`]]
+function withMadeUpLater(register, run) { // the made-up change is registered for the length of the call, like PR B's two lines in scripts/studio-later-changes.mjs
+  if (register) LATER_STRIPS.push(stripMadeUpLater)
+  try { return run() } finally { if (register) LATER_STRIPS.splice(LATER_STRIPS.indexOf(stripMadeUpLater), 1) }
+}
+function withEdits(edits, run) {
+  const before = overrides
+  try {
+    overrides = { ...before }
+    for (const [rel, from, to] of edits) { const source = read(rel); assert.equal(source.split(from).length - 1, 1, `${rel}: the anchor occurs once: ${from.slice(0, 60)}`); overrides[rel] = source.replace(from, () => to) }
+    return run()
+  } finally { overrides = before }
+}
+{
+  const edits = stackLater()
+  withEdits(edits, () => {
+    ok(read(PAGE).includes(`${LATER_MARK}:`) && read(LAYOUT).includes(`${LATER_MARK}:`), 'the made-up later change is in both files')
+    eq(stripPass3Polish(PAGE, read(PAGE)), read(PAGE).split('\n').filter(line => !PASS3_POLISH_MARKER_RE.test(line)).join('\n'), 'this change\'s strip leaves the later change\'s line')
+    withMadeUpLater(true, () => proveAll(stripPass3Polish, 'a later change stacked and registered'))
+    ok(!LATER_STRIPS.includes(stripMadeUpLater), 'and the registry is as it was afterwards')
+  })
+  eq(sha(read(PAGE)), sha(fs.readFileSync(path.join(root, PAGE), 'utf8')), 'and the real file is read again')
+  console.log('PASS a later change stacked on this one (made-up, in memory): the proof reads past it')
+}
+
 // =========================================================== 7. mutants
 const killed = [], survived = []
-async function mutant(name, edits, { strip = stripPass3Polish } = {}) {
+async function mutant(name, edits, { strip = stripPass3Polish, register = false } = {}) {
   const before = overrides
   try {
     overrides = { ...before }
@@ -518,7 +564,7 @@ async function mutant(name, edits, { strip = stripPass3Polish } = {}) {
       assert.ok(mode ? n >= 1 : n === 1, `mutant "${name}" no longer applies to ${rel}: ${from.slice(0, 70)}`)
       overrides[rel] = mode === 'all' ? source.split(from).join(to) : source.replace(from, () => to)
     }
-    proveAll(strip, name)
+    withMadeUpLater(register, () => proveAll(strip, name))
   } catch (error) {
     if (/no longer applies/.test(String(error.message))) throw error
     killed.push(name); if (process.env.PASS3_POLISH_VERBOSE) console.log(`  killed: ${name}\n    by: ${String(error.message).split('\n')[0].slice(0, 170)}`); return
@@ -616,6 +662,13 @@ await mutant('strip: leaves the marked lines', [], { strip: (rel, text) => text 
 await mutant('strip: also removes an unmarked line', [], { strip: (rel, text) => (PASS3_POLISH_FILES.includes(rel) ? text.split('\n').filter(line => !line.includes('PASS3-POLISH') && !line.includes('useStudioPaymentsOpenSoon()')).join('\n') : text) })
 await mutant('strip: drops the trailing newline', [], { strip: (rel, text) => stripBase(rel, text).replace(/\n$/, '') })
 await mutant('strip: also strips .env.example', [], { strip: (rel, text) => (rel === ENV ? text.split('\n').filter(line => !line.includes('PASS3')).join('\n') : stripBase(rel, text)) })
+await mutant('strip: the marker is a substring (a later change\'s PASS3-POLISH-B goes with this one\'s)', [], { strip: (rel, text) => (PASS3_POLISH_FILES.includes(rel) && typeof text === 'string' ? text.split('\n').filter(line => !line.includes('PASS3-POLISH')).join('\n') : text) })
+await mutant('stacked: a later change\'s line in the Builder page that no strip owns', [[PAGE, PAGE_ANCHOR, `${PAGE_ANCHOR}${unownedLine}`]])
+await mutant('stacked: a later change\'s line in the layout that no strip owns', [[LAYOUT, LAYOUT_ANCHOR, `${LAYOUT_ANCHOR}\n${unownedLine.replace(/\n$/, '')}`]])
+await mutant('stacked: a registered later change adds an unmarked line to the page', [[PAGE, PAGE_ANCHOR, `${PAGE_ANCHOR}${laterLine}const stray = 2\n`]], { register: true })
+await mutant('stacked: a registered later change changes a base line of the layout', [...stackLater().slice(0, 1), [LAYOUT, 'className="min-h-screen bg-slate-50 dark:bg-slate-950"', 'className="min-h-screen bg-slate-100 dark:bg-slate-950"']], { register: true })
+await mutant('stacked: a fourth line of this change\'s own marker in the page', [...stackLater().slice(1), [PAGE, PAGE_ANCHOR, `${PAGE_ANCHOR}const fourth = 1 // PASS3-POLISH\n`]], { register: true })
+await mutant('stacked: this change\'s hook call carrying a suffixed marker (a different change\'s) is not this change\'s', [...stackLater().slice(1), [PAGE, '  useStudioPass3Polish() // PASS3-POLISH: NEXT_PUBLIC', '  useStudioPass3Polish() // PASS3-POLISH-Z: NEXT_PUBLIC']], { register: true })
 await mutant('registry: the strip line is gone', [[REGISTRY, "  (await import('./studio-pass3-polish-strip.mjs')).stripPass3Polish, // LATER-CHANGE: FRONTEND-2, pass 3 polish set, PR A (NEXT_PUBLIC_STUDIO_PASS3_POLISH)\n", '']])
 await mutant('registry: the env block line is gone', [[REGISTRY, "  (await import('./studio-pass3-polish-strip.mjs')).PASS3_POLISH_ENV_BLOCK, // LATER-CHANGE: FRONTEND-2, pass 3 polish set, PR A (NEXT_PUBLIC_STUDIO_PASS3_POLISH)\n", '']])
 await mutant('registry: the files line is gone', [[REGISTRY, "  ...(await import('./studio-pass3-polish-strip.mjs')).PASS3_POLISH_SCOPE_FILES, // LATER-CHANGE: FRONTEND-2, pass 3 polish set, PR A (NEXT_PUBLIC_STUDIO_PASS3_POLISH)\n", '']])
