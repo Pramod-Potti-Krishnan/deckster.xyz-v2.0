@@ -51,6 +51,7 @@ import type { DirectorTransportOwner } from '@/hooks/use-deckster-websocket-v2'
 import { DirectorPresence } from '@/components/build-narration/director-presence'
 import { cn } from '@/lib/utils'
 import { useToast } from '@/hooks/use-toast'
+import { STUDIO_PASS3_POLISH_B_ENABLED, STUDIO_POLISH_COPY, deckStartErrorDescription } from '@/lib/studio-pass3-polish-b' // PASS3-POLISH-B (NEXT_PUBLIC_STUDIO_PASS3_POLISH, default off): audit #7, the Studio toast instead of the browser's alert
 import { SlideGenerationPanel, type SlideComposeAcceptedJob, type SlideComposeBuiltResult, type SlideComposePanelEvent, type StudioSlideBuiltSelection } from '@/components/slide-generation-panel'
 import { createAddSlideV2Hooks } from '@/lib/studio-add-slide-v2-submit'
 import { createAddSlideV2RegenerateHooks } from '@/lib/studio-add-slide-v2-submit'
@@ -6214,12 +6215,14 @@ function AuthenticatedBuilderContent({ authScopeUserId }: { authScopeUserId: str
             return
           } else {
             console.error('createSession returned null')
+            if (STUDIO_PASS3_POLISH_B_ENABLED) { toast({ ...STUDIO_POLISH_COPY.deckStartFailed, variant: 'destructive' }); return } // PASS3-POLISH-B (default off): the Studio toast says it, the same return follows
             alert('Failed to create session. Please check your connection and try again.')
             return
           }
         } catch (error) {
           if (!isCurrentSubmission()) return
           console.error('Error creating session:', error)
+          if (STUDIO_PASS3_POLISH_B_ENABLED) { toast({ ...STUDIO_POLISH_COPY.deckStartError, description: deckStartErrorDescription(error), variant: 'destructive' }); return } // PASS3-POLISH-B (default off): the same message, as a Studio toast
           alert(`Failed to create session: ${error instanceof Error ? error.message : 'Unknown error'}. Please try refreshing the page.`)
           return
         }

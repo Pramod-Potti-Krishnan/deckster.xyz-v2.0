@@ -22,6 +22,7 @@ import { fileURLToPath } from 'node:url'
 import ts from 'typescript'
 import React from 'react'
 import { FIRST_PAINT_BASE_COMMIT, FIRST_PAINT_ENV_BLOCK, FIRST_PAINT_FILES, FIRST_PAINT_MARKER, stripFirstPaint } from './studio-first-paint-strip.mjs'
+import { stripPass3PolishB } from './studio-pass3-polish-b-strip.mjs' // LATER-CHANGES: registry read (PASS3-POLISH-B)
 
 const require = createRequire(import.meta.url)
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..')
@@ -29,7 +30,7 @@ const VIEWER = 'components/presentation-viewer.tsx'
 const LIB = 'lib/studio-first-paint.ts'
 const FLAG = 'NEXT_PUBLIC_STUDIO_FIRST_PAINT_ENABLED'
 const sha = text => crypto.createHash('sha256').update(text).digest('hex')
-const read = rel => fs.readFileSync(path.join(root, rel), 'utf8')
+const read = rel => stripPass3PolishB(rel, fs.readFileSync(path.join(root, rel), 'utf8')) // LATER-CHANGES: registry read (PASS3-POLISH-B)
 const git = args => execFileSync('git', args, { cwd: root, encoding: 'utf8', maxBuffer: 256 * 1024 * 1024, stdio: ['ignore', 'pipe', 'pipe'] })
 const baseSource = rel => {
   try { return git(['show', `${FIRST_PAINT_BASE_COMMIT}:${rel}`]) } catch (error) { throw new Error(`base commit ${FIRST_PAINT_BASE_COMMIT} is not in this clone (fetch the full history): ${error.message}`) }

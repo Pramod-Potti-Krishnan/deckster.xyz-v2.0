@@ -31,6 +31,7 @@ import { stripDarkPersist } from './studio-theme-dark-persist-strip.mjs'
 import { belongsToRailBuildCount } from './studio-rail-build-count-strip.mjs'
 import { stripOpenReadOnly } from './studio-open-read-only-strip.mjs'
 import { stripLaunchWording } from './studio-launch-wording-strip.mjs' // NEXT_PUBLIC_STUDIO_LAUNCH_WORDING (launched wording): its flag-gated edits come out first, before every older change's strip
+import { stripLaterChanges } from './studio-later-changes.mjs' // LATER-CHANGES: registry read (PASS3-POLISH-B)
 import { stripFirstPaint, belongsToFirstPaint } from './studio-first-paint-strip.mjs' // stacked: NEXT_PUBLIC_STUDIO_FIRST_PAINT_ENABLED (COMPOSER-2 first paint): marks its own viewer lines "STUDIO-FIRST-PAINT"; scripts/test-studio-first-paint-viewer.mjs pins them, so they are not counted here
 
 const repoRoot = path.resolve(new URL('..', import.meta.url).pathname)
@@ -42,8 +43,8 @@ const FLAG = 'NEXT_PUBLIC_STUDIO_RAIL_ADD_SLIDE'
 const SHELL = 'NEXT_PUBLIC_STUDIO_V4_SHELL'
 const REASONS = 'NEXT_PUBLIC_STUDIO_DISABLED_REASONS'
 const BASE_COMMIT = process.env.RAIL_ADD_SLIDE_BASE || 'bb5a89f'
-const read = rel => stripFirstPaint(rel, stripLaunchWording(rel, fs.readFileSync(path.join(repoRoot, rel), 'utf8')))
-const withoutFirstPaint = lines => lines.filter(line => !belongsToFirstPaint(line))
+const read = rel => stripFirstPaint(rel, stripLaunchWording(rel, stripLaterChanges(rel, fs.readFileSync(path.join(repoRoot, rel), 'utf8')))) // LATER-CHANGES: registry read (PASS3-POLISH-B)
+const withoutFirstPaint = lines => lines.filter(line => !belongsToFirstPaint(line) && !line.includes('PASS3-POLISH-B')) // LATER-CHANGES: registry read (PASS3-POLISH-B)
 const git = args => execFileSync('git', args, { cwd: repoRoot, encoding: 'utf8', maxBuffer: 64 * 1024 * 1024, stdio: ['ignore', 'pipe', 'ignore'] })
 function baseSource(rel) {
   try { git(['cat-file', '-e', `${BASE_COMMIT}^{commit}`]); return git(['show', `${BASE_COMMIT}:${rel}`]) } catch { return null }

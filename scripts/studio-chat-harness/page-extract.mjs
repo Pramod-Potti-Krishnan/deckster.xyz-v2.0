@@ -7,13 +7,14 @@
 import crypto from 'node:crypto'
 import fs from 'node:fs'
 import ts from 'typescript'
+import { stripLaterChanges } from '../studio-later-changes.mjs' // LATER-CHANGES: registry read (PASS3-POLISH-B)
 
 const BUILTINS = new Set(['undefined', 'NaN', 'Infinity', 'Object', 'Array', 'JSON', 'Math', 'Number', 'String', 'Boolean', 'Symbol', 'Promise',
   'Set', 'Map', 'WeakMap', 'WeakSet', 'Error', 'TypeError', 'RangeError', 'RegExp', 'parseInt', 'parseFloat', 'isNaN', 'isFinite',
   'encodeURIComponent', 'decodeURIComponent', 'URL', 'URLSearchParams', 'Intl', 'Reflect'])
 
 export function parseSource(file) {
-  const text = fs.readFileSync(file, 'utf8')
+  const text = stripLaterChanges(file.endsWith('app/builder/page.tsx') ? 'app/builder/page.tsx' : file, fs.readFileSync(file, 'utf8')) // LATER-CHANGES: registry read (PASS3-POLISH-B)
   const source = ts.createSourceFile(file, text, ts.ScriptTarget.Latest, true, file.endsWith('x') ? ts.ScriptKind.TSX : ts.ScriptKind.TS)
   if (source.parseDiagnostics.length) throw new Error(`harness extract: ${file} does not parse`)
   return source

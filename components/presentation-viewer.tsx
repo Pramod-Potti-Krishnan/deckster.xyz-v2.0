@@ -114,6 +114,7 @@ import { StudioDisabledReason } from './studio-disabled-reason'
 import { STUDIO_DISABLED_REASONS_ENABLED, studioToolbarDisabledReason, studioElementCardsDisabledReason, type StudioToolbarControl } from '@/lib/studio-disabled-reasons'
 import { STUDIO_RAIL_ADD_SLIDE, railAddSlideState } from '@/lib/studio-rail-add-slide'
 import { useToast } from '@/hooks/use-toast'
+import { STUDIO_PASS3_POLISH_B_ENABLED, STUDIO_POLISH_COPY } from '@/lib/studio-pass3-polish-b' // PASS3-POLISH-B (NEXT_PUBLIC_STUDIO_PASS3_POLISH, default off): audit #7, the Studio toast instead of the browser's alert
 // TextFormatPopover is now replaced by simple text box insertion button
 // Keeping FormatTextParams for backward compatibility if needed
 import { FormatTextParams } from './text-format-popover'
@@ -2020,6 +2021,7 @@ export function PresentationViewer({
     } catch (error) {
       if (!isCurrent()) return
       console.error('Error saving changes:', error)
+      if (STUDIO_PASS3_POLISH_B_ENABLED) { toast({ ...STUDIO_POLISH_COPY.saveFailed, variant: 'destructive' }); return } // PASS3-POLISH-B (default off): the Studio toast says it; the finally below runs as it does after the alert
       alert('Failed to save changes. Please try again.')
     } finally {
       if (isCurrent()) setIsSaving(false)
