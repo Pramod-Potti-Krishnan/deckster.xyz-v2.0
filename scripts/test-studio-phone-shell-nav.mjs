@@ -458,7 +458,7 @@ function proveEnv(envText0, at = '') {
 }
 function provePins(at = '') {
   const a = message => (at ? `${at}: taught proofs: ${message}` : `taught proofs: ${message}`)
-  deep(PHONE_SHELL_NAV_PIN_FILES, ['scripts/test-studio-pass3-polish-e.mjs', 'scripts/test-studio-pass3-polish-f.mjs', 'scripts/test-studio-legal-short-links.mjs'], a('three older proofs, all FRONTEND-2\'s own: Pass 3 polish E and F and legal short links'))
+  deep(PHONE_SHELL_NAV_PIN_FILES, ['scripts/test-studio-pass3-polish-e.mjs', 'scripts/test-studio-pass3-polish-f.mjs', 'scripts/test-studio-legal-short-links.mjs', 'scripts/test-studio-thumbnail-last-good.mjs'], a('four older proofs, all FRONTEND-2\'s own: Pass 3 polish E and F, legal short links and thumbnail last good'))
   for (const rel of PHONE_SHELL_NAV_PIN_FILES) {
     nomatch(rel, /test-studio-p2-|launch-wording|env-append-tolerant|route-params|admin-email-guard|uat-marketing|docs|landing/, a(`${rel}: not a FRONTEND-1 test`))
     const text = read(rel), edits = PHONE_SHELL_NAV_PIN_EDITS[rel]
@@ -469,7 +469,7 @@ function provePins(at = '') {
       ok(has.includes(PHONE_SHELL_NAV_PIN_MARK), a(`${rel}: the taught line carries the mark`))
       ok(baseOf(rel).includes(was), a(`${rel}: the line it replaces is the base commit's`))
     }
-    match(edits[0][0], /LATER_STRIPS\.slice\(LATER_STRIPS\.indexOf\(stripPass3Polish[EF]\) \+ 1\)|--grep=\^Legal short links:/, a(`${rel}: the edit reads through the registry (the changes after it) or this change's own commit, nothing of this change named`))
+    match(edits[0][0], /LATER_STRIPS\.slice\(LATER_STRIPS\.indexOf\(stripPass3Polish[EF]\) \+ 1\)|--grep=\^Legal short links:|!LATER_CHANGE_FILES\.has\(rel\)/, a(`${rel}: the edit reads through the registry (the changes after it) or this change's own commit, nothing of this change named`))
   }
 }
 function proveScope(at = '') {
@@ -483,7 +483,7 @@ function proveScope(at = '') {
   deep(committed.filter(rel => !PHONE_SHELL_NAV_SCOPE_FILES.has(rel)), [], a(`every file in this change's committed diff (${BASE.slice(0, 8)}..HEAD) is its own`))
   if (committed.length) {
     deep([...PHONE_SHELL_NAV_SCOPE_FILES].filter(rel => !committed.includes(rel)), [], a('and every file of this change is in the committed diff'))
-    deep(committed.filter(rel => /^scripts\/test-/.test(rel)).sort(), [...PHONE_SHELL_NAV_PIN_FILES, THIS_TEST].sort(), a('the tests it adds or edits: its own and the three it teaches'))
+    deep(committed.filter(rel => /^scripts\/test-/.test(rel)).sort(), [...PHONE_SHELL_NAV_PIN_FILES, THIS_TEST].sort(), a('the tests it adds or edits: its own and the four it teaches'))
     deep(committed.filter(rel => /^(app|components|lib|hooks)\//.test(rel)).sort(), [...PHONE_SHELL_NAV_FILES, ...PHONE_SHELL_NAV_NEW_FILES.filter(rel => !rel.startsWith('scripts/'))].sort(), a('the app files: the two hosts (marked lines) and the new lib, bar and sheet'))
   }
 }
@@ -605,6 +605,8 @@ await mutant('env: the default is "true"', [[ENV, `${FLAG}="false"`, `${FLAG}="t
 await mutant('env: the block is in the middle of the file', [[ENV, `\n\n${PHONE_SHELL_NAV_ENV_BLOCK}`, ''], [ENV, 'NEXT_PUBLIC_STUDIO_PASS3_POLISH="false"\n', `NEXT_PUBLIC_STUDIO_PASS3_POLISH="false"\n\n${PHONE_SHELL_NAV_ENV_BLOCK}`]])
 await mutant('env: a base line changed', [[ENV, 'NEXT_PUBLIC_STUDIO_LEGAL_SHORT_LINKS="false"', 'NEXT_PUBLIC_STUDIO_LEGAL_SHORT_LINKS="true"']])
 await mutant('taught proof: polish E reads its files raw again (the edit is not there)', [['scripts/test-studio-pass3-polish-e.mjs', PHONE_SHELL_NAV_PIN_EDITS['scripts/test-studio-pass3-polish-e.mjs'][0][0], PHONE_SHELL_NAV_PIN_EDITS['scripts/test-studio-pass3-polish-e.mjs'][0][1]]])
+await mutant('taught proof: thumbnail last good scans a later change\'s new files again (the edit is not there)', [['scripts/test-studio-thumbnail-last-good.mjs', PHONE_SHELL_NAV_PIN_EDITS['scripts/test-studio-thumbnail-last-good.mjs'][0][0], PHONE_SHELL_NAV_PIN_EDITS['scripts/test-studio-thumbnail-last-good.mjs'][0][1]]])
+await mutant('taught proof: thumbnail last good loses the mark', [['scripts/test-studio-thumbnail-last-good.mjs', ` ${PHONE_SHELL_NAV_PIN_MARK}`, '']])
 await mutant('taught proof: polish F loses the mark', [['scripts/test-studio-pass3-polish-f.mjs', ` ${PHONE_SHELL_NAV_PIN_MARK}`, '']])
 await mutant('secret scan: a credential-shaped literal', [[STRIP_MODULE, "export const PHONE_SHELL_NAV_MARKER = 'PHONE-SHELL-NAV'", `export const PHONE_SHELL_NAV_MARKER = 'PHONE-SHELL-NAV'\nconst ${['api', 'Key'].join('')} = '${['AKIA', 'ABCDEFGH', '12345678'].join('')}'`]])
 
