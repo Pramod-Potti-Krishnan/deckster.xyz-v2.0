@@ -20,7 +20,6 @@ import { execFileSync } from 'node:child_process'
 import { fileURLToPath } from 'node:url'
 import ts from 'typescript'
 import postcss from 'postcss'
-import { FIRST_PAINT_SCOPE_FILES } from './studio-first-paint-strip.mjs' // stacked: COMPOSER-2 first paint (NEXT_PUBLIC_STUDIO_FIRST_PAINT_ENABLED), a later change: its committed files are not this change's to answer for
 import { BASE_COMMIT, PAYMENTS_OPEN_SOON_CHANGES, PAYMENTS_OPEN_SOON_FILES, PAYMENTS_OPEN_SOON_NEW_FILES, stripPaymentsOpenSoon } from './studio-payments-open-soon-strip.mjs'
 import { stripPublishPreviewInventory } from './studio-publish-preview-inventory-strip.mjs' // stacked: #495, below this change in the stack (its .env.example block sits between the base's file and this change's)
 import { stripDuplicateCopyTitle, DUPLICATE_COPY_TITLE_FILES, DUPLICATE_COPY_TITLE_NEW_FILES } from './studio-duplicate-copy-title-strip.mjs' // stacked: duplicate copy title, after this change in the stack
@@ -689,7 +688,7 @@ function addedLines(text, baseText) { const have = lineCounts(baseText), out = [
 const STACK_BASE = process.env.PAYMENTS_OPEN_SOON_STACK_BASE || '419be9804bcdd7a39a2bb114a78700c8e1fdd55f' // #495's head: this change is stacked on it, so its own diff is what lies over that commit
 // The COMMITTED change only (STACK_BASE..HEAD): files other tests write into the working tree while a suite runs (evidence JSON, copied
 // sources under docs/) are not this change's, so neither the working tree nor untracked files are read here (stack gate 24 Oct).
-const allChanged = () => [...new Set(git('diff', '--name-only', STACK_BASE, 'HEAD').split('\n').filter(Boolean))].filter(rel => !FIRST_PAINT_SCOPE_FILES.has(rel))
+const allChanged = () => [...new Set(git('diff', '--name-only', STACK_BASE, 'HEAD').split('\n').filter(Boolean))]
 function proveChange() {
   for (const rel of HELD) { let base; try { base = baseSource(rel) } catch { continue } eq(sha(read(rel)), sha(base), `${rel} is the base commit's file`) }
   // strip = base
