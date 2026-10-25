@@ -1,0 +1,46 @@
+/* STUDIO PHONE SHELL, PR 2: the Builder top (flag NEXT_PUBLIC_STUDIO_PHONE_SHELL, default off; PK's phone review, 25 Oct, decision B).
+   Every rule needs a root that holds PR 1's bottom tab bar ([data-studio-phone-tabbar], drawn only with the flag) or one of this PR's own elements (the "..." menu, its content, the Director dot), so with the
+   flag off none of it matches anything. Outside the phone query: the menu and the dot are hidden (tablets and desktops keep row 1 and the switch as they are), and the Director panel's status line becomes
+   a dot beside "Director", with its words shown only when it is not connected (PK: "status dot on desktop too"). At 640 px and narrower: row 1 is the logo (PR 1), the "..." menu and Publish; row 2 is
+   today's switch with the dot on its Director segment; the "Director / Connected" row and the edge pull tabs (Slide, Thumbnails, Director, Notes) go, their functions in the switch and in the menu. */
+[data-studio-phone-deck-menu="true"] { display: none; }
+[data-studio-phone-director-dot] { display: none; }
+[data-studio-v4-shell="true"]:has(> [data-studio-phone-tabbar="true"]) [data-studio-director-header="true"][data-studio-chat-header] { display: flex; }
+[data-studio-v4-shell="true"]:has(> [data-studio-phone-tabbar="true"]) [data-studio-director-header="true"][data-studio-chat-header] > [role="status"] { margin-left: 0; }
+[data-studio-v4-shell="true"]:has(> [data-studio-phone-tabbar="true"]) [data-studio-director-header="true"][data-studio-chat-header] > [data-studio-chat-header-state="ready"] { gap: 0; font-size: 0; }
+[data-studio-v4-shell="true"]:has(> [data-studio-phone-tabbar="true"]) [data-studio-director-header="true"][data-studio-chat-header] > :nth-child(n+4) { margin-left: auto; }
+
+@media (max-width: 640px) {
+  /* row 1: the logo (PR 1), "...", Publish; the title, the deck list button, New deck and Export are in the menu */
+  [data-studio-v4-shell="true"]:has(> [data-studio-phone-tabbar="true"]) > [data-studio-v4-shell-column] > [data-studio-v4-shell-header] .studio-shell-heading { display: none; }
+  [data-studio-v4-shell="true"]:has(> [data-studio-phone-tabbar="true"]) > [data-studio-v4-shell-column] > [data-studio-v4-shell-header] .studio-shell-header-actions > .studio-shell-new { display: none; }
+  [data-studio-v4-shell="true"]:has(> [data-studio-phone-tabbar="true"]) > [data-studio-v4-shell-column] > [data-studio-v4-shell-header] .studio-shell-header-actions:not(:has(> [data-studio-phone-deck-menu="true"][data-export-open="true"])) [data-studio-v4-toolbar-target] :is([data-studio-download-control], :has(> [data-studio-download-control])):not(:focus-within):not(:has([aria-expanded="true"])) { display: none; }
+  [data-studio-v4-shell="true"]:has(> [data-studio-phone-tabbar="true"]) > [data-studio-v4-shell-column] > [data-studio-v4-shell-header] .studio-shell-header-actions > [data-studio-phone-deck-menu="true"] { display: inline-flex; order: -1; flex-shrink: 0; }
+  [data-studio-phone-deck-menu="true"] > button { display: inline-flex; align-items: center; justify-content: center; width: 44px; height: 34px; border: 1px solid var(--ss-line); border-radius: 8px; background: var(--ss-panel); color: var(--ss-text); }
+  [data-studio-phone-deck-menu="true"] > button:hover, [data-studio-phone-deck-menu="true"] > button[aria-expanded="true"] { background: var(--ss-active); }
+  [data-studio-phone-deck-menu="true"] > button:focus-visible { outline: 2px solid var(--ss-accent); outline-offset: 2px; }
+  [data-studio-phone-deck-menu="true"] > button > svg { width: 18px; height: 18px; stroke-width: 1.8; }
+
+  /* the menu (portalled to the body; its own marker carries the Studio tokens) */
+  [data-studio-v4-shell="true"][data-studio-phone-deck-menu-content="true"] { min-width: 220px; max-width: calc(100vw - 24px); padding: 4px; border: 1px solid var(--ss-line); border-radius: 10px; background: var(--ss-panel); color: var(--ss-text); }
+  [data-studio-phone-deck-menu-content="true"] > [data-studio-phone-deck-menu-title="true"] { padding: 8px 10px 6px; overflow: hidden; color: var(--ss-text); font-size: 13px; font-weight: 600; line-height: 18px; text-overflow: ellipsis; white-space: nowrap; }
+  [data-studio-phone-deck-menu-content="true"] > [data-studio-phone-deck-menu-item] { min-height: 44px; padding: 0 10px; border-radius: 7px; color: var(--ss-text); font-size: 14px; }
+  [data-studio-phone-deck-menu-content="true"] > [data-studio-phone-deck-menu-item]:focus { background: var(--ss-active); color: var(--ss-text); }
+
+  /* row 2: today's switch, unchanged; the dot sits in the Director segment's own right padding (absolute: the segment keeps its size) */
+  [data-studio-v4-shell="true"]:has(> [data-studio-phone-tabbar="true"]) [data-studio-workspace-switch-v2="true"] .swsv2-segments > button:has(> [data-studio-phone-director-dot]) { position: relative; }
+  [data-studio-v4-shell="true"]:has(> [data-studio-phone-tabbar="true"]) [data-studio-phone-director-dot] { display: block; position: absolute; top: calc(50% - 3px); right: 2px; width: 6px; height: 6px; border-radius: 50%; }
+  [data-studio-v4-shell="true"]:has(> [data-studio-phone-tabbar="true"]) [data-studio-phone-director-dot="green"] { background: #16a34a; }
+  [data-studio-v4-shell="true"]:has(> [data-studio-phone-tabbar="true"]) [data-studio-phone-director-dot="amber"] { background: #d97706; }
+  [data-studio-v4-shell="true"]:has(> [data-studio-phone-tabbar="true"]) [data-studio-phone-director-dot="red"] { background: #dc2626; }
+  .dark [data-studio-v4-shell="true"]:has(> [data-studio-phone-tabbar="true"]) [data-studio-phone-director-dot="green"] { background: #4ade80; }
+  .dark [data-studio-v4-shell="true"]:has(> [data-studio-phone-tabbar="true"]) [data-studio-phone-director-dot="amber"] { background: #fbbf24; }
+  .dark [data-studio-v4-shell="true"]:has(> [data-studio-phone-tabbar="true"]) [data-studio-phone-director-dot="red"] { background: #f87171; }
+
+  /* the "Director / Connected" row goes once the dot is on the switch (kept while it holds a control: Reconnect, a Director call) */
+  [data-studio-v4-shell="true"]:has(> [data-studio-phone-tabbar="true"]) [data-studio-v4-shell-workspace]:has([data-studio-phone-director-dot]) [data-studio-director-header="true"]:not(:has(> :nth-child(4))) { display: none; }
+
+  /* the edge pull tabs go: Slide, Thumbnails and Notes are in the "..." menu, Director is the switch (only where the switch is) */
+  [data-studio-v4-shell="true"]:has(> [data-studio-phone-tabbar="true"]) [data-studio-v4-shell-workspace] :is([data-studio-drawer-handle="slide"], [data-studio-v4-thumbnail-toggle="true"], [data-studio-notes-handle="true"]) { display: none; }
+  [data-studio-v4-shell="true"]:has(> [data-studio-phone-tabbar="true"]) [data-studio-v4-shell-workspace]:has(> [data-studio-workspace-switch]) [data-studio-drawer-handle="director"] { display: none; }
+}
