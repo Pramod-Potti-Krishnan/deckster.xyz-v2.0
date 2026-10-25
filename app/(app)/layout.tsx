@@ -15,6 +15,7 @@ import { StudioDuplicateCopyTitleMount } from "@/components/builder/studio-dupli
 import { STUDIO_PASS3_POLISH_ENABLED } from "@/lib/studio-pass3-polish" // PASS3-POLISH
 import { StudioPass3PolishMount } from "@/components/studio-pass3-polish/studio-pass3-polish-mount" // PASS3-POLISH
 import "@/components/studio-pass3-polish/studio-pass3-polish-e.css" // PASS3-POLISH-E (NEXT_PUBLIC_STUDIO_PASS3_POLISH, default off): every rule is scoped to data-studio-pass3-polish="true"; on a phone the Intelligence task selects end in an ellipsis before the chevron
+import { StudioPass3PolishGMount } from "@/components/studio-pass3-polish/studio-pass3-polish-g-mount" // PASS3-POLISH-G (NEXT_PUBLIC_STUDIO_PASS3_POLISH, default off): on iPhone and iPad the viewport meta gets maximum-scale=1, so a focused text control does not zoom the page
 
 /**
  * Shared shell for the authenticated account area (dashboard, settings, billing,
@@ -34,6 +35,7 @@ export default function AppLayout({ children }: { children: ReactNode }) {
       {STUDIO_PAYMENTS_OPEN_SOON_ENABLED && <StudioPaymentsOpenSoonMount />}
       {STUDIO_DUPLICATE_COPY_TITLE_ENABLED && <StudioDuplicateCopyTitleMount />}
       {STUDIO_PASS3_POLISH_ENABLED && <StudioPass3PolishMount />}{/* PASS3-POLISH */}
+      {STUDIO_PASS3_POLISH_ENABLED && <StudioPass3PolishGMount />}{/* PASS3-POLISH-G */}
     </div>
   )
 }

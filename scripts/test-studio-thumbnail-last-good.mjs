@@ -514,7 +514,7 @@ check('scope: the COMMITTED diff (BASE..HEAD) holds this change\'s files, the ro
   assert.deepEqual(stray, [], 'no file outside this change')
   assert.deepEqual(fs.readdirSync(path.join(root, 'scripts/fixtures/thumbnail-last-good')).map(name => `scripts/fixtures/thumbnail-last-good/${name}`).sort(), THUMBNAIL_LAST_GOOD_NEW_FILES.filter(rel => rel.startsWith('scripts/fixtures/')).sort(), 'the strip module lists every fixture')
   if (committed.length > 0) for (const rel of [...THUMBNAIL_LAST_GOOD_FILES, ...THUMBNAIL_LAST_GOOD_NEW_FILES, ...ROOTS, HARNESS]) assert.ok(committed.includes(rel), `${rel} is in the committed diff`)
-  assert.equal(git('diff', '--name-only', '--diff-filter=D', BASE, 'HEAD').trim(), '', 'nothing deleted')
+  assert.deepEqual(git('diff', '--name-only', '--diff-filter=D', BASE, 'HEAD').split('\n').filter(rel => rel && !LATER_CHANGE_FILES.has(rel)), [], 'nothing deleted (a registered later change\'s deletions are not this change\'s)')
   const added = git('diff', '-U0', BASE, 'HEAD', '--', ...committed.filter(rel => !rel.startsWith('scripts/fixtures/'))).split('\n').filter(line => /^\+(?!\+\+)/.test(line)).join('\n')
   scan('the added lines', added)
 })
