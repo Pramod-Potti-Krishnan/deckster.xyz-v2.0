@@ -8,7 +8,7 @@
 // first, innermost. The proofs PR 1 taught (Pass 3 polish E and F) and PR 1's own proof read through the changes registered after them, so no older test is edited here.
 // scripts/test-studio-phone-shell-builder-top.mjs proves all of it. Plain node, no imports, nothing read from disk or git here; any other file comes back as it is.
 
-export const BASE_COMMIT = 'd7b63ae8817d24dc12571b8e7199c0d48778b816' // PR 1's head (frontend2/phone-shell-nav), the branch this change is cut from
+export const BASE_COMMIT = '084c40ad5e00e87113be4609177f53d3649b4c2b' // PR 1's head (frontend2/phone-shell-nav, after it was stacked on Pass 3 polish G and D1), the branch this change is stacked on (it was cut at d7b63ae8)
 export const PHONE_SHELL_TOP_FLAG = 'NEXT_PUBLIC_STUDIO_PHONE_SHELL'
 export const PHONE_SHELL_TOP_COMMIT_SUBJECT = /^Phone shell 2:/
 export const PHONE_SHELL_TOP_MARKER = 'PHONE-SHELL-TOP'
