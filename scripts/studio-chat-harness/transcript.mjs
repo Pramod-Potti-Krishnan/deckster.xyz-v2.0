@@ -72,6 +72,9 @@ export async function runTranscript({ root, fixture, profile, processEnv: caller
   const pass2bLib = hasPass2b ? loader.load('lib/studio-pass2b-chat.ts') : null
   const useStaleErrorNotice = hasPass2b ? loader.load('hooks/use-studio-stale-error-notice.ts').useStudioStaleErrorNotice : null
   const voice = loader.load('lib/studio-voice-interactive.ts')
+  // NEXT_PUBLIC_STUDIO_SPEED_PERCEIVED: the page's echo hook runs only where the page the harness parsed has the call (the registry strips it, so only a run that SPEED-PERCEIVED
+  // keeps those lines, scripts/test-studio-speed-perceived.mjs) and this run's flag is "true"; otherwise nothing here runs and the page's spreads read nothing. SPEED-PERCEIVED
+  const speedHook = env.globals.process.env.NEXT_PUBLIC_STUDIO_SPEED_PERCEIVED === 'true' && sources.compiled.speedEchoInput && fs.existsSync(path.join(root, 'hooks/use-studio-speed-perceived-echo.ts')) ? loader.load('hooks/use-studio-speed-perceived-echo.ts') : null // SPEED-PERCEIVED
   // Fixtures with `"elementPreflight": true` (PASS2-J3 P0) also run the page's deck-theme preflight and the REAL Add Element
   // generation hook (page-theme-sources.mjs, `useTextLabsGeneration`), against a synthetic Text Labs that only answers them.
   const preflightOn = Boolean(fixture.elementPreflight)
@@ -324,6 +327,7 @@ export async function runTranscript({ root, fixture, profile, processEnv: caller
         getThemeSyncSnapshot: theme.getThemeSyncSnapshot, ensureThemeReady: theme.ensureThemeReady, toast,
       })
     }
+    if (speedHook) values.speedPerceivedEcho = speedHook.useStudioSpeedPerceivedEcho(sources.compiled.speedEchoInput({ ...values, pendingManualDeckBuild: null })) // SPEED-PERCEIVED: the page's own argument expression
     values.preflightDirectorTurn = sources.compiled.preflightDirectorTurn(values)
     values.handleActionClick = sources.compiled.handleActionClick(values)
     const listProps = evaluateProps(sources.compiled.messageList, values, (name, value) => name.startsWith('on') ? track(`ml.${name}`, value) : value)
@@ -331,6 +335,7 @@ export async function runTranscript({ root, fixture, profile, processEnv: caller
     if (!composerOn) return R.createElement(MessageList, listProps)
     // The composer, with the page's own prop expressions. Handlers are recorded (composer.<prop>); the send handler runs the page's typed-turn path.
     const chatProps = evaluateProps(sources.compiled.chatInput, values, (name, value) => name.startsWith('on') ? track(`composer.${name}`, value) : value)
+    if (speedHook) chatProps.onSubmit = track('composer.onSubmit', chatProps.onSubmit) // SPEED-PERCEIVED: the page's spread put its wrapper over the recorded handler; record the wrapper under the same name
     probe.latest.chatProps = chatProps
     return R.createElement(R.Fragment, null, R.createElement(MessageList, listProps), R.createElement(ChatInput, chatProps))
   }
