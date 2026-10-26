@@ -1,0 +1,24 @@
+{
+  "user_id": "user-fixture-1",
+  "preferences": {
+    "planning_strategy": {
+      "preset": "best",
+      "model": null,
+      "updated_at": "2026-10-26T10:00:00Z",
+      "stale": false
+    },
+    "content_writing": {
+      "preset": null,
+      "model": "anthropic/claude-sonnet-5.5",
+      "updated_at": "2026-10-26T10:01:00Z",
+      "stale": false
+    },
+    "imagery": {
+      "preset": "economy",
+      "model": null,
+      "updated_at": "2026-10-20T09:00:00Z",
+      "stale": true
+    }
+  },
+  "catalogue_version": "2026-09-30.wp1-stage25-proposed-mapping-revision-two-layer+shortlist:2026-10-02-shortlist-v1"
+}

@@ -1,0 +1,103 @@
+/* NEXT_PUBLIC_STUDIO_MODEL_CHOICE, the compact model picker (components/model-choice/model-picker.tsx). Every rule styles markup the picker alone renders: the mpick-* classes. With the flag off the
+   picker renders nothing, so no element matches. Near-monochrome by design: the chip and the menu take the page's text colour and the theme's popover tokens, and the only colour is the focus ring.
+   The picker sets NO width on the chip: the composer passes className for that. Tune with these variables on the chip's parent or :root:
+   --mpick-fg, --mpick-line, --mpick-hover (the chip) and --mpick-menu-bg, --mpick-menu-fg, --mpick-menu-line, --mpick-muted, --mpick-ring (the menu). */
+
+/* The chip: 24 px tall to sit in the tools row; on phones its hit area grows to 44 px (below) while it looks the same. */
+.mpick-chip {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  box-sizing: border-box;
+  height: 24px;
+  min-width: 32px;
+  max-width: 100%;
+  margin: 0;
+  padding: 0 8px;
+  border: 1px solid var(--mpick-line, color-mix(in srgb, currentColor 22%, transparent));
+  border-radius: 999px;
+  background: transparent;
+  color: var(--mpick-fg, inherit);
+  font: inherit;
+  font-size: 12px;
+  font-weight: 500;
+  line-height: 1;
+  white-space: nowrap;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+}
+.mpick-chip:hover:not(:disabled), .mpick-chip[data-state="open"] { background: var(--mpick-hover, color-mix(in srgb, currentColor 8%, transparent)); }
+.mpick-chip:focus-visible { outline: 2px solid var(--mpick-ring, hsl(var(--ring, 250 90% 60%))); outline-offset: 2px; }
+.mpick-chip:disabled { opacity: 0.5; cursor: not-allowed; }
+.mpick-chip[aria-busy="true"] { cursor: progress; }
+/* A model's name is cut with an ellipsis when the chip is given less room than it needs (the label also arrives shortened). */
+.mpick-label { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+.mpick-caret { flex: none; opacity: 0.7; transition: transform 120ms ease; }
+.mpick-chip[data-state="open"] .mpick-caret { transform: rotate(180deg); }
+
+/* The menu. */
+.mpick-menu {
+  z-index: 60;
+  box-sizing: border-box;
+  width: max-content;
+  min-width: 200px;
+  max-width: min(320px, calc(100vw - 16px));
+  max-height: min(var(--radix-popover-content-available-height, 360px), 360px);
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  padding: 4px;
+  border: 1px solid var(--mpick-menu-line, hsl(var(--border, 240 5.9% 90%)));
+  border-radius: 10px;
+  background: var(--mpick-menu-bg, hsl(var(--popover, 0 0% 100%)));
+  color: var(--mpick-menu-fg, hsl(var(--popover-foreground, 240 10% 3.9%)));
+  box-shadow: 0 6px 24px rgb(0 0 0 / 14%);
+  font-size: 13px;
+  line-height: 1.3;
+  outline: none;
+}
+.mpick-list { display: flex; flex-direction: column; gap: 1px; }
+.mpick-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  box-sizing: border-box;
+  width: 100%;
+  min-height: 32px;
+  padding: 6px 8px;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+}
+.mpick-item:hover:not(:disabled) { background: color-mix(in srgb, currentColor 8%, transparent); }
+.mpick-item:focus-visible { outline: 2px solid var(--mpick-ring, hsl(var(--ring, 250 90% 60%))); outline-offset: -2px; }
+.mpick-item:disabled { opacity: 0.6; cursor: progress; }
+.mpick-item[aria-pressed="true"] .mpick-name { font-weight: 600; }
+.mpick-check { display: inline-flex; flex: none; align-items: center; justify-content: center; width: 14px; height: 14px; }
+.mpick-text { display: flex; flex: 1 1 auto; min-width: 0; flex-direction: column; }
+.mpick-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.mpick-detail { overflow: hidden; color: var(--mpick-muted, hsl(var(--muted-foreground, 240 3.8% 46.1%))); font-size: 11px; text-overflow: ellipsis; white-space: nowrap; }
+.mpick-hint { flex: none; margin-left: auto; color: var(--mpick-muted, hsl(var(--muted-foreground, 240 3.8% 46.1%))); font-size: 11px; letter-spacing: 0.04em; }
+.mpick-go { flex: none; margin-left: auto; opacity: 0.7; }
+.mpick-back { margin-bottom: 2px; color: var(--mpick-muted, hsl(var(--muted-foreground, 240 3.8% 46.1%))); }
+.mpick-notes { margin: 4px 0 0; padding: 6px 8px 4px; border-top: 1px solid var(--mpick-menu-line, hsl(var(--border, 240 5.9% 90%))); color: var(--mpick-muted, hsl(var(--muted-foreground, 240 3.8% 46.1%))); font-size: 11px; }
+.mpick-notes p { margin: 0; }
+.mpick-notes p + p { margin-top: 2px; }
+/* Read by screen readers, never seen. */
+.mpick-sr { position: absolute; width: 1px; height: 1px; margin: -1px; padding: 0; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; border: 0; }
+
+/* Phones: the chip looks the same, its hit area is 44 px tall (24 px plus 10 px above and below) and at least 44 px wide; the menu's rows are 44 px. */
+@media (max-width: 640px) {
+  .mpick-chip { min-width: 44px; }
+  .mpick-chip::before { content: ""; position: absolute; top: -10px; right: 0; bottom: -10px; left: 0; }
+  .mpick-item { min-height: 44px; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .mpick-caret { transition: none; }
+}
