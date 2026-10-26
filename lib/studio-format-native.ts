@@ -1,6 +1,7 @@
 import { getLayoutViewerOrigin, isTrustedLayoutViewerMessage } from '@/lib/layout-viewer-messaging'
 import type { StudioFormatCommand, StudioFormatTarget } from '@/components/builder/studio-format-inspector'
 import type { ElementType } from '@/types/elements'
+import { STUDIO_ARRANGE_ENABLED, isStudioArrangeCommand, validateStudioArrangeParams, studioArrangeAdmit, studioArrangeErrorText, studioArrangeConfirmedLock } from '@/lib/studio-arrange' // STUDIO-ARRANGE (NEXT_PUBLIC_STUDIO_ARRANGE, default off): Arrange admitted in slide pixels, sent as Layout !260's commands
 
 export interface StudioFormatSelectionHandle {
   readonly owner: object
@@ -61,6 +62,7 @@ const commandFields: Record<string, readonly string[]> = {
   setTextBoxBackground: ['color', 'backgroundColor', 'themeBinding'],
 }
 export function validateStudioFormatParams(action: StudioFormatCommand, params: Record<string, unknown>, target: StudioFormatTarget): boolean {
+  if (STUDIO_ARRANGE_ENABLED && isStudioArrangeCommand(action)) return validateStudioArrangeParams(action, params, target) // STUDIO-ARRANGE
   if (action === 'generateTextBoxContent') {
     if (target.kind !== 'editable-text' || !record(params) || params.elementId !== target.elementId
       || !target.supportedCommands.includes(action) || params.presentationId !== target.presentationId
@@ -95,6 +97,7 @@ export function validateStudioFormatParams(action: StudioFormatCommand, params: 
 export function createStudioFormatSelectionHandle(input: {
   iframe: HTMLIFrameElement; elementId: string; presentationId: string; sessionId: string | null;
   slideIndex: number; eventKind: 'textBoxSelected' | 'elementSelected'; elementType?: ElementType;
+  arrangeProperties?: unknown // STUDIO-ARRANGE: elementSelected's properties, captured at selection (lib/studio-arrange.ts studioArrangeSelectionInput)
   owner: object; isCurrent: () => boolean;
 }): StudioFormatSelectionHandle | null {
   if (!exact(input.elementId) || !exact(input.presentationId) || !Number.isSafeInteger(input.slideIndex) || input.slideIndex < 0) return null
@@ -102,6 +105,7 @@ export function createStudioFormatSelectionHandle(input: {
   let pending = false
   let retired = false
   let settleAfterConfirmed: { fontSizePx?: number } | null = null
+  const arrange = { confirmedLock: null as boolean | null, slidePixelsConfirmed: false, textBoxLocked: null as boolean | null } // STUDIO-ARRANGE
   const isCurrent = () => !retired && input.isCurrent()
   const check = () => { if (!isCurrent()) throw new Error('Select the element again before formatting.') }
   const native = async (action: string, params: Record<string, unknown>, timeout = 8000) => {
@@ -162,6 +166,7 @@ export function createStudioFormatSelectionHandle(input: {
           const matches = registry.textBoxes.filter((value: unknown) => record(value) && value.id === input.elementId)
           if (matches.length !== 1 || matches[0].type !== 'textbox' || matches[0].slideIndex !== input.slideIndex) throw new Error('The selected text box identity was not confirmed.')
           const nativeBox = matches[0]
+          if (STUDIO_ARRANGE_ENABLED) arrange.textBoxLocked = typeof nativeBox.data?.locked === 'boolean' ? nativeBox.data.locked : null // STUDIO-ARRANGE: the registry's lock (lockElement keeps it)
           const rawSpec = nativeBox.render_spec ?? nativeBox.data?.render_spec
           const ordinaryBox = ordinary && !rawSpec
           const response = await native('getTextBoxFormatting', { elementId: input.elementId })
@@ -191,6 +196,7 @@ export function createStudioFormatSelectionHandle(input: {
         } else {
           admitted = { ...selection, kind: 'element', elementType: input.elementType ?? 'image', supportedCommands: [] }
         }
+        if (STUDIO_ARRANGE_ENABLED && admitted) { const next = studioArrangeAdmit(admitted, { eventKind: input.eventKind, elementType: input.elementType, arrangeProperties: input.arrangeProperties, geometry, textBoxLocked: arrange.textBoxLocked, confirmedLock: arrange.confirmedLock, slidePixelsConfirmed: arrange.slidePixelsConfirmed }); admitted = next.target; arrange.slidePixelsConfirmed = next.slidePixelsConfirmed } // STUDIO-ARRANGE
         check(); return admitted
       } finally { pending = false }
     },
@@ -217,6 +223,7 @@ export function createStudioFormatSelectionHandle(input: {
             throw error
           }
         }
+        if (STUDIO_ARRANGE_ENABLED && isStudioArrangeCommand(action)) { const answer = await native(action, commandParams, 30000).catch((error: unknown) => { throw error instanceof Error ? new Error(studioArrangeErrorText(error.message)) : error }); arrange.confirmedLock = studioArrangeConfirmedLock(arrange.confirmedLock, action, answer); return answer } // STUDIO-ARRANGE: the viewer's answer; a refusal in plain words
         const result = await native(action, commandParams, 30000)
         settleAfterConfirmed = action === 'setTextBoxFontSize'
           ? { fontSizePx: Number.parseFloat(String(commandParams.fontSize)) * 4 / 3 } : {}
