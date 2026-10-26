@@ -15,9 +15,10 @@
 //                 (final slot, adopt on only), and a 200 writes the one-time receipt into it (read-modify-write through the REAL /api/sessions/[id] route, a fake Prisma that skips undefined columns)
 //   G. open       the Builder's backstop: the Director socket's connected ARMS a session (the row is read once; the copiedFrom marker must carry the copy's id and no receipt); the call is made ONCE, on the
 //                 first of the Director's first chat_message (the greeting, which the new-session branch sends after the blank canvas's row write) or 15 s after connected; always with the MARKER's id
-//                 (a drifted final slot is ignored); 200 writes the receipt and, on reused:false while that socket is live, reconnects (disconnect, then connect). Nothing is called on open alone; greeting and
-//                 wait racing make one call; close or a superseded socket cancels the wait; a reconnect's own connected, greeting and wait call nothing. The hook's code is the REAL code: ws.onopen, ws.onmessage
-//                 up to the chat tap, ws.onclose's tap, run with stubs. The Builder's autosave never sends currentStatus.
+//                 (a drifted final slot is ignored); 200 writes the receipt and, on reused:false while that socket is live, reconnects through the socket's own owner: the hook replaces that socket for the same
+//                 session and leaves the retry budget and its exhaustion as they are (never disconnect then connect: the public connect is the user's reset). Nothing is called on open alone; greeting and
+//                 wait racing make one call; close or a superseded socket cancels the wait; a reconnect's own connected, greeting and wait call nothing. The hook's code is the REAL code: isCurrentSocket, the reconnect, the owner,
+//                 ws.onopen, ws.onmessage up to the chat tap and ws.onclose (whole), run with stubs; the Builder's option line too. The Builder's autosave never sends currentStatus.
 //   H. identity   flag off is the base: each existing file without its DUPLICATE-ADOPT lines is the base commit's, byte for byte (and through the registry); the base lib and this lib without the step give
 //                 the same requests and result, hashed
 //   I. scope      the committed diff of this change's own commits (subject "Duplicate adopt: ...") holds exactly its files; marked insertions only; the registry gains three lines
@@ -705,35 +706,69 @@ async function suite({ quiet = false, extraCommitted = [] } = {}) {
   const sliceHook = (from, tapNeedle) => { const text = hookText(), start = text.indexOf(from), tapAt = text.indexOf(tapNeedle, start); if (start < 0 || tapAt < 0) throw new Error(`hook text not found: ${from}`); return text.slice(start, text.indexOf('\n', tapAt)) }
   const sliceHookTo = (from, to) => { const text = hookText(), start = text.indexOf(from), end = text.indexOf(to, start); if (start < 0 || end < 0) throw new Error(`hook text not found: ${from}`); return text.slice(start, end) }
   const slideCompose = loadTs('lib/slide-compose-async.ts'), themeExportWire = loadTs('lib/chat-theme-export-wire.ts'), elementRefineWire = loadTs('lib/chat-element-refine-wire.ts'), jobLedger = loadTs('lib/studio-job-ledger.ts')
+  /** Exactly one line of the hook (marked or not) that contains `needle`. */
+  const hookLine = needle => { const lines = hookText().split('\n').filter(line => line.includes(needle)); if (lines.length !== 1) throw new Error(`hook: ${lines.length} lines with ${needle}`); return lines[0] }
   /**
-   * One socket of the real hook, built the way the hook builds it: the real `duplicateAdoptOwner` line, the real ws.onopen, the real ws.onmessage (from its top to the chat tap; the frame carries on after
-   * the tap, which this proof does not run), the real ws.onclose (its first statement). Its callback goes to the controller of `world`. `trace` is the world's request log, so frames and requests share one order.
+   * What the hook keeps across its sockets (its refs and setters), shared by the sockets of one hook. Every call is recorded in `calls`; `starts` counts the hook's startConnection (the stand-in: the
+   * proof builds the next socket itself, with hookSocket and the same refs); `clock` is the hook's own timers (setTimeout in ws.onopen's stability timer), apart from the controller's.
    */
-  function hookSocket(world, { sessionId = 'new-session-1', env = { NEXT_PUBLIC_STUDIO_DUPLICATE_ADOPT: 'true' }, callbackPresent = true } = {}) {
-    const state = { current: true }, ws = {}, events = []
-    const isCurrentSocket = () => state.current
-    const pending = []
-    const reconnect = () => world.reconnects.push(sessionId)
-    const owner = evalLine(`${lineWith(HOOK, 'const duplicateAdoptOwner =')}\nmodule.exports = duplicateAdoptOwner`, ['process', 'socketSessionId', 'isCurrentSocket'], [{ env }, sessionId, isCurrentSocket])
-    const callbacks = { current: callbackPresent ? { onDuplicateAdoptSocket: (event, who) => { events.push(event); const result = world.controller.onSocketEvent(event, who, reconnect); if (event === 'connected') pending.push(result) } } : {} }
+  function hookRefs({ attempts = 0 } = {}) {
+    const refs = { wsRef: { current: null }, reconnectAttemptsRef: { current: attempts }, reconnectStatusRef: { current: 'idle' }, isConnectingRef: { current: true }, socketSessionRef: { current: null },
+      reconnectStabilityTimeoutRef: { current: undefined }, clock: fakeClock(), calls: [], starts: [], state: { connected: false, connecting: true, connectionState: 'connecting', error: new Error('old'), currentStatus: { stage: 'old' } } }
+    const call = name => (...args) => { refs.calls.push([name, ...args]) }
+    return Object.assign(refs, {
+      setReconnectStatus: (status, attempt) => { refs.calls.push(['setReconnectStatus', status, attempt]); refs.reconnectStatusRef.current = status }, // the hook's own setter keeps the ref in step
+      setState: update => { refs.calls.push(['setState']); refs.state = update(refs.state) },
+      stopHeartbeat: call('stopHeartbeat'), startHeartbeat: call('startHeartbeat'), scheduleReconnect: call('scheduleReconnect'), clearReconnectTimer: call('clearReconnectTimer'), clearAuthRefreshTimer: call('clearAuthRefreshTimer'),
+      clearReconnectStabilityTimer: () => { refs.calls.push(['clearReconnectStabilityTimer']); refs.reconnectStabilityTimeoutRef.current?.(); refs.reconnectStabilityTimeoutRef.current = undefined },
+      setTimeout: (fn, ms) => refs.clock.schedule(fn, ms), // its "id" is the cancel function, which clearReconnectStabilityTimer above calls
+      startConnectionRef: { current: () => { refs.starts.push(refs.wsRef.current); return true } },
+    })
+  }
+  const NEVER = name => () => { throw new Error(`the hook's reconnect reached ${name}`) } // the public connect, disconnect and ensureConnected: never reached by this change's code
+  /**
+   * One socket of the real hook, built the way the hook builds it: the real isCurrentSocket line, the real duplicateAdoptReconnect, the real `duplicateAdoptOwner` line, the real ws.onopen, the real
+   * ws.onmessage (from its top to the chat tap; the frame carries on after the tap, which this proof does not run) and the real ws.onclose (whole). Its callback goes to the controller of `world`, either
+   * directly with a recording reconnect, or (viaBuilder) through the Builder's own option line, which hands the controller the socket's own reconnect. `refs` is the hook's state, shared by the sockets of
+   * one hook. `trace` is the world's request log, so frames and requests share one order.
+   */
+  function hookSocket(world, { sessionId = 'new-session-1', env = { NEXT_PUBLIC_STUDIO_DUPLICATE_ADOPT: 'true' }, callbackPresent = true, refs = hookRefs(), viaBuilder = false } = {}) {
+    const state = { current: true }, events = [], pending = []
+    const ws = { readyState: 1, closes: [], close(code, reason) { ws.closes.push([code, reason]); ws.readyState = 2 } }
+    refs.wsRef.current = ws // the hook's `wsRef.current = ws;`
+    const isCurrentSocket = evalLine(`${hookLine('const isCurrentSocket = () => wsRef.current === ws')}\nmodule.exports = isCurrentSocket`, ['wsRef', 'ws', 'isCurrentAttempt'], [refs.wsRef, ws, () => state.current])
+    const recorded = () => world.reconnects.push(sessionId)
+    const out = {}
+    const toController = (event, who, reconnect) => { events.push(event); const result = world.controller.onSocketEvent(event, who, reconnect); if (event === 'connected') pending.push(result); return result }
+    const builderOptions = () => evalLine(`module.exports = {\n${lineWith(BUILDER, 'onDuplicateAdoptSocket:')}\n}`, ['studioDuplicateAdoptOnOpen'], [{ onSocketEvent: toController }])
+    const callbacks = { current: !callbackPresent ? {} : viaBuilder ? builderOptions() : { onDuplicateAdoptSocket: (event, who) => { toController(event, who, recorded) } } }
     const table = {
-      process: { env }, ws, isCurrentSocket, debugLog: () => {}, duplicateAdoptOwner: owner, socketSessionId: sessionId, transportCallbacksRef: callbacks, acknowledgeHeartbeat: () => {},
+      process: { env }, ws, isCurrentSocket, debugLog: () => {}, socketSessionId: sessionId, transportCallbacksRef: callbacks, acknowledgeHeartbeat: () => {}, __out: out,
       normalizeDirectorMessageFrame: raw => slideCompose.normalizeSlideComposeSocketFrame(raw), chatThemeExportDirectiveKind: themeExportWire.chatThemeExportDirectiveKind,
       CHAT_ELEMENT_REFINE_ENABLED: elementRefineWire.CHAT_ELEMENT_REFINE_ENABLED, ELEMENT_REFINE_DIRECTIVE_TYPE: elementRefineWire.ELEMENT_REFINE_DIRECTIVE_TYPE,
       STUDIO_JOB_LEDGER_ENABLED: jobLedger.STUDIO_JOB_LEDGER_ENABLED, JOB_UPDATE_TYPE: jobLedger.JOB_UPDATE_TYPE,
+      // the hook's refs and setters (ws.onopen, the reconnect, ws.onclose)
+      wsRef: refs.wsRef, reconnectAttemptsRef: refs.reconnectAttemptsRef, reconnectStatusRef: refs.reconnectStatusRef, isConnectingRef: refs.isConnectingRef, socketSessionRef: refs.socketSessionRef,
+      reconnectStabilityTimeoutRef: refs.reconnectStabilityTimeoutRef, setReconnectStatus: refs.setReconnectStatus, setState: refs.setState, stopHeartbeat: refs.stopHeartbeat, startHeartbeat: refs.startHeartbeat,
+      clearReconnectTimer: refs.clearReconnectTimer, clearReconnectStabilityTimer: refs.clearReconnectStabilityTimer, clearAuthRefreshTimer: refs.clearAuthRefreshTimer, setTimeout: refs.setTimeout,
+      scheduleReconnect: refs.scheduleReconnect, startConnectionRef: refs.startConnectionRef, connect: NEVER('connect'), disconnect: NEVER('disconnect'), ensureConnected: NEVER('ensureConnected'),
       // ws.onopen
-      expiresInSeconds: null, scheduleAuthRefresh: () => {}, socketSessionRef: { current: null }, setConnectionGeneration: () => {}, clearReconnectTimer: () => {}, reconnectPausedForOfflineRef: { current: true }, setReconnectStatus: () => {},
-      reconnectAttemptsRef: { current: 0 }, clearReconnectStabilityTimer: () => {}, reconnectStabilityTimeoutRef: { current: undefined }, DIRECTOR_RECONNECT_STABILITY_MS: 3000, wsRef: { current: ws }, WebSocket: { OPEN: 1 },
-      isConnectingRef: { current: true }, hasConnectedRef: { current: false }, startHeartbeat: () => {}, setState: update => { state.last = update({ connected: false, connectionState: 'disconnected', error: new Error('old') }) },
+      expiresInSeconds: null, scheduleAuthRefresh: () => {}, setConnectionGeneration: () => {}, reconnectPausedForOfflineRef: { current: true }, DIRECTOR_RECONNECT_STABILITY_MS: 3000, WebSocket: { OPEN: 1 }, hasConnectedRef: { current: false },
+      // ws.onclose
+      sessionIdRef: { current: sessionId }, suppressedCloseDiagnosticsRef: { current: 0 }, lastCloseDiagnosticAtRef: { current: 0 }, console: { warn: () => {}, log: () => {}, error: () => {} }, buildControlTokenRef: { current: null },
+      STUDIO_ONE_LIVE_TAB_ENABLED: false, isDirectorSupersededClose: () => false,
     }
+    runScoped(`${sliceHook('const duplicateAdoptReconnect = () => {', '}; // DUPLICATE-ADOPT')}\n__out.reconnect = duplicateAdoptReconnect;`, table)
+    const owner = evalLine(`${lineWith(HOOK, 'const duplicateAdoptOwner =')}\nmodule.exports = duplicateAdoptOwner`, ['process', 'socketSessionId', 'isCurrentSocket', 'duplicateAdoptReconnect'], [{ env }, sessionId, isCurrentSocket, out.reconnect])
+    table.duplicateAdoptOwner = owner
     runScoped(sliceHookTo('ws.onopen = () => {', 'ws.onmessage = (event) => {'), table)
     runScoped(`${sliceHook('ws.onmessage = (event) => {', "onDuplicateAdoptSocket?.('chat', duplicateAdoptOwner)")}\n          } catch (error) { throw error }\n        };`, table)
-    runScoped(`${sliceHook('ws.onclose = (event) => {', "onDuplicateAdoptSocket?.('closed', duplicateAdoptOwner)")}\n        };`, table)
+    runScoped(`${sliceHook('ws.onclose = (event) => {', 'scheduleReconnect(`close:${event.code}`);')}\n        };`, table)
     return {
-      ws, state, events, owner, pending,
-      open: () => { ws.onopen(); return state.last },
+      ws, state, events, owner, pending, refs,
+      open: () => { ws.onopen(); return refs.state },
       deliver: (frame, label) => { if (label) world.log.push(`frame:${label ?? frame.type}`); ws.onmessage({ data: typeof frame === 'string' ? frame : JSON.stringify(frame) }) },
-      close: () => ws.onclose({ code: 1006, reason: '', wasClean: false }),
+      close: (code = 1006, reason = '') => { ws.readyState = 3; ws.onclose({ code, reason, wasClean: code !== 1006 }) },
     }
   }
 
@@ -784,9 +819,51 @@ async function suite({ quiet = false, extraCommitted = [] } = {}) {
     }
     const w = openWorld(); const sock = hookSocket(w, { callbackPresent: false }); sock.open(); sock.deliver(greetingFrame()); sock.close(); deep(sock.events, [], 'no callback given (a page without the controller): the taps are inert')
   })
+  await check('G: the real hook and the Builder line: after the adoption (reused:false) the socket is replaced ONCE by the hook itself, the retry budget is neither reset nor spent, nothing loops', async () => {
+    const w = openWorld(), refs = hookRefs({ attempts: 3 }) // a socket that opened on the hook's third retry: the budget is 3 of 4 and its stability timer is running
+    const a = hookSocket(w, { refs, viaBuilder: true }); a.open(); deep(refs.calls.filter(c => c[0] === 'setReconnectStatus'), [['setReconnectStatus', 'idle', 3]]); eq(refs.clock.timers.length, 1, 'its stability timer (onopen, attempts > 0)')
+    await w.settle(); const mark = refs.calls.length; a.deliver(greetingFrame()); eq(await within(a.pending[0]), 'reconnected'); eq(w.director.length, 1)
+    const after = refs.calls.slice(mark)
+    eq(refs.starts.length, 1, 'one new socket is started (the hook\'s own startConnection)'); eq(refs.starts[0], null, 'with this socket detached first')
+    deep(a.ws.closes, [[4001, 'Duplicate adopted reconnect']], 'the old socket is closed, once'); eq(refs.wsRef.current, null); eq(refs.socketSessionRef.current, null)
+    eq(refs.reconnectAttemptsRef.current, 3, 'the retry budget is not reset'); eq(refs.reconnectStatusRef.current, 'idle')
+    deep(after.map(c => c[0]), ['stopHeartbeat', 'setState'], 'the reconnect stops the old heartbeat and marks the transport disconnected; it never sets the reconnect status')
+    deep({ connected: refs.state.connected, connecting: refs.state.connecting, connectionState: refs.state.connectionState, currentStatus: refs.state.currentStatus }, { connected: false, connecting: false, connectionState: 'disconnected', currentStatus: null })
+    // the old socket's close arrives (before the new socket exists, as the browser delivers it): it is a stale socket's, so it schedules nothing and touches nothing
+    const before = refs.calls.length; a.close(4001, 'Duplicate adopted reconnect')
+    deep(refs.calls.slice(before), [], 'the old close is ignored: no scheduleReconnect, no state, no status'); deep(a.events, ['connected', 'chat', 'closed'])
+    refs.clock.advance(3000); eq(refs.reconnectAttemptsRef.current, 3, 'the old socket\'s stability timer fires and resets nothing (it is not the live socket)')
+    // the hook's startConnection opens the next socket for the same session (the proof builds it with the same refs)
+    const b = hookSocket(w, { refs, viaBuilder: true }); b.open(); eq(await within(b.pending[0]), 'not-first', 'its connected arms nothing')
+    deep(refs.calls.filter(c => c[0] === 'setReconnectStatus').at(-1), ['setReconnectStatus', 'idle', 3], 'the new socket keeps the budget as it was (its own stability rule is the hook\'s, unchanged)')
+    b.deliver(greetingFrame()); w.clock.advance(60_000); refs.clock.advance(1); await w.settle()
+    eq(w.director.length, 1); eq(refs.starts.length, 1, 'nothing loops: no second replacement'); deep(b.ws.closes, []); eq(refs.wsRef.current, b.ws)
+    deep(w.log.filter(entry => entry.startsWith('POST ')), ['POST /api/director/sessions/new-session-1/adopt-duplicate'])
+  })
+  await check('G: the real hook\'s reconnect acts only for an open, current socket of an idle transport (never over a scheduled, paused, exhausted, manual or superseded lifecycle), and once', () => {
+    const untouched = (label, prepare) => {
+      const w = openWorld(), refs = hookRefs({ attempts: 4 }), s = hookSocket(w, { refs, viaBuilder: true }); s.open(); prepare(s, refs)
+      const calls = refs.calls.length, state = refs.state, status = refs.reconnectStatusRef.current
+      s.owner.reconnect()
+      eq(refs.starts.length, 0, label); deep(s.ws.closes, [], label); eq(refs.calls.length, calls, label); eq(refs.state, state, label); eq(refs.reconnectStatusRef.current, status, label); eq(refs.reconnectAttemptsRef.current, 4, label)
+      ok(refs.wsRef.current === s.ws || refs.wsRef.current === null || refs.wsRef.current?.other, label)
+    }
+    for (const status of ['scheduled', 'paused_offline', 'exhausted', 'manual', 'superseded']) untouched(status, (s, refs) => { refs.reconnectStatusRef.current = status })
+    untouched('a connection attempt in progress', (s, refs) => { refs.isConnectingRef.current = true })
+    for (const readyState of [0, 2, 3]) untouched(`readyState ${readyState}`, s => { s.ws.readyState = readyState })
+    untouched('a superseded attempt', s => { s.state.current = false })
+    untouched('another socket is the live one', (s, refs) => { refs.wsRef.current = { other: true } })
+    const w = openWorld(), refs = hookRefs({ attempts: 4 }), s = hookSocket(w, { refs, viaBuilder: true }); s.open()
+    s.owner.reconnect(); s.owner.reconnect(); eq(refs.starts.length, 1, 'a second call finds the socket no longer current'); eq(s.ws.closes.length, 1); eq(refs.reconnectAttemptsRef.current, 4, 'an exhausted budget stays exhausted: the reconnect does not spend it either')
+  })
   await check('G: the hook\'s marked lines: where the taps sit, and that none of them takes a frame away', () => {
-    const hook = hookText(), marked = hook.split('\n').filter(MARKED); eq(marked.length, 7, 'two comment lines, the option, the owner, three taps')
-    ok(hook.includes("  onDuplicateAdoptSocket?: (event: 'connected' | 'chat' | 'closed', owner: { sessionId: string; isCurrent: () => boolean }) => void; // DUPLICATE-ADOPT\n"), 'the option type')
+    const hook = hookText(), marked = hook.split('\n').filter(MARKED); eq(marked.length, 21, 'three comment lines and the option; four comment lines and the nine lines of the reconnect; the owner; three taps')
+    ok(hook.includes("  onDuplicateAdoptSocket?: (event: 'connected' | 'chat' | 'closed', owner: { sessionId: string; isCurrent: () => boolean; reconnect: () => void }) => void; // DUPLICATE-ADOPT\n"), 'the option type')
+    const reconnectAt = hook.indexOf('        const duplicateAdoptReconnect = () => { // DUPLICATE-ADOPT\n')
+    ok(reconnectAt > hook.indexOf('const isCurrentSocket = () => wsRef.current === ws && isCurrentAttempt();') && reconnectAt < hook.indexOf('const duplicateAdoptOwner ='), 'the reconnect is made once per socket, beside its owner')
+    eq((hook.match(/\bconnect\(\);/g) || []).length, 0, 'the hook never calls its public exhaustion-reset path (the #194 invariant, test-director-websocket-reconnect)')
+    eq((read(BUILDER).match(/\bconnect\(\)/g) || []).length, 1, 'the Builder\'s only connect() is the disconnected user submission (the #194 invariant)')
+    ok(!/\b(?:dis)?connect\(|ensureConnected\(|reconnectAttemptsRef\.current\s*=[^=]|setReconnectStatus\(/.test([...marked, ...read(BUILDER).split('\n').filter(MARKED)].join('\n')), 'no marked line calls connect, disconnect or ensureConnected, or writes the retry budget or the reconnect status')
     const connectedTap = lineWith(HOOK, "('connected', duplicateAdoptOwner)"), chatTap = lineWith(HOOK, "('chat', duplicateAdoptOwner)"), closedTap = lineWith(HOOK, "('closed', duplicateAdoptOwner)"), ownerLine = lineWith(HOOK, 'const duplicateAdoptOwner =')
     for (const line of [connectedTap, chatTap, closedTap]) ok(!/\breturn\b|\bthrow\b|\bawait\b/.test(line.split('//')[0]), `a tap only calls: ${line.trim().slice(0, 50)}`)
     const at = line => hook.indexOf(line)
@@ -808,18 +885,20 @@ async function suite({ quiet = false, extraCommitted = [] } = {}) {
     eq(made.length, 1)
     ok(line.startsWith('const studioDuplicateAdoptOnOpen = '), 'module scope (not inside a component)')
   })
-  await check('G: the Builder hands the socket the callback only with the controller, passing every event on; the reconnect is disconnect then connect', async () => {
+  await check('G: the Builder hands the socket the callback only with the controller, passing every event on; the reconnect it hands the controller is the socket\'s own', async () => {
     const line = lineWith(BUILDER, 'onDuplicateAdoptSocket:')
     const page = read(BUILDER), at = page.indexOf(line)
     ok(at > page.indexOf('} = useDecksterWebSocketV2({') && at < page.indexOf('onBuildPhase: (payload, ownerSessionId) =>', at), 'in the socket\'s options')
-    const order = [], seen = []
-    const make = controller => evalLine(`module.exports = {\n${line}\n}`, ['studioDuplicateAdoptOnOpen', 'disconnect', 'connect'], [controller, () => order.push('disconnect'), () => order.push('connect')])
+    const seen = []
+    const make = controller => evalLine(`module.exports = {\n${line}\n}`, ['studioDuplicateAdoptOnOpen'], [controller]) // no connect, no disconnect: a line that named them would throw when called
     deep(Object.keys(make(null)), [])
-    const options = make({ onSocketEvent: (event, owner, reconnect) => { seen.push({ event, owner }); if (event === 'connected') reconnect(); return Promise.resolve('reconnected') } })
+    const options = make({ onSocketEvent: (event, owner, reconnect) => { seen.push({ event, owner, reconnect }); if (event === 'connected') reconnect(); return Promise.resolve('reconnected') } })
     deep(Object.keys(options), ['onDuplicateAdoptSocket'])
-    const owner = { sessionId: 'new-session-1', isCurrent: () => true }
+    let reconnects = 0
+    const owner = { sessionId: 'new-session-1', isCurrent: () => true, reconnect: () => { reconnects++ } }
     for (const event of ['connected', 'chat', 'closed']) eq(options.onDuplicateAdoptSocket(event, owner), undefined)
-    deep(seen.map(entry => entry.event), ['connected', 'chat', 'closed']); ok(seen.every(entry => entry.owner === owner)); deep(order, ['disconnect', 'connect'])
+    deep(seen.map(entry => entry.event), ['connected', 'chat', 'closed']); ok(seen.every(entry => entry.owner === owner)); ok(seen.every(entry => entry.reconnect === owner.reconnect), 'the owner\'s own reconnect, as it is')
+    eq(reconnects, 1)
   })
   await check('G: Builder autosave cannot drop the marker or the receipt: it sends stateCache { activeVersion, slideStructure } and never currentStatus; the real PATCH route leaves currentStatus alone', async () => {
     const page = read(BUILDER), start = page.indexOf('onSessionStateChange: (state) => {'), end = page.indexOf('    onMessage: (message) => {', start)
@@ -892,7 +971,9 @@ async function suite({ quiet = false, extraCommitted = [] } = {}) {
     await check('I: marked insertions only in the existing app files; the registry gains three LATER-CHANGE lines; .env.example only gains its block', () => {
       const added = rel => git('diff', '-U0', BASE, own[0].commit, '--', rel).split('\n').filter(line => /^[+-]/.test(line) && !/^(\+\+\+|---) /.test(line)) // the net committed diff, base to this change's newest commit (a line it added and later reworded is one added line)
       for (const rel of strip.DUPLICATE_ADOPT_FILES) { const lines = added(rel); ok(lines.length > 0 && lines.every(line => line.startsWith('+') && MARKED(line)), rel) }
-      const registry = added('scripts/studio-later-changes.mjs'); eq(registry.length, 3); ok(registry.every(line => line.startsWith('+') && line.includes('LATER-CHANGE') && line.includes('studio-duplicate-adopt-strip.mjs')))
+      const registry = added('scripts/studio-later-changes.mjs'), registryMine = registry.filter(line => line.includes('studio-duplicate-adopt-strip.mjs'))
+      eq(registryMine.length, 3); ok(registryMine.every(line => line.startsWith('+') && line.includes('LATER-CHANGE')))
+      ok(registry.every(line => line.startsWith('+') && line.includes('// LATER-CHANGE: ')), 'the registry only gains LATER-CHANGE lines (a registered change merged onto this branch, #519, brings its own)')
       const env = added('.env.example'); eq(env.filter(line => line.startsWith('-')).length, 0); eq(env.map(line => line.slice(1)).join('\n'), ['', ...strip.DUPLICATE_ADOPT_ENV_BLOCK.trimEnd().split('\n')].join('\n'))
     })
     for (const rel of strip.DUPLICATE_ADOPT_PIN_FILES) {
@@ -1026,12 +1107,29 @@ const MUTANTS = [
   ['builder: the controller gets no clock', BUILDER, 'now: () => new Date(), schedule:', 'schedule:'],
   ['builder: the controller gets no scheduler', BUILDER, ', schedule: (run, ms) => { const timer = setTimeout(run, ms); return () => clearTimeout(timer) } })', ' } as any)'],
   ['builder: the wait cannot be cancelled', BUILDER, 'return () => clearTimeout(timer) } })', 'return () => {} } })'],
-  ['builder: the socket callback drops the event', BUILDER, 'onDuplicateAdoptSocket: (event: DuplicateAdoptSocketEvent, owner: DuplicateAdoptSocketOwner) => { void studioDuplicateAdoptOnOpen?.onSocketEvent(event, owner,', "onDuplicateAdoptSocket: (event: DuplicateAdoptSocketEvent, owner: DuplicateAdoptSocketOwner) => { void studioDuplicateAdoptOnOpen?.onSocketEvent('connected', owner,"],
+  ['builder: the socket callback drops the event', BUILDER, '=> { void studioDuplicateAdoptOnOpen?.onSocketEvent(event, owner, owner.reconnect) }', "=> { void studioDuplicateAdoptOnOpen?.onSocketEvent('connected', owner, owner.reconnect) }"],
   ['builder: the socket callback is the old connected one', BUILDER, 'onDuplicateAdoptSocket: (event', 'onDuplicateAdoptConnected: (event'],
-  ['builder: the reconnect only connects', BUILDER, '() => { disconnect(); connect() }', '() => { connect() }'],
+  ['builder: the reconnect is disconnect then connect again (the user\'s exhaustion reset)', BUILDER, 'onSocketEvent(event, owner, owner.reconnect) }', 'onSocketEvent(event, owner, () => { disconnect(); connect() }) }'],
+  ['builder: the reconnect only connects', BUILDER, 'onSocketEvent(event, owner, owner.reconnect) }', 'onSocketEvent(event, owner, () => { connect() }) }'],
+  ['builder: the reconnect is dropped', BUILDER, 'onSocketEvent(event, owner, owner.reconnect) }', 'onSocketEvent(event, owner, () => {}) }'],
   ['hook: the owner is made with the flag off', HOOK, "const duplicateAdoptOwner = process.env.NEXT_PUBLIC_STUDIO_DUPLICATE_ADOPT === 'true' ? {", "const duplicateAdoptOwner = true ? {"],
-  ['hook: the owner names another session', HOOK, "? { sessionId: socketSessionId, isCurrent: isCurrentSocket } : null; // DUPLICATE-ADOPT: one owner per socket", "? { sessionId: '', isCurrent: isCurrentSocket } : null; // DUPLICATE-ADOPT: one owner per socket"],
-  ['hook: the owner is always current', HOOK, "? { sessionId: socketSessionId, isCurrent: isCurrentSocket } : null; // DUPLICATE-ADOPT: one owner per socket", "? { sessionId: socketSessionId, isCurrent: () => true } : null; // DUPLICATE-ADOPT: one owner per socket"],
+  ['hook: the owner names another session', HOOK, "? { sessionId: socketSessionId, isCurrent: isCurrentSocket, reconnect: duplicateAdoptReconnect } : null; // DUPLICATE-ADOPT: one owner per socket", "? { sessionId: '', isCurrent: isCurrentSocket, reconnect: duplicateAdoptReconnect } : null; // DUPLICATE-ADOPT: one owner per socket"],
+  ['hook: the owner is always current', HOOK, "? { sessionId: socketSessionId, isCurrent: isCurrentSocket, reconnect: duplicateAdoptReconnect } : null; // DUPLICATE-ADOPT: one owner per socket", "? { sessionId: socketSessionId, isCurrent: () => true, reconnect: duplicateAdoptReconnect } : null; // DUPLICATE-ADOPT: one owner per socket"],
+  ['hook: the owner has no reconnect', HOOK, "isCurrent: isCurrentSocket, reconnect: duplicateAdoptReconnect } : null; // DUPLICATE-ADOPT: one owner per socket", "isCurrent: isCurrentSocket } : null; // DUPLICATE-ADOPT: one owner per socket"],
+  ['hook: the reconnect resets the retry budget', HOOK, "          stopHeartbeat(); // DUPLICATE-ADOPT\n", "          stopHeartbeat(); // DUPLICATE-ADOPT\n          reconnectAttemptsRef.current = 0; // DUPLICATE-ADOPT\n"],
+  ['hook: the reconnect clears the reconnect status (an exhaustion reset)', HOOK, "          startConnectionRef.current(); // DUPLICATE-ADOPT\n", "          setReconnectStatus('idle', 0); // DUPLICATE-ADOPT\n          startConnectionRef.current(); // DUPLICATE-ADOPT\n"],
+  ['hook: the reconnect spends a retry (the close schedules the hook\'s backoff)', HOOK, "          wsRef.current = null; // DUPLICATE-ADOPT\n", ""],
+  ['hook: the reconnect is the public connect', HOOK, "          startConnectionRef.current(); // DUPLICATE-ADOPT\n", "          connect(); // DUPLICATE-ADOPT\n"],
+  ['hook: the reconnect starts no new socket', HOOK, "          startConnectionRef.current(); // DUPLICATE-ADOPT\n", ""],
+  ['hook: the reconnect starts two sockets', HOOK, "          startConnectionRef.current(); // DUPLICATE-ADOPT\n", "          startConnectionRef.current(); startConnectionRef.current(); // DUPLICATE-ADOPT\n"],
+  ['hook: the reconnect leaves the old socket open', HOOK, "          try { ws.close(4001, 'Duplicate adopted reconnect'); } catch { /* already closing */ } // DUPLICATE-ADOPT\n", ""],
+  ['hook: the reconnect leaves the transport marked connected', HOOK, "          setState(prev => ({ ...prev, connected: false, connecting: false, connectionState: 'disconnected', currentStatus: null })); // DUPLICATE-ADOPT\n", ""],
+  ['hook: the reconnect leaves the old heartbeat running', HOOK, "          stopHeartbeat(); // DUPLICATE-ADOPT\n", ""],
+  ['hook: the reconnect keeps the old socket\'s session', HOOK, "          socketSessionRef.current = null; // DUPLICATE-ADOPT\n", ""],
+  ['hook: the reconnect ignores the transport lifecycle (exhausted, paused, manual ...)', HOOK, " || reconnectStatusRef.current !== 'idle') return; // DUPLICATE-ADOPT", ") return; // DUPLICATE-ADOPT"],
+  ['hook: the reconnect runs over a connection attempt in progress', HOOK, " || isConnectingRef.current || reconnectStatusRef.current", " || reconnectStatusRef.current"],
+  ['hook: the reconnect acts for a socket that is not open', HOOK, " || ws.readyState !== WebSocket.OPEN || isConnectingRef", " || isConnectingRef"],
+  ['hook: the reconnect acts for a socket that is not current (and again on a second call)', HOOK, "          if (!isCurrentSocket() || ws.readyState", "          if (ws.readyState"],
   ['hook: a superseded socket tells too', HOOK, "if (!isCurrentSocket()) {\n            debugLog('⏭️ Ignoring open from stale WebSocket');", "if (false) {\n            debugLog('⏭️ Ignoring open from stale WebSocket');"],
   ['hook: also told before the connected state is set', HOOK, "          if (expiresInSeconds) scheduleAuthRefresh(expiresInSeconds);\n", "          if (duplicateAdoptOwner) transportCallbacksRef.current.onDuplicateAdoptSocket?.('connected', duplicateAdoptOwner); // DUPLICATE-ADOPT\n          if (expiresInSeconds) scheduleAuthRefresh(expiresInSeconds);\n"],
   ['hook: the connected tap is gone', HOOK, "          if (duplicateAdoptOwner) transportCallbacksRef.current.onDuplicateAdoptSocket?.('connected', duplicateAdoptOwner); // DUPLICATE-ADOPT: told once per open (a reconnect opens again); the caller arms the session, it does not call yet\n", ""],
