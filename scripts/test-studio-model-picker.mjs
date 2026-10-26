@@ -744,7 +744,7 @@ async function suite({ quiet = false, bail = false, extraCommitted = [] } = {}) 
   const mountSlider = (opts = {}) => mount({ ...opts, props: { sessionId: null, variant: 'slider', ...(opts.props ?? {}) } })
   const STOPS = [['economy', 'Fast', '$'], ['balanced', 'Balanced', '$$'], ['best', 'Best', '$$$']] // what the older catalogue (no quick, no max) gives: no Auto, it lives in Advanced
   const FIVE_STOPS = [['quick', 'Quick', '$'], ['economy', 'Fast', '$'], ['balanced', 'Balanced', '$$'], ['best', 'Best', '$$$'], ['max', 'Max', '$$$']] // the five of PK's 26 Oct
-  const HINTS = { quick: 'Lightest and quickest: short, simple tasks.', economy: 'Quick, low-cost answers for everyday work.', balanced: 'A balance of speed, cost and depth.', best: 'Deeper thinking for important work.', max: 'The deepest thinking for the hardest tasks; costs the most.' }
+  const HINTS = { quick: 'Fastest · lowest cost', economy: 'Fast · low cost', balanced: 'Balanced speed · moderate cost', best: 'Deeper · higher cost', max: 'Deepest · highest cost' } // the hints router !45 ships
   const fiveOf = (m, edit) => { const body = json(FIVE); if (edit) edit(body); return catalogueOf(m, body) }
   const catalogueOf = (m, body) => m.choice.withPresets(m.cat.parseCatalogue(body), body)
   const withOverride = async (rel, from, to, fn) => { const text = read(rel); assert.ok(text.includes(from), `override target in ${rel}`); const before = overrides; overrides = { ...overrides, [rel]: text.replace(from, () => to) }; try { return await fn() } finally { overrides = before } }
@@ -816,10 +816,11 @@ async function suite({ quiet = false, bail = false, extraCommitted = [] } = {}) 
   })
   await check('S: the saved bodies of the five stops: user (Quick and Max are presets), deck (the same, whole map), Max and Best of research name one model and are both saved as themselves', async () => {
     const router = fakeRouter(); const rt = await mountSlider({ router, catalogue: okCatalogue(json(FIVE)) }); await rt.open()
-    for (const [i, id] of [[4, 'max'], [0, 'quick'], [3, 'best'], [4, 'max'], [1, 'economy']]) { await rt.commit(i); deep(lastBody(rt), onUser({ preset: id }), id); deep(kept(router, USER_PATH), Object.fromEntries(TEXT_GROUPS.map(g => [g, id]))); deep(rt.slider().props.value, [i]); eq(rt.gauge().props['aria-label'], `Model: ${FIVE_STOPS[i][1]}`) }
+    for (const [i, id] of [[4, 'max'], [0, 'quick'], [3, 'best'], [4, 'max'], [1, 'economy']]) { await rt.commit(i); deep(lastBody(rt), onUser({ preset: id }), id); deep(Object.keys(lastBody(rt).preferences), TEXT_GROUPS, 'only the three text groups: the router answers 422 for a preset on imagery and voice, and fails the whole write'); deep(kept(router, USER_PATH), Object.fromEntries(TEXT_GROUPS.map(g => [g, id]))); deep(rt.slider().props.value, [i]); eq(rt.gauge().props['aria-label'], `Model: ${FIVE_STOPS[i][1]}`) }
     const deckRouter = fakeRouter(); const deck = await mountSlider({ router: deckRouter, props: { sessionId: 'sess-fixture-1' }, catalogue: okCatalogue(json(FIVE)) }); await deck.open()
     for (const [i, id] of [[0, 'quick'], [4, 'max'], [3, 'best']]) { await deck.commit(i); eq(deckRouter.log.filter(entry => entry.method === 'PUT').at(-1).body, JSON.stringify({ preferences: Object.fromEntries(TEXT_GROUPS.map(g => [g, { preset: id }])) }), id); eq(deck.gauge().props['aria-label'], `Model: ${FIVE_STOPS[i][1]}`) }
     deep(kept(deckRouter, SESSION_PATH), Object.fromEntries(TEXT_GROUPS.map(g => [g, 'best'])), 'Best is Best, not Max, though research names one model for both')
+    ok([...router.log, ...deckRouter.log].every(entry => !/imagery|voice_narration|structure_layout|visual_review|utilities|embeddings/.test(entry.body ?? '')), 'a quick or max choice never reaches a group that is not a text group')
     const again = await mountSlider({ router: deckRouter, props: { sessionId: 'sess-fixture-1' }, catalogue: okCatalogue(json(FIVE)) }); await again.open(); deep(again.slider().props.value, [3]); eq(again.active(), 'Best'); deep(again.stops().map(stop => stop.active), ['false', 'false', 'false', 'true', 'false'])
   })
   await check('S: the compact picker\'s menu lists the presets in the same order with their hints; Quick and Max save as presets; a catalogue with no preset_order uses the fixed order', async () => {
@@ -830,6 +831,14 @@ async function suite({ quiet = false, bail = false, extraCommitted = [] } = {}) 
     const fallback = await mount({ catalogue: okCatalogue((() => { const body = json(FIVE); delete body.preset_order; return body })()) }); await fallback.open(); deep(fallback.items().map(item => item.id), ['auto', 'quick', 'economy', 'balanced', 'best', 'max'])
     const old = await mount({ catalogue: okCatalogue(json(FIXTURE)) }); await old.open(); deep(old.items().map(item => item.id), ['auto', 'economy', 'balanced', 'best'], 'the older catalogue: as before')
     const kept5 = fakeRouter(); kept5.seed(USER_PATH, { tier: 'max' }); const back = await mount({ router: kept5, catalogue: okCatalogue(json(FIVE)) }); eq(back.chipText(), 'Max'); const gone = await mount({ router: kept5, catalogue: okCatalogue(json(FIXTURE)) }); eq(gone.chipText(), 'Auto', 'a Max the catalogue no longer has reads as Auto')
+  })
+  await check('S: a quick or max choice is written to the three text groups only: imagery and narration stay as they are, on the wire and in the kept choices', () => {
+    const m = loadPicker({ read, ...real, env: {} }); const defaults = m.choice.modelChoiceDefaults()
+    for (const tier of ['quick', 'max']) {
+      const next = m.picker.applyChoice(defaults, { tier }); deep(Object.fromEntries(TEXT_GROUPS.map(g => [g, next[g]])), Object.fromEntries(TEXT_GROUPS.map(g => [g, tier]))); eq(next.imagery, 'default'); eq(next.voice_narration, 'default')
+      for (const kind of ['user', 'deck']) deep(Object.keys(m.choice.toWire(next, kind).preferences), TEXT_GROUPS, kind)
+      const odd = { ...next, imagery: tier, voice_narration: tier }; deep(Object.keys(m.choice.toWire(odd, 'user').preferences), TEXT_GROUPS, 'even a stray value on imagery is not sent')
+    }
   })
   await check('S: the slider\'s list of presets IS the Studio routes\' list: the same five, and the routes refuse every other id', () => {
     const m = loadPicker({ read, ...real, env: {} }); const server = runModule(SERVER, { '@/lib/studio-model-choice': m.choice }, { read })
@@ -1118,7 +1127,7 @@ const MUTANTS = [
   ['picker: the chip shows the whole model name', P, 'return { text: shortName(name), full: name }', 'return { text: name, full: name }'],
   ['picker: the short name has no ellipsis', P, ".trimEnd()}…`", ".trimEnd()}`"],
   ['picker: the short name is long', P, 'export const PICKER_SHORT_MAX = 16', 'export const PICKER_SHORT_MAX = 40'],
-  ['picker: the tiers are listed dearest first', P, "['economy', 'balanced', 'best']", "['best', 'balanced', 'economy']"],
+  ['picker: the fixed order is dearest first', CHOICE_LIB, "['quick', 'economy', 'balanced', 'best', 'max']", "['max', 'best', 'balanced', 'economy', 'quick']"],
   ['picker: the new-deck note names the deck', P, "export const PICKER_SCOPE_USER = 'Applies to new decks'", "export const PICKER_SCOPE_USER = 'Applies to this deck'"],
   ['picker: the device note claims the account', P, "'not-configured': 'Saved on this device for now'", "'not-configured': 'Saved to your account'"],
   ['picker: the device note is silent about an unreachable account', P, "return reason === 'unreachable' ? PICKER_SAVE_NOTE.unreachable : PICKER_SAVE_NOTE['not-configured']", "return PICKER_SAVE_NOTE['not-configured']"],
@@ -1136,10 +1145,7 @@ const MUTANTS = [
   ['slider: nine stops', SL, 'export const SLIDER_MAX_STOPS = 5', 'export const SLIDER_MAX_STOPS = 9'],
   ['slider: the caption is lower-case', SL, "export const SLIDER_CAPTION = 'Low = quicker, lower cost · High = deeper thinking, higher cost'", "export const SLIDER_CAPTION = 'low = quicker, lower cost · high = deeper thinking, higher cost'"],
   ['slider: the caption says something else', SL, "export const SLIDER_CAPTION = 'Low = quicker, lower cost · High = deeper thinking, higher cost'", "export const SLIDER_CAPTION = 'low = cheap · high = good'"],
-  ['slider: a preset the routes cannot save is a stop', SL, 'export const SLIDER_SAVABLE_PRESETS: readonly string[] = PICKER_TIERS', "export const SLIDER_SAVABLE_PRESETS: readonly string[] = [...PICKER_TIERS, 'ultra', 'mega']"],
-  ['slider: the stops are not ordered by cost', SL, 'ranked.sort((a, b) => a.rank - b.rank || a.order - b.order)', 'ranked.sort((a, b) => a.order - b.order)'],
-  ['slider: an extra preset needs one group only', SL, 'if (!slug || !offeredModels(catalogue, group).includes(slug)) return null', 'if (!slug) return null'],
-  ['slider: a tier needs no certification', SL, 'if (tierOffered(catalogue, id)) ranked.push', 'if (true) ranked.push'],
+  ['slider: a tier needs no certification', SL, '.filter(id => savable.includes(id) && tierOffered(catalogue, id))', '.filter(id => savable.includes(id))'],
   ['slider: Auto on a deck is null', SL, "(stop.auto ? (scope === 'deck' ? { auto: true } : null)", '(stop.auto ? null'],
   ['slider: Auto on the reusable default is a deck Auto', SL, "(stop.auto ? (scope === 'deck' ? { auto: true } : null)", '(stop.auto ? ({ auto: true })'],
   ['slider: a model sits on a stop', SL, "  if (state.kind === 'tier') return stops.findIndex(stop => stop.tier === state.tier)\n  return -1", "  if (state.kind === 'tier') return stops.findIndex(stop => stop.tier === state.tier)\n  return 0"],
@@ -1147,7 +1153,6 @@ const MUTANTS = [
   ['slider: the cost is not in the value text', SL, "const costWords = (hint: string | null) => (hint ? `, cost ${hint.length} of 3` : '')", "const costWords = (hint: string | null) => ''"],
   ['slider: Advanced holds the deck rows on the reusable default', SL, "const rows = args.scope === 'deck' ? head : (args.autoStop ?? SLIDER_AUTO_STOP) ? [] : head", 'const rows = head'],
   ['slider: Advanced has no deck rows', SL, "const rows = args.scope === 'deck' ? head :", "const rows = args.scope === 'deck' ? [] :"],
-  ['slider: a plain id is any text', CHOICE_LIB, 'export const PRESET_ID = /^[a-z][a-z0-9_]{0,31}$/', 'export const PRESET_ID = /^.+$/'],
   ['slider: a following deck has a filled thumb', SL, "thumb: following ? 'hollow' : 'selected'", "thumb: 'selected'"],
   ['slider: Auto shows a thumb', SL, "if (state.kind === 'auto') return { stops, index, thumb: 'none',", "if (state.kind === 'auto') return { stops, index, thumb: 'selected',"],
   ['slider: Advanced\'s Auto keeps the short label', SL, "{ ...option, label: MODEL_CHOICE_AUTO_LABEL, detail: null }", 'option'],
@@ -1166,7 +1171,7 @@ const MUTANTS = [
   ['slider: the thumb has no label', SC, 'aria-label={SLIDER_LABEL} aria-valuetext', 'aria-valuetext'],
   ['slider: the thumb has no value text', SC, 'aria-valuetext={shown ? shown.label : valueText} ', ''],
   ['slider: the thumb is not described by the caption', SC, ' aria-describedby={captionId} />', ' />'],
-  ['slider: the stop labels are read twice', SC, 'data-mpick-stop={stop.id} aria-hidden="true"', 'data-mpick-stop={stop.id}'],
+  ['slider: the stop labels are read twice', SC, 'title={stop.sub ?? undefined} aria-hidden="true"', 'title={stop.sub ?? undefined}'],
   ['slider: the slider is not blocked', SC, 'disabled={blocked} data-thumb', 'data-thumb'],
   ['slider: the step is 2', SC, 'step={1}', 'step={2}'],
   ['slider: the trigger has no label', SC, 'aria-label={`Model: ${label}`} title=', 'title='],

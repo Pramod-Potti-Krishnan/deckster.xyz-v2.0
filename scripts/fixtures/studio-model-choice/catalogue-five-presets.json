@@ -1154,10 +1154,10 @@
     "max"
   ],
   "preset_hints": {
-    "quick": "Lightest and quickest: short, simple tasks.",
-    "economy": "Quick, low-cost answers for everyday work.",
-    "balanced": "A balance of speed, cost and depth.",
-    "best": "Deeper thinking for important work.",
-    "max": "The deepest thinking for the hardest tasks; costs the most."
+    "quick": "Fastest · lowest cost",
+    "economy": "Fast · low cost",
+    "balanced": "Balanced speed · moderate cost",
+    "best": "Deeper · higher cost",
+    "max": "Deepest · highest cost"
   }
 }

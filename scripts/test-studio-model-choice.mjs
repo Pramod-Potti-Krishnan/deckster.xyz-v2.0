@@ -868,7 +868,10 @@ async function suite({ quiet = false, extraCommitted = [] } = {}) {
         eq(out.status, 200, `${rel} ${id}`); eq(router.log.find(entry => entry.method === write).body, JSON.stringify({ preferences: Object.fromEntries(TEXT_GROUPS.map(g => [g, { preset: id }])) })); deep(out.body.preferences.planning_strategy, { preset: id, model: null, stale: false })
         const again = await callRoute(rel, 'GET', { params, router }); deep(Object.values(again.body.preferences).map(row => row.preset), [id, id, id], 'read back')
       }
-      for (const id of ['fast', 'ultra', 'Quick', 'MAX', '']) { const out = await callRoute(rel, 'PATCH', { params, body: { preferences: { planning_strategy: { preset: id } } } }); eq(out.status, 400, `${rel} ${JSON.stringify(id)}`); eq(out.body.code, 'invalid_request'); eq(out.router.log.length, 0) }
+      for (const id of ['fast', 'ultra', 'Quick', 'MAX', '']) { const out = await callRoute(rel, 'PATCH', { params, body: { preferences: { planning_strategy: { preset: id } } } }); eq(out.status, 400, `${rel} ${JSON.stringify(id)}`); eq(out.body.code, 'invalid_request'); eq(out.router.log.length, 0) }      for (const group of ['imagery', 'voice_narration', 'structure_layout', 'visual_review', 'utilities', 'embeddings']) for (const id of ['quick', 'max']) {
+        const out = await callRoute(rel, 'PATCH', { params, body: { preferences: { [group]: { preset: id } } } }); eq(out.status, 400, `${rel} ${group} ${id}: only the three text groups define quick and max (the router answers 422 invalid_preference_preset and fails the whole write)`); eq(out.body.code, 'invalid_request'); eq(out.router.log.length, 0, 'refused before any router call')
+        const mixed = await callRoute(rel, 'PATCH', { params, body: { preferences: { planning_strategy: { preset: id }, [group]: { preset: id } } } }); eq(mixed.status, 400); eq(mixed.router.log.length, 0, 'one such group refuses the whole body')
+      }
     }
   })
   await check('M: If-Match: a read-modify-write on both scopes; a stale tag is refused before any write; a malformed one is a 400', async () => {
