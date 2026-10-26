@@ -1,300 +1,388 @@
 {
-  "source": "the agreed envelope (DIRECTOR-2, 26 Oct, Director flag DIRECTOR_MDC_ELEMENT_EDIT_ENABLED); NOT yet DIRECTOR-2's recorded frames, which land in streams/director2/element-edit/ (Tue 27 EOD). Swap these for the recordings then.",
+  "source": "streams/director2/element-edit/CONTRACT.md (DIRECTOR-2, agreed 26 Oct; Director flag DIRECTOR_MDC_ELEMENT_EDIT_ENABLED), built from its \u00a71 and \u00a72. NOT yet DIRECTOR-2's recorded frames, which land in streams/director2/element-edit/examples/ on Tue 27: swap these for the recordings then.",
   "session_id": "s_e2e",
   "presentation_id": "pres-chat-edit",
   "frames": {
     "delete": {
       "type": "element_edit",
-      "message_id": "m-delete",
-      "directive_id": "d-delete",
+      "message_id": "msg_delete",
       "session_id": "s_e2e",
-      "presentation_id": "pres-chat-edit",
-      "slide_id": "L0",
-      "slide_index": 0,
-      "element_id": "el_chart_b",
-      "op": "delete"
+      "payload": {
+        "directive_id": "ele_delete",
+        "session_id": "s_e2e",
+        "presentation_id": "pres-chat-edit",
+        "slide_id": "L0",
+        "slide_index": 0,
+        "element_id": "el_chart_b",
+        "op": "delete"
+      }
     },
     "order_front": {
       "type": "element_edit",
-      "message_id": "m-order",
-      "directive_id": "d-order",
+      "message_id": "msg_order_front",
       "session_id": "s_e2e",
-      "presentation_id": "pres-chat-edit",
-      "slide_id": "L0",
-      "slide_index": 0,
-      "element_id": "el_text_a",
-      "op": "order",
-      "order": "front"
+      "payload": {
+        "directive_id": "ele_order_front",
+        "session_id": "s_e2e",
+        "presentation_id": "pres-chat-edit",
+        "slide_id": "L0",
+        "slide_index": 0,
+        "element_id": "el_text_a",
+        "op": "order",
+        "order": "front"
+      }
     },
     "order_back": {
       "type": "element_edit",
-      "message_id": "m-order",
-      "directive_id": "d-order",
+      "message_id": "msg_order_back",
       "session_id": "s_e2e",
-      "presentation_id": "pres-chat-edit",
-      "slide_id": "L0",
-      "slide_index": 0,
-      "element_id": "el_text_a",
-      "op": "order",
-      "order": "back"
+      "payload": {
+        "directive_id": "ele_order_back",
+        "session_id": "s_e2e",
+        "presentation_id": "pres-chat-edit",
+        "slide_id": "L0",
+        "slide_index": 0,
+        "element_id": "el_text_a",
+        "op": "order",
+        "order": "back"
+      }
     },
     "order_forward": {
       "type": "element_edit",
-      "message_id": "m-order",
-      "directive_id": "d-order",
+      "message_id": "msg_order_forward",
       "session_id": "s_e2e",
-      "presentation_id": "pres-chat-edit",
-      "slide_id": "L0",
-      "slide_index": 0,
-      "element_id": "el_text_a",
-      "op": "order",
-      "order": "forward"
+      "payload": {
+        "directive_id": "ele_order_forward",
+        "session_id": "s_e2e",
+        "presentation_id": "pres-chat-edit",
+        "slide_id": "L0",
+        "slide_index": 0,
+        "element_id": "el_text_a",
+        "op": "order",
+        "order": "forward"
+      }
     },
     "order_backward": {
       "type": "element_edit",
-      "message_id": "m-order",
-      "directive_id": "d-order",
+      "message_id": "msg_order_backward",
       "session_id": "s_e2e",
-      "presentation_id": "pres-chat-edit",
-      "slide_id": "L0",
-      "slide_index": 0,
-      "element_id": "el_text_a",
-      "op": "order",
-      "order": "backward"
+      "payload": {
+        "directive_id": "ele_order_backward",
+        "session_id": "s_e2e",
+        "presentation_id": "pres-chat-edit",
+        "slide_id": "L0",
+        "slide_index": 0,
+        "element_id": "el_text_a",
+        "op": "order",
+        "order": "backward"
+      }
     },
     "place_left": {
       "type": "element_edit",
-      "message_id": "m-place",
-      "directive_id": "d-place",
+      "message_id": "msg_place_left",
       "session_id": "s_e2e",
-      "presentation_id": "pres-chat-edit",
-      "slide_id": "L0",
-      "slide_index": 0,
-      "element_id": "el_text_a",
-      "op": "place",
-      "place": {
-        "anchor": "left"
+      "payload": {
+        "directive_id": "ele_place_left",
+        "session_id": "s_e2e",
+        "presentation_id": "pres-chat-edit",
+        "slide_id": "L0",
+        "slide_index": 0,
+        "element_id": "el_text_a",
+        "op": "place",
+        "place": {
+          "h": "left"
+        }
       }
     },
     "place_center": {
       "type": "element_edit",
-      "message_id": "m-place",
-      "directive_id": "d-place",
+      "message_id": "msg_place_center",
       "session_id": "s_e2e",
-      "presentation_id": "pres-chat-edit",
-      "slide_id": "L0",
-      "slide_index": 0,
-      "element_id": "el_text_a",
-      "op": "place",
-      "place": {
-        "anchor": "center"
+      "payload": {
+        "directive_id": "ele_place_center",
+        "session_id": "s_e2e",
+        "presentation_id": "pres-chat-edit",
+        "slide_id": "L0",
+        "slide_index": 0,
+        "element_id": "el_text_a",
+        "op": "place",
+        "place": {
+          "h": "center"
+        }
       }
     },
     "place_right": {
       "type": "element_edit",
-      "message_id": "m-place",
-      "directive_id": "d-place",
+      "message_id": "msg_place_right",
       "session_id": "s_e2e",
-      "presentation_id": "pres-chat-edit",
-      "slide_id": "L0",
-      "slide_index": 0,
-      "element_id": "el_text_a",
-      "op": "place",
-      "place": {
-        "anchor": "right"
+      "payload": {
+        "directive_id": "ele_place_right",
+        "session_id": "s_e2e",
+        "presentation_id": "pres-chat-edit",
+        "slide_id": "L0",
+        "slide_index": 0,
+        "element_id": "el_text_a",
+        "op": "place",
+        "place": {
+          "h": "right"
+        }
       }
     },
     "place_top": {
       "type": "element_edit",
-      "message_id": "m-place",
-      "directive_id": "d-place",
+      "message_id": "msg_place_top",
       "session_id": "s_e2e",
-      "presentation_id": "pres-chat-edit",
-      "slide_id": "L0",
-      "slide_index": 0,
-      "element_id": "el_text_a",
-      "op": "place",
-      "place": {
-        "anchor": "top"
+      "payload": {
+        "directive_id": "ele_place_top",
+        "session_id": "s_e2e",
+        "presentation_id": "pres-chat-edit",
+        "slide_id": "L0",
+        "slide_index": 0,
+        "element_id": "el_text_a",
+        "op": "place",
+        "place": {
+          "v": "top"
+        }
       }
     },
     "place_middle": {
       "type": "element_edit",
-      "message_id": "m-place",
-      "directive_id": "d-place",
+      "message_id": "msg_place_middle",
       "session_id": "s_e2e",
-      "presentation_id": "pres-chat-edit",
-      "slide_id": "L0",
-      "slide_index": 0,
-      "element_id": "el_text_a",
-      "op": "place",
-      "place": {
-        "anchor": "middle"
+      "payload": {
+        "directive_id": "ele_place_middle",
+        "session_id": "s_e2e",
+        "presentation_id": "pres-chat-edit",
+        "slide_id": "L0",
+        "slide_index": 0,
+        "element_id": "el_text_a",
+        "op": "place",
+        "place": {
+          "v": "middle"
+        }
       }
     },
     "place_bottom": {
       "type": "element_edit",
-      "message_id": "m-place",
-      "directive_id": "d-place",
+      "message_id": "msg_place_bottom",
       "session_id": "s_e2e",
-      "presentation_id": "pres-chat-edit",
-      "slide_id": "L0",
-      "slide_index": 0,
-      "element_id": "el_text_a",
-      "op": "place",
-      "place": {
-        "anchor": "bottom"
+      "payload": {
+        "directive_id": "ele_place_bottom",
+        "session_id": "s_e2e",
+        "presentation_id": "pres-chat-edit",
+        "slide_id": "L0",
+        "slide_index": 0,
+        "element_id": "el_text_a",
+        "op": "place",
+        "place": {
+          "v": "bottom"
+        }
       }
     },
     "place_top-left": {
       "type": "element_edit",
-      "message_id": "m-place",
-      "directive_id": "d-place",
+      "message_id": "msg_place_top-left",
       "session_id": "s_e2e",
-      "presentation_id": "pres-chat-edit",
-      "slide_id": "L0",
-      "slide_index": 0,
-      "element_id": "el_text_a",
-      "op": "place",
-      "place": {
-        "anchor": "top-left"
+      "payload": {
+        "directive_id": "ele_place_top-left",
+        "session_id": "s_e2e",
+        "presentation_id": "pres-chat-edit",
+        "slide_id": "L0",
+        "slide_index": 0,
+        "element_id": "el_text_a",
+        "op": "place",
+        "place": {
+          "h": "left",
+          "v": "top"
+        }
       }
     },
     "place_top-right": {
       "type": "element_edit",
-      "message_id": "m-place",
-      "directive_id": "d-place",
+      "message_id": "msg_place_top-right",
       "session_id": "s_e2e",
-      "presentation_id": "pres-chat-edit",
-      "slide_id": "L0",
-      "slide_index": 0,
-      "element_id": "el_text_a",
-      "op": "place",
-      "place": {
-        "anchor": "top-right"
+      "payload": {
+        "directive_id": "ele_place_top-right",
+        "session_id": "s_e2e",
+        "presentation_id": "pres-chat-edit",
+        "slide_id": "L0",
+        "slide_index": 0,
+        "element_id": "el_text_a",
+        "op": "place",
+        "place": {
+          "h": "right",
+          "v": "top"
+        }
       }
     },
     "place_bottom-left": {
       "type": "element_edit",
-      "message_id": "m-place",
-      "directive_id": "d-place",
+      "message_id": "msg_place_bottom-left",
       "session_id": "s_e2e",
-      "presentation_id": "pres-chat-edit",
-      "slide_id": "L0",
-      "slide_index": 0,
-      "element_id": "el_text_a",
-      "op": "place",
-      "place": {
-        "anchor": "bottom-left"
+      "payload": {
+        "directive_id": "ele_place_bottom-left",
+        "session_id": "s_e2e",
+        "presentation_id": "pres-chat-edit",
+        "slide_id": "L0",
+        "slide_index": 0,
+        "element_id": "el_text_a",
+        "op": "place",
+        "place": {
+          "h": "left",
+          "v": "bottom"
+        }
       }
     },
     "place_bottom-right": {
       "type": "element_edit",
-      "message_id": "m-place",
-      "directive_id": "d-place",
+      "message_id": "msg_place_bottom-right",
       "session_id": "s_e2e",
-      "presentation_id": "pres-chat-edit",
-      "slide_id": "L0",
-      "slide_index": 0,
-      "element_id": "el_text_a",
-      "op": "place",
-      "place": {
-        "anchor": "bottom-right"
+      "payload": {
+        "directive_id": "ele_place_bottom-right",
+        "session_id": "s_e2e",
+        "presentation_id": "pres-chat-edit",
+        "slide_id": "L0",
+        "slide_index": 0,
+        "element_id": "el_text_a",
+        "op": "place",
+        "place": {
+          "h": "right",
+          "v": "bottom"
+        }
+      }
+    },
+    "place_center-middle": {
+      "type": "element_edit",
+      "message_id": "msg_place_center-middle",
+      "session_id": "s_e2e",
+      "payload": {
+        "directive_id": "ele_place_center-middle",
+        "session_id": "s_e2e",
+        "presentation_id": "pres-chat-edit",
+        "slide_id": "L0",
+        "slide_index": 0,
+        "element_id": "el_text_a",
+        "op": "place",
+        "place": {
+          "h": "center",
+          "v": "middle"
+        }
       }
     },
     "style_bold": {
       "type": "element_edit",
-      "message_id": "m-style",
-      "directive_id": "d-style",
+      "message_id": "msg_style_bold",
       "session_id": "s_e2e",
-      "presentation_id": "pres-chat-edit",
-      "slide_id": "L0",
-      "slide_index": 0,
-      "element_id": "el_text_a",
-      "op": "style",
-      "style": {
-        "bold": true
+      "payload": {
+        "directive_id": "ele_style_bold",
+        "session_id": "s_e2e",
+        "presentation_id": "pres-chat-edit",
+        "slide_id": "L0",
+        "slide_index": 0,
+        "element_id": "el_text_a",
+        "op": "style",
+        "style": {
+          "bold": true
+        }
       }
     },
     "style_italic": {
       "type": "element_edit",
-      "message_id": "m-style",
-      "directive_id": "d-style",
+      "message_id": "msg_style_italic",
       "session_id": "s_e2e",
-      "presentation_id": "pres-chat-edit",
-      "slide_id": "L0",
-      "slide_index": 0,
-      "element_id": "el_text_a",
-      "op": "style",
-      "style": {
-        "italic": true
+      "payload": {
+        "directive_id": "ele_style_italic",
+        "session_id": "s_e2e",
+        "presentation_id": "pres-chat-edit",
+        "slide_id": "L0",
+        "slide_index": 0,
+        "element_id": "el_text_a",
+        "op": "style",
+        "style": {
+          "italic": true
+        }
       }
     },
     "style_size_up": {
       "type": "element_edit",
-      "message_id": "m-style",
-      "directive_id": "d-style",
+      "message_id": "msg_style_size_up",
       "session_id": "s_e2e",
-      "presentation_id": "pres-chat-edit",
-      "slide_id": "L0",
-      "slide_index": 0,
-      "element_id": "el_text_a",
-      "op": "style",
-      "style": {
-        "size_step": 1
+      "payload": {
+        "directive_id": "ele_style_size_up",
+        "session_id": "s_e2e",
+        "presentation_id": "pres-chat-edit",
+        "slide_id": "L0",
+        "slide_index": 0,
+        "element_id": "el_text_a",
+        "op": "style",
+        "style": {
+          "size_step": 1
+        }
       }
     },
     "style_size_down": {
       "type": "element_edit",
-      "message_id": "m-style",
-      "directive_id": "d-style",
+      "message_id": "msg_style_size_down",
       "session_id": "s_e2e",
-      "presentation_id": "pres-chat-edit",
-      "slide_id": "L0",
-      "slide_index": 0,
-      "element_id": "el_text_a",
-      "op": "style",
-      "style": {
-        "size_step": -1
+      "payload": {
+        "directive_id": "ele_style_size_down",
+        "session_id": "s_e2e",
+        "presentation_id": "pres-chat-edit",
+        "slide_id": "L0",
+        "slide_index": 0,
+        "element_id": "el_text_a",
+        "op": "style",
+        "style": {
+          "size_step": -1
+        }
       }
     },
     "style_color": {
       "type": "element_edit",
-      "message_id": "m-style",
-      "directive_id": "d-style",
+      "message_id": "msg_style_color",
       "session_id": "s_e2e",
-      "presentation_id": "pres-chat-edit",
-      "slide_id": "L0",
-      "slide_index": 0,
-      "element_id": "el_text_a",
-      "op": "style",
-      "style": {
-        "color_token": "accent_1"
+      "payload": {
+        "directive_id": "ele_style_color",
+        "session_id": "s_e2e",
+        "presentation_id": "pres-chat-edit",
+        "slide_id": "L0",
+        "slide_index": 0,
+        "element_id": "el_text_a",
+        "op": "style",
+        "style": {
+          "color_token": "accent_1"
+        }
       }
     },
     "style_align": {
       "type": "element_edit",
-      "message_id": "m-style",
-      "directive_id": "d-style",
+      "message_id": "msg_style_align",
       "session_id": "s_e2e",
-      "presentation_id": "pres-chat-edit",
-      "slide_id": "L0",
-      "slide_index": 0,
-      "element_id": "el_text_a",
-      "op": "style",
-      "style": {
-        "align": "center"
+      "payload": {
+        "directive_id": "ele_style_align",
+        "session_id": "s_e2e",
+        "presentation_id": "pres-chat-edit",
+        "slide_id": "L0",
+        "slide_index": 0,
+        "element_id": "el_text_a",
+        "op": "style",
+        "style": {
+          "align": "center"
+        }
       }
     }
   },
   "notes_updated": {
     "type": "deck_mutation",
-    "message_id": "m-notes",
+    "message_id": "msg_notes",
     "session_id": "s_e2e",
     "payload": {
-      "kind": "notes_updated",
+      "mutation": "notes_updated",
+      "slide_index": 1,
+      "new_slide_index": null,
       "presentation_id": "pres-chat-edit",
-      "slide_index": 1
+      "presentation_url": "https://layout.synthetic.invalid/p/pres-chat-edit",
+      "refresh_token": "dm_0123456789ab"
     }
   },
   "caps": [
@@ -304,14 +392,14 @@
   "result_frames": {
     "ok": {
       "type": "element_edit_result",
-      "data": {
+      "payload": {
         "directive_id": "<directive_id>",
         "ok": true
       }
     },
     "failed": {
       "type": "element_edit_result",
-      "data": {
+      "payload": {
         "directive_id": "<directive_id>",
         "ok": false,
         "error_code": "<ELEMENT_NOT_FOUND|SLIDE_CHANGED|UNSUPPORTED_OP|INVALID_VALUE|ELEMENT_LOCKED|VIEWER_NOT_READY|BUSY|SAVE_FAILED>"

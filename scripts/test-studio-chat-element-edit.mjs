@@ -1,14 +1,15 @@
 // FRONTEND-2 Pass 3 (P3-1 A, chat parity): edit an element from chat and refresh the Notes panel, Studio half (NEXT_PUBLIC_STUDIO_CHAT_ELEMENT_EDIT, exact "true", default off).
 //
 //   node scripts/test-studio-chat-element-edit.mjs                  # everything, offline (the viewer's replies and acks come from layout-transcripts.json, which the real Layout code recorded)
-//   CHAT_EDIT_LAYOUT_DIR=<layout-builder checkout> node scripts/test-studio-chat-element-edit.mjs     # also runs the REAL Layout viewer code live, and checks it still says what was recorded
+//   CHAT_EDIT_LAYOUT_DIR=<layout-builder checkout at c77f0474, !261> node scripts/test-studio-chat-element-edit.mjs     # also runs the REAL Layout viewer code live, and checks it still says what was recorded
 //   ... --record-layout                                             # (with the variable) re-records scripts/fixtures/chat-element-edit/layout-transcripts.json
 //
 // What it proves:
-//  1. the wire half (lib/chat-element-edit-wire.ts): the caps (element_edit1 / notes1) only with the flag on, after the other caps; the element_edit frame and deck_mutation notes_updated routed; the result frame;
+//  1. the wire half (lib/chat-element-edit-wire.ts), as streams/director2/element-edit/CONTRACT.md has it: the caps (element_edit1 / notes1) only with the flag on, after the other caps; {type:'element_edit', payload} and deck_mutation payload.mutation 'notes_updated' routed; {type:'element_edit_result', payload};
 //  2. the runner (lib/chat-element-edit.ts), as the PAGE wires it (the runner assignment is cut out of app/builder/page.tsx and run with the page's values), against the REAL viewer code:
 //       Studio side: components/presentation-viewer.tsx's own sendCommand, its saveStatusChanged handler and its ensureEditMode, cut out and run;
-//       Layout side: viewer/presentation-viewer.html's postMessage bridge with edit-mode.js, auto-save.js, element-manager.js and grid-converter.js (scripts/studio-chat-element-edit-layout.mjs), in a node vm;
+//       Layout side: viewer/presentation-viewer.html's postMessage bridge, as Layout serves it with LAYOUT_ARRANGE_COMMANDS_ENABLED on (arrange_commands.py's apply_to_viewer: the Arrange cases act only with intent 'arrange', layout-builder !261), with
+//       edit-mode.js, auto-save.js, element-manager.js, grid-converter.js and arrange-commands.js (scripts/studio-chat-element-edit-layout.mjs), in a node vm;
 //     every op (delete, order, place, style) through the viewer's own commands, every error code, `ok:true` only after the autosave ack, one result per directive, BUSY, a stale owner sends nothing;
 //  3. the REAL Director socket hook: the frame goes to the runner out of band, the result goes back as bytes on the same socket, the caps are in client_caps only with the flag on, notes_updated reaches the Notes panel's event;
 //  4. the Notes panel's listener (cut out of components/slide-notes-panel.tsx): the deck is read again, Director's notes show unless the user has an unsaved edit;
@@ -29,11 +30,14 @@ import { Root } from './studio-chat-harness/mini-react.mjs'
 import { createEnvironment, SYNTHETIC_LAYOUT_URL } from './studio-chat-harness/fake-env.mjs'
 import { createModuleLoader } from './studio-chat-harness/module-loader.mjs'
 import { BASE_ENV } from './studio-chat-harness/profiles.mjs'
-import { createClock, createLayoutViewer, replayViewer, LAYOUT_SCRIPTS } from './studio-chat-element-edit-layout.mjs'
+import { createClock, createLayoutViewer, replayViewer, LAYOUT_SCRIPTS, ARRANGE_SCRIPT, ARRANGE_MODULE } from './studio-chat-element-edit-layout.mjs'
 import {
   BASE_COMMIT, CHAT_ELEMENT_EDIT_FILES, CHAT_ELEMENT_EDIT_NEW_FILES, CHAT_ELEMENT_EDIT_OWN_EDITS, CHAT_ELEMENT_EDIT_SCOPE_FILES, CHAT_ELEMENT_EDIT_ENV_BLOCK, CHAT_ELEMENT_EDIT_MARKER_RE, stripChatElementEdit,
 } from './studio-chat-element-edit-strip.mjs'
-import { stripFlowControl } from './studio-flow-control-strip.mjs' // dev 6fba3b7f (#524): flow control marks lines in the Builder page and the hook and teaches the perceived speed proof; its lines come out before this change's identity checks
+import { LATER_STRIPS } from './studio-later-changes.mjs'
+import { stripPass3PolishB } from './studio-pass3-polish-b-strip.mjs' // COMPOSER-2's first-paint pin reads the viewer through it, and it now takes this change's lines out too: it is not a peer to strip before this change's own checks
+// The other registered changes' marked lines (dev's: flow control, arrange, ... and the ones already in the base) come out of both sides before this change's identity checks; this change's own strip is the one left out.
+const stripPeers = (rel, text) => LATER_STRIPS.filter(strip => strip !== stripChatElementEdit && strip !== stripPass3PolishB).reduce((out, strip) => { const next = strip(rel, out); return typeof next === 'string' ? next : out }, text)
 
 const root = path.resolve(fileURLToPath(new URL('../', import.meta.url)))
 const FIXTURES = path.join(root, 'scripts/fixtures/chat-element-edit')
@@ -55,12 +59,14 @@ const deepEqual = (actual, expected, message) => (message === undefined ? assert
 let passed = 0
 const failed = []
 async function check(label, fn) {
+  if (process.env.CHECK_ONLY && !label.includes(process.env.CHECK_ONLY)) return // a debugging filter: one check by a word of its label
   try { await fn(); passed++; console.log(`PASS ${label}`) } catch (error) { failed.push(label); console.error(`FAIL ${label}: ${error?.stack?.split('\n').slice(0, process.env.DEBUG_FULL ? 40 : 4).join(process.env.DEBUG_FULL ? '\n' : ' | ') ?? error}`) }
 }
 let mutantsCaught = 0
 const mutantsMissed = []
 /** A mutant: `run(text)` must throw (the proof's own check fails on the broken code). */
 async function mutant(label, run) {
+  if (process.env.CHECK_ONLY) return
   try { await run(); mutantsMissed.push(label); console.error(`MISSED mutant ${label}`) } catch { mutantsCaught++; console.log(`CAUGHT mutant ${label}`) }
 }
 
@@ -137,8 +143,12 @@ const DECK = [
   ['el_text_locked', { gridRow: '11/15', gridColumn: '2/10', locked: true }],
   ['el_chart_b', { type: 'chart', componentType: 'CHART', gridRow: '4/14', gridColumn: '18/32' }],
   ['el_metrics_c', { type: 'textbox', componentType: 'METRICS', gridRow: '11/17', gridColumn: '12/30' }],
+  ['el_image_e', { type: 'image', componentType: 'IMAGE', gridRow: '12/18', gridColumn: '20/30' }],
+  ['el_table_d', { type: 'table', componentType: 'TABLE', gridRow: '4/9', gridColumn: '2/10' }], // Layout's autosave never collects a table or a shape: Arrange refuses it
+  ['el_chart_locked', { type: 'chart', componentType: 'CHART', gridRow: '12/17', gridColumn: '3/9', classLocked: true }], // locked in the DOM only: the registry does not say so, Arrange does
+  ['el_slot_fixed', { type: 'image', componentType: 'IMAGE', gridRow: '6/9', gridColumn: '12/18', noDrag: true }], // the viewer itself does not let the user drag it (a template slot)
 ]
-const layoutSources = LIVE ? Object.fromEntries(['viewer/presentation-viewer.html', ...LAYOUT_SCRIPTS].map(file => [file, sha(fs.readFileSync(path.join(LAYOUT_DIR, file), 'utf8'))])) : null
+const layoutSources = LIVE ? Object.fromEntries(['viewer/presentation-viewer.html', ARRANGE_MODULE, ARRANGE_SCRIPT, ...LAYOUT_SCRIPTS].map(file => [file, sha(fs.readFileSync(path.join(LAYOUT_DIR, file), 'utf8'))])) : null
 
 function fakeResponse(status) {
   return { ok: status >= 200 && status < 300, status, headers: { get: () => null }, json: async () => ({ detail: 'synthetic save refusal' }) }
@@ -149,7 +159,7 @@ function fakeResponse(status) {
  * components/presentation-viewer.tsx), the page's runner (cut out of app/builder/page.tsx), and a viewer behind it.
  */
 async function scenario(name, frameOverrides = null, options = {}) {
-  const { deck = DECK, editMode = false, put = 'ok', viewOnly = false, libs: libOptions = {}, owner: ownerOptions = {}, page = {}, manual = false, sources = {} } = options
+  const { deck = DECK, editMode = false, put = 'ok', viewOnly = false, arrange = true, libs: libOptions = {}, owner: ownerOptions = {}, page = {}, manual = false, sources = {} } = options
   const clock = options.clock ?? createClock()
   const libs = options.libsInstance ?? makeLibs({ ...libOptions, clock })
   const listeners = new Set()
@@ -168,7 +178,7 @@ async function scenario(name, frameOverrides = null, options = {}) {
   if (LIVE) {
     let held = null
     putControl.release = () => { held?.(fakeResponse(200)); held = null }
-    viewerWorld = createLayoutViewer({ layoutDir: LAYOUT_DIR, studioOrigin: STUDIO_ORIGIN, parent: { postMessage: toStudio }, clock, viewOnly, presentationId: PRESENTATION,
+    viewerWorld = createLayoutViewer({ layoutDir: LAYOUT_DIR, studioOrigin: STUDIO_ORIGIN, parent: { postMessage: toStudio }, clock, viewOnly, arrange, presentationId: PRESENTATION,
       fetchImpl: async (url, init) => {
         putControl.requests.push({ at: clock.now(), url: String(url), method: init?.method })
         if (putControl.mode === 'fail') return fakeResponse(500)
@@ -211,7 +221,7 @@ async function scenario(name, frameOverrides = null, options = {}) {
     isLayoutViewerEvent: router.isLayoutViewerEvent, isDiagramRendererStateEvent: () => false, parseDiagramRendererStateUpdate: () => null, studioShell: false,
     viewerInteractionIntentRef: { current: 0 }, pendingDiagramStatesRef: { current: new Map() }, diagramStateTimersRef: { current: new Map() }, postCommand() {},
     nativeSnapshotDirtyRef: { current: false }, reportOwnDeckEdit() {}, setNativeSnapshotSafetyRevision() {}, setSaveStatus: status => statuses.push(status), debugLog() {},
-    onRefineElementRequested: null, resolveRefineElementGenerationConfig: () => null, CHAT_ELEMENT_EDIT_ENABLED: libs.wire.CHAT_ELEMENT_EDIT_ENABLED,
+    onRefineElementRequested: null, resolveRefineElementGenerationConfig: () => null, studioArrangeOwnsSaveStatus: () => false, CHAT_ELEMENT_EDIT_ENABLED: libs.wire.CHAT_ELEMENT_EDIT_ENABLED,
     publishViewerSaveEvent: libs.save.publishViewerSaveEvent, window_: null, console, clearTimeout: clock.clearTimeout,
   })
   const published = []
@@ -259,7 +269,7 @@ async function scenario(name, frameOverrides = null, options = {}) {
       runner(plain(message), ownerHandle)
       if (expectResult) {
         for (let spent = 0; sentResults.length === before && spent < forMs; spent += 50) await clock.advance(50)
-        assert.ok(sentResults.length > before, `a result was sent for ${message.directive_id}`)
+        assert.ok(sentResults.length > before, `a result was sent for ${idOf(message)}`)
       } else await clock.advance(Math.min(forMs, 30_000))
       return sentResults.at(-1)?.result
     },
@@ -273,10 +283,16 @@ async function scenario(name, frameOverrides = null, options = {}) {
   return studio
 }
 
-const envelope = JSON.parse(fs.readFileSync(path.join(FIXTURES, 'director-frames/agreed-envelope.json'), 'utf8'))
+const envelope = JSON.parse(fs.readFileSync(path.join(FIXTURES, 'director-frames/contract-envelope.json'), 'utf8'))
 let directiveCounter = 0
-/** A frame of the agreed envelope, with a fresh directive_id. */
-const frameOf = (key, overrides = {}) => ({ ...plain(envelope.frames[key]), directive_id: `d-${key}-${++directiveCounter}`, ...overrides })
+/** A frame of CONTRACT.md's envelope ({type, message_id, session_id, payload}), with a fresh directive_id; `overrides` go into the payload (session_id into the frame as well). */
+const frameOf = (key, overrides = {}) => {
+  const frame = plain(envelope.frames[key])
+  return { ...frame, ...(overrides.session_id !== undefined ? { session_id: overrides.session_id } : {}), payload: { ...frame.payload, directive_id: `ele_${key}_${++directiveCounter}`, ...overrides } }
+}
+const idOf = frame => frame.payload.directive_id
+/** The same frame flat (no payload): Director's envelope is the payload one; a flat frame is read as well. */
+const flatOf = frame => ({ type: frame.type, message_id: frame.message_id, session_id: frame.session_id, ...frame.payload })
 const errorOf = result => result.error_code ?? null
 const lastRequestFor = (studio, action) => studio.requests().filter(request => request.action === action).at(-1)
 
@@ -300,16 +316,19 @@ await check('wire: addChatElementEditCaps appends element_edit1 and notes1 after
   deepEqual(on.wire.addChatElementEditCaps({ text: 'x' }).client_caps, ['element_edit1', 'notes1'])
   deepEqual(Object.keys(data), ['text', 'client_caps', 'deep_research'])
 })
-await check('wire: the directive id is read from the flat envelope and from a payload, and a frame without one is dropped', async () => {
+await check('wire: the directive id is read from the payload (CONTRACT.md) and from a flat frame, and a frame without one is dropped', async () => {
   const { elementEditDirectiveId, elementEditFields } = on.wire
-  assert.equal(elementEditDirectiveId(envelope.frames.delete), envelope.frames.delete.directive_id)
+  assert.equal(elementEditDirectiveId(envelope.frames.delete), idOf(envelope.frames.delete))
   assert.equal(elementEditDirectiveId({ type: 'element_edit', payload: { directive_id: 'p-1', element_id: 'x' } }), 'p-1')
+  assert.equal(elementEditDirectiveId(flatOf(envelope.frames.delete)), idOf(envelope.frames.delete), 'flat as well')
+  assert.equal(elementEditFields(flatOf(envelope.frames.place_right)).place.h, 'right')
   assert.equal(elementEditFields({ type: 'element_edit', payload: { element_id: 'x' } }).element_id, 'x')
   for (const bad of [null, undefined, 3, {}, { directive_id: '' }, { directive_id: '  ' }, { directive_id: 7 }, { payload: { directive_id: null } }]) assert.equal(elementEditDirectiveId(bad), null, JSON.stringify(bad))
 })
-await check('wire: the result frame is {type:"element_edit_result", data:{directive_id, ok, error_code?}}', async () => {
-  deepEqual(on.wire.elementEditResultFrame({ directive_id: 'd', ok: true }), { type: 'element_edit_result', data: { directive_id: 'd', ok: true } })
-  deepEqual(on.wire.elementEditResultFrame({ directive_id: 'd', ok: false, error_code: 'BUSY' }), { type: 'element_edit_result', data: { directive_id: 'd', ok: false, error_code: 'BUSY' } })
+await check('wire: the result frame is {type:"element_edit_result", payload:{directive_id, ok, error_code?}} (CONTRACT.md §1), the eight codes and no TIMEOUT', async () => {
+  deepEqual(on.wire.elementEditResultFrame({ directive_id: 'd', ok: true }), { type: 'element_edit_result', payload: { directive_id: 'd', ok: true } })
+  deepEqual(on.wire.elementEditResultFrame({ directive_id: 'd', ok: false, error_code: 'BUSY' }), { type: 'element_edit_result', payload: { directive_id: 'd', ok: false, error_code: 'BUSY' } })
+  assert.equal(on.wire.ELEMENT_EDIT_ERROR_CODES.includes('TIMEOUT'), false)
   deepEqual([...on.wire.ELEMENT_EDIT_ERROR_CODES], ['ELEMENT_NOT_FOUND', 'SLIDE_CHANGED', 'UNSUPPORTED_OP', 'INVALID_VALUE', 'ELEMENT_LOCKED', 'VIEWER_NOT_READY', 'BUSY', 'SAVE_FAILED'], 'DIRECTOR-2\'s reserved codes; TIMEOUT is Director\'s own')
 })
 await check('wire: routeElementEditFrame takes only element_edit, unlocks the turn, and hands the runner the message with its owner', async () => {
@@ -332,47 +351,57 @@ await check('wire: routeNotesUpdatedFrame takes only deck_mutation notes_updated
     { type: 'deck_mutation', session_id: SESSION, payload: {} }, null]) assert.equal(routeNotesUpdatedFrame(other, ctx()), false, JSON.stringify(other))
   assert.equal(routeNotesUpdatedFrame(envelope.notes_updated, ctx()), true)
   deepEqual(updates.map(item => item.update), [{ presentationId: PRESENTATION, slideIndex: 1 }])
-  assert.equal(routeNotesUpdatedFrame({ ...envelope.notes_updated, payload: { mutation: 'notes_updated', presentation_id: PRESENTATION, slide_index: 2 } }, ctx()), true, 'the existing family names its kind "mutation"')
+  assert.equal(routeNotesUpdatedFrame({ ...envelope.notes_updated, payload: { mutation: 'notes_updated', presentation_id: PRESENTATION, slide_index: 2 } }, ctx()), true, 'payload.mutation, deck_mutation\'s own discriminator, and nothing else')
   assert.equal(updates.length, 2)
+  for (const notThis of [{ kind: 'notes_updated', presentation_id: PRESENTATION, slide_index: 2 }, { mutation: 'Notes_Updated', presentation_id: PRESENTATION, slide_index: 2 }]) assert.equal(routeNotesUpdatedFrame({ type: 'deck_mutation', session_id: SESSION, payload: notThis }, ctx()), false, JSON.stringify(notThis))
+  assert.equal(routeNotesUpdatedFrame({ type: 'deck_mutation', session_id: SESSION, ...envelope.notes_updated.payload }, ctx()), false, 'the mutation is in the payload')
   // Consumed but not acted on: another session, another deck on screen, a bad index.
   assert.equal(routeNotesUpdatedFrame({ ...envelope.notes_updated, session_id: 's_other' }, ctx()), true)
   assert.equal(routeNotesUpdatedFrame(envelope.notes_updated, ctx({ deckOwnerSessionId: SESSION, presentationId: 'pres-other' })), true)
   assert.equal(routeNotesUpdatedFrame(envelope.notes_updated, ctx({ deckOwnerSessionId: 's_other', presentationId: PRESENTATION })), true)
-  for (const slide_index of [-1, 1.5, '1', null]) assert.equal(routeNotesUpdatedFrame({ ...envelope.notes_updated, payload: { kind: 'notes_updated', presentation_id: PRESENTATION, slide_index } }, ctx()), true)
+  for (const slide_index of [-1, 1.5, '1', null]) assert.equal(routeNotesUpdatedFrame({ ...envelope.notes_updated, payload: { mutation: 'notes_updated', presentation_id: PRESENTATION, slide_index } }, ctx()), true)
   assert.equal(updates.length, 2, 'none of those reached the panel')
 })
 
 // ===== 2. the pure helpers ================================================================================================================
-await check('validate: every op, order, anchor, size_step, colour token and alignment; anything else is INVALID_VALUE', async () => {
+await check('validate: every op, order, place axis, size_step, colour token and alignment; anything else is INVALID_VALUE', async () => {
   const { validateElementEdit } = on.lib
   const okOf = fields => validateElementEdit(fields)
   deepEqual(okOf({ op: 'delete' }), { ok: true, edit: { op: 'delete' } })
   for (const order of ['front', 'back', 'forward', 'backward']) deepEqual(okOf({ op: 'order', order }), { ok: true, edit: { op: 'order', order } })
-  for (const anchor of ['left', 'center', 'right', 'top', 'middle', 'bottom', 'top-left', 'top-right', 'bottom-left', 'bottom-right']) deepEqual(okOf({ op: 'place', place: { anchor } }), { ok: true, edit: { op: 'place', anchor } })
-  deepEqual(okOf({ op: 'style', style: { bold: true, italic: false, size_step: -1, color_token: 'accent-1', align: 'right' } }),
-    { ok: true, edit: { op: 'style', bold: true, italic: false, sizeStep: -1, binding: '--theme-accent-1', align: 'right' } })
-  const invalid = [{}, { op: 'resize' }, { op: 7 }, { op: 'order' }, { op: 'order', order: 'up' }, { op: 'order', order: 'FRONT' }, { op: 'place' }, { op: 'place', place: {} }, { op: 'place', place: { anchor: 'centre' } },
-    { op: 'place', place: 'left' }, { op: 'place', place: { anchor: 'top-middle' } }, { op: 'style' }, { op: 'style', style: {} }, { op: 'style', style: { underline: true } }, { op: 'style', style: { bold: 'yes' } },
-    { op: 'style', style: { italic: 1 } }, { op: 'style', style: { size_step: 0 } }, { op: 'style', style: { size_step: 2 } }, { op: 'style', style: { size_step: '1' } }, { op: 'style', style: { color_token: 'chartreuse' } },
-    { op: 'style', style: { color_token: '#ff0000' } }, { op: 'style', style: { color_token: 5 } }, { op: 'style', style: { align: 'justify' } }, { op: 'style', style: { align: 'LEFT' } }, { op: 'style', style: { bold: true, extra: 1 } }]
+  for (const h of ['left', 'center', 'right']) deepEqual(okOf({ op: 'place', place: { h } }), { ok: true, edit: { op: 'place', h } })
+  for (const v of ['top', 'middle', 'bottom']) deepEqual(okOf({ op: 'place', place: { v } }), { ok: true, edit: { op: 'place', v } })
+  deepEqual(okOf({ op: 'place', place: { h: 'right', v: 'bottom' } }), { ok: true, edit: { op: 'place', h: 'right', v: 'bottom' } })
+  deepEqual(okOf({ op: 'place', place: { h: 'center', v: undefined } }), { ok: true, edit: { op: 'place', h: 'center' } })
+  deepEqual(okOf({ op: 'style', style: { bold: true, italic: false, size_step: -1, color_token: 'accent_1', align: 'right' } }),
+    { ok: true, edit: { op: 'style', bold: true, italic: false, sizeStep: -1, binding: 'accent_1', align: 'right' } })
+  const invalid = [{}, { op: 'resize' }, { op: 7 }, { op: 'order' }, { op: 'order', order: 'up' }, { op: 'order', order: 'FRONT' }, { op: 'place' }, { op: 'place', place: {} }, { op: 'place', place: { h: undefined } },
+    { op: 'place', place: { h: 'centre' } }, { op: 'place', place: { h: 'top' } }, { op: 'place', place: { v: 'left' } }, { op: 'place', place: { v: 'center' } }, { op: 'place', place: { h: 'left', v: 'nowhere' } },
+    { op: 'place', place: 'left' }, { op: 'place', place: { anchor: 'left' } }, { op: 'place', place: { h: 'left', x: 1 } }, { op: 'place', place: ['left'] }, { op: 'style' }, { op: 'style', style: {} },
+    { op: 'style', style: { underline: true } }, { op: 'style', style: { bold: 'yes' } }, { op: 'style', style: { italic: 1 } }, { op: 'style', style: { size_step: 0 } }, { op: 'style', style: { size_step: 2 } },
+    { op: 'style', style: { size_step: '1' } }, { op: 'style', style: { color_token: 'chartreuse' } }, { op: 'style', style: { color_token: '#ff0000' } }, { op: 'style', style: { color_token: 5 } },
+    { op: 'style', style: { align: 'justify' } }, { op: 'style', style: { align: 'LEFT' } }, { op: 'style', style: { bold: true, extra: 1 } }]
   for (const fields of invalid) deepEqual(okOf(fields), { ok: false, code: 'INVALID_VALUE' }, JSON.stringify(fields))
 })
-await check('colour tokens: the six deck theme palette ids, written as --theme-x, x or x_y; nothing else binds', async () => {
-  const { paletteBindingFor } = on.lib
-  const ids = ['primary', 'accent-1', 'accent-2', 'surface', 'text-heading', 'text-body']
-  for (const id of ids) for (const spelled of [`--theme-${id}`, id, id.replace('-', '_'), id.toUpperCase(), `theme-${id}`]) assert.equal(paletteBindingFor(spelled), `--theme-${id}`, spelled)
-  for (const bad of ['', 'accent', 'accent-3', '--theme-bg', '--theme-text-primary', 'red', '#fff', 'url(x)', '--theme-primary; color: red', null, 4]) assert.equal(paletteBindingFor(bad), null, String(bad))
+await check('colour tokens: the deck palette ids Layout stores in theme_bindings (accent_1, text_body ...) or their CSS custom property, as given; nothing else binds', async () => {
+  const { paletteBindingFor, PALETTE_IDS } = on.lib
+  assert.ok(['primary', 'accent_1', 'accent_2', 'surface', 'text_heading', 'text_body'].every(id => PALETTE_IDS.includes(id)), 'Studio\'s own six are palette ids')
+  for (const id of PALETTE_IDS) for (const spelled of [id, `--theme-${id.replace(/_/g, '-')}`]) assert.equal(paletteBindingFor(spelled), spelled, spelled)
+  assert.equal(paletteBindingFor(' accent_1 '), 'accent_1', 'trimmed')
+  for (const bad of ['', 'accent-1', 'ACCENT_1', 'theme-primary', '--theme-bg', '--theme-accent-3-500', '--theme-font-body', 'font_body', 'red', '#fff', 'url(x)', '--theme-primary; color: red', 'var(--theme-primary)', null, 4]) assert.equal(paletteBindingFor(bad), null, String(bad))
 })
-await check('place: the ten anchors on the 32 x 18 grid inside the content area (columns 2..32, rows 4..18), size kept, 0.2 grid, clamped to the canvas', async () => {
+await check('place: h / v on the 32 x 18 grid inside the content area (columns 2..32, rows 4..18), size kept, an axis not given stays, 0.2 grid, clamped to the canvas', async () => {
   const { placementFor } = on.lib
-  const expected = { left: ['4/10', '2/16'], center: ['4/10', '10/24'], right: ['4/10', '18/32'], top: ['4/10', '2/16'], middle: ['8/14', '2/16'], bottom: ['12/18', '2/16'],
-    'top-left': ['4/10', '2/16'], 'top-right': ['4/10', '18/32'], 'bottom-left': ['12/18', '2/16'], 'bottom-right': ['12/18', '18/32'] }
-  for (const [anchor, [row, column]] of Object.entries(expected)) deepEqual(placementFor(anchor, '4/10', '2/16'), { gridRow: row, gridColumn: column }, anchor)
-  deepEqual(placementFor('center', '5/8', '3.4/9.4'), { gridRow: '5/8', gridColumn: '14/20' }, 'a 6-wide box centres at 14..20')
-  deepEqual(placementFor('middle', '5/8.2', '3/8'), { gridRow: '9.4/12.6', gridColumn: '3/8' }, 'minor grid: 3.2 tall, centred in rows 4..18')
-  deepEqual(placementFor('right', '4/10', '1/33'), { gridRow: '4/10', gridColumn: '1/33' }, 'wider than the canvas stays on it')
-  deepEqual(placementFor('bottom-right', '1/19', '2/16'), { gridRow: '1/19', gridColumn: '18/32' }, 'taller than the area stays on the canvas')
-  for (const [row, column] of [[null, '2/16'], ['4/10', null], ['x/10', '2/16'], ['10/4', '2/16'], ['4/10', '2']]) assert.equal(placementFor('left', row, column), null, `${row} ${column}`)
+  const expected = { left: [undefined, 'left', '4/10', '2/16'], center: [undefined, 'center', '4/10', '10/24'], right: [undefined, 'right', '4/10', '18/32'], top: ['top', undefined, '4/10', '2/16'],
+    middle: ['middle', undefined, '8/14', '2/16'], bottom: ['bottom', undefined, '12/18', '2/16'], 'top-left': ['top', 'left', '4/10', '2/16'], 'top-right': ['top', 'right', '4/10', '18/32'],
+    'bottom-left': ['bottom', 'left', '12/18', '2/16'], 'bottom-right': ['bottom', 'right', '12/18', '18/32'], 'center-middle': ['middle', 'center', '8/14', '10/24'] }
+  for (const [name, [v, h, row, column]] of Object.entries(expected)) deepEqual(placementFor(h, v, '4/10', '2/16'), { gridRow: row, gridColumn: column }, name)
+  deepEqual(placementFor('center', undefined, '5/8', '3.4/9.4'), { gridRow: '5/8', gridColumn: '14/20' }, 'a 6-wide box centres at 14..20')
+  deepEqual(placementFor(undefined, 'middle', '5/8.2', '3/8'), { gridRow: '9.4/12.6', gridColumn: '3/8' }, 'minor grid: 3.2 tall, centred in rows 4..18')
+  deepEqual(placementFor('right', undefined, '4/10', '1/33'), { gridRow: '4/10', gridColumn: '1/33' }, 'wider than the canvas stays on it')
+  deepEqual(placementFor('right', 'bottom', '1/19', '2/16'), { gridRow: '1/19', gridColumn: '18/32' }, 'taller than the area stays on the canvas')
+  for (const [row, column] of [[null, '2/16'], ['4/10', null], ['x/10', '2/16'], ['10/4', '2/16'], ['4/10', '2']]) assert.equal(placementFor('left', undefined, row, column), null, `${row} ${column}`)
+  assert.equal(placementFor(undefined, undefined, '4/10', '2/16'), null, 'at least one axis')
 })
 await check('size_step: one place along Studio\'s own font size list; the ends stay; an unreadable size is null', async () => {
   const { steppedFontSize, fontSizeFromFormatting, FONT_SIZE_STEPS } = on.lib
@@ -383,35 +412,61 @@ await check('size_step: one place along Studio\'s own font size list; the ends s
   assert.equal(fontSizeFromFormatting({ formatting: { fontSize: '24px' } }), 24); assert.equal(fontSizeFromFormatting({ formatting: { fontSize: '18pt' } }), 18)
   assert.equal(fontSizeFromFormatting({ formatting: { fontSize: 30 } }), 30); assert.equal(fontSizeFromFormatting({ formatting: {} }), null); assert.equal(fontSizeFromFormatting(null), null)
 })
-await check('plan: each op is a viewer command Layout has; what Layout has no command for is UNSUPPORTED_OP (forward, backward, italic, place / style on the wrong type)', async () => {
-  const { planViewerSteps, VIEWER_COMMANDS } = on.lib
+await check('plan: each op is a viewer command Layout has, Arrange commands always with intent \'arrange\'; what Layout cannot do stays UNSUPPORTED_OP (italic, style on non-text)', async () => {
+  const { planViewerSteps, VIEWER_COMMANDS, ARRANGE_INTENT } = on.lib
+  assert.equal(ARRANGE_INTENT, 'arrange')
   const text = { elementId: 'e', rendererType: 'textbox', componentType: 'TEXT_BOX', locked: false, gridRow: '4/10', gridColumn: '2/16' }
   const chart = { ...text, rendererType: 'chart', componentType: 'CHART' }
   const metrics = { ...text, componentType: 'METRICS' }
   const plan = (edit, element, size = 24) => planViewerSteps(edit, element, size)
+  const arrange = (action, extra = {}) => ({ route: 'element', action, params: { elementId: 'e', ...extra, intent: 'arrange' } })
   deepEqual(plan({ op: 'delete' }, chart), { ok: true, steps: [{ route: 'element', action: 'deleteElement', params: { elementId: 'e' } }] })
-  deepEqual(plan({ op: 'order', order: 'front' }, chart).steps, [{ route: 'textbox', action: 'bringTextBoxToFront', params: { elementId: 'e' } }])
-  deepEqual(plan({ op: 'order', order: 'back' }, text).steps, [{ route: 'textbox', action: 'sendTextBoxToBack', params: { elementId: 'e' } }])
-  for (const order of ['forward', 'backward']) deepEqual(plan({ op: 'order', order }, text), { ok: false, code: 'UNSUPPORTED_OP' })
-  deepEqual(plan({ op: 'place', anchor: 'right' }, text).steps, [{ route: 'textbox', action: 'resizeTextBox', params: { elementId: 'e', gridRow: '4/10', gridColumn: '18/32' } }])
-  deepEqual(plan({ op: 'place', anchor: 'right' }, metrics).ok, true, 'a textbox-rendered element has resizeTextBox')
-  deepEqual(plan({ op: 'place', anchor: 'right' }, chart), { ok: false, code: 'UNSUPPORTED_OP' })
-  deepEqual(plan({ op: 'place', anchor: 'right' }, { ...text, gridRow: null }), { ok: false, code: 'UNSUPPORTED_OP' }, 'a box the viewer cannot report')
-  deepEqual(plan({ op: 'style', bold: true, sizeStep: 1, binding: '--theme-primary', align: 'center' }, text).steps.map(step => [step.action, step.params]),
-    [['setTextBoxFontWeight', { elementId: 'e', fontWeight: '700' }], ['setTextBoxFontSize', { elementId: 'e', fontSize: 28 }], ['setTextBoxColor', { elementId: 'e', themeBinding: '--theme-primary' }], ['setTextBoxAlignment', { elementId: 'e', alignment: 'center' }]])
+  // order: a text box keeps its own front / back; every other element, and forward / backward of every element, is an Arrange command.
+  deepEqual(plan({ op: 'order', order: 'front' }, text).steps, [{ route: 'textbox', action: 'bringTextBoxToFront', params: { elementId: 'e' } }])
+  deepEqual(plan({ op: 'order', order: 'back' }, metrics).steps, [{ route: 'textbox', action: 'sendTextBoxToBack', params: { elementId: 'e' } }])
+  deepEqual(plan({ op: 'order', order: 'front' }, chart).steps, [arrange('bringToFront')])
+  deepEqual(plan({ op: 'order', order: 'back' }, chart).steps, [arrange('sendToBack')])
+  for (const element of [text, chart]) {
+    deepEqual(plan({ op: 'order', order: 'forward' }, element).steps, [arrange('bringForward')])
+    deepEqual(plan({ op: 'order', order: 'backward' }, element).steps, [arrange('sendBackward')])
+  }
+  // place: a text box moves inside the content area (resizeTextBox); anything else aligns to the slide (alignElement).
+  deepEqual(plan({ op: 'place', h: 'right' }, text).steps, [{ route: 'textbox', action: 'resizeTextBox', params: { elementId: 'e', gridRow: '4/10', gridColumn: '18/32' } }])
+  deepEqual(plan({ op: 'place', h: 'center', v: 'middle' }, text).steps, [{ route: 'textbox', action: 'resizeTextBox', params: { elementId: 'e', gridRow: '8/14', gridColumn: '10/24' } }])
+  deepEqual(plan({ op: 'place', v: 'bottom' }, metrics).ok, true, 'a textbox-rendered element has resizeTextBox')
+  deepEqual(plan({ op: 'place', h: 'right' }, chart).steps, [arrange('alignElement', { horizontal: 'right' })])
+  deepEqual(plan({ op: 'place', v: 'top' }, chart).steps, [arrange('alignElement', { vertical: 'top' })])
+  deepEqual(plan({ op: 'place', h: 'left', v: 'middle' }, chart).steps, [arrange('alignElement', { horizontal: 'left', vertical: 'middle' })])
+  deepEqual(plan({ op: 'place', h: 'right' }, { ...text, gridRow: null }), { ok: false, code: 'UNSUPPORTED_OP' }, 'a text box the viewer cannot report')
+  deepEqual(plan({ op: 'style', bold: true, sizeStep: 1, binding: 'accent_1', align: 'center' }, text).steps.map(step => [step.action, step.params]),
+    [['setTextBoxFontWeight', { elementId: 'e', fontWeight: '700' }], ['setTextBoxFontSize', { elementId: 'e', fontSize: 28 }], ['setTextBoxColor', { elementId: 'e', themeBinding: 'accent_1' }], ['setTextBoxAlignment', { elementId: 'e', alignment: 'center' }]])
   deepEqual(plan({ op: 'style', bold: false }, text).steps[0].params.fontWeight, '400')
   for (const edit of [{ op: 'style', italic: true }, { op: 'style', italic: false }, { op: 'style', bold: true, italic: true }]) deepEqual(plan(edit, text), { ok: false, code: 'UNSUPPORTED_OP' }, `italic is never faked: ${JSON.stringify(edit)}`)
   for (const element of [chart, metrics]) deepEqual(plan({ op: 'style', bold: true }, element), { ok: false, code: 'UNSUPPORTED_OP' }, element.componentType)
   deepEqual(plan({ op: 'style', sizeStep: 1 }, text, null), { ok: false, code: 'UNSUPPORTED_OP' }, 'an unreadable size')
-  // No command Studio\'s Arrange tab sends but Layout lacks is ever sent.
-  const sent = new Set([...Object.values(VIEWER_COMMANDS)])
-  for (const absent of ['bringToFront', 'sendToBack', 'bringForward', 'sendBackward', 'alignElement', 'positionElement', 'lockElement', 'resizeElement', 'applyTextFormatCommand', 'formatText']) assert.equal(sent.has(absent), false, absent)
+  // Every Arrange command in a plan carries the intent; nothing that rotates, flips, locks, resizes or sets classes is ever planned.
+  const everyPlan = []
+  for (const element of [text, chart, metrics]) {
+    for (const order of ['front', 'back', 'forward', 'backward']) everyPlan.push(plan({ op: 'order', order }, element))
+    for (const place of [{ h: 'left' }, { v: 'top' }, { h: 'center', v: 'middle' }]) everyPlan.push(plan({ op: 'place', ...place }, element))
+    everyPlan.push(plan({ op: 'delete' }, element), plan({ op: 'style', bold: true, sizeStep: -1, binding: 'primary', align: 'left' }, element))
+  }
+  const ARRANGE = ['bringToFront', 'sendToBack', 'bringForward', 'sendBackward', 'alignElement', 'positionElement', 'resizeElement', 'rotateElement', 'flipElement', 'lockElement', 'setElementClasses']
+  for (const result of everyPlan) for (const step of result.steps ?? []) {
+    if (ARRANGE.includes(step.action)) assert.equal(step.params.intent, 'arrange', `${step.action} carries the intent`)
+    else assert.equal('intent' in step.params, false, `${step.action} is not an Arrange command`)
+    assert.equal(['positionElement', 'resizeElement', 'rotateElement', 'flipElement', 'lockElement', 'setElementClasses', 'applyTextFormatCommand', 'formatText'].includes(step.action), false, step.action)
+  }
+  assert.deepEqual(Object.values(VIEWER_COMMANDS).filter(name => ARRANGE.includes(name)).sort(), ['alignElement', 'bringForward', 'bringToFront', 'sendBackward', 'sendToBack'])
 })
 await check('viewer errors: the reply\'s error text maps to a code, never to success', async () => {
   const { elementEditCommandErrorCode: code } = on.lib
   const expectations = { 'Command timeout': 'VIEWER_NOT_READY', 'Iframe not ready': 'VIEWER_NOT_READY', 'The presentation viewer is unavailable.': 'VIEWER_NOT_READY', 'view-only': 'ELEMENT_LOCKED',
     'Unknown action: bringForward': 'UNSUPPORTED_OP', 'RECREATE_REQUIRED: render edited typed params': 'UNSUPPORTED_OP', 'Element not found': 'ELEMENT_NOT_FOUND', 'Text box not found': 'ELEMENT_NOT_FOUND',
-    'Text box content not found': 'ELEMENT_NOT_FOUND', 'elementId and fontSize parameters required': 'UNSUPPORTED_OP', 'something else': 'UNSUPPORTED_OP', '': 'UNSUPPORTED_OP' }
+    'Text box content not found': 'ELEMENT_NOT_FOUND', 'elementId and fontSize parameters required': 'UNSUPPORTED_OP', 'something else': 'UNSUPPORTED_OP', '': 'UNSUPPORTED_OP',
+    // Arrange's own answers (arrange-commands.js)
+    'Element is locked': 'ELEMENT_LOCKED', 'This element cannot be moved': 'ELEMENT_LOCKED', 'Edit mode required': 'VIEWER_NOT_READY', 'z-order not supported for this element yet': 'UNSUPPORTED_OP',
+    'alignElement not supported for this element yet': 'UNSUPPORTED_OP', 'The change was applied but could not be marked for saving': 'SAVE_FAILED', 'Element is not on a slide': 'UNSUPPORTED_OP' }
   for (const [message, expected] of Object.entries(expectations)) assert.equal(code(new Error(message)), expected, message)
   assert.equal(code('Command timeout'), 'VIEWER_NOT_READY'); assert.equal(code(null), 'UNSUPPORTED_OP'); assert.equal(code({}), 'UNSUPPORTED_OP')
 })
@@ -478,7 +533,7 @@ await check('ok only after the save ack: with the autosave PUT held, no result; 
   await studio.clock.advance(100) // the PUT is still held: time alone acknowledges nothing (offline, Layout's recorded ack is due now)
   studio.put.release()
   await studio.clock.advance(1000)
-  deepEqual(studio.sentResults.map(item => item.result), [{ directive_id: message.directive_id, ok: true }])
+  deepEqual(studio.sentResults.map(item => item.result), [{ directive_id: idOf(message), ok: true }])
   assert.ok(studio.sentResults[0].at >= 3900, 'after the ack, not before')
 })
 await check('SAVE_FAILED: applied, the autosave refused (Layout\'s error ack), so ok:false and no ok:true', async () => {
@@ -496,7 +551,7 @@ await check('SAVE_FAILED: no ack within the budget (a z-order change the flush n
   assert.ok(studio.sentResults[0].at >= 20_000 && studio.sentResults[0].at < 21_000, `sent at ${studio.sentResults[0].at}`)
   assert.equal(studio.published.some(event => event.status === 'unsaved'), false, 'Layout never tracked it, so nothing could have saved it')
 })
-await check('order front / back: bringTextBoxToFront / sendTextBoxToBack (no unsaved from Layout: the runner\'s flush is what tracks and saves the change)', async () => {
+await check('order front / back of a text box: bringTextBoxToFront / sendTextBoxToBack (no unsaved from Layout: the runner\'s flush is what tracks and saves the change)', async () => {
   for (const key of ['order_front', 'order_back']) {
     const studio = await scenario(key, frameOf(key), { editMode: true })
     assert.equal(studio.result.ok, true, key)
@@ -510,43 +565,108 @@ await check('order front / back: bringTextBoxToFront / sendTextBoxToBack (no uns
     }
   }
 })
-await check('order forward / backward: UNSUPPORTED_OP, Layout has no one-step z-order command; only the read goes to the viewer', async () => {
-  for (const key of ['order_forward', 'order_backward']) {
-    const studio = await scenario(key, frameOf(key), { editMode: true })
-    deepEqual(studio.result, { directive_id: studio.result.directive_id, ok: false, error_code: 'UNSUPPORTED_OP' }, key)
-    deepEqual(studio.actions(), ['getSlideGenerationContext'], 'nothing was applied')
+/** The viewer's last reply to a command: what Layout answered, from its log (live or replayed). */
+const replyOf = (studio, action) => studio.viewer.log.frames.map(frame => frame.data).filter(data => data.action === action).at(-1)
+await check('order front / back of a non-text element, forward / backward of any: Layout\'s Arrange commands, every one with intent \'arrange\' (!261); the order Layout reports is the one asked for', async () => {
+  const cases = [
+    ['order-front-chart', frameOf('order_front', { element_id: 'el_chart_b' }), 'bringToFront', 'el_chart_b', order => order.at(-1) === 'el_chart_b'],
+    ['order-back-chart', frameOf('order_back', { element_id: 'el_chart_b' }), 'sendToBack', 'el_chart_b', order => order[0] === 'el_chart_b'],
+    ['order-forward-text', frameOf('order_forward'), 'bringForward', 'el_text_a', order => order.indexOf('el_text_a') === 1],
+    ['order-forward-chart', frameOf('order_forward', { element_id: 'el_chart_b' }), 'bringForward', 'el_chart_b', order => order.indexOf('el_chart_b') === 3],
+    ['order-backward-text', frameOf('order_backward', { element_id: 'el_metrics_c' }), 'sendBackward', 'el_metrics_c', order => order.indexOf('el_metrics_c') === 2],
+    ['order-backward-chart', frameOf('order_backward', { element_id: 'el_chart_b' }), 'sendBackward', 'el_chart_b', order => order.indexOf('el_chart_b') === 1],
+  ]
+  for (const [name, frame, command, elementId, inOrder] of cases) {
+    const studio = await scenario(name, frame, { editMode: true })
+    assert.equal(studio.result.ok, true, `${name} ${JSON.stringify(studio.result)}`)
+    deepEqual(studio.requests(), [{ action: 'getSlideGenerationContext', params: { slideIndex: 0, targetElementId: elementId } }, { action: 'isEditModeActive', params: null },
+      { action: command, params: { elementId, intent: 'arrange' } }, { action: 'saveAllChanges', params: {} }], name)
+    assert.deepEqual(studio.routes.filter(([, action]) => action === command).map(([route, , type]) => [route, type]), [['element', 'layout-service']], 'through the element router, as the Arrange tab sends it')
+    const reply = replyOf(studio, command)
+    assert.equal(reply.success, true); assert.equal(reply.changed, true); assert.ok(inOrder(reply.zOrder), `${name}: the paint order Layout reports ${reply.zOrder}`)
+    assert.equal(studio.published.slice(-3).map(event => event.status).join(), 'unsaved,saving,saved')
+    if (LIVE) assert.equal(studio.put.requests.length, 1)
   }
 })
-await check('place: ten anchors through resizeTextBox; the viewer ends with the box where the anchor says (live) and every request equals the expected one', async () => {
+await check('order forward / backward with Layout\'s Arrange flag off, and the raw command without the intent: "Unknown action", so UNSUPPORTED_OP and nothing changes', async () => {
+  for (const [name, frame] of [['order-forward-flag-off', frameOf('order_forward')], ['order-front-chart-flag-off', frameOf('order_front', { element_id: 'el_chart_b' })]]) {
+    const studio = await scenario(name, frame, { editMode: true, arrange: false })
+    deepEqual(studio.result, { directive_id: studio.result.directive_id, ok: false, error_code: 'UNSUPPORTED_OP' }, name)
+    deepEqual(studio.actions().slice(0, 2), ['getSlideGenerationContext', 'isEditModeActive']); assert.equal(studio.actions().includes('saveAllChanges'), false, 'nothing was applied, so nothing is flushed')
+    assert.match(replyOf(studio, name === 'order-forward-flag-off' ? 'bringForward' : 'bringToFront').error, /^Unknown action: /)
+  }
+  const text = await scenario('order-front-text-flag-off', frameOf('order_front'), { editMode: true, arrange: false })
+  assert.equal(text.result.ok, true, 'a text box keeps its own front command: it does not need the flag')
+  const legacy = await scenario('no-intent', null, { editMode: true, manual: true })
+  for (const action of ['bringToFront', 'sendToBack', 'bringForward', 'sendBackward', 'alignElement']) {
+    await assert.rejects(legacy.apis.sendElementCommand(action, { elementId: 'el_chart_b', horizontal: 'center' }), new RegExp(`^Error: Unknown action: ${action}$`), `${action} without the intent is the old no-op`)
+  }
+  await legacy.clock.advance(10)
+  assert.equal(legacy.published.filter(event => event.status !== 'saved').length, 0, 'nothing changed, nothing was marked for saving')
+  if (LIVE) assert.equal(legacy.viewer.nodeById('el_chart_b').style.zIndex, '100')
+  await legacy.apis.sendElementCommand('bringToFront', { elementId: 'el_chart_b', intent: 'arrange' })
+  await legacy.clock.advance(10)
+  assert.equal(replyOf(legacy, 'bringToFront').success, true, 'with the intent the same command acts')
+})
+await check('place: h / v through resizeTextBox on a text box; the viewer ends with the box where they say (live) and every request equals the expected one', async () => {
   const expected = { left: ['4/10', '2/16'], center: ['4/10', '10/24'], right: ['4/10', '18/32'], top: ['4/10', '2/16'], middle: ['8/14', '2/16'], bottom: ['12/18', '2/16'],
-    'top-left': ['4/10', '2/16'], 'top-right': ['4/10', '18/32'], 'bottom-left': ['12/18', '2/16'], 'bottom-right': ['12/18', '18/32'] }
-  for (const [anchor, [gridRow, gridColumn]] of Object.entries(expected)) {
-    const studio = await scenario(`place-${anchor}`, frameOf(`place_${anchor}`), { editMode: true })
-    assert.equal(studio.result.ok, true, anchor)
-    deepEqual(lastRequestFor(studio, 'resizeTextBox'), { action: 'resizeTextBox', params: { elementId: 'el_text_a', gridRow, gridColumn } }, anchor)
+    'top-left': ['4/10', '2/16'], 'top-right': ['4/10', '18/32'], 'bottom-left': ['12/18', '2/16'], 'bottom-right': ['12/18', '18/32'], 'center-middle': ['8/14', '10/24'] }
+  for (const [name, [gridRow, gridColumn]] of Object.entries(expected)) {
+    const studio = await scenario(`place-${name}`, frameOf(`place_${name}`), { editMode: true })
+    assert.equal(studio.result.ok, true, name)
+    deepEqual(lastRequestFor(studio, 'resizeTextBox'), { action: 'resizeTextBox', params: { elementId: 'el_text_a', gridRow, gridColumn } }, name)
     deepEqual(studio.routes.find(([, action]) => action === 'resizeTextBox').slice(0, 2), ['textbox', 'resizeTextBox'])
     if (LIVE) {
       const GC = studio.viewer.context.GridConverter, node = studio.viewer.nodeById('el_text_a')
-      deepEqual([GC.toLogical(node.style.gridRow), GC.toLogical(node.style.gridColumn)], [gridRow, gridColumn], `Layout moved the box: ${anchor}`)
+      deepEqual([GC.toLogical(node.style.gridRow), GC.toLogical(node.style.gridColumn)], [gridRow, gridColumn], `Layout moved the box: ${name}`)
     }
   }
 })
-await check('place: a chart has no position command in Layout (UNSUPPORTED_OP); a metrics card is textbox-rendered and is moved', async () => {
-  const chart = await scenario('place-chart', frameOf('place_right', { element_id: 'el_chart_b' }), { editMode: true })
-  assert.equal(errorOf(chart.result), 'UNSUPPORTED_OP'); deepEqual(chart.actions(), ['getSlideGenerationContext'])
+await check('place on a non-text element: alignElement with intent \'arrange\' (to the slide\'s edges / centre); a metrics card is textbox-rendered and is moved like a text box', async () => {
+  const cases = [
+    ['place-chart-right', frameOf('place_right', { element_id: 'el_chart_b' }), { horizontal: 'right' }, '4/14', '19/33'],
+    ['place-chart-top', frameOf('place_top', { element_id: 'el_chart_b' }), { vertical: 'top' }, '1/11', '18/32'],
+    ['place-chart-center-middle', frameOf('place_center-middle', { element_id: 'el_chart_b' }), { horizontal: 'center', vertical: 'middle' }, '5/15', '10/24'],
+    ['place-image-bottom-left', frameOf('place_bottom-left', { element_id: 'el_image_e' }), { horizontal: 'left', vertical: 'bottom' }, '13/19', '1/11'],
+  ]
+  for (const [name, frame, axes, gridRow, gridColumn] of cases) {
+    const studio = await scenario(name, frame, { editMode: true })
+    assert.equal(studio.result.ok, true, `${name} ${JSON.stringify(studio.result)}`)
+    const elementId = frame.payload.element_id
+    deepEqual(studio.requests().slice(1), [{ action: 'isEditModeActive', params: null }, { action: 'alignElement', params: { elementId, ...axes, intent: 'arrange' } }, { action: 'saveAllChanges', params: {} }], name)
+    const reply = replyOf(studio, 'alignElement')
+    assert.equal(reply.success, true); deepEqual([reply.gridRow, reply.gridColumn], [gridRow, gridColumn], `${name}: where Layout put it`)
+    assert.equal(studio.actions().includes('resizeTextBox'), false)
+  }
   const metrics = await scenario('place-metrics', frameOf('place_left', { element_id: 'el_metrics_c' }), { editMode: true })
   assert.equal(metrics.result.ok, true); deepEqual(lastRequestFor(metrics, 'resizeTextBox').params, { elementId: 'el_metrics_c', gridRow: '11/17', gridColumn: '2/20' })
+})
+await check('what Arrange refuses stays UNSUPPORTED_OP (a table is never saved by the autosave), a locked or undraggable element is ELEMENT_LOCKED; nothing is flushed after a refusal', async () => {
+  for (const [name, frame, command] of [['place-table', frameOf('place_left', { element_id: 'el_table_d' }), 'alignElement'], ['order-front-table', frameOf('order_front', { element_id: 'el_table_d' }), 'bringToFront'],
+    ['order-forward-table', frameOf('order_forward', { element_id: 'el_table_d' }), 'bringForward']]) {
+    const studio = await scenario(name, frame, { editMode: true })
+    deepEqual(studio.result, { directive_id: studio.result.directive_id, ok: false, error_code: 'UNSUPPORTED_OP' }, name)
+    deepEqual(studio.actions(), ['getSlideGenerationContext', 'isEditModeActive', command]); assert.match(replyOf(studio, command).error, /not supported for this element yet$/)
+    assert.equal(studio.published.filter(event => event.status !== 'saved').length, 0, 'nothing was marked changed')
+  }
+  for (const [name, frame, command] of [['place-chart-class-locked', frameOf('place_left', { element_id: 'el_chart_locked' }), 'alignElement'], ['place-slot-fixed', frameOf('place_left', { element_id: 'el_slot_fixed' }), 'alignElement']]) {
+    const studio = await scenario(name, frame, { editMode: true })
+    deepEqual(studio.result, { directive_id: studio.result.directive_id, ok: false, error_code: 'ELEMENT_LOCKED' }, name)
+    deepEqual(studio.actions(), ['getSlideGenerationContext', 'isEditModeActive', command]); assert.match(replyOf(studio, command).error, /^(Element is locked|This element cannot be moved)$/)
+  }
+  const del = await scenario('delete-table', frameOf('delete', { element_id: 'el_table_d' }), { editMode: true })
+  assert.equal(del.result.ok, true, 'delete serves every element')
 })
 await check('style: bold, size_step +1 / -1 (read with getTextBoxFormatting), colour (theme binding), alignment, and all four together, each through its text box command', async () => {
   const cases = [
     ['style-bold', frameOf('style_bold'), [['setTextBoxFontWeight', { elementId: 'el_text_a', fontWeight: '700' }]]],
     ['style-size-up', frameOf('style_size_up'), [['getTextBoxFormatting', { elementId: 'el_text_a' }], ['setTextBoxFontSize', { elementId: 'el_text_a', fontSize: 28 }]]],
     ['style-size-down', frameOf('style_size_down'), [['getTextBoxFormatting', { elementId: 'el_text_a' }], ['setTextBoxFontSize', { elementId: 'el_text_a', fontSize: 20 }]]],
-    ['style-color', frameOf('style_color'), [['setTextBoxColor', { elementId: 'el_text_a', themeBinding: '--theme-accent-1' }]]],
+    ['style-color', frameOf('style_color'), [['setTextBoxColor', { elementId: 'el_text_a', themeBinding: 'accent_1' }]]],
     ['style-align', frameOf('style_align'), [['setTextBoxAlignment', { elementId: 'el_text_a', alignment: 'center' }]]],
     ['style-all', frameOf('style_bold', { style: { bold: false, size_step: 1, color_token: 'text_body', align: 'right' } }),
       [['getTextBoxFormatting', { elementId: 'el_text_a' }], ['setTextBoxFontWeight', { elementId: 'el_text_a', fontWeight: '400' }], ['setTextBoxFontSize', { elementId: 'el_text_a', fontSize: 28 }],
-        ['setTextBoxColor', { elementId: 'el_text_a', themeBinding: '--theme-text-body' }], ['setTextBoxAlignment', { elementId: 'el_text_a', alignment: 'right' }]]],
+        ['setTextBoxColor', { elementId: 'el_text_a', themeBinding: 'text_body' }], ['setTextBoxAlignment', { elementId: 'el_text_a', alignment: 'right' }]]],
   ]
   for (const [name, frame, commands] of cases) {
     const studio = await scenario(name, frame, { editMode: true })
@@ -573,7 +693,7 @@ await check('errors: ELEMENT_NOT_FOUND (Layout\'s own "was not found on slide"),
   assert.equal(errorOf(otherSlide.result), 'ELEMENT_NOT_FOUND', 'the element is on slide 0, not slide 1')
   const locked = await scenario('locked', frameOf('delete', { element_id: 'el_text_locked' }), { editMode: true })
   assert.equal(errorOf(locked.result), 'ELEMENT_LOCKED'); deepEqual(locked.actions(), ['getSlideGenerationContext'])
-  for (const [name, overrides] of [['invalid-op', { op: 'explode' }], ['invalid-order', { op: 'order', order: 'sideways' }], ['invalid-anchor', { op: 'place', place: { anchor: 'nowhere' } }],
+  for (const [name, overrides] of [['invalid-op', { op: 'explode' }], ['invalid-order', { op: 'order', order: 'sideways' }], ['invalid-place', { op: 'place', place: { h: 'nowhere' } }], ['invalid-place-empty', { op: 'place', place: {} }],
     ['invalid-step', { op: 'style', style: { size_step: 3 } }], ['invalid-color', { op: 'style', style: { color_token: 'plaid' } }], ['invalid-align', { op: 'style', style: { align: 'justify' } }]]) {
     const studio = await scenario(name, frameOf('delete', overrides), { editMode: true })
     assert.equal(errorOf(studio.result), 'INVALID_VALUE', name); deepEqual(studio.actions(), [], `${name}: the viewer is never touched`)
@@ -617,11 +737,11 @@ await check('one result per directive: a repeat while it runs and after it ran s
   studio.runner(plain(first), studio.ownerHandle)
   studio.runner(plain(second), studio.ownerHandle)
   await studio.clock.advance(400)
-  deepEqual(studio.sentResults.map(item => item.result), [{ directive_id: second.directive_id, ok: false, error_code: 'BUSY' }], 'BUSY once, the repeats are silent, the first is still saving')
+  deepEqual(studio.sentResults.map(item => item.result), [{ directive_id: idOf(second), ok: false, error_code: 'BUSY' }], 'BUSY once, the repeats are silent, the first is still saving')
   await studio.clock.advance(100)
   studio.put.release()
   await studio.clock.advance(1000)
-  deepEqual(studio.sentResults.map(item => item.result), [{ directive_id: second.directive_id, ok: false, error_code: 'BUSY' }, { directive_id: first.directive_id, ok: true }])
+  deepEqual(studio.sentResults.map(item => item.result), [{ directive_id: idOf(second), ok: false, error_code: 'BUSY' }, { directive_id: idOf(first), ok: true }])
   studio.runner(plain(first), studio.ownerHandle)
   await studio.clock.advance(1000)
   assert.equal(studio.sentResults.length, 2, 'after it finished, a repeat is still not run again')
@@ -744,12 +864,12 @@ await check('hook (flag on): element_edit goes out of band to the page\'s runner
   const after = hook.state()
   deepEqual(after.messages, before.messages, 'not a chat message'); deepEqual(after.cache, before.cache, 'not cached'); assert.equal(after.awaiting, false, 'it answers the turn')
   const sentBefore = hook.sent().length
-  assert.equal(hook.api.sendElementEditResult({ directive_id: frame.directive_id, ok: true }), true)
+  assert.equal(hook.api.sendElementEditResult({ directive_id: idOf(frame), ok: true }), true)
   await hook.settle()
   assert.equal(hook.sent().length, sentBefore + 1)
-  assert.equal(hook.sent().at(-1), JSON.stringify({ type: 'element_edit_result', data: { directive_id: frame.directive_id, ok: true } }))
+  assert.equal(hook.sent().at(-1), JSON.stringify({ type: 'element_edit_result', payload: { directive_id: idOf(frame), ok: true } }))
   hook.api.sendElementEditResult({ directive_id: 'd2', ok: false, error_code: 'SAVE_FAILED' })
-  deepEqual(JSON.parse(hook.sent().at(-1)), { type: 'element_edit_result', data: { directive_id: 'd2', ok: false, error_code: 'SAVE_FAILED' } })
+  deepEqual(JSON.parse(hook.sent().at(-1)), { type: 'element_edit_result', payload: { directive_id: 'd2', ok: false, error_code: 'SAVE_FAILED' } })
   // A frame without a directive id is consumed and never run.
   await hook.deliver({ type: 'element_edit', message_id: 'x', session_id: SESSION, op: 'delete' })
   assert.equal(hook.seen.edits.length, 1)
@@ -801,8 +921,8 @@ await check('hook (flag on): the built send equals the base\'s except the caps, 
 })
 await check('hook: the stripped hook is the base hook byte for byte; every added line carries the marker (and the base had none)', async () => {
   const head = read(HOOK)
-  assert.equal(stripChatElementEdit(HOOK, stripFlowControl(HOOK, head)), baseFile(HOOK))
-  const added = git('diff', '-U0', BASE_COMMIT, '--', HOOK).split('\n').filter(line => line.startsWith('+') && !line.startsWith('+++') && stripFlowControl(HOOK, `${line.slice(1)}\n`) !== '') // a line flow control marks is its own
+  assert.equal(stripPeers(HOOK, stripChatElementEdit(HOOK, head)), stripPeers(HOOK, baseFile(HOOK)))
+  const added = git('diff', '-U0', BASE_COMMIT, '--', HOOK).split('\n').filter(line => line.startsWith('+') && !line.startsWith('+++') && stripPeers(HOOK, `${line.slice(1)}\n`) !== '') // a line another registered change marks is its own
   assert.ok(added.length > 15)
   for (const line of added) assert.match(line, CHAT_ELEMENT_EDIT_MARKER_RE, line.slice(0, 80))
   assert.equal(git('diff', '-U0', BASE_COMMIT, '--', HOOK).split('\n').filter(line => line.startsWith('-') && !line.startsWith('---')).length, 0, 'no line of the base is removed or changed')
@@ -853,8 +973,8 @@ await check('notes panel: the stripped panel is the base byte for byte; every ad
 // ===== 6. the viewer's two additions and the page ===================================================================================================
 await check('viewer: the save-ack publish and the edit-mode registration are marked insertions; the stripped viewer is the base byte for byte', async () => {
   const rel = 'components/presentation-viewer.tsx'
-  assert.equal(stripChatElementEdit(rel, read(rel)), baseFile(rel))
-  const added = git('diff', '-U0', BASE_COMMIT, '--', rel).split('\n').filter(l => l.startsWith('+') && !l.startsWith('+++'))
+  assert.equal(stripPeers(rel, stripChatElementEdit(rel, read(rel))), stripPeers(rel, baseFile(rel)))
+  const added = git('diff', '-U0', BASE_COMMIT, '--', rel).split('\n').filter(l => l.startsWith('+') && !l.startsWith('+++') && stripPeers(rel, `${l.slice(1)}\n`) !== '') // a line another registered change marks (Arrange's) is its own
   assert.equal(added.length, 8); for (const line of added) assert.match(line, CHAT_ELEMENT_EDIT_MARKER_RE)
   const text = read(rel)
   // the publish sits inside the handler, after the status is validated, before the status is acted on
@@ -922,9 +1042,9 @@ await check('page: onNotesUpdated dispatches the Notes panel\'s window event onl
 })
 await check('page: the stripped page is the base byte for byte; every added line carries the marker; the Builder has exactly one connect() as before', async () => {
   const rel = 'app/builder/page.tsx'
-  assert.equal(stripChatElementEdit(rel, stripFlowControl(rel, read(rel))), baseFile(rel))
+  assert.equal(stripPeers(rel, stripChatElementEdit(rel, read(rel))), stripPeers(rel, baseFile(rel)))
   const diff = git('diff', '-U0', BASE_COMMIT, '--', rel).split('\n')
-  for (const line of diff.filter(l => l.startsWith('+') && !l.startsWith('+++') && stripFlowControl(rel, `${l.slice(1)}\n`) !== '')) assert.match(line, CHAT_ELEMENT_EDIT_MARKER_RE) // a line flow control marks is its own
+  for (const line of diff.filter(l => l.startsWith('+') && !l.startsWith('+++') && stripPeers(rel, `${l.slice(1)}\n`) !== '')) assert.match(line, CHAT_ELEMENT_EDIT_MARKER_RE) // a line another registered change marks is its own
   assert.equal(diff.filter(l => l.startsWith('-') && !l.startsWith('---')).length, 0)
   const connects = (text) => (text.match(/\bconnect\(\)/g) || []).length
   assert.equal(connects(read(rel)), connects(baseFile(rel)))
@@ -932,7 +1052,7 @@ await check('page: the stripped page is the base byte for byte; every added line
   assert.equal(hookConnects(read(HOOK)), hookConnects(baseFile(HOOK)), 'the hook gains no connect();')
 })
 await check('flag off is identical in every file the change touches: the strip gives the base back, and the new lib files are inert with the flag off', async () => {
-  for (const rel of CHAT_ELEMENT_EDIT_FILES) assert.equal(stripChatElementEdit(rel, stripFlowControl(rel, read(rel))), baseFile(rel), rel)
+  for (const rel of CHAT_ELEMENT_EDIT_FILES) assert.equal(stripPeers(rel, stripChatElementEdit(rel, read(rel))), stripPeers(rel, baseFile(rel)), rel)
   assert.equal(stripChatElementEdit('lib/chat-element-edit.ts', 'x'), 'x', 'a file the change does not own comes back untouched')
   assert.equal(stripChatElementEdit('scripts/studio-later-changes.mjs', 'x'), 'x')
   const registry = await import('./studio-later-changes.mjs')
@@ -945,28 +1065,54 @@ await check('flag off is identical in every file the change touches: the strip g
   assert.equal(envDiff.filter(l => l.startsWith('-')).length, 0)
   assert.ok(envDiff.some(l => l === '+NEXT_PUBLIC_STUDIO_CHAT_ELEMENT_EDIT="false"'))
 })
-await check('pins: the older proofs this change teaches are the base\'s byte for byte once the edits are put back, and every line they gained carries the mark', async () => {
-  for (const [rel, gained] of [['scripts/test-studio-chat-theme-export.mjs', 2], ['scripts/test-studio-speed-perceived.mjs', 1]]) {
-    const text = stripFlowControl(rel, read(rel)) // dev 6fba3b7f (#524) teaches the perceived speed proof five lines of its own: they come out first, so what is left is this change's edit alone
-    assert.equal(stripChatElementEdit(rel, text), baseFile(rel), rel)
-    const baseLines = baseFile(rel).split('\n'), textLines = text.split('\n')
-    const added = textLines.filter(line => !baseLines.includes(line)), removed = baseLines.filter(line => !textLines.includes(line))
+const DEV_COMMIT = '0545569384ae3f6f7073699bff95662ec80c633a' // dev at #523: the files this change teaches are read against dev's, which holds the other changes' edits of them
+const devFile = rel => git('show', `${DEV_COMMIT}:${rel}`)
+await check('pins: the older files this change teaches are dev\'s byte for byte once its edits are put back, every line it added carries the mark, and putting back twice changes nothing', async () => {
+  for (const [rel, gained, lost] of [['scripts/test-studio-chat-theme-export.mjs', 2, 1], ['scripts/studio-pass3-polish-b-strip.mjs', 2, 0]]) {
+    const text = read(rel)
+    assert.equal(stripChatElementEdit(rel, text), devFile(rel), rel)
+    assert.equal(stripChatElementEdit(rel, stripChatElementEdit(rel, text)), devFile(rel), `${rel}: idempotent`)
+    assert.equal(stripChatElementEdit(rel, devFile(rel)), devFile(rel), `${rel}: dev's own file comes back as it is`)
+    const devLines = devFile(rel).split('\n'), textLines = text.split('\n')
+    const added = textLines.filter(line => !devLines.includes(line)), removed = devLines.filter(line => !textLines.includes(line))
     assert.equal(added.length, gained, rel); for (const line of added) assert.ok(line.includes('// LATER-CHANGES: registry read (CHAT-ELEMENT-EDIT)'), `${rel}: ${line.slice(0, 80)}`)
-    assert.equal(removed.length, gained === 2 ? 1 : 1, `${rel}: one line replaced, none else removed`)
+    assert.equal(removed.length, lost, `${rel}: ${lost ? 'one line replaced' : 'nothing removed'}`)
   }
+  // The speed-perceived scope line is #520's exact line from dev: this change leaves the file alone.
+  assert.equal(read('scripts/test-studio-speed-perceived.mjs'), devFile('scripts/test-studio-speed-perceived.mjs'))
+  assert.equal(CHAT_ELEMENT_EDIT_OWN_EDITS.includes('scripts/test-studio-speed-perceived.mjs'), false)
+  // polish-b's strip takes this change's lines out of the viewer first (COMPOSER-2's first-paint pin reads the viewer through it), before Arrange's, as #523's does.
+  const polishB = await import('./studio-pass3-polish-b-strip.mjs')
+  const viewer = 'components/presentation-viewer.tsx'
+  assert.equal(CHAT_ELEMENT_EDIT_MARKER_RE.test(polishB.stripPass3PolishB(viewer, read(viewer))), false, 'polish-b\'s strip leaves none of this change\'s lines in the viewer')
+  assert.equal(stripPeers(viewer, polishB.stripPass3PolishB(viewer, read(viewer))), stripPeers(viewer, polishB.stripPass3PolishB(viewer, baseFile(viewer))), 'and what is left is the base\'s viewer')
 })
-await check('scope: the committed diff BASE..HEAD is this change\'s own files, and every commit subject starts "Chat element edit:"', async () => {
-  // dev 6fba3b7f: this change's own commits are the branch's first-parent line without its merges; a merge of dev brings dev's history in by its second parent, and dev's files are their changes' own
-  const ownBlocks = git('log', '--first-parent', '--no-merges', '--name-only', '--format=%x01%s', `${BASE_COMMIT}..HEAD`).split('\x01').filter(Boolean).map(block => block.split('\n'))
-  const subjects = ownBlocks.map(([subject]) => subject).filter(Boolean)
-  for (const subject of subjects) assert.ok(subject.startsWith('Chat element edit:'), subject)
-  const files = [...new Set(ownBlocks.flatMap(([, ...names]) => names).filter(Boolean))]
-  for (const file of files) assert.ok(CHAT_ELEMENT_EDIT_SCOPE_FILES.has(file), `a file outside the change: ${file}`)
-  const ownProof = fs.existsSync(path.join(root, 'scripts/test-studio-chat-element-edit.mjs'))
-  assert.ok(ownProof)
+// A commit this branch took over from another change on purpose (git cherry-pick -x, so its text is byte-identical on the sibling branches): the files it may touch.
+const SHARED_COMMITS = { // "Arrange proof tolerance: ..." (tests only), both byte-identical on the sibling branches (#519, #520, #521)
+  d4e62e0b0affcab480694e056af3946ec23a9136: ['scripts/test-studio-arrange.mjs'], // the .env.example block may be followed by the blocks of changes registered after it
+  e638f8171b6f236e5141255e6b95be1219dfa03a: ['scripts/test-studio-arrange.mjs'], // the Builder page is read through the registry in its "not changed" check
+}
+await check('scope: this change\'s own commits (the first-parent line without merges) touch this change\'s files, every subject starts "Chat element edit:" (a shared cherry-pick is named and bounded)', async () => {
+  // A merge of dev brings dev's history in by its second parent, and dev's files are their changes' own.
+  const shas = git('rev-list', '--first-parent', '--no-merges', `${BASE_COMMIT}..HEAD`).split('\n').filter(Boolean)
+  assert.ok(shas.length >= 5, `${shas.length} own commits`)
+  const own = []
+  for (const sha of shas) {
+    const subject = git('log', '-1', '--format=%s', sha).trim(), body = git('log', '-1', '--format=%b', sha)
+    const files = git('show', '--name-only', '--format=', sha).split('\n').filter(Boolean)
+    const shared = Object.keys(SHARED_COMMITS).find(commit => body.includes(`(cherry picked from commit ${commit})`))
+    if (shared) { for (const file of files) assert.ok(SHARED_COMMITS[shared].includes(file), `${sha}: the shared commit ${shared} touches only ${SHARED_COMMITS[shared]}: ${file}`); continue }
+    assert.ok(subject.startsWith('Chat element edit:'), subject)
+    own.push(...files)
+  }
+  // scripts/test-studio-speed-perceived.mjs: this branch's first commits taught it a scope line; at the merge with dev it became #520's identical-intent line (the pins check proves it is dev's file).
+  // scripts/fixtures/chat-element-edit/director-frames/agreed-envelope.json: the 26 Oct envelope, renamed contract-envelope.json when CONTRACT.md landed.
+  const superseded = new Set(['scripts/test-studio-speed-perceived.mjs', 'scripts/fixtures/chat-element-edit/director-frames/agreed-envelope.json'])
+  for (const file of new Set(own)) assert.ok(CHAT_ELEMENT_EDIT_SCOPE_FILES.has(file) || superseded.has(file), `a file outside the change: ${file}`)
+  assert.ok(fs.existsSync(path.join(root, 'scripts/test-studio-chat-element-edit.mjs')))
   // Nothing of FRONTEND-1's or COMPOSER-2's tests, and not test-director-websocket-reconnect, is touched.
   const protectedTests = /^scripts\/(test-studio-p2-|test-studio-launch-wording|test-studio-env-append-tolerant|test-studio-route-params|test-studio-admin-email-guard|test-studio-uat-marketing|test-studio-deck-title|test-studio-deck-card-thumbnail|test-studio-first-paint|test-director-websocket-reconnect)/
-  for (const file of files) assert.equal(protectedTests.test(file), false, file)
+  for (const file of [...own, ...Object.values(SHARED_COMMITS).flat()]) assert.equal(protectedTests.test(file), false, file)
 })
 await check('secrets: this change\'s new files and marked lines hold no credential-shaped literal', async () => {
   const texts = [...CHAT_ELEMENT_EDIT_NEW_FILES.filter(file => file.endsWith('.ts') || file.endsWith('.mjs')).map(read), ...CHAT_ELEMENT_EDIT_FILES.map(file => git('diff', '-U0', BASE_COMMIT, '--', file)), read('.env.example').slice(-3000)]
@@ -975,7 +1121,9 @@ await check('secrets: this change\'s new files and marked lines hold no credenti
 })
 
 // ===== 7. the real Layout still says what was recorded ======================================================================================
+const ARRANGE_ACTIONS = ['bringToFront', 'sendToBack', 'bringForward', 'sendBackward', 'alignElement', 'positionElement', 'resizeElement', 'rotateElement', 'flipElement', 'lockElement', 'setElementClasses']
 await check('layout: the viewer code is the recorded one (live), or the transcripts name the viewer they were recorded from (offline)', async () => {
+  const sourceFiles = ['viewer/presentation-viewer.html', ARRANGE_MODULE, ARRANGE_SCRIPT, ...LAYOUT_SCRIPTS]
   if (LIVE) {
     if (!RECORD) {
       const meta = recordedTranscripts.meta
@@ -983,16 +1131,19 @@ await check('layout: the viewer code is the recorded one (live), or the transcri
     }
   } else {
     assert.ok(recordedTranscripts.meta?.sources?.['viewer/presentation-viewer.html'], 'the transcripts name the viewer they came from')
-    for (const file of ['viewer/presentation-viewer.html', ...LAYOUT_SCRIPTS]) assert.match(recordedTranscripts.meta.sources[file], /^[0-9a-f]{64}$/, file)
+    for (const file of sourceFiles) assert.match(recordedTranscripts.meta.sources[file], /^[0-9a-f]{64}$/, file)
   }
   const commands = new Set(['getSlideGenerationContext', 'getTextBoxFormatting', 'deleteElement', 'bringTextBoxToFront', 'sendTextBoxToBack', 'resizeTextBox', 'setTextBoxFontWeight', 'setTextBoxFontSize',
-    'setTextBoxColor', 'setTextBoxAlignment', 'saveAllChanges', 'isEditModeActive', 'enterEditMode'])
+    'setTextBoxColor', 'setTextBoxAlignment', 'saveAllChanges', 'isEditModeActive', 'enterEditMode', 'bringToFront', 'sendToBack', 'bringForward', 'sendBackward', 'alignElement'])
   const asked = new Set(Object.values(recordedTranscripts.scenarios).flatMap(item => item.requests.map(request => request.action)))
   for (const action of asked) assert.ok(commands.has(action), `the runner asked the viewer for ${action}, which is not one of the commands this change names`)
   if (LIVE) {
-    const bridge = (await import('./studio-chat-element-edit-layout.mjs')).bridgeFromViewerHtml(fs.readFileSync(path.join(LAYOUT_DIR, 'viewer/presentation-viewer.html'), 'utf8'), STUDIO_ORIGIN)
-    for (const action of commands) assert.ok(bridge.commands.has(action), `the real Layout viewer has a case for ${action}`)
-    for (const absent of ['bringToFront', 'sendToBack', 'bringForward', 'sendBackward', 'alignElement', 'positionElement', 'lockElement']) assert.equal(bridge.commands.has(absent), false, `Layout has no ${absent}: nothing here may send it`)
+    const { bridgeFromViewerHtml, arrangeServedHtml } = await import('./studio-chat-element-edit-layout.mjs')
+    const raw = fs.readFileSync(path.join(LAYOUT_DIR, 'viewer/presentation-viewer.html'), 'utf8')
+    const served = bridgeFromViewerHtml(arrangeServedHtml(LAYOUT_DIR, raw), STUDIO_ORIGIN)
+    for (const action of commands) assert.ok(served.commands.has(action), `the real Layout viewer (Arrange flag on) has a case for ${action}`)
+    const plainPage = bridgeFromViewerHtml(raw, STUDIO_ORIGIN)
+    for (const action of ['bringToFront', 'sendToBack', 'bringForward', 'sendBackward', 'alignElement']) assert.equal(plainPage.commands.has(action), false, `with Layout's Arrange flag off ${action} is not a case: UNSUPPORTED_OP`)
   }
 })
 await check('layout: the LIVE Layout viewer code says exactly what the recorded transcripts say (every request and every frame, with its virtual time)', async () => {
@@ -1004,9 +1155,19 @@ await check('layout: the LIVE Layout viewer code says exactly what the recorded 
     assert.equal(JSON.stringify(plain({ requests: log.requests, frames: log.frames })), JSON.stringify(plain({ requests: recorded.requests, frames: recorded.frames })), `scenario ${name}: the live Layout code differs from the recording`)
   }
 })
-await check('layout: Studio\'s own Arrange commands that the viewer has no case for are never sent (the requests of every recorded scenario)', async () => {
-  const never = new Set(['bringToFront', 'sendToBack', 'bringForward', 'sendBackward', 'alignElement', 'positionElement', 'lockElement', 'resizeElement', 'applyTextFormatCommand', 'formatText', 'generateText', 'updateTextBoxStyle'])
-  for (const [name, item] of Object.entries(recordedTranscripts.scenarios)) for (const request of item.requests) assert.equal(never.has(request.action), false, `${name}: ${request.action}`)
+await check('layout: every Arrange command in every recorded scenario carries intent \'arrange\' (but the one scenario that proves the old no-op), and no command that rotates, flips, locks, resizes or sets classes is ever sent', async () => {
+  const never = new Set(['positionElement', 'resizeElement', 'rotateElement', 'flipElement', 'lockElement', 'setElementClasses', 'applyTextFormatCommand', 'formatText', 'generateText', 'updateTextBoxStyle'])
+  let arrangeRequests = 0
+  for (const [name, item] of Object.entries(recordedTranscripts.scenarios)) for (const request of item.requests) {
+    assert.equal(never.has(request.action), false, `${name}: ${request.action}`)
+    if (!ARRANGE_ACTIONS.includes(request.action)) continue
+    arrangeRequests++
+    if (name === 'no-intent' && request.params.intent === undefined) continue
+    assert.equal(request.params.intent, 'arrange', `${name}: ${request.action} carries the intent`)
+  }
+  assert.ok(arrangeRequests > 20, `${arrangeRequests} Arrange requests recorded`)
+  const noIntent = recordedTranscripts.scenarios['no-intent'].requests.filter(request => ARRANGE_ACTIONS.includes(request.action))
+  assert.equal(noIntent.filter(request => request.params.intent === undefined).length, 5, 'the five raw commands without the intent')
 })
 
 // ===== 8. mutants ===================================================================================================================================
@@ -1034,8 +1195,28 @@ async function quickSuite(libOverrides, sources = {}) {
   const front = await scenario('order_front', frameOf('order_front'), { ...withLibs, editMode: true })
   assert.equal(front.result.ok, true)
   deepEqual(front.actions(), ['getSlideGenerationContext', 'isEditModeActive', 'bringTextBoxToFront', 'saveAllChanges'])
-  const forward = await scenario('order_forward', frameOf('order_forward'), { ...withLibs, editMode: true })
-  assert.equal(errorOf(forward.result), 'UNSUPPORTED_OP'); deepEqual(forward.actions(), ['getSlideGenerationContext'])
+  const forward = await scenario('order-forward-chart', frameOf('order_forward', { element_id: 'el_chart_b' }), { ...withLibs, editMode: true })
+  assert.equal(forward.result.ok, true)
+  deepEqual(forward.requests().slice(2), [{ action: 'bringForward', params: { elementId: 'el_chart_b', intent: 'arrange' } }, { action: 'saveAllChanges', params: {} }])
+  const backwardChart = await scenario('order-backward-chart', frameOf('order_backward', { element_id: 'el_chart_b' }), { ...withLibs, editMode: true })
+  assert.equal(backwardChart.result.ok, true); deepEqual(backwardChart.requests()[2], { action: 'sendBackward', params: { elementId: 'el_chart_b', intent: 'arrange' } })
+  const alignBoth = await scenario('place-chart-center-middle', frameOf('place_center-middle', { element_id: 'el_chart_b' }), { ...withLibs, editMode: true })
+  assert.equal(alignBoth.result.ok, true); deepEqual(alignBoth.requests()[2], { action: 'alignElement', params: { elementId: 'el_chart_b', horizontal: 'center', vertical: 'middle', intent: 'arrange' } })
+  const emptyPlace = await scenario('invalid-place-empty', frameOf('delete', { op: 'place', place: {} }), { ...withLibs, editMode: true })
+  assert.equal(errorOf(emptyPlace.result), 'INVALID_VALUE'); deepEqual(emptyPlace.actions(), [])
+  const colour = await scenario('style-color', frameOf('style_color'), { ...withLibs, editMode: true })
+  assert.equal(colour.result.ok, true); deepEqual(colour.requests()[2], { action: 'setTextBoxColor', params: { elementId: 'el_text_a', themeBinding: 'accent_1' } })
+  const alignChart = await scenario('place-chart-right', frameOf('place_right', { element_id: 'el_chart_b' }), { ...withLibs, editMode: true })
+  assert.equal(alignChart.result.ok, true)
+  deepEqual(alignChart.requests()[2], { action: 'alignElement', params: { elementId: 'el_chart_b', horizontal: 'right', intent: 'arrange' } })
+  const frontChart = await scenario('order-front-chart', frameOf('order_front', { element_id: 'el_chart_b' }), { ...withLibs, editMode: true })
+  assert.equal(frontChart.result.ok, true); deepEqual(frontChart.requests()[2], { action: 'bringToFront', params: { elementId: 'el_chart_b', intent: 'arrange' } })
+  const table = await scenario('place-table', frameOf('place_left', { element_id: 'el_table_d' }), { ...withLibs, editMode: true })
+  assert.equal(errorOf(table.result), 'UNSUPPORTED_OP')
+  const fixed = await scenario('place-slot-fixed', frameOf('place_left', { element_id: 'el_slot_fixed' }), { ...withLibs, editMode: true })
+  assert.equal(errorOf(fixed.result), 'ELEMENT_LOCKED')
+  const flagOff = await scenario('order-forward-flag-off', frameOf('order_forward'), { ...withLibs, editMode: true, arrange: false })
+  assert.equal(errorOf(flagOff.result), 'UNSUPPORTED_OP')
   const italic = await scenario('style-bold-italic', frameOf('style_bold', { style: { bold: true, italic: true } }), { ...withLibs, editMode: true })
   assert.equal(errorOf(italic.result), 'UNSUPPORTED_OP'); deepEqual(italic.actions(), ['getSlideGenerationContext'])
   const plaid = await scenario('invalid-color', frameOf('delete', { op: 'style', style: { color_token: 'plaid' } }), { ...withLibs, editMode: true })
@@ -1044,12 +1225,14 @@ async function quickSuite(libOverrides, sources = {}) {
   assert.equal(errorOf(gone.result), 'ELEMENT_NOT_FOUND'); deepEqual(gone.actions(), ['getSlideGenerationContext'])
   const locked = await scenario('locked', frameOf('delete', { element_id: 'el_text_locked' }), { ...withLibs, editMode: true })
   assert.equal(errorOf(locked.result), 'ELEMENT_LOCKED')
-  const invalid = await scenario('invalid-anchor', frameOf('delete', { op: 'place', place: { anchor: 'nowhere' } }), { ...withLibs, editMode: true })
+  const invalid = await scenario('invalid-place', frameOf('delete', { op: 'place', place: { h: 'nowhere' } }), { ...withLibs, editMode: true })
   assert.equal(errorOf(invalid.result), 'INVALID_VALUE'); deepEqual(invalid.actions(), [])
   const failedSave = await scenario('save-failed', frameOf('delete'), { ...withLibs, put: 'fail', editMode: true })
   assert.equal(errorOf(failedSave.result), 'SAVE_FAILED')
   const place = await scenario('place-center', frameOf('place_center'), { ...withLibs, editMode: true })
   deepEqual(lastRequestFor(place, 'resizeTextBox').params.gridColumn, '10/24')
+  const metricsPlace = await scenario('place-metrics', frameOf('place_left', { element_id: 'el_metrics_c' }), { ...withLibs, editMode: true })
+  deepEqual(lastRequestFor(metricsPlace, 'resizeTextBox').params, { elementId: 'el_metrics_c', gridRow: '11/17', gridColumn: '2/20' })
   const stale = await scenario('stale-socket', null, { ...withLibs, editMode: true, manual: true })
   stale.ownerHandle.current = false
   stale.runner(plain(frameOf('delete')), stale.ownerHandle); await stale.clock.advance(2000)
@@ -1060,7 +1243,7 @@ async function quickSuite(libOverrides, sources = {}) {
   const dup = await scenario('busy-quick', null, { ...withLibs, put: 'hold', editMode: true, manual: true })
   const a = frameOf('delete'), b = frameOf('order_front')
   dup.runner(plain(a), dup.ownerHandle); await dup.clock.advance(500); dup.runner(plain(b), dup.ownerHandle); dup.runner(plain(a), dup.ownerHandle); dup.runner(plain(b), dup.ownerHandle); await dup.clock.advance(400)
-  deepEqual(dup.sentResults.map(item => item.result), [{ directive_id: b.directive_id, ok: false, error_code: 'BUSY' }])
+  deepEqual(dup.sentResults.map(item => item.result), [{ directive_id: idOf(b), ok: false, error_code: 'BUSY' }])
   await dup.clock.advance(100); dup.put.release(); await dup.clock.advance(1000)
   assert.equal(dup.sentResults.length, 2)
   const held = await scenario('hold-unreleased', null, { ...withLibs, put: 'hold', editMode: true, manual: true })
@@ -1085,11 +1268,19 @@ for (const [label, rel, from, to] of [
   ['no BUSY: a second edit runs alongside', LIB, "if (running !== null) return 'busy'", "if (false) return 'busy'"],
   ['the locked check is dropped', LIB, "if (element.locked || deps.templateMode()) return fail('ELEMENT_LOCKED')", "if (false) return fail('ELEMENT_LOCKED')"],
   ['italic is faked as bold', LIB, "if (!isTextBox(element) || edit.italic !== undefined) return unsupported", "if (!isTextBox(element)) return unsupported"],
-  ['forward is faked as front', LIB, "if (edit.order === 'front')", "if (edit.order === 'front' || edit.order === 'forward')"],
-  ['place sends the wrong span (center is left)', LIB, "anchor === 'center' ? 'middle' : null", "anchor === 'center' ? 'start' : null"],
-  ['an unknown anchor is accepted', LIB, "(ELEMENT_EDIT_ANCHORS as readonly string[]).includes(anchor)", "true"],
-  ['a Studio-only command is sent for front', LIB, "front: 'bringTextBoxToFront'", "front: 'bringToFront'"],
-  ['a bad colour token is bound', LIB, "return name && PALETTE_BINDINGS.includes(binding) ? binding : null", "return name ? binding : null"],
+  ['forward is sent as front', LIB, "if (edit.order === 'forward') return { ok: true, steps: [arrange(VIEWER_COMMANDS.arrangeForward)] }", "if (edit.order === 'forward') return { ok: true, steps: [arrange(VIEWER_COMMANDS.arrangeFront)] }"],
+  ['backward is sent as back', LIB, "arrangeBackward: 'sendBackward'", "arrangeBackward: 'sendToBack'"],
+  ['the Arrange intent is dropped (Layout answers "Unknown action")', LIB, "export const ARRANGE_INTENT = 'arrange'", "export const ARRANGE_INTENT = undefined as unknown as string"],
+  ['a wrong intent word', LIB, "export const ARRANGE_INTENT = 'arrange'", "export const ARRANGE_INTENT = 'select'"],
+  ['a non-text front goes to the text box command', LIB, "if (isTextboxRendered(element)) return { ok: true, steps: [{ route: 'textbox', action: edit.order === 'front'", "if (true) return { ok: true, steps: [{ route: 'textbox', action: edit.order === 'front'"],
+  ['a non-text place is moved with resizeTextBox', LIB, "if (!isTextboxRendered(element)) {\n        // Any other element: Layout's alignElement", "if (false) {\n        // Any other element: Layout's alignElement"],
+  ['alignElement loses its vertical axis', LIB, "...(edit.v !== undefined ? { vertical: edit.v } : {}), intent", "intent"],
+  ['place center is left', LIB, "h === 'center' ? 'middle' : null", "h === 'center' ? 'start' : null"],
+  ['an unknown place axis value is accepted', LIB, "(ELEMENT_EDIT_PLACE_H as readonly string[]).includes(h)", "true"],
+  ['a place with no axis is accepted', LIB, "given.length === 0 || given.some", "given.some"],
+  ['a locked element answers UNSUPPORTED_OP instead (Arrange\'s own refusal)', LIB, "if (message === 'Element is locked' || message === 'This element cannot be moved') return 'ELEMENT_LOCKED'", "void 0"],
+  ['a bad colour token is bound', LIB, "return PALETTE_IDS.includes(id) && (raw === id || raw === `--theme-${id.replace(/_/g, '-')}`) ? raw : null", "return raw ? raw : null"],
+  ['a colour token is rewritten before Layout sees it', LIB, "? raw : null\n}", "? `--theme-${id}` : null\n}"],
   ['the element is not read first (not found goes unnoticed)', LIB, "if (!element) return fail('ELEMENT_NOT_FOUND')", "if (!element) element = { elementId, rendererType: 'textbox', componentType: 'TEXT_BOX', locked: false, gridRow: '4/10', gridColumn: '2/16' }"],
   ['the save watch counts a saved from before the change', SAVE, "if (!tracked) return\n    if (event.status === 'saved'", "if (event.status === 'saved'"],
   ['the save watch ignores an error ack', SAVE, "else if (event.status === 'error') finish('error')", "else if (false) finish('error')"],
@@ -1098,10 +1289,13 @@ for (const [label, rel, from, to] of [
 const wireMutants = [
   ['caps on although the flag is off', WIRE, "export const CHAT_ELEMENT_EDIT_ENABLED = process.env.NEXT_PUBLIC_STUDIO_CHAT_ELEMENT_EDIT === 'true'", "export const CHAT_ELEMENT_EDIT_ENABLED = true"],
   ['the cap is dropped from the send', WIRE, "export const ELEMENT_EDIT_CLIENT_CAPS: readonly string[] = [ELEMENT_EDIT_CLIENT_CAP, NOTES_CLIENT_CAP]", "export const ELEMENT_EDIT_CLIENT_CAPS: readonly string[] = [ELEMENT_EDIT_CLIENT_CAP]"],
-  ['notes_updated takes every deck_mutation', WIRE, "if (fields.kind !== NOTES_UPDATED_KIND && fields.mutation !== NOTES_UPDATED_KIND) return false", "if (false) return false"],
+  ['notes_updated takes every deck_mutation', WIRE, "if (!fields || fields.mutation !== NOTES_UPDATED_KIND) return false", "if (!fields) return false"],
+  ['notes_updated is also read from a "kind"', WIRE, "if (!fields || fields.mutation !== NOTES_UPDATED_KIND) return false", "if (!fields || (fields.mutation !== NOTES_UPDATED_KIND && fields.kind !== NOTES_UPDATED_KIND)) return false"],
   ['a notes_updated for another deck refreshes this one', WIRE, "if (ctx.displayed.deckOwnerSessionId !== ctx.sessionId || ctx.displayed.presentationId !== presentationId) return true", "if (false) return true"],
   ['the directive id is not required', WIRE, "if (elementEditDirectiveId(parsed)) ctx.onDirective?.(", "if (true) ctx.onDirective?.("],
-  ['the result frame has another type', WIRE, "return { type: ELEMENT_EDIT_RESULT_TYPE, data }", "return { type: 'element_directive_result', data } as never"],
+  ['the result frame has another type', WIRE, "return { type: ELEMENT_EDIT_RESULT_TYPE, payload }", "return { type: 'element_directive_result', payload } as never"],
+  ['the result frame is flat', WIRE, "return { type: ELEMENT_EDIT_RESULT_TYPE, payload }", "return { type: ELEMENT_EDIT_RESULT_TYPE, ...payload } as never"],
+  ['the result frame carries data, not payload', WIRE, "return { type: ELEMENT_EDIT_RESULT_TYPE, payload }", "return { type: ELEMENT_EDIT_RESULT_TYPE, data: payload } as never"],
 ]
 for (const [label, rel, from, to] of wireMutants) await mutant(label, async () => {
   const libs = makeLibs({ overrides: { [rel]: mut(rel, from, to) } })
@@ -1114,7 +1308,8 @@ for (const [label, rel, from, to] of wireMutants) await mutant(label, async () =
   assert.equal(libs.wire.routeNotesUpdatedFrame({ ...envelope.notes_updated, payload: { ...envelope.notes_updated.payload, presentation_id: 'pres-other' } }, ctx), true)
   assert.equal(notified.length, 0, 'a notes update for another deck reaches nobody')
   libs.wire.routeElementEditFrame({ type: 'element_edit' }, ctx); assert.equal(ran.length, 0)
-  deepEqual(libs.wire.elementEditResultFrame({ directive_id: 'd', ok: true }), { type: 'element_edit_result', data: { directive_id: 'd', ok: true } })
+  deepEqual(libs.wire.elementEditResultFrame({ directive_id: 'd', ok: true }), { type: 'element_edit_result', payload: { directive_id: 'd', ok: true } })
+  assert.equal(libs.wire.routeNotesUpdatedFrame({ type: 'deck_mutation', session_id: SESSION, payload: { kind: 'notes_updated', presentation_id: PRESENTATION, slide_index: 1 } }, ctx), false, 'only payload.mutation names notes_updated')
 })
 async function hookFlagOffSuite(hookText) {
   const head = await mountHook({ flag: false, hookText })
@@ -1131,7 +1326,7 @@ async function hookFlagOffSuite(hookText) {
   await watch.deliver(frameOf('delete')); assert.equal(ran.length, 1)
   await watch.deliver(presentationUrlFrame()); await watch.deliver(envelope.notes_updated); assert.equal(watch.seen.notes.length, 1)
   assert.equal(watch.api.sendElementEditResult({ directive_id: 'd-x', ok: true }), true); await watch.settle()
-  assert.equal(watch.sent().at(-1), JSON.stringify({ type: 'element_edit_result', data: { directive_id: 'd-x', ok: true } }))
+  assert.equal(watch.sent().at(-1), JSON.stringify({ type: 'element_edit_result', payload: { directive_id: 'd-x', ok: true } }))
 }
 await check('control: the unbroken hook passes the hook suite the hook mutants run against', async () => { await hookFlagOffSuite(null) })
 for (const [label, from, to, all] of [
@@ -1141,6 +1336,7 @@ for (const [label, from, to, all] of [
   ['the hook never routes element_edit', "if (CHAT_ELEMENT_EDIT_ENABLED && routeElementEditFrame(parsedMessage, {", "if (false && routeElementEditFrame(parsedMessage, {", false],
   ['the hook never routes notes_updated', "if (CHAT_ELEMENT_EDIT_ENABLED && routeNotesUpdatedFrame(parsedMessage, {", "if (false && routeNotesUpdatedFrame(parsedMessage, {", false],
   ['the hook sends the result as an element_directive_result', "wsRef.current.send(JSON.stringify(elementEditResultFrame(data)))", "wsRef.current.send(JSON.stringify({ type: 'element_directive_result', data }))", false],
+  ['the hook sends the result flat', "wsRef.current.send(JSON.stringify(elementEditResultFrame(data)))", "wsRef.current.send(JSON.stringify({ type: 'element_edit_result', ...data }))", false],
 ]) await mutant(label, async () => hookFlagOffSuite(mut(HOOK, from, to, all)))
 await mutant('the page wires the runner without the flag gate', async () => {
   const text = mut('app/builder/page.tsx', "elementEditDirectiveRunnerRef.current = !CHAT_ELEMENT_EDIT_ENABLED ? null : (message, owner) => {", "elementEditDirectiveRunnerRef.current = (message, owner) => {")
@@ -1178,7 +1374,7 @@ await mutant('the viewer registers no edit mode', async () => {
 
 if (RECORD) {
   recordedTranscripts.meta = { recorded_with: 'CHAT_EDIT_LAYOUT_DIR + --record-layout', studio_origin: STUDIO_ORIGIN, layout_origin: LAYOUT_ORIGIN, sources: layoutSources,
-    layout_checkout: 'layout-builder at the uat head of 26 Oct (merge of seat2/q16-accessory-fonts into uat, 6849d3e); the file hashes above are its identity',
+    layout_checkout: 'layout-builder at c77f0474 (branch frontend2/arrange-intent, !261: Arrange commands act only with intent \'arrange\'; on top of !260 LAYOUT_ARRANGE_COMMANDS_ENABLED), the page served with the flag on (arrange_commands.py apply_to_viewer); the file hashes above are its identity',
     note: 'Every request the real Layout viewer code received and every frame it posted, with the virtual time (ms from the scenario start). lastSaveTime is normalised to the virtual time.',
     scenarios_recorded: Object.keys(recordedTranscripts.scenarios).length }
   fs.writeFileSync(TRANSCRIPTS, JSON.stringify(recordedTranscripts, null, 1) + '\n')

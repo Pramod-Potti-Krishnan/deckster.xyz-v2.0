@@ -5,6 +5,8 @@
 // What runs is Layout's, unchanged:
 //  - viewer/presentation-viewer.html: the postMessage dispatcher (the `window.addEventListener('message', ...)` bridge with every command case), its
 //    ALLOWED_PARENT_ORIGINS / isAllowedParentOrigin and VIEW_ONLY, cut out by exact anchors (the two constants Layout's server fills in are set here);
+//  - with `arrange` (the default), the page as Layout's server serves it while LAYOUT_ARRANGE_COMMANDS_ENABLED is on: arrange_commands.py's own
+//    apply_to_viewer() (layout-builder !260, with !261's intent rule) adds the Arrange case group, the flag script and src/utils/arrange-commands.js;
 //  - the /src/utils scripts the page loads that the commands need, in the page's order: edit-mode.js, grid-converter.js, auto-save.js, element-manager.js.
 // What is not Layout's: a small fake DOM (nodes, a selector matcher for the selectors these scripts use, computed style), a virtual clock shared with the
 // Studio side (Layout's setTimeout is the clock's), a window.fetch the test controls (the autosave PUT), and the registry entries renderPresentation would
@@ -17,8 +19,32 @@ import fs from 'node:fs'
 import path from 'node:path'
 import vm from 'node:vm'
 import crypto from 'node:crypto'
+import { execFileSync } from 'node:child_process'
 
 export const LAYOUT_SCRIPTS = ['src/utils/edit-mode.js', 'src/utils/grid-converter.js', 'src/utils/auto-save.js', 'src/utils/element-manager.js']
+/** Loaded only on the page served with LAYOUT_ARRANGE_COMMANDS_ENABLED on (it only defines window.LayoutArrangeCommands, so its place does not matter). */
+export const ARRANGE_SCRIPT = 'src/utils/arrange-commands.js'
+export const ARRANGE_MODULE = 'arrange_commands.py'
+
+/** The viewer page as Layout serves it with LAYOUT_ARRANGE_COMMANDS_ENABLED on: Layout's own apply_to_viewer() over viewer/presentation-viewer.html (stdlib only; no bytecode written). */
+const servedCache = new Map()
+export function arrangeServedHtml(layoutDir, html) {
+  const key = `${path.resolve(layoutDir)}\0${sha(html)}`
+  if (servedCache.has(key)) return servedCache.get(key)
+  const code = `import sys; sys.path.insert(0, ${JSON.stringify(path.resolve(layoutDir))}); import arrange_commands as a; sys.stdout.write(a.apply_to_viewer(sys.stdin.read()))`
+  const out = execFileSync('python3', ['-B', '-c', code], { input: html, encoding: 'utf8', maxBuffer: 64 * 1024 * 1024, env: { ...process.env, PYTHONDONTWRITEBYTECODE: '1' } })
+  if (!out.includes('LAYOUT_ARRANGE_COMMANDS_ENABLED=true') || out === html) throw new Error('arrange_commands.apply_to_viewer did not add the Arrange cases (Layout without !260?)')
+  servedCache.set(key, out)
+  return out
+}
+
+/** One compiled script per file text: the scripts are run in a fresh context for every scenario, and compiling element-manager.js each time is most of a scenario's cost. */
+const compiled = new Map()
+function compile(text, filename) {
+  const key = `${filename}\0${text.length}\0${sha(text)}`
+  if (!compiled.has(key)) compiled.set(key, new vm.Script(text, { filename }))
+  return compiled.get(key)
+}
 const sha = text => crypto.createHash('sha256').update(text).digest('hex')
 
 // ---- a virtual clock, shared by the Studio side and the viewer -------------------------------------------------------------------------------
@@ -44,6 +70,7 @@ export function createClock() {
         if (!due) break
         timers.delete(due.id)
         now = Math.max(now, due.at)
+        if (guard === 5_000) throw new Error(`runaway timers at ${now} ms: ${String(due.fn).slice(0, 160)}`)
         due.fn()
       }
       now = target
@@ -64,6 +91,7 @@ export function createClock() {
 }
 
 // ---- a fake DOM: just what these scripts touch ------------------------------------------------------------------------------------------
+let nodeOrder = 0
 class ClassList {
   constructor(node) { this.node = node; this.values = new Set() }
   add(...names) { names.forEach(name => name && this.values.add(name)) }
@@ -89,7 +117,7 @@ function styleObject() {
 
 class FakeNode {
   constructor(tagName = 'div', doc = null) {
-    this.tagName = String(tagName).toUpperCase(); this.doc = doc
+    this.tagName = String(tagName).toUpperCase(); this.doc = doc; this.order = nodeOrder++
     this.attributes = new Map(); this.children = []; this.parentNode = null
     this.classList = new ClassList(this); this.style = styleObject(); this.innerHTML = ''; this.textContent = ''
     this._id = ''; this.nodeType = 1; this.isContentEditable = false; this.listeners = new Map()
@@ -132,6 +160,8 @@ class FakeNode {
     return copy
   }
   getBoundingClientRect() { return { left: 0, top: 0, width: 0, height: 0, right: 0, bottom: 0 } }
+  /** Document order by creation (a slide builds its elements in order), as arrange-commands.js asks. */
+  compareDocumentPosition(other) { return other.order > this.order ? 4 : other.order < this.order ? 2 : 0 }
   closest(selector) { for (let at = this; at; at = at.parentNode) if (at.matches?.(selector)) return at; return null }
   matches(selector) { return String(selector).split(',').some(part => matchCompound(this, part.trim().split(/[\s>+~]+/).filter(Boolean).pop() || '')) }
   querySelector(selector) { return this.querySelectorAll(selector)[0] || null }
@@ -176,8 +206,9 @@ function computedStyleOf(node) {
  * One viewer: the page's bridge plus Layout's scripts in a vm. `parent` is what the viewer sees as window.parent (Studio's window): it receives the replies
  * and every unsolicited frame. Messages from Studio arrive through `deliver(data, origin)`.
  */
-export function createLayoutViewer({ layoutDir, studioOrigin, parent, clock, viewOnly = false, fetchImpl = null, presentationId = 'pres-chat-edit' }) {
-  const html = fs.readFileSync(path.join(layoutDir, 'viewer/presentation-viewer.html'), 'utf8')
+export function createLayoutViewer({ layoutDir, studioOrigin, parent, clock, viewOnly = false, fetchImpl = null, presentationId = 'pres-chat-edit', arrange = true }) {
+  const raw = fs.readFileSync(path.join(layoutDir, 'viewer/presentation-viewer.html'), 'utf8')
+  const html = arrange ? arrangeServedHtml(layoutDir, raw) : raw
   const bridge = bridgeFromViewerHtml(html, studioOrigin, viewOnly)
   const log = { requests: [], frames: [] }
   let lastRequest = -1
@@ -218,7 +249,7 @@ export function createLayoutViewer({ layoutDir, studioOrigin, parent, clock, vie
   }
   const context = {
     console: { log() {}, info() {}, warn() {}, error() {}, debug() {} },
-    document, CSS: { escape: value => value }, Node: { ELEMENT_NODE: 1, TEXT_NODE: 3 }, URL, URLSearchParams, JSON, Math, Date, Object, Array, Map, Set, Promise, Error, TypeError,
+    document, CSS: { escape: value => value }, Node: { ELEMENT_NODE: 1, TEXT_NODE: 3, DOCUMENT_POSITION_PRECEDING: 2, DOCUMENT_POSITION_FOLLOWING: 4 }, URL, URLSearchParams, JSON, Math, Date, Object, Array, Map, Set, Promise, Error, TypeError,
     Number, String, Boolean, RegExp, Symbol, parseInt, parseFloat, isNaN, Reflect, Proxy, WeakMap, WeakSet, Intl, encodeURIComponent, decodeURIComponent,
     structuredClone: value => JSON.parse(JSON.stringify(value)),
     setTimeout: (fn, ms) => clock.setTimeout(fn, ms), clearTimeout: id => clock.clearTimeout(id), setInterval: () => 0, clearInterval() {},
@@ -243,12 +274,14 @@ export function createLayoutViewer({ layoutDir, studioOrigin, parent, clock, vie
   vm.createContext(context)
   context.window.parent = { postMessage: post }
   const sources = {}
-  for (const file of LAYOUT_SCRIPTS) {
+  if (arrange) vm.runInContext('window.LAYOUT_ARRANGE_COMMANDS_ENABLED=true;', context)
+  for (const file of arrange ? [ARRANGE_SCRIPT, ...LAYOUT_SCRIPTS] : LAYOUT_SCRIPTS) {
     const text = fs.readFileSync(path.join(layoutDir, file), 'utf8')
     sources[file] = sha(text)
-    vm.runInContext(text, context, { filename: file })
+    compile(text, file).runInContext(context)
   }
-  vm.runInContext(bridge.text, context, { filename: 'viewer-bridge.js' })
+  sources[ARRANGE_MODULE] = arrange ? sha(fs.readFileSync(path.join(layoutDir, ARRANGE_MODULE), 'utf8')) : null
+  compile(bridge.text, 'viewer-bridge.js').runInContext(context)
   if (listeners.length !== 1) throw new Error(`the viewer bridge registered ${listeners.length} message listeners`)
   for (const listener of documentListeners.get('DOMContentLoaded') || []) listener()
   const manager = context.ElementManager
@@ -264,11 +297,11 @@ export function createLayoutViewer({ layoutDir, studioOrigin, parent, clock, vie
     return slides[index]
   }
   /** What renderPresentation / insertTextBox would register for an element: its node under its slide, and its ElementManager registry entry. */
-  function registerElement(id, { type = 'textbox', componentType = 'TEXT_BOX', slideIndex = 0, gridRow = '4/10', gridColumn = '2/16', fontSize = '24px', locked = false, text = 'Hello' } = {}) {
+  function registerElement(id, { type = 'textbox', componentType = 'TEXT_BOX', slideIndex = 0, gridRow = '4/10', gridColumn = '2/16', fontSize = '24px', locked = false, classLocked = locked, noDrag = false, text = 'Hello' } = {}) {
     const GC = context.GridConverter
     const node = new FakeNode('div', doc)
     node.id = id
-    node.className = `dynamic-element inserted-${type}`
+    node.className = `dynamic-element inserted-${type}${noDrag ? '' : ' draggable resizable'}${classLocked ? (type === 'textbox' ? ' textbox-locked' : ' element-locked') : ''}`
     node.setAttribute('data-component-type', componentType)
     node.setAttribute('data-slide-index', String(slideIndex))
     node.style.gridRow = GC.toPhysical(gridRow); node.style.gridColumn = GC.toPhysical(gridColumn); node.style.zIndex = '100'
