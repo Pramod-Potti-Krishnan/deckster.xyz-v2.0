@@ -29,6 +29,7 @@ export function DirectorPresence({ narration, currentStatus, className, loadingS
   const statusActive = currentStatus?.status === 'thinking' || currentStatus?.status === 'generating'
   const visible = narration.active || statusActive
   if (!visible) return null
+  if (studioShell && process.env.NEXT_PUBLIC_STUDIO_CHAT_CLEAN === 'true') return null // CHAT-CLEAN: the inline job card in the thread stands in for this row
 
   const line =
     (narration.active && narration.phaseLabel) ||

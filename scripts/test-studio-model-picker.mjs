@@ -938,12 +938,13 @@ async function suite({ quiet = false, bail = false, extraCommitted = [] } = {}) 
   })
 
   // ---- L. identity -------------------------------------------------------------------------------------------------------------------------------------------------
-  await check('L: nothing in the app imports the picker (it is placed by FRONTEND-1), so flag off the app is the base', () => {
+  await check('L: nothing in the app imports the picker (it is placed by FRONTEND-1), so flag off the app is the base', async () => { // LATER-CHANGES: registry read (CHAT-CLEAN)
+    const later = (await import(`${path.join(root, REGISTRY)}?t=${Date.now()}`)).LATER_CHANGE_FILES // LATER-CHANGES: registry read (CHAT-CLEAN): a change registered after this one may mount the picker (chat clean: the composer); its files are its own
     let hits = ''
     try { hits = git('grep', '-l', '-E', 'model-choice/model-picker|use-model-choice|studio-model-picker|model-picker\\.css', 'HEAD', '--', 'app', 'components', 'lib', 'hooks', 'pages', 'middleware.ts', 'next.config.mjs', 'next.config.js') } catch { hits = '' }
-    deep(hits.split('\n').filter(Boolean).map(line => line.replace(/^HEAD:/, '')).filter(file => ![...PICKER_FILES, ...SLIDER_ADDED].includes(file)), [], 'no other file mentions it')
+    deep(hits.split('\n').filter(Boolean).map(line => line.replace(/^HEAD:/, '')).filter(file => ![...PICKER_FILES, ...SLIDER_ADDED].includes(file) && !later.has(file)), [], 'no other file mentions it') // LATER-CHANGES: registry read (CHAT-CLEAN)
     const working = execFileSync('grep', ['-rlE', 'model-choice/model-picker|use-model-choice|studio-model-picker', 'app', 'components', 'lib', 'hooks'], { cwd: root, encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'] }).split('\n').filter(Boolean)
-    deep(working.filter(file => ![...PICKER_FILES, ...SLIDER_ADDED].includes(file)), [], 'nor does the working tree')
+    deep(working.filter(file => ![...PICKER_FILES, ...SLIDER_ADDED].includes(file) && !later.has(file)), [], 'nor does the working tree') // LATER-CHANGES: registry read (CHAT-CLEAN)
   })
   await check('L: the new files hold no credential-shaped literal and no long hex', () => {
     const CRED = /Bearer [A-Za-z0-9._-]{16,}|\bsk-[A-Za-z0-9]{16,}|\beyJ[A-Za-z0-9_-]{20,}|(?:api[_-]?key|secret|token|passw(?:or)?d|credential)[A-Za-z0-9_]*['"]?\s*[:=]\s*['"`][^'"`\s$]{8,}['"`]/i

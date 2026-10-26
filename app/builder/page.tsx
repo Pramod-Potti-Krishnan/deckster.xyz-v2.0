@@ -6324,6 +6324,14 @@ function AuthenticatedBuilderContent({ authScopeUserId }: { authScopeUserId: str
     sendBuildControl, markControl: markNarrationControl, sendDraft: text => handleSendMessage(undefined, text), awaitingReply: awaitingDirectorReply, stopAwaiting: stopAwaitingReply, // FLOW-CONTROL
     sessionKey: currentSessionId || wsSessionId, onStopFailed: () => toast({ title: "Couldn't stop the build", description: 'Your changes are still in the box.' }), // FLOW-CONTROL
   }) // FLOW-CONTROL
+  // CHAT-CLEAN (NEXT_PUBLIC_STUDIO_CHAT_CLEAN, Studio shell only, default off): PK's v3 Director chat (lib/studio-chat-clean.ts decides everything). The sends are the existing build controls (stop / resume) and the flow hook's resume-with-instructions / rebuild; off, the hook below is inert and nothing else here is read.
+  const chatCleanShell = STUDIO_CHAT_CLEAN_ENABLED && studioShell // CHAT-CLEAN: the thread and the composer in the v3 design
+  const chatCleanOn = chatCleanShell && effectiveBuildNarrationEnabled // CHAT-CLEAN: the job card, Send <-> Stop and the Continue bar need the narration canvas
+  const chatCleanComposer = chatCleanComposerState({ enabled: chatCleanOn, active: buildNarration.active, phase: buildNarration.phase, control: buildNarration.control, slidesDone: buildNarration.slidesDone, slideCount: buildNarration.slideCount, controlEnabled: features.buildControlEnabled, amendOn: STUDIO_FLOW_AMEND_ENABLED && effectiveBuildNarrationEnabled && features.buildControlEnabled, instructionsOn: STUDIO_FLOW_AMEND_INSTRUCTIONS_ENABLED, amendKey: flowControl.amend.key, amendLine: flowControl.amend.line }) // CHAT-CLEAN
+  const chatCleanNotes = useStudioChatCleanNotes({ enabled: chatCleanOn, sessionKey: currentSessionId || wsSessionId, narration: buildNarration, amend: flowControl.amend }) // CHAT-CLEAN: the thread's record of stops, resumes and applied directions
+  const chatCleanStop = () => { const requestId = sendBuildControl('stop', buildNarration.buildId ?? undefined); if (requestId) markNarrationControl('stop_requested', buildNarration.buildId, requestId); else toast({ title: "Couldn't stop the build", description: 'Director did not take the request. Your draft is still in the box.' }) } // CHAT-CLEAN: the composer's Stop (non-destructive, as the ribbon's: built slides are kept)
+  const chatCleanContinue = () => { const requestId = sendBuildControl('resume', buildNarration.buildId ?? undefined); if (requestId) markNarrationControl('resume_requested', buildNarration.buildId, requestId) } // CHAT-CLEAN: Continue = resume as planned (the draft stays in the box)
+  const chatCleanSendDirections = () => { const text = inputMessage.trim(); if (!text) return; if (chatCleanComposer.sendMode === 'instructions') { chatCleanNotes.addDirections(text); flowControl.resume() } else if (chatCleanComposer.sendMode === 'rebuild') flowControl.rebuild() } // CHAT-CLEAN: Send with a draft while held: resume with the draft as instructions (NEXT_PUBLIC_STUDIO_FLOW_AMEND_INSTRUCTIONS), else the flow hook's rebuild (stop, settle, send)
 
   const handleCancelManualDeckBuild = useCallback(() => {
     if (manualDeckHandoffBusy) return
@@ -7538,6 +7546,7 @@ function AuthenticatedBuilderContent({ authScopeUserId }: { authScopeUserId: str
               data-studio-workspace-content={studioShell ? 'true' : undefined}
               aria-hidden={studioShell && !workspaceLayout.chatVisible ? true : undefined}
               {...(studioShell && !workspaceLayout.chatVisible ? { inert: true } : {})}
+              {...(chatCleanShell ? chatCleanRootAttributes() : {}) /* CHAT-CLEAN: the stylesheet's hook and PK's choice tokens, on the chat column only with the flag on */}
               style={{ width: studioShell ? studioChatWidth : drawerWidth }}
             >
               {showChat && (
@@ -7581,6 +7590,7 @@ function AuthenticatedBuilderContent({ authScopeUserId }: { authScopeUserId: str
                   <ScrollArea className="flex-1">
                     <div ref={studioVoiceTranscriptRootRef} className="px-3 py-4 space-y-4">
                       <MessageList
+                        {...(chatCleanShell ? { studioChatClean: { narration: buildNarration, notes: chatCleanNotes.notes, composer: chatCleanComposer } } : {}) /* CHAT-CLEAN: the inline job card and the notes at the end of the thread */}
                         sessionId={currentSessionId}
                         presentationContext={studioShell && effectivePresentationUrl && (!isBlankPresentation || (slideStructure?.slides ?? []).length > 0) ? {
                           title: slideStructure?.metadata?.main_title ?? null,
@@ -7718,12 +7728,14 @@ function AuthenticatedBuilderContent({ authScopeUserId }: { authScopeUserId: str
                   )}
                   {flowControl.bar}{/* FLOW-CONTROL (NEXT_PUBLIC_STUDIO_FLOW_AMEND): the calm line and Resume / Rebuild while the build is held; off, null */}
 
+                  {chatCleanOn ? <StudioChatCleanBar composer={chatCleanComposer} onContinue={chatCleanContinue} /> : null}{/* CHAT-CLEAN: the slim "Stopped at slide N · slides 1–N kept · Continue" bar above the composer while the build is held (the flow bar above it is hidden by the stylesheet); off, null */}
                   {workflowBrief && <div className="studio-brief-handoff" role="region" aria-label="Brief ready">
                     <div><strong>Your brief is ready</strong><p>{inputMessage.trim() ? 'Use it to replace the current unsent message, or keep your message.' : 'Add it to the composer, review it, then send when ready.'}</p></div>
                     <button type="button" onClick={() => resolveWorkflowBrief(true)}>Use brief</button>
                     <button type="button" onClick={() => resolveWorkflowBrief(false)}>Keep my message</button>
                   </div>}
                   <ChatInput
+                    {...(chatCleanShell ? { studioChatClean: { composer: chatCleanComposer, onStop: chatCleanStop, onSendDirections: chatCleanSendDirections, sessionId: currentSessionId } } : {}) /* CHAT-CLEAN: Send <-> Stop, new directions while held, the "+" menu, the research chips and the model picker */}
                     composerTextareaRef={studioShell ? textareaRef : undefined}
                     studioSavedThemeRequest={savedThemeWorkflowId ? { id: savedThemeWorkflowId, key: workflowKey } : undefined}
                     inputMessage={inputMessage}
@@ -8257,6 +8269,9 @@ function AuthenticatedBuilderContent({ authScopeUserId }: { authScopeUserId: str
 }
 // FLOW-CONTROL: this import sits here, not with the others, on purpose: an older proof slices this file by the positions of a parse that does not see FLOW-CONTROL lines, so nothing of the flow flags may come before the Builder's runners.
 import { useStudioFlowControl } from '@/hooks/use-studio-flow-control' // FLOW-CONTROL
+import { STUDIO_CHAT_CLEAN_ENABLED, chatCleanComposerState, chatCleanRootAttributes } from '@/lib/studio-chat-clean' // CHAT-CLEAN: placed here with the flow import, after the Builder's runners, for the same older proof
+import { STUDIO_FLOW_AMEND_ENABLED, STUDIO_FLOW_AMEND_INSTRUCTIONS_ENABLED } from '@/lib/studio-flow-control' // CHAT-CLEAN
+import { StudioChatCleanBar, useStudioChatCleanNotes } from '@/components/builder/chat/studio-chat-clean' // CHAT-CLEAN
 
 function BuilderLoadingState({ message = 'Loading builder...' }: { message?: string }) {
   // NEXT_PUBLIC_STUDIO_SESSION_HYGIENE: the route loader is the builder shell, not a blank page with a spinner.
