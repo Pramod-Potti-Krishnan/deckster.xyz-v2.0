@@ -264,11 +264,11 @@ async function suite({ quiet = false, bail = false, extraCommitted = [] } = {}) 
   // ---- B. flag -----------------------------------------------------------------------------------------------------------------------------------------------------
   await check('B: real React renders nothing for every value but "true", whatever the props', () => {
     for (const flag of [undefined, '', 'false', 'TRUE', ' true', 'true ', '1', 'yes']) {
-      const m = loadPicker({ ...real, env: flag === undefined ? {} : { NEXT_PUBLIC_STUDIO_MODEL_CHOICE: flag } })
+      const m = loadPicker({ read, ...real, env: flag === undefined ? {} : { NEXT_PUBLIC_STUDIO_MODEL_CHOICE: flag } })
       for (const props of [{ sessionId: null }, { sessionId: 'sess-fixture-1', disabled: true, className: 'x', variant: 'compact' }]) eq(renderToStaticMarkup(real.react.createElement(m.component.ModelPicker, props)), '', `flag ${JSON.stringify(flag)}`)
       eq(m.component.STUDIO_MODEL_PICKER_ENABLED, false)
     }
-    const on = loadPicker({ ...real, env: { NEXT_PUBLIC_STUDIO_MODEL_CHOICE: 'true' } })
+    const on = loadPicker({ read, ...real, env: { NEXT_PUBLIC_STUDIO_MODEL_CHOICE: 'true' } })
     ok(renderToStaticMarkup(real.react.createElement(on.component.ModelPicker, { sessionId: null })).includes('data-mpick="chip"'), 'and "true" renders the chip')
   })
   await check('B: flag off nothing is asked, nothing is stored, no effect runs; the other flags change nothing', async () => {
@@ -303,7 +303,7 @@ async function suite({ quiet = false, bail = false, extraCommitted = [] } = {}) 
     }
   })
   await check('C: shortName: whole at the limit, cut at a word with an ellipsis, mid-word only for one long word; never longer than the limit', () => {
-    const { picker } = loadPicker({ ...real })
+    const { picker } = loadPicker({ read, ...real })
     for (const [name, shown] of [['Kimi K3', 'Kimi K3'], ['0123456789012345', '0123456789012345'], ['Claude Opus 5.5 Thinking', 'Claude Opus 5.5…'], ['Claude Sonnet 5.5', 'Claude Sonnet…'], ['DeepSeek V4.1 Flash', 'DeepSeek V4.1…'],
       ['Supercalifragilisticexpialidocious', 'Supercalifragil…'], ['A very long model name indeed', 'A very long…']]) eq(picker.shortName(name), shown, name)
     for (const name of ['x'.repeat(80), 'Word '.repeat(30)]) ok(picker.shortName(name).length <= picker.PICKER_SHORT_MAX, name.slice(0, 8))
@@ -326,7 +326,7 @@ async function suite({ quiet = false, bail = false, extraCommitted = [] } = {}) 
   await check('C: until the choices are in the chip is disabled, busy and says Auto; then it opens', async () => {
     const rt = await mount({ flag: 'true' }) // settled
     ok(!rt.chip().props.disabled && rt.chip().props['aria-busy'] === undefined)
-    const real1 = loadPicker({ ...real, env: { NEXT_PUBLIC_STUDIO_MODEL_CHOICE: 'true' } })
+    const real1 = loadPicker({ read, ...real, env: { NEXT_PUBLIC_STUDIO_MODEL_CHOICE: 'true' } })
     const html = renderToStaticMarkup(real.react.createElement(real1.component.ModelPicker, { sessionId: null }))
     ok(/disabled=""/.test(html) && /aria-busy="true"/.test(html) && html.includes('>Auto<'), 'the server markup, before anything has loaded')
   })
@@ -570,9 +570,14 @@ async function suite({ quiet = false, bail = false, extraCommitted = [] } = {}) 
     eq(rt.fetchLog.filter(entry => entry.url === '/api/models/catalogue').length, 1)
   })
 
+  await check('I: two pickers on one page share one catalogue request', async () => {
+    const rt = await mount({ body: m => function Two() { return { type: 'div', props: { children: [{ type: m.component.ModelPicker, props: { sessionId: null } }, { type: m.component.ModelPicker, props: { sessionId: null } }] } } } })
+    eq(rt.all(node => node.props?.['data-mpick'] === 'chip').length, 2); eq(rt.fetchLog.filter(entry => entry.url === '/api/models/catalogue').length, 1)
+  })
+
   // ---- J. a11y ------------------------------------------------------------------------------------------------------------------------------------------------------
   await check('J: the trigger is a labelled button that says it opens a dialog and whether it is open (real React, real Radix)', () => {
-    const m = loadPicker({ ...real, env: { NEXT_PUBLIC_STUDIO_MODEL_CHOICE: 'true' } })
+    const m = loadPicker({ read, ...real, env: { NEXT_PUBLIC_STUDIO_MODEL_CHOICE: 'true' } })
     const { picker, component } = m
     const body = json(FIXTURE), catalogue = m.choice.withPresets(m.cat.parseCatalogue(body), body)
     const view = (extra = {}) => renderToStaticMarkup(real.react.createElement(component.ModelPickerView, {
@@ -590,7 +595,7 @@ async function suite({ quiet = false, bail = false, extraCommitted = [] } = {}) 
     eq(menu.props.side, 'top'); eq(menu.props.className, 'mpick-menu')
     ok(rt.items().every(item => item.node.type === 'button' && item.node.props.type === 'button' && typeof item.pressed === 'boolean'))
     const group = rt.find(node => node.props?.role === 'group'); eq(group.props['aria-label'], 'Model')
-    const m = loadPicker({ ...real, env: { NEXT_PUBLIC_STUDIO_MODEL_CHOICE: 'true' } })
+    const m = loadPicker({ read, ...real, env: { NEXT_PUBLIC_STUDIO_MODEL_CHOICE: 'true' } })
     const body = json(FIXTURE), catalogue = m.choice.withPresets(m.cat.parseCatalogue(body), body)
     const panel = (state, view = 'main') => renderToStaticMarkup(real.react.createElement(m.component.ModelPickerPanel, { menu: m.picker.pickerMenu({ catalogue, state }), view, notesId: 'n1', scope: 'user', saveNote: NOTES.account, onView() {}, onPick() {} }))
     const html = panel({ kind: 'tier', tier: 'best' })
