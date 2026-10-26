@@ -711,10 +711,28 @@ const AFTER = { 'Width, keep proportions': p => assert.deepEqual(plain(p.size), 
 
 // ============================================================ G. scope over this change's own commits
 {
-  const HEAD = git('log', '-1', '--format=%H', '-E', '--grep=^Studio arrange:', 'HEAD').trim() // this change's newest commit, its merges of dev included (a change stacked after it is not read as its diff)
+  const NEWEST = git('log', '-1', '--format=%H', '-E', '--grep=^Studio arrange:', 'HEAD').trim() // this change's newest commit, its merges of dev included (a change stacked after it is not read as its diff)
+  // #523 was merged into dev at FOLLOW_UP_BASE; a follow-up (the intent 'arrange' commit) is cut from dev after it. Each is held to its own range: #523 to BASE..its last commit, a follow-up to
+  // FOLLOW_UP_BASE..its newest commit (dev's other merged work between them is neither's).
+  const PR523_HEAD = 'df15abc0b5fb8eeb69f109ed608fbd30e43ae2b2'
+  const FOLLOW_UP_BASE = '0545569384ae3f6f7073699bff95662ec80c633a' // studio-v4-dev-preparation-code at #523's merge
+  const isAncestor = (a, b) => { try { git('merge-base', '--is-ancestor', a, b); return true } catch { return false } }
+  const followUp = Boolean(NEWEST) && NEWEST !== FOLLOW_UP_BASE && isAncestor(FOLLOW_UP_BASE, NEWEST)
+  const HEAD = followUp ? PR523_HEAD : NEWEST
   if (!HEAD) {
     console.log('SKIP G  nothing committed yet ("Studio arrange:" commits)')
   } else {
+    if (followUp) {
+      const own = git('log', '--format=%s', '--no-merges', `${FOLLOW_UP_BASE}..${NEWEST}`).trim().split('\n').filter(Boolean)
+      check(assert.ok, own.length > 0 && own.every(subject => strip.STUDIO_ARRANGE_COMMIT_SUBJECT.test(subject)), `follow-up: every commit on ${FOLLOW_UP_BASE.slice(0, 8)}..${NEWEST.slice(0, 8)} is "Studio arrange:"`)
+      const touched = git('diff', '--name-only', `${FOLLOW_UP_BASE}..${NEWEST}`).trim().split('\n').filter(Boolean)
+      for (const file of touched) check(assert.ok, strip.STUDIO_ARRANGE_SCOPE_FILES.has(file) && !strip.STUDIO_ARRANGE_PIN_FILES.includes(file), `follow-up in scope: ${file}`)
+      for (const rel of strip.STUDIO_ARRANGE_FILES) {
+        const lines = git('diff', '-U0', `${FOLLOW_UP_BASE}..${NEWEST}`, '--', rel).split('\n').filter(l => /^[+-](?![+-])/.test(l))
+        check(assert.ok, lines.every(l => strip.STUDIO_ARRANGE_MARKER_RE.test(l)), `follow-up: ${rel} changes only marked lines`)
+      }
+      console.log(`PASS G  follow-up: ${touched.length} files on ${FOLLOW_UP_BASE.slice(0, 8)}..${NEWEST.slice(0, 8)}, all this change's, marked lines only (${checks} checks)`)
+    }
     const subjects = git('log', '--format=%s', '--no-merges', `${BASE}..${HEAD}`).trim().split('\n').filter(Boolean)
     check(assert.ok, subjects.length > 0 && subjects.every(subject => strip.STUDIO_ARRANGE_COMMIT_SUBJECT.test(subject)), `every commit on ${BASE.slice(0, 8)}..${HEAD.slice(0, 8)} is this change's ("Studio arrange:")`)
     const files = git('diff', '--name-only', `${BASE}..${HEAD}`).trim().split('\n').filter(Boolean)
