@@ -743,13 +743,16 @@ async function suite({ quiet = false, extraCommitted = [] } = {}) {
   })
   await check('K: .env.example, the registry and the taught proof without this change\'s lines are the base\'s, byte for byte', async () => {
     const flow = await import('./studio-flow-control-strip.mjs') // dev 6fba3b7f (#524): flow control registers its block, its lines and a taught proof before this change's; they come out first
-    eq(read(ENV).replace(`\n${strip.MODEL_CHOICE_ENV_BLOCK}`, '').replace(`\n${flow.FLOW_CONTROL_ENV_BLOCK}`, ''), baseOf(ENV)); ok(read(ENV).endsWith(strip.MODEL_CHOICE_ENV_BLOCK))
+    const reg = await import(`${path.join(root, REGISTRY)}?t=${Date.now()}`)
+    // dev 0545569 (#523): every block another change registered (flow control's, Arrange's) comes out first, wherever it sits before this one
+    const withoutOtherBlocks = reg.LATER_ENV_BLOCKS.filter(block => block !== strip.MODEL_CHOICE_ENV_BLOCK && !baseOf(ENV).includes(block)).reduce((text, block) => text.replace(`\n${block}`, ''), read(ENV).replace(`\n${strip.MODEL_CHOICE_ENV_BLOCK}`, ''))
+    eq(withoutOtherBlocks, baseOf(ENV)); ok(read(ENV).endsWith(strip.MODEL_CHOICE_ENV_BLOCK))
     ok(/^NEXT_PUBLIC_STUDIO_MODEL_CHOICE="false"$/m.test(read(ENV))); eq((read(ENV).match(/^MODEL_ROUTER_URL=/gm) || []).length, 1, 'MODEL_ROUTER_URL is not declared twice')
     ok(/^MODEL_ROUTER_FRONTEND_KEY=$/m.test(read(ENV)), 'the key: a name only')
     deep([...new Set(strip.MODEL_CHOICE_ENV_BLOCK.match(/\b[A-Z][A-Z0-9]*_[A-Z0-9_]+\b/g))].sort(), ['MODEL_ROUTER_FRONTEND_KEY', 'NEXT_PUBLIC_STUDIO_MODEL_CHOICE'], 'the block names no other variable (older pins refuse their own names in a later block)')
-    eq(read(REGISTRY).split('\n').filter(line => !line.includes('studio-model-choice-strip.mjs') && !line.includes('studio-flow-control-strip.mjs') && !line.includes('studio-model-slider-strip.mjs')).join('\n'), baseOf(REGISTRY))
-    for (const rel of strip.MODEL_CHOICE_PIN_FILES) { eq(strip.putBackPin(rel, flow.stripFlowControl(rel, read(rel))), baseOf(rel), rel); for (const [has] of strip.MODEL_CHOICE_PIN_EDITS[rel]) { eq(read(rel).split(has).length, 2); ok(has.includes(strip.MODEL_CHOICE_PIN_MARK) && has.endsWith('\n')) } }
-    const reg = await import(`${path.join(root, REGISTRY)}?t=${Date.now()}`)
+    const baseRegistryLines = new Set(baseOf(REGISTRY).split('\n')) // a registry line another change added (flow control's, Arrange's) is not this change's
+    eq(read(REGISTRY).split('\n').filter(line => !line.includes('studio-model-choice-strip.mjs') && (baseRegistryLines.has(line) || !line.includes('// LATER-CHANGE: '))).join('\n'), baseOf(REGISTRY))
+    for (const rel of strip.MODEL_CHOICE_PIN_FILES) { eq(strip.putBackPin(rel, flow.stripFlowControl(rel, read(rel))), baseOf(rel), rel); for (const [has] of strip.MODEL_CHOICE_PIN_EDITS[rel]) { eq(read(rel).split(has).length, 2); ok((has.includes(strip.MODEL_CHOICE_PIN_MARK) || has.includes(strip.MODEL_CHOICE_TWIN_PIN_MARK)) && has.endsWith('\n')) } }
     for (const rel of strip.MODEL_CHOICE_SCOPE_FILES) ok(reg.LATER_CHANGE_FILES.has(rel), rel)
     eq(reg.stripLaterChanges(PAGE, hooked), basePage); eq(reg.stripLaterEnvBlocks(ENV, read(ENV)).includes('MODEL_CHOICE'), false)
   })
