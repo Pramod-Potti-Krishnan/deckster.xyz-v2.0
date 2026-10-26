@@ -42,7 +42,18 @@ export const DUPLICATE_ADOPT_NEW_FILES = [
 /** The older proofs this change teaches (FRONTEND-2's own): [text the proof has now, text the proof had before] per edit, whole lines, so putting them back gives the previous file byte for byte.
  *  Every line the proof has now carries DUPLICATE_ADOPT_PIN_MARK. */
 export const DUPLICATE_ADOPT_PIN_MARK = '// LATER-CHANGES: registry read (DUPLICATE-ADOPT)'
-export const DUPLICATE_ADOPT_PIN_EDITS = {}
+export const DUPLICATE_ADOPT_PIN_EDITS = {
+  "scripts/test-studio-deck-import.mjs": [
+    [
+      "  const laterChangeFiles = (await import('./studio-later-changes.mjs')).LATER_CHANGE_FILES // LATER-CHANGES: registry read (DUPLICATE-ADOPT): a change registered after this one answers for its own importers of the minter in its own proof; the closure walk above still ran over its files\n",
+      ""
+    ],
+    [
+      "  deepEq([...text.keys()].filter(rel => rel !== HELPER && !laterChangeFiles.has(rel) && /director-rest-entitlement/.test(text.get(rel))).sort(), [JOBS, START].sort(), 'the minter is imported by the two import routes only') // LATER-CHANGES: registry read (DUPLICATE-ADOPT)\n",
+      "  deepEq([...text.keys()].filter(rel => rel !== HELPER && /director-rest-entitlement/.test(text.get(rel))).sort(), [JOBS, START].sort(), 'the minter is imported by the two import routes only')\n"
+    ]
+  ]
+}
 
 /** The proof without this change's edits (the previous file). Used by the strip and the proof. */
 export function putBackPin(rel, text) {
