@@ -827,7 +827,8 @@ await check('page: wired only behind the flags (read inline), next to the K5 add
   assert.ok(runnerAssign && addRunnerAssign && hookSpread && applyNode)
   assert.ok(runnerAssign.getStart(pageAst) > addRunnerAssign.getEnd(), 'after the add runner')
   // Right beside it: only this change's own lines, or, stacked on #470, the refine runner's region (its selection effects and runner), sit between.
-  const between = pageAst.text.slice(addRunnerAssign.getEnd(), runnerAssign.getStart(pageAst)) // LATER-CHANGES: registry read (DUPLICATE-ADOPT), stacked after #475: the text the AST was parsed from (page-extract reads the page through the registry), so the offsets index the text they came from
+  const pageText = pageAst.text // LATER-CHANGES: registry read (DUPLICATE-ADOPT), stacked after #475: here the page is the text the AST was parsed from (page-extract reads it through the registry), so the offsets below index the text they came from
+  const between = pageText.slice(addRunnerAssign.getEnd(), runnerAssign.getStart(pageAst))
   assert.ok(between.split('\n').length < 40 || (between.includes('elementRefineDirectiveRunnerRef.current =') && between.split('\n').length < 100), 'right beside it')
   const gate = "process.env.NEXT_PUBLIC_CHAT_THEME_CHANGE === 'true' || process.env.NEXT_PUBLIC_CHAT_EXPORT === 'true'"
   assert.ok(runnerAssign.right.getText(pageAst).startsWith(`!(${gate}) ? null : (message, owner) => {`))
