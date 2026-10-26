@@ -33,6 +33,7 @@ import { createClock, createLayoutViewer, replayViewer, LAYOUT_SCRIPTS } from '.
 import {
   BASE_COMMIT, CHAT_ELEMENT_EDIT_FILES, CHAT_ELEMENT_EDIT_NEW_FILES, CHAT_ELEMENT_EDIT_OWN_EDITS, CHAT_ELEMENT_EDIT_SCOPE_FILES, CHAT_ELEMENT_EDIT_ENV_BLOCK, CHAT_ELEMENT_EDIT_MARKER_RE, stripChatElementEdit,
 } from './studio-chat-element-edit-strip.mjs'
+import { stripFlowControl } from './studio-flow-control-strip.mjs' // dev 6fba3b7f (#524): flow control marks lines in the Builder page and the hook and teaches the perceived speed proof; its lines come out before this change's identity checks
 
 const root = path.resolve(fileURLToPath(new URL('../', import.meta.url)))
 const FIXTURES = path.join(root, 'scripts/fixtures/chat-element-edit')
@@ -800,8 +801,8 @@ await check('hook (flag on): the built send equals the base\'s except the caps, 
 })
 await check('hook: the stripped hook is the base hook byte for byte; every added line carries the marker (and the base had none)', async () => {
   const head = read(HOOK)
-  assert.equal(stripChatElementEdit(HOOK, head), baseFile(HOOK))
-  const added = git('diff', '-U0', BASE_COMMIT, '--', HOOK).split('\n').filter(line => line.startsWith('+') && !line.startsWith('+++'))
+  assert.equal(stripChatElementEdit(HOOK, stripFlowControl(HOOK, head)), baseFile(HOOK))
+  const added = git('diff', '-U0', BASE_COMMIT, '--', HOOK).split('\n').filter(line => line.startsWith('+') && !line.startsWith('+++') && stripFlowControl(HOOK, `${line.slice(1)}\n`) !== '') // a line flow control marks is its own
   assert.ok(added.length > 15)
   for (const line of added) assert.match(line, CHAT_ELEMENT_EDIT_MARKER_RE, line.slice(0, 80))
   assert.equal(git('diff', '-U0', BASE_COMMIT, '--', HOOK).split('\n').filter(line => line.startsWith('-') && !line.startsWith('---')).length, 0, 'no line of the base is removed or changed')
@@ -921,9 +922,9 @@ await check('page: onNotesUpdated dispatches the Notes panel\'s window event onl
 })
 await check('page: the stripped page is the base byte for byte; every added line carries the marker; the Builder has exactly one connect() as before', async () => {
   const rel = 'app/builder/page.tsx'
-  assert.equal(stripChatElementEdit(rel, read(rel)), baseFile(rel))
+  assert.equal(stripChatElementEdit(rel, stripFlowControl(rel, read(rel))), baseFile(rel))
   const diff = git('diff', '-U0', BASE_COMMIT, '--', rel).split('\n')
-  for (const line of diff.filter(l => l.startsWith('+') && !l.startsWith('+++'))) assert.match(line, CHAT_ELEMENT_EDIT_MARKER_RE)
+  for (const line of diff.filter(l => l.startsWith('+') && !l.startsWith('+++') && stripFlowControl(rel, `${l.slice(1)}\n`) !== '')) assert.match(line, CHAT_ELEMENT_EDIT_MARKER_RE) // a line flow control marks is its own
   assert.equal(diff.filter(l => l.startsWith('-') && !l.startsWith('---')).length, 0)
   const connects = (text) => (text.match(/\bconnect\(\)/g) || []).length
   assert.equal(connects(read(rel)), connects(baseFile(rel)))
@@ -931,7 +932,7 @@ await check('page: the stripped page is the base byte for byte; every added line
   assert.equal(hookConnects(read(HOOK)), hookConnects(baseFile(HOOK)), 'the hook gains no connect();')
 })
 await check('flag off is identical in every file the change touches: the strip gives the base back, and the new lib files are inert with the flag off', async () => {
-  for (const rel of CHAT_ELEMENT_EDIT_FILES) assert.equal(stripChatElementEdit(rel, read(rel)), baseFile(rel), rel)
+  for (const rel of CHAT_ELEMENT_EDIT_FILES) assert.equal(stripChatElementEdit(rel, stripFlowControl(rel, read(rel))), baseFile(rel), rel)
   assert.equal(stripChatElementEdit('lib/chat-element-edit.ts', 'x'), 'x', 'a file the change does not own comes back untouched')
   assert.equal(stripChatElementEdit('scripts/studio-later-changes.mjs', 'x'), 'x')
   const registry = await import('./studio-later-changes.mjs')
@@ -946,17 +947,20 @@ await check('flag off is identical in every file the change touches: the strip g
 })
 await check('pins: the older proofs this change teaches are the base\'s byte for byte once the edits are put back, and every line they gained carries the mark', async () => {
   for (const [rel, gained] of [['scripts/test-studio-chat-theme-export.mjs', 2], ['scripts/test-studio-speed-perceived.mjs', 1]]) {
-    assert.equal(stripChatElementEdit(rel, read(rel)), baseFile(rel), rel)
-    const diff = git('diff', '-U0', BASE_COMMIT, '--', rel).split('\n')
-    const added = diff.filter(line => line.startsWith('+') && !line.startsWith('+++'))
+    const text = stripFlowControl(rel, read(rel)) // dev 6fba3b7f (#524) teaches the perceived speed proof five lines of its own: they come out first, so what is left is this change's edit alone
+    assert.equal(stripChatElementEdit(rel, text), baseFile(rel), rel)
+    const baseLines = baseFile(rel).split('\n'), textLines = text.split('\n')
+    const added = textLines.filter(line => !baseLines.includes(line)), removed = baseLines.filter(line => !textLines.includes(line))
     assert.equal(added.length, gained, rel); for (const line of added) assert.ok(line.includes('// LATER-CHANGES: registry read (CHAT-ELEMENT-EDIT)'), `${rel}: ${line.slice(0, 80)}`)
-    assert.equal(diff.filter(line => line.startsWith('-') && !line.startsWith('---')).length, gained === 2 ? 1 : 1, `${rel}: one line replaced, none else removed`)
+    assert.equal(removed.length, gained === 2 ? 1 : 1, `${rel}: one line replaced, none else removed`)
   }
 })
 await check('scope: the committed diff BASE..HEAD is this change\'s own files, and every commit subject starts "Chat element edit:"', async () => {
-  const subjects = git('log', '--format=%s', `${BASE_COMMIT}..HEAD`).split('\n').filter(Boolean)
+  // dev 6fba3b7f: this change's own commits are the branch's first-parent line without its merges; a merge of dev brings dev's history in by its second parent, and dev's files are their changes' own
+  const ownBlocks = git('log', '--first-parent', '--no-merges', '--name-only', '--format=%x01%s', `${BASE_COMMIT}..HEAD`).split('\x01').filter(Boolean).map(block => block.split('\n'))
+  const subjects = ownBlocks.map(([subject]) => subject).filter(Boolean)
   for (const subject of subjects) assert.ok(subject.startsWith('Chat element edit:'), subject)
-  const files = git('diff', '--name-only', `${BASE_COMMIT}..HEAD`).split('\n').filter(Boolean)
+  const files = [...new Set(ownBlocks.flatMap(([, ...names]) => names).filter(Boolean))]
   for (const file of files) assert.ok(CHAT_ELEMENT_EDIT_SCOPE_FILES.has(file), `a file outside the change: ${file}`)
   const ownProof = fs.existsSync(path.join(root, 'scripts/test-studio-chat-element-edit.mjs'))
   assert.ok(ownProof)
