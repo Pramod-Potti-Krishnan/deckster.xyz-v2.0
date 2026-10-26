@@ -82,6 +82,8 @@ export const MODEL_CHOICE_NEW_FILES = [
  *  the speed perceived proof's scope check reads its own newest commit (subject "Speed perceived:"), not HEAD, so a change stacked after it is not read as its diff (the form #520 teaches it too): [text the proof has now, text the
  *  proof had before] per edit, whole lines, so putting them back gives the previous file byte for byte. Every line the proof has now carries MODEL_CHOICE_PIN_MARK. */
 export const MODEL_CHOICE_PIN_MARK = '// LATER-CHANGES: registry read (MODEL-CHOICE)'
+/** The speed perceived proof's line below is the duplicate-adopt change's (#520), byte for byte, which dev carries since #523: changes teaching one line teach the same bytes, so its trailing comment names DUPLICATE-ADOPT, not MODEL-CHOICE. The restore is idempotent, so any strip that holds the same pair may run before or after this one. */
+export const MODEL_CHOICE_TWIN_PIN_MARK = '// LATER-CHANGES: registry read (DUPLICATE-ADOPT)'
 export const MODEL_CHOICE_PIN_EDITS = {
   "scripts/test-studio-legal-short-links.mjs": [
     [
@@ -99,7 +101,7 @@ export const MODEL_CHOICE_PIN_EDITS = {
   ],
   "scripts/test-studio-speed-perceived.mjs": [
     [
-      "const HEAD = git('log', '-1', '--format=%H', '--no-merges', '-E', '--grep=^(Speed perceived|Studio perceived speed):', 'HEAD').trim() || git('rev-parse', 'HEAD').trim() // LATER-CHANGES: registry read (MODEL-CHOICE): this change's own newest commit, so a change stacked after it is not read as this one's diff\n",
+      "const HEAD = git('log', '-1', '--format=%H', '--no-merges', '-E', '--grep=^(Speed perceived|Studio perceived speed):', 'HEAD').trim() || git('rev-parse', 'HEAD').trim() // LATER-CHANGES: registry read (DUPLICATE-ADOPT): this change's own newest commit, so a change stacked after it is not read as this one's diff\n",
       "const HEAD = git('rev-parse', 'HEAD').trim()\n"
     ]
   ]
