@@ -492,15 +492,25 @@ const controlSteps = s => [
   ['Align bottom', () => s.click('Align to slide bottom'), 'alignElement', { vertical: 'bottom' }],
   ['X', () => s.type('Horizontal position in slide pixels', 240), 'positionElement', () => ({ x: 240, y: s.before.position.y })],
   ['Y', () => s.type('Vertical position in slide pixels', 36), 'positionElement', () => ({ x: s.before.position.x, y: 36 })],
-  ['Lock', () => s.click('Lock'), 'lockElement', { locked: true }],
-  ['Unlock', () => s.click('Unlock'), 'lockElement', { locked: false }],
 ]
+/** Lock is disabled with "Not available yet" (STUDIO_ARRANGE_LOCK_ENABLED = false): shown, never enabled, and never sends lockElement, even when its handler is called. */
+async function lockHidden(s, id) {
+  const [lock] = s.inspector.button('Lock unavailable')
+  assert.ok(lock, `${id}: the Lock control is shown`)
+  assert.equal(s.inspector.text(lock), 'Lock', `${id}: it reads Lock`)
+  assert.equal(lock.props.disabled, true, `${id}: Lock is disabled`)
+  assert.match(s.inspector.arrangeText(), /Not available yet: a locked element cannot be selected again to unlock it\./, `${id}: with the note`)
+  const sent = s.world.requests.filter(r => r.action === 'lockElement').length
+  lock.props.onClick?.(); await s.idle()
+  assert.equal(s.world.requests.filter(r => r.action === 'lockElement').length, sent, `${id}: its handler sends no lockElement`)
+  assert.equal(s.inspector.failure(), null, `${id}: and shows no notice`)
+}
 /** The numbers each step leaves (slide pixels): every element ends at 240 x 108, then moves by align and position. */
 const AFTER = { 'Width, keep proportions': p => assert.deepEqual(plain(p.size), { width: 240, height: 108 }), 'Align left': p => assert.equal(p.position.x, 0),
   'Align center': p => assert.equal(p.position.x, 840), 'Align right': p => assert.equal(p.position.x, 1680), 'Align top': p => assert.equal(p.position.y, 0),
   'Align middle': p => assert.equal(p.position.y, 492), 'Align bottom': p => assert.equal(p.position.y, 972), X: p => assert.deepEqual(plain(p.position), { x: 240, y: 972 }),
   Y: p => assert.deepEqual(plain(p.position), { x: 240, y: 36 }), Width: p => assert.equal(p.size.width, 480), Height: p => assert.deepEqual(plain(p.size), { width: 480, height: 216 }),
-  Lock: p => assert.equal(p.locked, true), Unlock: p => assert.equal(p.locked, false) }
+  }
 {
   for (const id of Object.keys(EXPECT_GEOMETRY)) {
     const s = await inspectorWorld(`controls-${id}`)
@@ -521,16 +531,17 @@ const AFTER = { 'Width, keep proportions': p => assert.deepEqual(plain(p.size), 
       check(assert.deepEqual, s.lastRequest(), want, `${id} ${control}: ${command} with exactly these params`)
       check(assert.equal, s.inspector.failure(), null, `${id} ${control}: no failure notice after a confirmed command`)
       check(assert.equal, s.selection.handle.isCurrent(), true, `${id} ${control}: the viewer's own "unsaved" for this change did not retire the selection`)
-      check(assert.equal, s.inspector.variant(), control === 'Lock' ? 'locked' : 'on', `${id} ${control}: the panel is the ${control === 'Lock' ? 'locked' : 'full'} one`)
+      check(assert.equal, s.inspector.variant(), 'on', `${id} ${control}: the panel is the full one`)
       if (id === 'tb1') TABLE.push([control, `${command} ${JSON.stringify(want.params).replace(`"elementId":"${id}"`, 'elementId')}`])
       const p = s.target.properties
       check(assert.equal, s.inspector.input('Horizontal position in slide pixels')[0]?.props.value ?? null, p.locked ? null : String(p.position.x), `${id} ${control}: the numbers are the re-read ones`)
       if (AFTER[control]) { checks++; AFTER[control](p) }
-      if (control === 'Lock') { check(assert.equal, p.locked, true, `${id}: locked`); check(assert.deepEqual, s.inspector.within('Arrange', n => n.type === 'button' || n.type === 'input').map(n => n.props['aria-label'] ?? s.inspector.text(n)), ['Unlock'], `${id}: locked shows only Unlock`) }
       const answer = s.world.events.filter(e => e.frame?.action === command && e.frame.requestId === s.world.requests.at(-1 - s.world.requests.slice().reverse().findIndex(r => r.action === command))?.requestId).at(-1)?.frame
       check(assert.equal, answer?.success, true, `${id} ${control}: the viewer confirmed it`)
       if (answer?.changed === true) check(assert.equal, s.world.pending() ?? true, true, `${id} ${control}: Layout marked the slide for saving (live)`)
     }
+    await lockHidden(s, id); checks += 6
+    check(assert.equal, s.world.requests.filter(r => r.action === 'lockElement').length, 0, `${id}: the panel never sent lockElement`)
     if (live) {
       const state = s.world.state()[id]
       check(assert.equal, state.locked, false, `${id}: Layout's lock class is off again`)
@@ -661,7 +672,7 @@ const AFTER = { 'Width, keep proportions': p => assert.deepEqual(plain(p.size), 
 
 // ============================================================ G. scope over this change's own commits
 {
-  const HEAD = git('log', '-1', '--format=%H', '--no-merges', '-E', '--grep=^Studio arrange:', 'HEAD').trim()
+  const HEAD = git('log', '-1', '--format=%H', '-E', '--grep=^Studio arrange:', 'HEAD').trim() // this change's newest commit, its merges of dev included (a change stacked after it is not read as its diff)
   if (!HEAD) {
     console.log('SKIP G  nothing committed yet ("Studio arrange:" commits)')
   } else {
@@ -732,10 +743,9 @@ if (!record) {
       if (AFTER[control]) AFTER[control](s.target.properties)
       assert.equal(s.inspector.failure(), null, `${control}: no failure notice`)
       assert.equal(s.selection.handle.isCurrent(), true, `${control}: still current`)
-      assert.equal(s.inspector.variant(), control === 'Lock' ? 'locked' : 'on', `${control}: panel variant`)
+      assert.equal(s.inspector.variant(), 'on', `${control}: panel variant`)
       const p = s.target.properties
       assert.equal(s.inspector.input('Horizontal position in slide pixels')[0]?.props.value ?? null, p.locked ? null : String(p.position.x), `${control}: the numbers are the re-read ones`)
-      if (control === 'Lock') assert.deepEqual(s.inspector.within('Arrange', n => n.type === 'button' || n.type === 'input').map(n => s.inspector.text(n)), ['Unlock'])
     }
     const save = await saveStatusRuns('true', src[VIEWER], src)
     assert.deepEqual([save.outside, save.inside, save.after], [4, [0, 1, 0, 1, 0], 1])
@@ -744,6 +754,8 @@ if (!record) {
     await k.wiring.modules.native.sendStudioFormatNativeCommand(k.world.iframe, 'lockElement', { elementId: 'img1', locked: true }, () => true, 8000); await settle()
     assert.equal(k.selection.handle.isCurrent(), false, 'a foreign change retires the selection')
     for (const label of ['Rotate unavailable', 'Element CSS classes unavailable']) assert.equal(s.inspector.input(label)[0].props.disabled, true)
+    await lockHidden(s, 'ch1')
+    assert.equal(s.world.requests.filter(r => r.action === 'lockElement').length, 0)
     const sh = await inspectorWorld('not-yet-sh1', 'true', { src })
     await sh.open('sh1')
     assert.equal(sh.target.properties, null); assert.ok(!sh.target.supportedCommands.some(c => WORKING.includes(c)))
@@ -788,6 +800,11 @@ if (!record) {
     M(ARRANGE, "  return run().finally(() => { if (ownCommand === token) ownCommand = null })", "  return run()", 'the own-command window never closes (a foreign change would not retire the selection)'),
     M(ARRANGE, "return STUDIO_ARRANGE_ENABLED && ownCommand !== null && status === 'unsaved'", "return STUDIO_ARRANGE_ENABLED && ownCommand !== null", 'every save status is spared inside the window'),
     M(INSPECTOR, "<StudioArrange key={`arrange-${readRevision}`}", "<StudioArrange key=\"arrange\"", 'the numbers do not refresh after a change'),
+    // Lock hidden until Layout lets a locked element be selected again (PROGRAM-1's GO, 26 Oct)
+    M(INSPECTOR, "export const STUDIO_ARRANGE_LOCK_ENABLED = false // STUDIO-ARRANGE", "export const STUDIO_ARRANGE_LOCK_ENABLED = true // STUDIO-ARRANGE", 'Lock enabled again'),
+    M(INSPECTOR, "disabled={!STUDIO_ARRANGE_LOCK_ENABLED || !allowed('lockElement')}", "disabled={!allowed('lockElement')}", 'the Lock button ignores the constant'),
+    M(INSPECTOR, "onClick={() => { if (STUDIO_ARRANGE_LOCK_ENABLED) call('lockElement', { locked: true }) }}", "onClick={() => { call('lockElement', { locked: true }) }}", 'the Lock handler ignores the constant'),
+    M(INSPECTOR, "{!STUDIO_ARRANGE_LOCK_ENABLED && <p className=\"text-xs\" role=\"status\">Not available yet: a locked element cannot be selected again to unlock it.</p>}", "{null}", 'Lock disabled without the note'),
   ]
   let caught = 0
   for (const mutant of mutants) {

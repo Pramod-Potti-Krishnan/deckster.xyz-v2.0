@@ -10,6 +10,8 @@
 //     Position, Size and Lock, sent as Layout's own commands, in SLIDE pixels of the 1920 x 1080 canvas (Layout snaps to its 12 px grid and
 //     clamps to the slide). Rotate, Flip and style classes stay disabled ("Not available yet": no Layout schema keeps them); shapes and
 //     tables get no Arrange command at all (Layout's autosave does not store them). A locked element is admitted for Unlock only.
+//     The inspector shows Lock disabled ("Not available yet", STUDIO_ARRANGE_LOCK_ENABLED = false in the inspector) until Layout lets a locked
+//     element be selected again: the inspector closes when Layout autosaves, and a locked element is pointer-events: none.
 //
 // Geometry. Layout's elementSelected properties report slide pixels while its flag is on (viewport pixels while it is off). The element's
 // grid position, which Layout's getElementGeometry reports in both builds (the logical 32 x 18 grid, minor steps of 0.2), converts to the

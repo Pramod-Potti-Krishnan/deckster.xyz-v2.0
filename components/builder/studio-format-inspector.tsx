@@ -69,6 +69,8 @@ type Tab = 'content' | 'appearance' | 'box' | 'arrange'
 /** NEXT_PUBLIC_STUDIO_ARRANGE (exact 'true', default off; pairs with Layout !260): the Arrange tab's Order, Align, Position, Size and Lock, in slide pixels (lib/studio-arrange.ts admits them). */ // STUDIO-ARRANGE
 export const STUDIO_ARRANGE = process.env.NEXT_PUBLIC_STUDIO_ARRANGE === 'true' // STUDIO-ARRANGE
 const studioArrangeNotYet = (target: StudioFormatTarget) => target.kind === 'element' && ['shape', 'table'].includes(String(target.elementType)) // STUDIO-ARRANGE: Layout's autosave does not store shapes and tables
+/** Lock stays disabled ("Not available yet") until Layout lets a locked element be selected again: the inspector closes when Layout autosaves (about 2.5 s after a change) and a locked element is pointer-events: none, so it could never be unlocked from here. An element already locked (by chat) still shows Unlock. A later Layout follow-up turns this on. */ // STUDIO-ARRANGE
+export const STUDIO_ARRANGE_LOCK_ENABLED = false // STUDIO-ARRANGE
 /** R6: NEXT_PUBLIC_STUDIO_TEXTBOX_PADDING_REACHABLE_ENABLED (exact 'true', default off). An editable text box gets its own "Box"
  *  tab (padding, fill, border) instead of burying Box under Appearance, below Typography, Alignment and Theme colors. */
 export const STUDIO_TEXTBOX_PADDING_REACHABLE = process.env.NEXT_PUBLIC_STUDIO_TEXTBOX_PADDING_REACHABLE_ENABLED === 'true'
@@ -416,7 +418,8 @@ function StudioArrange({ target, properties, send, disabled }: { target: StudioF
     <label className="flex min-h-[44px] items-center gap-2 text-xs md:min-h-0"><input type="checkbox" checked={keepRatio} disabled={!allowed('resizeElement')} onChange={event => setKeepRatio(event.target.checked)}/>Keep proportions</label>{/* STUDIO-ARRANGE */}
     <p className="text-xs">Slide pixels of the 1920 × 1080 slide. Positions and sizes snap to the 12 px grid and stay on the slide.</p>{/* STUDIO-ARRANGE */}
     <h3 className="text-xs font-semibold">Lock</h3>{/* STUDIO-ARRANGE */}
-    <button type="button" className={tap} disabled={!allowed('lockElement')} onClick={() => call('lockElement', { locked: true })}>Lock</button>{/* STUDIO-ARRANGE */}
+    <button type="button" className={tap} aria-label={STUDIO_ARRANGE_LOCK_ENABLED ? undefined : 'Lock unavailable'} disabled={!STUDIO_ARRANGE_LOCK_ENABLED || !allowed('lockElement')} onClick={() => { if (STUDIO_ARRANGE_LOCK_ENABLED) call('lockElement', { locked: true }) }}>Lock</button>{/* STUDIO-ARRANGE */}
+    {!STUDIO_ARRANGE_LOCK_ENABLED && <p className="text-xs" role="status">Not available yet: a locked element cannot be selected again to unlock it.</p>}{/* STUDIO-ARRANGE */}
     <h3 className="text-xs font-semibold">Rotate, flip and style classes</h3>{/* STUDIO-ARRANGE */}
     <label className="block text-xs">Rotate<input aria-label="Rotate unavailable" disabled placeholder="Not available yet" className={`mt-1 ${field}`}/></label>{/* STUDIO-ARRANGE */}
     <div className="flex flex-wrap gap-1"><button type="button" aria-label="Flip horizontally unavailable" disabled className={tap}>Flip horizontal</button><button type="button" aria-label="Flip vertically unavailable" disabled className={tap}>Flip vertical</button></div>{/* STUDIO-ARRANGE */}

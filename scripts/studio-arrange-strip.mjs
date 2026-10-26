@@ -12,7 +12,7 @@
 // viewer line count skips this change's marked lines by marker, as it skips every later change's; and scripts/test-studio-pass3-polish-b.mjs, which held that pin byte for byte and now reads it
 // past the later changes' edits (its own withoutPeers helper; a pure insertion). putBackPin is idempotent, so the registry may run every restore table that holds a pair, in any order.
 
-export const BASE_COMMIT = '875334faa648ed72e63b260457ca2fc0a2020c0c' // studio-v4-dev-preparation-code at #518 (perceived speed), the branch this change is cut from
+export const BASE_COMMIT = '6fba3b7fc76bbe0172b0b06f7cdb43c386867938' // studio-v4-dev-preparation-code at #524 (flow control), merged into this branch (it was cut at 875334fa, #518): without this change's lines every file is this commit's
 export const STUDIO_ARRANGE_FLAG = 'NEXT_PUBLIC_STUDIO_ARRANGE'
 export const STUDIO_ARRANGE_COMMIT_SUBJECT = /^Studio arrange:/
 export const STUDIO_ARRANGE_MARKER = 'STUDIO-ARRANGE'
@@ -83,8 +83,9 @@ export const STUDIO_ARRANGE_SCOPE_FILES = new Set([...STUDIO_ARRANGE_FILES, ...S
 export const STUDIO_ARRANGE_ENV_BLOCK = `# STUDIO ARRANGE (FRONTEND-2, 26 Oct; pairs with Layout !260, LAYOUT_ARRANGE_COMMANDS_ENABLED: both flip together). On for the exact value "true"; default off, and then selection and the Format inspector behave exactly as today.
 # Build-time value: change it on Vercel and redeploy.
 # On: selecting an element no longer raises it (the viewer sent bringToFront on every selection, which Layout's flag turns into a saved raise); ordering happens only through Arrange or chat.
-# The v4 Format inspector's Arrange tab works: Order, Align to slide, Position and Size in slide pixels of the 1920 x 1080 slide (Layout snaps to its 12 px grid and keeps the element on the slide), and Lock.
-# Rotate, Flip and style classes show "Not available yet"; shapes and tables show every Arrange control disabled; a locked element shows only Unlock. A refusal from the viewer is shown in plain words.
+# The v4 Format inspector's Arrange tab works: Order, Align to slide, Position and Size in slide pixels of the 1920 x 1080 slide (Layout snaps to its 12 px grid and keeps the element on the slide).
+# Lock, Rotate, Flip and style classes show "Not available yet" (Lock until Layout lets a locked element be selected again); an element already locked shows only Unlock; shapes and tables show every Arrange
+# control disabled. A refusal from the viewer is shown in plain words.
 NEXT_PUBLIC_STUDIO_ARRANGE="false"
 `
 
