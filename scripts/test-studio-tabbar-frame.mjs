@@ -34,6 +34,7 @@ import {
   TABBAR_FRAME_SCOPE_FILES, TABBAR_FRAME_SPEED_PROOF, putBackPin, stripTabbarFrame,
 } from './studio-tabbar-frame-strip.mjs'
 import { LATER_CHANGE_FILES, LATER_ENV_BLOCKS, LATER_STRIPS, stripLaterChanges } from './studio-later-changes.mjs'
+import { FLOW_CONTROL_EDITS, stripFlowControl } from './studio-flow-control-strip.mjs' // dev 6fba3b7f (#524): FRONTEND-1's flow control teaches the perceived speed proof too (five lines); its lines come out first, so what is left is the base plus this change's one line
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..')
 const nodeRequire = createRequire(import.meta.url)
@@ -575,7 +576,7 @@ function proveScope(committed = ownCommitted(), at = '') {
     deep([...TABBAR_FRAME_SCOPE_FILES].filter(rel => !committed.includes(rel)), [], a('and every file of this change is in its commits'))
     deep(committed.filter(rel => /^(app|components|lib|hooks)\//.test(rel)).sort(), [BAR, CSS].sort(), a('the app files: the bar\'s component (one marked line) and the new sheet'))
     deep(committed.filter(rel => /^scripts\/test-/.test(rel)).sort(), [THIS_TEST, SPEED].sort(), a('the tests it adds or edits: its own, and FRONTEND-2\'s perceived speed proof (one line); no FRONTEND-1 test'))
-    eq(git('diff', '--numstat', BASE, 'HEAD', '--', SPEED).trim().split('\t').slice(0, 2).join(' '), '1 1', a('the perceived speed proof: one line changed in the committed diff (+1 -1)'))
+    eq(git('diff', '--numstat', BASE, 'HEAD', '--', SPEED).trim().split('\t').slice(0, 2).join(' '), `${1 + FLOW_CONTROL_EDITS[SPEED].length} ${1 + FLOW_CONTROL_EDITS[SPEED].length}`, a('the perceived speed proof: this change\'s one line, plus the five lines flow control (#524) teaches it, changed in the committed diff'))
   }
 }
 // ---- the one older proof this change teaches: speed perceived, section D. The same line, byte for byte, is taught by the duplicate-adopt change (#520), so with both in, two restore tables hold one pair.
@@ -583,7 +584,7 @@ function provePin(stripFn, at = '') {
   const a = message => (at ? `${at}: taught proof: ${message}` : `taught proof: ${message}`)
   deep(TABBAR_FRAME_PIN_FILES, [SPEED], a('one older proof, FRONTEND-2\'s own: perceived speed'))
   nomatch(SPEED, /test-studio-p2-|launch-wording|env-append-tolerant|route-params|admin-email-guard|uat-marketing|docs|landing|deck-title/, a(`${SPEED}: not a FRONTEND-1 test`))
-  const text = read(SPEED), edits = TABBAR_FRAME_PIN_EDITS[SPEED]
+  const text = stripFlowControl(SPEED, read(SPEED)), edits = TABBAR_FRAME_PIN_EDITS[SPEED] // the proof as it is, without flow control's (#524) taught lines
   eq(edits.length, 1, a('one edit'))
   const [has, was] = edits[0]
   eq(text.split(has).length - 1, 1, a('the taught line is in the proof once (the file as it is, not read through the registry)'))

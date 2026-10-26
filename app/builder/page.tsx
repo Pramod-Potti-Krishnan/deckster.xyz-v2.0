@@ -6322,6 +6322,14 @@ function AuthenticatedBuilderContent({ authScopeUserId }: { authScopeUserId: str
       canUseKnowledgeGraph, builderCacheOwner,
   ])
   const speedPerceivedEcho = useStudioSpeedPerceivedEcho({ userMessages: session.userMessages, scopeKey: currentSessionId || wsSessionId, inputMessage, uploadedFiles, choiceOpen: Boolean(pendingManualDeckBuild) }) // SPEED-PERCEIVED: state only; the send and the commit stay handleSendMessage's
+  // FLOW-CONTROL (P3-1 D): the follow-the-build navigation and the steer-a-paused-build bar. Every decision is lib/studio-flow-control.ts; with the flags off it fills nothing, listens to nothing and sends nothing.
+  const flowControl = useStudioFlowControl({ // FLOW-CONTROL
+    studioShell, overlay: studioOverlayWorkspace, revealStage: revealStudioStage, // FLOW-CONTROL
+    displayedPresentationId: effectivePresentationId, buildPresentationId: buildNarration.buildPresentationId, goToSlide: layoutServiceApis?.goToSlide, viewerSafety: studioViewerSafety, // FLOW-CONTROL
+    narrationEnabled: effectiveBuildNarrationEnabled && features.buildControlEnabled, narration: buildNarration, draft: inputMessage, setDraft: setInputMessage, // FLOW-CONTROL
+    sendBuildControl, markControl: markNarrationControl, sendDraft: text => handleSendMessage(undefined, text), awaitingReply: awaitingDirectorReply, stopAwaiting: stopAwaitingReply, // FLOW-CONTROL
+    sessionKey: currentSessionId || wsSessionId, onStopFailed: () => toast({ title: "Couldn't stop the build", description: 'Your changes are still in the box.' }), // FLOW-CONTROL
+  }) // FLOW-CONTROL
 
   const handleCancelManualDeckBuild = useCallback(() => {
     if (manualDeckHandoffBusy) return
@@ -7714,6 +7722,7 @@ function AuthenticatedBuilderContent({ authScopeUserId }: { authScopeUserId: str
                   {effectiveBuildNarrationEnabled && (
                     <DirectorPresence narration={buildNarration} currentStatus={currentStatus} loadingSession={studioShell ? session.isLoadingSession : undefined} />
                   )}
+                  {flowControl.bar}{/* FLOW-CONTROL (NEXT_PUBLIC_STUDIO_FLOW_AMEND): the calm line and Resume / Rebuild while the build is held; off, null */}
 
                   {workflowBrief && <div className="studio-brief-handoff" role="region" aria-label="Brief ready">
                     <div><strong>Your brief is ready</strong><p>{inputMessage.trim() ? 'Use it to replace the current unsent message, or keep your message.' : 'Add it to the composer, review it, then send when ready.'}</p></div>
@@ -7967,6 +7976,7 @@ function AuthenticatedBuilderContent({ authScopeUserId }: { authScopeUserId: str
             studioTabPausedHint={oneLiveTabSuperseded ? SUPERSEDED_NOTICE_TEXT : undefined}
             onSlideChange={(slideNum) => {
               const nextVisualIndex = Math.max(0, slideNum - 1)
+              flowControl.noteSlideChange(nextVisualIndex) // FLOW-CONTROL: the viewer's report of where it is (ours, the viewer reloading, or the user's)
               // Keep the imperative insertion owner current before React
               // schedules the corresponding render.
               currentSlideIndexRef.current = nextVisualIndex
@@ -8251,6 +8261,8 @@ function AuthenticatedBuilderContent({ authScopeUserId }: { authScopeUserId: str
     </StudioIntroductionProvider>
   )
 }
+// FLOW-CONTROL: this import sits here, not with the others, on purpose: an older proof slices this file by the positions of a parse that does not see FLOW-CONTROL lines, so nothing of the flow flags may come before the Builder's runners.
+import { useStudioFlowControl } from '@/hooks/use-studio-flow-control' // FLOW-CONTROL
 
 function BuilderLoadingState({ message = 'Loading builder...' }: { message?: string }) {
   // NEXT_PUBLIC_STUDIO_SESSION_HYGIENE: the route loader is the builder shell, not a blank page with a spinner.
