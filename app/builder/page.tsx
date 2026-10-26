@@ -100,6 +100,9 @@ import { useElementRefinement } from '@/hooks/use-element-refinement'
 import { shouldOpenAsBlankPlaceholder } from '@/lib/element-blank-policy'
 // NEXT_PUBLIC_CHAT_ELEMENT_REFINE (default off): refine the selected element from chat (lib/chat-element-refine.ts).
 import { CHAT_ELEMENT_REFINE_ENABLED, chatElementReferenceFor, runElementRefineDirective, type ChatElementSelection, type ElementRefineDirectiveMessage, type ElementRefineDirectiveOwner } from '@/lib/chat-element-refine'
+import { CHAT_ELEMENT_EDIT_ENABLED, createElementEditGate, runElementEditDirective, type ElementEditDirectiveMessage, type ElementEditDirectiveOwner, type ElementEditGate } from '@/lib/chat-element-edit' // CHAT-ELEMENT-EDIT (NEXT_PUBLIC_STUDIO_CHAT_ELEMENT_EDIT, default off): edit an element from chat
+import { NOTES_UPDATED_EVENT } from '@/lib/chat-element-edit-wire' // CHAT-ELEMENT-EDIT
+import { getChatEditViewer, subscribeViewerSaveEvents } from '@/lib/chat-element-edit-save' // CHAT-ELEMENT-EDIT
 import { isTextLabsMappable } from '@/lib/element-type-mapping'
 // NEXT_PUBLIC_CHAT_THEME_CHANGE / NEXT_PUBLIC_CHAT_EXPORT (each default off): change the theme / export the deck from chat (lib/chat-theme-export.ts).
 import { runExportDirective, runThemeDirective, type ThemeExportDirectiveMessage, type ThemeExportDirectiveOwner, type ThemeExportResultData } from '@/lib/chat-theme-export'
@@ -702,6 +705,9 @@ function AuthenticatedBuilderContent({ authScopeUserId }: { authScopeUserId: str
   const templateSelectionLockedRef = useRef(false)
   // NEXT_PUBLIC_CHAT_THEME_CHANGE / NEXT_PUBLIC_CHAT_EXPORT: the late-bound theme / export directive runner (defined beside the K5 add runner below).
   const themeExportDirectiveRunnerRef = useRef<((message: ThemeExportDirectiveMessage, owner: ThemeExportDirectiveOwner) => void) | null>(null)
+  // CHAT-ELEMENT-EDIT: the late-bound element_edit runner (defined after the theme / export runner below) and this tab's single-flight gate.
+  const elementEditDirectiveRunnerRef = useRef<((message: ElementEditDirectiveMessage, owner: ElementEditDirectiveOwner) => void) | null>(null) // CHAT-ELEMENT-EDIT
+  const chatElementEditGateRef = useRef<ElementEditGate | null>(null) // CHAT-ELEMENT-EDIT
   const [templateModeOn, setTemplateModeOn] = useState(false)
   const studioFormatTemplateModeRef = useRef(templateModeOn)
   const studioFormatTemplateModeObservedRef = useRef(templateModeOn)
@@ -2391,6 +2397,7 @@ function AuthenticatedBuilderContent({ authScopeUserId }: { authScopeUserId: str
     sendMessage,
     sendMessageWhenConnected,
     sendElementDirectiveResult,
+    sendElementEditResult, // CHAT-ELEMENT-EDIT
     sendControlMessage,
     sendThemeSelection,
     sendBuildControl,
@@ -2631,6 +2638,15 @@ function AuthenticatedBuilderContent({ authScopeUserId }: { authScopeUserId: str
         themeExportDirectiveRunnerRef.current?.(message, owner)
       },
     } : {}),
+    // CHAT-ELEMENT-EDIT: the element_edit runner, and the Notes panel refresh of deck_mutation notes_updated (a window event, the narration script precedent). Off: not passed.
+    ...(CHAT_ELEMENT_EDIT_ENABLED ? { // CHAT-ELEMENT-EDIT
+      onElementEditDirective: (message: ElementEditDirectiveMessage, owner: ElementEditDirectiveOwner) => { // CHAT-ELEMENT-EDIT
+        elementEditDirectiveRunnerRef.current?.(message, owner) // CHAT-ELEMENT-EDIT
+      }, // CHAT-ELEMENT-EDIT
+      onNotesUpdated: (update: { presentationId: string; slideIndex: number }, owner: { isCurrent: () => boolean }) => { // CHAT-ELEMENT-EDIT
+        if (owner.isCurrent()) window.dispatchEvent(new CustomEvent(NOTES_UPDATED_EVENT, { detail: update })) // CHAT-ELEMENT-EDIT
+      }, // CHAT-ELEMENT-EDIT
+    } : {}), // CHAT-ELEMENT-EDIT
     // NEXT_PUBLIC_STUDIO_JOB_LEDGER: Director's job rows (job_update, sync_response jobs) go to this tab's ledger. Off: not passed.
     ...(STUDIO_JOB_LEDGER_ENABLED ? { onJobUpdate: studioJobLedger.onJobUpdate, onJobsSync: studioJobLedger.onJobsSync } : {}),
     // Build Narration: typed-frame ref-forwarders (WS options precede the
@@ -5324,6 +5340,29 @@ function AuthenticatedBuilderContent({ authScopeUserId }: { authScopeUserId: str
       })
     void run.then(send).finally(() => { chatThemeExportInFlightRef.current[kind] = false })
   }
+  // CHAT-ELEMENT-EDIT: Director's element_edit (NEXT_PUBLIC_STUDIO_CHAT_ELEMENT_EDIT, default off), after the theme / export runner and on the same owner record as the K5 add runner
+  // CHAT-ELEMENT-EDIT: (lib/chat-element-edit.ts). One edit of one element through the viewer's own element commands (delete, z-order, grid position, text format), never a PATCH; the answer
+  // CHAT-ELEMENT-EDIT: goes back on the socket that delivered it, ok:true only after the viewer's autosave acknowledged the change, and a stale socket or owner sends nothing. Off: no runner.
+  if (CHAT_ELEMENT_EDIT_ENABLED && !chatElementEditGateRef.current) chatElementEditGateRef.current = createElementEditGate() // CHAT-ELEMENT-EDIT
+  elementEditDirectiveRunnerRef.current = !CHAT_ELEMENT_EDIT_ENABLED ? null : (message, owner) => { // CHAT-ELEMENT-EDIT
+    void runElementEditDirective(message, owner, { // CHAT-ELEMENT-EDIT
+      displayed: () => elementDirectiveGenerationOwnerRef.current, // CHAT-ELEMENT-EDIT
+      gate: chatElementEditGateRef.current as ElementEditGate, // CHAT-ELEMENT-EDIT
+      paused: () => oneLiveTabSuperseded, // CHAT-ELEMENT-EDIT
+      templateMode: () => templateModeOn, // CHAT-ELEMENT-EDIT
+      slideCount: () => slideStructure?.slides?.length ?? 0, // CHAT-ELEMENT-EDIT
+      currentSlideIndex: () => currentSlideIndexRef.current, // CHAT-ELEMENT-EDIT
+      slideIdAt: slideIndex => { const id = (slideStructure?.slides?.[slideIndex] as { slide_id?: unknown } | undefined)?.slide_id; return typeof id === 'string' && id ? id : null }, // CHAT-ELEMENT-EDIT
+      goToSlide: layoutServiceApis?.goToSlide ?? null, // CHAT-ELEMENT-EDIT
+      sendElementCommand: layoutServiceApis?.sendElementCommand ?? null, // CHAT-ELEMENT-EDIT
+      sendTextBoxCommand: layoutServiceApis?.sendTextBoxCommand ?? null, // CHAT-ELEMENT-EDIT
+      ensureEditMode: () => getChatEditViewer()?.ensureEditMode() ?? Promise.resolve(false), // CHAT-ELEMENT-EDIT
+      subscribeSave: subscribeViewerSaveEvents, // CHAT-ELEMENT-EDIT
+      settle: () => new Promise<void>(resolve => setTimeout(resolve, 400)), // CHAT-ELEMENT-EDIT
+    }).then(result => { // CHAT-ELEMENT-EDIT
+      if (result && owner.isCurrent()) sendElementEditResult(result) // CHAT-ELEMENT-EDIT
+    }) // CHAT-ELEMENT-EDIT
+  } // CHAT-ELEMENT-EDIT
 
   // File upload state
   const {
