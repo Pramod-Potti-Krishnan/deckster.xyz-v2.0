@@ -1,0 +1,19 @@
+{
+ "description": "WebSocket sync_response frame on the next connect of the adopted session (the real handler, the session built from the row above). No composer_adoption key.",
+ "frame": {
+  "message_id": "<message id>",
+  "payload": {
+   "action": "skip_history",
+   "current_state": "COMPLETE",
+   "has_strawman": true,
+   "message_count": 0,
+   "presentation_id": "copy-deck-1",
+   "presentation_url": "https://layout.synthetic.invalid/p/copy-deck-1",
+   "slide_count": 5
+  },
+  "role": "assistant",
+  "session_id": "new-session-1",
+  "timestamp": "<iso timestamp>",
+  "type": "sync_response"
+ }
+}

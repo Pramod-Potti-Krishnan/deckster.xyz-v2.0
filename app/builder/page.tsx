@@ -138,6 +138,7 @@ import { useStudioPass3PolishGViewport } from '@/lib/studio-pass3-polish-g' // P
 import { useStudioDuplicateCopyTitleProps } from '@/hooks/use-studio-duplicate-copy-title'
 import { StudioSupersededNotice } from '@/components/builder/studio-superseded-notice'
 import { StudioCopiedFromNote } from '@/components/builder/studio-copied-from-note'
+import { createDuplicateAdoptOnOpen, type DuplicateAdoptSocketEvent, type DuplicateAdoptSocketOwner } from '@/lib/studio-duplicate-adopt' // DUPLICATE-ADOPT (NEXT_PUBLIC_STUDIO_DUPLICATE_ADOPT, default off): a copy never adopted is adopted when it is opened
 // NEXT_PUBLIC_STUDIO_DECK_IMPORT (default off): the note on an imported deck, loaded only when it is drawn (a build or page that does not draw it ships nothing of it).
 import nextDynamic from 'next/dynamic' // (this file already exports a route segment `dynamic`)
 const StudioDeckImportNote = nextDynamic(() => import('@/components/studio-deck-import/studio-deck-import-note').then(module => module.StudioDeckImportNote), { ssr: false })
@@ -320,6 +321,10 @@ const BUILDER_SESSION_OPTIONS_VERSION = 2
 const THEME_SYNC_TIMEOUT_MS = 20_000
 // NEXT_PUBLIC_STUDIO_CHAT_WIDTH_V2 (default off): the chat column's default width follows the v4 mockup per stage (lib/studio-workspace-layout.ts).
 const STUDIO_CHAT_WIDTH_V2_ENABLED = process.env.NEXT_PUBLIC_STUDIO_CHAT_WIDTH_V2 === 'true'
+// DUPLICATE-ADOPT: one controller per tab, only with both Duplicate flags on (exact "true", build time). A session's Director socket connecting ARMS it; the call waits for the Director's first chat_message (the
+// DUPLICATE-ADOPT: greeting, which comes after the blank canvas's row write) or 15 s: a copy whose marker has the copy's id and no receipt is adopted (one call, receipt written), and on 200 with reused false
+// DUPLICATE-ADOPT: that socket is replaced by the hook (its owner's reconnect; the retry budget is left as it is). Off: null, and the socket is given no callback.
+const studioDuplicateAdoptOnOpen = process.env.NEXT_PUBLIC_STUDIO_DUPLICATE_DECK === 'true' && process.env.NEXT_PUBLIC_STUDIO_DUPLICATE_ADOPT === 'true' ? createDuplicateAdoptOnOpen({ fetch: (input, init) => fetch(input, init), now: () => new Date(), schedule: (run, ms) => { const timer = setTimeout(run, ms); return () => clearTimeout(timer) } }) : null // DUPLICATE-ADOPT
 const isAttachedUpload = (file: UploadedFile) => (
   file.status === 'success'
   || file.status === 'stored'
@@ -2633,6 +2638,7 @@ function AuthenticatedBuilderContent({ authScopeUserId }: { authScopeUserId: str
     } : {}),
     // NEXT_PUBLIC_STUDIO_JOB_LEDGER: Director's job rows (job_update, sync_response jobs) go to this tab's ledger. Off: not passed.
     ...(STUDIO_JOB_LEDGER_ENABLED ? { onJobUpdate: studioJobLedger.onJobUpdate, onJobsSync: studioJobLedger.onJobsSync } : {}),
+    ...(studioDuplicateAdoptOnOpen ? { onDuplicateAdoptSocket: (event: DuplicateAdoptSocketEvent, owner: DuplicateAdoptSocketOwner & { reconnect: () => void }) => { void studioDuplicateAdoptOnOpen?.onSocketEvent(event, owner, owner.reconnect) } } : {}), // DUPLICATE-ADOPT: the reconnect is the socket's own (the hook's same-session replacement); never disconnect + connect, which would reset the retry budget's exhaustion
     // Build Narration: typed-frame ref-forwarders (WS options precede the
     // useBuildNarration hook, so the handlers land via a ref).
     onBuildPhase: (payload, ownerSessionId) => buildNarrationHandlersRef.current.onBuildPhase?.(payload, ownerSessionId),

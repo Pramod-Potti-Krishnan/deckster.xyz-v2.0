@@ -1,0 +1,64 @@
+{
+ "description": "The dr_sessions_v4 row the first call wrote (all the adoption's columns).",
+ "row": {
+  "context": {
+   "duplicate_adoption": {
+    "adopted_at": "2026-10-26T00:17:26.090381+00:00",
+    "presentation_id": "copy-deck-1",
+    "schema_version": "duplicate-adoption-v1",
+    "source_presentation_id": "source-deck-1"
+   }
+  },
+  "conversation_history": [],
+  "created_at": "2026-10-26T00:17:26.090385+00:00",
+  "has_blank_presentation": false,
+  "has_content": true,
+  "has_explicit_approval": true,
+  "has_strawman": true,
+  "has_topic": true,
+  "id": "new-session-1",
+  "is_complete": true,
+  "presentation_id": "copy-deck-1",
+  "presentation_url": "https://layout.synthetic.invalid/p/copy-deck-1",
+  "strawman": {
+   "slides": [
+    {
+     "layout": "C1",
+     "slide_id": "copy-deck-1-s0",
+     "slide_number": 1,
+     "title": "Q4 Revenue Overview"
+    },
+    {
+     "layout": "C1",
+     "slide_id": "copy-deck-1-s1",
+     "slide_number": 2,
+     "title": "Pipeline Health"
+    },
+    {
+     "layout": "C1",
+     "slide_id": "copy-deck-1-s2",
+     "slide_number": 3,
+     "title": "Churn Drivers"
+    },
+    {
+     "layout": "C1",
+     "slide_id": "copy-deck-1-s3",
+     "slide_number": 4,
+     "title": "Regional Mix"
+    },
+    {
+     "layout": "C1",
+     "slide_id": "copy-deck-1-s4",
+     "slide_number": 5,
+     "title": "Next Quarter Plan"
+    }
+   ],
+   "title": "Q4 sales review (copy)"
+  },
+  "topic": "Q4 sales review (copy)",
+  "updated_at": "2026-10-26T00:17:26.090385+00:00",
+  "user_has_content": true,
+  "user_id": "u1",
+  "user_slide_count": 5
+ }
+}

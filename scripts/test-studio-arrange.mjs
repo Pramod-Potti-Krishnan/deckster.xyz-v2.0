@@ -309,7 +309,7 @@ function mountInspector(env, props, source = SRC[INSPECTOR]) {
     check(assert.ok, marked > 0, `${rel}: has marked lines`)
   }
   check(assert.equal, registry.stripLaterEnvBlocks('.env.example', read('.env.example')), registry.stripLaterEnvBlocks('.env.example', baseText('.env.example')), '.env.example: without the block it is the base\'s')
-  check(assert.ok, read('.env.example').endsWith('\n' + strip.STUDIO_ARRANGE_ENV_BLOCK), 'the block is the file\'s last')
+  check(assert.ok, read('.env.example').lastIndexOf('\n' + strip.STUDIO_ARRANGE_ENV_BLOCK) >= 0 && registry.stripLaterEnvBlocks('.env.example', read('.env.example').slice(read('.env.example').lastIndexOf('\n' + strip.STUDIO_ARRANGE_ENV_BLOCK) + strip.STUDIO_ARRANGE_ENV_BLOCK.length + 1)).trim() === '', 'the block is the file\'s last, or followed only by the blocks of changes registered after it') // LATER-CHANGES: registry read (MODEL-CHOICE)
   check(assert.ok, strip.STUDIO_ARRANGE_ENV_BLOCK.trimEnd().endsWith(`${FLAG}="false"`), 'the example value is "false"')
   for (const rel of strip.STUDIO_ARRANGE_PIN_FILES) {
     check(assert.equal, strip.putBackPin(rel, read(rel)), baseText(rel), `the taught line of ${rel} puts back to the base's`)
@@ -322,7 +322,7 @@ function mountInspector(env, props, source = SRC[INSPECTOR]) {
   check(assert.equal, strip.stripStudioArrange('app/builder/page.tsx', 'x STUDIO-ARRANGE\n'), 'x STUDIO-ARRANGE\n', 'a file it does not own comes back as it is')
   check(assert.equal, strip.stripStudioArrange(VIEWER, 'a\nSTUDIO-ARRANGE-X\nX-STUDIO-ARRANGE\n'), 'a\nSTUDIO-ARRANGE-X\nX-STUDIO-ARRANGE\n', 'the marker is a whole token')
   // the legacy panel is not changed; the viewer's handle call carries the spread exactly where section C's capture puts it
-  for (const rel of ['components/element-format-panel/tabs/arrange-tab.tsx', 'components/element-format-panel/index.tsx', PAGE]) check(assert.equal, read(rel), baseText(rel), `${rel} is not changed`)
+  for (const rel of ['components/element-format-panel/tabs/arrange-tab.tsx', 'components/element-format-panel/index.tsx', PAGE]) check(assert.equal, registry.stripLaterChanges(rel, read(rel)), registry.stripLaterChanges(rel, baseText(rel)), `${rel} is not changed`) // LATER-CHANGES: registry read (DUPLICATE-ADOPT): a change registered after this one marks lines in the Builder page; they come out of both sides first
   check(assert.ok, SRC[VIEWER].includes("    selection = createStudioFormatSelectionHandle({ iframe, elementId, presentationId: owner.presentationId,\n      ...studioArrangeSelectionInput(eventKind, studioArrangeSelectionRef.current), // STUDIO-ARRANGE"), 'the handle input spread')
   check(assert.equal, (SRC[VIEWER].match(/^\s*if \(studioArrangeRaisesOnSelect\(\)\) \/\/ STUDIO-ARRANGE[^\n]*\n\s*void sendCommand\(interaction\?\.iframe \?\? iframeRef\.current, 'bringToFront', \{ elementId \}\)/gm) || []).length, 2, 'both select-raises are behind the one guard')
   check(assert.equal, (SRC[VIEWER].match(/'bringToFront'/g) || []).length, 2, 'no other bringToFront in the viewer')

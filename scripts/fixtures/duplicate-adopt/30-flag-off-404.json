@@ -1,0 +1,7 @@
+{
+ "body": {
+  "detail": "Not Found"
+ },
+ "description": "DIRECTOR_DUPLICATE_ADOPT_ENABLED off: the framework's own 404, same as any unknown path.",
+ "status": 404
+}

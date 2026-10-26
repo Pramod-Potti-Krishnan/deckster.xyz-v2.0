@@ -285,9 +285,10 @@ function proveRoutes(at = '') {
   // a change registered after this one (LATER_CHANGE_FILES, other than this change's own files) may delete route files of its own (D1's two debug env routes): exactly those routes may be gone
   const headFiles = new Set(headRouteFiles())
   const laterRemoved = routesOf([...LATER_CHANGE_FILES].filter(rel => !LEGAL_SHORT_LINKS_SCOPE_FILES.has(rel) && !headFiles.has(rel))).filter(route => before.includes(route) && !after.includes(route))
-  deep(after.filter(route => !before.includes(route)), ['/privacy', '/terms'], a('the flags-off build\'s route list gains exactly /privacy and /terms (+2)'))
+  const laterAdded = routesOf([...LATER_CHANGE_FILES].filter(rel => !LEGAL_SHORT_LINKS_SCOPE_FILES.has(rel) && headFiles.has(rel))).filter(route => !before.includes(route) && after.includes(route)) // LATER-CHANGES: registry read (DUPLICATE-ADOPT): and may add route files of its own (duplicate adoption's adopt-duplicate route): exactly those routes may be new
+  deep(after.filter(route => !before.includes(route) && !laterAdded.includes(route)), ['/privacy', '/terms'], a('the flags-off build\'s route list gains exactly /privacy and /terms (+2)')) // LATER-CHANGES: registry read (DUPLICATE-ADOPT)
   deep(before.filter(route => !after.includes(route)), laterRemoved, a('and loses none but the routes a later registered change deletes'))
-  eq(after.length, before.length + 2 - laterRemoved.length, a(`${before.length} routes become ${before.length + 2 - laterRemoved.length}`))
+  eq(after.length, before.length + 2 - laterRemoved.length + laterAdded.length, a(`${before.length} routes become ${before.length + 2 - laterRemoved.length + laterAdded.length}`)) // LATER-CHANGES: registry read (DUPLICATE-ADOPT)
   ok(before.includes('/docs/api') && after.includes('/docs/api') && after.includes('/shortcuts'), a('/docs/api and /shortcuts are still the dev pages'))
   return { before: before.length, after: after.length }
 }

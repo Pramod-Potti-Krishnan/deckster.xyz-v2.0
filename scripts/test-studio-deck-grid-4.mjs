@@ -33,7 +33,8 @@ const jsxRuntime = nodeRequire('react/jsx-runtime')
 const postcss = nodeRequire('postcss')
 const { renderToStaticMarkup } = nodeRequire('react-dom/server')
 const BASE_COMMIT = process.env.DECK_GRID_4_BASE || 'e9503ae'
-const read = rel => stripLaunchWording(rel, stripDeckCardThumbnail(rel, fs.readFileSync(path.join(repoRoot, rel), 'utf8'))) // DECK-CARD-THUMBNAIL: its lines out first
+const { stripLaterChanges } = await import('./studio-later-changes.mjs') // LATER-CHANGES: registry read (DUPLICATE-ADOPT): every registered later change's lines come out first, innermost, as the newer pins read (stripping one twice changes nothing)
+const read = rel => stripLaunchWording(rel, stripDeckCardThumbnail(rel, stripLaterChanges(rel, fs.readFileSync(path.join(repoRoot, rel), 'utf8')))) // DECK-CARD-THUMBNAIL: its lines out first // LATER-CHANGES: registry read (DUPLICATE-ADOPT)
 function baseSource(rel) {
   try {
     execFileSync('git', ['cat-file', '-e', `${BASE_COMMIT}^{commit}`], { cwd: repoRoot, stdio: 'ignore' })

@@ -4,6 +4,7 @@
 // this change (DUPLICATE_DECK_BASE, default bcd8aed) and that every addition is inert with the flag off.
 
 import { DECK_IMPORT_BUILDER_ADDITIONS } from './studio-deck-import-strip.mjs' // FRONTEND-1 (NEXT_PUBLIC_STUDIO_DECK_IMPORT): its two Builder-page additions come out too
+import { stripDuplicateAdopt } from './studio-duplicate-adopt-strip.mjs' // LATER-CHANGES: registry read (DUPLICATE-ADOPT): Duplicate's step 4 adds marked lines inside this change's handler, so they come out first and the literals below still match
 
 export const DASHBOARD_PAGE = 'app/(app)/dashboard/page.tsx'
 export const BUILDER_PAGE = 'app/builder/page.tsx'
@@ -44,7 +45,7 @@ const ENV_ADDITIONS = [
  * and error lines; the Builder page: one import and one flag-gated element). Any other file is returned as it is. */
 export function stripDuplicateDeck(rel, text) {
   const table = rel === DASHBOARD_PAGE ? DASHBOARD_ADDITIONS : rel === BUILDER_PAGE ? BUILDER_ADDITIONS : rel === ENV_FILE ? ENV_ADDITIONS : []
-  return table.reduce((result, [added, original]) => result.replace(added, () => original), text)
+  return table.reduce((result, [added, original]) => result.replace(added, () => original), stripDuplicateAdopt(rel, text)) // LATER-CHANGES: registry read (DUPLICATE-ADOPT)
 }
 
 export const DUPLICATE_DECK_ADDITIONS = { [DASHBOARD_PAGE]: DASHBOARD_ADDITIONS, [BUILDER_PAGE]: BUILDER_ADDITIONS, [ENV_FILE]: ENV_ADDITIONS }

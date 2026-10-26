@@ -1,0 +1,15 @@
+/* STUDIO PHONE TAB BAR FRAME (flag NEXT_PUBLIC_STUDIO_PHONE_SHELL, default off; PK's phone review, 26 Oct, on the bottom bar: "Frame: merged into the frame; Labels: selected tab only").
+   A later sheet on top of studio-phone-shell.css (PR 1), imported by the same component. Every rule needs the bar ([data-studio-phone-tabbar], drawn only with the flag) and sits inside the phone query, so with
+   the flag off, and at 641 px and wider, none of it matches anything. nav[...] puts each selector one step above PR 1's, so the order of the two sheets does not matter. The page card above the bar already has its
+   10 px margin and its rounded corners; it is not touched. PR 1's More sheet, the composer-focus hiding and the rail's hiding are not touched either.
+   The bar takes the frame's colour (opaque, so the content never shows through it) and loses its top line; one px of top padding replaces the line, so the tabs keep their height and place.
+   The selected tab is the desktop rail's selected item: a panel tile, the teal icon and name, the rail's soft shadow. In the dark theme --ss-panel is almost the frame (1.01 : 1), so the tile is --ss-soft
+   (1.15 : 1 above the frame, as the light tile's 1.16 : 1) with a --ss-line ring, both tokens of the shell's own dark palette.
+   Only the selected tab shows its name (More too, when a page under More is open). The other names stay in the page for assistive tech: visually hidden (clipped to 1 px), never display: none. The tabs'
+   own size (44 x 48 px minimum, equal cells) is not touched. */
+@media (max-width: 640px) {
+  [data-studio-v4-shell="true"] > nav[data-studio-phone-tabbar="true"] { padding-top: 5px; border-top: 0; background: var(--ss-frame); }
+  [data-studio-v4-shell="true"] > nav[data-studio-phone-tabbar="true"] > [aria-current="page"] { background: var(--ss-panel); color: var(--ss-teal); box-shadow: 0 1px 4px rgb(36 52 56 / 8%); }
+  .dark [data-studio-v4-shell="true"] > nav[data-studio-phone-tabbar="true"] > [aria-current="page"] { background: var(--ss-soft); box-shadow: inset 0 0 0 1px var(--ss-line); }
+  [data-studio-v4-shell="true"] > nav[data-studio-phone-tabbar="true"] > :is(a, button):not([aria-current="page"]) > span { position: absolute; width: 1px; height: 1px; margin: -1px; padding: 0; border: 0; overflow: hidden; clip: rect(0 0 0 0); clip-path: inset(50%); white-space: nowrap; }
+}

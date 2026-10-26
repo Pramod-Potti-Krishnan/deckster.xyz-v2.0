@@ -1,0 +1,10 @@
+{
+ "body": {
+  "code": "PRESENTATION_NOT_OWNED",
+  "detail": "This deck is not one of your decks.",
+  "error": "This deck is not one of your decks.",
+  "retryable": false
+ },
+ "description": "The user owns no session holding the deck the copy was made from.",
+ "status": 403
+}

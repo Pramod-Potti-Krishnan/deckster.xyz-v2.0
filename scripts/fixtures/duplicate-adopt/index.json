@@ -1,0 +1,19 @@
+{
+ "01-adopted-200": 200,
+ "03-repeat-200-reused": 200,
+ "10-no-header-401": 401,
+ "11-claim-for-another-user-403": 403,
+ "12-claim-invalid-401": 401,
+ "13-secret-unset-503": 503,
+ "14-request-invalid-422": 422,
+ "20-not-owned-403": 403,
+ "21-not-a-duplicate-422": 422,
+ "22-in-use-409": 409,
+ "23-session-not-fresh-409": 409,
+ "24-presentation-not-found-404": 404,
+ "25-layout-unavailable-502": 502,
+ "26-deck-empty-422": 422,
+ "27-store-unavailable-503": 503,
+ "28-not-durable-500": 500,
+ "30-flag-off-404": 404
+}

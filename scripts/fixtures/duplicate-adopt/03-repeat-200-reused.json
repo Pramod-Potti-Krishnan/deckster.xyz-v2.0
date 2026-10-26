@@ -1,0 +1,25 @@
+{
+ "body": {
+  "presentation_id": "copy-deck-1",
+  "presentation_url": "https://layout.synthetic.invalid/p/copy-deck-1",
+  "reused": true,
+  "session_id": "new-session-1",
+  "slide_count": 5,
+  "status": "adopted",
+  "title": "Q4 sales review (copy)"
+ },
+ "description": "The same call again: answered from the stored receipt, no Layout call, no write.",
+ "request": {
+  "body": {
+   "presentation_id": "copy-deck-1",
+   "user_id": "u1"
+  },
+  "headers": {
+   "Content-Type": "application/json",
+   "X-Deckster-Entitlement": "<minted for the user, method POST, <= 120 s>"
+  },
+  "method": "POST",
+  "path": "/api/sessions/new-session-1/adopt-duplicate"
+ },
+ "status": 200
+}

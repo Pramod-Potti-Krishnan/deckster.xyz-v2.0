@@ -1,0 +1,10 @@
+{
+ "body": {
+  "code": "REQUEST_INVALID",
+  "detail": "The request is incomplete. Send the signed-in user and the copied deck.",
+  "error": "The request is incomplete. Send the signed-in user and the copied deck.",
+  "retryable": false
+ },
+ "description": "Body is not exactly {user_id, presentation_id}.",
+ "status": 422
+}

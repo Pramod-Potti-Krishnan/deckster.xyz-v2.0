@@ -1,0 +1,10 @@
+{
+ "body": {
+  "code": "USER_MISMATCH",
+  "detail": "This request does not match your signed-in account.",
+  "error": "This request does not match your signed-in account.",
+  "retryable": false
+ },
+ "description": "A valid claim, but its sub is not the body user_id.",
+ "status": 403
+}

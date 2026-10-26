@@ -1,0 +1,10 @@
+{
+ "body": {
+  "code": "DECK_EMPTY",
+  "detail": "The copied deck has no slides to work on.",
+  "error": "The copied deck has no slides to work on.",
+  "retryable": false
+ },
+ "description": "The copy has no slides.",
+ "status": 422
+}
