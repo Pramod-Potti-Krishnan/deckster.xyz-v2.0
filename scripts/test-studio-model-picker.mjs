@@ -473,8 +473,15 @@ async function suite({ quiet = false, bail = false, extraCommitted = [] } = {}) 
     const router = fakeRouter()
     const rt = await mount({ router, props: { sessionId: 'sess-fixture-1' } }); await rt.open()
     deep(rt.items().slice(0, 2).map(item => [item.id, item.name, item.pressed]), [['auto', 'Auto: Deckster chooses', false], ['default', 'Use my default: Auto', true]]); eq(rt.chipText(), 'Auto')
-    router.bump(SESSION_PATH, { planning_strategy: { auto: true, preset: null, model: null, updated_at: 't' }, content_writing: { preset: 'best', model: null, updated_at: 't' } })
+    router.bump(SESSION_PATH, { content_writing: { preset: 'best', model: null, updated_at: 't' }, research_analysis: { auto: true, preset: null, model: null, updated_at: 't' } }) // the first group follows the default, the others differ
     const mixed = await mount({ router, props: { sessionId: 'sess-fixture-1' } }); eq(mixed.chipText(), 'Custom'); await mixed.open(); ok(mixed.items().every(item => item.pressed === false), 'no row is selected')
+  })
+  await check('F: on a deck only exactly { auto: true } is sent as Auto (false, "true", an extra key are ignored)', async () => {
+    const router = fakeRouter()
+    const rt = await mount({ router, props: { sessionId: 'sess-fixture-1' }, body: m => function Probe(p) { const api = m.component.useModelChoice(p.sessionId); return { type: 'probe', props: { api } } } })
+    for (const bad of [{ auto: false }, { auto: 'true' }, { auto: 1 }, { auto: true, x: 1 }, { auto: true, tier: 'best' }]) deep(await rt.find(node => node.type === 'probe').props.api.select(bad), { kind: 'ignored' }, JSON.stringify(bad))
+    eq(rt.fetchLog.filter(entry => entry.init.method === 'PATCH').length, 0); deep(kept(router, SESSION_PATH), {})
+    deep(await rt.find(node => node.type === 'probe').props.api.select({ auto: true }), { kind: 'saved', choice: { auto: true } })
   })
   await check('F: the reusable default (no session, or no deck scope) has Auto alone, as null; no deck rows; a deck Auto is ignored there', async () => {
     for (const [name, extra] of [['no session', { props: { sessionId: null } }], ['no deck scope', { props: { sessionId: 'sess-fixture-1' }, router: fakeRouter({ deckScope: false }) }]]) {
@@ -669,6 +676,8 @@ async function suite({ quiet = false, bail = false, extraCommitted = [] } = {}) 
     eq(api().ready, true); eq(api().choice, null); eq(api().scope, 'deck'); deep(api().state, { kind: 'auto' })
     deep(await api().select({ tier: 'best' }), { kind: 'saved', choice: { tier: 'best' } }); await rt.settle()
     deep(api().choice, { tier: 'best' }); eq(api().saveNote, NOTES.account)
+    deep(await api().select({ auto: true }), { kind: 'saved', choice: { auto: true } }); await rt.settle(); deep(api().choice, { auto: true }, 'a deck\'s own Auto'); eq(api().deckOwn, 'auto')
+    deep(await api().select(null), { kind: 'saved', choice: null }); await rt.settle(); deep(api().choice, null, 'use my default (the default is Auto)'); eq(api().deckOwn, 'default')
   })
 
   // ---- K. css -------------------------------------------------------------------------------------------------------------------------------------------------------
