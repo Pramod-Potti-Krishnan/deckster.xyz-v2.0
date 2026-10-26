@@ -282,7 +282,8 @@ await proveLib(libFor(libSource), 'lib')
 console.log(`PASS lib: ${checks} checks`)
 
 // =========================================================== 2. the page pin
-const pageText = read(DASHBOARD_PAGE)
+const { LATER_STRIPS } = await import('./studio-later-changes.mjs') // LATER-CHANGES: registry read (DUPLICATE-ADOPT): the changes registered after this one take their own lines out of the Decks page first; this change's lines stay
+const pageText = LATER_STRIPS.slice(LATER_STRIPS.indexOf(stripDeckCardThumbnail) + 1).reduce((out, strip) => strip(DASHBOARD_PAGE, out), read(DASHBOARD_PAGE)) // LATER-CHANGES: registry read (DUPLICATE-ADOPT)
 const basePage = git('show', `${BASE_COMMIT}:${DASHBOARD_PAGE}`)
 function provePage(page, label = 'page') {
   const at = text => `${label}: ${text}`

@@ -110,6 +110,17 @@ export const DUPLICATE_ADOPT_PIN_EDITS = {
       "  const pageText = pageAst.text // LATER-CHANGES: registry read (DUPLICATE-ADOPT), stacked after #475: here the page is the text the AST was parsed from (page-extract reads it through the registry), so the offsets below index the text they came from\n",
       ""
     ]
+  ],
+  // COMPOSER-2's deck card thumbnail proof (PROGRAM-1 GO, 26 Oct 11:53Z, the only exception to "never edit COMPOSER-2's tests"): it read the Decks page raw; now the changes registered after it take their own lines out first
+  "scripts/test-studio-deck-card-thumbnail.mjs": [
+    [
+      "const { LATER_STRIPS } = await import('./studio-later-changes.mjs') // LATER-CHANGES: registry read (DUPLICATE-ADOPT): the changes registered after this one take their own lines out of the Decks page first; this change's lines stay\n",
+      ""
+    ],
+    [
+      "const pageText = LATER_STRIPS.slice(LATER_STRIPS.indexOf(stripDeckCardThumbnail) + 1).reduce((out, strip) => strip(DASHBOARD_PAGE, out), read(DASHBOARD_PAGE)) // LATER-CHANGES: registry read (DUPLICATE-ADOPT)\n",
+      "const pageText = read(DASHBOARD_PAGE)\n"
+    ]
   ]
 }
 
