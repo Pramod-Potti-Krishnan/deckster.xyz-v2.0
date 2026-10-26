@@ -36,6 +36,7 @@ import { fileURLToPath } from 'node:url'
 import ts from 'typescript'
 import * as strip from './studio-duplicate-adopt-strip.mjs'
 import { LATER_STRIPS, LATER_CHANGE_FILES, LATER_ENV_BLOCKS, stripLaterChanges, stripLaterEnvBlocks } from './studio-later-changes.mjs'
+import { stripFlowControl } from './studio-flow-control-strip.mjs' // dev 6fba3b7f (#524)
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..')
 const nodeRequire = createRequire(import.meta.url)
@@ -747,6 +748,7 @@ async function suite({ quiet = false, extraCommitted = [] } = {}) {
       normalizeDirectorMessageFrame: raw => slideCompose.normalizeSlideComposeSocketFrame(raw), chatThemeExportDirectiveKind: themeExportWire.chatThemeExportDirectiveKind,
       CHAT_ELEMENT_REFINE_ENABLED: elementRefineWire.CHAT_ELEMENT_REFINE_ENABLED, ELEMENT_REFINE_DIRECTIVE_TYPE: elementRefineWire.ELEMENT_REFINE_DIRECTIVE_TYPE,
       STUDIO_JOB_LEDGER_ENABLED: jobLedger.STUDIO_JOB_LEDGER_ENABLED, JOB_UPDATE_TYPE: jobLedger.JOB_UPDATE_TYPE,
+      STUDIO_FLOW_FOCUS_ENABLED: false, STUDIO_FLOW_AMEND_ENABLED: false, // dev 6fba3b7f (#524): flow control's two frame taps sit before the chat tap and both short-circuit on their flag (default off), so nothing else of theirs is reached
       // the hook's refs and setters (ws.onopen, the reconnect, ws.onclose)
       wsRef: refs.wsRef, reconnectAttemptsRef: refs.reconnectAttemptsRef, reconnectStatusRef: refs.reconnectStatusRef, isConnectingRef: refs.isConnectingRef, socketSessionRef: refs.socketSessionRef,
       reconnectStabilityTimeoutRef: refs.reconnectStabilityTimeoutRef, setReconnectStatus: refs.setReconnectStatus, setState: refs.setState, stopHeartbeat: refs.stopHeartbeat, startHeartbeat: refs.startHeartbeat,
@@ -916,7 +918,7 @@ async function suite({ quiet = false, extraCommitted = [] } = {}) {
 
   // ---- H. flag-off identity --------------------------------------------------------------------------------------------------------------------------------------------
   const mine = LATER_STRIPS.indexOf(strip.stripDuplicateAdopt)
-  const withoutOthers = (rel, text) => LATER_STRIPS.filter((s, i) => i > mine).reduce((out, s) => (typeof s === 'function' ? s(rel, out) : out), text) // a change registered after this one comes out first
+  const withoutOthers = (rel, text) => LATER_STRIPS.filter(s => s !== strip.stripDuplicateAdopt).reduce((out, s) => (typeof s === 'function' ? s(rel, out) : out), text) // every other registered change comes out first, the ones registered before this one too (dev 6fba3b7f: flow control (#524) marks lines in the Builder page and the hook)
   await check('H: the strip is registered (files, block, strip), once each', () => {
     ok(mine >= 0); eq(LATER_STRIPS.filter(s => s === strip.stripDuplicateAdopt).length, 1); ok(LATER_ENV_BLOCKS.includes(strip.DUPLICATE_ADOPT_ENV_BLOCK))
     ok([...strip.DUPLICATE_ADOPT_SCOPE_FILES].every(rel => LATER_CHANGE_FILES.has(rel)))
@@ -979,7 +981,7 @@ async function suite({ quiet = false, extraCommitted = [] } = {}) {
     for (const rel of strip.DUPLICATE_ADOPT_PIN_FILES) {
       await check(`I: ${rel} with its registry-read lines put back is its previous file`, () => {
         const head = read(rel), prev = git('show', `${BASE}:${rel}`)
-        eq(sha(strip.putBackPin(rel, head)), sha(prev))
+        eq(sha(strip.putBackPin(rel, stripFlowControl(rel, head))), sha(prev)) // dev 6fba3b7f (#524): flow control teaches the perceived speed proof five lines; they come out first
         for (const [has, was] of strip.DUPLICATE_ADOPT_PIN_EDITS[rel]) { eq(head.split(has).length - 1, 1); ok(has.endsWith('\n') && has.includes(strip.DUPLICATE_ADOPT_PIN_MARK) && has.split('\n').length === 2); ok(was === '' || prev.includes(was)) }
       })
     }
