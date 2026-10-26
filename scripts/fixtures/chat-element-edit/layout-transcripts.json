@@ -14,7 +14,7 @@
   },
   "layout_checkout": "layout-builder at c77f0474 (branch frontend2/arrange-intent, !261: Arrange commands act only with intent 'arrange'; on top of !260 LAYOUT_ARRANGE_COMMANDS_ENABLED), the page served with the flag on (arrange_commands.py apply_to_viewer); the file hashes above are its identity",
   "note": "Every request the real Layout viewer code received and every frame it posted, with the virtual time (ms from the scenario start). lastSaveTime is normalised to the virtual time.",
-  "scenarios_recorded": 82
+  "scenarios_recorded": 95
  },
  "scenarios": {
   "delete": {
@@ -15202,6 +15202,1650 @@
        }
       ],
       "truncated": false
+     }
+    }
+   ]
+  },
+  "recorded-01-delete-ok": {
+   "requests": [
+    {
+     "at": 400,
+     "action": "getSlideGenerationContext",
+     "params": {
+      "slideIndex": 2,
+      "targetElementId": "chart_c3"
+     },
+     "requestId": "studio-request-1"
+    },
+    {
+     "at": 400,
+     "action": "isEditModeActive",
+     "params": null,
+     "requestId": "studio-request-2"
+    },
+    {
+     "at": 400,
+     "action": "enterEditMode",
+     "params": null,
+     "requestId": "studio-request-3"
+    },
+    {
+     "at": 400,
+     "action": "deleteElement",
+     "params": {
+      "elementId": "chart_c3"
+     },
+     "requestId": "studio-request-4"
+    },
+    {
+     "at": 400,
+     "action": "saveAllChanges",
+     "params": {},
+     "requestId": "studio-request-5"
+    }
+   ],
+   "frames": [
+    {
+     "at": 400,
+     "afterRequest": 0,
+     "data": {
+      "success": true,
+      "action": "getSlideGenerationContext",
+      "requestId": "studio-request-1",
+      "slide_index": 2,
+      "slide_title": null,
+      "slide_summary": null,
+      "target_element_id": "chart_c3",
+      "elements": [
+       {
+        "element_id": "chart_c3",
+        "renderer_type": "chart",
+        "component_type": "CHART",
+        "position": {
+         "gridRow": "4/14",
+         "gridColumn": "18/32"
+        },
+        "summary": "Hello",
+        "properties": {
+         "is_placeholder": false,
+         "locked": false,
+         "visible": true
+        },
+        "is_target": true
+       },
+       {
+        "element_id": "textbox_a1",
+        "renderer_type": "textbox",
+        "component_type": "TEXT_BOX",
+        "position": {
+         "gridRow": "4/10",
+         "gridColumn": "2/16"
+        },
+        "summary": "Hello",
+        "properties": {
+         "is_placeholder": false,
+         "locked": false,
+         "visible": true
+        },
+        "is_target": false
+       }
+      ],
+      "truncated": false
+     }
+    },
+    {
+     "at": 400,
+     "afterRequest": 1,
+     "data": {
+      "success": true,
+      "action": "isEditModeActive",
+      "requestId": "studio-request-2",
+      "isEditing": false
+     }
+    },
+    {
+     "at": 400,
+     "afterRequest": 2,
+     "data": {
+      "type": "saveStatusChanged",
+      "status": "saved",
+      "message": null,
+      "hasPendingChanges": false,
+      "pendingSlideCount": 0,
+      "slides": [],
+      "lastSaveTime": null
+     }
+    },
+    {
+     "at": 400,
+     "afterRequest": 2,
+     "data": {
+      "success": true,
+      "action": "enterEditMode",
+      "requestId": "studio-request-3",
+      "isEditing": true
+     }
+    },
+    {
+     "at": 400,
+     "afterRequest": 3,
+     "data": {
+      "type": "elementDeleted",
+      "elementId": "chart_c3",
+      "elementType": "chart",
+      "componentType": "CHART"
+     }
+    },
+    {
+     "at": 400,
+     "afterRequest": 3,
+     "data": {
+      "type": "saveStatusChanged",
+      "status": "unsaved",
+      "message": null,
+      "hasPendingChanges": true,
+      "pendingSlideCount": 1,
+      "slides": [
+       2
+      ],
+      "lastSaveTime": null
+     }
+    },
+    {
+     "at": 400,
+     "afterRequest": 3,
+     "data": {
+      "success": true,
+      "action": "deleteElement",
+      "requestId": "studio-request-4"
+     }
+    },
+    {
+     "at": 400,
+     "afterRequest": 4,
+     "data": {
+      "type": "saveStatusChanged",
+      "status": "unsaved",
+      "message": null,
+      "hasPendingChanges": true,
+      "pendingSlideCount": 2,
+      "slides": [
+       2,
+       0
+      ],
+      "lastSaveTime": null
+     }
+    },
+    {
+     "at": 400,
+     "afterRequest": 4,
+     "data": {
+      "type": "saveStatusChanged",
+      "status": "saving",
+      "message": null,
+      "hasPendingChanges": true,
+      "pendingSlideCount": 2,
+      "slides": [
+       2,
+       0
+      ],
+      "lastSaveTime": null
+     }
+    },
+    {
+     "at": 400,
+     "afterRequest": 4,
+     "data": {
+      "success": true,
+      "action": "saveAllChanges",
+      "requestId": "studio-request-5"
+     }
+    },
+    {
+     "at": 400,
+     "afterRequest": 4,
+     "data": {
+      "type": "saveStatusChanged",
+      "status": "saved",
+      "message": null,
+      "hasPendingChanges": false,
+      "pendingSlideCount": 0,
+      "slides": [],
+      "lastSaveTime": 400
+     }
+    }
+   ]
+  },
+  "recorded-02-order-front-ok": {
+   "requests": [
+    {
+     "at": 400,
+     "action": "getSlideGenerationContext",
+     "params": {
+      "slideIndex": 2,
+      "targetElementId": "textbox_a1"
+     },
+     "requestId": "studio-request-1"
+    },
+    {
+     "at": 400,
+     "action": "isEditModeActive",
+     "params": null,
+     "requestId": "studio-request-2"
+    },
+    {
+     "at": 400,
+     "action": "bringTextBoxToFront",
+     "params": {
+      "elementId": "textbox_a1"
+     },
+     "requestId": "studio-request-3"
+    },
+    {
+     "at": 400,
+     "action": "saveAllChanges",
+     "params": {},
+     "requestId": "studio-request-4"
+    }
+   ],
+   "frames": [
+    {
+     "at": 0,
+     "afterRequest": -1,
+     "data": {
+      "type": "saveStatusChanged",
+      "status": "saved",
+      "message": null,
+      "hasPendingChanges": false,
+      "pendingSlideCount": 0,
+      "slides": [],
+      "lastSaveTime": null
+     }
+    },
+    {
+     "at": 400,
+     "afterRequest": 0,
+     "data": {
+      "success": true,
+      "action": "getSlideGenerationContext",
+      "requestId": "studio-request-1",
+      "slide_index": 2,
+      "slide_title": null,
+      "slide_summary": null,
+      "target_element_id": "textbox_a1",
+      "elements": [
+       {
+        "element_id": "chart_c3",
+        "renderer_type": "chart",
+        "component_type": "CHART",
+        "position": {
+         "gridRow": "4/14",
+         "gridColumn": "18/32"
+        },
+        "summary": "Hello",
+        "properties": {
+         "is_placeholder": false,
+         "locked": false,
+         "visible": true
+        },
+        "is_target": false
+       },
+       {
+        "element_id": "textbox_a1",
+        "renderer_type": "textbox",
+        "component_type": "TEXT_BOX",
+        "position": {
+         "gridRow": "4/10",
+         "gridColumn": "2/16"
+        },
+        "summary": "Hello",
+        "properties": {
+         "is_placeholder": false,
+         "locked": false,
+         "visible": true
+        },
+        "is_target": true
+       }
+      ],
+      "truncated": false
+     }
+    },
+    {
+     "at": 400,
+     "afterRequest": 1,
+     "data": {
+      "success": true,
+      "action": "isEditModeActive",
+      "requestId": "studio-request-2",
+      "isEditing": true
+     }
+    },
+    {
+     "at": 400,
+     "afterRequest": 2,
+     "data": {
+      "success": true,
+      "action": "bringTextBoxToFront",
+      "requestId": "studio-request-3"
+     }
+    },
+    {
+     "at": 400,
+     "afterRequest": 3,
+     "data": {
+      "type": "saveStatusChanged",
+      "status": "unsaved",
+      "message": null,
+      "hasPendingChanges": true,
+      "pendingSlideCount": 1,
+      "slides": [
+       0
+      ],
+      "lastSaveTime": null
+     }
+    },
+    {
+     "at": 400,
+     "afterRequest": 3,
+     "data": {
+      "type": "saveStatusChanged",
+      "status": "saving",
+      "message": null,
+      "hasPendingChanges": true,
+      "pendingSlideCount": 1,
+      "slides": [
+       0
+      ],
+      "lastSaveTime": null
+     }
+    },
+    {
+     "at": 400,
+     "afterRequest": 3,
+     "data": {
+      "success": true,
+      "action": "saveAllChanges",
+      "requestId": "studio-request-4"
+     }
+    },
+    {
+     "at": 400,
+     "afterRequest": 3,
+     "data": {
+      "type": "saveStatusChanged",
+      "status": "saved",
+      "message": null,
+      "hasPendingChanges": false,
+      "pendingSlideCount": 0,
+      "slides": [],
+      "lastSaveTime": 400
+     }
+    }
+   ]
+  },
+  "recorded-03-place-ok": {
+   "requests": [
+    {
+     "at": 400,
+     "action": "getSlideGenerationContext",
+     "params": {
+      "slideIndex": 2,
+      "targetElementId": "textbox_a1"
+     },
+     "requestId": "studio-request-1"
+    },
+    {
+     "at": 400,
+     "action": "isEditModeActive",
+     "params": null,
+     "requestId": "studio-request-2"
+    },
+    {
+     "at": 400,
+     "action": "resizeTextBox",
+     "params": {
+      "elementId": "textbox_a1",
+      "gridRow": "4/10",
+      "gridColumn": "18/32"
+     },
+     "requestId": "studio-request-3"
+    },
+    {
+     "at": 400,
+     "action": "saveAllChanges",
+     "params": {},
+     "requestId": "studio-request-4"
+    }
+   ],
+   "frames": [
+    {
+     "at": 0,
+     "afterRequest": -1,
+     "data": {
+      "type": "saveStatusChanged",
+      "status": "saved",
+      "message": null,
+      "hasPendingChanges": false,
+      "pendingSlideCount": 0,
+      "slides": [],
+      "lastSaveTime": null
+     }
+    },
+    {
+     "at": 400,
+     "afterRequest": 0,
+     "data": {
+      "success": true,
+      "action": "getSlideGenerationContext",
+      "requestId": "studio-request-1",
+      "slide_index": 2,
+      "slide_title": null,
+      "slide_summary": null,
+      "target_element_id": "textbox_a1",
+      "elements": [
+       {
+        "element_id": "chart_c3",
+        "renderer_type": "chart",
+        "component_type": "CHART",
+        "position": {
+         "gridRow": "4/14",
+         "gridColumn": "18/32"
+        },
+        "summary": "Hello",
+        "properties": {
+         "is_placeholder": false,
+         "locked": false,
+         "visible": true
+        },
+        "is_target": false
+       },
+       {
+        "element_id": "textbox_a1",
+        "renderer_type": "textbox",
+        "component_type": "TEXT_BOX",
+        "position": {
+         "gridRow": "4/10",
+         "gridColumn": "2/16"
+        },
+        "summary": "Hello",
+        "properties": {
+         "is_placeholder": false,
+         "locked": false,
+         "visible": true
+        },
+        "is_target": true
+       }
+      ],
+      "truncated": false
+     }
+    },
+    {
+     "at": 400,
+     "afterRequest": 1,
+     "data": {
+      "success": true,
+      "action": "isEditModeActive",
+      "requestId": "studio-request-2",
+      "isEditing": true
+     }
+    },
+    {
+     "at": 400,
+     "afterRequest": 2,
+     "data": {
+      "type": "saveStatusChanged",
+      "status": "unsaved",
+      "message": null,
+      "hasPendingChanges": true,
+      "pendingSlideCount": 1,
+      "slides": [
+       2
+      ],
+      "lastSaveTime": null
+     }
+    },
+    {
+     "at": 400,
+     "afterRequest": 2,
+     "data": {
+      "type": "saveStatusChanged",
+      "status": "unsaved",
+      "message": null,
+      "hasPendingChanges": true,
+      "pendingSlideCount": 2,
+      "slides": [
+       2,
+       0
+      ],
+      "lastSaveTime": null
+     }
+    },
+    {
+     "at": 400,
+     "afterRequest": 2,
+     "data": {
+      "success": true,
+      "action": "resizeTextBox",
+      "requestId": "studio-request-3"
+     }
+    },
+    {
+     "at": 400,
+     "afterRequest": 3,
+     "data": {
+      "type": "saveStatusChanged",
+      "status": "unsaved",
+      "message": null,
+      "hasPendingChanges": true,
+      "pendingSlideCount": 2,
+      "slides": [
+       2,
+       0
+      ],
+      "lastSaveTime": null
+     }
+    },
+    {
+     "at": 400,
+     "afterRequest": 3,
+     "data": {
+      "type": "saveStatusChanged",
+      "status": "saving",
+      "message": null,
+      "hasPendingChanges": true,
+      "pendingSlideCount": 2,
+      "slides": [
+       2,
+       0
+      ],
+      "lastSaveTime": null
+     }
+    },
+    {
+     "at": 400,
+     "afterRequest": 3,
+     "data": {
+      "success": true,
+      "action": "saveAllChanges",
+      "requestId": "studio-request-4"
+     }
+    },
+    {
+     "at": 400,
+     "afterRequest": 3,
+     "data": {
+      "type": "saveStatusChanged",
+      "status": "saved",
+      "message": null,
+      "hasPendingChanges": false,
+      "pendingSlideCount": 0,
+      "slides": [],
+      "lastSaveTime": 400
+     }
+    }
+   ]
+  },
+  "recorded-04-style-ok": {
+   "requests": [
+    {
+     "at": 400,
+     "action": "getSlideGenerationContext",
+     "params": {
+      "slideIndex": 2,
+      "targetElementId": "textbox_a1"
+     },
+     "requestId": "studio-request-1"
+    },
+    {
+     "at": 400,
+     "action": "getTextBoxFormatting",
+     "params": {
+      "elementId": "textbox_a1"
+     },
+     "requestId": "studio-request-2"
+    },
+    {
+     "at": 400,
+     "action": "isEditModeActive",
+     "params": null,
+     "requestId": "studio-request-3"
+    },
+    {
+     "at": 400,
+     "action": "setTextBoxFontWeight",
+     "params": {
+      "elementId": "textbox_a1",
+      "fontWeight": "700"
+     },
+     "requestId": "studio-request-4"
+    },
+    {
+     "at": 400,
+     "action": "setTextBoxFontSize",
+     "params": {
+      "elementId": "textbox_a1",
+      "fontSize": 28
+     },
+     "requestId": "studio-request-5"
+    },
+    {
+     "at": 400,
+     "action": "setTextBoxColor",
+     "params": {
+      "elementId": "textbox_a1",
+      "themeBinding": "accent_2"
+     },
+     "requestId": "studio-request-6"
+    },
+    {
+     "at": 400,
+     "action": "saveAllChanges",
+     "params": {},
+     "requestId": "studio-request-7"
+    }
+   ],
+   "frames": [
+    {
+     "at": 0,
+     "afterRequest": -1,
+     "data": {
+      "type": "saveStatusChanged",
+      "status": "saved",
+      "message": null,
+      "hasPendingChanges": false,
+      "pendingSlideCount": 0,
+      "slides": [],
+      "lastSaveTime": null
+     }
+    },
+    {
+     "at": 400,
+     "afterRequest": 0,
+     "data": {
+      "success": true,
+      "action": "getSlideGenerationContext",
+      "requestId": "studio-request-1",
+      "slide_index": 2,
+      "slide_title": null,
+      "slide_summary": null,
+      "target_element_id": "textbox_a1",
+      "elements": [
+       {
+        "element_id": "chart_c3",
+        "renderer_type": "chart",
+        "component_type": "CHART",
+        "position": {
+         "gridRow": "4/14",
+         "gridColumn": "18/32"
+        },
+        "summary": "Hello",
+        "properties": {
+         "is_placeholder": false,
+         "locked": false,
+         "visible": true
+        },
+        "is_target": false
+       },
+       {
+        "element_id": "textbox_a1",
+        "renderer_type": "textbox",
+        "component_type": "TEXT_BOX",
+        "position": {
+         "gridRow": "4/10",
+         "gridColumn": "2/16"
+        },
+        "summary": "Hello",
+        "properties": {
+         "is_placeholder": false,
+         "locked": false,
+         "visible": true
+        },
+        "is_target": true
+       }
+      ],
+      "truncated": false
+     }
+    },
+    {
+     "at": 400,
+     "afterRequest": 1,
+     "data": {
+      "success": true,
+      "action": "getTextBoxFormatting",
+      "requestId": "studio-request-2",
+      "formatting": {
+       "fontFamily": "Inter",
+       "fontSize": "24px",
+       "fontWeight": "400",
+       "fontStyle": "normal",
+       "textDecoration": "none",
+       "color": "rgb(0, 0, 0)",
+       "textAlign": "left",
+       "lineHeight": "1.5",
+       "letterSpacing": "normal",
+       "backgroundColor": "transparent",
+       "borderWidth": "0px",
+       "borderColor": "transparent",
+       "borderStyle": "solid",
+       "opacity": "1",
+       "themeBindings": {},
+       "themeVariantId": null,
+       "componentType": "TEXT_BOX",
+       "semanticRole": null,
+       "slotName": null,
+       "slotKind": null,
+       "accessoryType": null
+      },
+      "research_provenance": null,
+      "generation_config": null
+     }
+    },
+    {
+     "at": 400,
+     "afterRequest": 2,
+     "data": {
+      "success": true,
+      "action": "isEditModeActive",
+      "requestId": "studio-request-3",
+      "isEditing": true
+     }
+    },
+    {
+     "at": 400,
+     "afterRequest": 3,
+     "data": {
+      "type": "saveStatusChanged",
+      "status": "unsaved",
+      "message": null,
+      "hasPendingChanges": true,
+      "pendingSlideCount": 1,
+      "slides": [
+       0
+      ],
+      "lastSaveTime": null
+     }
+    },
+    {
+     "at": 400,
+     "afterRequest": 3,
+     "data": {
+      "success": true,
+      "action": "setTextBoxFontWeight",
+      "requestId": "studio-request-4"
+     }
+    },
+    {
+     "at": 400,
+     "afterRequest": 4,
+     "data": {
+      "type": "saveStatusChanged",
+      "status": "unsaved",
+      "message": null,
+      "hasPendingChanges": true,
+      "pendingSlideCount": 2,
+      "slides": [
+       0,
+       2
+      ],
+      "lastSaveTime": null
+     }
+    },
+    {
+     "at": 400,
+     "afterRequest": 4,
+     "data": {
+      "type": "saveStatusChanged",
+      "status": "unsaved",
+      "message": null,
+      "hasPendingChanges": true,
+      "pendingSlideCount": 2,
+      "slides": [
+       0,
+       2
+      ],
+      "lastSaveTime": null
+     }
+    },
+    {
+     "at": 400,
+     "afterRequest": 4,
+     "data": {
+      "success": true,
+      "action": "setTextBoxFontSize",
+      "requestId": "studio-request-5"
+     }
+    },
+    {
+     "at": 400,
+     "afterRequest": 5,
+     "data": {
+      "type": "saveStatusChanged",
+      "status": "unsaved",
+      "message": null,
+      "hasPendingChanges": true,
+      "pendingSlideCount": 2,
+      "slides": [
+       0,
+       2
+      ],
+      "lastSaveTime": null
+     }
+    },
+    {
+     "at": 400,
+     "afterRequest": 5,
+     "data": {
+      "type": "saveStatusChanged",
+      "status": "unsaved",
+      "message": null,
+      "hasPendingChanges": true,
+      "pendingSlideCount": 2,
+      "slides": [
+       0,
+       2
+      ],
+      "lastSaveTime": null
+     }
+    },
+    {
+     "at": 400,
+     "afterRequest": 5,
+     "data": {
+      "success": true,
+      "action": "setTextBoxColor",
+      "requestId": "studio-request-6"
+     }
+    },
+    {
+     "at": 400,
+     "afterRequest": 6,
+     "data": {
+      "type": "saveStatusChanged",
+      "status": "unsaved",
+      "message": null,
+      "hasPendingChanges": true,
+      "pendingSlideCount": 2,
+      "slides": [
+       0,
+       2
+      ],
+      "lastSaveTime": null
+     }
+    },
+    {
+     "at": 400,
+     "afterRequest": 6,
+     "data": {
+      "type": "saveStatusChanged",
+      "status": "saving",
+      "message": null,
+      "hasPendingChanges": true,
+      "pendingSlideCount": 2,
+      "slides": [
+       0,
+       2
+      ],
+      "lastSaveTime": null
+     }
+    },
+    {
+     "at": 400,
+     "afterRequest": 6,
+     "data": {
+      "success": true,
+      "action": "saveAllChanges",
+      "requestId": "studio-request-7"
+     }
+    },
+    {
+     "at": 400,
+     "afterRequest": 6,
+     "data": {
+      "type": "saveStatusChanged",
+      "status": "saved",
+      "message": null,
+      "hasPendingChanges": false,
+      "pendingSlideCount": 0,
+      "slides": [],
+      "lastSaveTime": 400
+     }
+    }
+   ]
+  },
+  "recorded-10-ELEMENT_NOT_FOUND": {
+   "requests": [
+    {
+     "at": 400,
+     "action": "getSlideGenerationContext",
+     "params": {
+      "slideIndex": 2,
+      "targetElementId": "textbox_a1"
+     },
+     "requestId": "studio-request-1"
+    }
+   ],
+   "frames": [
+    {
+     "at": 0,
+     "afterRequest": -1,
+     "data": {
+      "type": "saveStatusChanged",
+      "status": "saved",
+      "message": null,
+      "hasPendingChanges": false,
+      "pendingSlideCount": 0,
+      "slides": [],
+      "lastSaveTime": null
+     }
+    },
+    {
+     "at": 400,
+     "afterRequest": 0,
+     "data": {
+      "success": false,
+      "action": "getSlideGenerationContext",
+      "requestId": "studio-request-1",
+      "slide_index": 2,
+      "target_element_id": "textbox_a1",
+      "error": "Target element textbox_a1 was not found on slide 2"
+     }
+    }
+   ]
+  },
+  "recorded-11-SLIDE_CHANGED": {
+   "requests": [],
+   "frames": [
+    {
+     "at": 0,
+     "afterRequest": -1,
+     "data": {
+      "type": "saveStatusChanged",
+      "status": "saved",
+      "message": null,
+      "hasPendingChanges": false,
+      "pendingSlideCount": 0,
+      "slides": [],
+      "lastSaveTime": null
+     }
+    }
+   ]
+  },
+  "recorded-12-UNSUPPORTED_OP": {
+   "requests": [
+    {
+     "at": 400,
+     "action": "getSlideGenerationContext",
+     "params": {
+      "slideIndex": 2,
+      "targetElementId": "textbox_a1"
+     },
+     "requestId": "studio-request-1"
+    }
+   ],
+   "frames": [
+    {
+     "at": 0,
+     "afterRequest": -1,
+     "data": {
+      "type": "saveStatusChanged",
+      "status": "saved",
+      "message": null,
+      "hasPendingChanges": false,
+      "pendingSlideCount": 0,
+      "slides": [],
+      "lastSaveTime": null
+     }
+    },
+    {
+     "at": 400,
+     "afterRequest": 0,
+     "data": {
+      "success": true,
+      "action": "getSlideGenerationContext",
+      "requestId": "studio-request-1",
+      "slide_index": 2,
+      "slide_title": null,
+      "slide_summary": null,
+      "target_element_id": "textbox_a1",
+      "elements": [
+       {
+        "element_id": "textbox_a1",
+        "renderer_type": "textbox",
+        "component_type": "METRICS",
+        "position": {
+         "gridRow": "4/10",
+         "gridColumn": "2/16"
+        },
+        "summary": "Hello",
+        "properties": {
+         "is_placeholder": false,
+         "locked": false,
+         "visible": true
+        },
+        "is_target": true
+       }
+      ],
+      "truncated": false
+     }
+    }
+   ]
+  },
+  "recorded-13-INVALID_VALUE": {
+   "requests": [
+    {
+     "at": 400,
+     "action": "getSlideGenerationContext",
+     "params": {
+      "slideIndex": 2,
+      "targetElementId": "textbox_a1"
+     },
+     "requestId": "studio-request-1"
+    },
+    {
+     "at": 400,
+     "action": "isEditModeActive",
+     "params": null,
+     "requestId": "studio-request-2"
+    },
+    {
+     "at": 400,
+     "action": "setTextBoxFontWeight",
+     "params": {
+      "elementId": "textbox_a1",
+      "fontWeight": "700"
+     },
+     "requestId": "studio-request-3"
+    },
+    {
+     "at": 400,
+     "action": "saveAllChanges",
+     "params": {},
+     "requestId": "studio-request-4"
+    }
+   ],
+   "frames": [
+    {
+     "at": 0,
+     "afterRequest": -1,
+     "data": {
+      "type": "saveStatusChanged",
+      "status": "saved",
+      "message": null,
+      "hasPendingChanges": false,
+      "pendingSlideCount": 0,
+      "slides": [],
+      "lastSaveTime": null
+     }
+    },
+    {
+     "at": 400,
+     "afterRequest": 0,
+     "data": {
+      "success": true,
+      "action": "getSlideGenerationContext",
+      "requestId": "studio-request-1",
+      "slide_index": 2,
+      "slide_title": null,
+      "slide_summary": null,
+      "target_element_id": "textbox_a1",
+      "elements": [
+       {
+        "element_id": "chart_c3",
+        "renderer_type": "chart",
+        "component_type": "CHART",
+        "position": {
+         "gridRow": "4/14",
+         "gridColumn": "18/32"
+        },
+        "summary": "Hello",
+        "properties": {
+         "is_placeholder": false,
+         "locked": false,
+         "visible": true
+        },
+        "is_target": false
+       },
+       {
+        "element_id": "textbox_a1",
+        "renderer_type": "textbox",
+        "component_type": "TEXT_BOX",
+        "position": {
+         "gridRow": "4/10",
+         "gridColumn": "2/16"
+        },
+        "summary": "Hello",
+        "properties": {
+         "is_placeholder": false,
+         "locked": false,
+         "visible": true
+        },
+        "is_target": true
+       }
+      ],
+      "truncated": false
+     }
+    },
+    {
+     "at": 400,
+     "afterRequest": 1,
+     "data": {
+      "success": true,
+      "action": "isEditModeActive",
+      "requestId": "studio-request-2",
+      "isEditing": true
+     }
+    },
+    {
+     "at": 400,
+     "afterRequest": 2,
+     "data": {
+      "type": "saveStatusChanged",
+      "status": "unsaved",
+      "message": null,
+      "hasPendingChanges": true,
+      "pendingSlideCount": 1,
+      "slides": [
+       0
+      ],
+      "lastSaveTime": null
+     }
+    },
+    {
+     "at": 400,
+     "afterRequest": 2,
+     "data": {
+      "success": true,
+      "action": "setTextBoxFontWeight",
+      "requestId": "studio-request-3"
+     }
+    },
+    {
+     "at": 400,
+     "afterRequest": 3,
+     "data": {
+      "type": "saveStatusChanged",
+      "status": "unsaved",
+      "message": null,
+      "hasPendingChanges": true,
+      "pendingSlideCount": 1,
+      "slides": [
+       0
+      ],
+      "lastSaveTime": null
+     }
+    },
+    {
+     "at": 400,
+     "afterRequest": 3,
+     "data": {
+      "type": "saveStatusChanged",
+      "status": "saving",
+      "message": null,
+      "hasPendingChanges": true,
+      "pendingSlideCount": 1,
+      "slides": [
+       0
+      ],
+      "lastSaveTime": null
+     }
+    },
+    {
+     "at": 400,
+     "afterRequest": 3,
+     "data": {
+      "success": true,
+      "action": "saveAllChanges",
+      "requestId": "studio-request-4"
+     }
+    },
+    {
+     "at": 400,
+     "afterRequest": 3,
+     "data": {
+      "type": "saveStatusChanged",
+      "status": "saved",
+      "message": null,
+      "hasPendingChanges": false,
+      "pendingSlideCount": 0,
+      "slides": [],
+      "lastSaveTime": 400
+     }
+    }
+   ]
+  },
+  "recorded-14-ELEMENT_LOCKED": {
+   "requests": [
+    {
+     "at": 400,
+     "action": "getSlideGenerationContext",
+     "params": {
+      "slideIndex": 2,
+      "targetElementId": "textbox_a1"
+     },
+     "requestId": "studio-request-1"
+    }
+   ],
+   "frames": [
+    {
+     "at": 0,
+     "afterRequest": -1,
+     "data": {
+      "type": "saveStatusChanged",
+      "status": "saved",
+      "message": null,
+      "hasPendingChanges": false,
+      "pendingSlideCount": 0,
+      "slides": [],
+      "lastSaveTime": null
+     }
+    },
+    {
+     "at": 400,
+     "afterRequest": 0,
+     "data": {
+      "success": true,
+      "action": "getSlideGenerationContext",
+      "requestId": "studio-request-1",
+      "slide_index": 2,
+      "slide_title": null,
+      "slide_summary": null,
+      "target_element_id": "textbox_a1",
+      "elements": [
+       {
+        "element_id": "textbox_a1",
+        "renderer_type": "textbox",
+        "component_type": "TEXT_BOX",
+        "position": {
+         "gridRow": "4/10",
+         "gridColumn": "2/16"
+        },
+        "summary": "Hello",
+        "properties": {
+         "is_placeholder": false,
+         "locked": true,
+         "visible": true
+        },
+        "is_target": true
+       }
+      ],
+      "truncated": false
+     }
+    }
+   ]
+  },
+  "recorded-15-VIEWER_NOT_READY": {
+   "requests": [],
+   "frames": []
+  },
+  "recorded-16-BUSY": {
+   "requests": [],
+   "frames": [
+    {
+     "at": 0,
+     "afterRequest": -1,
+     "data": {
+      "type": "saveStatusChanged",
+      "status": "saved",
+      "message": null,
+      "hasPendingChanges": false,
+      "pendingSlideCount": 0,
+      "slides": [],
+      "lastSaveTime": null
+     }
+    }
+   ]
+  },
+  "recorded-17-SAVE_FAILED": {
+   "requests": [
+    {
+     "at": 400,
+     "action": "getSlideGenerationContext",
+     "params": {
+      "slideIndex": 2,
+      "targetElementId": "textbox_a1"
+     },
+     "requestId": "studio-request-1"
+    },
+    {
+     "at": 400,
+     "action": "isEditModeActive",
+     "params": null,
+     "requestId": "studio-request-2"
+    },
+    {
+     "at": 400,
+     "action": "setTextBoxFontWeight",
+     "params": {
+      "elementId": "textbox_a1",
+      "fontWeight": "700"
+     },
+     "requestId": "studio-request-3"
+    },
+    {
+     "at": 400,
+     "action": "saveAllChanges",
+     "params": {},
+     "requestId": "studio-request-4"
+    }
+   ],
+   "frames": [
+    {
+     "at": 0,
+     "afterRequest": -1,
+     "data": {
+      "type": "saveStatusChanged",
+      "status": "saved",
+      "message": null,
+      "hasPendingChanges": false,
+      "pendingSlideCount": 0,
+      "slides": [],
+      "lastSaveTime": null
+     }
+    },
+    {
+     "at": 400,
+     "afterRequest": 0,
+     "data": {
+      "success": true,
+      "action": "getSlideGenerationContext",
+      "requestId": "studio-request-1",
+      "slide_index": 2,
+      "slide_title": null,
+      "slide_summary": null,
+      "target_element_id": "textbox_a1",
+      "elements": [
+       {
+        "element_id": "chart_c3",
+        "renderer_type": "chart",
+        "component_type": "CHART",
+        "position": {
+         "gridRow": "4/14",
+         "gridColumn": "18/32"
+        },
+        "summary": "Hello",
+        "properties": {
+         "is_placeholder": false,
+         "locked": false,
+         "visible": true
+        },
+        "is_target": false
+       },
+       {
+        "element_id": "textbox_a1",
+        "renderer_type": "textbox",
+        "component_type": "TEXT_BOX",
+        "position": {
+         "gridRow": "4/10",
+         "gridColumn": "2/16"
+        },
+        "summary": "Hello",
+        "properties": {
+         "is_placeholder": false,
+         "locked": false,
+         "visible": true
+        },
+        "is_target": true
+       }
+      ],
+      "truncated": false
+     }
+    },
+    {
+     "at": 400,
+     "afterRequest": 1,
+     "data": {
+      "success": true,
+      "action": "isEditModeActive",
+      "requestId": "studio-request-2",
+      "isEditing": true
+     }
+    },
+    {
+     "at": 400,
+     "afterRequest": 2,
+     "data": {
+      "type": "saveStatusChanged",
+      "status": "unsaved",
+      "message": null,
+      "hasPendingChanges": true,
+      "pendingSlideCount": 1,
+      "slides": [
+       0
+      ],
+      "lastSaveTime": null
+     }
+    },
+    {
+     "at": 400,
+     "afterRequest": 2,
+     "data": {
+      "success": true,
+      "action": "setTextBoxFontWeight",
+      "requestId": "studio-request-3"
+     }
+    },
+    {
+     "at": 400,
+     "afterRequest": 3,
+     "data": {
+      "type": "saveStatusChanged",
+      "status": "unsaved",
+      "message": null,
+      "hasPendingChanges": true,
+      "pendingSlideCount": 1,
+      "slides": [
+       0
+      ],
+      "lastSaveTime": null
+     }
+    },
+    {
+     "at": 400,
+     "afterRequest": 3,
+     "data": {
+      "type": "saveStatusChanged",
+      "status": "saving",
+      "message": null,
+      "hasPendingChanges": true,
+      "pendingSlideCount": 1,
+      "slides": [
+       0
+      ],
+      "lastSaveTime": null
+     }
+    },
+    {
+     "at": 400,
+     "afterRequest": 3,
+     "data": {
+      "success": true,
+      "action": "saveAllChanges",
+      "requestId": "studio-request-4"
+     }
+    },
+    {
+     "at": 2400,
+     "afterRequest": 3,
+     "data": {
+      "type": "saveStatusChanged",
+      "status": "error",
+      "message": "synthetic save refusal Request reference: save-abcdef12.",
+      "hasPendingChanges": true,
+      "pendingSlideCount": 1,
+      "slides": [
+       0
+      ],
+      "lastSaveTime": null
+     }
+    }
+   ]
+  },
+  "recorded-18-TIMEOUT": {
+   "requests": [
+    {
+     "at": 400,
+     "action": "getSlideGenerationContext",
+     "params": {
+      "slideIndex": 2,
+      "targetElementId": "textbox_a1"
+     },
+     "requestId": "studio-request-1"
+    },
+    {
+     "at": 400,
+     "action": "isEditModeActive",
+     "params": null,
+     "requestId": "studio-request-2"
+    },
+    {
+     "at": 400,
+     "action": "setTextBoxFontWeight",
+     "params": {
+      "elementId": "textbox_a1",
+      "fontWeight": "700"
+     },
+     "requestId": "studio-request-3"
+    },
+    {
+     "at": 400,
+     "action": "saveAllChanges",
+     "params": {},
+     "requestId": "studio-request-4"
+    }
+   ],
+   "frames": [
+    {
+     "at": 0,
+     "afterRequest": -1,
+     "data": {
+      "type": "saveStatusChanged",
+      "status": "saved",
+      "message": null,
+      "hasPendingChanges": false,
+      "pendingSlideCount": 0,
+      "slides": [],
+      "lastSaveTime": null
+     }
+    },
+    {
+     "at": 400,
+     "afterRequest": 0,
+     "data": {
+      "success": true,
+      "action": "getSlideGenerationContext",
+      "requestId": "studio-request-1",
+      "slide_index": 2,
+      "slide_title": null,
+      "slide_summary": null,
+      "target_element_id": "textbox_a1",
+      "elements": [
+       {
+        "element_id": "chart_c3",
+        "renderer_type": "chart",
+        "component_type": "CHART",
+        "position": {
+         "gridRow": "4/14",
+         "gridColumn": "18/32"
+        },
+        "summary": "Hello",
+        "properties": {
+         "is_placeholder": false,
+         "locked": false,
+         "visible": true
+        },
+        "is_target": false
+       },
+       {
+        "element_id": "textbox_a1",
+        "renderer_type": "textbox",
+        "component_type": "TEXT_BOX",
+        "position": {
+         "gridRow": "4/10",
+         "gridColumn": "2/16"
+        },
+        "summary": "Hello",
+        "properties": {
+         "is_placeholder": false,
+         "locked": false,
+         "visible": true
+        },
+        "is_target": true
+       }
+      ],
+      "truncated": false
+     }
+    },
+    {
+     "at": 400,
+     "afterRequest": 1,
+     "data": {
+      "success": true,
+      "action": "isEditModeActive",
+      "requestId": "studio-request-2",
+      "isEditing": true
+     }
+    },
+    {
+     "at": 400,
+     "afterRequest": 2,
+     "data": {
+      "type": "saveStatusChanged",
+      "status": "unsaved",
+      "message": null,
+      "hasPendingChanges": true,
+      "pendingSlideCount": 1,
+      "slides": [
+       0
+      ],
+      "lastSaveTime": null
+     }
+    },
+    {
+     "at": 400,
+     "afterRequest": 2,
+     "data": {
+      "success": true,
+      "action": "setTextBoxFontWeight",
+      "requestId": "studio-request-3"
+     }
+    },
+    {
+     "at": 400,
+     "afterRequest": 3,
+     "data": {
+      "type": "saveStatusChanged",
+      "status": "unsaved",
+      "message": null,
+      "hasPendingChanges": true,
+      "pendingSlideCount": 1,
+      "slides": [
+       0
+      ],
+      "lastSaveTime": null
+     }
+    },
+    {
+     "at": 400,
+     "afterRequest": 3,
+     "data": {
+      "type": "saveStatusChanged",
+      "status": "saving",
+      "message": null,
+      "hasPendingChanges": true,
+      "pendingSlideCount": 1,
+      "slides": [
+       0
+      ],
+      "lastSaveTime": null
+     }
+    },
+    {
+     "at": 400,
+     "afterRequest": 3,
+     "data": {
+      "success": true,
+      "action": "saveAllChanges",
+      "requestId": "studio-request-4"
      }
     }
    ]

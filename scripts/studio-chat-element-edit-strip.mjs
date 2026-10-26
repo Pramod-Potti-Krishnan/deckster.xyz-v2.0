@@ -18,6 +18,7 @@ export const CHAT_ELEMENT_EDIT_FILES = [
   'hooks/use-deckster-websocket-v2.ts',
   'components/presentation-viewer.tsx',
   'components/slide-notes-panel.tsx',
+  'lib/studio-bulk-edit-wire.ts',
 ]
 
 /** New files (no base text to put back). */
@@ -28,8 +29,27 @@ export const CHAT_ELEMENT_EDIT_NEW_FILES = [
   'scripts/studio-chat-element-edit-strip.mjs',
   'scripts/studio-chat-element-edit-layout.mjs',
   'scripts/test-studio-chat-element-edit.mjs',
-  'scripts/fixtures/chat-element-edit/director-frames/contract-envelope.json',
   'scripts/fixtures/chat-element-edit/layout-transcripts.json',
+  // DIRECTOR-2's recorded frames (!566, workspace main 5319954f streams/director2/element-edit/examples/), copied byte for byte, sha256-pinned in SHA256SUMS and in the proof
+  'scripts/fixtures/chat-element-edit/director-frames/01-delete-ok.json',
+  'scripts/fixtures/chat-element-edit/director-frames/02-order-front-ok.json',
+  'scripts/fixtures/chat-element-edit/director-frames/03-place-ok.json',
+  'scripts/fixtures/chat-element-edit/director-frames/04-style-ok.json',
+  'scripts/fixtures/chat-element-edit/director-frames/10-ELEMENT_NOT_FOUND.json',
+  'scripts/fixtures/chat-element-edit/director-frames/11-SLIDE_CHANGED.json',
+  'scripts/fixtures/chat-element-edit/director-frames/12-UNSUPPORTED_OP.json',
+  'scripts/fixtures/chat-element-edit/director-frames/13-INVALID_VALUE.json',
+  'scripts/fixtures/chat-element-edit/director-frames/14-ELEMENT_LOCKED.json',
+  'scripts/fixtures/chat-element-edit/director-frames/15-VIEWER_NOT_READY.json',
+  'scripts/fixtures/chat-element-edit/director-frames/16-BUSY.json',
+  'scripts/fixtures/chat-element-edit/director-frames/17-SAVE_FAILED.json',
+  'scripts/fixtures/chat-element-edit/director-frames/18-TIMEOUT.json',
+  'scripts/fixtures/chat-element-edit/director-frames/20-no-cap.json',
+  'scripts/fixtures/chat-element-edit/director-frames/21-which-element.json',
+  'scripts/fixtures/chat-element-edit/director-frames/22-unknown-colour.json',
+  'scripts/fixtures/chat-element-edit/director-frames/30-notes-ok.json',
+  'scripts/fixtures/chat-element-edit/director-frames/31-notes-no-cap.json',
+  'scripts/fixtures/chat-element-edit/director-frames/SHA256SUMS',
 ]
 
 /** The older files this change teaches (FRONTEND-2's own; never FRONTEND-1's or COMPOSER-2's): [text the file has now, text it had before] per edit, whole lines, so putting them back gives dev's file byte for byte. Every line the file has now carries
@@ -69,7 +89,10 @@ export function putBackPin(rel, text) {
 export const CHAT_ELEMENT_EDIT_PIN_FILES = Object.keys(CHAT_ELEMENT_EDIT_PIN_EDITS)
 
 /** Files an earlier commit of this branch touched that the tree no longer has (renamed when CONTRACT.md landed): the committed-diff scope checks of older proofs list every file the branch's commits touched. */
-export const CHAT_ELEMENT_EDIT_RETIRED_FILES = ['scripts/fixtures/chat-element-edit/director-frames/agreed-envelope.json']
+export const CHAT_ELEMENT_EDIT_RETIRED_FILES = [
+  'scripts/fixtures/chat-element-edit/director-frames/agreed-envelope.json', // the 26 Oct envelope
+  'scripts/fixtures/chat-element-edit/director-frames/contract-envelope.json', // built from CONTRACT.md before the recordings landed
+]
 
 /** The other files this change edits: its .env.example block, the registry (three lines) and the older proofs it teaches. */
 export const CHAT_ELEMENT_EDIT_OWN_EDITS = ['.env.example', 'scripts/studio-later-changes.mjs', ...CHAT_ELEMENT_EDIT_PIN_FILES]
