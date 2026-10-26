@@ -18,7 +18,7 @@ export interface ModelPickerProps {
   disabled?: boolean
   /** Goes on the chip (the one visible element): the width, the margin. The picker sets no width of its own. */
   className?: string
-  /** Called after a save with the choice now in force: { tier }, { model }, or null for Auto. */
+  /** Called after a save with the choice now in force: { tier }, { model }, null (Auto on the reusable default; on a deck, "use my default") or { auto: true } (a deck's own Auto). */
   onChange?: (choice: ModelChoice) => void
 }
 
@@ -39,7 +39,7 @@ function ModelPickerConnected({ sessionId, disabled, className, onChange }: Mode
   const [view, setView] = useState<"main" | "models">("main")
   return <ModelPickerView
     label={chipLabel(api.state, api.catalogue)} stateKind={api.state.kind} scope={api.scope} mode={api.mode} ready={api.ready} disabled={disabled} className={className}
-    menu={pickerMenu({ catalogue: api.catalogue, state: api.state, inherited: api.scope === "deck" ? api.userState : null })} saveNote={api.saveNote} saving={api.saving} announce={api.feedback}
+    menu={pickerMenu({ catalogue: api.catalogue, state: api.state, scope: api.scope, own: api.deckOwn, userState: api.userState })} saveNote={api.saveNote} saving={api.saving} announce={api.feedback}
     open={open} onOpenChange={next => { setOpen(next); if (!next) setView("main") }} view={view} onView={setView}
     onPick={choice => { setOpen(false); setView("main"); void api.select(choice) }} />
 }

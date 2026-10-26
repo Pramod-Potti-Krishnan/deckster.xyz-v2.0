@@ -11,7 +11,8 @@
 //   C. chip       the label for each state: the tier only (Auto / Fast / Balanced / Best), a short model name with the full name in the accessible label and title, Custom for a mix; truncation
 //   D. menu       Auto, Fast, Balanced, Best with $ / $$ / $$$ (the models' cost_hint when the three groups agree); "More models…" lists the models common to the three groups, and only those
 //   E. write      one choice is written to the three text groups and to nothing else; Auto clears them; the wire values; imagery and narration are never written
-//   F. scope      no session: the reusable default ("Applies to new decks"); a session: this deck ("Applies to this deck"), following the default until it has a choice of its own
+//   F. scope      no session: the reusable default ("Applies to new decks"), Auto alone; a session: this deck ("Applies to this deck"), following the default until it has a choice of its own, with TWO rows:
+//                 "Auto: Deckster chooses" ({ auto: true }, ROUTER-2's model-router !42) and "Use my default: <it>" (the group left out)
 //   G. fallbacks  router 503 -> this device ("Saved on this device for now"); no deck scope (404) or an unsaved / foreign session -> the default; the account unreachable or the routes off -> the device; a storage that throws
 //   H. onChange   called after the save settles, with the choice in force; not for a refusal or an ignored pick; a conflict shows the saved choice; a second pick while one is saving is ignored
 //   I. catalogue  no catalogue (route off, 503, 404, not JSON, wrong schema) leaves the tiers and no models; a kept model with no catalogue reads by its id; only Studio routes are asked, never a user id
@@ -39,6 +40,8 @@ const REGISTRY = 'scripts/studio-later-changes.mjs'
 const FIX = 'scripts/fixtures/studio-model-choice', FIXTURE = `${FIX}/catalogue-live-shape.json`
 const PICKER_BASE = '8e735ca3' // the head of #521 before the picker (frontend2/model-choice-ui)
 const PICKER_FILES = [FILES.picker, FILES.hook, FILES.component, FILES.css, KIT, FIXTURE_SCRIPT, SELF].sort()
+const AUTO_FIXTURES = ['router-prefs-422-invalid-preference-auto.json', 'router-prefs-session-auto-200.json', 'router-put-session-auto-200.json'].map(name => `${FIX}/${name}`) // deck Auto (ROUTER-2, model-router !42)
+const EDITED = ['components/studio-personal/intelligence-model-choice.tsx', SERVER, CHOICE_LIB, STRIP, 'scripts/test-studio-model-choice.mjs'] // the older files the picker's commits edit: the Intelligence chooser and its lib and server, for the deck's Auto
 const TEXT_GROUPS = ['planning_strategy', 'content_writing', 'research_analysis']
 
 let overrides = {}
@@ -54,7 +57,7 @@ const USER_PATH = `/v1/prefs/${ME.id}`, SESSION_PATH = `/v1/prefs/${ME.id}/sessi
 const USER_KEY = 'deckster-studio-model-choice-v1:user'
 
 // ---------------------------------------------------------------- the router: an in-process fake that keeps choices per (user) and (user, session) with ETags, as the router does
-function fakeRouter({ deckScope = true, refuse = [] } = {}) {
+function fakeRouter({ deckScope = true, refuse = [], refuseAuto = false } = {}) {
   const store = new Map(), log = [], state = { deckScope }
   const certified = Object.fromEntries(TEXT_GROUPS.map(group => [group, json(FIXTURE).groups[group].selectable_models]))
   const etagOf = rows => `"${sha(JSON.stringify(Object.entries(rows).sort())).slice(0, 32)}"`
@@ -71,12 +74,18 @@ function fakeRouter({ deckScope = true, refuse = [] } = {}) {
     if (init.method === 'GET') return answer(200, view(rows), etagOf(rows))
     if (init.headers['If-Match'] && init.headers['If-Match'] !== etagOf(rows)) return answer(412, json(`${FIX}/router-prefs-412.json`), etagOf(rows))
     const body = JSON.parse(init.body)
+    const isAuto = choice => choice !== null && typeof choice === 'object' && 'auto' in choice
+    for (const choice of Object.values(body.preferences)) {
+      if (!isAuto(choice)) continue
+      if (!(init.method === 'PUT' && m[2])) return answer(422, { error: { message: 'Extra inputs are not permitted', type: 'invalid_request_error', code: 'extra_forbidden' } }) // the user routes have no auto
+      if (refuseAuto || Object.keys(choice).length !== 1 || choice.auto !== true) return answer(422, json(`${FIX}/router-prefs-422-invalid-preference-auto.json`)) // exactly { "auto": true }, alone; the whole PUT is refused
+    }
     for (const [group, choice] of Object.entries(body.preferences)) {
       if (choice === null) continue
       if (!TEXT_GROUPS.includes(group)) return answer(422, { error: { message: 'x', type: 'invalid_request_error', code: 'invalid_preference_group' } })
       if (choice.model && (!certified[group].includes(choice.model) || refuse.includes(choice.model))) return answer(422, { error: { message: 'x', type: 'invalid_request_error', code: 'invalid_preference_model' } })
     }
-    const stamp = choice => ({ preset: choice.preset ?? null, model: choice.model ?? null, updated_at: `2026-10-26T12:00:${String(++clock).padStart(2, '0')}Z` })
+    const stamp = choice => ({ ...(choice.auto === true ? { auto: true } : {}), preset: choice.preset ?? null, model: choice.model ?? null, updated_at: `2026-10-26T12:00:${String(++clock).padStart(2, '0')}Z` })
     if (init.method === 'PATCH' && !m[2]) {
       const next = { ...rows }
       for (const [group, choice] of Object.entries(body.preferences)) { if (choice === null) delete next[group]; else next[group] = stamp(choice) }
@@ -86,14 +95,14 @@ function fakeRouter({ deckScope = true, refuse = [] } = {}) {
     if (init.method === 'PUT' && m[2]) {
       const next = Object.fromEntries(Object.entries(body.preferences).map(([group, choice]) => [group, stamp(choice)]))
       store.set(pathname, next)
-      return answer(200, view(next))
+      return answer(200, { ...view(next), preferences: Object.fromEntries(Object.entries(view(next).preferences).map(([group, row]) => [group, row.auto === true ? { auto: true } : row])) }) // like the router's PUT: no ETag; an auto group is echoed as { "auto": true }
     }
     return answer(405, { detail: 'Method Not Allowed' })
   }
-  const seed = (pathname, choice) => store.set(pathname, Object.fromEntries(TEXT_GROUPS.map(group => [group, { preset: choice.tier ?? null, model: choice.model ?? null, updated_at: '2026-10-25T09:00:00Z' }])))
+  const seed = (pathname, choice) => store.set(pathname, Object.fromEntries(TEXT_GROUPS.map(group => [group, { ...(choice.auto ? { auto: true } : {}), preset: choice.tier ?? null, model: choice.model ?? null, updated_at: '2026-10-25T09:00:00Z' }])))
   return { fetch, store, log, state, seed, etagOf, bump: (pathname, rows) => store.set(pathname, rows) }
 }
-const kept = (router, pathname) => Object.fromEntries(Object.entries(router.store.get(pathname) ?? {}).map(([group, row]) => [group, row.preset ?? `model:${row.model}`]))
+const kept = (router, pathname) => Object.fromEntries(Object.entries(router.store.get(pathname) ?? {}).map(([group, row]) => [group, row.auto === true ? 'auto' : row.preset ?? `model:${row.model}`]))
 
 // ---------------------------------------------------------------- the picker under a small hook runtime. Real: the TypeScript, the adapter, the server handlers. Stubbed: React's scheduler (state is applied at once, effects run after each pass) and Radix (a popover that is open when asked).
 const walk = tree => !tree || typeof tree !== 'object' ? [] : Array.isArray(tree) ? tree.flatMap(walk) : [tree, ...walk(tree.props?.children)]
@@ -410,7 +419,7 @@ async function suite({ quiet = false, bail = false, extraCommitted = [] } = {}) 
   await check('E: a pick that is not on offer writes nothing (a model not certified in all three groups, a tier the catalogue does not open, no catalogue for a model)', async () => {
     const rt = await mount({ body: m => function Probe() { const api = m.component.useModelChoice(null); return { type: 'probe', props: { api } } } })
     const api = () => rt.find(node => node.type === 'probe').props.api
-    for (const choice of [{ model: 'google/gemini-3.8-flash' }, { model: 'x-ai/grok-4.6' }, { model: '../x' }, { tier: 'cheap' }, { model: 7 }]) deep(await api().select(choice), { kind: 'ignored' })
+    for (const choice of [{ model: 'google/gemini-3.8-flash' }, { model: 'x-ai/grok-4.6' }, { model: '../x' }, { tier: 'cheap' }, { model: 7 }, { auto: true }, { auto: false }]) deep(await api().select(choice), { kind: 'ignored' }, JSON.stringify(choice))
     eq(rt.fetchLog.filter(entry => entry.init.method === 'PATCH').length, 0)
     const bare = await mount({ catalogue: { status: 503, body: { service_unavailable: true, code: 'router_not_configured' } }, body: m => function Probe() { const api = m.component.useModelChoice(null); return { type: 'probe', props: { api } } } })
     deep(await bare.find(node => node.type === 'probe').props.api.select({ model: 'openai/gpt-6.1-sol' }), { kind: 'ignored' }, 'a model with no catalogue to check it against')
@@ -436,15 +445,57 @@ async function suite({ quiet = false, bail = false, extraCommitted = [] } = {}) 
     eq(router.log.filter(entry => entry.method === 'PUT').length, 1, 'the router\'s session scope takes the whole map')
     eq(rt.chipText(), 'Fast')
   })
-  await check('F: a deck with no choice of its own follows the default (the chip says it; Auto says so); Auto clears the deck back to it', async () => {
+  await check('F: a deck with no choice of its own follows the default: the chip says it, and "Use my default: Best" is the selected row, beside "Auto: Deckster chooses"', async () => {
     const router = fakeRouter(); seedWire(router, USER_PATH, 'best')
     const rt = await mount({ router, props: { sessionId: 'sess-fixture-1' } })
     eq(rt.chipText(), 'Best', 'what applies'); await rt.open()
-    eq(rt.item('auto').detail, 'Your default: Best'); deep(rt.items().map(item => item.pressed), [false, false, false, true])
-    await rt.pick('economy'); eq(rt.chipText(), 'Fast'); await rt.open(); await rt.pick('auto')
-    deep(JSON.parse(rt.fetchLog.filter(entry => entry.init.method === 'PATCH').at(-1).init.body), { preferences: Object.fromEntries(TEXT_GROUPS.map(g => [g, null])) })
-    deep(kept(router, SESSION_PATH), {}); eq(rt.chipText(), 'Best', 'back to the default'); deep(kept(router, USER_PATH), Object.fromEntries(TEXT_GROUPS.map(g => [g, 'best'])))
+    deep(rt.items().map(item => [item.id, item.name, item.pressed]), [['auto', 'Auto: Deckster chooses', false], ['default', 'Use my default: Best', true], ['economy', 'Fast', false], ['balanced', 'Balanced', false], ['best', 'Best', false]], 'following: no tier row is selected')
+    await rt.pick('economy'); eq(rt.chipText(), 'Fast'); await rt.open(); deep(rt.items().map(item => item.pressed), [false, false, true, false, false])
+    await rt.pick('default')
+    deep(JSON.parse(rt.fetchLog.filter(entry => entry.init.method === 'PATCH').at(-1).init.body), { preferences: Object.fromEntries(TEXT_GROUPS.map(g => [g, null])) }, '"use my default" is null on the wire')
+    deep(kept(router, SESSION_PATH), {}, 'the group is left out'); eq(rt.chipText(), 'Best', 'back to the default'); deep(kept(router, USER_PATH), Object.fromEntries(TEXT_GROUPS.map(g => [g, 'best'])))
+    await rt.open(); eq(rt.item('default').pressed, true)
   })
+  await check('F: the deck\'s own Auto is { "auto": true }: the chip says Auto, "Auto: Deckster chooses" is the selected row whatever the default, and onChange gets { auto: true }', async () => {
+    const router = fakeRouter(); seedWire(router, USER_PATH, 'best'); const calls = []
+    const rt = await mount({ router, props: { sessionId: 'sess-fixture-1' }, onChange: choice => calls.push(choice) })
+    await rt.open(); await rt.pick('auto')
+    const put = router.log.filter(entry => entry.method === 'PUT'); eq(put.length, 1)
+    eq(put[0].body, JSON.stringify({ preferences: Object.fromEntries(TEXT_GROUPS.map(g => [g, { auto: true }])) }), 'the router\'s session scope takes { "auto": true } for the three text groups')
+    deep(kept(router, SESSION_PATH), Object.fromEntries(TEXT_GROUPS.map(g => [g, 'auto']))); deep(kept(router, USER_PATH), Object.fromEntries(TEXT_GROUPS.map(g => [g, 'best'])), 'the default is untouched')
+    eq(rt.chipText(), 'Auto'); eq(rt.chip().props['aria-label'], 'Model: Auto'); deep(calls, [{ auto: true }])
+    await rt.open(); deep(rt.items().map(item => [item.id, item.pressed]), [['auto', true], ['default', false], ['economy', false], ['balanced', false], ['best', false]])
+    const again = await mount({ router, props: { sessionId: 'sess-fixture-1' } })
+    eq(again.chipText(), 'Auto', 'read back as Auto'); eq(again.chip().props['data-mpick-state'], 'auto'); await again.open(); eq(again.item('auto').pressed, true); eq(again.note('scope'), 'Applies to this deck')
+    await rt.pick('default'); eq(rt.chipText(), 'Best'); deep(calls, [{ auto: true }, null]); deep(kept(router, SESSION_PATH), {})
+  })
+  await check('F: with no default of my own both deck rows are there ("Use my default: Auto" is selected for a deck with no choice); the groups of a deck that differ read as Custom', async () => {
+    const router = fakeRouter()
+    const rt = await mount({ router, props: { sessionId: 'sess-fixture-1' } }); await rt.open()
+    deep(rt.items().slice(0, 2).map(item => [item.id, item.name, item.pressed]), [['auto', 'Auto: Deckster chooses', false], ['default', 'Use my default: Auto', true]]); eq(rt.chipText(), 'Auto')
+    router.bump(SESSION_PATH, { content_writing: { preset: 'best', model: null, updated_at: 't' }, research_analysis: { auto: true, preset: null, model: null, updated_at: 't' } }) // the first group follows the default, the others differ
+    const mixed = await mount({ router, props: { sessionId: 'sess-fixture-1' } }); eq(mixed.chipText(), 'Custom'); await mixed.open(); ok(mixed.items().every(item => item.pressed === false), 'no row is selected')
+  })
+  await check('F: on a deck only exactly { auto: true } is sent as Auto (false, "true", an extra key are ignored)', async () => {
+    const router = fakeRouter()
+    const rt = await mount({ router, props: { sessionId: 'sess-fixture-1' }, body: m => function Probe(p) { const api = m.component.useModelChoice(p.sessionId); return { type: 'probe', props: { api } } } })
+    for (const bad of [{ auto: false }, { auto: 'true' }, { auto: 1 }, { auto: true, x: 1 }, { auto: true, tier: 'best' }]) deep(await rt.find(node => node.type === 'probe').props.api.select(bad), { kind: 'ignored' }, JSON.stringify(bad))
+    eq(rt.fetchLog.filter(entry => entry.init.method === 'PATCH').length, 0); deep(kept(router, SESSION_PATH), {})
+    deep(await rt.find(node => node.type === 'probe').props.api.select({ auto: true }), { kind: 'saved', choice: { auto: true } })
+  })
+  await check('F: the reusable default (no session, or no deck scope) has Auto alone, as null; no deck rows; a deck Auto is ignored there', async () => {
+    for (const [name, extra] of [['no session', { props: { sessionId: null } }], ['no deck scope', { props: { sessionId: 'sess-fixture-1' }, router: fakeRouter({ deckScope: false }) }]]) {
+      const router = extra.router ?? fakeRouter()
+      const rt = await mount({ router, ...extra })
+      await rt.open(); deep(rt.items().map(item => [item.id, item.name]), [['auto', 'Auto'], ['economy', 'Fast'], ['balanced', 'Balanced'], ['best', 'Best']], name); eq(rt.item('auto').detail, 'Deckster chooses')
+      await rt.pick('best'); await rt.open(); await rt.pick('auto')
+      deep(JSON.parse(rt.fetchLog.filter(entry => entry.init.method === 'PATCH').at(-1).init.body), { preferences: Object.fromEntries(TEXT_GROUPS.map(g => [g, null])) }, `${name}: Auto is null on the reusable default`)
+      deep(kept(router, USER_PATH), {}, name)
+    }
+    const probe = await mount({ body: m => function Probe() { const api = m.component.useModelChoice(null); return { type: 'probe', props: { api } } } })
+    deep(await probe.find(node => node.type === 'probe').props.api.select({ auto: true }), { kind: 'ignored' }); eq(probe.fetchLog.filter(entry => entry.init.method === 'PATCH').length, 0, 'nothing sent')
+  })
+
   await check('F: a new session id reloads the choice; the first deck\'s choice does not follow', async () => {
     const router = fakeRouter()
     router.bump(SESSION_PATH, Object.fromEntries(TEXT_GROUPS.map(g => [g, { preset: 'best', model: null, updated_at: 't' }])))
@@ -540,6 +591,14 @@ async function suite({ quiet = false, bail = false, extraCommitted = [] } = {}) 
     await rt.open(); eq(rt.note('scope'), 'Applies to new decks'); deep(kept(router, USER_PATH), {})
   })
 
+  await check('H: a router 422 invalid_preference_auto puts the earlier choice back, says it was Auto, reports nothing, and saves nothing; a deck Auto with extra keys or false is never sent', async () => {
+    const router = fakeRouter({ refuseAuto: true }); router.bump(SESSION_PATH, Object.fromEntries(TEXT_GROUPS.map(g => [g, { preset: 'balanced', model: null, updated_at: 't' }]))); const calls = []
+    const rt = await mount({ router, props: { sessionId: 'sess-fixture-1' }, onChange: choice => calls.push(choice) })
+    eq(rt.chipText(), 'Balanced'); await rt.open(); await rt.pick('auto')
+    deep(calls, []); eq(rt.chipText(), 'Balanced', 'put back'); eq(rt.status(), 'Auto cannot be saved for this presentation right now, so it keeps what it had.'); deep(kept(router, SESSION_PATH), Object.fromEntries(TEXT_GROUPS.map(g => [g, 'balanced'])))
+    await rt.open(); await rt.pick('economy'); eq(rt.chipText(), 'Fast', 'a tier still saves'); eq(rt.status(), ''); deep(calls, [{ tier: 'economy' }])
+  })
+
   // ---- I. catalogue -------------------------------------------------------------------------------------------------------------------------------------------------
   await check('I: with no catalogue (route off, 503, 404, not JSON, wrong schema, unreachable) the tiers work and no model is offered', async () => {
     const cases = [
@@ -617,6 +676,8 @@ async function suite({ quiet = false, bail = false, extraCommitted = [] } = {}) 
     eq(api().ready, true); eq(api().choice, null); eq(api().scope, 'deck'); deep(api().state, { kind: 'auto' })
     deep(await api().select({ tier: 'best' }), { kind: 'saved', choice: { tier: 'best' } }); await rt.settle()
     deep(api().choice, { tier: 'best' }); eq(api().saveNote, NOTES.account)
+    deep(await api().select({ auto: true }), { kind: 'saved', choice: { auto: true } }); await rt.settle(); deep(api().choice, { auto: true }, 'a deck\'s own Auto'); eq(api().deckOwn, 'auto')
+    deep(await api().select(null), { kind: 'saved', choice: null }); await rt.settle(); deep(api().choice, null, 'use my default (the default is Auto)'); eq(api().deckOwn, 'default')
   })
 
   // ---- K. css -------------------------------------------------------------------------------------------------------------------------------------------------------
@@ -677,19 +738,19 @@ async function suite({ quiet = false, bail = false, extraCommitted = [] } = {}) 
   if (own.length === 0 && extraCommitted.length === 0) {
     if (!quiet) console.log('SKIP L  nothing of the picker committed on top of 8e735ca3 yet (the scope check reads PICKER_BASE..HEAD only)')
   } else {
-    await check('L: the picker\'s own commits ("Model choice: ...") add exactly its files; the only existing file they edit is the strip list', async () => {
+    await check('L: the picker\'s own commits ("Model choice: ...") add exactly its files and the deck Auto fixtures, and edit only the Intelligence chooser, its lib and server, the strip list and their proof', async () => {
       const touched = new Set(own.flatMap(entry => entry.names))
       const status = git('diff', '--name-status', PICKER_BASE, own[0].commit).split('\n').filter(Boolean).map(line => line.split('\t')).filter(row => touched.has(row[1]))
-      deep([...status.filter(row => row[0] === 'A').map(row => row[1]), ...extraCommitted].sort(), PICKER_FILES)
-      deep(status.filter(row => row[0] !== 'A').map(row => `${row[0]} ${row[1]}`), [`M ${STRIP}`])
+      deep([...status.filter(row => row[0] === 'A').map(row => row[1]), ...extraCommitted].sort(), [...PICKER_FILES, ...AUTO_FIXTURES].sort())
+      deep(status.filter(row => row[0] !== 'A').map(row => `${row[0]} ${row[1]}`).sort(), EDITED.map(file => `M ${file}`).sort())
     })
     await check('L: the strip list names the picker\'s files, so the registry hides them from the older scope checks, and it only gained lines', async () => {
       const strip = await import(`${path.join(root, STRIP)}?t=${Date.now()}`)
-      for (const rel of PICKER_FILES) ok(strip.MODEL_CHOICE_SCOPE_FILES.has(rel), rel)
+      for (const rel of [...PICKER_FILES, ...AUTO_FIXTURES]) ok(strip.MODEL_CHOICE_SCOPE_FILES.has(rel), rel)
       const reg = await import(`${path.join(root, REGISTRY)}?t=${Date.now()}`)
-      for (const rel of PICKER_FILES) ok(reg.LATER_CHANGE_FILES.has(rel), rel)
+      for (const rel of [...PICKER_FILES, ...AUTO_FIXTURES]) ok(reg.LATER_CHANGE_FILES.has(rel), rel)
       const edit = git('diff', '-U0', PICKER_BASE, own[0].commit, '--', STRIP).split('\n').filter(line => /^[+-]/.test(line) && !/^(\+\+\+|---) /.test(line))
-      ok(edit.length > 0 && edit.filter(line => line.startsWith('-')).length <= 1, `${edit.length} changed lines`)
+      ok(edit.length > 0 && edit.filter(line => line.startsWith('-')).length <= 3, `${edit.length} changed lines`)
     })
   }
 
@@ -732,7 +793,21 @@ const MUTANTS = [
   ['picker: a mix reads as the first group', P, 'if (PICKER_GROUPS.some(group => choices[group] !== first)) return MIXED\n', ''],
   ['picker: every tier is offered', P, 'return group === null || presetModel(catalogue, group, tier) !== null })', 'return true })'],
   ['picker: the session id is trusted', P, 'export const deckIdFromSessionId = (sessionId: string | null | undefined): string | null => (sessionId ?', 'export const deckIdFromSessionId = (sessionId: string | null | undefined): string | null => (sessionId ? sessionId : null) || (sessionId ?'],
-  ['picker: Auto does not name the default', P, 'detail: inheritedLabel ? `Your default: ${inheritedLabel}` : PICKER_AUTO_DETAIL', 'detail: PICKER_AUTO_DETAIL'],
+  ['picker: the default row names no default', P, '`${MODEL_CHOICE_USE_DEFAULT}: ${args.userState ? plainName(args.userState, catalogue) : PICKER_AUTO_LABEL}`', '`${MODEL_CHOICE_USE_DEFAULT}: Auto`'],
+  ['picker: the deck\'s Auto is no { auto: true }', P, "{ id: 'auto', label: MODEL_CHOICE_AUTO_LABEL, detail: null, hint: null, choice: { auto: true },", "{ id: 'auto', label: MODEL_CHOICE_AUTO_LABEL, detail: null, hint: null, choice: null,"],
+  ['picker: "use my default" writes the Auto', P, "hint: null, choice: null, selected: following },", "hint: null, choice: { auto: true }, selected: following },"],
+  ['picker: "use my default" is never selected', P, "hint: null, choice: null, selected: following },", "hint: null, choice: null, selected: false },"],
+  ['picker: the reusable default shows the deck rows', P, 'const main: PickerOption[] = deck\n', 'const main: PickerOption[] = true\n'],
+  ['picker: a deck Auto is on offer on the reusable default', P, "return scope === 'deck' && choice.auto === true && Object.keys(choice).length === 1", 'return choice.auto === true && Object.keys(choice).length === 1'],
+  ['picker: an Auto with extra keys is on offer', P, ' && Object.keys(choice).length === 1\n', '\n'],
+  ['picker: a tier is selected while following the default', P, 'selected: !following && state.kind === \'tier\'', "selected: state.kind === 'tier'"],
+  ['picker: a mixed deck reads as its first group', P, "  if (PICKER_GROUPS.some(group => deck[group] !== first)) return 'mixed'\n", ''],
+  ['picker: the deck\'s Auto loses its flag', P, 'if (first === MODEL_CHOICE_AUTO) return PICKER_AUTO_DECK', 'if (first === MODEL_CHOICE_AUTO) return PICKER_AUTO'],
+  ['picker: the deck\'s Auto is reported as null', P, "(state.deck ? { auto: true } : null)", 'null'],
+  ['hook: the scope is not given to offerable', H, '!offerable(now.catalogue, choice, now.scope.kind)', '!offerable(now.catalogue, choice)'],
+  ['hook: a refused Auto reads as any refusal', H, 'askedAuto || result.refusedCode === "invalid_preference_auto" ? MODEL_CHOICE_REFUSED_AUTO : MODEL_CHOICE_REFUSED', 'MODEL_CHOICE_REFUSED'],
+  ['hook: what a deck holds is not given', H, '    deckOwn,\n    choice:', '    deckOwn: undefined,\n    choice:'],
+  ['component: the menu is built for the reusable default', C, 'scope: api.scope, own: api.deckOwn, userState: api.userState })', 'scope: "user", userState: api.userState })'],
   ['picker: More is always offered', P, 'const more = common.length > 0 ?', 'const more = true ?'],
   ['picker: a mix is reported as Auto', P, "state.kind === 'mixed' ? PICKER_MIXED_LABEL : PICKER_AUTO_LABEL", 'PICKER_AUTO_LABEL'],
   ['hook: the flag is loose', H, 'process.env.NEXT_PUBLIC_STUDIO_MODEL_CHOICE === "true"', 'Boolean(process.env.NEXT_PUBLIC_STUDIO_MODEL_CHOICE)'],
@@ -743,11 +818,11 @@ const MUTANTS = [
   ['hook: the deck scope is never used', H, 'deckId && loaded?.deckState === "ok" ? { kind: "deck", deckId } : USER_SCOPE', 'USER_SCOPE'],
   ['hook: an unavailable deck scope is used', H, 'if (answer.deckUnavailable) deckState = answer.deckUnavailable\n          else {', 'if (false) deckState = answer.deckUnavailable\n          else {'],
   ['hook: the default is not loaded for a deck', H, 'const user = await runtime.store.loadChoices(USER_SCOPE)', 'const user = { choices: modelChoiceDefaults() }'],
-  ['hook: a pick that is not on offer is written', H, '|| !offerable(now.catalogue, choice)', ''],
+  ['hook: a pick that is not on offer is written', H, '|| !offerable(now.catalogue, choice, now.scope.kind)', ''],
   ['hook: a second pick is taken while saving', H, 'if (!now.loaded || busy.current ||', 'if (!now.loaded ||'],
   ['hook: a conflict is ignored', H, 'if ("conflict" in result && result.conflict) {', 'if (false) {'],
   ['hook: a refusal is not put back', H, '      put(own)\n      outcome = { kind: "refused" }', '      outcome = { kind: "refused" }'],
-  ['hook: a refusal is reported', H, '      words = MODEL_CHOICE_REFUSED\n      reported = undefined', '      words = MODEL_CHOICE_REFUSED\n      reported = choice'],
+  ['hook: a refusal is reported', H, '      reported = undefined\n    } else if ("deckUnavailable"', '      reported = choice\n    } else if ("deckUnavailable"'],
   ['hook: the conflict is reported as the pick', H, 'reported = choiceOfState(pickerStateOf(mergeChoices(target.kind === "deck" ? now.loaded.user : saved, target.kind === "deck" ? saved : null)))', 'reported = choice'],
   ['hook: onChange is never called', H, 'if (reported !== undefined && notify) notify(reported)', 'if (false) void notify'],
   ['hook: onChange is called before the save', H, '    let result: ModelChoiceSave | { mode: "session" }\n', '    if (latest.current.onChange) latest.current.onChange(choice)\n    let result: ModelChoiceSave | { mode: "session" }\n'],

@@ -9,7 +9,10 @@
 //     route answers 503 { code: 'router_not_configured', retryable: false } before anything is sent. The key goes only into the Authorization header of the router call: never into a response, never into a log;
 //   - "Reusable defaults" = GET / PATCH {router}/v1/prefs/{user}; "This presentation" = this Studio session (ROUTER-2 confirmed the session id as the deck key): GET / PUT {router}/v1/prefs/{user}/sessions/{session},
 //     which REPLACES the whole map. So a Studio PATCH is a read-modify-write on both scopes: GET (ETag), refuse a stale If-Match, then write with If-Match. A group set to null means "use my defaults";
-//   - only the three text groups can be chosen in v1 (imagery and narration have no certified model); a choice is { preset: best | balanced | economy } or { model } or null, nothing else;
+//   - only the three text groups can be chosen in v1 (imagery and narration have no certified model); a choice is { preset: best | balanced | economy } or { model } or null, nothing else; and on the deck
+//     scope alone (ROUTER-2, model-router !42) { auto: true }: "Auto", Deckster's own choice for this presentation even when the person has a reusable default. It is validated exactly (only the key auto, only the
+//     boolean true), written to the router's session scope as { "auto": true }, refused here with a 400 on the user scope before any router call, and read back as { auto: true } rows. "Use my default" is
+//     still the group OMITTED from the deck map (null in the browser's body), and the user scope's "Auto" is still { group: null };
 //   - the deck scope needs the router's R3: until it ships the router answers 404 there, which means "not available yet", not an error; the session must belong to the signed-in user;
 //   - "Used for this deck" reads {router}/v1/usage/trace/{build_id}/timeline (the build id is the narrator's build_id, which Director uses as the router trace id) and returns ONLY the rows whose user_id
 //     is the session user's.
@@ -65,10 +68,11 @@ export function sessionUserId(user: SessionUser): string | null {
 export const routerPrefsPath = (userId: string, deckKey?: string | null) =>
   deckKey ? `/v1/prefs/${encodeURIComponent(userId)}/${MODEL_CHOICE_DECK_SCOPE}/${encodeURIComponent(deckKey)}` : `/v1/prefs/${encodeURIComponent(userId)}`
 
-export type Choice = { preset: string } | { model: string }
+export type Choice = { preset: string } | { model: string } | { auto: true }
 export type Changes = Record<string, Choice | null>
 
-/** The browser's PATCH body: exactly { preferences: { <text group>: { preset } | { model } | null } }, one to three groups, nothing else (no user id, no other field). */
+/** The browser's PATCH body: exactly { preferences: { <text group>: { preset } | { model } | { auto: true } | null } }, one to three groups, nothing else (no user id, no other field). { auto: true } is the
+ * deck scope's alone (handlePrefs refuses it on the user scope); its only key is auto and its only value the boolean true. */
 export function parsePrefsPatch(body: unknown): { ok: true; changes: Changes } | { ok: false; error: string; code: 'invalid_request' } {
   const refuse = (error: string) => ({ ok: false as const, error, code: 'invalid_request' as const })
   if (!isRecord(body) || Object.keys(body).length !== 1 || !isRecord(body.preferences)) return refuse('The body must be { "preferences": { <group>: { "preset" } | { "model" } | null } }.')
@@ -79,14 +83,17 @@ export function parsePrefsPatch(body: unknown): { ok: true; changes: Changes } |
     if (!MODEL_CHOICE_CHOOSABLE_GROUPS.includes(group)) return refuse(`This group cannot be chosen: ${group.slice(0, 40)}.`)
     const choice = body.preferences[group]
     if (choice === null) { changes[group] = null; continue }
-    if (!isRecord(choice) || Object.keys(choice).length !== 1) return refuse('A choice is { "preset" } or { "model" } or null.')
-    if ('preset' in choice) {
+    if (!isRecord(choice) || Object.keys(choice).length !== 1) return refuse('A choice is { "preset" } or { "model" } or { "auto": true } or null.')
+    if ('auto' in choice) {
+      if (choice.auto !== true) return refuse('Auto is { "auto": true }.')
+      changes[group] = { auto: true }
+    } else if ('preset' in choice) {
       if (typeof choice.preset !== 'string' || !PRESETS.includes(choice.preset)) return refuse('A preset is best, balanced or economy.')
       changes[group] = { preset: choice.preset }
     } else if ('model' in choice) {
       if (typeof choice.model !== 'string' || !MODEL_SHAPE.test(choice.model)) return refuse('A model is a catalogue model id.')
       changes[group] = { model: choice.model }
-    } else return refuse('A choice is { "preset" } or { "model" } or null.')
+    } else return refuse('A choice is { "preset" } or { "model" } or { "auto": true } or null.')
   }
   return { ok: true, changes }
 }
@@ -98,8 +105,9 @@ export function parseIfMatch(raw: string | null): { ok: true; tag: string | null
   return ETAG_SHAPE.test(tag) ? { ok: true, tag } : { ok: false }
 }
 
-type Row = { preset: string | null; model: string | null; stale: boolean }
-/** The router's saved rows, as much as Studio keeps: preset or model, and stale. */
+type Row = { preset: string | null; model: string | null; stale: boolean; auto?: true }
+/** The router's saved rows, as much as Studio keeps: preset or model (or, on the deck scope, auto), and stale. The router's auto row carries auto: true and null preset and model (the key is on auto rows only);
+ * an auto flag beside a preset or a model is not read as auto. */
 function rowsOf(body: unknown): Record<string, Row> {
   const out: Record<string, Row> = {}
   const preferences = isRecord(body) && isRecord(body.preferences) ? body.preferences : {}
@@ -109,14 +117,16 @@ function rowsOf(body: unknown): Record<string, Row> {
     const preset = typeof row.preset === 'string' && PRESETS.includes(row.preset) ? row.preset : null
     const model = preset === null && typeof row.model === 'string' && MODEL_SHAPE.test(row.model) ? row.model : null
     if (preset !== null || model !== null) out[group] = { preset, model, stale: row.stale === true }
+    else if (row.auto === true && (row.preset ?? null) === null && (row.model ?? null) === null) out[group] = { preset: null, model: null, stale: row.stale === true, auto: true }
   }
   return out
 }
-/** What the browser gets: the choosable groups only, and the catalogue version. Never the user id. */
+/** What the browser gets: the choosable groups only, and the catalogue version. Never the user id. An auto row reads back as { auto: true, preset: null, model: null, stale } on the deck scope; the user scope has
+ * no auto, so a row of the kind there is left out. */
 function view(scope: 'user' | 'deck', body: unknown): Record<string, unknown> {
   const rows = rowsOf(body)
   const preferences: Record<string, Row> = {}
-  for (const group of MODEL_CHOICE_CHOOSABLE_GROUPS) if (rows[group]) preferences[group] = rows[group]
+  for (const group of MODEL_CHOICE_CHOOSABLE_GROUPS) if (rows[group] && (scope === 'deck' || !rows[group].auto)) preferences[group] = rows[group]
   const version = isRecord(body) && typeof body.catalogue_version === 'string' ? body.catalogue_version.slice(0, 200) : null
   return { scope, preferences, catalogue_version: version }
 }
@@ -138,12 +148,15 @@ async function callRouter(fetchImpl: FetchLike, config: RouterConfig, method: st
 }
 const routerCode = (body: unknown) => { const code = isRecord(body) && isRecord(body.error) ? body.error.code : undefined; return typeof code === 'string' && CODE_SHAPE.test(code) ? code : null }
 /** A router answer that is not a success, in Studio's words. A 404 on the deck scope is "not available yet" (R3 not shipped). */
-function routerFailure(call: Call, deck: boolean): Outcome {
+function routerFailure(call: Call, deck: boolean, askedAuto = false): Outcome {
   if ('failed' in call) return fail(502, call.failed === 'timeout' ? 'router_timeout' : 'router_unreachable', 'The model router could not be reached right now.', true)
   if (call.status === 404 && deck) return DECK_NOT_AVAILABLE()
   if (call.status === 401 || call.status === 403) return fail(502, 'router_auth_failed', 'The model router refused Studio.', false)
   if (call.status === 409 || call.status === 412) return { status: 412, body: { error: 'Your choices changed elsewhere. Read them again and retry.', code: 'preferences_modified', retryable: true }, etag: call.etag ?? undefined }
-  if (call.status === 422) return fail(422, routerCode(call.body) ?? 'invalid_preference', 'That choice cannot be saved for this task right now.', false)
+  if (call.status === 422) {
+    const code = routerCode(call.body) ?? 'invalid_preference'
+    return fail(422, code, askedAuto || code === 'invalid_preference_auto' ? 'Auto cannot be saved for this presentation right now.' : 'That choice cannot be saved for this task right now.', false)
+  }
   return fail(502, 'router_error', 'The model router could not save or read your choices right now.', true)
 }
 
@@ -187,7 +200,10 @@ export async function handlePrefs(method: 'GET' | 'PATCH', deckKey: string | nul
     const parsed = parsePrefsPatch(raw)
     if (!parsed.ok) return fail(400, parsed.code, parsed.error, false)
     changes = parsed.changes
+    // { auto: true } is the deck scope's: the router's user routes refuse it (extra_forbidden), so it is refused here, before anything is sent.
+    if (!deck && Object.values(changes).some(choice => choice !== null && 'auto' in choice)) return fail(400, 'invalid_request', 'Auto is chosen for one presentation; for your reusable defaults, use no choice.', false)
   }
+  const askedAuto = Object.values(changes).some(choice => choice !== null && 'auto' in choice)
 
   // Then read (both methods): the current map and its ETag.
   const current = await callRouter(deps.fetch, config, 'GET', routerPath)
@@ -201,13 +217,13 @@ export async function handlePrefs(method: 'GET' | 'PATCH', deckKey: string | nul
   if (deck) {
     // PUT replaces the whole map: the current rows with the changes applied (null removes a group).
     const merged: Record<string, Choice> = {}
-    for (const [group, row] of Object.entries(rowsOf(current.body))) merged[group] = row.preset !== null ? { preset: row.preset } : { model: row.model as string }
+    for (const [group, row] of Object.entries(rowsOf(current.body))) merged[group] = row.auto ? { auto: true } : row.preset !== null ? { preset: row.preset } : { model: row.model as string }
     for (const [group, choice] of Object.entries(changes)) { if (choice === null) delete merged[group]; else merged[group] = choice }
     written = await callRouter(deps.fetch, config, 'PUT', routerPath, { preferences: merged }, current.etag)
   } else {
     written = await callRouter(deps.fetch, config, 'PATCH', routerPath, { preferences: changes }, current.etag)
   }
-  if ('failed' in written || written.status !== 200) return routerFailure(written, deck)
+  if ('failed' in written || written.status !== 200) return routerFailure(written, deck, askedAuto)
   let etag = written.etag
   let body = written.body
   if (!etag) {

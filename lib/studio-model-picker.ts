@@ -2,15 +2,16 @@
 // what a choice is, how it reads from and writes to the router's three text groups, which options the menu offers, what the chip says, and the two notes the menu carries. The requests, the ETags, the
 // 503 / 404 fallbacks and the device copy are the adapter's (lib/studio-model-choice.ts); nothing of that is repeated here.
 //
-// A choice is { tier: 'economy' | 'balanced' | 'best' } | { model: '<id>' } | null, and null is "Auto" (Deckster chooses). It applies to the three text groups together (planning_strategy, content_writing,
-// research_analysis); imagery and narration stay "Fixed for now" and are never written. Tiers show as Fast / Balanced / Best (the wire value of Fast is "economy"). A specific model is offered only when it is
+// A choice is { tier: 'economy' | 'balanced' | 'best' } | { model: '<id>' } | { auto: true } | null. For a NEW deck (no session) and for the reusable defaults, null is "Auto" (Deckster chooses). For a deck
+// (a session) there are two ways to leave it to Deckster: { auto: true }, the deck's own Auto (Deckster chooses, whatever the reusable default says), and null, "Use my default" (the deck has no choice of its own and
+// follows the reusable default). It applies to the three text groups together (planning_strategy, content_writing, research_analysis); imagery and narration stay "Fixed for now" and are never written. Tiers show as Fast / Balanced / Best (the wire value of Fast is "economy"). A specific model is offered only when it is
 // certified (selectable) in all three groups; a tier only when the model it names is certified in each live group (a group the catalogue does not open keeps the router's own tier, as the Intelligence page does).
 // With no catalogue (not loaded, not switched on, not reachable) the tiers are offered and no specific model is.
 
 import { P2_DEFAULT_CHOICE, type P2PresetId, type P2TaskId } from '@/lib/studio-intelligence-p2'
 import { modelTitle, providerLabel, providerOf } from '@/lib/studio-model-catalog'
 import {
-  MODEL_CHOICE_CHOOSABLE_GROUPS, MODEL_CHOICE_DECK_PARAM, MODEL_CHOICE_TIERS, choiceGroup, deckIdFromSearch, modelChoiceDefaults, offeredModels, presetModel,
+  MODEL_CHOICE_AUTO, MODEL_CHOICE_AUTO_LABEL, MODEL_CHOICE_CHOOSABLE_GROUPS, MODEL_CHOICE_DECK_PARAM, MODEL_CHOICE_TIERS, MODEL_CHOICE_USE_DEFAULT, choiceGroup, deckIdFromSearch, modelChoiceDefaults, offeredModels, presetModel,
   type ChoiceCatalogue, type DeviceReason, type ModelChoices, type SaveMode,
 } from '@/lib/studio-model-choice'
 
@@ -19,10 +20,11 @@ export const STUDIO_MODEL_PICKER_FLAG = 'NEXT_PUBLIC_STUDIO_MODEL_CHOICE'
 // ---------------------------------------------------------------------------------------------------------------- what a choice is
 
 export type PickerTier = P2PresetId
-export type ModelChoice = { tier: PickerTier } | { model: string } | null
-/** What the three text groups say together: Auto, one tier, one model, or (set apart, on the Intelligence page) different things. */
-export type PickerState = { kind: 'auto' } | { kind: 'tier'; tier: PickerTier } | { kind: 'model'; model: string } | { kind: 'mixed' }
+export type ModelChoice = { tier: PickerTier } | { model: string } | { auto: true } | null
+/** What the three text groups say together: Auto (`deck: true` when it is the deck's own Auto, { auto: true }), one tier, one model, or (set apart, on the Intelligence page) different things. */
+export type PickerState = { kind: 'auto'; deck?: true } | { kind: 'tier'; tier: PickerTier } | { kind: 'model'; model: string } | { kind: 'mixed' }
 export const PICKER_AUTO: PickerState = { kind: 'auto' }
+export const PICKER_AUTO_DECK: PickerState = { kind: 'auto', deck: true }
 const MIXED: PickerState = { kind: 'mixed' }
 
 /** The three groups a choice is written to, as task ids (the router's group ids are the task ids). */
@@ -34,18 +36,19 @@ const tierMeta = (tier: PickerTier) => MODEL_CHOICE_TIERS.find(entry => entry.id
 export const tierLabel = (tier: PickerTier) => tierMeta(tier).label
 
 /** The kept form of one choice (what lib/studio-model-choice.ts stores per task): "default", a tier, or "model:<id>". */
-export const choiceValue = (choice: ModelChoice): string => (choice === null ? P2_DEFAULT_CHOICE : 'tier' in choice ? choice.tier : `model:${choice.model}`)
+export const choiceValue = (choice: ModelChoice): string => (choice === null ? P2_DEFAULT_CHOICE : 'auto' in choice ? MODEL_CHOICE_AUTO : 'tier' in choice ? choice.tier : `model:${choice.model}`)
 
 export function pickerStateOf(choices: ModelChoices): PickerState {
   const first = choices[PICKER_GROUPS[0]]
   if (PICKER_GROUPS.some(group => choices[group] !== first)) return MIXED
+  if (first === MODEL_CHOICE_AUTO) return PICKER_AUTO_DECK
   if (isTier(first)) return { kind: 'tier', tier: first }
   if (first.startsWith('model:')) return { kind: 'model', model: first.slice(6) }
   return PICKER_AUTO
 }
 /** The choice a state stands for, or undefined for "mixed" (it is not one choice, so nothing is reported for it). */
 export function choiceOfState(state: PickerState): ModelChoice | undefined {
-  return state.kind === 'auto' ? null : state.kind === 'tier' ? { tier: state.tier } : state.kind === 'model' ? { model: state.model } : undefined
+  return state.kind === 'auto' ? (state.deck ? { auto: true } : null) : state.kind === 'tier' ? { tier: state.tier } : state.kind === 'model' ? { model: state.model } : undefined
 }
 
 /** `choices` with the three text groups set to `choice`. Imagery and narration are left as they are. */
@@ -59,6 +62,14 @@ export function mergeChoices(user: ModelChoices, deck: ModelChoices | null): Mod
   const out = { ...modelChoiceDefaults() }
   for (const group of PICKER_GROUPS) out[group] = deck && deck[group] !== P2_DEFAULT_CHOICE ? deck[group] : user[group]
   return out
+}
+
+/** What a deck's OWN groups hold: nothing ("default": it follows the reusable default), the deck's own Auto, one choice of its own, or a mix. */
+export type DeckOwn = 'default' | 'auto' | 'set' | 'mixed'
+export function deckOwnOf(deck: ModelChoices): DeckOwn {
+  const first = deck[PICKER_GROUPS[0]]
+  if (PICKER_GROUPS.some(group => deck[group] !== first)) return 'mixed'
+  return first === P2_DEFAULT_CHOICE ? 'default' : first === MODEL_CHOICE_AUTO ? 'auto' : 'set'
 }
 
 // ---------------------------------------------------------------------------------------------------------------- what the catalogue opens
@@ -90,9 +101,10 @@ export const modelHint = (catalogue: ChoiceCatalogue | null, slug: string): stri
 export const modelName = (catalogue: ChoiceCatalogue | null, slug: string): string => modelTitle(slug, catalogue?.models[slug])
 const providerName = (catalogue: ChoiceCatalogue | null, slug: string): string | null => { const vendor = providerOf(slug, catalogue?.models[slug]); return vendor ? providerLabel(vendor) : null }
 
-/** Whether the picker may write `choice` now: Auto always, a tier the catalogue opens, a model certified in all three groups (never a model with no catalogue to check it against). */
-export function offerable(catalogue: ChoiceCatalogue | null, choice: ModelChoice): boolean {
+/** Whether the picker may write `choice` now, on `scope`: null always, { auto: true } only on a deck, a tier the catalogue opens, a model certified in all three groups (never a model with no catalogue to check it against). */
+export function offerable(catalogue: ChoiceCatalogue | null, choice: ModelChoice, scope: 'deck' | 'user' = 'user'): boolean {
   if (choice === null) return true
+  if ('auto' in choice) return scope === 'deck' && choice.auto === true && Object.keys(choice).length === 1
   if ('tier' in choice) return isTier(choice.tier) && tierOffered(catalogue, choice.tier)
   return typeof choice.model === 'string' && commonModels(catalogue).includes(choice.model)
 }
@@ -171,19 +183,28 @@ export interface PickerMenu {
   more: { label: string; detail: string | null; count: number } | null
   models: PickerOption[]
 }
-/** `inherited`: in a presentation with no choice of its own, the reusable default Auto follows (a state), so Auto says so. */
-export function pickerMenu(args: { catalogue: ChoiceCatalogue | null; state: PickerState; inherited?: PickerState | null }): PickerMenu {
+/** A state in plain words, for "Use my default: <it>": Auto, a tier, a model's name, or Custom. */
+const plainName = (state: PickerState, catalogue: ChoiceCatalogue | null): string => (state.kind === 'mixed' ? PICKER_MIXED_LABEL : chipLabel(state, catalogue).full)
+/** The menu for `scope`. On "user" (no session: the reusable default) the first row is Auto (null). On a deck, the first two rows are "Auto: Deckster chooses" ({ auto: true }) and "Use my default: <it>" (null: the
+ * deck has no choice of its own); the deck's `own` groups decide which is selected, and while it follows the default no tier or model row is selected. */
+export function pickerMenu(args: { catalogue: ChoiceCatalogue | null; state: PickerState; scope?: 'deck' | 'user'; own?: DeckOwn | null; userState?: PickerState | null }): PickerMenu {
   const { catalogue, state } = args
-  const inheritedLabel = args.inherited && args.inherited.kind !== 'auto' ? chipLabel(args.inherited, catalogue).full : null
-  const main: PickerOption[] = [{ id: 'auto', label: PICKER_AUTO_LABEL, detail: inheritedLabel ? `Your default: ${inheritedLabel}` : PICKER_AUTO_DETAIL, hint: null, choice: null, selected: state.kind === 'auto' }]
+  const deck = args.scope === 'deck'
+  const following = deck && args.own === 'default'
+  const main: PickerOption[] = deck
+    ? [
+      { id: 'auto', label: MODEL_CHOICE_AUTO_LABEL, detail: null, hint: null, choice: { auto: true }, selected: state.kind === 'auto' && state.deck === true },
+      { id: 'default', label: `${MODEL_CHOICE_USE_DEFAULT}: ${args.userState ? plainName(args.userState, catalogue) : PICKER_AUTO_LABEL}`, detail: null, hint: null, choice: null, selected: following },
+    ]
+    : [{ id: 'auto', label: PICKER_AUTO_LABEL, detail: PICKER_AUTO_DETAIL, hint: null, choice: null, selected: state.kind === 'auto' }]
   for (const tier of PICKER_TIERS) {
-    if (tierOffered(catalogue, tier)) main.push({ id: tier, label: tierLabel(tier), detail: null, hint: tierHint(catalogue, tier), choice: { tier }, selected: state.kind === 'tier' && state.tier === tier })
+    if (tierOffered(catalogue, tier)) main.push({ id: tier, label: tierLabel(tier), detail: null, hint: tierHint(catalogue, tier), choice: { tier }, selected: !following && state.kind === 'tier' && state.tier === tier })
   }
   const common = commonModels(catalogue)
   const models: PickerOption[] = common.map(slug => ({
-    id: `model:${slug}`, label: modelName(catalogue, slug), detail: providerName(catalogue, slug), hint: modelHint(catalogue, slug), choice: { model: slug }, selected: state.kind === 'model' && state.model === slug,
+    id: `model:${slug}`, label: modelName(catalogue, slug), detail: providerName(catalogue, slug), hint: modelHint(catalogue, slug), choice: { model: slug }, selected: !following && state.kind === 'model' && state.model === slug,
   }))
-  const more = common.length > 0 ? { label: PICKER_MORE_LABEL, detail: state.kind === 'model' ? modelName(catalogue, state.model) : null, count: common.length } : null
+  const more = common.length > 0 ? { label: PICKER_MORE_LABEL, detail: !following && state.kind === 'model' ? modelName(catalogue, state.model) : null, count: common.length } : null
   return { main, more, models }
 }
 

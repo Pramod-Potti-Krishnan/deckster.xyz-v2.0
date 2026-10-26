@@ -1,0 +1,7 @@
+{
+  "error": {
+    "message": "A group's auto value must be exactly {\"auto\": true}",
+    "type": "invalid_request_error",
+    "code": "invalid_preference_auto"
+  }
+}
