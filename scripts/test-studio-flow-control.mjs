@@ -1,11 +1,12 @@
 // FRONTEND-1 (P3-1 D "flow control", Studio half): proof of NEXT_PUBLIC_STUDIO_FLOW_FOCUS, NEXT_PUBLIC_STUDIO_FLOW_AMEND and NEXT_PUBLIC_STUDIO_FLOW_AMEND_INSTRUCTIONS (the string "true", default off, build-time).
 //   lib/studio-flow-control.ts (pure decisions), hooks/use-studio-flow-control.ts (state, timers, sends), components/build-narration/flow-amend-bar.tsx (the line and the buttons),
-//   marked lines in app/builder/page.tsx, hooks/use-deckster-websocket-v2.ts and types/build-narration.ts, and the .env.example block.
+//   marked lines in app/builder/page.tsx, hooks/use-deckster-websocket-v2.ts, types/build-narration.ts and components/build-narration/use-stage-walkthrough.ts, and the .env.example block.
 // The Director side is streams/director2/flow-control/CONTRACT.md (26 Oct): build_phase `settled` after a stop, `steer_pending` on a paused ack, `applied_to` on the resume ack, instructions <= 1000 characters.
 //
 //   A. The lib, function by function (flags, frame -> focus event incl. the 1-based slide_update, the focus target and its user-navigation rules, Director's acknowledgements, the amend state, the resume text, the rebuild steps).
-//   B. The bar, drawn and clicked.
-//   C. The REAL hook in the chat harness's offline React host with a virtual clock: follow-the-build (settle, viewer readiness, overlay, user takes over, build takes over, restored deck), the paused composer,
+//   B. The bar, drawn and clicked (and how it lays out: one row where it fits, the buttons under the line on a narrow chat).
+//   C. The REAL hook in the chat harness's offline React host with a virtual clock: follow-the-build (settle, viewer readiness, overlay, user takes over, build takes over, restored deck; the build's first slide_built
+//      names its deck while the stage still shows the outline; the narration's own page turns, run through the REAL walkthrough hook, are not the user navigating), the paused composer,
 //      Resume (plain and with instructions), Rebuild (stop, settled / 8 s, send once), steer and applied lines, and flags off: nothing filled, listened to, timed or sent.
 //   D. The page, the socket hook, the types and .env.example: every marked line is where and as gated as it must be; stripping them gives the base's files byte for byte; the scope is this change's files.
 //   E. MUTANTS: every one of them must be caught by A-D.
@@ -46,10 +47,11 @@ const BAR = 'components/build-narration/flow-amend-bar.tsx'
 const PAGE = 'app/builder/page.tsx'
 const WS = 'hooks/use-deckster-websocket-v2.ts'
 const TYPES = 'types/build-narration.ts'
+const WALK = 'components/build-narration/use-stage-walkthrough.ts'
 // Later changes stack on top of this one, so every source, diff and scope check reads THIS change's own newest commit, not HEAD or the working tree.
 const OWN = (() => { try { const run = (...a) => execFileSync('git', ['-C', root, ...a], { encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'] }).trim(); return run('log', '-1', '--format=%H', '--no-merges', '-E', '--grep=^Flow control', 'HEAD') || run('rev-parse', 'HEAD') } catch { return null } })()
 const readOwn = rel => { if (!OWN) return read(rel); try { return execFileSync('git', ['-C', root, 'show', `${OWN}:${rel}`], { encoding: 'utf8', maxBuffer: 1 << 28, stdio: ['ignore', 'pipe', 'ignore'] }) } catch { return read(rel) } }
-const SOURCES = { [LIB]: read(LIB), [HOOK]: read(HOOK), [BAR]: read(BAR), [PAGE]: readOwn(PAGE), [WS]: readOwn(WS), [TYPES]: readOwn(TYPES), '.env.example': readOwn('.env.example') }
+const SOURCES = { [LIB]: read(LIB), [HOOK]: read(HOOK), [BAR]: read(BAR), [PAGE]: readOwn(PAGE), [WS]: readOwn(WS), [TYPES]: readOwn(TYPES), [WALK]: readOwn(WALK), '.env.example': readOwn('.env.example') }
 
 // ---- evaluation of module text (the real files and the mutants), in THIS realm so deepEqual compares plain objects ----------------------------------
 function compile(text, fileName) {
@@ -100,7 +102,7 @@ function libSuite(lib) {
   eq(lib.flowFocusFlagOn('true'), true, 'focus flag fn: true'); eq(lib.flowFocusFlagOn(undefined), false, 'focus flag fn: unset')
 
   // -- the bus ------------------------------------------------------------------------------------------------------------------------
-  eq([lib.flowBus.focus, lib.flowBus.phase, lib.flowBus.instructions, lib.takeFlowInstructions()], [null, null, undefined, undefined], 'bus: empty at rest')
+  eq([lib.flowBus.focus, lib.flowBus.phase, lib.flowBus.instructions, lib.flowBus.programmatic, lib.takeFlowInstructions()], [null, null, undefined, null, undefined], 'bus: empty at rest')
   lib.flowBus.instructions = 'Shorter titles'
   eq([lib.takeFlowInstructions(), lib.flowBus.instructions, lib.takeFlowInstructions()], ['Shorter titles', undefined, undefined], 'bus: the instructions are taken once, and only once')
 
@@ -126,7 +128,10 @@ function libSuite(lib) {
   eq(from(mutation({ restored: true })).restored, true, 'deck_mutation: restored (chat undo)')
   eq(from(mutation({ mutation: 'deck_restored', slide_index: 0 })).restored, true, 'deck_mutation: raw deck_restored')
   eq(from(mutation({ presentation_id: ' pres-1' })).presentationId, null, 'deck_mutation: an unclean presentation id is none')
-  eq(from(mutation({}, 'slide_built')), { kind: 'slide_built', messageId: 'm1', presentationId: 'pres-1', slideIndex: 2 }, 'slide_built')
+  eq(from(mutation({}, 'slide_built')), { kind: 'slide_built', messageId: 'm1', presentationId: 'pres-1', slideIndex: 2, buildId: null }, 'slide_built (a frame that names no build)')
+  eq(from(mutation({ build_id: 'b1' }, 'slide_built')).buildId, 'b1', 'slide_built: the build it names')
+  eq(from(mutation({ build_id: ' b1' }, 'slide_built')).buildId, null, 'slide_built: an unclean build id is none')
+  eq('buildId' in from(mutation({ build_id: 'b1' }, 'slide_ready')), false, 'slide_ready: no build id of its own')
   eq(from(mutation({}, 'slide_ready')), { kind: 'slide_ready', messageId: 'm1', presentationId: 'pres-1', slideIndex: 2 }, 'slide_ready')
   eq(from(mutation({ slide_index: 0 }, 'slide_built')).slideIndex, 0, 'slide_built: 0-based, 0 is the first slide')
   eq(from(mutation({ slide_index: 6 }, 'change_recorded')), { kind: 'change_recorded', messageId: 'm1', presentationId: 'pres-1', slideIndex: 6 }, 'change_recorded with a slide_index')
@@ -194,10 +199,48 @@ function libSuite(lib) {
   eq(target({ event: built({ slideIndex: 1, buildKey: null }), state: building() }), { index: 1, selectStage: false }, 'build: with no build key only the 4 s rule applies')
   eq(target({ event: event({ slideIndex: 1 }), state: building({ takenOverBuildKey: 'b1', lastUserNavAt: 1000 }) }), { index: 1, selectStage: false }, 'a deck_mutation is not a build slide: only the 4 s rule')
   eq(target({ event: event({ kind: 'slide_ready', slideIndex: 1 }), state: building() }), { index: 1, selectStage: false }, 'slide_ready is not "newest built" either')
+  // the build's first slide_built names its deck while the stage still shows the outline (and the narration has not heard the id yet)
+  const first = (over = {}) => built({ slideIndex: 0, presentationId: 'deck-1', buildId: 'b1', ...over })
+  const fresh = over => ({ ...lib.initialFlowFocusState(), ...over })
+  const outlineStage = { displayedPresentationId: 'outline-1', alsoPresentationIds: [null] }
+  eq(target({ ...outlineStage, event: first() }), { index: 0, selectStage: false }, 'learn: the first slide_built of a running build is its deck, though the stage still shows the outline')
+  eq(target({ ...outlineStage, event: first(), overlay: true }), { index: 0, selectStage: true }, 'learn: ...and on a narrow layout the stage is brought up for it')
+  eq(target({ ...outlineStage, event: first({ buildId: null }) }), { index: 0, selectStage: false }, 'learn: a frame that names no build counts for the build running')
+  eq(target({ ...outlineStage, event: first({ buildId: 'b0' }) }), null, 'learn: a frame that names another build is not this build\'s')
+  eq(target({ ...outlineStage, event: first({ buildKey: null }) }), null, 'learn: with no build running, another deck stays another deck')
+  eq(target({ ...outlineStage, event: first({ buildKey: null, buildId: null }) }), null, 'learn: ...whatever the frame names')
+  eq(target({ ...outlineStage, event: first(), alsoPresentationIds: ['deck-2'] }), null, 'learn: the narration already knows another deck for this build')
+  eq(target({ ...outlineStage, event: first(), alsoPresentationIds: [null, 'deck-1'] }), { index: 0, selectStage: false }, 'learn: ...and the same one is ours as before')
+  eq(target({ ...outlineStage, event: first(), alsoPresentationIds: [''] }), { index: 0, selectStage: false }, 'learn: an empty id is no knowledge')
+  eq(target({ displayedPresentationId: null, event: first({ buildKey: null, buildId: null }) }), { index: 0, selectStage: false }, 'learn: with nothing on the stage a slide_built is accepted, build or no build')
+  eq(target({ displayedPresentationId: undefined, event: first({ buildKey: 'b1', buildId: 'b0' }) }), null, 'learn: ...but not another build\'s')
+  eq(target({ displayedPresentationId: null, event: first({ buildKey: null, buildId: null }), alsoPresentationIds: ['deck-2'] }), null, 'learn: ...nor when the narration says this build fills another deck')
+  eq(target({ displayedPresentationId: null, event: event({ slideIndex: 1 }) }), null, 'learn: with nothing on the stage a deck_mutation is still ignored')
+  eq(target({ ...outlineStage, event: first({ kind: 'slide_ready' }) }), null, 'learn: only a slide_built names the build\'s deck (slide_ready does not)')
+  eq(target({ ...outlineStage, event: first({ kind: 'deck_mutation', mutation: 'slide_replaced' }) }), null, 'learn: ...nor a deck_mutation')
+  eq(target({ ...outlineStage, event: first({ presentationId: '' }) }), null, 'learn: an empty deck id is nothing')
+  eq(target({ ...outlineStage, event: first({ presentationId: undefined }) }), null, 'learn: no deck id is nothing')
+  // learned: the next slides of that build, before the page has heard it from the narration
+  const learnedState = over => fresh({ buildKey: 'b1', newestBuiltIndex: 0, buildDeck: { buildKey: 'b1', presentationId: 'deck-1' }, ...over })
+  eq(target({ ...outlineStage, event: first({ slideIndex: 1 }), state: learnedState() }), { index: 1, selectStage: false }, 'learned: the next slide of the deck the first one named is followed')
+  eq(target({ ...outlineStage, event: first({ slideIndex: 1, presentationId: 'deck-9' }), state: learnedState() }), null, 'learned: another deck than the one the first named is not')
+  eq(target({ ...outlineStage, event: first({ slideIndex: 1, buildKey: 'b2', buildId: 'b2' }), state: learnedState() }), { index: 1, selectStage: false }, 'learned: a new build learns its own deck')
+  eq(target({ ...outlineStage, event: first({ slideIndex: 1, presentationId: 'deck-9', buildKey: 'b2', buildId: 'b2' }), state: learnedState() }), { index: 1, selectStage: false }, 'learned: ...whatever the old build had')
+  eq(target({ ...outlineStage, event: event({ slideIndex: 1, presentationId: 'deck-1', buildKey: 'b1' }), state: learnedState() }), null, 'learned: only for slide_built (a deck_mutation of that deck is not ours until the stage shows it)')
+  eq(target({ ...outlineStage, alsoPresentationIds: ['deck-2'], event: first({ slideIndex: 1, presentationId: 'deck-1', buildKey: 'b2', buildId: 'b2' }), state: learnedState() }), null, 'learned: what an earlier build named does not carry over to the next build')
+  eq(target({ ...outlineStage, event: first({ slideIndex: 1 }), state: learnedState({ takenOverBuildKey: 'b1', lastUserNavAt: 1000 }) }), null, 'learned: a build the user took over is not followed')
+  eq(target({ ...outlineStage, event: first({ slideIndex: 1 }), state: learnedState({ lastUserNavAt: 99999 }) }), null, 'learned: nor inside the 4 s window')
+  eq(target({ ...outlineStage, event: first({ slideIndex: 0 }), state: learnedState() }), null, 'learned: a slide that is not newer is not followed')
+  // flowFocusLearnsBuildDeck on its own
+  const learns = (over = {}) => lib.flowFocusLearnsBuildDeck({ event: first(), displayedPresentationId: 'outline-1', alsoPresentationIds: [], state: lib.initialFlowFocusState(), ...over })
+  eq([learns(), learns({ event: first({ kind: 'slide_ready' }) }), learns({ event: first({ buildKey: null, buildId: null }) }), learns({ displayedPresentationId: null, event: first({ buildKey: null, buildId: null }) })], [true, false, false, true], 'learns: a running build\'s slide_built; not slide_ready; not without a build unless nothing is on the stage')
+  eq([learns({ event: first({ presentationId: '' }) }), learns({ event: first({ presentationId: null }) }), learns({ event: first({ presentationId: undefined }) })], [false, false, false], 'learns: a frame that names no deck names none')
+  eq(learns({ state: fresh({ buildDeck: { buildKey: 'b1', presentationId: 'deck-2' } }) }), false, 'learns: nothing once this build\'s deck was learned')
+  eq(learns({ state: fresh({ buildDeck: { buildKey: 'b0', presentationId: 'deck-2' } }) }), true, 'learns: ...but an earlier build\'s deck does not count')
 
   // -- the focus state -----------------------------------------------------------------------------------------------------------------------
   const s0 = lib.initialFlowFocusState()
-  eq(s0, { lastUserNavAt: null, takenOverBuildKey: null, selfIndex: null, selfUntil: 0, settleUntil: 0, lastSeenIndex: null, buildKey: null, newestBuiltIndex: null }, 'state: initial')
+  eq(s0, { lastUserNavAt: null, takenOverBuildKey: null, selfIndex: null, selfUntil: 0, settleUntil: 0, lastSeenIndex: null, buildKey: null, newestBuiltIndex: null, buildDeck: null, commanded: [] }, 'state: initial')
   let s = lib.flowFocusAfterTarget(s0, built({ slideIndex: 4 }), 4, 1000)
   eq([s.settleUntil, s.buildKey, s.newestBuiltIndex], [3500, 'b1', 4], 'after: the viewer settles for 2.5 s; the build and its newest slide are noted')
   s = lib.flowFocusAfterTarget(s, built({ slideIndex: 6 }), 6, 2000); eq(s.newestBuiltIndex, 6, 'after: newest moves up')
@@ -207,7 +250,19 @@ function libSuite(lib) {
   s = lib.flowFocusAfterTarget(s0, restored(), null, 5); eq([s.settleUntil, s.newestBuiltIndex], [2505, null], 'after: no index, no newest')
   eq(lib.flowFocusAfterTarget(s0, built(), 0, 0).newestBuiltIndex, 0, 'after: index 0 is a newest slide')
   eq(s0.settleUntil, 0, 'after: the old state is not changed')
+  s = lib.flowFocusAfterTarget(s0, first(), 0, 1000); eq(s.buildDeck, { buildKey: 'b1', presentationId: 'deck-1' }, 'after: the deck a build\'s slide_built named is remembered for that build')
+  eq(s0.buildDeck, null, 'after: ...the old state keeps none')
+  s = lib.flowFocusAfterTarget(s, first({ slideIndex: 1, presentationId: 'deck-1' }), 1, 2000); eq(s.buildDeck, { buildKey: 'b1', presentationId: 'deck-1' }, 'after: ...and kept')
+  s = lib.flowFocusAfterTarget(s, first({ slideIndex: 0, presentationId: 'deck-7', buildKey: 'b2', buildId: 'b2' }), 0, 3000); eq(s.buildDeck, { buildKey: 'b2', presentationId: 'deck-7' }, 'after: a new build remembers its own')
+  eq(lib.flowFocusAfterTarget(s0, event({ presentationId: 'deck-1', buildKey: 'b1' }), 3, 5).buildDeck, null, 'after: a deck_mutation names no build\'s deck')
+  eq(lib.flowFocusAfterTarget(s0, first({ buildKey: null }), 0, 5).buildDeck, null, 'after: with no build running there is nobody to remember it for')
+  eq(lib.flowFocusAfterTarget(s0, first({ presentationId: '' }), 0, 5).buildDeck, null, 'after: an empty deck id is not remembered')
   s = lib.flowFocusMarkSelf(s0, 4, 10); eq([s.selfIndex, s.selfUntil], [4, 2010], 'self: our own goToSlide is ours for 2 s')
+  s = lib.flowFocusMarkCommanded(s0, 4, 10); eq([s.commanded, s0.commanded], [[{ index: 4, until: 5010 }], []], 'commanded: the narration\'s page turn is its own for 5 s (the old state is not changed)')
+  eq(lib.FLOW_FOCUS_COMMANDED_MS, 5000, 'commanded: the window is 5 s (the viewer\'s poll can be 3 s late)')
+  s = lib.flowFocusMarkCommanded(lib.flowFocusMarkCommanded(s0, 1, 100), 2, 6000); eq(s.commanded, [{ index: 2, until: 11000 }], 'commanded: a turn past its window is forgotten')
+  s = [1, 2, 3, 4, 5, 6].reduce((state, index) => lib.flowFocusMarkCommanded(state, index, 100 + index), s0); eq(s.commanded.map(entry => entry.index), [3, 4, 5, 6], 'commanded: the last four are remembered')
+  eq(lib.FLOW_FOCUS_COMMANDED_MAX, 4, 'commanded: four')
   s = lib.flowFocusNoteUserNav(s0, 500, 'b1'); eq([s.lastUserNavAt, s.takenOverBuildKey], [500, 'b1'], 'user nav: stamped, and takes the build over')
   s = lib.flowFocusNoteUserNav({ ...s0, buildKey: 'b7' }, 500); eq(s.takenOverBuildKey, 'b7', 'user nav: with no key given, the build the state knows')
   s = lib.flowFocusNoteUserNav({ ...s0, takenOverBuildKey: 'b3' }, 500); eq(s.takenOverBuildKey, 'b3', 'user nav: with no build at all, an earlier takeover stays')
@@ -221,6 +276,12 @@ function libSuite(lib) {
   s = lib.flowFocusNoteSlideChange({ ...seen, selfIndex: 5, selfUntil: 200 }, 6, 150); eq(s.lastUserNavAt, 150, 'change: a different slide than the one we went to is the user\'s')
   s = lib.flowFocusNoteSlideChange({ ...seen, settleUntil: 300 }, 0 + 3, 299); eq([s.lastUserNavAt, s.lastSeenIndex], [null, 3], 'change: the viewer reloading after an event')
   s = lib.flowFocusNoteSlideChange({ ...seen, settleUntil: 300 }, 3, 300); eq(s.lastUserNavAt, 300, 'change: after the settle window')
+  const commanded = { ...seen, commanded: [{ index: 2, until: 5100 }, { index: 3, until: 5200 }] }
+  s = lib.flowFocusNoteSlideChange(commanded, 2, 5099, 'b1'); eq([s.lastUserNavAt, s.takenOverBuildKey, s.lastSeenIndex], [null, null, 2], 'change: the narration\'s own page turn is not the user\'s, and takes nothing over')
+  s = lib.flowFocusNoteSlideChange(commanded, 3, 5199, 'b1'); eq([s.lastUserNavAt, s.lastSeenIndex], [null, 3], 'change: ...any of the turns it commanded lately')
+  s = lib.flowFocusNoteSlideChange(commanded, 2, 5100, 'b1'); eq([s.lastUserNavAt, s.takenOverBuildKey], [5100, 'b1'], 'change: the same slide after the window is the user\'s')
+  s = lib.flowFocusNoteSlideChange(commanded, 4, 5000, 'b1'); eq([s.lastUserNavAt, s.takenOverBuildKey], [5000, 'b1'], 'change: a slide the narration did not turn to is the user\'s')
+  s = lib.flowFocusNoteSlideChange({ ...commanded, lastSeenIndex: null }, 4, 5000, 'b1'); eq([s.lastUserNavAt, s.lastSeenIndex], [null, 4], 'change: the first report is still only where the viewer starts')
 
   // -- the navigation step ------------------------------------------------------------------------------------------------------------------
   const pending = { index: 3, presentationId: 'pres-1', at: 1000 }
@@ -397,6 +458,12 @@ function barSuite(lib, barText = SOURCES[BAR]) {
   let html = renderToStaticMarkup(React.createElement(FlowAmendBar, { state: state(), onResume() {}, onRebuild() {} }))
   ok(html.includes('Paused — type changes, then Resume or Rebuild.') && html.includes('role="status"') && html.includes('aria-live="polite"'), 'bar: the paused line, announced politely')
   ok(html.includes('>Resume<') && html.includes('Rebuild with these instructions'), 'bar: both buttons')
+  // layout: one row where the line (at least 12rem) and the buttons fit; on a narrow chat the buttons drop under the line and the group wraps instead of running past the bar (a phone: 390 px)
+  const classesOf = pattern => ((html.match(pattern) ?? [])[1] ?? '').split(/\s+/).filter(Boolean)
+  const outerClasses = classesOf(/<div class="([^"]*)"[^>]*data-testid="bn-flow-amend"/), lineClasses = classesOf(/<p [^>]*class="([^"]*)"[^>]*data-testid="bn-flow-amend-line"/), groupClasses = classesOf(/<div class="([^"]*)"><button/)
+  ok(outerClasses.includes('flex') && outerClasses.includes('flex-wrap') && !outerClasses.includes('flex-col') && !outerClasses.includes('flex-nowrap'), 'bar layout: a row that wraps')
+  ok(lineClasses.includes('min-w-[12rem]') && lineClasses.includes('flex-1') && !lineClasses.includes('min-w-0') && !lineClasses.some(name => /^(w|max-w)-/.test(name)), 'bar layout: the line takes the free room but never less than 12rem (so the buttons drop under it, rather than squeeze it)')
+  ok(groupClasses.includes('flex') && groupClasses.includes('flex-wrap') && groupClasses.includes('max-w-full') && groupClasses.includes('flex-none') && groupClasses.includes('items-center') && !groupClasses.includes('flex-nowrap'), 'bar layout: the buttons wrap among themselves and never run past the bar')
   ok(tag(html, 'bn-flow-amend-rebuild').includes('disabled=""') && tag(html, 'bn-flow-amend-rebuild').includes('title="Type your changes first"'), 'bar: Rebuild is disabled with no text, and says why')
   ok(tag(html, 'bn-flow-amend-resume') !== '' && !tag(html, 'bn-flow-amend-resume').includes('disabled=""'), 'bar: Resume is enabled')
   html = renderToStaticMarkup(React.createElement(FlowAmendBar, { state: state({ draft: 'Shorter titles', instructionsEnabled: true }), onResume() {}, onRebuild() {} }))
@@ -429,7 +496,7 @@ console.log(`PASS B  bar: markup, disabled states, clicks (${checks} checks)`)
 // C. The real hook in the offline React host
 // ============================================================================================================================================
 const PRES = 'pres-1'
-async function makeWorld({ flags = ALL_ON, libText = SOURCES[LIB], hookText = SOURCES[HOOK], props = {} } = {}) {
+async function makeWorld({ flags = ALL_ON, libText = SOURCES[LIB], hookText = SOURCES[HOOK], walkText = SOURCES[WALK], props = {}, walk = null } = {}) {
   const processEnv = { ...flags }
   const env = createEnvironment({ processEnv })
   const listeners = []
@@ -442,7 +509,11 @@ async function makeWorld({ flags = ALL_ON, libText = SOURCES[LIB], hookText = SO
   const lib = evalModule(libText, LIB, { process: scope.process })
   const barModule = evalModule(SOURCES[BAR], BAR, {}, { react: React, 'react/jsx-runtime': require('react/jsx-runtime'), 'lucide-react': lucide, '@/lib/studio-flow-control': lib })
   const hookModule = evalModule(hookText, HOOK, scope, { react: React, '@/lib/studio-flow-control': lib, '@/components/build-narration/flow-amend-bar': barModule })
-  const calls = { go: [], reveal: 0, control: [], mark: [], sent: [], drafts: [], stopAwait: 0, stopFailed: 0 }
+  // The REAL walkthrough hook (the narration's follow of the build and its walk through the outline), when the world is asked for it: its page turns reach the flow hook the way the page's do, through the bus,
+  // and the viewer's report of a turn comes back synchronously, inside the goToSlide call, as the real viewer's handleGoToSlide does.
+  const walkModule = walk ? evalModule(walkText, WALK, { setInterval: env.clock.setInterval, clearInterval: env.clock.clearInterval }, { react: React, 'framer-motion': { useReducedMotion: () => false }, '@/lib/studio-flow-control': lib }) : null
+  const walkArgs = { enabled: true, phase: 'building', slideCount: 8, focusSlide: null, currentSlideIndex: 0, ...(walk ?? {}) }
+  const calls = { go: [], walk: [], reveal: 0, control: [], mark: [], sent: [], drafts: [], stopAwait: 0, stopFailed: 0 }
   const p = {
     studioShell: true, overlay: false, revealStage: () => { calls.reveal++ }, displayedPresentationId: PRES, buildPresentationId: null,
     goToSlide: async index => { calls.go.push(index) }, viewerSafety: { presentationId: PRES, ready: true, busy: false, error: false },
@@ -454,7 +525,11 @@ async function makeWorld({ flags = ALL_ON, libText = SOURCES[LIB], hookText = SO
     ...props,
   }
   let latest = null
-  function Page() { latest = hookModule.useStudioFlowControl({ ...p }); return null }
+  function Page() {
+    latest = hookModule.useStudioFlowControl({ ...p })
+    if (walkModule) walkModule.useStageWalkthrough({ ...walkArgs, navigate: index => { calls.walk.push(index); walkArgs.currentSlideIndex = index; latest.noteSlideChange(index) } })
+    return null
+  }
   const rootNode = new Root()
   rootNode.setElement(React.createElement(Page))
   const settle = async () => { for (let quiet = 0, rounds = 0; quiet < 2; rounds++) { if (rounds > 80) throw new Error('did not settle'); await macrotask(); quiet = rootNode.flush() ? 0 : quiet + 1 } }
@@ -462,6 +537,7 @@ async function makeWorld({ flags = ALL_ON, libText = SOURCES[LIB], hookText = SO
   const world = {
     env, lib, calls, bus: lib.flowBus, p, document, listeners, settle, latest: () => latest, pending: () => env.clock.pending(),
     set: async patch => { Object.assign(p, patch); rootNode.schedule(); await settle() },
+    walkSet: async patch => { Object.assign(walkArgs, patch); rootNode.schedule(); await settle() },
     advance: async ms => { await env.clock.advance(ms, settle) },
     event: (frame) => lib.flowFocusEventFromFrame(frame),
     run: async frame => { lib.flowBus.focus(frame); await settle() },
@@ -500,6 +576,62 @@ async function focusHookSuite(make) {
   w = await make({ flags: FOCUS_ONLY, props: { displayedPresentationId: 'strawman-1', buildPresentationId: PRES, viewerSafety: { presentationId: 'strawman-1', ready: true, busy: false, error: false }, narration: building() } })
   await w.run(frame('slide_built', { slide_index: 0 })); await w.advance(1000); eq(w.calls.go, [], 'focus: the viewer still shows the strawman: no navigation in the wrong deck')
   await w.set({ displayedPresentationId: PRES, viewerSafety: { presentationId: PRES, ready: true, busy: false, error: false } }); eq(w.calls.go, [0], 'focus: once the viewer shows the filling deck, the first slide')
+  // ...and the narration's knowledge of it counts for the other frames too (a slide_ready of the filling deck; a different deck than the one it knows does not)
+  w = await make({ flags: FOCUS_ONLY, props: { displayedPresentationId: 'strawman-1', buildPresentationId: PRES, viewerSafety: { presentationId: PRES, ready: true, busy: false, error: false }, narration: building() } })
+  await w.run(frame('slide_ready', { slide_index: 2 })); await w.advance(500); eq(w.calls.go, [2], 'focus: a slide_ready of the deck the narration says this build fills is followed')
+  w = await make({ flags: FOCUS_ONLY, props: { overlay: true, displayedPresentationId: 'strawman-1', buildPresentationId: 'deck-other', narration: building() } })
+  await w.run(frame('slide_built', { slide_index: 0, build_id: 'b1' })); await w.advance(1000); eq([w.calls.reveal, w.calls.go, w.pending()], [0, [], 0], 'focus: the narration knows another deck for this build: a slide_built of this one is not followed, nothing is brought up')
+  // the build's first slide_built names its deck while the stage still shows the outline and the narration has not heard the id: it is followed, and the stage pane comes up (a phone)
+  const outline = { presentationId: 'outline-1', ready: true, busy: false, error: false }
+  w = await make({ flags: FOCUS_ONLY, props: { overlay: true, displayedPresentationId: 'outline-1', buildPresentationId: null, viewerSafety: outline, narration: building() } })
+  w.latest().noteSlideChange(0); await w.advance(10000)
+  await w.run(frame('slide_built', { slide_index: 0, build_id: 'b1' })); eq([w.calls.reveal, w.calls.go], [1, []], 'learn: the first slide_built of the running build brings the stage up at once, though the stage shows the outline')
+  await w.advance(1000); eq(w.calls.go, [], 'learn: ...no navigation while the viewer still shows the outline')
+  await w.run(frame('slide_built', { slide_index: 1, build_id: 'b1' })); eq(w.calls.reveal, 2, 'learn: the next slide of that deck is followed before the narration has caught up')
+  await w.run(frame('slide_built', { slide_index: 2, presentation_id: 'deck-other', build_id: 'b1' })); eq(w.calls.reveal, 2, 'learn: a slide_built of another deck in the same build is not')
+  await w.set({ displayedPresentationId: PRES, buildPresentationId: PRES, viewerSafety: { presentationId: PRES, ready: true, busy: false, error: false } }); await w.advance(500); eq(w.calls.go, [1], 'learn: once the viewer shows the build\'s deck, the newest built slide')
+  w = await make({ flags: FOCUS_ONLY, props: { overlay: true, displayedPresentationId: 'outline-1', buildPresentationId: null, viewerSafety: outline, narration: building() } })
+  await w.run(frame('slide_built', { slide_index: 0, build_id: 'b0' })); await w.advance(1000); eq([w.calls.reveal, w.calls.go, w.pending()], [0, [], 0], 'learn: a slide_built of another build is ignored (no stage change, no timer)')
+  w = await make({ flags: FOCUS_ONLY, props: { overlay: true, displayedPresentationId: 'outline-1', buildPresentationId: null, viewerSafety: outline, narration: { active: false, buildId: null, control: 'running', phase: 'idle' } } })
+  await w.run(frame('slide_built', { slide_index: 0 })); await w.advance(1000); eq([w.calls.reveal, w.calls.go, w.pending()], [0, [], 0], 'learn: no build running: another deck is another deck')
+  w = await make({ flags: FOCUS_ONLY, props: { overlay: true, displayedPresentationId: null, buildPresentationId: null, viewerSafety: null, narration: { active: false, buildId: null, control: 'running', phase: 'idle' } } })
+  await w.run(frame('slide_built', { slide_index: 0 })); eq(w.calls.reveal, 1, 'learn: nothing on the stage: a slide_built brings the stage up')
+  // the user who took the build over before its first slide was built is still not yanked by it (the first slide_built is no exception)
+  w = await make({ flags: FOCUS_ONLY, props: { overlay: true, displayedPresentationId: 'outline-1', buildPresentationId: null, viewerSafety: outline, narration: building() } })
+  w.latest().noteSlideChange(0); await w.advance(10000); w.latest().noteSlideChange(4); await w.advance(10000)
+  await w.run(frame('slide_built', { slide_index: 0, build_id: 'b1' })); await w.advance(2000); eq([w.calls.reveal, w.calls.go], [0, []], 'learn: a user who navigated during this build is not yanked by its first slide')
+  // the narration's own page turns are not the user navigating (the bus tells the flow hook before the viewer reports one)
+  w = await make({ flags: FOCUS_ONLY, props: { narration: building() } })
+  w.latest().noteSlideChange(0); await w.advance(10000)
+  w.bus.programmatic(1); w.latest().noteSlideChange(1); await w.advance(6000)
+  await w.run(frame('slide_built', { slide_index: 1 })); await w.advance(400); eq(w.calls.go, [1], 'narration turn: the build is not taken over by the narration\'s own page turn, however late the next slide is built')
+  w.bus.programmatic(2); w.bus.programmatic(3); w.latest().noteSlideChange(3); w.latest().noteSlideChange(2); await w.advance(6000)
+  await w.run(frame('slide_built', { slide_index: 3 })); await w.advance(400); eq(w.calls.go, [1, 3], 'narration turn: ...nor by two turns in a row, reported in either order')
+  w = await make({ flags: FOCUS_ONLY, props: { narration: building() } })
+  w.latest().noteSlideChange(0); await w.advance(10000)
+  w.bus.programmatic(1); await w.advance(5001); w.latest().noteSlideChange(1); await w.advance(6000)
+  await w.run(frame('slide_built', { slide_index: 1 })); await w.advance(400); eq(w.calls.go, [], 'narration turn: a report that comes after the 5 s window is the user\'s')
+  w = await make({ flags: FOCUS_ONLY, props: { narration: building() } })
+  w.latest().noteSlideChange(0); await w.advance(10000)
+  w.bus.programmatic(1); w.latest().noteSlideChange(6); await w.advance(6000)
+  await w.run(frame('slide_built', { slide_index: 1 })); await w.advance(400); eq(w.calls.go, [], 'narration turn: a slide the narration did not turn to is the user\'s')
+  // the REAL walkthrough hook: the narration follows each built slide, then the next slide_built of a build that is not taken over is still followed
+  const buildDeck = { presentationId: PRES, ready: true, busy: false, error: false }
+  w = await make({ flags: FOCUS_ONLY, walk: { phase: 'building', focusSlide: null }, props: { overlay: true, displayedPresentationId: 'outline-1', buildPresentationId: null, viewerSafety: outline, narration: building() } })
+  w.latest().noteSlideChange(0); await w.advance(10000)
+  await w.run(frame('slide_built', { slide_index: 0, build_id: 'b1' }))
+  await w.set({ displayedPresentationId: PRES, buildPresentationId: PRES, viewerSafety: buildDeck }); await w.advance(3000); eq([w.calls.reveal, w.calls.go], [1, [0]], 'walkthrough: the first slide: the stage is brought up and the viewer goes to it')
+  await w.walkSet({ focusSlide: 1 }); eq(w.calls.walk, [1], 'walkthrough: the narration turned to slide 2 (the viewer reported it at once)')
+  await w.advance(6000); await w.run(frame('slide_built', { slide_index: 1, build_id: 'b1' })); await w.advance(500); eq([w.calls.reveal, w.calls.go], [2, [0, 1]], 'walkthrough: its own page turn did not take the build over: slide 2 is followed, 6 s later')
+  await w.walkSet({ focusSlide: 2 }); await w.advance(6000); await w.run(frame('slide_built', { slide_index: 2, build_id: 'b1' })); await w.advance(500); eq(w.calls.go, [0, 1, 2], 'walkthrough: ...and slide 3')
+  await w.advance(3000); w.latest().noteSlideChange(7); await w.advance(6000); await w.run(frame('slide_built', { slide_index: 3, build_id: 'b1' })); await w.advance(500); eq(w.calls.go, [0, 1, 2], 'walkthrough: a report that is not the narration\'s is the user\'s: the build is theirs now')
+  w = await make({ flags: FOCUS_ONLY, walk: { phase: 'strawman', slideCount: 5 }, props: { displayedPresentationId: PRES, narration: building() } })
+  await w.advance(7100)
+  eq(w.calls.walk, [0, 1, 2, 3, 4, 0], 'walkthrough: the outline walk steps through the slides and back (the viewer reports every step)')
+  await w.run(frame('deck_mutation')); await w.advance(400); eq(w.calls.go, [3], 'walkthrough: ...and none of those steps was the user navigating: the stage follows a change at once (no 4 s hold)')
+  w = await make({ flags: {}, walk: { phase: 'building', focusSlide: 1 } })
+  eq([w.bus.programmatic, w.calls.walk], [null, [1]], 'walkthrough: the flag off: the bus is empty, the page still turns')
+  w.latest().noteSlideChange(0)
   // viewer readiness
   for (const [label, safety] of [['busy', { presentationId: PRES, ready: true, busy: true, error: false }], ['not ready', { presentationId: PRES, ready: false, busy: false, error: false }], ['in error', { presentationId: PRES, ready: true, busy: false, error: true }], ['another deck', { presentationId: 'x', ready: true, busy: false, error: false }], ['none', null]]) {
     w = await make({ flags: FOCUS_ONLY, props: { viewerSafety: safety } })
@@ -536,7 +668,8 @@ async function focusHookSuite(make) {
   await w.run(frame('deck_mutation')); await w.advance(400); eq(w.calls.go, [3], 'focus: a click elsewhere is not')
   w = await make({ flags: FOCUS_ONLY }); w.document.click({ closest: selector => (selector.includes('[data-studio-inspector-switch]') ? {} : null) })
   await w.run(frame('deck_mutation')); await w.advance(400); eq(w.calls.go, [], 'focus: nor is a click on the inspector tabs')
-  w.unmount(); eq([w.listeners.length, w.bus.focus, w.bus.phase], [0, null, null], 'focus: the listener and the bus runners go with the page')
+  eq(typeof w.bus.programmatic, 'function', 'focus: the bus carries the narration\'s page-turn runner with the flag on')
+  w.unmount(); eq([w.listeners.length, w.bus.focus, w.bus.phase, w.bus.programmatic], [0, null, null, null], 'focus: the listener and the bus runners go with the page')
   // a restored deck
   w = await make({ flags: FOCUS_ONLY, props: { overlay: true } })
   await w.run(frame('deck_mutation', { mutation: 'slide_replaced', restored: true, slide_index: 0 })); await w.advance(3000); eq([w.calls.reveal, w.calls.go], [1, []], 'focus: a restored deck opens the stage and goes nowhere')
@@ -568,7 +701,7 @@ async function focusHookSuite(make) {
   await w.run(frame('slide_built', { slide_index: 0 })); await w.advance(2000); eq(w.calls.go, [], 'build: a user who already navigated during this build is not yanked by its first slide')
   // flag off
   w = await make({ flags: {} })
-  eq([w.bus.focus, w.bus.phase, w.bus.instructions, w.listeners.length, w.pending()], [null, null, undefined, 0, 0], 'off: the bus is empty, no listener, no timer')
+  eq([w.bus.focus, w.bus.phase, w.bus.programmatic, w.bus.instructions, w.listeners.length, w.pending()], [null, null, null, undefined, 0, 0], 'off: the bus is empty, no listener, no timer')
   w.latest().noteSlideChange(4); w.latest().resume(); w.latest().rebuild(); await w.advance(5000)
   eq([w.latest().amend.visible, w.calls.go, w.calls.control, w.calls.mark, w.calls.sent, w.calls.reveal, w.calls.stopAwait, w.pending()], [false, [], [], [], [], 0, 0, 0], 'off: nothing drawn, navigated, sent or timed even when called')
   w = await make({ flags: { [NARRATION]: 'true', [CONTROL]: 'true' }, props: { narration: paused(), awaitingReply: true, draft: 'text' } })
@@ -776,6 +909,14 @@ function sourceSuite(sources, { git = true } = {}) {
   if (baseWs) ok(lines(baseWs).includes(signature), 'ws: ...it is the base\'s line')
   const take = lineOf(ws, 'const instructions = takeFlowInstructions(); // FLOW-CONTROL')
   ok(lines(ws)[lines(ws).indexOf(signature) + 1] === take && ws.indexOf(take) < ws.indexOf('const requestId = createBuildControlRequestId('), 'ws: the instructions are taken, once, as the first thing sendBuildControl does')
+  // the narration's walkthrough: its page turn tells the flow hook before the viewer is asked to move
+  const walk = sources[WALK]
+  lineOf(walk, "import { STUDIO_FLOW_FOCUS_ENABLED, flowBus } from '@/lib/studio-flow-control' // FLOW-CONTROL")
+  const walkTap = lineOf(walk, 'flowBus.programmatic?.(index) // FLOW-CONTROL')
+  ok(walkTap.trim().startsWith('if (STUDIO_FLOW_FOCUS_ENABLED) flowBus.programmatic?.(index) // FLOW-CONTROL'), 'walkthrough: the page turn is announced only with the focus flag on')
+  ok(walk.indexOf(walkTap) > walk.indexOf('const command = (index: number, navigateFn: (i: number) => void) => {') && walk.indexOf(walkTap) < walk.indexOf('    navigateFn(index)\n'), 'walkthrough: ...inside command(), before the viewer is asked to move (the viewer reports inside that call)')
+  eq(lines(walk).filter(line => line.includes('FLOW-CONTROL')).length, 2, 'walkthrough: two marked lines, the import and the announcement')
+  ok(!walk.includes('flowBus.focus') && !walk.includes('flowBus.phase') && !walk.includes('useStudioFlowControl'), 'walkthrough: it knows the bus\'s page-turn runner and nothing else of the flow')
   // types
   ok(/steer_pending\?: boolean \| null; \/\/ FLOW-CONTROL/.test(types) && /applied_to\?: number\[\] \| null; \/\/ FLOW-CONTROL/.test(types) && /instructions\?: string; \/\/ FLOW-CONTROL/.test(types), 'types: the three optional fields')
   // env
@@ -940,9 +1081,50 @@ const libMutants = [
   ['the sent line never ends', "if (rebuild.sentAt !== null && input.now - rebuild.sentAt >= FLOW_REBUILD_SENT_HOLD_MS) return 'done'\n", ''],
   ['the sent line ends when the new build shows', "    if (!stopped) return 'done'\n", ''],
   ['the wake time is wrong', '(rebuild.stoppedAt ?? now) + FLOW_REBUILD_SETTLE_WAIT_MS', '(rebuild.stoppedAt ?? now) + FLOW_REBUILD_SENT_HOLD_MS'],
+  // the first slide_built names its deck
+  ['the first slide_built of a build is not its deck', 'return buildKey !== null || !input.displayedPresentationId', 'return false'],
+  ['a deck with no build running is learned', 'return buildKey !== null || !input.displayedPresentationId', 'return true'],
+  ['with nothing on the stage nothing is learned', 'return buildKey !== null || !input.displayedPresentationId', 'return buildKey !== null'],
+  ['another build\'s slide is this build\'s', 'if (buildKey !== null && event.buildId != null && event.buildId !== buildKey) return false\n', ''],
+  ['a frame with no build id is refused', 'event.buildId != null && event.buildId !== buildKey', 'event.buildId !== buildKey'],
+  ['a deck the narration knows to be another is overruled', "  if ((input.alsoPresentationIds ?? []).some(id => typeof id === 'string' && id !== '')) return false\n", ''],
+  ['an empty id is knowledge', "typeof id === 'string' && id !== ''", "typeof id === 'string'"],
+  ['the learned deck is learned again', '  if (buildKey !== null && state.buildDeck !== null && state.buildDeck.buildKey === buildKey) return false\n', ''],
+  ['any slide kind names the build\'s deck', "if (event.kind !== 'slide_built' || typeof event.presentationId !== 'string' || !event.presentationId) return false", "if (typeof event.presentationId !== 'string' || !event.presentationId) return false"],
+  ['no deck id names a deck', "if (event.kind !== 'slide_built' || typeof event.presentationId !== 'string' || !event.presentationId) return false", "if (event.kind !== 'slide_built') return false"],
+  ['the learned deck is not ours for the next slides', '    || presentationId === learned || flowFocusLearnsBuildDeck(input)', '    || flowFocusLearnsBuildDeck(input)'],
+  ['the learned deck is ours for every build', 'state.buildDeck.buildKey === event.buildKey\n    ? state.buildDeck.presentationId : null', 'true\n    ? state.buildDeck.presentationId : null'],
+  ['the learned deck is ours for any slide kind', "const learned = event.kind === 'slide_built' && event.buildKey != null", 'const learned = event.buildKey != null'],
+  ['the deck a build named is not remembered', '    next.buildDeck = { buildKey: event.buildKey, presentationId: event.presentationId }\n', ''],
+  ['the deck a build named is remembered for the wrong build', 'next.buildDeck = { buildKey: event.buildKey, presentationId: event.presentationId }', "next.buildDeck = { buildKey: 'b1', presentationId: event.presentationId }"],
+  ['the first deck a build named stays for the next build', '&& (next.buildDeck === null || next.buildDeck.buildKey !== event.buildKey)', '&& next.buildDeck === null'],
+  ['a deck_mutation names a build\'s deck', "if (event.kind === 'slide_built' && event.buildKey != null && typeof event.presentationId === 'string'", "if (event.buildKey != null && typeof event.presentationId === 'string'"],
+  ['the build id of a slide_built is not read', 'buildId: cleanId(body.build_id),', 'buildId: null,'],
+  ['slide_ready reads a build id too', "        kind: 'slide_ready',\n        messageId,\n        presentationId: cleanId(body.presentation_id),\n        slideIndex: isSlideIndex(body.slide_index) ? body.slide_index : null,\n", "        kind: 'slide_ready',\n        messageId,\n        presentationId: cleanId(body.presentation_id),\n        slideIndex: isSlideIndex(body.slide_index) ? body.slide_index : null,\n        buildId: null,\n"],
+  // the narration's page turns
+  ['a page turn of the narration is the user\'s', 'if (state.commanded.some(entry => entry.index === index && now < entry.until)) return { ...state, lastSeenIndex: index }\n', ''],
+  ['a page turn of the narration is its own forever', 'entry.index === index && now < entry.until', 'entry.index === index'],
+  ['every report is the narration\'s while it has turned a page', 'entry.index === index && now < entry.until', 'now < entry.until'],
+  ['a page turn of the narration is its own for no time', 'export const FLOW_FOCUS_COMMANDED_MS = 5000', 'export const FLOW_FOCUS_COMMANDED_MS = 0'],
+  ['a page turn of the narration is its own for 3 s', 'export const FLOW_FOCUS_COMMANDED_MS = 5000', 'export const FLOW_FOCUS_COMMANDED_MS = 3000'],
+  ['the narration\'s page turns are never forgotten', 'const live = state.commanded.filter(entry => now < entry.until)', 'const live = state.commanded'],
+  ['only the narration\'s last page turn is remembered', 'export const FLOW_FOCUS_COMMANDED_MAX = 4', 'export const FLOW_FOCUS_COMMANDED_MAX = 1'],
+  ['all the narration\'s page turns are remembered', '.slice(-FLOW_FOCUS_COMMANDED_MAX)', ''],
+  ['a page turn of the narration is not noted', 'return { ...state, commanded: [...live, { index, until: now + FLOW_FOCUS_COMMANDED_MS }]', 'return { ...state, commanded: [...live]'],
+  ['the page-turn runner is on the bus at rest', 'instructions: undefined, programmatic: null }', 'instructions: undefined, programmatic: () => {} }'],
+  ['the new fields are not in the initial state', '    buildDeck: null,\n    commanded: [],\n', ''],
 ]
 const barMutants = [
   ['the bar draws while hidden', 'if (!state.visible) return null\n', ''],
+  ['the line may shrink to nothing', 'min-w-[12rem] flex-1', 'min-w-0 flex-1'],
+  ['the line has no minimum width', 'className="min-w-[12rem] flex-1 text-xs', 'className="flex-1 text-xs'],
+  ['the line takes no free room', 'min-w-[12rem] flex-1', 'min-w-[12rem]'],
+  ['the line has a fixed width', 'min-w-[12rem] flex-1', 'min-w-[12rem] w-[12rem] flex-1'],
+  ['the buttons cannot wrap among themselves', 'flex max-w-full flex-none flex-wrap items-center gap-1.5', 'flex max-w-full flex-none items-center gap-1.5'],
+  ['the buttons may outgrow the bar', 'flex max-w-full flex-none flex-wrap items-center gap-1.5', 'flex flex-none flex-wrap items-center gap-1.5'],
+  ['the buttons never wrap at all', 'flex max-w-full flex-none flex-wrap items-center gap-1.5', 'flex max-w-full flex-none flex-nowrap items-center gap-1.5'],
+  ['the bar cannot wrap', 'className="flex flex-wrap items-center gap-x-3', 'className="flex items-center gap-x-3'],
+  ['the bar is a column', 'className="flex flex-wrap items-center gap-x-3', 'className="flex flex-col flex-wrap items-center gap-x-3'],
   ['Rebuild is never disabled', 'disabled={!state.rebuildEnabled}', 'disabled={false}'],
   ['Resume is always disabled', 'disabled={!state.resumeEnabled}', 'disabled={true}'],
   ['the buttons always show', '{state.showResume && (', '{true && ('],
@@ -965,7 +1147,12 @@ const hookMutants = [
   ['the pane switch is not navigation', "'[data-studio-workspace-switch], [data-studio-inspector-switch]'", "'.nothing'"],
   ['the focus runner is on the bus with the flag off', 'flowBus.focus = !STUDIO_FLOW_FOCUS_ENABLED ? null : frame', 'flowBus.focus = frame'],
   ['the phase runner is on the bus with the flag off', 'flowBus.phase = !STUDIO_FLOW_AMEND_ENABLED ? null : payload', 'flowBus.phase = payload'],
-  ['the bus keeps the runners after the page', 'useEffect(() => () => { flowBus.focus = null; flowBus.phase = null; flowBus.instructions = undefined }, [])', ''],
+  ['the bus keeps the runners after the page', 'useEffect(() => () => { flowBus.focus = null; flowBus.phase = null; flowBus.programmatic = null; flowBus.instructions = undefined }, [])', ''],
+  ['the bus keeps the page-turn runner after the page', 'flowBus.phase = null; flowBus.programmatic = null; flowBus.instructions = undefined }, [])', 'flowBus.phase = null; flowBus.instructions = undefined }, [])'],
+  ['the page-turn runner is on the bus with the flag off', 'flowBus.programmatic = !STUDIO_FLOW_FOCUS_ENABLED ? null : index =>', 'flowBus.programmatic = index =>'],
+  ['the narration\'s page turn is not marked', 'focusStateRef.current = flowFocusMarkCommanded(focusStateRef.current, index, Date.now())', ''],
+  ['the narration\'s page turn marks the next slide', 'flowFocusMarkCommanded(focusStateRef.current, index, Date.now())', 'flowFocusMarkCommanded(focusStateRef.current, index + 1, Date.now())'],
+  ['the narration\'s page turn is marked at no time', 'flowFocusMarkCommanded(focusStateRef.current, index, Date.now())', 'flowFocusMarkCommanded(focusStateRef.current, index, 0)'],
   ['resume hands over no instructions', '    flowBus.instructions = instructions // taken, once, by the sendBuildControl call below\n', ''],
   ['resume leaves its instructions on the bus', '    flowBus.instructions = undefined\n', ''],
   ['a delivered-twice frame is acted on twice', "if (seenFramesRef.current.includes(key)) return", "if (false) return"],
@@ -1012,7 +1199,15 @@ const hookMutants = [
   ['the idle bar is returned for the flags on', 'if (!STUDIO_FLOW_FOCUS_ENABLED && !amendOn) return IDLE', 'if (false) return IDLE'],
   ['the idle bar is not idle', 'resume: () => {},', 'resume: () => { throw new Error("idle resume") },'],
 ]
+const walkTapLine = lines(SOURCES[WALK]).find(line => line.includes('flowBus.programmatic?.(index)')) ?? ''
 const sourceMutants = [
+  ['walk: the narration\'s page turn is not announced', 'if (STUDIO_FLOW_FOCUS_ENABLED) flowBus.programmatic?.(index) // FLOW-CONTROL', '// FLOW-CONTROL', WALK],
+  ['walk: announced with the flag off', 'if (STUDIO_FLOW_FOCUS_ENABLED) flowBus.programmatic?.(index)', 'flowBus.programmatic?.(index)', WALK],
+  ['walk: announced after the viewer was asked to move', `${walkTapLine}\n    navigateFn(index)`, `    navigateFn(index)\n${walkTapLine}`, WALK],
+  ['walk: announced from outside command()', `${walkTapLine}\n`, '', WALK],
+  ['walk: an added line has no marker', "from '@/lib/studio-flow-control' // FLOW-CONTROL", "from '@/lib/studio-flow-control'", WALK],
+  ['walk: the announcement has no marker', 'flowBus.programmatic?.(index) // FLOW-CONTROL (NEXT_PUBLIC', 'flowBus.programmatic?.(index) // (NEXT_PUBLIC', WALK],
+  ['walk: an existing line is rewritten', 'recentCommandsRef.current = [...recentCommandsRef.current.slice(-2), index]', 'recentCommandsRef.current = [...recentCommandsRef.current.slice(-3), index]', WALK],
   ['page: the viewer report does not reach the hook', 'flowControl.noteSlideChange(nextVisualIndex) // FLOW-CONTROL', '// FLOW-CONTROL', PAGE],
   ['page: the amend hook runs for template builds', 'narrationEnabled: effectiveBuildNarrationEnabled && features.buildControlEnabled', 'narrationEnabled: true', PAGE],
   ['page: the draft goes out as typed', 'sendDraft: text => handleSendMessage(undefined, text)', 'sendDraft: () => handleSendMessage()', PAGE],
@@ -1069,6 +1264,19 @@ for (const mutant of hookMutants) {
   const text = mutate(SOURCES[HOOK], mutant, 'hook')
   await caughtAsync(`hook: ${mutant[0]}`, async () => { await focusHookSuite(worldMaker({ hookText: text })); await amendHookSuite(worldMaker({ hookText: text })) })
 }
+const walkMutants = [
+  ['the narration\'s page turn announces the wrong slide', 'flowBus.programmatic?.(index)', 'flowBus.programmatic?.(index + 1)'],
+  ['the narration\'s page turn is announced after the viewer reports it', `${walkTapLine}\n    navigateFn(index)`, `    navigateFn(index)\n${walkTapLine}`],
+  ['the narration\'s page turn is never announced', walkTapLine, '    // FLOW-CONTROL'],
+  ['the narration\'s follow of the build is not announced', 'command(focusSlide, navigate)', 'navigate(focusSlide)'],
+  ['the narration\'s walk through the outline is not announced', 'command(i, navigate)', 'navigate(i)'],
+  ['the narration\'s return to slide 1 is not announced', 'i >= slideCount) {\n        clearInterval(t)\n        command(0, navigate)', 'i >= slideCount) {\n        clearInterval(t)\n        navigate(0)'],
+]
+for (const mutant of walkMutants) {
+  mutantCount++
+  const text = mutate(SOURCES[WALK], mutant, WALK)
+  await caughtAsync(`walk: ${mutant[0]}`, () => focusHookSuite(worldMaker({ walkText: text })))
+}
 for (const [name, from, to, rel] of sourceMutants) {
   mutantCount++
   const broken = mutate(SOURCES[rel], [name, from, to], rel)
@@ -1097,7 +1305,7 @@ if (baseOk) {
   }
 }
 eq(survivors, [], `every mutant is caught (survivors: ${survivors.join('; ') || 'none'})`)
-console.log(`PASS E  ${mutantCount} mutants (lib ${libMutants.length}, bar ${barMutants.length}, hook ${hookMutants.length}, sources ${sourceMutants.length}, strip ${stripMutantCount}), every one caught${crashes.length ? ` (${crashes.length} by a thrown error rather than a failed check)` : ''}`)
+console.log(`PASS E  ${mutantCount} mutants (lib ${libMutants.length}, bar ${barMutants.length}, hook ${hookMutants.length}, walkthrough ${walkMutants.length}, sources ${sourceMutants.length}, strip ${stripMutantCount}), every one caught${crashes.length ? ` (${crashes.length} by a thrown error rather than a failed check)` : ''}`)
 if (process.env.FLOW_TEST_VERBOSE) for (const crash of crashes) console.log(`  threw: ${crash}`)
 release()
 console.log(`OK studio flow control: ${afterMutants} checks`)
