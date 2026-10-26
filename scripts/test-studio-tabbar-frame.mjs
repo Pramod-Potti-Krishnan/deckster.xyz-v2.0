@@ -15,7 +15,9 @@
 //   4. targets     44 x 48 px minimum on every tab, equal cells (no tab-specific size), cell width at phone widths, the tab's height is the base's (51 px) with or without the safe area, bar height unchanged
 //   5. contrast    muted icons on the frame >= 3 : 1; the selected name on its tile >= 4.5 : 1 (light and dark); the dark tile is visibly lifted off the frame as the light one is; the plain panel tile would not be
 //   6. identity    flag off (no bar) and above 640 px: every element resolves to the same style with and without this sheet (sha256); the bar's render is the base's, byte for byte (sha256), in every state
-//   7. change      the strip (whole-token marker; the base's file back), the one import line, the registry (two lines, no env block), the files this change must leave alone, scope (the COMMITTED diff only), no secret
+//   7. change      the strip (whole-token marker; the base's file back), the one import line, the registry (two lines, no env block), the one older proof it teaches (speed perceived, section D: HEAD is its own newest
+//                  commit; the same line, byte for byte, as the duplicate-adopt change teaches, so a double restore must be a no-op, proved both orders), the files this change must leave alone (through the registry, so
+//                  a change stacked on this one is no stray), scope (the COMMITTED diff of this change's own commits only), no secret
 //   8. mutants     each one must make sections 1-7 fail
 import assert from 'node:assert/strict'
 import crypto from 'node:crypto'
@@ -28,7 +30,8 @@ import { fileURLToPath } from 'node:url'
 import ts from 'typescript'
 import postcss from 'postcss'
 import {
-  BASE_COMMIT, TABBAR_FRAME_BAR, TABBAR_FRAME_COMMIT_SUBJECT, TABBAR_FRAME_FILES, TABBAR_FRAME_MARKER_RE, TABBAR_FRAME_NEW_FILES, TABBAR_FRAME_OWN_EDITS, TABBAR_FRAME_SCOPE_FILES, stripTabbarFrame,
+  BASE_COMMIT, TABBAR_FRAME_BAR, TABBAR_FRAME_COMMIT_SUBJECT, TABBAR_FRAME_FILES, TABBAR_FRAME_MARKER_RE, TABBAR_FRAME_NEW_FILES, TABBAR_FRAME_OWN_EDITS, TABBAR_FRAME_PIN_EDITS, TABBAR_FRAME_PIN_FILES, TABBAR_FRAME_PIN_MARK,
+  TABBAR_FRAME_SCOPE_FILES, TABBAR_FRAME_SPEED_PROOF, putBackPin, stripTabbarFrame,
 } from './studio-tabbar-frame-strip.mjs'
 import { LATER_CHANGE_FILES, LATER_ENV_BLOCKS, LATER_STRIPS, stripLaterChanges } from './studio-later-changes.mjs'
 
@@ -53,6 +56,7 @@ const plain = value => JSON.parse(JSON.stringify(value === undefined ? null : va
 const eq = count(assert.equal), deep = count((actual, expected, message) => assert.deepStrictEqual(plain(actual), plain(expected), message)), ok = count(assert.ok), match = count(assert.match), nomatch = count(assert.doesNotMatch)
 
 const BAR = TABBAR_FRAME_BAR, CSS = 'components/layout/studio-tabbar-frame.css', PR1_CSS = 'components/layout/studio-phone-shell.css', SHELL_CSS = 'components/layout/studio-shell.css'
+const SPEED = TABBAR_FRAME_SPEED_PROOF
 const REGISTRY = 'scripts/studio-later-changes.mjs', STRIP_MODULE = 'scripts/studio-tabbar-frame-strip.mjs', THIS_TEST = 'scripts/test-studio-tabbar-frame.mjs', ENV = '.env.example'
 const FLAG = 'NEXT_PUBLIC_STUDIO_PHONE_SHELL', SHELL = 'NEXT_PUBLIC_STUDIO_V4_SHELL'
 const BARSEL = '[data-studio-phone-tabbar="true"]', PHONE = '(max-width: 640px)'
@@ -542,30 +546,68 @@ function proveRegistry(registryText, at = '') {
   ok(LATER_STRIPS.includes(stripTabbarFrame), a('the registry holds the strip'))
   ok([...TABBAR_FRAME_SCOPE_FILES].every(rel => LATER_CHANGE_FILES.has(rel)), a('the registry names every file of this change'))
   ok(LATER_ENV_BLOCKS.every(block => !String(block).includes('PHONE-TABBAR-FRAME')), a('and no .env.example block'))
-  eq(sha(read(ENV)), sha(baseOf(ENV)), a('.env.example is the base commit\'s, byte for byte (the flag is phone shell 1\'s, already there)'))
+  eq(sha(stripLaterChanges(ENV, read(ENV))), sha(stripLaterChanges(ENV, baseOf(ENV))), a('.env.example is the base commit\'s, byte for byte, through the registry (the flag is phone shell 1\'s, already there; a block a later change registers is not a stray)'))
   match(read(ENV), /^NEXT_PUBLIC_STUDIO_PHONE_SHELL="false"$/m, a('(the flag\'s block is there, default "false")'))
 }
 function proveUntouched(at = '') {
   const a = message => (at ? `${at}: ${message}` : message)
   for (const rel of [PR1_CSS, 'lib/studio-phone-shell.ts', 'components/layout/studio-rail.tsx', 'components/layout/app-header.tsx', SHELL_CSS, 'components/layout/studio-p2-shell.css', 'app/(app)/layout.tsx', 'app/builder/page.tsx',
     'scripts/test-studio-phone-shell-nav.mjs', 'scripts/test-studio-phone-shell-builder-top.mjs', 'scripts/studio-phone-shell-nav-strip.mjs', 'scripts/studio-phone-shell-builder-top-strip.mjs'])
-    eq(sha(read(rel)), sha(baseOf(rel)), a(`${rel} is the base commit's, byte for byte (phone shell 1's sheet and proof, the rail, the card's shell, the pages)`))
+    eq(sha(stripLaterChanges(rel, read(rel))), sha(stripLaterChanges(rel, baseOf(rel))), a(`${rel} is the base commit's, byte for byte, through the registry (phone shell 1's sheet and proof, the rail, the card's shell, the pages; a change stacked on this one adds marked lines)`))
 }
-const committedFiles = () => git('diff', '--name-only', BASE, 'HEAD').split('\n').filter(Boolean)
-const committedSubjects = () => git('log', '--no-merges', '--format=%s', `${BASE}..HEAD`).split('\n').filter(Boolean)
-function proveScope(committed = committedFiles(), subjects = committedSubjects(), at = '') {
+/** This change's OWN committed files: the files of the non-merge commits in BASE..HEAD whose subject is "Phone tab bar frame: ...". The working tree is never consulted, and a change stacked on this one (or this one inside a merge) is no stray. */
+const ownCommitted = () => {
+  const files = new Set()
+  for (const block of git('log', '--no-merges', '--name-only', '--format=%x01%s', `${BASE}..HEAD`).split('\x01').filter(Boolean)) {
+    const [subject, ...names] = block.split('\n')
+    if (TABBAR_FRAME_COMMIT_SUBJECT.test(subject)) for (const name of names) if (name) files.add(name)
+  }
+  return [...files]
+}
+function proveScope(committed = ownCommitted(), at = '') {
   const a = message => (at ? `${at}: scope: ${message}` : `scope: ${message}`)
   ok([...TABBAR_FRAME_SCOPE_FILES].every(rel => fs.existsSync(path.join(root, rel))), a('every file listed exists'))
   eq(TABBAR_FRAME_SCOPE_FILES.size, TABBAR_FRAME_FILES.length + TABBAR_FRAME_NEW_FILES.length + TABBAR_FRAME_OWN_EDITS.length, a('the lists do not overlap'))
   deep(TABBAR_FRAME_NEW_FILES.filter(rel => /phone-shell|phone-tab/.test(rel)), [], a('no new file name has "phone-shell" or "phone-tab" in it (phone shell 1\'s proof counts those as its own)'))
-  for (const rel of TABBAR_FRAME_SCOPE_FILES) nomatch(rel, /^components\/layout\/(studio-rail|app-header)\.tsx$|^components\/user-profile-menu|test-studio-p2-|launch-wording|env-append-tolerant|^app\/\(app\)\/settings|^components\/settings|publish|^app\/admin|docs|\.env/, a(`${rel}: not the rail, the account header, the account menu or a FRONTEND-1 file`))
-  deep(committed.filter(rel => !TABBAR_FRAME_SCOPE_FILES.has(rel)), [], a(`every file in this change's committed diff (${BASE.slice(0, 8)}..HEAD) is its own`))
-  deep(subjects.filter(subject => !TABBAR_FRAME_COMMIT_SUBJECT.test(subject)), [], a('and every commit in it is this change\'s ("Phone tab bar frame: ...")'))
+  for (const rel of TABBAR_FRAME_SCOPE_FILES) nomatch(rel, /^components\/layout\/(studio-rail|app-header)\.tsx$|^components\/user-profile-menu|test-studio-p2-|launch-wording|env-append-tolerant|^app\/\(app\)\/settings|^components\/settings|publish|^app\/admin|docs|\.env|deck-title/, a(`${rel}: not the rail, the account header, the account menu or a FRONTEND-1 file`))
+  deep(committed.filter(rel => !TABBAR_FRAME_SCOPE_FILES.has(rel)), [], a(`every file in this change's own commits (${BASE.slice(0, 8)}..HEAD, subject "Phone tab bar frame: ...") is its own`))
   if (committed.length) {
-    deep([...TABBAR_FRAME_SCOPE_FILES].filter(rel => !committed.includes(rel)), [], a('and every file of this change is in the committed diff'))
+    deep([...TABBAR_FRAME_SCOPE_FILES].filter(rel => !committed.includes(rel)), [], a('and every file of this change is in its commits'))
     deep(committed.filter(rel => /^(app|components|lib|hooks)\//.test(rel)).sort(), [BAR, CSS].sort(), a('the app files: the bar\'s component (one marked line) and the new sheet'))
-    deep(committed.filter(rel => /^scripts\/test-/.test(rel)), [THIS_TEST], a('the tests it adds or edits: its own, and no older test is edited'))
+    deep(committed.filter(rel => /^scripts\/test-/.test(rel)).sort(), [THIS_TEST, SPEED].sort(), a('the tests it adds or edits: its own, and FRONTEND-2\'s perceived speed proof (one line); no FRONTEND-1 test'))
+    eq(git('diff', '--numstat', BASE, 'HEAD', '--', SPEED).trim().split('\t').slice(0, 2).join(' '), '1 1', a('the perceived speed proof: one line changed in the committed diff (+1 -1)'))
   }
+}
+// ---- the one older proof this change teaches: speed perceived, section D. The same line, byte for byte, is taught by the duplicate-adopt change (#520), so with both in, two restore tables hold one pair.
+function provePin(stripFn, at = '') {
+  const a = message => (at ? `${at}: taught proof: ${message}` : `taught proof: ${message}`)
+  deep(TABBAR_FRAME_PIN_FILES, [SPEED], a('one older proof, FRONTEND-2\'s own: perceived speed'))
+  nomatch(SPEED, /test-studio-p2-|launch-wording|env-append-tolerant|route-params|admin-email-guard|uat-marketing|docs|landing|deck-title/, a(`${SPEED}: not a FRONTEND-1 test`))
+  const text = read(SPEED), edits = TABBAR_FRAME_PIN_EDITS[SPEED]
+  eq(edits.length, 1, a('one edit'))
+  const [has, was] = edits[0]
+  eq(text.split(has).length - 1, 1, a('the taught line is in the proof once (the file as it is, not read through the registry)'))
+  ok(has.endsWith('\n') && was.endsWith('\n') && has.split('\n').length === 2 && was.split('\n').length === 2, a('one whole line for one whole line'))
+  ok(has.includes(TABBAR_FRAME_PIN_MARK), a('the taught line carries the mark'))
+  eq(baseOf(SPEED).split(was).length - 1, 1, a('the line it replaces is the base commit\'s, once'))
+  match(has, /^const HEAD = git\('log', '-1', '--format=%H', '--no-merges', '-E', '--grep=\^\(Speed perceived\|Studio perceived speed\):', 'HEAD'\)\.trim\(\) \|\| git\('rev-parse', 'HEAD'\)\.trim\(\) \/\/ /, a('HEAD is the proof\'s own newest commit, falling back to rev-parse HEAD'))
+  nomatch(has, /tabbar|TABBAR|PHONE-|studio-tabbar/, a('and the line names nothing of this change (it is the line the duplicate-adopt change teaches too)'))
+  const mine = text.split('\n').filter(line => line + '\n' !== has), base = baseOf(SPEED).split('\n').filter(line => line + '\n' !== was)
+  deep(mine, base, a('every other line of the proof is the base commit\'s, in order, none changed'))
+  eq(sha(stripFn(SPEED, text)), sha(baseOf(SPEED)), a('without this change\'s edit it is the base commit\'s file, byte for byte'))
+  eq(sha(putBackPin(SPEED, text)), sha(baseOf(SPEED)), a('putBackPin gives the base commit\'s file byte for byte'))
+  eq(sha(stripLaterChanges(SPEED, text)), sha(baseOf(SPEED)), a('and through the registry (every strip registered, whoever else holds the pair) it is the base commit\'s file'))
+  eq(stripFn(SPEED, stripFn(SPEED, text)), stripFn(SPEED, text), a('stripping twice changes nothing more'))
+  eq(stripFn(SPEED, baseOf(SPEED)), baseOf(SPEED), a('the base commit\'s own file comes back as it is (nothing to put back)'))
+  // a double restore: another change's strip (the duplicate-adopt change's) holds the SAME pair and is registered after this one, or before it. Both orders, and a third pass, give the base's file; none throws.
+  const twin = (rel, t) => (typeof t === 'string' && rel === SPEED ? t.replace(has, () => was) : t)
+  const through = strips => strips.reduce((out, strip) => strip(SPEED, out), text)
+  for (const [label, strips] of [['this, then the twin', [stripFn, twin]], ['the twin, then this', [twin, stripFn]], ['this, the twin, this', [stripFn, twin, stripFn]], ['the twin twice', [twin, twin]], ['this twice', [stripFn, stripFn]]])
+    eq(sha(through(strips)), sha(baseOf(SPEED)), a(`a double restore is a no-op (${label}): the base commit's file, not corrupted`))
+  eq(stripFn(BAR, twin(BAR, read(BAR))), stripFn(BAR, read(BAR)), a('and the twin leaves the bar\'s component to this change'))
+  // a line the proof does not have (a rebased or half-taught file): nothing is put back, nothing throws
+  const half = baseOf(SPEED).replace(was, () => `// a different line\n`)
+  eq(stripFn(SPEED, half), half, a('a proof without the taught line comes back as it is'))
 }
 function proveSecretScan(at = '') {
   const a = message => (at ? `${at}: ${message}` : message)
@@ -584,8 +626,9 @@ function proveAll(stripFn = stripTabbarFrame, at = '') {
   proveStrip(stripFn, at)
   proveImport(at)
   proveRegistry(read(REGISTRY), at)
+  provePin(stripFn, at)
   proveUntouched(at)
-  proveScope(undefined, undefined, at)
+  proveScope(undefined, at)
   proveSecretScan(at)
   return { numbers, identity }
 }
@@ -609,7 +652,7 @@ async function mutant(name, edits, { strip = stripTabbarFrame, scope = null } = 
       overrides[rel] = mode === 'all' ? source.split(from).join(to) : source.replace(from, () => to)
     }
     proveAll(strip, name)
-    if (scope) proveScope(scope.files, scope.subjects ?? [], name)
+    if (scope) proveScope(scope.files, name)
   } catch (error) {
     if (/no longer applies/.test(String(error.message))) throw error
     killed.push(name); if (process.env.TABBAR_FRAME_VERBOSE) console.log(`  killed: ${name}\n    by: ${String(error.message).split('\n')[0].slice(0, 170)}`); return
@@ -692,6 +735,17 @@ await mutant('strip: leaves the marked line', [], { strip: (rel, text) => text }
 await mutant('strip: the marker is a substring (phone shell 1 and 2\'s lines go too)', [], { strip: (rel, text) => (TABBAR_FRAME_FILES.includes(rel) && typeof text === 'string' ? text.split('\n').filter(line => !line.includes('PHONE-')).join('\n') : stripTabbarFrame(rel, text)) })
 await mutant('strip: drops the trailing newline', [], { strip: (rel, text) => { const out = stripTabbarFrame(rel, text); return TABBAR_FRAME_FILES.includes(rel) && typeof out === 'string' ? out.replace(/\n$/, '') : out } })
 await mutant('strip: also strips the Builder page', [], { strip: (rel, text) => (rel === 'app/builder/page.tsx' && typeof text === 'string' ? text.split('\n').filter(line => !TABBAR_FRAME_MARKER_RE.test(line)).join('\n') : stripTabbarFrame(rel, text)) })
+const [PIN_HAS, PIN_WAS] = TABBAR_FRAME_PIN_EDITS[SPEED][0]
+await mutant('taught proof: the edit is not there (HEAD is rev-parse HEAD again)', [[SPEED, PIN_HAS, PIN_WAS]])
+await mutant('taught proof: the taught line loses its mark', [[SPEED, 'registry read (DUPLICATE-ADOPT): this change', 'registry read (X): this change']])
+await mutant('taught proof: HEAD may be a merge commit', [[SPEED, "'--no-merges', ", '']])
+await mutant('taught proof: HEAD is any commit of any change', [[SPEED, "'--grep=^(Speed perceived|Studio perceived speed):', ", '']])
+await mutant('taught proof: another line is changed too', [[SPEED, 'const BASE = stripModule.BASE_COMMIT', 'const BASE = stripModule.BASE_COMMIT // x']])
+await mutant('taught proof: a second line is taught', [[SPEED, PIN_HAS, `${PIN_HAS}${PIN_HAS}`]])
+await mutant('strip: does not put the taught proof back', [], { strip: (rel, text) => (rel in TABBAR_FRAME_PIN_EDITS ? text : stripTabbarFrame(rel, text)) })
+await mutant('strip: puts back the wrong text', [], { strip: (rel, text) => (rel === SPEED && typeof text === 'string' ? text.replace(PIN_HAS, () => `${PIN_WAS}\n`) : stripTabbarFrame(rel, text)) })
+await mutant('strip: a second restore throws (not idempotent)', [], { strip: (rel, text) => { if (rel === SPEED && typeof text === 'string' && !text.includes(PIN_HAS)) throw new Error('already restored'); return stripTabbarFrame(rel, text) } })
+await mutant('strip: a second restore corrupts the line', [], { strip: (rel, text) => (rel === SPEED && typeof text === 'string' ? text.replace(PIN_HAS, () => PIN_WAS).replace(PIN_WAS, () => `${PIN_WAS}${PIN_WAS}`) : stripTabbarFrame(rel, text)) })
 await mutant('registry: the files line is gone', [[REGISTRY, "  ...(await import('./studio-tabbar-frame-strip.mjs')).TABBAR_FRAME_SCOPE_FILES,", "  // ...(await import('./studio-tabbar-frame-strip.mjs')).TABBAR_FRAME_SCOPE_FILES,"]])
 await mutant('registry: the strip line is gone', [[REGISTRY, "  (await import('./studio-tabbar-frame-strip.mjs')).stripTabbarFrame,", "  // (await import('./studio-tabbar-frame-strip.mjs')).stripTabbarFrame,"]])
 await mutant('registry: an env block line is added', [[REGISTRY, "  // one line per later change, above this comment\n]\n\n/** One strip", "  (await import('./studio-tabbar-frame-strip.mjs')).TABBAR_FRAME_ENV_BLOCK, // LATER-CHANGE: FRONTEND-2, phone tab bar on the frame, the name on the selected tab only (NEXT_PUBLIC_STUDIO_PHONE_SHELL; no .env.example block of its own: the flag's block is PR 1's)\n  // one line per later change, above this comment\n]\n\n/** One strip"]])
@@ -707,7 +761,8 @@ await mutant('untouched: .env.example gets a block', [[ENV, 'NEXT_PUBLIC_STUDIO_
 await mutant('scope: a stray file in the committed diff', [], { scope: { files: [...TABBAR_FRAME_SCOPE_FILES, 'app/page.tsx'] } })
 await mutant('scope: phone shell 1\'s sheet in the committed diff', [], { scope: { files: [...TABBAR_FRAME_SCOPE_FILES, PR1_CSS] } })
 await mutant('scope: phone shell 1\'s proof in the committed diff', [], { scope: { files: [...TABBAR_FRAME_SCOPE_FILES, 'scripts/test-studio-phone-shell-nav.mjs'] } })
-await mutant('scope: a commit of another change in BASE..HEAD', [], { scope: { files: [...TABBAR_FRAME_SCOPE_FILES], subjects: ['Phone tab bar frame: ok', 'Something else: x'] } })
+await mutant('scope: a FRONTEND-1 test in the committed diff', [], { scope: { files: [...TABBAR_FRAME_SCOPE_FILES, 'scripts/test-studio-deck-title.mjs'] } })
+await mutant('scope: the perceived speed proof is not in the committed diff', [], { scope: { files: [...TABBAR_FRAME_SCOPE_FILES].filter(rel => rel !== SPEED) } })
 await mutant('scope: the committed diff misses a file of this change', [], { scope: { files: [BAR] } })
 // the secret scan
 await mutant('secret scan: a bearer string in an ordinary name', [[STRIP_MODULE, "export const TABBAR_FRAME_MARKER = 'PHONE-TABBAR-FRAME'", `export const TABBAR_FRAME_MARKER = 'PHONE-TABBAR-FRAME'\nconst note = '${['Bearer ', 'a'.repeat(24)].join('')}'`]])
