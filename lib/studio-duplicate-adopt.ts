@@ -10,10 +10,15 @@
 //   THE MARKER CARRIES THE COPY'S ID. Step 3 stores the copy's own presentation id in the copiedFrom marker (copiedFrom.presentationId, final slot, this flag on), and step 4 and the Builder-open backstop
 //   ALWAYS adopt with that id. The session row's final slot is NOT trusted for it: the Director's connect makes a blank canvas for a session it has never seen, and the Builder writes that canvas's URL
 //   into the row's final slot, so adopting with it would be NOT_A_DUPLICATE for good (DIRECTOR-2, 25 Oct). A copy made before this change has no presentationId in its marker: the backstop does nothing.
-//   Builder open (the backstop): the Director socket reports "connected" (the hook's ws.onopen, for the socket's own session). The first time a session connects on this tab, the session row is read once; with a
-//   copiedFrom marker that has a presentationId and NO adoptedAt receipt, the same route is called once (no retry here). On 200 the receipt is written; then, on reused false while that socket is still the live
-//   one, the Director WebSocket reconnects (the live connection holds the session from before the deck). A copy adopted at duplicate time has the receipt and never calls again. At most one call per session
-//   per tab: a reconnect's own "connected" is never acted on, so it cannot loop. A repeat call is safe anyway (the Director answers 200 reused:true from its stored receipt).
+//   Builder open (the backstop): the Director socket reports "connected" (the hook's ws.onopen, for the socket's own session), and that ARMS the session. The call is NOT made on open: for a session the
+//   Director has never seen, the connect first makes a blank canvas (Layout create plus theme, a few seconds) and only then writes the session's deck pointer, with no re-read and no lock, so an
+//   adoption that landed in that window would be overwritten by the blank (DIRECTOR-2, websocket.py new-session branch, _create_and_send_blank_presentation). That branch always sends the blank
+//   presentation_init and then the greeting (a plain chat_message), after the write. So the backstop fires on whichever comes first: (a) the first Director chat_message for this session on this socket, or
+//   (b) DUPLICATE_ADOPT_GREETING_WAIT_MS (15 s) after connected with no chat_message (the branch has finished or failed by then). Armed means: the session row was read once and its copiedFrom marker has a
+//   presentationId and NO adoptedAt receipt. Then the same route is called once (no retry here). On 200 the receipt is written; then, on reused false while that socket is still the live one, the Director
+//   WebSocket reconnects (the live connection holds the session from before the deck). The timer is cancelled when the socket closes (any socket, stale or not, by the owner it was armed with) or is no
+//   longer current. A copy adopted at duplicate time has the receipt and is never armed. At most one call per session per tab: once a session's call is made, a reconnect's own connected arms nothing, and
+//   its greeting or timer fires nothing; greeting and timer racing make one call. A repeat call is safe anyway (the Director answers 200 reused:true from its stored receipt).
 //
 // Pure module: no React, no storage, no clock, no network of its own (the caller injects fetch, sleep and the time). It is browser-safe and never names the signing secret, the header or the minter: those are
 // the route's alone.
@@ -30,6 +35,9 @@ export const DUPLICATE_ADOPT_BODY_MAX_BYTES = 4096
 export const DUPLICATE_ADOPT_UPSTREAM_TIMEOUT_MS = 10_000
 /** Step 4 retries: at most two more calls, and only while the answer says retryable. */
 export const DUPLICATE_ADOPT_RETRY_DELAYS_MS = [1000, 2000] as const
+
+/** The backstop waits this long after connected for the Director's first chat_message (the greeting) before it calls anyway: the new-session branch has finished or failed by then. */
+export const DUPLICATE_ADOPT_GREETING_WAIT_MS = 15_000
 
 export const DUPLICATE_ADOPT_PENDING_NOTE = "The copy is ready. Chat can't edit it yet; open it again in a moment."
 
@@ -174,43 +182,116 @@ export async function adoptDuplicateCopyAndRecord({ now, ...input }: { sessionId
   return outcome
 }
 
+/** What the hook tells the caller about one socket. The owner object is made once per socket: its identity is how a timer is cancelled for the right socket. */
+export type DuplicateAdoptSocketEvent = 'connected' | 'chat' | 'closed'
 export interface DuplicateAdoptSocketOwner { sessionId: string; isCurrent: () => boolean }
-export type DuplicateAdoptOpenResult = 'not-first' | 'not-a-copy' | 'no-copy-id' | 'already-adopted' | 'reconnected' | 'not-current' | 'reused' | 'failed'
+export type DuplicateAdoptOpenResult = 'not-first' | 'not-a-copy' | 'no-copy-id' | 'already-adopted' | 'reconnected' | 'not-current' | 'reused' | 'failed' | 'cancelled'
 
 /**
- * Builder open. One controller per tab: `onConnected` is told each time the Director socket of a session reports connected, and acts on the FIRST one of each session only (a reconnect's own
- * "connected", or any later one, is never acted on, so it cannot loop). It reads the session row once, and calls the Studio route once (no retry here) only for a copy whose marker has a presentationId and no
- * receipt. On 200 it writes the receipt, then calls `reconnect` only when reused is false while that socket is still the live one. Never throws.
+ * Builder open. One controller per tab, driven by what the hook tells it about each socket (see the header). `onConnected` arms a session and returns a promise that settles when that socket's arming ends:
+ * with the call's outcome, or without a call ('not-first' when the session was already called or is known not to need it, 'not-a-copy', 'no-copy-id', 'already-adopted', 'cancelled' on close, 'not-current').
+ * `schedule(run, ms)` starts a timer and returns its cancel function (injected: this module has no clock). Never throws; nothing is written by Studio except the receipt.
  */
-export function createDuplicateAdoptOnOpen(deps: { fetch: DuplicateAdoptDeps['fetch']; now: () => Date }) {
-  const seen = new Set<string>()
-  const onConnected = async (owner: DuplicateAdoptSocketOwner, reconnect: () => void): Promise<DuplicateAdoptOpenResult> => {
+export function createDuplicateAdoptOnOpen(deps: { fetch: DuplicateAdoptDeps['fetch']; now: () => Date; schedule: (run: () => void, ms: number) => () => void }) {
+  const called = new Set<string>() // sessions whose one call has been started on this tab
+  const settled = new Set<string>() // sessions known not to need one (not a copy, no id in the marker, receipt present): never read again
+  interface Entry { presentationId: string | null; greeted: boolean; waited: boolean; firing: boolean; ended: boolean; cancelTimer: (() => void) | null; settle: (result: DuplicateAdoptOpenResult) => void; fire: () => void }
+  const entries = new Map<DuplicateAdoptSocketOwner, Entry>()
+
+  const end = (owner: DuplicateAdoptSocketOwner, entry: Entry, result: DuplicateAdoptOpenResult) => {
+    if (entry.ended) return
+    entry.ended = true
+    try { entry.cancelTimer?.() } catch { /* a timer that cannot be cancelled has nothing left to do */ }
+    entry.cancelTimer = null
+    entries.delete(owner)
+    entry.settle(result)
+  }
+
+  const onConnected = (owner: DuplicateAdoptSocketOwner, reconnect: () => void): Promise<DuplicateAdoptOpenResult> => new Promise<DuplicateAdoptOpenResult>(settle => {
     try {
       const sessionId = owner?.sessionId
-      if (typeof sessionId !== 'string' || !sessionId || seen.has(sessionId)) return 'not-first'
-      seen.add(sessionId)
-      if (!isPlainAdoptId(sessionId)) return 'not-a-copy'
-      let session: unknown = null
-      try {
-        const response = await deps.fetch(`/api/sessions/${encodeURIComponent(sessionId)}`, { cache: 'no-store' })
-        session = response.ok ? (await readJson(response))?.session ?? null : null
-      } catch {
-        session = null
+      if (typeof sessionId !== 'string' || !sessionId || called.has(sessionId) || settled.has(sessionId) || entries.has(owner)) return settle('not-first')
+      if (!isPlainAdoptId(sessionId)) return settle('not-a-copy')
+      const entry: Entry = { presentationId: null, greeted: false, waited: false, firing: false, ended: false, cancelTimer: null, settle, fire: () => {} }
+      entries.set(owner, entry)
+
+      const run = async () => {
+        try {
+          const outcome = await adoptDuplicateCopy({ sessionId, presentationId: entry.presentationId as string, fetch: deps.fetch, sleep: async () => {}, retryDelaysMs: [] })
+          if (!outcome.ok) return end(owner, entry, 'failed')
+          await recordAdoptReceipt({ sessionId, presentationId: entry.presentationId as string, fetch: deps.fetch, now: deps.now })
+          if (outcome.reused) return end(owner, entry, 'reused')
+          if (!owner.isCurrent()) return end(owner, entry, 'not-current')
+          reconnect()
+          return end(owner, entry, 'reconnected')
+        } catch {
+          return end(owner, entry, 'failed')
+        }
       }
-      const marker = readAdoptMarker(session)
-      if (!marker) return 'not-a-copy'
-      if (!marker.presentationId) return 'no-copy-id'
-      if (marker.adoptedAt) return 'already-adopted'
-      const outcome = await adoptDuplicateCopy({ sessionId, presentationId: marker.presentationId, fetch: deps.fetch, sleep: async () => {}, retryDelaysMs: [] })
-      if (!outcome.ok) return 'failed'
-      await recordAdoptReceipt({ sessionId, presentationId: marker.presentationId, fetch: deps.fetch, now: deps.now })
-      if (outcome.reused) return 'reused'
-      if (!owner.isCurrent()) return 'not-current'
-      reconnect()
-      return 'reconnected'
+      // Fires on the first of: the greeting (a chat_message on this socket) or the wait, once the row says this is a copy to adopt. Marking the session called BEFORE the call is what makes a race
+      // between the greeting and the timer, or a second socket for the same session, one call.
+      const maybeFire = () => {
+        if (entry.ended || entry.firing || !entry.presentationId || !(entry.greeted || entry.waited)) return
+        if (called.has(sessionId)) return end(owner, entry, 'not-first')
+        if (!owner.isCurrent()) return end(owner, entry, 'not-current')
+        entry.firing = true
+        called.add(sessionId)
+        try { entry.cancelTimer?.() } catch { /* nothing left to do */ }
+        entry.cancelTimer = null
+        void run()
+      }
+      entry.fire = maybeFire
+      try {
+        entry.cancelTimer = deps.schedule(() => { entry.cancelTimer = null; entry.waited = true; maybeFire() }, DUPLICATE_ADOPT_GREETING_WAIT_MS)
+      } catch {
+        entry.cancelTimer = null
+      }
+      void (async () => {
+        try {
+          let session: unknown = null, rowRead = false
+          try {
+            const response = await deps.fetch(`/api/sessions/${encodeURIComponent(sessionId)}`, { cache: 'no-store' })
+            session = response.ok ? (await readJson(response))?.session ?? null : null
+            rowRead = response.ok
+          } catch {
+            session = null
+          }
+          if (entry.ended) return
+          const marker = readAdoptMarker(session)
+          const verdict: DuplicateAdoptOpenResult | null = !marker ? 'not-a-copy' : !marker.presentationId ? 'no-copy-id' : marker.adoptedAt ? 'already-adopted' : null
+          if (verdict) { if (rowRead) settled.add(sessionId); return end(owner, entry, verdict) } // a row that could not be read is not a verdict: the next connected may read it again
+          entry.presentationId = marker?.presentationId ?? null
+          maybeFire()
+        } catch {
+          end(owner, entry, 'failed')
+        }
+      })()
     } catch {
-      return 'failed'
+      settle('failed')
     }
+  })
+
+  /** The Director sent a chat_message for this socket's session: on the new-session branch that is the greeting, which comes after the blank canvas's row write. */
+  const onChat = (owner: DuplicateAdoptSocketOwner): void => {
+    const entry = entries.get(owner)
+    if (!entry || entry.ended) return
+    entry.greeted = true
+    entry.fire()
   }
-  return { onConnected }
+
+  /** The socket closed (any socket, stale or not): its timer goes. A call already started is left to finish. */
+  const onClosed = (owner: DuplicateAdoptSocketOwner): void => {
+    const entry = entries.get(owner)
+    if (!entry || entry.firing) return
+    end(owner, entry, 'cancelled')
+  }
+
+  /** The one entry the Builder wires to the hook's callback. */
+  const onSocketEvent = (event: DuplicateAdoptSocketEvent, owner: DuplicateAdoptSocketOwner, reconnect: () => void): Promise<DuplicateAdoptOpenResult | void> => {
+    if (event === 'connected') return onConnected(owner, reconnect)
+    if (event === 'chat') onChat(owner)
+    else if (event === 'closed') onClosed(owner)
+    return Promise.resolve()
+  }
+  return { onConnected, onChat, onClosed, onSocketEvent }
 }

@@ -3,8 +3,7 @@
 // copy that was never adopted is adopted when the Builder opens it (lib/studio-duplicate-adopt.ts, app/api/director/sessions/[sourceSessionId]/adopt-duplicate/route.ts).
 // Every line this change adds to an EXISTING file is a pure insertion that carries the marker DUPLICATE-ADOPT (matched as a whole token): lib/studio-duplicate-deck.ts (step 4 in runDuplicateDeck, its optional
 // `adopt` dependency, the result's `adoption`, and the copy's id in the step-3 marker: one key spread in after the base's own marker line, which stays as it is), app/(app)/dashboard/page.tsx (the flag, the
-// dependency, the note), app/builder/page.tsx (the per-tab controller and the socket callback) and hooks/use-deckster-websocket-v2.ts (the callback's type and the one call in ws.onopen, for the socket's own
-// session). Strip those lines and each file is its base, byte for byte.
+// dependency, the note), app/builder/page.tsx (the per-tab controller and the socket callback) and hooks/use-deckster-websocket-v2.ts (the callback's type, the per-socket owner, and three taps: ws.onopen, the chat_message path, ws.onclose). Strip those lines and each file is its base, byte for byte.
 // How the older pins reach it: this change REGISTERS its files, its .env.example block and this strip (scripts/studio-later-changes.mjs, three lines). Plain node, no imports, nothing read from disk or git here.
 
 export const BASE_COMMIT = '875334faa648ed72e63b260457ca2fc0a2020c0c' // studio-v4-dev-preparation-code at #518 (speed perceived), the branch this change is cut from
@@ -111,7 +110,7 @@ export const DUPLICATE_ADOPT_ENV_BLOCK = `# DUPLICATE ADOPT (FRONTEND-2; step 4 
 # Director answers 404 and the copy is still made) and DIRECTOR_WS_AUTH_SECRET here: the new route POST /api/director/sessions/{id}/adopt-duplicate signs the signed-in user (X-Deckster-Entitlement) on
 # every call, whatever DECKSTER_REST_ENTITLEMENT_HEADER_ENABLED says, because the Director requires that header on this route. On: after the copy's session is saved, the Director adopts the copied deck
 # into it so chat can edit the copy (final-slot copies only; an outline preview is not adopted). If that fails, the copy and its session stay, the person reads "The copy is ready. Chat can't edit it yet;
-# open it again in a moment.", and opening the copy in the Builder tries once more (and reconnects chat when it worked). Chat history is still not copied.
+# open it again in a moment.", and opening the copy in the Builder tries once more, after the Director's greeting or 15 s (and reconnects chat when it worked). Chat history is still not copied.
 NEXT_PUBLIC_STUDIO_DUPLICATE_ADOPT="false"
 `
 

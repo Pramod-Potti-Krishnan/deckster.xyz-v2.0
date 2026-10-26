@@ -767,8 +767,9 @@ export interface UseDecksterWebSocketV2Options {
   // jobs list, possibly []). Never rendered in chat. Unused with the flag off.
   onJobUpdate?: (row: import('@/lib/studio-job-ledger').JobLedgerRow, owner: import('@/lib/studio-job-ledger').JobLedgerOwner) => void;
   onJobsSync?: (rows: import('@/lib/studio-job-ledger').JobLedgerRow[], owner: import('@/lib/studio-job-ledger').JobLedgerOwner) => void;
-  // DUPLICATE-ADOPT (NEXT_PUBLIC_STUDIO_DUPLICATE_ADOPT): this socket has opened (connectionState 'connected'), for a copied deck's adoption on open (lib/studio-duplicate-adopt.ts). Unused with the flag off.
-  onDuplicateAdoptConnected?: (owner: { sessionId: string; isCurrent: () => boolean }) => void; // DUPLICATE-ADOPT
+  // DUPLICATE-ADOPT (NEXT_PUBLIC_STUDIO_DUPLICATE_ADOPT): this socket's life as a copied deck's adoption on open needs it (lib/studio-duplicate-adopt.ts): 'connected' (ws.onopen, connectionState set), 'chat' (a chat_message
+  // DUPLICATE-ADOPT: for this socket's session, the Director's greeting on a new session) and 'closed' (ws.onclose of any socket, stale or not). The owner is made once per socket. Unused with the flag off.
+  onDuplicateAdoptSocket?: (event: 'connected' | 'chat' | 'closed', owner: { sessionId: string; isCurrent: () => boolean }) => void; // DUPLICATE-ADOPT
   onSlideComposeReady?: (message: SlideComposeReady) => void;
   onSlideComposeFailed?: (message: SlideComposeFailed) => void;
   onTemplateIngestReady?: (message: TemplateIngestReady) => void;
@@ -1769,6 +1770,7 @@ export function useDecksterWebSocketV2(options: UseDecksterWebSocketV2Options = 
         }
         wsRef.current = ws;
         const isCurrentSocket = () => wsRef.current === ws && isCurrentAttempt();
+        const duplicateAdoptOwner = process.env.NEXT_PUBLIC_STUDIO_DUPLICATE_ADOPT === 'true' ? { sessionId: socketSessionId, isCurrent: isCurrentSocket } : null; // DUPLICATE-ADOPT: one owner per socket (null with the flag off); its identity is how the caller cancels this socket's timer
         // New-session theme policy: an existing session's socket gets sync_response before any deck frame.
         let socketSyncResponseSeen = false;
 
@@ -1813,7 +1815,7 @@ export function useDecksterWebSocketV2(options: UseDecksterWebSocketV2Options = 
             connectionState: 'connected',
             error: null,
           }));
-          if (process.env.NEXT_PUBLIC_STUDIO_DUPLICATE_ADOPT === 'true') transportCallbacksRef.current.onDuplicateAdoptConnected?.({ sessionId: socketSessionId, isCurrent: isCurrentSocket }); // DUPLICATE-ADOPT: told once per open (a reconnect opens again); the caller acts on a session's first only
+          if (duplicateAdoptOwner) transportCallbacksRef.current.onDuplicateAdoptSocket?.('connected', duplicateAdoptOwner); // DUPLICATE-ADOPT: told once per open (a reconnect opens again); the caller arms the session, it does not call yet
         };
 
         ws.onmessage = (event) => {
@@ -1957,6 +1959,7 @@ export function useDecksterWebSocketV2(options: UseDecksterWebSocketV2Options = 
               const rows = jobLedgerRows((parsedMessage.payload as { jobs?: unknown } | null | undefined)?.jobs);
               if (rows) transportCallbacksRef.current.onJobsSync?.(rows, { sessionId: socketSessionId, isCurrent: isCurrentSocket });
             }
+            if (duplicateAdoptOwner && parsedMessage.type === 'chat_message' && parsedMessage.session_id === socketSessionId) transportCallbacksRef.current.onDuplicateAdoptSocket?.('chat', duplicateAdoptOwner); // DUPLICATE-ADOPT: the Director's first chat_message (the greeting) is what releases the call; the frame then carries on as before
             // BULK-EDIT-UNDO (NEXT_PUBLIC_STUDIO_BULK_EDIT / NEXT_PUBLIC_STUDIO_CHAT_UNDO, default off): Director's chat lines (the Undo chip's anchor), the bulk-edit confirm (its chip titles) and its receipts and summary,
             // BULK-EDIT-UNDO: change_recorded and undo_result go to this tab's store (lib/studio-bulk-edit-store.ts), here, ahead of the allowlist. The frames it takes (receipts, summary, change_recorded, undo_result) stop
             // BULK-EDIT-UNDO: here: they never reach the reducer, the transcript or the cache, and they do not unlock the turn. Director sends them only to a client that advertised bulk_edit1 / undo1 (the caps below, flag on only),
@@ -2983,6 +2986,7 @@ export function useDecksterWebSocketV2(options: UseDecksterWebSocketV2Options = 
         };
 
         ws.onclose = (event) => {
+          if (duplicateAdoptOwner) transportCallbacksRef.current.onDuplicateAdoptSocket?.('closed', duplicateAdoptOwner); // DUPLICATE-ADOPT: before the stale-socket guard, so a superseded socket's timer is cancelled too
           if (!isCurrentSocket()) {
             debugLog('⏭️ Ignoring close from stale WebSocket', {
               code: event.code,

@@ -13,9 +13,11 @@
 //   F. step 4     runDuplicateDeck: Layout copy, POST /api/sessions, PATCH, THEN the adoption, and the copy is handed back only after it; final slot only; retried at most twice and only while retryable;
 //                 a failure (or a throwing step) never deletes the copy or the session; the Decks page shows the plain note instead of the usual toast. The PATCH's marker carries the copy's own id
 //                 (final slot, adopt on only), and a 200 writes the one-time receipt into it (read-modify-write through the REAL /api/sessions/[id] route, a fake Prisma that skips undefined columns)
-//   G. open       the Builder's backstop on "connected": the first connected of a session whose marker has the copy's id and no receipt calls the route ONCE, always with the MARKER's id (a drifted final slot
-//                 is ignored); 200 writes the receipt and, on reused:false while that socket is live, reconnects (disconnect, then connect); the reconnect's own connected never calls again; no id in the
-//                 marker, or a receipt: no call. The hook's ws.onopen block is the real one, run with stubs (flag, own session, stale socket). The Builder's autosave never sends currentStatus.
+//   G. open       the Builder's backstop: the Director socket's connected ARMS a session (the row is read once; the copiedFrom marker must carry the copy's id and no receipt); the call is made ONCE, on the
+//                 first of the Director's first chat_message (the greeting, which the new-session branch sends after the blank canvas's row write) or 15 s after connected; always with the MARKER's id
+//                 (a drifted final slot is ignored); 200 writes the receipt and, on reused:false while that socket is live, reconnects (disconnect, then connect). Nothing is called on open alone; greeting and
+//                 wait racing make one call; close or a superseded socket cancels the wait; a reconnect's own connected, greeting and wait call nothing. The hook's code is the REAL code: ws.onopen, ws.onmessage
+//                 up to the chat tap, ws.onclose's tap, run with stubs. The Builder's autosave never sends currentStatus.
 //   H. identity   flag off is the base: each existing file without its DUPLICATE-ADOPT lines is the base commit's, byte for byte (and through the registry); the base lib and this lib without the step give
 //                 the same requests and result, hashed
 //   I. scope      the committed diff of this change's own commits (subject "Duplicate adopt: ...") holds exactly its files; marked insertions only; the registry gains three lines
@@ -526,140 +528,298 @@ async function suite({ quiet = false, extraCommitted = [] } = {}) {
     for (const rel of [DUP, DASH]) for (const line of read(rel).split('\n').filter(MARKED)) ok(!/DELETE|removeSession|unfinished\(/.test(line), `${rel}: ${line.trim().slice(0, 60)}`)
   })
 
-  // ---- G. the Builder-open backstop, on "connected" -----------------------------------------------------------------------------------------------------------------------
+  // ---- G. the Builder-open backstop: armed on "connected", fired by the greeting or the 15 s wait --------------------------------------------------------------------------------
   const copyRow = ({ marker = { ...MARKER, presentationId: 'copy-deck-1' }, final = 'copy-deck-1', status = {}, ...extra } = {}) => ({
     id: 'new-session-1', userId: DB_USER.id, status: 'active', title: 'Q4 sales review (copy)', createdAt: 'synthetic-created', updatedAt: 'synthetic-created',
     finalPresentationId: final, finalPresentationUrl: final ? `https://layout.synthetic.invalid/p/${final}` : null, strawmanPresentationId: null,
     stateCache: { activeVersion: 'final', slideStructure: [{ id: 'slide-1' }], currentStatus: marker ? { copiedFrom: marker, ...status } : { ...status } }, ...extra,
   })
-  function openWorld({ row = copyRow(), noRow = false, directorAnswers = ['01-adopted-200'] } = {}) {
+  /** A clock the proof drives: schedule() returns the cancel function, advance(ms) fires what is due. */
+  const fakeClock = () => {
+    let at = 0; const timers = []
+    return {
+      timers,
+      schedule: (fn, ms) => { const timer = { fn, ms, due: at + ms, cancelled: false, fired: false }; timers.push(timer); return () => { timer.cancelled = true } },
+      advance: ms => { at += ms; for (const timer of timers) if (!timer.cancelled && !timer.fired && timer.due <= at) { timer.fired = true; timer.fn() } },
+    }
+  }
+  const within = (promise, ms = 1000) => { let timer; return Promise.race([promise, new Promise((_, reject) => { timer = setTimeout(() => reject(new Error('the controller never settled')), ms) })]).finally(() => clearTimeout(timer)) }
+  function openWorld({ row = copyRow(), noRow = false, directorAnswers = ['01-adopted-200'], onAdopt } = {}) {
     const log = [], director = []
     const api = sessionsApi({ rows: new Map(noRow ? [] : [[row.id, row]]) })
     const fetch = async (url, init = {}) => {
       log.push(`${init.method ?? 'GET'} ${url}`)
       if (url.startsWith('/api/sessions/')) return api.handle(url, init)
       if (url === '/api/director/sessions/new-session-1/adopt-duplicate') {
+        if (onAdopt) onAdopt()
         const out = await callRoute({ body: JSON.parse(init.body), upstream: (u, i) => { director.push(JSON.parse(i.body)); return answer(directorAnswers[Math.min(director.length - 1, directorAnswers.length - 1)])() } })
         return json(out.status, out.json)
       }
       return json(500, {})
     }
-    const controller = loadTs(LIB).createDuplicateAdoptOnOpen({ fetch, now: () => NOW })
+    const clock = fakeClock()
+    const controller = loadTs(LIB).createDuplicateAdoptOnOpen({ fetch, now: () => NOW, schedule: clock.schedule })
     const reconnects = []
-    const connected = ({ sessionId = 'new-session-1', current = true, reconnect = () => reconnects.push(sessionId) } = {}) => controller.onConnected({ sessionId, isCurrent: () => current }, reconnect)
-    return { log, director, reconnects, connected, rows: api.rows, api, fetch }
+    /** One socket's connected: the owner is per socket (`live` is what the hook's isCurrentSocket answers). */
+    const connect = ({ sessionId = 'new-session-1', live = true, reconnect } = {}) => {
+      const owner = { sessionId, live, isCurrent: () => owner.live }
+      return { owner, done: controller.onSocketEvent('connected', owner, reconnect ?? (() => reconnects.push(sessionId))) }
+    }
+    const chat = owner => controller.onSocketEvent('chat', owner, () => {})
+    const close = owner => controller.onSocketEvent('closed', owner, () => {})
+    const settle = () => tick(60)
+    /** connect, let the row be read, deliver the greeting, wait for the outcome */
+    const go = async opts => { const c = connect(opts); await settle(); chat(c.owner); return within(c.done) }
+    return { log, director, reconnects, rows: api.rows, api, fetch, clock, controller, connect, chat, close, settle, go }
   }
   const storedOf = w => w.rows.get('new-session-1').stateCache
   const RECEIPT_LOG = ['GET /api/sessions/new-session-1', 'POST /api/director/sessions/new-session-1/adopt-duplicate', 'GET /api/sessions/new-session-1', 'PATCH /api/sessions/new-session-1']
-  await check('G: a copy with the marker\'s id and no receipt: ONE call on the first connected, the receipt is written, then one reconnect (disconnect, connect is the Builder\'s)', async () => {
-    const w = openWorld(); eq(await w.connected(), 'reconnected')
-    deep(w.log, RECEIPT_LOG); deep(w.director, [{ user_id: USER.id, presentation_id: 'copy-deck-1' }]); deep(w.reconnects, ['new-session-1'])
-    deep(storedOf(w).currentStatus, { copiedFrom: { ...MARKER, presentationId: 'copy-deck-1', adoptedAt: NOW.toISOString() } })
+  await check('G: connected alone calls nothing: the row is read once, the wait is armed for exactly 15 s, and the call comes at 15 s (not 14.999)', async () => {
+    eq(loadTs(LIB).DUPLICATE_ADOPT_GREETING_WAIT_MS, 15_000)
+    const w = openWorld(); const { done } = w.connect(); await w.settle()
+    deep(w.log, ['GET /api/sessions/new-session-1']); eq(w.director.length, 0); deep(w.clock.timers.map(t => [t.ms, t.cancelled]), [[15_000, false]]); deep(w.reconnects, [])
+    w.clock.advance(14_999); await w.settle(); eq(w.director.length, 0, 'not yet at 14.999 s'); eq(w.log.length, 1)
+    w.clock.advance(1); eq(await within(done), 'reconnected'); eq(w.director.length, 1)
+    deep(w.log, RECEIPT_LOG); deep(w.director, [{ user_id: USER.id, presentation_id: 'copy-deck-1' }]); deep(w.reconnects, ['new-session-1']); eq(storedOf(w).currentStatus.copiedFrom.adoptedAt, NOW.toISOString())
   })
-  await check('G: the reconnect\'s own connected, and every later one, never calls again (no loop), even though the receipt is already written', async () => {
-    const w = openWorld(); eq(await w.connected(), 'reconnected')
-    for (let i = 0; i < 3; i++) { eq(await w.connected(), 'not-first'); eq(w.log.length, RECEIPT_LOG.length); eq(w.director.length, 1) }
-    deep(w.reconnects, ['new-session-1'])
+  await check('G: the greeting fires it once, after the row read: ONE call, the receipt, one reconnect; the wait is cancelled', async () => {
+    let w, waitCancelledDuringTheCall = null; w = openWorld({ onAdopt: () => { waitCancelledDuringTheCall = w.clock.timers[0].cancelled } }); eq(await w.go(), 'reconnected')
+    eq(waitCancelledDuringTheCall, true, 'the wait is cancelled the moment the call starts')
+    deep(w.log, RECEIPT_LOG); deep(w.director, [{ user_id: USER.id, presentation_id: 'copy-deck-1' }]); deep(w.reconnects, ['new-session-1']); eq(w.clock.timers[0].cancelled, true, 'the wait is cancelled once the call is made')
+    deep(storedOf(w).currentStatus, { copiedFrom: { ...MARKER, presentationId: 'copy-deck-1', adoptedAt: NOW.toISOString() } })
+    w.clock.advance(60_000); await w.settle(); eq(w.director.length, 1, 'the cancelled wait never fires')
+  })
+  await check('G: a greeting that comes before the row read finishes still fires, after the read; so does a wait that elapses first', async () => {
+    const a = openWorld(); const c = a.connect(); a.chat(c.owner); eq(await within(c.done), 'reconnected'); deep(a.log.slice(0, 2), ['GET /api/sessions/new-session-1', 'POST /api/director/sessions/new-session-1/adopt-duplicate'])
+    const b = openWorld(); const d = b.connect(); b.clock.advance(15_000); eq(await within(d.done), 'reconnected'); deep(b.log.slice(0, 2), ['GET /api/sessions/new-session-1', 'POST /api/director/sessions/new-session-1/adopt-duplicate'])
+  })
+  await check('G: the greeting and the wait racing make ONE call (either order, same tick, and a later greeting or wait)', async () => {
+    for (const order of ['chat first', 'wait first']) {
+      const w = openWorld(); const c = w.connect(); await w.settle()
+      if (order === 'chat first') { w.chat(c.owner); w.clock.advance(15_000) } else { w.clock.advance(15_000); w.chat(c.owner) }
+      eq(await within(c.done), 'reconnected', order); eq(w.director.length, 1, order); w.chat(c.owner); w.clock.advance(60_000); await w.settle(); eq(w.director.length, 1, `${order}: nothing later`); eq(w.reconnects.length, 1, order)
+    }
+    const two = openWorld(); const a = two.connect(), b = two.connect(); await two.settle(); two.chat(a.owner); two.chat(b.owner)
+    deep([await within(a.done), await within(b.done)].sort(), ['not-first', 'reconnected']); eq(two.director.length, 1, 'two sockets of one session: one call')
+  })
+  await check('G: the wait is cancelled when the socket closes, and nothing fires for a socket that is no longer current', async () => {
+    const w = openWorld(); const c = w.connect(); await w.settle(); w.close(c.owner); eq(await within(c.done), 'cancelled'); eq(w.clock.timers[0].cancelled, true)
+    w.clock.advance(60_000); w.chat(c.owner); await w.settle(); eq(w.director.length, 0); deep(w.log, ['GET /api/sessions/new-session-1'])
+    const x = openWorld(); const s = x.connect(); await x.settle(); s.owner.live = false; x.clock.advance(15_000); eq(await within(s.done), 'not-current', 'superseded before the wait ended'); eq(x.director.length, 0)
+    const y = openWorld(); const t = y.connect(); await y.settle(); t.owner.live = false; y.chat(t.owner); eq(await within(t.done), 'not-current', 'superseded before the greeting'); eq(y.director.length, 0)
+    const z = openWorld(), first = z.connect(), second = z.connect(); await z.settle(); first.owner.live = false; z.close(first.owner); eq(await within(first.done), 'cancelled')
+    eq(z.clock.timers.map(t => t.cancelled).join(), 'true,false', 'a stale socket\'s close cancels its own wait only'); z.clock.advance(15_000); eq(await within(second.done), 'reconnected'); eq(z.director.length, 1)
+  })
+  await check('G: a cancelled wait is armed again by the next connected; once the session\'s call is made, a reconnect\'s connected arms nothing and its greeting or wait fires nothing', async () => {
+    const w = openWorld(); const one = w.connect(); await w.settle(); w.close(one.owner); eq(await within(one.done), 'cancelled')
+    const two = w.connect(); await w.settle(); w.chat(two.owner); eq(await within(two.done), 'reconnected'); eq(w.director.length, 1)
+    const timers = w.clock.timers.length, requests = w.log.length
+    const three = w.connect(); eq(await within(three.done), 'not-first'); w.chat(three.owner); w.clock.advance(60_000); await w.settle()
+    eq(w.clock.timers.length, timers, 'no wait armed for the reconnect'); eq(w.log.length, requests, 'no request at all'); eq(w.director.length, 1); eq(w.reconnects.length, 1)
+    eq(await within(w.connect({ sessionId: 'new-session-1' }).done), 'not-first'); eq(w.director.length, 1)
   })
   await check('G: the call is made at most once per session per tab even when the receipt cannot be written (a repeat would only be reused:true)', async () => {
-    const w = openWorld(), real = w.fetch
-    const lib = loadTs(LIB), log = []
-    const controller = lib.createDuplicateAdoptOnOpen({ fetch: async (url, init = {}) => { log.push(`${init.method ?? 'GET'} ${url}`); return init.method === 'PATCH' ? json(500, {}) : real(url, init) }, now: () => NOW })
-    const reconnects = []; const open = () => controller.onConnected({ sessionId: 'new-session-1', isCurrent: () => true }, () => reconnects.push(1))
-    eq(await open(), 'reconnected'); const calls = w.director.length; eq(await open(), 'not-first'); eq(await open(), 'not-first'); eq(w.director.length, calls); eq(reconnects.length, 1)
+    const w = openWorld(), real = w.fetch, reconnects = []
+    const controller = loadTs(LIB).createDuplicateAdoptOnOpen({ fetch: async (url, init = {}) => (init.method === 'PATCH' ? json(500, {}) : real(url, init)), now: () => NOW, schedule: w.clock.schedule })
+    const arm = () => { const owner = { sessionId: 'new-session-1', isCurrent: () => true }; return { owner, done: controller.onSocketEvent('connected', owner, () => reconnects.push(1)) } }
+    const a = arm(); await w.settle(); controller.onSocketEvent('chat', a.owner, () => {}); eq(await within(a.done), 'reconnected'); const calls = w.director.length
+    eq(await within(arm().done), 'not-first'); eq(await within(arm().done), 'not-first'); eq(w.director.length, calls); eq(reconnects.length, 1)
   })
   await check('G: the MARKER\'s id is adopted: a final slot the Director\'s blank canvas overwrote is ignored', async () => {
-    const w = openWorld({ row: copyRow({ final: 'blank-canvas-9' }) }); eq(await w.connected(), 'reconnected')
+    const w = openWorld({ row: copyRow({ final: 'blank-canvas-9' }) }); eq(await w.go(), 'reconnected')
     deep(w.director, [{ user_id: USER.id, presentation_id: 'copy-deck-1' }])
-    const w2 = openWorld({ row: copyRow({ final: null, strawmanPresentationId: 'strawman-deck-3' }) }); eq(await w2.connected(), 'reconnected'); deep(w2.director, [{ user_id: USER.id, presentation_id: 'copy-deck-1' }])
+    const w2 = openWorld({ row: copyRow({ final: null, strawmanPresentationId: 'strawman-deck-3' }) }); eq(await w2.go(), 'reconnected'); deep(w2.director, [{ user_id: USER.id, presentation_id: 'copy-deck-1' }])
   })
   await check('G: end to end: step 4 failed at duplicate time, the Builder\'s autosave wrote the blank canvas into the final slot, the backstop still adopts the copy', async () => {
     const world = duplicateWorld({ directorAnswers: ['27-store-unavailable-503', '27-store-unavailable-503', '27-store-unavailable-503', '01-adopted-200'] })
     const result = await runDuplicate(dupText, { world, adopt: adoptVia(world) }); eq(result.adoption.ok, false); eq(result.adoption.attempts, 3)
     await world.fetch('/api/sessions/new-session-1', { method: 'PATCH', headers: {}, body: JSON.stringify({ currentStage: 6, finalPresentationUrl: 'https://layout.synthetic.invalid/p/blank-canvas-9', finalPresentationId: 'blank-canvas-9', stateCache: { activeVersion: 'final', slideStructure: [{ id: 'blank' }] } }) })
     eq(world.rows.get('new-session-1').finalPresentationId, 'blank-canvas-9')
-    const reconnects = []; const controller = loadTs(LIB).createDuplicateAdoptOnOpen({ fetch: world.fetch, now: () => NOW })
-    eq(await controller.onConnected({ sessionId: 'new-session-1', isCurrent: () => true }, () => reconnects.push(1)), 'reconnected')
+    const reconnects = [], clock = fakeClock(); const controller = loadTs(LIB).createDuplicateAdoptOnOpen({ fetch: world.fetch, now: () => NOW, schedule: clock.schedule })
+    const owner = { sessionId: 'new-session-1', isCurrent: () => true }; const done = controller.onSocketEvent('connected', owner, () => reconnects.push(1)); await tick(60); clock.advance(15_000)
+    eq(await within(done), 'reconnected')
     eq(world.director.length, 4); deep(world.director[3].body, { user_id: USER.id, presentation_id: 'copy-deck-1' }); eq(reconnects.length, 1)
     eq(world.rows.get('new-session-1').stateCache.currentStatus.copiedFrom.adoptedAt, NOW.toISOString()); deep(world.rows.get('new-session-1').stateCache.slideStructure, [{ id: 'blank' }])
   })
-  await check('G: a copy adopted at duplicate time has the receipt: nothing is called on open', async () => {
+  await check('G: a copy adopted at duplicate time has the receipt: it is never armed for a call', async () => {
     const world = duplicateWorld(); await runDuplicate(dupText, { world, adopt: adoptVia(world) }); eq(world.director.length, 1)
-    const controller = loadTs(LIB).createDuplicateAdoptOnOpen({ fetch: world.fetch, now: () => NOW }), reconnects = []
-    eq(await controller.onConnected({ sessionId: 'new-session-1', isCurrent: () => true }, () => reconnects.push(1)), 'already-adopted'); eq(world.director.length, 1); deep(reconnects, [])
+    const clock = fakeClock(), controller = loadTs(LIB).createDuplicateAdoptOnOpen({ fetch: world.fetch, now: () => NOW, schedule: clock.schedule }), reconnects = []
+    const owner = { sessionId: 'new-session-1', isCurrent: () => true }; const done = controller.onSocketEvent('connected', owner, () => reconnects.push(1))
+    eq(await within(done), 'already-adopted'); controller.onSocketEvent('chat', owner, () => {}); clock.advance(60_000); await tick(40); eq(world.director.length, 1); deep(reconnects, []); eq(clock.timers[0].cancelled, true, 'its wait is dropped')
   })
-  await check('G: no presentationId in the marker (a copy made before this change, a strawman copy): no call, whatever the final slot says', async () => {
+  await check('G: no presentationId in the marker (a copy made before this change, a strawman copy): no call, whatever the final slot says, at the greeting or at 15 s', async () => {
     for (const [label, row] of [['old copy', copyRow({ marker: MARKER })], ['strawman copy', copyRow({ marker: MARKER, final: null, strawmanPresentationId: 'copy-deck-1' })], ['id not plain', copyRow({ marker: { ...MARKER, presentationId: 'https://layout.synthetic.invalid/p/x' } })], ['id empty', copyRow({ marker: { ...MARKER, presentationId: '' } })], ['id a number', copyRow({ marker: { ...MARKER, presentationId: 5 } })]]) {
-      const w = openWorld({ row }); eq(await w.connected(), 'no-copy-id', label); deep(w.log, ['GET /api/sessions/new-session-1'], label); deep(w.reconnects, [], label)
+      const w = openWorld({ row }); const c = w.connect(); eq(await within(c.done), 'no-copy-id', label); w.chat(c.owner); w.clock.advance(60_000); await w.settle(); deep(w.log, ['GET /api/sessions/new-session-1'], label); deep(w.reconnects, [], label)
     }
   })
   await check('G: a receipt in the marker: no call (blank, or not a string, is not a receipt)', async () => {
-    const w = openWorld({ row: copyRow({ marker: { ...MARKER, presentationId: 'copy-deck-1', adoptedAt: '2026-10-25T12:00:00.000Z' } }) }); eq(await w.connected(), 'already-adopted'); deep(w.log, ['GET /api/sessions/new-session-1'])
-    for (const adoptedAt of ['', '  ', 5, null, {}]) { const x = openWorld({ row: copyRow({ marker: { ...MARKER, presentationId: 'copy-deck-1', adoptedAt } }) }); eq(await x.connected(), 'reconnected', JSON.stringify(adoptedAt)) }
+    const w = openWorld({ row: copyRow({ marker: { ...MARKER, presentationId: 'copy-deck-1', adoptedAt: '2026-10-25T12:00:00.000Z' } }) }); const c = w.connect(); eq(await within(c.done), 'already-adopted'); w.chat(c.owner); w.clock.advance(60_000); await w.settle(); deep(w.log, ['GET /api/sessions/new-session-1'])
+    for (const adoptedAt of ['', '  ', 5, null, {}]) { const x = openWorld({ row: copyRow({ marker: { ...MARKER, presentationId: 'copy-deck-1', adoptedAt } }) }); eq(await x.go(), 'reconnected', JSON.stringify(adoptedAt)) }
   })
   await check('G: 200 reused:true writes the receipt but does not reconnect', async () => {
-    const w = openWorld({ directorAnswers: ['03-repeat-200-reused'] }); eq(await w.connected(), 'reused'); deep(w.reconnects, []); deep(w.log, RECEIPT_LOG); eq(storedOf(w).currentStatus.copiedFrom.adoptedAt, NOW.toISOString())
+    const w = openWorld({ directorAnswers: ['03-repeat-200-reused'] }); eq(await w.go(), 'reused'); deep(w.reconnects, []); deep(w.log, RECEIPT_LOG); eq(storedOf(w).currentStatus.copiedFrom.adoptedAt, NOW.toISOString())
   })
   for (const name of ['25-layout-unavailable-502', '27-store-unavailable-503', '20-not-owned-403', '23-session-not-fresh-409', '30-flag-off-404', '21-not-a-duplicate-422']) {
     await check(`G: ${name}: one call only (no retry on open), no receipt, no reconnect`, async () => {
-      const w = openWorld({ directorAnswers: [name] }); eq(await w.connected(), 'failed'); eq(w.director.length, 1); deep(w.reconnects, []); deep(w.log, RECEIPT_LOG.slice(0, 2)); ok(!('adoptedAt' in storedOf(w).currentStatus.copiedFrom))
+      const w = openWorld({ directorAnswers: [name] }); eq(await w.go(), 'failed'); eq(w.director.length, 1); deep(w.reconnects, []); deep(w.log, RECEIPT_LOG.slice(0, 2)); ok(!('adoptedAt' in storedOf(w).currentStatus.copiedFrom))
+      w.clock.advance(60_000); await w.settle(); eq(w.director.length, 1, 'and the spent wait does not call again')
     })
   }
-  await check('G: not a copy (no marker), no row, an unreadable row, or an id that is not plain: no call', async () => {
-    const a = openWorld({ row: copyRow({ marker: null }) }); eq(await a.connected(), 'not-a-copy'); deep(a.log, ['GET /api/sessions/new-session-1'])
-    const b = openWorld({ noRow: true }); eq(await b.connected(), 'not-a-copy'); deep(b.log, ['GET /api/sessions/new-session-1'])
-    const c = openWorld({ row: copyRow({ marker: { sessionId: '', title: 'T', presentationId: 'copy-deck-1' } }) }); eq(await c.connected(), 'not-a-copy')
-    const d = openWorld(); eq(await d.connected({ sessionId: 'a/b' }), 'not-a-copy'); deep(d.log, [])
-    const e = openWorld(); eq(await e.connected({ sessionId: '' }), 'not-first'); deep(e.log, [])
+  await check('G: not a copy (no marker), no row, an unreadable row, or an id that is not plain: no call; a row that could not be read is read again on the next connected, one that was read is not', async () => {
+    const a = openWorld({ row: copyRow({ marker: null }) }); eq(await within(a.connect().done), 'not-a-copy'); deep(a.log, ['GET /api/sessions/new-session-1']); eq(await within(a.connect().done), 'not-first', 'a row that says "not a copy" is not read again'); eq(a.log.length, 1)
+    const b = openWorld({ noRow: true }); eq(await within(b.connect().done), 'not-a-copy'); eq(await within(b.connect().done), 'not-a-copy'); deep(b.log, ['GET /api/sessions/new-session-1', 'GET /api/sessions/new-session-1'], 'a failed read is not a verdict')
+    const c = openWorld({ row: copyRow({ marker: { sessionId: '', title: 'T', presentationId: 'copy-deck-1' } }) }); eq(await within(c.connect().done), 'not-a-copy')
+    const d = openWorld(); eq(await within(d.connect({ sessionId: 'a/b' }).done), 'not-a-copy'); deep(d.log, []); deep(d.clock.timers, [])
+    const e = openWorld(); eq(await within(e.connect({ sessionId: '' }).done), 'not-first'); deep(e.log, [])
   })
-  await check('G: a socket that is no longer live is not reconnected (the receipt is still written); a reconnect that throws is a failure, not a crash', async () => {
-    const a = openWorld(); eq(await a.connected({ current: false }), 'not-current'); deep(a.reconnects, []); eq(storedOf(a).currentStatus.copiedFrom.adoptedAt, NOW.toISOString())
-    const b = openWorld(); eq(await b.connected({ reconnect: () => { throw new Error('boom') } }), 'failed')
+  await check('G: a socket that dies during the call still gets the receipt but no reconnect; a reconnect that throws is a failure, not a crash', async () => {
+    let victim; const a = openWorld({ onAdopt: () => { victim.owner.live = false } }); victim = a.connect(); await a.settle(); a.chat(victim.owner)
+    eq(await within(victim.done), 'not-current'); deep(a.reconnects, []); eq(storedOf(a).currentStatus.copiedFrom.adoptedAt, NOW.toISOString())
+    const b = openWorld(); eq(await b.go({ reconnect: () => { throw new Error('boom') } }), 'failed')
   })
   await check('G: each session is acted on once per tab, separately', async () => {
-    const w = openWorld(); eq(await w.connected({ sessionId: 'other-session' }), 'not-a-copy'); eq(await w.connected(), 'reconnected'); eq(await w.connected({ sessionId: 'other-session' }), 'not-first')
+    const w = openWorld(); eq(await within(w.connect({ sessionId: 'other-session' }).done), 'not-a-copy'); eq(await w.go(), 'reconnected'); eq(await within(w.connect().done), 'not-first')
   })
-  await check('G: the hook\'s real ws.onopen block tells the caller once per open: after the connected state is set, for its own session, current sockets only, flag on only', () => {
-    const hook = read(HOOK), from = hook.indexOf('ws.onopen = () => {'), to = hook.indexOf('ws.onmessage = (event) => {', from)
-    ok(from > 0 && to > from, 'the onopen block is there'); const block = hook.slice(from, to)
-    eq(block.split('\n').filter(MARKED).length, 1, 'one marked line in the block'); ok(hook.includes('const isCurrentSocket = () => wsRef.current === ws && isCurrentAttempt();'))
-    const NAMES = ['process', 'ws', 'isCurrentSocket', 'debugLog', 'expiresInSeconds', 'scheduleAuthRefresh', 'socketSessionRef', 'socketSessionId', 'setConnectionGeneration', 'clearReconnectTimer', 'reconnectPausedForOfflineRef', 'setReconnectStatus', 'reconnectAttemptsRef', 'clearReconnectStabilityTimer', 'reconnectStabilityTimeoutRef', 'DIRECTOR_RECONNECT_STABILITY_MS', 'wsRef', 'WebSocket', 'isConnectingRef', 'hasConnectedRef', 'startHeartbeat', 'setState', 'transportCallbacksRef']
-    const open = ({ env, current = true, withCallback = true, sessionId = 'new-session-1' } = {}) => {
-      const order = [], told = []; let state = { connected: false, connectionState: 'disconnected', error: new Error('old') }
-      const ws = { close: () => order.push('close') }
-      const values = [{ env }, ws, () => current, () => {}, null, () => {}, { current: null }, sessionId, () => order.push('generation'), () => {}, { current: true }, () => {}, { current: 0 }, () => {}, { current: undefined }, 3000, { current: ws }, { OPEN: 1 }, { current: true }, { current: false }, () => {}, update => { order.push('setState'); state = update(state) }, { current: withCallback ? { onDuplicateAdoptConnected: owner => { order.push('told'); told.push({ sessionId: owner.sessionId, current: owner.isCurrent() }) } } : {} }]
-      evalLine(`${block}\nmodule.exports = ws.onopen`, NAMES, values)(); return { order, told, state }
+
+  // ---- G (continued). the hook's REAL socket handlers: the real ws.onopen block, the real ws.onmessage up to the chat tap, the real ws.onclose tap ---------------------------------------
+  // The frames are built with the shape the Director builds them (Director src/handlers/websocket.py, read for this change; no recorded wire frames are kept in this repo's fixtures):
+  //   the greeting     _send_greeting -> _send_chat (~5786-5815) -> create_chat_message (src/models/websocket_messages.py:941-989): { message_id "msg_<8 hex>", session_id, timestamp, type "chat_message", role "assistant",
+  //                    payload { text, sub_title, list_items, format "markdown", ephemeral false } }; the text is DIRECTOR_522_INITIAL_GREETING (lib/studio-greeting-lifecycle.ts)
+  //   the blank canvas _send_blank_slide_update (~5718-5760) -> create_presentation_init (websocket_messages.py:1045-1063; PresentationInit type "presentation_init" at :756-763): payload { operation "full_update",
+  //                    metadata { main_title "Untitled Presentation", ... preview_url, preview_presentation_id }, slides [ blank_slide_1 ], is_blank true }
+  //   the order        new-session branch (~1684-1690): _create_and_send_blank_presentation (Layout create, theme apply, THEN the row write, then theme_sync / presentation_init), then _send_greeting
+  const GREETING_TEXT = loadTs('lib/studio-greeting-lifecycle.ts').DIRECTOR_522_INITIAL_GREETING
+  const greetingFrame = (sessionId = 'new-session-1') => ({ message_id: 'msg_0a1b2c3d', session_id: sessionId, timestamp: '2026-10-26T00:00:03.000Z', type: 'chat_message', role: 'assistant', payload: { text: GREETING_TEXT, sub_title: null, list_items: null, format: 'markdown', ephemeral: false } })
+  const blankInitFrame = (sessionId = 'new-session-1') => ({ message_id: 'msg_1b2c3d4e', session_id: sessionId, timestamp: '2026-10-26T00:00:02.500Z', type: 'presentation_init', role: 'assistant', payload: { operation: 'full_update', metadata: { main_title: 'Untitled Presentation', overall_theme: '', design_suggestions: '', target_audience: '', presentation_duration: 0, preview_url: 'https://layout.synthetic.invalid/p/blank-canvas-9', preview_presentation_id: 'blank-canvas-9' }, slides: [{ slide_id: 'blank_slide_1', slide_number: 1, slide_type: 'title_slide', title: '', subtitle: '', narrative: '', key_points: [], variant_id: 'H1s', service: 'text', purpose: 'title_slide' }], is_blank: true } })
+  const themeSyncFrame = (sessionId = 'new-session-1') => ({ message_id: 'msg_2c3d4e5f', session_id: sessionId, timestamp: '2026-10-26T00:00:02.400Z', type: 'theme_sync', role: 'assistant', payload: { request_id: 'initial:blank-canvas-9', status: 'applied', presentation_id: 'blank-canvas-9' } })
+  const hookText = () => read(HOOK)
+  /** Runs `source` (a piece of the hook, as TypeScript) with free names taken from `table`; any other free name is a loud failure, so the real code cannot quietly reach something this proof did not supply. */
+  function runScoped(source, table) {
+    const scope = new Proxy(table, {
+      has: (target, key) => typeof key === 'string' && (key in target || !(key in globalThis)),
+      get: (target, key) => { if (key === Symbol.unscopables) return undefined; if (key in target) return target[key]; throw new Error(`the hook code reached a name this proof does not supply: ${String(key)}`) },
+      set: (target, key, value) => { target[key] = value; return true },
+    })
+    vm.runInThisContext(`(function (__scope) { with (__scope) {\n${compile(source, 'hooks/use-deckster-websocket-v2.ts')}\n} })`, { filename: HOOK })(scope)
+  }
+  const sliceHook = (from, tapNeedle) => { const text = hookText(), start = text.indexOf(from), tapAt = text.indexOf(tapNeedle, start); if (start < 0 || tapAt < 0) throw new Error(`hook text not found: ${from}`); return text.slice(start, text.indexOf('\n', tapAt)) }
+  const sliceHookTo = (from, to) => { const text = hookText(), start = text.indexOf(from), end = text.indexOf(to, start); if (start < 0 || end < 0) throw new Error(`hook text not found: ${from}`); return text.slice(start, end) }
+  const slideCompose = loadTs('lib/slide-compose-async.ts'), themeExportWire = loadTs('lib/chat-theme-export-wire.ts'), elementRefineWire = loadTs('lib/chat-element-refine-wire.ts'), jobLedger = loadTs('lib/studio-job-ledger.ts')
+  /**
+   * One socket of the real hook, built the way the hook builds it: the real `duplicateAdoptOwner` line, the real ws.onopen, the real ws.onmessage (from its top to the chat tap; the frame carries on after
+   * the tap, which this proof does not run), the real ws.onclose (its first statement). Its callback goes to the controller of `world`. `trace` is the world's request log, so frames and requests share one order.
+   */
+  function hookSocket(world, { sessionId = 'new-session-1', env = { NEXT_PUBLIC_STUDIO_DUPLICATE_ADOPT: 'true' }, callbackPresent = true } = {}) {
+    const state = { current: true }, ws = {}, events = []
+    const isCurrentSocket = () => state.current
+    const pending = []
+    const reconnect = () => world.reconnects.push(sessionId)
+    const owner = evalLine(`${lineWith(HOOK, 'const duplicateAdoptOwner =')}\nmodule.exports = duplicateAdoptOwner`, ['process', 'socketSessionId', 'isCurrentSocket'], [{ env }, sessionId, isCurrentSocket])
+    const callbacks = { current: callbackPresent ? { onDuplicateAdoptSocket: (event, who) => { events.push(event); const result = world.controller.onSocketEvent(event, who, reconnect); if (event === 'connected') pending.push(result) } } : {} }
+    const table = {
+      process: { env }, ws, isCurrentSocket, debugLog: () => {}, duplicateAdoptOwner: owner, socketSessionId: sessionId, transportCallbacksRef: callbacks, acknowledgeHeartbeat: () => {},
+      normalizeDirectorMessageFrame: raw => slideCompose.normalizeSlideComposeSocketFrame(raw), chatThemeExportDirectiveKind: themeExportWire.chatThemeExportDirectiveKind,
+      CHAT_ELEMENT_REFINE_ENABLED: elementRefineWire.CHAT_ELEMENT_REFINE_ENABLED, ELEMENT_REFINE_DIRECTIVE_TYPE: elementRefineWire.ELEMENT_REFINE_DIRECTIVE_TYPE,
+      STUDIO_JOB_LEDGER_ENABLED: jobLedger.STUDIO_JOB_LEDGER_ENABLED, JOB_UPDATE_TYPE: jobLedger.JOB_UPDATE_TYPE,
+      // ws.onopen
+      expiresInSeconds: null, scheduleAuthRefresh: () => {}, socketSessionRef: { current: null }, setConnectionGeneration: () => {}, clearReconnectTimer: () => {}, reconnectPausedForOfflineRef: { current: true }, setReconnectStatus: () => {},
+      reconnectAttemptsRef: { current: 0 }, clearReconnectStabilityTimer: () => {}, reconnectStabilityTimeoutRef: { current: undefined }, DIRECTOR_RECONNECT_STABILITY_MS: 3000, wsRef: { current: ws }, WebSocket: { OPEN: 1 },
+      isConnectingRef: { current: true }, hasConnectedRef: { current: false }, startHeartbeat: () => {}, setState: update => { state.last = update({ connected: false, connectionState: 'disconnected', error: new Error('old') }) },
     }
-    const on = open({ env: { NEXT_PUBLIC_STUDIO_DUPLICATE_ADOPT: 'true' } })
-    deep(on.told, [{ sessionId: 'new-session-1', current: true }]); eq(on.state.connectionState, 'connected'); eq(on.state.connected, true); ok(on.order.indexOf('told') > on.order.indexOf('setState'), 'after the connected state is set'); eq(on.order.at(-1), 'told')
-    deep(open({ env: { NEXT_PUBLIC_STUDIO_DUPLICATE_ADOPT: 'true' }, sessionId: 'other-session' }).told, [{ sessionId: 'other-session', current: true }], 'it is told the socket\'s own session')
-    deep(open({ env: {} }).told, []); deep(open({ env: { NEXT_PUBLIC_STUDIO_DUPLICATE_ADOPT: 'TRUE' } }).told, []); deep(open({ env: { NEXT_PUBLIC_STUDIO_DUPLICATE_ADOPT: 'true' }, withCallback: false }).told, [])
-    const stale = open({ env: { NEXT_PUBLIC_STUDIO_DUPLICATE_ADOPT: 'true' }, current: false }); deep(stale.told, [], 'a superseded socket tells no one'); deep(stale.order, ['close'])
-    const first = open({ env: { NEXT_PUBLIC_STUDIO_DUPLICATE_ADOPT: 'true' } }), second = open({ env: { NEXT_PUBLIC_STUDIO_DUPLICATE_ADOPT: 'true' } }); deep(first.told, second.told, 'every open tells (a reconnect opens again): the caller acts on a session\'s first only')
-    ok(!read(HOOK).includes('onDuplicateAdoptSync') && !read(BUILDER).includes('onDuplicateAdoptSync') && !read(BUILDER).includes('DuplicateAdoptSyncOwner'), 'nothing keys on sync_response any more')
-    eq(read(HOOK).split('\n').filter(MARKED).length, 3, 'three marked lines in the hook (a comment, the option, the call)')
-    ok(read(HOOK).includes("  onDuplicateAdoptConnected?: (owner: { sessionId: string; isCurrent: () => boolean }) => void; // DUPLICATE-ADOPT\n"), 'the option type')
+    runScoped(sliceHookTo('ws.onopen = () => {', 'ws.onmessage = (event) => {'), table)
+    runScoped(`${sliceHook('ws.onmessage = (event) => {', "onDuplicateAdoptSocket?.('chat', duplicateAdoptOwner)")}\n          } catch (error) { throw error }\n        };`, table)
+    runScoped(`${sliceHook('ws.onclose = (event) => {', "onDuplicateAdoptSocket?.('closed', duplicateAdoptOwner)")}\n        };`, table)
+    return {
+      ws, state, events, owner, pending,
+      open: () => { ws.onopen(); return state.last },
+      deliver: (frame, label) => { if (label) world.log.push(`frame:${label ?? frame.type}`); ws.onmessage({ data: typeof frame === 'string' ? frame : JSON.stringify(frame) }) },
+      close: () => ws.onclose({ code: 1006, reason: '', wasClean: false }),
+    }
+  }
+
+  await check('G: the real hook: onopen alone calls nothing; the blank canvas frames (theme_sync, presentation_init is_blank) call nothing; the greeting that follows them fires, after them, never before', async () => {
+    const w = openWorld(); const sock = hookSocket(w)
+    const state = sock.open(); eq(state.connectionState, 'connected'); eq(state.connected, true); deep(sock.events, ['connected'], 'the tap runs in onopen, after the connected state is set')
+    await w.settle(); eq(w.director.length, 0, 'no call on open alone'); deep(w.log, ['GET /api/sessions/new-session-1'])
+    sock.deliver(themeSyncFrame(), 'theme_sync'); sock.deliver(blankInitFrame(), 'presentation_init'); await w.settle()
+    eq(w.director.length, 0, 'the blank canvas is not the signal'); deep(sock.events, ['connected'])
+    sock.deliver({ ...blankInitFrame(), type: 'slide_update' }, 'slide_update is_blank'); await w.settle(); eq(w.director.length, 0, 'nor is a slide_update is_blank')
+    sock.deliver(greetingFrame(), 'chat_message greeting'); deep(sock.events, ['connected', 'chat'])
+    eq(await within(sock.pending[0]), 'reconnected')
+    const at = label => w.log.indexOf(label), post = w.log.indexOf('POST /api/director/sessions/new-session-1/adopt-duplicate')
+    ok(at('frame:theme_sync') < at('frame:presentation_init') && at('frame:presentation_init') < at('frame:chat_message greeting') && at('frame:chat_message greeting') < post, `the call comes after the greeting: ${w.log.join(' | ')}`)
+    deep(w.reconnects, ['new-session-1']); eq(w.director.length, 1)
   })
-  await check('G: the Builder makes one controller per tab, only with both flags on, and gives it the clock', () => {
+  await check('G: the real hook: no greeting, no frames at all: the call comes at 15 s after connected', async () => {
+    const w = openWorld(); const sock = hookSocket(w); sock.open(); await w.settle(); w.clock.advance(14_999); await w.settle(); eq(w.director.length, 0)
+    w.clock.advance(1); eq(await within(sock.pending[0]), 'reconnected'); eq(w.director.length, 1); deep(w.clock.timers.map(t => t.ms), [15_000])
+  })
+  await check('G: the real hook: only a chat_message of the socket\'s own session on a current socket counts (other sessions, other frame types, a stale socket, a pong, junk: nothing)', async () => {
+    const w = openWorld(); const sock = hookSocket(w); sock.open(); await w.settle()
+    sock.deliver(greetingFrame('other-session')); sock.deliver({ ...greetingFrame(), type: 'status_update' }); sock.deliver({ ...greetingFrame(), type: 'sync_response' }); sock.deliver(blankInitFrame()); sock.deliver('pong'); sock.deliver('null'); sock.deliver('[]')
+    await w.settle(); deep(sock.events, ['connected']); eq(w.director.length, 0)
+    sock.state.current = false; sock.deliver(greetingFrame()); await w.settle(); deep(sock.events, ['connected'], 'a superseded socket\'s frames are dropped before the tap'); eq(w.director.length, 0)
+    sock.state.current = true; sock.deliver(greetingFrame()); eq(await within(sock.pending[0]), 'reconnected'); deep(sock.events, ['connected', 'chat'])
+  })
+  await check('G: the real hook: a socket that was superseded but has not closed yet never fires (its wait ends as not-current)', async () => {
+    const w = openWorld(); const sock = hookSocket(w); sock.open(); await w.settle(); sock.state.current = false; w.clock.advance(15_000)
+    eq(await within(sock.pending[0]), 'not-current'); eq(w.director.length, 0); deep(w.log, ['GET /api/sessions/new-session-1'])
+  })
+  await check('G: the real hook: close cancels the wait (current or stale socket, by its own owner); a stale socket\'s close leaves the newer socket\'s wait alone', async () => {
+    const w = openWorld(); const sock = hookSocket(w); sock.open(); await w.settle(); sock.close(); deep(sock.events, ['connected', 'closed']); eq(await within(sock.pending[0]), 'cancelled'); eq(w.clock.timers[0].cancelled, true)
+    w.clock.advance(60_000); await w.settle(); eq(w.director.length, 0)
+    const x = openWorld(); const a = hookSocket(x); a.open(); await x.settle(); a.state.current = false; const b = hookSocket(x); b.open(); await x.settle()
+    a.close(); eq(await within(a.pending[0]), 'cancelled'); eq(x.clock.timers.map(t => t.cancelled).join(), 'true,false'); x.clock.advance(15_000); eq(await within(b.pending[0]), 'reconnected'); eq(x.director.length, 1)
+  })
+  await check('G: the real hook: the reconnect after a fire (its own connected, its greeting, its wait) calls nothing', async () => {
+    const w = openWorld(); const first = hookSocket(w); first.open(); await w.settle(); first.deliver(greetingFrame()); eq(await within(first.pending[0]), 'reconnected')
+    first.close(); first.state.current = false
+    const second = hookSocket(w); second.open(); eq(await within(second.pending[0]), 'not-first'); second.deliver(greetingFrame()); w.clock.advance(60_000); await w.settle()
+    eq(w.director.length, 1); eq(w.reconnects.length, 1); deep(w.log.filter(line => line.startsWith('POST ')), ['POST /api/director/sessions/new-session-1/adopt-duplicate'])
+  })
+  await check('G: the real hook, flag off: no owner, no callback, no request (open, frames, close)', async () => {
+    for (const env of [{}, { NEXT_PUBLIC_STUDIO_DUPLICATE_ADOPT: 'TRUE' }, { NEXT_PUBLIC_STUDIO_DUPLICATE_ADOPT: 'false' }]) {
+      const w = openWorld(); const sock = hookSocket(w, { env }); eq(sock.owner, null); sock.open(); sock.deliver(greetingFrame()); sock.close(); w.clock.advance(60_000); await w.settle()
+      deep(sock.events, []); deep(w.log, []); eq(w.clock.timers.length, 0)
+    }
+    const w = openWorld(); const sock = hookSocket(w, { callbackPresent: false }); sock.open(); sock.deliver(greetingFrame()); sock.close(); deep(sock.events, [], 'no callback given (a page without the controller): the taps are inert')
+  })
+  await check('G: the hook\'s marked lines: where the taps sit, and that none of them takes a frame away', () => {
+    const hook = hookText(), marked = hook.split('\n').filter(MARKED); eq(marked.length, 7, 'two comment lines, the option, the owner, three taps')
+    ok(hook.includes("  onDuplicateAdoptSocket?: (event: 'connected' | 'chat' | 'closed', owner: { sessionId: string; isCurrent: () => boolean }) => void; // DUPLICATE-ADOPT\n"), 'the option type')
+    const connectedTap = lineWith(HOOK, "('connected', duplicateAdoptOwner)"), chatTap = lineWith(HOOK, "('chat', duplicateAdoptOwner)"), closedTap = lineWith(HOOK, "('closed', duplicateAdoptOwner)"), ownerLine = lineWith(HOOK, 'const duplicateAdoptOwner =')
+    for (const line of [connectedTap, chatTap, closedTap]) ok(!/\breturn\b|\bthrow\b|\bawait\b/.test(line.split('//')[0]), `a tap only calls: ${line.trim().slice(0, 50)}`)
+    const at = line => hook.indexOf(line)
+    ok(at(ownerLine) > hook.indexOf('const isCurrentSocket = () => wsRef.current === ws && isCurrentAttempt();') && at(ownerLine) < hook.indexOf('ws.onopen = () => {'), 'the owner is made once per socket, before its handlers')
+    const open = hook.slice(hook.indexOf('ws.onopen = () => {'), hook.indexOf('ws.onmessage = (event) => {')); ok(open.indexOf(connectedTap) > open.indexOf("connectionState: 'connected',") && open.indexOf(connectedTap) > open.indexOf('}));\n'), 'after the connected state is set'); ok(open.trimEnd().endsWith('};') && open.indexOf(connectedTap) > open.indexOf('startHeartbeat(ws);'))
+    ok(at(chatTap) > at("transportCallbacksRef.current.onJobsSync?.(rows,") && at(chatTap) < hook.indexOf('if (!isKnownDirectorMessageType(parsedMessage.type)) {', at(chatTap)), 'beside the job ledger\'s sync tap, ahead of the dispatch: the frame then carries on')
+    const closeAt = hook.indexOf('ws.onclose = (event) => {'); ok(hook.indexOf(closedTap) === hook.indexOf('\n', closeAt) + 1, 'the first statement of onclose'); ok(hook.indexOf(closedTap) < hook.indexOf('Ignoring close from stale WebSocket'), 'before the stale-socket guard')
+    ok(!hook.includes('onDuplicateAdoptSync') && !hook.includes('onDuplicateAdoptConnected') && !read(BUILDER).includes('onDuplicateAdoptSync') && !read(BUILDER).includes('onDuplicateAdoptConnected'), 'the earlier callbacks are gone')
+    eq(hook.split('\n').filter(line => /sync_response/.test(line) && MARKED(line)).length, 0, 'nothing of this change keys on sync_response')
+    ok(hook.includes('export function normalizeDirectorMessageFrame(') && hook.includes('): DirectorMessage {\n  return normalizeSlideComposeSocketFrame(raw as any) as unknown as DirectorMessage;\n}'), 'the proof\'s stand-in for the one-line normalizer is that line')
+  })
+  await check('G: the Builder makes one controller per tab, only with both flags on, with the clock and a cancellable wait', () => {
     const line = lineWith(BUILDER, 'const studioDuplicateAdoptOnOpen =')
-    const made = []
-    const run = env => evalLine(`${line}\nmodule.exports = studioDuplicateAdoptOnOpen`, ['process', 'createDuplicateAdoptOnOpen', 'fetch'], [{ env }, deps => { made.push(deps); return { onConnected: () => {} } }, async () => json(200, {})])
+    const made = [], timers = []
+    const run = env => evalLine(`${line}\nmodule.exports = studioDuplicateAdoptOnOpen`, ['process', 'createDuplicateAdoptOnOpen', 'fetch', 'setTimeout', 'clearTimeout'], [{ env }, deps => { made.push(deps); return { onSocketEvent: () => {} } }, async () => json(200, {}), (fn, ms) => { timers.push({ fn, ms, cleared: false }); return timers.length - 1 }, id => { timers[id].cleared = true }])
     ok(run({ NEXT_PUBLIC_STUDIO_DUPLICATE_DECK: 'true', NEXT_PUBLIC_STUDIO_DUPLICATE_ADOPT: 'true' }) !== null); eq(made.length, 1); eq(typeof made[0].fetch, 'function'); ok(made[0].now() instanceof Date)
+    const cancel = made[0].schedule(() => {}, 15_000); eq(timers[0].ms, 15_000); eq(typeof cancel, 'function'); cancel(); eq(timers[0].cleared, true, 'the returned function clears that timer')
     for (const env of [{}, { NEXT_PUBLIC_STUDIO_DUPLICATE_DECK: 'true' }, { NEXT_PUBLIC_STUDIO_DUPLICATE_ADOPT: 'true' }, { NEXT_PUBLIC_STUDIO_DUPLICATE_DECK: 'true', NEXT_PUBLIC_STUDIO_DUPLICATE_ADOPT: 'yes' }]) eq(run(env), null)
     eq(made.length, 1)
     ok(line.startsWith('const studioDuplicateAdoptOnOpen = '), 'module scope (not inside a component)')
   })
-  await check('G: the Builder hands the socket the callback only with the controller; the reconnect is disconnect then connect', async () => {
-    const line = lineWith(BUILDER, 'onDuplicateAdoptConnected:')
+  await check('G: the Builder hands the socket the callback only with the controller, passing every event on; the reconnect is disconnect then connect', async () => {
+    const line = lineWith(BUILDER, 'onDuplicateAdoptSocket:')
     const page = read(BUILDER), at = page.indexOf(line)
     ok(at > page.indexOf('} = useDecksterWebSocketV2({') && at < page.indexOf('onBuildPhase: (payload, ownerSessionId) =>', at), 'in the socket\'s options')
     const order = [], seen = []
     const make = controller => evalLine(`module.exports = {\n${line}\n}`, ['studioDuplicateAdoptOnOpen', 'disconnect', 'connect'], [controller, () => order.push('disconnect'), () => order.push('connect')])
     deep(Object.keys(make(null)), [])
-    const options = make({ onConnected: (owner, reconnect) => { seen.push(owner); reconnect(); return Promise.resolve('reconnected') } })
-    deep(Object.keys(options), ['onDuplicateAdoptConnected'])
+    const options = make({ onSocketEvent: (event, owner, reconnect) => { seen.push({ event, owner }); if (event === 'connected') reconnect(); return Promise.resolve('reconnected') } })
+    deep(Object.keys(options), ['onDuplicateAdoptSocket'])
     const owner = { sessionId: 'new-session-1', isCurrent: () => true }
-    eq(options.onDuplicateAdoptConnected(owner), undefined); eq(seen[0], owner); deep(order, ['disconnect', 'connect'])
+    for (const event of ['connected', 'chat', 'closed']) eq(options.onDuplicateAdoptSocket(event, owner), undefined)
+    deep(seen.map(entry => entry.event), ['connected', 'chat', 'closed']); ok(seen.every(entry => entry.owner === owner)); deep(order, ['disconnect', 'connect'])
   })
   await check('G: Builder autosave cannot drop the marker or the receipt: it sends stateCache { activeVersion, slideStructure } and never currentStatus; the real PATCH route leaves currentStatus alone', async () => {
     const page = read(BUILDER), start = page.indexOf('onSessionStateChange: (state) => {'), end = page.indexOf('    onMessage: (message) => {', start)
@@ -797,17 +957,34 @@ const MUTANTS = [
   ['lib: a non-retryable answer is retried', LIB, 'if (!outcome.retryable || delay === undefined) return outcome', 'if (delay === undefined) return outcome'],
   ['lib: an offline call is not retried', LIB, 'outcome = { ok: false, status: 0, code: null, retryable: true, attempts }', 'outcome = { ok: false, status: 0, code: null, retryable: false, attempts }'],
   ['lib: three retries', LIB, 'export const DUPLICATE_ADOPT_RETRY_DELAYS_MS = [1000, 2000] as const', 'export const DUPLICATE_ADOPT_RETRY_DELAYS_MS = [1000, 2000, 4000] as const'],
-  ['lib: the open backstop acts on every connected', LIB, " || seen.has(sessionId)) return 'not-first'", ") return 'not-first'"],
-  ['lib: the open fallback retries', LIB, ', retryDelaysMs: [] })', ' })'],
-  ['lib: reused:true reconnects too', LIB, "      if (outcome.reused) return 'reused'\n", ''],
-  ['lib: no marker needed', LIB, "      if (!marker) return 'not-a-copy'\n", ''],
-  ['lib: the backstop adopts with the row\'s final slot id (the marker\'s id is ignored)', LIB, 'presentationId: marker.presentationId, fetch: deps.fetch, sleep: async () => {}', 'presentationId: String((session as any).finalPresentationId ?? marker.presentationId), fetch: deps.fetch, sleep: async () => {}'],
-  ['lib: the backstop adopts with the row\'s final slot id when the marker has none', LIB, "      if (!marker.presentationId) return 'no-copy-id'\n", "      if (!marker.presentationId) marker.presentationId = (session as any).finalPresentationId ?? null\n"],
-  ['lib: the backstop calls without a marker id', LIB, "      if (!marker.presentationId) return 'no-copy-id'\n", ''],
-  ['lib: a receipt does not stop the backstop', LIB, "      if (marker.adoptedAt) return 'already-adopted'\n", ''],
-  ['lib: the backstop writes no receipt', LIB, "      await recordAdoptReceipt({ sessionId, presentationId: marker.presentationId, fetch: deps.fetch, now: deps.now })\n", ''],
-  ['lib: the backstop reconnects after reused:true too', LIB, "      if (outcome.reused) return 'reused'\n", ''],
-  ['lib: the backstop never reconnects', LIB, "      reconnect()\n      return 'reconnected'", "      return 'reconnected'"],
+  ['lib: a session already called is armed again (a reconnect calls again)', LIB, "called.has(sessionId) || settled.has(sessionId) || entries.has(owner)", "settled.has(sessionId) || entries.has(owner)"],
+  ['lib: a session known not to need a call is read again', LIB, "called.has(sessionId) || settled.has(sessionId) || entries.has(owner)", "called.has(sessionId) || entries.has(owner)"],
+  ['lib: the backstop retries', LIB, 'sleep: async () => {}, retryDelaysMs: [] })', 'sleep: async () => {} })'],
+  ['lib: connected calls at once (no wait for the greeting)', LIB, "          entry.presentationId = marker?.presentationId ?? null\n          maybeFire()", "          entry.presentationId = marker?.presentationId ?? null\n          entry.greeted = true\n          maybeFire()"],
+  ['lib: the greeting is ignored', LIB, "    entry.greeted = true\n    entry.fire()", "    entry.fire()"],
+  ['lib: the wait never elapses', LIB, "entry.cancelTimer = null; entry.waited = true; maybeFire()", "entry.cancelTimer = null; maybeFire()"],
+  ['lib: the wait is 5 s', LIB, 'DUPLICATE_ADOPT_GREETING_WAIT_MS = 15_000', 'DUPLICATE_ADOPT_GREETING_WAIT_MS = 5_000'],
+  ['lib: the wait is 60 s', LIB, 'DUPLICATE_ADOPT_GREETING_WAIT_MS = 15_000', 'DUPLICATE_ADOPT_GREETING_WAIT_MS = 60_000'],
+  ['lib: the wait is not scheduled', LIB, "entry.cancelTimer = deps.schedule(() => { entry.cancelTimer = null; entry.waited = true; maybeFire() }, DUPLICATE_ADOPT_GREETING_WAIT_MS)", "entry.cancelTimer = null"],
+  ['lib: close does not cancel', LIB, "    if (!entry || entry.firing) return\n    end(owner, entry, 'cancelled')", "    if (!entry || entry.firing) return"],
+  ['lib: ending an arming leaves its wait running', LIB, "    try { entry.cancelTimer?.() } catch { /* a timer that cannot be cancelled has nothing left to do */ }\n", ""],
+  ['lib: the call leaves its wait running', LIB, "        try { entry.cancelTimer?.() } catch { /* nothing left to do */ }\n        entry.cancelTimer = null\n        void run()", "        void run()"],
+  ['lib: a socket that is no longer current still fires', LIB, "        if (!owner.isCurrent()) return end(owner, entry, 'not-current')\n        entry.firing = true", "        entry.firing = true"],
+  ['lib: the session is not marked called before the call (a racing trigger repeats it)', LIB, "        entry.firing = true\n        called.add(sessionId)\n", "        entry.firing = true\n"],
+  ['lib: the greeting and the wait both fire', LIB, "if (entry.ended || entry.firing || !entry.presentationId || !(entry.greeted || entry.waited)) return", "if (entry.ended || !entry.presentationId || !(entry.greeted || entry.waited)) return"],
+  ['lib: no marker needed', LIB, "const verdict: DuplicateAdoptOpenResult | null = !marker ? 'not-a-copy' : ", "const verdict: DuplicateAdoptOpenResult | null = "],
+  ['lib: the backstop adopts with the row\'s final slot id (the marker\'s id is ignored)', LIB, "entry.presentationId = marker?.presentationId ?? null", "entry.presentationId = (session as any)?.finalPresentationId ?? marker?.presentationId ?? null"],
+  ['lib: a marker without an id adopts with the row\'s final slot id', LIB, " : !marker.presentationId ? 'no-copy-id' : marker.adoptedAt", " : marker.adoptedAt"],
+  ['lib: a marker without an id is not a verdict', LIB, " : !marker.presentationId ? 'no-copy-id' : marker.adoptedAt ? 'already-adopted' : null", " : marker.adoptedAt ? 'already-adopted' : null"],
+  ['lib: a receipt does not stop the backstop', LIB, " : marker.adoptedAt ? 'already-adopted' : null", " : null"],
+  ['lib: a read row that says "not a copy" is read again', LIB, "if (verdict) { if (rowRead) settled.add(sessionId); return", "if (verdict) { return"],
+  ['lib: a row that could not be read is settled for good', LIB, "if (verdict) { if (rowRead) settled.add(sessionId); return", "if (verdict) { settled.add(sessionId); return"],
+  ['lib: the backstop writes no receipt', LIB, "          await recordAdoptReceipt({ sessionId, presentationId: entry.presentationId as string, fetch: deps.fetch, now: deps.now })\n", ""],
+  ['lib: the backstop reconnects after reused:true too', LIB, "          if (outcome.reused) return end(owner, entry, 'reused')\n", ""],
+  ['lib: the backstop never reconnects', LIB, "          reconnect()\n          return end(owner, entry, 'reconnected')", "          return end(owner, entry, 'reconnected')"],
+  ['lib: a socket that died during the call is reconnected', LIB, "          if (!owner.isCurrent()) return end(owner, entry, 'not-current')\n          reconnect()", "          reconnect()"],
+  ['lib: a failed adoption still reconnects', LIB, "          if (!outcome.ok) return end(owner, entry, 'failed')\n", ""],
+  ['lib: a non-plain session id is armed (and read)', LIB, "      if (!isPlainAdoptId(sessionId)) return settle('not-a-copy')\n", ""],
   ['lib: a marker with a blank receipt counts as adopted', LIB, "adoptedAt: typeof marker.adoptedAt === 'string' && marker.adoptedAt.trim() ? marker.adoptedAt : null", 'adoptedAt: marker.adoptedAt === undefined ? null : (marker.adoptedAt as string | null)'],
   ['lib: the receipt PATCH sends the stale slideStructure and activeVersion too', LIB, 'body: JSON.stringify({ stateCache: { currentStatus:', 'body: JSON.stringify({ stateCache: { activeVersion: session.stateCache.activeVersion, slideStructure: session.stateCache.slideStructure, currentStatus:'],
   ['lib: the receipt drops the rest of currentStatus', LIB, '{ currentStatus: { ...status, copiedFrom:', '{ currentStatus: { copiedFrom:'],
@@ -834,7 +1011,6 @@ const MUTANTS = [
   ['dup lib: the marker\'s id is written for a strawman copy', DUP, "...(deps.adopt && target.slot === 'final' ? { currentStatus", '...(deps.adopt ? { currentStatus'],
   ['dup lib: the marker carries the source deck\'s id', DUP, 'title: source.shownTitle, presentationId: copyId }', 'title: source.shownTitle, presentationId: target.presentationId }'],
   ['dup lib: the marker loses its title', DUP, 'title: source.shownTitle, presentationId: copyId }', 'presentationId: copyId }'],
-  ['lib: a dead socket is reconnected', LIB, "      if (!owner.isCurrent()) return 'not-current'\n", ''],
   ['dup lib: strawman copies are adopted', DUP, "const adopt = target.slot === 'final' ? deps.adopt : undefined", 'const adopt = deps.adopt'],
   ['dup lib: a throwing step 4 unwinds (deletes)', DUP, 'await Promise.resolve().then(() => adopt(newSessionId, copyId)).catch(() => ({ ok: false as const, status: 0, code: null, retryable: false, attempts: 0 }))', 'await adopt(newSessionId, copyId)'],
   ['dup lib: a failed adoption deletes the session', DUP, '    const patchedBody = await readBody(patched)\n', '    if (adoption && !adoption.ok) return await unfinished()\n    const patchedBody = await readBody(patched)\n'],
@@ -847,13 +1023,24 @@ const MUTANTS = [
   ['dashboard: an unmarked line rides along', DASH, 'import { adoptDuplicateCopyAndRecord, DUPLICATE_ADOPT_PENDING_NOTE } from "@/lib/studio-duplicate-adopt"', 'const stray = 1\nimport { adoptDuplicateCopyAndRecord, DUPLICATE_ADOPT_PENDING_NOTE } from "@/lib/studio-duplicate-adopt"'],
   ['dashboard: step 4 gets no clock for the receipt', DASH, ', now: () => new Date() }) } : {}), // DUPLICATE-ADOPT', ' }) } : {}), // DUPLICATE-ADOPT'],
   ['builder: the controller needs only the adopt flag', BUILDER, "const studioDuplicateAdoptOnOpen = process.env.NEXT_PUBLIC_STUDIO_DUPLICATE_DECK === 'true' && ", 'const studioDuplicateAdoptOnOpen = '],
-  ['builder: the controller gets no clock', BUILDER, 'createDuplicateAdoptOnOpen({ fetch: (input, init) => fetch(input, init), now: () => new Date() })', 'createDuplicateAdoptOnOpen({ fetch: (input, init) => fetch(input, init) } as any)'],
-  ['builder: the socket callback is the old sync one', BUILDER, 'onDuplicateAdoptConnected: (owner', 'onDuplicateAdoptSync: (owner'],
+  ['builder: the controller gets no clock', BUILDER, 'now: () => new Date(), schedule:', 'schedule:'],
+  ['builder: the controller gets no scheduler', BUILDER, ', schedule: (run, ms) => { const timer = setTimeout(run, ms); return () => clearTimeout(timer) } })', ' } as any)'],
+  ['builder: the wait cannot be cancelled', BUILDER, 'return () => clearTimeout(timer) } })', 'return () => {} } })'],
+  ['builder: the socket callback drops the event', BUILDER, 'onDuplicateAdoptSocket: (event: DuplicateAdoptSocketEvent, owner: DuplicateAdoptSocketOwner) => { void studioDuplicateAdoptOnOpen?.onSocketEvent(event, owner,', "onDuplicateAdoptSocket: (event: DuplicateAdoptSocketEvent, owner: DuplicateAdoptSocketOwner) => { void studioDuplicateAdoptOnOpen?.onSocketEvent('connected', owner,"],
+  ['builder: the socket callback is the old connected one', BUILDER, 'onDuplicateAdoptSocket: (event', 'onDuplicateAdoptConnected: (event'],
   ['builder: the reconnect only connects', BUILDER, '() => { disconnect(); connect() }', '() => { connect() }'],
-  ['hook: the connected tap ignores the flag', HOOK, "if (process.env.NEXT_PUBLIC_STUDIO_DUPLICATE_ADOPT === 'true') transportCallbacksRef.current.onDuplicateAdoptConnected", 'transportCallbacksRef.current.onDuplicateAdoptConnected'],
-  ['hook: the connected tap names another session', HOOK, 'onDuplicateAdoptConnected?.({ sessionId: socketSessionId,', "onDuplicateAdoptConnected?.({ sessionId: '',"],
+  ['hook: the owner is made with the flag off', HOOK, "const duplicateAdoptOwner = process.env.NEXT_PUBLIC_STUDIO_DUPLICATE_ADOPT === 'true' ? {", "const duplicateAdoptOwner = true ? {"],
+  ['hook: the owner names another session', HOOK, "? { sessionId: socketSessionId, isCurrent: isCurrentSocket } : null; // DUPLICATE-ADOPT: one owner per socket", "? { sessionId: '', isCurrent: isCurrentSocket } : null; // DUPLICATE-ADOPT: one owner per socket"],
+  ['hook: the owner is always current', HOOK, "? { sessionId: socketSessionId, isCurrent: isCurrentSocket } : null; // DUPLICATE-ADOPT: one owner per socket", "? { sessionId: socketSessionId, isCurrent: () => true } : null; // DUPLICATE-ADOPT: one owner per socket"],
   ['hook: a superseded socket tells too', HOOK, "if (!isCurrentSocket()) {\n            debugLog('⏭️ Ignoring open from stale WebSocket');", "if (false) {\n            debugLog('⏭️ Ignoring open from stale WebSocket');"],
-  ['hook: the tap is told before the connected state is set', HOOK, "          if (process.env.NEXT_PUBLIC_STUDIO_DUPLICATE_ADOPT === 'true') transportCallbacksRef.current.onDuplicateAdoptConnected?.({ sessionId: socketSessionId, isCurrent: isCurrentSocket }); // DUPLICATE-ADOPT: told once per open (a reconnect opens again); the caller acts on a session's first only\n", ''],
+  ['hook: also told before the connected state is set', HOOK, "          if (expiresInSeconds) scheduleAuthRefresh(expiresInSeconds);\n", "          if (duplicateAdoptOwner) transportCallbacksRef.current.onDuplicateAdoptSocket?.('connected', duplicateAdoptOwner); // DUPLICATE-ADOPT\n          if (expiresInSeconds) scheduleAuthRefresh(expiresInSeconds);\n"],
+  ['hook: the connected tap is gone', HOOK, "          if (duplicateAdoptOwner) transportCallbacksRef.current.onDuplicateAdoptSocket?.('connected', duplicateAdoptOwner); // DUPLICATE-ADOPT: told once per open (a reconnect opens again); the caller arms the session, it does not call yet\n", ""],
+  ['hook: the chat tap fires for every session', HOOK, " && parsedMessage.session_id === socketSessionId) transportCallbacksRef.current.onDuplicateAdoptSocket?.('chat'", ") transportCallbacksRef.current.onDuplicateAdoptSocket?.('chat'"],
+  ['hook: the chat tap fires for every frame type', HOOK, "if (duplicateAdoptOwner && parsedMessage.type === 'chat_message' && parsedMessage.session_id", "if (duplicateAdoptOwner && parsedMessage.session_id"],
+  ['hook: the chat tap takes the frame away', HOOK, "onDuplicateAdoptSocket?.('chat', duplicateAdoptOwner); // DUPLICATE-ADOPT: the Director's first", "onDuplicateAdoptSocket?.('chat', duplicateAdoptOwner), parsedMessage.type === 'chat_message' && (() => { throw new Error('taken') })(); // DUPLICATE-ADOPT: the Director's first"],
+  ['hook: the chat tap is gone', HOOK, "            if (duplicateAdoptOwner && parsedMessage.type === 'chat_message' && parsedMessage.session_id === socketSessionId) transportCallbacksRef.current.onDuplicateAdoptSocket?.('chat', duplicateAdoptOwner); // DUPLICATE-ADOPT: the Director's first chat_message (the greeting) is what releases the call; the frame then carries on as before\n", ""],
+  ['hook: the close tap is gone', HOOK, "          if (duplicateAdoptOwner) transportCallbacksRef.current.onDuplicateAdoptSocket?.('closed', duplicateAdoptOwner); // DUPLICATE-ADOPT: before the stale-socket guard, so a superseded socket's timer is cancelled too\n", ""],
+  ['hook: the close tap sits behind the stale-socket guard', HOOK, "          if (duplicateAdoptOwner) transportCallbacksRef.current.onDuplicateAdoptSocket?.('closed', duplicateAdoptOwner); // DUPLICATE-ADOPT: before the stale-socket guard, so a superseded socket's timer is cancelled too\n          if (!isCurrentSocket()) {", "          if (!isCurrentSocket()) {\n            if (duplicateAdoptOwner) transportCallbacksRef.current.onDuplicateAdoptSocket?.('closed', duplicateAdoptOwner); // DUPLICATE-ADOPT\n            return;\n          }\n          if (false) {"],
   ['hook: the old sync_response tap is still there', HOOK, "        ws.onmessage = (event) => {", "        const syncTap = (m: any) => transportCallbacksRef.current.onDuplicateAdoptSync?.(m.payload) // DUPLICATE-ADOPT\n        ws.onmessage = (event) => {"],
   ['env: the block says "true"', '.env.example', 'NEXT_PUBLIC_STUDIO_DUPLICATE_ADOPT="false"', 'NEXT_PUBLIC_STUDIO_DUPLICATE_ADOPT="true"'],
   ['fixture: one byte of a recorded answer changes', `${FIXTURES}/22-in-use-409.json`, '"retryable": false', '"retryable": true'],
