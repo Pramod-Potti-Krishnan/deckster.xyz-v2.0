@@ -389,15 +389,15 @@ const HEAD = git('log', '-1', '--format=%H', '--no-merges', '-E', '--grep=^(Spee
 if (HEAD === BASE) {
   console.log('SKIP D  nothing committed on top of the base yet (the scope check reads BASE..HEAD only)')
 } else {
-  const changed = git('diff', '--name-only', `${BASE}..${HEAD}`).split('\n').filter(Boolean).sort()
+  const changed = git('diff', '--name-only', `${BASE}..${HEAD}`).split('\n').filter(Boolean).filter(rel => stripModule.SPEED_PERCEIVED_SCOPE_FILES.has(rel) || !registry.LATER_CHANGE_FILES.has(rel)).sort() // LATER-CHANGES: registry read (FLOW-CONTROL): a registered later change's files are its own
   eq(changed, [...stripModule.SPEED_PERCEIVED_SCOPE_FILES].sort(), 'D: the committed diff touches exactly this change\'s files')
   for (const rel of stripModule.SPEED_PERCEIVED_FILES) {
-    const head = git('show', `${HEAD}:${rel}`), base = git('show', `${BASE}:${rel}`)
+    const head = registry.stripLaterChanges(rel, git('show', `${HEAD}:${rel}`)), base = registry.stripLaterChanges(rel, git('show', `${BASE}:${rel}`)) // LATER-CHANGES: registry read (FLOW-CONTROL): the lines of the changes registered after this one come out of both sides first
     eq(stripModule.stripSpeedPerceived(rel, head), base, `D: ${rel} without its marked lines is the base, byte for byte`)
-    const diff = git('diff', '-U0', `${BASE}..${HEAD}`, '--', rel).split('\n').filter(line => /^[+-]/.test(line) && !/^(\+\+\+|---) /.test(line))
+    const diff = git('diff', '-U0', `${BASE}..${HEAD}`, '--', rel).split('\n').filter(line => /^[+-]/.test(line) && !/^(\+\+\+|---) /.test(line)).filter(line => registry.stripLaterChanges(rel, `${line}\n`) !== '') // LATER-CHANGES: registry read (FLOW-CONTROL): a later change's marked line is its own
     ok(diff.length > 0 && diff.every(line => line.startsWith('+') && stripModule.SPEED_PERCEIVED_MARKER_RE.test(line)), `D: ${rel} gains only marked lines`)
   }
-  eq(git('show', `${HEAD}:.env.example`), `${git('show', `${BASE}:.env.example`)}\n${stripModule.SPEED_PERCEIVED_ENV_BLOCK}`, 'D: .env.example is the base plus the block')
+  eq(registry.stripLaterEnvBlocks('.env.example', git('show', `${HEAD}:.env.example`)), registry.stripLaterEnvBlocks('.env.example', `${git('show', `${BASE}:.env.example`)}\n${stripModule.SPEED_PERCEIVED_ENV_BLOCK}`), 'D: .env.example is the base plus the block') // LATER-CHANGES: registry read (FLOW-CONTROL): the blocks registered after this one come out of both sides first
   // the older proofs this change teaches (all FRONTEND-2's own): with their registry-read lines put back they are the base's files, byte for byte; each taught line is there once and carries the mark; an unmarked change is not put back
   eq(stripModule.SPEED_PERCEIVED_PIN_FILES.length, 3, 'D: three older proofs are taught')
   for (const rel of stripModule.SPEED_PERCEIVED_PIN_FILES) {
@@ -414,7 +414,7 @@ if (HEAD === BASE) {
     ok(stripModule.putBackPin(rel, head.replace(firstHas, () => `${firstHas}const unmarked = 1\n`)) !== base, `D: ${rel}: an unmarked line added next to a taught one is not put back`)
     ok(stripModule.putBackPin(rel, head.replace(stripModule.SPEED_PERCEIVED_PIN_MARK, () => '//')) !== base, `D: ${rel}: a taught line that loses its mark is not put back`)
   }
-  const registryDiff = git('diff', '-U0', `${BASE}..${HEAD}`, '--', 'scripts/studio-later-changes.mjs').split('\n').filter(line => /^[+-]/.test(line) && !/^(\+\+\+|---) /.test(line))
+  const registryDiff = git('diff', '-U0', `${BASE}..${HEAD}`, '--', 'scripts/studio-later-changes.mjs').split('\n').filter(line => /^[+-]/.test(line) && !/^(\+\+\+|---) /.test(line)).filter(line => !(line.startsWith('+') && line.includes('LATER-CHANGE') && !line.includes('studio-speed-perceived-strip.mjs'))) // LATER-CHANGES: registry read (FLOW-CONTROL): lines a later change registers are its own
   eq(registryDiff.length, 3, 'D: the registry gains three lines')
   ok(registryDiff.every(line => line.startsWith('+') && line.includes('LATER-CHANGE') && line.includes('studio-speed-perceived-strip.mjs')), 'D: each is a LATER-CHANGE line naming this strip')
   const css = git('show', `${HEAD}:components/builder/studio-speed-perceived.css`).replace(/\/\*[\s\S]*?\*\//g, '')
