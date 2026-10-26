@@ -40,6 +40,7 @@ export const STUDIO_ARRANGE_NEW_FILES = [
 export const STUDIO_ARRANGE_SPEED_PROOF = 'scripts/test-studio-speed-perceived.mjs'
 export const STUDIO_ARRANGE_RAIL_PROOF = 'scripts/test-studio-rail-add-slide.mjs'
 export const STUDIO_ARRANGE_POLISH_B_PROOF = 'scripts/test-studio-pass3-polish-b.mjs'
+export const STUDIO_ARRANGE_POLISH_B_STRIP = 'scripts/studio-pass3-polish-b-strip.mjs'
 export const STUDIO_ARRANGE_PIN_MARK = '// LATER-CHANGES: registry read (DUPLICATE-ADOPT)'
 export const STUDIO_ARRANGE_PIN_EDITS = {
   [STUDIO_ARRANGE_SPEED_PROOF]: [
@@ -53,6 +54,18 @@ export const STUDIO_ARRANGE_PIN_EDITS = {
   [STUDIO_ARRANGE_POLISH_B_PROOF]: [
     [
       "  const read = rel => withoutPeers(rel, rel in overrides ? overrides[rel] : fs.readFileSync(path.join(root, rel), 'utf8')) // LATER-CHANGES: registry read (STUDIO-ARRANGE): the pins this change taught are read past the edits of the changes registered after it (withoutPeers), as the two pages are\n",
+      ""
+    ]
+  ],
+  // Pass 3 polish B's strip is what COMPOSER-2's scripts/test-studio-first-paint-viewer.mjs reads the viewer through (and holds it to its base byte for byte): it now takes this change's marked viewer lines
+  // out first (the pattern #520 used in studio-duplicate-deck-strip.mjs). Two pure insertions: the import and one line in stripPass3PolishB. Idempotent (stripStudioArrange twice changes nothing more).
+  [STUDIO_ARRANGE_POLISH_B_STRIP]: [
+    [
+      "import { stripStudioArrange } from './studio-arrange-strip.mjs' // LATER-CHANGES: registry read (STUDIO-ARRANGE): #523 adds marked lines to the viewer, so they come out first and the viewer read through this strip is its base again\n",
+      ""
+    ],
+    [
+      "  if (rel === PASS3_POLISH_B_VIEWER) text = stripStudioArrange(rel, text) // LATER-CHANGES: registry read (STUDIO-ARRANGE)\n",
       ""
     ]
   ],
