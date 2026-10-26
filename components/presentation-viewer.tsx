@@ -147,6 +147,7 @@ import {
 import { SlideBuildingLoader } from './slide-building-loader'
 import type { BuildThemeSelection } from '@/lib/theme-builder'
 import { createStudioFormatSelectionHandle, type StudioFormatSelectionHandle } from '@/lib/studio-format-native'
+import { studioArrangeRaisesOnSelect, studioArrangeSelectionInput, studioArrangeOwnsSaveStatus } from '@/lib/studio-arrange' // STUDIO-ARRANGE (NEXT_PUBLIC_STUDIO_ARRANGE, default off): no raise on select; Arrange reads the selection's properties
 import { IDLE_THEME_SYNC, type ThemeSyncState } from '@/lib/theme-sync'
 import {
   isDiagramRendererStateEvent,
@@ -990,6 +991,7 @@ export function PresentationViewer({
   }
   const [studioFormatSelection, setStudioFormatSelection] = useState<StudioFormatSelectionHandle | null>(null)
   const studioFormatSelectionRef = useRef<StudioFormatSelectionHandle | null>(null)
+  const studioArrangeSelectionRef = useRef<unknown>(null) // STUDIO-ARRANGE: the selection event's properties, for the selection handle created next
   const studioFormatModeRef = useRef({ enabled: templateModeOn, revision: 0 })
   if (studioFormatModeRef.current.enabled !== templateModeOn) {
     studioFormatModeRef.current = { enabled: templateModeOn, revision: studioFormatModeRef.current.revision + 1 }
@@ -1250,6 +1252,7 @@ export function PresentationViewer({
       && introSafetyRef.current.viewerIsReady && !getStudioIntroductionSafety().busy
       && !getStudioIntroductionSafety().error && !studioFormatBusyRef.current)
     selection = createStudioFormatSelectionHandle({ iframe, elementId, presentationId: owner.presentationId,
+      ...studioArrangeSelectionInput(eventKind, studioArrangeSelectionRef.current), // STUDIO-ARRANGE: elementSelected's properties while the flag is on; {} otherwise
       sessionId: owner.sessionId, slideIndex: slide.index - 1, eventKind, elementType, owner: epoch, isCurrent })
     studioFormatSelectionRef.current = selection
     setStudioFormatSelection(selection)
@@ -3901,6 +3904,7 @@ export function PresentationViewer({
         const status = event.data.status as SaveStatus
         if (!['saved', 'unsaved', 'saving', 'error'].includes(status)) return
         if (status !== 'saved') {
+          if (!studioArrangeOwnsSaveStatus(status)) // STUDIO-ARRANGE: Layout's "unsaved" for the selection's own Arrange command (it arrives before the answer) does not retire the selection
           if (studioShell) viewerInteractionIntentRef.current += 1
           nativeSnapshotDirtyRef.current = true
           reportOwnDeckEdit() // NEXT_PUBLIC_STUDIO_DECK_CHANGED_NOTICE: this tab's own autosave is not "another tab" (no-op with the flag off)
@@ -3979,10 +3983,12 @@ export function PresentationViewer({
         const entered = await ensureEditMode(interaction?.iframe ?? undefined, interaction?.isCurrent)
         if (interaction && (!entered || !interaction.isCurrent())) return
 
+        studioArrangeSelectionRef.current = null // STUDIO-ARRANGE: a text box's selection carries no properties
         setSelectedTextBoxId(elementId)
         captureStudioFormatSelection(elementId, 'textBoxSelected')
         onTextBoxSelected?.(elementId, formatting, componentType)
         if (interaction && !interaction.isCurrent()) return
+        if (studioArrangeRaisesOnSelect()) // STUDIO-ARRANGE: the select-raise only while NEXT_PUBLIC_STUDIO_ARRANGE is off (the one guard: lib/studio-arrange.ts)
         void sendCommand(interaction?.iframe ?? iframeRef.current, 'bringToFront', { elementId }).catch((error) => {
           console.warn('[PresentationViewer] Failed to bring selected text box to front:', error)
         })
@@ -4020,9 +4026,11 @@ export function PresentationViewer({
         if (interaction && (!entered || !interaction.isCurrent())) return
 
         // Notify parent to show the appropriate format panel
+        studioArrangeSelectionRef.current = properties // STUDIO-ARRANGE: the handle reads them (slide pixels while Layout's flag is on)
         captureStudioFormatSelection(elementId, 'elementSelected', elementType)
         onElementSelected?.(elementId, elementType, properties)
         if (interaction && !interaction.isCurrent()) return
+        if (studioArrangeRaisesOnSelect()) // STUDIO-ARRANGE: the select-raise only while NEXT_PUBLIC_STUDIO_ARRANGE is off (the one guard: lib/studio-arrange.ts)
         void sendCommand(interaction?.iframe ?? iframeRef.current, 'bringToFront', { elementId }).catch((error) => {
           console.warn('[PresentationViewer] Failed to bring selected element to front:', error)
         })
