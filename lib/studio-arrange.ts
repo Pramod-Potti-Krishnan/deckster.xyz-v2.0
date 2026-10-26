@@ -12,6 +12,8 @@
 //     tables get no Arrange command at all (Layout's autosave does not store them). A locked element is admitted for Unlock only.
 //     The inspector shows Lock disabled ("Not available yet", STUDIO_ARRANGE_LOCK_ENABLED = false in the inspector) until Layout lets a locked
 //     element be selected again: the inspector closes when Layout autosaves, and a locked element is pointer-events: none.
+//     Every Arrange command it sends carries intent 'arrange' (STUDIO_ARRANGE_INTENT): Layout's flag runs a command only with that intent,
+//     so the bringToFront {elementId} the older Studio builds send on every select stays the no-op it always was.
 //
 // Geometry. Layout's elementSelected properties report slide pixels while its flag is on (viewport pixels while it is off). The element's
 // grid position, which Layout's getElementGeometry reports in both builds (the logical 32 x 18 grid, minor steps of 0.2), converts to the
@@ -35,6 +37,11 @@ export type StudioArrangeCommand = typeof STUDIO_ARRANGE_COMMANDS[number]
 export const STUDIO_ARRANGE_NOT_YET = ['rotateElement', 'flipElement', 'setElementClasses'] as const
 /** The element types Layout's autosave stores, so their Arrange changes are saved (arrange-commands.js SAVED_Z). */
 export const STUDIO_ARRANGE_TYPES = ['textbox', 'image', 'chart', 'infographic', 'diagram'] as const
+/** Layout's intent guard (LAYOUT_ARRANGE_COMMANDS_ENABLED): an Arrange command acts only when its params carry intent 'arrange'; without it the
+ *  viewer answers "Unknown action", as it did before the flag, so the older builds' select-raise (bringToFront {elementId}) changes and saves nothing. */
+export const STUDIO_ARRANGE_INTENT = 'arrange'
+/** The params posted for an Arrange command: the validated ones (validateStudioArrangeParams holds the shapes Layout accepts) plus the intent. */
+export const studioArrangeCommandParams = (params: Record<string, unknown>): Record<string, unknown> => ({ ...params, intent: STUDIO_ARRANGE_INTENT })
 
 const CELL = 12 // slide px per physical grid line: 1920 / 160 = 1080 / 90
 const SCALE = 5 // physical lines per logical line (GridConverter GRID_SCALE)
