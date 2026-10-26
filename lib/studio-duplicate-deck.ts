@@ -285,6 +285,8 @@ export async function runDuplicateDeck({ source, target, deps }: DuplicateDeckIn
       stateCache: {
         activeVersion: target.slot,
         currentStatus: { copiedFrom: { sessionId: source.sessionId, title: source.shownTitle } },
+        // DUPLICATE-ADOPT the marker also carries the copy's own id (Layout's reply), the id step 4 and the Builder-open backstop always adopt with: the row's final slot can be overwritten by the Director's blank canvas.
+        ...(deps.adopt && target.slot === 'final' ? { currentStatus: { copiedFrom: { sessionId: source.sessionId, title: source.shownTitle, presentationId: copyId } } } : {}), // DUPLICATE-ADOPT
       },
     })
     if (!patched.ok) return await unfinished()

@@ -5,8 +5,10 @@ import { authOptions } from '@/lib/auth-options'
 import { mintRestEntitlement, REST_ENTITLEMENT_HEADER } from '@/lib/director-rest-entitlement'
 import {
   DUPLICATE_ADOPT_BODY_MAX_BYTES,
+  DUPLICATE_ADOPT_NOT_OWNED_CODE,
   DUPLICATE_ADOPT_UPSTREAM_TIMEOUT_MS,
   directorAdoptBody,
+  duplicateAdoptNotOwnedLine,
   duplicateAdoptRefusal,
   isPlainAdoptId,
   parseAdoptRequestBody,
@@ -27,8 +29,12 @@ export const maxDuration = 60
 // even while its DIRECTOR_REST_ENTITLEMENT_* flags are off (contract section 2), so this route does not wait for DECKSTER_REST_ENTITLEMENT_HEADER_ENABLED. Without a signing secret no header can be
 // made and the Director refuses (401). The header is never logged and never sent to the browser.
 //
-// The Director's status and body are passed through as they came (its refusals carry { error, code, detail, retryable }). A Director that cannot be reached is 502 retryable; an answer that is not JSON
-// keeps its status and is retryable when that status is a 5xx.
+// The Director's status and body are passed through as they came (its refusals carry { error, code, detail, retryable }). A Director that cannot be reached (or that does not answer within
+// DUPLICATE_ADOPT_UPSTREAM_TIMEOUT_MS, 10 s a call) is 502 retryable: the Director's route is idempotent, so the caller may repeat it (a repeat answers 200 reused:true). An answer that is not JSON keeps
+// its status and is retryable when that status is a 5xx.
+//
+// LOGGING: one console.warn, and only when the Director answers PRESENTATION_NOT_OWNED (the Studio row's final deck and the source session's Director deck have drifted): the code, the NEW session's id
+// and the presentation id sent, both already held to the plain-id rule (lib/studio-duplicate-adopt.ts duplicateAdoptNotOwnedLine). Never the user id or email, the header, the body or any env value.
 
 function directorBaseUrl(): string {
   return requireServiceUrl('Director', [
@@ -100,6 +106,7 @@ export async function POST(
     if (data === undefined || data === null || typeof data !== 'object') {
       return NextResponse.json(duplicateAdoptRefusal('DIRECTOR_BAD_RESPONSE', response.status >= 500), { status: response.status })
     }
+    if ((data as { code?: unknown }).code === DUPLICATE_ADOPT_NOT_OWNED_CODE) console.warn(duplicateAdoptNotOwnedLine(sessionId, presentationId))
     return NextResponse.json(data, { status: response.status })
   } catch (error) {
     if (error instanceof ServiceUrlConfigError) return NextResponse.json({ error: error.message, code: error.code, retryable: false }, { status: 503 })

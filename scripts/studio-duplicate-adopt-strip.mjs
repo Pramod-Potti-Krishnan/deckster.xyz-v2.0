@@ -2,8 +2,9 @@
 // "true", default off, build-time; it acts only while NEXT_PUBLIC_STUDIO_DUPLICATE_DECK is "true" too): after Duplicate's session PATCH the Director adopts the copy into the new session, so chat can edit it, and a
 // copy that was never adopted is adopted when the Builder opens it (lib/studio-duplicate-adopt.ts, app/api/director/sessions/[sourceSessionId]/adopt-duplicate/route.ts).
 // Every line this change adds to an EXISTING file is a pure insertion that carries the marker DUPLICATE-ADOPT (matched as a whole token): lib/studio-duplicate-deck.ts (step 4 in runDuplicateDeck, its optional
-// `adopt` dependency and the result's `adoption`), app/(app)/dashboard/page.tsx (the flag, the dependency, the note), app/builder/page.tsx (the per-tab controller and the socket callback) and
-// hooks/use-deckster-websocket-v2.ts (the callback's type and the one call on a sync_response of the socket's own session). Strip those lines and each file is its base, byte for byte.
+// `adopt` dependency, the result's `adoption`, and the copy's id in the step-3 marker: one key spread in after the base's own marker line, which stays as it is), app/(app)/dashboard/page.tsx (the flag, the
+// dependency, the note), app/builder/page.tsx (the per-tab controller and the socket callback) and hooks/use-deckster-websocket-v2.ts (the callback's type and the one call in ws.onopen, for the socket's own
+// session). Strip those lines and each file is its base, byte for byte.
 // How the older pins reach it: this change REGISTERS its files, its .env.example block and this strip (scripts/studio-later-changes.mjs, three lines). Plain node, no imports, nothing read from disk or git here.
 
 export const BASE_COMMIT = '875334faa648ed72e63b260457ca2fc0a2020c0c' // studio-v4-dev-preparation-code at #518 (speed perceived), the branch this change is cut from

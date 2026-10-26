@@ -6,11 +6,16 @@
 //   4. the browser POSTs { presentation_id } to its own route, /api/director/sessions/{newSessionId}/adopt-duplicate (app/api/director/sessions/[sourceSessionId]/adopt-duplicate/route.ts), which
 //      takes the user id from the login, signs it for the Director and forwards { user_id, presentation_id } to the Director. Final slot only: a strawman copy is an outline preview.
 //      A failure never removes the copy or the new session (both are valid and in the person's list): the person reads DUPLICATE_ADOPT_PENDING_NOTE, and the call is retried at most twice while the
-//      answer says `retryable: true`.
-//   Builder open: a copy that was never adopted is adopted when it is opened. The first sync_response of the session on this tab names no deck (no presentation_id, or has_strawman false) and the
-//   session carries the copiedFrom marker: the same route is called once, and on 200 with reused false the Director WebSocket reconnects (the live connection holds the session from before the deck).
+//      answer says `retryable: true`. A success writes a one-time receipt into the session's marker (copiedFrom.adoptedAt).
+//   THE MARKER CARRIES THE COPY'S ID. Step 3 stores the copy's own presentation id in the copiedFrom marker (copiedFrom.presentationId, final slot, this flag on), and step 4 and the Builder-open backstop
+//   ALWAYS adopt with that id. The session row's final slot is NOT trusted for it: the Director's connect makes a blank canvas for a session it has never seen, and the Builder writes that canvas's URL
+//   into the row's final slot, so adopting with it would be NOT_A_DUPLICATE for good (DIRECTOR-2, 25 Oct). A copy made before this change has no presentationId in its marker: the backstop does nothing.
+//   Builder open (the backstop): the Director socket reports "connected" (the hook's ws.onopen, for the socket's own session). The first time a session connects on this tab, the session row is read once; with a
+//   copiedFrom marker that has a presentationId and NO adoptedAt receipt, the same route is called once (no retry here). On 200 the receipt is written; then, on reused false while that socket is still the live
+//   one, the Director WebSocket reconnects (the live connection holds the session from before the deck). A copy adopted at duplicate time has the receipt and never calls again. At most one call per session
+//   per tab: a reconnect's own "connected" is never acted on, so it cannot loop. A repeat call is safe anyway (the Director answers 200 reused:true from its stored receipt).
 //
-// Pure module: no React, no storage, no clock, no network of its own (the caller injects fetch and sleep). It is browser-safe and never names the signing secret, the header or the minter: those are
+// Pure module: no React, no storage, no clock, no network of its own (the caller injects fetch, sleep and the time). It is browser-safe and never names the signing secret, the header or the minter: those are
 // the route's alone.
 
 import { readCopiedFrom } from '@/lib/studio-duplicate-deck'
@@ -21,8 +26,8 @@ export const STUDIO_DUPLICATE_ADOPT_FLAG = 'NEXT_PUBLIC_STUDIO_DUPLICATE_ADOPT'
 export const DUPLICATE_ADOPT_ID_RE = /^[A-Za-z0-9][A-Za-z0-9_.-]{0,199}$/
 /** The Director refuses a body over 4 KB; the Studio route refuses the browser's body over the same size. */
 export const DUPLICATE_ADOPT_BODY_MAX_BYTES = 4096
-/** How long the Studio route waits for the Director (an adoption reads the copy from Layout once). */
-export const DUPLICATE_ADOPT_UPSTREAM_TIMEOUT_MS = 30_000
+/** How long the Studio route waits for the Director per attempt (an adoption reads the copy from Layout once: DIRECTOR-2 expects 1-3 s on UAT). A timeout is a retryable 502, and a repeat is safe (reused:true). */
+export const DUPLICATE_ADOPT_UPSTREAM_TIMEOUT_MS = 10_000
 /** Step 4 retries: at most two more calls, and only while the answer says retryable. */
 export const DUPLICATE_ADOPT_RETRY_DELAYS_MS = [1000, 2000] as const
 
@@ -109,35 +114,81 @@ export async function adoptDuplicateCopy({ sessionId, presentationId, fetch, sle
   }
 }
 
-/** Builder open: the first sync_response names no deck the Director holds for this session (no presentation_id, or has_strawman false). */
-export function syncNamesNoDeck(payload: unknown): boolean {
-  if (!payload || typeof payload !== 'object') return false
-  const { presentation_id: presentationId, has_strawman: hasStrawman } = payload as { presentation_id?: unknown; has_strawman?: unknown }
-  return !(typeof presentationId === 'string' && presentationId.trim()) || hasStrawman === false
+/** The one log line the Studio route writes, and only when the Director answers PRESENTATION_NOT_OWNED (DIRECTOR-2: the person owns no session whose deck is the one the copy was made from): the code, the NEW session's id
+ *  and the presentation id that was sent, both held to the plain-id rule before they get here. Never the user id or email, the header, the body or any env value. */
+export const DUPLICATE_ADOPT_NOT_OWNED_CODE = 'PRESENTATION_NOT_OWNED'
+export function duplicateAdoptNotOwnedLine(sessionId: string, presentationId: string): string {
+  return `[DUPLICATE_ADOPT] ${DUPLICATE_ADOPT_NOT_OWNED_CODE} session=${sessionId} presentation=${presentationId}`
 }
 
-/** The copy's deck id from GET /api/sessions/{id}: the final slot's id the duplicate stored (null for a strawman-slot copy, which is never adopted). */
-export function finalCopyIdOf(session: unknown): string | null {
-  const id = (session as { finalPresentationId?: unknown } | null | undefined)?.finalPresentationId
-  return isPlainAdoptId(id) ? id : null
-}
+/** The receipt's key inside the marker: an ISO time, written once, when the Director answered 200 for this copy. */
+export const DUPLICATE_ADOPT_RECEIPT_KEY = 'adoptedAt'
 
-export interface DuplicateAdoptSyncOwner { sessionId: string; isCurrent: () => boolean }
-export type DuplicateAdoptOpenResult = 'not-first' | 'has-deck' | 'not-a-copy' | 'not-final' | 'reconnected' | 'not-current' | 'reused' | 'failed'
+export interface DuplicateAdoptMarker { presentationId: string | null; adoptedAt: string | null }
 
 /**
- * Builder open. One controller per tab: `onSync` is given each sync_response payload of the socket's own session, and acts on the FIRST one of each session only (a reconnect's next
- * sync_response, or a later one, is never acted on, so it cannot loop). It reads the session row once (the copiedFrom marker and the final slot's id), calls the Studio route once (no retry
- * here), and calls `reconnect` only on 200 with reused false while that socket is still the live one. Never throws; nothing is written by Studio.
+ * What the copiedFrom marker (GET /api/sessions/{id} -> session.stateCache.currentStatus.copiedFrom) says about adoption: the copy's own id (null for a copy made before the marker carried it, and for a
+ * strawman-slot copy) and the receipt (null until adopted). Null when the session is not a copy at all (the same test the copy's note uses).
  */
-export function createDuplicateAdoptOnOpen(deps: { fetch: DuplicateAdoptDeps['fetch'] }) {
+export function readAdoptMarker(session: unknown): DuplicateAdoptMarker | null {
+  if (!readCopiedFrom(session)) return null
+  const marker = (session as { stateCache: { currentStatus: { copiedFrom: { presentationId?: unknown; adoptedAt?: unknown } } } }).stateCache.currentStatus.copiedFrom
+  return {
+    presentationId: isPlainAdoptId(marker.presentationId) ? marker.presentationId : null,
+    adoptedAt: typeof marker.adoptedAt === 'string' && marker.adoptedAt.trim() ? marker.adoptedAt : null,
+  }
+}
+
+export type DuplicateAdoptReceiptResult = 'written' | 'already' | 'skipped' | 'failed'
+
+/**
+ * The one-time receipt: read the row, merge `adoptedAt` into the marker, PATCH it back. Read-modify-write on stateCache.currentStatus ONLY: the PATCH sends no slideStructure and no activeVersion, and
+ * PATCH /api/sessions/{id} hands each absent key to Prisma as undefined, which leaves that column as it is, so a Builder autosave that landed in between (it writes those two columns and never currentStatus)
+ * is not undone. Nothing else in currentStatus is dropped. Writes nothing when the row is not a copy, holds another id, or already has the receipt. Never throws.
+ */
+export async function recordAdoptReceipt({ sessionId, presentationId, fetch, now }: { sessionId: string; presentationId: string; fetch: DuplicateAdoptDeps['fetch']; now: () => Date }): Promise<DuplicateAdoptReceiptResult> {
+  try {
+    const rowPath = `/api/sessions/${encodeURIComponent(sessionId)}`
+    const response = await fetch(rowPath, { cache: 'no-store' })
+    if (!response.ok) return 'failed'
+    const session = (await readJson(response))?.session
+    const marker = readAdoptMarker(session)
+    if (!marker || marker.presentationId !== presentationId) return 'skipped'
+    if (marker.adoptedAt) return 'already'
+    const status = session.stateCache.currentStatus as { copiedFrom: Record<string, unknown> }
+    const patched = await fetch(rowPath, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ stateCache: { currentStatus: { ...status, copiedFrom: { ...status.copiedFrom, [DUPLICATE_ADOPT_RECEIPT_KEY]: now().toISOString() } } } }),
+    })
+    return patched.ok ? 'written' : 'failed'
+  } catch {
+    return 'failed'
+  }
+}
+
+/** Step 4 as the Decks page runs it: adopt (with retries), and on a 200 write the receipt, so the copy never calls again on open. The outcome is the adoption's; a receipt that could not be written changes nothing here. */
+export async function adoptDuplicateCopyAndRecord({ now, ...input }: { sessionId: string; presentationId: string; retryDelaysMs?: readonly number[]; now: () => Date } & DuplicateAdoptDeps): Promise<DuplicateAdoptOutcome> {
+  const outcome = await adoptDuplicateCopy(input)
+  if (outcome.ok) await recordAdoptReceipt({ sessionId: input.sessionId, presentationId: input.presentationId, fetch: input.fetch, now })
+  return outcome
+}
+
+export interface DuplicateAdoptSocketOwner { sessionId: string; isCurrent: () => boolean }
+export type DuplicateAdoptOpenResult = 'not-first' | 'not-a-copy' | 'no-copy-id' | 'already-adopted' | 'reconnected' | 'not-current' | 'reused' | 'failed'
+
+/**
+ * Builder open. One controller per tab: `onConnected` is told each time the Director socket of a session reports connected, and acts on the FIRST one of each session only (a reconnect's own
+ * "connected", or any later one, is never acted on, so it cannot loop). It reads the session row once, and calls the Studio route once (no retry here) only for a copy whose marker has a presentationId and no
+ * receipt. On 200 it writes the receipt, then calls `reconnect` only when reused is false while that socket is still the live one. Never throws.
+ */
+export function createDuplicateAdoptOnOpen(deps: { fetch: DuplicateAdoptDeps['fetch']; now: () => Date }) {
   const seen = new Set<string>()
-  const onSync = async (payload: unknown, owner: DuplicateAdoptSyncOwner, reconnect: () => void): Promise<DuplicateAdoptOpenResult> => {
+  const onConnected = async (owner: DuplicateAdoptSocketOwner, reconnect: () => void): Promise<DuplicateAdoptOpenResult> => {
     try {
       const sessionId = owner?.sessionId
       if (typeof sessionId !== 'string' || !sessionId || seen.has(sessionId)) return 'not-first'
       seen.add(sessionId)
-      if (!syncNamesNoDeck(payload)) return 'has-deck'
       if (!isPlainAdoptId(sessionId)) return 'not-a-copy'
       let session: unknown = null
       try {
@@ -146,11 +197,13 @@ export function createDuplicateAdoptOnOpen(deps: { fetch: DuplicateAdoptDeps['fe
       } catch {
         session = null
       }
-      if (!readCopiedFrom(session)) return 'not-a-copy'
-      const copyId = finalCopyIdOf(session)
-      if (!copyId) return 'not-final'
-      const outcome = await adoptDuplicateCopy({ sessionId, presentationId: copyId, fetch: deps.fetch, sleep: async () => {}, retryDelaysMs: [] })
+      const marker = readAdoptMarker(session)
+      if (!marker) return 'not-a-copy'
+      if (!marker.presentationId) return 'no-copy-id'
+      if (marker.adoptedAt) return 'already-adopted'
+      const outcome = await adoptDuplicateCopy({ sessionId, presentationId: marker.presentationId, fetch: deps.fetch, sleep: async () => {}, retryDelaysMs: [] })
       if (!outcome.ok) return 'failed'
+      await recordAdoptReceipt({ sessionId, presentationId: marker.presentationId, fetch: deps.fetch, now: deps.now })
       if (outcome.reused) return 'reused'
       if (!owner.isCurrent()) return 'not-current'
       reconnect()
@@ -159,5 +212,5 @@ export function createDuplicateAdoptOnOpen(deps: { fetch: DuplicateAdoptDeps['fe
       return 'failed'
     }
   }
-  return { onSync }
+  return { onConnected }
 }

@@ -11,13 +11,16 @@
 //   D. body       the Director gets exactly { user_id, presentation_id }; the user id is the login's (id, else email), never the browser's; the browser may send { presentation_id } only, a plain id
 //   E. flag off   either flag off: 404 { error: "Not found" } before the login is read or the Director is called (the house answer of a flag-off route)
 //   F. step 4     runDuplicateDeck: Layout copy, POST /api/sessions, PATCH, THEN the adoption, and the copy is handed back only after it; final slot only; retried at most twice and only while retryable;
-//                 a failure (or a throwing step) never deletes the copy or the session; the Decks page shows the plain note instead of the usual toast
-//   G. open       the Builder's fallback: the first sync_response of a session that names no deck, on a copy (copiedFrom marker) of the final slot, calls the route ONCE; 200 reused:false reconnects
-//                 (disconnect, then connect) while that socket is live; reused:true, a refusal, another session's frame or a later frame do nothing; the hook passes the payload of its own session only
+//                 a failure (or a throwing step) never deletes the copy or the session; the Decks page shows the plain note instead of the usual toast. The PATCH's marker carries the copy's own id
+//                 (final slot, adopt on only), and a 200 writes the one-time receipt into it (read-modify-write through the REAL /api/sessions/[id] route, a fake Prisma that skips undefined columns)
+//   G. open       the Builder's backstop on "connected": the first connected of a session whose marker has the copy's id and no receipt calls the route ONCE, always with the MARKER's id (a drifted final slot
+//                 is ignored); 200 writes the receipt and, on reused:false while that socket is live, reconnects (disconnect, then connect); the reconnect's own connected never calls again; no id in the
+//                 marker, or a receipt: no call. The hook's ws.onopen block is the real one, run with stubs (flag, own session, stale socket). The Builder's autosave never sends currentStatus.
 //   H. identity   flag off is the base: each existing file without its DUPLICATE-ADOPT lines is the base commit's, byte for byte (and through the registry); the base lib and this lib without the step give
 //                 the same requests and result, hashed
 //   I. scope      the committed diff of this change's own commits (subject "Duplicate adopt: ...") holds exactly its files; marked insertions only; the registry gains three lines
-//   J. safety     no credential-shaped literal in its new files or marked lines; the browser code never names the secret, the header or the minter; the route is server code, the only new importer of the minter
+//   J. safety     no credential-shaped literal in its new files or marked lines; the browser code never names the secret, the header or the minter; the route is server code, the only new importer of the minter;
+//                 its only log is one console.warn on PRESENTATION_NOT_OWNED (code, new session id, presentation id; never the user, the header or an env value)
 //   K. mutants    each one must make A-J fail
 import assert from 'node:assert/strict'
 import crypto from 'node:crypto'
@@ -117,16 +120,19 @@ const json = (status, body) => new Response(JSON.stringify(body), { status, head
 const answer = name => { const fx = fixture(name); return () => json(fx.status, fx.body) }
 const tick = async (n = 6) => { for (let i = 0; i < n; i++) await new Promise(resolve => setImmediate(resolve)) }
 
-/** The Studio route, called as Next calls it. `upstream(url, init, attempt)` is the Director. */
-async function callRoute({ env = ENV_ON(), user = USER, sessionId = 'new-session-1', body = { presentation_id: 'copy-deck-1' }, raw, contentLength, upstream = answer('01-adopted-200') } = {}) {
-  const log = { sessions: 0, fetches: [] }
+/** The Studio route, called as Next calls it. `upstream(url, init, attempt)` is the Director. Every console call and every AbortSignal.timeout(ms) the route makes is recorded;
+ *  `fireTimeout` makes that timeout fire (as the timer would after the wait) so an upstream that never answers is cut off. */
+async function callRoute({ env = ENV_ON(), user = USER, sessionId = 'new-session-1', body = { presentation_id: 'copy-deck-1' }, raw, contentLength, upstream = answer('01-adopted-200'), fireTimeout = false } = {}) {
+  const log = { sessions: 0, fetches: [], console: [], timeouts: [] }
   const stubs = {
     'next/server': { NextResponse },
     'next-auth': { getServerSession: async options => { log.sessions++; if (options !== AUTH_OPTIONS) throw new Error('auth options'); return user ? { user } : null } },
     '@/lib/auth-options': { authOptions: AUTH_OPTIONS },
   }
   const fetch = async (url, init) => { log.fetches.push({ url, init }); return upstream(url, init, log.fetches.length) }
-  const route = loadTs(ROUTE, { env, stubs, globals: { fetch } })
+  const fakeConsole = new Proxy({}, { get: (_, method) => (...args) => { log.console.push({ method: String(method), args }) } })
+  const fakeSignal = { timeout: ms => { log.timeouts.push(ms); if (!fireTimeout) return AbortSignal.timeout(ms); const controller = new AbortController(); setImmediate(() => controller.abort(new Error('timed out'))); return controller.signal } }
+  const route = loadTs(ROUTE, { env, stubs, globals: { fetch, console: fakeConsole, AbortSignal: fakeSignal } })
   const text = raw ?? JSON.stringify(body)
   const headers = { 'content-type': 'application/json', ...(contentLength ? { 'content-length': String(contentLength) } : {}) }
   const req = { headers: { get: name => headers[name.toLowerCase()] ?? null }, text: async () => text }
@@ -142,16 +148,66 @@ const claimsOf = value => {
   return { claims: JSON.parse(Buffer.from(payload, 'base64url').toString('utf8')), verifies: signature === expected }
 }
 
-/** A browser fetch for the duplicate flow: Layout, the sessions API, and the Studio route (the real one, its Director answering from `directorAnswers` in turn). */
-function duplicateWorld({ directorAnswers = ['01-adopted-200'], routeEnv = ENV_ON(), patchStatus = 200 } = {}) {
-  const log = [], director = [], sleeps = []
+const SESSIONS_ROUTE = 'app/api/sessions/[id]/route.ts'
+const DB_USER = { id: 'db-user-1', email: 'person@synthetic.invalid' }
+/**
+ * The sessions API: GET / PATCH / DELETE /api/sessions/{id} are the REAL route handlers (app/api/sessions/[id]/route.ts) over a fake Prisma that keeps rows in memory and applies a write the way Prisma does:
+ * a column given as `undefined` is left as it is (that is how a PATCH without slideStructure leaves slideStructure alone). POST /api/sessions makes a row (stateCache null) the way the page does.
+ */
+function sessionsApi({ rows = new Map() } = {}) {
+  const prisma = {
+    user: { findUnique: async () => ({ id: DB_USER.id }) },
+    chatSession: {
+      findUnique: async ({ where, include }) => { const row = rows.get(where.id); return row ? { ...structuredClone(row), ...(include ? { messages: [] } : {}) } : null },
+      update: async ({ where, data }) => {
+        const row = rows.get(where.id), { stateCache, updatedAt, ...scalars } = data
+        for (const [key, value] of Object.entries(scalars)) if (value !== undefined) row[key] = value
+        if (stateCache?.upsert) {
+          if (row.stateCache) { for (const [key, value] of Object.entries(stateCache.upsert.update)) if (value !== undefined) row.stateCache[key] = structuredClone(value) }
+          else row.stateCache = Object.fromEntries(Object.entries(stateCache.upsert.create).map(([key, value]) => [key, value === undefined ? null : structuredClone(value)]))
+        }
+        row.updatedAt = 'synthetic-updated'
+        const { stateCache: _cache, messages: _messages, ...scalar } = structuredClone(row)
+        return scalar
+      },
+    },
+  }
+  const stubs = {
+    'next/server': { NextResponse },
+    'next-auth': { getServerSession: async () => ({ user: { email: DB_USER.email } }) },
+    '@/lib/auth-options': { authOptions: AUTH_OPTIONS },
+    '@/lib/prisma': { prisma },
+  }
+  const route = loadTs(SESSIONS_ROUTE, { stubs })
+  const requestOf = init => ({ json: async () => JSON.parse(init.body) })
+  const handle = async (url, init = {}) => {
+    const method = init.method ?? 'GET'
+    if (url === '/api/sessions' && method === 'POST') {
+      const body = JSON.parse(init.body)
+      rows.set(body.sessionId, { id: body.sessionId, userId: DB_USER.id, status: 'active', title: body.title ?? null, createdAt: 'synthetic-created', updatedAt: 'synthetic-created', stateCache: null })
+      return json(200, { session: { id: body.sessionId } })
+    }
+    const id = decodeURIComponent(url.slice('/api/sessions/'.length))
+    const ctx = { params: Promise.resolve({ id }) }
+    if (method === 'GET') return route.GET(requestOf(init), ctx)
+    if (method === 'PATCH') return route.PATCH(requestOf(init), ctx)
+    if (method === 'DELETE') return route.DELETE(requestOf(init), ctx)
+    return json(405, {})
+  }
+  return { rows, handle }
+}
+
+/** A browser fetch for the duplicate flow: Layout, the sessions API (the real routes over a fake Prisma), and the Studio route (the real one, its Director answering from `directorAnswers` in turn). */
+function duplicateWorld({ directorAnswers = ['01-adopted-200'], routeEnv = ENV_ON(), patchStatus = 200, rows } = {}) {
+  const log = [], director = [], sleeps = [], patches = []
+  const api = sessionsApi({ rows })
   const fetch = async (url, init = {}) => {
     const method = init.method ?? 'GET'
     log.push(`${method} ${url}`)
     if (url.endsWith('/duplicate')) return json(200, { success: true, id: 'copy-deck-1', presentation_id: 'copy-deck-1', url: '/p/copy-deck-1', presentation_url: '/p/copy-deck-1', slide_count: 5, reused: false })
-    if (url === '/api/sessions' && method === 'POST') return json(200, { session: { id: 'new-session-1' } })
-    if (url === '/api/sessions/new-session-1' && method === 'PATCH') return json(patchStatus, { session: { id: 'new-session-1', createdAt: 'synthetic-created', updatedAt: 'synthetic-updated' } })
-    if (method === 'DELETE') return json(200, {})
+    if (url === '/api/sessions/new-session-1' && method === 'PATCH' && patches.length === 0 && patchStatus !== 200) { patches.push(JSON.parse(init.body)); return json(patchStatus, { error: 'synthetic' }) }
+    if (url.startsWith('/api/sessions') && method === 'PATCH') patches.push(JSON.parse(init.body))
+    if (url.startsWith('/api/sessions')) return api.handle(url, init)
     if (url === '/api/director/sessions/new-session-1/adopt-duplicate' && method === 'POST') {
       const body = JSON.parse(init.body)
       const out = await callRoute({ env: routeEnv, body, upstream: (u, i) => { director.push({ url: u, body: JSON.parse(i.body) }); const name = directorAnswers[Math.min(director.length - 1, directorAnswers.length - 1)]; if (name === 'THROW') throw new Error('offline'); return answer(name)() } })
@@ -159,7 +215,7 @@ function duplicateWorld({ directorAnswers = ['01-adopted-200'], routeEnv = ENV_O
     }
     return json(500, { error: 'unexpected' })
   }
-  return { log, director, sleeps, fetch, sleep: async ms => { sleeps.push(ms) } }
+  return { log, director, sleeps, patches, rows: api.rows, fetch, sleep: async ms => { sleeps.push(ms) } }
 }
 const TARGET = slot => ({ ok: true, slot, presentationId: 'source-deck-1', url: 'https://layout.synthetic.invalid/p/source-deck-1' })
 const SOURCE = { sessionId: 'source-session-1', shownTitle: 'Q4 sales review', currentStage: 6, slideCount: 5 }
@@ -169,7 +225,8 @@ function runDuplicate(libText, { slot = 'final', world = duplicateWorld(), adopt
   const deps = { fetch: world.fetch, layoutBaseUrl: () => 'https://layout.synthetic.invalid', newId: () => ids.shift(), now: () => new Date('2026-10-26T00:00:00.000Z'), sleep: world.sleep, ...(adopt ? { adopt } : {}) }
   return lib.runDuplicateDeck({ source: SOURCE, target: TARGET(slot), deps })
 }
-const adoptVia = world => (sessionId, presentationId) => loadTs(LIB).adoptDuplicateCopy({ sessionId, presentationId, fetch: world.fetch, sleep: world.sleep })
+const NOW = new Date('2026-10-26T01:02:03.000Z')
+const adoptVia = world => (sessionId, presentationId) => loadTs(LIB).adoptDuplicateCopyAndRecord({ sessionId, presentationId, fetch: world.fetch, sleep: world.sleep, now: () => NOW })
 
 // ---- the suite (sections A-J): every check records its failure instead of throwing, so a mutant can count what it broke ----------------------------------------------
 async function suite({ quiet = false, extraCommitted = [] } = {}) {
@@ -202,7 +259,8 @@ async function suite({ quiet = false, extraCommitted = [] } = {}) {
       const out = await callRoute({ upstream: answer(name) })
       eq(out.status, fx.status); deep(out.json, fx.body); eq(out.log.fetches.length, 1, 'one Director call')
       eq(out.log.fetches[0].url, `${DIRECTOR}/api/sessions/new-session-1/adopt-duplicate`); eq(out.log.fetches[0].init.method, 'POST'); eq(out.log.fetches[0].init.cache, 'no-store')
-      ok(out.log.fetches[0].init.signal instanceof AbortSignal, 'a bounded wait')
+      ok(out.log.fetches[0].init.signal instanceof AbortSignal, 'a bounded wait'); deep(out.log.timeouts, [10_000], 'ten seconds a call')
+      deep(out.log.console.map(entry => entry.method), name.startsWith('20-') ? ['warn'] : [], 'the route logs only PRESENTATION_NOT_OWNED')
       if (fx.status !== 200) { eq(typeof fx.body.detail, 'string'); if ('retryable' in fx.body) eq(out.json.retryable, fx.body.retryable) }
     })
   }
@@ -219,6 +277,33 @@ async function suite({ quiet = false, extraCommitted = [] } = {}) {
   await check('B: no Director URL configured is 503 (not retryable) and nothing is called', async () => {
     const env = ENV_ON(); delete env.DIRECTOR_API_URL
     const out = await callRoute({ env }); eq(out.status, 503); eq(out.json.code, 'SERVICE_URL_NOT_CONFIGURED'); eq(out.json.retryable, false); eq(out.log.fetches.length, 0)
+  })
+
+  await check('B: the wait for the Director is 10 s a call (the constant and what the route passes); retries are two, at 1 s and 2 s', async () => {
+    const lib = loadTs(LIB)
+    eq(lib.DUPLICATE_ADOPT_UPSTREAM_TIMEOUT_MS, 10_000); deep([...lib.DUPLICATE_ADOPT_RETRY_DELAYS_MS], [1000, 2000])
+    deep((await callRoute()).log.timeouts, [10_000]); ok(!/30_000|30000/.test(read(ROUTE)), 'no other wait in the route')
+  })
+  await check('B: a Director that does not answer in time is cut off: 502 DIRECTOR_UNREACHABLE, retryable (the repeat is safe: reused:true), and nothing is logged', async () => {
+    const out = await callRoute({ fireTimeout: true, upstream: (u, init) => new Promise((_, reject) => init.signal.addEventListener('abort', () => reject(init.signal.reason))) })
+    eq(out.status, 502); eq(out.json.code, 'DIRECTOR_UNREACHABLE'); eq(out.json.retryable, true); deep(out.log.timeouts, [10_000]); deep(out.log.console, [])
+    ok(!/timed out/.test(JSON.stringify(out.json)), 'the internal error is not shown')
+  })
+  await check('B: PRESENTATION_NOT_OWNED logs ONE warn: the code, the new session id and the presentation id sent; never the user id or email, the header, the secret or the Director\'s host', async () => {
+    const who = { id: 'user-id-ZZ9', email: 'zz9@synthetic.invalid' }
+    const out = await callRoute({ user: who, sessionId: 'new-session-7', body: { presentation_id: 'copy-deck-7' }, upstream: answer('20-not-owned-403') })
+    eq(out.status, 403); eq(out.json.code, 'PRESENTATION_NOT_OWNED')
+    eq(out.log.console.length, 1); eq(out.log.console[0].method, 'warn'); eq(out.log.console[0].args.length, 1); const line = out.log.console[0].args[0]
+    eq(line, '[DUPLICATE_ADOPT] PRESENTATION_NOT_OWNED session=new-session-7 presentation=copy-deck-7')
+    const header = out.log.fetches[0].init.headers['X-Deckster-Entitlement']
+    for (const secret of [who.id, who.email, header, header.split('.')[0], header.split('.')[1], SECRET, DIRECTOR, 'synthetic.invalid']) ok(!line.includes(secret), `no ${String(secret).slice(0, 12)}...`)
+    const emailKeyed = await callRoute({ user: { email: who.email }, upstream: answer('20-not-owned-403') }); ok(!emailKeyed.log.console[0].args[0].includes(who.email))
+    const many = await callRoute({ upstream: answer('20-not-owned-403') }); eq(many.log.console.length, 1, 'once per answer')
+  })
+  await check('B: no other answer logs, and neither does a refusal before the Director (bad body, no login, flag off, unreachable, not JSON)', async () => {
+    for (const name of Object.keys(index).filter(n => !n.startsWith('20-'))) deep((await callRoute({ upstream: answer(name) })).log.console, [], name)
+    for (const opts of [{ body: {} }, { user: null }, { env: ENV_ON({ NEXT_PUBLIC_STUDIO_DUPLICATE_ADOPT: 'false' }) }, { upstream: () => { throw new Error('refused') } }, { upstream: () => new Response('<html>', { status: 503 }) }]) deep((await callRoute(opts)).log.console, [])
+    const bad = await callRoute({ sessionId: 'bad/id', upstream: answer('20-not-owned-403') }); eq(bad.status, 400); deep(bad.log.console, [], 'an id that is not plain is refused before it could reach a log')
   })
 
   // ---- C. the minted header -------------------------------------------------------------------------------------------------------------------------------------------
@@ -294,7 +379,7 @@ async function suite({ quiet = false, extraCommitted = [] } = {}) {
   await check('F: Layout copy, POST /api/sessions, PATCH, then the adoption; the result carries it; nothing deleted', async () => {
     const world = duplicateWorld()
     const result = await runDuplicate(dupText, { world, adopt: adoptVia(world) })
-    deep(world.log, ['POST https://layout.synthetic.invalid/api/presentations/source-deck-1/duplicate', 'POST /api/sessions', 'PATCH /api/sessions/new-session-1', 'POST /api/director/sessions/new-session-1/adopt-duplicate'])
+    deep(world.log, ['POST https://layout.synthetic.invalid/api/presentations/source-deck-1/duplicate', 'POST /api/sessions', 'PATCH /api/sessions/new-session-1', 'POST /api/director/sessions/new-session-1/adopt-duplicate', 'GET /api/sessions/new-session-1', 'PATCH /api/sessions/new-session-1'])
     eq(result.ok, true); deep(result.adoption, { ok: true, reused: false, attempts: 1 }); eq(result.presentationId, 'copy-deck-1'); eq(result.slot, 'final')
     deep(world.director, [{ url: `${DIRECTOR}/api/sessions/new-session-1/adopt-duplicate`, body: { user_id: USER.id, presentation_id: 'copy-deck-1' } }])
   })
@@ -321,6 +406,7 @@ async function suite({ quiet = false, extraCommitted = [] } = {}) {
       const retryable = fx.body.retryable === true
       deep(result.adoption, { ok: false, status: fx.status, code: fx.body.code ?? null, retryable, attempts: retryable ? 3 : 1 })
       eq(world.director.length, retryable ? 3 : 1); deep(world.sleeps, retryable ? [1000, 2000] : [])
+      ok(!('adoptedAt' in world.rows.get('new-session-1').stateCache.currentStatus.copiedFrom), 'a refusal writes no receipt'); eq(world.log.filter(line => line.startsWith('GET ')).length, 0)
     })
   }
   await check('F: a retryable answer then 200: two calls, adopted', async () => {
@@ -356,6 +442,59 @@ async function suite({ quiet = false, extraCommitted = [] } = {}) {
     const result = await runDuplicate(dupText, { slot: 'strawman', world, adopt: async () => { called++; return { ok: true, reused: false, attempts: 1 } } })
     eq(called, 0); eq(result.ok, true); ok(!('adoption' in result)); ok(!world.log.some(line => line.includes('adopt-duplicate')))
   })
+  // the marker carries the copy's id; a 200 writes the receipt
+  const MARKER = { sessionId: 'source-session-1', title: 'Q4 sales review' }
+  await check('F: the step-3 PATCH marker carries the copy\'s own id (final slot, adopt on): exactly { sessionId, title, presentationId }', async () => {
+    const world = duplicateWorld()
+    await runDuplicate(dupText, { world, adopt: async () => ({ ok: false, status: 0, code: null, retryable: false, attempts: 0 }) })
+    deep(world.patches[0].stateCache, { activeVersion: 'final', currentStatus: { copiedFrom: { ...MARKER, presentationId: 'copy-deck-1' } } })
+    deep(Object.keys(world.patches[0].stateCache.currentStatus.copiedFrom), ['sessionId', 'title', 'presentationId'])
+    eq(world.rows.get('new-session-1').finalPresentationId, 'copy-deck-1')
+  })
+  await check('F: no step 4 (flag off), or a strawman-slot copy: the marker is the base\'s { sessionId, title } and nothing more', async () => {
+    const off = duplicateWorld(); await runDuplicate(dupText, { world: off })
+    deep(off.patches[0].stateCache, { activeVersion: 'final', currentStatus: { copiedFrom: MARKER } })
+    const straw = duplicateWorld(); await runDuplicate(dupText, { slot: 'strawman', world: straw, adopt: adoptVia(straw) })
+    deep(straw.patches[0].stateCache, { activeVersion: 'strawman', currentStatus: { copiedFrom: MARKER } })
+    ok(!JSON.stringify(straw.patches[0].stateCache).includes('presentationId'), 'no id in a strawman copy\'s marker')
+  })
+  await check('F: a 200 writes the one-time receipt (adoptedAt, ISO) into the marker; the rest of the marker and of currentStatus is kept', async () => {
+    const world = duplicateWorld()
+    const adopt = async (sessionId, presentationId) => { world.rows.get(sessionId).stateCache.currentStatus.keep = { me: true }; return adoptVia(world)(sessionId, presentationId) }
+    const result = await runDuplicate(dupText, { world, adopt })
+    deep(result.adoption, { ok: true, reused: false, attempts: 1 })
+    const stored = world.rows.get('new-session-1').stateCache
+    deep(stored.currentStatus, { copiedFrom: { ...MARKER, presentationId: 'copy-deck-1', adoptedAt: NOW.toISOString() }, keep: { me: true } }); eq(stored.activeVersion, 'final')
+    deep(JSON.parse(JSON.stringify(world.patches.at(-1))), { stateCache: { currentStatus: stored.currentStatus } }); ok(!('slideStructure' in world.patches.at(-1).stateCache) && !('activeVersion' in world.patches.at(-1).stateCache), 'the receipt PATCH sends currentStatus only')
+  })
+  await check('F: a reused:true answer writes the receipt too; a receipt already there is not rewritten', async () => {
+    const world = duplicateWorld({ directorAnswers: ['03-repeat-200-reused'] })
+    const result = await runDuplicate(dupText, { world, adopt: adoptVia(world) }); deep(result.adoption, { ok: true, reused: true, attempts: 1 })
+    eq(world.rows.get('new-session-1').stateCache.currentStatus.copiedFrom.adoptedAt, NOW.toISOString())
+    const lib = loadTs(LIB), before = JSON.stringify([...world.rows]), patches = world.patches.length
+    eq(await lib.recordAdoptReceipt({ sessionId: 'new-session-1', presentationId: 'copy-deck-1', fetch: world.fetch, now: () => new Date('2030-01-01T00:00:00.000Z') }), 'already')
+    eq(JSON.stringify([...world.rows]), before); eq(world.patches.length, patches)
+  })
+  await check('F: no receipt is written for another id, a row that is not a copy, a failed read, or a failed write; the adoption\'s outcome never changes', async () => {
+    const lib = loadTs(LIB), world = duplicateWorld(); await runDuplicate(dupText, { world, adopt: async () => ({ ok: false, status: 0, code: null, retryable: false, attempts: 0 }) })
+    const write = (id, fetch = world.fetch) => lib.recordAdoptReceipt({ sessionId: id, presentationId: 'copy-deck-1', fetch, now: () => NOW })
+    eq(await lib.recordAdoptReceipt({ sessionId: 'new-session-1', presentationId: 'another-deck', fetch: world.fetch, now: () => NOW }), 'skipped')
+    world.rows.set('plain-session', { id: 'plain-session', userId: DB_USER.id, status: 'active', stateCache: { currentStatus: { status: 'idle' }, activeVersion: 'final', slideStructure: null } }); eq(await write('plain-session'), 'skipped')
+    eq(await write('missing-session'), 'failed'); eq(await write('new-session-1', async (url, init) => (init?.method === 'PATCH' ? json(500, {}) : world.fetch(url, init))), 'failed')
+    eq(await write('new-session-1', async () => { throw new Error('offline') }), 'failed')
+    ok(!('adoptedAt' in world.rows.get('new-session-1').stateCache.currentStatus.copiedFrom), 'nothing was written')
+    const flaky = duplicateWorld(); const out = await runDuplicate(dupText, { world: flaky, adopt: (sessionId, presentationId) => loadTs(LIB).adoptDuplicateCopyAndRecord({ sessionId, presentationId, sleep: flaky.sleep, now: () => NOW, fetch: async (url, init) => (init?.method === 'PATCH' ? json(500, {}) : flaky.fetch(url, init)) }) })
+    deep(out.adoption, { ok: true, reused: false, attempts: 1 }); ok(!('adoptedAt' in flaky.rows.get('new-session-1').stateCache.currentStatus.copiedFrom))
+  })
+  await check('F: a Builder autosave between the receipt\'s read and write is not undone (the receipt PATCH leaves slideStructure and activeVersion alone)', async () => {
+    const world = duplicateWorld(); await runDuplicate(dupText, { world, adopt: async () => ({ ok: false, status: 0, code: null, retryable: false, attempts: 0 }) })
+    const autosave = { currentStage: 6, slideCount: 7, lastMessageAt: '2026-10-26T00:00:09.000Z', finalPresentationUrl: 'https://layout.synthetic.invalid/p/copy-deck-1', finalPresentationId: 'copy-deck-1', stateCache: { activeVersion: 'final', slideStructure: [{ id: 'slide-9' }] } }
+    let raced = false
+    const fetch = async (url, init = {}) => { if (init.method === 'PATCH' && !raced) { raced = true; await world.fetch(url, { method: 'PATCH', headers: init.headers, body: JSON.stringify(autosave) }) } return world.fetch(url, init) }
+    eq(await loadTs(LIB).recordAdoptReceipt({ sessionId: 'new-session-1', presentationId: 'copy-deck-1', fetch, now: () => NOW }), 'written')
+    const stored = world.rows.get('new-session-1').stateCache
+    deep(stored.slideStructure, [{ id: 'slide-9' }]); eq(stored.activeVersion, 'final'); eq(stored.currentStatus.copiedFrom.adoptedAt, NOW.toISOString()); eq(world.rows.get('new-session-1').slideCount, 7)
+  })
   // the Decks page wiring: the flag, the dependency, the note
   await check('F: the Decks page reads its flag exactly ("true", and only with Duplicate on)', () => {
     const line = lineWith(DASH, 'const duplicateAdoptEnabled')
@@ -368,11 +507,11 @@ async function suite({ quiet = false, extraCommitted = [] } = {}) {
     ok(call >= 0 && at > call && at < page.indexOf('if (currentOwner.current !== copyOwner) return', call), 'inside the runDuplicateDeck call')
     const seen = []
     const stub = input => { seen.push(input); return Promise.resolve({ ok: true, reused: false, attempts: 1 }) }
-    const make = enabled => evalLine(`module.exports = {\n${line}\n}`, ['duplicateAdoptEnabled', 'adoptDuplicateCopy', 'fetch', 'setTimeout'], [enabled, stub, async () => json(200, {}), (fn) => fn()])
+    const make = enabled => evalLine(`module.exports = {\n${line}\n}`, ['duplicateAdoptEnabled', 'adoptDuplicateCopyAndRecord', 'fetch', 'setTimeout'], [enabled, stub, async () => json(200, {}), (fn) => fn()])
     deep(Object.keys(make(false)), [])
     const deps = make(true); deep(Object.keys(deps), ['adopt'])
     await deps.adopt('new-session-1', 'copy-deck-1')
-    eq(seen[0].sessionId, 'new-session-1'); eq(seen[0].presentationId, 'copy-deck-1'); eq(typeof seen[0].fetch, 'function'); await seen[0].sleep(5)
+    eq(seen[0].sessionId, 'new-session-1'); eq(seen[0].presentationId, 'copy-deck-1'); eq(typeof seen[0].fetch, 'function'); ok(seen[0].now() instanceof Date, 'with the clock for the receipt'); await seen[0].sleep(5)
   })
   await check('F: a failed step 4 shows the plain note instead of the usual toast; the card is already added; a success says what it always said', () => {
     const line = lineWith(DASH, 'DUPLICATE_ADOPT_PENDING_NOTE });')
@@ -387,90 +526,153 @@ async function suite({ quiet = false, extraCommitted = [] } = {}) {
     for (const rel of [DUP, DASH]) for (const line of read(rel).split('\n').filter(MARKED)) ok(!/DELETE|removeSession|unfinished\(/.test(line), `${rel}: ${line.trim().slice(0, 60)}`)
   })
 
-  // ---- G. the Builder-open fallback ----------------------------------------------------------------------------------------------------------------------------------
-  const copiedSession = (extra = {}) => ({ id: 'new-session-1', finalPresentationId: 'copy-deck-1', finalPresentationUrl: 'https://layout.synthetic.invalid/p/copy-deck-1', stateCache: { activeVersion: 'final', currentStatus: { copiedFrom: { sessionId: 'source-session-1', title: 'Q4 sales review' } } }, ...extra })
-  const NO_DECK = { action: 'skip_history', current_state: 'PROVIDE_GREETING', has_strawman: false, message_count: 0 }
-  function openWorld({ session = copiedSession(), getStatus = 200, directorAnswers = ['01-adopted-200'] } = {}) {
+  // ---- G. the Builder-open backstop, on "connected" -----------------------------------------------------------------------------------------------------------------------
+  const copyRow = ({ marker = { ...MARKER, presentationId: 'copy-deck-1' }, final = 'copy-deck-1', status = {}, ...extra } = {}) => ({
+    id: 'new-session-1', userId: DB_USER.id, status: 'active', title: 'Q4 sales review (copy)', createdAt: 'synthetic-created', updatedAt: 'synthetic-created',
+    finalPresentationId: final, finalPresentationUrl: final ? `https://layout.synthetic.invalid/p/${final}` : null, strawmanPresentationId: null,
+    stateCache: { activeVersion: 'final', slideStructure: [{ id: 'slide-1' }], currentStatus: marker ? { copiedFrom: marker, ...status } : { ...status } }, ...extra,
+  })
+  function openWorld({ row = copyRow(), noRow = false, directorAnswers = ['01-adopted-200'] } = {}) {
     const log = [], director = []
+    const api = sessionsApi({ rows: new Map(noRow ? [] : [[row.id, row]]) })
     const fetch = async (url, init = {}) => {
       log.push(`${init.method ?? 'GET'} ${url}`)
-      if (url === '/api/sessions/new-session-1' && !init.method) return json(getStatus, { session })
+      if (url.startsWith('/api/sessions/')) return api.handle(url, init)
       if (url === '/api/director/sessions/new-session-1/adopt-duplicate') {
         const out = await callRoute({ body: JSON.parse(init.body), upstream: (u, i) => { director.push(JSON.parse(i.body)); return answer(directorAnswers[Math.min(director.length - 1, directorAnswers.length - 1)])() } })
         return json(out.status, out.json)
       }
       return json(500, {})
     }
-    const controller = loadTs(LIB).createDuplicateAdoptOnOpen({ fetch })
+    const controller = loadTs(LIB).createDuplicateAdoptOnOpen({ fetch, now: () => NOW })
     const reconnects = []
-    const sync = (payload, { sessionId = 'new-session-1', current = true, reconnect = () => reconnects.push(sessionId) } = {}) => controller.onSync(payload, { sessionId, isCurrent: () => current }, reconnect)
-    return { log, director, reconnects, sync }
+    const connected = ({ sessionId = 'new-session-1', current = true, reconnect = () => reconnects.push(sessionId) } = {}) => controller.onConnected({ sessionId, isCurrent: () => current }, reconnect)
+    return { log, director, reconnects, connected, rows: api.rows, api, fetch }
   }
-  await check('G: the recorded sync_response after adoption (04) names the deck: nothing is called', async () => {
-    const w = openWorld(); eq(await w.sync(fixture('04-sync-response-after-adoption').frame.payload), 'has-deck'); deep(w.log, []); deep(w.reconnects, [])
+  const storedOf = w => w.rows.get('new-session-1').stateCache
+  const RECEIPT_LOG = ['GET /api/sessions/new-session-1', 'POST /api/director/sessions/new-session-1/adopt-duplicate', 'GET /api/sessions/new-session-1', 'PATCH /api/sessions/new-session-1']
+  await check('G: a copy with the marker\'s id and no receipt: ONE call on the first connected, the receipt is written, then one reconnect (disconnect, connect is the Builder\'s)', async () => {
+    const w = openWorld(); eq(await w.connected(), 'reconnected')
+    deep(w.log, RECEIPT_LOG); deep(w.director, [{ user_id: USER.id, presentation_id: 'copy-deck-1' }]); deep(w.reconnects, ['new-session-1'])
+    deep(storedOf(w).currentStatus, { copiedFrom: { ...MARKER, presentationId: 'copy-deck-1', adoptedAt: NOW.toISOString() } })
   })
-  await check('G: no deck on the first sync_response of a copy: one call, reconnect on 200 reused:false', async () => {
-    const w = openWorld()
-    eq(await w.sync(NO_DECK), 'reconnected')
-    deep(w.log, ['GET /api/sessions/new-session-1', 'POST /api/director/sessions/new-session-1/adopt-duplicate']); deep(w.director, [{ user_id: USER.id, presentation_id: 'copy-deck-1' }]); deep(w.reconnects, ['new-session-1'])
-    eq(await w.sync(fixture('04-sync-response-after-adoption').frame.payload), 'not-first', 'the reconnect\'s own sync_response is never acted on'); eq(w.log.length, 2)
-    eq(await w.sync(NO_DECK), 'not-first', 'nor any later one'); eq(w.log.length, 2)
+  await check('G: the reconnect\'s own connected, and every later one, never calls again (no loop), even though the receipt is already written', async () => {
+    const w = openWorld(); eq(await w.connected(), 'reconnected')
+    for (let i = 0; i < 3; i++) { eq(await w.connected(), 'not-first'); eq(w.log.length, RECEIPT_LOG.length); eq(w.director.length, 1) }
+    deep(w.reconnects, ['new-session-1'])
   })
-  await check('G: has_strawman false with an id (the blank canvas) also counts as no deck', async () => {
-    const w = openWorld(); eq(await w.sync({ ...NO_DECK, presentation_id: 'blank-canvas-1' }), 'reconnected')
+  await check('G: the call is made at most once per session per tab even when the receipt cannot be written (a repeat would only be reused:true)', async () => {
+    const w = openWorld(), real = w.fetch
+    const lib = loadTs(LIB), log = []
+    const controller = lib.createDuplicateAdoptOnOpen({ fetch: async (url, init = {}) => { log.push(`${init.method ?? 'GET'} ${url}`); return init.method === 'PATCH' ? json(500, {}) : real(url, init) }, now: () => NOW })
+    const reconnects = []; const open = () => controller.onConnected({ sessionId: 'new-session-1', isCurrent: () => true }, () => reconnects.push(1))
+    eq(await open(), 'reconnected'); const calls = w.director.length; eq(await open(), 'not-first'); eq(await open(), 'not-first'); eq(w.director.length, calls); eq(reconnects.length, 1)
   })
-  await check('G: 200 reused:true does not reconnect', async () => {
-    const w = openWorld({ directorAnswers: ['03-repeat-200-reused'] }); eq(await w.sync(NO_DECK), 'reused'); deep(w.reconnects, [])
+  await check('G: the MARKER\'s id is adopted: a final slot the Director\'s blank canvas overwrote is ignored', async () => {
+    const w = openWorld({ row: copyRow({ final: 'blank-canvas-9' }) }); eq(await w.connected(), 'reconnected')
+    deep(w.director, [{ user_id: USER.id, presentation_id: 'copy-deck-1' }])
+    const w2 = openWorld({ row: copyRow({ final: null, strawmanPresentationId: 'strawman-deck-3' }) }); eq(await w2.connected(), 'reconnected'); deep(w2.director, [{ user_id: USER.id, presentation_id: 'copy-deck-1' }])
   })
-  for (const name of ['25-layout-unavailable-502', '27-store-unavailable-503', '20-not-owned-403', '23-session-not-fresh-409', '30-flag-off-404']) {
-    await check(`G: ${name}: one call only (no retry on open), no reconnect`, async () => {
-      const w = openWorld({ directorAnswers: [name] }); eq(await w.sync(NO_DECK), 'failed'); eq(w.director.length, 1); deep(w.reconnects, [])
+  await check('G: end to end: step 4 failed at duplicate time, the Builder\'s autosave wrote the blank canvas into the final slot, the backstop still adopts the copy', async () => {
+    const world = duplicateWorld({ directorAnswers: ['27-store-unavailable-503', '27-store-unavailable-503', '27-store-unavailable-503', '01-adopted-200'] })
+    const result = await runDuplicate(dupText, { world, adopt: adoptVia(world) }); eq(result.adoption.ok, false); eq(result.adoption.attempts, 3)
+    await world.fetch('/api/sessions/new-session-1', { method: 'PATCH', headers: {}, body: JSON.stringify({ currentStage: 6, finalPresentationUrl: 'https://layout.synthetic.invalid/p/blank-canvas-9', finalPresentationId: 'blank-canvas-9', stateCache: { activeVersion: 'final', slideStructure: [{ id: 'blank' }] } }) })
+    eq(world.rows.get('new-session-1').finalPresentationId, 'blank-canvas-9')
+    const reconnects = []; const controller = loadTs(LIB).createDuplicateAdoptOnOpen({ fetch: world.fetch, now: () => NOW })
+    eq(await controller.onConnected({ sessionId: 'new-session-1', isCurrent: () => true }, () => reconnects.push(1)), 'reconnected')
+    eq(world.director.length, 4); deep(world.director[3].body, { user_id: USER.id, presentation_id: 'copy-deck-1' }); eq(reconnects.length, 1)
+    eq(world.rows.get('new-session-1').stateCache.currentStatus.copiedFrom.adoptedAt, NOW.toISOString()); deep(world.rows.get('new-session-1').stateCache.slideStructure, [{ id: 'blank' }])
+  })
+  await check('G: a copy adopted at duplicate time has the receipt: nothing is called on open', async () => {
+    const world = duplicateWorld(); await runDuplicate(dupText, { world, adopt: adoptVia(world) }); eq(world.director.length, 1)
+    const controller = loadTs(LIB).createDuplicateAdoptOnOpen({ fetch: world.fetch, now: () => NOW }), reconnects = []
+    eq(await controller.onConnected({ sessionId: 'new-session-1', isCurrent: () => true }, () => reconnects.push(1)), 'already-adopted'); eq(world.director.length, 1); deep(reconnects, [])
+  })
+  await check('G: no presentationId in the marker (a copy made before this change, a strawman copy): no call, whatever the final slot says', async () => {
+    for (const [label, row] of [['old copy', copyRow({ marker: MARKER })], ['strawman copy', copyRow({ marker: MARKER, final: null, strawmanPresentationId: 'copy-deck-1' })], ['id not plain', copyRow({ marker: { ...MARKER, presentationId: 'https://layout.synthetic.invalid/p/x' } })], ['id empty', copyRow({ marker: { ...MARKER, presentationId: '' } })], ['id a number', copyRow({ marker: { ...MARKER, presentationId: 5 } })]]) {
+      const w = openWorld({ row }); eq(await w.connected(), 'no-copy-id', label); deep(w.log, ['GET /api/sessions/new-session-1'], label); deep(w.reconnects, [], label)
+    }
+  })
+  await check('G: a receipt in the marker: no call (blank, or not a string, is not a receipt)', async () => {
+    const w = openWorld({ row: copyRow({ marker: { ...MARKER, presentationId: 'copy-deck-1', adoptedAt: '2026-10-25T12:00:00.000Z' } }) }); eq(await w.connected(), 'already-adopted'); deep(w.log, ['GET /api/sessions/new-session-1'])
+    for (const adoptedAt of ['', '  ', 5, null, {}]) { const x = openWorld({ row: copyRow({ marker: { ...MARKER, presentationId: 'copy-deck-1', adoptedAt } }) }); eq(await x.connected(), 'reconnected', JSON.stringify(adoptedAt)) }
+  })
+  await check('G: 200 reused:true writes the receipt but does not reconnect', async () => {
+    const w = openWorld({ directorAnswers: ['03-repeat-200-reused'] }); eq(await w.connected(), 'reused'); deep(w.reconnects, []); deep(w.log, RECEIPT_LOG); eq(storedOf(w).currentStatus.copiedFrom.adoptedAt, NOW.toISOString())
+  })
+  for (const name of ['25-layout-unavailable-502', '27-store-unavailable-503', '20-not-owned-403', '23-session-not-fresh-409', '30-flag-off-404', '21-not-a-duplicate-422']) {
+    await check(`G: ${name}: one call only (no retry on open), no receipt, no reconnect`, async () => {
+      const w = openWorld({ directorAnswers: [name] }); eq(await w.connected(), 'failed'); eq(w.director.length, 1); deep(w.reconnects, []); deep(w.log, RECEIPT_LOG.slice(0, 2)); ok(!('adoptedAt' in storedOf(w).currentStatus.copiedFrom))
     })
   }
-  await check('G: no copiedFrom marker, a strawman-slot copy, an unreadable session: no call', async () => {
-    const a = openWorld({ session: copiedSession({ stateCache: { currentStatus: {} } }) }); eq(await a.sync(NO_DECK), 'not-a-copy'); deep(a.log, ['GET /api/sessions/new-session-1'])
-    const b = openWorld({ session: copiedSession({ finalPresentationId: null, strawmanPresentationId: 'copy-deck-1' }) }); eq(await b.sync(NO_DECK), 'not-final'); deep(b.log, ['GET /api/sessions/new-session-1'])
-    const c = openWorld({ getStatus: 404 }); eq(await c.sync(NO_DECK), 'not-a-copy'); deep(c.log, ['GET /api/sessions/new-session-1'])
+  await check('G: not a copy (no marker), no row, an unreadable row, or an id that is not plain: no call', async () => {
+    const a = openWorld({ row: copyRow({ marker: null }) }); eq(await a.connected(), 'not-a-copy'); deep(a.log, ['GET /api/sessions/new-session-1'])
+    const b = openWorld({ noRow: true }); eq(await b.connected(), 'not-a-copy'); deep(b.log, ['GET /api/sessions/new-session-1'])
+    const c = openWorld({ row: copyRow({ marker: { sessionId: '', title: 'T', presentationId: 'copy-deck-1' } }) }); eq(await c.connected(), 'not-a-copy')
+    const d = openWorld(); eq(await d.connected({ sessionId: 'a/b' }), 'not-a-copy'); deep(d.log, [])
+    const e = openWorld(); eq(await e.connected({ sessionId: '' }), 'not-first'); deep(e.log, [])
   })
-  await check('G: a socket that is no longer live is not reconnected; a reconnect that throws is a failure, not a crash', async () => {
-    const a = openWorld(); eq(await a.sync(NO_DECK, { current: false }), 'not-current'); deep(a.reconnects, [])
-    const b = openWorld(); eq(await b.sync(NO_DECK, { reconnect: () => { throw new Error('boom') } }), 'failed')
-    const c = openWorld(); eq(await c.sync(NO_DECK, { sessionId: '' }), 'not-first'); deep(c.log, [])
+  await check('G: a socket that is no longer live is not reconnected (the receipt is still written); a reconnect that throws is a failure, not a crash', async () => {
+    const a = openWorld(); eq(await a.connected({ current: false }), 'not-current'); deep(a.reconnects, []); eq(storedOf(a).currentStatus.copiedFrom.adoptedAt, NOW.toISOString())
+    const b = openWorld(); eq(await b.connected({ reconnect: () => { throw new Error('boom') } }), 'failed')
   })
   await check('G: each session is acted on once per tab, separately', async () => {
-    const w = openWorld(); eq(await w.sync(NO_DECK, { sessionId: 'other-session' }), 'not-a-copy'); eq(await w.sync(NO_DECK), 'reconnected')
+    const w = openWorld(); eq(await w.connected({ sessionId: 'other-session' }), 'not-a-copy'); eq(await w.connected(), 'reconnected'); eq(await w.connected({ sessionId: 'other-session' }), 'not-first')
   })
-  await check('G: the hook passes its own session\'s sync_response payload only, with the flag on only', () => {
-    const line = lineWith(HOOK, 'onDuplicateAdoptSync?.(')
-    ok(read(HOOK).split('\n').filter(MARKED).length === 3, 'three marked lines in the hook (a comment, the option, the call)')
-    ok(read(HOOK).includes("  onDuplicateAdoptSync?: (payload: unknown, owner: { sessionId: string; isCurrent: () => boolean }) => void; // DUPLICATE-ADOPT\n"), 'the option type')
-    const run = (env, message) => { const calls = []; const isCurrentSocket = () => true; evalLine(line, ['process', 'parsedMessage', 'socketSessionId', 'transportCallbacksRef', 'isCurrentSocket'], [{ env }, message, 'new-session-1', { current: { onDuplicateAdoptSync: (p, o) => calls.push({ p, sessionId: o.sessionId, current: o.isCurrent() }) } }, isCurrentSocket]); return calls }
-    const frame = fixture('04-sync-response-after-adoption').frame
-    deep(run({ NEXT_PUBLIC_STUDIO_DUPLICATE_ADOPT: 'true' }, { ...frame, session_id: 'new-session-1' }), [{ p: frame.payload, sessionId: 'new-session-1', current: true }])
-    deep(run({}, frame), []); deep(run({ NEXT_PUBLIC_STUDIO_DUPLICATE_ADOPT: 'TRUE' }, frame), [])
-    deep(run({ NEXT_PUBLIC_STUDIO_DUPLICATE_ADOPT: 'true' }, { ...frame, session_id: 'other-session' }), []); deep(run({ NEXT_PUBLIC_STUDIO_DUPLICATE_ADOPT: 'true' }, { ...frame, type: 'chat_message' }), [])
-    const at = read(HOOK).indexOf(line); ok(at > read(HOOK).indexOf('transportCallbacksRef.current.onJobsSync?.(rows') && at < read(HOOK).indexOf('if (!isKnownDirectorMessageType(parsedMessage.type)) {', at), 'beside the job ledger\'s sync tap, before the frame is dispatched')
+  await check('G: the hook\'s real ws.onopen block tells the caller once per open: after the connected state is set, for its own session, current sockets only, flag on only', () => {
+    const hook = read(HOOK), from = hook.indexOf('ws.onopen = () => {'), to = hook.indexOf('ws.onmessage = (event) => {', from)
+    ok(from > 0 && to > from, 'the onopen block is there'); const block = hook.slice(from, to)
+    eq(block.split('\n').filter(MARKED).length, 1, 'one marked line in the block'); ok(hook.includes('const isCurrentSocket = () => wsRef.current === ws && isCurrentAttempt();'))
+    const NAMES = ['process', 'ws', 'isCurrentSocket', 'debugLog', 'expiresInSeconds', 'scheduleAuthRefresh', 'socketSessionRef', 'socketSessionId', 'setConnectionGeneration', 'clearReconnectTimer', 'reconnectPausedForOfflineRef', 'setReconnectStatus', 'reconnectAttemptsRef', 'clearReconnectStabilityTimer', 'reconnectStabilityTimeoutRef', 'DIRECTOR_RECONNECT_STABILITY_MS', 'wsRef', 'WebSocket', 'isConnectingRef', 'hasConnectedRef', 'startHeartbeat', 'setState', 'transportCallbacksRef']
+    const open = ({ env, current = true, withCallback = true, sessionId = 'new-session-1' } = {}) => {
+      const order = [], told = []; let state = { connected: false, connectionState: 'disconnected', error: new Error('old') }
+      const ws = { close: () => order.push('close') }
+      const values = [{ env }, ws, () => current, () => {}, null, () => {}, { current: null }, sessionId, () => order.push('generation'), () => {}, { current: true }, () => {}, { current: 0 }, () => {}, { current: undefined }, 3000, { current: ws }, { OPEN: 1 }, { current: true }, { current: false }, () => {}, update => { order.push('setState'); state = update(state) }, { current: withCallback ? { onDuplicateAdoptConnected: owner => { order.push('told'); told.push({ sessionId: owner.sessionId, current: owner.isCurrent() }) } } : {} }]
+      evalLine(`${block}\nmodule.exports = ws.onopen`, NAMES, values)(); return { order, told, state }
+    }
+    const on = open({ env: { NEXT_PUBLIC_STUDIO_DUPLICATE_ADOPT: 'true' } })
+    deep(on.told, [{ sessionId: 'new-session-1', current: true }]); eq(on.state.connectionState, 'connected'); eq(on.state.connected, true); ok(on.order.indexOf('told') > on.order.indexOf('setState'), 'after the connected state is set'); eq(on.order.at(-1), 'told')
+    deep(open({ env: { NEXT_PUBLIC_STUDIO_DUPLICATE_ADOPT: 'true' }, sessionId: 'other-session' }).told, [{ sessionId: 'other-session', current: true }], 'it is told the socket\'s own session')
+    deep(open({ env: {} }).told, []); deep(open({ env: { NEXT_PUBLIC_STUDIO_DUPLICATE_ADOPT: 'TRUE' } }).told, []); deep(open({ env: { NEXT_PUBLIC_STUDIO_DUPLICATE_ADOPT: 'true' }, withCallback: false }).told, [])
+    const stale = open({ env: { NEXT_PUBLIC_STUDIO_DUPLICATE_ADOPT: 'true' }, current: false }); deep(stale.told, [], 'a superseded socket tells no one'); deep(stale.order, ['close'])
+    const first = open({ env: { NEXT_PUBLIC_STUDIO_DUPLICATE_ADOPT: 'true' } }), second = open({ env: { NEXT_PUBLIC_STUDIO_DUPLICATE_ADOPT: 'true' } }); deep(first.told, second.told, 'every open tells (a reconnect opens again): the caller acts on a session\'s first only')
+    ok(!read(HOOK).includes('onDuplicateAdoptSync') && !read(BUILDER).includes('onDuplicateAdoptSync') && !read(BUILDER).includes('DuplicateAdoptSyncOwner'), 'nothing keys on sync_response any more')
+    eq(read(HOOK).split('\n').filter(MARKED).length, 3, 'three marked lines in the hook (a comment, the option, the call)')
+    ok(read(HOOK).includes("  onDuplicateAdoptConnected?: (owner: { sessionId: string; isCurrent: () => boolean }) => void; // DUPLICATE-ADOPT\n"), 'the option type')
   })
-  await check('G: the Builder makes one controller per tab, only with both flags on', () => {
+  await check('G: the Builder makes one controller per tab, only with both flags on, and gives it the clock', () => {
     const line = lineWith(BUILDER, 'const studioDuplicateAdoptOnOpen =')
     const made = []
-    const run = env => evalLine(`${line}\nmodule.exports = studioDuplicateAdoptOnOpen`, ['process', 'createDuplicateAdoptOnOpen', 'fetch'], [{ env }, deps => { made.push(deps); return { onSync: () => {} } }, async () => json(200, {})])
-    ok(run({ NEXT_PUBLIC_STUDIO_DUPLICATE_DECK: 'true', NEXT_PUBLIC_STUDIO_DUPLICATE_ADOPT: 'true' }) !== null); eq(made.length, 1); eq(typeof made[0].fetch, 'function')
+    const run = env => evalLine(`${line}\nmodule.exports = studioDuplicateAdoptOnOpen`, ['process', 'createDuplicateAdoptOnOpen', 'fetch'], [{ env }, deps => { made.push(deps); return { onConnected: () => {} } }, async () => json(200, {})])
+    ok(run({ NEXT_PUBLIC_STUDIO_DUPLICATE_DECK: 'true', NEXT_PUBLIC_STUDIO_DUPLICATE_ADOPT: 'true' }) !== null); eq(made.length, 1); eq(typeof made[0].fetch, 'function'); ok(made[0].now() instanceof Date)
     for (const env of [{}, { NEXT_PUBLIC_STUDIO_DUPLICATE_DECK: 'true' }, { NEXT_PUBLIC_STUDIO_DUPLICATE_ADOPT: 'true' }, { NEXT_PUBLIC_STUDIO_DUPLICATE_DECK: 'true', NEXT_PUBLIC_STUDIO_DUPLICATE_ADOPT: 'yes' }]) eq(run(env), null)
     eq(made.length, 1)
     ok(line.startsWith('const studioDuplicateAdoptOnOpen = '), 'module scope (not inside a component)')
   })
   await check('G: the Builder hands the socket the callback only with the controller; the reconnect is disconnect then connect', async () => {
-    const line = lineWith(BUILDER, 'onDuplicateAdoptSync:')
+    const line = lineWith(BUILDER, 'onDuplicateAdoptConnected:')
     const page = read(BUILDER), at = page.indexOf(line)
     ok(at > page.indexOf('} = useDecksterWebSocketV2({') && at < page.indexOf('onBuildPhase: (payload, ownerSessionId) =>', at), 'in the socket\'s options')
     const order = [], seen = []
     const make = controller => evalLine(`module.exports = {\n${line}\n}`, ['studioDuplicateAdoptOnOpen', 'disconnect', 'connect'], [controller, () => order.push('disconnect'), () => order.push('connect')])
     deep(Object.keys(make(null)), [])
-    const options = make({ onSync: (payload, owner, reconnect) => { seen.push({ payload, owner }); reconnect(); return Promise.resolve('reconnected') } })
-    deep(Object.keys(options), ['onDuplicateAdoptSync'])
+    const options = make({ onConnected: (owner, reconnect) => { seen.push(owner); reconnect(); return Promise.resolve('reconnected') } })
+    deep(Object.keys(options), ['onDuplicateAdoptConnected'])
     const owner = { sessionId: 'new-session-1', isCurrent: () => true }
-    eq(options.onDuplicateAdoptSync(NO_DECK, owner), undefined); eq(seen[0].payload, NO_DECK); eq(seen[0].owner, owner); deep(order, ['disconnect', 'connect'])
+    eq(options.onDuplicateAdoptConnected(owner), undefined); eq(seen[0], owner); deep(order, ['disconnect', 'connect'])
+  })
+  await check('G: Builder autosave cannot drop the marker or the receipt: it sends stateCache { activeVersion, slideStructure } and never currentStatus; the real PATCH route leaves currentStatus alone', async () => {
+    const page = read(BUILDER), start = page.indexOf('onSessionStateChange: (state) => {'), end = page.indexOf('    onMessage: (message) => {', start)
+    ok(start > 0 && end > start); const region = page.slice(start, end)
+    ok(!/currentStatus/.test(region), 'the autosave never names currentStatus')
+    const literal = region.match(/const updates: any = \{[\s\S]*?\n        \}\n/)?.[0]; ok(literal, 'the autosave body')
+    const updates = evalLine(`${literal}\nmodule.exports = updates`, ['state', 'nextSlideCount'], [{ currentStage: 6, activeVersion: 'final', slideStructure: [{ id: 'slide-2' }], presentationUrl: 'https://layout.synthetic.invalid/p/blank-canvas-9', presentationId: 'blank-canvas-9' }, 5])
+    deep(Object.keys(updates.stateCache), ['activeVersion', 'slideStructure'])
+    const w = openWorld({ row: copyRow({ marker: { ...MARKER, presentationId: 'copy-deck-1', adoptedAt: NOW.toISOString() }, status: { keep: 1 } }) })
+    const before = JSON.stringify(storedOf(w).currentStatus)
+    const res = await w.fetch('/api/sessions/new-session-1', { method: 'PATCH', headers: {}, body: JSON.stringify({ ...updates, lastMessageAt: new Date('2026-10-26T00:00:00.000Z').toISOString(), finalPresentationId: 'blank-canvas-9' }) })
+    eq(res.status, 200); eq(JSON.stringify(storedOf(w).currentStatus), before, 'marker, receipt and the rest of currentStatus survive'); deep(storedOf(w).slideStructure, [{ id: 'slide-2' }])
+    const create = await sessionsApi({ rows: new Map([['fresh', { id: 'fresh', userId: DB_USER.id, status: 'active', stateCache: null }]]) }).handle('/api/sessions/fresh', { method: 'PATCH', body: JSON.stringify({ stateCache: { activeVersion: 'final' } }) }); eq(create.status, 200)
   })
 
   // ---- H. flag-off identity --------------------------------------------------------------------------------------------------------------------------------------------
@@ -501,12 +703,16 @@ async function suite({ quiet = false, extraCommitted = [] } = {}) {
       const a = duplicateWorld(), b = duplicateWorld()
       const baseResult = await runDuplicate(baseOf(DUP), { slot, world: a })
       const headResult = await runDuplicate(dupText, { slot, world: b })
-      eq(sha(JSON.stringify({ log: a.log, result: baseResult })), sha(JSON.stringify({ log: b.log, result: headResult })), slot)
+      const hashed = (world, result) => sha(JSON.stringify({ log: world.log, bodies: world.patches, rows: [...world.rows], result }))
+      eq(hashed(a, baseResult), hashed(b, headResult), slot)
     }
     const c = duplicateWorld(), d = duplicateWorld()
     const base = await runDuplicate(baseOf(DUP), { world: c }), on = await runDuplicate(dupText, { world: d, adopt: adoptVia(d) })
     const { adoption, ...rest } = on
-    eq(sha(JSON.stringify(rest)), sha(JSON.stringify(base)), 'with the step on, the result is the base\'s plus `adoption`'); deep(d.log.slice(0, -1), c.log)
+    eq(sha(JSON.stringify(rest)), sha(JSON.stringify(base)), 'with the step on, the result is the base\'s plus `adoption`'); deep(d.log.slice(0, c.log.length), c.log)
+    deep(d.log.slice(c.log.length), ['POST /api/director/sessions/new-session-1/adopt-duplicate', 'GET /api/sessions/new-session-1', 'PATCH /api/sessions/new-session-1'], 'then the adoption and its receipt')
+    const [basePatch, onPatch] = [c.patches[0], d.patches[0]]
+    deep({ ...onPatch, stateCache: { ...onPatch.stateCache, currentStatus: { copiedFrom: { sessionId: onPatch.stateCache.currentStatus.copiedFrom.sessionId, title: onPatch.stateCache.currentStatus.copiedFrom.title } } } }, basePatch, 'the step-3 body is the base\'s except the marker\'s id')
   })
 
   // ---- I. scope over this change's committed diff ------------------------------------------------------------------------------------------------------------------
@@ -524,7 +730,7 @@ async function suite({ quiet = false, extraCommitted = [] } = {}) {
       ok(!files.some(rel => /test-studio-p2-|launch-wording|env-append-tolerant|route-params|admin-email-guard|uat-marketing|test-studio-p2-docs|landing/.test(rel)), 'no FRONTEND-1 test')
     })
     await check('I: marked insertions only in the existing app files; the registry gains three LATER-CHANGE lines; .env.example only gains its block', () => {
-      const added = rel => own.flatMap(entry => git('show', '-U0', '--format=', entry.commit, '--', rel).split('\n').filter(line => /^[+-]/.test(line) && !/^(\+\+\+|---) /.test(line)))
+      const added = rel => git('diff', '-U0', BASE, own[0].commit, '--', rel).split('\n').filter(line => /^[+-]/.test(line) && !/^(\+\+\+|---) /.test(line)) // the net committed diff, base to this change's newest commit (a line it added and later reworded is one added line)
       for (const rel of strip.DUPLICATE_ADOPT_FILES) { const lines = added(rel); ok(lines.length > 0 && lines.every(line => line.startsWith('+') && MARKED(line)), rel) }
       const registry = added('scripts/studio-later-changes.mjs'); eq(registry.length, 3); ok(registry.every(line => line.startsWith('+') && line.includes('LATER-CHANGE') && line.includes('studio-duplicate-adopt-strip.mjs')))
       const env = added('.env.example'); eq(env.filter(line => line.startsWith('-')).length, 0); eq(env.map(line => line.slice(1)).join('\n'), ['', ...strip.DUPLICATE_ADOPT_ENV_BLOCK.trimEnd().split('\n')].join('\n'))
@@ -549,7 +755,7 @@ async function suite({ quiet = false, extraCommitted = [] } = {}) {
     ok(!NAMES.test(read(LIB)), LIB)
     for (const rel of [DASH, BUILDER, HOOK, DUP]) ok(!NAMES.test(read(rel).split('\n').filter(MARKED).join('\n')), rel)
     const route = read(ROUTE)
-    ok(!/['"]use client['"]/.test(route)); ok(!/\bconsole\./.test(route), 'never logs'); eq((route.match(/mintRestEntitlement\(/g) ?? []).length, 1); eq((route.match(/\bfetch\(/g) ?? []).length, 1)
+    ok(!/['"]use client['"]/.test(route)); deep(route.split('\n').filter(line => !line.trim().startsWith('//')).join('\n').match(/\bconsole\.\w+/g), ['console.warn'], 'its only log is one console.warn'); ok(!/\bconsole\./.test(read(LIB)), 'the lib never logs'); eq((route.match(/mintRestEntitlement\(/g) ?? []).length, 1); eq((route.match(/\bfetch\(/g) ?? []).length, 1)
     ok(/from '@\/lib\/director-rest-entitlement'/.test(route)); ok(!/process\.env\.DIRECTOR_WS_AUTH_SECRET/.test(route), 'the route never reads the secret itself')
     ok(route.indexOf("NEXT_PUBLIC_STUDIO_DUPLICATE_ADOPT !== 'true'") < route.indexOf('getServerSession('), 'the flag before the login')
     ok(route.indexOf('getServerSession(') < route.indexOf('mintRestEntitlement('), 'the login before the header')
@@ -591,12 +797,43 @@ const MUTANTS = [
   ['lib: a non-retryable answer is retried', LIB, 'if (!outcome.retryable || delay === undefined) return outcome', 'if (delay === undefined) return outcome'],
   ['lib: an offline call is not retried', LIB, 'outcome = { ok: false, status: 0, code: null, retryable: true, attempts }', 'outcome = { ok: false, status: 0, code: null, retryable: false, attempts }'],
   ['lib: three retries', LIB, 'export const DUPLICATE_ADOPT_RETRY_DELAYS_MS = [1000, 2000] as const', 'export const DUPLICATE_ADOPT_RETRY_DELAYS_MS = [1000, 2000, 4000] as const'],
-  ['lib: the open fallback acts on every sync_response', LIB, " || seen.has(sessionId)) return 'not-first'", ") return 'not-first'"],
+  ['lib: the open backstop acts on every connected', LIB, " || seen.has(sessionId)) return 'not-first'", ") return 'not-first'"],
   ['lib: the open fallback retries', LIB, ', retryDelaysMs: [] })', ' })'],
   ['lib: reused:true reconnects too', LIB, "      if (outcome.reused) return 'reused'\n", ''],
-  ['lib: no marker needed', LIB, "      if (!readCopiedFrom(session)) return 'not-a-copy'\n", ''],
-  ['lib: a strawman copy is adopted on open', LIB, 'return isPlainAdoptId(id) ? id : null', "return isPlainAdoptId(id) ? id : isPlainAdoptId((session as any)?.strawmanPresentationId) ? (session as any).strawmanPresentationId : null"],
-  ['lib: has_strawman false with an id is "has a deck"', LIB, ' || hasStrawman === false', ''],
+  ['lib: no marker needed', LIB, "      if (!marker) return 'not-a-copy'\n", ''],
+  ['lib: the backstop adopts with the row\'s final slot id (the marker\'s id is ignored)', LIB, 'presentationId: marker.presentationId, fetch: deps.fetch, sleep: async () => {}', 'presentationId: String((session as any).finalPresentationId ?? marker.presentationId), fetch: deps.fetch, sleep: async () => {}'],
+  ['lib: the backstop adopts with the row\'s final slot id when the marker has none', LIB, "      if (!marker.presentationId) return 'no-copy-id'\n", "      if (!marker.presentationId) marker.presentationId = (session as any).finalPresentationId ?? null\n"],
+  ['lib: the backstop calls without a marker id', LIB, "      if (!marker.presentationId) return 'no-copy-id'\n", ''],
+  ['lib: a receipt does not stop the backstop', LIB, "      if (marker.adoptedAt) return 'already-adopted'\n", ''],
+  ['lib: the backstop writes no receipt', LIB, "      await recordAdoptReceipt({ sessionId, presentationId: marker.presentationId, fetch: deps.fetch, now: deps.now })\n", ''],
+  ['lib: the backstop reconnects after reused:true too', LIB, "      if (outcome.reused) return 'reused'\n", ''],
+  ['lib: the backstop never reconnects', LIB, "      reconnect()\n      return 'reconnected'", "      return 'reconnected'"],
+  ['lib: a marker with a blank receipt counts as adopted', LIB, "adoptedAt: typeof marker.adoptedAt === 'string' && marker.adoptedAt.trim() ? marker.adoptedAt : null", 'adoptedAt: marker.adoptedAt === undefined ? null : (marker.adoptedAt as string | null)'],
+  ['lib: the receipt PATCH sends the stale slideStructure and activeVersion too', LIB, 'body: JSON.stringify({ stateCache: { currentStatus:', 'body: JSON.stringify({ stateCache: { activeVersion: session.stateCache.activeVersion, slideStructure: session.stateCache.slideStructure, currentStatus:'],
+  ['lib: the receipt drops the rest of currentStatus', LIB, '{ currentStatus: { ...status, copiedFrom:', '{ currentStatus: { copiedFrom:'],
+  ['lib: the receipt drops the rest of the marker', LIB, 'copiedFrom: { ...status.copiedFrom, [DUPLICATE_ADOPT_RECEIPT_KEY]', 'copiedFrom: { [DUPLICATE_ADOPT_RECEIPT_KEY]'],
+  ['lib: the receipt is rewritten when there already is one', LIB, "    if (marker.adoptedAt) return 'already'\n", ''],
+  ['lib: the receipt is written for another id', LIB, "if (!marker || marker.presentationId !== presentationId) return 'skipped'", "if (!marker) return 'skipped'"],
+  ['lib: the receipt is not an ISO time', LIB, '[DUPLICATE_ADOPT_RECEIPT_KEY]: now().toISOString()', '[DUPLICATE_ADOPT_RECEIPT_KEY]: String(now().getTime())'],
+  ['lib: step 4 writes no receipt', LIB, "  if (outcome.ok) await recordAdoptReceipt({ sessionId: input.sessionId, presentationId: input.presentationId, fetch: input.fetch, now })\n", ''],
+  ['lib: step 4 writes the receipt after a refusal too', LIB, '  if (outcome.ok) await recordAdoptReceipt({', '  if (true) await recordAdoptReceipt({'],
+  ['lib: step 4 fails when the receipt cannot be written', LIB, "  if (outcome.ok) await recordAdoptReceipt({ sessionId: input.sessionId, presentationId: input.presentationId, fetch: input.fetch, now })\n", "  if (outcome.ok && (await recordAdoptReceipt({ sessionId: input.sessionId, presentationId: input.presentationId, fetch: input.fetch, now })) === 'failed') return { ok: false, status: 0, code: null, retryable: false, attempts: outcome.attempts }\n"],
+  ['lib: the wait for the Director is 30 s', LIB, 'DUPLICATE_ADOPT_UPSTREAM_TIMEOUT_MS = 10_000', 'DUPLICATE_ADOPT_UPSTREAM_TIMEOUT_MS = 30_000'],
+  ['lib: the log line leaves out the presentation id', LIB, ' presentation=${presentationId}`', '`'],
+  ['lib: the log line names the wrong code', LIB, '`[DUPLICATE_ADOPT] ${DUPLICATE_ADOPT_NOT_OWNED_CODE} session=', '`[DUPLICATE_ADOPT] ADOPT_FAILED session='],
+  ['route: the wait for the Director is hard-coded to 30 s', ROUTE, 'AbortSignal.timeout(DUPLICATE_ADOPT_UPSTREAM_TIMEOUT_MS)', 'AbortSignal.timeout(30_000)'],
+  ['route: no timeout at all', ROUTE, '        signal: AbortSignal.timeout(DUPLICATE_ADOPT_UPSTREAM_TIMEOUT_MS),\n', ''],
+  ['route: it logs every Director answer', ROUTE, "if ((data as { code?: unknown }).code === DUPLICATE_ADOPT_NOT_OWNED_CODE) console.warn(", 'if (true) console.warn('],
+  ['route: it never logs PRESENTATION_NOT_OWNED', ROUTE, "if ((data as { code?: unknown }).code === DUPLICATE_ADOPT_NOT_OWNED_CODE) console.warn(duplicateAdoptNotOwnedLine(sessionId, presentationId))\n", ''],
+  ['route: it logs the user id', ROUTE, 'console.warn(duplicateAdoptNotOwnedLine(sessionId, presentationId))', 'console.warn(duplicateAdoptNotOwnedLine(sessionId, presentationId), userId)'],
+  ['route: it logs the header', ROUTE, 'console.warn(duplicateAdoptNotOwnedLine(sessionId, presentationId))', 'console.warn(duplicateAdoptNotOwnedLine(sessionId, presentationId), entitlement)'],
+  ['route: it logs twice', ROUTE, 'console.warn(duplicateAdoptNotOwnedLine(sessionId, presentationId))', 'console.warn(duplicateAdoptNotOwnedLine(sessionId, presentationId)); console.warn(duplicateAdoptNotOwnedLine(sessionId, presentationId))'],
+  ['route: it logs the unreachable Director', ROUTE, "    if (error instanceof ServiceUrlConfigError) return", "    console.warn(String(error))\n    if (error instanceof ServiceUrlConfigError) return"],
+  ['dup lib: the marker\'s id is not written', DUP, "        ...(deps.adopt && target.slot === 'final' ? { currentStatus: { copiedFrom: { sessionId: source.sessionId, title: source.shownTitle, presentationId: copyId } } } : {}), // DUPLICATE-ADOPT\n", ''],
+  ['dup lib: the marker\'s id is written with the flag off', DUP, "...(deps.adopt && target.slot === 'final' ? { currentStatus", "...(target.slot === 'final' ? { currentStatus"],
+  ['dup lib: the marker\'s id is written for a strawman copy', DUP, "...(deps.adopt && target.slot === 'final' ? { currentStatus", '...(deps.adopt ? { currentStatus'],
+  ['dup lib: the marker carries the source deck\'s id', DUP, 'title: source.shownTitle, presentationId: copyId }', 'title: source.shownTitle, presentationId: target.presentationId }'],
+  ['dup lib: the marker loses its title', DUP, 'title: source.shownTitle, presentationId: copyId }', 'presentationId: copyId }'],
   ['lib: a dead socket is reconnected', LIB, "      if (!owner.isCurrent()) return 'not-current'\n", ''],
   ['dup lib: strawman copies are adopted', DUP, "const adopt = target.slot === 'final' ? deps.adopt : undefined", 'const adopt = deps.adopt'],
   ['dup lib: a throwing step 4 unwinds (deletes)', DUP, 'await Promise.resolve().then(() => adopt(newSessionId, copyId)).catch(() => ({ ok: false as const, status: 0, code: null, retryable: false, attempts: 0 }))', 'await adopt(newSessionId, copyId)'],
@@ -607,11 +844,17 @@ const MUTANTS = [
   ['dashboard: the flag is read loosely', DASH, 'process.env.NEXT_PUBLIC_STUDIO_DUPLICATE_ADOPT === "true"', 'Boolean(process.env.NEXT_PUBLIC_STUDIO_DUPLICATE_ADOPT)'],
   ['dashboard: step 4 is passed with the flag off', DASH, '...(duplicateAdoptEnabled ? { adopt:', '...(true ? { adopt:'],
   ['dashboard: the note and the usual toast both show', DASH, 'description: DUPLICATE_ADOPT_PENDING_NOTE }); return } // DUPLICATE-ADOPT', 'description: DUPLICATE_ADOPT_PENDING_NOTE }) } // DUPLICATE-ADOPT'],
-  ['dashboard: an unmarked line rides along', DASH, 'import { adoptDuplicateCopy, DUPLICATE_ADOPT_PENDING_NOTE } from "@/lib/studio-duplicate-adopt"', 'const stray = 1\nimport { adoptDuplicateCopy, DUPLICATE_ADOPT_PENDING_NOTE } from "@/lib/studio-duplicate-adopt"'],
+  ['dashboard: an unmarked line rides along', DASH, 'import { adoptDuplicateCopyAndRecord, DUPLICATE_ADOPT_PENDING_NOTE } from "@/lib/studio-duplicate-adopt"', 'const stray = 1\nimport { adoptDuplicateCopyAndRecord, DUPLICATE_ADOPT_PENDING_NOTE } from "@/lib/studio-duplicate-adopt"'],
+  ['dashboard: step 4 gets no clock for the receipt', DASH, ', now: () => new Date() }) } : {}), // DUPLICATE-ADOPT', ' }) } : {}), // DUPLICATE-ADOPT'],
   ['builder: the controller needs only the adopt flag', BUILDER, "const studioDuplicateAdoptOnOpen = process.env.NEXT_PUBLIC_STUDIO_DUPLICATE_DECK === 'true' && ", 'const studioDuplicateAdoptOnOpen = '],
+  ['builder: the controller gets no clock', BUILDER, 'createDuplicateAdoptOnOpen({ fetch: (input, init) => fetch(input, init), now: () => new Date() })', 'createDuplicateAdoptOnOpen({ fetch: (input, init) => fetch(input, init) } as any)'],
+  ['builder: the socket callback is the old sync one', BUILDER, 'onDuplicateAdoptConnected: (owner', 'onDuplicateAdoptSync: (owner'],
   ['builder: the reconnect only connects', BUILDER, '() => { disconnect(); connect() }', '() => { connect() }'],
-  ['hook: the tap ignores the flag', HOOK, "if (process.env.NEXT_PUBLIC_STUDIO_DUPLICATE_ADOPT === 'true' && parsedMessage.type === 'sync_response'", "if (parsedMessage.type === 'sync_response'"],
-  ['hook: another session\'s frame is passed', HOOK, " && parsedMessage.session_id === socketSessionId) transportCallbacksRef.current.onDuplicateAdoptSync", ') transportCallbacksRef.current.onDuplicateAdoptSync'],
+  ['hook: the connected tap ignores the flag', HOOK, "if (process.env.NEXT_PUBLIC_STUDIO_DUPLICATE_ADOPT === 'true') transportCallbacksRef.current.onDuplicateAdoptConnected", 'transportCallbacksRef.current.onDuplicateAdoptConnected'],
+  ['hook: the connected tap names another session', HOOK, 'onDuplicateAdoptConnected?.({ sessionId: socketSessionId,', "onDuplicateAdoptConnected?.({ sessionId: '',"],
+  ['hook: a superseded socket tells too', HOOK, "if (!isCurrentSocket()) {\n            debugLog('⏭️ Ignoring open from stale WebSocket');", "if (false) {\n            debugLog('⏭️ Ignoring open from stale WebSocket');"],
+  ['hook: the tap is told before the connected state is set', HOOK, "          if (process.env.NEXT_PUBLIC_STUDIO_DUPLICATE_ADOPT === 'true') transportCallbacksRef.current.onDuplicateAdoptConnected?.({ sessionId: socketSessionId, isCurrent: isCurrentSocket }); // DUPLICATE-ADOPT: told once per open (a reconnect opens again); the caller acts on a session's first only\n", ''],
+  ['hook: the old sync_response tap is still there', HOOK, "        ws.onmessage = (event) => {", "        const syncTap = (m: any) => transportCallbacksRef.current.onDuplicateAdoptSync?.(m.payload) // DUPLICATE-ADOPT\n        ws.onmessage = (event) => {"],
   ['env: the block says "true"', '.env.example', 'NEXT_PUBLIC_STUDIO_DUPLICATE_ADOPT="false"', 'NEXT_PUBLIC_STUDIO_DUPLICATE_ADOPT="true"'],
   ['fixture: one byte of a recorded answer changes', `${FIXTURES}/22-in-use-409.json`, '"retryable": false', '"retryable": true'],
   ['safety: a bearer literal in the route', ROUTE, "export const dynamic = 'force-dynamic'", `export const dynamic = 'force-dynamic'\n// ${['Bearer', 'x'.repeat(24)].join(' ')}`], // the literal is built at run time, so this file carries none

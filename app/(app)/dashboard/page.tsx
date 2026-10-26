@@ -34,7 +34,7 @@ import { studioTemplateDisplayName } from "@/lib/studio-template-display-name"
 // FRONTEND-2 Pass 3 (NEXT_PUBLIC_STUDIO_DUPLICATE_DECK, default off): the deck list can copy a deck. Everything below is behind the flag; off, the Duplicate item stays disabled as it was.
 import { toast } from "@/hooks/use-toast"
 import { duplicateTargetFor, runDuplicateDeck } from "@/lib/studio-duplicate-deck"
-import { adoptDuplicateCopy, DUPLICATE_ADOPT_PENDING_NOTE } from "@/lib/studio-duplicate-adopt" // DUPLICATE-ADOPT (NEXT_PUBLIC_STUDIO_DUPLICATE_ADOPT, default off): step 4, the Director adopts the copy so chat can edit it
+import { adoptDuplicateCopyAndRecord, DUPLICATE_ADOPT_PENDING_NOTE } from "@/lib/studio-duplicate-adopt" // DUPLICATE-ADOPT (NEXT_PUBLIC_STUDIO_DUPLICATE_ADOPT, default off): step 4, the Director adopts the copy so chat can edit it (and the marker gets its receipt)
 import { useStudioDeckCardThumbnail } from "@/hooks/use-studio-deck-card-thumbnail" // DECK-CARD-THUMBNAIL (NEXT_PUBLIC_STUDIO_DECK_CARD_THUMBNAILS_ENABLED, default off): a card shows its first-slide image instead of the live viewer
 
 // NEXT_PUBLIC_STUDIO_LAUNCH_WORDING (default off): launched wording instead of promises and developer-speak; off, this file is exactly as before.
@@ -358,7 +358,7 @@ function DashboardForAccount({ user, isLoading }: Pick<ReturnType<typeof useAuth
           newId: () => crypto.randomUUID(),
           now: () => new Date(),
           sleep: ms => new Promise(resolve => setTimeout(resolve, ms)),
-          ...(duplicateAdoptEnabled ? { adopt: (sessionId: string, presentationId: string) => adoptDuplicateCopy({ sessionId, presentationId, fetch: (input, init) => fetch(input, init), sleep: ms => new Promise<void>(resolve => setTimeout(resolve, ms)) }) } : {}), // DUPLICATE-ADOPT
+          ...(duplicateAdoptEnabled ? { adopt: (sessionId: string, presentationId: string) => adoptDuplicateCopyAndRecord({ sessionId, presentationId, fetch: (input, init) => fetch(input, init), sleep: ms => new Promise<void>(resolve => setTimeout(resolve, ms)), now: () => new Date() }) } : {}), // DUPLICATE-ADOPT
         },
       })
       if (currentOwner.current !== copyOwner) return
