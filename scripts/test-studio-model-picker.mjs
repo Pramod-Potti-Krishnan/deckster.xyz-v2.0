@@ -18,6 +18,8 @@
 //   I. catalogue  no catalogue (route off, 503, 404, not JSON, wrong schema) leaves the tiers and no models; a kept model with no catalogue reads by its id; only Studio routes are asked, never a user id
 //   J. a11y       the trigger and menu attributes (real React and real Radix), the pressed state, the labelled groups, the hint read as words; Escape, outside click and focus return are Radix's and are left alone
 //   K. css        24 px chip, no width of its own, truncation, a 44 px hit area and 44 px rows at 640 px and below, every rule scoped, near-monochrome
+//   S. slider     variant="slider" (stacked on #521): the gauge trigger, the stops [Auto, Fast, Balanced, Best] (+ extra presets, five at most), what each stop saves per scope, Custom, keyboard and aria, the 24 / 44 px
+//                 sizes, "Advanced" closed, the one Auto switch, onChange, the slider's own commits ("Model choice slider: ...")
 //   L. identity   flag off is the base: the new files only, nothing imports them, the committed diff of the picker's own commits adds exactly its files (subject "Model choice: ...")
 //   M. mutants    each one must make A-L fail
 import assert from 'node:assert/strict'
@@ -40,6 +42,9 @@ const REGISTRY = 'scripts/studio-later-changes.mjs'
 const FIX = 'scripts/fixtures/studio-model-choice', FIXTURE = `${FIX}/catalogue-live-shape.json`
 const PICKER_BASE = '8e735ca3' // the head of #521 before the picker (frontend2/model-choice-ui)
 const PICKER_FILES = [FILES.picker, FILES.hook, FILES.component, FILES.css, KIT, FIXTURE_SCRIPT, SELF].sort()
+const SLIDER_STRIP = 'scripts/studio-model-slider-strip.mjs', SLIDER_BASE = '42f51ca9', SLIDER_SUBJECT = 'Model choice slider: ' // #521's head, and the subject of the slider's own commits
+const SLIDER_ADDED = [FILES.sliderLib, FILES.option, FILES.slider, FILES.sliderCss, SLIDER_STRIP].sort()
+const SLIDER_EDITED = [CHOICE_LIB, FILES.component, KIT, FIXTURE_SCRIPT, SELF, 'scripts/test-studio-model-choice.mjs', REGISTRY].sort()
 const AUTO_FIXTURES = ['router-prefs-422-invalid-preference-auto.json', 'router-prefs-session-auto-200.json', 'router-put-session-auto-200.json'].map(name => `${FIX}/${name}`) // deck Auto (ROUTER-2, model-router !42)
 const EDITED = ['components/studio-personal/intelligence-model-choice.tsx', SERVER, CHOICE_LIB, STRIP, 'scripts/test-studio-model-choice.mjs'] // the older files the picker's commits edit: the Intelligence chooser and its lib and server, for the deck's Auto
 const TEXT_GROUPS = ['planning_strategy', 'content_writing', 'research_analysis']
@@ -169,8 +174,14 @@ async function mount({ props = { sessionId: null }, flag = 'true', env = {}, stu
     Portal: ({ children }) => ({ type: 'popover-portal', props: { children } }),
     Content: ({ children, ...rest }) => (popover.open ? { type: 'div', props: { ...rest, role: 'dialog', children } } : null),
   }
+  const radixSlider = {
+    Root: ({ children, ...p }) => ({ type: 'slider-root', props: { ...p, children } }),
+    Track: ({ children, ...p }) => ({ type: 'slider-track', props: { ...p, children } }),
+    Range: p => ({ type: 'slider-range', props: p }),
+    Thumb: p => ({ type: 'span', props: { ...p, role: 'slider' } }),
+  }
   const win = { localStorage: storage }
-  const m = loadPicker({ read, react: hooks, jsx: { jsx: mockJsx, jsxs: mockJsx, Fragment: 'Fragment' }, radix, lucide: new Proxy({}, { get: (_, name) => String(name) }), env: fullEnv, globals: { window: win, fetch: fetchImpl } })
+  const m = loadPicker({ read, react: hooks, jsx: { jsx: mockJsx, jsxs: mockJsx, Fragment: 'Fragment' }, radix, radixSlider, lucide: new Proxy({}, { get: (_, name) => String(name) }), env: fullEnv, globals: { window: win, fetch: fetchImpl } })
   server = runModule(SERVER, { '@/lib/studio-model-choice': m.choice }, { read })
   const rootProps = { ...props, ...(onChange ? { onChange } : {}) }
   const rootOf = body ? body(m) : m.component.ModelPicker
@@ -220,7 +231,7 @@ async function mount({ props = { sessionId: null }, flag = 'true', env = {}, stu
     chipText: () => textOf(rt.find(node => node.props?.className === 'mpick-label', 'the chip label')),
     menu: () => rt.maybe(node => node.props?.['data-mpick'] === 'menu'),
     status: () => textOf(rt.find(node => node.props?.['data-mpick'] === 'status', 'the status')),
-    async open() { await rt.act(() => rt.chip().props.onClick()); assert.ok(rt.menu(), 'the menu opens') },
+    async open() { const trigger = rt.maybe(node => node.props?.['data-mpick'] === 'chip') ?? rt.maybe(node => node.props?.['data-mpick'] === 'gauge'); assert.ok(trigger, 'expected the trigger'); await rt.act(() => trigger.props.onClick()); assert.ok(rt.menu(), 'the menu opens') },
     items() {
       const menu = rt.menu(); assert.ok(menu, 'the menu is open')
       return walk(menu).filter(node => node.type === 'button' && node.props['data-mpick-option'] && node.props['data-mpick-option'] !== 'more').map(node => {
@@ -231,6 +242,14 @@ async function mount({ props = { sessionId: null }, flag = 'true', env = {}, stu
     more() { return rt.all(node => node.props?.['data-mpick-option'] === 'more') },
     item(id) { const found = rt.items().find(item => item.id === id); assert.ok(found, `expected the option ${id}`); return found },
     async pick(id) { const item = rt.item(id); await rt.act(() => item.node.props.onClick()); return rt },
+    gauge: () => rt.find(node => node.props?.['data-mpick'] === 'gauge', 'the gauge'),
+    slider: () => rt.find(node => node.type === 'slider-root', 'the slider'),
+    thumb: () => rt.find(node => node.type === 'span' && node.props.role === 'slider', 'the thumb'),
+    stops: () => rt.all(node => node.props?.['data-mpick-stop']).map(node => ({ id: node.props['data-mpick-stop'], name: textOf(walk(node).find(n => n.props?.className === 'mpick-stop-name')), active: node.props['data-active'], node })),
+    value: () => textOf(rt.find(node => node.props?.['data-mpick'] === 'value', 'the value')), // shown only when the choice is off the scale
+    active: () => { const lit = rt.stops().filter(stop => stop.active === 'true'); return lit.length === 1 ? lit[0].name : null }, // the one stop whose label is bold
+    async commit(i) { return rt.act(() => rt.slider().props.onValueCommit([i])) },
+    async drag(i) { return rt.act(() => rt.slider().props.onValueChange([i])) },
     note(kind) { const node = rt.maybe(n => n.props?.['data-mpick'] === kind); return node ? textOf(node) : null },
     async setProps(next) { rt.props = { ...rt.props, ...next }; return rt.settle() },
   }
@@ -718,17 +737,239 @@ async function suite({ quiet = false, bail = false, extraCommitted = [] } = {}) 
     ok(/prefers-reduced-motion/.test(text))
   })
 
-  // ---- L. identity -------------------------------------------------------------------------------------------------------------------------------------------------
+  // ---- S. slider --------------------------------------------------------------------------------------------------------------------------------------------------
+  const mountSlider = (opts = {}) => mount({ ...opts, props: { sessionId: null, variant: 'slider', ...(opts.props ?? {}) } })
+  const STOPS = [['economy', 'Fast', '$'], ['balanced', 'Balanced', '$$'], ['best', 'Best', '$$$']] // the scale: no Auto (it lives in Advanced)
+  const catalogueOf = (m, body) => m.choice.withPresets(m.cat.parseCatalogue(body), body)
+  const withOverride = async (rel, from, to, fn) => { const text = read(rel); assert.ok(text.includes(from), `override target in ${rel}`); const before = overrides; overrides = { ...overrides, [rel]: text.replace(from, () => to) }; try { return await fn() } finally { overrides = before } }
+  const lastBody = rt => JSON.parse(rt.fetchLog.filter(entry => entry.init.method === 'PATCH').at(-1).init.body)
+  const onUser = value => ({ preferences: Object.fromEntries(TEXT_GROUPS.map(g => [g, value])) })
+
+  await check('S: variant="slider" renders nothing for every value but "true" (real React), and asks for nothing', async () => {
+    for (const flag of [undefined, '', 'false', 'TRUE', ' true', '1']) {
+      const m = loadPicker({ read, ...real, env: flag === undefined ? {} : { NEXT_PUBLIC_STUDIO_MODEL_CHOICE: flag } })
+      eq(renderToStaticMarkup(real.react.createElement(m.component.ModelPicker, { sessionId: 'sess-fixture-1', variant: 'slider', disabled: true, className: 'x' })), '', `flag ${JSON.stringify(flag)}`)
+    }
+    for (const flag of [null, 'false', 'TRUE']) { const rt = await mountSlider({ flag }); eq(rt.tree, null); eq(rt.fetchLog.length, 0); eq(rt.storage.log.length, 0) }
+  })
+  await check('S: the trigger is a gauge icon button whose label names the current stop; the compact chip is still the default variant (real React and Radix)', () => {
+    const m = loadPicker({ read, ...real, env: { NEXT_PUBLIC_STUDIO_MODEL_CHOICE: 'true' } })
+    const html = renderToStaticMarkup(real.react.createElement(m.component.ModelPicker, { sessionId: null, variant: 'slider' }))
+    ok(/^<button type="button" aria-haspopup="dialog" aria-expanded="false" aria-controls="[^"]+" data-state="closed" class="mpick-gauge" disabled="" aria-label="Model: Auto" title="Model: Auto" aria-busy="true" data-mpick="gauge"/.test(html), html.slice(0, 260))
+    ok(html.includes('lucide-gauge') && html.includes('aria-hidden="true"') && !html.includes('mpick-chip'), 'a gauge icon, hidden from readers, no chip')
+    for (const props of [{ sessionId: null }, { sessionId: null, variant: 'compact' }]) { const chip = renderToStaticMarkup(real.react.createElement(m.component.ModelPicker, props)); ok(chip.includes('mpick-chip') && !chip.includes('mpick-gauge'), JSON.stringify(props)) }
+    const body = json(FIXTURE), catalogue = catalogueOf(m, body)
+    const v = m.sliderLib.sliderView({ catalogue, state: { kind: 'tier', tier: 'balanced' } })
+    const view = (extra = {}) => renderToStaticMarkup(real.react.createElement(m.slider.ModelSliderView, { label: v.label, valueText: v.valueText, stateKind: 'tier', scope: 'user', mode: 'account', ready: true, stops: v.stops, index: v.index, thumb: 'selected', advanced: { rows: [], models: [] }, saveNote: '', open: false, onOpenChange() {}, onDraft() {}, onCommit() {}, onAdvanced() {}, ...extra }))
+    ok(/aria-label="Model: Balanced" title="Model: Balanced"/.test(view()) && !/disabled/.test(view()), 'enabled, labelled by the stop'); ok(/disabled=""/.test(view({ disabled: true })) && /disabled=""/.test(view({ ready: false })))
+    ok(/class="mpick-gauge chip-end"/.test(view({ className: 'chip-end' })), 'className goes on the trigger'); ok(/<span class="mpick-sr" role="status"/.test(view()))
+  })
+
+  await check('S: the stops of the fixture catalogue are Fast $, Balanced $$, Best $$$ and NONE is Auto (it lives in Advanced); the same list is exported for a mock; SLIDER_AUTO_STOP is the one switch', () => {
+    const m = loadPicker({ read, ...real, env: {} }); const catalogue = catalogueOf(m, json(FIXTURE))
+    const flat = stops => stops.map(stop => [stop.id, stop.label, stop.hint])
+    deep(flat(m.sliderLib.MODEL_PICKER_STOPS(catalogue)), STOPS); deep(flat(m.sliderLib.MODEL_PICKER_STOPS(null)), STOPS, 'no catalogue: the same'); deep(flat(m.sliderLib.MODEL_PICKER_DEFAULT_STOPS), STOPS)
+    ok(!m.sliderLib.MODEL_PICKER_STOPS(catalogue).some(stop => stop.auto) && !m.sliderLib.MODEL_PICKER_DEFAULT_STOPS.some(stop => stop.auto), 'no stop is Auto')
+    eq(m.component.MODEL_PICKER_STOPS, m.sliderLib.MODEL_PICKER_STOPS); eq(m.component.MODEL_PICKER_DEFAULT_STOPS, m.sliderLib.MODEL_PICKER_DEFAULT_STOPS); eq(m.component.SLIDER_AUTO_STOP, false); eq(m.sliderLib.SLIDER_AUTO_STOP, false)
+    eq(m.component.SLIDER_CAPTION, 'Low = quicker, lower cost · High = deeper thinking, higher cost', 'the caption, as v3.1 prints it')
+    const withAuto = m.sliderLib.MODEL_PICKER_STOPS(catalogue, { auto: true })
+    deep(flat(withAuto), [['auto', 'Auto', null], ...STOPS], 'the switch on: Auto is the first stop'); deep(withAuto.map(stop => [stop.auto, stop.tier]), [[true, null], [false, 'economy'], [false, 'balanced'], [false, 'best']])
+    deep([m.sliderLib.stopChoice(withAuto[0], 'user'), m.sliderLib.stopChoice(withAuto[0], 'deck'), m.sliderLib.stopChoice(withAuto[1], 'deck'), m.sliderLib.stopChoice(withAuto[3], 'user')], [null, { auto: true }, { tier: 'economy' }, { tier: 'best' }])
+    const body = json(FIXTURE); body.groups.content_writing.presets.best = 'google/gemini-3.8-flash' // not certified for writing
+    deep(m.sliderLib.MODEL_PICKER_STOPS(catalogueOf(m, body)).map(stop => stop.id), ['economy', 'balanced'], 'a tier a group does not certify is no stop')
+    const hints = json(FIXTURE); for (const slug of ['moonshotai/kimi-k3', 'anthropic/claude-sonnet-5.5', 'anthropic/claude-opus-5.5']) hints.models[slug].cost_hint = '$$'
+    eq(m.sliderLib.MODEL_PICKER_STOPS(catalogueOf(m, hints))[2].hint, '$$', 'the models\' own cost_hint, when the groups agree')
+  })
+  await check('S: an extra catalogue preset joins the stops in cost-hint order, five at most; only a preset the Studio routes can save is a stop', () => {
+    const m = loadPicker({ read, ...real, env: {} })
+    const make = (extras, hint) => { const body = json(FIXTURE); for (const [id, slug] of extras) for (const group of TEXT_GROUPS) body.groups[group].presets[id] = slug; if (hint) for (const [slug, h] of Object.entries(hint)) body.models[slug].cost_hint = h; return catalogueOf(m, body) }
+    const ids = (catalogue, presets, auto) => m.sliderLib.MODEL_PICKER_STOPS(catalogue, { ...(presets ? { presets: [...m.sliderLib.SLIDER_SAVABLE_PRESETS, ...presets] } : {}), ...(auto ? { auto } : {}) }).map(stop => stop.id)
+    const ultra = make([['ultra', 'openai/gpt-6.1-sol']], { 'openai/gpt-6.1-sol': '$$$' })
+    deep(ids(ultra), ['economy', 'balanced', 'best'], 'the routes cannot save "ultra" (best / balanced / economy): not offered')
+    deep(ids(ultra, ['ultra']), ['economy', 'balanced', 'best', 'ultra'], 'dearest: last'); eq(m.sliderLib.MODEL_PICKER_STOPS(ultra, { presets: ['economy', 'balanced', 'best', 'ultra'] }).at(-1).label, 'Ultra')
+    deep(ids(make([['ultra', 'openai/gpt-6.1-sol']], { 'openai/gpt-6.1-sol': '$$' }), ['ultra']), ['economy', 'balanced', 'ultra', 'best'], 'a $$ preset sits after Balanced')
+    deep(ids(make([['ultra', 'openai/gpt-6.1-sol']], { 'openai/gpt-6.1-sol': '$' }), ['ultra']), ['economy', 'ultra', 'balanced', 'best'], 'a $ preset sits after Fast')
+    deep(ids(make([['ultra', 'openai/gpt-6.1-sol']]), ['ultra']).at(-1), 'ultra', 'no hint: last')
+    const two = make([['ultra', 'openai/gpt-6.1-sol'], ['mega', 'qwen/qwen3.8-flash']], { 'openai/gpt-6.1-sol': '$$$', 'qwen/qwen3.8-flash': '$$$' })
+    deep(ids(two, ['ultra', 'mega']), ['economy', 'balanced', 'best', 'mega', 'ultra'], 'five at most: up to five presets by cost, ties by name'); deep(ids(two, ['ultra', 'mega'], true), ['auto', 'economy', 'balanced', 'best', 'mega'], 'with Auto on the scale it is one of the five: the dearest that does not fit is left out')
+    const partial = json(FIXTURE); partial.groups.planning_strategy.presets.ultra = 'anthropic/claude-sonnet-5.5'; for (const group of ['content_writing', 'research_analysis']) partial.groups[group].presets.ultra = 'openai/gpt-6.1-sol'
+    deep(ids(catalogueOf(m, partial), ['ultra']), ['economy', 'balanced', 'best'], 'a model one group does not certify: no stop')
+    const odd = make([['Bad Id', 'openai/gpt-6.1-sol'], ['x'.repeat(40), 'openai/gpt-6.1-sol']]); deep(Object.keys(odd.allPresets.planning_strategy).sort(), ['balanced', 'best', 'economy'], 'an id that is not a plain preset name is not read')
+  })
+  await check('S: nothing chosen (Auto) shows NO thumb; a chosen stop has the filled thumb; a deck following the default has a HOLLOW thumb on the default\'s stop; a specific model or a mix is Custom, off the scale', async () => {
+    const router = fakeRouter()
+    let rt = await mountSlider({ router }); await rt.open()
+    eq(rt.slider().props['data-thumb'], 'none'); deep(rt.slider().props.value, [0], 'it waits on the first stop, unseen'); eq(rt.slider().props.min, 0); eq(rt.slider().props.max, 2); eq(rt.slider().props.step, 1)
+    eq(rt.thumb().props['aria-valuetext'], 'Auto, Deckster chooses'); eq(rt.gauge().props['aria-label'], 'Model: Auto'); eq(rt.gauge().props['data-mpick-state'], 'auto'); eq(rt.active(), null, 'no label is bold'); eq(rt.value(), 'Auto')
+    deep(rt.stops().map(stop => [stop.id, stop.name, stop.active]), [['economy', 'Fast', 'false'], ['balanced', 'Balanced', 'false'], ['best', 'Best', 'false']], 'a label under each stop'); deep(rt.all(node => node.props?.className === 'mpick-tick').map(node => node.props['data-passed']), ['false', 'false', 'false'])
+    for (const [i, tier] of [[0, 'economy'], [1, 'balanced'], [2, 'best']]) { seedWire(router, USER_PATH, tier); rt = await mountSlider({ router }); await rt.open(); eq(rt.slider().props['data-thumb'], 'selected', tier); deep(rt.slider().props.value, [i], tier); eq(rt.stops()[i].active, 'true'); eq(rt.active(), STOPS[i][1]); eq(rt.thumb().props['aria-valuetext'], `${STOPS[i][1]}, cost ${i + 1} of 3`) }
+    const deckRouter = fakeRouter(); seedWire(deckRouter, USER_PATH, 'best')
+    rt = await mountSlider({ router: deckRouter, props: { sessionId: 'sess-fixture-1' } }); await rt.open()
+    eq(rt.slider().props['data-thumb'], 'hollow', 'a deck following the default'); deep(rt.slider().props.value, [2], 'on the default\'s stop'); eq(rt.active(), 'Best'); eq(rt.thumb().props['aria-valuetext'], 'Best, cost 3 of 3, your default'); eq(rt.gauge().props['aria-label'], 'Model: Best'); eq(rt.item('default').pressed, true)
+    deckRouter.bump(SESSION_PATH, Object.fromEntries(TEXT_GROUPS.map(g => [g, { auto: true, preset: null, model: null, updated_at: 't' }]))); rt = await mountSlider({ router: deckRouter, props: { sessionId: 'sess-fixture-1' } }); await rt.open()
+    eq(rt.slider().props['data-thumb'], 'none', 'the deck\'s own Auto: no thumb'); eq(rt.gauge().props['aria-label'], 'Model: Auto'); eq(rt.item('auto').pressed, true)
+    const autoDefault = await mountSlider({ router: fakeRouter(), props: { sessionId: 'sess-fixture-1' } }); await autoDefault.open(); eq(autoDefault.slider().props['data-thumb'], 'none', 'a deck following a default of Auto')
+    router.seed(USER_PATH, { model: 'anthropic/claude-opus-5.5' }); rt = await mountSlider({ router }); await rt.open()
+    eq(rt.slider().props['data-thumb'], 'custom'); eq(rt.value(), 'Custom (Claude Opus 5.5)'); eq(rt.thumb().props['aria-valuetext'], 'Custom, off the scale'); eq(rt.gauge().props['aria-label'], 'Model: Custom (Claude Opus 5.5)'); eq(rt.gauge().props['data-mpick-state'], 'model'); ok(rt.stops().every(stop => stop.active === 'false'), 'no stop is lit')
+    router.bump(USER_PATH, { planning_strategy: { preset: 'best', model: null, updated_at: 't' }, content_writing: { preset: 'economy', model: null, updated_at: 't' } }); rt = await mountSlider({ router }); await rt.open()
+    eq(rt.slider().props['data-thumb'], 'custom'); ok(rt.value().startsWith('Custom'))
+    router.seed(USER_PATH, { model: 'google/gemini-3.8-flash' }); rt = await mountSlider({ router }); await rt.open(); eq(rt.gauge().props['aria-label'], 'Model: Auto', 'a model the catalogue no longer opens reads as Auto'); eq(rt.slider().props['data-thumb'], 'none')
+  })
+  await check('S: each stop saves exactly its body on the reusable default (Fast, Balanced, Best are presets); Auto is saved from Advanced and clears (null); the thumb and the label follow', async () => {
+    const router = fakeRouter(); seedWire(router, USER_PATH, 'best')
+    const rt = await mountSlider({ router }); await rt.open()
+    for (const [i, expected, held] of [[0, { preset: 'economy' }, 'economy'], [1, { preset: 'balanced' }, 'balanced'], [2, { preset: 'best' }, 'best'], [0, { preset: 'economy' }, 'economy']]) {
+      await rt.commit(i)
+      eq(rt.fetchLog.filter(entry => entry.init.method === 'PATCH').at(-1).url, '/api/model-choice/prefs'); deep(lastBody(rt), onUser(expected), `stop ${i}`)
+      deep(kept(router, USER_PATH), Object.fromEntries(TEXT_GROUPS.map(g => [g, held]))); deep(rt.slider().props.value, [i]); eq(rt.slider().props['data-thumb'], 'selected'); eq(rt.gauge().props['aria-label'], `Model: ${STOPS[i][1]}`); ok(rt.menu() !== undefined, 'the popover stays open')
+    }
+    await rt.pick('auto'); deep(lastBody(rt), onUser(null)); deep(kept(router, USER_PATH), {}); eq(rt.fetchLog.filter(entry => entry.init.method === 'PATCH').length, 5); eq(rt.menu(), undefined, 'a pick in Advanced closes the popover'); eq(rt.gauge().props['aria-label'], 'Model: Auto')
+    await rt.open(); eq(rt.slider().props['data-thumb'], 'none', 'Auto: no thumb'); eq(rt.item('auto').pressed, true)
+  })
+  await check('S: on a deck Fast, Balanced, Best are presets written whole to the session scope and Auto, saved from Advanced, is { "auto": true }; the reusable default is untouched', async () => {
+    const router = fakeRouter(); seedWire(router, USER_PATH, 'balanced')
+    const rt = await mountSlider({ router, props: { sessionId: 'sess-fixture-1' } }); await rt.open()
+    deep(rt.slider().props.value, [1], 'following the default: its stop'); eq(rt.slider().props['data-thumb'], 'hollow'); eq(rt.gauge().props['data-mpick-scope'], 'deck'); const put = () => router.log.filter(entry => entry.method === 'PUT').at(-1)
+    await rt.commit(1); eq(put().body, JSON.stringify({ preferences: Object.fromEntries(TEXT_GROUPS.map(g => [g, { preset: 'balanced' }])) }), 'the default\'s own stop, clicked, is pinned for the deck'); eq(rt.slider().props['data-thumb'], 'selected')
+    for (const [i, tier] of [[0, 'economy'], [2, 'best'], [1, 'balanced']]) { await rt.commit(i); eq(put().body, JSON.stringify({ preferences: Object.fromEntries(TEXT_GROUPS.map(g => [g, { preset: tier }])) })); eq(new URL(put().url).pathname, SESSION_PATH); deep(kept(router, SESSION_PATH), Object.fromEntries(TEXT_GROUPS.map(g => [g, tier]))) }
+    eq(rt.fetchLog.filter(entry => entry.init.method === 'PATCH').at(-1).url, '/api/model-choice/prefs/deck/sess-fixture-1')
+    await rt.pick('auto'); eq(put().body, JSON.stringify({ preferences: Object.fromEntries(TEXT_GROUPS.map(g => [g, { auto: true }])) })); deep(kept(router, SESSION_PATH), Object.fromEntries(TEXT_GROUPS.map(g => [g, 'auto']))); eq(rt.gauge().props['aria-label'], 'Model: Auto')
+    await rt.open(); eq(rt.slider().props['data-thumb'], 'none'); eq(rt.item('auto').pressed, true); await rt.pick('default'); deep(kept(router, SESSION_PATH), {}); eq(rt.gauge().props['aria-label'], 'Model: Balanced', 'use my default: back to the default\'s stop')
+    deep(kept(router, USER_PATH), Object.fromEntries(TEXT_GROUPS.map(g => [g, 'balanced'])), 'the reusable default is untouched')
+  })
+  await check('S: a click on a stop\'s label saves like a commit; the chosen stop saves nothing again; a drag alone saves nothing and shows the stop under the thumb', async () => {
+    const router = fakeRouter(); const rt = await mountSlider({ router }); await rt.open()
+    await rt.drag(2); eq(rt.fetchLog.filter(entry => entry.init.method === 'PATCH').length, 0, 'a drag saves nothing'); eq(rt.active(), 'Best'); deep(rt.slider().props.value, [2]); eq(rt.slider().props['data-thumb'], 'selected', 'a thumb being dragged is shown'); eq(rt.thumb().props['aria-valuetext'], 'Best'); eq(rt.gauge().props['aria-label'], 'Model: Auto', 'the trigger says what is saved')
+    await rt.commit(2); eq(rt.fetchLog.filter(entry => entry.init.method === 'PATCH').length, 1); eq(rt.gauge().props['aria-label'], 'Model: Best'); eq(rt.slider().props['data-thumb'], 'selected')
+    await rt.commit(2); eq(rt.fetchLog.filter(entry => entry.init.method === 'PATCH').length, 1, 'the same stop again: nothing')
+    await rt.act(() => rt.stops()[0].node.props.onClick()); deep(lastBody(rt), onUser({ preset: 'economy' })); eq(rt.gauge().props['aria-label'], 'Model: Fast')
+    ok(rt.stops().every(stop => stop.node.props['aria-hidden'] === 'true'), 'the labels are a pointer convenience: the slider is the accessible control')
+  })
+  await check('S: a stop reached while a save is in flight waits its turn: both are saved, in order, and the last one stands', async () => {
+    const router = fakeRouter(); const calls = []
+    const rt = await mountSlider({ router, onChange: choice => calls.push(choice) }); await rt.open()
+    await rt.act(() => { rt.slider().props.onValueCommit([2]); rt.slider().props.onValueCommit([0]); rt.slider().props.onValueCommit([0]) })
+    deep(rt.fetchLog.filter(entry => entry.init.method === 'PATCH').map(entry => JSON.parse(entry.init.body).preferences.planning_strategy), [{ preset: 'best' }, { preset: 'economy' }]); eq(rt.gauge().props['aria-label'], 'Model: Fast'); deep(calls, [{ tier: 'best' }, { tier: 'economy' }])
+  })
+  await check('S: keyboard and aria: a slider over 0..2 in steps of 1 saves on commit only (Radix commits on every arrow, Home, End and Page key); the thumb is labelled, valued and described (real Radix)', () => {
+    const source = read(FILES.slider).replace(/\/\*[\s\S]*?\*\//g, '')
+    ok(/onValueCommit=\{values => onCommit\(values\[0\]\)\}/.test(source) && /onValueChange=\{values => onDraft\(values\[0\]\)\}/.test(source), 'the commit saves, the change only moves the draft')
+    ok(/from "@radix-ui\/react-slider"/.test(source) && !/onPointer/.test(source) && (source.match(/onKeyDown/g) ?? []).length === 1 && /onKeyDown=\{firstStop\}/.test(source) && /\["ArrowLeft", "ArrowDown", "Home"\]\.includes\(event\.key\)/.test(source), 'Radix\'s own keys and pointer; ours only for the first stop while no thumb is on the scale')
+    const dist = fs.readFileSync(path.join(root, 'node_modules/@radix-ui/react-slider/dist/index.js'), 'utf8')
+    ok(/onHomeKeyDown: \(\) => !disabled && updateValues\(min, 0, \{ commit: true \}\)/.test(dist) && /onEndKeyDown: \(\) => !disabled && updateValues\(max, values\.length - 1, \{ commit: true \}\)/.test(dist) && /updateValues\(value2 \+ stepInDirection, atIndex, \{ commit: true \}\)/.test(dist), 'the installed Radix commits on Home, End, the arrows and Page keys')
+    ok(/PAGE_KEYS = \["PageUp", "PageDown"\]/.test(dist) && /"ArrowUp", "ArrowDown", "ArrowLeft", "ArrowRight"/.test(dist) && /"aria-valuemin": context\.min/.test(dist) && /role: "slider"/.test(dist) && /tabIndex: context\.disabled \? void 0 : 0/.test(dist))
+    eq(JSON.parse(read('package.json')).dependencies['@radix-ui/react-slider'], '1.2.2', 'the version this was checked against is the pinned one')
+    const m = loadPicker({ read, ...real, env: { NEXT_PUBLIC_STUDIO_MODEL_CHOICE: 'true' } }); const catalogue = catalogueOf(m, json(FIXTURE))
+    const stops = m.sliderLib.MODEL_PICKER_STOPS(catalogue), v = m.sliderLib.sliderView({ catalogue, state: { kind: 'tier', tier: 'balanced' }, stops })
+    const html = renderToStaticMarkup(real.react.createElement(m.slider.ModelSliderPanel, { label: v.label, valueText: v.valueText, scope: 'user', blocked: false, stops, index: v.index, thumb: 'selected', advanced: m.sliderLib.sliderAdvanced({ catalogue, state: { kind: 'tier', tier: 'balanced' }, scope: 'user' }), saveNote: NOTES.account, notesId: 'n1', captionId: 'c1', onDraft() {}, onCommit() {}, onAdvanced() {} }))
+    const thumb = /<span role="slider"[^>]*>/.exec(html)?.[0] ?? ''
+    for (const attribute of ['aria-label="Model"', 'aria-valuemin="0"', 'aria-valuemax="2"', 'aria-orientation="horizontal"', 'tabindex="0"', 'aria-valuetext="Balanced, cost 2 of 3"', 'aria-describedby="c1"', 'class="mpick-slider-thumb"']) ok(thumb.includes(attribute), `the thumb has ${attribute}: ${thumb}`)
+    ok(html.includes('<p class="mpick-caption" id="c1" data-mpick="caption">Low = quicker, lower cost · High = deeper thinking, higher cost</p>'), 'the caption the thumb is described by')
+    ok(html.includes('<ol class="mpick-stops"') && (html.match(/<li class="mpick-stop"/g) ?? []).length === 3 && (html.match(/aria-hidden="true"/g) ?? []).length >= 3)
+    const disabled = renderToStaticMarkup(real.react.createElement(m.slider.ModelSliderPanel, { label: v.label, valueText: v.valueText, scope: 'user', blocked: true, stops, index: 2, thumb: 'selected', advanced: { rows: [], models: [] }, saveNote: '', onDraft() {}, onCommit() {}, onAdvanced() {} }))
+    ok(/aria-disabled="true"/.test(disabled) && !/tabindex="0"/.test(disabled), 'a blocked slider takes no focus')
+  })
+  await check('S: Radix\'s keys, as the component sees them: each arrow, Home and End commits one index and each is saved in turn; with no thumb on the scale (Auto, Custom) Left, Down and Home choose the first stop', async () => {
+    const router = fakeRouter(); let rt = await mountSlider({ router }); await rt.open()
+    for (const i of [1, 2, 1, 0, 2]) await rt.commit(i)
+    deep(rt.fetchLog.filter(entry => entry.init.method === 'PATCH').map(entry => JSON.parse(entry.init.body).preferences.planning_strategy), [{ preset: 'balanced' }, { preset: 'best' }, { preset: 'balanced' }, { preset: 'economy' }, { preset: 'best' }])
+    deep(rt.slider().props.value, [2]); const before = rt.fetchLog.length
+    for (const key of ['Home', 'ArrowLeft', 'ArrowDown', 'ArrowRight', 'End']) { await rt.act(() => rt.slider().props.onKeyDown({ key, preventDefault() {} })) } // a filled thumb: Radix's own keys, none of ours
+    eq(rt.fetchLog.length, before, 'with a thumb on a stop the component adds no key of its own')
+    for (const key of ['Home', 'ArrowLeft', 'ArrowDown']) {
+      const r = await mountSlider({ router: fakeRouter() }); await r.open(); let prevented = 0
+      await r.act(() => r.slider().props.onKeyDown({ key, preventDefault() { prevented++ } })); eq(prevented, 1, key); deep(lastBody(r), onUser({ preset: 'economy' }), `${key} from Auto: the first stop`)
+      const model = fakeRouter(); model.seed(USER_PATH, { model: 'anthropic/claude-opus-5.5' }); const c = await mountSlider({ router: model }); await c.open(); await c.act(() => c.slider().props.onKeyDown({ key, preventDefault() {} })); deep(lastBody(c), onUser({ preset: 'economy' }), `${key} from Custom`)
+    }
+    const ignored = await mountSlider({ router: fakeRouter() }); await ignored.open(); await ignored.act(() => ignored.slider().props.onKeyDown({ key: 'ArrowRight', preventDefault() {} })); eq(ignored.fetchLog.filter(entry => entry.init.method === 'PATCH').length, 0, 'ArrowRight is Radix\'s: it moves, and commits, by itself')
+  })
+  await check('S: the dialog is the popover\'s (labelled, described by its notes); the slider is blocked while the choices load or when disabled', async () => {
+    const rt = await mountSlider(); await rt.open(); const menu = rt.menu(); eq(menu.props['aria-label'], 'Choose model'); eq(menu.props['aria-describedby'], rt.find(node => node.props?.className === 'mpick-notes').props.id); ok(menu.props.className.includes('mpick-slider-menu'))
+    eq(rt.slider().props.disabled, false); eq(rt.gauge().props.disabled, false)
+    const off = await mountSlider({ props: { disabled: true } }); eq(off.gauge().props.disabled, true)
+    const source = read(FILES.slider).replace(/\/\*[\s\S]*?\*\//g, ''); for (const prop of ['onEscapeKeyDown', 'onPointerDownOutside', 'onInteractOutside', 'onCloseAutoFocus', 'onOpenAutoFocus', 'modal=', 'forceMount']) ok(!source.includes(prop), `the slider does not override ${prop}`)
+  })
+
+  await check('S: "Advanced" is closed by default and holds "Auto: Deckster chooses" on BOTH scopes, the specific models, and on a deck "Use my default: <it>"; a pick there saves and closes', async () => {
+    const m = loadPicker({ read, ...real, env: { NEXT_PUBLIC_STUDIO_MODEL_CHOICE: 'true' } }); const catalogue = catalogueOf(m, json(FIXTURE)); const stops = m.sliderLib.MODEL_PICKER_STOPS(catalogue)
+    const panel = (extra = {}) => renderToStaticMarkup(real.react.createElement(m.slider.ModelSliderPanel, { label: 'Best', valueText: 'Best', scope: 'user', blocked: false, stops, index: 2, thumb: 'selected', advanced: m.sliderLib.sliderAdvanced({ catalogue, state: { kind: 'tier', tier: 'best' }, scope: 'user' }), saveNote: '', onDraft() {}, onCommit() {}, onAdvanced() {}, ...extra }))
+    ok(/<details class="mpick-advanced" data-mpick="advanced"><summary>Advanced<\/summary>/.test(panel()) && !/<details[^>]* open/.test(panel()), 'a <details> with no open attribute')
+    const router = fakeRouter(); seedWire(router, USER_PATH, 'best')
+    let rt = await mountSlider({ router }); await rt.open()
+    const advanced = rt.find(node => node.props?.['data-mpick'] === 'advanced'); eq(advanced.props.open, undefined, 'closed in the live tree too'); ok(walk(advanced).some(node => node.type === 'summary' && textOf(node) === 'Advanced'))
+    deep(rt.items().map(item => [item.id, item.name, item.detail, item.pressed]), [['auto', 'Auto: Deckster chooses', null, false], ...COMMON.map(([slug, name, provider]) => [`model:${slug}`, name, provider, false])], 'the reusable default: Auto, then the six certified models common to the three groups'); eq(textOf(rt.find(node => node.props?.className === 'mpick-subhead')), 'Specific models')
+    await rt.pick('model:openai/gpt-6.1-sol'); deep(lastBody(rt), onUser({ model: 'openai/gpt-6.1-sol' })); eq(rt.menu(), undefined, 'a pick in Advanced closes the popover'); eq(rt.gauge().props['aria-label'], 'Model: Custom (GPT-6.1 Sol)')
+    await rt.open(); eq(rt.slider().props['data-thumb'], 'custom'); eq(rt.item('model:openai/gpt-6.1-sol').pressed, true); await rt.pick('auto'); deep(lastBody(rt), onUser(null), 'Auto on the reusable default clears'); deep(kept(router, USER_PATH), {})
+    const deckRouter = fakeRouter(); seedWire(deckRouter, USER_PATH, 'best')
+    rt = await mountSlider({ router: deckRouter, props: { sessionId: 'sess-fixture-1' } }); await rt.open()
+    deep(rt.items().slice(0, 2).map(item => [item.id, item.name, item.pressed]), [['auto', 'Auto: Deckster chooses', false], ['default', 'Use my default: Best', true]]); eq(rt.items().length, 8)
+    await rt.pick('auto'); eq(deckRouter.log.filter(entry => entry.method === 'PUT').at(-1).body, JSON.stringify({ preferences: Object.fromEntries(TEXT_GROUPS.map(g => [g, { auto: true }])) })); eq(rt.gauge().props['aria-label'], 'Model: Auto')
+    await rt.open(); await rt.pick('model:moonshotai/kimi-k3'); eq(rt.gauge().props['aria-label'], 'Model: Custom (Kimi K3)'); await rt.open(); await rt.pick('default'); deep(kept(deckRouter, SESSION_PATH), {}); eq(rt.gauge().props['aria-label'], 'Model: Best', 'use my default: back to the default\'s stop')
+  })
+  await check('S: SLIDER_AUTO_STOP is the ONE switch: on, Auto is the first stop (and the reusable default\'s Advanced has no row for it); off (the default), Auto lives in Advanced', async () => {
+    await withOverride(FILES.sliderLib, 'export const SLIDER_AUTO_STOP = false', 'export const SLIDER_AUTO_STOP = true', async () => {
+      const router = fakeRouter(); seedWire(router, USER_PATH, 'best'); const rt = await mountSlider({ router }); await rt.open()
+      eq(rt.slider().props.max, 3); deep(rt.stops().map(stop => stop.id), ['auto', 'economy', 'balanced', 'best']); eq(rt.slider().props['data-thumb'], 'selected'); deep(rt.slider().props.value, [3]); deep(rt.items().map(item => item.id).slice(0, 2), ['model:anthropic/claude-opus-5.5', 'model:deepseek/deepseek-v4.1-flash'], 'no Auto row on the reusable default')
+      await rt.commit(0); deep(lastBody(rt), onUser(null), 'the Auto stop clears'); eq(rt.slider().props['data-thumb'], 'selected'); deep(rt.slider().props.value, [0]); eq(rt.gauge().props['aria-label'], 'Model: Auto')
+      const deck = await mountSlider({ router: fakeRouter(), props: { sessionId: 'sess-fixture-1' } }); await deck.open(); eq(deck.slider().props['data-thumb'], 'hollow', 'a deck following a default of Auto: hollow on the Auto stop'); await deck.commit(0); eq(deck.fetchLog.filter(entry => entry.init.method === 'PATCH').at(-1).init.body, JSON.stringify({ preferences: Object.fromEntries(TEXT_GROUPS.map(g => [g, { auto: true }])) }), 'the Auto stop on a deck is { auto: true }')
+    })
+  })
+  await check('S: onChange after a stop is saved: { tier }; Advanced\'s Auto is null on the reusable default and { auto: true } on a deck; not for a stop already chosen, a drag, a refusal or a deck scope that went away', async () => {
+    const router = fakeRouter(); const calls = []
+    const rt = await mountSlider({ router, onChange: choice => calls.push(choice) }); deep(calls, []); await rt.open()
+    await rt.drag(1); deep(calls, []); await rt.commit(1); await rt.commit(1); deep(calls, [{ tier: 'balanced' }]); await rt.pick('auto'); deep(calls, [{ tier: 'balanced' }, null])
+    const deckRouter = fakeRouter(); seedWire(deckRouter, USER_PATH, 'balanced')
+    const deckCalls = []; const deck = await mountSlider({ router: deckRouter, props: { sessionId: 'sess-fixture-1' }, onChange: choice => deckCalls.push(choice) }); await deck.open(); await deck.commit(2); await deck.pick('auto'); deep(deckCalls, [{ tier: 'best' }, { auto: true }])
+    const refused = fakeRouter({ refuseAuto: true }); const refusedCalls = []; const r = await mountSlider({ router: refused, props: { sessionId: 'sess-fixture-1' }, onChange: choice => refusedCalls.push(choice) }); await r.open(); await r.commit(2); await r.pick('auto')
+    deep(refusedCalls, [{ tier: 'best' }]); eq(r.gauge().props['aria-label'], 'Model: Best', 'a refused Auto puts the stop back'); await r.open(); deep(r.slider().props.value, [2]); eq(r.status(), 'Auto cannot be saved for this presentation right now, so it keeps what it had.')
+    const gone = fakeRouter(); const goneCalls = []; const g = await mountSlider({ router: gone, props: { sessionId: 'sess-fixture-1' }, onChange: choice => goneCalls.push(choice) }); await g.open(); gone.state.deckScope = false
+    await g.drag(2); await g.commit(2) // dragged to Best, the deck scope has gone: the save falls back, and the thumb goes back with it
+    deep(goneCalls, []); eq(g.slider().props['data-thumb'], 'none'); deep(g.slider().props.value, [0]); eq(g.status(), 'Choices for one presentation aren’t available yet, so your reusable defaults apply.'); eq(g.gauge().props['aria-label'], 'Model: Auto')
+  })
+  await check('S: as FRONTEND-1\'s v3.1 spec draws it: a 272 px popover headed "MODEL", a hollow dot at each stop (the ones the thumb has passed marked, none under the thumb), the current label bold, rows at 11.5 px with 10 px sub-text', async () => {
+    const router = fakeRouter(); seedWire(router, USER_PATH, 'balanced')
+    const rt = await mountSlider({ router }); await rt.open()
+    const ticks = () => rt.all(node => node.props?.className === 'mpick-tick'); deep(ticks().map(node => node.props['data-passed']), ['true', 'true', 'false']); deep(ticks().map(node => node.props['data-current']), ['false', 'true', 'false']); ok(ticks().every(node => node.props['aria-hidden'] === 'true' && /^calc\(/.test(node.props.style.left)))
+    eq(textOf(rt.find(node => node.props?.className === 'mpick-slider-title')), 'Model'); eq(rt.active(), 'Balanced')
+    await rt.drag(0); deep(ticks().map(node => node.props['data-passed']), ['true', 'false', 'false'], 'the dots follow the thumb as it is dragged'); eq(rt.active(), 'Fast')
+    const empty = await mountSlider(); await empty.open(); deep(empty.all(node => node.props?.className === 'mpick-tick').map(node => node.props['data-current']), ['false', 'false', 'false'], 'no thumb: every dot stays drawn, none marked passed'); deep(empty.all(node => node.props?.className === 'mpick-tick').map(node => node.props['data-passed']), ['false', 'false', 'false'])
+    const css = postcss.parse(read(FILES.sliderCss)); const at = selector => { const out = {}; css.walkRules(rule => { if (rule.selector === selector && rule.parent.type === 'root') rule.walkDecls(decl => { out[decl.prop] = decl.value }) }); return out }
+    eq(at('.mpick-slider-menu').width, '272px'); eq(at('.mpick-slider-menu')['font-size'], '11.5px'); eq(at('.mpick-slider-menu .mpick-detail, .mpick-slider-menu .mpick-hint, .mpick-slider-menu .mpick-notes')['font-size'], '10px')
+    eq(at('.mpick-slider-title')['text-transform'], 'uppercase'); eq(at('.mpick-slider-title')['font-size'], '10px'); eq(at('.mpick-stop[data-active="true"] .mpick-stop-name')['font-weight'], '600')
+    eq(at('.mpick-slider-root[data-thumb="none"] .mpick-slider-thumb')['border-color'], 'transparent', 'no thumb: unseen'); eq(at('.mpick-slider-root[data-thumb="none"] .mpick-slider-range').opacity, '0'); eq(at('.mpick-slider-root[data-thumb="hollow"] .mpick-slider-thumb').background, 'transparent', 'hollow'); eq(at('.mpick-slider-root[data-thumb="custom"] .mpick-slider-thumb')['border-style'], 'dashed')
+    eq(at('.mpick-tick[data-current="true"]').opacity, '0')
+  })
+  await check('S: the sizes: a 24 px gauge on desktop and a 44 px hit area on phones; 44 px for the slider row, the stop labels and Advanced; every rule scoped, small text, near-monochrome', () => {
+    const text = read(FILES.sliderCss); const css = postcss.parse(text)
+    const decls = (selector, within) => { const out = {}; (within ?? css).walkRules(rule => { if (rule.selector === selector && (within || rule.parent.type === 'root')) rule.walkDecls(decl => { out[decl.prop] = decl.value }) }); return out }
+    const gauge = decls('.mpick-gauge'); eq(gauge.width, '24px'); eq(gauge.height, '24px'); eq(gauge['box-sizing'], 'border-box')
+    const phone = []; css.walkAtRules('media', at => { if (at.params === '(max-width: 640px)') phone.push(at) }); eq(phone.length, 1)
+    const before = decls('.mpick-gauge::before', phone[0]); eq(before.content, '""'); eq(before.position, 'absolute'); const px = value => Number.parseInt(value)
+    ok(24 + Math.abs(px(before.top)) + Math.abs(px(before.bottom)) >= 44 && 24 + Math.abs(px(before.left)) + Math.abs(px(before.right)) >= 44, 'a 44 x 44 hit area'); ok(px(before.top) < 0 && px(before.left) < 0)
+    ok(px(decls('.mpick-slider-root', phone[0]).height) >= 44 && px(decls('.mpick-stop', phone[0])['min-height']) >= 44 && px(decls('.mpick-advanced > summary', phone[0])['min-height']) >= 44, 'the slider row, the stops and Advanced are 44 px on phones')
+    eq(decls('.mpick-slider-root').height, '24px'); ok(!('pointer-events' in before), 'the hit area takes the click')
+    css.walkRules(rule => { for (const selector of rule.selectors) ok(/^\.mpick-/.test(selector), `scoped: ${selector}`) })
+    css.walkDecls('font-size', decl => ok(['10px', '11px', '11.5px'].includes(decl.value), `${decl.parent.selector}: ${decl.value}`)) // FRONTEND-1's v3.1: rows 11.5 px, sub-text and heading 10 px
+    ok(!/#[0-9a-fA-F]{3,8}\b/.test(text.replace(/\/\*[\s\S]*?\*\//g, '')), 'no hex colours'); const ring = []; css.walkDecls(decl => { if (/--ring/.test(decl.value)) ring.push(decl.prop) }); ok(ring.length >= 3 && ring.every(prop => prop === 'outline'), `the accent is the focus ring alone: ${ring}`)
+    css.walkDecls(decl => { if (/^(background|background-color|color|border-color)$/.test(decl.prop)) ok(!/(--ring|rgb\(|hsl\(var\(--(?!popover|border|muted))/.test(decl.value), `${decl.parent.selector} ${decl.prop}`) })
+    ok(/mpick-slider-root\[data-thumb="custom"\] \.mpick-slider-thumb/.test(text) && /mpick-slider-root\[data-thumb="hollow"\] \.mpick-slider-thumb/.test(text) && /mpick-slider-root\[data-thumb="none"\] \.mpick-slider-thumb/.test(text), 'no thumb, a hollow one, a faint one off the scale'); ok(/prefers-reduced-motion/.test(text))
+  })
+  await check('S: the caption is exactly v3.1\'s, and the labels and the head say what the spec says', () => {
+    const m = loadPicker({ read, ...real }); eq(m.sliderLib.SLIDER_CAPTION, 'Low = quicker, lower cost · High = deeper thinking, higher cost'); eq(m.sliderLib.SLIDER_ADVANCED_LABEL, 'Advanced'); eq(m.sliderLib.SLIDER_LABEL, 'Model'); eq(m.sliderLib.SLIDER_MAX_STOPS, 5)
+    eq(m.sliderLib.SLIDER_CUSTOM_LABEL, 'Custom'); deep([...m.sliderLib.SLIDER_SAVABLE_PRESETS], ['economy', 'balanced', 'best'], 'the presets the Studio routes carry'); eq(m.sliderLib.SLIDER_AUTO_STOP, false, 'Auto lives in Advanced')
+    const server = fs.readFileSync(path.join(root, SERVER), 'utf8'); ok(/const PRESETS = \['best', 'balanced', 'economy'\]/.test(server), 'the same three the server accepts')
+    const spec = 'Low = quicker, lower cost · High = deeper thinking, higher cost'; ok(read(FILES.slider).includes('{SLIDER_CAPTION}') && read(FILES.sliderLib).includes(`'${spec}'`))
+  })
   await check('L: nothing in the app imports the picker (it is placed by FRONTEND-1), so flag off the app is the base', () => {
     let hits = ''
     try { hits = git('grep', '-l', '-E', 'model-choice/model-picker|use-model-choice|studio-model-picker|model-picker\\.css', 'HEAD', '--', 'app', 'components', 'lib', 'hooks', 'pages', 'middleware.ts', 'next.config.mjs', 'next.config.js') } catch { hits = '' }
-    deep(hits.split('\n').filter(Boolean).map(line => line.replace(/^HEAD:/, '')).filter(file => !PICKER_FILES.includes(file)), [], 'no other file mentions it')
+    deep(hits.split('\n').filter(Boolean).map(line => line.replace(/^HEAD:/, '')).filter(file => ![...PICKER_FILES, ...SLIDER_ADDED].includes(file)), [], 'no other file mentions it')
     const working = execFileSync('grep', ['-rlE', 'model-choice/model-picker|use-model-choice|studio-model-picker', 'app', 'components', 'lib', 'hooks'], { cwd: root, encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'] }).split('\n').filter(Boolean)
-    deep(working.filter(file => !PICKER_FILES.includes(file)), [], 'nor does the working tree')
+    deep(working.filter(file => ![...PICKER_FILES, ...SLIDER_ADDED].includes(file)), [], 'nor does the working tree')
   })
   await check('L: the new files hold no credential-shaped literal and no long hex', () => {
     const CRED = /Bearer [A-Za-z0-9._-]{16,}|\bsk-[A-Za-z0-9]{16,}|\beyJ[A-Za-z0-9_-]{20,}|(?:api[_-]?key|secret|token|passw(?:or)?d|credential)[A-Za-z0-9_]*['"]?\s*[:=]\s*['"`][^'"`\s$]{8,}['"`]/i
-    for (const rel of PICKER_FILES) { const text = read(rel).replace(/credentials: "same-origin"/g, '').replace(/headers\.Authorization !== `Bearer \$\{KEY\}`/g, ''); ok(!CRED.test(text), rel); ok(!/[A-Fa-f0-9]{40,}/.test(text), `${rel}: no long hex`) }
+    for (const rel of [...PICKER_FILES, ...SLIDER_ADDED]) { const text = read(rel).replace(/credentials: "same-origin"/g, '').replace(/headers\.Authorization !== `Bearer \$\{KEY\}`/g, ''); ok(!CRED.test(text), rel); ok(rel === SLIDER_STRIP || !/[A-Fa-f0-9]{40,}/.test(text), `${rel}: no long hex`) }
   })
   const own = []
   for (const block of git('log', '--no-merges', '--name-only', '--format=%x01%H %s', `${PICKER_BASE}..HEAD`).split('\x01').filter(Boolean)) {
@@ -754,6 +995,34 @@ async function suite({ quiet = false, bail = false, extraCommitted = [] } = {}) 
     })
   }
 
+  const sliderOwn = []
+  for (const block of git('log', '--no-merges', '--name-only', '--format=%x01%H %s', `${SLIDER_BASE}..HEAD`).split('\x01').filter(Boolean)) {
+    const [head, ...names] = block.split('\n')
+    if (head.slice(41).startsWith(SLIDER_SUBJECT)) sliderOwn.push({ commit: head.slice(0, 40), names: names.filter(Boolean) })
+  }
+  if (sliderOwn.length === 0) {
+    if (!quiet) console.log('SKIP L  nothing of the slider committed on top of 42f51ca9 yet (the slider scope check reads SLIDER_BASE..HEAD only)')
+  } else {
+    await check('L: the slider\'s own commits ("Model choice slider: ...") add exactly its files and edit only #521\'s picker files, the catalogue helper, the two proofs and the registry; no app file, no route, no .env.example', async () => {
+      const touched = new Set(sliderOwn.flatMap(entry => entry.names))
+      const status = git('diff', '--name-status', SLIDER_BASE, sliderOwn[0].commit).split('\n').filter(Boolean).map(line => line.split('\t')).filter(row => touched.has(row[1]))
+      deep([...status.filter(row => row[0] === 'A').map(row => row[1]), ...extraCommitted].sort(), SLIDER_ADDED)
+      deep(status.filter(row => row[0] !== 'A').map(row => `${row[0]} ${row[1]}`).sort(), SLIDER_EDITED.map(file => `M ${file}`).sort())
+      ok(!status.some(row => /^(app|pages|hooks)\//.test(row[1]) || row[1] === '.env.example' || /^components\/(?!model-choice\/)/.test(row[1])), 'nothing in the app')
+      const subjects = git('log', '--no-merges', '--format=%s', `${SLIDER_BASE}..${sliderOwn[0].commit}`).split('\n').filter(Boolean); ok(subjects.every(subject => subject.startsWith(SLIDER_SUBJECT)), subjects.join(' | '))
+    })
+    await check('L: the slider strip names its files, the registry gains ONE line for it (no env block, no strip), and the older scope checks skip them', async () => {
+      const strip = await import(`data:text/javascript,${encodeURIComponent(read(SLIDER_STRIP))}`)
+      for (const rel of [...SLIDER_ADDED, ...SLIDER_EDITED]) ok(strip.MODEL_SLIDER_SCOPE_FILES.has(rel), rel)
+      ok(strip.MODEL_SLIDER_BASE_COMMIT.startsWith(SLIDER_BASE) && strip.MODEL_SLIDER_BASE_COMMIT.length === 40); eq(strip.MODEL_SLIDER_SUBJECT, SLIDER_SUBJECT); eq(strip.MODEL_SLIDER_FLAG, 'NEXT_PUBLIC_STUDIO_MODEL_CHOICE')
+      const reg = await import(`${path.join(root, REGISTRY)}?t=${Date.now()}`)
+      for (const rel of [...SLIDER_ADDED, ...SLIDER_EDITED]) ok(reg.LATER_CHANGE_FILES.has(rel), rel)
+      const edit = git('diff', '-U0', SLIDER_BASE, sliderOwn[0].commit, '--', REGISTRY).split('\n').filter(line => /^[+-]/.test(line) && !/^(\+\+\+|---) /.test(line))
+      eq(edit.length, 1); ok(edit[0].startsWith('+') && edit[0].includes('studio-model-slider-strip.mjs') && edit[0].includes('// LATER-CHANGE: '))
+      ok(git('diff', '--name-only', SLIDER_BASE, sliderOwn[0].commit, '--', '.env.example', 'app') === '', 'no .env.example block, no app file')
+    })
+  }
+
   return { checks, failures }
 }
 
@@ -768,7 +1037,7 @@ console.log(`PASS A-L  ${main.checks} checks`)
 if (process.env.MODEL_PICKER_NO_MUTANTS === '1') process.exit(0)
 
 // ---- M. mutants: each must make the suite fail -------------------------------------------------------------------------------------------------------------------------
-const P = FILES.picker, H = FILES.hook, C = FILES.component, S = FILES.css
+const P = FILES.picker, H = FILES.hook, C = FILES.component, S = FILES.css, SL = FILES.sliderLib, SC = FILES.slider, SCSS = FILES.sliderCss
 const MUTANTS = [
   ['picker: a model needs only one group', P, 'return first.filter(slug => rest.every(list => list.includes(slug)))', 'return first.filter(slug => rest.every(() => true))'],
   ['picker: a closed group is skipped', P, '    if (!group) return []\n', '    if (!group) continue\n'],
@@ -793,6 +1062,69 @@ const MUTANTS = [
   ['picker: a mix reads as the first group', P, 'if (PICKER_GROUPS.some(group => choices[group] !== first)) return MIXED\n', ''],
   ['picker: every tier is offered', P, 'return group === null || presetModel(catalogue, group, tier) !== null })', 'return true })'],
   ['picker: the session id is trusted', P, 'export const deckIdFromSessionId = (sessionId: string | null | undefined): string | null => (sessionId ?', 'export const deckIdFromSessionId = (sessionId: string | null | undefined): string | null => (sessionId ? sessionId : null) || (sessionId ?'],
+  // the slider variant
+  ['slider: Auto is a stop', SL, 'export const SLIDER_AUTO_STOP = false', 'export const SLIDER_AUTO_STOP = true'],
+  ['slider: nine stops', SL, 'export const SLIDER_MAX_STOPS = 5', 'export const SLIDER_MAX_STOPS = 9'],
+  ['slider: the caption is lower-case', SL, "export const SLIDER_CAPTION = 'Low = quicker, lower cost · High = deeper thinking, higher cost'", "export const SLIDER_CAPTION = 'low = quicker, lower cost · high = deeper thinking, higher cost'"],
+  ['slider: the caption says something else', SL, "export const SLIDER_CAPTION = 'Low = quicker, lower cost · High = deeper thinking, higher cost'", "export const SLIDER_CAPTION = 'low = cheap · high = good'"],
+  ['slider: a preset the routes cannot save is a stop', SL, 'export const SLIDER_SAVABLE_PRESETS: readonly string[] = PICKER_TIERS', "export const SLIDER_SAVABLE_PRESETS: readonly string[] = [...PICKER_TIERS, 'ultra', 'mega']"],
+  ['slider: the stops are not ordered by cost', SL, 'ranked.sort((a, b) => a.rank - b.rank || a.order - b.order)', 'ranked.sort((a, b) => a.order - b.order)'],
+  ['slider: an extra preset needs one group only', SL, 'if (!slug || !offeredModels(catalogue, group).includes(slug)) return null', 'if (!slug) return null'],
+  ['slider: a tier needs no certification', SL, 'if (tierOffered(catalogue, id)) ranked.push', 'if (true) ranked.push'],
+  ['slider: Auto on a deck is null', SL, "(stop.auto ? (scope === 'deck' ? { auto: true } : null)", '(stop.auto ? null'],
+  ['slider: Auto on the reusable default is a deck Auto', SL, "(stop.auto ? (scope === 'deck' ? { auto: true } : null)", '(stop.auto ? ({ auto: true })'],
+  ['slider: a model sits on a stop', SL, "  if (state.kind === 'tier') return stops.findIndex(stop => stop.tier === state.tier)\n  return -1", "  if (state.kind === 'tier') return stops.findIndex(stop => stop.tier === state.tier)\n  return 0"],
+  ['slider: Custom shows no thumb', SL, "return { stops, index, thumb: 'custom', label,", "return { stops, index, thumb: 'none', label,"],
+  ['slider: the cost is not in the value text', SL, "const costWords = (hint: string | null) => (hint ? `, cost ${hint.length} of 3` : '')", "const costWords = (hint: string | null) => ''"],
+  ['slider: Advanced holds the deck rows on the reusable default', SL, "const rows = args.scope === 'deck' ? head : (args.autoStop ?? SLIDER_AUTO_STOP) ? [] : head", 'const rows = head'],
+  ['slider: Advanced has no deck rows', SL, "const rows = args.scope === 'deck' ? head :", "const rows = args.scope === 'deck' ? [] :"],
+  ['slider: a plain id is any text', CHOICE_LIB, 'export const PRESET_ID = /^[a-z][a-z0-9_]{0,31}$/', 'export const PRESET_ID = /^.+$/'],
+  ['slider: a following deck has a filled thumb', SL, "thumb: following ? 'hollow' : 'selected'", "thumb: 'selected'"],
+  ['slider: Auto shows a thumb', SL, "if (state.kind === 'auto') return { stops, index, thumb: 'none',", "if (state.kind === 'auto') return { stops, index, thumb: 'selected',"],
+  ['slider: Advanced\'s Auto keeps the short label', SL, "{ ...option, label: MODEL_CHOICE_AUTO_LABEL, detail: null }", 'option'],
+  ['slider: the first-stop keys are lost', SC, 'if (!onScale && ["ArrowLeft", "ArrowDown", "Home"]', 'if (false && ["ArrowLeft", "ArrowDown", "Home"]'],
+  ['slider: the first-stop keys fire with a thumb on a stop', SC, 'if (!onScale && ["ArrowLeft", "ArrowDown", "Home"]', 'if (["ArrowLeft", "ArrowDown", "Home"]'],
+  ['slider: a dragged thumb is not shown', SC, 'const kind: ThumbKind = draft !== null ? "selected" : thumbKind', 'const kind: ThumbKind = thumbKind'],
+  ['slider: the head hides Custom', SC, '{kind === "none" || kind === "custom" ? <span', '{false ? <span'],
+  ['slider: a drag saves', SC, 'onValueChange={values => onDraft(values[0])}', 'onValueChange={values => { onDraft(values[0]); onCommit(values[0]) }}'],
+  ['slider: a commit saves nothing', SC, 'onValueCommit={values => onCommit(values[0])}', 'onValueCommit={() => undefined}'],
+  ['slider: the stop it sits on saves again', SC, "if (!stop || (!inFlight.current && view.thumb === 'selected' && index === view.index)) return", 'if (!stop) return'],
+  ['slider: a following deck\'s stop saves nothing when clicked', SC, "view.thumb === 'selected' && index === view.index", 'index === view.index'],
+  ['slider: a stop that waits is dropped', SC, 'if (next) save(next.choice)', 'if (next) void 0'],
+  ['slider: the draft stays', SC, '    setDraft(null)\n    if (!stop', '    if (!stop'],
+  ['slider: Advanced is open', SC, '<details className="mpick-advanced" data-mpick="advanced">', '<details className="mpick-advanced" data-mpick="advanced" open>'],
+  ['slider: an Advanced pick keeps the popover open', SC, 'onAdvanced={choice => { setOpen(false); void api.select(choice) }}', 'onAdvanced={choice => { void api.select(choice) }}'],
+  ['slider: the thumb has no label', SC, 'aria-label={SLIDER_LABEL} aria-valuetext', 'aria-valuetext'],
+  ['slider: the thumb has no value text', SC, 'aria-valuetext={shown ? shown.label : valueText} ', ''],
+  ['slider: the thumb is not described by the caption', SC, ' aria-describedby={captionId} />', ' />'],
+  ['slider: the stop labels are read twice', SC, 'data-mpick-stop={stop.id} aria-hidden="true"', 'data-mpick-stop={stop.id}'],
+  ['slider: the slider is not blocked', SC, 'disabled={blocked} data-thumb', 'data-thumb'],
+  ['slider: the step is 2', SC, 'step={1}', 'step={2}'],
+  ['slider: the trigger has no label', SC, 'aria-label={`Model: ${label}`} title=', 'title='],
+  ['slider: the trigger opens before the choices are in', SC, 'const blocked = Boolean(disabled) || !ready', 'const blocked = Boolean(disabled)'],
+  ['slider: a stop label is not clickable', SC, 'onClick={() => { if (!blocked) onCommit(i) }}', 'onClick={() => undefined}'],
+  ['slider: the thumb kind is not on the slider', SC, 'data-thumb={kind} data-mpick="slider"', 'data-mpick="slider"'],
+  ['slider: className is dropped', SC, '["mpick-gauge", className].filter(Boolean).join(" ")', '"mpick-gauge"'],
+  ['slider: the variant is ignored', C, 'props.variant === "slider" ? <ModelPickerSlider {...props} /> :', 'false ? <ModelPickerSlider {...props} /> :'],
+  ['slider: it renders with the flag off', C, 'if (!STUDIO_MODEL_PICKER_ENABLED) return null\n  return props.variant', 'return props.variant'],
+  ['slider: the dots are not marked', SC, 'data-passed={onScale && i <= thumb ? "true" : "false"}', 'data-passed="false"'],
+  ['slider: the dots are marked with no thumb', SC, 'data-passed={onScale && i <= thumb', 'data-passed={i <= thumb'],
+  ['slider: the dot under the thumb is drawn', SC, 'data-current={kind !== "none" && i === thumb ? "true" : "false"}', 'data-current="false"'],
+  ['slider css: a wide popover', SCSS, '.mpick-slider-menu { width: 272px;', '.mpick-slider-menu { width: 372px;'],
+  ['slider css: a thin label', SCSS, '.mpick-stop[data-active="true"] .mpick-stop-name { font-weight: 600; }', '.mpick-stop[data-active="true"] .mpick-stop-name { font-weight: 400; }'],
+  ['slider css: the thumb shows with nothing chosen', SCSS, '.mpick-slider-root[data-thumb="none"] .mpick-slider-thumb { border-color: transparent; background: transparent; cursor: pointer; }', '.mpick-slider-root[data-thumb="none"] .mpick-slider-thumb { cursor: pointer; }'],
+  ['slider css: the hollow thumb is filled', SCSS, '.mpick-slider-root[data-thumb="hollow"] .mpick-slider-thumb { background: transparent; }', '.mpick-slider-root[data-thumb="hollow"] .mpick-slider-thumb { }'],
+  ['slider css: the dot under the thumb is drawn', SCSS, '.mpick-tick[data-current="true"] { opacity: 0; }', '.mpick-tick[data-current="true"] { opacity: 1; }'],
+  ['slider css: the fill shows with nothing chosen', SCSS, '.mpick-slider-root[data-thumb="none"] .mpick-slider-range { opacity: 0; }', '.mpick-slider-root[data-thumb="none"] .mpick-slider-range { opacity: 0.8; }'],
+  ['slider css: a 32 px gauge', SCSS, '  width: 24px;\n  height: 24px;', '  width: 32px;\n  height: 32px;'],
+  ['slider css: no hit area on phones', SCSS, '  .mpick-gauge::before { content: ""; position: absolute; top: -10px; right: -10px; bottom: -10px; left: -10px; }\n', ''],
+  ['slider css: a 36 px hit area', SCSS, 'top: -10px; right: -10px; bottom: -10px; left: -10px;', 'top: -6px; right: -6px; bottom: -6px; left: -6px;'],
+  ['slider css: a short slider row on phones', SCSS, '  .mpick-slider-root { height: 44px; }', '  .mpick-slider-root { height: 24px; }'],
+  ['slider css: short stops on phones', SCSS, '  .mpick-stop { min-height: 44px; justify-content: center; }', '  .mpick-stop { min-height: 30px; justify-content: center; }'],
+  ['slider css: an unscoped rule', SCSS, '.mpick-slider-panel {', 'div { height: 24px; }\n.mpick-slider-panel {'],
+  ['slider css: an accent on the fill', SCSS, '.mpick-slider-range { position: absolute; height: 100%; border-radius: 999px; background: var(--mpick-fg, currentColor); opacity: 0.8; }', '.mpick-slider-range { position: absolute; height: 100%; border-radius: 999px; background: hsl(var(--ring, 250 90% 60%)); opacity: 0.8; }'],
+  ['slider css: a larger caption', SCSS, 'font-size: 10px; line-height: 1.4; }', 'font-size: 15px; line-height: 1.4; }'],
+  ['slider strip: a file is not named', SLIDER_STRIP, "  'components/model-choice/model-option.tsx',\n  'components/model-choice/model-slider.tsx',", "  'components/model-choice/model-slider.tsx',"],
   ['picker: the default row names no default', P, '`${MODEL_CHOICE_USE_DEFAULT}: ${args.userState ? plainName(args.userState, catalogue) : PICKER_AUTO_LABEL}`', '`${MODEL_CHOICE_USE_DEFAULT}: Auto`'],
   ['picker: the deck\'s Auto is no { auto: true }', P, "{ id: 'auto', label: MODEL_CHOICE_AUTO_LABEL, detail: null, hint: null, choice: { auto: true },", "{ id: 'auto', label: MODEL_CHOICE_AUTO_LABEL, detail: null, hint: null, choice: null,"],
   ['picker: "use my default" writes the Auto', P, "hint: null, choice: null, selected: following },", "hint: null, choice: { auto: true }, selected: following },"],
@@ -833,14 +1165,14 @@ const MUTANTS = [
   ['component: no accessible label', C, 'aria-label={`Model: ${label.full}`} ', ''],
   ['component: no title', C, 'title={`Model: ${label.full}`}', 'title=""'],
   ['component: the menu stays open after a pick', C, 'onPick={choice => { setOpen(false); setView("main"); void api.select(choice) }}', 'onPick={choice => { void api.select(choice) }}'],
-  ['component: no pressed state', C, 'aria-pressed={option.selected} ', ''],
+  ['component: no pressed state', FILES.option, 'aria-pressed={option.selected} ', ''],
   ['component: Escape is swallowed', C, 'side="top" align="start"', 'onEscapeKeyDown={event => event.preventDefault()} side="top" align="start"'],
   ['component: focus is not returned', C, 'side="top" align="start"', 'onCloseAutoFocus={event => event.preventDefault()} side="top" align="start"'],
   ['component: the chip opens before the choices are in', C, 'const blocked = Boolean(disabled) || !ready', 'const blocked = Boolean(disabled)'],
   ['component: disabled is ignored', C, 'const blocked = Boolean(disabled) || !ready', 'const blocked = !ready'],
   ['component: className is dropped', C, '["mpick-chip", className].filter(Boolean).join(" ")', '"mpick-chip"'],
   ['component: no Back button', C, '{models ? <button type="button" className="mpick-item mpick-back"', '{false ? <button type="button" className="mpick-item mpick-back"'],
-  ['component: the hint is read as symbols', C, '<span className="mpick-sr">, cost {costLevel(option.hint)} of 3</span>', ''],
+  ['component: the hint is read as symbols', FILES.option, '<span className="mpick-sr">, cost {costLevel(option.hint)} of 3</span>', ''],
   ['component: the menu is not described', C, ' aria-describedby={notesId}', ''],
   ['component: the menu has no label', C, ' aria-label={PICKER_MENU_LABEL}', ''],
   ['css: a 32 px chip', S, '  height: 24px;\n  min-width: 32px;', '  height: 32px;\n  min-width: 32px;'],

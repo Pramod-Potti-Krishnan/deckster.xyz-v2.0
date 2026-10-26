@@ -47,6 +47,8 @@ export const MODEL_CHOICE_TIERS: readonly { id: P2PresetId; label: string; hint:
 ]
 export const modelChoiceTier = (id: P2PresetId) => MODEL_CHOICE_TIERS.find(tier => tier.id === id) as { id: P2PresetId; label: string; hint: string }
 const COST_HINTS = ['$', '$$', '$$$']
+/** A preset's id as the router names it: lower-case words (best, balanced, economy, and any it adds). */
+export const PRESET_ID = /^[a-z][a-z0-9_]{0,31}$/
 
 const isPreset = (value: string): value is P2PresetId => value === 'best' || value === 'balanced' || value === 'economy'
 const isRecord = (value: unknown): value is Record<string, unknown> => typeof value === 'object' && value !== null && !Array.isArray(value)
@@ -88,11 +90,12 @@ export const MODEL_CHOICE_SCOPE_DECK_RULE = 'Applies from this presentation’s 
 // ---------------------------------------------------------------------------------------------------------------- the live catalogue, with its presets and cost hints
 
 /** A parsed catalogue (lib/studio-model-catalog.ts) plus each group's presets and each model's cost_hint, which that parser does not keep. */
-export type ChoiceCatalogue = Catalogue & { presets: Record<string, Partial<Record<P2PresetId, string>>>; costHints: Record<string, string> }
+export type ChoiceCatalogue = Catalogue & { presets: Record<string, Partial<Record<P2PresetId, string>>>; costHints: Record<string, string>; /** Every preset the group lists, by plain id (best / balanced / economy and any the router adds): group -> preset id -> model. Only the compact slider's stops read it. */ allPresets: Record<string, Record<string, string>> }
 
 /** `catalogue` (parsed from `body`) with `body`'s presets (only best / balanced / economy, only non-empty ids) and cost hints (only "$", "$$" or "$$$"; absent while the router's flag is off). */
 export function withPresets(catalogue: Catalogue, body: unknown): ChoiceCatalogue {
   const presets: Record<string, Partial<Record<P2PresetId, string>>> = Object.create(null)
+  const allPresets: Record<string, Record<string, string>> = Object.create(null)
   const costHints: Record<string, string> = Object.create(null)
   const groups = isRecord(body) && isRecord(body.groups) ? body.groups : {}
   for (const key of Object.keys(groups)) {
@@ -101,6 +104,9 @@ export function withPresets(catalogue: Catalogue, body: unknown): ChoiceCatalogu
     const kept: Partial<Record<P2PresetId, string>> = {}
     for (const tier of MODEL_CHOICE_TIERS) if (typeof raw[tier.id] === 'string' && raw[tier.id] !== '') kept[tier.id] = raw[tier.id] as string
     presets[key] = kept
+    const every: Record<string, string> = Object.create(null)
+    for (const id of Object.keys(raw)) if (PRESET_ID.test(id) && typeof raw[id] === 'string' && raw[id] !== '') every[id] = raw[id] as string
+    allPresets[key] = every
   }
   const models = isRecord(body) && isRecord(body.models) ? body.models : {}
   for (const slug of Object.keys(models)) {
@@ -108,7 +114,7 @@ export function withPresets(catalogue: Catalogue, body: unknown): ChoiceCatalogu
     const hint = isRecord(model) ? model.cost_hint : undefined
     if (typeof hint === 'string' && COST_HINTS.includes(hint)) costHints[slug] = hint
   }
-  return { ...catalogue, presets, costHints }
+  return { ...catalogue, presets, costHints, allPresets }
 }
 
 /** The group a task reads, or null: no catalogue, no such group, a group that is not user-visible, or one that is never switched. */

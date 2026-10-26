@@ -2,17 +2,23 @@
 
 import { useId, useState } from "react"
 import * as PopoverPrimitive from "@radix-ui/react-popover"
-import { Check, ChevronDown, ChevronLeft, ChevronRight } from "lucide-react"
-import { PICKER_BACK_LABEL, PICKER_MENU_LABEL, chipLabel, pickerMenu, scopeNote, type ChipLabel, type ModelChoice, type PickerMenu, type PickerOption } from "@/lib/studio-model-picker"
+import { ChevronDown, ChevronLeft, ChevronRight } from "lucide-react"
+import { PICKER_BACK_LABEL, PICKER_MENU_LABEL, chipLabel, pickerMenu, scopeNote, type ChipLabel, type ModelChoice, type PickerMenu } from "@/lib/studio-model-picker"
+import { ModelOption } from "./model-option"
+import { ModelPickerSlider } from "./model-slider"
 import { STUDIO_MODEL_PICKER_ENABLED, useModelChoice } from "./use-model-choice"
 import "./model-picker.css"
 
 export { STUDIO_MODEL_PICKER_ENABLED, browserRuntime, useModelChoice } from "./use-model-choice"
 export type { ModelChoiceApi, PickerRuntime, SelectOutcome, UseModelChoiceOptions } from "./use-model-choice"
 export type { ModelChoice, PickerState } from "@/lib/studio-model-picker"
+export { MODEL_PICKER_DEFAULT_STOPS, MODEL_PICKER_STOPS, SLIDER_AUTO_STOP, SLIDER_CAPTION } from "@/lib/studio-model-slider"
+export type { PickerStop } from "@/lib/studio-model-slider"
+export { ModelPickerSlider, ModelSliderView } from "./model-slider"
 
 export interface ModelPickerProps {
-  variant?: "compact"
+  /** "compact" (the default): a chip that opens a menu. "slider": a gauge icon that opens a slider over ordered stops (Auto, Fast, Balanced, Best) with an "Advanced" section. */
+  variant?: "compact" | "slider"
   /** The Studio session (the deck) whose choice this edits; null for a new deck, where it edits the reusable default and the menu says "Applies to new decks". */
   sessionId: string | null
   disabled?: boolean
@@ -30,7 +36,7 @@ export interface ModelPickerProps {
  * imagery and narration stay "Fixed for now". Style it from outside with `className` (the chip) and the --mpick-* variables in model-picker.css. */
 export function ModelPicker(props: ModelPickerProps) {
   if (!STUDIO_MODEL_PICKER_ENABLED) return null
-  return <ModelPickerConnected {...props} />
+  return props.variant === "slider" ? <ModelPickerSlider {...props} /> : <ModelPickerConnected {...props} />
 }
 
 function ModelPickerConnected({ sessionId, disabled, className, onChange }: ModelPickerProps) {
@@ -84,16 +90,6 @@ export function ModelPickerView({ label, stateKind, scope, mode, ready, disabled
   </>
 }
 
-const costLevel = (hint: string) => hint.length
-
-function Option({ option, onPick, busy }: { option: PickerOption; onPick: (choice: ModelChoice) => void; busy: boolean }) {
-  return <button type="button" className="mpick-item" aria-pressed={option.selected} disabled={busy} data-mpick-option={option.id} onClick={() => onPick(option.choice)}>
-    <span className="mpick-check" aria-hidden="true">{option.selected ? <Check size={14} /> : null}</span>
-    <span className="mpick-text"><span className="mpick-name">{option.label}</span>{option.detail ? <span className="mpick-detail">{option.detail}</span> : null}</span>
-    {option.hint ? <><span className="mpick-hint" aria-hidden="true">{option.hint}</span><span className="mpick-sr">, cost {costLevel(option.hint)} of 3</span></> : null}
-  </button>
-}
-
 /** What the menu holds: Auto and the tiers, "More models…" (the models certified for all three text groups) as a second view with a Back button, and the two lines under them: where a choice lands and
  * where it is kept. Presentation only: nothing here reads or writes a choice. */
 export function ModelPickerPanel({ menu, view, notesId, scope, saveNote, busy = false, onView, onPick }: {
@@ -110,7 +106,7 @@ export function ModelPickerPanel({ menu, view, notesId, scope, saveNote, busy = 
   return <div className="mpick-panel" data-mpick-view={view}>
     {models ? <button type="button" className="mpick-item mpick-back" onClick={() => onView("main")}><ChevronLeft size={14} aria-hidden="true" /><span className="mpick-name">{PICKER_BACK_LABEL}</span></button> : null}
     <div role="group" aria-label={models ? menu.more?.label ?? "More models" : "Model"} className="mpick-list">
-      {(models ? menu.models : menu.main).map(option => <Option key={option.id} option={option} onPick={onPick} busy={busy} />)}
+      {(models ? menu.models : menu.main).map(option => <ModelOption key={option.id} option={option} onPick={onPick} busy={busy} />)}
       {!models && menu.more ? <button type="button" className="mpick-item mpick-more" data-mpick-option="more" onClick={() => onView("models")}>
         <span className="mpick-check" aria-hidden="true" />
         <span className="mpick-text"><span className="mpick-name">{menu.more.label}</span>{menu.more.detail ? <span className="mpick-detail">{menu.more.detail}</span> : null}</span>
