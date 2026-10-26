@@ -28,6 +28,7 @@ import vm from 'node:vm'
 import { fileURLToPath } from 'node:url'
 import ts from 'typescript'
 import postcss from 'postcss'
+import { stripLaterChanges } from './studio-later-changes.mjs' // LATER-CHANGES: registry read (CHAT-CLEAN): the lines of the changes registered after this one come out of every source this proof loads, so the flag-off tree and the mutation targets are the base's
 
 const treeRoot = process.env.COMPOSER_POPUPS_ROOT
   ? path.resolve(process.env.COMPOSER_POPUPS_ROOT)
@@ -79,7 +80,7 @@ function createLoader({ env = {}, stubs = {}, globals = {}, mutate = {} } = {}) 
     const mod = { exports: {} }
     cache.set(file, mod.exports)
     const rel = path.relative(treeRoot, file)
-    let source = fs.readFileSync(file, 'utf8')
+    let source = stripLaterChanges(path.relative(treeRoot, file), fs.readFileSync(file, 'utf8')) // LATER-CHANGES: registry read (CHAT-CLEAN): a registered later change's marked lines (chat clean's, in chat-input.tsx) come out before the mutations and the transpile
     for (const [from, to] of mutate[rel] ?? []) {
       if (!source.includes(from)) throw new MutationTargetMissing(`mutation target missing in ${rel}: ${from.slice(0, 80)}`)
       source = source.replace(from, to)
