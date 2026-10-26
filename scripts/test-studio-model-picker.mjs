@@ -901,7 +901,7 @@ async function suite({ quiet = false, bail = false, extraCommitted = [] } = {}) 
     await rt.drag(2); deep(calls, []); await rt.commit(2); await rt.commit(2); await rt.commit(0); deep(calls, [{ tier: 'balanced' }, null])
     const deckRouter = fakeRouter(); seedWire(deckRouter, USER_PATH, 'balanced') // with a default of Auto the deck already sits on the Auto stop: nothing to save
     const deckCalls = []; const deck = await mountSlider({ router: deckRouter, props: { sessionId: 'sess-fixture-1' }, onChange: choice => deckCalls.push(choice) }); await deck.open(); await deck.commit(0); await deck.commit(3); deep(deckCalls, [{ auto: true }, { tier: 'best' }])
-    const refused = fakeRouter({ refuseAuto: true }); const refusedCalls = []; const r = await mountSlider({ router: refused, props: { sessionId: 'sess-fixture-1' }, onChange: choice => refusedCalls.push(choice) }); await r.open(); await r.commit(3); await r.commit(0)
+    const refused = fakeRouter({ refuseAuto: true }); const refusedCalls = []; const r = await mountSlider({ router: refused, props: { sessionId: 'sess-fixture-1' }, onChange: choice => refusedCalls.push(choice) }); await r.open(); await r.commit(3); await r.drag(0); await r.commit(0) // the thumb was dragged to Auto, the save was refused: it goes back
     deep(refusedCalls, [{ tier: 'best' }]); eq(r.gauge().props['aria-label'], 'Model: Best', 'a refused Auto puts the stop back'); deep(r.slider().props.value, [3]); eq(r.status(), 'Auto cannot be saved for this presentation right now, so it keeps what it had.')
   })
 
@@ -1114,14 +1114,14 @@ const MUTANTS = [
   ['component: no accessible label', C, 'aria-label={`Model: ${label.full}`} ', ''],
   ['component: no title', C, 'title={`Model: ${label.full}`}', 'title=""'],
   ['component: the menu stays open after a pick', C, 'onPick={choice => { setOpen(false); setView("main"); void api.select(choice) }}', 'onPick={choice => { void api.select(choice) }}'],
-  ['component: no pressed state', C, 'aria-pressed={option.selected} ', ''],
+  ['component: no pressed state', FILES.option, 'aria-pressed={option.selected} ', ''],
   ['component: Escape is swallowed', C, 'side="top" align="start"', 'onEscapeKeyDown={event => event.preventDefault()} side="top" align="start"'],
   ['component: focus is not returned', C, 'side="top" align="start"', 'onCloseAutoFocus={event => event.preventDefault()} side="top" align="start"'],
   ['component: the chip opens before the choices are in', C, 'const blocked = Boolean(disabled) || !ready', 'const blocked = Boolean(disabled)'],
   ['component: disabled is ignored', C, 'const blocked = Boolean(disabled) || !ready', 'const blocked = !ready'],
   ['component: className is dropped', C, '["mpick-chip", className].filter(Boolean).join(" ")', '"mpick-chip"'],
   ['component: no Back button', C, '{models ? <button type="button" className="mpick-item mpick-back"', '{false ? <button type="button" className="mpick-item mpick-back"'],
-  ['component: the hint is read as symbols', C, '<span className="mpick-sr">, cost {costLevel(option.hint)} of 3</span>', ''],
+  ['component: the hint is read as symbols', FILES.option, '<span className="mpick-sr">, cost {costLevel(option.hint)} of 3</span>', ''],
   ['component: the menu is not described', C, ' aria-describedby={notesId}', ''],
   ['component: the menu has no label', C, ' aria-label={PICKER_MENU_LABEL}', ''],
   ['css: a 32 px chip', S, '  height: 24px;\n  min-width: 32px;', '  height: 32px;\n  min-width: 32px;'],
