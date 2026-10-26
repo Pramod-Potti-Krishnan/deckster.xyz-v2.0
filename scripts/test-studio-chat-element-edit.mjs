@@ -1098,6 +1098,8 @@ const SHARED_COMMITS = { // "Arrange proof tolerance: ..." (tests only), both by
 await check('scope: this change\'s own commits (the first-parent line without merges) touch this change\'s files, every subject starts "Chat element edit:" (a shared cherry-pick is named and bounded)', async () => {
   // A merge of dev brings dev's history in by its second parent, and dev's files are their changes' own.
   const shas = git('rev-list', '--first-parent', '--no-merges', `${BASE_COMMIT}..HEAD`).split('\n').filter(Boolean)
+  // Merged into dev, this change's commits come in by the merge's second parent and the first-parent line has none of them: nothing of this change's own is left to read (the files are dev's then).
+  if (shas.length === 0) { console.log('NOTE scope: no commit of this change on the first-parent line (merged into dev: its commits are on the second parent); the pins and identity checks above cover the files'); return }
   assert.ok(shas.length >= 5, `${shas.length} own commits`)
   const own = []
   for (const sha of shas) {
