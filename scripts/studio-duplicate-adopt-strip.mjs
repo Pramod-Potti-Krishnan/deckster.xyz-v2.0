@@ -78,6 +78,16 @@ export const DUPLICATE_ADOPT_PIN_EDITS = {
       "const HEAD = git('log', '-1', '--format=%H', '--no-merges', '-E', '--grep=^(Speed perceived|Studio perceived speed):', 'HEAD').trim() || git('rev-parse', 'HEAD').trim() // LATER-CHANGES: registry read (DUPLICATE-ADOPT): this change's own newest commit, so a change stacked after it is not read as this one's diff\n",
       "const HEAD = git('rev-parse', 'HEAD').trim()\n"
     ]
+  ],
+  "scripts/studio-duplicate-deck-strip.mjs": [
+    [
+      "import { stripDuplicateAdopt } from './studio-duplicate-adopt-strip.mjs' // LATER-CHANGES: registry read (DUPLICATE-ADOPT): Duplicate's step 4 adds marked lines inside this change's handler, so they come out first and the literals below still match\n",
+      ""
+    ],
+    [
+      "  return table.reduce((result, [added, original]) => result.replace(added, () => original), stripDuplicateAdopt(rel, text)) // LATER-CHANGES: registry read (DUPLICATE-ADOPT)\n",
+      "  return table.reduce((result, [added, original]) => result.replace(added, () => original), text)\n"
+    ]
   ]
 }
 
