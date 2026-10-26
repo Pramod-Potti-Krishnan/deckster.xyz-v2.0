@@ -15,6 +15,7 @@ import { CHAT_THEME_EXPORT_CAPS, chatThemeExportDirectiveKind, themeExportDirect
 import { STUDIO_JOB_LEDGER_ENABLED, JOB_UPDATE_TYPE, jobLedgerRow, jobLedgerRows } from '@/lib/studio-job-ledger';
 import { STUDIO_BULK_EDIT_UNDO_ENABLED, STUDIO_CHAT_UNDO_ENABLED, BULK_EDIT_UNDO_CLIENT_CAPS, addBulkEditUndoCaps, normaliseDeckRestored } from '@/lib/studio-bulk-edit-wire'; // BULK-EDIT-UNDO (flags NEXT_PUBLIC_STUDIO_BULK_EDIT / NEXT_PUBLIC_STUDIO_CHAT_UNDO, default off)
 import { bulkEditUndoContext, routeStudioBulkEditUndoFrame } from '@/lib/studio-bulk-edit-store'; // BULK-EDIT-UNDO
+import { STUDIO_FLOW_AMEND_ENABLED, STUDIO_FLOW_FOCUS_ENABLED, flowBus, isFlowFocusFrameType, isFlowSettledPhase, takeFlowInstructions } from '@/lib/studio-flow-control'; // FLOW-CONTROL (NEXT_PUBLIC_STUDIO_FLOW_FOCUS / _FLOW_AMEND, default off)
 import type { ManualDeckContext } from '@/lib/manual-deck-workflow';
 import type { DeckFooterConfig, DeckIdentity } from '@/lib/deck-identity';
 import {
@@ -1954,6 +1955,13 @@ export function useDecksterWebSocketV2(options: UseDecksterWebSocketV2Options = 
               const rows = jobLedgerRows((parsedMessage.payload as { jobs?: unknown } | null | undefined)?.jobs);
               if (rows) transportCallbacksRef.current.onJobsSync?.(rows, { sessionId: socketSessionId, isCurrent: isCurrentSocket });
             }
+            // FLOW-CONTROL (NEXT_PUBLIC_STUDIO_FLOW_FOCUS, default off): the stage follows the slide Director built or changed. The frames that name a slide (isFlowFocusFrameType) are shown to the page's flow hook here
+            // FLOW-CONTROL: (flowBus.focus), for this socket's session only, ahead of every other handling: deck_mutation (a restored deck too: its raw deck_restored, which the checks below drop unless chat undo is on),
+            // FLOW-CONTROL: change_recorded (which the bulk-edit route below consumes), slide_built, slide_ready and slide_update. It drops a message_id it has seen. Nothing else changes: the frame carries on exactly as before.
+            if (STUDIO_FLOW_FOCUS_ENABLED && isFlowFocusFrameType(parsedMessage.type) && parsedMessage.session_id === socketSessionId && isCurrentSocket()) flowBus.focus?.(parsedMessage); // FLOW-CONTROL
+            // FLOW-CONTROL (NEXT_PUBLIC_STUDIO_FLOW_AMEND, default off): every build_phase is shown to the flow hook first (steer_pending, applied_to, settled). `settled` is a phase the narration does not know (it would read
+            // FLOW-CONTROL: as "running"), so that frame goes no further. Every other build_phase carries on exactly as before.
+            if (STUDIO_FLOW_AMEND_ENABLED && parsedMessage.type === 'build_phase') { if (parsedMessage.session_id === socketSessionId && isCurrentSocket()) flowBus.phase?.(parsedMessage.payload); if (isFlowSettledPhase(parsedMessage.payload)) return; } // FLOW-CONTROL
             // BULK-EDIT-UNDO (NEXT_PUBLIC_STUDIO_BULK_EDIT / NEXT_PUBLIC_STUDIO_CHAT_UNDO, default off): Director's chat lines (the Undo chip's anchor), the bulk-edit confirm (its chip titles) and its receipts and summary,
             // BULK-EDIT-UNDO: change_recorded and undo_result go to this tab's store (lib/studio-bulk-edit-store.ts), here, ahead of the allowlist. The frames it takes (receipts, summary, change_recorded, undo_result) stop
             // BULK-EDIT-UNDO: here: they never reach the reducer, the transcript or the cache, and they do not unlock the turn. Director sends them only to a client that advertised bulk_edit1 / undo1 (the caps below, flag on only),
@@ -3595,6 +3603,7 @@ export function useDecksterWebSocketV2(options: UseDecksterWebSocketV2Options = 
   // Requires Director BUILD_CONTROL_ENABLED; the ack is the resulting
   // build_phase frame (paused/building/stopped).
   const sendBuildControl = useCallback((action: BuildControlData['action'], buildId?: string): string | null => {
+    const instructions = takeFlowInstructions(); // FLOW-CONTROL: what the flow hook left for this one request (a resume with the user's changes), taken once
     const requestId = createBuildControlRequestId(
       typeof globalThis.crypto?.randomUUID === 'function'
         ? globalThis.crypto.randomUUID.bind(globalThis.crypto)
@@ -3618,6 +3627,7 @@ export function useDecksterWebSocketV2(options: UseDecksterWebSocketV2Options = 
       user_id: requestUserId,
       action,
       ...(buildId ? { build_id: buildId } : {}),
+      ...(instructions ? { instructions } : {}), // FLOW-CONTROL
       request_id: requestId,
       ...(requestControlToken ? { control_token: requestControlToken } : {}),
     };
@@ -3644,6 +3654,7 @@ export function useDecksterWebSocketV2(options: UseDecksterWebSocketV2Options = 
           data: {
             action,
             ...(buildId ? { build_id: buildId } : {}),
+            ...(instructions ? { instructions } : {}), // FLOW-CONTROL
             request_id: requestId,
             session_id: requestSessionId,
             user_id: requestUserId,
