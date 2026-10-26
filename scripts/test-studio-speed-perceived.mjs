@@ -385,7 +385,7 @@ console.log(`PASS C  ${caught} of ${mutants.length} lib mutants caught (control 
 // ---- D. scope over the committed diff -----------------------------------------------------------------------
 const git = (...args) => execFileSync('git', ['-C', root, ...args], { encoding: 'utf8', maxBuffer: 1 << 28 })
 const BASE = stripModule.BASE_COMMIT
-const HEAD = git('rev-parse', 'HEAD').trim()
+const HEAD = git('log', '-1', '--format=%H', '--no-merges', '-E', '--grep=^(Speed perceived|Studio perceived speed):', 'HEAD').trim() || git('rev-parse', 'HEAD').trim() // LATER-CHANGES: registry read (DUPLICATE-ADOPT): this change's own newest commit, so a change stacked after it is not read as this one's diff
 if (HEAD === BASE) {
   console.log('SKIP D  nothing committed on top of the base yet (the scope check reads BASE..HEAD only)')
 } else {
