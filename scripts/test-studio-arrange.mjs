@@ -176,38 +176,54 @@ function cutHandler(source, heading) {
 }
 const TEXT_HEADING = '  // Listen for text box selection events from iframe\n'
 const ELEMENT_HEADING = '  // Listen for element selection events from iframe (Image, Chart, Table, Infographic, Diagram)\n'
+/** The viewer read past every OTHER registered later change's marked lines (a change merged beside this one adds its own lines to these handlers). */
+const viewerPastPeers = text => registry.LATER_STRIPS.filter(fn => fn !== strip.stripStudioArrange).reduce((out, fn) => { const next = fn(VIEWER, out); return typeof next === 'string' ? next : out }, text)
+const SAVE_HEADING = '      // Handle save status updates from auto-save system\n'
+/** The viewer's save-status block (Layout's saveStatusChanged: "unsaved" / "saving" / "error" retire every selection by bumping the interaction intent), cut out by exact anchors. */
+function cutSaveBlock(source) {
+  const start = source.indexOf(SAVE_HEADING)
+  const end = source.indexOf("\n      if (\n        type === 'refineElementRequested' &&", start)
+  assert.ok(start > 0 && end > start, 'viewer: save-status block anchors')
+  return source.slice(start, end + 1)
+}
 function selectionHandlers(viewerSource, env, deps) {
+  viewerSource = viewerPastPeers(viewerSource)
   const body = [cutHandler(viewerSource, TEXT_HEADING), cutHandler(viewerSource, ELEMENT_HEADING)]
   const names = ['VIEWER_ORIGIN', 'LAYOUT_URL_CONFIG_ERROR', 'isTrustedLayoutViewerMessage', 'iframeRef', 'studioShell', 'beginStudioViewerInteraction', 'ensureEditMode', 'setSelectedTextBoxId',
     'studioArrangeSelectionRef', 'captureStudioFormatSelection', 'onTextBoxSelected', 'studioArrangeRaisesOnSelect', 'sendCommand', 'debugLog', 'viewerInteractionIntentRef', 'onTextBoxDeselected',
-    'onElementSelected', 'onElementDeselected', 'reportDeckChange', 'onElementDeleted']
+    'onElementSelected', 'onElementDeselected', 'reportDeckChange', 'onElementDeleted', 'nativeSnapshotDirtyRef', 'reportOwnDeckEdit', 'setNativeSnapshotSafetyRevision', 'setSaveStatus',
+    ...(deps.studioArrangeOwnsSaveStatus ? ['studioArrangeOwnsSaveStatus'] : [])]
   const make = index => `export function make${index}(deps: any) {\n  const { ${names.join(', ')} } = deps\n${body[index]}  return handleMessage\n}\n`
-  const mod = loadModule(make(0) + make(1), 'viewer-selection-handlers.ts', { env, requireMap: {} })
-  return [mod.make0(deps), mod.make1(deps)]
+  const save = `export function makeSave(deps: any) {\n  const { ${names.join(', ')} } = deps\n  return (event: MessageEvent) => {\n    if (!isTrustedLayoutViewerMessage(event, iframeRef.current, VIEWER_ORIGIN)) return\n    const type = event.data?.type\n${cutSaveBlock(viewerSource)}  }\n}\n`
+  const mod = loadModule(make(0) + make(1) + save, 'viewer-selection-handlers.ts', { env, requireMap: {} })
+  return [mod.make0(deps), mod.make1(deps), mod.makeSave(deps)]
 }
 
 /** The select path of one world: the viewer's real handlers (flag `env`), a selection handle per selection (built as captureStudioFormatSelection builds it), and what the handlers sent. */
 function wireSelection(world, env, { viewerSource = SRC[VIEWER], src = SRC } = {}) {
   const modules = studioModules(env, src, world.studioWindow)
-  const sent = [], selections = []
+  const sent = [], selections = [], saveStatuses = []
   const ref = { current: null }
+  const intentRef = { current: 0 }
   const deps = {
     VIEWER_ORIGIN, LAYOUT_URL_CONFIG_ERROR: null, isTrustedLayoutViewerMessage: modules.messaging.isTrustedLayoutViewerMessage, iframeRef: { current: world.iframe }, studioShell: true,
     beginStudioViewerInteraction: () => ({ iframe: world.iframe, isCurrent: () => true }), ensureEditMode: async () => true, setSelectedTextBoxId() {},
     studioArrangeSelectionRef: ref, onTextBoxSelected() {}, onElementSelected() {}, onTextBoxDeselected() {}, onElementDeselected() {}, onElementDeleted() {}, reportDeckChange() {},
     studioArrangeRaisesOnSelect: modules.arrange ? modules.arrange.studioArrangeRaisesOnSelect : () => true,
     sendCommand: (iframe, action, params) => { sent.push({ action, params: plain(params) }); return Promise.resolve({ success: true }) },
-    debugLog() {}, viewerInteractionIntentRef: { current: 0 },
+    debugLog() {}, viewerInteractionIntentRef: intentRef, nativeSnapshotDirtyRef: { current: false }, reportOwnDeckEdit() {}, setNativeSnapshotSafetyRevision() {}, setSaveStatus: status => saveStatuses.push(status),
+    ...(modules.arrange?.studioArrangeOwnsSaveStatus ? { studioArrangeOwnsSaveStatus: modules.arrange.studioArrangeOwnsSaveStatus } : {}),
     captureStudioFormatSelection(elementId, eventKind, elementType) {
+      const intent = intentRef.current // captureStudioFormatSelection's isCurrent holds viewerInteractionIntentRef.current === intent (section A holds the source to it)
       // as components/presentation-viewer.tsx captureStudioFormatSelection calls it (the STUDIO-ARRANGE spread sits between presentationId and sessionId: section A holds the source to it)
       const input = { iframe: world.iframe, elementId, presentationId: 'pres-e2e', ...(modules.arrange ? modules.arrange.studioArrangeSelectionInput(eventKind, ref.current) : {}),
-        sessionId: 'session-1', slideIndex: 0, eventKind, elementType, owner: {}, isCurrent: () => true }
+        sessionId: 'session-1', slideIndex: 0, eventKind, elementType, owner: {}, isCurrent: () => intentRef.current === intent }
       selections.push({ elementId, eventKind, elementType, input, handle: modules.native.createStudioFormatSelectionHandle(input) })
     },
   }
   const handlers = selectionHandlers(viewerSource, env, deps)
   for (const handler of handlers) world.studioWindow.addEventListener('message', handler)
-  return { modules, sent, selections, handlers }
+  return { modules, sent, selections, handlers, intentRef, saveStatuses }
 }
 
 async function selectAndRead(world, wiring, id) {
@@ -274,6 +290,7 @@ function mountInspector(env, props, source = SRC[INSPECTOR]) {
     checkbox: (panel = 'Arrange') => api.within(panel, node => node.type === 'input' && node.props.type === 'checkbox'),
     failure: () => { const node = api.nodes().find(n => n.props?.['data-studio-format-failure'] === 'true'); return node ? text(node) : null },
     arrangeText: () => text(api.panel('Arrange') ?? { children: [] }),
+    variant: () => api.within('Arrange', node => node.props?.['data-studio-arrange-v4'] !== undefined)[0]?.props['data-studio-arrange-v4'] ?? null,
     tabs: () => api.nodes().filter(node => node.props?.role === 'tab').map(text),
     text,
   }
@@ -307,6 +324,8 @@ function mountInspector(env, props, source = SRC[INSPECTOR]) {
   check(assert.ok, SRC[VIEWER].includes("    selection = createStudioFormatSelectionHandle({ iframe, elementId, presentationId: owner.presentationId,\n      ...studioArrangeSelectionInput(eventKind, studioArrangeSelectionRef.current), // STUDIO-ARRANGE"), 'the handle input spread')
   check(assert.equal, (SRC[VIEWER].match(/^\s*if \(studioArrangeRaisesOnSelect\(\)\) \/\/ STUDIO-ARRANGE[^\n]*\n\s*void sendCommand\(interaction\?\.iframe \?\? iframeRef\.current, 'bringToFront', \{ elementId \}\)/gm) || []).length, 2, 'both select-raises are behind the one guard')
   check(assert.equal, (SRC[VIEWER].match(/'bringToFront'/g) || []).length, 2, 'no other bringToFront in the viewer')
+  check(assert.match, SRC[VIEWER], /const isCurrent = \(\) => Boolean\(selection && studioFormatSelectionRef\.current === selection[\s\S]{0,600}viewerInteractionIntentRef\.current === intent/, 'the selection is current only while the viewer\'s interaction intent is the one it was captured at (what the wiring emulates)')
+  check(assert.match, SRC[VIEWER], /if \(status !== 'saved'\) \{\n(?:[^\n]*STUDIO-ARRANGE[^\n]*\n)?\s*if \(studioShell\) viewerInteractionIntentRef\.current \+= 1\n/, 'a save status other than "saved" retires the selection (the bump the wiring runs)')
   // page.tsx: a confirmed command is followed by a native re-read (what pageSend does)
   check(assert.match, read(PAGE), /const result = await request\.selection\.send\(action, params, target\)[\s\S]{0,700}const refreshed = await request\.selection\.read\(\)/, 'page.tsx re-reads after a confirmed command')
   console.log(`PASS A  strip and byte identity (${checks} checks)`)
@@ -386,7 +405,40 @@ async function selectPath(value, viewerSource = SRC[VIEWER], src = SRC, label = 
   check(assert.equal, on.inputs[0].arrange, undefined, 'a text box selection carries no properties')
   check(assert.ok, on.inputs[1].arrange && on.inputs[2].arrange, 'an element selection hands its properties to the handle')
   if (live) check(assert.deepEqual, plain({ position: on.inputs[1].arrange.position, size: on.inputs[1].arrange.size }), createWorld('probe-geometry').slideGeometry('img1'), 'with Layout\'s flag on, those properties are Layout\'s slide pixels')
-  console.log(`PASS C  select path: base and flag off raise on every selection; flag on sends nothing (${checks} checks)`)
+  // the viewer's save-status block: flag off it retires the selection exactly as the base's does; flag on, only Layout's "unsaved" inside the selection's own Arrange command is spared
+  const baseSave = await saveStatusRuns(undefined, BASE_SRC[VIEWER], { ...BASE_SRC, [ARRANGE]: null })
+  check(assert.equal, baseSave.outside, 4, 'base: unsaved, saving, error and unsaved each retire the selection')
+  for (const value of OFF_VALUES) {
+    const off = await saveStatusRuns(value)
+    check(assert.deepEqual, [off.outside, off.saved.slice(0, 5)], [baseSave.outside, baseSave.saved], `flag ${JSON.stringify(value)}: the save-status block is the base's`)
+    check(assert.deepEqual, [off.inside, off.after], [[1, 1, 0, 1, 1], 1], `flag ${JSON.stringify(value)}: nothing is spared, even inside an Arrange command`)
+  }
+  const onSave = await saveStatusRuns('true')
+  check(assert.equal, onSave.outside, 4, 'flag on, no own command in flight: every non-"saved" status retires the selection')
+  check(assert.deepEqual, onSave.inside, [0, 1, 0, 1, 0], 'flag on, inside the own command: only "unsaved" is spared ("saving" and "error" still retire)')
+  check(assert.equal, onSave.after, 1, 'flag on, after the answer: "unsaved" retires the selection again')
+  console.log(`PASS C  select path: base and flag off raise on every selection; flag on sends nothing; the save-status block spares only the own command's "unsaved" (${checks} checks)`)
+}
+
+/** The viewer's real save-status block on a bare window: how many times each status sequence retires the selection, outside and inside the selection's own Arrange command. */
+async function saveStatusRuns(value, viewerSource = SRC[VIEWER], src = SRC) {
+  const listeners = new Set()
+  const viewerWindow = {}
+  const bare = { studioWindow: { addEventListener: (type, fn) => type === 'message' && listeners.add(fn), removeEventListener: (type, fn) => listeners.delete(fn) }, iframe: { src: `${VIEWER_ORIGIN}/p/pres-e2e`, contentWindow: viewerWindow } }
+  const wiring = wireSelection(bare, env(value), { viewerSource, src })
+  const post = status => { for (const fn of [...listeners]) fn({ source: viewerWindow, origin: VIEWER_ORIGIN, data: { type: 'saveStatusChanged', status, hasPendingChanges: status !== 'saved' } }) }
+  const bumps = statuses => { const before = wiring.intentRef.current; statuses.forEach(post); return wiring.intentRef.current - before }
+  const statuses = ['unsaved', 'saving', 'saved', 'error', 'unsaved']
+  const outside = bumps(statuses)
+  let inside = null, after = null
+  if (wiring.modules.arrange?.studioArrangeOwnCommand) {
+    let release
+    const own = wiring.modules.arrange.studioArrangeOwnCommand(() => new Promise(resolve => { release = resolve }))
+    inside = statuses.map(status => bumps([status]))
+    release(); await own; await turn()
+    after = bumps(['unsaved'])
+  }
+  return { outside, inside, after, saved: plain(wiring.saveStatuses) }
 }
 
 // ============================================================ D. every control -> the exact command, against the viewer
@@ -467,7 +519,9 @@ const AFTER = { 'Width, keep proportions': p => assert.deepEqual(plain(p.size), 
       check(assert.equal, s.arrangeRequests(), count + 1, `${id} ${control}: one command`)
       const want = { action: command, params: { elementId: id, ...(typeof params === 'function' ? params() : params) } }
       check(assert.deepEqual, s.lastRequest(), want, `${id} ${control}: ${command} with exactly these params`)
-      check(assert.equal, s.inspector.failure(), null, `${id} ${control}: no failure shown`)
+      check(assert.equal, s.inspector.failure(), null, `${id} ${control}: no failure notice after a confirmed command`)
+      check(assert.equal, s.selection.handle.isCurrent(), true, `${id} ${control}: the viewer's own "unsaved" for this change did not retire the selection`)
+      check(assert.equal, s.inspector.variant(), control === 'Lock' ? 'locked' : 'on', `${id} ${control}: the panel is the ${control === 'Lock' ? 'locked' : 'full'} one`)
       if (id === 'tb1') TABLE.push([control, `${command} ${JSON.stringify(want.params).replace(`"elementId":"${id}"`, 'elementId')}`])
       const p = s.target.properties
       check(assert.equal, s.inspector.input('Horizontal position in slide pixels')[0]?.props.value ?? null, p.locked ? null : String(p.position.x), `${id} ${control}: the numbers are the re-read ones`)
@@ -507,13 +561,24 @@ const AFTER = { 'Width, keep proportions': p => assert.deepEqual(plain(p.size), 
   s.world.setMode('edit')
   s.world.finish()
 
-  // a refusal: locked behind the inspector's back (another lockElement reached the viewer first), then a move from the stale controls
-  const k = await inspectorWorld('locked-refusal')
+  // a change that is NOT the selection's own (a lockElement another caller sent) still retires the selection: Layout's "unsaved" for it bumps the intent as before
+  const k = await inspectorWorld('foreign-change')
   await k.open('img1')
-  const other = k.wiring.modules.native.sendStudioFormatNativeCommand(k.world.iframe, 'lockElement', { elementId: 'img1', locked: true }, () => true, 8000)
-  await other
-  await k.click('Align to slide right')
-  check(assert.match, k.inspector.failure() ?? '', /This element is locked\. Unlock it to move, resize or align it\./, 'Element is locked -> plain words')
+  await k.click('Bring to front')
+  check(assert.equal, k.selection.handle.isCurrent(), true, 'after its own command the selection is current')
+  const foreign = await k.wiring.modules.native.sendStudioFormatNativeCommand(k.world.iframe, 'lockElement', { elementId: 'img1', locked: true }, () => true, 8000)
+  await settle()
+  check(assert.equal, foreign.locked, true)
+  check(assert.equal, k.selection.handle.isCurrent(), false, 'a foreign change retires the selection (the viewer\'s save status bump, unchanged)')
+  check(assert.ok, k.wiring.saveStatuses.includes('unsaved'), 'the viewer saw Layout\'s "unsaved"')
+  const sentBefore = k.world.requests.length
+  await k.inspector.button('Align to slide right')[0].props.onClick(); await k.idle()
+  check(assert.match, k.inspector.failure() ?? '', /Select the element again before formatting\./, 'the stale inspector asks for a new selection')
+  check(assert.equal, k.world.requests.length, sentBefore, 'and sends nothing')
+  // Layout's own refusal of a locked element, in plain words
+  const refusal = await k.wiring.modules.native.sendStudioFormatNativeCommand(k.world.iframe, 'alignElement', { elementId: 'img1', horizontal: 'right' }, () => true, 8000).catch(error => error.message)
+  check(assert.equal, refusal, 'Element is locked', 'Layout refuses a move of a locked element')
+  check(assert.equal, k.wiring.modules.arrange.studioArrangeErrorText(refusal), 'This element is locked. Unlock it to move, resize or align it.', 'in plain words')
   k.world.finish()
 
   // Studio's flag on, Layout's off: an element's properties are viewport pixels -> Arrange stays disabled (as today); a text box (no properties) -> the viewer's "Unknown action" in plain words
@@ -665,8 +730,19 @@ if (!record) {
       await act()
       assert.deepEqual(s.lastRequest(), { action: command, params: { elementId: 'ch1', ...(typeof params === 'function' ? params() : params) } }, control)
       if (AFTER[control]) AFTER[control](s.target.properties)
+      assert.equal(s.inspector.failure(), null, `${control}: no failure notice`)
+      assert.equal(s.selection.handle.isCurrent(), true, `${control}: still current`)
+      assert.equal(s.inspector.variant(), control === 'Lock' ? 'locked' : 'on', `${control}: panel variant`)
+      const p = s.target.properties
+      assert.equal(s.inspector.input('Horizontal position in slide pixels')[0]?.props.value ?? null, p.locked ? null : String(p.position.x), `${control}: the numbers are the re-read ones`)
       if (control === 'Lock') assert.deepEqual(s.inspector.within('Arrange', n => n.type === 'button' || n.type === 'input').map(n => s.inspector.text(n)), ['Unlock'])
     }
+    const save = await saveStatusRuns('true', src[VIEWER], src)
+    assert.deepEqual([save.outside, save.inside, save.after], [4, [0, 1, 0, 1, 0], 1])
+    const k = await inspectorWorld('foreign-change', 'true', { src })
+    await k.open('img1'); await k.click('Bring to front'); assert.equal(k.selection.handle.isCurrent(), true)
+    await k.wiring.modules.native.sendStudioFormatNativeCommand(k.world.iframe, 'lockElement', { elementId: 'img1', locked: true }, () => true, 8000); await settle()
+    assert.equal(k.selection.handle.isCurrent(), false, 'a foreign change retires the selection')
     for (const label of ['Rotate unavailable', 'Element CSS classes unavailable']) assert.equal(s.inspector.input(label)[0].props.disabled, true)
     const sh = await inspectorWorld('not-yet-sh1', 'true', { src })
     await sh.open('sh1')
@@ -705,6 +781,13 @@ if (!record) {
     M(INSPECTOR, "  if (properties?.locked && !notYet) return", "  if (false && properties?.locked && !notYet) return", 'locked shows every control'),
     M(INSPECTOR, "  const notYet = studioArrangeNotYet(target) // STUDIO-ARRANGE\n", "  const notYet = false // STUDIO-ARRANGE\n", 'shapes and tables not marked'),
     M(INSPECTOR, "{STUDIO_ARRANGE && (nativeProperties || studioArrangeNotYet(target)) ?", "{(nativeProperties || studioArrangeNotYet(target)) ?", 'inspector ignores the flag'),
+    // follow-up (PNG run on Layout 0aaef720): the false "not confirmed" notice and the Lock panel that did not refresh
+    M(VIEWER, "          if (!studioArrangeOwnsSaveStatus(status)) // STUDIO-ARRANGE", "          if (true) // STUDIO-ARRANGE", 'the own command\'s "unsaved" retires the selection again (the false notice)'),
+    M(NATIVE, "const answer = await studioArrangeOwnCommand(() => native(action, commandParams, 30000))", "const answer = await (() => native(action, commandParams, 30000))()", 'the arrange send runs outside the own-command window'),
+    M(ARRANGE, "  ownCommand = token\n", "", 'the own-command window never opens'),
+    M(ARRANGE, "  return run().finally(() => { if (ownCommand === token) ownCommand = null })", "  return run()", 'the own-command window never closes (a foreign change would not retire the selection)'),
+    M(ARRANGE, "return STUDIO_ARRANGE_ENABLED && ownCommand !== null && status === 'unsaved'", "return STUDIO_ARRANGE_ENABLED && ownCommand !== null", 'every save status is spared inside the window'),
+    M(INSPECTOR, "<StudioArrange key={`arrange-${readRevision}`}", "<StudioArrange key=\"arrange\"", 'the numbers do not refresh after a change'),
   ]
   let caught = 0
   for (const mutant of mutants) {

@@ -147,7 +147,7 @@ import {
 import { SlideBuildingLoader } from './slide-building-loader'
 import type { BuildThemeSelection } from '@/lib/theme-builder'
 import { createStudioFormatSelectionHandle, type StudioFormatSelectionHandle } from '@/lib/studio-format-native'
-import { studioArrangeRaisesOnSelect, studioArrangeSelectionInput } from '@/lib/studio-arrange' // STUDIO-ARRANGE (NEXT_PUBLIC_STUDIO_ARRANGE, default off): no raise on select; Arrange reads the selection's properties
+import { studioArrangeRaisesOnSelect, studioArrangeSelectionInput, studioArrangeOwnsSaveStatus } from '@/lib/studio-arrange' // STUDIO-ARRANGE (NEXT_PUBLIC_STUDIO_ARRANGE, default off): no raise on select; Arrange reads the selection's properties
 import { IDLE_THEME_SYNC, type ThemeSyncState } from '@/lib/theme-sync'
 import {
   isDiagramRendererStateEvent,
@@ -3904,6 +3904,7 @@ export function PresentationViewer({
         const status = event.data.status as SaveStatus
         if (!['saved', 'unsaved', 'saving', 'error'].includes(status)) return
         if (status !== 'saved') {
+          if (!studioArrangeOwnsSaveStatus(status)) // STUDIO-ARRANGE: Layout's "unsaved" for the selection's own Arrange command (it arrives before the answer) does not retire the selection
           if (studioShell) viewerInteractionIntentRef.current += 1
           nativeSnapshotDirtyRef.current = true
           reportOwnDeckEdit() // NEXT_PUBLIC_STUDIO_DECK_CHANGED_NOTICE: this tab's own autosave is not "another tab" (no-op with the flag off)

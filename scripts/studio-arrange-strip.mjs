@@ -2,8 +2,8 @@
 // build-time; lib/studio-arrange.ts). With it on: selecting an element no longer sends bringToFront (components/presentation-viewer.tsx, one guard: studioArrangeRaisesOnSelect), and the v4 Format inspector's Arrange tab
 // admits Order, Align, Position, Size and Lock in slide pixels (lib/studio-format-native.ts admits them, components/builder/studio-format-inspector.tsx draws them); Rotate, Flip and style classes say "Not available yet",
 // shapes and tables get every Arrange control disabled, a locked element shows only Unlock.
-// Every line this change adds to an EXISTING file is a pure insertion that carries the marker STUDIO-ARRANGE (matched as a whole token): seven in the viewer (the import, a ref, the selection input, the two select-raise
-// guards and the two ref writes), seven in lib/studio-format-native.ts, the inspector's flag, helper, Arrange-tab switch and its StudioArrange component. The legacy panel (components/element-format-panel) is NOT changed.
+// Every line this change adds to an EXISTING file is a pure insertion that carries the marker STUDIO-ARRANGE (matched as a whole token): eight in the viewer (the import, a ref, the selection input, the two select-raise
+// guards, the two ref writes and the save-status guard that keeps Layout's "unsaved" for the selection's own Arrange command from retiring the selection), seven in lib/studio-format-native.ts, the inspector's flag, helper, Arrange-tab switch and its StudioArrange component. The legacy panel (components/element-format-panel) is NOT changed.
 // Strip those lines and each file is its base, byte for byte.
 // How the older pins reach it: this change REGISTERS its files, its .env.example block and this strip (scripts/studio-later-changes.mjs, three lines). Plain node, no imports, nothing read from disk or git here; any other
 // file comes back as it is.

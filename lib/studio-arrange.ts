@@ -174,6 +174,26 @@ export function studioArrangeErrorText(message: string): string {
   return message
 }
 
+/**
+ * The selection's own Arrange command, from just before it is posted until its answer is in. Layout marks the change for autosave while it
+ * runs the command, so its saveStatusChanged "unsaved" reaches Studio BEFORE the command's answer. The viewer retires every selection on a
+ * save status other than "saved" (components/presentation-viewer.tsx bumps its interaction intent), which made the answer to every changing
+ * Arrange command read as "The selected element changed before confirmation.". That one frame is the command's own consequence on the same
+ * element, so it does not retire the selection; any other save status, and any "unsaved" outside the window (a change made by anyone else),
+ * still does.
+ */
+let ownCommand: object | null = null
+export function studioArrangeOwnCommand<T>(run: () => Promise<T>): Promise<T> {
+  if (!STUDIO_ARRANGE_ENABLED) return run()
+  const token = {}
+  ownCommand = token
+  return run().finally(() => { if (ownCommand === token) ownCommand = null })
+}
+/** True for Layout's "unsaved" while the selection's own Arrange command is in flight (the viewer then leaves the selection current). */
+export function studioArrangeOwnsSaveStatus(status: unknown): boolean {
+  return STUDIO_ARRANGE_ENABLED && ownCommand !== null && status === 'unsaved'
+}
+
 /** The lock state a confirmed lockElement answer reports (Layout echoes `locked`), else the previous one. */
 export function studioArrangeConfirmedLock(previous: boolean | null, action: string, answer: unknown): boolean | null {
   return action === 'lockElement' && record(answer) && answer.success === true && typeof answer.locked === 'boolean' ? answer.locked : previous
