@@ -15,9 +15,13 @@ export const FILES = {
   catalog: 'lib/studio-model-catalog.ts',
   choice: 'lib/studio-model-choice.ts',
   picker: 'lib/studio-model-picker.ts',
+  sliderLib: 'lib/studio-model-slider.ts',
   hook: 'components/model-choice/use-model-choice.ts',
   component: 'components/model-choice/model-picker.tsx',
+  option: 'components/model-choice/model-option.tsx',
+  slider: 'components/model-choice/model-slider.tsx',
   css: 'components/model-choice/model-picker.css',
+  sliderCss: 'components/model-choice/model-slider.css',
 }
 
 const compiled = new Map()
@@ -40,20 +44,26 @@ export function runModule(rel, deps, { read = r => fs.readFileSync(path.join(roo
 }
 
 /** The picker's modules. `react` / `jsx` / `radix` / `lucide` are what the component and the hook import; `env` is process.env for the hook and the component; `globals` are window / fetch. */
-export function loadPicker({ read, react, jsx, radix, lucide, env = {}, globals = {} }) {
+export function loadPicker({ read, react, jsx, radix, radixSlider, lucide, env = {}, globals = {} }) {
   const opts = { read, context: { process: { env }, ...globals } }
   const p2 = runModule(FILES.p2, {}, opts)
   const cat = runModule(FILES.catalog, {}, opts)
   const choice = runModule(FILES.choice, { '@/lib/studio-intelligence-p2': p2, '@/lib/studio-model-catalog': cat }, opts)
   const picker = runModule(FILES.picker, { '@/lib/studio-intelligence-p2': p2, '@/lib/studio-model-catalog': cat, '@/lib/studio-model-choice': choice }, opts)
   const hook = runModule(FILES.hook, { react, '@/lib/studio-model-catalog': cat, '@/lib/studio-model-choice': choice, '@/lib/studio-model-picker': picker }, opts)
-  const component = runModule(FILES.component, {
-    react, 'react/jsx-runtime': jsx, '@radix-ui/react-popover': radix, 'lucide-react': lucide, '@/lib/studio-model-picker': picker, './use-model-choice': hook, './model-picker.css': {},
+  const sliderLib = runModule(FILES.sliderLib, { '@/lib/studio-model-choice': choice, '@/lib/studio-model-picker': picker }, opts)
+  const option = runModule(FILES.option, { 'lucide-react': lucide, 'react/jsx-runtime': jsx }, opts)
+  const slider = runModule(FILES.slider, {
+    react, 'react/jsx-runtime': jsx, '@radix-ui/react-popover': radix, '@radix-ui/react-slider': radixSlider, 'lucide-react': lucide, '@/lib/studio-model-picker': picker, '@/lib/studio-model-slider': sliderLib,
+    './model-option': option, './use-model-choice': hook, './model-picker.css': {}, './model-slider.css': {},
   }, opts)
-  return { p2, cat, choice, picker, hook, component }
+  const component = runModule(FILES.component, {
+    react, 'react/jsx-runtime': jsx, '@radix-ui/react-popover': radix, 'lucide-react': lucide, '@/lib/studio-model-picker': picker, '@/lib/studio-model-slider': sliderLib, './model-option': option, './model-slider': slider, './use-model-choice': hook, './model-picker.css': {},
+  }, opts)
+  return { p2, cat, choice, picker, sliderLib, hook, option, slider, component }
 }
 
 /** Real React, real Radix, real icons: for markup. */
 export function realDeps() {
-  return { react: nodeRequire('react'), jsx: nodeRequire('react/jsx-runtime'), radix: nodeRequire('@radix-ui/react-popover'), lucide: nodeRequire('lucide-react') }
+  return { react: nodeRequire('react'), jsx: nodeRequire('react/jsx-runtime'), radix: nodeRequire('@radix-ui/react-popover'), radixSlider: nodeRequire('@radix-ui/react-slider'), lucide: nodeRequire('lucide-react') }
 }
