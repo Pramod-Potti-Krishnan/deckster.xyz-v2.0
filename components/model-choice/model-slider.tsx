@@ -108,6 +108,9 @@ export function ModelSliderView({ label, valueText, stateKind, scope, mode, read
   </>
 }
 
+/** Where stop `i` of `n` sits along the track: its share of the width, and the inset Radix puts a 16 px thumb at (half the thumb at the start, none at the end), so a tick sits under the thumb when it is on it. */
+const tickLeft = (i: number, n: number) => { const percent = (i / Math.max(n - 1, 1)) * 100; return `calc(${percent}% + ${(8 - 0.16 * percent).toFixed(2)}px)` }
+
 /** What the popover holds: the slider, a label under each stop, the caption, "Advanced" (a closed <details>) and the two lines of notes. Presentation only. The thumb sits on `index` (on the first stop, faint, when
  * the choice is off the scale) or on `draft` while it is being moved; only a commit (pointer up, an arrow key, Home, End, a click on a stop's label) saves. */
 export function ModelSliderPanel({ label, valueText, scope, blocked, stops, index, offScale, draft = null, advanced, saveNote, saving = false, notesId, captionId, onDraft, onCommit, onAdvanced }: {
@@ -132,16 +135,17 @@ export function ModelSliderPanel({ label, valueText, scope, blocked, stops, inde
   const shown = draft !== null && draft !== index ? stops[draft] : null
   return (
     <div className="mpick-panel mpick-slider-panel" data-mpick-view="slider">
-      <div className="mpick-slider-head"><span className="mpick-slider-title">{SLIDER_LABEL}</span><span className="mpick-slider-value" data-mpick="value">{shown ? shown.label : label}</span></div>
+      <div className="mpick-slider-head"><span className="mpick-slider-title">{SLIDER_LABEL}</span>{offScale !== null ? <span className="mpick-slider-value" data-mpick="value">{label}</span> : null}</div>
       <SliderPrimitive.Root
         className="mpick-slider-root" min={0} max={Math.max(stops.length - 1, 1)} step={1} value={[thumb]} disabled={blocked} data-off-scale={offScale ?? undefined} data-mpick="slider"
         style={{ "--mpick-stops": stops.length } as CSSProperties} onValueChange={values => onDraft(values[0])} onValueCommit={values => onCommit(values[0])}>
         <SliderPrimitive.Track className="mpick-slider-track"><SliderPrimitive.Range className="mpick-slider-range" /></SliderPrimitive.Track>
+        {stops.map((stop, i) => <span key={stop.id} className="mpick-tick" aria-hidden="true" data-passed={i <= thumb ? "true" : "false"} style={{ left: tickLeft(i, stops.length) }} />)}
         <SliderPrimitive.Thumb className="mpick-slider-thumb" aria-label={SLIDER_LABEL} aria-valuetext={shown ? shown.label : valueText} aria-describedby={captionId} />
       </SliderPrimitive.Root>
       <ol className="mpick-stops" style={{ "--mpick-stops": stops.length } as CSSProperties} data-mpick="stops">
         {stops.map((stop, i) => <li key={stop.id} className="mpick-stop" data-active={offScale === null && i === (draft ?? index) ? "true" : "false"} data-mpick-stop={stop.id} aria-hidden="true" onClick={() => { if (!blocked) onCommit(i) }}>
-          <span className="mpick-stop-name">{stop.label}</span>{stop.hint ? <span className="mpick-stop-hint">{stop.hint}</span> : null}
+          <span className="mpick-stop-name">{stop.label}</span>
         </li>)}
       </ol>
       <p className="mpick-caption" id={captionId} data-mpick="caption">{SLIDER_CAPTION}</p>

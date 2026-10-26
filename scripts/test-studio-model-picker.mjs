@@ -245,8 +245,9 @@ async function mount({ props = { sessionId: null }, flag = 'true', env = {}, stu
     gauge: () => rt.find(node => node.props?.['data-mpick'] === 'gauge', 'the gauge'),
     slider: () => rt.find(node => node.type === 'slider-root', 'the slider'),
     thumb: () => rt.find(node => node.type === 'span' && node.props.role === 'slider', 'the thumb'),
-    stops: () => rt.all(node => node.props?.['data-mpick-stop']).map(node => ({ id: node.props['data-mpick-stop'], name: textOf(walk(node).find(n => n.props?.className === 'mpick-stop-name')), hint: (() => { const h = walk(node).find(n => n.props?.className === 'mpick-stop-hint'); return h ? textOf(h) : null })(), active: node.props['data-active'], node })),
-    value: () => textOf(rt.find(node => node.props?.['data-mpick'] === 'value', 'the value')),
+    stops: () => rt.all(node => node.props?.['data-mpick-stop']).map(node => ({ id: node.props['data-mpick-stop'], name: textOf(walk(node).find(n => n.props?.className === 'mpick-stop-name')), active: node.props['data-active'], node })),
+    value: () => textOf(rt.find(node => node.props?.['data-mpick'] === 'value', 'the value')), // shown only when the choice is off the scale
+    active: () => { const lit = rt.stops().filter(stop => stop.active === 'true'); return lit.length === 1 ? lit[0].name : null }, // the one stop whose label is bold
     async commit(i) { return rt.act(() => rt.slider().props.onValueCommit([i])) },
     async drag(i) { return rt.act(() => rt.slider().props.onValueChange([i])) },
     note(kind) { const node = rt.maybe(n => n.props?.['data-mpick'] === kind); return node ? textOf(node) : null },
@@ -796,9 +797,9 @@ async function suite({ quiet = false, bail = false, extraCommitted = [] } = {}) 
   await check('S: the slider sits on Auto when nothing is chosen, on the stop that is chosen, and a specific model or a mix is Custom, off the scale', async () => {
     const router = fakeRouter()
     let rt = await mountSlider({ router }); await rt.open()
-    deep(rt.slider().props.value, [0]); eq(rt.slider().props.min, 0); eq(rt.slider().props.max, 3); eq(rt.slider().props.step, 1); eq(rt.slider().props['data-off-scale'], undefined); eq(rt.thumb().props['aria-valuetext'], 'Auto, Deckster chooses'); eq(rt.value(), 'Auto'); eq(rt.gauge().props['aria-label'], 'Model: Auto')
-    deep(rt.stops().map(stop => [stop.id, stop.name, stop.hint, stop.active]), [['auto', 'Auto', null, 'true'], ['economy', 'Fast', '$', 'false'], ['balanced', 'Balanced', '$$', 'false'], ['best', 'Best', '$$$', 'false']], 'a label under each stop')
-    for (const [i, tier] of [[1, 'economy'], [2, 'balanced'], [3, 'best']]) { seedWire(router, USER_PATH, tier); rt = await mountSlider({ router }); await rt.open(); deep(rt.slider().props.value, [i], tier); eq(rt.stops()[i].active, 'true'); eq(rt.value(), STOPS[i][1]); eq(rt.thumb().props['aria-valuetext'], `${STOPS[i][1]}, cost ${i} of 3`) }
+    deep(rt.slider().props.value, [0]); eq(rt.slider().props.min, 0); eq(rt.slider().props.max, 3); eq(rt.slider().props.step, 1); eq(rt.slider().props['data-off-scale'], undefined); eq(rt.thumb().props['aria-valuetext'], 'Auto, Deckster chooses'); eq(rt.active(), 'Auto'); eq(rt.gauge().props['aria-label'], 'Model: Auto')
+    deep(rt.stops().map(stop => [stop.id, stop.name, stop.active]), [['auto', 'Auto', 'true'], ['economy', 'Fast', 'false'], ['balanced', 'Balanced', 'false'], ['best', 'Best', 'false']], 'a label under each stop, the current one bold'); eq(rt.maybe(node => node.props?.['data-mpick'] === 'value'), undefined, 'nothing else says the stop while it is on the scale')
+    for (const [i, tier] of [[1, 'economy'], [2, 'balanced'], [3, 'best']]) { seedWire(router, USER_PATH, tier); rt = await mountSlider({ router }); await rt.open(); deep(rt.slider().props.value, [i], tier); eq(rt.stops()[i].active, 'true'); eq(rt.active(), STOPS[i][1]); eq(rt.thumb().props['aria-valuetext'], `${STOPS[i][1]}, cost ${i} of 3`) }
     router.seed(USER_PATH, { model: 'anthropic/claude-opus-5.5' }); rt = await mountSlider({ router }); await rt.open()
     eq(rt.slider().props['data-off-scale'], 'custom'); eq(rt.value(), 'Custom (Claude Opus 5.5)'); eq(rt.thumb().props['aria-valuetext'], 'Custom, off the scale'); eq(rt.gauge().props['aria-label'], 'Model: Custom (Claude Opus 5.5)'); eq(rt.gauge().props['data-mpick-state'], 'model'); ok(rt.stops().every(stop => stop.active === 'false'), 'no stop is lit')
     router.bump(USER_PATH, { planning_strategy: { preset: 'best', model: null, updated_at: 't' }, content_writing: { preset: 'economy', model: null, updated_at: 't' } }); rt = await mountSlider({ router }); await rt.open()
@@ -827,7 +828,7 @@ async function suite({ quiet = false, bail = false, extraCommitted = [] } = {}) 
   })
   await check('S: a click on a stop\'s label saves like a commit; the stop it already sits on saves nothing; a drag alone saves nothing and shows the stop in the head', async () => {
     const router = fakeRouter(); const rt = await mountSlider({ router }); await rt.open()
-    await rt.drag(3); eq(rt.fetchLog.filter(entry => entry.init.method === 'PATCH').length, 0, 'a drag saves nothing'); eq(rt.value(), 'Best'); deep(rt.slider().props.value, [3]); eq(rt.thumb().props['aria-valuetext'], 'Best'); eq(rt.gauge().props['aria-label'], 'Model: Auto', 'nothing is chosen yet')
+    await rt.drag(3); eq(rt.fetchLog.filter(entry => entry.init.method === 'PATCH').length, 0, 'a drag saves nothing'); eq(rt.active(), 'Best'); deep(rt.slider().props.value, [3]); eq(rt.thumb().props['aria-valuetext'], 'Best'); eq(rt.gauge().props['aria-label'], 'Model: Auto', 'nothing is chosen yet')
     await rt.commit(3); eq(rt.fetchLog.filter(entry => entry.init.method === 'PATCH').length, 1); eq(rt.gauge().props['aria-label'], 'Model: Best')
     await rt.commit(3); eq(rt.fetchLog.filter(entry => entry.init.method === 'PATCH').length, 1, 'the same stop again: nothing')
     await rt.act(() => rt.stops()[1].node.props.onClick()); deep(lastBody(rt), onUser({ preset: 'economy' })); eq(rt.gauge().props['aria-label'], 'Model: Fast')
@@ -905,6 +906,16 @@ async function suite({ quiet = false, bail = false, extraCommitted = [] } = {}) 
     deep(refusedCalls, [{ tier: 'best' }]); eq(r.gauge().props['aria-label'], 'Model: Best', 'a refused Auto puts the stop back'); deep(r.slider().props.value, [3]); eq(r.status(), 'Auto cannot be saved for this presentation right now, so it keeps what it had.')
   })
 
+  await check('S: as FRONTEND-1\'s v3.1 spec draws it: a 272 px popover headed "MODEL", a hollow dot at each stop (the ones the thumb has passed marked), the current label bold, rows at 11.5 px with 10 px sub-text', async () => {
+    const router = fakeRouter(); seedWire(router, USER_PATH, 'balanced')
+    const rt = await mountSlider({ router }); await rt.open()
+    const ticks = rt.all(node => node.props?.className === 'mpick-tick'); deep(ticks.map(node => node.props['data-passed']), ['true', 'true', 'true', 'false']); ok(ticks.every(node => node.props['aria-hidden'] === 'true' && /^calc\(/.test(node.props.style.left)))
+    eq(textOf(rt.find(node => node.props?.className === 'mpick-slider-title')), 'Model'); eq(rt.active(), 'Balanced')
+    await rt.drag(1); deep(rt.all(node => node.props?.className === 'mpick-tick').map(node => node.props['data-passed']), ['true', 'true', 'false', 'false'], 'the dots follow the thumb as it is dragged'); eq(rt.active(), 'Fast')
+    const css = postcss.parse(read(FILES.sliderCss)); const at = selector => { const out = {}; css.walkRules(rule => { if (rule.selector === selector && rule.parent.type === 'root') rule.walkDecls(decl => { out[decl.prop] = decl.value }) }); return out }
+    eq(at('.mpick-slider-menu').width, '272px'); eq(at('.mpick-slider-menu')['font-size'], '11.5px'); eq(at('.mpick-slider-menu .mpick-detail, .mpick-slider-menu .mpick-hint, .mpick-slider-menu .mpick-notes')['font-size'], '10px')
+    eq(at('.mpick-slider-title')['text-transform'], 'uppercase'); eq(at('.mpick-slider-title')['font-size'], '10px'); eq(at('.mpick-stop[data-active="true"] .mpick-stop-name')['font-weight'], '600')
+  })
   await check('S: the sizes: a 24 px gauge on desktop and a 44 px hit area on phones; 44 px for the slider row, the stop labels and Advanced; every rule scoped, small text, near-monochrome', () => {
     const text = read(FILES.sliderCss); const css = postcss.parse(text)
     const decls = (selector, within) => { const out = {}; (within ?? css).walkRules(rule => { if (rule.selector === selector && (within || rule.parent.type === 'root')) rule.walkDecls(decl => { out[decl.prop] = decl.value }) }); return out }
@@ -915,7 +926,7 @@ async function suite({ quiet = false, bail = false, extraCommitted = [] } = {}) 
     ok(px(decls('.mpick-slider-root', phone[0]).height) >= 44 && px(decls('.mpick-stop', phone[0])['min-height']) >= 44 && px(decls('.mpick-advanced > summary', phone[0])['min-height']) >= 44, 'the slider row, the stops and Advanced are 44 px on phones')
     eq(decls('.mpick-slider-root').height, '24px'); ok(!('pointer-events' in before), 'the hit area takes the click')
     css.walkRules(rule => { for (const selector of rule.selectors) ok(/^\.mpick-/.test(selector), `scoped: ${selector}`) })
-    css.walkDecls('font-size', decl => ok(['11px', '12px', '13px'].includes(decl.value), `${decl.parent.selector}: ${decl.value}`))
+    css.walkDecls('font-size', decl => ok(['10px', '11px', '11.5px'].includes(decl.value), `${decl.parent.selector}: ${decl.value}`)) // FRONTEND-1's v3.1: rows 11.5 px, sub-text and heading 10 px
     ok(!/#[0-9a-fA-F]{3,8}\b/.test(text.replace(/\/\*[\s\S]*?\*\//g, '')), 'no hex colours'); const ring = []; css.walkDecls(decl => { if (/--ring/.test(decl.value)) ring.push(decl.prop) }); ok(ring.length >= 3 && ring.every(prop => prop === 'outline'), `the accent is the focus ring alone: ${ring}`)
     css.walkDecls(decl => { if (/^(background|background-color|color|border-color)$/.test(decl.prop)) ok(!/(--ring|rgb\(|hsl\(var\(--(?!popover|border|muted))/.test(decl.value), `${decl.parent.selector} ${decl.prop}`) })
     ok(/mpick-slider-root\[data-off-scale\] \.mpick-slider-thumb/.test(text), 'off the scale: a faint thumb'); ok(/prefers-reduced-motion/.test(text))
@@ -1065,14 +1076,17 @@ const MUTANTS = [
   ['slider: className is dropped', SC, '["mpick-gauge", className].filter(Boolean).join(" ")', '"mpick-gauge"'],
   ['slider: the variant is ignored', C, 'props.variant === "slider" ? <ModelPickerSlider {...props} /> :', 'false ? <ModelPickerSlider {...props} /> :'],
   ['slider: it renders with the flag off', C, 'if (!STUDIO_MODEL_PICKER_ENABLED) return null\n  return props.variant', 'return props.variant'],
+  ['slider: the dots are not marked', SC, 'data-passed={i <= thumb ? "true" : "false"}', 'data-passed="false"'],
+  ['slider css: a wide popover', SCSS, '.mpick-slider-menu { width: 272px;', '.mpick-slider-menu { width: 372px;'],
+  ['slider css: a thin label', SCSS, '.mpick-stop[data-active="true"] .mpick-stop-name { font-weight: 600; }', '.mpick-stop[data-active="true"] .mpick-stop-name { font-weight: 400; }'],
   ['slider css: a 32 px gauge', SCSS, '  width: 24px;\n  height: 24px;', '  width: 32px;\n  height: 32px;'],
   ['slider css: no hit area on phones', SCSS, '  .mpick-gauge::before { content: ""; position: absolute; top: -10px; right: -10px; bottom: -10px; left: -10px; }\n', ''],
   ['slider css: a 36 px hit area', SCSS, 'top: -10px; right: -10px; bottom: -10px; left: -10px;', 'top: -6px; right: -6px; bottom: -6px; left: -6px;'],
   ['slider css: a short slider row on phones', SCSS, '  .mpick-slider-root { height: 44px; }', '  .mpick-slider-root { height: 24px; }'],
   ['slider css: short stops on phones', SCSS, '  .mpick-stop { min-height: 44px; justify-content: center; }', '  .mpick-stop { min-height: 30px; justify-content: center; }'],
   ['slider css: an unscoped rule', SCSS, '.mpick-slider-panel {', 'div { height: 24px; }\n.mpick-slider-panel {'],
-  ['slider css: an accent on the fill', SCSS, '.mpick-slider-range { position: absolute; height: 100%; border-radius: 999px; background: var(--mpick-fg, currentColor); opacity: 0.75; }', '.mpick-slider-range { position: absolute; height: 100%; border-radius: 999px; background: hsl(var(--ring, 250 90% 60%)); opacity: 0.75; }'],
-  ['slider css: a larger caption', SCSS, 'font-size: 11px; line-height: 1.35; }', 'font-size: 15px; line-height: 1.35; }'],
+  ['slider css: an accent on the fill', SCSS, '.mpick-slider-range { position: absolute; height: 100%; border-radius: 999px; background: var(--mpick-fg, currentColor); opacity: 0.8; }', '.mpick-slider-range { position: absolute; height: 100%; border-radius: 999px; background: hsl(var(--ring, 250 90% 60%)); opacity: 0.8; }'],
+  ['slider css: a larger caption', SCSS, 'font-size: 10px; line-height: 1.4; }', 'font-size: 15px; line-height: 1.4; }'],
   ['slider strip: a file is not named', SLIDER_STRIP, "  'components/model-choice/model-option.tsx',\n  'components/model-choice/model-slider.tsx',", "  'components/model-choice/model-slider.tsx',"],
   ['picker: the default row names no default', P, '`${MODEL_CHOICE_USE_DEFAULT}: ${args.userState ? plainName(args.userState, catalogue) : PICKER_AUTO_LABEL}`', '`${MODEL_CHOICE_USE_DEFAULT}: Auto`'],
   ['picker: the deck\'s Auto is no { auto: true }', P, "{ id: 'auto', label: MODEL_CHOICE_AUTO_LABEL, detail: null, hint: null, choice: { auto: true },", "{ id: 'auto', label: MODEL_CHOICE_AUTO_LABEL, detail: null, hint: null, choice: null,"],
