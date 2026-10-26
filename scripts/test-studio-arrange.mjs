@@ -176,8 +176,10 @@ function cutHandler(source, heading) {
 }
 const TEXT_HEADING = '  // Listen for text box selection events from iframe\n'
 const ELEMENT_HEADING = '  // Listen for element selection events from iframe (Image, Chart, Table, Infographic, Diagram)\n'
-/** The viewer read past every OTHER registered later change's marked lines (a change merged beside this one adds its own lines to these handlers). */
-const viewerPastPeers = text => registry.LATER_STRIPS.filter(fn => fn !== strip.stripStudioArrange).reduce((out, fn) => { const next = fn(VIEWER, out); return typeof next === 'string' ? next : out }, text)
+/** The viewer read past every OTHER registered later change's marked lines (a change merged beside this one adds its own lines to these handlers), line by line: a line goes when another
+ *  registered strip takes it out on its own. This change's own lines always stay (Pass 3 polish B's strip now takes them out too, for COMPOSER-2's first-paint pin). */
+const peerStrips = () => registry.LATER_STRIPS.filter(fn => typeof fn === 'function' && fn !== strip.stripStudioArrange)
+const viewerPastPeers = text => text.split('\n').filter(line => line === '' || strip.STUDIO_ARRANGE_MARKER_RE.test(line) || !peerStrips().some(fn => fn(VIEWER, line) === '')).join('\n')
 const SAVE_HEADING = '      // Handle save status updates from auto-save system\n'
 /** The viewer's save-status block (Layout's saveStatusChanged: "unsaved" / "saving" / "error" retire every selection by bumping the interaction intent), cut out by exact anchors. */
 function cutSaveBlock(source) {
