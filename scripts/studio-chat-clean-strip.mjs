@@ -9,10 +9,10 @@
 // Seven older proofs are taught to read through the registry (CHAT_CLEAN_PIN_EDITS, [line now, line before], whole lines, every line now carrying "registry read (CHAT-CLEAN)"): the composer-popups proof hashes the
 // composer's whole flag-off element tree, so it loads each source through stripLaterChanges first (a later change's null children are its own); the model-picker proof wants no app file to import the picker, which
 // this change's composer does, so a registered later change's files are its own; the composer-copy, composer-picker and composer-stage-context proofs read chat-input.tsx raw (import allow-lists, a base identity), so they read it through
-// the registry; the model-choice proof takes this change's block and registry lines out as it takes flow control's. putBackChatCleanEdits puts the previous lines back, so a proof that holds those files reads them as they were.
+// the registry; the model-choice proof (studio's generic K, which strips every registered block and every other change's registry line) only held .env.example to END with its block, which a later block cannot satisfy: one line. putBackChatCleanEdits puts the previous lines back, so a proof that holds those files reads them as they were.
 // How the older pins reach it: this change REGISTERS its files, its .env.example block and this strip (scripts/studio-later-changes.mjs, three lines). Plain node, no imports, nothing read from disk or git here.
 
-export const BASE_COMMIT = '6402b8d41d3dfdbed08d66b8b5117b0ad393c499' // the merge of origin/frontend2/model-picker-slider (#526, 20b1ea3a, stacked on #521) and origin/frontend1/flow-control-later-tolerant (#525) this change is cut from
+export const BASE_COMMIT = 'e6f0922cbbb829815a4a3697b5b151eeb41e4207' // origin/studio-v4-dev-preparation-code with #526 (the model slider) merged, the last studio head merged into this branch; the tree diff from it to this change's newest commit is this change
 export const CHAT_CLEAN_FLAG = 'NEXT_PUBLIC_STUDIO_CHAT_CLEAN'
 export const CHAT_CLEAN_MARKER = 'CHAT-CLEAN'
 /** The marker as a WHOLE token: CHAT-CLEAN-X or X-CHAT-CLEAN are not this change's (the lowercase attribute names are not either). */
@@ -59,16 +59,8 @@ export const CHAT_CLEAN_PIN_EDITS = {
   ],
   "scripts/test-studio-model-choice.mjs": [
     [
-      "    const flow = await import('./studio-flow-control-strip.mjs'); const chatClean = await import('./studio-chat-clean-strip.mjs') // dev 6fba3b7f (#524): flow control registers its block, its lines and a taught proof before this change's; they come out first // LATER-CHANGES: registry read (CHAT-CLEAN): chat clean registers its block, its lines and taught proofs after this change's; they come out too\n",
-      "    const flow = await import('./studio-flow-control-strip.mjs') // dev 6fba3b7f (#524): flow control registers its block, its lines and a taught proof before this change's; they come out first\n",
-    ],
-    [
-      "    eq(read(ENV).replace(`\\n${strip.MODEL_CHOICE_ENV_BLOCK}`, '').replace(`\\n${flow.FLOW_CONTROL_ENV_BLOCK}`, '').replace(`\\n${chatClean.CHAT_CLEAN_ENV_BLOCK}`, ''), baseOf(ENV)); ok(read(ENV).includes(`\\n${strip.MODEL_CHOICE_ENV_BLOCK}`)) // LATER-CHANGES: registry read (CHAT-CLEAN): a block registered after this one may follow it\n",
-      "    eq(read(ENV).replace(`\\n${strip.MODEL_CHOICE_ENV_BLOCK}`, '').replace(`\\n${flow.FLOW_CONTROL_ENV_BLOCK}`, ''), baseOf(ENV)); ok(read(ENV).endsWith(strip.MODEL_CHOICE_ENV_BLOCK))\n",
-    ],
-    [
-      "    eq(read(REGISTRY).split('\\n').filter(line => !line.includes('studio-model-choice-strip.mjs') && !line.includes('studio-flow-control-strip.mjs') && !line.includes('studio-model-slider-strip.mjs') && !line.includes('studio-chat-clean-strip.mjs')).join('\\n'), baseOf(REGISTRY)) // LATER-CHANGES: registry read (CHAT-CLEAN)\n",
-      "    eq(read(REGISTRY).split('\\n').filter(line => !line.includes('studio-model-choice-strip.mjs') && !line.includes('studio-flow-control-strip.mjs') && !line.includes('studio-model-slider-strip.mjs')).join('\\n'), baseOf(REGISTRY))\n",
+      "    eq(withoutOtherBlocks, baseOf(ENV)); ok(read(ENV).includes(`\\n${strip.MODEL_CHOICE_ENV_BLOCK}`)) // LATER-CHANGES: registry read (CHAT-CLEAN): a block registered after this one (chat clean's) may follow it\n",
+      "    eq(withoutOtherBlocks, baseOf(ENV)); ok(read(ENV).endsWith(strip.MODEL_CHOICE_ENV_BLOCK))\n",
     ],
   ],
   "scripts/test-studio-pass2b-chat.mjs": [

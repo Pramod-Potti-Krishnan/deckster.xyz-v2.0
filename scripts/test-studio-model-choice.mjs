@@ -746,7 +746,7 @@ async function suite({ quiet = false, extraCommitted = [] } = {}) {
     const reg = await import(`${path.join(root, REGISTRY)}?t=${Date.now()}`)
     // dev 0545569 (#523): every block another change registered (flow control's, Arrange's) comes out first, wherever it sits before this one
     const withoutOtherBlocks = reg.LATER_ENV_BLOCKS.filter(block => block !== strip.MODEL_CHOICE_ENV_BLOCK && !baseOf(ENV).includes(block)).reduce((text, block) => text.replace(`\n${block}`, ''), read(ENV).replace(`\n${strip.MODEL_CHOICE_ENV_BLOCK}`, ''))
-    eq(withoutOtherBlocks, baseOf(ENV)); ok(read(ENV).endsWith(strip.MODEL_CHOICE_ENV_BLOCK))
+    eq(withoutOtherBlocks, baseOf(ENV)); ok(read(ENV).includes(`\n${strip.MODEL_CHOICE_ENV_BLOCK}`)) // LATER-CHANGES: registry read (CHAT-CLEAN): a block registered after this one (chat clean's) may follow it
     ok(/^NEXT_PUBLIC_STUDIO_MODEL_CHOICE="false"$/m.test(read(ENV))); eq((read(ENV).match(/^MODEL_ROUTER_URL=/gm) || []).length, 1, 'MODEL_ROUTER_URL is not declared twice')
     ok(/^MODEL_ROUTER_FRONTEND_KEY=$/m.test(read(ENV)), 'the key: a name only')
     deep([...new Set(strip.MODEL_CHOICE_ENV_BLOCK.match(/\b[A-Z][A-Z0-9]*_[A-Z0-9_]+\b/g))].sort(), ['MODEL_ROUTER_FRONTEND_KEY', 'NEXT_PUBLIC_STUDIO_MODEL_CHOICE'], 'the block names no other variable (older pins refuse their own names in a later block)')
