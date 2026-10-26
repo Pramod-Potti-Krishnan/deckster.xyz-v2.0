@@ -6,13 +6,13 @@
 // app/builder/page.tsx (all after the Builder's runners, the import at the end with the flow import, for the same older proof), components/build-narration/director-presence.tsx and
 // components/build-narration/pause-stop-control.tsx (one early return each, read from process.env directly so the proofs that evaluate them with a fake process see nothing). No existing line of app code is rewritten.
 // Strip the marked lines and each file is its base, byte for byte.
-// Seven older proofs are taught to read through the registry (CHAT_CLEAN_PIN_EDITS, [line now, line before], whole lines, every line now carrying "registry read (CHAT-CLEAN)"): the composer-popups proof hashes the
+// Sixteen older proofs are taught to read through the registry (CHAT_CLEAN_PIN_EDITS, [line now, line before], whole lines, every line now carrying "registry read (CHAT-CLEAN)"): the composer-popups proof hashes the
 // composer's whole flag-off element tree, so it loads each source through stripLaterChanges first (a later change's null children are its own); the model-picker proof wants no app file to import the picker, which
 // this change's composer does, so a registered later change's files are its own; the composer-copy, composer-picker and composer-stage-context proofs read chat-input.tsx raw (import allow-lists, a base identity), so they read it through
 // the registry; the model-choice proof (studio's generic K, which strips every registered block and every other change's registry line) only held .env.example to END with its block, which a later block cannot satisfy: one line. putBackChatCleanEdits puts the previous lines back, so a proof that holds those files reads them as they were.
 // How the older pins reach it: this change REGISTERS its files, its .env.example block and this strip (scripts/studio-later-changes.mjs, three lines). Plain node, no imports, nothing read from disk or git here.
 
-export const BASE_COMMIT = 'e6f0922cbbb829815a4a3697b5b151eeb41e4207' // origin/studio-v4-dev-preparation-code with #526 (the model slider) merged, the last studio head merged into this branch; the tree diff from it to this change's newest commit is this change
+export const BASE_COMMIT = '59588574415409a288917b5842424c0840d3e195' // origin/studio-v4-dev-preparation-code (#529 merged), the last studio head merged into this branch; the tree diff from it to this change's newest commit is this change
 export const CHAT_CLEAN_FLAG = 'NEXT_PUBLIC_STUDIO_CHAT_CLEAN'
 export const CHAT_CLEAN_MARKER = 'CHAT-CLEAN'
 /** The marker as a WHOLE token: CHAT-CLEAN-X or X-CHAT-CLEAN are not this change's (the lowercase attribute names are not either). */
@@ -87,6 +87,100 @@ export const CHAT_CLEAN_PIN_EDITS = {
     [
       "  const source = stripLaterChanges(relative.replace(/^\\.\\.\\//, ''), fs.readFileSync(new URL(relative, import.meta.url), 'utf8')) // LATER-CHANGES: registry read (CHAT-CLEAN): a registered later change's marked lines (chat clean's import in chat-input.tsx) come out before the allow-list sees the file\n",
       "  const source = fs.readFileSync(new URL(relative, import.meta.url), 'utf8')\n",
+    ],
+    [
+      "import { stripLaterChanges } from './studio-later-changes.mjs' // LATER-CHANGES: registry read (CHAT-CLEAN)\n",
+      "",
+    ],
+  ],
+  "scripts/test-studio-director-header.mjs": [
+    [
+      "  const source = stripLaterChanges(relative.replace(/^\\.\\.\\//, ''), fs.readFileSync(new URL(relative, import.meta.url), 'utf8')) // LATER-CHANGES: registry read (CHAT-CLEAN): a registered later change's marked lines (chat clean's imports in chat-input.tsx) come out before the allow-list sees the file\n",
+      "  const source = fs.readFileSync(new URL(relative, import.meta.url), 'utf8')\n",
+    ],
+    [
+      "import { stripLaterChanges } from './studio-later-changes.mjs' // LATER-CHANGES: registry read (CHAT-CLEAN)\n",
+      "",
+    ],
+  ],
+  "scripts/test-studio-pending-action.mjs": [
+    [
+      "  const source = stripLaterChanges(relative.replace(/^\\.\\.\\//, ''), fs.readFileSync(new URL(relative, import.meta.url), 'utf8')) // LATER-CHANGES: registry read (CHAT-CLEAN): a registered later change's marked lines (chat clean's imports in chat-input.tsx) come out before the allow-list sees the file\n",
+      "  const source = fs.readFileSync(new URL(relative, import.meta.url), 'utf8')\n",
+    ],
+    [
+      "import { stripLaterChanges } from './studio-later-changes.mjs' // LATER-CHANGES: registry read (CHAT-CLEAN)\n",
+      "",
+    ],
+  ],
+  "scripts/test-studio-mention-selection.mjs": [
+    [
+      "  const source = stripLaterChanges(relative.replace(/^\\.\\.\\//, ''), fs.readFileSync(new URL(relative, import.meta.url), 'utf8')) // LATER-CHANGES: registry read (CHAT-CLEAN): a registered later change's marked lines (chat clean's imports in chat-input.tsx) come out before the allow-list sees the file\n",
+      "  const source = fs.readFileSync(new URL(relative, import.meta.url), 'utf8')\n",
+    ],
+    [
+      "import { stripLaterChanges } from './studio-later-changes.mjs' // LATER-CHANGES: registry read (CHAT-CLEAN)\n",
+      "",
+    ],
+  ],
+  "scripts/test-studio-theme-delete-undo.mjs": [
+    [
+      "    let source = stripLaterChanges(rel, fs.readFileSync(file, 'utf8')) // LATER-CHANGES: registry read (CHAT-CLEAN): a registered later change's marked lines (chat clean's, in chat-input.tsx) come out before the mutations and the transpile\n",
+      "    let source = fs.readFileSync(file, 'utf8')\n",
+    ],
+    [
+      "import { stripLaterChanges } from './studio-later-changes.mjs' // LATER-CHANGES: registry read (CHAT-CLEAN)\n",
+      "",
+    ],
+  ],
+  "scripts/test-studio-arrange.mjs": [
+    [
+      "  for (const rel of ['components/element-format-panel/tabs/arrange-tab.tsx', 'components/element-format-panel/index.tsx', PAGE]) check(assert.equal, registry.stripLaterChanges(rel, read(rel)), registry.stripLaterChanges(rel, baseText(rel)), `${rel} is not changed`) // LATER-CHANGES: registry read (CHAT-CLEAN): a change registered after this one (chat clean) adds marked lines to the page; through the registry both sides are the base's\n",
+      "  for (const rel of ['components/element-format-panel/tabs/arrange-tab.tsx', 'components/element-format-panel/index.tsx', PAGE]) check(assert.equal, read(rel), baseText(rel), `${rel} is not changed`)\n",
+    ],
+  ],
+  "scripts/test-studio-chat-undo-v2.mjs": [
+    [
+      "    assert.equal(mod.stripChatUndoV2(LIST, chatClean.stripChatClean(LIST, head)), baseOf(LIST), 'stripped is the base\\'s file') // LATER-CHANGES: registry read (CHAT-CLEAN): chat clean's marked lines in the message list come out first\n",
+      "    assert.equal(mod.stripChatUndoV2(LIST, head), baseOf(LIST), 'stripped is the base\\'s file')\n",
+    ],
+    [
+      "const chatClean = await import('./studio-chat-clean-strip.mjs') // LATER-CHANGES: registry read (CHAT-CLEAN): the strip of the change stacked after this one, so its marked lines (chat clean's) come out first\n",
+      "",
+    ],
+    [
+      "    assert.equal(mod.stripChatUndoV2(LIST, mod.stripChatUndoV2(LIST, chatClean.stripChatClean(LIST, head))), baseOf(LIST), 'stripping twice changes nothing more'); assert.equal(mod.stripChatUndoV2('lib/other.ts', 'abc'), 'abc'); assert.equal(mod.stripChatUndoV2(LIST, baseOf(LIST)), baseOf(LIST)) // LATER-CHANGES: registry read (CHAT-CLEAN)\n",
+      "    assert.equal(mod.stripChatUndoV2(LIST, mod.stripChatUndoV2(LIST, head)), baseOf(LIST), 'stripping twice changes nothing more'); assert.equal(mod.stripChatUndoV2('lib/other.ts', 'abc'), 'abc'); assert.equal(mod.stripChatUndoV2(LIST, baseOf(LIST)), baseOf(LIST))\n",
+    ],
+  ],
+  "scripts/test-studio-first-run-v2.mjs": [
+    [
+      "    else if (!transpiled.has(file)) transpiled.set(file, compile(stripLaterChanges(path.relative(treeRoot, file), fs.readFileSync(file, 'utf8')))) // LATER-CHANGES: registry read (CHAT-CLEAN): a registered later change's marked lines (chat clean's imports in chat-input.tsx) come out before the loader follows them\n",
+      "    else if (!transpiled.has(file)) transpiled.set(file, compile(fs.readFileSync(file, 'utf8')))\n",
+    ],
+    [
+      "import { stripLaterChanges } from './studio-later-changes.mjs' // LATER-CHANGES: registry read (CHAT-CLEAN)\n",
+      "",
+    ],
+    [
+      "    if (rel in sourceOverrides) overridden.set(file, compile(stripLaterChanges(rel, sourceOverrides[rel]))) // LATER-CHANGES: registry read (CHAT-CLEAN): a mutated copy of a source carries the later change's marked lines too; they come out before the loader follows them\n",
+      "    if (rel in sourceOverrides) overridden.set(file, compile(sourceOverrides[rel]))\n",
+    ],
+  ],
+  "scripts/test-studio-theme-library-manage.mjs": [
+    [
+      "    const changed = spawnSync('git', ['diff', '--name-only', BASE_COMMIT, '--', 'app', 'components', 'lib', 'hooks', 'middleware.ts'], { cwd: root, encoding: 'utf8' }).stdout.split('\\n').filter(Boolean).filter(rel => !chatClean.CHAT_CLEAN_SCOPE_FILES.has(rel)) // LATER-CHANGES: registry read (CHAT-CLEAN): the files of the change stacked after this one are its own\n",
+      "    const changed = spawnSync('git', ['diff', '--name-only', BASE_COMMIT, '--', 'app', 'components', 'lib', 'hooks', 'middleware.ts'], { cwd: root, encoding: 'utf8' }).stdout.split('\\n').filter(Boolean)\n",
+    ],
+    [
+      "const chatClean = await import('./studio-chat-clean-strip.mjs') // LATER-CHANGES: registry read (CHAT-CLEAN): the strip of the change stacked after this one, so its marked lines (chat clean's) come out first\n",
+      "",
+    ],
+  ],
+  "scripts/test-studio-welcome-width.mjs": [
+    [
+      "const CHAT_INPUT_SOURCE = stripLaterChanges(CHAT_INPUT, read(CHAT_INPUT)) // LATER-CHANGES: registry read (CHAT-CLEAN): a registered later change's marked lines (chat clean's spread on the composer root) come out first\n",
+      "const CHAT_INPUT_SOURCE = read(CHAT_INPUT)\n",
     ],
     [
       "import { stripLaterChanges } from './studio-later-changes.mjs' // LATER-CHANGES: registry read (CHAT-CLEAN)\n",

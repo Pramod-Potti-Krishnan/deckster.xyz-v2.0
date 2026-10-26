@@ -397,7 +397,7 @@ function sourceSuite(over = {}) {
     eq(regDiff.length, 3, 'registry: three lines'); ok(regDiff.every(line => line.startsWith('+') && line.includes('studio-chat-clean-strip.mjs') && line.includes('// LATER-CHANGE: ')), 'registry: ...all this change\'s')
     for (const rel of stripModule.CHAT_CLEAN_SCOPE_FILES) ok(registry.LATER_CHANGE_FILES.has(rel), `registry: ${rel} is registered`)
     ok(registry.LATER_STRIPS.includes(strip.stripChatClean) && registry.LATER_ENV_BLOCKS.includes(strip.CHAT_CLEAN_ENV_BLOCK), 'registry: the strip and the block are registered')
-    eq(stripModule.CHAT_CLEAN_PIN_FILES.length, 7, 'seven older proofs are taught (composer-popups-v2, model-picker, pass2b-chat, model-choice, composer-stage-context, composer-copy, composer-picker)')
+    eq(stripModule.CHAT_CLEAN_PIN_FILES.length, 16, 'sixteen older proofs are taught (composer-popups-v2, model-picker, pass2b-chat, model-choice, composer-stage-context, composer-copy, composer-picker, director-header, pending-action, mention-selection, theme-delete-undo, arrange, chat-undo-v2, first-run-v2, theme-library-manage, welcome-width)')
     for (const rel of stripModule.CHAT_CLEAN_PIN_FILES) {
       const now = src(rel), base = git('show', `${stripModule.BASE_COMMIT}:${rel}`)
       eq(stripModule.stripChatClean(rel, now), base, `${rel}: put back, it is the base`)
