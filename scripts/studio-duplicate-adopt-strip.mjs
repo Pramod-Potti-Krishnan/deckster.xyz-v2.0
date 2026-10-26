@@ -107,7 +107,7 @@ export const DUPLICATE_ADOPT_PIN_EDITS = {
   ],
   "scripts/test-studio-chat-theme-export.mjs": [
     [
-      "  const between = pageAst.text.slice(addRunnerAssign.getEnd(), runnerAssign.getStart(pageAst)) // LATER-CHANGES: registry read (DUPLICATE-ADOPT): the text the AST was parsed from (page-extract reads the page through the registry), so the offsets index the text they came from\n",
+      "  const between = pageAst.text.slice(addRunnerAssign.getEnd(), runnerAssign.getStart(pageAst)) // LATER-CHANGES: registry read (DUPLICATE-ADOPT), stacked after #475: the text the AST was parsed from (page-extract reads the page through the registry), so the offsets index the text they came from\n",
       "  const between = pageText.slice(addRunnerAssign.getEnd(), runnerAssign.getStart(pageAst))\n"
     ]
   ]
