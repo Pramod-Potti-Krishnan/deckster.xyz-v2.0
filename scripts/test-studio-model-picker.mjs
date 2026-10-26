@@ -39,12 +39,15 @@ const STRIP = 'scripts/studio-model-choice-strip.mjs'
 const KIT = 'scripts/studio-model-picker-kit.mjs', FIXTURE_SCRIPT = 'scripts/render-model-picker-fixture.mjs', SELF = 'scripts/test-studio-model-picker.mjs'
 const SERVER = 'lib/studio-model-choice-server.ts', CHOICE_LIB = FILES.choice
 const REGISTRY = 'scripts/studio-later-changes.mjs'
-const FIX = 'scripts/fixtures/studio-model-choice', FIXTURE = `${FIX}/catalogue-live-shape.json`
+const FIX = 'scripts/fixtures/studio-model-choice', FIXTURE = `${FIX}/catalogue-live-shape.json`, FIVE = `${FIX}/catalogue-five-presets.json`
 const PICKER_BASE = '8e735ca3' // the head of #521 before the picker (frontend2/model-choice-ui)
 const PICKER_FILES = [FILES.picker, FILES.hook, FILES.component, FILES.css, KIT, FIXTURE_SCRIPT, SELF].sort()
 const SLIDER_STRIP = 'scripts/studio-model-slider-strip.mjs', SLIDER_BASE = '42f51ca9', SLIDER_SUBJECT = 'Model choice slider: ' // #521's head, and the subject of the slider's own commits
 const SLIDER_ADDED = [FILES.sliderLib, FILES.option, FILES.slider, FILES.sliderCss, SLIDER_STRIP].sort()
 const SLIDER_EDITED = [CHOICE_LIB, FILES.component, KIT, FIXTURE_SCRIPT, SELF, 'scripts/test-studio-model-choice.mjs', REGISTRY].sort()
+const FIVE_STRIP = 'scripts/studio-model-five-strip.mjs', FIVE_BASE = '59588574', FIVE_SUBJECT = 'Model choice five: ' // dev with #521 and #526 merged, and the subject of this change's own commits
+const FIVE_ADDED = [FIVE_STRIP, `${FIX}/catalogue-five-presets.json`].sort()
+const FIVE_EDITED = [CHOICE_LIB, SERVER, FILES.picker, FILES.sliderLib, FILES.slider, FILES.sliderCss, FIXTURE_SCRIPT, SELF, 'scripts/test-studio-model-choice.mjs', REGISTRY].sort()
 const AUTO_FIXTURES = ['router-prefs-422-invalid-preference-auto.json', 'router-prefs-session-auto-200.json', 'router-put-session-auto-200.json'].map(name => `${FIX}/${name}`) // deck Auto (ROUTER-2, model-router !42)
 const EDITED = ['components/studio-personal/intelligence-model-choice.tsx', SERVER, CHOICE_LIB, STRIP, 'scripts/test-studio-model-choice.mjs'] // the older files the picker's commits edit: the Intelligence chooser and its lib and server, for the deck's Auto
 const TEXT_GROUPS = ['planning_strategy', 'content_writing', 'research_analysis']
@@ -627,7 +630,7 @@ async function suite({ quiet = false, bail = false, extraCommitted = [] } = {}) 
     for (const [name, extra] of cases) {
       const router = fakeRouter()
       const rt = await mount({ router, ...extra }); await rt.open()
-      deep(rt.items().map(item => item.id), MAIN.map(row => row[0]), name); eq(rt.more().length, 0, name); deep(rt.items().map(item => item.hint), [null, '$', '$$', '$$$'], name)
+      deep(rt.items().map(item => item.id), ['auto', 'quick', 'economy', 'balanced', 'best', 'max'], name); eq(rt.more().length, 0, name); deep(rt.items().map(item => item.hint), [null, '$', '$', '$$', '$$$', '$$$'], name)
       await rt.pick('best'); deep(kept(router, USER_PATH), Object.fromEntries(TEXT_GROUPS.map(g => [g, 'best'])), name); eq(rt.chipText(), 'Best', name)
     }
     const off = await mount({ env: { NEXT_PUBLIC_STUDIO_MODEL_CATALOG: undefined } }); eq(off.fetchLog.filter(entry => entry.url === '/api/models/catalogue').length, 0, 'the catalogue flag off: not asked')
@@ -739,7 +742,10 @@ async function suite({ quiet = false, bail = false, extraCommitted = [] } = {}) 
 
   // ---- S. slider --------------------------------------------------------------------------------------------------------------------------------------------------
   const mountSlider = (opts = {}) => mount({ ...opts, props: { sessionId: null, variant: 'slider', ...(opts.props ?? {}) } })
-  const STOPS = [['economy', 'Fast', '$'], ['balanced', 'Balanced', '$$'], ['best', 'Best', '$$$']] // the scale: no Auto (it lives in Advanced)
+  const STOPS = [['economy', 'Fast', '$'], ['balanced', 'Balanced', '$$'], ['best', 'Best', '$$$']] // what the older catalogue (no quick, no max) gives: no Auto, it lives in Advanced
+  const FIVE_STOPS = [['quick', 'Quick', '$'], ['economy', 'Fast', '$'], ['balanced', 'Balanced', '$$'], ['best', 'Best', '$$$'], ['max', 'Max', '$$$']] // the five of PK's 26 Oct
+  const HINTS = { quick: 'Lightest and quickest: short, simple tasks.', economy: 'Quick, low-cost answers for everyday work.', balanced: 'A balance of speed, cost and depth.', best: 'Deeper thinking for important work.', max: 'The deepest thinking for the hardest tasks; costs the most.' }
+  const fiveOf = (m, edit) => { const body = json(FIVE); if (edit) edit(body); return catalogueOf(m, body) }
   const catalogueOf = (m, body) => m.choice.withPresets(m.cat.parseCatalogue(body), body)
   const withOverride = async (rel, from, to, fn) => { const text = read(rel); assert.ok(text.includes(from), `override target in ${rel}`); const before = overrides; overrides = { ...overrides, [rel]: text.replace(from, () => to) }; try { return await fn() } finally { overrides = before } }
   const lastBody = rt => JSON.parse(rt.fetchLog.filter(entry => entry.init.method === 'PATCH').at(-1).init.body)
@@ -765,10 +771,10 @@ async function suite({ quiet = false, bail = false, extraCommitted = [] } = {}) 
     ok(/class="mpick-gauge chip-end"/.test(view({ className: 'chip-end' })), 'className goes on the trigger'); ok(/<span class="mpick-sr" role="status"/.test(view()))
   })
 
-  await check('S: the stops of the fixture catalogue are Fast $, Balanced $$, Best $$$ and NONE is Auto (it lives in Advanced); the same list is exported for a mock; SLIDER_AUTO_STOP is the one switch', () => {
+  await check('S: the older catalogue gives Fast, Balanced, Best and NO stop is Auto (it lives in Advanced); the mock\'s list is the five; SLIDER_AUTO_STOP is the one switch', () => {
     const m = loadPicker({ read, ...real, env: {} }); const catalogue = catalogueOf(m, json(FIXTURE))
     const flat = stops => stops.map(stop => [stop.id, stop.label, stop.hint])
-    deep(flat(m.sliderLib.MODEL_PICKER_STOPS(catalogue)), STOPS); deep(flat(m.sliderLib.MODEL_PICKER_STOPS(null)), STOPS, 'no catalogue: the same'); deep(flat(m.sliderLib.MODEL_PICKER_DEFAULT_STOPS), STOPS)
+    deep(flat(m.sliderLib.MODEL_PICKER_STOPS(catalogue)), STOPS, 'a catalogue with no quick and no max: three stops'); deep(flat(m.sliderLib.MODEL_PICKER_STOPS(null)), FIVE_STOPS, 'no catalogue: the five'); deep(flat(m.sliderLib.MODEL_PICKER_DEFAULT_STOPS), FIVE_STOPS, 'the mock\'s list: the five')
     ok(!m.sliderLib.MODEL_PICKER_STOPS(catalogue).some(stop => stop.auto) && !m.sliderLib.MODEL_PICKER_DEFAULT_STOPS.some(stop => stop.auto), 'no stop is Auto')
     eq(m.component.MODEL_PICKER_STOPS, m.sliderLib.MODEL_PICKER_STOPS); eq(m.component.MODEL_PICKER_DEFAULT_STOPS, m.sliderLib.MODEL_PICKER_DEFAULT_STOPS); eq(m.component.SLIDER_AUTO_STOP, false); eq(m.sliderLib.SLIDER_AUTO_STOP, false)
     eq(m.component.SLIDER_CAPTION, 'Low = quicker, lower cost · High = deeper thinking, higher cost', 'the caption, as v3.1 prints it')
@@ -780,21 +786,57 @@ async function suite({ quiet = false, bail = false, extraCommitted = [] } = {}) 
     const hints = json(FIXTURE); for (const slug of ['moonshotai/kimi-k3', 'anthropic/claude-sonnet-5.5', 'anthropic/claude-opus-5.5']) hints.models[slug].cost_hint = '$$'
     eq(m.sliderLib.MODEL_PICKER_STOPS(catalogueOf(m, hints))[2].hint, '$$', 'the models\' own cost_hint, when the groups agree')
   })
-  await check('S: an extra catalogue preset joins the stops in cost-hint order, five at most; only a preset the Studio routes can save is a stop', () => {
-    const m = loadPicker({ read, ...real, env: {} })
-    const make = (extras, hint) => { const body = json(FIXTURE); for (const [id, slug] of extras) for (const group of TEXT_GROUPS) body.groups[group].presets[id] = slug; if (hint) for (const [slug, h] of Object.entries(hint)) body.models[slug].cost_hint = h; return catalogueOf(m, body) }
-    const ids = (catalogue, presets, auto) => m.sliderLib.MODEL_PICKER_STOPS(catalogue, { ...(presets ? { presets: [...m.sliderLib.SLIDER_SAVABLE_PRESETS, ...presets] } : {}), ...(auto ? { auto } : {}) }).map(stop => stop.id)
-    const ultra = make([['ultra', 'openai/gpt-6.1-sol']], { 'openai/gpt-6.1-sol': '$$$' })
-    deep(ids(ultra), ['economy', 'balanced', 'best'], 'the routes cannot save "ultra" (best / balanced / economy): not offered')
-    deep(ids(ultra, ['ultra']), ['economy', 'balanced', 'best', 'ultra'], 'dearest: last'); eq(m.sliderLib.MODEL_PICKER_STOPS(ultra, { presets: ['economy', 'balanced', 'best', 'ultra'] }).at(-1).label, 'Ultra')
-    deep(ids(make([['ultra', 'openai/gpt-6.1-sol']], { 'openai/gpt-6.1-sol': '$$' }), ['ultra']), ['economy', 'balanced', 'ultra', 'best'], 'a $$ preset sits after Balanced')
-    deep(ids(make([['ultra', 'openai/gpt-6.1-sol']], { 'openai/gpt-6.1-sol': '$' }), ['ultra']), ['economy', 'ultra', 'balanced', 'best'], 'a $ preset sits after Fast')
-    deep(ids(make([['ultra', 'openai/gpt-6.1-sol']]), ['ultra']).at(-1), 'ultra', 'no hint: last')
-    const two = make([['ultra', 'openai/gpt-6.1-sol'], ['mega', 'qwen/qwen3.8-flash']], { 'openai/gpt-6.1-sol': '$$$', 'qwen/qwen3.8-flash': '$$$' })
-    deep(ids(two, ['ultra', 'mega']), ['economy', 'balanced', 'best', 'mega', 'ultra'], 'five at most: up to five presets by cost, ties by name'); deep(ids(two, ['ultra', 'mega'], true), ['auto', 'economy', 'balanced', 'best', 'mega'], 'with Auto on the scale it is one of the five: the dearest that does not fit is left out')
-    const partial = json(FIXTURE); partial.groups.planning_strategy.presets.ultra = 'anthropic/claude-sonnet-5.5'; for (const group of ['content_writing', 'research_analysis']) partial.groups[group].presets.ultra = 'openai/gpt-6.1-sol'
-    deep(ids(catalogueOf(m, partial), ['ultra']), ['economy', 'balanced', 'best'], 'a model one group does not certify: no stop')
-    const odd = make([['Bad Id', 'openai/gpt-6.1-sol'], ['x'.repeat(40), 'openai/gpt-6.1-sol']]); deep(Object.keys(odd.allPresets.planning_strategy).sort(), ['balanced', 'best', 'economy'], 'an id that is not a plain preset name is not read')
+  await check('S: five stops, in the catalogue\'s preset_order, else Quick, Fast, Balanced, Best, Max; the labels; a stop shows when every open text group has its preset; two stops may name the same model', () => {
+    const m = loadPicker({ read, ...real, env: {} }); const ids = catalogue => m.sliderLib.MODEL_PICKER_STOPS(catalogue).map(stop => stop.id)
+    const five = fiveOf(m); deep(m.sliderLib.MODEL_PICKER_STOPS(five).map(stop => [stop.id, stop.label, stop.hint, stop.auto, stop.tier]), FIVE_STOPS.map(([id, label, hint]) => [id, label, hint, false, id]), 'from preset_order'); eq(five.presetOrder.length, 5)
+    deep(ids(fiveOf(m, body => { body.preset_order = ['max', 'best', 'balanced', 'economy', 'quick'] })), ['max', 'best', 'balanced', 'economy', 'quick'], 'the catalogue\'s order, whatever it is')
+    deep(ids(fiveOf(m, body => { body.preset_order = ['economy', 'quick', 'ultra', 'economy', 'balanced', 'max'] })), ['economy', 'quick', 'balanced', 'max'], 'an unknown id and a repeat dropped; a preset the order leaves out (best) is no stop')
+    for (const absent of [body => { delete body.preset_order }, body => { body.preset_order = [] }, body => { body.preset_order = ['ultra'] }]) deep(ids(fiveOf(m, absent)), ['quick', 'economy', 'balanced', 'best', 'max'], 'no preset_order: the fixed Quick, Fast, Balanced, Best, Max')
+    deep(m.sliderLib.MODEL_PICKER_STOPS(fiveOf(m)).map(stop => stop.label), ['Quick', 'Fast', 'Balanced', 'Best', 'Max'], 'economy is shown as Fast')
+    const research = five.presets.research_analysis; eq(research.best, research.max, 'research: Best and Max are the same model'); deep(ids(five), ['quick', 'economy', 'balanced', 'best', 'max'], 'both stops show: a duplicate model hides nothing')
+    deep(ids(fiveOf(m, body => { delete body.groups.content_writing.presets.max })), ['quick', 'economy', 'balanced', 'best'], 'a preset a group lacks is no stop')
+    deep(ids(fiveOf(m, body => { delete body.groups.research_analysis.presets.quick })), ['economy', 'balanced', 'best', 'max'])
+    deep(ids(fiveOf(m, body => { body.groups.planning_strategy.presets.max = 'anthropic/claude-sonnet-5.5' })), ['quick', 'economy', 'balanced', 'best'], 'a model its group does not certify (Sonnet 5.5 is not certified for planning): no stop')
+    deep(ids(fiveOf(m, body => { body.groups.content_writing.visibility = 'system'; delete body.groups.content_writing.presets.max })), ['quick', 'economy', 'balanced', 'best', 'max'], 'a group the catalogue does not open does not count')
+    deep(m.sliderLib.MODEL_PICKER_STOPS(five, { auto: true }).map(stop => stop.id), ['auto', 'quick', 'economy', 'balanced', 'best'], 'five at most: with Auto on the scale the last preset does not fit')
+    deep(m.sliderLib.MODEL_PICKER_STOPS(five, { presets: ['economy', 'best'] }).map(stop => stop.id), ['economy', 'best'], 'only the presets the routes can save')
+  })
+  await check('S: each stop\'s sub-line is the catalogue\'s preset_hints line (none when it sends none); the stop under the thumb shows it, it is in the thumb\'s spoken value and the label\'s title', async () => {
+    const m = loadPicker({ read, ...real, env: {} }); const five = fiveOf(m)
+    deep(m.sliderLib.MODEL_PICKER_STOPS(five).map(stop => stop.sub), ['quick', 'economy', 'balanced', 'best', 'max'].map(id => HINTS[id]))
+    deep(m.sliderLib.MODEL_PICKER_STOPS(fiveOf(m, body => { delete body.preset_hints })).map(stop => stop.sub), [null, null, null, null, null], 'no preset_hints: none'); deep(m.sliderLib.MODEL_PICKER_STOPS(fiveOf(m, body => { body.preset_hints = { max: 'x'.repeat(201), best: 4, economy: 'Fine.' } })).map(stop => stop.sub), [null, 'Fine.', null, null, null], 'a bad one is dropped, the others kept')
+    deep(m.sliderLib.MODEL_PICKER_STOPS(catalogueOf(m, json(FIXTURE))).map(stop => stop.sub), [null, null, null])
+    const router = fakeRouter(); seedWire(router, USER_PATH, 'balanced')
+    let rt = await mountSlider({ router, catalogue: okCatalogue(json(FIVE)) }); await rt.open()
+    deep(rt.stops().map(stop => [stop.id, stop.name]), FIVE_STOPS.map(([id, label]) => [id, label])); eq(rt.slider().props.max, 4); deep(rt.slider().props.value, [2]); eq(textOf(rt.find(node => node.props?.['data-mpick'] === 'stop-sub')), HINTS.balanced); eq(rt.thumb().props['aria-valuetext'], `Balanced, cost 2 of 3. ${HINTS.balanced}`)
+    deep(rt.stops().map(stop => stop.node.props.title), ['quick', 'economy', 'balanced', 'best', 'max'].map(id => HINTS[id]), 'a label\'s title is its hint'); eq(rt.active(), 'Balanced')
+    await rt.drag(4); eq(textOf(rt.find(node => node.props?.['data-mpick'] === 'stop-sub')), HINTS.max, 'the hint follows the thumb as it is dragged'); eq(rt.thumb().props['aria-valuetext'], HINTS.max.length ? 'Max' : 'Max', 'a drag is only the label')
+    rt = await mountSlider({ catalogue: okCatalogue(json(FIVE)) }); await rt.open(); eq(rt.slider().props['data-thumb'], 'none'); eq(rt.maybe(node => node.props?.['data-mpick'] === 'stop-sub'), undefined, 'no thumb: no stop, no hint')
+    rt = await mountSlider({ router, catalogue: okCatalogue(json(FIXTURE)) }); await rt.open(); eq(rt.maybe(node => node.props?.['data-mpick'] === 'stop-sub'), undefined, 'no preset_hints: no sub-line'); eq(rt.slider().props.max, 2)
+  })
+  await check('S: the saved bodies of the five stops: user (Quick and Max are presets), deck (the same, whole map), Max and Best of research name one model and are both saved as themselves', async () => {
+    const router = fakeRouter(); const rt = await mountSlider({ router, catalogue: okCatalogue(json(FIVE)) }); await rt.open()
+    for (const [i, id] of [[4, 'max'], [0, 'quick'], [3, 'best'], [4, 'max'], [1, 'economy']]) { await rt.commit(i); deep(lastBody(rt), onUser({ preset: id }), id); deep(kept(router, USER_PATH), Object.fromEntries(TEXT_GROUPS.map(g => [g, id]))); deep(rt.slider().props.value, [i]); eq(rt.gauge().props['aria-label'], `Model: ${FIVE_STOPS[i][1]}`) }
+    const deckRouter = fakeRouter(); const deck = await mountSlider({ router: deckRouter, props: { sessionId: 'sess-fixture-1' }, catalogue: okCatalogue(json(FIVE)) }); await deck.open()
+    for (const [i, id] of [[0, 'quick'], [4, 'max'], [3, 'best']]) { await deck.commit(i); eq(deckRouter.log.filter(entry => entry.method === 'PUT').at(-1).body, JSON.stringify({ preferences: Object.fromEntries(TEXT_GROUPS.map(g => [g, { preset: id }])) }), id); eq(deck.gauge().props['aria-label'], `Model: ${FIVE_STOPS[i][1]}`) }
+    deep(kept(deckRouter, SESSION_PATH), Object.fromEntries(TEXT_GROUPS.map(g => [g, 'best'])), 'Best is Best, not Max, though research names one model for both')
+    const again = await mountSlider({ router: deckRouter, props: { sessionId: 'sess-fixture-1' }, catalogue: okCatalogue(json(FIVE)) }); await again.open(); deep(again.slider().props.value, [3]); eq(again.active(), 'Best'); deep(again.stops().map(stop => stop.active), ['false', 'false', 'false', 'true', 'false'])
+  })
+  await check('S: the compact picker\'s menu lists the presets in the same order with their hints; Quick and Max save as presets; a catalogue with no preset_order uses the fixed order', async () => {
+    const router = fakeRouter(); const rt = await mount({ router, catalogue: okCatalogue(json(FIVE)) }); await rt.open()
+    deep(rt.items().map(item => [item.id, item.name, item.detail, item.hint]), [['auto', 'Auto', 'Deckster chooses', null], ...FIVE_STOPS.map(([id, label, hint]) => [id, label, HINTS[id], hint])])
+    await rt.pick('max'); deep(lastBody(rt), onUser({ preset: 'max' })); eq(rt.chipText(), 'Max'); await rt.open(); await rt.pick('quick'); deep(lastBody(rt), onUser({ preset: 'quick' })); eq(rt.chipText(), 'Quick'); eq(rt.chip().props['aria-label'], 'Model: Quick')
+    const reordered = await mount({ catalogue: okCatalogue((() => { const body = json(FIVE); body.preset_order = ['max', 'best', 'balanced', 'economy', 'quick']; delete body.preset_hints; return body })()) }); await reordered.open(); deep(reordered.items().map(item => item.id), ['auto', 'max', 'best', 'balanced', 'economy', 'quick']); deep(reordered.items().map(item => item.detail).slice(1), [null, null, null, null, null], 'no hints: no sub-line')
+    const fallback = await mount({ catalogue: okCatalogue((() => { const body = json(FIVE); delete body.preset_order; return body })()) }); await fallback.open(); deep(fallback.items().map(item => item.id), ['auto', 'quick', 'economy', 'balanced', 'best', 'max'])
+    const old = await mount({ catalogue: okCatalogue(json(FIXTURE)) }); await old.open(); deep(old.items().map(item => item.id), ['auto', 'economy', 'balanced', 'best'], 'the older catalogue: as before')
+    const kept5 = fakeRouter(); kept5.seed(USER_PATH, { tier: 'max' }); const back = await mount({ router: kept5, catalogue: okCatalogue(json(FIVE)) }); eq(back.chipText(), 'Max'); const gone = await mount({ router: kept5, catalogue: okCatalogue(json(FIXTURE)) }); eq(gone.chipText(), 'Auto', 'a Max the catalogue no longer has reads as Auto')
+  })
+  await check('S: the slider\'s list of presets IS the Studio routes\' list: the same five, and the routes refuse every other id', () => {
+    const m = loadPicker({ read, ...real, env: {} }); const server = runModule(SERVER, { '@/lib/studio-model-choice': m.choice }, { read })
+    deep([...m.sliderLib.SLIDER_SAVABLE_PRESETS], ['quick', 'economy', 'balanced', 'best', 'max']); deep([...m.sliderLib.SLIDER_SAVABLE_PRESETS], [...m.choice.MODEL_CHOICE_PRESET_IDS]); deep([...m.picker.PICKER_TIERS], [...m.choice.MODEL_CHOICE_PRESET_IDS])
+    const accepted = id => server.parsePrefsPatch({ preferences: { planning_strategy: { preset: id } } }).ok
+    deep(['quick', 'economy', 'balanced', 'best', 'max', 'fast', 'ultra', 'Quick', 'MAX', ''].filter(accepted), [...m.sliderLib.SLIDER_SAVABLE_PRESETS], 'what the server takes is what the slider offers')
+    const source = read(SERVER).replace(/\/\/.*$/gm, ''); ok(/const PRESETS: readonly string\[\] = MODEL_CHOICE_PRESET_IDS/.test(source), 'the server reads the shared list'); ok(/export const SLIDER_SAVABLE_PRESETS: readonly string\[\] = MODEL_CHOICE_PRESET_IDS/.test(read(FILES.sliderLib)), 'so does the slider')
   })
   await check('S: nothing chosen (Auto) shows NO thumb; a chosen stop has the filled thumb; a deck following the default has a HOLLOW thumb on the default\'s stop; a specific model or a mix is Custom, off the scale', async () => {
     const router = fakeRouter()
@@ -956,8 +998,7 @@ async function suite({ quiet = false, bail = false, extraCommitted = [] } = {}) 
   })
   await check('S: the caption is exactly v3.1\'s, and the labels and the head say what the spec says', () => {
     const m = loadPicker({ read, ...real }); eq(m.sliderLib.SLIDER_CAPTION, 'Low = quicker, lower cost · High = deeper thinking, higher cost'); eq(m.sliderLib.SLIDER_ADVANCED_LABEL, 'Advanced'); eq(m.sliderLib.SLIDER_LABEL, 'Model'); eq(m.sliderLib.SLIDER_MAX_STOPS, 5)
-    eq(m.sliderLib.SLIDER_CUSTOM_LABEL, 'Custom'); deep([...m.sliderLib.SLIDER_SAVABLE_PRESETS], ['economy', 'balanced', 'best'], 'the presets the Studio routes carry'); eq(m.sliderLib.SLIDER_AUTO_STOP, false, 'Auto lives in Advanced')
-    const server = fs.readFileSync(path.join(root, SERVER), 'utf8'); ok(/const PRESETS = \['best', 'balanced', 'economy'\]/.test(server), 'the same three the server accepts')
+    eq(m.sliderLib.SLIDER_CUSTOM_LABEL, 'Custom'); eq(m.sliderLib.SLIDER_AUTO_STOP, false, 'Auto lives in Advanced')
     const spec = 'Low = quicker, lower cost · High = deeper thinking, higher cost'; ok(read(FILES.slider).includes('{SLIDER_CAPTION}') && read(FILES.sliderLib).includes(`'${spec}'`))
   })
   await check('L: nothing in the app imports the picker (it is placed by FRONTEND-1), so flag off the app is the base', () => {
@@ -969,7 +1010,7 @@ async function suite({ quiet = false, bail = false, extraCommitted = [] } = {}) 
   })
   await check('L: the new files hold no credential-shaped literal and no long hex', () => {
     const CRED = /Bearer [A-Za-z0-9._-]{16,}|\bsk-[A-Za-z0-9]{16,}|\beyJ[A-Za-z0-9_-]{20,}|(?:api[_-]?key|secret|token|passw(?:or)?d|credential)[A-Za-z0-9_]*['"]?\s*[:=]\s*['"`][^'"`\s$]{8,}['"`]/i
-    for (const rel of [...PICKER_FILES, ...SLIDER_ADDED]) { const text = read(rel).replace(/credentials: "same-origin"/g, '').replace(/headers\.Authorization !== `Bearer \$\{KEY\}`/g, ''); ok(!CRED.test(text), rel); ok(rel === SLIDER_STRIP || !/[A-Fa-f0-9]{40,}/.test(text), `${rel}: no long hex`) }
+    for (const rel of [...PICKER_FILES, ...SLIDER_ADDED, FIVE_STRIP]) { const text = read(rel).replace(/credentials: "same-origin"/g, '').replace(/headers\.Authorization !== `Bearer \$\{KEY\}`/g, ''); ok(!CRED.test(text), rel); ok(rel === SLIDER_STRIP || rel === FIVE_STRIP || !/[A-Fa-f0-9]{40,}/.test(text), `${rel}: no long hex`) }
   })
   const own = []
   for (const block of git('log', '--no-merges', '--name-only', '--format=%x01%H %s', `${PICKER_BASE}..HEAD`).split('\x01').filter(Boolean)) {
@@ -1020,6 +1061,34 @@ async function suite({ quiet = false, bail = false, extraCommitted = [] } = {}) 
       const edit = git('diff', '-U0', SLIDER_BASE, sliderOwn[0].commit, '--', REGISTRY).split('\n').filter(line => /^[+-]/.test(line) && !/^(\+\+\+|---) /.test(line))
       eq(edit.length, 1); ok(edit[0].startsWith('+') && edit[0].includes('studio-model-slider-strip.mjs') && edit[0].includes('// LATER-CHANGE: '))
       ok(git('diff', '--name-only', SLIDER_BASE, sliderOwn[0].commit, '--', '.env.example', 'app') === '', 'no .env.example block, no app file')
+    })
+  }
+
+  const fiveOwn = []
+  for (const block of git('log', '--no-merges', '--name-only', '--format=%x01%H %s', `${FIVE_BASE}..HEAD`).split('\x01').filter(Boolean)) {
+    const [head, ...names] = block.split('\n')
+    if (head.slice(41).startsWith(FIVE_SUBJECT)) fiveOwn.push({ commit: head.slice(0, 40), names: names.filter(Boolean) })
+  }
+  if (fiveOwn.length === 0) {
+    if (!quiet) console.log('SKIP L  nothing of the five presets committed on top of 59588574 yet (the scope check reads FIVE_BASE..HEAD only)')
+  } else {
+    await check('L: the five presets\' own commits ("Model choice five: ...") add exactly the strip and the catalogue fixture and edit only the picker, slider, choice lib and server files, the fixture script, the two proofs and the registry; no app file, no route, no .env.example', async () => {
+      const touched = new Set(fiveOwn.flatMap(entry => entry.names))
+      const status = git('diff', '--name-status', FIVE_BASE, fiveOwn[0].commit).split('\n').filter(Boolean).map(line => line.split('\t')).filter(row => touched.has(row[1]))
+      deep([...status.filter(row => row[0] === 'A').map(row => row[1]), ...extraCommitted].sort(), FIVE_ADDED)
+      deep(status.filter(row => row[0] !== 'A').map(row => `${row[0]} ${row[1]}`).sort(), FIVE_EDITED.map(file => `M ${file}`).sort())
+      ok(!status.some(row => /^(app|pages|hooks)\//.test(row[1]) || row[1] === '.env.example' || /^components\/(?!model-choice\/)/.test(row[1])), 'nothing in the app')
+      const subjects = git('log', '--no-merges', '--format=%s', `${FIVE_BASE}..${fiveOwn[0].commit}`).split('\n').filter(Boolean); ok(subjects.every(subject => subject.startsWith(FIVE_SUBJECT)), subjects.join(' | '))
+    })
+    await check('L: the five presets\' strip names its files, the registry gains ONE line for it (no env block, no strip), and the older scope checks skip them', async () => {
+      const strip = await import(`data:text/javascript,${encodeURIComponent(read(FIVE_STRIP))}`)
+      for (const rel of [...FIVE_ADDED, ...FIVE_EDITED]) ok(strip.MODEL_FIVE_SCOPE_FILES.has(rel), rel)
+      ok(strip.MODEL_FIVE_BASE_COMMIT.startsWith(FIVE_BASE) && strip.MODEL_FIVE_BASE_COMMIT.length === 40); eq(strip.MODEL_FIVE_SUBJECT, FIVE_SUBJECT); eq(strip.MODEL_FIVE_FLAG, 'NEXT_PUBLIC_STUDIO_MODEL_CHOICE')
+      const reg = await import(`${path.join(root, REGISTRY)}?t=${Date.now()}`)
+      for (const rel of [...FIVE_ADDED, ...FIVE_EDITED]) ok(reg.LATER_CHANGE_FILES.has(rel), rel)
+      const edit = git('diff', '-U0', FIVE_BASE, fiveOwn[0].commit, '--', REGISTRY).split('\n').filter(line => /^[+-]/.test(line) && !/^(\+\+\+|---) /.test(line))
+      eq(edit.length, 1); ok(edit[0].startsWith('+') && edit[0].includes('studio-model-five-strip.mjs') && edit[0].includes('// LATER-CHANGE: '))
+      ok(git('diff', '--name-only', FIVE_BASE, fiveOwn[0].commit, '--', '.env.example', 'app') === '', 'no .env.example block, no app file')
     })
   }
 
@@ -1116,6 +1185,21 @@ const MUTANTS = [
   ['slider css: the hollow thumb is filled', SCSS, '.mpick-slider-root[data-thumb="hollow"] .mpick-slider-thumb { background: transparent; }', '.mpick-slider-root[data-thumb="hollow"] .mpick-slider-thumb { }'],
   ['slider css: the dot under the thumb is drawn', SCSS, '.mpick-tick[data-current="true"] { opacity: 0; }', '.mpick-tick[data-current="true"] { opacity: 1; }'],
   ['slider css: the fill shows with nothing chosen', SCSS, '.mpick-slider-root[data-thumb="none"] .mpick-slider-range { opacity: 0; }', '.mpick-slider-root[data-thumb="none"] .mpick-slider-range { opacity: 0.8; }'],
+  // the five presets
+  ['five: the catalogue\'s order is ignored', P, 'catalogue?.presetOrder ?? PICKER_TIERS', 'PICKER_TIERS'],
+  ['five: the fixed order is not quickest first', CHOICE_LIB, "['quick', 'economy', 'balanced', 'best', 'max']", "['economy', 'quick', 'balanced', 'best', 'max']"],
+  ['five: a stop has no hint', SL, 'sub: presetHint(catalogue, id), auto: false', 'sub: null, auto: false'],
+  ['five: a duplicate model hides a stop', SL, '.filter(id => savable.includes(id) && tierOffered(catalogue, id))', '.filter((id, i, all) => savable.includes(id) && tierOffered(catalogue, id) && !all.slice(0, i).some(other => catalogue?.presets.research_analysis?.[other as \'best\'] !== undefined && catalogue?.presets.research_analysis?.[other as \'best\'] === catalogue?.presets.research_analysis?.[id as \'best\']))'],
+  ['five: a stop needs its preset in one group only', P, 'return PICKER_GROUPS.every(task => { const group = choiceGroup(catalogue, task); return group === null || presetModel(catalogue, group, tier) !== null })', 'return PICKER_GROUPS.some(task => { const group = choiceGroup(catalogue, task); return group === null || presetModel(catalogue, group, tier) !== null })'],
+  ['five: the slider\'s list is not the routes\'', SL, 'export const SLIDER_SAVABLE_PRESETS: readonly string[] = MODEL_CHOICE_PRESET_IDS', "export const SLIDER_SAVABLE_PRESETS: readonly string[] = ['economy', 'balanced', 'best']"],
+  ['five: the sub-line is not shown', SC, '{onScale && stops[thumb]?.sub ?', '{false && stops[thumb]?.sub ?'],
+  ['five: the sub-line shows with no thumb', SC, '{onScale && stops[thumb]?.sub ?', '{stops[thumb]?.sub ?'],
+  ['five: the label has no title', SC, ' title={stop.sub ?? undefined}', ''],
+  ['five: the spoken value has no hint', SL, "${costWords(stop.hint)}${stop.sub ? `. ${stop.sub}` : ''}`", '${costWords(stop.hint)}`'],
+  ['five: the compact menu has no hints', P, 'detail: presetHint(catalogue, tier), hint: tierHint(catalogue, tier)', 'detail: null, hint: tierHint(catalogue, tier)'],
+  ['five: the compact menu ignores the order', P, 'for (const tier of orderedPresets(catalogue)) {', 'for (const tier of PICKER_TIERS) {'],
+  ['five: Max is a model', CHOICE_LIB, "{ id: 'max', label: 'Max', hint: '$$$' }", "{ id: 'max', label: 'Maximum', hint: '$$$' }"],
+  ['five: the five strip leaves a file out', FIVE_STRIP, "  'scripts/fixtures/studio-model-choice/catalogue-five-presets.json',\n", ''],
   ['slider css: a 32 px gauge', SCSS, '  width: 24px;\n  height: 24px;', '  width: 32px;\n  height: 32px;'],
   ['slider css: no hit area on phones', SCSS, '  .mpick-gauge::before { content: ""; position: absolute; top: -10px; right: -10px; bottom: -10px; left: -10px; }\n', ''],
   ['slider css: a 36 px hit area', SCSS, 'top: -10px; right: -10px; bottom: -10px; left: -10px;', 'top: -6px; right: -6px; bottom: -6px; left: -6px;'],

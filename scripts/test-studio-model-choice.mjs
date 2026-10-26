@@ -49,7 +49,7 @@ const LIB = 'lib/studio-model-choice.ts', SERVER = 'lib/studio-model-choice-serv
 const P2LIB = 'lib/studio-intelligence-p2.ts', CATLIB = 'lib/studio-model-catalog.ts', POLISH = 'lib/studio-p2-polish.ts', WORKSPACE = 'components/studio-personal/intelligence-workspace.tsx'
 const USER_ROUTE = 'app/api/model-choice/prefs/route.ts', DECK_ROUTE = 'app/api/model-choice/prefs/deck/[deckKey]/route.ts', USED_ROUTE = 'app/api/model-choice/used/[buildId]/route.ts'
 const PAGE = 'app/(app)/studio/intelligence/page.tsx', ENV = '.env.example', REGISTRY = 'scripts/studio-later-changes.mjs'
-const FIX = 'scripts/fixtures/studio-model-choice', FIXTURE = `${FIX}/catalogue-live-shape.json`, RECORDED = 'scripts/fixtures/studio-model-catalog/fixture-200.json'
+const FIX = 'scripts/fixtures/studio-model-choice', FIXTURE = `${FIX}/catalogue-live-shape.json`, FIVE = `${FIX}/catalogue-five-presets.json`, RECORDED = 'scripts/fixtures/studio-model-catalog/fixture-200.json'
 const SNAPSHOT = 'components/studio-personal/model-catalog-snapshot.json', SNAPSHOT_10 = 'components/studio-personal/model-catalog-snapshot-2026-10.json'
 
 let overrides = {}
@@ -440,7 +440,7 @@ async function suite({ quiet = false, extraCommitted = [] } = {}) {
 
   // ---- E. tiers -----------------------------------------------------------------------------------------------------------------------------------------------------------
   await check('E: the tiers, their wire values and hints; Economy is never shown', () => {
-    deep(rt.lib.MODEL_CHOICE_TIERS, [{ id: 'best', label: 'Best', hint: '$$$' }, { id: 'balanced', label: 'Balanced', hint: '$$' }, { id: 'economy', label: 'Fast', hint: '$' }])
+    deep(rt.lib.MODEL_CHOICE_TIERS, [{ id: 'max', label: 'Max', hint: '$$$' }, { id: 'best', label: 'Best', hint: '$$$' }, { id: 'balanced', label: 'Balanced', hint: '$$' }, { id: 'economy', label: 'Fast', hint: '$' }, { id: 'quick', label: 'Quick', hint: '$' }]) // model-router, 26 Oct: Quick and Max join the three
     ok(!rt.text().includes('Economy'))
     eq(textOf(rt.find(node => node.props?.['data-model-choice-cost'] === 'true')), 'Cost hint: $ is the lowest-cost tier and $$$ the highest. Prices are not listed.')
     ok(String(rt.select('planning_strategy').props['aria-describedby']).split(' ').includes('sp-mc2-cost'))
@@ -457,6 +457,40 @@ async function suite({ quiet = false, extraCommitted = [] } = {}) {
     await r.choose('content_writing', 'economy')
     eq(r.select('content_writing').props.value, 'economy'); eq(r.router.store.get(USER_PATH).content_writing.preset, 'economy')
     eq(r.current('content_writing'), 'GPT-6 LunaOpenAI · Fast $ · Your choice')
+  })
+  await check('E: the five presets (quick, economy, balanced, best, max) are the one list the Studio routes and the picker share; the fixture is the router\'s example (preset_order, preset_hints, quick and max in all three text groups)', () => {
+    const { choice, server } = libs()
+    deep([...choice.MODEL_CHOICE_PRESET_IDS], ['quick', 'economy', 'balanced', 'best', 'max'])
+    const five = json(FIVE); deep(five.preset_order, ['quick', 'economy', 'balanced', 'best', 'max']); deep(Object.keys(five.preset_hints).sort(), ['balanced', 'best', 'economy', 'max', 'quick']); ok(Object.values(five.preset_hints).every(text => typeof text === 'string' && text.length <= 200))
+    for (const group of TEXT_GROUPS) { ok(five.groups[group].presets.quick && five.groups[group].presets.max, group); for (const slug of [five.groups[group].presets.quick, five.groups[group].presets.max]) ok(five.groups[group].selectable_models.includes(slug), `${group}: ${slug} is certified`) }
+    eq(five.groups.research_analysis.presets.best, five.groups.research_analysis.presets.max, 'research: Best and Max name the same model (duplicates are allowed)')
+    deep(Object.keys(json(FIXTURE)).filter(key => key === 'preset_order' || key === 'preset_hints'), [], 'the older fixture has neither: the catalogue before Director\'s flag is on')
+    const source = read(SERVER).replace(/\/\*[\s\S]*?\*\//g, '').replace(/\/\/.*$/gm, ''); ok(/const PRESETS: readonly string\[\] = MODEL_CHOICE_PRESET_IDS/.test(source) && /import \{[^}]*MODEL_CHOICE_PRESET_IDS[^}]*\} from '@\/lib\/studio-model-choice'/.test(source), 'the server reads the shared list')
+    for (const id of choice.MODEL_CHOICE_PRESET_IDS) deep(server.parsePrefsPatch({ preferences: { planning_strategy: { preset: id } } }), { ok: true, changes: { planning_strategy: { preset: id } } }, id)
+    for (const id of ['fast', 'ultra', 'Quick', 'MAX', 'quick ', ' max', '', 'economy2', 'default', 'auto', '__proto__', 'x'.repeat(40)]) eq(server.parsePrefsPatch({ preferences: { planning_strategy: { preset: id } } }).ok, false, JSON.stringify(id))
+    for (const bad of [null, 1, true, ['quick'], {}]) eq(server.parsePrefsPatch({ preferences: { planning_strategy: { preset: bad } } }).ok, false, JSON.stringify(bad))
+  })
+  await check('E: preset_order keeps the ids Studio knows, each once, in the catalogue\'s order (none when the catalogue sends none); preset_hints keeps one line per known id (1 to 200 characters, trimmed); the rest is dropped', () => {
+    const { choice, cat } = libs()
+    const catalogue = body => choice.withPresets(cat.parseCatalogue(body), body)
+    const five = json(FIVE); const parsed = catalogue(five)
+    deep(parsed.presetOrder, ['quick', 'economy', 'balanced', 'best', 'max']); eq(parsed.presetHints.max, five.preset_hints.max); deep(parsed.presets.research_analysis, { quick: 'deepseek/deepseek-v4.1-flash', economy: 'openai/gpt-6-luna', balanced: 'openai/gpt-6-luna', best: 'anthropic/claude-opus-5.5', max: 'anthropic/claude-opus-5.5' })
+    const odd = json(FIVE); odd.preset_order = ['max', 'best', 'ultra', 'max', 7, null, 'quick', '__proto__', 'balanced', 'Economy']; odd.preset_hints = { quick: '  one line  ', economy: '', balanced: 'x'.repeat(201), best: 'x'.repeat(200), max: 5, ultra: 'unknown id', __proto__: 'x' }
+    const oddParsed = catalogue(odd); deep(oddParsed.presetOrder, ['max', 'best', 'quick', 'balanced'], 'known ids, once, in the catalogue\'s order'); deep(Object.keys(oddParsed.presetHints).sort(), ['best', 'quick']); eq(oddParsed.presetHints.quick, 'one line'); eq(oddParsed.presetHints.best.length, 200); eq(oddParsed.presetHints.ultra, undefined); eq(Object.getPrototypeOf(oddParsed.presetHints), null)
+    for (const absent of [undefined, null, [], 'quick', {}, ['ultra', 7]]) { const none = json(FIVE); if (absent === undefined) delete none.preset_order; else none.preset_order = absent; eq(catalogue(none).presetOrder, null, JSON.stringify(absent)) }
+    const old = catalogue(json(FIXTURE)); eq(old.presetOrder, null); deep(Object.keys(old.presetHints), []); deep(Object.keys(old.presets.planning_strategy).sort(), ['balanced', 'best', 'economy'])
+    const bad = json(FIVE); bad.preset_hints = 'x'; deep(Object.keys(catalogue(bad).presetHints), []); const alt = json(FIVE); alt.preset_hints = ['x']; deep(Object.keys(catalogue(alt).presetHints), [])
+  })
+  await check('E: quick and max go to the router as presets, are kept on the device, and come back; the Intelligence page lists them, dearest first, when the catalogue has them', async () => {
+    const { choice } = libs()
+    const choices = { ...choice.modelChoiceDefaults(), planning_strategy: 'quick', content_writing: 'max', research_analysis: 'economy' }
+    deep(choice.toWire(choices, 'user'), { preferences: { planning_strategy: { preset: 'quick' }, content_writing: { preset: 'max' }, research_analysis: { preset: 'economy' } } })
+    deep(choice.fromWire({ preferences: { planning_strategy: { preset: 'quick', model: null }, content_writing: { preset: 'max' }, research_analysis: { preset: 'fast' } } }), { ...choice.modelChoiceDefaults(), planning_strategy: 'quick', content_writing: 'max' }, 'an unknown preset reads as the recommendation')
+    deep(choice.parseChoices({ kind: 'user' }, choice.serializeChoices({ kind: 'user' }, choices)), choices, 'the device format keeps them'); eq(choice.parseChoices({ kind: 'user' }, '{"v":1,"scope":"user","choices":{"planning_strategy":"ultra"}}').planning_strategy, 'default')
+    const r = await mount({ catalogue: okCatalogue(json(FIVE)) })
+    for (const task of TEXT_GROUPS) { deep(r.options(task).map(option => option.value).filter(value => !value.startsWith('model:')), ['default', 'max', 'best', 'balanced', 'economy', 'quick'], task); ok(r.options(task).some(option => option.label.startsWith('Quick — ') && option.label.endsWith('· $')), 'Quick has its own hint') }
+    const acc = await mount({ studio: 'account', catalogue: okCatalogue(json(FIVE)) }); await acc.choose('planning_strategy', 'max')
+    deep(acc.router.log.filter(entry => entry.method === 'PATCH').map(entry => JSON.parse(entry.body)), [{ preferences: { planning_strategy: { preset: 'max' }, content_writing: null, research_analysis: null } }]); eq(acc.router.store.get(USER_PATH).planning_strategy.preset, 'max'); eq(acc.select('planning_strategy').props.value, 'max')
   })
   await check('E: the built-in list relabels Economy as Fast and its presets name no model', async () => {
     const r = await mount({ catalogue: { status: 502, body: { error: 'x', code: 'director_error' } } })
@@ -827,6 +861,16 @@ async function suite({ quiet = false, extraCommitted = [] } = {}) {
     const good = await callRoute(USER_ROUTE, 'PATCH', { body: { preferences: { planning_strategy: { preset: 'economy' }, content_writing: { model: 'anthropic/claude-opus-5.5' }, research_analysis: null } } })
     eq(good.status, 200); deep(JSON.parse(good.router.log[1].body), { preferences: { planning_strategy: { preset: 'economy' }, content_writing: { model: 'anthropic/claude-opus-5.5' }, research_analysis: null } })
   })
+  await check('M: quick and max are accepted on both scopes and sent as presets (the exact bodies, read back as presets); an unknown preset id is a 400 that sends nothing', async () => {
+    for (const [rel, params, write] of [[USER_ROUTE, undefined, 'PATCH'], [DECK_ROUTE, { deckKey: 'sess-fixture-1' }, 'PUT']]) {
+      for (const id of ['quick', 'max']) {
+        const router = fakeRouter(); const out = await callRoute(rel, 'PATCH', { params, router, body: { preferences: Object.fromEntries(TEXT_GROUPS.map(g => [g, { preset: id }])) } })
+        eq(out.status, 200, `${rel} ${id}`); eq(router.log.find(entry => entry.method === write).body, JSON.stringify({ preferences: Object.fromEntries(TEXT_GROUPS.map(g => [g, { preset: id }])) })); deep(out.body.preferences.planning_strategy, { preset: id, model: null, stale: false })
+        const again = await callRoute(rel, 'GET', { params, router }); deep(Object.values(again.body.preferences).map(row => row.preset), [id, id, id], 'read back')
+      }
+      for (const id of ['fast', 'ultra', 'Quick', 'MAX', '']) { const out = await callRoute(rel, 'PATCH', { params, body: { preferences: { planning_strategy: { preset: id } } } }); eq(out.status, 400, `${rel} ${JSON.stringify(id)}`); eq(out.body.code, 'invalid_request'); eq(out.router.log.length, 0) }
+    }
+  })
   await check('M: If-Match: a read-modify-write on both scopes; a stale tag is refused before any write; a malformed one is a 400', async () => {
     for (const [rel, params, routerPath, write] of [[USER_ROUTE, undefined, USER_PATH, 'PATCH'], [DECK_ROUTE, { deckKey: 'sess-fixture-1' }, SESSION_PATH, 'PUT']]) {
       const router = fakeRouter()
@@ -1049,6 +1093,20 @@ const MUTANTS = [
   ['strip: the strip keeps marked lines', STRIP, "  return text.split('\\n').filter(line => !MODEL_CHOICE_MARKER_RE.test(line)).join('\\n')", '  return text'],
   ['env: the block says "true"', ENV, 'NEXT_PUBLIC_STUDIO_MODEL_CHOICE="false"', 'NEXT_PUBLIC_STUDIO_MODEL_CHOICE="true"'],
   ['env: the block names the router address variable', STRIP, 'at the router address the narration block\n# above sets', 'at MODEL_ROUTER_URL (the narration block\n# above sets it)'],
+  // the five presets (model-router, 26 Oct)
+  ['server: quick and max are refused', SERVER, 'const PRESETS: readonly string[] = MODEL_CHOICE_PRESET_IDS', "const PRESETS: readonly string[] = ['best', 'balanced', 'economy']"],
+  ['server: any preset id is accepted', SERVER, "!PRESETS.includes(choice.preset)) return refuse(", "false) return refuse("],
+  ['lib: max is not a preset', LIB, "['quick', 'economy', 'balanced', 'best', 'max']", "['quick', 'economy', 'balanced', 'best']"],
+  ['lib: the catalogue\'s order is ignored', LIB, 'presetOrder: order.length > 0 ? order : null', 'presetOrder: null'],
+  ['lib: an unknown id is in the order', LIB, "(id): id is PresetId => typeof id === 'string' && isPreset(id)", "(id): id is PresetId => typeof id === 'string'"],
+  ['lib: the order keeps a repeat', LIB, '[...new Set(body.preset_order.filter(', '[...(body.preset_order.filter('],
+  ['lib: a long hint is kept', LIB, 'text.trim().length <= PRESET_HINT_MAX', 'text.trim().length <= 5000'],
+  ['lib: a hint is not trimmed', LIB, 'presetHints[id] = text.trim()', 'presetHints[id] = text'],
+  ['lib: an unknown id has a hint', LIB, 'if (isPreset(id) && typeof text === \'string\'', 'if (typeof text === \'string\''],
+  ['lib: the device format drops quick', LIB, '/^(default|auto|quick|economy|', '/^(default|auto|economy|'],
+  ['lib: the Intelligence page omits Max', LIB, "  { id: 'max', label: 'Max', hint: '$$$' },\n", ''],
+  ['lib: Quick is dear', LIB, "{ id: 'quick', label: 'Quick', hint: '$' }", "{ id: 'quick', label: 'Quick', hint: '$$$' }"],
+  ['fixture: the catalogue\'s order loses Quick', FIVE, '"preset_order": [\n    "quick",\n', '"preset_order": [\n'],
   ['fixture: a timeline row of another person becomes mine', `${FIX}/router-timeline-200.json`, '"user_id": "user-fixture-2"', '"user_id": "user-fixture-1"'],
   // the deck's own Auto (ROUTER-2, model-router !42)
   ['server: auto: false is accepted', SERVER, "      if (choice.auto !== true) return refuse('Auto is { \"auto\": true }.')\n", ''],

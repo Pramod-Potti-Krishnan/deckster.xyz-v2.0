@@ -148,10 +148,11 @@ export function ModelSliderPanel({ label, valueText, scope, blocked, stops, inde
         <SliderPrimitive.Thumb className="mpick-slider-thumb" aria-label={SLIDER_LABEL} aria-valuetext={shown ? shown.label : valueText} aria-describedby={captionId} />
       </SliderPrimitive.Root>
       <ol className="mpick-stops" style={{ "--mpick-stops": stops.length } as CSSProperties} data-mpick="stops">
-        {stops.map((stop, i) => <li key={stop.id} className="mpick-stop" data-active={onScale && i === thumb ? "true" : "false"} data-mpick-stop={stop.id} aria-hidden="true" onClick={() => { if (!blocked) onCommit(i) }}>
+        {stops.map((stop, i) => <li key={stop.id} className="mpick-stop" data-active={onScale && i === thumb ? "true" : "false"} data-mpick-stop={stop.id} title={stop.sub ?? undefined} aria-hidden="true" onClick={() => { if (!blocked) onCommit(i) }}>
           <span className="mpick-stop-name">{stop.label}</span>
         </li>)}
       </ol>
+      {onScale && stops[thumb]?.sub ? <p className="mpick-stop-sub" data-mpick="stop-sub">{stops[thumb].sub}</p> : null}
       <p className="mpick-caption" id={captionId} data-mpick="caption">{SLIDER_CAPTION}</p>
       <details className="mpick-advanced" data-mpick="advanced">
         <summary>{SLIDER_ADVANCED_LABEL}</summary>
