@@ -3,7 +3,8 @@
 // copy that was never adopted is adopted when the Builder opens it (lib/studio-duplicate-adopt.ts, app/api/director/sessions/[sourceSessionId]/adopt-duplicate/route.ts).
 // Every line this change adds to an EXISTING file is a pure insertion that carries the marker DUPLICATE-ADOPT (matched as a whole token): lib/studio-duplicate-deck.ts (step 4 in runDuplicateDeck, its optional
 // `adopt` dependency, the result's `adoption`, and the copy's id in the step-3 marker: one key spread in after the base's own marker line, which stays as it is), app/(app)/dashboard/page.tsx (the flag, the
-// dependency, the note), app/builder/page.tsx (the per-tab controller and the socket callback) and hooks/use-deckster-websocket-v2.ts (the callback's type, the per-socket owner, and three taps: ws.onopen, the chat_message path, ws.onclose). Strip those lines and each file is its base, byte for byte.
+// dependency, the note), app/builder/page.tsx (the per-tab controller and the socket callback) and hooks/use-deckster-websocket-v2.ts (the callback's type, the per-socket owner with its reconnect, the hook's own same-session replacement that leaves the retry budget as it is, and three taps:
+// ws.onopen, the chat_message path, ws.onclose). Strip those lines and each file is its base, byte for byte.
 // How the older pins reach it: this change REGISTERS its files, its .env.example block and this strip (scripts/studio-later-changes.mjs, three lines). Plain node, no imports, nothing read from disk or git here.
 
 export const BASE_COMMIT = '875334faa648ed72e63b260457ca2fc0a2020c0c' // studio-v4-dev-preparation-code at #518 (speed perceived), the branch this change is cut from
@@ -87,6 +88,27 @@ export const DUPLICATE_ADOPT_PIN_EDITS = {
     [
       "  return table.reduce((result, [added, original]) => result.replace(added, () => original), stripDuplicateAdopt(rel, text)) // LATER-CHANGES: registry read (DUPLICATE-ADOPT)\n",
       "  return table.reduce((result, [added, original]) => result.replace(added, () => original), text)\n"
+    ]
+  ]
+,
+  "scripts/test-studio-legal-short-links.mjs": [
+    [
+      "  const laterAdded = routesOf([...LATER_CHANGE_FILES].filter(rel => !LEGAL_SHORT_LINKS_SCOPE_FILES.has(rel) && headFiles.has(rel))).filter(route => !before.includes(route) && after.includes(route)) // LATER-CHANGES: registry read (DUPLICATE-ADOPT): and may add route files of its own (duplicate adoption's adopt-duplicate route): exactly those routes may be new\n",
+      ""
+    ],
+    [
+      "  deep(after.filter(route => !before.includes(route) && !laterAdded.includes(route)), ['/privacy', '/terms'], a('the flags-off build\\'s route list gains exactly /privacy and /terms (+2)')) // LATER-CHANGES: registry read (DUPLICATE-ADOPT)\n",
+      "  deep(after.filter(route => !before.includes(route)), ['/privacy', '/terms'], a('the flags-off build\\'s route list gains exactly /privacy and /terms (+2)'))\n"
+    ],
+    [
+      "  eq(after.length, before.length + 2 - laterRemoved.length + laterAdded.length, a(`${before.length} routes become ${before.length + 2 - laterRemoved.length + laterAdded.length}`)) // LATER-CHANGES: registry read (DUPLICATE-ADOPT)\n",
+      "  eq(after.length, before.length + 2 - laterRemoved.length, a(`${before.length} routes become ${before.length + 2 - laterRemoved.length}`))\n"
+    ]
+  ],
+  "scripts/test-studio-chat-theme-export.mjs": [
+    [
+      "  const between = pageAst.text.slice(addRunnerAssign.getEnd(), runnerAssign.getStart(pageAst)) // LATER-CHANGES: registry read (DUPLICATE-ADOPT): the text the AST was parsed from (page-extract reads the page through the registry), so the offsets index the text they came from\n",
+      "  const between = pageText.slice(addRunnerAssign.getEnd(), runnerAssign.getStart(pageAst))\n"
     ]
   ]
 }
