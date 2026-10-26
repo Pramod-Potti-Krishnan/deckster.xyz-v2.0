@@ -972,11 +972,11 @@ async function suite({ quiet = false, extraCommitted = [] } = {}) {
     })
     await check('I: marked insertions only in the existing app files; the registry gains three LATER-CHANGE lines; .env.example only gains its block', () => {
       const added = rel => git('diff', '-U0', BASE, own[0].commit, '--', rel).split('\n').filter(line => /^[+-]/.test(line) && !/^(\+\+\+|---) /.test(line)) // the net committed diff, base to this change's newest commit (a line it added and later reworded is one added line)
-      for (const rel of strip.DUPLICATE_ADOPT_FILES) { const lines = added(rel); ok(lines.length > 0 && lines.every(line => line.startsWith('+') && MARKED(line)), rel) }
+      for (const rel of strip.DUPLICATE_ADOPT_FILES) { const lines = added(rel).filter(line => withoutOthers(rel, `${line.slice(1)}\n`) !== ''); ok(lines.length > 0 && lines.every(line => line.startsWith('+') && MARKED(line)), rel) } // dev 6fba3b7f: a line another registered change marks (flow control's, in the Builder page and the hook) is its own
       const registry = added('scripts/studio-later-changes.mjs'), registryMine = registry.filter(line => line.includes('studio-duplicate-adopt-strip.mjs'))
       eq(registryMine.length, 3); ok(registryMine.every(line => line.startsWith('+') && line.includes('LATER-CHANGE')))
       ok(registry.every(line => line.startsWith('+') && line.includes('// LATER-CHANGE: ')), 'the registry only gains LATER-CHANGE lines (a registered change merged onto this branch, #519, brings its own)')
-      const env = added('.env.example'); eq(env.filter(line => line.startsWith('-')).length, 0); eq(env.map(line => line.slice(1)).join('\n'), ['', ...strip.DUPLICATE_ADOPT_ENV_BLOCK.trimEnd().split('\n')].join('\n'))
+      const env = added('.env.example'); eq(env.filter(line => line.startsWith('-')).length, 0); ok(env.map(line => line.slice(1)).join('\n').endsWith(['', ...strip.DUPLICATE_ADOPT_ENV_BLOCK.trimEnd().split('\n')].join('\n')), 'the block is the last thing it adds, after one blank line (the blocks of changes registered before this one, dev 6fba3b7f flow control, come first)')
     })
     for (const rel of strip.DUPLICATE_ADOPT_PIN_FILES) {
       await check(`I: ${rel} with its registry-read lines put back is its previous file`, () => {
