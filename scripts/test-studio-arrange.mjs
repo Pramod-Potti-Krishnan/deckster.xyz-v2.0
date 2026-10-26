@@ -309,7 +309,7 @@ function mountInspector(env, props, source = SRC[INSPECTOR]) {
     check(assert.ok, marked > 0, `${rel}: has marked lines`)
   }
   check(assert.equal, registry.stripLaterEnvBlocks('.env.example', read('.env.example')), registry.stripLaterEnvBlocks('.env.example', baseText('.env.example')), '.env.example: without the block it is the base\'s')
-  check(assert.ok, read('.env.example').endsWith('\n' + strip.STUDIO_ARRANGE_ENV_BLOCK), 'the block is the file\'s last')
+  check(assert.ok, read('.env.example').lastIndexOf('\n' + strip.STUDIO_ARRANGE_ENV_BLOCK) >= 0 && registry.stripLaterEnvBlocks('.env.example', read('.env.example').slice(read('.env.example').lastIndexOf('\n' + strip.STUDIO_ARRANGE_ENV_BLOCK) + strip.STUDIO_ARRANGE_ENV_BLOCK.length + 1)).trim() === '', 'the block is the file\'s last, or followed only by the blocks of changes registered after it') // LATER-CHANGES: registry read (MODEL-CHOICE)
   check(assert.ok, strip.STUDIO_ARRANGE_ENV_BLOCK.trimEnd().endsWith(`${FLAG}="false"`), 'the example value is "false"')
   for (const rel of strip.STUDIO_ARRANGE_PIN_FILES) {
     check(assert.equal, strip.putBackPin(rel, read(rel)), baseText(rel), `the taught line of ${rel} puts back to the base's`)
