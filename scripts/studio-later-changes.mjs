@@ -39,6 +39,7 @@ export const LATER_CHANGE_FILES = new Set([
   ...(await import('./studio-speed-perceived-strip.mjs')).SPEED_PERCEIVED_SCOPE_FILES, // LATER-CHANGE: FRONTEND-2, Studio perceived speed: the typed message echo (NEXT_PUBLIC_STUDIO_SPEED_PERCEIVED)
   ...(await import('./studio-flow-control-strip.mjs')).FLOW_CONTROL_SCOPE_FILES, // LATER-CHANGE: FRONTEND-1, P3-1 D flow control, Studio half: the stage follows the build, steer a paused build (NEXT_PUBLIC_STUDIO_FLOW_FOCUS / _FLOW_AMEND / _FLOW_AMEND_INSTRUCTIONS)
   ...(await import('./studio-model-choice-strip.mjs')).MODEL_CHOICE_SCOPE_FILES, // LATER-CHANGE: FRONTEND-2, P3-10 model choice: the Intelligence picker uses the live model catalogue (NEXT_PUBLIC_STUDIO_MODEL_CHOICE)
+  ...(await import('./studio-model-slider-strip.mjs')).MODEL_SLIDER_SCOPE_FILES, // LATER-CHANGE: FRONTEND-2, P3-10 model choice, the slider variant of the composer picker, stacked on the line above (NEXT_PUBLIC_STUDIO_MODEL_CHOICE; no .env.example block, no strip of its own)
   // one line per later change, above this comment
 ])
 
