@@ -52,6 +52,26 @@ export const DUPLICATE_ADOPT_PIN_EDITS = {
       "  deepEq([...text.keys()].filter(rel => rel !== HELPER && !laterChangeFiles.has(rel) && /director-rest-entitlement/.test(text.get(rel))).sort(), [JOBS, START].sort(), 'the minter is imported by the two import routes only') // LATER-CHANGES: registry read (DUPLICATE-ADOPT)\n",
       "  deepEq([...text.keys()].filter(rel => rel !== HELPER && /director-rest-entitlement/.test(text.get(rel))).sort(), [JOBS, START].sort(), 'the minter is imported by the two import routes only')\n"
     ]
+  ],
+  "scripts/test-studio-deck-grid-4.mjs": [
+    [
+      "const { stripLaterChanges } = await import('./studio-later-changes.mjs') // LATER-CHANGES: registry read (DUPLICATE-ADOPT): every registered later change's lines come out first, innermost, as the newer pins read (stripping one twice changes nothing)\n",
+      ""
+    ],
+    [
+      "const read = rel => stripLaunchWording(rel, stripDeckCardThumbnail(rel, stripLaterChanges(rel, fs.readFileSync(path.join(repoRoot, rel), 'utf8')))) // DECK-CARD-THUMBNAIL: its lines out first // LATER-CHANGES: registry read (DUPLICATE-ADOPT)\n",
+      "const read = rel => stripLaunchWording(rel, stripDeckCardThumbnail(rel, fs.readFileSync(path.join(repoRoot, rel), 'utf8'))) // DECK-CARD-THUMBNAIL: its lines out first\n"
+    ]
+  ],
+  "scripts/test-studio-create-word.mjs": [
+    [
+      "const { stripLaterChanges } = await import('./studio-later-changes.mjs') // LATER-CHANGES: registry read (DUPLICATE-ADOPT): every registered later change's lines come out first, innermost, as the newer pins read (stripping one twice changes nothing)\n",
+      ""
+    ],
+    [
+      "const read = rel => stripLaunchWording(rel, stripDeckCardThumbnail(rel, stripLaterChanges(rel, fs.readFileSync(path.join(repoRoot, rel), 'utf8')))) // DECK-CARD-THUMBNAIL: its lines out first // LATER-CHANGES: registry read (DUPLICATE-ADOPT)\n",
+      "const read = rel => stripLaunchWording(rel, stripDeckCardThumbnail(rel, fs.readFileSync(path.join(repoRoot, rel), 'utf8'))) // DECK-CARD-THUMBNAIL: its lines out first\n"
+    ]
   ]
 }
 
