@@ -292,8 +292,11 @@ function mountInspector(env, props, source = SRC[INSPECTOR]) {
   check(assert.equal, registry.stripLaterEnvBlocks('.env.example', read('.env.example')), registry.stripLaterEnvBlocks('.env.example', baseText('.env.example')), '.env.example: without the block it is the base\'s')
   check(assert.ok, read('.env.example').endsWith('\n' + strip.STUDIO_ARRANGE_ENV_BLOCK), 'the block is the file\'s last')
   check(assert.ok, strip.STUDIO_ARRANGE_ENV_BLOCK.trimEnd().endsWith(`${FLAG}="false"`), 'the example value is "false"')
-  check(assert.equal, strip.putBackPin(strip.STUDIO_ARRANGE_SPEED_PROOF, read(strip.STUDIO_ARRANGE_SPEED_PROOF)), baseText(strip.STUDIO_ARRANGE_SPEED_PROOF), 'the taught speed proof line puts back to the base\'s')
-  check(assert.equal, strip.putBackPin(strip.STUDIO_ARRANGE_SPEED_PROOF, baseText(strip.STUDIO_ARRANGE_SPEED_PROOF)), baseText(strip.STUDIO_ARRANGE_SPEED_PROOF), 'putBackPin is idempotent')
+  for (const rel of strip.STUDIO_ARRANGE_PIN_FILES) {
+    check(assert.equal, strip.putBackPin(rel, read(rel)), baseText(rel), `the taught line of ${rel} puts back to the base's`)
+    check(assert.equal, strip.putBackPin(rel, baseText(rel)), baseText(rel), `putBackPin is idempotent (${rel})`)
+    check(assert.equal, strip.stripStudioArrange(rel, read(rel)), baseText(rel), `${rel} through the strip is the base's`)
+  }
   for (const file of strip.STUDIO_ARRANGE_SCOPE_FILES) check(assert.ok, registry.LATER_CHANGE_FILES.has(file), `registered: ${file}`)
   check(assert.ok, registry.LATER_STRIPS.includes(strip.stripStudioArrange), 'the strip is registered')
   check(assert.ok, registry.LATER_ENV_BLOCKS.includes(strip.STUDIO_ARRANGE_ENV_BLOCK), 'the env block is registered')
@@ -604,7 +607,7 @@ const AFTER = { 'Width, keep proportions': p => assert.deepEqual(plain(p.size), 
     for (const file of strip.STUDIO_ARRANGE_SCOPE_FILES) check(assert.ok, files.includes(file), `committed: ${file}`)
     for (const line of git('diff', '--numstat', `${BASE}..${HEAD}`).trim().split('\n')) {
       const [added, removed, file] = line.split('\t')
-      if (file === strip.STUDIO_ARRANGE_SPEED_PROOF) check(assert.deepEqual, [added, removed], ['1', '1'], 'the speed proof: one line for one line')
+      if (strip.STUDIO_ARRANGE_PIN_FILES.includes(file)) check(assert.deepEqual, [added, removed], ['1', '1'], `${file}: one taught line for one line`)
       else check(assert.equal, removed, '0', `${file}: pure insertions`)
     }
     for (const rel of strip.STUDIO_ARRANGE_FILES) {

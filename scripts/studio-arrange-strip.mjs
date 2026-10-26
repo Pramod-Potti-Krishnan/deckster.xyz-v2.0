@@ -7,9 +7,9 @@
 // Strip those lines and each file is its base, byte for byte.
 // How the older pins reach it: this change REGISTERS its files, its .env.example block and this strip (scripts/studio-later-changes.mjs, three lines). Plain node, no imports, nothing read from disk or git here; any other
 // file comes back as it is.
-// ONE OLDER PROOF IS TAUGHT (FRONTEND-2's own, never a FRONTEND-1 test): scripts/test-studio-speed-perceived.mjs, section D, the SAME line, byte for byte, that the duplicate-adopt change (#520) and the phone tab bar
-// frame change (#519) teach (its trailing comment names DUPLICATE-ADOPT on purpose: changes teaching one line must teach the same bytes, or their merges conflict). putBackPin is idempotent, so the registry may run
-// every restore table that holds the pair, in any order.
+// TWO OLDER PROOFS ARE TAUGHT (never a FRONTEND-1 test), one line each: scripts/test-studio-speed-perceived.mjs, section D, the SAME line, byte for byte, that the duplicate-adopt change (#520) and the phone tab bar
+// frame change (#519) teach (its trailing comment names DUPLICATE-ADOPT on purpose: changes teaching one line must teach the same bytes, or their merges conflict); and scripts/test-studio-rail-add-slide.mjs, whose
+// viewer line count skips this change's marked lines by marker, as it skips every later change's. putBackPin is idempotent, so the registry may run every restore table that holds a pair, in any order.
 
 export const BASE_COMMIT = '875334faa648ed72e63b260457ca2fc0a2020c0c' // studio-v4-dev-preparation-code at #518 (perceived speed), the branch this change is cut from
 export const STUDIO_ARRANGE_FLAG = 'NEXT_PUBLIC_STUDIO_ARRANGE'
@@ -35,14 +35,23 @@ export const STUDIO_ARRANGE_NEW_FILES = [
   'scripts/fixtures/studio-arrange/layout-transcript.json',
 ]
 
-/** The older proof this change teaches: [text the proof has now, text the base commit's proof has], whole lines. */
+/** The older proofs this change teaches: [text the proof has now, text the base commit's proof has], whole lines. */
 export const STUDIO_ARRANGE_SPEED_PROOF = 'scripts/test-studio-speed-perceived.mjs'
+export const STUDIO_ARRANGE_RAIL_PROOF = 'scripts/test-studio-rail-add-slide.mjs'
 export const STUDIO_ARRANGE_PIN_MARK = '// LATER-CHANGES: registry read (DUPLICATE-ADOPT)'
 export const STUDIO_ARRANGE_PIN_EDITS = {
   [STUDIO_ARRANGE_SPEED_PROOF]: [
     [
       "const HEAD = git('log', '-1', '--format=%H', '--no-merges', '-E', '--grep=^(Speed perceived|Studio perceived speed):', 'HEAD').trim() || git('rev-parse', 'HEAD').trim() // LATER-CHANGES: registry read (DUPLICATE-ADOPT): this change's own newest commit, so a change stacked after it is not read as this one's diff\n",
       "const HEAD = git('rev-parse', 'HEAD').trim()\n"
+    ]
+  ],
+  // the rail Add Slide pin counts the viewer's added lines against bb5a89f, skipping each later change's marked lines by marker (no FRONTEND-1 test): this change's seven are skipped the same way, on its
+  // `changed` filter line (not the PASS3-POLISH-B line above it, which that change's strip holds)
+  [STUDIO_ARRANGE_RAIL_PROOF]: [
+    [
+      "    const changed = (rel, base) => git(['diff', '--no-color', '-U0', BASE_COMMIT, '--', rel]).split('\\n').filter(line => /^[+-](?![+-])/.test(line) && !line.includes('PASS2D B4') && !line.includes('SLIDE-OPS-VIA-VIEWER') && !line.includes('INSERT-PERSIST') && !line.includes('STUDIO_LAUNCH_WORDING') && !line.includes('VERSION-HISTORY-V2') && !line.includes('NEXT_PUBLIC_STUDIO_THUMBNAIL_LAST_GOOD') && !belongsToRailBuildCount(line) && !/(?<![\\w-])STUDIO-ARRANGE(?![\\w-])/.test(line)) // LATER-CHANGES: registry read (STUDIO-ARRANGE): its marked viewer lines; scripts/test-studio-arrange.mjs pins them\n",
+      "    const changed = (rel, base) => git(['diff', '--no-color', '-U0', BASE_COMMIT, '--', rel]).split('\\n').filter(line => /^[+-](?![+-])/.test(line) && !line.includes('PASS2D B4') && !line.includes('SLIDE-OPS-VIA-VIEWER') && !line.includes('INSERT-PERSIST') && !line.includes('STUDIO_LAUNCH_WORDING') && !line.includes('VERSION-HISTORY-V2') && !line.includes('NEXT_PUBLIC_STUDIO_THUMBNAIL_LAST_GOOD') && !belongsToRailBuildCount(line))\n"
     ]
   ]
 }
