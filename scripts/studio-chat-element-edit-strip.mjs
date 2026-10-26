@@ -28,26 +28,29 @@ export const CHAT_ELEMENT_EDIT_NEW_FILES = [
   'scripts/studio-chat-element-edit-strip.mjs',
   'scripts/studio-chat-element-edit-layout.mjs',
   'scripts/test-studio-chat-element-edit.mjs',
-  'scripts/fixtures/chat-element-edit/director-frames/agreed-envelope.json',
+  'scripts/fixtures/chat-element-edit/director-frames/contract-envelope.json',
   'scripts/fixtures/chat-element-edit/layout-transcripts.json',
 ]
 
-/** The older proofs this change teaches (FRONTEND-2's own): [text the proof has now, text the proof had before] per edit, whole lines, so putting them back gives the previous file byte for byte. Every line the proof has now carries
- *  CHAT_ELEMENT_EDIT_PIN_MARK. scripts/test-studio-chat-theme-export.mjs measured what sits between the K5 add runner and its own runner by offsets from the page's AST (parsed through the registry, so with every registered later
- *  change's marked lines taken out) in the page's text (read without the registry): a later change's marked lines before the add runner moved that window. It now reads the text the AST was parsed from. */
+/** The older files this change teaches (FRONTEND-2's own; never FRONTEND-1's or COMPOSER-2's): [text the file has now, text it had before] per edit, whole lines, so putting them back gives dev's file byte for byte. Every line the file has now carries
+ *  CHAT_ELEMENT_EDIT_PIN_MARK. Idempotent: a line that is not there is not put back.
+ *  - scripts/test-studio-chat-theme-export.mjs measured what sits between the K5 add runner and its own runner by offsets from the page's AST (parsed through the registry, so with every registered later change's marked lines taken out) in the
+ *    page's text (read without the registry): a later change's marked lines before the add runner moved that window. It now reads the text the AST was parsed from.
+ *  - scripts/studio-pass3-polish-b-strip.mjs is what COMPOSER-2's first-paint pin reads the viewer through: its strip takes the marked lines of the changes registered after it out first (Arrange's, #523), so it takes this change's out too,
+ *    the way #523 did. COMPOSER-2's test is not edited. */
 export const CHAT_ELEMENT_EDIT_PIN_MARK = '// LATER-CHANGES: registry read (CHAT-ELEMENT-EDIT)'
 export const CHAT_ELEMENT_EDIT_PIN_EDITS = {
   'scripts/test-studio-chat-theme-export.mjs': [
     ["import { stripLaterChanges } from './studio-later-changes.mjs' // LATER-CHANGES: registry read (CHAT-ELEMENT-EDIT)\n", ''],
     ["const pageText = stripLaterChanges(PAGE, read(PAGE)) // LATER-CHANGES: registry read (CHAT-ELEMENT-EDIT): the page text is the text pageAst was parsed from (extract.parseSource reads through the registry), so the offsets between the two agree\n", 'const pageText = read(PAGE)\n'],
   ],
-  // The scope check (D) of the speed-perceived proof reads BASE..HEAD as its own change's diff: it now reads up to its own newest commit, so a change stacked after it is not read as its diff.
-  'scripts/test-studio-speed-perceived.mjs': [
-    ["const HEAD = git('log', '-1', '--format=%H', '--no-merges', '-E', '--grep=^(Speed perceived|Studio perceived speed):', 'HEAD').trim() || git('rev-parse', 'HEAD').trim() // LATER-CHANGES: registry read (CHAT-ELEMENT-EDIT): this change's own newest commit, so a change stacked after it is not read as this one's diff\n", "const HEAD = git('rev-parse', 'HEAD').trim()\n"],
+  'scripts/studio-pass3-polish-b-strip.mjs': [
+    ["import { stripChatElementEdit } from './studio-chat-element-edit-strip.mjs' // LATER-CHANGES: registry read (CHAT-ELEMENT-EDIT): #522 adds marked lines to the viewer, so they come out first, as #523's do, and the viewer read through this strip is its base again\n", ''],
+    ["  if (rel === PASS3_POLISH_B_VIEWER) text = stripChatElementEdit(rel, text) // LATER-CHANGES: registry read (CHAT-ELEMENT-EDIT)\n", ''],
   ],
 }
 
-/** The proof without this change's edits (the previous file). */
+/** The file without this change's edits (the previous file). */
 export function putBackPin(rel, text) {
   return (CHAT_ELEMENT_EDIT_PIN_EDITS[rel] || []).reduce((out, [has, was]) => out.replace(has, () => was), text)
 }
@@ -62,12 +65,13 @@ export const CHAT_ELEMENT_EDIT_OWN_EDITS = ['.env.example', 'scripts/studio-late
 export const CHAT_ELEMENT_EDIT_SCOPE_FILES = new Set([...CHAT_ELEMENT_EDIT_FILES, ...CHAT_ELEMENT_EDIT_NEW_FILES, ...CHAT_ELEMENT_EDIT_OWN_EDITS])
 
 /** The whole .env.example block: its comment and its line. */
-export const CHAT_ELEMENT_EDIT_ENV_BLOCK = `# STUDIO CHAT ELEMENT EDIT (FRONTEND-2, P3-1 A chat parity; the Studio side of DIRECTOR-2's DIRECTOR_MDC_ELEMENT_EDIT_ENABLED). On for the exact value "true"; default off, and then nothing changes: no cap is sent, no frame is looked at, and the
-# Notes panel listens for nothing. Build-time value: change it on Vercel and redeploy. On: every send also carries client_caps "element_edit1" and "notes1" (after the other caps). Director's element_edit {op: delete | order | place | style} runs
-# through the presentation viewer's own element commands (the ones the toolbar and the element panels send: deleteElement, bringTextBoxToFront / sendTextBoxToBack, resizeTextBox, setTextBoxFontWeight / FontSize / Color / Alignment), never a server PATCH,
-# and is answered ONCE with element_edit_result {directive_id, ok, error_code}: ok:true only after the viewer's autosave acknowledged the change (Studio enters edit mode the way selecting an element does and flushes with the viewer's own Save). An op the viewer
-# has no command for (order forward / backward, italic, place or style on a type those commands do not serve) is UNSUPPORTED_OP, never faked. A stale socket or owner sends nothing; a second edit while one runs is BUSY. deck_mutation notes_updated makes the
-# Notes panel read the deck again, so Director's notes show; every other deck_mutation is untouched. No Director change: Director needs its own flag on.
+export const CHAT_ELEMENT_EDIT_ENV_BLOCK = `# STUDIO CHAT ELEMENT EDIT (FRONTEND-2, P3-1 A chat parity; the Studio side of DIRECTOR-2's DIRECTOR_MDC_ELEMENT_EDIT_ENABLED, contract: streams/director2/element-edit/CONTRACT.md). On for the exact value "true"; default off, and then nothing changes: no cap is sent,
+# no frame is looked at, and the Notes panel listens for nothing. Build-time value: change it on Vercel and redeploy. On: every send also carries client_caps "element_edit1" and "notes1" (after mdc1 and the other caps). Director's element_edit
+# {payload:{op: delete | order | place | style, ...}} runs through the presentation viewer's own element commands (deleteElement, bringTextBoxToFront / sendTextBoxToBack, resizeTextBox, setTextBoxFontWeight / FontSize / Color / Alignment, and Layout's Arrange commands
+# bringToFront / sendToBack / bringForward / sendBackward / alignElement, always with intent "arrange"; those pair with Layout's LAYOUT_ARRANGE_COMMANDS_ENABLED, !260 / !261, and without it the viewer answers "Unknown action" = UNSUPPORTED_OP), never a server PATCH, and is
+# answered ONCE with element_edit_result {payload:{directive_id, ok, error_code}}: ok:true only after the viewer's autosave acknowledged the change (Studio enters edit mode the way selecting an element does and flushes with the viewer's own Save). What the viewer cannot do
+# (italic, style on anything but a text box, an element type Arrange refuses) is UNSUPPORTED_OP, never faked. A stale socket or owner sends nothing; a second edit while one runs is BUSY. deck_mutation payload.mutation "notes_updated" makes the Notes panel read the deck
+# again, so Director's notes show; every other deck_mutation is untouched. No Director change: Director needs its own flag on.
 NEXT_PUBLIC_STUDIO_CHAT_ELEMENT_EDIT="false"
 `
 
