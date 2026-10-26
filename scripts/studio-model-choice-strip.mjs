@@ -52,6 +52,17 @@ export const MODEL_CHOICE_ROUTES = [
   'app/api/model-choice/used/[buildId]/route.ts',
 ]
 
+/** The compact picker for the chat composer (same flag; FRONTEND-1 places it, nothing here mounts it): new files only. Its proof is scripts/test-studio-model-picker.mjs. */
+export const MODEL_PICKER_NEW_FILES = [
+  'lib/studio-model-picker.ts',
+  'components/model-choice/use-model-choice.ts',
+  'components/model-choice/model-picker.tsx',
+  'components/model-choice/model-picker.css',
+  'scripts/studio-model-picker-kit.mjs',
+  'scripts/render-model-picker-fixture.mjs',
+  'scripts/test-studio-model-picker.mjs',
+]
+
 /** New files (no base text to put back). */
 export const MODEL_CHOICE_NEW_FILES = [
   'lib/studio-model-choice.ts',
@@ -63,6 +74,7 @@ export const MODEL_CHOICE_NEW_FILES = [
   'scripts/test-studio-model-choice.mjs',
   MODEL_CHOICE_FIXTURE,
   ...MODEL_CHOICE_ROUTER_FIXTURES,
+  ...MODEL_PICKER_NEW_FILES,
 ]
 
 /** The older proofs this change teaches (FRONTEND-2's own): the legal short links proof's route-set check counts the routes a later registered change ADDS, as it already counts the ones one removes;
