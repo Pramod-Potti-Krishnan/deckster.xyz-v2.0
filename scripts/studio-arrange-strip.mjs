@@ -7,9 +7,10 @@
 // Strip those lines and each file is its base, byte for byte.
 // How the older pins reach it: this change REGISTERS its files, its .env.example block and this strip (scripts/studio-later-changes.mjs, three lines). Plain node, no imports, nothing read from disk or git here; any other
 // file comes back as it is.
-// TWO OLDER PROOFS ARE TAUGHT (never a FRONTEND-1 test), one line each: scripts/test-studio-speed-perceived.mjs, section D, the SAME line, byte for byte, that the duplicate-adopt change (#520) and the phone tab bar
+// THREE OLDER PROOFS ARE TAUGHT (never a FRONTEND-1 test; all FRONTEND-2's or older Studio proofs), one line each: scripts/test-studio-speed-perceived.mjs, section D, the SAME line, byte for byte, that the duplicate-adopt change (#520) and the phone tab bar
 // frame change (#519) teach (its trailing comment names DUPLICATE-ADOPT on purpose: changes teaching one line must teach the same bytes, or their merges conflict); and scripts/test-studio-rail-add-slide.mjs, whose
-// viewer line count skips this change's marked lines by marker, as it skips every later change's. putBackPin is idempotent, so the registry may run every restore table that holds a pair, in any order.
+// viewer line count skips this change's marked lines by marker, as it skips every later change's; and scripts/test-studio-pass3-polish-b.mjs, which held that pin byte for byte and now reads it
+// past the later changes' edits (its own withoutPeers helper; a pure insertion). putBackPin is idempotent, so the registry may run every restore table that holds a pair, in any order.
 
 export const BASE_COMMIT = '875334faa648ed72e63b260457ca2fc0a2020c0c' // studio-v4-dev-preparation-code at #518 (perceived speed), the branch this change is cut from
 export const STUDIO_ARRANGE_FLAG = 'NEXT_PUBLIC_STUDIO_ARRANGE'
@@ -38,12 +39,21 @@ export const STUDIO_ARRANGE_NEW_FILES = [
 /** The older proofs this change teaches: [text the proof has now, text the base commit's proof has], whole lines. */
 export const STUDIO_ARRANGE_SPEED_PROOF = 'scripts/test-studio-speed-perceived.mjs'
 export const STUDIO_ARRANGE_RAIL_PROOF = 'scripts/test-studio-rail-add-slide.mjs'
+export const STUDIO_ARRANGE_POLISH_B_PROOF = 'scripts/test-studio-pass3-polish-b.mjs'
 export const STUDIO_ARRANGE_PIN_MARK = '// LATER-CHANGES: registry read (DUPLICATE-ADOPT)'
 export const STUDIO_ARRANGE_PIN_EDITS = {
   [STUDIO_ARRANGE_SPEED_PROOF]: [
     [
       "const HEAD = git('log', '-1', '--format=%H', '--no-merges', '-E', '--grep=^(Speed perceived|Studio perceived speed):', 'HEAD').trim() || git('rev-parse', 'HEAD').trim() // LATER-CHANGES: registry read (DUPLICATE-ADOPT): this change's own newest commit, so a change stacked after it is not read as this one's diff\n",
       "const HEAD = git('rev-parse', 'HEAD').trim()\n"
+    ]
+  ],
+  // Pass 3 polish B's proof holds the pins it taught (the rail pin is one) byte for byte against its base; it now reads them past the later changes' edits (withoutPeers, its own helper), as it reads the two pages.
+  // A pure insertion: Pass 3 polish D's proof holds that file to its helper and two reads (+12 at most, -2 exactly).
+  [STUDIO_ARRANGE_POLISH_B_PROOF]: [
+    [
+      "  const read = rel => withoutPeers(rel, rel in overrides ? overrides[rel] : fs.readFileSync(path.join(root, rel), 'utf8')) // LATER-CHANGES: registry read (STUDIO-ARRANGE): the pins this change taught are read past the edits of the changes registered after it (withoutPeers), as the two pages are\n",
+      ""
     ]
   ],
   // the rail Add Slide pin counts the viewer's added lines against bb5a89f, skipping each later change's marked lines by marker (no FRONTEND-1 test): this change's seven are skipped the same way, on its

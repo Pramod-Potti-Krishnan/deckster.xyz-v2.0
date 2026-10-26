@@ -607,7 +607,7 @@ const AFTER = { 'Width, keep proportions': p => assert.deepEqual(plain(p.size), 
     for (const file of strip.STUDIO_ARRANGE_SCOPE_FILES) check(assert.ok, files.includes(file), `committed: ${file}`)
     for (const line of git('diff', '--numstat', `${BASE}..${HEAD}`).trim().split('\n')) {
       const [added, removed, file] = line.split('\t')
-      if (strip.STUDIO_ARRANGE_PIN_FILES.includes(file)) check(assert.deepEqual, [added, removed], ['1', '1'], `${file}: one taught line for one line`)
+      if (strip.STUDIO_ARRANGE_PIN_FILES.includes(file)) { const edits = strip.STUDIO_ARRANGE_PIN_EDITS[file]; check(assert.deepEqual, [added, removed], [String(edits.length), String(edits.filter(([, was]) => was !== '').length)], `${file}: only its taught lines`) }
       else check(assert.equal, removed, '0', `${file}: pure insertions`)
     }
     for (const rel of strip.STUDIO_ARRANGE_FILES) {
