@@ -1,0 +1,10 @@
+{
+ "body": {
+  "code": "SESSION_NOT_FRESH",
+  "detail": "A fresh chat is required to open a copied deck.",
+  "error": "A fresh chat is required to open a copied deck.",
+  "retryable": false
+ },
+ "description": "The session already has a deck (or is another user's row: the same answer).",
+ "status": 409
+}

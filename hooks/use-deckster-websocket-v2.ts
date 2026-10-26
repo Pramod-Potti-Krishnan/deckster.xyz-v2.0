@@ -767,6 +767,8 @@ export interface UseDecksterWebSocketV2Options {
   // jobs list, possibly []). Never rendered in chat. Unused with the flag off.
   onJobUpdate?: (row: import('@/lib/studio-job-ledger').JobLedgerRow, owner: import('@/lib/studio-job-ledger').JobLedgerOwner) => void;
   onJobsSync?: (rows: import('@/lib/studio-job-ledger').JobLedgerRow[], owner: import('@/lib/studio-job-ledger').JobLedgerOwner) => void;
+  // DUPLICATE-ADOPT (NEXT_PUBLIC_STUDIO_DUPLICATE_ADOPT): this socket's sync_response payload as it came, for a copied deck's adoption on open (lib/studio-duplicate-adopt.ts). Unused with the flag off.
+  onDuplicateAdoptSync?: (payload: unknown, owner: { sessionId: string; isCurrent: () => boolean }) => void; // DUPLICATE-ADOPT
   onSlideComposeReady?: (message: SlideComposeReady) => void;
   onSlideComposeFailed?: (message: SlideComposeFailed) => void;
   onTemplateIngestReady?: (message: TemplateIngestReady) => void;
@@ -1954,6 +1956,7 @@ export function useDecksterWebSocketV2(options: UseDecksterWebSocketV2Options = 
               const rows = jobLedgerRows((parsedMessage.payload as { jobs?: unknown } | null | undefined)?.jobs);
               if (rows) transportCallbacksRef.current.onJobsSync?.(rows, { sessionId: socketSessionId, isCurrent: isCurrentSocket });
             }
+            if (process.env.NEXT_PUBLIC_STUDIO_DUPLICATE_ADOPT === 'true' && parsedMessage.type === 'sync_response' && parsedMessage.session_id === socketSessionId) transportCallbacksRef.current.onDuplicateAdoptSync?.(parsedMessage.payload, { sessionId: socketSessionId, isCurrent: isCurrentSocket }); // DUPLICATE-ADOPT: the frame then carries on as before
             // BULK-EDIT-UNDO (NEXT_PUBLIC_STUDIO_BULK_EDIT / NEXT_PUBLIC_STUDIO_CHAT_UNDO, default off): Director's chat lines (the Undo chip's anchor), the bulk-edit confirm (its chip titles) and its receipts and summary,
             // BULK-EDIT-UNDO: change_recorded and undo_result go to this tab's store (lib/studio-bulk-edit-store.ts), here, ahead of the allowlist. The frames it takes (receipts, summary, change_recorded, undo_result) stop
             // BULK-EDIT-UNDO: here: they never reach the reducer, the transcript or the cache, and they do not unlock the turn. Director sends them only to a client that advertised bulk_edit1 / undo1 (the caps below, flag on only),

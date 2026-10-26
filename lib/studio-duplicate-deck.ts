@@ -137,6 +137,8 @@ export interface DuplicateDeckDeps {
   newId: () => string
   now: () => Date
   sleep: (ms: number) => Promise<void>
+  /** DUPLICATE-ADOPT (NEXT_PUBLIC_STUDIO_DUPLICATE_ADOPT): step 4, the Director adopts the copy into the new session (lib/studio-duplicate-adopt.ts). Passed only with that flag on; it never throws. */
+  adopt?: (sessionId: string, presentationId: string) => Promise<import('@/lib/studio-duplicate-adopt').DuplicateAdoptOutcome> // DUPLICATE-ADOPT
 }
 
 export interface DuplicateDeckInput {
@@ -157,6 +159,8 @@ export interface DuplicateDeckSuccess {
   /** Layout answered "reused" (the same operation id was already copied). */
   reused: boolean
   session: Record<string, unknown> | null
+  /** DUPLICATE-ADOPT: step 4's outcome; absent when the step did not run (no `adopt`, or a strawman-slot copy). */
+  adoption?: import('@/lib/studio-duplicate-adopt').DuplicateAdoptOutcome // DUPLICATE-ADOPT
 }
 
 export interface DuplicateDeckLayoutFailure { ok: false; step: 'layout'; reason: LayoutFailureReason; message: string }
@@ -284,6 +288,10 @@ export async function runDuplicateDeck({ source, target, deps }: DuplicateDeckIn
       },
     })
     if (!patched.ok) return await unfinished()
+    // DUPLICATE-ADOPT 4. The Director adopts the copy into the new session so chat can edit it: after the PATCH, before the copy is handed back (so before anyone can open it). Final slot only (a
+    // DUPLICATE-ADOPT strawman copy is an outline preview). A failure is reported on the result and never removes the copy or the session; an `adopt` that throws is a failure, not a reason to unwind.
+    const adopt = target.slot === 'final' ? deps.adopt : undefined // DUPLICATE-ADOPT
+    const adoption = adopt ? await Promise.resolve().then(() => adopt(newSessionId, copyId)).catch(() => ({ ok: false as const, status: 0, code: null, retryable: false, attempts: 0 })) : undefined // DUPLICATE-ADOPT
 
     const patchedBody = await readBody(patched)
     return {
@@ -297,6 +305,7 @@ export async function runDuplicateDeck({ source, target, deps }: DuplicateDeckIn
       currentStage,
       reused: layoutBody.reused === true,
       session: patchedBody && typeof patchedBody.session === 'object' ? patchedBody.session : null,
+      ...(adoption ? { adoption } : {}), // DUPLICATE-ADOPT
     }
   } catch {
     return await unfinished()

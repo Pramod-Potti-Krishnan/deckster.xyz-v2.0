@@ -34,6 +34,7 @@ import { studioTemplateDisplayName } from "@/lib/studio-template-display-name"
 // FRONTEND-2 Pass 3 (NEXT_PUBLIC_STUDIO_DUPLICATE_DECK, default off): the deck list can copy a deck. Everything below is behind the flag; off, the Duplicate item stays disabled as it was.
 import { toast } from "@/hooks/use-toast"
 import { duplicateTargetFor, runDuplicateDeck } from "@/lib/studio-duplicate-deck"
+import { adoptDuplicateCopy, DUPLICATE_ADOPT_PENDING_NOTE } from "@/lib/studio-duplicate-adopt" // DUPLICATE-ADOPT (NEXT_PUBLIC_STUDIO_DUPLICATE_ADOPT, default off): step 4, the Director adopts the copy so chat can edit it
 import { useStudioDeckCardThumbnail } from "@/hooks/use-studio-deck-card-thumbnail" // DECK-CARD-THUMBNAIL (NEXT_PUBLIC_STUDIO_DECK_CARD_THUMBNAILS_ENABLED, default off): a card shows its first-slide image instead of the live viewer
 
 // NEXT_PUBLIC_STUDIO_LAUNCH_WORDING (default off): launched wording instead of promises and developer-speak; off, this file is exactly as before.
@@ -176,6 +177,7 @@ function DashboardForAccount({ user, isLoading }: Pick<ReturnType<typeof useAuth
   const [deleteNotice, setDeleteNotice] = useState("")
   // FRONTEND-2 Pass 3 (NEXT_PUBLIC_STUDIO_DUPLICATE_DECK, exact "true", default off, read at build time): a deck's card menu can copy it (lib/studio-duplicate-deck.ts). Off, none of this runs.
   const duplicateDeckEnabled = process.env.NEXT_PUBLIC_STUDIO_DUPLICATE_DECK === "true"
+  const duplicateAdoptEnabled = duplicateDeckEnabled && process.env.NEXT_PUBLIC_STUDIO_DUPLICATE_ADOPT === "true" // DUPLICATE-ADOPT: exact "true", read at build time; only with Duplicate on
   const [duplicating, setDuplicating] = useState<{ id: string; title: string } | null>(null)
   const [duplicateError, setDuplicateError] = useState("")
   const duplicationPending = useRef(false)
@@ -356,6 +358,7 @@ function DashboardForAccount({ user, isLoading }: Pick<ReturnType<typeof useAuth
           newId: () => crypto.randomUUID(),
           now: () => new Date(),
           sleep: ms => new Promise(resolve => setTimeout(resolve, ms)),
+          ...(duplicateAdoptEnabled ? { adopt: (sessionId: string, presentationId: string) => adoptDuplicateCopy({ sessionId, presentationId, fetch: (input, init) => fetch(input, init), sleep: ms => new Promise<void>(resolve => setTimeout(resolve, ms)) }) } : {}), // DUPLICATE-ADOPT
         },
       })
       if (currentOwner.current !== copyOwner) return
@@ -378,6 +381,7 @@ function DashboardForAccount({ user, isLoading }: Pick<ReturnType<typeof useAuth
         paginationRef.current = adjusted
         setPagination(adjusted)
       }
+      if (duplicateAdoptEnabled && result.adoption && !result.adoption.ok) { toast({ title: "Deck copied", description: DUPLICATE_ADOPT_PENDING_NOTE }); return } // DUPLICATE-ADOPT: the copy and its session stay; opening it adopts it
       toast({ title: "Deck copied", description: `“${result.title}” is in your decks. Chat history stays with the original.` })
     } catch {
       if (currentOwner.current === copyOwner) setDuplicateError("The deck could not be copied. Nothing was created.")

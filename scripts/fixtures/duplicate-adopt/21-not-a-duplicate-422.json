@@ -1,0 +1,10 @@
+{
+ "body": {
+  "code": "NOT_A_DUPLICATE",
+  "detail": "Only a deck made with Duplicate can be opened in chat this way.",
+  "error": "Only a deck made with Duplicate can be opened in chat this way.",
+  "retryable": false
+ },
+ "description": "The deck was not made by Layout's duplicate.",
+ "status": 422
+}

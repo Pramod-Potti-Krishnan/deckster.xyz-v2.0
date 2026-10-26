@@ -1,0 +1,10 @@
+{
+ "body": {
+  "code": "SESSION_STORE_UNAVAILABLE",
+  "detail": "Chat is temporarily unavailable. Try again in a moment.",
+  "error": "Chat is temporarily unavailable. Try again in a moment.",
+  "retryable": true
+ },
+ "description": "The session store did not answer (retryable).",
+ "status": 503
+}

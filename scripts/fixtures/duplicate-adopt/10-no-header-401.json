@@ -1,0 +1,10 @@
+{
+ "body": {
+  "code": "ENTITLEMENT_REQUIRED",
+  "detail": "We could not confirm your sign-in for this request. Please reload the page and try again.",
+  "error": "We could not confirm your sign-in for this request. Please reload the page and try again.",
+  "retryable": false
+ },
+ "description": "No X-Deckster-Entitlement header.",
+ "status": 401
+}

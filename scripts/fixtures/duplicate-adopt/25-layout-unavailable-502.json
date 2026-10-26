@@ -1,0 +1,10 @@
+{
+ "body": {
+  "code": "LAYOUT_UNAVAILABLE",
+  "detail": "The deck service could not be reached. Try again in a moment.",
+  "error": "The deck service could not be reached. Try again in a moment.",
+  "retryable": true
+ },
+ "description": "Layout did not answer (retryable).",
+ "status": 502
+}

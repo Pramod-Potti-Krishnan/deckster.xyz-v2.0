@@ -1,0 +1,10 @@
+{
+ "body": {
+  "code": "ENTITLEMENT_INVALID",
+  "detail": "We could not confirm your sign-in for this request. Please reload the page and try again.",
+  "error": "We could not confirm your sign-in for this request. Please reload the page and try again.",
+  "retryable": false
+ },
+ "description": "A claim that does not verify (bad signature / expired / wrong method / wrong type).",
+ "status": 401
+}

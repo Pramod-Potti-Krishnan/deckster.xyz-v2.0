@@ -1,0 +1,10 @@
+{
+ "body": {
+  "code": "ADOPT_NOT_DURABLE",
+  "detail": "The copy could not be attached to this chat. Try again.",
+  "error": "The copy could not be attached to this chat. Try again.",
+  "retryable": true
+ },
+ "description": "The write failed or did not read back (retryable; nothing was attached).",
+ "status": 500
+}

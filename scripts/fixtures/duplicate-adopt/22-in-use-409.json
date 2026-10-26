@@ -1,0 +1,10 @@
+{
+ "body": {
+  "code": "PRESENTATION_IN_USE",
+  "detail": "This copy is already open in another chat.",
+  "error": "This copy is already open in another chat.",
+  "retryable": false
+ },
+ "description": "The copy is already open in another chat.",
+ "status": 409
+}

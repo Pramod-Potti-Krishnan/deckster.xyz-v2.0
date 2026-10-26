@@ -1,0 +1,10 @@
+{
+ "body": {
+  "code": "PRESENTATION_NOT_FOUND",
+  "detail": "The copied deck could not be found.",
+  "error": "The copied deck could not be found.",
+  "retryable": false
+ },
+ "description": "Layout has no such deck.",
+ "status": 404
+}
