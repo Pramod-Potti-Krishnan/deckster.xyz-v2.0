@@ -38,6 +38,7 @@ export const LATER_CHANGE_FILES = new Set([
   ...(await import('./studio-phone-shell-builder-top-strip.mjs')).PHONE_SHELL_TOP_SCOPE_FILES, // LATER-CHANGE: FRONTEND-2, phone shell 2, the Builder top on phones and the Director dot (NEXT_PUBLIC_STUDIO_PHONE_SHELL; no .env.example block of its own: the flag's block is PR 1's)
   ...(await import('./studio-speed-perceived-strip.mjs')).SPEED_PERCEIVED_SCOPE_FILES, // LATER-CHANGE: FRONTEND-2, Studio perceived speed: the typed message echo (NEXT_PUBLIC_STUDIO_SPEED_PERCEIVED)
   ...(await import('./studio-flow-control-strip.mjs')).FLOW_CONTROL_SCOPE_FILES, // LATER-CHANGE: FRONTEND-1, P3-1 D flow control, Studio half: the stage follows the build, steer a paused build (NEXT_PUBLIC_STUDIO_FLOW_FOCUS / _FLOW_AMEND / _FLOW_AMEND_INSTRUCTIONS)
+  ...(await import('./studio-arrange-strip.mjs')).STUDIO_ARRANGE_SCOPE_FILES, // LATER-CHANGE: FRONTEND-2, Arrange works in the Studio inspector, selecting no longer raises (NEXT_PUBLIC_STUDIO_ARRANGE)
   ...(await import('./studio-tabbar-frame-strip.mjs')).TABBAR_FRAME_SCOPE_FILES, // LATER-CHANGE: FRONTEND-2, phone tab bar on the frame, the name on the selected tab only (NEXT_PUBLIC_STUDIO_PHONE_SHELL; no .env.example block of its own: the flag's block is PR 1's)
   // one line per later change, above this comment
 ])
@@ -51,6 +52,7 @@ export const LATER_ENV_BLOCKS = [
   (await import('./studio-phone-shell-nav-strip.mjs')).PHONE_SHELL_NAV_ENV_BLOCK, // LATER-CHANGE: FRONTEND-2, phone shell 1, the bottom tab bar on phones (NEXT_PUBLIC_STUDIO_PHONE_SHELL)
   (await import('./studio-speed-perceived-strip.mjs')).SPEED_PERCEIVED_ENV_BLOCK, // LATER-CHANGE: FRONTEND-2, Studio perceived speed: the typed message echo (NEXT_PUBLIC_STUDIO_SPEED_PERCEIVED)
   (await import('./studio-flow-control-strip.mjs')).FLOW_CONTROL_ENV_BLOCK, // LATER-CHANGE: FRONTEND-1, P3-1 D flow control, Studio half (NEXT_PUBLIC_STUDIO_FLOW_FOCUS / _FLOW_AMEND / _FLOW_AMEND_INSTRUCTIONS)
+  (await import('./studio-arrange-strip.mjs')).STUDIO_ARRANGE_ENV_BLOCK, // LATER-CHANGE: FRONTEND-2, Arrange works in the Studio inspector, selecting no longer raises (NEXT_PUBLIC_STUDIO_ARRANGE)
   // one line per later change, above this comment
 ]
 
@@ -72,6 +74,7 @@ export const LATER_STRIPS = [
   (await import('./studio-phone-shell-builder-top-strip.mjs')).stripPhoneShellTop, // LATER-CHANGE: FRONTEND-2, phone shell 2, the Builder top on phones and the Director dot (NEXT_PUBLIC_STUDIO_PHONE_SHELL; no .env.example block of its own: the flag's block is PR 1's)
   (await import('./studio-speed-perceived-strip.mjs')).stripSpeedPerceived, // LATER-CHANGE: FRONTEND-2, Studio perceived speed: the typed message echo (NEXT_PUBLIC_STUDIO_SPEED_PERCEIVED)
   (await import('./studio-flow-control-strip.mjs')).stripFlowControl, // LATER-CHANGE: FRONTEND-1, P3-1 D flow control, Studio half (NEXT_PUBLIC_STUDIO_FLOW_FOCUS / _FLOW_AMEND / _FLOW_AMEND_INSTRUCTIONS)
+  (await import('./studio-arrange-strip.mjs')).stripStudioArrange, // LATER-CHANGE: FRONTEND-2, Arrange works in the Studio inspector, selecting no longer raises (NEXT_PUBLIC_STUDIO_ARRANGE)
   (await import('./studio-tabbar-frame-strip.mjs')).stripTabbarFrame, // LATER-CHANGE: FRONTEND-2, phone tab bar on the frame, the name on the selected tab only (NEXT_PUBLIC_STUDIO_PHONE_SHELL; no .env.example block of its own: the flag's block is PR 1's)
   // one line per later change, above this comment
 ]
