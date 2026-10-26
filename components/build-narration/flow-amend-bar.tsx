@@ -16,6 +16,8 @@ export interface FlowAmendBarProps {
  * NEXT_PUBLIC_STUDIO_FLOW_AMEND: the calm line above the composer while a build is held ("Paused — type changes, then
  * Resume or Rebuild.") and the two ways forward. Presentation only: it holds no state and sends nothing; the page owns
  * Resume (build_control) and Rebuild (stop, wait, send the draft).
+ * Layout: one row where the line (at least 12rem) and the buttons fit; on a narrow chat the buttons drop under the line, and
+ * the group itself wraps rather than run past the bar.
  */
 export function FlowAmendBar({ state, onResume, onRebuild }: FlowAmendBarProps) {
   if (!state.visible) return null
@@ -25,11 +27,11 @@ export function FlowAmendBar({ state, onResume, onRebuild }: FlowAmendBarProps) 
       data-testid="bn-flow-amend"
       data-flow-amend={state.key ?? undefined}
     >
-      <p role="status" aria-live="polite" className="min-w-0 flex-1 text-xs text-muted-foreground" data-testid="bn-flow-amend-line">
+      <p role="status" aria-live="polite" className="min-w-[12rem] flex-1 text-xs text-muted-foreground" data-testid="bn-flow-amend-line">
         {state.line}
       </p>
       {(state.showResume || state.showRebuild) && (
-        <div className="flex flex-none items-center gap-1.5">
+        <div className="flex max-w-full flex-none flex-wrap items-center gap-1.5">
           {state.showResume && (
             <button
               type="button"

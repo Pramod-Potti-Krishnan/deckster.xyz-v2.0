@@ -64,7 +64,9 @@ export const flowBus: {
   focus: ((frame: unknown) => void) | null
   phase: ((payload: unknown) => void) | null
   instructions: string | undefined
-} = { focus: null, phase: null, instructions: undefined }
+  /** The page's own automation (the narration's page turn) is about to move the viewer to this slide (0-based): the viewer's report of it is not the user's. Filled with the focus flag on. */
+  programmatic: ((index: number) => void) | null
+} = { focus: null, phase: null, instructions: undefined, programmatic: null }
 
 /** What the flow hook left for the build_control request being made right now, taken so that no other request ever carries it. */
 export function takeFlowInstructions(): string | undefined {
@@ -87,6 +89,10 @@ export const FLOW_FOCUS_MAX_WAIT_MS = 6000
 export const FLOW_FOCUS_SELF_NAV_MS = 2000
 /** Slide changes the viewer reports this long after an event are the viewer reloading, not the user. */
 export const FLOW_FOCUS_EVENT_SETTLE_MS = 2500
+/** A page turn the page's own automation commanded (the narration follow): the viewer's report of it, for this long, is not the user. The viewer's poll can report a slide change 3 s late. */
+export const FLOW_FOCUS_COMMANDED_MS = 5000
+/** How many commanded page turns are remembered at once (the narration follow can turn several pages inside the window). */
+export const FLOW_FOCUS_COMMANDED_MAX = 4
 
 export type FlowFocusKind = 'deck_mutation' | 'slide_built' | 'slide_ready' | 'slide_update' | 'change_recorded'
 
@@ -103,6 +109,8 @@ export interface FlowFocusEvent {
   restored?: boolean
   /** The build a slide_built belongs to (the narration build id). */
   buildKey?: string | null
+  /** The build_id the slide_built frame itself names (null when it names none). */
+  buildId?: string | null
   /** The frame's message_id: a frame delivered twice is acted on once. */
   messageId?: string | null
 }
@@ -117,6 +125,10 @@ export interface FlowFocusState {
   lastSeenIndex: number | null
   buildKey: string | null
   newestBuiltIndex: number | null
+  /** The deck this build fills, learned from its first slide_built (before the page has heard it from anywhere else). */
+  buildDeck: { buildKey: string; presentationId: string } | null
+  /** Page turns the page's own automation commanded lately (0-based index, and until when the viewer's report of it is not the user's). */
+  commanded: ReadonlyArray<{ index: number; until: number }>
 }
 
 export interface FlowFocusTarget {
@@ -136,6 +148,8 @@ export function initialFlowFocusState(): FlowFocusState {
     lastSeenIndex: null,
     buildKey: null,
     newestBuiltIndex: null,
+    buildDeck: null,
+    commanded: [],
   }
 }
 
@@ -183,9 +197,16 @@ export function flowFocusEventFromFrame(input: unknown): FlowFocusEvent | null {
         restored: body.restored === true || body.mutation === 'deck_restored',
       }
     case 'slide_built':
+      return {
+        kind: 'slide_built',
+        messageId,
+        presentationId: cleanId(body.presentation_id),
+        slideIndex: isSlideIndex(body.slide_index) ? body.slide_index : null,
+        buildId: cleanId(body.build_id),
+      }
     case 'slide_ready':
       return {
-        kind: frame.type,
+        kind: 'slide_ready',
         messageId,
         presentationId: cleanId(body.presentation_id),
         slideIndex: isSlideIndex(body.slide_index) ? body.slide_index : null,
@@ -225,10 +246,34 @@ export function flowFocusIndex(event: Pick<FlowFocusEvent, 'kind' | 'slideIndex'
 }
 
 /**
+ * Is this slide_built the one that names the deck its build fills? The first one does, and it reaches the flow hook before
+ * the page has heard the deck's id from anywhere else (the narration learns it from this very frame) while the stage still
+ * shows the outline: so neither the displayed deck nor the narration's build deck can vouch for it yet. It is this build's
+ * deck when a build is running and the frame names that build (or no build), no other deck is known to be this build's,
+ * and none was learned already; with no deck on the stage at all there is nothing for it to be wrong about.
+ */
+export function flowFocusLearnsBuildDeck(input: {
+  event: FlowFocusEvent
+  displayedPresentationId: string | null | undefined
+  alsoPresentationIds?: ReadonlyArray<string | null | undefined>
+  state: FlowFocusState
+}): boolean {
+  const { event, state } = input
+  if (event.kind !== 'slide_built' || typeof event.presentationId !== 'string' || !event.presentationId) return false
+  const buildKey = event.buildKey ?? null
+  if (buildKey !== null && event.buildId != null && event.buildId !== buildKey) return false
+  if ((input.alsoPresentationIds ?? []).some(id => typeof id === 'string' && id !== '')) return false
+  if (buildKey !== null && state.buildDeck !== null && state.buildDeck.buildKey === buildKey) return false
+  return buildKey !== null || !input.displayedPresentationId
+}
+
+/**
  * Where the stage should go for this event, or null to leave it alone.
  * Ignored: flag off, another presentation (or none on stage), a bad index, a user who navigated by hand in the last
  * graceMs, and, for slide_built, a build the user already took over or a slide that is not newer than the last one
  * followed in that build. A restored deck has no index to go to: on an overlay layout it only brings the stage up.
+ * "Another presentation": not the one on the stage, the one the narration says this build fills, or the one this build's
+ * first slide_built named (flowFocusLearnsBuildDeck).
  */
 export function flowFocusTarget(input: {
   enabled: boolean
@@ -245,7 +290,10 @@ export function flowFocusTarget(input: {
   const { event, state } = input
   const presentationId = event.presentationId
   if (typeof presentationId !== 'string' || !presentationId) return null
+  const learned = event.kind === 'slide_built' && event.buildKey != null && state.buildDeck !== null && state.buildDeck.buildKey === event.buildKey
+    ? state.buildDeck.presentationId : null
   const ours = presentationId === input.displayedPresentationId || (input.alsoPresentationIds ?? []).includes(presentationId)
+    || presentationId === learned || flowFocusLearnsBuildDeck(input)
   if (!ours) return null
   const grace = input.graceMs ?? FLOW_FOCUS_USER_NAV_GRACE_MS
   if (state.lastUserNavAt !== null && input.now - state.lastUserNavAt < grace) return null
@@ -260,9 +308,13 @@ export function flowFocusTarget(input: {
   return { index, selectStage: input.overlay }
 }
 
-/** The state after an event was acted on: the viewer is about to reload, and the newest built slide moves on. */
+/** The state after an event was acted on: the viewer is about to reload, the newest built slide moves on, and the deck a build fills is remembered. */
 export function flowFocusAfterTarget(state: FlowFocusState, event: FlowFocusEvent, index: number | null, now: number): FlowFocusState {
   const next: FlowFocusState = { ...state, settleUntil: now + FLOW_FOCUS_EVENT_SETTLE_MS }
+  if (event.kind === 'slide_built' && event.buildKey != null && typeof event.presentationId === 'string' && event.presentationId
+    && (next.buildDeck === null || next.buildDeck.buildKey !== event.buildKey)) {
+    next.buildDeck = { buildKey: event.buildKey, presentationId: event.presentationId }
+  }
   if (event.kind === 'slide_built' && index !== null) {
     const buildKey = event.buildKey ?? null
     if (buildKey !== next.buildKey) {
@@ -280,18 +332,26 @@ export function flowFocusMarkSelf(state: FlowFocusState, index: number, now: num
   return { ...state, selfIndex: index, selfUntil: now + FLOW_FOCUS_SELF_NAV_MS }
 }
 
+/** The page's own automation (the narration's page turn) is about to move the viewer to this slide: the viewer's report of it is that automation's, not the user's. */
+export function flowFocusMarkCommanded(state: FlowFocusState, index: number, now: number): FlowFocusState {
+  const live = state.commanded.filter(entry => now < entry.until)
+  return { ...state, commanded: [...live, { index, until: now + FLOW_FOCUS_COMMANDED_MS }].slice(-FLOW_FOCUS_COMMANDED_MAX) }
+}
+
 /** The user did something that is plainly navigation (a pane switch, a rail click): it always counts. */
 export function flowFocusNoteUserNav(state: FlowFocusState, now: number, buildKey?: string | null): FlowFocusState {
   return { ...state, lastUserNavAt: now, takenOverBuildKey: buildKey ?? state.buildKey ?? state.takenOverBuildKey }
 }
 
 /**
- * The viewer reports the slide it is on. Ours (a goToSlide we made), the viewer's own reload just after an event, and
- * a slide that did not change are not the user; anything else is.
+ * The viewer reports the slide it is on. Ours (a goToSlide we made), the page's own automation's (a page turn the narration
+ * follow commanded), the viewer's own reload just after an event, and a slide that did not change are not the user; anything
+ * else is.
  */
 export function flowFocusNoteSlideChange(state: FlowFocusState, index: number, now: number, buildKey?: string | null): FlowFocusState {
   if (state.lastSeenIndex === null) return { ...state, lastSeenIndex: index } // the first report is where the viewer starts, not a move
   if (state.selfIndex === index && now < state.selfUntil) return { ...state, lastSeenIndex: index }
+  if (state.commanded.some(entry => entry.index === index && now < entry.until)) return { ...state, lastSeenIndex: index }
   if (now < state.settleUntil) return { ...state, lastSeenIndex: index }
   if (state.lastSeenIndex === index) return state
   return { ...flowFocusNoteUserNav(state, now, buildKey), lastSeenIndex: index }

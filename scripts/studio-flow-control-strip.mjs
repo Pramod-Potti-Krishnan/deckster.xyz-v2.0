@@ -2,8 +2,9 @@
 // the stage follows the slide Director built or changed, and a paused or stopped build can be steered from the chat (Resume, or Rebuild with the typed text). Every decision is lib/studio-flow-control.ts (pure);
 // hooks/use-studio-flow-control.ts holds the state; components/build-narration/flow-amend-bar.tsx draws the line and the two buttons.
 // Every line this change adds to an EXISTING file is a pure insertion that carries the marker FLOW-CONTROL (matched as a whole token): app/builder/page.tsx (the flow hook's call, the slide-change tap and the bar, all after
-// the Builder's runners, and one import placed after the Builder content), hooks/use-deckster-websocket-v2.ts (one import, the frame tap, the build_phase tap, the read of the instructions and two `instructions` spreads)
-// and types/build-narration.ts (three optional fields). No existing line of app code is rewritten (a later change that stacks on this one, or one this is stacked on, may only insert too).
+// the Builder's runners, and one import placed after the Builder content), hooks/use-deckster-websocket-v2.ts (one import, the frame tap, the build_phase tap, the read of the instructions and two `instructions` spreads),
+// types/build-narration.ts (three optional fields) and components/build-narration/use-stage-walkthrough.ts (one import and one line: the narration's own page turn tells the flow hook before the viewer reports it,
+// so that report is not read as the user navigating). No existing line of app code is rewritten (a later change that stacks on this one, or one this is stacked on, may only insert too).
 // Strip the marked lines and each file is its base, byte for byte.
 // One older proof is taught to read through the registry, as FRONTEND-2's perceived-speed change taught three: the perceived-speed proof's scope check reads the committed diff BASE..HEAD and wants exactly its own
 // files, which a registered later change's files are not. Each taught line is one whole line that carries the marker and replaces one whole line; FLOW_CONTROL_EDITS holds [line now, line before] and
@@ -18,7 +19,7 @@ export const FLOW_CONTROL_MARKER = 'FLOW-CONTROL'
 export const FLOW_CONTROL_MARKER_RE = /(?<![\w-])FLOW-CONTROL(?![\w-])/
 
 /** Existing files that get marked lines. */
-export const FLOW_CONTROL_FILES = ['app/builder/page.tsx', 'hooks/use-deckster-websocket-v2.ts', 'types/build-narration.ts']
+export const FLOW_CONTROL_FILES = ['app/builder/page.tsx', 'hooks/use-deckster-websocket-v2.ts', 'types/build-narration.ts', 'components/build-narration/use-stage-walkthrough.ts']
 
 /** The older proof this change teaches: [line now, line before] per edit, whole lines (a line now carries the marker and occurs once in its file; the line before is the base's). */
 export const FLOW_CONTROL_EDITS = {
