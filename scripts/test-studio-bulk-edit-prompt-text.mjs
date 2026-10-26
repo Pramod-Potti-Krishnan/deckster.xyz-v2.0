@@ -27,6 +27,7 @@ import {
   BULK_EDIT_PROMPT_TEXT_WIRE, stripBulkEditPromptText,
 } from './studio-bulk-edit-prompt-text-strip.mjs'
 import { LATER_CHANGE_FILES, LATER_ENV_BLOCKS, LATER_STRIPS, stripLaterChanges } from './studio-later-changes.mjs'
+import { stripChatElementEdit } from './studio-chat-element-edit-strip.mjs' // LATER-CHANGES: registry read (CHAT-ELEMENT-EDIT): #522 marks lines in the wire; the pin below reads the file past them
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..')
 const nodeRequire = createRequire(import.meta.url)
@@ -40,7 +41,7 @@ const ownCommitted = () => [...new Set(git('log', '--first-parent', '--no-merges
 const showCache = new Map()
 const baseOf = rel => { const ref = `${BASE}:${rel}`; if (!showCache.has(ref)) showCache.set(ref, git('show', ref)); return showCache.get(ref) }
 let overrides = {} // in-memory mutations: every proof reads its sources through read()
-const read = rel => (rel in overrides ? overrides[rel] : fs.readFileSync(path.join(root, rel), 'utf8'))
+const read = rel => (rel in overrides ? overrides[rel] : stripChatElementEdit(rel, fs.readFileSync(path.join(root, rel), 'utf8'))) // LATER-CHANGES: registry read (CHAT-ELEMENT-EDIT): the wire carries #522's marked lines too (change_recorded kinds); this proof compares it with its own base, so it reads it past them
 const sha = value => crypto.createHash('sha256').update(value).digest('hex')
 const plain = value => (value === undefined ? undefined : JSON.parse(JSON.stringify(value)))
 

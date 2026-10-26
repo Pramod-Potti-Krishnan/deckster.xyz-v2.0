@@ -743,10 +743,11 @@ async function suite({ quiet = false, extraCommitted = [] } = {}) {
   })
   await check('K: .env.example, the registry and the taught proof without this change\'s lines are the base\'s, byte for byte', async () => {
     const flow = await import('./studio-flow-control-strip.mjs') // dev 6fba3b7f (#524): flow control registers its block, its lines and a taught proof before this change's; they come out first
+    const chatEdit = await import('./studio-chat-element-edit-strip.mjs') // LATER-CHANGES: registry read (CHAT-ELEMENT-EDIT): #522 (chat can edit an element) registers its block after this one, so .env.example ends with it
     const reg = await import(`${path.join(root, REGISTRY)}?t=${Date.now()}`)
     // dev 0545569 (#523): every block another change registered (flow control's, Arrange's) comes out first, wherever it sits before this one
     const withoutOtherBlocks = reg.LATER_ENV_BLOCKS.filter(block => block !== strip.MODEL_CHOICE_ENV_BLOCK && !baseOf(ENV).includes(block)).reduce((text, block) => text.replace(`\n${block}`, ''), read(ENV).replace(`\n${strip.MODEL_CHOICE_ENV_BLOCK}`, ''))
-    eq(withoutOtherBlocks, baseOf(ENV)); ok(read(ENV).endsWith(strip.MODEL_CHOICE_ENV_BLOCK))
+    eq(withoutOtherBlocks, baseOf(ENV)); ok(read(ENV).replace(`\n${chatEdit.CHAT_ELEMENT_EDIT_ENV_BLOCK}`, '').endsWith(strip.MODEL_CHOICE_ENV_BLOCK)) // LATER-CHANGES: registry read (CHAT-ELEMENT-EDIT): the block of a change registered after this one may follow it
     ok(/^NEXT_PUBLIC_STUDIO_MODEL_CHOICE="false"$/m.test(read(ENV))); eq((read(ENV).match(/^MODEL_ROUTER_URL=/gm) || []).length, 1, 'MODEL_ROUTER_URL is not declared twice')
     ok(/^MODEL_ROUTER_FRONTEND_KEY=$/m.test(read(ENV)), 'the key: a name only')
     deep([...new Set(strip.MODEL_CHOICE_ENV_BLOCK.match(/\b[A-Z][A-Z0-9]*_[A-Z0-9_]+\b/g))].sort(), ['MODEL_ROUTER_FRONTEND_KEY', 'NEXT_PUBLIC_STUDIO_MODEL_CHOICE'], 'the block names no other variable (older pins refuse their own names in a later block)')

@@ -49,7 +49,7 @@ const commitsOf = () => history ?? firstParentCommits()
 const RULE = { touchesOwn: true, skipLater: true } // the two parts of the scope rule; a mutant switches one off
 const ownCommits = (own, commits = commitsOf()) => commits.filter(commit => !RULE.touchesOwn || commit.files.some(rel => own.has(rel)))
 const ownCommitted = (own, commits = commitsOf()) => [...new Set(ownCommits(own, commits).flatMap(commit => commit.files))]
-const ownDeleted = own => { const deleted = history ? null : firstParentDeleted(); return ownCommits(own).flatMap(commit => (deleted ? deleted.get(commit.id) : commit.deleted) ?? []) }
+const ownDeleted = own => { const deleted = history ? null : firstParentDeleted(); return ownCommits(own).flatMap(commit => (deleted ? deleted.get(commit.id) : commit.deleted) ?? []).filter(rel => own.has(rel) || !LATER_CHANGE_FILES.has(rel)) } // LATER-CHANGES: registry read (CHAT-ELEMENT-EDIT): a file a LATER change registered and then retired (the fixture it replaced, deleted in a commit that also touches one of this change's files) is that change's deletion, as its additions already are (scopeStray)
 /** The files of this change's own commits that are neither its files nor a registered later change's: what the scope check refuses. */
 const scopeStray = (own, later, commits = commitsOf()) => ownCommitted(own, commits).filter(rel => !own.has(rel) && !(RULE.skipLater && later.has(rel)))
 const showCache = new Map()
@@ -388,6 +388,7 @@ async function suite() {
     assert.deepEqual(ownCommitted(own, [{ id: 'g', files: [aFile, laterFile] }, { id: 'h', files: [unregistered] }]).sort(), [aFile, laterFile].sort(), 'only the commits that touch one of its files are its own')
     const before = history
     try { history = [{ id: 'i', files: [aFile], deleted: [] }, { id: 'j', files: [unregistered], deleted: [laterFile] }]; assert.deepEqual(ownDeleted(own), [], 'a deletion in a stacked PR\'s commit is not this change\'s'); history = [{ id: 'k', files: [aFile], deleted: [aFile] }]; assert.deepEqual(ownDeleted(own), [aFile], 'a deletion in this change\'s own commit is') } finally { history = before }
+    try { history = [{ id: 'l', files: [aFile], deleted: [laterFile] }]; assert.deepEqual(ownDeleted(own), [], 'a REGISTERED later change\'s file retired in a commit that also touches this change\'s file is not this change\'s deletion'); history = [{ id: 'm', files: [aFile], deleted: [unregistered] }]; assert.deepEqual(ownDeleted(own), [unregistered], 'an unregistered file deleted in this change\'s commit is') } finally { history = before } // LATER-CHANGES: registry read (CHAT-ELEMENT-EDIT)
   })
   await check('secrets: no line this change adds carries a credential-shaped literal; no request, storage or viewer call in the new store code', () => {
     const added = git('diff', '-U0', BASE, 'HEAD', '--', ...CHAT_UNDO_V2_OWN_EDITS.filter(rel => rel.startsWith('lib/')), LIST, 'scripts/studio-chat-undo-v2-strip.mjs', 'scripts/test-studio-chat-undo-v2.mjs').split('\n').filter(line => /^\+(?!\+\+)/.test(line)).join('\n')
