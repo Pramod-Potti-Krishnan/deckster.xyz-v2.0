@@ -1072,9 +1072,10 @@ const devFile = rel => git('show', `${REFERENCE[rel] ?? DEV_COMMIT}:${rel}`)
 await check('pins: the older files this change teaches are the reference\'s (dev\'s, plus the shared tolerances) byte for byte once its edits are put back, every line it added carries the mark, and putting back twice changes nothing', async () => {
   for (const [rel, gained, lost] of [['scripts/test-studio-chat-theme-export.mjs', 2, 1], ['scripts/studio-pass3-polish-b-strip.mjs', 2, 0], ['scripts/test-studio-rail-add-slide.mjs', 1, 1], ['scripts/test-studio-arrange.mjs', 2, 1]]) {
     const text = read(rel)
-    assert.equal(stripChatElementEdit(rel, text), devFile(rel), rel)
-    assert.equal(stripChatElementEdit(rel, stripChatElementEdit(rel, text)), devFile(rel), `${rel}: idempotent`)
-    assert.equal(stripChatElementEdit(rel, devFile(rel)), devFile(rel), `${rel}: dev's own file comes back as it is`)
+    // The put-back may go past dev's edit of the same line (the rail line #523 edited too): both sides are read past the peers' put-backs.
+    assert.equal(stripPeers(rel, stripChatElementEdit(rel, text)), stripPeers(rel, devFile(rel)), rel)
+    assert.equal(stripChatElementEdit(rel, stripChatElementEdit(rel, text)), stripChatElementEdit(rel, text), `${rel}: idempotent`)
+    assert.equal(stripPeers(rel, stripChatElementEdit(rel, devFile(rel))), stripPeers(rel, devFile(rel)), `${rel}: dev's own file comes back as it is (or as its base)`)
     const devLines = devFile(rel).split('\n'), textLines = text.split('\n')
     const added = textLines.filter(line => !devLines.includes(line)), removed = devLines.filter(line => !textLines.includes(line))
     assert.equal(added.length, gained, rel); for (const line of added) assert.ok(line.includes('LATER-CHANGES: registry read (CHAT-ELEMENT-EDIT)'), `${rel}: ${line.slice(0, 80)}`)
