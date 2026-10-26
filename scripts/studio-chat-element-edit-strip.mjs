@@ -41,6 +41,10 @@ export const CHAT_ELEMENT_EDIT_PIN_EDITS = {
     ["import { stripLaterChanges } from './studio-later-changes.mjs' // LATER-CHANGES: registry read (CHAT-ELEMENT-EDIT)\n", ''],
     ["const pageText = stripLaterChanges(PAGE, read(PAGE)) // LATER-CHANGES: registry read (CHAT-ELEMENT-EDIT): the page text is the text pageAst was parsed from (extract.parseSource reads through the registry), so the offsets between the two agree\n", 'const pageText = read(PAGE)\n'],
   ],
+  // The scope check (D) of the speed-perceived proof reads BASE..HEAD as its own change's diff: it now reads up to its own newest commit, so a change stacked after it is not read as its diff.
+  'scripts/test-studio-speed-perceived.mjs': [
+    ["const HEAD = git('log', '-1', '--format=%H', '--no-merges', '-E', '--grep=^(Speed perceived|Studio perceived speed):', 'HEAD').trim() || git('rev-parse', 'HEAD').trim() // LATER-CHANGES: registry read (CHAT-ELEMENT-EDIT): this change's own newest commit, so a change stacked after it is not read as this one's diff\n", "const HEAD = git('rev-parse', 'HEAD').trim()\n"],
+  ],
 }
 
 /** The proof without this change's edits (the previous file). */

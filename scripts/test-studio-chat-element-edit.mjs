@@ -944,12 +944,14 @@ await check('flag off is identical in every file the change touches: the strip g
   assert.equal(envDiff.filter(l => l.startsWith('-')).length, 0)
   assert.ok(envDiff.some(l => l === '+NEXT_PUBLIC_STUDIO_CHAT_ELEMENT_EDIT="false"'))
 })
-await check('pins: the older proof this change teaches is the base\'s byte for byte once the edits are put back, and every line it gained carries the mark', async () => {
-  const rel = 'scripts/test-studio-chat-theme-export.mjs'
-  assert.equal(stripChatElementEdit(rel, read(rel)), baseFile(rel))
-  const added = git('diff', '-U0', BASE_COMMIT, '--', rel).split('\n').filter(line => line.startsWith('+') && !line.startsWith('+++'))
-  assert.equal(added.length, 2); for (const line of added) assert.ok(line.includes('// LATER-CHANGES: registry read (CHAT-ELEMENT-EDIT)'), line.slice(0, 80))
-  assert.equal(git('diff', '-U0', BASE_COMMIT, '--', rel).split('\n').filter(line => line.startsWith('-') && !line.startsWith('---')).length, 1, 'one line replaced (the page text), none else removed')
+await check('pins: the older proofs this change teaches are the base\'s byte for byte once the edits are put back, and every line they gained carries the mark', async () => {
+  for (const [rel, gained] of [['scripts/test-studio-chat-theme-export.mjs', 2], ['scripts/test-studio-speed-perceived.mjs', 1]]) {
+    assert.equal(stripChatElementEdit(rel, read(rel)), baseFile(rel), rel)
+    const diff = git('diff', '-U0', BASE_COMMIT, '--', rel).split('\n')
+    const added = diff.filter(line => line.startsWith('+') && !line.startsWith('+++'))
+    assert.equal(added.length, gained, rel); for (const line of added) assert.ok(line.includes('// LATER-CHANGES: registry read (CHAT-ELEMENT-EDIT)'), `${rel}: ${line.slice(0, 80)}`)
+    assert.equal(diff.filter(line => line.startsWith('-') && !line.startsWith('---')).length, gained === 2 ? 1 : 1, `${rel}: one line replaced, none else removed`)
+  }
 })
 await check('scope: the committed diff BASE..HEAD is this change\'s own files, and every commit subject starts "Chat element edit:"', async () => {
   const subjects = git('log', '--format=%s', `${BASE_COMMIT}..HEAD`).split('\n').filter(Boolean)
