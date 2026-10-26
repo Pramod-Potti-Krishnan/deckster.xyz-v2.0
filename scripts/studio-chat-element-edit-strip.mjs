@@ -37,12 +37,21 @@ export const CHAT_ELEMENT_EDIT_NEW_FILES = [
  *  - scripts/test-studio-chat-theme-export.mjs measured what sits between the K5 add runner and its own runner by offsets from the page's AST (parsed through the registry, so with every registered later change's marked lines taken out) in the
  *    page's text (read without the registry): a later change's marked lines before the add runner moved that window. It now reads the text the AST was parsed from.
  *  - scripts/studio-pass3-polish-b-strip.mjs is what COMPOSER-2's first-paint pin reads the viewer through: its strip takes the marked lines of the changes registered after it out first (Arrange's, #523), so it takes this change's out too,
- *    the way #523 did. COMPOSER-2's test is not edited. */
+ *    the way #523 did. COMPOSER-2's test is not edited.
+ *  - scripts/test-studio-rail-add-slide.mjs counts what the viewer gains (its `changed` filter lists the marked lines of the changes it knows); scripts/test-studio-arrange.mjs compares the viewer and the Builder page with its base byte for byte (its `read`):
+ *    both skip this change's marked lines now, as #523 taught the first. FRONTEND-2's own proofs. */
 export const CHAT_ELEMENT_EDIT_PIN_MARK = '// LATER-CHANGES: registry read (CHAT-ELEMENT-EDIT)'
 export const CHAT_ELEMENT_EDIT_PIN_EDITS = {
   'scripts/test-studio-chat-theme-export.mjs': [
     ["import { stripLaterChanges } from './studio-later-changes.mjs' // LATER-CHANGES: registry read (CHAT-ELEMENT-EDIT)\n", ''],
     ["const pageText = stripLaterChanges(PAGE, read(PAGE)) // LATER-CHANGES: registry read (CHAT-ELEMENT-EDIT): the page text is the text pageAst was parsed from (extract.parseSource reads through the registry), so the offsets between the two agree\n", 'const pageText = read(PAGE)\n'],
+  ],
+  'scripts/test-studio-rail-add-slide.mjs': [
+    ["    const changed = (rel, base) => git(['diff', '--no-color', '-U0', BASE_COMMIT, '--', rel]).split('\\n').filter(line => /^[+-](?![+-])/.test(line) && !line.includes('PASS2D B4') && !line.includes('SLIDE-OPS-VIA-VIEWER') && !line.includes('INSERT-PERSIST') && !line.includes('STUDIO_LAUNCH_WORDING') && !line.includes('VERSION-HISTORY-V2') && !line.includes('NEXT_PUBLIC_STUDIO_THUMBNAIL_LAST_GOOD') && !belongsToRailBuildCount(line) && !/(?<![\\w-])STUDIO-ARRANGE(?![\\w-])/.test(line) && !/(?<![\\w-])CHAT-ELEMENT-EDIT(?![\\w-])/.test(line)) // LATER-CHANGES: registry read (STUDIO-ARRANGE): its marked viewer lines; scripts/test-studio-arrange.mjs pins them. LATER-CHANGES: registry read (CHAT-ELEMENT-EDIT): and #522's, which scripts/test-studio-chat-element-edit.mjs pins\n", "    const changed = (rel, base) => git(['diff', '--no-color', '-U0', BASE_COMMIT, '--', rel]).split('\\n').filter(line => /^[+-](?![+-])/.test(line) && !line.includes('PASS2D B4') && !line.includes('SLIDE-OPS-VIA-VIEWER') && !line.includes('INSERT-PERSIST') && !line.includes('STUDIO_LAUNCH_WORDING') && !line.includes('VERSION-HISTORY-V2') && !line.includes('NEXT_PUBLIC_STUDIO_THUMBNAIL_LAST_GOOD') && !belongsToRailBuildCount(line) && !/(?<![\\w-])STUDIO-ARRANGE(?![\\w-])/.test(line)) // LATER-CHANGES: registry read (STUDIO-ARRANGE): its marked viewer lines; scripts/test-studio-arrange.mjs pins them\n"],
+  ],
+  'scripts/test-studio-arrange.mjs': [
+    ["const { stripChatElementEdit } = await import('./studio-chat-element-edit-strip.mjs') // LATER-CHANGES: registry read (CHAT-ELEMENT-EDIT): #522 marks lines in the viewer and the Builder page too; every file is read past them, so what is left is this change's and the base's\n", ""],
+    ["const read = rel => stripChatElementEdit(rel, fs.readFileSync(path.join(root, rel), 'utf8')) // LATER-CHANGES: registry read (CHAT-ELEMENT-EDIT)\n", "const read = rel => fs.readFileSync(path.join(root, rel), 'utf8')\n"],
   ],
   'scripts/studio-pass3-polish-b-strip.mjs': [
     ["import { stripChatElementEdit } from './studio-chat-element-edit-strip.mjs' // LATER-CHANGES: registry read (CHAT-ELEMENT-EDIT): #522 adds marked lines to the viewer, so they come out first, as #523's do, and the viewer read through this strip is its base again\n", ''],
@@ -58,11 +67,14 @@ export function putBackPin(rel, text) {
 /** The older proofs this change teaches. */
 export const CHAT_ELEMENT_EDIT_PIN_FILES = Object.keys(CHAT_ELEMENT_EDIT_PIN_EDITS)
 
+/** Files an earlier commit of this branch touched that the tree no longer has (renamed when CONTRACT.md landed): the committed-diff scope checks of older proofs list every file the branch's commits touched. */
+export const CHAT_ELEMENT_EDIT_RETIRED_FILES = ['scripts/fixtures/chat-element-edit/director-frames/agreed-envelope.json']
+
 /** The other files this change edits: its .env.example block, the registry (three lines) and the older proofs it teaches. */
 export const CHAT_ELEMENT_EDIT_OWN_EDITS = ['.env.example', 'scripts/studio-later-changes.mjs', ...CHAT_ELEMENT_EDIT_PIN_FILES]
 
 /** Every file this change's commits touch: what the older scope checks skip once the registry names it (scripts/studio-later-changes.mjs, LATER_CHANGE_FILES). */
-export const CHAT_ELEMENT_EDIT_SCOPE_FILES = new Set([...CHAT_ELEMENT_EDIT_FILES, ...CHAT_ELEMENT_EDIT_NEW_FILES, ...CHAT_ELEMENT_EDIT_OWN_EDITS])
+export const CHAT_ELEMENT_EDIT_SCOPE_FILES = new Set([...CHAT_ELEMENT_EDIT_FILES, ...CHAT_ELEMENT_EDIT_NEW_FILES, ...CHAT_ELEMENT_EDIT_OWN_EDITS, ...CHAT_ELEMENT_EDIT_RETIRED_FILES])
 
 /** The whole .env.example block: its comment and its line. */
 export const CHAT_ELEMENT_EDIT_ENV_BLOCK = `# STUDIO CHAT ELEMENT EDIT (FRONTEND-2, P3-1 A chat parity; the Studio side of DIRECTOR-2's DIRECTOR_MDC_ELEMENT_EDIT_ENABLED, contract: streams/director2/element-edit/CONTRACT.md). On for the exact value "true"; default off, and then nothing changes: no cap is sent,

@@ -32,7 +32,7 @@ import { createModuleLoader } from './studio-chat-harness/module-loader.mjs'
 import { BASE_ENV } from './studio-chat-harness/profiles.mjs'
 import { createClock, createLayoutViewer, replayViewer, LAYOUT_SCRIPTS, ARRANGE_SCRIPT, ARRANGE_MODULE } from './studio-chat-element-edit-layout.mjs'
 import {
-  BASE_COMMIT, CHAT_ELEMENT_EDIT_FILES, CHAT_ELEMENT_EDIT_NEW_FILES, CHAT_ELEMENT_EDIT_OWN_EDITS, CHAT_ELEMENT_EDIT_SCOPE_FILES, CHAT_ELEMENT_EDIT_ENV_BLOCK, CHAT_ELEMENT_EDIT_MARKER_RE, stripChatElementEdit,
+  BASE_COMMIT, CHAT_ELEMENT_EDIT_FILES, CHAT_ELEMENT_EDIT_NEW_FILES, CHAT_ELEMENT_EDIT_OWN_EDITS, CHAT_ELEMENT_EDIT_RETIRED_FILES, CHAT_ELEMENT_EDIT_SCOPE_FILES, CHAT_ELEMENT_EDIT_ENV_BLOCK, CHAT_ELEMENT_EDIT_MARKER_RE, stripChatElementEdit,
 } from './studio-chat-element-edit-strip.mjs'
 import { LATER_STRIPS } from './studio-later-changes.mjs'
 import { stripPass3PolishB } from './studio-pass3-polish-b-strip.mjs' // COMPOSER-2's first-paint pin reads the viewer through it, and it now takes this change's lines out too: it is not a peer to strip before this change's own checks
@@ -1059,23 +1059,25 @@ await check('flag off is identical in every file the change touches: the strip g
   for (const rel of CHAT_ELEMENT_EDIT_FILES) assert.equal(registry.stripLaterChanges(rel, read(rel)).includes('CHAT-ELEMENT-EDIT'), false, `the registry takes the marked lines out of ${rel}`)
   assert.ok(read('.env.example').includes(CHAT_ELEMENT_EDIT_ENV_BLOCK)); assert.ok(CHAT_ELEMENT_EDIT_ENV_BLOCK.endsWith('NEXT_PUBLIC_STUDIO_CHAT_ELEMENT_EDIT="false"\n'))
   assert.ok(registry.LATER_CHANGE_FILES.has('lib/chat-element-edit.ts') && registry.LATER_CHANGE_FILES.has('scripts/test-studio-chat-element-edit.mjs'))
-  deepEqual([...CHAT_ELEMENT_EDIT_SCOPE_FILES].sort(), [...CHAT_ELEMENT_EDIT_FILES, ...CHAT_ELEMENT_EDIT_NEW_FILES, ...CHAT_ELEMENT_EDIT_OWN_EDITS].sort())
+  deepEqual([...CHAT_ELEMENT_EDIT_SCOPE_FILES].sort(), [...CHAT_ELEMENT_EDIT_FILES, ...CHAT_ELEMENT_EDIT_NEW_FILES, ...CHAT_ELEMENT_EDIT_OWN_EDITS, ...CHAT_ELEMENT_EDIT_RETIRED_FILES].sort())
   // The env block is the only change to .env.example, and nothing is exposed by it (a build-time flag defaulting off).
   const envDiff = git('diff', '-U0', BASE_COMMIT, '--', '.env.example').split('\n').filter(l => (l.startsWith('+') || l.startsWith('-')) && !l.startsWith('+++') && !l.startsWith('---'))
   assert.equal(envDiff.filter(l => l.startsWith('-')).length, 0)
   assert.ok(envDiff.some(l => l === '+NEXT_PUBLIC_STUDIO_CHAT_ELEMENT_EDIT="false"'))
 })
 const DEV_COMMIT = '0545569384ae3f6f7073699bff95662ec80c633a' // dev at #523: the files this change teaches are read against dev's, which holds the other changes' edits of them
-const devFile = rel => git('show', `${DEV_COMMIT}:${rel}`)
-await check('pins: the older files this change teaches are dev\'s byte for byte once its edits are put back, every line it added carries the mark, and putting back twice changes nothing', async () => {
-  for (const [rel, gained, lost] of [['scripts/test-studio-chat-theme-export.mjs', 2, 1], ['scripts/studio-pass3-polish-b-strip.mjs', 2, 0]]) {
+// The arrange proof also carries the two tolerance commits taken over from the sibling branches (SHARED_COMMITS below): its reference is the last of them.
+const REFERENCE = { 'scripts/test-studio-arrange.mjs': 'b6c51d2a747233cfc90b6ddf92127b8b74442169' }
+const devFile = rel => git('show', `${REFERENCE[rel] ?? DEV_COMMIT}:${rel}`)
+await check('pins: the older files this change teaches are the reference\'s (dev\'s, plus the shared tolerances) byte for byte once its edits are put back, every line it added carries the mark, and putting back twice changes nothing', async () => {
+  for (const [rel, gained, lost] of [['scripts/test-studio-chat-theme-export.mjs', 2, 1], ['scripts/studio-pass3-polish-b-strip.mjs', 2, 0], ['scripts/test-studio-rail-add-slide.mjs', 1, 1], ['scripts/test-studio-arrange.mjs', 2, 1]]) {
     const text = read(rel)
     assert.equal(stripChatElementEdit(rel, text), devFile(rel), rel)
     assert.equal(stripChatElementEdit(rel, stripChatElementEdit(rel, text)), devFile(rel), `${rel}: idempotent`)
     assert.equal(stripChatElementEdit(rel, devFile(rel)), devFile(rel), `${rel}: dev's own file comes back as it is`)
     const devLines = devFile(rel).split('\n'), textLines = text.split('\n')
     const added = textLines.filter(line => !devLines.includes(line)), removed = devLines.filter(line => !textLines.includes(line))
-    assert.equal(added.length, gained, rel); for (const line of added) assert.ok(line.includes('// LATER-CHANGES: registry read (CHAT-ELEMENT-EDIT)'), `${rel}: ${line.slice(0, 80)}`)
+    assert.equal(added.length, gained, rel); for (const line of added) assert.ok(line.includes('LATER-CHANGES: registry read (CHAT-ELEMENT-EDIT)'), `${rel}: ${line.slice(0, 80)}`)
     assert.equal(removed.length, lost, `${rel}: ${lost ? 'one line replaced' : 'nothing removed'}`)
   }
   // The speed-perceived scope line is #520's exact line from dev: this change leaves the file alone.
@@ -1107,7 +1109,7 @@ await check('scope: this change\'s own commits (the first-parent line without me
   }
   // scripts/test-studio-speed-perceived.mjs: this branch's first commits taught it a scope line; at the merge with dev it became #520's identical-intent line (the pins check proves it is dev's file).
   // scripts/fixtures/chat-element-edit/director-frames/agreed-envelope.json: the 26 Oct envelope, renamed contract-envelope.json when CONTRACT.md landed.
-  const superseded = new Set(['scripts/test-studio-speed-perceived.mjs', 'scripts/fixtures/chat-element-edit/director-frames/agreed-envelope.json'])
+  const superseded = new Set(['scripts/test-studio-speed-perceived.mjs', ...CHAT_ELEMENT_EDIT_RETIRED_FILES])
   for (const file of new Set(own)) assert.ok(CHAT_ELEMENT_EDIT_SCOPE_FILES.has(file) || superseded.has(file), `a file outside the change: ${file}`)
   assert.ok(fs.existsSync(path.join(root, 'scripts/test-studio-chat-element-edit.mjs')))
   // Nothing of FRONTEND-1's or COMPOSER-2's tests, and not test-director-websocket-reconnect, is touched.
