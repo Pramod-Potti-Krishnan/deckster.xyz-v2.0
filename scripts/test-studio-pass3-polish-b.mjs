@@ -277,7 +277,7 @@ function proveScope(at = '') {
   const committed = ownCommitted()
   const stray = committed.filter(rel => !PASS3_POLISH_B_SCOPE_FILES.has(rel) && !LATER_CHANGE_FILES.has(rel))
   deep(stray, [], a(`every file in the committed diff ${BASE.slice(0, 8)}..HEAD is this change's or a registered later change's (no older test is edited)`))
-  if (committed.length) {
+  if (committed.some(rel => PASS3_POLISH_B_SCOPE_FILES.has(rel))) { // LATER-CHANGES: registry read (CHAT-CLEAN): on a branch stacked after this change and merged with studio (chat clean), the first-parent commits are the later change's and this change's own sit behind the merge; the check speaks only where its own commits are
     deep([...PASS3_POLISH_B_SCOPE_FILES].filter(rel => !committed.includes(rel)), [], a('and every file of this change is in the committed diff'))
     ok(committed.filter(rel => /^scripts\/test-/.test(rel)).every(rel => rel === THIS_TEST || LATER_CHANGE_FILES.has(rel)), a('the only test it adds or edits is its own'))
     // PR B is stacked on PR A (3db2f0a3, pushed): A_HEAD..HEAD is this PR's own commits; .env.example (the flag's block) is PR A's and is not touched here

@@ -6,7 +6,7 @@
 // app/builder/page.tsx (all after the Builder's runners, the import at the end with the flow import, for the same older proof), components/build-narration/director-presence.tsx and
 // components/build-narration/pause-stop-control.tsx (one early return each, read from process.env directly so the proofs that evaluate them with a fake process see nothing). No existing line of app code is rewritten.
 // Strip the marked lines and each file is its base, byte for byte.
-// Sixteen older proofs are taught to read through the registry (CHAT_CLEAN_PIN_EDITS, [line now, line before], whole lines, every line now carrying "registry read (CHAT-CLEAN)"): the composer-popups proof hashes the
+// Eighteen older proofs are taught to read through the registry (CHAT_CLEAN_PIN_EDITS, [line now, line before], whole lines, every line now carrying "registry read (CHAT-CLEAN)"): the composer-popups proof hashes the
 // composer's whole flag-off element tree, so it loads each source through stripLaterChanges first (a later change's null children are its own); the model-picker proof wants no app file to import the picker, which
 // this change's composer does, so a registered later change's files are its own; the composer-copy, composer-picker and composer-stage-context proofs read chat-input.tsx raw (import allow-lists, a base identity), so they read it through
 // the registry; the model-choice proof (studio's generic K, which strips every registered block and every other change's registry line) only held .env.example to END with its block, which a later block cannot satisfy: one line. putBackChatCleanEdits puts the previous lines back, so a proof that holds those files reads them as they were.
@@ -185,6 +185,18 @@ export const CHAT_CLEAN_PIN_EDITS = {
     [
       "import { stripLaterChanges } from './studio-later-changes.mjs' // LATER-CHANGES: registry read (CHAT-CLEAN)\n",
       "",
+    ],
+  ],
+  "scripts/test-studio-bulk-edit-prompt-text.mjs": [
+    [
+      "  if (committed.some(rel => BULK_EDIT_PROMPT_TEXT_SCOPE_FILES.has(rel))) { // LATER-CHANGES: registry read (CHAT-CLEAN): on a branch stacked after this change and merged with studio (chat clean), the first-parent commits are the later change's and this change's own sit behind the merge; the check speaks only where its own commits are\n",
+      "  if (committed.length) {\n",
+    ],
+  ],
+  "scripts/test-studio-pass3-polish-b.mjs": [
+    [
+      "  if (committed.some(rel => PASS3_POLISH_B_SCOPE_FILES.has(rel))) { // LATER-CHANGES: registry read (CHAT-CLEAN): on a branch stacked after this change and merged with studio (chat clean), the first-parent commits are the later change's and this change's own sit behind the merge; the check speaks only where its own commits are\n",
+      "  if (committed.length) {\n",
     ],
   ],
   "scripts/test-studio-composer-copy.mjs": [
