@@ -532,7 +532,7 @@ async function suite({ quiet = false, extraCommitted = [] } = {}) {
     eq(r.feedback(), 'Planning & Strategy: Auto, Deckster chooses, saved for this presentation. Applies from the next build.')
     eq(router.store.get(USER_PATH).planning_strategy.preset, 'best', 'the reusable default is untouched')
     const again = await mount({ studio: 'account', router, search: '?session_id=sess-fixture-1' })
-    eq(again.select('planning_strategy').props.value, 'auto', 'read back as Auto'); eq(again.current('planning_strategy'), 'AutoDeckster chooses')
+    eq(again.select('planning_strategy').props.value, 'auto', 'read back as Auto'); eq(again.current('planning_strategy'), 'AutoDeckster chooses'); eq(again.feedback(), 'Your earlier choices were restored.', 'a deck Auto is a choice, not a dropped one')
     await again.choose('planning_strategy', 'default')
     ok(!('planning_strategy' in router.store.get(SESSION_PATH)), 'use my default: the group is omitted'); eq(again.select('planning_strategy').props.value, 'default'); eq(again.current('planning_strategy'), 'Kimi K3Moonshot AI · Best $$$ · Reusable default')
   })
@@ -624,6 +624,15 @@ async function suite({ quiet = false, extraCommitted = [] } = {}) {
     deep(choice.fromWire({ preferences: { planning_strategy: { auto: true, preset: null, model: null }, content_writing: { preset: 'best' }, research_analysis: { auto: false } } }, 'deck'), { ...choice.modelChoiceDefaults(), planning_strategy: 'auto', content_writing: 'best' })
     deep(choice.fromWire({ preferences: { planning_strategy: { auto: true } } }, 'user'), choice.modelChoiceDefaults()); deep(choice.fromWire(body, 'deck'), { ...choice.modelChoiceDefaults(), planning_strategy: 'auto', content_writing: 'best', research_analysis: 'auto' })
     for (const bad of ['true', 1, null, {}, 'auto']) deep(choice.fromWire({ preferences: { planning_strategy: { auto: bad } } }, 'deck'), choice.modelChoiceDefaults(), JSON.stringify(bad))
+  })
+  await check('G: the account store passes a refusal\'s code on (422 invalid_preference_auto), and a refusal with none says none', async () => {
+    const { choice } = libs()
+    const sent = []
+    const store = body => choice.createAccountChoiceStore({ fetchJson: async (url, init) => { sent.push({ url, method: init.method, body: init.body ?? null }); return { status: 422, body, etag: null } } })
+    const asked = { ...choice.modelChoiceDefaults(), planning_strategy: 'auto' }
+    deep(await store({ error: 'x', code: 'invalid_preference_auto', retryable: false }).saveChoices({ kind: 'deck', deckId: 'a' }, asked), { mode: 'account', reason: null, refused: true, refusedCode: 'invalid_preference_auto' })
+    deep((await store(null).saveChoices({ kind: 'deck', deckId: 'a' }, asked)), { mode: 'account', reason: null, refused: true, refusedCode: null })
+    deep(JSON.parse(sent[0].body), { preferences: { planning_strategy: { auto: true }, content_writing: null, research_analysis: null } }); eq(sent[0].url, '/api/model-choice/prefs/deck/a')
   })
   await check('G: a device storage that throws keeps the choices for the session, says so, and warns on leaving', async () => {
     const r = await mount({ storage: makeStorage({}, { get: true, set: true }) })
