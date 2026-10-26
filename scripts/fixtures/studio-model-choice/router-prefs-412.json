@@ -1,0 +1,7 @@
+{
+  "error": {
+    "message": "The saved preferences changed since they were read; read them again and retry",
+    "type": "invalid_request_error",
+    "code": "preferences_modified"
+  }
+}

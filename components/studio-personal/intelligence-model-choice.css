@@ -1,0 +1,34 @@
+/* NEXT_PUBLIC_STUDIO_MODEL_CHOICE (components/studio-personal/intelligence-model-choice.tsx). Every rule styles markup that exists only with the flag on: the sp-mc2-* classes, or markup inside
+   [data-model-choice="true"] / [data-model-choice-bar="true"], which only the live chooser carries. With the flag off no element matches, so the page is unchanged. Text keeps the sizes it has. */
+.sp-mc2-scope { margin: 0; padding: 3px; min-inline-size: 0; gap: 2px; }
+.sp-mc2-scope label { position: relative; display: inline-flex; align-items: center; gap: 6px; min-height: 44px; padding: 4px 13px; border-radius: 7px; color: var(--sp-muted); font-size: 11px; font-weight: 600; cursor: pointer; }
+.sp-mc2-scope label[data-checked="true"] { background: var(--sp-active); color: var(--sp-text); }
+.sp-mc2-scope label[data-disabled="true"] { opacity: .55; cursor: not-allowed; }
+.sp-mc2-scope input { position: absolute; width: 1px; height: 1px; margin: -1px; padding: 0; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; border: 0; }
+.sp-mc2-scope label:focus-within { outline: 2px solid var(--sp-teal); outline-offset: 2px; }
+.sp-mc2-quiet { margin-top: -6px !important; }
+.sp-mc2-cost { margin: 8px 0 0 !important; }
+.sp-mc2-none { display: block; margin-top: 4px; color: var(--sp-muted); font-size: 10px; }
+.sp-mc2-fixed { margin: 0; color: var(--sp-muted); font-size: 10px; }
+[data-model-choice="true"] .sp-p2-pick select { min-height: 44px; }
+[data-model-choice="true"] .sp-p2-inspect { min-height: 44px; }
+[data-model-choice="true"] .sp-p2-reset { min-height: 44px; padding: 4px 10px; }
+[data-model-choice="true"] .sp-p2-inspector .sp-field select, [data-model-choice="true"] .sp-p2-inspector .sp-button { min-height: 44px; }
+.sp-mc2-used { margin-top: 12px; }
+.sp-mc2-used ul { margin: 0; padding: 0; list-style: none; }
+.sp-mc2-used li { padding: 8px 14px; border-top: 1px solid var(--sp-line); }
+.sp-mc2-used li:first-child { border-top: 0; }
+.sp-mc2-used li strong, .sp-mc2-used li span { display: block; }
+.sp-mc2-used li strong { font-size: 11px; font-weight: 600; }
+.sp-mc2-used li span { margin-top: 2px; color: var(--sp-muted); font-size: 10px; }
+/* The Pass 2 chooser's two layout fixes (its polish flag's PP-5 and PP-7), for this chooser's own markup: the comparison panel scrolls within the window, and "Managed by Deckster" is four columns. */
+@media (min-width: 851px) {
+  [data-model-choice="true"] .sp-p2-inspector { max-height: calc(100dvh - 262px); overflow-y: auto; overscroll-behavior: contain; scrollbar-width: thin; }
+}
+@media (min-width: 1200px) {
+  [data-model-choice="true"] .sp-p2-main .sp-ip-managed-grid { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+}
+@media (max-width: 620px) {
+  .sp-mc2-scope-group, .sp-mc2-scope { width: 100%; }
+  .sp-mc2-scope label { flex: 1 1 0; justify-content: center; }
+}
