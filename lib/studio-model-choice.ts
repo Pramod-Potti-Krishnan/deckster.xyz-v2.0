@@ -72,6 +72,13 @@ export const MODEL_CHOICE_DROPPED = 'An earlier choice is not open for selection
 export const MODEL_CHOICE_RESTORED = 'Your earlier choices were restored.'
 export const MODEL_CHOICE_CONFLICT = 'Your choices changed elsewhere, so the saved ones are shown.'
 export const MODEL_CHOICE_REFUSED = 'That choice cannot be saved for this task right now.'
+/** The router refused { auto: true } for this presentation (code invalid_preference_auto, or the router has not got Auto yet): the earlier choice stays, and the words say it was Auto. */
+export const MODEL_CHOICE_REFUSED_AUTO = 'Auto cannot be saved for this presentation right now, so it keeps what it had.'
+/** "This presentation" has two ways to leave a task to Deckster: the deck's own Auto (the sentinel { auto: true }, kept as the value "auto") and "Use my default" (the group left out, kept as "default"). On "Reusable defaults" there is only Auto, which is no choice at all. */
+export const MODEL_CHOICE_AUTO = 'auto'
+export const MODEL_CHOICE_AUTO_LABEL = 'Auto: Deckster chooses'
+export const MODEL_CHOICE_USE_DEFAULT = 'Use my default'
+export const MODEL_CHOICE_AUTO_NAME = 'Auto'
 export const MODEL_CHOICE_NO_MODELS = 'No models are open for selection for this task yet, so Deckster chooses.'
 export const MODEL_CHOICE_SCOPE_DECK_NONE = 'Open this page from a presentation to choose for it alone.'
 export const MODEL_CHOICE_SCOPE_DECK_UNAVAILABLE = 'Choices for one presentation aren’t available yet, so your reusable defaults apply.'
@@ -138,7 +145,7 @@ const providerNameOf = (catalogue: ChoiceCatalogue, slug: string) => { const ven
 
 // ---------------------------------------------------------------------------------------------------------------- one row: its options, its choices, what a choice is
 
-export type ChoiceOrigin = 'Recommended' | 'Your choice' | 'Reusable default' | 'Fixed'
+export type ChoiceOrigin = 'Recommended' | 'Your choice' | 'Reusable default' | 'Fixed' | 'Deckster chooses'
 export interface ChoiceResolved {
   /** What the row shows in bold. */
   name: string
@@ -248,15 +255,18 @@ export const staticTasks = (sources: Record<P2TaskId, RowSource>, live: ChoiceCa
 
 export type ModelChoices = Record<P2TaskId, string>
 export const modelChoiceDefaults = (): ModelChoices => ({ planning_strategy: P2_DEFAULT_CHOICE, content_writing: P2_DEFAULT_CHOICE, research_analysis: P2_DEFAULT_CHOICE, imagery: P2_DEFAULT_CHOICE, voice_narration: P2_DEFAULT_CHOICE })
-/** Each choice the row offers stays; anything else reads as the recommendation. */
-export function effectiveChoices(choices: ModelChoices, sources: Record<P2TaskId, RowSource>): ModelChoices {
+/** Each choice the row offers stays; anything else reads as the recommendation. `deck`: the choices are this presentation's, where the deck's own Auto ("auto") is a choice on every row that can be chosen. */
+export function effectiveChoices(choices: ModelChoices, sources: Record<P2TaskId, RowSource>, deck = false): ModelChoices {
   const out = modelChoiceDefaults()
-  for (const task of P2_TASKS) if (sources[task.id].isChoice(choices[task.id])) out[task.id] = choices[task.id]
+  for (const task of P2_TASKS) {
+    if (deck && choices[task.id] === MODEL_CHOICE_AUTO && sources[task.id].kind !== 'fixed') out[task.id] = MODEL_CHOICE_AUTO
+    else if (sources[task.id].isChoice(choices[task.id])) out[task.id] = choices[task.id]
+  }
   return out
 }
 export const changedCount = (choices: ModelChoices) => P2_TASKS.filter(task => choices[task.id] !== P2_DEFAULT_CHOICE).length
 /** The choosable tasks whose kept choice is not one the row offers now (another catalogue, a model no longer certified): they follow the recommendation, and the person is told so. */
-export const droppedChoices = (choices: ModelChoices, sources: Record<P2TaskId, RowSource>) => P2_TASKS.filter(task => sources[task.id].kind !== 'fixed' && choices[task.id] !== P2_DEFAULT_CHOICE && !sources[task.id].isChoice(choices[task.id])).map(task => task.id)
+export const droppedChoices = (choices: ModelChoices, sources: Record<P2TaskId, RowSource>) => P2_TASKS.filter(task => sources[task.id].kind !== 'fixed' && choices[task.id] !== P2_DEFAULT_CHOICE && choices[task.id] !== MODEL_CHOICE_AUTO && !sources[task.id].isChoice(choices[task.id])).map(task => task.id)
 
 /** "Reusable defaults" (the person, every deck) or "This presentation" (this Studio session: its id is the deck key, as ROUTER-2 confirmed). */
 export type ModelChoiceScope = { kind: 'user' } | { kind: 'deck'; deckId: string }
@@ -273,31 +283,37 @@ export function deckIdFromSearch(search: string): string | null {
 
 /** In "This presentation", a task with no choice of its own follows the reusable default (precedence: this presentation > reusable default > the task's own model). */
 export function resolveInScope(source: RowSource, scope: ModelChoiceScope, choice: string, userChoice: string): ChoiceResolved {
+  if (scope.kind === 'deck' && choice === MODEL_CHOICE_AUTO && source.kind !== 'fixed') return { name: MODEL_CHOICE_AUTO_NAME, provider: null, modelId: null, tier: null, hint: null, origin: 'Deckster chooses' }
   if (scope.kind === 'deck' && source.kind !== 'fixed' && !(source.isChoice(choice) && choice !== P2_DEFAULT_CHOICE) && source.isChoice(userChoice) && userChoice !== P2_DEFAULT_CHOICE) return { ...source.resolve(userChoice), origin: 'Reusable default' }
   return source.resolve(choice)
 }
-/** The select's first option: the recommendation, or in "This presentation" the reusable default when there is one. */
+/** The select's first option: the recommendation, or in "This presentation" "Use my default: <the default>" (the group left out; "Auto" when the default is Auto). */
 export function defaultOption(source: RowSource, scope: ModelChoiceScope, userChoice: string) {
-  if (scope.kind === 'deck' && source.isChoice(userChoice) && userChoice !== P2_DEFAULT_CHOICE) return { value: P2_DEFAULT_CHOICE, label: `Reusable default — ${source.resolve(userChoice).name}` }
+  if (scope.kind === 'deck') return { value: P2_DEFAULT_CHOICE, label: `${MODEL_CHOICE_USE_DEFAULT}: ${source.isChoice(userChoice) && userChoice !== P2_DEFAULT_CHOICE ? source.resolve(userChoice).name : MODEL_CHOICE_AUTO_NAME}` }
   return source.options.recommended
+}
+/** In "This presentation" only: the deck's own Auto, a second row beside "Use my default". Null on "Reusable defaults" and for a task that cannot be chosen. */
+export function deckAutoOption(source: RowSource, scope: ModelChoiceScope) {
+  return scope.kind === 'deck' && source.kind !== 'fixed' ? { value: MODEL_CHOICE_AUTO, label: MODEL_CHOICE_AUTO_LABEL } : null
 }
 export const originLine = (resolved: ChoiceResolved) => [resolved.provider, resolved.tier ? `${modelChoiceTier(resolved.tier).label} ${resolved.hint ?? modelChoiceTier(resolved.tier).hint}` : null, resolved.origin === 'Fixed' ? 'Not open for choice yet' : resolved.origin].filter(Boolean).join(' · ')
 
 // ---------------------------------------------------------------------------------------------------------------- the wire form (what the Studio routes take and give)
 
 const MODEL_SHAPE = /^[A-Za-z0-9][A-Za-z0-9._:/@+-]{0,199}$/
-export type WireChoice = { preset: P2PresetId } | { model: string } | null
-/** The choices of the choosable groups as the Studio PATCH body: a tier as { preset }, a model as { model }, the recommendation as null ("use my defaults" / clear). */
-export function toWire(choices: ModelChoices): { preferences: Record<string, WireChoice> } {
+export type WireChoice = { preset: P2PresetId } | { model: string } | { auto: true } | null
+/** The choices of the choosable groups as the Studio PATCH body: a tier as { preset }, a model as { model }, the recommendation as null ("use my defaults" / clear). On "This presentation" ('deck') the deck's
+ * own Auto is { auto: true }; "Reusable defaults" have none, so an "auto" there is sent as null and never as auto. */
+export function toWire(choices: ModelChoices, kind: 'user' | 'deck' = 'user'): { preferences: Record<string, WireChoice> } {
   const preferences: Record<string, WireChoice> = {}
   for (const group of MODEL_CHOICE_CHOOSABLE_GROUPS) {
     const value = choices[group as P2TaskId]
-    preferences[group] = isPreset(value) ? { preset: value } : value.startsWith('model:') && MODEL_SHAPE.test(value.slice(6)) ? { model: value.slice(6) } : null
+    preferences[group] = isPreset(value) ? { preset: value } : value.startsWith('model:') && MODEL_SHAPE.test(value.slice(6)) ? { model: value.slice(6) } : value === MODEL_CHOICE_AUTO && kind === 'deck' ? { auto: true } : null
   }
   return { preferences }
 }
-/** A Studio route's answer as choices: only the choosable groups, a preset as its tier, a model as model:<id>. */
-export function fromWire(body: unknown): ModelChoices {
+/** A Studio route's answer as choices: only the choosable groups, a preset as its tier, a model as model:<id>, and on "This presentation" ('deck') an { auto: true } row as "auto". */
+export function fromWire(body: unknown, kind: 'user' | 'deck' = 'user'): ModelChoices {
   const out = modelChoiceDefaults()
   const preferences = isRecord(body) && isRecord(body.preferences) ? body.preferences : {}
   for (const group of MODEL_CHOICE_CHOOSABLE_GROUPS) {
@@ -305,6 +321,7 @@ export function fromWire(body: unknown): ModelChoices {
     if (!isRecord(row)) continue
     if (typeof row.preset === 'string' && isPreset(row.preset)) out[group as P2TaskId] = row.preset
     else if (typeof row.model === 'string' && MODEL_SHAPE.test(row.model)) out[group as P2TaskId] = `model:${row.model}`
+    else if (kind === 'deck' && row.auto === true) out[group as P2TaskId] = MODEL_CHOICE_AUTO
   }
   return out
 }
@@ -315,7 +332,7 @@ export const modelChoiceKey = (scope: ModelChoiceScope) => (scope.kind === 'user
 /** The Pass 2 picker's key (lib/studio-intelligence-p2.ts p2StorageKey): read once for the reusable defaults when this picker has kept nothing yet, and never written or removed. */
 export const LEGACY_P2_PREFIX = 'deckster-studio-intelligence-p2-v1:'
 
-const CHOICE_SHAPE = /^(default|best|balanced|economy|model:[A-Za-z0-9][A-Za-z0-9._:/@+-]{0,199})$/
+const CHOICE_SHAPE = /^(default|auto|best|balanced|economy|model:[A-Za-z0-9][A-Za-z0-9._:/@+-]{0,199})$/
 const shapeOk = (value: unknown): value is string => typeof value === 'string' && CHOICE_SHAPE.test(value)
 
 /** The kept form: only the choices that differ from the recommendation, with the scope they belong to. Whether a choice is offered is decided when it is shown, against the catalogue of the day. */
@@ -332,7 +349,7 @@ export function parseChoices(scope: ModelChoiceScope, raw: string | null): Model
   if (!isRecord(saved) || saved.v !== 1 || saved.scope !== scope.kind || (scope.kind === 'deck' && saved.deck !== scope.deckId) || !isRecord(saved.choices)) return null
   const stored = saved.choices
   const out = modelChoiceDefaults()
-  for (const task of P2_TASKS) if (Object.prototype.hasOwnProperty.call(stored, task.id) && shapeOk(stored[task.id])) out[task.id] = stored[task.id] as string
+  for (const task of P2_TASKS) if (Object.prototype.hasOwnProperty.call(stored, task.id) && shapeOk(stored[task.id]) && !(scope.kind === 'user' && stored[task.id] === MODEL_CHOICE_AUTO)) out[task.id] = stored[task.id] as string
   return out
 }
 /** The Pass 2 picker's kept choices as this picker's: presets and models carry over, a voice becomes its model (the catalogue lists no voices), anything else is the recommendation. Null when nothing differs. */
@@ -363,7 +380,7 @@ export interface ModelChoiceLoad {
   /** This presentation's scope is not available: the router has no deck scope yet (R3), or the session is not saved yet. */
   deckUnavailable?: 'not-available' | 'not-saved'
 }
-export interface ModelChoiceSave { mode: SaveMode; reason: DeviceReason; conflict?: ModelChoices; refused?: boolean; deckUnavailable?: 'not-available' | 'not-saved' }
+export interface ModelChoiceSave { mode: SaveMode; reason: DeviceReason; conflict?: ModelChoices; refused?: boolean; /** The router's code for a refusal, when the route passed it on (invalid_preference_auto: Auto was refused). */ refusedCode?: string | null; deckUnavailable?: 'not-available' | 'not-saved' }
 /** The adapter every caller goes through. */
 export interface ModelChoiceStore {
   loadChoices(scope: ModelChoiceScope): Promise<ModelChoiceLoad>
@@ -417,7 +434,7 @@ export function createAccountChoiceStore(deps: { fetchJson: RouteFetch }): Model
       const answer = await deps.fetchJson(modelChoicePrefsUrl(scope), { method: 'GET' })
       if (answer.status === 200) {
         if (answer.etag) tags.set(keyOf(scope), answer.etag); else tags.delete(keyOf(scope))
-        const choices = fromWire(answer.body)
+        const choices = fromWire(answer.body, scope.kind)
         return { choices, restored: changedCount(choices) > 0, mode: 'account', reason: null }
       }
       const deck = scope.kind === 'deck' ? deckState(answer.status, answer.body) : null
@@ -426,15 +443,15 @@ export function createAccountChoiceStore(deps: { fetchJson: RouteFetch }): Model
     },
     async saveChoices(scope, choices) {
       const tag = tags.get(keyOf(scope))
-      const answer = await deps.fetchJson(modelChoicePrefsUrl(scope), { method: 'PATCH', headers: { 'Content-Type': 'application/json', ...(tag ? { 'If-Match': tag } : {}) }, body: JSON.stringify(toWire(choices)) })
+      const answer = await deps.fetchJson(modelChoicePrefsUrl(scope), { method: 'PATCH', headers: { 'Content-Type': 'application/json', ...(tag ? { 'If-Match': tag } : {}) }, body: JSON.stringify(toWire(choices, scope.kind)) })
       if (answer.etag) tags.set(keyOf(scope), answer.etag)
       if (answer.status === 200) return { mode: 'account', reason: null }
       if (answer.status === 412 || answer.status === 409) {
         const fresh = await deps.fetchJson(modelChoicePrefsUrl(scope), { method: 'GET' })
-        if (fresh.status === 200) { if (fresh.etag) tags.set(keyOf(scope), fresh.etag); return { mode: 'account', reason: null, conflict: fromWire(fresh.body) } }
-        return { mode: 'account', reason: null, conflict: fromWire(answer.body) }
+        if (fresh.status === 200) { if (fresh.etag) tags.set(keyOf(scope), fresh.etag); return { mode: 'account', reason: null, conflict: fromWire(fresh.body, scope.kind) } }
+        return { mode: 'account', reason: null, conflict: fromWire(answer.body, scope.kind) }
       }
-      if (answer.status === 422 || answer.status === 400) return { mode: 'account', reason: null, refused: true }
+      if (answer.status === 422 || answer.status === 400) return { mode: 'account', reason: null, refused: true, refusedCode: codeOf(answer.body) }
       const deck = scope.kind === 'deck' ? deckState(answer.status, answer.body) : null
       if (deck) return { mode: 'account', reason: null, deckUnavailable: deck }
       throw deviceReason(answer.status, answer.body)
@@ -470,6 +487,7 @@ export function createModelChoiceStore(deps: { account: ModelChoiceStore; device
 
 export function choiceFeedback(taskLabel: string, resolved: ChoiceResolved, choice: string, mode: SaveMode | 'session', scope: ModelChoiceScope) {
   const forWhat = scope.kind === 'deck' ? ' for this presentation' : ''
+  if (choice === MODEL_CHOICE_AUTO) return mode === 'account' ? `${taskLabel}: Auto, Deckster chooses, saved${forWhat}. Applies from the next build.` : `${taskLabel}: Auto, Deckster chooses, kept ${mode === 'session' ? 'for this session' : 'on this device'}${forWhat}.`
   if (choice === P2_DEFAULT_CHOICE) return resolved.origin === 'Reusable default' ? `${taskLabel} follows your reusable default, ${resolved.name}.` : `${taskLabel} follows the recommendation${forWhat}.`
   if (mode === 'account') return `${taskLabel}: ${resolved.name} saved${forWhat}. Applies from the next build.`
   return `${taskLabel}: ${resolved.name} kept ${mode === 'session' ? 'for this session' : 'on this device'}${forWhat}.`
@@ -498,6 +516,7 @@ export function usedReasonCopy(row: { resolution?: string | null; fallback_depth
   if (mine && (row.fallback_depth ?? 0) >= 1) return `Your pick failed; used backup ${model}`
   if (reason === 'user_model' || reason === 'user_preset') return `Your default: ${model}`
   if (reason === 'deck_model' || reason === 'deck_preset') return `This presentation: ${model}`
+  if (reason === 'deck_auto') return `This presentation: Auto (Deckster's choice): ${model}`
   if (reason === 'capability_fallback') {
     const needs = [...new Set((row.needs ?? []).map(need => NEEDS_WORDS[need]).filter(Boolean))]
     return `Used ${model}: your pick can't do this step${needs.length ? ` (needs ${needs.join(' / ')})` : ''}`

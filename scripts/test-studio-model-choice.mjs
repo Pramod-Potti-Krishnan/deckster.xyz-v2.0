@@ -104,7 +104,7 @@ function workspaceModule(env = {}) {
 }
 
 // ---------------------------------------------------------------- the router: an in-process fake that keeps choices per (user) and (user, session) with ETags, as the router does
-function fakeRouter({ deckScope = true, refuse = [], timeline = json(`${FIX}/router-timeline-200.json`) } = {}) {
+function fakeRouter({ deckScope = true, refuse = [], refuseAuto = false, timeline = json(`${FIX}/router-timeline-200.json`) } = {}) {
   const store = new Map(), log = []
   const certified = Object.fromEntries(TEXT_GROUPS.map(group => [group, json(FIXTURE).groups[group].selectable_models]))
   const etagOf = rows => `"${sha(JSON.stringify(Object.entries(rows).sort())).slice(0, 32)}"`
@@ -122,12 +122,19 @@ function fakeRouter({ deckScope = true, refuse = [], timeline = json(`${FIX}/rou
     if (init.method === 'GET') return answer(200, view(rows), etagOf(rows))
     if (init.headers['If-Match'] && init.headers['If-Match'] !== etagOf(rows)) return answer(412, json(`${FIX}/router-prefs-412.json`), etagOf(rows))
     const body = JSON.parse(init.body)
+    const isAuto = choice => choice !== null && typeof choice === 'object' && 'auto' in choice
+    const autoRefusal = () => answer(422, json(`${FIX}/router-prefs-422-invalid-preference-auto.json`))
+    for (const [group, choice] of Object.entries(body.preferences)) {
+      if (!isAuto(choice)) continue
+      if (!(init.method === 'PUT' && m[2])) return answer(422, { error: { message: 'Extra inputs are not permitted', type: 'invalid_request_error', code: 'extra_forbidden' } }) // the user routes have no auto
+      if (refuseAuto || Object.keys(choice).length !== 1 || choice.auto !== true) return autoRefusal() // exactly { "auto": true }, alone; the whole PUT is refused
+    }
     for (const [group, choice] of Object.entries(body.preferences)) {
       if (choice === null) continue
       if (!TEXT_GROUPS.includes(group)) return answer(422, { error: { message: 'x', type: 'invalid_request_error', code: 'invalid_preference_group' } })
       if (choice.model && (!certified[group].includes(choice.model) || refuse.includes(choice.model))) return answer(422, { error: { message: 'x', type: 'invalid_request_error', code: 'invalid_preference_model' } })
     }
-    const stamp = choice => ({ preset: choice.preset ?? null, model: choice.model ?? null, updated_at: `2026-10-26T12:00:${String(++clock).padStart(2, '0')}Z` })
+    const stamp = choice => ({ ...(choice.auto === true ? { auto: true } : {}), preset: choice.preset ?? null, model: choice.model ?? null, updated_at: `2026-10-26T12:00:${String(++clock).padStart(2, '0')}Z` })
     if (init.method === 'PATCH' && !m[2]) {
       const next = { ...rows }
       for (const [group, choice] of Object.entries(body.preferences)) { if (choice === null) delete next[group]; else next[group] = stamp(choice) }
@@ -137,7 +144,7 @@ function fakeRouter({ deckScope = true, refuse = [], timeline = json(`${FIX}/rou
     if (init.method === 'PUT' && m[2]) {
       const next = Object.fromEntries(Object.entries(body.preferences).map(([group, choice]) => [group, stamp(choice)]))
       store.set(pathname, next)
-      return answer(200, view(next)) // like the router's PUT: no ETag
+      return answer(200, { ...view(next), preferences: Object.fromEntries(Object.entries(view(next).preferences).map(([group, row]) => [group, row.auto === true ? { auto: true } : row])) }) // like the router's PUT: no ETag; an auto group is echoed as { "auto": true }
     }
     return answer(405, { detail: 'Method Not Allowed' })
   }
@@ -327,6 +334,7 @@ const REASON_COPY = [
   [{ resolution: 'choice_not_allowed' }, 'This step uses tested models only; used M'], [{ resolution: 'task_pinned' }, 'Fixed for this step: M'], [{ resolution: 'task_default' }, 'Fixed for this step: M'],
   [{}, 'Fixed for this step: M'], [{ resolution: 'user_preset', fallback_depth: 1 }, 'Your pick failed; used backup M'], [{ resolution: 'deck_model', fallback_depth: 2 }, 'Your pick failed; used backup M'],
   [{ resolution: 'task_pinned', fallback_depth: 1 }, 'Fixed for this step: M'],
+  [{ resolution: 'deck_auto' }, "This presentation: Auto (Deckster's choice): M"], [{ resolution: 'deck_auto', fallback_depth: 1 }, "This presentation: Auto (Deckster's choice): M"],
 ]
 
 // ================================================================ the whole check
@@ -364,6 +372,14 @@ async function suite({ quiet = false, extraCommitted = [] } = {}) {
     const fields = ['id', 'trace_id', 'seq', 'ts', 'user_id', 'session_id', 'presentation_id', 'service', 'task', 'group', 'model_served', 'tokens_in', 'tokens_out', 'billable_usd', 'deckster_tokens', 'latency_ms', 'status', 'fallback_depth', 'attempts']
     for (const item of items) ok(fields.every(field => field in item), `item ${item.id}`)
     ok(new Set(items.map(item => item.user_id)).size >= 3, 'rows of several people')
+  })
+
+  await check('A: the deck Auto fixtures are shaped as ROUTER-2\'s model-router !42 example (auto only on auto groups; the PUT echoes { auto: true }; a bad auto is invalid_preference_auto)', () => {
+    const get = json(`${FIX}/router-prefs-session-auto-200.json`)
+    deep(Object.keys(get.preferences.planning_strategy), ['auto', 'preset', 'model', 'updated_at', 'stale']); eq(get.preferences.planning_strategy.auto, true); eq(get.preferences.planning_strategy.preset, null); eq(get.preferences.planning_strategy.model, null)
+    ok(!('auto' in get.preferences.content_writing), 'the key is on auto groups only'); deep(Object.keys(get.preferences.content_writing), ['preset', 'model', 'updated_at', 'stale'])
+    deep(json(`${FIX}/router-put-session-auto-200.json`).preferences, { planning_strategy: { auto: true } })
+    const refusal = json(`${FIX}/router-prefs-422-invalid-preference-auto.json`); deep(Object.keys(refusal.error), ['message', 'type', 'code']); eq(refusal.error.code, 'invalid_preference_auto')
   })
 
   // ---- B. mapping ----------------------------------------------------------------------------------------------------------------------------------------------------
@@ -465,7 +481,7 @@ async function suite({ quiet = false, extraCommitted = [] } = {}) {
     const r = await mount({ studio: 'account', router, search: '?session_id=sess-fixture-1' })
     eq(r.radio('deck').props.checked, true); eq(r.scopeNote(), 'Applies from this presentation’s next build. A new presentation’s first build uses your reusable defaults.')
     eq(r.select('research_analysis').props.value, 'model:openai/gpt-6.1-sol')
-    eq(r.current('content_writing'), 'Claude Sonnet 5.5Anthropic · Best $$$ · Reusable default'); eq(r.options('content_writing')[0].label, 'Reusable default — Claude Sonnet 5.5')
+    eq(r.current('content_writing'), 'Claude Sonnet 5.5Anthropic · Best $$$ · Reusable default'); eq(r.options('content_writing')[0].label, 'Use my default: Claude Sonnet 5.5')
     const before = router.log.length
     await r.choose('planning_strategy', 'balanced')
     const writes = router.log.slice(before)
@@ -489,6 +505,56 @@ async function suite({ quiet = false, extraCommitted = [] } = {}) {
       eq(r.radio('deck').props.disabled, true); eq(r.scopeNote(), 'Choices for this presentation can’t be saved yet, so your reusable defaults apply.'); eq(r.note(), NOTES.account)
     })
   }
+
+  await check('F: on "This presentation" a row has "Use my default: <it>" and "Auto: Deckster chooses" as two rows; "Reusable defaults" has the recommendation alone, no deck Auto', async () => {
+    const router = fakeRouter()
+    router.bump(USER_PATH, { content_writing: { preset: 'best', model: null, updated_at: '2026-10-26T09:00:00Z' } })
+    const r = await mount({ studio: 'account', router, search: '?session_id=sess-fixture-1' })
+    deep(r.options('content_writing').slice(0, 2), [{ value: 'default', label: 'Use my default: Claude Sonnet 5.5' }, { value: 'auto', label: 'Auto: Deckster chooses' }])
+    deep(r.options('planning_strategy').slice(0, 2), [{ value: 'default', label: 'Use my default: Auto' }, { value: 'auto', label: 'Auto: Deckster chooses' }], 'no default of mine: the default is Auto')
+    eq(r.options('planning_strategy').length, optionsFor('planning_strategy').length + 1, 'one more row than the reusable defaults')
+    for (const task of ['imagery', 'voice_narration']) ok(!r.hasSelect(task), `${task}: fixed, no row`)
+    await r.act(() => r.radio('user').props.onChange())
+    deep(r.options('planning_strategy'), optionsFor('planning_strategy')); eq(r.options('planning_strategy')[0].label, 'Recommended — Deckster chooses'); ok(!r.options('planning_strategy').some(option => option.value === 'auto'), 'no deck Auto on the reusable defaults')
+    const before = r.router.log.length
+    await r.choose('planning_strategy', 'auto')
+    eq(r.router.log.length, before, 'a deck Auto picked on the reusable defaults is ignored: nothing is sent'); eq(r.select('planning_strategy').props.value, 'default')
+  })
+  await check('F: the deck\'s own Auto is saved as { "auto": true } in the session scope, read back as Auto, and "Use my default" leaves the group out', async () => {
+    const router = fakeRouter()
+    router.bump(USER_PATH, { planning_strategy: { preset: 'best', model: null, updated_at: '2026-10-26T09:00:00Z' } })
+    const r = await mount({ studio: 'account', router, search: '?session_id=sess-fixture-1' })
+    eq(r.current('planning_strategy'), 'Kimi K3Moonshot AI · Best $$$ · Reusable default', 'it follows my default')
+    await r.choose('planning_strategy', 'auto')
+    const put = router.log.filter(entry => entry.method === 'PUT').at(-1)
+    deep(JSON.parse(put.body), { preferences: { planning_strategy: { auto: true } } }); eq(put.body.includes('"auto":true'), true)
+    eq(router.store.get(SESSION_PATH).planning_strategy.auto, true); eq(r.select('planning_strategy').props.value, 'auto'); eq(r.current('planning_strategy'), 'AutoDeckster chooses')
+    eq(r.feedback(), 'Planning & Strategy: Auto, Deckster chooses, saved for this presentation. Applies from the next build.')
+    eq(router.store.get(USER_PATH).planning_strategy.preset, 'best', 'the reusable default is untouched')
+    const again = await mount({ studio: 'account', router, search: '?session_id=sess-fixture-1' })
+    eq(again.select('planning_strategy').props.value, 'auto', 'read back as Auto'); eq(again.current('planning_strategy'), 'AutoDeckster chooses')
+    await again.choose('planning_strategy', 'default')
+    ok(!('planning_strategy' in router.store.get(SESSION_PATH)), 'use my default: the group is omitted'); eq(again.select('planning_strategy').props.value, 'default'); eq(again.current('planning_strategy'), 'Kimi K3Moonshot AI · Best $$$ · Reusable default')
+  })
+  await check('F: the router refusing Auto (422 invalid_preference_auto) keeps the earlier choice and the page says it was Auto', async () => {
+    const router = fakeRouter({ refuseAuto: true })
+    router.bump(SESSION_PATH, { research_analysis: { preset: 'balanced', model: null, updated_at: '2026-10-26T09:00:00Z' } })
+    const r = await mount({ studio: 'account', router, search: '?session_id=sess-fixture-1' })
+    await r.choose('research_analysis', 'auto')
+    eq(r.select('research_analysis').props.value, 'balanced'); eq(r.feedback(), 'Auto cannot be saved for this presentation right now, so it keeps what it had.')
+    eq(router.store.get(SESSION_PATH).research_analysis.preset, 'balanced', 'nothing was saved'); eq(router.log.filter(entry => entry.method === 'PUT').length, 1)
+    await r.choose('research_analysis', 'model:openai/gpt-6.1-sol')
+    ok(r.feedback().startsWith('Research & Analysis: GPT-6.1 Sol saved for this presentation'), 'a model still saves')
+  })
+  await check('F: on this device a deck Auto is kept under the deck\'s key; the reusable defaults never keep one', async () => {
+    const storage = makeStorage()
+    const r = await mount({ studio: 'unconfigured', storage, search: '?session_id=sess-fixture-1' })
+    await r.choose('content_writing', 'auto')
+    deep(JSON.parse(storage.map.get('deckster-studio-model-choice-v1:deck:sess-fixture-1')), { v: 1, scope: 'deck', deck: 'sess-fixture-1', choices: { content_writing: 'auto' } }); eq(r.feedback(), 'Content Writing: Auto, Deckster chooses, kept on this device for this presentation.')
+    const { choice } = libs()
+    eq(choice.parseChoices({ kind: 'user' }, '{"v":1,"scope":"user","choices":{"content_writing":"auto","planning_strategy":"best"}}').content_writing, 'default', 'an auto in the reusable defaults reads as the recommendation')
+    eq(choice.parseChoices({ kind: 'deck', deckId: 'a' }, '{"v":1,"scope":"deck","deck":"a","choices":{"content_writing":"auto"}}').content_writing, 'auto')
+  })
 
   // ---- G. adapter ---------------------------------------------------------------------------------------------------------------------------------------------------------
   await check('G: the account: the router\'s choices load; each save sends the ETag it last saw as If-Match; the router keeps tiers as presets and models as models', async () => {
@@ -548,6 +614,16 @@ async function suite({ quiet = false, extraCommitted = [] } = {}) {
     for (const raw of ['', 'x', '[]', '{"v":2,"scope":"user","choices":{}}']) eq(choice.parseChoices({ kind: 'user' }, raw), null, raw)
     deep(choice.toWire({ ...choice.modelChoiceDefaults(), planning_strategy: 'economy', content_writing: 'model:a/b', imagery: 'best' }), { preferences: { planning_strategy: { preset: 'economy' }, content_writing: { model: 'a/b' }, research_analysis: null } })
     deep(choice.fromWire(json(`${FIX}/router-prefs-user-200.json`)), { ...choice.modelChoiceDefaults(), planning_strategy: 'best', content_writing: 'model:anthropic/claude-sonnet-5.5' }, 'imagery is not choosable')
+  })
+  await check('G: the wire: a deck\'s Auto is { auto: true } and is read back as "auto"; the reusable defaults never send or read one', () => {
+    const { choice } = libs()
+    const choices = { ...choice.modelChoiceDefaults(), planning_strategy: 'auto', content_writing: 'balanced', research_analysis: 'default', imagery: 'auto' }
+    deep(choice.toWire(choices, 'deck'), { preferences: { planning_strategy: { auto: true }, content_writing: { preset: 'balanced' }, research_analysis: null } })
+    deep(choice.toWire(choices, 'user'), { preferences: { planning_strategy: null, content_writing: { preset: 'balanced' }, research_analysis: null } }); deep(choice.toWire(choices), choice.toWire(choices, 'user'))
+    const body = json(`${FIX}/router-prefs-session-auto-200.json`)
+    deep(choice.fromWire({ preferences: { planning_strategy: { auto: true, preset: null, model: null }, content_writing: { preset: 'best' }, research_analysis: { auto: false } } }, 'deck'), { ...choice.modelChoiceDefaults(), planning_strategy: 'auto', content_writing: 'best' })
+    deep(choice.fromWire({ preferences: { planning_strategy: { auto: true } } }, 'user'), choice.modelChoiceDefaults()); deep(choice.fromWire(body, 'deck'), { ...choice.modelChoiceDefaults(), planning_strategy: 'auto', content_writing: 'best', research_analysis: 'auto' })
+    for (const bad of ['true', 1, null, {}, 'auto']) deep(choice.fromWire({ preferences: { planning_strategy: { auto: bad } } }, 'deck'), choice.modelChoiceDefaults(), JSON.stringify(bad))
   })
   await check('G: a device storage that throws keeps the choices for the session, says so, and warns on leaving', async () => {
     const r = await mount({ storage: makeStorage({}, { get: true, set: true }) })
@@ -792,6 +868,54 @@ async function suite({ quiet = false, extraCommitted = [] } = {}) {
     deep(other.body.rows.map(row => row.model), ['anthropic/claude-opus-5.5'])
     for (const buildId of ['../x', 'a b', '']) { const bad = await callRoute(USED_ROUTE, 'GET', { params: { buildId } }); eq(bad.status, 400); eq(bad.router.log.length, 0) }
   })
+  const AUTO_BAD = [{ auto: false }, { auto: null }, { auto: 'true' }, { auto: 'TRUE' }, { auto: 1 }, { auto: 0 }, { auto: {} }, { auto: [true] }, { auto: true, preset: 'best' }, { auto: true, model: 'a/b' }, { auto: true, x: 1 }, { auto: true, auto2: true }]
+  await check('M: the deck body: { auto: true } alone is a choice for a text group; any other auto (false, null, "true", 1, an extra key) or an auto on another group is a 400 that sends nothing', async () => {
+    for (const bad of AUTO_BAD) {
+      const out = await callRoute(DECK_ROUTE, 'PATCH', { params: { deckKey: 'sess-fixture-1' }, body: { preferences: { planning_strategy: bad } } })
+      eq(out.status, 400, JSON.stringify(bad)); eq(out.body.code, 'invalid_request'); eq(out.router.log.length, 0, 'not even the read')
+    }
+    for (const group of ['imagery', 'voice_narration', 'embeddings']) { const out = await callRoute(DECK_ROUTE, 'PATCH', { params: { deckKey: 'sess-fixture-1' }, body: { preferences: { [group]: { auto: true } } } }); eq(out.status, 400, group); eq(out.router.log.length, 0) }
+    const good = await callRoute(DECK_ROUTE, 'PATCH', { params: { deckKey: 'sess-fixture-1' }, body: { preferences: { planning_strategy: { auto: true }, content_writing: { auto: true }, research_analysis: { auto: true } } } })
+    eq(good.status, 200); deep(good.body.preferences, Object.fromEntries(TEXT_GROUPS.map(group => [group, { auto: true, preset: null, model: null, stale: false }])))
+  })
+  await check('M: the PUT carries { "auto": true } for the group, keeps the deck\'s other rows (an auto row too), and null ("use my default") leaves the group out', async () => {
+    const router = fakeRouter()
+    router.bump(SESSION_PATH, { planning_strategy: { auto: true, preset: null, model: null, updated_at: '2026-10-26T09:00:00Z' }, research_analysis: { preset: 'best', model: null, updated_at: '2026-10-26T09:00:00Z' } })
+    const out = await callRoute(DECK_ROUTE, 'PATCH', { params: { deckKey: 'sess-fixture-1' }, router, body: { preferences: { content_writing: { auto: true } } } })
+    eq(out.status, 200); const put = router.log.find(entry => entry.method === 'PUT')
+    eq(put.body, '{"preferences":{"planning_strategy":{"auto":true},"research_analysis":{"preset":"best"},"content_writing":{"auto":true}}}')
+    const left = await callRoute(DECK_ROUTE, 'PATCH', { params: { deckKey: 'sess-fixture-1' }, router, body: { preferences: { planning_strategy: null } } })
+    eq(left.status, 200); deep(JSON.parse(router.log.filter(entry => entry.method === 'PUT').at(-1).body), { preferences: { research_analysis: { preset: 'best' }, content_writing: { auto: true } } }, 'the group is omitted')
+    ok(!('planning_strategy' in left.body.preferences) && left.body.preferences.content_writing.auto === true)
+  })
+  await check('M: the user scope refuses auto with a 400 before any router call, valid-looking or not; its "Auto" is still { group: null }', async () => {
+    for (const bad of [{ auto: true }, ...AUTO_BAD]) {
+      const out = await callRoute(USER_ROUTE, 'PATCH', { body: { preferences: { planning_strategy: bad } } })
+      eq(out.status, 400, JSON.stringify(bad)); eq(out.body.code, 'invalid_request'); eq(out.router.log.length, 0, 'the router was not called')
+    }
+    const mixed = await callRoute(USER_ROUTE, 'PATCH', { body: { preferences: { planning_strategy: { preset: 'best' }, content_writing: { auto: true } } } })
+    eq(mixed.status, 400); eq(mixed.router.log.length, 0, 'one auto refuses the whole body')
+    const router = fakeRouter(); router.bump(USER_PATH, { planning_strategy: { preset: 'best', model: null, updated_at: 't' } })
+    const reset = await callRoute(USER_ROUTE, 'PATCH', { router, body: { preferences: { planning_strategy: null } } })
+    eq(reset.status, 200); deep(JSON.parse(router.log.find(entry => entry.method === 'PATCH').body), { preferences: { planning_strategy: null } }); deep(router.store.get(USER_PATH), {})
+  })
+  await check('M: GET: the router\'s auto rows read back as { auto: true, preset: null, model: null, stale }; other rows carry no auto key; the reusable defaults leave an auto row out', async () => {
+    const fixture = json(`${FIX}/router-prefs-session-auto-200.json`)
+    const serve = { log: [], fetch: async (url, init) => { serve.log.push({ url, method: init.method, headers: init.headers, body: init.body ?? null }); return { status: 200, headers: { get: name => (name.toLowerCase() === 'etag' ? '"fixture-etag"' : null) }, json: async () => JSON.parse(JSON.stringify(fixture)) } } }
+    const deck = await callRoute(DECK_ROUTE, 'GET', { params: { deckKey: 'sess-fixture-1' }, router: serve })
+    eq(deck.status, 200); deep(deck.body, { scope: 'deck', preferences: { planning_strategy: { preset: null, model: null, stale: false, auto: true }, content_writing: { preset: 'best', model: null, stale: false }, research_analysis: { preset: null, model: null, stale: true, auto: true } }, catalogue_version: fixture.catalogue_version })
+    ok(!('auto' in deck.body.preferences.content_writing)); ok(!deck.text.includes('user-fixture'))
+    const user = await callRoute(USER_ROUTE, 'GET', { router: serve }); deep(Object.keys(user.body.preferences), ['content_writing'])
+    const carried = await callRoute(DECK_ROUTE, 'PATCH', { params: { deckKey: 'sess-fixture-1' }, router: serve, body: { preferences: { planning_strategy: { preset: 'economy' } } } })
+    eq(carried.status, 200); eq(serve.log.find(entry => entry.method === 'PUT').body, '{"preferences":{"planning_strategy":{"preset":"economy"},"content_writing":{"preset":"best"},"research_analysis":{"auto":true}}}', 'the auto row it did not touch goes back as { "auto": true }')
+  })
+  await check('M: a router 422 invalid_preference_auto is a 422 with that code and an honest sentence; nothing is saved; another refusal keeps its own words', async () => {
+    const router = fakeRouter({ refuseAuto: true }); router.bump(SESSION_PATH, { research_analysis: { preset: 'best', model: null, updated_at: 't' } })
+    const out = await callRoute(DECK_ROUTE, 'PATCH', { params: { deckKey: 'sess-fixture-1' }, router, body: { preferences: { planning_strategy: { auto: true } } } })
+    eq(out.status, 422); deep(out.body, { error: 'Auto cannot be saved for this presentation right now.', code: 'invalid_preference_auto', retryable: false }); deep(Object.keys(router.store.get(SESSION_PATH)), ['research_analysis'])
+    const other = await callRoute(DECK_ROUTE, 'PATCH', { params: { deckKey: 'sess-fixture-1' }, router: fakeRouter(), body: { preferences: { planning_strategy: { model: 'openai/not-certified' } } } })
+    eq(other.status, 422); eq(other.body.code, 'invalid_preference_model'); eq(other.body.error, 'That choice cannot be saved for this task right now.')
+  })
   await check('M: the route set grows by exactly the three new routes; each route is thin and server-only', () => {
     const routesOf = files => [...new Set(files.filter(file => /^app\/(.*\/)?(page|route)\.(tsx|ts|jsx|js)$/.test(file)).map(file => '/' + file.replace(/^app\//, '').replace(/(^|\/)(page|route)\.\w+$/, '').split('/').filter(segment => segment && !/^\(.*\)$/.test(segment)).join('/')))].sort()
     const before = routesOf(git('ls-tree', '-r', '--name-only', BASE, '--', 'app').split('\n').filter(Boolean))
@@ -914,6 +1038,29 @@ const MUTANTS = [
   ['env: the block says "true"', ENV, 'NEXT_PUBLIC_STUDIO_MODEL_CHOICE="false"', 'NEXT_PUBLIC_STUDIO_MODEL_CHOICE="true"'],
   ['env: the block names the router address variable', STRIP, 'at the router address the narration block\n# above sets', 'at MODEL_ROUTER_URL (the narration block\n# above sets it)'],
   ['fixture: a timeline row of another person becomes mine', `${FIX}/router-timeline-200.json`, '"user_id": "user-fixture-2"', '"user_id": "user-fixture-1"'],
+  // the deck's own Auto (ROUTER-2, model-router !42)
+  ['server: auto: false is accepted', SERVER, "      if (choice.auto !== true) return refuse('Auto is { \"auto\": true }.')\n", ''],
+  ['server: auto may carry another key', SERVER, "    if (!isRecord(choice) || Object.keys(choice).length !== 1) return refuse('A choice is { \"preset\" } or { \"model\" } or { \"auto\": true } or null.')", "    if (!isRecord(choice)) return refuse('A choice is { \"preset\" } or { \"model\" } or { \"auto\": true } or null.')"],
+  ['server: auto is allowed on the user scope', SERVER, "    if (!deck && Object.values(changes).some(choice => choice !== null && 'auto' in choice)) return fail(", '    if (false) return fail('],
+  ['server: a carried auto row is rewritten', SERVER, 'merged[group] = row.auto ? { auto: true } : row.preset !== null', 'merged[group] = row.preset !== null'],
+  ['server: auto rows are not read', SERVER, "    else if (row.auto === true && (row.preset ?? null) === null && (row.model ?? null) === null) out[group] = { preset: null, model: null, stale: row.stale === true, auto: true }\n", ''],
+  ['server: the user scope shows auto rows', SERVER, "(scope === 'deck' || !rows[group].auto)", 'true'],
+  ['server: the auto refusal speaks generally', SERVER, "askedAuto || code === 'invalid_preference_auto' ? 'Auto cannot be saved for this presentation right now.' : 'That choice cannot be saved for this task right now.'", "'That choice cannot be saved for this task right now.'"],
+  ['lib: auto is sent on the reusable defaults', LIB, "value === MODEL_CHOICE_AUTO && kind === 'deck' ? { auto: true } : null", "value === MODEL_CHOICE_AUTO ? { auto: true } : null"],
+  ['lib: auto rows are not read', LIB, "else if (kind === 'deck' && row.auto === true) out[group as P2TaskId] = MODEL_CHOICE_AUTO", "else if (false) out[group as P2TaskId] = MODEL_CHOICE_AUTO"],
+  ['lib: the account sends a deck as the user', LIB, 'body: JSON.stringify(toWire(choices, scope.kind))', 'body: JSON.stringify(toWire(choices))'],
+  ['lib: the account reads a deck as the user', LIB, 'const choices = fromWire(answer.body, scope.kind)', 'const choices = fromWire(answer.body)'],
+  ['lib: deck Auto is offered on the reusable defaults', LIB, "return scope.kind === 'deck' && source.kind !== 'fixed' ?", "return source.kind !== 'fixed' ?"],
+  ['lib: the reusable defaults keep an auto', LIB, " && !(scope.kind === 'user' && stored[task.id] === MODEL_CHOICE_AUTO)) out[task.id]", ') out[task.id]'],
+  ['lib: the default row keeps its old words', LIB, 'label: `${MODEL_CHOICE_USE_DEFAULT}: ${source.isChoice', 'label: `Reusable default — ${source.isChoice'],
+  ['lib: a deck Auto reads as a dropped choice', LIB, ' && choices[task.id] !== MODEL_CHOICE_AUTO && !sources[task.id].isChoice(', ' && !sources[task.id].isChoice('],
+  ['lib: a deck Auto is not a choice of the row', LIB, "if (deck && choices[task.id] === MODEL_CHOICE_AUTO && sources[task.id].kind !== 'fixed')", 'if (false)'],
+  ['lib: deck_auto reads as fixed', LIB, "  if (reason === 'deck_auto') return `This presentation: Auto (Deckster's choice): ${model}`\n", ''],
+  ['lib: the refusal code is dropped', LIB, 'refused: true, refusedCode: codeOf(answer.body) }', 'refused: true }'],
+  ['chooser: a refused Auto reads as any refusal', CHOOSER, 'askedAuto || result.refusedCode === "invalid_preference_auto" ? MODEL_CHOICE_REFUSED_AUTO : MODEL_CHOICE_REFUSED', 'MODEL_CHOICE_REFUSED'],
+  ['chooser: a deck Auto is taken on the reusable defaults', CHOOSER, 'const deckAuto = value === MODEL_CHOICE_AUTO && scope.kind === "deck"', 'const deckAuto = value === MODEL_CHOICE_AUTO'],
+  ['chooser: the deck\'s choices drop the Auto', CHOOSER, 'effectiveChoices(raw, sources, scope.kind === "deck")', 'effectiveChoices(raw, sources)'],
+  ['fixture: an auto row is not auto', `${FIX}/router-prefs-session-auto-200.json`, '"auto": true,\n      "preset": null,\n      "model": null,\n      "updated_at": "2026-10-26T14:00:00Z"', '"auto": false,\n      "preset": null,\n      "model": null,\n      "updated_at": "2026-10-26T14:00:00Z"'],
 ]
 let caught = 0
 const missed = []

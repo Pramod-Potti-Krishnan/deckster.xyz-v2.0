@@ -6,9 +6,9 @@ import { catalog, catalogRefreshed, DISABLED_ACTION_OPAQUE, inputsLabel, Intelli
 import { P2_DEFAULT_CHOICE, P2_RESET_FEEDBACK, P2_RESET_LABEL, P2_TASKS, p2StorageKey, type P2TaskId } from "@/lib/studio-intelligence-p2"
 import { classifyCatalogueResponse, MODEL_CATALOG_ENDPOINT } from "@/lib/studio-model-catalog"
 import {
-  MODEL_CHOICE_CONFLICT, MODEL_CHOICE_COST_NOTE, MODEL_CHOICE_DROPPED, MODEL_CHOICE_FALLBACK_NOTE, MODEL_CHOICE_FIXED_NOTE, MODEL_CHOICE_LOADING, MODEL_CHOICE_NO_MODELS, MODEL_CHOICE_NOTE, MODEL_CHOICE_REFUSED,
+  MODEL_CHOICE_AUTO, MODEL_CHOICE_CONFLICT, MODEL_CHOICE_COST_NOTE, MODEL_CHOICE_DROPPED, MODEL_CHOICE_FALLBACK_NOTE, MODEL_CHOICE_FIXED_NOTE, MODEL_CHOICE_LOADING, MODEL_CHOICE_NO_MODELS, MODEL_CHOICE_NOTE, MODEL_CHOICE_REFUSED, MODEL_CHOICE_REFUSED_AUTO,
   MODEL_CHOICE_RESTORED, MODEL_CHOICE_SCOPE_DECK_NONE, MODEL_CHOICE_SCOPE_DECK_NOT_SAVED, MODEL_CHOICE_SCOPE_DECK_RULE, MODEL_CHOICE_SCOPE_DECK_UNAVAILABLE, USER_SCOPE, buildIdFromSearch, changedCount, choiceFeedback, createAccountChoiceStore,
-  createDeviceChoiceStore, createModelChoiceStore, deckIdFromSearch, defaultOption, droppedChoices, effectiveChoices, modelChoiceDefaults, modelChoiceUsedUrl, modelsUsedRows, originLine, resolveInScope,
+  createDeviceChoiceStore, createModelChoiceStore, deckAutoOption, deckIdFromSearch, defaultOption, droppedChoices, effectiveChoices, modelChoiceDefaults, modelChoiceUsedUrl, modelsUsedRows, originLine, resolveInScope,
   rowSources, staticTasks, withPresets,
   type ChoiceCatalogue, type DeviceReason, type ModelChoiceSave, type ModelChoiceScope, type ModelChoices, type RouteFetch, type RowSource, type SaveMode,
 } from "@/lib/studio-model-choice"
@@ -65,7 +65,7 @@ export function ModelChoiceChooser() {
   const sources = rowSources(liveCatalogue, catalog)
   const scope: ModelChoiceScope = scopeKind === "deck" && deckId && deckState === "ok" ? { kind: "deck", deckId } : USER_SCOPE
   const raw = scope.kind === "deck" ? deckChoices : userChoices
-  const choices = effectiveChoices(raw, sources)
+  const choices = effectiveChoices(raw, sources, scope.kind === "deck")
   const userEffective = effectiveChoices(userChoices, sources)
   const changed = loading ? 0 : changedCount(choices)
   const status = changed === 0 ? { state: "clean", label: "Following recommendations" } : storage === "unavailable" ? { state: "session", label: "Session only" } : mode === "account" ? { state: "saved", label: "Saved to your account" } : { state: "saved", label: "Saved on this device" }
@@ -145,14 +145,15 @@ export function ModelChoiceChooser() {
     else if (result.deckUnavailable) { setDeckState(result.deckUnavailable); setScopeKind("user"); setFor(target, before) }
     return result
   }
-  const settleWords = (result: ModelChoiceSave | { mode: "session" }, words: (mode: SaveMode | "session") => string) =>
-    "conflict" in result && result.conflict ? MODEL_CHOICE_CONFLICT : "refused" in result && result.refused ? MODEL_CHOICE_REFUSED : "deckUnavailable" in result && result.deckUnavailable ? (result.deckUnavailable === "not-available" ? MODEL_CHOICE_SCOPE_DECK_UNAVAILABLE : MODEL_CHOICE_SCOPE_DECK_NOT_SAVED) : words(result.mode)
+  const settleWords = (result: ModelChoiceSave | { mode: "session" }, words: (mode: SaveMode | "session") => string, askedAuto = false) =>
+    "conflict" in result && result.conflict ? MODEL_CHOICE_CONFLICT : "refused" in result && result.refused ? (askedAuto || result.refusedCode === "invalid_preference_auto" ? MODEL_CHOICE_REFUSED_AUTO : MODEL_CHOICE_REFUSED) : "deckUnavailable" in result && result.deckUnavailable ? (result.deckUnavailable === "not-available" ? MODEL_CHOICE_SCOPE_DECK_UNAVAILABLE : MODEL_CHOICE_SCOPE_DECK_NOT_SAVED) : words(result.mode)
   function choose(task: P2TaskId, value: string) {
     const source = sources[task]
-    if (loading || storage === "pending" || source.kind === "fixed" || !source.isChoice(value)) return
+    const deckAuto = value === MODEL_CHOICE_AUTO && scope.kind === "deck" // the deck's own Auto: the one choice the row's own list does not hold
+    if (loading || storage === "pending" || source.kind === "fixed" || !(source.isChoice(value) || deckAuto)) return
     const resolved = resolveInScope(source, scope, value, userEffective[task])
     const target = scope
-    keep({ ...raw, [task]: value }).then(result => setFeedback(settleWords(result, savedIn => choiceFeedback(taskLabel(task), resolved, value, savedIn, target))))
+    keep({ ...raw, [task]: value }).then(result => setFeedback(settleWords(result, savedIn => choiceFeedback(taskLabel(task), resolved, value, savedIn, target), deckAuto)))
   }
   function reset() {
     if (storage === "pending") return
@@ -211,6 +212,7 @@ export function ModelChoiceChooser() {
                       ? <select id={`sp-p2-model-${task.id}`} aria-describedby="sp-p2-note" value="" disabled onChange={() => undefined}><option value="">{MODEL_CHOICE_LOADING}</option></select>
                       : <select id={`sp-p2-model-${task.id}`} aria-describedby={["sp-p2-note", anyPresets ? "sp-mc2-cost" : "", empty ? `sp-mc2-none-${task.id}` : ""].filter(Boolean).join(" ")} value={choices[task.id]} onFocus={() => { if (activeTask !== task.id) setActiveTask(task.id) }} onChange={event => choose(task.id, event.target.value)}>
                         <option value={P2_DEFAULT_CHOICE}>{defaultOption(source, scope, userEffective[task.id]).label}</option>
+                        {deckAutoOption(source, scope) && <option value={MODEL_CHOICE_AUTO}>{deckAutoOption(source, scope)?.label}</option>}
                         {options.presets.length > 0 && <optgroup label="Presets">{options.presets.map(option => <option key={option.value} value={option.value}>{option.label}</option>)}</optgroup>}
                         {options.models.length > 0 && <optgroup label="Specific models">{options.models.map(option => <option key={option.value} value={option.value}>{option.label}</option>)}</optgroup>}
                       </select>}

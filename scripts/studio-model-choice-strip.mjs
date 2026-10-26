@@ -40,10 +40,11 @@ export function applyModelChoiceHook(text) {
 }
 
 /** The fixtures this change's proof reads: the catalogue (the recorded shape, with imagery and narration certified) and the router's answers to Studio's routes (shaped as the router's own code answers:
- *  read_api.py prefs GET / PATCH / 412, timeline_api.py items; no keys, no prices). */
+ *  read_api.py prefs GET / PATCH / 412, timeline_api.py items, and ROUTER-2's deck Auto from model-router !42: an auto group reads back { auto: true, preset: null, model: null, updated_at, stale }, the PUT echoes { auto: true },
+ *  and a malformed auto is refused with 422 invalid_preference_auto; no keys, no prices). */
 export const MODEL_CHOICE_FIXTURE_DIR = 'scripts/fixtures/studio-model-choice'
 export const MODEL_CHOICE_FIXTURE = `${MODEL_CHOICE_FIXTURE_DIR}/catalogue-live-shape.json`
-export const MODEL_CHOICE_ROUTER_FIXTURES = ['router-prefs-user-200.json', 'router-prefs-session-200.json', 'router-prefs-412.json', 'router-not-found-404.json', 'router-timeline-200.json'].map(name => `${MODEL_CHOICE_FIXTURE_DIR}/${name}`)
+export const MODEL_CHOICE_ROUTER_FIXTURES = ['router-prefs-user-200.json', 'router-prefs-session-200.json', 'router-prefs-412.json', 'router-not-found-404.json', 'router-timeline-200.json', 'router-prefs-session-auto-200.json', 'router-put-session-auto-200.json', 'router-prefs-422-invalid-preference-auto.json'].map(name => `${MODEL_CHOICE_FIXTURE_DIR}/${name}`)
 
 /** The three new Studio server routes (the route set grows by exactly these three). */
 export const MODEL_CHOICE_ROUTES = [

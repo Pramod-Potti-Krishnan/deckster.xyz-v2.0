@@ -3,11 +3,11 @@
 import { useCallback, useEffect, useRef, useState } from "react"
 import { MODEL_CATALOG_ENDPOINT, classifyCatalogueResponse } from "@/lib/studio-model-catalog"
 import {
-  MODEL_CHOICE_CONFLICT, MODEL_CHOICE_REFUSED, MODEL_CHOICE_SCOPE_DECK_NOT_SAVED, MODEL_CHOICE_SCOPE_DECK_UNAVAILABLE, USER_SCOPE, createAccountChoiceStore, createDeviceChoiceStore, createModelChoiceStore, modelChoiceDefaults, withPresets,
+  MODEL_CHOICE_CONFLICT, MODEL_CHOICE_REFUSED, MODEL_CHOICE_REFUSED_AUTO, MODEL_CHOICE_SCOPE_DECK_NOT_SAVED, MODEL_CHOICE_SCOPE_DECK_UNAVAILABLE, USER_SCOPE, createAccountChoiceStore, createDeviceChoiceStore, createModelChoiceStore, modelChoiceDefaults, withPresets,
   type ChoiceCatalogue, type DeviceReason, type ModelChoiceSave, type ModelChoiceScope, type ModelChoiceStore, type ModelChoices, type RouteFetch, type SaveMode,
 } from "@/lib/studio-model-choice"
 import {
-  applyChoice, choiceOfState, deckIdFromSessionId, mergeChoices, offerable, pickerStateOf, saveNote, shownState, type ModelChoice, type PickerState,
+  applyChoice, choiceOfState, deckIdFromSessionId, deckOwnOf, mergeChoices, offerable, pickerStateOf, saveNote, shownState, type DeckOwn, type ModelChoice, type PickerState,
 } from "@/lib/studio-model-picker"
 
 /** NEXT_PUBLIC_STUDIO_MODEL_CHOICE (exact "true", default off; build-time). The picker needs nothing else: it does not depend on the Intelligence page's flag. */
@@ -82,9 +82,11 @@ export interface ModelChoiceApi {
   catalogueStatus: "loading" | "ready" | "unavailable"
   /** What applies now, as shown (a kept choice the catalogue no longer opens reads as Auto). In a presentation with no choice of its own, the reusable default. */
   state: PickerState
-  /** The reusable default alone (what Auto follows in a presentation). */
+  /** The reusable default alone (what "Use my default" follows in a presentation). */
   userState: PickerState
-  /** The choice that applies: null is Auto. Undefined while loading, and for a mix of per-task choices (set on the Intelligence page). */
+  /** In a presentation: what its own groups hold (it follows the default, the deck's own Auto, a choice of its own, or a mix). Undefined on the reusable default. */
+  deckOwn: DeckOwn | undefined
+  /** The choice that applies: null is Auto (on a deck, null is "use my default", and the deck's own Auto is { auto: true }). Undefined while loading, and for a mix of per-task choices (set on the Intelligence page). */
   choice: ModelChoice | undefined
   saving: boolean
   mode: SaveMode | "pending"
@@ -95,12 +97,12 @@ export interface ModelChoiceApi {
   feedback: string
   /** Where it is kept, in words. */
   saveNote: string
-  /** Writes `choice` to the three text groups (null clears them: Auto). Resolves once the save has settled. */
+  /** Writes `choice` to the three text groups (null clears them: Auto on the reusable default, "use my default" on a deck; { auto: true } is the deck's own Auto and is refused on the reusable default). Resolves once the save has settled. */
   select(choice: ModelChoice): Promise<SelectOutcome>
 }
 
 export interface UseModelChoiceOptions {
-  /** Called after a save (or a conflict that changed what applies) with the choice now in force. Not called when nothing was saved, nor for a mix of per-task choices. */
+  /** Called after a save (or a conflict that changed what applies) with the choice now in force: { tier }, { model }, { auto: true } (a deck's own Auto) or null. Not called when nothing was saved, nor for a mix of per-task choices. */
   onChange?: (choice: ModelChoice) => void
   /** Tests only. */
   runtime?: PickerRuntime
@@ -161,6 +163,7 @@ export function useModelChoice(sessionId: string | null, options: UseModelChoice
   const ownDeck = loaded && scope.kind === "deck" ? loaded.deck : null
   const state = shownState(pickerStateOf(mergeChoices(userChoices, ownDeck)), catalogue)
   const userState = shownState(pickerStateOf(userChoices), catalogue)
+  const deckOwn = ownDeck ? deckOwnOf(ownDeck) : undefined
 
   const latest = useRef({ loaded, scope, catalogue, runtime, onChange: options.onChange })
   latest.current = { loaded, scope, catalogue, runtime, onChange: options.onChange }
@@ -168,12 +171,13 @@ export function useModelChoice(sessionId: string | null, options: UseModelChoice
 
   const select = useCallback(async (choice: ModelChoice): Promise<SelectOutcome> => {
     const now = latest.current
-    if (!now.loaded || busy.current || !offerable(now.catalogue, choice)) return { kind: "ignored" }
+    if (!now.loaded || busy.current || !offerable(now.catalogue, choice, now.scope.kind)) return { kind: "ignored" }
     busy.current = true
     setSaving(true)
     const target = now.scope
     const own = target.kind === "deck" ? now.loaded.deck ?? modelChoiceDefaults() : now.loaded.user
     const next = applyChoice(own, choice)
+    const askedAuto = choice !== null && "auto" in choice
     const put = (value: ModelChoices) => setLoaded(prior => (prior ? (target.kind === "deck" ? { ...prior, deck: value } : { ...prior, user: value }) : prior))
     put(next)
     let result: ModelChoiceSave | { mode: "session" }
@@ -194,7 +198,7 @@ export function useModelChoice(sessionId: string | null, options: UseModelChoice
     } else if ("refused" in result && result.refused) {
       put(own)
       outcome = { kind: "refused" }
-      words = MODEL_CHOICE_REFUSED
+      words = askedAuto || result.refusedCode === "invalid_preference_auto" ? MODEL_CHOICE_REFUSED_AUTO : MODEL_CHOICE_REFUSED
       reported = undefined
     } else if ("deckUnavailable" in result && result.deckUnavailable) {
       const why = result.deckUnavailable
@@ -218,6 +222,7 @@ export function useModelChoice(sessionId: string | null, options: UseModelChoice
     catalogueStatus: catalogueState.status,
     state,
     userState,
+    deckOwn,
     choice: loaded ? choiceOfState(state) : undefined,
     saving,
     mode: meta.mode,
