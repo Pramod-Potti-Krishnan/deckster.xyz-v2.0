@@ -189,14 +189,22 @@ export const CHAT_CLEAN_PIN_EDITS = {
   ],
   "scripts/test-studio-bulk-edit-prompt-text.mjs": [
     [
-      "  if (committed.some(rel => BULK_EDIT_PROMPT_TEXT_SCOPE_FILES.has(rel))) { // LATER-CHANGES: registry read (CHAT-CLEAN): on a branch stacked after this change and merged with studio (chat clean), the first-parent commits are the later change's and this change's own sit behind the merge; the check speaks only where its own commits are\n",
+      "  if (committed.some(rel => BULK_EDIT_PROMPT_TEXT_SCOPE_FILES.has(rel) && !chatClean.CHAT_CLEAN_SCOPE_FILES.has(rel))) { // LATER-CHANGES: registry read (CHAT-CLEAN): on a branch stacked after this change and merged with studio (chat clean), the first-parent commits are the later change's (this proof among the files it touched) and this change's own sit behind the merge; the check speaks only where its own commits are\n",
       "  if (committed.length) {\n",
+    ],
+    [
+      "const chatClean = await import('./studio-chat-clean-strip.mjs') // LATER-CHANGES: registry read (CHAT-CLEAN): the strip of the change stacked after this one; the files it touches (this proof among them) do not count as this change's own commits\n",
+      "",
     ],
   ],
   "scripts/test-studio-pass3-polish-b.mjs": [
     [
-      "  if (committed.some(rel => PASS3_POLISH_B_SCOPE_FILES.has(rel))) { // LATER-CHANGES: registry read (CHAT-CLEAN): on a branch stacked after this change and merged with studio (chat clean), the first-parent commits are the later change's and this change's own sit behind the merge; the check speaks only where its own commits are\n",
+      "  if (committed.some(rel => PASS3_POLISH_B_SCOPE_FILES.has(rel) && !chatClean.CHAT_CLEAN_SCOPE_FILES.has(rel))) { // LATER-CHANGES: registry read (CHAT-CLEAN): on a branch stacked after this change and merged with studio (chat clean), the first-parent commits are the later change's (this proof among the files it touched) and this change's own sit behind the merge; the check speaks only where its own commits are\n",
       "  if (committed.length) {\n",
+    ],
+    [
+      "const chatClean = await import('./studio-chat-clean-strip.mjs') // LATER-CHANGES: registry read (CHAT-CLEAN): the strip of the change stacked after this one; the files it touches (this proof among them) do not count as this change's own commits\n",
+      "",
     ],
   ],
   "scripts/test-studio-composer-copy.mjs": [
