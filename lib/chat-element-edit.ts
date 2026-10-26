@@ -5,16 +5,18 @@
  *
  * Director's `element_edit` {op: delete | order | place | style} runs through the presentation viewer's OWN element commands, the postMessage commands the
  * editor toolbar and the element panels send, never a server PATCH (Layout renders element content at creation only). The viewer commands, read from the
- * Layout viewer (viewer/presentation-viewer.html), are:
+ * Layout viewer (viewer/presentation-viewer.html, and arrange_commands.py / src/utils/arrange-commands.js of layout-builder !260 / !261), are:
  *   read      getSlideGenerationContext {slideIndex, targetElementId}  the element, its renderer / component type, its grid box, its locked flag
  *   delete    deleteElement {elementId}
- *   order     bringTextBoxToFront / sendTextBoxToBack {elementId}      front, back (ElementManager.bringToFront / sendToBack: any element)
- *   place     resizeTextBox {elementId, gridRow, gridColumn}           the only command that sets a grid position (a textbox-rendered element)
+ *   order     a text box: front / back bringTextBoxToFront / sendTextBoxToBack {elementId}; any element: forward / backward bringForward / sendBackward, and (non-text)
+ *             front / back bringToFront / sendToBack {elementId, intent:'arrange'}
+ *   place     a text box: resizeTextBox {elementId, gridRow, gridColumn} inside the content area; any other element: alignElement {elementId, horizontal?, vertical?,
+ *             intent:'arrange'} to the slide's edges / centre
  *   style     setTextBoxFontWeight / setTextBoxFontSize / setTextBoxColor {themeBinding} / setTextBoxAlignment (a TEXT_BOX), size read with getTextBoxFormatting
- * What the viewer has NO command for is UNSUPPORTED_OP, never faked: order forward / backward (Layout has no one-step z-order command), italic (Layout
- * has no whole-box italic setter; applyTextFormatCommand formats the current text selection), place / style on an element type those commands do not
- * serve, and Studio's own Arrange tab commands bringToFront / bringForward / sendBackward / alignElement / positionElement (Studio sends them; the Layout
- * viewer has no such case).
+ * Layout's Arrange commands (!260, LAYOUT_ARRANGE_COMMANDS_ENABLED) act only with params.intent === 'arrange' (!261): every one sent from here carries it. With
+ * Layout's flag off the viewer answers "Unknown action", which is UNSUPPORTED_OP. What the viewer cannot do stays UNSUPPORTED_OP, never faked: italic (no
+ * whole-box italic setter; applyTextFormatCommand formats the current text selection), style on anything but a text box, and an element type Arrange refuses
+ * (a shape or a table is never saved by the autosave); rotate and flip are not in the contract.
  *
  * `ok:true` means SAVED. Layout's autosave drops changes made outside edit mode and does not track a z-order change at all, so the runner enters edit mode
  * the way selecting an element does, then flushes with the viewer's own `saveAllChanges` (the toolbar's Save) and waits for the viewer's `saveStatusChanged`
@@ -23,10 +25,10 @@
  */
 
 import {
-  ELEMENT_EDIT_ALIGNS, ELEMENT_EDIT_ANCHORS, ELEMENT_EDIT_OPS, ELEMENT_EDIT_ORDERS, elementEditFields,
+  ELEMENT_EDIT_ALIGNS, ELEMENT_EDIT_OPS, ELEMENT_EDIT_ORDERS, ELEMENT_EDIT_PLACE_H, ELEMENT_EDIT_PLACE_V, elementEditFields,
 } from '@/lib/chat-element-edit-wire'
 import type {
-  ElementEditAnchor, ElementEditDirectiveMessage, ElementEditDirectiveOwner, ElementEditErrorCode, ElementEditOrder, ElementEditResultData,
+  ElementEditDirectiveMessage, ElementEditDirectiveOwner, ElementEditErrorCode, ElementEditOrder, ElementEditPlace, ElementEditResultData,
 } from '@/lib/chat-element-edit-wire'
 import { watchViewerSave } from '@/lib/chat-element-edit-save'
 import type { SaveWatchTimers, ViewerSaveEvent } from '@/lib/chat-element-edit-save'
@@ -52,7 +54,15 @@ export const VIEWER_COMMANDS = {
   color: 'setTextBoxColor',
   align: 'setTextBoxAlignment',
   flushSave: 'saveAllChanges',
+  // Layout's Arrange commands (!260): they act only with ARRANGE_INTENT in their params (!261).
+  arrangeFront: 'bringToFront',
+  arrangeBack: 'sendToBack',
+  arrangeForward: 'bringForward',
+  arrangeBackward: 'sendBackward',
+  arrangeAlign: 'alignElement',
 } as const
+/** params.intent that makes Layout's Arrange commands act; without it they answer "Unknown action" (the old select-raise stays a no-op). */
+export const ARRANGE_INTENT = 'arrange'
 
 /** Element ids over this length are not a real element (Director !511's reference rule). */
 export const ELEMENT_EDIT_ID_MAX = 128
@@ -70,17 +80,26 @@ export const PALETTE_BINDINGS: readonly string[] = [
 export type ValidElementEdit =
   | { op: 'delete' }
   | { op: 'order'; order: ElementEditOrder }
-  | { op: 'place'; anchor: ElementEditAnchor }
+  | { op: 'place'; h?: ElementEditPlace['h']; v?: ElementEditPlace['v'] }
   | { op: 'style'; bold?: boolean; italic?: boolean; sizeStep?: -1 | 1; binding?: string; align?: 'left' | 'center' | 'right' }
 
 const isRecord = (value: unknown): value is Record<string, unknown> => Boolean(value) && typeof value === 'object' && !Array.isArray(value)
 
-/** CONTRACT: the colour token is a theme palette token. Studio binds the six palette ids ('--theme-accent-1', or 'accent_1', 'accent-1'); anything else is INVALID_VALUE. */
+/**
+ * The deck palette ids Layout stores in theme_bindings and resolves (element-manager.js THEME_BINDING_TOKEN_VARS, the colour ones): a bare id as the binding holds it
+ * (accent_1, text_body) or its CSS custom property (--theme-accent-1). Studio's own six (hooks/use-deck-theme-palette.ts) are among them.
+ */
+export const PALETTE_IDS: readonly string[] = [
+  'background', 'surface', 'neutral', 'border', 'on_background', 'text_heading', 'text_primary', 'text_body', 'text_secondary',
+  'primary', 'secondary', 'accent', 'accent_1', 'accent_2', 'accent_3', 'accent_4', 'accent_5', 'on_primary', 'on_accent',
+]
+
+/** The colour token as given, when it is exactly a palette id or its CSS custom property; null otherwise (INVALID_VALUE). The viewer resolves it as it was given. */
 export function paletteBindingFor(token: unknown): string | null {
   if (typeof token !== 'string') return null
-  const name = token.trim().toLowerCase().replace(/_/g, '-').replace(/^--theme-/, '').replace(/^theme-/, '')
-  const binding = `--theme-${name}`
-  return name && PALETTE_BINDINGS.includes(binding) ? binding : null
+  const raw = token.trim()
+  const id = raw.replace(/^--theme-/, '').replace(/-/g, '_')
+  return PALETTE_IDS.includes(id) && (raw === id || raw === `--theme-${id.replace(/_/g, '-')}`) ? raw : null
 }
 
 const STYLE_KEYS = ['bold', 'italic', 'size_step', 'color_token', 'align']
@@ -97,10 +116,15 @@ export function validateElementEdit(fields: Record<string, unknown>): { ok: true
       : invalid
   }
   if (op === 'place') {
-    const anchor = isRecord(fields.place) ? fields.place.anchor : null
-    return typeof anchor === 'string' && (ELEMENT_EDIT_ANCHORS as readonly string[]).includes(anchor)
-      ? { ok: true, edit: { op: 'place', anchor: anchor as ElementEditAnchor } }
-      : invalid
+    // {h?: left | center | right, v?: top | middle | bottom}, at least one axis; any other key or value is unknown.
+    const place = fields.place
+    if (!isRecord(place)) return invalid
+    const given = Object.keys(place).filter(key => place[key] !== undefined)
+    if (given.length === 0 || given.some(key => key !== 'h' && key !== 'v')) return invalid
+    const h = place.h, v = place.v
+    if (h !== undefined && (typeof h !== 'string' || !(ELEMENT_EDIT_PLACE_H as readonly string[]).includes(h))) return invalid
+    if (v !== undefined && (typeof v !== 'string' || !(ELEMENT_EDIT_PLACE_V as readonly string[]).includes(v))) return invalid
+    return { ok: true, edit: { op: 'place', ...(h !== undefined ? { h: h as ElementEditPlace['h'] } : {}), ...(v !== undefined ? { v: v as ElementEditPlace['v'] } : {}) } }
   }
   const style = fields.style
   if (!isRecord(style)) return invalid
@@ -161,23 +185,19 @@ const snap = (value: number) => Math.round(value * 5) / 5
 const span = (start: number, end: number) => `${snap(start)}/${snap(end)}`
 
 /**
- * Where an anchor puts a box of the same size, on the logical 32 x 18 grid (grid lines 1..33 and 1..19, 0.2 minor grid), inside the content area
- * (FREE_SPOT_BOUNDS: columns 2..32, rows 4..18). left / center / right move it horizontally (center is the horizontal centre), top / middle / bottom
- * vertically (middle is the vertical centre), the four corners both. A box larger than the area is pinned to the area's start and kept on the grid.
+ * Where a place puts a box of the same size, on the logical 32 x 18 grid (grid lines 1..33 and 1..19, 0.2 minor grid), inside the content area (FREE_SPOT_BOUNDS:
+ * columns 2..32, rows 4..18). h moves it horizontally (left / center / right), v vertically (top / middle / bottom); an axis that is not given stays where it is.
+ * A box larger than the area is pinned to the area's start and kept on the grid.
  */
-export function placementFor(anchor: ElementEditAnchor, gridRow: string | null, gridColumn: string | null): { gridRow: string; gridColumn: string } | null {
+export function placementFor(h: ElementEditPlace['h'], v: ElementEditPlace['v'], gridRow: string | null, gridColumn: string | null): { gridRow: string; gridColumn: string } | null {
   const rows = parseFreeSpotSpan(gridRow)
   const cols = parseFreeSpotSpan(gridColumn)
-  if (!rows || !cols) return null
+  if (!rows || !cols || (h === undefined && v === undefined)) return null
   const { minCol, maxCol, minRow, maxRow } = FREE_SPOT_BOUNDS
   const width = cols[1] - cols[0]
   const height = rows[1] - rows[0]
-  const horizontal = anchor === 'left' || anchor === 'top-left' || anchor === 'bottom-left' ? 'start'
-    : anchor === 'right' || anchor === 'top-right' || anchor === 'bottom-right' ? 'end'
-      : anchor === 'center' ? 'middle' : null
-  const vertical = anchor === 'top' || anchor === 'top-left' || anchor === 'top-right' ? 'start'
-    : anchor === 'bottom' || anchor === 'bottom-left' || anchor === 'bottom-right' ? 'end'
-      : anchor === 'middle' ? 'middle' : null
+  const horizontal = h === 'left' ? 'start' : h === 'right' ? 'end' : h === 'center' ? 'middle' : null
+  const vertical = v === 'top' ? 'start' : v === 'bottom' ? 'end' : v === 'middle' ? 'middle' : null
   const place = (mode: 'start' | 'end' | 'middle' | null, current: number, size: number, min: number, max: number, last: number) => {
     const raw = mode === 'start' ? min : mode === 'end' ? max - size : mode === 'middle' ? (min + max - size) / 2 : current
     return Math.max(1, Math.min(raw, last - size))
@@ -217,14 +237,20 @@ export function planViewerSteps(edit: ValidElementEdit, element: LiveElement, fo
   switch (edit.op) {
     case 'delete':
       return { ok: true, steps: [{ route: 'element', action: VIEWER_COMMANDS.deleteElement, params: { elementId } }] }
-    case 'order':
-      // forward / backward: Layout has no one-step z-order command.
-      if (edit.order === 'front') return { ok: true, steps: [{ route: 'textbox', action: VIEWER_COMMANDS.front, params: { elementId } }] }
-      if (edit.order === 'back') return { ok: true, steps: [{ route: 'textbox', action: VIEWER_COMMANDS.back, params: { elementId } }] }
-      return unsupported
+    case 'order': {
+      // A text box keeps its own front / back commands; forward / backward, and front / back of any other element, are Layout's Arrange commands (with their intent).
+      const arrange = (action: string): ViewerStep => ({ route: 'element', action, params: { elementId, intent: ARRANGE_INTENT } })
+      if (edit.order === 'forward') return { ok: true, steps: [arrange(VIEWER_COMMANDS.arrangeForward)] }
+      if (edit.order === 'backward') return { ok: true, steps: [arrange(VIEWER_COMMANDS.arrangeBackward)] }
+      if (isTextboxRendered(element)) return { ok: true, steps: [{ route: 'textbox', action: edit.order === 'front' ? VIEWER_COMMANDS.front : VIEWER_COMMANDS.back, params: { elementId } }] }
+      return { ok: true, steps: [arrange(edit.order === 'front' ? VIEWER_COMMANDS.arrangeFront : VIEWER_COMMANDS.arrangeBack)] }
+    }
     case 'place': {
-      if (!isTextboxRendered(element)) return unsupported
-      const target = placementFor(edit.anchor, element.gridRow, element.gridColumn)
+      if (!isTextboxRendered(element)) {
+        // Any other element: Layout's alignElement, to the slide's edges / centre.
+        return { ok: true, steps: [{ route: 'element', action: VIEWER_COMMANDS.arrangeAlign, params: { elementId, ...(edit.h !== undefined ? { horizontal: edit.h } : {}), ...(edit.v !== undefined ? { vertical: edit.v } : {}), intent: ARRANGE_INTENT } }] }
+      }
+      const target = placementFor(edit.h, edit.v, element.gridRow, element.gridColumn)
       if (!target) return unsupported
       return { ok: true, steps: [{ route: 'textbox', action: VIEWER_COMMANDS.place, params: { elementId, gridRow: target.gridRow, gridColumn: target.gridColumn } }] }
     }
@@ -252,6 +278,10 @@ export function elementEditCommandErrorCode(error: unknown): ElementEditErrorCod
   const message = typeof raw === 'string' ? raw : ''
   if (message === 'Command timeout' || message === 'Iframe not ready' || /viewer|Layout service|Layout Service/.test(message)) return 'VIEWER_NOT_READY'
   if (message === 'view-only') return 'ELEMENT_LOCKED'
+  // Arrange's own refusals (arrange-commands.js): a locked element, or one the viewer itself does not let the user drag (a template slot); edit mode missing; applied but not tracked.
+  if (message === 'Element is locked' || message === 'This element cannot be moved') return 'ELEMENT_LOCKED'
+  if (message === 'Edit mode required') return 'VIEWER_NOT_READY'
+  if (message === 'The change was applied but could not be marked for saving') return 'SAVE_FAILED'
   if (/^Unknown action:/.test(message) || /RECREATE_REQUIRED/.test(message)) return 'UNSUPPORTED_OP'
   if (/not found/i.test(message)) return 'ELEMENT_NOT_FOUND'
   // A parameter the viewer refused, or anything else: the viewer cannot do this honestly.
