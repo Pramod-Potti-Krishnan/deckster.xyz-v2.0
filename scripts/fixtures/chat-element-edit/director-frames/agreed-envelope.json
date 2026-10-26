@@ -1,0 +1,321 @@
+{
+  "source": "the agreed envelope (DIRECTOR-2, 26 Oct, Director flag DIRECTOR_MDC_ELEMENT_EDIT_ENABLED); NOT yet DIRECTOR-2's recorded frames, which land in streams/director2/element-edit/ (Tue 27 EOD). Swap these for the recordings then.",
+  "session_id": "s_e2e",
+  "presentation_id": "pres-chat-edit",
+  "frames": {
+    "delete": {
+      "type": "element_edit",
+      "message_id": "m-delete",
+      "directive_id": "d-delete",
+      "session_id": "s_e2e",
+      "presentation_id": "pres-chat-edit",
+      "slide_id": "L0",
+      "slide_index": 0,
+      "element_id": "el_chart_b",
+      "op": "delete"
+    },
+    "order_front": {
+      "type": "element_edit",
+      "message_id": "m-order",
+      "directive_id": "d-order",
+      "session_id": "s_e2e",
+      "presentation_id": "pres-chat-edit",
+      "slide_id": "L0",
+      "slide_index": 0,
+      "element_id": "el_text_a",
+      "op": "order",
+      "order": "front"
+    },
+    "order_back": {
+      "type": "element_edit",
+      "message_id": "m-order",
+      "directive_id": "d-order",
+      "session_id": "s_e2e",
+      "presentation_id": "pres-chat-edit",
+      "slide_id": "L0",
+      "slide_index": 0,
+      "element_id": "el_text_a",
+      "op": "order",
+      "order": "back"
+    },
+    "order_forward": {
+      "type": "element_edit",
+      "message_id": "m-order",
+      "directive_id": "d-order",
+      "session_id": "s_e2e",
+      "presentation_id": "pres-chat-edit",
+      "slide_id": "L0",
+      "slide_index": 0,
+      "element_id": "el_text_a",
+      "op": "order",
+      "order": "forward"
+    },
+    "order_backward": {
+      "type": "element_edit",
+      "message_id": "m-order",
+      "directive_id": "d-order",
+      "session_id": "s_e2e",
+      "presentation_id": "pres-chat-edit",
+      "slide_id": "L0",
+      "slide_index": 0,
+      "element_id": "el_text_a",
+      "op": "order",
+      "order": "backward"
+    },
+    "place_left": {
+      "type": "element_edit",
+      "message_id": "m-place",
+      "directive_id": "d-place",
+      "session_id": "s_e2e",
+      "presentation_id": "pres-chat-edit",
+      "slide_id": "L0",
+      "slide_index": 0,
+      "element_id": "el_text_a",
+      "op": "place",
+      "place": {
+        "anchor": "left"
+      }
+    },
+    "place_center": {
+      "type": "element_edit",
+      "message_id": "m-place",
+      "directive_id": "d-place",
+      "session_id": "s_e2e",
+      "presentation_id": "pres-chat-edit",
+      "slide_id": "L0",
+      "slide_index": 0,
+      "element_id": "el_text_a",
+      "op": "place",
+      "place": {
+        "anchor": "center"
+      }
+    },
+    "place_right": {
+      "type": "element_edit",
+      "message_id": "m-place",
+      "directive_id": "d-place",
+      "session_id": "s_e2e",
+      "presentation_id": "pres-chat-edit",
+      "slide_id": "L0",
+      "slide_index": 0,
+      "element_id": "el_text_a",
+      "op": "place",
+      "place": {
+        "anchor": "right"
+      }
+    },
+    "place_top": {
+      "type": "element_edit",
+      "message_id": "m-place",
+      "directive_id": "d-place",
+      "session_id": "s_e2e",
+      "presentation_id": "pres-chat-edit",
+      "slide_id": "L0",
+      "slide_index": 0,
+      "element_id": "el_text_a",
+      "op": "place",
+      "place": {
+        "anchor": "top"
+      }
+    },
+    "place_middle": {
+      "type": "element_edit",
+      "message_id": "m-place",
+      "directive_id": "d-place",
+      "session_id": "s_e2e",
+      "presentation_id": "pres-chat-edit",
+      "slide_id": "L0",
+      "slide_index": 0,
+      "element_id": "el_text_a",
+      "op": "place",
+      "place": {
+        "anchor": "middle"
+      }
+    },
+    "place_bottom": {
+      "type": "element_edit",
+      "message_id": "m-place",
+      "directive_id": "d-place",
+      "session_id": "s_e2e",
+      "presentation_id": "pres-chat-edit",
+      "slide_id": "L0",
+      "slide_index": 0,
+      "element_id": "el_text_a",
+      "op": "place",
+      "place": {
+        "anchor": "bottom"
+      }
+    },
+    "place_top-left": {
+      "type": "element_edit",
+      "message_id": "m-place",
+      "directive_id": "d-place",
+      "session_id": "s_e2e",
+      "presentation_id": "pres-chat-edit",
+      "slide_id": "L0",
+      "slide_index": 0,
+      "element_id": "el_text_a",
+      "op": "place",
+      "place": {
+        "anchor": "top-left"
+      }
+    },
+    "place_top-right": {
+      "type": "element_edit",
+      "message_id": "m-place",
+      "directive_id": "d-place",
+      "session_id": "s_e2e",
+      "presentation_id": "pres-chat-edit",
+      "slide_id": "L0",
+      "slide_index": 0,
+      "element_id": "el_text_a",
+      "op": "place",
+      "place": {
+        "anchor": "top-right"
+      }
+    },
+    "place_bottom-left": {
+      "type": "element_edit",
+      "message_id": "m-place",
+      "directive_id": "d-place",
+      "session_id": "s_e2e",
+      "presentation_id": "pres-chat-edit",
+      "slide_id": "L0",
+      "slide_index": 0,
+      "element_id": "el_text_a",
+      "op": "place",
+      "place": {
+        "anchor": "bottom-left"
+      }
+    },
+    "place_bottom-right": {
+      "type": "element_edit",
+      "message_id": "m-place",
+      "directive_id": "d-place",
+      "session_id": "s_e2e",
+      "presentation_id": "pres-chat-edit",
+      "slide_id": "L0",
+      "slide_index": 0,
+      "element_id": "el_text_a",
+      "op": "place",
+      "place": {
+        "anchor": "bottom-right"
+      }
+    },
+    "style_bold": {
+      "type": "element_edit",
+      "message_id": "m-style",
+      "directive_id": "d-style",
+      "session_id": "s_e2e",
+      "presentation_id": "pres-chat-edit",
+      "slide_id": "L0",
+      "slide_index": 0,
+      "element_id": "el_text_a",
+      "op": "style",
+      "style": {
+        "bold": true
+      }
+    },
+    "style_italic": {
+      "type": "element_edit",
+      "message_id": "m-style",
+      "directive_id": "d-style",
+      "session_id": "s_e2e",
+      "presentation_id": "pres-chat-edit",
+      "slide_id": "L0",
+      "slide_index": 0,
+      "element_id": "el_text_a",
+      "op": "style",
+      "style": {
+        "italic": true
+      }
+    },
+    "style_size_up": {
+      "type": "element_edit",
+      "message_id": "m-style",
+      "directive_id": "d-style",
+      "session_id": "s_e2e",
+      "presentation_id": "pres-chat-edit",
+      "slide_id": "L0",
+      "slide_index": 0,
+      "element_id": "el_text_a",
+      "op": "style",
+      "style": {
+        "size_step": 1
+      }
+    },
+    "style_size_down": {
+      "type": "element_edit",
+      "message_id": "m-style",
+      "directive_id": "d-style",
+      "session_id": "s_e2e",
+      "presentation_id": "pres-chat-edit",
+      "slide_id": "L0",
+      "slide_index": 0,
+      "element_id": "el_text_a",
+      "op": "style",
+      "style": {
+        "size_step": -1
+      }
+    },
+    "style_color": {
+      "type": "element_edit",
+      "message_id": "m-style",
+      "directive_id": "d-style",
+      "session_id": "s_e2e",
+      "presentation_id": "pres-chat-edit",
+      "slide_id": "L0",
+      "slide_index": 0,
+      "element_id": "el_text_a",
+      "op": "style",
+      "style": {
+        "color_token": "accent_1"
+      }
+    },
+    "style_align": {
+      "type": "element_edit",
+      "message_id": "m-style",
+      "directive_id": "d-style",
+      "session_id": "s_e2e",
+      "presentation_id": "pres-chat-edit",
+      "slide_id": "L0",
+      "slide_index": 0,
+      "element_id": "el_text_a",
+      "op": "style",
+      "style": {
+        "align": "center"
+      }
+    }
+  },
+  "notes_updated": {
+    "type": "deck_mutation",
+    "message_id": "m-notes",
+    "session_id": "s_e2e",
+    "payload": {
+      "kind": "notes_updated",
+      "presentation_id": "pres-chat-edit",
+      "slide_index": 1
+    }
+  },
+  "caps": [
+    "element_edit1",
+    "notes1"
+  ],
+  "result_frames": {
+    "ok": {
+      "type": "element_edit_result",
+      "data": {
+        "directive_id": "<directive_id>",
+        "ok": true
+      }
+    },
+    "failed": {
+      "type": "element_edit_result",
+      "data": {
+        "directive_id": "<directive_id>",
+        "ok": false,
+        "error_code": "<ELEMENT_NOT_FOUND|SLIDE_CHANGED|UNSUPPORTED_OP|INVALID_VALUE|ELEMENT_LOCKED|VIEWER_NOT_READY|BUSY|SAVE_FAILED>"
+      }
+    }
+  }
+}
