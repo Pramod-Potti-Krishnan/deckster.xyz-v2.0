@@ -46,7 +46,10 @@ const BAR = 'components/build-narration/flow-amend-bar.tsx'
 const PAGE = 'app/builder/page.tsx'
 const WS = 'hooks/use-deckster-websocket-v2.ts'
 const TYPES = 'types/build-narration.ts'
-const SOURCES = { [LIB]: read(LIB), [HOOK]: read(HOOK), [BAR]: read(BAR), [PAGE]: read(PAGE), [WS]: read(WS), [TYPES]: read(TYPES), '.env.example': read('.env.example') }
+// Later changes stack on top of this one, so every source, diff and scope check reads THIS change's own newest commit, not HEAD or the working tree.
+const OWN = (() => { try { const run = (...a) => execFileSync('git', ['-C', root, ...a], { encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'] }).trim(); return run('log', '-1', '--format=%H', '--no-merges', '-E', '--grep=^Flow control', 'HEAD') || run('rev-parse', 'HEAD') } catch { return null } })()
+const readOwn = rel => { if (!OWN) return read(rel); try { return execFileSync('git', ['-C', root, 'show', `${OWN}:${rel}`], { encoding: 'utf8', maxBuffer: 1 << 28, stdio: ['ignore', 'pipe', 'ignore'] }) } catch { return read(rel) } }
+const SOURCES = { [LIB]: read(LIB), [HOOK]: read(HOOK), [BAR]: read(BAR), [PAGE]: readOwn(PAGE), [WS]: readOwn(WS), [TYPES]: readOwn(TYPES), '.env.example': readOwn('.env.example') }
 
 // ---- evaluation of module text (the real files and the mutants), in THIS realm so deepEqual compares plain objects ----------------------------------
 function compile(text, fileName) {
@@ -790,7 +793,7 @@ if (baseOk) {
   for (const rel of strip.FLOW_CONTROL_FILES) {
     ok(strip.stripFlowControl(rel, SOURCES[rel]) === baseSources[rel], `${rel}: without this change's lines it is the base's file, byte for byte`)
     ok(SOURCES[rel] !== baseSources[rel], `${rel}: it is changed`)
-    const diff = git('diff', '--unified=0', strip.BASE_COMMIT, '--', rel).split('\n')
+    const diff = git('diff', '--unified=0', strip.BASE_COMMIT, OWN, '--', rel).split('\n')
     const added = diff.filter(line => line.startsWith('+') && !line.startsWith('+++')), removed = diff.filter(line => line.startsWith('-') && !line.startsWith('---'))
     ok(added.every(line => strip.FLOW_CONTROL_MARKER_RE.test(line)), `${rel}: every added line carries the marker (${added.filter(line => !strip.FLOW_CONTROL_MARKER_RE.test(line)).length} do not)`)
     eq(removed, [], `${rel}: no existing line is rewritten or removed (pure insertions, so a later or earlier stacked change cannot be broken by this one)`)
@@ -798,7 +801,7 @@ if (baseOk) {
   // the older proofs taught to read through the registry: with the taught lines put back they are the base's files, byte for byte; each is one whole marked line for one whole line
   eq(TAUGHT, ['scripts/test-studio-speed-perceived.mjs'], 'taught: one older proof')
   for (const rel of TAUGHT) {
-    const head = read(rel), base = baseSources[rel]
+    const head = readOwn(rel), base = baseSources[rel]
     ok(strip.stripFlowControl(rel, head) === base, `${rel}: with the taught lines put back it is the base's file, byte for byte`)
     for (const [has, was] of strip.FLOW_CONTROL_EDITS[rel]) {
       eq(head.split(has).length - 1, 1, `${rel}: a taught line is there once`)
@@ -808,14 +811,14 @@ if (baseOk) {
     const [firstHas] = strip.FLOW_CONTROL_EDITS[rel][0]
     ok(strip.stripFlowControl(rel, head.replace(firstHas, () => `${firstHas}const unmarked = 1\n`)) !== base, `${rel}: an unmarked line added next to a taught one is not put back`)
     ok(strip.stripFlowControl(rel, head.replace('registry read (FLOW-CONTROL)', () => 'registry read')) !== base, `${rel}: a taught line that loses its mark is not put back`)
-    const diff = git('diff', '--unified=0', strip.BASE_COMMIT, '--', rel).split('\n').filter(line => /^[-+]/.test(line) && !/^(---|\+\+\+)/.test(line))
+    const diff = git('diff', '--unified=0', strip.BASE_COMMIT, OWN, '--', rel).split('\n').filter(line => /^[-+]/.test(line) && !/^(---|\+\+\+)/.test(line))
     eq([diff.filter(line => line.startsWith('+')).length, diff.filter(line => line.startsWith('-')).length], [strip.FLOW_CONTROL_EDITS[rel].length, strip.FLOW_CONTROL_EDITS[rel].length], `${rel}: only the taught lines changed`)
   }
-  const envDiff = git('diff', '--unified=0', strip.BASE_COMMIT, '--', '.env.example').split('\n').filter(line => /^[-+]/.test(line) && !/^(---|\+\+\+)/.test(line))
+  const envDiff = git('diff', '--unified=0', strip.BASE_COMMIT, OWN, '--', '.env.example').split('\n').filter(line => /^[-+]/.test(line) && !/^(---|\+\+\+)/.test(line))
   ok(envDiff.length > 0 && envDiff.every(line => line.startsWith('+')), '.env.example: only lines added')
   eq(envDiff.map(line => line.slice(1)).join('\n') + '\n', '\n' + strip.FLOW_CONTROL_ENV_BLOCK, '.env.example: exactly the block, after one blank line')
   // The committed diff only: other suites write into docs/ and scripts/ while they run, so the working tree and untracked files are never read for scope.
-  const changed = git('diff', '--name-only', `${strip.BASE_COMMIT}..HEAD`).split('\n').filter(Boolean)
+  const changed = git('diff', '--name-only', `${strip.BASE_COMMIT}..${OWN}`).split('\n').filter(Boolean)
   const strays = changed.filter(rel => !strip.FLOW_CONTROL_SCOPE_FILES.has(rel))
   eq(strays, [], 'scope: every file of the committed diff is this change\'s')
   for (const rel of strip.FLOW_CONTROL_NEW_FILES) ok(fs.existsSync(path.join(root, rel)), `scope: ${rel} exists`)
@@ -1089,7 +1092,7 @@ if (baseOk) {
     const mod = loadStrip(mutate(stripText, mutant, 'strip'))
     const unchangedOther = mod.stripFlowControl('lib/other.ts', 'x // FLOW-CONTROL\n') === 'x // FLOW-CONTROL\n'
     const wholeToken = mod.stripFlowControl(PAGE, 'b // FLOW-CONTROL-X\n') === 'b // FLOW-CONTROL-X\n'
-    const baseIdentity = strip.FLOW_CONTROL_FILES.every(rel => mod.stripFlowControl(rel, SOURCES[rel]) === baseSources[rel]) && TAUGHT.every(rel => mod.stripFlowControl(rel, read(rel)) === baseSources[rel])
+    const baseIdentity = strip.FLOW_CONTROL_FILES.every(rel => mod.stripFlowControl(rel, SOURCES[rel]) === baseSources[rel]) && TAUGHT.every(rel => mod.stripFlowControl(rel, readOwn(rel)) === baseSources[rel])
     if (unchangedOther && wholeToken && baseIdentity) survivors.push(`strip: ${mutant[0]}`)
   }
 }
