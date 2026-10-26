@@ -1,7 +1,7 @@
 import { getLayoutViewerOrigin, isTrustedLayoutViewerMessage } from '@/lib/layout-viewer-messaging'
 import type { StudioFormatCommand, StudioFormatTarget } from '@/components/builder/studio-format-inspector'
 import type { ElementType } from '@/types/elements'
-import { STUDIO_ARRANGE_ENABLED, isStudioArrangeCommand, validateStudioArrangeParams, studioArrangeAdmit, studioArrangeErrorText, studioArrangeConfirmedLock, studioArrangeOwnCommand } from '@/lib/studio-arrange' // STUDIO-ARRANGE (NEXT_PUBLIC_STUDIO_ARRANGE, default off): Arrange admitted in slide pixels, sent as Layout !260's commands
+import { STUDIO_ARRANGE_ENABLED, isStudioArrangeCommand, validateStudioArrangeParams, studioArrangeAdmit, studioArrangeErrorText, studioArrangeConfirmedLock, studioArrangeOwnCommand, studioArrangeCommandParams } from '@/lib/studio-arrange' // STUDIO-ARRANGE (NEXT_PUBLIC_STUDIO_ARRANGE, default off): Arrange admitted in slide pixels, sent as Layout !260's commands with intent 'arrange'
 
 export interface StudioFormatSelectionHandle {
   readonly owner: object
@@ -223,7 +223,7 @@ export function createStudioFormatSelectionHandle(input: {
             throw error
           }
         }
-        if (STUDIO_ARRANGE_ENABLED && isStudioArrangeCommand(action)) { const answer = await studioArrangeOwnCommand(() => native(action, commandParams, 30000)).catch((error: unknown) => { throw error instanceof Error ? new Error(studioArrangeErrorText(error.message)) : error }); arrange.confirmedLock = studioArrangeConfirmedLock(arrange.confirmedLock, action, answer); return answer } // STUDIO-ARRANGE: confirmed by the viewer's own answer (its own "unsaved" does not retire the selection); a refusal in plain words
+        if (STUDIO_ARRANGE_ENABLED && isStudioArrangeCommand(action)) { const answer = await studioArrangeOwnCommand(() => native(action, studioArrangeCommandParams(commandParams), 30000)).catch((error: unknown) => { throw error instanceof Error ? new Error(studioArrangeErrorText(error.message)) : error }); arrange.confirmedLock = studioArrangeConfirmedLock(arrange.confirmedLock, action, answer); return answer } // STUDIO-ARRANGE: sent with intent 'arrange' (Layout acts on nothing else); confirmed by the viewer's own answer (its own "unsaved" does not retire the selection); a refusal in plain words
         const result = await native(action, commandParams, 30000)
         settleAfterConfirmed = action === 'setTextBoxFontSize'
           ? { fontSizePx: Number.parseFloat(String(commandParams.fontSize)) * 4 / 3 } : {}
