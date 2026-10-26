@@ -1051,7 +1051,7 @@ const MUTANTS = [
   ['lib: a preset need not be certified', LIB, 'return slug && offeredModels(catalogue, group).includes(slug) ? slug : null', 'return slug || null'],
   ['lib: Fast reads Economy', LIB, "{ id: 'economy', label: 'Fast', hint: '$' }", "{ id: 'economy', label: 'Economy', hint: '$' }"],
   ['lib: the cost hints are swapped', LIB, "{ id: 'best', label: 'Best', hint: '$$$' }", "{ id: 'best', label: 'Best', hint: '$' }"],
-  ['lib: the catalogue cost_hint is ignored', LIB, 'const hintFor = (slug: string, tier: P2PresetId | null) => catalogue.costHints[slug] ?? (tier ? modelChoiceTier(tier).hint : null)', 'const hintFor = (slug: string, tier: P2PresetId | null) => (tier ? modelChoiceTier(tier).hint : null)'],
+  ['lib: the catalogue cost_hint is ignored', LIB, 'const hintFor = (slug: string, tier: PresetId | null) => catalogue.costHints[slug] ?? (tier ? modelChoiceTier(tier).hint : null)', 'const hintFor = (slug: string, tier: PresetId | null) => (tier ? modelChoiceTier(tier).hint : null)'],
   ['lib: no Suggested mark', LIB, 'suggested.has(slug) ? MODEL_CHOICE_SUGGESTED : null', 'null'],
   ['lib: the migration rewrites the old key', LIB, '          storage.setItem(modelChoiceKey(scope), serializeChoices(scope, legacy))\n', "          storage.setItem(modelChoiceKey(scope), serializeChoices(scope, legacy))\n          storage.setItem(deps.legacyKey, '{}')\n"],
   ['lib: no migration', LIB, "      if (scope.kind === 'user' && deps.legacyKey &&", '      if (false && deps.legacyKey &&'],
