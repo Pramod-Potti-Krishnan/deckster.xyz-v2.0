@@ -37,6 +37,7 @@ export const LATER_CHANGE_FILES = new Set([
   ...(await import('./studio-phone-shell-nav-strip.mjs')).PHONE_SHELL_NAV_SCOPE_FILES, // LATER-CHANGE: FRONTEND-2, phone shell 1, the bottom tab bar on phones (NEXT_PUBLIC_STUDIO_PHONE_SHELL)
   ...(await import('./studio-phone-shell-builder-top-strip.mjs')).PHONE_SHELL_TOP_SCOPE_FILES, // LATER-CHANGE: FRONTEND-2, phone shell 2, the Builder top on phones and the Director dot (NEXT_PUBLIC_STUDIO_PHONE_SHELL; no .env.example block of its own: the flag's block is PR 1's)
   ...(await import('./studio-speed-perceived-strip.mjs')).SPEED_PERCEIVED_SCOPE_FILES, // LATER-CHANGE: FRONTEND-2, Studio perceived speed: the typed message echo (NEXT_PUBLIC_STUDIO_SPEED_PERCEIVED)
+  ...(await import('./studio-tabbar-frame-strip.mjs')).TABBAR_FRAME_SCOPE_FILES, // LATER-CHANGE: FRONTEND-2, phone tab bar on the frame, the name on the selected tab only (NEXT_PUBLIC_STUDIO_PHONE_SHELL; no .env.example block of its own: the flag's block is PR 1's)
   ...(await import('./studio-duplicate-adopt-strip.mjs')).DUPLICATE_ADOPT_SCOPE_FILES, // LATER-CHANGE: FRONTEND-2, duplicate deck adoption: the Director adopts the copy so chat can edit it (NEXT_PUBLIC_STUDIO_DUPLICATE_ADOPT)
   // one line per later change, above this comment
 ])
@@ -70,6 +71,7 @@ export const LATER_STRIPS = [
   (await import('./studio-phone-shell-nav-strip.mjs')).stripPhoneShellNav, // LATER-CHANGE: FRONTEND-2, phone shell 1, the bottom tab bar on phones (NEXT_PUBLIC_STUDIO_PHONE_SHELL)
   (await import('./studio-phone-shell-builder-top-strip.mjs')).stripPhoneShellTop, // LATER-CHANGE: FRONTEND-2, phone shell 2, the Builder top on phones and the Director dot (NEXT_PUBLIC_STUDIO_PHONE_SHELL; no .env.example block of its own: the flag's block is PR 1's)
   (await import('./studio-speed-perceived-strip.mjs')).stripSpeedPerceived, // LATER-CHANGE: FRONTEND-2, Studio perceived speed: the typed message echo (NEXT_PUBLIC_STUDIO_SPEED_PERCEIVED)
+  (await import('./studio-tabbar-frame-strip.mjs')).stripTabbarFrame, // LATER-CHANGE: FRONTEND-2, phone tab bar on the frame, the name on the selected tab only (NEXT_PUBLIC_STUDIO_PHONE_SHELL; no .env.example block of its own: the flag's block is PR 1's)
   (await import('./studio-duplicate-adopt-strip.mjs')).stripDuplicateAdopt, // LATER-CHANGE: FRONTEND-2, duplicate deck adoption: the Director adopts the copy so chat can edit it (NEXT_PUBLIC_STUDIO_DUPLICATE_ADOPT)
   // one line per later change, above this comment
 ]
