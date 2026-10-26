@@ -246,6 +246,7 @@ function proveRegistry(registryText, at = '') {
   ok([...PASS3_POLISH_B_SCOPE_FILES].every(rel => LATER_CHANGE_FILES.has(rel)), a('registry: names every file of this change'))
 }
 function provePinEdits(at = '') {
+  const read = rel => withoutPeers(rel, rel in overrides ? overrides[rel] : fs.readFileSync(path.join(root, rel), 'utf8')) // LATER-CHANGES: registry read (STUDIO-ARRANGE): the pins this change taught are read past the edits of the changes registered after it (withoutPeers), as the two pages are
   const a = message => (at ? `${at}: ${message}` : message)
   deep([...PASS3_POLISH_B_PIN_FILES].sort(), ['scripts/studio-chat-harness/page-extract.mjs', 'scripts/test-studio-blocked-send-feedback.mjs', 'scripts/test-studio-first-paint-viewer.mjs', 'scripts/test-studio-rail-add-slide.mjs', 'scripts/test-studio-version-history-v2.mjs'], a('pins: the older pins (and the chat harness helper) that failed on this change\'s lines and passed on the base'))
   for (const rel of PASS3_POLISH_B_PIN_FILES) {

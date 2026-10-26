@@ -8,6 +8,7 @@
 // stripBulkEditUndo calls the registry first, innermost, so every pin that already strips bulk edit + chat undo takes this change's lines out with no edit of its own. The pins that do not (see
 // PASS3_POLISH_B_PIN_EDITS) read through the registry after a one-line edit each. scripts/test-studio-pass3-polish-b.mjs proves that the two files without this change's lines are BASE_COMMIT's files byte for byte.
 
+import { stripStudioArrange } from './studio-arrange-strip.mjs' // LATER-CHANGES: registry read (STUDIO-ARRANGE): #523 adds marked lines to the viewer, so they come out first and the viewer read through this strip is its base again
 export const BASE_COMMIT = 'b2423e20338622d0a4a773db1d0758278e79d312' // studio dev head (Merge pull request #503, chat undo v2) this change is cut from
 export const PASS3_POLISH_MARKER = 'PASS3-POLISH-B' // its OWN marker (PR A's is PASS3-POLISH); the two never share a line
 export const PASS3_POLISH_B_VIEWER = 'components/presentation-viewer.tsx'
@@ -75,5 +76,6 @@ export const PASS3_POLISH_B_SCOPE_FILES = new Set([...PASS3_POLISH_B_FILES, ...P
 /** The file without this change's lines: every line that carries the marker is taken out, every other byte stays. Any other file is returned as it is. */
 export function stripPass3PolishB(rel, text) {
   if (!PASS3_POLISH_B_FILES.includes(rel) || typeof text !== 'string') return text
+  if (rel === PASS3_POLISH_B_VIEWER) text = stripStudioArrange(rel, text) // LATER-CHANGES: registry read (STUDIO-ARRANGE)
   return text.split('\n').filter(line => !line.includes(PASS3_POLISH_MARKER)).join('\n')
 }
