@@ -2,20 +2,22 @@
 // gauge icon opens a popover with a slider over ORDERED STOPS, quicker and cheaper on the left, deeper and dearer on the right. Everything it decides, with no request made here and no React: the stops, where the
 // choice sits on them, what the trigger says, what "Advanced" holds. What a stop SAVES is the compact picker's: the same choices (lib/studio-model-picker.ts), the same adapter and routes, three text groups together.
 //
-// Stops: [Auto, Fast, Balanced, Best], plus any extra preset the catalogue lists, in cost-hint order, five at most. A stop is offered only when its preset can be saved (SLIDER_SAVABLE_PRESETS: the router's
-// enum as the Studio routes carry it, best / balanced / economy today) and the model it names is certified in every open text group. Auto is the first stop: on the reusable default it clears the choice (null);
-// on a deck it is the deck's own Auto ({ auto: true }). A specific model (chosen in Advanced) is off the scale and reads "Custom".
+// Stops: the catalogue's presets in cost order, Fast, Balanced, Best today, plus any extra preset the catalogue lists, five at most (FRONTEND-1, 26 Oct: Auto is NOT on the scale). A stop is offered only when its
+// preset can be saved (SLIDER_SAVABLE_PRESETS: the router's enum as the Studio routes carry it, best / balanced / economy today) and the model it names is certified in every open text group. Auto lives in "Advanced":
+// on the reusable default it clears the choice (null), on a deck it is the deck's own Auto ({ auto: true }); SLIDER_AUTO_STOP = true would put it back as the first stop. The thumb says what is chosen: a filled
+// thumb on the stop that is chosen; NO thumb while nothing is chosen (Auto); a HOLLOW thumb on the default's stop while a deck follows the reusable default; a faint dashed one off the scale for a specific
+// model ("Custom").
 
-import { choiceGroup, offeredModels, type ChoiceCatalogue } from '@/lib/studio-model-choice'
+import { MODEL_CHOICE_AUTO_LABEL, choiceGroup, offeredModels, type ChoiceCatalogue } from '@/lib/studio-model-choice'
 import {
   PICKER_AUTO_LABEL, PICKER_GROUPS, PICKER_MIXED_LABEL, PICKER_TIERS, modelName, pickerMenu, tierHint, tierLabel, tierOffered,
   type DeckOwn, type ModelChoice, type PickerOption, type PickerState, type PickerTier,
 } from '@/lib/studio-model-picker'
 
-/** THE one switch for whether Auto is a stop on the slider (FRONTEND-1 may want it in Advanced only): true puts it first; false leaves it to Advanced, where it is a row on the reusable default too. */
-export const SLIDER_AUTO_STOP = true
+/** THE one switch for whether Auto is a stop on the slider: false (FRONTEND-1's pick, 26 Oct) leaves it to Advanced, a row on both scopes; true puts it first on the scale. */
+export const SLIDER_AUTO_STOP = false
 export const SLIDER_MAX_STOPS = 5
-export const SLIDER_CAPTION = 'low = quicker, lower cost · high = deeper thinking, higher cost'
+export const SLIDER_CAPTION = 'Low = quicker, lower cost · High = deeper thinking, higher cost'
 export const SLIDER_ADVANCED_LABEL = 'Advanced'
 export const SLIDER_MODELS_LABEL = 'Specific models'
 export const SLIDER_LABEL = 'Model'
@@ -69,7 +71,7 @@ function extraHint(catalogue: ChoiceCatalogue, slugs: string[]): string | null {
   return hints.length > 0 && hints[0] !== null && hints.every(hint => hint === hints[0]) ? hints[0] : null
 }
 
-/** The slider's stops, left to right: Auto (SLIDER_AUTO_STOP), then Fast, Balanced, Best and any extra preset the catalogue lists, by cost (the three tiers first at their own level; an extra by its cost hint, one
+/** The slider's stops, left to right: Auto first only when SLIDER_AUTO_STOP, then Fast, Balanced, Best and any extra preset the catalogue lists, by cost (the three tiers first at their own level; an extra by its cost hint, one
  * with none last), five at most. With no catalogue (not loaded, not reachable) the three tiers are stops, as the compact picker offers them. `options.presets` and `options.auto` are for a proof or a mock. */
 export function MODEL_PICKER_STOPS(catalogue: ChoiceCatalogue | null, options: { auto?: boolean; presets?: readonly string[] } = {}): PickerStop[] {
   const savable = options.presets ?? SLIDER_SAVABLE_PRESETS
@@ -103,33 +105,38 @@ export function stopIndex(stops: readonly PickerStop[], state: PickerState): num
   return -1
 }
 
+/** What the thumb shows: "selected" (a filled thumb on the stop that is chosen), "hollow" (a deck that follows the reusable default: a hollow thumb on the default's stop), "none" (nothing chosen, Auto: no thumb) and
+ * "custom" (a specific model or a mix: off the scale, a faint dashed thumb). */
+export type ThumbKind = 'selected' | 'hollow' | 'none' | 'custom'
 export interface SliderView {
   stops: PickerStop[]
-  /** The thumb's stop, or -1 off the scale. */
+  /** The thumb's stop, or -1 when it is on none (Auto with no Auto stop, Custom). */
   index: number
-  /** Off the scale: what the thumb stands for (Custom for a model or a mix, Auto when Auto is no stop); null on the scale. */
-  offScale: 'custom' | 'auto' | null
-  /** The current choice in words for the trigger's label and the title ("Balanced", "Custom (Kimi K3)"). */
+  thumb: ThumbKind
+  /** The current choice in words for the trigger's label and the title ("Balanced", "Auto", "Custom (Kimi K3)"). */
   label: string
   /** What the screen reader says for the thumb ("Balanced, cost 2 of 3"). */
   valueText: string
 }
 const costWords = (hint: string | null) => (hint ? `, cost ${hint.length} of 3` : '')
-export function sliderView(args: { catalogue: ChoiceCatalogue | null; state: PickerState; stops?: PickerStop[] }): SliderView {
+/** `own`: on a deck, what its own groups hold; "default" is a deck that follows the reusable default (its thumb is hollow). */
+export function sliderView(args: { catalogue: ChoiceCatalogue | null; state: PickerState; stops?: PickerStop[]; own?: DeckOwn | null }): SliderView {
   const stops = args.stops ?? MODEL_PICKER_STOPS(args.catalogue)
   const { state } = args
   const index = stopIndex(stops, state)
   if (index >= 0) {
     const stop = stops[index]
-    return { stops, index, offScale: null, label: stop.label, valueText: stop.auto ? `${stop.label}, Deckster chooses` : `${stop.label}${costWords(stop.hint)}` }
+    const following = args.own === 'default'
+    const base = stop.auto ? `${stop.label}, Deckster chooses` : `${stop.label}${costWords(stop.hint)}`
+    return { stops, index, thumb: following ? 'hollow' : 'selected', label: stop.label, valueText: following ? `${base}, your default` : base }
   }
-  if (state.kind === 'auto') return { stops, index, offScale: 'auto', label: PICKER_AUTO_LABEL, valueText: `${PICKER_AUTO_LABEL}, Deckster chooses` }
+  if (state.kind === 'auto') return { stops, index, thumb: 'none', label: PICKER_AUTO_LABEL, valueText: `${PICKER_AUTO_LABEL}, Deckster chooses` }
   const label = state.kind === 'model' ? `${SLIDER_CUSTOM_LABEL} (${modelName(args.catalogue, state.model)})` : state.kind === 'mixed' ? `${SLIDER_CUSTOM_LABEL} (set per task on the Intelligence page)` : PICKER_MIXED_LABEL
-  return { stops, index, offScale: 'custom', label, valueText: `${SLIDER_CUSTOM_LABEL}, off the scale` }
+  return { stops, index, thumb: 'custom', label, valueText: `${SLIDER_CUSTOM_LABEL}, off the scale` }
 }
 
 export interface SliderAdvanced {
-  /** Auto: Deckster chooses / Use my default: <it> on a deck; Auto on the reusable default when Auto is no stop. */
+  /** "Auto: Deckster chooses" (null on the reusable default, { auto: true } on a deck) and, on a deck, "Use my default: <it>"; with SLIDER_AUTO_STOP true the reusable default has no row for Auto (it is a stop). */
   rows: PickerOption[]
   /** The certified models common to the three text groups. */
   models: PickerOption[]
@@ -137,7 +144,7 @@ export interface SliderAdvanced {
 /** "Advanced": the rows the stops cannot say, and the specific models. */
 export function sliderAdvanced(args: { catalogue: ChoiceCatalogue | null; state: PickerState; scope: 'deck' | 'user'; own?: DeckOwn | null; userState?: PickerState | null; autoStop?: boolean }): SliderAdvanced {
   const menu = pickerMenu({ catalogue: args.catalogue, state: args.state, scope: args.scope, own: args.own, userState: args.userState })
-  const head = menu.main.filter(option => option.id === 'auto' || option.id === 'default')
+  const head = menu.main.filter(option => option.id === 'auto' || option.id === 'default').map(option => (option.id === 'auto' ? { ...option, label: MODEL_CHOICE_AUTO_LABEL, detail: null } : option))
   const rows = args.scope === 'deck' ? head : (args.autoStop ?? SLIDER_AUTO_STOP) ? [] : head
   return { rows, models: menu.models }
 }

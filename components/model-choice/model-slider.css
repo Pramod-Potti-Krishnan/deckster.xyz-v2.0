@@ -52,6 +52,8 @@
 /* A small hollow dot at each stop; the ones the thumb has passed are darker. */
 .mpick-tick { position: absolute; top: 50%; box-sizing: border-box; width: 7px; height: 7px; border: 1.5px solid color-mix(in srgb, currentColor 28%, transparent); border-radius: 999px; background: var(--mpick-menu-bg, hsl(var(--popover, 0 0% 100%))); transform: translate(-50%, -50%); pointer-events: none; }
 .mpick-tick[data-passed="true"] { border-color: color-mix(in srgb, currentColor 70%, transparent); }
+/* The dot under the thumb is not drawn (it would show through a hollow thumb). */
+.mpick-tick[data-current="true"] { opacity: 0; }
 .mpick-slider-thumb {
   display: block;
   box-sizing: border-box;
@@ -64,9 +66,14 @@
 }
 .mpick-slider-thumb:focus-visible { outline: 2px solid var(--mpick-ring, hsl(var(--ring, 250 90% 60%))); outline-offset: 2px; }
 .mpick-slider-root[data-disabled] { opacity: 0.5; }
-/* Off the scale (a specific model, a mix): the thumb is faint, hollow and dashed, and the fill is gone. */
-.mpick-slider-root[data-off-scale] .mpick-slider-thumb { border-style: dashed; background: transparent; opacity: 0.45; }
-.mpick-slider-root[data-off-scale] .mpick-slider-range { opacity: 0; }
+/* What the thumb says: filled on the stop that is chosen (the default); NONE while nothing is chosen (Auto): it waits on the first stop, unseen, and shows only its focus ring; HOLLOW on the default's stop while a deck
+   follows the reusable default; faint, hollow and dashed, with no fill, off the scale (a specific model, a mix). */
+.mpick-slider-root[data-thumb="none"] .mpick-slider-thumb { border-color: transparent; background: transparent; cursor: pointer; }
+.mpick-slider-root[data-thumb="none"] .mpick-slider-range { opacity: 0; }
+.mpick-slider-root[data-thumb="hollow"] .mpick-slider-thumb { background: transparent; }
+.mpick-slider-root[data-thumb="hollow"] .mpick-slider-range { opacity: 0.3; }
+.mpick-slider-root[data-thumb="custom"] .mpick-slider-thumb { border-style: dashed; background: transparent; opacity: 0.45; }
+.mpick-slider-root[data-thumb="custom"] .mpick-slider-range { opacity: 0; }
 
 /* A label under each stop, in a column the width of one stop. */
 .mpick-stops { display: grid; grid-template-columns: repeat(var(--mpick-stops, 4), minmax(max-content, 1fr)); margin: 2px 0 0; padding: 0; list-style: none; }
