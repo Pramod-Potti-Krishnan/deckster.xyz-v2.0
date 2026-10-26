@@ -11,6 +11,7 @@ import { lastBuilderSessionKey } from "@/lib/last-builder-session"
 import { studioNavLabels } from "@/lib/studio-nav-labels"
 import { STUDIO_PHONE_COMPOSER_SELECTOR, STUDIO_PHONE_MORE_LINKS, studioPhoneActiveTab } from "@/lib/studio-phone-shell"
 import "./studio-phone-shell.css"
+import "./studio-tabbar-frame.css" // PHONE-TABBAR-FRAME (NEXT_PUBLIC_STUDIO_PHONE_SHELL, default off): the bar sits on the frame; the name shows on the selected tab only
 
 const MORE_ICONS = { knowledge: Brain, intelligence: Cpu, details: UserRound, help: HelpCircle } as const
 
