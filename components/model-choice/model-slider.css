@@ -1,0 +1,92 @@
+/* NEXT_PUBLIC_STUDIO_MODEL_CHOICE, the slider variant of the compact model picker (components/model-choice/model-slider.tsx; the menu, rows, notes and --mpick-* variables are model-picker.css's). Every rule
+   styles markup the slider alone renders: the mpick-gauge, mpick-slider-*, mpick-stop*, mpick-caption, mpick-advanced and mpick-subhead classes. With the flag off the picker renders nothing, so no element matches.
+   Near-monochrome: the page's text colour and the theme's popover tokens; the only colour is the focus ring. */
+
+/* The trigger: a 24 px gauge icon button. On phones its hit area is 44 px (10 px above, below and to each side) while it looks the same. */
+.mpick-gauge {
+  position: relative;
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  justify-content: center;
+  box-sizing: border-box;
+  width: 24px;
+  height: 24px;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--mpick-fg, inherit);
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+}
+.mpick-gauge:hover:not(:disabled), .mpick-gauge[data-state="open"] { background: var(--mpick-hover, color-mix(in srgb, currentColor 8%, transparent)); }
+.mpick-gauge:focus-visible { outline: 2px solid var(--mpick-ring, hsl(var(--ring, 250 90% 60%))); outline-offset: 2px; }
+.mpick-gauge:disabled { opacity: 0.5; cursor: not-allowed; }
+.mpick-gauge[aria-busy="true"] { cursor: progress; }
+.mpick-gauge-icon { flex: none; opacity: 0.85; }
+
+/* The popover. */
+.mpick-slider-menu { min-width: 248px; max-width: min(300px, calc(100vw - 16px)); padding: 10px 12px 8px; }
+.mpick-slider-panel { display: flex; flex-direction: column; }
+.mpick-slider-head { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; margin: 0 0 6px; }
+.mpick-slider-title { font-size: 13px; font-weight: 600; }
+.mpick-slider-value { min-width: 0; overflow: hidden; color: var(--mpick-muted, hsl(var(--muted-foreground, 240 3.8% 46.1%))); font-size: 12px; text-overflow: ellipsis; white-space: nowrap; }
+
+/* The slider: the track is inset by half a stop so that each stop's thumb position sits over the middle of its label (--mpick-stops is the number of stops; 8 px is half the thumb). */
+.mpick-slider-root {
+  position: relative;
+  display: flex;
+  align-items: center;
+  box-sizing: border-box;
+  height: 24px;
+  margin: 0 calc(50% / var(--mpick-stops, 4) - 8px);
+  user-select: none;
+  touch-action: none;
+}
+.mpick-slider-track { position: relative; flex: 1 1 auto; height: 4px; border-radius: 999px; background: color-mix(in srgb, currentColor 18%, transparent); }
+.mpick-slider-range { position: absolute; height: 100%; border-radius: 999px; background: var(--mpick-fg, currentColor); opacity: 0.75; }
+.mpick-slider-thumb {
+  display: block;
+  box-sizing: border-box;
+  width: 16px;
+  height: 16px;
+  border: 2px solid var(--mpick-fg, currentColor);
+  border-radius: 999px;
+  background: var(--mpick-menu-bg, hsl(var(--popover, 0 0% 100%)));
+  cursor: grab;
+}
+.mpick-slider-thumb:focus-visible { outline: 2px solid var(--mpick-ring, hsl(var(--ring, 250 90% 60%))); outline-offset: 2px; }
+.mpick-slider-root[data-disabled] { opacity: 0.5; }
+/* Off the scale (a specific model, a mix): the thumb is faint and dashed, and the fill is gone. */
+.mpick-slider-root[data-off-scale] .mpick-slider-thumb { border-style: dashed; opacity: 0.45; }
+.mpick-slider-root[data-off-scale] .mpick-slider-range { opacity: 0; }
+
+/* A label under each stop, in a column the width of one stop. */
+.mpick-stops { display: grid; grid-template-columns: repeat(var(--mpick-stops, 4), minmax(max-content, 1fr)); margin: 2px 0 0; padding: 0; list-style: none; }
+.mpick-stop { display: flex; min-width: 0; flex-direction: column; align-items: center; padding: 4px 0; text-align: center; cursor: pointer; }
+.mpick-stop-name { max-width: 100%; overflow: hidden; font-size: 12px; text-overflow: ellipsis; white-space: nowrap; }
+.mpick-stop-hint { color: var(--mpick-muted, hsl(var(--muted-foreground, 240 3.8% 46.1%))); font-size: 11px; letter-spacing: 0.04em; }
+.mpick-stop[data-active="true"] .mpick-stop-name { font-weight: 600; }
+.mpick-caption { margin: 6px 0 0; color: var(--mpick-muted, hsl(var(--muted-foreground, 240 3.8% 46.1%))); font-size: 11px; line-height: 1.35; }
+
+/* Advanced: closed until it is opened. */
+.mpick-advanced { margin: 8px 0 0; padding: 4px 0 0; border-top: 1px solid var(--mpick-menu-line, hsl(var(--border, 240 5.9% 90%))); }
+.mpick-advanced > summary { display: flex; align-items: center; min-height: 32px; color: var(--mpick-muted, hsl(var(--muted-foreground, 240 3.8% 46.1%))); font-size: 12px; cursor: pointer; list-style: none; }
+.mpick-advanced > summary::-webkit-details-marker { display: none; }
+.mpick-advanced > summary::before { content: "▸"; display: inline-block; width: 14px; font-size: 11px; transition: transform 120ms ease; }
+.mpick-advanced[open] > summary::before { transform: rotate(90deg); }
+.mpick-advanced > summary:focus-visible { outline: 2px solid var(--mpick-ring, hsl(var(--ring, 250 90% 60%))); outline-offset: 2px; border-radius: 4px; }
+.mpick-subhead { padding: 6px 8px 2px; color: var(--mpick-muted, hsl(var(--muted-foreground, 240 3.8% 46.1%))); font-size: 11px; }
+
+/* Phones: the gauge looks the same, its hit area is 44 px square; the thumb's row and the stops are 44 px tall; Advanced's summary is 44 px. */
+@media (max-width: 640px) {
+  .mpick-gauge::before { content: ""; position: absolute; top: -10px; right: -10px; bottom: -10px; left: -10px; }
+  .mpick-slider-root { height: 44px; }
+  .mpick-stop { min-height: 44px; justify-content: center; }
+  .mpick-advanced > summary { min-height: 44px; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .mpick-advanced > summary::before { transition: none; }
+}
