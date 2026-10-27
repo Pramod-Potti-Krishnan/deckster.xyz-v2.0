@@ -26,6 +26,7 @@ import { stripChatThemeExport } from './studio-chat-theme-export-strip.mjs' // N
 import { stripLaunchWording } from './studio-launch-wording-strip.mjs' // NEXT_PUBLIC_STUDIO_LAUNCH_WORDING (launched wording): its flag-gated edits come out first, before every older change's strip
 import { stripThumbnailLastGood } from './studio-thumbnail-last-good-strip.mjs' // stacked: NEXT_PUBLIC_STUDIO_THUMBNAIL_LAST_GOOD (thumbnail last good) adds lines to the rail strip and the inventory lib this holds to the base; its strip puts them back first
 import { stripBulkEditUndo } from './studio-bulk-edit-undo-strip.mjs' // stacked: NEXT_PUBLIC_STUDIO_BULK_EDIT / NEXT_PUBLIC_STUDIO_CHAT_UNDO (bulk edit + chat undo) add marked lines to the hook, the refresh planner and the mdc types this holds to the base; its strip puts them back first
+import { stripDeckSyncTruth } from './studio-deck-sync-truth-strip.mjs' // LATER-CHANGES: registry read (DECK-SYNC-TRUTH): stacked after this change, it adds a marked call to the page's onDeckMutation (the session row's count); the page is read without it, as this proof holds the handler to its shape
 
 const repoRoot = path.resolve(fileURLToPath(new URL('../', import.meta.url)))
 const BASE_COMMIT = '1079ba4b7cd277ece7cc46ee7624d74419c3a5aa' // studio-v4-dev-preparation-code when this change branched
@@ -35,7 +36,7 @@ const PAGE = 'app/builder/page.tsx'
 const FLAG = 'NEXT_PUBLIC_STUDIO_DECK_MUTATION_DEDUPE'
 const SHARED_APPEND_ONLY = ['.env.example', 'package.json']
 
-const read = rel => stripFirstPaint(rel, stripLaunchWording(rel, readFileSync(path.join(repoRoot, rel), 'utf8')))
+const read = rel => stripDeckSyncTruth(rel, stripFirstPaint(rel, stripLaunchWording(rel, readFileSync(path.join(repoRoot, rel), 'utf8')))) // LATER-CHANGES: registry read (DECK-SYNC-TRUTH): the lines of the change stacked after this one come out first
 const readIf = rel => existsSync(path.join(repoRoot, rel)) ? read(rel) : null
 const baseCache = new Map()
 const baseSource = rel => {

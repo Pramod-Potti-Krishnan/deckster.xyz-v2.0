@@ -18,9 +18,10 @@ import path from 'node:path'
 import vm from 'node:vm'
 import ts from 'typescript'
 import { stripOpenReadOnly } from './studio-open-read-only-strip.mjs'
+import { stripDeckSyncTruth } from './studio-deck-sync-truth-strip.mjs' // LATER-CHANGES: registry read (DECK-SYNC-TRUTH): stacked after this change, it adds a passive write to the page (the session row's count after a chat change); the page is read without it, as this proof counts the page's passive writes
 
 const root = path.resolve(new URL('..', import.meta.url).pathname)
-const read = rel => fs.readFileSync(path.join(root, rel), 'utf8')
+const read = rel => stripDeckSyncTruth(rel, fs.readFileSync(path.join(root, rel), 'utf8')) // LATER-CHANGES: registry read (DECK-SYNC-TRUTH): the lines of the change stacked after this one come out first
 const LIB = 'lib/studio-open-read-only.ts'
 const HOOK = 'hooks/use-session-persistence.ts'
 const BUILDER = 'hooks/use-builder-session.ts'

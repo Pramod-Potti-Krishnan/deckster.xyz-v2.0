@@ -31,6 +31,7 @@ import { createRequire } from 'node:module'
 import { execFileSync } from 'node:child_process'
 import { createHash } from 'node:crypto'
 import ts from 'typescript'
+import { stripDeckSyncTruth } from './studio-deck-sync-truth-strip.mjs' // LATER-CHANGES: registry read (DECK-SYNC-TRUTH): stacked after this change, it adds marked lines to the Builder page (the settled-row count after Director's state frame), so the page is read past them
 
 const repoRoot = path.resolve(new URL('..', import.meta.url).pathname)
 const nodeRequire = createRequire(path.join(repoRoot, 'package.json'))
@@ -56,7 +57,7 @@ const FILES = {
   area: 'components/builder/presentation-area.tsx',
 }
 const BASE_REF = '68e3396' // origin/studio-v4-dev-preparation-code when this change was made
-const read = rel => fs.readFileSync(path.join(repoRoot, rel), 'utf8')
+const read = rel => stripDeckSyncTruth(rel, fs.readFileSync(path.join(repoRoot, rel), 'utf8')) // LATER-CHANGES: registry read (DECK-SYNC-TRUTH): the lines of the change stacked after this one come out, so the anchors and the wiring checks read the page as this change left it
 const SRC = Object.fromEntries(Object.entries(FILES).map(([key, rel]) => [key, read(rel)]))
 const ENVEX = read('.env.example')
 const PKG = JSON.parse(read('package.json'))
