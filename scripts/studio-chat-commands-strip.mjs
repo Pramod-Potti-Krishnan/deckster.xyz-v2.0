@@ -27,7 +27,7 @@ export const CHAT_COMMANDS_PIN_EDITS = {
   "scripts/test-studio-pass2b-chat.mjs": [
     [
       "    for (const file of Object.keys(GOLDEN.imports)) if (sha(importLines(chatCleanStrip.stripChatClean(file, commandsStrip.stripChatCommands(file, read(file)))).join('\\n')) !== GOLDEN.imports[file]) fail(`${file}: its import lines changed (the existing pin tests load it with an allow-list of imports)`) // LATER-CHANGES: registry read (CHAT-CLEAN): the import lines a change registered after this one adds (chat clean's, in chat-input.tsx and message-list.tsx) are its own registry read (CHAT-COMMANDS): a change registered after chat clean (chat commands) adds its import lines to chat-input.tsx too; they come out first.\n",
-      "    for (const file of Object.keys(GOLDEN.imports)) if (sha(importLines(chatCleanStrip.stripChatClean(file, read(file))).join('\\n')) !== GOLDEN.imports[file]) fail(`${file}: its import lines changed (the existing pin tests load it with an allow-list of imports)`) // LATER-CHANGES: registry read (CHAT-CLEAN): the import lines a change registered after this one adds (chat clean's, in chat-input.tsx and message-list.tsx) are its own\n",
+      "    for (const file of Object.keys(GOLDEN.imports)) if (sha(importLines(read(file)).join('\\n')) !== GOLDEN.imports[file]) fail(`${file}: its import lines changed (the existing pin tests load it with an allow-list of imports)`)\n",
     ],
     [
       "const commandsStrip = await import('./studio-chat-commands-strip.mjs') // LATER-CHANGES: registry read (CHAT-COMMANDS): the strip of the change stacked after chat clean, so its marked lines come out before the pins below read a file\n",
@@ -39,6 +39,13 @@ export const CHAT_COMMANDS_PIN_EDITS = {
     [
       "  context.STUDIO_CHAT_COMMANDS_ENABLED = false // LATER-CHANGES: registry read (CHAT-COMMANDS), stacked after #475: NEXT_PUBLIC_STUDIO_CHAT_COMMANDS's two flag-gated lines in buildUserMessage (#532), off here like the other flags\n",
       "",
+    ],
+  ],
+  // #522's pins count the lines it added to the older proofs it teaches; this change adds its own line to one of them (theme-font-selection), so the count reads past the later changes' put-backs
+  "scripts/test-studio-chat-element-edit.mjs": [
+    [
+      "    const text = LATER_STRIPS.slice(LATER_STRIPS.indexOf(stripChatElementEdit) + 1).reduce((out, strip) => { const next = strip(rel, out); return typeof next === 'string' ? next : out }, read(rel)) // LATER-CHANGES: registry read (CHAT-COMMANDS): a change registered after this one (#532) adds its own marked line to an older proof this one teaches too (theme-font-selection); the later changes' put-backs run first, so the counts below are this change's\n",
+      "    const text = read(rel)\n",
     ],
   ],
 }

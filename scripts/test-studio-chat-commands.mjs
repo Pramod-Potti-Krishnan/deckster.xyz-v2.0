@@ -1016,10 +1016,10 @@ function sourceSuite(over = {}) {
     for (const rel of stripModule.CHAT_COMMANDS_SCOPE_FILES) ok(registry.LATER_CHANGE_FILES.has(rel), `registry: ${rel} is registered`)
     ok(registry.LATER_STRIPS.includes(strip.stripChatCommands) && registry.LATER_ENV_BLOCKS.includes(strip.CHAT_COMMANDS_ENV_BLOCK), 'registry: the strip and the block are registered, after chat clean\'s')
     ok(registry.LATER_STRIPS.indexOf(strip.stripChatCommands) > registry.LATER_STRIPS.indexOf(chatCleanStrip.stripChatClean), 'registry: ...in stacking order')
-    eq(stripModule.CHAT_COMMANDS_PIN_FILES, ['scripts/test-studio-pass2b-chat.mjs', 'scripts/test-theme-font-selection.mjs'], 'two older proofs are taught: pass2b-chat (it pinned the import lines of chat-input.tsx through chat clean\'s strip alone) and theme-font-selection (it runs buildUserMessage in a sandbox that must name this change\'s flag)')
+    eq(stripModule.CHAT_COMMANDS_PIN_FILES, ['scripts/test-studio-pass2b-chat.mjs', 'scripts/test-theme-font-selection.mjs', 'scripts/test-studio-chat-element-edit.mjs'], 'three older proofs are taught: pass2b-chat (it pinned the import lines of chat-input.tsx through chat clean\'s strip alone), theme-font-selection (it runs buildUserMessage in a sandbox that must name this change\'s flag) and #522\'s chat-element-edit (its pins count lines in theme-font-selection)')
     for (const rel of stripModule.CHAT_COMMANDS_PIN_FILES) {
       const now = src(rel), studioBase = git('show', `${stripModule.BASE_COMMIT}:${rel}`) // dev holds chat clean (#530) and #522 now
-      eq(stripModule.stripChatCommands(rel, now) === studioBase, true, `${rel}: through this change's put-back it is the studio base's file, byte for byte`)
+      eq(chatCleanStrip.stripChatClean(rel, stripModule.stripChatCommands(rel, now)) === chatCleanStrip.stripChatClean(rel, studioBase), true, `${rel}: through this change's put-back it is the studio base's file, byte for byte (both read past chat clean's put-back, which this one's is chained to)`)
       eq(registry.stripLaterChanges(rel, now) === registry.stripLaterChanges(rel, studioBase), true, `${rel}: ...and through the registry`)
       for (const [has] of stripModule.CHAT_COMMANDS_PIN_EDITS[rel]) { ok(now.includes(has), `${rel}: taught line present`); ok(has.includes('registry read (CHAT-COMMANDS)'), `${rel}: taught line marked`); ok(count(now, has) === 1, `${rel}: ...once`) }
     }
