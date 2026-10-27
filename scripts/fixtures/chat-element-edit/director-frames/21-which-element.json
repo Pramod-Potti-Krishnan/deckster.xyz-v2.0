@@ -1,0 +1,48 @@
+{
+  "case": "21-which-element",
+  "user_message": {
+    "text": "Make the text box on slide 3 bold",
+    "client_caps": [
+      "mdc1",
+      "element_edit1",
+      "notes1",
+      "undo1"
+    ]
+  },
+  "decision": {
+    "action_type": "edit_element",
+    "reasoning": "scripted",
+    "confidence": 0.95,
+    "requires_approval": false,
+    "target_slide_indices": [
+      2
+    ],
+    "edit_op": "style",
+    "edit_bold": true
+  },
+  "frames_in": [],
+  "frames_out": [
+    [
+      {
+        "message_id": "msg_e22d3183",
+        "session_id": "s_e2e",
+        "timestamp": "2026-10-26T17:22:01.511077Z",
+        "type": "chat_message",
+        "role": "assistant",
+        "payload": {
+          "text": "There's more than one text box on slide 3 that could be it. Which one do you mean? Select it and send your message again.",
+          "sub_title": null,
+          "list_items": null,
+          "format": "markdown",
+          "ephemeral": false
+        }
+      }
+    ]
+  ],
+  "chat_lines": [
+    "There's more than one text box on slide 3 that could be it. Which one do you mean? Select it and send your message again."
+  ],
+  "layout_calls": [
+    "GET /api/presentations/pres-e2e"
+  ]
+}

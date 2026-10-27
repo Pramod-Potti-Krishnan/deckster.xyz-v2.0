@@ -1,0 +1,127 @@
+{
+  "case": "04-style-ok",
+  "user_message": {
+    "text": "Make this bold and bigger, in orange",
+    "client_caps": [
+      "mdc1",
+      "element_edit1",
+      "notes1",
+      "undo1"
+    ],
+    "references": [
+      {
+        "kind": "element",
+        "element_id": "textbox_a1",
+        "element_type": "TEXT_BOX",
+        "slide_index": 2,
+        "slide_id": "L2",
+        "label": "Text \u00b7 slide 3"
+      }
+    ]
+  },
+  "decision": {
+    "action_type": "edit_element",
+    "reasoning": "scripted",
+    "confidence": 0.95,
+    "requires_approval": false,
+    "target_slide_indices": [
+      2
+    ],
+    "edit_op": "style",
+    "edit_bold": true,
+    "edit_size_step": 1,
+    "edit_color": "orange"
+  },
+  "frames_in": [
+    {
+      "type": "element_edit_result",
+      "payload": {
+        "directive_id": "ele_f9b64c0c04a2",
+        "ok": true
+      }
+    }
+  ],
+  "frames_out": [
+    [
+      {
+        "message_id": "msg_eedit_e849e1b1",
+        "session_id": "s_e2e",
+        "timestamp": "2026-10-26T17:21:58.616722Z",
+        "type": "element_edit",
+        "role": "assistant",
+        "payload": {
+          "directive_id": "ele_f9b64c0c04a2",
+          "session_id": "s_e2e",
+          "presentation_id": "pres-e2e",
+          "slide_id": "L2",
+          "slide_index": 2,
+          "element_id": "textbox_a1",
+          "op": "style",
+          "style": {
+            "bold": true,
+            "size_step": 1,
+            "color_token": "accent_2"
+          }
+        }
+      },
+      {
+        "message_id": "msg_c8a32216",
+        "session_id": "s_e2e",
+        "timestamp": "2026-10-26T17:21:58.618457Z",
+        "type": "chat_message",
+        "role": "assistant",
+        "payload": {
+          "text": "Restyling the text box on slide 3: bold, bigger and in orange.",
+          "sub_title": null,
+          "list_items": null,
+          "format": "markdown",
+          "ephemeral": false
+        }
+      }
+    ],
+    [
+      {
+        "message_id": "msg_13f917c4",
+        "session_id": "s_e2e",
+        "timestamp": "2026-10-26T17:21:58.623540Z",
+        "type": "chat_message",
+        "role": "assistant",
+        "payload": {
+          "text": "Done. The text box on slide 3 is now bold, bigger and in orange.",
+          "sub_title": null,
+          "list_items": null,
+          "format": "markdown",
+          "ephemeral": false
+        }
+      },
+      {
+        "message_id": "msg_chg_c648d6d2",
+        "session_id": "s_e2e",
+        "timestamp": "2026-10-26T17:21:58.630446Z",
+        "type": "change_recorded",
+        "role": "assistant",
+        "payload": {
+          "change_id": "chg_0fa99365595c",
+          "label": "Edited the text box on slide 3",
+          "kind": "element_edited",
+          "presentation_id": "pres-e2e",
+          "undoable": true,
+          "anchor_message_id": "msg_13f917c4"
+        }
+      }
+    ]
+  ],
+  "chat_lines": [
+    "Restyling the text box on slide 3: bold, bigger and in orange.",
+    "Done. The text box on slide 3 is now bold, bigger and in orange."
+  ],
+  "layout_calls": [
+    "GET /api/presentations/pres-e2e",
+    "GET /api/presentations/pres-e2e/theme/css-variables",
+    "GET /api/presentations/pres-e2e",
+    "PUT /api/presentations/pres-e2e",
+    "GET /api/presentations/pres-e2e/versions",
+    "GET /api/presentations/pres-e2e",
+    "GET /api/presentations/pres-e2e/versions"
+  ]
+}
