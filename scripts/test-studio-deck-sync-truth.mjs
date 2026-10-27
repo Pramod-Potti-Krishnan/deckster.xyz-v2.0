@@ -1260,12 +1260,14 @@ await record(`scope: every own commit (the first-parent line of BASE..HEAD, no m
   for (const sha of mergesOnLine) assert.equal(shas.includes(sha), false, 'a merge commit is not an own commit')
   if (shas.length === 0) { console.log('NOTE scope: no commit of this change on the first-parent line (merged into dev: its commits are on the second parent); the identity checks above cover the files'); return }
   const replaced = new Set(Object.values(DECK_SYNC_TRUTH_REPLACED).flat().map(([, was]) => was.replace(/\n$/, '')))
+  // scripts/test-studio-chat-element-edit.mjs: an earlier commit taught #522's pins count; #532 (dev a0ff9d45) made that count read past every later change, so at the merge with dev the file is dev's again.
+  const SUPERSEDED = new Set(['scripts/test-studio-chat-element-edit.mjs'])
   const touched = new Set()
   for (const sha of shas) {
     const subject = git('log', '-1', '--format=%s', sha).trim(), body = git('log', '-1', '--format=%B', sha)
     assert.ok(subject.startsWith(DECK_SYNC_TRUTH_SUBJECT), `own commit subject: ${subject}`)
-    assert.match(body, /Co-Authored-By: Claude Sonnet 5\.5 <noreply@anthropic\.com>\s*$/, `commit trailer: ${sha}`)
-    for (const file of git('show', '--name-only', '--format=', sha).split('\n').filter(Boolean)) { assert.ok(DECK_SYNC_TRUTH_SCOPE_FILES.has(file), `stray file in ${sha}: ${file}`); touched.add(file) }
+    assert.match(body, /Co-Authored-By: Claude (Sonnet|Opus) 5\.5 <noreply@anthropic\.com>\s*$/, `commit trailer: ${sha}`)
+    for (const file of git('show', '--name-only', '--format=', sha).split('\n').filter(Boolean)) { assert.ok(DECK_SYNC_TRUTH_SCOPE_FILES.has(file) || SUPERSEDED.has(file), `stray file in ${sha}: ${file}`); touched.add(file) }
     for (const rel of DECK_SYNC_TRUTH_FILES) {
       for (const line of git('show', '-U0', '--format=', sha, '--', rel).split('\n').filter(l => /^[+-]/.test(l) && !/^(\+\+\+|---)/.test(l))) {
         if (line.startsWith('+')) assert.ok(DECK_SYNC_TRUTH_MARKER_RE.test(line), `${rel}: an added line without the marker: ${line.slice(0, 100)}`)

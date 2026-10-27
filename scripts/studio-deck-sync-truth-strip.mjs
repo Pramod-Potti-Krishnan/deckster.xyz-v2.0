@@ -90,16 +90,6 @@ export const DECK_SYNC_TRUTH_PIN_EDITS = {
       "    check(assert.equal, strip.stripStudioArrange(rel, now), baseText(rel), `${rel}: without its STUDIO-ARRANGE lines it is the base's, byte for byte`)\n"
     ]
   ],
-  "scripts/test-studio-chat-element-edit.mjs": [
-    [
-      "import { stripDeckSyncTruth } from './studio-deck-sync-truth-strip.mjs' // LATER-CHANGES: registry read (DECK-SYNC-TRUTH): stacked after this change, it teaches the older files this check reads (its edits of them come out first)\n",
-      ""
-    ],
-    [
-      "    const text = stripDeckSyncTruth(rel, read(rel)) // LATER-CHANGES: registry read (DECK-SYNC-TRUTH): the file as dev at #522 has it; a change stacked after this one teaches some of these files too, and its edits are not this change's lines\n",
-      "    const text = read(rel)\n"
-    ]
-  ],
   "scripts/test-studio-deck-mutation-dedupe.mjs": [
     [
       "import { stripDeckSyncTruth } from './studio-deck-sync-truth-strip.mjs' // LATER-CHANGES: registry read (DECK-SYNC-TRUTH): stacked after this change, it adds a marked call to the page's onDeckMutation (the session row's count); the page is read without it, as this proof holds the handler to its shape\n",
