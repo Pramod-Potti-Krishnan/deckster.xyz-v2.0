@@ -47,6 +47,7 @@ export const LATER_CHANGE_FILES = new Set([
   ...(await import('./studio-chat-commands-strip.mjs')).CHAT_COMMANDS_SCOPE_FILES, // LATER-CHANGE: FRONTEND-2, P3-1 A chat parity: the composer's "/" commands and "@" mentions on chat clean (NEXT_PUBLIC_STUDIO_CHAT_COMMANDS)
   ...(await import('./studio-deck-sync-truth-strip.mjs')).DECK_SYNC_TRUTH_SCOPE_FILES, // LATER-CHANGE: FRONTEND-2, B26 deck sync truth: the true slide count and no false "another tab" after chat edits (NEXT_PUBLIC_STUDIO_DECK_SYNC_TRUTH)
   ...(await import('./studio-build-failure-end-strip.mjs')).BUILD_FAILURE_END_SCOPE_FILES, // LATER-CHANGE: FRONTEND-2, B27 build failure end: Studio leaves "Building..." when Director's turn ends with a reply and no build frame (NEXT_PUBLIC_STUDIO_BUILD_FAILURE_END)
+  ...(await import('./studio-paused-label-strip.mjs')).PAUSED_LABEL_SCOPE_FILES, // LATER-CHANGE: FRONTEND-2, B27 paused label: the build ribbon reads "Paused" while the control state is paused (NEXT_PUBLIC_STUDIO_PAUSED_LABEL)
   // one line per later change, above this comment
 ])
 
@@ -66,6 +67,7 @@ export const LATER_ENV_BLOCKS = [
   (await import('./studio-chat-commands-strip.mjs')).CHAT_COMMANDS_ENV_BLOCK, // LATER-CHANGE: FRONTEND-2, P3-1 A chat parity (NEXT_PUBLIC_STUDIO_CHAT_COMMANDS)
   (await import('./studio-deck-sync-truth-strip.mjs')).DECK_SYNC_TRUTH_ENV_BLOCK, // LATER-CHANGE: FRONTEND-2, B26 deck sync truth: the true slide count and no false "another tab" after chat edits (NEXT_PUBLIC_STUDIO_DECK_SYNC_TRUTH)
   (await import('./studio-build-failure-end-strip.mjs')).BUILD_FAILURE_END_ENV_BLOCK, // LATER-CHANGE: FRONTEND-2, B27 build failure end (NEXT_PUBLIC_STUDIO_BUILD_FAILURE_END)
+  (await import('./studio-paused-label-strip.mjs')).PAUSED_LABEL_ENV_BLOCK, // LATER-CHANGE: FRONTEND-2, B27 paused label (NEXT_PUBLIC_STUDIO_PAUSED_LABEL)
   // one line per later change, above this comment
 ]
 
@@ -94,6 +96,7 @@ export const LATER_STRIPS = [
   (await import('./studio-chat-commands-strip.mjs')).stripChatCommands, // LATER-CHANGE: FRONTEND-2, P3-1 A chat parity (NEXT_PUBLIC_STUDIO_CHAT_COMMANDS)
   (await import('./studio-deck-sync-truth-strip.mjs')).stripDeckSyncTruth, // LATER-CHANGE: FRONTEND-2, B26 deck sync truth: the true slide count and no false "another tab" after chat edits (NEXT_PUBLIC_STUDIO_DECK_SYNC_TRUTH)
   (await import('./studio-build-failure-end-strip.mjs')).stripBuildFailureEnd, // LATER-CHANGE: FRONTEND-2, B27 build failure end (NEXT_PUBLIC_STUDIO_BUILD_FAILURE_END)
+  (await import('./studio-paused-label-strip.mjs')).stripPausedLabel, // LATER-CHANGE: FRONTEND-2, B27 paused label (NEXT_PUBLIC_STUDIO_PAUSED_LABEL)
   // one line per later change, above this comment
 ]
 
