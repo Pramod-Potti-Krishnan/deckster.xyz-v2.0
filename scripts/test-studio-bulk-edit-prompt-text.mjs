@@ -22,6 +22,7 @@ import { createRequire } from 'node:module'
 import { execFileSync } from 'node:child_process'
 import { fileURLToPath } from 'node:url'
 import ts from 'typescript'
+const chatClean = await import('./studio-chat-clean-strip.mjs') // LATER-CHANGES: registry read (CHAT-CLEAN): the strip of the change stacked after this one; the files it touches (this proof among them) do not count as this change's own commits
 import {
   BASE_COMMIT, BULK_EDIT_PROMPT_TEXT_CARD, BULK_EDIT_PROMPT_TEXT_ENV_BLOCK, BULK_EDIT_PROMPT_TEXT_FILES, BULK_EDIT_PROMPT_TEXT_MARKER, BULK_EDIT_PROMPT_TEXT_NEW_FILES, BULK_EDIT_PROMPT_TEXT_SCOPE_FILES,
   BULK_EDIT_PROMPT_TEXT_WIRE, stripBulkEditPromptText,
@@ -290,7 +291,7 @@ function proveScope(at = '') {
   const committed = ownCommitted()
   const stray = committed.filter(rel => !BULK_EDIT_PROMPT_TEXT_SCOPE_FILES.has(rel) && !LATER_CHANGE_FILES.has(rel))
   deep(stray, [], a(`every file in the committed diff ${BASE.slice(0, 8)}..HEAD is this change's or a registered later change's (no older test is edited)`))
-  if (committed.length) {
+  if (committed.some(rel => BULK_EDIT_PROMPT_TEXT_SCOPE_FILES.has(rel) && !chatClean.CHAT_CLEAN_SCOPE_FILES.has(rel))) { // LATER-CHANGES: registry read (CHAT-CLEAN): on a branch stacked after this change and merged with studio (chat clean), the first-parent commits are the later change's (this proof among the files it touched) and this change's own sit behind the merge; the check speaks only where its own commits are
     deep([...BULK_EDIT_PROMPT_TEXT_SCOPE_FILES].filter(rel => !committed.includes(rel)), [], a('and every file of this change is in the committed diff'))
     ok(committed.filter(rel => /^scripts\/test-/.test(rel)).every(rel => rel === THIS_TEST || LATER_CHANGE_FILES.has(rel)), a('the only test it adds or edits is its own'))
   }

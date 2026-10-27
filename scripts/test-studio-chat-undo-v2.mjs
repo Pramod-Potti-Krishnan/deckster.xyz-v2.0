@@ -26,6 +26,7 @@ import { createRequire } from 'node:module'
 import { execFileSync } from 'node:child_process'
 import { fileURLToPath } from 'node:url'
 import ts from 'typescript'
+const chatClean = await import('./studio-chat-clean-strip.mjs') // LATER-CHANGES: registry read (CHAT-CLEAN): the strip of the change stacked after this one, so its marked lines (chat clean's) come out first
 import { BASE_COMMIT, CHAT_UNDO_V2_CHANGES, CHAT_UNDO_V2_FILES, CHAT_UNDO_V2_NEW_FILES, CHAT_UNDO_V2_OWN_EDITS, CHAT_UNDO_V2_MARKER } from './studio-chat-undo-v2-strip.mjs'
 import { stripOpenReadOnly } from './studio-open-read-only-strip.mjs'
 import { stripDarkPersist } from './studio-theme-dark-persist-strip.mjs'
@@ -341,12 +342,12 @@ async function suite() {
     const mod = await stripFile()
     assert.deepEqual([...mod.CHAT_UNDO_V2_FILES], [LIST]); assert.equal(mod.BASE_COMMIT, REGISTRY_V2)
     const head = read(LIST)
-    assert.equal(mod.stripChatUndoV2(LIST, head), baseOf(LIST), 'stripped is the base\'s file')
+    assert.equal(mod.stripChatUndoV2(LIST, chatClean.stripChatClean(LIST, head)), baseOf(LIST), 'stripped is the base\'s file') // LATER-CHANGES: registry read (CHAT-CLEAN): chat clean's marked lines in the message list come out first
     for (const [added, original] of mod.CHAT_UNDO_V2_CHANGES[LIST]) {
       assert.equal(head.split(added).length - 1, 1, 'a piece occurs once'); assert.ok(!baseOf(LIST).includes(added), 'the base does not hold a piece'); assert.equal(original, '')
       for (const line of added.split('\n').filter(Boolean)) assert.ok(line.includes(CHAT_UNDO_V2_MARKER), `every added line carries ${CHAT_UNDO_V2_MARKER}: ${line.slice(0, 80)}`)
     }
-    assert.equal(mod.stripChatUndoV2(LIST, mod.stripChatUndoV2(LIST, head)), baseOf(LIST), 'stripping twice changes nothing more'); assert.equal(mod.stripChatUndoV2('lib/other.ts', 'abc'), 'abc'); assert.equal(mod.stripChatUndoV2(LIST, baseOf(LIST)), baseOf(LIST))
+    assert.equal(mod.stripChatUndoV2(LIST, mod.stripChatUndoV2(LIST, chatClean.stripChatClean(LIST, head))), baseOf(LIST), 'stripping twice changes nothing more'); assert.equal(mod.stripChatUndoV2('lib/other.ts', 'abc'), 'abc'); assert.equal(mod.stripChatUndoV2(LIST, baseOf(LIST)), baseOf(LIST)) // LATER-CHANGES: registry read (CHAT-CLEAN)
     assert.ok(STACKED_PASS3_FILES.includes(LIST) && STACKED_PASS3_FILES.includes(WIRE) && STACKED_PASS3_FILES.includes(STORE), 'the files this change touches are in STACKED_PASS3_FILES already (bulk edit + chat undo lists them); it adds no app file')
   })
   await check('roots: this change REGISTERS its strip (LATER_STRIPS), stripBulkEditUndo calls the registry first, innermost, so the three shared roots and every older pin that strips it take these lines out; no .env.example block', () => {

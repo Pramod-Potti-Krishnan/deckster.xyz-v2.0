@@ -17,11 +17,12 @@ import { fileURLToPath } from 'node:url'
 import React from 'react'
 import { renderToStaticMarkup } from 'react-dom/server'
 import ts from 'typescript'
+import { stripLaterChanges } from './studio-later-changes.mjs' // LATER-CHANGES: registry read (CHAT-CLEAN)
 
 const treeRoot = process.env.COMPOSER_COPY_ROOT
   ? path.resolve(process.env.COMPOSER_COPY_ROOT)
   : path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..')
-const read = file => fs.readFileSync(path.join(treeRoot, file), 'utf8')
+const read = file => stripLaterChanges(file, fs.readFileSync(path.join(treeRoot, file), 'utf8')) // LATER-CHANGES: registry read (CHAT-CLEAN): a registered later change's marked lines (chat clean's import in chat-input.tsx) come out before the allow-list sees the file
 const FLAG = 'NEXT_PUBLIC_STUDIO_COMPOSER_COPY'
 const SHELL = 'NEXT_PUBLIC_STUDIO_V4_SHELL'
 const sha = text => crypto.createHash('sha256').update(text).digest('hex')

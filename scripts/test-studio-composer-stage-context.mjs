@@ -19,6 +19,7 @@ import vm from 'node:vm'
 import { execFileSync } from 'node:child_process'
 import { fileURLToPath } from 'node:url'
 import ts from 'typescript'
+import { stripLaterChanges } from './studio-later-changes.mjs' // LATER-CHANGES: registry read (CHAT-CLEAN)
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..')
 const read = rel => fs.readFileSync(path.join(root, rel), 'utf8')
@@ -147,7 +148,7 @@ function proveWiring(page, label = 'page') {
 proveWiring(pageSource); checks += 6 + 6
 {
   const base = baseSource(CHAT_INPUT)
-  if (base) { checks++; assert.equal(read(CHAT_INPUT), base, `chat-input.tsx is the base commit's file: the line is a string prop, as #382 passes it`) }
+  if (base) { checks++; assert.equal(stripLaterChanges(CHAT_INPUT, read(CHAT_INPUT)), stripLaterChanges(CHAT_INPUT, base), `chat-input.tsx is the base commit's file: the line is a string prop, as #382 passes it`) } // LATER-CHANGES: registry read (CHAT-CLEAN): the lines of the changes registered after this one (chat clean's) come out of both sides first
   checks++; assert.doesNotMatch(read(CHAT_INPUT), /from\s+['"][^'"]*studio-chat-composer-context['"]/, 'chat-input.tsx imports nothing from the composer-context lib (existing tests forbid it)')
 }
 
