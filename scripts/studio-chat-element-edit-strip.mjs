@@ -67,8 +67,12 @@ export const CHAT_ELEMENT_EDIT_NEW_FILES = [
 export const CHAT_ELEMENT_EDIT_PIN_MARK = '// LATER-CHANGES: registry read (CHAT-ELEMENT-EDIT)'
 export const CHAT_ELEMENT_EDIT_PIN_EDITS = {
   'scripts/test-studio-chat-theme-export.mjs': [
-    ["import { stripLaterChanges } from './studio-later-changes.mjs' // LATER-CHANGES: registry read (CHAT-ELEMENT-EDIT)\n", ''],
-    ["const pageText = stripLaterChanges(PAGE, read(PAGE)) // LATER-CHANGES: registry read (CHAT-ELEMENT-EDIT): the page text is the text pageAst was parsed from (extract.parseSource reads through the registry), so the offsets between the two agree\n", 'const pageText = read(PAGE)\n'],
+    ["import { stripLaterChanges } from './studio-later-changes.mjs' // LATER-CHANGES: registry read (CHAT-ELEMENT-EDIT), stacked after #475\n", ''],
+    ["const pageText = stripLaterChanges(PAGE, read(PAGE)) // LATER-CHANGES: registry read (CHAT-ELEMENT-EDIT), stacked after #475: the page text is the text pageAst was parsed from (extract.parseSource reads through the registry), so the offsets between the two agree\n", 'const pageText = read(PAGE)\n'],
+  ],
+  // #522's caps line sits in the hook's buildUserMessage, which this proof runs in a sandbox of its own: the flag is named there, off
+  'scripts/test-theme-font-selection.mjs': [
+    ["  context.CHAT_ELEMENT_EDIT_ENABLED = false // LATER-CHANGES: registry read (CHAT-ELEMENT-EDIT), stacked after #475: NEXT_PUBLIC_STUDIO_CHAT_ELEMENT_EDIT's one flag-gated caps line in buildUserMessage (#522), off here like the other flags\n", ''],
   ],
   'scripts/test-studio-rail-add-slide.mjs': [
     ["    const changed = (rel, base) => git(['diff', '--no-color', '-U0', BASE_COMMIT, '--', rel]).split('\\n').filter(line => /^[+-](?![+-])/.test(line) && !line.includes('PASS2D B4') && !line.includes('SLIDE-OPS-VIA-VIEWER') && !line.includes('INSERT-PERSIST') && !line.includes('STUDIO_LAUNCH_WORDING') && !line.includes('VERSION-HISTORY-V2') && !line.includes('NEXT_PUBLIC_STUDIO_THUMBNAIL_LAST_GOOD') && !belongsToRailBuildCount(line) && !/(?<![\\w-])STUDIO-ARRANGE(?![\\w-])/.test(line) && !/(?<![\\w-])CHAT-ELEMENT-EDIT(?![\\w-])/.test(line)) // LATER-CHANGES: registry read (STUDIO-ARRANGE): its marked viewer lines; scripts/test-studio-arrange.mjs pins them. LATER-CHANGES: registry read (CHAT-ELEMENT-EDIT): and #522's, which scripts/test-studio-chat-element-edit.mjs pins\n", "    const changed = (rel, base) => git(['diff', '--no-color', '-U0', BASE_COMMIT, '--', rel]).split('\\n').filter(line => /^[+-](?![+-])/.test(line) && !line.includes('PASS2D B4') && !line.includes('SLIDE-OPS-VIA-VIEWER') && !line.includes('INSERT-PERSIST') && !line.includes('STUDIO_LAUNCH_WORDING') && !line.includes('VERSION-HISTORY-V2') && !line.includes('NEXT_PUBLIC_STUDIO_THUMBNAIL_LAST_GOOD') && !belongsToRailBuildCount(line))\n"],
