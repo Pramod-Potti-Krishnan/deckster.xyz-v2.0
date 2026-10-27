@@ -100,6 +100,26 @@ export const DECK_SYNC_TRUTH_PIN_EDITS = {
       "    const text = read(rel)\n"
     ]
   ],
+  "scripts/test-studio-deck-mutation-dedupe.mjs": [
+    [
+      "import { stripDeckSyncTruth } from './studio-deck-sync-truth-strip.mjs' // LATER-CHANGES: registry read (DECK-SYNC-TRUTH): stacked after this change, it adds a marked call to the page's onDeckMutation (the session row's count); the page is read without it, as this proof holds the handler to its shape\n",
+      ""
+    ],
+    [
+      "const read = rel => stripDeckSyncTruth(rel, stripFirstPaint(rel, stripLaunchWording(rel, readFileSync(path.join(repoRoot, rel), 'utf8')))) // LATER-CHANGES: registry read (DECK-SYNC-TRUTH): the lines of the change stacked after this one come out first\n",
+      "const read = rel => stripFirstPaint(rel, stripLaunchWording(rel, readFileSync(path.join(repoRoot, rel), 'utf8')))\n"
+    ]
+  ],
+  "scripts/test-studio-open-read-only.mjs": [
+    [
+      "import { stripDeckSyncTruth } from './studio-deck-sync-truth-strip.mjs' // LATER-CHANGES: registry read (DECK-SYNC-TRUTH): stacked after this change, it adds a passive write to the page (the session row's count after a chat change); the page is read without it, as this proof counts the page's passive writes\n",
+      ""
+    ],
+    [
+      "const read = rel => stripDeckSyncTruth(rel, fs.readFileSync(path.join(root, rel), 'utf8')) // LATER-CHANGES: registry read (DECK-SYNC-TRUTH): the lines of the change stacked after this one come out first\n",
+      "const read = rel => fs.readFileSync(path.join(root, rel), 'utf8')\n"
+    ]
+  ],
   "scripts/test-studio-rail-add-slide.mjs": [
     [
       "import { belongsToDeckSyncTruth } from './studio-deck-sync-truth-strip.mjs' // LATER-CHANGES: registry read (DECK-SYNC-TRUTH): its marked viewer lines\n",
