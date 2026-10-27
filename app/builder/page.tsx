@@ -100,6 +100,9 @@ import { useElementRefinement } from '@/hooks/use-element-refinement'
 import { shouldOpenAsBlankPlaceholder } from '@/lib/element-blank-policy'
 // NEXT_PUBLIC_CHAT_ELEMENT_REFINE (default off): refine the selected element from chat (lib/chat-element-refine.ts).
 import { CHAT_ELEMENT_REFINE_ENABLED, chatElementReferenceFor, runElementRefineDirective, type ChatElementSelection, type ElementRefineDirectiveMessage, type ElementRefineDirectiveOwner } from '@/lib/chat-element-refine'
+import { CHAT_ELEMENT_EDIT_ENABLED, createElementEditGate, runElementEditDirective, type ElementEditDirectiveMessage, type ElementEditDirectiveOwner, type ElementEditGate } from '@/lib/chat-element-edit' // CHAT-ELEMENT-EDIT (NEXT_PUBLIC_STUDIO_CHAT_ELEMENT_EDIT, default off): edit an element from chat
+import { NOTES_UPDATED_EVENT } from '@/lib/chat-element-edit-wire' // CHAT-ELEMENT-EDIT
+import { getChatEditViewer, subscribeViewerSaveEvents } from '@/lib/chat-element-edit-save' // CHAT-ELEMENT-EDIT
 import { isTextLabsMappable } from '@/lib/element-type-mapping'
 // NEXT_PUBLIC_CHAT_THEME_CHANGE / NEXT_PUBLIC_CHAT_EXPORT (each default off): change the theme / export the deck from chat (lib/chat-theme-export.ts).
 import { runExportDirective, runThemeDirective, type ThemeExportDirectiveMessage, type ThemeExportDirectiveOwner, type ThemeExportResultData } from '@/lib/chat-theme-export'
@@ -702,6 +705,9 @@ function AuthenticatedBuilderContent({ authScopeUserId }: { authScopeUserId: str
   const templateSelectionLockedRef = useRef(false)
   // NEXT_PUBLIC_CHAT_THEME_CHANGE / NEXT_PUBLIC_CHAT_EXPORT: the late-bound theme / export directive runner (defined beside the K5 add runner below).
   const themeExportDirectiveRunnerRef = useRef<((message: ThemeExportDirectiveMessage, owner: ThemeExportDirectiveOwner) => void) | null>(null)
+  // CHAT-ELEMENT-EDIT: the late-bound element_edit runner (defined after the theme / export runner below) and this tab's single-flight gate.
+  const elementEditDirectiveRunnerRef = useRef<((message: ElementEditDirectiveMessage, owner: ElementEditDirectiveOwner) => void) | null>(null) // CHAT-ELEMENT-EDIT
+  const chatElementEditGateRef = useRef<ElementEditGate | null>(null) // CHAT-ELEMENT-EDIT
   const [templateModeOn, setTemplateModeOn] = useState(false)
   const studioFormatTemplateModeRef = useRef(templateModeOn)
   const studioFormatTemplateModeObservedRef = useRef(templateModeOn)
@@ -2391,6 +2397,7 @@ function AuthenticatedBuilderContent({ authScopeUserId }: { authScopeUserId: str
     sendMessage,
     sendMessageWhenConnected,
     sendElementDirectiveResult,
+    sendElementEditResult, // CHAT-ELEMENT-EDIT
     sendControlMessage,
     sendThemeSelection,
     sendBuildControl,
@@ -2631,6 +2638,15 @@ function AuthenticatedBuilderContent({ authScopeUserId }: { authScopeUserId: str
         themeExportDirectiveRunnerRef.current?.(message, owner)
       },
     } : {}),
+    // CHAT-ELEMENT-EDIT: the element_edit runner, and the Notes panel refresh of deck_mutation notes_updated (a window event, the narration script precedent). Off: not passed.
+    ...(CHAT_ELEMENT_EDIT_ENABLED ? { // CHAT-ELEMENT-EDIT
+      onElementEditDirective: (message: ElementEditDirectiveMessage, owner: ElementEditDirectiveOwner) => { // CHAT-ELEMENT-EDIT
+        elementEditDirectiveRunnerRef.current?.(message, owner) // CHAT-ELEMENT-EDIT
+      }, // CHAT-ELEMENT-EDIT
+      onNotesUpdated: (update: { presentationId: string; slideIndex: number }, owner: { isCurrent: () => boolean }) => { // CHAT-ELEMENT-EDIT
+        if (owner.isCurrent()) window.dispatchEvent(new CustomEvent(NOTES_UPDATED_EVENT, { detail: update })) // CHAT-ELEMENT-EDIT
+      }, // CHAT-ELEMENT-EDIT
+    } : {}), // CHAT-ELEMENT-EDIT
     // NEXT_PUBLIC_STUDIO_JOB_LEDGER: Director's job rows (job_update, sync_response jobs) go to this tab's ledger. Off: not passed.
     ...(STUDIO_JOB_LEDGER_ENABLED ? { onJobUpdate: studioJobLedger.onJobUpdate, onJobsSync: studioJobLedger.onJobsSync } : {}),
     // Build Narration: typed-frame ref-forwarders (WS options precede the
@@ -5324,6 +5340,29 @@ function AuthenticatedBuilderContent({ authScopeUserId }: { authScopeUserId: str
       })
     void run.then(send).finally(() => { chatThemeExportInFlightRef.current[kind] = false })
   }
+  // CHAT-ELEMENT-EDIT: Director's element_edit (NEXT_PUBLIC_STUDIO_CHAT_ELEMENT_EDIT, default off), after the theme / export runner and on the same owner record as the K5 add runner
+  // CHAT-ELEMENT-EDIT: (lib/chat-element-edit.ts). One edit of one element through the viewer's own element commands (delete, z-order, grid position, text format), never a PATCH; the answer
+  // CHAT-ELEMENT-EDIT: goes back on the socket that delivered it, ok:true only after the viewer's autosave acknowledged the change, and a stale socket or owner sends nothing. Off: no runner.
+  if (CHAT_ELEMENT_EDIT_ENABLED && !chatElementEditGateRef.current) chatElementEditGateRef.current = createElementEditGate() // CHAT-ELEMENT-EDIT
+  elementEditDirectiveRunnerRef.current = !CHAT_ELEMENT_EDIT_ENABLED ? null : (message, owner) => { // CHAT-ELEMENT-EDIT
+    void runElementEditDirective(message, owner, { // CHAT-ELEMENT-EDIT
+      displayed: () => elementDirectiveGenerationOwnerRef.current, // CHAT-ELEMENT-EDIT
+      gate: chatElementEditGateRef.current as ElementEditGate, // CHAT-ELEMENT-EDIT
+      paused: () => oneLiveTabSuperseded, // CHAT-ELEMENT-EDIT
+      templateMode: () => templateModeOn, // CHAT-ELEMENT-EDIT
+      slideCount: () => slideStructure?.slides?.length ?? 0, // CHAT-ELEMENT-EDIT
+      currentSlideIndex: () => currentSlideIndexRef.current, // CHAT-ELEMENT-EDIT
+      slideIdAt: slideIndex => { const id = (slideStructure?.slides?.[slideIndex] as { slide_id?: unknown } | undefined)?.slide_id; return typeof id === 'string' && id ? id : null }, // CHAT-ELEMENT-EDIT
+      goToSlide: layoutServiceApis?.goToSlide ?? null, // CHAT-ELEMENT-EDIT
+      sendElementCommand: layoutServiceApis?.sendElementCommand ?? null, // CHAT-ELEMENT-EDIT
+      sendTextBoxCommand: layoutServiceApis?.sendTextBoxCommand ?? null, // CHAT-ELEMENT-EDIT
+      ensureEditMode: () => getChatEditViewer()?.ensureEditMode() ?? Promise.resolve(false), // CHAT-ELEMENT-EDIT
+      subscribeSave: subscribeViewerSaveEvents, // CHAT-ELEMENT-EDIT
+      settle: () => new Promise<void>(resolve => setTimeout(resolve, 400)), // CHAT-ELEMENT-EDIT
+    }).then(result => { // CHAT-ELEMENT-EDIT
+      if (result && owner.isCurrent()) sendElementEditResult(result) // CHAT-ELEMENT-EDIT
+    }) // CHAT-ELEMENT-EDIT
+  } // CHAT-ELEMENT-EDIT
 
   // File upload state
   const {
@@ -6324,6 +6363,14 @@ function AuthenticatedBuilderContent({ authScopeUserId }: { authScopeUserId: str
     sendBuildControl, markControl: markNarrationControl, sendDraft: text => handleSendMessage(undefined, text), awaitingReply: awaitingDirectorReply, stopAwaiting: stopAwaitingReply, // FLOW-CONTROL
     sessionKey: currentSessionId || wsSessionId, onStopFailed: () => toast({ title: "Couldn't stop the build", description: 'Your changes are still in the box.' }), // FLOW-CONTROL
   }) // FLOW-CONTROL
+  // CHAT-CLEAN (NEXT_PUBLIC_STUDIO_CHAT_CLEAN, Studio shell only, default off): PK's v3 Director chat (lib/studio-chat-clean.ts decides everything). The sends are the existing build controls (stop / resume), with the draft as the resume's instructions through the flow bus; off, the hook below is inert and nothing else here is read.
+  const chatCleanShell = STUDIO_CHAT_CLEAN_ENABLED && studioShell // CHAT-CLEAN: the thread and the composer in the v3 design
+  const chatCleanOn = chatCleanShell && effectiveBuildNarrationEnabled // CHAT-CLEAN: the job card, Send <-> Stop and the Continue bar need the narration canvas
+  const chatCleanNotes = useStudioChatCleanNotes({ enabled: chatCleanOn, sessionKey: currentSessionId || wsSessionId, narration: buildNarration, handlers: buildNarrationHandlersRef }) // CHAT-CLEAN: the thread's record of stops, resumes and directions, and Director's acknowledgement of the directions (applied_to), read from the page's build_phase handler
+  const chatCleanComposer = chatCleanComposerState({ enabled: chatCleanOn, active: buildNarration.active, phase: buildNarration.phase, control: buildNarration.control, slidesDone: buildNarration.slidesDone, slideCount: buildNarration.slideCount, controlEnabled: features.buildControlEnabled, ackKey: chatCleanNotes.ack.key, ackLine: chatCleanNotes.ack.line }) // CHAT-CLEAN
+  const chatCleanStop = () => { const requestId = sendBuildControl('stop', buildNarration.buildId ?? undefined); if (requestId) markNarrationControl('stop_requested', buildNarration.buildId, requestId); else toast({ title: "Couldn't stop the build", description: 'Director did not take the request. Your draft is still in the box.' }) } // CHAT-CLEAN: the composer's Stop (non-destructive, as the ribbon's: built slides are kept)
+  const chatCleanContinue = () => { const requestId = sendBuildControl('resume', buildNarration.buildId ?? undefined); if (requestId) markNarrationControl('resume_requested', buildNarration.buildId, requestId) } // CHAT-CLEAN: Continue = resume as planned (the draft stays in the box)
+  const chatCleanSendDirections = () => { const text = chatCleanInstructions(inputMessage); if (!text || chatCleanComposer.sendMode !== 'instructions') return; flowBus.instructions = text; const requestId = sendBuildControl('resume', buildNarration.buildId ?? undefined); flowBus.instructions = undefined; if (!requestId) { toast({ title: "Couldn't send your directions", description: 'Director did not take the request. Your draft is still in the box.' }); return } markNarrationControl('resume_requested', buildNarration.buildId, requestId); chatCleanNotes.addDirections(text); setInputMessage('') } // CHAT-CLEAN: Send with a draft while held ALWAYS goes as build_control resume {instructions} (Director !564: a plain message after a stop never rebuilds); the bus hands the text to this one request, as the flow hook does
 
   const handleCancelManualDeckBuild = useCallback(() => {
     if (manualDeckHandoffBusy) return
@@ -7538,6 +7585,7 @@ function AuthenticatedBuilderContent({ authScopeUserId }: { authScopeUserId: str
               data-studio-workspace-content={studioShell ? 'true' : undefined}
               aria-hidden={studioShell && !workspaceLayout.chatVisible ? true : undefined}
               {...(studioShell && !workspaceLayout.chatVisible ? { inert: true } : {})}
+              {...(chatCleanShell ? chatCleanRootAttributes() : {}) /* CHAT-CLEAN: the stylesheet's hook and PK's choice tokens, on the chat column only with the flag on */}
               style={{ width: studioShell ? studioChatWidth : drawerWidth }}
             >
               {showChat && (
@@ -7581,6 +7629,7 @@ function AuthenticatedBuilderContent({ authScopeUserId }: { authScopeUserId: str
                   <ScrollArea className="flex-1">
                     <div ref={studioVoiceTranscriptRootRef} className="px-3 py-4 space-y-4">
                       <MessageList
+                        {...(chatCleanShell ? { studioChatClean: { narration: buildNarration, notes: chatCleanNotes.notes, composer: chatCleanComposer } } : {}) /* CHAT-CLEAN: the inline job card and the notes at the end of the thread */}
                         sessionId={currentSessionId}
                         presentationContext={studioShell && effectivePresentationUrl && (!isBlankPresentation || (slideStructure?.slides ?? []).length > 0) ? {
                           title: slideStructure?.metadata?.main_title ?? null,
@@ -7718,12 +7767,14 @@ function AuthenticatedBuilderContent({ authScopeUserId }: { authScopeUserId: str
                   )}
                   {flowControl.bar}{/* FLOW-CONTROL (NEXT_PUBLIC_STUDIO_FLOW_AMEND): the calm line and Resume / Rebuild while the build is held; off, null */}
 
+                  {chatCleanOn ? <StudioChatCleanBar composer={chatCleanComposer} onContinue={chatCleanContinue} /> : null}{/* CHAT-CLEAN: the slim "Stopped at slide N · slides 1–N kept · Continue" bar above the composer while the build is held (the flow bar above it is hidden by the stylesheet); off, null */}
                   {workflowBrief && <div className="studio-brief-handoff" role="region" aria-label="Brief ready">
                     <div><strong>Your brief is ready</strong><p>{inputMessage.trim() ? 'Use it to replace the current unsent message, or keep your message.' : 'Add it to the composer, review it, then send when ready.'}</p></div>
                     <button type="button" onClick={() => resolveWorkflowBrief(true)}>Use brief</button>
                     <button type="button" onClick={() => resolveWorkflowBrief(false)}>Keep my message</button>
                   </div>}
                   <ChatInput
+                    {...(chatCleanShell ? { studioChatClean: { composer: chatCleanComposer, onStop: chatCleanStop, onSendDirections: chatCleanSendDirections, sessionId: currentSessionId } } : {}) /* CHAT-CLEAN: Send <-> Stop, new directions while held, the "+" menu, the research chips and the model picker */}
                     composerTextareaRef={studioShell ? textareaRef : undefined}
                     studioSavedThemeRequest={savedThemeWorkflowId ? { id: savedThemeWorkflowId, key: workflowKey } : undefined}
                     inputMessage={inputMessage}
@@ -8257,6 +8308,9 @@ function AuthenticatedBuilderContent({ authScopeUserId }: { authScopeUserId: str
 }
 // FLOW-CONTROL: this import sits here, not with the others, on purpose: an older proof slices this file by the positions of a parse that does not see FLOW-CONTROL lines, so nothing of the flow flags may come before the Builder's runners.
 import { useStudioFlowControl } from '@/hooks/use-studio-flow-control' // FLOW-CONTROL
+import { STUDIO_CHAT_CLEAN_ENABLED, chatCleanComposerState, chatCleanInstructions, chatCleanRootAttributes } from '@/lib/studio-chat-clean' // CHAT-CLEAN: placed here with the flow import, after the Builder's runners, for the same older proof
+import { flowBus } from '@/lib/studio-flow-control' // CHAT-CLEAN: the one-request hand-over of the resume's instructions (taken by sendBuildControl, whatever the flow flags)
+import { StudioChatCleanBar, useStudioChatCleanNotes } from '@/components/builder/chat/studio-chat-clean' // CHAT-CLEAN
 
 function BuilderLoadingState({ message = 'Loading builder...' }: { message?: string }) {
   // NEXT_PUBLIC_STUDIO_SESSION_HYGIENE: the route loader is the builder shell, not a blank page with a spinner.

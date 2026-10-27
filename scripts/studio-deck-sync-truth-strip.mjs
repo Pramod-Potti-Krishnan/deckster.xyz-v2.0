@@ -86,14 +86,6 @@ export const DECK_SYNC_TRUTH_PIN_EDITS = {
     [
       "    check(assert.equal, strip.stripStudioArrange(rel, stripDeckSyncTruth(rel, now)), baseText(rel), `${rel}: without its STUDIO-ARRANGE lines it is the base's, byte for byte`) // LATER-CHANGES: registry read (DECK-SYNC-TRUTH): the lines of the change stacked after this one come out first\n",
       "    check(assert.equal, strip.stripStudioArrange(rel, now), baseText(rel), `${rel}: without its STUDIO-ARRANGE lines it is the base's, byte for byte`)\n"
-    ],
-    [
-      "    check(assert.equal, strip.putBackPin(rel, stripDeckSyncTruth(rel, read(rel))), baseText(rel), `the taught line of ${rel} puts back to the base's`) // LATER-CHANGES: registry read (DECK-SYNC-TRUTH): the lines of the change stacked after this one come out first\n",
-      "    check(assert.equal, strip.putBackPin(rel, read(rel)), baseText(rel), `the taught line of ${rel} puts back to the base's`)\n"
-    ],
-    [
-      "    check(assert.equal, strip.stripStudioArrange(rel, stripDeckSyncTruth(rel, read(rel))), baseText(rel), `${rel} through the strip is the base's`) // LATER-CHANGES: registry read (DECK-SYNC-TRUTH)\n",
-      "    check(assert.equal, strip.stripStudioArrange(rel, read(rel)), baseText(rel), `${rel} through the strip is the base's`)\n"
     ]
   ],
   "scripts/test-studio-rail-add-slide.mjs": [

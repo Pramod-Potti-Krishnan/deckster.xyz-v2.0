@@ -4,6 +4,7 @@ import fs from 'node:fs'
 import vm from 'node:vm'
 import { setImmediate } from 'node:timers/promises'
 import ts from 'typescript'
+import { stripLaterChanges } from './studio-later-changes.mjs' // LATER-CHANGES: registry read (CHAT-CLEAN)
 
 // Execute the real components, hook, and handlers with a minimal hook/JSX
 // harness. UI primitives and fetch are mocked; no browser or server is needed.
@@ -61,7 +62,7 @@ const imports = {
   '@/hooks/use-toast': { useToast: () => ({ toast: value => toasts.push(value) }) },
 }
 function load(relative) {
-  const source = fs.readFileSync(new URL(relative, import.meta.url), 'utf8')
+  const source = stripLaterChanges(relative.replace(/^\.\.\//, ''), fs.readFileSync(new URL(relative, import.meta.url), 'utf8')) // LATER-CHANGES: registry read (CHAT-CLEAN): a registered later change's marked lines (chat clean's import in chat-input.tsx) come out before the allow-list sees the file
   const output = ts.transpileModule(source, {
     compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022, jsx: ts.JsxEmit.ReactJSX },
   }).outputText

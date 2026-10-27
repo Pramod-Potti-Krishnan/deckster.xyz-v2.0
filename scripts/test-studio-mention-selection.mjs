@@ -3,6 +3,7 @@ import assert from 'node:assert/strict'
 import fs from 'node:fs'
 import vm from 'node:vm'
 import ts from 'typescript'
+import { stripLaterChanges } from './studio-later-changes.mjs' // LATER-CHANGES: registry read (CHAT-CLEAN)
 
 // Actual mention filtering, native leaf and composer; no effects/service calls run.
 let flag = 'true', refs = []
@@ -27,7 +28,7 @@ const imports = {
   './studio-theme-menu': { StudioThemeMenu: 'StudioThemeMenu' },
 }
 function load(relative) {
-  const source = fs.readFileSync(new URL(relative, import.meta.url), 'utf8')
+  const source = stripLaterChanges(relative.replace(/^\.\.\//, ''), fs.readFileSync(new URL(relative, import.meta.url), 'utf8')) // LATER-CHANGES: registry read (CHAT-CLEAN): a registered later change's marked lines (chat clean's imports in chat-input.tsx) come out before the allow-list sees the file
   const result = ts.transpileModule(source, { reportDiagnostics: true, compilerOptions: { jsx: ts.JsxEmit.ReactJSX, module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2020 } })
   assert.equal((result.diagnostics || []).filter(item => item.category === ts.DiagnosticCategory.Error).length, 0)
   const mod = { exports: {} }

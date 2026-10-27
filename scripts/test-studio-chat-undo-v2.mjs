@@ -26,6 +26,7 @@ import { createRequire } from 'node:module'
 import { execFileSync } from 'node:child_process'
 import { fileURLToPath } from 'node:url'
 import ts from 'typescript'
+const chatClean = await import('./studio-chat-clean-strip.mjs') // LATER-CHANGES: registry read (CHAT-CLEAN): the strip of the change stacked after this one, so its marked lines (chat clean's) come out first
 import { BASE_COMMIT, CHAT_UNDO_V2_CHANGES, CHAT_UNDO_V2_FILES, CHAT_UNDO_V2_NEW_FILES, CHAT_UNDO_V2_OWN_EDITS, CHAT_UNDO_V2_MARKER } from './studio-chat-undo-v2-strip.mjs'
 import { stripOpenReadOnly } from './studio-open-read-only-strip.mjs'
 import { stripDarkPersist } from './studio-theme-dark-persist-strip.mjs'
@@ -49,7 +50,7 @@ const commitsOf = () => history ?? firstParentCommits()
 const RULE = { touchesOwn: true, skipLater: true } // the two parts of the scope rule; a mutant switches one off
 const ownCommits = (own, commits = commitsOf()) => commits.filter(commit => !RULE.touchesOwn || commit.files.some(rel => own.has(rel)))
 const ownCommitted = (own, commits = commitsOf()) => [...new Set(ownCommits(own, commits).flatMap(commit => commit.files))]
-const ownDeleted = own => { const deleted = history ? null : firstParentDeleted(); return ownCommits(own).flatMap(commit => (deleted ? deleted.get(commit.id) : commit.deleted) ?? []) }
+const ownDeleted = own => { const deleted = history ? null : firstParentDeleted(); return ownCommits(own).flatMap(commit => (deleted ? deleted.get(commit.id) : commit.deleted) ?? []).filter(rel => own.has(rel) || !LATER_CHANGE_FILES.has(rel)) } // LATER-CHANGES: registry read (CHAT-ELEMENT-EDIT): a file a LATER change registered and then retired (the fixture it replaced, deleted in a commit that also touches one of this change's files) is that change's deletion, as its additions already are (scopeStray)
 /** The files of this change's own commits that are neither its files nor a registered later change's: what the scope check refuses. */
 const scopeStray = (own, later, commits = commitsOf()) => ownCommitted(own, commits).filter(rel => !own.has(rel) && !(RULE.skipLater && later.has(rel)))
 const showCache = new Map()
@@ -341,12 +342,12 @@ async function suite() {
     const mod = await stripFile()
     assert.deepEqual([...mod.CHAT_UNDO_V2_FILES], [LIST]); assert.equal(mod.BASE_COMMIT, REGISTRY_V2)
     const head = read(LIST)
-    assert.equal(mod.stripChatUndoV2(LIST, head), baseOf(LIST), 'stripped is the base\'s file')
+    assert.equal(mod.stripChatUndoV2(LIST, chatClean.stripChatClean(LIST, head)), baseOf(LIST), 'stripped is the base\'s file') // LATER-CHANGES: registry read (CHAT-CLEAN): chat clean's marked lines in the message list come out first
     for (const [added, original] of mod.CHAT_UNDO_V2_CHANGES[LIST]) {
       assert.equal(head.split(added).length - 1, 1, 'a piece occurs once'); assert.ok(!baseOf(LIST).includes(added), 'the base does not hold a piece'); assert.equal(original, '')
       for (const line of added.split('\n').filter(Boolean)) assert.ok(line.includes(CHAT_UNDO_V2_MARKER), `every added line carries ${CHAT_UNDO_V2_MARKER}: ${line.slice(0, 80)}`)
     }
-    assert.equal(mod.stripChatUndoV2(LIST, mod.stripChatUndoV2(LIST, head)), baseOf(LIST), 'stripping twice changes nothing more'); assert.equal(mod.stripChatUndoV2('lib/other.ts', 'abc'), 'abc'); assert.equal(mod.stripChatUndoV2(LIST, baseOf(LIST)), baseOf(LIST))
+    assert.equal(mod.stripChatUndoV2(LIST, mod.stripChatUndoV2(LIST, chatClean.stripChatClean(LIST, head))), baseOf(LIST), 'stripping twice changes nothing more'); assert.equal(mod.stripChatUndoV2('lib/other.ts', 'abc'), 'abc'); assert.equal(mod.stripChatUndoV2(LIST, baseOf(LIST)), baseOf(LIST)) // LATER-CHANGES: registry read (CHAT-CLEAN)
     assert.ok(STACKED_PASS3_FILES.includes(LIST) && STACKED_PASS3_FILES.includes(WIRE) && STACKED_PASS3_FILES.includes(STORE), 'the files this change touches are in STACKED_PASS3_FILES already (bulk edit + chat undo lists them); it adds no app file')
   })
   await check('roots: this change REGISTERS its strip (LATER_STRIPS), stripBulkEditUndo calls the registry first, innermost, so the three shared roots and every older pin that strips it take these lines out; no .env.example block', () => {
@@ -388,6 +389,7 @@ async function suite() {
     assert.deepEqual(ownCommitted(own, [{ id: 'g', files: [aFile, laterFile] }, { id: 'h', files: [unregistered] }]).sort(), [aFile, laterFile].sort(), 'only the commits that touch one of its files are its own')
     const before = history
     try { history = [{ id: 'i', files: [aFile], deleted: [] }, { id: 'j', files: [unregistered], deleted: [laterFile] }]; assert.deepEqual(ownDeleted(own), [], 'a deletion in a stacked PR\'s commit is not this change\'s'); history = [{ id: 'k', files: [aFile], deleted: [aFile] }]; assert.deepEqual(ownDeleted(own), [aFile], 'a deletion in this change\'s own commit is') } finally { history = before }
+    try { history = [{ id: 'l', files: [aFile], deleted: [laterFile] }]; assert.deepEqual(ownDeleted(own), [], 'a REGISTERED later change\'s file retired in a commit that also touches this change\'s file is not this change\'s deletion'); history = [{ id: 'm', files: [aFile], deleted: [unregistered] }]; assert.deepEqual(ownDeleted(own), [unregistered], 'an unregistered file deleted in this change\'s commit is') } finally { history = before } // LATER-CHANGES: registry read (CHAT-ELEMENT-EDIT)
   })
   await check('secrets: no line this change adds carries a credential-shaped literal; no request, storage or viewer call in the new store code', () => {
     const added = git('diff', '-U0', BASE, 'HEAD', '--', ...CHAT_UNDO_V2_OWN_EDITS.filter(rel => rel.startsWith('lib/')), LIST, 'scripts/studio-chat-undo-v2-strip.mjs', 'scripts/test-studio-chat-undo-v2.mjs').split('\n').filter(line => /^\+(?!\+\+)/.test(line)).join('\n')

@@ -62,6 +62,9 @@ import "./studio-director.css"
 import "./studio-chat-polish.css"
 import "./studio-chat-answered.css"
 import "./studio-chat-composer.css"
+import { StudioChatCleanJob } from "@/components/builder/chat/studio-chat-clean" // CHAT-CLEAN (NEXT_PUBLIC_STUDIO_CHAT_CLEAN, default off)
+import type { ChatCleanThreadProps } from "@/lib/studio-chat-clean" // CHAT-CLEAN
+import "./studio-chat-clean.css" // CHAT-CLEAN: every rule keyed to [data-studio-chat-clean], an attribute the chat column carries only with the flag on
 
 export interface MessageListProps {
   sessionId?: string | null
@@ -119,6 +122,7 @@ export interface MessageListProps {
   /** PASS2-DIRECTOR-CHAT PR D, item 7 (NEXT_PUBLIC_STUDIO_CHAT_RECOVERY): facts the page already holds (the transport notice, the hook's
    *  reconnect status, whether the last status was an error), read only, to word the recovery card. Undefined when the flag is off. */
   studioRecovery?: StudioChatRecoveryInput
+  studioChatClean?: ChatCleanThreadProps // CHAT-CLEAN (NEXT_PUBLIC_STUDIO_CHAT_CLEAN): the build narration, the thread notes and the composer's mode for the inline job card; passed only with the flag on
 }
 
 // Keep the native pre component identity stable across transcript/status rerenders.
@@ -213,6 +217,7 @@ export function MessageList({
   suppressEphemeral,
   studioOutlineOnCanvas,
   studioRecovery,
+  studioChatClean, // CHAT-CLEAN
 }: MessageListProps) {
   const studio = process.env.NEXT_PUBLIC_STUDIO_V4_SHELL === 'true'
   // PASS2 #4: off, no outline card receives these props, so it renders exactly as before. On, every card the canvas outline stands
@@ -1078,6 +1083,7 @@ export function MessageList({
           </div>
         </div>
       )}
+      {studioChatClean ? <StudioChatCleanJob {...studioChatClean} currentStatus={currentStatus} /> : null}{/* CHAT-CLEAN: the notes and the inline job card (or Director's one status line) at the end of the thread; off, null */}
       {/* PR D (recovery flag on): the card shares the end anchor's slot, so with the flag off the child list is exactly the base's. */}
       {recoveryCard ? (
         <>

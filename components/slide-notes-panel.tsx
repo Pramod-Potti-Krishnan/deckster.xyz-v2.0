@@ -9,6 +9,7 @@ import { useToast } from '@/hooks/use-toast'
 import { getPresentation, updateSlideNarration, SlideNarrationFields } from '@/lib/layout-service-client'
 import { DeckQaInbox } from '@/components/deck-qa-inbox'
 import { SlideScriptPreview } from '@/components/slide-script-preview'
+import { CHAT_ELEMENT_EDIT_ENABLED, NOTES_UPDATED_EVENT } from '@/lib/chat-element-edit-wire' // CHAT-ELEMENT-EDIT (NEXT_PUBLIC_STUDIO_CHAT_ELEMENT_EDIT, default off): Director wrote a slide's notes from chat
 import './studio-slide-notes.css'
 
 // localStorage keys for panel UI state (shared across sessions)
@@ -430,6 +431,21 @@ export function SlideNotesPanel({
     window.addEventListener('deckster:narration-script-written', onExternalWrite)
     return () => window.removeEventListener('deckster:narration-script-written', onExternalWrite)
   }, [])
+  // CHAT-ELEMENT-EDIT: Director wrote a slide's notes (deck_mutation notes_updated, routed by the Director socket hook as a window event). The deck is read again, which fills every field the user
+  // CHAT-ELEMENT-EDIT: has not edited; a notes field the user edited and has no unsaved change in is let go first, so Director's notes show (an unsaved edit of the user's stays). Flag off: no listener.
+  useEffect(() => { // CHAT-ELEMENT-EDIT
+    if (!CHAT_ELEMENT_EDIT_ENABLED) return // CHAT-ELEMENT-EDIT
+    const onNotesUpdated = (event: Event) => { // CHAT-ELEMENT-EDIT
+      const detail = (event as CustomEvent<{ presentationId?: unknown; slideIndex?: unknown }>).detail // CHAT-ELEMENT-EDIT
+      const pid = presentationIdRef.current // CHAT-ELEMENT-EDIT
+      if (!pid || !detail || detail.presentationId !== pid || typeof detail.slideIndex !== 'number') return // CHAT-ELEMENT-EDIT
+      const slideId = slideIdsRef.current[detail.slideIndex] // CHAT-ELEMENT-EDIT
+      if (slideId && !saversRef.current.get(pid)?.pending.get(slideId)?.has('notes')) editedFieldsRef.current.delete(`${slideId}:notes`) // CHAT-ELEMENT-EDIT
+      setReloadToken((token) => token + 1) // CHAT-ELEMENT-EDIT
+    } // CHAT-ELEMENT-EDIT
+    window.addEventListener(NOTES_UPDATED_EVENT, onNotesUpdated) // CHAT-ELEMENT-EDIT
+    return () => window.removeEventListener(NOTES_UPDATED_EVENT, onNotesUpdated) // CHAT-ELEMENT-EDIT
+  }, []) // CHAT-ELEMENT-EDIT
 
   // --- Saving --------------------------------------------------------------
   // Re-queue a slide's dirty fields onto ITS presentation's saver so a later drain
