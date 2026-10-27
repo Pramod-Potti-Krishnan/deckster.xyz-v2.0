@@ -1330,10 +1330,20 @@ await check('flag off is identical in every file the change touches: the strip g
   assert.equal(envDiff.filter(l => l.startsWith('-')).length, 0)
   assert.ok(envDiff.some(l => l === '+NEXT_PUBLIC_STUDIO_CHAT_ELEMENT_EDIT="false"'))
 })
-const DEV_COMMIT = '0545569384ae3f6f7073699bff95662ec80c633a' // dev at #523: the files this change teaches are read against dev's, which holds the other changes' edits of them
-// The arrange proof also carries the two tolerance commits taken over from the sibling branches (SHARED_COMMITS below): its reference is the last of them.
-const REFERENCE = { 'scripts/test-studio-arrange.mjs': 'b6c51d2a747233cfc90b6ddf92127b8b74442169' }
-const devFile = rel => git('show', `${REFERENCE[rel] ?? DEV_COMMIT}:${rel}`)
+const DEV_COMMIT = 'c477beda49c1ec96062b700330f56f2d161a2814' // dev at #531: the files this change teaches are read against dev's, which holds the other changes' edits of them
+// The arrange proof also carries the two tolerance commits taken over from the sibling branches (SHARED_COMMITS below). Dev has the first (d4e62e0b, via #521); the second (e638f817, its one "not changed"
+// line read through the registry) reaches dev with #520. So its reference is dev's file with that one line as the shared commit writes it, and dev's file as it is once dev has the line.
+const SHARED_LINE = { 'scripts/test-studio-arrange.mjs': 'e638f8171b6f236e5141255e6b95be1219dfa03a' }
+function devFile(rel) {
+  const text = git('show', `${DEV_COMMIT}:${rel}`)
+  if (!SHARED_LINE[rel]) return text
+  const diff = git('show', '-U0', '--format=', SHARED_LINE[rel], '--', rel).split('\n')
+  const from = diff.filter(line => line.startsWith('-') && !line.startsWith('---')).map(line => line.slice(1)), to = diff.filter(line => line.startsWith('+') && !line.startsWith('+++')).map(line => line.slice(1))
+  assert.equal(from.length, 1, `${SHARED_LINE[rel]}: one line out`); assert.equal(to.length, 1, `${SHARED_LINE[rel]}: one line in`)
+  if (text.split('\n').includes(to[0])) return text
+  assert.equal(text.split(from[0]).length, 2, `${rel}: dev's file has the shared commit's old line once`)
+  return text.replace(from[0], () => to[0])
+}
 await check('pins: the older files this change teaches are the reference\'s (dev\'s, plus the shared tolerances) byte for byte once its edits are put back, every line it added carries the mark, and putting back twice changes nothing', async () => {
   for (const [rel, gained, lost] of [['scripts/test-studio-chat-theme-export.mjs', 2, 1], ['scripts/studio-pass3-polish-b-strip.mjs', 2, 0], ['scripts/test-studio-rail-add-slide.mjs', 1, 1], ['scripts/test-studio-arrange.mjs', 2, 1]]) {
     const text = read(rel)
