@@ -264,7 +264,7 @@ const controlsRule = {
 }
 const exportGate = loadPure('lib/studio-export-gate.ts'), heuristics = loadPure('lib/build-narration-heuristics.ts')
 const pageAst = extract.parseSource(path.join(root, PAGE))
-const pageText = stripLaterChanges(PAGE, read(PAGE)) // LATER-CHANGES: registry read (CHAT-ELEMENT-EDIT), stacked after #475: the page text is the text pageAst was parsed from (extract.parseSource reads through the registry), so the offsets between the two agree
+const pageText = read(PAGE)
 function findNode(predicate, node = pageAst) {
   if (predicate(node)) return node
   let hit = null
@@ -826,6 +826,7 @@ await check('identity: the theme picker\'s build-selection lock is unchanged wit
 // ---- 6. the page's own wiring ------------------------------------------------------------------------------------------------------
 await check('page: wired only behind the flags (read inline), next to the K5 add runner, on the same owner record', async () => {
   assert.ok(runnerAssign && addRunnerAssign && hookSpread && applyNode)
+  const pageText = stripLaterChanges(PAGE, read(PAGE)) // LATER-CHANGES: registry read (CHAT-ELEMENT-EDIT), stacked after #475: the page text here is the text pageAst was parsed from (extract.parseSource reads through the registry), so the offsets between the two agree
   assert.ok(runnerAssign.getStart(pageAst) > addRunnerAssign.getEnd(), 'after the add runner')
   // Right beside it: only this change's own lines, or, stacked on #470, the refine runner's region (its selection effects and runner), sit between.
   const between = pageText.slice(addRunnerAssign.getEnd(), runnerAssign.getStart(pageAst))

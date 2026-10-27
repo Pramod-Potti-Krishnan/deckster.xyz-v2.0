@@ -68,7 +68,7 @@ export const CHAT_ELEMENT_EDIT_PIN_MARK = '// LATER-CHANGES: registry read (CHAT
 export const CHAT_ELEMENT_EDIT_PIN_EDITS = {
   'scripts/test-studio-chat-theme-export.mjs': [
     ["import { stripLaterChanges } from './studio-later-changes.mjs' // LATER-CHANGES: registry read (CHAT-ELEMENT-EDIT), stacked after #475\n", ''],
-    ["const pageText = stripLaterChanges(PAGE, read(PAGE)) // LATER-CHANGES: registry read (CHAT-ELEMENT-EDIT), stacked after #475: the page text is the text pageAst was parsed from (extract.parseSource reads through the registry), so the offsets between the two agree\n", 'const pageText = read(PAGE)\n'],
+    ["  const pageText = stripLaterChanges(PAGE, read(PAGE)) // LATER-CHANGES: registry read (CHAT-ELEMENT-EDIT), stacked after #475: the page text here is the text pageAst was parsed from (extract.parseSource reads through the registry), so the offsets between the two agree\n", ''],
   ],
   // #522's caps line sits in the hook's buildUserMessage, which this proof runs in a sandbox of its own: the flag is named there, off
   'scripts/test-theme-font-selection.mjs': [

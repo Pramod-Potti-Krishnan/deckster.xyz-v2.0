@@ -1345,7 +1345,7 @@ function devFile(rel) {
   return text.replace(from[0], () => to[0])
 }
 await check('pins: the older files this change teaches are the reference\'s (dev\'s, plus the shared tolerances) byte for byte once its edits are put back, every line it added carries the mark, and putting back twice changes nothing', async () => {
-  for (const [rel, gained, lost] of [['scripts/test-studio-chat-theme-export.mjs', 2, 1], ['scripts/studio-pass3-polish-b-strip.mjs', 2, 0], ['scripts/test-studio-rail-add-slide.mjs', 1, 1], ['scripts/test-studio-arrange.mjs', 2, 1], ['scripts/test-theme-font-selection.mjs', 1, 0]]) {
+  for (const [rel, gained, lost] of [['scripts/test-studio-chat-theme-export.mjs', 2, 0], ['scripts/studio-pass3-polish-b-strip.mjs', 2, 0], ['scripts/test-studio-rail-add-slide.mjs', 1, 1], ['scripts/test-studio-arrange.mjs', 2, 1], ['scripts/test-theme-font-selection.mjs', 1, 0]]) {
     const text = read(rel)
     // The put-back may go past dev's edit of the same line (the rail line #523 edited too): both sides are read past the peers' put-backs.
     assert.equal(stripPeers(rel, stripChatElementEdit(rel, text)), stripPeers(rel, devFile(rel)), rel)
