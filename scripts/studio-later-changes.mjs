@@ -50,6 +50,7 @@ export const LATER_CHANGE_FILES = new Set([
   ...(await import('./studio-paused-label-strip.mjs')).PAUSED_LABEL_SCOPE_FILES, // LATER-CHANGE: FRONTEND-2, B27 paused label: the build ribbon reads "Paused" while the control state is paused (NEXT_PUBLIC_STUDIO_PAUSED_LABEL)
   ...(await import('./studio-chat-parity-strip.mjs')).CHAT_PARITY_SCOPE_FILES, // LATER-CHANGE: FRONTEND-1, P3-1 A chat parity, Studio half: studio_action / studio_action_result (NEXT_PUBLIC_STUDIO_CHAT_PARITY_THEMES / _IDENTITY / _TEMPLATES)
   ...(await import('./studio-chat-element-edit-2-strip.mjs')).CHAT_ELEMENT_EDIT_2_SCOPE_FILES, // LATER-CHANGE: FRONTEND-2, B32 chat element edit 2: an edit works after a reload and no stale element reference (NEXT_PUBLIC_STUDIO_CHAT_ELEMENT_EDIT_2)
+  ...(await import('./studio-model-choice-deck-save-strip.mjs')).MODEL_CHOICE_DECK_SAVE_SCOPE_FILES, // LATER-CHANGE: FRONTEND-2, B37 model choice deck save: a presentation's model choice saves, and "Saved" shows only when it did (NEXT_PUBLIC_STUDIO_MODEL_CHOICE_DECK_SAVE)
   // one line per later change, above this comment
 ])
 
@@ -72,6 +73,7 @@ export const LATER_ENV_BLOCKS = [
   (await import('./studio-paused-label-strip.mjs')).PAUSED_LABEL_ENV_BLOCK, // LATER-CHANGE: FRONTEND-2, B27 paused label (NEXT_PUBLIC_STUDIO_PAUSED_LABEL)
   (await import('./studio-chat-parity-strip.mjs')).CHAT_PARITY_ENV_BLOCK, // LATER-CHANGE: FRONTEND-1, P3-1 A chat parity, Studio half (NEXT_PUBLIC_STUDIO_CHAT_PARITY_THEMES / _IDENTITY / _TEMPLATES)
   (await import('./studio-chat-element-edit-2-strip.mjs')).CHAT_ELEMENT_EDIT_2_ENV_BLOCK, // LATER-CHANGE: FRONTEND-2, B32 chat element edit 2 (NEXT_PUBLIC_STUDIO_CHAT_ELEMENT_EDIT_2)
+  (await import('./studio-model-choice-deck-save-strip.mjs')).MODEL_CHOICE_DECK_SAVE_ENV_BLOCK, // LATER-CHANGE: FRONTEND-2, B37 model choice deck save (NEXT_PUBLIC_STUDIO_MODEL_CHOICE_DECK_SAVE)
   // one line per later change, above this comment
 ]
 
@@ -103,6 +105,7 @@ export const LATER_STRIPS = [
   (await import('./studio-paused-label-strip.mjs')).stripPausedLabel, // LATER-CHANGE: FRONTEND-2, B27 paused label (NEXT_PUBLIC_STUDIO_PAUSED_LABEL)
   (await import('./studio-chat-parity-strip.mjs')).stripChatParity, // LATER-CHANGE: FRONTEND-1, P3-1 A chat parity, Studio half (NEXT_PUBLIC_STUDIO_CHAT_PARITY_THEMES / _IDENTITY / _TEMPLATES)
   (await import('./studio-chat-element-edit-2-strip.mjs')).stripChatElementEdit2, // LATER-CHANGE: FRONTEND-2, B32 chat element edit 2 (NEXT_PUBLIC_STUDIO_CHAT_ELEMENT_EDIT_2)
+  (await import('./studio-model-choice-deck-save-strip.mjs')).stripModelChoiceDeckSave, // LATER-CHANGE: FRONTEND-2, B37 model choice deck save (NEXT_PUBLIC_STUDIO_MODEL_CHOICE_DECK_SAVE)
   // one line per later change, above this comment
 ]
 
