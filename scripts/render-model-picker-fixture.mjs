@@ -26,6 +26,9 @@ const { createElement: h } = deps.react
 const m = loadPicker({ ...deps, env: { NEXT_PUBLIC_STUDIO_MODEL_CHOICE: 'true' } })
 const body = JSON.parse(fs.readFileSync(path.join(root, 'scripts/fixtures/studio-model-choice/catalogue-live-shape.json'), 'utf8'))
 const catalogue = m.choice.withPresets(m.cat.parseCatalogue(body), body)
+// the catalogue as the router sends it with the five presets (preset_order, preset_hints; Director's flag DIRECTOR_MODEL_CATALOGUE_PRESETS_ENABLED on); the slider and one compact menu are drawn from it
+const bodyFive = JSON.parse(fs.readFileSync(path.join(root, 'scripts/fixtures/studio-model-choice/catalogue-five-presets.json'), 'utf8'))
+const five = m.choice.withPresets(m.cat.parseCatalogue(bodyFive), bodyFive)
 const { picker, component, slider, sliderLib } = m
 const noop = () => undefined
 
@@ -43,11 +46,12 @@ const chips = () => [
 const tools = row => `<div class="row" style="width:${row}px"><span class="tool">Attach</span><span class="tool">Template</span><span class="tool">Theme</span>${renderToStaticMarkup(h(component.ModelPickerView, {
   label: picker.chipLabel(state.balanced, catalogue), stateKind: 'tier', scope: 'user', mode: 'account', ready: true, className: 'chip-end', menu: picker.pickerMenu({ catalogue, state: state.balanced }), saveNote: '', open: false, onOpenChange: noop, view: 'main', onView: noop, onPick: noop,
 }))}</div>`
-const menu = (name, s, { view = 'main', scope = 'user', save = '', inherited = null } = {}) => `<figure class="cell"><figcaption>${name}</figcaption><div class="mpick-menu static">${renderToStaticMarkup(h(component.ModelPickerPanel, {
-  menu: picker.pickerMenu({ catalogue, state: s, inherited }), view, scope, saveNote: save, onView: noop, onPick: noop,
+const menu = (name, s, { view = 'main', scope = 'user', save = '', inherited = null, withFive = false } = {}) => `<figure class="cell"><figcaption>${name}</figcaption><div class="mpick-menu static">${renderToStaticMarkup(h(component.ModelPickerPanel, {
+  menu: picker.pickerMenu({ catalogue: withFive ? five : catalogue, state: s, inherited }), view, scope, saveNote: save, onView: noop, onPick: noop,
 }))}</div></figure>`
 const menus = () => [
   menu('Auto, saved to the account', state.auto, { save: picker.saveNote('account', null, true) }),
+  menu('Five presets, with the catalogue\'s hints', state.balanced, { save: picker.saveNote('account', null, true), withFive: true }),
   menu('Best, not saved yet (this device)', state.best, { save: picker.saveNote('device', 'not-configured', true) }),
   menu('A model chosen', state.model, { save: picker.saveNote('account', null, true) }),
   menu('More models', state.model, { view: 'models', save: picker.saveNote('account', null, true) }),
@@ -57,22 +61,17 @@ const menus = () => [
 
 
 // ---- the slider variant
-const stopsOf = (extra = false) => {
-  if (!extra) return sliderLib.MODEL_PICKER_STOPS(catalogue)
-  const body2 = JSON.parse(JSON.stringify(body))
-  for (const group of ['planning_strategy', 'content_writing', 'research_analysis']) body2.groups[group].presets.ultra = 'openai/gpt-6.1-sol'
-  body2.models['openai/gpt-6.1-sol'].cost_hint = '$$$'
-  return sliderLib.MODEL_PICKER_STOPS(m.choice.withPresets(m.cat.parseCatalogue(body2), body2), { presets: [...sliderLib.SLIDER_SAVABLE_PRESETS, 'ultra'] })
-}
-const sliderTrigger = (name, s, extra = {}) => { const v = sliderLib.sliderView({ catalogue, state: s }); return `<figure class="cell"><figcaption>${name}</figcaption>${renderToStaticMarkup(h(slider.ModelSliderView, {
-  label: v.label, valueText: v.valueText, stateKind: s.kind, scope: 'user', mode: 'account', ready: true, stops: v.stops, index: v.index, thumb: v.thumb, advanced: sliderLib.sliderAdvanced({ catalogue, state: s, scope: 'user' }), saveNote: '', open: false, onOpenChange: noop, onDraft: noop, onCommit: noop, onAdvanced: noop, ...extra,
+const stopsOf = (older = false) => sliderLib.MODEL_PICKER_STOPS(older ? catalogue : five)
+const sliderTrigger = (name, s, extra = {}) => { const v = sliderLib.sliderView({ catalogue: five, state: s }); return `<figure class="cell"><figcaption>${name}</figcaption>${renderToStaticMarkup(h(slider.ModelSliderView, {
+  label: v.label, valueText: v.valueText, stateKind: s.kind, scope: 'user', mode: 'account', ready: true, stops: v.stops, index: v.index, thumb: v.thumb, advanced: sliderLib.sliderAdvanced({ catalogue: five, state: s, scope: 'user' }), saveNote: '', open: false, onOpenChange: noop, onDraft: noop, onCommit: noop, onAdvanced: noop, ...extra,
 }))}</figure>` }
-const sliderTools = row => { const v = sliderLib.sliderView({ catalogue, state: state.balanced }); return `<div class="row" style="width:${row}px"><span class="tool">Attach</span><span class="tool">Template</span><span class="tool">Theme</span>${renderToStaticMarkup(h(slider.ModelSliderView, {
-  label: v.label, valueText: v.valueText, stateKind: 'tier', scope: 'user', mode: 'account', ready: true, className: 'chip-end', stops: v.stops, index: v.index, thumb: v.thumb, advanced: sliderLib.sliderAdvanced({ catalogue, state: state.balanced, scope: 'user' }), saveNote: '', open: false, onOpenChange: noop, onDraft: noop, onCommit: noop, onAdvanced: noop,
+const sliderTools = row => { const v = sliderLib.sliderView({ catalogue: five, state: state.balanced }); return `<div class="row" style="width:${row}px"><span class="tool">Attach</span><span class="tool">Template</span><span class="tool">Theme</span>${renderToStaticMarkup(h(slider.ModelSliderView, {
+  label: v.label, valueText: v.valueText, stateKind: 'tier', scope: 'user', mode: 'account', ready: true, className: 'chip-end', stops: v.stops, index: v.index, thumb: v.thumb, advanced: sliderLib.sliderAdvanced({ catalogue: five, state: state.balanced, scope: 'user' }), saveNote: '', open: false, onOpenChange: noop, onDraft: noop, onCommit: noop, onAdvanced: noop,
 }))}</div>` }
-const sliderMenu = (name, s, { scope = 'user', own = null, userState = null, save = 'Saved to your account. Applies from the next build.', extra = false, open = false, draft = null } = {}) => {
-  const stops = stopsOf(extra), v = sliderLib.sliderView({ catalogue, state: s, stops, own })
-  const html = renderToStaticMarkup(h(slider.ModelSliderPanel, { label: v.label, valueText: v.valueText, scope, blocked: false, stops, index: v.index, thumb: v.thumb, draft, advanced: sliderLib.sliderAdvanced({ catalogue, state: s, scope, own, userState }), saveNote: save, notesId: 'n', captionId: 'c', onDraft: noop, onCommit: noop, onAdvanced: noop }))
+const sliderMenu = (name, s, { scope = 'user', own = null, userState = null, save = 'Saved to your account. Applies from the next build.', older = false, open = false, draft = null } = {}) => {
+  const used = older ? catalogue : five
+  const stops = stopsOf(older), v = sliderLib.sliderView({ catalogue: used, state: s, stops, own })
+  const html = renderToStaticMarkup(h(slider.ModelSliderPanel, { label: v.label, valueText: v.valueText, scope, blocked: false, stops, index: v.index, thumb: v.thumb, draft, advanced: sliderLib.sliderAdvanced({ catalogue: used, state: s, scope, own, userState }), saveNote: save, notesId: 'n', captionId: 'c', onDraft: noop, onCommit: noop, onAdvanced: noop }))
   const pct = ((draft ?? (v.index >= 0 ? v.index : 0)) / Math.max(stops.length - 1, 1)) * 100
   // Radix hides a thumb and leaves it at the start until the browser has measured it; this page has no script, so the thumb is shown where Radix will put it (its inset is half the thumb at the start and none at the end)
   const shownThumb = (text) => text.replace(/ style="display:none"( data-radix-collection-item="")/g, '$1').replace('left:calc(0% + 0px)', `left:calc(${pct}% + ${(8 - 0.16 * pct).toFixed(2)}px)`)
@@ -82,9 +81,9 @@ const sliderMenus = () => [
   sliderMenu('Auto (nothing chosen): no thumb, Advanced closed', state.auto),
   sliderMenu('Auto, Advanced open: "Auto: Deckster chooses" is selected', state.auto, { open: true }),
   sliderMenu('Balanced', state.balanced),
-  sliderMenu('Best, being dragged to Fast (draft, not saved yet)', state.best, { draft: 0 }),
+  sliderMenu('Best, being dragged to Max (draft, not saved yet)', state.best, { draft: 4 }),
   sliderMenu('A specific model: Custom, off the scale (a faint dashed thumb)', state.model),
-  sliderMenu('Four stops (a made-up extra preset)', state.balanced, { extra: true }),
+  sliderMenu('The older catalogue (no quick, no max): three stops', state.balanced, { older: true }),
   sliderMenu('A deck following the default: a hollow thumb', state.best, { scope: 'deck', own: 'default', userState: state.best }),
   sliderMenu('A deck following the default, Advanced open', state.balanced, { scope: 'deck', own: 'default', userState: state.balanced, open: true }),
   sliderMenu('A deck on its own Auto, Advanced open', { kind: 'auto', deck: true }, { scope: 'deck', own: 'auto', userState: state.best, open: true }),

@@ -2,15 +2,15 @@
 // gauge icon opens a popover with a slider over ORDERED STOPS, quicker and cheaper on the left, deeper and dearer on the right. Everything it decides, with no request made here and no React: the stops, where the
 // choice sits on them, what the trigger says, what "Advanced" holds. What a stop SAVES is the compact picker's: the same choices (lib/studio-model-picker.ts), the same adapter and routes, three text groups together.
 //
-// Stops: the catalogue's presets in cost order, Fast, Balanced, Best today, plus any extra preset the catalogue lists, five at most (FRONTEND-1, 26 Oct: Auto is NOT on the scale). A stop is offered only when its
-// preset can be saved (SLIDER_SAVABLE_PRESETS: the router's enum as the Studio routes carry it, best / balanced / economy today) and the model it names is certified in every open text group. Auto lives in "Advanced":
-// on the reusable default it clears the choice (null), on a deck it is the deck's own Auto ({ auto: true }); SLIDER_AUTO_STOP = true would put it back as the first stop. The thumb says what is chosen: a filled
-// thumb on the stop that is chosen; NO thumb while nothing is chosen (Auto); a HOLLOW thumb on the default's stop while a deck follows the reusable default; a faint dashed one off the scale for a specific
-// model ("Custom").
+// Stops (PK, 26 Oct: five): the router's presets in the order the catalogue gives them (its top-level preset_order; else Quick, Fast, Balanced, Best, Max), each with the one-line hint the catalogue sends
+// (preset_hints), five at most. A stop is offered when its preset can be saved (SLIDER_SAVABLE_PRESETS, the list the Studio routes accept) and the model it names is certified in every open text group; two stops
+// may name the SAME model (research_analysis: Best and Max are both Opus 5.5) and both show. Auto is NOT on the scale (FRONTEND-1, 26 Oct): it lives in "Advanced": on the reusable default it clears the
+// choice (null), on a deck it is the deck's own Auto ({ auto: true }); SLIDER_AUTO_STOP = true would put it back as the first stop. The thumb says what is chosen: a filled thumb on the stop that is chosen;
+// NO thumb while nothing is chosen (Auto); a HOLLOW thumb on the default's stop while a deck follows the reusable default; a faint dashed one off the scale for a specific model ("Custom").
 
-import { MODEL_CHOICE_AUTO_LABEL, choiceGroup, offeredModels, type ChoiceCatalogue } from '@/lib/studio-model-choice'
+import { MODEL_CHOICE_AUTO_LABEL, MODEL_CHOICE_PRESET_IDS, type ChoiceCatalogue } from '@/lib/studio-model-choice'
 import {
-  PICKER_AUTO_LABEL, PICKER_GROUPS, PICKER_MIXED_LABEL, PICKER_TIERS, modelName, pickerMenu, tierHint, tierLabel, tierOffered,
+  PICKER_AUTO_LABEL, PICKER_MIXED_LABEL, modelName, orderedPresets, pickerMenu, presetHint, tierHint, tierLabel, tierOffered,
   type DeckOwn, type ModelChoice, type PickerOption, type PickerState, type PickerTier,
 } from '@/lib/studio-model-picker'
 
@@ -22,74 +22,32 @@ export const SLIDER_ADVANCED_LABEL = 'Advanced'
 export const SLIDER_MODELS_LABEL = 'Specific models'
 export const SLIDER_LABEL = 'Model'
 export const SLIDER_CUSTOM_LABEL = 'Custom'
-/** The presets a stop may write, in the order of their cost: what the Studio routes carry (lib/studio-model-choice-server.ts PRESETS). A preset the router adds is one more entry here and there, not before. */
-export const SLIDER_SAVABLE_PRESETS: readonly string[] = PICKER_TIERS
+/** The presets a stop may write: what the Studio routes accept (lib/studio-model-choice-server.ts PRESETS reads the same list, MODEL_CHOICE_PRESET_IDS: quick, economy, balanced, best, max). */
+export const SLIDER_SAVABLE_PRESETS: readonly string[] = MODEL_CHOICE_PRESET_IDS
 
 export interface PickerStop {
-  /** auto | economy | balanced | best | <an extra preset's id> */
+  /** auto | quick | economy | balanced | best | max */
   id: string
   label: string
   /** $ / $$ / $$$, when there is one. */
   hint: string | null
+  /** The catalogue's one-line hint for the preset (its preset_hints), or null: the sub-line of the stop. */
+  sub: string | null
   /** The stop is Auto (Deckster chooses). */
   auto: boolean
   /** The preset a stop writes; null for Auto. */
   tier: PickerTier | null
 }
 
-const BASE_RANK: Record<string, number> = { economy: 1, balanced: 2, best: 3 }
-const AUTO_STOP: PickerStop = { id: 'auto', label: PICKER_AUTO_LABEL, hint: null, auto: true, tier: null }
-const isBaseTier = (id: string): id is PickerTier => (PICKER_TIERS as readonly string[]).includes(id)
-const capitalised = (id: string) => id.split('_').filter(Boolean).map(word => word.charAt(0).toUpperCase() + word.slice(1)).join(' ')
-const stopLabel = (id: string) => (isBaseTier(id) ? tierLabel(id) : capitalised(id))
+const AUTO_STOP: PickerStop = { id: 'auto', label: PICKER_AUTO_LABEL, hint: null, sub: null, auto: true, tier: null }
 
-/** The extra presets (ids other than the three tiers) any open text group lists. */
-function extraPresetIds(catalogue: ChoiceCatalogue | null): string[] {
-  if (!catalogue) return []
-  const ids = new Set<string>()
-  for (const task of PICKER_GROUPS) {
-    const group = choiceGroup(catalogue, task)
-    for (const id of Object.keys(group ? catalogue.allPresets[group.key] ?? {} : {})) if (!isBaseTier(id)) ids.add(id)
-  }
-  return [...ids].sort()
-}
-/** The model an extra preset names in each open group, or null when one group does not certify it (it is then not a stop). */
-function extraSlugs(catalogue: ChoiceCatalogue, id: string): string[] | null {
-  const slugs: string[] = []
-  for (const task of PICKER_GROUPS) {
-    const group = choiceGroup(catalogue, task)
-    if (!group) continue
-    const slug = catalogue.allPresets[group.key]?.[id]
-    if (!slug || !offeredModels(catalogue, group).includes(slug)) return null
-    slugs.push(slug)
-  }
-  return slugs
-}
-/** An extra preset's cost hint: the models' own when every group's model has the same one. */
-function extraHint(catalogue: ChoiceCatalogue, slugs: string[]): string | null {
-  const hints = slugs.map(slug => catalogue.costHints[slug] ?? null)
-  return hints.length > 0 && hints[0] !== null && hints.every(hint => hint === hints[0]) ? hints[0] : null
-}
-
-/** The slider's stops, left to right: Auto first only when SLIDER_AUTO_STOP, then Fast, Balanced, Best and any extra preset the catalogue lists, by cost (the three tiers first at their own level; an extra by its cost hint, one
- * with none last), five at most. With no catalogue (not loaded, not reachable) the three tiers are stops, as the compact picker offers them. `options.presets` and `options.auto` are for a proof or a mock. */
+/** The slider's stops, left to right: Auto first only when SLIDER_AUTO_STOP, then the presets in the catalogue's preset_order (else Quick, Fast, Balanced, Best, Max), five at most. A preset every open text group
+ * certifies is a stop, however many stops name the same model; with no catalogue (not loaded, not reachable) the five are stops. `options.presets` and `options.auto` are for a proof or a mock. */
 export function MODEL_PICKER_STOPS(catalogue: ChoiceCatalogue | null, options: { auto?: boolean; presets?: readonly string[] } = {}): PickerStop[] {
   const savable = options.presets ?? SLIDER_SAVABLE_PRESETS
-  const ranked: { stop: PickerStop; rank: number; order: number }[] = []
-  let order = 0
-  for (const id of [...PICKER_TIERS, ...extraPresetIds(catalogue)]) {
-    if (!savable.includes(id)) continue
-    if (isBaseTier(id)) {
-      if (tierOffered(catalogue, id)) ranked.push({ stop: { id, label: stopLabel(id), hint: tierHint(catalogue, id), auto: false, tier: id }, rank: BASE_RANK[id], order: order++ })
-    } else if (catalogue) {
-      const slugs = extraSlugs(catalogue, id)
-      if (!slugs) continue
-      const hint = extraHint(catalogue, slugs)
-      ranked.push({ stop: { id, label: stopLabel(id), hint, auto: false, tier: id as PickerTier }, rank: hint ? hint.length : 4, order: order++ })
-    }
-  }
-  ranked.sort((a, b) => a.rank - b.rank || a.order - b.order)
-  const stops = ranked.map(entry => entry.stop)
+  const stops: PickerStop[] = orderedPresets(catalogue)
+    .filter(id => savable.includes(id) && tierOffered(catalogue, id))
+    .map(id => ({ id, label: tierLabel(id), hint: tierHint(catalogue, id), sub: presetHint(catalogue, id), auto: false, tier: id as PickerTier }))
   return ((options.auto ?? SLIDER_AUTO_STOP) ? [AUTO_STOP, ...stops] : stops).slice(0, SLIDER_MAX_STOPS)
 }
 /** The stops with no catalogue: the list FRONTEND-1's mock can render as it stands. */
@@ -127,7 +85,7 @@ export function sliderView(args: { catalogue: ChoiceCatalogue | null; state: Pic
   if (index >= 0) {
     const stop = stops[index]
     const following = args.own === 'default'
-    const base = stop.auto ? `${stop.label}, Deckster chooses` : `${stop.label}${costWords(stop.hint)}`
+    const base = stop.auto ? `${stop.label}, Deckster chooses` : `${stop.label}${costWords(stop.hint)}${stop.sub ? `. ${stop.sub}` : ''}`
     return { stops, index, thumb: following ? 'hollow' : 'selected', label: stop.label, valueText: following ? `${base}, your default` : base }
   }
   if (state.kind === 'auto') return { stops, index, thumb: 'none', label: PICKER_AUTO_LABEL, valueText: `${PICKER_AUTO_LABEL}, Deckster chooses` }
