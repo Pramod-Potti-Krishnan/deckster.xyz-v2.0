@@ -875,15 +875,15 @@ async function hookSuite(over = {}) {
     wire.registerMention(wire.themeToken('Midnight', 'saved'), { kind: 'theme', theme_id: 'u-77', name: 'Midnight', source: 'saved' })
     wire.registerMention(wire.templateToken('Board update'), { kind: 'template', template_id: 't1', name: 'Board update' })
     wire.registerMention(wire.elementToken('Chart · slide 3'), { kind: 'element', element_id: 'el_chart_7f3a', element_type: 'CHART', slide_index: 2, slide_id: 'L2', label: 'Chart · slide 3' })
-    wire.registerCommand('add_slide', /^\s*Add a slide after slide \d+/)
   }
+  const command = wire => wire.registerCommand('add_slide', /^\s*Add a slide after slide \d+/)
   // -- flag off (every way of being off): the same bytes as the base, with picks sitting in the registry ---------------------------------------------------------
   if (baseHook) {
     for (const [name, env] of [['unset', {}], ['commands only', { NEXT_PUBLIC_STUDIO_CHAT_COMMANDS: 'true', NEXT_PUBLIC_STUDIO_V4_SHELL: 'true' }], ['everything but commands', { NEXT_PUBLIC_STUDIO_CHAT_CLEAN: 'true', NEXT_PUBLIC_CHAT_MENTIONS: 'true', NEXT_PUBLIC_CHAT_ELEMENT_REFINE: 'true' }]]) {
       const offEnv = name === 'commands only' ? { ...env, NEXT_PUBLIC_STUDIO_CHAT_CLEAN: 'false' } : env
       const base = await mountHook({ env: offEnv, hookText: baseHook }), head = await mountHook({ env: offEnv, hookText: headHook })
       picks(head.wire)
-      for (const args of SENDS) { await base.send(...args); await head.send(...args) }
+      for (const [i, args] of SENDS.entries()) { if (i === 1) command(head.wire); await base.send(...args); await head.send(...args) }
       eq(head.sent(), base.sent(), `flag off (${name}): the head hook puts the same bytes on the socket as the base for ${SENDS.length} sends`)
       ok(head.frames().length === SENDS.length && head.frames().every(frame => !('command' in frame.data) && !(frame.data.client_caps ?? []).some(cap => cap === 'mentions2' || cap === 'commands1')), `flag off (${name}): no cap, no command`)
       eq(head.frames().map(frame => frame.data.references ?? null), base.frames().map(frame => frame.data.references ?? null), `flag off (${name}): the same references (K1 and the element refine, as before)`)
@@ -895,7 +895,7 @@ async function hookSuite(over = {}) {
   const off = await mountHook({ env: {}, hookText: headHook })
   const on = await mountHook({ env: ENV_ON, hookText: headHook })
   picks(on.wire)
-  for (const args of SENDS) { await off.send(...args); await on.send(...args) }
+  for (const [i, args] of SENDS.entries()) { if (i === 1) { command(on.wire); command(off.wire) } await off.send(...args); await on.send(...args) }
   const [f0, f1, f2, f3, f4] = on.frames().map(frame => frame.data)
   const [o0, o1, o2, o3, o4] = off.frames().map(frame => frame.data)
   eq(f0.client_caps, ['mdc1', 'mentions2', 'commands1'], 'flag on: the caps follow mdc1, on every message'); eq(o0.client_caps, ['mdc1'], 'flag off: mdc1 only')
@@ -923,6 +923,109 @@ async function hookSuite(over = {}) {
   refined.unmount()
 }
 
+
+// ============================================================================================================================================
+// F. The sources
+// ============================================================================================================================================
+function sourceSuite(over = {}) {
+  const src = rel => rel in over ? over[rel] : readOwn(rel)
+  const stripModule = over.strip ?? strip
+  const marker = stripModule.CHAT_COMMANDS_MARKER_RE
+  // -- the marked files: insertions only, every added line marked, stripping gives chat clean's files --------------------------------------------------------------
+  for (const rel of stripModule.CHAT_COMMANDS_FILES) {
+    const now = src(rel)
+    ok(now.split('\n').filter(line => marker.test(line)).length > 0, `${rel}: carries marked lines`)
+    ok(!/CHAT-COMMANDS-|-CHAT-COMMANDS/.test(now), `${rel}: the marker is never part of a longer token`)
+    if (hasBase && OWN) {
+      const base = git('show', `${stripModule.BASE_COMMIT}:${rel}`)
+      eq(stripModule.stripChatCommands(rel, now) === base, true, `${rel}: without this change's lines it is chat clean's file (#530's head), byte for byte`)
+      eq(registry.stripLaterChanges(rel, now) === registry.stripLaterChanges(rel, base), true, `${rel}: ...and through the registry (both sides)`)
+      const diff = git('diff', '--unified=0', stripModule.BASE_COMMIT, OWN, '--', rel).split('\n').filter(line => /^[-+]/.test(line) && !/^(---|\+\+\+)/.test(line))
+      eq(diff.filter(line => line.startsWith('-')), [], `${rel}: no existing line is rewritten`)
+      ok(diff.length > 0 && diff.every(line => marker.test(line)), `${rel}: every added line carries the marker`)
+    }
+  }
+  // -- the gates ----------------------------------------------------------------------------------------------------------------------------------------------
+  const hook = src(HOOK), hookLines = hook.split('\n')
+  ok(hookLines.filter(line => marker.test(line)).length === 3, 'hook: three marked lines (the import and the two calls)')
+  ok(hook.includes("      if (STUDIO_CHAT_COMMANDS_ENABLED) addChatCommandsFields(message.data as unknown as Record<string, unknown>, text); // CHAT-COMMANDS"), 'hook: the fields are added only with the flag, to the built message, with the text')
+  ok(hook.includes("      if (STUDIO_CHAT_COMMANDS_ENABLED) chatCommandsSent(text); // CHAT-COMMANDS") && hook.indexOf('chatCommandsSent(text)') > hook.indexOf('wsRef.current.send(JSON.stringify(message))'), 'hook: what a message used is spent only after it went out')
+  ok(hook.indexOf('addChatCommandsFields(') > hook.indexOf('addBulkEditUndoCaps(message.data') && hook.indexOf('addChatCommandsFields(') > hook.indexOf('addChatElementRefineFields(message.data'), 'hook: after the K1 slide references, the element refine\'s reference and every other cap (ours come last)')
+  ok(!/connect\(\);/.test(hookLines.filter(line => marker.test(line)).join('\n')), 'hook: no connect() added (the reconnect proof counts them)')
+  const page = src(PAGE), pageLines = page.split('\n')
+  const firstMarked = pageLines.findIndex(line => marker.test(line)), flowHook = pageLines.findIndex(line => line.includes('useStudioFlowControl({')), lastChatClean = pageLines.map((line, i) => /(?<![\w-])CHAT-CLEAN(?![\w-])/.test(line) && !/^import /.test(line) ? i : -1).filter(i => i >= 0).slice(-1)[0]
+  ok(flowHook >= 0 && firstMarked > flowHook, 'page: nothing of this change comes before the flow hook (after the Builder\'s runners)')
+  ok(page.includes('const chatCommandsOn = STUDIO_CHAT_COMMANDS_ENABLED && chatCleanShell'), 'page: gated on the flag, chat clean and the Studio shell')
+  ok(pageLines.findIndex(line => line.includes('const chatCommandsOn')) > pageLines.findIndex(line => line.includes('const chatCleanSendDirections')) && lastChatClean < pageLines.findIndex(line => line.includes('const chatCommandsOn')) + 400, 'page: the block sits right after chat clean\'s')
+  ok(pageLines.filter(line => marker.test(line) && /^import /.test(line)).every(line => pageLines.indexOf(line) > pageLines.findIndex(line => line.includes("from '@/components/builder/chat/studio-chat-clean'"))), 'page: the imports sit at the end, after chat clean\'s')
+  ok(page.includes("{...(chatCommandsOn ? { mentionSlides: undefined, studioChatCommands: chatCommandsPage } : {}) /* CHAT-COMMANDS") && page.indexOf('studioChatCommands: chatCommandsPage') > page.indexOf('mentionSlides={\n'), 'page: the "@" menu takes over the K1 picker through a spread that is empty with the flag off, after the prop it overrides')
+  ok(/const chatCommandsPage: ChatCommandsPageProps \| undefined = chatCommandsOn \? \{/.test(page) && page.includes('getElement: () => (CHAT_ELEMENT_REFINE_ENABLED ? chatElementReferenceFor(chatElementSelectionRef.current) : null)'), 'page: the element is the refine flag\'s own reference, read when the menu draws')
+  ok(page.includes('exportDeck: chatCommandsExport'), 'page: the export runner')
+  const input = src(INPUT)
+  ok(input.includes('const chatCommands = useStudioChatCommands({ page: chatClean ? studioChatCommands ?? null : null,'), 'chat-input: inert without chat clean\'s composer props and the page\'s')
+  ok(input.indexOf('const chatCommands = useStudioChatCommands(') > input.indexOf('const refreshSavedThemes = useCallback') && input.indexOf('const chatCommands = useStudioChatCommands(') < input.indexOf('const handlePresetChange'), 'chat-input: the hook is called once the composer\'s own state and handlers exist')
+  ok(/onKeyDown=\{\(e\) => \{\n\s+if \(chatCommands\.onKeyDown\(e\)\) return \/\/ CHAT-COMMANDS/.test(input), 'chat-input: the menu sees a key first')
+  ok(input.includes('{chatCommands.menu}{/* CHAT-COMMANDS') && input.indexOf('{chatCommands.menu}') < input.indexOf('{/* Textarea */}'), 'chat-input: the menu sits where the K1 popover did, before the field')
+  ok(input.includes('{...chatCommands.textareaProps /* CHAT-COMMANDS') && input.includes('{...chatCommands.templatePicker /* CHAT-COMMANDS'), 'chat-input: aria on the field, the open prop on the template popup, both through spreads that are empty with the flag off')
+  ok(input.includes('openTheme: () => { setThemeOpen(true); void refreshSavedThemes() }') && /onOpenChange=\{\(open\) => \{ setThemeOpen\(open\); if \(open\) void refreshSavedThemes\(\) \}\}/.test(input), '/theme: the command does what the theme button does when it opens the popup')
+  ok(input.includes("openTemplatePopup: () => popupSetter('template')(true)") && input.includes("onOpenChange: popupSetter('template')"), '/template: with the composer popups flag, the command uses the same setter as the picker')
+  ok(input.includes("themeBlocked: !user ? 'Sign in to choose a build theme.' : isLoadingSession ? 'Loading your conversation…' : templateSelectionLocked ? 'Build theme selection is locked for this deck.' : null") && input.includes("lockReason={!user ? 'Sign in to choose a build theme.' : isLoadingSession ? 'Loading your conversation…' : templateSelectionLocked ? 'Build theme selection is locked for this deck.' : null}"), '/theme: blocked for exactly the popup\'s own reasons, in its words')
+  ok(input.includes('disabled={disabled || (selectionLocked && !onOpenLibrary)}') === false && read('components/builder/template-picker.tsx').includes('disabled={disabled || (selectionLocked && !onOpenLibrary)}') && input.includes('templateSelectionLocked && !onOpenComposerLibrary ?'), '/template: blocked as the picker\'s button is (disabled, or locked with no library)')
+  // -- the new files --------------------------------------------------------------------------------------------------------------------------------------------
+  const wireText = src(WIRE)
+  ok(!/^import |^export .* from |require\(/m.test(wireText), 'wire: import-free')
+  ok(count(wireText, 'process.env.') === 3 && /NEXT_PUBLIC_STUDIO_CHAT_COMMANDS === 'true'/.test(wireText) && /NEXT_PUBLIC_STUDIO_CHAT_CLEAN === 'true'/.test(wireText) && /NEXT_PUBLIC_STUDIO_V4_SHELL === 'true'/.test(wireText), 'wire: three literal flag reads, each the exact string')
+  ok(!/fetch\(|WebSocket|localStorage|console\./.test(wireText), 'wire: no I/O')
+  const lib = src(LIB)
+  ok(!/process\.env|fetch\(|WebSocket|localStorage|console\./.test(lib) && !/from 'react'|from "react"/.test(lib), 'lib: pure (no env, I/O or React)')
+  const component = src(COMPONENT)
+  ok(component.startsWith('"use client"'), 'component: a client file')
+  ok(!/WebSocket|localStorage|console\./.test(component) && count(component, 'fetch(') === 0 && count(component, 'listTemplates()') === 1, 'component: draws and presses controls; its one read is the template popup\'s own list call')
+  ok(count(component, 'process.env.') === 1 && component.includes("process.env.NEXT_PUBLIC_STUDIO_MODEL_CHOICE === 'true'"), 'component: one literal flag read of its own (the model gauge\'s), the same as components/model-choice/use-model-choice.ts')
+  ok(read('components/model-choice/use-model-choice.ts').includes('process.env.NEXT_PUBLIC_STUDIO_MODEL_CHOICE === "true"'), 'component: ...which is that file\'s literal')
+  ok(component.includes("import '../studio-chat-commands.css'"), 'component: loads its stylesheet')
+  ok(!/dangerouslySetInnerHTML|innerHTML/.test(component), 'component: nothing is injected as HTML')
+  // -- the stylesheet --------------------------------------------------------------------------------------------------------------------------------------------
+  const css = postcss.parse(src(CSS))
+  let rules = 0
+  css.walkRules(rule => { rules++; for (const selector of rule.selectors) ok(selector.startsWith('[data-studio-v4-shell="true"] [data-studio-chat-clean] [data-studio-chat-commands-'), `css: scoped to the flag's menus: ${selector.slice(0, 90)}`) })
+  ok(rules >= 15, 'css: a stylesheet, not a stub')
+  const text = src(CSS)
+  ok(!/#[0-9a-fA-F]{3,8}\b/.test(text.replace(/\/\*[\s\S]*?\*\//g, '')), 'css: no colour of its own: every colour is a v3.1 token or the shell\'s')
+  css.walkDecls('font-size', decl => ok(['9px', '10px', '11px', '11.5px'].includes(decl.value), `css: ${decl.parent.selector.slice(-70)}: font-size ${decl.value} is not larger than the composer\'s menus draw today (9 / 10 / 11 / 11.5)`))
+  ok(/@media \(max-width: 767px\), \(pointer: coarse\) \{[\s\S]*button\[role="option"\] \{ min-height: 44px; \}/.test(text), 'css: 44 px rows on phones and touch')
+  ok(/forced-colors: active/.test(text), 'css: forced colours keep the highlight')
+  ok(!/phone-tab-bar|data-studio-phone|studio-workspace-switch/.test(text), 'css: nothing of the phone shell')
+  // -- .env.example, the registry, the taught proofs, the scope ----------------------------------------------------------------------------------------------
+  if (hasBase && OWN) {
+    const envBase = git('show', `${stripModule.BASE_COMMIT}:.env.example`), envOwn = src('.env.example')
+    eq(envOwn === `${envBase}\n${stripModule.CHAT_COMMANDS_ENV_BLOCK}`, true, '.env.example: chat clean\'s plus this block, after one blank line')
+    ok(!stripModule.CHAT_COMMANDS_ENV_BLOCK.includes('exact "true" enables it') && /\nNEXT_PUBLIC_STUDIO_CHAT_COMMANDS="false"\n$/.test(stripModule.CHAT_COMMANDS_ENV_BLOCK), '.env.example: default "false"')
+    eq(registry.stripLaterEnvBlocks('.env.example', envOwn).includes('NEXT_PUBLIC_STUDIO_CHAT_COMMANDS'), false, '.env.example: the registry takes the block out')
+    const regDiff = git('diff', '-U0', stripModule.BASE_COMMIT, OWN, '--', 'scripts/studio-later-changes.mjs').split('\n').filter(line => /^[-+]/.test(line) && !/^(---|\+\+\+)/.test(line))
+    eq(regDiff.length, 3, 'registry: three lines'); ok(regDiff.every(line => line.startsWith('+') && line.includes('studio-chat-commands-strip.mjs') && line.includes('// LATER-CHANGE: ')), 'registry: ...all this change\'s')
+    for (const rel of stripModule.CHAT_COMMANDS_SCOPE_FILES) ok(registry.LATER_CHANGE_FILES.has(rel), `registry: ${rel} is registered`)
+    ok(registry.LATER_STRIPS.includes(strip.stripChatCommands) && registry.LATER_ENV_BLOCKS.includes(strip.CHAT_COMMANDS_ENV_BLOCK), 'registry: the strip and the block are registered, after chat clean\'s')
+    ok(registry.LATER_STRIPS.indexOf(strip.stripChatCommands) > registry.LATER_STRIPS.indexOf(chatCleanStrip.stripChatClean), 'registry: ...in stacking order')
+    eq(stripModule.CHAT_COMMANDS_PIN_FILES, ['scripts/test-studio-pass2b-chat.mjs'], 'one older proof is taught: pass2b-chat (it pinned the import lines of chat-input.tsx through chat clean\'s strip alone)')
+    for (const rel of stripModule.CHAT_COMMANDS_PIN_FILES) {
+      const now = src(rel), studioBase = git('show', `${chatCleanStrip.BASE_COMMIT}:${rel}`)
+      eq(stripModule.stripChatCommands(rel, chatCleanStrip.stripChatClean(rel, now)) === studioBase, true, `${rel}: through chat clean's put-back and this one's it is the studio base's file, byte for byte`)
+      eq(registry.stripLaterChanges(rel, now) === registry.stripLaterChanges(rel, studioBase), true, `${rel}: ...and through the registry`)
+      for (const [has] of stripModule.CHAT_COMMANDS_PIN_EDITS[rel]) { ok(now.includes(has), `${rel}: taught line present`); ok(has.includes('registry read (CHAT-COMMANDS)'), `${rel}: taught line marked`); ok(count(now, has) === 1, `${rel}: ...once`) }
+    }
+    const changed = git('diff', '--name-only', `${stripModule.BASE_COMMIT}..${OWN}`).split('\n').filter(Boolean).sort()
+    eq(changed, [...stripModule.CHAT_COMMANDS_SCOPE_FILES].sort(), 'scope: the committed diff is exactly this change\'s files')
+    const subjects = git('log', '--format=%s', `${stripModule.BASE_COMMIT}..${OWN}`).split('\n').filter(Boolean)
+    ok(subjects.length > 0 && subjects.every(subject => subject.startsWith(stripModule.CHAT_COMMANDS_SUBJECT)), 'scope: every commit of this change starts "Chat commands:"')
+    ok(git('log', '--format=%B', `${stripModule.BASE_COMMIT}..${OWN}`).split('\n').filter(line => /^Co-Authored-By:/.test(line)).length === subjects.length, 'scope: ...and ends with the Co-Authored-By line')
+    for (const rel of stripModule.CHAT_COMMANDS_NEW_FILES) ok(fs.existsSync(path.join(root, rel)), `scope: ${rel} exists`)
+  } else console.log(`NOTE F  git has no ${stripModule.BASE_COMMIT.slice(0, 8)} or no own commit yet: the base-identity, .env.example, registry and scope checks were skipped`)
+  // -- no secrets ------------------------------------------------------------------------------------------------------------------------------------------------
+  const CRED = /Bearer [A-Za-z0-9._-]{16,}|\bsk-[A-Za-z0-9]{16,}|\beyJ[A-Za-z0-9_-]{20,}|(?:api[_-]?key|secret|token|passw(?:or)?d|credential)[A-Za-z0-9_]*['"]?\s*[:=]\s*['"`][^'"`\s$]{8,}['"`]/i
+  for (const rel of stripModule.CHAT_COMMANDS_NEW_FILES) ok(!CRED.test(src(rel)), `${rel}: no credential-shaped literal`)
+}
+
 // ============================================================================================================================================
 // run
 // ============================================================================================================================================
@@ -938,5 +1041,7 @@ await mentionSuite()
 console.log(`PASS D  the composer with real React: the menus, the keyboard, every command's effect, every mention kind (${checks} checks)`)
 await hookSuite()
 console.log(`PASS E  the real socket hook: flag off puts the base's bytes on the socket, flag on adds the caps, the references and the command (${checks} checks)`)
+sourceSuite()
+console.log(`PASS F  the sources: marked lines, gates, base identity, the registry, .env.example, the stylesheet, scope (${checks} checks)`)
 release?.()
 console.log(`ALL PASS test-studio-chat-commands (partial): ${checks} checks`)
