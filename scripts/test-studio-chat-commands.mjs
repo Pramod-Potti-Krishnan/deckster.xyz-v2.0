@@ -1016,7 +1016,7 @@ function sourceSuite(over = {}) {
     for (const rel of stripModule.CHAT_COMMANDS_SCOPE_FILES) ok(registry.LATER_CHANGE_FILES.has(rel), `registry: ${rel} is registered`)
     ok(registry.LATER_STRIPS.includes(strip.stripChatCommands) && registry.LATER_ENV_BLOCKS.includes(strip.CHAT_COMMANDS_ENV_BLOCK), 'registry: the strip and the block are registered, after chat clean\'s')
     ok(registry.LATER_STRIPS.indexOf(strip.stripChatCommands) > registry.LATER_STRIPS.indexOf(chatCleanStrip.stripChatClean), 'registry: ...in stacking order')
-    eq(stripModule.CHAT_COMMANDS_PIN_FILES, ['scripts/test-studio-pass2b-chat.mjs'], 'one older proof is taught: pass2b-chat (it pinned the import lines of chat-input.tsx through chat clean\'s strip alone)')
+    eq(stripModule.CHAT_COMMANDS_PIN_FILES, ['scripts/test-studio-pass2b-chat.mjs', 'scripts/test-theme-font-selection.mjs'], 'two older proofs are taught: pass2b-chat (it pinned the import lines of chat-input.tsx through chat clean\'s strip alone) and theme-font-selection (it runs buildUserMessage in a sandbox that must name this change\'s flag)')
     for (const rel of stripModule.CHAT_COMMANDS_PIN_FILES) {
       const now = src(rel), studioBase = git('show', `${chatCleanStrip.BASE_COMMIT}:${rel}`)
       eq(stripModule.stripChatCommands(rel, chatCleanStrip.stripChatClean(rel, now)) === studioBase, true, `${rel}: through chat clean's put-back and this one's it is the studio base's file, byte for byte`)

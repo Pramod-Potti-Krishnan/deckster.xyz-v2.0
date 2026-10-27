@@ -34,6 +34,13 @@ export const CHAT_COMMANDS_PIN_EDITS = {
       "",
     ],
   ],
+  // the hook's buildUserMessage carries this change's flag-gated lines, and this proof runs buildUserMessage in a sandbox of its own: the flag is named there, off
+  "scripts/test-theme-font-selection.mjs": [
+    [
+      "  context.STUDIO_CHAT_COMMANDS_ENABLED = false // LATER-CHANGES: registry read (CHAT-COMMANDS), stacked after #475: NEXT_PUBLIC_STUDIO_CHAT_COMMANDS's two flag-gated lines in buildUserMessage (#532), off here like the other flags\n",
+      "",
+    ],
+  ],
 }
 
 /** The proofs taught. */
