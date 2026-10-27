@@ -30,7 +30,8 @@ const VIEWER = 'components/presentation-viewer.tsx'
 const LIB = 'lib/studio-first-paint.ts'
 const FLAG = 'NEXT_PUBLIC_STUDIO_FIRST_PAINT_ENABLED'
 const sha = text => crypto.createHash('sha256').update(text).digest('hex')
-const read = rel => stripPass3PolishB(rel, fs.readFileSync(path.join(root, rel), 'utf8')) // LATER-CHANGES: registry read (PASS3-POLISH-B)
+const chatParityStrip = await import('./studio-chat-parity-strip.mjs') // stacked after #475: LATER-CHANGES: registry read (CHAT-PARITY): the strip of the change stacked after this one, so its marked lines in the viewer come out before the pins below
+const read = rel => stripPass3PolishB(rel, chatParityStrip.stripChatParity(rel, fs.readFileSync(path.join(root, rel), 'utf8'))) // LATER-CHANGES: registry read (PASS3-POLISH-B) // stacked after #475: LATER-CHANGES: registry read (CHAT-PARITY): chat parity's marked lines in the viewer are its own
 const git = args => execFileSync('git', args, { cwd: root, encoding: 'utf8', maxBuffer: 256 * 1024 * 1024, stdio: ['ignore', 'pipe', 'pipe'] })
 const baseSource = rel => {
   try { return git(['show', `${FIRST_PAINT_BASE_COMMIT}:${rel}`]) } catch (error) { throw new Error(`base commit ${FIRST_PAINT_BASE_COMMIT} is not in this clone (fetch the full history): ${error.message}`) }

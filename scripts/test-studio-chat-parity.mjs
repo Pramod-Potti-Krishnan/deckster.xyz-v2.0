@@ -32,6 +32,9 @@ const plain = value => JSON.parse(JSON.stringify(value))
 const LIB = 'lib/studio-chat-parity.ts'
 const RUNNERS = 'lib/studio-chat-parity-runners.ts'
 const THEMES = 'lib/studio-chat-parity-themes.ts'
+const IDENTITY = 'lib/studio-chat-parity-identity.ts'
+const VIEWER = 'components/presentation-viewer.tsx'
+const MASTER = 'components/presentation-settings-panel.tsx'
 const COMPOSER = 'components/builder/chat-input.tsx'
 const HOOK = 'hooks/use-deckster-websocket-v2.ts'
 const PAGE = 'app/builder/page.tsx'
@@ -80,9 +83,20 @@ function loadThemes(text = read(THEMES), lib = loadLib(), stubs = themeStubs()) 
   new Function('module', 'exports', 'require', 'process', 'window', compile(text, THEMES))(module, module.exports, require, { env: {} }, globalThis.__chatParityWindow)
   return module.exports
 }
-function loadRunners(text = read(RUNNERS), lib = loadLib(), timers = null, themes = loadThemes(read(THEMES), lib)) {
+/** lib/deck-identity.ts faked to its contract: a form in memory, the enabled flag. */
+function identityStubs(enabled = true) {
+  const store = { form: {} }
+  return { store, '@/lib/deck-identity': { isDeckIdentityEnabled: () => enabled, readDeckIdentityForm: () => ({ ...store.form }), writeDeckIdentityForm: next => { const out = {}; for (const [k, v] of Object.entries(next ?? {})) if (typeof v === 'string' && v.trim()) out[k] = v.trim(); store.form = out; return { ...out } } } }
+}
+function loadIdentity(text = read(IDENTITY), lib = loadLib(), stubs = identityStubs()) {
   const module = { exports: {} }
-  const require = name => { if (name === '@/lib/studio-chat-parity') return lib; if (name === '@/lib/studio-chat-parity-themes') return themes; throw new Error(`unexpected import ${name}`) }
+  const require = name => { if (name === '@/lib/studio-chat-parity') return lib; if (stubs[name]) return stubs[name]; throw new Error(`unexpected import ${name}`) }
+  new Function('module', 'exports', 'require', 'process', compile(text, IDENTITY))(module, module.exports, require, { env: {} })
+  return module.exports
+}
+function loadRunners(text = read(RUNNERS), lib = loadLib(), timers = null, themes = loadThemes(read(THEMES), lib), identity = loadIdentity(read(IDENTITY), lib)) {
+  const module = { exports: {} }
+  const require = name => { if (name === '@/lib/studio-chat-parity') return lib; if (name === '@/lib/studio-chat-parity-themes') return themes; if (name === '@/lib/studio-chat-parity-identity') return identity; throw new Error(`unexpected import ${name}`) }
   const scope = timers ? { setTimeout: timers.set, clearTimeout: timers.clear } : { setTimeout, clearTimeout }
   new Function('module', 'exports', 'require', 'process', 'setTimeout', 'clearTimeout', compile(text, RUNNERS))(module, module.exports, require, { env: {} }, scope.setTimeout, scope.clearTimeout)
   return module.exports
@@ -162,6 +176,27 @@ function libSuite(libText = read(LIB)) {
   eq(targs('rename_theme', { theme_id: 't1', name: 'New' }), { action: 'rename_theme', theme_id: 't1', name: 'New' }, 'rename'); eq(targs('rename_theme', { theme_id: 't1' }), null, 'rename needs a name'); eq(targs('rename_theme', { name: 'x' }), null, 'rename needs an id')
   eq(targs('apply_saved_theme', { theme_id: 't1' }), { action: 'apply_saved_theme', theme_id: 't1' }, 'apply'); eq(targs('apply_saved_theme', {}), null, 'apply needs an id')
   eq(targs('delete_theme', { theme_id: 't1' }), null, 'row 60 is declined: no delete action'); eq(targs('nope', {}), null, 'unknown action')
+  // -- IDENTITY: the flag, the sub-flag, the actions, the args, the Master op -------------------------------------------------------------
+  const identityOnly = loadLib(libText, { NEXT_PUBLIC_STUDIO_CHAT_PARITY_IDENTITY: 'true' })
+  eq(identityOnly.STUDIO_CHAT_PARITY_IDENTITY_ENABLED, true, '"true": identity on'); eq(identityOnly.CHAT_PARITY_CAPS, ['identity1'], 'identity: identity1'); eq(identityOnly.STUDIO_CHAT_PARITY_PAID_LOGO_ENABLED, false, 'the paid sub-flag stays off')
+  eq(loadLib(libText, { NEXT_PUBLIC_STUDIO_CHAT_PARITY_PAID_LOGO: 'true' }).STUDIO_CHAT_PARITY_PAID_LOGO_ENABLED, false, 'the sub-flag alone is nothing (its group is off)')
+  const paid = loadLib(libText, { NEXT_PUBLIC_STUDIO_CHAT_PARITY_IDENTITY: 'true', NEXT_PUBLIC_STUDIO_CHAT_PARITY_PAID_LOGO: 'true' }); eq(paid.STUDIO_CHAT_PARITY_PAID_LOGO_ENABLED, true, 'both on: paid logo on')
+  eq(lib.CHAT_PARITY_ACTIONS.identity, ['set_footer', 'clear_footer', 'set_logo', 'generate_logo', 'remove_logo', 'set_deck_identity'], 'rows 62 / 62 / 63 / 63 / 63 / 64')
+  eq(lib.chatParityPaidBlocked('generate_logo', { generate_logo: false }), true, 'paid, sub-flag off: blocked'); eq(lib.chatParityPaidBlocked('generate_logo', { generate_logo: true }), false, 'paid, on'); eq(lib.chatParityPaidBlocked('set_footer', { generate_logo: false }), false, 'not paid')
+  eq(identityOnly.CHAT_PARITY_PAID_ACTIONS.generate_logo, false, 'this build: the generate is blocked'); eq(paid.CHAT_PARITY_PAID_ACTIONS.generate_logo, true)
+  const iargs = (action, args) => lib.chatParityIdentityArgs(action, args)
+  eq(iargs('set_footer', { title: ' Q3  review ', author: 'PK' }), { action: 'set_footer', title: 'Q3 review', author: 'PK' }, 'footer: the given fields, one line each')
+  eq(iargs('set_footer', { template: '{title} | Page {page}' }), { action: 'set_footer', template: '{title} | Page {page}' }, 'footer: a template'); eq(iargs('set_footer', {}), null, 'footer: nothing'); eq(iargs('set_footer', { title: 'a'.repeat(121) }), null, 'footer: too long'); eq(iargs('set_footer', { title: 7 }), null, 'footer: not text'); eq(iargs('set_footer', { title: 'x', date: null }), { action: 'set_footer', title: 'x' }, 'null = not given')
+  eq(iargs('clear_footer', { anything: 1 }), { action: 'clear_footer' }); eq(iargs('remove_logo', {}), { action: 'remove_logo' })
+  eq(iargs('set_logo', { image_url: ' https://x.example/logo.png ' }), { action: 'set_logo', image_url: 'https://x.example/logo.png' }, 'logo: an https URL'); eq(iargs('set_logo', { image_url: 'https://x.example/l.png', alt_text: 'Acme' }), { action: 'set_logo', image_url: 'https://x.example/l.png', alt_text: 'Acme' })
+  for (const bad of ['http://x.example/l.png', 'data:image/png;base64,AAAA', 'ftp://x', 'logo.png', 'https://x.example/a b', '']) eq(iargs('set_logo', { image_url: bad }), null, `logo: refused ${bad.slice(0, 20)}`)
+  eq(iargs('generate_logo', { prompt: ' a blue  owl ' }), { action: 'generate_logo', prompt: 'a blue owl' }, 'generate: the prompt'); eq(iargs('generate_logo', { prompt: '' }), null); eq(iargs('generate_logo', { prompt: 'a'.repeat(301) }), null, 'generate: too long')
+  eq(iargs('set_deck_identity', { company: ' Acme ', confidentiality: 'Internal', logo_url: 'https://x.example/l.png' }), { action: 'set_deck_identity', company: 'Acme', confidentiality: 'Internal', logo_url: 'https://x.example/l.png' }, 'identity: the three fields')
+  eq(iargs('set_deck_identity', { company: 'Acme' }), { action: 'set_deck_identity', company: 'Acme' }); eq(iargs('set_deck_identity', {}), null, 'identity: nothing'); eq(iargs('set_deck_identity', { logo_url: 'http://x' }), null, 'identity: a non-https logo'); eq(iargs('set_deck_identity', { company: 'a'.repeat(121) }), null, 'identity: too long')
+  eq(iargs('upload_logo', { file: 'x' }), null, 'upload stays on the panel: no action')
+  eq(lib.chatParityMasterOp(iargs('set_footer', { title: 'T', date: 'D' })), { kind: 'footer', title: 'T', date: 'D' }, 'the panel op: footer'); eq(lib.chatParityMasterOp(iargs('clear_footer', {})), { kind: 'clear_footer' }); eq(lib.chatParityMasterOp(iargs('remove_logo', {})), { kind: 'remove_logo' })
+  eq(lib.chatParityMasterOp(iargs('set_logo', { image_url: 'https://x.example/l.png' })), { kind: 'logo', image_url: 'https://x.example/l.png' }); eq(lib.chatParityMasterOp(iargs('set_logo', { image_url: 'https://x.example/l.png', alt_text: 'A' })), { kind: 'logo', image_url: 'https://x.example/l.png', alt_text: 'A' })
+  eq(lib.chatParityMasterOp(iargs('generate_logo', { prompt: 'owl' })), { kind: 'generate_logo', prompt: 'owl' }); eq(lib.chatParityMasterOp(iargs('set_deck_identity', { company: 'A' })), null, 'presenter details do not go through the panel')
   // -- the result -------------------------------------------------------------------------------------------------------------------------
   eq(lib.chatParityResult('sa_1', 'done'), { request_id: 'sa_1', status: 'done', error_code: null }, 'done')
   eq(lib.chatParityResult('sa_1', 'failed', 'not_owner'), { request_id: 'sa_1', status: 'failed', error_code: 'not_owner' }, 'failed + code')
@@ -220,6 +255,53 @@ async function runnersSuite(runnersText = read(RUNNERS), libText = read(LIB)) {
   const hung2 = runners2.runChatParityAction(req({}), owner, deps); eq(armedMs, 60_000, 'a per-action wait'); t2.fire(); eq((await hung2).error_code, 'timeout')
   lib.CHAT_PARITY_ACTIONS.themes.pop()
   await themesSuite(runnersText, libText)
+  await identitySuite(runnersText, libText)
+}
+
+/** The IDENTITY executors against a faked bus (the viewer's opener and the Master panel's op runner) and a faked identity form. */
+async function identitySuite(runnersText = read(RUNNERS), libText = read(LIB), identityText = read(IDENTITY), paidOn = true, deckIdentityOn = true) {
+  const lib = loadLib(libText, { ...ALL_ON, NEXT_PUBLIC_STUDIO_CHAT_PARITY_PAID_LOGO: paidOn ? 'true' : 'false' })
+  const stubs = identityStubs(deckIdentityOn)
+  const identity = loadIdentity(identityText, lib, stubs)
+  const runners = loadRunners(runnersText, lib, null, loadThemes(read(THEMES), lib), identity)
+  const ops = []; let opened = 0; let masterAnswer = { ok: true }; let confirmAnswer = true; const confirms = []
+  lib.chatParityBus.openMaster = () => { opened++ }
+  lib.chatParityBus.master = async (op, deadline) => { ops.push([op, deadline]); return masterAnswer }
+  const owner = { sessionId: 's1', isCurrent: () => true }
+  let displayedDeck = { sessionId: 's1', deckOwnerSessionId: 's1', presentationId: 'p1', epoch: 1 }
+  const deps = { displayed: () => displayedDeck, identity: { confirm: async (title, description) => { confirms.push([title, description]); return confirmAnswer }, now: () => 1000, masterTimeoutMs: 20_000 } }
+  const run = (action, args, over = {}) => runners.runChatParityAction({ requestId: 'r', group: 'identity', action, presentationId: 'p1', args, label: '', ...over }, owner, deps, { session_id: 's1' })
+  eq(await run('set_footer', { title: 'Q3', author: 'PK' }), { request_id: 'r', status: 'done', error_code: null, detail: { kind: 'footer' } }, 'footer: done through the panel'); eq(plain(ops.at(-1)), [{ kind: 'footer', title: 'Q3', author: 'PK' }, 21000], 'the op and its deadline (now + the panel wait)')
+  eq(await run('clear_footer', {}), { request_id: 'r', status: 'done', error_code: null, detail: { kind: 'clear_footer' } }, 'clear footer: no confirm'); eq(confirms.length, 0, 'nothing asked')
+  eq(await run('remove_logo', {}), { request_id: 'r', status: 'done', error_code: null, detail: { kind: 'remove_logo' } }, 'remove logo: no confirm'); eq(confirms.length, 0)
+  eq(await run('set_logo', { image_url: 'https://x.example/l.png' }), { request_id: 'r', status: 'done', error_code: null, detail: { kind: 'logo' } }, 'logo by URL'); eq(plain(ops.at(-1)[0]), { kind: 'logo', image_url: 'https://x.example/l.png' })
+  eq(await run('set_logo', { image_url: 'http://x.example/l.png' }), { request_id: 'r', status: 'failed', error_code: 'invalid_args' }, 'logo: not https'); eq(opened, 0, 'the panel opens from the panel op runner, not here')
+  masterAnswer = { ok: false, error: 'viewer_unavailable' }; eq(await run('set_footer', { title: 'x' }), { request_id: 'r', status: 'failed', error_code: 'viewer_unavailable' }, 'the panel\'s own refusal is the answer')
+  masterAnswer = { ok: false }; eq(await run('set_footer', { title: 'x' }), { request_id: 'r', status: 'failed', error_code: 'write_failed' }, 'a bare refusal: write_failed'); masterAnswer = { ok: true }
+  eq(await run('set_footer', { title: 'x' }, { presentationId: null }), { request_id: 'r', status: 'done', error_code: null, detail: { kind: 'footer' } }, 'no deck named: the deck on screen is the target')
+  displayedDeck = { sessionId: 's1', deckOwnerSessionId: 's1', presentationId: null, epoch: 1 }; eq(await run('set_footer', { title: 'x' }, { presentationId: null }), { request_id: 'r', status: 'failed', error_code: 'viewer_unavailable' }, 'no deck on screen: nothing to write on'); displayedDeck = { sessionId: 's1', deckOwnerSessionId: 's1', presentationId: 'p1', epoch: 1 }
+  { const saveMaster = lib.chatParityBus.master; lib.chatParityBus.master = null; eq(await run('set_footer', { title: 'x' }), { request_id: 'r', status: 'failed', error_code: 'viewer_unavailable' }, 'no panel mounted'); lib.chatParityBus.master = saveMaster }
+  // the paid generate: the sub-flag, then the confirm
+  const opsBefore = ops.length
+  if (paidOn) {
+    eq(await run('generate_logo', { prompt: 'a blue owl' }), { request_id: 'r', status: 'done', error_code: null, detail: { kind: 'generate_logo' } }, 'generate: confirmed, through the panel'); eq(confirms.length, 1, 'asked once'); ok(confirms[0][1].includes('a blue owl') && /paid/i.test(confirms[0][1]), 'the confirm names the prompt and the cost'); eq(plain(ops.at(-1)[0]), { kind: 'generate_logo', prompt: 'a blue owl' })
+    confirmAnswer = false; eq(await run('generate_logo', { prompt: 'x' }), { request_id: 'r', status: 'dismissed', error_code: null }, 'declined: dismissed, nothing runs'); eq(ops.length, opsBefore + 1, 'no op after a no'); confirmAnswer = true
+  } else {
+    eq(await run('generate_logo', { prompt: 'a blue owl' }), { request_id: 'r', status: 'failed', error_code: 'flag_off' }, 'sub-flag off: flag_off, nothing asked, nothing runs'); eq(confirms.length, 0); eq(ops.length, opsBefore)
+  }
+  // presenter details: the identity form's own writer
+  if (deckIdentityOn) {
+    eq(await run('set_deck_identity', { company: ' Acme ', confidentiality: 'Internal' }), { request_id: 'r', status: 'done', error_code: null, detail: { company: 'Acme', confidentiality: 'Internal', logo_url: null } }, 'identity: written')
+    eq(stubs.store.form, { company: 'Acme', confidentiality: 'Internal' }, 'the form'); eq(ops.length, paidOn ? opsBefore + 1 : opsBefore, 'not a panel op')
+    eq(await run('set_deck_identity', { logo_url: 'https://x.example/l.png' }), { request_id: 'r', status: 'done', error_code: null, detail: { company: 'Acme', confidentiality: 'Internal', logo_url: 'https://x.example/l.png' } }, 'identity: merged with what was there (logo_url -> logoUrl)')
+    eq(stubs.store.form, { company: 'Acme', confidentiality: 'Internal', logoUrl: 'https://x.example/l.png' })
+    eq(await run('set_deck_identity', {}), { request_id: 'r', status: 'failed', error_code: 'invalid_args' }, 'identity: nothing given')
+  } else {
+    eq(await run('set_deck_identity', { company: 'Acme' }), { request_id: 'r', status: 'failed', error_code: 'flag_off' }, 'the identity feature off: flag_off'); eq(stubs.store.form, {}, 'nothing written')
+  }
+  eq(await runners.runChatParityAction({ requestId: 'r', group: 'identity', action: 'set_footer', presentationId: 'p1', args: { title: 'x' }, label: '' }, owner, { displayed: deps.displayed }, null), { request_id: 'r', status: 'failed', error_code: 'flag_off' }, 'no identity deps: flag_off')
+  eq(runners.CHAT_PARITY_TIMEOUTS_MS.generate_logo, 60_000, 'DIRECTOR-2: a logo generation waits 60 s')
+  lib.chatParityBus.openMaster = null; lib.chatParityBus.master = null
 }
 
 /** The THEMES executors against faked click-path functions (the page's deps). */
@@ -329,7 +411,7 @@ function sourcesSuite() {
   ok(page.includes("chatParityBus.send?.(chatParityResult(request.requestId, 'failed', refusal))"), 'a refusal is answered at once')
   ok(page.includes('{ displayed: () => elementDirectiveGenerationOwnerRef.current, // CHAT-PARITY') && page.includes('} } : {}) }, message).then(result => { if (owner.isCurrent()) chatParityBus.send?.(result) }) // CHAT-PARITY'), 'the K5 owner record and the frame reach the runner')
   const pageImports = page.split('\n').filter(l => l.startsWith('import ') && marker.test(l))
-  eq(pageImports.length, 2, 'two import lines'); ok(pageImports.every(l => page.indexOf(l) > page.indexOf("from '@/lib/studio-chat-clean' // CHAT-CLEAN")), 'placed at the end with the chat-clean import')
+  eq(pageImports.length, 3, 'three import lines (the lib, the runners, the toast action)'); ok(pageImports.every(l => page.indexOf(l) > page.indexOf("from '@/lib/studio-chat-clean' // CHAT-CLEAN")), 'placed at the end with the chat-clean import')
   // the gates: the panel and the types
   const panel = readOwn(PANEL)
   ok(panel.includes('if (!STUDIO_CHAT_PARITY_NOTES_ENABLED) return // CHAT-PARITY'), 'the panel listens only with the flag on')
@@ -342,14 +424,29 @@ function sourcesSuite() {
   ok(composer.includes('const onLibraryChanged = () => { void refreshSavedThemes(true) } // CHAT-PARITY'), 'the palette\'s own refresh, selection kept')
   ok(composer.includes('window.addEventListener(CHAT_PARITY_THEME_LIBRARY_EVENT, onLibraryChanged) // CHAT-PARITY') && composer.includes('window.removeEventListener(CHAT_PARITY_THEME_LIBRARY_EVENT, onLibraryChanged) // CHAT-PARITY'), 'added and removed')
   ok(composer.indexOf('const refreshSavedThemes = useCallback') < composer.indexOf('const onLibraryChanged'), 'after the refresh it calls')
+  // the gates: the viewer and the Master panel (IDENTITY)
+  const viewer = readOwn(VIEWER)
+  ok(viewer.includes("if (process.env.NEXT_PUBLIC_STUDIO_CHAT_PARITY_IDENTITY !== 'true') return; let bus") && viewer.includes("bus.openMaster = () => setShowPresentationSettings(true)"), 'the viewer registers the Show menu\'s own Master opener, flag on only (read inline, the bus loaded in the effect)')
+  ok(!viewer.split('\n').some(l => l.startsWith('import ') && marker.test(l)), 'the viewer gains no import line (its proofs allow-list imports)')
+  const master = readOwn(MASTER)
+  ok(master.includes("const chatParityOn = process.env.NEXT_PUBLIC_STUDIO_CHAT_PARITY_IDENTITY === 'true' // CHAT-PARITY") && master.includes('if (!chatParityOn) return // CHAT-PARITY') && master.includes('bus.master = (op, deadline) => new Promise(resolve => {'), 'the panel registers its op runner, flag on only (read inline)')
+  ok(master.split('\n').filter(l => l.startsWith('import ') && marker.test(l)).every(l => l.startsWith('import type ')), 'the panel gains a type-only import (its proof allow-lists imports; the bus is loaded in the gated effect)')
+  ok(master.includes("run.stage = 'saving'; void handleSave()"), 'the Save button\'s own handler writes'); ok(master.includes("run.stage = 'generating'; void handleGenerateLogo()"), 'the Generate button\'s own handler generates'); ok(master.includes("else if (op.kind === 'remove_logo') { handleRemoveLogo(); run.stage = 'save' }"), 'the Remove button\'s own handler')
+  ok(master.includes("studioMarkDraft('footerTemplate', 'footerTitle', 'footerDate', 'footerAuthor'); setFooterTemplate(op.template ?? (footerTemplate || FOOTER_TEMPLATES[3].template))"), 'footer fields set as if typed; a footer with no template yet gets the Professional one')
+  ok(master.includes("if (Date.now() > run.deadline) { end({ ok: false, error: 'timeout' }); return }") && master.includes("if (chatReadFailed) { end({ ok: false, error: 'viewer_unavailable' }); return }"), 'the deadline and a read error end the op honestly')
+  ok(master.indexOf('}) // CHAT-PARITY\n  if (!isOpen) return null') > 0, 'the effects sit before the panel\'s early return (hooks order)')
+  ok(master.includes("if (!isOpen) end({ ok: true }); else if (!isSaving && hasChanges) end({ ok: false, error: 'write_failed' })"), 'saved = the panel closed itself')
   // the gates: the page's theme deps
   ok(page.includes('...(STUDIO_CHAT_PARITY_THEMES_ENABLED ? { themes: {'), 'theme deps only with the themes flag on')
   ok(page.includes('apply: applyChatThemeSelection, setActiveProfile: setActiveBuildThemeProfile') && page.includes('currentSelection: () => buildThemeSelectionRef.current'), 'the picker\'s own apply')
   ok(page.includes('const chatParityThemeProfiles = useThemeProfiles() // CHAT-PARITY'), 'the palette\'s own hook')
   ok(page.includes('timeoutMs: THEME_SYNC_TIMEOUT_MS + 5_000, // CHAT-PARITY'), 'the theme directive\'s wait')
+  ok(page.includes('...(STUDIO_CHAT_PARITY_IDENTITY_ENABLED ? { identity: {'), 'identity deps only with the identity flag on')
+  ok(page.includes('<ToastAction altText="Generate the logo" onClick={() => answer(true)}>Generate</ToastAction>') && page.includes('setTimeout(() => answer(false), 31_000)'), 'the paid confirm: a toast with Generate, no answer = no')
   // the new files: the lib is import-free, the runners import the lib only
   ok(!/^import /m.test(readOwn(LIB)) && !/require\(/.test(readOwn(LIB)), 'the lib is import-free')
-  eq([...readOwn(RUNNERS).matchAll(/from '([^']+)'/g)].map(m => m[1]), ['@/lib/studio-chat-parity', '@/lib/studio-chat-parity-themes'], 'the runners import the lib and the group files only')
+  eq([...readOwn(RUNNERS).matchAll(/from '([^']+)'/g)].map(m => m[1]), ['@/lib/studio-chat-parity', '@/lib/studio-chat-parity-themes', '@/lib/studio-chat-parity-identity'], 'the runners import the lib and the group files only')
+  eq([...readOwn(IDENTITY).matchAll(/from '([^']+)'/g)].map(m => m[1]).sort(), ['@/lib/deck-identity', '@/lib/studio-chat-parity'], 'the identity file imports the dialog\'s own writer and the lib')
   eq([...readOwn(THEMES).matchAll(/from '([^']+)'/g)].map(m => m[1]).sort(), ['@/hooks/use-theme-profiles', '@/lib/studio-chat-parity', '@/lib/theme-builder', '@/lib/theme-fonts', '@/lib/theme-sync'].sort(), 'the themes file imports the click paths\' own modules')
   // .env.example: the base plus the block, at the end
   const env = readOwn(ENV)
@@ -357,6 +454,7 @@ function sourcesSuite() {
   if (hasBase) eq(env.slice(0, env.length - strip.CHAT_PARITY_ENV_BLOCK.length - 1), baseOf(ENV), 'append-only')
   ok(strip.CHAT_PARITY_ENV_BLOCK.includes('NEXT_PUBLIC_STUDIO_CHAT_PARITY_NOTES="false"'), 'the notes flag, off')
   ok(strip.CHAT_PARITY_ENV_BLOCK.includes('NEXT_PUBLIC_STUDIO_CHAT_PARITY_THEMES="false"'), 'the themes flag, off')
+  ok(strip.CHAT_PARITY_ENV_BLOCK.includes('NEXT_PUBLIC_STUDIO_CHAT_PARITY_IDENTITY="false"') && strip.CHAT_PARITY_ENV_BLOCK.includes('NEXT_PUBLIC_STUDIO_CHAT_PARITY_PAID_LOGO="false"'), 'the identity flag and the paid sub-flag, off')
   eq(registry.stripLaterEnvBlocks(ENV, env).includes('CHAT_PARITY'), false, 'the registry takes the block out')
   // the registry gained its three lines
   const reg = readOwn(REGISTRY)
@@ -399,7 +497,28 @@ async function mutantsSuite() {
     ['themes: a name alone', t => t.replace("case 'set_standard_theme': { const id = themeId(args.theme_id); return id ? { action, theme_id: id } : null }", "case 'set_standard_theme': { const id = themeId(args.theme_id) ?? themeId(args.name); return id ? { action, theme_id: id } : null }")],
     ['themes: long name', t => t.replace('name && name.length <= CHAT_PARITY_THEME_NAME_MAX ? name : null', 'name ? name : null')],
     ['themes: set_standard any truthy', t => t.replace("set_standard: args.set_standard === true", 'set_standard: Boolean(args.set_standard)')],
+    ['identity: upload listed', t => t.replace("'remove_logo', 'set_deck_identity'],", "'remove_logo', 'set_deck_identity', 'upload_logo'],")],
+    ['identity: http logo accepted', t => t.replace("/^https:\\/\\/[^\\s]+$/i.test(text)", "/^https?:\\/\\/[^\\s]+$/i.test(text)")],
+    ['identity: paid sub-flag alone', t => t.replace('STUDIO_CHAT_PARITY_PAID_LOGO_ENABLED = STUDIO_CHAT_PARITY_IDENTITY_ENABLED && chatParityFlagOn', 'STUDIO_CHAT_PARITY_PAID_LOGO_ENABLED = chatParityFlagOn')],
+    ['identity: paid never blocked', t => t.replace("return action in paid && paid[action] !== true", 'return false')],
+    ['identity: empty footer accepted', t => t.replace('return out.template || out.title || out.date || out.author ? out : null', 'return out')],
+    ['identity: presenter through the panel', t => t.replace("case 'remove_logo': return { kind: 'remove_logo' }\n    default: return null", "case 'remove_logo': return { kind: 'remove_logo' }\n    default: return { kind: 'clear_footer' }")],
   ]
+  const identityMutants = [
+    ['generate without confirm', t => t.replace("if (!yes) return chatParityResult(id, 'dismissed', 'declined')", '')],
+    ['paid block ignored', t => t.replace("if (chatParityPaidBlocked(args.action)) return fail(id, 'flag_off')", '')],
+    ['identity flag ignored', t => t.replace("if (!isDeckIdentityEnabled()) return fail(id, 'flag_off')", '')],
+    ['no deck still writes', t => t.replace("if (!presentationId || !chatParityBus.master || !chatParityBus.openMaster) return fail(id, 'viewer_unavailable')", "if (!chatParityBus.master) return fail(id, 'viewer_unavailable')")],
+    ['panel refusal read as done', t => t.replace("if (result.ok) return chatParityResult(id, 'done', null, { kind: op.kind })", "return chatParityResult(id, 'done', null, { kind: op.kind })")],
+    ['form replaced not merged', t => t.replace('writeDeckIdentityForm({ ...readDeckIdentityForm(), ...rest,', 'writeDeckIdentityForm({ ...rest,')],
+    ['deadline not passed', t => t.replace('chatParityBus.master(op, deps.now() + deps.masterTimeoutMs)', 'chatParityBus.master(op, deps.now())')],
+  ]
+  for (const [name, mutate] of identityMutants) {
+    const mutated = mutate(read(IDENTITY)); assert.notEqual(mutated, read(IDENTITY), `mutant applies: ${name}`)
+    let caught = false; try { await identitySuite(runnersText, libText, mutated); await identitySuite(runnersText, libText, mutated, false); await identitySuite(runnersText, libText, mutated, true, false) } catch { caught = true }
+    ok(caught, `mutant caught: ${name}`)
+  }
+  await identitySuite(runnersText, libText, read(IDENTITY), false); await identitySuite(runnersText, libText, read(IDENTITY), true, false)
   const themeMutants = [
     ['auto saved', t => t.replace("if (theme.mode === 'auto') return fail(id, 'theme_auto')", '')],
     ['standard written unseen', t => t.replace("if (!(await findTheme(deps, args.theme_id))) return fail(id, 'not_found')\n      const result = await deps.setStandardTheme", '      const result = await deps.setStandardTheme')],
@@ -441,7 +560,7 @@ async function mutantsSuite() {
     const hook = readOwn(HOOK); const unmarked = hook.replace('chatParityBus.send = sendChatParityResult // CHAT-PARITY', 'chatParityBus.send = sendChatParityResult')
     ok(strip.stripChatParity(HOOK, unmarked) !== baseOf(HOOK), 'mutant caught: an unmarked line stays in the stripped file')
   }
-  return libMutants.length + runnerMutants.length + themeMutants.length + (hasBase ? 1 : 0)
+  return libMutants.length + runnerMutants.length + themeMutants.length + identityMutants.length + (hasBase ? 1 : 0)
 }
 
 libSuite()

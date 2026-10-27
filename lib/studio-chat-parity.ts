@@ -4,7 +4,9 @@
 //                                             deck_mutation {mutation:"notes_updated"}; Studio advertises `notes1` and re-reads the Notes panel.
 //   NEXT_PUBLIC_STUDIO_CHAT_PARITY_THEMES     rows 56-59, 61: fonts, save, set / clear standard, rename, apply a saved theme — the composer palette's
 //                                             own useThemeProfiles writes and the theme picker's own apply (lib/studio-chat-parity-themes.ts); cap `themes1`.
-//   NEXT_PUBLIC_STUDIO_CHAT_PARITY_IDENTITY   rows 62-64 (cap `identity1`)        — added by its own commit
+//   NEXT_PUBLIC_STUDIO_CHAT_PARITY_IDENTITY   rows 62-64: the footer and logo through the Master panel's own open / fill / Save path (components/
+//                                             presentation-settings-panel.tsx), presenter details through the identity form's own writer; cap `identity1`.
+//   NEXT_PUBLIC_STUDIO_CHAT_PARITY_PAID_LOGO  row 63's generate (one paid image call): a sub-flag under IDENTITY, off until PK rules; on, a Studio confirm first.
 //   NEXT_PUBLIC_STUDIO_CHAT_PARITY_TEMPLATES  rows 65/66/67/72/76 (cap `templates1`) — added by its own commit
 // With a group's flag on, Studio adds the group's cap to user_message.data.client_caps (beside mdc1, theme1, ...), takes Director's
 // request frame out of band (never the reducer, the transcript or the cache), runs the SAME function the click path runs, and answers
@@ -38,6 +40,8 @@ export type ChatParityErrorCode =
   | 'not_owner' | 'viewer_unavailable' | 'flag_off' | 'not_found' | 'locked' | 'invalid_args' | 'write_failed' | 'timeout' | 'unsupported'
   // themes (rows 56-59, 61)
   | 'theme_auto' | 'theme_locked' | 'theme_failed'
+  // identity (rows 62-64)
+  | 'busy' | 'generate_failed' | 'declined'
 
 // ---------------------------------------------------------------------------------------------------------------------------------------
 // Flags (literal process.env reads so Next inlines them at build time)
@@ -49,6 +53,9 @@ export function chatParityFlagOn(value: string | undefined): boolean {
 
 export const STUDIO_CHAT_PARITY_NOTES_ENABLED = chatParityFlagOn(process.env.NEXT_PUBLIC_STUDIO_CHAT_PARITY_NOTES)
 export const STUDIO_CHAT_PARITY_THEMES_ENABLED = chatParityFlagOn(process.env.NEXT_PUBLIC_STUDIO_CHAT_PARITY_THEMES)
+export const STUDIO_CHAT_PARITY_IDENTITY_ENABLED = chatParityFlagOn(process.env.NEXT_PUBLIC_STUDIO_CHAT_PARITY_IDENTITY)
+/** Row 63's generate: a paid image call. A sub-flag of IDENTITY (both must be on), default off until PK rules on paid actions. */
+export const STUDIO_CHAT_PARITY_PAID_LOGO_ENABLED = STUDIO_CHAT_PARITY_IDENTITY_ENABLED && chatParityFlagOn(process.env.NEXT_PUBLIC_STUDIO_CHAT_PARITY_PAID_LOGO)
 
 export interface ChatParityFlags {
   notes: boolean
@@ -61,7 +68,7 @@ export interface ChatParityFlags {
 export const CHAT_PARITY_FLAGS: Readonly<ChatParityFlags> = Object.freeze({
   notes: STUDIO_CHAT_PARITY_NOTES_ENABLED,
   themes: STUDIO_CHAT_PARITY_THEMES_ENABLED,
-  identity: false,
+  identity: STUDIO_CHAT_PARITY_IDENTITY_ENABLED,
   templates: false,
 })
 
@@ -107,7 +114,7 @@ export function addChatParityCaps(data: Record<string, unknown>, caps: readonly 
 export const CHAT_PARITY_ACTIONS: Readonly<Record<ChatParityGroup, readonly string[]>> = Object.freeze({
   notes: [], // Director writes notes itself (set_speaker_notes); Studio only reflects deck_mutation notes_updated
   themes: ['set_theme_fonts', 'save_theme', 'set_standard_theme', 'clear_standard_theme', 'rename_theme', 'apply_saved_theme'],
-  identity: [],
+  identity: ['set_footer', 'clear_footer', 'set_logo', 'generate_logo', 'remove_logo', 'set_deck_identity'],
   templates: [],
 })
 
@@ -213,7 +220,11 @@ export const chatParityBus: {
   notes: ((update: ChatParityNotesUpdate, owner: ChatParityOwner) => void) | null
   /** The hook's sender of the result frame (set while the hook is mounted). */
   send: ((data: ChatParityResultData) => boolean) | null
-} = { request: null, notes: null, send: null }
+  /** IDENTITY: the viewer's opener of the Master (footer and logo) panel, the Show menu's own "Master…" (components/presentation-viewer.tsx). */
+  openMaster: (() => void) | null
+  /** IDENTITY: the Master panel's own run of one footer / logo op: its read fills the fields, the op's fields are set as if typed, the Save button's own handler writes and closes. */
+  master: ((op: ChatParityMasterOp, deadline: number) => Promise<ChatParityMasterResult>) | null
+} = { request: null, notes: null, send: null, openMaster: null, master: null }
 
 // ---------------------------------------------------------------------------------------------------------------------------------------
 // NOTES (rows 105/106/108): Director's deck_mutation {mutation:"notes_updated"} and the panel's re-read
@@ -291,6 +302,97 @@ export function chatParityThemeArgs(action: string, args: Record<string, unknown
     case 'clear_standard_theme': return { action }
     case 'rename_theme': { const id = themeId(args.theme_id); const name = themeName(args.name); return id && name ? { action, theme_id: id, name } : null }
     case 'apply_saved_theme': { const id = themeId(args.theme_id); return id ? { action, theme_id: id } : null }
+    default: return null
+  }
+}
+
+// ---------------------------------------------------------------------------------------------------------------------------------------
+// IDENTITY (rows 62-64): the request args and the Master panel op
+// ---------------------------------------------------------------------------------------------------------------------------------------
+
+/** Paid actions and the sub-flag each needs on top of its group flag (off: answered `flag_off`, nothing runs, nothing is charged). */
+export const CHAT_PARITY_PAID_ACTIONS: Readonly<Record<string, boolean>> = Object.freeze({ generate_logo: STUDIO_CHAT_PARITY_PAID_LOGO_ENABLED })
+/** True when `action` is paid and its sub-flag is off in this build. */
+export function chatParityPaidBlocked(action: string, paid: Readonly<Record<string, boolean>> = CHAT_PARITY_PAID_ACTIONS): boolean {
+  return action in paid && paid[action] !== true
+}
+
+/** A footer value or presenter field: trimmed, one line, at most this long (the identity dialog's own 120). */
+export const CHAT_PARITY_IDENTITY_MAX = 120
+export const CHAT_PARITY_LOGO_PROMPT_MAX = 300
+
+export type ChatParityIdentityArgs =
+  | { action: 'set_footer'; template?: string; title?: string; date?: string; author?: string }
+  | { action: 'clear_footer' }
+  | { action: 'set_logo'; image_url: string; alt_text?: string }
+  | { action: 'generate_logo'; prompt: string }
+  | { action: 'remove_logo' }
+  | { action: 'set_deck_identity'; company?: string; confidentiality?: string; logo_url?: string }
+
+const oneLine = (value: unknown, max: number): string | null => {
+  if (typeof value !== 'string') return null
+  const text = value.replace(/\s+/g, ' ').trim()
+  return text && text.length <= max ? text : null
+}
+/** An https URL (the identity dialog's own rule for a logo: anything else is never a logo and may leak a secret). */
+const httpsUrl = (value: unknown): string | null => {
+  const text = typeof value === 'string' ? value.trim() : ''
+  return /^https:\/\/[^\s]+$/i.test(text) && text.length <= 2048 ? text : null
+}
+
+/** The identity action's args, normalised, or null when they do not fit (`invalid_args`). Every value is the user's own text (Director passes it verbatim). */
+export function chatParityIdentityArgs(action: string, args: Record<string, unknown>): ChatParityIdentityArgs | null {
+  switch (action) {
+    case 'set_footer': {
+      const out: { action: 'set_footer'; template?: string; title?: string; date?: string; author?: string } = { action }
+      for (const field of ['template', 'title', 'date', 'author'] as const) {
+        if (args[field] === undefined || args[field] === null) continue
+        const text = oneLine(args[field], CHAT_PARITY_IDENTITY_MAX)
+        if (text === null) return null
+        out[field] = text
+      }
+      return out.template || out.title || out.date || out.author ? out : null
+    }
+    case 'clear_footer': return { action }
+    case 'set_logo': {
+      const url = httpsUrl(args.image_url); if (!url) return null
+      const alt = args.alt_text === undefined || args.alt_text === null ? undefined : oneLine(args.alt_text, CHAT_PARITY_IDENTITY_MAX)
+      if (alt === null) return null
+      return alt ? { action, image_url: url, alt_text: alt } : { action, image_url: url }
+    }
+    case 'generate_logo': { const prompt = oneLine(args.prompt, CHAT_PARITY_LOGO_PROMPT_MAX); return prompt ? { action, prompt } : null }
+    case 'remove_logo': return { action }
+    case 'set_deck_identity': {
+      const out: { action: 'set_deck_identity'; company?: string; confidentiality?: string; logo_url?: string } = { action }
+      for (const field of ['company', 'confidentiality'] as const) {
+        if (args[field] === undefined || args[field] === null) continue
+        const text = oneLine(args[field], CHAT_PARITY_IDENTITY_MAX); if (text === null) return null
+        out[field] = text
+      }
+      if (args.logo_url !== undefined && args.logo_url !== null) { const url = httpsUrl(args.logo_url); if (!url) return null; out.logo_url = url }
+      return out.company || out.confidentiality || out.logo_url ? out : null
+    }
+    default: return null
+  }
+}
+
+/** What the Master panel runs for a footer / logo request (components/presentation-settings-panel.tsx): the panel's own fields, then its Save. */
+export type ChatParityMasterOp =
+  | { kind: 'footer'; template?: string; title?: string; date?: string; author?: string }
+  | { kind: 'clear_footer' }
+  | { kind: 'logo'; image_url: string; alt_text?: string }
+  | { kind: 'generate_logo'; prompt: string }
+  | { kind: 'remove_logo' }
+export interface ChatParityMasterResult { ok: boolean; error?: 'busy' | 'viewer_unavailable' | 'generate_failed' | 'write_failed' | 'timeout' }
+
+/** The panel op for an identity action that goes through the Master panel, or null for one that does not (set_deck_identity). */
+export function chatParityMasterOp(args: ChatParityIdentityArgs): ChatParityMasterOp | null {
+  switch (args.action) {
+    case 'set_footer': { const { action: _a, ...rest } = args; return { kind: 'footer', ...rest } }
+    case 'clear_footer': return { kind: 'clear_footer' }
+    case 'set_logo': return args.alt_text ? { kind: 'logo', image_url: args.image_url, alt_text: args.alt_text } : { kind: 'logo', image_url: args.image_url }
+    case 'generate_logo': return { kind: 'generate_logo', prompt: args.prompt }
+    case 'remove_logo': return { kind: 'remove_logo' }
     default: return null
   }
 }

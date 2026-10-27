@@ -5336,6 +5336,9 @@ function AuthenticatedBuilderContent({ authScopeUserId }: { authScopeUserId: str
         currentSelection: () => buildThemeSelectionRef.current, apply: applyChatThemeSelection, setActiveProfile: setActiveBuildThemeProfile, // CHAT-PARITY
         locks: () => ({ composerBlocked: themeSyncTargetRef.current.composerThemeBlocked, composerFrozen: themeSyncTargetRef.current.composerThemeFrozen, templateMode: themeSyncTargetRef.current.templateModeOn, generating: isGeneratingFinal || isGeneratingStrawman || templateReuseAwaitingInput }), // CHAT-PARITY
         themeSync: () => themeSyncRef.current, wait: () => new Promise<void>(resolve => setTimeout(resolve, 100)), now: () => Date.now(), timeoutMs: THEME_SYNC_TIMEOUT_MS + 5_000, // CHAT-PARITY
+      } } : {}), // CHAT-PARITY
+      ...(STUDIO_CHAT_PARITY_IDENTITY_ENABLED ? { identity: { now: () => Date.now(), masterTimeoutMs: 20_000, // CHAT-PARITY: the Master panel's own path (opened by the viewer, written by its Save); a paid logo generation asks first
+        confirm: (title: string, description: string) => new Promise<boolean>(resolve => { let settled = false; const answer = (yes: boolean) => { if (!settled) { settled = true; resolve(yes) } }; toast({ title, description, duration: 30_000, action: <ToastAction altText="Generate the logo" onClick={() => answer(true)}>Generate</ToastAction> }); setTimeout(() => answer(false), 31_000) }), // CHAT-PARITY
       } } : {}) }, message).then(result => { if (owner.isCurrent()) chatParityBus.send?.(result) }) // CHAT-PARITY
   } // CHAT-PARITY
   // CHAT-PARITY (NEXT_PUBLIC_STUDIO_CHAT_PARITY_NOTES): Director wrote a slide's notes / script / references; for the deck on screen the Notes panel re-reads (components/slide-notes-panel.tsx). Off: not set.
@@ -8288,8 +8291,9 @@ import { useStudioFlowControl } from '@/hooks/use-studio-flow-control' // FLOW-C
 import { STUDIO_CHAT_CLEAN_ENABLED, chatCleanComposerState, chatCleanInstructions, chatCleanRootAttributes } from '@/lib/studio-chat-clean' // CHAT-CLEAN: placed here with the flow import, after the Builder's runners, for the same older proof
 import { flowBus } from '@/lib/studio-flow-control' // CHAT-CLEAN: the one-request hand-over of the resume's instructions (taken by sendBuildControl, whatever the flow flags)
 import { StudioChatCleanBar, useStudioChatCleanNotes } from '@/components/builder/chat/studio-chat-clean' // CHAT-CLEAN
-import { CHAT_PARITY_NOTES_EVENT, STUDIO_CHAT_PARITY_ANY_ENABLED, STUDIO_CHAT_PARITY_NOTES_ENABLED, STUDIO_CHAT_PARITY_THEMES_ENABLED, chatParityBus, chatParityRefusal, chatParityRequest, chatParityResult } from '@/lib/studio-chat-parity' // CHAT-PARITY: placed here with the flow and chat-clean imports, after the Builder's runners, for the same older proof
+import { CHAT_PARITY_NOTES_EVENT, STUDIO_CHAT_PARITY_ANY_ENABLED, STUDIO_CHAT_PARITY_IDENTITY_ENABLED, STUDIO_CHAT_PARITY_NOTES_ENABLED, STUDIO_CHAT_PARITY_THEMES_ENABLED, chatParityBus, chatParityRefusal, chatParityRequest, chatParityResult } from '@/lib/studio-chat-parity' // CHAT-PARITY: placed here with the flow and chat-clean imports, after the Builder's runners, for the same older proof
 import { runChatParityAction } from '@/lib/studio-chat-parity-runners' // CHAT-PARITY
+import { ToastAction } from '@/components/ui/toast' // CHAT-PARITY: the paid logo generation's confirm (NEXT_PUBLIC_STUDIO_CHAT_PARITY_PAID_LOGO)
 
 function BuilderLoadingState({ message = 'Loading builder...' }: { message?: string }) {
   // NEXT_PUBLIC_STUDIO_SESSION_HYGIENE: the route loader is the builder shell, not a blank page with a spinner.

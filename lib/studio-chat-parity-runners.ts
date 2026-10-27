@@ -12,6 +12,7 @@ import {
   CHAT_PARITY_ACTIONS, chatParityResult, type ChatParityErrorCode, type ChatParityRequest, type ChatParityResultData,
 } from '@/lib/studio-chat-parity'
 import { runChatParityThemeAction, type ChatParityThemeDeps } from '@/lib/studio-chat-parity-themes'
+import { runChatParityIdentityAction, type ChatParityIdentityDeps } from '@/lib/studio-chat-parity-identity'
 
 /** Who delivered the request: the socket's session, and whether that socket is still the live one (the answer goes back on it). */
 export type ChatParityOwner = import('@/lib/studio-chat-parity').ChatParityOwner
@@ -29,20 +30,26 @@ export interface ChatParityDeps {
   displayed: () => ChatParityDisplayedDeck
   /** THEMES (rows 56-59, 61): present only with NEXT_PUBLIC_STUDIO_CHAT_PARITY_THEMES on. */
   themes?: ChatParityThemeDeps
+  /** IDENTITY (rows 62-64): present only with NEXT_PUBLIC_STUDIO_CHAT_PARITY_IDENTITY on. */
+  identity?: ChatParityIdentityDeps
 }
 
 export type ChatParityExecutor = (request: ChatParityRequest, owner: ChatParityOwner, deps: ChatParityDeps, check: ChatParityOwnerCheck) => Promise<ChatParityResultData>
 
-/** Default wait for an answer; per-action waits below. */
+/** Default wait for an answer; per-action waits below (DIRECTOR-2, 27 Oct: a logo generation 60 s). */
 export const CHAT_PARITY_DEFAULT_TIMEOUT_MS = 25_000
-export const CHAT_PARITY_TIMEOUTS_MS: Record<string, number> = {}
+export const CHAT_PARITY_TIMEOUTS_MS: Record<string, number> = { generate_logo: 60_000 }
 
 const themeExecutor: ChatParityExecutor = (request, _owner, deps, check) =>
   deps.themes ? runChatParityThemeAction(request, check.presentationId, check.owns, deps.themes) : Promise.resolve(chatParityResult(request.requestId, 'failed', 'flag_off'))
 
+const identityExecutor: ChatParityExecutor = (request, _owner, deps, check) =>
+  deps.identity ? runChatParityIdentityAction(request, check.presentationId, deps.identity) : Promise.resolve(chatParityResult(request.requestId, 'failed', 'flag_off'))
+
 /** The executors, by action (each group's commit adds its own); an action with no executor answers `unsupported`. */
 export const CHAT_PARITY_EXECUTORS: Record<string, ChatParityExecutor> = {
   ...Object.fromEntries(CHAT_PARITY_ACTIONS.themes.map(action => [action, themeExecutor])),
+  ...Object.fromEntries(CHAT_PARITY_ACTIONS.identity.map(action => [action, identityExecutor])),
 }
 
 export interface ChatParityOwnerCheck {
