@@ -63,7 +63,6 @@ export const CHAT_ELEMENT_EDIT_NEW_FILES = [
  *    (registered strips run in registry order, #523's first, so a put-back to #523's line would leave #523's own put-back nothing to do); #523's put-back of that file is then a no-op.
  *  - scripts/test-studio-chat-undo-v2.mjs: a file a later change registered and retired (the envelope fixture this change replaced), deleted in a commit that also touches the wire the undo proofs own, is not an undo deletion (its additions already were not strays).
  *  - scripts/test-studio-bulk-edit-prompt-text.mjs compares the wire with its own base byte for byte: it reads the wire past this change's marked lines (the change_recorded kinds), as the registry-reading pins do.
- *  - scripts/test-studio-model-choice.mjs: .env.example ends with the block of the last change merged; this change's block may follow the model choice block now. All FRONTEND-2's own proofs; each edit is marked and put back here. */
 export const CHAT_ELEMENT_EDIT_PIN_MARK = '// LATER-CHANGES: registry read (CHAT-ELEMENT-EDIT)'
 export const CHAT_ELEMENT_EDIT_PIN_EDITS = {
   'scripts/test-studio-chat-theme-export.mjs': [
@@ -88,10 +87,6 @@ export const CHAT_ELEMENT_EDIT_PIN_EDITS = {
   'scripts/test-studio-bulk-edit-prompt-text.mjs': [
     ["import { stripChatElementEdit } from './studio-chat-element-edit-strip.mjs' // LATER-CHANGES: registry read (CHAT-ELEMENT-EDIT): #522 marks lines in the wire; the pin below reads the file past them\n", ''],
     ["const read = rel => (rel in overrides ? overrides[rel] : stripChatElementEdit(rel, fs.readFileSync(path.join(root, rel), 'utf8'))) // LATER-CHANGES: registry read (CHAT-ELEMENT-EDIT): the wire carries #522's marked lines too (change_recorded kinds); this proof compares it with its own base, so it reads it past them\n", "const read = rel => (rel in overrides ? overrides[rel] : fs.readFileSync(path.join(root, rel), 'utf8'))\n"],
-  ],
-  'scripts/test-studio-model-choice.mjs': [
-    ["    const chatEdit = await import('./studio-chat-element-edit-strip.mjs') // LATER-CHANGES: registry read (CHAT-ELEMENT-EDIT): #522 (chat can edit an element) registers its block after this one, so .env.example ends with it\n", ''],
-    ["    eq(withoutOtherBlocks, baseOf(ENV)); ok(read(ENV).replace(`\\n${chatEdit.CHAT_ELEMENT_EDIT_ENV_BLOCK}`, '').endsWith(strip.MODEL_CHOICE_ENV_BLOCK)) // LATER-CHANGES: registry read (CHAT-ELEMENT-EDIT): the block of a change registered after this one may follow it\n", "    eq(withoutOtherBlocks, baseOf(ENV)); ok(read(ENV).endsWith(strip.MODEL_CHOICE_ENV_BLOCK))\n"],
   ],
   'scripts/studio-pass3-polish-b-strip.mjs': [
     ["import { stripChatElementEdit } from './studio-chat-element-edit-strip.mjs' // LATER-CHANGES: registry read (CHAT-ELEMENT-EDIT): #522 adds marked lines to the viewer, so they come out first, as #523's do, and the viewer read through this strip is its base again\n", ''],

@@ -1330,20 +1330,9 @@ await check('flag off is identical in every file the change touches: the strip g
   assert.equal(envDiff.filter(l => l.startsWith('-')).length, 0)
   assert.ok(envDiff.some(l => l === '+NEXT_PUBLIC_STUDIO_CHAT_ELEMENT_EDIT="false"'))
 })
-const DEV_COMMIT = 'c477beda49c1ec96062b700330f56f2d161a2814' // dev at #531: the files this change teaches are read against dev's, which holds the other changes' edits of them
-// The arrange proof also carries the two tolerance commits taken over from the sibling branches (SHARED_COMMITS below). Dev has the first (d4e62e0b, via #521); the second (e638f817, its one "not changed"
-// line read through the registry) reaches dev with #520. So its reference is dev's file with that one line as the shared commit writes it, and dev's file as it is once dev has the line.
-const SHARED_LINE = { 'scripts/test-studio-arrange.mjs': 'e638f8171b6f236e5141255e6b95be1219dfa03a' }
-function devFile(rel) {
-  const text = git('show', `${DEV_COMMIT}:${rel}`)
-  if (!SHARED_LINE[rel]) return text
-  const diff = git('show', '-U0', '--format=', SHARED_LINE[rel], '--', rel).split('\n')
-  const from = diff.filter(line => line.startsWith('-') && !line.startsWith('---')).map(line => line.slice(1)), to = diff.filter(line => line.startsWith('+') && !line.startsWith('+++')).map(line => line.slice(1))
-  assert.equal(from.length, 1, `${SHARED_LINE[rel]}: one line out`); assert.equal(to.length, 1, `${SHARED_LINE[rel]}: one line in`)
-  if (text.split('\n').includes(to[0])) return text
-  assert.equal(text.split(from[0]).length, 2, `${rel}: dev's file has the shared commit's old line once`)
-  return text.replace(from[0], () => to[0])
-}
+const DEV_COMMIT = '14a06c3053047acc7f6a613afd1138dabf4a3c54' // dev at #530 (chat clean v3.1, merged on #531): the files this change teaches are read against dev's, which holds the other changes' edits of them
+// The arrange proof's two tolerance lines (d4e62e0b, e638f817, SHARED_COMMITS below) are dev's now: #521 brought the first, and #530 made the same "not changed" registry read as the second.
+const devFile = rel => git('show', `${DEV_COMMIT}:${rel}`)
 await check('pins: the older files this change teaches are the reference\'s (dev\'s, plus the shared tolerances) byte for byte once its edits are put back, every line it added carries the mark, and putting back twice changes nothing', async () => {
   for (const [rel, gained, lost] of [['scripts/test-studio-chat-theme-export.mjs', 2, 0], ['scripts/studio-pass3-polish-b-strip.mjs', 2, 0], ['scripts/test-studio-rail-add-slide.mjs', 1, 1], ['scripts/test-studio-arrange.mjs', 2, 1], ['scripts/test-theme-font-selection.mjs', 1, 0]]) {
     const text = read(rel)
@@ -1387,7 +1376,8 @@ await check('scope: this change\'s own commits (the first-parent line without me
   }
   // scripts/test-studio-speed-perceived.mjs: this branch's first commits taught it a scope line; at the merge with dev it became #520's identical-intent line (the pins check proves it is dev's file).
   // scripts/fixtures/chat-element-edit/director-frames/agreed-envelope.json: the 26 Oct envelope, renamed contract-envelope.json when CONTRACT.md landed.
-  const superseded = new Set(['scripts/test-studio-speed-perceived.mjs', ...CHAT_ELEMENT_EDIT_RETIRED_FILES])
+  // scripts/test-studio-model-choice.mjs: this branch taught its .env.example check; #530 made that check accept any later block, so at the merge with dev the file is dev's again.
+  const superseded = new Set(['scripts/test-studio-speed-perceived.mjs', 'scripts/test-studio-model-choice.mjs', ...CHAT_ELEMENT_EDIT_RETIRED_FILES])
   for (const file of new Set(own)) assert.ok(CHAT_ELEMENT_EDIT_SCOPE_FILES.has(file) || superseded.has(file), `a file outside the change: ${file}`)
   assert.ok(fs.existsSync(path.join(root, 'scripts/test-studio-chat-element-edit.mjs')))
   // Nothing of FRONTEND-1's or COMPOSER-2's tests, and not test-director-websocket-reconnect, is touched.
