@@ -35,6 +35,7 @@ import path from 'node:path'
 import vm from 'node:vm'
 import { fileURLToPath } from 'node:url'
 import ts from 'typescript'
+import { stripLaterChanges } from './studio-later-changes.mjs' // LATER-CHANGES: registry read (CHAT-CLEAN)
 
 const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..')
 const baseRoot = process.env.DELETE_UNDO_BASE_ROOT ? path.resolve(process.env.DELETE_UNDO_BASE_ROOT) : null
@@ -78,7 +79,7 @@ function createLoader({ root, env = {}, stubs = {}, globals = {}, mutate = {} })
     const mod = { exports: {} }
     cache.set(file, mod.exports)
     const rel = path.relative(root, file)
-    let source = fs.readFileSync(file, 'utf8')
+    let source = stripLaterChanges(rel, fs.readFileSync(file, 'utf8')) // LATER-CHANGES: registry read (CHAT-CLEAN): a registered later change's marked lines (chat clean's, in chat-input.tsx) come out before the mutations and the transpile
     for (const [from, to] of mutate[rel] ?? []) {
       if (!source.includes(from)) throw new MutationTargetMissing(`mutation target missing in ${rel}: ${from.slice(0, 80)}`)
       source = source.replace(from, to)

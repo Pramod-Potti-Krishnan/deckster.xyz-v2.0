@@ -22,6 +22,7 @@ import ReactMarkdown from 'react-markdown'
 import { renderToStaticMarkup } from 'react-dom/server'
 import ts from 'typescript'
 import postcss from 'postcss'
+import { stripLaterChanges } from './studio-later-changes.mjs' // LATER-CHANGES: registry read (CHAT-CLEAN)
 
 const treeRoot = process.env.FIRST_RUN_V2_ROOT
   ? path.resolve(process.env.FIRST_RUN_V2_ROOT)
@@ -72,8 +73,8 @@ function createLoader(sourceOverrides = {}) {
       compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022, jsx: ts.JsxEmit.ReactJSX, esModuleInterop: true } }).outputText
     const rel = path.relative(treeRoot, file)
     // A mutated copy of a source (mutation checks only) is compiled into this loader's own cache, never the shared one.
-    if (rel in sourceOverrides) overridden.set(file, compile(sourceOverrides[rel]))
-    else if (!transpiled.has(file)) transpiled.set(file, compile(fs.readFileSync(file, 'utf8')))
+    if (rel in sourceOverrides) overridden.set(file, compile(stripLaterChanges(rel, sourceOverrides[rel]))) // LATER-CHANGES: registry read (CHAT-CLEAN): a mutated copy of a source carries the later change's marked lines too; they come out before the loader follows them
+    else if (!transpiled.has(file)) transpiled.set(file, compile(stripLaterChanges(path.relative(treeRoot, file), fs.readFileSync(file, 'utf8')))) // LATER-CHANGES: registry read (CHAT-CLEAN): a registered later change's marked lines (chat clean's imports in chat-input.tsx) come out before the loader follows them
     vm.runInNewContext(overridden.get(file) ?? transpiled.get(file), { module: mod, exports: mod.exports, process: { env }, console, fetch: refuse, setTimeout: refuse, clearTimeout: refuse, require: spec => requireFor(spec, file) })
     cache.set(file, mod.exports)
     return mod.exports

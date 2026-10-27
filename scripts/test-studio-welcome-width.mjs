@@ -19,6 +19,7 @@ import path from 'node:path'
 import vm from 'node:vm'
 import { createRequire } from 'node:module'
 import ts from 'typescript'
+import { stripLaterChanges } from './studio-later-changes.mjs' // LATER-CHANGES: registry read (CHAT-CLEAN)
 
 const repoRoot = path.resolve(new URL('..', import.meta.url).pathname)
 const nodeRequire = createRequire(path.join(repoRoot, 'package.json'))
@@ -34,7 +35,7 @@ const POLISH = 'lib/studio-welcome-polish.ts'
 const CHAT_INPUT = 'components/builder/chat-input.tsx'
 const SOURCES = { [LIB]: read(LIB), [WELCOME]: read(WELCOME), [CSS]: read(CSS) }
 const POLISH_SOURCE = read(POLISH)
-const CHAT_INPUT_SOURCE = read(CHAT_INPUT)
+const CHAT_INPUT_SOURCE = stripLaterChanges(CHAT_INPUT, read(CHAT_INPUT)) // LATER-CHANGES: registry read (CHAT-CLEAN): a registered later change's marked lines (chat clean's spread on the composer root) come out first
 const ATTR = 'data-studio-first-run-width'
 
 let checks = 0

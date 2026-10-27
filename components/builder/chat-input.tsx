@@ -53,6 +53,8 @@ import { StudioComposerHint } from './studio-composer-hint'
 import { StudioThemeMenu, type StudioThemeView, type StudioThemeMutationKind, type StudioThemeMutationNotice } from './studio-theme-menu'
 import { keepPopupOpenForDropdownList, nextComposerPopup, type ComposerPopupId } from '@/lib/studio-composer-popups'
 import type { ComposerLibraryRequest } from '@/lib/studio-composer-popups'
+import { STUDIO_CHAT_CLEAN_ENABLED, CHAT_CLEAN_TEXTAREA_MIN_HEIGHT, type ChatCleanComposerProps } from '@/lib/studio-chat-clean' // CHAT-CLEAN (NEXT_PUBLIC_STUDIO_CHAT_CLEAN, default off)
+import { StudioChatCleanSendSide } from '@/components/builder/chat/studio-chat-clean' // CHAT-CLEAN
 
 const TEXTAREA_MIN_HEIGHT = 96
 const TEXTAREA_MAX_HEIGHT = 220
@@ -138,6 +140,7 @@ export interface ChatInputProps {
    *  "Make some changes") and nothing has been typed since, so the idle placeholder says what to type. Derived by the page from the transcript
    *  (lib/studio-pass2b-chat) and passed only with the flag on; only the placeholder changes. */
   studioEditPrompt?: boolean
+  studioChatClean?: ChatCleanComposerProps // CHAT-CLEAN (NEXT_PUBLIC_STUDIO_CHAT_CLEAN): the composer's mode and the page's Stop / send-directions handlers; passed only with the flag on
 }
 
 export function ChatInput({
@@ -192,8 +195,15 @@ export function ChatInput({
   studioContextLabel,
   pausedInOtherTab = false,
   studioEditPrompt = false,
+  studioChatClean, // CHAT-CLEAN
 }: ChatInputProps) {
   const studio = process.env.NEXT_PUBLIC_STUDIO_V4_SHELL === 'true'
+  // CHAT-CLEAN (NEXT_PUBLIC_STUDIO_CHAT_CLEAN, Studio shell only, default off): PK's v3 composer (lib/studio-chat-clean.ts). Every line carrying this marker renders or applies only with the flag on and the page's props present; off, every spread adds nothing and every branch is null, so the element tree is exactly the base's.
+  const chatClean = STUDIO_CHAT_CLEAN_ENABLED && studio ? studioChatClean ?? null : null // CHAT-CLEAN
+  const TEXTAREA_MIN_HEIGHT = STUDIO_CHAT_CLEAN_ENABLED && studio ? CHAT_CLEAN_TEXTAREA_MIN_HEIGHT : 96 // CHAT-CLEAN: shadows the module constant (96) for the two resize effects below; the v3 box starts one line tall
+  const chatCleanPlaceholder: { placeholder?: string } = chatClean?.composer.placeholder ? { placeholder: chatClean.composer.placeholder } : {} // CHAT-CLEAN: spread after the base placeholder, it wins while a build runs or is held
+  const chatCleanSendGate: { disabled?: boolean; 'aria-disabled'?: boolean } = chatClean && chatClean.composer.sendMode === 'instructions' && inputMessage.trim() && user && !isLoadingSession ? { disabled: false, 'aria-disabled': false } : {} // CHAT-CLEAN: spread after the base's disabled, it frees Send for directions while the build is held
+  const chatCleanResearch = { deep: researchEnabled, onDeep: onResearchEnabledChange, web: webSearchEnabled, onWeb: onWebSearchEnabledChange, locked: researchSettingsLocked } // CHAT-CLEAN: the v3 study's toggle chips (CHAT_CLEAN_CHOICES.research = 'chips' only), bound to the same props the research menu uses (nothing new on the wire)
   // PASS2 composer copy (flag NEXT_PUBLIC_STUDIO_COMPOSER_COPY, Studio shell only, default off): plain words for the idle placeholder.
   const studioComposerCopy = studio && process.env.NEXT_PUBLIC_STUDIO_COMPOSER_COPY === 'true'
   // PASS2-COMPOSER-POPUPS (flag NEXT_PUBLIC_STUDIO_COMPOSER_POPUPS_V2, Studio shell only, default off): smaller prompt text, the theme and
@@ -242,6 +252,7 @@ export function ChatInput({
   const composerConnection = isLoadingSession ? 'Loading session…' : connected ? 'Connected' : connecting ? 'Connecting…' : 'Disconnected'
 
   const guardedSubmit = (e?: React.FormEvent) => {
+    if (chatClean && chatClean.composer.sendMode !== 'message') { e?.preventDefault(); if (chatClean.composer.sendMode !== 'wait' && inputMessage.trim()) chatClean.onSendDirections(); return } // CHAT-CLEAN: while the build is held, Enter / Send carry the draft as new directions (resume with instructions, or the rebuild path); while rebuilding or resuming they wait
     if (isSendBlocked) {
       e?.preventDefault()
       return
@@ -797,6 +808,7 @@ export function ChatInput({
       data-studio-v4-type={process.env.NEXT_PUBLIC_STUDIO_V4_TYPE === 'true' ? 'true' : undefined}
       data-studio-v4-dragging={isDraggingFiles ? 'true' : undefined}
       {...(popupsV2 ? { 'data-studio-composer-popups-v2': 'true' } : {})}
+      {...(chatClean ? { 'data-studio-chat-clean-composer': chatClean.composer.mode, 'data-studio-chat-clean-research-on': researchEnabled || webSearchEnabled || knowledgeGraphEnabled ? 'true' : 'false' } : {}) /* CHAT-CLEAN: the composer's mode (idle / running / stopping / held / resuming / rebuilding) and whether any research option is on (the dot on the research button), for the stylesheet */}
       className={`p-3 border-t border-gray-100 bg-white transition-colors dark:border-slate-800 dark:bg-slate-900 ${
         isDraggingFiles ? 'bg-purple-50 border-purple-200 dark:bg-purple-950/30 dark:border-purple-700' : ''
       }`}
@@ -847,6 +859,7 @@ export function ChatInput({
       )}
 
       {/* Hidden file input for upload button. PR D (context flag on): the context line shares this slot. */}
+      {chatClean?.composer.context ? <div data-studio-chat-context="true" data-studio-chat-clean-context="true"><span>{chatClean.composer.context}</span></div> : null}{/* CHAT-CLEAN: the context line while the build is held ("New directions apply from slide 5"); the base's line beside it is hidden by the stylesheet meanwhile */}
       {chatContextLabel ? (
         <>
           <div data-studio-chat-context="true">
@@ -1109,6 +1122,7 @@ export function ChatInput({
             disabled={!user || isLoadingSession || isTemplateReuseRunning}
             className="w-full resize-none border-0 bg-transparent focus:ring-0 focus-visible:ring-0 focus-visible:ring-offset-0 px-3 pt-3 pb-14 min-h-[96px] max-h-[220px] text-xs placeholder:text-gray-400 dark:text-slate-500 overflow-y-auto dark:text-slate-100 dark:placeholder:text-slate-500"
             rows={1}
+            {...chatCleanPlaceholder /* CHAT-CLEAN */}
           />
           </PromptRegion>
 
@@ -1390,6 +1404,7 @@ export function ChatInput({
                   // Research switches use native form Tab traversal inside the menu.
                   if (event.key === 'Tab') event.stopPropagation()
                 } : undefined} data-studio-composer-menu={studio ? 'research' : undefined} data-studio-v4-chrome={process.env.NEXT_PUBLIC_STUDIO_V4_TOKENS === 'true' ? 'true' : undefined} data-studio-v4-type={process.env.NEXT_PUBLIC_STUDIO_V4_TYPE === 'true' ? 'true' : undefined} data-studio-v4-menu="research" align="start" className="w-52">
+                  {chatClean ? <span data-studio-chat-clean-menu="research" hidden /> : null}{/* CHAT-CLEAN: a marker in this portal, so the stylesheet can draw its "Research" eyebrow (v3.1); off, null */}
                   {studio && (
                     <div data-studio-composer-options-part="heading">
                       <strong>Research options</strong>
@@ -1465,6 +1480,7 @@ export function ChatInput({
               </DropdownMenu>
             </div>
 
+            {chatClean ? <StudioChatCleanSendSide composer={chatClean.composer} onStop={chatClean.onStop} picker={{ sessionId: chatClean.sessionId, disabled: !user || isLoadingSession }} research={chatCleanResearch} /> : null}{/* CHAT-CLEAN: the model picker (the gauge button) and Stop beside Send; the stylesheet moves the research options button above next to them and hides Send while Stop shows */}
             {/* Right: Send button - rounded square with up arrow */}
             {isTemplateReuseRunning ? (
               <StudioComposerHint enabled={studio} label="Stop template reuse">
@@ -1487,6 +1503,7 @@ export function ChatInput({
                 disabled={isSubmitDisabled}
                 title={uploadBlockReason ?? undefined}
                 aria-disabled={isSubmitDisabled}
+                {...chatCleanSendGate /* CHAT-CLEAN: while the build is held a typed draft can always go as directions (the reply gate does not apply to a resume) */}
                 className={`h-7 w-7 rounded-lg flex items-center justify-center transition-all ${
                   inputMessage.trim()
                     ? 'bg-purple-600 hover:bg-purple-700 text-white'
@@ -1509,6 +1526,7 @@ export function ChatInput({
       </form>
       {studio && (
         <div data-studio-composer-part="footer">
+          {chatClean?.composer.hint ? <span data-studio-chat-clean-hint="true">{chatClean.composer.hint}</span> : null}{/* CHAT-CLEAN: the v3 hint while a build runs or is held; the stylesheet hides the base's hint beside it */}
           <span>{composerHint}</span>
           {showConnectionStatus && <span data-studio-composer-part="connection" role="status">{composerConnection}</span>}
         </div>

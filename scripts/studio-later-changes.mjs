@@ -42,6 +42,7 @@ export const LATER_CHANGE_FILES = new Set([
   ...(await import('./studio-model-choice-strip.mjs')).MODEL_CHOICE_SCOPE_FILES, // LATER-CHANGE: FRONTEND-2, P3-10 model choice: the Intelligence picker uses the live model catalogue (NEXT_PUBLIC_STUDIO_MODEL_CHOICE)
   ...(await import('./studio-model-slider-strip.mjs')).MODEL_SLIDER_SCOPE_FILES, // LATER-CHANGE: FRONTEND-2, P3-10 model choice, the slider variant of the composer picker, stacked on the line above (NEXT_PUBLIC_STUDIO_MODEL_CHOICE; no .env.example block, no strip of its own)
   ...(await import('./studio-model-five-strip.mjs')).MODEL_FIVE_SCOPE_FILES, // LATER-CHANGE: FRONTEND-2, P3-10 model choice, five presets (Quick, Fast, Balanced, Best, Max) on the slider and the compact picker, on dev after the line above (NEXT_PUBLIC_STUDIO_MODEL_CHOICE; no .env.example block, no strip of its own)
+  ...(await import('./studio-chat-clean-strip.mjs')).CHAT_CLEAN_SCOPE_FILES, // LATER-CHANGE: FRONTEND-1, P3-1 C chat clean v3: the Director chat as one thread, the job card inline, Send <-> Stop and the slim Continue bar (NEXT_PUBLIC_STUDIO_CHAT_CLEAN)
   // one line per later change, above this comment
 ])
 
@@ -56,6 +57,7 @@ export const LATER_ENV_BLOCKS = [
   (await import('./studio-flow-control-strip.mjs')).FLOW_CONTROL_ENV_BLOCK, // LATER-CHANGE: FRONTEND-1, P3-1 D flow control, Studio half (NEXT_PUBLIC_STUDIO_FLOW_FOCUS / _FLOW_AMEND / _FLOW_AMEND_INSTRUCTIONS)
   (await import('./studio-arrange-strip.mjs')).STUDIO_ARRANGE_ENV_BLOCK, // LATER-CHANGE: FRONTEND-2, Arrange works in the Studio inspector, selecting no longer raises (NEXT_PUBLIC_STUDIO_ARRANGE)
   (await import('./studio-model-choice-strip.mjs')).MODEL_CHOICE_ENV_BLOCK, // LATER-CHANGE: FRONTEND-2, P3-10 model choice: the Intelligence picker uses the live model catalogue (NEXT_PUBLIC_STUDIO_MODEL_CHOICE)
+  (await import('./studio-chat-clean-strip.mjs')).CHAT_CLEAN_ENV_BLOCK, // LATER-CHANGE: FRONTEND-1, P3-1 C chat clean v3 (NEXT_PUBLIC_STUDIO_CHAT_CLEAN)
   // one line per later change, above this comment
 ]
 
@@ -79,6 +81,7 @@ export const LATER_STRIPS = [
   (await import('./studio-flow-control-strip.mjs')).stripFlowControl, // LATER-CHANGE: FRONTEND-1, P3-1 D flow control, Studio half (NEXT_PUBLIC_STUDIO_FLOW_FOCUS / _FLOW_AMEND / _FLOW_AMEND_INSTRUCTIONS)
   (await import('./studio-arrange-strip.mjs')).stripStudioArrange, // LATER-CHANGE: FRONTEND-2, Arrange works in the Studio inspector, selecting no longer raises (NEXT_PUBLIC_STUDIO_ARRANGE)
   (await import('./studio-model-choice-strip.mjs')).stripModelChoice, // LATER-CHANGE: FRONTEND-2, P3-10 model choice: the Intelligence picker uses the live model catalogue (NEXT_PUBLIC_STUDIO_MODEL_CHOICE)
+  (await import('./studio-chat-clean-strip.mjs')).stripChatClean, // LATER-CHANGE: FRONTEND-1, P3-1 C chat clean v3 (NEXT_PUBLIC_STUDIO_CHAT_CLEAN)
   // one line per later change, above this comment
 ]
 

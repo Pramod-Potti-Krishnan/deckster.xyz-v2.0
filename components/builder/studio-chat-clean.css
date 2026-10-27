@@ -1,0 +1,271 @@
+/* CHAT CLEAN (flag NEXT_PUBLIC_STUDIO_CHAT_CLEAN): the Director chat in PK's v3 design (streams/frontend1/chat-design/v3; the composer per
+   v3.1). Every rule is keyed to [data-studio-chat-clean], an attribute the Builder page puts on the chat column only with the flag on (Studio
+   shell only); with the flag off none of this matches anything. Presentation only: the thread's markup, keys and handlers are the base's; the
+   avatar and label elements stay in the DOM and are hidden; the composer's own tool buttons stay and are drawn as 24px squares, the research
+   options button moved next to Send by flex order.
+   Type: no element is set larger than the live panel draws it (PK; the v3.1 table = min(live, design)): a size is written only for an element this
+   change adds (job card 11/11/10, notes 11, bar 11, status 11, directions 12) or where the design is smaller than the live one (the options chips 11px
+   under 11.5px, the composer text 13px under 13.6px, the failure body 11px under 11.5px).
+   Neutrals are the shell's own tokens (--ss-panel/-field/-line/-text/-muted) so light and dark follow the shell; the values the shell has no
+   token for (line-2, ink-3, the error red, the connection green and amber) and the user's tint are written here, light and dark.
+   PK's choices arrive as attributes on the same root (lib/studio-chat-clean.ts CHAT_CLEAN_CHOICES): accent, stop, primary, label, user, research. */
+
+/* ---- tokens --------------------------------------------------------------------------------------------------------------------- */
+[data-studio-v4-shell="true"] [data-studio-chat-clean] {
+  --scc-bg: var(--ss-panel); --scc-surface: var(--ss-field); --scc-line: var(--ss-line); --scc-line-2: #c3cfcb;
+  --scc-ink: var(--ss-text); --scc-ink-2: var(--ss-muted); --scc-ink-3: #8a9896;
+  --scc-user: #f1edfb; --scc-error: #9b3f36;
+  --scc-ok: #2f8f5b; --scc-wait: #c4902e; --scc-off: var(--scc-ink-3);
+  --scc-accent: var(--scc-ink); --scc-on-accent: var(--scc-bg);
+  --scc-stop: var(--scc-ink); --scc-on-stop: var(--scc-bg);
+}
+.dark [data-studio-v4-shell="true"] [data-studio-chat-clean] { --scc-line-2: #46565a; --scc-ink-3: #74857f; --scc-user: #2b2742; --scc-error: #e3a29a; --scc-ok: #6cc596; --scc-wait: #e2b667; }
+/* the user's box: the one tinted colour (v3), or the neutral grey — CHAT_CLEAN_CHOICES.userBox */
+[data-studio-v4-shell="true"] [data-studio-chat-clean][data-studio-chat-clean-user="neutral"] { --scc-user: #eef1f0; }
+.dark [data-studio-v4-shell="true"] [data-studio-chat-clean][data-studio-chat-clean-user="neutral"] { --scc-user: #26323a; }
+/* the one accent (Send, the approved choice): the ink (v3) or the shell's violet — CHAT_CLEAN_CHOICES.accent */
+[data-studio-v4-shell="true"] [data-studio-chat-clean][data-studio-chat-clean-accent="violet"] { --scc-accent: var(--ss-accent); --scc-on-accent: #ffffff; }
+.dark [data-studio-v4-shell="true"] [data-studio-chat-clean][data-studio-chat-clean-accent="violet"] { --scc-on-accent: #1b2426; }
+/* the Stop button: the ink (v3) or the accent — CHAT_CLEAN_CHOICES.stop */
+[data-studio-v4-shell="true"] [data-studio-chat-clean][data-studio-chat-clean-stop-colour="accent"] { --scc-stop: var(--scc-accent); --scc-on-stop: var(--scc-on-accent); }
+
+/* ---- the header: the connection dot is green when connected, amber while connecting or reconnecting, grey otherwise ------------------- */
+[data-studio-v4-shell="true"] [data-studio-chat-clean] [data-studio-director-header="true"] > [data-connection-state="connected"] { color: var(--scc-ink-2); }
+[data-studio-v4-shell="true"] [data-studio-chat-clean] [data-studio-chat-header] > [role="status"]::before { background: var(--scc-off); box-shadow: none; }
+[data-studio-v4-shell="true"] [data-studio-chat-clean] [data-studio-chat-header] > [data-studio-chat-header-state="ready"]::before { background: var(--scc-ok); }
+[data-studio-v4-shell="true"] [data-studio-chat-clean] [data-studio-chat-header] > :is([data-studio-chat-header-state="connecting"], [data-studio-chat-header-state="reconnecting"])::before { background: var(--scc-wait); }
+[data-studio-v4-shell="true"] [data-studio-chat-clean] [data-studio-chat-header] > :is([data-studio-chat-header-state="failed"], [data-studio-chat-header-state="error"], [data-studio-chat-header-state="offline"])::before { background: var(--scc-off); }
+
+/* ---- the thread: the user's turn is a right-aligned box, Director's words sit on the page ------------------------------------------- */
+[data-studio-v4-shell="true"] [data-studio-chat-clean] [data-studio-director-message] { gap: 0; }
+[data-studio-v4-shell="true"] [data-studio-chat-clean] [data-studio-director-message="user"] { justify-content: flex-end; }
+[data-studio-v4-shell="true"] [data-studio-chat-clean] [data-studio-director-message="user"] > div:last-child { display: none; }
+[data-studio-v4-shell="true"] [data-studio-chat-clean] [data-studio-director-message="user"] > div:first-child {
+  flex: 0 1 auto; width: auto; max-width: 84%; margin: 0; padding: 10px 12px; box-sizing: border-box;
+  border-radius: 12px 12px 4px 12px; background: var(--scc-user); text-align: left;
+}
+[data-studio-v4-shell="true"] [data-studio-chat-clean] [data-studio-director-message="user"] > div:first-child > p:first-child { display: none; }
+[data-studio-v4-shell="true"] [data-studio-chat-clean] [data-studio-director-message="user"] > div:first-child > p:nth-child(2) {
+  display: block; margin: 0; padding: 0; border: 0; border-radius: 0; background: none; color: var(--scc-ink); overflow-wrap: anywhere;
+}
+[data-studio-v4-shell="true"] [data-studio-chat-clean] [data-studio-director-message="user"] > div:first-child > div { justify-content: flex-start; margin-top: 8px; gap: 4px; }
+[data-studio-v4-shell="true"] [data-studio-chat-clean] [data-studio-director-message="user"] [role="status"] { border: 1px solid var(--scc-line); border-radius: 4px; background: var(--scc-bg); color: var(--scc-ink); }
+[data-studio-v4-shell="true"] [data-studio-chat-clean] [data-studio-director-message="director"] > [data-studio-director-part="avatar"] { display: none; }
+[data-studio-v4-shell="true"] [data-studio-chat-clean] [data-studio-director-part="speaker"] { display: none; }
+/* CHAT_CLEAN_CHOICES.directorLabel = 'small': the label comes back, small, with the spark the polish stylesheet draws */
+[data-studio-v4-shell="true"] [data-studio-chat-clean][data-studio-chat-clean-label="small"] [data-studio-director-message="director"] [data-studio-director-part="speaker"] {
+  display: flex; align-items: center; gap: 6px; margin: 0 0 6px; color: var(--scc-ink-2); letter-spacing: .08em; text-transform: uppercase;
+}
+[data-studio-v4-shell="true"] [data-studio-chat-clean] [data-studio-director-part="body"] { max-width: none; color: var(--scc-ink); }
+[data-studio-v4-shell="true"] [data-studio-chat-clean] [data-studio-director-part="body"] > p { margin-bottom: 8px; }
+[data-studio-v4-shell="true"] [data-studio-chat-clean] [data-studio-director-part="body"] a { color: var(--scc-ink); }
+[data-studio-v4-shell="true"] [data-studio-chat-clean] :is([data-studio-director-part="subtitle"], [data-studio-director-part="message-list-items"]) { max-width: none; color: var(--scc-ink-2); }
+/* a progress-style update ("thinking" rows and the working pulse): one muted line, no box */
+[data-studio-v4-shell="true"] [data-studio-chat-clean] [data-studio-director-part="thinking"] { padding: 0; border: 0; border-radius: 0; background: transparent; }
+[data-studio-v4-shell="true"] [data-studio-chat-clean] [data-studio-director-part="thinking"] :is(p, span.min-w-0) { color: var(--scc-ink-2); }
+[data-studio-v4-shell="true"] [data-studio-chat-clean] [data-studio-director-part="thinking"] .animate-pulse { background: var(--scc-ink-3); }
+[data-studio-v4-shell="true"] [data-studio-chat-clean] [data-studio-director-part="thinking"] button > svg { color: var(--scc-ink-3); }
+[data-studio-v4-shell="true"] [data-studio-chat-clean] [data-studio-director-part="progress-history"] { margin-top: 6px; padding: 0 0 0 22px; border-top: 0; }
+
+/* ---- asks: the question as plain words, the choices as hairline chips, the chosen / primary one an ink outline ---------------------- */
+[data-studio-v4-shell="true"] [data-studio-chat-clean] [data-studio-director-ask] { gap: 8px; padding: 0; border: 0; border-radius: 0; background: transparent; }
+[data-studio-v4-shell="true"] [data-studio-chat-clean] [data-studio-director-ask] > [data-studio-director-part="heading"] { display: none; }
+[data-studio-v4-shell="true"] [data-studio-chat-clean] [data-studio-director-part="prompt"] { margin: 0; color: var(--scc-ink); }
+[data-studio-v4-shell="true"] [data-studio-chat-clean] [data-studio-director-part="question-number"] { flex-basis: 16px; height: 16px; border: 1px solid var(--scc-line); background: transparent; color: var(--scc-ink-3); font-size: 9px; }
+[data-studio-v4-shell="true"] [data-studio-chat-clean] :is([data-studio-director-part="options"], [data-studio-director-part="actions"]) { gap: 4px; }
+[data-studio-v4-shell="true"] [data-studio-chat-clean] [data-studio-director-option] {
+  height: 24px; min-height: 24px; padding: 0 9px; border: 1px solid var(--scc-line); border-radius: 4px; background: transparent; box-shadow: none;
+  color: var(--scc-ink-2); font-size: 11px; line-height: 16px; font-weight: 400; white-space: nowrap;
+}
+[data-studio-v4-shell="true"] [data-studio-chat-clean] [data-studio-director-option]:hover:not(:disabled) { border-color: var(--scc-ink-2); background: transparent; color: var(--scc-ink); }
+[data-studio-v4-shell="true"] [data-studio-chat-clean] [data-studio-director-option][data-recommended="true"] { border-color: var(--scc-line); }
+[data-studio-v4-shell="true"] [data-studio-chat-clean] [data-studio-director-option] > span[aria-label="Recommended"] { color: var(--scc-ink-3); }
+[data-studio-v4-shell="true"] [data-studio-chat-clean] [data-studio-director-option][data-primary="true"],
+[data-studio-v4-shell="true"] [data-studio-chat-clean] [data-studio-director-option][aria-pressed="true"],
+[data-studio-v4-shell="true"] [data-studio-chat-clean] [data-studio-chat-answered] button[data-studio-chat-chosen] {
+  padding: 0 8.5px; border: 1.5px solid var(--scc-ink); background: transparent; color: var(--scc-ink); font-weight: 500; opacity: 1;
+}
+[data-studio-v4-shell="true"] [data-studio-chat-clean] [data-studio-director-option][data-primary="true"]:hover:not(:disabled) { background: transparent; }
+[data-studio-v4-shell="true"] [data-studio-chat-clean] [data-studio-chat-answered] button[data-studio-chat-chosen] > svg { color: var(--scc-ink); }
+[data-studio-v4-shell="true"] [data-studio-chat-clean] [data-studio-chat-answered] button:disabled:not([data-studio-chat-chosen]) { opacity: .7; }
+[data-studio-v4-shell="true"] [data-studio-chat-clean] [data-studio-chat-answered] li[data-studio-chat-chosen] {
+  margin: 2px 0; padding: 0 8.5px; height: 24px; border: 1.5px solid var(--scc-ink); border-radius: 4px; background: transparent; color: var(--scc-ink); font-weight: 500;
+}
+[data-studio-v4-shell="true"] [data-studio-chat-clean] [data-studio-chat-answered] li[data-studio-chat-chosen] > svg { color: var(--scc-ink); }
+[data-studio-v4-shell="true"] [data-studio-chat-clean] [data-studio-director-ask="history"] > [data-studio-director-part="heading"] { display: none; }
+[data-studio-v4-shell="true"] [data-studio-chat-clean] [data-studio-director-part="free-text"] { height: 28px; border-radius: 4px; border-color: var(--scc-line); }
+[data-studio-v4-shell="true"] [data-studio-chat-clean] [data-studio-director-part="send"] { height: 24px; min-height: 24px; padding: 0 9px; border-radius: 4px; background: var(--scc-accent); color: var(--scc-on-accent); }
+[data-studio-v4-shell="true"] [data-studio-chat-clean] [data-studio-director-part="send"]:hover:not(:disabled) { background: var(--scc-accent); opacity: .9; }
+[data-studio-v4-shell="true"] [data-studio-chat-clean] [data-studio-director-part="send"]:disabled { background: transparent; border: 1px solid var(--scc-line); color: var(--scc-ink-3); }
+[data-studio-v4-shell="true"] [data-studio-chat-clean] :is([data-studio-director-part="hint"], [data-studio-director-part="alternatives"], [data-studio-director-part="approval-hint"]) { color: var(--scc-ink-3); }
+[data-studio-v4-shell="true"] [data-studio-chat-clean] [data-studio-director-part="actions"]:has([data-studio-director-part="alternatives"]) { padding-top: 8px; border-top: 1px solid var(--scc-line); }
+
+/* ---- result rows: the outline, the preview-ready row (Open on the right), the earlier outline ---------------------------------------- */
+[data-studio-v4-shell="true"] [data-studio-chat-clean] :is([data-studio-director-part="outline-review"], [data-studio-director-part="outline-history-review"]) { margin-top: 0; padding: 0; border: 0; border-radius: 0; background: transparent; }
+[data-studio-v4-shell="true"] [data-studio-chat-clean] [data-studio-director-part="outline-review-heading"] { display: none; }
+[data-studio-v4-shell="true"] [data-studio-chat-clean] :is([data-studio-director-part="outline-review"], [data-studio-director-part="outline-history-review"]) h3 { margin: 0 0 2px; }
+[data-studio-v4-shell="true"] [data-studio-chat-clean] :is([data-studio-director-part="outline-review-meta"], [data-studio-director-part="outline-review-audience"], [data-studio-director-part="outline-review-deck-count"]) { margin: 0; color: var(--scc-ink-2); }
+[data-studio-v4-shell="true"] [data-studio-chat-clean] :is([data-studio-director-part="outline-review-canvas-note"], [data-studio-director-part="outline-review-superseded-note"]) { margin: 4px 0 0; color: var(--scc-ink-3); }
+[data-studio-v4-shell="true"] [data-studio-chat-clean] [data-studio-director-part="outline-review-details"] > summary {
+  display: inline-flex; align-items: center; height: 24px; margin-top: 8px; padding: 0 8px; border: 1px solid var(--scc-line); border-radius: 4px; color: var(--scc-ink); font-weight: 500; cursor: pointer; list-style: none;
+}
+[data-studio-v4-shell="true"] [data-studio-chat-clean] [data-studio-director-part="outline-review-details"] > summary::-webkit-details-marker { display: none; }
+[data-studio-v4-shell="true"] [data-studio-chat-clean] [data-studio-director-part="outline-review-details"][open] > summary { margin-bottom: 8px; }
+[data-studio-v4-shell="true"] [data-studio-chat-clean] [data-studio-director-part="outline-review-hint"] { margin: 8px 0 6px; color: var(--scc-ink-3); }
+[data-studio-v4-shell="true"] [data-studio-chat-clean] [data-studio-director-part="outline-review-slide"] { border-radius: 4px; }
+[data-studio-v4-shell="true"] [data-studio-chat-clean] [data-studio-director-part="outline-review-role"] { background: transparent; border: 1px solid var(--scc-line); color: var(--scc-ink-2); }
+[data-studio-v4-shell="true"] [data-studio-chat-clean] [data-studio-director-evidence="ready"] { background: transparent; border-color: var(--scc-line); color: var(--scc-ink-2); }
+[data-studio-v4-shell="true"] [data-studio-chat-clean] [data-studio-director-part="outline-history"] { margin-top: 0; padding: 0; border: 0; border-radius: 0; background: transparent; }
+[data-studio-v4-shell="true"] [data-studio-chat-clean] [data-studio-director-part="preview-ready"] { margin-top: 8px; padding: 0; border: 0; border-radius: 0; background: transparent; gap: 8px; }
+[data-studio-v4-shell="true"] [data-studio-chat-clean] [data-studio-director-part="preview-ready"] > span:first-child { display: none; }
+[data-studio-v4-shell="true"] [data-studio-chat-clean] [data-studio-director-part="preview-ready"] p { color: var(--scc-ink); font-weight: 600; }
+[data-studio-v4-shell="true"] [data-studio-chat-clean] [data-studio-director-part="preview-ready"] p + p { color: var(--scc-ink-2); font-weight: 400; }
+[data-studio-v4-shell="true"] [data-studio-chat-clean] [data-studio-director-part="preview-ready"] button {
+  height: 24px; padding: 0 8px; border: 1px solid var(--scc-line); border-radius: 4px; background: transparent; color: var(--scc-ink); font-weight: 500;
+}
+[data-studio-v4-shell="true"] [data-studio-chat-clean] [data-studio-director-part="preview-ready"] button svg { color: var(--scc-ink-2); }
+
+/* ---- the failure row (the job ledger) and the recovery card: a small red icon, words in ink, Retry + Dismiss --------------------------- */
+[data-studio-v4-shell="true"] [data-studio-chat-clean] [data-studio-job-ledger] { padding: 0; border: 0; border-radius: 0; background: transparent; gap: 8px; }
+[data-studio-v4-shell="true"] [data-studio-chat-clean] [data-studio-job-ledger] > svg { width: 13px; height: 13px; margin-top: 3px; color: var(--scc-error); }
+[data-studio-v4-shell="true"] [data-studio-chat-clean] [data-studio-job-ledger-part="title"] { color: var(--scc-ink); font-weight: 600; }
+[data-studio-v4-shell="true"] [data-studio-chat-clean] [data-studio-job-ledger-part="body"] { margin-top: 2px; color: var(--scc-ink-2); font-size: 11px; }
+[data-studio-v4-shell="true"] [data-studio-chat-clean] [data-studio-job-ledger-part="actions"] { margin-top: 6px; gap: 4px; }
+[data-studio-v4-shell="true"] [data-studio-chat-clean] [data-studio-job-ledger-part="actions"] button {
+  height: 24px; padding: 0 8px; border: 1px solid var(--scc-line); border-radius: 4px; background: transparent; color: var(--scc-ink); font-weight: 500;
+}
+[data-studio-v4-shell="true"] [data-studio-chat-clean] [data-studio-job-ledger-part="dismiss"] { border-color: transparent; color: var(--scc-ink-2); }
+[data-studio-v4-shell="true"] [data-studio-chat-clean] [data-studio-chat-recovery] { padding: 0; border: 0; border-radius: 0; background: transparent; }
+[data-studio-v4-shell="true"] [data-studio-chat-clean] [data-studio-chat-recovery] > svg { color: var(--scc-error); }
+[data-studio-v4-shell="true"] [data-studio-chat-clean] [data-studio-chat-recovery-part="title"] { color: var(--scc-ink); font-weight: 600; }
+[data-studio-v4-shell="true"] [data-studio-chat-clean] [data-studio-chat-recovery-part="body"] { color: var(--scc-ink-2); }
+
+/* ---- the thread's tail: the notes, the user's directions, the job card, Director's status line (all this change's own elements) ------- */
+[data-studio-v4-shell="true"] [data-studio-chat-clean] [data-studio-chat-clean-notes] { display: grid; gap: 12px; }
+[data-studio-v4-shell="true"] [data-studio-chat-clean] [data-studio-chat-clean-note] { display: flex; align-items: center; gap: 6px; margin: 0; color: var(--scc-ink-3); font-size: 11px; line-height: 16px; overflow-wrap: anywhere; }
+[data-studio-v4-shell="true"] [data-studio-chat-clean] [data-studio-chat-clean-note] > svg { flex: none; }
+[data-studio-v4-shell="true"] [data-studio-chat-clean] [data-studio-chat-clean-note="not_applied"] { color: var(--scc-ink-2); }
+[data-studio-v4-shell="true"] [data-studio-chat-clean] [data-studio-chat-clean-directions] { width: fit-content; max-width: 84%; margin-left: auto; padding: 10px 12px; border-radius: 12px 12px 4px 12px; background: var(--scc-user); color: var(--scc-ink); font-size: 12px; line-height: 1.6; }
+[data-studio-v4-shell="true"] [data-studio-chat-clean] [data-studio-chat-clean-directions] p { margin: 0; overflow-wrap: anywhere; }
+[data-studio-v4-shell="true"] [data-studio-chat-clean] [data-studio-chat-clean-job] { display: grid; gap: 8px; padding: 10px 12px; border: 1px solid var(--scc-line); border-radius: 8px; background: var(--scc-bg); color: var(--scc-ink); }
+[data-studio-v4-shell="true"] [data-studio-chat-clean] [data-studio-chat-clean-job-part="head"] { display: flex; align-items: center; gap: 8px; }
+[data-studio-v4-shell="true"] [data-studio-chat-clean] [data-studio-chat-clean-job-part="head"] h3 { display: inline-flex; align-items: center; gap: 6px; margin: 0; min-width: 0; color: var(--scc-ink); font-size: 11px; line-height: 16px; font-weight: 600; }
+[data-studio-v4-shell="true"] [data-studio-chat-clean] [data-studio-chat-clean-job-part="head"] h3 > svg { flex: none; color: var(--scc-ink-2); }
+[data-studio-v4-shell="true"] [data-studio-chat-clean] [data-studio-chat-clean-job="error"] h3 > svg { color: var(--scc-error); }
+[data-studio-v4-shell="true"] [data-studio-chat-clean] [data-studio-chat-clean-job-part="meta"] { margin-left: auto; color: var(--scc-ink-2); font-size: 11px; line-height: 16px; font-variant-numeric: tabular-nums; white-space: nowrap; }
+[data-studio-v4-shell="true"] [data-studio-chat-clean] [data-studio-chat-clean-job-part="steps"] { display: grid; grid-template-columns: repeat(5, 1fr); gap: 4px; }
+[data-studio-v4-shell="true"] [data-studio-chat-clean] [data-studio-chat-clean-step] { display: grid; gap: 4px; color: var(--scc-ink-3); font-size: 10px; line-height: 14px; }
+[data-studio-v4-shell="true"] [data-studio-chat-clean] [data-studio-chat-clean-step]::before { content: ""; height: 3px; border-radius: 2px; background: var(--scc-line); }
+[data-studio-v4-shell="true"] [data-studio-chat-clean] [data-studio-chat-clean-step="done"] { color: var(--scc-ink-2); }
+[data-studio-v4-shell="true"] [data-studio-chat-clean] [data-studio-chat-clean-step="done"]::before { background: var(--scc-ink-2); }
+[data-studio-v4-shell="true"] [data-studio-chat-clean] [data-studio-chat-clean-step="now"] { color: var(--scc-ink); font-weight: 600; }
+[data-studio-v4-shell="true"] [data-studio-chat-clean] [data-studio-chat-clean-step="now"]::before { background: linear-gradient(90deg, var(--scc-ink) 0 var(--scc-fill, 40%), var(--scc-line) var(--scc-fill, 40%) 100%); }
+[data-studio-v4-shell="true"] [data-studio-chat-clean] [data-studio-chat-clean-step="held"] { color: var(--scc-ink); font-weight: 600; }
+[data-studio-v4-shell="true"] [data-studio-chat-clean] [data-studio-chat-clean-step="held"]::before { background: linear-gradient(90deg, var(--scc-ink-3) 0 var(--scc-fill, 40%), var(--scc-line) var(--scc-fill, 40%) 100%); }
+[data-studio-v4-shell="true"] [data-studio-chat-clean] [data-studio-chat-clean-job-part="line"] { margin: 0; color: var(--scc-ink-2); font-size: 11px; line-height: 16px; overflow-wrap: anywhere; }
+[data-studio-v4-shell="true"] [data-studio-chat-clean] [data-studio-chat-clean-status] { display: flex; align-items: center; gap: 4px; margin: 0; color: var(--scc-ink-2); font-size: 11px; line-height: 16px; }
+[data-studio-v4-shell="true"] [data-studio-chat-clean] [data-studio-chat-clean-status] > span { width: 4px; height: 4px; border-radius: 50%; background: var(--scc-ink-3); animation: studio-chat-clean-pulse 1.2s ease-in-out infinite; }
+[data-studio-v4-shell="true"] [data-studio-chat-clean] [data-studio-chat-clean-status] > span:nth-child(2) { animation-delay: .15s; }
+[data-studio-v4-shell="true"] [data-studio-chat-clean] [data-studio-chat-clean-status] > span:nth-child(3) { margin-right: 4px; animation-delay: .3s; }
+@keyframes studio-chat-clean-pulse { 0%, 100% { opacity: .35; } 50% { opacity: 1; } }
+
+/* ---- the slim bar above the composer while the build is held (the flow bar it stands in for is hidden) -------------------------------- */
+[data-studio-v4-shell="true"] [data-studio-chat-clean] [data-testid="bn-flow-amend"] { display: none; }
+[data-studio-v4-shell="true"] [data-studio-chat-clean] [data-studio-chat-clean-bar] {
+  flex: none; display: flex; align-items: center; gap: 8px; padding: 6px 16px; border-top: 1px solid var(--scc-line); background: var(--scc-surface); color: var(--scc-ink-2); font-size: 11px; line-height: 16px;
+}
+[data-studio-v4-shell="true"] [data-studio-chat-clean] [data-studio-chat-clean-bar] > svg { flex: none; }
+[data-studio-v4-shell="true"] [data-studio-chat-clean] [data-studio-chat-clean-bar] > span { min-width: 0; overflow-wrap: anywhere; }
+[data-studio-v4-shell="true"] [data-studio-chat-clean] [data-studio-chat-clean-bar] b { color: var(--scc-ink); font-weight: 500; }
+[data-studio-v4-shell="true"] [data-studio-chat-clean] [data-studio-chat-clean-continue] {
+  flex: none; display: inline-flex; align-items: center; gap: 5px; height: 24px; margin-left: auto; padding: 0 8px; border: 1px solid var(--scc-line); border-radius: 4px; background: var(--scc-bg); color: var(--scc-ink); font-size: 11px; font-weight: 500; white-space: nowrap;
+}
+[data-studio-v4-shell="true"] [data-studio-chat-clean] [data-studio-chat-clean-continue] > svg { color: var(--scc-ink-2); }
+[data-studio-v4-shell="true"] [data-studio-chat-clean] [data-studio-chat-clean-continue]:hover:not(:disabled) { border-color: var(--scc-ink-2); }
+[data-studio-v4-shell="true"] [data-studio-chat-clean] [data-studio-chat-clean-continue]:disabled { opacity: .55; cursor: default; }
+/* CHAT_CLEAN_CHOICES.stoppedDraftPrimary = 'continue': Continue takes the accent and Send the outline while the build is held */
+[data-studio-v4-shell="true"] [data-studio-chat-clean][data-studio-chat-clean-primary="continue"] [data-studio-chat-clean-bar="held"] [data-studio-chat-clean-continue] { border-color: var(--scc-accent); background: var(--scc-accent); color: var(--scc-on-accent); }
+[data-studio-v4-shell="true"] [data-studio-chat-clean][data-studio-chat-clean-primary="continue"] [data-studio-chat-clean-bar="held"] [data-studio-chat-clean-continue] > svg { color: var(--scc-on-accent); }
+[data-studio-v4-shell="true"] [data-studio-chat-clean][data-studio-chat-clean-primary="continue"] [data-studio-chat-clean-composer="held"] [data-studio-v4-send] { border: 1.5px solid var(--scc-ink); background: transparent; color: var(--scc-ink); }
+
+/* ---- the composer (v3.1): a hairline box; the tools row = attach · template · theme … model (gauge) · options (slider) · Send / Stop ------- */
+[data-studio-v4-shell="true"] [data-studio-chat-clean] [data-studio-v4-composer] { padding: 8px 16px 10px; border-top: 1px solid var(--scc-line); background: var(--scc-bg); }
+[data-studio-v4-shell="true"] [data-studio-chat-clean] [data-studio-chat-context] { margin: 0 2px 6px; color: var(--scc-ink-3); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+[data-studio-v4-shell="true"] [data-studio-chat-clean] [data-studio-chat-context-dot] { display: none; }
+[data-studio-v4-shell="true"] [data-studio-chat-clean] [data-studio-chat-clean-context] ~ [data-studio-chat-context]:not([data-studio-chat-clean-context]) { display: none; }
+[data-studio-v4-shell="true"] [data-studio-chat-clean] [data-studio-composer-selection],
+[data-studio-v4-shell="true"] [data-studio-chat-clean] [data-studio-composer-selection][data-studio-chat-pill] {
+  gap: 6px; margin-bottom: 6px; padding: 4px 8px; border: 1px solid var(--scc-line); border-radius: 4px; background: transparent; color: var(--scc-ink-2);
+}
+[data-studio-v4-shell="true"] [data-studio-chat-clean] [data-studio-composer-selection] :is(> div, svg, [data-studio-v4-type-role="selection-label"]) { color: var(--scc-ink-2); }
+[data-studio-v4-shell="true"] [data-studio-chat-clean] [data-studio-composer-selection] [data-studio-v4-type-role="selection-label"] strong { color: var(--scc-ink); font-weight: 500; }
+[data-studio-v4-shell="true"] [data-studio-chat-clean] [data-studio-v4-prompt] { border: 1px solid var(--scc-line-2); border-radius: 8px; background: var(--scc-bg); box-shadow: none; }
+[data-studio-v4-shell="true"] [data-studio-chat-clean] [data-studio-v4-prompt]:focus-within { border-color: var(--scc-ink-2); box-shadow: none; }
+[data-studio-v4-shell="true"] [data-studio-chat-clean] [data-studio-v4-prompt] textarea[data-studio-v4-type-role="prompt"] { padding: 8px 10px 2px; min-height: 40px; color: var(--scc-ink); font-size: 13px; line-height: 20px; }
+[data-studio-v4-shell="true"] [data-studio-chat-clean] [data-studio-v4-prompt] textarea[data-studio-v4-type-role="prompt"]::placeholder { color: var(--scc-ink-3); }
+[data-studio-v4-shell="true"] [data-studio-chat-clean] [data-studio-composer-attachments] { padding: 8px 10px; }
+[data-studio-v4-shell="true"] [data-studio-chat-clean] [data-studio-v4-composer-toolbar] { position: relative; justify-content: flex-start; gap: 4px; padding: 0 6px 6px 10px; border-radius: 0; background: transparent; }
+/* the tool group joins the row (display: contents), so its research options button can stand next to Send by flex order */
+[data-studio-v4-shell="true"] [data-studio-chat-clean] [data-studio-v4-composer-toolbar] > div:first-child { display: contents; }
+[data-studio-v4-shell="true"] [data-studio-chat-clean] [data-studio-v4-composer-toolbar] :is(button[aria-label="Upload a file"], section[data-studio-template-picker] button[aria-haspopup="menu"], button[aria-label="Build theme"], button[aria-label="Research options"]) {
+  width: 24px; height: 24px; display: inline-grid; place-items: center; padding: 0; border: 1px solid transparent; border-radius: 4px; background: transparent; color: var(--scc-ink-2); transition: none;
+}
+[data-studio-v4-shell="true"] [data-studio-chat-clean] [data-studio-v4-composer-toolbar] :is(button[aria-label="Upload a file"], section[data-studio-template-picker] button[aria-haspopup="menu"], button[aria-label="Build theme"], button[aria-label="Research options"]) svg { width: 16px; height: 16px; color: inherit; }
+[data-studio-v4-shell="true"] [data-studio-chat-clean] [data-studio-v4-composer-toolbar] :is(button[aria-label="Upload a file"], section[data-studio-template-picker] button[aria-haspopup="menu"], button[aria-label="Build theme"], button[aria-label="Research options"]):hover:not(:disabled),
+[data-studio-v4-shell="true"] [data-studio-chat-clean] [data-studio-v4-composer-toolbar] :is(button[aria-label="Build theme"], button[aria-label="Research options"])[data-state="open"] { background: var(--scc-surface); color: var(--scc-ink); }
+[data-studio-v4-shell="true"] [data-studio-chat-clean] [data-studio-v4-composer-toolbar] :is(button[aria-label="Upload a file"], section[data-studio-template-picker] button[aria-haspopup="menu"], button[aria-label="Build theme"]):disabled { opacity: .5; }
+[data-studio-v4-shell="true"] [data-studio-chat-clean] [data-studio-v4-composer-toolbar] button[aria-label="Upload a file"] { order: 1; margin-left: -4px; }
+[data-studio-v4-shell="true"] [data-studio-chat-clean] [data-studio-v4-composer-toolbar] section[data-studio-template-picker] { order: 2; }
+[data-studio-v4-shell="true"] [data-studio-chat-clean] [data-studio-v4-composer-toolbar] button[aria-label="Build theme"] { order: 3; }
+/* a chosen theme no longer tints its button: the selection row above the box names it */
+[data-studio-v4-shell="true"] [data-studio-chat-clean] [data-studio-v4-composer-toolbar] button[aria-label="Build theme"][class*="bg-sky"] { background: transparent; color: var(--scc-ink); }
+/* the research options button (deep research · web search · knowledge graph, the menu as today) stands next to Send, after the model button */
+[data-studio-v4-shell="true"] [data-studio-chat-clean] [data-studio-v4-composer-toolbar] button[aria-label="Research options"] { order: 11; position: relative; }
+/* the 5px dot on it while any of its options is on (data-studio-chat-clean-research-on, set by the composer) */
+[data-studio-v4-shell="true"] [data-studio-chat-clean] [data-studio-chat-clean-research-on="true"] [data-studio-v4-composer-toolbar] button[aria-label="Research options"]::after {
+  content: ""; position: absolute; top: 2px; right: 2px; width: 5px; height: 5px; border-radius: 50%; background: var(--scc-ink);
+}
+[data-studio-v4-shell="true"] [data-studio-chat-clean] [data-studio-chat-clean-toggle] {
+  order: 11; display: inline-flex; align-items: center; gap: 5px; height: 24px; padding: 0 8px; border: 1px solid var(--scc-line); border-radius: 4px; background: transparent; color: var(--scc-ink-2); font-size: 11px; line-height: 16px; font-weight: 500; white-space: nowrap;
+}
+[data-studio-v4-shell="true"] [data-studio-chat-clean] [data-studio-chat-clean-toggle]:hover:not(:disabled) { border-color: var(--scc-ink-2); color: var(--scc-ink); }
+[data-studio-v4-shell="true"] [data-studio-chat-clean] [data-studio-chat-clean-toggle][aria-pressed="true"] { padding: 0 7.5px; border: 1.5px solid var(--scc-ink); color: var(--scc-ink); }
+[data-studio-v4-shell="true"] [data-studio-chat-clean] [data-studio-chat-clean-toggle]:disabled { opacity: .55; cursor: not-allowed; }
+/* the model picker (FRONTEND-2's slider variant, variant="slider"): its gauge button sits between the research button and Send, drawn like the other tool buttons; the slider popover is its own */
+[data-studio-v4-shell="true"] [data-studio-chat-clean] .studio-chat-clean-model {
+  --mpick-line: transparent; --mpick-fg: var(--scc-ink-2); --mpick-hover: var(--scc-surface); --mpick-ring: var(--scc-ink);
+  order: 10; margin-left: auto; width: 24px; min-width: 24px; height: 24px; padding: 0; border: 1px solid transparent; border-radius: 4px; color: var(--scc-ink-2);
+}
+[data-studio-v4-shell="true"] [data-studio-chat-clean] .studio-chat-clean-model:hover:not(:disabled),
+[data-studio-v4-shell="true"] [data-studio-chat-clean] .studio-chat-clean-model[data-state="open"] { background: var(--scc-surface); color: var(--scc-ink); }
+[data-studio-v4-shell="true"] [data-studio-chat-clean] .studio-chat-clean-model .mpick-gauge-icon { width: 16px; height: 16px; opacity: 1; }
+[data-studio-v4-shell="true"] [data-studio-chat-clean] [data-studio-chat-clean-stop] {
+  order: 13; width: 24px; height: 24px; display: inline-grid; place-items: center; padding: 0; border: 0; border-radius: 4px; background: var(--scc-stop); color: var(--scc-on-stop);
+}
+[data-studio-v4-shell="true"] [data-studio-chat-clean] [data-studio-chat-clean-stop]:disabled { opacity: .55; cursor: progress; }
+/* Send is Stop while the build runs: the base's Send stands aside */
+[data-studio-v4-shell="true"] [data-studio-chat-clean] :is([data-studio-chat-clean-composer="running"], [data-studio-chat-clean-composer="stopping"]) [data-studio-v4-send] { display: none; }
+[data-studio-v4-shell="true"] [data-studio-chat-clean] [data-studio-v4-send] { order: 14; width: 24px; height: 24px; border-radius: 4px; background: var(--scc-accent); color: var(--scc-on-accent); transition: none; }
+[data-studio-v4-shell="true"] [data-studio-chat-clean] [data-studio-v4-send]:disabled { background: var(--scc-line); color: var(--scc-ink-3); cursor: not-allowed; }
+[data-studio-v4-shell="true"] [data-studio-chat-clean] [data-studio-v4-send] svg { width: 14px; height: 14px; }
+[data-studio-v4-shell="true"] [data-studio-chat-clean] button[aria-label="Stop template reuse"] { order: 14; width: 24px; height: 24px; border-radius: 4px; }
+[data-studio-v4-shell="true"] [data-studio-chat-clean] [data-studio-composer-part="footer"] { margin: 6px 2px 0; color: var(--scc-ink-3); }
+[data-studio-v4-shell="true"] [data-studio-chat-clean] [data-studio-chat-clean-hint] + span { display: none; }
+[data-studio-v4-shell="true"] [data-studio-chat-clean] :is([data-studio-chat-clean-toggle], [data-studio-chat-clean-stop], [data-studio-chat-clean-continue], .studio-chat-clean-model, [data-studio-v4-send], [data-studio-director-option], [data-studio-job-ledger-part="actions"] button):focus-visible {
+  outline: 2px solid var(--scc-ink); outline-offset: 2px; box-shadow: none;
+}
+@media (prefers-reduced-motion: reduce) {
+  [data-studio-v4-shell="true"] [data-studio-chat-clean] [data-studio-chat-clean-status] > span { animation: none; }
+}
+@media (forced-colors: active) {
+  [data-studio-v4-shell="true"] [data-studio-chat-clean] [data-studio-director-message="user"] > div:first-child,
+  [data-studio-v4-shell="true"] [data-studio-chat-clean] [data-studio-chat-clean-directions] { border: 1px solid CanvasText; }
+  [data-studio-v4-shell="true"] [data-studio-chat-clean] [data-studio-chat-header] > [role="status"]::before { background: CanvasText; }
+}
+
+/* ---- the research options menu (a portal, so outside the column): the "Research" eyebrow of v3.1 and the v3 radius, reached through the marker
+   the composer drops into it only under the flag; everything else in the menu (the three switches, the locked note, its own palette) is the base's --- */
+[data-studio-composer-menu="research"]:has([data-studio-chat-clean-menu="research"]) { width: 248px; border-radius: 8px; }
+[data-studio-composer-menu="research"]:has([data-studio-chat-clean-menu="research"]) [data-studio-composer-options-part="heading"] { margin-bottom: 2px; padding-bottom: 0; border-bottom: 0; }
+[data-studio-composer-menu="research"]:has([data-studio-chat-clean-menu="research"]) [data-studio-composer-options-part="heading"] strong { font-size: 10px; line-height: 14px; font-weight: 500; letter-spacing: .06em; text-transform: uppercase; color: var(--sco-muted); }
+[data-studio-composer-menu="research"]:has([data-studio-chat-clean-menu="research"]) [data-studio-composer-options-part="heading"] p { display: none; }
