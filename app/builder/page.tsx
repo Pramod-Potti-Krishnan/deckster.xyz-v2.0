@@ -72,6 +72,7 @@ import {
 } from '@/lib/studio-deck-mutation-refresh'
 import { createDeckMutationCountSettler } from '@/lib/studio-deck-mutation-dedupe'
 import { fetchSlideInventory } from '@/lib/slide-rail-identity'
+import { createSettledRowCountWriter } from '@/lib/studio-deck-sync-truth' // DECK-SYNC-TRUTH (NEXT_PUBLIC_STUDIO_DECK_SYNC_TRUTH, default off): after a chat change to a settled deck the session row takes the deck's real slide count
 import { STUDIO_DECK_CHANGED_NOTICE_ENABLED, reportDeckChange, themeAnnounceDecision } from '@/lib/studio-deck-changed-notice'
 import { useDeckChangedNotice } from '@/hooks/use-deck-changed-notice'
 import { StudioDeckChangedNotice } from '@/components/builder/studio-deck-changed-notice'
@@ -2434,6 +2435,7 @@ function AuthenticatedBuilderContent({ authScopeUserId }: { authScopeUserId: str
           displayed, now: Date.now(), seen: deckMutationSeenRef.current,
         })
         if (!plan) return
+        deckSyncRowCountRef.current?.(plan.override.presentationId, owner.isCurrent) // DECK-SYNC-TRUTH: a chat change to the deck (an undo's deck_restored too) settles the session row's slide count (null with the flag off)
         if (deckMutationCountSettlerRef.current) { void deckMutationCountSettlerRef.current(plan.override, owner.isCurrent); return } // NEXT_PUBLIC_STUDIO_DECK_MUTATION_DEDUPE
         slideComposerPresentationRef.current = { ...displayed, ...plan.override }
         setSlideComposerOverride(plan.override)
@@ -2480,6 +2482,8 @@ function AuthenticatedBuilderContent({ authScopeUserId }: { authScopeUserId: str
             slideStructure: state.slideStructure
           }
         }
+        const deckSyncSettled = Boolean(deckSyncRowCountRef.current) && isFinal && Boolean(state.presentationId) && !deckSyncBuildingRef.current // DECK-SYNC-TRUTH (reconnect; NEXT_PUBLIC_STUDIO_DECK_SYNC_TRUTH, default off): a Director state frame for a finished deck with no build in progress (the flag on)
+        if (deckSyncSettled) delete updates.slideCount // DECK-SYNC-TRUTH (reconnect): Director's slide_count is the build's and a reconnect re-sends it after a chat delete (3 for a 2-slide deck); it must not raise the row. Layout's inventory count is written below, once Layout answers
 
         if (isBlank) {
           updates.blankPresentationUrl = state.presentationUrl
@@ -2496,6 +2500,7 @@ function AuthenticatedBuilderContent({ authScopeUserId }: { authScopeUserId: str
         }
 
         persistenceRef.current.updateMetadata(updates, { passive: true }) // NEXT_PUBLIC_STUDIO_SESSION_OPEN_READ_ONLY: Director's own state frame
+        if (deckSyncSettled) { const deckSyncSession = currentSessionIdRef.current; void deckSyncRowCountRef.current?.(state.presentationId ?? '', () => currentSessionIdRef.current === deckSyncSession) } // DECK-SYNC-TRUTH (reconnect): the row takes the deck's real count (Layout's inventory), unless a build starts, the session or the deck changes, or Layout cannot answer: then the row keeps its count
       } else {
         console.error('PERSISTENCE BLOCKED:', {
           reason: !currentSessionIdRef.current ? 'No currentSessionId' : 'No persistenceRef.current',
@@ -5364,6 +5369,17 @@ function AuthenticatedBuilderContent({ authScopeUserId }: { authScopeUserId: str
       if (result && owner.isCurrent()) sendElementEditResult(result) // CHAT-ELEMENT-EDIT
     }) // CHAT-ELEMENT-EDIT
   } // CHAT-ELEMENT-EDIT
+  // DECK-SYNC-TRUTH (NEXT_PUBLIC_STUDIO_DECK_SYNC_TRUTH, default off; lib/studio-deck-sync-truth.ts): the session row's slide count (the Decks page card and the session list read it) is only ever raised by the build's frames, so after
+  // DECK-SYNC-TRUTH: a chat delete it still said the build's count. Settled (no build in progress, the final deck on screen), a chat change to the deck writes Layout's real count to the row through the page's existing session write.
+  const deckSyncBuildingRef = useRef(false) // DECK-SYNC-TRUTH
+  deckSyncBuildingRef.current = !studioShell || studioPartialMetadata || templateModeOn || isGeneratingFinal || isGeneratingStrawman || slideComposeThumbnailJobs.length > 0 // DECK-SYNC-TRUTH: the viewer's "a build is in progress" rule
+  const deckSyncRowCountRef = useRef<ReturnType<typeof createSettledRowCountWriter> | null>(null) // DECK-SYNC-TRUTH
+  if (process.env.NEXT_PUBLIC_STUDIO_DECK_SYNC_TRUTH === 'true' && !deckSyncRowCountRef.current) deckSyncRowCountRef.current = createSettledRowCountWriter({ // DECK-SYNC-TRUTH: the flag is read inline, as the count settler's is
+    readLayoutCount: async id => { const result = await fetchSlideInventory({ baseUrl: getLayoutServiceUrl(), presentationId: id, fetchImpl: (input, init) => fetch(input, init) }); return result.kind === 'ok' ? result.inventory.slideCount : null }, // DECK-SYNC-TRUTH
+    getDisplayed: () => slideComposerPresentationRef.current, // DECK-SYNC-TRUTH
+    isBuilding: () => deckSyncBuildingRef.current, // DECK-SYNC-TRUTH
+    writeRowCount: count => { if (currentSessionIdRef.current && persistenceRef.current) persistenceRef.current.updateMetadata({ slideCount: count, lastMessageAt: new Date() }, { passive: true }) }, // DECK-SYNC-TRUTH: the existing write; passive as the Layout count reconcile's (NEXT_PUBLIC_STUDIO_SESSION_OPEN_READ_ONLY)
+  }) // DECK-SYNC-TRUTH
 
   // File upload state
   const {
