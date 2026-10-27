@@ -49,6 +49,7 @@ export const LATER_CHANGE_FILES = new Set([
   ...(await import('./studio-build-failure-end-strip.mjs')).BUILD_FAILURE_END_SCOPE_FILES, // LATER-CHANGE: FRONTEND-2, B27 build failure end: Studio leaves "Building..." when Director's turn ends with a reply and no build frame (NEXT_PUBLIC_STUDIO_BUILD_FAILURE_END)
   ...(await import('./studio-paused-label-strip.mjs')).PAUSED_LABEL_SCOPE_FILES, // LATER-CHANGE: FRONTEND-2, B27 paused label: the build ribbon reads "Paused" while the control state is paused (NEXT_PUBLIC_STUDIO_PAUSED_LABEL)
   ...(await import('./studio-chat-parity-strip.mjs')).CHAT_PARITY_SCOPE_FILES, // LATER-CHANGE: FRONTEND-1, P3-1 A chat parity, Studio half: studio_action / studio_action_result (NEXT_PUBLIC_STUDIO_CHAT_PARITY_THEMES / _IDENTITY / _TEMPLATES)
+  ...(await import('./studio-chat-clean-order-strip.mjs')).CHAT_CLEAN_ORDER_SCOPE_FILES, // LATER-CHANGE: FRONTEND-2, B31 clean chat order: no stale working line at the outline gate, the thread's notes where they happened (NEXT_PUBLIC_STUDIO_CHAT_CLEAN_ORDER)
   // one line per later change, above this comment
 ])
 
@@ -70,6 +71,7 @@ export const LATER_ENV_BLOCKS = [
   (await import('./studio-build-failure-end-strip.mjs')).BUILD_FAILURE_END_ENV_BLOCK, // LATER-CHANGE: FRONTEND-2, B27 build failure end (NEXT_PUBLIC_STUDIO_BUILD_FAILURE_END)
   (await import('./studio-paused-label-strip.mjs')).PAUSED_LABEL_ENV_BLOCK, // LATER-CHANGE: FRONTEND-2, B27 paused label (NEXT_PUBLIC_STUDIO_PAUSED_LABEL)
   (await import('./studio-chat-parity-strip.mjs')).CHAT_PARITY_ENV_BLOCK, // LATER-CHANGE: FRONTEND-1, P3-1 A chat parity, Studio half (NEXT_PUBLIC_STUDIO_CHAT_PARITY_THEMES / _IDENTITY / _TEMPLATES)
+  (await import('./studio-chat-clean-order-strip.mjs')).CHAT_CLEAN_ORDER_ENV_BLOCK, // LATER-CHANGE: FRONTEND-2, B31 clean chat order (NEXT_PUBLIC_STUDIO_CHAT_CLEAN_ORDER)
   // one line per later change, above this comment
 ]
 
@@ -100,6 +102,7 @@ export const LATER_STRIPS = [
   (await import('./studio-build-failure-end-strip.mjs')).stripBuildFailureEnd, // LATER-CHANGE: FRONTEND-2, B27 build failure end (NEXT_PUBLIC_STUDIO_BUILD_FAILURE_END)
   (await import('./studio-paused-label-strip.mjs')).stripPausedLabel, // LATER-CHANGE: FRONTEND-2, B27 paused label (NEXT_PUBLIC_STUDIO_PAUSED_LABEL)
   (await import('./studio-chat-parity-strip.mjs')).stripChatParity, // LATER-CHANGE: FRONTEND-1, P3-1 A chat parity, Studio half (NEXT_PUBLIC_STUDIO_CHAT_PARITY_THEMES / _IDENTITY / _TEMPLATES)
+  (await import('./studio-chat-clean-order-strip.mjs')).stripChatCleanOrder, // LATER-CHANGE: FRONTEND-2, B31 clean chat order (NEXT_PUBLIC_STUDIO_CHAT_CLEAN_ORDER)
   // one line per later change, above this comment
 ]
 
