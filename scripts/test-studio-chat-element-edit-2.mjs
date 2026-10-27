@@ -36,7 +36,8 @@ import { createClock } from './studio-chat-element-edit-layout.mjs'
 import { compile } from './studio-chat-harness/page-extract.mjs'
 
 const repo = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..')
-const read = rel => fs.readFileSync(path.join(repo, rel), 'utf8')
+const targetedStrip = await import('./studio-chat-edit-targeted-strip.mjs') // LATER-CHANGES: registry read (CHAT-EDIT-TARGETED): the targeted chat edit stacked after this change
+const read = rel => targetedStrip.stripChatEditTargeted(rel, fs.readFileSync(path.join(repo, rel), 'utf8')) // LATER-CHANGES: registry read (CHAT-EDIT-TARGETED): its marked lines come out before this change's pins
 const sha = text => crypto.createHash('sha256').update(text).digest('hex')
 const plain = value => JSON.parse(JSON.stringify(value === undefined ? null : value))
 const git = (...a) => execFileSync('git', a, { cwd: repo, encoding: 'utf8', maxBuffer: 1 << 28, stdio: ['ignore', 'pipe', 'pipe'] })
@@ -565,7 +566,7 @@ await check('mutant caught: #522\'s marker is not this one (a CHAT-ELEMENT-EDIT 
 
 // ---- 6. scope over the committed diff ---------------------------------------------------------------------------------------------------------------------------------------------
 console.log('6. Scope over the committed diff (BASE..HEAD)')
-const own = git('rev-list', '--first-parent', '--no-merges', `${BASE_COMMIT}..HEAD`).split('\n').filter(Boolean)
+const own = git('rev-list', '--first-parent', '--no-merges', `${BASE_COMMIT}..HEAD`).split('\n').filter(Boolean).filter(c => !git('log', '-1', '--format=%s', c).startsWith(targetedStrip.CHAT_EDIT_TARGETED_SUBJECT)) // LATER-CHANGES: registry read (CHAT-EDIT-TARGETED): the stacked change's commits are its own
 await check(`this change's own commits (first-parent, no merges, subject starts "${CHAT_ELEMENT_EDIT_2_SUBJECT}") exist, every commit on that line is one, with the co-author line`, () => {
   assert.ok(own.length >= 1, 'no own commit yet')
   for (const c of own) {
@@ -578,17 +579,17 @@ await check('the files the own commits touch are exactly this change\'s; every l
   assert.deepEqual([...touched].filter(rel => CHAT_ELEMENT_EDIT_2_SCOPE_FILES.has(rel) || !registry.LATER_CHANGE_FILES.has(rel)).sort(), [...CHAT_ELEMENT_EDIT_2_SCOPE_FILES].sort())
   const expected = { [PAGE]: 19, [LIB]: 8 }
   for (const rel of CHAT_ELEMENT_EDIT_2_FILES) {
-    const diff = git('diff', '-U0', BASE_COMMIT, 'HEAD', '--', rel).split('\n').filter(line => /^[+-]/.test(line) && !/^(\+\+\+|---) /.test(line))
+    const diff = git('diff', '-U0', BASE_COMMIT, 'HEAD', '--', rel).split('\n').filter(line => /^[+-]/.test(line) && !/^(\+\+\+|---) /.test(line)).filter(line => !targetedStrip.CHAT_EDIT_TARGETED_MARKER_RE.test(line)) // LATER-CHANGES: registry read (CHAT-EDIT-TARGETED)
     for (const line of diff) { assert.ok(line.startsWith('+'), `${rel}: a removed line: ${line.slice(0, 120)}`); assert.match(line, CHAT_ELEMENT_EDIT_2_MARKER_RE, `${rel}: an unmarked added line: ${line.slice(0, 120)}`) }
     assert.equal(diff.length, expected[rel], `${rel}: the marked lines`)
-    assert.equal(stripChatElementEdit2(rel, git('show', `HEAD:${rel}`)), baseFile(rel), `${rel}: without its marked lines the file is the base's, byte for byte`)
+    assert.equal(stripChatElementEdit2(rel, targetedStrip.stripChatEditTargeted(rel, git('show', `HEAD:${rel}`))), baseFile(rel), `${rel}: without its marked lines the file is the base's, byte for byte`) // LATER-CHANGES: registry read (CHAT-EDIT-TARGETED)
   }
   for (const rel of CHAT_ELEMENT_EDIT_2_NEW_FILES) assert.ok(git('cat-file', '-t', `HEAD:${rel}`).trim() === 'blob', rel)
 })
 await check('.env.example is the base plus the block (after one blank line); the registry gains exactly its three marked lines and loses none; no secret-shaped literal in the new files', () => {
   assert.equal(registry.stripLaterEnvBlocks('.env.example', read('.env.example')), registry.stripLaterEnvBlocks('.env.example', `${baseFile('.env.example')}\n${CHAT_ELEMENT_EDIT_2_ENV_BLOCK}`))
   assert.ok(read('.env.example').includes(`\n\n${CHAT_ELEMENT_EDIT_2_ENV_BLOCK}`), 'a blank line before the block')
-  const diff = git('diff', '-U0', BASE_COMMIT, 'HEAD', '--', 'scripts/studio-later-changes.mjs').split('\n').filter(line => /^[+-]/.test(line) && !/^(\+\+\+|---) /.test(line))
+  const diff = git('diff', '-U0', BASE_COMMIT, 'HEAD', '--', 'scripts/studio-later-changes.mjs').split('\n').filter(line => /^[+-]/.test(line) && !/^(\+\+\+|---) /.test(line)).filter(line => !line.includes('studio-chat-edit-targeted-strip.mjs')) // LATER-CHANGES: registry read (CHAT-EDIT-TARGETED)
   assert.equal(diff.length, 3); for (const line of diff) assert.ok(line.startsWith('+') && line.includes('LATER-CHANGE') && line.includes('studio-chat-element-edit-2-strip.mjs'), line.slice(0, 140))
   for (const rel of ['scripts/test-studio-chat-element-edit-2.mjs', 'scripts/studio-chat-element-edit-2-strip.mjs', 'scripts/fixtures/chat-element-edit-2/e2e2-repro-element-edit.json', TWO]) assert.doesNotMatch(read(rel), /(sk-[A-Za-z0-9]{16,}|AKIA[0-9A-Z]{12,}|eyJ[A-Za-z0-9_-]{20,}\.|-----BEGIN [A-Z ]*PRIVATE KEY|ghp_[A-Za-z0-9]{20,}|xox[bp]-)/, rel)
 })

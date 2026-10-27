@@ -27,7 +27,7 @@ import { fileURLToPath } from 'node:url'
 import ts from 'typescript'
 import { createClock, createLayoutViewer, replayViewer, TARGETED_SCRIPT, TARGETED_MODULE } from './studio-chat-element-edit-layout.mjs'
 import {
-  BASE_COMMIT, CHAT_EDIT_TARGETED_FILES, CHAT_EDIT_TARGETED_NEW_FILES, CHAT_EDIT_TARGETED_SCOPE_FILES, CHAT_EDIT_TARGETED_ENV_BLOCK, CHAT_EDIT_TARGETED_MARKER_RE, CHAT_EDIT_TARGETED_SUBJECT, stripChatEditTargeted,
+  BASE_COMMIT, CHAT_EDIT_TARGETED_FILES, CHAT_EDIT_TARGETED_NEW_FILES, CHAT_EDIT_TARGETED_PIN_FILES, CHAT_EDIT_TARGETED_PIN_EDITS, CHAT_EDIT_TARGETED_PIN_MARK, CHAT_EDIT_TARGETED_SCOPE_FILES, CHAT_EDIT_TARGETED_ENV_BLOCK, CHAT_EDIT_TARGETED_MARKER_RE, CHAT_EDIT_TARGETED_SUBJECT, stripChatEditTargeted,
 } from './studio-chat-edit-targeted-strip.mjs'
 import { stripLaterEnvBlocks } from './studio-later-changes.mjs'
 
@@ -390,6 +390,10 @@ await check('flag off: the strip gives back #538\'s head byte for byte (every ad
   assert.equal(read('.env.example'), `${git('show', `${BASE_COMMIT}:.env.example`)}\n${CHAT_EDIT_TARGETED_ENV_BLOCK}`, 'the base, one blank line, the block')
   assert.equal(stripLaterEnvBlocks('.env.example', read('.env.example')), stripLaterEnvBlocks('.env.example', git('show', `${BASE_COMMIT}:.env.example`)), 'the registry takes the block out')
   for (const rel of CHAT_EDIT_TARGETED_NEW_FILES) assert.ok(fs.existsSync(path.join(root, rel)), rel)
+  for (const rel of CHAT_EDIT_TARGETED_PIN_FILES) {
+    assert.equal(sha(stripChatEditTargeted(rel, read(rel))), sha(git('show', `${BASE_COMMIT}:${rel}`)), `${rel}: the proof this change taught, put back, is #538's`)
+    for (const [has] of CHAT_EDIT_TARGETED_PIN_EDITS[rel]) for (const line of has.split('\n').filter(Boolean)) assert.ok(line.includes(CHAT_EDIT_TARGETED_PIN_MARK), `${rel}: a taught line carries the pin mark`)
+  }
 })
 await check('flag off: the runner sends today\'s requests exactly (the flag-off scenario is the recording of today\'s code path: Save, no begin)', async () => {
   for (const name of ['off-move_image', 'off-delete_image']) {

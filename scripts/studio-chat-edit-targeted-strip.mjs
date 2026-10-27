@@ -27,7 +27,31 @@ export const CHAT_EDIT_TARGETED_NEW_FILES = [
   'scripts/fixtures/chat-edit-targeted/layout-transcripts.json',
 ]
 
-export const CHAT_EDIT_TARGETED_OWN_EDITS = ['.env.example', 'scripts/studio-later-changes.mjs']
+/** The older proofs this change teaches: [text the proof has now, text the proof had before] per edit, whole lines, so putting them back gives the previous file byte for byte. Every line the proof has now carries CHAT_EDIT_TARGETED_PIN_MARK. */
+export const CHAT_EDIT_TARGETED_PIN_MARK = '// LATER-CHANGES: registry read (CHAT-EDIT-TARGETED)'
+export const CHAT_EDIT_TARGETED_PIN_EDITS = {
+  "scripts/test-studio-chat-element-edit-2.mjs": [
+    ["const targetedStrip = await import('./studio-chat-edit-targeted-strip.mjs') // LATER-CHANGES: registry read (CHAT-EDIT-TARGETED): the targeted chat edit stacked after this change\nconst read = rel => targetedStrip.stripChatEditTargeted(rel, fs.readFileSync(path.join(repo, rel), 'utf8')) // LATER-CHANGES: registry read (CHAT-EDIT-TARGETED): its marked lines come out before this change's pins\n",
+     "const read = rel => fs.readFileSync(path.join(repo, rel), 'utf8')\n"],
+    ["const own = git('rev-list', '--first-parent', '--no-merges', `${BASE_COMMIT}..HEAD`).split('\\n').filter(Boolean).filter(c => !git('log', '-1', '--format=%s', c).startsWith(targetedStrip.CHAT_EDIT_TARGETED_SUBJECT)) // LATER-CHANGES: registry read (CHAT-EDIT-TARGETED): the stacked change's commits are its own\n",
+     "const own = git('rev-list', '--first-parent', '--no-merges', `${BASE_COMMIT}..HEAD`).split('\\n').filter(Boolean)\n"],
+    ["    const diff = git('diff', '-U0', BASE_COMMIT, 'HEAD', '--', rel).split('\\n').filter(line => /^[+-]/.test(line) && !/^(\\+\\+\\+|---) /.test(line)).filter(line => !targetedStrip.CHAT_EDIT_TARGETED_MARKER_RE.test(line)) // LATER-CHANGES: registry read (CHAT-EDIT-TARGETED)\n",
+     "    const diff = git('diff', '-U0', BASE_COMMIT, 'HEAD', '--', rel).split('\\n').filter(line => /^[+-]/.test(line) && !/^(\\+\\+\\+|---) /.test(line))\n"],
+    ["    assert.equal(stripChatElementEdit2(rel, targetedStrip.stripChatEditTargeted(rel, git('show', `HEAD:${rel}`))), baseFile(rel), `${rel}: without its marked lines the file is the base's, byte for byte`) // LATER-CHANGES: registry read (CHAT-EDIT-TARGETED)\n",
+     "    assert.equal(stripChatElementEdit2(rel, git('show', `HEAD:${rel}`)), baseFile(rel), `${rel}: without its marked lines the file is the base's, byte for byte`)\n"],
+    ["  const diff = git('diff', '-U0', BASE_COMMIT, 'HEAD', '--', 'scripts/studio-later-changes.mjs').split('\\n').filter(line => /^[+-]/.test(line) && !/^(\\+\\+\\+|---) /.test(line)).filter(line => !line.includes('studio-chat-edit-targeted-strip.mjs')) // LATER-CHANGES: registry read (CHAT-EDIT-TARGETED)\n",
+     "  const diff = git('diff', '-U0', BASE_COMMIT, 'HEAD', '--', 'scripts/studio-later-changes.mjs').split('\\n').filter(line => /^[+-]/.test(line) && !/^(\\+\\+\\+|---) /.test(line))\n"],
+  ],
+}
+
+/** The proof without this change's edits (the previous file). */
+export function putBackPin(rel, text) {
+  return (CHAT_EDIT_TARGETED_PIN_EDITS[rel] || []).reduce((out, [has, was]) => out.replace(has, () => was), text)
+}
+
+export const CHAT_EDIT_TARGETED_PIN_FILES = Object.keys(CHAT_EDIT_TARGETED_PIN_EDITS)
+
+export const CHAT_EDIT_TARGETED_OWN_EDITS = ['.env.example', 'scripts/studio-later-changes.mjs', ...CHAT_EDIT_TARGETED_PIN_FILES]
 
 /** Every file this change's commits touch: what the older scope checks skip once the registry names it (scripts/studio-later-changes.mjs, LATER_CHANGE_FILES). */
 export const CHAT_EDIT_TARGETED_SCOPE_FILES = new Set([...CHAT_EDIT_TARGETED_FILES, ...CHAT_EDIT_TARGETED_NEW_FILES, ...CHAT_EDIT_TARGETED_OWN_EDITS])
@@ -43,6 +67,7 @@ NEXT_PUBLIC_STUDIO_CHAT_EDIT_TARGETED_SAVE="false"
 /** The file without this change's lines: every line that carries the marker (as a whole token) is taken out, every other byte stays. Any other file is returned as it is. */
 export function stripChatEditTargeted(rel, text) {
   if (typeof text !== 'string') return text
+  if (rel in CHAT_EDIT_TARGETED_PIN_EDITS) return putBackPin(rel, text) // an older proof this change taught: its previous text
   if (!CHAT_EDIT_TARGETED_FILES.includes(rel)) return text
   return text.split('\n').filter(line => !CHAT_EDIT_TARGETED_MARKER_RE.test(line)).join('\n')
 }
