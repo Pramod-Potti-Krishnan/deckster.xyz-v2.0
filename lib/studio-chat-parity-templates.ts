@@ -92,6 +92,8 @@ export async function runChatParityTemplateAction(request: ChatParityRequest, de
     case 'optimize_template': {
       const template = await findTemplate(deps, args.template_id)
       if (!template) return fail(id, 'not_found')
+      // The Templates page gates Optimize off for an uploaded (composer) template, the one with a stage_template_summary: so does chat.
+      if ('stage_template_summary' in template) return fail(id, 'composer_template')
       const status = templateGenerationStatus(templateSelectionOf(template))
       if (status === 'ready' || status === 'optimizing') return fail(id, 'already_ready')
       const result = await deps.reoptimizeTemplate(template.id)

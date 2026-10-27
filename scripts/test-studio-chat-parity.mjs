@@ -87,7 +87,8 @@ function loadThemes(text = read(THEMES), lib = loadLib(), stubs = themeStubs()) 
 /** lib/deck-identity.ts faked to its contract: a form in memory, the enabled flag. */
 function identityStubs(enabled = true) {
   const store = { form: {} }
-  return { store, '@/lib/deck-identity': { isDeckIdentityEnabled: () => enabled, readDeckIdentityForm: () => ({ ...store.form }), writeDeckIdentityForm: next => { const out = {}; for (const [k, v] of Object.entries(next ?? {})) if (typeof v === 'string' && v.trim()) out[k] = v.trim(); store.form = out; return { ...out } } } }
+  const cleanLogoUrl = v => { if (typeof v !== 'string' || !v.trim()) return undefined; try { const u = new URL(v.trim()); if (u.protocol !== 'https:' || u.username || u.password) return undefined; return u.toString() } catch { return undefined } }
+  return { store, '@/lib/deck-identity': { cleanLogoUrl, isDeckIdentityEnabled: () => enabled, readDeckIdentityForm: () => ({ ...store.form }), writeDeckIdentityForm: next => { const out = {}; for (const [k, v] of Object.entries(next ?? {})) if (typeof v === 'string' && v.trim()) out[k] = v.trim(); store.form = out; return { ...out } } } }
 }
 function loadIdentity(text = read(IDENTITY), lib = loadLib(), stubs = identityStubs()) {
   const module = { exports: {} }
@@ -324,6 +325,7 @@ async function templatesSuite(runnersText = read(RUNNERS), libText = read(LIB), 
     eq(await run('optimize_template', { template_id: 't2' }), { request_id: 'r', status: 'done', error_code: null, detail: { template_id: 't2', name: 'Draft' } }, 'optimise: the page\'s own reoptimize'); eq(plain(calls.at(-1)), ['optimize', 't2'])
     eq(await run('optimize_template', { template_id: 't1' }), { request_id: 'r', status: 'failed', error_code: 'already_ready' }, 'optimise: already ready'); eq(await run('optimize_template', { template_id: 't3' }), { request_id: 'r', status: 'failed', error_code: 'already_ready' }, 'optimise: already optimising')
     eq(await run('optimize_template', { template_id: 't9' }), { request_id: 'r', status: 'failed', error_code: 'not_found' })
+    library.push({ id: 't5', name: 'Upload.pptx', blueprint_generation_method: 'llm', blueprint_enrichment_status: 'failed', blueprint_enrichment_error: null, template_purity_status: null, template_purity_error: null, stage_template_summary: { slide_count: 9 } }); eq(await run('optimize_template', { template_id: 't5' }), { request_id: 'r', status: 'failed', error_code: 'composer_template' }, 'optimise: an uploaded (composer) template is refused, as the Templates page gates it'); library.pop()
   } else {
     eq(await run('save_template', { name: 'Mine' }), { request_id: 'r', status: 'failed', error_code: 'flag_off' }, 'save: sub-flag off'); eq(await run('optimize_template', { template_id: 't2' }), { request_id: 'r', status: 'failed', error_code: 'flag_off' }, 'optimise: sub-flag off'); eq(calls.length, before, 'nothing ran')
   }
@@ -348,7 +350,8 @@ async function identitySuite(runnersText = read(RUNNERS), libText = read(LIB), i
   eq(await run('clear_footer', {}), { request_id: 'r', status: 'done', error_code: null, detail: { kind: 'clear_footer' } }, 'clear footer: no confirm')
   eq(await run('remove_logo', {}), { request_id: 'r', status: 'done', error_code: null, detail: { kind: 'remove_logo' } }, 'remove logo: no confirm')
   eq(await run('set_logo', { image_url: 'https://x.example/l.png' }), { request_id: 'r', status: 'done', error_code: null, detail: { kind: 'logo' } }, 'logo by URL'); eq(plain(ops.at(-1)[0]), { kind: 'logo', image_url: 'https://x.example/l.png' })
-  eq(await run('set_logo', { image_url: 'http://x.example/l.png' }), { request_id: 'r', status: 'failed', error_code: 'invalid_args' }, 'logo: not https'); eq(opened, 0, 'the panel opens from the panel op runner, not here')
+  eq(await run('set_logo', { image_url: 'http://x.example/l.png' }), { request_id: 'r', status: 'failed', error_code: 'invalid_url' }, 'logo: not https -> invalid_url (DIRECTOR-2 frame 28)'); eq(await run('set_logo', { image_url: 'https://user:pw@x.example/l.png' }), { request_id: 'r', status: 'failed', error_code: 'invalid_url' }, 'logo: embedded credentials (the dialog\'s own cleanLogoUrl rule)'); eq(opened, 0, 'the panel opens from the panel op runner, not here')
+  eq(await run('set_logo', { image_url: 'https://x.example/l.png?a=1' }), { request_id: 'r', status: 'done', error_code: null, detail: { kind: 'logo' } }, 'logo: a query string is fine'); eq(plain(ops.at(-1)[0]).image_url, 'https://x.example/l.png?a=1', 'the cleaned URL reaches the panel')
   masterAnswer = { ok: false, error: 'viewer_unavailable' }; eq(await run('set_footer', { title: 'x' }), { request_id: 'r', status: 'failed', error_code: 'viewer_unavailable' }, 'the panel\'s own refusal is the answer')
   masterAnswer = { ok: false }; eq(await run('set_footer', { title: 'x' }), { request_id: 'r', status: 'failed', error_code: 'write_failed' }, 'a bare refusal: write_failed'); masterAnswer = { ok: true }
   eq(await run('set_footer', { title: 'x' }, { presentationId: null }), { request_id: 'r', status: 'done', error_code: null, detail: { kind: 'footer' } }, 'no deck named: the deck on screen is the target')
@@ -367,7 +370,7 @@ async function identitySuite(runnersText = read(RUNNERS), libText = read(LIB), i
     eq(stubs.store.form, { company: 'Acme', confidentiality: 'Internal' }, 'the form'); eq(ops.length, paidOn ? opsBefore + 1 : opsBefore, 'not a panel op')
     eq(await run('set_deck_identity', { logo_url: 'https://x.example/l.png' }), { request_id: 'r', status: 'done', error_code: null, detail: { company: 'Acme', confidentiality: 'Internal', logo_url: 'https://x.example/l.png' } }, 'identity: merged with what was there (logo_url -> logoUrl)')
     eq(stubs.store.form, { company: 'Acme', confidentiality: 'Internal', logoUrl: 'https://x.example/l.png' })
-    eq(await run('set_deck_identity', {}), { request_id: 'r', status: 'failed', error_code: 'invalid_args' }, 'identity: nothing given')
+    eq(await run('set_deck_identity', {}), { request_id: 'r', status: 'failed', error_code: 'invalid_args' }, 'identity: nothing given'); eq(await run('set_deck_identity', { company: 'A', logo_url: 'http://x' }), { request_id: 'r', status: 'failed', error_code: 'invalid_url' }, 'identity: a non-https logo -> invalid_url')
   } else {
     eq(await run('set_deck_identity', { company: 'Acme' }), { request_id: 'r', status: 'failed', error_code: 'flag_off' }, 'the identity feature off: flag_off'); eq(stubs.store.form, {}, 'nothing written')
   }
@@ -589,6 +592,7 @@ async function mutantsSuite() {
     ['composer action beyond its flags', t => t.replace("if (!deps.composer.actions().includes(args.composer_action)) return fail(id, 'flag_off')", '')],
     ['optimise a ready template', t => t.replace("if (status === 'ready' || status === 'optimizing') return fail(id, 'already_ready')", '')],
     ['paid block ignored', t => t.replace("if (chatParityPaidBlocked(args.action)) return fail(id, 'flag_off')", '')],
+    ['composer template optimised', t => t.replace("if ('stage_template_summary' in template) return fail(id, 'composer_template')", '')],
     ['rename refusal read as done', t => t.replace("if (result.ok) return chatParityResult(id, 'done', null,", 'if (true) return chatParityResult(id, \'done\', null,')],
     ['save without a deck', t => t.replace("if (!source.sessionId || !source.presentationId) return fail(id, 'no_deck')", '')],
   ]
@@ -601,6 +605,7 @@ async function mutantsSuite() {
   const identityMutants = [
     ['paid block ignored', t => t.replace("if (chatParityPaidBlocked(args.action)) return fail(id, 'flag_off')", '')],
     ['identity flag ignored', t => t.replace("if (!isDeckIdentityEnabled()) return fail(id, 'flag_off')", '')],
+    ['logo url rule skipped', t => t.replace("if (!cleanLogoUrl(request.args[key])) return fail(id, 'invalid_url')", '')],
     ['no deck still writes', t => t.replace("if (!presentationId || !chatParityBus.master || !chatParityBus.openMaster) return fail(id, 'viewer_unavailable')", "if (!chatParityBus.master) return fail(id, 'viewer_unavailable')")],
     ['panel refusal read as done', t => t.replace("if (result.ok) return chatParityResult(id, 'done', null, { kind: op.kind })", "return chatParityResult(id, 'done', null, { kind: op.kind })")],
     ['form replaced not merged', t => t.replace('writeDeckIdentityForm({ ...readDeckIdentityForm(), ...rest,', 'writeDeckIdentityForm({ ...rest,')],
@@ -656,8 +661,62 @@ async function mutantsSuite() {
   return libMutants.length + runnerMutants.length + themeMutants.length + identityMutants.length + templateMutants.length + (hasBase ? 1 : 0)
 }
 
+// ============================================================================================================================================
+// E. DIRECTOR-2's recorded frames (streams/director2/<group>/examples in the deckster-workspace; skipped where that checkout is absent) through
+//    the lib's read and refusal and the executors with faked click paths: every studio_action names one of our actions with args our readers
+//    take, every notes_updated names fields we read, every recorded result uses a status / error_code of ours.
+// ============================================================================================================================================
+async function recordedFramesSuite() {
+  const home = process.env.HOME || ''
+  const base = path.join(home, 'Software', 'deckster-workspace', 'streams', 'director2')
+  if (!fs.existsSync(base)) { console.log('NOTE recorded frames: deckster-workspace not present here, replay skipped'); return 0 }
+  const lib = loadLib(read(LIB), { ...ALL_ON, NEXT_PUBLIC_STUDIO_CHAT_PARITY_PAID_LOGO: 'true', NEXT_PUBLIC_STUDIO_CHAT_PARITY_PAID_SAVE_TEMPLATE: 'true', NEXT_PUBLIC_STUDIO_CHAT_PARITY_PAID_OPTIMIZE: 'true' })
+  const OUR_CODES = new Set(['not_owner', 'viewer_unavailable', 'flag_off', 'not_found', 'locked', 'invalid_args', 'write_failed', 'timeout', 'unsupported', 'theme_auto', 'theme_locked', 'theme_failed', 'busy', 'generate_failed', 'declined', 'invalid_url', 'no_deck', 'already_ready', 'name_taken', 'composer_template'])
+  const readers = { themes: (a, g) => lib.chatParityThemeArgs(a, g, FONTS), identity: (a, g) => lib.chatParityIdentityArgs(a, g), templates: (a, g) => lib.chatParityTemplateArgs(a, g) }
+  let frames = 0, results = 0
+  for (const group of ['theme-library', 'identity', 'templates']) {
+    const dir = path.join(base, group, 'examples'); if (!fs.existsSync(dir)) continue
+    for (const file of fs.readdirSync(dir).filter(f => f.endsWith('.json') && f !== 'index.json')) {
+      const doc = JSON.parse(fs.readFileSync(path.join(dir, file), 'utf8'))
+      for (const turn of doc.turns ?? []) {
+        for (const frame of turn.director_to_studio ?? []) {
+          if (frame.type !== 'studio_action') continue
+          frames++
+          const request = lib.chatParityRequest(frame); ok(request, `${group}/${file}: a request we read`)
+          eq(lib.chatParityRefusal(request), null, `${group}/${file}: ${request.action} is one of our ${request.group} actions`)
+          ok(readers[request.group](request.action, request.args), `${group}/${file}: ${request.action} args ${JSON.stringify(request.args)} are read`)
+          if (request.action === 'generate_logo' || request.action === 'save_template' || request.action === 'optimize_template') ok(!lib.chatParityPaidBlocked(request.action), `${group}/${file}: a paid action with its sub-flag on runs`)
+        }
+        const result = turn.studio_to_director
+        if (result && result.type === 'studio_action_result') {
+          results++
+          const data = result.payload ?? result.data
+          ok(['done', 'failed', 'dismissed'].includes(data.status), `${group}/${file}: a status of ours (${data.status})`)
+          if (data.error_code) ok(OUR_CODES.has(data.error_code), `${group}/${file}: an error_code of ours (${data.error_code})`)
+          eq(result.type, lib.CHAT_PARITY_FRAMES.result, 'the result frame name')
+        }
+      }
+    }
+  }
+  const notes = path.join(base, 'notes-narration', 'examples', 'narration_frames.json')
+  if (fs.existsSync(notes)) {
+    const doc = JSON.parse(fs.readFileSync(notes, 'utf8')); let seen = 0
+    for (const [name, record] of Object.entries(doc)) for (const group of record.frames ?? []) for (const frame of Array.isArray(group) ? group : [group]) {
+      if (frame?.type !== 'deck_mutation' || frame.payload?.mutation !== 'notes_updated') continue
+      seen++; const fields = lib.chatParityNotesFields(frame.payload)
+      ok(Array.isArray(frame.payload.fields), `${name}: notes_updated carries fields`)
+      eq(fields, frame.payload.fields.filter(f => f === 'script' || f === 'references'), `${name}: the script / references fields we raise (speaker_notes is #522's)`)
+    }
+    ok(seen >= 3, 'notes: the recorded rows 105 / 106 / 108 frames')
+  }
+  ok(frames >= 20 && results >= 20, `recorded frames replayed: ${frames} requests, ${results} results`)
+  console.log(`recorded frames: ${frames} studio_action requests and ${results} results read as ours`)
+  return frames
+}
+
 libSuite()
 await runnersSuite()
 sourcesSuite()
+await recordedFramesSuite()
 const mutants = await mutantsSuite()
 console.log(`test-studio-chat-parity: ${checks} checks, ${mutants} mutants caught${OWN ? ` (own commit ${OWN.slice(0, 8)})` : ' (working tree)'}${hasBase ? '' : ' (base commit not in this clone: source pins skipped)'}`)

@@ -175,7 +175,8 @@ async function printGolden(root) {
 }
 const importLines = source => source.split('\n').filter(line => /^import[\s{*"']/.test(line))
 const chatCleanStrip = await import('./studio-chat-clean-strip.mjs') // LATER-CHANGES: registry read (CHAT-CLEAN): the strip of the change stacked after this one, so its marked lines come out before the pins below read a file
-const chatParityStrip = await import('./studio-chat-parity-strip.mjs') // stacked after #475: LATER-CHANGES: registry read (CHAT-PARITY): the strip of the change stacked after chat clean, so its marked lines (the palette's re-read listener in chat-input.tsx) come out too
+const commandsStrip = await import('./studio-chat-commands-strip.mjs') // LATER-CHANGES: registry read (CHAT-COMMANDS): the strip of the change stacked after chat clean, so its marked lines come out before the pins below read a file
+const chatParityStrip = await import('./studio-chat-parity-strip.mjs') // stacked after #475: LATER-CHANGES: registry read (CHAT-PARITY): the strip of the change stacked after chat commands, so its marked lines (the palette's re-read listener in chat-input.tsx) come out too
 
 if (process.env.PRINT_GOLDEN) {
   const root = path.resolve(process.env.PASS2B_ROOT || here)
@@ -613,7 +614,7 @@ async function checks(root, { only } = {}) {
 
   // D6 sources: no new import in the four guarded components; flags read at the right places; presentation only; stylesheet scoped; docs
   {
-    for (const file of Object.keys(GOLDEN.imports)) if (sha(importLines(chatCleanStrip.stripChatClean(file, chatParityStrip.stripChatParity(file, read(file)))).join('\n')) !== GOLDEN.imports[file]) fail(`${file}: its import lines changed (the existing pin tests load it with an allow-list of imports)`) // LATER-CHANGES: registry read (CHAT-CLEAN): the import lines a change registered after this one adds (chat clean's, in chat-input.tsx and message-list.tsx) are its own // stacked after #475: LATER-CHANGES: registry read (CHAT-PARITY): chat parity's import line in chat-input.tsx is its own
+    for (const file of Object.keys(GOLDEN.imports)) if (sha(importLines(chatParityStrip.stripChatParity(file, chatCleanStrip.stripChatClean(file, commandsStrip.stripChatCommands(file, read(file))))).join('\n')) !== GOLDEN.imports[file]) fail(`${file}: its import lines changed (the existing pin tests load it with an allow-list of imports)`) // LATER-CHANGES: registry read (CHAT-CLEAN): the import lines a change registered after this one adds (chat clean's, in chat-input.tsx and message-list.tsx) are its own registry read (CHAT-COMMANDS): a change registered after chat clean (chat commands) adds its import lines to chat-input.tsx too; they come out first. // stacked after #475: LATER-CHANGES: registry read (CHAT-PARITY): chat parity's import line in chat-input.tsx is its own
     const filesUnder = dir => fs.readdirSync(path.join(root, dir), { withFileTypes: true }).flatMap(entry => entry.isDirectory() ? filesUnder(path.join(dir, entry.name)) : [path.join(dir, entry.name)])
     const sources = ['app', 'components', 'hooks', 'lib'].flatMap(filesUnder).filter(file => /\.(tsx?|css)$/.test(file))
     const where = {

@@ -46,9 +46,9 @@ export type ChatParityErrorCode =
   // themes (rows 56-59, 61)
   | 'theme_auto' | 'theme_locked' | 'theme_failed'
   // identity (rows 62-64)
-  | 'busy' | 'generate_failed' | 'declined'
+  | 'busy' | 'generate_failed' | 'declined' | 'invalid_url'
   // templates (rows 65 / 67 / 70 / 75 / 76)
-  | 'no_deck' | 'already_ready' | 'name_taken'
+  | 'no_deck' | 'already_ready' | 'name_taken' | 'composer_template'
 
 // ---------------------------------------------------------------------------------------------------------------------------------------
 // Flags (literal process.env reads so Next inlines them at build time)

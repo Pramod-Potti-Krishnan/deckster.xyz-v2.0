@@ -10,7 +10,7 @@
  *    the form event the Builder listens for, so the next user_message carries them as deck_identity. Values are the user's own words.
  */
 
-import { isDeckIdentityEnabled, readDeckIdentityForm, writeDeckIdentityForm } from '@/lib/deck-identity'
+import { cleanLogoUrl, isDeckIdentityEnabled, readDeckIdentityForm, writeDeckIdentityForm } from '@/lib/deck-identity'
 import {
   chatParityBus, chatParityIdentityArgs, chatParityMasterOp, chatParityPaidBlocked, chatParityResult,
   type ChatParityMasterResult, type ChatParityRequest, type ChatParityResultData,
@@ -29,8 +29,17 @@ const fail = (id: string, code: Parameters<typeof chatParityResult>[2]) => chatP
 /** Runs one identity request (the action is one of CHAT_PARITY_ACTIONS.identity) to a known status. */
 export async function runChatParityIdentityAction(request: ChatParityRequest, presentationId: string | null, deps: ChatParityIdentityDeps): Promise<Result> {
   const id = request.requestId
+  // A logo URL is judged by the identity dialog's own rule (cleanLogoUrl: https only, no embedded credentials, a parseable URL), and a bad one is
+  // `invalid_url` (DIRECTOR-2's recorded frame 28), before the generic args read.
+  for (const key of ['image_url', 'logo_url'] as const) {
+    if ((request.action === 'set_logo' && key === 'image_url') || (request.action === 'set_deck_identity' && key === 'logo_url' && request.args[key] !== undefined && request.args[key] !== null)) {
+      if (!cleanLogoUrl(request.args[key])) return fail(id, 'invalid_url')
+    }
+  }
   const args = chatParityIdentityArgs(request.action, request.args)
   if (!args) return fail(id, 'invalid_args')
+  if (args.action === 'set_logo') args.image_url = cleanLogoUrl(args.image_url) ?? args.image_url
+  if (args.action === 'set_deck_identity' && args.logo_url) args.logo_url = cleanLogoUrl(args.logo_url) ?? args.logo_url
   if (args.action === 'set_deck_identity') {
     if (!isDeckIdentityEnabled()) return fail(id, 'flag_off')
     const { action: _action, logo_url, ...rest } = args

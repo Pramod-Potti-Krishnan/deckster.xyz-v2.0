@@ -56,6 +56,8 @@ import { keepPopupOpenForDropdownList, nextComposerPopup, type ComposerPopupId }
 import type { ComposerLibraryRequest } from '@/lib/studio-composer-popups'
 import { STUDIO_CHAT_CLEAN_ENABLED, CHAT_CLEAN_TEXTAREA_MIN_HEIGHT, type ChatCleanComposerProps } from '@/lib/studio-chat-clean' // CHAT-CLEAN (NEXT_PUBLIC_STUDIO_CHAT_CLEAN, default off)
 import { StudioChatCleanSendSide } from '@/components/builder/chat/studio-chat-clean' // CHAT-CLEAN
+import { useStudioChatCommands } from '@/components/builder/chat/studio-chat-commands' // CHAT-COMMANDS (NEXT_PUBLIC_STUDIO_CHAT_COMMANDS, default off)
+import type { ChatCommandsPageProps } from '@/lib/studio-chat-commands' // CHAT-COMMANDS
 
 const TEXTAREA_MIN_HEIGHT = 96
 const TEXTAREA_MAX_HEIGHT = 220
@@ -142,6 +144,7 @@ export interface ChatInputProps {
    *  (lib/studio-pass2b-chat) and passed only with the flag on; only the placeholder changes. */
   studioEditPrompt?: boolean
   studioChatClean?: ChatCleanComposerProps // CHAT-CLEAN (NEXT_PUBLIC_STUDIO_CHAT_CLEAN): the composer's mode and the page's Stop / send-directions handlers; passed only with the flag on
+  studioChatCommands?: ChatCommandsPageProps // CHAT-COMMANDS (NEXT_PUBLIC_STUDIO_CHAT_COMMANDS): the deck's slides, the current slide, the selected element and the export runner for the "/" and "@" menus; passed only with the flag on
 }
 
 export function ChatInput({
@@ -197,6 +200,7 @@ export function ChatInput({
   pausedInOtherTab = false,
   studioEditPrompt = false,
   studioChatClean, // CHAT-CLEAN
+  studioChatCommands, // CHAT-COMMANDS
 }: ChatInputProps) {
   const studio = process.env.NEXT_PUBLIC_STUDIO_V4_SHELL === 'true'
   // CHAT-CLEAN (NEXT_PUBLIC_STUDIO_CHAT_CLEAN, Studio shell only, default off): PK's v3 composer (lib/studio-chat-clean.ts). Every line carrying this marker renders or applies only with the flag on and the page's props present; off, every spread adds nothing and every branch is null, so the element tree is exactly the base's.
@@ -552,6 +556,12 @@ export function ChatInput({
       ? `Brand ${buildTheme.primary_hex || ''}`
       : 'Auto theme'
 
+  const chatCommands = useStudioChatCommands({ page: chatClean ? studioChatCommands ?? null : null, text: inputMessage, setText: onInputChange, textareaRef, popupsV2, disabled: !user || isLoadingSession || isTemplateReuseRunning, // CHAT-COMMANDS (NEXT_PUBLIC_STUDIO_CHAT_COMMANDS, default off): the "/" and "@" menus; off, the hook is inert and returns nothing to draw. Each command calls the control's own handler below.
+    stop: { visible: Boolean(chatClean?.composer.showStop), enabled: Boolean(chatClean?.composer.stopEnabled), run: () => chatClean?.onStop() }, // CHAT-COMMANDS: /stop is the Send/Stop control's stop
+    openTheme: () => { setThemeOpen(true); void refreshSavedThemes() }, themeBlocked: !user ? 'Sign in to choose a build theme.' : isLoadingSession ? 'Loading your conversation…' : templateSelectionLocked ? 'Build theme selection is locked for this deck.' : null, // CHAT-COMMANDS: /theme opens the theme popup as its button does (the same open state and the same saved-themes read), blocked for the same reasons
+    openTemplatePopup: () => popupSetter('template')(true), template: { available: Boolean((templateBuilderEnabled && onSelectTemplate) || onOpenComposerLibrary), saved: Boolean(templateBuilderEnabled && onSelectTemplate), blocked: !user || isLoadingSession ? 'Templates open once your conversation has loaded.' : templateSelectionLocked && !onOpenComposerLibrary ? 'Template selection is locked for this deck.' : null }, // CHAT-COMMANDS: /template opens the template popup (the picker's own open state), blocked as the picker's button is
+    research: { deep: researchEnabled, web: webSearchEnabled, locked: researchSettingsLocked, onDeep: onResearchEnabledChange, onWeb: onWebSearchEnabledChange, openOptions: () => setResearchOpen(true) }, // CHAT-COMMANDS: /research and /web are the options menu's switches: the same props, the same lock
+    files: uploadedFiles, presets: themePresets.map(preset => ({ id: preset.preset_id, name: preset.name })), saved: visibleSavedThemes.map(theme => ({ id: theme.id, name: theme.name })), savedStatus: studioThemeReadOwned && studioThemeRead?.phase === 'loaded' ? 'ready' : studioThemeReadFailed ? 'failed' : 'loading', refreshSaved: () => { void refreshSavedThemes() } }) // CHAT-COMMANDS: the "@" menu lists what the pickers already hold: this deck's uploads, the preset and saved themes (read once through the composer's own refresh) and the saved templates (the template popup's own list call)
   const handlePresetChange = (presetId: string) => {
     if (studio) studioThemeSelection.current.epoch += 1
     setSelectedSavedThemeId(null)
@@ -1064,6 +1074,7 @@ export function ChatInput({
             )
           })()}
 
+          {chatCommands.menu}{/* CHAT-COMMANDS: the "/" command menu, the "@" mention menu (Slides · Element · Files · Templates · Themes) or the one-line note under them; off, null */}
           {/* Textarea */}
           <Textarea
             aria-label={studio ? "Message Director" : undefined}
@@ -1072,6 +1083,7 @@ export function ChatInput({
             value={inputMessage}
             onChange={(e) => onInputChange(e.target.value)}
             onKeyDown={(e) => {
+              if (chatCommands.onKeyDown(e)) return // CHAT-COMMANDS: while the "/" or "@" menu is open, the arrows move, Enter / Tab choose and Esc closes it; off, false
               // MDC P6 (UAT 2026-08-30): while the @mention picker is open,
               // Enter/Tab select the top match — they must never send the
               // message (Enter used to fire the bare tag as its own turn,
@@ -1130,6 +1142,7 @@ export function ChatInput({
             className="w-full resize-none border-0 bg-transparent focus:ring-0 focus-visible:ring-0 focus-visible:ring-offset-0 px-3 pt-3 pb-14 min-h-[96px] max-h-[220px] text-xs placeholder:text-gray-400 dark:text-slate-500 overflow-y-auto dark:text-slate-100 dark:placeholder:text-slate-500"
             rows={1}
             {...chatCleanPlaceholder /* CHAT-CLEAN */}
+            {...chatCommands.textareaProps /* CHAT-COMMANDS: aria-controls / aria-activedescendant while a menu is open */}
           />
           </PromptRegion>
 
@@ -1167,6 +1180,7 @@ export function ChatInput({
                 <TemplatePicker onSelect={onSelectTemplate || (() => {})} disabled={!user || isLoadingSession}
                   selectionLocked={templateSelectionLocked} onOpenLibrary={onOpenComposerLibrary}
                   showSavedTemplates={!!(templateBuilderEnabled && onSelectTemplate)}
+                  {...chatCommands.templatePicker /* CHAT-COMMANDS: /template opens this popup through its own open prop (with the flag on and PASS2-COMPOSER-POPUPS off); else nothing */}
                   {...(popupsV2 ? { dropdowns: true, open: composerPopup === 'template', onOpenChange: popupSetter('template'), selectedTemplateId: activeTemplate?.id ?? null,
                     ...(onComposerTemplateAction ? { onComposerAction: onComposerTemplateAction, composerUserId: user?.id || user?.email || null } : {}) } : {})} />
               )}
