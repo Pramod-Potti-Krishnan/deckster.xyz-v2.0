@@ -15,7 +15,7 @@
 //  4. Studio's flag on with Layout's flag off: refused UNSUPPORTED_OP before any command changes anything, nothing saved (never a silent ok:true);
 //  5. Undo: the ok:true result frame is byte-identical to today's (Director's Undo chip and chat undo key on it), and the save is a Layout version written after the edit (the Layout test pins create_version);
 //  6. #538's slide checks still stand: a directive for a slide Layout does not show, or a stale slide id, is SLIDE_CHANGED before begin;
-//  7. flag off is identical: the strip gives back #538's head byte for byte; flag off runs today's requests exactly; the commits are this change's own (first-parent, no merges), every added line is marked;
+//  7. flag off is identical: the strip gives back dev's files (#538 merged) byte for byte; flag off runs today's requests exactly; the commits are this change's own (first-parent, no merges; HEAD^2 when HEAD is the gate's --no-ff merge onto dev, proved on a gate-style merge built here), every added line is marked;
 //  8. mutants are caught.
 import assert from 'node:assert/strict'
 import crypto from 'node:crypto'
@@ -443,16 +443,39 @@ await check('flag off: the runner sends today\'s requests exactly (the flag-off 
     assert.ok(actions.includes('saveAllChanges'), name)
   }
 })
-await check('scope: BASE..HEAD (first-parent, no merges) are this change\'s own commits ("Targeted chat edit:") and touch only its files', async () => {
-  const subjects = git('log', '--first-parent', '--no-merges', '--format=%s', `${BASE_COMMIT}..HEAD`).split('\n').filter(Boolean)
-  const merges = git('log', '--first-parent', '--merges', '--format=%H', `${BASE_COMMIT}..HEAD`).split('\n').filter(Boolean)
-  if (merges.length) { console.log('  (skipped: the branch merged dev; the gate checks the own-commit scope before the merge)'); return }
-  assert.ok(subjects.length >= 1)
+/** GATE-SAFE head of the own-commit / scope query. In the gate, HEAD is a local --no-ff merge whose FIRST parent is BASE (dev) and whose second parent is this change's head, so `--first-parent --no-merges BASE..HEAD` is empty: the
+ *  scope then runs against HEAD^2. On a branch (HEAD is this change's own tip, or a merge of dev INTO it, whose first parent is the change) HEAD itself is used. `gateRule: false` is the mutant that drops the rule. */
+function scopeHead(ref = 'HEAD', { gateRule = true } = {}) {
+  const sha = git('rev-parse', `${ref}^{commit}`).trim()
+  const parents = git('rev-list', '--parents', '-n', '1', sha).trim().split(/\s+/).slice(1)
+  return gateRule && parents.length === 2 && parents[0] === BASE_COMMIT ? parents[1] : sha
+}
+const SCOPE_HEAD = scopeHead('HEAD')
+const scopeOwn = head => {
+  const subjects = git('log', '--first-parent', '--no-merges', '--format=%s', `${BASE_COMMIT}..${head}`).split('\n').filter(Boolean)
+  assert.ok(subjects.length >= 1, 'no own commit yet')
   for (const subject of subjects) assert.ok(subject.startsWith(CHAT_EDIT_TARGETED_SUBJECT) && !/^Chat element edit/.test(subject), subject)
-  const files = git('diff', '--name-only', `${BASE_COMMIT}..HEAD`).split('\n').filter(Boolean)
+  const files = git('diff', '--name-only', `${BASE_COMMIT}..${head}`).split('\n').filter(Boolean)
   for (const rel of files) assert.ok(CHAT_EDIT_TARGETED_SCOPE_FILES.has(rel), `${rel} is this change's`)
-  for (const rel of CHAT_EDIT_TARGETED_FILES) assert.ok(!git('diff', `${BASE_COMMIT}..HEAD`, '--', rel).split('\n').some(line => line.startsWith('-') && !line.startsWith('---')), `${rel}: pure insertions`)
+  for (const rel of CHAT_EDIT_TARGETED_FILES) assert.ok(!git('diff', `${BASE_COMMIT}..${head}`, '--', rel).split('\n').some(line => line.startsWith('-') && !line.startsWith('---')), `${rel}: pure insertions`)
+}
+await check('scope: BASE..HEAD (first-parent, no merges; HEAD^2 in the gate) are this change\'s own commits ("Targeted chat edit:") and touch only its files', async () => scopeOwn(SCOPE_HEAD))
+// GATE-SAFE: build the gate's merge (first parent BASE, second parent this change's head; the tree is `git merge-tree --write-tree BASE head`) and run the scope against it.
+const GATE_IDENT = { GIT_AUTHOR_NAME: 'gate', GIT_AUTHOR_EMAIL: 'gate@example.invalid', GIT_COMMITTER_NAME: 'gate', GIT_COMMITTER_EMAIL: 'gate@example.invalid', GIT_AUTHOR_DATE: '2026-10-27T00:00:00Z', GIT_COMMITTER_DATE: '2026-10-27T00:00:00Z' }
+const gateStyleMerge = head => {
+  const tree = git('merge-tree', '--write-tree', BASE_COMMIT, head).trim().split('\n')[0]
+  return execFileSync('git', ['commit-tree', tree, '-p', BASE_COMMIT, '-p', head, '-m', 'gate-style merge (local, no ref)'], { cwd: root, encoding: 'utf8', env: { ...process.env, ...GATE_IDENT } }).trim()
+}
+await check('GATE-SAFE: on a gate-style merge (first parent BASE, second parent this change\'s head) the scope head is HEAD^2 and the scope passes against it', async () => {
+  const gate = gateStyleMerge(SCOPE_HEAD)
+  assert.deepEqual(git('rev-list', '--parents', '-n', '1', gate).trim().split(/\s+/).slice(1), [BASE_COMMIT, SCOPE_HEAD], 'the gate-style merge: first parent BASE, second parent the head')
+  assert.deepEqual(git('log', '--format=%H', '--first-parent', '--no-merges', `${BASE_COMMIT}..${gate}`).split('\n').filter(Boolean), [], 'the gate\'s first-parent, no-merges line from BASE is empty: why HEAD itself cannot be used')
+  assert.equal(scopeHead(gate), SCOPE_HEAD, 'HEAD^2 is the change\'s head')
+  scopeOwn(scopeHead(gate))
+  assert.equal(scopeHead(SCOPE_HEAD), SCOPE_HEAD, 'a branch head (not a merge onto BASE) is used as it is')
+  assert.equal(scopeHead(BASE_COMMIT), BASE_COMMIT, 'BASE itself is used as it is')
 })
+await mutant('the scope without the HEAD^2 rule fails on the gate-style merge (it has no own commit)', async () => scopeOwn(scopeHead(gateStyleMerge(SCOPE_HEAD), { gateRule: false })))
 await check('Layout identity: the recording names the Layout files it ran (and, live, they are the files on disk)', async () => {
   if (RECORD) return
   assert.ok(recorded.meta?.sources?.[TARGETED_SCRIPT] && recorded.meta?.sources?.[TARGETED_MODULE])
