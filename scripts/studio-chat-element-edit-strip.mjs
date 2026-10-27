@@ -63,6 +63,7 @@ export const CHAT_ELEMENT_EDIT_NEW_FILES = [
  *    (registered strips run in registry order, #523's first, so a put-back to #523's line would leave #523's own put-back nothing to do); #523's put-back of that file is then a no-op.
  *  - scripts/test-studio-chat-undo-v2.mjs: a file a later change registered and retired (the envelope fixture this change replaced), deleted in a commit that also touches the wire the undo proofs own, is not an undo deletion (its additions already were not strays).
  *  - scripts/test-studio-bulk-edit-prompt-text.mjs compares the wire with its own base byte for byte: it reads the wire past this change's marked lines (the change_recorded kinds), as the registry-reading pins do.
+ * (scripts/test-studio-model-choice.mjs is no longer taught: #530's .env.example check there accepts any later block.) All FRONTEND-2's own proofs; each edit is marked and put back here. */
 export const CHAT_ELEMENT_EDIT_PIN_MARK = '// LATER-CHANGES: registry read (CHAT-ELEMENT-EDIT)'
 export const CHAT_ELEMENT_EDIT_PIN_EDITS = {
   'scripts/test-studio-chat-theme-export.mjs': [
