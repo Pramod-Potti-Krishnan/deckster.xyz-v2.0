@@ -15,6 +15,7 @@ import {
   type DeckChangedController,
   type DeckChangedNotice,
 } from '@/lib/studio-deck-changed-notice'
+import { DIRECTOR_CHANGE_WINDOW_MS, NOTICE_CONFIRM_DELAY_MS, STUDIO_DECK_SYNC_TRUTH_ENABLED } from '@/lib/studio-deck-sync-truth' // DECK-SYNC-TRUTH
 
 const INVENTORY_TIMEOUT_MS = 8_000
 
@@ -77,6 +78,7 @@ export function useDeckChangedNotice({
       getViewerState: getViewerDeckState,
       onNotice: setNotice,
       ...(STUDIO_RECONNECT_RESYNC_ENABLED && { onResync: () => onReloadRef.current() }),
+      ...(STUDIO_DECK_SYNC_TRUTH_ENABLED && { directorWindowMs: DIRECTOR_CHANGE_WINDOW_MS, quietRefresh: () => onReloadRef.current(), confirmDelayMs: NOTICE_CONFIRM_DELAY_MS }), // DECK-SYNC-TRUTH: a difference an announced change explains refreshes quietly; any other must outlast the delay
       doc: typeof document !== 'undefined' ? document : null,
       win: typeof window !== 'undefined' ? window : null,
     })

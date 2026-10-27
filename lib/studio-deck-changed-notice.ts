@@ -211,6 +211,12 @@ export interface DeckChangedControllerDeps {
   onResync?: () => void
   /** Minimum gap between two reconnect resync reads (RECONNECT_RESYNC_MIN_GAP_MS). */
   reconnectMinGapMs?: number
+  /** DECK-SYNC-TRUTH (NEXT_PUBLIC_STUDIO_DECK_SYNC_TRUTH, the three below are passed only with it on): a difference found this soon after a change announced on this tab (Director's deck_mutation, the tab's own viewer ack) is that change's, not another tab's. */ // DECK-SYNC-TRUTH
+  directorWindowMs?: number // DECK-SYNC-TRUTH
+  /** DECK-SYNC-TRUTH: the page's deck reload, run quietly (no notice) for such a difference when the viewer has no unsaved edits. */ // DECK-SYNC-TRUTH
+  quietRefresh?: () => void // DECK-SYNC-TRUTH
+  /** DECK-SYNC-TRUTH: a difference nobody announced is shown only if it is still there this long after it was found (a viewer restored with an old count corrects itself on its first poll). */ // DECK-SYNC-TRUTH
+  confirmDelayMs?: number // DECK-SYNC-TRUTH
 }
 
 export interface DeckChangedController {
@@ -263,6 +269,8 @@ export function createDeckChangedController(deps: DeckChangedControllerDeps): De
   let knownSignature: string | null = null
   let lastRead: { count: number; signature: string } | null = null
   let reading: Promise<{ count: number; signature: string } | null> | null = null
+  let lastAnnounceAt = Number.NEGATIVE_INFINITY // DECK-SYNC-TRUTH: when a change was last announced on this tab
+  let confirmTimer: unknown = null // DECK-SYNC-TRUTH: a found difference waiting to be confirmed
 
   const channelName = deckChangedChannelName(deps.sessionId, deps.presentationId)
   let channel: DeckChangedChannel | null = null
@@ -275,6 +283,18 @@ export function createDeckChangedController(deps: DeckChangedControllerDeps): De
     notice = { id: noticeSeq, source, change }
     deps.onNotice(notice)
   }
+  // DECK-SYNC-TRUTH: what a difference found on a focus or visibility check becomes. A change announced on this tab a moment ago explains it: refresh quietly (nothing unsaved), never "another tab".
+  // DECK-SYNC-TRUTH: Otherwise it is shown only if it outlasts confirmDelayMs. Called only with confirmDelayMs set (the flag on); the flag off never reaches it.
+  const settleDifference = (source: 'visibility' | 'focus', read: { count: number; signature: string }, previous: string | null, confirmed: boolean): void => { // DECK-SYNC-TRUTH
+    confirmTimer = null // DECK-SYNC-TRUTH
+    if (disposed || notice) return // DECK-SYNC-TRUTH
+    const viewer = deps.getViewerState() // DECK-SYNC-TRUTH
+    if (viewer.presentationId !== deps.presentationId) return // DECK-SYNC-TRUTH
+    if (!inventoryDiffers({ viewerSlideCount: viewer.slideCount, readCount: read.count, readSignature: read.signature, knownSignature: previous })) return // DECK-SYNC-TRUTH: the viewer caught up
+    if (deps.quietRefresh && !viewer.unsaved && deps.directorWindowMs !== undefined && now() - lastAnnounceAt <= deps.directorWindowMs) { api.markReloaded(); deps.quietRefresh(); return } // DECK-SYNC-TRUTH
+    if (!confirmed && deps.confirmDelayMs !== undefined) { confirmTimer = setTimer(() => settleDifference(source, read, previous, true), deps.confirmDelayMs); return } // DECK-SYNC-TRUTH
+    show(source, null) // DECK-SYNC-TRUTH
+  } // DECK-SYNC-TRUTH
 
   /** The ONE inventory read per notice: concurrent callers share it. */
   const readOnce = (): Promise<{ count: number; signature: string } | null> => {
@@ -339,6 +359,7 @@ export function createDeckChangedController(deps: DeckChangedControllerDeps): De
     announce(change) {
       if (disposed) return
       const t = now()
+      lastAnnounceAt = t // DECK-SYNC-TRUTH
       ownChangeQuietUntil = t + ownChangeQuietMs
       knownSignature = null
       if (t < echoQuietUntil) return
@@ -355,6 +376,7 @@ export function createDeckChangedController(deps: DeckChangedControllerDeps): De
     },
     async check(source = 'visibility') {
       if (disposed || notice || checking) return
+      if (confirmTimer !== null) return // DECK-SYNC-TRUTH: a difference is already waiting to be confirmed
       if (deps.doc && deps.doc.visibilityState && deps.doc.visibilityState !== 'visible') return
       const t = now()
       if (t < nextCheckAt || t < ownChangeQuietUntil) return
@@ -369,6 +391,7 @@ export function createDeckChangedController(deps: DeckChangedControllerDeps): De
         knownSignature = read.signature
         if (viewer.presentationId !== deps.presentationId) return
         if (inventoryDiffers({ viewerSlideCount: viewer.slideCount, readCount: read.count, readSignature: read.signature, knownSignature: previous })) {
+          if (deps.confirmDelayMs !== undefined) { settleDifference(source, read, previous, false); return } // DECK-SYNC-TRUTH
           show(source, null)
         }
       } finally {
@@ -377,6 +400,7 @@ export function createDeckChangedController(deps: DeckChangedControllerDeps): De
     },
     markReloaded() {
       if (disposed) return
+      if (confirmTimer !== null) { clearTimer(confirmTimer); confirmTimer = null } // DECK-SYNC-TRUTH
       const t = now()
       reloadedAt = t
       echoQuietUntil = t + echoQuietMs
@@ -397,6 +421,7 @@ export function createDeckChangedController(deps: DeckChangedControllerDeps): De
       disposed = true
       if (sendTimer !== null) { clearTimer(sendTimer); sendTimer = null }
       if (reconnectRetryTimer !== null) { clearTimer(reconnectRetryTimer); reconnectRetryTimer = null }
+      if (confirmTimer !== null) { clearTimer(confirmTimer); confirmTimer = null } // DECK-SYNC-TRUTH
       queuedChange = null
       if (channel) {
         channel.onmessage = null

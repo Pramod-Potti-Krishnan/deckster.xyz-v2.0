@@ -22,6 +22,7 @@ import crypto from 'node:crypto'
 import { execFileSync } from 'node:child_process'
 import { createRequire } from 'node:module'
 import ts from 'typescript'
+import { stripDeckSyncTruth } from './studio-deck-sync-truth-strip.mjs' // LATER-CHANGES: registry read (DECK-SYNC-TRUTH)
 
 const root = path.resolve(new URL('..', import.meta.url).pathname)
 const nodeRequire = createRequire(path.join(root, 'package.json'))
@@ -307,7 +308,7 @@ function mountInspector(env, props, source = SRC[INSPECTOR]) {
 {
   for (const rel of strip.STUDIO_ARRANGE_FILES) {
     const now = read(rel)
-    check(assert.equal, strip.stripStudioArrange(rel, now), baseText(rel), `${rel}: without its STUDIO-ARRANGE lines it is the base's, byte for byte`)
+    check(assert.equal, strip.stripStudioArrange(rel, stripDeckSyncTruth(rel, now)), baseText(rel), `${rel}: without its STUDIO-ARRANGE lines it is the base's, byte for byte`) // LATER-CHANGES: registry read (DECK-SYNC-TRUTH): the lines of the change stacked after this one come out first
     check(assert.equal, registry.stripLaterChanges(rel, now), registry.stripLaterChanges(rel, baseText(rel)), `${rel}: through the registry it is the base's`)
     const marked = now.split('\n').filter(line => strip.STUDIO_ARRANGE_MARKER_RE.test(line)).length
     check(assert.ok, marked > 0, `${rel}: has marked lines`)
@@ -316,9 +317,9 @@ function mountInspector(env, props, source = SRC[INSPECTOR]) {
   check(assert.ok, read('.env.example').lastIndexOf('\n' + strip.STUDIO_ARRANGE_ENV_BLOCK) >= 0 && registry.stripLaterEnvBlocks('.env.example', read('.env.example').slice(read('.env.example').lastIndexOf('\n' + strip.STUDIO_ARRANGE_ENV_BLOCK) + strip.STUDIO_ARRANGE_ENV_BLOCK.length + 1)).trim() === '', 'the block is the file\'s last, or followed only by the blocks of changes registered after it') // LATER-CHANGES: registry read (MODEL-CHOICE)
   check(assert.ok, strip.STUDIO_ARRANGE_ENV_BLOCK.trimEnd().endsWith(`${FLAG}="false"`), 'the example value is "false"')
   for (const rel of strip.STUDIO_ARRANGE_PIN_FILES) {
-    check(assert.equal, strip.putBackPin(rel, read(rel)), baseText(rel), `the taught line of ${rel} puts back to the base's`)
+    check(assert.equal, strip.putBackPin(rel, stripDeckSyncTruth(rel, read(rel))), baseText(rel), `the taught line of ${rel} puts back to the base's`) // LATER-CHANGES: registry read (DECK-SYNC-TRUTH): the lines of the change stacked after this one come out first
     check(assert.equal, strip.putBackPin(rel, baseText(rel)), baseText(rel), `putBackPin is idempotent (${rel})`)
-    check(assert.equal, strip.stripStudioArrange(rel, read(rel)), baseText(rel), `${rel} through the strip is the base's`)
+    check(assert.equal, strip.stripStudioArrange(rel, stripDeckSyncTruth(rel, read(rel))), baseText(rel), `${rel} through the strip is the base's`) // LATER-CHANGES: registry read (DECK-SYNC-TRUTH)
   }
   for (const file of strip.STUDIO_ARRANGE_SCOPE_FILES) check(assert.ok, registry.LATER_CHANGE_FILES.has(file), `registered: ${file}`)
   check(assert.ok, registry.LATER_STRIPS.includes(strip.stripStudioArrange), 'the strip is registered')
