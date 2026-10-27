@@ -104,6 +104,7 @@ import { CHAT_ELEMENT_REFINE_ENABLED, chatElementReferenceFor, runElementRefineD
 import { CHAT_ELEMENT_EDIT_ENABLED, createElementEditGate, runElementEditDirective, type ElementEditDirectiveMessage, type ElementEditDirectiveOwner, type ElementEditGate } from '@/lib/chat-element-edit' // CHAT-ELEMENT-EDIT (NEXT_PUBLIC_STUDIO_CHAT_ELEMENT_EDIT, default off): edit an element from chat
 import { NOTES_UPDATED_EVENT } from '@/lib/chat-element-edit-wire' // CHAT-ELEMENT-EDIT
 import { getChatEditViewer, subscribeViewerSaveEvents } from '@/lib/chat-element-edit-save' // CHAT-ELEMENT-EDIT
+import { CHAT_ELEMENT_EDIT_2_ENABLED, chatElementSelectionFor, dropChatElementSelection, dropChatElementSelectionOffSlide, referenceWithoutOutlineId, shownSlidesFromInventory } from '@/lib/chat-element-edit-2' // CHAT-ELEMENT-EDIT-2
 import { isTextLabsMappable } from '@/lib/element-type-mapping'
 // NEXT_PUBLIC_CHAT_THEME_CHANGE / NEXT_PUBLIC_CHAT_EXPORT (each default off): change the theme / export the deck from chat (lib/chat-theme-export.ts).
 import { runExportDirective, runThemeDirective, type ThemeExportDirectiveMessage, type ThemeExportDirectiveOwner, type ThemeExportResultData } from '@/lib/chat-theme-export'
@@ -2652,6 +2653,7 @@ function AuthenticatedBuilderContent({ authScopeUserId }: { authScopeUserId: str
         if (owner.isCurrent()) window.dispatchEvent(new CustomEvent(NOTES_UPDATED_EVENT, { detail: update })) // CHAT-ELEMENT-EDIT
       }, // CHAT-ELEMENT-EDIT
     } : {}), // CHAT-ELEMENT-EDIT
+    ...(CHAT_ELEMENT_EDIT_2_ENABLED && CHAT_ELEMENT_REFINE_ENABLED ? { getChatElementReference: () => chatElementEdit2Reference() } : {}), // CHAT-ELEMENT-EDIT-2: the reference of a send names the slide by no id (Director fills Layout's), overriding the refine option above
     // NEXT_PUBLIC_STUDIO_JOB_LEDGER: Director's job rows (job_update, sync_response jobs) go to this tab's ledger. Off: not passed.
     ...(STUDIO_JOB_LEDGER_ENABLED ? { onJobUpdate: studioJobLedger.onJobUpdate, onJobsSync: studioJobLedger.onJobsSync } : {}),
     // Build Narration: typed-frame ref-forwarders (WS options precede the
@@ -5359,6 +5361,7 @@ function AuthenticatedBuilderContent({ authScopeUserId }: { authScopeUserId: str
       slideCount: () => slideStructure?.slides?.length ?? 0, // CHAT-ELEMENT-EDIT
       currentSlideIndex: () => currentSlideIndexRef.current, // CHAT-ELEMENT-EDIT
       slideIdAt: slideIndex => { const id = (slideStructure?.slides?.[slideIndex] as { slide_id?: unknown } | undefined)?.slide_id; return typeof id === 'string' && id ? id : null }, // CHAT-ELEMENT-EDIT
+      shownSlides: presentationId => chatElementEdit2ShownSlides(presentationId), // CHAT-ELEMENT-EDIT-2: Layout's own ids and count for the shown deck (used only with the flag on)
       goToSlide: layoutServiceApis?.goToSlide ?? null, // CHAT-ELEMENT-EDIT
       sendElementCommand: layoutServiceApis?.sendElementCommand ?? null, // CHAT-ELEMENT-EDIT
       sendTextBoxCommand: layoutServiceApis?.sendTextBoxCommand ?? null, // CHAT-ELEMENT-EDIT
@@ -5391,6 +5394,19 @@ function AuthenticatedBuilderContent({ authScopeUserId }: { authScopeUserId: str
         saveSource: () => ({ sessionId: currentSessionId || wsSessionId || null, presentationId: templateSavePresentationId ?? null }), // CHAT-PARITY
       } } : {}) }, message).then(result => { if (owner.isCurrent()) chatParityBus.send?.(result) }) // CHAT-PARITY
   } // CHAT-PARITY
+  // CHAT-ELEMENT-EDIT-2 (NEXT_PUBLIC_STUDIO_CHAT_ELEMENT_EDIT_2, default off): the element edit's slide check reads the SHOWN deck's ids from Layout's slide inventory (the session slideStructure holds Director's outline ids, not Layout's), and the element
+  // CHAT-ELEMENT-EDIT-2: reference of a send is dropped when the deck changes under it (an Undo, a restored or mutated deck, another deck) or the shown slide is not the one it was selected on. Off: nothing below runs.
+  const chatElementEdit2ShownSlides = async (presentationId: string) => { // CHAT-ELEMENT-EDIT-2
+    const result = await fetchSlideInventory({ baseUrl: getLayoutServiceUrl(), presentationId, fetchImpl: (input, init) => fetch(input, init) }) // CHAT-ELEMENT-EDIT-2
+    return result.kind === 'ok' ? shownSlidesFromInventory(result.inventory) : null // CHAT-ELEMENT-EDIT-2
+  } // CHAT-ELEMENT-EDIT-2
+  const chatElementEdit2Reference = () => referenceWithoutOutlineId(chatElementReferenceFor(chatElementSelectionRef.current)) // CHAT-ELEMENT-EDIT-2: the one element reference of a send and of the "@" Element entry, slide_id null (the session slide list holds Director's outline ids, which Layout does not know)
+  useEffect(() => { // CHAT-ELEMENT-EDIT-2
+    if (CHAT_ELEMENT_EDIT_2_ENABLED) dropChatElementSelection(chatElementSelectionRef) // CHAT-ELEMENT-EDIT-2
+  }, [slideComposerOverride, effectivePresentationId]) // CHAT-ELEMENT-EDIT-2
+  useEffect(() => { // CHAT-ELEMENT-EDIT-2
+    if (CHAT_ELEMENT_EDIT_2_ENABLED) dropChatElementSelectionOffSlide(chatElementSelectionRef, currentSlideIndex) // CHAT-ELEMENT-EDIT-2
+  }, [currentSlideIndex]) // CHAT-ELEMENT-EDIT-2
   // DECK-SYNC-TRUTH (NEXT_PUBLIC_STUDIO_DECK_SYNC_TRUTH, default off; lib/studio-deck-sync-truth.ts): the session row's slide count (the Decks page card and the session list read it) is only ever raised by the build's frames, so after
   // DECK-SYNC-TRUTH: a chat delete it still said the build's count. Settled (no build in progress, the final deck on screen), a chat change to the deck writes Layout's real count to the row through the page's existing session write.
   const deckSyncBuildingRef = useRef(false) // DECK-SYNC-TRUTH
@@ -6415,6 +6431,7 @@ function AuthenticatedBuilderContent({ authScopeUserId }: { authScopeUserId: str
   const chatCommandsSlides = (slideStructure?.slides || []).map((sl: { title?: string; slide_id?: string }, i: number) => ({ index: i, title: sl?.title || '', slide_id: sl?.slide_id ?? null })) // CHAT-COMMANDS: the same list the K1 slide picker was given
   const chatCommandsExport = (format: 'pdf' | 'pptx') => { const shown = elementDirectiveGenerationOwnerRef.current; return runExportDirective({ type: 'export_directive', payload: { directive_id: 'chat-command', presentation_id: shown.presentationId as string, format } } as ExportDirectiveMessage, { sessionId: shown.sessionId ?? null, isCurrent: () => true }, { displayed: () => elementDirectiveGenerationOwnerRef.current, exportState: () => ({ presentationUrl: effectivePresentationUrl ?? null, slideCount: effectiveSlideCount ?? null, stage: currentStage, hasFinalDeck: Boolean(finalPresentationId || finalPresentationUrl), exportAfterBuild: process.env.NEXT_PUBLIC_STUDIO_V4_SHELL === 'true' && process.env.NEXT_PUBLIC_STUDIO_EXPORT_AFTER_BUILD === 'true', partialArtifact: Boolean(studioShell && studioPartialMetadata), narrationActive: Boolean(effectiveBuildNarrationEnabled && buildNarration?.active), narrationPhase: (effectiveBuildNarrationEnabled ? buildNarration?.phase : null) ?? 'idle' }), downloadPDF, downloadPPTX }) } // CHAT-COMMANDS: /export runs the export directive's own runner (the Download menu's downloadPDF / downloadPPTX and its enable rule) with the same state the runner above is given
   const chatCommandsPage: ChatCommandsPageProps | undefined = chatCommandsOn ? { slides: chatCommandsSlides, currentSlide: chatCommandsSlides.length ? Math.min(Math.max(currentSlideIndex + 1, 1), chatCommandsSlides.length) : null, getElement: () => (CHAT_ELEMENT_REFINE_ENABLED ? chatElementReferenceFor(chatElementSelectionRef.current) : null), exportDeck: chatCommandsExport } : undefined // CHAT-COMMANDS: the current slide, the element reference Studio already builds (NEXT_PUBLIC_CHAT_ELEMENT_REFINE), the export runner
+  if (CHAT_ELEMENT_EDIT_2_ENABLED && chatCommandsPage) chatCommandsPage.getElement = () => (CHAT_ELEMENT_REFINE_ENABLED ? chatElementEdit2Reference() : null) // CHAT-ELEMENT-EDIT-2: a picked @Element token carries the same reference (slide_id null)
 
   const handleCancelManualDeckBuild = useCallback(() => {
     if (manualDeckHandoffBusy) return
@@ -8195,6 +8212,7 @@ function AuthenticatedBuilderContent({ authScopeUserId }: { authScopeUserId: str
               }) : undefined,
             } : undefined}
             onTextBoxSelected={(elementId, formatting, selectedComponentType) => {
+              if (CHAT_ELEMENT_EDIT_2_ENABLED && CHAT_ELEMENT_REFINE_ENABLED) chatElementSelectionRef.current = chatElementSelectionFor(elementId, 'TEXT_BOX', currentSlideIndexRef.current, slideStructure?.slides) // CHAT-ELEMENT-EDIT-2: every selection event records the selection (the state-keyed effect above misses a re-click of the element the page already holds)
               if (studioShell) closeStudioFormat()
               if (features.useTextLabsGeneration) {
                 setSelectedTextBoxId(elementId)
@@ -8221,6 +8239,7 @@ function AuthenticatedBuilderContent({ authScopeUserId }: { authScopeUserId: str
               }
             }}
             onElementSelected={(elementId, elementType, properties) => {
+              if (CHAT_ELEMENT_EDIT_2_ENABLED && CHAT_ELEMENT_REFINE_ENABLED) chatElementSelectionRef.current = chatElementSelectionFor(elementId, elementType, currentSlideIndexRef.current, slideStructure?.slides) // CHAT-ELEMENT-EDIT-2
               if (studioShell) closeStudioFormat()
               if (features.useTextLabsGeneration && isTextLabsMappable(elementType)) {
                 setSelectedElementId(elementId)
