@@ -51,6 +51,7 @@ const { stripPausedLabel, BASE_COMMIT, PAUSED_LABEL_FILES, PAUSED_LABEL_SCOPE_FI
 
 const React = (await import('react')).default
 const { renderToStaticMarkup } = await import('react-dom/server')
+const jsxRuntime = await import('react/jsx-runtime')
 const { installHostNetworkGuard, createEnvironment } = await import('./studio-chat-harness/fake-env.mjs')
 const { createModuleLoader } = await import('./studio-chat-harness/module-loader.mjs')
 const { esmPackages, lucideStub } = await import('./studio-chat-harness/esm-packages.mjs')
@@ -78,7 +79,7 @@ async function world({ flagOn, shell = true, ribbonText = null }) {
     const compiled = ts.transpileModule(ribbonText, { fileName: RIBBON, reportDiagnostics: true, compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022, jsx: ts.JsxEmit.ReactJSX, esModuleInterop: true, isolatedModules: true } })
     assert.equal((compiled.diagnostics ?? []).filter(d => d.category === ts.DiagnosticCategory.Error).length, 0, 'the mutant transpiles')
     const mod = { exports: {} }
-    const requires = { react: React, 'framer-motion': framerMotion(), 'lucide-react': lucideStub(React), '@/lib/build-narration-heuristics': loader.load('lib/build-narration-heuristics.ts'),
+    const requires = { react: React, 'react/jsx-runtime': jsxRuntime, 'framer-motion': framerMotion(), 'lucide-react': lucideStub(React), '@/lib/build-narration-heuristics': loader.load('lib/build-narration-heuristics.ts'),
       './stage-icons': loader.load('components/build-narration/stage-icons.tsx'), './pause-stop-control': loader.load('components/build-narration/pause-stop-control.tsx'), './motion': loader.load('components/build-narration/motion.ts'), './studio-build-status.css': {} }
     vm.runInContext(`(function (module, exports, require) {${compiled.outputText}\n})`, loader.context, { filename: RIBBON })(mod, mod.exports, spec => { if (!(spec in requires)) throw new Error(`unexpected import ${spec}`); return requires[spec] })
     return { loader, ribbon: mod.exports.StageRibbon, lib: requires['@/lib/build-narration-heuristics'] }
