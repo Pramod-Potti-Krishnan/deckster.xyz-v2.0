@@ -226,7 +226,7 @@ function world({ sources, flag, layout, row, building = false, liveOverride = nu
   const persistence = { updateMetadata: (updates, options) => { rowWrites.push({ updates: { ...updates }, options: options ?? null }); if (updates && 'slideCount' in updates) rowState.slideCount = updates.slideCount } }
   const sessionIdRef = { current: session ? 'b6cbb408' : null }, persistenceRef = { current: session ? persistence : null }
   class ClockDate extends Date { constructor(...args) { super(...(args.length ? args : [clock.t])) } static now() { return clock.t } }
-  let partial = false, composeJobs = []
+  let partial = false, composeJobs = [], templateMode = false // `building` is true for a final build, 'strawman' for a strawman build
   const hookRefs = []
   let refCursor = 0, blockRefs = null
   const blockText = cutLines(pageText, 'const deckSyncBuildingRef = useRef(false)', '}) // DECK-SYNC-TRUTH')
@@ -238,7 +238,7 @@ function world({ sources, flag, layout, row, building = false, liveOverride = nu
     if (!blockRun) return
     refCursor = 0
     blockRefs = blockRun({ useRef: initial => { const at = refCursor++; if (!hookRefs[at]) hookRefs[at] = { current: initial }; return hookRefs[at] },
-      studioShell: shell, studioPartialMetadata: partial, templateModeOn: false, isGeneratingFinal: building, isGeneratingStrawman: false, slideComposeThumbnailJobs: composeJobs,
+      studioShell: shell, studioPartialMetadata: partial, templateModeOn: templateMode, isGeneratingFinal: building === true, isGeneratingStrawman: building === 'strawman', slideComposeThumbnailJobs: composeJobs,
       createSettledRowCountWriter: truth ? truth.createSettledRowCountWriter : undefined, fetchSlideInventory: rail.fetchSlideInventory, getLayoutServiceUrl: () => LAYOUT, fetch: layout.fetch,
       slideComposerPresentationRef: ref, currentSessionIdRef: sessionIdRef, persistenceRef })
   }
@@ -347,7 +347,7 @@ function world({ sources, flag, layout, row, building = false, liveOverride = nu
   return {
     clock, notices, viewer, effective, restored, advance, settle, truth, notice, compose, countSync, STUDIO_DECK_SYNC_TRUTH_ENABLED, noticeText, poll,
     reloadCount: () => reloads, controller: () => controller, setBuilding: value => { building = value; runPageBlock() },
-    setPartial: value => { partial = value; runPageBlock() }, setComposeJobs: jobs => { composeJobs = jobs; runPageBlock() },
+    setPartial: value => { partial = value; runPageBlock() }, setComposeJobs: jobs => { composeJobs = jobs; runPageBlock() }, setTemplateMode: value => { templateMode = value; runPageBlock() },
     rowCount: () => rowState.slideCount, rowWrites, sessionIdRef, persistenceRef,
     /** One of Director's own state frames while a build runs: the page's onSessionStateChange count rule (cut from the source) decides the count its write carries. */
     buildFrame({ slideCount }) {
@@ -783,11 +783,17 @@ async function suite(sources, { log = false } = {}) {
       w.close()
     }
   })
-  await check('flag on: nothing is written while the deck is not settled (a partial artifact, compose jobs, outside the Studio shell), for a frame of another deck, a retired owner, or no session; a settled deck writes', async () => {
+  await check('flag on: nothing is written while the deck is not settled (a strawman build, template mode, a partial artifact, compose jobs, outside the Studio shell), for a frame of another deck, a retired owner, or no session; a settled deck writes', async () => {
     const layout = createLayout()
     const w = world({ sources, flag: 'true', layout, row: ROW() })
     w.mount(); await w.settle()
-    w.setPartial(true)
+    w.setBuilding('strawman')
+    await w.chat(RECORDED.deleteSlide3(), () => {}); await w.advance(500)
+    assert.equal(w.rowWrites.length, 0, 'a strawman build')
+    w.setBuilding(false); w.setTemplateMode(true)
+    await w.chat(RECORDED.deleteSlide3(), () => {}); await w.advance(500)
+    assert.equal(w.rowWrites.length, 0, 'template mode')
+    w.setTemplateMode(false); w.setPartial(true)
     await w.chat(RECORDED.deleteSlide3(), () => layout.remove(FINAL, 2)); await w.advance(500)
     assert.equal(w.rowWrites.length, 0, 'partial artifact')
     w.setPartial(false); w.setComposeJobs([{ jobId: 'j1' }])
@@ -1068,7 +1074,9 @@ const MUTANTS = [
   ['page: the building ref is never on', s => mutate(s, PAGE, 'deckSyncBuildingRef.current = ', 'deckSyncBuildingRef.current = false; const deckSyncUnused = ')],
   ['page: outside the Studio shell the row is written too', s => mutate(s, PAGE, 'deckSyncBuildingRef.current = !studioShell || ', 'deckSyncBuildingRef.current = ')],
   ['page: a partial artifact is not a build', s => mutate(s, PAGE, ' || studioPartialMetadata || templateModeOn || isGeneratingFinal', ' || templateModeOn || isGeneratingFinal')],
-  ['page: a final build is not a build', s => mutate(s, PAGE, ' || isGeneratingFinal || isGeneratingStrawman ||', ' || isGeneratingStrawman ||')],
+  ['page: a final build is not a build', s => mutate(s, PAGE, ' || templateModeOn || isGeneratingFinal || isGeneratingStrawman ||', ' || templateModeOn || isGeneratingStrawman ||')],
+  ['page: a strawman build is not a build', s => mutate(s, PAGE, ' || isGeneratingStrawman || slideComposeThumbnailJobs.length > 0 // DECK-SYNC-TRUTH', ' || slideComposeThumbnailJobs.length > 0 // DECK-SYNC-TRUTH')],
+  ['page: template mode is not a build', s => mutate(s, PAGE, ' || studioPartialMetadata || templateModeOn || isGeneratingFinal', ' || studioPartialMetadata || isGeneratingFinal')],
   ['page: compose jobs are not a build', s => mutate(s, PAGE, ' || slideComposeThumbnailJobs.length > 0 // DECK-SYNC-TRUTH', ' // DECK-SYNC-TRUTH')],
   ['page: the writer is made with the flag off', s => mutate(s, PAGE, "if (process.env.NEXT_PUBLIC_STUDIO_DECK_SYNC_TRUTH === 'true' && !deckSyncRowCountRef.current)", 'if (!deckSyncRowCountRef.current)')],
   ['page: the writer is never made', s => mutate(s, PAGE, "if (process.env.NEXT_PUBLIC_STUDIO_DECK_SYNC_TRUTH === 'true' && !deckSyncRowCountRef.current)", "if (process.env.NEXT_PUBLIC_STUDIO_DECK_SYNC_TRUTH === 'never' && !deckSyncRowCountRef.current)")],
