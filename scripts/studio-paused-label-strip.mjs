@@ -6,7 +6,7 @@
 // Strip those lines and the file is its base, byte for byte.
 // How the older pins reach it: this change REGISTERS its files, its .env.example block and this strip (scripts/studio-later-changes.mjs, three lines). Plain node, no imports, nothing read from disk or git here.
 
-export const BASE_COMMIT = '14a06c3053047acc7f6a613afd1138dabf4a3c54' // studio-v4-dev-preparation-code with #530 (chat clean v3.1) merged: the commit this change is cut from
+export const BASE_COMMIT = 'a0ff9d4596fd9905e80ecd96682a454c1bf9ab60' // studio-v4-dev-preparation-code with #522 (chat element edit) and #532 (chat commands) merged: dev, which this change is merged with. (It was cut from 14a06c30, #530.)
 export const PAUSED_LABEL_FLAG = 'NEXT_PUBLIC_STUDIO_PAUSED_LABEL'
 export const PAUSED_LABEL_MARKER = 'PAUSED-LABEL'
 /** The marker as a WHOLE token: PAUSED-LABEL-X or X-PAUSED-LABEL are not this change's. */
