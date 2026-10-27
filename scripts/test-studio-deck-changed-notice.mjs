@@ -32,11 +32,12 @@ import vm from 'node:vm'
 import { createRequire } from 'node:module'
 import { fileURLToPath } from 'node:url'
 import ts from 'typescript'
+import { stripLaterChanges } from './studio-later-changes.mjs' // LATER-CHANGES: registry read (DECK-SYNC-TRUTH)
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..')
 const nodeRequire = createRequire(path.join(root, 'package.json'))
 const FLAG = 'NEXT_PUBLIC_STUDIO_DECK_CHANGED_NOTICE'
-const read = rel => fs.readFileSync(path.join(root, rel), 'utf8')
+const read = rel => stripLaterChanges(rel, fs.readFileSync(path.join(root, rel), 'utf8')) // LATER-CHANGES: registry read (DECK-SYNC-TRUTH): a registered later change's marked lines come out first (an unmarked line still counts)
 const LIB = 'lib/studio-deck-changed-notice.ts'
 const HOOK = 'hooks/use-deck-changed-notice.ts'
 const COMPONENT = 'components/builder/studio-deck-changed-notice.tsx'

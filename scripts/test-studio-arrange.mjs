@@ -22,6 +22,7 @@ import crypto from 'node:crypto'
 import { execFileSync } from 'node:child_process'
 import { createRequire } from 'node:module'
 import ts from 'typescript'
+import { stripDeckSyncTruth } from './studio-deck-sync-truth-strip.mjs' // LATER-CHANGES: registry read (DECK-SYNC-TRUTH)
 
 const root = path.resolve(new URL('..', import.meta.url).pathname)
 const nodeRequire = createRequire(path.join(root, 'package.json'))
@@ -308,7 +309,7 @@ function mountInspector(env, props, source = SRC[INSPECTOR]) {
 {
   for (const rel of strip.STUDIO_ARRANGE_FILES) {
     const now = read(rel)
-    check(assert.equal, strip.stripStudioArrange(rel, now), baseText(rel), `${rel}: without its STUDIO-ARRANGE lines it is the base's, byte for byte`)
+    check(assert.equal, strip.stripStudioArrange(rel, stripDeckSyncTruth(rel, now)), baseText(rel), `${rel}: without its STUDIO-ARRANGE lines it is the base's, byte for byte`) // LATER-CHANGES: registry read (DECK-SYNC-TRUTH): the lines of the change stacked after this one come out first
     check(assert.equal, registry.stripLaterChanges(rel, now), registry.stripLaterChanges(rel, baseText(rel)), `${rel}: through the registry it is the base's`)
     const marked = now.split('\n').filter(line => strip.STUDIO_ARRANGE_MARKER_RE.test(line)).length
     check(assert.ok, marked > 0, `${rel}: has marked lines`)

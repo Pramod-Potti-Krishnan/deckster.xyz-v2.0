@@ -1,0 +1,236 @@
+{
+ "_provenance": {
+  "what": "E2E-2's recorded Layout reads of the strawman PREVIEW deck 313d2ded during the chat-undo re-run (27 Oct 2026 01:09-01:19Z, Studio dev, session b6cbb408), copied unchanged except for the path and a sha256 of each source file.",
+  "source_dir": "~/Deckster/.worktrees/frontend2-ws/streams/e2e2/undo-check/rerun/",
+  "read_by": "DIRECTOR-2 and E2E-2 (RESULT.md, Finding (persistence): RESOLVED, false alarm): the final Slide Builder deck b9a1f421 took over from this preview at 01:11:59; every chat op went to the final deck.",
+  "not_recorded": "No read of the FINAL deck b9a1f421's inventory was kept. The proof therefore models the final deck's inventory with these same three slide ids and removes and restores slides in it as the chat ops did (Layout's /versions on b9a1f421 shows each delete and restore in order: DIRECTOR-2).",
+  "meaning": "Every one of these eight reads says 3 slides, same ids, same updated_at: the preview never changed. A reader of the preview could never show 2."
+ },
+ "preview_deck": "313d2ded-9160-4fb0-b287-ead43b8f1ac0",
+ "reads": [
+  {
+   "file": "streams/e2e2/undo-check/rerun/slides-1-before.json",
+   "sha256": "fe7c3a4921c776e3f94f1553e88ed5f1d8b04d1a109e2cb0678c1436a1c9fa91",
+   "label": "rerun-1-before",
+   "deck": "313d2ded-9160-4fb0-b287-ead43b8f1ac0",
+   "count": 3,
+   "updated_at": "2026-10-27T01:10:54.223775+00:00",
+   "slides": [
+    {
+     "i": 1,
+     "id": "slide_25d745074213",
+     "layout": "C1",
+     "title": "Turning Produce Waste into Immediate Store Profit"
+    },
+    {
+     "i": 2,
+     "id": "slide_64542781c25a",
+     "layout": "C1",
+     "title": "Smart Ordering and The Power of FIFO"
+    },
+    {
+     "i": 3,
+     "id": "slide_50cd942d3687",
+     "layout": "C1",
+     "title": "Strategic Markdowns: Selling Before You Lose"
+    }
+   ]
+  },
+  {
+   "file": "streams/e2e2/undo-check/rerun/slides-2-after-delete3.json",
+   "sha256": "7dffc3907685f212d6f104eaa30438070c5b0755f540ae3fd405d650108bada6",
+   "label": "rerun-2-after-delete3",
+   "deck": "313d2ded-9160-4fb0-b287-ead43b8f1ac0",
+   "count": 3,
+   "updated_at": "2026-10-27T01:10:54.223775+00:00",
+   "slides": [
+    {
+     "i": 1,
+     "id": "slide_25d745074213",
+     "layout": "C1",
+     "title": "Turning Produce Waste into Immediate Store Profit"
+    },
+    {
+     "i": 2,
+     "id": "slide_64542781c25a",
+     "layout": "C1",
+     "title": "Smart Ordering and The Power of FIFO"
+    },
+    {
+     "i": 3,
+     "id": "slide_50cd942d3687",
+     "layout": "C1",
+     "title": "Strategic Markdowns: Selling Before You Lose"
+    }
+   ]
+  },
+  {
+   "file": "streams/e2e2/undo-check/rerun/slides-3-after-chip-undo.json",
+   "sha256": "8d4371632d4f79e19eba364246842edee70c5271619349aefadabf41e725e75c",
+   "label": "rerun-3-after-chip-undo",
+   "deck": "313d2ded-9160-4fb0-b287-ead43b8f1ac0",
+   "count": 3,
+   "updated_at": "2026-10-27T01:10:54.223775+00:00",
+   "slides": [
+    {
+     "i": 1,
+     "id": "slide_25d745074213",
+     "layout": "C1",
+     "title": "Turning Produce Waste into Immediate Store Profit"
+    },
+    {
+     "i": 2,
+     "id": "slide_64542781c25a",
+     "layout": "C1",
+     "title": "Smart Ordering and The Power of FIFO"
+    },
+    {
+     "i": 3,
+     "id": "slide_50cd942d3687",
+     "layout": "C1",
+     "title": "Strategic Markdowns: Selling Before You Lose"
+    }
+   ]
+  },
+  {
+   "file": "streams/e2e2/undo-check/rerun/slides-5-after-delete2.json",
+   "sha256": "8d940d47896bb87bde6e7586357ae4d17c8dd312128aba88db39cad2a6b02f77",
+   "label": "rerun-5-after-delete2",
+   "deck": "313d2ded-9160-4fb0-b287-ead43b8f1ac0",
+   "count": 3,
+   "updated_at": "2026-10-27T01:10:54.223775+00:00",
+   "slides": [
+    {
+     "i": 1,
+     "id": "slide_25d745074213",
+     "layout": "C1",
+     "title": "Turning Produce Waste into Immediate Store Profit"
+    },
+    {
+     "i": 2,
+     "id": "slide_64542781c25a",
+     "layout": "C1",
+     "title": "Smart Ordering and The Power of FIFO"
+    },
+    {
+     "i": 3,
+     "id": "slide_50cd942d3687",
+     "layout": "C1",
+     "title": "Strategic Markdowns: Selling Before You Lose"
+    }
+   ]
+  },
+  {
+   "file": "streams/e2e2/undo-check/rerun/slides-5b-after-delete2-later.json",
+   "sha256": "7be9dd078a447cf15835ba92a03b792cd3779aa6e48743be6ef232ccea15138f",
+   "label": "rerun-5b-after-delete2-later",
+   "deck": "313d2ded-9160-4fb0-b287-ead43b8f1ac0",
+   "count": 3,
+   "updated_at": "2026-10-27T01:10:54.223775+00:00",
+   "slides": [
+    {
+     "i": 1,
+     "id": "slide_25d745074213",
+     "layout": "C1",
+     "title": "Turning Produce Waste into Immediate Store Profit"
+    },
+    {
+     "i": 2,
+     "id": "slide_64542781c25a",
+     "layout": "C1",
+     "title": "Smart Ordering and The Power of FIFO"
+    },
+    {
+     "i": 3,
+     "id": "slide_50cd942d3687",
+     "layout": "C1",
+     "title": "Strategic Markdowns: Selling Before You Lose"
+    }
+   ]
+  },
+  {
+   "file": "streams/e2e2/undo-check/rerun/slides-6-after-typed-undo.json",
+   "sha256": "a970b5d0e12b5783d8b9bd9ae54129f2236f636ca19f39a9447137ae27980667",
+   "label": "rerun-6-after-typed-undo",
+   "deck": "313d2ded-9160-4fb0-b287-ead43b8f1ac0",
+   "count": 3,
+   "updated_at": "2026-10-27T01:10:54.223775+00:00",
+   "slides": [
+    {
+     "i": 1,
+     "id": "slide_25d745074213",
+     "layout": "C1",
+     "title": "Turning Produce Waste into Immediate Store Profit"
+    },
+    {
+     "i": 2,
+     "id": "slide_64542781c25a",
+     "layout": "C1",
+     "title": "Smart Ordering and The Power of FIFO"
+    },
+    {
+     "i": 3,
+     "id": "slide_50cd942d3687",
+     "layout": "C1",
+     "title": "Strategic Markdowns: Selling Before You Lose"
+    }
+   ]
+  },
+  {
+   "file": "streams/e2e2/undo-check/rerun/slides-8-probe-after-delete.json",
+   "sha256": "c4ef7af164ce35d308785f2da2fad22105a6161431c8fa293fe2243d28e5b6b2",
+   "label": "rerun-8-probe-after-delete",
+   "deck": "313d2ded-9160-4fb0-b287-ead43b8f1ac0",
+   "count": 3,
+   "updated_at": "2026-10-27T01:10:54.223775+00:00",
+   "slides": [
+    {
+     "i": 1,
+     "id": "slide_25d745074213",
+     "layout": "C1",
+     "title": "Turning Produce Waste into Immediate Store Profit"
+    },
+    {
+     "i": 2,
+     "id": "slide_64542781c25a",
+     "layout": "C1",
+     "title": "Smart Ordering and The Power of FIFO"
+    },
+    {
+     "i": 3,
+     "id": "slide_50cd942d3687",
+     "layout": "C1",
+     "title": "Strategic Markdowns: Selling Before You Lose"
+    }
+   ]
+  },
+  {
+   "file": "streams/e2e2/undo-check/rerun/slides-9-final.json",
+   "sha256": "fd59a9963da0a2a2f83b790381d7a990d144f834a8fa39cd952ff870f0884177",
+   "label": "rerun-9-final",
+   "deck": "313d2ded-9160-4fb0-b287-ead43b8f1ac0",
+   "count": 3,
+   "updated_at": "2026-10-27T01:10:54.223775+00:00",
+   "slides": [
+    {
+     "i": 1,
+     "id": "slide_25d745074213",
+     "layout": "C1",
+     "title": "Turning Produce Waste into Immediate Store Profit"
+    },
+    {
+     "i": 2,
+     "id": "slide_64542781c25a",
+     "layout": "C1",
+     "title": "Smart Ordering and The Power of FIFO"
+    },
+    {
+     "i": 3,
+     "id": "slide_50cd942d3687",
+     "layout": "C1",
+     "title": "Strategic Markdowns: Selling Before You Lose"
+    }
+   ]
+  }
+ ]
+}
