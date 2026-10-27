@@ -14,7 +14,7 @@
 // against its base, so its two pin checks read through the registry (the pin past this change's two lines in it).
 // How the older pins reach it: this change REGISTERS its files, its .env.example block and this strip (scripts/studio-later-changes.mjs, three lines). Plain node, no imports, nothing read from disk or git here.
 
-export const BASE_COMMIT = '59588574415409a288917b5842424c0840d3e195' // origin/studio-v4-dev-preparation-code (#529 merged), the last studio head merged into this branch; the tree diff from it to this change's newest commit is this change
+export const BASE_COMMIT = 'c477beda49c1ec96062b700330f56f2d161a2814' // origin/studio-v4-dev-preparation-code (#531 merged), the last studio head merged into this branch; the tree diff from it to this change's newest commit is this change
 export const CHAT_CLEAN_FLAG = 'NEXT_PUBLIC_STUDIO_CHAT_CLEAN'
 export const CHAT_CLEAN_MARKER = 'CHAT-CLEAN'
 /** The marker as a WHOLE token: CHAT-CLEAN-X or X-CHAT-CLEAN are not this change's (the lowercase attribute names are not either). */
