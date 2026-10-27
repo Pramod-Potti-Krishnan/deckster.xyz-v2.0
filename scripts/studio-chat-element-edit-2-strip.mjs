@@ -9,7 +9,7 @@
 // file is its base, byte for byte. The new file lib/chat-element-edit-2.ts holds the flag and the pure helpers.
 // How the older pins reach it: this change REGISTERS its files, its .env.example block and this strip (scripts/studio-later-changes.mjs, three lines). Plain node, no imports, nothing read from disk or git here.
 
-export const BASE_COMMIT = '73e6e5b00f41f129140ec5c4ccf9151a2e567f08' // origin/studio-v4-dev-preparation-code with #535 (paused label) merged: dev when this change was cut
+export const BASE_COMMIT = '4520303b3a7b2105844e34dedf616c1e7d1edffd' // origin/studio-v4-dev-preparation-code with #537 (chat parity, Studio half) merged: dev, which this change is merged with (it was cut from 73e6e5b0, #535)
 export const CHAT_ELEMENT_EDIT_2_FLAG = 'NEXT_PUBLIC_STUDIO_CHAT_ELEMENT_EDIT_2'
 export const CHAT_ELEMENT_EDIT_2_MARKER = 'CHAT-ELEMENT-EDIT-2'
 /** The marker as a WHOLE token: CHAT-ELEMENT-EDIT (#522's) or X-CHAT-ELEMENT-EDIT-2 are not this change's. */
