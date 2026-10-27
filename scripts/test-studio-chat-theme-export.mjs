@@ -827,6 +827,7 @@ await check('page: wired only behind the flags (read inline), next to the K5 add
   assert.ok(runnerAssign && addRunnerAssign && hookSpread && applyNode)
   assert.ok(runnerAssign.getStart(pageAst) > addRunnerAssign.getEnd(), 'after the add runner')
   // Right beside it: only this change's own lines, or, stacked on #470, the refine runner's region (its selection effects and runner), sit between.
+  const pageText = (await import('./studio-later-changes.mjs')).stripLaterChanges(PAGE, read(PAGE)) // stacked after #475: the page is read through the registry here, as parseSource reads it for the AST (a later change's marked line before the runners would shift this slice) // LATER-CHANGES: registry read (BUILD-FAILURE-END)
   const between = pageText.slice(addRunnerAssign.getEnd(), runnerAssign.getStart(pageAst))
   assert.ok(between.split('\n').length < 40 || (between.includes('elementRefineDirectiveRunnerRef.current =') && between.split('\n').length < 100), 'right beside it')
   const gate = "process.env.NEXT_PUBLIC_CHAT_THEME_CHANGE === 'true' || process.env.NEXT_PUBLIC_CHAT_EXPORT === 'true'"

@@ -144,6 +144,37 @@ await check('the J7 recording (build, Stop, reload, typed resume; 3 scenarios x 
   assert.equal(j7Scenarios.length * 2, 6)
 })
 
+console.log('2b. what the chat clean job card, the composer and its hint read from that state')
+// The same narration state the transcripts reach, through the REAL pure functions and the REAL job card component the Builder page hands the narration state to (lib/studio-chat-clean.ts, lib/studio-chat-composer-context.ts,
+// components/builder/chat/studio-chat-clean.tsx): the stuck state (flag off) and the ended one (flag on), the page's own arguments (narration.active / phase / control / slidesDone / slideCount).
+await check('chat clean (NEXT_PUBLIC_STUDIO_CHAT_CLEAN): the job card, the Stop button and the "Building slides" composer hint are there for the stuck state and gone for the ended one; the older view\'s ribbon likewise', async () => {
+  const React = (await import('react')).default
+  const { renderToStaticMarkup } = await import('react-dom/server')
+  const { createEnvironment } = await import('./studio-chat-harness/fake-env.mjs')
+  const { createModuleLoader } = await import('./studio-chat-harness/module-loader.mjs')
+  const { esmPackages, lucideStub } = await import('./studio-chat-harness/esm-packages.mjs')
+  const env = createEnvironment({ processEnv: { NEXT_PUBLIC_STUDIO_CHAT_CLEAN: 'true', NEXT_PUBLIC_BUILD_NARRATION: 'true', NEXT_PUBLIC_BUILD_CONTROL: 'true' } })
+  const loader = createModuleLoader({ root, globals: env.globals, stubs: { ...(await esmPackages(root)), react: React, 'lucide-react': lucideStub(React) }, fileStubs: { 'components/model-choice/model-picker': { ModelPicker: () => null } } })
+  const { StudioChatCleanJob } = loader.load('components/builder/chat/studio-chat-clean.tsx')
+  const clean = loader.load('lib/studio-chat-clean.ts'), hint = loader.load('lib/studio-chat-composer-context.ts')
+  const lib = transpile(read('lib/build-narration-heuristics.ts'), 'lib/build-narration-heuristics.ts', {})
+  const R = lib.narrationReducer
+  let stuck = R(R(R(lib.initialNarrationState(), { type: 'strawman', ghosts: GHOSTS, ts: T }), { type: 'awaiting_user', ts: T + 1 }), { ...STATUS, ts: T + 2 })
+  stuck = R(stuck, { type: 'ephemeral', id: 'e1', text: 'Reviewing your topic and audience…', ts: T + 2 })
+  const ended = R(stuck, { type: 'status_ended', ts: T + 3 })
+  const surface = narration => {
+    const composer = clean.chatCleanComposerState({ enabled: true, active: narration.active, phase: narration.phase, control: narration.control, slidesDone: narration.slidesDone, slideCount: narration.slideCount, controlEnabled: true, ackKey: null, ackLine: '' })
+    const job = renderToStaticMarkup(React.createElement(StudioChatCleanJob, { narration, notes: [], composer, currentStatus: null }))
+    const label = hint.studioComposerContextLabel({ deckOpen: true, slideNumber: 1, slideCount: 5, stage: { builtDeck: false, activeVersion: 'strawman', generatingFinal: false, phase: narration.phase, directorWorking: false } })
+    return { composerMode: composer.mode, showStop: composer.showStop, jobCard: /data-studio-chat-clean-job=/.test(job), jobTitle: (/aria-label="([^"]*)"/.exec(job) || [])[1] ?? null, tally: /0 of 5/.test(job), label }
+  }
+  const before = surface(stuck), after = surface(ended)
+  assert.deepEqual(before, { composerMode: 'running', showStop: true, jobCard: true, jobTitle: 'Building slides', tally: true, label: 'Building slides' }, 'the stuck state: the job card, Stop and the composer hint')
+  assert.deepEqual(after, { composerMode: 'idle', showStop: false, jobCard: false, jobTitle: null, tally: false, label: 'Reviewing the outline' }, 'the ended state: none of them; the composer names the outline stage it is at')
+  // the older view's ribbon mounts exactly when narration is active (components/builder/presentation-area.tsx): the transcripts above drew the real StageRibbon for it
+  assert.equal(stuck.active, true); assert.equal(ended.active, false)
+})
+
 console.log('3. flag off is byte-identical to the base')
 const baseline = JSON.parse(fs.readFileSync(baselineFile, 'utf8'))
 await check('the baseline was recorded from these fixtures', () => { assert.equal(baseline.fixture_sha256, sha(JSON.stringify(composed))); assert.equal(baseline.j7_fixture_sha256, sha(JSON.stringify(j7))) })

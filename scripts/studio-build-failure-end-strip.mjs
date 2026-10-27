@@ -33,7 +33,15 @@ export const BUILD_FAILURE_END_NEW_FILES = [
 /** Files this change edits that are neither app code with marked lines nor new: its .env.example block, the registry (three lines) and the older proofs it teaches (BUILD_FAILURE_END_PIN_EDITS below). */
 export const BUILD_FAILURE_END_PIN_MARK = '// LATER-CHANGES: registry read (BUILD-FAILURE-END)'
 /** [text the proof has now, text the proof had before] per edit, whole lines, so putting them back gives the previous file byte for byte. Every line the proof has now carries BUILD_FAILURE_END_PIN_MARK. */
-export const BUILD_FAILURE_END_PIN_EDITS = {}
+export const BUILD_FAILURE_END_PIN_EDITS = {
+  // FRONTEND-2's proof of the chat theme / export change slices the RAW page at offsets of the page the registry strips (its AST): one marked line anywhere before the K5 add runner moves the slice. One inserted line, inside the check.
+  'scripts/test-studio-chat-theme-export.mjs': [
+    [
+      "  const pageText = (await import('./studio-later-changes.mjs')).stripLaterChanges(PAGE, read(PAGE)) // stacked after #475: the page is read through the registry here, as parseSource reads it for the AST (a later change's marked line before the runners would shift this slice) // LATER-CHANGES: registry read (BUILD-FAILURE-END)\n",
+      ''
+    ]
+  ]
+}
 
 /** The proof without this change's edits (the previous file). Used by the strip and the proof. */
 export function putBackPin(rel, text) {
