@@ -446,6 +446,20 @@ export function SlideNotesPanel({
     window.addEventListener(NOTES_UPDATED_EVENT, onNotesUpdated) // CHAT-ELEMENT-EDIT
     return () => window.removeEventListener(NOTES_UPDATED_EVENT, onNotesUpdated) // CHAT-ELEMENT-EDIT
   }, []) // CHAT-ELEMENT-EDIT
+  // CHAT-PARITY (rows 106 / 108): Director's notes_updated may name a slide's script or references (its `fields`); the socket hook raises 'deckster:chat-notes-fields' with them just before #522's
+  // CHAT-PARITY: event above, so those saved drafts are let go the same way as the notes and #522's reload then shows Director's text. No reload here, no second import: the name and the flag are inlined.
+  useEffect(() => { // CHAT-PARITY
+    if (process.env.NEXT_PUBLIC_STUDIO_CHAT_ELEMENT_EDIT !== 'true') return // CHAT-PARITY
+    const onNotesFields = (event: Event) => { // CHAT-PARITY
+      const detail = (event as CustomEvent<{ presentationId?: unknown; slideIndex?: unknown; fields?: unknown }>).detail // CHAT-PARITY
+      const pid = presentationIdRef.current // CHAT-PARITY
+      if (!pid || !detail || detail.presentationId !== pid || typeof detail.slideIndex !== 'number' || !Array.isArray(detail.fields)) return // CHAT-PARITY
+      const slideId = slideIdsRef.current[detail.slideIndex] // CHAT-PARITY
+      if (slideId) for (const field of ['script', 'references'] as const) if (detail.fields.includes(field) && !saversRef.current.get(pid)?.pending.get(slideId)?.has(field)) editedFieldsRef.current.delete(`${slideId}:${field}`) // CHAT-PARITY
+    } // CHAT-PARITY
+    window.addEventListener('deckster:chat-notes-fields', onNotesFields) // CHAT-PARITY
+    return () => window.removeEventListener('deckster:chat-notes-fields', onNotesFields) // CHAT-PARITY
+  }, []) // CHAT-PARITY
 
   // --- Saving --------------------------------------------------------------
   // Re-queue a slide's dirty fields onto ITS presentation's saver so a later drain

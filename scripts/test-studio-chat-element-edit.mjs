@@ -42,7 +42,8 @@ const stripPeers = (rel, text) => LATER_STRIPS.filter(strip => strip !== stripCh
 const root = path.resolve(fileURLToPath(new URL('../', import.meta.url)))
 const FIXTURES = path.join(root, 'scripts/fixtures/chat-element-edit')
 const TRANSCRIPTS = path.join(FIXTURES, 'layout-transcripts.json')
-const read = rel => fs.readFileSync(path.join(root, rel), 'utf8')
+const chatParityStrip = await import('./studio-chat-parity-strip.mjs') // stacked after #475: LATER-CHANGES: registry read (CHAT-PARITY): the strip of the change stacked after this one
+const read = rel => chatParityStrip.stripChatParity(rel, fs.readFileSync(path.join(root, rel), 'utf8')) // stacked after #475: LATER-CHANGES: registry read (CHAT-PARITY): chat parity's marked lines (the Notes panel's fields listener, the hook's fields event) come out, and the pins both changes teach get chat parity's edits put back, before this change's byte pins
 const sha = text => crypto.createHash('sha256').update(text).digest('hex')
 const plain = value => JSON.parse(JSON.stringify(value === undefined ? null : value))
 const git = (...args) => execFileSync('git', args, { cwd: root, encoding: 'utf8', maxBuffer: 64 * 1024 * 1024 })
@@ -991,7 +992,7 @@ await check('notes panel: the refetch effect is the existing one and depends on 
 await check('notes panel: the stripped panel is the base byte for byte; every added line carries the marker', async () => {
   const rel = 'components/slide-notes-panel.tsx'
   assert.equal(stripChatElementEdit(rel, read(rel)), baseFile(rel))
-  for (const line of git('diff', '-U0', BASE_COMMIT, '--', rel).split('\n').filter(l => l.startsWith('+') && !l.startsWith('+++'))) assert.match(line, CHAT_ELEMENT_EDIT_MARKER_RE)
+  for (const line of git('diff', '-U0', BASE_COMMIT, '--', rel).split('\n').filter(l => l.startsWith('+') && !l.startsWith('+++') && !/(?<![\w-])CHAT-PARITY(?![\w-])/.test(l))) assert.match(line, CHAT_ELEMENT_EDIT_MARKER_RE) // stacked after #475: LATER-CHANGES: registry read (CHAT-PARITY): chat parity's marked lines in the panel (its fields listener) are its own
 })
 
 // ===== 5b. DIRECTOR-2's recorded frames (!566) through the real hook and the real runner =============================================================
@@ -1362,6 +1363,7 @@ const SHARED_COMMITS = { // "Arrange proof tolerance: ..." (tests only), both by
 await check('scope: this change\'s own commits (the first-parent line without merges) touch this change\'s files, every subject starts "Chat element edit:" (a shared cherry-pick is named and bounded)', async () => {
   // A merge of dev brings dev's history in by its second parent, and dev's files are their changes' own.
   const shas = git('rev-list', '--first-parent', '--no-merges', `${BASE_COMMIT}..HEAD`).split('\n').filter(Boolean)
+  shas.splice(0, shas.length, ...shas.filter(sha => !/^Chat parity/.test(git('log', '-1', '--format=%s', sha)))) // stacked after #475: LATER-CHANGES: registry read (CHAT-PARITY): on a branch stacked after this change (chat parity's, merged with dev), the first-parent commits are chat parity's own, not this change's; with none left the pins and identity checks above cover the files
   // Merged into dev, this change's commits come in by the merge's second parent and the first-parent line has none of them: nothing of this change's own is left to read (the files are dev's then).
   if (shas.length === 0) { console.log('NOTE scope: no commit of this change on the first-parent line (merged into dev: its commits are on the second parent); the pins and identity checks above cover the files'); return }
   assert.ok(shas.length >= 5, `${shas.length} own commits`)

@@ -30,6 +30,7 @@ const VIEWER = 'components/presentation-viewer.tsx'
 const LIB = 'lib/studio-first-paint.ts'
 const FLAG = 'NEXT_PUBLIC_STUDIO_FIRST_PAINT_ENABLED'
 const sha = text => crypto.createHash('sha256').update(text).digest('hex')
+const chatParityStrip = await import('./studio-chat-parity-strip.mjs') // stacked after #475: LATER-CHANGES: registry read (CHAT-PARITY): the strip of the change stacked after this one, so its marked lines in the viewer come out before the pins below
 const read = rel => stripPass3PolishB(rel, fs.readFileSync(path.join(root, rel), 'utf8')) // LATER-CHANGES: registry read (PASS3-POLISH-B)
 const git = args => execFileSync('git', args, { cwd: root, encoding: 'utf8', maxBuffer: 256 * 1024 * 1024, stdio: ['ignore', 'pipe', 'pipe'] })
 const baseSource = rel => {
@@ -39,7 +40,7 @@ let checks = 0
 const check = (fn, ...args) => { checks++; return fn(...args) }
 
 // =========================================================== Part 1: source pins ===========================================================
-const viewerText = read(VIEWER)
+const viewerText = chatParityStrip.stripChatParity(VIEWER, read(VIEWER)) // stacked after #475: LATER-CHANGES: registry read (CHAT-PARITY): chat parity's marked line in the viewer (the Master opener) comes out before the byte pin below
 const baseViewer = baseSource(VIEWER)
 check(assert.equal, sha(stripFirstPaint(VIEWER, viewerText)), sha(baseViewer), 'flag-off identity: the viewer without this change\'s lines is the base commit\'s, byte for byte')
 check(assert.ok, !stripFirstPaint(VIEWER, viewerText).includes(FIRST_PAINT_MARKER), 'the viewer without this change\'s lines carries no marker')

@@ -21,6 +21,7 @@ import { execFileSync } from 'node:child_process'
 import { fileURLToPath } from 'node:url'
 import ts from 'typescript'
 const chatClean = await import('./studio-chat-clean-strip.mjs') // LATER-CHANGES: registry read (CHAT-CLEAN): the strip of the change stacked after this one; the files it touches (this proof among them) do not count as this change's own commits
+const chatParity = await import('./studio-chat-parity-strip.mjs') // stacked after #475: LATER-CHANGES: registry read (CHAT-PARITY): the change stacked after chat clean
 import {
   BASE_COMMIT, PASS3_POLISH_B_BUILDER, PASS3_POLISH_B_FILES, PASS3_POLISH_B_NEW_FILES, PASS3_POLISH_B_PIN_EDITS, PASS3_POLISH_B_PIN_FILES, PASS3_POLISH_B_PIN_MARK, putBackPin, PASS3_POLISH_B_SCOPE_FILES, PASS3_POLISH_B_VIEWER, PASS3_POLISH_MARKER, stripPass3PolishB,
 } from './studio-pass3-polish-b-strip.mjs'
@@ -42,7 +43,7 @@ const read = rel => (rel in overrides ? overrides[rel] : fs.readFileSync(path.jo
 const sha = value => crypto.createHash('sha256').update(value).digest('hex')
 // A change stacked on this one (PR C, PR D ...) registers its own lines in the same two files, AFTER this change's strip in LATER_STRIPS. Those strips run first, here, and only those: this proof compares to the base commit with its
 // own and PR A's strips, as it did before anything was stacked on it, so the older changes' lines (first paint, chat undo ...) stay as they are in both. (PR D's edit to this file: it read the Builder page without the strips of later PRs.)
-const withoutPeers = (rel, text) => (LATER_STRIPS.includes(stripPass3PolishB) ? LATER_STRIPS.slice(LATER_STRIPS.indexOf(stripPass3PolishB) + 1).reduce((out, strip) => strip(rel, out), text) : text)
+const withoutPeers = (rel, text) => (LATER_STRIPS.includes(stripPass3PolishB) ? LATER_STRIPS.slice(LATER_STRIPS.indexOf(stripPass3PolishB) + 1).reverse().reduce((out, strip) => strip(rel, out), text) : text) // stacked after #475: LATER-CHANGES: registry read (CHAT-PARITY): newest change first, so a pin line taught by two later changes (rail-add-slide's diff filter: arrange, then chat parity) is put back in the order it was edited
 const plain = value => (value === undefined ? undefined : JSON.parse(JSON.stringify(value)))
 
 let checks = 0
@@ -278,7 +279,7 @@ function proveScope(at = '') {
   const committed = ownCommitted()
   const stray = committed.filter(rel => !PASS3_POLISH_B_SCOPE_FILES.has(rel) && !LATER_CHANGE_FILES.has(rel))
   deep(stray, [], a(`every file in the committed diff ${BASE.slice(0, 8)}..HEAD is this change's or a registered later change's (no older test is edited)`))
-  if (committed.some(rel => PASS3_POLISH_B_SCOPE_FILES.has(rel) && !chatClean.CHAT_CLEAN_SCOPE_FILES.has(rel))) { // LATER-CHANGES: registry read (CHAT-CLEAN): on a branch stacked after this change and merged with studio (chat clean), the first-parent commits are the later change's (this proof among the files it touched) and this change's own sit behind the merge; the check speaks only where its own commits are
+  if (committed.some(rel => PASS3_POLISH_B_SCOPE_FILES.has(rel) && !chatClean.CHAT_CLEAN_SCOPE_FILES.has(rel) && !chatParity.CHAT_PARITY_SCOPE_FILES.has(rel))) { // LATER-CHANGES: registry read (CHAT-CLEAN): on a branch stacked after this change and merged with studio (chat clean), the first-parent commits are the later change's (this proof among the files it touched) and this change's own sit behind the merge; the check speaks only where its own commits are // stacked after #475: LATER-CHANGES: registry read (CHAT-PARITY): chat parity's viewer and panel edits are its own, not this change's branch
     deep([...PASS3_POLISH_B_SCOPE_FILES].filter(rel => !committed.includes(rel)), [], a('and every file of this change is in the committed diff'))
     ok(committed.filter(rel => /^scripts\/test-/.test(rel)).every(rel => rel === THIS_TEST || LATER_CHANGE_FILES.has(rel)), a('the only test it adds or edits is its own'))
     // PR B is stacked on PR A (3db2f0a3, pushed): A_HEAD..HEAD is this PR's own commits; .env.example (the flag's block) is PR A's and is not touched here

@@ -51,7 +51,7 @@ const rawText = rel => readFileSync(path.join(repoRoot, rel), 'utf8')
 const gitText = (rel, rev) => execFileSync('git', ['show', `${rev}:${rel}`], { cwd: repoRoot, encoding: 'utf8', maxBuffer: 1 << 28, stdio: ['ignore', 'pipe', 'pipe'] })
 const git = (...args) => execFileSync('git', args, { cwd: repoRoot, encoding: 'utf8', maxBuffer: 1 << 28, stdio: ['ignore', 'pipe', 'pipe'] })
 /** What a PEER (every other change in the registry) leaves in a file: the file with the other changes' marked lines out and this change's still in. Read on both sides of a comparison with dev's file, so a change that lands on dev later does not make this change's identity checks fail. */
-const stripPeers = (rel, text) => LATER_STRIPS.filter(strip => strip !== stripDeckSyncTruth).reduce((out, strip) => { const next = strip(rel, out); return typeof next === 'string' ? next : out }, text)
+const stripPeers = (rel, text) => LATER_STRIPS.filter(strip => strip !== stripDeckSyncTruth).reverse().reduce((out, strip) => { const next = strip(rel, out); return typeof next === 'string' ? next : out }, text) // stacked after #475: LATER-CHANGES: registry read (CHAT-PARITY): newest change first, so a pin line two later changes teach (arrange's read: chat parity after #522) is put back in the order it was edited
 
 // ---------- sources ----------
 // head = the working tree as it is (this change's lines in, every other registered change's lines in too); base = the same text with ONLY this change's lines taken out (the strip), so the two differ by this change alone.
@@ -1255,6 +1255,7 @@ await record(`scope: every own commit (the first-parent line of BASE..HEAD, no m
   assert.ok(git('rev-parse', '--verify', `${BASE}^{commit}`).trim().startsWith(BASE.slice(0, 7)), 'the base commit is in this clone')
   assert.equal(git('rev-parse', '--verify', `${BASE}^{commit}`).trim(), BASE)
   const shas = git('rev-list', '--first-parent', '--no-merges', `${BASE}..HEAD`).split('\n').filter(Boolean)
+  shas.splice(0, shas.length, ...shas.filter(sha => !/^Chat parity/.test(git('log', '-1', '--format=%s', sha)))) // stacked after #475: LATER-CHANGES: registry read (CHAT-PARITY): on a branch stacked after this change (chat parity's, merged with dev), the first-parent commits are chat parity's own, not this change's; with none left the identity checks above cover the files
   for (const sha of shas) assert.equal(git('rev-list', '--parents', '-n', '1', sha).trim().split(' ').length, 2, `${sha} is not a merge`)
   const mergesOnLine = git('rev-list', '--first-parent', '--merges', `${BASE}..HEAD`).split('\n').filter(Boolean)
   for (const sha of mergesOnLine) assert.equal(shas.includes(sha), false, 'a merge commit is not an own commit')

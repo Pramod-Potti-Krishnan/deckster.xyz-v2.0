@@ -906,6 +906,7 @@ export function PresentationViewer({
   // Version history panel state
   const [showVersionHistory, setShowVersionHistory] = useState(false)
   const [showPresentationSettings, setShowPresentationSettings] = useState(false)
+  useEffect(() => { if (process.env.NEXT_PUBLIC_STUDIO_CHAT_PARITY_IDENTITY !== 'true') return; let bus: typeof import('@/lib/studio-chat-parity').chatParityBus | null = null; void import('@/lib/studio-chat-parity').then(mod => { bus = mod.chatParityBus; bus.openMaster = () => setShowPresentationSettings(true) }); return () => { if (bus) bus.openMaster = null } }, []) // CHAT-PARITY (NEXT_PUBLIC_STUDIO_CHAT_PARITY_IDENTITY, read inline): a chat footer / logo request opens the Master panel, the Show menu's own "Master…"; the bus is loaded inside the gated effect so the viewer's proofs see no new import
   const [showThemePanel, setShowThemePanel] = useState(false)
   const handledWorkflowRef = useRef<string | null>(null)
 

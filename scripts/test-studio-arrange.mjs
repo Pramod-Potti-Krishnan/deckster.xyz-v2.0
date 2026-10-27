@@ -44,7 +44,8 @@ const PAGE = 'app/builder/page.tsx'
 const FIXTURE = 'scripts/fixtures/studio-arrange/layout-transcript.json'
 const VIEWER_ORIGIN = 'https://layout.synthetic.test'
 const STUDIO_ORIGIN = 'https://studio.synthetic.test'
-const read = rel => stripChatElementEdit(rel, fs.readFileSync(path.join(root, rel), 'utf8')) // LATER-CHANGES: registry read (CHAT-ELEMENT-EDIT)
+const chatParityStrip = await import('./studio-chat-parity-strip.mjs') // stacked after #475: LATER-CHANGES: registry read (CHAT-PARITY): the strip of the change stacked after #522
+const read = rel => chatParityStrip.stripChatParity(rel, stripChatElementEdit(rel, fs.readFileSync(path.join(root, rel), 'utf8'))) // stacked after #475: LATER-CHANGES: registry read (CHAT-PARITY): chat parity's marked line in the viewer (the Master opener) comes out too, outside #522's strip
 const sha = text => crypto.createHash('sha256').update(typeof text === 'string' ? text : JSON.stringify(text)).digest('hex')
 const git = (...args) => execFileSync('git', ['-C', root, ...args], { encoding: 'utf8', maxBuffer: 1 << 28 })
 const plain = value => value === undefined ? undefined : JSON.parse(JSON.stringify(value))
