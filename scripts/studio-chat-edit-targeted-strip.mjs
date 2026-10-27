@@ -24,6 +24,7 @@ export const CHAT_EDIT_TARGETED_NEW_FILES = [
   'lib/chat-edit-targeted.ts',
   'scripts/studio-chat-edit-targeted-strip.mjs',
   'scripts/test-studio-chat-edit-targeted.mjs',
+  'scripts/studio-chat-edit-targeted-reload.mjs',
   'scripts/fixtures/chat-edit-targeted/layout-transcripts.json',
 ]
 

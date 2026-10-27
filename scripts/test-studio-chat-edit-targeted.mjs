@@ -26,6 +26,7 @@ import { execFileSync } from 'node:child_process'
 import { fileURLToPath } from 'node:url'
 import ts from 'typescript'
 import { createClock, createLayoutViewer, replayViewer, TARGETED_SCRIPT, TARGETED_MODULE } from './studio-chat-element-edit-layout.mjs'
+import { RELOAD_SCRIPTS, applyWithLayoutServer, elementState, renderStoredDeck, slotElementId } from './studio-chat-edit-targeted-reload.mjs'
 import {
   BASE_COMMIT, CHAT_EDIT_TARGETED_FILES, CHAT_EDIT_TARGETED_NEW_FILES, CHAT_EDIT_TARGETED_PIN_FILES, CHAT_EDIT_TARGETED_PIN_EDITS, CHAT_EDIT_TARGETED_PIN_MARK, CHAT_EDIT_TARGETED_SCOPE_FILES, CHAT_EDIT_TARGETED_ENV_BLOCK, CHAT_EDIT_TARGETED_MARKER_RE, CHAT_EDIT_TARGETED_SUBJECT, stripChatEditTargeted,
 } from './studio-chat-edit-targeted-strip.mjs'
@@ -138,7 +139,7 @@ function fakeResponse(status, body = {}) {
 }
 
 /** One scenario: the Studio window and iframe with the real sendCommand, ensureEditMode and page runner over a viewer (live Layout code, or its recording). */
-async function scenario(name, { studio = 'on', layout = 'on', editMode = false, sources = {}, libs: libOptions = {}, shownIds = ['L0', 'L1', 'L2'] } = {}) {
+async function scenario(name, { studio = 'on', layout = 'on', editMode = false, sources = {}, libs: libOptions = {}, shownIds = ['L0', 'L1', 'L2'], stored = null, putDelayMs = 0, putStatus = 200, server = null } = {}) {
   const clock = createClock()
   const env = studio === 'on' ? ENV_ON : ENV_OFF
   const libs = makeLibs({ env, clock, ...libOptions })
@@ -152,9 +153,19 @@ async function scenario(name, { studio = 'on', layout = 'on', editMode = false, 
   const mutated = Object.keys(sources).length > 0 || Object.keys(libOptions.overrides ?? {}).length > 0 || Boolean(libOptions.layoutScript)
   if (LIVE) {
     viewer = createLayoutViewer({ layoutDir: LAYOUT_DIR, studioOrigin: STUDIO_ORIGIN, parent: { postMessage: toStudio }, clock, presentationId: PRESENTATION, arrange: true, targeted: layout === 'on',
-      fetchImpl: async (url, init) => { fetches.push({ at: clock.now(), url: String(url), method: init?.method ?? 'GET', body: init?.body ? JSON.parse(init.body) : null }); return fakeResponse(200, { success: true }) } })
+      fetchImpl: async (url, init) => {
+        fetches.push({ at: clock.now(), url: String(url), method: init?.method ?? 'GET', body: init?.body ? JSON.parse(init.body) : null })
+        if (server) { // Layout's own server answers (scripts/studio-chat-edit-targeted-reload.mjs applyWithLayoutServer), against the deck it stores
+          const [answer] = applyWithLayoutServer(PYTHON, LAYOUT_DIR, [{ deck: server.deck, requests: [{ method: init?.method ?? 'GET', url: String(url), body: init?.body ? JSON.parse(init.body) : null }] }])
+          server.deck = answer.deck; server.statuses.push(answer.statuses[0]); server.summaries.push(...answer.summaries)
+          return fakeResponse(answer.statuses[0], answer.bodies[0])
+        }
+        const response = fakeResponse(putStatus, putStatus === 200 ? { success: true } : { detail: { code: 'SYNTHETIC', message: 'synthetic save refusal' } })
+        return putDelayMs ? new Promise(resolve => clock.setTimeout(() => resolve(response), putDelayMs)) : response
+      } })
     if (libOptions.layoutScript) vm.runInContext(libOptions.layoutScript(fs.readFileSync(path.join(LAYOUT_DIR, TARGETED_SCRIPT), 'utf8')), viewer.context)
-    for (const [id, spec] of DECK) {
+    if (stored) renderStoredDeck(viewer, stored, LAYOUT_DIR) // Layout's own load path (scripts/studio-chat-edit-targeted-reload.mjs)
+    else for (const [id, spec] of DECK) {
       const node = viewer.registerElement(id, spec)
       node.setAttribute('data-parent-slide-id', `L${spec.slideIndex}`)
       if (spec.slot) { node.setAttribute('data-slot-name', spec.slot); node.setAttribute('data-slot-kind', 'structural') }
@@ -344,6 +355,36 @@ await check('Studio\'s flag on, Layout\'s flag off: UNSUPPORTED_OP before any co
   w.finish()
 })
 
+
+// ===== 5b. the commit's budget: a slow write is not SAVE_FAILED ===========================================================================
+await check('budget: the commit\'s save may take TARGETED_SAVE_COMMIT_TIMEOUT_MS = 20 s, the flag-off path\'s own save-ack wait (ELEMENT_EDIT_SAVE_TIMEOUT_MS); every command keeps the default 5 s', async () => {
+  const libs = makeLibs()
+  assert.equal(libs.targeted.TARGETED_SAVE_COMMIT_TIMEOUT_MS, libs.lib.ELEMENT_EDIT_SAVE_TIMEOUT_MS)
+  assert.equal(libs.targeted.TARGETED_SAVE_COMMIT_TIMEOUT_MS, 20_000)
+  const handler = callbackText('components/presentation-viewer.tsx', 'useCallback', "if (studioShell) viewerInteractionIntentRef.current += 1\n    return sendCommand(iframeRef.current, action, params)")
+  assert.ok(/return sendCommand\(iframeRef\.current, action, params\)\n  \}$/.test(handler), 'the text box commands (begin, commit, status included) go out with sendCommand\'s default budget')
+  assert.equal(read('components/presentation-viewer.tsx'), git('show', `${BASE_COMMIT}:components/presentation-viewer.tsx`), 'the viewer is not touched')
+})
+for (const [label, name, options, expectOk] of [
+  ['a PUT that takes 8 s (past the 5 s command budget): commit answers pending, the status reads saved, ok:true', 'budget-slow-8s', { putDelayMs: 8_000 }, true],
+  ['a PUT that takes 18 s (inside the 20 s budget): ok:true', 'budget-slow-18s', { putDelayMs: 18_000 }, true],
+  ['a PUT Layout refuses (500): SAVE_FAILED', 'budget-refused', { putStatus: 500 }, false],
+  ['a PUT refused after 8 s: SAVE_FAILED', 'budget-slow-refused', { putDelayMs: 8_000, putStatus: 500 }, false],
+  ['a PUT still unanswered at the end of the budget (30 s): SAVE_FAILED, never ok:true', 'budget-too-slow', { putDelayMs: 30_000 }, false],
+]) {
+  await check(`budget: ${label}`, async () => {
+    const w = await scenario(name, options)
+    const result = await w.send(frame(...OPS.move_image))
+    assert.equal(result.ok, expectOk, JSON.stringify(result))
+    if (!expectOk) assert.equal(result.error_code, 'SAVE_FAILED')
+    assert.equal(putsTo(w.fetches(), CHAT_SAVE).length, 1)
+    assert.equal(putsTo(w.fetches(), WHOLE_DECK).length, 0)
+    const statuses = w.actions().filter(action => action === 'getTargetedElementSaveStatus').length
+    assert.ok(options.putDelayMs ? statuses > 0 : statuses === 0, `${statuses} status reads`)
+    w.finish()
+  })
+}
+
 // ===== 6. Undo ==========================================================================================================================
 await check('Undo: the ok:true frame of a targeted edit is byte-identical to today\'s (the Undo chip and chat undo key on it); chat undo is not touched', async () => {
   const today = await scenario('off-move_image', { studio: 'off', layout: 'off' })
@@ -418,6 +459,94 @@ await check('Layout identity: the recording names the Layout files it ran (and, 
   if (LIVE && !RECORD) for (const [rel, hash] of Object.entries(recorded.meta.sources)) assert.equal(sha(fs.readFileSync(path.join(LAYOUT_DIR, rel), 'utf8')), hash, rel)
 })
 
+
+// ===== 10. reload persistence: what shows after a real reload, flags on vs flags off ==========================================================
+// The stored deck Layout loads: three C1 slides whose titles are slide.content (layout text: direct-element-creator.js draws them), slide 2 holding one
+// stored text box and one stored image. Each case: load it (Layout's load path), the chat edit (Studio's runner, the real viewer), the save the viewer made
+// answered by Layout's own server, then a fresh viewer loads what was stored.
+const STORED = { id: PRESENTATION, title: 'T', slides: [
+  { layout: 'C1', slide_id: 'L0', content: { slide_title: 'Cover' }, text_boxes: [], images: [] },
+  { layout: 'C1', slide_id: 'L1', content: { slide_title: 'Where we lose' },
+    text_boxes: [{ id: 'textbox_b', parent_slide_id: 'L1', position: { grid_row: '6/10', grid_column: '12/24' }, z_index: 100, content: '<p>High-turnover fresh</p>' }],
+    images: [{ id: 'image_b', parent_slide_id: 'L1', position: { grid_row: '6/16', grid_column: '2/11' }, z_index: 100, image_url: 'https://img.example/a.png' }] },
+  { layout: 'C1', slide_id: 'L2', content: { slide_title: 'Plan' }, text_boxes: [], images: [] },
+] }
+const KINDS = { 'layout title': { slot: 'title' }, 'text box': { id: 'textbox_b' }, image: { id: 'image_b' } }
+const RELOAD_OPS = { move: { place: { v: 'bottom' } }, delete: {}, back: { order: 'back' }, front: { order: 'front' }, bold: { style: { bold: true } } }
+const OP_OF = { move: 'place', delete: 'delete', back: 'order', front: 'order', bold: 'style' }
+const PYTHON = process.env.CHAT_EDIT_TARGETED_LAYOUT_PYTHON || null
+const reloadCases = []
+for (const [kind, spec] of Object.entries(KINDS)) for (const op of Object.keys(RELOAD_OPS)) {
+  if (kind === 'image' && op === 'bold') continue // style is a text box's (the runner refuses it for an image: UNSUPPORTED_OP, both flags)
+  for (const flag of ['off', 'on']) reloadCases.push({ kind, op, flag, name: `reload-${flag}-${kind.replace(/ /g, '_')}-${op}`, spec })
+}
+const reloadRecord = recorded.reload ?? {}
+if (LIVE) {
+  if (!PYTHON) throw new Error('the live run needs CHAT_EDIT_TARGETED_LAYOUT_PYTHON (a Python with layout-builder\'s requirements) for Layout\'s own server')
+  for (const item of reloadCases) {
+    if (process.env.DEBUG_RELOAD) console.error('reload case', item.name)
+    const server = { deck: plain(STORED), statuses: [], summaries: [] }
+    const w = await scenario(item.name, { studio: item.flag, layout: item.flag, stored: STORED, server })
+    const id = item.spec.id ?? slotElementId(w.viewer, 1, item.spec.slot)
+    const before = elementState(w.viewer, id)
+    const result = await w.send(frame(OP_OF[item.op], id, RELOAD_OPS[item.op]))
+    const after = elementState(w.viewer, id)
+    w.finish()
+    const fresh = createLayoutViewer({ layoutDir: LAYOUT_DIR, studioOrigin: STUDIO_ORIGIN, parent: { postMessage() {} }, clock: createClock(), presentationId: PRESENTATION, arrange: true, targeted: item.flag === 'on' })
+    renderStoredDeck(fresh, server.deck, LAYOUT_DIR)
+    const record = { id, before, after, result: { ok: result.ok, error_code: result.error_code ?? null }, statuses: server.statuses, summaries: server.summaries,
+      reloaded: elementState(fresh, id), reloadedSlot: item.spec.slot ? elementState(fresh, slotElementId(fresh, 1, item.spec.slot)) : null,
+      otherSlidesStoredTextBoxes: [0, 2].map(i => (server.deck.slides[i].text_boxes || []).length) }
+    if (RECORD) reloadRecord[item.name] = record
+    else assert.deepEqual(plain(record), reloadRecord[item.name], `${item.name}: the live reload is what was recorded`)
+  }
+  if (RECORD) recorded.reload = reloadRecord
+} else {
+  for (const item of reloadCases) {
+    const w = await scenario(item.name, { studio: item.flag, layout: item.flag })
+    await w.send(frame(OP_OF[item.op], reloadRecord[item.name].id, RELOAD_OPS[item.op]))
+    w.finish()
+  }
+}
+const kept = (op, r) => {
+  if (op === 'delete') return r.after.present === false && (r.reloadedSlot ?? r.reloaded).present === false // a layout text comes back as its slot's box (a new id)
+  if (!r.reloaded.present || !r.after.present) return false
+  if (op === 'move') return r.reloaded.row === r.after.row && r.reloaded.col === r.after.col
+  if (op === 'bold') return r.reloaded.weight === r.after.weight
+  return r.reloaded.z === r.after.z
+}
+const shown = (op, s) => (!s.present ? 'gone' : op === 'move' ? `${s.row} | ${s.col}` : op === 'bold' ? `weight ${s.weight}` : op === 'delete' ? 'present' : `z ${s.z}`)
+const rows = []
+for (const [kind] of Object.entries(KINDS)) for (const op of Object.keys(RELOAD_OPS)) {
+  const off = reloadRecord[`reload-off-${kind.replace(/ /g, '_')}-${op}`], on = reloadRecord[`reload-on-${kind.replace(/ /g, '_')}-${op}`]
+  if (!off || !on) continue
+  rows.push({ kind, op, off, on, keptOff: off.result.ok && kept(op, off), keptOn: on.result.ok && kept(op, on) })
+}
+console.log('\nRELOAD PERSISTENCE (slide 2; "after edit" -> "after reload"; result = element_edit_result; other slides = text boxes stored on slides 1 and 3)')
+console.log('| element | op | flags OFF (today: whole-deck save) | kept | flags ON (targeted save) | kept |')
+console.log('|---|---|---|---|---|---|')
+for (const row of rows) {
+  const cell = r => `${r.result.ok ? 'ok' : r.result.error_code}; ${shown(row.op, r.after)} -> ${shown(row.op, row.op === 'delete' ? (r.reloadedSlot ?? r.reloaded) : r.reloaded)}; other slides ${r.otherSlidesStoredTextBoxes.join('/')}`
+  console.log(`| ${row.kind} | ${row.op} | ${cell(row.off)} | ${row.keptOff ? 'yes' : 'NO'} | ${cell(row.on)} | ${row.keptOn ? 'yes' : 'NO'} |`)
+}
+await check('reload: every element kind x op was loaded, edited, saved by Layout\'s own server and reloaded, both flags (14 cases each)', async () => {
+  assert.equal(rows.length, 14)
+  for (const row of rows) for (const r of [row.off, row.on]) assert.ok(r.statuses.length >= 1 || !r.result.ok, `${row.kind} ${row.op}: a save reached Layout's server`)
+})
+await check('reload: flags on never keep LESS than flags off (every change today\'s whole-deck save keeps after a reload, the targeted save keeps too)', async () => {
+  const less = rows.filter(row => row.keptOff && !row.keptOn).map(row => `${row.kind} ${row.op}`)
+  assert.deepEqual(less, [])
+})
+await check('reload: flags on leave the other slides\' layout text as layout text (nothing stored on slides 1 and 3); flags off store it there as text boxes', async () => {
+  for (const row of rows) {
+    assert.deepEqual(row.on.otherSlidesStoredTextBoxes, [0, 0], `${row.kind} ${row.op}`)
+    if (row.off.result.ok) assert.ok(row.off.otherSlidesStoredTextBoxes.every(count => count > 0), `${row.kind} ${row.op}: today's save stores them`)
+  }
+})
+await check('reload: the layout title\'s bold (row 46) and its z-order are kept after a reload with flags on, as with flags off', async () => {
+  for (const op of ['bold', 'back', 'front']) { const row = rows.find(r => r.kind === 'layout title' && r.op === op); assert.ok(row.keptOn && row.keptOff, op) }
+})
+
 // ===== 9. mutants =======================================================================================================================
 const runnerText = read('lib/chat-element-edit.ts')
 const targetedText = read('lib/chat-edit-targeted.ts')
@@ -449,6 +578,14 @@ await mutant('targeted: begin\'s busy mapped as UNSUPPORTED_OP', () => {
   const lib = makeLibs({ overrides: { 'lib/chat-edit-targeted.ts': targetedText.replace("return 'BUSY'", "return 'UNSUPPORTED_OP'") } })
   assert.equal(lib.targeted.beginErrorCode(new Error('Another targeted save is open'), lib.lib.elementEditCommandErrorCode), 'BUSY')
 })
+await mutant('targeted: a pending commit read as failed (no status reads: a slow write answers SAVE_FAILED)', async () => {
+  const w = await scenario('budget-slow-8s', { putDelayMs: 8_000, libs: { overrides: { 'lib/chat-edit-targeted.ts': targetedText.replace('answer?.pending === true && waited', 'false && waited') } } })
+  assert.equal((await w.send(frame(...OPS.move_image))).ok, true)
+})
+await mutant('targeted: a status read that says saving taken as saved (ok:true before the write lands)', async () => {
+  const w = await scenario('budget-too-slow', { putDelayMs: 30_000, libs: { overrides: { 'lib/chat-edit-targeted.ts': targetedText.replace("answer = read?.state === 'saving' ? answer : read", "answer = read?.state === 'saving' ? { saved: true } : read") } } })
+  assert.equal((await w.send(frame(...OPS.move_image))).ok, false)
+})
 if (LIVE && !RECORD) {
   // The REAL Layout script, mutated, loaded over the served one (window.LayoutChatTargetedSave is looked up at each command).
   const layoutMutant = (from, to) => text => { assert.equal(text.split(from).length, 2, from); return text.replace(from, to) }
@@ -461,7 +598,7 @@ if (LIVE && !RECORD) {
 
 if (RECORD) {
   recorded.meta = { recorded_with: 'CHAT_EDIT_TARGETED_LAYOUT_DIR + --record-layout', layout_checkout: 'layout-builder frontend2/layout-targeted-save (LAYOUT_CHAT_TARGETED_SAVE_ENABLED) on uat 05cf75d', studio_origin: STUDIO_ORIGIN,
-    sources: Object.fromEntries(['viewer/presentation-viewer.html', 'arrange_commands.py', TARGETED_MODULE, TARGETED_SCRIPT, 'src/utils/arrange-commands.js', 'src/utils/edit-mode.js', 'src/utils/grid-converter.js', 'src/utils/auto-save.js', 'src/utils/element-manager.js']
+    sources: Object.fromEntries(['viewer/presentation-viewer.html', 'arrange_commands.py', TARGETED_MODULE, TARGETED_SCRIPT, 'src/utils/arrange-commands.js', 'src/utils/edit-mode.js', 'src/utils/grid-converter.js', 'src/utils/auto-save.js', 'src/utils/element-manager.js', 'server.py', ...RELOAD_SCRIPTS]
       .map(rel => [rel, sha(fs.readFileSync(path.join(LAYOUT_DIR, rel), 'utf8'))])) }
   fs.mkdirSync(path.dirname(TRANSCRIPTS), { recursive: true })
   fs.writeFileSync(TRANSCRIPTS, `${JSON.stringify(recorded, null, 1)}\n`)

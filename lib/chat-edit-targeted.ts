@@ -14,7 +14,7 @@
  * With the flag on, step 6 of the runner go through Layout's targeted save (layout-builder frontend2/layout-targeted-save, LAYOUT_CHAT_TARGETED_SAVE_ENABLED):
  * beginTargetedElementSave {elementId, slideIndex} (the viewer holds its slide's change marks, so no whole-deck save is scheduled), the SAME viewer
  * commands, then commitTargetedElementSave {saveId} (the viewer collects that one element with auto-save.js's own collector and Layout stores only it).
- * `ok:true` means Layout answered the commit saved. No saveAllChanges, no save-ack watch. A manual Edit Mode change is not touched (PROD-LATER).
+ * `ok:true` means Layout answered the commit saved (a PUT slower than Layout's 3 s reply wait is read until TARGETED_SAVE_COMMIT_TIMEOUT_MS). No saveAllChanges, no save-ack watch. A manual Edit Mode change is not touched (PROD-LATER).
  * Layout's flag off: begin answers "Unknown action", so the edit is refused UNSUPPORTED_OP before any command changes anything (never a silent ok:true).
  *
  * Import-free (types only), so the proof runs it under plain node. Flag off: nothing here runs.
@@ -29,7 +29,16 @@ export const TARGETED_SAVE_COMMANDS = {
   begin: 'beginTargetedElementSave',
   commit: 'commitTargetedElementSave',
   cancel: 'cancelTargetedElementSave',
+  status: 'getTargetedElementSaveStatus',
 } as const
+
+/**
+ * How long a commit may take to be saved: 20 s, the budget the flag-off path gives the same save (lib/chat-element-edit.ts ELEMENT_EDIT_SAVE_TIMEOUT_MS, the wait for the
+ * viewer's save ack). Layout answers a commit within 3 s (its reply wait, under the default 5 s command budget, which every command keeps) and a slower PUT as pending; the
+ * outcome is then read every TARGETED_SAVE_POLL_MS until this budget is spent.
+ */
+export const TARGETED_SAVE_COMMIT_TIMEOUT_MS = 20_000
+export const TARGETED_SAVE_POLL_MS = 500
 
 export interface TargetedStep {
   route: 'element' | 'textbox'
@@ -51,6 +60,8 @@ export interface TargetedSaveContext {
   commandErrorCode: (error: unknown) => ElementEditErrorCode
   /** Called once the first command changed the slide (the runner's `applied`). */
   markApplied: () => void
+  /** Waits `ms` (the page's timer); defaults to setTimeout. */
+  wait?: (ms: number) => Promise<void>
 }
 
 const messageOf = (error: unknown): string => {
@@ -74,7 +85,8 @@ const okReply = (reply: any) => {
 }
 
 /** Step 6 of the runner with the flag on: begin, the plan's commands, commit. Returns the result to send, or null when nothing may be sent. */
-export async function runTargetedElementSave(ctx: TargetedSaveContext): Promise<ElementEditResultData | null> {
+export async function runTargetedElementSave(input: TargetedSaveContext): Promise<ElementEditResultData | null> {
+  const ctx = { ...input, wait: input.wait ?? ((ms: number) => new Promise<void>(resolve => setTimeout(resolve, ms))) }
   const fail = (code: ElementEditErrorCode): ElementEditResultData => ({ directive_id: ctx.directiveId, ok: false, error_code: code })
   let saveId: string | null = null
   const cancel = async () => {
@@ -107,7 +119,16 @@ export async function runTargetedElementSave(ctx: TargetedSaveContext): Promise<
   const held = saveId
   saveId = null
   try {
-    okReply(await ctx.sendTextBox(TARGETED_SAVE_COMMANDS.commit, { saveId: held }))
+    let answer = okReply(await ctx.sendTextBox(TARGETED_SAVE_COMMANDS.commit, { saveId: held }))
+    // A PUT slower than Layout's reply wait is answered pending: its outcome is read until TARGETED_SAVE_COMMIT_TIMEOUT_MS (each read is a quick command under the
+    // default budget), so a write that lands late is ok:true, a refused one SAVE_FAILED, and one still unknown at the end SAVE_FAILED.
+    for (let waited = 0; answer?.pending === true && waited < TARGETED_SAVE_COMMIT_TIMEOUT_MS; waited += TARGETED_SAVE_POLL_MS) {
+      await ctx.wait(TARGETED_SAVE_POLL_MS)
+      if (!ctx.owns()) return null
+      const read = okReply(await ctx.sendTextBox(TARGETED_SAVE_COMMANDS.status, { saveId: held }))
+      answer = read?.state === 'saving' ? answer : read
+    }
+    if (answer?.saved !== true) throw new Error('not saved')
   } catch {
     return ctx.owns() ? fail('SAVE_FAILED') : null
   }

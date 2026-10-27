@@ -17,6 +17,7 @@
 // exactly what was recorded.
 import fs from 'node:fs'
 import path from 'node:path'
+import os from 'node:os' // CHAT-EDIT-TARGETED
 import vm from 'node:vm'
 import crypto from 'node:crypto'
 import { execFileSync } from 'node:child_process'
@@ -41,10 +42,16 @@ export function arrangeServedHtml(layoutDir, html) {
 /** NEXT_PUBLIC_STUDIO_CHAT_EDIT_TARGETED_SAVE: with `targeted` the page as Layout serves it with LAYOUT_CHAT_TARGETED_SAVE_ENABLED on too (layout-builder frontend2/layout-targeted-save: chat_targeted_save.py's own apply_to_viewer over the served page) and its script. */ // CHAT-EDIT-TARGETED
 export const TARGETED_SCRIPT = 'src/utils/chat-targeted-save.js' // CHAT-EDIT-TARGETED
 export const TARGETED_MODULE = 'chat_targeted_save.py' // CHAT-EDIT-TARGETED
+const targetedCache = new Map() // CHAT-EDIT-TARGETED
 export function targetedServedHtml(layoutDir, html) { // CHAT-EDIT-TARGETED
-  const code = `import sys; sys.path.insert(0, ${JSON.stringify(path.resolve(layoutDir))}); import chat_targeted_save as t; sys.stdout.write(t.apply_to_viewer(sys.stdin.read()))` // CHAT-EDIT-TARGETED
-  const out = execFileSync('python3', ['-B', '-c', code], { input: html, encoding: 'utf8', maxBuffer: 64 * 1024 * 1024, env: { ...process.env, PYTHONDONTWRITEBYTECODE: '1' } }) // CHAT-EDIT-TARGETED
+  if (targetedCache.has(html)) return targetedCache.get(html) // CHAT-EDIT-TARGETED
+  const file = path.join(fs.mkdtempSync(path.join(os.tmpdir(), 'chat-edit-targeted-')), 'served.html') // CHAT-EDIT-TARGETED: the page goes by file, not stdin (a stdin pipe to python3 hung intermittently on this Mac)
+  fs.writeFileSync(file, html) // CHAT-EDIT-TARGETED
+  const code = `import sys; sys.path.insert(0, ${JSON.stringify(path.resolve(layoutDir))}); import chat_targeted_save as t; sys.stdout.write(t.apply_to_viewer(open(sys.argv[1], encoding='utf-8').read()))` // CHAT-EDIT-TARGETED
+  const out = execFileSync('python3', ['-B', '-c', code, file], { stdio: ['ignore', 'pipe', 'pipe'], encoding: 'utf8', maxBuffer: 64 * 1024 * 1024, env: { ...process.env, PYTHONDONTWRITEBYTECODE: '1' } }) // CHAT-EDIT-TARGETED
+  fs.rmSync(path.dirname(file), { recursive: true, force: true }) // CHAT-EDIT-TARGETED
   if (!out.includes('LAYOUT_CHAT_TARGETED_SAVE_ENABLED=true') || out === html) throw new Error('chat_targeted_save.apply_to_viewer did not add its cases (Layout without frontend2/layout-targeted-save?)') // CHAT-EDIT-TARGETED
+  targetedCache.set(html, out) // CHAT-EDIT-TARGETED
   return out // CHAT-EDIT-TARGETED
 } // CHAT-EDIT-TARGETED
 /** One compiled script per file text: the scripts are run in a fresh context for every scenario, and compiling element-manager.js each time is most of a scenario's cost. */
