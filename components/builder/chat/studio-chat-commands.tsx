@@ -102,7 +102,7 @@ export function useStudioChatCommands(input: StudioChatCommandsInput): StudioCha
   const mentionOpen = enabled && trigger?.kind === 'mention' && dismissed !== key
   useEffect(() => {
     if (!mentionOpen) { templatesAsked.current = false; savedAsked.current = false; return }
-    if (input.template.saved && !templatesAsked.current) {
+    if (input.template.saved && templates.status !== 'ready' && !templatesAsked.current) {
       templatesAsked.current = true
       setTemplates(current => ({ ...current, status: 'loading' }))
       void listTemplates().then(res => {

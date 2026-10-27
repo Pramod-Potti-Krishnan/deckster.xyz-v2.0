@@ -41,7 +41,7 @@ const React = require('react')
 const { renderToStaticMarkup } = require('react-dom/server')
 const postcss = require('postcss')
 const { createModuleLoader } = await import('./studio-chat-harness/module-loader.mjs')
-const { Root, hostNodes } = await import('./studio-chat-harness/mini-react.mjs')
+const { Root, hostNodes, toElements } = await import('./studio-chat-harness/mini-react.mjs')
 const strip = await import('./studio-chat-commands-strip.mjs')
 const chatCleanStrip = await import('./studio-chat-clean-strip.mjs')
 const registry = await import('./studio-later-changes.mjs')
@@ -171,7 +171,7 @@ function makeLoader(env = {}, overrides = {}, extra = {}) {
   const loader = createModuleLoader({
     root,
     globals: { process: { env: { NODE_ENV: 'production', ...env } }, console, setTimeout, clearTimeout, setInterval, clearInterval, Date, Symbol, Promise, Math, JSON, Object, Array, Error, Map, Set, Number, String, Boolean, RegExp, TextEncoder, TextDecoder, URL, queueMicrotask, ...(extra.globals ?? {}) },
-    stubs: extra.stubs ?? {},
+    stubs: extra.stubs ?? {}, fileStubs: extra.fileStubs ?? {},
   })
   if (Object.keys(overrides).length) fs.readFileSync = function (file, ...rest) { const rel = typeof file === 'string' ? path.relative(root, file) : null; return rel && rel in overrides ? overrides[rel] : fsReal.call(fs, file, ...rest) }
   return { loader, restore: () => { fs.readFileSync = fsReal } }
@@ -197,6 +197,8 @@ function libSuite(libText = read(LIB), over = {}) {
   return withLoader({ ...ON }, overrides, {}, loader => {
     const lib = loader.load(LIB)
     const wire = loader.load(WIRE)
+    // the lib and the wire were built inside the loader's vm: compare what they return as plain data
+    const eq = (actual, expected, message) => { checks++; assert.deepEqual(plain(actual), plain(expected), message) }
     // -- the twelve commands, PK's list in PK's order ------------------------------------------------------------------------------------
     eq(lib.CHAT_COMMANDS.map(c => c.name), PK_ORDER, 'the twelve commands, in PK\'s order')
     eq(lib.CHAT_COMMANDS.map(c => c.how), ['prefill', 'prefill', 'prefill', 'run', 'run', 'run', 'run', 'run', 'run', 'decline', 'run', 'run'], 'how each resolves when it can')
@@ -269,7 +271,7 @@ function libSuite(libText = read(LIB), over = {}) {
     }
     // -- the research switches' rules ------------------------------------------------------------------------------------------------------------
     eq(plain([[false, false], [true, false], [false, true], [true, true]].map(([d, w]) => [lib.researchAfter('research', d, w), lib.researchAfter('web', d, w)])),
-      [[{ deep: true, web: true }, { deep: false, web: true }], [{ deep: false, web: false }, { deep: false, web: true }], [{ deep: true, web: true }, { deep: false, web: false }], [{ deep: false, web: true }, { deep: false, web: false }]], 'the switches\' own rules, all four states')
+      [[{ deep: true, web: true }, { deep: false, web: true }], [{ deep: false, web: false }, { deep: true, web: true }], [{ deep: true, web: true }, { deep: false, web: false }], [{ deep: false, web: true }, { deep: false, web: false }]], 'the switches\' own rules, all four states')
     eq([lib.researchNote({ deep: true, web: true }), lib.researchNote({ deep: false, web: false })], ['Deep research on · Web search on', 'Deep research off · Web search off'], 'the note reads the new state')
     eq(lib.textBefore('keep this /th', lib.detectTrigger('keep this /th')), 'keep this ', 'the typed "/name" comes out; what was before stays')
     // -- pressing a real control -----------------------------------------------------------------------------------------------------------
@@ -326,11 +328,515 @@ function libSuite(libText = read(LIB), over = {}) {
 }
 
 // ============================================================================================================================================
+// C. The REAL handlers behind the run commands
+// ============================================================================================================================================
+/** The text of a `const name = <initializer>` in `source` (the first), or throws. */
+function declInit(source, name, fileName = 'source.tsx') {
+  const file = ts.createSourceFile(fileName, source, ts.ScriptTarget.ES2022, true, ts.ScriptKind.TSX)
+  let found = null
+  const visit = node => { if (!found && ts.isVariableDeclaration(node) && node.name.getText(file) === name && node.initializer) found = node.initializer.getText(file); ts.forEachChild(node, visit) }
+  visit(file)
+  if (!found) throw new Error(`no declaration of ${name}`)
+  return found
+}
+/** Every property assignment `name: <value>` in `source`, as text. */
+function propTexts(source, name) {
+  const file = ts.createSourceFile('source.tsx', source, ts.ScriptTarget.ES2022, true, ts.ScriptKind.TSX)
+  const out = []
+  const visit = node => { if (ts.isPropertyAssignment(node) && node.name.getText(file) === name) out.push(node.initializer.getText(file)); ts.forEachChild(node, visit) }
+  visit(file)
+  return out
+}
+/** The expression, types stripped, evaluated against `scope` (the names the page holds when it runs it). */
+function evalTs(expression, scope) {
+  const js = ts.transpileModule(`(${expression});`, { compilerOptions: { target: ts.ScriptTarget.ES2022, module: ts.ModuleKind.None, jsx: ts.JsxEmit.Preserve } }).outputText
+  return vm.runInNewContext(js, { ...scope })
+}
+const squash = text => text.replace(/\s+/g, ' ').replace(/,\s*([}\])])/g, '$1').replace(/\s+([}\])])/g, '$1').replace(/([{[(])\s+/g, '$1').trim()
+
+/** A document whose `querySelectorAll` finds the host nodes of a mini-react tree by the three selector shapes the composer uses: `[attr]`, `[attr="v"]`, `tag[attr="v"]`. */
+function fakeDocument(getTree) {
+  const matches = (node, selector) => {
+    const m = /^([a-z]+)?\[([\w-]+)(?:="([^"]*)")?\]$/.exec(selector)
+    if (!m) throw new Error(`fake document: unsupported selector ${selector}`)
+    const [, tag, attr, value] = m
+    if (tag && node.type !== tag) return false
+    return attr in node.props && (value === undefined || String(node.props[attr]) === value)
+  }
+  const wrap = node => ({ disabled: Boolean(node.props.disabled), click: () => node.props.onClick?.({ detail: 0, preventDefault() {} }), getAttribute: name => (node.props[name] == null ? null : String(node.props[name])), getClientRects: () => [1] })
+  return { querySelectorAll: selector => hostNodes(getTree()).filter(node => typeof node.type === 'string' && matches(node, selector)).map(wrap) }
+}
+
+async function handlerSuite() {
+  const page = readOwn(PAGE), input = readOwn(INPUT)
+  const { loader, restore } = makeLoader({ ...ON, NEXT_PUBLIC_STUDIO_CHAT_UNDO: 'true', NEXT_PUBLIC_STUDIO_MODEL_CHOICE: 'true' })
+  restore()
+  const lib = loader.load(LIB)
+  // -- /stop: the Send/Stop control's stop = the page's chatCleanStop (build_control stop), handed to the composer as onStop --------------------------------------
+  {
+    const calls = []; let request = 'req-1'
+    const stop = evalTs(declInit(page, 'chatCleanStop'), { sendBuildControl: (...a) => { calls.push(['send', ...a]); return request }, markNarrationControl: (...a) => calls.push(['mark', ...a]), buildNarration: { buildId: 'b-7' }, toast: t => calls.push(['toast', t.title]) })
+    stop()
+    eq(calls, [['send', 'stop', 'b-7'], ['mark', 'stop_requested', 'b-7', 'req-1']], '/stop: the page\'s own stop sends build_control stop and marks it requested')
+    request = null; stop()
+    eq(calls.slice(-1), [['toast', "Couldn't stop the build"]], '/stop: when Director does not take it, the page\'s own toast says so (never silent)')
+    ok(/onStop: chatCleanStop/.test(page), '/stop: the page hands chatCleanStop to the composer as the Stop control\'s onStop')
+    ok(input.includes('run: () => chatClean?.onStop()') && input.includes('visible: Boolean(chatClean?.composer.showStop), enabled: Boolean(chatClean?.composer.stopEnabled)'), '/stop: the command calls that same onStop, and is live exactly while the Stop button is shown and enabled')
+  }
+  // -- /research and /web: the options menu's switches: the same handlers, the same rules, the same lock ---------------------------------------------------------
+  {
+    for (const [deep, web] of [[false, false], [true, false], [false, true], [true, true]]) {
+      for (const action of ['research', 'web']) {
+        const state = { deep, web }
+        const scope = { useCallback: fn => fn, setResearchEnabled: v => { state.deep = v }, setWebSearchEnabled: v => { state.web = v } }
+        const onDeep = evalTs(declInit(page, 'handleResearchEnabledChange'), scope), onWeb = evalTs(declInit(page, 'handleWebSearchEnabledChange'), scope)
+        const want = lib.researchAfter(action, deep, web)
+        if (action === 'research') onDeep(!deep); else onWeb(!web) // exactly what a click on the Switch hands its handler: the opposite of what it shows
+        eq(state, plain(want), `/${action} from deep=${deep} web=${web}: the page's own handler ends where the command says it will`)
+      }
+    }
+    ok(input.includes('onCheckedChange={onResearchEnabledChange}') && input.includes('onCheckedChange={onWebSearchEnabledChange}') && count(input, 'disabled={researchSettingsLocked}') >= 2, 'research: the switches in the options menu use these props and this lock')
+    ok(input.includes('research: { deep: researchEnabled, web: webSearchEnabled, locked: researchSettingsLocked, onDeep: onResearchEnabledChange, onWeb: onWebSearchEnabledChange, openOptions: () => setResearchOpen(true) }'), 'research: the command is handed those same props')
+    ok(/onResearchEnabledChange=\{handleResearchEnabledChange\}/.test(page) && /onWebSearchEnabledChange=\{handleWebSearchEnabledChange\}/.test(page), 'research: the page hands the composer those two handlers')
+  }
+  // -- /export: the export directive's own runner, with the Download menu's calls and enable rule; the state it is given is the runner's own -------------------------
+  {
+    const { loader: exportLoader, restore: restoreExport } = makeLoader({ ...ON, NEXT_PUBLIC_STUDIO_V4_SHELL: 'true' })
+    restoreExport()
+    const { runExportDirective } = exportLoader.load('lib/chat-theme-export.ts')
+    const states = {
+      done: { stage: 4, final: true, narration: { active: false, phase: 'idle' }, partial: null },
+      early: { stage: 2, final: false, narration: { active: false, phase: 'idle' }, partial: null },
+      building: { stage: 4, final: true, narration: { active: true, phase: 'building' }, partial: null },
+      partial: { stage: 4, final: true, narration: { active: false, phase: 'idle' }, partial: { slides: 3 } },
+    }
+    const run = async (name, format) => {
+      const st = states[name], downloads = []
+      const exportDeck = evalTs(declInit(page, 'chatCommandsExport'), {
+        elementDirectiveGenerationOwnerRef: { current: { sessionId: 'sess-e', deckOwnerSessionId: 'sess-e', presentationId: 'pres-e', epoch: 0 } }, runExportDirective,
+        effectivePresentationUrl: 'https://layout.synthetic.invalid/p/pres-e', effectiveSlideCount: 7, currentStage: st.stage, finalPresentationId: st.final ? 'final-1' : null, finalPresentationUrl: null,
+        studioShell: true, studioPartialMetadata: st.partial, effectiveBuildNarrationEnabled: true, buildNarration: st.narration,
+        process: { env: { NEXT_PUBLIC_STUDIO_V4_SHELL: 'true', NEXT_PUBLIC_STUDIO_EXPORT_AFTER_BUILD: 'true' } },
+        downloadPDF: async (...a) => { downloads.push(['pdf', ...a]); return { success: true } }, downloadPPTX: async (...a) => { downloads.push(['pptx', ...a]); return { success: true } },
+      })
+      return { result: plain(await exportDeck(format)), downloads }
+    }
+    let r = await run('done', 'pdf'); eq(r, { result: { directive_id: 'chat-command', status: 'done', error_code: null }, downloads: [['pdf', 'https://layout.synthetic.invalid/p/pres-e', 'high']] }, '/export pdf: the Download menu\'s downloadPDF(url, "high")')
+    r = await run('done', 'pptx'); eq(r, { result: { directive_id: 'chat-command', status: 'done', error_code: null }, downloads: [['pptx', 'https://layout.synthetic.invalid/p/pres-e', 7, 'high']] }, '/export pptx: the Download menu\'s downloadPPTX(url, slides, "high")')
+    for (const name of ['early', 'building', 'partial']) { r = await run(name, 'pdf'); eq([r.result.status, r.result.error_code, r.downloads], ['failed', 'export_blocked', []], `/export ${name}: the menu's own rule blocks it, nothing is downloaded`) }
+    const mine = propTexts(page, 'exportState'), theirs = mine.slice(0, 1)
+    eq(mine.length, 2, 'export: the page has the directive runner\'s exportState and this command\'s')
+    eq(squash(mine[1]), squash(theirs[0]), 'export: this command is given exactly the state the directive runner is given')
+    ok(/displayed: \(\) => elementDirectiveGenerationOwnerRef\.current,\s*exportState/.test(page.slice(page.indexOf('const chatCommandsExport'))), 'export: the same owner record')
+    ok(/exportDeck: chatCommandsExport/.test(page), 'export: handed to the composer')
+  }
+  // -- /undo: a press on the Undo chip's own button (the real component, the real store) --------------------------------------------------------------------------
+  {
+    const { loader: undoLoader, restore: restoreUndo } = makeLoader({ ...ON, NEXT_PUBLIC_STUDIO_CHAT_UNDO: 'true' })
+    restoreUndo()
+    const storeModule = undoLoader.load('lib/studio-bulk-edit-store.ts'), chip = undoLoader.load('components/builder/chat/studio-undo-chip.tsx')
+    const store = storeModule.createBulkEditUndoStore()
+    const SID = 'sess-u', PRES = 'pres-u'
+    const context = storeModule.bulkEditUndoContext(SID, { deckOwnerSessionId: SID, presentationId: PRES }, null, true)
+    store.route({ type: 'chat_message', message_id: 'm1', session_id: SID, timestamp: '2026-10-26T12:00:00.000Z', role: 'assistant', payload: { text: 'Done', sub_title: null, list_items: null, format: 'markdown', ephemeral: false } }, context)
+    store.route({ type: 'change_recorded', message_id: 'c1', session_id: SID, role: 'assistant', payload: { change_id: 'chg-1', label: 'Shortened slide 3', kind: 'slide_replaced', presentation_id: PRES, undoable: true } }, context)
+    const undone = []
+    const rootNode = new Root()
+    rootNode.setElement(React.createElement(chip.StudioUndoChip, { sessionId: SID, messageId: 'm1', undo: (changeId, messageId) => { undone.push([changeId, messageId]); return Promise.resolve(true) }, store }))
+    for (let i = 0; i < 4; i++) { await macrotask(); rootNode.flush() }
+    const doc = fakeDocument(() => rootNode.tree)
+    eq(lib.pressControl(doc, lib.CONTROL_SELECTORS.undo), 'clicked', '/undo: the selector finds the chip\'s idle button and presses it')
+    eq(undone, [['chg-1', 'm1']], '/undo: the chip\'s own handler ran: undo(changeId, messageId), the call the chat\'s undo path (sendStudioUndo) is given')
+    rootNode.unmount()
+    const none = new Root(); none.setElement(React.createElement(chip.StudioUndoChip, { sessionId: SID, messageId: 'no-such-line', undo: () => Promise.resolve(true), store })); none.flush()
+    eq(lib.pressControl(fakeDocument(() => none.tree), lib.CONTROL_SELECTORS.undo), 'missing', '/undo: no chip (nothing recorded, or already undone): nothing to press, said plainly')
+    none.unmount()
+    ok(/undo=\{undoChange\}/.test(readOwn('components/builder/message-list.tsx')) && /sendStudioUndo\(sessionId, changeId, messageId/.test(readOwn('components/builder/message-list.tsx')), '/undo: the chip is given the chat\'s own undo path')
+  }
+  // -- /model and /publish: the real controls carry the attributes the command presses -----------------------------------------------------------------------------
+  {
+    const { loader: controlLoader, restore: restoreControl } = makeLoader({ ...ON, NEXT_PUBLIC_STUDIO_MODEL_CHOICE: 'true' })
+    restoreControl()
+    const sliderModule = controlLoader.load('components/model-choice/model-slider.tsx'), publishModule = controlLoader.load('components/publish-dialog.tsx')
+    const gauge = renderToStaticMarkup(React.createElement(sliderModule.ModelSliderView, { label: 'Balanced', valueText: 'Balanced', stateKind: 'choice', scope: 'deck', mode: 'live', ready: true, stops: [], index: 0, thumb: 'selected', advanced: {}, saveNote: '', open: false, onOpenChange() {}, onDraft() {}, onCommit() {}, onAdvanced() {} }))
+    ok(/<button[^>]*data-mpick="gauge"[^>]*aria-haspopup="dialog"/.test(gauge) || /<button[^>]*aria-haspopup="dialog"[^>]*data-mpick="gauge"/.test(gauge), '/model: the real gauge is a button with data-mpick="gauge" that opens the slider popover (Radix trigger)')
+    ok(/<button[^>]*type="button"/.test(gauge) && !/<button[^>]*\sdisabled=""/.test(gauge), '/model: ... and is a plain enabled button when the picker is ready')
+    const publish = renderToStaticMarkup(React.createElement(publishModule.PublishControls, { sessionId: 'sess-p', deckTitle: 'Deck', slideCount: 3, hasFinalDeck: true }))
+    ok(/<button[^>]*data-studio-publish-trigger="true"/.test(publish) && !/<button[^>]*data-studio-publish-trigger="true"[^>]*\sdisabled=""/.test(publish), '/publish: the real Publish button carries data-studio-publish-trigger and is enabled once the deck is built')
+    ok(/<button[^>]*data-studio-publish-trigger="true"[^>]*\sdisabled=""/.test(renderToStaticMarkup(React.createElement(publishModule.PublishControls, { sessionId: 'sess-p', deckTitle: 'Deck', slideCount: 3, hasFinalDeck: false }))), '/publish: ... and disabled before it (the command then says Publish is not ready)')
+    ok(/data-studio-publish-trigger=\{STUDIO_PUBLISH \? 'true' : undefined\}[\s\S]{0,260}onClick=\{\(\) => setOpen\(true\)\}/.test(read('components/publish-dialog.tsx')), '/publish: that button\'s own onClick opens the Publish dialog')
+    ok(read('components/model-choice/model-slider.tsx').includes('data-mpick="gauge"') && /PopoverPrimitive\.Trigger\s+type="button"/.test(read('components/model-choice/model-slider.tsx')), '/model: the source: the gauge is the popover\'s own trigger')
+  }
+}
+
+// ============================================================================================================================================
+// D. The composer with real React: ChatInput, the hook and the menus (Radix pieces, the template popup and the theme menu are recorders)
+// ============================================================================================================================================
+const SLIDES = slides
+const FILES = [
+  { id: 'f1', name: 'q3 report.pdf', size: 1, type: 'application/pdf', status: 'success', uploadProgress: 100 },
+  { id: 'f2', name: 'notes.docx', size: 1, type: 'application/msword', status: 'processing', uploadProgress: 100 },
+]
+const FILES_ALL = [...FILES,
+  { id: 'f3', name: 'still-uploading.pdf', size: 1, type: 'application/pdf', status: 'uploading', uploadProgress: 40 },
+  { id: 'f4', name: 'broken.pdf', size: 1, type: 'application/pdf', status: 'error', uploadProgress: 0 },
+]
+const ROUTES = {
+  '/api/templates': { templates: [{ id: 't1', name: 'Board update' }, { id: 't2', name: 'Pitch deck' }], count: 2 },
+  '/api/themes': { themes: [{ id: 'u-77', name: 'Midnight sun', theme_payload: { mode: 'preset', preset_id: 'corporate_light' } }], count: 1 },
+}
+const FILE_STUBS = records => ({
+  'components/builder/studio-composer-hint': { StudioComposerHint: ({ children }) => children },
+  'components/ui/dropdown-menu': { DropdownMenu: props => { records.menus.push(props); return props.children }, DropdownMenuTrigger: ({ children }) => children, DropdownMenuContent: props => props.children },
+  'components/ui/switch': { Switch: () => null }, 'components/file-chip': { FileChip: () => null },
+  // the field: a plain textarea that hands its ref to the proof (the harness' host nodes do not keep refs)
+  'components/ui/textarea': { Textarea: React.forwardRef((props, ref) => { records.textareaRef = ref; return React.createElement('textarea', props) }) },
+  // the gauge: a button with the attributes the real one has (checked against the real component above); the Radix popover behind it cannot run on the offline host
+  'components/model-choice/model-picker': { ModelPicker: props => React.createElement('button', { type: 'button', 'data-mpick': 'gauge', disabled: Boolean(props.disabled), onClick: () => records.calls.push(['gauge']) }) },
+  'components/builder/studio-theme-menu': { StudioThemeMenu: () => null },
+  'components/builder/template-picker': { TemplatePicker: props => { records.pickers.push(props); return null } },
+})
+
+async function mountComposer(opts = {}) {
+  const records = { menus: [], pickers: [], fetches: [], calls: [] }
+  const doc = { find: () => [] }
+  const env = { ...ON, NEXT_PUBLIC_CHAT_MENTIONS: 'true', NEXT_PUBLIC_STUDIO_CHAT_UNDO: 'true', NEXT_PUBLIC_STUDIO_MODEL_CHOICE: 'true', ...(opts.env ?? {}) }
+  for (const [name, value] of Object.entries(env)) if (value === undefined) delete env[name]
+  const fetchFn = async url => {
+    records.fetches.push(String(url))
+    const route = (opts.routes ?? ROUTES)[String(url)]
+    return route ? { ok: true, status: 200, json: async () => route } : { ok: false, status: 500, json: async () => ({}) }
+  }
+  const { loader, restore } = makeLoader(env, opts.overrides ?? {}, { globals: { fetch: fetchFn, document: { querySelectorAll: sel => doc.find(sel), getElementById: id => { records.scrolled ??= []; return { scrollIntoView: options => records.scrolled.push([id, options]) } } } }, fileStubs: FILE_STUBS(records) })
+  let mod, cleanLib
+  try { mod = loader.load(INPUT); cleanLib = loader.load('lib/studio-chat-clean.ts') } finally { restore() }
+  const composer = over => cleanLib.chatCleanComposerState({ enabled: true, active: false, phase: 'idle', control: 'idle', slidesDone: 0, slideCount: 0, controlEnabled: true, ackKey: null, ackLine: '', ...over })
+  const state = { text: opts.text ?? '', extra: { ...(opts.props ?? {}) }, set: null, textarea: null }
+  const page = { slides: SLIDES, currentSlide: 3, getElement: () => state.element ?? null, exportDeck: async format => { records.calls.push(['export', format]); return state.exportResult ?? { status: 'done', error_code: null } } }
+  function Wrapper() {
+    const [value, setValue] = React.useState(state.text)
+    state.text = value; state.set = setValue
+    const props = {
+      inputMessage: value, onInputChange: v => { state.text = v; setValue(v) }, onSubmit: () => records.calls.push(['submit', state.text]), uploadedFiles: FILES, onFilesSelected() {}, onRemoveFile() {}, onClearAllFiles() {}, pendingActionInput: null, onCancelAction() {},
+      researchEnabled: false, onResearchEnabledChange: v => records.calls.push(['deep', v]), webSearchEnabled: false, onWebSearchEnabledChange: v => records.calls.push(['web', v]), knowledgeGraphEnabled: false, onKnowledgeGraphEnabledChange() {}, showKnowledgeGraphToggle: false,
+      knowledgeGraphAccess: 'unavailable', onKnowledgeGraphAccessClick() {}, isReady: true, isLoadingSession: false, connected: true, connecting: false, user: { id: 'u1' }, currentSessionId: 's1', onRequestSession: async () => {}, buildTheme: { mode: 'auto' }, onBuildThemeChange() {},
+      templateBuilderEnabled: true, onSelectTemplate() {}, onOpenComposerLibrary: undefined,
+      studioChatClean: { composer: composer(opts.composer ?? {}), onStop: () => records.calls.push(['stop']), onSendDirections() {}, sessionId: 's1' },
+      ...(opts.noPage ? {} : { studioChatCommands: page }),
+      ...(opts.mentionSlides ? { mentionSlides: SLIDES } : {}),
+      ...state.extra,
+    }
+    return React.createElement(mod.ChatInput, props)
+  }
+  const rootNode = new Root()
+  rootNode.setElement(React.createElement(Wrapper))
+  const settle = async () => { for (let quiet = 0, rounds = 0; quiet < 2; rounds++) { if (rounds > 80) throw new Error('did not settle'); await macrotask(); quiet = rootNode.flush() ? 0 : quiet + 1 } }
+  await settle()
+  const fakeTextarea = { focused: 0, selection: null, style: {}, scrollHeight: 20, getBoundingClientRect: () => ({ width: 300 }), focus() { this.focused++ }, setSelectionRange(a, b) { this.selection = [a, b] }, closest: () => ({ querySelectorAll: sel => doc.find(sel, 'composer') }), get value() { return state.text } }
+  const api = {
+    records, state, doc, rootNode, settle, fakeTextarea, loader, page,
+    nodes: () => hostNodes(rootNode.tree),
+    ta() { const node = hostNodes(rootNode.tree).find(n => n.type === 'textarea'); if (records.textareaRef && typeof records.textareaRef === 'object') records.textareaRef.current = fakeTextarea; return node },
+    async type(value) { api.ta().props.onChange({ target: { value } }); await settle() },
+    async key(key, extra = {}) { const event = { key, shiftKey: false, nativeEvent: {}, prevented: 0, preventDefault() { this.prevented++ }, ...extra }; api.ta().props.onKeyDown(event); await settle(); return event },
+    menu: () => hostNodes(rootNode.tree).find(n => n.props?.['data-studio-chat-commands-menu']) ?? null,
+    rows: () => hostNodes(rootNode.tree).filter(n => n.type === 'button' && n.props.role === 'option'),
+    note: () => hostNodes(rootNode.tree).find(n => n.props?.['data-studio-chat-commands-note']) ?? null,
+    labels: () => api.rows().map(n => n.props['aria-label']),
+    text: () => state.text,
+    set: async patch => { Object.assign(state.extra, patch); rootNode.schedule(); await settle() },
+    markup: () => renderToStaticMarkup(toElements(rootNode.tree)),
+    themeMenu: () => records.menus.slice(-2)[0], researchMenu: () => records.menus.slice(-2)[1], picker: () => records.pickers.at(-1),
+    unmount: () => rootNode.unmount(),
+  }
+  return api
+}
+const rowText = node => hostNodes({ t: 'host', props: {}, children: node.children }).map(n => n.children).flat().filter(c => c?.t === 'text').map(c => c.value).join('|')
+
+async function composerSuite(over = {}) {
+  const overrides = over
+  // -- flag off, and the flag on without the v3.1 composer: nothing at all --------------------------------------------------------------------------------------
+  {
+    const c = await mountComposer({ env: { NEXT_PUBLIC_STUDIO_CHAT_COMMANDS: undefined }, overrides })
+    await c.type('/'); ok(!c.menu() && c.rows().length === 0, 'flag off: "/" opens nothing')
+    const e = await c.key('Enter'); eq([e.prevented, c.records.calls], [1, [['submit', '/']]], 'flag off: Enter sends "/" as before')
+    await c.type('@'); ok(!c.menu() && c.rows().length === 0 && !c.markup().includes('data-studio-composer-mentions'), 'flag off, the page passes no slide list: "@" opens nothing (the K1 popover needs its slides)')
+    c.unmount()
+    const off = await mountComposer({ env: { NEXT_PUBLIC_STUDIO_CHAT_COMMANDS: undefined }, mentionSlides: true, overrides })
+    await off.type('@'); ok(off.markup().includes('data-studio-composer-mentions') && count(off.markup(), 'aria-label="Mention slide') === 7, 'flag off: "@" is the K1 slide popover, exactly as before')
+    off.unmount()
+    const noClean = await mountComposer({ props: { studioChatClean: undefined }, overrides })
+    await noClean.type('/'); ok(!noClean.menu() && !noClean.note(), 'flag on without the v3.1 composer props: inert')
+    noClean.unmount()
+    const noPage = await mountComposer({ noPage: true, overrides })
+    await noPage.type('/'); ok(!noPage.menu(), 'flag on, no page props: inert')
+    noPage.unmount()
+    const noShell = await mountComposer({ env: { NEXT_PUBLIC_STUDIO_V4_SHELL: undefined }, overrides })
+    await noShell.type('/'); ok(!noShell.menu(), 'flag on without the Studio shell: inert')
+    noShell.unmount()
+  }
+  // -- the "/" menu: open, filter, keyboard ------------------------------------------------------------------------------------------------------------------------
+  const c = await mountComposer({ overrides })
+  eq([c.menu(), c.ta().props['aria-controls']], [null, undefined], 'closed: no menu, no aria on the field')
+  await c.type('/')
+  ok(c.menu() && c.menu().props.role === 'listbox' && c.menu().props['aria-label'] === 'Commands', '"/" opens the command menu (a listbox)')
+  eq(c.rows().length, 12, 'twelve rows'); eq(c.rows().map(n => n.props['data-studio-chat-command']), ['add-slide', 'duplicate', 'delete', 'theme', 'template', 'model', 'research', 'web', 'export', 'publish', 'undo', 'stop'], 'in PK\'s order')
+  ok(c.rows()[0].props['aria-selected'] === true && c.rows().slice(1).every(n => n.props['aria-selected'] === false), 'the first row is highlighted')
+  eq([c.ta().props['aria-controls'], c.ta().props['aria-activedescendant'], c.ta().props['aria-autocomplete']], [c.menu().props.id, c.rows()[0].props.id, 'list'], 'the field points at the menu and the highlighted row')
+  ok(c.markup().includes('Enter or Tab chooses · Esc closes') && c.markup().includes('data-studio-composer-mentions="true"'), 'the menu is on the composer\'s own "@" surface, with its hint line')
+  ok(c.rows().every(n => /: /.test(n.props['aria-label'])) && c.rows()[0].props['aria-label'] === '/add-slide: Add a slide after this one', 'every row says what it does')
+  await c.key('ArrowDown'); ok(c.rows()[1].props['aria-selected'] === true, 'ArrowDown moves down')
+  const up = await c.key('ArrowUp'); ok(up.prevented === 1 && c.rows()[0].props['aria-selected'] === true, 'ArrowUp moves up (and keeps the caret where it is)')
+  await c.key('ArrowUp'); ok(c.rows()[11].props['aria-selected'] === true, 'ArrowUp wraps to the last'); await c.key('ArrowDown'); ok(c.rows()[0].props['aria-selected'] === true, 'ArrowDown wraps to the first')
+  await c.rows()[4].props.onMouseEnter?.(); await c.settle(); ok(c.rows()[4].props['aria-selected'] === true, 'hover moves the highlight')
+  // filter
+  await c.type('/th'); eq(c.rows().map(n => n.props['data-studio-chat-command']), ['theme'], 'type to filter')
+  await c.type('/zzz'); ok(!c.menu() && !c.ta().props['aria-controls'], 'nothing matches: no menu')
+  c.records.calls.length = 0
+  let e = await c.key('Enter'); eq([e.prevented, c.records.calls], [1, [['submit', '/zzz']]], 'nothing matches: Enter sends as it always did')
+  await c.type('/th')
+  // Esc closes and stays closed for this "/"
+  e = await c.key('Escape'); ok(e.prevented === 1 && !c.menu(), 'Esc closes the menu'); await c.type('/the'); ok(!c.menu(), '...and it stays closed while the same "/" is being typed')
+  await c.type('hello'); await c.type('/'); ok(c.menu(), 'a new "/" opens it again')
+  // keys that must not be taken
+  for (const [label, key, extra] of [['Shift+Enter', 'Enter', { shiftKey: true }], ['Shift+Tab', 'Tab', { shiftKey: true }], ['an arrow during IME composition', 'ArrowDown', { nativeEvent: { isComposing: true } }], ['a letter', 'a', {}], ['Backspace', 'Backspace', {}]]) {
+    c.records.calls.length = 0; const ev = await c.key(key, extra); ok(ev.prevented === 0 && c.menu() && c.records.calls.length === 0, `${label} is not taken by the menu`)
+  }
+  // Enter and Tab pick; Esc with no menu is not taken
+  await c.type('/model'); eq(c.rows().map(n => n.props['data-studio-chat-command']), ['model'], 'filtered to /model')
+  c.unmount()
+  return c
+}
+
+
+const tick = (ms = 5) => new Promise(resolve => setTimeout(resolve, ms))
+const RUNNING = { active: true, phase: 'building', control: 'running', slidesDone: 2, slideCount: 7 }
+const noteOf = c => { const n = c.note(); return n ? { tone: n.props['data-studio-chat-commands-note'], control: n.props['data-studio-chat-commands-control'] ?? null, text: hostNodes({ t: 'host', props: {}, children: n.children }).filter(h => h.type === 'p' || h.type === 'button').map(h => h.children.map(x => x.value ?? '').join('')) } : null }
+const pressNoteButton = async (c, which) => { const b = hostNodes(c.rootNode.tree).find(n => n.type === 'button' && n.props[which]); b.props.onClick(); await c.settle() }
+const wireOf = c => c.loader.load(WIRE)
+const tokenFlow = async (c, query, pick = 0) => { await c.type(query); for (let i = 0; i < pick; i++) await c.key('ArrowDown'); const e = await c.key('Enter'); return e }
+
+async function commandSuite(overrides = {}) {
+  // -- /add-slide, /duplicate, /delete: an editable request, nothing sent ------------------------------------------------------------------------------------------
+  for (const [name, text, command, said] of [['add-slide', 'Add a slide after slide 3 about ', 'add_slide', 'Add a slide after slide 3 about growth'], ['duplicate', 'Duplicate slide 3', 'duplicate_slide', 'Duplicate slide 3'], ['delete', 'Delete slide 3', 'delete_slide', 'Delete slide 3']]) {
+    const c = await mountComposer({ overrides })
+    await c.type(`/${name}`)
+    const e = await c.key('Enter')
+    eq([e.prevented, c.text(), c.menu() === null, c.records.calls], [1, text, true, []], `/${name}: the composer text becomes "${text}", nothing is sent`)
+    await tick()
+    eq([c.fakeTextarea.focused > 0, c.fakeTextarea.selection], [true, [text.length, text.length]], `/${name}: focus stays in the composer with the cursor at the end`)
+    eq(wireOf(c).commandInText(said), command, `/${name}: the wire carries command ${command} while the text still reads as that request`)
+    c.page.currentSlide = 5; await c.type('/'); await c.type(''); await c.type(`/${name}`); await c.key('Enter')
+    ok(c.text().includes('slide 5'), `/${name}: N is the slide on the canvas now`)
+    c.unmount()
+  }
+  { // text typed before the "/" stays
+    const c = await mountComposer({ overrides }); await c.type('Please /dup'); await c.key('Enter')
+    eq(c.text(), 'Please Duplicate slide 3', 'a "/" after other words keeps them'); c.unmount()
+  }
+  { // no deck: said plainly
+    const c = await mountComposer({ overrides }); c.page.slides = []; c.page.currentSlide = null
+    await c.type('/delete'); await c.key('Enter')
+    eq([c.text(), noteOf(c).tone, noteOf(c).text.slice(0, 1)], ['', 'notice', ['Open a deck first']], '/delete with no deck: nothing is pre-filled, the note says why'); c.unmount()
+  }
+  // -- /stop ------------------------------------------------------------------------------------------------------------------------------------------------
+  {
+    const c = await mountComposer({ overrides, composer: RUNNING })
+    await c.type('/stop'); await c.key('Enter')
+    eq([c.records.calls, c.text(), c.note()], [[['stop']], '', null], '/stop while a build runs: the Send/Stop control\'s stop, once')
+    c.unmount()
+    const idle = await mountComposer({ overrides }); await idle.type('/stop'); await idle.key('Enter')
+    eq([idle.records.calls, noteOf(idle).text[0]], [[], 'Nothing is building'], '/stop with no build: nothing is stopped, the note says so'); idle.unmount()
+    const stopping = await mountComposer({ overrides, composer: { ...RUNNING, control: 'stop_requested' } }); await stopping.type('/stop'); await stopping.key('Enter')
+    eq([stopping.records.calls, noteOf(stopping).text[0]], [[], 'Already stopping'], '/stop while the stop is in flight: not sent twice'); stopping.unmount()
+    const held = await mountComposer({ overrides, composer: { ...RUNNING, control: 'stopped', phase: 'stopped' } }); await held.type('/stop'); await held.key('Enter')
+    eq([held.records.calls, noteOf(held).text[0]], [[], 'Nothing is building'], '/stop on a held build: nothing is building'); held.unmount()
+  }
+  // -- /undo ------------------------------------------------------------------------------------------------------------------------------------------------
+  {
+    const c = await mountComposer({ overrides })
+    const chip = { disabled: false, click() { c.records.calls.push(['undo-chip-click']) }, getAttribute: () => null, getClientRects: () => [1] }
+    c.doc.find = selector => (selector === '[data-studio-chat-undo="idle"]' ? [chip] : [])
+    await c.type('/undo'); await c.key('Enter')
+    eq([c.records.calls, noteOf(c).tone, noteOf(c).text[0]], [[['undo-chip-click']], 'done', 'Asked Director to undo the last change.'], '/undo: presses the Undo chip\'s button, nothing else')
+    c.doc.find = () => []; await c.type('/undo'); await c.key('Enter')
+    eq([c.records.calls.length, noteOf(c).text[0]], [1, 'Nothing to undo right now'], '/undo with no chip: said plainly'); c.unmount()
+    const off = await mountComposer({ overrides, env: { NEXT_PUBLIC_STUDIO_CHAT_UNDO: undefined } }); await off.type('/undo'); await off.key('Enter')
+    eq([noteOf(off), off.records.calls], [{ tone: 'cant-yet', control: 'undo', text: ["Can't do this from chat yet", "Undo from chat isn't turned on in this build.", 'Dismiss'] }, []], '/undo with chat undo off: can\'t yet, naming the control, no button to a feature that is off'); off.unmount()
+  }
+  // -- /export ----------------------------------------------------------------------------------------------------------------------------------------------
+  {
+    const c = await mountComposer({ overrides })
+    await c.type('/export'); await c.key('Enter')
+    eq([c.text(), c.rows().map(n => n.props['data-studio-chat-command']), c.records.calls], ['/export ', ['export', 'export'], []], '/export fills "/export " and lists the formats: no download starts from a half-typed name')
+    eq(c.labels(), ['/export pdf: Download the deck as a PDF', '/export pptx: Download the deck as a PowerPoint'], 'the formats')
+    await c.key('Enter'); await tick(); await c.settle()
+    eq([c.records.calls, noteOf(c).text[0]], [[['export', 'pdf']], 'Your PDF download started.'], '/export pdf: the directive runner, then "download started"')
+    await c.type('/export '); await c.key('ArrowDown'); await c.key('Enter'); await tick(); await c.settle()
+    eq(c.records.calls.slice(1), [['export', 'pptx']], '/export pptx'); await c.type('/export pdf'); await c.key('Enter'); await tick(); await c.settle()
+    eq(c.records.calls.length, 3, 'a typed "/export pdf" runs it too')
+    c.state.exportResult = { status: 'failed', error_code: 'export_blocked' }; await c.type('/export pdf'); await c.key('Enter'); await tick(); await c.settle()
+    eq(noteOf(c).text.slice(0, 2), ["Export isn't ready yet", 'The Download menu opens up once the deck is built. Finish or stop the build first.'], 'blocked: said plainly')
+    c.state.exportResult = { status: 'failed', error_code: 'export_failed' }; await c.type('/export pdf'); await c.key('Enter'); await tick(); await c.settle()
+    eq(noteOf(c).text[0], "Couldn't export", 'failed: said plainly')
+    c.unmount()
+    const none = await mountComposer({ overrides, noPage: false }); none.page.exportDeck = null; await none.type('/export pdf'); await none.key('Enter')
+    eq(noteOf(none).text[0], "Can't do this from chat yet", 'no runner: can\'t yet'); none.unmount()
+  }
+  // -- /theme: the theme popup's open state and its saved-themes read -----------------------------------------------------------------------------------------------
+  {
+    const viaTrigger = await mountComposer({ overrides }); viaTrigger.themeMenu().onOpenChange(true); await viaTrigger.settle(); await tick(); await viaTrigger.settle()
+    const c = await mountComposer({ overrides })
+    eq(c.themeMenu().open, false, 'the theme popup starts closed')
+    await c.type('/theme'); await c.key('Enter'); await tick(); await c.settle()
+    eq([c.themeMenu().open, c.text(), c.note()], [true, '', null], '/theme opens the theme popup')
+    eq(c.records.fetches.filter(u => u === '/api/themes'), viaTrigger.records.fetches.filter(u => u === '/api/themes'), '/theme reads the saved themes exactly as the button does')
+    ok(viaTrigger.themeMenu().open === true, 'the button path opens the same state')
+    c.unmount(); viaTrigger.unmount()
+    const locked = await mountComposer({ overrides, props: { templateSelectionLocked: true } }); await locked.type('/theme'); await locked.key('Enter')
+    eq([locked.themeMenu().open, noteOf(locked).text.slice(0, 2)], [false, ['Theme is locked', 'Build theme selection is locked for this deck.']], '/theme on a locked deck: not opened, the popup\'s own reason'); locked.unmount()
+  }
+  // -- /template: the template popup's open state ----------------------------------------------------------------------------------------------------------------
+  {
+    const c = await mountComposer({ overrides })
+    eq([c.picker().open, typeof c.picker().onOpenChange], [false, 'function'], 'the flag takes over the template popup\'s open state (closed to begin with)')
+    await c.type('/template'); await c.key('Enter')
+    eq([c.picker().open, c.text()], [true, ''], '/template opens the template popup')
+    c.picker().onOpenChange(false); await c.settle(); eq(c.picker().open, false, '...and the popup closes itself as it always did'); c.picker().onOpenChange(true); await c.settle(); eq(c.picker().open, true, '...and its own button opens it')
+    c.unmount()
+    const v2 = await mountComposer({ overrides, env: { NEXT_PUBLIC_STUDIO_COMPOSER_POPUPS_V2: 'true' } })
+    eq([v2.picker().open, v2.picker().dropdowns], [false, true], 'with the composer popups flag on, the composer owns the open state')
+    await v2.type('/template'); await v2.key('Enter'); eq(v2.picker().open, true, '/template opens it through the composer\'s own popup state'); v2.unmount()
+    const off = await mountComposer({ overrides, props: { templateBuilderEnabled: false, onSelectTemplate: undefined } }); await off.type('/template'); await off.key('Enter')
+    eq(noteOf(off).text.slice(0, 2), ["Can't do this from chat yet", "Templates aren't turned on in this build."], '/template with no template picker in this build: can\'t yet, naming it'); off.unmount()
+    const locked = await mountComposer({ overrides, props: { templateSelectionLocked: true } }); await locked.type('/template'); await locked.key('Enter')
+    eq([locked.picker().open, noteOf(locked).text[0]], [false, 'Template is locked'], '/template on a locked deck: the picker\'s own rule'); locked.unmount()
+  }
+  // -- /model: a press on the gauge ------------------------------------------------------------------------------------------------------------------------------------
+  {
+    const c = await mountComposer({ overrides })
+    c.doc.find = selector => fakeDocument(() => c.rootNode.tree).querySelectorAll(selector)
+    await c.type('/model'); await c.key('Enter')
+    eq([c.records.calls, c.text(), c.note()], [[['gauge']], '', null], '/model presses the gauge button: the slider popover opens')
+    c.doc.find = () => []; await c.type('/model'); await c.key('Enter')
+    eq([c.records.calls.length, noteOf(c).text[0]], [1, "Model choice isn't ready"], '/model with no gauge to press: said plainly'); c.unmount()
+    const off = await mountComposer({ overrides, env: { NEXT_PUBLIC_STUDIO_MODEL_CHOICE: undefined } }); await off.type('/model'); await off.key('Enter')
+    eq([noteOf(off).control, noteOf(off).text.slice(0, 2)], ['model', ["Can't do this from chat yet", "The model picker isn't turned on in this build."]], '/model with the picker off: can\'t yet, naming the picker'); off.unmount()
+  }
+  // -- /research and /web ---------------------------------------------------------------------------------------------------------------------------------------------
+  {
+    const c = await mountComposer({ overrides })
+    await c.type('/research'); await c.key('Enter')
+    eq([c.records.calls, noteOf(c).text[0]], [[['deep', true]], 'Deep research on · Web search on'], '/research: the switch\'s own handler, with the value a click gives it')
+    await c.type('/web'); await c.key('Enter')
+    eq([c.records.calls.slice(1), noteOf(c).text[0]], [[['web', true]], 'Deep research off · Web search on'], '/web')
+    await c.set({ researchEnabled: true, webSearchEnabled: true })
+    await c.type('/research'); await c.key('Enter'); await c.type('/web'); await c.key('Enter')
+    eq(c.records.calls.slice(2), [['deep', false], ['web', false]], 'on -> off, by the same handlers')
+    c.unmount()
+    const locked = await mountComposer({ overrides, props: { researchSettingsLocked: true } })
+    await locked.type('/research'); await locked.key('Enter')
+    eq([locked.records.calls, noteOf(locked).text.slice(0, 3)], [[], ['Locked for this deck', 'Research already ran, so these switches can no longer change. Start a new session to change them.', 'Show research options']], '/research once research has run: the lock holds, with the way to the options menu')
+    eq(locked.researchMenu().open, false, 'the options menu starts closed')
+    await pressNoteButton(locked, 'data-studio-chat-commands-button'); eq([locked.researchMenu().open, locked.note()], [true, null], 'the button opens the research options')
+    locked.unmount()
+  }
+  // -- /publish --------------------------------------------------------------------------------------------------------------------------------------------------------
+  {
+    const c = await mountComposer({ overrides })
+    await c.type('/publish'); await c.key('Enter')
+    eq(noteOf(c), { tone: 'cant-yet', control: 'publish', text: ["Can't do this from chat yet", "Publishing from chat isn't ready yet. The Publish button shares this deck.", 'Open Publish', 'Dismiss'] }, '/publish: honest, with the button')
+    const publishButton = { disabled: false, click() { c.records.calls.push(['publish-click']) }, getAttribute: () => null, getClientRects: () => [1] }
+    c.doc.find = selector => (selector === '[data-studio-publish-trigger]' ? [publishButton] : [])
+    await pressNoteButton(c, 'data-studio-chat-commands-button')
+    eq([c.records.calls, c.note()], [[['publish-click']], null], 'the button presses the real Publish button')
+    c.doc.find = () => []; await c.type('/publish'); await c.key('Enter'); await pressNoteButton(c, 'data-studio-chat-commands-button')
+    eq(noteOf(c).text.slice(0, 1), ['Publish is not ready'], 'with no Publish button to press (no built deck): said plainly')
+    await c.key('Escape'); eq(c.note(), null, 'Esc closes a note')
+    await c.type('/publish'); await c.key('Enter'); await pressNoteButton(c, 'data-studio-chat-commands-dismiss'); eq(c.note(), null, 'Dismiss closes it')
+    await c.type('/publish'); await c.key('Enter'); await c.type('/'); ok(c.menu() && !c.note(), 'a new "/" shows the menu in place of the note')
+    c.unmount()
+  }
+  // -- pointer and touch --------------------------------------------------------------------------------------------------------------------------------------------------
+  {
+    const c = await mountComposer({ overrides })
+    await c.type('/'); let prevented = 0
+    c.rows()[3].props.onMouseDown({ preventDefault: () => prevented++ }); await c.settle()
+    eq([prevented, c.themeMenu().open], [1, true], 'pointer / touch: pressing a row picks it and keeps the composer\'s focus')
+    await c.type('/'); c.rows()[3].props.onClick({ detail: 1 }); await c.settle(); eq(c.rows().length, 12, 'the click after a mouse press picks nothing twice')
+    c.rows()[0].props.onClick({ detail: 0 }); await c.settle(); eq(c.text().startsWith('Add a slide after slide 3'), true, 'assistive technology activation picks')
+    c.unmount()
+  }
+}
+
+async function mentionSuite(overrides = {}) {
+  const sections = c => c.nodes().filter(n => n.props?.['data-studio-chat-commands-heading']).map(n => n.props['data-studio-chat-commands-heading'])
+  {
+    const c = await mountComposer({ overrides })
+    await c.type('@')
+    ok(c.menu() && c.menu().props['data-studio-chat-commands-menu'] === 'mentions' && c.menu().props['aria-label'] === 'Mention something', '"@" opens the mention menu')
+    await tick(); await c.settle()
+    eq(sections(c), ['slide', 'file', 'template', 'theme'], 'Slides · Files · Templates · Themes (and Element only when an element is selected)')
+    eq(c.rows().map(n => n.props['data-studio-chat-mention']), ['slide', 'slide', 'slide', 'slide', 'slide', 'file', 'file', 'template', 'template', 'theme', 'theme', 'theme'], 'five slides, then what the pickers hold')
+    eq(c.records.fetches.filter(u => u === '/api/templates'), ['/api/templates'], 'the template list is read once, through the template popup\'s own list call')
+    eq(c.records.fetches.filter(u => u === '/api/themes'), ['/api/themes'], 'the saved themes are read once, through the composer\'s own refresh')
+    ok(!c.records.fetches.some(u => !['/api/templates', '/api/themes'].includes(u) && !/themes\/presets/.test(u)), 'no other fetch is made for the menu')
+    await c.key('Escape'); await c.type(''); await c.type('@'); await tick(); await c.settle()
+    eq([c.records.fetches.filter(u => u === '/api/templates').length, c.records.fetches.filter(u => u === '/api/themes').length], [1, 1], 'a list that is loaded is not read again')
+    // a slide: the K1 token, nothing registered
+    const w = wireOf(c)
+    await c.type('Tidy @slide 2'); eq(c.rows().map(n => n.props['aria-label']), ['Mention Slide 2, Market size'], '"@slide 2" is slide 2')
+    await c.key('Enter'); eq(c.text(), 'Tidy @[Slide 2: Market size] ', 'a slide pick: the K1 token and a space')
+    eq([w.chatCommandsBus.mentions.size, c.menu()], [0, null], '...K1 turns it into a reference on send: nothing is registered here')
+    // a file
+    await c.type('@file'); eq(c.rows().map(n => n.props['aria-label']), ['Mention q3 report.pdf, Uploaded', 'Mention notes.docx, Uploaded'], '"@file": this deck\'s uploads (not the ones still uploading or broken)')
+    await c.key('Enter'); eq(c.text(), '@[File: q3 report.pdf] ', 'a file pick: a readable token')
+    eq(plain(w.referencesInText(c.text())), [{ kind: 'file', file_id: 'f1', name: 'q3 report.pdf', source: 'upload' }], '...with its typed reference')
+    await c.type('@[File: q3 report.pdf] and more'); eq(plain(w.referencesInText(c.text())).length, 1, 'the token typed on: still one reference')
+    await c.type('and more'); eq(w.referencesInText(c.text()), [], 'a deleted token drops its reference')
+    // a template
+    await c.type('@template pit'); await c.key('Enter')
+    eq([c.text(), plain(w.referencesInText(c.text()))], ['@[Template: Pitch deck] ', [{ kind: 'template', template_id: 't2', name: 'Pitch deck' }]], 'a template pick: token + reference')
+    // themes: saved and preset apart
+    await c.type('@theme'); eq(c.rows().map(n => n.props['aria-label']).slice(0, 2), ['Mention Midnight sun, Saved theme', 'Mention Corporate Light, Preset theme'], '"@theme": the user\'s own first, labelled apart')
+    await c.key('Enter'); eq([c.text(), plain(w.referencesInText(c.text()))], ['@[Theme: Midnight sun (saved)] ', [{ kind: 'theme', theme_id: 'u-77', name: 'Midnight sun', source: 'saved' }]], 'a saved theme: token says so, reference says source saved')
+    await c.type('@theme corp'); await c.key('Enter'); eq([c.text(), plain(w.referencesInText(c.text()))], ['@[Theme: Corporate Light] ', [{ kind: 'theme', theme_id: 'corporate_light', name: 'Corporate Light', source: 'preset' }]], 'a preset theme: source preset, its preset id')
+    // an element
+    await c.type('@element'); eq([c.rows().length, noteOf(c), c.menu().props['data-studio-chat-commands-menu']], [0, null, 'mentions'], '"@element" with nothing selected: the menu says so')
+    ok(c.markup().includes('Select an element on the slide first.'), '...in words')
+    c.records.calls.length = 0; const ev = await c.key('Enter'); eq([ev.prevented, c.records.calls], [1, [['submit', '@element']]], '...and Enter sends as it always did (a menu with nothing to pick takes nothing)')
+    c.state.element = elementRef; await c.type('@element'); eq(c.labels(), ['Mention Selected element, Chart · slide 3'], 'with an element selected: the Element section')
+    await c.key('Enter'); eq([c.text(), plain(w.referencesInText(c.text()))], ['@[Element: Chart · slide 3] ', [elementRef]], 'an element pick: token + the one element reference Studio already builds')
+    ok(w.addChatCommandsFields({ references: [{ ...elementRef, element_id: 'other' }] }, c.text()).references.filter(r => r.kind === 'element').length === 1, 'and on send there is still only one element reference')
+    // mouse
+    await c.type('@file'); let prevented = 0; c.rows()[1].props.onMouseDown({ preventDefault: () => prevented++ }); await c.settle()
+    eq([prevented, c.text()], [1, '@[File: notes.docx] '], 'pointer: a press picks; the composer keeps its focus')
+    await tick(); eq(c.fakeTextarea.selection, [c.text().length, c.text().length], 'the cursor is at the end after a pick')
+    c.unmount()
+  }
+  { // sections follow the flags
+    const noMentions = await mountComposer({ overrides, env: { NEXT_PUBLIC_CHAT_MENTIONS: undefined } }); await noMentions.type('@'); await tick(); await noMentions.settle()
+    ok(!sections(noMentions).includes('slide'), 'without the K1 slide mentions flag there is no Slides section (nothing would turn its token into a reference)')
+    await noMentions.type('@slide'); ok(noMentions.markup().includes('No slides in this deck yet.'), '...and "@slide" says so'); noMentions.unmount()
+    const noTemplates = await mountComposer({ overrides, props: { templateBuilderEnabled: false, onSelectTemplate: undefined } }); await noTemplates.type('@'); await tick(); await noTemplates.settle()
+    ok(!sections(noTemplates).includes('template') && !noTemplates.records.fetches.includes('/api/templates'), 'saved templates off: no Templates section, no list call'); noTemplates.unmount()
+    const failing = await mountComposer({ overrides, routes: {} }); await failing.type('@template'); await tick(); await failing.settle()
+    ok(failing.markup().includes("Couldn&#x27;t load this list."), 'a list that cannot be read says so'); failing.unmount()
+  }
+}
+
+// ============================================================================================================================================
 // run
 // ============================================================================================================================================
 wireSuite()
 console.log(`PASS A  the wire: flag, caps, tokens, typed references, a deleted token drops its reference, one element reference, the command hint (${checks} checks)`)
 libSuite()
 console.log(`PASS B  the lib: the twelve commands, the triggers, run / prefill / decline in every state, the sections, pressing a real control (${checks} checks)`)
+await handlerSuite()
+console.log(`PASS C  the real handlers: stop, the research switches, the export directive's runner, the Undo chip, the model gauge, Publish (${checks} checks)`)
+await composerSuite()
+await commandSuite()
+await mentionSuite()
+console.log(`PASS D  the composer with real React: the menus, the keyboard, every command's effect, every mention kind (${checks} checks)`)
 release?.()
 console.log(`ALL PASS test-studio-chat-commands (partial): ${checks} checks`)
