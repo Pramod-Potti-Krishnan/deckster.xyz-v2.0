@@ -636,9 +636,11 @@ async function scopeChecks(ref, title) {
     }
     for (const rel of MODEL_CHOICE_DECK_SAVE_NEW_FILES) eq(git('cat-file', '-t', `${ref}:${rel}`).trim(), 'blob', rel)
     for (const rel of stripModule.MODEL_CHOICE_DECK_SAVE_PIN_FILES) {
-      const diff = git('diff', '-U0', BASE, ref, '--', rel).split('\n').filter(line => /^[+-]/.test(line) && !/^(\+\+\+|---) /.test(line))
-      eq(diff.length, 2, `${rel}: one line replaced`); ok(diff[0].startsWith('-') && diff[1].startsWith('+') && diff[1].includes(stripModule.MODEL_CHOICE_DECK_SAVE_PIN_MARK), rel)
-      eq(stripModelChoiceDeckSave(rel, at(rel)), baseFile(rel), `${rel}: the taught proof is the base's without the line`)
+      const diff = git('diff', '-U0', BASE, ref, '--', rel).split('\n').filter(line => /^[+-]/.test(line) && !/^(\+\+\+|---) /.test(line)), edits = stripModule.MODEL_CHOICE_DECK_SAVE_PIN_EDITS[rel]
+      const lines = text => text.split('\n').length - 1
+      eq(diff.filter(line => line.startsWith('+')).length, edits.reduce((n, [has]) => n + lines(has), 0), `${rel}: the lines the taught proof has now`); eq(diff.filter(line => line.startsWith('-')).length, edits.reduce((n, [, was]) => n + lines(was), 0), `${rel}: the lines it had`)
+      for (const line of diff.filter(line => line.startsWith('+'))) ok(line.includes(stripModule.MODEL_CHOICE_DECK_SAVE_PIN_MARK), `${rel}: every line added carries the mark`)
+      eq(stripModelChoiceDeckSave(rel, at(rel)), baseFile(rel), `${rel}: the taught proof is the base's without the lines`)
     }
   })
   await check(`${title}: .env.example is the base plus the block (after one blank line); the registry gains exactly its three marked lines and loses none; no secret-shaped literal in the new files`, () => {

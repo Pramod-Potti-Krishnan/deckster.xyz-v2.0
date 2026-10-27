@@ -12,7 +12,8 @@
 // Every line this change adds to an EXISTING file is a pure insertion that carries the marker MODEL-CHOICE-DECK-SAVE (matched as a whole token; #521's MODEL-CHOICE is another token): lib/studio-model-choice-server.ts (the flag, the
 // tag comparison, one line before the stale-read check) and components/model-choice/use-model-choice.ts (the flag, one state, two lines in select and the load effect, one override of saveNote in the return). Strip those lines and each file is
 // its base, byte for byte. No new file in lib/ or components/ and no new import in either file, so the loaders of the older proofs (which hand a module only the imports it had) need no edit.
-// One older proof is taught one line (MODEL_CHOICE_DECK_SAVE_PIN_EDITS): #521's scripts/test-studio-model-choice.mjs held the server lib to "reads no other public flag" on the raw file; the marked lines of a later change are now its own.
+// Two older proofs are taught (MODEL_CHOICE_DECK_SAVE_PIN_EDITS): #521's scripts/test-studio-model-choice.mjs held the server lib to "reads no other public flag" on the raw file; #538's scripts/test-studio-chat-element-edit-2.mjs
+// held the registry to "gains exactly its three marked lines" on the raw BASE..HEAD diff. The marked lines of a later change are now its own.
 // How the older pins reach it: this change REGISTERS its files, its .env.example block and this strip (scripts/studio-later-changes.mjs, three lines). Plain node, no imports, nothing read from disk or git here.
 
 export const BASE_COMMIT = 'ffaf5a7eb883b35bf8ff4806a4a3b1b9c13cefe5' // origin/studio-v4-dev-preparation-code with #538 (chat element edit 2) merged: dev, which this change is cut from
@@ -46,6 +47,13 @@ export const MODEL_CHOICE_DECK_SAVE_PIN_EDITS = {
     [
       "    const serverCode = read(SERVER).split('\\n').filter(line => !/(?<![\\w-])MODEL-CHOICE-DECK-SAVE(?![\\w-])/.test(line)).join('\\n').replace(/\\/\\/.*$/gm, '').replace(/\\/\\*[\\s\\S]*?\\*\\//g, '') // LATER-CHANGES: registry read (MODEL-CHOICE-DECK-SAVE): a change registered after this one may read a flag of its own in the server lib (deck save); its marked lines are its own\n",
       "    const serverCode = read(SERVER).replace(/\\/\\/.*$/gm, '').replace(/\\/\\*[\\s\\S]*?\\*\\//g, '')\n"
+    ]
+  ],
+  // #538's proof holds the registry to "gains exactly its three marked lines" on the raw BASE..HEAD diff: the lines of every change registered after it (this one's three) are theirs. Generic: whatever sits below #538's own line in each list, in the registered shape.
+  "scripts/test-studio-chat-element-edit-2.mjs": [
+    [
+      "  const laterRegistry = (() => { const later = new Set(); let after = false; for (const line of git('show', 'HEAD:scripts/studio-later-changes.mjs').split('\\n')) { if (/^export const LATER_/.test(line)) after = false; else if (line.includes('studio-chat-element-edit-2-strip.mjs')) after = true; else if (after && line.includes('// LATER-CHANGE:') && /-strip\\.mjs/.test(line)) later.add(line) } return later })() // LATER-CHANGES: registry read (MODEL-CHOICE-DECK-SAVE), stacked after chat element edit 2: the registry lines of every change registered after this one (below this change's own line in each list, in the registered shape) are theirs, not this change's, so the count of three below reads past them\n  const diff = git('diff', '-U0', BASE_COMMIT, 'HEAD', '--', 'scripts/studio-later-changes.mjs').split('\\n').filter(line => /^[+-]/.test(line) && !/^(\\+\\+\\+|---) /.test(line) && !(line.startsWith('+') && laterRegistry.has(line.slice(1)))) // LATER-CHANGES: registry read (MODEL-CHOICE-DECK-SAVE), stacked after chat element edit 2: a line a later change added to the registry is its own\n",
+      "  const diff = git('diff', '-U0', BASE_COMMIT, 'HEAD', '--', 'scripts/studio-later-changes.mjs').split('\\n').filter(line => /^[+-]/.test(line) && !/^(\\+\\+\\+|---) /.test(line))\n"
     ]
   ]
 }
