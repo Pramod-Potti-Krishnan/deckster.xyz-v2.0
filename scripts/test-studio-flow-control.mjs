@@ -1,14 +1,19 @@
 // FRONTEND-1 (P3-1 D "flow control", Studio half): proof of NEXT_PUBLIC_STUDIO_FLOW_FOCUS, NEXT_PUBLIC_STUDIO_FLOW_AMEND and NEXT_PUBLIC_STUDIO_FLOW_AMEND_INSTRUCTIONS (the string "true", default off, build-time).
 //   lib/studio-flow-control.ts (pure decisions), hooks/use-studio-flow-control.ts (state, timers, sends), components/build-narration/flow-amend-bar.tsx (the line and the buttons),
-//   marked lines in app/builder/page.tsx, hooks/use-deckster-websocket-v2.ts, types/build-narration.ts and components/build-narration/use-stage-walkthrough.ts, and the .env.example block.
+//   marked lines in app/builder/page.tsx, hooks/use-deckster-websocket-v2.ts, types/build-narration.ts and components/build-narration/use-stage-walkthrough.ts, and the .env.example block;
+//   and, from the held-state follow-up ("Flow control: one held-state line ..."), marked lines in components/build-narration/director-presence.tsx (the chat's presence row).
 // The Director side is streams/director2/flow-control/CONTRACT.md (26 Oct): build_phase `settled` after a stop, `steer_pending` on a paused ack, `applied_to` on the resume ack, instructions <= 1000 characters.
 //
 //   A. The lib, function by function (flags, frame -> focus event incl. the 1-based slide_update, the focus target and its user-navigation rules, Director's acknowledgements, the amend state, the resume text, the rebuild steps).
 //   B. The bar, drawn and clicked (and how it lays out: one row where it fits, the buttons under the line on a narrow chat).
+//   B2. The chat's presence row: while the bar is drawn and the build is held it drops its own "Paused ..." line and dot (one line, the bar's) and keeps its Build log toggle; with the bar not drawn, or the build not held,
+//      or the flags off, every state renders exactly as the base's row (the marked lines taken out) renders it.
 //   C. The REAL hook in the chat harness's offline React host with a virtual clock: follow-the-build (settle, viewer readiness, overlay, user takes over, build takes over, restored deck; the build's first slide_built
 //      names its deck while the stage still shows the outline; the narration's own page turns, run through the REAL walkthrough hook, are not the user navigating), the paused composer,
-//      Resume (plain and with instructions), Rebuild (stop, settled / 8 s, send once), steer and applied lines, and flags off: nothing filled, listened to, timed or sent.
-//   D. The page, the socket hook, the types and .env.example: every marked line is where and as gated as it must be; stripping them gives the base's files byte for byte; the scope is this change's files.
+//      Resume (plain and with instructions), Rebuild (stop, settled / 8 s, send once), steer and applied lines, the bar's visibility said on the bus for the presence row, and flags off: nothing filled, listened to, timed or sent.
+//   D. The page, the socket hook, the types, the presence row and .env.example: every marked line is where and as gated as it must be; stripping them gives the base's files byte for byte; the scope is this change's files.
+//      The change shipped in two steps and each is read against its own base: the change itself (BASE_COMMIT .. ORIGINAL, the newest "Flow control" commit studio already held when the follow-up was cut) and the held-state
+//      follow-up (FOLLOW_UP_BASE_COMMIT .. OWN, the newest "Flow control" commit of this branch). The follow-up's base already holds the change, so the change's checks must not read its newest commit from HEAD.
 //   E. MUTANTS: every one of them must be caught by A-D.
 //
 //   node scripts/test-studio-flow-control.mjs
@@ -48,10 +53,18 @@ const PAGE = 'app/builder/page.tsx'
 const WS = 'hooks/use-deckster-websocket-v2.ts'
 const TYPES = 'types/build-narration.ts'
 const WALK = 'components/build-narration/use-stage-walkthrough.ts'
-// Later changes stack on top of this one, so every source, diff and scope check reads THIS change's own newest commit, not HEAD or the working tree.
-const OWN = (() => { try { const run = (...a) => execFileSync('git', ['-C', root, ...a], { encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'] }).trim(); return run('log', '-1', '--format=%H', '--no-merges', '-E', '--grep=^Flow control', 'HEAD') || run('rev-parse', 'HEAD') } catch { return null } })()
-const readOwn = rel => { if (!OWN) return read(rel); try { return execFileSync('git', ['-C', root, 'show', `${OWN}:${rel}`], { encoding: 'utf8', maxBuffer: 1 << 28, stdio: ['ignore', 'pipe', 'ignore'] }) } catch { return read(rel) } }
-const SOURCES = { [LIB]: read(LIB), [HOOK]: read(HOOK), [BAR]: read(BAR), [PAGE]: readOwn(PAGE), [WS]: readOwn(WS), [TYPES]: readOwn(TYPES), [WALK]: readOwn(WALK), '.env.example': readOwn('.env.example') }
+const PRESENCE = 'components/build-narration/director-presence.tsx'
+// Later changes stack on top of this one, so every source, diff and scope check reads THIS change's own commits, not HEAD or the working tree.
+// Two steps, each against its own base (see D): OWN is the newest "Flow control" commit of this branch (the held-state follow-up, cut from strip.FOLLOW_UP_BASE_COMMIT); ORIGINAL is the newest one studio already held at that
+// base (the change itself, cut from strip.BASE_COMMIT). Without the follow-up's base in git, ORIGINAL is OWN, as it was before the follow-up.
+const gitText = (...a) => execFileSync('git', ['-C', root, ...a], { encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'] }).trim()
+const OWN = (() => { try { return gitText('log', '-1', '--format=%H', '--no-merges', '-E', '--grep=^Flow control', 'HEAD') || gitText('rev-parse', 'HEAD') } catch { return null } })()
+const followUpOk = (() => { try { gitText('cat-file', '-e', `${strip.FOLLOW_UP_BASE_COMMIT}^{commit}`); return true } catch { return false } })()
+const ORIGINAL = (() => { try { return (followUpOk && gitText('log', '-1', '--format=%H', '--no-merges', '-E', '--grep=^Flow control', strip.FOLLOW_UP_BASE_COMMIT)) || OWN } catch { return OWN } })()
+const readAt = (commit, rel) => { if (!commit) return read(rel); try { return execFileSync('git', ['-C', root, 'show', `${commit}:${rel}`], { encoding: 'utf8', maxBuffer: 1 << 28, stdio: ['ignore', 'pipe', 'ignore'] }) } catch { return read(rel) } }
+const readOwn = rel => readAt(OWN, rel)
+const readOriginal = rel => readAt(ORIGINAL, rel)
+const SOURCES = { [LIB]: read(LIB), [HOOK]: read(HOOK), [BAR]: read(BAR), [PRESENCE]: read(PRESENCE), [PAGE]: readOriginal(PAGE), [WS]: readOriginal(WS), [TYPES]: readOriginal(TYPES), [WALK]: readOriginal(WALK), '.env.example': readOriginal('.env.example') }
 
 // ---- evaluation of module text (the real files and the mutants), in THIS realm so deepEqual compares plain objects ----------------------------------
 function compile(text, fileName) {
@@ -102,7 +115,7 @@ function libSuite(lib) {
   eq(lib.flowFocusFlagOn('true'), true, 'focus flag fn: true'); eq(lib.flowFocusFlagOn(undefined), false, 'focus flag fn: unset')
 
   // -- the bus ------------------------------------------------------------------------------------------------------------------------
-  eq([lib.flowBus.focus, lib.flowBus.phase, lib.flowBus.instructions, lib.flowBus.programmatic, lib.takeFlowInstructions()], [null, null, undefined, null, undefined], 'bus: empty at rest')
+  eq([lib.flowBus.focus, lib.flowBus.phase, lib.flowBus.instructions, lib.flowBus.programmatic, lib.flowBus.amendBarVisible, lib.takeFlowInstructions()], [null, null, undefined, null, false, undefined], 'bus: empty at rest (the bar is not drawn)')
   lib.flowBus.instructions = 'Shorter titles'
   eq([lib.takeFlowInstructions(), lib.flowBus.instructions, lib.takeFlowInstructions()], ['Shorter titles', undefined, undefined], 'bus: the instructions are taken once, and only once')
 
@@ -429,6 +442,17 @@ function libSuite(lib) {
   eq(lib.flowRebuildWakeInMs(null, 5), null, 'wake: nothing')
   eq(lib.flowRebuildWakeInMs(rb(), 1000), 750, 'wake: the stop grace'); eq(lib.flowRebuildWakeInMs(rb(), 1750), null, 'wake: at the deadline only a new input can change the answer'); eq(lib.flowRebuildWakeInMs(rb(), 2000), null, 'wake: past it, none (no timer spinning)')
   eq(lib.flowRebuildWakeInMs(waiting(), 2500), 7500, 'wake: the settled wait'); eq(lib.flowRebuildWakeInMs(sent(), 4000), 9000, 'wake: the hold')
+
+  // -- one line for a held build ------------------------------------------------------------------------------------------------------------------
+  const held = (over = {}) => lib.flowHeldLineSuppressed({ barVisible: true, active: true, phase: 'paused', ...over })
+  eq([held(), held({ phase: 'stopped' })], [true, true], 'held line: a paused or a stopped build with the bar drawn: the presence row leaves its words to the bar')
+  eq([held({ barVisible: false }), held({ barVisible: false, phase: 'stopped' })], [false, false], 'held line: no bar (the amend flag off, or nothing to say), no suppression')
+  eq([held({ active: false }), held({ active: false, phase: 'stopped' })], [false, false], 'held line: a narration that is not active holds nothing')
+  for (const phase of ['idle', 'planning', 'strawman', 'awaiting_user', 'building', 'qa', 'finalizing', 'complete', 'error', '', 'Paused', 'PAUSED', undefined, null]) {
+    eq(held({ phase }), false, `held line: "${phase}" is not a held phase (a pause or a resume still on its way: the build runs, the row's words are true)`)
+  }
+  eq([held({ barVisible: 1 }), held({ barVisible: 'true' }), held({ barVisible: undefined }), held({ active: 1 }), held({ active: 'yes' }), held({ active: undefined })], [false, false, false, false, false, false], 'held line: only a real true counts')
+  eq(Object.keys(lib.flowBus).sort(), ['amendBarVisible', 'focus', 'instructions', 'phase', 'programmatic'], 'bus: its fields')
 }
 const SOURCES_BY_LIB = new Map()
 const realLib = loadLib()
@@ -491,6 +515,70 @@ function barSuite(lib, barText = SOURCES[BAR]) {
 }
 barSuite(realLib)
 console.log(`PASS B  bar: markup, disabled states, clicks (${checks} checks)`)
+
+// ============================================================================================================================================
+// B2. The chat's presence row: one line for a held build
+// ============================================================================================================================================
+const HELD_WORDS = 'Paused — your progress is saved'
+const motionStub = { useReducedMotion: () => false, motion: { span: ({ animate, transition, style, initial, exit, ...rest }) => React.createElement('span', { ...rest, 'data-motion': 'true' }) } }
+const firstButton = html => (html.match(/<button[\s\S]*?<\/button>/) ?? [''])[0]
+// The real row (text) and the base's row (the same text with the marked lines taken out), drawn for every state with the bar drawn or not: only a held build with the bar drawn differs, and only as it must.
+function presenceSuite(lib, text = SOURCES[PRESENCE]) {
+  const load = (source, env) => evalModule(source, PRESENCE, { process: { env } }, {
+    react: React, 'react/jsx-runtime': require('react/jsx-runtime'), 'framer-motion': motionStub, 'lucide-react': lucide, './motion': { PRESENCE_SHUFFLE_S: 2 }, './studio-director-presence.css': {}, '@/lib/studio-flow-control': lib,
+  }).DirectorPresence
+  const Real = (env) => load(text, env), Base = (env) => load(strip.stripFlowControl(PRESENCE, text), env)
+  const draw = (Presence, props) => renderToStaticMarkup(React.createElement(Presence, props))
+  const events = count => Array.from({ length: count }, (_, i) => ({ id: `e${i}`, text: `Event ${i}` }))
+  const narration = (over = {}) => ({ active: true, phase: 'paused', phaseLabel: HELD_WORDS, deckEvents: events(3), ...over })
+  const { FlowAmendBar } = evalModule(SOURCES[BAR], BAR, {}, { react: React, 'react/jsx-runtime': require('react/jsx-runtime'), 'lucide-react': lucide, '@/lib/studio-flow-control': lib })
+  const barState = (over = {}) => lib.flowAmendState({ enabled: true, active: true, control: 'paused', rebuild: null, draft: '', instructionsEnabled: false, ...over })
+  const phases = ['planning', 'strawman', 'awaiting_user', 'building', 'qa', 'finalizing', 'complete', 'error', 'paused', 'stopped']
+  const statuses = [null, { status: 'thinking', text: 'Exact current status' }, { status: 'complete', text: 'Inactive current status' }]
+  try {
+    let heldDrawn = 0
+    for (const studio of [true, false]) {
+      const env = { NEXT_PUBLIC_STUDIO_V4_SHELL: studio ? 'true' : undefined }
+      const [Presence, Before] = [Real(env), Base(env)]
+      for (const bar of [false, true]) for (const active of [true, false]) for (const phase of phases) for (const count of [0, 3, 31]) for (const status of statuses) for (const loadingSession of [false, true]) {
+        lib.flowBus.amendBarVisible = bar
+        const props = { narration: narration({ active, phase, phaseLabel: phase === 'paused' || phase === 'stopped' ? HELD_WORDS : `Label of ${phase}`, deckEvents: events(count) }), currentStatus: status, loadingSession }
+        const html = draw(Presence, props), before = draw(Before, props)
+        const shown = active || status?.status === 'thinking'
+        const suppressed = bar && active && (phase === 'paused' || phase === 'stopped')
+        const label = `row: studio ${studio}, bar ${bar}, active ${active}, ${phase}, ${count} events, status ${status?.status ?? 'none'}, loading ${loadingSession}`
+        if (!shown || !suppressed) { eq(html, before, `${label}: exactly the base's row`); continue }
+        heldDrawn++
+        if (count === 0) { eq(html, '', `${label}: nothing is left of the row with no Build log to toggle`); continue }
+        ok(html.includes('data-testid="bn-presence"') && html.includes('Build log') && (html.match(/<button/g) ?? []).length === 1, `${label}: the row stays, with its Build log toggle alone`)
+        ok(!html.includes(HELD_WORDS) && !html.includes('Exact current status') && !html.includes('Working on it') && !html.includes('aria-live') && !html.includes('data-studio-director-status') && !html.includes('h-2.5 w-2.5') && !html.includes('data-motion'), `${label}: no words, no dot, no live region of its own`)
+        ok(html.includes('class="min-w-0 flex-1" aria-hidden="true"') && html.indexOf('class="min-w-0 flex-1" aria-hidden="true"') < html.indexOf('<button'), `${label}: a spacer keeps the toggle at the right`)
+        eq(firstButton(html), firstButton(before), `${label}: the toggle is the base's, byte for byte`)
+        ok(before.includes(HELD_WORDS) && before.includes('h-2.5 w-2.5'), `${label}: (the base's row had both)`)
+        ok(studio ? html.includes('data-studio-director-presence="true"') && html.includes('data-studio-director-log-toggle="true"') : !html.includes('data-studio-'), `${label}: the Studio hooks are the base's`)
+        eq(html.includes('hidden=""'), studio && loadingSession, `${label}: the loading state still hides the row`)
+      }
+    }
+    ok(heldDrawn > 0, 'row: the held cases were drawn')
+    // one line: the row's and the bar's markup together hold the bar's words and no other live line
+    lib.flowBus.amendBarVisible = true
+    const Studio = Real({ NEXT_PUBLIC_STUDIO_V4_SHELL: 'true' })
+    const together = draw(Studio, { narration: narration(), currentStatus: null }) + renderToStaticMarkup(React.createElement(FlowAmendBar, { state: barState(), onResume() {}, onRebuild() {} }))
+    ok(together.includes('Paused — type changes, then Resume or Rebuild.') && !together.includes(HELD_WORDS) && together.split('aria-live="polite"').length === 2 && together.includes('Build log'), 'one line: the bar says it, with the buttons; the row says nothing more about it and keeps its toggle')
+    // the chat's own job card stands in for the row (the flag that hides it): nothing changes, bar or not
+    for (const bar of [false, true]) {
+      lib.flowBus.amendBarVisible = bar
+      eq(draw(Real({ NEXT_PUBLIC_STUDIO_V4_SHELL: 'true', NEXT_PUBLIC_STUDIO_CHAT_CLEAN: 'true' }), { narration: narration(), currentStatus: null }), '', `row: the thread's job card stands in for it (bar ${bar})`)
+      ok(draw(Real({ NEXT_PUBLIC_STUDIO_CHAT_CLEAN: 'true' }), { narration: narration(), currentStatus: null }).includes('data-testid="bn-presence"'), `row: that flag hides the row in the Studio shell only (bar ${bar})`)
+    }
+    // while a pause or a resume is on its way the build still runs: the row keeps its words
+    lib.flowBus.amendBarVisible = true
+    const running = draw(Studio, { narration: narration({ phase: 'building', phaseLabel: 'Building your slides…' }), currentStatus: null })
+    ok(running.includes('Building your slides…') && running.includes('data-studio-director-status="true"'), 'row: a build that has not stopped yet keeps its line')
+  } finally { lib.flowBus.amendBarVisible = false }
+}
+presenceSuite(realLib)
+console.log(`PASS B2 presence row: one line for a held build, the base's row for every other state (${checks} checks)`)
 
 // ============================================================================================================================================
 // C. The real hook in the offline React host
@@ -701,11 +789,12 @@ async function focusHookSuite(make) {
   await w.run(frame('slide_built', { slide_index: 0 })); await w.advance(2000); eq(w.calls.go, [], 'build: a user who already navigated during this build is not yanked by its first slide')
   // flag off
   w = await make({ flags: {} })
-  eq([w.bus.focus, w.bus.phase, w.bus.programmatic, w.bus.instructions, w.listeners.length, w.pending()], [null, null, null, undefined, 0, 0], 'off: the bus is empty, no listener, no timer')
+  eq([w.bus.focus, w.bus.phase, w.bus.programmatic, w.bus.instructions, w.bus.amendBarVisible, w.listeners.length, w.pending()], [null, null, null, undefined, false, 0, 0], 'off: the bus is empty, no listener, no timer')
   w.latest().noteSlideChange(4); w.latest().resume(); w.latest().rebuild(); await w.advance(5000)
   eq([w.latest().amend.visible, w.calls.go, w.calls.control, w.calls.mark, w.calls.sent, w.calls.reveal, w.calls.stopAwait, w.pending()], [false, [], [], [], [], 0, 0, 0], 'off: nothing drawn, navigated, sent or timed even when called')
   w = await make({ flags: { [NARRATION]: 'true', [CONTROL]: 'true' }, props: { narration: paused(), awaitingReply: true, draft: 'text' } })
-  eq([w.latest().amend.visible, w.calls.stopAwait, w.bus.phase], [false, 0, null], 'off: a paused build with both flags set but the amend flag off is untouched')
+  eq([w.latest().amend.visible, w.calls.stopAwait, w.bus.phase, w.bus.amendBarVisible], [false, 0, null, false], 'off: a paused build with both flags set but the amend flag off is untouched')
+  w = await make({ flags: FOCUS_ONLY, props: { narration: paused() } }); eq(w.bus.amendBarVisible, false, 'off: the focus flag alone draws no bar')
 }
 
 async function amendHookSuite(make) {
@@ -715,17 +804,28 @@ async function amendHookSuite(make) {
   let w = await make({ flags: AMEND_ON, props: { narration: paused() } })
   ok(typeof w.bus.phase === 'function', 'amend: the bus carries the phase runner'); eq(w.bus.focus, null, 'amend: ...and not the focus runner (flag off)')
   eq([w.latest().amend.visible, w.latest().amend.key, w.latest().amend.canSend], [true, 'paused', true], 'amend: paused: the line, and the composer may send')
+  eq(w.bus.amendBarVisible, true, 'amend: paused: the bus says the bar is drawn (the presence row leaves its line to it)')
   eq(w.calls.stopAwait, 0, 'amend: nothing to unlock')
   ok(w.latest().bar && w.latest().bar.props.state === w.latest().amend && w.latest().bar.props.onResume === w.latest().resume && w.latest().bar.props.onRebuild === w.latest().rebuild, 'amend: the bar is the bar, handed the state, Resume and Rebuild (in that order)')
   await w.phase({ build_id: 'b1', phase: 'paused' }); eq(w.latest().amend.key, 'paused', 'amend: the ack of the pause itself is not a queued change')
   await w.set({ awaitingReply: true }); ok(w.calls.stopAwait >= 1, 'amend: paused with the reply gate shut: the gate is released (as Esc does)')
-  w = await make({ flags: AMEND_ON, props: { narration: building(), awaitingReply: true } }); eq(w.calls.stopAwait, 0, 'amend: a running build keeps its reply gate')
-  w = await make({ flags: AMEND_ON, props: { narration: paused({ control: 'pause_requested' }), awaitingReply: true } }); eq([w.latest().amend.key, w.calls.stopAwait], ['pause_requested', 0], 'amend: a pause in flight keeps its gate too')
+  w = await make({ flags: AMEND_ON, props: { narration: building(), awaitingReply: true } }); eq([w.calls.stopAwait, w.bus.amendBarVisible], [0, false], 'amend: a running build keeps its reply gate, and no bar is drawn')
+  w = await make({ flags: AMEND_ON, props: { narration: paused({ control: 'pause_requested' }), awaitingReply: true } }); eq([w.latest().amend.key, w.calls.stopAwait, w.bus.amendBarVisible], ['pause_requested', 0, true], 'amend: a pause in flight keeps its gate too (its line is drawn)')
   w = await make({ flags: AMEND_ON, props: { narration: paused({ control: 'stopped', phase: 'stopped' }), awaitingReply: true } }); eq([w.latest().amend.key], ['stopped']); ok(w.calls.stopAwait >= 1, 'amend: stopped: released')
   // templates and other builds the narration does not run
-  w = await make({ flags: AMEND_ON, props: { narration: paused(), narrationEnabled: false, awaitingReply: true } }); eq([w.latest().amend.visible, w.calls.stopAwait], [false, 0], 'amend: narration off for this build (template reuse): untouched')
-  w = await make({ flags: { [FLAG_AMEND]: 'true', [NARRATION]: 'true' }, props: { narration: paused() } }); eq([w.latest().amend.visible, w.bus.phase], [false, null], 'amend: without the build control flag: off')
-  w = await make({ flags: AMEND_ON, props: { narration: { active: false, buildId: null, control: 'running', phase: 'idle' } } }); eq(w.latest().amend.visible, false, 'amend: no build, no bar')
+  w = await make({ flags: AMEND_ON, props: { narration: paused(), narrationEnabled: false, awaitingReply: true } }); eq([w.latest().amend.visible, w.calls.stopAwait, w.bus.amendBarVisible], [false, 0, false], 'amend: narration off for this build (template reuse): untouched')
+  w = await make({ flags: { [FLAG_AMEND]: 'true', [NARRATION]: 'true' }, props: { narration: paused() } }); eq([w.latest().amend.visible, w.bus.phase, w.bus.amendBarVisible], [false, null, false], 'amend: without the build control flag: off')
+  w = await make({ flags: AMEND_ON, props: { narration: { active: false, buildId: null, control: 'running', phase: 'idle' } } }); eq([w.latest().amend.visible, w.bus.amendBarVisible], [false, false], 'amend: no build, no bar')
+  // the bus follows the bar through a build, and goes with the page
+  w = await make({ flags: AMEND_ON, props: { narration: building() } }); eq(w.bus.amendBarVisible, false, 'bus: a running build: no bar')
+  const barOnBus = async (label, patch, want) => { await w.set(patch); eq([w.bus.amendBarVisible, w.latest().amend.visible], [want, want], `bus: ${label}`) }
+  await barOnBus('paused: drawn', { narration: paused() }, true)
+  await barOnBus('resume requested: its line is drawn', { narration: paused({ control: 'resume_requested' }) }, true)
+  await barOnBus('running again: gone', { narration: building() }, false)
+  await barOnBus('stopped: drawn', { narration: paused({ control: 'stopped', phase: 'stopped' }) }, true)
+  await barOnBus('the build is over: gone', { narration: { active: false, buildId: 'b1', control: 'running', phase: 'complete' } }, false)
+  await barOnBus('another build, paused: drawn again', { narration: paused({ buildId: 'b2' }) }, true)
+  w.unmount(); eq(w.bus.amendBarVisible, false, 'bus: the bar is not drawn once the page is gone')
   // resume
   w = await make({ flags: AMEND_ON, props: { narration: paused(), draft: ' Shorter titles ' } })
   w.latest().resume(); eq(w.calls.control, [['resume', 'b1']], 'resume: instructions flag off: a plain resume, whatever is typed'); eq(w.calls.mark, [['resume_requested', 'b1', 'req-1']], 'resume: the narration is told'); eq(w.calls.drafts, [], 'resume: the box is left alone')
@@ -917,6 +1017,20 @@ function sourceSuite(sources, { git = true } = {}) {
   ok(walk.indexOf(walkTap) > walk.indexOf('const command = (index: number, navigateFn: (i: number) => void) => {') && walk.indexOf(walkTap) < walk.indexOf('    navigateFn(index)\n'), 'walkthrough: ...inside command(), before the viewer is asked to move (the viewer reports inside that call)')
   eq(lines(walk).filter(line => line.includes('FLOW-CONTROL')).length, 2, 'walkthrough: two marked lines, the import and the announcement')
   ok(!walk.includes('flowBus.focus') && !walk.includes('flowBus.phase') && !walk.includes('useStudioFlowControl'), 'walkthrough: it knows the bus\'s page-turn runner and nothing else of the flow')
+  // the chat's presence row: while the bar is drawn and the build is held it drops its dot and its words (one line, the bar's) and keeps its Build log toggle
+  const presence = sources[PRESENCE]
+  const presenceImport = lineOf(presence, "import { flowBus, flowHeldLineSuppressed } from '@/lib/studio-flow-control' // FLOW-CONTROL")
+  ok(presence.indexOf(presenceImport) > presence.indexOf("import './studio-director-presence.css'"), 'presence: the import comes after the others')
+  const heldLine = lineOf(presence, 'const flowHeld = flowHeldLineSuppressed({')
+  ok(heldLine.includes('barVisible: flowBus.amendBarVisible') && heldLine.includes('active: narration.active') && heldLine.includes('phase: narration.phase') && heldLine.includes('}) // FLOW-CONTROL'), 'presence: the decision is the lib\'s, handed the bus, whether the narration is active and its phase')
+  ok(presence.indexOf(heldLine) > presence.indexOf('if (!visible) return null') && presence.indexOf(heldLine) > presence.indexOf("process.env.NEXT_PUBLIC_STUDIO_CHAT_CLEAN === 'true') return null") && presence.indexOf(heldLine) < presence.indexOf('const line ='), 'presence: decided after the row\'s own visibility and the thread\'s stand-in returns, before the line')
+  const earlyReturn = lineOf(presence, 'if (flowHeld && narration.deckEvents.length === 0) return null // FLOW-CONTROL')
+  ok(presence.indexOf(earlyReturn) === presence.indexOf(heldLine) + heldLine.length + 1, 'presence: with no Build log the row is not drawn (the line right after the decision)')
+  const wrapOpen = lineOf(presence, '{flowHeld ? <span className="min-w-0 flex-1" aria-hidden /> : <>{/* FLOW-CONTROL */}'), wrapClose = lineOf(presence, '</>}{/* FLOW-CONTROL */}')
+  ok(presence.indexOf(wrapOpen) < presence.indexOf('<DeckShuffle') && presence.indexOf('{line}') < presence.indexOf(wrapClose) && presence.indexOf(wrapClose) < presence.indexOf('{narration.deckEvents.length > 0 && ('), 'presence: the dot and the words are wrapped, the Build log toggle is not')
+  ok(presence.indexOf(wrapOpen) > presence.indexOf('<div className="flex items-center gap-2.5">') && presence.indexOf(wrapClose) > presence.indexOf(wrapOpen), 'presence: the wrap is the first thing in the row')
+  eq(lines(presence).filter(line => strip.FLOW_CONTROL_MARKER_RE.test(line)).length, 5, 'presence: five marked lines (the import, the decision, its early return, the wrap)')
+  ok(!presence.includes('flowBus.phase') && !presence.includes('flowBus.focus') && !presence.includes('useStudioFlowControl') && !/import[^\n]*flow-amend-bar/.test(presence), 'presence: it reads the bus\'s one field and the lib\'s one decision, nothing else of the flow')
   // types
   ok(/steer_pending\?: boolean \| null; \/\/ FLOW-CONTROL/.test(types) && /applied_to\?: number\[\] \| null; \/\/ FLOW-CONTROL/.test(types) && /instructions\?: string; \/\/ FLOW-CONTROL/.test(types), 'types: the three optional fields')
   // env
@@ -928,13 +1042,18 @@ function sourceSuite(sources, { git = true } = {}) {
 const baseOk = (() => { try { execFileSync('git', ['-C', root, 'cat-file', '-e', `${strip.BASE_COMMIT}^{commit}`], { stdio: 'ignore' }); return true } catch { return false } })()
 const git = (...args) => execFileSync('git', ['-C', root, ...args], { encoding: 'utf8', maxBuffer: 1 << 28 })
 const TAUGHT = strip.FLOW_CONTROL_PIN_FILES
-const baseSources = baseOk ? Object.fromEntries([...strip.FLOW_CONTROL_FILES, ...TAUGHT].map(rel => [rel, git('show', `${strip.BASE_COMMIT}:${rel}`)])) : null
+const baseSources = baseOk ? Object.fromEntries([...strip.FLOW_CONTROL_ORIGINAL_FILES, ...TAUGHT].map(rel => [rel, git('show', `${strip.BASE_COMMIT}:${rel}`)])) : null
+// The follow-up's files are read against the studio head it was cut from (which already holds the change); identityBase is every marked file's base, whichever step it belongs to.
+const followUpBaseSources = followUpOk ? Object.fromEntries(strip.FLOW_CONTROL_FOLLOW_UP_FILES.map(rel => [rel, git('show', `${strip.FOLLOW_UP_BASE_COMMIT}:${rel}`)])) : null
+const identityBase = baseSources && followUpBaseSources ? { ...baseSources, ...followUpBaseSources } : null
 sourceSuite({ ...SOURCES, __base: baseSources })
 if (baseOk) {
-  for (const rel of strip.FLOW_CONTROL_FILES) {
+  ok(strip.FLOW_CONTROL_ORIGINAL_FILES.length === 4 && strip.FLOW_CONTROL_FOLLOW_UP_FILES.length === 1 && strip.FLOW_CONTROL_FILES.length === 5, 'strip: four files as the change shipped, one more from the follow-up')
+  ok(strip.FLOW_CONTROL_FOLLOW_UP_FILES.every(rel => !strip.FLOW_CONTROL_ORIGINAL_FILES.includes(rel)), 'strip: the two steps share no file')
+  for (const rel of strip.FLOW_CONTROL_ORIGINAL_FILES) {
     ok(strip.stripFlowControl(rel, SOURCES[rel]) === baseSources[rel], `${rel}: without this change's lines it is the base's file, byte for byte`)
     ok(SOURCES[rel] !== baseSources[rel], `${rel}: it is changed`)
-    const diff = git('diff', '--unified=0', strip.BASE_COMMIT, OWN, '--', rel).split('\n')
+    const diff = git('diff', '--unified=0', strip.BASE_COMMIT, ORIGINAL, '--', rel).split('\n')
     const added = diff.filter(line => line.startsWith('+') && !line.startsWith('+++')), removed = diff.filter(line => line.startsWith('-') && !line.startsWith('---'))
     ok(added.every(line => strip.FLOW_CONTROL_MARKER_RE.test(line)), `${rel}: every added line carries the marker (${added.filter(line => !strip.FLOW_CONTROL_MARKER_RE.test(line)).length} do not)`)
     eq(removed, [], `${rel}: no existing line is rewritten or removed (pure insertions, so a later or earlier stacked change cannot be broken by this one)`)
@@ -942,7 +1061,7 @@ if (baseOk) {
   // the older proofs taught to read through the registry: with the taught lines put back they are the base's files, byte for byte; each is one whole marked line for one whole line
   eq(TAUGHT, ['scripts/test-studio-speed-perceived.mjs'], 'taught: one older proof')
   for (const rel of TAUGHT) {
-    const head = readOwn(rel), base = baseSources[rel]
+    const head = readOriginal(rel), base = baseSources[rel]
     ok(strip.stripFlowControl(rel, head) === base, `${rel}: with the taught lines put back it is the base's file, byte for byte`)
     for (const [has, was] of strip.FLOW_CONTROL_EDITS[rel]) {
       eq(head.split(has).length - 1, 1, `${rel}: a taught line is there once`)
@@ -952,19 +1071,36 @@ if (baseOk) {
     const [firstHas] = strip.FLOW_CONTROL_EDITS[rel][0]
     ok(strip.stripFlowControl(rel, head.replace(firstHas, () => `${firstHas}const unmarked = 1\n`)) !== base, `${rel}: an unmarked line added next to a taught one is not put back`)
     ok(strip.stripFlowControl(rel, head.replace('registry read (FLOW-CONTROL)', () => 'registry read')) !== base, `${rel}: a taught line that loses its mark is not put back`)
-    const diff = git('diff', '--unified=0', strip.BASE_COMMIT, OWN, '--', rel).split('\n').filter(line => /^[-+]/.test(line) && !/^(---|\+\+\+)/.test(line))
+    const diff = git('diff', '--unified=0', strip.BASE_COMMIT, ORIGINAL, '--', rel).split('\n').filter(line => /^[-+]/.test(line) && !/^(---|\+\+\+)/.test(line))
     eq([diff.filter(line => line.startsWith('+')).length, diff.filter(line => line.startsWith('-')).length], [strip.FLOW_CONTROL_EDITS[rel].length, strip.FLOW_CONTROL_EDITS[rel].length], `${rel}: only the taught lines changed`)
   }
-  const envDiff = git('diff', '--unified=0', strip.BASE_COMMIT, OWN, '--', '.env.example').split('\n').filter(line => /^[-+]/.test(line) && !/^(---|\+\+\+)/.test(line))
+  const envDiff = git('diff', '--unified=0', strip.BASE_COMMIT, ORIGINAL, '--', '.env.example').split('\n').filter(line => /^[-+]/.test(line) && !/^(---|\+\+\+)/.test(line))
   ok(envDiff.length > 0 && envDiff.every(line => line.startsWith('+')), '.env.example: only lines added')
   eq(envDiff.map(line => line.slice(1)).join('\n') + '\n', '\n' + strip.FLOW_CONTROL_ENV_BLOCK, '.env.example: exactly the block, after one blank line')
   // The committed diff only: other suites write into docs/ and scripts/ while they run, so the working tree and untracked files are never read for scope.
-  const changed = git('diff', '--name-only', `${strip.BASE_COMMIT}..${OWN}`).split('\n').filter(Boolean)
+  const changed = git('diff', '--name-only', `${strip.BASE_COMMIT}..${ORIGINAL}`).split('\n').filter(Boolean)
   const strays = changed.filter(rel => !strip.FLOW_CONTROL_SCOPE_FILES.has(rel))
   eq(strays, [], 'scope: every file of the committed diff is this change\'s')
   for (const rel of strip.FLOW_CONTROL_NEW_FILES) ok(fs.existsSync(path.join(root, rel)), `scope: ${rel} exists`)
   ok(strip.FLOW_CONTROL_FILES.every(rel => !strip.FLOW_CONTROL_NEW_FILES.includes(rel)), 'scope: marked and new files are different lists')
 } else console.log(`NOTE D  git has no ${strip.BASE_COMMIT.slice(0, 8)}: the base-identity and scope checks were skipped`)
+// The held-state follow-up, against the studio head it was cut from: its marked file is that head's file once the marked lines are out, they are pure insertions, and its commit touches this change's files only.
+if (followUpOk && OWN && OWN !== ORIGINAL) {
+  for (const rel of strip.FLOW_CONTROL_FOLLOW_UP_FILES) {
+    const base = followUpBaseSources[rel]
+    ok(strip.stripFlowControl(rel, SOURCES[rel]) === base, `${rel}: without this change's lines it is the follow-up base's file, byte for byte`)
+    ok(SOURCES[rel] !== base, `${rel}: it is changed`)
+    eq(strip.stripFlowControl(rel, readOwn(rel)), base, `${rel}: ...and so is the committed file`)
+    const diff = git('diff', '--unified=0', strip.FOLLOW_UP_BASE_COMMIT, OWN, '--', rel).split('\n')
+    const added = diff.filter(line => line.startsWith('+') && !line.startsWith('+++')), removed = diff.filter(line => line.startsWith('-') && !line.startsWith('---'))
+    ok(added.every(line => strip.FLOW_CONTROL_MARKER_RE.test(line)), `${rel}: every added line carries the marker (${added.filter(line => !strip.FLOW_CONTROL_MARKER_RE.test(line)).length} do not)`)
+    eq([added.length, removed], [5, []], `${rel}: five lines added, none rewritten or removed (pure insertions)`)
+  }
+  const followUpChanged = git('diff', '--name-only', `${strip.FOLLOW_UP_BASE_COMMIT}..${OWN}`).split('\n').filter(Boolean)
+  eq(followUpChanged.filter(rel => !strip.FLOW_CONTROL_SCOPE_FILES.has(rel)), [], 'scope: every file of the follow-up commit is this change\'s')
+  ok(followUpChanged.includes('components/build-narration/director-presence.tsx') && followUpChanged.includes(LIB) && followUpChanged.includes(HOOK), 'scope: the follow-up touches the presence row, the lib and the hook')
+  ok(git('log', '-1', '--format=%s', OWN).startsWith('Flow control'), 'scope: the commit is named "Flow control ..." (this proof reads the newest one)')
+} else console.log(`NOTE D  git has no ${strip.FOLLOW_UP_BASE_COMMIT.slice(0, 8)} or no follow-up commit yet: the follow-up's identity and scope checks were skipped`)
 const registry = await import('./studio-later-changes.mjs')
 ok(registry.LATER_STRIPS.includes(strip.stripFlowControl), 'registry: the strip is named'); ok(registry.LATER_ENV_BLOCKS.includes(strip.FLOW_CONTROL_ENV_BLOCK), 'registry: the block is named')
 ok([...strip.FLOW_CONTROL_SCOPE_FILES].every(rel => registry.LATER_CHANGE_FILES.has(rel)), 'registry: every file is named')
@@ -1111,7 +1247,17 @@ const libMutants = [
   ['only the narration\'s last page turn is remembered', 'export const FLOW_FOCUS_COMMANDED_MAX = 4', 'export const FLOW_FOCUS_COMMANDED_MAX = 1'],
   ['all the narration\'s page turns are remembered', '.slice(-FLOW_FOCUS_COMMANDED_MAX)', ''],
   ['a page turn of the narration is not noted', 'return { ...state, commanded: [...live, { index, until: now + FLOW_FOCUS_COMMANDED_MS }]', 'return { ...state, commanded: [...live]'],
-  ['the page-turn runner is on the bus at rest', 'instructions: undefined, programmatic: null }', 'instructions: undefined, programmatic: () => {} }'],
+  ['the page-turn runner is on the bus at rest', 'instructions: undefined, programmatic: null, amendBarVisible: false }', 'instructions: undefined, programmatic: () => {}, amendBarVisible: false }'],
+  // one line for a held build
+  ['the bar is drawn at rest', 'programmatic: null, amendBarVisible: false }', 'programmatic: null, amendBarVisible: true }'],
+  ['a held build with no bar is suppressed', 'return input.barVisible === true && input.active === true &&', 'return input.active === true &&'],
+  ['a bar with no build is suppressed', 'input.barVisible === true && input.active === true &&', 'input.barVisible === true &&'],
+  ['a running build is suppressed', "(input.phase === 'paused' || input.phase === 'stopped')", 'true'],
+  ['a build with a pause on its way is suppressed', "(input.phase === 'paused' || input.phase === 'stopped')", "(input.phase === 'paused' || input.phase === 'stopped' || input.phase === 'building')"],
+  ['a stopped build is not suppressed', "input.phase === 'paused' || input.phase === 'stopped'", "input.phase === 'paused'"],
+  ['a paused build is not suppressed', "input.phase === 'paused' || input.phase === 'stopped'", "input.phase === 'stopped'"],
+  ['a truthy bar counts', 'input.barVisible === true', 'input.barVisible'],
+  ['a truthy active counts', 'input.active === true', 'input.active'],
   ['the new fields are not in the initial state', '    buildDeck: null,\n    commanded: [],\n', ''],
 ]
 const barMutants = [
@@ -1197,6 +1343,11 @@ const hookMutants = [
   ['the bar is drawn with the amend flag off', 'const bar = STUDIO_FLOW_AMEND_ENABLED ? createElement(', 'const bar = true ? createElement('],
   ['the bar is wired to the wrong handlers', 'onResume: resume, onRebuild: rebuild', 'onResume: rebuild, onRebuild: resume'],
   ['the idle bar is returned for the flags on', 'if (!STUDIO_FLOW_FOCUS_ENABLED && !amendOn) return IDLE', 'if (false) return IDLE'],
+  ['the bar is never said to be drawn', 'flowBus.amendBarVisible = amend.visible\n', 'flowBus.amendBarVisible = false\n'],
+  ['the bar is always said to be drawn', 'flowBus.amendBarVisible = amend.visible\n', 'flowBus.amendBarVisible = true\n'],
+  ['the bar is said to be drawn with the flag on, drawn or not', 'flowBus.amendBarVisible = amend.visible\n', 'flowBus.amendBarVisible = amendOn\n'],
+  ['the bar is said to be drawn when it is not', 'flowBus.amendBarVisible = amend.visible\n', 'flowBus.amendBarVisible = !amend.visible\n'],
+  ['the bar stays on the bus after the page', '  useEffect(() => () => { flowBus.amendBarVisible = false }, [])\n', ''],
   ['the idle bar is not idle', 'resume: () => {},', 'resume: () => { throw new Error("idle resume") },'],
 ]
 const walkTapLine = lines(SOURCES[WALK]).find(line => line.includes('flowBus.programmatic?.(index)')) ?? ''
@@ -1226,11 +1377,37 @@ const sourceMutants = [
   ['ws: instructions in the HTTP body only', '      ...(instructions ? { instructions } : {}), // FLOW-CONTROL\n      request_id: requestId,', '      request_id: requestId,', WS],
   ['ws: instructions always sent', '            ...(instructions ? { instructions } : {}), // FLOW-CONTROL', '            instructions, // FLOW-CONTROL', WS],
   ['ws: sendBuildControl\'s signature is rewritten', "const sendBuildControl = useCallback((action: BuildControlData['action'], buildId?: string): string | null => {", "const sendBuildControl = useCallback((action: BuildControlData['action'], buildId?: string, extra?: string): string | null => {", WS],
+  ['presence: the import has no marker', "from '@/lib/studio-flow-control' // FLOW-CONTROL (NEXT_PUBLIC_STUDIO_FLOW_AMEND, default off)", "from '@/lib/studio-flow-control' // (NEXT_PUBLIC_STUDIO_FLOW_AMEND, default off)", PRESENCE],
+  ['presence: the decision has no marker', '}) // FLOW-CONTROL (NEXT_PUBLIC_STUDIO_FLOW_AMEND, default off): a held build', '}) // (NEXT_PUBLIC_STUDIO_FLOW_AMEND, default off): a held build', PRESENCE],
+  ['presence: the early return has no marker', 'return null // FLOW-CONTROL: with no Build log', 'return null // with no Build log', PRESENCE],
+  ['presence: the wrap\'s start has no marker', '<>{/* FLOW-CONTROL */}\n', '<>\n', PRESENCE],
+  ['presence: the wrap\'s end has no marker', '</>}{/* FLOW-CONTROL */}', '</>}', PRESENCE],
+  ['presence: an existing line is rewritten', 'max-h-36 space-y-1', 'max-h-40 space-y-1', PRESENCE],
+  ['presence: an existing line is removed', 'const reduced = useReducedMotion()\n', '', PRESENCE],
+  ['presence: it reads another field of the bus', 'barVisible: flowBus.amendBarVisible', 'barVisible: flowBus.phase !== null', PRESENCE],
+  ['presence: the toggle is wrapped with the words', '{narration.deckEvents.length > 0 && (', '{narration.deckEvents.length > 0 && !flowHeld && (', PRESENCE],
   ['types: the instructions field is gone', 'instructions?: string; // FLOW-CONTROL', '', TYPES],
   ['env: the flag is on', 'NEXT_PUBLIC_STUDIO_FLOW_FOCUS="false"', 'NEXT_PUBLIC_STUDIO_FLOW_FOCUS="true"', '.env.example'],
   ['env: the phrase', '# STUDIO FLOW AMEND (FRONTEND-1; P3-1 D). On only for the string "true"', '# STUDIO FLOW AMEND (FRONTEND-1; P3-1 D). On only for the exact "true" enables it', '.env.example'],
 ]
-const COMPILED_LABELS = { lib: LIB, bar: BAR, hook: HOOK }
+const presenceMutants = [
+  ['the row ignores the bar', 'barVisible: flowBus.amendBarVisible', 'barVisible: false'],
+  ['the row always thinks the bar is drawn', 'barVisible: flowBus.amendBarVisible', 'barVisible: true'],
+  ['the row ignores whether the narration is active', 'active: narration.active, phase: narration.phase', 'active: true, phase: narration.phase'],
+  ['the row ignores the phase', 'phase: narration.phase })', "phase: 'paused' })"],
+  ['the row reads the wrong phase', 'phase: narration.phase })', "phase: narration.control })"],
+  ['the row is drawn with no Build log to toggle', 'if (flowHeld && narration.deckEvents.length === 0) return null // FLOW-CONTROL', '// FLOW-CONTROL'],
+  ['the row goes whenever a held build has the bar', 'if (flowHeld && narration.deckEvents.length === 0) return null', 'if (flowHeld) return null'],
+  ['the row goes for every build with the bar', 'if (flowHeld && narration.deckEvents.length === 0) return null', 'if (flowHeld || narration.deckEvents.length === 0) return null'],
+  ['the dot and the words stay', '{flowHeld ? <span className="min-w-0 flex-1" aria-hidden /> : <>{/* FLOW-CONTROL */}', '{false ? <span className="min-w-0 flex-1" aria-hidden /> : <>{/* FLOW-CONTROL */}'],
+  ['the dot and the words go for every state', '{flowHeld ? <span className="min-w-0 flex-1" aria-hidden /> : <>{/* FLOW-CONTROL */}', '{true ? <span className="min-w-0 flex-1" aria-hidden /> : <>{/* FLOW-CONTROL */}'],
+  ['the toggle has no spacer', '{flowHeld ? <span className="min-w-0 flex-1" aria-hidden /> : <>', '{flowHeld ? null : <>'],
+  ['the spacer does not take the free room', '<span className="min-w-0 flex-1" aria-hidden />', '<span className="min-w-0" aria-hidden />'],
+  ['the spacer is read aloud', '<span className="min-w-0 flex-1" aria-hidden />', '<span className="min-w-0 flex-1" />'],
+  ['the words are drawn after all', '{flowHeld ? <span className="min-w-0 flex-1" aria-hidden /> :', '{flowHeld ? <span className="min-w-0 flex-1" aria-hidden>{line}</span> :'],
+  ['the row is decided from the bar\'s own flag, not the bus', 'barVisible: flowBus.amendBarVisible', "barVisible: process.env.NEXT_PUBLIC_STUDIO_FLOW_AMEND === 'true'"],
+]
+const COMPILED_LABELS = { lib: LIB, bar: BAR, hook: HOOK, presence: PRESENCE }
 function mutate(text, [name, from, to], label) {
   const at = text.indexOf(from)
   ok(at >= 0, `mutant "${name}" no longer matches the ${label} source`)
@@ -1277,35 +1454,42 @@ for (const mutant of walkMutants) {
   const text = mutate(SOURCES[WALK], mutant, WALK)
   await caughtAsync(`walk: ${mutant[0]}`, () => focusHookSuite(worldMaker({ walkText: text })))
 }
+for (const mutant of presenceMutants) {
+  mutantCount++
+  const text = mutate(SOURCES[PRESENCE], mutant, 'presence')
+  await caughtAsync(`presence: ${mutant[0]}`, () => presenceSuite(realLib, text))
+}
 for (const [name, from, to, rel] of sourceMutants) {
   mutantCount++
   const broken = mutate(SOURCES[rel], [name, from, to], rel)
   await caughtAsync(`source: ${name}`, () => {
     sourceSuite({ ...SOURCES, __base: baseSources, [rel]: broken })
-    if (baseOk && strip.FLOW_CONTROL_FILES.includes(rel)) ok(strip.stripFlowControl(rel, broken) === baseSources[rel], 'without its marked lines the file is still the base\'s')
+    if (identityBase && strip.FLOW_CONTROL_FILES.includes(rel)) ok(strip.stripFlowControl(rel, broken) === identityBase[rel], 'without its marked lines the file is still the base\'s')
   })
 }
 // the strip module itself
 const stripText = fs.readFileSync(path.join(root, 'scripts/studio-flow-control-strip.mjs'), 'utf8')
 const loadStrip = text => evalModule(text, 'studio-flow-control-strip.ts', {}, {})
-if (baseOk) {
+if (identityBase) {
   const stripMutants = [
     ['the marker matches inside a word', "/(?<![\\w-])FLOW-CONTROL(?![\\w-])/", '/FLOW-CONTROL/'],
     ['only the first marked line goes', '.filter(line => !FLOW_CONTROL_MARKER_RE.test(line))', ".filter((line, at, all) => !FLOW_CONTROL_MARKER_RE.test(line) || all.findIndex(l => FLOW_CONTROL_MARKER_RE.test(l)) !== at)"],
     ['another file is stripped too', "if (!FLOW_CONTROL_FILES.includes(rel)) return text", 'if (false) return text'],
     ['a taught line is not put back', 'return (FLOW_CONTROL_EDITS[rel] || []).reduce((out, [has, was]) => out.replace(has, () => was), text)', 'return text'],
+    ['the follow-up\'s file is not stripped', "export const FLOW_CONTROL_FOLLOW_UP_FILES = ['components/build-narration/director-presence.tsx']", 'export const FLOW_CONTROL_FOLLOW_UP_FILES = []'],
+    ['the change\'s own files are not stripped', "export const FLOW_CONTROL_FILES = [...FLOW_CONTROL_ORIGINAL_FILES, ...FLOW_CONTROL_FOLLOW_UP_FILES]", 'export const FLOW_CONTROL_FILES = [...FLOW_CONTROL_FOLLOW_UP_FILES]'],
   ]
   for (const mutant of stripMutants) {
     mutantCount++; stripMutantCount++
     const mod = loadStrip(mutate(stripText, mutant, 'strip'))
     const unchangedOther = mod.stripFlowControl('lib/other.ts', 'x // FLOW-CONTROL\n') === 'x // FLOW-CONTROL\n'
     const wholeToken = mod.stripFlowControl(PAGE, 'b // FLOW-CONTROL-X\n') === 'b // FLOW-CONTROL-X\n'
-    const baseIdentity = strip.FLOW_CONTROL_FILES.every(rel => mod.stripFlowControl(rel, SOURCES[rel]) === baseSources[rel]) && TAUGHT.every(rel => mod.stripFlowControl(rel, readOwn(rel)) === baseSources[rel])
+    const baseIdentity = strip.FLOW_CONTROL_FILES.every(rel => mod.stripFlowControl(rel, SOURCES[rel]) === identityBase[rel]) && TAUGHT.every(rel => mod.stripFlowControl(rel, readOriginal(rel)) === baseSources[rel])
     if (unchangedOther && wholeToken && baseIdentity) survivors.push(`strip: ${mutant[0]}`)
   }
 }
 eq(survivors, [], `every mutant is caught (survivors: ${survivors.join('; ') || 'none'})`)
-console.log(`PASS E  ${mutantCount} mutants (lib ${libMutants.length}, bar ${barMutants.length}, hook ${hookMutants.length}, walkthrough ${walkMutants.length}, sources ${sourceMutants.length}, strip ${stripMutantCount}), every one caught${crashes.length ? ` (${crashes.length} by a thrown error rather than a failed check)` : ''}`)
+console.log(`PASS E  ${mutantCount} mutants (lib ${libMutants.length}, bar ${barMutants.length}, hook ${hookMutants.length}, presence ${presenceMutants.length}, walkthrough ${walkMutants.length}, sources ${sourceMutants.length}, strip ${stripMutantCount}), every one caught${crashes.length ? ` (${crashes.length} by a thrown error rather than a failed check)` : ''}`)
 if (process.env.FLOW_TEST_VERBOSE) for (const crash of crashes) console.log(`  threw: ${crash}`)
 release()
 console.log(`OK studio flow control: ${afterMutants} checks`)

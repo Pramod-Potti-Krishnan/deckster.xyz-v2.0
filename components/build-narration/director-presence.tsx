@@ -6,6 +6,7 @@ import { ChevronDown, ChevronUp } from 'lucide-react'
 import type { NarrationState } from '@/lib/build-narration-heuristics'
 import { PRESENCE_SHUFFLE_S } from './motion'
 import './studio-director-presence.css'
+import { flowBus, flowHeldLineSuppressed } from '@/lib/studio-flow-control' // FLOW-CONTROL (NEXT_PUBLIC_STUDIO_FLOW_AMEND, default off)
 
 export interface DirectorPresenceProps {
   narration: NarrationState
@@ -30,6 +31,8 @@ export function DirectorPresence({ narration, currentStatus, className, loadingS
   const visible = narration.active || statusActive
   if (!visible) return null
   if (studioShell && process.env.NEXT_PUBLIC_STUDIO_CHAT_CLEAN === 'true') return null // CHAT-CLEAN: the inline job card in the thread stands in for this row
+  const flowHeld = flowHeldLineSuppressed({ barVisible: flowBus.amendBarVisible, active: narration.active, phase: narration.phase }) // FLOW-CONTROL (NEXT_PUBLIC_STUDIO_FLOW_AMEND, default off): a held build, and the amend bar under this row says so (with its buttons): one line, the bar's. This row drops its dot and its words and keeps its Build log toggle
+  if (flowHeld && narration.deckEvents.length === 0) return null // FLOW-CONTROL: with no Build log to toggle, nothing of this row is left
 
   const line =
     (narration.active && narration.phaseLabel) ||
@@ -49,11 +52,13 @@ export function DirectorPresence({ narration, currentStatus, className, loadingS
       data-studio-director-presence={studioShell ? "true" : undefined}
     >
       <div className="flex items-center gap-2.5">
+        {flowHeld ? <span className="min-w-0 flex-1" aria-hidden /> : <>{/* FLOW-CONTROL */}
         <DeckShuffle reduced={!!reduced} paused={narration.phase === 'paused' || narration.phase === 'stopped'
           || (studioShell && narration.active && ['awaiting_user', 'error', 'complete'].includes(narration.phase))} />
         <span data-studio-director-status={studioShell ? "true" : undefined} tabIndex={studioShell ? 0 : undefined} role={studioShell ? "region" : undefined} aria-label={studioShell ? "Current Director status" : undefined} className="min-w-0 flex-1 truncate text-xs text-muted-foreground" aria-live="polite">
           {line}
         </span>
+        </>}{/* FLOW-CONTROL */}
         {narration.deckEvents.length > 0 && (
           <button
             type="button"

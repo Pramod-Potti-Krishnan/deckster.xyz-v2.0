@@ -10,6 +10,7 @@
 //     The narration's own page turns (flowBus.programmatic) and the follow's own goToSlide are told apart from the user's navigation.
 //   NEXT_PUBLIC_STUDIO_FLOW_AMEND: while a build is paused or stopped the composer can send, a calm line says so, and Resume / Rebuild
 //     are offered. Rebuild = stop, wait for Director's `settled` (or 8 s), then send the draft as an ordinary message.
+//     While the bar is drawn the chat's presence row drops its own held-build line (flowBus.amendBarVisible): one line, the bar's, because it carries the buttons.
 import { createElement, useCallback, useEffect, useRef, useState } from 'react'
 import type { ReactElement } from 'react'
 import { FlowAmendBar } from '@/components/build-narration/flow-amend-bar'
@@ -177,6 +178,9 @@ export function useStudioFlowControl(input: StudioFlowControlInput): StudioFlowC
     enabled: amendOn, active: input.narration.active, control: input.narration.control, rebuild: rebuildState, draft: input.draft,
     instructionsEnabled: STUDIO_FLOW_AMEND_INSTRUCTIONS_ENABLED, steerPending: signals.steerPending, appliedTo: signals.appliedTo,
   })
+  // One line for a held build: the chat's presence row leaves its "Paused — ..." words to the bar while the bar is drawn. It reads this as the page renders it (flowHeldLineSuppressed), the way the runners above are filled.
+  flowBus.amendBarVisible = amend.visible
+  useEffect(() => () => { flowBus.amendBarVisible = false }, [])
 
   // A build with a different id, another session: nothing of the old one carries over.
   useEffect(() => {
