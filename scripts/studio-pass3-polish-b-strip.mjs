@@ -9,6 +9,7 @@
 // PASS3_POLISH_B_PIN_EDITS) read through the registry after a one-line edit each. scripts/test-studio-pass3-polish-b.mjs proves that the two files without this change's lines are BASE_COMMIT's files byte for byte.
 
 import { stripStudioArrange } from './studio-arrange-strip.mjs' // LATER-CHANGES: registry read (STUDIO-ARRANGE): #523 adds marked lines to the viewer, so they come out first and the viewer read through this strip is its base again
+import { stripChatElementEdit } from './studio-chat-element-edit-strip.mjs' // LATER-CHANGES: registry read (CHAT-ELEMENT-EDIT): #522 adds marked lines to the viewer, so they come out first, as #523's do, and the viewer read through this strip is its base again
 export const BASE_COMMIT = 'b2423e20338622d0a4a773db1d0758278e79d312' // studio dev head (Merge pull request #503, chat undo v2) this change is cut from
 export const PASS3_POLISH_MARKER = 'PASS3-POLISH-B' // its OWN marker (PR A's is PASS3-POLISH); the two never share a line
 export const PASS3_POLISH_B_VIEWER = 'components/presentation-viewer.tsx'
@@ -77,5 +78,6 @@ export const PASS3_POLISH_B_SCOPE_FILES = new Set([...PASS3_POLISH_B_FILES, ...P
 export function stripPass3PolishB(rel, text) {
   if (!PASS3_POLISH_B_FILES.includes(rel) || typeof text !== 'string') return text
   if (rel === PASS3_POLISH_B_VIEWER) text = stripStudioArrange(rel, text) // LATER-CHANGES: registry read (STUDIO-ARRANGE)
+  if (rel === PASS3_POLISH_B_VIEWER) text = stripChatElementEdit(rel, text) // LATER-CHANGES: registry read (CHAT-ELEMENT-EDIT)
   return text.split('\n').filter(line => !line.includes(PASS3_POLISH_MARKER)).join('\n')
 }
