@@ -3,6 +3,7 @@
 import { useEffect, useRef } from 'react'
 import { useReducedMotion } from 'framer-motion'
 import type { NarrationPhase } from '@/lib/build-narration-heuristics'
+import { STUDIO_FLOW_FOCUS_ENABLED, flowBus } from '@/lib/studio-flow-control' // FLOW-CONTROL
 
 const WALK_STEP_MS = 1400
 
@@ -45,6 +46,7 @@ export function useStageWalkthrough({
 
   const command = (index: number, navigateFn: (i: number) => void) => {
     recentCommandsRef.current = [...recentCommandsRef.current.slice(-2), index]
+    if (STUDIO_FLOW_FOCUS_ENABLED) flowBus.programmatic?.(index) // FLOW-CONTROL (NEXT_PUBLIC_STUDIO_FLOW_FOCUS, default off): this page turn is the narration's own; the flow hook is told before the viewer reports it, so it is not read as the user navigating
     navigateFn(index)
   }
 

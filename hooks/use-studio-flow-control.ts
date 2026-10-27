@@ -6,6 +6,8 @@
 // bar it returns. Both flags off (the default): the refs it is given stay empty, no listener is added, no timer started, no request sent.
 //   NEXT_PUBLIC_STUDIO_FLOW_FOCUS: deck_mutation / slide_built / slide_ready / slide_update / change_recorded for the displayed deck bring
 //     that slide into view (on an overlay layout, the stage pane first), unless the user navigated by hand in the last 4 s or, mid-build, at all.
+//     The build's first slide_built names its deck before anything else does (the stage still shows the outline): it is accepted as this build's.
+//     The narration's own page turns (flowBus.programmatic) and the follow's own goToSlide are told apart from the user's navigation.
 //   NEXT_PUBLIC_STUDIO_FLOW_AMEND: while a build is paused or stopped the composer can send, a calm line says so, and Resume / Rebuild
 //     are offered. Rebuild = stop, wait for Director's `settled` (or 8 s), then send the draft as an ordinary message.
 import { createElement, useCallback, useEffect, useRef, useState } from 'react'
@@ -18,6 +20,7 @@ import {
   flowAppliedHoldMs,
   flowAmendState,
   flowFocusAfterTarget,
+  flowFocusMarkCommanded,
   flowFocusMarkSelf,
   flowFocusNoteSlideChange,
   flowFocusNoteUserNav,
@@ -166,7 +169,9 @@ export function useStudioFlowControl(input: StudioFlowControlInput): StudioFlowC
   // The socket hook shows the frames here (lib flowBus): only with their flags on, and not once the page is gone.
   flowBus.focus = !STUDIO_FLOW_FOCUS_ENABLED ? null : frame => runFocus(flowFocusEventFromFrame(frame))
   flowBus.phase = !STUDIO_FLOW_AMEND_ENABLED ? null : payload => setSignals(previous => flowSignalsReduce(previous, payload as Parameters<typeof flowSignalsReduce>[1], Date.now()))
-  useEffect(() => () => { flowBus.focus = null; flowBus.phase = null; flowBus.instructions = undefined }, [])
+  // The narration's own page turns (its follow of the build, its walk through the outline) say so before they move the viewer: the viewer's report of one is not the user navigating.
+  flowBus.programmatic = !STUDIO_FLOW_FOCUS_ENABLED ? null : index => { focusStateRef.current = flowFocusMarkCommanded(focusStateRef.current, index, Date.now()) }
+  useEffect(() => () => { flowBus.focus = null; flowBus.phase = null; flowBus.programmatic = null; flowBus.instructions = undefined }, [])
 
   const amend = flowAmendState({
     enabled: amendOn, active: input.narration.active, control: input.narration.control, rebuild: rebuildState, draft: input.draft,

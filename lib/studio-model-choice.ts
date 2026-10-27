@@ -7,7 +7,7 @@
 //   - v1: only the three text groups can be chosen; imagery and narration are "Fixed for now" (no certified model; the router refuses a choice there);
 //   - the options are the group's selectable_models (certified for the group) and its presets; a preset is offered only when the model it names is one of those, so a choice is always a certified one;
 //   - narration offers audio (speech output) models only and imagery image-output models only (for when they open); a model whose capabilities the catalogue does not carry is not offered there;
-//   - the wire value of the cheapest preset stays "economy"; Studio shows it as "Fast". Cost: a model's catalogue cost_hint ($ / $$ / $$$) when the router sends one, else the tier's hint
+//   - the presets are quick, economy, balanced, best and max (model-router, 26 Oct); the wire value of "Fast" stays "economy". Cost: a model's catalogue cost_hint ($ / $$ / $$$) when the router sends one, else the tier's hint
 //     ($ Fast, $$ Balanced, $$$ Best); never a price;
 //   - the default ("Recommended") names no model: with no choice the router picks the task's own model per call, which the catalogue does not name.
 // A text task whose group is missing or not user-visible, and every text task when the catalogue cannot be loaded, keeps today's static options (lib/studio-intelligence-p2.ts).
@@ -17,7 +17,7 @@
 // router_not_configured (no MODEL_ROUTER_FRONTEND_KEY yet), or cannot be reached, the choices stay in this browser (localStorage, a NEW key per scope; the Pass 2 picker's key is read once and copied,
 // never changed), and the page says so.
 
-import { P2_DEFAULT_CHOICE, P2_TASKS, isP2Choice, p2Options, p2Resolve, type P2Catalog, type P2OptionGroups, type P2PresetId, type P2TaskId } from '@/lib/studio-intelligence-p2'
+import { P2_DEFAULT_CHOICE, P2_TASKS, isP2Choice, p2Options, p2Resolve, type P2Catalog, type P2OptionGroups, type P2TaskId } from '@/lib/studio-intelligence-p2'
 import { modelTitle, providerLabel, providerOf, type Catalogue, type CatalogueGroup } from '@/lib/studio-model-catalog'
 
 export const STUDIO_MODEL_CHOICE_FLAG = 'NEXT_PUBLIC_STUDIO_MODEL_CHOICE'
@@ -39,16 +39,25 @@ export const MODEL_CHOICE_CHOOSABLE_GROUPS: readonly string[] = ['planning_strat
 /** The capability a group's models must have to be offered there (narration: audio models only; imagery: image models only). */
 export const MODEL_CHOICE_GROUP_NEEDS: Readonly<Record<string, 'speechOutput' | 'imageOutput'>> = { voice_narration: 'speechOutput', imagery: 'imageOutput' }
 
-/** The presets as Studio shows them, in the Pass 2 picker's order. The wire values stay best / balanced / economy. */
-export const MODEL_CHOICE_TIERS: readonly { id: P2PresetId; label: string; hint: string }[] = [
+/** The presets the router has (model-router, 26 Oct: quick and max joined the three of Pass 2). The wire value of "Fast" stays "economy". */
+export type PresetId = 'quick' | 'economy' | 'balanced' | 'best' | 'max'
+/** THE list of preset ids Studio carries, quickest and cheapest first: the router's enum as the Studio routes accept it (lib/studio-model-choice-server.ts reads it) and the compact picker and the slider offer it
+ * (lib/studio-model-slider.ts SLIDER_SAVABLE_PRESETS). It is also the order the picker uses while the catalogue sends no preset_order. */
+export const MODEL_CHOICE_PRESET_IDS: readonly PresetId[] = ['quick', 'economy', 'balanced', 'best', 'max']
+/** The presets as Studio shows them (the Intelligence page lists them dearest first). Their cost hints are the tier's own; a model's catalogue cost_hint wins where the router sends one. */
+export const MODEL_CHOICE_TIERS: readonly { id: PresetId; label: string; hint: string }[] = [
+  { id: 'max', label: 'Max', hint: '$$$' },
   { id: 'best', label: 'Best', hint: '$$$' },
   { id: 'balanced', label: 'Balanced', hint: '$$' },
   { id: 'economy', label: 'Fast', hint: '$' },
+  { id: 'quick', label: 'Quick', hint: '$' },
 ]
-export const modelChoiceTier = (id: P2PresetId) => MODEL_CHOICE_TIERS.find(tier => tier.id === id) as { id: P2PresetId; label: string; hint: string }
+export const modelChoiceTier = (id: PresetId) => MODEL_CHOICE_TIERS.find(tier => tier.id === id) as { id: PresetId; label: string; hint: string }
 const COST_HINTS = ['$', '$$', '$$$']
+/** The longest preset hint kept (the catalogue's preset_hints are one short line each; a longer one is dropped, not cut). */
+export const PRESET_HINT_MAX = 200
 
-const isPreset = (value: string): value is P2PresetId => value === 'best' || value === 'balanced' || value === 'economy'
+const isPreset = (value: string): value is PresetId => (MODEL_CHOICE_PRESET_IDS as readonly string[]).includes(value)
 const isRecord = (value: unknown): value is Record<string, unknown> => typeof value === 'object' && value !== null && !Array.isArray(value)
 
 // ---------------------------------------------------------------------------------------------------------------- words
@@ -88,19 +97,33 @@ export const MODEL_CHOICE_SCOPE_DECK_RULE = 'Applies from this presentation’s 
 // ---------------------------------------------------------------------------------------------------------------- the live catalogue, with its presets and cost hints
 
 /** A parsed catalogue (lib/studio-model-catalog.ts) plus each group's presets and each model's cost_hint, which that parser does not keep. */
-export type ChoiceCatalogue = Catalogue & { presets: Record<string, Partial<Record<P2PresetId, string>>>; costHints: Record<string, string> }
+export type ChoiceCatalogue = Catalogue & {
+  presets: Record<string, Partial<Record<PresetId, string>>>
+  costHints: Record<string, string>
+  /** The catalogue's top-level preset_order (only the ids Studio knows, each once); null while the catalogue sends none (Director's flag DIRECTOR_MODEL_CATALOGUE_PRESETS_ENABLED is off): the picker then uses MODEL_CHOICE_PRESET_IDS. */
+  presetOrder: PresetId[] | null
+  /** The catalogue's top-level preset_hints: one short line per known preset id (a string of 1 to PRESET_HINT_MAX characters; anything else is dropped). */
+  presetHints: Record<string, string>
+}
 
-/** `catalogue` (parsed from `body`) with `body`'s presets (only best / balanced / economy, only non-empty ids) and cost hints (only "$", "$$" or "$$$"; absent while the router's flag is off). */
+/** `catalogue` (parsed from `body`) with `body`'s presets (only the ids Studio knows, only non-empty ones), its preset_order and preset_hints (absent until Director's flag is on) and cost hints (only "$", "$$" or "$$$"; absent while the router's flag is off). */
 export function withPresets(catalogue: Catalogue, body: unknown): ChoiceCatalogue {
-  const presets: Record<string, Partial<Record<P2PresetId, string>>> = Object.create(null)
+  const presets: Record<string, Partial<Record<PresetId, string>>> = Object.create(null)
   const costHints: Record<string, string> = Object.create(null)
   const groups = isRecord(body) && isRecord(body.groups) ? body.groups : {}
   for (const key of Object.keys(groups)) {
     const group = groups[key]
     const raw = isRecord(group) && isRecord(group.presets) ? group.presets : {}
-    const kept: Partial<Record<P2PresetId, string>> = {}
+    const kept: Partial<Record<PresetId, string>> = {}
     for (const tier of MODEL_CHOICE_TIERS) if (typeof raw[tier.id] === 'string' && raw[tier.id] !== '') kept[tier.id] = raw[tier.id] as string
     presets[key] = kept
+  }
+  const order = isRecord(body) && Array.isArray(body.preset_order) ? [...new Set(body.preset_order.filter((id): id is PresetId => typeof id === 'string' && isPreset(id)))] : []
+  const presetHints: Record<string, string> = Object.create(null)
+  const hintsRaw = isRecord(body) && isRecord(body.preset_hints) ? body.preset_hints : {}
+  for (const id of Object.keys(hintsRaw)) {
+    const text = hintsRaw[id]
+    if (isPreset(id) && typeof text === 'string' && text.trim() !== '' && text.trim().length <= PRESET_HINT_MAX) presetHints[id] = text.trim()
   }
   const models = isRecord(body) && isRecord(body.models) ? body.models : {}
   for (const slug of Object.keys(models)) {
@@ -108,7 +131,7 @@ export function withPresets(catalogue: Catalogue, body: unknown): ChoiceCatalogu
     const hint = isRecord(model) ? model.cost_hint : undefined
     if (typeof hint === 'string' && COST_HINTS.includes(hint)) costHints[slug] = hint
   }
-  return { ...catalogue, presets, costHints }
+  return { ...catalogue, presets, costHints, presetOrder: order.length > 0 ? order : null, presetHints }
 }
 
 /** The group a task reads, or null: no catalogue, no such group, a group that is not user-visible, or one that is never switched. */
@@ -134,7 +157,7 @@ export function offeredModels(catalogue: ChoiceCatalogue, group: CatalogueGroup)
 }
 
 /** The model a preset names for a group, or null when it names none or one the group does not offer. */
-export function presetModel(catalogue: ChoiceCatalogue, group: CatalogueGroup, tier: P2PresetId): string | null {
+export function presetModel(catalogue: ChoiceCatalogue, group: CatalogueGroup, tier: PresetId): string | null {
   const slug = catalogue.presets[group.key]?.[tier]
   return slug && offeredModels(catalogue, group).includes(slug) ? slug : null
 }
@@ -152,7 +175,7 @@ export interface ChoiceResolved {
   provider: string | null
   /** The model behind the choice; null for the live default, which names none. */
   modelId: string | null
-  tier: P2PresetId | null
+  tier: PresetId | null
   /** The cost hint the row shows with a tier: the model's own when the catalogue has one, else the tier's. */
   hint: string | null
   origin: ChoiceOrigin
@@ -193,7 +216,7 @@ function liveSource(catalogue: ChoiceCatalogue, group: CatalogueGroup, task: P2T
     if (isPreset(value)) return presetModel(catalogue, group, value) !== null
     return value.startsWith('model:') && offered.includes(value.slice(6))
   }
-  const hintFor = (slug: string, tier: P2PresetId | null) => catalogue.costHints[slug] ?? (tier ? modelChoiceTier(tier).hint : null)
+  const hintFor = (slug: string, tier: PresetId | null) => catalogue.costHints[slug] ?? (tier ? modelChoiceTier(tier).hint : null)
   const resolve = (value: string): ChoiceResolved => {
     const valid = isChoice(value) ? value : P2_DEFAULT_CHOICE
     if (valid === P2_DEFAULT_CHOICE) return DEFAULT_RESOLVED
@@ -228,7 +251,7 @@ function staticSource(catalog: StaticCatalog, task: P2TaskId): RowSource {
     return { name: resolved.name, provider: resolved.provider, modelId: resolved.modelId, tier: null, hint: null, origin: 'Your choice' }
   }
   const options = p2Options(catalog, task)
-  const presets = options.presets.map(option => { const tier = modelChoiceTier(option.value as P2PresetId); return { value: option.value, label: `${tier.label} · ${tier.hint}` } })
+  const presets = options.presets.map(option => { const tier = modelChoiceTier(option.value as PresetId); return { value: option.value, label: `${tier.label} · ${tier.hint}` } })
   return {
     task, kind: 'static', isChoice, resolve,
     options: { recommended: { value: P2_DEFAULT_CHOICE, label: `Recommended — ${MODEL_CHOICE_DEFAULT_NAME}` }, presets, models: options.models, voices: [] },
@@ -301,7 +324,7 @@ export const originLine = (resolved: ChoiceResolved) => [resolved.provider, reso
 // ---------------------------------------------------------------------------------------------------------------- the wire form (what the Studio routes take and give)
 
 const MODEL_SHAPE = /^[A-Za-z0-9][A-Za-z0-9._:/@+-]{0,199}$/
-export type WireChoice = { preset: P2PresetId } | { model: string } | { auto: true } | null
+export type WireChoice = { preset: PresetId } | { model: string } | { auto: true } | null
 /** The choices of the choosable groups as the Studio PATCH body: a tier as { preset }, a model as { model }, the recommendation as null ("use my defaults" / clear). On "This presentation" ('deck') the deck's
  * own Auto is { auto: true }; "Reusable defaults" have none, so an "auto" there is sent as null and never as auto. */
 export function toWire(choices: ModelChoices, kind: 'user' | 'deck' = 'user'): { preferences: Record<string, WireChoice> } {
@@ -332,7 +355,7 @@ export const modelChoiceKey = (scope: ModelChoiceScope) => (scope.kind === 'user
 /** The Pass 2 picker's key (lib/studio-intelligence-p2.ts p2StorageKey): read once for the reusable defaults when this picker has kept nothing yet, and never written or removed. */
 export const LEGACY_P2_PREFIX = 'deckster-studio-intelligence-p2-v1:'
 
-const CHOICE_SHAPE = /^(default|auto|best|balanced|economy|model:[A-Za-z0-9][A-Za-z0-9._:/@+-]{0,199})$/
+const CHOICE_SHAPE = /^(default|auto|quick|economy|balanced|best|max|model:[A-Za-z0-9][A-Za-z0-9._:/@+-]{0,199})$/
 const shapeOk = (value: unknown): value is string => typeof value === 'string' && CHOICE_SHAPE.test(value)
 
 /** The kept form: only the choices that differ from the recommendation, with the scope they belong to. Whether a choice is offered is decided when it is shown, against the catalogue of the day. */

@@ -1,7 +1,7 @@
 // NEXT_PUBLIC_STUDIO_ARRANGE (FRONTEND-2, B21): proof that Arrange works in the Studio v4 Format inspector against Layout MR !260's REAL command handlers, and that selecting an element no longer raises it.
 //
 //   node scripts/test-studio-arrange.mjs                      offline: Layout's recorded transcript (scripts/fixtures/studio-arrange/layout-transcript.json) stands in for the viewer, request by request
-//   STUDIO_ARRANGE_LAYOUT_DIR=<layout-builder checkout of !260> STUDIO_ARRANGE_LAYOUT_SERVED=<dir with served-on.html / served-off.html> node scripts/test-studio-arrange.mjs [--record-layout]
+//   STUDIO_ARRANGE_LAYOUT_DIR=<layout-builder checkout of !260 + the intent guard> STUDIO_ARRANGE_LAYOUT_SERVED=<dir with served-on.html / served-off.html> node scripts/test-studio-arrange.mjs [--record-layout]
 //                                                             live: Layout's own viewer code runs in a vm (scripts/studio-arrange-layout.mjs); --record-layout rewrites the transcript
 //   (the served pages come from scripts/fixtures/studio-arrange/serve-layout-viewer.py, run with Layout's own Python against the checkout)
 //
@@ -10,6 +10,8 @@
 // components/presentation-viewer.tsx by exact anchors. What stands in: the page's command handler is the sequence page.tsx runs (selection.send, then selection.read; a source check holds page.tsx to it), and the
 // viewer's sendCommand / ensureEditMode in the cut-out handlers are recorders.
 //
+// Intent (Layout's guard, LAYOUT_ARRANGE_COMMANDS_ENABLED): Layout runs an Arrange command only when its params carry intent 'arrange'. Every Arrange command the inspector sends must carry it (sections D, E, F, H
+// and the INTENT block), and the older builds' select-raise payload (bringToFront {elementId}, no intent) must be a no-op at the viewer (section E).
 // Sections: A strip and byte identity; B flag-off identity of outputs (inspector markup, the handle's transcript, the select path); C the select path (no bringToFront with the flag on); D every control -> the exact
 // command against the real viewer, the answer, the refreshed numbers; E errors and changed:false; F disabled states; G scope over the own commits; H mutants.
 import assert from 'node:assert/strict'
@@ -89,6 +91,7 @@ function studioModules(env, src = SRC, studioWindow) {
 // ============================================================ the viewer: live (Layout's code) or the recording
 const recorded = live ? null : JSON.parse(read(FIXTURE))
 const transcript = { layout: null, worlds: {} }
+const INTENT_LOG = {}
 
 const DECK = [{ elements: [
   { id: 'tb1', type: 'textbox', componentType: 'TEXT_BOX', gridRow: '11/31', gridColumn: '6/86', zIndex: 1001 },
@@ -153,6 +156,7 @@ function createWorld(name, { layoutFlag = 'on' } = {}) {
       finished: () => assert.equal(at, script.length, `${name}: the whole recording was replayed`),
     }
   }
+  INTENT_LOG[name] = requests // the INTENT block reads every world's requests (live and recorded alike)
   const iframe = { src: `${VIEWER_ORIGIN}/p/pres-e2e`, contentWindow: viewerWindow }
   const api = {
     name, studioWindow, iframe, requests, events, listeners, diverged: null,
@@ -453,6 +457,7 @@ const EXPECT_GEOMETRY = { // slide pixels of DECK's physical grid lines: (line -
   dg1: { position: { x: 1200, y: 744 }, size: { width: 600, height: 312 } },
 }
 const WORKING = ['bringToFront', 'sendToBack', 'bringForward', 'sendBackward', 'alignElement', 'resizeElement', 'positionElement', 'lockElement']
+const INTENT = { intent: 'arrange' } // Layout's guard: what every Arrange command carries
 async function inspectorWorld(name, value = 'true', { layoutFlag = 'on', src = SRC } = {}) {
   const world = createWorld(name, { layoutFlag })
   const wiring = wireSelection(world, env(value), { src })
@@ -530,8 +535,8 @@ const AFTER = { 'Width, keep proportions': p => assert.deepEqual(plain(p.size), 
       const count = s.arrangeRequests()
       await act()
       check(assert.equal, s.arrangeRequests(), count + 1, `${id} ${control}: one command`)
-      const want = { action: command, params: { elementId: id, ...(typeof params === 'function' ? params() : params) } }
-      check(assert.deepEqual, s.lastRequest(), want, `${id} ${control}: ${command} with exactly these params`)
+      const want = { action: command, params: { elementId: id, ...(typeof params === 'function' ? params() : params), ...INTENT } }
+      check(assert.deepEqual, s.lastRequest(), want, `${id} ${control}: ${command} with exactly these params, intent 'arrange' included`)
       check(assert.equal, s.inspector.failure(), null, `${id} ${control}: no failure notice after a confirmed command`)
       check(assert.equal, s.selection.handle.isCurrent(), true, `${id} ${control}: the viewer's own "unsaved" for this change did not retire the selection`)
       check(assert.equal, s.inspector.variant(), 'on', `${id} ${control}: the panel is the full one`)
@@ -580,7 +585,7 @@ const AFTER = { 'Width, keep proportions': p => assert.deepEqual(plain(p.size), 
   await k.open('img1')
   await k.click('Bring to front')
   check(assert.equal, k.selection.handle.isCurrent(), true, 'after its own command the selection is current')
-  const foreign = await k.wiring.modules.native.sendStudioFormatNativeCommand(k.world.iframe, 'lockElement', { elementId: 'img1', locked: true }, () => true, 8000)
+  const foreign = await k.wiring.modules.native.sendStudioFormatNativeCommand(k.world.iframe, 'lockElement', { elementId: 'img1', locked: true, ...INTENT }, () => true, 8000)
   await settle()
   check(assert.equal, foreign.locked, true)
   check(assert.equal, k.selection.handle.isCurrent(), false, 'a foreign change retires the selection (the viewer\'s save status bump, unchanged)')
@@ -590,7 +595,7 @@ const AFTER = { 'Width, keep proportions': p => assert.deepEqual(plain(p.size), 
   check(assert.match, k.inspector.failure() ?? '', /Select the element again before formatting\./, 'the stale inspector asks for a new selection')
   check(assert.equal, k.world.requests.length, sentBefore, 'and sends nothing')
   // Layout's own refusal of a locked element, in plain words
-  const refusal = await k.wiring.modules.native.sendStudioFormatNativeCommand(k.world.iframe, 'alignElement', { elementId: 'img1', horizontal: 'right' }, () => true, 8000).catch(error => error.message)
+  const refusal = await k.wiring.modules.native.sendStudioFormatNativeCommand(k.world.iframe, 'alignElement', { elementId: 'img1', horizontal: 'right', ...INTENT }, () => true, 8000).catch(error => error.message)
   check(assert.equal, refusal, 'Element is locked', 'Layout refuses a move of a locked element')
   check(assert.equal, k.wiring.modules.arrange.studioArrangeErrorText(refusal), 'This element is locked. Unlock it to move, resize or align it.', 'in plain words')
   k.world.finish()
@@ -615,7 +620,24 @@ const AFTER = { 'Width, keep proportions': p => assert.deepEqual(plain(p.size), 
   }
   check(assert.equal, v.world.requests.length, count, 'nothing invalid was sent')
   v.world.finish()
-  console.log(`PASS E  changed:false shows nothing; refusals in plain words; invalid params never sent (${checks} checks)`)
+  // the older builds' select-raise (components/presentation-viewer.tsx on Studio uat ee532fab :2433 / :2467, main 5878eaf8 :2395 / :2429): bringToFront {elementId}, NO intent. At the viewer (Layout's
+  // flag on) it is the no-op it was before the flag: "Unknown action", no z-index or lock change, nothing marked for saving. With the intent the same command acts.
+  const g = await inspectorWorld('legacy-select-raise')
+  await g.open('inf1')
+  const zBefore = g.world.state()?.inf1?.zIndex ?? null
+  for (const id of ['tb1', 'img1', 'ch1', 'inf1', 'dg1']) {
+    const legacy = await g.wiring.modules.native.sendStudioFormatNativeCommand(g.world.iframe, 'bringToFront', { elementId: id }, () => true, 8000).catch(error => error.message)
+    check(assert.equal, legacy, 'Unknown action: bringToFront', `${id}: the legacy select-raise (no intent) is unknown at the viewer`)
+  }
+  if (live) {
+    check(assert.equal, g.world.state().inf1.zIndex, zBefore, 'the legacy select-raise changed no z-index')
+    check(assert.equal, g.world.pending(), false, 'the legacy select-raise marked nothing for saving')
+  }
+  const raised = await g.wiring.modules.native.sendStudioFormatNativeCommand(g.world.iframe, 'bringToFront', { elementId: 'inf1', ...INTENT }, () => true, 8000)
+  check(assert.equal, raised.success, true, 'the same command with intent \'arrange\' acts')
+  if (live) check(assert.ok, Number(g.world.state().inf1.zIndex) > Number(zBefore), 'and raises the element')
+  g.world.finish()
+  console.log(`PASS E  changed:false shows nothing; refusals in plain words; invalid params never sent; the legacy select-raise (no intent) is a no-op at the viewer (${checks} checks)`)
 }
 
 // ============================================================ F. disabled states
@@ -654,7 +676,7 @@ const AFTER = { 'Width, keep proportions': p => assert.deepEqual(plain(p.size), 
     check(assert.deepEqual, s.inspector.within('Arrange', n => n.type === 'button' || n.type === 'input').map(n => s.inspector.text(n)), ['Unlock'], `${id}: only Unlock is shown`)
     check(assert.match, s.inspector.arrangeText(), /This element is locked\. Unlock it to arrange it\./)
     await s.click('Unlock')
-    check(assert.deepEqual, s.lastRequest(), { action: 'lockElement', params: { elementId: id, locked: false } }, `${id}: Unlock sends lockElement {locked: false}`)
+    check(assert.deepEqual, s.lastRequest(), { action: 'lockElement', params: { elementId: id, locked: false, ...INTENT } }, `${id}: Unlock sends lockElement {locked: false, intent: 'arrange'}`)
     check(assert.equal, s.target.properties.locked, false, `${id}: unlocked`)
     check(assert.ok, s.inspector.button('Bring to front')[0]?.props.disabled === false, `${id}: the controls are back`)
     s.world.finish()
@@ -673,12 +695,45 @@ const AFTER = { 'Width, keep proportions': p => assert.deepEqual(plain(p.size), 
   console.log(`PASS F  shapes and tables disabled with the note; rotate, flip, classes "Not available yet"; locked -> Unlock only; labels and phone targets (${checks} checks)`)
 }
 
+// ============================================================ INTENT: every Arrange command the inspector sent, in every world above, carried intent 'arrange'
+{
+  const ARRANGE_ACTIONS = [...WORKING, 'rotateElement', 'flipElement', 'setElementClasses']
+  let commands = 0, legacy = 0
+  for (const [name, requests] of Object.entries(INTENT_LOG)) for (const request of requests) {
+    if (!ARRANGE_ACTIONS.includes(request.action)) continue
+    if (name === 'legacy-select-raise' && request.params?.intent === undefined) { legacy++; continue } // section E's own legacy payloads
+    commands++
+    check(assert.equal, request.params?.intent, 'arrange', `${name}: ${request.action} carries intent 'arrange'`)
+  }
+  check(assert.ok, commands >= 80, `every Arrange command checked (${commands})`)
+  check(assert.equal, legacy, 5, 'only the five legacy select-raise payloads went without it')
+  console.log(`PASS I  intent: ${commands} Arrange commands at the viewer, every one with intent 'arrange' (${checks} checks)`)
+}
+
 // ============================================================ G. scope over this change's own commits
 {
-  const HEAD = git('log', '-1', '--format=%H', '-E', '--grep=^Studio arrange:', 'HEAD').trim() // this change's newest commit, its merges of dev included (a change stacked after it is not read as its diff)
+  const NEWEST = git('log', '-1', '--format=%H', '-E', '--grep=^Studio arrange:', 'HEAD').trim() // this change's newest commit, its merges of dev included (a change stacked after it is not read as its diff)
+  // #523 was merged into dev at FOLLOW_UP_BASE; a follow-up (the intent 'arrange' commit) is cut from dev after it. Each is held to its own range: #523 to BASE..its last commit, a follow-up to
+  // FOLLOW_UP_BASE..its newest commit (dev's other merged work between them is neither's).
+  const PR523_HEAD = 'df15abc0b5fb8eeb69f109ed608fbd30e43ae2b2'
+  const FOLLOW_UP_BASE = '0545569384ae3f6f7073699bff95662ec80c633a' // studio-v4-dev-preparation-code at #523's merge
+  const isAncestor = (a, b) => { try { git('merge-base', '--is-ancestor', a, b); return true } catch { return false } }
+  const followUp = Boolean(NEWEST) && NEWEST !== FOLLOW_UP_BASE && isAncestor(FOLLOW_UP_BASE, NEWEST)
+  const HEAD = followUp ? PR523_HEAD : NEWEST
   if (!HEAD) {
     console.log('SKIP G  nothing committed yet ("Studio arrange:" commits)')
   } else {
+    if (followUp) {
+      const own = git('log', '--format=%s', '--no-merges', `${FOLLOW_UP_BASE}..${NEWEST}`).trim().split('\n').filter(Boolean)
+      check(assert.ok, own.length > 0 && own.every(subject => strip.STUDIO_ARRANGE_COMMIT_SUBJECT.test(subject)), `follow-up: every commit on ${FOLLOW_UP_BASE.slice(0, 8)}..${NEWEST.slice(0, 8)} is "Studio arrange:"`)
+      const touched = git('diff', '--name-only', `${FOLLOW_UP_BASE}..${NEWEST}`).trim().split('\n').filter(Boolean)
+      for (const file of touched) check(assert.ok, strip.STUDIO_ARRANGE_SCOPE_FILES.has(file) && !strip.STUDIO_ARRANGE_PIN_FILES.includes(file), `follow-up in scope: ${file}`)
+      for (const rel of strip.STUDIO_ARRANGE_FILES) {
+        const lines = git('diff', '-U0', `${FOLLOW_UP_BASE}..${NEWEST}`, '--', rel).split('\n').filter(l => /^[+-](?![+-])/.test(l))
+        check(assert.ok, lines.every(l => strip.STUDIO_ARRANGE_MARKER_RE.test(l)), `follow-up: ${rel} changes only marked lines`)
+      }
+      console.log(`PASS G  follow-up: ${touched.length} files on ${FOLLOW_UP_BASE.slice(0, 8)}..${NEWEST.slice(0, 8)}, all this change's, marked lines only (${checks} checks)`)
+    }
     const subjects = git('log', '--format=%s', '--no-merges', `${BASE}..${HEAD}`).trim().split('\n').filter(Boolean)
     check(assert.ok, subjects.length > 0 && subjects.every(subject => strip.STUDIO_ARRANGE_COMMIT_SUBJECT.test(subject)), `every commit on ${BASE.slice(0, 8)}..${HEAD.slice(0, 8)} is this change's ("Studio arrange:")`)
     const files = git('diff', '--name-only', `${BASE}..${HEAD}`).trim().split('\n').filter(Boolean)
@@ -718,7 +773,7 @@ if (record) {
   for (const name of Object.keys(transcript.worlds)) check(assert.deepEqual, plain(transcript.worlds[name]).map(e => normalize(e)), fixture.worlds[name].map(e => normalize(e)), `live ${name} is the recording`)
   console.log('PASS    live Layout code says exactly what the recording says')
 } else {
-  console.log(`PASS    recording: Layout !260's sources ${Object.entries(recorded.layout.sources).map(([f, d]) => `${path.basename(f)} ${d.slice(0, 8)}`).join(', ')}; served on ${recorded.layout.served.on.sha256.slice(0, 8)}, off ${recorded.layout.served.off.sha256.slice(0, 8)}`)
+  console.log(`PASS    recording: Layout's sources (!260 + the intent guard) ${Object.entries(recorded.layout.sources).map(([f, d]) => `${path.basename(f)} ${d.slice(0, 8)}`).join(', ')}; served on ${recorded.layout.served.on.sha256.slice(0, 8)}, off ${recorded.layout.served.off.sha256.slice(0, 8)}`)
 }
 function normalize(event) {
   const copy = structuredClone(event)
@@ -742,7 +797,7 @@ if (!record) {
     for (const [control, act, command, params] of controlSteps(s)) {
       s.before = plain(s.target.properties)
       await act()
-      assert.deepEqual(s.lastRequest(), { action: command, params: { elementId: 'ch1', ...(typeof params === 'function' ? params() : params) } }, control)
+      assert.deepEqual(s.lastRequest(), { action: command, params: { elementId: 'ch1', ...(typeof params === 'function' ? params() : params), ...INTENT } }, control)
       if (AFTER[control]) AFTER[control](s.target.properties)
       assert.equal(s.inspector.failure(), null, `${control}: no failure notice`)
       assert.equal(s.selection.handle.isCurrent(), true, `${control}: still current`)
@@ -754,7 +809,7 @@ if (!record) {
     assert.deepEqual([save.outside, save.inside, save.after], [4, [0, 1, 0, 1, 0], 1])
     const k = await inspectorWorld('foreign-change', 'true', { src })
     await k.open('img1'); await k.click('Bring to front'); assert.equal(k.selection.handle.isCurrent(), true)
-    await k.wiring.modules.native.sendStudioFormatNativeCommand(k.world.iframe, 'lockElement', { elementId: 'img1', locked: true }, () => true, 8000); await settle()
+    await k.wiring.modules.native.sendStudioFormatNativeCommand(k.world.iframe, 'lockElement', { elementId: 'img1', locked: true, ...INTENT }, () => true, 8000); await settle()
     assert.equal(k.selection.handle.isCurrent(), false, 'a foreign change retires the selection')
     for (const label of ['Rotate unavailable', 'Element CSS classes unavailable']) assert.equal(s.inspector.input(label)[0].props.disabled, true)
     await lockHidden(s, 'ch1')
@@ -798,7 +853,11 @@ if (!record) {
     M(INSPECTOR, "{STUDIO_ARRANGE && (nativeProperties || studioArrangeNotYet(target)) ?", "{(nativeProperties || studioArrangeNotYet(target)) ?", 'inspector ignores the flag'),
     // follow-up (PNG run on Layout 0aaef720): the false "not confirmed" notice and the Lock panel that did not refresh
     M(VIEWER, "          if (!studioArrangeOwnsSaveStatus(status)) // STUDIO-ARRANGE", "          if (true) // STUDIO-ARRANGE", 'the own command\'s "unsaved" retires the selection again (the false notice)'),
-    M(NATIVE, "const answer = await studioArrangeOwnCommand(() => native(action, commandParams, 30000))", "const answer = await (() => native(action, commandParams, 30000))()", 'the arrange send runs outside the own-command window'),
+    M(NATIVE, "const answer = await studioArrangeOwnCommand(() => native(action, studioArrangeCommandParams(commandParams), 30000))", "const answer = await (() => native(action, studioArrangeCommandParams(commandParams), 30000))()", 'the arrange send runs outside the own-command window'),
+    // intent 'arrange' (Layout's guard)
+    M(NATIVE, "native(action, studioArrangeCommandParams(commandParams), 30000)", "native(action, commandParams, 30000)", 'Arrange sent without the intent'),
+    M(ARRANGE, "export const STUDIO_ARRANGE_INTENT = 'arrange'", "export const STUDIO_ARRANGE_INTENT = 'Arrange'", 'the wrong intent word'),
+    M(ARRANGE, "({ ...params, intent: STUDIO_ARRANGE_INTENT })", "({ intent: STUDIO_ARRANGE_INTENT, ...params, elementId: undefined })", 'the intent replaces the params'),
     M(ARRANGE, "  ownCommand = token\n", "", 'the own-command window never opens'),
     M(ARRANGE, "  return run().finally(() => { if (ownCommand === token) ownCommand = null })", "  return run()", 'the own-command window never closes (a foreign change would not retire the selection)'),
     M(ARRANGE, "return STUDIO_ARRANGE_ENABLED && ownCommand !== null && status === 'unsaved'", "return STUDIO_ARRANGE_ENABLED && ownCommand !== null", 'every save status is spared inside the window'),
