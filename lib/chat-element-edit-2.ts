@@ -9,6 +9,9 @@
  *  2. A stale element reference. The element reference of a send (lib/chat-element-refine.ts chatElementReferenceFor) comes from the page's selection record, which was only written when a selection STATE changed and was
  *     never dropped when the element went away (Undo, a restored deck, a slide change). With the flag on the record is written on every selection event, and dropped when the deck changes under it or the shown slide is not the one it
  *     was selected on.
+ *  3. The reference's slide_id. Director keeps a reference's slide_id and an element edit then echoes `ref.slide_id or the Layout id` (mdc_actions.py resolve_element_references / the edit directive), so a reference that carries the
+ *     session slideStructure's outline UUID (the same source as 1) comes back as a directive whose slide_id the Layout-id check above refuses. With the flag on the reference Studio builds for a send (the refine path's
+ *     getChatElementReference and the "@" Element entry) carries slide_id null, and Director fills Layout's own id.
  */
 
 export const CHAT_ELEMENT_EDIT_2_ENABLED = process.env.NEXT_PUBLIC_STUDIO_CHAT_ELEMENT_EDIT_2 === 'true'
@@ -72,4 +75,9 @@ export function dropChatElementSelection(ref: { current: ElementSelectionRecord 
 /** Forgets the selection record when the shown slide is not the one the element was selected on. */
 export function dropChatElementSelectionOffSlide(ref: { current: ElementSelectionRecord | null }, shownSlideIndex: number): void {
   if (ref.current && ref.current.slideIndex !== shownSlideIndex) ref.current = null
+}
+
+/** The element reference with its slide_id null (the outline UUID the page's slide list holds is not a Layout id): Director then names the slide by Layout's own id. Null stays null. */
+export function referenceWithoutOutlineId<T extends { slide_id: string | null }>(reference: T | null | undefined): T | null {
+  return reference ? { ...reference, slide_id: null } : null
 }

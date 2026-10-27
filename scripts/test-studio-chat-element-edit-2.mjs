@@ -338,9 +338,20 @@ function selectionWorld({ flag = true, refine = true, pageText = read(PAGE), lib
     }
   }
   const event = (callback, ...args) => { for (const key of Object.keys(pending)) delete pending[key]; callback(values())(...args); commit({ ...pending }) }
-  const reference = () => libs.refine.chatElementReferenceFor(ref.current)
+  // the reference the page hands the hook (the refine option, then any later option that overrides it) and the "@" Element entry (chatCommandsPage's property, then any statement that replaces it), the page's own code
+  const refValues = { ...values(), chatElementReferenceFor: libs.refine.chatElementReferenceFor, referenceWithoutOutlineId: libs.two.referenceWithoutOutlineId }
+  const helperNode = declarationInitializer(source, 'chatElementEdit2Reference')
+  if (helperNode) refValues.chatElementEdit2Reference = compile(helperNode, source, 'chatElementEdit2Reference')(refValues)
+  const hookCall = walk(source, node => ts.isCallExpression(node) && node.expression.getText(source) === 'useDecksterWebSocketV2' ? node : null)
+  const hookOptions = Object.assign({}, ...hookCall.arguments[0].properties.filter(item => ts.isSpreadAssignment(item) && item.expression.getText(source).includes('getChatElementReference')).map(item => compile(item.expression, source, 'hook option')(refValues)))
+  const getElementNode = walk(source, node => ts.isPropertyAssignment(node) && node.name.getText(source) === 'getElement' && node.initializer.getText(source).includes('chatElementSelectionRef') ? node.initializer : null)
+  const commandsPage = { getElement: compile(getElementNode, source, 'getElement')(refValues) }
+  const getElementOverride = walk(source, node => ts.isIfStatement(node) && node.getText(source).includes('chatCommandsPage.getElement =') ? node : null)
+  if (getElementOverride) compile(`() => { ${getElementOverride.getText(source)} }`, source, 'getElement override')({ ...refValues, chatCommandsPage: commandsPage })()
+  const reference = () => commandsPage.getElement()
+  const hookReference = () => (hookOptions.getChatElementReference ? hookOptions.getChatElementReference() : null)
   /** What a send carries: the real wire function over the reference the page hands the hook (the hook's call site is pinned below). */
-  const send = () => plain(libs.refineWire.addChatElementRefineFields({ text: 'x', client_caps: ['mdc1'], references: [] }, flagRefine() ? reference() : null).references)
+  const send = () => plain(libs.refineWire.addChatElementRefineFields({ text: 'x', client_caps: ['mdc1'], references: [] }, flagRefine() ? hookReference() : null).references)
   const flagRefine = () => libs.refineWire.CHAT_ELEMENT_REFINE_ENABLED
   commit()
   return {
@@ -395,6 +406,20 @@ await check('a text box and a non-text element deselected still clear the record
     const s = selectionWorld({ flag }); s.selectTextBox(TITLE); s.commit({ selectedTextBoxId: null }); assert.deepEqual(s.send(), [], `text box, flag ${flag}`)
     s.selectElement(IMAGE, 'image'); s.commit({ selectedElementId: null, selectedElementType: null }); assert.deepEqual(s.send(), [], `element, flag ${flag}`)
   }
+})
+
+await check('the reference names no slide id with the flag on (the refine path and the "@" Element entry), the outline UUID with it off; Director\'s echo (ref.slide_id or Layout\'s id) applies after a reload with the flag on, and the old UUID reference would be refused', async () => {
+  const echo = reference => reference.slide_id || LAYOUT_IDS[reference.slide_index] // DIRECTOR-2: element edit uses `ref.slide_id or layout_slide_id` (mdc_actions.py on uat)
+  const edit = (reference, extra = {}) => frame({ slide_id: echo(reference), slide_index: reference.slide_index, element_id: reference.element_id, directive_id: 'ele_000000000021', ...extra })
+  for (const flag of [false, true]) {
+    const s = selectionWorld({ flag }); s.selectElement(IMAGE, 'image')
+    const [sent] = s.send(), mention = s.reference()
+    assert.deepEqual([sent.slide_id, mention.slide_id], flag ? [null, null] : [OUTLINE_IDS[1], OUTLINE_IDS[1]], `flag ${flag}`)
+    assert.equal(sent.element_id, IMAGE); assert.equal(sent.slide_index, 1)
+    const applied = await run({ flag, session: 'restored' }, edit(sent)); assert.deepEqual(applied.result, { directive_id: 'ele_000000000021', ok: true }, `the echoed directive applies after a reload, flag ${flag}`)
+    const viaMention = await run({ flag, session: 'restored' }, edit(mention)); assert.equal(viaMention.result.ok, true, `and for the "@" token, flag ${flag}`)
+  }
+  const old = await run({ flag: true, session: 'restored' }, edit({ slide_id: OUTLINE_IDS[1], slide_index: 1, element_id: IMAGE })); assert.equal(old.result.error_code, 'SLIDE_CHANGED', 'a reference that still carried the UUID would come back refused with the flag on')
 })
 
 // ---- 4. flag off is the base ------------------------------------------------------------------------------------------------------------------------------------------------------
@@ -464,12 +489,12 @@ async function expectations({ pageText = read(PAGE), libOverrides = {} } = {}) {
 }
 async function selectionExpectations(options) {
   const off = selectionWorld({ flag: false, ...options }), on = selectionWorld({ flag: true, ...options })
-  off.selectElement(IMAGE, 'image'); off.selectTextBox(TITLE); off.undo(); assert.equal(off.send()[0].element_id, TITLE, 'flag off is today\'s'); off.selectElement(IMAGE, 'image'); assert.equal(off.send()[0].element_id, TITLE, 'and a click on the held image does not replace it')
+  off.selectElement(IMAGE, 'image'); assert.equal(off.send()[0].slide_id, OUTLINE_IDS[1], 'flag off: the outline UUID, as today'); assert.equal(off.reference().slide_id, OUTLINE_IDS[1], 'in the "@" entry too'); off.selectTextBox(TITLE); off.undo(); assert.equal(off.send()[0].element_id, TITLE, 'flag off is today\'s'); off.selectElement(IMAGE, 'image'); assert.equal(off.send()[0].element_id, TITLE, 'and a click on the held image does not replace it')
   off.selectElement(IMAGE, 'image'); off.selectTextBox('el_text_a'); off.selectElement(IMAGE, 'image'); off.commit({ selectedTextBoxId: TITLE }); off.selectTextBox(TITLE); assert.equal(off.send()[0].element_id, TITLE, 'the state effect records a changed selection')
   const held = selectionWorld({ flag: false, ...options }); held.selectTextBox(TITLE); held.selectElement(IMAGE, 'image'); held.selectTextBox(TITLE); assert.equal(held.send()[0].element_id, IMAGE, 'flag off: a click on the held text box does not replace the record')
   on.selectElement(IMAGE, 'image'); on.selectTextBox(TITLE); assert.equal(on.send()[0].element_id, TITLE)
   on.undo(); assert.deepEqual(on.send(), [], 'dropped by the Undo'); on.selectTextBox(TITLE); assert.equal(on.send()[0].element_id, TITLE, 'a click on the held text box records it')
-  on.undo(); on.selectElement(IMAGE, 'image'); assert.deepEqual([on.send()[0].element_id, on.send()[0].element_type, on.send()[0].slide_index, on.send()[0].slide_id], [IMAGE, 'IMAGE', 1, OUTLINE_IDS[1]], 'a click on the held element records it, on its slide'); on.selectElement('chart_7f3a', 'chart'); assert.equal(on.send()[0].element_id, 'chart_7f3a')
+  on.undo(); on.selectElement(IMAGE, 'image'); assert.deepEqual([on.send()[0].element_id, on.send()[0].element_type, on.send()[0].slide_index, on.send()[0].slide_id], [IMAGE, 'IMAGE', 1, null], 'a click on the held element records it, on its slide, naming no slide id'); assert.equal(on.reference().slide_id, null, 'nor does the "@" entry'); on.selectElement('chart_7f3a', 'chart'); assert.equal(on.send()[0].element_id, 'chart_7f3a')
   on.commit({ selectedElementProperties: {} }); assert.equal(on.send().length, 1, 'kept on an unrelated render'); on.goToSlide(2); assert.deepEqual(on.send(), [], 'dropped on another slide')
   on.selectElement(IMAGE, 'image', 2); on.commit({ effectivePresentationId: 'other-deck' }); assert.deepEqual(on.send(), [], 'dropped on another deck')
   const noRefine = selectionWorld({ flag: true, refine: false, ...options }); noRefine.selectElement(IMAGE, 'image'); noRefine.selectTextBox(TITLE); assert.equal(noRefine.ref.current, null)
@@ -505,12 +530,19 @@ const pageMutants = [
   ['the text box callback records with this change\'s flag off', PAGE, "if (CHAT_ELEMENT_EDIT_2_ENABLED && CHAT_ELEMENT_REFINE_ENABLED) chatElementSelectionRef.current = chatElementSelectionFor(elementId, 'TEXT_BOX',", "if (CHAT_ELEMENT_REFINE_ENABLED) chatElementSelectionRef.current = chatElementSelectionFor(elementId, 'TEXT_BOX',", 'selection'],
   ['the element callback records without the refine flag', PAGE, "if (CHAT_ELEMENT_EDIT_2_ENABLED && CHAT_ELEMENT_REFINE_ENABLED) chatElementSelectionRef.current = chatElementSelectionFor(elementId, elementType,", "if (CHAT_ELEMENT_EDIT_2_ENABLED) chatElementSelectionRef.current = chatElementSelectionFor(elementId, elementType,", 'selection'],
   ['the text box callback records without the refine flag', PAGE, "if (CHAT_ELEMENT_EDIT_2_ENABLED && CHAT_ELEMENT_REFINE_ENABLED) chatElementSelectionRef.current = chatElementSelectionFor(elementId, 'TEXT_BOX',", "if (CHAT_ELEMENT_EDIT_2_ENABLED) chatElementSelectionRef.current = chatElementSelectionFor(elementId, 'TEXT_BOX',", 'selection'],
+  ['the refine path keeps the outline UUID (the hook option override is gone)', PAGE, "    ...(CHAT_ELEMENT_EDIT_2_ENABLED && CHAT_ELEMENT_REFINE_ENABLED ? { getChatElementReference: () => chatElementEdit2Reference() } : {}), // CHAT-ELEMENT-EDIT-2: the reference of a send names the slide by no id (Director fills Layout's), overriding the refine option above\n", '', 'selection'],
+  ['the refine path override runs with the flag off', PAGE, "...(CHAT_ELEMENT_EDIT_2_ENABLED && CHAT_ELEMENT_REFINE_ENABLED ? { getChatElementReference:", "...(CHAT_ELEMENT_REFINE_ENABLED ? { getChatElementReference:", 'selection'],
+  ['the "@" entry keeps the outline UUID (the getElement override is gone)', PAGE, "  if (CHAT_ELEMENT_EDIT_2_ENABLED && chatCommandsPage) chatCommandsPage.getElement = () => (CHAT_ELEMENT_REFINE_ENABLED ? chatElementEdit2Reference() : null) // CHAT-ELEMENT-EDIT-2: a picked @Element token carries the same reference (slide_id null)\n", '', 'selection'],
+  ['the "@" entry override runs with the flag off', PAGE, "if (CHAT_ELEMENT_EDIT_2_ENABLED && chatCommandsPage) chatCommandsPage.getElement =", "if (chatCommandsPage) chatCommandsPage.getElement =", 'selection'],
+  ['the helper reads the record unchanged (the UUID goes out)', PAGE, "referenceWithoutOutlineId(chatElementReferenceFor(chatElementSelectionRef.current)) // CHAT-ELEMENT-EDIT-2", "chatElementReferenceFor(chatElementSelectionRef.current) // CHAT-ELEMENT-EDIT-2", 'selection'],
 ]
 for (const [label, rel, from, to, kind] of pageMutants) await check(`mutant caught: ${label}`, async () => {
   const mutated = mutate(pageText, from, to, label)
   await assert.rejects(() => (kind === 'runner' ? expectations({ pageText: mutated }) : selectionExpectations({ pageText: mutated })), undefined, 'the expectations must fail on this mutant')
 })
 const selectionLibMutants = [
+  ['the reference keeps the outline UUID with the flag on (a mutant that sends the UUID)', TWO, 'return reference ? { ...reference, slide_id: null } : null', 'return reference ? { ...reference } : null'],
+  ['the reference drops more than the slide id', TWO, 'return reference ? { ...reference, slide_id: null } : null', 'return reference ? { ...reference, slide_id: null, slide_index: 0 } : null'],
   ['the slide drop compares the wrong way', TWO, 'ref.current.slideIndex !== shownSlideIndex', 'ref.current.slideIndex === shownSlideIndex'],
   ['the deck drop keeps the record', TWO, 'ref.current = null\n}\n\n/** Forgets the selection record when the shown slide', 'void 0\n}\n\n/** Forgets the selection record when the shown slide'],
   ['the record loses the element type', TWO, 'return { elementId, elementType, slideIndex,', 'return { elementId, elementType: null, slideIndex,'],
@@ -544,7 +576,7 @@ await check(`this change's own commits (first-parent, no merges, subject starts 
 await check('the files the own commits touch are exactly this change\'s; every line added to an existing file is a pure insertion that carries the marker; the strip gives each its base back', () => {
   const touched = new Set(); for (const c of own) for (const rel of git('show', '--name-only', '--format=', c).split('\n').filter(Boolean)) touched.add(rel)
   assert.deepEqual([...touched].filter(rel => CHAT_ELEMENT_EDIT_2_SCOPE_FILES.has(rel) || !registry.LATER_CHANGE_FILES.has(rel)).sort(), [...CHAT_ELEMENT_EDIT_2_SCOPE_FILES].sort())
-  const expected = { [PAGE]: 16, [LIB]: 8 }
+  const expected = { [PAGE]: 19, [LIB]: 8 }
   for (const rel of CHAT_ELEMENT_EDIT_2_FILES) {
     const diff = git('diff', '-U0', BASE_COMMIT, 'HEAD', '--', rel).split('\n').filter(line => /^[+-]/.test(line) && !/^(\+\+\+|---) /.test(line))
     for (const line of diff) { assert.ok(line.startsWith('+'), `${rel}: a removed line: ${line.slice(0, 120)}`); assert.match(line, CHAT_ELEMENT_EDIT_2_MARKER_RE, `${rel}: an unmarked added line: ${line.slice(0, 120)}`) }

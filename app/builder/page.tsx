@@ -104,7 +104,7 @@ import { CHAT_ELEMENT_REFINE_ENABLED, chatElementReferenceFor, runElementRefineD
 import { CHAT_ELEMENT_EDIT_ENABLED, createElementEditGate, runElementEditDirective, type ElementEditDirectiveMessage, type ElementEditDirectiveOwner, type ElementEditGate } from '@/lib/chat-element-edit' // CHAT-ELEMENT-EDIT (NEXT_PUBLIC_STUDIO_CHAT_ELEMENT_EDIT, default off): edit an element from chat
 import { NOTES_UPDATED_EVENT } from '@/lib/chat-element-edit-wire' // CHAT-ELEMENT-EDIT
 import { getChatEditViewer, subscribeViewerSaveEvents } from '@/lib/chat-element-edit-save' // CHAT-ELEMENT-EDIT
-import { CHAT_ELEMENT_EDIT_2_ENABLED, chatElementSelectionFor, dropChatElementSelection, dropChatElementSelectionOffSlide, shownSlidesFromInventory } from '@/lib/chat-element-edit-2' // CHAT-ELEMENT-EDIT-2
+import { CHAT_ELEMENT_EDIT_2_ENABLED, chatElementSelectionFor, dropChatElementSelection, dropChatElementSelectionOffSlide, referenceWithoutOutlineId, shownSlidesFromInventory } from '@/lib/chat-element-edit-2' // CHAT-ELEMENT-EDIT-2
 import { isTextLabsMappable } from '@/lib/element-type-mapping'
 // NEXT_PUBLIC_CHAT_THEME_CHANGE / NEXT_PUBLIC_CHAT_EXPORT (each default off): change the theme / export the deck from chat (lib/chat-theme-export.ts).
 import { runExportDirective, runThemeDirective, type ThemeExportDirectiveMessage, type ThemeExportDirectiveOwner, type ThemeExportResultData } from '@/lib/chat-theme-export'
@@ -2653,6 +2653,7 @@ function AuthenticatedBuilderContent({ authScopeUserId }: { authScopeUserId: str
         if (owner.isCurrent()) window.dispatchEvent(new CustomEvent(NOTES_UPDATED_EVENT, { detail: update })) // CHAT-ELEMENT-EDIT
       }, // CHAT-ELEMENT-EDIT
     } : {}), // CHAT-ELEMENT-EDIT
+    ...(CHAT_ELEMENT_EDIT_2_ENABLED && CHAT_ELEMENT_REFINE_ENABLED ? { getChatElementReference: () => chatElementEdit2Reference() } : {}), // CHAT-ELEMENT-EDIT-2: the reference of a send names the slide by no id (Director fills Layout's), overriding the refine option above
     // NEXT_PUBLIC_STUDIO_JOB_LEDGER: Director's job rows (job_update, sync_response jobs) go to this tab's ledger. Off: not passed.
     ...(STUDIO_JOB_LEDGER_ENABLED ? { onJobUpdate: studioJobLedger.onJobUpdate, onJobsSync: studioJobLedger.onJobsSync } : {}),
     // Build Narration: typed-frame ref-forwarders (WS options precede the
@@ -5399,6 +5400,7 @@ function AuthenticatedBuilderContent({ authScopeUserId }: { authScopeUserId: str
     const result = await fetchSlideInventory({ baseUrl: getLayoutServiceUrl(), presentationId, fetchImpl: (input, init) => fetch(input, init) }) // CHAT-ELEMENT-EDIT-2
     return result.kind === 'ok' ? shownSlidesFromInventory(result.inventory) : null // CHAT-ELEMENT-EDIT-2
   } // CHAT-ELEMENT-EDIT-2
+  const chatElementEdit2Reference = () => referenceWithoutOutlineId(chatElementReferenceFor(chatElementSelectionRef.current)) // CHAT-ELEMENT-EDIT-2: the one element reference of a send and of the "@" Element entry, slide_id null (the session slide list holds Director's outline ids, which Layout does not know)
   useEffect(() => { // CHAT-ELEMENT-EDIT-2
     if (CHAT_ELEMENT_EDIT_2_ENABLED) dropChatElementSelection(chatElementSelectionRef) // CHAT-ELEMENT-EDIT-2
   }, [slideComposerOverride, effectivePresentationId]) // CHAT-ELEMENT-EDIT-2
@@ -6429,6 +6431,7 @@ function AuthenticatedBuilderContent({ authScopeUserId }: { authScopeUserId: str
   const chatCommandsSlides = (slideStructure?.slides || []).map((sl: { title?: string; slide_id?: string }, i: number) => ({ index: i, title: sl?.title || '', slide_id: sl?.slide_id ?? null })) // CHAT-COMMANDS: the same list the K1 slide picker was given
   const chatCommandsExport = (format: 'pdf' | 'pptx') => { const shown = elementDirectiveGenerationOwnerRef.current; return runExportDirective({ type: 'export_directive', payload: { directive_id: 'chat-command', presentation_id: shown.presentationId as string, format } } as ExportDirectiveMessage, { sessionId: shown.sessionId ?? null, isCurrent: () => true }, { displayed: () => elementDirectiveGenerationOwnerRef.current, exportState: () => ({ presentationUrl: effectivePresentationUrl ?? null, slideCount: effectiveSlideCount ?? null, stage: currentStage, hasFinalDeck: Boolean(finalPresentationId || finalPresentationUrl), exportAfterBuild: process.env.NEXT_PUBLIC_STUDIO_V4_SHELL === 'true' && process.env.NEXT_PUBLIC_STUDIO_EXPORT_AFTER_BUILD === 'true', partialArtifact: Boolean(studioShell && studioPartialMetadata), narrationActive: Boolean(effectiveBuildNarrationEnabled && buildNarration?.active), narrationPhase: (effectiveBuildNarrationEnabled ? buildNarration?.phase : null) ?? 'idle' }), downloadPDF, downloadPPTX }) } // CHAT-COMMANDS: /export runs the export directive's own runner (the Download menu's downloadPDF / downloadPPTX and its enable rule) with the same state the runner above is given
   const chatCommandsPage: ChatCommandsPageProps | undefined = chatCommandsOn ? { slides: chatCommandsSlides, currentSlide: chatCommandsSlides.length ? Math.min(Math.max(currentSlideIndex + 1, 1), chatCommandsSlides.length) : null, getElement: () => (CHAT_ELEMENT_REFINE_ENABLED ? chatElementReferenceFor(chatElementSelectionRef.current) : null), exportDeck: chatCommandsExport } : undefined // CHAT-COMMANDS: the current slide, the element reference Studio already builds (NEXT_PUBLIC_CHAT_ELEMENT_REFINE), the export runner
+  if (CHAT_ELEMENT_EDIT_2_ENABLED && chatCommandsPage) chatCommandsPage.getElement = () => (CHAT_ELEMENT_REFINE_ENABLED ? chatElementEdit2Reference() : null) // CHAT-ELEMENT-EDIT-2: a picked @Element token carries the same reference (slide_id null)
 
   const handleCancelManualDeckBuild = useCallback(() => {
     if (manualDeckHandoffBusy) return
