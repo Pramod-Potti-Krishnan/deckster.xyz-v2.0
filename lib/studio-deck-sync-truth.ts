@@ -15,7 +15,7 @@
  * The rail list (2 thumbnails) and the notice read the same deck's inventory (effectivePresentationId = the final deck); the strawman preview
  * (3 slides, never changed, E2E-2's own reads of it) is not what any of the three shows.
  *
- * What the flag does (the viewer, the notice controller, the hook and the notice component; nothing in the Builder page):
+ * What the flag does (the viewer, the notice controller, the hook, the notice component and, for the session row, a few marked lines in the Builder page):
  *   - after each poll the viewer commits the count the viewer itself reports, unless a build is in progress (isGenerating, a partial artifact, which also carries the
  *     rail's mid-build plan, compose jobs) or the viewer is outside the Studio shell: there the grow-only floor stays, as a build adds slides one at a time
  *     and the viewer may report fewer than Director has built;
@@ -24,7 +24,11 @@
  *     and is never called "another tab";
  *   - a difference that is not explained that way is shown only if it is still there NOTICE_CONFIRM_DELAY_MS later (a viewer restored with an old count
  *     corrects itself on its first poll; the strip is for a deck that really differs), and reads "This deck was updated". "In another tab" stays for a
- *     message another tab sent on the BroadcastChannel; "while you were reconnecting" stays for a reconnect.
+ *     message another tab sent on the BroadcastChannel; "while you were reconnecting" stays for a reconnect;
+ *   - the SESSION ROW (the Decks page card and the session list read its slideCount): after a chat change to the deck (Director's deck_mutation, which an undo's deck_restored also
+ *     arrives as) on a settled deck, the page writes the deck's real slide count (Layout's slide inventory, the read the rail list and the notice use) to the row through its
+ *     existing session write (persistence.updateMetadata), instead of leaving the larger count the build wrote; a build in progress keeps today's rule (the row is raised only).
+ *     See createSettledRowCountWriter below.
  *
  * Import-free so scripts/test-studio-deck-sync-truth.mjs can run it under plain node. The Next build inlines the flag.
  */
@@ -74,4 +78,43 @@ export function deckChangedNoticeText(source: string): string {
   if (source === 'reconnect') return 'This deck changed while you were reconnecting'
   if (source === 'broadcast') return 'This deck changed in another tab'
   return DECK_UPDATED_NOTICE_TEXT
+}
+
+/** A deck on screen, as far as the row writer needs to know it (the page's slideComposerPresentationRef.current). */
+export interface SettledRowCountDisplayed {
+  presentationId: string | null
+  activeVersion?: string | null
+}
+
+export interface SettledRowCountDeps {
+  /** Layout's slide count for the deck (its slide inventory: the read the rail list and the deck-changed notice use), or null when Layout cannot answer. */
+  readLayoutCount: (presentationId: string) => Promise<number | null>
+  /** The deck on screen now. */
+  getDisplayed: () => SettledRowCountDisplayed | null | undefined
+  /** A build is in progress (the viewer's rule: outside the Studio shell, a build running, the partial artifact, template mode, compose jobs). Asked again after Layout answers. */
+  isBuilding: () => boolean
+  /** The page's existing session-row write (persistence.updateMetadata): the row's slideCount becomes `count`. */
+  writeRowCount: (count: number) => void
+}
+
+/**
+ * Returns persist(presentationId, ownerIsCurrent): writes the count Layout reports for the deck to the session row, and resolves with the count written, or null when nothing was written.
+ * Nothing is written when a build is in progress (asked before and after Layout answers: the build's rule, a count that is only raised, stays), when the owner retired, when another deck
+ * (or not the final deck) is on screen by then, when Layout cannot answer or reports no slides, or when a newer call has started (the newest call writes, whatever order Layout answers in).
+ */
+export function createSettledRowCountWriter(deps: SettledRowCountDeps) {
+  let sequence = 0
+  return async function persistSettledRowCount(presentationId: string, ownerIsCurrent: () => boolean): Promise<number | null> {
+    const mine = ++sequence
+    if (typeof presentationId !== 'string' || !presentationId || deps.isBuilding()) return null
+    let layoutCount: number | null = null
+    try { layoutCount = await deps.readLayoutCount(presentationId) } catch { return null }
+    if (mine !== sequence || !ownerIsCurrent() || deps.isBuilding()) return null
+    const displayed = deps.getDisplayed()
+    if (!displayed || displayed.presentationId !== presentationId || displayed.activeVersion !== 'final') return null
+    const count = wholeCount(layoutCount)
+    if (count === null) return null
+    deps.writeRowCount(count)
+    return count
+  }
 }

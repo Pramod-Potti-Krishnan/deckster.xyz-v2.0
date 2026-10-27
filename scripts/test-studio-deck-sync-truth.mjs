@@ -3,6 +3,8 @@
 // Run: node scripts/test-studio-deck-sync-truth.mjs   (plain node: transpile + vm, no network; `git` reads the base commit and the committed diff)
 //
 // What it replays: E2E-2's sequence (3 slides -> chat delete -> chip undo -> chat delete -> typed undo -> probe delete -> RELOAD) on the code the browser runs.
+//   The SESSION ROW (what the Decks page card and the session list read): the page's marked block (the building ref, the writer, the write) and the call in its onDeckMutation are cut from the source and run; the row is an in-memory
+//   object that persistence.updateMetadata merges into (the page's existing write; the chain from there to the card is pinned in source below); the Decks card's reader (the dashboard's session mapping and the card's count label) is the real code.
 //   REAL (cut from the source under test and evaluated, or loaded whole): the viewer's poll (`const verifiedMinimumTotal` .. `const visualTotal`), its prop effect, its building ref, its viewer-state
 //   report and its footer expression; the Builder page's onDeckMutation handler and deck-mutation count settler; planDeckMutationRefresh, the dedupe lib, fetchSlideInventory (the rail list's and the notice's
 //   read), resolveEffectivePresentation, resolveSlideComposeViewerState, syncedFooterTotal, normaliseDeckRestored, the notice controller (createDeckChangedController) with the hook's own deps line, and the
@@ -25,7 +27,7 @@ import {
   DECK_SYNC_TRUTH_BASE_COMMIT, DECK_SYNC_TRUTH_ENV_BLOCK, DECK_SYNC_TRUTH_FILES, DECK_SYNC_TRUTH_FLAG, DECK_SYNC_TRUTH_MARKER_RE, DECK_SYNC_TRUTH_NEW_FILES,
   DECK_SYNC_TRUTH_PIN_EDITS, DECK_SYNC_TRUTH_REPLACED, DECK_SYNC_TRUTH_SCOPE_FILES, DECK_SYNC_TRUTH_SUBJECT, stripDeckSyncTruth,
 } from './studio-deck-sync-truth-strip.mjs'
-import { stripLaterChanges, stripLaterEnvBlocks } from './studio-later-changes.mjs'
+import { LATER_STRIPS, stripLaterChanges, stripLaterEnvBlocks } from './studio-later-changes.mjs'
 
 const repoRoot = path.resolve(fileURLToPath(new URL('../', import.meta.url)))
 const BASE = DECK_SYNC_TRUTH_BASE_COMMIT
@@ -37,15 +39,19 @@ const COMPONENT = 'components/builder/studio-deck-changed-notice.tsx'
 const VIEWER = 'components/presentation-viewer.tsx'
 const PAGE = 'app/builder/page.tsx'
 const SOCKET_HOOK = 'hooks/use-deckster-websocket-v2.ts'
-const LIBS = [LIB, NOTICE_LIB, 'lib/slide-compose-async.ts', 'lib/studio-slide-count-sync.ts', 'lib/studio-deck-mutation-refresh.ts', 'lib/studio-deck-mutation-dedupe.ts',
+const DASH = 'app/(app)/dashboard/page.tsx' // the Decks page: the session list's mapping and the deck card
+const CARD_LIB = 'lib/studio-deck-card-count.ts'
+const LIBS = [LIB, NOTICE_LIB, CARD_LIB, 'lib/slide-compose-async.ts', 'lib/studio-slide-count-sync.ts', 'lib/studio-deck-mutation-refresh.ts', 'lib/studio-deck-mutation-dedupe.ts',
   'lib/slide-rail-identity.ts', 'lib/builder-presentation-ownership.ts', 'lib/studio-bulk-edit-wire.ts', 'lib/director-sync-recovery.ts']
-const APP = [VIEWER, COMPONENT, HOOK, PAGE, SOCKET_HOOK]
+const APP = [VIEWER, COMPONENT, HOOK, PAGE, SOCKET_HOOK, DASH]
 
 const sha = text => createHash('sha256').update(text).digest('hex')
 const plain = value => JSON.parse(JSON.stringify(value === undefined ? null : value))
 const rawText = rel => readFileSync(path.join(repoRoot, rel), 'utf8')
 const gitText = (rel, rev) => execFileSync('git', ['show', `${rev}:${rel}`], { cwd: repoRoot, encoding: 'utf8', maxBuffer: 1 << 28, stdio: ['ignore', 'pipe', 'pipe'] })
 const git = (...args) => execFileSync('git', args, { cwd: repoRoot, encoding: 'utf8', maxBuffer: 1 << 28, stdio: ['ignore', 'pipe', 'pipe'] })
+/** What a PEER (every other change in the registry) leaves in a file: the file with the other changes' marked lines out and this change's still in. Read on both sides of a comparison with dev's file, so a change that lands on dev later does not make this change's identity checks fail. */
+const stripPeers = (rel, text) => LATER_STRIPS.filter(strip => strip !== stripDeckSyncTruth).reduce((out, strip) => { const next = strip(rel, out); return typeof next === 'string' ? next : out }, text)
 
 // ---------- sources ----------
 // head = the working tree as it is (this change's lines in, every other registered change's lines in too); base = the same text with ONLY this change's lines taken out (the strip), so the two differ by this change alone.
@@ -163,9 +169,9 @@ function createLayout() {
 
 // ---------- the world: one page load of the Builder over Layout ----------
 // flag: the value of NEXT_PUBLIC_STUDIO_DECK_SYNC_TRUTH for this build (undefined = unset). The other flags are the ones Studio dev runs these frames under (the notice, S-03, the count settler, chat undo, count sync).
-function world({ sources, flag, layout, row, building = false, liveOverride = null }) {
+function world({ sources, flag, layout, row, building = false, liveOverride = null, env: extraEnv = {}, session = true, shell = true }) {
   const env = { NEXT_PUBLIC_STUDIO_DECK_CHANGED_NOTICE: 'true', NEXT_PUBLIC_STUDIO_DECK_MUTATION_REFRESH_ENABLED: 'true', NEXT_PUBLIC_STUDIO_DECK_MUTATION_DEDUPE: 'true',
-    NEXT_PUBLIC_STUDIO_CHAT_UNDO: 'true', NEXT_PUBLIC_STUDIO_SLIDE_COUNT_SYNC_ENABLED: 'true', NEXT_PUBLIC_STUDIO_V4_SHELL: 'true' }
+    NEXT_PUBLIC_STUDIO_CHAT_UNDO: 'true', NEXT_PUBLIC_STUDIO_SLIDE_COUNT_SYNC_ENABLED: 'true', NEXT_PUBLIC_STUDIO_V4_SHELL: 'true', ...extraEnv }
   if (flag !== undefined) env[FLAG] = flag
   const clock = { t: 1_800_000_000_000, timers: [], next: 1 }
   const setTimer = (fn, ms) => { const id = clock.next++; clock.timers.push({ id, at: clock.t + ms, fn }); return id }
@@ -201,7 +207,7 @@ function world({ sources, flag, layout, row, building = false, liveOverride = nu
   const truth = load(LIB), notice = load(NOTICE_LIB), compose = load('lib/slide-compose-async.ts'), countSync = load('lib/studio-slide-count-sync.ts')
   const refresh = load('lib/studio-deck-mutation-refresh.ts'), dedupe = load('lib/studio-deck-mutation-dedupe.ts'), rail = load('lib/slide-rail-identity.ts')
   const ownership = load('lib/builder-presentation-ownership.ts'), wire = load('lib/studio-bulk-edit-wire.ts')
-  const viewerText = sources[VIEWER], pageText = stripLaterChanges(PAGE, sources[PAGE]), hookText = sources[HOOK], componentText = sources[COMPONENT], socketText = sources[SOCKET_HOOK]
+  const viewerText = sources[VIEWER], pageText = stripPeers(PAGE, sources[PAGE]), hookText = sources[HOOK], componentText = sources[COMPONENT], socketText = sources[SOCKET_HOOK]
   const STUDIO_DECK_SYNC_TRUTH_ENABLED = truth ? truth.STUDIO_DECK_SYNC_TRUTH_ENABLED : false
 
   // -- the restore's choice of the displayed deck (hooks/use-deckster-websocket-v2.ts restoreMessages, cut) --
@@ -214,6 +220,32 @@ function world({ sources, flag, layout, row, building = false, liveOverride = nu
   const builder = { override: null }
   const ref = { current: { presentationUrl: live.presentationUrl, presentationId: live.presentationId, slideCount: live.slideCount, activeVersion: 'final', refreshToken: 0 } }
   const effective = () => ownership.resolveEffectivePresentation({ livePresentationUrl: live.presentationUrl, livePresentationId: live.presentationId, liveSlideCount: live.slideCount, override: builder.override })
+  // -- the session row and the page's own write to it (persistence.updateMetadata, which merges into the row), and the page's marked block that settles the row's count (cut from the source, run on every render) --
+  const rowState = { ...row }
+  const rowWrites = []
+  const persistence = { updateMetadata: (updates, options) => { rowWrites.push({ updates: { ...updates }, options: options ?? null }); if (updates && 'slideCount' in updates) rowState.slideCount = updates.slideCount } }
+  const sessionIdRef = { current: session ? 'b6cbb408' : null }, persistenceRef = { current: session ? persistence : null }
+  class ClockDate extends Date { constructor(...args) { super(...(args.length ? args : [clock.t])) } static now() { return clock.t } }
+  let partial = false, composeJobs = []
+  const hookRefs = []
+  let refCursor = 0, blockRefs = null
+  const blockText = cutLines(pageText, 'const deckSyncBuildingRef = useRef(false)', '}) // DECK-SYNC-TRUTH')
+  const blockNames = ['useRef', 'studioShell', 'studioPartialMetadata', 'templateModeOn', 'isGeneratingFinal', 'isGeneratingStrawman', 'slideComposeThumbnailJobs', 'createSettledRowCountWriter', 'fetchSlideInventory', 'getLayoutServiceUrl', 'fetch',
+    'slideComposerPresentationRef', 'currentSessionIdRef', 'persistenceRef']
+  const blockRun = blockText ? evalSnippet(blockText, blockNames, '{ deckSyncRowCountRef, deckSyncBuildingRef }', { ...globals, Date: ClockDate, process: { env } }) : null
+  /** One render of the page's block: React hands back the same ref object at each call position, the building ref is assigned afresh, and the writer is made once (the flag read inline). */
+  const runPageBlock = () => {
+    if (!blockRun) return
+    refCursor = 0
+    blockRefs = blockRun({ useRef: initial => { const at = refCursor++; if (!hookRefs[at]) hookRefs[at] = { current: initial }; return hookRefs[at] },
+      studioShell: shell, studioPartialMetadata: partial, templateModeOn: false, isGeneratingFinal: building, isGeneratingStrawman: false, slideComposeThumbnailJobs: composeJobs,
+      createSettledRowCountWriter: truth ? truth.createSettledRowCountWriter : undefined, fetchSlideInventory: rail.fetchSlideInventory, getLayoutServiceUrl: () => LAYOUT, fetch: layout.fetch,
+      slideComposerPresentationRef: ref, currentSessionIdRef: sessionIdRef, persistenceRef })
+  }
+  runPageBlock()
+  // the build's own count rule (onSessionStateChange, a base line this change leaves alone): the row only ever rises while a build runs
+  const buildRule = cutLines(pageText, 'const verifiedLayoutCount = (() => {', 'const nextSlideCount = Math.max(state.slideCount ?? 0, verifiedLayoutCount ?? 0) || state.slideCount')
+  const buildRuleRun = buildRule ? evalSnippet(buildRule, ['state', 'slideComposerPresentationRef'], 'nextSlideCount') : null
   const withToken = evalSnippet(cutFunction(pageText, 'withSlideComposerRefreshToken'), [], 'withSlideComposerRefreshToken')({})
   const viewer = { url: undefined, totalSlides: 0, visual: 0, canvas: 0, railList: 0, iframeReady: false, saveStatus: 'saved' }
   const setSlideComposerOverride = value => { builder.override = plain(value); render() }
@@ -225,7 +257,8 @@ function world({ sources, flag, layout, row, building = false, liveOverride = nu
     fetchSlideInventory: rail.fetchSlideInventory, getLayoutServiceUrl: () => LAYOUT, fetch: layout.fetch, Date: globals.Date }
   const pageNames = Object.keys(pageDeps)
   pageDeps.deckMutationCountSettlerRef = evalSnippet(cutSettler(pageText), pageNames, 'deckMutationCountSettlerRef', { ...globals, process: { env } })(pageDeps)
-  const onDeckMutation = evalSnippet('', [...pageNames, 'deckMutationCountSettlerRef'], `(${cutArrow(pageText, 'onDeckMutation: (message')})`, globals)(pageDeps)
+  pageDeps.deckSyncRowCountRef = blockRefs ? blockRefs.deckSyncRowCountRef : undefined // the same ref object at every render
+  const onDeckMutation = evalSnippet('', [...pageNames, 'deckMutationCountSettlerRef', 'deckSyncRowCountRef'], `(${cutArrow(pageText, 'onDeckMutation: (message')})`, globals)(pageDeps)
 
   // -- the viewer (real snippets of presentation-viewer.tsx) --
   const buildingState = { current: false }
@@ -282,6 +315,7 @@ function world({ sources, flag, layout, row, building = false, liveOverride = nu
   function render() {
     const eff = effective()
     ref.current = { presentationUrl: eff.presentationUrl, presentationId: eff.presentationId, slideCount: eff.slideCount, activeVersion: 'final', refreshToken: eff.refreshToken }
+    runPageBlock()
     const url = withToken(eff.presentationUrl, eff.refreshToken)
     if (viewer.url !== url) { viewer.canvas = layout.count(eff.presentationId); viewer.url = url; viewer.iframeReady = true } // a new URL reloads the iframe: it shows Layout's real deck
     runSyncEffect()
@@ -312,25 +346,33 @@ function world({ sources, flag, layout, row, building = false, liveOverride = nu
 
   return {
     clock, notices, viewer, effective, restored, advance, settle, truth, notice, compose, countSync, STUDIO_DECK_SYNC_TRUTH_ENABLED, noticeText, poll,
-    reloadCount: () => reloads, controller: () => controller, setBuilding: value => { building = value },
+    reloadCount: () => reloads, controller: () => controller, setBuilding: value => { building = value; runPageBlock() },
+    setPartial: value => { partial = value; runPageBlock() }, setComposeJobs: jobs => { composeJobs = jobs; runPageBlock() },
+    rowCount: () => rowState.slideCount, rowWrites, sessionIdRef, persistenceRef,
+    /** One of Director's own state frames while a build runs: the page's onSessionStateChange count rule (cut from the source) decides the count its write carries. */
+    buildFrame({ slideCount }) {
+      const state = { presentationId: live.presentationId, presentationUrl: live.presentationUrl, slideCount }
+      const next = buildRuleRun ? buildRuleRun({ state, slideComposerPresentationRef: ref }) : slideCount
+      persistence.updateMetadata({ slideCount: next, lastMessageAt: new Date(0) }, { passive: true })
+    },
     /** Page load + first render + the first poll */
     mount() { render(); mountController(); poll() },
     /** the first render after a page load: the iframe loads and the viewer holds the prop's count, before any poll */
     boot() { render(); mountController() },
     /** Director's count rises (the page's live count, as a build's frames raise it); the viewer's iframe shows `canvas` slides */
     setLiveCount(count, canvas) { live.slideCount = count; viewer.canvas = canvas; render() },
-    shot: label => ({ label, header: header(), footer: footer(), rail: viewer.railList, canvas: viewer.canvas, notice: notices.length && notices[notices.length - 1] ? noticeText(notices[notices.length - 1].source) : null }),
+    shot: label => ({ label, header: header(), footer: footer(), rail: viewer.railList, canvas: viewer.canvas, row: rowState.slideCount, notice: notices.length && notices[notices.length - 1] ? noticeText(notices[notices.length - 1].source) : null }),
     /** Director's chat op: Layout changes, then the recorded frame reaches the page's handler (the hook's checks have passed for the displayed deck). */
-    async chat(frame, mutate) {
+    async chat(frame, mutate, { presentationId = FINAL, ownerCurrent = true } = {}) {
       mutate()
       const f = structuredClone(frame)
-      f.payload.presentation_id = FINAL
-      if (f.payload.presentation_url) f.payload.presentation_url = `${LAYOUT}/p/${FINAL}`
+      f.payload.presentation_id = presentationId
+      if (f.payload.presentation_url) f.payload.presentation_url = `${LAYOUT}/p/${presentationId}`
       f.message_id = `${f.message_id}-${++world.frames}`
       f.payload.refresh_token = `${f.payload.refresh_token}-${world.frames}`
       f.session_id = 'b6cbb408'
       wire.normaliseDeckRestored(f) // the hook does this before the page sees an undo's deck_restored
-      onDeckMutation(f, { isCurrent: () => true, presentationId: FINAL })
+      onDeckMutation(f, { isCurrent: () => ownerCurrent, presentationId })
       await settle()
     },
     /** The tab gets focus six seconds after the last change (past the tab's own-change quiet window): one inventory read and a comparison. */
@@ -344,10 +386,10 @@ world.hub = null
 const ROW = () => ({ currentStage: 6, slideCount: 3, finalPresentationId: FINAL, finalPresentationUrl: `${LAYOUT}/p/${FINAL}`, strawmanPresentationId: PREVIEW, strawmanPreviewUrl: `${LAYOUT}/p/${PREVIEW}` })
 
 /** E2E-2's run: 3 slides, delete 3, chip undo, delete 2, typed undo, probe delete, then the reload. Returns what the page showed after each step and after the reload. */
-async function e2e2Run({ sources, flag, focusBeforePoll = false }) {
+async function e2e2Run({ sources, flag, focusBeforePoll = false, reloadFrom = 'build', env }) {
   const layout = createLayout()
   const steps = []
-  const w = world({ sources, flag, layout, row: ROW() })
+  const w = world({ sources, flag, layout, row: ROW(), env })
   w.mount()
   await w.settle()
   steps.push(w.shot('built: 3 slides'))
@@ -361,11 +403,11 @@ async function e2e2Run({ sources, flag, focusBeforePoll = false }) {
   steps.push(w.shot('typed undo'))
   await w.chat(RECORDED.deleteSlide3(), () => layout.remove(FINAL, 2)); await w.advance(3500)
   steps.push(w.shot('probe delete'))
-  const beforeReload = { pageCount: w.effective().slideCount, rowCount: ROW().slideCount }
+  const beforeReload = { pageCount: w.effective().slideCount, rowCount: w.rowCount() }
   const midRunNotices = w.notices.filter(Boolean).length
   w.close()
-  // RELOAD: a new page from the session row (nothing wrote a lower count to it: no page code does), a new notice controller
-  const r = world({ sources, flag, layout, row: ROW() })
+  // RELOAD: a new page from the session row, a new notice controller. reloadFrom 'build' = the row E2E-2 had (the build's count: written before this change existed, and nothing lowered it); 'as-left' = the row the first page left behind
+  const r = world({ sources, flag, layout, row: reloadFrom === 'as-left' ? { ...ROW(), slideCount: w.rowCount() } : ROW(), env })
   r.boot()
   await r.settle()
   const loaded = r.shot('reload: iframe loaded, before the first poll')
@@ -376,7 +418,7 @@ async function e2e2Run({ sources, flag, focusBeforePoll = false }) {
   await r.focus()
   await r.advance(6000)
   const afterFocus = r.shot('reload: after focus')
-  const result = { steps, midRunNotices, beforeReload, restoredDeck: r.restored, loaded, early, polled, afterFocus, notices: r.notices.filter(Boolean), reloads: r.reloadCount() }
+  const result = { steps, midRunNotices, beforeReload, rowWrites: w.rowWrites.length, restoredDeck: r.restored, loaded, early, polled, afterFocus, notices: r.notices.filter(Boolean), reloads: r.reloadCount() }
   r.close()
   return result
 }
@@ -678,6 +720,187 @@ async function suite(sources, { log = false } = {}) {
     }
   })
 
+
+  // --- the session row: the Decks page card and the session list read it ---
+  const deckCard = rowCount => {
+    const dash = sources[DASH], cardLib = makeLoader(sources, {}, {})(CARD_LIB)
+    const map = evalSnippet(`${cutFunction(dash, 'getStatusFromStage')}\n${cutFunction(dash, 'getFirstMessage')}\n${cutLines(dash, 'const transformedPresentations = sessionsWithPresentations.map(session => ({', '}))')}`, ['sessionsWithPresentations'], 'transformedPresentations')
+    const [card] = map({ sessionsWithPresentations: [{ id: 'b6cbb408', title: 'Deck', createdAt: '2026-10-27T01:00:00Z', updatedAt: '2026-10-27T01:19:00Z', currentStage: 6, slideCount: rowCount, messages: [], strawmanPreviewUrl: null, finalPresentationUrl: `${LAYOUT}/p/${FINAL}` }] })
+    return { slideCount: card.slideCount, status: card.status, label: cardLib.studioDeckCardCountLabel(card.slideCount, card.status), plainLabel: `${card.slideCount} slides` }
+  }
+  await check('flag off: the session row keeps the build\'s 3 through the whole E2E-2 run (no write), and the Decks card reads "3 slides" over the 2-slide deck (today)', async () => {
+    const r = await e2e2Run({ sources, flag: undefined, reloadFrom: 'as-left' })
+    assert.deepEqual(r.steps.map(s => s.row), [3, 3, 3, 3, 3, 3])
+    assert.equal(r.rowWrites, 0, 'the page writes nothing to the row on a chat change')
+    assert.equal(r.beforeReload.rowCount, 3)
+    assert.deepEqual([deckCard(r.beforeReload.rowCount).plainLabel, deckCard(r.beforeReload.rowCount).label], ['3 slides', '3 slides'])
+    assert.equal(r.steps.at(-1).rail, 2, 'the deck has 2 slides')
+  })
+  await check('flag on: E2E-2\'s run ends with the session row at 2 (not 3): it follows the deck through delete, chip undo, delete, typed undo and probe delete (3, 2, 3, 2, 3, 2), and the Decks card reads "2 slides"', async () => {
+    const r = await e2e2Run({ sources, flag: 'true', reloadFrom: 'as-left' })
+    assert.deepEqual(r.steps.map(s => s.row), [3, 2, 3, 2, 3, 2])
+    assert.equal(r.rowWrites, 5, 'one write per chat change, none for the build\'s own count')
+    assert.equal(r.beforeReload.rowCount, 2)
+    assert.deepEqual([deckCard(r.beforeReload.rowCount).plainLabel, deckCard(r.beforeReload.rowCount).label], ['2 slides', '2 slides'])
+    // the reload reads that row: the header and the footer are right from the first paint (before any poll), the rail list agrees, and there is no notice
+    assert.deepEqual([r.loaded.header, r.loaded.footer, r.loaded.rail, r.loaded.canvas], [2, 2, 2, 2])
+    assert.deepEqual([r.afterFocus.header, r.afterFocus.footer], [2, 2])
+    assert.deepEqual(r.notices, [])
+  })
+  await check('flag on: the row follows with the count settler off too (the write reads Layout\'s inventory itself, not the settler\'s answer)', async () => {
+    const r = await e2e2Run({ sources, flag: 'true', reloadFrom: 'as-left', env: { NEXT_PUBLIC_STUDIO_DECK_MUTATION_DEDUPE: 'false' } })
+    assert.deepEqual(r.steps.map(s => s.row), [3, 2, 3, 2, 3, 2])
+  })
+  await check('flag on: each write is the page\'s existing session write (persistence.updateMetadata) with the count and lastMessageAt, passive as the Layout count reconcile\'s; a deck_restored (an undo) writes the restored version\'s count', async () => {
+    const layout = createLayout()
+    const w = world({ sources, flag: 'true', layout, row: ROW() })
+    w.mount(); await w.settle()
+    await w.chat(RECORDED.deleteSlide3(), () => layout.remove(FINAL, 2)); await w.advance(500)
+    await w.chat(RECORDED.deckRestored(), () => layout.restore()); await w.advance(500)
+    assert.deepEqual(w.rowWrites.map(x => Object.keys(x.updates).sort()), [['lastMessageAt', 'slideCount'], ['lastMessageAt', 'slideCount']])
+    assert.deepEqual(w.rowWrites.map(x => x.updates.slideCount), [2, 3])
+    assert.deepEqual(w.rowWrites.map(x => plain(x.options)), [{ passive: true }, { passive: true }])
+    for (const write of w.rowWrites) assert.ok(write.updates.lastMessageAt instanceof Date)
+    w.close()
+  })
+  await check('flag on: a build in progress keeps today\'s rule: the row is raised by the build\'s frames (1, 2, 3, 4: Director\'s count, one too many at the end) and a chat change during the build writes nothing; the build over, the next chat change settles the row on Layout\'s count', async () => {
+    for (const flag of [undefined, 'true']) {
+      const layout = createLayout()
+      layout.remove(FINAL, 2); layout.remove(FINAL, 1) // the build has landed its first slide
+      const w = world({ sources, flag, layout, row: { ...ROW(), slideCount: 1 }, building: true })
+      w.mount(); await w.settle()
+      const rows = [w.rowCount()]
+      for (const [director, canvas] of [[2, 1], [3, 2], [4, 3]]) { w.setLiveCount(director, canvas); w.buildFrame({ slideCount: director }); rows.push(w.rowCount()) }
+      assert.deepEqual(rows, [1, 2, 3, 4], `flag ${flag}: the build raises the row`)
+      layout.insert(FINAL, 1, SLIDES[1]); layout.insert(FINAL, 2, SLIDES[2]) // Layout holds 3 slides when the build ends
+      const writesBefore = w.rowWrites.length
+      await w.chat(RECORDED.deleteSlide3(), () => layout.remove(FINAL, 2)); await w.advance(500)
+      assert.equal(w.rowWrites.length, writesBefore, `flag ${flag}: a chat change during the build writes nothing to the row`)
+      assert.equal(w.rowCount(), 4)
+      w.setBuilding(false)
+      await w.chat(RECORDED.deleteSlide2(), () => layout.remove(FINAL, 1)); await w.advance(500)
+      assert.equal(w.rowCount(), flag === 'true' ? 1 : 4, `flag ${flag}: after the build the chat change settles the row (Layout holds 1 slide now)`)
+      w.close()
+    }
+  })
+  await check('flag on: nothing is written while the deck is not settled (a partial artifact, compose jobs, outside the Studio shell), for a frame of another deck, a retired owner, or no session; a settled deck writes', async () => {
+    const layout = createLayout()
+    const w = world({ sources, flag: 'true', layout, row: ROW() })
+    w.mount(); await w.settle()
+    w.setPartial(true)
+    await w.chat(RECORDED.deleteSlide3(), () => layout.remove(FINAL, 2)); await w.advance(500)
+    assert.equal(w.rowWrites.length, 0, 'partial artifact')
+    w.setPartial(false); w.setComposeJobs([{ jobId: 'j1' }])
+    await w.chat(RECORDED.deckRestored(), () => layout.restore()); await w.advance(500)
+    assert.equal(w.rowWrites.length, 0, 'compose jobs')
+    w.setComposeJobs([])
+    await w.chat(RECORDED.deleteSlide2(), () => layout.remove(FINAL, 1), { presentationId: 'another-deck' }); await w.advance(500)
+    assert.equal(w.rowWrites.length, 0, 'another deck\'s frame')
+    await w.chat(RECORDED.deleteSlide2(), () => {}, { ownerCurrent: false }); await w.advance(500)
+    assert.equal(w.rowWrites.length, 0, 'a retired owner')
+    await w.chat(RECORDED.deleteSlide2(), () => {}); await w.advance(500)
+    assert.deepEqual(w.rowWrites.map(x => x.updates.slideCount), [2], 'settled: one write, Layout\'s count at that moment (2 slides)')
+    w.close()
+    const shellOff = world({ sources, flag: 'true', layout: createLayout(), row: ROW(), shell: false })
+    shellOff.mount(); await shellOff.settle()
+    await shellOff.chat(RECORDED.deleteSlide3(), () => {}); await shellOff.advance(500)
+    assert.equal(shellOff.rowWrites.length, 0, 'outside the Studio shell the floor stays')
+    shellOff.close()
+    const noSession = world({ sources, flag: 'true', layout: createLayout(), row: ROW(), session: false })
+    noSession.mount(); await noSession.settle()
+    await noSession.chat(RECORDED.deleteSlide3(), () => {}); await noSession.advance(500)
+    assert.equal(noSession.rowWrites.length, 0, 'no session, no write (and no throw)')
+    noSession.close()
+  })
+  await check('flag off: the page has no writer at all: the row is never written on a chat change, whatever the other flags say', async () => {
+    for (const flag of [undefined, 'false']) {
+      const layout = createLayout()
+      const w = world({ sources, flag, layout, row: ROW() })
+      w.mount(); await w.settle()
+      await w.chat(RECORDED.deleteSlide3(), () => layout.remove(FINAL, 2)); await w.advance(500)
+      assert.equal(w.rowWrites.length, 0, `flag ${flag}`)
+      assert.equal(w.rowCount(), 3)
+      if (w.truth) assert.equal(w.truth.STUDIO_DECK_SYNC_TRUTH_ENABLED, false)
+      w.close()
+    }
+  })
+  // the writer on its own (the real lib): every refusal, and the order of answers
+  const writerRig = (overrides = {}) => {
+    const calls = { reads: [], writes: [] }
+    const state = { building: false, displayed: { presentationId: 'p1', activeVersion: 'final' }, count: 2, owner: true }
+    const pending = []
+    const lib = truthLib('true')
+    const persist = lib.createSettledRowCountWriter({
+      readLayoutCount: id => { calls.reads.push(id); return overrides.read ? overrides.read(id, pending) : Promise.resolve(state.count) },
+      getDisplayed: () => state.displayed, isBuilding: () => state.building, writeRowCount: count => { calls.writes.push(count) } })
+    return { persist, calls, state, pending, owner: () => state.owner }
+  }
+  await check('flag on (writer): a count is written for the displayed final deck, once Layout has answered', async () => {
+    const r = writerRig()
+    assert.equal(await r.persist('p1', r.owner), 2)
+    assert.deepEqual(r.calls.writes, [2])
+    assert.deepEqual(r.calls.reads, ['p1'])
+  })
+  await check('flag on (writer): a build in progress is asked before Layout is (no read at all) and again after it answers', async () => {
+    const before = writerRig()
+    before.state.building = true
+    assert.equal(await before.persist('p1', before.owner), null)
+    assert.deepEqual(before.calls.reads, [])
+    const during = writerRig({ read: (id, pending) => new Promise(resolve => pending.push(() => resolve(2))) })
+    const run = during.persist('p1', during.owner)
+    during.state.building = true // the build starts while Layout is answering
+    during.pending[0]()
+    assert.equal(await run, null)
+    assert.deepEqual(during.calls.writes, [])
+  })
+  await check('flag on (writer): a retired owner, another deck on screen, or the strawman on screen writes nothing', async () => {
+    for (const change of [state => { state.owner = false }, state => { state.displayed = { presentationId: 'p2', activeVersion: 'final' } }, state => { state.displayed = { presentationId: 'p1', activeVersion: 'strawman' } }, state => { state.displayed = null }]) {
+      const r = writerRig({ read: (id, pending) => new Promise(resolve => pending.push(() => resolve(2))) })
+      const run = r.persist('p1', r.owner)
+      change(r.state)
+      r.pending[0]()
+      assert.equal(await run, null)
+      assert.deepEqual(r.calls.writes, [])
+    }
+  })
+  await check('flag on (writer): Layout unable to answer (null, an error, 0, a fraction, text) writes nothing and throws nothing', async () => {
+    for (const answer of [null, 0, 2.5, 'x', undefined, -1]) {
+      const r = writerRig({ read: () => Promise.resolve(answer) })
+      assert.equal(await r.persist('p1', r.owner), null, String(answer))
+      assert.deepEqual(r.calls.writes, [])
+    }
+    const failing = writerRig({ read: () => Promise.reject(new Error('Layout is down')) })
+    assert.equal(await failing.persist('p1', failing.owner), null)
+    assert.deepEqual(failing.calls.writes, [])
+    assert.equal(await writerRig().persist('', () => true), null)
+  })
+  await check('flag on (writer): two changes in a row, Layout answering in the other order: only the newer call writes, with its own read', async () => {
+    const r = writerRig({ read: (id, pending) => new Promise(resolve => pending.push(count => resolve(count))) })
+    const first = r.persist('p1', r.owner), second = r.persist('p1', r.owner)
+    r.pending[1](3) // the newer answers first
+    r.pending[0](2) // the older answers last
+    assert.deepEqual([await first, await second], [null, 3])
+    assert.deepEqual(r.calls.writes, [3])
+  })
+
+  // --- the chain from the page's write to the card, pinned in the source ---
+  await check('pins: the row\'s chain is the existing one: updateMetadata -> updateSession -> PATCH /api/sessions/[id] (the fields as sent) -> the list\'s select -> the dashboard\'s mapping -> the card', async () => {
+    const read = rel => sources[rel] ?? readFileSync(path.join(repoRoot, rel), 'utf8')
+    assert.ok(read('hooks/use-session-persistence.ts').includes('await updateSession(currentSessionId, normalizedUpdates)'), 'updateMetadata sends through updateSession')
+    assert.ok(read('hooks/use-chat-sessions.ts').includes("method: 'PATCH'") && read('hooks/use-chat-sessions.ts').includes('body: JSON.stringify(updates)'), 'updateSession PATCHes the updates as they are')
+    assert.ok(read('app/api/sessions/[id]/route.ts').includes('...sessionUpdates'), 'the PATCH writes the fields it was sent (slideCount among them; no endpoint is added)')
+    assert.ok(read('app/api/sessions/route.ts').includes('        slideCount: true,'), 'the list selects the row\'s slideCount')
+    assert.ok(sources[DASH].includes('slideCount: session.slideCount || 0,'), 'the dashboard maps it')
+    assert.ok(sources[DASH].includes('<span>{presentation.slideCount} slides</span>') && sources[DASH].includes('studioDeckCardCountLabel(presentation.slideCount, presentation.status)'), 'and the card prints it')
+    assert.ok(sources[PAGE].includes('persistenceRef.current.updateMetadata(updates, { passive: true }) // NEXT_PUBLIC_STUDIO_SESSION_OPEN_READ_ONLY: Director\'s own state frame'), 'the build\'s own write is where it was')
+    assert.ok(sources[PAGE].includes('const nextSlideCount = Math.max(state.slideCount ?? 0, verifiedLayoutCount ?? 0) || state.slideCount'), 'and its count rule is untouched')
+    const calls = sources[PAGE].split('\n').filter(line => line.includes('deckSyncRowCountRef.current?.('))
+    assert.equal(calls.length, 1, 'one call, in onDeckMutation')
+    const handler = cutArrow(sources[PAGE], 'onDeckMutation: (message')
+    assert.ok(handler.indexOf('deckSyncRowCountRef.current?.(plan.override.presentationId, owner.isCurrent)') > handler.indexOf('if (!plan) return') && handler.indexOf('deckSyncRowCountRef.current?.(') < handler.indexOf('if (deckMutationCountSettlerRef.current)'), 'after the plan is accepted, before the settler\'s return')
+    assert.ok(sources[PAGE].indexOf("deckSyncBuildingRef.current = ") > sources[PAGE].indexOf('themeExportDirectiveRunnerRef.current = !('), 'the block sits after the K5 add runner and the theme / export runner')
+  })
+
   // --- flag mechanics and the lib's own rules ---
   await check('flag: exact "true" only, default off; the lib is import-free', () => {
     assert.ok(sources[LIB], `${LIB} is missing`)
@@ -695,7 +918,7 @@ async function suite(sources, { log = false } = {}) {
     for (const data of [{}, { total: 0 }, { total: 2.5 }, { total: 'x' }, { total: null }, null, undefined, 'x']) assert.equal(T(data, 3), null, JSON.stringify(data))
     assert.equal(T({ total: 2 }, 2, true), null)
   })
-  await check('pins: the viewer\'s rail header is totalSlides, the footer reads the same counters, the hook subscribes the controller to the page\'s reports, and the page is untouched', () => {
+  await check('pins: the viewer\'s rail header is totalSlides, the footer reads the same counters, the hook subscribes the controller to the page\'s reports, and the page\'s reports are where they were', () => {
     assert.ok(sources[VIEWER].includes('                totalSlides={totalSlides}\n                composeJobs={composeJobs}'), 'the strip\'s heading total is the viewer\'s totalSlides')
     assert.ok(sources[VIEWER].includes('const [totalSlides, setTotalSlides] = useState(slideCount || 0)'), 'the viewer starts from the prop')
     assert.ok(sources[VIEWER].includes('            setTotalSlides(prev => prev === total ? prev : total)\n            setVisualTotalSlides(prev => prev === visualTotal ? prev : visualTotal)\n'), 'the base commits its floored totals with these two setters')
@@ -715,18 +938,18 @@ const head = headSources()
 const headRun = await suite(head, { log: true })
 
 // --- flag off = byte identical to the base ---
-await record('flag off, source: taking this change\'s lines out gives the base commit\'s file byte for byte (the viewer, the notice lib, the hook, the notice component), the strip is idempotent, and the page and the socket hook are the base\'s', () => {
+await record('flag off, source: taking this change\'s lines out gives dev\'s file (the base commit, #522 merged) byte for byte (the Builder page, the viewer, the notice lib, the hook, the notice component), the strip is idempotent, and the socket hook is the base\'s', () => {
   for (const rel of DECK_SYNC_TRUTH_FILES) {
     const stripped = stripDeckSyncTruth(rel, rawText(rel))
-    assert.equal(sha(stripped), sha(gitText(rel, BASE)), rel)
+    assert.equal(sha(stripPeers(rel, stripped)), sha(stripPeers(rel, gitText(rel, BASE))), rel) // both sides past the other registered changes' marked lines: a change that lands on dev later does not make this one fail
     assert.equal(stripDeckSyncTruth(rel, stripped), stripped, `${rel} idempotent`)
     assert.ok(DECK_SYNC_TRUTH_MARKER_RE.test(rawText(rel)), `${rel} carries the marker`)
   }
-  for (const rel of Object.keys(DECK_SYNC_TRUTH_PIN_EDITS)) assert.equal(sha(stripDeckSyncTruth(rel, rawText(rel))), sha(gitText(rel, BASE)), `${rel} (an older proof taught to read through the registry)`)
+  for (const rel of Object.keys(DECK_SYNC_TRUTH_PIN_EDITS)) assert.equal(sha(stripPeers(rel, stripDeckSyncTruth(rel, rawText(rel)))), sha(stripPeers(rel, gitText(rel, BASE))), `${rel} (an older proof taught to read through the registry)`)
   assert.equal(sha(stripLaterEnvBlocks('.env.example', rawText('.env.example'))), sha(stripLaterEnvBlocks('.env.example', gitText('.env.example', BASE))), '.env.example: only this change\'s block is new')
   assert.ok(rawText('.env.example').includes(DECK_SYNC_TRUTH_ENV_BLOCK), 'the env block is in .env.example')
   assert.match(DECK_SYNC_TRUTH_ENV_BLOCK, /^NEXT_PUBLIC_STUDIO_DECK_SYNC_TRUTH="false"$/m)
-  for (const rel of [PAGE, SOCKET_HOOK]) assert.equal(sha(rawText(rel)), sha(gitText(rel, BASE)), `${rel} is the base's`)
+  for (const rel of [SOCKET_HOOK, DASH, CARD_LIB, 'hooks/use-builder-session.ts', 'lib/director-sync-recovery.ts']) assert.equal(sha(stripPeers(rel, rawText(rel))), sha(stripPeers(rel, gitText(rel, BASE))), `${rel} is the base's`)
 })
 await record('flag off, behaviour: the whole E2E-2 run (every step, the reload, the focus, the notices) on the current sources with the flag unset or "false" hashes the same as on the base sources', async () => {
   const mine = await e2e2Run({ sources: head, flag: undefined })
@@ -746,30 +969,39 @@ await record('the same checks on the BASE sources: every "flag off" check passes
   assert.ok(failedOnBase.length >= 5, `flag-on checks that fail on the base: ${failedOnBase.length}`)
 })
 
-// --- the BASE..HEAD own-commit scope ---
-await record(`scope: every commit in BASE..HEAD starts "${DECK_SYNC_TRUTH_SUBJECT}", touches only this change's files, adds only marked lines to the app files and takes out only the replaced base lines`, () => {
+// --- the own-commit scope: the first-parent line of BASE..HEAD, merges left out ---
+// A merge of dev brings dev's history in by its second parent, so neither dev's commits nor the merge commit itself are on the first-parent line; merged into dev (the gate's state) this change's commits are on the merge's second parent and the line is empty.
+await record(`scope: every own commit (the first-parent line of BASE..HEAD, no merges) starts "${DECK_SYNC_TRUTH_SUBJECT}", touches only this change's files, adds only marked lines to the app files and takes out only the replaced base lines; a dev merge never counts`, () => {
   assert.ok(git('rev-parse', '--verify', `${BASE}^{commit}`).trim().startsWith(BASE.slice(0, 7)), 'the base commit is in this clone')
-  const subjects = git('log', '--no-merges', '--format=%s', `${BASE}..HEAD`).split('\n').filter(Boolean)
-  assert.ok(subjects.length >= 1, 'at least one own commit')
-  for (const subject of subjects) assert.ok(subject.startsWith(DECK_SYNC_TRUTH_SUBJECT), `own commit subject: ${subject}`)
-  for (const body of git('log', '--no-merges', '--format=%B%x00', `${BASE}..HEAD`).split('\0').filter(b => b.trim())) assert.match(body, /Co-Authored-By: Claude Sonnet 5\.5 <noreply@anthropic\.com>\s*$/, 'commit trailer')
-  const files = git('diff', '--name-only', `${BASE}..HEAD`).split('\n').filter(Boolean)
-  assert.ok(files.length > 0)
-  for (const file of files) assert.ok(DECK_SYNC_TRUTH_SCOPE_FILES.has(file), `stray file in BASE..HEAD: ${file}`)
-  for (const rel of [PAGE, SOCKET_HOOK, 'hooks/use-builder-session.ts', 'lib/director-sync-recovery.ts']) assert.equal(files.includes(rel), false, `${rel} is not touched`)
+  assert.equal(git('rev-parse', '--verify', `${BASE}^{commit}`).trim(), BASE)
+  const shas = git('rev-list', '--first-parent', '--no-merges', `${BASE}..HEAD`).split('\n').filter(Boolean)
+  for (const sha of shas) assert.equal(git('rev-list', '--parents', '-n', '1', sha).trim().split(' ').length, 2, `${sha} is not a merge`)
+  const mergesOnLine = git('rev-list', '--first-parent', '--merges', `${BASE}..HEAD`).split('\n').filter(Boolean)
+  for (const sha of mergesOnLine) assert.equal(shas.includes(sha), false, 'a merge commit is not an own commit')
+  if (shas.length === 0) { console.log('NOTE scope: no commit of this change on the first-parent line (merged into dev: its commits are on the second parent); the identity checks above cover the files'); return }
   const replaced = new Set(Object.values(DECK_SYNC_TRUTH_REPLACED).flat().map(([, was]) => was.replace(/\n$/, '')))
-  const diffLines = rel => git('diff', '-U0', `${BASE}..HEAD`, '--', rel).split('\n').filter(l => /^[+-]/.test(l) && !/^(\+\+\+|---)/.test(l))
-  for (const rel of DECK_SYNC_TRUTH_FILES) {
-    for (const line of diffLines(rel)) {
-      if (line.startsWith('+')) assert.ok(DECK_SYNC_TRUTH_MARKER_RE.test(line), `${rel}: an added line without the marker: ${line.slice(0, 100)}`)
-      else assert.ok(replaced.has(line.slice(1)), `${rel}: a removed line that is not a replaced base line: ${line.slice(0, 100)}`)
+  const touched = new Set()
+  for (const sha of shas) {
+    const subject = git('log', '-1', '--format=%s', sha).trim(), body = git('log', '-1', '--format=%B', sha)
+    assert.ok(subject.startsWith(DECK_SYNC_TRUTH_SUBJECT), `own commit subject: ${subject}`)
+    assert.match(body, /Co-Authored-By: Claude Sonnet 5\.5 <noreply@anthropic\.com>\s*$/, `commit trailer: ${sha}`)
+    for (const file of git('show', '--name-only', '--format=', sha).split('\n').filter(Boolean)) { assert.ok(DECK_SYNC_TRUTH_SCOPE_FILES.has(file), `stray file in ${sha}: ${file}`); touched.add(file) }
+    for (const rel of DECK_SYNC_TRUTH_FILES) {
+      for (const line of git('show', '-U0', '--format=', sha, '--', rel).split('\n').filter(l => /^[+-]/.test(l) && !/^(\+\+\+|---)/.test(l))) {
+        if (line.startsWith('+')) assert.ok(DECK_SYNC_TRUTH_MARKER_RE.test(line), `${rel}: an added line without the marker: ${line.slice(0, 100)}`)
+        else assert.ok(replaced.has(line.slice(1)), `${rel}: a removed line that is not a replaced base line: ${line.slice(0, 100)}`)
+      }
+    }
+    for (const rel of Object.keys(DECK_SYNC_TRUTH_PIN_EDITS)) {
+      // an edit to an older proof: its added lines carry the registry-read mark; what it removed is proven by the byte-for-byte put-back (the "flag off, source" check above)
+      for (const line of git('show', '-U0', '--format=', sha, '--', rel).split('\n').filter(l => l.startsWith('+') && !l.startsWith('+++'))) assert.match(line, /registry read \(DECK-SYNC-TRUTH\)/, `${rel}: added ${line.slice(0, 100)}`)
     }
   }
-  for (const rel of Object.keys(DECK_SYNC_TRUTH_PIN_EDITS)) {
-    // an edit to an older proof: its added lines carry the registry-read mark; what it removed is proven by the byte-for-byte put-back (the "flag off, source" check above)
-    for (const line of diffLines(rel).filter(l => l.startsWith('+'))) assert.match(line, /registry read \(DECK-SYNC-TRUTH\)/, `${rel}: added ${line.slice(0, 100)}`)
-  }
-  assert.ok(files.includes('lib/studio-deck-sync-truth.ts') && files.includes('scripts/test-studio-deck-sync-truth.mjs'))
+  for (const rel of [SOCKET_HOOK, 'hooks/use-builder-session.ts', 'lib/director-sync-recovery.ts']) assert.equal(touched.has(rel), false, `${rel} is not touched`)
+  assert.ok(touched.has('lib/studio-deck-sync-truth.ts') && touched.has('scripts/test-studio-deck-sync-truth.mjs') && touched.has(PAGE))
+  // Nothing of FRONTEND-1's or COMPOSER-2's tests, and not test-director-websocket-reconnect, is touched.
+  const protectedTests = /^scripts\/(test-studio-p2-|test-studio-launch-wording|test-studio-env-append-tolerant|test-studio-route-params|test-studio-admin-email-guard|test-studio-uat-marketing|test-studio-deck-title|test-studio-deck-card-thumbnail|test-studio-first-paint|test-director-websocket-reconnect|test-studio-chat-clean|test-studio-flow-control)/
+  for (const file of touched) assert.equal(protectedTests.test(file), false, file)
 })
 
 // --- mutants: each must break at least one check ---
@@ -777,6 +1009,16 @@ class MutationTargetMissing extends Error {}
 const mutate = (sources, rel, from, to) => {
   if (!sources[rel] || !sources[rel].includes(from)) throw new MutationTargetMissing(`${rel}: ${String(from).slice(0, 90)}`)
   return { ...sources, [rel]: sources[rel].replace(from, () => to) }
+}
+/** Swap the line holding `first` with the next line holding `second` (a mutant that moves a statement past another). */
+const moveLineAfter = (sources, rel, first, second) => {
+  const lines = (sources[rel] ?? '').split('\n')
+  const at = lines.findIndex(line => line.includes(first))
+  const to = lines.findIndex((line, i) => i > at && line.includes(second))
+  if (at < 0 || to < 0) throw new MutationTargetMissing(`${rel}: ${first.slice(0, 80)}`)
+  const [moved] = lines.splice(at, 1)
+  lines.splice(to, 0, moved)
+  return { ...sources, [rel]: lines.join('\n') }
 }
 const MUTANTS = [
   ['lib: the settled totals are never offered (the viewer\'s count never wins)', s => mutate(s, LIB, 'if (reported === null) return null', 'return null')],
@@ -807,6 +1049,36 @@ const MUTANTS = [
   ['hook: the deps are not passed (the notice is today\'s)', s => mutate(s, HOOK, '...(STUDIO_DECK_SYNC_TRUTH_ENABLED && { directorWindowMs', '...(false && { directorWindowMs')],
   ['hook: the deps are passed with the flag off', s => mutate(s, HOOK, '...(STUDIO_DECK_SYNC_TRUTH_ENABLED && { directorWindowMs', '...(true && { directorWindowMs')],
   ['component: the words ignore the flag and say "another tab"', s => mutate(s, COMPONENT, '{STUDIO_DECK_SYNC_TRUTH_ENABLED /*', '{false /*')],
+  // the session row: the lib's writer
+  ['writer: a build in progress is not asked before Layout is read', s => mutate(s, LIB, "if (typeof presentationId !== 'string' || !presentationId || deps.isBuilding()) return null", "if (typeof presentationId !== 'string' || !presentationId) return null")],
+  ['writer: a build that starts while Layout answers is not noticed', s => mutate(s, LIB, 'if (mine !== sequence || !ownerIsCurrent() || deps.isBuilding()) return null', 'if (mine !== sequence || !ownerIsCurrent()) return null')],
+  ['writer: the owner is not asked', s => mutate(s, LIB, 'if (mine !== sequence || !ownerIsCurrent() ||', 'if (mine !== sequence ||')],
+  ['writer: an older answer may overwrite a newer one', s => mutate(s, LIB, 'if (mine !== sequence || !ownerIsCurrent()', 'if (!ownerIsCurrent()')],
+  ['writer: any deck on screen will do', s => mutate(s, LIB, "displayed.presentationId !== presentationId || displayed.activeVersion !== 'final'", "displayed.activeVersion !== 'final'")],
+  ['writer: the strawman on screen will do', s => mutate(s, LIB, " || displayed.activeVersion !== 'final'", '')],
+  ['writer: a count of 0, a fraction or text is written', s => mutate(s, LIB, 'const count = wholeCount(layoutCount)\n    if (count === null) return null', 'const count = layoutCount as number\n    if (count === null) return null')],
+  ['writer: a Layout error escapes', s => mutate(s, LIB, 'try { layoutCount = await deps.readLayoutCount(presentationId) } catch { return null }', 'layoutCount = await deps.readLayoutCount(presentationId)')],
+  ['writer: the count written is one too many', s => mutate(s, LIB, 'deps.writeRowCount(count)\n    return count', 'deps.writeRowCount(count + 1)\n    return count')],
+  // the session row: the page's marked lines
+  ['page: the call is dropped from onDeckMutation (the row is never settled)', s => mutate(s, PAGE, 'deckSyncRowCountRef.current?.(plan.override.presentationId, owner.isCurrent) //', '//')],
+  ['page: the call is made only for a plan that carries a count (an undo\'s deck_restored carries none)', s => mutate(s, PAGE, 'deckSyncRowCountRef.current?.(plan.override.presentationId, owner.isCurrent) //', 'if (plan.override.slideCount !== null) deckSyncRowCountRef.current?.(plan.override.presentationId, owner.isCurrent) //')],
+  ['page: the call comes after the count settler\'s return (never reached with the settler on)', s => moveLineAfter(s, PAGE, 'deckSyncRowCountRef.current?.(plan.override.presentationId', 'void deckMutationCountSettlerRef.current(plan.override, owner.isCurrent); return }')],
+  ['page: the call is made for the wrong deck', s => mutate(s, PAGE, 'deckSyncRowCountRef.current?.(plan.override.presentationId, owner.isCurrent) //', "deckSyncRowCountRef.current?.('another-deck', owner.isCurrent) //")],
+  ['page: the owner is not passed on (a retired owner would still write)', s => mutate(s, PAGE, 'deckSyncRowCountRef.current?.(plan.override.presentationId, owner.isCurrent) //', 'deckSyncRowCountRef.current?.(plan.override.presentationId, () => true) //')],
+  ['page: the building ref is never on', s => mutate(s, PAGE, 'deckSyncBuildingRef.current = ', 'deckSyncBuildingRef.current = false; const deckSyncUnused = ')],
+  ['page: outside the Studio shell the row is written too', s => mutate(s, PAGE, 'deckSyncBuildingRef.current = !studioShell || ', 'deckSyncBuildingRef.current = ')],
+  ['page: a partial artifact is not a build', s => mutate(s, PAGE, ' || studioPartialMetadata || templateModeOn || isGeneratingFinal', ' || templateModeOn || isGeneratingFinal')],
+  ['page: a final build is not a build', s => mutate(s, PAGE, ' || isGeneratingFinal || isGeneratingStrawman ||', ' || isGeneratingStrawman ||')],
+  ['page: compose jobs are not a build', s => mutate(s, PAGE, ' || slideComposeThumbnailJobs.length > 0 // DECK-SYNC-TRUTH', ' // DECK-SYNC-TRUTH')],
+  ['page: the writer is made with the flag off', s => mutate(s, PAGE, "if (process.env.NEXT_PUBLIC_STUDIO_DECK_SYNC_TRUTH === 'true' && !deckSyncRowCountRef.current)", 'if (!deckSyncRowCountRef.current)')],
+  ['page: the writer is never made', s => mutate(s, PAGE, "if (process.env.NEXT_PUBLIC_STUDIO_DECK_SYNC_TRUTH === 'true' && !deckSyncRowCountRef.current)", "if (process.env.NEXT_PUBLIC_STUDIO_DECK_SYNC_TRUTH === 'never' && !deckSyncRowCountRef.current)")],
+  ['page: no deck is on screen for the writer', s => mutate(s, PAGE, 'getDisplayed: () => slideComposerPresentationRef.current,', 'getDisplayed: () => null,')],
+  ['page: the writer never asks whether a build runs', s => mutate(s, PAGE, 'isBuilding: () => deckSyncBuildingRef.current,', 'isBuilding: () => false,')],
+  ['page: the row gets one slide too many', s => mutate(s, PAGE, 'persistenceRef.current.updateMetadata({ slideCount: count, lastMessageAt: new Date() }, { passive: true })', 'persistenceRef.current.updateMetadata({ slideCount: count + 1, lastMessageAt: new Date() }, { passive: true })')],
+  ['page: the write is not passive', s => mutate(s, PAGE, 'lastMessageAt: new Date() }, { passive: true }) }, // DECK-SYNC-TRUTH', 'lastMessageAt: new Date() }) }, // DECK-SYNC-TRUTH')],
+  ['page: the write drops lastMessageAt', s => mutate(s, PAGE, 'updateMetadata({ slideCount: count, lastMessageAt: new Date() }, { passive: true })', 'updateMetadata({ slideCount: count }, { passive: true })')],
+  ['page: Layout\'s inventory is read for another deck', s => mutate(s, PAGE, 'presentationId: id, fetchImpl: (input, init) => fetch(input, init) }); return result.kind', "presentationId: 'another-deck', fetchImpl: (input, init) => fetch(input, init) }); return result.kind")],
+  ['dashboard: the card reads a count that is not the row\'s', s => mutate(s, DASH, 'slideCount: session.slideCount || 0,', 'slideCount: 3,')],
   ['socket hook: the restore prefers the strawman', s => mutate(s, SOCKET_HOOK, 'displayUrl = sessionState.finalPresentationUrl || null;\n      displayId = sessionState.finalPresentationId || null;', 'displayUrl = sessionState.strawmanPreviewUrl || null;\n      displayId = sessionState.strawmanPresentationId || null;')],
 ]
 await record(`mutants: ${MUTANTS.length} broken copies of the lib, the viewer, the controller, the hook, the component and the restore are each caught`, async () => {

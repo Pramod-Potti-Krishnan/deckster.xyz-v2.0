@@ -4,9 +4,10 @@
 // Every line this change adds to an EXISTING file is a pure insertion that carries the marker DECK-SYNC-TRUTH (matched as a whole token) with ONE exception, the base line it replaces (the
 // notice's text span): DECK_SYNC_TRUTH_REPLACED keeps the base line, so `stripDeckSyncTruth` puts it back first and then takes every marked line out. What is left is
 // the base's file, byte for byte. Files with marked lines: components/presentation-viewer.tsx (an import, a ref and two lines after the poll's own totals), lib/studio-deck-changed-notice.ts (three optional deps, two
-// variables, the settleDifference function and its calls in announce / check / markReloaded / dispose), hooks/use-deck-changed-notice.ts (an import and one spread) and
-// components/builder/studio-deck-changed-notice.tsx (an import and the text). NOT app/builder/page.tsx: scripts/test-studio-chat-theme-export.mjs slices the page by offsets of the registry-read text
-// out of the raw text, with 119 bytes to spare, so no marked page line may come before the Director theme runner (see the PR).
+// variables, the settleDifference function and its calls in announce / check / markReloaded / dispose), hooks/use-deck-changed-notice.ts (an import and one spread),
+// components/builder/studio-deck-changed-notice.tsx (an import and the text) and app/builder/page.tsx (the session row's slide count after a chat change to the deck: an import, one call in onDeckMutation and eleven
+// lines after the CHAT-ELEMENT-EDIT runner, past the K5 add runner; scripts/test-studio-chat-theme-export.mjs reads the page through the registry since #522, so these lines do not shift its offsets).
+// Dev at #522 (8cfd5f37) is the base now: the first version of this change was cut from dev at #531 (c477beda) and has been merged with dev since.
 // How the older pins reach it: this change REGISTERS its files, its .env.example block and this strip (scripts/studio-later-changes.mjs, three lines). Plain node, no imports, nothing read from disk or git here.
 
 export const DECK_SYNC_TRUTH_FLAG = 'NEXT_PUBLIC_STUDIO_DECK_SYNC_TRUTH'
@@ -15,11 +16,12 @@ export const DECK_SYNC_TRUTH_MARKER = 'DECK-SYNC-TRUTH'
 export const DECK_SYNC_TRUTH_MARKER_RE = /(?<![\w-])DECK-SYNC-TRUTH(?![\w-])/
 /** The subject prefix of this change's own commits. */
 export const DECK_SYNC_TRUTH_SUBJECT = 'Deck sync truth: '
-/** Studio dev (studio-v4-dev-preparation-code) with #531 merged: the commit this change is cut from. */
-export const DECK_SYNC_TRUTH_BASE_COMMIT = 'c477beda49c1ec96062b700330f56f2d161a2814'
+/** Studio dev (studio-v4-dev-preparation-code) with #522 merged (chat element edit, on #530): the commit this change is read against. Its first commits were cut from dev at #531 (c477beda) and dev was merged in since. */
+export const DECK_SYNC_TRUTH_BASE_COMMIT = '8cfd5f37116916de63bc6ab35694785bd97b32cb'
 
 /** Existing files that get marked lines. */
 export const DECK_SYNC_TRUTH_FILES = [
+  'app/builder/page.tsx',
   'components/presentation-viewer.tsx',
   'hooks/use-deck-changed-notice.ts',
   'lib/studio-deck-changed-notice.ts',
@@ -88,6 +90,16 @@ export const DECK_SYNC_TRUTH_PIN_EDITS = {
       "    check(assert.equal, strip.stripStudioArrange(rel, now), baseText(rel), `${rel}: without its STUDIO-ARRANGE lines it is the base's, byte for byte`)\n"
     ]
   ],
+  "scripts/test-studio-chat-element-edit.mjs": [
+    [
+      "import { stripDeckSyncTruth } from './studio-deck-sync-truth-strip.mjs' // LATER-CHANGES: registry read (DECK-SYNC-TRUTH): stacked after this change, it teaches the older files this check reads (its edits of them come out first)\n",
+      ""
+    ],
+    [
+      "    const text = stripDeckSyncTruth(rel, read(rel)) // LATER-CHANGES: registry read (DECK-SYNC-TRUTH): the file as dev at #522 has it; a change stacked after this one teaches some of these files too, and its edits are not this change's lines\n",
+      "    const text = read(rel)\n"
+    ]
+  ],
   "scripts/test-studio-rail-add-slide.mjs": [
     [
       "import { belongsToDeckSyncTruth } from './studio-deck-sync-truth-strip.mjs' // LATER-CHANGES: registry read (DECK-SYNC-TRUTH): its marked viewer lines\n",
@@ -128,7 +140,8 @@ export const DECK_SYNC_TRUTH_ENV_BLOCK = `# STUDIO DECK SYNC TRUTH (FRONTEND-2, 
 # On: after chat deletes and a page reload the rail header ("Slides N") and the footer ("Slide i / N") show the deck's real slide count, the one the viewer itself reports, instead of the larger count the session row kept
 # from the build (the count is raised only while a build is in progress); and "This deck changed in another tab" is no longer drawn for a change nobody made in another tab: a difference found within 15 s of a change
 # announced on this tab (Director's deck_mutation, or the tab's own edit) refreshes the deck quietly when nothing is unsaved, and any other difference shows only if it is still there 4 s later and reads "This deck was updated".
-# "In another tab" stays for a message another tab sent. Acts with NEXT_PUBLIC_STUDIO_DECK_CHANGED_NOTICE (the notice) and NEXT_PUBLIC_STUDIO_DECK_MUTATION_REFRESH_ENABLED (Director's deck_mutation reaches the page). No Director change.
+# "In another tab" stays for a message another tab sent. The session row follows too: after a chat change to a finished deck (Director's deck_mutation, an undo included) the Decks page card and the session list say the deck's real slide
+# count, not the larger count the build wrote (a build in progress keeps today's rule). Acts with NEXT_PUBLIC_STUDIO_DECK_CHANGED_NOTICE (the notice) and NEXT_PUBLIC_STUDIO_DECK_MUTATION_REFRESH_ENABLED (Director's deck_mutation reaches the page). No Director change.
 NEXT_PUBLIC_STUDIO_DECK_SYNC_TRUTH="false"
 `
 
