@@ -246,3 +246,4 @@ export function themeRestoreHoldsSocketSync(gate: ThemeRestoreGate, sessionId: s
   if (userPicked) return false
   return !(gate.sessionId === sessionId && gate.phase === 'fallback')
 }
+export * from './studio-theme-own-choice' // THEME-OWN-CHOICE: the own-choice rule (NEXT_PUBLIC_STUDIO_THEME_OWN_CHOICE) rides on the restore's public surface, which the restore harness spreads into the page's scope

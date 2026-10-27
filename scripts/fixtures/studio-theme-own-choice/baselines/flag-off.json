@@ -1,0 +1,47 @@
+{
+ "recorded_from": "the base tree (origin/studio-v4-dev-preparation-code 4520303b3a7b2105844e34dedf616c1e7d1edffd), NEXT_PUBLIC_STUDIO_THEME_RESTORE on, the own-choice flag absent: what flag off must reproduce byte for byte",
+ "fixtures": {
+  "fresh-tab-no-record-unchanged": {
+   "outbound": "faff9697fcfb2b518cf1b624562229355c49582610b5adb127a8453ab68693bc",
+   "state": "0a061ed7f60ef043ea57fe8df2b5b2cdc455e438f9d33ce7c878e03f61eb1da0",
+   "calls": "bb4c6cbe2c7e1c954bb01ca21ea5a823d0b3567a3f166847df6715b635d971d1",
+   "notes": "0ee5d88b5f474df4c316f6fe141010d2540790edf3864e502de4ee68200bd7e8",
+   "setThemes": 0
+  },
+  "reload-auto-stays-auto": {
+   "outbound": "f2cd180b2a0e287ff9612301e5f37e6191fca8f78f97912dee740633f78f4334",
+   "state": "7f6688410cd098517b4fbf036650a8c153f89880935baecd2c9d6de57ac48ad8",
+   "calls": "f15783d50f0ad70507e9b1c1bd6468c717467cfe6c1561ef6c3f06117ab0c162",
+   "notes": "4aa2345fb1b65d870e8be41f38e17a9d8727acce03e938de6c2edf85ad873ed8",
+   "setThemes": 0
+  },
+  "reload-explicit-auto-stays-auto": {
+   "outbound": "d13a653a0f45cfe8ce49f1e461be12017716afd8c7793463d540e64332d69081",
+   "state": "5d68babd74e3c251c77e00b1939e72c426e332a0bf81d3bce2d3dfacb1837a57",
+   "calls": "dd849530d1a9702e3b423815f38db740e99061060cec72b6b9d26d4fcb9f1956",
+   "notes": "18e77b98861a8e28cb8e24464d435ac3d2de4f524f22bf4117517473367a5bc0",
+   "setThemes": 2
+  },
+  "reload-other-tab-pick-adopted": {
+   "outbound": "b560bdd96bd102cf8a4a1e341821d92b5845164d2c9e6fa271622fe783cf86b3",
+   "state": "df5db84cf55ca5ff11a9edd6a444b5288c7d723d8284eab2331b1ec1660ddae3",
+   "calls": "939f66554edc7a1d5fe61bee94b64ddbd0cc710eaf026ca759cf14ed08c593e6",
+   "notes": "0ee5d88b5f474df4c316f6fe141010d2540790edf3864e502de4ee68200bd7e8",
+   "setThemes": 0
+  },
+  "reload-picked-corporate-light-stays-locked": {
+   "outbound": "7c2d92437c034b27e635eb0edb50fff8a85a33e29b11d15371095b16551c986b",
+   "state": "67038dd5dcfa4f33f636b434ca6a40f3ce1910c21c5311a01a6954dad50ac5e5",
+   "calls": "db951f373429bebaa24ab688c3963b7bcb4d61c6f9276bef3270c407f940a867",
+   "notes": "7a8b8eb54311b92bc1d3d64fc6aebad0665e5888a03fc050309a8209e75e89a8",
+   "setThemes": 1
+  },
+  "reload-picked-preset-stays-locked": {
+   "outbound": "9337e055663d362f6b28bb84f4b9a2f051c8351f0b13940b7295a2e6e503c921",
+   "state": "e85508afc5fea77fd62dca81a14f38f929ebf57e65d2083da9954e47efbdc723",
+   "calls": "f38657c062afc06cf3d0ce7496e1e6cdb1e319268706f4c07c0f6e414470d50f",
+   "notes": "7a8b8eb54311b92bc1d3d64fc6aebad0665e5888a03fc050309a8209e75e89a8",
+   "setThemes": 1
+  }
+ }
+}
