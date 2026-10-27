@@ -39,7 +39,7 @@ const repo = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..')
 const read = rel => fs.readFileSync(path.join(repo, rel), 'utf8')
 const sha = text => crypto.createHash('sha256').update(text).digest('hex')
 const plain = value => JSON.parse(JSON.stringify(value === undefined ? null : value))
-const git = (...a) => execFileSync('git', a, { cwd: repo, encoding: 'utf8', maxBuffer: 1 << 28 })
+const git = (...a) => execFileSync('git', a, { cwd: repo, encoding: 'utf8', maxBuffer: 1 << 28, stdio: ['ignore', 'pipe', 'pipe'] })
 
 const FLAG = 'NEXT_PUBLIC_STUDIO_CHAT_ELEMENT_EDIT_2'
 const EDIT_FLAG = 'NEXT_PUBLIC_STUDIO_CHAT_ELEMENT_EDIT'
@@ -465,9 +465,11 @@ async function expectations({ pageText = read(PAGE), libOverrides = {} } = {}) {
 async function selectionExpectations(options) {
   const off = selectionWorld({ flag: false, ...options }), on = selectionWorld({ flag: true, ...options })
   off.selectElement(IMAGE, 'image'); off.selectTextBox(TITLE); off.undo(); assert.equal(off.send()[0].element_id, TITLE, 'flag off is today\'s'); off.selectElement(IMAGE, 'image'); assert.equal(off.send()[0].element_id, TITLE, 'and a click on the held image does not replace it')
+  off.selectElement(IMAGE, 'image'); off.selectTextBox('el_text_a'); off.selectElement(IMAGE, 'image'); off.commit({ selectedTextBoxId: TITLE }); off.selectTextBox(TITLE); assert.equal(off.send()[0].element_id, TITLE, 'the state effect records a changed selection')
+  const held = selectionWorld({ flag: false, ...options }); held.selectTextBox(TITLE); held.selectElement(IMAGE, 'image'); held.selectTextBox(TITLE); assert.equal(held.send()[0].element_id, IMAGE, 'flag off: a click on the held text box does not replace the record')
   on.selectElement(IMAGE, 'image'); on.selectTextBox(TITLE); assert.equal(on.send()[0].element_id, TITLE)
   on.undo(); assert.deepEqual(on.send(), [], 'dropped by the Undo'); on.selectTextBox(TITLE); assert.equal(on.send()[0].element_id, TITLE, 'a click on the held text box records it')
-  on.undo(); on.selectElement(IMAGE, 'image'); assert.equal(on.send()[0].element_id, IMAGE, 'a click on the held element records it'); on.selectElement('chart_7f3a', 'chart'); assert.equal(on.send()[0].element_id, 'chart_7f3a')
+  on.undo(); on.selectElement(IMAGE, 'image'); assert.deepEqual([on.send()[0].element_id, on.send()[0].element_type, on.send()[0].slide_index, on.send()[0].slide_id], [IMAGE, 'IMAGE', 1, OUTLINE_IDS[1]], 'a click on the held element records it, on its slide'); on.selectElement('chart_7f3a', 'chart'); assert.equal(on.send()[0].element_id, 'chart_7f3a')
   on.commit({ selectedElementProperties: {} }); assert.equal(on.send().length, 1, 'kept on an unrelated render'); on.goToSlide(2); assert.deepEqual(on.send(), [], 'dropped on another slide')
   on.selectElement(IMAGE, 'image', 2); on.commit({ effectivePresentationId: 'other-deck' }); assert.deepEqual(on.send(), [], 'dropped on another deck')
   const noRefine = selectionWorld({ flag: true, refine: false, ...options }); noRefine.selectElement(IMAGE, 'image'); noRefine.selectTextBox(TITLE); assert.equal(noRefine.ref.current, null)
