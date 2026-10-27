@@ -1018,16 +1018,16 @@ function sourceSuite(over = {}) {
     ok(registry.LATER_STRIPS.indexOf(strip.stripChatCommands) > registry.LATER_STRIPS.indexOf(chatCleanStrip.stripChatClean), 'registry: ...in stacking order')
     eq(stripModule.CHAT_COMMANDS_PIN_FILES, ['scripts/test-studio-pass2b-chat.mjs', 'scripts/test-theme-font-selection.mjs'], 'two older proofs are taught: pass2b-chat (it pinned the import lines of chat-input.tsx through chat clean\'s strip alone) and theme-font-selection (it runs buildUserMessage in a sandbox that must name this change\'s flag)')
     for (const rel of stripModule.CHAT_COMMANDS_PIN_FILES) {
-      const now = src(rel), studioBase = git('show', `${chatCleanStrip.BASE_COMMIT}:${rel}`)
-      eq(stripModule.stripChatCommands(rel, chatCleanStrip.stripChatClean(rel, now)) === studioBase, true, `${rel}: through chat clean's put-back and this one's it is the studio base's file, byte for byte`)
+      const now = src(rel), studioBase = git('show', `${stripModule.BASE_COMMIT}:${rel}`) // dev holds chat clean (#530) and #522 now
+      eq(stripModule.stripChatCommands(rel, now) === studioBase, true, `${rel}: through this change's put-back it is the studio base's file, byte for byte`)
       eq(registry.stripLaterChanges(rel, now) === registry.stripLaterChanges(rel, studioBase), true, `${rel}: ...and through the registry`)
       for (const [has] of stripModule.CHAT_COMMANDS_PIN_EDITS[rel]) { ok(now.includes(has), `${rel}: taught line present`); ok(has.includes('registry read (CHAT-COMMANDS)'), `${rel}: taught line marked`); ok(count(now, has) === 1, `${rel}: ...once`) }
     }
     const changed = git('diff', '--name-only', `${stripModule.BASE_COMMIT}..${OWN}`).split('\n').filter(Boolean).sort()
     eq(changed, [...stripModule.CHAT_COMMANDS_SCOPE_FILES].sort(), 'scope: the committed diff is exactly this change\'s files')
-    const subjects = git('log', '--format=%s', `${stripModule.BASE_COMMIT}..${OWN}`).split('\n').filter(Boolean)
+    const subjects = git('log', '--no-merges', '--format=%s', `${stripModule.BASE_COMMIT}..${OWN}`).split('\n').filter(Boolean) // a merge of dev is not this change's commit
     ok(subjects.length > 0 && subjects.every(subject => subject.startsWith(stripModule.CHAT_COMMANDS_SUBJECT)), 'scope: every commit of this change starts "Chat commands:"')
-    ok(git('log', '--format=%B', `${stripModule.BASE_COMMIT}..${OWN}`).split('\n').filter(line => /^Co-Authored-By:/.test(line)).length === subjects.length, 'scope: ...and ends with the Co-Authored-By line')
+    ok(git('log', '--no-merges', '--format=%B', `${stripModule.BASE_COMMIT}..${OWN}`).split('\n').filter(line => /^Co-Authored-By:/.test(line)).length === subjects.length, 'scope: ...and ends with the Co-Authored-By line')
     for (const rel of stripModule.CHAT_COMMANDS_NEW_FILES) ok(fs.existsSync(path.join(root, rel)), `scope: ${rel} exists`)
   } else console.log(`NOTE F  git has no ${stripModule.BASE_COMMIT.slice(0, 8)} or no own commit yet: the base-identity, .env.example, registry and scope checks were skipped`)
   // -- no secrets ------------------------------------------------------------------------------------------------------------------------------------------------

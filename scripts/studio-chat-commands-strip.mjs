@@ -7,7 +7,7 @@
 // Older proofs that read those files raw are taught to read them through the registry (CHAT_COMMANDS_PIN_EDITS, [line now, line before], whole lines, every line now carrying "registry read (CHAT-COMMANDS)").
 // How the older pins reach it: this change REGISTERS its files, its .env.example block and this strip (scripts/studio-later-changes.mjs, three lines). Plain node, no imports, nothing read from disk or git here.
 
-export const BASE_COMMIT = '6ebb1ec8647aafc9f71cb187509ae0ae217856a8' // origin/frontend1/chat-clean-v31 (#530's head), the commit this change is cut from; the tree diff from it to this change's newest commit is this change
+export const BASE_COMMIT = '8cfd5f37116916de63bc6ab35694785bd97b32cb' // studio dev at #522 (merged into this branch; it holds #530, which this change was cut from): the tree diff from it to this change's newest commit is this change
 export const CHAT_COMMANDS_FLAG = 'NEXT_PUBLIC_STUDIO_CHAT_COMMANDS'
 export const CHAT_COMMANDS_MARKER = 'CHAT-COMMANDS'
 /** The subject prefix of this change's own commits. */
