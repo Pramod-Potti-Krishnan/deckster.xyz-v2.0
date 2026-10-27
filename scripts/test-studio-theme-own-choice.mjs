@@ -377,7 +377,7 @@ await check('the inline flag reads, the 18 marked page lines, the only two write
 await check('the strip gives the base page and restore lib back byte for byte (the committed files)', () => {
   const git = (...a) => execFileSync('git', a, { cwd: repo, encoding: 'utf8', maxBuffer: 1 << 28 })
   for (const rel of THEME_OWN_CHOICE_FILES) assert.equal(stripThemeOwnChoice(rel, read(rel, repo)), git('show', `${BASE_COMMIT}:${rel}`), rel)
-  assert.deepEqual(THEME_OWN_CHOICE_FILES, [PAGE, RESTORE_LIB]); assert.deepEqual(THEME_OWN_CHOICE_PIN_EDITS, {})
+  assert.deepEqual(THEME_OWN_CHOICE_FILES, [PAGE, RESTORE_LIB]); assert.deepEqual(Object.keys(THEME_OWN_CHOICE_PIN_EDITS), ['scripts/test-studio-chat-theme-export.mjs'])
 })
 
 console.log('5. mutants')
@@ -431,6 +431,11 @@ await check('the committed files are exactly this change\'s; every line added to
     for (const line of diff) { assert.ok(line.startsWith('+'), `${rel}: a removed line: ${line.slice(0, 120)}`); assert.match(line, THEME_OWN_CHOICE_MARKER_RE, `${rel}: an unmarked added line: ${line.slice(0, 120)}`) }
     assert.equal(diff.length, rel === PAGE ? 18 : 1, `${rel}: the number of added lines`)
     assert.equal(stripThemeOwnChoice(rel, git('show', `${HEAD}:${rel}`)), git('show', `${BASE_COMMIT}:${rel}`), `${rel}: without its marked lines the file is the base's, byte for byte`)
+  }
+  for (const rel of Object.keys(THEME_OWN_CHOICE_PIN_EDITS)) { // the one older proof this change teaches: one swapped line, marked, "stacked after #475"; put back it is the previous file byte for byte
+    const diff = git('diff', '-U0', `${BASE_COMMIT}..${HEAD}`, '--', rel).split('\n').filter(line => /^[+-]/.test(line) && !/^(\+\+\+|---) /.test(line))
+    assert.equal(diff.length, 2, `${rel}: one line swapped`); assert.ok(diff[0].startsWith('-') && diff[1].startsWith('+')); assert.ok(diff[1].includes(stripModule.THEME_OWN_CHOICE_PIN_MARK) && diff[1].includes('stacked after #475'), `${rel}: the new line is marked`)
+    assert.equal(stripThemeOwnChoice(rel, git('show', `${HEAD}:${rel}`)), git('show', `${BASE_COMMIT}:${rel}`), `${rel}: put back, the previous proof byte for byte`)
   }
   for (const rel of stripModule.THEME_OWN_CHOICE_NEW_FILES) assert.ok(git('cat-file', '-t', `${HEAD}:${rel}`).trim() === 'blob', rel)
   assert.equal(git('diff', '--name-only', `${BASE_COMMIT}..${HEAD}`, '--', 'hooks/', 'components/', 'package.json').trim(), '', 'no hook, no component (the lock label is untouched), no package.json')
