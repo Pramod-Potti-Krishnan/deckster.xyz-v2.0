@@ -6,7 +6,7 @@
 // the one reassignment, a start-of-row and an end-of-row slot, the tail). Strip those lines and the file is its base, byte for byte. The new files (a lib, a component, this strip, a proof, a fixture) have no base text.
 // How the older pins reach it: this change REGISTERS its files, its .env.example block and this strip (scripts/studio-later-changes.mjs, three lines). Plain node, no imports, nothing read from disk or git here.
 
-export const BASE_COMMIT = '4520303b3a7b2105844e34dedf616c1e7d1edffd' // studio-v4-dev-preparation-code with #537 (chat parity, Studio half) merged: dev, which this change was cut from.
+export const BASE_COMMIT = 'ffaf5a7eb883b35bf8ff4806a4a3b1b9c13cefe5' // studio-v4-dev-preparation-code with #538 (chat element edit 2) merged: dev, which this change is merged with (it was cut from 4520303b, #537).
 export const CHAT_CLEAN_ORDER_FLAG = 'NEXT_PUBLIC_STUDIO_CHAT_CLEAN_ORDER'
 export const CHAT_CLEAN_ORDER_MARKER = 'CHAT-CLEAN-ORDER'
 /** The marker as a WHOLE token: CHAT-CLEAN-ORDER-X, X-CHAT-CLEAN-ORDER and the older CHAT-CLEAN (which is followed by "-ORDER" here) are not each other's. */

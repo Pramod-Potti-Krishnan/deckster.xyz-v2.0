@@ -15,7 +15,7 @@
 //   4. Otherwise unchanged: a normal build, pause / resume and stop / continue, with the flag on, are flag off's at every checkpoint but the line the fix closes and the notes' places.
 //   5. Flag off is byte-identical to the base: every checkpoint's markup hashes as the markup of the base MessageList (this tree's message-list.tsx with the marked lines stripped, which section 7 proves is the base file).
 //   6. Mutants: each must be caught.
-//   7. The sources: every marked line is a pure insertion, the strip gives the base back byte for byte, the registry, .env.example, and the scope over the COMMITTED diff (BASE..HEAD, first-parent, no merges, prefix "Clean chat order:").
+//   7. The sources: every marked line is a pure insertion, the strip gives the base back byte for byte, the registry, .env.example, and the scope over the COMMITTED diff (BASE..HEAD, first-parent, no merges, prefix "Clean chat order:"). GATE-SAFE: when HEAD is the gate's local --no-ff merge (first parent BASE, second parent this change's head) every scope query runs against HEAD^2; proved on a gate-style merge built here, and a mutant that drops that rule is caught.
 //
 //   node scripts/test-studio-chat-clean-order.mjs
 //
@@ -535,18 +535,26 @@ await check('mutant caught: an unmarked line added to the list is not stripped (
 
 console.log('7. the sources, and the scope over the committed diff (BASE..HEAD)')
 const git = (...a) => execFileSync('git', a, { cwd: repo, encoding: 'utf8', maxBuffer: 1 << 28 })
-const own = git('log', '--format=%H', '--first-parent', '--no-merges', '-E', `--grep=^${CHAT_CLEAN_ORDER_SUBJECT}`, `${BASE_COMMIT}..HEAD`).split('\n').filter(Boolean)
-const HEAD = own[0] || git('rev-parse', 'HEAD').trim()
-await check(`this change's own commits (subject starts "${CHAT_CLEAN_ORDER_SUBJECT}") exist; every first-parent non-merge commit between the base and the newest of them is one, with the co-author line; none starts "Chat clean" (that prefix is the chat clean proof's own-commit grep)`, () => {
+/** GATE-SAFE head of every own-commit / scope query. In the gate, HEAD is a local --no-ff merge whose FIRST parent is BASE (dev) and whose second parent is this change's head, so `rev-list --first-parent --no-merges BASE..HEAD` is empty: the
+ *  scope then runs against HEAD^2. On a branch (HEAD is this change's own tip, or a merge of dev INTO it whose first parent is the change) HEAD itself is used. `gateRule: false` is the mutant that drops the rule. */
+function scopeHead(ref = 'HEAD', { gateRule = true } = {}) {
+  const sha = git('rev-parse', `${ref}^{commit}`).trim()
+  const parents = git('rev-list', '--parents', '-n', '1', sha).trim().split(/\s+/).slice(1)
+  return gateRule && parents.length === 2 && parents[0] === BASE_COMMIT ? parents[1] : sha
+}
+const HEAD = scopeHead('HEAD')
+const ownOf = head => git('log', '--format=%H', '--first-parent', '--no-merges', '-E', `--grep=^${CHAT_CLEAN_ORDER_SUBJECT}`, `${BASE_COMMIT}..${head}`).split('\n').filter(Boolean)
+const scopeOwnCommits = head => {
+  const own = ownOf(head)
   assert.ok(own.length >= 1, 'no own commit yet')
-  const all = git('log', '--format=%H', '--first-parent', '--no-merges', `${BASE_COMMIT}..${HEAD}`).split('\n').filter(Boolean)
+  const all = git('log', '--format=%H', '--first-parent', '--no-merges', `${BASE_COMMIT}..${head}`).split('\n').filter(Boolean)
   assert.deepEqual([...all].sort(), [...own].sort(), 'a commit between the base and HEAD is not this change\'s')
   for (const c of own) {
     assert.match(git('log', '-1', '--format=%B', c), /Co-Authored-By: Claude Sonnet 5\.5 <noreply@anthropic\.com>\s*$/, c.slice(0, 8))
     assert.doesNotMatch(git('log', '-1', '--format=%s', c), /^Chat clean/, c.slice(0, 8))
   }
-})
-await check('the committed files are exactly this change\'s (one older proof, chat undo v2\'s, taught a registry read); every line added to the list is a pure insertion that carries the marker (eight of them); the strip gives the base back byte for byte, also through the registry', () => {
+}
+const scopeCommittedFiles = HEAD => {
   const changed = git('diff', '--name-only', `${BASE_COMMIT}..${HEAD}`).split('\n').filter(Boolean).filter(rel => CHAT_CLEAN_ORDER_SCOPE_FILES.has(rel) || !registry.LATER_CHANGE_FILES.has(rel)).sort()
   assert.deepEqual(changed, [...CHAT_CLEAN_ORDER_SCOPE_FILES].sort())
   assert.deepEqual(Object.keys(CHAT_CLEAN_ORDER_PIN_EDITS), ['scripts/test-studio-chat-undo-v2.mjs'], 'one older proof is taught: chat undo v2\'s strip of the message list')
@@ -565,6 +573,35 @@ await check('the committed files are exactly this change\'s (one older proof, ch
     assert.equal(registry.stripLaterChanges(rel, git('show', `${HEAD}:${rel}`)), registry.stripLaterChanges(rel, git('show', `${BASE_COMMIT}:${rel}`)), `${rel}: ...and through the registry (both sides)`)
   }
   for (const rel of CHAT_CLEAN_ORDER_NEW_FILES) assert.ok(git('cat-file', '-t', `${HEAD}:${rel}`).trim() === 'blob', rel)
+}
+const scopeEnvAndRegistry = HEAD => {
+  assert.equal(registry.stripLaterEnvBlocks('.env.example', git('show', `${HEAD}:.env.example`)), registry.stripLaterEnvBlocks('.env.example', `${git('show', `${BASE_COMMIT}:.env.example`)}\n${CHAT_CLEAN_ORDER_ENV_BLOCK}`))
+  assert.equal(git('show', `${HEAD}:.env.example`), `${git('show', `${BASE_COMMIT}:.env.example`)}\n${CHAT_CLEAN_ORDER_ENV_BLOCK}`, 'byte for byte: the base, one blank line, the block')
+  const diff = git('diff', '-U0', `${BASE_COMMIT}..${HEAD}`, '--', 'scripts/studio-later-changes.mjs').split('\n').filter(line => /^[+-]/.test(line) && !/^(\+\+\+|---) /.test(line))
+  assert.equal(diff.length, 3); for (const line of diff) assert.ok(line.startsWith('+') && line.includes('LATER-CHANGE') && line.includes('studio-chat-clean-order-strip.mjs'), line.slice(0, 140))
+}
+await check(`this change's own commits (subject starts "${CHAT_CLEAN_ORDER_SUBJECT}") exist; every first-parent non-merge commit between the base and HEAD (HEAD^2 in the gate) is one, with the co-author line; none starts "Chat clean" (that prefix is the chat clean proof's own-commit grep)`, () => scopeOwnCommits(HEAD))
+await check('the committed files are exactly this change\'s (one older proof, chat undo v2\'s, taught a registry read); every line added to the list is a pure insertion that carries the marker (eight of them); the strip gives the base back byte for byte, also through the registry', () => scopeCommittedFiles(HEAD))
+// GATE-SAFE: build the gate's merge (first parent BASE, second parent this change's head; the tree is `git merge-tree --write-tree BASE head`) and run the whole scope section against it.
+const GATE_IDENT = { GIT_AUTHOR_NAME: 'gate', GIT_AUTHOR_EMAIL: 'gate@example.invalid', GIT_COMMITTER_NAME: 'gate', GIT_COMMITTER_EMAIL: 'gate@example.invalid', GIT_AUTHOR_DATE: '2026-10-27T00:00:00Z', GIT_COMMITTER_DATE: '2026-10-27T00:00:00Z' }
+const gateStyleMerge = head => {
+  const tree = git('merge-tree', '--write-tree', BASE_COMMIT, head).trim().split('\n')[0]
+  return execFileSync('git', ['commit-tree', tree, '-p', BASE_COMMIT, '-p', head, '-m', 'gate-style merge (local, no ref)'], { cwd: repo, encoding: 'utf8', env: { ...process.env, ...GATE_IDENT } }).trim()
+}
+const GATE = gateStyleMerge(HEAD)
+await check('GATE-SAFE: on a gate-style merge (first parent BASE, second parent this change\'s head) the scope head is HEAD^2 and the whole scope section passes against it', () => {
+  assert.deepEqual(git('rev-list', '--parents', '-n', '1', GATE).trim().split(/\s+/).slice(1), [BASE_COMMIT, HEAD], 'the gate-style merge: first parent BASE, second parent the head')
+  assert.deepEqual(git('log', '--format=%H', '--first-parent', '--no-merges', `${BASE_COMMIT}..${GATE}`).split('\n').filter(Boolean), [], 'the gate\'s first-parent, no-merges line from BASE is empty: why HEAD itself cannot be used')
+  const head = scopeHead(GATE)
+  assert.equal(head, HEAD, 'HEAD^2 is the change\'s head')
+  scopeOwnCommits(head); scopeCommittedFiles(head); scopeEnvAndRegistry(head)
+  assert.equal(scopeHead(HEAD), HEAD, 'a branch head (not a merge onto BASE) is used as it is')
+  assert.equal(scopeHead(BASE_COMMIT), BASE_COMMIT, 'BASE itself (a merge with other parents) is used as it is')
+})
+await check('mutant caught: without the HEAD^2 rule the gate-style merge has no own commit (the scope section fails on it)', () => {
+  const head = scopeHead(GATE, { gateRule: false })
+  assert.equal(head, GATE)
+  assert.throws(() => scopeOwnCommits(head), /no own commit yet/)
 })
 await check('plumbing: the lib reads the literal env names (exact "true", both flags); the list reads the lib\'s constant; .env.example documents "false" once; the new lib and component import only what they need', () => {
   const text = read(LIB)
@@ -576,10 +613,7 @@ await check('plumbing: the lib reads the literal env names (exact "true", both f
   assert.equal((read('.env.example').match(new RegExp(FLAG, 'g')) || []).length, 1)
 })
 await check('.env.example is the base plus the block (a blank line before it); the registry gains exactly its three marked lines and loses none; no secret-shaped literal in the new files', () => {
-  assert.equal(registry.stripLaterEnvBlocks('.env.example', git('show', `${HEAD}:.env.example`)), registry.stripLaterEnvBlocks('.env.example', `${git('show', `${BASE_COMMIT}:.env.example`)}\n${CHAT_CLEAN_ORDER_ENV_BLOCK}`))
-  assert.equal(git('show', `${HEAD}:.env.example`), `${git('show', `${BASE_COMMIT}:.env.example`)}\n${CHAT_CLEAN_ORDER_ENV_BLOCK}`, 'byte for byte: the base, one blank line, the block')
-  const diff = git('diff', '-U0', `${BASE_COMMIT}..${HEAD}`, '--', 'scripts/studio-later-changes.mjs').split('\n').filter(line => /^[+-]/.test(line) && !/^(\+\+\+|---) /.test(line))
-  assert.equal(diff.length, 3); for (const line of diff) assert.ok(line.startsWith('+') && line.includes('LATER-CHANGE') && line.includes('studio-chat-clean-order-strip.mjs'), line.slice(0, 140))
+  scopeEnvAndRegistry(HEAD)
   for (const rel of ['scripts/test-studio-chat-clean-order.mjs', 'scripts/studio-chat-clean-order-strip.mjs', LIB, TAIL, FIXTURE]) assert.doesNotMatch(read(rel), /(sk-[A-Za-z0-9]{16,}|AKIA[0-9A-Z]{12,}|eyJ[A-Za-z0-9_-]{20,}\.|-----BEGIN [A-Z ]*PRIVATE KEY|ghp_[A-Za-z0-9]{20,}|xox[bp]-)/, rel)
 })
 await check('the fixture is DIRECTOR-2\'s frame order (27 Oct) in recorded shapes: status_update, build_phase planning, six progress chat_messages each followed by its deck-scope build_event (the last "Packaging…"), slide_context, build_phase strawman, slide_update, the outline chat line, action_request, token_usage', () => {
