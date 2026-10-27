@@ -7752,7 +7752,7 @@ function AuthenticatedBuilderContent({ authScopeUserId }: { authScopeUserId: str
                       }))
                     }
                     deckOpen={studioComposerDeckOpen}
-                    {...(chatCommandsOn ? { mentionSlides: undefined, studioChatCommands: chatCommandsPage } : {}) /* CHAT-COMMANDS: the "@" menu takes over the K1 slide picker (Slides is its first section); the prop carries the page's part. Off, nothing is added */}
+                    {...((chatCommandsOn ? { mentionSlides: undefined, studioChatCommands: chatCommandsPage } : {}) as { mentionSlides?: undefined; studioChatCommands?: ChatCommandsPageProps }) /* CHAT-COMMANDS: the "@" menu takes over the K1 slide picker (Slides is its first section); the prop carries the page's part. Off, nothing is added */}
                     awaitingReply={awaitingDirectorReply}
                     onStopAwaiting={stopAwaitingReply}
                     onSubmit={handleSendMessage}
