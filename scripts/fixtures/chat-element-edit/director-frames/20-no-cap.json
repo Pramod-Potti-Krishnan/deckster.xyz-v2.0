@@ -1,0 +1,52 @@
+{
+  "case": "20-no-cap",
+  "user_message": {
+    "text": "Delete this chart",
+    "client_caps": [
+      "mdc1"
+    ],
+    "references": [
+      {
+        "kind": "element",
+        "element_id": "chart_c3",
+        "element_type": "CHART",
+        "slide_index": 2,
+        "slide_id": "L2",
+        "label": "Chart \u00b7 slide 3"
+      }
+    ]
+  },
+  "decision": {
+    "action_type": "edit_element",
+    "reasoning": "scripted",
+    "confidence": 0.95,
+    "requires_approval": false,
+    "target_slide_indices": [
+      2
+    ],
+    "edit_op": "delete"
+  },
+  "frames_in": [],
+  "frames_out": [
+    [
+      {
+        "message_id": "msg_6551664a",
+        "session_id": "s_e2e",
+        "timestamp": "2026-10-26T17:22:01.295227Z",
+        "type": "chat_message",
+        "role": "assistant",
+        "payload": {
+          "text": "I can't change elements from chat in this version of the app yet, so nothing was changed. To delete it, select the element on slide 3 and press the Delete key.",
+          "sub_title": null,
+          "list_items": null,
+          "format": "markdown",
+          "ephemeral": false
+        }
+      }
+    ]
+  ],
+  "chat_lines": [
+    "I can't change elements from chat in this version of the app yet, so nothing was changed. To delete it, select the element on slide 3 and press the Delete key."
+  ],
+  "layout_calls": []
+}

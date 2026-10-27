@@ -1,0 +1,59 @@
+{
+  "case": "22-unknown-colour",
+  "user_message": {
+    "text": "Make this text magenta",
+    "client_caps": [
+      "mdc1",
+      "element_edit1",
+      "notes1",
+      "undo1"
+    ],
+    "references": [
+      {
+        "kind": "element",
+        "element_id": "textbox_a1",
+        "element_type": "TEXT_BOX",
+        "slide_index": 2,
+        "slide_id": "L2",
+        "label": "Text \u00b7 slide 3"
+      }
+    ]
+  },
+  "decision": {
+    "action_type": "edit_element",
+    "reasoning": "scripted",
+    "confidence": 0.95,
+    "requires_approval": false,
+    "target_slide_indices": [
+      2
+    ],
+    "edit_op": "style",
+    "edit_color": "magenta"
+  },
+  "frames_in": [],
+  "frames_out": [
+    [
+      {
+        "message_id": "msg_b6509dc4",
+        "session_id": "s_e2e",
+        "timestamp": "2026-10-26T17:22:01.726338Z",
+        "type": "chat_message",
+        "role": "assistant",
+        "payload": {
+          "text": "I couldn't match \"magenta\" to one of this deck's colours, so nothing was changed. This deck's colours are: accent 2 (orange), primary (blue). Tell me which one you want.",
+          "sub_title": null,
+          "list_items": null,
+          "format": "markdown",
+          "ephemeral": false
+        }
+      }
+    ]
+  ],
+  "chat_lines": [
+    "I couldn't match \"magenta\" to one of this deck's colours, so nothing was changed. This deck's colours are: accent 2 (orange), primary (blue). Tell me which one you want."
+  ],
+  "layout_calls": [
+    "GET /api/presentations/pres-e2e",
+    "GET /api/presentations/pres-e2e/theme/css-variables"
+  ]
+}

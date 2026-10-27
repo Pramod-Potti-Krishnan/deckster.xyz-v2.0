@@ -1,0 +1,42 @@
+{
+  "case": "31-notes-no-cap",
+  "user_message": {
+    "text": "Set slide 3's speaker notes to open with the churn number",
+    "client_caps": [
+      "mdc1"
+    ]
+  },
+  "decision": {
+    "action_type": "set_speaker_notes",
+    "reasoning": "scripted",
+    "confidence": 0.95,
+    "requires_approval": false,
+    "target_slide_indices": [
+      2
+    ],
+    "notes_text": "Open with the churn number, then ask for questions."
+  },
+  "frames_in": [],
+  "frames_out": [
+    [
+      {
+        "message_id": "msg_fd99092e",
+        "session_id": "s_e2e",
+        "timestamp": "2026-10-26T17:22:02.194891Z",
+        "type": "chat_message",
+        "role": "assistant",
+        "payload": {
+          "text": "I can't change speaker notes from chat in this version of the app yet, so nothing was changed. To set the notes for slide 3, open the Notes panel under the slide and type them there: \"Open with the churn number, then ask for questions.\".",
+          "sub_title": null,
+          "list_items": null,
+          "format": "markdown",
+          "ephemeral": false
+        }
+      }
+    ]
+  ],
+  "chat_lines": [
+    "I can't change speaker notes from chat in this version of the app yet, so nothing was changed. To set the notes for slide 3, open the Notes panel under the slide and type them there: \"Open with the churn number, then ask for questions.\"."
+  ],
+  "layout_calls": []
+}

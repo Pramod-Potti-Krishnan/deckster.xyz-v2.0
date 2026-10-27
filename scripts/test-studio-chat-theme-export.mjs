@@ -44,6 +44,7 @@ import { stripModelCatalog } from './studio-model-catalog-strip.mjs' // #473 (NE
 import { STACK, stackFileTolerant, stackMutants, stackScope, sameOrTolerant, stripMutants } from './studio-stack-tolerant.mjs' // stacked after #475: a later PR's files are not this change's to answer for, and a shared file a later PR edits too keeps its base lines and this change's (scripts/studio-stack-tolerant.mjs)
 import { stripLaunchWording } from './studio-launch-wording-strip.mjs' // NEXT_PUBLIC_STUDIO_LAUNCH_WORDING (launched wording): its flag-gated edits come out first, before every older change's strip
 import { stripFirstPaint } from './studio-first-paint-strip.mjs' // stacked: NEXT_PUBLIC_STUDIO_FIRST_PAINT_ENABLED (COMPOSER-2 first paint): its flag-gated viewer lines come out first, inside read(), next to stripLaunchWording
+import { stripLaterChanges } from './studio-later-changes.mjs' // LATER-CHANGES: registry read (CHAT-ELEMENT-EDIT), stacked after #475
 import { stripJobLedger } from './studio-job-ledger-strip.mjs' // stacked after #475: P3-4c (NEXT_PUBLIC_STUDIO_JOB_LEDGER) adds its flag-gated job_update intake to the hook's startConnection; declarations() takes its lines out first
 import { stripBulkEditUndo } from './studio-bulk-edit-undo-strip.mjs' // stacked after #475: the bulk edit + chat undo change (NEXT_PUBLIC_STUDIO_BULK_EDIT / NEXT_PUBLIC_STUDIO_CHAT_UNDO) adds marked lines to the hook (a cap in buildUserMessage, a routing line in startConnection); declarations() takes them out first
 
@@ -825,6 +826,7 @@ await check('identity: the theme picker\'s build-selection lock is unchanged wit
 // ---- 6. the page's own wiring ------------------------------------------------------------------------------------------------------
 await check('page: wired only behind the flags (read inline), next to the K5 add runner, on the same owner record', async () => {
   assert.ok(runnerAssign && addRunnerAssign && hookSpread && applyNode)
+  const pageText = stripLaterChanges(PAGE, read(PAGE)) // LATER-CHANGES: registry read (CHAT-ELEMENT-EDIT), stacked after #475: the page text here is the text pageAst was parsed from (extract.parseSource reads through the registry), so the offsets between the two agree
   assert.ok(runnerAssign.getStart(pageAst) > addRunnerAssign.getEnd(), 'after the add runner')
   // Right beside it: only this change's own lines, or, stacked on #470, the refine runner's region (its selection effects and runner), sit between.
   const between = pageText.slice(addRunnerAssign.getEnd(), runnerAssign.getStart(pageAst))
