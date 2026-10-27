@@ -1,0 +1,29 @@
+{
+ "recorded_from": "the base tree (studio-v4-dev-preparation-code 14a06c30), flag off",
+ "runs": {
+  "shell|running": "63e9348eb14e33ac0d56db7b4c5a2f9ef5c29248a07046f3bcf257692141b19c",
+  "shell|paused": "5c37af3aed5f351e344641af6fb179cfea99f1c207c6b0fcfda71945a0bc582b",
+  "shell|pausedBuilding": "ac088403bb9946801b1dbb762fe4a8b0d9a409be21c542315fb96bdc2d8e904f",
+  "shell|pause asked for": "103eb107d36c45238ca5b69e3c98ad1ede37f11c74fa66ed036faf763feb0680",
+  "shell|resume asked for (paused)": "e9eac1c1623f6d197fa1021effdf5371da3c1df0ed113e0a4176ac50aa181ac3",
+  "shell|resumed": "63e9348eb14e33ac0d56db7b4c5a2f9ef5c29248a07046f3bcf257692141b19c",
+  "shell|stopped": "96e02815fc078d0ee43306d0a9287c2b5b83a244c06b9ad3ad5e4ad0dce5ea04",
+  "shell|stop asked for": "cc8607c3d03ee6f1f12a006c85762cb96be5be2c900efee1f1bd239a0b0b9ccb",
+  "shell|failed": "7c5f2b2720f1133a56842bc8bf465ccdd548fc73881a3289246e82e51facfc03",
+  "shell|complete": "181160df1a46724f4307b7c88708a49057461ab8691f36d7ca977f17b354ae74",
+  "shell|paused in the typed phase": "5c37af3aed5f351e344641af6fb179cfea99f1c207c6b0fcfda71945a0bc582b",
+  "shell|failed, control paused (restored)": "c9cb700d66f08a6a47dc30a5a688f7ae3955fd06bc1bc73d4a880da90882191e",
+  "classic|running": "e132a7a89464d09bcfa5bd734da9f7a1844c57acaee56a2c9372c24b84f04639",
+  "classic|paused": "4d6028273b7aea546e84ae856e0cfa7570b67ed0fecd41077e80687696a2ede4",
+  "classic|pausedBuilding": "973f117f2cf50e0dd360645e79daf5a70571c5e870bbd1ab2020b2006ee912c2",
+  "classic|pause asked for": "7c427f2e53c531efb1094c383ff156473ffddbd81ad934926b576ecce6b4fd59",
+  "classic|resume asked for (paused)": "03281100e5464e6ec822c3a21d6178c747493ee0757d39a1e8c7646ef71e61b4",
+  "classic|resumed": "e132a7a89464d09bcfa5bd734da9f7a1844c57acaee56a2c9372c24b84f04639",
+  "classic|stopped": "20a3be46b829c3ae1970fa88920e27afbb4a68ad5da11418fa2402e98a2abcd8",
+  "classic|stop asked for": "841639570890ae7725ca81ded554147ad9f5e035b5071464d025d98aabd897ef",
+  "classic|failed": "07963889bb9904ef9a3dc01cd2aed676b25d4f5d40e78b5fe09a1688be69b9db",
+  "classic|complete": "1e668b8defe0b9d0054cb77ad1627fe9773de7877eb96e64fcd89d8bd55288a9",
+  "classic|paused in the typed phase": "4d6028273b7aea546e84ae856e0cfa7570b67ed0fecd41077e80687696a2ede4",
+  "classic|failed, control paused (restored)": "b0cfae31975e8f4ddbed4fac095c702a2b50f409c2f09d6f17b570215e3ae123"
+ }
+}

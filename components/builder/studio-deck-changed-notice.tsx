@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react'
 import type { DeckChangedNotice } from '@/lib/studio-deck-changed-notice'
+import { STUDIO_DECK_SYNC_TRUTH_ENABLED, deckChangedNoticeText } from '@/lib/studio-deck-sync-truth' // DECK-SYNC-TRUTH
 
 export interface StudioDeckChangedNoticeProps {
   /** Null (or absent) renders nothing. The page hook owns when a notice exists. */
@@ -56,7 +57,7 @@ export function StudioDeckChangedNotice({ notice, unsaved = false, onReload, onD
   return <div data-studio-deck-changed-notice={notice.source} role="status" aria-live="polite" aria-atomic="true"
     className={className} style={barStyle}>
     {!confirming && <>
-      <span data-studio-deck-changed-part="text">{notice.source === 'reconnect' ? 'This deck changed while you were reconnecting' : 'This deck changed in another tab'}</span>
+      <span data-studio-deck-changed-part="text">{STUDIO_DECK_SYNC_TRUTH_ENABLED /* DECK-SYNC-TRUTH: words by cause, "another tab" only for a message another tab sent */ ? deckChangedNoticeText(notice.source) : notice.source === 'reconnect' ? 'This deck changed while you were reconnecting' : 'This deck changed in another tab'}</span>
       <span aria-hidden="true" style={{ color: 'var(--ss-muted, #566965)' }}>·</span>
       <button type="button" data-studio-deck-changed-part="reload" style={actionStyle}
         onClick={() => { if (needsConfirm) setConfirming(true); else onReload() }}>Reload deck</button>

@@ -6,7 +6,7 @@
 // and each file is its base, byte for byte. One older proof is taught (CHAT_PARITY_PIN_EDITS): the font-selection proof runs the hook's buildUserMessage in a sandbox and needs the new constant.
 // How the older pins reach it: this change REGISTERS its files, its .env.example block and this strip (scripts/studio-later-changes.mjs, three lines). Plain node, no imports, nothing read from disk or git here.
 
-export const BASE_COMMIT = 'a0ff9d4596fd9905e80ecd96682a454c1bf9ab60' // origin/studio-v4-dev-preparation-code (#532 merged); the tree diff from it to this change's newest commit is this change
+export const BASE_COMMIT = '73e6e5b00f41f129140ec5c4ccf9151a2e567f08' // origin/studio-v4-dev-preparation-code (#535 merged); the tree diff from it to this change's newest commit is this change
 export const CHAT_PARITY_FLAGS = ['NEXT_PUBLIC_STUDIO_CHAT_PARITY_THEMES', 'NEXT_PUBLIC_STUDIO_CHAT_PARITY_IDENTITY', 'NEXT_PUBLIC_STUDIO_CHAT_PARITY_TEMPLATES']
 export const CHAT_PARITY_MARKER = 'CHAT-PARITY'
 /** The marker as a WHOLE token: CHAT-PARITY-X or X-CHAT-PARITY are not this change's. */
@@ -25,6 +25,10 @@ export const CHAT_PARITY_FILES = [
 
 /** The older proofs this change teaches: [line now, line before] per edit, whole lines (a line now carries "registry read (CHAT-PARITY)" and occurs once in its file; a line before of "" is an inserted line). */
 export const CHAT_PARITY_PIN_EDITS = {
+  "scripts/test-studio-deck-sync-truth.mjs": [
+    ["  shas.splice(0, shas.length, ...shas.filter(sha => !/^Chat parity/.test(git('log', '-1', '--format=%s', sha)))) // stacked after #475: LATER-CHANGES: registry read (CHAT-PARITY): on a branch stacked after this change (chat parity's, merged with dev), the first-parent commits are chat parity's own, not this change's; with none left the identity checks above cover the files\n", ""],
+    ["const stripPeers = (rel, text) => LATER_STRIPS.filter(strip => strip !== stripDeckSyncTruth).reverse().reduce((out, strip) => { const next = strip(rel, out); return typeof next === 'string' ? next : out }, text) // stacked after #475: LATER-CHANGES: registry read (CHAT-PARITY): newest change first, so a pin line two later changes teach (arrange's read: chat parity after #522) is put back in the order it was edited\n", "const stripPeers = (rel, text) => LATER_STRIPS.filter(strip => strip !== stripDeckSyncTruth).reduce((out, strip) => { const next = strip(rel, out); return typeof next === 'string' ? next : out }, text)\n"],
+  ],
   "scripts/test-studio-chat-theme-export.mjs": [
     ["    added.splice(0, added.length, ...added.filter(line => !/CHAT_PARITY_CAPS = \\[\\]/.test(line))) // stacked after #475: LATER-CHANGES: registry read (CHAT-PARITY): chat parity (NEXT_PUBLIC_STUDIO_CHAT_PARITY_*) names its one caps constant in the font-selection sandbox with one inserted line; that line is a later PR's, not this change's\n", ""],
   ],

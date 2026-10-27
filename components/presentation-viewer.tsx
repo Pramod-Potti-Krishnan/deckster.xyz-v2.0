@@ -166,6 +166,7 @@ import {
   syncedFooterTotal,
   visualTotalAfterCommit,
 } from '@/lib/studio-slide-count-sync'
+import { STUDIO_DECK_SYNC_TRUTH_ENABLED, syncTruthSettledTotals } from '@/lib/studio-deck-sync-truth' // DECK-SYNC-TRUTH (NEXT_PUBLIC_STUDIO_DECK_SYNC_TRUTH, default off): after a poll the totals are the viewer's own count, not a floor restored too high
 
 const DEFAULT_BUILD_THEME_SELECTION: BuildThemeSelection = { mode: 'auto' }
 
@@ -763,6 +764,8 @@ export function PresentationViewer({
   const presentSlideIndexRef = useRef<number | null>(null) // last slide it reported, 0-based
   const presentViewOnlyActiveRef = useRef(false)
   const studioShell = process.env.NEXT_PUBLIC_STUDIO_V4_SHELL === 'true'
+  const deckSyncBuildingRef = useRef(false) // DECK-SYNC-TRUTH (NEXT_PUBLIC_STUDIO_DECK_SYNC_TRUTH): a build is in progress; the poll's interval reads it fresh, as the poll effect does not list isGenerating
+  deckSyncBuildingRef.current = !studioShell || Boolean(isGenerating) || Boolean(studioPartialArtifact) // DECK-SYNC-TRUTH: outside the Studio shell, and while a build runs (isGenerating, or the partial artifact that also carries the rail's mid-build plan), the grow-only floor stays
   // PASS2 #5 (flag NEXT_PUBLIC_STUDIO_TOOLBAR_CLEANUP, exact "true", default off, Studio shell only): the toolbar loses its
   // dead "Templates — coming soon" control, and Present moves from the slide footer to the end of the authoring strip, as in
   // the mockup. Off: the toolbar and footer are exactly as before.
@@ -1859,6 +1862,8 @@ export function PresentationViewer({
             setVisualTotalSlides(prev => prev === visualTotal ? prev : visualTotal)
             if (selectionIsCurrent()) onSlideChangeRef.current?.(slideNum)
           }
+          const deckSyncSettled = STUDIO_DECK_SYNC_TRUTH_ENABLED ? syncTruthSettledTotals({ data, resolvedVisualTotal, building: deckSyncBuildingRef.current || hasComposeJobs }) : null // DECK-SYNC-TRUTH: after the base's floored totals above, a settled deck takes the viewer's own count (every tick, so a restored count comes down at the first poll)
+          if (deckSyncSettled) { setTotalSlides(prev => prev === deckSyncSettled.total ? prev : deckSyncSettled.total); setVisualTotalSlides(prev => prev === deckSyncSettled.visualTotal ? prev : deckSyncSettled.visualTotal) } // DECK-SYNC-TRUTH
 
           // Reset failure count on success
           setPollingFailureCount(prev => prev === 0 ? prev : 0)
