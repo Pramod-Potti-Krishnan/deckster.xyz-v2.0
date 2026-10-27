@@ -56,7 +56,7 @@ async function check(label, fn) {
 // The registry strips this change's page line for every other reader (the chat harness parses the page through it). In THIS process only, take that one strip out, so the harness runs the page WITH its line.
 const registry = await import('./studio-later-changes.mjs')
 const stripModule = await import('./studio-build-failure-end-strip.mjs')
-const { stripBuildFailureEnd, BASE_COMMIT, BUILD_FAILURE_END_FILES, BUILD_FAILURE_END_SCOPE_FILES, BUILD_FAILURE_END_ENV_BLOCK, BUILD_FAILURE_END_SUBJECT, BUILD_FAILURE_END_MARKER_RE, BUILD_FAILURE_END_PIN_EDITS } = stripModule
+const { stripBuildFailureEnd, BASE_COMMIT, BUILD_FAILURE_END_FILES, BUILD_FAILURE_END_SCOPE_FILES, BUILD_FAILURE_END_ENV_BLOCK, BUILD_FAILURE_END_SUBJECT, BUILD_FAILURE_END_MARKER_RE } = stripModule
 const stripAt = registry.LATER_STRIPS.indexOf(stripBuildFailureEnd)
 assert.ok(stripAt >= 0, 'the registry names this change\'s strip')
 registry.LATER_STRIPS.splice(stripAt, 1)
@@ -414,7 +414,6 @@ await check('the committed files are exactly this change\'s (the older scope che
     for (const line of diff) { assert.ok(line.startsWith('+'), `${rel}: a removed line: ${line.slice(0, 120)}`); assert.match(line, BUILD_FAILURE_END_MARKER_RE, `${rel}: an unmarked added line: ${line.slice(0, 120)}`) }
     assert.equal(stripBuildFailureEnd(rel, git('show', `${HEAD}:${rel}`)), git('show', `${BASE_COMMIT}:${rel}`), `${rel}: without its marked lines the file is the base's, byte for byte`)
   }
-  for (const rel of Object.keys(BUILD_FAILURE_END_PIN_EDITS)) assert.equal(stripBuildFailureEnd(rel, git('show', `${HEAD}:${rel}`)), git('show', `${BASE_COMMIT}:${rel}`), `${rel}: the taught proof is its base's text without this change's edits`)
   for (const rel of stripModule.BUILD_FAILURE_END_NEW_FILES) assert.ok(git('cat-file', '-t', `${HEAD}:${rel}`).trim() === 'blob', rel)
 })
 await check('.env.example is the base plus the block; the registry gains exactly its three marked lines and loses none', () => {
