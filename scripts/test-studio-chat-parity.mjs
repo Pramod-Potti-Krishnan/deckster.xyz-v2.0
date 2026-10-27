@@ -3,7 +3,7 @@
 //   marked lines in hooks/use-deckster-websocket-v2.ts, app/builder/page.tsx, components/slide-notes-panel.tsx and types/mdc.ts, the taught font-selection proof, and the .env.example block.
 //
 //   A. The lib, function by function, in THIS realm with a fake process (flag on / off / other strings).
-//   B. The runners with a fake clock: unsupported, not the owner, the executor's own answer, a throw, a timeout.
+//   B. The runners with a fake clock: unsupported, not the owner, the executor's own answer, a throw, a timeout; the THEMES executors with the click paths' functions faked.
 //   C. The sources: every marked line is an insertion that carries the marker, stripping them gives the base's files byte for byte (and through the registry), the taught proof put back,
 //      the gates, .env.example is the base plus the block, the registry gained its three lines, the committed diff is this change's files, no secrets.
 //   D. MUTANTS: every one of them must be caught by A-C.
@@ -31,6 +31,8 @@ const plain = value => JSON.parse(JSON.stringify(value))
 
 const LIB = 'lib/studio-chat-parity.ts'
 const RUNNERS = 'lib/studio-chat-parity-runners.ts'
+const THEMES = 'lib/studio-chat-parity-themes.ts'
+const COMPOSER = 'components/builder/chat-input.tsx'
 const HOOK = 'hooks/use-deckster-websocket-v2.ts'
 const PAGE = 'app/builder/page.tsx'
 const PANEL = 'components/slide-notes-panel.tsx'
@@ -57,9 +59,30 @@ function loadLib(text = read(LIB), env = ALL_ON) {
   new Function('module', 'exports', 'require', 'process', compile(text, LIB))(module, module.exports, () => { throw new Error('the lib must stay import-free') }, { env })
   return module.exports
 }
-function loadRunners(text = read(RUNNERS), lib = loadLib(), timers = null) {
+const FONTS = ['Inter', 'Poppins', 'Roboto', 'Open Sans', 'Lato', 'Montserrat', 'Playfair Display', 'Lora']
+/** lib/theme-fonts.ts and lib/theme-builder.ts, faked to their contracts (their own proofs cover them). */
+function themeStubs(fontsOn = true) {
+  const canonical = v => typeof v === 'string' ? FONTS.find(n => n.toLowerCase() === v.trim().toLowerCase()) : undefined
+  const fields = sel => { const out = {}; if (!fontsOn || !sel) return out; for (const f of ['font_family', 'font_family_heading']) { const c = canonical(sel[f]); if (c) out[f] = c } return out }
+  const withFonts = (sel, fonts) => { const { font_family: _a, font_family_heading: _b, ...rest } = sel; return { ...rest, ...fonts } }
+  return {
+    '@/lib/theme-fonts': {
+      THEME_FONT_FAMILIES: FONTS, THEME_FONT_SELECTION_ENABLED: fontsOn,
+      applyThemeFontPolicy: sel => { if (!sel || typeof sel !== 'object') return sel; if (!('font_family' in sel) && !('font_family_heading' in sel)) return sel; return withFonts(sel, fields(sel)) },
+      setThemeFont: (sel, field, value) => { const cur = fields(sel); const fam = fontsOn ? canonical(value) : undefined; const next = {}; for (const n of ['font_family', 'font_family_heading']) { const c = n === field ? fam : cur[n]; if (c) next[n] = c } return withFonts(sel, next) },
+    },
+    '@/lib/theme-builder': { themeSelectionFingerprint: sel => JSON.stringify(sel) },
+  }
+}
+function loadThemes(text = read(THEMES), lib = loadLib(), stubs = themeStubs()) {
   const module = { exports: {} }
-  const require = name => { if (name === '@/lib/studio-chat-parity') return lib; throw new Error(`unexpected import ${name}`) }
+  const require = name => { if (name === '@/lib/studio-chat-parity') return lib; if (stubs[name]) return stubs[name]; throw new Error(`unexpected import ${name}`) }
+  new Function('module', 'exports', 'require', 'process', 'window', compile(text, THEMES))(module, module.exports, require, { env: {} }, globalThis.__chatParityWindow)
+  return module.exports
+}
+function loadRunners(text = read(RUNNERS), lib = loadLib(), timers = null, themes = loadThemes(read(THEMES), lib)) {
+  const module = { exports: {} }
+  const require = name => { if (name === '@/lib/studio-chat-parity') return lib; if (name === '@/lib/studio-chat-parity-themes') return themes; throw new Error(`unexpected import ${name}`) }
   const scope = timers ? { setTimeout: timers.set, clearTimeout: timers.clear } : { setTimeout, clearTimeout }
   new Function('module', 'exports', 'require', 'process', 'setTimeout', 'clearTimeout', compile(text, RUNNERS))(module, module.exports, require, { env: {} }, scope.setTimeout, scope.clearTimeout)
   return module.exports
@@ -120,6 +143,25 @@ function libSuite(libText = read(LIB)) {
   eq(lib.chatParityRefusal(req('notes', 'x'), { ...flags, notes: 'true' }), 'flag_off', 'only boolean true is on')
   eq(lib.chatParityRefusal(req('themes', 'nope'), { ...flags, themes: true }), 'unsupported', 'an action outside the group list')
   eq(Object.keys(lib.CHAT_PARITY_ACTIONS).sort(), ['identity', 'notes', 'templates', 'themes'], 'every group has a list'); eq(lib.CHAT_PARITY_ACTIONS.notes, [], 'notes: none')
+  // -- THEMES: the flag, the actions, the args --------------------------------------------------------------------------------------------
+  const themesOnly = loadLib(libText, { NEXT_PUBLIC_STUDIO_CHAT_PARITY_THEMES: 'true' })
+  eq(themesOnly.STUDIO_CHAT_PARITY_THEMES_ENABLED, true, '"true": themes on'); eq(themesOnly.CHAT_PARITY_CAPS, ['themes1'], 'themes: themes1'); eq(themesOnly.CHAT_PARITY_FLAGS.notes, false, 'notes stays off')
+  eq(lib.CHAT_PARITY_ACTIONS.themes, ['set_theme_fonts', 'save_theme', 'set_standard_theme', 'clear_standard_theme', 'rename_theme', 'apply_saved_theme'], 'rows 56 / 57 / 58 / 58 / 59 / 61')
+  eq(lib.chatParityRefusal(req('themes', 'apply_saved_theme'), { ...flags, themes: true }), null, 'a theme action runs with the flag on')
+  eq(lib.CHAT_PARITY_THEME_LIBRARY_EVENT, 'deckster:theme-library-changed'); eq(lib.CHAT_PARITY_THEME_NAME_MAX, 80)
+  const targs = (action, args) => lib.chatParityThemeArgs(action, args, FONTS)
+  eq(targs('set_theme_fonts', { font_family: ' lora ', font_family_heading: 'Playfair Display' }), { action: 'set_theme_fonts', font_family: 'Lora', font_family_heading: 'Playfair Display' }, 'fonts: canonical spelling, trimmed, case-insensitive')
+  eq(targs('set_theme_fonts', { font_family_heading: 'Inter' }), { action: 'set_theme_fonts', font_family_heading: 'Inter' }, 'one font')
+  eq(targs('set_theme_fonts', { font_family: 'Inter', font_family_heading: null }), { action: 'set_theme_fonts', font_family: 'Inter' }, 'null = not given')
+  eq(targs('set_theme_fonts', {}), null, 'no font'); eq(targs('set_theme_fonts', { font_family: 'Comic Sans' }), null, 'an unknown family'); eq(targs('set_theme_fonts', { font_family: 'Inter', font_family_heading: 'Comic Sans' }), null, 'one unknown spoils it'); eq(targs('set_theme_fonts', { font_family: 7 }), null, 'not a string')
+  eq(targs('save_theme', { name: '  Q3   brand ' }), { action: 'save_theme', name: 'Q3 brand', set_standard: false }, 'save: the name, spaces collapsed')
+  eq(targs('save_theme', { name: 'x', set_standard: true }), { action: 'save_theme', name: 'x', set_standard: true }, 'save as standard'); eq(targs('save_theme', { name: 'x', set_standard: 'true' }), { action: 'save_theme', name: 'x', set_standard: false }, 'only boolean true')
+  eq(targs('save_theme', { name: ' ' }), null, 'blank name'); eq(targs('save_theme', { name: 'a'.repeat(81) }), null, 'too long'); eq(targs('save_theme', {}), null, 'no name')
+  eq(targs('set_standard_theme', { theme_id: ' t1 ' }), { action: 'set_standard_theme', theme_id: 't1' }, 'standard: the id'); eq(targs('set_standard_theme', { theme_id: '' }), null, 'no id'); eq(targs('set_standard_theme', { name: 'Blue' }), null, 'a name is never enough')
+  eq(targs('clear_standard_theme', { anything: 1 }), { action: 'clear_standard_theme' }, 'clear: no args')
+  eq(targs('rename_theme', { theme_id: 't1', name: 'New' }), { action: 'rename_theme', theme_id: 't1', name: 'New' }, 'rename'); eq(targs('rename_theme', { theme_id: 't1' }), null, 'rename needs a name'); eq(targs('rename_theme', { name: 'x' }), null, 'rename needs an id')
+  eq(targs('apply_saved_theme', { theme_id: 't1' }), { action: 'apply_saved_theme', theme_id: 't1' }, 'apply'); eq(targs('apply_saved_theme', {}), null, 'apply needs an id')
+  eq(targs('delete_theme', { theme_id: 't1' }), null, 'row 60 is declined: no delete action'); eq(targs('nope', {}), null, 'unknown action')
   // -- the result -------------------------------------------------------------------------------------------------------------------------
   eq(lib.chatParityResult('sa_1', 'done'), { request_id: 'sa_1', status: 'done', error_code: null }, 'done')
   eq(lib.chatParityResult('sa_1', 'failed', 'not_owner'), { request_id: 'sa_1', status: 'failed', error_code: 'not_owner' }, 'failed + code')
@@ -177,6 +219,72 @@ async function runnersSuite(runnersText = read(RUNNERS), libText = read(LIB)) {
   const runners2 = loadRunners(runnersText, lib, t2); runners2.CHAT_PARITY_EXECUTORS.act = () => new Promise(() => {}); runners2.CHAT_PARITY_TIMEOUTS_MS.act = 60_000
   const hung2 = runners2.runChatParityAction(req({}), owner, deps); eq(armedMs, 60_000, 'a per-action wait'); t2.fire(); eq((await hung2).error_code, 'timeout')
   lib.CHAT_PARITY_ACTIONS.themes.pop()
+  await themesSuite(runnersText, libText)
+}
+
+/** The THEMES executors against faked click-path functions (the page's deps). */
+async function themesSuite(runnersText = read(RUNNERS), libText = read(LIB), themesText = read(THEMES), fontsOn = true) {
+  const lib = loadLib(libText)
+  const events = []; globalThis.__chatParityWindow = { dispatchEvent: e => { events.push(e.type); return true } }
+  const themes = loadThemes(themesText, lib, themeStubs(fontsOn))
+  const runners = loadRunners(runnersText, lib, null, themes)
+  const library = [{ id: 't1', name: 'Blue', theme_payload: { mode: 'preset', preset_id: 'corporate_dark', font_family: 'Lora' }, is_standard: false }, { id: 't2', name: 'Brand', theme_payload: { mode: 'custom', primary_hex: '#1a73e8' }, is_standard: true }]
+  const calls = []; let selection = { mode: 'preset', preset_id: 'minimal' }; let profile = 'untouched'; let sync = { status: 'idle', presentationId: null, themeFingerprint: null }; let locks = { composerBlocked: false, composerFrozen: false, templateMode: false, generating: false }; let clock = 0
+  let displayedDeck = { sessionId: 's1', deckOwnerSessionId: 's1', presentationId: 'p1', epoch: 1 }
+  const deps = {
+    displayed: () => displayedDeck,
+    themes: {
+      listThemes: async () => { calls.push('list'); return { themes: library, count: library.length } },
+      saveTheme: async args => { calls.push(['save', args]); return args.name === 'refused' ? null : { id: 't3', name: args.name, theme_payload: { ...args.theme, font_family: 'Comic Sans' }, is_standard: args.setStandard } },
+      setStandardTheme: async id => { calls.push(['standard', id]); return id === 't1' ? { id, name: 'Blue', is_standard: true } : null },
+      clearStandardTheme: async () => { calls.push('clear'); return true },
+      renameTheme: async (id, name) => { calls.push(['rename', id, name]); return name === 'refused' ? null : { id, name: name.toUpperCase() } },
+      currentSelection: () => selection, apply: next => { calls.push(['apply', next]); selection = next; return next }, setActiveProfile: p => { profile = p },
+      locks: () => locks, themeSync: () => sync, wait: async () => { clock += 100; await new Promise(r => setImmediate(r)) }, now: () => clock, timeoutMs: 1000,
+    },
+  }
+  const owner = { sessionId: 's1', isCurrent: () => true }
+  const run = (action, args, over = {}) => runners.runChatParityAction({ requestId: 'r', group: 'themes', action, presentationId: 'p1', args, label: '', ...over }, owner, deps, { session_id: 's1' })
+  const settle = (sel, status = 'applied') => { sync = { status, presentationId: 'p1', themeFingerprint: JSON.stringify(sel) } }
+  // save
+  eq(await run('save_theme', { name: 'Mine' }), { request_id: 'r', status: 'done', error_code: null, detail: { theme_id: 't3', name: 'Mine', is_standard: false } }, 'save: the palette\'s saveTheme with the current selection')
+  eq(plain(calls.at(-2)), ['save', { name: 'Mine', theme: { mode: 'preset', preset_id: 'minimal' }, setStandard: false }], 'save args'); eq(plain(calls.at(-1)), ['apply', { mode: 'preset', preset_id: 'minimal' }], 'the saved payload (an unsupported font dropped by the policy) is applied')
+  eq(plain(profile), { id: 't3', name: 'Mine', theme_payload: { mode: 'preset', preset_id: 'minimal' } }, 'the active profile'); eq(events, ['deckster:theme-library-changed'], 'the palette is told')
+  eq(await run('save_theme', { name: 'refused' }), { request_id: 'r', status: 'failed', error_code: 'write_failed' }, 'save refused')
+  selection = { mode: 'auto' }; eq(await run('save_theme', { name: 'x' }), { request_id: 'r', status: 'failed', error_code: 'theme_auto' }, 'auto cannot be saved (the Save button is disabled then)'); selection = { mode: 'preset', preset_id: 'minimal' }
+  eq(await run('save_theme', {}), { request_id: 'r', status: 'failed', error_code: 'invalid_args' }, 'no name: invalid_args')
+  // standard
+  events.length = 0
+  eq(await run('set_standard_theme', { theme_id: 't1' }), { request_id: 'r', status: 'done', error_code: null, detail: { theme_id: 't1', name: 'Blue' } }, 'standard: done'); eq(events, ['deckster:theme-library-changed'])
+  eq(await run('set_standard_theme', { theme_id: 't9' }), { request_id: 'r', status: 'failed', error_code: 'not_found' }, 'standard: unknown id (never written)'); ok(!calls.some(c => Array.isArray(c) && c[0] === 'standard' && c[1] === 't9'), 'not written')
+  library.push({ id: 't4', name: 'Odd', theme_payload: { mode: 'preset', preset_id: 'x' } }); eq(await run('set_standard_theme', { theme_id: 't4' }), { request_id: 'r', status: 'failed', error_code: 'write_failed' }, 'standard: not confirmed'); library.pop()
+  eq(await run('clear_standard_theme', {}), { request_id: 'r', status: 'done', error_code: null }, 'clear standard')
+  deps.themes.clearStandardTheme = async () => false; eq(await run('clear_standard_theme', {}), { request_id: 'r', status: 'failed', error_code: 'write_failed' }, 'clear refused'); deps.themes.clearStandardTheme = async () => true
+  // rename
+  eq(await run('rename_theme', { theme_id: 't1', name: 'Navy' }), { request_id: 'r', status: 'done', error_code: null, detail: { theme_id: 't1', name: 'NAVY' } }, 'rename: Director\'s spelling wins')
+  eq(await run('rename_theme', { theme_id: 't1', name: 'refused' }), { request_id: 'r', status: 'failed', error_code: 'write_failed' }, 'rename refused'); eq(await run('rename_theme', { theme_id: 't9', name: 'x' }), { request_id: 'r', status: 'failed', error_code: 'not_found' }, 'rename: unknown id')
+  // apply a saved theme: a built deck waits for the sync; no deck answers at once; locks refuse
+  calls.length = 0; profile = null
+  const applying = run('apply_saved_theme', { theme_id: 't1' }); await new Promise(r => setImmediate(r)); await new Promise(r => setImmediate(r))
+  eq(plain(calls.at(-1)), ['apply', { mode: 'preset', preset_id: 'corporate_dark', font_family: 'Lora' }], 'the saved payload through the picker\'s apply'); eq(plain(profile), { id: 't1', name: 'Blue', theme_payload: { mode: 'preset', preset_id: 'corporate_dark', font_family: 'Lora' } }, 'the profile is set before the apply')
+  settle({ mode: 'preset', preset_id: 'corporate_dark', font_family: 'Lora' }); eq(await applying, { request_id: 'r', status: 'done', error_code: null, detail: { theme_id: 't1', name: 'Blue' } }, 'applied: done')
+  { sync = { status: 'idle', presentationId: null, themeFingerprint: null }; const failing = run('apply_saved_theme', { theme_id: 't1' }); await new Promise(r => setImmediate(r)); await new Promise(r => setImmediate(r)); settle({ mode: 'preset', preset_id: 'corporate_dark', font_family: 'Lora' }, 'failed'); eq(await failing, { request_id: 'r', status: 'failed', error_code: 'theme_failed' }, 'a failed sync after the apply') }
+  { settle({ mode: 'preset', preset_id: 'corporate_dark', font_family: 'Lora' }, 'failed'); clock = 0; eq((await run('apply_saved_theme', { theme_id: 't1' })).error_code, 'timeout', 'a failure committed BEFORE the apply is not this request\'s') }
+  sync = { status: 'idle', presentationId: null, themeFingerprint: null }; clock = 0; eq(await run('apply_saved_theme', { theme_id: 't1' }), { request_id: 'r', status: 'failed', error_code: 'timeout' }, 'nothing settles: timeout'); ok(clock >= 1000, 'waited to the deadline')
+  displayedDeck = { sessionId: 's1', deckOwnerSessionId: 's1', presentationId: null, epoch: 1 }; eq(await run('apply_saved_theme', { theme_id: 't1' }, { presentationId: null }), { request_id: 'r', status: 'done', error_code: null, detail: { theme_id: 't1', name: 'Blue' } }, 'no deck on screen: the coming build\'s theme, done at once'); displayedDeck = { sessionId: 's1', deckOwnerSessionId: 's1', presentationId: 'p1', epoch: 1 }
+  eq(await run('apply_saved_theme', { theme_id: 't9' }), { request_id: 'r', status: 'failed', error_code: 'not_found' }, 'apply: unknown id')
+  for (const [l, code] of [[{ generating: true }, 'theme_locked'], [{ templateMode: true }, 'theme_locked'], [{ composerBlocked: true, composerFrozen: true }, 'theme_locked'], [{ composerBlocked: true }, 'theme_failed']]) { locks = { composerBlocked: false, composerFrozen: false, templateMode: false, generating: false, ...l }; eq((await run('apply_saved_theme', { theme_id: 't1' })).error_code, code, `locked: ${JSON.stringify(l)}`) }
+  locks = { composerBlocked: false, composerFrozen: false, templateMode: false, generating: false }
+  // fonts
+  selection = { mode: 'preset', preset_id: 'minimal' }; calls.length = 0
+  const fonts = run('set_theme_fonts', { font_family_heading: 'playfair display' }); await new Promise(r => setImmediate(r)); await new Promise(r => setImmediate(r))
+  eq(plain(calls.at(-1)), ['apply', { mode: 'preset', preset_id: 'minimal', font_family_heading: 'Playfair Display' }], 'fonts: the current selection with the family set, through the picker\'s apply')
+  settle({ mode: 'preset', preset_id: 'minimal', font_family_heading: 'Playfair Display' }); eq(await fonts, { request_id: 'r', status: 'done', error_code: null, detail: { font_family: null, font_family_heading: 'Playfair Display' } }, 'fonts: done')
+  eq(await run('set_theme_fonts', { font_family: 'Comic Sans' }), { request_id: 'r', status: 'failed', error_code: 'invalid_args' }, 'fonts: an unknown family')
+  if (fontsOn) { const off = loadRunners(runnersText, lib, null, loadThemes(themesText, lib, themeStubs(false))); eq(await off.runChatParityAction({ requestId: 'r', group: 'themes', action: 'set_theme_fonts', presentationId: 'p1', args: { font_family: 'Inter' }, label: '' }, owner, deps, null), { request_id: 'r', status: 'failed', error_code: 'flag_off' }, 'fonts: the font-selection flag off refuses') }
+  // no theme deps (the flag is off on the page): flag_off
+  eq(await runners.runChatParityAction({ requestId: 'r', group: 'themes', action: 'save_theme', presentationId: null, args: { name: 'x' }, label: '' }, owner, { displayed: deps.displayed }, null), { request_id: 'r', status: 'failed', error_code: 'flag_off' }, 'no theme deps: flag_off')
+  delete globalThis.__chatParityWindow
 }
 
 // ============================================================================================================================================
@@ -219,7 +327,7 @@ function sourcesSuite() {
   ok(page.includes('window.dispatchEvent(new CustomEvent(CHAT_PARITY_NOTES_EVENT, { detail: update }))'), 'notes: the panel\'s event')
   ok(page.includes('update.presentationId === slideComposerPresentationRef.current.presentationId'), 'notes: the deck on screen only')
   ok(page.includes("chatParityBus.send?.(chatParityResult(request.requestId, 'failed', refusal))"), 'a refusal is answered at once')
-  ok(page.includes('{ displayed: () => elementDirectiveGenerationOwnerRef.current }, message)'), 'the K5 owner record and the frame reach the runner')
+  ok(page.includes('{ displayed: () => elementDirectiveGenerationOwnerRef.current, // CHAT-PARITY') && page.includes('} } : {}) }, message).then(result => { if (owner.isCurrent()) chatParityBus.send?.(result) }) // CHAT-PARITY'), 'the K5 owner record and the frame reach the runner')
   const pageImports = page.split('\n').filter(l => l.startsWith('import ') && marker.test(l))
   eq(pageImports.length, 2, 'two import lines'); ok(pageImports.every(l => page.indexOf(l) > page.indexOf("from '@/lib/studio-chat-clean' // CHAT-CLEAN")), 'placed at the end with the chat-clean import')
   // the gates: the panel and the types
@@ -228,14 +336,27 @@ function sourcesSuite() {
   ok(panel.includes('window.addEventListener(CHAT_PARITY_NOTES_EVENT, onChatWrite) // CHAT-PARITY') && panel.includes('window.removeEventListener(CHAT_PARITY_NOTES_EVENT, onChatWrite) // CHAT-PARITY'), 'added and removed')
   ok(panel.includes('const onChatWrite = () => setReloadToken((token) => token + 1) // CHAT-PARITY'), 'the same re-read the publish dialog uses')
   ok(readOwn(TYPES).includes("| 'notes_updated' // CHAT-PARITY"), 'the mutation kind is declared')
+  // the gates: the composer (FRONTEND-2's file: marked lines only, their OK of 27 Oct 04:14Z)
+  const composer = readOwn(COMPOSER)
+  ok(composer.includes('if (!STUDIO_CHAT_PARITY_THEMES_ENABLED) return // CHAT-PARITY'), 'the palette listens only with the themes flag on')
+  ok(composer.includes('const onLibraryChanged = () => { void refreshSavedThemes(true) } // CHAT-PARITY'), 'the palette\'s own refresh, selection kept')
+  ok(composer.includes('window.addEventListener(CHAT_PARITY_THEME_LIBRARY_EVENT, onLibraryChanged) // CHAT-PARITY') && composer.includes('window.removeEventListener(CHAT_PARITY_THEME_LIBRARY_EVENT, onLibraryChanged) // CHAT-PARITY'), 'added and removed')
+  ok(composer.indexOf('const refreshSavedThemes = useCallback') < composer.indexOf('const onLibraryChanged'), 'after the refresh it calls')
+  // the gates: the page's theme deps
+  ok(page.includes('...(STUDIO_CHAT_PARITY_THEMES_ENABLED ? { themes: {'), 'theme deps only with the themes flag on')
+  ok(page.includes('apply: applyChatThemeSelection, setActiveProfile: setActiveBuildThemeProfile') && page.includes('currentSelection: () => buildThemeSelectionRef.current'), 'the picker\'s own apply')
+  ok(page.includes('const chatParityThemeProfiles = useThemeProfiles() // CHAT-PARITY'), 'the palette\'s own hook')
+  ok(page.includes('timeoutMs: THEME_SYNC_TIMEOUT_MS + 5_000, // CHAT-PARITY'), 'the theme directive\'s wait')
   // the new files: the lib is import-free, the runners import the lib only
   ok(!/^import /m.test(readOwn(LIB)) && !/require\(/.test(readOwn(LIB)), 'the lib is import-free')
-  eq([...readOwn(RUNNERS).matchAll(/from '([^']+)'/g)].map(m => m[1]), ['@/lib/studio-chat-parity'], 'the runners import the lib only')
+  eq([...readOwn(RUNNERS).matchAll(/from '([^']+)'/g)].map(m => m[1]), ['@/lib/studio-chat-parity', '@/lib/studio-chat-parity-themes'], 'the runners import the lib and the group files only')
+  eq([...readOwn(THEMES).matchAll(/from '([^']+)'/g)].map(m => m[1]).sort(), ['@/hooks/use-theme-profiles', '@/lib/studio-chat-parity', '@/lib/theme-builder', '@/lib/theme-fonts', '@/lib/theme-sync'].sort(), 'the themes file imports the click paths\' own modules')
   // .env.example: the base plus the block, at the end
   const env = readOwn(ENV)
   ok(env.endsWith(`\n${strip.CHAT_PARITY_ENV_BLOCK}`), 'the block ends .env.example')
   if (hasBase) eq(env.slice(0, env.length - strip.CHAT_PARITY_ENV_BLOCK.length - 1), baseOf(ENV), 'append-only')
   ok(strip.CHAT_PARITY_ENV_BLOCK.includes('NEXT_PUBLIC_STUDIO_CHAT_PARITY_NOTES="false"'), 'the notes flag, off')
+  ok(strip.CHAT_PARITY_ENV_BLOCK.includes('NEXT_PUBLIC_STUDIO_CHAT_PARITY_THEMES="false"'), 'the themes flag, off')
   eq(registry.stripLaterEnvBlocks(ENV, env).includes('CHAT_PARITY'), false, 'the registry takes the block out')
   // the registry gained its three lines
   const reg = readOwn(REGISTRY)
@@ -273,7 +394,28 @@ async function mutantsSuite() {
     ['notes: other mutation', t => t.replace('if (value.mutation !== CHAT_PARITY_NOTES_MUTATION) return null', '')],
     ['notes: unknown field kept', t => t.replace("typeof f === 'string' && CHAT_PARITY_NOTES_FIELDS.includes(f)", "typeof f === 'string'")],
     ['notes: negative index', t => t.replace('(value.slide_index as number) < 0', 'false')],
+    ['themes: delete action listed', t => t.replace("'rename_theme', 'apply_saved_theme'],", "'rename_theme', 'apply_saved_theme', 'delete_theme'],")],
+    ['themes: unknown font accepted', t => t.replace('if (!family) return null', 'if (!family) continue')],
+    ['themes: a name alone', t => t.replace("case 'set_standard_theme': { const id = themeId(args.theme_id); return id ? { action, theme_id: id } : null }", "case 'set_standard_theme': { const id = themeId(args.theme_id) ?? themeId(args.name); return id ? { action, theme_id: id } : null }")],
+    ['themes: long name', t => t.replace('name && name.length <= CHAT_PARITY_THEME_NAME_MAX ? name : null', 'name ? name : null')],
+    ['themes: set_standard any truthy', t => t.replace("set_standard: args.set_standard === true", 'set_standard: Boolean(args.set_standard)')],
   ]
+  const themeMutants = [
+    ['auto saved', t => t.replace("if (theme.mode === 'auto') return fail(id, 'theme_auto')", '')],
+    ['standard written unseen', t => t.replace("if (!(await findTheme(deps, args.theme_id))) return fail(id, 'not_found')\n      const result = await deps.setStandardTheme", '      const result = await deps.setStandardTheme')],
+    ['palette not told', t => t.replace('const libraryChanged = () => { if (typeof window !== \'undefined\') window.dispatchEvent(new Event(CHAT_PARITY_THEME_LIBRARY_EVENT)) }', 'const libraryChanged = () => {}')],
+    ['no wait for the sync', t => t.replace("if (!presentationId) return chatParityResult(id, 'done', null, detail)", "return chatParityResult(id, 'done', null, detail)")],
+    ['timeout reads done', t => t.replace("if (deps.now() >= deadline) return fail(id, 'timeout')", "if (deps.now() >= deadline) return chatParityResult(id, 'done', null, detail)")],
+    ['locks ignored', t => t.replace("if (locks.generating) return 'theme_locked'", '')],
+    ['fonts flag ignored', t => t.replace("if (!THEME_FONT_SELECTION_ENABLED) return fail(id, 'flag_off')", '')],
+    ['profile after the apply', t => t.replace("deps.setActiveProfile({ id: profile.id, name: profile.name, theme_payload: payload })\n      return applyAndSettle", 'return applyAndSettle')],
+    ['save policy skipped', t => t.replace('const payload = applyThemeFontPolicy(saved.theme_payload)', 'const payload = saved.theme_payload')],
+  ]
+  for (const [name, mutate] of themeMutants) {
+    const mutated = mutate(read(THEMES)); assert.notEqual(mutated, read(THEMES), `mutant applies: ${name}`)
+    let caught = false; try { await themesSuite(runnersText, libText, mutated) } catch { caught = true }
+    ok(caught, `mutant caught: ${name}`)
+  }
   for (const [name, mutate] of libMutants) {
     const mutated = mutate(libText); assert.notEqual(mutated, libText, `mutant applies: ${name}`)
     let caught = false; try { libSuite(mutated) } catch { caught = true }
@@ -299,7 +441,7 @@ async function mutantsSuite() {
     const hook = readOwn(HOOK); const unmarked = hook.replace('chatParityBus.send = sendChatParityResult // CHAT-PARITY', 'chatParityBus.send = sendChatParityResult')
     ok(strip.stripChatParity(HOOK, unmarked) !== baseOf(HOOK), 'mutant caught: an unmarked line stays in the stripped file')
   }
-  return libMutants.length + runnerMutants.length + (hasBase ? 1 : 0)
+  return libMutants.length + runnerMutants.length + themeMutants.length + (hasBase ? 1 : 0)
 }
 
 libSuite()

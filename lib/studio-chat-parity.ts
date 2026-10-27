@@ -2,7 +2,8 @@
 // Four flags, one per row group, each on only for the string "true", default off, build-time:
 //   NEXT_PUBLIC_STUDIO_CHAT_PARITY_NOTES      rows 105/106/108: Director writes a slide's notes / script / references itself and sends
 //                                             deck_mutation {mutation:"notes_updated"}; Studio advertises `notes1` and re-reads the Notes panel.
-//   NEXT_PUBLIC_STUDIO_CHAT_PARITY_THEMES     rows 56-59, 61 (cap `themes1`)     — added by its own commit
+//   NEXT_PUBLIC_STUDIO_CHAT_PARITY_THEMES     rows 56-59, 61: fonts, save, set / clear standard, rename, apply a saved theme — the composer palette's
+//                                             own useThemeProfiles writes and the theme picker's own apply (lib/studio-chat-parity-themes.ts); cap `themes1`.
 //   NEXT_PUBLIC_STUDIO_CHAT_PARITY_IDENTITY   rows 62-64 (cap `identity1`)        — added by its own commit
 //   NEXT_PUBLIC_STUDIO_CHAT_PARITY_TEMPLATES  rows 65/66/67/72/76 (cap `templates1`) — added by its own commit
 // With a group's flag on, Studio adds the group's cap to user_message.data.client_caps (beside mdc1, theme1, ...), takes Director's
@@ -35,6 +36,8 @@ export type ChatParityGroup = 'notes' | 'themes' | 'identity' | 'templates'
 export type ChatParityStatus = 'done' | 'failed' | 'dismissed'
 export type ChatParityErrorCode =
   | 'not_owner' | 'viewer_unavailable' | 'flag_off' | 'not_found' | 'locked' | 'invalid_args' | 'write_failed' | 'timeout' | 'unsupported'
+  // themes (rows 56-59, 61)
+  | 'theme_auto' | 'theme_locked' | 'theme_failed'
 
 // ---------------------------------------------------------------------------------------------------------------------------------------
 // Flags (literal process.env reads so Next inlines them at build time)
@@ -45,6 +48,7 @@ export function chatParityFlagOn(value: string | undefined): boolean {
 }
 
 export const STUDIO_CHAT_PARITY_NOTES_ENABLED = chatParityFlagOn(process.env.NEXT_PUBLIC_STUDIO_CHAT_PARITY_NOTES)
+export const STUDIO_CHAT_PARITY_THEMES_ENABLED = chatParityFlagOn(process.env.NEXT_PUBLIC_STUDIO_CHAT_PARITY_THEMES)
 
 export interface ChatParityFlags {
   notes: boolean
@@ -56,7 +60,7 @@ export interface ChatParityFlags {
 /** The flags this build was made with. */
 export const CHAT_PARITY_FLAGS: Readonly<ChatParityFlags> = Object.freeze({
   notes: STUDIO_CHAT_PARITY_NOTES_ENABLED,
-  themes: false,
+  themes: STUDIO_CHAT_PARITY_THEMES_ENABLED,
   identity: false,
   templates: false,
 })
@@ -102,7 +106,7 @@ export function addChatParityCaps(data: Record<string, unknown>, caps: readonly 
 /** The actions each group runs. A request whose action is not in its group's list is answered `failed` / `unsupported`. */
 export const CHAT_PARITY_ACTIONS: Readonly<Record<ChatParityGroup, readonly string[]>> = Object.freeze({
   notes: [], // Director writes notes itself (set_speaker_notes); Studio only reflects deck_mutation notes_updated
-  themes: [],
+  themes: ['set_theme_fonts', 'save_theme', 'set_standard_theme', 'clear_standard_theme', 'rename_theme', 'apply_saved_theme'],
   identity: [],
   templates: [],
 })
@@ -236,4 +240,57 @@ export function chatParityNotesUpdate(payload: unknown): ChatParityNotesUpdate |
   if (!Number.isInteger(value.slide_index) || (value.slide_index as number) < 0) return null
   const fields = Array.isArray(value.fields) ? (value.fields as unknown[]).filter((f): f is string => typeof f === 'string' && CHAT_PARITY_NOTES_FIELDS.includes(f)) : []
   return { presentationId: value.presentation_id, slideIndex: value.slide_index as number, fields }
+}
+
+// ---------------------------------------------------------------------------------------------------------------------------------------
+// THEMES (rows 56-59, 61): the request args, read deterministically (Director validated them first; Studio still checks)
+// ---------------------------------------------------------------------------------------------------------------------------------------
+
+/** The window event the composer palette listens for after a chat save / rename / standard change (components/builder/chat-input.tsx). */
+export const CHAT_PARITY_THEME_LIBRARY_EVENT = 'deckster:theme-library-changed'
+/** A saved theme's name: trimmed, 1-80 characters (the palette's own field). */
+export const CHAT_PARITY_THEME_NAME_MAX = 80
+
+export type ChatParityThemeArgs =
+  | { action: 'set_theme_fonts'; font_family?: string; font_family_heading?: string }
+  | { action: 'save_theme'; name: string; set_standard: boolean }
+  | { action: 'set_standard_theme'; theme_id: string }
+  | { action: 'clear_standard_theme' }
+  | { action: 'rename_theme'; theme_id: string; name: string }
+  | { action: 'apply_saved_theme'; theme_id: string }
+
+const themeName = (value: unknown): string | null => {
+  const name = typeof value === 'string' ? value.trim().replace(/\s+/g, ' ') : ''
+  return name && name.length <= CHAT_PARITY_THEME_NAME_MAX ? name : null
+}
+const themeId = (value: unknown): string | null => (typeof value === 'string' && value.trim() ? value.trim() : null)
+
+/**
+ * The theme action's args, normalised, or null when they do not fit the action (`invalid_args`). `fonts` is the build's allowed family list
+ * (lib/theme-fonts.ts THEME_FONT_FAMILIES, matched trimmed and case-insensitively, returned in its canonical spelling); a font request must
+ * name at least one known family and no unknown one.
+ */
+export function chatParityThemeArgs(action: string, args: Record<string, unknown>, fonts: readonly string[]): ChatParityThemeArgs | null {
+  switch (action) {
+    case 'set_theme_fonts': {
+      const out: { action: 'set_theme_fonts'; font_family?: string; font_family_heading?: string } = { action }
+      for (const field of ['font_family', 'font_family_heading'] as const) {
+        if (args[field] === undefined || args[field] === null) continue
+        const wanted = typeof args[field] === 'string' ? (args[field] as string).trim().toLowerCase() : ''
+        const family = fonts.find(name => name.toLowerCase() === wanted)
+        if (!family) return null
+        out[field] = family
+      }
+      return out.font_family || out.font_family_heading ? out : null
+    }
+    case 'save_theme': {
+      const name = themeName(args.name)
+      return name ? { action, name, set_standard: args.set_standard === true } : null
+    }
+    case 'set_standard_theme': { const id = themeId(args.theme_id); return id ? { action, theme_id: id } : null }
+    case 'clear_standard_theme': return { action }
+    case 'rename_theme': { const id = themeId(args.theme_id); const name = themeName(args.name); return id && name ? { action, theme_id: id, name } : null }
+    case 'apply_saved_theme': { const id = themeId(args.theme_id); return id ? { action, theme_id: id } : null }
+    default: return null
+  }
 }

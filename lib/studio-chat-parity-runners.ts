@@ -11,6 +11,7 @@
 import {
   CHAT_PARITY_ACTIONS, chatParityResult, type ChatParityErrorCode, type ChatParityRequest, type ChatParityResultData,
 } from '@/lib/studio-chat-parity'
+import { runChatParityThemeAction, type ChatParityThemeDeps } from '@/lib/studio-chat-parity-themes'
 
 /** Who delivered the request: the socket's session, and whether that socket is still the live one (the answer goes back on it). */
 export type ChatParityOwner = import('@/lib/studio-chat-parity').ChatParityOwner
@@ -26,6 +27,8 @@ export interface ChatParityDisplayedDeck {
 /** What the page hands every executor. Each group's commit adds the click path's functions it needs. */
 export interface ChatParityDeps {
   displayed: () => ChatParityDisplayedDeck
+  /** THEMES (rows 56-59, 61): present only with NEXT_PUBLIC_STUDIO_CHAT_PARITY_THEMES on. */
+  themes?: ChatParityThemeDeps
 }
 
 export type ChatParityExecutor = (request: ChatParityRequest, owner: ChatParityOwner, deps: ChatParityDeps, check: ChatParityOwnerCheck) => Promise<ChatParityResultData>
@@ -34,8 +37,13 @@ export type ChatParityExecutor = (request: ChatParityRequest, owner: ChatParityO
 export const CHAT_PARITY_DEFAULT_TIMEOUT_MS = 25_000
 export const CHAT_PARITY_TIMEOUTS_MS: Record<string, number> = {}
 
-/** The executors, by action. Empty until a group's commit fills it; an action with no executor answers `unsupported`. */
-export const CHAT_PARITY_EXECUTORS: Record<string, ChatParityExecutor> = {}
+const themeExecutor: ChatParityExecutor = (request, _owner, deps, check) =>
+  deps.themes ? runChatParityThemeAction(request, check.presentationId, check.owns, deps.themes) : Promise.resolve(chatParityResult(request.requestId, 'failed', 'flag_off'))
+
+/** The executors, by action (each group's commit adds its own); an action with no executor answers `unsupported`. */
+export const CHAT_PARITY_EXECUTORS: Record<string, ChatParityExecutor> = {
+  ...Object.fromEntries(CHAT_PARITY_ACTIONS.themes.map(action => [action, themeExecutor])),
+}
 
 export interface ChatParityOwnerCheck {
   /** The request belongs to the delivering session and names the deck on screen (or names no deck). */

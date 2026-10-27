@@ -43,6 +43,7 @@ import {
 } from '@/lib/theme-builder'
 import type { ActionRequest } from "@/hooks/use-deckster-websocket-v2"
 import { useThemeProfiles, type SavedThemeProfile } from '@/hooks/use-theme-profiles'
+import { CHAT_PARITY_THEME_LIBRARY_EVENT, STUDIO_CHAT_PARITY_THEMES_ENABLED } from '@/lib/studio-chat-parity' // CHAT-PARITY (NEXT_PUBLIC_STUDIO_CHAT_PARITY_THEMES): a theme saved, renamed or made standard from chat re-reads the palette's list (FRONTEND-2's OK, 27 Oct 04:14Z)
 import {
   isTemplateGenerationReady,
   templateGenerationUnavailableReason,
@@ -483,6 +484,12 @@ export function ChatInput({
     }
     return res
   }, [listThemes, studio, studioThemeOwner])
+  useEffect(() => { // CHAT-PARITY (NEXT_PUBLIC_STUDIO_CHAT_PARITY_THEMES): the page's theme executors say the library changed; the palette's own refresh (the owner-checked Studio read above) re-reads it. Flag off: no listener.
+    if (!STUDIO_CHAT_PARITY_THEMES_ENABLED) return // CHAT-PARITY
+    const onLibraryChanged = () => { void refreshSavedThemes(true) } // CHAT-PARITY
+    window.addEventListener(CHAT_PARITY_THEME_LIBRARY_EVENT, onLibraryChanged) // CHAT-PARITY
+    return () => window.removeEventListener(CHAT_PARITY_THEME_LIBRARY_EVENT, onLibraryChanged) // CHAT-PARITY
+  }, [refreshSavedThemes]) // CHAT-PARITY
 
   useEffect(() => {
     const request = studioSavedThemeRequest

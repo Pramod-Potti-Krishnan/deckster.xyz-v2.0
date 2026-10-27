@@ -5326,10 +5326,17 @@ function AuthenticatedBuilderContent({ authScopeUserId }: { authScopeUserId: str
   }
   // CHAT-PARITY: the runner of Director's studio_action (lib/studio-chat-parity.ts reads and refuses, lib/studio-chat-parity-runners.ts runs the group's executor, the click path's own function, under its timeout).
   // CHAT-PARITY: Answered on the delivering socket only; a group that is off or an action the build does not know is answered `failed` at once (flag_off / unsupported). Every flag off: no runner.
+  const chatParityThemeProfiles = useThemeProfiles() // CHAT-PARITY (NEXT_PUBLIC_STUDIO_CHAT_PARITY_THEMES): the composer palette's own writes (hooks/use-theme-profiles.ts) for the theme executors; a second instance of the hook, its own loading state
   chatParityBus.request = !STUDIO_CHAT_PARITY_ANY_ENABLED ? null : (message, owner) => { // CHAT-PARITY
     const request = chatParityRequest(message); if (!request) return // CHAT-PARITY
     const refusal = chatParityRefusal(request); if (refusal) { if (owner.isCurrent()) chatParityBus.send?.(chatParityResult(request.requestId, 'failed', refusal)); return } // CHAT-PARITY
-    void runChatParityAction(request, owner, { displayed: () => elementDirectiveGenerationOwnerRef.current }, message).then(result => { if (owner.isCurrent()) chatParityBus.send?.(result) }) // CHAT-PARITY
+    void runChatParityAction(request, owner, { displayed: () => elementDirectiveGenerationOwnerRef.current, // CHAT-PARITY
+      ...(STUDIO_CHAT_PARITY_THEMES_ENABLED ? { themes: { // CHAT-PARITY: the theme picker's own apply and sync (as the theme directive's deps above) and the palette's own library writes
+        listThemes: chatParityThemeProfiles.listThemes, saveTheme: chatParityThemeProfiles.saveTheme, setStandardTheme: chatParityThemeProfiles.setStandardTheme, clearStandardTheme: chatParityThemeProfiles.clearStandardTheme, renameTheme: chatParityThemeProfiles.renameTheme, // CHAT-PARITY
+        currentSelection: () => buildThemeSelectionRef.current, apply: applyChatThemeSelection, setActiveProfile: setActiveBuildThemeProfile, // CHAT-PARITY
+        locks: () => ({ composerBlocked: themeSyncTargetRef.current.composerThemeBlocked, composerFrozen: themeSyncTargetRef.current.composerThemeFrozen, templateMode: themeSyncTargetRef.current.templateModeOn, generating: isGeneratingFinal || isGeneratingStrawman || templateReuseAwaitingInput }), // CHAT-PARITY
+        themeSync: () => themeSyncRef.current, wait: () => new Promise<void>(resolve => setTimeout(resolve, 100)), now: () => Date.now(), timeoutMs: THEME_SYNC_TIMEOUT_MS + 5_000, // CHAT-PARITY
+      } } : {}) }, message).then(result => { if (owner.isCurrent()) chatParityBus.send?.(result) }) // CHAT-PARITY
   } // CHAT-PARITY
   // CHAT-PARITY (NEXT_PUBLIC_STUDIO_CHAT_PARITY_NOTES): Director wrote a slide's notes / script / references; for the deck on screen the Notes panel re-reads (components/slide-notes-panel.tsx). Off: not set.
   chatParityBus.notes = !STUDIO_CHAT_PARITY_NOTES_ENABLED ? null : (update, owner) => { if (owner.isCurrent() && update.presentationId === slideComposerPresentationRef.current.presentationId) window.dispatchEvent(new CustomEvent(CHAT_PARITY_NOTES_EVENT, { detail: update })) } // CHAT-PARITY
@@ -8281,7 +8288,7 @@ import { useStudioFlowControl } from '@/hooks/use-studio-flow-control' // FLOW-C
 import { STUDIO_CHAT_CLEAN_ENABLED, chatCleanComposerState, chatCleanInstructions, chatCleanRootAttributes } from '@/lib/studio-chat-clean' // CHAT-CLEAN: placed here with the flow import, after the Builder's runners, for the same older proof
 import { flowBus } from '@/lib/studio-flow-control' // CHAT-CLEAN: the one-request hand-over of the resume's instructions (taken by sendBuildControl, whatever the flow flags)
 import { StudioChatCleanBar, useStudioChatCleanNotes } from '@/components/builder/chat/studio-chat-clean' // CHAT-CLEAN
-import { CHAT_PARITY_NOTES_EVENT, STUDIO_CHAT_PARITY_ANY_ENABLED, STUDIO_CHAT_PARITY_NOTES_ENABLED, chatParityBus, chatParityRefusal, chatParityRequest, chatParityResult } from '@/lib/studio-chat-parity' // CHAT-PARITY: placed here with the flow and chat-clean imports, after the Builder's runners, for the same older proof
+import { CHAT_PARITY_NOTES_EVENT, STUDIO_CHAT_PARITY_ANY_ENABLED, STUDIO_CHAT_PARITY_NOTES_ENABLED, STUDIO_CHAT_PARITY_THEMES_ENABLED, chatParityBus, chatParityRefusal, chatParityRequest, chatParityResult } from '@/lib/studio-chat-parity' // CHAT-PARITY: placed here with the flow and chat-clean imports, after the Builder's runners, for the same older proof
 import { runChatParityAction } from '@/lib/studio-chat-parity-runners' // CHAT-PARITY
 
 function BuilderLoadingState({ message = 'Loading builder...' }: { message?: string }) {
