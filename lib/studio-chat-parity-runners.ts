@@ -13,6 +13,7 @@ import {
 } from '@/lib/studio-chat-parity'
 import { runChatParityThemeAction, type ChatParityThemeDeps } from '@/lib/studio-chat-parity-themes'
 import { runChatParityIdentityAction, type ChatParityIdentityDeps } from '@/lib/studio-chat-parity-identity'
+import { runChatParityTemplateAction, type ChatParityTemplateDeps } from '@/lib/studio-chat-parity-templates'
 
 /** Who delivered the request: the socket's session, and whether that socket is still the live one (the answer goes back on it). */
 export type ChatParityOwner = import('@/lib/studio-chat-parity').ChatParityOwner
@@ -32,6 +33,8 @@ export interface ChatParityDeps {
   themes?: ChatParityThemeDeps
   /** IDENTITY (rows 62-64): present only with NEXT_PUBLIC_STUDIO_CHAT_PARITY_IDENTITY on. */
   identity?: ChatParityIdentityDeps
+  /** TEMPLATES (rows 65 / 67 / 70 / 75 / 76): present only with NEXT_PUBLIC_STUDIO_CHAT_PARITY_TEMPLATES on. */
+  templates?: ChatParityTemplateDeps
 }
 
 export type ChatParityExecutor = (request: ChatParityRequest, owner: ChatParityOwner, deps: ChatParityDeps, check: ChatParityOwnerCheck) => Promise<ChatParityResultData>
@@ -46,10 +49,14 @@ const themeExecutor: ChatParityExecutor = (request, _owner, deps, check) =>
 const identityExecutor: ChatParityExecutor = (request, _owner, deps, check) =>
   deps.identity ? runChatParityIdentityAction(request, check.presentationId, deps.identity) : Promise.resolve(chatParityResult(request.requestId, 'failed', 'flag_off'))
 
+const templateExecutor: ChatParityExecutor = (request, _owner, deps) =>
+  deps.templates ? runChatParityTemplateAction(request, deps.templates) : Promise.resolve(chatParityResult(request.requestId, 'failed', 'flag_off'))
+
 /** The executors, by action (each group's commit adds its own); an action with no executor answers `unsupported`. */
 export const CHAT_PARITY_EXECUTORS: Record<string, ChatParityExecutor> = {
   ...Object.fromEntries(CHAT_PARITY_ACTIONS.themes.map(action => [action, themeExecutor])),
   ...Object.fromEntries(CHAT_PARITY_ACTIONS.identity.map(action => [action, identityExecutor])),
+  ...Object.fromEntries(CHAT_PARITY_ACTIONS.templates.map(action => [action, templateExecutor])),
 }
 
 export interface ChatParityOwnerCheck {

@@ -5327,6 +5327,8 @@ function AuthenticatedBuilderContent({ authScopeUserId }: { authScopeUserId: str
   // CHAT-PARITY: the runner of Director's studio_action (lib/studio-chat-parity.ts reads and refuses, lib/studio-chat-parity-runners.ts runs the group's executor, the click path's own function, under its timeout).
   // CHAT-PARITY: Answered on the delivering socket only; a group that is off or an action the build does not know is answered `failed` at once (flag_off / unsupported). Every flag off: no runner.
   const chatParityThemeProfiles = useThemeProfiles() // CHAT-PARITY (NEXT_PUBLIC_STUDIO_CHAT_PARITY_THEMES): the composer palette's own writes (hooks/use-theme-profiles.ts) for the theme executors; a second instance of the hook, its own loading state
+  const chatParityTemplates = useTemplates() // CHAT-PARITY (NEXT_PUBLIC_STUDIO_CHAT_PARITY_TEMPLATES): the Templates page's and the Save Template dialog's own calls (hooks/use-templates.ts); a second instance, its own loading state
+  const chatParityConfirm = (title: string, description: string, label: string) => new Promise<boolean>(resolve => { let settled = false; const answer = (yes: boolean) => { if (!settled) { settled = true; resolve(yes) } }; toast({ title, description, duration: 30_000, action: <ToastAction altText={label} onClick={() => answer(true)}>{label}</ToastAction> }); setTimeout(() => answer(false), 31_000) }) // CHAT-PARITY: the paid actions' Studio confirm (a toast with one action; no answer within 30 s = no)
   chatParityBus.request = !STUDIO_CHAT_PARITY_ANY_ENABLED ? null : (message, owner) => { // CHAT-PARITY
     const request = chatParityRequest(message); if (!request) return // CHAT-PARITY
     const refusal = chatParityRefusal(request); if (refusal) { if (owner.isCurrent()) chatParityBus.send?.(chatParityResult(request.requestId, 'failed', refusal)); return } // CHAT-PARITY
@@ -5338,7 +5340,13 @@ function AuthenticatedBuilderContent({ authScopeUserId }: { authScopeUserId: str
         themeSync: () => themeSyncRef.current, wait: () => new Promise<void>(resolve => setTimeout(resolve, 100)), now: () => Date.now(), timeoutMs: THEME_SYNC_TIMEOUT_MS + 5_000, // CHAT-PARITY
       } } : {}), // CHAT-PARITY
       ...(STUDIO_CHAT_PARITY_IDENTITY_ENABLED ? { identity: { now: () => Date.now(), masterTimeoutMs: 20_000, // CHAT-PARITY: the Master panel's own path (opened by the viewer, written by its Save); a paid logo generation asks first
-        confirm: (title: string, description: string) => new Promise<boolean>(resolve => { let settled = false; const answer = (yes: boolean) => { if (!settled) { settled = true; resolve(yes) } }; toast({ title, description, duration: 30_000, action: <ToastAction altText="Generate the logo" onClick={() => answer(true)}>Generate</ToastAction> }); setTimeout(() => answer(false), 31_000) }), // CHAT-PARITY
+        confirm: (title: string, description: string) => chatParityConfirm(title, description, 'Generate'), // CHAT-PARITY
+      } } : {}), // CHAT-PARITY
+      ...(STUDIO_CHAT_PARITY_TEMPLATES_ENABLED ? { templates: { // CHAT-PARITY: the picker's own select, the composer library dialog's own runner, the Templates page's and Save Template dialog's own calls
+        listTemplates: chatParityTemplates.listTemplates, saveTemplate: chatParityTemplates.saveTemplate, reoptimizeTemplate: chatParityTemplates.reoptimizeTemplate, renameTemplate: chatParityTemplates.renameTemplate, // CHAT-PARITY
+        select: handleSelectTemplate, selectionLocked: () => templateSelectionLockedRef.current, confirm: chatParityConfirm, // CHAT-PARITY
+        composer: composerLibraryEnabled && (studioPopupsV2 || studioTemplateWorkspace) ? { list: loadComposerTemplates, run: runComposerTemplateAction, actions: () => composerTemplateActions({ ditto: process.env.NEXT_PUBLIC_COMPOSER_STAGE1B_DITTO_ENABLED === 'true', newTopic: process.env.NEXT_PUBLIC_COMPOSER_STAGE1B_NEW_TOPIC_ENABLED === 'true' }).map(item => item.action) } : null, // CHAT-PARITY
+        saveSource: () => ({ sessionId: currentSessionId || wsSessionId || null, presentationId: templateSavePresentationId ?? null }), // CHAT-PARITY
       } } : {}) }, message).then(result => { if (owner.isCurrent()) chatParityBus.send?.(result) }) // CHAT-PARITY
   } // CHAT-PARITY
   // CHAT-PARITY (NEXT_PUBLIC_STUDIO_CHAT_PARITY_NOTES): Director wrote a slide's notes / script / references; for the deck on screen the Notes panel re-reads (components/slide-notes-panel.tsx). Off: not set.
@@ -8291,9 +8299,10 @@ import { useStudioFlowControl } from '@/hooks/use-studio-flow-control' // FLOW-C
 import { STUDIO_CHAT_CLEAN_ENABLED, chatCleanComposerState, chatCleanInstructions, chatCleanRootAttributes } from '@/lib/studio-chat-clean' // CHAT-CLEAN: placed here with the flow import, after the Builder's runners, for the same older proof
 import { flowBus } from '@/lib/studio-flow-control' // CHAT-CLEAN: the one-request hand-over of the resume's instructions (taken by sendBuildControl, whatever the flow flags)
 import { StudioChatCleanBar, useStudioChatCleanNotes } from '@/components/builder/chat/studio-chat-clean' // CHAT-CLEAN
-import { CHAT_PARITY_NOTES_EVENT, STUDIO_CHAT_PARITY_ANY_ENABLED, STUDIO_CHAT_PARITY_IDENTITY_ENABLED, STUDIO_CHAT_PARITY_NOTES_ENABLED, STUDIO_CHAT_PARITY_THEMES_ENABLED, chatParityBus, chatParityRefusal, chatParityRequest, chatParityResult } from '@/lib/studio-chat-parity' // CHAT-PARITY: placed here with the flow and chat-clean imports, after the Builder's runners, for the same older proof
+import { CHAT_PARITY_NOTES_EVENT, STUDIO_CHAT_PARITY_ANY_ENABLED, STUDIO_CHAT_PARITY_IDENTITY_ENABLED, STUDIO_CHAT_PARITY_NOTES_ENABLED, STUDIO_CHAT_PARITY_TEMPLATES_ENABLED, STUDIO_CHAT_PARITY_THEMES_ENABLED, chatParityBus, chatParityRefusal, chatParityRequest, chatParityResult } from '@/lib/studio-chat-parity' // CHAT-PARITY: placed here with the flow and chat-clean imports, after the Builder's runners, for the same older proof
 import { runChatParityAction } from '@/lib/studio-chat-parity-runners' // CHAT-PARITY
-import { ToastAction } from '@/components/ui/toast' // CHAT-PARITY: the paid logo generation's confirm (NEXT_PUBLIC_STUDIO_CHAT_PARITY_PAID_LOGO)
+import { ToastAction } from '@/components/ui/toast' // CHAT-PARITY: the paid actions' confirm (NEXT_PUBLIC_STUDIO_CHAT_PARITY_PAID_*)
+import { composerTemplateActions, loadComposerTemplates } from '@/lib/studio-composer-popups' // CHAT-PARITY: the composer library's own list and action set (row 67)
 
 function BuilderLoadingState({ message = 'Loading builder...' }: { message?: string }) {
   // NEXT_PUBLIC_STUDIO_SESSION_HYGIENE: the route loader is the builder shell, not a blank page with a spinner.

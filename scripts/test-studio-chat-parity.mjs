@@ -33,6 +33,7 @@ const LIB = 'lib/studio-chat-parity.ts'
 const RUNNERS = 'lib/studio-chat-parity-runners.ts'
 const THEMES = 'lib/studio-chat-parity-themes.ts'
 const IDENTITY = 'lib/studio-chat-parity-identity.ts'
+const TEMPLATES = 'lib/studio-chat-parity-templates.ts'
 const VIEWER = 'components/presentation-viewer.tsx'
 const MASTER = 'components/presentation-settings-panel.tsx'
 const COMPOSER = 'components/builder/chat-input.tsx'
@@ -94,9 +95,17 @@ function loadIdentity(text = read(IDENTITY), lib = loadLib(), stubs = identitySt
   new Function('module', 'exports', 'require', 'process', compile(text, IDENTITY))(module, module.exports, require, { env: {} })
   return module.exports
 }
-function loadRunners(text = read(RUNNERS), lib = loadLib(), timers = null, themes = loadThemes(read(THEMES), lib), identity = loadIdentity(read(IDENTITY), lib)) {
+/** hooks/use-templates.ts faked to its contract: ready = blueprint_enrichment_status 'ready' with an llm method; optimizing as such. */
+const templateStubs = { '@/hooks/use-templates': { templateGenerationStatus: t => !t ? 'needs_optimization' : t.blueprint_enrichment_status === 'ready' && t.blueprint_generation_method === 'llm' ? 'ready' : t.blueprint_enrichment_status === 'optimizing' ? 'optimizing' : t.blueprint_enrichment_status === 'failed' ? 'failed' : 'needs_optimization' } }
+function loadTemplates(text = read(TEMPLATES), lib = loadLib()) {
   const module = { exports: {} }
-  const require = name => { if (name === '@/lib/studio-chat-parity') return lib; if (name === '@/lib/studio-chat-parity-themes') return themes; if (name === '@/lib/studio-chat-parity-identity') return identity; throw new Error(`unexpected import ${name}`) }
+  const require = name => { if (name === '@/lib/studio-chat-parity') return lib; if (templateStubs[name]) return templateStubs[name]; throw new Error(`unexpected import ${name}`) }
+  new Function('module', 'exports', 'require', 'process', compile(text, TEMPLATES))(module, module.exports, require, { env: {} })
+  return module.exports
+}
+function loadRunners(text = read(RUNNERS), lib = loadLib(), timers = null, themes = loadThemes(read(THEMES), lib), identity = loadIdentity(read(IDENTITY), lib), templates = loadTemplates(read(TEMPLATES), lib)) {
+  const module = { exports: {} }
+  const require = name => { if (name === '@/lib/studio-chat-parity') return lib; if (name === '@/lib/studio-chat-parity-themes') return themes; if (name === '@/lib/studio-chat-parity-identity') return identity; if (name === '@/lib/studio-chat-parity-templates') return templates; throw new Error(`unexpected import ${name}`) }
   const scope = timers ? { setTimeout: timers.set, clearTimeout: timers.clear } : { setTimeout, clearTimeout }
   new Function('module', 'exports', 'require', 'process', 'setTimeout', 'clearTimeout', compile(text, RUNNERS))(module, module.exports, require, { env: {} }, scope.setTimeout, scope.clearTimeout)
   return module.exports
@@ -197,6 +206,20 @@ function libSuite(libText = read(LIB)) {
   eq(lib.chatParityMasterOp(iargs('set_footer', { title: 'T', date: 'D' })), { kind: 'footer', title: 'T', date: 'D' }, 'the panel op: footer'); eq(lib.chatParityMasterOp(iargs('clear_footer', {})), { kind: 'clear_footer' }); eq(lib.chatParityMasterOp(iargs('remove_logo', {})), { kind: 'remove_logo' })
   eq(lib.chatParityMasterOp(iargs('set_logo', { image_url: 'https://x.example/l.png' })), { kind: 'logo', image_url: 'https://x.example/l.png' }); eq(lib.chatParityMasterOp(iargs('set_logo', { image_url: 'https://x.example/l.png', alt_text: 'A' })), { kind: 'logo', image_url: 'https://x.example/l.png', alt_text: 'A' })
   eq(lib.chatParityMasterOp(iargs('generate_logo', { prompt: 'owl' })), { kind: 'generate_logo', prompt: 'owl' }); eq(lib.chatParityMasterOp(iargs('set_deck_identity', { company: 'A' })), null, 'presenter details do not go through the panel')
+  // -- TEMPLATES: the flag, the sub-flags, the actions, the args -----------------------------------------------------------------------
+  const templatesOnly = loadLib(libText, { NEXT_PUBLIC_STUDIO_CHAT_PARITY_TEMPLATES: 'true' })
+  eq(templatesOnly.STUDIO_CHAT_PARITY_TEMPLATES_ENABLED, true, '"true": templates on'); eq(templatesOnly.CHAT_PARITY_CAPS, ['templates1'], 'templates: templates1'); eq([templatesOnly.STUDIO_CHAT_PARITY_PAID_SAVE_TEMPLATE_ENABLED, templatesOnly.STUDIO_CHAT_PARITY_PAID_OPTIMIZE_ENABLED], [false, false], 'the paid sub-flags stay off')
+  eq(loadLib(libText, { NEXT_PUBLIC_STUDIO_CHAT_PARITY_PAID_SAVE_TEMPLATE: 'true', NEXT_PUBLIC_STUDIO_CHAT_PARITY_PAID_OPTIMIZE: 'true' }).CHAT_PARITY_PAID_ACTIONS, { generate_logo: false, save_template: false, optimize_template: false }, 'sub-flags alone are nothing')
+  const paidT = loadLib(libText, { NEXT_PUBLIC_STUDIO_CHAT_PARITY_TEMPLATES: 'true', NEXT_PUBLIC_STUDIO_CHAT_PARITY_PAID_SAVE_TEMPLATE: 'true', NEXT_PUBLIC_STUDIO_CHAT_PARITY_PAID_OPTIMIZE: 'true' }); eq(paidT.CHAT_PARITY_PAID_ACTIONS, { generate_logo: false, save_template: true, optimize_template: true }, 'both on: the two paid template actions on')
+  eq(lib.CHAT_PARITY_ACTIONS.templates, ['select_template', 'composer_template_action', 'save_template', 'optimize_template', 'rename_template'], 'rows 65 / 67 / 70 / 75 / 76; 66 and 72 are not actions (no live click path)')
+  eq(lib.chatParityRefusal(req('templates', 'template_start'), { ...flags, templates: true }), 'unsupported', 'row 66: unsupported, honestly'); eq(lib.chatParityRefusal(req('templates', 'apply_template'), { ...flags, templates: true }), 'unsupported', 'row 72: unsupported, honestly')
+  eq(lib.CHAT_PARITY_TEMPLATE_NAME_MAX, 150); eq({ ...lib.CHAT_PARITY_COMPOSER_ACTIONS }, { use_original: 'use', rebuild: 'ditto', new_topic: 'new-topic' }, 'the library dialog\'s own action ids')
+  const pargs = (action, args) => lib.chatParityTemplateArgs(action, args)
+  eq(pargs('select_template', { template_id: ' t1 ' }), { action: 'select_template', template_id: 't1' }); eq(pargs('select_template', { name: 'Q3' }), null, 'a name is never enough')
+  eq(pargs('composer_template_action', { template_id: 'c1', action: 'rebuild' }), { action: 'composer_template_action', template_id: 'c1', composer_action: 'ditto' }); eq(pargs('composer_template_action', { template_id: 'c1', action: 'delete' }), null, 'an unknown composer action'); eq(pargs('composer_template_action', { action: 'use_original' }), null, 'no id')
+  eq(pargs('save_template', { name: '  Q3  deck ' }), { action: 'save_template', name: 'Q3 deck' }); eq(pargs('save_template', { name: 'a'.repeat(151) }), null, 'too long'); eq(pargs('save_template', {}), null)
+  eq(pargs('optimize_template', { template_id: 't1' }), { action: 'optimize_template', template_id: 't1' }); eq(pargs('rename_template', { template_id: 't1', name: 'New' }), { action: 'rename_template', template_id: 't1', name: 'New' }); eq(pargs('rename_template', { template_id: 't1' }), null)
+  eq(pargs('delete_template', { template_id: 't1' }), null, 'row 77 is declined: no delete action'); eq(pargs('template_start', { template_id: 't1', mode: 'as_is' }), null, 'row 66: no action')
   // -- the result -------------------------------------------------------------------------------------------------------------------------
   eq(lib.chatParityResult('sa_1', 'done'), { request_id: 'sa_1', status: 'done', error_code: null }, 'done')
   eq(lib.chatParityResult('sa_1', 'failed', 'not_owner'), { request_id: 'sa_1', status: 'failed', error_code: 'not_owner' }, 'failed + code')
@@ -256,6 +279,63 @@ async function runnersSuite(runnersText = read(RUNNERS), libText = read(LIB)) {
   lib.CHAT_PARITY_ACTIONS.themes.pop()
   await themesSuite(runnersText, libText)
   await identitySuite(runnersText, libText)
+  await templatesSuite(runnersText, libText)
+}
+
+/** The TEMPLATES executors against faked click-path functions. */
+async function templatesSuite(runnersText = read(RUNNERS), libText = read(LIB), templatesText = read(TEMPLATES), paidOn = true) {
+  const lib = loadLib(libText, { ...ALL_ON, NEXT_PUBLIC_STUDIO_CHAT_PARITY_PAID_SAVE_TEMPLATE: paidOn ? 'true' : 'false', NEXT_PUBLIC_STUDIO_CHAT_PARITY_PAID_OPTIMIZE: paidOn ? 'true' : 'false' })
+  const templates = loadTemplates(templatesText, lib)
+  const runners = loadRunners(runnersText, lib, null, loadThemes(read(THEMES), lib), loadIdentity(read(IDENTITY), lib), templates)
+  const library = [
+    { id: 't1', name: 'Quarterly', blueprint_generation_method: 'llm', blueprint_enrichment_status: 'ready', blueprint_enrichment_error: null, template_purity_status: 'pure', template_purity_error: null, extra: 'not a selection field' },
+    { id: 't2', name: 'Draft', blueprint_generation_method: 'llm', blueprint_enrichment_status: 'failed', blueprint_enrichment_error: 'x', template_purity_status: null, template_purity_error: null },
+    { id: 't3', name: 'Busy', blueprint_generation_method: 'llm', blueprint_enrichment_status: 'optimizing', blueprint_enrichment_error: null, template_purity_status: null, template_purity_error: null },
+  ]
+  const composerLibrary = [{ id: 'c1', name: 'Upload.pptx', slide_count: 9 }]
+  const calls = []; let locked = false; let confirmAnswer = true; const confirms = []; let composerActions = ['use', 'ditto', 'new-topic']; let source = { sessionId: 's1', presentationId: 'p1' }; let renameAnswer = (id, name) => ({ ok: true, template: { id, name: name.toUpperCase() } })
+  const deps = { displayed: () => ({ sessionId: 's1', deckOwnerSessionId: 's1', presentationId: 'p1', epoch: 1 }), templates: {
+    listTemplates: async () => { calls.push('list'); return { templates: library, count: library.length } },
+    saveTemplate: async args => { calls.push(['save', args]); return args.name === 'refused' ? null : { id: 't9', name: args.name, slide_count: 5 } },
+    reoptimizeTemplate: async id => { calls.push(['optimize', id]); return { ok: true } },
+    renameTemplate: async (id, name) => { calls.push(['rename', id, name]); return renameAnswer(id, name) },
+    select: template => { calls.push(['select', template]) }, selectionLocked: () => locked,
+    composer: { list: async () => composerLibrary, run: request => { calls.push(['composer', request]) }, actions: () => composerActions },
+    saveSource: () => source, confirm: async (title, description, label) => { confirms.push([title, description, label]); return confirmAnswer },
+  } }
+  const owner = { sessionId: 's1', isCurrent: () => true }
+  const run = (action, args) => runners.runChatParityAction({ requestId: 'r', group: 'templates', action, presentationId: null, args, label: '' }, owner, deps, { session_id: 's1' })
+  // select
+  eq(await run('select_template', { template_id: 't1' }), { request_id: 'r', status: 'done', error_code: null, detail: { template_id: 't1', name: 'Quarterly' } }, 'select: done')
+  eq(plain(calls.at(-1)), ['select', { id: 't1', name: 'Quarterly', blueprint_generation_method: 'llm', blueprint_enrichment_status: 'ready', blueprint_enrichment_error: null, template_purity_status: 'pure', template_purity_error: null }], 'the picker\'s own selection record (its seven fields, nothing else)')
+  eq(await run('select_template', { template_id: 't9' }), { request_id: 'r', status: 'failed', error_code: 'not_found' }, 'select: unknown id')
+  locked = true; eq(await run('select_template', { template_id: 't1' }), { request_id: 'r', status: 'failed', error_code: 'locked' }, 'select: build selections locked'); locked = false
+  // composer library action
+  eq(await run('composer_template_action', { template_id: 'c1', action: 'rebuild' }), { request_id: 'r', status: 'done', error_code: null, detail: { template_id: 'c1', action: 'ditto' } }, 'composer: the dialog opened with the request'); eq(plain(calls.at(-1)), ['composer', { action: 'ditto', template: composerLibrary[0] }])
+  eq(await run('composer_template_action', { template_id: 'c9', action: 'use_original' }), { request_id: 'r', status: 'failed', error_code: 'not_found' })
+  composerActions = ['use']; eq(await run('composer_template_action', { template_id: 'c1', action: 'new_topic' }), { request_id: 'r', status: 'failed', error_code: 'flag_off' }, 'an action the dialog\'s flags do not offer'); composerActions = ['use', 'ditto', 'new-topic']
+  { const saved = deps.templates.composer; deps.templates.composer = null; eq(await run('composer_template_action', { template_id: 'c1', action: 'use_original' }), { request_id: 'r', status: 'failed', error_code: 'flag_off' }, 'no composer library'); deps.templates.composer = saved }
+  // rename
+  eq(await run('rename_template', { template_id: 't1', name: 'Q3' }), { request_id: 'r', status: 'done', error_code: null, detail: { template_id: 't1', name: 'Q3' } }, 'rename: Director\'s spelling wins')
+  eq(await run('rename_template', { template_id: 't9', name: 'x' }), { request_id: 'r', status: 'failed', error_code: 'not_found' })
+  for (const [reason, code] of [['unavailable', 'flag_off'], ['gone', 'not_found'], ['taken', 'name_taken'], ['invalid', 'invalid_args'], ['sign_in', 'write_failed'], ['failed', 'write_failed']]) { renameAnswer = () => ({ ok: false, reason }); eq((await run('rename_template', { template_id: 't1', name: 'x' })).error_code, code, `rename refused: ${reason}`) }
+  renameAnswer = (id, name) => ({ ok: true, template: { id, name } })
+  // the paid pair
+  const before = calls.length
+  if (paidOn) {
+    eq(await run('save_template', { name: 'Mine' }), { request_id: 'r', status: 'done', error_code: null, detail: { template_id: 't9', name: 'Mine' } }, 'save: confirmed, the dialog\'s own save'); eq(plain(calls.at(-1)), ['save', { name: 'Mine', sourceSessionId: 's1', sourcePresentationId: 'p1' }]); ok(/paid/i.test(confirms.at(-1)[1]) && confirms.at(-1)[2] === 'Save template', 'the confirm names the cost')
+    eq(await run('save_template', { name: 'refused' }), { request_id: 'r', status: 'failed', error_code: 'write_failed' })
+    source = { sessionId: 's1', presentationId: null }; eq(await run('save_template', { name: 'x' }), { request_id: 'r', status: 'failed', error_code: 'no_deck' }, 'save: no completed deck'); source = { sessionId: 's1', presentationId: 'p1' }
+    confirmAnswer = false; eq(await run('save_template', { name: 'x' }), { request_id: 'r', status: 'dismissed', error_code: null }, 'save declined'); confirmAnswer = true
+    eq(await run('optimize_template', { template_id: 't2' }), { request_id: 'r', status: 'done', error_code: null, detail: { template_id: 't2', name: 'Draft' } }, 'optimise: confirmed'); eq(plain(calls.at(-1)), ['optimize', 't2']); eq(confirms.at(-1)[2], 'Optimise')
+    eq(await run('optimize_template', { template_id: 't1' }), { request_id: 'r', status: 'failed', error_code: 'already_ready' }, 'optimise: already ready'); eq(await run('optimize_template', { template_id: 't3' }), { request_id: 'r', status: 'failed', error_code: 'already_ready' }, 'optimise: already optimising')
+    confirmAnswer = false; eq(await run('optimize_template', { template_id: 't2' }), { request_id: 'r', status: 'dismissed', error_code: null }, 'optimise declined'); confirmAnswer = true
+    eq(await run('optimize_template', { template_id: 't9' }), { request_id: 'r', status: 'failed', error_code: 'not_found' })
+  } else {
+    eq(await run('save_template', { name: 'Mine' }), { request_id: 'r', status: 'failed', error_code: 'flag_off' }, 'save: sub-flag off'); eq(await run('optimize_template', { template_id: 't2' }), { request_id: 'r', status: 'failed', error_code: 'flag_off' }, 'optimise: sub-flag off'); eq(calls.length, before, 'nothing ran'); eq(confirms.length, 0, 'nothing asked')
+  }
+  eq(await runners.runChatParityAction({ requestId: 'r', group: 'templates', action: 'select_template', presentationId: null, args: { template_id: 't1' }, label: '' }, owner, { displayed: deps.displayed }, null), { request_id: 'r', status: 'failed', error_code: 'flag_off' }, 'no template deps: flag_off')
+  eq(await run('template_start', { template_id: 't1', mode: 'as_is' }), { request_id: 'r', status: 'failed', error_code: 'unsupported' }, 'row 66 through the runner: unsupported'); eq(await run('apply_template', { template_id: 't1' }), { request_id: 'r', status: 'failed', error_code: 'unsupported' }, 'row 72: unsupported')
 }
 
 /** The IDENTITY executors against a faked bus (the viewer's opener and the Master panel's op runner) and a faked identity form. */
@@ -411,7 +491,7 @@ function sourcesSuite() {
   ok(page.includes("chatParityBus.send?.(chatParityResult(request.requestId, 'failed', refusal))"), 'a refusal is answered at once')
   ok(page.includes('{ displayed: () => elementDirectiveGenerationOwnerRef.current, // CHAT-PARITY') && page.includes('} } : {}) }, message).then(result => { if (owner.isCurrent()) chatParityBus.send?.(result) }) // CHAT-PARITY'), 'the K5 owner record and the frame reach the runner')
   const pageImports = page.split('\n').filter(l => l.startsWith('import ') && marker.test(l))
-  eq(pageImports.length, 3, 'three import lines (the lib, the runners, the toast action)'); ok(pageImports.every(l => page.indexOf(l) > page.indexOf("from '@/lib/studio-chat-clean' // CHAT-CLEAN")), 'placed at the end with the chat-clean import')
+  eq(pageImports.length, 4, 'four import lines (the lib, the runners, the toast action, the composer library)'); ok(pageImports.every(l => page.indexOf(l) > page.indexOf("from '@/lib/studio-chat-clean' // CHAT-CLEAN")), 'placed at the end with the chat-clean import')
   // the gates: the panel and the types
   const panel = readOwn(PANEL)
   ok(panel.includes('if (!STUDIO_CHAT_PARITY_NOTES_ENABLED) return // CHAT-PARITY'), 'the panel listens only with the flag on')
@@ -442,10 +522,15 @@ function sourcesSuite() {
   ok(page.includes('const chatParityThemeProfiles = useThemeProfiles() // CHAT-PARITY'), 'the palette\'s own hook')
   ok(page.includes('timeoutMs: THEME_SYNC_TIMEOUT_MS + 5_000, // CHAT-PARITY'), 'the theme directive\'s wait')
   ok(page.includes('...(STUDIO_CHAT_PARITY_IDENTITY_ENABLED ? { identity: {'), 'identity deps only with the identity flag on')
-  ok(page.includes('<ToastAction altText="Generate the logo" onClick={() => answer(true)}>Generate</ToastAction>') && page.includes('setTimeout(() => answer(false), 31_000)'), 'the paid confirm: a toast with Generate, no answer = no')
+  ok(page.includes('...(STUDIO_CHAT_PARITY_TEMPLATES_ENABLED ? { templates: {'), 'template deps only with the templates flag on')
+  ok(page.includes('select: handleSelectTemplate, selectionLocked: () => templateSelectionLockedRef.current') && page.includes('run: runComposerTemplateAction'), 'the picker\'s own select and the library dialog\'s own runner')
+  ok(page.includes('const chatParityTemplates = useTemplates() // CHAT-PARITY'), 'the templates hook, a second instance')
+  ok(page.includes('presentationId: templateSavePresentationId ?? null'), 'the Save Template dialog\'s own source')
+  ok(page.includes('<ToastAction altText={label} onClick={() => answer(true)}>{label}</ToastAction>') && page.includes('setTimeout(() => answer(false), 31_000)'), 'the paid confirm: a toast with one action, no answer = no')
   // the new files: the lib is import-free, the runners import the lib only
   ok(!/^import /m.test(readOwn(LIB)) && !/require\(/.test(readOwn(LIB)), 'the lib is import-free')
-  eq([...readOwn(RUNNERS).matchAll(/from '([^']+)'/g)].map(m => m[1]), ['@/lib/studio-chat-parity', '@/lib/studio-chat-parity-themes', '@/lib/studio-chat-parity-identity'], 'the runners import the lib and the group files only')
+  eq([...readOwn(RUNNERS).matchAll(/from '([^']+)'/g)].map(m => m[1]), ['@/lib/studio-chat-parity', '@/lib/studio-chat-parity-themes', '@/lib/studio-chat-parity-identity', '@/lib/studio-chat-parity-templates'], 'the runners import the lib and the group files only')
+  eq([...readOwn(TEMPLATES).matchAll(/from '([^']+)'/g)].map(m => m[1]).sort(), ['@/hooks/use-templates', '@/lib/composer-library', '@/lib/studio-chat-parity', '@/lib/studio-composer-popups'].sort(), 'the templates file imports the click paths\' own modules')
   eq([...readOwn(IDENTITY).matchAll(/from '([^']+)'/g)].map(m => m[1]).sort(), ['@/lib/deck-identity', '@/lib/studio-chat-parity'], 'the identity file imports the dialog\'s own writer and the lib')
   eq([...readOwn(THEMES).matchAll(/from '([^']+)'/g)].map(m => m[1]).sort(), ['@/hooks/use-theme-profiles', '@/lib/studio-chat-parity', '@/lib/theme-builder', '@/lib/theme-fonts', '@/lib/theme-sync'].sort(), 'the themes file imports the click paths\' own modules')
   // .env.example: the base plus the block, at the end
@@ -455,6 +540,7 @@ function sourcesSuite() {
   ok(strip.CHAT_PARITY_ENV_BLOCK.includes('NEXT_PUBLIC_STUDIO_CHAT_PARITY_NOTES="false"'), 'the notes flag, off')
   ok(strip.CHAT_PARITY_ENV_BLOCK.includes('NEXT_PUBLIC_STUDIO_CHAT_PARITY_THEMES="false"'), 'the themes flag, off')
   ok(strip.CHAT_PARITY_ENV_BLOCK.includes('NEXT_PUBLIC_STUDIO_CHAT_PARITY_IDENTITY="false"') && strip.CHAT_PARITY_ENV_BLOCK.includes('NEXT_PUBLIC_STUDIO_CHAT_PARITY_PAID_LOGO="false"'), 'the identity flag and the paid sub-flag, off')
+  ok(strip.CHAT_PARITY_ENV_BLOCK.includes('NEXT_PUBLIC_STUDIO_CHAT_PARITY_TEMPLATES="false"') && strip.CHAT_PARITY_ENV_BLOCK.includes('NEXT_PUBLIC_STUDIO_CHAT_PARITY_PAID_SAVE_TEMPLATE="false"') && strip.CHAT_PARITY_ENV_BLOCK.includes('NEXT_PUBLIC_STUDIO_CHAT_PARITY_PAID_OPTIMIZE="false"'), 'the templates flag and its paid sub-flags, off')
   eq(registry.stripLaterEnvBlocks(ENV, env).includes('CHAT_PARITY'), false, 'the registry takes the block out')
   // the registry gained its three lines
   const reg = readOwn(REGISTRY)
@@ -503,7 +589,26 @@ async function mutantsSuite() {
     ['identity: paid never blocked', t => t.replace("return action in paid && paid[action] !== true", 'return false')],
     ['identity: empty footer accepted', t => t.replace('return out.template || out.title || out.date || out.author ? out : null', 'return out')],
     ['identity: presenter through the panel', t => t.replace("case 'remove_logo': return { kind: 'remove_logo' }\n    default: return null", "case 'remove_logo': return { kind: 'remove_logo' }\n    default: return { kind: 'clear_footer' }")],
+    ['templates: delete listed', t => t.replace("'optimize_template', 'rename_template'],", "'optimize_template', 'rename_template', 'delete_template'],")],
+    ['templates: paid save never blocked', t => t.replace('save_template: STUDIO_CHAT_PARITY_PAID_SAVE_TEMPLATE_ENABLED,', 'save_template: true,')],
+    ['templates: unknown composer action', t => t.replace('return id && composer ? { action, template_id: id, composer_action: composer } : null', "return id ? { action, template_id: id, composer_action: composer ?? 'use' } : null")],
   ]
+  const templateMutants = [
+    ['select while locked', t => t.replace("if (deps.selectionLocked()) return fail(id, 'locked')", '')],
+    ['selection record leaks fields', t => t.replace("    template_purity_error: template.template_purity_error,\n  }", "    template_purity_error: template.template_purity_error,\n    ...template,\n  }")],
+    ['composer action beyond its flags', t => t.replace("if (!deps.composer.actions().includes(args.composer_action)) return fail(id, 'flag_off')", '')],
+    ['save without confirm', t => t.replace("if (!yes) return chatParityResult(id, 'dismissed', 'declined')\n      const result = await deps.saveTemplate", '      const result = await deps.saveTemplate')],
+    ['optimise a ready template', t => t.replace("if (status === 'ready' || status === 'optimizing') return fail(id, 'already_ready')", '')],
+    ['paid block ignored', t => t.replace("if (chatParityPaidBlocked(args.action)) return fail(id, 'flag_off')", '')],
+    ['rename refusal read as done', t => t.replace("if (result.ok) return chatParityResult(id, 'done', null,", 'if (true) return chatParityResult(id, \'done\', null,')],
+    ['save without a deck', t => t.replace("if (!source.sessionId || !source.presentationId) return fail(id, 'no_deck')", '')],
+  ]
+  for (const [name, mutate] of templateMutants) {
+    const mutated = mutate(read(TEMPLATES)); assert.notEqual(mutated, read(TEMPLATES), `mutant applies: ${name}`)
+    let caught = false; try { await templatesSuite(runnersText, libText, mutated); await templatesSuite(runnersText, libText, mutated, false) } catch { caught = true }
+    ok(caught, `mutant caught: ${name}`)
+  }
+  await templatesSuite(runnersText, libText, read(TEMPLATES), false)
   const identityMutants = [
     ['generate without confirm', t => t.replace("if (!yes) return chatParityResult(id, 'dismissed', 'declined')", '')],
     ['paid block ignored', t => t.replace("if (chatParityPaidBlocked(args.action)) return fail(id, 'flag_off')", '')],
@@ -560,7 +665,7 @@ async function mutantsSuite() {
     const hook = readOwn(HOOK); const unmarked = hook.replace('chatParityBus.send = sendChatParityResult // CHAT-PARITY', 'chatParityBus.send = sendChatParityResult')
     ok(strip.stripChatParity(HOOK, unmarked) !== baseOf(HOOK), 'mutant caught: an unmarked line stays in the stripped file')
   }
-  return libMutants.length + runnerMutants.length + themeMutants.length + identityMutants.length + (hasBase ? 1 : 0)
+  return libMutants.length + runnerMutants.length + themeMutants.length + identityMutants.length + templateMutants.length + (hasBase ? 1 : 0)
 }
 
 libSuite()

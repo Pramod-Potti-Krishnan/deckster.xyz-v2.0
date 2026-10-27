@@ -7,7 +7,12 @@
 //   NEXT_PUBLIC_STUDIO_CHAT_PARITY_IDENTITY   rows 62-64: the footer and logo through the Master panel's own open / fill / Save path (components/
 //                                             presentation-settings-panel.tsx), presenter details through the identity form's own writer; cap `identity1`.
 //   NEXT_PUBLIC_STUDIO_CHAT_PARITY_PAID_LOGO  row 63's generate (one paid image call): a sub-flag under IDENTITY, off until PK rules; on, a Studio confirm first.
-//   NEXT_PUBLIC_STUDIO_CHAT_PARITY_TEMPLATES  rows 65/66/67/72/76 (cap `templates1`) — added by its own commit
+//   NEXT_PUBLIC_STUDIO_CHAT_PARITY_TEMPLATES  rows 65 / 67 / 76 (+ 70 / 75 behind their paid sub-flags): the template picker's own select, the composer
+//                                             library's own action, the Templates page's own rename / optimise, the Save Template dialog's own save; cap
+//                                             `templates1`. Rows 66 (New topic / Reuse as-is) and 72 (apply to the open deck) have no live Studio click path
+//                                             at this head (the workspace's startDeck exists only in its mock source; no "Available Templates" control), so
+//                                             they are not actions: a request for them is answered `unsupported`, honestly.
+//   NEXT_PUBLIC_STUDIO_CHAT_PARITY_PAID_SAVE_TEMPLATE / _PAID_OPTIMIZE  rows 70 / 75 (a composer job each): sub-flags under TEMPLATES, off until PK rules.
 // With a group's flag on, Studio adds the group's cap to user_message.data.client_caps (beside mdc1, theme1, ...), takes Director's
 // request frame out of band (never the reducer, the transcript or the cache), runs the SAME function the click path runs, and answers
 // with the result frame. Director keeps the request's kind in its own pending table and closes the turn with a fixed line; Studio
@@ -42,6 +47,8 @@ export type ChatParityErrorCode =
   | 'theme_auto' | 'theme_locked' | 'theme_failed'
   // identity (rows 62-64)
   | 'busy' | 'generate_failed' | 'declined'
+  // templates (rows 65 / 67 / 70 / 75 / 76)
+  | 'no_deck' | 'already_ready' | 'name_taken'
 
 // ---------------------------------------------------------------------------------------------------------------------------------------
 // Flags (literal process.env reads so Next inlines them at build time)
@@ -56,6 +63,10 @@ export const STUDIO_CHAT_PARITY_THEMES_ENABLED = chatParityFlagOn(process.env.NE
 export const STUDIO_CHAT_PARITY_IDENTITY_ENABLED = chatParityFlagOn(process.env.NEXT_PUBLIC_STUDIO_CHAT_PARITY_IDENTITY)
 /** Row 63's generate: a paid image call. A sub-flag of IDENTITY (both must be on), default off until PK rules on paid actions. */
 export const STUDIO_CHAT_PARITY_PAID_LOGO_ENABLED = STUDIO_CHAT_PARITY_IDENTITY_ENABLED && chatParityFlagOn(process.env.NEXT_PUBLIC_STUDIO_CHAT_PARITY_PAID_LOGO)
+export const STUDIO_CHAT_PARITY_TEMPLATES_ENABLED = chatParityFlagOn(process.env.NEXT_PUBLIC_STUDIO_CHAT_PARITY_TEMPLATES)
+/** Rows 70 / 75: a composer job each (paid). Sub-flags of TEMPLATES (both must be on), default off until PK rules on paid actions. */
+export const STUDIO_CHAT_PARITY_PAID_SAVE_TEMPLATE_ENABLED = STUDIO_CHAT_PARITY_TEMPLATES_ENABLED && chatParityFlagOn(process.env.NEXT_PUBLIC_STUDIO_CHAT_PARITY_PAID_SAVE_TEMPLATE)
+export const STUDIO_CHAT_PARITY_PAID_OPTIMIZE_ENABLED = STUDIO_CHAT_PARITY_TEMPLATES_ENABLED && chatParityFlagOn(process.env.NEXT_PUBLIC_STUDIO_CHAT_PARITY_PAID_OPTIMIZE)
 
 export interface ChatParityFlags {
   notes: boolean
@@ -69,7 +80,7 @@ export const CHAT_PARITY_FLAGS: Readonly<ChatParityFlags> = Object.freeze({
   notes: STUDIO_CHAT_PARITY_NOTES_ENABLED,
   themes: STUDIO_CHAT_PARITY_THEMES_ENABLED,
   identity: STUDIO_CHAT_PARITY_IDENTITY_ENABLED,
-  templates: false,
+  templates: STUDIO_CHAT_PARITY_TEMPLATES_ENABLED,
 })
 
 /** True when any group is on: the request frame is then taken out of band (a group that is off answers `failed` / `flag_off`). */
@@ -115,7 +126,7 @@ export const CHAT_PARITY_ACTIONS: Readonly<Record<ChatParityGroup, readonly stri
   notes: [], // Director writes notes itself (set_speaker_notes); Studio only reflects deck_mutation notes_updated
   themes: ['set_theme_fonts', 'save_theme', 'set_standard_theme', 'clear_standard_theme', 'rename_theme', 'apply_saved_theme'],
   identity: ['set_footer', 'clear_footer', 'set_logo', 'generate_logo', 'remove_logo', 'set_deck_identity'],
-  templates: [],
+  templates: ['select_template', 'composer_template_action', 'save_template', 'optimize_template', 'rename_template'],
 })
 
 export interface ChatParityRequest {
@@ -311,7 +322,11 @@ export function chatParityThemeArgs(action: string, args: Record<string, unknown
 // ---------------------------------------------------------------------------------------------------------------------------------------
 
 /** Paid actions and the sub-flag each needs on top of its group flag (off: answered `flag_off`, nothing runs, nothing is charged). */
-export const CHAT_PARITY_PAID_ACTIONS: Readonly<Record<string, boolean>> = Object.freeze({ generate_logo: STUDIO_CHAT_PARITY_PAID_LOGO_ENABLED })
+export const CHAT_PARITY_PAID_ACTIONS: Readonly<Record<string, boolean>> = Object.freeze({
+  generate_logo: STUDIO_CHAT_PARITY_PAID_LOGO_ENABLED,
+  save_template: STUDIO_CHAT_PARITY_PAID_SAVE_TEMPLATE_ENABLED,
+  optimize_template: STUDIO_CHAT_PARITY_PAID_OPTIMIZE_ENABLED,
+})
 /** True when `action` is paid and its sub-flag is off in this build. */
 export function chatParityPaidBlocked(action: string, paid: Readonly<Record<string, boolean>> = CHAT_PARITY_PAID_ACTIONS): boolean {
   return action in paid && paid[action] !== true
@@ -393,6 +408,44 @@ export function chatParityMasterOp(args: ChatParityIdentityArgs): ChatParityMast
     case 'set_logo': return args.alt_text ? { kind: 'logo', image_url: args.image_url, alt_text: args.alt_text } : { kind: 'logo', image_url: args.image_url }
     case 'generate_logo': return { kind: 'generate_logo', prompt: args.prompt }
     case 'remove_logo': return { kind: 'remove_logo' }
+    default: return null
+  }
+}
+
+// ---------------------------------------------------------------------------------------------------------------------------------------
+// TEMPLATES (rows 65 / 67 / 70 / 75 / 76): the request args
+// ---------------------------------------------------------------------------------------------------------------------------------------
+
+/** A template's name: trimmed, 1-150 characters (Director's rename rule). */
+export const CHAT_PARITY_TEMPLATE_NAME_MAX = 150
+/** The composer library's actions a chat request may name, and the library dialog's own action id for each. */
+export const CHAT_PARITY_COMPOSER_ACTIONS: Readonly<Record<string, 'use' | 'ditto' | 'new-topic'>> = Object.freeze({ use_original: 'use', rebuild: 'ditto', new_topic: 'new-topic' })
+
+export type ChatParityTemplateArgs =
+  | { action: 'select_template'; template_id: string }
+  | { action: 'composer_template_action'; template_id: string; composer_action: 'use' | 'ditto' | 'new-topic' }
+  | { action: 'save_template'; name: string }
+  | { action: 'optimize_template'; template_id: string }
+  | { action: 'rename_template'; template_id: string; name: string }
+
+const templateId = (value: unknown): string | null => (typeof value === 'string' && value.trim() ? value.trim() : null)
+const templateName = (value: unknown): string | null => {
+  const name = typeof value === 'string' ? value.replace(/\s+/g, ' ').trim() : ''
+  return name && name.length <= CHAT_PARITY_TEMPLATE_NAME_MAX ? name : null
+}
+
+/** The template action's args, normalised, or null when they do not fit (`invalid_args`). Templates are always named by id. */
+export function chatParityTemplateArgs(action: string, args: Record<string, unknown>): ChatParityTemplateArgs | null {
+  switch (action) {
+    case 'select_template': { const id = templateId(args.template_id); return id ? { action, template_id: id } : null }
+    case 'composer_template_action': {
+      const id = templateId(args.template_id)
+      const composer = typeof args.action === 'string' ? CHAT_PARITY_COMPOSER_ACTIONS[args.action] : undefined
+      return id && composer ? { action, template_id: id, composer_action: composer } : null
+    }
+    case 'save_template': { const name = templateName(args.name); return name ? { action, name } : null }
+    case 'optimize_template': { const id = templateId(args.template_id); return id ? { action, template_id: id } : null }
+    case 'rename_template': { const id = templateId(args.template_id); const name = templateName(args.name); return id && name ? { action, template_id: id, name } : null }
     default: return null
   }
 }
