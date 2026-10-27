@@ -49,6 +49,8 @@ export const THEME_OWN_CHOICE_PIN_EDITS = {
     ["const themeOwnChoice = await import('./studio-theme-own-choice-strip.mjs') // LATER-CHANGES: registry read (THEME-OWN-CHOICE), stacked after chat element edit 2: the strip of the later change, so its marked lines in the page come out first\n", ''],
     ["  for (const rel of CHAT_ELEMENT_EDIT_2_FILES) assert.equal(stripChatElementEdit2(rel, themeOwnChoice.stripThemeOwnChoice(rel, read(rel))), baseFile(rel), `${rel}: without its marked lines the file is the base's`) // LATER-CHANGES: registry read (THEME-OWN-CHOICE), stacked after chat element edit 2\n",
       "  for (const rel of CHAT_ELEMENT_EDIT_2_FILES) assert.equal(stripChatElementEdit2(rel, read(rel)), baseFile(rel), `${rel}: without its marked lines the file is the base's`)\n"],
+    ["  const diff = git('diff', '-U0', BASE_COMMIT, 'HEAD', '--', 'scripts/studio-later-changes.mjs').split('\\n').filter(line => /^[+-]/.test(line) && !/^(\\+\\+\\+|---) /.test(line)).filter(line => !line.includes('studio-theme-own-choice-strip.mjs')) // LATER-CHANGES: registry read (THEME-OWN-CHOICE), stacked after chat element edit 2: this change's three registry lines are its own\n",
+      "  const diff = git('diff', '-U0', BASE_COMMIT, 'HEAD', '--', 'scripts/studio-later-changes.mjs').split('\\n').filter(line => /^[+-]/.test(line) && !/^(\\+\\+\\+|---) /.test(line))\n"],
   ],
   // dark persist's page pins match the picker's write as one run of lines; the recording line this change puts after it comes out first, innermost, as in the other pins.
   'scripts/test-studio-theme-dark-persist.mjs': [
