@@ -59,14 +59,16 @@ export const STUDIO_FLOW_AMEND_INSTRUCTIONS_ENABLED = flowAmendInstructionsFlagO
 // ---------------------------------------------------------------------------
 // The socket hook is called before the page has what the flow hook needs, and the page's older pins read it by position: so the two meet here, not in
 // the socket hook's options. useStudioFlowControl fills `focus` and `phase` (only with their flags on) and clears them when the page goes; the socket
-// hook shows them frames. `instructions` is set by the flow hook and taken, once, by the very sendBuildControl call it makes next.
+// hook shows them frames. `instructions` is set by the flow hook and taken, once, by the very sendBuildControl call it makes next. `amendBarVisible` goes the other way, from the flow hook to the chat's presence row (flowHeldLineSuppressed, below).
 export const flowBus: {
   focus: ((frame: unknown) => void) | null
   phase: ((payload: unknown) => void) | null
   instructions: string | undefined
   /** The page's own automation (the narration's page turn) is about to move the viewer to this slide (0-based): the viewer's report of it is not the user's. Filled with the focus flag on. */
   programmatic: ((index: number) => void) | null
-} = { focus: null, phase: null, instructions: undefined, programmatic: null }
+  /** The amend bar is drawn by this render of the page (the flow hook says so while it renders, as it fills the runners above; false once the page is gone, and with the amend flag off, always). The chat's presence row reads it. */
+  amendBarVisible: boolean
+} = { focus: null, phase: null, instructions: undefined, programmatic: null, amendBarVisible: false }
 
 /** What the flow hook left for the build_control request being made right now, taken so that no other request ever carries it. */
 export function takeFlowInstructions(): string | undefined {
@@ -528,6 +530,15 @@ export const FLOW_REBUILD_STOP_GRACE_MS = 750
 export const FLOW_REBUILD_SETTLE_WAIT_MS = 8000
 /** After the draft is sent, "Rebuilding…" stays until the new build shows or this long has passed. */
 export const FLOW_REBUILD_SENT_HOLD_MS = 10000
+
+/**
+ * One status line while a build is held. The chat's presence row says the narration's own words for a held build ("Paused — your progress is saved"); the amend bar,
+ * drawn right under it, says the same thing again, with the buttons. While the bar is drawn the row leaves that line (and the dot beside it) to the bar and keeps only its
+ * Build log toggle. Only a held phase: while a pause or a resume is still on its way the build is still running, and the row's words are not the bar's.
+ */
+export function flowHeldLineSuppressed(input: { barVisible: boolean; active: boolean; phase: string }): boolean {
+  return input.barVisible === true && input.active === true && (input.phase === 'paused' || input.phase === 'stopped')
+}
 
 export interface FlowAmendState {
   /** Draw the status line (and buttons, where shown). */
