@@ -4,7 +4,6 @@ import React, { useEffect, useState } from 'react'
 import { AnimatePresence, motion } from 'framer-motion'
 import { AlertTriangle, CheckCircle2, OctagonPause } from 'lucide-react'
 import type { NarrationState } from '@/lib/build-narration-heuristics'
-import { phaseLabelFor } from '@/lib/build-narration-heuristics' // PAUSED-LABEL
 import { StageIcon } from './stage-icons'
 import { PauseStopControl, type PauseStopControlProps } from './pause-stop-control'
 import { PHASE_SWAP_S } from './motion'
@@ -48,9 +47,9 @@ const PHASE_STAGE: Record<string, string> = {
  * the controls are reachable in every phase (incl. error, which v1 lacked).
  */
 export function StageRibbon({ narration: n, control, className }: StageRibbonProps) {
-  // PAUSED-LABEL (NEXT_PUBLIC_STUDIO_PAUSED_LABEL, default off): while the control state is paused the headline reads the existing "Paused" label, whatever phase the build is in. The reducer lets a "building" status move a
-  // PAUSED-LABEL: paused build's phase back to "building" (control stays paused), so Resume showed under "Building your slides…". Only the headline: the icon, the timer, the count and the buttons read what they read today.
-  n = process.env.NEXT_PUBLIC_STUDIO_PAUSED_LABEL === 'true' && n.control === 'paused' ? { ...n, phaseLabel: phaseLabelFor('paused') } : n // PAUSED-LABEL
+  // PAUSED-LABEL (NEXT_PUBLIC_STUDIO_PAUSED_LABEL, default off): while the control state is paused the headline reads the existing "Paused" label (lib/build-narration-heuristics.ts PHASE_LABELS.paused; the proof holds the two equal),
+  // PAUSED-LABEL: whatever phase the build is in. The reducer lets a "building" status move a paused build's phase back to "building" (control stays paused), so Resume showed under "Building your slides…". Only the headline.
+  n = process.env.NEXT_PUBLIC_STUDIO_PAUSED_LABEL === 'true' && n.control === 'paused' ? { ...n, phaseLabel: 'Paused' } : n // PAUSED-LABEL
   const isHalted = n.phase === 'paused' || n.phase === 'stopped'
   const isError = n.phase === 'error'
   const isComplete = n.phase === 'complete'

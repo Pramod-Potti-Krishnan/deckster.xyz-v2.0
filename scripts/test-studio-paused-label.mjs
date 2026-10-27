@@ -4,7 +4,7 @@
 // status move a PAUSED build's phase back to "building" (lib/build-narration-heuristics.ts, the 'status' case: `proposed >= cur || next.phase === 'paused'`) while the control state stays paused; the ribbon
 // (components/build-narration/stage-ribbon.tsx) printed n.phaseLabel, the phase's label.
 //
-// THE FIX (flag on). While n.control is paused the ribbon's headline reads the existing "Paused" label (phaseLabelFor('paused'): PHASE_LABELS.paused). Only the headline: the icon, the timer, the count and the buttons
+// THE FIX (flag on). While n.control is paused the ribbon's headline reads the existing "Paused" label (the one word in the ribbon, held equal to PHASE_LABELS.paused below). Only the headline: the icon, the timer, the count and the buttons
 // (the real PauseStopControl) read what they read today. No new copy.
 //
 //   1. paused / running / stopped / failed and the in-between states (a pause or resume asked for, the E2E shape: paused control with a "building" phase) through the REAL ribbon and the REAL PauseStopControl, states made
@@ -186,10 +186,11 @@ await check('the strip gives the base ribbon back byte for byte (the committed f
   assert.equal(stripPausedLabel(RIBBON, fs.readFileSync(path.join(repo, RIBBON), 'utf8')), git('show', `${BASE_COMMIT}:${RIBBON}`))
   assert.deepEqual(PAUSED_LABEL_FILES, [RIBBON])
 })
-await check('plumbing: the ribbon reads the literal env name, exact "true"; .env.example documents "false"; the label is the reducer\'s own (phaseLabelFor), no new words', () => {
+await check('plumbing: the ribbon reads the literal env name, exact "true"; .env.example documents "false"; the one word is the reducer\'s own PHASE_LABELS.paused, no new words', async () => {
   const text = read(RIBBON)
   assert.equal((text.match(/NEXT_PUBLIC_STUDIO_PAUSED_LABEL/g) || []).length, 2) // the comment and the read
-  assert.match(text, /^  n = process\.env\.NEXT_PUBLIC_STUDIO_PAUSED_LABEL === 'true' && n\.control === 'paused' \? \{ \.\.\.n, phaseLabel: phaseLabelFor\('paused'\) \} : n \/\/ PAUSED-LABEL$/m)
+  assert.match(text, /^  n = process\.env\.NEXT_PUBLIC_STUDIO_PAUSED_LABEL === 'true' && n\.control === 'paused' \? \{ \.\.\.n, phaseLabel: 'Paused' \} : n \/\/ PAUSED-LABEL$/m)
+  assert.equal((await world({ flagOn: false })).lib.phaseLabelFor('paused'), 'Paused', 'the ribbon\'s one word is the reducer\'s own PHASE_LABELS.paused')
   assert.match(read('.env.example'), new RegExp(`^${FLAG}="false"$`, 'm'))
   assert.equal((read('.env.example').match(new RegExp(FLAG, 'g')) || []).length, 1)
   assert.match(read('lib/build-narration-heuristics.ts'), /^  paused: 'Paused',$/m)
@@ -216,11 +217,11 @@ const mutants = [
   ['it also fires for a pause asked for', "n.control === 'paused' ? {", "(n.control === 'paused' || n.control === 'pause_requested') ? {"],
   ['it also fires for a stopped control', "n.control === 'paused' ? {", "(n.control === 'paused' || n.control === 'stopped') ? {"],
   ['it also fires whenever the phase is paused or stopped', "n.control === 'paused' ? {", "(n.control === 'paused' || n.phase === 'stopped') ? {"],
-  ['the label is new copy (another word)', "phaseLabel: phaseLabelFor('paused')", "phaseLabel: 'On hold'"],
-  ['the label is the stopped one', "phaseLabel: phaseLabelFor('paused')", "phaseLabel: phaseLabelFor('stopped')"],
-  ['the phase is changed too (the icon and the timer stop)', "{ ...n, phaseLabel: phaseLabelFor('paused') }", "{ ...n, phase: 'paused', phaseLabel: phaseLabelFor('paused') }"],
-  ['the count is hidden too', "{ ...n, phaseLabel: phaseLabelFor('paused') }", "{ ...n, slideCount: 0, phaseLabel: phaseLabelFor('paused') }"],
-  ['the control is changed too (the buttons change)', "{ ...n, phaseLabel: phaseLabelFor('paused') }", "{ ...n, control: 'running', phaseLabel: phaseLabelFor('paused') }"],
+  ['the label is new copy (another word)', "phaseLabel: 'Paused'", "phaseLabel: 'On hold'"],
+  ['the label is the stopped one', "phaseLabel: 'Paused'", "phaseLabel: 'Stopped'"],
+  ['the phase is changed too (the icon and the timer stop)', "{ ...n, phaseLabel: 'Paused' }", "{ ...n, phase: 'paused', phaseLabel: 'Paused' }"],
+  ['the count is hidden too', "{ ...n, phaseLabel: 'Paused' }", "{ ...n, slideCount: 0, phaseLabel: 'Paused' }"],
+  ['the control is changed too (the buttons change)', "{ ...n, phaseLabel: 'Paused' }", "{ ...n, control: 'running', phaseLabel: 'Paused' }"],
   ['flag off changes today\'s headline (the base path is altered)', "              {n.phaseLabel}\n", "              {n.phaseLabel.toUpperCase()}\n"],
 ]
 for (const [label, from, to] of mutants) await check(`mutant caught: ${label}`, async () => {
@@ -247,7 +248,7 @@ await check('the committed files are exactly this change\'s; every line added to
   assert.deepEqual(changed, [...PAUSED_LABEL_SCOPE_FILES].sort())
   for (const rel of PAUSED_LABEL_FILES) {
     const diff = git('diff', '-U0', `${BASE_COMMIT}..${HEAD}`, '--', rel).split('\n').filter(line => /^[+-]/.test(line) && !/^(\+\+\+|---) /.test(line))
-    assert.equal(diff.length, 4, `${rel}: an import, a two-line comment and the assignment`)
+    assert.equal(diff.length, 3, `${rel}: a two-line comment and the assignment (no import line)`)
     for (const line of diff) { assert.ok(line.startsWith('+'), `${rel}: a removed line: ${line.slice(0, 120)}`); assert.match(line, PAUSED_LABEL_MARKER_RE, `${rel}: an unmarked added line: ${line.slice(0, 120)}`) }
     assert.equal(stripPausedLabel(rel, git('show', `${HEAD}:${rel}`)), git('show', `${BASE_COMMIT}:${rel}`), `${rel}: without its marked lines the file is the base's, byte for byte`)
   }

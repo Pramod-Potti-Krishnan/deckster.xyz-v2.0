@@ -1,8 +1,8 @@
 // FRONTEND-2 (B27 follow-up, PROGRAM-1 GO 27 Oct 04:17Z; E2E-2 chat parity Pass A row 14). Flag NEXT_PUBLIC_STUDIO_PAUSED_LABEL (exact "true", default off, build-time): the build ribbon (components/build-narration/stage-ribbon.tsx)
-// reads "Paused" (the existing label, lib/build-narration-heuristics.ts PHASE_LABELS.paused) whenever the narration CONTROL state is paused. E2E-2's shot (streams/e2e2/parity-proofs/run-A/shots/05-row14-paused-header.png) showed
+// reads "Paused" (the existing label, lib/build-narration-heuristics.ts PHASE_LABELS.paused, which the proof holds equal to the one word in the ribbon) whenever the narration CONTROL state is paused. E2E-2's shot (streams/e2e2/parity-proofs/run-A/shots/05-row14-paused-header.png) showed
 // "Building your slides..." with Resume: the reducer lets a "building" status move a paused build's phase back to building (the 'status' case: `proposed >= cur || next.phase === 'paused'`) while control stays paused, and the ribbon
 // printed the phase label. Only the headline changes: the icon, the timer, the count and the buttons read what they read today. No new copy.
-// Every line this change adds to an EXISTING file is a pure insertion that carries the marker PAUSED-LABEL (matched as a whole token): three in components/build-narration/stage-ribbon.tsx (an import, a two-line comment, one assignment).
+// Every line this change adds to an EXISTING file is a pure insertion that carries the marker PAUSED-LABEL (matched as a whole token): three in components/build-narration/stage-ribbon.tsx (a two-line comment, one assignment; no import line, so the guarded components' import-line pins are untouched).
 // Strip those lines and the file is its base, byte for byte.
 // How the older pins reach it: this change REGISTERS its files, its .env.example block and this strip (scripts/studio-later-changes.mjs, three lines). Plain node, no imports, nothing read from disk or git here.
 
@@ -28,19 +28,7 @@ export const PAUSED_LABEL_NEW_FILES = [
 
 /** The older proofs this change teaches: [text the proof has now, text the proof had before] per edit, whole lines, so putting them back gives the previous file byte for byte. Every line the proof has now carries PAUSED_LABEL_PIN_MARK. */
 export const PAUSED_LABEL_PIN_MARK = '// LATER-CHANGES: registry read (PAUSED-LABEL)'
-export const PAUSED_LABEL_PIN_EDITS = {
-  // FRONTEND-2's PASS2B chat proof holds each guarded component's import lines to the base's (a golden hash), reading the file through the one strip of the change stacked after it (chat clean). This change adds one marked import to the ribbon: the proof reads the whole registry instead (one line inserted, one call swapped).
-  'scripts/test-studio-pass2b-chat.mjs': [
-    [
-      "const { stripLaterChanges: registryRead } = await import('./studio-later-changes.mjs') // LATER-CHANGES: registry read (PAUSED-LABEL): every registered later change's marked lines come out of a file before its import lines are read\n",
-      ""
-    ],
-    [
-      "    for (const file of Object.keys(GOLDEN.imports)) if (sha(importLines(registryRead(file, read(file))).join('\\n')) !== GOLDEN.imports[file]) fail(`${file}: its import lines changed (the existing pin tests load it with an allow-list of imports)`) // LATER-CHANGES: registry read (CHAT-CLEAN): the import lines a change registered after this one adds (chat clean's, in chat-input.tsx and message-list.tsx) are its own // LATER-CHANGES: registry read (PAUSED-LABEL)\n",
-      "    for (const file of Object.keys(GOLDEN.imports)) if (sha(importLines(chatCleanStrip.stripChatClean(file, read(file))).join('\\n')) !== GOLDEN.imports[file]) fail(`${file}: its import lines changed (the existing pin tests load it with an allow-list of imports)`) // LATER-CHANGES: registry read (CHAT-CLEAN): the import lines a change registered after this one adds (chat clean's, in chat-input.tsx and message-list.tsx) are its own\n"
-    ]
-  ]
-}
+export const PAUSED_LABEL_PIN_EDITS = {}
 
 /** The proof without this change's edits (the previous file). Used by the strip and the proof. */
 export function putBackPin(rel, text) {
