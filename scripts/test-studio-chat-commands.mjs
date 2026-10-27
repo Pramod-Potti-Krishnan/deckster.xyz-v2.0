@@ -793,7 +793,7 @@ async function mentionSuite(overrides = {}) {
     await c.key('Enter'); eq(c.text(), '@[File: q3 report.pdf] ', 'a file pick: a readable token')
     eq(plain(w.referencesInText(c.text())), [{ kind: 'file', file_id: 'f1', name: 'q3 report.pdf', source: 'upload' }], '...with its typed reference')
     await c.type('@[File: q3 report.pdf] and more'); eq(plain(w.referencesInText(c.text())).length, 1, 'the token typed on: still one reference')
-    await c.type('and more'); eq(w.referencesInText(c.text()), [], 'a deleted token drops its reference')
+    await c.type('and more'); eq(plain(w.referencesInText(c.text())), [], 'a deleted token drops its reference')
     // a template
     await c.type('@template pit'); await c.key('Enter')
     eq([c.text(), plain(w.referencesInText(c.text()))], ['@[Template: Pitch deck] ', [{ kind: 'template', template_id: 't2', name: 'Pitch deck' }]], 'a template pick: token + reference')
@@ -805,7 +805,7 @@ async function mentionSuite(overrides = {}) {
     await c.type('@element'); eq([c.rows().length, noteOf(c), c.menu().props['data-studio-chat-commands-menu']], [0, null, 'mentions'], '"@element" with nothing selected: the menu says so')
     ok(c.markup().includes('Select an element on the slide first.'), '...in words')
     c.records.calls.length = 0; const ev = await c.key('Enter'); eq([ev.prevented, c.records.calls], [1, [['submit', '@element']]], '...and Enter sends as it always did (a menu with nothing to pick takes nothing)')
-    c.state.element = elementRef; await c.type('@element'); eq(c.labels(), ['Mention Selected element, Chart · slide 3'], 'with an element selected: the Element section')
+    c.state.element = elementRef; await c.set({}); await c.type('@element'); eq(c.labels(), ['Mention Selected element, Chart · slide 3'], 'with an element selected: the Element section')
     await c.key('Enter'); eq([c.text(), plain(w.referencesInText(c.text()))], ['@[Element: Chart · slide 3] ', [elementRef]], 'an element pick: token + the one element reference Studio already builds')
     ok(w.addChatCommandsFields({ references: [{ ...elementRef, element_id: 'other' }] }, c.text()).references.filter(r => r.kind === 'element').length === 1, 'and on send there is still only one element reference')
     // mouse
@@ -825,6 +825,104 @@ async function mentionSuite(overrides = {}) {
   }
 }
 
+
+// ============================================================================================================================================
+// E. The REAL socket hook, base and this tree
+// ============================================================================================================================================
+const SESSION = 'sess-hook-1'
+function withFileText(rel, text, fn) {
+  if (text === null) return fn()
+  const target = path.join(root, rel), original = fs.readFileSync
+  fs.readFileSync = function (file, ...rest) { return path.resolve(String(file)) === target ? text : original.call(this, file, ...rest) }
+  try { return fn() } finally { fs.readFileSync = original }
+}
+async function mountHook({ env = {}, hookText = null } = {}) {
+  const world = createEnvironment({ processEnv: { ...BASE_ENV, NEXT_PUBLIC_STUDIO_V4_SHELL: 'true', NEXT_PUBLIC_CHAT_DIRECTIVES: 'true', ...env } })
+  const user = { id: 'synthetic-user', email: 'synthetic-user@example.invalid' }
+  const loader = createModuleLoader({ root, globals: world.globals, stubs: { react: React }, fileStubs: { 'hooks/use-auth': { useAuth: () => ({ user, isLoading: false }) } } })
+  const hookModule = withFileText(HOOK, hookText, () => loader.load(HOOK))
+  const probe = { api: null, reference: null }
+  function Probe() {
+    probe.api = hookModule.useDecksterWebSocketV2({ autoConnect: false, existingSessionId: SESSION, onMessage() {}, getChatElementReference: () => probe.reference })
+    return null
+  }
+  const rootNode = new Root()
+  const settle = async () => { for (let quiet = 0, rounds = 0; quiet < 2; rounds++) { if (rounds > 80) throw new Error('hook did not settle'); await world.macrotask(); quiet = rootNode.flush() ? 0 : quiet + 1 } }
+  rootNode.setElement(React.createElement(Probe))
+  await settle()
+  probe.api.ensureConnected()
+  await world.clock.advance(0, settle)
+  world.sockets[0].serverOpen()
+  await world.clock.advance(0, settle)
+  const sent = () => world.outbound.filter(item => item.data !== 'ping').map(item => item.data)
+  return {
+    probe, wire: loader.load(WIRE), sent,
+    async send(...args) { const accepted = probe.api.sendMessage(...args); await world.clock.advance(0, settle); return accepted },
+    frames: () => sent().map(raw => JSON.parse(raw)).filter(frame => frame.type === 'user_message'),
+    unmount: () => rootNode.unmount(),
+  }
+}
+
+async function hookSuite(over = {}) {
+  const headHook = over[HOOK] ?? readOwn(HOOK)
+  const baseHook = hasBase ? git('show', `${strip.BASE_COMMIT}:${HOOK}`) : null
+  const SENDS = [
+    ['hello'], ['Add a slide after slide 3 about growth'], ['Use @[File: q3 report.pdf] and @[Theme: Midnight (saved)] on @[Template: Board update]', 'store-1', 2, { deepResearch: true }],
+    ['@[Slide 2: Market size] shorter'], ['Make @[Element: Chart · slide 3] bigger', null, 0, { theme: { mode: 'preset', preset_id: 'corporate_light' } }],
+  ]
+  const picks = wire => {
+    wire.registerMention(wire.fileToken('q3 report.pdf'), { kind: 'file', file_id: 'f1', name: 'q3 report.pdf', source: 'upload' })
+    wire.registerMention(wire.themeToken('Midnight', 'saved'), { kind: 'theme', theme_id: 'u-77', name: 'Midnight', source: 'saved' })
+    wire.registerMention(wire.templateToken('Board update'), { kind: 'template', template_id: 't1', name: 'Board update' })
+    wire.registerMention(wire.elementToken('Chart · slide 3'), { kind: 'element', element_id: 'el_chart_7f3a', element_type: 'CHART', slide_index: 2, slide_id: 'L2', label: 'Chart · slide 3' })
+    wire.registerCommand('add_slide', /^\s*Add a slide after slide \d+/)
+  }
+  // -- flag off (every way of being off): the same bytes as the base, with picks sitting in the registry ---------------------------------------------------------
+  if (baseHook) {
+    for (const [name, env] of [['unset', {}], ['commands only', { NEXT_PUBLIC_STUDIO_CHAT_COMMANDS: 'true', NEXT_PUBLIC_STUDIO_V4_SHELL: 'true' }], ['everything but commands', { NEXT_PUBLIC_STUDIO_CHAT_CLEAN: 'true', NEXT_PUBLIC_CHAT_MENTIONS: 'true', NEXT_PUBLIC_CHAT_ELEMENT_REFINE: 'true' }]]) {
+      const offEnv = name === 'commands only' ? { ...env, NEXT_PUBLIC_STUDIO_CHAT_CLEAN: 'false' } : env
+      const base = await mountHook({ env: offEnv, hookText: baseHook }), head = await mountHook({ env: offEnv, hookText: headHook })
+      picks(head.wire)
+      for (const args of SENDS) { await base.send(...args); await head.send(...args) }
+      eq(head.sent(), base.sent(), `flag off (${name}): the head hook puts the same bytes on the socket as the base for ${SENDS.length} sends`)
+      ok(head.frames().length === SENDS.length && head.frames().every(frame => !('command' in frame.data) && !(frame.data.client_caps ?? []).some(cap => cap === 'mentions2' || cap === 'commands1')), `flag off (${name}): no cap, no command`)
+      eq(head.frames().map(frame => frame.data.references ?? null), base.frames().map(frame => frame.data.references ?? null), `flag off (${name}): the same references (K1 and the element refine, as before)`)
+      base.unmount(); head.unmount()
+    }
+  }
+  // -- flag on ---------------------------------------------------------------------------------------------------------------------------------------------------------------------
+  const ENV_ON = { ...ON }
+  const off = await mountHook({ env: {}, hookText: headHook })
+  const on = await mountHook({ env: ENV_ON, hookText: headHook })
+  picks(on.wire)
+  for (const args of SENDS) { await off.send(...args); await on.send(...args) }
+  const [f0, f1, f2, f3, f4] = on.frames().map(frame => frame.data)
+  const [o0, o1, o2, o3, o4] = off.frames().map(frame => frame.data)
+  eq(f0.client_caps, ['mdc1', 'mentions2', 'commands1'], 'flag on: the caps follow mdc1, on every message'); eq(o0.client_caps, ['mdc1'], 'flag off: mdc1 only')
+  ok(!('command' in f0) && !('references' in f0), 'flag on: a plain message carries neither')
+  eq([f1.command, f1.text], ['add_slide', 'Add a slide after slide 3 about growth'], 'flag on: the pre-filled request carries its command; the text is as typed')
+  eq(f2.references, [{ kind: 'file', file_id: 'f1', name: 'q3 report.pdf', source: 'upload' }, { kind: 'theme', theme_id: 'u-77', name: 'Midnight', source: 'saved' }, { kind: 'template', template_id: 't1', name: 'Board update' }], 'flag on: the picked file, theme and template references, in text order, exactly the agreed shape')
+  ok(!('command' in f2), 'flag on: the command was spent by the message before')
+  ok(!('references' in f3), 'flag on: a slide token alone adds nothing here (K1 owns it; no slides in this hook state)')
+  eq(f4.references, [{ kind: 'element', element_id: 'el_chart_7f3a', element_type: 'CHART', slide_index: 2, slide_id: 'L2', label: 'Chart · slide 3' }], 'flag on: a picked @Element is the one element reference (the refine flag is off here)')
+  eq(f2.deep_research, true, 'flag on: the options still travel as they did')
+  const strippedOf = data => { const copy = JSON.parse(JSON.stringify(data)); delete copy.references; delete copy.command; copy.client_caps = (copy.client_caps ?? []).filter(cap => cap !== 'mentions2' && cap !== 'commands1'); return copy }
+  eq(on.frames().map(frame => strippedOf(frame.data)), off.frames().map(frame => strippedOf(frame.data)), 'flag on adds only client_caps entries, references and command: every other field is the base\'s')
+  // the same picks are spent: a second send of the same text carries no references
+  await on.send(SENDS[2][0]); eq(on.frames().at(-1).data.references ?? null, null, 'flag on: a send spends the picks it used')
+  off.unmount(); on.unmount()
+  // -- flag on with the K1 slide mentions and the element refine: one element reference, slide references first -------------------------------------------------
+  const refined = await mountHook({ env: { ...ENV_ON, NEXT_PUBLIC_CHAT_MENTIONS: 'true', NEXT_PUBLIC_CHAT_ELEMENT_REFINE: 'true' }, hookText: headHook })
+  picks(refined.wire)
+  refined.probe.reference = { kind: 'element', element_id: 'el_live', element_type: 'IMAGE', slide_index: 4, slide_id: 'L4', label: 'Image · slide 5' }
+  await refined.send('Make it bigger'); await refined.send('Make @[Element: Chart · slide 3] bigger with @[File: q3 report.pdf]')
+  const [r0, r1] = refined.frames().map(frame => frame.data)
+  eq([r0.client_caps, r0.references], [['mdc1', 'element_refine1', 'mentions2', 'commands1'], [refined.probe.reference]], 'with the element refine on: its cap, then ours; the live selection is the one element reference')
+  eq(r1.references.filter(reference => reference.kind === 'element').map(reference => reference.element_id), ['el_chart_7f3a'], 'a picked @Element replaces the live selection: still exactly one')
+  eq(r1.references.map(reference => reference.kind), ['element', 'file'], '...and the file after it')
+  refined.unmount()
+}
+
 // ============================================================================================================================================
 // run
 // ============================================================================================================================================
@@ -838,5 +936,7 @@ await composerSuite()
 await commandSuite()
 await mentionSuite()
 console.log(`PASS D  the composer with real React: the menus, the keyboard, every command's effect, every mention kind (${checks} checks)`)
+await hookSuite()
+console.log(`PASS E  the real socket hook: flag off puts the base's bytes on the socket, flag on adds the caps, the references and the command (${checks} checks)`)
 release?.()
 console.log(`ALL PASS test-studio-chat-commands (partial): ${checks} checks`)
