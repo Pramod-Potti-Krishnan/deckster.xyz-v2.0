@@ -6,6 +6,9 @@
 // types/build-narration.ts (three optional fields) and components/build-narration/use-stage-walkthrough.ts (one import and one line: the narration's own page turn tells the flow hook before the viewer reports it,
 // so that report is not read as the user navigating). No existing line of app code is rewritten (a later change that stacks on this one, or one this is stacked on, may only insert too).
 // Strip the marked lines and each file is its base, byte for byte.
+// A follow-up ("Flow control: one held-state line ...", 26 Oct) adds one more file to that list, components/build-narration/director-presence.tsx (the chat's presence row): while the amend bar is drawn and the build is held, the row
+// drops its dot and its "Paused - your progress is saved" words (the bar says it, with the buttons) and keeps its Build log toggle. Five marked lines, pure insertions: one import, the decision and its early return, and the two lines that
+// wrap the dot and the words in a fragment. It was cut from a studio head that already holds the change above (FOLLOW_UP_BASE_COMMIT), so its own checks read that base, not BASE_COMMIT.
 // One older proof is taught to read through the registry, as FRONTEND-2's perceived-speed change taught three: the perceived-speed proof's scope check reads the committed diff BASE..HEAD and wants exactly its own
 // files, which a registered later change's files are not. Each taught line is one whole line that carries the marker and replaces one whole line; FLOW_CONTROL_EDITS holds [line now, line before] and
 // stripFlowControl puts the old line back, so a proof that holds that file to a base reads it as it was. (The theme/export proof slices the page by the positions of a parse that does not see this change's lines:
@@ -13,13 +16,20 @@
 // How the older pins reach it: this change REGISTERS its files, its .env.example block and this strip (scripts/studio-later-changes.mjs, three lines). Plain node, no imports, nothing read from disk or git here.
 
 export const BASE_COMMIT = '875334faa648ed72e63b260457ca2fc0a2020c0c' // origin/studio-v4-dev-preparation-code at the start of this change (#518)
+export const FOLLOW_UP_BASE_COMMIT = 'a0ff9d4596fd9905e80ecd96682a454c1bf9ab60' // origin/studio-v4-dev-preparation-code (#530 merged) at the start of the held-state follow-up: this change is already in it
 export const FLOW_CONTROL_FLAGS = ['NEXT_PUBLIC_STUDIO_FLOW_FOCUS', 'NEXT_PUBLIC_STUDIO_FLOW_AMEND', 'NEXT_PUBLIC_STUDIO_FLOW_AMEND_INSTRUCTIONS']
 export const FLOW_CONTROL_MARKER = 'FLOW-CONTROL'
 /** The marker as a WHOLE token: FLOW-CONTROL-X or X-FLOW-CONTROL are not this change's. */
 export const FLOW_CONTROL_MARKER_RE = /(?<![\w-])FLOW-CONTROL(?![\w-])/
 
+/** Existing files that get marked lines, as the change first shipped (read against BASE_COMMIT). */
+export const FLOW_CONTROL_ORIGINAL_FILES = ['app/builder/page.tsx', 'hooks/use-deckster-websocket-v2.ts', 'types/build-narration.ts', 'components/build-narration/use-stage-walkthrough.ts']
+
+/** Existing files the held-state follow-up adds marked lines to (read against FOLLOW_UP_BASE_COMMIT). */
+export const FLOW_CONTROL_FOLLOW_UP_FILES = ['components/build-narration/director-presence.tsx']
+
 /** Existing files that get marked lines. */
-export const FLOW_CONTROL_FILES = ['app/builder/page.tsx', 'hooks/use-deckster-websocket-v2.ts', 'types/build-narration.ts', 'components/build-narration/use-stage-walkthrough.ts']
+export const FLOW_CONTROL_FILES = [...FLOW_CONTROL_ORIGINAL_FILES, ...FLOW_CONTROL_FOLLOW_UP_FILES]
 
 /** The older proof this change teaches: [line now, line before] per edit, whole lines (a line now carries the marker and occurs once in its file; the line before is the base's). */
 export const FLOW_CONTROL_EDITS = {
