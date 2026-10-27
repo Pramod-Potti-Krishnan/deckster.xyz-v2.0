@@ -44,6 +44,9 @@ const FLAG = 'NEXT_PUBLIC_STUDIO_BUILD_FAILURE_END'
 const read = rel => fs.readFileSync(path.join(root, rel), 'utf8')
 const sha = text => crypto.createHash('sha256').update(text).digest('hex')
 const baselineFile = path.join(repo, 'scripts/fixtures/build-failure-end/baselines/flag-off.json')
+// Objects made inside the harness's vm contexts (one per run) and the reducer's sandbox have their own prototypes: compare them as plain JSON.
+const plain = value => JSON.parse(JSON.stringify(value))
+const same = (actual, expected, message) => assert.deepEqual(plain(actual), plain(expected), message)
 
 let passed = 0, failed = 0
 async function check(label, fn) {
@@ -92,50 +95,50 @@ console.log('1. the failure turn, through the real socket hook, narration hook, 
 const view = (run, label) => run.checkpoints.find(c => c.label === label)
 await check('every run is clean: the fixtures\' own expectations hold, no blocked network, no uncaught error, no console error', () => {
   for (const [key, run] of Object.entries(runs)) {
-    assert.deepEqual(run.failures, [], key)
-    assert.deepEqual(run.diagnostics.blockedNetwork, [], key); assert.deepEqual(run.diagnostics.uncaught, [], key); assert.deepEqual(run.diagnostics.console, [], key)
+    same(run.failures, [], key)
+    same(run.diagnostics.blockedNetwork, [], key); same(run.diagnostics.uncaught, [], key); same(run.diagnostics.console, [], key)
   }
 })
 await check('flag OFF is today\'s defect: 2.5 minutes after Director\'s failure reply Studio still reads "Building your slides... 0 of 5 built" with Pause and Stop', () => {
   const end = view(runs['mine/typed-approval-fails|off'], 'end')
   assert.equal(end.narration.phase, 'building'); assert.equal(end.narration.active, true); assert.equal(end.view.ribbon, true)
   assert.match(end.view.headline, /^Building your slides…/); assert.match(end.view.headline, /0\s*of 5 built/)
-  assert.deepEqual(end.view.buttons.map(b => b.text), ['Pause', 'Stop'])
+  same(end.view.buttons.map(b => b.text), ['Pause', 'Stop'])
   assert.equal(end.narration.slideCount, 5); assert.equal(end.narration.slidesDone, 0); assert.equal(end.narration.buildId, null)
   assert.equal(end.snapshotStored, true, 'the stuck build is even kept for a reload')
 })
 await check('flag ON: the failure reply ends the building state: no ribbon, no "0 of 5 built", no Pause / Stop, nothing stored for a reload, 2.5 minutes later too', () => {
   const end = view(runs['mine/typed-approval-fails|on'], 'end')
   assert.equal(end.narration.phase, 'idle'); assert.equal(end.narration.active, false)
-  assert.equal(end.view.ribbon, false); assert.equal(end.view.headline, null); assert.deepEqual(end.view.buttons, [])
+  assert.equal(end.view.ribbon, false); assert.equal(end.view.headline, null); same(end.view.buttons, [])
   assert.equal(end.snapshotStored, false)
   assert.equal(end.narration.slideCount, 5, 'the outline stays'); assert.equal(end.narration.slidesDone, 0)
   assert.equal(end.deck.activeVersion, runs['mine/typed-approval-fails|off'].checkpoints.at(-1).deck.activeVersion, 'the deck on the canvas is the same')
 })
 await check('flag ON is flag OFF until the reply: the outline gate and the status on screen read the same (the loader shows "building" while the tools run), and not one extra socket byte or handler call', () => {
-  for (const label of ['outline gate', 'status on screen']) assert.deepEqual(view(runs['mine/typed-approval-fails|on'], label), view(runs['mine/typed-approval-fails|off'], label), label)
+  for (const label of ['outline gate', 'status on screen']) same(view(runs['mine/typed-approval-fails|on'], label), view(runs['mine/typed-approval-fails|off'], label), label)
   assert.equal(view(runs['mine/typed-approval-fails|on'], 'status on screen').narration.phase, 'building')
-  assert.deepEqual(view(runs['mine/typed-approval-fails|on'], 'status on screen').view.buttons.map(b => b.text), ['Pause', 'Stop'])
+  same(view(runs['mine/typed-approval-fails|on'], 'status on screen').view.buttons.map(b => b.text), ['Pause', 'Stop'])
   const off = runs['mine/typed-approval-fails|off'], on = runs['mine/typed-approval-fails|on']
-  assert.equal(on.outbound, off.outbound); assert.deepEqual(on.calls, off.calls); assert.deepEqual(on.controlRequests, off.controlRequests)
+  assert.equal(on.outbound, off.outbound); same(on.calls, off.calls); same(on.controlRequests, off.controlRequests)
 })
 await check('flag ON: a real build after the failure starts as usual (typed build frames), and its clock is the new build\'s, not the stuck one (flag off shows the stale 2:41)', () => {
   const on = view(runs['mine/real-build-after-the-failure|on'], 'end'), off = view(runs['mine/real-build-after-the-failure|off'], 'end')
-  for (const end of [on, off]) { assert.equal(end.narration.phase, 'building'); assert.equal(end.narration.buildId, 'bld_46a5295c9574'); assert.deepEqual(end.view.buttons.map(b => b.text), ['Pause', 'Stop']) }
+  for (const end of [on, off]) { assert.equal(end.narration.phase, 'building'); assert.equal(end.narration.buildId, 'bld_46a5295c9574'); same(end.view.buttons.map(b => b.text), ['Pause', 'Stop']) }
   assert.match(on.view.headline, /0:0\d/); assert.match(off.view.headline, /2:4\d/)
 })
 
 console.log('2. a normal build, pause, stop and resume are unchanged')
 await check('pause and resume of a real build: flag on equals flag off (checkpoints, socket bytes, handler calls, build-control requests), and both pause and resume reached Director', () => {
   const off = runs['mine/pause-and-resume-a-real-build|off'], on = runs['mine/pause-and-resume-a-real-build|on']
-  assert.deepEqual(identity(on), identity(off)); assert.deepEqual(on.checkpoints, off.checkpoints)
-  assert.deepEqual(on.controlRequests.map(r => r.action), ['pause', 'resume']); assert.deepEqual(off.controlRequests.map(r => r.action), ['pause', 'resume'])
+  assert.deepEqual(identity(on), identity(off)); same(on.checkpoints, off.checkpoints)
+  same(on.controlRequests.map(r => r.action), ['pause', 'resume']); same(off.controlRequests.map(r => r.action), ['pause', 'resume'])
 })
 await check('the J7 recording (build, Stop, reload, typed resume; 3 scenarios x Director with and without !490): flag on equals flag off in every checkpoint, socket byte, handler call and build-control request', () => {
   for (const scenario of j7Scenarios) for (const director of ['off', 'on']) {
     const off = runs[`j7/${scenario}/${director}|off`], on = runs[`j7/${scenario}/${director}|on`]
-    assert.deepEqual(on.checkpoints, off.checkpoints, `${scenario}/${director}`); assert.equal(on.outbound, off.outbound, `${scenario}/${director}`)
-    assert.deepEqual(on.calls, off.calls, `${scenario}/${director}`); assert.deepEqual(on.controlRequests, off.controlRequests, `${scenario}/${director}`)
+    same(on.checkpoints, off.checkpoints, `${scenario}/${director}`); assert.equal(on.outbound, off.outbound, `${scenario}/${director}`)
+    same(on.calls, off.calls, `${scenario}/${director}`); same(on.controlRequests, off.controlRequests, `${scenario}/${director}`)
     assert.ok(off.checkpoints.length > 0, `${scenario}/${director}: the run has checkpoints`)
   }
   assert.equal(j7Scenarios.length * 2, 6)
@@ -154,7 +157,6 @@ for (const [key, run] of Object.entries(runs)) {
 
 console.log('4. the reducer and the hook in isolation')
 const T = 1_700_000_000_000
-const plain = value => JSON.parse(JSON.stringify(value))
 const transpile = (text, rel, sandbox) => {
   const mod = { exports: {} }
   vm.runInNewContext(ts.transpileModule(text, { fileName: rel, compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2020 } }).outputText, { module: mod, exports: mod.exports, ...sandbox })
@@ -190,7 +192,8 @@ function reducerChecks(reducerText) {
   stay('idle', init()); stay('planning', R(init(), { type: 'session_start', ts: T })); stay('strawman', R(init(), { type: 'strawman', ghosts: GHOSTS, ts: T }))
   stay('awaiting_user', R(R(init(), { type: 'strawman', ghosts: GHOSTS, ts: T }), { type: 'awaiting_user', ts: T + 1 }))
   stay('inactive building (receded)', R(unbacked(), { type: 'dismiss' }))
-  for (const phase of ['building', 'qa', 'finalizing', 'complete', 'error', 'paused', 'stopped']) {
+  // (a typed "building" with no slide started yet is, for the reducer alone, a building with nothing built behind it: the HOOK is what tells a status-opened one from a build-frame-opened one, tested below)
+  for (const phase of ['qa', 'finalizing', 'complete', 'error', 'paused', 'stopped']) {
     stay(`typed ${phase}`, R(R(init(), { type: 'strawman', ghosts: GHOSTS, ts: T }), { type: 'typed_phase', payload: { build_id: 'b1', phase, label: phase, slide_count: 5 }, ts: T + 1 }))
   }
   stay('paused by the user', R(unbacked(), { type: 'control', control: 'paused', ts: T + 3 }))
@@ -200,6 +203,13 @@ function reducerChecks(reducerText) {
   stay('a slide is being built (per-slide text)', R(unbacked(), { type: 'ephemeral', id: 'e2', text: 'Building slide 1/5 — chart', ts: T + 3 }))
   stay('a slide is built', R(unbacked(), { type: 'typed_slide_built', payload: { build_id: 'b2', slide_index: 0, slide_count: 5, presentation_id: 'deck' }, ts: T + 3 }))
   stay('a slide failed', R(R(unbacked(), { type: 'typed_phase', payload: { build_id: 'b2', phase: 'building', label: 'Building', slide_count: 5 }, ts: T + 3 }), { type: 'typed_event', payload: { build_id: 'b2', seq: 0, scope: 'slide', stage: 'render', status: 'error', text: 'x', slide_index: 1 }, ts: T + 4 }))
+  // each clause of the guard on its own (a restored snapshot can hold any one without the others)
+  const restored = patch => R(init(), { type: 'hydrate', state: { ...unbacked(), ...patch } })
+  stay('slidesDone alone', restored({ slidesDone: 1 }))
+  stay('a per-slide event alone', restored({ slideEvents: { 0: [{ id: 'x', scope: 'slide', stage: 'render', status: 'progress', text: 'x', slideIndex: 0, seq: 0, ts: T }] } }))
+  stay('a slide state alone', restored({ slideStates: { ...unbacked().slideStates, 0: 'building' } }))
+  stay('a built slide state alone', restored({ slideStates: { ...unbacked().slideStates, 0: 'built' } }))
+  assert.equal(lib.isUnbackedBuilding(restored({})), true, 'the restored copy of an unbacked building is unbacked')
   assert.equal(lib.isUnbackedBuilding(R(unbacked(), { type: 'control', control: 'paused', ts: T + 3 })), false)
   // after the end the build can start again, from the same outline
   const again = (label, action, phase) => { const next = R(ended, action); assert.equal(next.phase, phase, label); assert.equal(next.active, true, label); assert.equal(next.ghosts.length, 5, label); return next }
