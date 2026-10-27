@@ -9,7 +9,7 @@
 //     route answers 503 { code: 'router_not_configured', retryable: false } before anything is sent. The key goes only into the Authorization header of the router call: never into a response, never into a log;
 //   - "Reusable defaults" = GET / PATCH {router}/v1/prefs/{user}; "This presentation" = this Studio session (ROUTER-2 confirmed the session id as the deck key): GET / PUT {router}/v1/prefs/{user}/sessions/{session},
 //     which REPLACES the whole map. So a Studio PATCH is a read-modify-write on both scopes: GET (ETag), refuse a stale If-Match, then write with If-Match. A group set to null means "use my defaults";
-//   - only the three text groups can be chosen in v1 (imagery and narration have no certified model); a choice is { preset: best | balanced | economy } or { model } or null, nothing else; and on the deck
+//   - only the three text groups can be chosen in v1 (imagery and narration have no certified model); a choice is { preset: quick | economy | balanced | best | max } or { model } or null, nothing else; and on the deck
 //     scope alone (ROUTER-2, model-router !42) { auto: true }: "Auto", Deckster's own choice for this presentation even when the person has a reusable default. It is validated exactly (only the key auto, only the
 //     boolean true), written to the router's session scope as { "auto": true }, refused here with a 400 on the user scope before any router call, and read back as { auto: true } rows. "Use my default" is
 //     still the group OMITTED from the deck map (null in the browser's body), and the user scope's "Auto" is still { group: null };
@@ -17,7 +17,7 @@
 //   - "Used for this deck" reads {router}/v1/usage/trace/{build_id}/timeline (the build id is the narrator's build_id, which Director uses as the router trace id) and returns ONLY the rows whose user_id
 //     is the session user's.
 
-import { MODEL_CHOICE_CHOOSABLE_GROUPS } from '@/lib/studio-model-choice'
+import { MODEL_CHOICE_CHOOSABLE_GROUPS, MODEL_CHOICE_PRESET_IDS } from '@/lib/studio-model-choice'
 
 export const MODEL_CHOICE_FLAG = 'NEXT_PUBLIC_STUDIO_MODEL_CHOICE'
 /** The router path segment of the deck scope: the Studio session (ROUTER-2, 26 Oct). The one place to change if the deck key ever becomes the presentation id ('presentations'). */
@@ -39,7 +39,8 @@ export const PLAIN_ID = /^[A-Za-z0-9][A-Za-z0-9_-]{0,127}$/
 const MODEL_SHAPE = /^[A-Za-z0-9][A-Za-z0-9._:/@+-]{0,254}$/
 const ETAG_SHAPE = /^(?:W\/)?"[\x21\x23-\x7e]{1,128}"$/
 const CODE_SHAPE = /^[A-Za-z0-9_]{1,48}$/
-const PRESETS = ['best', 'balanced', 'economy']
+/** The preset ids the router takes (quick, economy, balanced, best, max): the one list lib/studio-model-choice.ts keeps, which the picker and the slider offer too. */
+const PRESETS: readonly string[] = MODEL_CHOICE_PRESET_IDS
 
 export const routesOn = (env: Env) => env[MODEL_CHOICE_FLAG] === 'true'
 export const notFound = (): Outcome => ({ status: 404, body: { error: 'Not found' } })
@@ -88,7 +89,7 @@ export function parsePrefsPatch(body: unknown): { ok: true; changes: Changes } |
       if (choice.auto !== true) return refuse('Auto is { "auto": true }.')
       changes[group] = { auto: true }
     } else if ('preset' in choice) {
-      if (typeof choice.preset !== 'string' || !PRESETS.includes(choice.preset)) return refuse('A preset is best, balanced or economy.')
+      if (typeof choice.preset !== 'string' || !PRESETS.includes(choice.preset)) return refuse('A preset is quick, economy, balanced, best or max.')
       changes[group] = { preset: choice.preset }
     } else if ('model' in choice) {
       if (typeof choice.model !== 'string' || !MODEL_SHAPE.test(choice.model)) return refuse('A model is a catalogue model id.')

@@ -2,24 +2,24 @@
 // what a choice is, how it reads from and writes to the router's three text groups, which options the menu offers, what the chip says, and the two notes the menu carries. The requests, the ETags, the
 // 503 / 404 fallbacks and the device copy are the adapter's (lib/studio-model-choice.ts); nothing of that is repeated here.
 //
-// A choice is { tier: 'economy' | 'balanced' | 'best' } | { model: '<id>' } | { auto: true } | null. For a NEW deck (no session) and for the reusable defaults, null is "Auto" (Deckster chooses). For a deck
+// A choice is { tier: 'quick' | 'economy' | 'balanced' | 'best' | 'max' } | { model: '<id>' } | { auto: true } | null. For a NEW deck (no session) and for the reusable defaults, null is "Auto" (Deckster chooses). For a deck
 // (a session) there are two ways to leave it to Deckster: { auto: true }, the deck's own Auto (Deckster chooses, whatever the reusable default says), and null, "Use my default" (the deck has no choice of its own and
 // follows the reusable default). It applies to the three text groups together (planning_strategy, content_writing, research_analysis); imagery and narration stay "Fixed for now" and are never written. Tiers show as Fast / Balanced / Best (the wire value of Fast is "economy"). A specific model is offered only when it is
 // certified (selectable) in all three groups; a tier only when the model it names is certified in each live group (a group the catalogue does not open keeps the router's own tier, as the Intelligence page does).
 // With no catalogue (not loaded, not switched on, not reachable) the tiers are offered and no specific model is.
 
-import { P2_DEFAULT_CHOICE, type P2PresetId, type P2TaskId } from '@/lib/studio-intelligence-p2'
+import { P2_DEFAULT_CHOICE, type P2TaskId } from '@/lib/studio-intelligence-p2'
 import { modelTitle, providerLabel, providerOf } from '@/lib/studio-model-catalog'
 import {
-  MODEL_CHOICE_AUTO, MODEL_CHOICE_AUTO_LABEL, MODEL_CHOICE_CHOOSABLE_GROUPS, MODEL_CHOICE_DECK_PARAM, MODEL_CHOICE_TIERS, MODEL_CHOICE_USE_DEFAULT, choiceGroup, deckIdFromSearch, modelChoiceDefaults, offeredModels, presetModel,
-  type ChoiceCatalogue, type DeviceReason, type ModelChoices, type SaveMode,
+  MODEL_CHOICE_AUTO, MODEL_CHOICE_AUTO_LABEL, MODEL_CHOICE_CHOOSABLE_GROUPS, MODEL_CHOICE_DECK_PARAM, MODEL_CHOICE_PRESET_IDS, MODEL_CHOICE_TIERS, MODEL_CHOICE_USE_DEFAULT, choiceGroup, deckIdFromSearch, modelChoiceDefaults, offeredModels, presetModel,
+  type ChoiceCatalogue, type DeviceReason, type ModelChoices, type PresetId, type SaveMode,
 } from '@/lib/studio-model-choice'
 
 export const STUDIO_MODEL_PICKER_FLAG = 'NEXT_PUBLIC_STUDIO_MODEL_CHOICE'
 
 // ---------------------------------------------------------------------------------------------------------------- what a choice is
 
-export type PickerTier = P2PresetId
+export type PickerTier = PresetId
 export type ModelChoice = { tier: PickerTier } | { model: string } | { auto: true } | null
 /** What the three text groups say together: Auto (`deck: true` when it is the deck's own Auto, { auto: true }), one tier, one model, or (set apart, on the Intelligence page) different things. */
 export type PickerState = { kind: 'auto'; deck?: true } | { kind: 'tier'; tier: PickerTier } | { kind: 'model'; model: string } | { kind: 'mixed' }
@@ -29,8 +29,12 @@ const MIXED: PickerState = { kind: 'mixed' }
 
 /** The three groups a choice is written to, as task ids (the router's group ids are the task ids). */
 export const PICKER_GROUPS = MODEL_CHOICE_CHOOSABLE_GROUPS as readonly P2TaskId[]
-/** The tiers in the order the menu lists them (cheapest first). */
-export const PICKER_TIERS: readonly PickerTier[] = ['economy', 'balanced', 'best']
+/** The tiers in the order the menu lists them while the catalogue sends no preset_order: quickest and cheapest first (Quick, Fast, Balanced, Best, Max). */
+export const PICKER_TIERS: readonly PickerTier[] = MODEL_CHOICE_PRESET_IDS
+/** The order the catalogue gives the presets (its top-level preset_order, only the ids Studio knows), else PICKER_TIERS. */
+export const orderedPresets = (catalogue: ChoiceCatalogue | null): readonly PickerTier[] => catalogue?.presetOrder ?? PICKER_TIERS
+/** A preset's one-line hint from the catalogue's preset_hints (a sub-line under its name), or null. */
+export const presetHint = (catalogue: ChoiceCatalogue | null, tier: PickerTier): string | null => catalogue?.presetHints[tier] ?? null
 const isTier = (value: string): value is PickerTier => (PICKER_TIERS as readonly string[]).includes(value)
 const tierMeta = (tier: PickerTier) => MODEL_CHOICE_TIERS.find(entry => entry.id === tier) as { id: PickerTier; label: string; hint: string }
 export const tierLabel = (tier: PickerTier) => tierMeta(tier).label
@@ -197,8 +201,8 @@ export function pickerMenu(args: { catalogue: ChoiceCatalogue | null; state: Pic
       { id: 'default', label: `${MODEL_CHOICE_USE_DEFAULT}: ${args.userState ? plainName(args.userState, catalogue) : PICKER_AUTO_LABEL}`, detail: null, hint: null, choice: null, selected: following },
     ]
     : [{ id: 'auto', label: PICKER_AUTO_LABEL, detail: PICKER_AUTO_DETAIL, hint: null, choice: null, selected: state.kind === 'auto' }]
-  for (const tier of PICKER_TIERS) {
-    if (tierOffered(catalogue, tier)) main.push({ id: tier, label: tierLabel(tier), detail: null, hint: tierHint(catalogue, tier), choice: { tier }, selected: !following && state.kind === 'tier' && state.tier === tier })
+  for (const tier of orderedPresets(catalogue)) {
+    if (tierOffered(catalogue, tier)) main.push({ id: tier, label: tierLabel(tier), detail: presetHint(catalogue, tier), hint: tierHint(catalogue, tier), choice: { tier }, selected: !following && state.kind === 'tier' && state.tier === tier })
   }
   const common = commonModels(catalogue)
   const models: PickerOption[] = common.map(slug => ({

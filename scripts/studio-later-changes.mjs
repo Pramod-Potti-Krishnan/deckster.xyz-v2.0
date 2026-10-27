@@ -41,6 +41,7 @@ export const LATER_CHANGE_FILES = new Set([
   ...(await import('./studio-arrange-strip.mjs')).STUDIO_ARRANGE_SCOPE_FILES, // LATER-CHANGE: FRONTEND-2, Arrange works in the Studio inspector, selecting no longer raises (NEXT_PUBLIC_STUDIO_ARRANGE)
   ...(await import('./studio-model-choice-strip.mjs')).MODEL_CHOICE_SCOPE_FILES, // LATER-CHANGE: FRONTEND-2, P3-10 model choice: the Intelligence picker uses the live model catalogue (NEXT_PUBLIC_STUDIO_MODEL_CHOICE)
   ...(await import('./studio-model-slider-strip.mjs')).MODEL_SLIDER_SCOPE_FILES, // LATER-CHANGE: FRONTEND-2, P3-10 model choice, the slider variant of the composer picker, stacked on the line above (NEXT_PUBLIC_STUDIO_MODEL_CHOICE; no .env.example block, no strip of its own)
+  ...(await import('./studio-model-five-strip.mjs')).MODEL_FIVE_SCOPE_FILES, // LATER-CHANGE: FRONTEND-2, P3-10 model choice, five presets (Quick, Fast, Balanced, Best, Max) on the slider and the compact picker, on dev after the line above (NEXT_PUBLIC_STUDIO_MODEL_CHOICE; no .env.example block, no strip of its own)
   // one line per later change, above this comment
 ])
 

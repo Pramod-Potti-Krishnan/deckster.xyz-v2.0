@@ -81,6 +81,8 @@
 .mpick-stop-name { max-width: 100%; overflow: hidden; font-size: 11.5px; text-overflow: ellipsis; white-space: nowrap; }
 .mpick-stop[data-active="true"] { color: inherit; }
 .mpick-stop[data-active="true"] .mpick-stop-name { font-weight: 600; }
+/* The one-line hint of the stop under the thumb (the catalogue's preset_hints), as the sub-line of that stop. */
+.mpick-stop-sub { margin: 2px 0 0; color: var(--mpick-muted, hsl(var(--muted-foreground, 240 3.8% 46.1%))); font-size: 10px; line-height: 1.4; text-align: center; }
 .mpick-caption { margin: 8px 0 0; color: var(--mpick-muted, hsl(var(--muted-foreground, 240 3.8% 46.1%))); font-size: 10px; line-height: 1.4; }
 
 /* Advanced: closed until it is opened. */
