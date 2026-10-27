@@ -2482,6 +2482,8 @@ function AuthenticatedBuilderContent({ authScopeUserId }: { authScopeUserId: str
             slideStructure: state.slideStructure
           }
         }
+        const deckSyncSettled = Boolean(deckSyncRowCountRef.current) && isFinal && Boolean(state.presentationId) && !deckSyncBuildingRef.current // DECK-SYNC-TRUTH (reconnect; NEXT_PUBLIC_STUDIO_DECK_SYNC_TRUTH, default off): a Director state frame for a finished deck with no build in progress (the flag on)
+        if (deckSyncSettled) delete updates.slideCount // DECK-SYNC-TRUTH (reconnect): Director's slide_count is the build's and a reconnect re-sends it after a chat delete (3 for a 2-slide deck); it must not raise the row. Layout's inventory count is written below, once Layout answers
 
         if (isBlank) {
           updates.blankPresentationUrl = state.presentationUrl
@@ -2498,6 +2500,7 @@ function AuthenticatedBuilderContent({ authScopeUserId }: { authScopeUserId: str
         }
 
         persistenceRef.current.updateMetadata(updates, { passive: true }) // NEXT_PUBLIC_STUDIO_SESSION_OPEN_READ_ONLY: Director's own state frame
+        if (deckSyncSettled) { const deckSyncSession = currentSessionIdRef.current; void deckSyncRowCountRef.current?.(state.presentationId ?? '', () => currentSessionIdRef.current === deckSyncSession) } // DECK-SYNC-TRUTH (reconnect): the row takes the deck's real count (Layout's inventory), unless a build starts, the session or the deck changes, or Layout cannot answer: then the row keeps its count
       } else {
         console.error('PERSISTENCE BLOCKED:', {
           reason: !currentSessionIdRef.current ? 'No currentSessionId' : 'No persistenceRef.current',

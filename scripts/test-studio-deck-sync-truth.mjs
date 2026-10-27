@@ -42,7 +42,7 @@ const SOCKET_HOOK = 'hooks/use-deckster-websocket-v2.ts'
 const DASH = 'app/(app)/dashboard/page.tsx' // the Decks page: the session list's mapping and the deck card
 const CARD_LIB = 'lib/studio-deck-card-count.ts'
 const LIBS = [LIB, NOTICE_LIB, CARD_LIB, 'lib/slide-compose-async.ts', 'lib/studio-slide-count-sync.ts', 'lib/studio-deck-mutation-refresh.ts', 'lib/studio-deck-mutation-dedupe.ts',
-  'lib/slide-rail-identity.ts', 'lib/builder-presentation-ownership.ts', 'lib/studio-bulk-edit-wire.ts', 'lib/director-sync-recovery.ts']
+  'lib/slide-rail-identity.ts', 'lib/builder-presentation-ownership.ts', 'lib/studio-bulk-edit-wire.ts', 'lib/director-sync-recovery.ts', 'lib/studio-open-read-only.ts']
 const APP = [VIEWER, COMPONENT, HOOK, PAGE, SOCKET_HOOK, DASH]
 
 const sha = text => createHash('sha256').update(text).digest('hex')
@@ -130,6 +130,29 @@ function cutFunction(text, name) {
   return null
 }
 
+/** The call expression `name(...)` that starts at the first match of `re` (parenthesis-matched), e.g. the hook's options.onSessionStateChange({...}). */
+function cutCall(text, re) {
+  const m = re.exec(text)
+  if (!m) return null
+  let depth = 0
+  for (let i = m.index + m[0].indexOf('('); i < text.length; i++) {
+    if (text[i] === '(') depth++
+    else if (text[i] === ')' && --depth === 0) return text.slice(m.index, i + 1)
+  }
+  return null
+}
+/** The `{ ... }` block that follows the first match of `anchor` (brace-matched), with the text up to the block (an `if (...)` condition). */
+function cutIfBlock(text, anchor) {
+  const at = text.indexOf(anchor)
+  if (at < 0) return null
+  let depth = 0
+  for (let i = text.indexOf('{', at); i < text.length; i++) {
+    if (text[i] === '{') depth++
+    else if (text[i] === '}' && --depth === 0) return text.slice(at, i + 1)
+  }
+  return null
+}
+
 // ---------- recorded frames ----------
 const fixture = rel => JSON.parse(readFileSync(path.join(repoRoot, 'scripts/fixtures', rel), 'utf8'))
 const framesOf = rel => fixture(rel).frames
@@ -152,14 +175,17 @@ const SLIDES = E2E2.reads[0].slides.map(s => ({ slide_id: s.id, title: s.title }
 function createLayout() {
   const decks = { [FINAL]: SLIDES.map(s => ({ ...s })), [PREVIEW]: SLIDES.map(s => ({ ...s })) }
   const stash = []
+  let inventoryReads = 0
   return {
     count: id => decks[id].length,
+    reads: () => inventoryReads, // inventory GETs so far (the rail list's, the notice's, the row writer's)
     remove(id, index) { stash.push({ id, index, slide: decks[id].splice(index, 1)[0] }) },
     insert(id, index, slide) { decks[id].splice(index, 0, slide) },
     restore() { const { id, index, slide } = stash.pop(); decks[id].splice(index, 0, slide) },
     fetch: async url => {
       const m = /\/api\/presentations\/([^/]+)\/slides\/inventory$/.exec(String(url))
       if (!m || !decks[decodeURIComponent(m[1])]) return new Response('', { status: 404 })
+      inventoryReads++
       const id = decodeURIComponent(m[1])
       return new Response(JSON.stringify({ presentation_id: id, slide_count: decks[id].length,
         slides: decks[id].map((s, i) => ({ slide_index: i, slide_id: s.slide_id, title: s.title, layout: 'C1', thumbnail_url: null })) }), { status: 200, headers: { 'content-type': 'application/json' } })
@@ -169,7 +195,7 @@ function createLayout() {
 
 // ---------- the world: one page load of the Builder over Layout ----------
 // flag: the value of NEXT_PUBLIC_STUDIO_DECK_SYNC_TRUTH for this build (undefined = unset). The other flags are the ones Studio dev runs these frames under (the notice, S-03, the count settler, chat undo, count sync).
-function world({ sources, flag, layout, row, building = false, liveOverride = null, env: extraEnv = {}, session = true, shell = true }) {
+function world({ sources, flag, layout, row, building = false, liveOverride = null, env: extraEnv = {}, session = true, shell = true, quiet: quietOpen = false }) {
   const env = { NEXT_PUBLIC_STUDIO_DECK_CHANGED_NOTICE: 'true', NEXT_PUBLIC_STUDIO_DECK_MUTATION_REFRESH_ENABLED: 'true', NEXT_PUBLIC_STUDIO_DECK_MUTATION_DEDUPE: 'true',
     NEXT_PUBLIC_STUDIO_CHAT_UNDO: 'true', NEXT_PUBLIC_STUDIO_SLIDE_COUNT_SYNC_ENABLED: 'true', NEXT_PUBLIC_STUDIO_V4_SHELL: 'true', ...extraEnv }
   if (flag !== undefined) env[FLAG] = flag
@@ -215,15 +241,32 @@ function world({ sources, flag, layout, row, building = false, liveOverride = nu
   const restored = evalSnippet(restoreBlock + '\n}', ['sessionState'], '{ activeVersion, displayUrl, displayId }')({ sessionState: row })
   // the live state after the restore (restoreMessages sets presentationUrl / presentationId to the display ones and slideCount to the row's)
   const live = liveOverride ?? { presentationUrl: restored.displayUrl, presentationId: restored.displayId, slideCount: row.slideCount || null }
+  // the socket hook's own state as the restore leaves it (restoreMessages: the row's final deck slots, the version it chose, the row's count); Director's frames below change it the way the hook does, and `live` follows it (the page reads presentationUrl / presentationId / slideCount)
+  const hook = { presentationUrl: live.presentationUrl, presentationId: live.presentationId, finalPresentationUrl: row.finalPresentationUrl ?? null, finalPresentationId: row.finalPresentationId ?? null,
+    deckOwnerSessionId: 'b6cbb408', activeVersion: liveOverride ? 'final' : restored.activeVersion, isBlankPresentation: false, slideCount: live.slideCount, currentStatus: null }
+  const followHook = () => { live.presentationUrl = hook.presentationUrl; live.presentationId = hook.presentationId; live.slideCount = hook.slideCount }
 
   // -- the page: the real onDeckMutation handler and count settler --
   const builder = { override: null }
-  const ref = { current: { presentationUrl: live.presentationUrl, presentationId: live.presentationId, slideCount: live.slideCount, activeVersion: 'final', refreshToken: 0 } }
+  const ref = { current: { presentationUrl: live.presentationUrl, presentationId: live.presentationId, slideCount: live.slideCount, activeVersion: hook.activeVersion, refreshToken: 0 } }
   const effective = () => ownership.resolveEffectivePresentation({ livePresentationUrl: live.presentationUrl, livePresentationId: live.presentationId, liveSlideCount: live.slideCount, override: builder.override })
   // -- the session row and the page's own write to it (persistence.updateMetadata, which merges into the row), and the page's marked block that settles the row's count (cut from the source, run on every render) --
   const rowState = { ...row }
-  const rowWrites = []
-  const persistence = { updateMetadata: (updates, options) => { rowWrites.push({ updates: { ...updates }, options: options ?? null }); if (updates && 'slideCount' in updates) rowState.slideCount = updates.slideCount } }
+  const rowWrites = [] // every write the page asks for
+  const sentWrites = [] // what reaches the server: with quiet on (NEXT_PUBLIC_STUDIO_SESSION_OPEN_READ_ONLY: an opened session is read-only until the user acts) a passive write is trimmed by the real lib/studio-open-read-only.ts against the row as it was opened
+  const openReadOnly = load('lib/studio-open-read-only.ts')
+  const quietState = quietOpen && openReadOnly ? openReadOnly.beginOpenQuiet('b6cbb408', row) : null
+  const persistence = { updateMetadata: (updates, options) => {
+    rowWrites.push({ updates: { ...updates }, options: options ?? null })
+    let effective = updates
+    if (quietState && openReadOnly.isOpenQuiet(quietState, 'b6cbb408')) {
+      if (options?.passive) effective = openReadOnly.openQuietMetadata(quietState, updates)
+      else openReadOnly.releaseOpenQuiet(quietState)
+    }
+    if (!effective) return
+    sentWrites.push({ ...effective })
+    if ('slideCount' in effective) rowState.slideCount = effective.slideCount
+  } }
   const sessionIdRef = { current: session ? 'b6cbb408' : null }, persistenceRef = { current: session ? persistence : null }
   class ClockDate extends Date { constructor(...args) { super(...(args.length ? args : [clock.t])) } static now() { return clock.t } }
   let partial = false, composeJobs = [], templateMode = false // `building` is true for a final build, 'strawman' for a strawman build
@@ -259,6 +302,17 @@ function world({ sources, flag, layout, row, building = false, liveOverride = nu
   pageDeps.deckMutationCountSettlerRef = evalSnippet(cutSettler(pageText), pageNames, 'deckMutationCountSettlerRef', { ...globals, process: { env } })(pageDeps)
   pageDeps.deckSyncRowCountRef = blockRefs ? blockRefs.deckSyncRowCountRef : undefined // the same ref object at every render
   const onDeckMutation = evalSnippet('', [...pageNames, 'deckMutationCountSettlerRef', 'deckSyncRowCountRef'], `(${cutArrow(pageText, 'onDeckMutation: (message')})`, globals)(pageDeps)
+
+  // -- Director's state frames: the page's real onSessionStateChange callback (cut from the source), and the two ways the hook calls it for the final deck (cut from the hook): the sync_response recovery (a reconnect) and a presentation_url frame --
+  const silentConsole = { log() {}, warn() {}, error() {} }
+  const sessionCallbackText = cutArrow(pageText, 'onSessionStateChange: (state)')
+  const pageOnSessionStateChange = sessionCallbackText ? evalSnippet('', ['currentSessionIdRef', 'persistenceRef', 'slideComposerPresentationRef', 'deckSyncRowCountRef', 'deckSyncBuildingRef'], `(${sessionCallbackText})`, { console: silentConsole, Date: ClockDate })({
+    currentSessionIdRef: sessionIdRef, persistenceRef, slideComposerPresentationRef: ref, deckSyncRowCountRef: blockRefs ? blockRefs.deckSyncRowCountRef : undefined, deckSyncBuildingRef: blockRefs ? blockRefs.deckSyncBuildingRef : undefined }) : null
+  const recoveryLib = load('lib/director-sync-recovery.ts')
+  const syncCallbackText = cutIfBlock(socketText, 'if (recovery.didChangeDisplayedDeck && options.onSessionStateChange && newState.finalPresentationUrl)')
+  const runSyncCallback = syncCallbackText ? evalSnippet(syncCallbackText, ['recovery', 'options', 'newState'], 'null') : null
+  const finalFrameCallText = cutCall(socketText, /options\.onSessionStateChange\(\{\s*presentationUrl: message\.payload\.url,/)
+  const runFinalFrameCallback = finalFrameCallText ? evalSnippet(`${finalFrameCallText}`, ['options', 'message'], 'null') : null
 
   // -- the viewer (real snippets of presentation-viewer.tsx) --
   const buildingState = { current: false }
@@ -314,10 +368,10 @@ function world({ sources, flag, layout, row, building = false, liveOverride = nu
 
   function render() {
     const eff = effective()
-    ref.current = { presentationUrl: eff.presentationUrl, presentationId: eff.presentationId, slideCount: eff.slideCount, activeVersion: 'final', refreshToken: eff.refreshToken }
+    ref.current = { presentationUrl: eff.presentationUrl, presentationId: eff.presentationId, slideCount: eff.slideCount, activeVersion: hook.activeVersion, refreshToken: eff.refreshToken }
     runPageBlock()
     const url = withToken(eff.presentationUrl, eff.refreshToken)
-    if (viewer.url !== url) { viewer.canvas = layout.count(eff.presentationId); viewer.url = url; viewer.iframeReady = true } // a new URL reloads the iframe: it shows Layout's real deck
+    if (viewer.url !== url) { viewer.canvas = layout.count(eff.presentationId); viewer.url = url; viewer.iframeReady = true; lastSlideInfo = null } // a new URL reloads the iframe: it shows Layout's real deck (and the viewer forgets its last slide info)
     runSyncEffect()
     readRail()
   }
@@ -348,7 +402,27 @@ function world({ sources, flag, layout, row, building = false, liveOverride = nu
     clock, notices, viewer, effective, restored, advance, settle, truth, notice, compose, countSync, STUDIO_DECK_SYNC_TRUTH_ENABLED, noticeText, poll,
     reloadCount: () => reloads, controller: () => controller, setBuilding: value => { building = value; runPageBlock() },
     setPartial: value => { partial = value; runPageBlock() }, setComposeJobs: jobs => { composeJobs = jobs; runPageBlock() }, setTemplateMode: value => { templateMode = value; runPageBlock() },
-    rowCount: () => rowState.slideCount, rowWrites, sessionIdRef, persistenceRef,
+    rowCount: () => rowState.slideCount, rowWrites, sentWrites, sessionIdRef, persistenceRef, hook, layout,
+    /** One of Director's state frames reaching the page's onSessionStateChange (`state` as the hook passes it). */
+    sessionState(state) { pageOnSessionStateChange(state) },
+    /** A reconnect: Director's sync_response runs the hook's real recovery (lib/director-sync-recovery.ts) and, when it changes the displayed deck, the hook's own call to the page's callback; then the hook's state is committed and the page renders it. */
+    syncResponse(payload) {
+      const recovery = recoveryLib.applyFinalSyncRecovery(hook, payload, 'b6cbb408')
+      if (!recovery.didRecover) return recovery
+      const newState = { ...hook }
+      Object.assign(newState, recovery.state)
+      runSyncCallback({ recovery, options: { onSessionStateChange: pageOnSessionStateChange }, newState }) // inside the hook's state update: the page has not rendered the new state yet
+      Object.assign(hook, newState); followHook(); render()
+      return recovery
+    },
+    /** A presentation_url frame (the build's last frame, or Director's history replayed on a reconnect): the hook sets the final deck and its slide_count, then calls the page's callback. */
+    finalFrame(payload) {
+      const message = { payload }
+      runFinalFrameCallback({ options: { onSessionStateChange: pageOnSessionStateChange }, message })
+      Object.assign(hook, { finalPresentationUrl: payload.url, finalPresentationId: payload.presentation_id, deckOwnerSessionId: 'b6cbb408', isBlankPresentation: false, activeVersion: 'final',
+        presentationUrl: payload.url, presentationId: payload.presentation_id, slideCount: payload.slide_count, currentStatus: null }) // the hook's presentation_url case, pinned in the suite
+      followHook(); render()
+    },
     /** One of Director's own state frames while a build runs: the page's onSessionStateChange count rule (cut from the source) decides the count its write carries. */
     buildFrame({ slideCount }) {
       const state = { presentationId: live.presentationId, presentationUrl: live.presentationUrl, slideCount }
@@ -360,7 +434,7 @@ function world({ sources, flag, layout, row, building = false, liveOverride = nu
     /** the first render after a page load: the iframe loads and the viewer holds the prop's count, before any poll */
     boot() { render(); mountController() },
     /** Director's count rises (the page's live count, as a build's frames raise it); the viewer's iframe shows `canvas` slides */
-    setLiveCount(count, canvas) { live.slideCount = count; viewer.canvas = canvas; render() },
+    setLiveCount(count, canvas) { live.slideCount = count; hook.slideCount = count; viewer.canvas = canvas; render() },
     shot: label => ({ label, header: header(), footer: footer(), rail: viewer.railList, canvas: viewer.canvas, row: rowState.slideCount, notice: notices.length && notices[notices.length - 1] ? noticeText(notices[notices.length - 1].source) : null }),
     /** Director's chat op: Layout changes, then the recorded frame reaches the page's handler (the hook's checks have passed for the displayed deck). */
     async chat(frame, mutate, { presentationId = FINAL, ownerCurrent = true } = {}) {
@@ -422,6 +496,64 @@ async function e2e2Run({ sources, flag, focusBeforePoll = false, reloadFrom = 'b
   r.close()
   return result
 }
+
+// ---------- a stale count re-sent after a chat delete (B29): the reconnect ----------
+// Director's own slide_count is the BUILD's (3). After a chat delete the deck has 2. Three ways Director re-sends it on a settled final deck, each through the hook's real code and the page's real onSessionStateChange:
+//   'samePage'  a socket reconnect on the same page: sync_response (the hook's state is the final deck already: lib/director-sync-recovery.ts recovers nothing)
+//   'replay'    Director's history replayed on the reconnect: a presentation_url frame with the build's slide_count (the hook sets slideCount to it, then calls the page)
+//   'reload'    a page reload whose row restores the strawman first (activeVersion "strawman": the PR's open caveat) and a sync_response that promotes the final deck (Math.max(2, 3) in the recovery)
+const SYNC = (extra = {}) => ({ current_state: 'CONTENT_GENERATED', presentation_url: `${LAYOUT}/p/${FINAL}`, presentation_id: FINAL, slide_count: 3, ...extra })
+const FINAL_FRAME = (extra = {}) => ({ url: `${LAYOUT}/p/${FINAL}`, presentation_id: FINAL, slide_count: 3, ...extra })
+const ROW_STRAWMAN_FIRST = () => ({ ...ROW(), slideCount: 2, activeVersion: 'strawman', currentStage: 4 })
+async function reconnectScenario({ sources, flag, scenario, env, quiet = false, afterSettle = null }) {
+  const layout = createLayout()
+  const out = { scenario, steps: [], rowWrites: null, row: null, layoutReads: null, recovered: null }
+  let w
+  if (scenario === 'reload') {
+    layout.remove(FINAL, 2) // the chat deleted a slide on the final deck before the reload
+    w = world({ sources, flag, layout, row: ROW_STRAWMAN_FIRST(), env, quiet })
+    w.boot(); w.poll(); await w.settle()
+    out.steps.push(w.shot('reload: the strawman is painted first'))
+    out.recovered = w.syncResponse(SYNC()).didRecover
+    if (afterSettle) afterSettle(w)
+    out.steps.push(w.shot('sync_response promoted the final deck (before the viewer\'s poll)'))
+    await w.settle()
+    out.steps.push(w.shot('the layout read answered (before the viewer\'s poll)'))
+    w.poll(); await w.settle()
+    out.steps.push(w.shot('after the viewer\'s next poll'))
+  } else {
+    w = world({ sources, flag, layout, row: ROW(), quiet })
+    w.mount(); await w.settle()
+    await w.chat(RECORDED.deleteSlide3(), () => layout.remove(FINAL, 2)); await w.advance(3500)
+    out.steps.push(w.shot('chat delete: 2 slides'))
+    if (scenario === 'samePage') out.recovered = w.syncResponse(SYNC()).didRecover
+    else w.finalFrame(FINAL_FRAME())
+    if (afterSettle) afterSettle(w)
+    out.steps.push(w.shot('the stale count re-sent (before anything is read)'))
+    await w.settle()
+    out.steps.push(w.shot('the layout read answered'))
+    await w.advance(3500)
+    out.steps.push(w.shot('after the viewer\'s next poll'))
+  }
+  out.rowWrites = w.rowWrites.map(x => x.updates.slideCount)
+  out.sentCounts = w.sentWrites.map(x => x.slideCount)
+  out.row = w.rowCount()
+  out.layoutReads = layout.reads()
+  out.hookCount = w.hook.slideCount
+  out.notices = w.notices.filter(Boolean).length
+  w.close()
+  return out
+}
+const SCENARIOS = ['samePage', 'replay', 'reload']
+/** Every reconnect scenario once: what a flag-off page must do the same on the base sources. */
+async function reconnectRun({ sources, flag, env }) {
+  const all = []
+  for (const quiet of [false, true]) for (const scenario of SCENARIOS) all.push(await reconnectScenario({ sources, flag, scenario, env, quiet }))
+  return all
+}
+/** #533 as it was before the reconnect lines (B29): this change's own sources with only those lines taken out. */
+const RECONNECT_MARK = 'DECK-SYNC-TRUTH (reconnect'
+const withoutReconnectLines = sources => ({ ...sources, [PAGE]: sources[PAGE].split('\n').filter(line => !line.includes(RECONNECT_MARK)).join('\n') })
 
 // ---------- checks ----------
 const TEXT_ANOTHER_TAB = 'This deck changed in another tab'
@@ -889,6 +1021,138 @@ async function suite(sources, { log = false } = {}) {
     assert.deepEqual(r.calls.writes, [3])
   })
 
+  // --- a stale slide_count re-sent after a chat delete (B29): the reconnect ---
+  const sig = r => ({ asked: r.rowWrites, sent: r.sentCounts, row: r.row, recovered: r.recovered, header: r.steps.map(x => x.header), footer: r.steps.map(x => x.footer), rail: r.steps.map(x => x.rail), notices: r.notices })
+  await check('flag off (reconnect): today\'s output: Director\'s state frame writes its own count to the row (3) and the viewer\'s floor keeps the header and footer at 3 on the promoted deck; the same-page socket reconnect recovers nothing', async () => {
+    const same = sig(await reconnectScenario({ sources, flag: undefined, scenario: 'samePage' }))
+    assert.deepEqual(same, { asked: [], sent: [], row: 3, recovered: false, header: [2, 2, 2, 2], footer: [2, 2, 2, 2], rail: [2, 2, 2, 2], notices: 0 })
+    const replay = sig(await reconnectScenario({ sources, flag: undefined, scenario: 'replay' }))
+    assert.deepEqual([replay.asked, replay.row, replay.header], [[3], 3, [2, 2, 2, 2]])
+    const reload = sig(await reconnectScenario({ sources, flag: undefined, scenario: 'reload' }))
+    assert.deepEqual([reload.asked, reload.row, reload.recovered, reload.header, reload.footer, reload.rail], [[3], 3, true, [3, 3, 3, 3], [3, 3, 3, 3], [3, 2, 2, 2]], 'the count rides along (Math.max(2, 3)) and the floor keeps it')
+  })
+  await check('reconnect, the reproduction (flag on, #533 without the reconnect lines): the build\'s 3 comes back to the SESSION ROW after a chat delete (Decks card "3 slides" over 2), on a replayed presentation_url and on a reload that promotes the final deck; the header and footer say 3 until the viewer\'s next poll (reload only: the page\'s own count shields them on the same page); the same-page socket reconnect recovers nothing', async () => {
+    const old = withoutReconnectLines(sources)
+    const same = sig(await reconnectScenario({ sources: old, flag: 'true', scenario: 'samePage' }))
+    assert.deepEqual(same, { asked: [2], sent: [2], row: 2, recovered: false, header: [2, 2, 2, 2], footer: [2, 2, 2, 2], rail: [2, 2, 2, 2], notices: 0 }, 'not real: the hook\'s state is the final deck already, so the recovery does nothing')
+    const replay = sig(await reconnectScenario({ sources: old, flag: 'true', scenario: 'replay' }))
+    assert.deepEqual([replay.asked, replay.sent, replay.row, replay.header, replay.footer, replay.rail], [[2, 3], [2, 3], 3, [2, 2, 2, 2], [2, 2, 2, 2], [2, 2, 2, 2]], 'the row goes 2 -> 3; the page\'s override keeps the viewer at 2')
+    for (const quiet of [false, true]) {
+      const reload = sig(await reconnectScenario({ sources: old, flag: 'true', scenario: 'reload', quiet }))
+      assert.deepEqual([reload.asked, reload.sent, reload.row, reload.recovered], [[3], [3], 3, true], `quiet ${quiet}: the row goes 2 -> 3`)
+      assert.deepEqual([reload.header, reload.footer, reload.rail], [[3, 3, 3, 2], [3, 3, 3, 2], [3, 2, 2, 2]], 'the viewer comes down at its next poll; the row does not')
+    }
+    assert.equal(deckCard(3).plainLabel, '3 slides', 'and the Decks card reads it')
+  })
+  await check('flag on (reconnect): a stale slide_count re-sent after a chat delete no longer reaches the row: a replayed presentation_url and a promoting sync_response leave it at 2 (Layout\'s count), the Decks card reads "2 slides", and the same-page reconnect changes nothing', async () => {
+    const same = sig(await reconnectScenario({ sources, flag: 'true', scenario: 'samePage' }))
+    assert.deepEqual(same, { asked: [2], sent: [2], row: 2, recovered: false, header: [2, 2, 2, 2], footer: [2, 2, 2, 2], rail: [2, 2, 2, 2], notices: 0 })
+    const replay = sig(await reconnectScenario({ sources, flag: 'true', scenario: 'replay' }))
+    assert.deepEqual([replay.asked, replay.sent, replay.row], [[2, undefined, 2], [2, undefined, 2], 2], 'Director\'s own write carries no slideCount; the one that follows is Layout\'s')
+    assert.deepEqual([replay.header, replay.footer, replay.rail, replay.notices], [[2, 2, 2, 2], [2, 2, 2, 2], [2, 2, 2, 2], 0])
+    const reload = sig(await reconnectScenario({ sources, flag: 'true', scenario: 'reload' }))
+    assert.deepEqual([reload.asked, reload.sent, reload.row, reload.recovered], [[undefined, 2], [undefined, 2], 2, true])
+    assert.deepEqual([reload.header, reload.footer, reload.rail], [[3, 3, 3, 2], [3, 3, 3, 2], [3, 2, 2, 2]], 'the promoted deck\'s count is the prop until the viewer\'s next poll (the first paint of any reload); the poll commits its own count and the floor is gone')
+    assert.equal(reload.notices, 0)
+    assert.equal(deckCard(replay.row).plainLabel, '2 slides')
+  })
+  await check('flag on (reconnect): in an opened session (the quiet period of NEXT_PUBLIC_STUDIO_SESSION_OPEN_READ_ONLY: a passive write is trimmed against the row as it was opened) the row is never written 3 first: Director\'s write carries no count, so nothing has to be written back', async () => {
+    const reload = await reconnectScenario({ sources, flag: 'true', scenario: 'reload', quiet: true })
+    assert.equal(reload.row, 2)
+    assert.deepEqual(reload.sentCounts, [undefined], 'the promoted deck\'s own fields went through; no count, and Layout\'s 2 is the stored 2, so it is trimmed')
+    assert.equal(reload.rowWrites.includes(3), false)
+    // a deck whose count really changed since the row was opened: Layout\'s count is new, so it is sent
+    const layout = createLayout()
+    layout.remove(FINAL, 2); layout.remove(FINAL, 1) // 1 slide now; the row says 2
+    const w = world({ sources, flag: 'true', layout, row: ROW_STRAWMAN_FIRST(), quiet: true })
+    w.boot(); w.poll(); await w.settle()
+    w.syncResponse(SYNC()); await w.settle()
+    assert.equal(w.rowCount(), 1)
+    assert.deepEqual(w.sentWrites.map(x => x.slideCount), [undefined, 1])
+    w.close()
+  })
+  await check('flag on (reconnect): a deck that finished while the socket was down: the promoting sync_response leaves the row on Layout\'s count (3), not Director\'s (4) and not the old row\'s (1)', async () => {
+    for (const [flag, expected] of [[undefined, 4], ['true', 3]]) {
+      const layout = createLayout()
+      const w = world({ sources, flag, layout, row: { ...ROW_STRAWMAN_FIRST(), slideCount: 1 } })
+      w.boot(); w.poll(); await w.settle()
+      w.syncResponse(SYNC({ slide_count: 4 })); await w.settle()
+      assert.equal(w.rowCount(), expected, `flag ${flag}`)
+      w.close()
+    }
+  })
+  await check('flag on (reconnect): a build in progress still grows: Director\'s state frames 2, 3 and a promoting sync_response (4) raise the row exactly as today, and Layout is not asked; once the build is over the next state frame settles the row on Layout\'s count (3)', async () => {
+    for (const flag of [undefined, 'true']) {
+      const layout = createLayout()
+      const w = world({ sources, flag, layout, row: { ...ROW_STRAWMAN_FIRST(), slideCount: 1 }, building: true })
+      w.boot(); w.poll(); await w.settle()
+      const frame = n => ({ presentationId: FINAL, presentationUrl: `${LAYOUT}/p/${FINAL}`, slideCount: n, currentStage: 6 })
+      const rows = [w.rowCount()]
+      for (const n of [2, 3]) { w.sessionState(frame(n)); await w.settle(); rows.push(w.rowCount()) }
+      assert.equal(w.syncResponse(SYNC({ slide_count: 4 })).didRecover, true); await w.settle(); rows.push(w.rowCount())
+      assert.deepEqual(rows, [1, 2, 3, 4], `flag ${flag}: the build raises the row`)
+      assert.equal(w.layout.reads(), 0, `flag ${flag}: a build in progress never asks Layout`)
+      assert.deepEqual(w.rowWrites.map(x => x.updates.slideCount), [2, 3, 4], `flag ${flag}: Director's counts are written as they are`)
+      w.setBuilding(false)
+      w.sessionState(frame(4)); await w.settle() // Director\'s last count is one too many; Layout holds 3
+      assert.equal(w.rowCount(), flag === 'true' ? 3 : 4, `flag ${flag}: after the build`)
+      assert.equal(w.layout.reads(), flag === 'true' ? 1 : 0)
+      w.close()
+    }
+  })
+  await check('flag on (reconnect): every other state frame is untouched: a strawman or blank deck\'s count is written as Director sent it, Layout is not read, and an unsettled deck (template mode, a partial artifact, compose jobs, outside the Studio shell) keeps Director\'s count', async () => {
+    const layout = createLayout()
+    const w = world({ sources, flag: 'true', layout, row: ROW() })
+    w.mount(); await w.settle()
+    w.sessionState({ presentationId: PREVIEW, presentationUrl: `${LAYOUT}/p/${PREVIEW}`, slideCount: 3, currentStage: 4, activeVersion: 'strawman' }); await w.settle()
+    w.sessionState({ presentationId: 'blank-deck', presentationUrl: `${LAYOUT}/p/blank-deck`, slideCount: 1, currentStage: 0 }); await w.settle()
+    assert.deepEqual(w.rowWrites.map(x => x.updates.slideCount), [3, 1])
+    assert.equal(layout.reads(), 0)
+    w.setTemplateMode(true); w.sessionState({ presentationId: FINAL, presentationUrl: `${LAYOUT}/p/${FINAL}`, slideCount: 4, currentStage: 6 }); await w.settle(); w.setTemplateMode(false)
+    w.setPartial(true); w.sessionState({ presentationId: FINAL, presentationUrl: `${LAYOUT}/p/${FINAL}`, slideCount: 5, currentStage: 6 }); await w.settle(); w.setPartial(false)
+    w.setComposeJobs([{ jobId: 'j1' }]); w.sessionState({ presentationId: FINAL, presentationUrl: `${LAYOUT}/p/${FINAL}`, slideCount: 6, currentStage: 6 }); await w.settle(); w.setComposeJobs([])
+    w.sessionState({ presentationId: undefined, presentationUrl: `${LAYOUT}/p/${FINAL}`, slideCount: 7, currentStage: 6 }); await w.settle() // a final frame that names no deck cannot be checked against Layout: Director's count stays
+    assert.deepEqual(w.rowWrites.map(x => x.updates.slideCount), [3, 1, 4, 5, 6, 7])
+    assert.equal(layout.reads(), 0, 'none of these asked Layout')
+    w.close()
+    const shellOff = world({ sources, flag: 'true', layout: createLayout(), row: ROW(), shell: false })
+    shellOff.mount(); await shellOff.settle()
+    shellOff.sessionState({ presentationId: FINAL, presentationUrl: `${LAYOUT}/p/${FINAL}`, slideCount: 3, currentStage: 6 }); await shellOff.settle()
+    assert.deepEqual(shellOff.rowWrites.map(x => x.updates.slideCount), [3], 'outside the Studio shell the floor stays')
+    shellOff.close()
+  })
+  await check('flag on (reconnect): the session changes while Layout answers, or Layout cannot answer: the new session\'s row is never written; the row keeps its count', async () => {
+    const layout = createLayout()
+    layout.remove(FINAL, 2)
+    const w = world({ sources, flag: 'true', layout, row: ROW() })
+    w.mount(); await w.settle()
+    w.finalFrame(FINAL_FRAME())
+    w.sessionIdRef.current = 'another-session' // the user opened another session before Layout answered
+    await w.settle()
+    assert.deepEqual(w.rowWrites.map(x => x.updates.slideCount), [undefined], 'only Director\'s own write (for the session it came for); Layout\'s count is not written to the new one')
+    assert.equal(w.rowCount(), 3)
+    w.close()
+    const down = { ...createLayout(), fetch: async () => new Response('', { status: 503 }) }
+    const d = world({ sources, flag: 'true', layout: down, row: { ...ROW(), slideCount: 2 } })
+    d.mount(); await d.settle()
+    d.finalFrame(FINAL_FRAME()); await d.settle()
+    assert.deepEqual(d.rowWrites.map(x => x.updates.slideCount), [undefined])
+    assert.equal(d.rowCount(), 2, 'Layout cannot answer: the row keeps 2, not Director\'s 3')
+    d.close()
+  })
+  await check('pins (reconnect): the hook sets the final deck the way the proof models it and calls the page; the recovery keeps its Math.max (a pinned base line this change leaves alone); the page\'s count rule is untouched; the new page lines are marked pure insertions', () => {
+    assert.ok(sources[SOCKET_HOOK].includes('Object.assign(newState, recovery.state);'))
+    assert.ok(sources[SOCKET_HOOK].includes('newState.presentationId = message.payload.presentation_id;\n                  newState.slideCount = message.payload.slide_count;'))
+    assert.ok(sources['lib/director-sync-recovery.ts'].includes('? Math.max(state.slideCount ?? 0, payload.slide_count ?? 0) || state.slideCount'))
+    assert.ok(sources[PAGE].includes('const nextSlideCount = Math.max(state.slideCount ?? 0, verifiedLayoutCount ?? 0) || state.slideCount'))
+    const lines = sources[PAGE].split('\n').filter(line => line.includes(RECONNECT_MARK))
+    assert.equal(lines.length, 3, 'three marked lines in onSessionStateChange')
+    for (const line of lines) assert.match(line, DECK_SYNC_TRUTH_MARKER_RE)
+    const callback = cutArrow(sources[PAGE], 'onSessionStateChange: (state)')
+    assert.ok(callback.indexOf('delete updates.slideCount') > callback.indexOf('const updates: any = {') && callback.indexOf('delete updates.slideCount') < callback.indexOf('persistenceRef.current.updateMetadata(updates'), 'the count is dropped before Director\'s write')
+    assert.ok(callback.indexOf('deckSyncRowCountRef.current?.(state.presentationId') > callback.indexOf('persistenceRef.current.updateMetadata(updates'), 'and Layout\'s count is written after it')
+  })
+
   // --- the chain from the page's write to the card, pinned in the source ---
   await check('pins: the row\'s chain is the existing one: updateMetadata -> updateSession -> PATCH /api/sessions/[id] (the fields as sent) -> the list\'s select -> the dashboard\'s mapping -> the card', async () => {
     const read = rel => sources[rel] ?? readFileSync(path.join(repoRoot, rel), 'utf8')
@@ -900,7 +1164,7 @@ async function suite(sources, { log = false } = {}) {
     assert.ok(sources[DASH].includes('<span>{presentation.slideCount} slides</span>') && sources[DASH].includes('studioDeckCardCountLabel(presentation.slideCount, presentation.status)'), 'and the card prints it')
     assert.ok(sources[PAGE].includes('persistenceRef.current.updateMetadata(updates, { passive: true }) // NEXT_PUBLIC_STUDIO_SESSION_OPEN_READ_ONLY: Director\'s own state frame'), 'the build\'s own write is where it was')
     assert.ok(sources[PAGE].includes('const nextSlideCount = Math.max(state.slideCount ?? 0, verifiedLayoutCount ?? 0) || state.slideCount'), 'and its count rule is untouched')
-    const calls = sources[PAGE].split('\n').filter(line => line.includes('deckSyncRowCountRef.current?.('))
+    const calls = sources[PAGE].split('\n').filter(line => line.includes('deckSyncRowCountRef.current?.(') && !line.includes(RECONNECT_MARK)) // the reconnect's call (B29) is pinned in its own check
     assert.equal(calls.length, 1, 'one call, in onDeckMutation')
     const handler = cutArrow(sources[PAGE], 'onDeckMutation: (message')
     assert.ok(handler.indexOf('deckSyncRowCountRef.current?.(plan.override.presentationId, owner.isCurrent)') > handler.indexOf('if (!plan) return') && handler.indexOf('deckSyncRowCountRef.current?.(') < handler.indexOf('if (deckMutationCountSettlerRef.current)'), 'after the plan is accepted, before the settler\'s return')
@@ -967,6 +1231,16 @@ await record('flag off, behaviour: the whole E2E-2 run (every step, the reload, 
   const falsy = await e2e2Run({ sources: head, flag: 'false' })
   assert.equal(sha(JSON.stringify(falsy)), sha(JSON.stringify(base)), 'flag "false" is off')
   console.log(`  e2e2 run, flag off: current ${sha(JSON.stringify(mine)).slice(0, 16)}  base ${sha(JSON.stringify(base)).slice(0, 16)}  (focus first: ${sha(JSON.stringify(mineFocus)).slice(0, 16)} / ${sha(JSON.stringify(baseFocus)).slice(0, 16)})`)
+})
+await record('flag off, behaviour (reconnect): the stale-count scenarios (the same-page sync_response, a replayed presentation_url, a strawman-first reload with a promoting sync_response; with and without the opened-session quiet period) on the current sources with the flag unset or "false" hash the same as on the base sources', async () => {
+  const mine = await reconnectRun({ sources: head, flag: undefined })
+  const base = await reconnectRun({ sources: baseSources(), flag: undefined })
+  const falsy = await reconnectRun({ sources: head, flag: 'false' })
+  assert.equal(sha(JSON.stringify(mine)), sha(JSON.stringify(base)))
+  assert.equal(sha(JSON.stringify(falsy)), sha(JSON.stringify(base)), 'flag "false" is off')
+  assert.equal(mine.length, SCENARIOS.length * 2)
+  assert.deepEqual(mine.map(x => x.row), [3, 3, 3, 3, 3, 3], 'today: the row keeps the build\'s 3 in every scenario')
+  console.log(`  reconnect run, flag off: current ${sha(JSON.stringify(mine)).slice(0, 16)}  base ${sha(JSON.stringify(base)).slice(0, 16)}`)
 })
 await record('the same checks on the BASE sources: every "flag off" check passes there (today\'s output is the base\'s), and the flag-on checks fail (the fix is what they measure)', async () => {
   const onBase = await suite(baseSources())
@@ -1086,6 +1360,18 @@ const MUTANTS = [
   ['page: the write is not passive', s => mutate(s, PAGE, 'lastMessageAt: new Date() }, { passive: true }) }, // DECK-SYNC-TRUTH', 'lastMessageAt: new Date() }) }, // DECK-SYNC-TRUTH')],
   ['page: the write drops lastMessageAt', s => mutate(s, PAGE, 'updateMetadata({ slideCount: count, lastMessageAt: new Date() }, { passive: true })', 'updateMetadata({ slideCount: count }, { passive: true })')],
   ['page: Layout\'s inventory is read for another deck', s => mutate(s, PAGE, 'presentationId: id, fetchImpl: (input, init) => fetch(input, init) }); return result.kind', "presentationId: 'another-deck', fetchImpl: (input, init) => fetch(input, init) }); return result.kind")],
+  // the reconnect (B29): the page's three marked lines in onSessionStateChange
+  ['page (reconnect): Director\'s count is not dropped for a settled final deck (the stale count writes the row back)', s => mutate(s, PAGE, 'if (deckSyncSettled) delete updates.slideCount //', '//')],
+  ['page (reconnect): Director\'s count is dropped after Director\'s write has gone', s => moveLineAfter(s, PAGE, 'if (deckSyncSettled) delete updates.slideCount', 'persistenceRef.current.updateMetadata(updates, { passive: true })')],
+  ['page (reconnect): Layout\'s count is never written (Director\'s is dropped and nothing replaces it)', s => mutate(s, PAGE, 'if (deckSyncSettled) { const deckSyncSession', 'if (false) { const deckSyncSession')],
+  ['page (reconnect): Layout\'s count is asked for another deck', s => mutate(s, PAGE, "deckSyncRowCountRef.current?.(state.presentationId ?? '',", "deckSyncRowCountRef.current?.('another-deck',")],
+  ['page (reconnect): Layout\'s count is asked for no deck', s => mutate(s, PAGE, "deckSyncRowCountRef.current?.(state.presentationId ?? '',", "deckSyncRowCountRef.current?.('',")],
+  ['page (reconnect): the session is not checked (a new session\'s row would be written)', s => mutate(s, PAGE, '() => currentSessionIdRef.current === deckSyncSession)', '() => true)')],
+  ['page (reconnect): the session is read after Layout answers (always the current one)', s => mutate(s, PAGE, 'const deckSyncSession = currentSessionIdRef.current; void deckSyncRowCountRef.current?.(state.presentationId ?? \'\', () => currentSessionIdRef.current === deckSyncSession)', 'void deckSyncRowCountRef.current?.(state.presentationId ?? \'\', () => currentSessionIdRef.current === currentSessionIdRef.current)')],
+  ['page (reconnect): the strawman and blank frames are settled too', s => mutate(s, PAGE, '&& isFinal && Boolean(state.presentationId) && !deckSyncBuildingRef.current //', '&& Boolean(state.presentationId) && !deckSyncBuildingRef.current //')],
+  ['page (reconnect): a build in progress does not hold Director\'s count back', s => mutate(s, PAGE, '&& isFinal && Boolean(state.presentationId) && !deckSyncBuildingRef.current //', '&& isFinal && Boolean(state.presentationId) //')],
+  ['page (reconnect): the flag is not asked (Director\'s count is dropped with the flag off)', s => mutate(s, PAGE, 'const deckSyncSettled = Boolean(deckSyncRowCountRef.current) && isFinal', 'const deckSyncSettled = isFinal')],
+  ['page (reconnect): a frame without a deck id is settled', s => mutate(s, PAGE, '&& isFinal && Boolean(state.presentationId) &&', '&& isFinal &&')],
   ['dashboard: the card reads a count that is not the row\'s', s => mutate(s, DASH, 'slideCount: session.slideCount || 0,', 'slideCount: 3,')],
   ['socket hook: the restore prefers the strawman', s => mutate(s, SOCKET_HOOK, 'displayUrl = sessionState.finalPresentationUrl || null;\n      displayId = sessionState.finalPresentationId || null;', 'displayUrl = sessionState.strawmanPreviewUrl || null;\n      displayId = sessionState.strawmanPresentationId || null;')],
 ]
