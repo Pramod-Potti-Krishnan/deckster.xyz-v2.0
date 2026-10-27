@@ -100,6 +100,16 @@ export const DECK_SYNC_TRUTH_PIN_EDITS = {
       "const read = rel => stripFirstPaint(rel, stripLaunchWording(rel, readFileSync(path.join(repoRoot, rel), 'utf8')))\n"
     ]
   ],
+  "scripts/test-studio-session-hygiene.mjs": [
+    [
+      "import { stripDeckSyncTruth } from './studio-deck-sync-truth-strip.mjs' // LATER-CHANGES: registry read (DECK-SYNC-TRUTH): stacked after this change, it adds marked lines to the Builder page (the settled-row count after Director's state frame), so the page is read past them\n",
+      ""
+    ],
+    [
+      "const read = rel => stripDeckSyncTruth(rel, fs.readFileSync(path.join(repoRoot, rel), 'utf8')) // LATER-CHANGES: registry read (DECK-SYNC-TRUTH): the lines of the change stacked after this one come out, so the anchors and the wiring checks read the page as this change left it\n",
+      "const read = rel => fs.readFileSync(path.join(repoRoot, rel), 'utf8')\n"
+    ]
+  ],
   "scripts/test-studio-open-read-only.mjs": [
     [
       "import { stripDeckSyncTruth } from './studio-deck-sync-truth-strip.mjs' // LATER-CHANGES: registry read (DECK-SYNC-TRUTH): stacked after this change, it adds a passive write to the page (the session row's count after a chat change); the page is read without it, as this proof counts the page's passive writes\n",
