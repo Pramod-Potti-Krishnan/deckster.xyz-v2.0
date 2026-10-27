@@ -1,23 +1,24 @@
 // FRONTEND-2 (B37; OPS-2's RISK of 27 Oct 22:15Z, E2E-2's F8 re-check on Studio dev, session 57f9e99a): proof of NEXT_PUBLIC_STUDIO_MODEL_CHOICE_DECK_SAVE (exact "true", default off, build-time).
 //
 // THE DEFECTS (root causes, read in the code):
-//   1. Every deck save answered 412 preferences_modified, with GET 200 {} in front of it. Not the router: the router's deck PUT (model-router app/read_api.py:357 at c19a384f) has no precondition at all (replace, last writer wins,
-//      200, no ETag), and its deck GET (:339) always sends a stable strong ETag (:708 _set_validators, :685 _etag; an empty deck's is "4f53cda18c2baa0c0354bb5f9a3ecbe5"). The 412 is Studio's own stale-read check,
-//      lib/studio-model-choice-server.ts handlePrefs: `ifMatchTag !== current.etag`, plain string equality between the browser's If-Match and the tag the router just sent. Studio's browser store keeps one tag PER SCOPE and sends the
-//      deck's own on the deck PATCH (checked below), and an empty user map and an empty deck map have the SAME tag, so the tag cannot be another scope's. What is left is the same opaque value in another form: a strong tag that
-//      reached the browser as W/"..." (an edge that compresses a response weakens its ETag) and came back as If-Match: W/"...". E2E-2's notes do not hold that header, so this proof MODELS the weakening (edge: 'weaken') and shows
-//      both the clean path (200 on either flag value: no defect without an altered tag) and the altered one (412 today, 200 with the flag).
+//   1. Every deck save answered 412 preferences_modified, with GET 200 {} in front of it, and the reusable defaults would too. Not the router: the router's deck PUT (model-router app/read_api.py:357 at c19a384f) has no precondition
+//      at all (replace, last writer wins, 200, no ETag), and its GETs send a stable strong ETag (:339, :117, :708 _set_validators, :685 _etag; an empty map's is "4f53cda18c2baa0c0354bb5f9a3ecbe5"). The 412 is Studio's own
+//      stale-read check, lib/studio-model-choice-server.ts handlePrefs: `ifMatchTag !== current.etag`, plain string equality between the browser's If-Match and the tag the router just sent. CONFIRMED by E2E-2's $0 capture
+//      (27 Oct 22:49Z, Studio dev, session 57f9e99a; scripts/fixtures/studio-model-choice-deck-save/e2e2-f8-recorded.json): the deck GET came back with ETag W/"4f53...", compressed by Vercel; the PATCH sent If-Match W/"4f53..." and got
+//      412, whose own ETag was the strong "4f53..." (a 412 is not compressed); the USER GET came back W/"4f53..." too. Studio's browser store keeps one tag PER SCOPE and sends the scope's own (checked below). This proof reproduces
+//      that transit (edge: 'weaken': a 200's strong tag arrives as W/"...") and shows the clean path (200 on either flag value: no defect without an altered tag) and the altered one (412 today, 200 with the flag), on both scopes.
 //   2. The popover said "Saved to your account. Applies from the next build." after every failed save. That line is the picker's standing note about where choices are kept (lib/studio-model-picker.ts saveNote, by mode: account,
 //      device, no storage); it never looked at the save. The words of a failed save (MODEL_CHOICE_CONFLICT ...) reach the screen-reader status only.
 //   There is no retry loop in the code: a 412 re-reads once (adapter, lib/studio-model-choice.ts) and returns; E2E-2's "three times" are three slider commits. This proof pins "one failed save = one PATCH + one re-read".
 //
-// THE FIX (flag on): (1) a deck PATCH compares the entity tags as OPAQUE values (a W/ mark and the quotes are not part of it), so the same read in another form passes and a different tag (another tab saved first) is still
-// refused 412; the user scope is untouched. (2) in account mode the note is "Saved ..." only after a save the account confirmed, the failed save's own (existing) words after one that failed, and nothing before a save.
+// THE FIX (flag on): (1) a PATCH on either scope compares the entity tags as OPAQUE values (a W/ mark and the quotes are not part of it), so the same read in another form passes and a different tag (another tab saved first) is
+// still refused 412; the router's own user PATCH still gets the router's strong tag as If-Match (its precondition keeps working). (2) in account mode, either scope, the note is "Saved ..." only after a save the account
+// confirmed, the failed save's own (existing) words after one that failed, and nothing before a save.
 //
 //   A. router      the router's own ETag algorithm (a Python-derived vector, ROUTER-2's empty-deck tag), and the fake router built from its handlers: the deck PUT ignores If-Match and sends no ETag, the user PATCH honours it
-//   B. the route   the REAL handlePrefs: first deck save, flag off / on, strong / weakened tag; a real concurrent change is 412 either way; other tags; the router never sees a write that Studio refused
+//   B. the route   the REAL handlePrefs: first deck save and first user save, flag off / on, strong / weakened tag; a real concurrent change is 412 either way; other tags; the router's own precondition still refuses a racing write
 //   C. the browser the REAL adapter, hook and slider over the real route: E2E-2's run reproduced flag off; flag on saves; the note follows the save; every kind of failed save; one failed save = one PATCH; a tag per scope
-//   D. user scope  unchanged: the same outcomes, flag off / on, for a matrix of user requests and for a browser save
+//   D. user scope  the reusable defaults: the same outcomes as the base flag off; flag on differs only for a weakened tag of the router's own; a browser save, and a real concurrent change refused in the existing words
 //   E. flag off    the base: the strip gives each file's base back byte for byte, and base and head, flag off, answer the same matrices with the same hashes
 //   F. scope       the COMMITTED diff, gate-safe: own commits are read from HEAD^2 when HEAD is the gate's merge (HEAD^1 = BASE); proven on a gate-style merge too
 //   G. mutants     each one must make A-F fail
@@ -75,6 +76,7 @@ const WORDS = {
 }
 const RECORDED = json(`${DFIX}/e2e2-f8-recorded.json`)
 const EMPTY_ETAG = RECORDED.empty_deck_etag
+const CAPTURE = RECORDED.capture_22_49Z // E2E-2 capture 27 Oct 22:49Z
 const CATALOGUE_VERSION = json(`${DFIX}/router-session-get-empty-200.json`).catalogue_version
 const BEST3 = Object.fromEntries(TEXT_GROUPS.map(group => [group, { preset: 'best' }]))
 
@@ -83,10 +85,10 @@ const BEST3 = Object.fromEntries(TEXT_GROUPS.map(group => [group, { preset: 'bes
 const routerEtag = rows => `"${sha(JSON.stringify(Object.keys(rows).sort().map(name => [name, rows[name].preset ?? null, rows[name].model ?? null, rows[name].updated_at]))).slice(0, 32)}"`
 const row = (choice, updated_at) => ({ ...(choice.auto === true ? { auto: true } : {}), preset: choice.preset ?? null, model: choice.model ?? null, updated_at })
 
-/** The router, as far as the prefs routes go: GET user / deck (:117, :339) always send the strong tag; PATCH user (:156) honours If-Match through _precondition (:715); PUT deck (:357) has NO precondition, replaces the map,
+/** The router, as far as the prefs routes go (`state.race`: a function run once, just before the next write is handled): GET user / deck (:117, :339) always send the strong tag; PATCH user (:156) honours If-Match through _precondition (:715); PUT deck (:357) has NO precondition, replaces the map,
  * answers 200 and sets no ETag. `state` can change mid-visit: deckScope (R3 off: 404), putStatus (a 5xx from the PUT), refuse (presets the router refuses with 422). */
 function modelRouter({ deckScope = true, putStatus = 200, refuse = [] } = {}) {
-  const store = new Map(), log = [], state = { deckScope, putStatus, refuse }
+  const store = new Map(), log = [], state = { deckScope, putStatus, refuse, race: null }
   let clock = 0
   const stamp = () => `2026-10-27T22:03:${String(++clock).padStart(2, '0')}Z`
   const answer = (status, body, etag = null) => ({ status, headers: { get: name => (name.toLowerCase() === 'etag' ? etag : null) }, json: async () => JSON.parse(JSON.stringify(body)) })
@@ -98,6 +100,7 @@ function modelRouter({ deckScope = true, putStatus = 200, refuse = [] } = {}) {
     const { pathname } = new URL(url)
     const m = /^\/v1\/prefs\/([^/]+)(?:\/sessions\/([^/]+))?$/.exec(pathname)
     if (!m || (m[2] && !state.deckScope)) return answer(404, json(`${FIX}/router-not-found-404.json`))
+    if (state.race && (init.method === 'PATCH' || init.method === 'PUT')) { const race = state.race; state.race = null; race() } // another writer lands between Studio's read and its write
     const rows = store.get(pathname) ?? {}
     const head = { user_id: decodeURIComponent(m[1]), ...(m[2] ? { session_id: decodeURIComponent(m[2]) } : {}) }
     if (init.method === 'GET') return answer(200, { ...head, preferences: viewOf(rows), catalogue_version: CATALOGUE_VERSION }, routerEtag(rows))
@@ -144,7 +147,7 @@ const routeDeps = (router, flag, user = ME) => ({ env: { ...CONFIGURED, ...flagE
 const getTag = async (server, router, deckKey, flag) => (await server.handlePrefs('GET', deckKey, { ifMatch: null }, routeDeps(router, flag))).etag
 const patchOf = (server, router, deckKey, ifMatch, changes, flag) => server.handlePrefs('PATCH', deckKey, { ifMatch, body: async () => ({ preferences: changes }) }, routeDeps(router, flag))
 const weak = tag => `W/${tag}`
-/** The edge between Studio's route and the browser. 'weaken' models an edge that compresses a response and so sends its strong ETag on as W/"..." (the browser then sends that back in If-Match). */
+/** The edge between Studio's route and the browser. 'weaken' is what E2E-2 captured (27 Oct 22:49Z): Vercel compresses a 200 and sends its strong ETag on as W/"...", which the browser then sends back in If-Match; a 412 is not compressed, so its tag stays strong. */
 const edgeOf = (edge, tag) => (tag && edge === 'weaken' && !tag.startsWith('W/') ? weak(tag) : tag)
 
 const tick = () => new Promise(resolve => setImmediate(resolve))
@@ -159,7 +162,7 @@ function makeStorage(seed = {}) {
 async function mount({ read: rd = read, flag, edge = 'clean', router = modelRouter(), storage = makeStorage(), props = { sessionId: null }, probe = true } = {}) {
   const hookEnv = { NEXT_PUBLIC_STUDIO_MODEL_CHOICE: 'true', NEXT_PUBLIC_STUDIO_MODEL_CATALOG: 'true', ...flagEnv(flag) }
   const world = { studio: 'up', edge, fetchLog: [], storage, router }
-  const respond = (status, payload, etag) => ({ status, headers: { get: name => (name.toLowerCase() === 'etag' ? edgeOf(world.edge, etag) ?? null : null) }, json: async () => JSON.parse(JSON.stringify(payload)) })
+  const respond = (status, payload, etag) => ({ status, headers: { get: name => (name.toLowerCase() === 'etag' ? (status === 200 ? edgeOf(world.edge, etag) : etag) ?? null : null) }, json: async () => JSON.parse(JSON.stringify(payload)) })
   let server = null
   const fetchImpl = async (url, init = {}) => {
     world.fetchLog.push({ url: String(url), method: init.method ?? 'GET', headers: { ...(init.headers ?? {}) }, body: init.body ?? null })
@@ -271,9 +274,11 @@ await check('the ETag algorithm: ROUTER-2\'s empty-deck tag, and two vectors com
   eq(routerEtag({ content_writing: row({ preset: 'balanced' }, '2026-10-27T22:03:34.250000Z') }), '"0b97e960b4829fe5a3e27841cb353b40"')
   eq(routerEtag({}), `"${crypto.createHash('sha256').update('[]').digest('hex').slice(0, 32)}"`, 'sha256("[]") quoted')
 })
-await check('the recorded F8 run and the router fixtures have the shapes the proof relies on (an empty deck GET; a PUT echo with no updated_at; the user 412)', () => {
+await check('the recorded F8 run, E2E-2\'s capture of 27 Oct 22:49Z and the router fixtures have the shapes the proof relies on (a weakened GET tag sent back in If-Match; an empty deck GET; a PUT echo with no updated_at; the user 412)', () => {
   deep(RECORDED.recorded.deck_get, { status: 200, body: { scope: 'deck', preferences: {} } })
-  eq(RECORDED.recorded.deck_patch_each_time.status, 412); eq(RECORDED.recorded.deck_patch_each_time.body.code, 'preferences_modified'); eq(RECORDED.recorded.if_match_of_the_failing_patch, null)
+  eq(RECORDED.recorded.deck_patch_each_time.status, 412); eq(RECORDED.recorded.deck_patch_each_time.body.code, 'preferences_modified')
+  eq(CAPTURE.deck_get_etag, weak(EMPTY_ETAG), 'E2E-2 capture 27 Oct 22:49Z: the deck GET came back weakened'); eq(CAPTURE.deck_patch_if_match, CAPTURE.deck_get_etag, 'and the PATCH sent that back'); eq(CAPTURE.deck_patch_status, 412)
+  eq(CAPTURE.deck_patch_response_etag, EMPTY_ETAG, 'the 412 itself carried the strong tag'); eq(CAPTURE.user_get_etag, weak(EMPTY_ETAG), 'the user GET came back weakened too')
   deep(json(`${DFIX}/router-session-get-empty-200.json`).preferences, {})
   deep(Object.keys(json(`${DFIX}/router-session-put-200.json`).preferences), TEXT_GROUPS.slice().sort()); eq(json(`${DFIX}/router-session-put-200.json`).preferences.content_writing.updated_at, undefined)
   eq(json(`${FIX}/router-prefs-412.json`).error.code, 'preferences_modified')
@@ -304,7 +309,7 @@ await check('flag off, the tag as the router sent it: the first deck save is wri
 await check('flag off, the same tag arrived as W/"...": 412 preferences_modified, and the router never saw a write (so the 412 is Studio\'s, line "ifMatchTag !== current.etag")', async () => {
   const router = modelRouter(), tag = await getTag(head, router, SESSION)
   const out = await patchOf(head, router, SESSION, weak(tag), BEST3)
-  eq(out.status, 412); eq(out.body.code, 'preferences_modified'); eq(out.body.error, 'Your choices changed elsewhere. Read them again and retry.'); eq(out.etag, EMPTY_ETAG)
+  eq(out.status, 412); eq(out.body.code, 'preferences_modified'); eq(out.body.error, 'Your choices changed elsewhere. Read them again and retry.'); eq(out.etag, EMPTY_ETAG); eq(out.etag, CAPTURE.deck_patch_response_etag, 'the 412 carries the strong tag, as captured')
   eq(router.writes().length, 0); deep(router.kept(DECK_PATH), {}); deep(router.log.map(entry => entry.method), ['GET', 'GET'])
   deep(RECORDED.recorded.deck_patch_each_time.body, { error: out.body.error, code: out.body.code }, 'the words E2E-2 recorded')
   for (let again = 0; again < 3; again++) eq((await patchOf(head, router, SESSION, weak(await getTag(head, router, SESSION)), BEST3)).status, 412, `a re-read does not help: the tag comes back weakened (${again + 1})`)
@@ -337,6 +342,49 @@ await check('other tags: a different value, weakened or not, another scope\'s ta
     eq(router.writes().length, 0)
   }
 })
+const userPatchOf = (server, router, ifMatch, changes, flag) => server.handlePrefs('PATCH', null, { ifMatch, body: async () => ({ preferences: changes }) }, routeDeps(router, flag))
+const BEST_WRITING = { content_writing: { preset: 'best' } }
+await check('USER scope, flag off: the first save with the router\'s tag is written; with the tag arrived as W/"..." (E2E-2 capture, 27 Oct 22:49Z) it is 412, and the router sees no write', async () => {
+  const router = modelRouter(), tag = await getTag(head, router, null)
+  eq(tag, EMPTY_ETAG); eq((await userPatchOf(head, router, tag, BEST_WRITING)).status, 200); eq(router.kept(USER_PATH).content_writing, 'best')
+  const refused = modelRouter(), out = await userPatchOf(head, refused, CAPTURE.user_get_etag, BEST_WRITING)
+  eq(out.status, 412); eq(out.body.code, 'preferences_modified'); eq(out.body.scope, 'user', 'Studio\'s own stale-read refusal, with the current map'); eq(refused.writes().length, 0); deep(refused.kept(USER_PATH), {})
+})
+await check('USER scope, flag on: the captured weakened tag, the strong tag and no tag all save, and the router still gets its OWN strong tag as If-Match (its precondition is untouched)', async () => {
+  for (const [label, sent] of [['captured W/', CAPTURE.user_get_etag], ['strong', EMPTY_ETAG], ['absent', null]]) {
+    const router = modelRouter(), out = await userPatchOf(head, router, sent, BEST_WRITING, 'true')
+    eq(out.status, 200, label); eq(router.kept(USER_PATH).content_writing, 'best', label); eq(router.writes().length, 1, label)
+    eq(router.writes()[0].method, 'PATCH', label); eq(router.writes()[0].headers['If-Match'], EMPTY_ETAG, `${label}: the router is sent its own tag, not the browser's`)
+    ok(out.etag && out.etag !== EMPTY_ETAG, `${label}: the router's new tag comes back`)
+  }
+})
+await check('USER scope: a real concurrent change is 412 on both flag values, strong or weakened, other and unquoted tags are refused as before, and nothing is written', async () => {
+  for (const flag of [undefined, 'true']) {
+    for (const edge of ['clean', 'weaken']) {
+      const router = modelRouter(), tag = await getTag(head, router, null, flag)
+      router.seed(USER_PATH, { planning_strategy: { preset: 'economy' } }) // another tab saved first
+      const out = await userPatchOf(head, router, edgeOf(edge, tag), BEST_WRITING, flag), label = `flag ${flag}, ${edge}`
+      eq(out.status, 412, label); eq(out.body.code, 'preferences_modified', label); eq(router.writes().length, 0, label); eq(router.kept(USER_PATH).content_writing, undefined, label)
+      eq(out.body.preferences.planning_strategy.preset, 'economy', `${label}: the current map comes back`); eq(out.etag, routerEtag(router.store.get(USER_PATH)), label)
+    }
+    const router = modelRouter()
+    for (const sent of ['"deadbeefdeadbeefdeadbeefdeadbeef"', weak('"deadbeefdeadbeefdeadbeefdeadbeef"')]) eq((await userPatchOf(head, router, sent, BEST_WRITING, flag)).status, 412, `${flag} ${sent}`)
+    for (const sent of ['4f53cda18c2baa0c0354bb5f9a3ecbe5', '*']) eq((await userPatchOf(head, router, sent, BEST_WRITING, flag)).status, 400, `${flag} ${sent}`)
+    eq(router.writes().length, 0)
+  }
+})
+await check('the router\'s own precondition still protects the user map: a write that lands between Studio\'s read and its PATCH is refused 412 by the router, flag on and off, nothing of the refused write is kept; the deck PUT has none (last writer wins, as the router\'s PUT is)', async () => {
+  for (const flag of [undefined, 'true']) {
+    const router = modelRouter(), tag = await getTag(head, router, null, flag)
+    router.state.race = () => router.seed(USER_PATH, { planning_strategy: { preset: 'economy' } })
+    const out = await userPatchOf(head, router, flag === 'true' ? weak(tag) : tag, BEST_WRITING, flag)
+    eq(out.status, 412, `flag ${flag}`); eq(out.body.code, 'preferences_modified'); eq(router.writes().length, 1, 'the router was asked, with the old tag'); eq(router.writes()[0].headers['If-Match'], EMPTY_ETAG)
+    deep(router.kept(USER_PATH), { planning_strategy: 'economy' }, 'only the other writer\'s choice is there')
+    const deck = modelRouter(), deckTag = await getTag(head, deck, SESSION, flag)
+    deck.state.race = () => deck.seed(DECK_PATH, { planning_strategy: { preset: 'economy' } })
+    eq((await patchOf(head, deck, SESSION, flag === 'true' ? weak(deckTag) : deckTag, BEST3, flag)).status, 200, 'the deck PUT takes it'); deep(deck.kept(DECK_PATH), Object.fromEntries(TEXT_GROUPS.map(g => [g, 'best'])), 'and replaces the other writer\'s map')
+  }
+})
 await check('the comparison: the same opaque value however it is marked or quoted; case and content count; a missing tag is never the same', () => {
   const { sameEntityTag } = head
   for (const [a, b, same] of [['"a1"', '"a1"', true], ['W/"a1"', '"a1"', true], ['"a1"', 'W/"a1"', true], ['W/"a1"', 'W/"a1"', true], ['"a1"', '"a2"', false], ['"A1"', '"a1"', false], ['W/"a1"', '"a2"', false], ['"a1"', '"a1 "', false], [null, '"a1"', false], ['"a1"', null, false], [null, null, false]]) eq(sameEntityTag(a, b), same, `${a} ${b}`)
@@ -354,7 +402,7 @@ await check('E2E-2\'s run, flag off, tag weakened on its way: Best is refused 41
   const rt = await mountSlider({ edge: 'weaken' }); await rt.open()
   eq(rt.gaugeLabel(), 'Model: Auto'); eq(rt.note('save'), NOTES.account, 'the standing note is there before any save too')
   await rt.commit('best')
-  eq(rt.patches().length, 1); eq(rt.patches()[0].url, `/api/model-choice/prefs/deck/${SESSION}`); eq(rt.patches()[0].headers['If-Match'], weak(EMPTY_ETAG), 'the browser sends the weakened tag it was given')
+  eq(rt.patches().length, 1); eq(rt.patches()[0].url, `/api/model-choice/prefs/deck/${SESSION}`); eq(rt.patches()[0].headers['If-Match'], CAPTURE.deck_patch_if_match, 'the browser sends the weakened tag it was given (the captured If-Match)')
   eq(rt.gaugeLabel(), 'Model: Auto'); eq(rt.router.writes().length, 0); eq(rt.note('save'), NOTES.account, 'the false success, with the failure only in the screen-reader status')
   eq(rt.note('status'), WORDS.conflict)
   for (let again = 0; again < 2; again++) { await rt.commit('economy'); await rt.commit('best') }
@@ -424,7 +472,7 @@ await check('a tag per scope: the deck PATCH carries the deck\'s tag and the use
 })
 
 // ================================================================ D. user scope
-console.log('D. User scope is unchanged')
+console.log('D. The reusable defaults (the user scope)')
 const userOps = [
   ['GET', null, null, null],
   ['PATCH', 'tag', { planning_strategy: { preset: 'best' } }, 'strong'],
@@ -449,19 +497,33 @@ async function userMatrix(server, flag) {
   out.push({ signedOut: await server.handlePrefs('GET', null, { ifMatch: null }, { ...routeDeps(modelRouter(), flag), getSessionUser: async () => null }) })
   return out
 }
-await check('the user routes answer the same for the same requests, flag off or on: GET, PATCH with a strong, weakened, other, unquoted or no tag, auto, an unchosen group, an empty body', async () => {
+await check('the user routes answer as the base does with the flag off; with it on, a request differs only when it carries the router\'s own tag weakened (saved, the router given its strong tag), and everything else (GET, strong, other, unquoted or no tag, auto, an unchosen group, an empty body, unconfigured, off, signed out) is the same', async () => {
   const off = await userMatrix(head), on = await userMatrix(head, 'true')
-  deep(on, off)
-  ok(off.some(o => o.tagKind === 'weak' && o.status === 412), 'a weakened tag is still refused on the user scope, flag on too (unchanged by design)'); ok(off.some(o => o.tagKind === 'strong' && o.status === 200))
+  deep(off, await userMatrix(base), 'flag off is the base')
+  deep(on.map((o, i) => (JSON.stringify(o) === JSON.stringify(off[i]) ? null : `${o.method} ${o.tagKind}`)).filter(Boolean), ['PATCH weak'], 'flag on changes the weakened-tag request and no other')
+  const weakOff = off.find(o => o.tagKind === 'weak'), weakOn = on.find(o => o.tagKind === 'weak')
+  eq(weakOff.status, 412); eq(weakOn.status, 200); deep(weakOn.kept, { planning_strategy: 'best' })
+  ok(weakOn.calls.some(call => call.startsWith('PATCH') && call.endsWith(` ${EMPTY_ETAG}`)), 'the router is sent its own strong tag'); ok(off.some(o => o.tagKind === 'strong' && o.status === 200))
 })
-await check('a browser save on the reusable default: Best saves with the tag as sent on either flag value; with a weakened tag it is refused on either (unchanged), and the note follows the save when the flag is on', async () => {
+await check('a browser save on the reusable default (E2E-2 capture: its GET comes back weakened too): flag off, the router\'s tag saves and the weakened one is refused 412 with the popover still saying "Saved"; flag on, both save, "Saved" comes only after a save, and a real concurrent change is refused in the existing words', async () => {
   for (const flag of [undefined, 'true']) {
-    const clean = await mountProbe({ flag, props: { sessionId: null } }); eq(clean.api().scope, 'user')
-    deep(await clean.api().select(deckOf('best')), { kind: 'saved', choice: deckOf('best') }); await clean.settle(); deep(clean.router.kept(USER_PATH), Object.fromEntries(TEXT_GROUPS.map(g => [g, 'best'])))
+    const clean = await mountProbe({ flag, props: { sessionId: null } }); eq(clean.api().scope, 'user'); eq(clean.api().saveNote, flag === 'true' ? '' : NOTES.account)
+    deep(await clean.api().select(deckOf('best')), { kind: 'saved', choice: deckOf('best') }); await clean.settle(); deep(clean.router.kept(USER_PATH), Object.fromEntries(TEXT_GROUPS.map(g => [g, 'best']))); eq(clean.api().saveNote, NOTES.account)
     const altered = await mountProbe({ flag, edge: 'weaken', props: { sessionId: null } })
-    eq((await altered.api().select(deckOf('best'))).kind, 'conflict'); await altered.settle(); eq(altered.router.writes().length, 0)
-    eq(altered.api().saveNote, flag === 'true' ? WORDS.conflict : NOTES.account)
+    const outcome = await altered.api().select(deckOf('best')); await altered.settle()
+    eq(lastPatch(altered).url, '/api/model-choice/prefs'); eq(lastPatch(altered).headers['If-Match'], CAPTURE.user_get_etag, 'the browser sends the weakened tag it was given')
+    if (flag === 'true') {
+      eq(outcome.kind, 'saved'); deep(altered.router.kept(USER_PATH), Object.fromEntries(TEXT_GROUPS.map(g => [g, 'best']))); eq(altered.api().saveNote, NOTES.account); eq(altered.router.writes()[0].headers['If-Match'], EMPTY_ETAG)
+    } else {
+      eq(outcome.kind, 'conflict'); eq(altered.router.writes().length, 0); eq(altered.api().saveNote, NOTES.account, 'today: refused, and the note still says Saved'); eq(altered.api().feedback, WORDS.conflict)
+    }
   }
+  const rt = await mountProbe({ flag: 'true', edge: 'weaken', props: { sessionId: null } }); rt.router.seed(USER_PATH, Object.fromEntries(TEXT_GROUPS.map(g => [g, { preset: 'economy' }]))) // another tab
+  eq((await rt.api().select(deckOf('best'))).kind, 'conflict'); await rt.settle()
+  eq(rt.api().saveNote, WORDS.conflict); eq(rt.api().choice.tier, 'economy', 'the gauge shows what is stored'); eq(rt.router.writes().length, 0); eq(rt.patches().length, 1)
+  deep(rt.router.kept(USER_PATH), Object.fromEntries(TEXT_GROUPS.map(g => [g, 'economy'])))
+  await rt.api().select(deckOf('balanced')); await rt.settle(); eq(rt.api().saveNote, NOTES.account, 'a later save that works says Saved again')
+  rt.router.state.refuse.push('balanced'); await rt.api().select(deckOf('balanced')); await rt.settle(); eq(rt.api().saveNote, WORDS.refused, 'and a refused one says so')
 })
 
 // ================================================================ E. flag off is the base
@@ -494,20 +556,20 @@ async function requestMatrix(server, flag, { concurrent = false } = {}) {
   const out = []
   for (const [label, method, deckKey, tagKind, changes] of requests) {
     const router = modelRouter(), tag = routerEtag({})
-    if (concurrent && deckKey) router.seed(`/v1/prefs/${ME.id}/sessions/${deckKey}`, { content_writing: { preset: 'economy' } })
+    if (concurrent) router.seed(deckKey ? `/v1/prefs/${ME.id}/sessions/${deckKey}` : USER_PATH, { content_writing: { preset: 'economy' } })
     const sent = { strong: tag, weak: weak(tag), other: '"deadbeefdeadbeefdeadbeefdeadbeef"', unquoted: 'deadbeef', none: null }[tagKind] ?? null
     const outcome = await server.handlePrefs(method, deckKey, { ifMatch: method === 'GET' ? null : sent, body: async () => ({ preferences: changes }) }, routeDeps(router, flag))
     out.push({ label, status: outcome.status, body: outcome.body, etag: outcome.etag ?? null, calls: router.log.map(entry => `${entry.method} ${entry.url} ${entry.headers['If-Match'] ?? '-'}`) })
   }
   return out
 }
-await check('flag off (unset, "", "false", "TRUE", "1"): the route answers a matrix of deck and user requests exactly as the base does (same hash), with and without a concurrent change; flag on differs only on the weakened deck tag', async () => {
+await check('flag off (unset, "", "false", "TRUE", "1"): the route answers a matrix of deck and user requests exactly as the base does (same hash), with and without a concurrent change; flag on differs only on the weakened tag of either scope', async () => {
   const want = sha(JSON.stringify(await requestMatrix(base, undefined))), wantConcurrent = sha(JSON.stringify(await requestMatrix(base, undefined, { concurrent: true })))
   for (const value of [undefined, '', 'false', 'TRUE', '1', ' true']) {
     eq(sha(JSON.stringify(await requestMatrix(head, value))), want, `flag ${JSON.stringify(value)}`); eq(sha(JSON.stringify(await requestMatrix(head, value, { concurrent: true }))), wantConcurrent, `flag ${JSON.stringify(value)}, concurrent`)
   }
   const on = await requestMatrix(head, 'true'), off = await requestMatrix(base, undefined)
-  deep(on.map((o, i) => (JSON.stringify(o) === JSON.stringify(off[i]) ? null : o.label)).filter(Boolean), ['deck first save, weakened'], 'flag on changes this one request and no other')
+  deep(on.map((o, i) => (JSON.stringify(o) === JSON.stringify(off[i]) ? null : o.label)).filter(Boolean), ['deck first save, weakened', 'user save, weakened'], 'flag on changes these two requests and no other')
   eq(sha(JSON.stringify(await requestMatrix(head, 'true', { concurrent: true }))), wantConcurrent, 'and a real concurrent change is answered as the base answers it')
 })
 /** One fixed script over the hook: the transcript is what the picker shows after each step. */
@@ -621,7 +683,13 @@ async function expectations() {
     for (const value of [undefined, 'false']) { const off = modelRouter(); eq((await patchOf(server, off, SESSION, weak(await getTag(server, off, SESSION)), BEST3, value)).status, 412, `flag ${value}, weakened: today's 412`) }
     const concurrent = modelRouter(), seen = await getTag(server, concurrent, SESSION, 'true'); concurrent.seed(DECK_PATH, { content_writing: { preset: 'economy' } })
     eq((await patchOf(server, concurrent, SESSION, weak(seen), BEST3, 'true')).status, 412, 'flag on, a real change: refused'); eq(concurrent.writes().length, 0)
-    const user = modelRouter(); eq((await server.handlePrefs('PATCH', null, { ifMatch: weak(await getTag(server, user, null, 'true')), body: async () => ({ preferences: { content_writing: { preset: 'best' } } }) }, routeDeps(user, 'true'))).status, 412, 'the user scope is as it was')
+    const user = modelRouter(), userTag = await getTag(server, user, null, 'true')
+    eq((await userPatchOf(server, user, weak(userTag), BEST_WRITING, 'true')).status, 200, 'flag on, user scope, weakened: written'); deep(user.writes().map(w => w.headers['If-Match']), [EMPTY_ETAG], 'the router is sent its own strong tag')
+    for (const value of [undefined, 'false']) { const userOff = modelRouter(); eq((await userPatchOf(server, userOff, weak(await getTag(server, userOff, null, value)), BEST_WRITING, value)).status, 412, `flag ${value}, user scope, weakened: today's 412`) }
+    const userChanged = modelRouter(), seenUser = await getTag(server, userChanged, null, 'true'); userChanged.seed(USER_PATH, { planning_strategy: { preset: 'economy' } })
+    eq((await userPatchOf(server, userChanged, weak(seenUser), BEST_WRITING, 'true')).status, 412, 'flag on, user scope, a real change: refused'); eq(userChanged.writes().length, 0)
+    const race = modelRouter(), raceTag = await getTag(server, race, null, 'true'); race.state.race = () => race.seed(USER_PATH, { planning_strategy: { preset: 'economy' } })
+    eq((await userPatchOf(server, race, weak(raceTag), BEST_WRITING, 'true')).status, 412, 'a racing write is refused by the router\'s own precondition'); eq(race.kept(USER_PATH).content_writing, undefined)
   }
   { // the hook
     const on = await mountProbe({ read: rd, flag: 'true', edge: 'weaken' }); eq(on.api().saveNote, '', 'nothing before a save')
@@ -629,6 +697,9 @@ async function expectations() {
     await on.setProps({ sessionId: SESSION_2 }); eq(on.api().saveNote, '', 'a new presentation: nothing yet')
     const refused = await mountProbe({ read: rd, flag: 'true', edge: 'weaken' }); await refused.api().select(deckOf('best')); await refused.settle()
     refused.router.seed(DECK_PATH, { content_writing: { preset: 'economy' } }); await refused.api().select(deckOf('balanced')); await refused.settle(); eq(refused.api().saveNote, WORDS.conflict, 'a refused save speaks')
+    const user = await mountProbe({ read: rd, flag: 'true', edge: 'weaken', props: { sessionId: null } }); eq(user.api().saveNote, '', 'user scope: nothing before a save')
+    eq((await user.api().select(deckOf('best'))).kind, 'saved'); await user.settle(); eq(user.api().saveNote, NOTES.account, 'user scope: saved'); user.router.seed(USER_PATH, Object.fromEntries(TEXT_GROUPS.map(g => [g, { preset: 'economy' }])))
+    await user.api().select(deckOf('balanced')); await user.settle(); eq(user.api().saveNote, WORDS.conflict, 'user scope: a refused save speaks')
     const device = await mountProbe({ read: rd, flag: 'true' }); device.router.state.putStatus = 500; await device.api().select(deckOf('best')); await device.settle(); eq(device.api().saveNote, NOTES.unreachable, 'the device note')
     for (const value of [undefined, 'false']) {
       const off = await mountProbe({ read: rd, flag: value, edge: 'weaken' }); eq(off.api().saveNote, NOTES.account, `flag ${value}: the standing note`); await off.api().select(deckOf('best')); await off.settle(); eq(off.api().saveNote, NOTES.account, `flag ${value}: unchanged after a failed save`)
@@ -640,8 +711,11 @@ await check('the expectations pass on the real files (so a mutant failing them i
 const mutants = [
   ['server: the weak mark counts as part of the value', SERVER, ".replace(/^W\\//, '')", ''],
   ['server: any two tags are the same read (a concurrent change is accepted)', SERVER, 'return sent !== null && current !== null && opaque(sent) === opaque(current)', 'return sent !== null && current !== null'],
-  ['server: the user scope is normalised too', SERVER, 'if (deck && deckSaveOn(deps.env) && sameEntityTag(', 'if (deckSaveOn(deps.env) && sameEntityTag('],
-  ['server: the flag is ignored', SERVER, 'if (deck && deckSaveOn(deps.env) && sameEntityTag(', 'if (deck && sameEntityTag('],
+  ['server: the user scope\'s compare is dropped (only the deck scope is normalised)', SERVER, 'if (deckSaveOn(deps.env) && sameEntityTag(', 'if (deck && deckSaveOn(deps.env) && sameEntityTag('],
+  ['server: the deck scope\'s compare is dropped (only the user scope is normalised)', SERVER, 'if (deckSaveOn(deps.env) && sameEntityTag(', 'if (!deck && deckSaveOn(deps.env) && sameEntityTag('],
+  ['server: the flag is ignored', SERVER, 'if (deckSaveOn(deps.env) && sameEntityTag(', 'if (sameEntityTag('],
+  ['server: the router gets no If-Match on the user PATCH (its precondition is dropped)', SERVER, "{ preferences: changes }, current.etag)", '{ preferences: changes })'],
+  ['server: the router gets the browser\'s tag on the user PATCH', SERVER, "{ preferences: changes }, current.etag)", '{ preferences: changes }, request.ifMatch)'],
   ['server: the flag is loose', SERVER, "export const deckSaveOn = (env: Env) => env[MODEL_CHOICE_DECK_SAVE_FLAG] === 'true'", 'export const deckSaveOn = (env: Env) => Boolean(env[MODEL_CHOICE_DECK_SAVE_FLAG])'],
   ['hook: the flag is ignored', HOOK, 'DECK_SAVE_ON && meta.mode === "account"', 'meta.mode === "account"'],
   ['hook: the success note stands before any save', HOOK, '(confirmed ? saveNote(meta.mode, meta.reason, true) : "")', 'saveNote(meta.mode, meta.reason, true)'],

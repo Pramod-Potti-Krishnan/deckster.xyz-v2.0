@@ -1,11 +1,14 @@
 // FRONTEND-2 (B37; OPS-2's RISK of 27 Oct 22:15Z, E2E-2's F8 re-check on Studio dev, session 57f9e99a). Flag NEXT_PUBLIC_STUDIO_MODEL_CHOICE_DECK_SAVE (exact "true", default off, build-time): two fixes to #521's model choice
-// (NEXT_PUBLIC_STUDIO_MODEL_CHOICE, ON on Studio dev), both seen on "This presentation" (the deck scope) after the router bundle put PREFS_SESSION_SCOPE_ENABLED on (router uat c19a384f).
+// (NEXT_PUBLIC_STUDIO_MODEL_CHOICE, ON on Studio dev), first seen on "This presentation" (the deck scope) after the router bundle put PREFS_SESSION_SCOPE_ENABLED on (router uat c19a384f), and on "Reusable defaults" (the user scope)
+// by the same cause (E2E-2's $0 capture, 27 Oct 22:49Z, session 57f9e99a: the deck GET and the user GET both came back with ETag W/"4f53cda18c2baa0c0354bb5f9a3ecbe5", compressed by Vercel; the PATCH sent If-Match W/"4f53..." and got 412).
 //   1. Every deck save answered 412 preferences_modified. The router does not refuse it (ROUTER-2, app/read_api.py at c19a384f: the deck PUT :357 has no precondition, the deck GET :339 always sends a strong ETag, :708 _set_validators).
-//      The 412 is Studio's own stale-read check in lib/studio-model-choice-server.ts handlePrefs, which compares the browser's If-Match with the deck GET's tag by plain string equality. With the flag on, the deck scope compares the
+//      The 412 is Studio's own stale-read check in lib/studio-model-choice-server.ts handlePrefs, which compares the browser's If-Match with the router's tag by plain string equality. With the flag on, BOTH scopes compare the
 //      OPAQUE tags (a W/ mark and the quotes are not part of the value), so a tag that came back weakened on its way through the edge is still the same read; a different tag is still refused (a real concurrent change answers 412).
+//      The router's own user PATCH still gets the router's strong tag as If-Match (its precondition keeps working: a write that races Studio's read is refused 412 by the router); the deck PUT has none.
 //   2. The popover said "Saved to your account. Applies from the next build." whatever happened. That line is the picker's standing note about where choices are kept (lib/studio-model-picker.ts saveNote, by mode), and the words of a failed
-//      save (MODEL_CHOICE_CONFLICT ...) reach only the screen-reader status. With the flag on, in account mode the note is "Saved ..." only after a save the server confirmed, the failed save's own (existing) words after one that failed,
-//      and nothing before a save. Device and no-storage notes are unchanged: they were true already.
+//      save (MODEL_CHOICE_CONFLICT ...) reach only the screen-reader status. With the flag on, in account mode (either scope) the note is "Saved ..." only after a save the server confirmed, the failed save's own (existing) words after one
+//      that failed, and nothing before a save. Device and no-storage notes are unchanged: they were true already. The Intelligence page (components/studio-personal/intelligence-model-choice.tsx) is not touched: its pill follows the stored choices
+//      and its feedback line is set only by the save's own outcome.
 // Every line this change adds to an EXISTING file is a pure insertion that carries the marker MODEL-CHOICE-DECK-SAVE (matched as a whole token; #521's MODEL-CHOICE is another token): lib/studio-model-choice-server.ts (the flag, the
 // tag comparison, one line before the stale-read check) and components/model-choice/use-model-choice.ts (the flag, one state, two lines in select and the load effect, one override of saveNote in the return). Strip those lines and each file is
 // its base, byte for byte. No new file in lib/ or components/ and no new import in either file, so the loaders of the older proofs (which hand a module only the imports it had) need no edit.
@@ -62,8 +65,8 @@ export const MODEL_CHOICE_DECK_SAVE_SCOPE_FILES = new Set([...MODEL_CHOICE_DECK_
 
 /** The whole .env.example block: its comment and its line. */
 export const MODEL_CHOICE_DECK_SAVE_ENV_BLOCK = `# STUDIO MODEL CHOICE DECK SAVE (FRONTEND-2, B37; E2E-2's F8 re-check on Studio dev, 27 Oct). On for the exact value "true"; default off, and then model choice (NEXT_PUBLIC_STUDIO_MODEL_CHOICE) behaves exactly as today. Build-time value: change it on Vercel and redeploy.
-# On, two fixes to "This presentation": (1) a deck save is no longer refused 412 when the browser's If-Match is the deck's own tag in another form (the edge may send the router's strong tag on as W/"..."): Studio's stale-read check compares the opaque tags, and a really
-# different tag (another tab saved first) is still refused; (2) the picker says "Saved to your account" only after a save the account confirmed, the words of a failed save (changed elsewhere, refused, not available) after one that failed, and nothing before a save. No router change, no new text.
+# On, two fixes to model choice saves, "This presentation" and "Reusable defaults": (1) a save is no longer refused 412 when the browser's If-Match is the router's own tag in another form (Vercel sends the router's strong tag on as W/"..."): Studio's stale-read check compares the
+# opaque tags, a really different tag (another tab saved first) is still refused, and the router still gets its own tag as If-Match; (2) the picker says "Saved to your account" only after a save the account confirmed, the words of a failed save (changed elsewhere, refused, not available) after one that failed, and nothing before a save. No router change, no new text.
 NEXT_PUBLIC_STUDIO_MODEL_CHOICE_DECK_SAVE="false"
 `
 

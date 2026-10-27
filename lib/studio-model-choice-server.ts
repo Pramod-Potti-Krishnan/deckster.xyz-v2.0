@@ -43,10 +43,10 @@ const CODE_SHAPE = /^[A-Za-z0-9_]{1,48}$/
 const PRESETS: readonly string[] = MODEL_CHOICE_PRESET_IDS
 
 export const routesOn = (env: Env) => env[MODEL_CHOICE_FLAG] === 'true'
-/** NEXT_PUBLIC_STUDIO_MODEL_CHOICE_DECK_SAVE (exact "true", default off; the browser's hook reads the same flag at build time). On, a deck PATCH's stale-read check compares the entity tags as opaque values. */ // MODEL-CHOICE-DECK-SAVE
+/** NEXT_PUBLIC_STUDIO_MODEL_CHOICE_DECK_SAVE (exact "true", default off; the browser's hook reads the same flag at build time). On, a PATCH's stale-read check (the deck scope's and the reusable defaults') compares the entity tags as opaque values. */ // MODEL-CHOICE-DECK-SAVE
 export const MODEL_CHOICE_DECK_SAVE_FLAG = 'NEXT_PUBLIC_STUDIO_MODEL_CHOICE_DECK_SAVE' // MODEL-CHOICE-DECK-SAVE
 export const deckSaveOn = (env: Env) => env[MODEL_CHOICE_DECK_SAVE_FLAG] === 'true' // MODEL-CHOICE-DECK-SAVE
-/** Two entity tags are the same read when their opaque values are: a weak mark (W/) and the quotes are not part of it. The router's deck GET sends a strong tag, and an edge that compresses a response (Vercel) may send it on as W/"...", which the browser then returns in If-Match. */ // MODEL-CHOICE-DECK-SAVE
+/** Two entity tags are the same read when their opaque values are: a weak mark (W/) and the quotes are not part of it. The router sends a strong tag, and Vercel compresses the response and sends it on as W/"..." (E2E-2 capture, 27 Oct 22:49Z), which the browser then returns in If-Match. */ // MODEL-CHOICE-DECK-SAVE
 export const sameEntityTag = (sent: string | null, current: string | null) => { const opaque = (tag: string) => tag.trim().replace(/^W\//, '').replace(/^"(.*)"$/, '$1'); return sent !== null && current !== null && opaque(sent) === opaque(current) } // MODEL-CHOICE-DECK-SAVE
 export const notFound = (): Outcome => ({ status: 404, body: { error: 'Not found' } })
 const fail = (status: number, code: string, error: string, retryable: boolean): Outcome => ({ status, body: { error, code, retryable } })
@@ -216,7 +216,7 @@ export async function handlePrefs(method: 'GET' | 'PATCH', deckKey: string | nul
   if ('failed' in current || current.status !== 200) return routerFailure(current, deck)
   if (method === 'GET') return { status: 200, body: view(scope, current.body), etag: current.etag ?? undefined }
 
-  if (deck && deckSaveOn(deps.env) && sameEntityTag(ifMatchTag, current.etag)) ifMatchTag = current.etag // MODEL-CHOICE-DECK-SAVE: the same read, however the tag travelled (W/ or not): the check below then lets it through; a different tag is still refused
+  if (deckSaveOn(deps.env) && sameEntityTag(ifMatchTag, current.etag)) ifMatchTag = current.etag // MODEL-CHOICE-DECK-SAVE: the same read, however the tag travelled (W/ or not), on either scope: the check below then lets it through; a different tag is still refused, and the router still gets its own tag as If-Match
   // A stale read is refused here, before anything is written: the browser gets the current map and its tag.
   if (ifMatchTag !== null && ifMatchTag !== current.etag) return { status: 412, body: { ...view(scope, current.body), error: 'Your choices changed elsewhere. Read them again and retry.', code: 'preferences_modified', retryable: true }, etag: current.etag ?? undefined }
 
