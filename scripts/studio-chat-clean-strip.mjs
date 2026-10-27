@@ -10,6 +10,8 @@
 // composer's whole flag-off element tree, so it loads each source through stripLaterChanges first (a later change's null children are its own); the model-picker proof wants no app file to import the picker, which
 // this change's composer does, so a registered later change's files are its own; the composer-copy, composer-picker and composer-stage-context proofs read chat-input.tsx raw (import allow-lists, a base identity), so they read it through
 // the registry; the model-choice proof (studio's generic K, which strips every registered block and every other change's registry line) only held .env.example to END with its block, which a later block cannot satisfy: one line. putBackChatCleanEdits puts the previous lines back, so a proof that holds those files reads them as they were.
+// Two of the taught proofs (bulk-edit-prompt-text, pass3-polish-b) are taught again in their scope guard, which armed on this branch's first-parent commits; and the arrange proof pins pass3-polish-b's proof byte for byte
+// against its base, so its two pin checks read through the registry (the pin past this change's two lines in it).
 // How the older pins reach it: this change REGISTERS its files, its .env.example block and this strip (scripts/studio-later-changes.mjs, three lines). Plain node, no imports, nothing read from disk or git here.
 
 export const BASE_COMMIT = '59588574415409a288917b5842424c0840d3e195' // origin/studio-v4-dev-preparation-code (#529 merged), the last studio head merged into this branch; the tree diff from it to this change's newest commit is this change
@@ -137,6 +139,14 @@ export const CHAT_CLEAN_PIN_EDITS = {
     [
       "  for (const rel of ['components/element-format-panel/tabs/arrange-tab.tsx', 'components/element-format-panel/index.tsx', PAGE]) check(assert.equal, registry.stripLaterChanges(rel, read(rel)), registry.stripLaterChanges(rel, baseText(rel)), `${rel} is not changed`) // LATER-CHANGES: registry read (CHAT-CLEAN): a change registered after this one (chat clean) adds marked lines to the page; through the registry both sides are the base's\n",
       "  for (const rel of ['components/element-format-panel/tabs/arrange-tab.tsx', 'components/element-format-panel/index.tsx', PAGE]) check(assert.equal, read(rel), baseText(rel), `${rel} is not changed`)\n",
+    ],
+    [
+      "    check(assert.equal, registry.stripLaterChanges(rel, strip.putBackPin(rel, read(rel))), registry.stripLaterChanges(rel, baseText(rel)), `the taught line of ${rel} puts back to the base's`) // LATER-CHANGES: registry read (CHAT-CLEAN): a change registered later (chat clean) teaches this pin too, with lines of its own; past them (the registry's strips, both sides) the put-back is the base's\n",
+      "    check(assert.equal, strip.putBackPin(rel, read(rel)), baseText(rel), `the taught line of ${rel} puts back to the base's`)\n",
+    ],
+    [
+      "    check(assert.equal, registry.stripLaterChanges(rel, strip.stripStudioArrange(rel, read(rel))), registry.stripLaterChanges(rel, baseText(rel)), `${rel} through the strip is the base's`) // LATER-CHANGES: registry read (CHAT-CLEAN): the same pin through this change's strip, past the later change's lines\n",
+      "    check(assert.equal, strip.stripStudioArrange(rel, read(rel)), baseText(rel), `${rel} through the strip is the base's`)\n",
     ],
   ],
   "scripts/test-studio-chat-undo-v2.mjs": [

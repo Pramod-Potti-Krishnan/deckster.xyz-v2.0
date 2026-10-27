@@ -316,9 +316,9 @@ function mountInspector(env, props, source = SRC[INSPECTOR]) {
   check(assert.ok, read('.env.example').lastIndexOf('\n' + strip.STUDIO_ARRANGE_ENV_BLOCK) >= 0 && registry.stripLaterEnvBlocks('.env.example', read('.env.example').slice(read('.env.example').lastIndexOf('\n' + strip.STUDIO_ARRANGE_ENV_BLOCK) + strip.STUDIO_ARRANGE_ENV_BLOCK.length + 1)).trim() === '', 'the block is the file\'s last, or followed only by the blocks of changes registered after it') // LATER-CHANGES: registry read (MODEL-CHOICE)
   check(assert.ok, strip.STUDIO_ARRANGE_ENV_BLOCK.trimEnd().endsWith(`${FLAG}="false"`), 'the example value is "false"')
   for (const rel of strip.STUDIO_ARRANGE_PIN_FILES) {
-    check(assert.equal, strip.putBackPin(rel, read(rel)), baseText(rel), `the taught line of ${rel} puts back to the base's`)
+    check(assert.equal, registry.stripLaterChanges(rel, strip.putBackPin(rel, read(rel))), registry.stripLaterChanges(rel, baseText(rel)), `the taught line of ${rel} puts back to the base's`) // LATER-CHANGES: registry read (CHAT-CLEAN): a change registered later (chat clean) teaches this pin too, with lines of its own; past them (the registry's strips, both sides) the put-back is the base's
     check(assert.equal, strip.putBackPin(rel, baseText(rel)), baseText(rel), `putBackPin is idempotent (${rel})`)
-    check(assert.equal, strip.stripStudioArrange(rel, read(rel)), baseText(rel), `${rel} through the strip is the base's`)
+    check(assert.equal, registry.stripLaterChanges(rel, strip.stripStudioArrange(rel, read(rel))), registry.stripLaterChanges(rel, baseText(rel)), `${rel} through the strip is the base's`) // LATER-CHANGES: registry read (CHAT-CLEAN): the same pin through this change's strip, past the later change's lines
   }
   for (const file of strip.STUDIO_ARRANGE_SCOPE_FILES) check(assert.ok, registry.LATER_CHANGE_FILES.has(file), `registered: ${file}`)
   check(assert.ok, registry.LATER_STRIPS.includes(strip.stripStudioArrange), 'the strip is registered')
