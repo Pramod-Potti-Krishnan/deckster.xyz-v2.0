@@ -16,7 +16,7 @@
 // How the older pins reach it: this change REGISTERS its files, its .env.example block and this strip (scripts/studio-later-changes.mjs, three lines). Plain node, no imports, nothing read from disk or git here.
 
 export const BASE_COMMIT = '875334faa648ed72e63b260457ca2fc0a2020c0c' // origin/studio-v4-dev-preparation-code at the start of this change (#518)
-export const FOLLOW_UP_BASE_COMMIT = '14a06c3053047acc7f6a613afd1138dabf4a3c54' // origin/studio-v4-dev-preparation-code (#530 merged) at the start of the held-state follow-up: this change is already in it
+export const FOLLOW_UP_BASE_COMMIT = 'a0ff9d4596fd9905e80ecd96682a454c1bf9ab60' // origin/studio-v4-dev-preparation-code (#530 merged) at the start of the held-state follow-up: this change is already in it
 export const FLOW_CONTROL_FLAGS = ['NEXT_PUBLIC_STUDIO_FLOW_FOCUS', 'NEXT_PUBLIC_STUDIO_FLOW_AMEND', 'NEXT_PUBLIC_STUDIO_FLOW_AMEND_INSTRUCTIONS']
 export const FLOW_CONTROL_MARKER = 'FLOW-CONTROL'
 /** The marker as a WHOLE token: FLOW-CONTROL-X or X-FLOW-CONTROL are not this change's. */
