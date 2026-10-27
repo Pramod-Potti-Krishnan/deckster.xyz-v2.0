@@ -595,6 +595,39 @@ await check('flag off (unset, "false", "1"): the hook shows the same after every
   ok(sha(JSON.stringify(await hookTranscript(read, 'true'))) !== want, 'the script is sensitive to the flag')
 })
 
+await check("#538's registry check, taught: it reads past the registry lines of every change registered after it (this one's, and any later one's, no per-change filter), and a stray line, a shaped line above its own, a removed line or a missing line of its own still fail it", async () => {
+  const rel = 'scripts/test-studio-chat-element-edit-2.mjs', [[has]] = stripModule.MODEL_CHOICE_DECK_SAVE_PIN_EDITS[rel]
+  ok(read(rel).includes(has), 'the taught lines are in the proof'); ok(has.split('\n').filter(Boolean).every(line => line.includes(stripModule.MODEL_CHOICE_DECK_SAVE_PIN_MARK)), 'each carries the mark')
+  const ee2Base = (await import('./studio-chat-element-edit-2-strip.mjs')).BASE_COMMIT
+  const baseRegistry = git('show', `${ee2Base}:${REGISTRY}`), headRegistry = git('show', `HEAD:${REGISTRY}`)
+  const lineDiff = (a, b) => { const count = new Map(); for (const line of a.split('\n')) count.set(line, (count.get(line) ?? 0) - 1); for (const line of b.split('\n')) count.set(line, (count.get(line) ?? 0) + 1); return [...count].flatMap(([line, n]) => Array(Math.abs(n)).fill(`${n > 0 ? '+' : '-'}${line}`)) }
+  const run = (headText, lines = has) => new Function('git', 'BASE_COMMIT', `${lines}\n  return diff`)((...args) => (args[0] === 'show' ? headText : lineDiff(baseRegistry, headText).join('\n')), ee2Base)
+  // #538's own assertion on the lines the diff leaves: exactly three, all added, all its own
+  const shaped = diff => diff.length === 3 && diff.every(line => line.startsWith('+') && line.includes('LATER-CHANGE') && line.includes('studio-chat-element-edit-2-strip.mjs'))
+  const MARKER = '  // one line per later change, above this comment\n', fake = name => `  (await import('./studio-fake-later-strip.mjs')).${name}, // LATER-CHANGE: FRONTEND-9, a later change (NEXT_PUBLIC_FAKE)\n`
+  const beforeMarkers = (text, line) => text.split(MARKER).join(`${line}${MARKER}`)
+  const mine = headRegistry.split('\n').filter(line => line.includes('studio-model-choice-deck-save-strip.mjs'))
+  eq(mine.length, 3); ok(shaped(run(headRegistry)), 'the real registry (this change\'s three lines included): #538\'s three remain')
+  ok(shaped(run(headRegistry.split('\n').filter(line => !mine.includes(line)).join('\n'))), 'and without this change\'s lines')
+  ok(shaped(run(beforeMarkers(headRegistry, fake('FAKE')))), 'a change that registers after it later still, with no filter of its own, is read past too')
+  const own = headRegistry.split('\n').findIndex(line => line.includes('studio-chat-element-edit-2-strip.mjs')), lines = headRegistry.split('\n')
+  const insertAt = (at, line) => [...lines.slice(0, at), line.replace(/\n$/, ''), ...lines.slice(at)].join('\n')
+  for (const [label, text] of [
+    ['a stray comment after its lines, inside a list', beforeMarkers(headRegistry, '  // a stray line nobody registered\n')],
+    ['a stray code line after its lines, inside a list', beforeMarkers(headRegistry, '  void 0,\n')],
+    ['a stray line at the top of the file', `// stray\n${headRegistry}`],
+    ['a line with the registered words but no strip module, after its lines', beforeMarkers(headRegistry, '  void 0, // LATER-CHANGE: nobody\n')],
+    ['a line in the registered shape ABOVE its own line', insertAt(own, fake('FAKE'))],
+    ['a line of the base removed', headRegistry.replace(/^.*studio-flow-control-strip\.mjs.*FLOW_CONTROL_SCOPE_FILES.*\n/m, '')],
+    ['its own FILES line removed', headRegistry.replace(/^.*studio-chat-element-edit-2-strip\.mjs.*CHAT_ELEMENT_EDIT_2_SCOPE_FILES.*\n/m, '')],
+  ]) { assert.notEqual(text, headRegistry, label); ok(!shaped(run(text)), `${label}: still fails`) }
+  const mutated = (from, to) => { eq(has.split(from).length, 2, from); return has.replace(from, () => to) }
+  ok(!shaped(run(headRegistry, mutated('laterRegistry.has(line.slice(1))', 'true'))), 'mutant caught: a filter that drops every added line')
+  ok(!shaped(run(headRegistry, mutated('laterRegistry.has(line.slice(1))', 'false'))), 'mutant caught: a filter that drops none')
+  ok(!shaped(run(headRegistry, mutated("else if (line.includes('studio-chat-element-edit-2-strip.mjs')) after = true;", "else if (line.includes('studio-chat-element-edit-2-strip.mjs')) after = false;"))), 'mutant caught: no line counts as a later change\'s')
+  ok(shaped(run(beforeMarkers(headRegistry, '  void 0, // LATER-CHANGE: nobody\n'), mutated("&& /-strip\\.mjs/.test(line)", ''))), 'mutant caught: a filter that does not ask for the registered shape hides a stray line (the real one does not, above)')
+})
+
 // ================================================================ F. scope over the committed diff, gate-safe
 console.log('F. Scope over the committed diff (BASE..HEAD, gate-safe)')
 const parentsOf = ref => git('rev-list', '--parents', '-n', '1', ref).trim().split(' ').slice(1)
