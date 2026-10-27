@@ -15,6 +15,7 @@ import { CHAT_THEME_EXPORT_CAPS, chatThemeExportDirectiveKind, themeExportDirect
 import { STUDIO_JOB_LEDGER_ENABLED, JOB_UPDATE_TYPE, jobLedgerRow, jobLedgerRows } from '@/lib/studio-job-ledger';
 import { STUDIO_BULK_EDIT_UNDO_ENABLED, STUDIO_CHAT_UNDO_ENABLED, BULK_EDIT_UNDO_CLIENT_CAPS, addBulkEditUndoCaps, normaliseDeckRestored } from '@/lib/studio-bulk-edit-wire'; // BULK-EDIT-UNDO (flags NEXT_PUBLIC_STUDIO_BULK_EDIT / NEXT_PUBLIC_STUDIO_CHAT_UNDO, default off)
 import { bulkEditUndoContext, routeStudioBulkEditUndoFrame } from '@/lib/studio-bulk-edit-store'; // BULK-EDIT-UNDO
+import { STUDIO_CHAT_COMMANDS_ENABLED, addChatCommandsFields, chatCommandsSent } from '@/lib/studio-chat-commands-wire'; // CHAT-COMMANDS (NEXT_PUBLIC_STUDIO_CHAT_COMMANDS, default off): the picked @ references, the / command hint and the mentions2 / commands1 caps
 import { STUDIO_FLOW_AMEND_ENABLED, STUDIO_FLOW_FOCUS_ENABLED, flowBus, isFlowFocusFrameType, isFlowSettledPhase, takeFlowInstructions } from '@/lib/studio-flow-control'; // FLOW-CONTROL (NEXT_PUBLIC_STUDIO_FLOW_FOCUS / _FLOW_AMEND, default off)
 import type { ManualDeckContext } from '@/lib/manual-deck-workflow';
 import type { DeckFooterConfig, DeckIdentity } from '@/lib/deck-identity';
@@ -3428,6 +3429,7 @@ export function useDecksterWebSocketV2(options: UseDecksterWebSocketV2Options = 
       // NEXT_PUBLIC_CHAT_ELEMENT_REFINE: element_refine1 in client_caps, and the selected element as one reference. Off: nothing.
       if (CHAT_ELEMENT_REFINE_ENABLED) addChatElementRefineFields(message.data as unknown as Record<string, unknown>, transportCallbacksRef.current.getChatElementReference?.() ?? null);
       if (BULK_EDIT_UNDO_CLIENT_CAPS.length > 0) addBulkEditUndoCaps(message.data as unknown as Record<string, unknown>); // BULK-EDIT-UNDO: bulk_edit1 / undo1 in client_caps, each with its own flag. Off: nothing.
+      if (STUDIO_CHAT_COMMANDS_ENABLED) addChatCommandsFields(message.data as unknown as Record<string, unknown>, text); // CHAT-COMMANDS: mentions2 / commands1 in client_caps, the picked file / template / theme references whose token is still in the text, and the command hint. Off: nothing.
       return message;
     };
 
@@ -3447,6 +3449,7 @@ export function useDecksterWebSocketV2(options: UseDecksterWebSocketV2Options = 
         `[deep_research=${message.data.deep_research}, web_search=${message.data.web_search}, extended_generation=${message.data.extended_generation}, file_upload=${message.data.file_upload}, use_knowledge_graph=${message.data.use_knowledge_graph ?? false}, theme=${message.data.theme?.mode ?? 'none'}, template_overrides=${message.data.element_overrides ? Object.keys(message.data.element_overrides).length : 0}, action=${message.data.action_value ?? 'none'}, manual_deck=${message.data.manual_deck?.policy ?? 'none'}, identity=${message.data.deck_identity ? 'yes' : 'no'}, handoff=${message.data.handoff_idempotency_key ? 'yes' : 'no'}]`
       );
       wsRef.current.send(JSON.stringify(message));
+      if (STUDIO_CHAT_COMMANDS_ENABLED) chatCommandsSent(text); // CHAT-COMMANDS: the picks and the command this message used are spent. Off: nothing.
       const turnSequence = ++sentTurnSequenceRef.current;
       const key = message.data.handoff_idempotency_key;
       const lifecycle = turnSubmissionLifecycleRef.current;
