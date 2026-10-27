@@ -11,6 +11,7 @@ import type { BuildThemeSelection } from '@/lib/theme-builder';
 import type { TemplateOverrides } from '@/lib/template-mode';
 // NEXT_PUBLIC_CHAT_THEME_CHANGE / NEXT_PUBLIC_CHAT_EXPORT (each default off): change the theme / export from chat; the caps and the two directives.
 import { CHAT_THEME_EXPORT_CAPS, chatThemeExportDirectiveKind, themeExportDirectiveId } from '@/lib/chat-theme-export-wire';
+import { CHAT_PARITY_CAPS, STUDIO_CHAT_PARITY_ANY_ENABLED, STUDIO_CHAT_PARITY_NOTES_ENABLED, addChatParityCaps, chatParityBus, chatParityNotesUpdate, chatParityRequestId, chatParityResultFrame, isChatParityRequestFrame } from '@/lib/studio-chat-parity'; // CHAT-PARITY (NEXT_PUBLIC_STUDIO_CHAT_PARITY_*, each default off): the group caps, Director's studio_action request and deck_mutation notes_updated
 // NEXT_PUBLIC_STUDIO_JOB_LEDGER (P3-4c, default off): Director's job_update frames and sync_response.payload.jobs go to the page's ledger.
 import { STUDIO_JOB_LEDGER_ENABLED, JOB_UPDATE_TYPE, jobLedgerRow, jobLedgerRows } from '@/lib/studio-job-ledger';
 import { STUDIO_BULK_EDIT_UNDO_ENABLED, STUDIO_CHAT_UNDO_ENABLED, BULK_EDIT_UNDO_CLIENT_CAPS, addBulkEditUndoCaps, normaliseDeckRestored } from '@/lib/studio-bulk-edit-wire'; // BULK-EDIT-UNDO (flags NEXT_PUBLIC_STUDIO_BULK_EDIT / NEXT_PUBLIC_STUDIO_CHAT_UNDO, default off)
@@ -1943,6 +1944,13 @@ export function useDecksterWebSocketV2(options: UseDecksterWebSocketV2Options = 
               }
               return;
             }
+            // CHAT-PARITY (any NEXT_PUBLIC_STUDIO_CHAT_PARITY_* flag on): Director's studio_action unlocks the turn and goes to the page's runner, here, ahead of the allowlist,
+            // CHAT-PARITY: so it never reaches the reducer, the transcript or the cache; a frame with no request id is dropped unanswered. Every flag off: unknown, dropped below as before.
+            if (STUDIO_CHAT_PARITY_ANY_ENABLED && isChatParityRequestFrame(parsedMessage)) { // CHAT-PARITY
+              clearAwaitReply(); // CHAT-PARITY
+              if (chatParityRequestId(parsedMessage)) chatParityBus.request?.(parsedMessage as unknown as import('@/lib/studio-chat-parity').ChatParityRequestFrame, { sessionId: socketSessionId, isCurrent: isCurrentSocket }); // CHAT-PARITY
+              return; // CHAT-PARITY
+            } // CHAT-PARITY
             // NEXT_PUBLIC_STUDIO_JOB_LEDGER (P3-4c): Director's job_update (a state tick: it does not unlock the turn) goes to the page's ledger,
             // here, ahead of the allowlist, so it never reaches the reducer, the transcript or the cache; sync_response's jobs go there too,
             // and that frame then carries on as before. Only this socket's session. Flag off: job_update is unknown, dropped below as before.
@@ -1976,6 +1984,18 @@ export function useDecksterWebSocketV2(options: UseDecksterWebSocketV2Options = 
               const message = parsedMessage as import('@/types/mdc').DeckMutationMessage;
               const payload = message.payload;
               const displayedOwner = deckMutationOwnerRef.current;
+              // CHAT-PARITY (NEXT_PUBLIC_STUDIO_CHAT_PARITY_NOTES): Director's notes_updated (it wrote a slide's notes / script / references itself) is not a slide mutation: this socket's session only,
+              // CHAT-PARITY: the deck on screen only, each message_id once; it unlocks the turn and goes to the page, which re-reads the Notes panel. Flag off: the mutation is unknown and dropped below, as before.
+              if (STUDIO_CHAT_PARITY_NOTES_ENABLED && chatParityNotesUpdate(payload)) { // CHAT-PARITY
+                const update = chatParityNotesUpdate(payload)!; // CHAT-PARITY
+                if (message.session_id !== socketSessionId || typeof message.message_id !== 'string' || !message.message_id || displayedOwner.deckOwnerSessionId !== socketSessionId || displayedOwner.presentationId !== update.presentationId) return; // CHAT-PARITY
+                const notesKey = JSON.stringify(['notes', socketSessionId, update.presentationId, message.message_id]); // CHAT-PARITY
+                if (processedDeckMutationIdsRef.current.has(notesKey)) return; // CHAT-PARITY
+                processedDeckMutationIdsRef.current.add(notesKey); // CHAT-PARITY
+                clearAwaitReply(); // CHAT-PARITY
+                chatParityBus.notes?.(update, { sessionId: socketSessionId, isCurrent: isCurrentSocket }); // CHAT-PARITY
+                return; // CHAT-PARITY
+              } // CHAT-PARITY
               if (!payload || typeof payload !== 'object'
                 || message.session_id !== socketSessionId
                 || typeof message.message_id !== 'string' || !message.message_id
@@ -3428,6 +3448,7 @@ export function useDecksterWebSocketV2(options: UseDecksterWebSocketV2Options = 
       // NEXT_PUBLIC_CHAT_ELEMENT_REFINE: element_refine1 in client_caps, and the selected element as one reference. Off: nothing.
       if (CHAT_ELEMENT_REFINE_ENABLED) addChatElementRefineFields(message.data as unknown as Record<string, unknown>, transportCallbacksRef.current.getChatElementReference?.() ?? null);
       if (BULK_EDIT_UNDO_CLIENT_CAPS.length > 0) addBulkEditUndoCaps(message.data as unknown as Record<string, unknown>); // BULK-EDIT-UNDO: bulk_edit1 / undo1 in client_caps, each with its own flag. Off: nothing.
+      if (CHAT_PARITY_CAPS.length > 0) addChatParityCaps(message.data as unknown as Record<string, unknown>); // CHAT-PARITY: notes1 / themes1 / identity1 / templates1 in client_caps, each with its own flag. Off: nothing.
       return message;
     };
 
@@ -3555,6 +3576,12 @@ export function useDecksterWebSocketV2(options: UseDecksterWebSocketV2Options = 
       return false;
     }
   }, []);
+  // CHAT-PARITY: report a studio_action outcome back to the Director (lib/studio-chat-parity.ts chatParityResult); the frame is built there so the names live in one place.
+  const sendChatParityResult = useCallback((data: import('@/lib/studio-chat-parity').ChatParityResultData): boolean => { // CHAT-PARITY
+    if (!wsRef.current || wsRef.current.readyState !== WebSocket.OPEN) return false; // CHAT-PARITY
+    try { wsRef.current.send(JSON.stringify(chatParityResultFrame(data))); return true; } catch { return false; } // CHAT-PARITY
+  }, []); // CHAT-PARITY
+  chatParityBus.send = sendChatParityResult // CHAT-PARITY: the page's runner answers through the bus (lib/studio-chat-parity.ts)
 
   const sendControlMessage = useCallback((type: ControlMessage['type'], data?: { job_id: string }): boolean => {
     if (!wsRef.current || wsRef.current.readyState !== WebSocket.OPEN) {

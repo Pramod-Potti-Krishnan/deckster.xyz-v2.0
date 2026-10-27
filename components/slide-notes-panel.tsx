@@ -7,6 +7,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Textarea } from '@/components/ui/textarea'
 import { useToast } from '@/hooks/use-toast'
 import { getPresentation, updateSlideNarration, SlideNarrationFields } from '@/lib/layout-service-client'
+import { CHAT_PARITY_NOTES_EVENT, STUDIO_CHAT_PARITY_NOTES_ENABLED } from '@/lib/studio-chat-parity' // CHAT-PARITY (NEXT_PUBLIC_STUDIO_CHAT_PARITY_NOTES): Director wrote a slide's notes from chat; re-read
 import { DeckQaInbox } from '@/components/deck-qa-inbox'
 import { SlideScriptPreview } from '@/components/slide-script-preview'
 import './studio-slide-notes.css'
@@ -430,6 +431,14 @@ export function SlideNotesPanel({
     window.addEventListener('deckster:narration-script-written', onExternalWrite)
     return () => window.removeEventListener('deckster:narration-script-written', onExternalWrite)
   }, [])
+  // CHAT-PARITY (NEXT_PUBLIC_STUDIO_CHAT_PARITY_NOTES): the same honest mechanism for a write Director made from chat (deck_mutation notes_updated, app/builder/page.tsx): the drafts the
+  // CHAT-PARITY: author has not edited re-read from Layout, and the next autosave carries the fresh updated_at (so it does not 409 on Director's write). Flag off: no listener.
+  useEffect(() => { // CHAT-PARITY
+    if (!STUDIO_CHAT_PARITY_NOTES_ENABLED) return // CHAT-PARITY
+    const onChatWrite = () => setReloadToken((token) => token + 1) // CHAT-PARITY
+    window.addEventListener(CHAT_PARITY_NOTES_EVENT, onChatWrite) // CHAT-PARITY
+    return () => window.removeEventListener(CHAT_PARITY_NOTES_EVENT, onChatWrite) // CHAT-PARITY
+  }, []) // CHAT-PARITY
 
   // --- Saving --------------------------------------------------------------
   // Re-queue a slide's dirty fields onto ITS presentation's saver so a later drain
