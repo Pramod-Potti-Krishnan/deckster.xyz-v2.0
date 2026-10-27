@@ -836,11 +836,11 @@ function withFileText(rel, text, fn) {
   fs.readFileSync = function (file, ...rest) { return path.resolve(String(file)) === target ? text : original.call(this, file, ...rest) }
   try { return fn() } finally { fs.readFileSync = original }
 }
-async function mountHook({ env = {}, hookText = null } = {}) {
+async function mountHook({ env = {}, hookText = null, wireText = null } = {}) {
   const world = createEnvironment({ processEnv: { ...BASE_ENV, NEXT_PUBLIC_STUDIO_V4_SHELL: 'true', NEXT_PUBLIC_CHAT_DIRECTIVES: 'true', ...env } })
   const user = { id: 'synthetic-user', email: 'synthetic-user@example.invalid' }
   const loader = createModuleLoader({ root, globals: world.globals, stubs: { react: React }, fileStubs: { 'hooks/use-auth': { useAuth: () => ({ user, isLoading: false }) } } })
-  const hookModule = withFileText(HOOK, hookText, () => loader.load(HOOK))
+  const hookModule = withFileText(WIRE, wireText, () => withFileText(HOOK, hookText, () => loader.load(HOOK)))
   const probe = { api: null, reference: null }
   function Probe() {
     probe.api = hookModule.useDecksterWebSocketV2({ autoConnect: false, existingSessionId: SESSION, onMessage() {}, getChatElementReference: () => probe.reference })
@@ -864,7 +864,7 @@ async function mountHook({ env = {}, hookText = null } = {}) {
 }
 
 async function hookSuite(over = {}) {
-  const headHook = over[HOOK] ?? readOwn(HOOK)
+  const headHook = over[HOOK] ?? readOwn(HOOK), headWire = over[WIRE] ?? null
   const baseHook = hasBase ? git('show', `${strip.BASE_COMMIT}:${HOOK}`) : null
   const SENDS = [
     ['hello'], ['Add a slide after slide 3 about growth'], ['Use @[File: q3 report.pdf] and @[Theme: Midnight (saved)] on @[Template: Board update]', 'store-1', 2, { deepResearch: true }],
@@ -881,7 +881,7 @@ async function hookSuite(over = {}) {
   if (baseHook) {
     for (const [name, env] of [['unset', {}], ['commands only', { NEXT_PUBLIC_STUDIO_CHAT_COMMANDS: 'true', NEXT_PUBLIC_STUDIO_V4_SHELL: 'true' }], ['everything but commands', { NEXT_PUBLIC_STUDIO_CHAT_CLEAN: 'true', NEXT_PUBLIC_CHAT_MENTIONS: 'true', NEXT_PUBLIC_CHAT_ELEMENT_REFINE: 'true' }]]) {
       const offEnv = name === 'commands only' ? { ...env, NEXT_PUBLIC_STUDIO_CHAT_CLEAN: 'false' } : env
-      const base = await mountHook({ env: offEnv, hookText: baseHook }), head = await mountHook({ env: offEnv, hookText: headHook })
+      const base = await mountHook({ env: offEnv, hookText: baseHook }), head = await mountHook({ env: offEnv, hookText: headHook, wireText: headWire })
       picks(head.wire)
       for (const [i, args] of SENDS.entries()) { if (i === 1) command(head.wire); await base.send(...args); await head.send(...args) }
       eq(head.sent(), base.sent(), `flag off (${name}): the head hook puts the same bytes on the socket as the base for ${SENDS.length} sends`)
@@ -892,8 +892,8 @@ async function hookSuite(over = {}) {
   }
   // -- flag on ---------------------------------------------------------------------------------------------------------------------------------------------------------------------
   const ENV_ON = { ...ON }
-  const off = await mountHook({ env: {}, hookText: headHook })
-  const on = await mountHook({ env: ENV_ON, hookText: headHook })
+  const off = await mountHook({ env: {}, hookText: headHook, wireText: headWire })
+  const on = await mountHook({ env: ENV_ON, hookText: headHook, wireText: headWire })
   picks(on.wire)
   for (const [i, args] of SENDS.entries()) { if (i === 1) { command(on.wire); command(off.wire) } await off.send(...args); await on.send(...args) }
   const [f0, f1, f2, f3, f4] = on.frames().map(frame => frame.data)
@@ -912,7 +912,7 @@ async function hookSuite(over = {}) {
   await on.send(SENDS[2][0]); eq(on.frames().at(-1).data.references ?? null, null, 'flag on: a send spends the picks it used')
   off.unmount(); on.unmount()
   // -- flag on with the K1 slide mentions and the element refine: one element reference, slide references first -------------------------------------------------
-  const refined = await mountHook({ env: { ...ENV_ON, NEXT_PUBLIC_CHAT_MENTIONS: 'true', NEXT_PUBLIC_CHAT_ELEMENT_REFINE: 'true' }, hookText: headHook })
+  const refined = await mountHook({ env: { ...ENV_ON, NEXT_PUBLIC_CHAT_MENTIONS: 'true', NEXT_PUBLIC_CHAT_ELEMENT_REFINE: 'true' }, hookText: headHook, wireText: headWire })
   picks(refined.wire)
   refined.probe.reference = { kind: 'element', element_id: 'el_live', element_type: 'IMAGE', slide_index: 4, slide_id: 'L4', label: 'Image · slide 5' }
   await refined.send('Make it bigger'); await refined.send('Make @[Element: Chart · slide 3] bigger with @[File: q3 report.pdf]')
@@ -1043,5 +1043,88 @@ await hookSuite()
 console.log(`PASS E  the real socket hook: flag off puts the base's bytes on the socket, flag on adds the caps, the references and the command (${checks} checks)`)
 sourceSuite()
 console.log(`PASS F  the sources: marked lines, gates, base identity, the registry, .env.example, the stylesheet, scope (${checks} checks)`)
+
+// ---- G. mutants ------------------------------------------------------------------------------------------------------------------------------
+const wireText = read(WIRE), libText = read(LIB), componentText = read(COMPONENT), cssText = read(CSS)
+const mutate = (text, from, to) => { if (!text.includes(from)) throw new Error(`mutant target missing: ${from.slice(0, 70)}`); if (text.split(from).length !== 2) throw new Error(`mutant target not unique: ${from.slice(0, 70)}`); return text.replace(from, to) }
+const expectFail = async (label, fn) => { let failed = false; try { await fn() } catch { failed = true } ok(failed, `mutant caught: ${label}`) }
+const allComposer = async overrides => { await composerSuite(overrides); await commandSuite(overrides); await mentionSuite(overrides) }
+const savedChecks = checks
+// the wire
+for (const [label, from, to] of [
+  ['the flag does not need chat clean', "  process.env.NEXT_PUBLIC_STUDIO_CHAT_CLEAN === 'true' &&\n", ''],
+  ['the commands1 cap is not advertised', '[MENTIONS2_CLIENT_CAP, COMMANDS1_CLIENT_CAP].filter', '[MENTIONS2_CLIENT_CAP].filter'],
+  ['our caps go before the others', 'data.client_caps = [...caps, ...[MENTIONS2_CLIENT_CAP, COMMANDS1_CLIENT_CAP].filter(cap => !caps.includes(cap))]', 'data.client_caps = [...[MENTIONS2_CLIENT_CAP, COMMANDS1_CLIENT_CAP], ...caps]'],
+  ['a deleted token keeps its reference', '    if (at >= 0) found.push({ at, reference })', '    found.push({ at, reference })'],
+  ['a picked element is added beside the live one (two element references)', "const kept = element ? existing.filter(reference => reference?.kind !== 'element') : existing", 'const kept = existing'],
+  ['the command hint outlives the request', "return command && typeof text === 'string' && command.pattern.test(text) ? command.name : null", 'return command ? command.name : null'],
+  ['the references are not capped', '.sort((a, b) => a.at - b.at).slice(0, CHAT_MENTIONS_MAX)', '.sort((a, b) => a.at - b.at)'],
+  ['a send keeps the command', 'chatCommandsBus.mentions.delete(token)\n  chatCommandsBus.command = null\n}', 'chatCommandsBus.mentions.delete(token)\n}'],
+  ['a saved theme reads like the preset', "${source === 'saved' ? ' (saved)' : ''}", "${source === 'saved' ? '' : ''}"],
+  ['brackets stay in a label', ".replace(/[\\[\\]\\r\\n]+/g, ' ')", ".replace(/[\\r\\n]+/g, ' ')"],
+]) await expectFail(label, () => wireSuite(mutate(wireText, from, to)))
+// the lib
+for (const [label, from, to] of [
+  ['"/" opens the menu inside a word', 'const COMMAND_RE = /(^|\\s)\\/', 'const COMMAND_RE = /()\\/'],
+  ['/export runs from a half-typed name', 'fill: Boolean(command.args)', 'fill: false'],
+  ['/stop with nothing building runs', 'if (!ctx.stop.visible) return decline(', 'if (false) return decline('],
+  ['a locked research switch still flips', 'return ctx.research.locked', 'return false'],
+  ['/undo with chat undo off runs', "return ctx.undoOn ? { kind: 'run', action: 'undo' } : cantYet(W.undoOffBody, 'undo')", "return { kind: 'run', action: 'undo' }"],
+  ['/publish runs something', 'return cantYet(W.publishBody', "return { kind: 'run', action: 'theme' } || cantYet(W.publishBody"],
+  ['/add-slide loses its trailing space', '`Add a slide after slide ${slide} about `', '`Add a slide after slide ${slide} about`'],
+  ['the highlight does not wrap', 'return (index + direction + count) % count', 'return Math.max(0, Math.min(count - 1, index + direction))'],
+  ['"@slide" is not a section word', "slide: 'slide', slides: 'slide', ", ''],
+  ['/web turns deep research on with it', 'web: next ? true : web', 'web: web'],
+  ['a disabled control is pressed', "el.disabled !== true && el.getAttribute?.('aria-disabled') !== 'true'", 'true'],
+  ['/export pptx runs the pdf', "action: arg === 'pptx' ? 'export:pptx' : 'export:pdf'", "action: 'export:pdf'"],
+  ['a narrowed section is capped at 3', "(narrowed === section ? 12 : section === 'slide' ? 5 : 3)", '3'],
+]) await expectFail(label, () => libSuite(mutate(libText, from, to)))
+// the menus and the commands
+for (const [label, from, to] of [
+  ['Esc does not close the menu', 'event.preventDefault(); setDismissed(key); return true', 'event.preventDefault(); return true'],
+  ['Enter picks but lets the send through', 'count > 0) { event.preventDefault(); pickAt(active); return true }', 'count > 0) { pickAt(active); return true }'],
+  ['Shift+Tab is taken', "(event.key === 'Enter' || event.key === 'Tab') && !event.shiftKey && count > 0", "(event.key === 'Enter' || event.key === 'Tab') && count > 0"],
+  ['an IME composition is taken', 'if (!enabled || event.nativeEvent?.isComposing) return false', 'if (!enabled) return false'],
+  ['a pointer press moves the focus', 'onMouseDown: (e: React.MouseEvent) => { e.preventDefault(); onPick(index) }', 'onMouseDown: (e: React.MouseEvent) => { onPick(index) }'],
+  ['a click after the press picks twice', 'onClick: (e: React.MouseEvent) => { if (e.detail === 0) onPick(index) }', 'onClick: (e: React.MouseEvent) => { onPick(index) }'],
+  ['the composer loses its focus after a pick', 'field.focus?.({ preventScroll: true })', ''],
+  ['/research flips web search', "if (action === 'research') input.research.onDeep(next.deep)", "if (action === 'research') input.research.onWeb(next.deep)"],
+  ['/export always exports a PDF', 'page?.exportDeck?.(format)', "page?.exportDeck?.('pdf')"],
+  ['the template list is read at every opening', "input.template.saved && templates.status !== 'ready' && !templatesAsked.current", 'input.template.saved && !templatesAsked.current'],
+  ['Slides appear without the K1 flag', 'slides: CHAT_MENTIONS ? page.slides : [],', 'slides: page.slides,'],
+  ['Publish\'s button presses the wrong control', 'const result = pressControl(doc, CONTROL_SELECTORS.publish)', 'const result = pressControl(doc, CONTROL_SELECTORS.undo)'],
+  ['the research button does nothing', "if (button === 'open-research-options')", "if (button !== 'open-research-options')"],
+  ['/theme opens nothing', "case 'theme': input.openTheme(); return", "case 'theme': return"],
+  ['/template ignores the composer popups flag', 'if (input.popupsV2) input.openTemplatePopup(); else setTemplateOpen(true)', 'setTemplateOpen(true)'],
+  ['a file still uploading can be mentioned', "file.status !== 'uploading' && file.status !== 'error'", 'true'],
+  ['a pre-filled request carries no command', 'registerCommand(resolution.command, resolution.pattern)', ''],
+  ['a pick registers no reference', 'if (item.reference) registerMention(item.token, item.reference)', ''],
+  ['the template popup is not controlled', 'templatePicker: input.popupsV2 ? {} : { open: templateOpen, onOpenChange: setTemplateOpen }', 'templatePicker: {}'],
+]) await expectFail(label, () => allComposer({ [COMPONENT]: mutate(componentText, from, to) }))
+await expectFail('the lib\'s prefill loses its command in the composer', () => allComposer({ [LIB]: mutate(libText, "command: 'add_slide', pattern", "command: 'duplicate_slide', pattern") }))
+await expectFail('the wire drops a theme\'s source in the composer', () => allComposer({ [LIB]: mutate(libText, "reference: { kind: 'theme', theme_id: theme.id, name: mentionLabel(theme.name) || 'theme', source: theme.source } })", "reference: { kind: 'theme', theme_id: theme.id, name: mentionLabel(theme.name) || 'theme' } as never })") }))
+// the real socket hook
+await expectFail('the hook adds fields with the flag off', () => hookSuite({ [HOOK]: mutate(readOwn(HOOK), '      if (STUDIO_CHAT_COMMANDS_ENABLED) addChatCommandsFields(', '      if (true) addChatCommandsFields(') }))
+await expectFail('the hook never spends a pick', () => hookSuite({ [HOOK]: mutate(readOwn(HOOK), '      if (STUDIO_CHAT_COMMANDS_ENABLED) chatCommandsSent(text); // CHAT-COMMANDS: the picks and the command this message used are spent. Off: nothing.\n', '') }))
+await expectFail('the wire adds fields to every message', () => hookSuite({ [WIRE]: mutate(wireText, '  const picked = referencesInText(text)\n  if (picked.length) {', '  const picked = referencesInText(text)\n  data.references = data.references ?? []\n  if (picked.length) {') }))
+// the sources
+await expectFail('the strip leaves the marked lines in', () => sourceSuite({ strip: { ...strip, stripChatCommands: (rel, text) => text } }))
+await expectFail('a marked line loses its marker', () => sourceSuite({ [HOOK]: mutate(readOwn(HOOK), 'chatCommandsSent(text); // CHAT-COMMANDS', 'chatCommandsSent(text); //') }))
+await expectFail('the hook call is no longer behind the flag', () => sourceSuite({ [HOOK]: mutate(readOwn(HOOK), '      if (STUDIO_CHAT_COMMANDS_ENABLED) addChatCommandsFields(', '      addChatCommandsFields(') }))
+await expectFail('the page forgets chat clean in the gate', () => sourceSuite({ [PAGE]: mutate(readOwn(PAGE), 'const chatCommandsOn = STUDIO_CHAT_COMMANDS_ENABLED && chatCleanShell', 'const chatCommandsOn = STUDIO_CHAT_COMMANDS_ENABLED') }))
+await expectFail('the K1 popover is left on beside the new menu', () => sourceSuite({ [PAGE]: mutate(readOwn(PAGE), '{...(chatCommandsOn ? { mentionSlides: undefined, studioChatCommands: chatCommandsPage } : {})', '{...(chatCommandsOn ? { studioChatCommands: chatCommandsPage } : {})') }))
+await expectFail('the composer takes the page props without chat clean', () => sourceSuite({ [INPUT]: mutate(readOwn(INPUT), 'page: chatClean ? studioChatCommands ?? null : null', 'page: studioChatCommands ?? null') }))
+await expectFail('the key handler runs after the base\'s', () => sourceSuite({ [INPUT]: mutate(mutate(readOwn(INPUT), "              if (chatCommands.onKeyDown(e)) return // CHAT-COMMANDS", '              // CHAT-COMMANDS'), "              // MDC P6 (UAT 2026-08-30)", "              if (chatCommands.onKeyDown(e)) return // CHAT-COMMANDS\n              // MDC P6 (UAT 2026-08-30)") }))
+await expectFail('the .env.example block is gone', () => sourceSuite({ '.env.example': mutate(readOwn('.env.example'), 'NEXT_PUBLIC_STUDIO_CHAT_COMMANDS="false"\n', '') }))
+await expectFail('the flag defaults on', () => sourceSuite({ '.env.example': mutate(readOwn('.env.example'), 'NEXT_PUBLIC_STUDIO_CHAT_COMMANDS="false"', 'NEXT_PUBLIC_STUDIO_CHAT_COMMANDS="true"') }))
+await expectFail('a rule escapes the flag in the stylesheet', () => sourceSuite({ [CSS]: `${cssText}\nbutton[role="option"] { min-height: 10px; }\n` }))
+await expectFail('the stylesheet sets a larger type', () => sourceSuite({ [CSS]: mutate(cssText, 'padding: 8px 12px 4px; border-top: 1px solid var(--scc-line); color: var(--ss-muted); font-size: 9px;', 'padding: 8px 12px 4px; border-top: 1px solid var(--scc-line); color: var(--ss-muted); font-size: 13px;') }))
+await expectFail('the stylesheet brings a colour of its own', () => sourceSuite({ [CSS]: mutate(cssText, 'background: var(--ss-active); }', 'background: #7c3aed; }') }))
+await expectFail('the phone rule loses its 44 px', () => sourceSuite({ [CSS]: mutate(cssText, 'button[role="option"] { min-height: 44px; }', 'button[role="option"] { min-height: 32px; }') }))
+await expectFail('the component talks to the network itself', () => sourceSuite({ [COMPONENT]: `${componentText}\nvoid fetch('/api/x')\n` }))
+await expectFail('the wire gains an import', () => sourceSuite({ [WIRE]: `import { x } from '@/lib/x'\n${wireText}` }))
+await expectFail('the wire reads a fourth variable', () => sourceSuite({ [WIRE]: `${wireText}\nexport const EXTRA = process.env.NEXT_PUBLIC_X === 'true'\n` }))
+await expectFail('the lib reads the environment', () => sourceSuite({ [LIB]: `${libText}\nexport const X = process.env.NODE_ENV\n` }))
+console.log(`PASS G  mutants: every one caught (${checks} checks)`)
 release?.()
-console.log(`ALL PASS test-studio-chat-commands (partial): ${checks} checks`)
+console.log(`ALL PASS test-studio-chat-commands: ${checks} checks`)
