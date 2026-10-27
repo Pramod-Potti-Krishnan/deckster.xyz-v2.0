@@ -637,7 +637,7 @@ const mutants = [
   ['hook: the flag is ignored', HOOK, 'DECK_SAVE_ON && meta.mode === "account"', 'meta.mode === "account"'],
   ['hook: the success note stands before any save', HOOK, '(confirmed ? saveNote(meta.mode, meta.reason, true) : "")', 'saveNote(meta.mode, meta.reason, true)'],
   ['hook: a failed save says nothing', HOOK, '{ saveNote: feedback || (confirmed', '{ saveNote: (confirmed'],
-  ['hook: a refused or device save counts as confirmed', HOOK, 'setConfirmed(outcome.kind === "saved" && result.mode === "account")', 'setConfirmed(true)'],
+  ['hook: no save is ever confirmed', HOOK, 'setConfirmed(outcome.kind === "saved" && result.mode === "account")', 'setConfirmed(false)'],
   ['hook: a success survives a change of presentation', HOOK, '    setConfirmed(false) // MODEL-CHOICE-DECK-SAVE\n', ''],
   ['hook: the note is replaced on the device modes too', HOOK, 'DECK_SAVE_ON && meta.mode === "account" && (loaded', 'DECK_SAVE_ON && (loaded'],
   ['hook: the flag is loose', HOOK, 'process.env.NEXT_PUBLIC_STUDIO_MODEL_CHOICE_DECK_SAVE === "true"', 'Boolean(process.env.NEXT_PUBLIC_STUDIO_MODEL_CHOICE_DECK_SAVE)'],
