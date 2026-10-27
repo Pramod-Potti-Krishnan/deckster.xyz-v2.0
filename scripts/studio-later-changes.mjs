@@ -44,6 +44,7 @@ export const LATER_CHANGE_FILES = new Set([
   ...(await import('./studio-model-five-strip.mjs')).MODEL_FIVE_SCOPE_FILES, // LATER-CHANGE: FRONTEND-2, P3-10 model choice, five presets (Quick, Fast, Balanced, Best, Max) on the slider and the compact picker, on dev after the line above (NEXT_PUBLIC_STUDIO_MODEL_CHOICE; no .env.example block, no strip of its own)
   ...(await import('./studio-chat-clean-strip.mjs')).CHAT_CLEAN_SCOPE_FILES, // LATER-CHANGE: FRONTEND-1, P3-1 C chat clean v3: the Director chat as one thread, the job card inline, Send <-> Stop and the slim Continue bar (NEXT_PUBLIC_STUDIO_CHAT_CLEAN)
   ...(await import('./studio-chat-element-edit-strip.mjs')).CHAT_ELEMENT_EDIT_SCOPE_FILES, // LATER-CHANGE: FRONTEND-2, chat element edit and notes refresh (NEXT_PUBLIC_STUDIO_CHAT_ELEMENT_EDIT)
+  ...(await import('./studio-chat-commands-strip.mjs')).CHAT_COMMANDS_SCOPE_FILES, // LATER-CHANGE: FRONTEND-2, P3-1 A chat parity: the composer's "/" commands and "@" mentions on chat clean (NEXT_PUBLIC_STUDIO_CHAT_COMMANDS)
   // one line per later change, above this comment
 ])
 
@@ -60,6 +61,7 @@ export const LATER_ENV_BLOCKS = [
   (await import('./studio-model-choice-strip.mjs')).MODEL_CHOICE_ENV_BLOCK, // LATER-CHANGE: FRONTEND-2, P3-10 model choice: the Intelligence picker uses the live model catalogue (NEXT_PUBLIC_STUDIO_MODEL_CHOICE)
   (await import('./studio-chat-clean-strip.mjs')).CHAT_CLEAN_ENV_BLOCK, // LATER-CHANGE: FRONTEND-1, P3-1 C chat clean v3 (NEXT_PUBLIC_STUDIO_CHAT_CLEAN)
   (await import('./studio-chat-element-edit-strip.mjs')).CHAT_ELEMENT_EDIT_ENV_BLOCK, // LATER-CHANGE: FRONTEND-2, chat element edit and notes refresh (NEXT_PUBLIC_STUDIO_CHAT_ELEMENT_EDIT)
+  (await import('./studio-chat-commands-strip.mjs')).CHAT_COMMANDS_ENV_BLOCK, // LATER-CHANGE: FRONTEND-2, P3-1 A chat parity (NEXT_PUBLIC_STUDIO_CHAT_COMMANDS)
   // one line per later change, above this comment
 ]
 
@@ -85,6 +87,7 @@ export const LATER_STRIPS = [
   (await import('./studio-model-choice-strip.mjs')).stripModelChoice, // LATER-CHANGE: FRONTEND-2, P3-10 model choice: the Intelligence picker uses the live model catalogue (NEXT_PUBLIC_STUDIO_MODEL_CHOICE)
   (await import('./studio-chat-clean-strip.mjs')).stripChatClean, // LATER-CHANGE: FRONTEND-1, P3-1 C chat clean v3 (NEXT_PUBLIC_STUDIO_CHAT_CLEAN)
   (await import('./studio-chat-element-edit-strip.mjs')).stripChatElementEdit, // LATER-CHANGE: FRONTEND-2, chat element edit and notes refresh (NEXT_PUBLIC_STUDIO_CHAT_ELEMENT_EDIT)
+  (await import('./studio-chat-commands-strip.mjs')).stripChatCommands, // LATER-CHANGE: FRONTEND-2, P3-1 A chat parity (NEXT_PUBLIC_STUDIO_CHAT_COMMANDS)
   // one line per later change, above this comment
 ]
 

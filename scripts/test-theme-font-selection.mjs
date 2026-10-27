@@ -183,6 +183,7 @@ function userMessageBuilder(rootDir, overrides = {}) {
   // BULK_EDIT_UNDO_CLIENT_CAPS: NEXT_PUBLIC_STUDIO_BULK_EDIT / NEXT_PUBLIC_STUDIO_CHAT_UNDO's one flag-gated line in buildUserMessage (bulk_edit1 / undo1), empty (both off) here.
   const context = { module: { exports: null }, CHAT_DIRECTIVES: false, CHAT_MENTIONS: false, CHAT_ELEMENT_REFINE_ENABLED: false, CHAT_THEME_EXPORT_CAPS: [], BULK_EDIT_UNDO_CLIENT_CAPS: [], slideStructureRef: { current: null }, parseSlideMentions: () => [] }
   context.CHAT_ELEMENT_EDIT_ENABLED = false // LATER-CHANGES: registry read (CHAT-ELEMENT-EDIT), stacked after #475: NEXT_PUBLIC_STUDIO_CHAT_ELEMENT_EDIT's one flag-gated caps line in buildUserMessage (#522), off here like the other flags
+  context.STUDIO_CHAT_COMMANDS_ENABLED = false // LATER-CHANGES: registry read (CHAT-COMMANDS), stacked after #475: NEXT_PUBLIC_STUDIO_CHAT_COMMANDS's two flag-gated lines in buildUserMessage (#532), off here like the other flags
   vm.runInNewContext(js, context)
   // The frame the socket would send for `buildSendOptions` ({ theme, ... }), exactly as JSON.stringify writes it.
   return (theme, extra = {}) => {
