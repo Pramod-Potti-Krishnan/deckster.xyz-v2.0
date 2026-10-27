@@ -3329,9 +3329,9 @@
      "at": 10050,
      "action": "resizeTextBox",
      "params": {
-      "elementId": "textbox_c",
-      "gridRow": "6/12",
-      "gridColumn": "2/16"
+      "elementId": "textbox_b",
+      "gridRow": "5/11",
+      "gridColumn": "12/24"
      },
      "requestId": "studio-request-6"
     }
@@ -3470,7 +3470,7 @@
       "hasPendingChanges": true,
       "pendingSlideCount": 1,
       "slides": [
-       2
+       1
       ],
       "lastSaveTime": null
      }
@@ -3485,7 +3485,7 @@
       "hasPendingChanges": true,
       "pendingSlideCount": 2,
       "slides": [
-       2,
+       1,
        0
       ],
       "lastSaveTime": null
@@ -3510,7 +3510,7 @@
       "hasPendingChanges": true,
       "pendingSlideCount": 2,
       "slides": [
-       2,
+       1,
        0
       ],
       "lastSaveTime": null
@@ -3714,7 +3714,7 @@
           "slot_kind": null,
           "accessory_type": null,
           "position": {
-           "grid_row": "12/18",
+           "grid_row": "5/11",
            "grid_column": "12/24"
           },
           "z_index": 100,
@@ -3846,7 +3846,7 @@
           "slot_kind": null,
           "accessory_type": null,
           "position": {
-           "grid_row": "6/12",
+           "grid_row": "4/10",
            "grid_column": "2/16"
           },
           "z_index": 100,

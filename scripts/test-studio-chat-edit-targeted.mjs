@@ -320,7 +320,7 @@ await check('manual Edit Mode (Studio\'s flag on): the Format panel\'s own resiz
 async function chatThenManual(options = {}) {
   const w = await scenario('on-then-manual', { editMode: true, ...options })
   assert.equal((await w.send(frame(...OPS.move_textbox))).ok, true)
-  await w.manual('resizeTextBox', { elementId: 'textbox_c', gridRow: '6/12', gridColumn: '2/16' })
+  await w.manual('resizeTextBox', { elementId: 'textbox_b', gridRow: '5/11', gridColumn: '12/24' }) // the same slide as the chat edit: a scope left open would hold this mark
   assert.equal(putsTo(w.fetches(), CHAT_SAVE).length, 1)
   assert.equal(putsTo(w.fetches(), WHOLE_DECK).length, 1, 'the manual change: the editor\'s save, as before')
   return w
