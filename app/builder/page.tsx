@@ -3182,6 +3182,7 @@ function AuthenticatedBuilderContent({ authScopeUserId }: { authScopeUserId: str
     // J7-RESUME-LOOP-P1 (NEXT_PUBLIC_STUDIO_BUILD_RESUME_FIX, default off): the URL Director sends after a Stop
     // no longer ends the stopped build, so Resume stays.
     keepStoppedOnFinalUrl: process.env.NEXT_PUBLIC_STUDIO_BUILD_RESUME_FIX === 'true',
+    endUnbackedBuild: process.env.NEXT_PUBLIC_STUDIO_BUILD_FAILURE_END === 'true', // BUILD-FAILURE-END (default off): a status-only "building" ends when Director's turn closes with a chat message and no build frame
   })
 
   const { showOutlinePreview, onNativeBuildPhase, cancelOutlinePreview } = useStudioOutlinePreview({
