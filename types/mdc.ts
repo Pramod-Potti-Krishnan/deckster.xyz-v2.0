@@ -81,6 +81,7 @@ export type DeckMutationKind =
   | 'slide_reordered'
   | 'slide_added'
   | 'deck_restored' // BULK-EDIT-UNDO: an undo restored a version; the whole viewer is replaced (NEXT_PUBLIC_STUDIO_CHAT_UNDO)
+  | 'notes_updated' // CHAT-PARITY: Director wrote a slide's notes / script / references from chat; no slide changed (NEXT_PUBLIC_STUDIO_CHAT_PARITY_NOTES; payload may add fields: string[])
 
 export interface DeckMutationPayload {
   mutation: DeckMutationKind
