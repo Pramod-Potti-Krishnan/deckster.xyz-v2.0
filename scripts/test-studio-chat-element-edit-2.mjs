@@ -53,6 +53,7 @@ async function check(label, fn) {
 }
 
 const registry = await import('./studio-later-changes.mjs')
+const themeOwnChoice = await import('./studio-theme-own-choice-strip.mjs') // LATER-CHANGES: registry read (THEME-OWN-CHOICE), stacked after chat element edit 2: the strip of the later change, so its marked lines in the page come out first
 const stripModule = await import('./studio-chat-element-edit-2-strip.mjs')
 const {
   stripChatElementEdit2, BASE_COMMIT, CHAT_ELEMENT_EDIT_2_FILES, CHAT_ELEMENT_EDIT_2_SCOPE_FILES, CHAT_ELEMENT_EDIT_2_ENV_BLOCK, CHAT_ELEMENT_EDIT_2_SUBJECT, CHAT_ELEMENT_EDIT_2_MARKER_RE, CHAT_ELEMENT_EDIT_2_NEW_FILES,
@@ -426,7 +427,7 @@ await check('the reference names no slide id with the flag on (the refine path a
 console.log('4. Flag off is identical to the base')
 const baseFile = rel => git('show', `${BASE_COMMIT}:${rel}`)
 await check('the strip gives each edited file its base back, byte for byte; the new lib is not in the base; the flag is named in no other source file', () => {
-  for (const rel of CHAT_ELEMENT_EDIT_2_FILES) assert.equal(stripChatElementEdit2(rel, read(rel)), baseFile(rel), `${rel}: without its marked lines the file is the base's`)
+  for (const rel of CHAT_ELEMENT_EDIT_2_FILES) assert.equal(stripChatElementEdit2(rel, themeOwnChoice.stripThemeOwnChoice(rel, read(rel))), baseFile(rel), `${rel}: without its marked lines the file is the base's`) // LATER-CHANGES: registry read (THEME-OWN-CHOICE), stacked after chat element edit 2
   assert.equal(stripChatElementEdit2('hooks/use-deckster-websocket-v2.ts', 'x'), 'x', 'a file the change does not own comes back untouched')
   assert.throws(() => git('cat-file', '-e', `${BASE_COMMIT}:${TWO}`))
   const readers = git('grep', '-l', `process.env.${FLAG}`, '--', 'app', 'lib', 'hooks', 'components', 'types').split('\n').filter(Boolean).sort()

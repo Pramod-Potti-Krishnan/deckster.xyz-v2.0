@@ -377,7 +377,7 @@ await check('the inline flag reads, the 18 marked page lines, the only two write
 await check('the strip gives the base page and restore lib back byte for byte (the committed files)', () => {
   const git = (...a) => execFileSync('git', a, { cwd: repo, encoding: 'utf8', maxBuffer: 1 << 28 })
   for (const rel of THEME_OWN_CHOICE_FILES) assert.equal(stripThemeOwnChoice(rel, read(rel, repo)), git('show', `${BASE_COMMIT}:${rel}`), rel)
-  assert.deepEqual(THEME_OWN_CHOICE_FILES, [PAGE, RESTORE_LIB]); assert.deepEqual(Object.keys(THEME_OWN_CHOICE_PIN_EDITS), ['scripts/test-studio-chat-theme-export.mjs', 'scripts/test-studio-theme-dark-persist.mjs'])
+  assert.deepEqual(THEME_OWN_CHOICE_FILES, [PAGE, RESTORE_LIB]); assert.deepEqual(Object.keys(THEME_OWN_CHOICE_PIN_EDITS), ['scripts/test-studio-chat-theme-export.mjs', 'scripts/test-studio-chat-element-edit-2.mjs', 'scripts/test-studio-theme-dark-persist.mjs'])
 })
 
 console.log('5. mutants')
@@ -435,7 +435,7 @@ const scopeCommittedFiles = HEAD => {
     assert.equal(diff.length, rel === PAGE ? 18 : 1, `${rel}: the number of added lines`)
     assert.equal(stripThemeOwnChoice(rel, git('show', `${HEAD}:${rel}`)), git('show', `${BASE_COMMIT}:${rel}`), `${rel}: without its marked lines the file is the base's, byte for byte`)
   }
-  for (const rel of Object.keys(THEME_OWN_CHOICE_PIN_EDITS)) { // the two older proofs this change teaches, FRONTEND-2's own: each read now goes past a later change's marked lines; every new line is marked and says "stacked after"; put back, the previous proof byte for byte
+  for (const rel of Object.keys(THEME_OWN_CHOICE_PIN_EDITS)) { // the three older proofs this change teaches (#475's chat theme/export, #538's chat element edit 2 on dev, dark persist), FRONTEND-2's own: each read now goes past a later change's marked lines; every new line is marked and says "stacked after"; put back, the previous proof byte for byte
     const diff = git('diff', '-U0', `${BASE_COMMIT}..${HEAD}`, '--', rel).split('\n').filter(line => /^[+-]/.test(line) && !/^(\+\+\+|---) /.test(line))
     const swaps = THEME_OWN_CHOICE_PIN_EDITS[rel].filter(([, was]) => was !== '').length, additions = THEME_OWN_CHOICE_PIN_EDITS[rel].length
     assert.equal(diff.filter(line => line.startsWith('-')).length, swaps, `${rel}: ${swaps} lines swapped`); assert.equal(diff.filter(line => line.startsWith('+')).length, additions, `${rel}: ${additions} lines added`)
