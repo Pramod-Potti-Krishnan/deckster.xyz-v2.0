@@ -100,6 +100,9 @@ import { useElementRefinement } from '@/hooks/use-element-refinement'
 import { shouldOpenAsBlankPlaceholder } from '@/lib/element-blank-policy'
 // NEXT_PUBLIC_CHAT_ELEMENT_REFINE (default off): refine the selected element from chat (lib/chat-element-refine.ts).
 import { CHAT_ELEMENT_REFINE_ENABLED, chatElementReferenceFor, runElementRefineDirective, type ChatElementSelection, type ElementRefineDirectiveMessage, type ElementRefineDirectiveOwner } from '@/lib/chat-element-refine'
+import { CHAT_ELEMENT_EDIT_ENABLED, createElementEditGate, runElementEditDirective, type ElementEditDirectiveMessage, type ElementEditDirectiveOwner, type ElementEditGate } from '@/lib/chat-element-edit' // CHAT-ELEMENT-EDIT (NEXT_PUBLIC_STUDIO_CHAT_ELEMENT_EDIT, default off): edit an element from chat
+import { NOTES_UPDATED_EVENT } from '@/lib/chat-element-edit-wire' // CHAT-ELEMENT-EDIT
+import { getChatEditViewer, subscribeViewerSaveEvents } from '@/lib/chat-element-edit-save' // CHAT-ELEMENT-EDIT
 import { isTextLabsMappable } from '@/lib/element-type-mapping'
 // NEXT_PUBLIC_CHAT_THEME_CHANGE / NEXT_PUBLIC_CHAT_EXPORT (each default off): change the theme / export the deck from chat (lib/chat-theme-export.ts).
 import { runExportDirective, runThemeDirective, type ThemeExportDirectiveMessage, type ThemeExportDirectiveOwner, type ThemeExportResultData } from '@/lib/chat-theme-export'
@@ -702,6 +705,9 @@ function AuthenticatedBuilderContent({ authScopeUserId }: { authScopeUserId: str
   const templateSelectionLockedRef = useRef(false)
   // NEXT_PUBLIC_CHAT_THEME_CHANGE / NEXT_PUBLIC_CHAT_EXPORT: the late-bound theme / export directive runner (defined beside the K5 add runner below).
   const themeExportDirectiveRunnerRef = useRef<((message: ThemeExportDirectiveMessage, owner: ThemeExportDirectiveOwner) => void) | null>(null)
+  // CHAT-ELEMENT-EDIT: the late-bound element_edit runner (defined after the theme / export runner below) and this tab's single-flight gate.
+  const elementEditDirectiveRunnerRef = useRef<((message: ElementEditDirectiveMessage, owner: ElementEditDirectiveOwner) => void) | null>(null) // CHAT-ELEMENT-EDIT
+  const chatElementEditGateRef = useRef<ElementEditGate | null>(null) // CHAT-ELEMENT-EDIT
   const [templateModeOn, setTemplateModeOn] = useState(false)
   const studioFormatTemplateModeRef = useRef(templateModeOn)
   const studioFormatTemplateModeObservedRef = useRef(templateModeOn)
@@ -2391,6 +2397,7 @@ function AuthenticatedBuilderContent({ authScopeUserId }: { authScopeUserId: str
     sendMessage,
     sendMessageWhenConnected,
     sendElementDirectiveResult,
+    sendElementEditResult, // CHAT-ELEMENT-EDIT
     sendControlMessage,
     sendThemeSelection,
     sendBuildControl,
@@ -2631,6 +2638,15 @@ function AuthenticatedBuilderContent({ authScopeUserId }: { authScopeUserId: str
         themeExportDirectiveRunnerRef.current?.(message, owner)
       },
     } : {}),
+    // CHAT-ELEMENT-EDIT: the element_edit runner, and the Notes panel refresh of deck_mutation notes_updated (a window event, the narration script precedent). Off: not passed.
+    ...(CHAT_ELEMENT_EDIT_ENABLED ? { // CHAT-ELEMENT-EDIT
+      onElementEditDirective: (message: ElementEditDirectiveMessage, owner: ElementEditDirectiveOwner) => { // CHAT-ELEMENT-EDIT
+        elementEditDirectiveRunnerRef.current?.(message, owner) // CHAT-ELEMENT-EDIT
+      }, // CHAT-ELEMENT-EDIT
+      onNotesUpdated: (update: { presentationId: string; slideIndex: number }, owner: { isCurrent: () => boolean }) => { // CHAT-ELEMENT-EDIT
+        if (owner.isCurrent()) window.dispatchEvent(new CustomEvent(NOTES_UPDATED_EVENT, { detail: update })) // CHAT-ELEMENT-EDIT
+      }, // CHAT-ELEMENT-EDIT
+    } : {}), // CHAT-ELEMENT-EDIT
     // NEXT_PUBLIC_STUDIO_JOB_LEDGER: Director's job rows (job_update, sync_response jobs) go to this tab's ledger. Off: not passed.
     ...(STUDIO_JOB_LEDGER_ENABLED ? { onJobUpdate: studioJobLedger.onJobUpdate, onJobsSync: studioJobLedger.onJobsSync } : {}),
     // Build Narration: typed-frame ref-forwarders (WS options precede the
@@ -5324,11 +5340,33 @@ function AuthenticatedBuilderContent({ authScopeUserId }: { authScopeUserId: str
       })
     void run.then(send).finally(() => { chatThemeExportInFlightRef.current[kind] = false })
   }
+  // CHAT-ELEMENT-EDIT: Director's element_edit (NEXT_PUBLIC_STUDIO_CHAT_ELEMENT_EDIT, default off), after the theme / export runner and on the same owner record as the K5 add runner
+  // CHAT-ELEMENT-EDIT: (lib/chat-element-edit.ts). One edit of one element through the viewer's own element commands (delete, z-order, grid position, text format), never a PATCH; the answer
+  // CHAT-ELEMENT-EDIT: goes back on the socket that delivered it, ok:true only after the viewer's autosave acknowledged the change, and a stale socket or owner sends nothing. Off: no runner.
+  if (CHAT_ELEMENT_EDIT_ENABLED && !chatElementEditGateRef.current) chatElementEditGateRef.current = createElementEditGate() // CHAT-ELEMENT-EDIT
+  elementEditDirectiveRunnerRef.current = !CHAT_ELEMENT_EDIT_ENABLED ? null : (message, owner) => { // CHAT-ELEMENT-EDIT
+    void runElementEditDirective(message, owner, { // CHAT-ELEMENT-EDIT
+      displayed: () => elementDirectiveGenerationOwnerRef.current, // CHAT-ELEMENT-EDIT
+      gate: chatElementEditGateRef.current as ElementEditGate, // CHAT-ELEMENT-EDIT
+      paused: () => oneLiveTabSuperseded, // CHAT-ELEMENT-EDIT
+      templateMode: () => templateModeOn, // CHAT-ELEMENT-EDIT
+      slideCount: () => slideStructure?.slides?.length ?? 0, // CHAT-ELEMENT-EDIT
+      currentSlideIndex: () => currentSlideIndexRef.current, // CHAT-ELEMENT-EDIT
+      slideIdAt: slideIndex => { const id = (slideStructure?.slides?.[slideIndex] as { slide_id?: unknown } | undefined)?.slide_id; return typeof id === 'string' && id ? id : null }, // CHAT-ELEMENT-EDIT
+      goToSlide: layoutServiceApis?.goToSlide ?? null, // CHAT-ELEMENT-EDIT
+      sendElementCommand: layoutServiceApis?.sendElementCommand ?? null, // CHAT-ELEMENT-EDIT
+      sendTextBoxCommand: layoutServiceApis?.sendTextBoxCommand ?? null, // CHAT-ELEMENT-EDIT
+      ensureEditMode: () => getChatEditViewer()?.ensureEditMode() ?? Promise.resolve(false), // CHAT-ELEMENT-EDIT
+      subscribeSave: subscribeViewerSaveEvents, // CHAT-ELEMENT-EDIT
+      settle: () => new Promise<void>(resolve => setTimeout(resolve, 400)), // CHAT-ELEMENT-EDIT
+    }).then(result => { // CHAT-ELEMENT-EDIT
+      if (result && owner.isCurrent()) sendElementEditResult(result) // CHAT-ELEMENT-EDIT
+    }) // CHAT-ELEMENT-EDIT
+  } // CHAT-ELEMENT-EDIT
   // CHAT-PARITY: the runner of Director's studio_action (lib/studio-chat-parity.ts reads and refuses, lib/studio-chat-parity-runners.ts runs the group's executor, the click path's own function, under its timeout).
   // CHAT-PARITY: Answered on the delivering socket only; a group that is off or an action the build does not know is answered `failed` at once (flag_off / unsupported). Every flag off: no runner.
   const chatParityThemeProfiles = useThemeProfiles() // CHAT-PARITY (NEXT_PUBLIC_STUDIO_CHAT_PARITY_THEMES): the composer palette's own writes (hooks/use-theme-profiles.ts) for the theme executors; a second instance of the hook, its own loading state
   const chatParityTemplates = useTemplates() // CHAT-PARITY (NEXT_PUBLIC_STUDIO_CHAT_PARITY_TEMPLATES): the Templates page's and the Save Template dialog's own calls (hooks/use-templates.ts); a second instance, its own loading state
-  const chatParityConfirm = (title: string, description: string, label: string) => new Promise<boolean>(resolve => { let settled = false; const answer = (yes: boolean) => { if (!settled) { settled = true; resolve(yes) } }; toast({ title, description, duration: 30_000, action: <ToastAction altText={label} onClick={() => answer(true)}>{label}</ToastAction> }); setTimeout(() => answer(false), 31_000) }) // CHAT-PARITY: the paid actions' Studio confirm (a toast with one action; no answer within 30 s = no)
   chatParityBus.request = !STUDIO_CHAT_PARITY_ANY_ENABLED ? null : (message, owner) => { // CHAT-PARITY
     const request = chatParityRequest(message); if (!request) return // CHAT-PARITY
     const refusal = chatParityRefusal(request); if (refusal) { if (owner.isCurrent()) chatParityBus.send?.(chatParityResult(request.requestId, 'failed', refusal)); return } // CHAT-PARITY
@@ -5339,18 +5377,14 @@ function AuthenticatedBuilderContent({ authScopeUserId }: { authScopeUserId: str
         locks: () => ({ composerBlocked: themeSyncTargetRef.current.composerThemeBlocked, composerFrozen: themeSyncTargetRef.current.composerThemeFrozen, templateMode: themeSyncTargetRef.current.templateModeOn, generating: isGeneratingFinal || isGeneratingStrawman || templateReuseAwaitingInput }), // CHAT-PARITY
         themeSync: () => themeSyncRef.current, wait: () => new Promise<void>(resolve => setTimeout(resolve, 100)), now: () => Date.now(), timeoutMs: THEME_SYNC_TIMEOUT_MS + 5_000, // CHAT-PARITY
       } } : {}), // CHAT-PARITY
-      ...(STUDIO_CHAT_PARITY_IDENTITY_ENABLED ? { identity: { now: () => Date.now(), masterTimeoutMs: 20_000, // CHAT-PARITY: the Master panel's own path (opened by the viewer, written by its Save); a paid logo generation asks first
-        confirm: (title: string, description: string) => chatParityConfirm(title, description, 'Generate'), // CHAT-PARITY
-      } } : {}), // CHAT-PARITY
+      ...(STUDIO_CHAT_PARITY_IDENTITY_ENABLED ? { identity: { now: () => Date.now(), masterTimeoutMs: 20_000 } } : {}), // CHAT-PARITY: the Master panel's own path (opened by the viewer, written by its Save); a paid logo generation was confirmed by the Director's cost card
       ...(STUDIO_CHAT_PARITY_TEMPLATES_ENABLED ? { templates: { // CHAT-PARITY: the picker's own select, the composer library dialog's own runner, the Templates page's and Save Template dialog's own calls
         listTemplates: chatParityTemplates.listTemplates, saveTemplate: chatParityTemplates.saveTemplate, reoptimizeTemplate: chatParityTemplates.reoptimizeTemplate, renameTemplate: chatParityTemplates.renameTemplate, // CHAT-PARITY
-        select: handleSelectTemplate, selectionLocked: () => templateSelectionLockedRef.current, confirm: chatParityConfirm, // CHAT-PARITY
+        select: handleSelectTemplate, selectionLocked: () => templateSelectionLockedRef.current, // CHAT-PARITY
         composer: composerLibraryEnabled && (studioPopupsV2 || studioTemplateWorkspace) ? { list: loadComposerTemplates, run: runComposerTemplateAction, actions: () => composerTemplateActions({ ditto: process.env.NEXT_PUBLIC_COMPOSER_STAGE1B_DITTO_ENABLED === 'true', newTopic: process.env.NEXT_PUBLIC_COMPOSER_STAGE1B_NEW_TOPIC_ENABLED === 'true' }).map(item => item.action) } : null, // CHAT-PARITY
         saveSource: () => ({ sessionId: currentSessionId || wsSessionId || null, presentationId: templateSavePresentationId ?? null }), // CHAT-PARITY
       } } : {}) }, message).then(result => { if (owner.isCurrent()) chatParityBus.send?.(result) }) // CHAT-PARITY
   } // CHAT-PARITY
-  // CHAT-PARITY (NEXT_PUBLIC_STUDIO_CHAT_PARITY_NOTES): Director wrote a slide's notes / script / references; for the deck on screen the Notes panel re-reads (components/slide-notes-panel.tsx). Off: not set.
-  chatParityBus.notes = !STUDIO_CHAT_PARITY_NOTES_ENABLED ? null : (update, owner) => { if (owner.isCurrent() && update.presentationId === slideComposerPresentationRef.current.presentationId) window.dispatchEvent(new CustomEvent(CHAT_PARITY_NOTES_EVENT, { detail: update })) } // CHAT-PARITY
 
   // File upload state
   const {
@@ -8299,9 +8333,8 @@ import { useStudioFlowControl } from '@/hooks/use-studio-flow-control' // FLOW-C
 import { STUDIO_CHAT_CLEAN_ENABLED, chatCleanComposerState, chatCleanInstructions, chatCleanRootAttributes } from '@/lib/studio-chat-clean' // CHAT-CLEAN: placed here with the flow import, after the Builder's runners, for the same older proof
 import { flowBus } from '@/lib/studio-flow-control' // CHAT-CLEAN: the one-request hand-over of the resume's instructions (taken by sendBuildControl, whatever the flow flags)
 import { StudioChatCleanBar, useStudioChatCleanNotes } from '@/components/builder/chat/studio-chat-clean' // CHAT-CLEAN
-import { CHAT_PARITY_NOTES_EVENT, STUDIO_CHAT_PARITY_ANY_ENABLED, STUDIO_CHAT_PARITY_IDENTITY_ENABLED, STUDIO_CHAT_PARITY_NOTES_ENABLED, STUDIO_CHAT_PARITY_TEMPLATES_ENABLED, STUDIO_CHAT_PARITY_THEMES_ENABLED, chatParityBus, chatParityRefusal, chatParityRequest, chatParityResult } from '@/lib/studio-chat-parity' // CHAT-PARITY: placed here with the flow and chat-clean imports, after the Builder's runners, for the same older proof
+import { STUDIO_CHAT_PARITY_ANY_ENABLED, STUDIO_CHAT_PARITY_IDENTITY_ENABLED, STUDIO_CHAT_PARITY_TEMPLATES_ENABLED, STUDIO_CHAT_PARITY_THEMES_ENABLED, chatParityBus, chatParityRefusal, chatParityRequest, chatParityResult } from '@/lib/studio-chat-parity' // CHAT-PARITY: placed here with the flow and chat-clean imports, after the Builder's runners, for the same older proof
 import { runChatParityAction } from '@/lib/studio-chat-parity-runners' // CHAT-PARITY
-import { ToastAction } from '@/components/ui/toast' // CHAT-PARITY: the paid actions' confirm (NEXT_PUBLIC_STUDIO_CHAT_PARITY_PAID_*)
 import { composerTemplateActions, loadComposerTemplates } from '@/lib/studio-composer-popups' // CHAT-PARITY: the composer library's own list and action set (row 67)
 
 function BuilderLoadingState({ message = 'Loading builder...' }: { message?: string }) {

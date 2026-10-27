@@ -8,7 +8,7 @@
  *    opens a NEW deck (Director sends it after its session_directive new_session, DIRECTOR-2 point 5).
  *  - rename_template (row 76): the Templates page's own renameTemplate (hooks/use-templates.ts, the manage flag's PATCH route).
  *  - save_template (row 70, paid: the save starts a composer optimisation) and optimize_template (row 75, paid): the Save Template dialog's
- *    own saveTemplate and the Templates page's own reoptimizeTemplate, each after a Studio confirm; blocked while their sub-flag is off.
+ *    own saveTemplate and the Templates page's own reoptimizeTemplate; the Director's cost card confirms them first, their sub-flags are kill switches.
  * Rows 66 and 72 have no live Studio click path at this head and are not actions (lib/studio-chat-parity.ts).
  */
 
@@ -30,8 +30,6 @@ export interface ChatParityTemplateDeps {
   composer: { list: () => Promise<ComposerTemplate[]>; run: (request: ComposerLibraryRequest) => void; actions: () => ComposerTemplateAction[] } | null
   /** The Save Template dialog's own source: the session and the completed deck (null when there is none). */
   saveSource: () => { sessionId: string | null; presentationId: string | null }
-  /** A Studio confirm for a paid action: the user's yes / no (no answer within the toast's life reads as no). */
-  confirm: (title: string, description: string, label: string) => Promise<boolean>
 }
 
 type Result = ChatParityResultData
@@ -60,6 +58,7 @@ export async function runChatParityTemplateAction(request: ChatParityRequest, de
   const id = request.requestId
   const args = chatParityTemplateArgs(request.action, request.args)
   if (!args) return fail(id, 'invalid_args')
+  // A paid action (save_template, optimize_template): the Director's cost card confirmed it before the frame was sent (DIRECTOR-2, 27 Oct 07:29Z); the sub-flags are kill switches.
   if (chatParityPaidBlocked(args.action)) return fail(id, 'flag_off')
   switch (args.action) {
     case 'select_template': {
@@ -86,8 +85,6 @@ export async function runChatParityTemplateAction(request: ChatParityRequest, de
     case 'save_template': {
       const source = deps.saveSource()
       if (!source.sessionId || !source.presentationId) return fail(id, 'no_deck')
-      const yes = await deps.confirm('Save this deck as a template?', `"${args.name}" will be saved and optimised for reuse (a paid composer job).`, 'Save template')
-      if (!yes) return chatParityResult(id, 'dismissed', 'declined')
       const result = await deps.saveTemplate({ name: args.name, sourceSessionId: source.sessionId, sourcePresentationId: source.presentationId })
       if (!result?.id) return fail(id, 'write_failed')
       return chatParityResult(id, 'done', null, { template_id: result.id, name: result.name ?? args.name })
@@ -97,8 +94,6 @@ export async function runChatParityTemplateAction(request: ChatParityRequest, de
       if (!template) return fail(id, 'not_found')
       const status = templateGenerationStatus(templateSelectionOf(template))
       if (status === 'ready' || status === 'optimizing') return fail(id, 'already_ready')
-      const yes = await deps.confirm('Optimise this template?', `"${template.name}" will be optimised for reuse (a paid composer job).`, 'Optimise')
-      if (!yes) return chatParityResult(id, 'dismissed', 'declined')
       const result = await deps.reoptimizeTemplate(template.id)
       if (!result) return fail(id, 'write_failed')
       return chatParityResult(id, 'done', null, { template_id: template.id, name: template.name })

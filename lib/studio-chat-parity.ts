@@ -1,7 +1,7 @@
 // CHAT-PARITY (FRONTEND-1, P3-1 A post-Thursday rows, Studio half; contract: deckster-workspace streams/frontend1/chat-parity-p3/CONTRACTS.md).
-// Four flags, one per row group, each on only for the string "true", default off, build-time:
-//   NEXT_PUBLIC_STUDIO_CHAT_PARITY_NOTES      rows 105/106/108: Director writes a slide's notes / script / references itself and sends
-//                                             deck_mutation {mutation:"notes_updated"}; Studio advertises `notes1` and re-reads the Notes panel.
+// Three flags, one per row group, each on only for the string "true", default off, build-time:
+//   (rows 105 / 106 / 108, notes / script / references: Director writes them itself and sends deck_mutation notes_updated; that frame, the cap
+//    notes1 and the Notes panel re-read are #522's single path, NEXT_PUBLIC_STUDIO_CHAT_ELEMENT_EDIT; this change adds one marked line there.)
 //   NEXT_PUBLIC_STUDIO_CHAT_PARITY_THEMES     rows 56-59, 61: fonts, save, set / clear standard, rename, apply a saved theme — the composer palette's
 //                                             own useThemeProfiles writes and the theme picker's own apply (lib/studio-chat-parity-themes.ts); cap `themes1`.
 //   NEXT_PUBLIC_STUDIO_CHAT_PARITY_IDENTITY   rows 62-64: the footer and logo through the Master panel's own open / fill / Save path (components/
@@ -39,7 +39,7 @@ export const CHAT_PARITY_FRAMES = Object.freeze({
 /** The key under which the result frame's data carries the request's id (`directive_id` if the frames become element_directive_result). */
 export const CHAT_PARITY_RESULT_ID_KEY = 'request_id'
 
-export type ChatParityGroup = 'notes' | 'themes' | 'identity' | 'templates'
+export type ChatParityGroup = 'themes' | 'identity' | 'templates'
 export type ChatParityStatus = 'done' | 'failed' | 'dismissed'
 export type ChatParityErrorCode =
   | 'not_owner' | 'viewer_unavailable' | 'flag_off' | 'not_found' | 'locked' | 'invalid_args' | 'write_failed' | 'timeout' | 'unsupported'
@@ -58,7 +58,6 @@ export function chatParityFlagOn(value: string | undefined): boolean {
   return value === 'true'
 }
 
-export const STUDIO_CHAT_PARITY_NOTES_ENABLED = chatParityFlagOn(process.env.NEXT_PUBLIC_STUDIO_CHAT_PARITY_NOTES)
 export const STUDIO_CHAT_PARITY_THEMES_ENABLED = chatParityFlagOn(process.env.NEXT_PUBLIC_STUDIO_CHAT_PARITY_THEMES)
 export const STUDIO_CHAT_PARITY_IDENTITY_ENABLED = chatParityFlagOn(process.env.NEXT_PUBLIC_STUDIO_CHAT_PARITY_IDENTITY)
 /** Row 63's generate: a paid image call. A sub-flag of IDENTITY (both must be on), default off until PK rules on paid actions. */
@@ -69,7 +68,6 @@ export const STUDIO_CHAT_PARITY_PAID_SAVE_TEMPLATE_ENABLED = STUDIO_CHAT_PARITY_
 export const STUDIO_CHAT_PARITY_PAID_OPTIMIZE_ENABLED = STUDIO_CHAT_PARITY_TEMPLATES_ENABLED && chatParityFlagOn(process.env.NEXT_PUBLIC_STUDIO_CHAT_PARITY_PAID_OPTIMIZE)
 
 export interface ChatParityFlags {
-  notes: boolean
   themes: boolean
   identity: boolean
   templates: boolean
@@ -77,7 +75,6 @@ export interface ChatParityFlags {
 
 /** The flags this build was made with. */
 export const CHAT_PARITY_FLAGS: Readonly<ChatParityFlags> = Object.freeze({
-  notes: STUDIO_CHAT_PARITY_NOTES_ENABLED,
   themes: STUDIO_CHAT_PARITY_THEMES_ENABLED,
   identity: STUDIO_CHAT_PARITY_IDENTITY_ENABLED,
   templates: STUDIO_CHAT_PARITY_TEMPLATES_ENABLED,
@@ -90,9 +87,8 @@ export const STUDIO_CHAT_PARITY_ANY_ENABLED = Object.values(CHAT_PARITY_FLAGS).s
 // Capabilities (Studio -> Director, on every user_message)
 // ---------------------------------------------------------------------------------------------------------------------------------------
 
-/** The cap Director checks before it sends a group's request (exact, case-sensitive). `notes1` is Director's own name (set_speaker_notes). */
+/** The cap Director checks before it sends a group's request (exact, case-sensitive). (`notes1` is #522's.) */
 export const CHAT_PARITY_GROUP_CAPS: Readonly<Record<ChatParityGroup, string>> = Object.freeze({
-  notes: 'notes1',
   themes: 'themes1',
   identity: 'identity1',
   templates: 'templates1',
@@ -100,7 +96,7 @@ export const CHAT_PARITY_GROUP_CAPS: Readonly<Record<ChatParityGroup, string>> =
 
 /** The caps a build with these flags sends, in group order; empty when every flag is off (and then nothing is added to a send). */
 export function chatParityCaps(flags: Readonly<ChatParityFlags>): string[] {
-  return (['notes', 'themes', 'identity', 'templates'] as const).filter(group => flags[group] === true).map(group => CHAT_PARITY_GROUP_CAPS[group])
+  return (['themes', 'identity', 'templates'] as const).filter(group => flags[group] === true).map(group => CHAT_PARITY_GROUP_CAPS[group])
 }
 
 export const CHAT_PARITY_CAPS: readonly string[] = chatParityCaps(CHAT_PARITY_FLAGS)
@@ -123,7 +119,6 @@ export function addChatParityCaps(data: Record<string, unknown>, caps: readonly 
 
 /** The actions each group runs. A request whose action is not in its group's list is answered `failed` / `unsupported`. */
 export const CHAT_PARITY_ACTIONS: Readonly<Record<ChatParityGroup, readonly string[]>> = Object.freeze({
-  notes: [], // Director writes notes itself (set_speaker_notes); Studio only reflects deck_mutation notes_updated
   themes: ['set_theme_fonts', 'save_theme', 'set_standard_theme', 'clear_standard_theme', 'rename_theme', 'apply_saved_theme'],
   identity: ['set_footer', 'clear_footer', 'set_logo', 'generate_logo', 'remove_logo', 'set_deck_identity'],
   templates: ['select_template', 'composer_template_action', 'save_template', 'optimize_template', 'rename_template'],
@@ -138,7 +133,7 @@ export interface ChatParityRequest {
   label: string
 }
 
-const GROUPS: readonly ChatParityGroup[] = ['notes', 'themes', 'identity', 'templates']
+const GROUPS: readonly ChatParityGroup[] = ['themes', 'identity', 'templates']
 
 /** The frame's request id when it has a usable one (an answer needs it), else null: such a frame is dropped unanswered. */
 export function chatParityRequestId(message: unknown): string | null {
@@ -227,41 +222,29 @@ export interface ChatParityRequestFrame {
 export const chatParityBus: {
   /** The page's runner of a studio_action frame (set with a group flag on). */
   request: ((message: ChatParityRequestFrame, owner: ChatParityOwner) => void) | null
-  /** The page's handler of deck_mutation notes_updated (set with the notes flag on). */
-  notes: ((update: ChatParityNotesUpdate, owner: ChatParityOwner) => void) | null
   /** The hook's sender of the result frame (set while the hook is mounted). */
   send: ((data: ChatParityResultData) => boolean) | null
   /** IDENTITY: the viewer's opener of the Master (footer and logo) panel, the Show menu's own "Master…" (components/presentation-viewer.tsx). */
   openMaster: (() => void) | null
   /** IDENTITY: the Master panel's own run of one footer / logo op: its read fills the fields, the op's fields are set as if typed, the Save button's own handler writes and closes. */
   master: ((op: ChatParityMasterOp, deadline: number) => Promise<ChatParityMasterResult>) | null
-} = { request: null, notes: null, send: null, openMaster: null, master: null }
+} = { request: null, send: null, openMaster: null, master: null }
 
 // ---------------------------------------------------------------------------------------------------------------------------------------
-// NOTES (rows 105/106/108): Director's deck_mutation {mutation:"notes_updated"} and the panel's re-read
+// Rows 106 / 108: which narration fields a notes_updated frame names (DIRECTOR-2 !580: payload.fields = ["speaker_notes" | "script" | "references"]).
+// #522's single path reloads the panel and lets a saved notes edit go; the hook raises this event first so the panel lets a script / references
+// edit go the same way (no second reload, no second cap: the panel listens, #522's handler reloads).
 // ---------------------------------------------------------------------------------------------------------------------------------------
 
-export const CHAT_PARITY_NOTES_MUTATION = 'notes_updated'
-/** The window event the Notes panel listens for (same idiom as deckster:narration-script-written); detail = ChatParityNotesUpdate. */
-export const CHAT_PARITY_NOTES_EVENT = 'deckster:slide-notes-updated'
-/** The slide fields Director may name (Layout's top-level narration fields). An unknown name is dropped; none named means "re-read all". */
-export const CHAT_PARITY_NOTES_FIELDS: readonly string[] = ['speaker_notes', 'script', 'references']
+export const CHAT_PARITY_NOTES_FIELDS_EVENT = 'deckster:chat-notes-fields'
+export const CHAT_PARITY_NOTES_FIELDS: readonly string[] = ['script', 'references']
 
-export interface ChatParityNotesUpdate {
-  presentationId: string
-  slideIndex: number
-  fields: string[]
-}
-
-/** The notes update a deck_mutation payload describes, or null when it is not one (any other mutation, a bad index or no presentation). */
-export function chatParityNotesUpdate(payload: unknown): ChatParityNotesUpdate | null {
-  if (!payload || typeof payload !== 'object') return null
-  const value = payload as { mutation?: unknown; slide_index?: unknown; presentation_id?: unknown; fields?: unknown }
-  if (value.mutation !== CHAT_PARITY_NOTES_MUTATION) return null
-  if (typeof value.presentation_id !== 'string' || !value.presentation_id) return null
-  if (!Number.isInteger(value.slide_index) || (value.slide_index as number) < 0) return null
-  const fields = Array.isArray(value.fields) ? (value.fields as unknown[]).filter((f): f is string => typeof f === 'string' && CHAT_PARITY_NOTES_FIELDS.includes(f)) : []
-  return { presentationId: value.presentation_id, slideIndex: value.slide_index as number, fields }
+/** The script / references fields a deck_mutation notes_updated payload names (speaker_notes is #522's); [] for any other frame or none named. */
+export function chatParityNotesFields(payload: unknown): string[] {
+  if (!payload || typeof payload !== 'object') return []
+  const value = payload as { mutation?: unknown; fields?: unknown }
+  if (value.mutation !== 'notes_updated' || !Array.isArray(value.fields)) return []
+  return (value.fields as unknown[]).filter((f): f is string => typeof f === 'string' && CHAT_PARITY_NOTES_FIELDS.includes(f))
 }
 
 // ---------------------------------------------------------------------------------------------------------------------------------------

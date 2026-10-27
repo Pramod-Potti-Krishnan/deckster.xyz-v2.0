@@ -7,9 +7,9 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Textarea } from '@/components/ui/textarea'
 import { useToast } from '@/hooks/use-toast'
 import { getPresentation, updateSlideNarration, SlideNarrationFields } from '@/lib/layout-service-client'
-import { CHAT_PARITY_NOTES_EVENT, STUDIO_CHAT_PARITY_NOTES_ENABLED } from '@/lib/studio-chat-parity' // CHAT-PARITY (NEXT_PUBLIC_STUDIO_CHAT_PARITY_NOTES): Director wrote a slide's notes from chat; re-read
 import { DeckQaInbox } from '@/components/deck-qa-inbox'
 import { SlideScriptPreview } from '@/components/slide-script-preview'
+import { CHAT_ELEMENT_EDIT_ENABLED, NOTES_UPDATED_EVENT } from '@/lib/chat-element-edit-wire' // CHAT-ELEMENT-EDIT (NEXT_PUBLIC_STUDIO_CHAT_ELEMENT_EDIT, default off): Director wrote a slide's notes from chat
 import './studio-slide-notes.css'
 
 // localStorage keys for panel UI state (shared across sessions)
@@ -431,13 +431,34 @@ export function SlideNotesPanel({
     window.addEventListener('deckster:narration-script-written', onExternalWrite)
     return () => window.removeEventListener('deckster:narration-script-written', onExternalWrite)
   }, [])
-  // CHAT-PARITY (NEXT_PUBLIC_STUDIO_CHAT_PARITY_NOTES): the same honest mechanism for a write Director made from chat (deck_mutation notes_updated, app/builder/page.tsx): the drafts the
-  // CHAT-PARITY: author has not edited re-read from Layout, and the next autosave carries the fresh updated_at (so it does not 409 on Director's write). Flag off: no listener.
+  // CHAT-ELEMENT-EDIT: Director wrote a slide's notes (deck_mutation notes_updated, routed by the Director socket hook as a window event). The deck is read again, which fills every field the user
+  // CHAT-ELEMENT-EDIT: has not edited; a notes field the user edited and has no unsaved change in is let go first, so Director's notes show (an unsaved edit of the user's stays). Flag off: no listener.
+  useEffect(() => { // CHAT-ELEMENT-EDIT
+    if (!CHAT_ELEMENT_EDIT_ENABLED) return // CHAT-ELEMENT-EDIT
+    const onNotesUpdated = (event: Event) => { // CHAT-ELEMENT-EDIT
+      const detail = (event as CustomEvent<{ presentationId?: unknown; slideIndex?: unknown }>).detail // CHAT-ELEMENT-EDIT
+      const pid = presentationIdRef.current // CHAT-ELEMENT-EDIT
+      if (!pid || !detail || detail.presentationId !== pid || typeof detail.slideIndex !== 'number') return // CHAT-ELEMENT-EDIT
+      const slideId = slideIdsRef.current[detail.slideIndex] // CHAT-ELEMENT-EDIT
+      if (slideId && !saversRef.current.get(pid)?.pending.get(slideId)?.has('notes')) editedFieldsRef.current.delete(`${slideId}:notes`) // CHAT-ELEMENT-EDIT
+      setReloadToken((token) => token + 1) // CHAT-ELEMENT-EDIT
+    } // CHAT-ELEMENT-EDIT
+    window.addEventListener(NOTES_UPDATED_EVENT, onNotesUpdated) // CHAT-ELEMENT-EDIT
+    return () => window.removeEventListener(NOTES_UPDATED_EVENT, onNotesUpdated) // CHAT-ELEMENT-EDIT
+  }, []) // CHAT-ELEMENT-EDIT
+  // CHAT-PARITY (rows 106 / 108): Director's notes_updated may name a slide's script or references (its `fields`); the socket hook raises 'deckster:chat-notes-fields' with them just before #522's
+  // CHAT-PARITY: event above, so those saved drafts are let go the same way as the notes and #522's reload then shows Director's text. No reload here, no second import: the name and the flag are inlined.
   useEffect(() => { // CHAT-PARITY
-    if (!STUDIO_CHAT_PARITY_NOTES_ENABLED) return // CHAT-PARITY
-    const onChatWrite = () => setReloadToken((token) => token + 1) // CHAT-PARITY
-    window.addEventListener(CHAT_PARITY_NOTES_EVENT, onChatWrite) // CHAT-PARITY
-    return () => window.removeEventListener(CHAT_PARITY_NOTES_EVENT, onChatWrite) // CHAT-PARITY
+    if (process.env.NEXT_PUBLIC_STUDIO_CHAT_ELEMENT_EDIT !== 'true') return // CHAT-PARITY
+    const onNotesFields = (event: Event) => { // CHAT-PARITY
+      const detail = (event as CustomEvent<{ presentationId?: unknown; slideIndex?: unknown; fields?: unknown }>).detail // CHAT-PARITY
+      const pid = presentationIdRef.current // CHAT-PARITY
+      if (!pid || !detail || detail.presentationId !== pid || typeof detail.slideIndex !== 'number' || !Array.isArray(detail.fields)) return // CHAT-PARITY
+      const slideId = slideIdsRef.current[detail.slideIndex] // CHAT-PARITY
+      if (slideId) for (const field of ['script', 'references'] as const) if (detail.fields.includes(field) && !saversRef.current.get(pid)?.pending.get(slideId)?.has(field)) editedFieldsRef.current.delete(`${slideId}:${field}`) // CHAT-PARITY
+    } // CHAT-PARITY
+    window.addEventListener('deckster:chat-notes-fields', onNotesFields) // CHAT-PARITY
+    return () => window.removeEventListener('deckster:chat-notes-fields', onNotesFields) // CHAT-PARITY
   }, []) // CHAT-PARITY
 
   // --- Saving --------------------------------------------------------------

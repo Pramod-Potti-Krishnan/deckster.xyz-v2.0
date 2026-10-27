@@ -7,11 +7,12 @@ import { CHAT_DIRECTIVES, CHAT_MENTIONS } from '@/lib/mdc-flags'
 import { parseSlideMentions } from '@/lib/mdc-mentions';
 // NEXT_PUBLIC_CHAT_ELEMENT_REFINE (default off): refine an element from chat; the cap, the reference and element_refine_directive.
 import { CHAT_ELEMENT_REFINE_ENABLED, ELEMENT_REFINE_DIRECTIVE_TYPE, addChatElementRefineFields, elementRefineDirectiveId } from '@/lib/chat-element-refine-wire';
+import { CHAT_ELEMENT_EDIT_ENABLED, addChatElementEditCaps, elementEditResultFrame, routeElementEditFrame, routeNotesUpdatedFrame } from '@/lib/chat-element-edit-wire'; // CHAT-ELEMENT-EDIT (NEXT_PUBLIC_STUDIO_CHAT_ELEMENT_EDIT, default off): edit an element from chat and refresh the notes; the caps, the element_edit frame and deck_mutation notes_updated
 import type { BuildThemeSelection } from '@/lib/theme-builder';
 import type { TemplateOverrides } from '@/lib/template-mode';
 // NEXT_PUBLIC_CHAT_THEME_CHANGE / NEXT_PUBLIC_CHAT_EXPORT (each default off): change the theme / export from chat; the caps and the two directives.
 import { CHAT_THEME_EXPORT_CAPS, chatThemeExportDirectiveKind, themeExportDirectiveId } from '@/lib/chat-theme-export-wire';
-import { CHAT_PARITY_CAPS, STUDIO_CHAT_PARITY_ANY_ENABLED, STUDIO_CHAT_PARITY_NOTES_ENABLED, addChatParityCaps, chatParityBus, chatParityNotesUpdate, chatParityRequestId, chatParityResultFrame, isChatParityRequestFrame } from '@/lib/studio-chat-parity'; // CHAT-PARITY (NEXT_PUBLIC_STUDIO_CHAT_PARITY_*, each default off): the group caps, Director's studio_action request and deck_mutation notes_updated
+import { CHAT_PARITY_CAPS, CHAT_PARITY_NOTES_FIELDS_EVENT, STUDIO_CHAT_PARITY_ANY_ENABLED, addChatParityCaps, chatParityBus, chatParityNotesFields, chatParityRequestId, chatParityResultFrame, isChatParityRequestFrame } from '@/lib/studio-chat-parity'; // CHAT-PARITY (NEXT_PUBLIC_STUDIO_CHAT_PARITY_*, each default off): the group caps and Director's studio_action request
 // NEXT_PUBLIC_STUDIO_JOB_LEDGER (P3-4c, default off): Director's job_update frames and sync_response.payload.jobs go to the page's ledger.
 import { STUDIO_JOB_LEDGER_ENABLED, JOB_UPDATE_TYPE, jobLedgerRow, jobLedgerRows } from '@/lib/studio-job-ledger';
 import { STUDIO_BULK_EDIT_UNDO_ENABLED, STUDIO_CHAT_UNDO_ENABLED, BULK_EDIT_UNDO_CLIENT_CAPS, addBulkEditUndoCaps, normaliseDeckRestored } from '@/lib/studio-bulk-edit-wire'; // BULK-EDIT-UNDO (flags NEXT_PUBLIC_STUDIO_BULK_EDIT / NEXT_PUBLIC_STUDIO_CHAT_UNDO, default off)
@@ -765,6 +766,9 @@ export interface UseDecksterWebSocketV2Options {
   // element a send names (null when none). Both unused with the flag off.
   onElementRefineDirective?: (message: import('@/lib/chat-element-refine-wire').ElementRefineDirectiveMessage, owner: import('@/lib/chat-element-refine-wire').ElementRefineDirectiveOwner) => void;
   getChatElementReference?: () => import('@/lib/chat-element-refine-wire').ChatElementReference | null;
+  // CHAT-ELEMENT-EDIT: run Director's element_edit (one edit of one element), and the Notes panel refresh of deck_mutation notes_updated. Both unused with the flag off.
+  onElementEditDirective?: (message: import('@/lib/chat-element-edit-wire').ElementEditDirectiveMessage, owner: import('@/lib/chat-element-edit-wire').ElementEditDirectiveOwner) => void; // CHAT-ELEMENT-EDIT
+  onNotesUpdated?: (update: import('@/lib/chat-element-edit-wire').NotesUpdated, owner: { sessionId: string | null; isCurrent: () => boolean }) => void; // CHAT-ELEMENT-EDIT
   // NEXT_PUBLIC_STUDIO_JOB_LEDGER (P3-4c): Director's job rows for this socket's session (a job_update frame's row; sync_response's
   // jobs list, possibly []). Never rendered in chat. Unused with the flag off.
   onJobUpdate?: (row: import('@/lib/studio-job-ledger').JobLedgerRow, owner: import('@/lib/studio-job-ledger').JobLedgerOwner) => void;
@@ -1944,6 +1948,9 @@ export function useDecksterWebSocketV2(options: UseDecksterWebSocketV2Options = 
               }
               return;
             }
+            // CHAT-ELEMENT-EDIT (NEXT_PUBLIC_STUDIO_CHAT_ELEMENT_EDIT, default off): Director's element_edit unlocks the turn and goes to the page's runner, here, ahead of the allowlist, so it
+            // CHAT-ELEMENT-EDIT: never reaches the reducer, the transcript or the cache (lib/chat-element-edit-wire.ts). Flag off: unknown, dropped below as before.
+            if (CHAT_ELEMENT_EDIT_ENABLED && routeElementEditFrame(parsedMessage, { sessionId: socketSessionId, isCurrent: isCurrentSocket, unlockTurn: clearAwaitReply, onDirective: transportCallbacksRef.current.onElementEditDirective })) return; // CHAT-ELEMENT-EDIT
             // CHAT-PARITY (any NEXT_PUBLIC_STUDIO_CHAT_PARITY_* flag on): Director's studio_action unlocks the turn and goes to the page's runner, here, ahead of the allowlist,
             // CHAT-PARITY: so it never reaches the reducer, the transcript or the cache; a frame with no request id is dropped unanswered. Every flag off: unknown, dropped below as before.
             if (STUDIO_CHAT_PARITY_ANY_ENABLED && isChatParityRequestFrame(parsedMessage)) { // CHAT-PARITY
@@ -1980,22 +1987,13 @@ export function useDecksterWebSocketV2(options: UseDecksterWebSocketV2Options = 
               return;
             }
 
+            // CHAT-ELEMENT-EDIT: deck_mutation of kind notes_updated (Director wrote a slide's notes) goes to the page, which refreshes the Notes panel; every other mutation carries on below, untouched. Flag off: not looked at.
+            if (CHAT_ELEMENT_EDIT_ENABLED && typeof window !== 'undefined' && parsedMessage.session_id === socketSessionId && deckMutationOwnerRef.current.presentationId === (parsedMessage.payload as { presentation_id?: unknown } | undefined)?.presentation_id && chatParityNotesFields(parsedMessage.payload).length > 0) window.dispatchEvent(new CustomEvent(CHAT_PARITY_NOTES_FIELDS_EVENT, { detail: { presentationId: (parsedMessage.payload as { presentation_id: string }).presentation_id, slideIndex: (parsedMessage.payload as { slide_index: number }).slide_index, fields: chatParityNotesFields(parsedMessage.payload) } })); // CHAT-PARITY (rows 106 / 108): the script / references fields this notes_updated names, raised before #522's route (whose reload follows); the Notes panel lets those drafts go
+            if (CHAT_ELEMENT_EDIT_ENABLED && routeNotesUpdatedFrame(parsedMessage, { sessionId: socketSessionId, isCurrent: isCurrentSocket, displayed: deckMutationOwnerRef.current, onNotesUpdated: transportCallbacksRef.current.onNotesUpdated })) return; // CHAT-ELEMENT-EDIT
             if (parsedMessage.type === 'deck_mutation') {
               const message = parsedMessage as import('@/types/mdc').DeckMutationMessage;
               const payload = message.payload;
               const displayedOwner = deckMutationOwnerRef.current;
-              // CHAT-PARITY (NEXT_PUBLIC_STUDIO_CHAT_PARITY_NOTES): Director's notes_updated (it wrote a slide's notes / script / references itself) is not a slide mutation: this socket's session only,
-              // CHAT-PARITY: the deck on screen only, each message_id once; it unlocks the turn and goes to the page, which re-reads the Notes panel. Flag off: the mutation is unknown and dropped below, as before.
-              if (STUDIO_CHAT_PARITY_NOTES_ENABLED && chatParityNotesUpdate(payload)) { // CHAT-PARITY
-                const update = chatParityNotesUpdate(payload)!; // CHAT-PARITY
-                if (message.session_id !== socketSessionId || typeof message.message_id !== 'string' || !message.message_id || displayedOwner.deckOwnerSessionId !== socketSessionId || displayedOwner.presentationId !== update.presentationId) return; // CHAT-PARITY
-                const notesKey = JSON.stringify(['notes', socketSessionId, update.presentationId, message.message_id]); // CHAT-PARITY
-                if (processedDeckMutationIdsRef.current.has(notesKey)) return; // CHAT-PARITY
-                processedDeckMutationIdsRef.current.add(notesKey); // CHAT-PARITY
-                clearAwaitReply(); // CHAT-PARITY
-                chatParityBus.notes?.(update, { sessionId: socketSessionId, isCurrent: isCurrentSocket }); // CHAT-PARITY
-                return; // CHAT-PARITY
-              } // CHAT-PARITY
               if (!payload || typeof payload !== 'object'
                 || message.session_id !== socketSessionId
                 || typeof message.message_id !== 'string' || !message.message_id
@@ -3447,8 +3445,9 @@ export function useDecksterWebSocketV2(options: UseDecksterWebSocketV2Options = 
       };
       // NEXT_PUBLIC_CHAT_ELEMENT_REFINE: element_refine1 in client_caps, and the selected element as one reference. Off: nothing.
       if (CHAT_ELEMENT_REFINE_ENABLED) addChatElementRefineFields(message.data as unknown as Record<string, unknown>, transportCallbacksRef.current.getChatElementReference?.() ?? null);
+      if (CHAT_ELEMENT_EDIT_ENABLED) addChatElementEditCaps(message.data as unknown as Record<string, unknown>); // CHAT-ELEMENT-EDIT: element_edit1 / notes1 in client_caps, after the other caps. Off: nothing.
       if (BULK_EDIT_UNDO_CLIENT_CAPS.length > 0) addBulkEditUndoCaps(message.data as unknown as Record<string, unknown>); // BULK-EDIT-UNDO: bulk_edit1 / undo1 in client_caps, each with its own flag. Off: nothing.
-      if (CHAT_PARITY_CAPS.length > 0) addChatParityCaps(message.data as unknown as Record<string, unknown>); // CHAT-PARITY: notes1 / themes1 / identity1 / templates1 in client_caps, each with its own flag. Off: nothing.
+      if (CHAT_PARITY_CAPS.length > 0) addChatParityCaps(message.data as unknown as Record<string, unknown>); // CHAT-PARITY: themes1 / identity1 / templates1, after #522's element_edit1 / notes1 and the bulk-edit caps: the last caps line in client_caps, each with its own flag. Off: nothing.
       return message;
     };
 
@@ -3576,6 +3575,20 @@ export function useDecksterWebSocketV2(options: UseDecksterWebSocketV2Options = 
       return false;
     }
   }, []);
+  // CHAT-ELEMENT-EDIT: report an element_edit outcome (ok:true means saved) on the socket that delivered it. Unused with the flag off.
+  const sendElementEditResult = useCallback((data: import('@/lib/chat-element-edit-wire').ElementEditResultData): boolean => { // CHAT-ELEMENT-EDIT
+    if (!wsRef.current || wsRef.current.readyState !== WebSocket.OPEN) { // CHAT-ELEMENT-EDIT
+      console.error('❌ Cannot send element_edit_result: WebSocket not connected'); // CHAT-ELEMENT-EDIT
+      return false; // CHAT-ELEMENT-EDIT
+    } // CHAT-ELEMENT-EDIT
+    try { // CHAT-ELEMENT-EDIT
+      wsRef.current.send(JSON.stringify(elementEditResultFrame(data))); // CHAT-ELEMENT-EDIT
+      return true; // CHAT-ELEMENT-EDIT
+    } catch (error) { // CHAT-ELEMENT-EDIT
+      console.error('Failed to send element_edit_result:', error); // CHAT-ELEMENT-EDIT
+      return false; // CHAT-ELEMENT-EDIT
+    } // CHAT-ELEMENT-EDIT
+  }, []); // CHAT-ELEMENT-EDIT
   // CHAT-PARITY: report a studio_action outcome back to the Director (lib/studio-chat-parity.ts chatParityResult); the frame is built there so the names live in one place.
   const sendChatParityResult = useCallback((data: import('@/lib/studio-chat-parity').ChatParityResultData): boolean => { // CHAT-PARITY
     if (!wsRef.current || wsRef.current.readyState !== WebSocket.OPEN) return false; // CHAT-PARITY
@@ -4203,6 +4216,7 @@ export function useDecksterWebSocketV2(options: UseDecksterWebSocketV2Options = 
     sendMessage,
     sendMessageWhenConnected,
     sendElementDirectiveResult,
+    sendElementEditResult, // CHAT-ELEMENT-EDIT
     sendControlMessage,
     applyTemplateIngestReady,
     sendThemeSelection,

@@ -4,7 +4,7 @@
  *  - footer and logo (rows 62 / 63) go through the Master panel's own path (components/presentation-settings-panel.tsx): the viewer opens
  *    the panel (the Show menu's own "Master…"), the panel's own read fills the fields, the requested fields are set as if typed, and the
  *    Save button's own handler writes updateDerivativeElements to the viewer and closes the panel. A logo generation (paid, row 63) runs
- *    the panel's own generate handler after a Studio confirm (the sub-flag NEXT_PUBLIC_STUDIO_CHAT_PARITY_PAID_LOGO, off until PK rules).
+ *    the panel's own generate handler; the Director's cost card confirms it first, and the sub-flag NEXT_PUBLIC_STUDIO_CHAT_PARITY_PAID_LOGO is a kill switch (off until PK rules).
  *    Clear footer and remove logo need no confirm (DIRECTOR-2, 27 Oct: chat undo restores them).
  *  - presenter details (row 64) go through the identity dialog's own writer (lib/deck-identity.ts writeDeckIdentityForm): localStorage plus
  *    the form event the Builder listens for, so the next user_message carries them as deck_identity. Values are the user's own words.
@@ -18,8 +18,6 @@ import {
 
 /** What the page hands the identity executors. */
 export interface ChatParityIdentityDeps {
-  /** A Studio confirm for a paid action: the user's yes / no (no answer within the toast's life reads as no). */
-  confirm: (title: string, description: string) => Promise<boolean>
   now: () => number
   /** How long the Master panel may take for one op (the runner's wait is longer). */
   masterTimeoutMs: number
@@ -39,11 +37,8 @@ export async function runChatParityIdentityAction(request: ChatParityRequest, pr
     const next = writeDeckIdentityForm({ ...readDeckIdentityForm(), ...rest, ...(logo_url ? { logoUrl: logo_url } : {}) })
     return chatParityResult(id, 'done', null, { company: next.company ?? null, confidentiality: next.confidentiality ?? null, logo_url: next.logoUrl ?? null })
   }
+  // A paid action (generate_logo): the Director's cost card confirmed it before the frame was sent (DIRECTOR-2, 27 Oct 07:29Z), so no second confirm here; the sub-flag is a kill switch.
   if (chatParityPaidBlocked(args.action)) return fail(id, 'flag_off')
-  if (args.action === 'generate_logo') {
-    const yes = await deps.confirm('Generate a logo from chat?', `One paid image call for "${args.prompt}". It replaces the deck's logo on every slide.`)
-    if (!yes) return chatParityResult(id, 'dismissed', 'declined')
-  }
   const op = chatParityMasterOp(args)
   if (!op) return fail(id, 'unsupported')
   if (!presentationId || !chatParityBus.master || !chatParityBus.openMaster) return fail(id, 'viewer_unavailable')

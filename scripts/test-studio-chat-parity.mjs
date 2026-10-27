@@ -45,7 +45,7 @@ const ENV = '.env.example'
 const REGISTRY = 'scripts/studio-later-changes.mjs'
 const FONT_PROOF = 'scripts/test-theme-font-selection.mjs'
 const git = (...args) => execFileSync('git', ['-C', root, ...args], { encoding: 'utf8', maxBuffer: 1 << 28, stdio: ['ignore', 'pipe', 'ignore'] })
-const OWN = (() => { try { return git('log', '-1', '--format=%H', '--no-merges', '-E', '--grep=^Chat parity', 'HEAD').trim() || null } catch { return null } })()
+const OWN = (() => { try { return git('log', '-1', '--format=%H', '-E', '--grep=^Chat parity', 'HEAD').trim() || null } catch { return null } })() // a merge of dev into this branch is this change's commit too (its subject starts the same way)
 const readOwn = rel => { if (!OWN) return read(rel); try { return git('show', `${OWN}:${rel}`) } catch { return read(rel) } }
 const hasBase = (() => { try { git('cat-file', '-e', `${strip.BASE_COMMIT}^{commit}`); return true } catch { return false } })()
 const baseOf = rel => git('show', `${strip.BASE_COMMIT}:${rel}`)
@@ -57,7 +57,7 @@ function compile(text, fileName) {
   if (errors.length) throw new Error(`${fileName} does not transpile: ${ts.flattenDiagnosticMessageText(errors[0].messageText, '\n')}`)
   return out.outputText
 }
-const ALL_ON = { NEXT_PUBLIC_STUDIO_CHAT_PARITY_NOTES: 'true', NEXT_PUBLIC_STUDIO_CHAT_PARITY_THEMES: 'true', NEXT_PUBLIC_STUDIO_CHAT_PARITY_IDENTITY: 'true', NEXT_PUBLIC_STUDIO_CHAT_PARITY_TEMPLATES: 'true' }
+const ALL_ON = { NEXT_PUBLIC_STUDIO_CHAT_PARITY_THEMES: 'true', NEXT_PUBLIC_STUDIO_CHAT_PARITY_IDENTITY: 'true', NEXT_PUBLIC_STUDIO_CHAT_PARITY_TEMPLATES: 'true' }
 function loadLib(text = read(LIB), env = ALL_ON) {
   const module = { exports: {} }
   new Function('module', 'exports', 'require', 'process', compile(text, LIB))(module, module.exports, () => { throw new Error('the lib must stay import-free') }, { env })
@@ -133,42 +133,42 @@ function libSuite(libText = read(LIB)) {
   // -- flags -------------------------------------------------------------------------------------------------------------------------------
   for (const [value, want] of [[undefined, false], ['false', false], ['TRUE', false], ['1', false], [' true', false], ['true', true]]) eq(lib.chatParityFlagOn(value), want, `flag ${JSON.stringify(value)}`)
   const off = loadLib(libText, {})
-  eq(off.STUDIO_CHAT_PARITY_NOTES_ENABLED, false, 'unset: notes off'); eq(off.STUDIO_CHAT_PARITY_ANY_ENABLED, false, 'unset: nothing on'); eq(off.CHAT_PARITY_CAPS, [], 'unset: no cap')
-  const notes = loadLib(libText, { NEXT_PUBLIC_STUDIO_CHAT_PARITY_NOTES: 'true' })
-  eq(notes.STUDIO_CHAT_PARITY_NOTES_ENABLED, true, '"true": notes on'); eq(notes.STUDIO_CHAT_PARITY_ANY_ENABLED, true, 'one on: any on'); eq(notes.CHAT_PARITY_CAPS, ['notes1'], 'notes: notes1')
-  eq(loadLib(libText, { NEXT_PUBLIC_STUDIO_CHAT_PARITY_NOTES: 'yes' }).CHAT_PARITY_CAPS, [], '"yes": off')
+  eq(off.STUDIO_CHAT_PARITY_THEMES_ENABLED, false, 'unset: themes off'); eq(off.STUDIO_CHAT_PARITY_ANY_ENABLED, false, 'unset: nothing on'); eq(off.CHAT_PARITY_CAPS, [], 'unset: no cap')
+  eq(loadLib(libText, { NEXT_PUBLIC_STUDIO_CHAT_PARITY_THEMES: 'true' }).STUDIO_CHAT_PARITY_ANY_ENABLED, true, 'one on: any on')
+  eq(loadLib(libText, { NEXT_PUBLIC_STUDIO_CHAT_PARITY_THEMES: 'yes' }).CHAT_PARITY_CAPS, [], '"yes": off')
+  eq(off.STUDIO_CHAT_PARITY_NOTES_ENABLED, undefined, 'no notes flag: rows 105 / 106 / 108 ride #522\'s single notes_updated path'); eq(Object.values({ ...lib.CHAT_PARITY_GROUP_CAPS }).includes('notes1'), false, 'notes1 is #522\'s cap, never ours (no duplicate in client_caps)')
   ok(Object.isFrozen(lib.CHAT_PARITY_FLAGS), 'the flags are frozen')
   // -- caps --------------------------------------------------------------------------------------------------------------------------------
-  eq({ ...lib.CHAT_PARITY_GROUP_CAPS }, { notes: 'notes1', themes: 'themes1', identity: 'identity1', templates: 'templates1' }, 'the group caps (notes1 is Director\'s own name)')
-  eq(lib.chatParityCaps({ notes: true, themes: true, identity: true, templates: true }), ['notes1', 'themes1', 'identity1', 'templates1'], 'all on: group order')
-  eq(lib.chatParityCaps({ notes: false, themes: true, identity: false, templates: true }), ['themes1', 'templates1'], 'two on')
-  eq(lib.chatParityCaps({ notes: 'true', themes: 1, identity: false, templates: false }), [], 'only boolean true counts')
-  eq(lib.addChatParityCaps({ client_caps: ['mdc1', 'theme1'] }, ['notes1']), { client_caps: ['mdc1', 'theme1', 'notes1'] }, 'after the existing caps')
-  eq(lib.addChatParityCaps({}, ['notes1', 'themes1']), { client_caps: ['notes1', 'themes1'] }, 'no caps yet')
-  eq(lib.addChatParityCaps({ client_caps: ['notes1'] }, ['notes1']), { client_caps: ['notes1'] }, 'each once')
-  eq(lib.addChatParityCaps({ client_caps: 'mdc1' }, ['notes1']), { client_caps: ['notes1'] }, 'a non-array is replaced')
-  eq(lib.addChatParityCaps({ client_caps: ['mdc1', 7, null] }, ['notes1']), { client_caps: ['mdc1', 'notes1'] }, 'non-strings dropped')
-  const data = { text: 'hi', client_caps: ['mdc1'] }; ok(lib.addChatParityCaps(data, ['notes1']) === data, 'in place'); eq(data.text, 'hi', 'other keys kept')
+  eq({ ...lib.CHAT_PARITY_GROUP_CAPS }, { themes: 'themes1', identity: 'identity1', templates: 'templates1' }, 'the group caps')
+  eq(lib.chatParityCaps({ themes: true, identity: true, templates: true }), ['themes1', 'identity1', 'templates1'], 'all on: group order')
+  eq(lib.chatParityCaps({ themes: true, identity: false, templates: true }), ['themes1', 'templates1'], 'two on')
+  eq(lib.chatParityCaps({ themes: 1, identity: 'true', templates: false }), [], 'only boolean true counts')
+  eq(lib.addChatParityCaps({ client_caps: ['mdc1', 'theme1', 'element_edit1', 'notes1'] }, ['themes1']), { client_caps: ['mdc1', 'theme1', 'element_edit1', 'notes1', 'themes1'] }, 'after the existing caps (#522\'s included)')
+  eq(lib.addChatParityCaps({}, ['identity1', 'themes1']), { client_caps: ['identity1', 'themes1'] }, 'no caps yet')
+  eq(lib.addChatParityCaps({ client_caps: ['themes1'] }, ['themes1']), { client_caps: ['themes1'] }, 'each once')
+  eq(lib.addChatParityCaps({ client_caps: 'mdc1' }, ['themes1']), { client_caps: ['themes1'] }, 'a non-array is replaced')
+  eq(lib.addChatParityCaps({ client_caps: ['mdc1', 7, null] }, ['themes1']), { client_caps: ['mdc1', 'themes1'] }, 'non-strings dropped')
+  const data = { text: 'hi', client_caps: ['mdc1'] }; ok(lib.addChatParityCaps(data, ['themes1']) === data, 'in place'); eq(data.text, 'hi', 'other keys kept')
   // -- the request frame ------------------------------------------------------------------------------------------------------------------
   const frame = (payload, type = 'studio_action') => ({ type, message_id: 'm1', session_id: 's1', timestamp: 't', role: 'assistant', payload })
   ok(lib.isChatParityRequestFrame(frame({})), 'the type'); ok(!lib.isChatParityRequestFrame(frame({}, 'element_directive')), 'another type'); ok(!lib.isChatParityRequestFrame(null) && !lib.isChatParityRequestFrame('studio_action'), 'not an object')
   eq(lib.chatParityRequestId(frame({ request_id: 'sa_1' })), 'sa_1', 'the id'); eq(lib.chatParityRequestId(frame({ request_id: ' ' })), null, 'blank id'); eq(lib.chatParityRequestId(frame({})), null, 'no id'); eq(lib.chatParityRequestId({ type: 'studio_action' }), null, 'no payload')
-  eq(lib.chatParityRequest(frame({ request_id: 'sa_1', group: 'notes', action: 'x', presentation_id: 'p1', args: { a: 1 }, label: 'L' })), { requestId: 'sa_1', group: 'notes', action: 'x', presentationId: 'p1', args: { a: 1 }, label: 'L' }, 'a full request')
+  eq(lib.chatParityRequest(frame({ request_id: 'sa_1', group: 'themes', action: 'x', presentation_id: 'p1', args: { a: 1 }, label: 'L' })), { requestId: 'sa_1', group: 'themes', action: 'x', presentationId: 'p1', args: { a: 1 }, label: 'L' }, 'a full request')
   eq(lib.chatParityRequest(frame({ request_id: 'sa_2' })), { requestId: 'sa_2', group: '', action: '', presentationId: null, args: {}, label: '' }, 'a bare request still reads (answered honestly)')
   eq(lib.chatParityRequest(frame({ request_id: 'sa_3', args: [1], presentation_id: '', label: 4 })).args, {}, 'args must be an object'); eq(lib.chatParityRequest(frame({ request_id: 'sa_3', args: [1], presentation_id: '' })).presentationId, null, 'empty presentation = none')
   eq(lib.chatParityRequest(frame({})), null, 'no id: dropped'); eq(lib.chatParityRequest(frame({ request_id: 'x' }, 'deck_mutation')), null, 'another type: not ours')
   const args = { a: 1 }; ok(lib.chatParityRequest(frame({ request_id: 'sa', args })).args !== args, 'args are copied')
   // -- the refusal ------------------------------------------------------------------------------------------------------------------------
   const req = (group, action) => ({ requestId: 'r', group, action, presentationId: null, args: {}, label: '' })
-  const flags = { notes: true, themes: false, identity: false, templates: false }
+  const flags = { themes: false, identity: true, templates: false }
   eq(lib.chatParityRefusal(req('themes', 'save_theme'), flags), 'flag_off', 'group off'); eq(lib.chatParityRefusal(req('nope', 'x'), flags), 'flag_off', 'unknown group'); eq(lib.chatParityRefusal(req('', ''), flags), 'flag_off', 'no group')
-  eq(lib.chatParityRefusal(req('notes', 'set_notes'), flags), 'unsupported', 'notes has no action (Director writes notes itself)')
-  eq(lib.chatParityRefusal(req('notes', 'x'), { ...flags, notes: 'true' }), 'flag_off', 'only boolean true is on')
+  eq(lib.chatParityRefusal(req('notes', 'set_speaker_notes'), { ...flags, themes: true }), 'flag_off', 'notes is not a group of ours (Director writes notes itself, #522 reflects them)')
+  eq(lib.chatParityRefusal(req('identity', 'x'), { ...flags, identity: 'true' }), 'flag_off', 'only boolean true is on')
   eq(lib.chatParityRefusal(req('themes', 'nope'), { ...flags, themes: true }), 'unsupported', 'an action outside the group list')
-  eq(Object.keys(lib.CHAT_PARITY_ACTIONS).sort(), ['identity', 'notes', 'templates', 'themes'], 'every group has a list'); eq(lib.CHAT_PARITY_ACTIONS.notes, [], 'notes: none')
+  eq(Object.keys(lib.CHAT_PARITY_ACTIONS).sort(), ['identity', 'templates', 'themes'], 'every group has a list')
   // -- THEMES: the flag, the actions, the args --------------------------------------------------------------------------------------------
   const themesOnly = loadLib(libText, { NEXT_PUBLIC_STUDIO_CHAT_PARITY_THEMES: 'true' })
-  eq(themesOnly.STUDIO_CHAT_PARITY_THEMES_ENABLED, true, '"true": themes on'); eq(themesOnly.CHAT_PARITY_CAPS, ['themes1'], 'themes: themes1'); eq(themesOnly.CHAT_PARITY_FLAGS.notes, false, 'notes stays off')
+  eq(themesOnly.STUDIO_CHAT_PARITY_THEMES_ENABLED, true, '"true": themes on'); eq(themesOnly.CHAT_PARITY_CAPS, ['themes1'], 'themes: themes1'); eq(themesOnly.CHAT_PARITY_FLAGS.identity, false, 'identity stays off')
   eq(lib.CHAT_PARITY_ACTIONS.themes, ['set_theme_fonts', 'save_theme', 'set_standard_theme', 'clear_standard_theme', 'rename_theme', 'apply_saved_theme'], 'rows 56 / 57 / 58 / 58 / 59 / 61')
   eq(lib.chatParityRefusal(req('themes', 'apply_saved_theme'), { ...flags, themes: true }), null, 'a theme action runs with the flag on')
   eq(lib.CHAT_PARITY_THEME_LIBRARY_EVENT, 'deckster:theme-library-changed'); eq(lib.CHAT_PARITY_THEME_NAME_MAX, 80)
@@ -227,11 +227,6 @@ function libSuite(libText = read(LIB)) {
   eq(lib.chatParityResult('sa_1', 'done', null, { theme_id: 't' }), { request_id: 'sa_1', status: 'done', error_code: null, detail: { theme_id: 't' } }, 'detail when given')
   eq(lib.chatParityResult('sa_1', 'done', null, {}), { request_id: 'sa_1', status: 'done', error_code: null }, 'an empty detail is left off')
   eq(lib.chatParityResultFrame(lib.chatParityResult('sa_1', 'done')), { type: 'studio_action_result', payload: { request_id: 'sa_1', status: 'done', error_code: null } }, 'the frame: data under payload')
-  // -- notes_updated -----------------------------------------------------------------------------------------------------------------------
-  eq(lib.CHAT_PARITY_NOTES_MUTATION, 'notes_updated'); eq(lib.CHAT_PARITY_NOTES_EVENT, 'deckster:slide-notes-updated'); eq(lib.CHAT_PARITY_NOTES_FIELDS, ['speaker_notes', 'script', 'references'])
-  eq(lib.chatParityNotesUpdate({ mutation: 'notes_updated', slide_index: 2, presentation_id: 'p', refresh_token: 'r' }), { presentationId: 'p', slideIndex: 2, fields: [] }, 'without fields (today\'s Director)')
-  eq(lib.chatParityNotesUpdate({ mutation: 'notes_updated', slide_index: 0, presentation_id: 'p', fields: ['script', 'bogus', 3, 'references'] }), { presentationId: 'p', slideIndex: 0, fields: ['script', 'references'] }, 'known fields kept, the rest dropped')
-  for (const [bad, why] of [[{ mutation: 'slide_added', slide_index: 0, presentation_id: 'p' }, 'another mutation'], [{ mutation: 'notes_updated', slide_index: -1, presentation_id: 'p' }, 'bad index'], [{ mutation: 'notes_updated', slide_index: 1.5, presentation_id: 'p' }, 'fraction'], [{ mutation: 'notes_updated', slide_index: 1 }, 'no deck'], [{ mutation: 'notes_updated', slide_index: 1, presentation_id: '' }, 'empty deck'], [null, 'null'], ['notes_updated', 'string']]) eq(lib.chatParityNotesUpdate(bad), null, why)
   return lib
 }
 
@@ -293,7 +288,7 @@ async function templatesSuite(runnersText = read(RUNNERS), libText = read(LIB), 
     { id: 't3', name: 'Busy', blueprint_generation_method: 'llm', blueprint_enrichment_status: 'optimizing', blueprint_enrichment_error: null, template_purity_status: null, template_purity_error: null },
   ]
   const composerLibrary = [{ id: 'c1', name: 'Upload.pptx', slide_count: 9 }]
-  const calls = []; let locked = false; let confirmAnswer = true; const confirms = []; let composerActions = ['use', 'ditto', 'new-topic']; let source = { sessionId: 's1', presentationId: 'p1' }; let renameAnswer = (id, name) => ({ ok: true, template: { id, name: name.toUpperCase() } })
+  const calls = []; let locked = false; let composerActions = ['use', 'ditto', 'new-topic']; let source = { sessionId: 's1', presentationId: 'p1' }; let renameAnswer = (id, name) => ({ ok: true, template: { id, name: name.toUpperCase() } })
   const deps = { displayed: () => ({ sessionId: 's1', deckOwnerSessionId: 's1', presentationId: 'p1', epoch: 1 }), templates: {
     listTemplates: async () => { calls.push('list'); return { templates: library, count: library.length } },
     saveTemplate: async args => { calls.push(['save', args]); return args.name === 'refused' ? null : { id: 't9', name: args.name, slide_count: 5 } },
@@ -301,7 +296,7 @@ async function templatesSuite(runnersText = read(RUNNERS), libText = read(LIB), 
     renameTemplate: async (id, name) => { calls.push(['rename', id, name]); return renameAnswer(id, name) },
     select: template => { calls.push(['select', template]) }, selectionLocked: () => locked,
     composer: { list: async () => composerLibrary, run: request => { calls.push(['composer', request]) }, actions: () => composerActions },
-    saveSource: () => source, confirm: async (title, description, label) => { confirms.push([title, description, label]); return confirmAnswer },
+    saveSource: () => source,
   } }
   const owner = { sessionId: 's1', isCurrent: () => true }
   const run = (action, args) => runners.runChatParityAction({ requestId: 'r', group: 'templates', action, presentationId: null, args, label: '' }, owner, deps, { session_id: 's1' })
@@ -323,16 +318,14 @@ async function templatesSuite(runnersText = read(RUNNERS), libText = read(LIB), 
   // the paid pair
   const before = calls.length
   if (paidOn) {
-    eq(await run('save_template', { name: 'Mine' }), { request_id: 'r', status: 'done', error_code: null, detail: { template_id: 't9', name: 'Mine' } }, 'save: confirmed, the dialog\'s own save'); eq(plain(calls.at(-1)), ['save', { name: 'Mine', sourceSessionId: 's1', sourcePresentationId: 'p1' }]); ok(/paid/i.test(confirms.at(-1)[1]) && confirms.at(-1)[2] === 'Save template', 'the confirm names the cost')
+    eq(await run('save_template', { name: 'Mine' }), { request_id: 'r', status: 'done', error_code: null, detail: { template_id: 't9', name: 'Mine' } }, 'save: the dialog\'s own save, no second confirm (the Director\'s cost card came first)'); eq(plain(calls.at(-1)), ['save', { name: 'Mine', sourceSessionId: 's1', sourcePresentationId: 'p1' }])
     eq(await run('save_template', { name: 'refused' }), { request_id: 'r', status: 'failed', error_code: 'write_failed' })
     source = { sessionId: 's1', presentationId: null }; eq(await run('save_template', { name: 'x' }), { request_id: 'r', status: 'failed', error_code: 'no_deck' }, 'save: no completed deck'); source = { sessionId: 's1', presentationId: 'p1' }
-    confirmAnswer = false; eq(await run('save_template', { name: 'x' }), { request_id: 'r', status: 'dismissed', error_code: null }, 'save declined'); confirmAnswer = true
-    eq(await run('optimize_template', { template_id: 't2' }), { request_id: 'r', status: 'done', error_code: null, detail: { template_id: 't2', name: 'Draft' } }, 'optimise: confirmed'); eq(plain(calls.at(-1)), ['optimize', 't2']); eq(confirms.at(-1)[2], 'Optimise')
+    eq(await run('optimize_template', { template_id: 't2' }), { request_id: 'r', status: 'done', error_code: null, detail: { template_id: 't2', name: 'Draft' } }, 'optimise: the page\'s own reoptimize'); eq(plain(calls.at(-1)), ['optimize', 't2'])
     eq(await run('optimize_template', { template_id: 't1' }), { request_id: 'r', status: 'failed', error_code: 'already_ready' }, 'optimise: already ready'); eq(await run('optimize_template', { template_id: 't3' }), { request_id: 'r', status: 'failed', error_code: 'already_ready' }, 'optimise: already optimising')
-    confirmAnswer = false; eq(await run('optimize_template', { template_id: 't2' }), { request_id: 'r', status: 'dismissed', error_code: null }, 'optimise declined'); confirmAnswer = true
     eq(await run('optimize_template', { template_id: 't9' }), { request_id: 'r', status: 'failed', error_code: 'not_found' })
   } else {
-    eq(await run('save_template', { name: 'Mine' }), { request_id: 'r', status: 'failed', error_code: 'flag_off' }, 'save: sub-flag off'); eq(await run('optimize_template', { template_id: 't2' }), { request_id: 'r', status: 'failed', error_code: 'flag_off' }, 'optimise: sub-flag off'); eq(calls.length, before, 'nothing ran'); eq(confirms.length, 0, 'nothing asked')
+    eq(await run('save_template', { name: 'Mine' }), { request_id: 'r', status: 'failed', error_code: 'flag_off' }, 'save: sub-flag off'); eq(await run('optimize_template', { template_id: 't2' }), { request_id: 'r', status: 'failed', error_code: 'flag_off' }, 'optimise: sub-flag off'); eq(calls.length, before, 'nothing ran')
   }
   eq(await runners.runChatParityAction({ requestId: 'r', group: 'templates', action: 'select_template', presentationId: null, args: { template_id: 't1' }, label: '' }, owner, { displayed: deps.displayed }, null), { request_id: 'r', status: 'failed', error_code: 'flag_off' }, 'no template deps: flag_off')
   eq(await run('template_start', { template_id: 't1', mode: 'as_is' }), { request_id: 'r', status: 'failed', error_code: 'unsupported' }, 'row 66 through the runner: unsupported'); eq(await run('apply_template', { template_id: 't1' }), { request_id: 'r', status: 'failed', error_code: 'unsupported' }, 'row 72: unsupported')
@@ -344,16 +337,16 @@ async function identitySuite(runnersText = read(RUNNERS), libText = read(LIB), i
   const stubs = identityStubs(deckIdentityOn)
   const identity = loadIdentity(identityText, lib, stubs)
   const runners = loadRunners(runnersText, lib, null, loadThemes(read(THEMES), lib), identity)
-  const ops = []; let opened = 0; let masterAnswer = { ok: true }; let confirmAnswer = true; const confirms = []
+  const ops = []; let opened = 0; let masterAnswer = { ok: true }
   lib.chatParityBus.openMaster = () => { opened++ }
   lib.chatParityBus.master = async (op, deadline) => { ops.push([op, deadline]); return masterAnswer }
   const owner = { sessionId: 's1', isCurrent: () => true }
   let displayedDeck = { sessionId: 's1', deckOwnerSessionId: 's1', presentationId: 'p1', epoch: 1 }
-  const deps = { displayed: () => displayedDeck, identity: { confirm: async (title, description) => { confirms.push([title, description]); return confirmAnswer }, now: () => 1000, masterTimeoutMs: 20_000 } }
+  const deps = { displayed: () => displayedDeck, identity: { now: () => 1000, masterTimeoutMs: 20_000 } }
   const run = (action, args, over = {}) => runners.runChatParityAction({ requestId: 'r', group: 'identity', action, presentationId: 'p1', args, label: '', ...over }, owner, deps, { session_id: 's1' })
   eq(await run('set_footer', { title: 'Q3', author: 'PK' }), { request_id: 'r', status: 'done', error_code: null, detail: { kind: 'footer' } }, 'footer: done through the panel'); eq(plain(ops.at(-1)), [{ kind: 'footer', title: 'Q3', author: 'PK' }, 21000], 'the op and its deadline (now + the panel wait)')
-  eq(await run('clear_footer', {}), { request_id: 'r', status: 'done', error_code: null, detail: { kind: 'clear_footer' } }, 'clear footer: no confirm'); eq(confirms.length, 0, 'nothing asked')
-  eq(await run('remove_logo', {}), { request_id: 'r', status: 'done', error_code: null, detail: { kind: 'remove_logo' } }, 'remove logo: no confirm'); eq(confirms.length, 0)
+  eq(await run('clear_footer', {}), { request_id: 'r', status: 'done', error_code: null, detail: { kind: 'clear_footer' } }, 'clear footer: no confirm')
+  eq(await run('remove_logo', {}), { request_id: 'r', status: 'done', error_code: null, detail: { kind: 'remove_logo' } }, 'remove logo: no confirm')
   eq(await run('set_logo', { image_url: 'https://x.example/l.png' }), { request_id: 'r', status: 'done', error_code: null, detail: { kind: 'logo' } }, 'logo by URL'); eq(plain(ops.at(-1)[0]), { kind: 'logo', image_url: 'https://x.example/l.png' })
   eq(await run('set_logo', { image_url: 'http://x.example/l.png' }), { request_id: 'r', status: 'failed', error_code: 'invalid_args' }, 'logo: not https'); eq(opened, 0, 'the panel opens from the panel op runner, not here')
   masterAnswer = { ok: false, error: 'viewer_unavailable' }; eq(await run('set_footer', { title: 'x' }), { request_id: 'r', status: 'failed', error_code: 'viewer_unavailable' }, 'the panel\'s own refusal is the answer')
@@ -361,13 +354,12 @@ async function identitySuite(runnersText = read(RUNNERS), libText = read(LIB), i
   eq(await run('set_footer', { title: 'x' }, { presentationId: null }), { request_id: 'r', status: 'done', error_code: null, detail: { kind: 'footer' } }, 'no deck named: the deck on screen is the target')
   displayedDeck = { sessionId: 's1', deckOwnerSessionId: 's1', presentationId: null, epoch: 1 }; eq(await run('set_footer', { title: 'x' }, { presentationId: null }), { request_id: 'r', status: 'failed', error_code: 'viewer_unavailable' }, 'no deck on screen: nothing to write on'); displayedDeck = { sessionId: 's1', deckOwnerSessionId: 's1', presentationId: 'p1', epoch: 1 }
   { const saveMaster = lib.chatParityBus.master; lib.chatParityBus.master = null; eq(await run('set_footer', { title: 'x' }), { request_id: 'r', status: 'failed', error_code: 'viewer_unavailable' }, 'no panel mounted'); lib.chatParityBus.master = saveMaster }
-  // the paid generate: the sub-flag, then the confirm
+  // the paid generate: the sub-flag is a kill switch; the Director's cost card confirmed before the frame (no Studio confirm, DIRECTOR-2 07:29Z)
   const opsBefore = ops.length
   if (paidOn) {
-    eq(await run('generate_logo', { prompt: 'a blue owl' }), { request_id: 'r', status: 'done', error_code: null, detail: { kind: 'generate_logo' } }, 'generate: confirmed, through the panel'); eq(confirms.length, 1, 'asked once'); ok(confirms[0][1].includes('a blue owl') && /paid/i.test(confirms[0][1]), 'the confirm names the prompt and the cost'); eq(plain(ops.at(-1)[0]), { kind: 'generate_logo', prompt: 'a blue owl' })
-    confirmAnswer = false; eq(await run('generate_logo', { prompt: 'x' }), { request_id: 'r', status: 'dismissed', error_code: null }, 'declined: dismissed, nothing runs'); eq(ops.length, opsBefore + 1, 'no op after a no'); confirmAnswer = true
+    eq(await run('generate_logo', { prompt: 'a blue owl' }), { request_id: 'r', status: 'done', error_code: null, detail: { kind: 'generate_logo' } }, 'generate: straight through the panel, no second confirm'); eq(plain(ops.at(-1)[0]), { kind: 'generate_logo', prompt: 'a blue owl' })
   } else {
-    eq(await run('generate_logo', { prompt: 'a blue owl' }), { request_id: 'r', status: 'failed', error_code: 'flag_off' }, 'sub-flag off: flag_off, nothing asked, nothing runs'); eq(confirms.length, 0); eq(ops.length, opsBefore)
+    eq(await run('generate_logo', { prompt: 'a blue owl' }), { request_id: 'r', status: 'failed', error_code: 'flag_off' }, 'sub-flag off: flag_off, nothing runs'); eq(ops.length, opsBefore)
   }
   // presenter details: the identity form's own writer
   if (deckIdentityOn) {
@@ -475,28 +467,30 @@ function sourcesSuite() {
   ok(hook.indexOf('addBulkEditUndoCaps(message.data') < hook.indexOf('addChatParityCaps(message.data'), 'after the bulk-edit caps line')
   ok(hook.includes('if (STUDIO_CHAT_PARITY_ANY_ENABLED && isChatParityRequestFrame(parsedMessage)) { // CHAT-PARITY'), 'the request branch is gated on any flag')
   ok(hook.indexOf('isChatParityRequestFrame(parsedMessage)') < hook.indexOf('if (!isKnownDirectorMessageType(parsedMessage.type))'), 'ahead of the allowlist')
-  ok(hook.includes('if (STUDIO_CHAT_PARITY_NOTES_ENABLED && chatParityNotesUpdate(payload)) { // CHAT-PARITY'), 'notes_updated is gated on the notes flag')
-  ok(hook.indexOf('chatParityNotesUpdate(payload)) { // CHAT-PARITY') < hook.indexOf("|| !['slide_added', 'slide_deleted', 'slide_replaced', 'slide_reordered'].includes(payload.mutation)"), 'ahead of the mutation allowlist')
+  ok(!hook.split('\n').some(l => marker.test(l) && /routeNotesUpdatedFrame|notes1/.test(l.split('//')[0])), 'the hook routes no notes_updated and adds no notes1 of ours (code, not comments): #522\'s routeNotesUpdatedFrame / addChatElementEditCaps is the one path')
+  ok(hook.includes("window.dispatchEvent(new CustomEvent(CHAT_PARITY_NOTES_FIELDS_EVENT, {") && hook.indexOf('CHAT_PARITY_NOTES_FIELDS_EVENT, {') < hook.indexOf('routeNotesUpdatedFrame(parsedMessage, {'), 'rows 106 / 108: the fields event is raised just before #522\'s route (whose reload follows), gated on #522\'s flag')
+  ok(hook.includes("if (CHAT_ELEMENT_EDIT_ENABLED && typeof window !== 'undefined' && parsedMessage.session_id === socketSessionId && deckMutationOwnerRef.current.presentationId ==="), 'this session and the deck on screen only')
+  ok(hook.indexOf('addChatElementEditCaps(message.data') < hook.indexOf('addChatParityCaps(message.data'), 'our caps line is the last caps line (after #522\'s)')
+  ok(hook.indexOf('routeElementEditFrame(parsedMessage, {') < hook.indexOf('isChatParityRequestFrame(parsedMessage)) { // CHAT-PARITY'), 'our request branch sits after #522\'s')
   ok(hook.includes("chatParityBus.send = sendChatParityResult // CHAT-PARITY"), 'the sender is registered on the bus')
-  ok(hook.includes('chatParityBus.request?.(parsedMessage') && hook.includes('chatParityBus.notes?.(update,'), 'frames go to the bus, never to a page callback (no page line before the older proofs\' regions)')
+  ok(hook.includes('chatParityBus.request?.(parsedMessage'), 'frames go to the bus, never to a page callback (no page line before the older proofs\' regions)')
   ok(hook.includes("JSON.stringify(chatParityResultFrame(data))"), 'the result frame is the lib\'s')
   for (const line of hook.split('\n').filter(l => marker.test(l))) ok(!/KNOWN_DIRECTOR_MESSAGE_TYPES|REPLY_FRAME_TYPES/.test(line), 'no allowlist edit: the frames stay unknown with the flags off')
   // the gates: the page
   const page = readOwn(PAGE)
   ok(page.includes('chatParityBus.request = !STUDIO_CHAT_PARITY_ANY_ENABLED ? null : (message, owner) => { // CHAT-PARITY'), 'the runner is set only with a flag on')
-  ok(page.includes('chatParityBus.notes = !STUDIO_CHAT_PARITY_NOTES_ENABLED ? null : (update, owner) =>'), 'the notes handler is set only with the notes flag on')
+  ok(!page.split('\n').some(l => marker.test(l) && /chatParityBus\.notes|NOTES_EVENT/.test(l)), 'the page sets no notes handler of ours (#522\'s onNotesUpdated is the one path)')
+  ok(page.indexOf('elementEditDirectiveRunnerRef.current = ') < page.indexOf('chatParityBus.request = '), 'our runner sits after #522\'s runner')
   { const first = page.split('\n').findIndex(l => marker.test(l)); ok(first > page.slice(0, page.indexOf('void run.then(send).finally(() => { chatThemeExportInFlightRef.current[kind] = false })')).split('\n').length, 'every page line sits after the theme / export runner (the older proofs\' regions)') }
-  ok(page.includes('window.dispatchEvent(new CustomEvent(CHAT_PARITY_NOTES_EVENT, { detail: update }))'), 'notes: the panel\'s event')
-  ok(page.includes('update.presentationId === slideComposerPresentationRef.current.presentationId'), 'notes: the deck on screen only')
   ok(page.includes("chatParityBus.send?.(chatParityResult(request.requestId, 'failed', refusal))"), 'a refusal is answered at once')
   ok(page.includes('{ displayed: () => elementDirectiveGenerationOwnerRef.current, // CHAT-PARITY') && page.includes('} } : {}) }, message).then(result => { if (owner.isCurrent()) chatParityBus.send?.(result) }) // CHAT-PARITY'), 'the K5 owner record and the frame reach the runner')
   const pageImports = page.split('\n').filter(l => l.startsWith('import ') && marker.test(l))
-  eq(pageImports.length, 4, 'four import lines (the lib, the runners, the toast action, the composer library)'); ok(pageImports.every(l => page.indexOf(l) > page.indexOf("from '@/lib/studio-chat-clean' // CHAT-CLEAN")), 'placed at the end with the chat-clean import')
+  eq(pageImports.length, 3, 'three import lines (the lib, the runners, the composer library)'); ok(pageImports.every(l => page.indexOf(l) > page.indexOf("from '@/lib/studio-chat-clean' // CHAT-CLEAN")), 'placed at the end with the chat-clean import')
   // the gates: the panel and the types
   const panel = readOwn(PANEL)
-  ok(panel.includes('if (!STUDIO_CHAT_PARITY_NOTES_ENABLED) return // CHAT-PARITY'), 'the panel listens only with the flag on')
-  ok(panel.includes('window.addEventListener(CHAT_PARITY_NOTES_EVENT, onChatWrite) // CHAT-PARITY') && panel.includes('window.removeEventListener(CHAT_PARITY_NOTES_EVENT, onChatWrite) // CHAT-PARITY'), 'added and removed')
-  ok(panel.includes('const onChatWrite = () => setReloadToken((token) => token + 1) // CHAT-PARITY'), 'the same re-read the publish dialog uses')
+  { const marked = panel.split('\n').filter(l => marker.test(l)); ok(marked.some(l => l.includes("window.addEventListener('deckster:chat-notes-fields', onNotesFields)")) && marked.some(l => l.includes("window.removeEventListener('deckster:chat-notes-fields', onNotesFields)")), 'rows 106 / 108: the panel listens for the fields event'); ok(!marked.some(l => /setReloadToken|import /.test(l)), 'no second reload, no new import (#522\'s handler reloads)'); ok(marked.some(l => l.includes("if (process.env.NEXT_PUBLIC_STUDIO_CHAT_ELEMENT_EDIT !== 'true') return")), 'gated on #522\'s flag, read inline') }
+  ok(panel.includes("for (const field of ['script', 'references'] as const) if (detail.fields.includes(field) && !saversRef.current.get(pid)?.pending.get(slideId)?.has(field)) editedFieldsRef.current.delete(`${slideId}:${field}`) // CHAT-PARITY"), 'only the fields the frame names, only a saved draft, as #522 does for the notes')
+  ok(panel.indexOf('}, []) // CHAT-ELEMENT-EDIT') < panel.indexOf('useEffect(() => { // CHAT-PARITY'), 'after #522\'s effect')
   ok(readOwn(TYPES).includes("| 'notes_updated' // CHAT-PARITY"), 'the mutation kind is declared')
   // the gates: the composer (FRONTEND-2's file: marked lines only, their OK of 27 Oct 04:14Z)
   const composer = readOwn(COMPOSER)
@@ -526,7 +520,7 @@ function sourcesSuite() {
   ok(page.includes('select: handleSelectTemplate, selectionLocked: () => templateSelectionLockedRef.current') && page.includes('run: runComposerTemplateAction'), 'the picker\'s own select and the library dialog\'s own runner')
   ok(page.includes('const chatParityTemplates = useTemplates() // CHAT-PARITY'), 'the templates hook, a second instance')
   ok(page.includes('presentationId: templateSavePresentationId ?? null'), 'the Save Template dialog\'s own source')
-  ok(page.includes('<ToastAction altText={label} onClick={() => answer(true)}>{label}</ToastAction>') && page.includes('setTimeout(() => answer(false), 31_000)'), 'the paid confirm: a toast with one action, no answer = no')
+  ok(!page.split('\n').some(l => marker.test(l) && /ToastAction|chatParityConfirm/.test(l)), 'no Studio confirm toast: the Director\'s cost card confirms a paid action before the frame (DIRECTOR-2 07:29Z)')
   // the new files: the lib is import-free, the runners import the lib only
   ok(!/^import /m.test(readOwn(LIB)) && !/require\(/.test(readOwn(LIB)), 'the lib is import-free')
   eq([...readOwn(RUNNERS).matchAll(/from '([^']+)'/g)].map(m => m[1]), ['@/lib/studio-chat-parity', '@/lib/studio-chat-parity-themes', '@/lib/studio-chat-parity-identity', '@/lib/studio-chat-parity-templates'], 'the runners import the lib and the group files only')
@@ -537,7 +531,7 @@ function sourcesSuite() {
   const env = readOwn(ENV)
   ok(env.endsWith(`\n${strip.CHAT_PARITY_ENV_BLOCK}`), 'the block ends .env.example')
   if (hasBase) eq(env.slice(0, env.length - strip.CHAT_PARITY_ENV_BLOCK.length - 1), baseOf(ENV), 'append-only')
-  ok(strip.CHAT_PARITY_ENV_BLOCK.includes('NEXT_PUBLIC_STUDIO_CHAT_PARITY_NOTES="false"'), 'the notes flag, off')
+  ok(!strip.CHAT_PARITY_ENV_BLOCK.includes('NEXT_PUBLIC_STUDIO_CHAT_PARITY_NOTES='), 'no notes flag of ours')
   ok(strip.CHAT_PARITY_ENV_BLOCK.includes('NEXT_PUBLIC_STUDIO_CHAT_PARITY_THEMES="false"'), 'the themes flag, off')
   ok(strip.CHAT_PARITY_ENV_BLOCK.includes('NEXT_PUBLIC_STUDIO_CHAT_PARITY_IDENTITY="false"') && strip.CHAT_PARITY_ENV_BLOCK.includes('NEXT_PUBLIC_STUDIO_CHAT_PARITY_PAID_LOGO="false"'), 'the identity flag and the paid sub-flag, off')
   ok(strip.CHAT_PARITY_ENV_BLOCK.includes('NEXT_PUBLIC_STUDIO_CHAT_PARITY_TEMPLATES="false"') && strip.CHAT_PARITY_ENV_BLOCK.includes('NEXT_PUBLIC_STUDIO_CHAT_PARITY_PAID_SAVE_TEMPLATE="false"') && strip.CHAT_PARITY_ENV_BLOCK.includes('NEXT_PUBLIC_STUDIO_CHAT_PARITY_PAID_OPTIMIZE="false"'), 'the templates flag and its paid sub-flags, off')
@@ -566,7 +560,6 @@ async function mutantsSuite() {
     ['frame request renamed', t => t.replace("request: 'studio_action',", "request: 'studio_actions',")],
     ['result under data', t => t.replace('return { type: CHAT_PARITY_FRAMES.result, payload: data }', 'return { type: CHAT_PARITY_FRAMES.result, data }')],
     ['flag accepts TRUE', t => t.replace("return value === 'true'", "return String(value).toLowerCase() === 'true'")],
-    ['notes cap renamed', t => t.replace("notes: 'notes1',", "notes: 'notes_1',")],
     ['caps always sent', t => t.replace("filter(group => flags[group] === true)", 'filter(() => true)')],
     ['caps duplicated', t => t.replace('for (const cap of caps) if (!next.includes(cap)) next.push(cap)', 'for (const cap of caps) next.push(cap)')],
     ['blank id accepted', t => t.replace("typeof id === 'string' && id.trim() ? id : null", "typeof id === 'string' ? id : null")],
@@ -575,9 +568,6 @@ async function mutantsSuite() {
     ['unknown action runs', t => t.replace("if (!CHAT_PARITY_ACTIONS[request.group].includes(request.action)) return 'unsupported'", '')],
     ['code on dismissed', t => t.replace("error_code: status === 'failed' ? errorCode : null", 'error_code: errorCode')],
     ['empty detail sent', t => t.replace('if (detail && Object.keys(detail).length > 0) data.detail = detail', 'if (detail) data.detail = detail')],
-    ['notes: other mutation', t => t.replace('if (value.mutation !== CHAT_PARITY_NOTES_MUTATION) return null', '')],
-    ['notes: unknown field kept', t => t.replace("typeof f === 'string' && CHAT_PARITY_NOTES_FIELDS.includes(f)", "typeof f === 'string'")],
-    ['notes: negative index', t => t.replace('(value.slide_index as number) < 0', 'false')],
     ['themes: delete action listed', t => t.replace("'rename_theme', 'apply_saved_theme'],", "'rename_theme', 'apply_saved_theme', 'delete_theme'],")],
     ['themes: unknown font accepted', t => t.replace('if (!family) return null', 'if (!family) continue')],
     ['themes: a name alone', t => t.replace("case 'set_standard_theme': { const id = themeId(args.theme_id); return id ? { action, theme_id: id } : null }", "case 'set_standard_theme': { const id = themeId(args.theme_id) ?? themeId(args.name); return id ? { action, theme_id: id } : null }")],
@@ -597,7 +587,6 @@ async function mutantsSuite() {
     ['select while locked', t => t.replace("if (deps.selectionLocked()) return fail(id, 'locked')", '')],
     ['selection record leaks fields', t => t.replace("    template_purity_error: template.template_purity_error,\n  }", "    template_purity_error: template.template_purity_error,\n    ...template,\n  }")],
     ['composer action beyond its flags', t => t.replace("if (!deps.composer.actions().includes(args.composer_action)) return fail(id, 'flag_off')", '')],
-    ['save without confirm', t => t.replace("if (!yes) return chatParityResult(id, 'dismissed', 'declined')\n      const result = await deps.saveTemplate", '      const result = await deps.saveTemplate')],
     ['optimise a ready template', t => t.replace("if (status === 'ready' || status === 'optimizing') return fail(id, 'already_ready')", '')],
     ['paid block ignored', t => t.replace("if (chatParityPaidBlocked(args.action)) return fail(id, 'flag_off')", '')],
     ['rename refusal read as done', t => t.replace("if (result.ok) return chatParityResult(id, 'done', null,", 'if (true) return chatParityResult(id, \'done\', null,')],
@@ -610,7 +599,6 @@ async function mutantsSuite() {
   }
   await templatesSuite(runnersText, libText, read(TEMPLATES), false)
   const identityMutants = [
-    ['generate without confirm', t => t.replace("if (!yes) return chatParityResult(id, 'dismissed', 'declined')", '')],
     ['paid block ignored', t => t.replace("if (chatParityPaidBlocked(args.action)) return fail(id, 'flag_off')", '')],
     ['identity flag ignored', t => t.replace("if (!isDeckIdentityEnabled()) return fail(id, 'flag_off')", '')],
     ['no deck still writes', t => t.replace("if (!presentationId || !chatParityBus.master || !chatParityBus.openMaster) return fail(id, 'viewer_unavailable')", "if (!chatParityBus.master) return fail(id, 'viewer_unavailable')")],

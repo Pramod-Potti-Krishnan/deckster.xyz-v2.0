@@ -215,6 +215,9 @@ const CHANGE_KINDS: readonly string[] = ['slide_added', 'slide_replaced', 'slide
 const KIND_WORDS: Record<ChangeKind, string> = {
   slide_added: 'Added a slide', slide_replaced: 'Changed a slide', slide_deleted: 'Deleted a slide', slide_reordered: 'Moved a slide', bulk_edit: 'Changed the deck',
 }
+// CHAT-ELEMENT-EDIT (NEXT_PUBLIC_STUDIO_CHAT_ELEMENT_EDIT, default off): Director's two newer kinds (streams/director2/element-edit/CONTRACT.md: element_edited for a chat element edit, notes_updated for speaker notes) are undoable too, with these words when Director sends no label. Flag off: dropped, as before.
+const CHAT_EDIT_KIND_WORDS: Record<string, string> = { element_edited: 'Element edited', notes_updated: 'Notes updated' } // CHAT-ELEMENT-EDIT
+const CHAT_EDIT_KINDS_ENABLED = process.env.NEXT_PUBLIC_STUDIO_CHAT_ELEMENT_EDIT === 'true' // CHAT-ELEMENT-EDIT
 export interface RecordedChange { changeId: string; label: string; kind: ChangeKind; presentationId: string }
 
 /** change_recorded: only a Director-written change that is undoable (v1: no element or theme changes). The label is Director's; a kind's plain words stand in when it sends none. */
@@ -224,6 +227,7 @@ export function parseChangeRecorded(frame: unknown): RecordedChange | null {
     const body = bodyOf(frame)
     if (!body || body.undoable !== true) return null
     const changeId = cleanId(body.change_id), presentationId = cleanId(body.presentation_id)
+    if (CHAT_EDIT_KINDS_ENABLED && changeId && presentationId && typeof body.kind === 'string' && Object.prototype.hasOwnProperty.call(CHAT_EDIT_KIND_WORDS, body.kind)) return { changeId, presentationId, kind: body.kind as ChangeKind, label: cleanText(body.label, MAX_LABEL) ?? CHAT_EDIT_KIND_WORDS[body.kind] } // CHAT-ELEMENT-EDIT
     if (!changeId || !presentationId || typeof body.kind !== 'string' || !CHANGE_KINDS.includes(body.kind)) return null
     const kind = body.kind as ChangeKind
     return { changeId, presentationId, kind, label: cleanText(body.label, MAX_LABEL) ?? KIND_WORDS[kind] }

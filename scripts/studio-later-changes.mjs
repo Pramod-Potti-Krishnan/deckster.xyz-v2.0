@@ -43,7 +43,8 @@ export const LATER_CHANGE_FILES = new Set([
   ...(await import('./studio-model-slider-strip.mjs')).MODEL_SLIDER_SCOPE_FILES, // LATER-CHANGE: FRONTEND-2, P3-10 model choice, the slider variant of the composer picker, stacked on the line above (NEXT_PUBLIC_STUDIO_MODEL_CHOICE; no .env.example block, no strip of its own)
   ...(await import('./studio-model-five-strip.mjs')).MODEL_FIVE_SCOPE_FILES, // LATER-CHANGE: FRONTEND-2, P3-10 model choice, five presets (Quick, Fast, Balanced, Best, Max) on the slider and the compact picker, on dev after the line above (NEXT_PUBLIC_STUDIO_MODEL_CHOICE; no .env.example block, no strip of its own)
   ...(await import('./studio-chat-clean-strip.mjs')).CHAT_CLEAN_SCOPE_FILES, // LATER-CHANGE: FRONTEND-1, P3-1 C chat clean v3: the Director chat as one thread, the job card inline, Send <-> Stop and the slim Continue bar (NEXT_PUBLIC_STUDIO_CHAT_CLEAN)
-  ...(await import('./studio-chat-parity-strip.mjs')).CHAT_PARITY_SCOPE_FILES, // LATER-CHANGE: FRONTEND-1, P3-1 A chat parity, Studio half: studio_action / studio_action_result, notes_updated (NEXT_PUBLIC_STUDIO_CHAT_PARITY_NOTES / _THEMES / _IDENTITY / _TEMPLATES)
+  ...(await import('./studio-chat-element-edit-strip.mjs')).CHAT_ELEMENT_EDIT_SCOPE_FILES, // LATER-CHANGE: FRONTEND-2, chat element edit and notes refresh (NEXT_PUBLIC_STUDIO_CHAT_ELEMENT_EDIT)
+  ...(await import('./studio-chat-parity-strip.mjs')).CHAT_PARITY_SCOPE_FILES, // LATER-CHANGE: FRONTEND-1, P3-1 A chat parity, Studio half: studio_action / studio_action_result (NEXT_PUBLIC_STUDIO_CHAT_PARITY_THEMES / _IDENTITY / _TEMPLATES)
   // one line per later change, above this comment
 ])
 
@@ -59,7 +60,8 @@ export const LATER_ENV_BLOCKS = [
   (await import('./studio-arrange-strip.mjs')).STUDIO_ARRANGE_ENV_BLOCK, // LATER-CHANGE: FRONTEND-2, Arrange works in the Studio inspector, selecting no longer raises (NEXT_PUBLIC_STUDIO_ARRANGE)
   (await import('./studio-model-choice-strip.mjs')).MODEL_CHOICE_ENV_BLOCK, // LATER-CHANGE: FRONTEND-2, P3-10 model choice: the Intelligence picker uses the live model catalogue (NEXT_PUBLIC_STUDIO_MODEL_CHOICE)
   (await import('./studio-chat-clean-strip.mjs')).CHAT_CLEAN_ENV_BLOCK, // LATER-CHANGE: FRONTEND-1, P3-1 C chat clean v3 (NEXT_PUBLIC_STUDIO_CHAT_CLEAN)
-  (await import('./studio-chat-parity-strip.mjs')).CHAT_PARITY_ENV_BLOCK, // LATER-CHANGE: FRONTEND-1, P3-1 A chat parity, Studio half (NEXT_PUBLIC_STUDIO_CHAT_PARITY_NOTES / _THEMES / _IDENTITY / _TEMPLATES)
+  (await import('./studio-chat-element-edit-strip.mjs')).CHAT_ELEMENT_EDIT_ENV_BLOCK, // LATER-CHANGE: FRONTEND-2, chat element edit and notes refresh (NEXT_PUBLIC_STUDIO_CHAT_ELEMENT_EDIT)
+  (await import('./studio-chat-parity-strip.mjs')).CHAT_PARITY_ENV_BLOCK, // LATER-CHANGE: FRONTEND-1, P3-1 A chat parity, Studio half (NEXT_PUBLIC_STUDIO_CHAT_PARITY_THEMES / _IDENTITY / _TEMPLATES)
   // one line per later change, above this comment
 ]
 
@@ -84,7 +86,8 @@ export const LATER_STRIPS = [
   (await import('./studio-arrange-strip.mjs')).stripStudioArrange, // LATER-CHANGE: FRONTEND-2, Arrange works in the Studio inspector, selecting no longer raises (NEXT_PUBLIC_STUDIO_ARRANGE)
   (await import('./studio-model-choice-strip.mjs')).stripModelChoice, // LATER-CHANGE: FRONTEND-2, P3-10 model choice: the Intelligence picker uses the live model catalogue (NEXT_PUBLIC_STUDIO_MODEL_CHOICE)
   (await import('./studio-chat-clean-strip.mjs')).stripChatClean, // LATER-CHANGE: FRONTEND-1, P3-1 C chat clean v3 (NEXT_PUBLIC_STUDIO_CHAT_CLEAN)
-  (await import('./studio-chat-parity-strip.mjs')).stripChatParity, // LATER-CHANGE: FRONTEND-1, P3-1 A chat parity, Studio half (NEXT_PUBLIC_STUDIO_CHAT_PARITY_NOTES / _THEMES / _IDENTITY / _TEMPLATES)
+  (await import('./studio-chat-element-edit-strip.mjs')).stripChatElementEdit, // LATER-CHANGE: FRONTEND-2, chat element edit and notes refresh (NEXT_PUBLIC_STUDIO_CHAT_ELEMENT_EDIT)
+  (await import('./studio-chat-parity-strip.mjs')).stripChatParity, // LATER-CHANGE: FRONTEND-1, P3-1 A chat parity, Studio half (NEXT_PUBLIC_STUDIO_CHAT_PARITY_THEMES / _IDENTITY / _TEMPLATES)
   // one line per later change, above this comment
 ]
 

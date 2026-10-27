@@ -103,6 +103,8 @@ import Link from 'next/link'
 import { SlideThumbnailStrip, SlideThumbnail, type SlideComposeThumbnailJob } from './slide-thumbnail-strip'
 import type { SlideRefineTarget } from '@/lib/slide-refinement'
 import { SlideNotesPanel } from './slide-notes-panel'
+import { CHAT_ELEMENT_EDIT_ENABLED } from '@/lib/chat-element-edit-wire' // CHAT-ELEMENT-EDIT (NEXT_PUBLIC_STUDIO_CHAT_ELEMENT_EDIT, default off): the viewer's save acks and edit mode, for an element edit from chat
+import { publishViewerSaveEvent, registerChatEditViewer } from '@/lib/chat-element-edit-save' // CHAT-ELEMENT-EDIT
 import { SaveStatus } from './save-status-indicator'
 import { SlideLayoutPicker, SlideLayoutType } from './slide-layout-picker'
 import { ADD_SLIDE_V2_ENABLED, type AddSlideV2Settings } from '@/lib/studio-add-slide-v2'
@@ -3628,6 +3630,11 @@ export function PresentationViewer({
 
     return () => onApiReady(null)
   }, [viewerIsReady, onApiReady, handleGetSelectionInfo, handleUpdateSectionContent, handleSendTextBoxCommand, handleSendElementCommand, handleGoToSlide, studioShell, getStudioIntroductionSafety, captureStudioElementGeneration])
+  // CHAT-ELEMENT-EDIT: while the viewer is ready, an element edit from chat can use its lazy edit mode (what selecting an element does), so Layout's autosave tracks the change. Flag off: nothing registers.
+  useEffect(() => { // CHAT-ELEMENT-EDIT
+    if (!CHAT_ELEMENT_EDIT_ENABLED || !viewerIsReady) return // CHAT-ELEMENT-EDIT
+    return registerChatEditViewer({ ensureEditMode: () => ensureEditMode() }) // CHAT-ELEMENT-EDIT
+  }, [viewerIsReady, ensureEditMode]) // CHAT-ELEMENT-EDIT
 
   useEffect(() => {
     if (!onComposeApiReady) return
@@ -3904,6 +3911,7 @@ export function PresentationViewer({
       if (type === 'save_status' || type === 'saveStatusChanged') {
         const status = event.data.status as SaveStatus
         if (!['saved', 'unsaved', 'saving', 'error'].includes(status)) return
+        if (CHAT_ELEMENT_EDIT_ENABLED) publishViewerSaveEvent({ status, hasPendingChanges: typeof event.data.hasPendingChanges === 'boolean' ? event.data.hasPendingChanges : null }) // CHAT-ELEMENT-EDIT: the ack an element edit from chat waits for (Layout's saveStatusChanged); flag off: nothing
         if (status !== 'saved') {
           if (!studioArrangeOwnsSaveStatus(status)) // STUDIO-ARRANGE: Layout's "unsaved" for the selection's own Arrange command (it arrives before the answer) does not retire the selection
           if (studioShell) viewerInteractionIntentRef.current += 1

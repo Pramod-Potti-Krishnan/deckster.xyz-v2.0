@@ -31,6 +31,7 @@ const { renderToStaticMarkup } = nodeRequire('react-dom/server')
 const strip = await import('./studio-arrange-strip.mjs')
 const registry = await import('./studio-later-changes.mjs')
 const layoutHarness = await import('./studio-arrange-layout.mjs')
+const { stripChatElementEdit } = await import('./studio-chat-element-edit-strip.mjs') // LATER-CHANGES: registry read (CHAT-ELEMENT-EDIT): #522 marks lines in the viewer and the Builder page too; every file is read past them, so what is left is this change's and the base's
 
 const FLAG = 'NEXT_PUBLIC_STUDIO_ARRANGE'
 const INSPECTOR = 'components/builder/studio-format-inspector.tsx'
@@ -42,8 +43,8 @@ const PAGE = 'app/builder/page.tsx'
 const FIXTURE = 'scripts/fixtures/studio-arrange/layout-transcript.json'
 const VIEWER_ORIGIN = 'https://layout.synthetic.test'
 const STUDIO_ORIGIN = 'https://studio.synthetic.test'
-const chatParityStrip = await import('./studio-chat-parity-strip.mjs') // stacked after #475: LATER-CHANGES: registry read (CHAT-PARITY): the strip of the change stacked after this one
-const read = rel => chatParityStrip.stripChatParity(rel, fs.readFileSync(path.join(root, rel), 'utf8')) // stacked after #475: LATER-CHANGES: registry read (CHAT-PARITY): chat parity's marked line in the viewer (the Master opener) comes out before the byte pins below
+const chatParityStrip = await import('./studio-chat-parity-strip.mjs') // stacked after #475: LATER-CHANGES: registry read (CHAT-PARITY): the strip of the change stacked after #522
+const read = rel => chatParityStrip.stripChatParity(rel, stripChatElementEdit(rel, fs.readFileSync(path.join(root, rel), 'utf8'))) // stacked after #475: LATER-CHANGES: registry read (CHAT-PARITY): chat parity's marked line in the viewer (the Master opener) comes out too, outside #522's strip
 const sha = text => crypto.createHash('sha256').update(typeof text === 'string' ? text : JSON.stringify(text)).digest('hex')
 const git = (...args) => execFileSync('git', ['-C', root, ...args], { encoding: 'utf8', maxBuffer: 1 << 28 })
 const plain = value => value === undefined ? undefined : JSON.parse(JSON.stringify(value))
