@@ -175,6 +175,7 @@ async function printGolden(root) {
 }
 const importLines = source => source.split('\n').filter(line => /^import[\s{*"']/.test(line))
 const chatCleanStrip = await import('./studio-chat-clean-strip.mjs') // LATER-CHANGES: registry read (CHAT-CLEAN): the strip of the change stacked after this one, so its marked lines come out before the pins below read a file
+const { stripLaterChanges: registryRead } = await import('./studio-later-changes.mjs') // LATER-CHANGES: registry read (PAUSED-LABEL): every registered later change's marked lines come out of a file before its import lines are read
 
 if (process.env.PRINT_GOLDEN) {
   const root = path.resolve(process.env.PASS2B_ROOT || here)
@@ -612,7 +613,7 @@ async function checks(root, { only } = {}) {
 
   // D6 sources: no new import in the four guarded components; flags read at the right places; presentation only; stylesheet scoped; docs
   {
-    for (const file of Object.keys(GOLDEN.imports)) if (sha(importLines(chatCleanStrip.stripChatClean(file, read(file))).join('\n')) !== GOLDEN.imports[file]) fail(`${file}: its import lines changed (the existing pin tests load it with an allow-list of imports)`) // LATER-CHANGES: registry read (CHAT-CLEAN): the import lines a change registered after this one adds (chat clean's, in chat-input.tsx and message-list.tsx) are its own
+    for (const file of Object.keys(GOLDEN.imports)) if (sha(importLines(registryRead(file, read(file))).join('\n')) !== GOLDEN.imports[file]) fail(`${file}: its import lines changed (the existing pin tests load it with an allow-list of imports)`) // LATER-CHANGES: registry read (CHAT-CLEAN): the import lines a change registered after this one adds (chat clean's, in chat-input.tsx and message-list.tsx) are its own // LATER-CHANGES: registry read (PAUSED-LABEL)
     const filesUnder = dir => fs.readdirSync(path.join(root, dir), { withFileTypes: true }).flatMap(entry => entry.isDirectory() ? filesUnder(path.join(dir, entry.name)) : [path.join(dir, entry.name)])
     const sources = ['app', 'components', 'hooks', 'lib'].flatMap(filesUnder).filter(file => /\.(tsx?|css)$/.test(file))
     const where = {
