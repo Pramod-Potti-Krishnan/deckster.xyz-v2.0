@@ -789,7 +789,7 @@ async function mentionSuite(overrides = {}) {
     await c.key('Enter'); eq(c.text(), 'Tidy @[Slide 2: Market size] ', 'a slide pick: the K1 token and a space')
     eq([w.chatCommandsBus.mentions.size, c.menu()], [0, null], '...K1 turns it into a reference on send: nothing is registered here')
     // a file
-    await c.type('@file'); eq(c.rows().map(n => n.props['aria-label']), ['Mention q3 report.pdf, Uploaded', 'Mention notes.docx, Uploaded'], '"@file": this deck\'s uploads (not the ones still uploading or broken)')
+    await c.type('@file'); eq(c.rows().map(n => n.props['aria-label']), ['Mention q3 report.pdf, Uploaded', 'Mention notes.docx, Uploaded'], '"@file": this deck\'s uploads')
     await c.key('Enter'); eq(c.text(), '@[File: q3 report.pdf] ', 'a file pick: a readable token')
     eq(plain(w.referencesInText(c.text())), [{ kind: 'file', file_id: 'f1', name: 'q3 report.pdf', source: 'upload' }], '...with its typed reference')
     await c.type('@[File: q3 report.pdf] and more'); eq(plain(w.referencesInText(c.text())).length, 1, 'the token typed on: still one reference')
@@ -813,6 +813,10 @@ async function mentionSuite(overrides = {}) {
     eq([prevented, c.text()], [1, '@[File: notes.docx] '], 'pointer: a press picks; the composer keeps its focus')
     await tick(); eq(c.fakeTextarea.selection, [c.text().length, c.text().length], 'the cursor is at the end after a pick')
     c.unmount()
+  }
+  { // a file that is still uploading, or failed, cannot be mentioned
+    const busy = await mountComposer({ overrides, props: { uploadedFiles: FILES_ALL } }); await busy.type('@file')
+    eq(busy.rows().map(n => n.props['aria-label']), ['Mention q3 report.pdf, Uploaded', 'Mention notes.docx, Uploaded'], '"@file": not the file still uploading, not the one that failed'); busy.unmount()
   }
   { // sections follow the flags
     const noMentions = await mountComposer({ overrides, env: { NEXT_PUBLIC_CHAT_MENTIONS: undefined } }); await noMentions.type('@'); await tick(); await noMentions.settle()
