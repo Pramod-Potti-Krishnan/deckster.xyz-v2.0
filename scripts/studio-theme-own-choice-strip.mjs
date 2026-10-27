@@ -6,7 +6,7 @@
 // sites) and lib/studio-theme-restore.ts (one re-export line, so the restore harness, which spreads that module into the page's scope, sees the new names). Strip those lines and each file is its base, byte for byte.
 // How the older pins reach it: this change REGISTERS its files, its .env.example block and this strip (scripts/studio-later-changes.mjs, three lines). Plain node, no imports, nothing read from disk or git here.
 
-export const BASE_COMMIT = '4520303b3a7b2105844e34dedf616c1e7d1edffd' // origin/studio-v4-dev-preparation-code (#537 merged): dev, which this change branches from.
+export const BASE_COMMIT = 'ffaf5a7eb883b35bf8ff4806a4a3b1b9c13cefe5' // origin/studio-v4-dev-preparation-code (#538 merged): dev, which this change is merged with (it was cut from 4520303b, #537).
 export const THEME_OWN_CHOICE_FLAG = 'NEXT_PUBLIC_STUDIO_THEME_OWN_CHOICE'
 export const THEME_OWN_CHOICE_MARKER = 'THEME-OWN-CHOICE'
 /** The marker as a WHOLE token: THEME-OWN-CHOICE-X or X-THEME-OWN-CHOICE are not this change's. */

@@ -22,7 +22,7 @@
 //   3. A theme change from chat (#475's chat-theme-export path): the page's REAL applyChatThemeSelection puts the change on record, and the next reload keeps it.
 //   4. Wiring: the flag is read inline, exact "true"; the marked lines; the only two writers; no new copy; .env.example. The strip gives the base page and restore lib back byte for byte.
 //   5. Mutants of the lib and the page: each must be caught.
-//   6. Scope over the COMMITTED diff (BASE..HEAD, first-parent, no merges; the commits that start "Theme own choice:").
+//   6. Scope over the COMMITTED diff (BASE..HEAD, first-parent, no merges; the commits that start "Theme own choice:"). GATE-SAFE: when HEAD is the gate's local --no-ff merge (first parent BASE, second parent this change's head) every scope query runs against HEAD^2; proved on a gate-style merge built here, and a mutant that drops that rule is caught.
 //
 //   node scripts/test-studio-theme-own-choice.mjs
 //   node scripts/test-studio-theme-own-choice.mjs --record-baseline --root <base checkout>   (re-record the flag-off baseline from a base tree)
@@ -410,20 +410,23 @@ await check('mutant caught: an unmarked line added to the page is not stripped (
 
 console.log('6. scope over the committed diff (BASE..HEAD, first-parent, no merges)')
 const git = (...a) => execFileSync('git', a, { cwd: repo, encoding: 'utf8', maxBuffer: 1 << 28 })
-const own = git('log', '--format=%H', '--first-parent', '--no-merges', '-E', `--grep=^${THEME_OWN_CHOICE_SUBJECT}`, `${BASE_COMMIT}..HEAD`).split('\n').filter(Boolean)
-const HEAD = own[0] || git('rev-parse', 'HEAD').trim()
-// A branch that merged dev has merge commits and files that are not its own: the two scope checks skip (as #522's and #533's do), the rest still runs.
-const merged = git('log', '--format=%H', '--merges', `${BASE_COMMIT}..HEAD`).split('\n').filter(Boolean).length > 0
-if (merged) console.log('  (this branch merged dev: the commit-scope checks below are skipped)')
-await check(`this change's own commits (subject starts "${THEME_OWN_CHOICE_SUBJECT}") exist, and every first-parent commit between the base and the newest of them is one, with the co-author line`, () => {
-  if (merged) return
+/** GATE-SAFE head of every own-commit / scope query. In the gate, HEAD is a local --no-ff merge whose FIRST parent is BASE (dev) and whose second parent is this change's head, so `rev-list --first-parent --no-merges BASE..HEAD` is empty: the
+ *  scope then runs against HEAD^2. On a branch (HEAD is this change's own tip, or a merge of dev INTO it, whose first parent is the change) HEAD itself is used. `gateRule: false` is the mutant that drops the rule. */
+function scopeHead(ref = 'HEAD', { gateRule = true } = {}) {
+  const sha = git('rev-parse', `${ref}^{commit}`).trim()
+  const parents = git('rev-list', '--parents', '-n', '1', sha).trim().split(/\s+/).slice(1)
+  return gateRule && parents.length === 2 && parents[0] === BASE_COMMIT ? parents[1] : sha
+}
+const HEAD = scopeHead('HEAD')
+const ownOf = head => git('log', '--format=%H', '--first-parent', '--no-merges', '-E', `--grep=^${THEME_OWN_CHOICE_SUBJECT}`, `${BASE_COMMIT}..${head}`).split('\n').filter(Boolean)
+const scopeOwnCommits = head => {
+  const own = ownOf(head)
   assert.ok(own.length >= 1, 'no own commit yet')
-  const all = git('log', '--format=%H', '--first-parent', '--no-merges', `${BASE_COMMIT}..${HEAD}`).split('\n').filter(Boolean)
+  const all = git('log', '--format=%H', '--first-parent', '--no-merges', `${BASE_COMMIT}..${head}`).split('\n').filter(Boolean)
   assert.deepEqual([...all].sort(), [...own].sort(), 'a commit between the base and HEAD is not this change\'s')
   for (const c of own) assert.match(git('log', '-1', '--format=%B', c), /Co-Authored-By: Claude Sonnet 5\.5 <noreply@anthropic\.com>\s*$/, c.slice(0, 8))
-})
-await check('the committed files are exactly this change\'s; every line added to an existing file is a pure insertion that carries the marker; the strip gives each its base back byte for byte', () => {
-  if (merged) return
+}
+const scopeCommittedFiles = HEAD => {
   const changed = git('diff', '--name-only', `${BASE_COMMIT}..${HEAD}`).split('\n').filter(Boolean).filter(rel => THEME_OWN_CHOICE_SCOPE_FILES.has(rel) || !registry.LATER_CHANGE_FILES.has(rel)).sort()
   assert.deepEqual(changed, [...THEME_OWN_CHOICE_SCOPE_FILES].sort())
   for (const rel of THEME_OWN_CHOICE_FILES) {
@@ -441,14 +444,39 @@ await check('the committed files are exactly this change\'s; every line added to
   }
   for (const rel of stripModule.THEME_OWN_CHOICE_NEW_FILES) assert.ok(git('cat-file', '-t', `${HEAD}:${rel}`).trim() === 'blob', rel)
   assert.equal(git('diff', '--name-only', `${BASE_COMMIT}..${HEAD}`, '--', 'hooks/', 'components/', 'package.json').trim(), '', 'no hook, no component (the lock label is untouched), no package.json')
-})
-await check('.env.example is the base plus the block; the registry gains exactly its three marked lines and loses none; no secret-shaped literal in the new files', () => {
-  if (merged) return
+}
+const scopeEnvAndRegistry = HEAD => {
   assert.equal(registry.stripLaterEnvBlocks('.env.example', git('show', `${HEAD}:.env.example`)), registry.stripLaterEnvBlocks('.env.example', `${git('show', `${BASE_COMMIT}:.env.example`)}\n${THEME_OWN_CHOICE_ENV_BLOCK}`))
   assert.match(git('show', `${HEAD}:.env.example`), new RegExp(`\\n\\n${THEME_OWN_CHOICE_ENV_BLOCK.split('\n')[0].replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}`), 'a blank line before the block')
   const diff = git('diff', '-U0', `${BASE_COMMIT}..${HEAD}`, '--', 'scripts/studio-later-changes.mjs').split('\n').filter(line => /^[+-]/.test(line) && !/^(\+\+\+|---) /.test(line))
   assert.equal(diff.length, 3); for (const line of diff) assert.ok(line.startsWith('+') && line.includes('LATER-CHANGE') && line.includes('studio-theme-own-choice-strip.mjs'), line.slice(0, 140))
+}
+await check(`this change's own commits (subject starts "${THEME_OWN_CHOICE_SUBJECT}") exist, and every first-parent commit between the base and HEAD (HEAD^2 in the gate) is one, with the co-author line`, () => scopeOwnCommits(HEAD))
+await check('the committed files are exactly this change\'s; every line added to an existing file is a pure insertion that carries the marker; the strip gives each its base back byte for byte', () => scopeCommittedFiles(HEAD))
+await check('.env.example is the base plus the block; the registry gains exactly its three marked lines and loses none; no secret-shaped literal in the new files', () => {
+  scopeEnvAndRegistry(HEAD)
   for (const rel of ['scripts/test-studio-theme-own-choice.mjs', 'scripts/studio-theme-own-choice-strip.mjs', LIB]) assert.doesNotMatch(fs.readFileSync(path.join(repo, rel), 'utf8'), /(sk-[A-Za-z0-9]{16,}|AKIA[0-9A-Z]{12,}|eyJ[A-Za-z0-9_-]{20,}\.|-----BEGIN [A-Z ]*PRIVATE KEY)/, rel)
+})
+// GATE-SAFE: build the gate's merge (first parent BASE, second parent this change's head; the tree is `git merge-tree --write-tree BASE head`) and run the whole scope section against it.
+const GATE_IDENT = { GIT_AUTHOR_NAME: 'gate', GIT_AUTHOR_EMAIL: 'gate@example.invalid', GIT_COMMITTER_NAME: 'gate', GIT_COMMITTER_EMAIL: 'gate@example.invalid', GIT_AUTHOR_DATE: '2026-10-27T00:00:00Z', GIT_COMMITTER_DATE: '2026-10-27T00:00:00Z' }
+const gateStyleMerge = head => {
+  const tree = git('merge-tree', '--write-tree', BASE_COMMIT, head).trim().split('\n')[0]
+  return execFileSync('git', ['commit-tree', tree, '-p', BASE_COMMIT, '-p', head, '-m', 'gate-style merge (local, no ref)'], { cwd: repo, encoding: 'utf8', env: { ...process.env, ...GATE_IDENT } }).trim()
+}
+const GATE = gateStyleMerge(HEAD)
+await check('GATE-SAFE: on a gate-style merge (first parent BASE, second parent this change\'s head) the scope head is HEAD^2 and the whole scope section passes against it', () => {
+  assert.deepEqual(git('rev-list', '--parents', '-n', '1', GATE).trim().split(/\s+/).slice(1), [BASE_COMMIT, HEAD], 'the gate-style merge: first parent BASE, second parent the head')
+  assert.deepEqual(git('log', '--format=%H', '--first-parent', '--no-merges', `${BASE_COMMIT}..${GATE}`).split('\n').filter(Boolean), [], 'the gate\'s first-parent, no-merges line from BASE is empty: why HEAD itself cannot be used')
+  const head = scopeHead(GATE)
+  assert.equal(head, HEAD, 'HEAD^2 is the change\'s head')
+  scopeOwnCommits(head); scopeCommittedFiles(head); scopeEnvAndRegistry(head)
+  assert.equal(scopeHead(HEAD), HEAD, 'a branch head (not a merge onto BASE) is used as it is')
+  assert.equal(scopeHead(BASE_COMMIT), BASE_COMMIT, 'BASE itself is used as it is')
+})
+await check('mutant caught: without the HEAD^2 rule the gate-style merge has no own commit (the scope section fails on it)', () => {
+  const head = scopeHead(GATE, { gateRule: false })
+  assert.equal(head, GATE)
+  assert.throws(() => scopeOwnCommits(head), /no own commit yet/)
 })
 
 fs.rmSync(LIVE, { recursive: true, force: true })
