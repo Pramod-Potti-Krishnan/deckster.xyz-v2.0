@@ -35,7 +35,6 @@ import {
   BASE_COMMIT, CHAT_ELEMENT_EDIT_FILES, CHAT_ELEMENT_EDIT_NEW_FILES, CHAT_ELEMENT_EDIT_OWN_EDITS, CHAT_ELEMENT_EDIT_RETIRED_FILES, CHAT_ELEMENT_EDIT_SCOPE_FILES, CHAT_ELEMENT_EDIT_ENV_BLOCK, CHAT_ELEMENT_EDIT_MARKER_RE, stripChatElementEdit,
 } from './studio-chat-element-edit-strip.mjs'
 import { LATER_STRIPS } from './studio-later-changes.mjs'
-import { stripDeckSyncTruth } from './studio-deck-sync-truth-strip.mjs' // LATER-CHANGES: registry read (DECK-SYNC-TRUTH): stacked after this change, it teaches the older files this check reads (its edits of them come out first)
 import { stripPass3PolishB } from './studio-pass3-polish-b-strip.mjs' // COMPOSER-2's first-paint pin reads the viewer through it, and it now takes this change's lines out too: it is not a peer to strip before this change's own checks
 // The other registered changes' marked lines (dev's: flow control, arrange, ... and the ones already in the base) come out of both sides before this change's identity checks; this change's own strip is the one left out.
 const stripPeers = (rel, text) => LATER_STRIPS.filter(strip => strip !== stripChatElementEdit && strip !== stripPass3PolishB).reduce((out, strip) => { const next = strip(rel, out); return typeof next === 'string' ? next : out }, text)
@@ -1336,7 +1335,7 @@ const DEV_COMMIT = '14a06c3053047acc7f6a613afd1138dabf4a3c54' // dev at #530 (ch
 const devFile = rel => git('show', `${DEV_COMMIT}:${rel}`)
 await check('pins: the older files this change teaches are the reference\'s (dev\'s, plus the shared tolerances) byte for byte once its edits are put back, every line it added carries the mark, and putting back twice changes nothing', async () => {
   for (const [rel, gained, lost] of [['scripts/test-studio-chat-theme-export.mjs', 2, 0], ['scripts/studio-pass3-polish-b-strip.mjs', 2, 0], ['scripts/test-studio-rail-add-slide.mjs', 1, 1], ['scripts/test-studio-arrange.mjs', 2, 1], ['scripts/test-theme-font-selection.mjs', 1, 0]]) {
-    const text = stripDeckSyncTruth(rel, read(rel)) // LATER-CHANGES: registry read (DECK-SYNC-TRUTH): the file as dev at #522 has it; a change stacked after this one teaches some of these files too, and its edits are not this change's lines
+    const text = LATER_STRIPS.slice(LATER_STRIPS.indexOf(stripChatElementEdit) + 1).reduce((out, strip) => { const next = strip(rel, out); return typeof next === 'string' ? next : out }, read(rel)) // LATER-CHANGES: registry read (CHAT-COMMANDS): a change registered after this one (#532) adds its own marked line to an older proof this one teaches too (theme-font-selection); the later changes' put-backs run first, so the counts below are this change's
     // The put-back may go past dev's edit of the same line (the rail line #523 edited too): both sides are read past the peers' put-backs.
     assert.equal(stripPeers(rel, stripChatElementEdit(rel, text)), stripPeers(rel, devFile(rel)), rel)
     assert.equal(stripChatElementEdit(rel, stripChatElementEdit(rel, text)), stripChatElementEdit(rel, text), `${rel}: idempotent`)
