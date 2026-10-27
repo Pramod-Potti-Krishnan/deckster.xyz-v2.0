@@ -588,7 +588,7 @@ await check('the files the own commits touch are exactly this change\'s; every l
 await check('.env.example is the base plus the block (after one blank line); the registry gains exactly its three marked lines and loses none; no secret-shaped literal in the new files', () => {
   assert.equal(registry.stripLaterEnvBlocks('.env.example', read('.env.example')), registry.stripLaterEnvBlocks('.env.example', `${baseFile('.env.example')}\n${CHAT_ELEMENT_EDIT_2_ENV_BLOCK}`))
   assert.ok(read('.env.example').includes(`\n\n${CHAT_ELEMENT_EDIT_2_ENV_BLOCK}`), 'a blank line before the block')
-  const diff = git('diff', '-U0', BASE_COMMIT, 'HEAD', '--', 'scripts/studio-later-changes.mjs').split('\n').filter(line => /^[+-]/.test(line) && !/^(\+\+\+|---) /.test(line))
+  const diff = git('diff', '-U0', BASE_COMMIT, 'HEAD', '--', 'scripts/studio-later-changes.mjs').split('\n').filter(line => /^[+-]/.test(line) && !/^(\+\+\+|---) /.test(line)).filter(line => !line.includes('studio-chat-clean-order-strip.mjs')) // LATER-CHANGES: registry read (CHAT-CLEAN-ORDER), stacked after chat element edit 2: this change's three registry lines are its own
   assert.equal(diff.length, 3); for (const line of diff) assert.ok(line.startsWith('+') && line.includes('LATER-CHANGE') && line.includes('studio-chat-element-edit-2-strip.mjs'), line.slice(0, 140))
   for (const rel of ['scripts/test-studio-chat-element-edit-2.mjs', 'scripts/studio-chat-element-edit-2-strip.mjs', 'scripts/fixtures/chat-element-edit-2/e2e2-repro-element-edit.json', TWO]) assert.doesNotMatch(read(rel), /(sk-[A-Za-z0-9]{16,}|AKIA[0-9A-Z]{12,}|eyJ[A-Za-z0-9_-]{20,}\.|-----BEGIN [A-Z ]*PRIVATE KEY|ghp_[A-Za-z0-9]{20,}|xox[bp]-)/, rel)
 })

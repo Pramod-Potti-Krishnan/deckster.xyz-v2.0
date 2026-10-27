@@ -38,6 +38,11 @@ export const CHAT_CLEAN_ORDER_PIN_EDITS = {
     [`chatClean.stripChatClean(LIST, order.stripChatCleanOrder(LIST, head) /* ${MARK} */)), baseOf(LIST), 'stripped is the base`, `chatClean.stripChatClean(LIST, head)), baseOf(LIST), 'stripped is the base`],
     [`chatClean.stripChatClean(LIST, order.stripChatCleanOrder(LIST, head) /* ${MARK} */))), baseOf(LIST), 'stripping twice`, `chatClean.stripChatClean(LIST, head))), baseOf(LIST), 'stripping twice`],
   ],
+  // chat element edit 2's proof (dev, #538) counts the registry lines BASE..HEAD adds ("exactly its three"); this change's three registry lines come out of that count (the proof's other checks need nothing from this change)
+  'scripts/test-studio-chat-element-edit-2.mjs': [
+    ["  const diff = git('diff', '-U0', BASE_COMMIT, 'HEAD', '--', 'scripts/studio-later-changes.mjs').split('\\n').filter(line => /^[+-]/.test(line) && !/^(\\+\\+\\+|---) /.test(line)).filter(line => !line.includes('studio-chat-clean-order-strip.mjs')) // LATER-CHANGES: registry read (CHAT-CLEAN-ORDER), stacked after chat element edit 2: this change's three registry lines are its own\n",
+      "  const diff = git('diff', '-U0', BASE_COMMIT, 'HEAD', '--', 'scripts/studio-later-changes.mjs').split('\\n').filter(line => /^[+-]/.test(line) && !/^(\\+\\+\\+|---) /.test(line))\n"],
+  ],
 }
 
 /** The proof without this change's edits (the previous file). Used by the strip and the proof. */

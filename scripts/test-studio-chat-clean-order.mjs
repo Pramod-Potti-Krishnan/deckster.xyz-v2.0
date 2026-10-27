@@ -557,11 +557,12 @@ const scopeOwnCommits = head => {
 const scopeCommittedFiles = HEAD => {
   const changed = git('diff', '--name-only', `${BASE_COMMIT}..${HEAD}`).split('\n').filter(Boolean).filter(rel => CHAT_CLEAN_ORDER_SCOPE_FILES.has(rel) || !registry.LATER_CHANGE_FILES.has(rel)).sort()
   assert.deepEqual(changed, [...CHAT_CLEAN_ORDER_SCOPE_FILES].sort())
-  assert.deepEqual(Object.keys(CHAT_CLEAN_ORDER_PIN_EDITS), ['scripts/test-studio-chat-undo-v2.mjs'], 'one older proof is taught: chat undo v2\'s strip of the message list')
+  assert.deepEqual(Object.keys(CHAT_CLEAN_ORDER_PIN_EDITS), ['scripts/test-studio-chat-undo-v2.mjs', 'scripts/test-studio-chat-element-edit-2.mjs'], 'two older proofs are taught: chat undo v2\'s strip of the message list, and #538\'s count of the registry lines')
   for (const rel of Object.keys(CHAT_CLEAN_ORDER_PIN_EDITS)) {
     assert.equal(stripChatCleanOrder(rel, git('show', `${HEAD}:${rel}`)), git('show', `${BASE_COMMIT}:${rel}`), `${rel}: the taught proof, put back, is the previous file byte for byte`)
     const diff = git('diff', '-U0', `${BASE_COMMIT}..${HEAD}`, '--', rel).split('\n').filter(line => /^[+-]/.test(line) && !/^(\+\+\+|---) /.test(line))
-    assert.equal(diff.filter(line => line.startsWith('+')).length, 3); assert.equal(diff.filter(line => line.startsWith('-')).length, 2)
+    const lines = text => text.split('\n').filter(Boolean).length // the lines an edit adds (has) or takes out (was)
+    assert.equal(diff.filter(line => line.startsWith('+')).length, CHAT_CLEAN_ORDER_PIN_EDITS[rel].reduce((n, [has]) => n + lines(has), 0)); assert.equal(diff.filter(line => line.startsWith('-')).length, CHAT_CLEAN_ORDER_PIN_EDITS[rel].reduce((n, [, was]) => n + lines(was), 0))
     for (const line of diff.filter(line => line.startsWith('+'))) assert.ok(line.includes(stripModule.CHAT_CLEAN_ORDER_PIN_MARK), `${rel}: a taught line without the mark: ${line.slice(0, 100)}`)
   }
   assert.deepEqual(CHAT_CLEAN_ORDER_FILES, [LIST])
@@ -581,7 +582,7 @@ const scopeEnvAndRegistry = HEAD => {
   assert.equal(diff.length, 3); for (const line of diff) assert.ok(line.startsWith('+') && line.includes('LATER-CHANGE') && line.includes('studio-chat-clean-order-strip.mjs'), line.slice(0, 140))
 }
 await check(`this change's own commits (subject starts "${CHAT_CLEAN_ORDER_SUBJECT}") exist; every first-parent non-merge commit between the base and HEAD (HEAD^2 in the gate) is one, with the co-author line; none starts "Chat clean" (that prefix is the chat clean proof's own-commit grep)`, () => scopeOwnCommits(HEAD))
-await check('the committed files are exactly this change\'s (one older proof, chat undo v2\'s, taught a registry read); every line added to the list is a pure insertion that carries the marker (eight of them); the strip gives the base back byte for byte, also through the registry', () => scopeCommittedFiles(HEAD))
+await check('the committed files are exactly this change\'s (two older proofs, chat undo v2\'s and #538\'s, taught a registry read); every line added to the list is a pure insertion that carries the marker (eight of them); the strip gives the base back byte for byte, also through the registry', () => scopeCommittedFiles(HEAD))
 // GATE-SAFE: build the gate's merge (first parent BASE, second parent this change's head; the tree is `git merge-tree --write-tree BASE head`) and run the whole scope section against it.
 const GATE_IDENT = { GIT_AUTHOR_NAME: 'gate', GIT_AUTHOR_EMAIL: 'gate@example.invalid', GIT_COMMITTER_NAME: 'gate', GIT_COMMITTER_EMAIL: 'gate@example.invalid', GIT_AUTHOR_DATE: '2026-10-27T00:00:00Z', GIT_COMMITTER_DATE: '2026-10-27T00:00:00Z' }
 const gateStyleMerge = head => {
