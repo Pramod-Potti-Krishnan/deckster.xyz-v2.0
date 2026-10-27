@@ -33,6 +33,8 @@ import type {
 import { watchViewerSave } from '@/lib/chat-element-edit-save'
 import type { SaveWatchTimers, ViewerSaveEvent } from '@/lib/chat-element-edit-save'
 import { FREE_SPOT_BOUNDS, parseFreeSpotSpan } from '@/lib/element-free-spot'
+import { CHAT_ELEMENT_EDIT_2_ENABLED, withShownSlides } from '@/lib/chat-element-edit-2' // CHAT-ELEMENT-EDIT-2
+import type { ShownSlides } from '@/lib/chat-element-edit-2' // CHAT-ELEMENT-EDIT-2
 
 export {
   CHAT_ELEMENT_EDIT_ENABLED, ELEMENT_EDIT_CLIENT_CAPS, ELEMENT_EDIT_DIRECTIVE_TYPE, addChatElementEditCaps, elementEditDirectiveId, elementEditResultFrame,
@@ -337,6 +339,8 @@ export interface ElementEditRunnerDeps {
   currentSlideIndex: () => number
   /** The slide_id the page knows at an index (null when it does not). */
   slideIdAt: (slideIndex: number) => string | null
+  /** NEXT_PUBLIC_STUDIO_CHAT_ELEMENT_EDIT_2 (CHAT-ELEMENT-EDIT-2): the shown deck's slide count and ids as Layout has them (a read of its slide inventory); with the flag on they replace slideCount / slideIdAt above, which come from the session's slideStructure (Director's outline ids, not Layout's). */ // CHAT-ELEMENT-EDIT-2
+  shownSlides?: ((presentationId: string) => Promise<ShownSlides | null>) | null // CHAT-ELEMENT-EDIT-2
   goToSlide?: ((slideIndex: number) => Promise<void>) | null
   /** The page's viewer APIs: the element router (reads, delete) and the plain text box path (the other commands). */
   sendElementCommand?: ((action: string, params: Record<string, unknown>) => Promise<any>) | null
@@ -394,6 +398,10 @@ export async function runElementEditDirective(
     // 2. The viewer, the deck and the slide.
     if (deps.paused() || !sendElement || !sendTextBox) return fail('VIEWER_NOT_READY')
     if (fields.presentation_id !== start.presentationId) return fail('SLIDE_CHANGED')
+    if (CHAT_ELEMENT_EDIT_2_ENABLED && deps.shownSlides) { // CHAT-ELEMENT-EDIT-2: the slide check below reads the shown deck's own ids and count (Layout's), not the session slideStructure's
+      deps = await withShownSlides(deps, start.presentationId as string) // CHAT-ELEMENT-EDIT-2
+      if (!owns()) return null // CHAT-ELEMENT-EDIT-2
+    } // CHAT-ELEMENT-EDIT-2
     const slideCount = deps.slideCount()
     if (slideCount > 0 && target >= slideCount) return fail('SLIDE_CHANGED')
     const sameSlide = () => {
