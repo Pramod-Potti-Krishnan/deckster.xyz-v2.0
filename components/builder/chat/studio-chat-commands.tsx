@@ -171,7 +171,7 @@ export function useStudioChatCommands(input: StudioChatCommandsInput): StudioCha
     if (button === 'open-research-options') { input.research.openOptions(); setNote(null); return }
     const result = pressControl(doc, CONTROL_SELECTORS.publish)
     if (result === 'clicked') setNote(null)
-    else show({ tone: 'notice', title: 'Publish is not ready', body: 'The Publish button opens once the deck is built.', control: 'publish', button: null })
+    else show({ tone: 'notice', title: W.publishNotReadyTitle, body: W.publishNotReadyBody, control: 'publish', button: null })
   }
 
   const run = (action: RunAction) => {
@@ -311,7 +311,7 @@ export function ChatCommandsMenu({ kind, rows, mention, active, onPick, onHover 
   if (kind === 'command') {
     return (
       <div data-studio-composer-mentions="true" data-studio-chat-commands-menu="commands" id={LIST_ID} role="listbox" aria-label="Commands" className={SURFACE}>
-        <p data-studio-v4-type-role="mention-heading" data-studio-chat-commands-heading="commands" className={HEADING}>{W.commandsHeading}</p>
+        <p role="presentation" data-studio-v4-type-role="mention-heading" data-studio-chat-commands-heading="commands" className={HEADING}>{W.commandsHeading}</p>
         {rows.map((row, index) => {
           const Icon = COMMAND_ICONS[row.id]
           return (
@@ -322,7 +322,7 @@ export function ChatCommandsMenu({ kind, rows, mention, active, onPick, onHover 
             </button>
           )
         })}
-        <p data-studio-composer-part="mention-hint">{W.hintMenu}</p>
+        <p role="presentation" data-studio-composer-part="mention-hint">{W.hintMenu}</p>
       </div>
     )
   }
@@ -333,7 +333,7 @@ export function ChatCommandsMenu({ kind, rows, mention, active, onPick, onHover 
     <div data-studio-composer-mentions="true" data-studio-chat-commands-menu="mentions" id={LIST_ID} role="listbox" aria-label="Mention something" className={SURFACE}>
       {bySection.map(section => (
         <React.Fragment key={section}>
-          <p data-studio-v4-type-role="mention-heading" data-studio-chat-commands-heading={section} className={HEADING}>{MENTION_SECTION_HEADINGS[section]}</p>
+          <p role="presentation" data-studio-v4-type-role="mention-heading" data-studio-chat-commands-heading={section} className={HEADING}>{MENTION_SECTION_HEADINGS[section]}</p>
           {items.map((item, index) => {
             if (item.section !== section) return null
             const Icon = SECTION_ICONS[item.section]
@@ -348,7 +348,7 @@ export function ChatCommandsMenu({ kind, rows, mention, active, onPick, onHover 
         </React.Fragment>
       ))}
       {mention?.empty && <p data-studio-chat-commands-empty={mention.empty.section} role="status">{mention.empty.note}</p>}
-      <p data-studio-composer-part="mention-hint">{W.hintMentions}</p>
+      <p role="presentation" data-studio-composer-part="mention-hint">{W.hintMentions}</p>
     </div>
   )
 }

@@ -40,6 +40,8 @@ export const CHAT_COMMANDS_WORDS = Object.freeze({
   dismiss: 'Dismiss',
   publishBody: "Publishing from chat isn't ready yet. The Publish button shares this deck.",
   publishButton: 'Open Publish',
+  publishNotReadyTitle: 'Publish is not ready',
+  publishNotReadyBody: 'The Publish button opens once the deck is built.',
   researchButton: 'Show research options',
   noDeckTitle: 'Open a deck first',
   nothingBuildingTitle: 'Nothing is building',

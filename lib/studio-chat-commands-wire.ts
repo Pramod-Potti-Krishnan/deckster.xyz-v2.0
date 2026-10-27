@@ -111,8 +111,8 @@ export function addChatCommandsFields(data: Record<string, unknown>, text: strin
   return data
 }
 
-/** The message went out: what it used is spent (a later message must not carry a stale command or the same picks unless they are picked or typed again). */
+/** The message went out: what it used is spent (a later message must not carry the same picks, or the command it already went with, unless they are picked or typed again). A command stays pending past a message that was not that request (a quick reply, say). */
 export function chatCommandsSent(text: string): void {
   for (const [token] of Array.from(chatCommandsBus.mentions)) if (typeof text === 'string' && text.includes(token)) chatCommandsBus.mentions.delete(token)
-  chatCommandsBus.command = null
+  if (commandInText(text)) chatCommandsBus.command = null
 }

@@ -154,6 +154,11 @@ function wireSuite(wireText = read(WIRE)) {
   wire.registerCommand('duplicate_slide', /^Duplicate slide \d+/)
   wire.chatCommandsSent(`Duplicate slide 3 ${wire.fileToken('a.pdf')}`)
   eq([[...wire.chatCommandsBus.mentions.keys()], wire.chatCommandsBus.command], [[wire.fileToken('b.pdf')], null], 'a send spends the picks it used and the command; other picks stay')
+  wire.registerCommand('duplicate_slide', /^Duplicate slide \d+/)
+  wire.chatCommandsSent('Yes, go ahead')
+  eq(wire.chatCommandsBus.command !== null, true, 'a message that was not that request (a quick reply) leaves the command pending')
+  wire.chatCommandsSent('Duplicate slide 4')
+  eq(wire.chatCommandsBus.command, null, 'the request itself spends it')
   wire.chatCommandsSent(undefined); reset()
   // the data it is given is the only thing it changes
   const untouched = { text: 'hello', store_name: 's', deep_research: true, theme: { mode: 'preset' } }
@@ -1063,7 +1068,8 @@ for (const [label, from, to] of [
   ['a picked element is added beside the live one (two element references)', "const kept = element ? existing.filter(reference => reference?.kind !== 'element') : existing", 'const kept = existing'],
   ['the command hint outlives the request', "return command && typeof text === 'string' && command.pattern.test(text) ? command.name : null", 'return command ? command.name : null'],
   ['the references are not capped', '.sort((a, b) => a.at - b.at).slice(0, CHAT_MENTIONS_MAX)', '.sort((a, b) => a.at - b.at)'],
-  ['a send keeps the command', 'chatCommandsBus.mentions.delete(token)\n  chatCommandsBus.command = null\n}', 'chatCommandsBus.mentions.delete(token)\n}'],
+  ['a send keeps the command', "  if (commandInText(text)) chatCommandsBus.command = null\n}", '}'],
+  ['a send always spends the command', "  if (commandInText(text)) chatCommandsBus.command = null\n}", '  chatCommandsBus.command = null\n}'],
   ['a saved theme reads like the preset', "${source === 'saved' ? ' (saved)' : ''}", "${source === 'saved' ? '' : ''}"],
   ['brackets stay in a label', ".replace(/[\\[\\]\\r\\n]+/g, ' ')", ".replace(/[\\r\\n]+/g, ' ')"],
 ]) await expectFail(label, () => wireSuite(mutate(wireText, from, to)))
