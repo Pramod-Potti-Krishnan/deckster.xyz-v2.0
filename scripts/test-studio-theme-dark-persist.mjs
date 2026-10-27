@@ -28,13 +28,14 @@ import { execFileSync } from 'node:child_process'
 import { fileURLToPath } from 'node:url'
 import ts from 'typescript'
 import { stripDarkPersist } from './studio-theme-dark-persist-strip.mjs'
+import { stripLaterChanges } from './studio-later-changes.mjs' // LATER-CHANGES: registry read (THEME-OWN-CHOICE), stacked after dark persist
 import { stripOpenReadOnly } from './studio-open-read-only-strip.mjs'
 import { stripLaunchWording } from './studio-launch-wording-strip.mjs' // NEXT_PUBLIC_STUDIO_LAUNCH_WORDING (launched wording): its flag-gated edits come out first, before every older change's strip
 
 const repoRoot = process.env.DARK_PERSIST_ROOT
   ? path.resolve(process.env.DARK_PERSIST_ROOT)
   : path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..')
-const read = rel => stripLaunchWording(rel, fs.readFileSync(path.join(repoRoot, rel), 'utf8'))
+const read = rel => stripLaunchWording(rel, stripLaterChanges(rel, fs.readFileSync(path.join(repoRoot, rel), 'utf8'))) // LATER-CHANGES: registry read (THEME-OWN-CHOICE), stacked after dark persist: a later change's marked lines come out first, innermost, as in the other pins
 const TOGGLE = 'NEXT_PUBLIC_THEME_DARK_MODE_ENABLED'
 const PERSIST = 'NEXT_PUBLIC_STUDIO_THEME_DARK_PERSIST'
 const ON = { [TOGGLE]: 'true', [PERSIST]: 'true' }

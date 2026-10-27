@@ -377,7 +377,7 @@ await check('the inline flag reads, the 18 marked page lines, the only two write
 await check('the strip gives the base page and restore lib back byte for byte (the committed files)', () => {
   const git = (...a) => execFileSync('git', a, { cwd: repo, encoding: 'utf8', maxBuffer: 1 << 28 })
   for (const rel of THEME_OWN_CHOICE_FILES) assert.equal(stripThemeOwnChoice(rel, read(rel, repo)), git('show', `${BASE_COMMIT}:${rel}`), rel)
-  assert.deepEqual(THEME_OWN_CHOICE_FILES, [PAGE, RESTORE_LIB]); assert.deepEqual(Object.keys(THEME_OWN_CHOICE_PIN_EDITS), ['scripts/test-studio-chat-theme-export.mjs'])
+  assert.deepEqual(THEME_OWN_CHOICE_FILES, [PAGE, RESTORE_LIB]); assert.deepEqual(Object.keys(THEME_OWN_CHOICE_PIN_EDITS), ['scripts/test-studio-chat-theme-export.mjs', 'scripts/test-studio-theme-dark-persist.mjs'])
 })
 
 console.log('5. mutants')
@@ -432,9 +432,11 @@ await check('the committed files are exactly this change\'s; every line added to
     assert.equal(diff.length, rel === PAGE ? 18 : 1, `${rel}: the number of added lines`)
     assert.equal(stripThemeOwnChoice(rel, git('show', `${HEAD}:${rel}`)), git('show', `${BASE_COMMIT}:${rel}`), `${rel}: without its marked lines the file is the base's, byte for byte`)
   }
-  for (const rel of Object.keys(THEME_OWN_CHOICE_PIN_EDITS)) { // the one older proof this change teaches: one swapped line, marked, "stacked after #475"; put back it is the previous file byte for byte
+  for (const rel of Object.keys(THEME_OWN_CHOICE_PIN_EDITS)) { // the two older proofs this change teaches, FRONTEND-2's own: each read now goes past a later change's marked lines; every new line is marked and says "stacked after"; put back, the previous proof byte for byte
     const diff = git('diff', '-U0', `${BASE_COMMIT}..${HEAD}`, '--', rel).split('\n').filter(line => /^[+-]/.test(line) && !/^(\+\+\+|---) /.test(line))
-    assert.equal(diff.length, 2, `${rel}: one line swapped`); assert.ok(diff[0].startsWith('-') && diff[1].startsWith('+')); assert.ok(diff[1].includes(stripModule.THEME_OWN_CHOICE_PIN_MARK) && diff[1].includes('stacked after #475'), `${rel}: the new line is marked`)
+    const swaps = THEME_OWN_CHOICE_PIN_EDITS[rel].filter(([, was]) => was !== '').length, additions = THEME_OWN_CHOICE_PIN_EDITS[rel].length
+    assert.equal(diff.filter(line => line.startsWith('-')).length, swaps, `${rel}: ${swaps} lines swapped`); assert.equal(diff.filter(line => line.startsWith('+')).length, additions, `${rel}: ${additions} lines added`)
+    for (const line of diff.filter(line => line.startsWith('+'))) assert.ok(line.includes(stripModule.THEME_OWN_CHOICE_PIN_MARK) && /stacked after/.test(line), `${rel}: a new line is marked: ${line.slice(0, 100)}`)
     assert.equal(stripThemeOwnChoice(rel, git('show', `${HEAD}:${rel}`)), git('show', `${BASE_COMMIT}:${rel}`), `${rel}: put back, the previous proof byte for byte`)
   }
   for (const rel of stripModule.THEME_OWN_CHOICE_NEW_FILES) assert.ok(git('cat-file', '-t', `${HEAD}:${rel}`).trim() === 'blob', rel)
