@@ -62,6 +62,8 @@ export interface UseBuildNarrationInputs {
   /** NEXT_PUBLIC_STUDIO_BUILD_RESUME_FIX (J7-RESUME-LOOP-P1): a final URL that arrives while the build is stopped
    *  updates the deck only, so the stopped ribbon (Resume) stays. False: today's behaviour. */
   keepStoppedOnFinalUrl?: boolean
+  /** BUILD-FAILURE-END (NEXT_PUBLIC_STUDIO_BUILD_FAILURE_END): when the status_update that opened an unbacked "building" ends (the socket hook clears it on the next assistant chat_message or action card), leave that building. False: today's behaviour. */ // BUILD-FAILURE-END
+  endUnbackedBuild?: boolean // BUILD-FAILURE-END
 }
 
 export interface UseBuildNarrationResult {
@@ -99,6 +101,7 @@ export function useBuildNarration(inputs: UseBuildNarrationInputs): UseBuildNarr
     finalPresentationId = null,
     restoredComplete = false,
     keepStoppedOnFinalUrl = false,
+    endUnbackedBuild = false, // BUILD-FAILURE-END
   } = inputs
 
   const [narration, dispatch] = useReducer(narrationReducer, undefined, initialNarrationState)
@@ -114,6 +117,8 @@ export function useBuildNarration(inputs: UseBuildNarrationInputs): UseBuildNarr
   const controlRef = useRef<NarrationState['control']>('running')
   const prevGeneratingFinalRef = useRef(false)
   const prevGeneratingStrawmanRef = useRef(false)
+  const buildFramesRef = useRef(0) // BUILD-FAILURE-END: typed build frames seen so far (build_phase, build_event, slide_built, build_state sync), counted in the four handlers below
+  const statusEpisodeRef = useRef<{ sessionId: string | null; phase: string; frames: number } | null>(null) // BUILD-FAILURE-END: the build phase and frame count when the status now on screen appeared
 
   const clearPendingControl = useCallback(() => {
     const pending = pendingControlRef.current
@@ -226,6 +231,17 @@ export function useBuildNarration(inputs: UseBuildNarrationInputs): UseBuildNarr
     if (!enabled || !currentStatus) return
     dispatch({ type: 'status', status: currentStatus.status, text: currentStatus.text || '', ts: Date.now() })
   }, [enabled, currentStatus])
+  // BUILD-FAILURE-END: Director's legacy invoke_tools turn opens "building" with a status_update and, when its tools fail, closes with one chat_message and no terminal frame (and no build_phase, build_event or
+  // BUILD-FAILURE-END: slide_built at all). The socket hook already clears currentStatus on that chat_message (and on an action card, and 2 s after a complete / idle status); that is the moment this "building" ends.
+  // BUILD-FAILURE-END: Only when this status is what moved the build to "building", no typed build frame arrived while it was on screen (buildFramesRef counts them), and the user did not accept the build with the
+  // BUILD-FAILURE-END: button (isGeneratingFinal): a real build is never touched. The reducer adds its own guard (isUnbackedBuilding: not paused or stopped, no slide started or built).
+  useEffect(() => { // BUILD-FAILURE-END
+    const episode = statusEpisodeRef.current // BUILD-FAILURE-END
+    if (currentStatus) { if (!episode) statusEpisodeRef.current = { sessionId, phase: narration.phase, frames: buildFramesRef.current }; return } // BUILD-FAILURE-END
+    statusEpisodeRef.current = null // BUILD-FAILURE-END
+    if (!enabled || !endUnbackedBuild || !episode || episode.sessionId !== sessionId || episode.phase === 'building' || episode.frames !== buildFramesRef.current || isGeneratingFinal) return // BUILD-FAILURE-END
+    dispatch({ type: 'status_ended', ts: Date.now() }) // BUILD-FAILURE-END
+  }, [enabled, endUnbackedBuild, currentStatus]) // BUILD-FAILURE-END
 
   // Strawman structure → ghost deck.
   useEffect(() => {
@@ -288,6 +304,7 @@ export function useBuildNarration(inputs: UseBuildNarrationInputs): UseBuildNarr
   }, [])
 
   const onBuildPhase = useCallback((payload: BuildPhasePayload) => {
+    buildFramesRef.current += 1 // BUILD-FAILURE-END
     let pending = pendingControlForBuild(payload.build_id)
     const hasRequestId = Object.prototype.hasOwnProperty.call(payload, 'control_request_id')
     const ackRequestId = payload.control_request_id
@@ -326,16 +343,19 @@ export function useBuildNarration(inputs: UseBuildNarrationInputs): UseBuildNarr
   }, [clearPendingControl, pendingControlForBuild])
 
   const onBuildEvent = useCallback((payload: BuildEventPayload) => {
+    buildFramesRef.current += 1 // BUILD-FAILURE-END
     pendingControlForBuild(payload.build_id)
     dispatch({ type: 'typed_event', payload, ts: Date.now() })
   }, [pendingControlForBuild])
 
   const onSlideBuilt = useCallback((payload: SlideBuiltPayload) => {
+    buildFramesRef.current += 1 // BUILD-FAILURE-END
     pendingControlForBuild(payload.build_id)
     dispatch({ type: 'typed_slide_built', payload, ts: Date.now() })
   }, [pendingControlForBuild])
 
   const syncBuildState = useCallback((buildState: unknown) => {
+    buildFramesRef.current += 1 // BUILD-FAILURE-END
     const ack = buildState && typeof buildState === 'object'
       ? buildState as { build_id?: string | null; phase?: string | null }
       : null
