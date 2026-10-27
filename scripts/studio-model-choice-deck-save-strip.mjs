@@ -9,6 +9,7 @@
 // Every line this change adds to an EXISTING file is a pure insertion that carries the marker MODEL-CHOICE-DECK-SAVE (matched as a whole token; #521's MODEL-CHOICE is another token): lib/studio-model-choice-server.ts (the flag, the
 // tag comparison, one line before the stale-read check) and components/model-choice/use-model-choice.ts (the flag, one state, two lines in select and the load effect, one override of saveNote in the return). Strip those lines and each file is
 // its base, byte for byte. No new file in lib/ or components/ and no new import in either file, so the loaders of the older proofs (which hand a module only the imports it had) need no edit.
+// One older proof is taught one line (MODEL_CHOICE_DECK_SAVE_PIN_EDITS): #521's scripts/test-studio-model-choice.mjs held the server lib to "reads no other public flag" on the raw file; the marked lines of a later change are now its own.
 // How the older pins reach it: this change REGISTERS its files, its .env.example block and this strip (scripts/studio-later-changes.mjs, three lines). Plain node, no imports, nothing read from disk or git here.
 
 export const BASE_COMMIT = 'ffaf5a7eb883b35bf8ff4806a4a3b1b9c13cefe5' // origin/studio-v4-dev-preparation-code with #538 (chat element edit 2) merged: dev, which this change is cut from
@@ -36,7 +37,15 @@ export const MODEL_CHOICE_DECK_SAVE_NEW_FILES = [
 
 /** The older proofs this change teaches: [text the proof has now, text the proof had before] per edit, whole lines, so putting them back gives the previous file byte for byte. Every line the proof has now carries MODEL_CHOICE_DECK_SAVE_PIN_MARK. */
 export const MODEL_CHOICE_DECK_SAVE_PIN_MARK = '// LATER-CHANGES: registry read (MODEL-CHOICE-DECK-SAVE)'
-export const MODEL_CHOICE_DECK_SAVE_PIN_EDITS = {}
+export const MODEL_CHOICE_DECK_SAVE_PIN_EDITS = {
+  // #521's proof holds the server lib to "reads no other public flag" on the raw file: the lines of a later change are its own (this one reads NEXT_PUBLIC_STUDIO_MODEL_CHOICE_DECK_SAVE on marked lines).
+  "scripts/test-studio-model-choice.mjs": [
+    [
+      "    const serverCode = read(SERVER).split('\\n').filter(line => !/(?<![\\w-])MODEL-CHOICE-DECK-SAVE(?![\\w-])/.test(line)).join('\\n').replace(/\\/\\/.*$/gm, '').replace(/\\/\\*[\\s\\S]*?\\*\\//g, '') // LATER-CHANGES: registry read (MODEL-CHOICE-DECK-SAVE): a change registered after this one may read a flag of its own in the server lib (deck save); its marked lines are its own\n",
+      "    const serverCode = read(SERVER).replace(/\\/\\/.*$/gm, '').replace(/\\/\\*[\\s\\S]*?\\*\\//g, '')\n"
+    ]
+  ]
+}
 
 /** The proof without this change's edits (the previous file). Used by the strip and the proof. */
 export function putBackPin(rel, text) {

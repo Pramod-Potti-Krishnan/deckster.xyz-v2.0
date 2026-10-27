@@ -473,6 +473,10 @@ await check('the strip gives each edited file its base back, byte for byte; a fi
     ok(!stripModelChoiceDeckSave(rel, read(rel)).includes('STUDIO_MODEL_CHOICE_DECK_SAVE'), rel)
   }
   eq(stripModelChoiceDeckSave('hooks/use-deckster-websocket-v2.ts', 'x'), 'x')
+  for (const rel of stripModule.MODEL_CHOICE_DECK_SAVE_PIN_FILES) {
+    eq(stripModelChoiceDeckSave(rel, read(rel)), baseFile(rel), `${rel}: the taught proof without this change's line is the base's, byte for byte`)
+    for (const [has] of stripModule.MODEL_CHOICE_DECK_SAVE_PIN_EDITS[rel]) { eq(read(rel).split(has).length, 2, `${rel}: the taught line is there once`); ok(has.includes(stripModule.MODEL_CHOICE_DECK_SAVE_PIN_MARK) && has.endsWith('\n'), 'and carries the mark') }
+  }
   eq(registry.stripLaterChanges(SERVER, read(SERVER)), registry.stripLaterChanges(SERVER, baseFile(SERVER)), 'through the registry the file is the base')
   const readers = git('grep', '-l', 'STUDIO_MODEL_CHOICE_DECK_SAVE', '--', 'app', 'lib', 'hooks', 'components', 'types', 'middleware.ts', 'next.config.mjs').split('\n').filter(Boolean).sort()
   deep(readers, [...MODEL_CHOICE_DECK_SAVE_FILES].sort(), 'no other source file reads or names the flag')
@@ -569,6 +573,11 @@ async function scopeChecks(ref, title) {
       eq(stripModelChoiceDeckSave(rel, at(rel)), baseFile(rel), `${rel}: without its marked lines the file is the base's, byte for byte`)
     }
     for (const rel of MODEL_CHOICE_DECK_SAVE_NEW_FILES) eq(git('cat-file', '-t', `${ref}:${rel}`).trim(), 'blob', rel)
+    for (const rel of stripModule.MODEL_CHOICE_DECK_SAVE_PIN_FILES) {
+      const diff = git('diff', '-U0', BASE, ref, '--', rel).split('\n').filter(line => /^[+-]/.test(line) && !/^(\+\+\+|---) /.test(line))
+      eq(diff.length, 2, `${rel}: one line replaced`); ok(diff[0].startsWith('-') && diff[1].startsWith('+') && diff[1].includes(stripModule.MODEL_CHOICE_DECK_SAVE_PIN_MARK), rel)
+      eq(stripModelChoiceDeckSave(rel, at(rel)), baseFile(rel), `${rel}: the taught proof is the base's without the line`)
+    }
   })
   await check(`${title}: .env.example is the base plus the block (after one blank line); the registry gains exactly its three marked lines and loses none; no secret-shaped literal in the new files`, () => {
     eq(registry.stripLaterEnvBlocks(ENV, at(ENV)), registry.stripLaterEnvBlocks(ENV, `${baseFile(ENV)}\n${MODEL_CHOICE_DECK_SAVE_ENV_BLOCK}`))
