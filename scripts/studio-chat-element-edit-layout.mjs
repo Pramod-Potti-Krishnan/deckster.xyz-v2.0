@@ -38,6 +38,15 @@ export function arrangeServedHtml(layoutDir, html) {
   return out
 }
 
+/** NEXT_PUBLIC_STUDIO_CHAT_EDIT_TARGETED_SAVE: with `targeted` the page as Layout serves it with LAYOUT_CHAT_TARGETED_SAVE_ENABLED on too (layout-builder frontend2/layout-targeted-save: chat_targeted_save.py's own apply_to_viewer over the served page) and its script. */ // CHAT-EDIT-TARGETED
+export const TARGETED_SCRIPT = 'src/utils/chat-targeted-save.js' // CHAT-EDIT-TARGETED
+export const TARGETED_MODULE = 'chat_targeted_save.py' // CHAT-EDIT-TARGETED
+export function targetedServedHtml(layoutDir, html) { // CHAT-EDIT-TARGETED
+  const code = `import sys; sys.path.insert(0, ${JSON.stringify(path.resolve(layoutDir))}); import chat_targeted_save as t; sys.stdout.write(t.apply_to_viewer(sys.stdin.read()))` // CHAT-EDIT-TARGETED
+  const out = execFileSync('python3', ['-B', '-c', code], { input: html, encoding: 'utf8', maxBuffer: 64 * 1024 * 1024, env: { ...process.env, PYTHONDONTWRITEBYTECODE: '1' } }) // CHAT-EDIT-TARGETED
+  if (!out.includes('LAYOUT_CHAT_TARGETED_SAVE_ENABLED=true') || out === html) throw new Error('chat_targeted_save.apply_to_viewer did not add its cases (Layout without frontend2/layout-targeted-save?)') // CHAT-EDIT-TARGETED
+  return out // CHAT-EDIT-TARGETED
+} // CHAT-EDIT-TARGETED
 /** One compiled script per file text: the scripts are run in a fresh context for every scenario, and compiling element-manager.js each time is most of a scenario's cost. */
 const compiled = new Map()
 function compile(text, filename) {
@@ -210,6 +219,8 @@ export function createLayoutViewer({ layoutDir, studioOrigin, parent, clock, vie
   const raw = fs.readFileSync(path.join(layoutDir, 'viewer/presentation-viewer.html'), 'utf8')
   const html = arrange ? arrangeServedHtml(layoutDir, raw) : raw
   const bridge = bridgeFromViewerHtml(html, studioOrigin, viewOnly)
+  const targeted = Boolean(arguments[0]?.targeted) // CHAT-EDIT-TARGETED: the page served with LAYOUT_CHAT_TARGETED_SAVE_ENABLED on as well
+  if (targeted) Object.assign(bridge, bridgeFromViewerHtml(targetedServedHtml(layoutDir, html), studioOrigin, viewOnly)) // CHAT-EDIT-TARGETED
   const log = { requests: [], frames: [] }
   let lastRequest = -1
   const listeners = []
@@ -281,6 +292,7 @@ export function createLayoutViewer({ layoutDir, studioOrigin, parent, clock, vie
     compile(text, file).runInContext(context)
   }
   sources[ARRANGE_MODULE] = arrange ? sha(fs.readFileSync(path.join(layoutDir, ARRANGE_MODULE), 'utf8')) : null
+  if (targeted) { vm.runInContext('window.LAYOUT_CHAT_TARGETED_SAVE_ENABLED=true;', context); const text = fs.readFileSync(path.join(layoutDir, TARGETED_SCRIPT), 'utf8'); sources[TARGETED_SCRIPT] = sha(text); sources[TARGETED_MODULE] = sha(fs.readFileSync(path.join(layoutDir, TARGETED_MODULE), 'utf8')); compile(text, TARGETED_SCRIPT).runInContext(context) } // CHAT-EDIT-TARGETED
   compile(bridge.text, 'viewer-bridge.js').runInContext(context)
   if (listeners.length !== 1) throw new Error(`the viewer bridge registered ${listeners.length} message listeners`)
   for (const listener of documentListeners.get('DOMContentLoaded') || []) listener()
