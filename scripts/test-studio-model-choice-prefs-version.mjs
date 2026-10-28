@@ -537,7 +537,7 @@ const parentsOf = ref => git('rev-list', '--parents', '-n', '1', ref).trim().spl
 const firstParentOwn = ref => git('rev-list', '--first-parent', '--no-merges', `${BASE}..${ref}`).split('\n').filter(Boolean)
 const subjectOf = commit => git('log', '-1', '--format=%s', commit).trim()
 /** This change's own commits: those whose subject starts "Model choice prefs version:", across every parent (`rev-list --no-merges BASE..ref`), so a branch that has a later change on it, or dev merged into it, still finds them. */
-const ownCommits = ref => git('rev-list', '--no-merges', `${BASE}..${ref}`).split('\n').filter(Boolean).filter(commit => subjectOf(commit).startsWith(SUBJECT))
+const ownCommits = ref => git('rev-list', '--topo-order', '--no-merges', `${BASE}..${ref}`).split('\n').filter(Boolean).filter(commit => subjectOf(commit).startsWith(SUBJECT))
 /** The commit own-commit queries start from. On the gate's merge (HEAD^1 = BASE, HEAD^2 = this branch's head) a first-parent walk from HEAD finds nothing, so every own-commit query starts from HEAD^2; a merge whose first parent
  * is not BASE but whose first-parent line holds no commit of this change (dev moved on before the gate) is read the same way. Anything else (the branch itself, the branch with dev merged into it, or with a later change on it) starts from the ref. */
 function ownRef(ref) {
@@ -601,7 +601,7 @@ async function scopeChecks(ref, title) {
 await scopeChecks('HEAD', 'HEAD')
 let mineHead = 'HEAD'
 await check('the gate-style merge is built the way the gate builds it (git merge-tree --write-tree BASE head; git commit-tree -p BASE -p head), and the old first-parent query finds nothing on it while HEAD^2 finds the branch', () => {
-  mineHead = ownRef('HEAD')
+  mineHead = ownCommits(ownRef('HEAD'))[0] // this change's newest commit (HEAD itself on the branch; below a later change or a merge of dev on a later one)
   const merge = gateMerge(mineHead)
   deep(parentsOf(merge), [BASE, git('rev-parse', mineHead).trim()]); eq(git('rev-parse', `${merge}^{tree}`).trim(), git('rev-parse', `${mineHead}^{tree}`).trim(), 'its tree is the branch\'s tree')
   deep(firstParentOwn(merge), [], 'a walk from the merge along first parents finds no commit of this change')
