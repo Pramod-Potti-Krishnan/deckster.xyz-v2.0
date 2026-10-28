@@ -577,15 +577,17 @@ await check6(`this change's own commits (first-parent, no merges, subject starts
     assert.match(git('log', '-1', '--format=%B', c), /Co-Authored-By: Claude Sonnet 5\.5 <noreply@anthropic\.com>\s*$/, c.slice(0, 8))
   }
 })
+const laterStrips = (rel, text) => { const strips = registry.LATER_STRIPS, at = strips.indexOf(stripChatElementEdit2); return (at === -1 ? [] : strips.slice(at + 1)).reduce((out, strip) => { const next = strip(rel, out); return typeof next === 'string' ? next : out }, text) } // LATER-CHANGES: registry read (THEME-OWN-CHOICE), stacked after chat element edit 2: the strips of every change registered after this one (below this change's own strip in LATER_STRIPS), applied first
+const strippedDiff = rel => { const blob = execFileSync('git', ['hash-object', '-w', '--stdin'], { cwd: repo, encoding: 'utf8', input: laterStrips(rel, git('show', `HEAD:${rel}`)), maxBuffer: 1 << 28 }).trim(); return git('diff', '-U0', `${BASE_COMMIT}:${rel}`, blob) } // LATER-CHANGES: registry read (THEME-OWN-CHOICE), stacked after chat element edit 2: git diff of the base file against the file with the later changes' marked lines out (one blob object written)
 await check6('the files the own commits touch are exactly this change\'s; every line added to an existing file is a pure insertion that carries the marker; the strip gives each its base back', () => { // LATER-CHANGES: registry read (CHAT-CLEAN-ORDER), stacked after chat element edit 2
   const touched = new Set(); for (const c of own) for (const rel of git('show', '--name-only', '--format=', c).split('\n').filter(Boolean)) touched.add(rel)
   assert.deepEqual([...touched].filter(rel => CHAT_ELEMENT_EDIT_2_SCOPE_FILES.has(rel) || !registry.LATER_CHANGE_FILES.has(rel)).sort(), [...CHAT_ELEMENT_EDIT_2_SCOPE_FILES].sort())
   const expected = { [PAGE]: 19, [LIB]: 8 }
   for (const rel of CHAT_ELEMENT_EDIT_2_FILES) {
-    const diff = git('diff', '-U0', BASE_COMMIT, 'HEAD', '--', rel).split('\n').filter(line => /^[+-]/.test(line) && !/^(\+\+\+|---) /.test(line))
+    const diff = strippedDiff(rel).split('\n').filter(line => /^[+-]/.test(line) && !/^(\+\+\+|---) /.test(line)) // LATER-CHANGES: registry read (THEME-OWN-CHOICE), stacked after chat element edit 2: the diff of the file as this change left it, the marked lines of a change registered after it out
     for (const line of diff) { assert.ok(line.startsWith('+'), `${rel}: a removed line: ${line.slice(0, 120)}`); assert.match(line, CHAT_ELEMENT_EDIT_2_MARKER_RE, `${rel}: an unmarked added line: ${line.slice(0, 120)}`) }
     assert.equal(diff.length, expected[rel], `${rel}: the marked lines`)
-    assert.equal(stripChatElementEdit2(rel, git('show', `HEAD:${rel}`)), baseFile(rel), `${rel}: without its marked lines the file is the base's, byte for byte`)
+    assert.equal(stripChatElementEdit2(rel, laterStrips(rel, git('show', `HEAD:${rel}`))), baseFile(rel), `${rel}: without its marked lines the file is the base's, byte for byte`) // LATER-CHANGES: registry read (THEME-OWN-CHOICE), stacked after chat element edit 2: the strips of the changes registered after this one come out first
   }
   for (const rel of CHAT_ELEMENT_EDIT_2_NEW_FILES) assert.ok(git('cat-file', '-t', `HEAD:${rel}`).trim() === 'blob', rel)
 })
