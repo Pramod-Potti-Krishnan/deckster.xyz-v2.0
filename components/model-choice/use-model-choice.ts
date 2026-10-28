@@ -12,6 +12,8 @@ import {
 
 /** NEXT_PUBLIC_STUDIO_MODEL_CHOICE (exact "true", default off; build-time). The picker needs nothing else: it does not depend on the Intelligence page's flag. */
 export const STUDIO_MODEL_PICKER_ENABLED = process.env.NEXT_PUBLIC_STUDIO_MODEL_CHOICE === "true"
+/** NEXT_PUBLIC_STUDIO_MODEL_CHOICE_DECK_SAVE (exact "true", default off; build-time). On, the picker says "Saved to your account" only after a save the server confirmed; a save that failed says so in the words it already has. The server route reads the same flag (lib/studio-model-choice-server.ts). */ // MODEL-CHOICE-DECK-SAVE
+const DECK_SAVE_ON = process.env.NEXT_PUBLIC_STUDIO_MODEL_CHOICE_DECK_SAVE === "true" // MODEL-CHOICE-DECK-SAVE
 /** The Studio route /api/models/catalogue exists only with NEXT_PUBLIC_STUDIO_MODEL_CATALOG on; without it nothing is asked and only the tiers are offered. */
 const CATALOGUE_ROUTE_ON = process.env.NEXT_PUBLIC_STUDIO_MODEL_CATALOG === "true"
 
@@ -118,6 +120,7 @@ export function useModelChoice(sessionId: string | null, options: UseModelChoice
   const [meta, setMeta] = useState<{ mode: SaveMode | "pending"; reason: DeviceReason }>({ mode: "pending", reason: null })
   const [feedback, setFeedback] = useState("")
   const [saving, setSaving] = useState(false)
+  const [confirmed, setConfirmed] = useState(false) // MODEL-CHOICE-DECK-SAVE: the last save of this visit was confirmed by the account (a conflict, a refusal, a missing deck scope or a fall back to this device clears it)
 
   // The catalogue, once per page visit. Anything but a catalogue this picker can read leaves the tiers only.
   useEffect(() => {
@@ -135,6 +138,7 @@ export function useModelChoice(sessionId: string | null, options: UseModelChoice
     let alive = true
     setLoaded(null)
     setFeedback("")
+    setConfirmed(false) // MODEL-CHOICE-DECK-SAVE
     ;(async () => {
       let next: Loaded
       try {
@@ -208,6 +212,7 @@ export function useModelChoice(sessionId: string | null, options: UseModelChoice
       reported = undefined
     } else outcome = { kind: "saved", choice }
     setFeedback(words)
+    if (DECK_SAVE_ON) setConfirmed(outcome.kind === "saved" && result.mode === "account") // MODEL-CHOICE-DECK-SAVE: only the account's own 200 counts as saved
     busy.current = false
     setSaving(false)
     const notify = latest.current.onChange
@@ -231,5 +236,6 @@ export function useModelChoice(sessionId: string | null, options: UseModelChoice
     feedback,
     saveNote: saveNote(meta.mode, meta.reason, loaded ? loaded.storageOk : true),
     select,
+    ...(DECK_SAVE_ON && meta.mode === "account" && (loaded ? loaded.storageOk : true) ? { saveNote: feedback || (confirmed ? saveNote(meta.mode, meta.reason, true) : "") } : {}), // MODEL-CHOICE-DECK-SAVE: kept in the account: "Saved" after a confirmed save, the failure words after a failed one, nothing before a save
   }
 }
