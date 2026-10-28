@@ -36,7 +36,8 @@ import { createClock } from './studio-chat-element-edit-layout.mjs'
 import { compile } from './studio-chat-harness/page-extract.mjs'
 
 const repo = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..')
-const read = rel => fs.readFileSync(path.join(repo, rel), 'utf8')
+const targetedStrip = await import('./studio-chat-edit-targeted-strip.mjs') // LATER-CHANGES: registry read (CHAT-EDIT-TARGETED): the targeted chat edit stacked after this change
+const read = rel => targetedStrip.stripChatEditTargeted(rel, fs.readFileSync(path.join(repo, rel), 'utf8')) // LATER-CHANGES: registry read (CHAT-EDIT-TARGETED): its marked lines come out before this change's pins
 const sha = text => crypto.createHash('sha256').update(text).digest('hex')
 const plain = value => JSON.parse(JSON.stringify(value === undefined ? null : value))
 const git = (...a) => execFileSync('git', a, { cwd: repo, encoding: 'utf8', maxBuffer: 1 << 28, stdio: ['ignore', 'pipe', 'pipe'] })
