@@ -266,7 +266,7 @@ await check('flag: on only for the exact "true" of BOTH NEXT_PUBLIC_STUDIO_CHAT_
   for (const value of ['1', 'TRUE', 'yes', ' true', 'True', '']) assert.equal(makeLibs({ env: { ...ENV_OFF, [FLAG]: value } }).targeted.CHAT_EDIT_TARGETED_SAVE_ENABLED, false, value)
   const env = read('.env.example')
   assert.ok(env.includes(`\n\n${CHAT_EDIT_TARGETED_ENV_BLOCK}`), 'the .env.example block, after a blank line')
-  assert.ok(env.endsWith(`${FLAG}="false"\n`))
+  assert.ok(withoutLaterEnvBlocks(env).endsWith(`${FLAG}="false"\n`), 'the block is the last of this change and above it, the blocks registered after this one aside')
 })
 
 // ===== 2. the root cause, flags off (today) ===============================================================================================
