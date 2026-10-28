@@ -40,6 +40,21 @@ import { execFileSync } from 'node:child_process'
 import { fileURLToPath } from 'node:url'
 import ts from 'typescript'
 
+// STALL TRACE (B41, tests only; STDERR only: stdout and every check are unchanged). step(name) says where the run is and writes "[trace] <ms> <name>". A 240 s unref'd watchdog writes the current check and step, the elapsed time,
+// the active resources and any child still running, then exits 124, so a runner whose own timeout is longer keeps a tail instead of an empty TIMEOUT. It cannot interrupt a blocking git call (the thread is busy), so every child
+// below has `timeout: 60_000`. An exit that is neither 0, 1 nor 124 (13 = an await nothing can settle) names the step too. TEST-ONLY, inert unless set: STUDIO_PROOF_TRACE_WATCHDOG_MS shortens the watchdog;
+// STUDIO_PROOF_TRACE_SELFTEST=stall stalls on purpose after section 1 (any other value stalls with nothing holding the loop open).
+const TRACE_T0 = Date.now()
+let traceStep = 'start', traceCheck = ''
+const step = name => { traceStep = String(name).slice(0, 160); process.stderr.write(`[trace] ${Date.now() - TRACE_T0} ${traceStep}\n`) }
+setTimeout(() => {
+  let children = ''
+  try { children = execFileSync('pgrep', ['-lP', String(process.pid)], { encoding: 'utf8', timeout: 5_000, stdio: ['ignore', 'pipe', 'ignore'] }).trim() } catch { /* none, or no pgrep */ }
+  process.stderr.write(`[trace] WATCHDOG: stalled at step "${traceStep}" in check "${traceCheck.slice(0, 100)}" after ${Date.now() - TRACE_T0} ms; exit 124\n[trace] active resources: ${(process.getActiveResourcesInfo?.() ?? []).join(', ') || 'none'}\n[trace] child processes: ${children.split('\n').join('; ') || 'none'}\n`)
+  process.exit(124)
+}, Number(process.env.STUDIO_PROOF_TRACE_WATCHDOG_MS) || 240_000).unref()
+process.on('exit', code => { if (code !== 0 && code !== 1 && code !== 124) process.stderr.write(`[trace] exit ${code} at step "${traceStep}" in check "${traceCheck.slice(0, 100)}" after ${Date.now() - TRACE_T0} ms\n`) })
+
 const repo = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..')
 const args = process.argv.slice(2)
 const option = name => { const i = args.indexOf(name); return i === -1 ? null : args[i + 1] }
@@ -57,9 +72,11 @@ const sha = text => crypto.createHash('sha256').update(text).digest('hex')
 
 let passed = 0, failed = 0
 async function check(label, fn) {
+  traceCheck = label; step(label)
   try { await fn(); passed++; console.log(`  ok   ${label}`) } catch (error) { failed++; console.log(`  FAIL ${label}\n       ${String(error?.message ?? error).split('\n').join('\n       ')}`) }
 }
 
+step('load: the later-changes registry, the strip module and the chat harness')
 const registry = await import('./studio-later-changes.mjs')
 const stripModule = await import('./studio-theme-own-choice-strip.mjs')
 const { stripThemeOwnChoice, BASE_COMMIT, THEME_OWN_CHOICE_FILES, THEME_OWN_CHOICE_SCOPE_FILES, THEME_OWN_CHOICE_ENV_BLOCK, THEME_OWN_CHOICE_SUBJECT, THEME_OWN_CHOICE_MARKER_RE, THEME_OWN_CHOICE_PIN_EDITS } = stripModule
@@ -93,6 +110,7 @@ function scratchTree(overrides) {
   return dir
 }
 const liveTree = (overrides = {}) => scratchTree({ [PAGE]: live(SRC[PAGE]), ...overrides, ...(PAGE in overrides ? { [PAGE]: live(overrides[PAGE]) } : {}) })
+step('build the live scratch tree')
 const LIVE = liveTree()
 
 const fixtureNames = fs.readdirSync(FIXTURES).filter(name => name.endsWith('.json')).sort()
@@ -100,6 +118,7 @@ const fixtures = fixtureNames.map(name => JSON.parse(fs.readFileSync(path.join(F
 
 /** One transcript on the real hook + page regions of `treeRoot`. `own` leaves the flag out (today / flag off) or sets it (value). */
 async function runFixture(treeRoot, fixture, flagValue) {
+  step(`transcript ${fixture.name}, flag ${flagValue === undefined ? 'unset' : JSON.stringify(flagValue)}`)
   const env = { ...fixture.env, ...(flagValue === undefined ? {} : { [FLAG]: flagValue }) }
   const result = await runThemeRestoreTranscript({ root: treeRoot, fixture: { ...fixture, env }, mode: flagValue === 'true' ? 'own' : 'today' })
   return result
@@ -348,6 +367,7 @@ const MUTANTS = [
 // ---- run ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
 console.log('1. lib/studio-theme-own-choice.ts alone')
 await check('the record, the default test and the rule over every combination', () => libSuite(LIVE))
+if (process.env.STUDIO_PROOF_TRACE_SELFTEST) { step('selftest: stalling on purpose'); await new Promise(() => { if (process.env.STUDIO_PROOF_TRACE_SELFTEST === 'stall') setInterval(() => {}, 2 ** 30) }) } // TEST-ONLY (see the STALL TRACE note): inert unless the variable is set
 
 console.log('2. the reload, on the real hook and the real page regions')
 const ROWS = {}
@@ -377,7 +397,7 @@ await check('the page\'s real applyChatThemeSelection records the change; the re
 console.log('4. wiring and the strip')
 await check('the inline flag reads, the 18 marked page lines, the only two writers, the pure lib, no new copy, .env.example', () => wiringSuite(SRC))
 await check('the strip gives the base page and restore lib back byte for byte (the committed files)', () => {
-  const git = (...a) => execFileSync('git', a, { cwd: repo, encoding: 'utf8', maxBuffer: 1 << 28 })
+  const git = (...a) => execFileSync('git', a, { cwd: repo, encoding: 'utf8', maxBuffer: 1 << 28, timeout: 60_000 })
   for (const rel of THEME_OWN_CHOICE_FILES) assert.equal(stripThemeOwnChoice(rel, laterStrips(rel, read(rel, repo))), git('show', `${BASE_COMMIT}:${rel}`), rel)
   assert.deepEqual(THEME_OWN_CHOICE_FILES, [PAGE, RESTORE_LIB]); assert.deepEqual(Object.keys(THEME_OWN_CHOICE_PIN_EDITS), ['scripts/test-studio-chat-theme-export.mjs', 'scripts/test-studio-chat-element-edit-2.mjs', 'scripts/test-studio-theme-dark-persist.mjs'])
 })
@@ -391,12 +411,17 @@ for (const [name, rel, from, to] of MUTANTS) {
     const at = source.indexOf(from)
     assert.ok(at !== -1 && source.indexOf(from, at + 1) === -1, `mutant "${name}": anchor not found exactly once in ${rel}`)
     const mutated = source.replace(from, () => to)
+    step('mutant: scratch tree')
     const dir = liveTree({ [rel]: mutated })
     let by = null
     try {
+      step('mutant: unit suite')
       if (rel === LIB) { try { libSuite(dir) } catch (error) { by = `unit: ${firstLine(error)}` } }
+      step('mutant: chat suite')
       if (!by) try { await chatSuite(dir) } catch (error) { by = `chat: ${firstLine(error)}` }
+      step('mutant: transcripts')
       if (!by) try { await transcriptSuite(dir) } catch (error) { by = `transcripts: ${firstLine(error)}` }
+      step('mutant: wiring')
       if (!by) try { wiringSuite({ ...SRC, [rel]: mutated }) } catch (error) { by = `wiring: ${firstLine(error)}` }
     } finally { fs.rmSync(dir, { recursive: true, force: true }) }
     assert.ok(by, 'MUTANT SURVIVED')
@@ -411,7 +436,7 @@ await check('mutant caught: an unmarked line added to the page is not stripped (
 })
 
 console.log('6. scope over the committed diff (BASE..HEAD, first-parent, no merges)')
-const git = (...a) => execFileSync('git', a, { cwd: repo, encoding: 'utf8', maxBuffer: 1 << 28 })
+const git = (...a) => execFileSync('git', a, { cwd: repo, encoding: 'utf8', maxBuffer: 1 << 28, timeout: 60_000 })
 /** GATE-SAFE head of every own-commit / scope query. In the gate, HEAD is a local --no-ff merge whose FIRST parent is BASE (dev) and whose second parent is this change's head, so `rev-list --first-parent --no-merges BASE..HEAD` is empty: the
  *  scope then runs against HEAD^2. On a branch (HEAD is this change's own tip, or a merge of dev INTO it, whose first parent is the change) HEAD itself is used. `gateRule: false` is the mutant that drops the rule. */
 function scopeHead(ref = 'HEAD', { gateRule = true } = {}) {
@@ -419,6 +444,7 @@ function scopeHead(ref = 'HEAD', { gateRule = true } = {}) {
   const parents = git('rev-list', '--parents', '-n', '1', sha).trim().split(/\s+/).slice(1)
   return gateRule && parents.length === 2 && parents[0] === BASE_COMMIT ? parents[1] : sha
 }
+step('scope: HEAD and the committed diff (git)')
 const HEAD = scopeHead('HEAD')
 const subjectOf = c => git('log', '-1', '--format=%s', c).trim()
 /** This change's commits: found by SUBJECT across `rev-list --no-merges BASE..head`. A first-parent walk (`firstParentOnly`, the old query, kept for its mutant) sees nothing on the gate's merge, and none of this change's commits once a change is stacked after it. */
@@ -431,7 +457,7 @@ const scopeOwnCommits = (head, opts) => {
   for (const c of own) assert.match(git('log', '-1', '--format=%B', c), /Co-Authored-By: Claude Sonnet 5\.5 <noreply@anthropic\.com>\s*$/, c.slice(0, 8))
 }
 /** `git diff -U0` of the base file against the file at `head` with the later changes' marked lines out (one blob object is written). */
-const strippedDiff = (rel, head) => { const blob = execFileSync('git', ['hash-object', '-w', '--stdin'], { cwd: repo, encoding: 'utf8', input: laterStrips(rel, git('show', `${head}:${rel}`)), maxBuffer: 1 << 28 }).trim(); return git('diff', '-U0', `${BASE_COMMIT}:${rel}`, blob) }
+const strippedDiff = (rel, head) => { const blob = execFileSync('git', ['hash-object', '-w', '--stdin'], { cwd: repo, encoding: 'utf8', input: laterStrips(rel, git('show', `${head}:${rel}`)), maxBuffer: 1 << 28, timeout: 60_000 }).trim(); return git('diff', '-U0', `${BASE_COMMIT}:${rel}`, blob) }
 const scopeCommittedFiles = HEAD => {
   const changed = git('diff', '--name-only', `${BASE_COMMIT}..${HEAD}`).split('\n').filter(Boolean).filter(rel => THEME_OWN_CHOICE_SCOPE_FILES.has(rel) || !registry.LATER_CHANGE_FILES.has(rel)).sort()
   assert.deepEqual(changed, [...THEME_OWN_CHOICE_SCOPE_FILES].sort())
@@ -468,8 +494,9 @@ await check('.env.example is the base plus the block; the registry gains exactly
 const GATE_IDENT = { GIT_AUTHOR_NAME: 'gate', GIT_AUTHOR_EMAIL: 'gate@example.invalid', GIT_COMMITTER_NAME: 'gate', GIT_COMMITTER_EMAIL: 'gate@example.invalid', GIT_AUTHOR_DATE: '2026-10-27T00:00:00Z', GIT_COMMITTER_DATE: '2026-10-27T00:00:00Z' }
 const gateStyleMerge = head => {
   const tree = git('merge-tree', '--write-tree', BASE_COMMIT, head).trim().split('\n')[0]
-  return execFileSync('git', ['commit-tree', tree, '-p', BASE_COMMIT, '-p', head, '-m', 'gate-style merge (local, no ref)'], { cwd: repo, encoding: 'utf8', env: { ...process.env, ...GATE_IDENT } }).trim()
+  return execFileSync('git', ['commit-tree', tree, '-p', BASE_COMMIT, '-p', head, '-m', 'gate-style merge (local, no ref)'], { cwd: repo, encoding: 'utf8', env: { ...process.env, ...GATE_IDENT }, timeout: 60_000 }).trim()
 }
+step('scope: the gate-style merge (git merge-tree, commit-tree)')
 const GATE = gateStyleMerge(HEAD)
 await check('GATE-SAFE: on a gate-style merge (first parent BASE, second parent this change\'s head) the scope head is HEAD^2 and the whole scope section passes against it', () => {
   assert.deepEqual(git('rev-list', '--parents', '-n', '1', GATE).trim().split(/\s+/).slice(1), [BASE_COMMIT, HEAD], 'the gate-style merge: first parent BASE, second parent the head')
@@ -487,7 +514,7 @@ await check('mutant caught: the old first-parent own-commit query finds no own c
   assert.doesNotThrow(() => scopeOwnCommits(head), 'the subject query across the line finds them on the merge itself')
 })
 await check('mutant caught: a stray non-#541 file in a "Theme own choice:" commit fails the committed-files check (the own commits are found by subject, the diff names the file)', () => {
-  const run = (args, input) => execFileSync('git', args, { cwd: repo, encoding: 'utf8', input, env: { ...process.env, ...GATE_IDENT }, stdio: ['pipe', 'pipe', 'pipe'] }).trim()
+  const run = (args, input) => execFileSync('git', args, { cwd: repo, encoding: 'utf8', input, env: { ...process.env, ...GATE_IDENT }, stdio: ['pipe', 'pipe', 'pipe'], timeout: 60_000 }).trim()
   const tree = run(['mktree'], `${git('ls-tree', HEAD)}100644 blob ${run(['hash-object', '-w', '--stdin'], 'stray\n')}\tstray-theme-own-choice.txt\n`)
   const stray = run(['commit-tree', tree, '-p', HEAD, '-m', `${THEME_OWN_CHOICE_SUBJECT} a stray file\n\nCo-Authored-By: Claude Sonnet 5.5 <noreply@anthropic.com>`])
   assert.ok(ownOf(stray).includes(stray), 'the stray commit is found by its subject')
@@ -495,6 +522,7 @@ await check('mutant caught: a stray non-#541 file in a "Theme own choice:" commi
   assert.throws(() => scopeCommittedFiles(stray), undefined, 'the committed-files check must fail on a stray file')
 })
 
+step('finish: remove the live tree, print the summary')
 fs.rmSync(LIVE, { recursive: true, force: true })
 release()
 console.log('mutants (each caught by):'); for (const line of caughtBy) console.log(line)
