@@ -35,6 +35,7 @@ import type { SaveWatchTimers, ViewerSaveEvent } from '@/lib/chat-element-edit-s
 import { FREE_SPOT_BOUNDS, parseFreeSpotSpan } from '@/lib/element-free-spot'
 import { CHAT_ELEMENT_EDIT_2_ENABLED, withShownSlides } from '@/lib/chat-element-edit-2' // CHAT-ELEMENT-EDIT-2
 import type { ShownSlides } from '@/lib/chat-element-edit-2' // CHAT-ELEMENT-EDIT-2
+import { CHAT_EDIT_TARGETED_SAVE_ENABLED, runTargetedElementSave } from '@/lib/chat-edit-targeted' // CHAT-EDIT-TARGETED
 
 export {
   CHAT_ELEMENT_EDIT_ENABLED, ELEMENT_EDIT_CLIENT_CAPS, ELEMENT_EDIT_DIRECTIVE_TYPE, addChatElementEditCaps, elementEditDirectiveId, elementEditResultFrame,
@@ -451,6 +452,7 @@ export async function runElementEditDirective(
     }
     if (!owns()) return null
     if (!editing) return fail('VIEWER_NOT_READY')
+    if (CHAT_EDIT_TARGETED_SAVE_ENABLED) return await runTargetedElementSave({ directiveId, elementId, slideIndex: target, steps: plan.steps, owns, currentSlideIndex: () => deps.currentSlideIndex(), sendElement, sendTextBox, commandErrorCode: elementEditCommandErrorCode, markApplied: () => { applied = true } }) // CHAT-EDIT-TARGETED: Layout stores only this element (lib/chat-edit-targeted.ts); no saveAllChanges, no whole-deck save
     // 6. Apply, flush, wait for the ack. The watch opens first: Layout posts `unsaved` while it handles the command, before its reply.
     const watch = watchViewerSave(deps.subscribeSave, deps.timers)
     try {
