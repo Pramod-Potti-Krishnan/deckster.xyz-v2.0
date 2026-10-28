@@ -457,7 +457,18 @@ const scopeOwnCommits = (head, opts) => {
   for (const c of own) assert.match(git('log', '-1', '--format=%B', c), /Co-Authored-By: Claude Sonnet 5\.5 <noreply@anthropic\.com>\s*$/, c.slice(0, 8))
 }
 /** `git diff -U0` of the base file against the file at `head` with the later changes' marked lines out (one blob object is written). */
-const strippedDiff = (rel, head) => { const blob = execFileSync('git', ['hash-object', '-w', '--stdin'], { cwd: repo, encoding: 'utf8', input: laterStrips(rel, git('show', `${head}:${rel}`)), maxBuffer: 1 << 28, timeout: 60_000 }).trim(); return git('diff', '-U0', `${BASE_COMMIT}:${rel}`, blob) }
+// B41: the stripped text goes to git as a FILE in a fresh temp dir, not piped into `git hash-object --stdin` (a stdin hash-object stalled in the gate and in B40's run); the dir is removed in a finally.
+const strippedDiff = (rel, head) => {
+  const text = laterStrips(rel, git('show', `${head}:${rel}`))
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'studio-theme-own-choice-strip-'))
+  try {
+    const file = path.join(dir, 'stripped')
+    fs.writeFileSync(file, text)
+    step(`scope: git hash-object -w ${rel}`)
+    const blob = execFileSync('git', ['hash-object', '-w', '--no-filters', '--', file], { cwd: repo, encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'], maxBuffer: 1 << 28, timeout: 60_000 }).trim()
+    return git('diff', '-U0', `${BASE_COMMIT}:${rel}`, blob)
+  } finally { fs.rmSync(dir, { recursive: true, force: true }) }
+}
 const scopeCommittedFiles = HEAD => {
   const changed = git('diff', '--name-only', `${BASE_COMMIT}..${HEAD}`).split('\n').filter(Boolean).filter(rel => THEME_OWN_CHOICE_SCOPE_FILES.has(rel) || !registry.LATER_CHANGE_FILES.has(rel)).sort()
   assert.deepEqual(changed, [...THEME_OWN_CHOICE_SCOPE_FILES].sort())
