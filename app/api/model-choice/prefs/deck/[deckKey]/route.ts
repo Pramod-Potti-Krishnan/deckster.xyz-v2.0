@@ -5,6 +5,8 @@ import { prisma } from '@/lib/prisma'
 import { handlePrefs, type FetchLike, type Outcome, type SessionUser } from '@/lib/studio-model-choice-server'
 
 export const dynamic = 'force-dynamic'
+/** NEXT_PUBLIC_STUDIO_MODEL_CHOICE_PREFS_VERSION (exact "true", default off): the version travels in X-Prefs-Version (read from the request, sent back on every answer), never in If-Match, which Vercel's edge would apply to the response. */ // MODEL-CHOICE-PREFS-VERSION
+const prefsVersionOn = () => process.env.NEXT_PUBLIC_STUDIO_MODEL_CHOICE_PREFS_VERSION === 'true' // MODEL-CHOICE-PREFS-VERSION
 
 /**
  * GET / PATCH /api/model-choice/prefs/deck/{deckKey}: the signed-in user's "This presentation" choices for one Studio session (the deck key is the Builder's session id, as ROUTER-2 confirmed), saved in the Model
@@ -22,6 +24,7 @@ const deps = () => ({
 function reply(outcome: Outcome) {
   const response = NextResponse.json(outcome.body, { status: outcome.status, headers: { 'Cache-Control': 'no-store' } })
   if (outcome.etag) response.headers.set('ETag', outcome.etag)
+  if (prefsVersionOn() && outcome.etag) response.headers.set('X-Prefs-Version', outcome.etag) // MODEL-CHOICE-PREFS-VERSION
   return response
 }
 
@@ -32,5 +35,6 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ dec
 
 export async function PATCH(req: NextRequest, { params }: { params: Promise<{ deckKey: string }> }) {
   const { deckKey } = await params
+  if (prefsVersionOn()) { const request = { ifMatch: req.headers.get('x-prefs-version') ?? req.headers.get('if-match'), opaqueTag: true, body: () => req.json() }; return reply(await handlePrefs('PATCH', deckKey, request, deps())) } // MODEL-CHOICE-PREFS-VERSION: the version header first (If-Match still accepted), compared as an opaque tag
   return reply(await handlePrefs('PATCH', deckKey, { ifMatch: req.headers.get('if-match'), body: () => req.json() }, deps()))
 }

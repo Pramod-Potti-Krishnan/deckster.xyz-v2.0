@@ -440,6 +440,11 @@ export function createDeviceChoiceStore(deps: { storage: () => StorageLike; lega
 export const MODEL_CHOICE_PREFS_ENDPOINT = '/api/model-choice/prefs'
 export const modelChoicePrefsUrl = (scope: ModelChoiceScope) => (scope.kind === 'user' ? MODEL_CHOICE_PREFS_ENDPOINT : `${MODEL_CHOICE_PREFS_ENDPOINT}/deck/${encodeURIComponent(scope.deckId)}`)
 export const modelChoiceUsedUrl = (buildId: string) => `/api/model-choice/used/${encodeURIComponent(buildId)}`
+/** NEXT_PUBLIC_STUDIO_MODEL_CHOICE_PREFS_VERSION (exact "true", default off; build-time). On, the read's version travels in its own request header, X-Prefs-Version, never in If-Match: Vercel's edge applies If-Match to the function's RESPONSE and swaps in its own 412 error page (E2E-2 capture, 28 Oct 02:15-02:17Z). */ // MODEL-CHOICE-PREFS-VERSION
+export const PREFS_VERSION_ON = process.env.NEXT_PUBLIC_STUDIO_MODEL_CHOICE_PREFS_VERSION === 'true' // MODEL-CHOICE-PREFS-VERSION
+export const PREFS_VERSION_HEADER = 'X-Prefs-Version' // MODEL-CHOICE-PREFS-VERSION
+/** The request with the version in its own header: a PATCH's If-Match becomes X-Prefs-Version (the same tag, as the read gave it); any other request is as it was. */ // MODEL-CHOICE-PREFS-VERSION
+export const versionRequest = <T extends { headers?: Record<string, string> }>(init: T): T => { const tag = init.headers?.['If-Match']; if (tag === undefined) return init; const { 'If-Match': _ifMatch, ...rest } = init.headers as Record<string, string>; return { ...init, headers: { ...rest, [PREFS_VERSION_HEADER]: tag } } } // MODEL-CHOICE-PREFS-VERSION
 export type RouteFetch = (url: string, init: { method: 'GET' | 'PATCH'; headers?: Record<string, string>; body?: string }) => Promise<{ status: number; body: unknown; etag: string | null }>
 /** Thrown by the account store when the choices must stay on this device (the caller switches to it). */
 export class DeviceFallback extends Error { constructor(readonly reason: 'not-configured' | 'unreachable') { super(reason) } }
@@ -469,6 +474,15 @@ export function createAccountChoiceStore(deps: { fetchJson: RouteFetch }): Model
       const answer = await deps.fetchJson(modelChoicePrefsUrl(scope), { method: 'PATCH', headers: { 'Content-Type': 'application/json', ...(tag ? { 'If-Match': tag } : {}) }, body: JSON.stringify(toWire(choices, scope.kind)) })
       if (answer.etag) tags.set(keyOf(scope), answer.etag)
       if (answer.status === 200) return { mode: 'account', reason: null }
+      if (PREFS_VERSION_ON && (answer.status === 412 || answer.status === 409) && codeOf(answer.body) !== 'preferences_modified') { // MODEL-CHOICE-PREFS-VERSION: a 412 that is not Studio's own JSON (an edge's error page, no body) says nothing about the choices: read them again
+        const fresh = await deps.fetchJson(modelChoicePrefsUrl(scope), { method: 'GET' }) // MODEL-CHOICE-PREFS-VERSION
+        if (fresh.status !== 200) return { mode: 'account', reason: null, refused: true, refusedCode: 'save_unconfirmed' } // MODEL-CHOICE-PREFS-VERSION
+        if (fresh.etag) tags.set(keyOf(scope), fresh.etag); else tags.delete(keyOf(scope)) // MODEL-CHOICE-PREFS-VERSION
+        const stored = fromWire(fresh.body, scope.kind) // MODEL-CHOICE-PREFS-VERSION
+        if (serializeChoices(scope, stored) === serializeChoices(scope, choices)) return { mode: 'account', reason: null } // MODEL-CHOICE-PREFS-VERSION: the read shows what was asked for, so the save had landed
+        const unconfirmed = { mode: 'account' as const, reason: null, conflict: stored, unconfirmed: true } // MODEL-CHOICE-PREFS-VERSION: not saved, and nothing says anyone else changed it: the stored choice is shown, with the refusal words
+        return unconfirmed // MODEL-CHOICE-PREFS-VERSION
+      } // MODEL-CHOICE-PREFS-VERSION
       if (answer.status === 412 || answer.status === 409) {
         const fresh = await deps.fetchJson(modelChoicePrefsUrl(scope), { method: 'GET' })
         if (fresh.status === 200) { if (fresh.etag) tags.set(keyOf(scope), fresh.etag); return { mode: 'account', reason: null, conflict: fromWire(fresh.body, scope.kind) } }

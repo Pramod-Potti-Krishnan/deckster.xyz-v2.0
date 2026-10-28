@@ -6,6 +6,7 @@ import {
   MODEL_CHOICE_CONFLICT, MODEL_CHOICE_REFUSED, MODEL_CHOICE_REFUSED_AUTO, MODEL_CHOICE_SCOPE_DECK_NOT_SAVED, MODEL_CHOICE_SCOPE_DECK_UNAVAILABLE, USER_SCOPE, createAccountChoiceStore, createDeviceChoiceStore, createModelChoiceStore, modelChoiceDefaults, withPresets,
   type ChoiceCatalogue, type DeviceReason, type ModelChoiceSave, type ModelChoiceScope, type ModelChoiceStore, type ModelChoices, type RouteFetch, type SaveMode,
 } from "@/lib/studio-model-choice"
+import { PREFS_VERSION_ON, versionRequest } from "@/lib/studio-model-choice" // MODEL-CHOICE-PREFS-VERSION
 import {
   applyChoice, choiceOfState, deckIdFromSessionId, deckOwnOf, mergeChoices, offerable, pickerStateOf, saveNote, shownState, type DeckOwn, type ModelChoice, type PickerState,
 } from "@/lib/studio-model-picker"
@@ -25,9 +26,11 @@ export interface PickerRuntime {
 
 /** Studio's own routes only (same origin): the browser never calls Director or the router, and never sends a user id. */
 const routeFetch: RouteFetch = async (url, init) => {
+  if (PREFS_VERSION_ON) init = versionRequest(init) // MODEL-CHOICE-PREFS-VERSION: the read's version goes in X-Prefs-Version, not If-Match
   const response = await fetch(url, { method: init.method, headers: init.headers, body: init.body, credentials: "same-origin", cache: "no-store" })
   let body: unknown = null
   try { body = await response.json() } catch { body = null }
+  if (PREFS_VERSION_ON) return { status: response.status, body, etag: response.headers.get("x-prefs-version") ?? response.headers.get("etag") } // MODEL-CHOICE-PREFS-VERSION: the version comes back in its own header (ETag stays on a read)
   return { status: response.status, body, etag: response.headers.get("etag") }
 }
 
@@ -198,6 +201,7 @@ export function useModelChoice(sessionId: string | null, options: UseModelChoice
       put(saved)
       outcome = { kind: "conflict" }
       words = MODEL_CHOICE_CONFLICT
+      if (PREFS_VERSION_ON && (result as { unconfirmed?: boolean }).unconfirmed) words = MODEL_CHOICE_REFUSED // MODEL-CHOICE-PREFS-VERSION: a 412 that was not Studio's own JSON: the stored choice is shown, with the refusal words, not "changed elsewhere"
       reported = choiceOfState(pickerStateOf(mergeChoices(target.kind === "deck" ? now.loaded.user : saved, target.kind === "deck" ? saved : null)))
     } else if ("refused" in result && result.refused) {
       put(own)
