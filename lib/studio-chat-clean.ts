@@ -25,6 +25,7 @@ export function chatCleanFlagOn(value: string | undefined): boolean {
 }
 
 export const STUDIO_CHAT_CLEAN_ENABLED = chatCleanFlagOn(process.env.NEXT_PUBLIC_STUDIO_CHAT_CLEAN)
+export const STUDIO_CHAT_CLEAN_HELD_ALL_BUILT_ENABLED = chatCleanFlagOn(process.env.NEXT_PUBLIC_STUDIO_CHAT_CLEAN_HELD_ALL_BUILT) // CHAT-CLEAN-HELD-ALL-BUILT: NEXT_PUBLIC_STUDIO_CHAT_CLEAN_HELD_ALL_BUILT, the string "true", default off, build-time (needs NEXT_PUBLIC_STUDIO_CHAT_CLEAN: chatCleanComposerState is idle without it)
 
 // ---------------------------------------------------------------------------
 // PK's open choices: ONE token each, so each is a one-line change here. They reach the stylesheet as data attributes on
@@ -206,6 +207,8 @@ export function chatCleanComposerState(input: ChatCleanComposerInput): ChatClean
   }
   if (held) {
     const kind = control === 'paused' || (control !== 'stopped' && phase === 'paused') ? 'paused' : 'stopped'
+    // CHAT-CLEAN-HELD-ALL-BUILT: with every slide already built there is nothing left to direct, so the composer is the base's own (a typed message is a plain user_message, which Director answers without resuming or rebuilding); the bar and Continue stay, the directions placeholder, hint and context go
+    if (STUDIO_CHAT_CLEAN_HELD_ALL_BUILT_ENABLED && Number.isSafeInteger(input.slideCount) && input.slideCount > 0 && Number.isSafeInteger(input.slidesDone) && input.slidesDone >= input.slideCount) return { ...COMPOSER_IDLE, mode: 'held', barText: chatCleanHeldAt(kind, input.slidesDone, input.slideCount), barDetail: chatCleanSlidesKept(input.slidesDone), showContinue: true, continueEnabled: input.controlEnabled, hint: input.controlEnabled ? null : `${chatCleanSlidesKept(input.slidesDone)} · the build cannot be resumed from here` } // CHAT-CLEAN-HELD-ALL-BUILT
     // Director's contract: a plain message after a stop never rebuilds, so a draft always goes as the resume's instructions (the control flag gates the send, as Continue).
     return {
       mode: 'held', showStop: false, stopEnabled: false,
