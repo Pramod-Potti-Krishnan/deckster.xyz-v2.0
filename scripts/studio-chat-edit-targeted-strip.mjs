@@ -1,11 +1,11 @@
 // FRONTEND-2 (B33, 27 Oct; PK 18:19Z: chat element edits touch only the target element and never trigger Edit Mode's whole-deck autosave). Flag NEXT_PUBLIC_STUDIO_CHAT_EDIT_TARGETED_SAVE (exact "true", default off,
 // build-time; it acts only with NEXT_PUBLIC_STUDIO_CHAT_ELEMENT_EDIT on): #522's chat element edit saves through Layout's targeted save (layout-builder frontend2/layout-targeted-save, LAYOUT_CHAT_TARGETED_SAVE_ENABLED) instead of
-// the viewer's whole-deck Save. Stacked on #538 (frontend2/chat-element-edit-2 @ 7a67ff6d), now merged into dev (ffaf5a7e; dev is ab208d54 with #542, #539 and #543 on top).
+// the viewer's whole-deck Save. Stacked on #538 (frontend2/chat-element-edit-2 @ 7a67ff6d), now merged into dev (ffaf5a7e; dev is 57744519 with #542, #539, #543 and #541 on top).
 // Every line this change adds to an EXISTING file is a pure insertion that carries the marker CHAT-EDIT-TARGETED (a whole token): lib/chat-element-edit.ts (one import, the targeted branch of step 6) and #522's Layout harness
 // scripts/studio-chat-element-edit-layout.mjs (the `targeted` page and script). Strip those lines and each file is its base, byte for byte. The new file lib/chat-edit-targeted.ts holds the flag and the targeted steps.
 // How the older pins reach it: this change REGISTERS its files, its .env.example block and this strip (scripts/studio-later-changes.mjs, three lines). Plain node, no imports, nothing read from disk or git here.
 
-export const BASE_COMMIT = 'ab208d544c81914cf6879fa60ea1aaab878a55da' // studio-v4-dev-preparation-code with #538, #542, #539 and #543 merged (tree 6cf2e7bb): dev, which this change is merged with (it was stacked on #538's head)
+export const BASE_COMMIT = '577445192119d81950ec612ff74c5b926de7866c' // studio-v4-dev-preparation-code with #538, #542, #539, #543 and #541 merged (tree 482ff520): dev, which this change is merged with (it was stacked on #538's head)
 export const CHAT_EDIT_TARGETED_FLAG = 'NEXT_PUBLIC_STUDIO_CHAT_EDIT_TARGETED_SAVE'
 export const CHAT_EDIT_TARGETED_MARKER = 'CHAT-EDIT-TARGETED'
 /** The marker as a WHOLE token. */
@@ -34,10 +34,6 @@ export const CHAT_EDIT_TARGETED_PIN_EDITS = {
   "scripts/test-studio-chat-element-edit-2.mjs": [
     ["const targetedStrip = await import('./studio-chat-edit-targeted-strip.mjs') // LATER-CHANGES: registry read (CHAT-EDIT-TARGETED): the targeted chat edit stacked after this change\nconst read = rel => targetedStrip.stripChatEditTargeted(rel, fs.readFileSync(path.join(repo, rel), 'utf8')) // LATER-CHANGES: registry read (CHAT-EDIT-TARGETED): its marked lines come out before this change's pins\n",
      "const read = rel => fs.readFileSync(path.join(repo, rel), 'utf8')\n"],
-    ["    const diff = git('diff', '-U0', BASE_COMMIT, 'HEAD', '--', rel).split('\\n').filter(line => /^[+-]/.test(line) && !/^(\\+\\+\\+|---) /.test(line)).filter(line => !targetedStrip.CHAT_EDIT_TARGETED_MARKER_RE.test(line)) // LATER-CHANGES: registry read (CHAT-EDIT-TARGETED)\n",
-     "    const diff = git('diff', '-U0', BASE_COMMIT, 'HEAD', '--', rel).split('\\n').filter(line => /^[+-]/.test(line) && !/^(\\+\\+\\+|---) /.test(line))\n"],
-    ["    assert.equal(stripChatElementEdit2(rel, targetedStrip.stripChatEditTargeted(rel, git('show', `HEAD:${rel}`))), baseFile(rel), `${rel}: without its marked lines the file is the base's, byte for byte`) // LATER-CHANGES: registry read (CHAT-EDIT-TARGETED)\n",
-     "    assert.equal(stripChatElementEdit2(rel, git('show', `HEAD:${rel}`)), baseFile(rel), `${rel}: without its marked lines the file is the base's, byte for byte`)\n"],
   ],
 }
 

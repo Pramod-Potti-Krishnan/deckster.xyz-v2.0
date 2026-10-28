@@ -1,5 +1,5 @@
 // FRONTEND-2 (B33, 27 Oct; PK 18:19Z): targeted chat edit, a chat element edit saves only that element and never sets off the editor's whole-deck autosave (NEXT_PUBLIC_STUDIO_CHAT_EDIT_TARGETED_SAVE, exact "true",
-// default off; it acts only with NEXT_PUBLIC_STUDIO_CHAT_ELEMENT_EDIT on). Stacked on #538 (frontend2/chat-element-edit-2 @ 7a67ff6d), now merged into dev with #542, #539 and #543 on top.
+// default off; it acts only with NEXT_PUBLIC_STUDIO_CHAT_ELEMENT_EDIT on). Stacked on #538 (frontend2/chat-element-edit-2 @ 7a67ff6d), now merged into dev with #542, #539, #543 and #541 on top.
 //
 //   node scripts/test-studio-chat-edit-targeted.mjs                     # offline: the viewer's replies and its save requests come from layout-transcripts.json, which the real Layout code recorded
 //   CHAT_EDIT_TARGETED_LAYOUT_DIR=<layout-builder at frontend2/layout-targeted-save> node scripts/test-studio-chat-edit-targeted.mjs    # also runs the REAL Layout viewer code live and checks it says what was recorded
@@ -15,7 +15,7 @@
 //  4. Studio's flag on with Layout's flag off: refused UNSUPPORTED_OP before any command changes anything, nothing saved (never a silent ok:true);
 //  5. Undo: the ok:true result frame is byte-identical to today's (Director's Undo chip and chat undo key on it), and the save is a Layout version written after the edit (the Layout test pins create_version);
 //  6. #538's slide checks still stand: a directive for a slide Layout does not show, or a stale slide id, is SLIDE_CHANGED before begin;
-//  7. flag off is identical: the strip gives back dev's files (#538, #542, #539 and #543 merged) byte for byte; flag off runs today's requests exactly; the commits are this change's own (found by SUBJECT across `rev-list --no-merges BASE..head`, so a change stacked after this one, a dev merge and the gate's merge do not hide them; a commit that is not one touches only files a later change registered; HEAD^2 when HEAD is the gate's --no-ff merge onto dev, proved on a gate-style merge built here), every added line is marked; the file, .env.example and registry reads go past the changes registered after this one (their strips, blocks and registry lines are theirs), and a stray foreign file in a "Targeted chat edit:" commit fails the scope;
+//  7. flag off is identical: the strip gives back dev's files (#538, #542, #539, #543 and #541 merged) byte for byte; flag off runs today's requests exactly; the commits are this change's own (found by SUBJECT across `rev-list --no-merges BASE..head`, so a change stacked after this one, a dev merge and the gate's merge do not hide them; a commit that is not one touches only files a later change registered; HEAD^2 when HEAD is the gate's --no-ff merge onto dev, proved on a gate-style merge built here), every added line is marked; the file, .env.example and registry reads go past the changes registered after this one (their strips, blocks and registry lines are theirs), and a stray foreign file in a "Targeted chat edit:" commit fails the scope;
 //  8. mutants are caught.
 import assert from 'node:assert/strict'
 import crypto from 'node:crypto'
