@@ -15,7 +15,7 @@
 //   4. Otherwise unchanged: a normal build, pause / resume and stop / continue, with the flag on, are flag off's at every checkpoint but the line the fix closes and the notes' places.
 //   5. Flag off is byte-identical to the base: every checkpoint's markup hashes as the markup of the base MessageList (this tree's message-list.tsx with the marked lines stripped, which section 7 proves is the base file).
 //   6. Mutants: each must be caught.
-//   7. The sources: every marked line is a pure insertion, the strip gives the base back byte for byte, the registry, .env.example, and the scope over the COMMITTED diff (BASE..HEAD, first-parent, no merges, prefix "Clean chat order:"). GATE-SAFE: when HEAD is the gate's local --no-ff merge (first parent BASE, second parent this change's head) every scope query runs against HEAD^2; proved on a gate-style merge built here, and a mutant that drops that rule is caught.
+//   7. The sources: every marked line is a pure insertion, the strip gives the base back byte for byte, the registry, .env.example, and the scope over the COMMITTED diff (BASE..HEAD; the own commits are found by SUBJECT across `rev-list --no-merges`, so a change stacked after this one, a dev merge and the gate's merge do not hide them; the registry, .env.example and strip reads go past the changes registered after this one; a commit that is not this change's must touch only files a later change registered). GATE-SAFE: when HEAD is the gate's local --no-ff merge (first parent BASE, second parent this change's head) every scope query runs against HEAD^2; proved on a gate-style merge built here; a mutant with the old first-parent query finds nothing on it, and a mutant with a stray file in a "Clean chat order:" commit is caught.
 //
 //   node scripts/test-studio-chat-clean-order.mjs
 //
@@ -543,45 +543,52 @@ function scopeHead(ref = 'HEAD', { gateRule = true } = {}) {
   return gateRule && parents.length === 2 && parents[0] === BASE_COMMIT ? parents[1] : sha
 }
 const HEAD = scopeHead('HEAD')
-const ownOf = head => git('log', '--format=%H', '--first-parent', '--no-merges', '-E', `--grep=^${CHAT_CLEAN_ORDER_SUBJECT}`, `${BASE_COMMIT}..${head}`).split('\n').filter(Boolean)
-const scopeOwnCommits = head => {
-  const own = ownOf(head)
+const subjectOf = c => git('log', '-1', '--format=%s', c).trim()
+/** This change's commits: found by SUBJECT across `rev-list --no-merges BASE..head`. A first-parent walk (`firstParentOnly`, the old query, kept for its mutant) sees nothing on the gate's merge, and none of this change's commits once a change is stacked after it. */
+const ownOf = (head, { firstParentOnly = false } = {}) => git('rev-list', ...(firstParentOnly ? ['--first-parent'] : []), '--no-merges', `${BASE_COMMIT}..${head}`).split('\n').filter(Boolean).filter(c => subjectOf(c).startsWith(CHAT_CLEAN_ORDER_SUBJECT))
+const scopeOwnCommits = (head, opts) => {
+  const own = ownOf(head, opts)
   assert.ok(own.length >= 1, 'no own commit yet')
-  const all = git('log', '--format=%H', '--first-parent', '--no-merges', `${BASE_COMMIT}..${head}`).split('\n').filter(Boolean)
-  assert.deepEqual([...all].sort(), [...own].sort(), 'a commit between the base and HEAD is not this change\'s')
-  for (const c of own) {
-    assert.match(git('log', '-1', '--format=%B', c), /Co-Authored-By: Claude Sonnet 5\.5 <noreply@anthropic\.com>\s*$/, c.slice(0, 8))
-    assert.doesNotMatch(git('log', '-1', '--format=%s', c), /^Chat clean/, c.slice(0, 8))
-  }
+  const all = git('rev-list', '--no-merges', `${BASE_COMMIT}..${head}`).split('\n').filter(Boolean)
+  for (const c of all) assert.doesNotMatch(subjectOf(c), /^Chat clean/, c.slice(0, 8))
+  for (const c of all.filter(c => !own.includes(c))) for (const rel of git('show', '--name-only', '--format=', c).split('\n').filter(Boolean)) assert.ok(CHAT_CLEAN_ORDER_SCOPE_FILES.has(rel) || registry.LATER_CHANGE_FILES.has(rel), `a commit between the base and HEAD that is not this change's (${c.slice(0, 8)}) touches ${rel}, which no later change registered`)
+  for (const c of own) assert.match(git('log', '-1', '--format=%B', c), /Co-Authored-By: Claude Sonnet 5\.5 <noreply@anthropic\.com>\s*$/, c.slice(0, 8))
 }
+/** The strips of every change registered AFTER this one (below this change's strip in LATER_STRIPS), applied first: the identity checks read a file as this change left it. */
+const laterStrips = (rel, text) => { const strips = registry.LATER_STRIPS, at = strips.indexOf(stripChatCleanOrder); return (at === -1 ? [] : strips.slice(at + 1)).reduce((out, strip) => { const next = strip(rel, out); return typeof next === 'string' ? next : out }, text) }
+/** `git diff -U0` of the base file against the file at `head` with the later changes' marked lines out (one blob object is written). */
+const strippedDiff = (rel, head) => { const blob = execFileSync('git', ['hash-object', '-w', '--stdin'], { cwd: repo, encoding: 'utf8', input: laterStrips(rel, git('show', `${head}:${rel}`)), maxBuffer: 1 << 28 }).trim(); return git('diff', '-U0', `${BASE_COMMIT}:${rel}`, blob) }
 const scopeCommittedFiles = HEAD => {
   const changed = git('diff', '--name-only', `${BASE_COMMIT}..${HEAD}`).split('\n').filter(Boolean).filter(rel => CHAT_CLEAN_ORDER_SCOPE_FILES.has(rel) || !registry.LATER_CHANGE_FILES.has(rel)).sort()
   assert.deepEqual(changed, [...CHAT_CLEAN_ORDER_SCOPE_FILES].sort())
-  assert.deepEqual(Object.keys(CHAT_CLEAN_ORDER_PIN_EDITS), ['scripts/test-studio-chat-undo-v2.mjs', 'scripts/test-studio-chat-element-edit-2.mjs'], 'two older proofs are taught: chat undo v2\'s strip of the message list, and #538\'s scope section (its own commits found by subject, a stray-file mutant); dev\'s generic registry read (#542) already reads past this change\'s three registry lines')
+  assert.deepEqual(Object.keys(CHAT_CLEAN_ORDER_PIN_EDITS), ['scripts/test-studio-chat-undo-v2.mjs', 'scripts/test-studio-chat-element-edit-2.mjs', 'scripts/test-studio-model-choice-deck-save.mjs'], 'three older proofs are taught: chat undo v2\'s strip of the message list, #538\'s scope section (its own commits found by subject, a stray-file mutant; dev\'s generic registry read already reads past this change\'s three registry lines) and #542\'s (the same, and its registry count and strip identity read past the later changes)')
   for (const rel of Object.keys(CHAT_CLEAN_ORDER_PIN_EDITS)) {
-    assert.equal(stripChatCleanOrder(rel, git('show', `${HEAD}:${rel}`)), git('show', `${BASE_COMMIT}:${rel}`), `${rel}: the taught proof, put back, is the previous file byte for byte`)
-    const diff = git('diff', '-U0', `${BASE_COMMIT}..${HEAD}`, '--', rel).split('\n').filter(line => /^[+-]/.test(line) && !/^(\+\+\+|---) /.test(line))
+    assert.equal(stripChatCleanOrder(rel, laterStrips(rel, git('show', `${HEAD}:${rel}`))), git('show', `${BASE_COMMIT}:${rel}`), `${rel}: the taught proof, put back, is the previous file byte for byte`)
+    const diff = strippedDiff(rel, HEAD).split('\n').filter(line => /^[+-]/.test(line) && !/^(\+\+\+|---) /.test(line))
     const lines = text => text.split('\n').filter(Boolean).length // the lines an edit adds (has) or takes out (was)
     assert.equal(diff.filter(line => line.startsWith('+')).length, CHAT_CLEAN_ORDER_PIN_EDITS[rel].reduce((n, [has]) => n + lines(has), 0)); assert.equal(diff.filter(line => line.startsWith('-')).length, CHAT_CLEAN_ORDER_PIN_EDITS[rel].reduce((n, [, was]) => n + lines(was), 0))
     for (const line of diff.filter(line => line.startsWith('+'))) assert.ok(line.includes(stripModule.CHAT_CLEAN_ORDER_PIN_MARK), `${rel}: a taught line without the mark: ${line.slice(0, 100)}`)
   }
   assert.deepEqual(CHAT_CLEAN_ORDER_FILES, [LIST])
   for (const rel of CHAT_CLEAN_ORDER_FILES) {
-    const diff = git('diff', '-U0', `${BASE_COMMIT}..${HEAD}`, '--', rel).split('\n').filter(line => /^[+-]/.test(line) && !/^(\+\+\+|---) /.test(line))
+    const diff = strippedDiff(rel, HEAD).split('\n').filter(line => /^[+-]/.test(line) && !/^(\+\+\+|---) /.test(line))
     assert.equal(diff.length, 8, `${rel}: two imports, a comment, the plan, the one reassignment, the two row slots and the tail`)
     for (const line of diff) { assert.ok(line.startsWith('+'), `${rel}: a removed line: ${line.slice(0, 120)}`); assert.match(line, CHAT_CLEAN_ORDER_MARKER_RE, `${rel}: an unmarked added line: ${line.slice(0, 120)}`) }
-    assert.equal(stripChatCleanOrder(rel, git('show', `${HEAD}:${rel}`)), git('show', `${BASE_COMMIT}:${rel}`), `${rel}: without its marked lines the file is the base's, byte for byte`)
+    assert.equal(stripChatCleanOrder(rel, laterStrips(rel, git('show', `${HEAD}:${rel}`))), git('show', `${BASE_COMMIT}:${rel}`), `${rel}: without its marked lines the file is the base's, byte for byte`)
     assert.equal(registry.stripLaterChanges(rel, git('show', `${HEAD}:${rel}`)), registry.stripLaterChanges(rel, git('show', `${BASE_COMMIT}:${rel}`)), `${rel}: ...and through the registry (both sides)`)
   }
   for (const rel of CHAT_CLEAN_ORDER_NEW_FILES) assert.ok(git('cat-file', '-t', `${HEAD}:${rel}`).trim() === 'blob', rel)
 }
 const scopeEnvAndRegistry = HEAD => {
   assert.equal(registry.stripLaterEnvBlocks('.env.example', git('show', `${HEAD}:.env.example`)), registry.stripLaterEnvBlocks('.env.example', `${git('show', `${BASE_COMMIT}:.env.example`)}\n${CHAT_CLEAN_ORDER_ENV_BLOCK}`))
-  assert.equal(git('show', `${HEAD}:.env.example`), `${git('show', `${BASE_COMMIT}:.env.example`)}\n${CHAT_CLEAN_ORDER_ENV_BLOCK}`, 'byte for byte: the base, one blank line, the block')
-  const diff = git('diff', '-U0', `${BASE_COMMIT}..${HEAD}`, '--', 'scripts/studio-later-changes.mjs').split('\n').filter(line => /^[+-]/.test(line) && !/^(\+\+\+|---) /.test(line))
+  const laterBlocks = registry.LATER_ENV_BLOCKS.slice(registry.LATER_ENV_BLOCKS.indexOf(CHAT_CLEAN_ORDER_ENV_BLOCK) + 1) // the blocks registered after this one: theirs, not this change's
+  const withoutLaterBlocks = laterBlocks.reduce((text, block) => text.replace(`\n${String(block).replace(/^\n+/, '').replace(/\n+$/, '')}\n`, () => ''), git('show', `${HEAD}:.env.example`))
+  assert.equal(withoutLaterBlocks, `${git('show', `${BASE_COMMIT}:.env.example`)}\n${CHAT_CLEAN_ORDER_ENV_BLOCK}`, 'byte for byte: the base, one blank line, the block (the blocks of the changes registered after this one aside)')
+  const laterRegistry = (() => { const later = new Set(); let after = false; for (const line of git('show', `${HEAD}:scripts/studio-later-changes.mjs`).split('\n')) { if (/^export const LATER_/.test(line)) after = false; else if (line.includes('studio-chat-clean-order-strip.mjs')) after = true; else if (after && line.includes('// LATER-CHANGE:') && /-strip\.mjs/.test(line)) later.add(line) } return later })() // the registry lines of every change registered after this one (below this change's own line in each list, in the registered shape) are theirs
+  const diff = git('diff', '-U0', `${BASE_COMMIT}..${HEAD}`, '--', 'scripts/studio-later-changes.mjs').split('\n').filter(line => /^[+-]/.test(line) && !/^(\+\+\+|---) /.test(line) && !(line.startsWith('+') && laterRegistry.has(line.slice(1))))
   assert.equal(diff.length, 3); for (const line of diff) assert.ok(line.startsWith('+') && line.includes('LATER-CHANGE') && line.includes('studio-chat-clean-order-strip.mjs'), line.slice(0, 140))
 }
-await check(`this change's own commits (subject starts "${CHAT_CLEAN_ORDER_SUBJECT}") exist; every first-parent non-merge commit between the base and HEAD (HEAD^2 in the gate) is one, with the co-author line; none starts "Chat clean" (that prefix is the chat clean proof's own-commit grep)`, () => scopeOwnCommits(HEAD))
+await check(`this change's own commits (subject starts "${CHAT_CLEAN_ORDER_SUBJECT}", found across the whole line, no merges) exist, with the co-author line; a commit that is not one touches only files a later change registered; none starts "Chat clean" (that prefix is the chat clean proof's own-commit grep)`, () => scopeOwnCommits(HEAD))
 await check('the committed files are exactly this change\'s (two older proofs, chat undo v2\'s and #538\'s, taught a registry read); every line added to the list is a pure insertion that carries the marker (eight of them); the strip gives the base back byte for byte, also through the registry', () => scopeCommittedFiles(HEAD))
 // GATE-SAFE: build the gate's merge (first parent BASE, second parent this change's head; the tree is `git merge-tree --write-tree BASE head`) and run the whole scope section against it.
 const GATE_IDENT = { GIT_AUTHOR_NAME: 'gate', GIT_AUTHOR_EMAIL: 'gate@example.invalid', GIT_COMMITTER_NAME: 'gate', GIT_COMMITTER_EMAIL: 'gate@example.invalid', GIT_AUTHOR_DATE: '2026-10-27T00:00:00Z', GIT_COMMITTER_DATE: '2026-10-27T00:00:00Z' }
@@ -599,10 +606,19 @@ await check('GATE-SAFE: on a gate-style merge (first parent BASE, second parent 
   assert.equal(scopeHead(HEAD), HEAD, 'a branch head (not a merge onto BASE) is used as it is')
   assert.equal(scopeHead(BASE_COMMIT), BASE_COMMIT, 'BASE itself (a merge with other parents) is used as it is')
 })
-await check('mutant caught: without the HEAD^2 rule the gate-style merge has no own commit (the scope section fails on it)', () => {
+await check('mutant caught: the old first-parent own-commit query finds no own commit on the gate-style merge (the scope section fails on it), and without the HEAD^2 rule the scope head is the merge itself', () => {
   const head = scopeHead(GATE, { gateRule: false })
   assert.equal(head, GATE)
-  assert.throws(() => scopeOwnCommits(head), /no own commit yet/)
+  assert.throws(() => scopeOwnCommits(head, { firstParentOnly: true }), /no own commit yet/)
+  assert.doesNotThrow(() => scopeOwnCommits(head), 'the subject query across the line finds them on the merge itself')
+})
+await check('mutant caught: a stray non-#539 file in a "Clean chat order:" commit fails the committed-files check (the own commits are found by subject, the diff names the file)', () => {
+  const run = (args, input) => execFileSync('git', args, { cwd: repo, encoding: 'utf8', input, env: { ...process.env, ...GATE_IDENT }, stdio: ['pipe', 'pipe', 'pipe'] }).trim()
+  const tree = run(['mktree'], `${git('ls-tree', HEAD)}100644 blob ${run(['hash-object', '-w', '--stdin'], 'stray\n')}\tstray-chat-clean-order.txt\n`)
+  const stray = run(['commit-tree', tree, '-p', HEAD, '-m', `${CHAT_CLEAN_ORDER_SUBJECT} a stray file\n\nCo-Authored-By: Claude Sonnet 5.5 <noreply@anthropic.com>`])
+  assert.ok(ownOf(stray).includes(stray), 'the stray commit is found by its subject')
+  assert.doesNotThrow(() => scopeCommittedFiles(HEAD), 'the real head passes')
+  assert.throws(() => scopeCommittedFiles(stray), undefined, 'the committed-files check must fail on a stray file')
 })
 await check('plumbing: the lib reads the literal env names (exact "true", both flags); the list reads the lib\'s constant; .env.example documents "false" once; the new lib and component import only what they need', () => {
   const text = read(LIB)
