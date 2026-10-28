@@ -13,7 +13,7 @@
 // one line where the result is read). Strip those lines and each file is its base, byte for byte. No new file in lib/ or components/.
 // How the older pins reach it: this change REGISTERS its files, its .env.example block and this strip (scripts/studio-later-changes.mjs, three lines). Plain node, no imports, nothing read from disk or git here.
 
-export const BASE_COMMIT = '88c59f3cffd600489027ae5268f2c971970b65e7' // origin/studio-v4-dev-preparation-code with #542 (model choice deck save) merged: dev, which this change is cut from
+export const BASE_COMMIT = '2e280442f3a845673232d935dc7f0afcb905d6f6' // origin/studio-v4-dev-preparation-code with #539 (clean chat order) merged on top of #542 (model choice deck save): dev, which this change is merged with (it was cut from 88c59f3c)
 export const MODEL_CHOICE_PREFS_VERSION_FLAG = 'NEXT_PUBLIC_STUDIO_MODEL_CHOICE_PREFS_VERSION'
 export const MODEL_CHOICE_PREFS_VERSION_MARKER = 'MODEL-CHOICE-PREFS-VERSION'
 /** The marker as a WHOLE token: MODEL-CHOICE (#521's), MODEL-CHOICE-DECK-SAVE (#542's) or X-MODEL-CHOICE-PREFS-VERSION are not this change's. */
