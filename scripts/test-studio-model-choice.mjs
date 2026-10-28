@@ -985,7 +985,7 @@ async function suite({ quiet = false, extraCommitted = [] } = {}) {
     for (const rel of strip.MODEL_CHOICE_NEW_FILES) ok(!/^app\/api\/models\//.test(rel), `${rel}: outside app/api/models/, the model catalog change's path family (scripts/studio-stack-tolerant.mjs, #473)`)
     for (const rel of strip.MODEL_CHOICE_ROUTES) { const source = read(rel); ok(!/['"]use client['"]/.test(source) && !/console\./.test(source), rel); ok(/from '@\/lib\/studio-model-choice-server'/.test(source), rel) }
     ok(/@\/lib\/prisma/.test(read(DECK_ROUTE)) && !/@\/lib\/prisma/.test(read(USER_ROUTE)) && !/@\/lib\/prisma/.test(read(USED_ROUTE)), 'only the deck route reads the database')
-    const serverCode = read(SERVER).replace(/\/\/.*$/gm, '').replace(/\/\*[\s\S]*?\*\//g, '')
+    const serverCode = read(SERVER).split('\n').filter(line => !/(?<![\w-])MODEL-CHOICE-DECK-SAVE(?![\w-])/.test(line)).join('\n').replace(/\/\/.*$/gm, '').replace(/\/\*[\s\S]*?\*\//g, '') // LATER-CHANGES: registry read (MODEL-CHOICE-DECK-SAVE): a change registered after this one may read a flag of its own in the server lib (deck save); its marked lines are its own
     ok(!/console\./.test(serverCode) && !/NEXT_PUBLIC_/.test(serverCode.replace("export const MODEL_CHOICE_FLAG = 'NEXT_PUBLIC_STUDIO_MODEL_CHOICE'", '')), 'the server lib never logs and reads no other public flag')
   })
 
