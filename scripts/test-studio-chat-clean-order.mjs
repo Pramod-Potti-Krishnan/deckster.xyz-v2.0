@@ -589,7 +589,7 @@ const scopeEnvAndRegistry = HEAD => {
   assert.equal(diff.length, 3); for (const line of diff) assert.ok(line.startsWith('+') && line.includes('LATER-CHANGE') && line.includes('studio-chat-clean-order-strip.mjs'), line.slice(0, 140))
 }
 await check(`this change's own commits (subject starts "${CHAT_CLEAN_ORDER_SUBJECT}", found across the whole line, no merges) exist, with the co-author line; a commit that is not one touches only files a later change registered; none starts "Chat clean" (that prefix is the chat clean proof's own-commit grep)`, () => scopeOwnCommits(HEAD))
-await check('the committed files are exactly this change\'s (two older proofs, chat undo v2\'s and #538\'s, taught a registry read); every line added to the list is a pure insertion that carries the marker (eight of them); the strip gives the base back byte for byte, also through the registry', () => scopeCommittedFiles(HEAD))
+await check('the committed files are exactly this change\'s (three older proofs, chat undo v2\'s, #538\'s and #542\'s, taught the stack); every line added to the list is a pure insertion that carries the marker (eight of them); the strip gives the base back byte for byte, also through the registry', () => scopeCommittedFiles(HEAD))
 // GATE-SAFE: build the gate's merge (first parent BASE, second parent this change's head; the tree is `git merge-tree --write-tree BASE head`) and run the whole scope section against it.
 const GATE_IDENT = { GIT_AUTHOR_NAME: 'gate', GIT_AUTHOR_EMAIL: 'gate@example.invalid', GIT_COMMITTER_NAME: 'gate', GIT_COMMITTER_EMAIL: 'gate@example.invalid', GIT_AUTHOR_DATE: '2026-10-27T00:00:00Z', GIT_COMMITTER_DATE: '2026-10-27T00:00:00Z' }
 const gateStyleMerge = head => {
