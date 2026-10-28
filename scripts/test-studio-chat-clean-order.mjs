@@ -32,6 +32,21 @@ import { execFileSync } from 'node:child_process'
 import { fileURLToPath } from 'node:url'
 import ts from 'typescript'
 
+// STALL TRACE (B41, tests only; STDERR only: stdout and every check are unchanged). step(name) says where the run is and writes "[trace] <ms> <name>". A 240 s unref'd watchdog writes the current check and step, the elapsed time,
+// the active resources and any child still running, then exits 124, so a runner whose own timeout is longer keeps a tail instead of an empty TIMEOUT. It cannot interrupt a blocking git call (the thread is busy), so every child
+// below has `timeout: 60_000`. An exit that is neither 0, 1 nor 124 (13 = an await nothing can settle) names the step too. TEST-ONLY, inert unless set: STUDIO_PROOF_TRACE_WATCHDOG_MS shortens the watchdog;
+// STUDIO_PROOF_TRACE_SELFTEST=stall stalls on purpose after section 1 (any other value stalls with nothing holding the loop open).
+const TRACE_T0 = Date.now()
+let traceStep = 'start', traceCheck = ''
+const step = name => { traceStep = String(name).slice(0, 160); process.stderr.write(`[trace] ${Date.now() - TRACE_T0} ${traceStep}\n`) }
+setTimeout(() => {
+  let children = ''
+  try { children = execFileSync('pgrep', ['-lP', String(process.pid)], { encoding: 'utf8', timeout: 5_000, stdio: ['ignore', 'pipe', 'ignore'] }).trim() } catch { /* none, or no pgrep */ }
+  process.stderr.write(`[trace] WATCHDOG: stalled at step "${traceStep}" in check "${traceCheck.slice(0, 100)}" after ${Date.now() - TRACE_T0} ms; exit 124\n[trace] active resources: ${(process.getActiveResourcesInfo?.() ?? []).join(', ') || 'none'}\n[trace] child processes: ${children.split('\n').join('; ') || 'none'}\n`)
+  process.exit(124)
+}, Number(process.env.STUDIO_PROOF_TRACE_WATCHDOG_MS) || 240_000).unref()
+process.on('exit', code => { if (code !== 0 && code !== 1 && code !== 124) process.stderr.write(`[trace] exit ${code} at step "${traceStep}" in check "${traceCheck.slice(0, 100)}" after ${Date.now() - TRACE_T0} ms\n`) })
+
 const repo = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..')
 const require = createRequire(import.meta.url)
 const FLAG = 'NEXT_PUBLIC_STUDIO_CHAT_CLEAN_ORDER'
@@ -43,12 +58,14 @@ const read = rel => fs.readFileSync(path.join(repo, rel), 'utf8')
 const sha = text => crypto.createHash('sha256').update(text).digest('hex')
 let passed = 0, failed = 0
 async function check(label, fn) {
+  traceCheck = label; step(label)
   try { await fn(); passed++; console.log(`  ok   ${label}`) } catch (error) { failed++; console.log(`  FAIL ${label}\n       ${String(error?.message ?? error).split('\n').join('\n       ')}`) }
 }
 
 // React and the offline host are loaded AFTER NODE_ENV is set above (a static import would load React's development build first and mismatch the production server renderer).
 const React = require('react')
 const { renderToStaticMarkup } = require('react-dom/server')
+step('load: React, the chat harness, the later-changes registry and the strip module')
 const { installHostNetworkGuard } = await import('./studio-chat-harness/fake-env.mjs')
 const { createModuleLoader } = await import('./studio-chat-harness/module-loader.mjs')
 const { Root, hostNodes, textOf, toElements } = await import('./studio-chat-harness/mini-react.mjs')
@@ -168,6 +185,7 @@ function libChecks(libText = read(LIB)) {
 
 console.log('1. the lib')
 await check('the flag, a row\'s time, where each note goes, the hidden stop note, the newest approval card, the line\'s step and visibility', () => libChecks())
+if (process.env.STUDIO_PROOF_TRACE_SELFTEST) { step('selftest: stalling on purpose'); await new Promise(() => { if (process.env.STUDIO_PROOF_TRACE_SELFTEST === 'stall') setInterval(() => {}, 2 ** 30) }) } // TEST-ONLY (see the STALL TRACE note): inert unless the variable is set
 
 // ============================================================================================================================================
 // The world: the REAL narration hook and reducer, the REAL notes hook, the REAL MessageList (and, flag on, the REAL tail), on the offline React host
@@ -184,6 +202,7 @@ const BUILDING_LABEL = 'Building your slides…'
 const ENV = { NODE_ENV: 'production', NEXT_PUBLIC_STUDIO_V4_SHELL: 'true', NEXT_PUBLIC_STUDIO_CHAT_CLEAN: 'true', NEXT_PUBLIC_BUILD_NARRATION: 'true', NEXT_PUBLIC_BUILD_CONTROL: 'true' }
 
 async function makeWorld({ order = false, overrides = {} } = {}) {
+  step(`world: flag ${order ? 'on' : 'off'}, overrides [${Object.keys(overrides).join(', ')}]`)
   const clock = { now: T0 }
   const FakeDate = class extends Date { constructor(...args) { if (args.length) super(...args); else super(clock.now) } static now() { return clock.now } }
   const processEnv = { ...ENV, ...(order ? { [FLAG]: 'true' } : {}) }
@@ -277,7 +296,7 @@ async function makeWorld({ order = false, overrides = {} } = {}) {
 async function runSession(options) {
   const w = await makeWorld(options)
   const cps = {}
-  const cp = name => { cps[name] = w.observe() }
+  const cp = name => { cps[name] = w.observe(); if (!traceCheck.startsWith('mutant caught')) step(`session checkpoint done: ${name}`) } // (a mutant's sessions stay quiet: its check and its world line say where it is)
   const gate = framesOf('outline_gate')
   await w.userSays('Make a four slide deck on cutting food waste with smarter ordering'); cp('brief')
   for (const frame of gate) {
@@ -427,6 +446,7 @@ function expectAsk({ off, on }) {
 
 // ---- one ask while the phase stays planning (no frame says "waiting") ---------------------------------------------------------------------------
 async function runAsk(options) {
+  step('ask session')
   const w = await makeWorld(options)
   const out = {}
   const gate = framesOf('outline_gate')
@@ -482,6 +502,7 @@ const mutate = (text, from, to, label) => { const at = text.indexOf(from); if (a
 /** Every expectation above, on a mutant (its overrides served to the loader, flag off and on): must throw. */
 async function mutantChecks(overrides) {
   const m = { off: await runSession({ order: false, overrides }), on: await runSession({ order: true, overrides }) }
+  step('mutant: lib checks and expectations')
   if (LIB in overrides) libChecks(overrides[LIB])
   expectDefect1(m); expectDefect2(m); expectUnchanged(m); expectIdentity({ off: m.off, base: sessions.base })
   expectAsk({ off: await runAsk({ order: false, overrides }), on: await runAsk({ order: true, overrides }) })
@@ -534,7 +555,7 @@ await check('mutant caught: an unmarked line added to the list is not stripped (
 })
 
 console.log('7. the sources, and the scope over the committed diff (BASE..HEAD)')
-const git = (...a) => execFileSync('git', a, { cwd: repo, encoding: 'utf8', maxBuffer: 1 << 28 })
+const git = (...a) => execFileSync('git', a, { cwd: repo, encoding: 'utf8', maxBuffer: 1 << 28, timeout: 60_000 })
 /** GATE-SAFE head of every own-commit / scope query. In the gate, HEAD is a local --no-ff merge whose FIRST parent is BASE (dev) and whose second parent is this change's head, so `rev-list --first-parent --no-merges BASE..HEAD` is empty: the
  *  scope then runs against HEAD^2. On a branch (HEAD is this change's own tip, or a merge of dev INTO it whose first parent is the change) HEAD itself is used. `gateRule: false` is the mutant that drops the rule. */
 function scopeHead(ref = 'HEAD', { gateRule = true } = {}) {
@@ -542,6 +563,7 @@ function scopeHead(ref = 'HEAD', { gateRule = true } = {}) {
   const parents = git('rev-list', '--parents', '-n', '1', sha).trim().split(/\s+/).slice(1)
   return gateRule && parents.length === 2 && parents[0] === BASE_COMMIT ? parents[1] : sha
 }
+step('scope: HEAD and the committed diff (git)')
 const HEAD = scopeHead('HEAD')
 const subjectOf = c => git('log', '-1', '--format=%s', c).trim()
 /** This change's commits: found by SUBJECT across `rev-list --no-merges BASE..head`. A first-parent walk (`firstParentOnly`, the old query, kept for its mutant) sees nothing on the gate's merge, and none of this change's commits once a change is stacked after it. */
@@ -557,7 +579,7 @@ const scopeOwnCommits = (head, opts) => {
 /** The strips of every change registered AFTER this one (below this change's strip in LATER_STRIPS), applied first: the identity checks read a file as this change left it. */
 const laterStrips = (rel, text) => { const strips = registry.LATER_STRIPS, at = strips.indexOf(stripChatCleanOrder); return (at === -1 ? [] : strips.slice(at + 1)).reduce((out, strip) => { const next = strip(rel, out); return typeof next === 'string' ? next : out }, text) }
 /** `git diff -U0` of the base file against the file at `head` with the later changes' marked lines out (one blob object is written). */
-const strippedDiff = (rel, head) => { const blob = execFileSync('git', ['hash-object', '-w', '--stdin'], { cwd: repo, encoding: 'utf8', input: laterStrips(rel, git('show', `${head}:${rel}`)), maxBuffer: 1 << 28 }).trim(); return git('diff', '-U0', `${BASE_COMMIT}:${rel}`, blob) }
+const strippedDiff = (rel, head) => { const blob = execFileSync('git', ['hash-object', '-w', '--stdin'], { cwd: repo, encoding: 'utf8', input: laterStrips(rel, git('show', `${head}:${rel}`)), maxBuffer: 1 << 28, timeout: 60_000 }).trim(); return git('diff', '-U0', `${BASE_COMMIT}:${rel}`, blob) }
 const scopeCommittedFiles = HEAD => {
   const changed = git('diff', '--name-only', `${BASE_COMMIT}..${HEAD}`).split('\n').filter(Boolean).filter(rel => CHAT_CLEAN_ORDER_SCOPE_FILES.has(rel) || !registry.LATER_CHANGE_FILES.has(rel)).sort()
   assert.deepEqual(changed, [...CHAT_CLEAN_ORDER_SCOPE_FILES].sort())
@@ -594,8 +616,9 @@ await check('the committed files are exactly this change\'s (three older proofs,
 const GATE_IDENT = { GIT_AUTHOR_NAME: 'gate', GIT_AUTHOR_EMAIL: 'gate@example.invalid', GIT_COMMITTER_NAME: 'gate', GIT_COMMITTER_EMAIL: 'gate@example.invalid', GIT_AUTHOR_DATE: '2026-10-27T00:00:00Z', GIT_COMMITTER_DATE: '2026-10-27T00:00:00Z' }
 const gateStyleMerge = head => {
   const tree = git('merge-tree', '--write-tree', BASE_COMMIT, head).trim().split('\n')[0]
-  return execFileSync('git', ['commit-tree', tree, '-p', BASE_COMMIT, '-p', head, '-m', 'gate-style merge (local, no ref)'], { cwd: repo, encoding: 'utf8', env: { ...process.env, ...GATE_IDENT } }).trim()
+  return execFileSync('git', ['commit-tree', tree, '-p', BASE_COMMIT, '-p', head, '-m', 'gate-style merge (local, no ref)'], { cwd: repo, encoding: 'utf8', env: { ...process.env, ...GATE_IDENT }, timeout: 60_000 }).trim()
 }
+step('scope: the gate-style merge (git merge-tree, commit-tree)')
 const GATE = gateStyleMerge(HEAD)
 await check('GATE-SAFE: on a gate-style merge (first parent BASE, second parent this change\'s head) the scope head is HEAD^2 and the whole scope section passes against it', () => {
   assert.deepEqual(git('rev-list', '--parents', '-n', '1', GATE).trim().split(/\s+/).slice(1), [BASE_COMMIT, HEAD], 'the gate-style merge: first parent BASE, second parent the head')
@@ -613,7 +636,7 @@ await check('mutant caught: the old first-parent own-commit query finds no own c
   assert.doesNotThrow(() => scopeOwnCommits(head), 'the subject query across the line finds them on the merge itself')
 })
 await check('mutant caught: a stray non-#539 file in a "Clean chat order:" commit fails the committed-files check (the own commits are found by subject, the diff names the file)', () => {
-  const run = (args, input) => execFileSync('git', args, { cwd: repo, encoding: 'utf8', input, env: { ...process.env, ...GATE_IDENT }, stdio: ['pipe', 'pipe', 'pipe'] }).trim()
+  const run = (args, input) => execFileSync('git', args, { cwd: repo, encoding: 'utf8', input, env: { ...process.env, ...GATE_IDENT }, stdio: ['pipe', 'pipe', 'pipe'], timeout: 60_000 }).trim()
   const tree = run(['mktree'], `${git('ls-tree', HEAD)}100644 blob ${run(['hash-object', '-w', '--stdin'], 'stray\n')}\tstray-chat-clean-order.txt\n`)
   const stray = run(['commit-tree', tree, '-p', HEAD, '-m', `${CHAT_CLEAN_ORDER_SUBJECT} a stray file\n\nCo-Authored-By: Claude Sonnet 5.5 <noreply@anthropic.com>`])
   assert.ok(ownOf(stray).includes(stray), 'the stray commit is found by its subject')
@@ -641,6 +664,7 @@ await check('the fixture is DIRECTOR-2\'s frame order (27 Oct) in recorded shape
   assert.ok(FIX.frames.outline_gate.every(f => f.session_id === FIX.session.id))
 })
 
+step('finish: print the summary')
 release()
 console.log(`\n${failed ? 'FAILED' : 'PASS'}: ${passed} passed, ${failed} failed`)
 process.exit(failed ? 1 : 0)
