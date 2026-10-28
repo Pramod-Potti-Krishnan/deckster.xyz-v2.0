@@ -63,6 +63,13 @@ const {
 } = stripModule
 const baseFile = rel => git('show', `${BASE}:${rel}`)
 const baseRead = rel => (STRIPPED_FILES.includes(rel) ? baseFile(rel) : read(rel))
+/** What a file is with the strips of every change registered AFTER this one applied first: a later change's marked lines are its own (the pattern of #532 for #522's pins). Applying mine on top gives the base. */
+const laterStrips = () => registry.LATER_STRIPS.slice(registry.LATER_STRIPS.indexOf(stripModelChoicePrefsVersion) + 1)
+const afterLater = (rel, text) => laterStrips().reduce((out, strip) => { const next = strip(rel, out); return typeof next === 'string' ? next : out }, text)
+/** The lines `b` has that `a` has not, "+", and the lines it lost, "-" (a multiset difference: these changes only insert lines). */
+const lineDiff = (a, b) => { const count = new Map(); for (const line of a.split('\n')) count.set(line, (count.get(line) ?? 0) - 1); for (const line of b.split('\n')) count.set(line, (count.get(line) ?? 0) + 1); return [...count].flatMap(([line, n]) => Array(Math.abs(n)).fill(`${n > 0 ? '+' : '-'}${line}`)) }
+/** The registry lines of every change registered after this one, read from the registry text: whatever sits below this change's own line in each list, in the registered shape. */
+const laterRegistryLines = text => { const later = new Set(); let after = false; for (const line of text.split('\n')) { if (/^export const LATER_/.test(line)) after = false; else if (line.includes('studio-model-choice-prefs-version-strip.mjs')) after = true; else if (after && line.includes('// LATER-CHANGE:') && /-strip\.mjs/.test(line)) later.add(line) } return later }
 
 // ---- the made-up people, the router key (built at run time, so no file carries one) and the words the picker already has ---------------------------------------------------------------------
 const KEY = ['fixture', 'frontend', crypto.randomBytes(8).toString('hex')].join('-')
@@ -464,9 +471,9 @@ await check('every read the browser makes is fetched no-store with no If-None-Ma
 console.log('G. Flag off is the base')
 await check('the strip gives each edited file its base back, byte for byte; the flag is named only on marked lines, read in the adapter and the two routes only; the server lib has no NEXT_PUBLIC_ name on its marked line', () => {
   for (const rel of STRIPPED_FILES) {
-    eq(stripModelChoicePrefsVersion(rel, read(rel)), baseFile(rel), `${rel}: without its marked lines the file is the base's`)
+    eq(stripModelChoicePrefsVersion(rel, afterLater(rel, read(rel))), baseFile(rel), `${rel}: without its marked lines (and the lines of any change registered after this one) the file is the base's`)
     ok(read(rel).split('\n').filter(line => line.includes('PREFS_VERSION')).every(line => MARKER_RE.test(line)), `${rel}: names it only on marked lines`)
-    ok(!stripModelChoicePrefsVersion(rel, read(rel)).includes('PREFS_VERSION'), rel)
+    ok(!stripModelChoicePrefsVersion(rel, afterLater(rel, read(rel))).includes('PREFS_VERSION'), rel)
   }
   eq(stripModelChoicePrefsVersion('hooks/use-deckster-websocket-v2.ts', 'x'), 'x')
   eq(registry.stripLaterChanges(SERVER, read(SERVER)), registry.stripLaterChanges(SERVER, baseFile(SERVER)), 'through the registry the server lib is the base')
@@ -525,54 +532,71 @@ await check('flag off (unset, "false", "1"): the hook shows and sends the same a
 })
 
 // ================================================================ H. scope over the committed diff, gate-safe
-console.log('H. Scope over the committed diff (BASE..HEAD, gate-safe)')
+console.log('H. Scope over the committed diff (BASE..HEAD, gate-safe, and after a later change)')
 const parentsOf = ref => git('rev-list', '--parents', '-n', '1', ref).trim().split(' ').slice(1)
 const firstParentOwn = ref => git('rev-list', '--first-parent', '--no-merges', `${BASE}..${ref}`).split('\n').filter(Boolean)
 const subjectOf = commit => git('log', '-1', '--format=%s', commit).trim()
-/** The commit own-commit queries start from. On the gate's merge (HEAD^1 = BASE, HEAD^2 = this branch's head) a first-parent walk from HEAD finds nothing, so every own-commit query starts from HEAD^2. A merge whose first parent
- * is not BASE but whose first-parent line holds no commit of this change (dev moved on before the gate) is read the same way. Anything else (the branch itself, or the branch with dev merged into it) starts from the ref. */
+/** This change's own commits: those whose subject starts "Model choice prefs version:", across every parent (`rev-list --no-merges BASE..ref`), so a branch that has a later change on it, or dev merged into it, still finds them. */
+const ownCommits = ref => git('rev-list', '--no-merges', `${BASE}..${ref}`).split('\n').filter(Boolean).filter(commit => subjectOf(commit).startsWith(SUBJECT))
+/** The commit own-commit queries start from. On the gate's merge (HEAD^1 = BASE, HEAD^2 = this branch's head) a first-parent walk from HEAD finds nothing, so every own-commit query starts from HEAD^2; a merge whose first parent
+ * is not BASE but whose first-parent line holds no commit of this change (dev moved on before the gate) is read the same way. Anything else (the branch itself, the branch with dev merged into it, or with a later change on it) starts from the ref. */
 function ownRef(ref) {
   const parents = parentsOf(ref)
   if (parents.length === 2 && parents[0] === BASE) return parents[1]
   if (parents.length === 2 && !firstParentOwn(ref).some(commit => subjectOf(commit).startsWith(SUBJECT))) return parents[1]
   return ref
 }
-const gitEnv = { ...process.env, GIT_AUTHOR_NAME: 'proof', GIT_AUTHOR_EMAIL: 'proof@example.test', GIT_COMMITTER_NAME: 'proof', GIT_COMMITTER_EMAIL: 'proof@example.test', GIT_AUTHOR_DATE: '2026-10-27T00:00:00Z', GIT_COMMITTER_DATE: '2026-10-27T00:00:00Z' }
+const gitEnv = { ...process.env, GIT_AUTHOR_NAME: 'proof', GIT_AUTHOR_EMAIL: 'proof@example.test', GIT_COMMITTER_NAME: 'proof', GIT_COMMITTER_EMAIL: 'proof@example.test', GIT_AUTHOR_DATE: '2026-10-28T00:00:00Z', GIT_COMMITTER_DATE: '2026-10-28T00:00:00Z' }
+const gitIn = (env, input, ...args) => execFileSync('git', args, { cwd: root, encoding: 'utf8', env, input, maxBuffer: 1 << 28, stdio: ['pipe', 'pipe', 'pipe'] })
 /** The gate's merge of `head` onto BASE: `git commit-tree $(git merge-tree --write-tree BASE head) -p BASE -p head`. */
 function gateMerge(headRef) {
   const tree = git('merge-tree', '--write-tree', BASE, headRef).split('\n')[0].trim()
-  return execFileSync('git', ['commit-tree', tree, '-p', BASE, '-p', headRef, '-m', 'gate-style merge (proof)'], { cwd: root, encoding: 'utf8', env: gitEnv, stdio: ['ignore', 'pipe', 'pipe'] }).trim()
+  return gitIn(gitEnv, undefined, 'commit-tree', tree, '-p', BASE, '-p', headRef, '-m', 'gate-style merge (proof)').trim()
+}
+/** A commit on `parent` with `edits` ({ path: text }) applied, made with git plumbing in a throwaway index (no checkout, nothing in the working tree). */
+function commitOn(parent, subject, edits, { coAuthor = true } = {}) {
+  const index = git('rev-parse', '--git-path', `proof-index-${crypto.randomBytes(4).toString('hex')}`).trim(), env = { ...gitEnv, GIT_INDEX_FILE: path.resolve(root, index) }
+  try {
+    gitIn(env, undefined, 'read-tree', parent)
+    for (const [rel, text] of Object.entries(edits)) gitIn(env, undefined, 'update-index', '--add', '--cacheinfo', `100644,${gitIn(env, text, 'hash-object', '-w', '--stdin').trim()},${rel}`)
+    return gitIn(env, undefined, 'commit-tree', gitIn(env, undefined, 'write-tree').trim(), '-p', parent, '-m', `${subject}${coAuthor ? '\n\nCo-Authored-By: Claude Sonnet 5.5 <noreply@anthropic.com>' : ''}`).trim()
+  } finally { fs.rmSync(path.resolve(root, index), { force: true }) }
 }
 const SECRETS = /(sk-[A-Za-z0-9]{16,}|AKIA[0-9A-Z]{12,}|eyJ[A-Za-z0-9_-]{20,}\.|-----BEGIN [A-Z ]*PRIVATE KEY|ghp_[A-Za-z0-9]{20,}|xox[bp]-|Bearer [A-Za-z0-9._-]{16,})/
 const EXPECTED_MARKED = { [USER_ROUTE]: 4, [DECK_ROUTE]: 4, [SERVER]: 1, [LIB]: 14, [HOOK]: 4, [CHOOSER]: 4 }
+const at = (ref, rel) => git('show', `${ref}:${rel}`)
+function ownAssertions(ref) {
+  const own = ownCommits(ownRef(ref))
+  ok(own.length >= 1, 'no own commit yet')
+  for (const c of own) {
+    ok(subjectOf(c).startsWith(SUBJECT), `subject of ${c.slice(0, 8)}`)
+    assert.match(git('log', '-1', '--format=%B', c), /Co-Authored-By: Claude Sonnet 5\.5 <noreply@anthropic\.com>\s*$/, c.slice(0, 8))
+  }
+  return own
+}
+function fileAssertions(ref) {
+  const own = ownCommits(ownRef(ref)), touched = new Set(); for (const c of own) for (const rel of git('show', '--name-only', '--format=', c).split('\n').filter(Boolean)) touched.add(rel)
+  deep([...touched].filter(rel => SCOPE_FILES.has(rel) || !registry.LATER_CHANGE_FILES.has(rel)).sort(), [...SCOPE_FILES].sort())
+  for (const rel of STRIPPED_FILES) {
+    const stripped = afterLater(rel, at(ref, rel)), diff = lineDiff(baseFile(rel), stripped) // the file with the strips of any later change applied first, against the base
+    for (const line of diff) { ok(line.startsWith('+'), `${rel}: a removed line: ${line.slice(0, 120)}`); assert.match(line, MARKER_RE, `${rel}: an unmarked added line: ${line.slice(0, 120)}`) }
+    eq(diff.length, EXPECTED_MARKED[rel], `${rel}: the marked lines`)
+    eq(stripModelChoicePrefsVersion(rel, stripped), baseFile(rel), `${rel}: without its marked lines the file is the base's, byte for byte`)
+  }
+  for (const rel of NEW_FILES) eq(git('cat-file', '-t', `${ref}:${rel}`).trim(), 'blob', rel)
+  for (const rel of stripModule.MODEL_CHOICE_PREFS_VERSION_PIN_FILES) eq(stripModelChoicePrefsVersion(rel, afterLater(rel, at(ref, rel))), baseFile(rel), `${rel}: the taught proof is the base's without the lines`)
+}
+function registryAssertions(ref) {
+  eq(registry.stripLaterEnvBlocks(ENV, at(ref, ENV)), registry.stripLaterEnvBlocks(ENV, `${baseFile(ENV)}\n${ENV_BLOCK}`)) // every registered block, this change's and a later change's alike, comes out first
+  ok(at(ref, ENV).includes(`\n\n${ENV_BLOCK}`), 'a blank line before the block')
+  const later = laterRegistryLines(at(ref, REGISTRY)), diff = git('diff', '-U0', BASE, ref, '--', REGISTRY).split('\n').filter(line => /^[+-]/.test(line) && !/^(\+\+\+|---) /.test(line) && !(line.startsWith('+') && later.has(line.slice(1))))
+  eq(diff.length, 3); for (const line of diff) ok(line.startsWith('+') && line.includes('LATER-CHANGE') && line.includes('studio-model-choice-prefs-version-strip.mjs'), line.slice(0, 140))
+  for (const rel of NEW_FILES) assert.doesNotMatch(at(ref, rel).replace(/Bearer \$\{KEY\}/g, ''), SECRETS, rel)
+}
 async function scopeChecks(ref, title) {
-  const R = ownRef(ref), own = firstParentOwn(R), at = rel => git('show', `${ref}:${rel}`)
-  await check(`${title}: this change's own commits (read from ${R === ref ? 'the ref' : 'its second parent'}; first-parent, no merges, subject "${SUBJECT}") exist, every one is, with the co-author line`, () => {
-    ok(own.length >= 1, 'no own commit yet')
-    for (const c of own) {
-      ok(subjectOf(c).startsWith(SUBJECT), `subject of ${c.slice(0, 8)}`)
-      assert.match(git('log', '-1', '--format=%B', c), /Co-Authored-By: Claude Sonnet 5\.5 <noreply@anthropic\.com>\s*$/, c.slice(0, 8))
-    }
-  })
-  await check(`${title}: the files the own commits touch are exactly this change's; every line added to an existing file is a pure insertion that carries the marker; the strip gives each its base back`, () => {
-    const touched = new Set(); for (const c of own) for (const rel of git('show', '--name-only', '--format=', c).split('\n').filter(Boolean)) touched.add(rel)
-    deep([...touched].filter(rel => SCOPE_FILES.has(rel) || !registry.LATER_CHANGE_FILES.has(rel)).sort(), [...SCOPE_FILES].sort())
-    for (const rel of STRIPPED_FILES) {
-      const diff = git('diff', '-U0', BASE, ref, '--', rel).split('\n').filter(line => /^[+-]/.test(line) && !/^(\+\+\+|---) /.test(line))
-      for (const line of diff) { ok(line.startsWith('+'), `${rel}: a removed line: ${line.slice(0, 120)}`); assert.match(line, MARKER_RE, `${rel}: an unmarked added line: ${line.slice(0, 120)}`) }
-      eq(diff.length, EXPECTED_MARKED[rel], `${rel}: the marked lines`)
-      eq(stripModelChoicePrefsVersion(rel, at(rel)), baseFile(rel), `${rel}: without its marked lines the file is the base's, byte for byte`)
-    }
-    for (const rel of NEW_FILES) eq(git('cat-file', '-t', `${ref}:${rel}`).trim(), 'blob', rel)
-    for (const rel of stripModule.MODEL_CHOICE_PREFS_VERSION_PIN_FILES) eq(stripModelChoicePrefsVersion(rel, at(rel)), baseFile(rel), `${rel}: the taught proof is the base's without the lines`)
-  })
-  await check(`${title}: .env.example is the base plus the block (after one blank line); the registry gains exactly its three marked lines and loses none; no secret-shaped literal in the new files`, () => {
-    eq(registry.stripLaterEnvBlocks(ENV, at(ENV)), registry.stripLaterEnvBlocks(ENV, `${baseFile(ENV)}\n${ENV_BLOCK}`))
-    ok(at(ENV).includes(`\n\n${ENV_BLOCK}`), 'a blank line before the block')
-    const diff = git('diff', '-U0', BASE, ref, '--', REGISTRY).split('\n').filter(line => /^[+-]/.test(line) && !/^(\+\+\+|---) /.test(line))
-    eq(diff.length, 3); for (const line of diff) ok(line.startsWith('+') && line.includes('LATER-CHANGE') && line.includes('studio-model-choice-prefs-version-strip.mjs'), line.slice(0, 140))
-    for (const rel of NEW_FILES) assert.doesNotMatch(at(rel).replace(/Bearer \$\{KEY\}/g, ''), SECRETS, rel)
-  })
+  await check(`${title}: this change's own commits (by subject "${SUBJECT}", across every parent of BASE..ref; read from ${ownRef(ref) === ref ? 'the ref' : 'its second parent'}) exist, each with the co-author line`, () => { ownAssertions(ref) })
+  await check(`${title}: the files the own commits touch are exactly this change's; every line it adds to an existing file (read past the strips of any later change) is a pure insertion that carries the marker; the strip gives each its base back`, () => { fileAssertions(ref) })
+  await check(`${title}: .env.example is the base plus the block (after one blank line, any later block read past); the registry gains exactly its three marked lines and loses none (any later change's lines read past); no secret-shaped literal in the new files`, () => { registryAssertions(ref) })
 }
 await scopeChecks('HEAD', 'HEAD')
 let mineHead = 'HEAD'
@@ -588,10 +612,28 @@ await check('the gate-style merge is built the way the gate builds it (git merge
   await scopeChecks(merge, 'on a gate-style merge')
 }
 await check('and a merge the gate makes after dev moved on (a later commit on BASE\'s side) is read from its second parent too', () => {
-  const tip = execFileSync('git', ['commit-tree', git('rev-parse', `${BASE}^{tree}`).trim(), '-p', BASE, '-m', 'dev moved on (proof)'], { cwd: root, encoding: 'utf8', env: gitEnv, stdio: ['ignore', 'pipe', 'pipe'] }).trim()
+  const tip = gitIn(gitEnv, undefined, 'commit-tree', git('rev-parse', `${BASE}^{tree}`).trim(), '-p', BASE, '-m', 'dev moved on (proof)').trim()
   const tree = git('merge-tree', '--write-tree', tip, mineHead).split('\n')[0].trim()
-  const merge = execFileSync('git', ['commit-tree', tree, '-p', tip, '-p', mineHead, '-m', 'gate-style merge, dev moved (proof)'], { cwd: root, encoding: 'utf8', env: gitEnv, stdio: ['ignore', 'pipe', 'pipe'] }).trim()
+  const merge = gitIn(gitEnv, undefined, 'commit-tree', tree, '-p', tip, '-p', mineHead, '-m', 'gate-style merge, dev moved (proof)').trim()
   eq(ownRef(merge), git('rev-parse', mineHead).trim()); ok(firstParentOwn(ownRef(merge)).every(c => subjectOf(c).startsWith(SUBJECT)))
+})
+await check('after a later change: a commit "Later change: x" on the gate-style merge that adds a correctly shaped registered line to each list and a new file leaves the own-commit and file checks passing, and the registry check reads past its lines; a "Model choice prefs version:" commit that touches a foreign file, or has no co-author line, or adds an unregistered registry line still fails', () => {
+  const gate = gateMerge(mineHead), registryText = at(gate, REGISTRY), MARKER = '  // one line per later change, above this comment\n'
+  const shaped = `  (await import('./studio-later-x-strip.mjs')).LATER_X, // LATER-CHANGE: SOMEONE, a later change (NEXT_PUBLIC_LATER_X)\n`
+  const withLater = registryText.split(MARKER).join(`${shaped}${MARKER}`)
+  const later = commitOn(gate, 'Later change: x', { [REGISTRY]: withLater, 'scripts/studio-later-x-strip.mjs': 'export const LATER_X = 1\n' })
+  ownAssertions(later); fileAssertions(later)
+  eq(ownCommits(later).length, ownCommits(gate).length, 'a later change\'s commit is not one of ours')
+  const laterDiff = git('diff', '-U0', BASE, later, '--', REGISTRY).split('\n').filter(line => /^\+[^+]/.test(line)); eq(laterDiff.length, 6, 'the raw registry diff has the later lines too')
+  const lines = laterRegistryLines(withLater); eq(lines.size, 3, 'read as the later change\'s three lines'); for (const line of lines) ok(line.includes('studio-later-x-strip.mjs'))
+  // the registry check on that branch, without the .env half (the working tree's registry does not know the later block)
+  const diff = git('diff', '-U0', BASE, later, '--', REGISTRY).split('\n').filter(line => /^[+-]/.test(line) && !/^(\+\+\+|---) /.test(line) && !(line.startsWith('+') && lines.has(line.slice(1)))); eq(diff.length, 3)
+  const stray = commitOn(later, `${SUBJECT} a stray`, { 'README.md': `${git('show', 'HEAD:README.md')}\nstray\n` })
+  assert.throws(() => fileAssertions(stray), undefined, 'a foreign file in a commit of ours is a stray')
+  const unsigned = commitOn(later, `${SUBJECT} no co-author`, {}, { coAuthor: false }); assert.throws(() => ownAssertions(unsigned), undefined, 'a commit of ours without the co-author line')
+  const unregistered = commitOn(later, `${SUBJECT} a stray registry line`, { [REGISTRY]: withLater.split(MARKER).join(`  // a stray line nobody registered\n${MARKER}`) })
+  const strayLater = laterRegistryLines(at(unregistered, REGISTRY)), strayDiff = git('diff', '-U0', BASE, unregistered, '--', REGISTRY).split('\n').filter(line => /^[+-]/.test(line) && !/^(\+\+\+|---) /.test(line) && !(line.startsWith('+') && strayLater.has(line.slice(1))))
+  eq(strayDiff.length, 4, 'an unregistered line is not read past')
 })
 
 // ================================================================ I. mutants
