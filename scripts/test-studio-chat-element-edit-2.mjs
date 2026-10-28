@@ -566,15 +566,18 @@ await check('mutant caught: #522\'s marker is not this one (a CHAT-ELEMENT-EDIT 
 
 // ---- 6. scope over the committed diff ---------------------------------------------------------------------------------------------------------------------------------------------
 console.log('6. Scope over the committed diff (BASE..HEAD)')
-const own = git('rev-list', '--first-parent', '--no-merges', `${BASE_COMMIT}..HEAD`).split('\n').filter(Boolean).filter(c => !git('log', '-1', '--format=%s', c).startsWith(targetedStrip.CHAT_EDIT_TARGETED_SUBJECT)) // LATER-CHANGES: registry read (CHAT-EDIT-TARGETED): the stacked change's commits are its own
-await check(`this change's own commits (first-parent, no merges, subject starts "${CHAT_ELEMENT_EDIT_2_SUBJECT}") exist, every commit on that line is one, with the co-author line`, () => {
+const ownOf = head => git('rev-list', '--no-merges', `${BASE_COMMIT}..${head}`).split('\n').filter(Boolean).filter(c => git('log', '-1', '--format=%s', c).startsWith(CHAT_ELEMENT_EDIT_2_SUBJECT)) // LATER-CHANGES: registry read (CHAT-CLEAN-ORDER), stacked after chat element edit 2: this change's commits are found by subject across the line, so a later change's commits (and the gate's merge, whose first parent is dev) do not hide them
+let own = ownOf('HEAD') // LATER-CHANGES: registry read (CHAT-CLEAN-ORDER), stacked after chat element edit 2
+const scope6 = [] // LATER-CHANGES: registry read (CHAT-CLEAN-ORDER), stacked after chat element edit 2: the checks of this section, kept so the mutant at the end can run them over a stray commit
+const check6 = (label, fn) => { scope6.push(fn); return check(label, fn) } // LATER-CHANGES: registry read (CHAT-CLEAN-ORDER), stacked after chat element edit 2
+await check6(`this change's own commits (first-parent, no merges, subject starts "${CHAT_ELEMENT_EDIT_2_SUBJECT}") exist, every commit on that line is one, with the co-author line`, () => { // LATER-CHANGES: registry read (CHAT-CLEAN-ORDER), stacked after chat element edit 2
   assert.ok(own.length >= 1, 'no own commit yet')
   for (const c of own) {
     assert.ok(git('log', '-1', '--format=%s', c).startsWith(CHAT_ELEMENT_EDIT_2_SUBJECT), `subject of ${c.slice(0, 8)}`)
     assert.match(git('log', '-1', '--format=%B', c), /Co-Authored-By: Claude Sonnet 5\.5 <noreply@anthropic\.com>\s*$/, c.slice(0, 8))
   }
 })
-await check('the files the own commits touch are exactly this change\'s; every line added to an existing file is a pure insertion that carries the marker; the strip gives each its base back', () => {
+await check6('the files the own commits touch are exactly this change\'s; every line added to an existing file is a pure insertion that carries the marker; the strip gives each its base back', () => { // LATER-CHANGES: registry read (CHAT-CLEAN-ORDER), stacked after chat element edit 2
   const touched = new Set(); for (const c of own) for (const rel of git('show', '--name-only', '--format=', c).split('\n').filter(Boolean)) touched.add(rel)
   assert.deepEqual([...touched].filter(rel => CHAT_ELEMENT_EDIT_2_SCOPE_FILES.has(rel) || !registry.LATER_CHANGE_FILES.has(rel)).sort(), [...CHAT_ELEMENT_EDIT_2_SCOPE_FILES].sort())
   const expected = { [PAGE]: 19, [LIB]: 8 }
@@ -586,13 +589,23 @@ await check('the files the own commits touch are exactly this change\'s; every l
   }
   for (const rel of CHAT_ELEMENT_EDIT_2_NEW_FILES) assert.ok(git('cat-file', '-t', `HEAD:${rel}`).trim() === 'blob', rel)
 })
-await check('.env.example is the base plus the block (after one blank line); the registry gains exactly its three marked lines and loses none; no secret-shaped literal in the new files', () => {
+await check6('.env.example is the base plus the block (after one blank line); the registry gains exactly its three marked lines and loses none; no secret-shaped literal in the new files', () => { // LATER-CHANGES: registry read (CHAT-CLEAN-ORDER), stacked after chat element edit 2
   assert.equal(registry.stripLaterEnvBlocks('.env.example', read('.env.example')), registry.stripLaterEnvBlocks('.env.example', `${baseFile('.env.example')}\n${CHAT_ELEMENT_EDIT_2_ENV_BLOCK}`))
   assert.ok(read('.env.example').includes(`\n\n${CHAT_ELEMENT_EDIT_2_ENV_BLOCK}`), 'a blank line before the block')
-  const diff = git('diff', '-U0', BASE_COMMIT, 'HEAD', '--', 'scripts/studio-later-changes.mjs').split('\n').filter(line => /^[+-]/.test(line) && !/^(\+\+\+|---) /.test(line)).filter(line => !line.includes('studio-chat-edit-targeted-strip.mjs')) // LATER-CHANGES: registry read (CHAT-EDIT-TARGETED)
+  const laterRegistry = (() => { const later = new Set(); let after = false; for (const line of git('show', 'HEAD:scripts/studio-later-changes.mjs').split('\n')) { if (/^export const LATER_/.test(line)) after = false; else if (line.includes('studio-chat-element-edit-2-strip.mjs')) after = true; else if (after && line.includes('// LATER-CHANGE:') && /-strip\.mjs/.test(line)) later.add(line) } return later })() // LATER-CHANGES: registry read (MODEL-CHOICE-DECK-SAVE), stacked after chat element edit 2: the registry lines of every change registered after this one (below this change's own line in each list, in the registered shape) are theirs, not this change's, so the count of three below reads past them
+  const diff = git('diff', '-U0', BASE_COMMIT, 'HEAD', '--', 'scripts/studio-later-changes.mjs').split('\n').filter(line => /^[+-]/.test(line) && !/^(\+\+\+|---) /.test(line) && !(line.startsWith('+') && laterRegistry.has(line.slice(1)))) // LATER-CHANGES: registry read (MODEL-CHOICE-DECK-SAVE), stacked after chat element edit 2: a line a later change added to the registry is its own
   assert.equal(diff.length, 3); for (const line of diff) assert.ok(line.startsWith('+') && line.includes('LATER-CHANGE') && line.includes('studio-chat-element-edit-2-strip.mjs'), line.slice(0, 140))
   for (const rel of ['scripts/test-studio-chat-element-edit-2.mjs', 'scripts/studio-chat-element-edit-2-strip.mjs', 'scripts/fixtures/chat-element-edit-2/e2e2-repro-element-edit.json', TWO]) assert.doesNotMatch(read(rel), /(sk-[A-Za-z0-9]{16,}|AKIA[0-9A-Z]{12,}|eyJ[A-Za-z0-9_-]{20,}\.|-----BEGIN [A-Z ]*PRIVATE KEY|ghp_[A-Za-z0-9]{20,}|xox[bp]-)/, rel)
 })
+await check('mutant caught: a stray non-#538 file in a "Chat element edit 2:" commit fails the files check (the own commits are found by subject across the whole line)', () => { // LATER-CHANGES: registry read (CHAT-CLEAN-ORDER), stacked after chat element edit 2
+  const run = (args, input, env = {}) => execFileSync('git', args, { cwd: repo, encoding: 'utf8', input, env: { ...process.env, ...env } }).trim() // LATER-CHANGES: registry read (CHAT-CLEAN-ORDER), stacked after chat element edit 2
+  const blob = run(['hash-object', '-w', '--stdin'], 'stray\n') // LATER-CHANGES: registry read (CHAT-CLEAN-ORDER), stacked after chat element edit 2
+  const tree = run(['mktree'], `${git('ls-tree', 'HEAD')}100644 blob ${blob}\tstray-chat-element-edit-2.txt\n`) // LATER-CHANGES: registry read (CHAT-CLEAN-ORDER), stacked after chat element edit 2
+  const ident = { GIT_AUTHOR_NAME: 'gate', GIT_AUTHOR_EMAIL: 'gate@example.invalid', GIT_COMMITTER_NAME: 'gate', GIT_COMMITTER_EMAIL: 'gate@example.invalid', GIT_AUTHOR_DATE: '2026-10-27T00:00:00Z', GIT_COMMITTER_DATE: '2026-10-27T00:00:00Z' } // LATER-CHANGES: registry read (CHAT-CLEAN-ORDER), stacked after chat element edit 2
+  const stray = run(['commit-tree', tree, '-p', 'HEAD', '-m', `${CHAT_ELEMENT_EDIT_2_SUBJECT} a stray file\n\nCo-Authored-By: Claude Sonnet 5.5 <noreply@anthropic.com>`], undefined, ident) // LATER-CHANGES: registry read (CHAT-CLEAN-ORDER), stacked after chat element edit 2
+  const real = own // LATER-CHANGES: registry read (CHAT-CLEAN-ORDER), stacked after chat element edit 2
+  try { own = ownOf(stray); assert.ok(own.includes(stray), 'the stray commit is found by its subject'); scope6[0](); assert.throws(() => scope6[1](), undefined, 'the files check must fail on a stray file') } finally { own = real } // LATER-CHANGES: registry read (CHAT-CLEAN-ORDER), stacked after chat element edit 2
+}) // LATER-CHANGES: registry read (CHAT-CLEAN-ORDER), stacked after chat element edit 2
 
 console.log(`\n${failed ? 'FAILED' : 'PASS'}: ${passed} passed, ${failed} failed`)
 process.exit(failed ? 1 : 0)

@@ -65,6 +65,8 @@ import "./studio-chat-composer.css"
 import { StudioChatCleanJob } from "@/components/builder/chat/studio-chat-clean" // CHAT-CLEAN (NEXT_PUBLIC_STUDIO_CHAT_CLEAN, default off)
 import type { ChatCleanThreadProps } from "@/lib/studio-chat-clean" // CHAT-CLEAN
 import "./studio-chat-clean.css" // CHAT-CLEAN: every rule keyed to [data-studio-chat-clean], an attribute the chat column carries only with the flag on
+import { STUDIO_CHAT_CLEAN_ORDER_ENABLED, chatCleanHiddenNoteId, chatCleanLastGateId, chatCleanNotePlan, chatCleanRowTime } from "@/lib/studio-chat-clean-order" // CHAT-CLEAN-ORDER (NEXT_PUBLIC_STUDIO_CHAT_CLEAN_ORDER, default off)
+import { StudioChatCleanNotesAt, StudioChatCleanOrderTail } from "@/components/builder/chat/studio-chat-clean-order" // CHAT-CLEAN-ORDER
 
 export interface MessageListProps {
   sessionId?: string | null
@@ -653,6 +655,9 @@ export function MessageList({
   // when something interrupted Director. Words only, from facts the page passes down read-only; the card has no button, so the existing message box
   // stays the only resend. Off, this is null and nothing is rendered.
   const recoveryCard = studio && process.env.NEXT_PUBLIC_STUDIO_CHAT_RECOVERY === 'true' ? studioChatRecoveryCard(studioRecovery) : null
+  // CHAT-CLEAN-ORDER (NEXT_PUBLIC_STUDIO_CHAT_CLEAN_ORDER, default off; lib/studio-chat-clean-order.ts): the thread's notes (stopped / paused / resumed, the user's directions) are drawn between the rows, where they happened, and the tail's working line is kept honest. Off, this is null and nothing below it renders or changes.
+  const chatCleanOrder = STUDIO_CHAT_CLEAN_ORDER_ENABLED && studio && studioChatClean ? { thread: studioChatClean, plan: chatCleanNotePlan(processedMessages.map(row => ({ kind: row.messageType === 'user' ? 'user' as const : 'bot' as const, time: chatCleanRowTime(row) })), studioChatClean.notes, chatCleanHiddenNoteId(studioChatClean.notes, studioChatClean.composer.mode)) } : null // CHAT-CLEAN-ORDER
+  if (chatCleanOrder) studioChatClean = undefined // CHAT-CLEAN-ORDER: the tail below is drawn by StudioChatCleanOrderTail instead; the prop's own line then renders nothing
 
   return (
     <>
@@ -705,6 +710,7 @@ export function MessageList({
         const msg = item as any;
         return (
           <React.Fragment key={msg.message_id || msg.id}>
+            {chatCleanOrder?.plan.before[index] ? <StudioChatCleanNotesAt notes={chatCleanOrder.plan.before[index]} /> : null}{/* CHAT-CLEAN-ORDER: notes that happened just before this row */}
             {(() => {
               if (msg.type === 'combined_strawman') {
                 const { slideUpdate, presentationUrl, actionRequest } = msg;
@@ -1055,6 +1061,7 @@ export function MessageList({
               }
               return null
             })()}
+            {chatCleanOrder?.plan.after[index] ? <StudioChatCleanNotesAt notes={chatCleanOrder.plan.after[index]} /> : null}{/* CHAT-CLEAN-ORDER: notes that happened just after this row */}
           </React.Fragment>
         )
       })}
@@ -1083,6 +1090,7 @@ export function MessageList({
           </div>
         </div>
       )}
+      {chatCleanOrder ? <StudioChatCleanOrderTail {...chatCleanOrder.thread} notes={chatCleanOrder.plan.tail} gate={chatCleanLastGateId(messages)} currentStatus={currentStatus} /> : null}{/* CHAT-CLEAN-ORDER: the notes after the last row and the job card, with the stale working line closed */}
       {studioChatClean ? <StudioChatCleanJob {...studioChatClean} currentStatus={currentStatus} /> : null}{/* CHAT-CLEAN: the notes and the inline job card (or Director's one status line) at the end of the thread; off, null */}
       {/* PR D (recovery flag on): the card shares the end anchor's slot, so with the flag off the child list is exactly the base's. */}
       {recoveryCard ? (
