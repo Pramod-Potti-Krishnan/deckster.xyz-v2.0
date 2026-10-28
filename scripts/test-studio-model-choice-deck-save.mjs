@@ -58,6 +58,7 @@ const {
 } = stripModule
 const baseFile = rel => git('show', `${BASE}:${rel}`)
 const baseRead = rel => (rel === SERVER || rel === HOOK ? baseFile(rel) : read(rel))
+const laterStrips = (rel, text) => { const strips = registry.LATER_STRIPS, at = strips.indexOf(stripModelChoiceDeckSave); return (at === -1 ? [] : strips.slice(at + 1)).reduce((out, strip) => { const next = strip(rel, out); return typeof next === 'string' ? next : out }, text) } // LATER-CHANGES: registry read (CHAT-CLEAN-ORDER), stacked after model choice deck save: the strips of every change registered after this one (below this change's own strip in LATER_STRIPS), applied first: the identity checks read each file as this change left it
 
 // ---- the made-up people, the router key (built at run time, so no file carries one) and the words the picker already has ---------------------------------------------------------------------
 const KEY = ['fixture', 'frontend', crypto.randomBytes(8).toString('hex')].join('-')
@@ -530,13 +531,13 @@ await check('a browser save on the reusable default (E2E-2 capture: its GET come
 console.log('E. Flag off is the base')
 await check('the strip gives each edited file its base back, byte for byte; a file the change does not own comes back untouched; the flag is named only on marked lines and read in these two files only', () => {
   for (const rel of MODEL_CHOICE_DECK_SAVE_FILES) {
-    eq(stripModelChoiceDeckSave(rel, read(rel)), baseFile(rel), `${rel}: without its marked lines the file is the base's`)
+    eq(stripModelChoiceDeckSave(rel, laterStrips(rel, read(rel))), baseFile(rel), `${rel}: without its marked lines the file is the base's`) // LATER-CHANGES: registry read (CHAT-CLEAN-ORDER), stacked after model choice deck save: the strips of the changes registered after this one come out first
     ok(read(rel).split('\n').filter(line => line.includes('STUDIO_MODEL_CHOICE_DECK_SAVE')).every(line => MODEL_CHOICE_DECK_SAVE_MARKER_RE.test(line)), `${rel}: names the flag only on marked lines`)
     ok(!stripModelChoiceDeckSave(rel, read(rel)).includes('STUDIO_MODEL_CHOICE_DECK_SAVE'), rel)
   }
   eq(stripModelChoiceDeckSave('hooks/use-deckster-websocket-v2.ts', 'x'), 'x')
   for (const rel of stripModule.MODEL_CHOICE_DECK_SAVE_PIN_FILES) {
-    eq(stripModelChoiceDeckSave(rel, read(rel)), baseFile(rel), `${rel}: the taught proof without this change's line is the base's, byte for byte`)
+    eq(stripModelChoiceDeckSave(rel, laterStrips(rel, read(rel))), baseFile(rel), `${rel}: the taught proof without this change's line is the base's, byte for byte`) // LATER-CHANGES: registry read (CHAT-CLEAN-ORDER), stacked after model choice deck save: the strips of the changes registered after this one come out first (their pins on this proof come back out)
     for (const [has] of stripModule.MODEL_CHOICE_DECK_SAVE_PIN_EDITS[rel]) { eq(read(rel).split(has).length, 2, `${rel}: the taught line is there once`); ok(has.includes(stripModule.MODEL_CHOICE_DECK_SAVE_PIN_MARK) && has.endsWith('\n'), 'and carries the mark') }
   }
   eq(registry.stripLaterChanges(SERVER, read(SERVER)), registry.stripLaterChanges(SERVER, baseFile(SERVER)), 'through the registry the file is the base')
@@ -633,6 +634,7 @@ console.log('F. Scope over the committed diff (BASE..HEAD, gate-safe)')
 const parentsOf = ref => git('rev-list', '--parents', '-n', '1', ref).trim().split(' ').slice(1)
 const firstParentOwn = ref => git('rev-list', '--first-parent', '--no-merges', `${BASE}..${ref}`).split('\n').filter(Boolean)
 const subjectOf = commit => git('log', '-1', '--format=%s', commit).trim()
+const ownCommits = ref => git('rev-list', '--no-merges', `${BASE}..${ref}`).split('\n').filter(Boolean).filter(commit => subjectOf(commit).startsWith(MODEL_CHOICE_DECK_SAVE_SUBJECT)) // LATER-CHANGES: registry read (CHAT-CLEAN-ORDER), stacked after model choice deck save: this change's commits are found by subject across the whole line (no first-parent walk): a later change's commits, a dev merge and the gate's merge (whose first parent is dev) do not hide them
 /** The commit own-commit queries start from. On the gate's merge (HEAD^1 = BASE, HEAD^2 = this branch's head) a first-parent walk from HEAD finds nothing, so every own-commit query starts from HEAD^2. A merge whose first parent
  * is not BASE but whose first-parent line holds no commit of this change (dev moved on before the gate) is read the same way. Anything else (the branch itself, or the branch with dev merged into it) starts from the ref. */
 function ownRef(ref) {
@@ -649,9 +651,11 @@ function gateMerge(headRef) {
 }
 const SECRETS = /(sk-[A-Za-z0-9]{16,}|AKIA[0-9A-Z]{12,}|eyJ[A-Za-z0-9_-]{20,}\.|-----BEGIN [A-Z ]*PRIVATE KEY|ghp_[A-Za-z0-9]{20,}|xox[bp]-|Bearer [A-Za-z0-9._-]{16,})/
 const EXPECTED_MARKED = { [SERVER]: 6, [HOOK]: 6 }
+const touchedFilesOf = own => { const touched = new Set(); for (const c of own) for (const rel of git('show', '--name-only', '--format=', c).split('\n').filter(Boolean)) touched.add(rel); return [...touched].filter(rel => MODEL_CHOICE_DECK_SAVE_SCOPE_FILES.has(rel) || !registry.LATER_CHANGE_FILES.has(rel)).sort() } // LATER-CHANGES: registry read (CHAT-CLEAN-ORDER), stacked after model choice deck save: the files the given commits touch, minus those a later change registered
+const strippedDiff = (rel, ref) => { const blob = execFileSync('git', ['hash-object', '-w', '--stdin'], { cwd: root, encoding: 'utf8', input: laterStrips(rel, git('show', `${ref}:${rel}`)), maxBuffer: 1 << 28 }).trim(); return git('diff', '-U0', `${BASE}:${rel}`, blob) } // LATER-CHANGES: registry read (CHAT-CLEAN-ORDER), stacked after model choice deck save: git diff of the base file against the file with the later changes' marked lines out (one blob object written)
 async function scopeChecks(ref, title) {
-  const R = ownRef(ref), own = firstParentOwn(R), at = rel => git('show', `${ref}:${rel}`)
-  await check(`${title}: this change's own commits (read from ${R === ref ? 'the ref' : 'its second parent'}; first-parent, no merges, subject "${MODEL_CHOICE_DECK_SAVE_SUBJECT}") exist, every one is, with the co-author line`, () => {
+  const own = ownCommits(ref), at = rel => git('show', `${ref}:${rel}`) // LATER-CHANGES: registry read (CHAT-CLEAN-ORDER), stacked after model choice deck save: the own commits are found by subject across the line
+  await check(`${title}: this change's own commits (found by subject "${MODEL_CHOICE_DECK_SAVE_SUBJECT}" across BASE..ref, no merges) exist, every one is, with the co-author line`, () => { // LATER-CHANGES: registry read (CHAT-CLEAN-ORDER), stacked after model choice deck save: the own commits are found by subject across the whole line, so a later change stacked on this one (or the gate's merge) does not hide them
     ok(own.length >= 1, 'no own commit yet')
     for (const c of own) {
       ok(subjectOf(c).startsWith(MODEL_CHOICE_DECK_SAVE_SUBJECT), `subject of ${c.slice(0, 8)}`)
@@ -659,27 +663,27 @@ async function scopeChecks(ref, title) {
     }
   })
   await check(`${title}: the files the own commits touch are exactly this change's; every line added to an existing file is a pure insertion that carries the marker; the strip gives each its base back`, () => {
-    const touched = new Set(); for (const c of own) for (const rel of git('show', '--name-only', '--format=', c).split('\n').filter(Boolean)) touched.add(rel)
-    deep([...touched].filter(rel => MODEL_CHOICE_DECK_SAVE_SCOPE_FILES.has(rel) || !registry.LATER_CHANGE_FILES.has(rel)).sort(), [...MODEL_CHOICE_DECK_SAVE_SCOPE_FILES].sort())
+    deep(touchedFilesOf(own), [...MODEL_CHOICE_DECK_SAVE_SCOPE_FILES].sort()) // LATER-CHANGES: registry read (CHAT-CLEAN-ORDER), stacked after model choice deck save: the files of the own commits, as a function of the commits (the stray-file mutant below runs it over a stray commit)
     for (const rel of MODEL_CHOICE_DECK_SAVE_FILES) {
-      const diff = git('diff', '-U0', BASE, ref, '--', rel).split('\n').filter(line => /^[+-]/.test(line) && !/^(\+\+\+|---) /.test(line))
+      const diff = strippedDiff(rel, ref).split('\n').filter(line => /^[+-]/.test(line) && !/^(\+\+\+|---) /.test(line)) // LATER-CHANGES: registry read (CHAT-CLEAN-ORDER), stacked after model choice deck save: the diff of the file as this change left it (the later changes' marked lines out)
       for (const line of diff) { ok(line.startsWith('+'), `${rel}: a removed line: ${line.slice(0, 120)}`); assert.match(line, MODEL_CHOICE_DECK_SAVE_MARKER_RE, `${rel}: an unmarked added line: ${line.slice(0, 120)}`) }
       eq(diff.length, EXPECTED_MARKED[rel], `${rel}: the marked lines`)
-      eq(stripModelChoiceDeckSave(rel, at(rel)), baseFile(rel), `${rel}: without its marked lines the file is the base's, byte for byte`)
+      eq(stripModelChoiceDeckSave(rel, laterStrips(rel, at(rel))), baseFile(rel), `${rel}: without its marked lines the file is the base's, byte for byte`) // LATER-CHANGES: registry read (CHAT-CLEAN-ORDER), stacked after model choice deck save: the strips of the changes registered after this one come out first
     }
     for (const rel of MODEL_CHOICE_DECK_SAVE_NEW_FILES) eq(git('cat-file', '-t', `${ref}:${rel}`).trim(), 'blob', rel)
     for (const rel of stripModule.MODEL_CHOICE_DECK_SAVE_PIN_FILES) {
-      const diff = git('diff', '-U0', BASE, ref, '--', rel).split('\n').filter(line => /^[+-]/.test(line) && !/^(\+\+\+|---) /.test(line)), edits = stripModule.MODEL_CHOICE_DECK_SAVE_PIN_EDITS[rel]
+      const diff = strippedDiff(rel, ref).split('\n').filter(line => /^[+-]/.test(line) && !/^(\+\+\+|---) /.test(line)), edits = stripModule.MODEL_CHOICE_DECK_SAVE_PIN_EDITS[rel] // LATER-CHANGES: registry read (CHAT-CLEAN-ORDER), stacked after model choice deck save: the diff of the file as this change left it (the later changes' marked lines out)
       const lines = text => text.split('\n').length - 1
       eq(diff.filter(line => line.startsWith('+')).length, edits.reduce((n, [has]) => n + lines(has), 0), `${rel}: the lines the taught proof has now`); eq(diff.filter(line => line.startsWith('-')).length, edits.reduce((n, [, was]) => n + lines(was), 0), `${rel}: the lines it had`)
       for (const line of diff.filter(line => line.startsWith('+'))) ok(line.includes(stripModule.MODEL_CHOICE_DECK_SAVE_PIN_MARK), `${rel}: every line added carries the mark`)
-      eq(stripModelChoiceDeckSave(rel, at(rel)), baseFile(rel), `${rel}: the taught proof is the base's without the lines`)
+      eq(stripModelChoiceDeckSave(rel, laterStrips(rel, at(rel))), baseFile(rel), `${rel}: the taught proof is the base's without the lines`) // LATER-CHANGES: registry read (CHAT-CLEAN-ORDER), stacked after model choice deck save: the strips of the changes registered after this one come out first
     }
   })
   await check(`${title}: .env.example is the base plus the block (after one blank line); the registry gains exactly its three marked lines and loses none; no secret-shaped literal in the new files`, () => {
     eq(registry.stripLaterEnvBlocks(ENV, at(ENV)), registry.stripLaterEnvBlocks(ENV, `${baseFile(ENV)}\n${MODEL_CHOICE_DECK_SAVE_ENV_BLOCK}`))
     ok(at(ENV).includes(`\n\n${MODEL_CHOICE_DECK_SAVE_ENV_BLOCK}`), 'a blank line before the block')
-    const diff = git('diff', '-U0', BASE, ref, '--', REGISTRY).split('\n').filter(line => /^[+-]/.test(line) && !/^(\+\+\+|---) /.test(line))
+    const laterRegistry = (() => { const later = new Set(); let after = false; for (const line of at(REGISTRY).split('\n')) { if (/^export const LATER_/.test(line)) after = false; else if (line.includes('studio-model-choice-deck-save-strip.mjs')) after = true; else if (after && line.includes('// LATER-CHANGE:') && /-strip\.mjs/.test(line)) later.add(line) } return later })() // LATER-CHANGES: registry read (CHAT-CLEAN-ORDER), stacked after model choice deck save: the registry lines of every change registered after this one (below this change's own line in each list, in the registered shape) are theirs, not this change's, so the count of three below reads past them
+    const diff = git('diff', '-U0', BASE, ref, '--', REGISTRY).split('\n').filter(line => /^[+-]/.test(line) && !/^(\+\+\+|---) /.test(line) && !(line.startsWith('+') && laterRegistry.has(line.slice(1)))) // LATER-CHANGES: registry read (CHAT-CLEAN-ORDER), stacked after model choice deck save: a line a change registered after this one added is its own
     eq(diff.length, 3); for (const line of diff) ok(line.startsWith('+') && line.includes('LATER-CHANGE') && line.includes('studio-model-choice-deck-save-strip.mjs'), line.slice(0, 140))
     for (const rel of MODEL_CHOICE_DECK_SAVE_NEW_FILES) assert.doesNotMatch(at(rel).replace(/Bearer \$\{KEY\}/g, ''), SECRETS, rel)
   })
@@ -691,7 +695,7 @@ await check('the gate-style merge is built the way the gate builds it (git merge
   const merge = gateMerge(mineHead)
   deep(parentsOf(merge), [BASE, git('rev-parse', mineHead).trim()]); eq(git('rev-parse', `${merge}^{tree}`).trim(), git('rev-parse', `${mineHead}^{tree}`).trim(), 'its tree is the branch\'s tree')
   deep(firstParentOwn(merge), [], 'a walk from the merge along first parents finds no commit of this change')
-  ok(firstParentOwn(ownRef(merge)).length >= 1, 'the walk from HEAD^2 does')
+  ok(ownCommits(merge).length >= 1, 'the subject query across the whole line does') // LATER-CHANGES: registry read (CHAT-CLEAN-ORDER), stacked after model choice deck save: the own commits are found by subject across the line (a later change stacked on this one hides them from a first-parent walk from HEAD^2)
 })
 {
   const merge = gateMerge(mineHead)
@@ -701,8 +705,15 @@ await check('and a merge the gate makes after dev moved on (a later commit on BA
   const tip = execFileSync('git', ['commit-tree', git('rev-parse', `${BASE}^{tree}`).trim(), '-p', BASE, '-m', 'dev moved on (proof)'], { cwd: root, encoding: 'utf8', env: gitEnv, stdio: ['ignore', 'pipe', 'pipe'] }).trim()
   const tree = git('merge-tree', '--write-tree', tip, mineHead).split('\n')[0].trim()
   const merge = execFileSync('git', ['commit-tree', tree, '-p', tip, '-p', mineHead, '-m', 'gate-style merge, dev moved (proof)'], { cwd: root, encoding: 'utf8', env: gitEnv, stdio: ['ignore', 'pipe', 'pipe'] }).trim()
-  eq(ownRef(merge), git('rev-parse', mineHead).trim()); ok(firstParentOwn(ownRef(merge)).every(c => subjectOf(c).startsWith(MODEL_CHOICE_DECK_SAVE_SUBJECT)))
+  eq(ownRef(merge), git('rev-parse', mineHead).trim()); ok(ownCommits(merge).length >= 1) // LATER-CHANGES: registry read (CHAT-CLEAN-ORDER), stacked after model choice deck save: the own commits are found by subject across the line, whatever the first-parent walk sees
 })
+await check('mutant caught: a stray non-#542 file in a "Model choice deck save:" commit fails the files check (the own commits are found by subject across the whole line)', () => { // LATER-CHANGES: registry read (CHAT-CLEAN-ORDER), stacked after model choice deck save: a commit with this change's subject that touches a file no change owns must fail the files check
+  const run = (args, input) => execFileSync('git', args, { cwd: root, encoding: 'utf8', input, env: gitEnv, stdio: ['pipe', 'pipe', 'pipe'] }).trim() // LATER-CHANGES: registry read (CHAT-CLEAN-ORDER), stacked after model choice deck save: plumbing for the stray commit (one unreachable commit object, like the gate-style merge above)
+  const tree = run(['mktree'], `${git('ls-tree', 'HEAD')}100644 blob ${run(['hash-object', '-w', '--stdin'], 'stray\n')}\tstray-model-choice-deck-save.txt\n`) // LATER-CHANGES: registry read (CHAT-CLEAN-ORDER), stacked after model choice deck save: HEAD's tree plus one stray file
+  const stray = run(['commit-tree', tree, '-p', 'HEAD', '-m', `${MODEL_CHOICE_DECK_SAVE_SUBJECT} a stray file\n\nCo-Authored-By: Claude Sonnet 5.5 <noreply@anthropic.com>`]) // LATER-CHANGES: registry read (CHAT-CLEAN-ORDER), stacked after model choice deck save: a commit with this change's subject and co-author line
+  ok(ownCommits(stray).includes(stray), 'the stray commit is found by its subject'); deep(touchedFilesOf(ownCommits('HEAD')), [...MODEL_CHOICE_DECK_SAVE_SCOPE_FILES].sort()) // LATER-CHANGES: registry read (CHAT-CLEAN-ORDER), stacked after model choice deck save: the real line passes the files check
+  assert.throws(() => deep(touchedFilesOf(ownCommits(stray)), [...MODEL_CHOICE_DECK_SAVE_SCOPE_FILES].sort()), undefined, 'the files check must fail on a stray file') // LATER-CHANGES: registry read (CHAT-CLEAN-ORDER), stacked after model choice deck save: and the stray one fails it
+}) // LATER-CHANGES: registry read (CHAT-CLEAN-ORDER), stacked after model choice deck save: end of the stray-file mutant
 
 // ================================================================ G. mutants
 if (process.env.MODEL_CHOICE_DECK_SAVE_NO_MUTANTS === '1') { console.log(`\n${failed ? 'FAILED' : 'PASS'}: ${passed} passed, ${failed} failed (mutants skipped)`); process.exit(failed ? 1 : 0) }
