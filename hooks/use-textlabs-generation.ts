@@ -112,6 +112,7 @@ import {
 import { STUDIO_IMAGE_PENDING_WRITE_ENABLED, imageJobWritesPending, type ImageJobEnd, type ImagePendingJob } from '@/lib/studio-image-pending-write'
 import { startImagePendingJob } from '@/lib/studio-image-pending-runtime'
 // IMAGE-PENDING-WRITE end
+import { CHAT_ADD_TARGETED_SAVE_ENABLED, openChatAddScope, type ChatAddScope } from '@/lib/chat-add-targeted' // CHAT-ADD-TARGETED
 
 export type TextLabsGenerationResult =
   | { status: 'inserted'; presentationId: string | null; slideIndex: number; elementIds: string[] }
@@ -188,6 +189,7 @@ interface UseTextLabsGenerationParams {
   layoutServiceApis: {
     sendElementCommand: (action: string, params: Record<string, any>) => Promise<any>
     captureStudioElementGeneration?: () => StudioElementGenerationLease | null
+    sendTextBoxCommand?: (action: string, params: Record<string, any>) => Promise<any> // CHAT-ADD-TARGETED: Layout's begin / commit / cancel (the page's layoutServiceApis has it)
   } | null
   presentationId?: string | null
   currentSlideIndex: number
@@ -585,6 +587,7 @@ export function useTextLabsGeneration({
     let currentBlankInfo = trackedBlankInfo
     let blankTrackingWasRemoved = false
     const insertedElementIds: string[] = []
+    let chatAddScope: ChatAddScope | null = null // CHAT-ADD-TARGETED: the open scope of the insert in flight (a chat add with the flag on)
     let generationLifecycleCleaned = false
     let recoveryLeaseReleased = false
     let deferredFailedPanelResume: {
@@ -1812,6 +1815,13 @@ export function useTextLabsGeneration({
           ? 'upsertCitedElement'
           : semanticUpsertParams ? 'upsertSemanticElement'
           : method === 'insertElement' ? 'insertTextBox' : method
+        if (CHAT_ADD_TARGETED_SAVE_ENABLED && invocation?.kind === 'chat-add') { // CHAT-ADD-TARGETED: hold the slide's change marks so this insert schedules no whole-deck autosave
+          chatAddScope = await openChatAddScope({ // CHAT-ADD-TARGETED
+            slideIndex: effectiveSlideIndex, insertAction: insertionAction, sendElement: generationLayoutServiceApis.sendElementCommand, // CHAT-ADD-TARGETED
+            sendTextBox: layoutServiceApis?.sendTextBoxCommand ?? null, owns: presentationIsStillAuthoritative, // CHAT-ADD-TARGETED
+            report: note => console.info('[TextLabs] Chat add saved:', note.saved === 'targeted' ? 'only the new element' : `by the editor's autosave (${note.reason})`), // CHAT-ADD-TARGETED
+          }) // CHAT-ADD-TARGETED
+        } // CHAT-ADD-TARGETED
         const insertResponse = await sendLayoutMutationWithReconciliation(
           generationLayoutServiceApis.sendElementCommand,
           insertionAction,
@@ -1843,6 +1853,7 @@ export function useTextLabsGeneration({
         }
         if (insertedElementId) {
           insertedElementIds.push(insertedElementId)
+          if (chatAddScope) { const scope = chatAddScope; chatAddScope = null; try { await scope.finish(insertedElementId) } catch (error) { if (scope.removed) insertedElementIds.pop(); throw error } } // CHAT-ADD-TARGETED: save only this element; when it is not stored it is taken off the slide again (else the rollback below removes it)
           if (!invocation && (!studio || presentationIsStillAuthoritative())) generationPanel.rememberDraftForElement(insertedElementId, formData,
             studio && insertionComponentType === 'METRICS'
               ? { elementId: insertedElementId, elementType: 'METRICS' }
@@ -2155,6 +2166,7 @@ export function useTextLabsGeneration({
       return { status: 'inserted', presentationId: expectedPresentationTarget.presentationId,
         slideIndex: generationSlideIndex, elementIds: [...insertedElementIds] }
     } catch (err) {
+      if (chatAddScope) await chatAddScope.cancel() // CHAT-ADD-TARGETED: an insert that failed leaves no scope open (Layout would hold this slide's change marks for up to 30 s)
       if (immediateFailureFeedbackEnabled) failureRecoveryStarted = true
       let errorRetryStrategy = diagramRequestWasDispatched
         ? diagramRetryStrategyForFailure(err)

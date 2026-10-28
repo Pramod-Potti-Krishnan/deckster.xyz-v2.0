@@ -51,7 +51,8 @@ const STACKED_KNOWN = rel => STACKED_THEME_EXPORT.test(rel) || STACKED_MODEL_CAT
 
 const root = path.resolve(fileURLToPath(new URL('../', import.meta.url)))
 const FIXTURES = path.join(root, 'scripts/fixtures/chat-element-refine')
-const read = rel => stripFirstPaint(rel, stripLaunchWording(rel, fs.readFileSync(path.join(root, rel), 'utf8')))
+const addStrip = await import('./studio-chat-add-targeted-strip.mjs') // LATER-CHANGES: registry read (CHAT-ADD-TARGETED): the targeted chat add stacked after this change, so its marked lines in the generation hook come out first
+const read = rel => addStrip.stripChatAddTargeted(rel, stripFirstPaint(rel, stripLaunchWording(rel, fs.readFileSync(path.join(root, rel), 'utf8')))) // LATER-CHANGES: registry read (CHAT-ADD-TARGETED): read through the later change's strip
 const sha = text => crypto.createHash('sha256').update(text).digest('hex')
 const plain = value => JSON.parse(JSON.stringify(value === undefined ? null : value))
 const git = (...args) => execFileSync('git', args, { cwd: root, encoding: 'utf8', maxBuffer: 64 * 1024 * 1024 })
