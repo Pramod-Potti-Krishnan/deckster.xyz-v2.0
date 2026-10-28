@@ -22,7 +22,7 @@
 //   3. A theme change from chat (#475's chat-theme-export path): the page's REAL applyChatThemeSelection puts the change on record, and the next reload keeps it.
 //   4. Wiring: the flag is read inline, exact "true"; the marked lines; the only two writers; no new copy; .env.example. The strip gives the base page and restore lib back byte for byte.
 //   5. Mutants of the lib and the page: each must be caught.
-//   6. Scope over the COMMITTED diff (BASE..HEAD, first-parent, no merges; the commits that start "Theme own choice:"). GATE-SAFE: when HEAD is the gate's local --no-ff merge (first parent BASE, second parent this change's head) every scope query runs against HEAD^2; proved on a gate-style merge built here, and a mutant that drops that rule is caught.
+//   6. Scope over the COMMITTED diff (BASE..HEAD; the own commits, the ones that start "Theme own choice:", are found by SUBJECT across `rev-list --no-merges`, so a change stacked after this one, a dev merge and the gate's merge do not hide them; the registry, .env.example and strip reads go past the changes registered after this one; a commit that is not this change's must touch only files a later change registered). GATE-SAFE: when HEAD is the gate's local --no-ff merge (first parent BASE, second parent this change's head) every scope query runs against HEAD^2; proved on a gate-style merge built here; a mutant with the old first-parent query finds nothing on it, and a mutant with a stray file in a "Theme own choice:" commit is caught.
 //
 //   node scripts/test-studio-theme-own-choice.mjs
 //   node scripts/test-studio-theme-own-choice.mjs --record-baseline --root <base checkout>   (re-record the flag-off baseline from a base tree)
@@ -63,6 +63,8 @@ async function check(label, fn) {
 const registry = await import('./studio-later-changes.mjs')
 const stripModule = await import('./studio-theme-own-choice-strip.mjs')
 const { stripThemeOwnChoice, BASE_COMMIT, THEME_OWN_CHOICE_FILES, THEME_OWN_CHOICE_SCOPE_FILES, THEME_OWN_CHOICE_ENV_BLOCK, THEME_OWN_CHOICE_SUBJECT, THEME_OWN_CHOICE_MARKER_RE, THEME_OWN_CHOICE_PIN_EDITS } = stripModule
+/** The strips of every change registered AFTER this one (below this change's strip in LATER_STRIPS), applied first: the identity checks read a file as this change left it. */
+const laterStrips = (rel, text) => { const strips = registry.LATER_STRIPS, at = strips.indexOf(stripThemeOwnChoice); return (at === -1 ? [] : strips.slice(at + 1)).reduce((out, strip) => { const next = strip(rel, out); return typeof next === 'string' ? next : out }, text) }
 
 const { installHostNetworkGuard } = await import('./studio-chat-harness/fake-env.mjs')
 const { createModuleLoader } = await import('./studio-chat-harness/module-loader.mjs')
@@ -376,7 +378,7 @@ console.log('4. wiring and the strip')
 await check('the inline flag reads, the 18 marked page lines, the only two writers, the pure lib, no new copy, .env.example', () => wiringSuite(SRC))
 await check('the strip gives the base page and restore lib back byte for byte (the committed files)', () => {
   const git = (...a) => execFileSync('git', a, { cwd: repo, encoding: 'utf8', maxBuffer: 1 << 28 })
-  for (const rel of THEME_OWN_CHOICE_FILES) assert.equal(stripThemeOwnChoice(rel, read(rel, repo)), git('show', `${BASE_COMMIT}:${rel}`), rel)
+  for (const rel of THEME_OWN_CHOICE_FILES) assert.equal(stripThemeOwnChoice(rel, laterStrips(rel, read(rel, repo))), git('show', `${BASE_COMMIT}:${rel}`), rel)
   assert.deepEqual(THEME_OWN_CHOICE_FILES, [PAGE, RESTORE_LIB]); assert.deepEqual(Object.keys(THEME_OWN_CHOICE_PIN_EDITS), ['scripts/test-studio-chat-theme-export.mjs', 'scripts/test-studio-chat-element-edit-2.mjs', 'scripts/test-studio-theme-dark-persist.mjs'])
 })
 
@@ -418,40 +420,45 @@ function scopeHead(ref = 'HEAD', { gateRule = true } = {}) {
   return gateRule && parents.length === 2 && parents[0] === BASE_COMMIT ? parents[1] : sha
 }
 const HEAD = scopeHead('HEAD')
-const ownOf = head => git('log', '--format=%H', '--first-parent', '--no-merges', '-E', `--grep=^${THEME_OWN_CHOICE_SUBJECT}`, `${BASE_COMMIT}..${head}`).split('\n').filter(Boolean)
-const scopeOwnCommits = head => {
-  const own = ownOf(head)
+const subjectOf = c => git('log', '-1', '--format=%s', c).trim()
+/** This change's commits: found by SUBJECT across `rev-list --no-merges BASE..head`. A first-parent walk (`firstParentOnly`, the old query, kept for its mutant) sees nothing on the gate's merge, and none of this change's commits once a change is stacked after it. */
+const ownOf = (head, { firstParentOnly = false } = {}) => git('rev-list', ...(firstParentOnly ? ['--first-parent'] : []), '--no-merges', `${BASE_COMMIT}..${head}`).split('\n').filter(Boolean).filter(c => subjectOf(c).startsWith(THEME_OWN_CHOICE_SUBJECT))
+const scopeOwnCommits = (head, opts) => {
+  const own = ownOf(head, opts)
   assert.ok(own.length >= 1, 'no own commit yet')
-  const all = git('log', '--format=%H', '--first-parent', '--no-merges', `${BASE_COMMIT}..${head}`).split('\n').filter(Boolean)
-  assert.deepEqual([...all].sort(), [...own].sort(), 'a commit between the base and HEAD is not this change\'s')
+  const all = git('rev-list', '--no-merges', `${BASE_COMMIT}..${head}`).split('\n').filter(Boolean)
+  for (const c of all.filter(c => !own.includes(c))) for (const rel of git('show', '--name-only', '--format=', c).split('\n').filter(Boolean)) assert.ok(THEME_OWN_CHOICE_SCOPE_FILES.has(rel) || registry.LATER_CHANGE_FILES.has(rel), `a commit between the base and HEAD that is not this change's (${c.slice(0, 8)}) touches ${rel}, which no later change registered`)
   for (const c of own) assert.match(git('log', '-1', '--format=%B', c), /Co-Authored-By: Claude Sonnet 5\.5 <noreply@anthropic\.com>\s*$/, c.slice(0, 8))
 }
+/** `git diff -U0` of the base file against the file at `head` with the later changes' marked lines out (one blob object is written). */
+const strippedDiff = (rel, head) => { const blob = execFileSync('git', ['hash-object', '-w', '--stdin'], { cwd: repo, encoding: 'utf8', input: laterStrips(rel, git('show', `${head}:${rel}`)), maxBuffer: 1 << 28 }).trim(); return git('diff', '-U0', `${BASE_COMMIT}:${rel}`, blob) }
 const scopeCommittedFiles = HEAD => {
   const changed = git('diff', '--name-only', `${BASE_COMMIT}..${HEAD}`).split('\n').filter(Boolean).filter(rel => THEME_OWN_CHOICE_SCOPE_FILES.has(rel) || !registry.LATER_CHANGE_FILES.has(rel)).sort()
   assert.deepEqual(changed, [...THEME_OWN_CHOICE_SCOPE_FILES].sort())
   for (const rel of THEME_OWN_CHOICE_FILES) {
-    const diff = git('diff', '-U0', `${BASE_COMMIT}..${HEAD}`, '--', rel).split('\n').filter(line => /^[+-]/.test(line) && !/^(\+\+\+|---) /.test(line))
+    const diff = strippedDiff(rel, HEAD).split('\n').filter(line => /^[+-]/.test(line) && !/^(\+\+\+|---) /.test(line))
     for (const line of diff) { assert.ok(line.startsWith('+'), `${rel}: a removed line: ${line.slice(0, 120)}`); assert.match(line, THEME_OWN_CHOICE_MARKER_RE, `${rel}: an unmarked added line: ${line.slice(0, 120)}`) }
     assert.equal(diff.length, rel === PAGE ? 18 : 1, `${rel}: the number of added lines`)
-    assert.equal(stripThemeOwnChoice(rel, git('show', `${HEAD}:${rel}`)), git('show', `${BASE_COMMIT}:${rel}`), `${rel}: without its marked lines the file is the base's, byte for byte`)
+    assert.equal(stripThemeOwnChoice(rel, laterStrips(rel, git('show', `${HEAD}:${rel}`))), git('show', `${BASE_COMMIT}:${rel}`), `${rel}: without its marked lines the file is the base's, byte for byte`)
   }
   for (const rel of Object.keys(THEME_OWN_CHOICE_PIN_EDITS)) { // the three older proofs this change teaches (#475's chat theme/export, #538's chat element edit 2 on dev, dark persist), FRONTEND-2's own: each read now goes past a later change's marked lines; every new line is marked and says "stacked after"; put back, the previous proof byte for byte
-    const diff = git('diff', '-U0', `${BASE_COMMIT}..${HEAD}`, '--', rel).split('\n').filter(line => /^[+-]/.test(line) && !/^(\+\+\+|---) /.test(line))
+    const diff = strippedDiff(rel, HEAD).split('\n').filter(line => /^[+-]/.test(line) && !/^(\+\+\+|---) /.test(line))
     const swaps = THEME_OWN_CHOICE_PIN_EDITS[rel].filter(([, was]) => was !== '').length, additions = THEME_OWN_CHOICE_PIN_EDITS[rel].length
     assert.equal(diff.filter(line => line.startsWith('-')).length, swaps, `${rel}: ${swaps} lines swapped`); assert.equal(diff.filter(line => line.startsWith('+')).length, additions, `${rel}: ${additions} lines added`)
     for (const line of diff.filter(line => line.startsWith('+'))) assert.ok(line.includes(stripModule.THEME_OWN_CHOICE_PIN_MARK) && /stacked after/.test(line), `${rel}: a new line is marked: ${line.slice(0, 100)}`)
-    assert.equal(stripThemeOwnChoice(rel, git('show', `${HEAD}:${rel}`)), git('show', `${BASE_COMMIT}:${rel}`), `${rel}: put back, the previous proof byte for byte`)
+    assert.equal(stripThemeOwnChoice(rel, laterStrips(rel, git('show', `${HEAD}:${rel}`))), git('show', `${BASE_COMMIT}:${rel}`), `${rel}: put back, the previous proof byte for byte`)
   }
   for (const rel of stripModule.THEME_OWN_CHOICE_NEW_FILES) assert.ok(git('cat-file', '-t', `${HEAD}:${rel}`).trim() === 'blob', rel)
-  assert.equal(git('diff', '--name-only', `${BASE_COMMIT}..${HEAD}`, '--', 'hooks/', 'components/', 'package.json').trim(), '', 'no hook, no component (the lock label is untouched), no package.json')
+  assert.deepEqual(git('diff', '--name-only', `${BASE_COMMIT}..${HEAD}`, '--', 'hooks/', 'components/', 'package.json').split('\n').filter(Boolean).filter(rel => !registry.LATER_CHANGE_FILES.has(rel)), [], 'no hook, no component (the lock label is untouched), no package.json (but for the files a later change registered)')
 }
 const scopeEnvAndRegistry = HEAD => {
   assert.equal(registry.stripLaterEnvBlocks('.env.example', git('show', `${HEAD}:.env.example`)), registry.stripLaterEnvBlocks('.env.example', `${git('show', `${BASE_COMMIT}:.env.example`)}\n${THEME_OWN_CHOICE_ENV_BLOCK}`))
   assert.match(git('show', `${HEAD}:.env.example`), new RegExp(`\\n\\n${THEME_OWN_CHOICE_ENV_BLOCK.split('\n')[0].replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}`), 'a blank line before the block')
-  const diff = git('diff', '-U0', `${BASE_COMMIT}..${HEAD}`, '--', 'scripts/studio-later-changes.mjs').split('\n').filter(line => /^[+-]/.test(line) && !/^(\+\+\+|---) /.test(line))
+  const laterRegistry = (() => { const later = new Set(); let after = false; for (const line of git('show', `${HEAD}:scripts/studio-later-changes.mjs`).split('\n')) { if (/^export const LATER_/.test(line)) after = false; else if (line.includes('studio-theme-own-choice-strip.mjs')) after = true; else if (after && line.includes('// LATER-CHANGE:') && /-strip\.mjs/.test(line)) later.add(line) } return later })() // the registry lines of every change registered after this one (below this change's own line in each list, in the registered shape) are theirs
+  const diff = git('diff', '-U0', `${BASE_COMMIT}..${HEAD}`, '--', 'scripts/studio-later-changes.mjs').split('\n').filter(line => /^[+-]/.test(line) && !/^(\+\+\+|---) /.test(line) && !(line.startsWith('+') && laterRegistry.has(line.slice(1))))
   assert.equal(diff.length, 3); for (const line of diff) assert.ok(line.startsWith('+') && line.includes('LATER-CHANGE') && line.includes('studio-theme-own-choice-strip.mjs'), line.slice(0, 140))
 }
-await check(`this change's own commits (subject starts "${THEME_OWN_CHOICE_SUBJECT}") exist, and every first-parent commit between the base and HEAD (HEAD^2 in the gate) is one, with the co-author line`, () => scopeOwnCommits(HEAD))
+await check(`this change's own commits (subject starts "${THEME_OWN_CHOICE_SUBJECT}", found across the whole line, no merges) exist, with the co-author line; a commit that is not one touches only files a later change registered`, () => scopeOwnCommits(HEAD))
 await check('the committed files are exactly this change\'s; every line added to an existing file is a pure insertion that carries the marker; the strip gives each its base back byte for byte', () => scopeCommittedFiles(HEAD))
 await check('.env.example is the base plus the block; the registry gains exactly its three marked lines and loses none; no secret-shaped literal in the new files', () => {
   scopeEnvAndRegistry(HEAD)
@@ -473,10 +480,19 @@ await check('GATE-SAFE: on a gate-style merge (first parent BASE, second parent 
   assert.equal(scopeHead(HEAD), HEAD, 'a branch head (not a merge onto BASE) is used as it is')
   assert.equal(scopeHead(BASE_COMMIT), BASE_COMMIT, 'BASE itself is used as it is')
 })
-await check('mutant caught: without the HEAD^2 rule the gate-style merge has no own commit (the scope section fails on it)', () => {
+await check('mutant caught: the old first-parent own-commit query finds no own commit on the gate-style merge (the scope section fails on it), and without the HEAD^2 rule the scope head is the merge itself', () => {
   const head = scopeHead(GATE, { gateRule: false })
   assert.equal(head, GATE)
-  assert.throws(() => scopeOwnCommits(head), /no own commit yet/)
+  assert.throws(() => scopeOwnCommits(head, { firstParentOnly: true }), /no own commit yet/)
+  assert.doesNotThrow(() => scopeOwnCommits(head), 'the subject query across the line finds them on the merge itself')
+})
+await check('mutant caught: a stray non-#541 file in a "Theme own choice:" commit fails the committed-files check (the own commits are found by subject, the diff names the file)', () => {
+  const run = (args, input) => execFileSync('git', args, { cwd: repo, encoding: 'utf8', input, env: { ...process.env, ...GATE_IDENT }, stdio: ['pipe', 'pipe', 'pipe'] }).trim()
+  const tree = run(['mktree'], `${git('ls-tree', HEAD)}100644 blob ${run(['hash-object', '-w', '--stdin'], 'stray\n')}\tstray-theme-own-choice.txt\n`)
+  const stray = run(['commit-tree', tree, '-p', HEAD, '-m', `${THEME_OWN_CHOICE_SUBJECT} a stray file\n\nCo-Authored-By: Claude Sonnet 5.5 <noreply@anthropic.com>`])
+  assert.ok(ownOf(stray).includes(stray), 'the stray commit is found by its subject')
+  assert.doesNotThrow(() => scopeCommittedFiles(HEAD), 'the real head passes')
+  assert.throws(() => scopeCommittedFiles(stray), undefined, 'the committed-files check must fail on a stray file')
 })
 
 fs.rmSync(LIVE, { recursive: true, force: true })
