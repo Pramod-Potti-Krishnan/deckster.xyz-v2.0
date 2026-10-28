@@ -322,7 +322,7 @@ async function keepChecks(source) {
   ok(keep.includes('PREFS_VERSION_ON') && keep.includes('save_unconfirmed'), 'the branch is there')
   const js = ts.transpileModule(`${keep}\nmodule.exports = keep`, { compilerOptions: { target: ts.ScriptTarget.ES2022, module: ts.ModuleKind.CommonJS } }).outputText
   for (const on of [false, true]) {
-    const set = [], stored = { planning_strategy: 'best' }
+    const set = [], stored = { planning_strategy: 'economy' }
     const sandbox = { module: { exports: null }, PREFS_VERSION_ON: on, scope: { kind: 'user' }, raw: { planning_strategy: 'default' }, storage: 'ok', setFor: (target, value) => set.push(value), store: { saveChoices: async () => ({ mode: 'account', reason: null, conflict: stored, unconfirmed: true }), mode: () => 'account', reason: () => null }, setMode() {}, setReason() {}, setStorage() {}, setDeckState() {}, setScopeKind() {} }
     vm.runInNewContext(js, sandbox); const result = await sandbox.module.exports({ planning_strategy: 'best' })
     deep(set.at(-1), stored, `flag ${on}: the stored choice is shown`)
@@ -615,8 +615,10 @@ async function expectations() {
     for (const e of reads.fetchLog.filter(e => e.method === 'GET' && e.url.startsWith('/api/model-choice/prefs'))) { eq(e.cache, 'no-store', `${scope}: ${e.url}`); ok(!('if-none-match' in e.headers), `${scope}: no conditional read`) }
     // the routes themselves
     const { routes, router } = routesFor(ON); eq((await callRoute(routes, scope, 'PATCH', { headers: { 'x-prefs-version': '"deadbeefdeadbeefdeadbeefdeadbeef"' }, body: body3 })).status, 412, `${scope}: X-Prefs-Version is read`); eq(router.writes().length, 0)
-    eq((await callRoute(routes, scope, 'PATCH', { headers: { 'x-prefs-version': weak(EMPTY_ETAG) }, body: body3 })).status, 200, `${scope}: compared as an opaque tag`)
     const get = await callRoute(routes, scope, 'GET'); eq(get.headers.get('x-prefs-version'), EMPTY_ETAG, scope); eq(get.headers.get('etag'), EMPTY_ETAG, scope)
+    eq((await callRoute(routes, scope, 'PATCH', { headers: { 'x-prefs-version': weak(EMPTY_ETAG) }, body: body3 })).status, 200, `${scope}: compared as an opaque tag`)
+    eq(router.writes().at(-1).headers['If-Match'], EMPTY_ETAG, `${scope}: whatever the browser sent, the router gets its own strong tag`)
+    const alone = routesFor({ pv: 'true' }); eq((await callRoute(alone.routes, scope, 'PATCH', { headers: { 'x-prefs-version': weak(EMPTY_ETAG) }, body: body3 })).status, 200, `${scope}: this flag compares as an opaque tag on its own, without #542's`); eq(alone.router.writes().at(-1).headers['If-Match'], EMPTY_ETAG, scope)
     for (const pv of [undefined, 'false']) { const plain = routesFor({ ds: 'true', pv }); const out = await callRoute(plain.routes, scope, 'GET'); eq(out.headers.get('x-prefs-version'), undefined, `${scope}: flag ${pv} sends no X-Prefs-Version`); eq((await callRoute(plain.routes, scope, 'PATCH', { headers: { 'x-prefs-version': '"deadbeefdeadbeefdeadbeefdeadbeef"' }, body: body3 })).status, 200, `${scope}: flag ${pv} does not read it`) }
   }
   await routeFetchChecks(HOOK, read(HOOK)); await routeFetchChecks(CHOOSER, read(CHOOSER)); await keepChecks(read(CHOOSER))
