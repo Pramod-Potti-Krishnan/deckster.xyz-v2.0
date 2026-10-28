@@ -3,8 +3,8 @@
 // (NEXT_PUBLIC_STUDIO_CHAT_EDIT_TARGETED_SAVE), which covers the element edit.
 // Every line this change adds to an EXISTING file is a pure insertion that carries the marker CHAT-ADD-TARGETED (a whole token): hooks/use-textlabs-generation.ts (one import, one optional field of the layoutServiceApis type, the scope variable, the insert's
 // scope opening, the new element's save, the catch's cancel). Strip those lines and the file is its base, byte for byte. The new lib lib/chat-add-targeted.ts holds the flag and the steps.
-// How the older pins reach it: this change REGISTERS its files, its .env.example block and this strip (scripts/studio-later-changes.mjs, three lines), and teaches the one older proof that reads the generation hook raw (scripts/test-studio-chat-element-refine.mjs, one
-// registry read, as #540 taught test-studio-chat-element-edit-2). Plain node, no imports, nothing read from disk or git here.
+// How the older pins reach it: this change REGISTERS its files, its .env.example block and this strip (scripts/studio-later-changes.mjs, three lines), and teaches the older proofs that read the generation hook raw (test-studio-chat-element-refine, test-studio-image-pending-write, test-studio-element-free-spot,
+// test-studio-element-placeholder-fix, test-textbox-role-contract: each one registry-read line, as #540 taught test-studio-chat-element-edit-2). Plain node, no imports, nothing read from disk or git here.
 
 export const BASE_COMMIT = '61568fe6b7e07972051f1103749ee4551dd76ef5' // origin/studio-v4-dev-preparation-code with #544 merged (tree 59a79621): dev, which this change is cut from
 export const CHAT_ADD_TARGETED_FLAG = 'NEXT_PUBLIC_STUDIO_CHAT_ADD_TARGETED_SAVE'
@@ -34,6 +34,30 @@ export const CHAT_ADD_TARGETED_PIN_EDITS = {
   'scripts/test-studio-chat-element-refine.mjs': [
     ["const addStrip = await import('./studio-chat-add-targeted-strip.mjs') // LATER-CHANGES: registry read (CHAT-ADD-TARGETED): the targeted chat add stacked after this change, so its marked lines in the generation hook come out first\nconst read = rel => addStrip.stripChatAddTargeted(rel, stripFirstPaint(rel, stripLaunchWording(rel, fs.readFileSync(path.join(root, rel), 'utf8')))) // LATER-CHANGES: registry read (CHAT-ADD-TARGETED): read through the later change's strip\n",
      "const read = rel => stripFirstPaint(rel, stripLaunchWording(rel, fs.readFileSync(path.join(root, rel), 'utf8')))\n"],
+  ],
+  "scripts/test-studio-element-free-spot.mjs": [
+    ["import { stripChatAddTargeted } from './studio-chat-add-targeted-strip.mjs' // LATER-CHANGES: registry read (CHAT-ADD-TARGETED): the targeted chat add stacked after this change, so its marked lines in the generation hook come out first\n",
+     ""],
+    ["    source = stripChatAddTargeted(HOOK, source) // LATER-CHANGES: registry read (CHAT-ADD-TARGETED)\n",
+     ""],
+  ],
+  "scripts/test-studio-element-placeholder-fix.mjs": [
+    ["import { stripChatAddTargeted } from './studio-chat-add-targeted-strip.mjs' // LATER-CHANGES: registry read (CHAT-ADD-TARGETED): the targeted chat add stacked after this change, so its marked lines in the generation hook come out first\n",
+     ""],
+    ["      source = stripChatAddTargeted('hooks/use-textlabs-generation.ts', source) // LATER-CHANGES: registry read (CHAT-ADD-TARGETED)\n",
+     ""],
+  ],
+  "scripts/test-studio-image-pending-write.mjs": [
+    ["import { stripChatAddTargeted } from './studio-chat-add-targeted-strip.mjs' // LATER-CHANGES: registry read (CHAT-ADD-TARGETED): the targeted chat add stacked after this change, so its marked lines in the generation hook come out first\n",
+     ""],
+    ["  source = stripChatAddTargeted('hooks/use-textlabs-generation.ts', source) // LATER-CHANGES: registry read (CHAT-ADD-TARGETED)\n",
+     ""],
+  ],
+  "scripts/test-textbox-role-contract.mjs": [
+    ["import { stripChatAddTargeted } from './studio-chat-add-targeted-strip.mjs' // LATER-CHANGES: registry read (CHAT-ADD-TARGETED): the targeted chat add stacked after this change, so its marked lines in the generation hook come out first\n",
+     ""],
+    ["const generationSource = stripChatAddTargeted('hooks/use-textlabs-generation.ts', fs.readFileSync(new URL('../hooks/use-textlabs-generation.ts', import.meta.url), 'utf8')) // LATER-CHANGES: registry read (CHAT-ADD-TARGETED)\n",
+     "const generationSource = fs.readFileSync(new URL('../hooks/use-textlabs-generation.ts', import.meta.url), 'utf8')\n"],
   ],
 }
 

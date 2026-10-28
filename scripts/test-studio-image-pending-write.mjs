@@ -19,6 +19,7 @@ import { createRequire } from 'node:module'
 import { fileURLToPath } from 'node:url'
 // FRONTEND-2 Pass 3 (NEXT_PUBLIC_CHAT_ELEMENT_REFINE) added flag-gated lines to the hook; with them taken out it is the file this pin holds it to.
 import { stripChatElementRefine } from './studio-chat-element-refine-strip.mjs'
+import { stripChatAddTargeted } from './studio-chat-add-targeted-strip.mjs' // LATER-CHANGES: registry read (CHAT-ADD-TARGETED): the targeted chat add stacked after this change, so its marked lines in the generation hook come out first
 
 const here = path.dirname(fileURLToPath(import.meta.url))
 let ownRoot = here
@@ -873,6 +874,7 @@ async function hookSuite(src) {
 // ---------------------------------------------------------------- suite 5: identity
 function stripMarked(source) {
   source = stripChatElementRefine('hooks/use-textlabs-generation.ts', source) // NEXT_PUBLIC_CHAT_ELEMENT_REFINE
+  source = stripChatAddTargeted('hooks/use-textlabs-generation.ts', source) // LATER-CHANGES: registry read (CHAT-ADD-TARGETED)
   const out = []
   let inBlock = false
   for (const line of source.split('\n')) {
