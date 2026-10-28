@@ -311,7 +311,7 @@ async function mount(engine, { controlEnabled = true } = {}) {
         placeholder: field?.props.placeholder ?? null, hint: hint ? textOf(hint) : null, context: context ? textOf(context) : null,
         bar: bar ? textOf(bar) : null, continueDisabled: cont ? Boolean(cont.props.disabled) : null, sendDisabled: send ? Boolean(send.props.disabled) : null,
         wordsOfDirections: /New directions|Enter sends new directions/.test(markup),
-        notes: api.notes.notes.map(note => `${note.kind}: ${note.text}`),
+        notes: [...api.notes.notes.map(note => `${note.kind}: ${note.text}`)], // spread: an array of THIS realm (the hook's arrays have the loader's prototypes)
         buildControl: JSON.parse(JSON.stringify(calls.buildControl)), messages: [...calls.messages], toasts: [...calls.toasts],
         markup: sha(markup),
       }
