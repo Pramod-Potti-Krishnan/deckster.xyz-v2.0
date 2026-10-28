@@ -259,8 +259,8 @@ function mappingSuite(fieldsText = read(FIELDS), directiveText = ownText(DIRECTI
 }
 
 console.log('1 and 2. the mapping against the real forms; today\'s form data for everything else (directive frames built from the contract: no recorded frame yet)')
-let suiteReport
-await check('label, icon and 24 preset shapes equal what the real forms build; invalid, absent and off-contract fields build today\'s form data; flag off and "false" hash as the base', () => { suiteReport = mappingSuite() })
+let realTally
+await check('label, icon and 24 preset shapes equal what the real forms build; invalid, absent and off-contract fields build today\'s form data; flag off and "false" hash as the base', () => { mappingSuite(); realTally = { ...tally } })
 await check('the wire: the REAL textlabs-client sends the same icon_label_config / shape_config / message for a chat add as for the form (shape without the panel geometry); flag off sends today\'s empty configs', async () => {
   const bodies = []
   const fetchStub = async (_url, init) => { bodies.push(JSON.parse(init.body)); return { ok: true, status: 200, headers: { get: () => null }, json: async () => ({ success: true, response: 'ok' }) } }
@@ -367,13 +367,13 @@ for (const [name, from, to] of FIELD_MUTANTS) {
     caughtBy.push(`  ${String(mutantNumber).padStart(2)}. ${name}`)
   })
 }
-await check('mutant caught: an apply that ignores the patch, one that always returns a copy without mutating, and one that applies the patch with the flag off', () => {
+await check('mutant caught: an executor apply that ignores the patch, one that returns a patched copy instead of mutating in place, and one that reads a fixed component type', () => {
   const directive = ownText(DIRECTIVE)
   const lineOf = directive.split('\n').find(line => line.startsWith('export function applyDirectiveElementFields'))
   assert.ok(lineOf)
   for (const [name, replacement] of [
     ['ignores the patch', lineOf.replace('if (patch) Object.assign(formData, patch); ', '')],
-    ['returns a copy', lineOf.replace('return formData }', 'return { ...formData } }')],
+    ['returns a patched copy and leaves the form data alone (the page ignores the return)', lineOf.replace('if (patch) Object.assign(formData, patch); return formData }', 'if (patch) return { ...formData, ...patch }; return formData }')],
     ['uses a fixed component type', lineOf.replace('formData.componentType', "'SHAPE'")],
   ]) {
     assert.notEqual(replacement, lineOf)
@@ -571,6 +571,6 @@ await check('mutant caught: an own commit without the co-author line, and an unm
 
 release()
 console.log('mutants (each caught by):'); for (const line of caughtBy) console.log(line)
-console.log(`mapping equalities: ${tally.labels} labels, ${tally.icons} icons, ${tally.shapes} shapes against the real forms; grid ${tally.grid} rows (${tally.today} are today's form data, the rest change exactly as the oracle says)`)
+if (realTally) console.log(`mapping equalities (the real run, not the mutants'): ${realTally.labels} labels, ${realTally.icons} icons, ${realTally.shapes} shapes against the real forms; grid ${realTally.grid} rows (${realTally.today} are today's form data, ${realTally.grid - realTally.today} change exactly as the oracle says)`)
 console.log(`\n${failed ? 'FAILED' : 'PASS'}: ${passed} passed, ${failed} failed`)
 process.exit(failed ? 1 : 0)
