@@ -12,6 +12,7 @@ import {
   rowSources, staticTasks, withPresets,
   type ChoiceCatalogue, type DeviceReason, type ModelChoiceSave, type ModelChoiceScope, type ModelChoices, type RouteFetch, type RowSource, type SaveMode,
 } from "@/lib/studio-model-choice"
+import { PREFS_VERSION_ON, versionRequest } from "@/lib/studio-model-choice" // MODEL-CHOICE-PREFS-VERSION
 import "./intelligence-p2.css"
 import "./intelligence-model-choice.css"
 
@@ -26,9 +27,11 @@ type DeckState = "none" | "ok" | "not-available" | "not-saved"
 
 /** Studio's own routes only (same origin): the browser never calls Director or the router, and never sends a user id. */
 const routeFetch: RouteFetch = async (url, init) => {
+  if (PREFS_VERSION_ON) init = versionRequest(init) // MODEL-CHOICE-PREFS-VERSION: the read's version goes in X-Prefs-Version, not If-Match
   const response = await fetch(url, { method: init.method, headers: init.headers, body: init.body, credentials: "same-origin", cache: "no-store" })
   let body: unknown = null
   try { body = await response.json() } catch { body = null }
+  if (PREFS_VERSION_ON) return { status: response.status, body, etag: response.headers.get("x-prefs-version") ?? response.headers.get("etag") } // MODEL-CHOICE-PREFS-VERSION: the version comes back in its own header (ETag stays on a read)
   return { status: response.status, body, etag: response.headers.get("etag") }
 }
 // The adapter (lib/studio-model-choice.ts): the account first (the router, through Studio's routes), this browser when saving is not switched on or cannot be reached. The Pass 2 picker's key for this
@@ -140,6 +143,7 @@ export function ModelChoiceChooser() {
     let result: ModelChoiceSave
     try { result = await store.saveChoices(target, next) } catch { setStorage("unavailable"); return { mode: "session" } }
     setMode(store.mode()); setReason(store.reason())
+    if (PREFS_VERSION_ON && (result as { unconfirmed?: boolean }).unconfirmed) { setFor(target, result.conflict ?? before); return { mode: result.mode, reason: null, refused: true, refusedCode: "save_unconfirmed" } } // MODEL-CHOICE-PREFS-VERSION: a 412 that was not Studio's own JSON: the stored choice is shown, with the refusal words
     if (result.conflict) setFor(target, result.conflict)
     else if (result.refused) setFor(target, before)
     else if (result.deckUnavailable) { setDeckState(result.deckUnavailable); setScopeKind("user"); setFor(target, before) }
