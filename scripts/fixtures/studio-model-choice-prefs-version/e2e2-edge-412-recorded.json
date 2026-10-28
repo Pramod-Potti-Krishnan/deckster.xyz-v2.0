@@ -1,0 +1,20 @@
+{
+  "source": {
+    "capture": "E2E-2 capture 28 Oct 02:15-02:17Z (Studio dev with #542 merged at 88c59f3c and NEXT_PUBLIC_STUDIO_MODEL_CHOICE_DECK_SAVE on, session 57f9e99a), relayed by the coordinator",
+    "earlier": "scripts/fixtures/studio-model-choice-deck-save/e2e2-f8-recorded.json (E2E-2 capture 27 Oct 22:49Z: the GETs come back weakened, W/\"4f53...\")"
+  },
+  "observed": {
+    "saves_persist": "after the PATCHes the deck GET shows best for planning, content and research, it survives a reload, and 'Use my default: Auto' gives {}",
+    "every_patch_status": 412,
+    "every_patch_body": "a Vercel HTML error page, not Studio's JSON",
+    "every_patch_body_text": "An error occurred · PRECONDITION_FAILED · iad1::iad1::r6dk2-…",
+    "every_patch_content_type": "text/html",
+    "markup_note": "only the text above was relayed; the markup around it was not captured, so the proof serves the text as text/html (a body that is not JSON is all the hook sees)",
+    "first_patch_if_match": "W/\"4f53cda18c2baa0c0354bb5f9a3ecbe5\"",
+    "second_patch_if_match": "W/\"ce6f066094fdccd015f3a433a1a80ee8\"",
+    "second_patch_note": "sent after a GET; the first save had changed the map, so this is the map's new tag as the GET gave it, weakened",
+    "popover_said": "Your choices changed elsewhere, so the saved ones are shown."
+  },
+  "read": "Studio's route passes the check and writes; Vercel's edge then applies the request's If-Match to the function's RESPONSE, whose ETag changed with the write, and swaps in its own 412",
+  "get_path": "the browser's reads use fetch cache 'no-store' (components/model-choice/use-model-choice.ts routeFetch), so they carry no If-None-Match or If-Modified-Since for the edge to turn into a 304; the route answers Cache-Control: no-store"
+}
