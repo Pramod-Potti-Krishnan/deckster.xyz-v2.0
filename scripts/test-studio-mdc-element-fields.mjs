@@ -47,6 +47,11 @@ const CLIENT = 'lib/textlabs-client.ts'
 const read = rel => fs.readFileSync(path.join(repo, rel), 'utf8')
 const sha = text => crypto.createHash('sha256').update(text).digest('hex')
 const copy = value => JSON.parse(JSON.stringify(value))
+const GIT_IDENT = { GIT_AUTHOR_NAME: 'gate', GIT_AUTHOR_EMAIL: 'gate@example.invalid', GIT_COMMITTER_NAME: 'gate', GIT_COMMITTER_EMAIL: 'gate@example.invalid', GIT_AUTHOR_DATE: '2026-10-28T00:00:00Z', GIT_COMMITTER_DATE: '2026-10-28T00:00:00Z' }
+/** git, stdin ignored, a 60 second limit: a hung child ends the check, never the run. */
+const runGit = (args, extraEnv = {}) => execFileSync('git', args, { cwd: repo, encoding: 'utf8', env: { ...process.env, ...GIT_IDENT, ...extraEnv }, stdio: ['ignore', 'pipe', 'pipe'], maxBuffer: 1 << 28, timeout: 60000 })
+const git = (...args) => runGit(args)
+const plumb = args => runGit(args).trim()
 let passed = 0, failed = 0
 async function check(label, fn) {
   try { await fn(); passed++; console.log(`  ok   ${label}`) } catch (error) { failed++; console.log(`  FAIL ${label}\n       ${String(error?.message ?? error).split('\n').join('\n       ')}`) }
@@ -55,7 +60,7 @@ async function check(label, fn) {
 const { installHostNetworkGuard } = await import('./studio-chat-harness/fake-env.mjs')
 const registry = await import('./studio-later-changes.mjs')
 const stripModule = await import('./studio-mdc-element-fields-strip.mjs')
-const { stripMdcElementFields, BASE_COMMIT, MDC_ELEMENT_FIELDS_FILES, MDC_ELEMENT_FIELDS_NEW_FILES, MDC_ELEMENT_FIELDS_SCOPE_FILES, MDC_ELEMENT_FIELDS_ENV_BLOCK, MDC_ELEMENT_FIELDS_SUBJECT, MDC_ELEMENT_FIELDS_MARKER_RE } = stripModule
+const { stripMdcElementFields, BASE_COMMIT, MDC_ELEMENT_FIELDS_FILES, MDC_ELEMENT_FIELDS_NEW_FILES, MDC_ELEMENT_FIELDS_SCOPE_FILES, MDC_ELEMENT_FIELDS_ENV_BLOCK, MDC_ELEMENT_FIELDS_SUBJECT, MDC_ELEMENT_FIELDS_MARKER_RE, MDC_ELEMENT_FIELDS_PIN_EDITS, MDC_ELEMENT_FIELDS_PIN_FILES, MDC_ELEMENT_FIELDS_PIN_MARK } = stripModule
 const release = installHostNetworkGuard(net, dns)
 
 // The strips of the changes registered AFTER this one, applied first (a later change's marked lines in a file this change touches); and, for the scope section, every OTHER registered strip (applied to both sides of a comparison).
@@ -326,6 +331,34 @@ await check('.env.example: the flag is there once, "false", in its block', () =>
   assert.ok(MDC_ELEMENT_FIELDS_ENV_BLOCK.includes('default off') && MDC_ELEMENT_FIELDS_ENV_BLOCK.includes('"true"'))
 })
 
+/** The older proofs this change teaches, put back: dev's file byte for byte, through the strips of the changes registered after this one first. */
+const pinsSuite = (edits = MDC_ELEMENT_FIELDS_PIN_EDITS, ctx = { later: laterStrips, headText: rel => read(rel), baseOf: rel => git('show', `${BASE_COMMIT}:${rel}`) }) => {
+  assert.deepEqual(Object.keys(edits), ['scripts/test-studio-chat-element-edit-2.mjs'], 'one older proof is taught: #538\'s chat element edit 2, which strips the page of its own lines and holds it to its base')
+  for (const rel of Object.keys(edits)) {
+    const back = text => stripModule.putBackPin(rel, text, edits)
+    const now = ctx.later(rel, ctx.headText(rel))
+    assert.equal(sha(back(now)), sha(ctx.baseOf(rel)), `${rel}: the taught proof, put back, is dev's file byte for byte`)
+    assert.equal(back(back(now)), back(now), `${rel}: put back twice is put back once`)
+    for (const [has, was] of edits[rel]) {
+      assert.equal(now.split(has).length - 1, 1, `${rel}: each taught text is in the proof exactly once`)
+      for (const line of has.split('\n').filter(Boolean)) assert.ok(line.includes(MDC_ELEMENT_FIELDS_PIN_MARK), `${rel}: a taught line carries the pin mark`)
+      assert.ok(has !== was)
+    }
+    if (edits === MDC_ELEMENT_FIELDS_PIN_EDITS) { // every consumer's position in the registry: the strips after it, in registry order, leave this proof and dev's file indistinguishable (theme own choice swapped the same line before this change)
+      const at = strips.indexOf(stripMdcElementFields), dev = ctx.baseOf(rel)
+      assert.ok(at > 0)
+      for (let k = 0; k <= at; k++) assert.equal(sha(applyAll(strips.slice(k), rel, read(rel))), sha(applyAll(strips.slice(k), rel, dev)), `${rel}: from registry position ${k} (${k === 0 ? 'the first' : String(strips[k - 1]).slice(0, 40).replace(/\s+/g, ' ')}) the strips after it leave the taught proof and dev's file the same`)
+    }
+  }
+}
+await check('the taught proof (chat element edit 2): put back through the strip it is dev\'s file byte for byte and idempotent; every taught line carries the pin mark; the strip returns another proof as it is', () => {
+  pinsSuite()
+  assert.deepEqual([...MDC_ELEMENT_FIELDS_PIN_FILES], ['scripts/test-studio-chat-element-edit-2.mjs'])
+  assert.equal(stripMdcElementFields('scripts/test-studio-chat-edit-targeted.mjs', 'x'), 'x')
+  const proof = read('scripts/test-studio-chat-element-edit-2.mjs')
+  assert.ok(proof.includes('strippedPastLater(rel, read(rel))'), 'the check reads past the strips registered after #538\'s')
+})
+
 // ============================================================================================================================================
 // 4. Mutants
 // ============================================================================================================================================
@@ -397,6 +430,29 @@ await check('mutant caught: a page line that passes payload.prompt, a missing pa
   ]
   for (const [name, parts] of bad) { assert.throws(() => wiringSuite(parts), undefined, name); caughtBy.push(`  ${String(++mutantNumber).padStart(2)}. wiring: ${name}`) }
 })
+await check('mutant caught: a taught text that was not the proof\'s previous text, a taught line without the pin mark, a table that teaches a second proof, a put-back without the theme clause', async () => {
+  const rel = 'scripts/test-studio-chat-element-edit-2.mjs', edits = copy(MDC_ELEMENT_FIELDS_PIN_EDITS)
+  assert.doesNotThrow(() => pinsSuite(edits))
+  const wrongWas = copy(edits); wrongWas[rel][1][1] = wrongWas[rel][1][1].replace('stripThemeOwnChoice', 'stripThemeOwnChoicE')
+  assert.throws(() => pinsSuite(wrongWas), /dev's file byte for byte/)
+  // the order-aware put-back: without its theme clause a consumer registered before theme own choice sees a different proof
+  const real = read('scripts/studio-mdc-element-fields-strip.mjs')
+  const noClause = real.replace('&& !out.includes(PIN_THEME_IMPORT)) out = out.replace(PIN_THEME_LINE[0], () => PIN_THEME_LINE[1])', '&& false) out = out')
+  assert.notEqual(noClause, real)
+  const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'mef-strip-'))
+  try {
+    fs.writeFileSync(path.join(tmp, 'strip.mjs'), noClause)
+    const mutantStrip = await import(`${path.join(tmp, 'strip.mjs')}?m=1`)
+    const k = strips.indexOf(stripMdcElementFields), early = strips.findIndex(fn => /stripChatCleanOrder/.test(String(fn.name)) || fn.name === 'stripChatCleanOrder')
+    assert.ok(early >= 0 && early < k, 'clean chat order is registered before this change')
+    const swapped = strips.map(fn => fn === stripMdcElementFields ? mutantStrip.stripMdcElementFields : fn)
+    assert.notEqual(sha(applyAll(swapped.slice(early + 1), rel, read(rel))), sha(applyAll(swapped.slice(early + 1), rel, git('show', `${BASE_COMMIT}:${rel}`))), 'without the clause a consumer before theme sees the taught proof differ from dev\'s')
+  } finally { fs.rmSync(tmp, { recursive: true, force: true }) }
+  const noMark = copy(edits); noMark[rel][0][0] = noMark[rel][0][0].replace(MDC_ELEMENT_FIELDS_PIN_MARK, 'LATER-CHANGES: registry read')
+  assert.throws(() => pinsSuite(noMark), undefined)
+  assert.throws(() => pinsSuite({ ...edits, 'scripts/test-studio-theme-own-choice.mjs': [['a', 'b']] }), /one older proof is taught/)
+  caughtBy.push(`  ${String(++mutantNumber).padStart(2)}. pins: a wrong previous text, a taught line without the mark, a second proof`)
+})
 await check('mutant caught: with the executor stripped to the base (no apply) the mapping suite fails, and the base has no apply function', () => {
   const base = baseExecutor()
   assert.equal(base.applyDirectiveElementFields, undefined)
@@ -408,11 +464,6 @@ await check('mutant caught: with the executor stripped to the base (no apply) th
 // 5. Scope over the COMMITTED diff (BASE..head), gate-safe and robust after merge
 // ============================================================================================================================================
 console.log('5. scope over the committed diff (own commits by subject across `rev-list --no-merges BASE..head`)')
-const GIT_IDENT = { GIT_AUTHOR_NAME: 'gate', GIT_AUTHOR_EMAIL: 'gate@example.invalid', GIT_COMMITTER_NAME: 'gate', GIT_COMMITTER_EMAIL: 'gate@example.invalid', GIT_AUTHOR_DATE: '2026-10-28T00:00:00Z', GIT_COMMITTER_DATE: '2026-10-28T00:00:00Z' }
-/** git, stdin ignored, a 60 second limit: a hung child ends the check, never the run. */
-const runGit = (args, extraEnv = {}) => execFileSync('git', args, { cwd: repo, encoding: 'utf8', env: { ...process.env, ...GIT_IDENT, ...extraEnv }, stdio: ['ignore', 'pipe', 'pipe'], maxBuffer: 1 << 28, timeout: 60000 })
-const git = (...args) => runGit(args)
-const plumb = args => runGit(args).trim()
 /** A blob object for `text`, written from a temporary FILE with `--no-filters` (never read from standard input: a large input through a pipe once left a git child waiting for ever in another proof's run). */
 const blobOf = text => {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'mef-blob-'))
@@ -431,7 +482,7 @@ function scopeHead(ref = 'HEAD', { gateRule = true } = {}) {
   return ownOf(parents[0]).length === 0 && ownOf(parents[1]).length > 0 ? parents[1] : sha1
 }
 const REAL = { // what a head is read through: every other registered change (both sides of a comparison), the registered .env.example blocks
-  norm: otherStrips,
+  norm: otherStrips, later: laterStrips,
   env: text => registry.stripLaterEnvBlocks('.env.example', text),
 }
 const diffLines = text => text.split('\n').filter(line => /^[+-]/.test(line) && !/^(\+\+\+|---) /.test(line))
@@ -455,6 +506,7 @@ const scopeCommittedFiles = (head, ctx = REAL) => {
     assert.equal(diff.length, ADDED[rel], `${rel}: the number of added lines`)
     assert.equal(stripMdcElementFields(rel, ctx.norm(rel, git('show', `${head}:${rel}`))), ctx.norm(rel, git('show', `${BASE_COMMIT}:${rel}`)), `${rel}: without its marked lines the file is the base's, byte for byte`)
   }
+  for (const rel of stripModule.MDC_ELEMENT_FIELDS_PIN_FILES) assert.equal(sha(stripMdcElementFields(rel, ctx.later(rel, git('show', `${head}:${rel}`)))), sha(git('show', `${BASE_COMMIT}:${rel}`)), `${rel}: the proof this change taught, put back, is dev's`)
   for (const rel of MDC_ELEMENT_FIELDS_NEW_FILES) assert.equal(git('cat-file', '-t', `${head}:${rel}`).trim(), 'blob', rel)
   for (const rel of [ICON_FORM, SHAPE_FORM, 'lib/chat-element-refine.ts', 'types/textlabs.ts', CLIENT, 'hooks/use-textlabs-generation.ts']) assert.ok(!touched.has(rel), `${rel} is not touched by this change`)
 }
@@ -537,7 +589,7 @@ const syntheticCommit = parent => {
 }
 const SYNTHETIC = syntheticCommit(HEAD)
 const SYN_CTX = {
-  norm: (rel, text) => syntheticStrip(rel, otherStrips(rel, text)),
+  norm: (rel, text) => syntheticStrip(rel, otherStrips(rel, text)), later: (rel, text) => syntheticStrip(rel, laterStrips(rel, text)),
   env: text => registry.stripLaterEnvBlocks('.env.example', text).replace(`\n${SYN.block}`, ''),
 }
 await check('ROBUST AFTER MERGE: a synthetic change stacked after this one (its marked lines beside this change\'s in the executor and the page, a registry trio, an .env.example block, a new file; its own commit has another subject) leaves this change\'s scope section passing, on the branch, on the gate\'s merge and on a merge onto an advanced dev', () => {

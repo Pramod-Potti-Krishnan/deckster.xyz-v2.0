@@ -32,11 +32,29 @@ export const MDC_ELEMENT_FIELDS_NEW_FILES = [
 
 /** The older proofs this change teaches: [text the proof has now, text the proof had before] per edit, whole lines, so putting them back gives the previous file byte for byte. Every line the proof has now carries MDC_ELEMENT_FIELDS_PIN_MARK. */
 export const MDC_ELEMENT_FIELDS_PIN_MARK = 'LATER-CHANGES: registry read (MDC-ELEMENT-FIELDS)'
-export const MDC_ELEMENT_FIELDS_PIN_EDITS = {}
+export const MDC_ELEMENT_FIELDS_PIN_EDITS = {
+  // chat element edit 2 (#538, on dev) strips the page of ITS marked lines and compares it with its base (its section 5); a later change's page line has to come out first too. One module-level helper (the strips registered after #538's, positionally: a later change needs no edit again) and the call in the check.
+  "scripts/test-studio-chat-element-edit-2.mjs": [
+    ["const strippedPastLater = (rel, text) => { const strips = registry.LATER_STRIPS, at = strips.indexOf(stripChatElementEdit2); return (at === -1 ? [] : strips.slice(at + 1)).reduce((out, strip) => { const next = strip(rel, out); return typeof next === 'string' ? next : out }, text) } // LATER-CHANGES: registry read (MDC-ELEMENT-FIELDS), stacked after chat element edit 2: the strips of every change registered after #538's, applied first (the rule of laterStrips below, here ahead of section 6 where that is defined)\n",
+      ""],
+    ["  for (const rel of CHAT_ELEMENT_EDIT_2_FILES) assert.equal(stripChatElementEdit2(rel, strippedPastLater(rel, read(rel))), baseFile(rel), `${rel}: without its marked lines the file is the base's`) // LATER-CHANGES: registry read (THEME-OWN-CHOICE), stacked after chat element edit 2 // LATER-CHANGES: registry read (MDC-ELEMENT-FIELDS): every strip registered after #538's comes out first, so a later change's page line does too\n",
+      "  for (const rel of CHAT_ELEMENT_EDIT_2_FILES) assert.equal(stripChatElementEdit2(rel, themeOwnChoice.stripThemeOwnChoice(rel, read(rel))), baseFile(rel), `${rel}: without its marked lines the file is the base's`) // LATER-CHANGES: registry read (THEME-OWN-CHOICE), stacked after chat element edit 2\n"],
+  ],
+}
 
-/** The proof without this change's edits (the previous file). Used by the strip and the proof. */
-export function putBackPin(rel, text) {
-  return (MDC_ELEMENT_FIELDS_PIN_EDITS[rel] || []).reduce((out, [has, was]) => out.replace(has, () => was), text)
+/**
+ * The proof without this change's edits (the previous file). Used by the strip and the proof.
+ * ORDER. Chat element edit 2's check of the page is one line that THEME OWN CHOICE (registered before this change) already swapped; this change swaps it again, so the line it leaves is theme's. A consumer registered BEFORE theme
+ * applies the strips after it in registry order, theme's first: theme finds none of its swapped line (this change's text is there) and puts back the rest of its lines, which takes its import line out; then this strip runs. In that case,
+ * and only then (theme's import line is gone), theme's swap of the line is taken too, so the proof comes out as the consumer's own previous file. Everywhere else (this change's own proof, a consumer after theme, theme's own, which put theme back itself) the line is left as theme's.
+ */
+const PIN_THEME_LINE = [ "  for (const rel of CHAT_ELEMENT_EDIT_2_FILES) assert.equal(stripChatElementEdit2(rel, themeOwnChoice.stripThemeOwnChoice(rel, read(rel))), baseFile(rel), `${rel}: without its marked lines the file is the base's`) // LATER-CHANGES: registry read (THEME-OWN-CHOICE), stacked after chat element edit 2\n",
+  "  for (const rel of CHAT_ELEMENT_EDIT_2_FILES) assert.equal(stripChatElementEdit2(rel, read(rel)), baseFile(rel), `${rel}: without its marked lines the file is the base's`)\n"]
+const PIN_THEME_IMPORT = "const themeOwnChoice = await import('./studio-theme-own-choice-strip.mjs') // LATER-CHANGES: registry read (THEME-OWN-CHOICE), stacked after chat element edit 2: the strip of the later change, so its marked lines in the page come out first"
+export function putBackPin(rel, text, edits = MDC_ELEMENT_FIELDS_PIN_EDITS) {
+  let out = (edits[rel] || []).reduce((acc, [has, was]) => acc.replace(has, () => was), text)
+  if (rel in edits && out.includes(PIN_THEME_LINE[0]) && !out.includes(PIN_THEME_IMPORT)) out = out.replace(PIN_THEME_LINE[0], () => PIN_THEME_LINE[1])
+  return out
 }
 
 /** The older proofs this change teaches. */
