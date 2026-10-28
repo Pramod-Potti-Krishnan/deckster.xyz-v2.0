@@ -557,7 +557,7 @@ const scopeOwnCommits = head => {
 const scopeCommittedFiles = HEAD => {
   const changed = git('diff', '--name-only', `${BASE_COMMIT}..${HEAD}`).split('\n').filter(Boolean).filter(rel => CHAT_CLEAN_ORDER_SCOPE_FILES.has(rel) || !registry.LATER_CHANGE_FILES.has(rel)).sort()
   assert.deepEqual(changed, [...CHAT_CLEAN_ORDER_SCOPE_FILES].sort())
-  assert.deepEqual(Object.keys(CHAT_CLEAN_ORDER_PIN_EDITS), ['scripts/test-studio-chat-undo-v2.mjs', 'scripts/test-studio-chat-element-edit-2.mjs'], 'two older proofs are taught: chat undo v2\'s strip of the message list, and #538\'s count of the registry lines')
+  assert.deepEqual(Object.keys(CHAT_CLEAN_ORDER_PIN_EDITS), ['scripts/test-studio-chat-undo-v2.mjs', 'scripts/test-studio-chat-element-edit-2.mjs'], 'two older proofs are taught: chat undo v2\'s strip of the message list, and #538\'s scope section (its own commits found by subject, a stray-file mutant); dev\'s generic registry read (#542) already reads past this change\'s three registry lines')
   for (const rel of Object.keys(CHAT_CLEAN_ORDER_PIN_EDITS)) {
     assert.equal(stripChatCleanOrder(rel, git('show', `${HEAD}:${rel}`)), git('show', `${BASE_COMMIT}:${rel}`), `${rel}: the taught proof, put back, is the previous file byte for byte`)
     const diff = git('diff', '-U0', `${BASE_COMMIT}..${HEAD}`, '--', rel).split('\n').filter(line => /^[+-]/.test(line) && !/^(\+\+\+|---) /.test(line))
