@@ -619,8 +619,9 @@ await check('and a merge the gate makes after dev moved on (a later commit on BA
 })
 await check('after a later change: a commit "Later change: x" on the gate-style merge that adds a correctly shaped registered line to each list and a new file leaves the own-commit and file checks passing, and the registry check reads past its lines; a "Model choice prefs version:" commit that touches a foreign file, or has no co-author line, or adds an unregistered registry line still fails', () => {
   const gate = gateMerge(mineHead), registryText = at(gate, REGISTRY), MARKER = '  // one line per later change, above this comment\n'
-  const shaped = `  (await import('./studio-later-x-strip.mjs')).LATER_X, // LATER-CHANGE: SOMEONE, a later change (NEXT_PUBLIC_LATER_X)\n`
-  const withLater = registryText.split(MARKER).join(`${shaped}${MARKER}`)
+  const shaped = name => `  (await import('./studio-later-x-strip.mjs')).${name}, // LATER-CHANGE: SOMEONE, a later change (NEXT_PUBLIC_LATER_X)\n`
+  const parts = registryText.split(MARKER); eq(parts.length, 4, 'three lists')
+  const withLater = parts[0] + shaped('LATER_X_FILES') + MARKER + parts[1] + shaped('LATER_X_ENV') + MARKER + parts[2] + shaped('LATER_X_STRIP') + MARKER + parts[3]
   const later = commitOn(gate, 'Later change: x', { [REGISTRY]: withLater, 'scripts/studio-later-x-strip.mjs': 'export const LATER_X = 1\n' })
   ownAssertions(later); fileAssertions(later)
   eq(ownCommits(later).length, ownCommits(gate).length, 'a later change\'s commit is not one of ours')
@@ -631,7 +632,7 @@ await check('after a later change: a commit "Later change: x" on the gate-style 
   const stray = commitOn(later, `${SUBJECT} a stray`, { 'README.md': `${git('show', 'HEAD:README.md')}\nstray\n` })
   assert.throws(() => fileAssertions(stray), undefined, 'a foreign file in a commit of ours is a stray')
   const unsigned = commitOn(later, `${SUBJECT} no co-author`, {}, { coAuthor: false }); assert.throws(() => ownAssertions(unsigned), undefined, 'a commit of ours without the co-author line')
-  const unregistered = commitOn(later, `${SUBJECT} a stray registry line`, { [REGISTRY]: withLater.split(MARKER).join(`  // a stray line nobody registered\n${MARKER}`) })
+  const unregistered = commitOn(later, `${SUBJECT} a stray registry line`, { [REGISTRY]: withLater.replace(MARKER, () => `  // a stray line nobody registered\n${MARKER}`) })
   const strayLater = laterRegistryLines(at(unregistered, REGISTRY)), strayDiff = git('diff', '-U0', BASE, unregistered, '--', REGISTRY).split('\n').filter(line => /^[+-]/.test(line) && !/^(\+\+\+|---) /.test(line) && !(line.startsWith('+') && strayLater.has(line.slice(1))))
   eq(strayDiff.length, 4, 'an unregistered line is not read past')
 })
