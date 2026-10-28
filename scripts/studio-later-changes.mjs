@@ -52,6 +52,7 @@ export const LATER_CHANGE_FILES = new Set([
   ...(await import('./studio-chat-element-edit-2-strip.mjs')).CHAT_ELEMENT_EDIT_2_SCOPE_FILES, // LATER-CHANGE: FRONTEND-2, B32 chat element edit 2: an edit works after a reload and no stale element reference (NEXT_PUBLIC_STUDIO_CHAT_ELEMENT_EDIT_2)
   ...(await import('./studio-model-choice-deck-save-strip.mjs')).MODEL_CHOICE_DECK_SAVE_SCOPE_FILES, // LATER-CHANGE: FRONTEND-2, B37 model choice deck save: a presentation's model choice saves, and "Saved" shows only when it did (NEXT_PUBLIC_STUDIO_MODEL_CHOICE_DECK_SAVE)
   ...(await import('./studio-chat-clean-order-strip.mjs')).CHAT_CLEAN_ORDER_SCOPE_FILES, // LATER-CHANGE: FRONTEND-2, B31 clean chat order: no stale working line at the outline gate, the thread's notes where they happened (NEXT_PUBLIC_STUDIO_CHAT_CLEAN_ORDER)
+  ...(await import('./studio-model-choice-prefs-version-strip.mjs')).MODEL_CHOICE_PREFS_VERSION_SCOPE_FILES, // LATER-CHANGE: FRONTEND-2, B37 follow-up model choice prefs version: the save's version travels in its own header (NEXT_PUBLIC_STUDIO_MODEL_CHOICE_PREFS_VERSION)
   ...(await import('./studio-chat-edit-targeted-strip.mjs')).CHAT_EDIT_TARGETED_SCOPE_FILES, // LATER-CHANGE: FRONTEND-2, B33 targeted chat edit: a chat element edit saves only that element (NEXT_PUBLIC_STUDIO_CHAT_EDIT_TARGETED_SAVE)
   // one line per later change, above this comment
 ])
@@ -77,6 +78,7 @@ export const LATER_ENV_BLOCKS = [
   (await import('./studio-chat-element-edit-2-strip.mjs')).CHAT_ELEMENT_EDIT_2_ENV_BLOCK, // LATER-CHANGE: FRONTEND-2, B32 chat element edit 2 (NEXT_PUBLIC_STUDIO_CHAT_ELEMENT_EDIT_2)
   (await import('./studio-model-choice-deck-save-strip.mjs')).MODEL_CHOICE_DECK_SAVE_ENV_BLOCK, // LATER-CHANGE: FRONTEND-2, B37 model choice deck save (NEXT_PUBLIC_STUDIO_MODEL_CHOICE_DECK_SAVE)
   (await import('./studio-chat-clean-order-strip.mjs')).CHAT_CLEAN_ORDER_ENV_BLOCK, // LATER-CHANGE: FRONTEND-2, B31 clean chat order (NEXT_PUBLIC_STUDIO_CHAT_CLEAN_ORDER)
+  (await import('./studio-model-choice-prefs-version-strip.mjs')).MODEL_CHOICE_PREFS_VERSION_ENV_BLOCK, // LATER-CHANGE: FRONTEND-2, B37 follow-up model choice prefs version (NEXT_PUBLIC_STUDIO_MODEL_CHOICE_PREFS_VERSION)
   (await import('./studio-chat-edit-targeted-strip.mjs')).CHAT_EDIT_TARGETED_ENV_BLOCK, // LATER-CHANGE: FRONTEND-2, B33 targeted chat edit (NEXT_PUBLIC_STUDIO_CHAT_EDIT_TARGETED_SAVE)
   // one line per later change, above this comment
 ]
@@ -111,6 +113,7 @@ export const LATER_STRIPS = [
   (await import('./studio-chat-element-edit-2-strip.mjs')).stripChatElementEdit2, // LATER-CHANGE: FRONTEND-2, B32 chat element edit 2 (NEXT_PUBLIC_STUDIO_CHAT_ELEMENT_EDIT_2)
   (await import('./studio-model-choice-deck-save-strip.mjs')).stripModelChoiceDeckSave, // LATER-CHANGE: FRONTEND-2, B37 model choice deck save (NEXT_PUBLIC_STUDIO_MODEL_CHOICE_DECK_SAVE)
   (await import('./studio-chat-clean-order-strip.mjs')).stripChatCleanOrder, // LATER-CHANGE: FRONTEND-2, B31 clean chat order (NEXT_PUBLIC_STUDIO_CHAT_CLEAN_ORDER)
+  (await import('./studio-model-choice-prefs-version-strip.mjs')).stripModelChoicePrefsVersion, // LATER-CHANGE: FRONTEND-2, B37 follow-up model choice prefs version (NEXT_PUBLIC_STUDIO_MODEL_CHOICE_PREFS_VERSION)
   (await import('./studio-chat-edit-targeted-strip.mjs')).stripChatEditTargeted, // LATER-CHANGE: FRONTEND-2, B33 targeted chat edit (NEXT_PUBLIC_STUDIO_CHAT_EDIT_TARGETED_SAVE)
   // one line per later change, above this comment
 ]

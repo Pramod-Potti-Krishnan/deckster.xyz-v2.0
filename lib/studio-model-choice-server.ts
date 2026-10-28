@@ -217,6 +217,7 @@ export async function handlePrefs(method: 'GET' | 'PATCH', deckKey: string | nul
   if (method === 'GET') return { status: 200, body: view(scope, current.body), etag: current.etag ?? undefined }
 
   if (deckSaveOn(deps.env) && sameEntityTag(ifMatchTag, current.etag)) ifMatchTag = current.etag // MODEL-CHOICE-DECK-SAVE: the same read, however the tag travelled (W/ or not), on either scope: the check below then lets it through; a different tag is still refused, and the router still gets its own tag as If-Match
+  if ((request as { opaqueTag?: boolean }).opaqueTag === true && sameEntityTag(ifMatchTag, current.etag)) ifMatchTag = current.etag // MODEL-CHOICE-PREFS-VERSION: the route sets opaqueTag when it reads the version from X-Prefs-Version (either scope): the same read, however the tag travelled; a different tag is still refused
   // A stale read is refused here, before anything is written: the browser gets the current map and its tag.
   if (ifMatchTag !== null && ifMatchTag !== current.etag) return { status: 412, body: { ...view(scope, current.body), error: 'Your choices changed elsewhere. Read them again and retry.', code: 'preferences_modified', retryable: true }, etag: current.etag ?? undefined }
 
