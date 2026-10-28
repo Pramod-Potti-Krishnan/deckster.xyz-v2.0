@@ -242,6 +242,8 @@ import {
   isFreshThemeRestoreGate,
   restoredAdoptedSelection,
   restoredThemeSync,
+  recordOwnThemeChoice, // THEME-OWN-CHOICE
+  themeOwnChoiceRestore, // THEME-OWN-CHOICE
   themeRestoreGateFor,
   themeRestoreHoldsSocketSync,
   type ThemeRestoreGate,
@@ -764,6 +766,20 @@ function AuthenticatedBuilderContent({ authScopeUserId }: { authScopeUserId: str
     const restore = step.restore
     // A pick the user made before the restore arrived wins: it was sent once, and this restore changes nothing.
     if (!restore || themeSelectionChangedLocallyRef.current) return step.consumed
+    // THEME-OWN-CHOICE (NEXT_PUBLIC_STUDIO_THEME_OWN_CHOICE, default off; lib/studio-theme-own-choice.ts): Director's resolved default is not the user's pick; an Auto tab keeps Auto.
+    if (process.env.NEXT_PUBLIC_STUDIO_THEME_OWN_CHOICE === 'true') { // THEME-OWN-CHOICE
+      const ownKept = themeOwnChoiceRestore(themeRestoreSessionRef.current, buildThemeSelectionRef.current, restoredAdoptedSelection(restore)) // THEME-OWN-CHOICE
+      const ownSync = ownKept ? restoredThemeSync(restore, ownKept) : null // THEME-OWN-CHOICE
+      if (ownKept) { // THEME-OWN-CHOICE
+        if (ownSync) { // THEME-OWN-CHOICE
+          clearThemeSyncTimeout() // THEME-OWN-CHOICE
+          latestThemeSyncRequestRef.current = ownSync.requestId // THEME-OWN-CHOICE
+          latestThemeSyncKeyRef.current = `${ownSync.presentationId}:${ownSync.themeFingerprint}` // THEME-OWN-CHOICE
+          commitThemeSync(ownSync) // THEME-OWN-CHOICE
+        } // THEME-OWN-CHOICE
+        return step.consumed // THEME-OWN-CHOICE
+      } // THEME-OWN-CHOICE
+    } // THEME-OWN-CHOICE
     // `restore:<session id>:none` (the user never picked): Director's default theme is not a choice, so this stays Auto and
     // the state committed below is applied for the Auto fingerprint (restoredAdoptedSelection).
     const selection = restoredAdoptedSelection(restore)
@@ -2154,6 +2170,7 @@ function AuthenticatedBuilderContent({ authScopeUserId }: { authScopeUserId: str
     ))
     themeSelectionChangedLocallyRef.current = true
     setBuildThemeSelection(carried)
+    if (process.env.NEXT_PUBLIC_STUDIO_THEME_OWN_CHOICE === 'true') recordOwnThemeChoice(themeRestoreSessionRef.current, carried) // THEME-OWN-CHOICE: a real pick is the user's own choice
   }, [toast, saveSessionOnFirstAction])
 
   const handleActiveBuildThemeProfileChange = useCallback((profile: ActiveBuildThemeProfile | null) => {
@@ -5309,6 +5326,7 @@ function AuthenticatedBuilderContent({ authScopeUserId }: { authScopeUserId: str
     ))
     themeSelectionChangedLocallyRef.current = true
     setBuildThemeSelection(carried)
+    if (process.env.NEXT_PUBLIC_STUDIO_THEME_OWN_CHOICE === 'true') recordOwnThemeChoice(themeRestoreSessionRef.current, carried) // THEME-OWN-CHOICE: a chat theme change is the user's own choice too
     return carried
   }
   themeExportDirectiveRunnerRef.current = !(process.env.NEXT_PUBLIC_CHAT_THEME_CHANGE === 'true' || process.env.NEXT_PUBLIC_CHAT_EXPORT === 'true') ? null : (message, owner) => {
