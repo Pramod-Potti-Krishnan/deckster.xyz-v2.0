@@ -1,5 +1,5 @@
 // FRONTEND-2 (B33, 27 Oct; PK 18:19Z): targeted chat edit, a chat element edit saves only that element and never sets off the editor's whole-deck autosave (NEXT_PUBLIC_STUDIO_CHAT_EDIT_TARGETED_SAVE, exact "true",
-// default off; it acts only with NEXT_PUBLIC_STUDIO_CHAT_ELEMENT_EDIT on). Stacked on #538 (frontend2/chat-element-edit-2 @ 7a67ff6d).
+// default off; it acts only with NEXT_PUBLIC_STUDIO_CHAT_ELEMENT_EDIT on). Stacked on #538 (frontend2/chat-element-edit-2 @ 7a67ff6d), now merged into dev with #542 and #539 on top.
 //
 //   node scripts/test-studio-chat-edit-targeted.mjs                     # offline: the viewer's replies and its save requests come from layout-transcripts.json, which the real Layout code recorded
 //   CHAT_EDIT_TARGETED_LAYOUT_DIR=<layout-builder at frontend2/layout-targeted-save> node scripts/test-studio-chat-edit-targeted.mjs    # also runs the REAL Layout viewer code live and checks it says what was recorded
@@ -15,7 +15,7 @@
 //  4. Studio's flag on with Layout's flag off: refused UNSUPPORTED_OP before any command changes anything, nothing saved (never a silent ok:true);
 //  5. Undo: the ok:true result frame is byte-identical to today's (Director's Undo chip and chat undo key on it), and the save is a Layout version written after the edit (the Layout test pins create_version);
 //  6. #538's slide checks still stand: a directive for a slide Layout does not show, or a stale slide id, is SLIDE_CHANGED before begin;
-//  7. flag off is identical: the strip gives back dev's files (#538 merged) byte for byte; flag off runs today's requests exactly; the commits are this change's own (first-parent, no merges; HEAD^2 when HEAD is the gate's --no-ff merge onto dev, proved on a gate-style merge built here), every added line is marked;
+//  7. flag off is identical: the strip gives back dev's files (#538, #542 and #539 merged) byte for byte; flag off runs today's requests exactly; the commits are this change's own (found by SUBJECT across `rev-list --no-merges BASE..head`, so a change stacked after this one, a dev merge and the gate's merge do not hide them; a commit that is not one touches only files a later change registered; HEAD^2 when HEAD is the gate's --no-ff merge onto dev, proved on a gate-style merge built here), every added line is marked; the file, .env.example and registry reads go past the changes registered after this one (their strips, blocks and registry lines are theirs), and a stray foreign file in a "Targeted chat edit:" commit fails the scope;
 //  8. mutants are caught.
 import assert from 'node:assert/strict'
 import crypto from 'node:crypto'
@@ -30,7 +30,8 @@ import { RELOAD_SCRIPTS, applyWithLayoutServer, elementState, renderStoredDeck, 
 import {
   BASE_COMMIT, CHAT_EDIT_TARGETED_FILES, CHAT_EDIT_TARGETED_NEW_FILES, CHAT_EDIT_TARGETED_PIN_FILES, CHAT_EDIT_TARGETED_PIN_EDITS, CHAT_EDIT_TARGETED_PIN_MARK, CHAT_EDIT_TARGETED_SCOPE_FILES, CHAT_EDIT_TARGETED_ENV_BLOCK, CHAT_EDIT_TARGETED_MARKER_RE, CHAT_EDIT_TARGETED_SUBJECT, stripChatEditTargeted,
 } from './studio-chat-edit-targeted-strip.mjs'
-import { stripLaterEnvBlocks } from './studio-later-changes.mjs'
+import * as registry from './studio-later-changes.mjs'
+const { stripLaterEnvBlocks, LATER_STRIPS, LATER_ENV_BLOCKS } = registry
 
 const root = path.resolve(fileURLToPath(new URL('../', import.meta.url)))
 const TRANSCRIPTS = path.join(root, 'scripts/fixtures/chat-edit-targeted/layout-transcripts.json')
@@ -38,6 +39,12 @@ const read = rel => fs.readFileSync(path.join(root, rel), 'utf8')
 const sha = text => crypto.createHash('sha256').update(text).digest('hex')
 const plain = value => JSON.parse(JSON.stringify(value === undefined ? null : value))
 const git = (...args) => execFileSync('git', args, { cwd: root, encoding: 'utf8', maxBuffer: 64 * 1024 * 1024 })
+/** The strips of every change registered AFTER this one (below this change's strip in LATER_STRIPS), applied first: a file is read as this change left it, whatever a later change marked in it. */
+const laterStrips = (rel, text) => { const at = LATER_STRIPS.indexOf(stripChatEditTargeted); return (at === -1 ? [] : LATER_STRIPS.slice(at + 1)).reduce((out, strip) => { const next = typeof strip === 'function' ? strip(rel, out) : out; return typeof next === 'string' ? next : out }, text) }
+const laterRead = rel => laterStrips(rel, read(rel))
+const laterBlob = (ref, rel) => laterStrips(rel, git('show', `${ref}:${rel}`))
+/** `text` (an .env.example) without the blocks registered AFTER this one (each with the one blank line before it): theirs, not this change's. */
+const withoutLaterEnvBlocks = text => { const at = LATER_ENV_BLOCKS.indexOf(CHAT_EDIT_TARGETED_ENV_BLOCK); return (at === -1 ? [] : LATER_ENV_BLOCKS.slice(at + 1)).reduce((out, block) => { const body = String(block).replace(/^\n+/, '').replace(/\n+$/, ''); return body === '' ? out : out.replace(`\n${body}\n`, () => '') }, text) }
 
 const RECORD = process.argv.includes('--record-layout')
 const LAYOUT_DIR = process.env.CHAT_EDIT_TARGETED_LAYOUT_DIR ? path.resolve(process.env.CHAT_EDIT_TARGETED_LAYOUT_DIR) : null
@@ -363,7 +370,7 @@ await check('budget: the commit\'s save may take TARGETED_SAVE_COMMIT_TIMEOUT_MS
   assert.equal(libs.targeted.TARGETED_SAVE_COMMIT_TIMEOUT_MS, 20_000)
   const handler = callbackText('components/presentation-viewer.tsx', 'useCallback', "if (studioShell) viewerInteractionIntentRef.current += 1\n    return sendCommand(iframeRef.current, action, params)")
   assert.ok(/return sendCommand\(iframeRef\.current, action, params\)\n  \}$/.test(handler), 'the text box commands (begin, commit, status included) go out with sendCommand\'s default budget')
-  assert.equal(read('components/presentation-viewer.tsx'), git('show', `${BASE_COMMIT}:components/presentation-viewer.tsx`), 'the viewer is not touched')
+  assert.equal(laterRead('components/presentation-viewer.tsx'), laterStrips('components/presentation-viewer.tsx', git('show', `${BASE_COMMIT}:components/presentation-viewer.tsx`)), 'the viewer is not touched (past the changes registered after this one)')
 })
 for (const [label, name, options, expectOk] of [
   ['a PUT that takes 8 s (past the 5 s command budget): commit answers pending, the status reads saved, ok:true', 'budget-slow-8s', { putDelayMs: 8_000 }, true],
@@ -391,7 +398,7 @@ await check('Undo: the ok:true frame of a targeted edit is byte-identical to tod
   const result = await today.send(frame(...OPS.move_image))
   const shape = r => JSON.stringify(makeLibs().wire.elementEditResultFrame({ ...r, directive_id: 'd' }))
   assert.equal(shape(result), shape(onRuns.move_image ?? { ok: true }))
-  for (const rel of ['lib/chat-undo-v2.ts', 'lib/chat-undo.ts'].filter(rel => fs.existsSync(path.join(root, rel)))) assert.equal(read(rel), git('show', `${BASE_COMMIT}:${rel}`), rel)
+  for (const rel of ['lib/chat-undo-v2.ts', 'lib/chat-undo.ts'].filter(rel => fs.existsSync(path.join(root, rel)))) assert.equal(laterRead(rel), laterStrips(rel, git('show', `${BASE_COMMIT}:${rel}`)), rel)
   today.finish()
 })
 
@@ -421,18 +428,18 @@ await check('begin\'s refusals map honestly: busy = BUSY, another slide = SLIDE_
 })
 
 // ===== 8. flag off is identical; the commits are this change's own =======================================================================
-await check('flag off: the strip gives back #538\'s head byte for byte (every added line is marked, pure insertions), and the .env.example block comes out with its blank line', async () => {
+await check('flag off: the strip gives back dev\'s files byte for byte (every added line is marked, pure insertions), and the .env.example block comes out with its blank line; all read past the changes registered after this one', async () => {
   for (const rel of CHAT_EDIT_TARGETED_FILES) {
-    const base = git('show', `${BASE_COMMIT}:${rel}`)
-    assert.equal(sha(stripChatEditTargeted(rel, read(rel))), sha(base), rel)
-    const added = read(rel).split('\n').length - base.split('\n').length
-    assert.equal(read(rel).split('\n').filter(line => CHAT_EDIT_TARGETED_MARKER_RE.test(line)).length, added, `${rel}: every added line carries the marker`)
+    const base = git('show', `${BASE_COMMIT}:${rel}`), now = laterRead(rel)
+    assert.equal(sha(stripChatEditTargeted(rel, now)), sha(base), rel)
+    const added = now.split('\n').length - base.split('\n').length
+    assert.equal(now.split('\n').filter(line => CHAT_EDIT_TARGETED_MARKER_RE.test(line)).length, added, `${rel}: every added line carries the marker`)
   }
-  assert.equal(read('.env.example'), `${git('show', `${BASE_COMMIT}:.env.example`)}\n${CHAT_EDIT_TARGETED_ENV_BLOCK}`, 'the base, one blank line, the block')
+  assert.equal(withoutLaterEnvBlocks(read('.env.example')), `${git('show', `${BASE_COMMIT}:.env.example`)}\n${CHAT_EDIT_TARGETED_ENV_BLOCK}`, 'the base, one blank line, the block (the blocks of the changes registered after this one aside)')
   assert.equal(stripLaterEnvBlocks('.env.example', read('.env.example')), stripLaterEnvBlocks('.env.example', git('show', `${BASE_COMMIT}:.env.example`)), 'the registry takes the block out')
   for (const rel of CHAT_EDIT_TARGETED_NEW_FILES) assert.ok(fs.existsSync(path.join(root, rel)), rel)
   for (const rel of CHAT_EDIT_TARGETED_PIN_FILES) {
-    assert.equal(sha(stripChatEditTargeted(rel, read(rel))), sha(git('show', `${BASE_COMMIT}:${rel}`)), `${rel}: the proof this change taught, put back, is #538's`)
+    assert.equal(sha(stripChatEditTargeted(rel, laterRead(rel))), sha(git('show', `${BASE_COMMIT}:${rel}`)), `${rel}: the proof this change taught, put back, is dev's`)
     for (const [has] of CHAT_EDIT_TARGETED_PIN_EDITS[rel]) for (const line of has.split('\n').filter(Boolean)) assert.ok(line.includes(CHAT_EDIT_TARGETED_PIN_MARK), `${rel}: a taught line carries the pin mark`)
   }
 })
@@ -443,7 +450,7 @@ await check('flag off: the runner sends today\'s requests exactly (the flag-off 
     assert.ok(actions.includes('saveAllChanges'), name)
   }
 })
-/** GATE-SAFE head of the own-commit / scope query. In the gate, HEAD is a local --no-ff merge whose FIRST parent is BASE (dev) and whose second parent is this change's head, so `--first-parent --no-merges BASE..HEAD` is empty: the
+/** GATE-SAFE head of every own-commit / scope query. In the gate, HEAD is a local --no-ff merge whose FIRST parent is BASE (dev) and whose second parent is this change's head, so `--first-parent --no-merges BASE..HEAD` is empty: the
  *  scope then runs against HEAD^2. On a branch (HEAD is this change's own tip, or a merge of dev INTO it, whose first parent is the change) HEAD itself is used. `gateRule: false` is the mutant that drops the rule. */
 function scopeHead(ref = 'HEAD', { gateRule = true } = {}) {
   const sha = git('rev-parse', `${ref}^{commit}`).trim()
@@ -451,31 +458,66 @@ function scopeHead(ref = 'HEAD', { gateRule = true } = {}) {
   return gateRule && parents.length === 2 && parents[0] === BASE_COMMIT ? parents[1] : sha
 }
 const SCOPE_HEAD = scopeHead('HEAD')
-const scopeOwn = head => {
-  const subjects = git('log', '--first-parent', '--no-merges', '--format=%s', `${BASE_COMMIT}..${head}`).split('\n').filter(Boolean)
-  assert.ok(subjects.length >= 1, 'no own commit yet')
-  for (const subject of subjects) assert.ok(subject.startsWith(CHAT_EDIT_TARGETED_SUBJECT) && !/^Chat element edit/.test(subject), subject)
-  const files = git('diff', '--name-only', `${BASE_COMMIT}..${head}`).split('\n').filter(Boolean)
-  for (const rel of files) assert.ok(CHAT_EDIT_TARGETED_SCOPE_FILES.has(rel), `${rel} is this change's`)
-  for (const rel of CHAT_EDIT_TARGETED_FILES) assert.ok(!git('diff', `${BASE_COMMIT}..${head}`, '--', rel).split('\n').some(line => line.startsWith('-') && !line.startsWith('---')), `${rel}: pure insertions`)
+const subjectOf = c => git('log', '-1', '--format=%s', c).trim()
+/** This change's commits: found by SUBJECT across `rev-list --no-merges BASE..head`. A first-parent walk (`firstParentOnly`, the old query, kept for its mutant) sees nothing on the gate's merge, and none of this change's commits once a change is stacked after it. */
+const ownOf = (head, { firstParentOnly = false } = {}) => git('rev-list', ...(firstParentOnly ? ['--first-parent'] : []), '--no-merges', `${BASE_COMMIT}..${head}`).split('\n').filter(Boolean).filter(c => subjectOf(c).startsWith(CHAT_EDIT_TARGETED_SUBJECT))
+const scopeOwnCommits = (head, opts) => {
+  const own = ownOf(head, opts)
+  assert.ok(own.length >= 1, 'no own commit yet')
+  const all = git('rev-list', '--no-merges', `${BASE_COMMIT}..${head}`).split('\n').filter(Boolean)
+  for (const c of all) assert.doesNotMatch(subjectOf(c), /^Chat element edit/, c.slice(0, 8)) // #522's and #538's own-commit greps
+  for (const c of all.filter(c => !own.includes(c))) for (const rel of git('show', '--name-only', '--format=', c).split('\n').filter(Boolean)) assert.ok(CHAT_EDIT_TARGETED_SCOPE_FILES.has(rel) || registry.LATER_CHANGE_FILES.has(rel), `a commit between the base and HEAD that is not this change's (${c.slice(0, 8)}) touches ${rel}, which no later change registered`)
+  for (const c of own) assert.match(git('log', '-1', '--format=%B', c), /Co-Authored-By: Claude (Sonnet|Opus) 5\.5 <noreply@anthropic\.com>\s*$/, c.slice(0, 8))
 }
-await check('scope: BASE..HEAD (first-parent, no merges; HEAD^2 in the gate) are this change\'s own commits ("Targeted chat edit:") and touch only its files', async () => scopeOwn(SCOPE_HEAD))
-// GATE-SAFE: build the gate's merge (first parent BASE, second parent this change's head; the tree is `git merge-tree --write-tree BASE head`) and run the scope against it.
+const scopeCommittedFiles = head => {
+  const changed = git('diff', '--name-only', `${BASE_COMMIT}..${head}`).split('\n').filter(Boolean).filter(rel => CHAT_EDIT_TARGETED_SCOPE_FILES.has(rel) || !registry.LATER_CHANGE_FILES.has(rel)).sort()
+  assert.deepEqual(changed, [...CHAT_EDIT_TARGETED_SCOPE_FILES].sort(), 'the files BASE..head changes (the files a later change registered aside) are exactly this change\'s')
+  // pure insertions that all carry the marker: without its marked lines (and past the later strips) each file is dev's, byte for byte
+  for (const rel of [...CHAT_EDIT_TARGETED_FILES, ...CHAT_EDIT_TARGETED_PIN_FILES]) assert.equal(sha(stripChatEditTargeted(rel, laterBlob(head, rel))), sha(git('show', `${BASE_COMMIT}:${rel}`)), `${rel}: without its marked lines the file is dev's, byte for byte`)
+  for (const rel of CHAT_EDIT_TARGETED_NEW_FILES) assert.equal(git('cat-file', '-t', `${head}:${rel}`).trim(), 'blob', rel)
+}
+const scopeEnvAndRegistry = head => {
+  const base = git('show', `${BASE_COMMIT}:.env.example`), env = git('show', `${head}:.env.example`)
+  assert.equal(registry.stripLaterEnvBlocks('.env.example', env), registry.stripLaterEnvBlocks('.env.example', `${base}\n${CHAT_EDIT_TARGETED_ENV_BLOCK}`))
+  assert.equal(withoutLaterEnvBlocks(env), `${base}\n${CHAT_EDIT_TARGETED_ENV_BLOCK}`, 'byte for byte: the base, one blank line, the block (the blocks of the changes registered after this one aside)')
+  const laterRegistry = (() => { const later = new Set(); let after = false; for (const line of git('show', `${head}:scripts/studio-later-changes.mjs`).split('\n')) { if (/^export const LATER_/.test(line)) after = false; else if (line.includes('studio-chat-edit-targeted-strip.mjs')) after = true; else if (after && line.includes('// LATER-CHANGE:') && /-strip\.mjs/.test(line)) later.add(line) } return later })() // the registry lines of every change registered after this one (below this change's own line in each list, in the registered shape) are theirs
+  const diff = git('diff', '-U0', `${BASE_COMMIT}..${head}`, '--', 'scripts/studio-later-changes.mjs').split('\n').filter(line => /^[+-]/.test(line) && !/^(\+\+\+|---) /.test(line) && !(line.startsWith('+') && laterRegistry.has(line.slice(1))))
+  assert.equal(diff.length, 3); for (const line of diff) assert.ok(line.startsWith('+') && line.includes('LATER-CHANGE') && line.includes('studio-chat-edit-targeted-strip.mjs'), line.slice(0, 140))
+}
+await check('scope: this change\'s own commits ("Targeted chat edit:", found across the whole line, no merges) exist, with the co-author line; a commit that is not one touches only files a later change registered', async () => scopeOwnCommits(SCOPE_HEAD))
+await check('scope: the files BASE..HEAD changes are exactly this change\'s (a later change\'s registered files aside); every line added to an existing file is a pure insertion that carries the marker; the registry gains exactly its three lines; .env.example is the base, a blank line, the block', async () => { scopeCommittedFiles(SCOPE_HEAD); scopeEnvAndRegistry(SCOPE_HEAD) })
+// GATE-SAFE: build the gate's merge (first parent BASE, second parent this change's head; the tree is `git merge-tree --write-tree BASE head`) and run the whole scope section against it.
 const GATE_IDENT = { GIT_AUTHOR_NAME: 'gate', GIT_AUTHOR_EMAIL: 'gate@example.invalid', GIT_COMMITTER_NAME: 'gate', GIT_COMMITTER_EMAIL: 'gate@example.invalid', GIT_AUTHOR_DATE: '2026-10-27T00:00:00Z', GIT_COMMITTER_DATE: '2026-10-27T00:00:00Z' }
 const gateStyleMerge = head => {
   const tree = git('merge-tree', '--write-tree', BASE_COMMIT, head).trim().split('\n')[0]
   return execFileSync('git', ['commit-tree', tree, '-p', BASE_COMMIT, '-p', head, '-m', 'gate-style merge (local, no ref)'], { cwd: root, encoding: 'utf8', env: { ...process.env, ...GATE_IDENT } }).trim()
 }
-await check('GATE-SAFE: on a gate-style merge (first parent BASE, second parent this change\'s head) the scope head is HEAD^2 and the scope passes against it', async () => {
+await check('GATE-SAFE: on a gate-style merge (first parent BASE, second parent this change\'s head) the scope head is HEAD^2 and the whole scope section passes against it', async () => {
   const gate = gateStyleMerge(SCOPE_HEAD)
   assert.deepEqual(git('rev-list', '--parents', '-n', '1', gate).trim().split(/\s+/).slice(1), [BASE_COMMIT, SCOPE_HEAD], 'the gate-style merge: first parent BASE, second parent the head')
   assert.deepEqual(git('log', '--format=%H', '--first-parent', '--no-merges', `${BASE_COMMIT}..${gate}`).split('\n').filter(Boolean), [], 'the gate\'s first-parent, no-merges line from BASE is empty: why HEAD itself cannot be used')
-  assert.equal(scopeHead(gate), SCOPE_HEAD, 'HEAD^2 is the change\'s head')
-  scopeOwn(scopeHead(gate))
+  const head = scopeHead(gate)
+  assert.equal(head, SCOPE_HEAD, 'HEAD^2 is the change\'s head')
+  scopeOwnCommits(head); scopeCommittedFiles(head); scopeEnvAndRegistry(head)
   assert.equal(scopeHead(SCOPE_HEAD), SCOPE_HEAD, 'a branch head (not a merge onto BASE) is used as it is')
   assert.equal(scopeHead(BASE_COMMIT), BASE_COMMIT, 'BASE itself is used as it is')
 })
-await mutant('the scope without the HEAD^2 rule fails on the gate-style merge (it has no own commit)', async () => scopeOwn(scopeHead(gateStyleMerge(SCOPE_HEAD), { gateRule: false })))
+await check('mutant caught: the old first-parent own-commit query finds no own commit on the gate-style merge (the scope fails on it), and without the HEAD^2 rule the scope head is the merge itself', async () => {
+  const gate = gateStyleMerge(SCOPE_HEAD), head = scopeHead(gate, { gateRule: false })
+  assert.equal(head, gate)
+  assert.throws(() => scopeOwnCommits(head, { firstParentOnly: true }), /no own commit yet/)
+  assert.doesNotThrow(() => scopeOwnCommits(head), 'the subject query across the line finds them on the merge itself')
+})
+await check('mutant caught: a stray foreign file in a "Targeted chat edit:" commit fails the committed-files check (own commits found by subject; the diff names the file), and the same file in a commit of another subject fails the own-commit check', async () => {
+  const run = (args, input) => execFileSync('git', args, { cwd: root, encoding: 'utf8', input, env: { ...process.env, ...GATE_IDENT }, stdio: ['pipe', 'pipe', 'pipe'] }).trim()
+  const tree = run(['mktree'], `${git('ls-tree', SCOPE_HEAD)}100644 blob ${run(['hash-object', '-w', '--stdin'], 'stray\n')}\tstray-chat-edit-targeted.txt\n`)
+  const stray = run(['commit-tree', tree, '-p', SCOPE_HEAD, '-m', `${CHAT_EDIT_TARGETED_SUBJECT} a stray file\n\nCo-Authored-By: Claude Sonnet 5.5 <noreply@anthropic.com>`])
+  assert.ok(ownOf(stray).includes(stray), 'the stray commit is found by its subject')
+  assert.doesNotThrow(() => scopeCommittedFiles(SCOPE_HEAD), 'the real head passes')
+  assert.throws(() => scopeCommittedFiles(stray), undefined, 'the committed-files check must fail on a stray file')
+  const other = run(['commit-tree', tree, '-p', SCOPE_HEAD, '-m', 'Somebody else: a stray file\n\nCo-Authored-By: Claude Sonnet 5.5 <noreply@anthropic.com>'])
+  assert.throws(() => scopeOwnCommits(other), /touches stray-chat-edit-targeted\.txt/, 'a commit of another subject must touch only registered files')
+})
 await check('Layout identity: the recording names the Layout files it ran (and, live, they are the files on disk)', async () => {
   if (RECORD) return
   assert.ok(recorded.meta?.sources?.[TARGETED_SCRIPT] && recorded.meta?.sources?.[TARGETED_MODULE])
