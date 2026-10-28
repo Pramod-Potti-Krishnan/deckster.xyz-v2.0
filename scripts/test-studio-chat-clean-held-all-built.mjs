@@ -6,16 +6,16 @@
 // "Resumed · building from slide 5", Director: "Everything was already built — generating the final deck now." The question was never answered.
 // DIRECTOR-2 (Director uat code): a plain user_message while STOPPED is an ordinary engine turn; nothing auto-resumes, build_state is untouched, only resume-type words resume. So with nothing left to build a plain message is safe and gets an answer.
 //
-// THE FIX (flag on). In the held state with slideCount > 0 and slidesDone >= slideCount the composer state is the base's own: sendMode 'message' (ChatInput's normal Send path, the page's handleSendMessage), no directions placeholder, hint or context.
+// THE FIX (flag on). In the STOPPED state (held, kind 'stopped') with slideCount > 0 and slidesDone >= slideCount the composer state is the base's own: sendMode 'message' (ChatInput's normal Send path, the page's handleSendMessage), no directions placeholder, hint or context.
 // The slim bar ("Stopped after the last slide · slides 1-N kept") and Continue stay. Everything else is unchanged. Two marked lines (and one comment line) in lib/studio-chat-clean.ts; the page, the composer and the bar are untouched.
-// PAUSED with every slide built reads the same way (the lib's `held` covers both): nothing is left to direct, and a plain message while paused is no worse than Continue (the worst case is the deck finishing). DIRECTOR-2 confirmed STOPPED; paused is the
-// same rule applied by the same word "held" (the report asks FRONTEND-2 to have it confirmed).
+// PAUSED with every slide built is NOT in the rule and keeps today's directions with the flag on (DIRECTOR-2, from uat code): a paused build's turn still holds the per-session message lock (_session_message_locks), so a plain user_message sent
+// while paused is not answered; it queues until Continue finishes the build or a Stop. Only typed pause / stop / resume skip the lock (and with STEER on later a paused message becomes steer instructions). So paused all built = instructions / Continue.
 //
 //   1. The lib, function by function: the flag, the composer table over a grid of 40k inputs. Flag off hashes as the base lib (this lib with the marked lines stripped); flag on differs from the base ONLY in the held, all-built region, and there only in
 //      sendMode / placeholder / hint / context / directionsFrom; the named cases; no new copy.
 //   2. The world, on recorded frames (DIRECTOR-2's 27 Oct stop frames, scripts/fixtures/chat-clean-order): the REAL narration hook and notes hook, the REAL lib, the REAL ChatInput and StudioChatCleanBar, and the page's REAL chatCleanSendDirections /
 //      chatCleanContinue (cut out of app/builder/page.tsx by AST). All built + stopped + typed + Enter / Send: flag off is the resume with instructions (today, the E2E-2 transcript), flag on is the plain message with no build_control, no directions note, no
-//      "Resumed" note. 4 of 5 built: directions as today either way. Continue: unchanged either way. Paused all built: the plain message. Flag off hashes as the base lib at every checkpoint.
+//      "Resumed" note. 4 of 5 built: directions as today either way. Continue: unchanged either way. Paused all built: today's directions, flag on or off. Flag off hashes as the base lib at every checkpoint.
 //   3. Wiring and the strip: the marked lines, the strip gives the base lib back byte for byte, no import, one inline flag read, no new string literal, the page's send chain (ChatInput onSubmit -> handleSendMessage -> user_message, no build control), .env.example.
 //   4. Mutants: each must be caught.
 //   5. Scope over the COMMITTED diff, GATE-SAFE and robust after merge: this change's commits are found by SUBJECT across `rev-list --no-merges BASE..head`; on the gate's merge (first parent dev, second parent this change) the scope head is HEAD^2; the registry,
@@ -103,8 +103,9 @@ const DONES = [-1, 0, 1, 3, 4, 5, 6, Number.NaN, 2.5]
 const GRID = []
 for (const enabled of [true, false]) for (const active of [true, false]) for (const phase of PHASES) for (const control of CONTROLS) for (const controlEnabled of [true, false]) for (const slideCount of COUNTS) for (const slidesDone of DONES) GRID.push({ enabled, active, phase, control, slidesDone, slideCount, controlEnabled, ackKey: null, ackLine: '' })
 const HELD = i => i.control === 'stopped' || i.control === 'paused' || i.phase === 'stopped' || i.phase === 'paused'
-/** The region the fix changes, stated without the lib: enabled and active, a running-or-held phase, held (not stop_requested / resume_requested), a known count, every slide built. */
-const IN_REGION = i => i.enabled && i.active && !['complete', 'error', 'idle', 'awaiting_user'].includes(i.phase) && i.control !== 'stop_requested' && i.control !== 'resume_requested' && HELD(i)
+const PAUSED = i => i.control === 'paused' || (i.control !== 'stopped' && i.phase === 'paused')
+/** The region the fix changes, stated without the lib: enabled and active, a running-or-held phase, held and STOPPED (not paused; not stop_requested / resume_requested), a known count, every slide built. */
+const IN_REGION = i => i.enabled && i.active && !['complete', 'error', 'idle', 'awaiting_user'].includes(i.phase) && i.control !== 'stop_requested' && i.control !== 'resume_requested' && HELD(i) && !PAUSED(i)
   && Number.isSafeInteger(i.slideCount) && i.slideCount > 0 && Number.isSafeInteger(i.slidesDone) && i.slidesDone >= i.slideCount
 const run = (lib, inputs) => inputs.map(input => JSON.stringify(lib.chatCleanComposerState(input)))
 
@@ -138,8 +139,13 @@ function libSuite(ownLibText = ownText(LIB), baseLibText = baseText(LIB)) {
   const plain = (barText, barDetail, extra = {}) => ({ mode: 'held', showStop: false, stopEnabled: false, barText, barDetail, showContinue: true, continueEnabled: true, sendMode: 'message', placeholder: null, hint: null, directionsFrom: null, context: null, ...extra })
   assert.deepEqual({ ...state(on, {}) }, plain('Stopped after the last slide', 'slides 1–5 kept'), 'on: stopped, 5 of 5: the plain message, the bar and Continue as before')
   assert.deepEqual({ ...state(off, {}) }, plain('Stopped after the last slide', 'slides 1–5 kept', { sendMode: 'instructions', placeholder: 'New directions from slide 5…', hint: 'Enter sends new directions from slide 5 · Continue resumes as planned', directionsFrom: 5, context: 'New directions apply from slide 5' }), 'off: today\'s directions at 5 of 5')
-  assert.deepEqual({ ...state(on, { control: 'paused', phase: 'paused' }) }, plain('Paused after the last slide', 'slides 1–5 kept'), 'on: paused, 5 of 5: the plain message too')
-  assert.equal(state(off, { control: 'paused', phase: 'paused' }).sendMode, 'instructions', 'off: paused, 5 of 5: directions')
+  for (const [lib, name] of [[on, 'on'], [off, 'off']]) {
+    assert.deepEqual({ ...state(lib, { control: 'paused', phase: 'paused' }) }, { ...plain('Paused after the last slide', 'slides 1–5 kept'), sendMode: 'instructions', placeholder: 'New directions from slide 5…', hint: 'Enter sends new directions from slide 5 · Continue resumes as planned', directionsFrom: 5, context: 'New directions apply from slide 5' }, `${name}: paused, 5 of 5: today's directions (a paused turn holds Director's message lock: a plain message would queue)`)
+    assert.equal(state(lib, { control: 'running', phase: 'paused' }).sendMode, 'instructions', `${name}: the phase alone says paused: directions`)
+    assert.equal(state(lib, { control: 'paused', phase: 'building' }).sendMode, 'instructions', `${name}: the control alone says paused: directions`)
+    assert.equal(state(lib, { control: 'paused', phase: 'stopped' }).sendMode, 'instructions', `${name}: control paused wins over phase stopped: directions`)
+  }
+  assert.equal(state(on, { control: 'stopped', phase: 'paused' }).sendMode, 'message', 'on: control stopped wins over phase paused (the lib\'s own rule): the plain message')
   assert.deepEqual({ ...state(on, { control: 'running', phase: 'stopped' }) }, plain('Stopped after the last slide', 'slides 1–5 kept'), 'on: the phase alone says stopped')
   assert.deepEqual({ ...state(on, { slidesDone: 6 }) }, plain('Stopped after the last slide', 'slides 1–6 kept'), 'on: more done than planned counts as every slide built')
   assert.deepEqual({ ...state(on, { slidesDone: 1, slideCount: 1 }) }, plain('Stopped after the last slide', 'slide 1 kept'), 'on: a one-slide deck')
@@ -398,12 +404,15 @@ if (baseRun && offRun && onRun) {
       assert.equal(run[FL[5]].draft, QUESTION, 'the draft stays')
     }
   })
-  await check('PAUSED with every slide built (what it does and why): flag on, the typed message is a plain message, like stopped, because nothing is left to direct and the worst a plain message can do while paused is what Continue does; flag off is today\'s resume; paused 4 of 5 is directions either way', () => {
-    const off = offRun[FL[6]], on = onRun[FL[6]]
-    assert.equal(off.held.bar, 'Paused after the last slide · slides 1–5 keptContinue'); assert.equal(on.held.bar, 'Paused after the last slide · slides 1–5 keptContinue')
-    assert.deepEqual(off.sent.buildControl, [{ type: 'resume', buildId: BUILD, instructions: QUESTION }])
-    assert.deepEqual(on.sent.buildControl, []); assert.deepEqual(on.sent.messages, [QUESTION]); assert.equal(on.typed.wordsOfDirections, false); assert.deepEqual(on.sent.notes, ['paused: Paused after the last slide · slides 1–5 kept'])
-    assert.deepEqual(diffPaths(onRun[FL[7]], offRun[FL[7]]), []); assert.equal(onRun[FL[7]].typed.composer.sendMode, 'instructions')
+  await check('PAUSED with every slide built keeps today\'s directions, flag on or off (DIRECTOR-2: a paused turn holds the per-session message lock, so a plain message would queue until Continue or a Stop): the same bar, placeholder, hint, context, resume with instructions; paused 4 of 5 too', () => {
+    for (const flow of [FL[6], FL[7]]) assert.deepEqual(diffPaths(onRun[flow], offRun[flow], flow), [], `${flow}: flag on is flag off`)
+    for (const run of [offRun, onRun]) {
+      const f = run[FL[6]]
+      assert.equal(f.held.bar, 'Paused after the last slide · slides 1–5 keptContinue'); assert.equal(f.held.composer.sendMode, 'instructions')
+      assert.equal(f.held.placeholder, 'New directions from slide 5…'); assert.equal(f.held.hint, 'Enter sends new directions from slide 5 · Continue resumes as planned'); assert.equal(f.held.context, 'New directions apply from slide 5')
+      assert.deepEqual(f.sent.buildControl, [{ type: 'resume', buildId: BUILD, instructions: QUESTION }]); assert.deepEqual(f.sent.messages, [])
+      assert.equal(run[FL[7]].typed.composer.sendMode, 'instructions')
+    }
   })
   await check('no build control (NEXT_PUBLIC_BUILD_CONTROL off): 5 of 5 flag on lets the plain message go (it needs no control); flag off waits as today; Continue is disabled either way', () => {
     const off = offRun[FL[8]], on = onRun[FL[8]]
@@ -441,7 +450,7 @@ function wiringSuite(sources) {
   assert.ok(flagLine && returnLine && comment)
   assert.equal(flagLine, "export const STUDIO_CHAT_CLEAN_HELD_ALL_BUILT_ENABLED = chatCleanFlagOn(process.env.NEXT_PUBLIC_STUDIO_CHAT_CLEAN_HELD_ALL_BUILT)" + flagLine.slice(flagLine.indexOf(' // CHAT-CLEAN-HELD-ALL-BUILT')), 'the flag is read inline (a literal process.env read, so Next inlines it) through the exact-"true" rule')
   assert.equal((own.match(/process\.env\./g) ?? []).length, 2, 'the lib reads exactly two env names: chat clean and this flag')
-  assert.ok(returnLine.startsWith('    if (STUDIO_CHAT_CLEAN_HELD_ALL_BUILT_ENABLED && '), 'the early return is behind the flag')
+  assert.ok(returnLine.startsWith("    if (STUDIO_CHAT_CLEAN_HELD_ALL_BUILT_ENABLED && kind === 'stopped' && "), 'the early return is behind the flag and the stopped-only test')
   assert.ok(own.indexOf(returnLine) > own.indexOf('  if (held) {') && own.indexOf(returnLine) < own.indexOf("    // Director's contract: a plain message after a stop never rebuilds"), 'inside the held branch, before the base\'s directions return')
   assert.ok(!/^\s*import\s/m.test(own) && !/\brequire\(/.test(own), 'the lib stays import-free')
   const had = new Set(literalsOf(base, LIB))
@@ -483,7 +492,9 @@ await check('the strip gives the base lib back byte for byte: working tree and B
 console.log('4. mutants')
 const FLAGLINE = 'chatCleanFlagOn(process.env.NEXT_PUBLIC_STUDIO_CHAT_CLEAN_HELD_ALL_BUILT)'
 const MUTANTS = [
-  ['the flag is ignored (always on)', 'STUDIO_CHAT_CLEAN_HELD_ALL_BUILT_ENABLED && Number.isSafeInteger(input.slideCount)', 'Number.isSafeInteger(input.slideCount)'],
+  ['the flag is ignored (always on)', 'STUDIO_CHAT_CLEAN_HELD_ALL_BUILT_ENABLED && kind === \'stopped\' && Number.isSafeInteger(input.slideCount)', 'kind === \'stopped\' && Number.isSafeInteger(input.slideCount)'],
+  ['the stopped-only test is dropped (a paused build counts too)', 'STUDIO_CHAT_CLEAN_HELD_ALL_BUILT_ENABLED && kind === \'stopped\' && Number.isSafeInteger', 'STUDIO_CHAT_CLEAN_HELD_ALL_BUILT_ENABLED && Number.isSafeInteger'],
+  ['the stopped-only test is inverted (paused only)', 'STUDIO_CHAT_CLEAN_HELD_ALL_BUILT_ENABLED && kind === \'stopped\' && Number.isSafeInteger', 'STUDIO_CHAT_CLEAN_HELD_ALL_BUILT_ENABLED && kind === \'paused\' && Number.isSafeInteger'],
   ['the flag is inverted', FLAGLINE, `!${FLAGLINE}`],
   ['any non-empty value turns it on', FLAGLINE, 'Boolean(process.env.NEXT_PUBLIC_STUDIO_CHAT_CLEAN_HELD_ALL_BUILT)'],
   ['"every slide built" needs one more (> instead of >=)', 'input.slidesDone >= input.slideCount) return', 'input.slidesDone > input.slideCount) return'],
@@ -497,7 +508,6 @@ const MUTANTS = [
   ['the directions hint stays', 'hint: input.controlEnabled ? null :', 'hint: input.controlEnabled ? \'Enter sends new directions from slide 5 · Continue resumes as planned\' :'],
   ['the send mode waits without the control flag', '{ ...COMPOSER_IDLE, mode: \'held\', barText:', '{ ...COMPOSER_IDLE, sendMode: input.controlEnabled ? \'message\' : \'wait\', mode: \'held\', barText:'],
   ['the no-control hint is dropped', 'hint: input.controlEnabled ? null : `${chatCleanSlidesKept(input.slidesDone)} · the build cannot be resumed from here` }', 'hint: null }'],
-  ['paused reads as stopped on the bar', 'barText: chatCleanHeldAt(kind, input.slidesDone, input.slideCount), barDetail: chatCleanSlidesKept(input.slidesDone), showContinue: true, continueEnabled: input.controlEnabled, hint', 'barText: chatCleanHeldAt(\'stopped\', input.slidesDone, input.slideCount), barDetail: chatCleanSlidesKept(input.slidesDone), showContinue: true, continueEnabled: input.controlEnabled, hint'],
   ['the mode is not held', '{ ...COMPOSER_IDLE, mode: \'held\', barText:', '{ ...COMPOSER_IDLE, mode: \'idle\', barText:'],
   ['the slim bar loses its detail', 'barDetail: chatCleanSlidesKept(input.slidesDone), showContinue: true, continueEnabled: input.controlEnabled, hint: input.controlEnabled', 'barDetail: null, showContinue: true, continueEnabled: input.controlEnabled, hint: input.controlEnabled'],
   ['everything held becomes a plain message (4 of 5 too)', "sendMode: input.controlEnabled ? 'instructions' : 'wait',", "sendMode: 'message',"],
