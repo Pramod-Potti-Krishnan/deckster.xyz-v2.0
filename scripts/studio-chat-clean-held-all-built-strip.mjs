@@ -10,7 +10,7 @@
 // comment). Strip those lines and the file is its base, byte for byte. The new files (this strip, a proof) have no base text.
 // How the older pins reach it: this change REGISTERS its files, its .env.example block and this strip (scripts/studio-later-changes.mjs, three lines). Plain node, no imports, nothing read from disk or git here.
 
-export const BASE_COMMIT = '577445192119d81950ec612ff74c5b926de7866c' // origin/studio-v4-dev-preparation-code with #541 merged, tree of 57744519: dev, which this change is cut from.
+export const BASE_COMMIT = '8d39667f9ce5be4328c7f3231fd6b16a1e9ca322' // origin/studio-v4-dev-preparation-code with #540 merged, tree 9307c318: dev, which this change is merged with (it was cut from 57744519, #541).
 export const HELD_ALL_BUILT_FLAG = 'NEXT_PUBLIC_STUDIO_CHAT_CLEAN_HELD_ALL_BUILT'
 export const HELD_ALL_BUILT_MARKER = 'CHAT-CLEAN-HELD-ALL-BUILT'
 /** The marker as a WHOLE token: CHAT-CLEAN-HELD-ALL-BUILT-X, X-CHAT-CLEAN-HELD-ALL-BUILT and the older CHAT-CLEAN (which is followed by "-HELD-ALL-BUILT" here) are not each other's. */
