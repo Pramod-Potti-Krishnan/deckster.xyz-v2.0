@@ -56,6 +56,7 @@ export const LATER_CHANGE_FILES = new Set([
   ...(await import('./studio-theme-own-choice-strip.mjs')).THEME_OWN_CHOICE_SCOPE_FILES, // LATER-CHANGE: FRONTEND-2, B34 theme own choice: after a reload Studio keeps the user's own theme, not Director's resolved preset (NEXT_PUBLIC_STUDIO_THEME_OWN_CHOICE)
   ...(await import('./studio-chat-edit-targeted-strip.mjs')).CHAT_EDIT_TARGETED_SCOPE_FILES, // LATER-CHANGE: FRONTEND-2, B33 targeted chat edit: a chat element edit saves only that element (NEXT_PUBLIC_STUDIO_CHAT_EDIT_TARGETED_SAVE)
   ...(await import('./studio-chat-clean-held-all-built-strip.mjs')).HELD_ALL_BUILT_SCOPE_FILES, // LATER-CHANGE: FRONTEND-2, B40 held all built: after a Stop with every slide built, a typed message is a plain message, not new directions (NEXT_PUBLIC_STUDIO_CHAT_CLEAN_HELD_ALL_BUILT)
+  ...(await import('./studio-mdc-element-fields-strip.mjs')).MDC_ELEMENT_FIELDS_SCOPE_FILES, // LATER-CHANGE: FRONTEND-2, B44 MDC element fields: a chat label or shape add uses the Director's label text / shape type, as the Element panel does (NEXT_PUBLIC_STUDIO_MDC_ELEMENT_FIELDS)
   // one line per later change, above this comment
 ])
 
@@ -84,6 +85,7 @@ export const LATER_ENV_BLOCKS = [
   (await import('./studio-theme-own-choice-strip.mjs')).THEME_OWN_CHOICE_ENV_BLOCK, // LATER-CHANGE: FRONTEND-2, B34 theme own choice (NEXT_PUBLIC_STUDIO_THEME_OWN_CHOICE)
   (await import('./studio-chat-edit-targeted-strip.mjs')).CHAT_EDIT_TARGETED_ENV_BLOCK, // LATER-CHANGE: FRONTEND-2, B33 targeted chat edit (NEXT_PUBLIC_STUDIO_CHAT_EDIT_TARGETED_SAVE)
   (await import('./studio-chat-clean-held-all-built-strip.mjs')).HELD_ALL_BUILT_ENV_BLOCK, // LATER-CHANGE: FRONTEND-2, B40 held all built (NEXT_PUBLIC_STUDIO_CHAT_CLEAN_HELD_ALL_BUILT)
+  (await import('./studio-mdc-element-fields-strip.mjs')).MDC_ELEMENT_FIELDS_ENV_BLOCK, // LATER-CHANGE: FRONTEND-2, B44 MDC element fields (NEXT_PUBLIC_STUDIO_MDC_ELEMENT_FIELDS)
   // one line per later change, above this comment
 ]
 
@@ -121,6 +123,7 @@ export const LATER_STRIPS = [
   (await import('./studio-theme-own-choice-strip.mjs')).stripThemeOwnChoice, // LATER-CHANGE: FRONTEND-2, B34 theme own choice (NEXT_PUBLIC_STUDIO_THEME_OWN_CHOICE)
   (await import('./studio-chat-edit-targeted-strip.mjs')).stripChatEditTargeted, // LATER-CHANGE: FRONTEND-2, B33 targeted chat edit (NEXT_PUBLIC_STUDIO_CHAT_EDIT_TARGETED_SAVE)
   (await import('./studio-chat-clean-held-all-built-strip.mjs')).stripHeldAllBuilt, // LATER-CHANGE: FRONTEND-2, B40 held all built (NEXT_PUBLIC_STUDIO_CHAT_CLEAN_HELD_ALL_BUILT)
+  (await import('./studio-mdc-element-fields-strip.mjs')).stripMdcElementFields, // LATER-CHANGE: FRONTEND-2, B44 MDC element fields (NEXT_PUBLIC_STUDIO_MDC_ELEMENT_FIELDS)
   // one line per later change, above this comment
 ]
 
