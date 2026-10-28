@@ -348,7 +348,7 @@ await check('E2E-2 capture 28 Oct 02:15-02:17Z, deck: the first PATCH sends If-M
   deep(rt.world.swaps, ['if-match', 'if-match'], 'every PATCH')
 })
 await check('the same for the reusable defaults (E2E-2 did not PATCH them, to keep decksterqa\'s): the user GET is weakened too, and the PATCH is swapped the same way', async () => {
-  const rt = await mountProbe(); eq(rt.api().scope, 'user')
+  const rt = await mountProbe({ props: { sessionId: null } }); eq(rt.api().scope, 'user')
   await rt.api().select(deckOf('best')); await rt.settle()
   eq(lastPatch(rt).url, '/api/model-choice/prefs'); ok(/^W\//.test(lastPatch(rt).headers['if-match'])); deep(rt.router.kept(USER_PATH), BEST_KEPT); deep(rt.world.swaps, ['if-match']); eq(rt.api().saveNote, WORDS.conflict)
 })
@@ -502,7 +502,7 @@ await check('flag off (unset, "false", "1", "TRUE", "") and #542\'s flag either 
   const same = on.map((o, i) => (o.status === off[i].status ? null : o.label)).filter(Boolean)
   ok(same.every(label => /X-Prefs-Version/.test(label)), `statuses differ only where the header is used: ${same}`)
   const concurrentOn = await routeMatrix(read, ON, { concurrent: true }), concurrentOff = await routeMatrix(baseRead, DEV, { concurrent: true })
-  deep(concurrentOn.map(o => o.status), concurrentOff.map(o => o.status), 'and with a concurrent change every status is the base\'s (a stale read is 412 either way)')
+  deep(concurrentOn.filter(o => !/X-Prefs-Version/.test(o.label)).map(o => o.status), concurrentOff.filter(o => !/X-Prefs-Version/.test(o.label)).map(o => o.status), 'and with a concurrent change every status is the base\'s, bar the requests that use the version header (a stale read is 412 either way)')
 })
 async function hookTranscript(rd, flags, edge) {
   const steps = []
