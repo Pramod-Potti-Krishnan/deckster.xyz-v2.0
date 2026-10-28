@@ -6348,7 +6348,7 @@
     "[TextLabs] Chat add saved: only the new element"
    ],
    "result": {
-    "directive_id": "el_t17",
+    "directive_id": "el_t19",
     "status": "inserted",
     "element_id": "textbox-mvslzulc-nl2v80",
     "error": null
@@ -16033,6 +16033,722 @@
     "scopeOpen": null
    }
   },
+  "persist-off-flag-off": {
+   "requests": [
+    {
+     "at": 0,
+     "action": "getSlideGenerationContext",
+     "params": {
+      "slideIndex": 1
+     },
+     "requestId": "studio-request-1"
+    },
+    {
+     "at": 0,
+     "action": "insertTextBox",
+     "params": {
+      "elementId": "text_box_1793221860000_1",
+      "slideIndex": 1,
+      "gridRow": "4/10",
+      "gridColumn": "2/12",
+      "positionWidth": 10,
+      "positionHeight": 6,
+      "zIndex": 1,
+      "draggable": true,
+      "resizable": true,
+      "skipAutoSize": true,
+      "componentType": "TEXT_BOX",
+      "themeVariantSource": "element_generation",
+      "semanticRole": "BODY_TEXT",
+      "content": "<p>Fresh produce turnover is the biggest lever this quarter.</p>",
+      "mutationId": "generate:00000000-0000-4000-8000-000000000002:insert:0"
+     },
+     "requestId": "studio-request-2"
+    }
+   ],
+   "frames": [
+    {
+     "at": 0,
+     "afterRequest": 0,
+     "data": {
+      "success": true,
+      "action": "getSlideGenerationContext",
+      "requestId": "studio-request-1",
+      "slide_index": 1,
+      "slide_title": "Where we lose",
+      "slide_summary": null,
+      "target_element_id": null,
+      "elements": [
+       {
+        "element_id": "L1_textbox_a8cdf217",
+        "renderer_type": "textbox",
+        "component_type": "TEXT_BOX",
+        "position": {
+         "gridRow": "1/3",
+         "gridColumn": "2/32"
+        },
+        "summary": "Where we lose",
+        "properties": {
+         "is_placeholder": false,
+         "locked": false,
+         "visible": true
+        },
+        "is_target": false
+       },
+       {
+        "element_id": "L1_textbox_f81d4267",
+        "renderer_type": "textbox",
+        "component_type": "TEXT_BOX",
+        "position": {
+         "gridRow": "18/19",
+         "gridColumn": "13/32"
+        },
+        "summary": "Sources",
+        "properties": {
+         "is_placeholder": false,
+         "locked": false,
+         "visible": true
+        },
+        "is_target": false
+       },
+       {
+        "element_id": "L1_textbox_3c6186ab",
+        "renderer_type": "textbox",
+        "component_type": "TEXT_BOX",
+        "position": {
+         "gridRow": "3/4",
+         "gridColumn": "2/32"
+        },
+        "summary": "Subtitle",
+        "properties": {
+         "is_placeholder": false,
+         "locked": false,
+         "visible": true
+        },
+        "is_target": false
+       },
+       {
+        "element_id": "L1_textbox_6489aed3",
+        "renderer_type": "textbox",
+        "component_type": "TEXT_BOX",
+        "position": {
+         "gridRow": "18/19",
+         "gridColumn": "2/13"
+        },
+        "summary": "Footer",
+        "properties": {
+         "is_placeholder": false,
+         "locked": false,
+         "visible": true
+        },
+        "is_target": false
+       },
+       {
+        "element_id": "L1_textbox_d0f51a3f",
+        "renderer_type": "textbox",
+        "component_type": "TEXT_BOX",
+        "position": {
+         "gridRow": "4/18",
+         "gridColumn": "2/32"
+        },
+        "summary": "Content Area",
+        "properties": {
+         "is_placeholder": false,
+         "locked": false,
+         "visible": true
+        },
+        "is_target": false
+       }
+      ],
+      "truncated": false
+     }
+    },
+    {
+     "at": 0,
+     "afterRequest": 1,
+     "data": {
+      "success": true,
+      "action": "insertTextBox",
+      "requestId": "studio-request-2",
+      "elementId": "textbox-mvslzulc-nl2v80",
+      "position": {
+       "gridRow": "4/10",
+       "gridColumn": "2/12"
+      },
+      "zIndex": 1,
+      "component_type": "TEXT_BOX",
+      "theme_variant_id": null,
+      "theme_bindings": {},
+      "style_owner": null,
+      "theme_variant_source": "element_generation",
+      "frame_owner": "layout",
+      "metrics_color_variant": null,
+      "research_provenance": null,
+      "generation_config": null,
+      "semantic_role": "BODY_TEXT",
+      "slot_name": null,
+      "slot_kind": null,
+      "accessory_type": null
+     }
+    }
+   ],
+   "fetches": [],
+   "server": {
+    "deck": {
+     "id": "pres-e2e",
+     "title": "T",
+     "slides": [
+      {
+       "layout": "C1",
+       "slide_id": "L0",
+       "content": {
+        "slide_title": "Cover"
+       },
+       "text_boxes": [],
+       "images": []
+      },
+      {
+       "layout": "C1",
+       "slide_id": "L1",
+       "content": {
+        "slide_title": "Where we lose"
+       },
+       "text_boxes": [],
+       "images": []
+      },
+      {
+       "layout": "C1",
+       "slide_id": "L2",
+       "content": {
+        "slide_title": "Plan"
+       },
+       "text_boxes": [],
+       "images": []
+      }
+     ]
+    },
+    "statuses": [],
+    "summaries": []
+   },
+   "notes": [],
+   "result": {
+    "directive_id": "el_t16",
+    "status": "inserted",
+    "element_id": "textbox-mvslzulc-nl2v80",
+    "error": null
+   },
+   "probe": {
+    "scopeOpen": false
+   }
+  },
+  "persist-off-flag-on": {
+   "requests": [
+    {
+     "at": 0,
+     "action": "getSlideGenerationContext",
+     "params": {
+      "slideIndex": 1
+     },
+     "requestId": "studio-request-1"
+    },
+    {
+     "at": 0,
+     "action": "getSlideGenerationContext",
+     "params": {
+      "slideIndex": 1
+     },
+     "requestId": "studio-request-2"
+    },
+    {
+     "at": 0,
+     "action": "beginTargetedElementSave",
+     "params": {
+      "elementId": "L1_textbox_a8cdf217",
+      "slideIndex": 1
+     },
+     "requestId": "studio-request-3"
+    },
+    {
+     "at": 0,
+     "action": "insertTextBox",
+     "params": {
+      "elementId": "text_box_1793221860000_1",
+      "slideIndex": 1,
+      "gridRow": "4/10",
+      "gridColumn": "2/12",
+      "positionWidth": 10,
+      "positionHeight": 6,
+      "zIndex": 1,
+      "draggable": true,
+      "resizable": true,
+      "skipAutoSize": true,
+      "componentType": "TEXT_BOX",
+      "themeVariantSource": "element_generation",
+      "semanticRole": "BODY_TEXT",
+      "content": "<p>Fresh produce turnover is the biggest lever this quarter.</p>",
+      "mutationId": "generate:00000000-0000-4000-8000-000000000002:insert:0"
+     },
+     "requestId": "studio-request-4"
+    },
+    {
+     "at": 0,
+     "action": "cancelTargetedElementSave",
+     "params": {
+      "saveId": "chat-save-1"
+     },
+     "requestId": "studio-request-5"
+    },
+    {
+     "at": 0,
+     "action": "beginTargetedElementSave",
+     "params": {
+      "elementId": "textbox-mvslzulc-nl2v80",
+      "slideIndex": 1
+     },
+     "requestId": "studio-request-6"
+    },
+    {
+     "at": 0,
+     "action": "commitTargetedElementSave",
+     "params": {
+      "saveId": "chat-save-2"
+     },
+     "requestId": "studio-request-7"
+    }
+   ],
+   "frames": [
+    {
+     "at": 0,
+     "afterRequest": 0,
+     "data": {
+      "success": true,
+      "action": "getSlideGenerationContext",
+      "requestId": "studio-request-1",
+      "slide_index": 1,
+      "slide_title": "Where we lose",
+      "slide_summary": null,
+      "target_element_id": null,
+      "elements": [
+       {
+        "element_id": "L1_textbox_a8cdf217",
+        "renderer_type": "textbox",
+        "component_type": "TEXT_BOX",
+        "position": {
+         "gridRow": "1/3",
+         "gridColumn": "2/32"
+        },
+        "summary": "Where we lose",
+        "properties": {
+         "is_placeholder": false,
+         "locked": false,
+         "visible": true
+        },
+        "is_target": false
+       },
+       {
+        "element_id": "L1_textbox_f81d4267",
+        "renderer_type": "textbox",
+        "component_type": "TEXT_BOX",
+        "position": {
+         "gridRow": "18/19",
+         "gridColumn": "13/32"
+        },
+        "summary": "Sources",
+        "properties": {
+         "is_placeholder": false,
+         "locked": false,
+         "visible": true
+        },
+        "is_target": false
+       },
+       {
+        "element_id": "L1_textbox_3c6186ab",
+        "renderer_type": "textbox",
+        "component_type": "TEXT_BOX",
+        "position": {
+         "gridRow": "3/4",
+         "gridColumn": "2/32"
+        },
+        "summary": "Subtitle",
+        "properties": {
+         "is_placeholder": false,
+         "locked": false,
+         "visible": true
+        },
+        "is_target": false
+       },
+       {
+        "element_id": "L1_textbox_6489aed3",
+        "renderer_type": "textbox",
+        "component_type": "TEXT_BOX",
+        "position": {
+         "gridRow": "18/19",
+         "gridColumn": "2/13"
+        },
+        "summary": "Footer",
+        "properties": {
+         "is_placeholder": false,
+         "locked": false,
+         "visible": true
+        },
+        "is_target": false
+       },
+       {
+        "element_id": "L1_textbox_d0f51a3f",
+        "renderer_type": "textbox",
+        "component_type": "TEXT_BOX",
+        "position": {
+         "gridRow": "4/18",
+         "gridColumn": "2/32"
+        },
+        "summary": "Content Area",
+        "properties": {
+         "is_placeholder": false,
+         "locked": false,
+         "visible": true
+        },
+        "is_target": false
+       }
+      ],
+      "truncated": false
+     }
+    },
+    {
+     "at": 0,
+     "afterRequest": 1,
+     "data": {
+      "success": true,
+      "action": "getSlideGenerationContext",
+      "requestId": "studio-request-2",
+      "slide_index": 1,
+      "slide_title": "Where we lose",
+      "slide_summary": null,
+      "target_element_id": null,
+      "elements": [
+       {
+        "element_id": "L1_textbox_a8cdf217",
+        "renderer_type": "textbox",
+        "component_type": "TEXT_BOX",
+        "position": {
+         "gridRow": "1/3",
+         "gridColumn": "2/32"
+        },
+        "summary": "Where we lose",
+        "properties": {
+         "is_placeholder": false,
+         "locked": false,
+         "visible": true
+        },
+        "is_target": false
+       },
+       {
+        "element_id": "L1_textbox_f81d4267",
+        "renderer_type": "textbox",
+        "component_type": "TEXT_BOX",
+        "position": {
+         "gridRow": "18/19",
+         "gridColumn": "13/32"
+        },
+        "summary": "Sources",
+        "properties": {
+         "is_placeholder": false,
+         "locked": false,
+         "visible": true
+        },
+        "is_target": false
+       },
+       {
+        "element_id": "L1_textbox_3c6186ab",
+        "renderer_type": "textbox",
+        "component_type": "TEXT_BOX",
+        "position": {
+         "gridRow": "3/4",
+         "gridColumn": "2/32"
+        },
+        "summary": "Subtitle",
+        "properties": {
+         "is_placeholder": false,
+         "locked": false,
+         "visible": true
+        },
+        "is_target": false
+       },
+       {
+        "element_id": "L1_textbox_6489aed3",
+        "renderer_type": "textbox",
+        "component_type": "TEXT_BOX",
+        "position": {
+         "gridRow": "18/19",
+         "gridColumn": "2/13"
+        },
+        "summary": "Footer",
+        "properties": {
+         "is_placeholder": false,
+         "locked": false,
+         "visible": true
+        },
+        "is_target": false
+       },
+       {
+        "element_id": "L1_textbox_d0f51a3f",
+        "renderer_type": "textbox",
+        "component_type": "TEXT_BOX",
+        "position": {
+         "gridRow": "4/18",
+         "gridColumn": "2/32"
+        },
+        "summary": "Content Area",
+        "properties": {
+         "is_placeholder": false,
+         "locked": false,
+         "visible": true
+        },
+        "is_target": false
+       }
+      ],
+      "truncated": false
+     }
+    },
+    {
+     "at": 0,
+     "afterRequest": 2,
+     "data": {
+      "success": true,
+      "action": "beginTargetedElementSave",
+      "requestId": "studio-request-3",
+      "saveId": "chat-save-1",
+      "elementId": "L1_textbox_a8cdf217",
+      "slideIndex": 1,
+      "collection": "text_boxes"
+     }
+    },
+    {
+     "at": 0,
+     "afterRequest": 3,
+     "data": {
+      "success": true,
+      "action": "insertTextBox",
+      "requestId": "studio-request-4",
+      "elementId": "textbox-mvslzulc-nl2v80",
+      "position": {
+       "gridRow": "4/10",
+       "gridColumn": "2/12"
+      },
+      "zIndex": 1,
+      "component_type": "TEXT_BOX",
+      "theme_variant_id": null,
+      "theme_bindings": {},
+      "style_owner": null,
+      "theme_variant_source": "element_generation",
+      "frame_owner": "layout",
+      "metrics_color_variant": null,
+      "research_provenance": null,
+      "generation_config": null,
+      "semantic_role": "BODY_TEXT",
+      "slot_name": null,
+      "slot_kind": null,
+      "accessory_type": null
+     }
+    },
+    {
+     "at": 0,
+     "afterRequest": 4,
+     "data": {
+      "success": true,
+      "action": "cancelTargetedElementSave",
+      "requestId": "studio-request-5",
+      "cancelled": true
+     }
+    },
+    {
+     "at": 0,
+     "afterRequest": 5,
+     "data": {
+      "success": true,
+      "action": "beginTargetedElementSave",
+      "requestId": "studio-request-6",
+      "saveId": "chat-save-2",
+      "elementId": "textbox-mvslzulc-nl2v80",
+      "slideIndex": 1,
+      "collection": "text_boxes"
+     }
+    },
+    {
+     "at": 0,
+     "afterRequest": 6,
+     "data": {
+      "success": true,
+      "action": "commitTargetedElementSave",
+      "requestId": "studio-request-7",
+      "state": "saved",
+      "saved": true,
+      "deleted": false,
+      "elementId": "textbox-mvslzulc-nl2v80",
+      "collection": "text_boxes"
+     }
+    }
+   ],
+   "fetches": [
+    {
+     "at": 0,
+     "url": "/api/presentations/pres-e2e/slides/1/elements/textbox-mvslzulc-nl2v80/chat-save",
+     "method": "PUT",
+     "body": {
+      "slide_id": "L1",
+      "collection": "text_boxes",
+      "element": {
+       "id": "textbox-mvslzulc-nl2v80",
+       "parent_slide_id": "L1",
+       "slot_name": null,
+       "component_type": "TEXT_BOX",
+       "theme_variant_id": null,
+       "theme_bindings": null,
+       "style_owner": null,
+       "theme_variant_source": "element_generation",
+       "frame_owner": "layout",
+       "metrics_color_variant": null,
+       "research_provenance": null,
+       "generation_config": null,
+       "semantic_role": "BODY_TEXT",
+       "slot_kind": null,
+       "accessory_type": null,
+       "position": {
+        "grid_row": "4/10",
+        "grid_column": "2/12"
+       },
+       "z_index": 1,
+       "content": "<p>Fresh produce turnover is the biggest lever this quarter.</p>",
+       "style": {
+        "background_color": "transparent",
+        "border_color": "transparent",
+        "border_width": 0,
+        "border_radius": 0,
+        "opacity": 1,
+        "box_shadow": "none",
+        "padding_top": 0,
+        "padding_right": 0,
+        "padding_bottom": 0,
+        "padding_left": 0,
+        "display": "flex",
+        "flex_direction": "column",
+        "justify_content": "flex-start",
+        "align_items": "flex-start"
+       },
+       "locked": false,
+       "visible": true,
+       "text_style": {
+        "color": "#1f2937",
+        "font_family": "Inter, system-ui, -apple-system, sans-serif",
+        "font_size": "32px",
+        "line_height": "1.5"
+       }
+      },
+      "siblings": []
+     }
+    }
+   ],
+   "server": {
+    "deck": {
+     "id": "pres-e2e",
+     "title": "T",
+     "slides": [
+      {
+       "layout": "C1",
+       "slide_id": "L0",
+       "content": {
+        "slide_title": "Cover"
+       },
+       "text_boxes": [],
+       "images": []
+      },
+      {
+       "layout": "C1",
+       "slide_id": "L1",
+       "content": {
+        "slide_title": "Where we lose"
+       },
+       "text_boxes": [
+        {
+         "id": "textbox-mvslzulc-nl2v80",
+         "parent_slide_id": "L1",
+         "slot_name": null,
+         "component_type": "TEXT_BOX",
+         "theme_variant_id": null,
+         "theme_bindings": null,
+         "style_owner": null,
+         "theme_variant_source": "element_generation",
+         "frame_owner": "layout",
+         "metrics_color_variant": null,
+         "research_provenance": null,
+         "generation_config": null,
+         "semantic_role": "BODY_TEXT",
+         "slot_kind": null,
+         "accessory_type": null,
+         "position": {
+          "grid_row": "4/10",
+          "grid_column": "2/12"
+         },
+         "z_index": 1,
+         "content": "<p>Fresh produce turnover is the biggest lever this quarter.</p>",
+         "style": {
+          "background_color": "transparent",
+          "border_color": "transparent",
+          "border_width": 0,
+          "border_radius": 0,
+          "opacity": 1,
+          "box_shadow": "none",
+          "padding_top": 0,
+          "padding_right": 0,
+          "padding_bottom": 0,
+          "padding_left": 0,
+          "display": "flex",
+          "flex_direction": "column",
+          "justify_content": "flex-start",
+          "align_items": "flex-start"
+         },
+         "locked": false,
+         "visible": true,
+         "text_style": {
+          "color": "#1f2937",
+          "font_family": "Inter, system-ui, -apple-system, sans-serif",
+          "font_size": "32px",
+          "line_height": "1.5"
+         }
+        }
+       ],
+       "images": []
+      },
+      {
+       "layout": "C1",
+       "slide_id": "L2",
+       "content": {
+        "slide_title": "Plan"
+       },
+       "text_boxes": [],
+       "images": []
+      }
+     ]
+    },
+    "statuses": [
+     200
+    ],
+    "summaries": [
+     "Chat edit: one element on slide 2"
+    ]
+   },
+   "notes": [
+    "[TextLabs] Chat add saved: only the new element"
+   ],
+   "result": {
+    "directive_id": "el_t17",
+    "status": "inserted",
+    "element_id": "textbox-mvslzulc-nl2v80",
+    "error": null
+   },
+   "probe": {
+    "scopeOpen": false
+   }
+  },
   "on-blank-placeholder": {
    "requests": [
     {
@@ -16609,7 +17325,7 @@
     "[TextLabs] Chat add saved: only the new element"
    ],
    "result": {
-    "directive_id": "el_t16",
+    "directive_id": "el_t18",
     "status": "inserted",
     "element_id": "textbox-mvslzulc-nl2v80",
     "error": null
@@ -22746,7 +23462,7 @@
     "[TextLabs] Chat add saved: only the new element"
    ],
    "result": {
-    "directive_id": "el_t18",
+    "directive_id": "el_t20",
     "status": "inserted",
     "element_id": "textbox-mvslzulc-nl2v80",
     "error": null
@@ -23126,7 +23842,7 @@
    },
    "notes": [],
    "result": {
-    "directive_id": "el_t19",
+    "directive_id": "el_t21",
     "status": "failed",
     "element_id": null,
     "error": "Image URL could not be rendered safely"
@@ -23785,7 +24501,7 @@
     "[TextLabs] Chat add saved: only the new element"
    ],
    "result": {
-    "directive_id": "el_t20",
+    "directive_id": "el_t22",
     "status": "inserted",
     "element_id": "textbox-mvslzulc-nl2v80",
     "error": null
@@ -24824,7 +25540,7 @@
     "[TextLabs] Chat add saved: only the new element"
    ],
    "result": {
-    "directive_id": "el_t21",
+    "directive_id": "el_t23",
     "status": "inserted",
     "element_id": "textbox-mvslzulc-nl2v80",
     "error": null
@@ -25369,7 +26085,7 @@
    "server": null,
    "notes": [],
    "result": {
-    "directive_id": "el_t22",
+    "directive_id": "el_t24",
     "status": "failed",
     "element_id": null,
     "error": "The new element could not be saved on its own, so it was not kept. Nothing else in the deck was changed. Try again."
@@ -26675,7 +27391,7 @@
    "server": null,
    "notes": [],
    "result": {
-    "directive_id": "el_t23",
+    "directive_id": "el_t25",
     "status": "failed",
     "element_id": null,
     "error": "The new element could not be saved on its own, so it was not kept. Nothing else in the deck was changed. Try again."
@@ -27072,7 +27788,7 @@
    },
    "notes": [],
    "result": {
-    "directive_id": "el_t24",
+    "directive_id": "el_t26",
     "status": "failed",
     "element_id": null,
     "error": "The active presentation changed while this element was being generated. Reload the original presentation before retrying."
@@ -28480,7 +29196,7 @@
     "[TextLabs] Chat add saved: by the editor's autosave (the slide has no element to hold its change marks with)"
    ],
    "result": {
-    "directive_id": "el_t25",
+    "directive_id": "el_t27",
     "status": "inserted",
     "element_id": "textbox-mvslzulc-nl2v80",
     "error": null
@@ -30561,7 +31277,7 @@
     "[TextLabs] Chat add saved: by the editor's autosave (Layout's targeted save is not available: Another targeted save is open)"
    ],
    "result": {
-    "directive_id": "el_t26",
+    "directive_id": "el_t28",
     "status": "inserted",
     "element_id": "textbox-mvslzulc-nl2v80",
     "error": null
@@ -32642,7 +33358,7 @@
     "[TextLabs] Chat add saved: by the editor's autosave (Layout's targeted save is not available: Command failed)"
    ],
    "result": {
-    "directive_id": "el_t27",
+    "directive_id": "el_t29",
     "status": "inserted",
     "element_id": "textbox-mvslzulc-nl2v80",
     "error": null
@@ -34564,7 +35280,7 @@
     "[TextLabs] Chat add saved: by the editor's autosave (upsertCitedElement is not saved on its own)"
    ],
    "result": {
-    "directive_id": "el_t28",
+    "directive_id": "el_t30",
     "status": "inserted",
     "element_id": "table_1793221860000_1",
     "error": null

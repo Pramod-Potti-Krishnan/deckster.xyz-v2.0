@@ -306,6 +306,21 @@ await check('Studio\'s flag on, Layout\'s flag off: today\'s path, reported as s
   assert.equal(JSON.stringify(w.fetches()), JSON.stringify((await scenarioFetches('off-TEXT_BOX'))), 'the save is byte for byte flag off\'s')
   w.finish()
 })
+await check('INSERT-PERSIST off (the viewer stays out of edit mode): the targeted save does not depend on it: the new element is saved on its own and the viewer is not put in edit mode (flag off, today: the add is never saved at all)', async () => {
+  const today = await scenario('persist-off-flag-off', { studio: 'off', insertPersist: false })
+  assert.equal((await today.add()).status, 'inserted')
+  assert.equal(today.fetches().length, 0, 'today, without INSERT-PERSIST, nothing reaches Layout (the viewer drops the unmarked edit)')
+  assert.deepEqual(today.world.editModeChanges, [])
+  today.finish()
+  const w = await scenario('persist-off-flag-on', { insertPersist: false })
+  const result = await w.add()
+  assert.equal(result.status, 'inserted')
+  assert.equal(w.fetches().length, 1)
+  assert.equal(w.fetches()[0].url, `/api/presentations/${PRESENTATION}/slides/1/elements/${result.element_id}/chat-save`)
+  assert.deepEqual(storedTextBoxes(w.server().deck), [0, 1, 0])
+  assert.deepEqual(w.world.editModeChanges, [], 'the viewer was not put in edit mode')
+  w.finish()
+})
 async function scenarioFetches(name) { const w = await scenario(name, { studio: 'off' }); await w.add(); const out = w.fetches(); w.finish(); return out }
 
 // ===== 5. the placeholder is never stored =====================================================================================================
