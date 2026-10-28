@@ -547,7 +547,12 @@ await check('mutant caught by the world: with the fix removed (flag on, the base
 console.log('5. scope over the committed diff (own commits by subject across `rev-list --no-merges BASE..head`)')
 const git = (...a) => execFileSync('git', a, { cwd: repo, encoding: 'utf8', maxBuffer: 1 << 28, stdio: ['ignore', 'pipe', 'pipe'] })
 const GIT_IDENT = { GIT_AUTHOR_NAME: 'gate', GIT_AUTHOR_EMAIL: 'gate@example.invalid', GIT_COMMITTER_NAME: 'gate', GIT_COMMITTER_EMAIL: 'gate@example.invalid', GIT_AUTHOR_DATE: '2026-10-28T00:00:00Z', GIT_COMMITTER_DATE: '2026-10-28T00:00:00Z' }
-const plumb = (args, input) => execFileSync('git', args, { cwd: repo, encoding: 'utf8', input, env: { ...process.env, ...GIT_IDENT }, stdio: ['pipe', 'pipe', 'pipe'], maxBuffer: 1 << 28 }).trim()
+const plumb = (args, input) => execFileSync('git', args, { cwd: repo, encoding: 'utf8', ...(input === undefined ? {} : { input }), env: { ...process.env, ...GIT_IDENT }, stdio: [input === undefined ? 'ignore' : 'pipe', 'pipe', 'pipe'], maxBuffer: 1 << 28 }).trim()
+/** A blob object for `text`, written from a temporary FILE (never `hash-object --stdin`: a large input through a stdin pipe once left a git child waiting forever in another proof's run). */
+const blobOf = text => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'hab-blob-'))
+  try { const file = path.join(dir, 'blob'); fs.writeFileSync(file, text); return plumb(['hash-object', '-w', '--', file]) } finally { fs.rmSync(dir, { recursive: true, force: true }) }
+}
 const subjectOf = c => git('log', '-1', '--format=%s', c).trim()
 const parentsOf = sha => git('rev-list', '--parents', '-n', '1', sha).trim().split(/\s+/).slice(1)
 /** This change's commits: found by SUBJECT across `rev-list --no-merges BASE..head`. A first-parent walk (`firstParentOnly`, the old query, kept for its mutant) sees nothing on the gate's merge and none of this change's commits once a change is stacked after it. */
@@ -567,8 +572,7 @@ const REAL = { // what a head is read through: every other registered change (bo
 const diffLines = text => text.split('\n').filter(line => /^[+-]/.test(line) && !/^(\+\+\+|---) /.test(line))
 /** `git diff -U0` of the base file against the file at `head`, both read through ctx.norm (every other change's lines out). */
 const normDiff = (ctx, rel, head) => {
-  const blob = text => plumb(['hash-object', '-w', '--stdin'], text)
-  return git('diff', '-U0', blob(ctx.norm(rel, git('show', `${BASE_COMMIT}:${rel}`))), blob(ctx.norm(rel, git('show', `${head}:${rel}`))))
+  return git('diff', '-U0', blobOf(ctx.norm(rel, git('show', `${BASE_COMMIT}:${rel}`))), blobOf(ctx.norm(rel, git('show', `${head}:${rel}`))))
 }
 const scopeOwnCommits = (head, opts) => {
   const own = ownOf(head, opts)
@@ -633,9 +637,9 @@ const commitWith = (parent, edits, message) => {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'hab-idx-'))
   try {
     const env = { ...process.env, ...GIT_IDENT, GIT_INDEX_FILE: path.join(dir, 'index') }
-    const viaIndex = (...a) => execFileSync('git', a, { cwd: repo, env, encoding: 'utf8', maxBuffer: 1 << 28 }).trim()
+    const viaIndex = (...a) => execFileSync('git', a, { cwd: repo, env, encoding: 'utf8', maxBuffer: 1 << 28, stdio: ['ignore', 'pipe', 'pipe'] }).trim()
     viaIndex('read-tree', parent)
-    for (const [rel, text] of Object.entries(edits)) viaIndex('update-index', '--add', '--cacheinfo', `100644,${plumb(['hash-object', '-w', '--stdin'], text)},${rel}`)
+    for (const [rel, text] of Object.entries(edits)) viaIndex('update-index', '--add', '--cacheinfo', `100644,${blobOf(text)},${rel}`)
     return plumb(['commit-tree', viaIndex('write-tree'), '-p', parent, '-m', message])
   } finally { fs.rmSync(dir, { recursive: true, force: true }) }
 }
