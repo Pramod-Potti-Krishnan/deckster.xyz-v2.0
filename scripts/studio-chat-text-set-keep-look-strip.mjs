@@ -24,6 +24,7 @@ export const CHAT_TEXT_SET_KEEP_LOOK_NEW_FILES = [
   'lib/chat-text-set-keep-look.ts',
   'scripts/studio-chat-text-set-keep-look-strip.mjs',
   'scripts/studio-chat-text-set-keep-look-render.py',
+  'scripts/studio-chat-text-set-keep-look-page-render.py',
   'scripts/test-studio-chat-text-set-keep-look.mjs',
   'scripts/fixtures/chat-text-set-keep-look/layout-transcripts.json',
 ]
