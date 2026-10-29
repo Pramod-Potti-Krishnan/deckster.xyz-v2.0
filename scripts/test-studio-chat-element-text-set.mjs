@@ -54,6 +54,9 @@ const [WIRE, RUNNER, TEXT_LIB] = ['lib/chat-element-edit-wire.ts', 'lib/chat-ele
 /** The strips of every change registered AFTER this one (below this change's strip in LATER_STRIPS), applied first: a file is read as this change left it, whatever a later change marked in it. */
 const laterStrips = (rel, text) => { const at = registry.LATER_STRIPS.indexOf(stripChatElementTextSet); return (at === -1 ? [] : registry.LATER_STRIPS.slice(at + 1)).reduce((out, strip) => { const next = typeof strip === 'function' ? strip(rel, out) : out; return typeof next === 'string' ? next : out }, text) }
 const laterRead = rel => laterStrips(rel, read(rel))
+/** Every OTHER registered change's strip, in the registry's order (this change's is left out). */
+const applyAll = (list, rel, text) => list.reduce((out, strip) => { const next = strip(rel, out); return typeof next === 'string' ? next : out }, text)
+const otherStrips = (rel, text) => applyAll(registry.LATER_STRIPS.filter(strip => strip !== stripChatElementTextSet), rel, text)
 const laterBlob = (ref, rel) => laterStrips(rel, git('show', `${ref}:${rel}`))
 const laterBlocks = () => { const at = registry.LATER_ENV_BLOCKS.indexOf(CHAT_ELEMENT_TEXT_SET_ENV_BLOCK); return at === -1 ? [] : registry.LATER_ENV_BLOCKS.slice(at + 1) }
 /** `text` (an .env.example) without the blocks registered AFTER this one: theirs, not this change's. */
@@ -714,8 +717,10 @@ await check('flag off: the strip gives dev\'s files back byte for byte (every ad
   assert.equal(stripChatElementTextSet('scripts/studio-later-changes.mjs', 'x'), 'x')
   assert.equal(stripChatElementTextSet('hooks/use-deckster-websocket-v2.ts', 'x // CHAT-ELEMENT-TEXT-SET\n'), 'x // CHAT-ELEMENT-TEXT-SET\n', 'a file the change does not own comes back untouched')
   for (const rel of CHAT_ELEMENT_TEXT_SET_PIN_FILES) {
-    assert.equal(sha(stripChatElementTextSet(rel, laterRead(rel))), sha(laterStrips(rel, git('show', `${BASE_COMMIT}:${rel}`))), `${rel}: the proof this change taught, put back, is dev's`)
-    for (const [has] of CHAT_ELEMENT_TEXT_SET_PIN_EDITS[rel]) for (const line of has.split('\n').filter(Boolean)) assert.ok(line.includes(CHAT_ELEMENT_TEXT_SET_PIN_MARK), `${rel}: a taught line carries the pin mark`)
+    const dev = git('show', `${BASE_COMMIT}:${rel}`)
+    assert.equal(sha(otherStrips(rel, stripChatElementTextSet(rel, laterRead(rel)))), sha(otherStrips(rel, laterStrips(rel, dev))), `${rel}: the proof this change taught, put back (then the other changes' put-backs), is dev's`)
+    assert.equal(sha(stripChatElementTextSet(rel, otherStrips(rel, laterRead(rel)))), sha(otherStrips(rel, laterStrips(rel, dev))), `${rel}: and in the other order (the other changes' put-backs first)`)
+    for (const [has] of CHAT_ELEMENT_TEXT_SET_PIN_EDITS[rel]) { const lines = has.split('\n').filter(Boolean); assert.ok(lines.some(line => line.includes(CHAT_ELEMENT_TEXT_SET_PIN_MARK)), `${rel}: a taught line carries the pin mark`); for (const line of lines) assert.match(line, /\/\/ LATER-CHANGES: registry read \(/, `${rel}: every line of a taught block is a registry read`) }
   }
 })
 
@@ -826,8 +831,6 @@ function scopeHead(ref = 'HEAD', { gateRule = true } = {}) {
   if (!gateRule || parents.length !== 2) return head
   return ownOf(parents[0]).length === 0 && ownOf(parents[1]).length > 0 ? parents[1] : head
 }
-const applyAll = (list, rel, text) => list.reduce((out, strip) => { const next = strip(rel, out); return typeof next === 'string' ? next : out }, text)
-const otherStrips = (rel, text) => applyAll(registry.LATER_STRIPS.filter(strip => strip !== stripChatElementTextSet), rel, text)
 const REAL = { norm: otherStrips, env: text => registry.stripLaterEnvBlocks('.env.example', text) }
 const diffLines = text => text.split('\n').filter(line => /^[+-]/.test(line) && !/^(\+\+\+|---) /.test(line))
 /** `git diff -U0` of the base file against the file at `head`, both read through ctx.norm (every other change's lines out). */
@@ -850,7 +853,11 @@ const scopeCommittedFiles = (head, ctx = REAL) => {
     assert.ok(diff.length > 0, `${rel}: the number of added lines`)
     assert.equal(stripChatElementTextSet(rel, ctx.norm(rel, git('show', `${head}:${rel}`))), ctx.norm(rel, git('show', `${BASE_COMMIT}:${rel}`)), `${rel}: without its marked lines the file is the base's, byte for byte`)
   }
-  for (const rel of CHAT_ELEMENT_TEXT_SET_PIN_FILES) assert.equal(stripChatElementTextSet(rel, ctx.norm(rel, git('show', `${head}:${rel}`))), ctx.norm(rel, git('show', `${BASE_COMMIT}:${rel}`)), `${rel}: the proof this change taught, put back, is the base's`)
+  for (const rel of CHAT_ELEMENT_TEXT_SET_PIN_FILES) {
+    const now = git('show', `${head}:${rel}`), dev = ctx.norm(rel, git('show', `${BASE_COMMIT}:${rel}`))
+    assert.equal(stripChatElementTextSet(rel, ctx.norm(rel, now)), dev, `${rel}: the proof this change taught, put back, is the base's`)
+    assert.equal(ctx.norm(rel, stripChatElementTextSet(rel, now)), dev, `${rel}: in either order of the put-backs (this change's strip commutes with the other changes' on a file they share)`)
+  }
   for (const rel of CHAT_ELEMENT_TEXT_SET_NEW_FILES) assert.equal(git('cat-file', '-t', `${head}:${rel}`).trim(), 'blob', rel)
   for (const rel of ['app/builder/page.tsx', 'components/presentation-viewer.tsx', 'hooks/use-deckster-websocket-v2.ts', 'hooks/use-textlabs-generation.ts', 'lib/chat-edit-targeted.ts', 'lib/chat-element-edit-2.ts', 'lib/chat-element-edit-save.ts', 'lib/chat-element-refine.ts', 'lib/chat-add-targeted.ts', 'scripts/studio-chat-element-edit-layout.mjs']) assert.ok(!touched.has(rel), `${rel} is not touched by this change`)
 }
