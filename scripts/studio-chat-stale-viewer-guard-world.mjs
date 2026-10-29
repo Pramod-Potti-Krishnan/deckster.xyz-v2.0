@@ -310,7 +310,7 @@ export async function createGuardWorld(options) {
       studioPartialLocalWorkRef: { current: new Set() }, studioPartialMountedRef: { current: true }, setStudioPartialRevision() {}, handleTextLabsGenerate: driver.handleGenerate,
     })
     const runnerText = assignmentRight('app/builder/page.tsx', 'elementDirectiveRunnerRef.current', pageText)
-    elementDirectiveRunnerRef.current = evalExpression(runnerText.replace("await import('@/lib/mdc-element-directive')", '__mdc'), {
+    elementDirectiveRunnerRef.current = evalExpression(runnerText.replaceAll("await import('@/lib/mdc-element-directive')", '__mdc'), { // LATER-CHANGES: registry read (MDC-ELEMENT-FIELDS): every occurrence is the same module (replaceAll): the runner calls applyDirectiveElementFields on it too
       __mdc: mdc, elementDirectiveGenerationOwnerRef: ownerRef, sendElementDirectiveResult: result => { sent.push(plain(result)); return true },
       slideStructure: { slides: Array.from({ length: 12 }, () => ({})) }, generationPanel: { getSnapshot: () => ({ isOpen: false }), hasActiveGenerations: false }, currentSlideIndexRef: slideState, layoutServiceApis: layoutApis,
       handleApprovedTextLabsGenerate, toast: value => toasts.push(plain(value)), setTimeout: clock.setTimeout, Promise,

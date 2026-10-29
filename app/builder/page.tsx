@@ -5222,6 +5222,7 @@ function AuthenticatedBuilderContent({ authScopeUserId }: { authScopeUserId: str
       try {
         const { buildFormDataForDirective } = await import('@/lib/mdc-element-directive')
         const formData = buildFormDataForDirective(payload.element_type, payload.prompt)
+        if (formData) (await import('@/lib/mdc-element-directive')).applyDirectiveElementFields(formData, payload) // MDC-ELEMENT-FIELDS: NEXT_PUBLIC_STUDIO_MDC_ELEMENT_FIELDS (default off): the Director's label text / shape type, as the Element panel's form sends them
         if (!formData) {
           report('failed', `unsupported element type ${payload.element_type}`)
           return

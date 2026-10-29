@@ -10,6 +10,7 @@
 
 import type { TextLabsFormData } from '@/types/textlabs'
 import { TEXTBOX_REQUEST_FIDELITY_ENABLED } from '@/lib/textbox-request-fidelity'
+import { mdcElementFieldsPatch } from '@/lib/mdc-element-fields' // MDC-ELEMENT-FIELDS: the Director's icon_label_mode / label_text / shape_type (NEXT_PUBLIC_STUDIO_MDC_ELEMENT_FIELDS, default off)
 
 const BASE = {
   count: 1,
@@ -52,3 +53,5 @@ export function buildFormDataForDirective(
       return null
   }
 }
+// MDC-ELEMENT-FIELDS: with NEXT_PUBLIC_STUDIO_MDC_ELEMENT_FIELDS on, a valid icon_label_mode / label_text / shape_type on the directive payload sets the form data's iconLabelConfig / prompt / shapeConfig as the Element panel's own form does (lib/mdc-element-fields.ts); anything else, and the flag off, leave the form data as built above. Mutates and returns the object buildFormDataForDirective just made.
+export function applyDirectiveElementFields(formData: TextLabsFormData, fields: unknown): TextLabsFormData { const patch = mdcElementFieldsPatch(formData.componentType, fields); if (patch) Object.assign(formData, patch); return formData } // MDC-ELEMENT-FIELDS

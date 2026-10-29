@@ -219,8 +219,8 @@ export async function createAddWorld(options) {
     studioPartialLocalWorkRef: { current: new Set() }, studioPartialMountedRef: { current: true }, setStudioPartialRevision() {}, handleTextLabsGenerate: driver.handleGenerate,
   })
   const runnerText = assignmentRight('app/builder/page.tsx', 'elementDirectiveRunnerRef.current', pageText)
-  assert.equal(runnerText.split("await import('@/lib/mdc-element-directive')").length, 2, 'the runner imports lib/mdc-element-directive once, dynamically')
-  const runner = evalExpression(runnerText.replace("await import('@/lib/mdc-element-directive')", '__mdc'), { // the one substitution: a dynamic import cannot run in a vm, the module is the same one
+  assert.ok([2, 3].includes(runnerText.split("await import('@/lib/mdc-element-directive')").length), 'the runner imports lib/mdc-element-directive once, dynamically (twice with MDC element fields: its one marked page line)') // LATER-CHANGES: registry read (MDC-ELEMENT-FIELDS): the page runner calls applyDirectiveElementFields on the same module, so the import appears twice with that change
+  const runner = evalExpression(runnerText.replaceAll("await import('@/lib/mdc-element-directive')", '__mdc'), { // the one substitution: a dynamic import cannot run in a vm, the module is the same one // LATER-CHANGES: registry read (MDC-ELEMENT-FIELDS): every occurrence is the same module (replaceAll)
     __mdc: mdc, elementDirectiveGenerationOwnerRef: ownerRef, sendElementDirectiveResult: result => { sent.push(plain(result)); return true },
     slideStructure: { slides: [{}, {}, {}] }, generationPanel: { getSnapshot: () => ({ isOpen: false }), hasActiveGenerations: false }, currentSlideIndexRef: slideState, layoutServiceApis,
     handleApprovedTextLabsGenerate, toast: value => toasts.push(plain(value)), setTimeout: clock.setTimeout, Promise,
