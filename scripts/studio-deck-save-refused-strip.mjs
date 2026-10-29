@@ -72,6 +72,28 @@ export const DECK_SAVE_REFUSED_PIN_EDITS = {
   ],
   // The older proof's scope check reads the first-parent line of its BASE..HEAD as its own commits; on a branch stacked after it, the stacked change's commits are on that line (the gate's merge puts them on the second parent). One exemption each, as chat parity's.
   // The chat element edit proof (#522) evaluates the viewer's real save-status effect with a fixed set of deps and cuts mutants of the viewer from the same text: it reads the viewer past this change. An import (a pure insertion) and two lines.
+  // The test-studio-arrange.mjs proof counts / compares the viewer's lines against its base: it reads the viewer past this change (an import and one line).
+  "scripts/test-studio-arrange.mjs": [
+    [
+      "import { stripDeckSaveRefused } from './studio-deck-save-refused-strip.mjs' // LATER-CHANGES: registry read (DECK-SAVE-REFUSED-NOTICE): the change stacked after this one marks lines in the viewer; the viewer is compared with the base past them\n",
+      ""
+    ],
+    [
+      "    const now = stripDeckSaveRefused(rel, read(rel)) // LATER-CHANGES: registry read (DECK-SAVE-REFUSED-NOTICE): the lines of the change stacked after this one come out first\n",
+      "    const now = read(rel)\n"
+    ]
+  ],
+  // The test-studio-rail-add-slide.mjs proof counts / compares the viewer's lines against its base: it reads the viewer past this change (an import and one line).
+  "scripts/test-studio-rail-add-slide.mjs": [
+    [
+      "import { belongsToDeckSaveRefused } from './studio-deck-save-refused-strip.mjs' // LATER-CHANGES: registry read (DECK-SAVE-REFUSED-NOTICE): its marked viewer lines\n",
+      ""
+    ],
+    [
+      "    const changedPastDeckSync = (rel, base) => changed(rel, base).filter(line => !belongsToDeckSyncTruth(line) && !belongsToDeckSaveRefused(line)) // LATER-CHANGES: registry read (DECK-SYNC-TRUTH): this change's marked viewer lines (scripts/test-studio-deck-sync-truth.mjs pins them) // LATER-CHANGES: registry read (DECK-SAVE-REFUSED-NOTICE): and the change stacked after this one's (this line is an insertion of DECK-SYNC-TRUTH's, so putting either change's edit back removes it)\n",
+      "    const changedPastDeckSync = (rel, base) => changed(rel, base).filter(line => !belongsToDeckSyncTruth(line)) // LATER-CHANGES: registry read (DECK-SYNC-TRUTH): this change's marked viewer lines (scripts/test-studio-deck-sync-truth.mjs pins them)\n"
+    ]
+  ],
   "scripts/test-studio-chat-element-edit.mjs": [
     [
       "import { stripDeckSaveRefused } from './studio-deck-save-refused-strip.mjs' // LATER-CHANGES: registry read (DECK-SAVE-REFUSED-NOTICE): the change stacked after this one marks lines in the viewer's save-status handler; the handler is evaluated without them\n",
@@ -125,4 +147,9 @@ export function stripDeckSaveRefused(rel, text) {
   if (rel in DECK_SAVE_REFUSED_PIN_EDITS) return putBackDeckSaveRefusedPin(rel, text) // an older proof this change taught: its previous text
   if (!DECK_SAVE_REFUSED_FILES.includes(rel)) return text
   return text.split('\n').filter(line => !DECK_SAVE_REFUSED_MARKER_RE.test(line)).join('\n')
+}
+
+/** A line of `git diff -U0` that belongs to this change: an added or removed line that carries the marker (as a whole token). */
+export function belongsToDeckSaveRefused(diffLine) {
+  return DECK_SAVE_REFUSED_MARKER_RE.test(diffLine)
 }
