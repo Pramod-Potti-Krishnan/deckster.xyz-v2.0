@@ -40,7 +40,26 @@ export const DECK_SAVE_REFUSED_NEW_FILES = [
 
 /** The older proofs this change teaches: [text the proof has now, text the proof had before] per edit, whole lines, so putting them back gives the previous file byte for byte. Every line the proof has now carries DECK_SAVE_REFUSED_PIN_MARK. */
 export const DECK_SAVE_REFUSED_PIN_MARK = 'LATER-CHANGES: registry read (DECK-SAVE-REFUSED-NOTICE)'
-export const DECK_SAVE_REFUSED_PIN_EDITS = {}
+export const DECK_SAVE_REFUSED_PIN_EDITS = {
+  // Pass 3 polish B's strip is what COMPOSER-2's first-paint viewer pin reads the viewer through: this change's marked viewer lines come out in it first (the pattern STUDIO-ARRANGE, CHAT-ELEMENT-EDIT and DECK-SYNC-TRUTH used). Two pure insertions.
+  "scripts/studio-pass3-polish-b-strip.mjs": [
+    [
+      "import { stripDeckSaveRefused } from './studio-deck-save-refused-strip.mjs' // LATER-CHANGES: registry read (DECK-SAVE-REFUSED-NOTICE): B46 adds marked lines to the viewer, so they come out first and the viewer read through this strip is its base again\n",
+      ""
+    ],
+    [
+      "  if (rel === PASS3_POLISH_B_VIEWER) text = stripDeckSaveRefused(rel, text) // LATER-CHANGES: registry read (DECK-SAVE-REFUSED-NOTICE)\n",
+      ""
+    ]
+  ],
+  // The targeted chat edit proof (#540) runs the viewer's real save-status effect with a fixed set of deps; it reads the viewer past the changes registered after it. One line.
+  "scripts/test-studio-chat-edit-targeted.mjs": [
+    [
+      "  const viewerTsx = sources['components/presentation-viewer.tsx'] ?? laterRead('components/presentation-viewer.tsx') // LATER-CHANGES: registry read (DECK-SAVE-REFUSED-NOTICE): a change registered after this one marks lines in the viewer's save-status handler; the handler is cut out without them\n",
+      "  const viewerTsx = sources['components/presentation-viewer.tsx'] ?? read('components/presentation-viewer.tsx')\n"
+    ]
+  ]
+}
 
 /** The proof without this change's edits (the previous file). Used by the strip and the proof. */
 export function putBackDeckSaveRefusedPin(rel, text) {
