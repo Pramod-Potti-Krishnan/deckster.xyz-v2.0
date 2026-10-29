@@ -45,7 +45,7 @@ const SHELL = 'NEXT_PUBLIC_STUDIO_V4_SHELL'
 const REASONS = 'NEXT_PUBLIC_STUDIO_DISABLED_REASONS'
 const BASE_COMMIT = process.env.RAIL_ADD_SLIDE_BASE || 'bb5a89f'
 const read = rel => stripFirstPaint(rel, stripLaunchWording(rel, stripLaterChanges(rel, fs.readFileSync(path.join(repoRoot, rel), 'utf8')))) // LATER-CHANGES: registry read (PASS3-POLISH-B)
-const withoutFirstPaint = lines => lines.filter(line => !belongsToFirstPaint(line) && !line.includes('PASS3-POLISH-B')) // LATER-CHANGES: registry read (PASS3-POLISH-B)
+const withoutFirstPaint = lines => lines.filter(line => !belongsToFirstPaint(line) && !line.includes('PASS3-POLISH-B') && !line.includes('CHAT-STALE-VIEWER-GUARD')) // LATER-CHANGES: registry read (PASS3-POLISH-B) // LATER-CHANGES: registry read (CHAT-STALE-VIEWER-GUARD): the stale viewer guard stacked after this change marks its own viewer lines
 const git = args => execFileSync('git', args, { cwd: repoRoot, encoding: 'utf8', maxBuffer: 64 * 1024 * 1024, stdio: ['ignore', 'pipe', 'ignore'] })
 function baseSource(rel) {
   try { git(['cat-file', '-e', `${BASE_COMMIT}^{commit}`]); return git(['show', `${BASE_COMMIT}:${rel}`]) } catch { return null }
