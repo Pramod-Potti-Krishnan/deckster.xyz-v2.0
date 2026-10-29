@@ -20,6 +20,7 @@ import { fileURLToPath } from 'node:url'
 // FRONTEND-2 Pass 3 (NEXT_PUBLIC_CHAT_ELEMENT_REFINE) added flag-gated lines to the hook; with them taken out it is the file this pin holds it to.
 import { stripChatElementRefine } from './studio-chat-element-refine-strip.mjs'
 import { stripChatAddTargeted } from './studio-chat-add-targeted-strip.mjs' // LATER-CHANGES: registry read (CHAT-ADD-TARGETED): the targeted chat add stacked after this change, so its marked lines in the generation hook come out first
+import { stripChatAddStacking } from './studio-chat-add-stacking-strip.mjs' // LATER-CHANGES: registry read (CHAT-ADD-STACKING): the chat add stacking stacked after this change, so its marked lines in the generation hook come out first
 
 const here = path.dirname(fileURLToPath(import.meta.url))
 let ownRoot = here
@@ -875,6 +876,7 @@ async function hookSuite(src) {
 function stripMarked(source) {
   source = stripChatElementRefine('hooks/use-textlabs-generation.ts', source) // NEXT_PUBLIC_CHAT_ELEMENT_REFINE
   source = stripChatAddTargeted('hooks/use-textlabs-generation.ts', source) // LATER-CHANGES: registry read (CHAT-ADD-TARGETED)
+  source = stripChatAddStacking('hooks/use-textlabs-generation.ts', source) // LATER-CHANGES: registry read (CHAT-ADD-STACKING)
   const out = []
   let inBlock = false
   for (const line of source.split('\n')) {

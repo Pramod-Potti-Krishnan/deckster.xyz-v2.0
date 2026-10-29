@@ -115,6 +115,7 @@ import { startImagePendingJob } from '@/lib/studio-image-pending-runtime'
 import { CHAT_ADD_TARGETED_SAVE_ENABLED, openChatAddScope, type ChatAddScope } from '@/lib/chat-add-targeted' // CHAT-ADD-TARGETED
 import { CHAT_STALE_VIEWER_GUARD_ENABLED, confirmChatDeckUnchanged, requireChatAddSaved, type AddSaveWatch } from '@/lib/chat-stale-viewer-guard' // CHAT-STALE-VIEWER-GUARD CHAT-ADD-TARGETED
 import { watchViewerSave } from '@/lib/chat-element-edit-save' // CHAT-STALE-VIEWER-GUARD CHAT-ADD-TARGETED
+import { CHAT_ADD_STACKING_ENABLED, chatAddStackedZIndex } from '@/lib/chat-add-stacking' // CHAT-ADD-STACKING
 
 export type TextLabsGenerationResult =
   | { status: 'inserted'; presentationId: string | null; slideIndex: number; elementIds: string[] }
@@ -1774,6 +1775,7 @@ export function useTextLabsGeneration({
           formData.z_index,
           effectiveSlideIndex
         )
+        if (CHAT_ADD_STACKING_ENABLED && invocation?.kind === 'chat-add') { const stackedZIndex = chatAddStackedZIndex(formData.componentType); if (stackedZIndex !== null) params.zIndex = stackedZIndex } // CHAT-ADD-STACKING: a chat add lands at the z the Element panel's own add of this type starts at (not the directive's z 1, under the slide's content)
         if (studio && insertionComponentType === 'METRICS') {
           params.generationConfig = normalizeMetricsCardRefineGenerationConfig(params.generationConfig, 'METRICS')
         }
