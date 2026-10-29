@@ -25,6 +25,13 @@ export const CHAT_REFINE_STRUCTURAL_DECLINE_NEW_FILES = [
   'scripts/studio-chat-refine-structural-decline-strip.mjs',
   'scripts/test-studio-chat-refine-structural-decline.mjs',
   'scripts/fixtures/chat-refine-structural-decline/b47-capture.json',
+  'scripts/fixtures/chat-refine-structural-decline/director-frames/01-with-element_text1.json', // DIRECTOR-2's recorded examples (workspace main 4c47fbd2, streams/director2/refine-unsupported/examples; Director MR !599 9a60d351), copied byte for byte
+  'scripts/fixtures/chat-refine-structural-decline/director-frames/02-without-element_text1.json',
+  'scripts/fixtures/chat-refine-structural-decline/director-frames/03-text-set-off.json',
+  'scripts/fixtures/chat-refine-structural-decline/director-frames/04-blank-placeholder-null-element-id.json',
+  'scripts/fixtures/chat-refine-structural-decline/director-frames/05-flag-off-todays-line.json',
+  'scripts/fixtures/chat-refine-structural-decline/director-frames/06-other-error-code.json',
+  'scripts/fixtures/chat-refine-structural-decline/director-frames/07-element-edit-off-no-offer.json',
 ]
 
 /** The older proofs this change teaches: [text the proof has now, text the proof had before] per edit, whole lines, so putting them back gives the previous file byte for byte. Every line the proof has now carries CHAT_REFINE_STRUCTURAL_DECLINE_PIN_MARK. */

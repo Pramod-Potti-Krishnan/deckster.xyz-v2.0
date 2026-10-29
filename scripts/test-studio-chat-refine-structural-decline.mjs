@@ -13,9 +13,10 @@
 // (SLIDE_TITLE, slot title / structural; Layout's real viewer code, run in a node vm) and what Studio's REAL useTextLabsGeneration then sends Text Labs for the chat refine. The viewer reply built from it here is checked by a round trip:
 // the REAL buildRefineContext of it gives exactly the capture's existing_element. The recorded text box with NO role (scripts/fixtures/chat-element-refine/layout-replies.json, Layout !245's real viewer code) and the recorded chart are real too.
 // A body text box (BODY_TEXT), the other 14 structural roles and unknown roles are VARIATIONS on the captured envelope (only the role, and for the body its slot, change): they are built from the contract, and the proof says so where it matters.
-// THE FRAMES. Director's element_refine_directive is DIRECTOR-2's RECORDED one (scripts/fixtures/chat-element-refine/director-frames/01-success.json) with the element and the instruction of the capture; Studio's answer is checked against the
-// recorded element_directive_result of 02-failed.json with the error code set. DIRECTOR-2's own example frames for rows 43/45 are NOT recorded yet: the frames here are CONTRACT-BUILT from PROGRAM-1's 10:53Z ruling and the
-// agreed contract (failed / unsupported_type, no generation); FRONTEND-2 forwards DIRECTOR-2's recorded ones when they arrive.
+// THE FRAMES ARE RECORDED. DIRECTOR-2's seven recorded examples for rows 43/45 (workspace main 4c47fbd2, streams/director2/refine-unsupported/examples, Director MR !599 9a60d351), copied byte for byte to
+// scripts/fixtures/chat-refine-structural-decline/director-frames and pinned by sha256: each carries Director's element_refine_directive and the element_directive_result Director expects back from Studio. Their directive is replayed
+// through the real runner (flag on) and Studio's reply, through the real socket send, must be that frame byte for byte. The other scenarios vary the element and the role on the recorded envelope of DIRECTOR-2's older 01-success.json
+// (scripts/fixtures/chat-element-refine/director-frames) and on B47's capture.
 //
 // What it proves:
 //  1. the role set: every role but BODY_TEXT, identical to Studio's TextSemanticRole union (types/textlabs.ts), the slot catalog's TEXT_ROLES (lib/text-slot-catalog.ts) and the Text Service's SemanticTextRole enum, pinned from
@@ -144,8 +145,9 @@ async function runCase(libs, spec) {
   const generations = [], commands = []
   let busyCalls = 0, slide = 0
   const buildRefineContext = libs.refinement.useElementRefinement({ slideContextByIndex: null, deckContext: null, sessionStoreName: null, sessionId: SESSION, currentSlideIndex: 0 })
+  const presentation = spec.presentationId ?? PRESENTATION
   const deps = {
-    displayed: () => ({ sessionId: SESSION, deckOwnerSessionId: SESSION, presentationId: PRESENTATION, epoch: 0 }),
+    displayed: () => ({ sessionId: SESSION, deckOwnerSessionId: SESSION, presentationId: presentation, epoch: 0 }),
     isBusy: () => spec.busy ? spec.busy(++busyCalls) : false,
     slideCount: () => 3,
     currentSlideIndex: () => slide,
@@ -161,13 +163,13 @@ async function runCase(libs, spec) {
     buildRefineContext,
     generate: async (formData, invocation) => {
       generations.push({ formData: plain(formData), invocation: plain(invocation) })
-      return { status: 'inserted', presentationId: PRESENTATION, slideIndex: invocation.slideIndex, elementIds: ['el_refined'] }
+      return spec.generateResult ?? { status: 'inserted', presentationId: presentation, slideIndex: invocation.slideIndex, elementIds: ['el_refined'] }
     },
     settle: async () => {},
     ...(spec.deps ? spec.deps(libs) : {}),
   }
   const elementId = spec.elementId ?? spec.data?.elementId
-  const result = await libs.runner.runElementRefineDirective(directiveFor(elementId, spec.instruction ?? INSTRUCTION, spec.data?.componentType ?? 'TEXT_BOX', spec.data?.slideIndex ?? 0), spec.owner ?? OWNER, deps)
+  const result = await libs.runner.runElementRefineDirective(spec.message ?? directiveFor(elementId, spec.instruction ?? INSTRUCTION, spec.data?.componentType ?? 'TEXT_BOX', spec.data?.slideIndex ?? 0), spec.owner ?? OWNER, deps)
   return plain({ result, generations, commands })
 }
 const word = outcome => `${outcome.result.status}${outcome.result.error_code ? `:${outcome.result.error_code}` : ''}/${outcome.generations.length}`
@@ -376,9 +378,69 @@ await check('the frame: the declined answer goes on the wire as exactly {"type":
   const wire = `{"type":"element_directive_result","data":{"directive_id":${JSON.stringify(recordedDirective.payload.directive_id)},"status":"failed","element_id":${JSON.stringify(existing.element_id)},"error_code":"unsupported_type"}}`
   assert.equal(sent[0], wire, 'the exact bytes')
   const recorded = plain(recordedFailedResult); recorded.data = { ...recorded.data, directive_id: recordedDirective.payload.directive_id, element_id: existing.element_id, error_code: 'unsupported_type' }
-  assert.equal(sent[0], JSON.stringify(recorded), 'DIRECTOR-2\'s recorded element_directive_result (02-failed) with this directive, this element and unsupported_type: the same bytes (contract-built; DIRECTOR-2\'s own example frames for rows 43/45 are not recorded yet)')
+  assert.equal(sent[0], JSON.stringify(recorded), 'DIRECTOR-2\'s recorded element_directive_result (02-failed) with this directive, this element and unsupported_type: the same bytes')
   assert.deepEqual(Object.keys(recorded), ['type', 'data']); assert.deepEqual(Object.keys(recorded.data), ['directive_id', 'status', 'element_id', 'error_code'])
   assert.ok(offLibs.wire.ELEMENT_REFINE_DIRECTIVE_TYPE === 'element_refine_directive')
+})
+const RECORDED_DIR = 'scripts/fixtures/chat-refine-structural-decline/director-frames'
+/** DIRECTOR-2's recorded examples (workspace main 4c47fbd2, MR !599 9a60d351), pinned: copied byte for byte. */
+const RECORDED_SHA256 = {
+  '01-with-element_text1': '31520d98a2e30cef0df1943ef474ea7b4da6f1cea9f164526be3e3c35f680a38',
+  '02-without-element_text1': '68deb387c90f5d959f74b8645a934c597d26df73c04db57a9581b7f9c568657a',
+  '03-text-set-off': 'ef43546f3647a03df2cb47db24522ba89dd49af69722a499998d321fe4cd9440',
+  '04-blank-placeholder-null-element-id': 'df5952cc28c1eaf3d2b03d34ae28bfd0dd355695c166d29d532414d668bdbdb4',
+  '05-flag-off-todays-line': '2479a8a2b0ed9c6effdaf2b5121bd08038f94f36ec5b8708bb52abdb4e80cd3a',
+  '06-other-error-code': 'cc6b9b8947fb5226ce52a43271756a2543f0e546bae1ecceed2f9d0eec73c3d3',
+  '07-element-edit-off-no-offer': 'e6930c46d15a2d249cd69b28a209fcbd9f151673bde7c533b5ad26d4ba44c92c',
+}
+const recordedExample = name => JSON.parse(read(`${RECORDED_DIR}/${name}.json`))
+/** Replays the recorded Director directive of `file` through the real runner and puts the answer on the wire with the real socket send. */
+async function replayRecorded(libs, file, spec) {
+  const directive = file.director_frames_for_the_refine[0]
+  assert.equal(directive.type, 'element_refine_directive')
+  const got = await runCase(libs, { ...spec, message: directive, presentationId: directive.payload.presentation_id, elementId: directive.payload.element_id })
+  const { send, sent } = realSocketSend()
+  assert.equal(send(got.result), true)
+  return { got, wire: sent[0], directive }
+}
+await check('RECORDED frames (DIRECTOR-2, workspace main 4c47fbd2, MR !599): the seven files are the ones copied (sha256); each is a refine of a title text box (TEXT_BOX, slide 3) answered by a failed element_directive_result with the keys directive_id, status, element_id, error_code', () => {
+  assert.deepEqual(fs.readdirSync(path.join(root, RECORDED_DIR)).map(name => name.replace(/\.json$/, '')).sort(), Object.keys(RECORDED_SHA256).sort())
+  for (const [name, digest] of Object.entries(RECORDED_SHA256)) {
+    assert.equal(sha(read(`${RECORDED_DIR}/${name}.json`)), digest, name)
+    const file = recordedExample(name), frame = file.studio_inbound_result_frame
+    assert.deepEqual(Object.keys(frame), ['type', 'data']); assert.equal(frame.type, 'element_directive_result'); assert.deepEqual(Object.keys(frame.data), ['directive_id', 'status', 'element_id', 'error_code'], name)
+    assert.equal(frame.data.directive_id, file.director_frames_for_the_refine[0].payload.directive_id, name); assert.equal(frame.data.status, 'failed', name)
+    const reference = file.user_message.data.references[0]
+    assert.deepEqual({ ...offLibs.runner.chatElementReferenceFor({ elementId: reference.element_id, elementType: reference.element_type, slideIndex: reference.slide_index, slideId: reference.slide_id }), label: reference.label }, reference, `${name}: Studio's reference rule gives the recorded reference (the label aside, which Director only displays)`)
+    assert.ok(file.user_message.data.client_caps.includes('element_refine1') && file.user_message.data.client_caps.includes('mdc1'), name)
+  }
+})
+await check('RECORDED frames: for each recorded title refine (01, 02, 03, 05, 07) the flag-on runner answers EXACTLY the recorded inbound element_directive_result, byte for byte (the real socket send), with the slide change, no generation and no viewer command but the payload read', async () => {
+  for (const name of ['01-with-element_text1', '02-without-element_text1', '03-text-set-off', '05-flag-off-todays-line', '07-element-edit-off-no-offer']) {
+    const file = recordedExample(name), payload = file.director_frames_for_the_refine[0].payload
+    assert.equal(file.studio_inbound_result_frame.data.error_code, 'unsupported_type', name)
+    const { got, wire } = await replayRecorded(onLibs, file, { data: titleData({ elementId: payload.element_id, slideIndex: payload.slide_index }) })
+    assert.equal(wire, JSON.stringify(file.studio_inbound_result_frame), `${name}: Studio's frame is the recorded one, byte for byte`)
+    assert.deepEqual(got.generations, [], name)
+    assert.deepEqual(got.commands, [{ action: 'goToSlide', index: payload.slide_index }, { action: 'requestElementRefine', params: { elementId: payload.element_id } }], `${name}: the slide is opened, the payload is read, nothing else`)
+    const off = await replayRecorded(offLibs, file, { data: titleData({ elementId: payload.element_id, slideIndex: payload.slide_index }) })
+    assert.equal(off.got.result.status, 'refined', `${name}: flag off, Studio answers the false Done (refined) that the recorded frame replaces`); assert.notEqual(off.wire, JSON.stringify(file.studio_inbound_result_frame), name)
+  }
+})
+await check('RECORDED frame 04 (blank placeholder): Studio answers failed / unsupported_type for a blank-placeholder text box, as it does today with the flag off; the element_id it carries is the DIRECTIVE\'s (Studio never turns it into null), so the bytes are the recorded frame\'s with that id', async () => {
+  const file = recordedExample('04-blank-placeholder-null-element-id'), payload = file.director_frames_for_the_refine[0].payload
+  assert.equal(file.studio_inbound_result_frame.data.element_id, null, 'DIRECTOR-2\'s frame 04 carries a null element_id')
+  const spec = { data: titleData({ elementId: payload.element_id, slideIndex: payload.slide_index, semanticRole: 'BODY_TEXT' }), deps: () => ({ isBlankPlaceholder: () => true }) }
+  const on = await replayRecorded(onLibs, file, spec), off = await replayRecorded(offLibs, file, spec), dev = await replayRecorded(devLibs, file, spec)
+  assert.deepEqual(on.got, dev.got); assert.deepEqual(off.got, dev.got)
+  assert.equal(on.wire, JSON.stringify({ ...file.studio_inbound_result_frame, data: { ...file.studio_inbound_result_frame.data, element_id: payload.element_id } }))
+  assert.equal(word(on.got), 'failed:unsupported_type/0')
+})
+await check('RECORDED frame 06 (another error code): a refine that fails in generation answers the recorded generation_failed frame byte for byte, flag on and flag off alike (unchanged)', async () => {
+  const file = recordedExample('06-other-error-code'), payload = file.director_frames_for_the_refine[0].payload
+  assert.equal(file.studio_inbound_result_frame.data.error_code, 'generation_failed')
+  const spec = { data: titleData({ elementId: payload.element_id, slideIndex: payload.slide_index, semanticRole: 'BODY_TEXT', slotName: 'body', slotKind: 'body' }), generateResult: { status: 'failed', presentationId: payload.presentation_id, slideIndex: payload.slide_index, error: 'synthetic Text Labs refusal' } }
+  for (const libs of [onLibs, offLibs, devLibs]) { const { got, wire } = await replayRecorded(libs, file, spec); assert.equal(wire, JSON.stringify(file.studio_inbound_result_frame)); assert.equal(got.generations.length, 1) }
 })
 await check('no new copy: the declined result carries no text, and the files this change adds hold none of Director\'s sentence', () => {
   const phrases = ["can't refine this text box", 'so it is unchanged', 'choose Mode', 'click into the text box', 'toolbar']
@@ -421,6 +483,14 @@ await mutant('the declined result gains a text field (new copy)', async () => {
   const libs = mutated({ [RUNNER]: swap(runnerText, from, "declinesStructuralRefine(componentType, refineContext.semanticRole)) return { ...result('failed', 'unsupported_type'), message: 'nope' }") })
   assert.deepEqual(await runCase(libs, CASES[0][1]), declinedOutcome(CASES[0][1]))
 })
+for (const [label, tail] of [['element_id null', "{ ...result('failed', 'unsupported_type'), element_id: null }"], ['the keys in another order', "{ status: 'failed', directive_id: directiveId, element_id: elementId, error_code: 'unsupported_type' }"]]) {
+  await mutant(`the declined result has ${label}: the recorded frame (byte for byte) is not what goes on the wire`, async () => {
+    const from = "declinesStructuralRefine(componentType, refineContext.semanticRole)) return result('failed', 'unsupported_type')"
+    const file = recordedExample('01-with-element_text1'), payload = file.director_frames_for_the_refine[0].payload
+    const { wire } = await replayRecorded(mutated({ [RUNNER]: swap(runnerText, from, `declinesStructuralRefine(componentType, refineContext.semanticRole)) return ${tail}`) }), file, { data: titleData({ elementId: payload.element_id, slideIndex: payload.slide_index }) })
+    assert.equal(wire, JSON.stringify(file.studio_inbound_result_frame))
+  })
+}
 await mutant('a strip that leaves the import behind: the strip must give dev\'s runner back, byte for byte', () => {
   const brokenStrip = text => text.split('\n').filter(line => !/declinesStructuralRefine\(componentType/.test(line)).join('\n')
   assert.equal(sha(brokenStrip(runnerText)), sha(laterStrips(RUNNER, git('show', `${BASE_COMMIT}:${RUNNER}`))))
