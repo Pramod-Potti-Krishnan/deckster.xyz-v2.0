@@ -83,15 +83,19 @@ export const DECK_SAVE_REFUSED_PIN_EDITS = {
       "    const now = read(rel)\n"
     ]
   ],
-  // The test-studio-rail-add-slide.mjs proof counts / compares the viewer's lines against its base: it reads the viewer past this change (an import and one line).
+  // The test-studio-rail-add-slide.mjs proof counts the viewer's added lines against its base and drops each earlier change's marked lines through belongsToDeckSyncTruth (a line deck sync truth inserted, and three it edited). Pure insertions only, so no line another change taught is touched: two imports and a block-scoped belongsToDeckSyncTruth over the import in the block that holds the filter.
   "scripts/test-studio-rail-add-slide.mjs": [
     [
       "import { belongsToDeckSaveRefused } from './studio-deck-save-refused-strip.mjs' // LATER-CHANGES: registry read (DECK-SAVE-REFUSED-NOTICE): its marked viewer lines\n",
       ""
     ],
     [
-      "    const changedPastDeckSync = (rel, base) => changed(rel, base).filter(line => !belongsToDeckSyncTruth(line) && !belongsToDeckSaveRefused(line)) // LATER-CHANGES: registry read (DECK-SYNC-TRUTH): this change's marked viewer lines (scripts/test-studio-deck-sync-truth.mjs pins them) // LATER-CHANGES: registry read (DECK-SAVE-REFUSED-NOTICE): and the change stacked after this one's (this line is an insertion of DECK-SYNC-TRUTH's, so putting either change's edit back removes it)\n",
-      "    const changedPastDeckSync = (rel, base) => changed(rel, base).filter(line => !belongsToDeckSyncTruth(line)) // LATER-CHANGES: registry read (DECK-SYNC-TRUTH): this change's marked viewer lines (scripts/test-studio-deck-sync-truth.mjs pins them)\n"
+      "import { belongsToDeckSyncTruth as belongsToDeckSyncTruthOf } from './studio-deck-sync-truth-strip.mjs' // LATER-CHANGES: registry read (DECK-SAVE-REFUSED-NOTICE): the import above, under a second name for the shadow in the diff filter\n",
+      ""
+    ],
+    [
+      "    const belongsToDeckSyncTruth = line => belongsToDeckSyncTruthOf(line) || belongsToDeckSaveRefused(line) // LATER-CHANGES: registry read (DECK-SAVE-REFUSED-NOTICE): from here the filter below drops the change stacked after DECK-SYNC-TRUTH's marked viewer lines too (a block-scoped name over the import, so no line deck sync truth taught is edited)\n",
+      ""
     ]
   ],
   "scripts/test-studio-chat-element-edit.mjs": [
