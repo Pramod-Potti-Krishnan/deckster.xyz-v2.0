@@ -36,6 +36,7 @@ import {
 } from './studio-chat-element-edit-strip.mjs'
 import { LATER_STRIPS } from './studio-later-changes.mjs'
 import { stripPass3PolishB } from './studio-pass3-polish-b-strip.mjs' // COMPOSER-2's first-paint pin reads the viewer through it, and it now takes this change's lines out too: it is not a peer to strip before this change's own checks
+import { stripDeckSaveRefused } from './studio-deck-save-refused-strip.mjs' // LATER-CHANGES: registry read (DECK-SAVE-REFUSED-NOTICE): the change stacked after this one marks lines in the viewer's save-status handler; the handler is evaluated without them
 // The other registered changes' marked lines (dev's: flow control, arrange, ... and the ones already in the base) come out of both sides before this change's identity checks; this change's own strip is the one left out.
 const stripPeers = (rel, text) => LATER_STRIPS.filter(strip => strip !== stripChatElementEdit && strip !== stripPass3PolishB).reduce((out, strip) => { const next = strip(rel, out); return typeof next === 'string' ? next : out }, text)
 
@@ -130,7 +131,7 @@ function constText(rel, name, text = read(rel)) {
   return decl.initializer.getText(ast)
 }
 
-const viewerTsx = read('components/presentation-viewer.tsx')
+const viewerTsx = stripDeckSaveRefused('components/presentation-viewer.tsx', read('components/presentation-viewer.tsx')) // LATER-CHANGES: registry read (DECK-SAVE-REFUSED-NOTICE): the viewer the handler is cut from has no line of the change stacked after this one (no fake binding for its calls)
 const messaging = makeLibs().load('lib/layout-viewer-messaging.ts')
 const router = makeLibs().load('lib/element-command-router.ts')
 const bridgeJs = js(`${functionDeclarationText('components/presentation-viewer.tsx', 'createViewerRequestId')}\n${functionDeclarationText('components/presentation-viewer.tsx', 'sendCommand')}\n;({ sendCommand })`)
@@ -1364,6 +1365,7 @@ await check('scope: this change\'s own commits (the first-parent line without me
   // A merge of dev brings dev's history in by its second parent, and dev's files are their changes' own.
   const shas = git('rev-list', '--first-parent', '--no-merges', `${BASE_COMMIT}..HEAD`).split('\n').filter(Boolean)
   shas.splice(0, shas.length, ...shas.filter(sha => !/^Chat parity/.test(git('log', '-1', '--format=%s', sha)))) // stacked after #475: LATER-CHANGES: registry read (CHAT-PARITY): on a branch stacked after this change (chat parity's, merged with dev), the first-parent commits are chat parity's own, not this change's; with none left the pins and identity checks above cover the files
+  shas.splice(0, shas.length, ...shas.filter(sha => !/^Save refused notice:/.test(git('log', '-1', '--format=%s', sha)))) // LATER-CHANGES: registry read (DECK-SAVE-REFUSED-NOTICE): a change stacked after this one has its commits on the first-parent line of a branch (the gate's merge puts them on the second parent); they are its own, not this change's
   // Merged into dev, this change's commits come in by the merge's second parent and the first-parent line has none of them: nothing of this change's own is left to read (the files are dev's then).
   if (shas.length === 0) { console.log('NOTE scope: no commit of this change on the first-parent line (merged into dev: its commits are on the second parent); the pins and identity checks above cover the files'); return }
   assert.ok(shas.length >= 5, `${shas.length} own commits`)
@@ -1526,7 +1528,7 @@ async function quickSuite(libOverrides, sources = {}) {
   assert.equal(lateSwitch.sentResults.length, 0, 'an ack for a deck no longer on screen is not answered')
 }
 const LIB = 'lib/chat-element-edit.ts', SAVE = 'lib/chat-element-edit-save.ts', WIRE = 'lib/chat-element-edit-wire.ts'
-const mut = (rel, from, to, all = false) => { const text = read(rel); assert.ok(text.includes(from), `mutant anchor in ${rel}: ${from.slice(0, 60)}`); return all ? text.split(from).join(to) : text.replace(from, () => to) }
+const mut = (rel, from, to, all = false) => { const text = stripDeckSaveRefused(rel, read(rel)); assert.ok(text.includes(from), `mutant anchor in ${rel}: ${from.slice(0, 60)}`); return all ? text.split(from).join(to) : text.replace(from, () => to) } // LATER-CHANGES: registry read (DECK-SAVE-REFUSED-NOTICE): a mutant of the viewer is cut from the viewer without the change stacked after this one
 await check('control: the unbroken code passes the quick suite the mutants run against', async () => { await quickSuite({}) })
 for (const [label, rel, from, to] of [
   ['ok:true before the ack (the save wait returns saved at once)', LIB, "const outcome = await watch.settled(deps.saveTimeoutMs ?? ELEMENT_EDIT_SAVE_TIMEOUT_MS)", "const outcome = 'saved'"],

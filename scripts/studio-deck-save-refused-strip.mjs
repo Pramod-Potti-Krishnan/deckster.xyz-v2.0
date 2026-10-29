@@ -71,6 +71,25 @@ export const DECK_SAVE_REFUSED_PIN_EDITS = {
     ]
   ],
   // The older proof's scope check reads the first-parent line of its BASE..HEAD as its own commits; on a branch stacked after it, the stacked change's commits are on that line (the gate's merge puts them on the second parent). One exemption each, as chat parity's.
+  // The chat element edit proof (#522) evaluates the viewer's real save-status effect with a fixed set of deps and cuts mutants of the viewer from the same text: it reads the viewer past this change. An import (a pure insertion) and two lines.
+  "scripts/test-studio-chat-element-edit.mjs": [
+    [
+      "import { stripDeckSaveRefused } from './studio-deck-save-refused-strip.mjs' // LATER-CHANGES: registry read (DECK-SAVE-REFUSED-NOTICE): the change stacked after this one marks lines in the viewer's save-status handler; the handler is evaluated without them\n",
+      ""
+    ],
+    [
+      "const viewerTsx = stripDeckSaveRefused('components/presentation-viewer.tsx', read('components/presentation-viewer.tsx')) // LATER-CHANGES: registry read (DECK-SAVE-REFUSED-NOTICE): the viewer the handler is cut from has no line of the change stacked after this one (no fake binding for its calls)\n",
+      "const viewerTsx = read('components/presentation-viewer.tsx')\n"
+    ],
+    [
+      "const mut = (rel, from, to, all = false) => { const text = stripDeckSaveRefused(rel, read(rel)); assert.ok(text.includes(from), `mutant anchor in ${rel}: ${from.slice(0, 60)}`); return all ? text.split(from).join(to) : text.replace(from, () => to) } // LATER-CHANGES: registry read (DECK-SAVE-REFUSED-NOTICE): a mutant of the viewer is cut from the viewer without the change stacked after this one\n",
+      "const mut = (rel, from, to, all = false) => { const text = read(rel); assert.ok(text.includes(from), `mutant anchor in ${rel}: ${from.slice(0, 60)}`); return all ? text.split(from).join(to) : text.replace(from, () => to) }\n"
+    ],
+    [
+      "  shas.splice(0, shas.length, ...shas.filter(sha => !/^Save refused notice:/.test(git('log', '-1', '--format=%s', sha)))) // LATER-CHANGES: registry read (DECK-SAVE-REFUSED-NOTICE): a change stacked after this one has its commits on the first-parent line of a branch (the gate's merge puts them on the second parent); they are its own, not this change's\n",
+      ""
+    ]
+  ],
   "scripts/test-studio-deck-sync-truth.mjs": [
     [
       "  shas.splice(0, shas.length, ...shas.filter(sha => !/^Save refused notice:/.test(git('log', '-1', '--format=%s', sha)))) // LATER-CHANGES: registry read (DECK-SAVE-REFUSED-NOTICE): a change stacked after this one has its commits on the first-parent line of a branch (the gate's merge puts them on the second parent); they are its own, not this change's\n",
