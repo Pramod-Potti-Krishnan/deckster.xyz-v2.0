@@ -121,6 +121,17 @@ export const DECK_SAVE_REFUSED_PIN_EDITS = {
       "  shas.splice(0, shas.length, ...shas.filter(sha => !/^Save refused notice:/.test(git('log', '-1', '--format=%s', sha)))) // LATER-CHANGES: registry read (DECK-SAVE-REFUSED-NOTICE): a change stacked after this one has its commits on the first-parent line of a branch (the gate's merge puts them on the second parent); they are its own, not this change's\n",
       ""
     ]
+  ],
+  // #548 (the stale viewer guard) proof world cuts its viewer functions out of components/presentation-viewer.tsx and evaluates them with fixed scopes: it reads the viewer past this change (an import and one line).
+  "scripts/studio-chat-stale-viewer-guard-world.mjs": [
+    [
+      "import { stripDeckSaveRefused } from './studio-deck-save-refused-strip.mjs' // LATER-CHANGES: registry read (DECK-SAVE-REFUSED-NOTICE): the change stacked after this one marks lines in the viewer's save-status handler; the viewer is cut without them (no fake binding for its calls)\n",
+      ""
+    ],
+    [
+      "  const viewerTsx = stripDeckSaveRefused('components/presentation-viewer.tsx', read('components/presentation-viewer.tsx')) // LATER-CHANGES: registry read (DECK-SAVE-REFUSED-NOTICE): the viewer every cut-out below is taken from has no line of the change stacked after this one\n",
+      "  const viewerTsx = read('components/presentation-viewer.tsx')\n"
+    ]
   ]
 }
 
