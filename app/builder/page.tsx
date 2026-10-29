@@ -105,6 +105,7 @@ import { CHAT_ELEMENT_EDIT_ENABLED, createElementEditGate, runElementEditDirecti
 import { NOTES_UPDATED_EVENT } from '@/lib/chat-element-edit-wire' // CHAT-ELEMENT-EDIT
 import { getChatEditViewer, subscribeViewerSaveEvents } from '@/lib/chat-element-edit-save' // CHAT-ELEMENT-EDIT
 import { CHAT_ELEMENT_EDIT_2_ENABLED, chatElementSelectionFor, dropChatElementSelection, dropChatElementSelectionOffSlide, referenceWithoutOutlineId, shownSlidesFromInventory } from '@/lib/chat-element-edit-2' // CHAT-ELEMENT-EDIT-2
+import { CHAT_STALE_VIEWER_GUARD_ENABLED, createChatStaleViewerGuard, ensureViewerMatchesServer, type ChatStaleViewerGuard, type ChatStaleViewerGuardDeps } from '@/lib/chat-stale-viewer-guard' // CHAT-STALE-VIEWER-GUARD CHAT-ELEMENT-EDIT-2 (NEXT_PUBLIC_STUDIO_CHAT_STALE_VIEWER_GUARD, default off): a chat add or edit after a chat deck change lands on the right slide or says so
 import { isTextLabsMappable } from '@/lib/element-type-mapping'
 // NEXT_PUBLIC_CHAT_THEME_CHANGE / NEXT_PUBLIC_CHAT_EXPORT (each default off): change the theme / export the deck from chat (lib/chat-theme-export.ts).
 import { runExportDirective, runThemeDirective, type ThemeExportDirectiveMessage, type ThemeExportDirectiveOwner, type ThemeExportResultData } from '@/lib/chat-theme-export'
@@ -706,6 +707,8 @@ function AuthenticatedBuilderContent({ authScopeUserId }: { authScopeUserId: str
   // NEXT_PUBLIC_CHAT_ELEMENT_REFINE: the late-bound refine runner (beside the add runner below) and the selection a send names.
   const elementRefineDirectiveRunnerRef = useRef<((message: ElementRefineDirectiveMessage, owner: ElementRefineDirectiveOwner) => void) | null>(null)
   const chatElementSelectionRef = useRef<ChatElementSelection | null>(null)
+  const chatStaleViewerGuardRef = useRef<ChatStaleViewerGuard<import('@/types/mdc').ElementDirectivePayload, ElementEditDirectiveMessage, ElementEditDirectiveOwner> | null>(null) // CHAT-STALE-VIEWER-GUARD CHAT-ELEMENT-EDIT-2: the guard in front of the add and edit runners (null with the flag off)
+  const chatStaleViewerDepsRef = useRef<ChatStaleViewerGuardDeps<import('@/types/mdc').ElementDirectivePayload, ElementEditDirectiveMessage, ElementEditDirectiveOwner> | null>(null) // CHAT-STALE-VIEWER-GUARD CHAT-ELEMENT-EDIT-2: what the guard reads, set on every render below
   const templateSelectionLockedRef = useRef(false)
   // NEXT_PUBLIC_CHAT_THEME_CHANGE / NEXT_PUBLIC_CHAT_EXPORT: the late-bound theme / export directive runner (defined beside the K5 add runner below).
   const themeExportDirectiveRunnerRef = useRef<((message: ThemeExportDirectiveMessage, owner: ThemeExportDirectiveOwner) => void) | null>(null)
@@ -1032,8 +1035,10 @@ function AuthenticatedBuilderContent({ authScopeUserId }: { authScopeUserId: str
     goToSlide: (slideIndex: number) => Promise<void>
     getStudioIntroductionSafety?: () => StudioIntroductionSafety
     captureStudioElementGeneration?: () => StudioElementGenerationLease | null
+    getStudioSaveStatus?: () => 'saved' | 'unsaved' | 'saving' | 'error' // CHAT-STALE-VIEWER-GUARD CHAT-ELEMENT-EDIT-2
   } | null>(null)
   const [studioViewerSafety, setStudioViewerSafety] = useState<StudioIntroductionSafety | null>(null)
+  const chatStaleViewerApisRef = useRef<typeof layoutServiceApis>(null) // CHAT-STALE-VIEWER-GUARD CHAT-ELEMENT-EDIT-2: the viewer's latest api, read after a reload (a closure of an earlier render holds the retired one)
   const studioInitialBlankProofRef = useRef(initialStudioInitialStageOwnerState())
   const studioInitialOwnerObservationRef = useRef<StudioInitialStageOwnerObservation | null>(null)
   const studioInitialRouteAdoptionRef = useRef<StudioInitialRouteAdoptionIntent | null>(null)
@@ -2628,6 +2633,7 @@ function AuthenticatedBuilderContent({ authScopeUserId }: { authScopeUserId: str
     // and auto-send the captured brief (section 12-Q2 LOCKED). The send goes
     // through sendMessageWhenConnected, which waits for the fresh socket.
     onElementDirective: (payload) => {
+      if (chatStaleViewerGuardRef.current) { chatStaleViewerGuardRef.current.add(payload); return } // CHAT-STALE-VIEWER-GUARD CHAT-ELEMENT-EDIT-2: a chat add after a chat deck change lands on the slide it means, or fails honestly
       elementDirectiveRunnerRef.current?.(payload)
     },
     // NEXT_PUBLIC_CHAT_ELEMENT_REFINE: the refine directive's runner and the element reference of a send. Off: not passed.
@@ -2664,6 +2670,7 @@ function AuthenticatedBuilderContent({ authScopeUserId }: { authScopeUserId: str
     // CHAT-ELEMENT-EDIT: the element_edit runner, and the Notes panel refresh of deck_mutation notes_updated (a window event, the narration script precedent). Off: not passed.
     ...(CHAT_ELEMENT_EDIT_ENABLED ? { // CHAT-ELEMENT-EDIT
       onElementEditDirective: (message: ElementEditDirectiveMessage, owner: ElementEditDirectiveOwner) => { // CHAT-ELEMENT-EDIT
+        if (chatStaleViewerGuardRef.current) { chatStaleViewerGuardRef.current.edit(message, owner); return } // CHAT-STALE-VIEWER-GUARD CHAT-ELEMENT-EDIT-2: as above, for an edit
         elementEditDirectiveRunnerRef.current?.(message, owner) // CHAT-ELEMENT-EDIT
       }, // CHAT-ELEMENT-EDIT
       onNotesUpdated: (update: { presentationId: string; slideIndex: number }, owner: { isCurrent: () => boolean }) => { // CHAT-ELEMENT-EDIT
@@ -5390,6 +5397,41 @@ function AuthenticatedBuilderContent({ authScopeUserId }: { authScopeUserId: str
       if (result && owner.isCurrent()) sendElementEditResult(result) // CHAT-ELEMENT-EDIT
     }) // CHAT-ELEMENT-EDIT
   } // CHAT-ELEMENT-EDIT
+  // CHAT-STALE-VIEWER-GUARD CHAT-ELEMENT-EDIT-2 (NEXT_PUBLIC_STUDIO_CHAT_STALE_VIEWER_GUARD, default off; lib/chat-stale-viewer-guard.ts): in front of the add runner above and the edit runner, the viewer must show the deck Layout holds (slide ids from composeGetState against Layout's
+  // CHAT-STALE-VIEWER-GUARD CHAT-ELEMENT-EDIT-2: slide inventory); if it does not it is reloaded first (the page's Reload deck, never over unsaved work), else the directive is answered failed. The runners are called afterwards through their refs, so they are the latest render's.
+  chatStaleViewerApisRef.current = layoutServiceApis // CHAT-STALE-VIEWER-GUARD CHAT-ELEMENT-EDIT-2
+  chatStaleViewerDepsRef.current = !CHAT_STALE_VIEWER_GUARD_ENABLED ? null : { // CHAT-STALE-VIEWER-GUARD CHAT-ELEMENT-EDIT-2
+    addOwner: () => { const o = elementDirectiveGenerationOwnerRef.current; return { sessionId: o.sessionId, deckOwnerSessionId: o.deckOwnerSessionId, presentationId: o.presentationId, epoch: o.epoch } }, // CHAT-STALE-VIEWER-GUARD CHAT-ELEMENT-EDIT-2
+    addPanelBusy: () => generationPanel.hasActiveGenerations || generationPanel.getSnapshot().isOpen, // CHAT-STALE-VIEWER-GUARD CHAT-ELEMENT-EDIT-2: the add runner answers an open element draft itself
+    ensure: owns => ensureViewerMatchesServer({ // CHAT-STALE-VIEWER-GUARD CHAT-ELEMENT-EDIT-2
+      readServerSlideIds: async () => { // CHAT-STALE-VIEWER-GUARD CHAT-ELEMENT-EDIT-2
+        const shownId = elementDirectiveGenerationOwnerRef.current.presentationId; if (!shownId) throw new Error('no deck on screen') // CHAT-STALE-VIEWER-GUARD CHAT-ELEMENT-EDIT-2
+        const read = await fetchSlideInventory({ baseUrl: getLayoutServiceUrl(), presentationId: shownId, fetchImpl: (input, init) => fetch(input, init) }) // CHAT-STALE-VIEWER-GUARD CHAT-ELEMENT-EDIT-2: the read #538 makes
+        if (read.kind === 'unavailable') return read.reason === 'invalid_inventory' ? 'unusable' : null; if (read.kind !== 'ok') throw new Error('Layout could not answer the slide inventory') // CHAT-STALE-VIEWER-GUARD CHAT-ELEMENT-EDIT-2: an inventory with a slide that has no id (or two with one) cannot be compared by id: 'unusable'; no inventory route: null
+        return read.inventory.slides.map(row => row.slideId) // CHAT-STALE-VIEWER-GUARD CHAT-ELEMENT-EDIT-2
+      }, // CHAT-STALE-VIEWER-GUARD CHAT-ELEMENT-EDIT-2
+      readViewerSlideIds: async () => { // CHAT-STALE-VIEWER-GUARD CHAT-ELEMENT-EDIT-2
+        const compose = composeViewerApiRef.current; if (!compose) throw new Error('The presentation viewer is not ready') // CHAT-STALE-VIEWER-GUARD CHAT-ELEMENT-EDIT-2: null while the viewer loads (a reload included)
+        const receipt = await compose.composeGetState(); const order = parseStudioNativeSlideOrder(receipt) // CHAT-STALE-VIEWER-GUARD CHAT-ELEMENT-EDIT-2
+        return order ? order.slideIds : Array.isArray(receipt?.placeholders) && receipt.placeholders.length > 0 ? 'busy' : receipt?.success === true && Array.isArray(receipt.slides) && receipt.slides.length > 0 ? 'unusable' : null // CHAT-STALE-VIEWER-GUARD CHAT-ELEMENT-EDIT-2: 'unusable' = the viewer's slides are there but one has no id (or two share one)
+      }, // CHAT-STALE-VIEWER-GUARD CHAT-ELEMENT-EDIT-2
+      readServerSignature: async () => { // CHAT-STALE-VIEWER-GUARD CHAT-ELEMENT-EDIT-2: for a deck whose ids cannot be compared: Layout's inventory as it is (each slide's layout, content version and id, in order)
+        const sigId = elementDirectiveGenerationOwnerRef.current.presentationId; if (!sigId) return null // CHAT-STALE-VIEWER-GUARD CHAT-ELEMENT-EDIT-2
+        const sigRes = await fetch(`${getLayoutServiceUrl()}/api/presentations/${encodeURIComponent(sigId)}/slides/inventory`, { cache: 'no-store' }); if (!sigRes.ok) return null // CHAT-STALE-VIEWER-GUARD CHAT-ELEMENT-EDIT-2
+        const sigBody = await sigRes.json(); if (!Array.isArray(sigBody?.slides)) return null // CHAT-STALE-VIEWER-GUARD CHAT-ELEMENT-EDIT-2
+        return JSON.stringify(sigBody.slides.map((row: { layout?: unknown; content_version?: unknown; slide_id?: unknown }) => [row.layout ?? null, row.content_version ?? null, row.slide_id ?? null])) // CHAT-STALE-VIEWER-GUARD CHAT-ELEMENT-EDIT-2
+      }, // CHAT-STALE-VIEWER-GUARD CHAT-ELEMENT-EDIT-2
+      viewerSaveState: () => chatStaleViewerApisRef.current?.getStudioSaveStatus?.() ?? null, // CHAT-STALE-VIEWER-GUARD CHAT-ELEMENT-EDIT-2
+      viewerBusy: () => Boolean(chatStaleViewerApisRef.current?.getStudioIntroductionSafety?.().busy), // CHAT-STALE-VIEWER-GUARD CHAT-ELEMENT-EDIT-2
+      reloadViewer: () => deckChangedNotice.reload(), // CHAT-STALE-VIEWER-GUARD CHAT-ELEMENT-EDIT-2: Reload deck (a new refresh token on the viewer URL, and the rail's re-read)
+      owns, wait: ms => new Promise<void>(resolve => setTimeout(resolve, ms)), now: () => Date.now(), // CHAT-STALE-VIEWER-GUARD CHAT-ELEMENT-EDIT-2
+    }), // CHAT-STALE-VIEWER-GUARD CHAT-ELEMENT-EDIT-2
+    runAdd: payload => elementDirectiveRunnerRef.current?.(payload), // CHAT-STALE-VIEWER-GUARD CHAT-ELEMENT-EDIT-2
+    reportAddFailed: (payload, error) => { sendElementDirectiveResult({ directive_id: payload.directive_id, status: 'failed', element_id: null, error }) }, // CHAT-STALE-VIEWER-GUARD CHAT-ELEMENT-EDIT-2
+    runEdit: (message, owner) => elementEditDirectiveRunnerRef.current?.(message, owner), // CHAT-STALE-VIEWER-GUARD CHAT-ELEMENT-EDIT-2
+    reportEditFailed: (directiveId, code) => { sendElementEditResult({ directive_id: directiveId, ok: false, error_code: code }) }, // CHAT-STALE-VIEWER-GUARD CHAT-ELEMENT-EDIT-2
+  } // CHAT-STALE-VIEWER-GUARD CHAT-ELEMENT-EDIT-2
+  if (CHAT_STALE_VIEWER_GUARD_ENABLED && !chatStaleViewerGuardRef.current) chatStaleViewerGuardRef.current = createChatStaleViewerGuard(() => chatStaleViewerDepsRef.current as NonNullable<typeof chatStaleViewerDepsRef.current>) // CHAT-STALE-VIEWER-GUARD CHAT-ELEMENT-EDIT-2: one guard per mount (its queue and answered set persist)
   // CHAT-PARITY: the runner of Director's studio_action (lib/studio-chat-parity.ts reads and refuses, lib/studio-chat-parity-runners.ts runs the group's executor, the click path's own function, under its timeout).
   // CHAT-PARITY: Answered on the delivering socket only; a group that is off or an action the build does not know is answered `failed` at once (flag_off / unsupported). Every flag off: no runner.
   const chatParityThemeProfiles = useThemeProfiles() // CHAT-PARITY (NEXT_PUBLIC_STUDIO_CHAT_PARITY_THEMES): the composer palette's own writes (hooks/use-theme-profiles.ts) for the theme executors; a second instance of the hook, its own loading state
