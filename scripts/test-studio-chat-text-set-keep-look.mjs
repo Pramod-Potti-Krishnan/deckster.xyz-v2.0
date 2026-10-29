@@ -723,6 +723,7 @@ const parentsOf = sha => git('rev-list', '--parents', '-n', '1', sha).trim().spl
 /** This change's commits: found by SUBJECT across `rev-list --no-merges BASE..head`. A first-parent walk (`firstParentOnly`, the old query, kept for its mutant) sees nothing on the gate's merge and none of this change's commits once a change is stacked after it. */
 const ownOf = (head, { firstParentOnly = false } = {}) => git('rev-list', ...(firstParentOnly ? ['--first-parent'] : []), '--no-merges', `${BASE_COMMIT}..${head}`).split('\n').filter(Boolean).filter(c => subjectOf(c).startsWith(CHAT_TEXT_SET_KEEP_LOOK_SUBJECT))
 /** GATE-SAFE head of every scope query. The gate's merge has dev as its FIRST parent (it carries none of this change's commits, whether or not dev has moved past BASE) and this change's head as its SECOND parent: the scope runs against HEAD^2.
+ *  The branch tip must be an ORDINARY commit (one parent), never itself a dev-first two-parent merge: that is the gate's own shape, so this rule would resolve it to its second parent and `scopeHead(HEAD)` would not be HEAD (the gate's HEAD^2 is then the tip).
  *  On a branch (HEAD is this change's tip, or a merge of dev INTO it, whose first parent is the change) HEAD itself is used. `gateRule: false` is the mutant that drops the rule. */
 function scopeHead(ref = 'HEAD', { gateRule = true } = {}) {
   const head = git('rev-parse', `${ref}^{commit}`).trim()
