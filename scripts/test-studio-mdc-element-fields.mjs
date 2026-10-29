@@ -329,6 +329,8 @@ await check('.env.example: the flag is there once, "false", in its block', () =>
   const env = read('.env.example')
   assert.equal(env.split(MDC_ELEMENT_FIELDS_ENV_BLOCK).length - 1, 1); assert.equal(env.split(`${FLAG}=`).length - 1, 1); assert.ok(MDC_ELEMENT_FIELDS_ENV_BLOCK.trimEnd().endsWith(`${FLAG}="false"`))
   assert.ok(MDC_ELEMENT_FIELDS_ENV_BLOCK.includes('default off') && MDC_ELEMENT_FIELDS_ENV_BLOCK.includes('"true"'))
+  assert.ok(MDC_ELEMENT_FIELDS_ENV_BLOCK.includes('either order is safe') && MDC_ELEMENT_FIELDS_ENV_BLOCK.includes("Director's DIRECTOR_MDC_ELEMENT_FIELDS_ENABLED first, then this flag") && !/after this one/.test(MDC_ELEMENT_FIELDS_ENV_BLOCK), 'the block states PROGRAM-1\'s order (Director first) and that either order is safe')
+  assert.ok(env.includes("either order is safe") && !/Turn Director's flag on after this one/.test(env))
 })
 
 /** The older proofs this change teaches, put back: dev's file byte for byte, through the strips of the changes registered after this one first. */

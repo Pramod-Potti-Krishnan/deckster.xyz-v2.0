@@ -73,7 +73,7 @@ export const MDC_ELEMENT_FIELDS_SCOPE_FILES = new Set([...MDC_ELEMENT_FIELDS_FIL
 /** The whole .env.example block: its comment and its line. */
 export const MDC_ELEMENT_FIELDS_ENV_BLOCK = `# STUDIO MDC ELEMENT FIELDS (FRONTEND-2, B44; E2E-2 B1b rows 40 and 41, the Studio side of DIRECTOR-2's DIRECTOR_MDC_ELEMENT_FIELDS_ENABLED). On for the exact value "true"; default off, and then a chat add is byte for byte what it was. Build-time value: change it on Vercel and redeploy.
 # On: a chat add of a label ("Add a label saying 'Pilot stores'") or a preset shape ("Add a rectangle shape") uses the fields Director now sends on the directive (icon_label_mode, label_text of at most 20 characters, shape_type) and builds the request as the Element panel's own Icon/Label and Shape forms do, so the label has its words and the shape is the shape asked for.
-# A missing, unknown or off-contract field keeps today's request. Turn Director's flag on after this one. No new text.
+# A missing, unknown or off-contract field keeps today's request, so either order is safe; the order is Director's DIRECTOR_MDC_ELEMENT_FIELDS_ENABLED first, then this flag (PROGRAM-1). No new text.
 NEXT_PUBLIC_STUDIO_MDC_ELEMENT_FIELDS="false"
 `
 
