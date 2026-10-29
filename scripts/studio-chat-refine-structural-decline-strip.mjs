@@ -37,7 +37,14 @@ export const CHAT_REFINE_STRUCTURAL_DECLINE_NEW_FILES = [
 /** The older proofs this change teaches: [text the proof has now, text the proof had before] per edit, whole lines, so putting them back gives the previous file byte for byte. Every line the proof has now carries CHAT_REFINE_STRUCTURAL_DECLINE_PIN_MARK. */
 export const CHAT_REFINE_STRUCTURAL_DECLINE_PIN_MARK = '// LATER-CHANGES: registry read (CHAT-REFINE-STRUCTURAL-DECLINE)'
 export const CHAT_REFINE_STRUCTURAL_DECLINE_PIN_EDITS = {
-  // filled in by the proofs this change had to teach (none yet)
+  "scripts/test-studio-chat-element-edit.mjs": [ // #522's proof: its scope check reads the first-parent line of BASE..HEAD (a branch stacked after it has others' commits there); one line, like chat text set's
+    ["  shas.splice(0, shas.length, ...shas.filter(sha => !/^Structural refine decline:/.test(git('log', '-1', '--format=%s', sha)))) // LATER-CHANGES: registry read (CHAT-REFINE-STRUCTURAL-DECLINE): on a branch stacked after this change (the structural refine decline's), the first-parent commits are its own, not this change's; with none left the pins and identity checks above cover the files\n",
+     ""],
+  ],
+  "scripts/test-studio-deck-sync-truth.mjs": [ // B26's proof: the same first-parent scope check
+    ["  shas.splice(0, shas.length, ...shas.filter(sha => !/^Structural refine decline:/.test(git('log', '-1', '--format=%s', sha)))) // LATER-CHANGES: registry read (CHAT-REFINE-STRUCTURAL-DECLINE): on a branch stacked after this change (the structural refine decline's), the first-parent commits are its own, not this change's; with none left the pins and identity checks above cover the files\n",
+     ""],
+  ],
 }
 
 /** The proof without this change's edits (the previous file). Used by the strip and the proof. */
