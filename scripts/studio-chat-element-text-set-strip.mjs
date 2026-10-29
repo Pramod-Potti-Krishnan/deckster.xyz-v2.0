@@ -28,12 +28,27 @@ export const CHAT_ELEMENT_TEXT_SET_NEW_FILES = [
   'scripts/studio-chat-element-text-set-strip.mjs',
   'scripts/test-studio-chat-element-text-set.mjs',
   'scripts/fixtures/chat-element-text-set/layout-transcripts.json',
+  'scripts/fixtures/chat-element-text-set/director-frames/01-row-44-title.json', // DIRECTOR-2's recorded frames (workspace main 85b6f367, streams/director2/text-set/examples; Director MR !598 12a8c5bf), copied byte for byte
+  'scripts/fixtures/chat-element-text-set/director-frames/02-multi-line.json',
+  'scripts/fixtures/chat-element-text-set/director-frames/03-no-element-text1-refine-fallback.json',
+  'scripts/fixtures/chat-element-text-set/director-frames/04-over-500-characters.json',
 ]
 
 /** The older proofs this change teaches: [text the proof has now, text the proof had before] per edit, whole lines, so putting them back gives the previous file byte for byte. Every line the proof has now carries CHAT_ELEMENT_TEXT_SET_PIN_MARK. */
 export const CHAT_ELEMENT_TEXT_SET_PIN_MARK = '// LATER-CHANGES: registry read (CHAT-ELEMENT-TEXT-SET)'
 export const CHAT_ELEMENT_TEXT_SET_PIN_EDITS = {
-  // filled in by the proofs this change had to teach (none yet)
+  "scripts/test-studio-chat-element-edit.mjs": [ // #522's proof: its scope check reads the first-parent line of BASE..HEAD (a branch stacked after it has others' commits there); one line, like chat parity's
+    ["  shas.splice(0, shas.length, ...shas.filter(sha => !/^Chat text set:/.test(git('log', '-1', '--format=%s', sha)))) // LATER-CHANGES: registry read (CHAT-ELEMENT-TEXT-SET): on a branch stacked after this change (chat text set's), the first-parent commits are its own, not this change's; with none left the pins and identity checks above cover the files\n",
+     ""],
+  ],
+  "scripts/test-studio-deck-sync-truth.mjs": [ // B26's proof: the same first-parent scope check
+    ["  shas.splice(0, shas.length, ...shas.filter(sha => !/^Chat text set:/.test(git('log', '-1', '--format=%s', sha)))) // LATER-CHANGES: registry read (CHAT-ELEMENT-TEXT-SET): on a branch stacked after this change (chat text set's), the first-parent commits are its own, not this change's; with none left the pins and identity checks above cover the files\n",
+     ""],
+  ],
+  "scripts/test-studio-chat-element-edit-2.mjs": [ // B32's proof reads lib/chat-element-edit.ts raw (its byte pins), past the targeted chat edit's lines; this change's come out too
+    ["const textSetStrip = await import('./studio-chat-element-text-set-strip.mjs') // LATER-CHANGES: registry read (CHAT-ELEMENT-TEXT-SET): the chat text set stacked after this change and after the targeted chat edit\nconst read = rel => textSetStrip.stripChatElementTextSet(rel, targetedStrip.stripChatEditTargeted(rel, fs.readFileSync(path.join(repo, rel), 'utf8'))) // LATER-CHANGES: registry read (CHAT-ELEMENT-TEXT-SET): its marked lines come out with the targeted chat edit's, before this change's pins\n",
+     "const read = rel => targetedStrip.stripChatEditTargeted(rel, fs.readFileSync(path.join(repo, rel), 'utf8')) // LATER-CHANGES: registry read (CHAT-EDIT-TARGETED): its marked lines come out before this change's pins\n"],
+  ],
 }
 
 /** The proof without this change's edits (the previous file). Used by the strip and the proof. */

@@ -1256,6 +1256,7 @@ await record(`scope: every own commit (the first-parent line of BASE..HEAD, no m
   assert.equal(git('rev-parse', '--verify', `${BASE}^{commit}`).trim(), BASE)
   const shas = git('rev-list', '--first-parent', '--no-merges', `${BASE}..HEAD`).split('\n').filter(Boolean)
   shas.splice(0, shas.length, ...shas.filter(sha => !/^Chat parity/.test(git('log', '-1', '--format=%s', sha)))) // stacked after #475: LATER-CHANGES: registry read (CHAT-PARITY): on a branch stacked after this change (chat parity's, merged with dev), the first-parent commits are chat parity's own, not this change's; with none left the identity checks above cover the files
+  shas.splice(0, shas.length, ...shas.filter(sha => !/^Chat text set:/.test(git('log', '-1', '--format=%s', sha)))) // LATER-CHANGES: registry read (CHAT-ELEMENT-TEXT-SET): on a branch stacked after this change (chat text set's), the first-parent commits are its own, not this change's; with none left the pins and identity checks above cover the files
   for (const sha of shas) assert.equal(git('rev-list', '--parents', '-n', '1', sha).trim().split(' ').length, 2, `${sha} is not a merge`)
   const mergesOnLine = git('rev-list', '--first-parent', '--merges', `${BASE}..HEAD`).split('\n').filter(Boolean)
   for (const sha of mergesOnLine) assert.equal(shas.includes(sha), false, 'a merge commit is not an own commit')
