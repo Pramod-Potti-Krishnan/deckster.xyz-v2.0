@@ -14,7 +14,7 @@
 // file is its base, byte for byte. The new files (the lib, this strip, the proof, its fixture) have no base text.
 // How the older pins reach it: this change REGISTERS its files, its .env.example block and this strip (scripts/studio-later-changes.mjs, three lines). Plain node, no imports, nothing read from disk or git here.
 
-export const BASE_COMMIT = '973fa22b94df309c53f3a9052938e080e4597325' // origin/studio-v4-dev-preparation-code with #546 merged (tree efb5b478), the commit this change is read against (it was cut from 61568fe6, #544, and is rebased onto this).
+export const BASE_COMMIT = '9a62b4e62449aadebbe69da8d3b0e7ef887b2d23' // origin/studio-v4-dev-preparation-code with #548 merged (9a62b4e6, tree 26037a97), the commit this change is read against (it was cut from 61568fe6, #544, and is merged with this).
 export const DECK_SAVE_REFUSED_FLAG = 'NEXT_PUBLIC_STUDIO_DECK_SAVE_REFUSED_NOTICE'
 export const DECK_SAVE_REFUSED_MARKER = 'DECK-SAVE-REFUSED-NOTICE'
 /** The marker as a WHOLE token: DECK-SAVE-REFUSED-NOTICE-X and X-DECK-SAVE-REFUSED-NOTICE are not this change's. */
@@ -120,6 +120,17 @@ export const DECK_SAVE_REFUSED_PIN_EDITS = {
     [
       "  shas.splice(0, shas.length, ...shas.filter(sha => !/^Save refused notice:/.test(git('log', '-1', '--format=%s', sha)))) // LATER-CHANGES: registry read (DECK-SAVE-REFUSED-NOTICE): a change stacked after this one has its commits on the first-parent line of a branch (the gate's merge puts them on the second parent); they are its own, not this change's\n",
       ""
+    ]
+  ],
+  // #548 (the stale viewer guard) proof world cuts its viewer functions out of components/presentation-viewer.tsx and evaluates them with fixed scopes: it reads the viewer past this change (an import and one line).
+  "scripts/studio-chat-stale-viewer-guard-world.mjs": [
+    [
+      "import { stripDeckSaveRefused } from './studio-deck-save-refused-strip.mjs' // LATER-CHANGES: registry read (DECK-SAVE-REFUSED-NOTICE): the change stacked after this one marks lines in the viewer's save-status handler; the viewer is cut without them (no fake binding for its calls)\n",
+      ""
+    ],
+    [
+      "  const viewerTsx = stripDeckSaveRefused('components/presentation-viewer.tsx', read('components/presentation-viewer.tsx')) // LATER-CHANGES: registry read (DECK-SAVE-REFUSED-NOTICE): the viewer every cut-out below is taken from has no line of the change stacked after this one\n",
+      "  const viewerTsx = read('components/presentation-viewer.tsx')\n"
     ]
   ]
 }
