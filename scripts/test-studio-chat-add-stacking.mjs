@@ -370,7 +370,9 @@ await check('flag off: the strip gives back dev\'s hook byte for byte (every add
   assert.equal(registry.stripLaterEnvBlocks('.env.example', read('.env.example')), registry.stripLaterEnvBlocks('.env.example', git('show', `${BASE_COMMIT}:.env.example`)), 'the registry takes the block out')
   for (const rel of CHAT_ADD_STACKING_NEW_FILES) assert.ok(fs.existsSync(path.join(root, rel)), rel)
   for (const rel of CHAT_ADD_STACKING_PIN_FILES) {
-    assert.equal(sha(stripChatAddStacking(rel, laterRead(rel))), sha(git('show', `${BASE_COMMIT}:${rel}`)), `${rel}: the proof this change taught, put back, is dev's`)
+    // read through the whole registry (every registered strip, this one and #546's among them) the taught proof and dev's are the same file: two of the five replace #546's own line with one that reads both strips, and are put back to the line from before #546 (the strips commute in the registry's order)
+    assert.equal(sha(registry.stripLaterChanges(rel, read(rel))), sha(registry.stripLaterChanges(rel, git('show', `${BASE_COMMIT}:${rel}`))), `${rel}: the proof this change taught, put back, is dev's`)
+    assert.notEqual(sha(stripChatAddStacking(rel, read(rel))), sha(read(rel)), `${rel}: this strip does put something back`)
     for (const [has] of CHAT_ADD_STACKING_PIN_EDITS[rel]) for (const line of has.split('\n').filter(Boolean)) assert.ok(line.includes(CHAT_ADD_STACKING_PIN_MARK), `${rel}: a taught line carries the pin mark`)
   }
 })
