@@ -32,7 +32,7 @@ export const CHAT_ADD_TARGETED_NEW_FILES = [
 export const CHAT_ADD_TARGETED_PIN_MARK = '// LATER-CHANGES: registry read (CHAT-ADD-TARGETED)'
 export const CHAT_ADD_TARGETED_PIN_EDITS = {
   'scripts/test-studio-chat-element-refine.mjs': [
-    ["const addStrip = await import('./studio-chat-add-targeted-strip.mjs') // LATER-CHANGES: registry read (CHAT-ADD-TARGETED): the targeted chat add stacked after this change, so its marked lines in the generation hook come out first\nconst read = rel => addStrip.stripChatAddTargeted(rel, stripFirstPaint(rel, stripLaunchWording(rel, fs.readFileSync(path.join(root, rel), 'utf8')))) // LATER-CHANGES: registry read (CHAT-ADD-TARGETED): read through the later change's strip\n",
+    ["const { stripChatAddTargeted } = await import('./studio-chat-add-targeted-strip.mjs'), read = rel => stripChatAddTargeted(rel, stripFirstPaint(rel, stripLaunchWording(rel, fs.readFileSync(path.join(root, rel), 'utf8')))) // LATER-CHANGES: registry read (CHAT-ADD-TARGETED): the targeted chat add stacked after this change, so its marked lines in the generation hook come out first; one line, so the older stacked-scope checks (model-catalog, narration-router) still find stripLaunchWording on every added line\n",
      "const read = rel => stripFirstPaint(rel, stripLaunchWording(rel, fs.readFileSync(path.join(root, rel), 'utf8')))\n"],
   ],
   "scripts/test-studio-element-free-spot.mjs": [
