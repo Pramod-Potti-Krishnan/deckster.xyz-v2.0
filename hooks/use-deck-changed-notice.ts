@@ -16,6 +16,7 @@ import {
   type DeckChangedNotice,
 } from '@/lib/studio-deck-changed-notice'
 import { DIRECTOR_CHANGE_WINDOW_MS, NOTICE_CONFIRM_DELAY_MS, STUDIO_DECK_SYNC_TRUTH_ENABLED } from '@/lib/studio-deck-sync-truth' // DECK-SYNC-TRUTH
+import { onDeckSaveRefused } from '@/lib/studio-deck-save-refused' // DECK-SAVE-REFUSED-NOTICE
 
 const INVENTORY_TIMEOUT_MS = 8_000
 
@@ -85,12 +86,14 @@ export function useDeckChangedNotice({
     controllerRef.current = controller
     const offChange = onDeckChange(change => controller.announce(change))
     const offEdit = onOwnDeckEdit(() => controller.noteOwnEdit())
+    const offRefused = onDeckSaveRefused(() => controller.noteSaveRefused()) // DECK-SAVE-REFUSED-NOTICE: Layout refused a stale whole-deck save: this tab shows the notice (flag off: nothing is added)
     const syncUnsaved = () => setUnsaved(getViewerDeckState().unsaved)
     const offViewer = onViewerDeckState(syncUnsaved)
     syncUnsaved()
     return () => {
       offChange()
       offEdit()
+      offRefused() // DECK-SAVE-REFUSED-NOTICE
       offViewer()
       controller.dispose()
       if (controllerRef.current === controller) controllerRef.current = null
