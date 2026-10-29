@@ -80,6 +80,7 @@ import { StudioSlideDeleteRefreshVeil } from '@/components/builder/studio-slide-
 import { STUDIO_SLIDE_OPS_VIA_VIEWER_ENABLED, SLIDE_OP_VIEWER_TIMEOUT_MS, isSlideOpViewerAction, slideTotalAfterAck } from '@/lib/studio-slide-ops-via-viewer' // SLIDE-OPS-VIA-VIEWER
 import { STUDIO_INSERT_PERSIST_ENABLED, shouldEnsureEditModeForPersistence, ensureViewerTracksEdits } from '@/lib/studio-insert-persist' // INSERT-PERSIST
 import { STUDIO_DECK_CHANGED_NOTICE_ENABLED, reportDeckChange, reportLayoutCommandAck, reportOwnDeckEdit, reportViewerDeckState } from '@/lib/studio-deck-changed-notice'
+import { isDeckSaveRefused, reportDeckSaveRefused } from '@/lib/studio-deck-save-refused' // DECK-SAVE-REFUSED-NOTICE
 import { STUDIO_SLIDE_RAIL_V2, SLIDE_RAIL_V2_DEFAULT_WIDTH } from '@/lib/studio-slide-rail-v2'
 import { STUDIO_TOP_BAR_V2_ENABLED, publishStudioDeckSaveState } from '@/lib/studio-top-bar-v2'
 import { STUDIO_THEME_BLANK_NOTE_ENABLED, themeBlankNote } from '@/lib/studio-theme-blank-note'
@@ -105,6 +106,7 @@ import type { SlideRefineTarget } from '@/lib/slide-refinement'
 import { SlideNotesPanel } from './slide-notes-panel'
 import { CHAT_ELEMENT_EDIT_ENABLED } from '@/lib/chat-element-edit-wire' // CHAT-ELEMENT-EDIT (NEXT_PUBLIC_STUDIO_CHAT_ELEMENT_EDIT, default off): the viewer's save acks and edit mode, for an element edit from chat
 import { publishViewerSaveEvent, registerChatEditViewer } from '@/lib/chat-element-edit-save' // CHAT-ELEMENT-EDIT
+import { CHAT_STALE_VIEWER_GUARD_ENABLED } from '@/lib/chat-stale-viewer-guard' // CHAT-STALE-VIEWER-GUARD CHAT-PARITY (NEXT_PUBLIC_STUDIO_CHAT_STALE_VIEWER_GUARD, default off): a chat add or edit after a chat deck change; Reload deck ends a remembered save error
 import { SaveStatus } from './save-status-indicator'
 import { SlideLayoutPicker, SlideLayoutType } from './slide-layout-picker'
 import { ADD_SLIDE_V2_ENABLED, type AddSlideV2Settings } from '@/lib/studio-add-slide-v2'
@@ -399,6 +401,7 @@ interface PresentationViewerProps {
     goToSlide: (slideIndex: number) => Promise<void>
     getStudioIntroductionSafety?: () => StudioIntroductionSafety
     captureStudioElementGeneration?: () => StudioElementGenerationLease | null
+    getStudioSaveStatus?: () => SaveStatus // CHAT-STALE-VIEWER-GUARD CHAT-PARITY: the last save status the viewer posted (flag on only)
   } | null) => void
   onStudioIntroductionSafetyChange?: (safety: StudioIntroductionSafety | null) => void
   onComposeApiReady?: (apis: SlideComposeViewerApi | null) => void
@@ -1235,6 +1238,7 @@ export function PresentationViewer({
         || safety.composing || diagramStateTimersRef.current.size > 0 || pendingDiagramStatesRef.current.size > 0,
       error: safety.saveStatus === 'error' || safety.composeError }
   }, [])
+  const getStudioSaveStatus = useCallback((): SaveStatus => introSafetyRef.current.saveStatus, []) // CHAT-STALE-VIEWER-GUARD CHAT-PARITY
   const captureStudioFormatSelection = useCallback((elementId: string, eventKind: 'textBoxSelected' | 'elementSelected', elementType?: ElementType) => {
     const mode = studioFormatModeRef.current
     if (!studioShell || mode.enabled) return
@@ -1450,6 +1454,7 @@ export function PresentationViewer({
       studioManualSlideNavigationRef.current = null
       studioSaveRequestRef.current = null
       setIsSaving(false)
+      if (CHAT_STALE_VIEWER_GUARD_ENABLED) setSaveStatus('saved') // CHAT-STALE-VIEWER-GUARD CHAT-PARITY: a new frame is a new document with nothing pending; the last status posted by the document it replaced (an 'error' after a lost save) must not outlive it, else every later chat add says "not ready" until the whole page is reloaded
       setIsSlideMutationPending(false)
       setIsDeleting(false)
       setShowDeleteDialog(false)
@@ -3630,6 +3635,7 @@ export function PresentationViewer({
       sendElementCommand: handleSendElementCommand,
       // MDC P8: index-based navigation for chat-invoked element placement.
       goToSlide: handleGoToSlide,
+      ...(studioShell && CHAT_STALE_VIEWER_GUARD_ENABLED ? { getStudioSaveStatus } : {}), // CHAT-STALE-VIEWER-GUARD CHAT-PARITY
       ...(studioShell ? { getStudioIntroductionSafety, captureStudioElementGeneration } : {})
     })
 
@@ -3921,6 +3927,7 @@ export function PresentationViewer({
           if (!studioArrangeOwnsSaveStatus(status)) // STUDIO-ARRANGE: Layout's "unsaved" for the selection's own Arrange command (it arrives before the answer) does not retire the selection
           if (studioShell) viewerInteractionIntentRef.current += 1
           nativeSnapshotDirtyRef.current = true
+          if (isDeckSaveRefused(event.data)) reportDeckSaveRefused(); else // DECK-SAVE-REFUSED-NOTICE: Layout refused a stale whole-deck save (status error + deckChanged): the existing deck-changed notice, not this tab's own edit (flag off: isDeckSaveRefused is false, the next line runs as before)
           reportOwnDeckEdit() // NEXT_PUBLIC_STUDIO_DECK_CHANGED_NOTICE: this tab's own autosave is not "another tab" (no-op with the flag off)
         }
         else if (event.data.hasPendingChanges === false) nativeSnapshotDirtyRef.current = false
@@ -3977,6 +3984,20 @@ export function PresentationViewer({
       pendingDiagramStatesRef.current.clear()
     }
   }, [onRefineElementRequested])
+  // CHAT-STALE-VIEWER-GUARD CHAT-PARITY: the viewer's save acknowledgements for a chat add (lib/chat-stale-viewer-guard.ts requireChatAddSaved), published beside the effect above (which publishes them for the edit flag). A separate effect, so the one above is untouched. Off, or with the edit flag on: nothing.
+  useEffect(() => { // CHAT-STALE-VIEWER-GUARD CHAT-PARITY
+    if (!CHAT_STALE_VIEWER_GUARD_ENABLED || CHAT_ELEMENT_EDIT_ENABLED) return // CHAT-STALE-VIEWER-GUARD CHAT-PARITY
+    const handleSaveAck = (event: MessageEvent) => { // CHAT-STALE-VIEWER-GUARD CHAT-PARITY
+      if (!VIEWER_ORIGIN || LAYOUT_URL_CONFIG_ERROR || !isTrustedLayoutViewerMessage(event, iframeRef.current, VIEWER_ORIGIN)) return // CHAT-STALE-VIEWER-GUARD CHAT-PARITY
+      const type = event.data?.type // CHAT-STALE-VIEWER-GUARD CHAT-PARITY
+      if (type !== 'save_status' && type !== 'saveStatusChanged') return // CHAT-STALE-VIEWER-GUARD CHAT-PARITY
+      const status = event.data.status as SaveStatus // CHAT-STALE-VIEWER-GUARD CHAT-PARITY
+      if (!['saved', 'unsaved', 'saving', 'error'].includes(status)) return // CHAT-STALE-VIEWER-GUARD CHAT-PARITY
+      publishViewerSaveEvent({ status, hasPendingChanges: typeof event.data.hasPendingChanges === 'boolean' ? event.data.hasPendingChanges : null }) // CHAT-STALE-VIEWER-GUARD CHAT-PARITY
+    } // CHAT-STALE-VIEWER-GUARD CHAT-PARITY
+    window.addEventListener('message', handleSaveAck) // CHAT-STALE-VIEWER-GUARD CHAT-PARITY
+    return () => window.removeEventListener('message', handleSaveAck) // CHAT-STALE-VIEWER-GUARD CHAT-PARITY
+  }, []) // CHAT-STALE-VIEWER-GUARD CHAT-PARITY
 
   // Listen for text box selection events from iframe
   useEffect(() => {
