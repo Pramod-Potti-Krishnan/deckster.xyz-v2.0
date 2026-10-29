@@ -473,7 +473,8 @@ function wiringSuite({ viewer, hook, noticeLib, lib }) {
 }
 await check('the marked lines (viewer 2, hook 3, notice controller 2) and only they; the else binds only the base\'s call; the existing "focus" source; import-free lib with three exact-"true" literal reads; no new copy', () => wiringSuite(wiringSources()))
 await check('the strip gives the base back byte for byte: working tree and BASE, other strips applied to both sides; the new files have no base', () => {
-  for (const rel of [...DECK_SAVE_REFUSED_FILES, ...stripModule.DECK_SAVE_REFUSED_PIN_FILES]) assert.equal(stripDeckSaveRefused(rel, otherStrips(rel, read(rel))), otherStrips(rel, execFileSync('git', ['show', `${BASE_COMMIT}:${rel}`], { cwd: repo, encoding: 'utf8', maxBuffer: 1 << 28, stdio: ['ignore', 'pipe', 'pipe'], timeout: 60000 })), `${rel}: ${stripModule.DECK_SAVE_REFUSED_PIN_FILES.includes(rel) ? 'an older file taught to read past this change (its edits put back)' : 'its marked lines taken out'}`)
+  // newest change first: a pin line taught by two later changes (this change's edit sits on a line deck sync truth inserted) is put back by this change first, then by theirs
+  for (const rel of [...DECK_SAVE_REFUSED_FILES, ...stripModule.DECK_SAVE_REFUSED_PIN_FILES]) assert.equal(otherStrips(rel, stripDeckSaveRefused(rel, read(rel))), otherStrips(rel, execFileSync('git', ['show', `${BASE_COMMIT}:${rel}`], { cwd: repo, encoding: 'utf8', maxBuffer: 1 << 28, stdio: ['ignore', 'pipe', 'pipe'], timeout: 60000 })), `${rel}: ${stripModule.DECK_SAVE_REFUSED_PIN_FILES.includes(rel) ? 'an older file taught to read past this change (its edits put back)' : 'its marked lines taken out'}`)
   for (const [rel, edits] of Object.entries(stripModule.DECK_SAVE_REFUSED_PIN_EDITS)) for (const [has] of edits) assert.ok(read(rel).includes(has) && has.includes('registry read (DECK-SAVE-REFUSED-NOTICE)'), `${rel}: a taught line is there and carries the registry-read mark`)
   for (const rel of DECK_SAVE_REFUSED_NEW_FILES) assert.ok(fs.existsSync(path.join(repo, rel)), rel)
   for (const rel of ['.env.example', 'package.json', COMPONENT, TRUTH_LIB]) assert.equal(stripDeckSaveRefused(rel, 'x'), 'x')
@@ -572,7 +573,7 @@ const scopeCommittedFiles = (head, ctx = REAL) => {
     assert.equal(diff.length, COUNTS[rel], `${rel}: the number of added lines`)
     assert.equal(stripDeckSaveRefused(rel, ctx.norm(rel, git('show', `${head}:${rel}`))), ctx.norm(rel, git('show', `${BASE_COMMIT}:${rel}`)), `${rel}: without its marked lines the file is the base's, byte for byte`)
   }
-  for (const rel of stripModule.DECK_SAVE_REFUSED_PIN_FILES) assert.equal(stripDeckSaveRefused(rel, ctx.norm(rel, git('show', `${head}:${rel}`))), ctx.norm(rel, git('show', `${BASE_COMMIT}:${rel}`)), `${rel}: with its taught lines put back it is the base's, byte for byte`)
+  for (const rel of stripModule.DECK_SAVE_REFUSED_PIN_FILES) assert.equal(ctx.norm(rel, stripDeckSaveRefused(rel, git('show', `${head}:${rel}`))), ctx.norm(rel, git('show', `${BASE_COMMIT}:${rel}`)), `${rel}: with its taught lines put back it is the base's, byte for byte`)
   for (const rel of DECK_SAVE_REFUSED_NEW_FILES) assert.equal(git('cat-file', '-t', `${head}:${rel}`).trim(), 'blob', rel)
   for (const rel of ['app/builder/page.tsx', COMPONENT, TRUTH_LIB, 'package.json']) assert.ok(!touched.has(rel), `${rel} is not touched by this change`)
 }
