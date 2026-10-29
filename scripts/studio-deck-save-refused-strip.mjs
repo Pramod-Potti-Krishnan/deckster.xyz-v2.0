@@ -14,7 +14,7 @@
 // file is its base, byte for byte. The new files (the lib, this strip, the proof, its fixture) have no base text.
 // How the older pins reach it: this change REGISTERS its files, its .env.example block and this strip (scripts/studio-later-changes.mjs, three lines). Plain node, no imports, nothing read from disk or git here.
 
-export const BASE_COMMIT = '973fa22b94df309c53f3a9052938e080e4597325' // origin/studio-v4-dev-preparation-code with #546 merged (tree efb5b478), the commit this change is read against (it was cut from 61568fe6, #544, and is rebased onto this).
+export const BASE_COMMIT = '9a62b4e62449aadebbe69da8d3b0e7ef887b2d23' // origin/studio-v4-dev-preparation-code with #548 merged (9a62b4e6, tree 26037a97), the commit this change is read against (it was cut from 61568fe6, #544, and is merged with this).
 export const DECK_SAVE_REFUSED_FLAG = 'NEXT_PUBLIC_STUDIO_DECK_SAVE_REFUSED_NOTICE'
 export const DECK_SAVE_REFUSED_MARKER = 'DECK-SAVE-REFUSED-NOTICE'
 /** The marker as a WHOLE token: DECK-SAVE-REFUSED-NOTICE-X and X-DECK-SAVE-REFUSED-NOTICE are not this change's. */
