@@ -240,7 +240,7 @@ async function makeEngine({ env, overrides = {}, viewerText = read(VIEWER), refu
   return { env, mods, viewerText }
 }
 
-async function mount(engine) {
+async function mount(engine, { viewerDeck = DECK } = {}) {
   const { mods } = engine
   const calls = { ownEdits: 0, saveStatuses: [], reloads: 0 }
   const api = {}
@@ -255,6 +255,7 @@ async function mount(engine) {
   const settle = async () => { for (let quiet = 0, rounds = 0; quiet < 2; rounds++) { if (rounds > 160) throw new Error('did not settle'); await macrotask(); quiet = root.flush() ? 0 : quiet + 1 } }
   await settle()
   const refresh = async () => { root.schedule(); await settle() }
+  mods.notice.reportViewerDeckState({ presentationId: viewerDeck, slideCount: 3, unsaved: false }) // the viewer's effect when its frame is ready
   // the viewer's handler: its REAL save-status block, with the real trust check, the real notice lib and the real bridges
   const viewerWindow = { name: 'layout viewer window' }
   const deps = {
@@ -262,7 +263,7 @@ async function mount(engine) {
     iframeRef: { current: { src: `${VIEWER_ORIGIN}/p/${DECK}`, contentWindow: viewerWindow } }, studioShell: true, viewerInteractionIntentRef: { current: 0 }, nativeSnapshotDirtyRef: { current: false },
     reportOwnDeckEdit: mods.notice.reportOwnDeckEdit, setNativeSnapshotSafetyRevision() {}, debugLog() {},
     // the viewer's effect: reportViewerDeckState({ presentationId, slideCount, unsaved: saveStatus !== 'saved' }) on every save status (section 4 holds the viewer to that expression)
-    setSaveStatus: status => { calls.saveStatuses.push(status); mods.notice.reportViewerDeckState({ presentationId: DECK, slideCount: 3, unsaved: status !== 'saved' }) },
+    setSaveStatus: status => { calls.saveStatuses.push(status); mods.notice.reportViewerDeckState({ presentationId: viewerDeck, slideCount: 3, unsaved: status !== 'saved' }) },
     isDeckSaveRefused: mods.refused?.isDeckSaveRefused, reportDeckSaveRefused: mods.refused?.reportDeckSaveRefused,
   }
   const modMake = { exports: {} }
@@ -348,6 +349,12 @@ async function onChecks(engine, { traces } = {}) {
     await v.frame(refuseFrames[4]); assert.equal(v.observe().notice, null, 'unsaved / saving after a refusal are the user\'s own edit and raise nothing')
     await v.frame(refuseFrames[5]); assert.equal(v.observe().notice, null)
     await v.frame(refuseFrames[6]); assert.ok(v.observe().notice, 'the next refusal raises it again'); assert.equal(v.observe().reloads, 0)
+    // a refusal from a viewer that shows another deck than the one this notice watches raises nothing (the check's own rule), and is still not an own edit
+    const other = await mount(engine, { viewerDeck: 'a-different-deck' })
+    try {
+      for (const frame of refuseFrames.slice(0, 3)) await other.frame(frame)
+      const seen = other.observe(); assert.equal(seen.notice, null, 'another deck on screen: no notice'); assert.equal(seen.ownEdits, 2, 'and the refusal is still not an own edit'); assert.equal(seen.reloads, 0)
+    } finally { other.unmount() }
     // a message from another window is not the viewer's
     const before = JSON.stringify(v.observe()); await v.foreignFrame(refuseFrames[2]); assert.equal(JSON.stringify(v.observe()), before, 'an untrusted source is ignored')
   } finally { v.unmount() }
@@ -448,7 +455,7 @@ function wiringSuite({ viewer, hook, noticeLib, lib }) {
   for (const text of Object.values(own)) for (const line of markedOf(text)) for (const strip of otherPeerStrips()) for (const rel of [VIEWER, HOOK, NOTICE_LIB]) assert.equal(strip(rel, line), line, `another change's strip takes this line out of ${rel}: ${line.slice(0, 90)}`)
   const [iface, method] = markedOf(noticeLib)
   assert.equal(iface.trim().replace(/ \/\/ DECK-SAVE-REFUSED-NOTICE.*$/, ''), 'noteSaveRefused(): void')
-  assert.ok(method.trim().startsWith("noteSaveRefused() { if (disposed || notice) return; show('focus', null) }, // DECK-SAVE-REFUSED-NOTICE: "), 'the method: guard, show the existing "focus" source')
+  assert.ok(method.trim().startsWith("noteSaveRefused() { if (disposed || notice || deps.getViewerState().presentationId !== deps.presentationId) return; show('focus', null) }, // DECK-SAVE-REFUSED-NOTICE: "), 'the method: the open-notice and same-deck guards, show the existing "focus" source')
   assert.ok(!/quietRefresh|onResync|markReloaded|onNotice\(/.test(method.replace(/\/\/ DECK-SAVE-REFUSED-NOTICE.*$/, '')), 'it reloads and refreshes nothing')
   // the hook: an import, the subscription to the bridge and its unsubscribe
   const h = markedOf(hook)
@@ -510,7 +517,8 @@ await check('mutant caught: a truthy deckChanged', () => mutant('lib: Boolean(de
 await check('mutant caught: the flag without the dependencies (sync-truth ignored, so the notice would say "in another tab")', () => mutant('lib: sync-truth not required', { lib: replaceOnce(S.lib, "\n  && process.env.NEXT_PUBLIC_STUDIO_DECK_SYNC_TRUTH === 'true'", '') }))
 await check('mutant caught: the flag read loosely (any non-empty value)', () => mutant('lib: flag !== false', { lib: replaceOnce(S.lib, "process.env.NEXT_PUBLIC_STUDIO_DECK_SAVE_REFUSED_NOTICE === 'true'", "process.env.NEXT_PUBLIC_STUDIO_DECK_SAVE_REFUSED_NOTICE !== 'false'") }))
 await check('mutant caught: the bridge subscribes and reports while not active (both guards gone)', () => mutant('lib: bridge unguarded', { lib: replaceOnce(replaceOnce(S.lib, 'export function reportDeckSaveRefused(): void {\n  if (!STUDIO_DECK_SAVE_REFUSED_ACTIVE) return\n', 'export function reportDeckSaveRefused(): void {\n'), "  if (!STUDIO_DECK_SAVE_REFUSED_ACTIVE) return () => {}\n", '') }))
-await check('mutant caught: the controller raises the notice again while one is open (an open Reload anyway question is reset)', () => mutant('controller: no open-notice guard', { noticeLib: replaceOnce(S.noticeLib, 'noteSaveRefused() { if (disposed || notice) return; show(', 'noteSaveRefused() { if (disposed) return; show(') }))
+await check('mutant caught: the controller raises the notice again while one is open (an open Reload anyway question is reset)', () => mutant('controller: no open-notice guard', { noticeLib: replaceOnce(S.noticeLib, 'noteSaveRefused() { if (disposed || notice || deps.getViewerState()', 'noteSaveRefused() { if (disposed || deps.getViewerState()') }))
+await check('mutant caught: the controller raises the notice for a viewer on another deck', () => mutant('controller: no same-deck guard', { noticeLib: replaceOnce(S.noticeLib, "if (disposed || notice || deps.getViewerState().presentationId !== deps.presentationId) return; show('focus', null) }, // DECK-SAVE-REFUSED-NOTICE", "if (disposed || notice) return; show('focus', null) }, // DECK-SAVE-REFUSED-NOTICE") }))
 await check('mutant caught: the controller reloads quietly (the pending change dropped)', () => mutant('controller: quietRefresh after show', { noticeLib: replaceOnce(S.noticeLib, "show('focus', null) }, // DECK-SAVE-REFUSED-NOTICE", "show('focus', null); deps.quietRefresh?.() }, // DECK-SAVE-REFUSED-NOTICE") }))
 await check('mutant caught: a new word in the notice', () => mutant('controller: a new source', { noticeLib: replaceOnce(S.noticeLib, "show('focus', null) }, // DECK-SAVE-REFUSED-NOTICE", "show('save-refused', null) }, // DECK-SAVE-REFUSED-NOTICE") }))
 await check('mutant caught: the hook does not subscribe', () => mutant('hook: no subscription', { hook: S.hook.split('\n').filter(line => !line.includes('const offRefused')).join('\n') }))
