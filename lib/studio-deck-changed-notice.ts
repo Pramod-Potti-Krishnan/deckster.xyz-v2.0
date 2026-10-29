@@ -224,6 +224,7 @@ export interface DeckChangedController {
   announce(change: DeckChangeKind): void
   /** This tab edited the deck (autosave): its own edits must not read as another tab's. */
   noteOwnEdit(): void
+  noteSaveRefused(): void // DECK-SAVE-REFUSED-NOTICE
   /** The tab became visible / focused: read the inventory once and compare. */
   check(source?: 'visibility' | 'focus'): Promise<void>
   /** The user chose Reload deck (the caller then runs the reload). */
@@ -374,6 +375,7 @@ export function createDeckChangedController(deps: DeckChangedControllerDeps): De
       ownChangeQuietUntil = now() + ownChangeQuietMs
       knownSignature = null
     },
+    noteSaveRefused() { if (disposed || notice || deps.getViewerState().presentationId !== deps.presentationId) return; show('focus', null) }, // DECK-SAVE-REFUSED-NOTICE: Layout refused this tab's stale whole-deck save (the viewer's status error + deckChanged): the same notice a focus check raises ("This deck was updated" with the sync-truth flag on), at once, and only for the deck this notice watches (the check's own rule); one notice at a time, so an open notice (and a Reload anyway question in it) is left alone
     async check(source = 'visibility') {
       if (disposed || notice || checking) return
       if (confirmTimer !== null) return // DECK-SYNC-TRUTH: a difference is already waiting to be confirmed

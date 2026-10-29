@@ -57,6 +57,10 @@ export const LATER_CHANGE_FILES = new Set([
   ...(await import('./studio-chat-edit-targeted-strip.mjs')).CHAT_EDIT_TARGETED_SCOPE_FILES, // LATER-CHANGE: FRONTEND-2, B33 targeted chat edit: a chat element edit saves only that element (NEXT_PUBLIC_STUDIO_CHAT_EDIT_TARGETED_SAVE)
   ...(await import('./studio-chat-clean-held-all-built-strip.mjs')).HELD_ALL_BUILT_SCOPE_FILES, // LATER-CHANGE: FRONTEND-2, B40 held all built: after a Stop with every slide built, a typed message is a plain message, not new directions (NEXT_PUBLIC_STUDIO_CHAT_CLEAN_HELD_ALL_BUILT)
   ...(await import('./studio-chat-add-targeted-strip.mjs')).CHAT_ADD_TARGETED_SCOPE_FILES, // LATER-CHANGE: FRONTEND-2, B42 targeted chat add: a chat element add saves only the new element (NEXT_PUBLIC_STUDIO_CHAT_ADD_TARGETED_SAVE)
+  ...(await import('./studio-chat-stale-viewer-guard-strip.mjs')).CHAT_STALE_VIEWER_GUARD_SCOPE_FILES, // LATER-CHANGE: FRONTEND-2, B43 stale viewer guard: a chat add or edit after a chat deck change lands on the right slide or says so (NEXT_PUBLIC_STUDIO_CHAT_STALE_VIEWER_GUARD)
+  ...(await import('./studio-deck-save-refused-strip.mjs')).DECK_SAVE_REFUSED_SCOPE_FILES, // LATER-CHANGE: FRONTEND-2, B46 deck save refused: when Layout refuses a stale whole-deck save Studio shows its existing "This deck was updated" notice (NEXT_PUBLIC_STUDIO_DECK_SAVE_REFUSED_NOTICE)
+  ...(await import('./studio-mdc-element-fields-strip.mjs')).MDC_ELEMENT_FIELDS_SCOPE_FILES, // LATER-CHANGE: FRONTEND-2, B44 MDC element fields: a chat label or shape add uses the Director's label text / shape type, as the Element panel does (NEXT_PUBLIC_STUDIO_MDC_ELEMENT_FIELDS)
+  ...(await import('./studio-chat-add-stacking-strip.mjs')).CHAT_ADD_STACKING_SCOPE_FILES, // LATER-CHANGE: FRONTEND-2, B48 chat add stacking: a chat-added element lands on top like an Element panel add, so it can be selected (NEXT_PUBLIC_STUDIO_CHAT_ADD_STACKING)
   ...(await import('./studio-chat-element-text-set-strip.mjs')).CHAT_ELEMENT_TEXT_SET_SCOPE_FILES, // LATER-CHANGE: FRONTEND-2, B49 chat text set: a chat 'Change this to ...' on a selected text box sets exactly those words (NEXT_PUBLIC_STUDIO_CHAT_ELEMENT_TEXT_SET)
   // one line per later change, above this comment
 ])
@@ -87,6 +91,10 @@ export const LATER_ENV_BLOCKS = [
   (await import('./studio-chat-edit-targeted-strip.mjs')).CHAT_EDIT_TARGETED_ENV_BLOCK, // LATER-CHANGE: FRONTEND-2, B33 targeted chat edit (NEXT_PUBLIC_STUDIO_CHAT_EDIT_TARGETED_SAVE)
   (await import('./studio-chat-clean-held-all-built-strip.mjs')).HELD_ALL_BUILT_ENV_BLOCK, // LATER-CHANGE: FRONTEND-2, B40 held all built (NEXT_PUBLIC_STUDIO_CHAT_CLEAN_HELD_ALL_BUILT)
   (await import('./studio-chat-add-targeted-strip.mjs')).CHAT_ADD_TARGETED_ENV_BLOCK, // LATER-CHANGE: FRONTEND-2, B42 targeted chat add (NEXT_PUBLIC_STUDIO_CHAT_ADD_TARGETED_SAVE)
+  (await import('./studio-chat-stale-viewer-guard-strip.mjs')).CHAT_STALE_VIEWER_GUARD_ENV_BLOCK, // LATER-CHANGE: FRONTEND-2, B43 stale viewer guard (NEXT_PUBLIC_STUDIO_CHAT_STALE_VIEWER_GUARD)
+  (await import('./studio-deck-save-refused-strip.mjs')).DECK_SAVE_REFUSED_ENV_BLOCK, // LATER-CHANGE: FRONTEND-2, B46 deck save refused (NEXT_PUBLIC_STUDIO_DECK_SAVE_REFUSED_NOTICE)
+  (await import('./studio-mdc-element-fields-strip.mjs')).MDC_ELEMENT_FIELDS_ENV_BLOCK, // LATER-CHANGE: FRONTEND-2, B44 MDC element fields (NEXT_PUBLIC_STUDIO_MDC_ELEMENT_FIELDS)
+  (await import('./studio-chat-add-stacking-strip.mjs')).CHAT_ADD_STACKING_ENV_BLOCK, // LATER-CHANGE: FRONTEND-2, B48 chat add stacking (NEXT_PUBLIC_STUDIO_CHAT_ADD_STACKING)
   (await import('./studio-chat-element-text-set-strip.mjs')).CHAT_ELEMENT_TEXT_SET_ENV_BLOCK, // LATER-CHANGE: FRONTEND-2, B49 chat text set (NEXT_PUBLIC_STUDIO_CHAT_ELEMENT_TEXT_SET)
   // one line per later change, above this comment
 ]
@@ -126,6 +134,10 @@ export const LATER_STRIPS = [
   (await import('./studio-chat-edit-targeted-strip.mjs')).stripChatEditTargeted, // LATER-CHANGE: FRONTEND-2, B33 targeted chat edit (NEXT_PUBLIC_STUDIO_CHAT_EDIT_TARGETED_SAVE)
   (await import('./studio-chat-clean-held-all-built-strip.mjs')).stripHeldAllBuilt, // LATER-CHANGE: FRONTEND-2, B40 held all built (NEXT_PUBLIC_STUDIO_CHAT_CLEAN_HELD_ALL_BUILT)
   (await import('./studio-chat-add-targeted-strip.mjs')).stripChatAddTargeted, // LATER-CHANGE: FRONTEND-2, B42 targeted chat add (NEXT_PUBLIC_STUDIO_CHAT_ADD_TARGETED_SAVE)
+  (await import('./studio-chat-stale-viewer-guard-strip.mjs')).stripChatStaleViewerGuard, // LATER-CHANGE: FRONTEND-2, B43 stale viewer guard (NEXT_PUBLIC_STUDIO_CHAT_STALE_VIEWER_GUARD)
+  (await import('./studio-deck-save-refused-strip.mjs')).stripDeckSaveRefused, // LATER-CHANGE: FRONTEND-2, B46 deck save refused (NEXT_PUBLIC_STUDIO_DECK_SAVE_REFUSED_NOTICE)
+  (await import('./studio-mdc-element-fields-strip.mjs')).stripMdcElementFields, // LATER-CHANGE: FRONTEND-2, B44 MDC element fields (NEXT_PUBLIC_STUDIO_MDC_ELEMENT_FIELDS)
+  (await import('./studio-chat-add-stacking-strip.mjs')).stripChatAddStacking, // LATER-CHANGE: FRONTEND-2, B48 chat add stacking (NEXT_PUBLIC_STUDIO_CHAT_ADD_STACKING)
   (await import('./studio-chat-element-text-set-strip.mjs')).stripChatElementTextSet, // LATER-CHANGE: FRONTEND-2, B49 chat text set (NEXT_PUBLIC_STUDIO_CHAT_ELEMENT_TEXT_SET)
   // one line per later change, above this comment
 ]

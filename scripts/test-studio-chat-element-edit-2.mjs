@@ -428,8 +428,9 @@ await check('the reference names no slide id with the flag on (the refine path a
 // ---- 4. flag off is the base ------------------------------------------------------------------------------------------------------------------------------------------------------
 console.log('4. Flag off is identical to the base')
 const baseFile = rel => git('show', `${BASE_COMMIT}:${rel}`)
+const strippedPastLater = (rel, text) => { const strips = registry.LATER_STRIPS, at = strips.indexOf(stripChatElementEdit2); return (at === -1 ? [] : strips.slice(at + 1)).reduce((out, strip) => { const next = strip(rel, out); return typeof next === 'string' ? next : out }, text) } // LATER-CHANGES: registry read (MDC-ELEMENT-FIELDS), stacked after chat element edit 2: the strips of every change registered after #538's, applied first (the rule of laterStrips below, here ahead of section 6 where that is defined)
 await check('the strip gives each edited file its base back, byte for byte; the new lib is not in the base; the flag is named in no other source file', () => {
-  for (const rel of CHAT_ELEMENT_EDIT_2_FILES) assert.equal(stripChatElementEdit2(rel, themeOwnChoice.stripThemeOwnChoice(rel, read(rel))), baseFile(rel), `${rel}: without its marked lines the file is the base's`) // LATER-CHANGES: registry read (THEME-OWN-CHOICE), stacked after chat element edit 2
+  for (const rel of CHAT_ELEMENT_EDIT_2_FILES) assert.equal(stripChatElementEdit2(rel, strippedPastLater(rel, read(rel))), baseFile(rel), `${rel}: without its marked lines the file is the base's`) // LATER-CHANGES: registry read (THEME-OWN-CHOICE), stacked after chat element edit 2 // LATER-CHANGES: registry read (MDC-ELEMENT-FIELDS): every strip registered after #538's comes out first, so a later change's page line does too
   assert.equal(stripChatElementEdit2('hooks/use-deckster-websocket-v2.ts', 'x'), 'x', 'a file the change does not own comes back untouched')
   assert.throws(() => git('cat-file', '-e', `${BASE_COMMIT}:${TWO}`))
   const readers = git('grep', '-l', `process.env.${FLAG}`, '--', 'app', 'lib', 'hooks', 'components', 'types').split('\n').filter(Boolean).sort()

@@ -41,6 +41,7 @@ import ts from 'typescript'
 // FRONTEND-2 Pass 3 (NEXT_PUBLIC_CHAT_ELEMENT_REFINE) added flag-gated lines to the hook; with them taken out it is the file this pin holds it to.
 import { stripChatElementRefine } from './studio-chat-element-refine-strip.mjs'
 import { stripChatAddTargeted } from './studio-chat-add-targeted-strip.mjs' // LATER-CHANGES: registry read (CHAT-ADD-TARGETED): the targeted chat add stacked after this change, so its marked lines in the generation hook come out first
+import { stripChatAddStacking } from './studio-chat-add-stacking-strip.mjs' // LATER-CHANGES: registry read (CHAT-ADD-STACKING): the chat add stacking stacked after this change, so its marked lines in the generation hook come out first
 
 for (const name of Object.keys(process.env)) if (/KEY|TOKEN|SECRET|CREDENTIAL|PASSWORD/i.test(name)) delete process.env[name]
 const denied = () => { throw new Error('Offline harness forbids network') }
@@ -884,6 +885,7 @@ function wiringChecks() {
   const decl = (source, name) => {
     source = withoutImagePendingLines(stripChatElementRefine(HOOK, source)) // NEXT_PUBLIC_CHAT_ELEMENT_REFINE
     source = stripChatAddTargeted(HOOK, source) // LATER-CHANGES: registry read (CHAT-ADD-TARGETED)
+    source = stripChatAddStacking(HOOK, source) // LATER-CHANGES: registry read (CHAT-ADD-STACKING)
     const sf = ts.createSourceFile('x.ts', source, ts.ScriptTarget.Latest, true, ts.ScriptKind.TS)
     let found
     const visit = node => { if (!found && ts.isVariableDeclaration(node) && node.name.getText(sf) === name) found = printer.printNode(ts.EmitHint.Unspecified, node.initializer, sf); else ts.forEachChild(node, visit) }

@@ -23,6 +23,7 @@ import { execFileSync } from 'node:child_process'
 import { createRequire } from 'node:module'
 import ts from 'typescript'
 import { stripDeckSyncTruth } from './studio-deck-sync-truth-strip.mjs' // LATER-CHANGES: registry read (DECK-SYNC-TRUTH)
+import { stripDeckSaveRefused } from './studio-deck-save-refused-strip.mjs' // LATER-CHANGES: registry read (DECK-SAVE-REFUSED-NOTICE): the change stacked after this one marks lines in the viewer; the viewer is compared with the base past them
 
 const root = path.resolve(new URL('..', import.meta.url).pathname)
 const nodeRequire = createRequire(path.join(root, 'package.json'))
@@ -309,7 +310,7 @@ function mountInspector(env, props, source = SRC[INSPECTOR]) {
 // ============================================================ A. strip and byte identity
 {
   for (const rel of strip.STUDIO_ARRANGE_FILES) {
-    const now = read(rel)
+    const now = stripDeckSaveRefused(rel, read(rel)) // LATER-CHANGES: registry read (DECK-SAVE-REFUSED-NOTICE): the lines of the change stacked after this one come out first
     check(assert.equal, strip.stripStudioArrange(rel, stripDeckSyncTruth(rel, now)), baseText(rel), `${rel}: without its STUDIO-ARRANGE lines it is the base's, byte for byte`) // LATER-CHANGES: registry read (DECK-SYNC-TRUTH): the lines of the change stacked after this one come out first
     check(assert.equal, registry.stripLaterChanges(rel, now), registry.stripLaterChanges(rel, baseText(rel)), `${rel}: through the registry it is the base's`)
     const marked = now.split('\n').filter(line => strip.STUDIO_ARRANGE_MARKER_RE.test(line)).length

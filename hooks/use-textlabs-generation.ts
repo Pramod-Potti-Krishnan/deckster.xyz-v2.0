@@ -113,6 +113,9 @@ import { STUDIO_IMAGE_PENDING_WRITE_ENABLED, imageJobWritesPending, type ImageJo
 import { startImagePendingJob } from '@/lib/studio-image-pending-runtime'
 // IMAGE-PENDING-WRITE end
 import { CHAT_ADD_TARGETED_SAVE_ENABLED, openChatAddScope, type ChatAddScope } from '@/lib/chat-add-targeted' // CHAT-ADD-TARGETED
+import { CHAT_STALE_VIEWER_GUARD_ENABLED, confirmChatDeckUnchanged, requireChatAddSaved, type AddSaveWatch } from '@/lib/chat-stale-viewer-guard' // CHAT-STALE-VIEWER-GUARD CHAT-ADD-TARGETED
+import { watchViewerSave } from '@/lib/chat-element-edit-save' // CHAT-STALE-VIEWER-GUARD CHAT-ADD-TARGETED
+import { CHAT_ADD_STACKING_ENABLED, chatAddStackedZIndex } from '@/lib/chat-add-stacking' // CHAT-ADD-STACKING
 
 export type TextLabsGenerationResult =
   | { status: 'inserted'; presentationId: string | null; slideIndex: number; elementIds: string[] }
@@ -588,6 +591,7 @@ export function useTextLabsGeneration({
     let blankTrackingWasRemoved = false
     const insertedElementIds: string[] = []
     let chatAddScope: ChatAddScope | null = null // CHAT-ADD-TARGETED: the open scope of the insert in flight (a chat add with the flag on)
+    let staleGuardWatch: AddSaveWatch | null = null // CHAT-STALE-VIEWER-GUARD CHAT-ADD-TARGETED: the viewer's save acknowledgement of this chat add (a chat add with the flag on)
     let generationLifecycleCleaned = false
     let recoveryLeaseReleased = false
     let deferredFailedPanelResume: {
@@ -1771,6 +1775,7 @@ export function useTextLabsGeneration({
           formData.z_index,
           effectiveSlideIndex
         )
+        if (CHAT_ADD_STACKING_ENABLED && invocation?.kind === 'chat-add') { const stackedZIndex = chatAddStackedZIndex(formData.componentType); if (stackedZIndex !== null) params.zIndex = stackedZIndex } // CHAT-ADD-STACKING: a chat add lands at the z the Element panel's own add of this type starts at (not the directive's z 1, under the slide's content)
         if (studio && insertionComponentType === 'METRICS') {
           params.generationConfig = normalizeMetricsCardRefineGenerationConfig(params.generationConfig, 'METRICS')
         }
@@ -1815,6 +1820,7 @@ export function useTextLabsGeneration({
           ? 'upsertCitedElement'
           : semanticUpsertParams ? 'upsertSemanticElement'
           : method === 'insertElement' ? 'insertTextBox' : method
+        if (CHAT_STALE_VIEWER_GUARD_ENABLED && invocation?.kind === 'chat-add') await confirmChatDeckUnchanged() // CHAT-STALE-VIEWER-GUARD CHAT-ADD-TARGETED: a deck whose slides have no ids is proved against Layout's signature again right before the insert (the guard's reload proved it before the generation); changed: the add stops here, nothing inserted
         if (CHAT_ADD_TARGETED_SAVE_ENABLED && invocation?.kind === 'chat-add') { // CHAT-ADD-TARGETED: hold the slide's change marks so this insert schedules no whole-deck autosave
           chatAddScope = await openChatAddScope({ // CHAT-ADD-TARGETED
             slideIndex: effectiveSlideIndex, insertAction: insertionAction, sendElement: generationLayoutServiceApis.sendElementCommand, // CHAT-ADD-TARGETED
@@ -1822,6 +1828,7 @@ export function useTextLabsGeneration({
             report: note => console.info('[TextLabs] Chat add saved:', note.saved === 'targeted' ? 'only the new element' : `by the editor's autosave (${note.reason})`), // CHAT-ADD-TARGETED
           }) // CHAT-ADD-TARGETED
         } // CHAT-ADD-TARGETED
+        if (CHAT_STALE_VIEWER_GUARD_ENABLED && invocation?.kind === 'chat-add') staleGuardWatch = watchViewerSave() // CHAT-STALE-VIEWER-GUARD CHAT-ADD-TARGETED: opened right before the insert, so only this change's acknowledgement counts
         const insertResponse = await sendLayoutMutationWithReconciliation(
           generationLayoutServiceApis.sendElementCommand,
           insertionAction,
@@ -1853,7 +1860,9 @@ export function useTextLabsGeneration({
         }
         if (insertedElementId) {
           insertedElementIds.push(insertedElementId)
+          const storedOnItsOwn = chatAddScope !== null // CHAT-STALE-VIEWER-GUARD CHAT-ADD-TARGETED: the targeted save is in use (its commit below confirms the element is stored, or throws); this line reads the targeted add's variable, so that change's strip takes it out too
           if (chatAddScope) { const scope = chatAddScope; chatAddScope = null; try { await scope.finish(insertedElementId) } catch (error) { if (scope.removed) insertedElementIds.pop(); throw error } } // CHAT-ADD-TARGETED: save only this element; when it is not stored it is taken off the slide again (else the rollback below removes it)
+          if (staleGuardWatch) { const watch = staleGuardWatch; staleGuardWatch = null; await requireChatAddSaved(watch, { storedOnItsOwn }) } // CHAT-STALE-VIEWER-GUARD CHAT-ADD-TARGETED: "Done" only once the element is stored; else the add throws (the rollback below removes it) and the result is failed; uses the line above, so the targeted add's strip takes it out too
           if (!invocation && (!studio || presentationIsStillAuthoritative())) generationPanel.rememberDraftForElement(insertedElementId, formData,
             studio && insertionComponentType === 'METRICS'
               ? { elementId: insertedElementId, elementType: 'METRICS' }
@@ -2167,6 +2176,7 @@ export function useTextLabsGeneration({
         slideIndex: generationSlideIndex, elementIds: [...insertedElementIds] }
     } catch (err) {
       if (chatAddScope) await chatAddScope.cancel() // CHAT-ADD-TARGETED: an insert that failed leaves no scope open (Layout would hold this slide's change marks for up to 30 s)
+      staleGuardWatch?.close() // CHAT-STALE-VIEWER-GUARD CHAT-ADD-TARGETED: a failed insert leaves no save watch subscribed
       if (immediateFailureFeedbackEnabled) failureRecoveryStarted = true
       let errorRetryStrategy = diagramRequestWasDispatched
         ? diagramRetryStrategyForFailure(err)
