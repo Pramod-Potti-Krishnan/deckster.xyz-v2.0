@@ -22,6 +22,7 @@ import type {
   ChatElementReference, ElementRefineDirectiveMessage, ElementRefineDirectiveOwner, ElementRefineDirectivePayload, ElementRefineErrorCode,
   ElementRefineResultData, ElementRefineStatus,
 } from '@/lib/chat-element-refine-wire'
+import { CHAT_REFINE_STRUCTURAL_DECLINE_ENABLED, declinesStructuralRefine } from '@/lib/chat-refine-structural-decline' // CHAT-REFINE-STRUCTURAL-DECLINE
 
 export {
   CHAT_ELEMENT_REFINE_ENABLED, ELEMENT_REFINE_CLIENT_CAP, ELEMENT_REFINE_DIRECTIVE_TYPE, addChatElementRefineFields, elementRefineDirectiveId,
@@ -220,6 +221,7 @@ async function runSteps(
     return result('failed', 'generation_failed')
   }
   if (!formData) return result('failed', typeof payload.instruction === 'string' && payload.instruction.trim() ? 'unsupported_type' : 'generation_failed')
+  if (CHAT_REFINE_STRUCTURAL_DECLINE_ENABLED && declinesStructuralRefine(componentType, refineContext.semanticRole)) return result('failed', 'unsupported_type') // CHAT-REFINE-STRUCTURAL-DECLINE: a title-type text box (any role but BODY_TEXT) cannot be refined from chat yet: no Text Labs call, Director says its own line; BODY_TEXT, no role, an unknown role and other types are untouched
   if (deps.isBusy()) return result('dismissed')
   let outcome: TextLabsGenerationResult
   try {
