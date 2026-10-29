@@ -6,7 +6,7 @@
 // How the older pins reach it: this change REGISTERS its files, its .env.example block and this strip (scripts/studio-later-changes.mjs, three lines), and teaches the older proofs that read the runner raw or check the first-parent line
 // (CHAT_TEXT_SET_KEEP_LOOK_PIN_EDITS). Plain node, no imports, nothing read from disk or git here.
 
-export const BASE_COMMIT = 'dec76f0afde6de6da906a06e5ea19d9ae5ce8ff9' // origin/studio-v4-dev-preparation-code with #551 merged: dev, which this change is cut from
+export const BASE_COMMIT = '6e7f7246f2063f8ec396b8d96318796580bde070' // origin/studio-v4-dev-preparation-code with #552 merged (tree 3bff5435): dev, which this change is merged with (it was cut from dec76f0a, #551 merged; the .env.example and registry lines of #552 come before this change's)
 export const CHAT_TEXT_SET_KEEP_LOOK_FLAG = 'NEXT_PUBLIC_STUDIO_CHAT_TEXT_SET_KEEP_LOOK'
 export const CHAT_TEXT_SET_KEEP_LOOK_MARKER = 'CHAT-TEXT-SET-KEEP-LOOK'
 /** The marker as a WHOLE token: CHAT-TEXT-SET-KEEP-LOOK-X and X-CHAT-TEXT-SET-KEEP-LOOK are not it. */
