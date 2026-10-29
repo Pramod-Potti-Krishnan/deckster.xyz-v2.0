@@ -333,7 +333,7 @@ await check('.env.example: the flag is there once, "false", in its block', () =>
 
 /** The older proofs this change teaches, put back: dev's file byte for byte, through the strips of the changes registered after this one first. */
 const pinsSuite = (edits = MDC_ELEMENT_FIELDS_PIN_EDITS, ctx = { later: laterStrips, headText: rel => read(rel), baseOf: rel => git('show', `${BASE_COMMIT}:${rel}`) }) => {
-  assert.deepEqual(Object.keys(edits), ['scripts/test-studio-chat-element-edit-2.mjs'], 'one older proof is taught: #538\'s chat element edit 2, which strips the page of its own lines and holds it to its base')
+  assert.deepEqual(Object.keys(edits), ['scripts/test-studio-chat-element-edit-2.mjs', 'scripts/studio-chat-add-targeted-world.mjs'], 'two older files are taught: #538\'s chat element edit 2 (it strips the page of its own lines and holds it to its base) and #546\'s world (it cuts the page\'s runner out and counts its dynamic imports)')
   for (const rel of Object.keys(edits)) {
     const back = text => stripModule.putBackPin(rel, text, edits)
     const now = ctx.later(rel, ctx.headText(rel))
@@ -353,7 +353,8 @@ const pinsSuite = (edits = MDC_ELEMENT_FIELDS_PIN_EDITS, ctx = { later: laterStr
 }
 await check('the taught proof (chat element edit 2): put back through the strip it is dev\'s file byte for byte and idempotent; every taught line carries the pin mark; the strip returns another proof as it is', () => {
   pinsSuite()
-  assert.deepEqual([...MDC_ELEMENT_FIELDS_PIN_FILES], ['scripts/test-studio-chat-element-edit-2.mjs'])
+  assert.deepEqual([...MDC_ELEMENT_FIELDS_PIN_FILES], ['scripts/test-studio-chat-element-edit-2.mjs', 'scripts/studio-chat-add-targeted-world.mjs'])
+  assert.match(read('scripts/studio-chat-add-targeted-world.mjs'), /replaceAll\("await import\('@\/lib\/mdc-element-directive'\)", '__mdc'\)/, 'the world substitutes every occurrence of the executor import')
   assert.equal(stripMdcElementFields('scripts/test-studio-chat-edit-targeted.mjs', 'x'), 'x')
   const proof = read('scripts/test-studio-chat-element-edit-2.mjs')
   assert.ok(proof.includes('strippedPastLater(rel, read(rel))'), 'the check reads past the strips registered after #538\'s')
@@ -450,7 +451,7 @@ await check('mutant caught: a taught text that was not the proof\'s previous tex
   } finally { fs.rmSync(tmp, { recursive: true, force: true }) }
   const noMark = copy(edits); noMark[rel][0][0] = noMark[rel][0][0].replace(MDC_ELEMENT_FIELDS_PIN_MARK, 'LATER-CHANGES: registry read')
   assert.throws(() => pinsSuite(noMark), undefined)
-  assert.throws(() => pinsSuite({ ...edits, 'scripts/test-studio-theme-own-choice.mjs': [['a', 'b']] }), /one older proof is taught/)
+  assert.throws(() => pinsSuite({ ...edits, 'scripts/test-studio-theme-own-choice.mjs': [['a', 'b']] }), /two older files are taught/)
   caughtBy.push(`  ${String(++mutantNumber).padStart(2)}. pins: a wrong previous text, a taught line without the mark, a second proof`)
 })
 await check('mutant caught: with the executor stripped to the base (no apply) the mapping suite fails, and the base has no apply function', () => {

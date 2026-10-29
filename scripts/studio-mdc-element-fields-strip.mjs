@@ -9,7 +9,7 @@
 // line after the form data is built). Strip those lines and each file is its base, byte for byte. The new files (lib/mdc-element-fields.ts, this strip, a proof) have no base text.
 // How the older pins reach it: this change REGISTERS its files, its .env.example block and this strip (scripts/studio-later-changes.mjs, three lines). Plain node, no imports, nothing read from disk or git here.
 
-export const BASE_COMMIT = '61568fe6b7e07972051f1103749ee4551dd76ef5' // origin/studio-v4-dev-preparation-code with #544 merged (61568fe6), which this change is cut from.
+export const BASE_COMMIT = '973fa22b94df309c53f3a9052938e080e4597325' // origin/studio-v4-dev-preparation-code with #546 merged (973fa22b, tree efb5b478): dev, which this change is merged with (it was cut from 61568fe6, #544).
 export const MDC_ELEMENT_FIELDS_FLAG = 'NEXT_PUBLIC_STUDIO_MDC_ELEMENT_FIELDS'
 export const MDC_ELEMENT_FIELDS_MARKER = 'MDC-ELEMENT-FIELDS'
 /** The marker as a WHOLE token: MDC-ELEMENT-FIELDS-X and X-MDC-ELEMENT-FIELDS are not it. */
@@ -39,6 +39,11 @@ export const MDC_ELEMENT_FIELDS_PIN_EDITS = {
       ""],
     ["  for (const rel of CHAT_ELEMENT_EDIT_2_FILES) assert.equal(stripChatElementEdit2(rel, strippedPastLater(rel, read(rel))), baseFile(rel), `${rel}: without its marked lines the file is the base's`) // LATER-CHANGES: registry read (THEME-OWN-CHOICE), stacked after chat element edit 2 // LATER-CHANGES: registry read (MDC-ELEMENT-FIELDS): every strip registered after #538's comes out first, so a later change's page line does too\n",
       "  for (const rel of CHAT_ELEMENT_EDIT_2_FILES) assert.equal(stripChatElementEdit2(rel, themeOwnChoice.stripThemeOwnChoice(rel, read(rel))), baseFile(rel), `${rel}: without its marked lines the file is the base's`) // LATER-CHANGES: registry read (THEME-OWN-CHOICE), stacked after chat element edit 2\n"],
+  ],
+  // #546's world (scripts/studio-chat-add-targeted-world.mjs, dev) cuts the page's runner out and expects ONE dynamic import of the executor in it; this change's one marked page line imports the same module a second time, so the world accepts both counts and substitutes every occurrence.
+  "scripts/studio-chat-add-targeted-world.mjs": [
+    ["  assert.ok([2, 3].includes(runnerText.split(\"await import('@/lib/mdc-element-directive')\").length), 'the runner imports lib/mdc-element-directive once, dynamically (twice with MDC element fields: its one marked page line)') // LATER-CHANGES: registry read (MDC-ELEMENT-FIELDS): the page runner calls applyDirectiveElementFields on the same module, so the import appears twice with that change\n  const runner = evalExpression(runnerText.replaceAll(\"await import('@/lib/mdc-element-directive')\", '__mdc'), { // the one substitution: a dynamic import cannot run in a vm, the module is the same one // LATER-CHANGES: registry read (MDC-ELEMENT-FIELDS): every occurrence is the same module (replaceAll)\n",
+      "  assert.equal(runnerText.split(\"await import('@/lib/mdc-element-directive')\").length, 2, 'the runner imports lib/mdc-element-directive once, dynamically')\n  const runner = evalExpression(runnerText.replace(\"await import('@/lib/mdc-element-directive')\", '__mdc'), { // the one substitution: a dynamic import cannot run in a vm, the module is the same one\n"],
   ],
 }
 
