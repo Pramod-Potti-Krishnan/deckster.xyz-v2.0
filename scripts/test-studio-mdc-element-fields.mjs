@@ -334,12 +334,13 @@ await check('.env.example: the flag is there once, "false", in its block', () =>
 })
 
 /** The older proofs this change teaches, put back: dev's file byte for byte, through the strips of the changes registered after this one first. */
-const pinsSuite = (edits = MDC_ELEMENT_FIELDS_PIN_EDITS, ctx = { later: laterStrips, headText: rel => read(rel), baseOf: rel => git('show', `${BASE_COMMIT}:${rel}`) }) => {
+const pinsSuite = (edits = MDC_ELEMENT_FIELDS_PIN_EDITS, ctx = { later: laterStrips, norm: otherStrips, headText: rel => read(rel), baseOf: rel => git('show', `${BASE_COMMIT}:${rel}`) }) => {
   assert.deepEqual(Object.keys(edits), ['scripts/test-studio-chat-element-edit-2.mjs', 'scripts/studio-chat-stale-viewer-guard-world.mjs', 'scripts/studio-chat-add-targeted-world.mjs'], 'three older files are taught: #538\'s chat element edit 2 (it strips the page of its own lines and holds it to its base) and the worlds of #548 and #546 (each cuts the page\'s runner out and substitutes the executor import)')
   for (const rel of Object.keys(edits)) {
     const back = text => stripModule.putBackPin(rel, text, edits)
     const now = ctx.later(rel, ctx.headText(rel))
-    assert.equal(sha(back(now)), sha(ctx.baseOf(rel)), `${rel}: the taught proof, put back, is dev's file byte for byte`)
+    // the changes stacked BEFORE this one (not on dev yet) edited some of the same proofs: their put-backs come out of both sides, after this one's
+    assert.equal(sha(ctx.norm(rel, back(now))), sha(ctx.norm(rel, ctx.baseOf(rel))), `${rel}: the taught proof, put back, is dev's file byte for byte (the changes stacked before this one out of both sides)`)
     assert.equal(back(back(now)), back(now), `${rel}: put back twice is put back once`)
     for (const [has, was] of edits[rel]) {
       assert.equal(now.split(has).length - 1, 1, `${rel}: each taught text is in the proof exactly once`)
@@ -349,7 +350,8 @@ const pinsSuite = (edits = MDC_ELEMENT_FIELDS_PIN_EDITS, ctx = { later: laterStr
     if (edits === MDC_ELEMENT_FIELDS_PIN_EDITS) { // every consumer's position in the registry: the strips after it, in registry order, leave this proof and dev's file indistinguishable (theme own choice swapped the same line before this change)
       const at = strips.indexOf(stripMdcElementFields), dev = ctx.baseOf(rel)
       assert.ok(at > 0)
-      for (let k = 0; k <= at; k++) assert.equal(sha(applyAll(strips.slice(k), rel, read(rel))), sha(applyAll(strips.slice(k), rel, dev)), `${rel}: from registry position ${k} (${k === 0 ? 'the first' : String(strips[k - 1]).slice(0, 40).replace(/\s+/g, ' ')}) the strips after it leave the taught proof and dev's file the same`)
+      const stackedFrom = strips.findIndex(fn => fn.name === 'stripDeckSaveRefused'), upTo = stackedFrom >= 0 && stackedFrom < at ? stackedFrom : at // consumers registered after the first stacked change see that change as part of their own base
+      for (let k = 0; k <= upTo; k++) assert.equal(sha(applyAll(strips.slice(k), rel, read(rel))), sha(applyAll(strips.slice(k), rel, dev)), `${rel}: from registry position ${k} (${k === 0 ? 'the first' : String(strips[k - 1]).slice(0, 40).replace(/\s+/g, ' ')}) the strips after it leave the taught proof and dev's file the same`)
     }
   }
 }
@@ -510,7 +512,7 @@ const scopeCommittedFiles = (head, ctx = REAL) => {
     assert.equal(diff.length, ADDED[rel], `${rel}: the number of added lines`)
     assert.equal(stripMdcElementFields(rel, ctx.norm(rel, git('show', `${head}:${rel}`))), ctx.norm(rel, git('show', `${BASE_COMMIT}:${rel}`)), `${rel}: without its marked lines the file is the base's, byte for byte`)
   }
-  for (const rel of stripModule.MDC_ELEMENT_FIELDS_PIN_FILES) assert.equal(sha(stripMdcElementFields(rel, ctx.later(rel, git('show', `${head}:${rel}`)))), sha(git('show', `${BASE_COMMIT}:${rel}`)), `${rel}: the proof this change taught, put back, is dev's`)
+  for (const rel of stripModule.MDC_ELEMENT_FIELDS_PIN_FILES) assert.equal(sha(ctx.norm(rel, stripMdcElementFields(rel, ctx.later(rel, git('show', `${head}:${rel}`))))), sha(ctx.norm(rel, git('show', `${BASE_COMMIT}:${rel}`))), `${rel}: the proof this change taught, put back, is dev's (the changes stacked before this one out of both sides)`)
   for (const rel of MDC_ELEMENT_FIELDS_NEW_FILES) assert.equal(git('cat-file', '-t', `${head}:${rel}`).trim(), 'blob', rel)
   for (const rel of [ICON_FORM, SHAPE_FORM, 'lib/chat-element-refine.ts', 'types/textlabs.ts', CLIENT, 'hooks/use-textlabs-generation.ts']) assert.ok(!touched.has(rel), `${rel} is not touched by this change`)
 }
