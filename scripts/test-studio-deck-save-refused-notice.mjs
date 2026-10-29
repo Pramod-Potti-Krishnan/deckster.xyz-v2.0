@@ -441,6 +441,8 @@ function wiringSuite({ viewer, hook, noticeLib, lib }) {
   assert.ok(viewer.includes("reportViewerDeckState({ presentationId: presentationId ?? null, slideCount: iframeReady && totalSlides > 0 ? totalSlides : null, unsaved: saveStatus !== 'saved' })"), 'the viewer reports unsaved: saveStatus !== saved')
   assert.ok(viewer.includes('setSaveStatus(status)'), 'and the handler still sets the save status')
   // the controller: one interface line, one method, behind the open-notice guard, the existing source, nothing else
+  // no other registered change's strip may touch this change's lines (a marker of theirs named in a comment would make their strip, and the registry reads, drop the line)
+  for (const text of Object.values(own)) for (const line of markedOf(text)) for (const strip of peerStrips()) for (const rel of [VIEWER, HOOK, NOTICE_LIB]) assert.equal(strip(rel, line), line, `another change's strip takes this line out of ${rel}: ${line.slice(0, 90)}`)
   const [iface, method] = markedOf(noticeLib)
   assert.equal(iface.trim().replace(/ \/\/ DECK-SAVE-REFUSED-NOTICE.*$/, ''), 'noteSaveRefused(): void')
   assert.ok(method.trim().startsWith("noteSaveRefused() { if (disposed || notice) return; show('focus', null) }, // DECK-SAVE-REFUSED-NOTICE: "), 'the method: guard, show the existing "focus" source')

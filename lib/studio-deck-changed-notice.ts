@@ -375,7 +375,7 @@ export function createDeckChangedController(deps: DeckChangedControllerDeps): De
       ownChangeQuietUntil = now() + ownChangeQuietMs
       knownSignature = null
     },
-    noteSaveRefused() { if (disposed || notice) return; show('focus', null) }, // DECK-SAVE-REFUSED-NOTICE: Layout refused this tab's stale whole-deck save (the viewer's status error + deckChanged): the same notice a focus check raises ("This deck was updated" under DECK-SYNC-TRUTH), at once; one notice at a time, so an open notice (and a Reload anyway question in it) is left alone
+    noteSaveRefused() { if (disposed || notice) return; show('focus', null) }, // DECK-SAVE-REFUSED-NOTICE: Layout refused this tab's stale whole-deck save (the viewer's status error + deckChanged): the same notice a focus check raises ("This deck was updated" with the sync-truth flag on), at once; one notice at a time, so an open notice (and a Reload anyway question in it) is left alone
     async check(source = 'visibility') {
       if (disposed || notice || checking) return
       if (confirmTimer !== null) return // DECK-SYNC-TRUTH: a difference is already waiting to be confirmed
