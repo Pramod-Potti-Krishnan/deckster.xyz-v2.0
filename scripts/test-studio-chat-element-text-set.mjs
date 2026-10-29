@@ -42,6 +42,7 @@ import {
   CHAT_ELEMENT_TEXT_SET_ENV_BLOCK, CHAT_ELEMENT_TEXT_SET_MARKER_RE, CHAT_ELEMENT_TEXT_SET_SUBJECT, stripChatElementTextSet,
 } from './studio-chat-element-text-set-strip.mjs'
 import * as registry from './studio-later-changes.mjs'
+import { stripDeckSaveRefused } from './studio-deck-save-refused-strip.mjs' // the save-refused notice (#549) is stacked below this change: its marked lines in the viewer's save-status handler (isDeckSaveRefused) come out before the handler is cut out and evaluated
 
 const root = path.resolve(fileURLToPath(new URL('../', import.meta.url)))
 const TRANSCRIPTS = path.join(root, 'scripts/fixtures/chat-element-text-set/layout-transcripts.json')
@@ -217,7 +218,7 @@ async function scenario(name, { env = 'on', layout = 'on', editMode = false, lib
   })
   const sendElementCommand = (action, params) => { assert.notEqual(router.getCommandType(action), 'elementor'); return sendCommand(iframe, action, params, { timeoutMs: 30_000 }) }
   const sendTextBoxCommand = (action, params) => sendCommand(iframe, action, params)
-  const viewerTsx = read('components/presentation-viewer.tsx')
+  const viewerTsx = stripDeckSaveRefused('components/presentation-viewer.tsx', read('components/presentation-viewer.tsx')) // the handler below is cut from the viewer without the stacked change's lines (no fake binding for its calls)
   const saveEffect = evalExpression(callbackText('components/presentation-viewer.tsx', 'useEffect', "'saveStatusChanged'", viewerTsx), {
     window: studioWindow, VIEWER_ORIGIN: LAYOUT_ORIGIN, LAYOUT_URL_CONFIG_ERROR: null, isTrustedLayoutViewerMessage: messaging.isTrustedLayoutViewerMessage, iframeRef,
     isLayoutViewerEvent: router.isLayoutViewerEvent, isDiagramRendererStateEvent: () => false, parseDiagramRendererStateUpdate: () => null, studioShell: false,

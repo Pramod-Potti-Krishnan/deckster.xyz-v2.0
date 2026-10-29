@@ -8,7 +8,7 @@
 // How the older pins reach it: this change REGISTERS its files, its .env.example block and this strip (scripts/studio-later-changes.mjs, three lines), and teaches the older proofs that read the runner or the wire raw (CHAT_ELEMENT_TEXT_SET_PIN_EDITS).
 // Plain node, no imports, nothing read from disk or git here.
 
-export const BASE_COMMIT = '973fa22b94df309c53f3a9052938e080e4597325' // origin/studio-v4-dev-preparation-code with #546 merged: dev, which this change is cut from
+export const BASE_COMMIT = '7df397b3b30a9b506024d017c9834a8e472851df' // frontend2/chat-add-stacking (#550) @ 7df397b3: dev 9a62b4e6 (#548 merged) with #549, #547 and #550 stacked on it. This change is merged with it and read against it (it was cut from 973fa22b, #546), so the blocks and lines of the changes below it are part of its base.
 export const CHAT_ELEMENT_TEXT_SET_FLAG = 'NEXT_PUBLIC_STUDIO_CHAT_ELEMENT_TEXT_SET'
 export const CHAT_ELEMENT_TEXT_SET_MARKER = 'CHAT-ELEMENT-TEXT-SET'
 /** The marker as a WHOLE token: CHAT-ELEMENT-TEXT-SET-X and X-CHAT-ELEMENT-TEXT-SET are not it. */
