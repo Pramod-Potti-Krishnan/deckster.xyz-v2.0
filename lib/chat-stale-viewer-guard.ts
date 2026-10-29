@@ -13,7 +13,9 @@
  *      posts nothing until something is edited, so 'error' stays; getStudioIntroductionSafety().error is true, captureStudioElementGeneration() returns null, and hooks/use-textlabs-generation.ts answers "The presentation viewer is not ready." for every
  *      later add, until the whole page is reloaded (which re-creates the state). "Reload anyway" drops the unsaved element but not the flag.
  *   3. #546 (NEXT_PUBLIC_STUDIO_CHAT_ADD_TARGETED_SAVE) PUTs .../slides/{index}/elements/{id}/chat-save with the slide_id of the viewer's slide that holds the element; Layout (chat_targeted_save.py apply_element_save) answers 409 SLIDE_CHANGED when the
- *      stored slide at that index has another id. A stale viewer therefore cannot put the element on the wrong slide (the add fails, honestly); it can only fail. A viewer section with no data-slide-id (a slide stored with no id) sends null and is not checked.
+ *      stored slide at that index has another id. A stale viewer therefore cannot put the element on the wrong slide (the add fails, honestly); it can only fail.  A slide stored with NO id (an old deck, from before slide ids: migrations/add_slide_ids.py backfills them only when run; chat_targeted_save.py also reads a legacy `id` key; a duplicate made with LAYOUT_SLIDE_THUMBNAILS_ENABLED off copies its source's id, server.py:4590-4596) is not
+ *      "null in the viewer": direct-element-creator.js:657-669 gives it a TEMPORARY random slide id for that page load (and legacy `slide-N-slot` element ids), so the chat-save carries an id Layout never stored and answers 409 every time, even with no change (the add fails, honestly); only a slide the creator does not draw sends null, which Layout does not check. And
+ *      Layout's inventory then has a null (or repeated) slide_id, which Studio's parseSlideInventory rejects, so there is nothing to compare by id: the guard handles that case below (reloadIdless).
  *
  * With the flag on, before a chat add or a chat edit runs (this module, called from app/builder/page.tsx's two dispatch points):
  *   - the viewer's slide ids (composeGetState, the compose API Studio already uses) are compared with Layout's own (its slide inventory, the read #538 uses). Equal: nothing else happens. Different: the viewer is reloaded onto the server's deck (the page's Reload deck),
@@ -40,6 +42,8 @@ export const STALE_GUARD_MESSAGES = {
   unsaved: 'The deck was changed in chat, and this tab still holds edits that are not saved. Reloading would drop them, so nothing was added. Save changes now, or use Reload deck, then try again.',
   saveFailed: 'A save in this tab failed earlier and its edits are still unsaved, so nothing was added. Use Save changes now, or Reload deck, then try again.',
   didNotReload: 'The presentation viewer did not show the changed deck in time, so nothing was added. Use Reload deck, then try again.',
+  idlessChanging: 'This deck\'s slides have no ids, so a change cannot be told from the viewer, and the deck kept changing while the viewer reloaded. Nothing was added. Try again in a moment.',
+  idlessChanged: 'This deck\'s slides have no ids, and the deck was changed while the element was being made, so it cannot be told which slide the element was for. Nothing was added. Try again.',
   addNotSaved: 'The new element was added on screen but the save did not land, so it was not kept. Nothing else in the deck was changed. Try again.',
 } as const
 
@@ -51,13 +55,17 @@ export type StaleGuardVerdict =
   | { status: 'owner-changed' }
   | { status: 'refused'; code: StaleGuardCode; message: string }
 
-/** What the viewer says of its own slides: ids in order, 'busy' while a slide is being composed into it, null when it states no usable identity. */
-export type ViewerSlideRead = ReadonlyArray<string> | 'busy' | null
+/** What the viewer says of its own slides: ids in order, 'busy' while a slide is being composed into it, 'unusable' when a slide has no id (or two share one), null when it states nothing. */
+export type ViewerSlideRead = ReadonlyArray<string> | 'busy' | 'unusable' | null
+/** What Layout says of its slides: ids in order, 'unusable' when its inventory has a slide with no id (or two with one), null when it has no inventory at all. */
+export type ServerSlideRead = ReadonlyArray<string> | 'unusable' | null
 export type ViewerSaveState = 'saved' | 'unsaved' | 'saving' | 'error' | null
 
 export interface StaleGuardDeps {
   /** Layout's slide ids for the shown deck in order (its slide inventory); null when Layout has no inventory (the check cannot be made); throws when the read failed. */
-  readServerSlideIds: () => Promise<ReadonlyArray<string> | null>
+  readServerSlideIds: () => Promise<ServerSlideRead>
+  /** A signature of what Layout holds, id-less slides included (its inventory: each slide's layout, content version and id, in order); null when it cannot be read. Used only for a deck whose ids cannot be compared. */
+  readServerSignature?: () => Promise<string | null>
   /** The viewer's own slides (composeGetState); throws while the viewer is not ready (no iframe, a command that timed out). */
   readViewerSlideIds: () => Promise<ViewerSlideRead>
   /** The last save status the viewer posted (null: the viewer has none). */
@@ -80,6 +88,7 @@ const sameIds = (a: ReadonlyArray<string>, b: ReadonlyArray<string>) => a.length
  * Decides whether the viewer shows the server's deck and, when it does not, brings it there. Never reloads over unsaved work, never while the viewer is busy, and never answers `fresh` or `reloaded` unless the two id lists were seen equal.
  */
 export async function ensureViewerMatchesServer(deps: StaleGuardDeps): Promise<StaleGuardVerdict> {
+  idlessCheck = null // a check made for an earlier directive is not this one's
   const budget = deps.timeoutMs ?? STALE_GUARD_RELOAD_TIMEOUT_MS
   const poll = deps.pollMs ?? STALE_GUARD_POLL_MS
   const started = deps.now()
@@ -88,7 +97,7 @@ export async function ensureViewerMatchesServer(deps: StaleGuardDeps): Promise<S
   const gone = (): StaleGuardVerdict | null => (deps.owns() ? null : { status: 'owner-changed' })
 
   // 1. what Layout holds
-  let server: ReadonlyArray<string> | null
+  let server: ServerSlideRead
   try { server = await deps.readServerSlideIds() } catch { return gone() ?? refuse('VIEWER_NOT_READY', STALE_GUARD_MESSAGES.unread) }
   if (gone()) return { status: 'owner-changed' }
   if (!server) return { status: 'unverified' } // Layout has no inventory: today's behaviour
@@ -101,12 +110,14 @@ export async function ensureViewerMatchesServer(deps: StaleGuardDeps): Promise<S
       if (gone()) return { status: 'owner-changed' }
     }
   }
-  if (viewer === null) return { status: 'unverified' } // the viewer states no slide identity (a slide stored with no id): today's behaviour
-  if (viewer !== 'busy' && sameIds(viewer, server)) {
+  // A slide with no id (an old deck: the viewer draws it a temporary id of its own) cannot be compared by id, and nothing but its index would say which slide a save is for.
+  const idless = server === 'unusable' || viewer === 'unusable'
+  if (viewer === null && !idless) return { status: 'unverified' } // the viewer states nothing about its slides: today's behaviour
+  if (!idless && viewer !== null && typeof viewer !== 'string' && typeof server !== 'string' && sameIds(viewer, server)) {
     // the same deck. A save that failed earlier still stands in the way of the add (its status is why the viewer would say "not ready"): say so.
     return deps.viewerSaveState() === 'error' ? refuse('VIEWER_NOT_READY', STALE_GUARD_MESSAGES.saveFailed) : { status: 'fresh' }
   }
-  // 3. a different deck (or a viewer still composing a slide): not over unsaved edits, not while busy
+  // 3. a different deck (or one that cannot be compared, or a viewer still composing a slide): not over unsaved edits, not while busy
   for (;;) {
     const state = deps.viewerSaveState()
     if (state === 'error') return refuse('SLIDE_CHANGED', STALE_GUARD_MESSAGES.unsaved)
@@ -116,6 +127,7 @@ export async function ensureViewerMatchesServer(deps: StaleGuardDeps): Promise<S
     if (gone()) return { status: 'owner-changed' }
   }
   if (viewer === 'busy') return refuse('VIEWER_NOT_READY', STALE_GUARD_MESSAGES.busy)
+  if (idless) return reloadIdless(deps, { left, poll, refuse, gone })
   deps.reloadViewer()
   // 4. wait for the viewer to show the server's deck
   for (;;) {
@@ -125,10 +137,58 @@ export async function ensureViewerMatchesServer(deps: StaleGuardDeps): Promise<S
       const again = await deps.readServerSlideIds()
       const shown = await deps.readViewerSlideIds()
       if (gone()) return { status: 'owner-changed' }
-      if (again && shown && shown !== 'busy' && sameIds(shown, again)) return { status: 'reloaded' }
+      if (again && again !== 'unusable' && shown && shown !== 'busy' && shown !== 'unusable' && sameIds(shown, again)) return { status: 'reloaded' }
     } catch { /* still loading */ }
     if (left() <= 0) return gone() ?? refuse('VIEWER_NOT_READY', STALE_GUARD_MESSAGES.didNotReload)
   }
+}
+
+// ---- a deck whose slides have no ids -------------------------------------------------------------------------------------------------------
+
+/** What the last guarded directive found on a deck whose ids cannot be compared: Layout's signature right after the viewer reloaded, and the reader that takes it again. */
+let idlessCheck: { signature: string; read: () => Promise<string | null> } | null = null
+
+/**
+ * The viewer cannot be proved to show Layout's deck by ids, so it is reloaded (the same rules as above) and the proof is a signature of Layout's inventory (each slide's layout, content version and id, in order), read BEFORE the
+ * reload and AFTER the viewer is back: equal, and the viewer loaded in between shows exactly that deck; different, the deck moved under the reload, so it goes again (twice at most, then the directive is refused). The same signature is
+ * read once more right before an add's insert (confirmChatDeckUnchanged), the one gap a generation leaves.
+ */
+async function reloadIdless(deps: StaleGuardDeps, run: { left: () => number; poll: number; refuse: (code: StaleGuardCode, message: string) => StaleGuardVerdict; gone: () => StaleGuardVerdict | null }): Promise<StaleGuardVerdict> {
+  const { left, poll, refuse, gone } = run
+  const read = deps.readServerSignature
+  if (!read) return refuse('SLIDE_CHANGED', STALE_GUARD_MESSAGES.idlessChanging) // no way to tell: never on the index alone
+  for (let attempt = 0; attempt < 2; attempt += 1) {
+    let before: string | null
+    try { before = await read() } catch { before = null }
+    if (gone()) return { status: 'owner-changed' }
+    if (before === null) return refuse('VIEWER_NOT_READY', STALE_GUARD_MESSAGES.unread)
+    deps.reloadViewer()
+    for (;;) { // wait for the viewer to be back
+      await deps.wait(poll)
+      if (gone()) return { status: 'owner-changed' }
+      try { const shown = await deps.readViewerSlideIds(); if (shown !== 'busy') break } catch { /* still loading */ }
+      if (left() <= 0) return gone() ?? refuse('VIEWER_NOT_READY', STALE_GUARD_MESSAGES.didNotReload)
+    }
+    let after: string | null
+    try { after = await read() } catch { after = null }
+    if (gone()) return { status: 'owner-changed' }
+    if (after === null) return refuse('VIEWER_NOT_READY', STALE_GUARD_MESSAGES.unread)
+    if (after === before) { idlessCheck = { signature: after, read }; return { status: 'reloaded' } }
+  }
+  return refuse('SLIDE_CHANGED', STALE_GUARD_MESSAGES.idlessChanging)
+}
+
+/**
+ * Called by the generation hook right before a chat add's insert. Nothing to do unless the guard found a deck whose ids cannot be compared; then Layout's signature must still be the one the viewer was proved against, else the add stops here
+ * (it throws; nothing has been inserted). Taken once: the next guarded directive makes its own check.
+ */
+export async function confirmChatDeckUnchanged(): Promise<void> {
+  const check = idlessCheck
+  idlessCheck = null
+  if (!check) return
+  let now: string | null
+  try { now = await check.read() } catch { now = null }
+  if (now === null || now !== check.signature) throw new Error(STALE_GUARD_MESSAGES.idlessChanged)
 }
 
 // ---- the page's two dispatch points ---------------------------------------------------------------------------------------------------

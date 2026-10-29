@@ -5407,13 +5407,19 @@ function AuthenticatedBuilderContent({ authScopeUserId }: { authScopeUserId: str
       readServerSlideIds: async () => { // CHAT-STALE-VIEWER-GUARD CHAT-ELEMENT-EDIT-2
         const shownId = elementDirectiveGenerationOwnerRef.current.presentationId; if (!shownId) throw new Error('no deck on screen') // CHAT-STALE-VIEWER-GUARD CHAT-ELEMENT-EDIT-2
         const read = await fetchSlideInventory({ baseUrl: getLayoutServiceUrl(), presentationId: shownId, fetchImpl: (input, init) => fetch(input, init) }) // CHAT-STALE-VIEWER-GUARD CHAT-ELEMENT-EDIT-2: the read #538 makes
-        if (read.kind === 'unavailable') return null; if (read.kind !== 'ok') throw new Error('Layout could not answer the slide inventory') // CHAT-STALE-VIEWER-GUARD CHAT-ELEMENT-EDIT-2
+        if (read.kind === 'unavailable') return read.reason === 'invalid_inventory' ? 'unusable' : null; if (read.kind !== 'ok') throw new Error('Layout could not answer the slide inventory') // CHAT-STALE-VIEWER-GUARD CHAT-ELEMENT-EDIT-2: an inventory with a slide that has no id (or two with one) cannot be compared by id: 'unusable'; no inventory route: null
         return read.inventory.slides.map(row => row.slideId) // CHAT-STALE-VIEWER-GUARD CHAT-ELEMENT-EDIT-2
       }, // CHAT-STALE-VIEWER-GUARD CHAT-ELEMENT-EDIT-2
       readViewerSlideIds: async () => { // CHAT-STALE-VIEWER-GUARD CHAT-ELEMENT-EDIT-2
         const compose = composeViewerApiRef.current; if (!compose) throw new Error('The presentation viewer is not ready') // CHAT-STALE-VIEWER-GUARD CHAT-ELEMENT-EDIT-2: null while the viewer loads (a reload included)
         const receipt = await compose.composeGetState(); const order = parseStudioNativeSlideOrder(receipt) // CHAT-STALE-VIEWER-GUARD CHAT-ELEMENT-EDIT-2
-        return order ? order.slideIds : Array.isArray(receipt?.placeholders) && receipt.placeholders.length > 0 ? 'busy' : null // CHAT-STALE-VIEWER-GUARD CHAT-ELEMENT-EDIT-2
+        return order ? order.slideIds : Array.isArray(receipt?.placeholders) && receipt.placeholders.length > 0 ? 'busy' : receipt?.success === true && Array.isArray(receipt.slides) && receipt.slides.length > 0 ? 'unusable' : null // CHAT-STALE-VIEWER-GUARD CHAT-ELEMENT-EDIT-2: 'unusable' = the viewer's slides are there but one has no id (or two share one)
+      }, // CHAT-STALE-VIEWER-GUARD CHAT-ELEMENT-EDIT-2
+      readServerSignature: async () => { // CHAT-STALE-VIEWER-GUARD CHAT-ELEMENT-EDIT-2: for a deck whose ids cannot be compared: Layout's inventory as it is (each slide's layout, content version and id, in order)
+        const sigId = elementDirectiveGenerationOwnerRef.current.presentationId; if (!sigId) return null // CHAT-STALE-VIEWER-GUARD CHAT-ELEMENT-EDIT-2
+        const sigRes = await fetch(`${getLayoutServiceUrl()}/api/presentations/${encodeURIComponent(sigId)}/slides/inventory`, { cache: 'no-store' }); if (!sigRes.ok) return null // CHAT-STALE-VIEWER-GUARD CHAT-ELEMENT-EDIT-2
+        const sigBody = await sigRes.json(); if (!Array.isArray(sigBody?.slides)) return null // CHAT-STALE-VIEWER-GUARD CHAT-ELEMENT-EDIT-2
+        return JSON.stringify(sigBody.slides.map((row: { layout?: unknown; content_version?: unknown; slide_id?: unknown }) => [row.layout ?? null, row.content_version ?? null, row.slide_id ?? null])) // CHAT-STALE-VIEWER-GUARD CHAT-ELEMENT-EDIT-2
       }, // CHAT-STALE-VIEWER-GUARD CHAT-ELEMENT-EDIT-2
       viewerSaveState: () => chatStaleViewerApisRef.current?.getStudioSaveStatus?.() ?? null, // CHAT-STALE-VIEWER-GUARD CHAT-ELEMENT-EDIT-2
       viewerBusy: () => Boolean(chatStaleViewerApisRef.current?.getStudioIntroductionSafety?.().busy), // CHAT-STALE-VIEWER-GUARD CHAT-ELEMENT-EDIT-2

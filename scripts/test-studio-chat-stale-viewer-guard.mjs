@@ -81,6 +81,13 @@ const NOTE = (id, slide, pad = 0) => ({ id, parent_slide_id: slide, slot_name: n
   style: { background_color: 'transparent', border_color: 'transparent', border_width: 0, border_radius: 0, opacity: 1, box_shadow: 'none', padding_top: 0, padding_right: 0, padding_bottom: 0, padding_left: 0, display: 'flex', flex_direction: 'column', justify_content: 'flex-start', align_items: 'flex-start' },
   locked: false, visible: true, text_style: { color: '#1f2937', font_family: 'Inter, system-ui, -apple-system, sans-serif', font_size: '32px', line_height: '1.5' } })
 const storedDeck = ({ pad = 0 } = {}) => ({ id: PRESENTATION, title: 'T', slides: TITLES.map((title, i) => ({ layout: 'C1', slide_id: `L${i}`, content: { slide_title: title }, text_boxes: i === 1 ? [NOTE('note_l1', 'L1')] : i === 3 ? [NOTE('note_l3', 'L3', pad)] : [], images: [] })) })
+/** The same deck with NO slide ids (an old deck, from before slide ids): the slides carry no slide_id at all. `note`: a stored text box on slide 2 ("Where we lose"), for the edit. */
+const idlessDeck = ({ layout = 'C1', note = false } = {}) => ({ id: PRESENTATION, title: 'T', slides: TITLES.map((title, i) => ({ layout, content: { slide_title: title }, text_boxes: note && i === 1 ? [NOTE('note_l1', null)] : [], images: [] })) })
+const textOf = html => String(html ?? '').replace(/<[^>]*>/g, '')
+/** Layout text stored on a slide that is not the one it was drawn for: a title box whose text is not the title of the slide it is stored on (the whole-deck PUT applies slides[i] to stored slide i, and an id-less deck has no id to say no). */
+const foreignIdless = deck => deck.slides.flatMap(slide => (slide.text_boxes || []).filter(box => /-title$/.test(box.id) && !textOf(box.content).includes(slide.content.slide_title)).map(box => `${slide.content.slide_title}<-${textOf(box.content).slice(0, 14)}`))
+const titleAt = (deck, title) => deck.slides.findIndex(slide => slide.content.slide_title === title)
+const titlesOf = deck => deck.slides.map(slide => slide.content.slide_title)
 const FRAME = JSON.parse(read('scripts/fixtures/studio-job-ledger/directive-never-answered.json')).directive_and_running_row[0] // Director's recorded element_directive
 assert.equal(FRAME.type, 'element_directive')
 const EDIT_FRAME = JSON.parse(read('scripts/fixtures/chat-element-edit/director-frames/01-delete-ok.json')).frames_out.flat().find(frame => frame.type === 'element_edit') // Director's recorded element_edit
@@ -452,6 +459,97 @@ await check('an edit is ok:true only after its save (the viewer\'s acknowledgeme
   }
 })
 
+// ===== 12b. a deck whose slides have no ids ====================================================================================================
+// Where they come from (Layout read-only): an old stored deck (from before slide ids; migrations/add_slide_ids.py backfills only when run, server.py:4029 only in the cleanup route), a slide stored under a legacy `id` key (the inventory reads slide_id only), a duplicate
+// made with LAYOUT_SLIDE_THUMBNAILS_ENABLED off (server.py:4590-4596 copies its source's id). The viewer then draws the slide a TEMPORARY id of its own (direct-element-creator.js:657-669) and legacy `slide-N-slot` ids; Layout's inventory has a null slide_id, which Studio's
+// parseSlideInventory rejects: nothing to compare by id.
+const idlessAdd = (change, flags, { layout = 'C1', suffix = '' } = {}, drive = null) => scenario(`idless-add-${flags}-${change}${suffix}`, { flags, stored: idlessDeck({ layout }) }, async world => {
+  await world.change(change)
+  const before = plain(world.deck())
+  drive?.(world)
+  const index = titleAt(world.deck(), 'Plan')
+  const result = await world.add(directive('TEXT_BOX', index))
+  return { before, index, result }
+})
+const IDLESS_CHANGES = ['none', 'addMid', 'dup', 'del', 'undo']
+const idlessRows = []
+for (const change of IDLESS_CHANGES) {
+  await check(`id-less deck, flags off (today), after "${change}": ONE whole-deck PUT answered 200 and the result is inserted (Done); ${change === 'none' ? 'nothing is overwritten (the viewer shows the deck)' : 'layout text of other slides is written onto the wrong slides (the index is all there is)'}`, async () => {
+    const run = await idlessAdd(change, 'off')
+    const s = { result: run.snap.out.result, foreign: foreignIdless(run.snap.deck), whole: putsTo(run.snap.fetches, WHOLE_DECK), statuses: run.snap.viewerCalls.map(c => c.statuses[0]) }
+    assert.equal(s.result.status, 'inserted'); assert.equal(s.whole.length, 1); assert.deepEqual(s.statuses, [200]); assert.equal(run.snap.reloads.length, 0)
+    if (change === 'none') assert.deepEqual(s.foreign, []); else assert.ok(s.foreign.length > 0, `${change}: ${s.foreign.length} title boxes on the wrong slide`)
+    idlessRows.push([change, s.result.status, s.statuses.join(','), s.foreign.length])
+  })
+}
+console.log('\nID-LESS DECK (flags off; the add targets slide "Plan")')
+console.log('| Director changed the deck by | result | Layout\'s answer | title boxes on the wrong slide |\n|---|---|---|---|')
+for (const row of idlessRows) console.log(`| ${row.join(' | ')} |`)
+console.log('')
+for (const change of IDLESS_CHANGES) {
+  await check(`id-less deck, #546 alone, after "${change}": the viewer's temporary slide id is not the stored (none): Layout answers 409 SLIDE_CHANGED every time (even with no change), the add fails honestly and nothing is stored anywhere`, async () => {
+    const run = await idlessAdd(change, 't546')
+    assert.equal(run.snap.out.result.status, 'failed'); assert.match(run.snap.out.result.error, /could not be saved on its own, so it was not kept/)
+    assert.deepEqual(run.snap.viewerCalls.map(c => c.statuses[0]), [409]); assert.equal(run.snap.viewerCalls[0].bodies[0].detail.code, 'SLIDE_CHANGED')
+    assert.deepEqual(chatBoxes(run.snap.deck), []); assert.deepEqual(foreignIdless(run.snap.deck), [])
+    assert.equal(hashOf(titlesOf(run.snap.deck)), hashOf(titlesOf(run.snap.out.before)))
+  })
+}
+const idlessGuardRuns = {}
+for (const change of IDLESS_CHANGES) {
+  await check(`id-less deck, guard on, after "${change}": nothing can be compared by id, so the viewer is reloaded onto Layout's deck FIRST (Layout's signature the same before and after), and the add is stored on slide "Plan" only, no title box on a wrong slide, every title where it was`, async () => {
+    const run = await idlessAdd(change, 'guard')
+    idlessGuardRuns[change] = run
+    const result = run.snap.out.result
+    assert.equal(result.status, 'inserted')
+    assert.deepEqual(run.snap.deck.slides.filter(slide => (slide.text_boxes || []).some(box => box.id === result.element_id)).map(slide => slide.content.slide_title), ['Plan'], 'stored on slide "Plan" and no other')
+    assert.deepEqual(foreignIdless(run.snap.deck), []); assert.equal(hashOf(titlesOf(run.snap.deck)), hashOf(titlesOf(run.snap.out.before)))
+    assert.equal(run.snap.reloads.length, 1, 'an id-less deck is always reloaded first')
+    assert.equal(putsTo(run.snap.fetches, WHOLE_DECK).length, 1); assert.equal(putsTo(run.snap.fetches, WHOLE_DECK)[0].viewer, 2, 'saved by the reloaded viewer')
+    const signatures = run.snap.calls.filter(c => c.kind === 'studio' && /\/slides\/inventory$/.test(c.requests[0].url)); assert.ok(signatures.length >= 3, 'Layout\'s inventory was read before the reload, after it and before the insert')
+  })
+}
+for (const change of ['none', 'addMid', 'undo']) {
+  await check(`id-less deck, guard + #546, after "${change}": reloaded first; the targeted save is still refused by Layout (409: the viewer's temporary id is not a stored id), so the add fails honestly, nothing stored, nothing on a wrong slide`, async () => {
+    const run = await idlessAdd(change, 'both')
+    assert.equal(run.snap.reloads.length, 1); assert.equal(run.snap.out.result.status, 'failed'); assert.deepEqual(run.snap.viewerCalls.map(c => c.statuses[0]), [409])
+    assert.deepEqual(chatBoxes(run.snap.deck), []); assert.deepEqual(foreignIdless(run.snap.deck), [])
+  })
+}
+await check('id-less deck, a slide that has no element to hold the targeted save with (a hero slide: #546 falls back to the editor\'s whole-deck save), guard + #546, after "addMid": reloaded first, and the add is stored on slide "Plan" only', async () => {
+  const run = await idlessAdd('addMid', 'both', { layout: 'H1', suffix: '-H1' })
+  assert.equal(run.snap.reloads.length, 1); assert.equal(run.snap.out.result.status, 'inserted')
+  const where = run.snap.deck.slides.filter(slide => (slide.text_boxes || []).some(box => box.id === run.snap.out.result.element_id)).map(slide => slide.content.slide_title)
+  assert.deepEqual(where, ['Plan']); assert.equal(putsTo(run.snap.fetches, WHOLE_DECK).length, 1); assert.equal(putsTo(run.snap.fetches, CHAT_SAVE).length, 0)
+})
+await check('id-less deck, Director changes the deck AFTER the guard proved the viewer and BEFORE the insert (while the element is being made): the signature is read again before the insert, differs, and the add stops there (status failed, nothing inserted, nothing stored)', async () => {
+  const run = await scenario('idless-race-guard', { flags: 'guard', stored: idlessDeck() }, async world => {
+    let fired = false
+    world.onCommand = action => { if (action === 'getSlideGenerationContext' && !fired) { fired = true; world.change('addMid') } }
+    const before = plain(world.deck())
+    return { before, result: await world.add(directive('TEXT_BOX', titleAt(world.deck(), 'Plan'))) }
+  })
+  assert.equal(run.snap.reloads.length, 1); assert.equal(run.snap.out.result.status, 'failed'); assert.match(run.snap.out.result.error, /was changed while the element was being made/)
+  assert.ok(!run.snap.actions.includes('insertTextBox'), 'nothing was inserted'); assert.deepEqual(chatBoxes(run.snap.deck), []); assert.equal(putsTo(run.snap.fetches, WHOLE_DECK).length, 0)
+})
+const idlessEdit = (name, flags, change) => scenario(name, { flags, stored: idlessDeck({ note: true }) }, async world => {
+  await world.change(change)
+  const before = plain(world.deck())
+  const index = titleAt(world.deck(), 'Where we lose')
+  const frame = editFrame(index, 'L1'); frame.payload.slide_id = null
+  return { before, index, result: await world.edit(frame) }
+})
+await check('id-less deck, an edit after "addMid": flags off, ok:false ELEMENT_NOT_FOUND (the viewer\'s slide at that index is another slide); guard on (whole-deck save), the viewer is reloaded first and the edit is ok:true on slide "Where we lose" only; guard + #540, Layout refuses the temporary id (409) and the edit is ok:false SAVE_FAILED: never ok for a save that did not land, never on another slide', async () => {
+  const off = await idlessEdit('idless-edit-edit-addMid', 'edit', 'addMid')
+  assert.deepEqual([off.snap.out.result.ok, off.snap.out.result.error_code], [false, 'ELEMENT_NOT_FOUND']); assert.equal(off.snap.fetches.length, 0)
+  const on = await idlessEdit('idless-edit-guard-addMid', 'edit+guard', 'addMid')
+  assert.equal(on.snap.out.result.ok, true); assert.equal(on.snap.reloads.length, 1); assert.deepEqual(foreignIdless(on.snap.deck), [])
+  const where = on.snap.deck.slides.filter(slide => (slide.text_boxes || []).some(box => box.id === 'note_l1' && box.text_style?.font_weight)).map(slide => slide.content.slide_title); assert.deepEqual(where, ['Where we lose'])
+  const targeted = await idlessEdit('idless-edit-t540guard-addMid', 't540+guard', 'addMid')
+  assert.deepEqual([targeted.snap.out.result.ok, targeted.snap.out.result.error_code], [false, 'SAVE_FAILED']); assert.deepEqual(targeted.snap.viewerCalls.map(c => c.statuses[0]), [409]); assert.equal(targeted.snap.reloads.length, 1)
+  assert.equal(hashOf(titlesOf(targeted.snap.deck)), hashOf(titlesOf(targeted.snap.out.before))); assert.ok(!targeted.snap.deck.slides.some(slide => (slide.text_boxes || []).some(box => box.text_style?.font_weight)), 'nothing stored on any slide')
+})
+
 // ===== 13. the guard's own rules (lib/chat-stale-viewer-guard.ts, with stand-in deps) =========================================================
 const stub = (over = {}) => {
   let time = 0, reloads = 0, shown = ['a', 'b', 'c'], server = ['a', 'x', 'b', 'c']
@@ -499,6 +597,26 @@ await check('guard rules: the guard hands a directive to the runner AFTER the ch
   m = make([{ status: 'owner-changed' }]); m.guard.add({ directive_id: 'd4' }); await tick(); assert.deepEqual(m.log, ['ensure'], 'nothing is sent for an owner that left')
   m = make([{ status: 'fresh' }]); m.guard.edit({ payload: { directive_id: 'e2' } }, { isCurrent: () => false }); await tick(); assert.deepEqual(m.log, ['ensure'], 'a stale edit owner is not answered')
   m = make([{ status: 'unverified' }, { status: 'reloaded' }]); m.guard.add({ directive_id: 'd5' }); m.guard.edit({ payload: { directive_id: 'e3' } }, { isCurrent: () => true }); await tick(); assert.deepEqual(m.log, ['ensure', 'run:d5', 'ensure', 'edit:e3'], 'unverified and reloaded both go on to the runner')
+})
+await check('guard rules, a deck whose ids cannot be compared: always reloaded (Layout\'s signature read before and after, equal), reloaded again once when it moved under the reload, refused when it keeps moving or cannot be read or there is no reader; never over a failed save; the insert\'s re-check passes when unchanged and stops the add when changed or unreadable, once', async () => {
+  const lib = loadLib({ [FLAG]: 'true' })
+  const ev = async deps => plain(await lib.ensureViewerMatchesServer(deps))
+  const sigs = (...values) => { const queue = [...values]; return async () => (queue.length > 1 ? queue.shift() : queue[0]) }
+  const idle = (over = {}) => stub({ readServerSlideIds: async () => 'unusable', readServerSignature: sigs('s1', 's1'), ...over })
+  const steady = idle(); assert.deepEqual(await ev(steady.deps), { status: 'reloaded' }); assert.equal(steady.reloads(), 1)
+  await lib.confirmChatDeckUnchanged() // the check just made holds: the signature is still s1
+  const moved = idle({ readServerSignature: sigs('a', 'b', 'b', 'b') }); assert.deepEqual(await ev(moved.deps), { status: 'reloaded' }); assert.equal(moved.reloads(), 2)
+  const keeps = idle({ readServerSignature: sigs('a', 'b', 'c', 'd', 'e') }); const refused = await ev(keeps.deps); assert.equal(refused.status, 'refused'); assert.equal(refused.code, 'SLIDE_CHANGED'); assert.equal(keeps.reloads(), 2)
+  const noRead = idle({ readServerSignature: undefined }); const none = await ev(noRead.deps); assert.equal(none.status, 'refused'); assert.equal(noRead.reloads(), 0)
+  const broken = idle({ readServerSignature: async () => null }); const unread = await ev(broken.deps); assert.equal(unread.status, 'refused'); assert.equal(unread.code, 'VIEWER_NOT_READY')
+  const viewerNoIds = stub({ readViewerSlideIds: async () => 'unusable', readServerSignature: sigs('x', 'x') }); assert.deepEqual(await ev(viewerNoIds.deps), { status: 'reloaded' }); assert.equal(viewerNoIds.reloads(), 1)
+  const failed = idle({ viewerSaveState: () => 'error' }); const unsaved = await ev(failed.deps); assert.equal(unsaved.status, 'refused'); assert.equal(unsaved.code, 'SLIDE_CHANGED'); assert.equal(failed.reloads(), 0)
+  const busy = idle({ viewerBusy: () => true }); assert.equal((await ev(busy.deps)).status, 'refused'); assert.equal(busy.reloads(), 0)
+  // the insert's re-check
+  let now = 's1'; const reader = idle({ readServerSignature: async () => now }); await ev(reader.deps); await lib.confirmChatDeckUnchanged(); await lib.confirmChatDeckUnchanged() // taken once: the second has nothing to check
+  await ev(reader.deps); now = 's2'; await assert.rejects(lib.confirmChatDeckUnchanged(), /was changed while the element was being made/)
+  await ev(idle().deps); await assert.doesNotReject(lib.confirmChatDeckUnchanged())
+  await ev(stub({ readServerSlideIds: async () => ['a', 'b', 'c'] }).deps); await assert.doesNotReject(lib.confirmChatDeckUnchanged(), 'a deck compared by id leaves no check behind')
 })
 await check('the page hands the directives to the guard (the add handler and the edit handler), builds it once per mount behind the flag, and the viewer\'s api carries getStudioSaveStatus only with the flag on', () => {
   const page = read(PAGE)
@@ -596,6 +714,30 @@ await mutant('page: Reload deck does nothing (the viewer is never reloaded, the 
 await mutant('lib: a refused add still reaches the runner (the element is inserted over a stale viewer)', async () => {
   const run = await scenario('mutant-refused-runs', { flags: 'guard', stored: FAT, overrides: { [LIB]: swap(libText, "if (verdict.status === 'refused') { if (once(payload.directive_id)) getDeps().reportAddFailed(payload, verdict.message); return }", "if (verdict.status === 'refused') { if (once(payload.directive_id)) getDeps().reportAddFailed(payload, verdict.message) }") }, transcriptFrom: 'refuse-fresh-error' }, async world => { world.setSaveStatus('error'); return { result: await world.add(directive('TEXT_BOX', 2)) } })
   assert.equal(run.snap.sent.length, 1, 'a refused add is answered once and never reaches the runner')
+})
+const idlessAddFn = async world => { await world.change('addMid'); const before = plain(world.deck()); const index = titleAt(world.deck(), 'Plan'); return { before, index, result: await world.add(directive('TEXT_BOX', index)) } }
+const idlessGood = run => { assert.equal(run.snap.reloads.length, 1, 'reloaded first'); assert.equal(run.snap.out.result.status, 'inserted'); assert.deepEqual(foreignIdless(run.snap.deck), []) }
+await mutant('lib: a deck whose ids cannot be compared is let through as "unverified" (the add goes on the index alone, over a stale viewer)', async () => idlessGood(await scenario('mutant-idless-unverified', { flags: 'guard', stored: idlessDeck(), overrides: { [LIB]: swap(libText, 'if (idless) return reloadIdless(deps, { left, poll, refuse, gone })', "if (idless) return { status: 'unverified' }") }, transcriptFrom: 'idless-add-guard-addMid' }, idlessAddFn)))
+await mutant('page: an inventory Studio cannot read (a slide with no id) is read as "no inventory" (the guard never sees a deck it cannot compare)', async () => idlessGood(await scenario('mutant-idless-null', { flags: 'guard', stored: idlessDeck(), read: rel => (rel === PAGE ? swap(read(rel), "return read.reason === 'invalid_inventory' ? 'unusable' : null;", 'return null;') : read(rel)), transcriptFrom: 'idless-add-guard-addMid' }, idlessAddFn)))
+const raceFn = async world => { let fired = false; world.onCommand = action => { if (action === 'getSlideGenerationContext' && !fired) { fired = true; world.change('addMid') } }; const before = plain(world.deck()); return { before, result: await world.add(directive('TEXT_BOX', titleAt(world.deck(), 'Plan'))) } }
+await mutant('hook: the insert is not re-checked against Layout\'s signature (a change that lands while the element is being made is written onto the wrong slide)', async () => {
+  const run = await scenario('mutant-idless-no-recheck', { flags: 'guard', stored: idlessDeck(), overrides: { [HOOK]: read(HOOK).split('\n').filter(line => !line.includes('await confirmChatDeckUnchanged()')).join('\n') }, transcriptFrom: 'idless-race-guard' }, raceFn)
+  assert.equal(run.snap.out.result.status, 'failed'); assert.ok(!run.snap.actions.includes('insertTextBox'))
+})
+await mutant('lib: the re-check never throws (a changed signature is accepted)', async () => {
+  const run = await scenario('mutant-idless-recheck-ok', { flags: 'guard', stored: idlessDeck(), overrides: { [LIB]: swap(libText, 'if (now === null || now !== check.signature) throw', 'if (false) throw') }, transcriptFrom: 'idless-race-guard' }, raceFn)
+  assert.equal(run.snap.out.result.status, 'failed'); assert.ok(!run.snap.actions.includes('insertTextBox'))
+})
+await mutant('lib: the signature before and after the reload is not compared (a deck that moved under the reload is taken as proved)', async () => {
+  const lib = loadLib({ [FLAG]: 'true' }, { [LIB]: swap(libText, 'if (after === before) { idlessCheck', 'if (true) { idlessCheck') })
+  const sigs = (...values) => { const queue = [...values]; return async () => (queue.length > 1 ? queue.shift() : queue[0]) }
+  const keeps = stub({ readServerSlideIds: async () => 'unusable', readServerSignature: sigs('a', 'b', 'c', 'd', 'e') }); const verdict = plain(await lib.ensureViewerMatchesServer(keeps.deps))
+  assert.equal(verdict.status, 'refused', JSON.stringify(verdict))
+})
+await mutant('lib: with no signature reader an id-less deck goes on (never on the index alone: it must be refused)', async () => {
+  const lib = loadLib({ [FLAG]: 'true' }, { [LIB]: swap(libText, "if (!read) return refuse('SLIDE_CHANGED', STALE_GUARD_MESSAGES.idlessChanging)", "if (!read) return { status: 'unverified' }") })
+  const noRead = stub({ readServerSlideIds: async () => 'unusable' }); const verdict = plain(await lib.ensureViewerMatchesServer(noRead.deps))
+  assert.equal(verdict.status, 'refused', JSON.stringify(verdict))
 })
 await mutant('lib: the flag reads a loose value', () => assert.equal(loadLib({ [FLAG]: '1' }, { [LIB]: swap(libText, "=== 'true'", '!== undefined') }).CHAT_STALE_VIEWER_GUARD_ENABLED, false))
 await mutant('lib: a viewer that is composing a slide is reloaded (the build in progress is dropped)', async () => {

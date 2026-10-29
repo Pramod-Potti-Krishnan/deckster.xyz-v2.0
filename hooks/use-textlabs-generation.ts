@@ -113,7 +113,7 @@ import { STUDIO_IMAGE_PENDING_WRITE_ENABLED, imageJobWritesPending, type ImageJo
 import { startImagePendingJob } from '@/lib/studio-image-pending-runtime'
 // IMAGE-PENDING-WRITE end
 import { CHAT_ADD_TARGETED_SAVE_ENABLED, openChatAddScope, type ChatAddScope } from '@/lib/chat-add-targeted' // CHAT-ADD-TARGETED
-import { CHAT_STALE_VIEWER_GUARD_ENABLED, requireChatAddSaved, type AddSaveWatch } from '@/lib/chat-stale-viewer-guard' // CHAT-STALE-VIEWER-GUARD CHAT-ADD-TARGETED
+import { CHAT_STALE_VIEWER_GUARD_ENABLED, confirmChatDeckUnchanged, requireChatAddSaved, type AddSaveWatch } from '@/lib/chat-stale-viewer-guard' // CHAT-STALE-VIEWER-GUARD CHAT-ADD-TARGETED
 import { watchViewerSave } from '@/lib/chat-element-edit-save' // CHAT-STALE-VIEWER-GUARD CHAT-ADD-TARGETED
 
 export type TextLabsGenerationResult =
@@ -1818,6 +1818,7 @@ export function useTextLabsGeneration({
           ? 'upsertCitedElement'
           : semanticUpsertParams ? 'upsertSemanticElement'
           : method === 'insertElement' ? 'insertTextBox' : method
+        if (CHAT_STALE_VIEWER_GUARD_ENABLED && invocation?.kind === 'chat-add') await confirmChatDeckUnchanged() // CHAT-STALE-VIEWER-GUARD CHAT-ADD-TARGETED: a deck whose slides have no ids is proved against Layout's signature again right before the insert (the guard's reload proved it before the generation); changed: the add stops here, nothing inserted
         if (CHAT_ADD_TARGETED_SAVE_ENABLED && invocation?.kind === 'chat-add') { // CHAT-ADD-TARGETED: hold the slide's change marks so this insert schedules no whole-deck autosave
           chatAddScope = await openChatAddScope({ // CHAT-ADD-TARGETED
             slideIndex: effectiveSlideIndex, insertAction: insertionAction, sendElement: generationLayoutServiceApis.sendElementCommand, // CHAT-ADD-TARGETED

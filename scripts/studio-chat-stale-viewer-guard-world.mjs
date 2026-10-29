@@ -59,6 +59,8 @@ export function shapeBody(url, body) {
   return body
 }
 const shapeAnswer = body => (body && typeof body === 'object' && body.presentation ? { ...body, presentation: shapeDeck(body.presentation) } : body)
+/** What the viewer page is handed: renderPresentation sets data-slide-id from slide_id (or the legacy `id`) only when there is one, so a slide with neither is given '' here (the harness's loader sets the attribute unconditionally; '' is falsy, as an absent attribute is, and direct-element-creator.js then draws legacy ids and a temporary slide id of its own, as it does for a stored slide with no id). */
+const renderCopy = deck => ({ ...deck, slides: deck.slides.map(slide => ({ ...slide, slide_id: slide.slide_id || slide.id || '' })) })
 const fakeResponse = (status, body = {}) => ({ ok: status >= 200 && status < 300, status, headers: { get: () => null }, json: async () => body })
 
 /** What Director does to the stored deck, as requests to Layout's own routes (`restore` takes a version id and is resolved by the caller). */
@@ -129,7 +131,8 @@ export async function createGuardWorld(options) {
       const next = createLayoutViewer({ layoutDir, studioOrigin: STUDIO_ORIGIN, parent: { postMessage: data => toStudio(() => holder.viewer)(data) }, clock, presentationId: PRESENTATION, arrange: true, targeted: layoutTargeted, fetchImpl: viewerFetch(holder) })
       holder.viewer = next
       next.context.Date = fixed.Date; next.context.Math = fixed.Math
-      renderStoredDeck(next, server.state.deck, layoutDir) // Layout's own load path, over the deck the server holds NOW
+      renderStoredDeck(next, renderCopy(server.state.deck), layoutDir) // Layout's own load path, over the deck the server holds NOW
+      for (const section of next.document.querySelectorAll('.reveal .slides > section')) if (section.getAttribute('data-slide-id') === '') section.removeAttribute('data-slide-id') // a slide with no id and no temporary one keeps no attribute at all, as in renderPresentation
       addComposeState(next, layoutDir)
       return next
     }
@@ -322,7 +325,7 @@ export async function createGuardWorld(options) {
     if (!base) chatStaleViewerDepsRef.current = evalExpression(assignmentRight('app/builder/page.tsx', 'chatStaleViewerDepsRef.current', pageText), {
       CHAT_STALE_VIEWER_GUARD_ENABLED: guardLib.CHAT_STALE_VIEWER_GUARD_ENABLED, elementDirectiveGenerationOwnerRef: ownerRef, generationPanel: { getSnapshot: () => ({ isOpen: false }), hasActiveGenerations: false },
       ensureViewerMatchesServer: guardLib.ensureViewerMatchesServer, fetchSlideInventory: inventoryLib.fetchSlideInventory, getLayoutServiceUrl: () => LAYOUT_ORIGIN, fetch: studioFetch, composeViewerApiRef,
-      parseStudioNativeSlideOrder: nativeOrder.parseStudioNativeSlideOrder, chatStaleViewerApisRef, deckChangedNotice, setTimeout: clock.setTimeout, Date: fixed.Date, Promise, Array, Boolean, Error,
+      parseStudioNativeSlideOrder: nativeOrder.parseStudioNativeSlideOrder, chatStaleViewerApisRef, deckChangedNotice, setTimeout: clock.setTimeout, Date: fixed.Date, Promise, Array, Boolean, Error, JSON, encodeURIComponent,
       elementDirectiveRunnerRef, sendElementDirectiveResult: result => { sent.push(plain(result)); return true }, elementEditDirectiveRunnerRef, sendElementEditResult: result => { sent.push(plain(result)); return true },
     })
     if (!base && guardLib.CHAT_STALE_VIEWER_GUARD_ENABLED && !guardRef.current) guardRef.current = guardLib.createChatStaleViewerGuard(() => chatStaleViewerDepsRef.current)
