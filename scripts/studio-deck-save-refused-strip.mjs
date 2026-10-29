@@ -58,6 +58,24 @@ export const DECK_SAVE_REFUSED_PIN_EDITS = {
       "  const viewerTsx = sources['components/presentation-viewer.tsx'] ?? laterRead('components/presentation-viewer.tsx') // LATER-CHANGES: registry read (DECK-SAVE-REFUSED-NOTICE): a change registered after this one marks lines in the viewer's save-status handler; the handler is cut out without them\n",
       "  const viewerTsx = sources['components/presentation-viewer.tsx'] ?? read('components/presentation-viewer.tsx')\n"
     ]
+  ],
+  // The older proof's scope check reads the first-parent line of its BASE..HEAD as its own commits; on a branch stacked after it, the stacked change's commits are on that line (the gate's merge puts them on the second parent). One exemption each, as chat parity's.
+  "scripts/test-studio-pass3-polish-b.mjs": [
+    [
+      "const deckSaveRefused = await import('./studio-deck-save-refused-strip.mjs') // LATER-CHANGES: registry read (DECK-SAVE-REFUSED-NOTICE): the change stacked after this one; its edit to this change's strip module (a registry read) is its own, not this change's branch\n",
+      ""
+    ],
+    [
+      "  if (committed.some(rel => PASS3_POLISH_B_SCOPE_FILES.has(rel) && !chatClean.CHAT_CLEAN_SCOPE_FILES.has(rel) && !chatParity.CHAT_PARITY_SCOPE_FILES.has(rel) && !deckSaveRefused.DECK_SAVE_REFUSED_SCOPE_FILES.has(rel))) { // LATER-CHANGES: registry read (CHAT-CLEAN): on a branch stacked after this change and merged with studio (chat clean), the first-parent commits are the later change's (this proof among the files it touched) and this change's own sit behind the merge; the check speaks only where its own commits are // stacked after #475: LATER-CHANGES: registry read (CHAT-PARITY): chat parity's viewer and panel edits are its own, not this change's branch // LATER-CHANGES: registry read (DECK-SAVE-REFUSED-NOTICE): B46's edit to this change's strip module is its own, not this change's branch\n",
+      "  if (committed.some(rel => PASS3_POLISH_B_SCOPE_FILES.has(rel) && !chatClean.CHAT_CLEAN_SCOPE_FILES.has(rel) && !chatParity.CHAT_PARITY_SCOPE_FILES.has(rel))) { // LATER-CHANGES: registry read (CHAT-CLEAN): on a branch stacked after this change and merged with studio (chat clean), the first-parent commits are the later change's (this proof among the files it touched) and this change's own sit behind the merge; the check speaks only where its own commits are // stacked after #475: LATER-CHANGES: registry read (CHAT-PARITY): chat parity's viewer and panel edits are its own, not this change's branch\n"
+    ]
+  ],
+  // The older proof's scope check reads the first-parent line of its BASE..HEAD as its own commits; on a branch stacked after it, the stacked change's commits are on that line (the gate's merge puts them on the second parent). One exemption each, as chat parity's.
+  "scripts/test-studio-deck-sync-truth.mjs": [
+    [
+      "shas.splice(0, shas.length, ...shas.filter(sha => !/^(Chat parity|Save refused notice:)/.test(git('log', '-1', '--format=%s', sha)))) // stacked after #475: LATER-CHANGES: registry read (CHAT-PARITY): on a branch stacked after this change (chat parity's, merged with dev), the first-parent commits are chat parity's own, not this change's; with none left the identity checks above cover the files // LATER-CHANGES: registry read (DECK-SAVE-REFUSED-NOTICE): B46's commits on a branch stacked after this change are its own, not this change's\n",
+      "shas.splice(0, shas.length, ...shas.filter(sha => !/^Chat parity/.test(git('log', '-1', '--format=%s', sha)))) // stacked after #475: LATER-CHANGES: registry read (CHAT-PARITY): on a branch stacked after this change (chat parity's, merged with dev), the first-parent commits are chat parity's own, not this change's; with none left the identity checks above cover the files\n"
+    ]
   ]
 }
 

@@ -22,6 +22,7 @@ import { fileURLToPath } from 'node:url'
 import ts from 'typescript'
 const chatClean = await import('./studio-chat-clean-strip.mjs') // LATER-CHANGES: registry read (CHAT-CLEAN): the strip of the change stacked after this one; the files it touches (this proof among them) do not count as this change's own commits
 const chatParity = await import('./studio-chat-parity-strip.mjs') // stacked after #475: LATER-CHANGES: registry read (CHAT-PARITY): the change stacked after chat clean
+const deckSaveRefused = await import('./studio-deck-save-refused-strip.mjs') // LATER-CHANGES: registry read (DECK-SAVE-REFUSED-NOTICE): the change stacked after this one; its edit to this change's strip module (a registry read) is its own, not this change's branch
 import {
   BASE_COMMIT, PASS3_POLISH_B_BUILDER, PASS3_POLISH_B_FILES, PASS3_POLISH_B_NEW_FILES, PASS3_POLISH_B_PIN_EDITS, PASS3_POLISH_B_PIN_FILES, PASS3_POLISH_B_PIN_MARK, putBackPin, PASS3_POLISH_B_SCOPE_FILES, PASS3_POLISH_B_VIEWER, PASS3_POLISH_MARKER, stripPass3PolishB,
 } from './studio-pass3-polish-b-strip.mjs'
@@ -279,7 +280,7 @@ function proveScope(at = '') {
   const committed = ownCommitted()
   const stray = committed.filter(rel => !PASS3_POLISH_B_SCOPE_FILES.has(rel) && !LATER_CHANGE_FILES.has(rel))
   deep(stray, [], a(`every file in the committed diff ${BASE.slice(0, 8)}..HEAD is this change's or a registered later change's (no older test is edited)`))
-  if (committed.some(rel => PASS3_POLISH_B_SCOPE_FILES.has(rel) && !chatClean.CHAT_CLEAN_SCOPE_FILES.has(rel) && !chatParity.CHAT_PARITY_SCOPE_FILES.has(rel))) { // LATER-CHANGES: registry read (CHAT-CLEAN): on a branch stacked after this change and merged with studio (chat clean), the first-parent commits are the later change's (this proof among the files it touched) and this change's own sit behind the merge; the check speaks only where its own commits are // stacked after #475: LATER-CHANGES: registry read (CHAT-PARITY): chat parity's viewer and panel edits are its own, not this change's branch
+  if (committed.some(rel => PASS3_POLISH_B_SCOPE_FILES.has(rel) && !chatClean.CHAT_CLEAN_SCOPE_FILES.has(rel) && !chatParity.CHAT_PARITY_SCOPE_FILES.has(rel) && !deckSaveRefused.DECK_SAVE_REFUSED_SCOPE_FILES.has(rel))) { // LATER-CHANGES: registry read (CHAT-CLEAN): on a branch stacked after this change and merged with studio (chat clean), the first-parent commits are the later change's (this proof among the files it touched) and this change's own sit behind the merge; the check speaks only where its own commits are // stacked after #475: LATER-CHANGES: registry read (CHAT-PARITY): chat parity's viewer and panel edits are its own, not this change's branch // LATER-CHANGES: registry read (DECK-SAVE-REFUSED-NOTICE): B46's edit to this change's strip module is its own, not this change's branch
     deep([...PASS3_POLISH_B_SCOPE_FILES].filter(rel => !committed.includes(rel)), [], a('and every file of this change is in the committed diff'))
     ok(committed.filter(rel => /^scripts\/test-/.test(rel)).every(rel => rel === THIS_TEST || LATER_CHANGE_FILES.has(rel)), a('the only test it adds or edits is its own'))
     // PR B is stacked on PR A (3db2f0a3, pushed): A_HEAD..HEAD is this PR's own commits; .env.example (the flag's block) is PR A's and is not touched here

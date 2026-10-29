@@ -97,7 +97,9 @@ const macrotask = () => new Promise(resolve => setImmediate(resolve))
 const strips = registry.LATER_STRIPS
 const applyAll = (list, rel, text) => list.reduce((out, strip) => { const next = strip(rel, out); return typeof next === 'string' ? next : out }, text)
 const laterStrips = (rel, text) => { const at = strips.indexOf(stripDeckSaveRefused); return applyAll(at === -1 ? [] : strips.slice(at + 1), rel, text) }
-const otherStrips = (rel, text) => applyAll(strips.filter(strip => strip !== stripDeckSaveRefused), rel, text)
+// Pass 3 polish B's strip CHAINS this change's strip on the viewer (that is how COMPOSER-2's first-paint pin reads the viewer past this change's lines), so it is not an "other" change here: its own lines are in both sides of every comparison anyway.
+const chainsThisStrip = new Set([(await import('./studio-pass3-polish-b-strip.mjs')).stripPass3PolishB])
+const otherStrips = (rel, text) => applyAll(strips.filter(strip => strip !== stripDeckSaveRefused && !chainsThisStrip.has(strip)), rel, text)
 /** The file as this change left it (the later changes' marked lines out), and the same without this change's lines (the base's file). */
 const ownText = rel => laterStrips(rel, read(rel))
 const baseText = rel => stripDeckSaveRefused(rel, ownText(rel))
@@ -195,6 +197,7 @@ console.log('3. the world: Layout\'s frames -> the viewer\'s real handler -> the
 const VIEWER_ORIGIN = 'https://layout.example'
 const SESSION = 'sess-b46', DECK = 'deck-b46'
 const peerStrips = () => strips.filter(fn => typeof fn === 'function' && fn !== stripDeckSaveRefused)
+const otherPeerStrips = () => peerStrips().filter(fn => !chainsThisStrip.has(fn))
 /** The viewer read past every OTHER registered later change's marked lines (they name things this cut does not have), line by line; this change's own lines stay. */
 const viewerPastPeers = text => text.split('\n').filter(line => line === '' || DECK_SAVE_REFUSED_MARKER_RE.test(line) || !peerStrips().some(fn => fn(VIEWER, line) === '')).join('\n')
 const HANDLER_ANCHOR = '  // Listen for save status/refine events from iframe\n  useEffect(() => {\n    const handleMessage = (event: MessageEvent) => {\n'
@@ -442,7 +445,7 @@ function wiringSuite({ viewer, hook, noticeLib, lib }) {
   assert.ok(viewer.includes('setSaveStatus(status)'), 'and the handler still sets the save status')
   // the controller: one interface line, one method, behind the open-notice guard, the existing source, nothing else
   // no other registered change's strip may touch this change's lines (a marker of theirs named in a comment would make their strip, and the registry reads, drop the line)
-  for (const text of Object.values(own)) for (const line of markedOf(text)) for (const strip of peerStrips()) for (const rel of [VIEWER, HOOK, NOTICE_LIB]) assert.equal(strip(rel, line), line, `another change's strip takes this line out of ${rel}: ${line.slice(0, 90)}`)
+  for (const text of Object.values(own)) for (const line of markedOf(text)) for (const strip of otherPeerStrips()) for (const rel of [VIEWER, HOOK, NOTICE_LIB]) assert.equal(strip(rel, line), line, `another change's strip takes this line out of ${rel}: ${line.slice(0, 90)}`)
   const [iface, method] = markedOf(noticeLib)
   assert.equal(iface.trim().replace(/ \/\/ DECK-SAVE-REFUSED-NOTICE.*$/, ''), 'noteSaveRefused(): void')
   assert.ok(method.trim().startsWith("noteSaveRefused() { if (disposed || notice) return; show('focus', null) }, // DECK-SAVE-REFUSED-NOTICE: "), 'the method: guard, show the existing "focus" source')
@@ -463,7 +466,8 @@ function wiringSuite({ viewer, hook, noticeLib, lib }) {
 }
 await check('the marked lines (viewer 2, hook 3, notice controller 2) and only they; the else binds only the base\'s call; the existing "focus" source; import-free lib with three exact-"true" literal reads; no new copy', () => wiringSuite(wiringSources()))
 await check('the strip gives the base back byte for byte: working tree and BASE, other strips applied to both sides; the new files have no base', () => {
-  for (const rel of DECK_SAVE_REFUSED_FILES) assert.equal(stripDeckSaveRefused(rel, otherStrips(rel, read(rel))), otherStrips(rel, execFileSync('git', ['show', `${BASE_COMMIT}:${rel}`], { cwd: repo, encoding: 'utf8', maxBuffer: 1 << 28, stdio: ['ignore', 'pipe', 'pipe'], timeout: 60000 })), rel)
+  for (const rel of [...DECK_SAVE_REFUSED_FILES, ...stripModule.DECK_SAVE_REFUSED_PIN_FILES]) assert.equal(stripDeckSaveRefused(rel, otherStrips(rel, read(rel))), otherStrips(rel, execFileSync('git', ['show', `${BASE_COMMIT}:${rel}`], { cwd: repo, encoding: 'utf8', maxBuffer: 1 << 28, stdio: ['ignore', 'pipe', 'pipe'], timeout: 60000 })), `${rel}: ${stripModule.DECK_SAVE_REFUSED_PIN_FILES.includes(rel) ? 'an older file taught to read past this change (its edits put back)' : 'its marked lines taken out'}`)
+  for (const [rel, edits] of Object.entries(stripModule.DECK_SAVE_REFUSED_PIN_EDITS)) for (const [has] of edits) assert.ok(read(rel).includes(has) && has.includes('registry read (DECK-SAVE-REFUSED-NOTICE)'), `${rel}: a taught line is there and carries the registry-read mark`)
   for (const rel of DECK_SAVE_REFUSED_NEW_FILES) assert.ok(fs.existsSync(path.join(repo, rel)), rel)
   for (const rel of ['.env.example', 'package.json', COMPONENT, TRUTH_LIB]) assert.equal(stripDeckSaveRefused(rel, 'x'), 'x')
 })
@@ -560,6 +564,7 @@ const scopeCommittedFiles = (head, ctx = REAL) => {
     assert.equal(diff.length, COUNTS[rel], `${rel}: the number of added lines`)
     assert.equal(stripDeckSaveRefused(rel, ctx.norm(rel, git('show', `${head}:${rel}`))), ctx.norm(rel, git('show', `${BASE_COMMIT}:${rel}`)), `${rel}: without its marked lines the file is the base's, byte for byte`)
   }
+  for (const rel of stripModule.DECK_SAVE_REFUSED_PIN_FILES) assert.equal(stripDeckSaveRefused(rel, ctx.norm(rel, git('show', `${head}:${rel}`))), ctx.norm(rel, git('show', `${BASE_COMMIT}:${rel}`)), `${rel}: with its taught lines put back it is the base's, byte for byte`)
   for (const rel of DECK_SAVE_REFUSED_NEW_FILES) assert.equal(git('cat-file', '-t', `${head}:${rel}`).trim(), 'blob', rel)
   for (const rel of ['app/builder/page.tsx', COMPONENT, TRUTH_LIB, 'package.json']) assert.ok(!touched.has(rel), `${rel} is not touched by this change`)
 }
