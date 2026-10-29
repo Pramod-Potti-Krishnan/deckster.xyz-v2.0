@@ -1,0 +1,47 @@
+{
+  "note": "The client's caps lack element_text1: today's path, an element_refine_directive and no element_edit frame.",
+  "user_message": {
+    "type": "user_message",
+    "data": {
+      "text": "Change this to 'Order Smarter, Waste Less'.",
+      "client_caps": [
+        "mdc1",
+        "element_edit1",
+        "element_refine1"
+      ],
+      "references": [
+        {
+          "kind": "element",
+          "element_id": "textbox_a1",
+          "element_type": "TEXT_BOX",
+          "slide_index": 2,
+          "slide_id": "L2",
+          "label": "Text · slide 3"
+        }
+      ]
+    }
+  },
+  "model_decision": "refine_element (the live model's pick; the Director overrides it)",
+  "director_frames": [
+    {
+      "message_id": "msg_erdir_682449f6",
+      "session_id": "s_e2e",
+      "timestamp": "2026-10-29T04:53:54.119733Z",
+      "type": "element_refine_directive",
+      "role": "assistant",
+      "payload": {
+        "directive_id": "elr_b3fc42938caf",
+        "presentation_id": "pres-e2e",
+        "slide_index": 2,
+        "slide_id": "L2",
+        "element_id": "textbox_a1",
+        "element_type": "TEXT_BOX",
+        "instruction": "set the title text"
+      }
+    }
+  ],
+  "director_chat_lines": [
+    "Refining the text box on slide 3: \"set the title text\". One moment while it regenerates on the canvas."
+  ],
+  "studio_replies": []
+}

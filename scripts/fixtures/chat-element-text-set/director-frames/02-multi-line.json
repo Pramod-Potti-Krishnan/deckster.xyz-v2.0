@@ -1,0 +1,58 @@
+{
+  "note": "A value with a line break: \"\\n\" separates paragraphs.",
+  "user_message": {
+    "type": "user_message",
+    "data": {
+      "text": "Change this to 'Line one\nLine two'",
+      "client_caps": [
+        "mdc1",
+        "element_edit1",
+        "element_text1",
+        "element_refine1"
+      ],
+      "references": [
+        {
+          "kind": "element",
+          "element_id": "textbox_a1",
+          "element_type": "TEXT_BOX",
+          "slide_index": 2,
+          "slide_id": "L2",
+          "label": "Text · slide 3"
+        }
+      ]
+    }
+  },
+  "model_decision": "refine_element (the live model's pick; the Director overrides it)",
+  "director_frames": [
+    {
+      "message_id": "msg_eedit_51aa0f90",
+      "session_id": "s_e2e",
+      "timestamp": "2026-10-29T04:53:53.441563Z",
+      "type": "element_edit",
+      "role": "assistant",
+      "payload": {
+        "directive_id": "ele_9d0cbf7c6e38",
+        "session_id": "s_e2e",
+        "presentation_id": "pres-e2e",
+        "slide_id": "L2",
+        "slide_index": 2,
+        "element_id": "textbox_a1",
+        "op": "text",
+        "text": "Line one\nLine two"
+      }
+    }
+  ],
+  "director_chat_lines": [
+    "Setting the text of the text box on slide 3.",
+    "Done. The text box on slide 3 now reads exactly what you wrote."
+  ],
+  "studio_replies": [
+    {
+      "type": "element_edit_result",
+      "payload": {
+        "directive_id": "ele_9d0cbf7c6e38",
+        "ok": true
+      }
+    }
+  ]
+}
