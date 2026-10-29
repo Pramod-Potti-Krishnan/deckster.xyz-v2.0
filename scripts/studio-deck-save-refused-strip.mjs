@@ -73,8 +73,8 @@ export const DECK_SAVE_REFUSED_PIN_EDITS = {
   // The older proof's scope check reads the first-parent line of its BASE..HEAD as its own commits; on a branch stacked after it, the stacked change's commits are on that line (the gate's merge puts them on the second parent). One exemption each, as chat parity's.
   "scripts/test-studio-deck-sync-truth.mjs": [
     [
-      "shas.splice(0, shas.length, ...shas.filter(sha => !/^(Chat parity|Save refused notice:)/.test(git('log', '-1', '--format=%s', sha)))) // stacked after #475: LATER-CHANGES: registry read (CHAT-PARITY): on a branch stacked after this change (chat parity's, merged with dev), the first-parent commits are chat parity's own, not this change's; with none left the identity checks above cover the files // LATER-CHANGES: registry read (DECK-SAVE-REFUSED-NOTICE): B46's commits on a branch stacked after this change are its own, not this change's\n",
-      "shas.splice(0, shas.length, ...shas.filter(sha => !/^Chat parity/.test(git('log', '-1', '--format=%s', sha)))) // stacked after #475: LATER-CHANGES: registry read (CHAT-PARITY): on a branch stacked after this change (chat parity's, merged with dev), the first-parent commits are chat parity's own, not this change's; with none left the identity checks above cover the files\n"
+      "  shas.splice(0, shas.length, ...shas.filter(sha => !/^Save refused notice:/.test(git('log', '-1', '--format=%s', sha)))) // LATER-CHANGES: registry read (DECK-SAVE-REFUSED-NOTICE): a change stacked after this one has its commits on the first-parent line of a branch (the gate's merge puts them on the second parent); they are its own, not this change's\n",
+      ""
     ]
   ]
 }
