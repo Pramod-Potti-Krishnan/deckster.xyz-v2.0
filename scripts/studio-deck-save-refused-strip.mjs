@@ -66,8 +66,8 @@ export const DECK_SAVE_REFUSED_PIN_EDITS = {
       ""
     ],
     [
-      "  if (committed.some(rel => PASS3_POLISH_B_SCOPE_FILES.has(rel) && !chatClean.CHAT_CLEAN_SCOPE_FILES.has(rel) && !chatParity.CHAT_PARITY_SCOPE_FILES.has(rel) && !deckSaveRefused.DECK_SAVE_REFUSED_SCOPE_FILES.has(rel))) { // LATER-CHANGES: registry read (CHAT-CLEAN): on a branch stacked after this change and merged with studio (chat clean), the first-parent commits are the later change's (this proof among the files it touched) and this change's own sit behind the merge; the check speaks only where its own commits are // stacked after #475: LATER-CHANGES: registry read (CHAT-PARITY): chat parity's viewer and panel edits are its own, not this change's branch // LATER-CHANGES: registry read (DECK-SAVE-REFUSED-NOTICE): B46's edit to this change's strip module is its own, not this change's branch\n",
-      "  if (committed.some(rel => PASS3_POLISH_B_SCOPE_FILES.has(rel) && !chatClean.CHAT_CLEAN_SCOPE_FILES.has(rel) && !chatParity.CHAT_PARITY_SCOPE_FILES.has(rel))) { // LATER-CHANGES: registry read (CHAT-CLEAN): on a branch stacked after this change and merged with studio (chat clean), the first-parent commits are the later change's (this proof among the files it touched) and this change's own sit behind the merge; the check speaks only where its own commits are // stacked after #475: LATER-CHANGES: registry read (CHAT-PARITY): chat parity's viewer and panel edits are its own, not this change's branch\n"
+      "  committed.splice(0, committed.length, ...committed.filter(rel => !deckSaveRefused.DECK_SAVE_REFUSED_SCOPE_FILES.has(rel))) // LATER-CHANGES: registry read (DECK-SAVE-REFUSED-NOTICE): a change stacked after this one has its commits on the first-parent line of a branch (the gate's merge puts them on the second parent); its files are its own, not this change's\n",
+      ""
     ]
   ],
   // The older proof's scope check reads the first-parent line of its BASE..HEAD as its own commits; on a branch stacked after it, the stacked change's commits are on that line (the gate's merge puts them on the second parent). One exemption each, as chat parity's.
