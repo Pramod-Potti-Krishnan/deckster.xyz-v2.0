@@ -1,0 +1,709 @@
+{
+ "meta": {
+  "layoutCommit": "648ee006fa44b5b8436394f01e3db47830302ebd",
+  "layoutMr": "!263 (frontend2/layout-put-guard)",
+  "how": "tests/slides_put_stale_guard_viewer.js (the real src/utils/auto-save.js) against the real server.py on loopback, from a git archive export"
+ },
+ "scenarios": {
+  "stale:add": {
+   "layoutFlagServed": true,
+   "putStatuses": [
+    409
+   ],
+   "putsAfterTimers": 1,
+   "pendingAfterRefusal": true,
+   "deckUnchanged": true,
+   "refusal": {
+    "status": 409,
+    "body": {
+     "detail": {
+      "code": "DECK_CHANGED",
+      "message": "This deck was updated",
+      "reason": "version"
+     }
+    }
+   },
+   "frames": [
+    {
+     "type": "saveStatusChanged",
+     "status": "unsaved",
+     "message": null,
+     "hasPendingChanges": true,
+     "pendingSlideCount": 1,
+     "slides": [
+      0
+     ],
+     "lastSaveTime": null
+    },
+    {
+     "type": "saveStatusChanged",
+     "status": "saving",
+     "message": null,
+     "hasPendingChanges": true,
+     "pendingSlideCount": 1,
+     "slides": [
+      0
+     ],
+     "lastSaveTime": null
+    },
+    {
+     "type": "saveStatusChanged",
+     "status": "error",
+     "message": "This deck was updated (DECK_CHANGED) Request reference: save-mvswmlnm-3a7rd.",
+     "hasPendingChanges": true,
+     "pendingSlideCount": 1,
+     "slides": [
+      0
+     ],
+     "lastSaveTime": null,
+     "deckChanged": true
+    },
+    {
+     "type": "saveStatusChanged",
+     "status": "error",
+     "message": "This deck was updated (DECK_CHANGED) Request reference: save-mvswmmd2-kad9f.",
+     "hasPendingChanges": true,
+     "pendingSlideCount": 1,
+     "slides": [
+      0
+     ],
+     "lastSaveTime": null,
+     "deckChanged": true
+    },
+    {
+     "type": "saveStatusChanged",
+     "status": "unsaved",
+     "message": null,
+     "hasPendingChanges": true,
+     "pendingSlideCount": 2,
+     "slides": [
+      0,
+      1
+     ],
+     "lastSaveTime": null,
+     "deckChanged": true
+    },
+    {
+     "type": "saveStatusChanged",
+     "status": "saving",
+     "message": null,
+     "hasPendingChanges": true,
+     "pendingSlideCount": 2,
+     "slides": [
+      0,
+      1
+     ],
+     "lastSaveTime": null,
+     "deckChanged": true
+    },
+    {
+     "type": "saveStatusChanged",
+     "status": "error",
+     "message": "This deck was updated (DECK_CHANGED) Request reference: save-mvswmmhw-hus1d.",
+     "hasPendingChanges": true,
+     "pendingSlideCount": 2,
+     "slides": [
+      0,
+      1
+     ],
+     "lastSaveTime": null,
+     "deckChanged": true
+    }
+   ],
+   "after": {
+    "slidesAfterChange": 4
+   }
+  },
+  "stale:duplicate": {
+   "layoutFlagServed": true,
+   "putStatuses": [
+    409
+   ],
+   "putsAfterTimers": 1,
+   "pendingAfterRefusal": true,
+   "deckUnchanged": true,
+   "refusal": {
+    "status": 409,
+    "body": {
+     "detail": {
+      "code": "DECK_CHANGED",
+      "message": "This deck was updated",
+      "reason": "version"
+     }
+    }
+   },
+   "frames": [
+    {
+     "type": "saveStatusChanged",
+     "status": "unsaved",
+     "message": null,
+     "hasPendingChanges": true,
+     "pendingSlideCount": 1,
+     "slides": [
+      0
+     ],
+     "lastSaveTime": null
+    },
+    {
+     "type": "saveStatusChanged",
+     "status": "saving",
+     "message": null,
+     "hasPendingChanges": true,
+     "pendingSlideCount": 1,
+     "slides": [
+      0
+     ],
+     "lastSaveTime": null
+    },
+    {
+     "type": "saveStatusChanged",
+     "status": "error",
+     "message": "This deck was updated (DECK_CHANGED) Request reference: save-mvswmqfj-p9qhv.",
+     "hasPendingChanges": true,
+     "pendingSlideCount": 1,
+     "slides": [
+      0
+     ],
+     "lastSaveTime": null,
+     "deckChanged": true
+    },
+    {
+     "type": "saveStatusChanged",
+     "status": "error",
+     "message": "This deck was updated (DECK_CHANGED) Request reference: save-mvswmr4y-ry1rn.",
+     "hasPendingChanges": true,
+     "pendingSlideCount": 1,
+     "slides": [
+      0
+     ],
+     "lastSaveTime": null,
+     "deckChanged": true
+    },
+    {
+     "type": "saveStatusChanged",
+     "status": "unsaved",
+     "message": null,
+     "hasPendingChanges": true,
+     "pendingSlideCount": 2,
+     "slides": [
+      0,
+      1
+     ],
+     "lastSaveTime": null,
+     "deckChanged": true
+    },
+    {
+     "type": "saveStatusChanged",
+     "status": "saving",
+     "message": null,
+     "hasPendingChanges": true,
+     "pendingSlideCount": 2,
+     "slides": [
+      0,
+      1
+     ],
+     "lastSaveTime": null,
+     "deckChanged": true
+    },
+    {
+     "type": "saveStatusChanged",
+     "status": "error",
+     "message": "This deck was updated (DECK_CHANGED) Request reference: save-mvswmr9t-02vfl.",
+     "hasPendingChanges": true,
+     "pendingSlideCount": 2,
+     "slides": [
+      0,
+      1
+     ],
+     "lastSaveTime": null,
+     "deckChanged": true
+    }
+   ],
+   "after": {
+    "slidesAfterChange": 4
+   }
+  },
+  "stale:delete": {
+   "layoutFlagServed": true,
+   "putStatuses": [
+    409
+   ],
+   "putsAfterTimers": 1,
+   "pendingAfterRefusal": true,
+   "deckUnchanged": true,
+   "refusal": {
+    "status": 409,
+    "body": {
+     "detail": {
+      "code": "DECK_CHANGED",
+      "message": "This deck was updated",
+      "reason": "version"
+     }
+    }
+   },
+   "frames": [
+    {
+     "type": "saveStatusChanged",
+     "status": "unsaved",
+     "message": null,
+     "hasPendingChanges": true,
+     "pendingSlideCount": 1,
+     "slides": [
+      0
+     ],
+     "lastSaveTime": null
+    },
+    {
+     "type": "saveStatusChanged",
+     "status": "saving",
+     "message": null,
+     "hasPendingChanges": true,
+     "pendingSlideCount": 1,
+     "slides": [
+      0
+     ],
+     "lastSaveTime": null
+    },
+    {
+     "type": "saveStatusChanged",
+     "status": "error",
+     "message": "This deck was updated (DECK_CHANGED) Request reference: save-mvswmv7e-tgnbi.",
+     "hasPendingChanges": true,
+     "pendingSlideCount": 1,
+     "slides": [
+      0
+     ],
+     "lastSaveTime": null,
+     "deckChanged": true
+    },
+    {
+     "type": "saveStatusChanged",
+     "status": "error",
+     "message": "This deck was updated (DECK_CHANGED) Request reference: save-mvswmvws-txb3o.",
+     "hasPendingChanges": true,
+     "pendingSlideCount": 1,
+     "slides": [
+      0
+     ],
+     "lastSaveTime": null,
+     "deckChanged": true
+    },
+    {
+     "type": "saveStatusChanged",
+     "status": "unsaved",
+     "message": null,
+     "hasPendingChanges": true,
+     "pendingSlideCount": 2,
+     "slides": [
+      0,
+      1
+     ],
+     "lastSaveTime": null,
+     "deckChanged": true
+    },
+    {
+     "type": "saveStatusChanged",
+     "status": "saving",
+     "message": null,
+     "hasPendingChanges": true,
+     "pendingSlideCount": 2,
+     "slides": [
+      0,
+      1
+     ],
+     "lastSaveTime": null,
+     "deckChanged": true
+    },
+    {
+     "type": "saveStatusChanged",
+     "status": "error",
+     "message": "This deck was updated (DECK_CHANGED) Request reference: save-mvswmw1l-r6e13.",
+     "hasPendingChanges": true,
+     "pendingSlideCount": 2,
+     "slides": [
+      0,
+      1
+     ],
+     "lastSaveTime": null,
+     "deckChanged": true
+    }
+   ],
+   "after": {
+    "slidesAfterChange": 2
+   }
+  },
+  "stale:undo": {
+   "layoutFlagServed": true,
+   "putStatuses": [
+    409
+   ],
+   "putsAfterTimers": 1,
+   "pendingAfterRefusal": true,
+   "deckUnchanged": true,
+   "refusal": {
+    "status": 409,
+    "body": {
+     "detail": {
+      "code": "DECK_CHANGED",
+      "message": "This deck was updated",
+      "reason": "version"
+     }
+    }
+   },
+   "frames": [
+    {
+     "type": "saveStatusChanged",
+     "status": "unsaved",
+     "message": null,
+     "hasPendingChanges": true,
+     "pendingSlideCount": 1,
+     "slides": [
+      0
+     ],
+     "lastSaveTime": null
+    },
+    {
+     "type": "saveStatusChanged",
+     "status": "saving",
+     "message": null,
+     "hasPendingChanges": true,
+     "pendingSlideCount": 1,
+     "slides": [
+      0
+     ],
+     "lastSaveTime": null
+    },
+    {
+     "type": "saveStatusChanged",
+     "status": "error",
+     "message": "This deck was updated (DECK_CHANGED) Request reference: save-mvswmzyt-kllor.",
+     "hasPendingChanges": true,
+     "pendingSlideCount": 1,
+     "slides": [
+      0
+     ],
+     "lastSaveTime": null,
+     "deckChanged": true
+    },
+    {
+     "type": "saveStatusChanged",
+     "status": "error",
+     "message": "This deck was updated (DECK_CHANGED) Request reference: save-mvswn0o2-ojj8k.",
+     "hasPendingChanges": true,
+     "pendingSlideCount": 1,
+     "slides": [
+      0
+     ],
+     "lastSaveTime": null,
+     "deckChanged": true
+    },
+    {
+     "type": "saveStatusChanged",
+     "status": "unsaved",
+     "message": null,
+     "hasPendingChanges": true,
+     "pendingSlideCount": 2,
+     "slides": [
+      0,
+      1
+     ],
+     "lastSaveTime": null,
+     "deckChanged": true
+    },
+    {
+     "type": "saveStatusChanged",
+     "status": "saving",
+     "message": null,
+     "hasPendingChanges": true,
+     "pendingSlideCount": 2,
+     "slides": [
+      0,
+      1
+     ],
+     "lastSaveTime": null,
+     "deckChanged": true
+    },
+    {
+     "type": "saveStatusChanged",
+     "status": "error",
+     "message": "This deck was updated (DECK_CHANGED) Request reference: save-mvswn0sx-ymcgs.",
+     "hasPendingChanges": true,
+     "pendingSlideCount": 2,
+     "slides": [
+      0,
+      1
+     ],
+     "lastSaveTime": null,
+     "deckChanged": true
+    }
+   ],
+   "after": {
+    "slidesAfterChange": 3
+   }
+  },
+  "stale:refine": {
+   "layoutFlagServed": true,
+   "putStatuses": [
+    409
+   ],
+   "putsAfterTimers": 1,
+   "pendingAfterRefusal": true,
+   "deckUnchanged": true,
+   "refusal": {
+    "status": 409,
+    "body": {
+     "detail": {
+      "code": "DECK_CHANGED",
+      "message": "This deck was updated",
+      "reason": "version"
+     }
+    }
+   },
+   "frames": [
+    {
+     "type": "saveStatusChanged",
+     "status": "unsaved",
+     "message": null,
+     "hasPendingChanges": true,
+     "pendingSlideCount": 1,
+     "slides": [
+      0
+     ],
+     "lastSaveTime": null
+    },
+    {
+     "type": "saveStatusChanged",
+     "status": "saving",
+     "message": null,
+     "hasPendingChanges": true,
+     "pendingSlideCount": 1,
+     "slides": [
+      0
+     ],
+     "lastSaveTime": null
+    },
+    {
+     "type": "saveStatusChanged",
+     "status": "error",
+     "message": "This deck was updated (DECK_CHANGED) Request reference: save-mvswn4q2-hhldc.",
+     "hasPendingChanges": true,
+     "pendingSlideCount": 1,
+     "slides": [
+      0
+     ],
+     "lastSaveTime": null,
+     "deckChanged": true
+    },
+    {
+     "type": "saveStatusChanged",
+     "status": "error",
+     "message": "This deck was updated (DECK_CHANGED) Request reference: save-mvswn5fl-kykat.",
+     "hasPendingChanges": true,
+     "pendingSlideCount": 1,
+     "slides": [
+      0
+     ],
+     "lastSaveTime": null,
+     "deckChanged": true
+    },
+    {
+     "type": "saveStatusChanged",
+     "status": "unsaved",
+     "message": null,
+     "hasPendingChanges": true,
+     "pendingSlideCount": 2,
+     "slides": [
+      0,
+      1
+     ],
+     "lastSaveTime": null,
+     "deckChanged": true
+    },
+    {
+     "type": "saveStatusChanged",
+     "status": "saving",
+     "message": null,
+     "hasPendingChanges": true,
+     "pendingSlideCount": 2,
+     "slides": [
+      0,
+      1
+     ],
+     "lastSaveTime": null,
+     "deckChanged": true
+    },
+    {
+     "type": "saveStatusChanged",
+     "status": "error",
+     "message": "This deck was updated (DECK_CHANGED) Request reference: save-mvswn5ke-hjqow.",
+     "hasPendingChanges": true,
+     "pendingSlideCount": 2,
+     "slides": [
+      0,
+      1
+     ],
+     "lastSaveTime": null,
+     "deckChanged": true
+    }
+   ],
+   "after": {
+    "slidesAfterChange": 3
+   }
+  },
+  "own": {
+   "layoutFlagServed": true,
+   "putStatuses": [
+    200,
+    200,
+    200,
+    200,
+    200,
+    200,
+    200
+   ],
+   "finalStatus": {
+    "type": "saveStatusChanged",
+    "status": "saved",
+    "message": null,
+    "hasPendingChanges": false,
+    "pendingSlideCount": 0,
+    "slides": [],
+    "lastSaveTime": 1793239749471
+   },
+   "frames": [
+    {
+     "type": "saveStatusChanged",
+     "status": "saved",
+     "message": null,
+     "hasPendingChanges": false,
+     "pendingSlideCount": 0,
+     "slides": [],
+     "lastSaveTime": 1793239749471
+    }
+   ]
+  },
+  "fault": {
+   "putStatuses": [
+    500
+   ],
+   "frames": [
+    {
+     "type": "saveStatusChanged",
+     "status": "unsaved",
+     "message": null,
+     "hasPendingChanges": true,
+     "pendingSlideCount": 1,
+     "slides": [
+      1
+     ],
+     "lastSaveTime": null
+    },
+    {
+     "type": "saveStatusChanged",
+     "status": "error",
+     "message": "Internal Server Error Request reference: save-mvswne3w-oob6j.",
+     "hasPendingChanges": true,
+     "pendingSlideCount": 1,
+     "slides": [
+      1
+     ],
+     "lastSaveTime": null
+    },
+    {
+     "type": "saveStatusChanged",
+     "status": "unsaved",
+     "message": null,
+     "hasPendingChanges": true,
+     "pendingSlideCount": 2,
+     "slides": [
+      1,
+      0
+     ],
+     "lastSaveTime": null
+    },
+    {
+     "type": "saveStatusChanged",
+     "status": "error",
+     "message": "Internal Server Error Request reference: save-mvswne91-mpum7.",
+     "hasPendingChanges": true,
+     "pendingSlideCount": 2,
+     "slides": [
+      1,
+      0
+     ],
+     "lastSaveTime": null
+    }
+   ]
+  },
+  "layout-flag-off:stale:refine": {
+   "layoutFlagServed": false,
+   "putStatuses": [
+    200
+   ],
+   "frames": [
+    {
+     "type": "saveStatusChanged",
+     "status": "unsaved",
+     "message": null,
+     "hasPendingChanges": true,
+     "pendingSlideCount": 1,
+     "slides": [
+      0
+     ],
+     "lastSaveTime": null
+    },
+    {
+     "type": "saveStatusChanged",
+     "status": "saving",
+     "message": null,
+     "hasPendingChanges": true,
+     "pendingSlideCount": 1,
+     "slides": [
+      0
+     ],
+     "lastSaveTime": null
+    },
+    {
+     "type": "saveStatusChanged",
+     "status": "saved",
+     "message": null,
+     "hasPendingChanges": false,
+     "pendingSlideCount": 0,
+     "slides": [],
+     "lastSaveTime": 1793239755647
+    },
+    {
+     "type": "saveStatusChanged",
+     "status": "unsaved",
+     "message": null,
+     "hasPendingChanges": true,
+     "pendingSlideCount": 1,
+     "slides": [
+      1
+     ],
+     "lastSaveTime": 1793239755647
+    },
+    {
+     "type": "saveStatusChanged",
+     "status": "saving",
+     "message": null,
+     "hasPendingChanges": true,
+     "pendingSlideCount": 1,
+     "slides": [
+      1
+     ],
+     "lastSaveTime": 1793239755647
+    },
+    {
+     "type": "saveStatusChanged",
+     "status": "saved",
+     "message": null,
+     "hasPendingChanges": false,
+     "pendingSlideCount": 0,
+     "slides": [],
+     "lastSaveTime": 1793239759735
+    }
+   ]
+  }
+ }
+}

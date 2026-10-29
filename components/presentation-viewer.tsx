@@ -80,6 +80,7 @@ import { StudioSlideDeleteRefreshVeil } from '@/components/builder/studio-slide-
 import { STUDIO_SLIDE_OPS_VIA_VIEWER_ENABLED, SLIDE_OP_VIEWER_TIMEOUT_MS, isSlideOpViewerAction, slideTotalAfterAck } from '@/lib/studio-slide-ops-via-viewer' // SLIDE-OPS-VIA-VIEWER
 import { STUDIO_INSERT_PERSIST_ENABLED, shouldEnsureEditModeForPersistence, ensureViewerTracksEdits } from '@/lib/studio-insert-persist' // INSERT-PERSIST
 import { STUDIO_DECK_CHANGED_NOTICE_ENABLED, reportDeckChange, reportLayoutCommandAck, reportOwnDeckEdit, reportViewerDeckState } from '@/lib/studio-deck-changed-notice'
+import { isDeckSaveRefused, reportDeckSaveRefused } from '@/lib/studio-deck-save-refused' // DECK-SAVE-REFUSED-NOTICE
 import { STUDIO_SLIDE_RAIL_V2, SLIDE_RAIL_V2_DEFAULT_WIDTH } from '@/lib/studio-slide-rail-v2'
 import { STUDIO_TOP_BAR_V2_ENABLED, publishStudioDeckSaveState } from '@/lib/studio-top-bar-v2'
 import { STUDIO_THEME_BLANK_NOTE_ENABLED, themeBlankNote } from '@/lib/studio-theme-blank-note'
@@ -3921,6 +3922,7 @@ export function PresentationViewer({
           if (!studioArrangeOwnsSaveStatus(status)) // STUDIO-ARRANGE: Layout's "unsaved" for the selection's own Arrange command (it arrives before the answer) does not retire the selection
           if (studioShell) viewerInteractionIntentRef.current += 1
           nativeSnapshotDirtyRef.current = true
+          if (isDeckSaveRefused(event.data)) reportDeckSaveRefused(); else // DECK-SAVE-REFUSED-NOTICE: Layout refused a stale whole-deck save (status error + deckChanged): the existing deck-changed notice, not this tab's own edit (flag off: isDeckSaveRefused is false, the next line runs as before)
           reportOwnDeckEdit() // NEXT_PUBLIC_STUDIO_DECK_CHANGED_NOTICE: this tab's own autosave is not "another tab" (no-op with the flag off)
         }
         else if (event.data.hasPendingChanges === false) nativeSnapshotDirtyRef.current = false
