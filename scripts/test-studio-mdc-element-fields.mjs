@@ -351,7 +351,9 @@ const pinsSuite = (edits = MDC_ELEMENT_FIELDS_PIN_EDITS, ctx = { later: laterStr
       const at = strips.indexOf(stripMdcElementFields), dev = ctx.baseOf(rel)
       assert.ok(at > 0)
       const stackedFrom = strips.findIndex(fn => fn.name === 'stripDeckSaveRefused'), upTo = stackedFrom >= 0 && stackedFrom < at ? stackedFrom : at // consumers registered after the first stacked change see that change as part of their own base
-      for (let k = 0; k <= upTo; k++) assert.equal(sha(applyAll(strips.slice(k), rel, read(rel))), sha(applyAll(strips.slice(k), rel, dev)), `${rel}: from registry position ${k} (${k === 0 ? 'the first' : String(strips[k - 1]).slice(0, 40).replace(/\s+/g, ' ')}) the strips after it leave the taught proof and dev's file the same`)
+      // The chat text set (#551, stacked after this change) puts the `read` line of this proof straight back to the line before the targeted chat edit (both edit that one line), so from the targeted chat edit on the strips after a consumer take that change's line too: only the consumers up to the targeted chat edit read this proof against a base. No proof of a change registered between them teaches this file.
+      const bypassAt = rel === 'scripts/test-studio-chat-element-edit-2.mjs' ? strips.findIndex(fn => fn.name === 'stripChatEditTargeted') : -1, capped = bypassAt >= 0 ? Math.min(upTo, bypassAt) : upTo
+      for (let k = 0; k <= capped; k++) assert.equal(sha(applyAll(strips.slice(k), rel, read(rel))), sha(applyAll(strips.slice(k), rel, dev)), `${rel}: from registry position ${k} (${k === 0 ? 'the first' : String(strips[k - 1]).slice(0, 40).replace(/\s+/g, ' ')}) the strips after it leave the taught proof and dev's file the same`)
     }
   }
 }
