@@ -38,6 +38,7 @@ import type { ShownSlides } from '@/lib/chat-element-edit-2' // CHAT-ELEMENT-EDI
 import { CHAT_EDIT_TARGETED_SAVE_ENABLED, runTargetedElementSave } from '@/lib/chat-edit-targeted' // CHAT-EDIT-TARGETED
 import { CHAT_ELEMENT_TEXT_SET_ENABLED } from '@/lib/chat-element-edit-wire' // CHAT-ELEMENT-TEXT-SET
 import { ELEMENT_TEXT_VIEWER_COMMAND, elementTextToHtml, validateElementText } from '@/lib/chat-element-text-set' // CHAT-ELEMENT-TEXT-SET
+import { CHAT_TEXT_SET_KEEP_LOOK_ENABLED, keepLookContent } from '@/lib/chat-text-set-keep-look' // CHAT-TEXT-SET-KEEP-LOOK
 
 export {
   CHAT_ELEMENT_EDIT_ENABLED, ELEMENT_EDIT_CLIENT_CAPS, ELEMENT_EDIT_DIRECTIVE_TYPE, addChatElementEditCaps, elementEditDirectiveId, elementEditResultFrame,
@@ -448,6 +449,10 @@ export async function runElementEditDirective(
     }
     const plan = planViewerSteps(checked.edit, element, fontSizePx)
     if (!plan.ok) return fail(plan.code)
+    if (CHAT_TEXT_SET_KEEP_LOOK_ENABLED && checked.edit.op === 'text') { // CHAT-TEXT-SET-KEEP-LOOK: write the words in the box's existing structure (inline text keeps a title's look; lib/chat-text-set-keep-look.ts); never fails the edit
+      await keepLookContent(plan.steps, checked.edit.text, elementId, sendTextBox) // CHAT-TEXT-SET-KEEP-LOOK: reads the content with Layout's getTextBoxContent; unreadable = #551's <p> per line
+      if (!owns()) return null // CHAT-TEXT-SET-KEEP-LOOK
+    } // CHAT-TEXT-SET-KEEP-LOOK
     // 5. Edit mode, so that Layout's autosave tracks the change.
     let editing = false
     try {
