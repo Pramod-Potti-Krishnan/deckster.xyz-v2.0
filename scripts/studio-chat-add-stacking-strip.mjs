@@ -6,7 +6,7 @@
 // How the older pins reach it: this change REGISTERS its files, its .env.example block and this strip (scripts/studio-later-changes.mjs, three lines), and teaches the older proofs that read the generation hook raw (each one registry-read line, as #546 taught them for
 // CHAT-ADD-TARGETED; two of them replace #546's line with one that reads both strips, and are put back to the line from before #546, so the two strips commute in the registry's order). Plain node, no imports, nothing read from disk or git here.
 
-export const BASE_COMMIT = '973fa22b94df309c53f3a9052938e080e4597325' // origin/studio-v4-dev-preparation-code with #546 merged (tree efb5b478): dev, which this change is cut from
+export const BASE_COMMIT = 'cdadebac01e7baa136e597587da6a80e87e93077' // frontend2/mdc-element-fields (#547) @ cdadebac: dev 9a62b4e6 (#548 merged) with #549 and #547 stacked on it. This change is merged with it and read against it (it was cut from 973fa22b, #546), so the blocks and lines of the two changes below it are part of its base.
 export const CHAT_ADD_STACKING_FLAG = 'NEXT_PUBLIC_STUDIO_CHAT_ADD_STACKING'
 export const CHAT_ADD_STACKING_MARKER = 'CHAT-ADD-STACKING'
 /** The marker as a WHOLE token: CHAT-ADD-STACKING-X and X-CHAT-ADD-STACKING are not it (and neither is the older CHAT-ADD-TARGETED). */
