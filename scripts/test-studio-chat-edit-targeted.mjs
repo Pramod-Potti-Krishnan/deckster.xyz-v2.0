@@ -194,7 +194,7 @@ async function scenario(name, { studio = 'on', layout = 'on', editMode = false, 
   })
   const sendElementCommand = (action, params) => { assert.notEqual(router.getCommandType(action), 'elementor'); return sendCommand(iframe, action, params, { timeoutMs: 30_000 }) }
   const sendTextBoxCommand = (action, params) => sendCommand(iframe, action, params)
-  const viewerTsx = sources['components/presentation-viewer.tsx'] ?? read('components/presentation-viewer.tsx')
+  const viewerTsx = sources['components/presentation-viewer.tsx'] ?? laterRead('components/presentation-viewer.tsx') // LATER-CHANGES: registry read (DECK-SAVE-REFUSED-NOTICE): a change registered after this one marks lines in the viewer's save-status handler; the handler is cut out without them
   const saveEffect = evalExpression(callbackText('components/presentation-viewer.tsx', 'useEffect', "'saveStatusChanged'", viewerTsx), {
     window: studioWindow, VIEWER_ORIGIN: LAYOUT_ORIGIN, LAYOUT_URL_CONFIG_ERROR: null, isTrustedLayoutViewerMessage: messaging.isTrustedLayoutViewerMessage, iframeRef,
     isLayoutViewerEvent: router.isLayoutViewerEvent, isDiagramRendererStateEvent: () => false, parseDiagramRendererStateUpdate: () => null, studioShell: false,

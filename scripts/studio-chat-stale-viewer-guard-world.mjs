@@ -21,6 +21,7 @@ import { renderStoredDeck } from './studio-chat-edit-targeted-reload.mjs'
 import { STUDIO_ORIGIN, LAYOUT_ORIGIN, PRESENTATION, SESSION, plain, functionText, callbackText, assignmentRight, constText, evalExpression, deterministic, TEXT_LABS_ANSWERS } from './studio-chat-add-targeted-world.mjs'
 import { createServer } from './studio-chat-stale-viewer-guard-server.mjs'
 import ts from 'typescript'
+import { stripDeckSaveRefused } from './studio-deck-save-refused-strip.mjs' // LATER-CHANGES: registry read (DECK-SAVE-REFUSED-NOTICE): the change stacked after this one marks lines in the viewer's save-status handler; the viewer is cut without them (no fake binding for its calls)
 
 export { STUDIO_ORIGIN, LAYOUT_ORIGIN, PRESENTATION, SESSION, plain }
 
@@ -206,7 +207,7 @@ export async function createGuardWorld(options) {
   const { useGenerationPanel } = load('hooks/use-generation-panel.ts')
 
   // ---- Studio's command path and the viewer's own state, cut out of components/presentation-viewer.tsx ----
-  const viewerTsx = read('components/presentation-viewer.tsx')
+  const viewerTsx = stripDeckSaveRefused('components/presentation-viewer.tsx', read('components/presentation-viewer.tsx')) // LATER-CHANGES: registry read (DECK-SAVE-REFUSED-NOTICE): the viewer every cut-out below is taken from has no line of the change stacked after this one
   const bridgeJs = js(`${functionText('components/presentation-viewer.tsx', 'createViewerRequestId', viewerTsx)}\n${functionText('components/presentation-viewer.tsx', 'sendCommand', viewerTsx)}\n;({ sendCommand })`)
   const iframe = { src: `${LAYOUT_ORIGIN}/p/${PRESENTATION}`, contentWindow: viewerHandle }
   const iframeRef = { current: iframe }

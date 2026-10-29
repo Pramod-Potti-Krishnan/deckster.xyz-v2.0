@@ -58,6 +58,7 @@ export const LATER_CHANGE_FILES = new Set([
   ...(await import('./studio-chat-clean-held-all-built-strip.mjs')).HELD_ALL_BUILT_SCOPE_FILES, // LATER-CHANGE: FRONTEND-2, B40 held all built: after a Stop with every slide built, a typed message is a plain message, not new directions (NEXT_PUBLIC_STUDIO_CHAT_CLEAN_HELD_ALL_BUILT)
   ...(await import('./studio-chat-add-targeted-strip.mjs')).CHAT_ADD_TARGETED_SCOPE_FILES, // LATER-CHANGE: FRONTEND-2, B42 targeted chat add: a chat element add saves only the new element (NEXT_PUBLIC_STUDIO_CHAT_ADD_TARGETED_SAVE)
   ...(await import('./studio-chat-stale-viewer-guard-strip.mjs')).CHAT_STALE_VIEWER_GUARD_SCOPE_FILES, // LATER-CHANGE: FRONTEND-2, B43 stale viewer guard: a chat add or edit after a chat deck change lands on the right slide or says so (NEXT_PUBLIC_STUDIO_CHAT_STALE_VIEWER_GUARD)
+  ...(await import('./studio-deck-save-refused-strip.mjs')).DECK_SAVE_REFUSED_SCOPE_FILES, // LATER-CHANGE: FRONTEND-2, B46 deck save refused: when Layout refuses a stale whole-deck save Studio shows its existing "This deck was updated" notice (NEXT_PUBLIC_STUDIO_DECK_SAVE_REFUSED_NOTICE)
   // one line per later change, above this comment
 ])
 
@@ -88,6 +89,7 @@ export const LATER_ENV_BLOCKS = [
   (await import('./studio-chat-clean-held-all-built-strip.mjs')).HELD_ALL_BUILT_ENV_BLOCK, // LATER-CHANGE: FRONTEND-2, B40 held all built (NEXT_PUBLIC_STUDIO_CHAT_CLEAN_HELD_ALL_BUILT)
   (await import('./studio-chat-add-targeted-strip.mjs')).CHAT_ADD_TARGETED_ENV_BLOCK, // LATER-CHANGE: FRONTEND-2, B42 targeted chat add (NEXT_PUBLIC_STUDIO_CHAT_ADD_TARGETED_SAVE)
   (await import('./studio-chat-stale-viewer-guard-strip.mjs')).CHAT_STALE_VIEWER_GUARD_ENV_BLOCK, // LATER-CHANGE: FRONTEND-2, B43 stale viewer guard (NEXT_PUBLIC_STUDIO_CHAT_STALE_VIEWER_GUARD)
+  (await import('./studio-deck-save-refused-strip.mjs')).DECK_SAVE_REFUSED_ENV_BLOCK, // LATER-CHANGE: FRONTEND-2, B46 deck save refused (NEXT_PUBLIC_STUDIO_DECK_SAVE_REFUSED_NOTICE)
   // one line per later change, above this comment
 ]
 
@@ -127,6 +129,7 @@ export const LATER_STRIPS = [
   (await import('./studio-chat-clean-held-all-built-strip.mjs')).stripHeldAllBuilt, // LATER-CHANGE: FRONTEND-2, B40 held all built (NEXT_PUBLIC_STUDIO_CHAT_CLEAN_HELD_ALL_BUILT)
   (await import('./studio-chat-add-targeted-strip.mjs')).stripChatAddTargeted, // LATER-CHANGE: FRONTEND-2, B42 targeted chat add (NEXT_PUBLIC_STUDIO_CHAT_ADD_TARGETED_SAVE)
   (await import('./studio-chat-stale-viewer-guard-strip.mjs')).stripChatStaleViewerGuard, // LATER-CHANGE: FRONTEND-2, B43 stale viewer guard (NEXT_PUBLIC_STUDIO_CHAT_STALE_VIEWER_GUARD)
+  (await import('./studio-deck-save-refused-strip.mjs')).stripDeckSaveRefused, // LATER-CHANGE: FRONTEND-2, B46 deck save refused (NEXT_PUBLIC_STUDIO_DECK_SAVE_REFUSED_NOTICE)
   // one line per later change, above this comment
 ]
 
