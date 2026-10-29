@@ -19,6 +19,9 @@ export const CHAT_ELEMENT_EDIT_ENABLED = process.env.NEXT_PUBLIC_STUDIO_CHAT_ELE
 export const ELEMENT_EDIT_CLIENT_CAP = 'element_edit1'
 export const NOTES_CLIENT_CAP = 'notes1'
 export const ELEMENT_EDIT_CLIENT_CAPS: readonly string[] = [ELEMENT_EDIT_CLIENT_CAP, NOTES_CLIENT_CAP]
+// CHAT-ELEMENT-TEXT-SET (NEXT_PUBLIC_STUDIO_CHAT_ELEMENT_TEXT_SET, exact "true", default off, read at build time; lib/chat-element-text-set.ts): element_edit op "text" sets a selected text box's words exactly.
+export const CHAT_ELEMENT_TEXT_SET_ENABLED = process.env.NEXT_PUBLIC_STUDIO_CHAT_ELEMENT_TEXT_SET === 'true' // CHAT-ELEMENT-TEXT-SET
+export const ELEMENT_TEXT_CLIENT_CAP = 'element_text1' // CHAT-ELEMENT-TEXT-SET: Director sends op "text" only to a client that advertises this one (after element_edit1), so neither flip order opens an UNSUPPORTED_OP window
 
 export const ELEMENT_EDIT_DIRECTIVE_TYPE = 'element_edit'
 export const ELEMENT_EDIT_RESULT_TYPE = 'element_edit_result'
@@ -118,6 +121,7 @@ export function elementEditResultFrame(payload: ElementEditResultData): { type: 
 export function addChatElementEditCaps(data: Record<string, unknown>): Record<string, unknown> {
   const caps = Array.isArray(data.client_caps) ? (data.client_caps as unknown[]).filter(cap => typeof cap === 'string') as string[] : []
   data.client_caps = [...caps, ...ELEMENT_EDIT_CLIENT_CAPS.filter(cap => !caps.includes(cap))]
+  if (CHAT_ELEMENT_TEXT_SET_ENABLED && !(data.client_caps as string[]).includes(ELEMENT_TEXT_CLIENT_CAP)) (data.client_caps as string[]).push(ELEMENT_TEXT_CLIENT_CAP) // CHAT-ELEMENT-TEXT-SET: element_text1 after element_edit1 / notes1; flag off: the list is exactly as before
   return data
 }
 

@@ -57,6 +57,7 @@ export const LATER_CHANGE_FILES = new Set([
   ...(await import('./studio-chat-edit-targeted-strip.mjs')).CHAT_EDIT_TARGETED_SCOPE_FILES, // LATER-CHANGE: FRONTEND-2, B33 targeted chat edit: a chat element edit saves only that element (NEXT_PUBLIC_STUDIO_CHAT_EDIT_TARGETED_SAVE)
   ...(await import('./studio-chat-clean-held-all-built-strip.mjs')).HELD_ALL_BUILT_SCOPE_FILES, // LATER-CHANGE: FRONTEND-2, B40 held all built: after a Stop with every slide built, a typed message is a plain message, not new directions (NEXT_PUBLIC_STUDIO_CHAT_CLEAN_HELD_ALL_BUILT)
   ...(await import('./studio-chat-add-targeted-strip.mjs')).CHAT_ADD_TARGETED_SCOPE_FILES, // LATER-CHANGE: FRONTEND-2, B42 targeted chat add: a chat element add saves only the new element (NEXT_PUBLIC_STUDIO_CHAT_ADD_TARGETED_SAVE)
+  ...(await import('./studio-chat-element-text-set-strip.mjs')).CHAT_ELEMENT_TEXT_SET_SCOPE_FILES, // LATER-CHANGE: FRONTEND-2, B49 chat text set: a chat 'Change this to ...' on a selected text box sets exactly those words (NEXT_PUBLIC_STUDIO_CHAT_ELEMENT_TEXT_SET)
   // one line per later change, above this comment
 ])
 
@@ -86,6 +87,7 @@ export const LATER_ENV_BLOCKS = [
   (await import('./studio-chat-edit-targeted-strip.mjs')).CHAT_EDIT_TARGETED_ENV_BLOCK, // LATER-CHANGE: FRONTEND-2, B33 targeted chat edit (NEXT_PUBLIC_STUDIO_CHAT_EDIT_TARGETED_SAVE)
   (await import('./studio-chat-clean-held-all-built-strip.mjs')).HELD_ALL_BUILT_ENV_BLOCK, // LATER-CHANGE: FRONTEND-2, B40 held all built (NEXT_PUBLIC_STUDIO_CHAT_CLEAN_HELD_ALL_BUILT)
   (await import('./studio-chat-add-targeted-strip.mjs')).CHAT_ADD_TARGETED_ENV_BLOCK, // LATER-CHANGE: FRONTEND-2, B42 targeted chat add (NEXT_PUBLIC_STUDIO_CHAT_ADD_TARGETED_SAVE)
+  (await import('./studio-chat-element-text-set-strip.mjs')).CHAT_ELEMENT_TEXT_SET_ENV_BLOCK, // LATER-CHANGE: FRONTEND-2, B49 chat text set (NEXT_PUBLIC_STUDIO_CHAT_ELEMENT_TEXT_SET)
   // one line per later change, above this comment
 ]
 
@@ -124,6 +126,7 @@ export const LATER_STRIPS = [
   (await import('./studio-chat-edit-targeted-strip.mjs')).stripChatEditTargeted, // LATER-CHANGE: FRONTEND-2, B33 targeted chat edit (NEXT_PUBLIC_STUDIO_CHAT_EDIT_TARGETED_SAVE)
   (await import('./studio-chat-clean-held-all-built-strip.mjs')).stripHeldAllBuilt, // LATER-CHANGE: FRONTEND-2, B40 held all built (NEXT_PUBLIC_STUDIO_CHAT_CLEAN_HELD_ALL_BUILT)
   (await import('./studio-chat-add-targeted-strip.mjs')).stripChatAddTargeted, // LATER-CHANGE: FRONTEND-2, B42 targeted chat add (NEXT_PUBLIC_STUDIO_CHAT_ADD_TARGETED_SAVE)
+  (await import('./studio-chat-element-text-set-strip.mjs')).stripChatElementTextSet, // LATER-CHANGE: FRONTEND-2, B49 chat text set (NEXT_PUBLIC_STUDIO_CHAT_ELEMENT_TEXT_SET)
   // one line per later change, above this comment
 ]
 

@@ -36,6 +36,8 @@ import { FREE_SPOT_BOUNDS, parseFreeSpotSpan } from '@/lib/element-free-spot'
 import { CHAT_ELEMENT_EDIT_2_ENABLED, withShownSlides } from '@/lib/chat-element-edit-2' // CHAT-ELEMENT-EDIT-2
 import type { ShownSlides } from '@/lib/chat-element-edit-2' // CHAT-ELEMENT-EDIT-2
 import { CHAT_EDIT_TARGETED_SAVE_ENABLED, runTargetedElementSave } from '@/lib/chat-edit-targeted' // CHAT-EDIT-TARGETED
+import { CHAT_ELEMENT_TEXT_SET_ENABLED } from '@/lib/chat-element-edit-wire' // CHAT-ELEMENT-TEXT-SET
+import { ELEMENT_TEXT_VIEWER_COMMAND, elementTextToHtml, validateElementText } from '@/lib/chat-element-text-set' // CHAT-ELEMENT-TEXT-SET
 
 export {
   CHAT_ELEMENT_EDIT_ENABLED, ELEMENT_EDIT_CLIENT_CAPS, ELEMENT_EDIT_DIRECTIVE_TYPE, addChatElementEditCaps, elementEditDirectiveId, elementEditResultFrame,
@@ -85,6 +87,7 @@ export type ValidElementEdit =
   | { op: 'order'; order: ElementEditOrder }
   | { op: 'place'; h?: ElementEditPlace['h']; v?: ElementEditPlace['v'] }
   | { op: 'style'; bold?: boolean; italic?: boolean; sizeStep?: -1 | 1; binding?: string; align?: 'left' | 'center' | 'right' }
+  | { op: 'text'; text: string } // CHAT-ELEMENT-TEXT-SET
 
 const isRecord = (value: unknown): value is Record<string, unknown> => Boolean(value) && typeof value === 'object' && !Array.isArray(value)
 
@@ -111,6 +114,7 @@ const STYLE_KEYS = ['bold', 'italic', 'size_step', 'color_token', 'align']
 export function validateElementEdit(fields: Record<string, unknown>): { ok: true; edit: ValidElementEdit } | { ok: false; code: ElementEditErrorCode } {
   const invalid = { ok: false as const, code: 'INVALID_VALUE' as const }
   const op = fields.op
+  if (CHAT_ELEMENT_TEXT_SET_ENABLED && op === 'text') { const text = validateElementText(fields.text); return text.ok ? { ok: true, edit: { op: 'text', text: text.text } } : invalid } // CHAT-ELEMENT-TEXT-SET: the user's exact words, 1 to 500 characters, no HTML; flag off: op "text" stays INVALID_VALUE below
   if (typeof op !== 'string' || !(ELEMENT_EDIT_OPS as readonly string[]).includes(op)) return invalid
   if (op === 'delete') return { ok: true, edit: { op: 'delete' } }
   if (op === 'order') {
@@ -270,6 +274,7 @@ export function planViewerSteps(edit: ValidElementEdit, element: LiveElement, fo
       if (edit.align !== undefined) steps.push({ route: 'textbox', action: VIEWER_COMMANDS.align, params: { elementId, alignment: edit.align } })
       return steps.length ? { ok: true, steps } : unsupported
     }
+    case 'text': return isTextBox(element) ? { ok: true, steps: [{ route: 'textbox', action: ELEMENT_TEXT_VIEWER_COMMAND, params: { elementId, content: elementTextToHtml(edit.text) } }] } : unsupported // CHAT-ELEMENT-TEXT-SET: Layout's updateTextBoxContent, the value as escaped text (one <p> per paragraph); the box's own style stays
   }
 }
 
