@@ -1,7 +1,7 @@
 // FRONTEND-2 (B43, 28 Oct; E2E-2 batch 2, rows 34, 35, 36, Studio dev, deck 017fa691, 21:42-22:07Z: a chat element add right after a server-side chat deck change said "Done", the editor's save failed and the element was lost; every later add said "viewer not ready"
 // until the whole page was reloaded). Flag NEXT_PUBLIC_STUDIO_CHAT_STALE_VIEWER_GUARD (exact "true", default off, build-time): before a chat add or edit runs the viewer must show the deck Layout holds (it is reloaded onto it, or the directive is refused), an add is "Done" only
 // once it is stored, and a viewer reload ends a remembered save error. Every line this change adds to an EXISTING file is a pure insertion that carries the marker CHAT-STALE-VIEWER-GUARD (a whole token): hooks/use-textlabs-generation.ts, components/presentation-viewer.tsx and
-// app/builder/page.tsx. Strip those lines and the file is its base, byte for byte. The new lib lib/chat-stale-viewer-guard.ts holds the flag and the logic. Stacked on #546 (NEXT_PUBLIC_STUDIO_CHAT_ADD_TARGETED_SAVE, frontend2/chat-add-targeted): BASE_COMMIT is its head.
+// app/builder/page.tsx. Strip those lines and the file is its base, byte for byte. The new lib lib/chat-stale-viewer-guard.ts holds the flag and the logic. Stacked on #546 (NEXT_PUBLIC_STUDIO_CHAT_ADD_TARGETED_SAVE), merged into dev at 973fa22b: BASE_COMMIT is dev's tip with it.
 // How the older pins reach it: this change REGISTERS its files, its .env.example block and this strip (scripts/studio-later-changes.mjs, three lines), and teaches the older proofs that read the generation hook raw (the five #546 taught) to read past its marked lines too.
 // EVERY LINE CARRIES A SECOND MARKER, the marker of a change whose strip the older proofs already read their file through, so none of them needs another edit (the older proofs hold the hook, the viewer and the page to a base commit byte for byte,
 // each past the strips of the changes it knew: a line none of them removes fails them, and teaching each proof one line breaks the proofs that pin the taught lines in their turn). The hook's lines also carry CHAT-ADD-TARGETED (#546's strip: the five proofs it
@@ -10,7 +10,7 @@
 // lists the markers it ignores).
 // Plain node, no imports, nothing read from disk or git here.
 
-export const BASE_COMMIT = '792ff15a63b150dc302a5a2babcff6484446218e' // origin/frontend2/chat-add-targeted (#546's head, tree below dev 61568fe6): the change this one is stacked on
+export const BASE_COMMIT = '973fa22b94df309c53f3a9052938e080e4597325' // origin/studio-v4-dev-preparation-code with #546 merged (tree efb5b478, equal to #546's head tree): dev, which this change is cut from now (it was stacked on #546's head 792ff15a, then 4b222fd9, until #546 merged)
 export const CHAT_STALE_VIEWER_GUARD_FLAG = 'NEXT_PUBLIC_STUDIO_CHAT_STALE_VIEWER_GUARD'
 export const CHAT_STALE_VIEWER_GUARD_MARKER = 'CHAT-STALE-VIEWER-GUARD'
 /** The marker as a WHOLE token: CHAT-STALE-VIEWER-GUARD-X and X-CHAT-STALE-VIEWER-GUARD are not it. */
