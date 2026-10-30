@@ -267,7 +267,8 @@ await check('the flags are documented in .env.example, default "false", each exa
   const envFile = read('.env.example')
   for (const flag of [WELCOME_TRIM_FLAG, DIRECTOR_MARK_TRIM_FLAG]) assert.equal(count(envFile, new RegExp(`^${flag}="false"$`, 'gm')), 1, flag)
   for (const rel of [TRIM_LIB, MARK_LIB]) assert.doesNotMatch(read(rel).replace(/\/\*[\s\S]*?\*\//g, '').replace(/^\s*\/\/.*$/gm, ''), /\b(fetch|WebSocket|localStorage|sessionStorage|XMLHttpRequest|setTimeout|from 'react')\b/, `${rel}: no I/O, no React`)
-  assert.deepEqual([...read(MARK_LIB).matchAll(/^import .* from '(.*)'$/gm)].map(match => match[1]), ['@/lib/studio-new-logo'], 'the mark lib imports only the existing logo path')
+  assert.deepEqual([...read(MARK_LIB).matchAll(/^import .* from '(.*)'$/gm)].map(match => match[1]), [], 'the mark lib imports nothing')
+  for (const rel of [MARK_LIB, TRIM_LIB, WELCOME, HEADER, MARK_CSS]) assert.doesNotMatch(read(rel), /NEXT_PUBLIC_STUDIO_NEW_LOGO|studio-new-logo|STUDIO_NEW_LOGO|NEW_LOGO/, `${rel} names no part of the new-logo change (its proof lets only the rail, its lib and its sheet name them)`)
 })
 
 // ===== 2. flag off is the base ==================================================================================================================================
@@ -496,7 +497,7 @@ await check('F-02 "deckster" (the ONE constant changed from "none"): the real ma
   assert.equal(read(MARK_LIB).split('\n').filter(line => /^export const STUDIO_DIRECTOR_MARK:/.test(line)).length, 1, 'one line holds the choice')
   const png = fs.readFileSync(path.join(root, 'public/logo-icon-sm.png'))
   assert.equal(png.subarray(1, 4).toString(), 'PNG'); assert.deepEqual([png.readUInt32BE(16), png.readUInt32BE(20)], [160, 160], 'the asset is the 160x160 export of the logo')
-  assert.match(read('lib/studio-new-logo.ts'), /STUDIO_NEW_LOGO_SRC = '\/logo-icon-sm\.png'/, 'the one path the Studio rail\'s brand tile already draws')
+  assert.match(read(MARK_LIB), /^export const STUDIO_DIRECTOR_MARK_SRC = '\/logo-icon-sm\.png'$/m, 'the asset path is spelled in the lib itself')
 })
 await check('each flag alone: WELCOME_TRIM leaves the star where it is, MARK_TRIM leaves the copy and the greeting where they are; both together do both', () => {
   const props = () => baseProps({ messages: [recordedGreeting], studioFirstRunActions: actionsMarker })
