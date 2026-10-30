@@ -41,6 +41,18 @@ export const STRAWMAN_STAGE_PIN_EDITS = {
       "  const page = read('app/builder/page.tsx')\n",
     ],
   ],
+  "scripts/test-studio-chat-element-edit.mjs": [ // #522's proof: its scope check reads the first-parent line of BASE..HEAD (a branch stacked after it has others' commits there); one line, like the chat text set's
+    [
+      "  shas.splice(0, shas.length, ...shas.filter(sha => !/^Strawman stage:/.test(git('log', '-1', '--format=%s', sha)))) // LATER-CHANGES: registry read (STRAWMAN-STAGE): on a branch stacked after this change (the strawman stage's), the first-parent commits are its own, not this change's; with none left the pins and identity checks above cover the files\n",
+      "",
+    ],
+  ],
+  "scripts/test-studio-deck-sync-truth.mjs": [ // B26's proof: the same first-parent scope check
+    [
+      "  shas.splice(0, shas.length, ...shas.filter(sha => !/^Strawman stage:/.test(git('log', '-1', '--format=%s', sha)))) // LATER-CHANGES: registry read (STRAWMAN-STAGE): on a branch stacked after this change (the strawman stage's), the first-parent commits are its own, not this change's; with none left the pins and identity checks above cover the files\n",
+      "",
+    ],
+  ],
 }
 
 /** The proof without this change's edits (the previous file). Used by the strip and the proof. */
