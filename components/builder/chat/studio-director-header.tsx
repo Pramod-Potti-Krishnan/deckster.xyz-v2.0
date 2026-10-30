@@ -52,7 +52,6 @@ function chatHeaderConnection(
 
 /** Persistent local identity. Connection describes the socket, not send availability. */
 export function StudioDirectorHeader({ connectionState, isLoadingSession = false, actions, reconnectStatus, onReconnect }: StudioDirectorHeaderProps) {
-  const showCanvas = useStudioStageShowCanvas() // STUDIO-STAGE-OPEN-GATE (NEXT_PUBLIC_STUDIO_STAGE_OPEN_GATE, PK Q1): a click handler only while the gate holds the stage closed; null with the flag off or the stage open
   if (process.env.NEXT_PUBLIC_STUDIO_V4_SHELL !== "true") return null
   // Flag off: `chatHeader` is undefined, so the three spreads below add nothing and the markup is what it always was.
   const chatHeader = process.env.NEXT_PUBLIC_STUDIO_CHAT_HEADER === "true"
@@ -75,9 +74,8 @@ export function StudioDirectorHeader({ connectionState, isLoadingSession = false
         {chatHeader ? chatHeader.text : isLoadingSession ? "Loading conversation…" : CONNECTION_LABELS[connectionState]}
       </span>
       {reconnect ? <>{reconnect}{actions}</> : actions}
-      {showCanvas ? <button type="button" data-studio-stage-gate-show-canvas="true" onClick={() => showCanvas()}>Show canvas</button> : null /* STUDIO-STAGE-OPEN-GATE: opens the stage and keeps it open (lib/studio-stage-open-gate.ts) */}
+      {STUDIO_STAGE_OPEN_GATE_ENABLED ? <StudioStageShowCanvas /> : null /* STUDIO-STAGE-OPEN-GATE (NEXT_PUBLIC_STUDIO_STAGE_OPEN_GATE, PK Q1): "Show canvas", drawn only while the gate holds the stage closed */}
     </header>
   )
 }
-import { useStudioStageShowCanvas } from "@/lib/studio-stage-open-gate" // STUDIO-STAGE-OPEN-GATE: placed at the end, away from the imports other changes add at the top
-import "./studio-stage-gate-show-canvas.css" // STUDIO-STAGE-OPEN-GATE
+import { STUDIO_STAGE_OPEN_GATE_ENABLED, StudioStageShowCanvas } from "./studio-stage-show-canvas" // STUDIO-STAGE-OPEN-GATE: placed at the end, away from the imports other changes add at the top

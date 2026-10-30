@@ -200,7 +200,7 @@ async function checks(root) {
 
   // ---- B. the header, every combination -----------------------------------------------------------------------------------
   const jsx = (type, props, key) => ({ type, props, key })
-  const headerImports = { 'lucide-react': { Sparkles: 'Sparkles' }, 'react/jsx-runtime': { jsx, jsxs: jsx }, './studio-director-header.css': {} }
+  const headerImports = { 'lucide-react': { Sparkles: 'Sparkles' }, 'react/jsx-runtime': { jsx, jsxs: jsx }, './studio-director-header.css': {}, './studio-stage-show-canvas': { STUDIO_STAGE_OPEN_GATE_ENABLED: false, StudioStageShowCanvas: () => null } } // LATER-CHANGES: registry read (STUDIO-STAGE-OPEN-GATE): the stage open gate's "Show canvas" import, as with its flag off (its own proof, test-studio-stage-open-gate, covers it on)
   const headerFor = (flag, shell) => loadModule(root, 'components/builder/chat/studio-director-header.tsx', { NEXT_PUBLIC_STUDIO_V4_SHELL: shell, ...(flag === undefined ? {} : { [HEADER]: flag }) }, headerImports).StudioDirectorHeader
   for (const flag of [undefined, 'false', 'TRUE', '1', 'true']) {
     const Header = headerFor(flag, 'true')
