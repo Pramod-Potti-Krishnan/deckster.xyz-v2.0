@@ -35,6 +35,12 @@ export const STRAWMAN_STAGE_NEW_FILES = [
 /** The older proofs this change teaches: [text the proof has now, text the proof had before] per edit, whole lines, so putting them back gives the previous file byte for byte. Every line the proof has now carries STRAWMAN_STAGE_PIN_MARK. */
 export const STRAWMAN_STAGE_PIN_MARK = '// LATER-CHANGES: registry read (STRAWMAN-STAGE)'
 export const STRAWMAN_STAGE_PIN_EDITS = {
+  "scripts/test-studio-outline-canvas.mjs": [ // PASS2 #4's proof: it reads the page raw and pins the outline canvas's selection and JSX as contiguous text; this change's spread and strip line sit inside those blocks
+    [
+      "  const page = (await import('./studio-later-changes.mjs')).stripLaterChanges('app/builder/page.tsx', read('app/builder/page.tsx')) // LATER-CHANGES: registry read (STRAWMAN-STAGE): the lines of the changes registered after this one come out of the page first\n",
+      "  const page = read('app/builder/page.tsx')\n",
+    ],
+  ],
 }
 
 /** The proof without this change's edits (the previous file). Used by the strip and the proof. */
