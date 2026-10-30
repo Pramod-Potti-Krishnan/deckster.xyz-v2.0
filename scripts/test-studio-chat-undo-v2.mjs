@@ -28,6 +28,7 @@ import { fileURLToPath } from 'node:url'
 import ts from 'typescript'
 const chatClean = await import('./studio-chat-clean-strip.mjs') // LATER-CHANGES: registry read (CHAT-CLEAN): the strip of the change stacked after this one, so its marked lines (chat clean's) come out first
 const order = await import('./studio-chat-clean-order-strip.mjs') // LATER-CHANGES: registry read (CHAT-CLEAN-ORDER): the strip of the change stacked after chat clean, so its marked lines in the message list come out first
+const welcomeTrimStrip = await import('./studio-welcome-trim-strip.mjs') // LATER-CHANGES: registry read (STUDIO-WELCOME-TRIM): the strip of the change stacked after chat clean order, so its marked lines in the message list come out first
 import { BASE_COMMIT, CHAT_UNDO_V2_CHANGES, CHAT_UNDO_V2_FILES, CHAT_UNDO_V2_NEW_FILES, CHAT_UNDO_V2_OWN_EDITS, CHAT_UNDO_V2_MARKER } from './studio-chat-undo-v2-strip.mjs'
 import { stripOpenReadOnly } from './studio-open-read-only-strip.mjs'
 import { stripDarkPersist } from './studio-theme-dark-persist-strip.mjs'
@@ -342,7 +343,7 @@ async function suite() {
   await check('strip: stripping this change gives back the base\'s message list byte for byte; every piece occurs once and every added line carries the marker; any other file is returned as it is', async () => {
     const mod = await stripFile()
     assert.deepEqual([...mod.CHAT_UNDO_V2_FILES], [LIST]); assert.equal(mod.BASE_COMMIT, REGISTRY_V2)
-    const head = read(LIST)
+    const head = welcomeTrimStrip.stripWelcomeTrim(LIST, read(LIST)) // LATER-CHANGES: registry read (STUDIO-WELCOME-TRIM)
     assert.equal(mod.stripChatUndoV2(LIST, chatClean.stripChatClean(LIST, order.stripChatCleanOrder(LIST, head) /* LATER-CHANGES: registry read (CHAT-CLEAN-ORDER) */)), baseOf(LIST), 'stripped is the base\'s file') // LATER-CHANGES: registry read (CHAT-CLEAN): chat clean's marked lines in the message list come out first
     for (const [added, original] of mod.CHAT_UNDO_V2_CHANGES[LIST]) {
       assert.equal(head.split(added).length - 1, 1, 'a piece occurs once'); assert.ok(!baseOf(LIST).includes(added), 'the base does not hold a piece'); assert.equal(original, '')
