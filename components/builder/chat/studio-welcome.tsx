@@ -3,6 +3,7 @@
 import { useSyncExternalStore, type ReactNode } from "react"
 import { studioWelcomeEyebrow } from "@/lib/studio-welcome-polish"
 import { studioWelcomeWidthProps } from "@/lib/studio-welcome-width"
+import { studioWelcomeTrimOn } from "@/lib/studio-welcome-trim" // STUDIO-WELCOME-TRIM
 import { studioDirectorMark } from "@/lib/studio-director-mark" // STUDIO-DIRECTOR-MARK-TRIM
 import { ArrowUpRight, BookOpen, Lightbulb, ListChecks, Sparkles } from "lucide-react"
 
@@ -161,6 +162,7 @@ const WELCOME_WIDTH_560 = process.env.NEXT_PUBLIC_STUDIO_WELCOME_WIDTH_560 === "
 /** PASS2 #2: one centred head instead of the brief scaffold. The same guidance, in one line. */
 function StudioFirstRunHead({ greeting }: { greeting?: StudioWelcomeGreeting }) {
   const markTrim = studioDirectorMark() // STUDIO-DIRECTOR-MARK-TRIM: null with the flag off (the star, as today); { src: null } draws nothing; { src } draws the real Deckster mark (lib/studio-director-mark.ts)
+  const welcomeTrim = studioWelcomeTrimOn() // STUDIO-WELCOME-TRIM: the "Bring an idea..." line is not drawn
   return (
     <section data-studio-director-welcome="true" data-studio-first-run="true" {...studioWelcomeWidthProps(WELCOME_WIDTH_560)} aria-label="Getting started with your presentation">
       {markTrim ? ( // STUDIO-DIRECTOR-MARK-TRIM
@@ -170,18 +172,23 @@ function StudioFirstRunHead({ greeting }: { greeting?: StudioWelcomeGreeting }) 
       ) /* STUDIO-DIRECTOR-MARK-TRIM */}
       <div data-studio-director-welcome-part="eyebrow">{greeting ? <StudioGreetingText greeting={greeting} fallback={FIRST_RUN_COPY.eyebrow} /> : FIRST_RUN_COPY.eyebrow}</div>
       <h2>{FIRST_RUN_COPY.heading}</h2>
+      {welcomeTrim ? null : ( // STUDIO-WELCOME-TRIM
       <p data-studio-director-welcome-part="intro">{FIRST_RUN_COPY.intro}</p>
+      ) /* STUDIO-WELCOME-TRIM */}
     </section>
   )
 }
 
 /** PASS2 #2: the same starters as StudioWelcome, placed after Director's greeting. `children` is the small row of stage actions. */
 export function StudioFirstRunStarters({ onDraftPrompt, busy = false, children }: { onDraftPrompt?: (text: string) => void; busy?: boolean; children?: ReactNode }) {
+  const welcomeTrim = studioWelcomeTrimOn() // STUDIO-WELCOME-TRIM: no caption and no idle hint; the busy notice stays (it is status, not guidance)
   return (
     <section data-studio-first-run-starters="true" aria-label="Starting points">
       {onDraftPrompt && (
         <div data-studio-director-welcome-part="starters">
+          {welcomeTrim ? null : ( // STUDIO-WELCOME-TRIM
           <p data-studio-director-welcome-part="caption">{FIRST_RUN_COPY.startersCaption}</p>
+          ) /* STUDIO-WELCOME-TRIM */}
           {STARTERS.map(({ id, label, detail, icon: Icon, prompt }) => (
             <button
               key={id}
@@ -196,7 +203,9 @@ export function StudioFirstRunStarters({ onDraftPrompt, busy = false, children }
               <ArrowUpRight size={14} aria-hidden="true" />
             </button>
           ))}
+          {welcomeTrim && !busy ? null : ( // STUDIO-WELCOME-TRIM
           <p data-studio-director-welcome-part="hint">{busy ? "Director is working. Starters will be available when this step finishes." : "Choose a starter to add an editable draft below. Fill in the brackets, then send when you’re ready."}</p>
+          ) /* STUDIO-WELCOME-TRIM */}
         </div>
       )}
       {children}
