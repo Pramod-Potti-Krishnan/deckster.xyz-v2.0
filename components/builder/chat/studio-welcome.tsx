@@ -3,6 +3,7 @@
 import { useSyncExternalStore, type ReactNode } from "react"
 import { studioWelcomeEyebrow } from "@/lib/studio-welcome-polish"
 import { studioWelcomeWidthProps } from "@/lib/studio-welcome-width"
+import { studioDirectorMark } from "@/lib/studio-director-mark" // STUDIO-DIRECTOR-MARK-TRIM
 import { ArrowUpRight, BookOpen, Lightbulb, ListChecks, Sparkles } from "lucide-react"
 
 export type StudioDirectorConnectionState = "connecting" | "connected" | "disconnected" | "error"
@@ -159,9 +160,14 @@ const WELCOME_WIDTH_560 = process.env.NEXT_PUBLIC_STUDIO_WELCOME_WIDTH_560 === "
 
 /** PASS2 #2: one centred head instead of the brief scaffold. The same guidance, in one line. */
 function StudioFirstRunHead({ greeting }: { greeting?: StudioWelcomeGreeting }) {
+  const markTrim = studioDirectorMark() // STUDIO-DIRECTOR-MARK-TRIM: null with the flag off (the star, as today); { src: null } draws nothing; { src } draws the real Deckster mark (lib/studio-director-mark.ts)
   return (
     <section data-studio-director-welcome="true" data-studio-first-run="true" {...studioWelcomeWidthProps(WELCOME_WIDTH_560)} aria-label="Getting started with your presentation">
+      {markTrim ? ( // STUDIO-DIRECTOR-MARK-TRIM
+        markTrim.src && <span data-studio-first-run-part="mark" aria-hidden="true"><img data-studio-director-mark="deckster" src={markTrim.src} alt="" width={22} height={22} /></span> // STUDIO-DIRECTOR-MARK-TRIM
+      ) : ( // STUDIO-DIRECTOR-MARK-TRIM
       <span data-studio-first-run-part="mark" aria-hidden="true"><Sparkles size={22} /></span>
+      ) /* STUDIO-DIRECTOR-MARK-TRIM */}
       <div data-studio-director-welcome-part="eyebrow">{greeting ? <StudioGreetingText greeting={greeting} fallback={FIRST_RUN_COPY.eyebrow} /> : FIRST_RUN_COPY.eyebrow}</div>
       <h2>{FIRST_RUN_COPY.heading}</h2>
       <p data-studio-director-welcome-part="intro">{FIRST_RUN_COPY.intro}</p>

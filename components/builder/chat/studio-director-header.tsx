@@ -5,6 +5,8 @@ import type { ReactNode } from "react"
 import type { DirectorReconnectStatus } from "@/lib/director-reconnect-policy"
 import type { StudioDirectorConnectionState } from "./studio-welcome"
 import "./studio-director-header.css"
+import "./studio-director-mark-trim.css" // STUDIO-DIRECTOR-MARK-TRIM
+import { studioDirectorMark } from "@/lib/studio-director-mark" // STUDIO-DIRECTOR-MARK-TRIM
 
 export interface StudioDirectorHeaderProps {
   connectionState: StudioDirectorConnectionState
@@ -66,9 +68,14 @@ export function StudioDirectorHeader({ connectionState, isLoadingSession = false
     && (connectionState === 'disconnected' || connectionState === 'error') && reconnectStatus === 'exhausted'
     ? <button type="button" data-studio-chat-reconnect="true" aria-label="Reconnect to Director" onClick={() => onReconnect()}>Reconnect</button>
     : null
+  const markTrim = studioDirectorMark() // STUDIO-DIRECTOR-MARK-TRIM: null with the flag off (the star, as today); { src: null } draws nothing; { src } draws the real Deckster mark (lib/studio-director-mark.ts)
   return (
     <header data-studio-director-header="true" role="group" aria-label="Director conversation" {...(chatHeader ? { "data-studio-chat-header": "true" } : undefined)}>
+      {markTrim ? ( // STUDIO-DIRECTOR-MARK-TRIM
+        markTrim.src && <span aria-hidden="true"><img data-studio-director-mark="deckster" src={markTrim.src} alt="" width={13} height={13} /></span> // STUDIO-DIRECTOR-MARK-TRIM
+      ) : ( // STUDIO-DIRECTOR-MARK-TRIM
       <span aria-hidden="true"><Sparkles size={13} /></span>
+      ) /* STUDIO-DIRECTOR-MARK-TRIM */}
       <strong>Director</strong>
       <span role="status" aria-label="Director connection" aria-atomic="true" data-connection-state={isLoadingSession ? "loading" : connectionState} {...(chatHeader ? { "data-studio-chat-header-state": chatHeader.tone } : undefined)}>
         {chatHeader ? chatHeader.text : isLoadingSession ? "Loading conversation…" : CONNECTION_LABELS[connectionState]}
