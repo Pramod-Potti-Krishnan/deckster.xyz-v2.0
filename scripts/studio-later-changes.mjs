@@ -64,6 +64,7 @@ export const LATER_CHANGE_FILES = new Set([
   ...(await import('./studio-chat-element-text-set-strip.mjs')).CHAT_ELEMENT_TEXT_SET_SCOPE_FILES, // LATER-CHANGE: FRONTEND-2, B49 chat text set: a chat 'Change this to ...' on a selected text box sets exactly those words (NEXT_PUBLIC_STUDIO_CHAT_ELEMENT_TEXT_SET)
   ...(await import('./studio-chat-refine-structural-decline-strip.mjs')).CHAT_REFINE_STRUCTURAL_DECLINE_SCOPE_FILES, // LATER-CHANGE: FRONTEND-2, B50 structural refine decline: a chat refine of a title-type text box declines honestly instead of rewriting it from the instruction (NEXT_PUBLIC_STUDIO_CHAT_REFINE_STRUCTURAL_DECLINE)
   ...(await import('./studio-chat-text-set-keep-look-strip.mjs')).CHAT_TEXT_SET_KEEP_LOOK_SCOPE_FILES, // LATER-CHANGE: FRONTEND-2, B49b text set keep look: a chat exact-text set keeps the text box's look, so a title stays a title (NEXT_PUBLIC_STUDIO_CHAT_TEXT_SET_KEEP_LOOK)
+  ...(await import('./studio-stage-open-gate-strip.mjs')).STAGE_OPEN_GATE_SCOPE_FILES, // LATER-CHANGE: FRONTEND-2, B52 stage open gate: the chat stays full-width through Director's clarifying questions; the stage opens on the strawman or build, a ready deck or an explicit ask (NEXT_PUBLIC_STUDIO_STAGE_OPEN_GATE)
   // one line per later change, above this comment
 ])
 
@@ -73,6 +74,7 @@ export const LATER_ENV_BLOCKS = [
   (await import('./studio-pass3-polish-strip.mjs')).PASS3_POLISH_ENV_BLOCK, // LATER-CHANGE: FRONTEND-2, pass 3 polish set, PR A (NEXT_PUBLIC_STUDIO_PASS3_POLISH)
   (await import('./studio-bulk-edit-prompt-text-strip.mjs')).BULK_EDIT_PROMPT_TEXT_ENV_BLOCK, // LATER-CHANGE: FRONTEND-2, bulk edit prompt text (NEXT_PUBLIC_STUDIO_BULK_EDIT_PROMPT_TEXT)
   (await import('./studio-legal-short-links-strip.mjs')).LEGAL_SHORT_LINKS_ENV_BLOCK, // LATER-CHANGE: FRONTEND-2, legal short links and the marketing-slide cache header from uat, D16 a (NEXT_PUBLIC_STUDIO_LEGAL_SHORT_LINKS)
+  (await import('./studio-stage-open-gate-strip.mjs')).STAGE_OPEN_GATE_ENV_BLOCK, // LATER-CHANGE: FRONTEND-2, B52 stage open gate (NEXT_PUBLIC_STUDIO_STAGE_OPEN_GATE)
   (await import('./studio-phone-shell-nav-strip.mjs')).PHONE_SHELL_NAV_ENV_BLOCK, // LATER-CHANGE: FRONTEND-2, phone shell 1, the bottom tab bar on phones (NEXT_PUBLIC_STUDIO_PHONE_SHELL)
   (await import('./studio-speed-perceived-strip.mjs')).SPEED_PERCEIVED_ENV_BLOCK, // LATER-CHANGE: FRONTEND-2, Studio perceived speed: the typed message echo (NEXT_PUBLIC_STUDIO_SPEED_PERCEIVED)
   (await import('./studio-flow-control-strip.mjs')).FLOW_CONTROL_ENV_BLOCK, // LATER-CHANGE: FRONTEND-1, P3-1 D flow control, Studio half (NEXT_PUBLIC_STUDIO_FLOW_FOCUS / _FLOW_AMEND / _FLOW_AMEND_INSTRUCTIONS)
@@ -145,6 +147,7 @@ export const LATER_STRIPS = [
   (await import('./studio-chat-element-text-set-strip.mjs')).stripChatElementTextSet, // LATER-CHANGE: FRONTEND-2, B49 chat text set (NEXT_PUBLIC_STUDIO_CHAT_ELEMENT_TEXT_SET)
   (await import('./studio-chat-refine-structural-decline-strip.mjs')).stripChatRefineStructuralDecline, // LATER-CHANGE: FRONTEND-2, B50 structural refine decline (NEXT_PUBLIC_STUDIO_CHAT_REFINE_STRUCTURAL_DECLINE)
   (await import('./studio-chat-text-set-keep-look-strip.mjs')).stripChatTextSetKeepLook, // LATER-CHANGE: FRONTEND-2, B49b text set keep look (NEXT_PUBLIC_STUDIO_CHAT_TEXT_SET_KEEP_LOOK)
+  (await import('./studio-stage-open-gate-strip.mjs')).stripStageOpenGate, // LATER-CHANGE: FRONTEND-2, B52 stage open gate (NEXT_PUBLIC_STUDIO_STAGE_OPEN_GATE)
   // one line per later change, above this comment
 ]
 
