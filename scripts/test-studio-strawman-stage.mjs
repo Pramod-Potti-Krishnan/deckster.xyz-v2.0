@@ -615,7 +615,7 @@ if (baseSources) {
     const unchangedOther = mod.stripStrawmanStage('lib/other.ts', 'x // STRAWMAN-STAGE\n') === 'x // STRAWMAN-STAGE\n'
     const wholeToken = mod.stripStrawmanStage(PAGE, 'b // STRAWMAN-STAGE-X\n') === 'b // STRAWMAN-STAGE-X\n'
     const bytes = mod.stripStrawmanStage(PAGE, 'a\r\nb // STRAWMAN-STAGE\r\nc') === 'a\r\nc'
-    const baseIdentity = strip.STRAWMAN_STAGE_FILES.every(rel => mod.stripStrawmanStage(rel, SOURCES[rel]) === baseSources[rel])
+    const baseIdentity = strip.STRAWMAN_STAGE_FILES.every(rel => mod.stripStrawmanStage(rel, SOURCES[rel]) === baseSources[rel]) && strip.STRAWMAN_STAGE_PIN_FILES.every(rel => mod.stripStrawmanStage(rel, readOwn(rel)) === git('show', `${strip.BASE_COMMIT}:${rel}`))
     if (unchangedOther && wholeToken && bytes && baseIdentity) survivors.push(`strip: ${mutant[0]}`)
   }
 }
