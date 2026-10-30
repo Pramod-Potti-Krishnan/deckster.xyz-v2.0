@@ -4932,6 +4932,7 @@ function AuthenticatedBuilderContent({ authScopeUserId }: { authScopeUserId: str
     && !viewerWorkflowRequest && !studioViewerFullscreen && !workspaceLayout.inspectorVisible
   // STUDIO-STAGE-OPEN-GATE (NEXT_PUBLIC_STUDIO_STAGE_OPEN_GATE, default off; PK UAT F-03): in a session that started fresh here, the stage stays out of sight after the first message, through Director's clarifying turns,
   // STUDIO-STAGE-OPEN-GATE until the strawman or the build streams, the deck is ready or the user asks; then it stays open for the session. A workflow link, fullscreen or an inspector shows it as today. lib/studio-stage-open-gate.ts
+  const studioStageCanvasAsked = useStudioStageCanvasAsked(currentSessionId || wsSessionId) // STUDIO-STAGE-OPEN-GATE: the chat header's "Show canvas" was clicked (PK Q1; the store in the lib)
   const studioStageGateRef = useRef<StudioStageGateState | null>(null) // STUDIO-STAGE-OPEN-GATE: the latch, kept per session
   const studioStageGate = stepStudioStageGate(studioStageGateRef.current, { enabled: STUDIO_STAGE_OPEN_GATE_ENABLED && studioShell && process.env.NEXT_PUBLIC_STUDIO_FIRST_RUN_V2 === 'true', // STUDIO-STAGE-OPEN-GATE
     sessionKey: currentSessionId || wsSessionId, landing: studioWelcome, // STUDIO-STAGE-OPEN-GATE
@@ -4939,8 +4940,9 @@ function AuthenticatedBuilderContent({ authScopeUserId }: { authScopeUserId: str
     historyLoading: session.isLoadingSession, resumed: session.isResumedSession, userMessages: session.userMessages, // STUDIO-STAGE-OPEN-GATE
     generatingStrawman: isGeneratingStrawman, generatingFinal: isGeneratingFinal, phase: buildNarration.active ? buildNarration.phase : 'idle', // STUDIO-STAGE-OPEN-GATE
     hasGeneratedDeck: studioCanvasLifecycle.hasGeneratedDeck, hasOwnedFinal: studioCanvasLifecycle.hasOwnedFinal, hasAuthoredDeck: studioCanvasLifecycle.hasAuthoredDeck, // STUDIO-STAGE-OPEN-GATE
-    blankChosen: blankPlaceholderDismissed, addSlideOpen: addSlideV2Open }) // STUDIO-STAGE-OPEN-GATE
+    blankChosen: blankPlaceholderDismissed, addSlideOpen: addSlideV2Open, canvasAsked: studioStageCanvasAsked }) // STUDIO-STAGE-OPEN-GATE
   studioStageGateRef.current = studioStageGate.state // STUDIO-STAGE-OPEN-GATE
+  useStudioStageGatePublish(currentSessionId || wsSessionId, studioStageGate.closed) // STUDIO-STAGE-OPEN-GATE: after the render, for the chat header's "Show canvas" and useStudioStageOpen()
 
   useEffect(() => {
     if (!composerLibraryEnabled || session.isLoadingSession || !currentSessionId || currentSessionId === 'new' || !user) return
@@ -8454,7 +8456,7 @@ import { composerTemplateActions, loadComposerTemplates } from '@/lib/studio-com
 import { STUDIO_CHAT_COMMANDS_ENABLED } from '@/lib/studio-chat-commands-wire' // CHAT-COMMANDS: placed here with chat clean's imports, at the end, for the same older proofs
 import type { ChatCommandsPageProps } from '@/lib/studio-chat-commands' // CHAT-COMMANDS
 import type { ExportDirectiveMessage } from '@/lib/chat-theme-export' // CHAT-COMMANDS
-import { STUDIO_STAGE_OPEN_GATE_ENABLED, stepStudioStageGate, studioStageGateProps, type StudioStageGateState } from '@/lib/studio-stage-open-gate' // STUDIO-STAGE-OPEN-GATE
+import { STUDIO_STAGE_OPEN_GATE_ENABLED, stepStudioStageGate, studioStageGateProps, useStudioStageCanvasAsked, useStudioStageGatePublish, type StudioStageGateState } from '@/lib/studio-stage-open-gate' // STUDIO-STAGE-OPEN-GATE
 
 function BuilderLoadingState({ message = 'Loading builder...' }: { message?: string }) {
   // NEXT_PUBLIC_STUDIO_SESSION_HYGIENE: the route loader is the builder shell, not a blank page with a spinner.

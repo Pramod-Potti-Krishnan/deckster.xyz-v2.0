@@ -10,6 +10,10 @@
 //  - It closes only in a session seen fresh in this tab (its welcome was up: no user turn, not loading, not resumed). A restored session (history loaded, a deck or authored slides) is never closed, so it has no
 //    full-width flash while it loads; a new session reloaded mid-clarification counts as restored and shows the stage (known limit).
 //  - The latch is per session (currentSessionId || wsSessionId): a New Chat (a new id) starts closed again; the first adoption of an id by a session that had none keeps its state.
+//  - PK Q1 (30 Oct, yes): while the gate holds the stage closed, the chat header offers "Show canvas"; a click opens the stage and latches it ('show_canvas'). The header and the page meet in a tiny store below
+//    (the page publishes the gate after render and reads the click; the header reads the gate and writes the click), so the page needs no new prop. useStudioStageOpen() is for FRONTEND-1's F-09.
+
+import { useLayoutEffect, useSyncExternalStore } from 'react'
 
 export const STUDIO_STAGE_OPEN_GATE_ENABLED = process.env.NEXT_PUBLIC_STUDIO_STAGE_OPEN_GATE === 'true'
 /** PASS2D W's column (NEXT_PUBLIC_STUDIO_WELCOME_WIDTH_560): the closed gate keeps the welcome's column width (lib/studio-welcome-width.ts). */
@@ -33,7 +37,7 @@ export const STUDIO_STAGE_OPEN_PHRASES: readonly string[] = [
 ]
 
 /** What latched the gate open (the first one seen wins and is kept for the session). */
-export type StudioStageTrigger = 'strawman' | 'build' | 'deck' | 'authored' | 'typed' | 'blank' | 'add_slide'
+export type StudioStageTrigger = 'strawman' | 'build' | 'deck' | 'authored' | 'typed' | 'blank' | 'add_slide' | 'show_canvas'
 /** Why the gate is as it is: the latched trigger, or an open that does not latch, or 'closed'. */
 export type StudioStageGateReason = StudioStageTrigger | 'off' | 'not_fresh' | 'workflow' | 'fullscreen' | 'inspector' | 'closed'
 
@@ -71,6 +75,8 @@ export interface StudioStageGateInput {
   blankChosen: boolean
   /** The Add Slide panel is open (addSlideV2Open). */
   addSlideOpen: boolean
+  /** The chat header's "Show canvas" was clicked in this session (useStudioStageCanvasAsked). */
+  canvasAsked?: boolean
 }
 
 export interface StudioStageGate {
@@ -105,7 +111,7 @@ function buildPhase(phase: string): boolean {
   return phase !== 'idle' && phase !== 'planning' && phase !== 'strawman' && phase !== 'awaiting_user'
 }
 
-/** The latching trigger present in this input, or null. Order: deck, build, strawman, authored, blank, Add Slide, typed. */
+/** The latching trigger present in this input, or null. Order: deck, build, strawman, authored, blank, Add Slide, Show canvas, typed. */
 export function studioStageTrigger(input: StudioStageGateInput): StudioStageTrigger | null {
   if (input.hasGeneratedDeck || input.hasOwnedFinal) return 'deck'
   if (input.generatingFinal || buildPhase(String(input.phase || 'idle'))) return 'build'
@@ -113,8 +119,14 @@ export function studioStageTrigger(input: StudioStageGateInput): StudioStageTrig
   if (input.hasAuthoredDeck) return 'authored'
   if (input.blankChosen) return 'blank'
   if (input.addSlideOpen) return 'add_slide'
+  if (input.canvasAsked === true) return 'show_canvas'
   if ((input.userMessages || []).some(message => matchStageAsk(message?.text) !== null)) return 'typed'
   return null
+}
+
+/** The session key the gate keeps its latch under: the id, or null for none yet ('new' is none). */
+export function normaliseSessionKey(sessionKey: unknown): string | null {
+  return typeof sessionKey === 'string' && sessionKey.trim() && sessionKey !== 'new' ? sessionKey : null
 }
 
 const EMPTY: StudioStageGateState = Object.freeze({ key: null, armed: false, latched: null }) as StudioStageGateState
@@ -130,7 +142,7 @@ function same(a: StudioStageGateState, b: StudioStageGateState): boolean {
 export function stepStudioStageGate(prev: StudioStageGateState | null | undefined, input: StudioStageGateInput): StudioStageGate {
   const before = prev ?? EMPTY
   if (input.enabled !== true) return { closed: false, reason: 'off', state: before }
-  const key = typeof input.sessionKey === 'string' && input.sessionKey.trim() && input.sessionKey !== 'new' ? input.sessionKey : null
+  const key = normaliseSessionKey(input.sessionKey)
   let next: StudioStageGateState
   if (before.key === key) next = before
   else if (before.key === null && key !== null && before !== EMPTY) next = { ...before, key } // a session without an id adopts one: the same conversation
@@ -150,4 +162,65 @@ export function stepStudioStageGate(prev: StudioStageGateState | null | undefine
 export function studioStageGateProps(closed: boolean, width560: boolean = STUDIO_STAGE_GATE_WIDTH_560): { 'data-studio-stage-gate'?: 'closed'; 'data-studio-stage-gate-width'?: '560' } {
   if (closed !== true) return {}
   return width560 === true ? { 'data-studio-stage-gate': 'closed', 'data-studio-stage-gate-width': '560' } : { 'data-studio-stage-gate': 'closed' }
+}
+
+// ---- the store the page and the chat header share (no new prop on either) ----------------------------------------------------------------------------------------------------------------------
+export interface StudioStageGateSnapshot {
+  /** The session the page last published. */
+  key: string | null
+  /** The gate holds the stage closed (the page's studioStageGate.closed). */
+  closed: boolean
+  /** "Show canvas" was clicked while that session's stage was closed. */
+  ask: { key: string | null } | null
+}
+
+export function createStudioStageGateStore() {
+  let snapshot: StudioStageGateSnapshot = { key: null, closed: false, ask: null }
+  const listeners = new Set<() => void>()
+  const set = (next: StudioStageGateSnapshot) => {
+    if (next.key === snapshot.key && next.closed === snapshot.closed && next.ask === snapshot.ask) return
+    snapshot = next
+    for (const listener of [...listeners]) listener()
+  }
+  return {
+    getSnapshot: (): StudioStageGateSnapshot => snapshot,
+    subscribe(listener: () => void): () => void { listeners.add(listener); return () => { listeners.delete(listener) } },
+    /** The page, after each render: this session's gate. */
+    publish(sessionKey: unknown, closed: boolean) { set({ ...snapshot, key: normaliseSessionKey(sessionKey), closed: closed === true }) },
+    /** The header's click: asks for the stage of the session on screen; nothing while the stage is not held closed. */
+    askCanvas() { if (snapshot.closed) set({ ...snapshot, ask: { key: snapshot.key } }) },
+    /** Whether `sessionKey`'s "Show canvas" was clicked. */
+    asked(sessionKey: unknown): boolean { return snapshot.ask !== null && snapshot.ask.key === normaliseSessionKey(sessionKey) },
+  }
+}
+
+export const studioStageGateStore = createStudioStageGateStore()
+
+function useStudioStageGateSnapshot(): StudioStageGateSnapshot {
+  // The server snapshot is the client's: the store only ever changes in the browser, after the page has rendered.
+  return useSyncExternalStore(studioStageGateStore.subscribe, studioStageGateStore.getSnapshot, studioStageGateStore.getSnapshot)
+}
+
+/** For FRONTEND-1 (F-09, the quiet chat line while the stage is hidden): true whenever the flag is off or the gate is open. */
+export function useStudioStageOpen(): boolean {
+  const snapshot = useStudioStageGateSnapshot()
+  return !STUDIO_STAGE_OPEN_GATE_ENABLED || !snapshot.closed
+}
+
+/** The chat header's "Show canvas": its click handler while the gate holds the stage closed, else null (nothing is drawn). */
+export function useStudioStageShowCanvas(): (() => void) | null {
+  return useStudioStageOpen() ? null : studioStageGateStore.askCanvas
+}
+
+/** The page: whether this session's "Show canvas" was clicked (re-renders the page on the click). */
+export function useStudioStageCanvasAsked(sessionKey: unknown): boolean {
+  const snapshot = useStudioStageGateSnapshot()
+  return snapshot.ask !== null && snapshot.ask.key === normaliseSessionKey(sessionKey)
+}
+
+/** The page: publishes this render's gate after the render (before paint), and clears it when the page goes. */
+export function useStudioStageGatePublish(sessionKey: unknown, closed: boolean): void {
+  const key = normaliseSessionKey(sessionKey)
+  useLayoutEffect(() => { studioStageGateStore.publish(key, closed === true) }, [key, closed])
+  useLayoutEffect(() => () => { studioStageGateStore.publish(null, false) }, [])
 }

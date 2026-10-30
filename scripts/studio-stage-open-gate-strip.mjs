@@ -1,7 +1,8 @@
 // FRONTEND-2 (B52, 30 Oct; PK UAT feedback F-03). Flag NEXT_PUBLIC_STUDIO_STAGE_OPEN_GATE (exact "true", default off, build-time; it acts only with NEXT_PUBLIC_STUDIO_FIRST_RUN_V2 on): the chat stays full-width through Director's clarifying
 // questions and the deck stage opens only when the strawman or the build streams, the deck is ready, or the user asks (a typed phrase, Blank canvas, Add Slide); then it stays open for the session.
 // Every line this change adds to an EXISTING file is a pure insertion that carries the marker STUDIO-STAGE-OPEN-GATE (a whole token): app/builder/page.tsx (the gate step beside studioFirstRunStage, the stage attribute beside
-// data-studio-first-run-stage, one import at the end) and components/builder/studio-first-run.css (the rules keyed to data-studio-stage-gate="closed"). Strip those lines and each file is its base, byte for byte.
+// data-studio-first-run-stage, one import at the end), components/builder/studio-first-run.css (the rules keyed to data-studio-stage-gate="closed") and components/builder/chat/studio-director-header.tsx (PK Q1: the
+// "Show canvas" button while the gate is closed: one hook line, one button line, two imports at the end). Strip those lines and each file is its base, byte for byte.
 // The new lib lib/studio-stage-open-gate.ts holds the flag, the phrase list, the triggers and the latch.
 // How the older pins reach it: this change REGISTERS its files, its .env.example block and this strip (scripts/studio-later-changes.mjs, three lines). Plain node, no imports, nothing read from disk or git here.
 
@@ -17,11 +18,13 @@ export const STAGE_OPEN_GATE_SUBJECT = 'Stage open gate:'
 export const STAGE_OPEN_GATE_FILES = [
   'app/builder/page.tsx',
   'components/builder/studio-first-run.css',
+  'components/builder/chat/studio-director-header.tsx', // PK Q1: the "Show canvas" button while the gate is closed
 ]
 
 /** New files (no base text to put back). */
 export const STAGE_OPEN_GATE_NEW_FILES = [
   'lib/studio-stage-open-gate.ts',
+  'components/builder/chat/studio-stage-gate-show-canvas.css',
   'scripts/studio-stage-open-gate-strip.mjs',
   'scripts/test-studio-stage-open-gate.mjs',
   'scripts/fixtures/studio-stage-open-gate/director2-pk-f03/scenario-A.json', // DIRECTOR-2's recording of a new session for F-03 (workspace b88aca96, streams/director2/pk-f03-new-session), byte for byte: the main proof frames
