@@ -38,8 +38,13 @@ export const STRAWMAN_CHAT_NEW_FILES = [
 
 /** The older proofs this change teaches: [text the proof has now, text the proof had before] per edit, whole lines, so putting them back gives the previous file byte for byte. Every line the proof has now carries STRAWMAN_CHAT_PIN_MARK. */
 export const STRAWMAN_CHAT_PIN_MARK = 'LATER-CHANGES: registry read (STRAWMAN-CHAT)'
+/** The line the first-parent scope checks of two older proofs get: a branch stacked after an older change has this change's commits on its first-parent line, and they are this change's own, not that change's. */
+const FIRST_PARENT_SUBJECT_LINE = `  shas.splice(0, shas.length, ...shas.filter(sha => !/^Strawman chat:/.test(git('log', '-1', '--format=%s', sha)))) // ${STRAWMAN_CHAT_PIN_MARK}: on a branch stacked after this change (strawman chat's), the first-parent commits are its own, not this change's; with none left the pins and identity checks above cover the files\n`
 export const STRAWMAN_CHAT_PIN_EDITS = {
-  // filled in as the older proofs that read these files raw or check the first-parent line are found (the full suite, base against branch)
+  // the first-parent scope check of test-studio-chat-element-edit.mjs: a branch stacked after this change has this change's commits on the first-parent line
+  "scripts/test-studio-chat-element-edit.mjs": [[FIRST_PARENT_SUBJECT_LINE, ""]],
+  // the first-parent scope check of test-studio-deck-sync-truth.mjs: the same
+  "scripts/test-studio-deck-sync-truth.mjs": [[FIRST_PARENT_SUBJECT_LINE, ""]],
 }
 
 /** The proof without this change's edits (the previous file). Used by the strip and the proof. */
