@@ -64,6 +64,7 @@ export const LATER_CHANGE_FILES = new Set([
   ...(await import('./studio-chat-element-text-set-strip.mjs')).CHAT_ELEMENT_TEXT_SET_SCOPE_FILES, // LATER-CHANGE: FRONTEND-2, B49 chat text set: a chat 'Change this to ...' on a selected text box sets exactly those words (NEXT_PUBLIC_STUDIO_CHAT_ELEMENT_TEXT_SET)
   ...(await import('./studio-chat-refine-structural-decline-strip.mjs')).CHAT_REFINE_STRUCTURAL_DECLINE_SCOPE_FILES, // LATER-CHANGE: FRONTEND-2, B50 structural refine decline: a chat refine of a title-type text box declines honestly instead of rewriting it from the instruction (NEXT_PUBLIC_STUDIO_CHAT_REFINE_STRUCTURAL_DECLINE)
   ...(await import('./studio-chat-text-set-keep-look-strip.mjs')).CHAT_TEXT_SET_KEEP_LOOK_SCOPE_FILES, // LATER-CHANGE: FRONTEND-2, B49b text set keep look: a chat exact-text set keeps the text box's look, so a title stays a title (NEXT_PUBLIC_STUDIO_CHAT_TEXT_SET_KEEP_LOOK)
+  ...(await import('./studio-strawman-chat-strip.mjs')).STRAWMAN_CHAT_SCOPE_FILES, // LATER-CHANGE: FRONTEND-1, strawman chat: no slide list in the chat outline card, no progress card, one quiet status line while the stage is hidden (NEXT_PUBLIC_STUDIO_STRAWMAN_CHAT)
   // one line per later change, above this comment
 ])
 
@@ -100,6 +101,7 @@ export const LATER_ENV_BLOCKS = [
   (await import('./studio-chat-element-text-set-strip.mjs')).CHAT_ELEMENT_TEXT_SET_ENV_BLOCK, // LATER-CHANGE: FRONTEND-2, B49 chat text set (NEXT_PUBLIC_STUDIO_CHAT_ELEMENT_TEXT_SET)
   (await import('./studio-chat-refine-structural-decline-strip.mjs')).CHAT_REFINE_STRUCTURAL_DECLINE_ENV_BLOCK, // LATER-CHANGE: FRONTEND-2, B50 structural refine decline (NEXT_PUBLIC_STUDIO_CHAT_REFINE_STRUCTURAL_DECLINE)
   (await import('./studio-chat-text-set-keep-look-strip.mjs')).CHAT_TEXT_SET_KEEP_LOOK_ENV_BLOCK, // LATER-CHANGE: FRONTEND-2, B49b text set keep look (NEXT_PUBLIC_STUDIO_CHAT_TEXT_SET_KEEP_LOOK)
+  (await import('./studio-strawman-chat-strip.mjs')).STRAWMAN_CHAT_ENV_BLOCK, // LATER-CHANGE: FRONTEND-1, strawman chat (NEXT_PUBLIC_STUDIO_STRAWMAN_CHAT)
   // one line per later change, above this comment
 ]
 
@@ -145,6 +147,7 @@ export const LATER_STRIPS = [
   (await import('./studio-chat-element-text-set-strip.mjs')).stripChatElementTextSet, // LATER-CHANGE: FRONTEND-2, B49 chat text set (NEXT_PUBLIC_STUDIO_CHAT_ELEMENT_TEXT_SET)
   (await import('./studio-chat-refine-structural-decline-strip.mjs')).stripChatRefineStructuralDecline, // LATER-CHANGE: FRONTEND-2, B50 structural refine decline (NEXT_PUBLIC_STUDIO_CHAT_REFINE_STRUCTURAL_DECLINE)
   (await import('./studio-chat-text-set-keep-look-strip.mjs')).stripChatTextSetKeepLook, // LATER-CHANGE: FRONTEND-2, B49b text set keep look (NEXT_PUBLIC_STUDIO_CHAT_TEXT_SET_KEEP_LOOK)
+  (await import('./studio-strawman-chat-strip.mjs')).stripStrawmanChat, // LATER-CHANGE: FRONTEND-1, strawman chat (NEXT_PUBLIC_STUDIO_STRAWMAN_CHAT)
   // one line per later change, above this comment
 ]
 

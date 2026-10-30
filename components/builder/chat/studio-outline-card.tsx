@@ -3,6 +3,8 @@
 import type { ReactNode } from "react"
 import { ChevronDown, ListOrdered } from "lucide-react"
 import type { SlideContextItem, SlideUpdate } from "@/hooks/use-deckster-websocket-v2"
+import { STUDIO_STRAWMAN_CHAT_ENABLED } from "@/lib/studio-strawman-chat" // STRAWMAN-CHAT
+import { StudioStrawmanOutlineCard } from "@/components/builder/chat/studio-strawman-chat" // STRAWMAN-CHAT
 
 interface StudioOutlineCardProps {
   payload: SlideUpdate["payload"]
@@ -21,6 +23,7 @@ interface StudioOutlineCardProps {
 
 /** Reads the existing outline/context only; expanding a row never sends or mutates. */
 export function StudioOutlineCard({ payload, contextByIndex, renderEvidence, historyStatus, onCanvas, canvasSuperseded, outlineLabel, deckSlideCount }: StudioOutlineCardProps) {
+  if (STUDIO_STRAWMAN_CHAT_ENABLED) return <StudioStrawmanOutlineCard payload={payload} historyStatus={historyStatus} onCanvas={onCanvas} canvasSuperseded={canvasSuperseded} outlineLabel={outlineLabel} deckSlideCount={deckSlideCount} /> // STRAWMAN-CHAT: no numbered slide list in the chat (F-08)
   const details = <>
       {payload.metadata.target_audience && <p data-studio-director-part="outline-review-audience">For {payload.metadata.target_audience}</p>}
       <p data-studio-director-part="outline-review-hint">Expand a slide to review its content and research details.</p>
