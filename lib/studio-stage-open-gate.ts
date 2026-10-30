@@ -196,15 +196,17 @@ export function createStudioStageGateStore() {
 
 export const studioStageGateStore = createStudioStageGateStore()
 
-function useStudioStageGateSnapshot(): StudioStageGateSnapshot {
-  // The server snapshot is the client's: the store only ever changes in the browser, after the page has rendered.
-  return useSyncExternalStore(studioStageGateStore.subscribe, studioStageGateStore.getSnapshot, studioStageGateStore.getSnapshot)
+/** One boolean read of the store; a component re-renders only when that boolean changes (the server snapshot is the client's: the store only ever changes in the browser, after the page has rendered). */
+function useStudioStageGateBoolean(read: () => boolean): boolean {
+  return useSyncExternalStore(studioStageGateStore.subscribe, read, read)
 }
+
+const readClosed = () => studioStageGateStore.getSnapshot().closed
 
 /** For FRONTEND-1 (F-09, the quiet chat line while the stage is hidden): true whenever the flag is off or the gate is open. */
 export function useStudioStageOpen(): boolean {
-  const snapshot = useStudioStageGateSnapshot()
-  return !STUDIO_STAGE_OPEN_GATE_ENABLED || !snapshot.closed
+  const closed = useStudioStageGateBoolean(readClosed)
+  return !STUDIO_STAGE_OPEN_GATE_ENABLED || !closed
 }
 
 /** The chat header's "Show canvas": its click handler while the gate holds the stage closed, else null (nothing is drawn). */
@@ -212,10 +214,10 @@ export function useStudioStageShowCanvas(): (() => void) | null {
   return useStudioStageOpen() ? null : studioStageGateStore.askCanvas
 }
 
-/** The page: whether this session's "Show canvas" was clicked (re-renders the page on the click). */
+/** The page: whether this session's "Show canvas" was clicked. The page re-renders only when that answer changes (the click), never for its own publish. */
 export function useStudioStageCanvasAsked(sessionKey: unknown): boolean {
-  const snapshot = useStudioStageGateSnapshot()
-  return snapshot.ask !== null && snapshot.ask.key === normaliseSessionKey(sessionKey)
+  const key = normaliseSessionKey(sessionKey)
+  return useStudioStageGateBoolean(() => studioStageGateStore.asked(key))
 }
 
 /** The page: publishes this render's gate after the render (before paint), and clears it when the page goes. */

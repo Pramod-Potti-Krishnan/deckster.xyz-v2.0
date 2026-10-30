@@ -808,7 +808,11 @@ function storeChecks(on = ON) {
   s.publish('new', true); assert.equal(s.getSnapshot().key, null, "'new' is no session yet")
   s.askCanvas(); s.publish('d', true); const before = heard; unsubscribe(); s.publish('e', false); assert.equal(heard, before, 'an unsubscribed listener is not called')
   for (const name of ['useStudioStageOpen', 'useStudioStageShowCanvas', 'useStudioStageCanvasAsked', 'useStudioStageGatePublish', 'studioStageGateStore', 'createStudioStageGateStore']) assert.equal(typeof on.gate[name] !== 'undefined', true, name)
-  assert.match(LIB_SRC, /useSyncExternalStore\(studioStageGateStore\.subscribe, studioStageGateStore\.getSnapshot, studioStageGateStore\.getSnapshot\)/)
+  assert.match(LIB_SRC, /return useSyncExternalStore\(studioStageGateStore\.subscribe, read, read\)/, 'one boolean per read, the same on the server')
+  // the page re-renders only when its answer changes: a publish that leaves asked(key) as it was is not a new snapshot for it
+  const s2 = on.gate.createStudioStageGateStore(), asked = () => s2.asked('k'), seen = []
+  s2.subscribe(() => seen.push(asked())); s2.publish('k', true); s2.publish('k', false); s2.publish('k', true); s2.askCanvas()
+  assert.deepEqual(seen, [false, false, false, true], 'publishes notify, but the page\'s boolean only turns at the click')
   assert.match(LIB_SRC, /useLayoutEffect\(\(\) => \{ studioStageGateStore\.publish\(key, closed === true\) \}, \[key, closed\]\)/, 'the page publishes after the render, before paint, on each change')
   assert.match(LIB_SRC, /useLayoutEffect\(\(\) => \(\) => \{ studioStageGateStore\.publish\(null, false\) \}, \[\]\)/, 'and clears it when the page goes')
 }
@@ -993,7 +997,7 @@ libMutant('"Show canvas" not a trigger', "  if (input.canvasAsked === true) retu
 libMutant('the click asks even when the stage is open', '    askCanvas() { if (snapshot.closed) set({ ...snapshot, ask: { key: snapshot.key } }) },', '    askCanvas() { set({ ...snapshot, ask: { key: snapshot.key } }) },')
 libMutant('the click asks for every session', '    asked(sessionKey: unknown): boolean { return snapshot.ask !== null && snapshot.ask.key === normaliseSessionKey(sessionKey) },', '    asked(sessionKey: unknown): boolean { return snapshot.ask !== null },')
 libMutant('the header offers the link with the stage open', '  return useStudioStageOpen() ? null : studioStageGateStore.askCanvas', '  return studioStageGateStore.askCanvas')
-libMutant('useStudioStageOpen ignores the flag', '  return !STUDIO_STAGE_OPEN_GATE_ENABLED || !snapshot.closed', '  return !snapshot.closed')
+libMutant('useStudioStageOpen ignores the flag', '  return !STUDIO_STAGE_OPEN_GATE_ENABLED || !closed', '  return !closed')
 libMutant('blank canvas not a trigger', "  if (input.blankChosen) return 'blank'\n", '')
 libMutant('deck ready not a trigger', "  if (input.hasGeneratedDeck || input.hasOwnedFinal) return 'deck'\n", '')
 libMutant('typed ask not a trigger', "  if ((input.userMessages || []).some(message => matchStageAsk(message?.text) !== null)) return 'typed'\n", '')
