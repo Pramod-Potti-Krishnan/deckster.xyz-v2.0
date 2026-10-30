@@ -40,6 +40,14 @@ export const STAGE_OPEN_GATE_NEW_FILES = [
 /** The older proofs this change teaches: [text the proof has now, text the proof had before] per edit, whole lines, so putting them back gives the previous file. Every line the proof has now carries a registry-read mark. */
 export const STAGE_OPEN_GATE_PIN_MARK = 'LATER-CHANGES: registry read (STUDIO-STAGE-OPEN-GATE)'
 export const STAGE_OPEN_GATE_PIN_EDITS = {
+  // the first-parent scope check of test-studio-chat-element-edit.mjs: a branch stacked after this change has this change's commits on the first-parent line
+  "scripts/test-studio-chat-element-edit.mjs": [
+    ["  shas.splice(0, shas.length, ...shas.filter(sha => !/^Stage open gate:/.test(git('log', '-1', '--format=%s', sha)))) // LATER-CHANGES: registry read (STUDIO-STAGE-OPEN-GATE): on a branch stacked after this change (the stage open gate's), the first-parent commits are its own, not this change's; with none left the pins and identity checks above cover the files\n", ""],
+  ],
+  // the first-parent scope check of test-studio-deck-sync-truth.mjs: a branch stacked after this change has this change's commits on the first-parent line
+  "scripts/test-studio-deck-sync-truth.mjs": [
+    ["  shas.splice(0, shas.length, ...shas.filter(sha => !/^Stage open gate:/.test(git('log', '-1', '--format=%s', sha)))) // LATER-CHANGES: registry read (STUDIO-STAGE-OPEN-GATE): on a branch stacked after this change (the stage open gate's), the first-parent commits are its own, not this change's; with none left the pins and identity checks above cover the files\n", ""],
+  ],
   // its D6 import-lines pin and its source pins read the Director header raw: the header's two marked lines come out first (put back: the plain read)
   "scripts/test-studio-pass2b-chat.mjs": [
     ["  const stageOpenGateStrip = await import('./studio-stage-open-gate-strip.mjs') // LATER-CHANGES: registry read (STUDIO-STAGE-OPEN-GATE): the stage open gate's marked lines (the Director header's \"Show canvas\" line and import) come out of a source before the pins below read it\n  const read = relative => stageOpenGateStrip.stripStageOpenGate(relative, fs.readFileSync(path.join(root, relative), 'utf8')) // LATER-CHANGES: registry read (STUDIO-STAGE-OPEN-GATE)\n",
