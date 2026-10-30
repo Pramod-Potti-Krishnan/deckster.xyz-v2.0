@@ -329,9 +329,9 @@ function makeRenderer({ page = PAGE_NOW, libs = ON, env = ON_ENV } = {}) {
 }
 
 // the harness state: what the socket hook, the session hook and the narration hook would hold. The narration phase is the REAL reducer's.
-function freshState(libs, sessionId = 'synthetic-5e2675b8') {
+function freshState(libs, sessionId = 'synthetic-5e2675b8', { narration = true } = {}) {
   return {
-    narrationLib: libs.narration,
+    narrationLib: libs.narration, narrationOn: narration,
     vars: { currentSessionId: sessionId, wsSessionId: sessionId, deckOwnerSessionId: sessionId, effectivePresentationId: null, effectivePresentationUrl: null, narrationCenterStage: 'idle',
       templateModeSourcePresentationUrl: null, directorOwnedPresentation: { presentationUrl: null }, effectiveActiveVersion: 'blank', effectiveSlideCount: null, finalPresentationId: null, finalPresentationUrl: null,
       effectiveSlideStructure: null, isGeneratingFinal: false, isGeneratingStrawman: false, blankPlaceholderDismissed: false, connected: true, connecting: false, studioShell: true, studioPartialMetadata: false,
@@ -341,7 +341,8 @@ function freshState(libs, sessionId = 'synthetic-5e2675b8') {
     messages: [],
   }
 }
-const dispatch = (S, action) => { S.narration = S.narrationLib.narrationReducer(S.narration, { ts: 1_760_000_000_000, ...action }) }
+/** NEXT_PUBLIC_BUILD_NARRATION off: the narration hook keeps its initial, inactive state (the page then passes phase 'idle'). */
+const dispatch = (S, action) => { if (S.narrationOn) S.narration = S.narrationLib.narrationReducer(S.narration, { ts: 1_760_000_000_000, ...action }) }
 /** A recorded Director frame -> the state the page would hold (the socket hook's and the narration hook's part, modelled). */
 function applyFrame(S, frame) {
   const p = frame.payload || {}
@@ -487,9 +488,9 @@ const RULES_BASE = cssRules(stripStageOpenGate(CSS, CSS_NOW))
 
 // ===== the scenarios, on the recorded frames ==============================================================================================================================
 /** Run a scenario: `steps` is a list of [label, (S) => void]; each step is followed by one render. Returns the per-step view (gate, attributes, layout). */
-function runScenario(steps, { page = PAGE_NOW, libs = ON, env = ON_ENV, rules = RULES_ON, state } = {}) {
+function runScenario(steps, { page = PAGE_NOW, libs = ON, env = ON_ENV, rules = RULES_ON, state, narration = true } = {}) {
   const render = makeRenderer({ page, libs, env })
-  const S = state ? state(libs) : freshState(libs)
+  const S = state ? state(libs) : freshState(libs, undefined, { narration })
   const out = []
   for (const [label, act] of steps) {
     act(S)
@@ -543,6 +544,14 @@ function scenarioChecks({ page = PAGE_NOW, libs = ON, rules = RULES_ON } = {}) {
     for (const x of v.slice(at(v, 9))) { expectSplit(x); assert.equal(x.reason, 'typed', `${name} ${x.label}`) }
     assert.ok(v.at(-1).label.startsWith(`seq ${last} `), name)
   }
+  // the narration canvas OFF (NEXT_PUBLIC_BUILD_NARRATION unset; dev's value is not on record): no narration phase reaches the gate, so the strawman opens it at the outline itself, seq 27 slide_update (authored
+  // structure), one frame after build_phase strawman; B1 / B2 still open on the typed phrase; the deck's URL (seq 70) is past the latch
+  const faOff = runScenario(f03Steps(F03_A), { ...o, narration: false })
+  const outlineAt = at(faOff, 27)
+  assert.equal(faOff[outlineAt].label, 'seq 27 slide_update')
+  for (const v of faOff.slice(at(faOff, 7), outlineAt)) { expectFull(v); assert.equal(v.reason, 'closed', `narration off: ${v.label}`) }
+  for (const v of faOff.slice(outlineAt)) { expectSplit(v); assert.equal(v.reason, 'authored', `narration off: ${v.label}`) }
+  for (const scenario of [F03_B1, F03_B2]) { const v = runScenario(f03Steps(scenario), { ...o, narration: false }); expectFull(v[at(v, 8)]); for (const x of v.slice(at(v, 9))) { expectSplit(x); assert.equal(x.reason, 'typed') } }
   // no strawman in A (its strawman frames and outline gate left out, every other frame as recorded): the first build frame opens it (the build turn's status_update, which the narration reads as building)
   const aNoStraw = { ...F03_A, frames: F03_A.frames.filter(f => !(f.direction === 'out' && ((f.type === 'build_phase' && f.frame.payload?.phase === 'strawman') || f.type === 'slide_update' || (f.type === 'action_request' && f.seq === 29)))) }
   const fn = runScenario(f03Steps(aNoStraw), o)
@@ -617,7 +626,7 @@ function scenarioChecks({ page = PAGE_NOW, libs = ON, rules = RULES_ON } = {}) {
   }
   return { a, b, c, f, g }
 }
-check('BEHAVIOUR (flag on, recorded frames): closed through the clarifying turns; opens at the first strawman frame; at the first build frame when there is no strawman; on deck ready; on each typed phrase; on Blank canvas and Add Slide; not on a near miss; stays open (latch); New Chat starts closed; a restored deck opens at once with no full-width flash; workflow link / fullscreen / inspector as today', () => {
+check('BEHAVIOUR (flag on, recorded frames): closed through the clarifying turns and the plan card; opens at the first strawman frame (with the narration canvas off: at the outline itself); at the first build frame when there is no strawman; on deck ready; on each typed phrase; on Blank canvas and Add Slide; not on a near miss; stays open (latch); New Chat starts closed; a restored deck opens at once with no full-width flash; workflow link / fullscreen / inspector as today', () => {
   scenarioChecks()
 })
 
@@ -644,6 +653,7 @@ check('FLAG OFF: every scenario renders byte-identical to the base page and styl
   }
   const off = runScenario(NEW_SESSION, { libs: OFF, env: OFF_ENV })
   expectFull(off[0]); expectSplit(off[1]); expectSplit(off[2])
+  for (const narration of [true, false]) assert.equal(viewDigest(runScenario(f03Steps(F03_A), { libs: OFF, env: OFF_ENV, narration })), viewDigest(runScenario(f03Steps(F03_A), { page: PAGE_BASE, libs: OFF, env: OFF_ENV, rules: RULES_BASE, narration })), `scenario A, narration ${narration ? 'on' : 'off'}: flag off == base`)
   const offA = runScenario(f03Steps(F03_A), { libs: OFF, env: OFF_ENV })
   expectFull(offA[at(offA, 6)]); for (const v of offA.slice(at(offA, 7))) expectSplit(v) // today: the split from the first message (PK's F-03)
   // and with the flag on but FIRST_RUN_V2 off: nothing either
@@ -836,6 +846,7 @@ libMutant('resumed does not disarm', 'const armed = input.resumed ? false : next
 libMutant('no reset on a new session', "else next = { key, armed: false, latched: null }", "else next = { ...before, key }")
 libMutant('ignores a workflow link, fullscreen and an inspector', "const override: StudioStageGateReason | null = input.workflow ? 'workflow' : input.fullscreen ? 'fullscreen' : input.inspector ? 'inspector' : null", "const override: StudioStageGateReason | null = null")
 libMutant('Add Slide not a trigger', "  if (input.addSlideOpen) return 'add_slide'\n", '')
+libMutant('authored slides (the outline) not a trigger', "  if (input.hasAuthoredDeck) return 'authored'\n", '')
 libMutant('blank canvas not a trigger', "  if (input.blankChosen) return 'blank'\n", '')
 libMutant('deck ready not a trigger', "  if (input.hasGeneratedDeck || input.hasOwnedFinal) return 'deck'\n", '')
 libMutant('typed ask not a trigger', "  if ((input.userMessages || []).some(message => matchStageAsk(message?.text) !== null)) return 'typed'\n", '')
