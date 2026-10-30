@@ -593,7 +593,7 @@ const scopeAll = (head, ctx = REAL) => { scopeOwnCommits(head); scopeCommittedFi
 
 const HEAD = scopeHead('HEAD')
 await check(`this change's own commits (subject starts "${WELCOME_TRIM_SUBJECTS.join('" or "')}", found across the whole line, no merges) exist, with the co-author line; none could be taken for an older change's`, () => { scopeOwnCommits(HEAD) })
-await check('the committed files are exactly this change\'s; every line added to an existing file is a pure insertion that carries one of the two markers (the one pinned dependency-list line aside); the strip gives the base back byte for byte; the five older proofs taught a registry read put back are the base\'s', () => scopeCommittedFiles(HEAD))
+await check('the committed files are exactly this change\'s; every line added to an existing file is a pure insertion that carries one of the two markers (the one pinned dependency-list line aside); the strip gives the base back byte for byte; the six older proofs taught a registry read put back are the base\'s', () => scopeCommittedFiles(HEAD))
 await check('.env.example is the base plus the block (after one blank line); the registry gains exactly its three marked lines and loses none; no secret-shaped literal in the new files', () => {
   scopeEnvAndRegistry(HEAD)
   for (const rel of WELCOME_TRIM_NEW_FILES.filter(rel => !rel.endsWith('.json') && !rel.endsWith('.css'))) assert.doesNotMatch(fs.readFileSync(path.join(root, rel), 'utf8'), /(sk-[A-Za-z0-9]{16,}|AKIA[0-9A-Z]{12,}|eyJ[A-Za-z0-9_-]{20,}\.|-----BEGIN [A-Z ]*PRIVATE KEY)/, rel)

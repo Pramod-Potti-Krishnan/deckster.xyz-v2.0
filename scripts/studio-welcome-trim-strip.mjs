@@ -6,7 +6,7 @@
 // Every line this change adds to an EXISTING file is a pure insertion that carries one of the two markers (a whole token), except ONE existing line that is extended: message-list.tsx's useMemo dependency list gains `trimmedGreetingIds`
 // (WELCOME_TRIM_PIN_EDITS puts the old line back). Strip those lines and the three files are their base, byte for byte. The decisions live in two new libs (lib/studio-welcome-trim.ts, lib/studio-director-mark.ts); the header's tidy-up
 // CSS is a new file (components/builder/chat/studio-director-mark-trim.css) whose rules can only match markup that exists with the flag on.
-// How the older pins reach it: this change REGISTERS its files, its .env.example block and this strip (scripts/studio-later-changes.mjs, three lines), and teaches the five older proofs that read the three files raw (WELCOME_TRIM_PROOF_EDITS: one registry read
+// How the older pins reach it: this change REGISTERS its files, its .env.example block and this strip (scripts/studio-later-changes.mjs, three lines), and teaches the six older proofs that read the three files raw (WELCOME_TRIM_PROOF_EDITS: one registry read
 // of one or two lines each, tests only). Plain node, no imports, nothing read from disk or git here.
 
 export const BASE_COMMIT = 'a470679ca8e198557b2a6f9848e568324305d371' // origin/studio-v4-dev-preparation-code with #553 merged (tree of dev at the time of this change)
@@ -53,8 +53,14 @@ export function putBackPin(rel, text) {
 }
 
 /** The older proofs this change teaches (each reads one of the three files raw, through an import allow-list or a byte pin, so a source with this change's lines in it failed them): [text the proof has now, text it had before] per edit, so putting them back gives the
- *  previous file. Every added piece carries a registry-read mark ("LATER-CHANGES: registry read (STUDIO-WELCOME-TRIM)"). The five edits are the registry reads the repo already uses for every later change; no proof owned by FRONTEND-1 or COMPOSER-2 is among them. */
+ *  previous file. Every added piece carries a registry-read mark ("LATER-CHANGES: registry read (STUDIO-WELCOME-TRIM)"). The six edits are the registry reads the repo already uses for every later change; no proof owned by FRONTEND-1 or COMPOSER-2 is among them. */
 export const WELCOME_TRIM_PROOF_EDITS = {
+  "scripts/test-director-chat-parity.mjs": [
+    ["import { stripWelcomeTrim } from './studio-welcome-trim-strip.mjs' // LATER-CHANGES: registry read (STUDIO-WELCOME-TRIM): a registered later change's marked lines come out of a source before it is loaded\n",
+     ""],
+    ["const read = name => stripWelcomeTrim(name, fs.readFileSync(new URL(`../${name}`, import.meta.url), 'utf8')) // LATER-CHANGES: registry read (STUDIO-WELCOME-TRIM)\n",
+     "const read = name => fs.readFileSync(new URL(`../${name}`, import.meta.url), 'utf8')\n"],
+  ],
   "scripts/test-studio-welcome-polish.mjs": [
     ["import { stripLaterChanges } from './studio-later-changes.mjs' // LATER-CHANGES: registry read (STUDIO-WELCOME-TRIM): a registered later change's marked lines come out of a source before it is read\nconst read = rel => stripLaunchWording(rel, stripLaterChanges(rel, fs.readFileSync(path.join(repoRoot, rel), 'utf8'))) // LATER-CHANGES: registry read (STUDIO-WELCOME-TRIM)\n",
      "const read = rel => stripLaunchWording(rel, fs.readFileSync(path.join(repoRoot, rel), 'utf8'))\n"],
