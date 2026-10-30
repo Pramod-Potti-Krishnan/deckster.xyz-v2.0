@@ -28,8 +28,12 @@ import { execFileSync } from 'node:child_process'
 import { fileURLToPath } from 'node:url'
 import ts from 'typescript'
 import postcss from 'postcss'
+import React from 'react'
+import * as jsxRuntime from 'react/jsx-runtime'
+import { renderToStaticMarkup } from 'react-dom/server'
 import * as registry from './studio-later-changes.mjs'
 import {
+  STAGE_OPEN_GATE_PIN_EDITS, STAGE_OPEN_GATE_PIN_FILES, STAGE_OPEN_GATE_PIN_MARK,
   BASE_COMMIT, STAGE_OPEN_GATE_FLAG, STAGE_OPEN_GATE_MARKER_RE, STAGE_OPEN_GATE_SUBJECT, STAGE_OPEN_GATE_FILES, STAGE_OPEN_GATE_NEW_FILES, STAGE_OPEN_GATE_SCOPE_FILES,
   STAGE_OPEN_GATE_ENV_BLOCK, stripStageOpenGate,
 } from './studio-stage-open-gate-strip.mjs'
@@ -77,12 +81,14 @@ function makeLibs({ env = {}, overrides = {} } = {}) {
     const req = spec => {
       if (spec.startsWith('@/')) return load(spec.slice(2) + '.ts')
       if (spec.startsWith('../types/')) return {}
+      if (spec === 'react') return React // the renderer's own React, so the lib's hooks run under react-dom/server below
       throw new Error(`unexpected import ${spec} in ${rel}`)
     }
     vm.runInNewContext(js, { module, exports: module.exports, require: req, process: { env: { ...env } }, console, fetch: refuse('fetch'), setTimeout: refuse('setTimeout'), Date })
     return module.exports
   }
   return {
+    source: overrides[LIB] ?? null,
     gate: load(LIB),
     lifecycle: load('lib/studio-canvas-lifecycle.ts'),
     restoring: load('lib/studio-first-run-restoring.ts'),
@@ -195,7 +201,7 @@ check('the lib: the flag is the exact "true"; the phrase list; whole-phrase norm
   assert.match(LIB_SRC, /export const STUDIO_STAGE_OPEN_GATE_ENABLED = process\.env\.NEXT_PUBLIC_STUDIO_STAGE_OPEN_GATE === 'true'\n/)
   assert.equal((LIB_SRC.match(/process\.env\./g) || []).length, 2, 'two build-time reads: this flag and the welcome width it follows')
   assert.doesNotMatch(LIB_SRC.replace(/\/\/.*$/gm, ''), /\b(fetch|WebSocket|XMLHttpRequest|localStorage|sessionStorage|setTimeout|setInterval|Date\.now|window|document)\b/, 'pure: no request, storage, timer or DOM')
-  assert.doesNotMatch(LIB_SRC, /^import /m, 'no imports')
+  assert.deepEqual(LIB_SRC.split('\n').filter(line => /^import /.test(line)), ["import { useLayoutEffect, useSyncExternalStore } from 'react'"], 'one import: React\'s two hooks for the store (the decisions stay pure)')
   const block = /STUDIO_STAGE_OPEN_PHRASES: readonly string\[\] = \[\n([\s\S]*?)\n\]/.exec(LIB_SRC)?.[1] ?? ''
   assert.deepEqual(block.split('\n').map(line => /^  '([a-z ]+)',$/.exec(line)?.[1] ?? line), PHRASES, 'one phrase per line, nothing else in the list')
 })
@@ -208,28 +214,30 @@ const MARKED = PAGE_NOW.split('\n').map((line, index) => ({ line, index })).filt
 function pageWiring(page) {
   const lines = page.split('\n')
   const marked = lines.map((line, index) => ({ line, index })).filter(({ line }) => STAGE_OPEN_GATE_MARKER_RE.test(line))
-  assert.equal(marked.length, 13, 'thirteen marked lines: two comments, the ref, the step (seven lines), the ref write, the attribute, the import')
+  assert.equal(marked.length, 15, 'fifteen marked lines: two comments, the Show-canvas read, the ref, the step (seven lines), the ref write, the publish, the attribute, the import')
   const at = lines.findIndex(line => line.startsWith("  const studioFirstRunStage = studioShell && process.env.NEXT_PUBLIC_STUDIO_FIRST_RUN_V2 === 'true' && studioWelcome"))
   assert.ok(at > 0, 'studioFirstRunStage is where it was')
-  assert.deepEqual(marked.slice(0, 11).map(m => m.index), Array.from({ length: 11 }, (_, k) => at + 2 + k), 'the gate step sits right after studioFirstRunStage, in one block')
+  assert.deepEqual(marked.slice(0, 13).map(m => m.index), Array.from({ length: 13 }, (_, k) => at + 2 + k), 'the gate step sits right after studioFirstRunStage, in one block')
   const attr = lines.findIndex(line => line.trim() === 'data-studio-first-run-stage={studioFirstRunStage && !studioFirstRunRestoring ? "true" : undefined}')
-  assert.equal(marked[11].index, attr + 1, 'the attribute sits right after data-studio-first-run-stage')
-  assert.equal(marked[11].line.trim(), '{...studioStageGateProps(studioStageGate.closed && !studioFirstRunRestoring) /* STUDIO-STAGE-OPEN-GATE: data-studio-stage-gate="closed" while the gate holds (components/builder/studio-first-run.css); never while a session restores */}')
-  assert.equal(marked[12].line, "import { STUDIO_STAGE_OPEN_GATE_ENABLED, stepStudioStageGate, studioStageGateProps, type StudioStageGateState } from '@/lib/studio-stage-open-gate' // STUDIO-STAGE-OPEN-GATE")
-  assert.equal(lines[marked[12].index - 1], "import type { ExportDirectiveMessage } from '@/lib/chat-theme-export' // CHAT-COMMANDS", 'the import joins the late import block')
-  const step = marked.slice(2, 11).map(m => m.line).join('\n')
+  assert.equal(marked[13].index, attr + 1, 'the attribute sits right after data-studio-first-run-stage')
+  assert.equal(marked[13].line.trim(), '{...studioStageGateProps(studioStageGate.closed && !studioFirstRunRestoring) /* STUDIO-STAGE-OPEN-GATE: data-studio-stage-gate="closed" while the gate holds (components/builder/studio-first-run.css); never while a session restores */}')
+  assert.equal(marked[14].line, "import { STUDIO_STAGE_OPEN_GATE_ENABLED, stepStudioStageGate, studioStageGateProps, useStudioStageCanvasAsked, useStudioStageGatePublish, type StudioStageGateState } from '@/lib/studio-stage-open-gate' // STUDIO-STAGE-OPEN-GATE")
+  assert.equal(lines[marked[14].index - 1], "import type { ExportDirectiveMessage } from '@/lib/chat-theme-export' // CHAT-COMMANDS", 'the import joins the late import block')
+  const step = marked.slice(2, 13).map(m => m.line).join('\n')
   assert.doesNotMatch(step, /studioFirstRunStage/, 'the gate does not follow today\'s landing after the first message (the plan card ends it)')
   for (const needle of ['useRef<StudioStageGateState | null>(null)', 'enabled: STUDIO_STAGE_OPEN_GATE_ENABLED && studioShell && process.env.NEXT_PUBLIC_STUDIO_FIRST_RUN_V2 === \'true\'', 'sessionKey: currentSessionId || wsSessionId',
     'landing: studioWelcome', 'workflow: Boolean(viewerWorkflowRequest)', 'fullscreen: studioViewerFullscreen', 'inspector: workspaceLayout.inspectorVisible',
     'historyLoading: session.isLoadingSession', 'resumed: session.isResumedSession', 'userMessages: session.userMessages', 'generatingStrawman: isGeneratingStrawman', 'generatingFinal: isGeneratingFinal',
     "phase: buildNarration.active ? buildNarration.phase : 'idle'", 'hasGeneratedDeck: studioCanvasLifecycle.hasGeneratedDeck', 'hasOwnedFinal: studioCanvasLifecycle.hasOwnedFinal', 'hasAuthoredDeck: studioCanvasLifecycle.hasAuthoredDeck',
-    'blankChosen: blankPlaceholderDismissed', 'addSlideOpen: addSlideV2Open', 'studioStageGateRef.current = studioStageGate.state']) assert.ok(step.includes(needle), `the step reads ${needle}`)
+    'blankChosen: blankPlaceholderDismissed', 'addSlideOpen: addSlideV2Open', 'canvasAsked: studioStageCanvasAsked', 'studioStageGateRef.current = studioStageGate.state',
+    'const studioStageCanvasAsked = useStudioStageCanvasAsked(currentSessionId || wsSessionId)', 'useStudioStageGatePublish(currentSessionId || wsSessionId, studioStageGate.closed)']) assert.ok(step.includes(needle), `the step reads ${needle}`)
+  assert.ok(step.indexOf('useStudioStageGatePublish(') > step.indexOf('studioStageGateRef.current = studioStageGate.state'), 'published after the step')
   assert.equal((page.match(/NEXT_PUBLIC_STUDIO_STAGE_OPEN_GATE/g) || []).length, 1, 'the page names the flag once (a comment); the read is the lib\'s constant')
   assert.equal(stripStageOpenGate(PAGE, page), PAGE_BASE, 'without its marked lines the page is the base')
 }
 check('the page wiring, read raw: the gate step right after studioFirstRunStage (one block), the attribute right after data-studio-first-run-stage, one import in the late block; nothing else; strip gives the base', () => {
   pageWiring(PAGE_NOW)
-  assert.equal(MARKED.length, 13)
+  assert.equal(MARKED.length, 15)
   assert.equal(otherStrips(PAGE, stripStageOpenGate(PAGE, PAGE_NOW)), otherStrips(PAGE, git('show', `${BASE_COMMIT}:${PAGE}`)), 'the page without this change\'s lines is dev\'s, byte for byte (other changes\' lines out of both sides)')
 })
 
@@ -266,6 +274,7 @@ const HISTORY = J7.frames.reconnect_send_history
 // the page's own statements, cut out with the TypeScript parser
 function pageStatements(page) {
   const sf = ts.createSourceFile('page.tsx', page, ts.ScriptTarget.Latest, true, ts.ScriptKind.TSX)
+  const pageLines = page.split('\n')
   const consts = new Map(), attrs = { named: null, spreads: [] }
   const gateBlock = []
   const visit = node => {
@@ -273,9 +282,9 @@ function pageStatements(page) {
       const name = d.name.text
       if (['studioCanvasLifecycle', 'studioWelcome', 'studioFirstRunStage', 'studioFirstRunRestoring', 'studioInitialKnownFresh'].includes(name)) { assert.ok(!consts.has(name), `one ${name}`); consts.set(name, d.initializer.getText(sf)) }
     }
-    if ((ts.isVariableStatement(node) || ts.isExpressionStatement(node)) && STAGE_OPEN_GATE_MARKER_RE.test(node.getFullText(sf))) {
+    if ((ts.isVariableStatement(node) || ts.isExpressionStatement(node)) && STAGE_OPEN_GATE_MARKER_RE.test(pageLines[sf.getLineAndCharacterOfPosition(node.getStart(sf)).line])) { // a statement that STARTS on a marked line
       const own = node.getText(sf)
-      if (/studioStageGate/.test(own)) gateBlock.push(own)
+      gateBlock.push(own)
     }
     if (ts.isJsxAttributes(node) && node.properties.some(p => ts.isJsxAttribute(p) && p.name.getText(sf) === 'data-studio-v4-shell-presentation')) {
       for (const p of node.properties) {
@@ -294,7 +303,7 @@ const js = expr => ts.transpileModule(`(${expr})`, { compilerOptions: { target: 
 const evalIn = (code, ctx) => vm.runInNewContext(code, ctx)
 
 /** One "render" of the page's gate-relevant statements with the harness state `S`. */
-function makeRenderer({ page = PAGE_NOW, libs = ON, env = ON_ENV } = {}) {
+function makeRenderer({ page = PAGE_NOW, libs = ON, env = ON_ENV, store = libs.gate.createStudioStageGateStore() } = {}) {
   const st = pageStatements(page)
   const code = {
     lifecycle: js(st.consts.get('studioCanvasLifecycle')), welcome: js(st.consts.get('studioWelcome')), firstRunStage: js(st.consts.get('studioFirstRunStage')),
@@ -310,6 +319,8 @@ function makeRenderer({ page = PAGE_NOW, libs = ON, env = ON_ENV } = {}) {
       process: { env: { ...env } }, Boolean, JSON, window: { sessionStorage: null }, useRef,
       classifyStudioCanvasLifecycle: libs.lifecycle.classifyStudioCanvasLifecycle, isStudioSessionRestoring: libs.restoring.isStudioSessionRestoring, isLocalUnsavedRoute: libs.restoring.isLocalUnsavedRoute,
       STUDIO_STAGE_OPEN_GATE_ENABLED: libs.gate.STUDIO_STAGE_OPEN_GATE_ENABLED, stepStudioStageGate: libs.gate.stepStudioStageGate, studioStageGateProps: libs.gate.studioStageGateProps,
+      // the two store hooks, by what they do: the read is the store's asked(key); the publish is what its layout effect does after the render (lib/studio-stage-open-gate.ts; the hooks themselves run under React below)
+      useStudioStageCanvasAsked: key => store.asked(key), useStudioStageGatePublish: (key, closed) => store.publish(key, closed),
       ...S.vars, session: S.session, buildNarration: S.narration, workspaceLayout: { inspectorVisible: S.vars.inspectorVisible, chatVisible: S.vars.chatVisible },
       searchParams: { get: key => key === 'session_id' ? S.vars.currentSessionId : null }, authScopeUserId: 'user-1',
     }
@@ -489,15 +500,18 @@ const RULES_BASE = cssRules(stripStageOpenGate(CSS, CSS_NOW))
 // ===== the scenarios, on the recorded frames ==============================================================================================================================
 /** Run a scenario: `steps` is a list of [label, (S) => void]; each step is followed by one render. Returns the per-step view (gate, attributes, layout). */
 function runScenario(steps, { page = PAGE_NOW, libs = ON, env = ON_ENV, rules = RULES_ON, state, narration = true } = {}) {
-  const render = makeRenderer({ page, libs, env })
+  const store = libs.gate.createStudioStageGateStore()
+  const render = makeRenderer({ page, libs, env, store })
   const S = state ? state(libs) : freshState(libs, undefined, { narration })
+  S.store = store
   const out = []
   for (const [label, act] of steps) {
     act(S)
     const view = render(S)
     const welcome = welcomeInChat(S, view, libs)
     const layout = layoutOf(rules, workspaceDom({ stageAttrs: view.attributes, chatVisible: S.vars.chatVisible, welcome }))
-    out.push({ label, closed: view.gate?.closed ?? false, reason: view.gate?.reason ?? null, attributes: view.attributes, welcome, layout })
+    const published = S.store.getSnapshot()
+    out.push({ label, closed: view.gate?.closed ?? false, reason: view.gate?.reason ?? null, attributes: view.attributes, welcome, layout, showCanvas: libs.gate.STUDIO_STAGE_OPEN_GATE_ENABLED === true && published.closed === true })
   }
   return out
 }
@@ -532,6 +546,16 @@ function scenarioChecks({ page = PAGE_NOW, libs = ON, rules = RULES_ON } = {}) {
   for (const v of fa.slice(at(fa, 7), strawA)) { expectFull(v); assert.equal(v.welcome, false); assert.equal(v.attributes['data-studio-stage-gate'], 'closed', v.label); assert.equal(v.reason, 'closed', v.label) }
   assert.ok(fa[at(fa, 12)].label.startsWith('seq 12 action_request'), 'the plan card'); expectFull(fa[at(fa, 12)])
   for (const v of fa.slice(strawA)) { expectSplit(v); assert.equal(v.reason, 'strawman', `${v.label}: latched on the strawman`) }
+  for (const v of fa) assert.equal(v.showCanvas, v.attributes['data-studio-stage-gate'] === 'closed', `${v.label}: the header offers "Show canvas" exactly while the stage is held closed`)
+  // PK Q1: "Show canvas" clicked in the header during the clarifying questions (the click writes the store; the page reads it on its next render): open, latched, and the header's link goes
+  const sc = runScenario([...f03Steps(F03_A).slice(0, at(fa, 9)), step('the header\'s "Show canvas" clicked', S => S.store.askCanvas()), ...f03Steps(F03_A).slice(at(fa, 9), at(fa, 13))], o)
+  const clickAt = sc.findIndex(v => v.label.startsWith('the header'))
+  expectFull(sc[clickAt - 1]); assert.equal(sc[clickAt - 1].showCanvas, true, 'offered before the click')
+  for (const v of sc.slice(clickAt)) { expectSplit(v); assert.equal(v.reason, 'show_canvas', v.label); assert.equal(v.showCanvas, false, `${v.label}: no link once open`) }
+  // a click on another session's link (the store asked for a different key) does nothing here; a New Chat after the click starts closed again with the link
+  const sc2 = runScenario([...f03Steps(F03_A).slice(0, at(fa, 9)), step('click', S => S.store.askCanvas()),
+    step('NEW CHAT', S => { Object.assign(S.vars, { currentSessionId: 'new-chat-2', wsSessionId: 'new-chat-2', deckOwnerSessionId: 'new-chat-2' }); S.session.userMessages = []; S.messages = [] }), step('brief', S => send(S, BRIEF))], o)
+  expectSplit(sc2.at(-3)); expectFull(sc2.at(-1)); assert.equal(sc2.at(-1).reason, 'closed'); assert.equal(sc2.at(-1).showCanvas, true, 'the new session offers it again')
   assert.ok(fa[at(fa, 34)].label === 'seq 34 build_phase:building' && fa[at(fa, 70)].label === 'seq 70 presentation_url' && fa.at(-1).label === 'seq 73 build_phase:complete')
   // the label twin ("Approve & build"): the same gate, step for step
   const fal = runScenario(f03Steps(F03_A_LABEL), o)
@@ -693,6 +717,103 @@ function cssChecks(cssText) {
 }
 check('the stylesheet: every gate rule is keyed to [data-studio-stage-gate="closed"] on the stage AND a visible chat AND no welcome in it (so before the first message the first-run rules alone apply); with no attribute none matches; the strip gives the base CSS byte for byte', () => cssChecks(CSS_NOW))
 
+// ===== 4b. the chat header's "Show canvas" (PK Q1) and useStudioStageOpen() (FRONTEND-1's F-09), rendered with React =====================================================================
+console.log('4b. the header\'s "Show canvas" and the hook')
+const HEADER = 'components/builder/chat/studio-director-header.tsx', SHOW = 'components/builder/chat/studio-stage-show-canvas.tsx'
+const HEADER_NOW = laterRead(HEADER)
+const HEADER_BASE = stripStageOpenGate(HEADER, HEADER_NOW)
+const lucide = new Proxy({}, { get: (_, name) => name === '__esModule' ? false : (props => React.createElement('svg', { 'data-icon': String(name), width: props?.size })) })
+/** The real header (and, through its import, the real StudioStageShowCanvas and the real lib) in a vm, rendered by react-dom/server; `sources` overrides a file's text (the base header, a mutant). */
+function loadHeader({ libs = ON, env = ON_ENV, sources = {} } = {}) {
+  const cache = new Map()
+  const load = rel => {
+    if (cache.has(rel)) return cache.get(rel).exports
+    const module = { exports: {} }
+    cache.set(rel, module)
+    const js = ts.transpileModule(sources[rel] ?? laterRead(rel), { compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022, jsx: ts.JsxEmit.ReactJSX, esModuleInterop: true } }).outputText
+    const req = spec => {
+      if (spec === 'react') return React
+      if (spec === 'react/jsx-runtime') return jsxRuntime
+      if (spec === 'lucide-react') return lucide
+      if (spec.endsWith('.css')) return {}
+      if (spec === '@/lib/studio-stage-open-gate') return libs.gate
+      if (spec === './studio-stage-show-canvas') return load(SHOW)
+      if (spec === '@/lib/director-reconnect-policy' || spec === './studio-welcome') return {} // type-only imports in the header (erased)
+      throw new Error(`unexpected import ${spec} in ${rel}`)
+    }
+    vm.runInNewContext(js, { module, exports: module.exports, require: req, process: { env: { ...env } }, console })
+    return module.exports
+  }
+  return { Header: load(HEADER).StudioDirectorHeader }
+}
+const HEADER_PROPS = []
+for (const connectionState of ['connected', 'connecting', 'disconnected', 'error']) for (const reconnectStatus of [undefined, 'idle', 'scheduled', 'exhausted', 'superseded']) for (const isLoadingSession of [false, true])
+  for (const actions of [undefined, 'ACTIONS']) HEADER_PROPS.push({ connectionState, reconnectStatus, isLoadingSession, ...(actions ? { actions: React.createElement('span', { 'data-actions': 'true' }, actions) } : {}), onReconnect() {} })
+const HEADER_ENVS = { shell: { [SHELL]: 'true' }, chatHeader: { [SHELL]: 'true', NEXT_PUBLIC_STUDIO_CHAT_HEADER: 'true', NEXT_PUBLIC_STUDIO_CHAT_RECONNECT: 'true' } }
+const BUTTON = '<button type="button" data-studio-stage-gate-show-canvas="true">Show canvas</button>'
+function headerChecks({ libs = ON, showSource } = {}) {
+  const sources = showSource ? { [SHOW]: showSource } : {}
+  for (const [envName, extra] of Object.entries(HEADER_ENVS)) {
+    const offLibs = makeLibs({ env: { ...OFF_ENV, ...extra } })
+    const base = loadHeader({ libs: offLibs, env: { ...OFF_ENV, ...extra }, sources: { [HEADER]: HEADER_BASE } }).Header
+    const off = loadHeader({ libs: offLibs, env: { ...OFF_ENV, ...extra }, sources }).Header
+    const on = loadHeader({ libs, env: { ...ON_ENV, ...extra }, sources }).Header
+    for (const closed of [false, true]) {
+      offLibs.gate.studioStageGateStore.publish('s1', closed); libs.gate.studioStageGateStore.publish('s1', closed)
+      for (const props of HEADER_PROPS) {
+        const want = renderToStaticMarkup(React.createElement(base, props))
+        assert.equal(renderToStaticMarkup(React.createElement(off, props)), want, `flag off (${envName}, the store ${closed ? 'closed' : 'open'}): the header is byte for byte the base's`)
+        const got = renderToStaticMarkup(React.createElement(on, props))
+        if (!closed) assert.equal(got, want, `flag on, the stage open (${envName}): the header is byte for byte the base's`)
+        else assert.equal(got, want.replace(/<\/header>$/, `${BUTTON}</header>`), `flag on, the stage held closed (${envName}): the base header plus "Show canvas" at its end`)
+      }
+    }
+    libs.gate.studioStageGateStore.publish(null, false); offLibs.gate.studioStageGateStore.publish(null, false)
+  }
+}
+check('PK Q1: the header draws "Show canvas" (a real button, its visible text, after the actions slot) only with the flag on AND the stage held closed; flag off or the stage open, the header is byte for byte the base\'s (2 header flag sets x 160 prop sets x store open/closed)', () => {
+  headerChecks()
+  const show = read(SHOW)
+  assert.match(show, /<button type="button" data-studio-stage-gate-show-canvas="true" onClick=\{\(\) => showCanvas\(\)\}>Show canvas<\/button>/, 'a real button; its click is the store\'s askCanvas, nothing else (no send, no request)')
+  assert.doesNotMatch(show.replace(/\/\*[\s\S]*?\*\//g, ''), /\b(fetch|WebSocket|sendMessage|localStorage|sessionStorage)\b/)
+  const headerLines = HEADER_NOW.split('\n').filter(line => STAGE_OPEN_GATE_MARKER_RE.test(line))
+  assert.equal(headerLines.length, 2, 'two marked lines: the actions slot and one import at the end')
+  assert.ok(headerLines[0].trim().startsWith('{STUDIO_STAGE_OPEN_GATE_ENABLED ? <StudioStageShowCanvas /> : null /* STUDIO-STAGE-OPEN-GATE'), headerLines[0])
+  assert.ok(headerLines[1].startsWith('import { STUDIO_STAGE_OPEN_GATE_ENABLED, StudioStageShowCanvas } from "./studio-stage-show-canvas" // STUDIO-STAGE-OPEN-GATE'), headerLines[1])
+  assert.equal(HEADER_NOW.trimEnd().split('\n').at(-1), headerLines[1], 'the import is the last line of the file')
+  const lines = HEADER_NOW.split('\n')
+  assert.equal(lines[lines.findIndex(line => line.includes('<StudioStageShowCanvas />')) - 1].trim(), '{reconnect ? <>{reconnect}{actions}</> : actions}', 'right after the actions slot')
+  assert.ok(lines.findIndex(line => line.includes('<Sparkles size={13} />')) < lines.findIndex(line => line.includes('<StudioStageShowCanvas />')) - 4, 'well away from the star line #555 edits')
+  const css = read('components/builder/chat/studio-stage-gate-show-canvas.css'), pass2b = read('components/builder/studio-pass2b-chat.css')
+  const decls = (text, sel) => postcss.parse(text).nodes.filter(n => n.type === 'rule' && n.selector.endsWith(sel)).map(r => r.nodes.map(d => `${d.prop}:${d.value}`).join(';'))
+  assert.deepEqual(decls(css, '[data-studio-stage-gate-show-canvas]'), decls(pass2b, '[data-studio-chat-reconnect]'), 'styled exactly like the header\'s Reconnect button')
+  assert.deepEqual(decls(css, '[data-studio-stage-gate-show-canvas]:focus-visible'), decls(pass2b, '[data-studio-chat-reconnect]:focus-visible'), 'the same keyboard focus ring')
+})
+function storeChecks(on = ON) {
+  const off = makeLibs({ env: OFF_ENV, overrides: on === ON ? {} : { [LIB]: on.source } })
+  const probe = (libs, hook) => renderToStaticMarkup(React.createElement(() => String(libs.gate[hook]() ?? 'null')))
+  for (const closed of [false, true]) {
+    off.gate.studioStageGateStore.publish('s1', closed); on.gate.studioStageGateStore.publish('s1', closed)
+    assert.equal(probe(off, 'useStudioStageOpen'), 'true', `flag off, ${closed ? 'closed' : 'open'}: open`)
+    assert.equal(probe(on, 'useStudioStageOpen'), String(!closed), `flag on: ${closed ? 'closed' : 'open'}`)
+    assert.equal(probe(off, 'useStudioStageShowCanvas'), 'null', 'flag off: no link')
+    assert.equal(probe(on, 'useStudioStageShowCanvas') === 'null', !closed, 'flag on: a click handler only while closed')
+  }
+  off.gate.studioStageGateStore.publish(null, false); on.gate.studioStageGateStore.publish(null, false)
+  const s = on.gate.createStudioStageGateStore()
+  let heard = 0; const unsubscribe = s.subscribe(() => { heard++ })
+  s.askCanvas(); assert.equal(s.getSnapshot().ask, null, 'no ask while nothing is closed'); assert.equal(heard, 0)
+  s.publish('a', true); s.publish('a', true); assert.equal(heard, 1, 'publishing the same thing again tells nobody')
+  s.askCanvas(); assert.equal(s.asked('a'), true); assert.equal(s.asked('b'), false, 'only for the session on screen'); assert.equal(heard, 2)
+  s.publish('new', true); assert.equal(s.getSnapshot().key, null, "'new' is no session yet")
+  s.askCanvas(); s.publish('d', true); const before = heard; unsubscribe(); s.publish('e', false); assert.equal(heard, before, 'an unsubscribed listener is not called')
+  for (const name of ['useStudioStageOpen', 'useStudioStageShowCanvas', 'useStudioStageCanvasAsked', 'useStudioStageGatePublish', 'studioStageGateStore', 'createStudioStageGateStore']) assert.equal(typeof on.gate[name] !== 'undefined', true, name)
+  assert.match(LIB_SRC, /useSyncExternalStore\(studioStageGateStore\.subscribe, studioStageGateStore\.getSnapshot, studioStageGateStore\.getSnapshot\)/)
+  assert.match(LIB_SRC, /useLayoutEffect\(\(\) => \{ studioStageGateStore\.publish\(key, closed === true\) \}, \[key, closed\]\)/, 'the page publishes after the render, before paint, on each change')
+  assert.match(LIB_SRC, /useLayoutEffect\(\(\) => \(\) => \{ studioStageGateStore\.publish\(null, false\) \}, \[\]\)/, 'and clears it when the page goes')
+}
+check('the store and useStudioStageOpen(): true whenever the flag is off or the gate is open; a click asks only while closed and only for the session on screen; the server snapshot is the client\'s', () => storeChecks())
+
 // ===== 5. scope over the COMMITTED diff (BASE..head), gate-safe and robust after merge ==========================================================================
 console.log('5. scope over the committed diff (own commits by subject across `rev-list --no-merges BASE..head`)')
 const GIT_IDENT = { GIT_AUTHOR_NAME: 'gate', GIT_AUTHOR_EMAIL: 'gate@example.invalid', GIT_COMMITTER_NAME: 'gate', GIT_COMMITTER_EMAIL: 'gate@example.invalid', GIT_AUTHOR_DATE: '2026-10-30T00:00:00Z', GIT_COMMITTER_DATE: '2026-10-30T00:00:00Z' }
@@ -733,6 +854,12 @@ const scopeCommittedFiles = (head, ctx = REAL) => {
     assert.equal(stripStageOpenGate(rel, ctx.norm(rel, git('show', `${head}:${rel}`))), ctx.norm(rel, git('show', `${BASE_COMMIT}:${rel}`)), `${rel}: without its marked lines the file is the base's, byte for byte`)
   }
   for (const rel of STAGE_OPEN_GATE_NEW_FILES) assert.equal(git('cat-file', '-t', `${head}:${rel}`).trim(), 'blob', rel)
+  for (const rel of STAGE_OPEN_GATE_PIN_FILES) {
+    const now = git('show', `${head}:${rel}`), base = git('show', `${BASE_COMMIT}:${rel}`)
+    assert.equal(ctx.norm(rel, stripStageOpenGate(rel, now)), ctx.norm(rel, base), `${rel}: the proof this change taught, put back, is the base's`)
+    for (const [has] of STAGE_OPEN_GATE_PIN_EDITS[rel]) for (const line of has.split('\n').filter(Boolean)) assert.ok(line.includes(STAGE_OPEN_GATE_PIN_MARK), `${rel}: every taught line carries the registry-read mark: ${line.slice(0, 80)}`)
+    for (const line of diffLines(normDiff({ norm: (r, text) => r === rel ? text : ctx.norm(r, text) }, rel, head))) if (line.startsWith('+')) assert.ok(line.includes(STAGE_OPEN_GATE_PIN_MARK), `${rel}: an added line without the mark: ${line.slice(0, 100)}`)
+  }
   for (const rel of ['components/builder/presentation-area.tsx', 'components/builder/studio-outline-canvas.tsx', 'lib/studio-flow-control.ts', 'hooks/use-studio-flow-control.ts', 'components/builder/studio-first-run-actions.tsx',
     'lib/studio-first-run-restoring.ts', 'hooks/use-deckster-websocket-v2.ts', 'components/builder/message-list.tsx']) assert.ok(!touched.has(rel), `${rel} is not touched by this change`)
 }
@@ -844,7 +971,7 @@ console.log('6. mutants')
 const libMutant = (label, from, to) => { const mutated = swap(LIB_SRC, from, to); mutant(`lib: ${label}`, () => {
   const overrides = { [LIB]: mutated }
   const libs = makeLibs({ env: ON_ENV, overrides })
-  flagMatrix(overrides); libChecks(libs.gate); scenarioChecks({ libs })
+  flagMatrix(overrides); libChecks(libs.gate); scenarioChecks({ libs }); headerChecks({ libs }); storeChecks(libs)
 }) }
 libMutant('flag truthy', "process.env.NEXT_PUBLIC_STUDIO_STAGE_OPEN_GATE === 'true'", "Boolean(process.env.NEXT_PUBLIC_STUDIO_STAGE_OPEN_GATE)")
 libMutant('a phrase dropped', "  'add a slide',\n", '')
@@ -862,6 +989,11 @@ libMutant('no reset on a new session', "else next = { key, armed: false, latched
 libMutant('ignores a workflow link, fullscreen and an inspector', "const override: StudioStageGateReason | null = input.workflow ? 'workflow' : input.fullscreen ? 'fullscreen' : input.inspector ? 'inspector' : null", "const override: StudioStageGateReason | null = null")
 libMutant('Add Slide not a trigger', "  if (input.addSlideOpen) return 'add_slide'\n", '')
 libMutant('authored slides (the outline) not a trigger', "  if (input.hasAuthoredDeck) return 'authored'\n", '')
+libMutant('"Show canvas" not a trigger', "  if (input.canvasAsked === true) return 'show_canvas'\n", '')
+libMutant('the click asks even when the stage is open', '    askCanvas() { if (snapshot.closed) set({ ...snapshot, ask: { key: snapshot.key } }) },', '    askCanvas() { set({ ...snapshot, ask: { key: snapshot.key } }) },')
+libMutant('the click asks for every session', '    asked(sessionKey: unknown): boolean { return snapshot.ask !== null && snapshot.ask.key === normaliseSessionKey(sessionKey) },', '    asked(sessionKey: unknown): boolean { return snapshot.ask !== null },')
+libMutant('the header offers the link with the stage open', '  return useStudioStageOpen() ? null : studioStageGateStore.askCanvas', '  return studioStageGateStore.askCanvas')
+libMutant('useStudioStageOpen ignores the flag', '  return !STUDIO_STAGE_OPEN_GATE_ENABLED || !snapshot.closed', '  return !snapshot.closed')
 libMutant('blank canvas not a trigger', "  if (input.blankChosen) return 'blank'\n", '')
 libMutant('deck ready not a trigger', "  if (input.hasGeneratedDeck || input.hasOwnedFinal) return 'deck'\n", '')
 libMutant('typed ask not a trigger', "  if ((input.userMessages || []).some(message => matchStageAsk(message?.text) !== null)) return 'typed'\n", '')
@@ -874,8 +1006,12 @@ pageMutant('the user messages not passed', 'resumed: session.isResumedSession, u
 pageMutant('the phase not passed', "generatingFinal: isGeneratingFinal, phase: buildNarration.active ? buildNarration.phase : 'idle'", "generatingFinal: isGeneratingFinal, phase: 'idle'")
 pageMutant('the resumed flag not passed', 'resumed: session.isResumedSession', 'resumed: false')
 pageMutant('the session key fixed', 'sessionKey: currentSessionId || wsSessionId, landing: studioWelcome', "sessionKey: 'one', landing: studioWelcome")
+pageMutant('the "Show canvas" click not passed to the step', 'canvasAsked: studioStageCanvasAsked })', 'canvasAsked: false })')
+pageMutant('the gate not published for the header', '  useStudioStageGatePublish(currentSessionId || wsSessionId, studioStageGate.closed) // STUDIO-STAGE-OPEN-GATE', '  void 0 // STUDIO-STAGE-OPEN-GATE')
 pageMutant('the latch not written back', '  studioStageGateRef.current = studioStageGate.state // STUDIO-STAGE-OPEN-GATE', '  void studioStageGate // STUDIO-STAGE-OPEN-GATE')
 pageMutant('enabled without FIRST_RUN_V2', "enabled: STUDIO_STAGE_OPEN_GATE_ENABLED && studioShell && process.env.NEXT_PUBLIC_STUDIO_FIRST_RUN_V2 === 'true'", 'enabled: STUDIO_STAGE_OPEN_GATE_ENABLED && studioShell')
+const SHOW_SRC = read(SHOW)
+mutant('the "Show canvas" component draws its button with the stage open', () => headerChecks({ showSource: swap(SHOW_SRC, 'return showCanvas ? <button', 'return true ? <button').replace('onClick={() => showCanvas()}', 'onClick={() => showCanvas?.()}') }))
 const cssMutant = (label, edit) => { const css = edit(CSS_NOW); assert.notEqual(css, CSS_NOW, `stylesheet mutant "${label}" changes nothing`); mutant(`stylesheet: ${label}`, () => { const rules = cssRules(css); cssChecks(css); scenarioChecks({ rules }) }) }
 cssMutant('the welcome guard dropped (the gate rules also restyle the first-run welcome)', css => css.split('\n').map(line => STAGE_OPEN_GATE_MARKER_RE.test(line) ? line.replace(':not(:has([data-studio-workspace-drawer="deck"] [data-studio-first-run]))', '') : line).join('\n'))
 cssMutant('the stage-hiding rule dropped', css => css.split('\n').filter(line => !(STAGE_OPEN_GATE_MARKER_RE.test(line) && line.includes('{ visibility: hidden; }'))).join('\n'))
