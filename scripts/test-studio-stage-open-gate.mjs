@@ -747,6 +747,14 @@ const scopeEnvAndRegistry = (head, ctx = REAL) => {
   const mine = diff.filter(line => line.includes('studio-stage-open-gate-strip.mjs'))
   assert.equal(mine.length, 3, 'the registry gains exactly this change\'s three lines'); for (const line of mine) assert.ok(line.startsWith('+') && line.includes('// LATER-CHANGE:'), line.slice(0, 140))
   assert.deepEqual(mine.map(line => /\)\.(\w+), \/\//.exec(line)?.[1]), ['STAGE_OPEN_GATE_SCOPE_FILES', 'STAGE_OPEN_GATE_ENV_BLOCK', 'stripStageOpenGate'])
+  // each of the three lines closes its list at this change's head (the older proofs read "the blocks registered after mine" by list order, and .env.example has this block last)
+  const reg = ctx.norm('scripts/studio-later-changes.mjs', git('show', `${scopeHead(head)}:scripts/studio-later-changes.mjs`)).split('\n')
+  for (const name of ['STAGE_OPEN_GATE_SCOPE_FILES', 'STAGE_OPEN_GATE_ENV_BLOCK', 'stripStageOpenGate']) {
+    const at = reg.findIndex(line => line.includes(`studio-stage-open-gate-strip.mjs')).${name}`))
+    assert.ok(at > 0, name)
+    const next = reg.slice(at + 1).find(line => line.trim() !== '')
+    assert.ok(next.trim() === '// one line per later change, above this comment' || ctx.laterRegistryLine?.(next), `${name} is the last registered line of its list (a later change's own line may follow): ${next.slice(0, 80)}`)
+  }
 }
 const scopeAll = (head, ctx = REAL) => { scopeOwnCommits(head); scopeCommittedFiles(head, ctx); scopeEnvAndRegistry(head, ctx) }
 const HEAD = scopeHead('HEAD')
@@ -803,7 +811,7 @@ const syntheticCommit = parent => {
 }
 const SYNTHETIC_OR_ERROR = (() => { try { return syntheticCommit(HEAD) } catch (error) { return error } })()
 const synthetic = () => { if (SYNTHETIC_OR_ERROR instanceof Error) throw SYNTHETIC_OR_ERROR; return SYNTHETIC_OR_ERROR }
-const SYN_CTX = { norm: (rel, text) => syntheticStrip(rel, otherStrips(rel, text)), env: text => registry.stripLaterEnvBlocks('.env.example', text).replace(`\n${SYN.block}`, '') }
+const SYN_CTX = { norm: (rel, text) => syntheticStrip(rel, otherStrips(rel, text)), env: text => registry.stripLaterEnvBlocks('.env.example', text).replace(`\n${SYN.block}`, ''), laterRegistryLine: line => line.includes('studio-synthetic-later-strip.mjs') }
 check('ROBUST AFTER MERGE: a synthetic change stacked after this one (its marked lines beside this change\'s in the page and the stylesheet, a registry trio, an .env.example block, a new file; another subject) leaves this change\'s scope passing on the branch, on the gate\'s merge and on a merge onto an advanced dev', () => {
   const SYNTHETIC = synthetic()
   assert.ok(!ownOf(SYNTHETIC).includes(SYNTHETIC), 'the later commit is not this change\'s')
@@ -818,6 +826,13 @@ check('ROBUST AFTER MERGE: a synthetic change stacked after this one (its marked
   pageWiring(later)
 })
 mutant('scope: the synthetic later change is not told to the scope (its lines are unmarked additions, its registry lines extra)', () => { scopeCommittedFiles(synthetic()); scopeEnvAndRegistry(synthetic()) })
+mutant('scope: the .env.example block registered in the middle of its list (the older proofs then misread "the blocks after mine")', () => {
+  const reg = git('show', `${HEAD}:scripts/studio-later-changes.mjs`).split('\n')
+  const mineAt = reg.findIndex(line => line.includes(').STAGE_OPEN_GATE_ENV_BLOCK'))
+  const [line] = reg.splice(mineAt, 1)
+  reg.splice(reg.findIndex(line => line.includes(').LEGAL_SHORT_LINKS_ENV_BLOCK')) + 1, 0, line)
+  scopeEnvAndRegistry(commitWith(HEAD, { 'scripts/studio-later-changes.mjs': reg.join('\n') }, `${STAGE_OPEN_GATE_SUBJECT} misplaced env line${TRAILER}`))
+})
 mutant('scope: a stray foreign file in a "Stage open gate:" commit', () => { scopeCommittedFiles(commitWith(HEAD, { 'stray-stage-gate.txt': 'stray\n' }, `${STAGE_OPEN_GATE_SUBJECT} a stray file${TRAILER}`)) })
 mutant('scope: an own commit without the co-author line', () => { scopeOwnCommits(commitWith(HEAD, {}, `${STAGE_OPEN_GATE_SUBJECT} no trailer`)) })
 mutant('scope: an unmarked line added to page.tsx in an own commit', () => { scopeCommittedFiles(commitWith(HEAD, { [PAGE]: git('show', `${HEAD}:${PAGE}`).replace('  studioStageGateRef.current = studioStageGate.state', '  const sneaky = 1\n  studioStageGateRef.current = studioStageGate.state') }, `${STAGE_OPEN_GATE_SUBJECT} sneaky${TRAILER}`)) })
