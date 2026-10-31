@@ -477,10 +477,11 @@ function workspaceDom({ stageAttrs, chatVisible = true, welcome, columnWide = fa
   ])
   const handle = node('div', { 'data-studio-drawer-handle': 'director' })
   const resize = node('div', { 'data-studio-workspace-resize': 'chat' })
+  const slideHandle = node('button', { type: 'button', 'data-studio-drawer-handle': 'slide' }) // the collapsed Slide edge tab (page.tsx: the Slide drawer's handle)
   const stage = node('div', { 'data-studio-v4-shell-presentation': 'true', ...stageAttrs })
-  const workspace = node('div', { 'data-studio-v4-shell-workspace': 'true' }, [chat, handle, resize, stage])
+  const workspace = node('div', { 'data-studio-v4-shell-workspace': 'true' }, [chat, handle, resize, node('div', { 'data-studio-workspace-drawer': 'slide' }, [slideHandle]), stage])
   const shell = node('div', { 'data-studio-v4-shell': 'true' }, [workspace])
-  return { shell, chat, chatContent: chat.children[0], stage, handle, resize, transcript, composer: chat.children[0].children[1] }
+  return { shell, chat, chatContent: chat.children[0], stage, handle, resize, slideHandle, transcript, composer: chat.children[0].children[1] }
 }
 function cssRules(cssText) {
   const out = []
@@ -495,6 +496,7 @@ function layoutOf(rules, dom) {
     chatFull: has(dom.chat, 'width', '100%', true) && has(dom.chatContent, 'width', '100%', true),
     stageHidden: has(dom.stage, 'visibility', 'hidden'),
     handlesGone: has(dom.handle, 'display', 'none') && has(dom.resize, 'display', 'none'),
+    slideTabHidden: has(dom.slideHandle, 'display', 'none'),
     columnCentred: has(dom.transcript, 'align-items', 'center') && has(dom.transcript, 'flex-direction', 'column') && declsFor(rules, dom.transcript.children[0]).some(d => d.prop === 'width' && /^(min\((100%, (560|620)px|(560|620)px, 100%)\)|var\(--studio-chat-conversation-column, min\(100%, (560|620)px\)\))$/.test(d.value)),
     composerWidth: declsFor(rules, dom.composer).filter(d => d.prop === 'width').map(d => d.value).pop() ?? null,
   }
@@ -539,8 +541,8 @@ const NEW_SESSION = [
   ...framesSteps(LIVE, 'j7'),
 ]
 const firstOpen = views => views.findIndex(v => !v.layout.stageHidden && v.label !== 'fresh session: the welcome' && !v.welcome)
-const expectSplit = v => { assert.equal(v.layout.stageHidden, false, `${v.label}: stage visible`); assert.equal(v.layout.chatFull, false, `${v.label}: split`) }
-const expectFull = v => { assert.equal(v.layout.stageHidden, true, `${v.label}: stage hidden`); assert.equal(v.layout.chatFull, true, `${v.label}: chat full width`); assert.equal(v.layout.handlesGone, true, `${v.label}: no resize handle`); assert.ok(v.layout.columnCentred, `${v.label}: the column centred`) }
+const expectSplit = v => { assert.equal(v.layout.stageHidden, false, `${v.label}: stage visible`); assert.equal(v.layout.chatFull, false, `${v.label}: split`); assert.equal(v.layout.slideTabHidden, false, `${v.label}: the Slide edge tab is left as it is (shown beside the stage)`) }
+const expectFull = v => { if (!v.welcome) assert.equal(v.layout.slideTabHidden, true, `${v.label}: no Slide edge tab while the gate holds the stage out of sight`); assert.equal(v.layout.stageHidden, true, `${v.label}: stage hidden`); assert.equal(v.layout.chatFull, true, `${v.label}: chat full width`); assert.equal(v.layout.handlesGone, true, `${v.label}: no resize handle`); assert.ok(v.layout.columnCentred, `${v.label}: the column centred`) }
 
 function scenarioChecks({ page = PAGE_NOW, libs = ON, rules = RULES_ON } = {}) {
   const o = { page, libs, rules }
@@ -694,7 +696,9 @@ check('FLAG OFF: every scenario renders byte-identical to the base page and styl
 function cssChecks(cssText) {
   const RULES_ON = cssRules(cssText), CSS_NOW = cssText
   const gateRules = RULES_ON.filter(r => STAGE_OPEN_GATE_MARKER_RE.test(CSS_NOW.split('\n').find(line => line.startsWith(r.selector)) ?? ''))
-  assert.equal(gateRules.length, 13, 'thirteen rules: eight for the layout, four for the edges and one for the composer under #555\'s wide column (F-10)')
+  assert.equal(gateRules.length, 14, 'fourteen rules: eight for the layout, four for the edges, one for the composer under #555\'s wide column (F-10), one for the Slide edge tab')
+  const slideTab = gateRules.filter(r => r.selector.endsWith(' [data-studio-drawer-handle="slide"]'))
+  assert.equal(slideTab.length, 1, 'one rule for the Slide edge tab'); assert.deepEqual(slideTab[0].decls.map(d => `${d.prop}: ${d.value}`), ['display: none'], 'it only takes the tab out (no other look)')
   for (const r of gateRules) {
     assert.match(r.selector, /^\[data-studio-v4-shell="true"\](:has\(\[data-studio-chat-column-wide="true"\]\))? \[data-studio-v4-shell-workspace\]:has\(> \[data-studio-v4-shell-presentation\]\[data-studio-stage-gate="closed"\](\[data-studio-stage-gate-width="560"\])?\):has\(\[data-studio-workspace-drawer="deck"\]\[data-studio-workspace-visible="true"\]\):not\(:has\(\[data-studio-workspace-drawer="deck"\] \[data-studio-first-run\]\)\) /, r.selector.slice(0, 120))
   }
@@ -1196,7 +1200,13 @@ pageMutant('the latch not written back', '  studioStageGateRef.current = studioS
 pageMutant('enabled without FIRST_RUN_V2', "enabled: STUDIO_STAGE_OPEN_GATE_ENABLED && studioShell && process.env.NEXT_PUBLIC_STUDIO_FIRST_RUN_V2 === 'true'", 'enabled: STUDIO_STAGE_OPEN_GATE_ENABLED && studioShell')
 const SHOW_SRC = read(SHOW)
 mutant('the "Show canvas" component draws its button with the stage open', () => headerChecks({ showSource: swap(SHOW_SRC, 'return showCanvas ? <button', 'return true ? <button').replace('onClick={() => showCanvas()}', 'onClick={() => showCanvas?.()}') }))
+mutant('stylesheet: the Slide edge tab hidden without the gate attribute (would apply flag off)', () => {
+  const css = CSS_NOW.replace('/* PASS2D W', '[data-studio-v4-shell="true"] [data-studio-v4-shell-workspace]:not(:has([data-studio-workspace-drawer="deck"] [data-studio-first-run])) [data-studio-drawer-handle="slide"] { display: none; } /* STUDIO-STAGE-OPEN-GATE */\n/* PASS2D W')
+  const rules = cssRules(css)
+  for (const [name, steps] of Object.entries(OFF_SCENARIOS())) assert.equal(viewDigest(runScenario(steps, { libs: OFF, env: OFF_ENV, rules })), viewDigest(runScenario(steps, { page: PAGE_BASE, libs: OFF, env: OFF_ENV, rules: RULES_BASE })), name)
+})
 const cssMutant = (label, edit) => { const css = edit(CSS_NOW); assert.notEqual(css, CSS_NOW, `stylesheet mutant "${label}" changes nothing`); mutant(`stylesheet: ${label}`, () => { const rules = cssRules(css); cssChecks(css); scenarioChecks({ rules }) }) }
+cssMutant('the Slide edge tab rule dropped', css => css.split('\n').filter(line => !(STAGE_OPEN_GATE_MARKER_RE.test(line) && line.includes('[data-studio-drawer-handle="slide"] { display: none; }'))).join('\n'))
 cssMutant('the welcome guard dropped (the gate rules also restyle the first-run welcome)', css => css.split('\n').map(line => STAGE_OPEN_GATE_MARKER_RE.test(line) ? line.replace(':not(:has([data-studio-workspace-drawer="deck"] [data-studio-first-run]))', '') : line).join('\n'))
 cssMutant('the stage-hiding rule dropped', css => css.split('\n').filter(line => !(STAGE_OPEN_GATE_MARKER_RE.test(line) && line.includes('{ visibility: hidden; }'))).join('\n'))
 cssMutant('the chat-width rule dropped', css => css.split('\n').filter(line => !(STAGE_OPEN_GATE_MARKER_RE.test(line) && line.includes('width: 100% !important'))).join('\n'))
