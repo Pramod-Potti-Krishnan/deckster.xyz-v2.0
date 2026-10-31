@@ -133,16 +133,30 @@ export function initialStrawmanStageState(): StrawmanStageState {
 
 const slideIndexOf = (value: unknown): number => (typeof value === 'number' && Number.isInteger(value) && value >= 0 ? value : 0)
 
+/** Narration phases in which the build is on (it starts on its own after the outline): the stage still shows the strawman until the first built slide, and its viewer is about to be replaced. */
+export const STRAWMAN_STAGE_BUILD_PHASES: readonly string[] = ['building', 'qa', 'finalizing', 'paused', 'stopped']
+
+/** Whether the build has started: Director is generating the final deck, or the narration says a build is on. */
+export function strawmanStageBuildStarted(input: { generatingFinal: boolean | null | undefined; narrationPhase: string | null | undefined }): boolean {
+  return Boolean(input.generatingFinal) || (typeof input.narrationPhase === 'string' && STRAWMAN_STAGE_BUILD_PHASES.includes(input.narrationPhase))
+}
+
 /**
  * One tick of what the page shows. While the strawman shows, the deck and the slide the user is on are remembered. When the built deck (another presentation) takes the stage, a user who was past
  * slide 1 leaves a pending return to that slide for the built deck's id; slide 1 needs none (a fresh viewer opens there). Anything else (flag off, template mode, a blank canvas) forgets.
+ * Once the build has started, the page's slide drops to 1 one render BEFORE the stage says the built deck is there (the built deck's viewer opens on slide 1 and reports it while the strawman is still the displayed
+ * version): that report, for the very deck already remembered at a later slide, is not the user going back to slide 1, and the remembered slide stays.
  */
 export function strawmanStageStep(
   state: StrawmanStageState,
-  input: { phase: StrawmanStagePhase; presentationId: string | null | undefined; index: number; now: number },
+  input: { phase: StrawmanStagePhase; presentationId: string | null | undefined; index: number; now: number; buildStarted?: boolean },
 ): StrawmanStageState {
   const id = input.presentationId || null
-  if (input.phase === 'strawman') return { shown: { presentationId: id, index: slideIndexOf(input.index) }, pending: null }
+  if (input.phase === 'strawman') {
+    const index = slideIndexOf(input.index)
+    if (input.buildStarted && index === 0 && state.shown && state.shown.presentationId === id && state.shown.index > 0) return { shown: state.shown, pending: null }
+    return { shown: { presentationId: id, index }, pending: null }
+  }
   if (input.phase !== 'built') return initialStrawmanStageState()
   // The built deck's id is not known yet: nothing to decide.
   if (!id) return state

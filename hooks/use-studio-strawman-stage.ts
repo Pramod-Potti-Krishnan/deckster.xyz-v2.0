@@ -21,6 +21,8 @@ export interface StudioStrawmanStageInput {
   /** The deck on the stage, and the slide the viewer is on (0-based). */
   presentationId: string | null | undefined
   currentSlideIndex: number
+  /** The build has started (generating, or a build phase): the viewer's own drop to slide 1 before the stage swaps is not the user's choice. */
+  buildStarted: boolean
   /** Slides the displayed deck holds, when the page knows. */
   slideCount: number | null | undefined
   goToSlide: ((index: number) => Promise<void>) | null | undefined
@@ -34,14 +36,14 @@ export function useStudioStrawmanStage(input: StudioStrawmanStageInput): void {
   const [pending, setPending] = useState<StrawmanStagePending | null>(null)
   const [tick, setTick] = useState(0)
 
-  // What the stage shows, once per change of deck, phase or slide (the user's last slide is read before the new viewer reports its own).
+  // What the stage shows, once per change of deck, phase, slide or build start (the user's last slide is read before the new viewer reports its own; once the build has started, a drop to slide 1 is the viewer's, not the user's).
   useEffect(() => {
     if (!STUDIO_STRAWMAN_STAGE_ENABLED) return
     const before = stateRef.current
-    const after = strawmanStageStep(before, { phase: input.phase, presentationId: input.presentationId, index: input.currentSlideIndex, now: Date.now() })
+    const after = strawmanStageStep(before, { phase: input.phase, presentationId: input.presentationId, index: input.currentSlideIndex, now: Date.now(), buildStarted: input.buildStarted })
     stateRef.current = after
     if (after.pending !== before.pending) setPending(after.pending)
-  }, [input.phase, input.presentationId, input.currentSlideIndex])
+  }, [input.phase, input.presentationId, input.currentSlideIndex, input.buildStarted])
 
   // The return: wait for the built deck's viewer, then go to the slide.
   useEffect(() => {

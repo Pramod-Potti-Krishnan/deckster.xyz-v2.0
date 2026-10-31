@@ -185,6 +185,27 @@ function libSuite(lib, libText = SOURCES[LIB]) {
   eq(step(initial(), { phase: 'built', presentationId: 'built-1', index: 3, now: 900 }), initial(), 'step: a built deck with nothing remembered (a restored deck) leaves no return')
   for (const bad of [-1, 1.5, Number.NaN, '3', null, undefined, Infinity]) eq(step(initial(), { phase: 'strawman', presentationId: 's', index: bad, now: 1 }).shown.index, 0, `step: an index that is no slide is slide 1 (${String(bad)})`)
 
+  // The order found in the running app: once the build has started, the page's slide drops to 1 while the strawman is still the displayed version, one render BEFORE the phase flips. That drop is the viewer's, not the user's.
+  const buildOn = { buildStarted: true }
+  const atThree = step(initial(), { phase: 'strawman', presentationId: 'straw-1', index: 2, now: 1 })
+  eq(step(atThree, { phase: 'strawman', presentationId: 'straw-1', index: 0, now: 2, ...buildOn }), { shown: { presentationId: 'straw-1', index: 2 }, pending: null }, 'step: the build has started and the same deck reports slide 1: the remembered slide stays')
+  const afterDrop = step(atThree, { phase: 'strawman', presentationId: 'straw-1', index: 0, now: 2, ...buildOn })
+  eq(step(afterDrop, { phase: 'built', presentationId: 'built-1', index: 0, now: 3 }), { shown: null, pending: { presentationId: 'built-1', index: 2, at: 3 } }, 'step: ...so the built deck takes the stage with a return to slide 3 (the order: slide 3, drop to slide 1, then the phase flips)')
+  eq(step(atThree, { phase: 'strawman', presentationId: 'straw-1', index: 0, now: 2 }).shown, { presentationId: 'straw-1', index: 0 }, 'step: before the build has started a move to slide 1 is the user\'s')
+  eq(step(atThree, { phase: 'strawman', presentationId: 'straw-1', index: 0, now: 2, buildStarted: false }).shown.index, 0, 'step: ...build not started, said so')
+  eq(step(atThree, { phase: 'strawman', presentationId: 'straw-1', index: 4, now: 2, ...buildOn }).shown, { presentationId: 'straw-1', index: 4 }, 'step: the build has started and the user moves to another slide: followed')
+  eq(step(atThree, { phase: 'strawman', presentationId: 'straw-1', index: 1, now: 2, ...buildOn }).shown.index, 1, 'step: ...also back to slide 2')
+  eq(step(atThree, { phase: 'strawman', presentationId: 'straw-2', index: 0, now: 2, ...buildOn }).shown, { presentationId: 'straw-2', index: 0 }, 'step: the build has started but this is another strawman deck: remembered as it is')
+  eq(step(step(initial(), { phase: 'strawman', presentationId: 'straw-1', index: 0, now: 1 }), { phase: 'strawman', presentationId: 'straw-1', index: 0, now: 2, ...buildOn }).shown, { presentationId: 'straw-1', index: 0 }, 'step: the user was on slide 1 all along')
+  eq(step(initial(), { phase: 'strawman', presentationId: 'straw-1', index: 0, now: 2, ...buildOn }).shown, { presentationId: 'straw-1', index: 0 }, 'step: nothing remembered yet: slide 1 is remembered')
+  eq(step(afterDrop, { phase: 'strawman', presentationId: 'straw-1', index: 0, now: 3, ...buildOn }), afterDrop, 'step: the viewer reporting slide 1 again changes nothing')
+  eq(step(afterDrop, { phase: null, presentationId: 'straw-1', index: 0, now: 3, ...buildOn }), initial(), 'step: ...and not applicable still forgets')
+  const started = lib.strawmanStageBuildStarted
+  for (const phase of ['building', 'qa', 'finalizing', 'paused', 'stopped']) eq(started({ generatingFinal: false, narrationPhase: phase }), true, `build started: narration phase ${phase}`)
+  for (const phase of ['idle', 'planning', 'strawman', 'awaiting_user', 'complete', 'error', '', null, undefined, 7]) eq(started({ generatingFinal: false, narrationPhase: phase }), false, `build not started: narration phase ${String(phase)}`)
+  eq([started({ generatingFinal: true, narrationPhase: 'idle' }), started({ generatingFinal: true, narrationPhase: null }), started({ generatingFinal: null, narrationPhase: undefined }), started({ generatingFinal: undefined, narrationPhase: 'building' })], [true, true, false, true], 'build started: Director generating the final deck is enough, and so is a build phase')
+  eq(lib.STRAWMAN_STAGE_BUILD_PHASES, ['building', 'qa', 'finalizing', 'paused', 'stopped'], 'build started: the phases (not error: a failed build leaves the strawman to the user)')
+
   const keep = over => lib.strawmanStageKeepStep({ pending: { presentationId: 'built-1', index: 4, at: 1000 }, now: 1000, hasViewerApi: true, viewerReady: true, slideCount: null, ...over })
   eq(keep({}), { action: 'go', index: 4 }, 'keep: the viewer is ready: go to the slide')
   eq(keep({ pending: null }), { action: 'drop' }, 'keep: nothing pending')
@@ -247,7 +268,7 @@ async function makeWorld({ flags = ON, libText = SOURCES[LIB], hookText = SOURCE
   const hookModule = evalModule(hookText, HOOK, scope, { react: React, '@/lib/studio-strawman-stage': lib })
   const calls = { go: [] }
   const p = {
-    phase: 'strawman', presentationId: 'straw-1', currentSlideIndex: 0, slideCount: null,
+    phase: 'strawman', presentationId: 'straw-1', currentSlideIndex: 0, buildStarted: false, slideCount: null,
     goToSlide: async index => { calls.go.push(index) }, viewerSafety: { presentationId: 'straw-1', ready: true, busy: false, error: false },
     ...props,
   }
@@ -293,6 +314,14 @@ async function hookSuite(make) {
   w = await make({})
   for (const index of [1, 4, 2]) await w.set({ currentSlideIndex: index })
   await w.swap({ viewerSafety: { presentationId: BUILT, ready: true, busy: false, error: false } }); eq(w.calls.go, [2], 'hook: the slide the user was last on')
+  // The order found in the running app: the user is on slide 3, the build starts, the page's slide drops to 1 while the strawman is still the displayed version, and only then does the phase flip.
+  w = await make({}); await w.set({ currentSlideIndex: 2 }); await w.set({ buildStarted: true }); await w.set({ currentSlideIndex: 0 })
+  await w.swap({ viewerSafety: { presentationId: BUILT, ready: false, busy: false, error: false } }); eq(w.calls.go, [], 'hook: reset first, then the phase flips: waits for the built deck\'s viewer')
+  await w.ready(); await w.advance(250); eq(w.calls.go, [2], 'hook: ...and takes it back to slide 3, though the page had already dropped to slide 1')
+  await w.advance(30000); eq([w.calls.go, w.pending()], [[2], 0], 'hook: ...once')
+  w = await make({}); await w.set({ currentSlideIndex: 2 }); await w.set({ buildStarted: true }); await w.set({ currentSlideIndex: 0 }); await w.swap({ viewerSafety: { presentationId: BUILT, ready: true, busy: false, error: false } }); eq(w.calls.go, [2], 'hook: ...at once when the viewer is ready')
+  w = await make({}); await w.set({ currentSlideIndex: 2 }); await w.set({ currentSlideIndex: 0 }); await w.set({ buildStarted: true }); await w.swap({ viewerSafety: { presentationId: BUILT, ready: true, busy: false, error: false } }); eq(w.calls.go, [], 'hook: a user who went back to slide 1 before the build started is not sent anywhere')
+  w = await make({}); await w.set({ currentSlideIndex: 2 }); await w.set({ buildStarted: true }); await w.set({ currentSlideIndex: 4 }); await w.set({ currentSlideIndex: 0 }); await w.swap({ viewerSafety: { presentationId: BUILT, ready: true, busy: false, error: false } }); eq(w.calls.go, [4], 'hook: a user who moved on after the build started: the last slide they chose')
   // slide 1: nothing to go back to
   w = await make({})
   await w.swap({ viewerSafety: { presentationId: BUILT, ready: true, busy: false, error: false } }); await w.advance(5000); eq([w.calls.go, w.pending()], [[], 0], 'hook: a user on slide 1 needs no return: no call, no timer')
@@ -341,7 +370,7 @@ function sourceSuite(sources, { base = null } = {}) {
   const first = page.indexOf(marked[0])
   ok(first > page.indexOf('themeExportDirectiveRunnerRef.current = ') && first > page.indexOf('elementDirectiveRunnerRef.current = '), 'page: the first marked line is after the Builder\'s element and theme runners')
   // imports: after the Builder content, before the loading state, with the flow and chat imports
-  const importLib = lineOf(page, "import { STUDIO_STRAWMAN_STAGE_ENABLED, strawmanStagePhase, strawmanStagePlan } from '@/lib/studio-strawman-stage' // STRAWMAN-STAGE")
+  const importLib = lineOf(page, "import { STUDIO_STRAWMAN_STAGE_ENABLED, strawmanStageBuildStarted, strawmanStagePhase, strawmanStagePlan } from '@/lib/studio-strawman-stage' // STRAWMAN-STAGE")
   const importHook = lineOf(page, "import { useStudioStrawmanStage } from '@/hooks/use-studio-strawman-stage' // STRAWMAN-STAGE")
   const importPlan = lineOf(page, "import { StudioStrawmanPlan } from '@/components/builder/studio-strawman-plan' // STRAWMAN-STAGE")
   for (const line of [importLib, importHook, importPlan]) ok(page.indexOf(line) > page.indexOf('function AuthenticatedBuilderContent(') && page.indexOf(line) < page.indexOf('function BuilderLoadingState('), 'page: imported between the Builder content and the loading state (after the runners)')
@@ -352,7 +381,7 @@ function sourceSuite(sources, { base = null } = {}) {
   const planLine = lineOf(page, 'const studioStrawmanPlan = studioStrawmanPhase')
   ok(planLine.includes("studioStrawmanPhase === 'strawman' ? strawmanStagePlan({") && planLine.includes('slides: slideStructure?.slides') && planLine.includes('contextByIndex: slideContextByIndex') && planLine.includes('index: currentSlideIndex') && planLine.endsWith(': null // STRAWMAN-STAGE'), 'page: the plan is of the slide on stage, from the outline frame and slide_context, only in the strawman phase')
   const hookLine = lineOf(page, 'useStudioStrawmanStage({')
-  for (const piece of ['phase: studioStrawmanPhase', 'presentationId: effectivePresentationId', 'currentSlideIndex', 'slideCount: effectiveSlideCount', 'goToSlide: layoutServiceApis?.goToSlide', 'viewerSafety: studioViewerSafety']) ok(hookLine.includes(piece), `page: the hook is handed ${piece}`)
+  for (const piece of ['phase: studioStrawmanPhase', 'presentationId: effectivePresentationId', 'currentSlideIndex, buildStarted: strawmanStageBuildStarted({ generatingFinal: isGeneratingFinal, narrationPhase: buildNarration.phase }), slideCount: effectiveSlideCount', 'goToSlide: layoutServiceApis?.goToSlide', 'viewerSafety: studioViewerSafety']) ok(hookLine.includes(piece), `page: the hook is handed ${piece}`)
   const selectAt = page.indexOf('const studioOutlineCanvas = selectStudioOutlineCanvas({')
   ok(selectAt > 0, 'page: the outline canvas selection is there')
   for (const line of [phaseLine, planLine, hookLine]) ok(page.indexOf(line) < selectAt, 'page: decided before the outline canvas is selected')
@@ -475,7 +504,17 @@ const libMutants = [
   ['plan: the position is 0-based', 'position: slides.length ? index + 1 : null', 'position: slides.length ? index : null'],
   ['plan: white space is kept', "const collapsed = value.replace(/\\s+/g, ' ').trim()", 'const collapsed = value'],
   ['plan: a blank string is text', 'return collapsed || null', 'return collapsed'],
-  ['step: the strawman is not remembered', "if (input.phase === 'strawman') return { shown: { presentationId: id, index: slideIndexOf(input.index) }, pending: null }", "if (input.phase === 'strawman') return state"],
+  ['step: the strawman is not remembered', "    return { shown: { presentationId: id, index }, pending: null }", "    return state"],
+  ['step: a drop to slide 1 after the build started is followed', "    if (input.buildStarted && index === 0 && state.shown && state.shown.presentationId === id && state.shown.index > 0) return { shown: state.shown, pending: null }\n", ""],
+  ['step: the drop is kept off even before the build started', 'if (input.buildStarted && index === 0', 'if (index === 0'],
+  ['step: every index is kept off once the build started', 'if (input.buildStarted && index === 0 &&', 'if (input.buildStarted &&'],
+  ['step: another strawman deck is kept off too', 'state.shown && state.shown.presentationId === id && state.shown.index > 0) return', 'state.shown && state.shown.index > 0) return'],
+  ['step: slide 1 is kept off from a remembered slide 1 (nothing to keep)', 'state.shown.index > 0) return { shown: state.shown, pending: null }', 'state.shown.index >= 0) return { shown: state.shown, pending: null }'],
+  ['build started: Director generating is not enough', 'return Boolean(input.generatingFinal) ||', 'return'],
+  ['build started: generating alone says nothing', '(typeof input.narrationPhase === \'string\' && STRAWMAN_STAGE_BUILD_PHASES.includes(input.narrationPhase))', 'false'],
+  ['build started: building is not a build phase', "['building', 'qa', 'finalizing', 'paused', 'stopped']", "['qa', 'finalizing', 'paused', 'stopped']"],
+  ['build started: idle is a build phase', "['building', 'qa', 'finalizing', 'paused', 'stopped']", "['idle', 'building', 'qa', 'finalizing', 'paused', 'stopped']"],
+  ['build started: a failed build is a build phase', "['building', 'qa', 'finalizing', 'paused', 'stopped']", "['building', 'qa', 'finalizing', 'paused', 'stopped', 'error']"],
   ['step: a user on slide 1 gets a return', 'replaced && state.shown.index > 0 ?', 'replaced ?'],
   ['step: the same deck gets a return', 'const replaced = state.shown.presentationId !== id', 'const replaced = true'],
   ['step: the slide is the new viewer\'s, not the user\'s', 'index: state.shown.index, at: input.now', 'index: input.index, at: input.now'],
@@ -495,7 +534,8 @@ const libMutants = [
 const hookMutants = [
   // Each effect checks the flag on its own (so neither depends on the other for the flag-off guarantee): taking out one guard alone changes nothing anyone can see, taking out both does.
   ['the flag is read by neither effect', ['if (!STUDIO_STRAWMAN_STAGE_ENABLED) return\n    const before', 'if (!STUDIO_STRAWMAN_STAGE_ENABLED || !pending) return'], ['const before', 'if (!pending) return']],
-  ['the slide is not remembered', '[input.phase, input.presentationId, input.currentSlideIndex])', '[input.phase, input.presentationId])'],
+  ['the slide is not remembered', '[input.phase, input.presentationId, input.currentSlideIndex, input.buildStarted])', '[input.phase, input.presentationId, input.buildStarted])'],
+  ['the build start is not handed to the step', 'now: Date.now(), buildStarted: input.buildStarted })', 'now: Date.now() })'],
   ['the viewer need not be ready', 'Boolean(safety && safety.ready && !safety.busy && !safety.error && safety.presentationId === pending.presentationId)', 'true'],
   ['a viewer of another deck will do', 'safety.presentationId === pending.presentationId)', 'true)'],
   ['a busy viewer will do', 'safety.ready && !safety.busy && !safety.error', 'safety.ready && !safety.error'],
@@ -532,6 +572,9 @@ const sourceMutants = [
   ['page: the phase ignores the Studio shell', 'enabled: STUDIO_STRAWMAN_STAGE_ENABLED && studioShell', 'enabled: STUDIO_STRAWMAN_STAGE_ENABLED', PAGE],
   ['page: the phase ignores template mode', ' templateModeOn, activeVersion: effectiveActiveVersion', ' templateModeOn: false, activeVersion: effectiveActiveVersion', PAGE],
   ['page: the phase reads the raw version', 'activeVersion: effectiveActiveVersion', 'activeVersion', PAGE],
+  ['page: the hook is not told the build has started', 'buildStarted: strawmanStageBuildStarted({ generatingFinal: isGeneratingFinal, narrationPhase: buildNarration.phase }), ', '', PAGE],
+  ['page: the build start ignores Director generating', 'generatingFinal: isGeneratingFinal, narrationPhase', 'generatingFinal: false, narrationPhase', PAGE],
+  ['page: the build start ignores the narration phase', 'narrationPhase: buildNarration.phase })', 'narrationPhase: null })', PAGE],
   ['page: the hook is not handed the viewer', ', viewerSafety: studioViewerSafety }) // STRAWMAN-STAGE', ' }) // STRAWMAN-STAGE', PAGE],
   ['page: the hook is not handed the goToSlide', 'goToSlide: layoutServiceApis?.goToSlide, viewerSafety: studioViewerSafety }) // STRAWMAN-STAGE', 'viewerSafety: studioViewerSafety }) // STRAWMAN-STAGE', PAGE],
   ['page: an import lost its marker', "import { useStudioStrawmanStage } from '@/hooks/use-studio-strawman-stage' // STRAWMAN-STAGE", "import { useStudioStrawmanStage } from '@/hooks/use-studio-strawman-stage'", PAGE],
