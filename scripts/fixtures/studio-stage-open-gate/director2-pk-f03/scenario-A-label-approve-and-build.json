@@ -1,0 +1,3042 @@
+{
+  "scenario": "A",
+  "base_sha": "749df53ef323be231777d5ee90e8ab28c3e9301a",
+  "recorded_by": "pk-f03/record.py (offline; real Director code, scripted model, stubbed services)",
+  "connect": {
+    "session_id": "s_f03_a",
+    "user_id": "u_test",
+    "skip_history": false,
+    "message_count": 0,
+    "build_control_capability": 1
+  },
+  "client_caps": [
+    "mdc1",
+    "theme1",
+    "export1",
+    "element_refine1",
+    "element_edit1",
+    "notes1",
+    "bulk_edit1",
+    "mentions2",
+    "commands1"
+  ],
+  "send_flags_on_every_user_message": {
+    "extended_generation": true,
+    "deep_research": false,
+    "web_search": false,
+    "file_upload": false,
+    "use_knowledge_graph": false,
+    "store_name": null
+  },
+  "flags_set": {
+    "uat_feature_flags_bool": {
+      "BUILD_CONTROL_ENABLED": true,
+      "BUILD_EVENTS_ENABLED": true,
+      "CHART_TYPES_V2_ENABLED": true,
+      "COMPOSER_ASYNC_JOBS_ENABLED": true,
+      "COMPOSER_COMMIT_SIZE_SAFE_ENABLED": true,
+      "COMPOSER_DITTO_COMPOSE_BY_REFERENCE_ENABLED": true,
+      "COMPOSER_LONG_BRIEF_ENABLED": true,
+      "COMPOSER_REFUSAL_DETAIL_ENABLED": true,
+      "COMPOSER_REPLAY_BY_REFERENCE_ENABLED": true,
+      "COMPOSER_STAGE1B_DITTO_ENABLED": true,
+      "COMPOSER_STALE_JOB_WATCHDOG_ENABLED": true,
+      "COMPOSER_TEMPLATE_PROGRESS_ENABLED": true,
+      "COMPOSER_TEMPLATE_SIZE_GUARD_ENABLED": true,
+      "COMPOSER_UPLOAD_REFUSAL_REASON_ENABLED": true,
+      "DECK_IDENTITY_ENABLED": true,
+      "DIAGRAM_NAMES_V2_ENABLED": true,
+      "DIAGRAM_TYPES_V3_ENABLED": true,
+      "DIRECTOR_APPROVED_TITLE_FIDELITY_ENABLED": true,
+      "DIRECTOR_ASK_FOR_ORG_DATA_ENABLED": true,
+      "DIRECTOR_BLANK_DECK_RESILIENCE_ENABLED": true,
+      "DIRECTOR_BRIEF_FIDELITY_DATA_METRICS_ENABLED": true,
+      "DIRECTOR_BRIEF_FIDELITY_ENABLED": true,
+      "DIRECTOR_BUILD_QUOTA_ENFORCED_ENABLED": false,
+      "DIRECTOR_BUILD_QUOTA_SHADOW_ENABLED": false,
+      "DIRECTOR_BUILD_STATE_SLIM_ENABLED": true,
+      "DIRECTOR_BUILD_TIMELINE_ENABLED": true,
+      "DIRECTOR_CANON_PRESETS_ENABLED": true,
+      "DIRECTOR_CARRIER_DOWNLOAD_DIAG_ENABLED": false,
+      "DIRECTOR_CHART_SLOT_DATASET_GUARD_ENABLED": true,
+      "DIRECTOR_CHART_Y_LABEL_V2_ENABLED": false,
+      "DIRECTOR_CLOSING_ACTIONS_ENABLED": true,
+      "DIRECTOR_CLOSING_ASK_DEFAULT_ENABLED": true,
+      "DIRECTOR_CLOSING_ASK_OUTLINE_ENABLED": true,
+      "DIRECTOR_CLOSING_COPY_CHAR_BUDGET_ENABLED": true,
+      "DIRECTOR_COMPACT_FOOTER_ENABLED": true,
+      "DIRECTOR_COMPOSER_LONG_DECK_FIELDS_ENABLED": true,
+      "DIRECTOR_COMPOSE_CHART_ILLUSTRATIVE_V2_ENABLED": true,
+      "DIRECTOR_COMPOSE_TITLE_CLAMP_SAFE_ENABLED": true,
+      "DIRECTOR_COMPOSITION_RELATIONSHIPS_ENABLED": true,
+      "DIRECTOR_CONCEPTUAL_TOPIC_FIDELITY_ENABLED": true,
+      "DIRECTOR_CONTAINER_LADDER_ENABLED": false,
+      "DIRECTOR_CONTEXT_FETCH_MERGE_CONTAINED_ENABLED": true,
+      "DIRECTOR_CONTEXT_PERSIST_CONTAINMENT_ENABLED": true,
+      "DIRECTOR_CONTEXT_SLIM_PERSIST_ENABLED": true,
+      "DIRECTOR_DECISION_STATED_PREFS_ENABLED": true,
+      "DIRECTOR_DECK_IMPORT_ENABLED": false,
+      "DIRECTOR_DECK_IMPORT_NOTES_ENABLED": false,
+      "DIRECTOR_DIAGRAM_CONTENT_SUPPLY_ENABLED": true,
+      "DIRECTOR_DUPLICATE_ADOPT_ENABLED": false,
+      "DIRECTOR_ENTITY_ATTRIBUTION_GUARD_ENABLED": true,
+      "DIRECTOR_ENTITY_SAME_ENTITY_CHECK_ENABLED": true,
+      "DIRECTOR_EVIDENCE_DIVERGENCE_TAP_ENABLED": true,
+      "DIRECTOR_EXPLICIT_DECK_STRUCTURE_ENABLED": true,
+      "DIRECTOR_FALLBACK_BRIEF_NOUN_PHRASE_ENABLED": true,
+      "DIRECTOR_FALLBACK_PROPOSE_PLAN_ENABLED": true,
+      "DIRECTOR_FIDELITY_SUBJECT_OUTLINE_STRIP_ENABLED": true,
+      "DIRECTOR_FLOW_STEER_ENABLED": true,
+      "DIRECTOR_GUARD_LEGACY_RESUME_ENABLED": true,
+      "DIRECTOR_H3_ASK_VERBATIM_ENABLED": true,
+      "DIRECTOR_H3_CLOSER_FIELDS_ENABLED": true,
+      "DIRECTOR_H3_LEAD_CHAR_BUDGET_ENABLED": true,
+      "DIRECTOR_HEADER_REPAIR_KEEPS_TOPIC_ENABLED": true,
+      "DIRECTOR_HERO_AGENDA_ENABLED": true,
+      "DIRECTOR_HERO_CONTENT_V2_ENABLED": true,
+      "DIRECTOR_HERO_SOURCE_ASK_ENABLED": true,
+      "DIRECTOR_HERO_TITLE_FIELDS_ENABLED": true,
+      "DIRECTOR_HERO_WAVE3_ENABLED": true,
+      "DIRECTOR_J1_NATURAL_APPROVAL_ENABLED": true,
+      "DIRECTOR_JOB_LEDGER_ENABLED": false,
+      "DIRECTOR_LEAN_BOUND_UNITS_ENABLED": true,
+      "DIRECTOR_LEAN_DECK_DEDUPE_ENABLED": true,
+      "DIRECTOR_LEAN_LAYER_REBIND_ENABLED": true,
+      "DIRECTOR_LEAN_LINEAGE_ONLY_RAW_ENABLED": false,
+      "DIRECTOR_MDC_B1B_FIXES_ENABLED": true,
+      "DIRECTOR_MDC_B2_FIXES_ENABLED": true,
+      "DIRECTOR_MDC_B5_FIXES_ENABLED": true,
+      "DIRECTOR_MDC_BUILD_CONTROL_ENABLED": true,
+      "DIRECTOR_MDC_BULK_EDIT_ENABLED": true,
+      "DIRECTOR_MDC_BULK_EDIT_POLISH_2_ENABLED": true,
+      "DIRECTOR_MDC_BULK_EDIT_POLISH_ENABLED": true,
+      "DIRECTOR_MDC_CANT_YET_HONEST_ENABLED": true,
+      "DIRECTOR_MDC_CHAT_ORG_DATA_GATE_ENABLED": false,
+      "DIRECTOR_MDC_CHAT_UNDO_ENABLED": true,
+      "DIRECTOR_MDC_COMPOSER_FLAG_GATE_ENABLED": true,
+      "DIRECTOR_MDC_ELEMENT_EDIT_ENABLED": true,
+      "DIRECTOR_MDC_ELEMENT_FIELDS_ENABLED": true,
+      "DIRECTOR_MDC_ELEMENT_TEXT_SET_ENABLED": true,
+      "DIRECTOR_MDC_ELEMENT_TYPE_GUARD_ENABLED": false,
+      "DIRECTOR_MDC_EXPLICIT_VISUAL_HONEST_ENABLED": true,
+      "DIRECTOR_MDC_EXPORT_ENABLED": true,
+      "DIRECTOR_MDC_FIDELITY_FIXES_2_ENABLED": false,
+      "DIRECTOR_MDC_FILE_CLAIM_CHECK_ENABLED": true,
+      "DIRECTOR_MDC_FRESH_SESSION_ENABLED": true,
+      "DIRECTOR_MDC_GROUNDED_QA_ENABLED": false,
+      "DIRECTOR_MDC_HONEST_REPLIES_ENABLED": true,
+      "DIRECTOR_MDC_HOW_CATALOGUE_ENABLED": true,
+      "DIRECTOR_MDC_IDENTITY_ENABLED": true,
+      "DIRECTOR_MDC_MENTIONS_COMMANDS_ENABLED": true,
+      "DIRECTOR_MDC_NOTES_NARRATION_ENABLED": true,
+      "DIRECTOR_MDC_OFF_TOPIC_ENABLED": false,
+      "DIRECTOR_MDC_OUTLINE_APPROVAL_PHRASES_ENABLED": false,
+      "DIRECTOR_MDC_PROGRESS_COPY_ENABLED": false,
+      "DIRECTOR_MDC_RECORD_MISSES_ENABLED": false,
+      "DIRECTOR_MDC_REFINE_ELEMENT_ENABLED": true,
+      "DIRECTOR_MDC_REFINE_ELEMENT_NO_CAP_GUIDANCE_ENABLED": false,
+      "DIRECTOR_MDC_REFINE_SLIDE_ENABLED": true,
+      "DIRECTOR_MDC_REFINE_UNSUPPORTED_LINE_ENABLED": true,
+      "DIRECTOR_MDC_REORDER_SLIDE_ENABLED": true,
+      "DIRECTOR_MDC_REPLY_CLAIM_CHECK_ENABLED": true,
+      "DIRECTOR_MDC_RESOLVER_V2_ENABLED": true,
+      "DIRECTOR_MDC_SESSION_SCOPE_ENABLED": true,
+      "DIRECTOR_MDC_SLIDE_OPS_2_ENABLED": true,
+      "DIRECTOR_MDC_STRAWMAN_SYNC_ENABLED": true,
+      "DIRECTOR_MDC_TEMPLATES_ENABLED": true,
+      "DIRECTOR_MDC_THEME_CHANGE_ENABLED": true,
+      "DIRECTOR_MDC_THEME_LIBRARY_ENABLED": true,
+      "DIRECTOR_MDC_VISUAL_BRIEF_CHECK_ENABLED": false,
+      "DIRECTOR_METRIC_PROVENANCE_ENABLED": true,
+      "DIRECTOR_MODEL_CATALOGUE_COST_HINT_ENABLED": true,
+      "DIRECTOR_MODEL_CATALOGUE_PASSTHROUGH_ENABLED": true,
+      "DIRECTOR_MODEL_CATALOGUE_PRESETS_ENABLED": true,
+      "DIRECTOR_ORG_DATA_BIND_WITHOUT_RESEARCH_ENABLED": true,
+      "DIRECTOR_ORPHAN_BUILD_STOP_ENABLED": true,
+      "DIRECTOR_PALETTE_MODE_PASS_ENABLED": true,
+      "DIRECTOR_PLAIN_ERROR_NOTICE_ENABLED": true,
+      "DIRECTOR_PLAIN_RESUME_ERROR_ENABLED": true,
+      "DIRECTOR_PLAN_ACCEPT_LATCH_ENABLED": false,
+      "DIRECTOR_PLAN_ADD_SLIDE_COUNT_ENABLED": true,
+      "DIRECTOR_PLAN_APPROVAL_GUARD_ENABLED": true,
+      "DIRECTOR_PLAN_CARD_DIRECT_CHANGE_ENABLED": true,
+      "DIRECTOR_PLAN_PARALLEL_STEPS_ENABLED": true,
+      "DIRECTOR_PLAN_SLIDE_TITLES_ENABLED": true,
+      "DIRECTOR_PREBUILD_THEME_OVERLAP_ENABLED": true,
+      "DIRECTOR_PREFS_DROP_ACTION_TOKENS_ENABLED": true,
+      "DIRECTOR_PREFS_PROVENANCE_ENABLED": true,
+      "DIRECTOR_PREFS_STATED_ONLY_DOWNSTREAM_ENABLED": true,
+      "DIRECTOR_PREVIEW_SYNC_STORED_FIELDS_ENABLED": false,
+      "DIRECTOR_PROCEED_RULE_ENABLED": true,
+      "DIRECTOR_RECONNECT_GREETING_DEDUP_ENABLED": true,
+      "DIRECTOR_REFINER_OUTPUT_TYPE_ENABLED": true,
+      "DIRECTOR_REFINE_FEEDBACK_FROM_USER_ENABLED": true,
+      "DIRECTOR_REFINE_NOCHANGE_REGATE_ENABLED": true,
+      "DIRECTOR_REFINE_REPACKAGE_ENABLED": true,
+      "DIRECTOR_REFINE_TITLE_PLAIN_ENABLED": true,
+      "DIRECTOR_REFINE_ZERO_CHANGE_HONEST_ENABLED": true,
+      "DIRECTOR_REQUESTED_TOPIC_FRAME_ENABLED": true,
+      "DIRECTOR_REQUESTED_TOPIC_LABEL_ENABLED": true,
+      "DIRECTOR_REQUIRE_OPENROUTER_PROVIDER": false,
+      "DIRECTOR_RESEARCHER_FILE_ROUTES_KEY_ENABLED": false,
+      "DIRECTOR_RESEARCH_DEDUPE_NO_REPEAT_QUOTE_ENABLED": true,
+      "DIRECTOR_RESEARCH_DEGRADED_PASSTHROUGH_ENABLED": true,
+      "DIRECTOR_RESEARCH_QUOTE_CITATION_CARRY_ENABLED": true,
+      "DIRECTOR_REST_ENTITLEMENT_READ_REQUIRED_ENABLED": false,
+      "DIRECTOR_REST_ENTITLEMENT_SHADOW_ENABLED": false,
+      "DIRECTOR_REST_ENTITLEMENT_WRITE_REQUIRED_ENABLED": false,
+      "DIRECTOR_RESUME_AFTER_STOP_ENABLED": true,
+      "DIRECTOR_RESUME_AFTER_STOP_IDENTITY_ENABLED": true,
+      "DIRECTOR_RESUME_NO_PREVIEW_TARGET_ENABLED": true,
+      "DIRECTOR_ROUTER_COMPOSE_BIND_USER_ENABLED": true,
+      "DIRECTOR_ROUTER_KEYLESS_ENABLED": false,
+      "DIRECTOR_ROUTER_PREFLIGHT_ALLOW_UNCHECKED_CAPACITY": false,
+      "DIRECTOR_ROUTER_PREFLIGHT_ENABLED": false,
+      "DIRECTOR_SB_JOB_INTERRUPTED_UX_ENABLED": false,
+      "DIRECTOR_SB_JOB_RESUBMIT_ENABLED": true,
+      "DIRECTOR_SB_POLL_FAST_ENABLED": true,
+      "DIRECTOR_SECTION_TITLE_CHAR_BUDGET_ENABLED": false,
+      "DIRECTOR_SESSION_CONTEXT_ENABLED": true,
+      "DIRECTOR_SESSION_WRITE_BATCH_ENABLED": true,
+      "DIRECTOR_SLIDE_COMPOSE_HEARTBEAT_ENABLED": false,
+      "DIRECTOR_SLIDE_COUNT_REVISION_ENABLED": true,
+      "DIRECTOR_SLIDE_TEXT_DENSITY_ENABLED": true,
+      "DIRECTOR_SLIDE_TOPIC_CONTEXT_ENABLED": true,
+      "DIRECTOR_STAGE2_LEDGER_SINGLE_COUNT_ENABLED": true,
+      "DIRECTOR_STAGE3_LEDGER_SINGLE_COUNT_ENABLED": true,
+      "DIRECTOR_STAGE4A_OUTLINE_BUDGET_ENABLED": true,
+      "DIRECTOR_STAGE4_EMPTY_OUTLINE_GUARD_ENABLED": true,
+      "DIRECTOR_STRAWMAN_BIND_PLAN_TITLES_ENABLED": true,
+      "DIRECTOR_STRUCTURE_COPY_GUARD_ENABLED": true,
+      "DIRECTOR_TABLE_BUCKET_FIX_ENABLED": true,
+      "DIRECTOR_TABLE_CONTRACT_ENABLED": true,
+      "DIRECTOR_TABLE_PAIR_ENABLED": true,
+      "DIRECTOR_TEMPLATE_ADMISSION_REPORT_ENABLED": true,
+      "DIRECTOR_TEMPLATE_RENAME_ENABLED": true,
+      "DIRECTOR_THEME_FONT_SELECTION_ENABLED": true,
+      "DIRECTOR_THEME_INDUSTRY_WORD_BOUNDARY_ENABLED": true,
+      "DIRECTOR_THEME_NO_REAPPLY_PER_SEND_ENABLED": true,
+      "DIRECTOR_THEME_OVERRIDE_KEY_ENABLED": true,
+      "DIRECTOR_THEME_RESTORE_ON_CONNECT_ENABLED": true,
+      "DIRECTOR_TOKEN_USAGE_ALL_PATHS_ENABLED": false,
+      "DIRECTOR_TOKEN_USAGE_WIDE_ID_ENABLED": false,
+      "DIRECTOR_TOPIC_FIELDS_ENABLED": true,
+      "DIRECTOR_UNIFIED_DEFAULT_DURATION_ENABLED": true,
+      "DIRECTOR_UNNUMBERED_VISUAL_ASK_ENABLED": false,
+      "DIRECTOR_UPLOAD_ANCHOR_FACTUAL_ENABLED": true,
+      "DIRECTOR_UPLOAD_CHART_ASSET_FLOOR_ENABLED": true,
+      "DIRECTOR_USER_NUMBER_HEADERS_ENABLED": true,
+      "DIRECTOR_V2_RESUME_AFTER_STOP_ENABLED": true,
+      "DIRECTOR_WEB_CHART_ASSET_FLOOR_ENABLED": true,
+      "DIRECTOR_WEB_CHART_BINDING_ENABLED": true,
+      "DIRECTOR_WEB_CHART_DISCLOSURE_ENABLED": true,
+      "DIRECTOR_WEB_VERBATIM_FACTUAL_ENABLED": true,
+      "DIRECTOR_WEB_VERIFIED_PARAPHRASE_FACTUAL_ENABLED": true,
+      "DIRECTOR_WS_REQUIRE_TOKEN_ENABLED": false,
+      "DIRECTOR_WS_TOKENLESS_AUDIT_ENABLED": true,
+      "EXPLICIT_VISUAL_ROUTING_V2_ENABLED": true,
+      "MULTI_INTENT_ENABLED": true,
+      "RESEARCHER_TABLE_BUCKET_ENABLED": true,
+      "TABLE_CONTENT_TYPE_AVAILABLE": true
+    },
+    "provisional_settings": {
+      "ENABLE_BLANK_PRESENTATION": "true",
+      "SLIDE_BUILDER_ENABLED": "true",
+      "EXTENDED_STRAWMAN_ENABLED": "true",
+      "STAGE_4_V3_ENABLED": "true",
+      "V2_PACKAGER_ENABLED": "true",
+      "RESEARCHER_V2_ENABLED": "true",
+      "SLIDE_BUILDER_V2_ENABLED": "true",
+      "SLIDE_COMPOSER_ENABLED": "true",
+      "SLIDE_COMPOSER_ASYNC_ENABLED": "true",
+      "SLIDE_REFINER_ENABLED": "true",
+      "CHAT_CAP_ADD_ELEMENT": "true",
+      "CHAT_CAP_BUILD_CONTROL": "true",
+      "CHAT_CAP_BULK_EDIT": "true",
+      "CHAT_CAP_CHANGE_THEME": "true",
+      "CHAT_CAP_CHAT_UNDO": "true",
+      "CHAT_CAP_COMPOSE_SLIDE": "true",
+      "CHAT_CAP_DELETE_SLIDE": "true",
+      "CHAT_CAP_DELETE_SLIDES": "true",
+      "CHAT_CAP_DUPLICATE_SLIDE": "true",
+      "CHAT_CAP_ELEMENT_EDIT": "true",
+      "CHAT_CAP_EXPORT": "true",
+      "CHAT_CAP_IDENTITY": "true",
+      "CHAT_CAP_NEW_DECK_REDIRECT": "true",
+      "CHAT_CAP_QA": "true",
+      "CHAT_CAP_REBUILD_SLIDE": "true",
+      "CHAT_CAP_REFINE_ELEMENT": "true",
+      "CHAT_CAP_REFINE_SLIDE": "true",
+      "CHAT_CAP_REORDER_SLIDE": "true",
+      "CHAT_CAP_RESUME": "true",
+      "CHAT_CAP_SLIDE_REFERENCES": "true",
+      "CHAT_CAP_SLIDE_SCRIPT": "true",
+      "CHAT_CAP_SPEAKER_NOTES": "true",
+      "CHAT_CAP_TEMPLATES": "true",
+      "CHAT_CAP_THEME_LIBRARY": "true"
+    }
+  },
+  "frame_counts": {
+    "outbound": 68,
+    "inbound": 4,
+    "total": 73
+  },
+  "outbound_types_in_order": [
+    "build_control_capability",
+    "theme_sync",
+    "presentation_init",
+    "theme_sync",
+    "chat_message",
+    "action_request",
+    "status_update",
+    "chat_message",
+    "action_request",
+    "status_update",
+    "build_phase",
+    "chat_message",
+    "build_event",
+    "chat_message",
+    "build_event",
+    "chat_message",
+    "build_event",
+    "chat_message",
+    "build_event",
+    "theme_sync",
+    "slide_context",
+    "build_phase",
+    "slide_update",
+    "chat_message",
+    "action_request",
+    "token_usage",
+    "status_update",
+    "chat_message",
+    "build_phase",
+    "theme_sync",
+    "status_update",
+    "status_update",
+    "chat_message",
+    "chat_message",
+    "build_event",
+    "slide_built",
+    "chat_message",
+    "build_event",
+    "slide_built",
+    "chat_message",
+    "build_event",
+    "slide_built",
+    "chat_message",
+    "build_event",
+    "slide_built",
+    "chat_message",
+    "build_event",
+    "slide_built",
+    "chat_message",
+    "build_event",
+    "slide_built",
+    "chat_message",
+    "build_event",
+    "slide_built",
+    "chat_message",
+    "build_event",
+    "slide_built",
+    "chat_message",
+    "build_event",
+    "slide_built",
+    "chat_message",
+    "build_event",
+    "slide_built",
+    "build_phase",
+    "presentation_url",
+    "chat_message",
+    "action_request",
+    "build_phase"
+  ],
+  "stage_timeline": [
+    {
+      "stage": "connect: first frame",
+      "t_ms": 0.1,
+      "turn": 0,
+      "t_turn_ms": 0.1,
+      "seq": 2,
+      "marked_by": "build_control_capability",
+      "summary": "build_control_capability"
+    },
+    {
+      "stage": "blank deck (canvas) frame",
+      "t_ms": 8.7,
+      "turn": 0,
+      "t_turn_ms": 8.7,
+      "seq": 4,
+      "marked_by": "presentation_init (blank), metadata.preview_url",
+      "summary": "presentation_init op=full_update slides=1 (blank canvas: slide_id blank_slide_1)"
+    },
+    {
+      "stage": "greeting",
+      "t_ms": 19.0,
+      "turn": 0,
+      "t_turn_ms": 19.0,
+      "seq": 6,
+      "marked_by": "chat_message 'Hello! I'm your presentation assistant...'",
+      "summary": "chat: \"Hello! I'm your presentation assistant. I can help you create professi\""
+    },
+    {
+      "stage": "first clarifying question",
+      "t_ms": 975.8,
+      "turn": 1,
+      "t_turn_ms": 751.2,
+      "seq": 8,
+      "marked_by": "action_request with payload.question_set",
+      "summary": "action_request +question_set actions=['skip_questions']"
+    },
+    {
+      "stage": "plan card (accept_plan gate)",
+      "t_ms": 1787.0,
+      "turn": 2,
+      "t_turn_ms": 619.6,
+      "seq": 12,
+      "marked_by": "action_request value=accept_plan",
+      "summary": "action_request actions=['accept_plan', 'reject_plan']"
+    },
+    {
+      "stage": "outline generation starts",
+      "t_ms": 2257.6,
+      "turn": 3,
+      "t_turn_ms": 279.5,
+      "seq": 14,
+      "marked_by": "status_update text 'Generating presentation outline...' (then build_phase planning)",
+      "summary": "status_update"
+    },
+    {
+      "stage": "outline ready (slides on the canvas)",
+      "t_ms": 2585.8,
+      "turn": 3,
+      "t_turn_ms": 607.6,
+      "seq": 27,
+      "marked_by": "slide_update with payload.slides",
+      "summary": "slide_update op=full_update slides=10"
+    },
+    {
+      "stage": "outline approval gate (Approve & build)",
+      "t_ms": 2588.2,
+      "turn": 3,
+      "t_turn_ms": 610.1,
+      "seq": 29,
+      "marked_by": "action_request value=accept_strawman[:identity]",
+      "summary": "action_request actions=['accept_strawman:bd57a25dd42524dca59437454f235cd1e4f1b2ca5d34edb8f48a2cb7abf776ff', 'request_refinement']"
+    },
+    {
+      "stage": "build start",
+      "t_ms": 3068.7,
+      "turn": 4,
+      "t_turn_ms": 288.0,
+      "seq": 34,
+      "marked_by": "build_phase phase=building",
+      "summary": "build_phase {phase=building, slide_count=10}"
+    },
+    {
+      "stage": "first slide built",
+      "t_ms": 3107.0,
+      "turn": 4,
+      "t_turn_ms": 326.3,
+      "seq": 41,
+      "marked_by": "slide_built",
+      "summary": "slide_built {slide_index=0, slide_count=10}"
+    },
+    {
+      "stage": "deck URL delivered",
+      "t_ms": 3390.7,
+      "turn": 4,
+      "t_turn_ms": 610.0,
+      "seq": 70,
+      "marked_by": "presentation_url (payload.url, presentation_id) + chat 'Your presentation is ready!'",
+      "summary": "presentation_url"
+    },
+    {
+      "stage": "deck ready (build complete)",
+      "t_ms": 3392.8,
+      "turn": 4,
+      "t_turn_ms": 612.1,
+      "seq": 73,
+      "marked_by": "build_phase phase=complete (last frame of the build turn)",
+      "summary": "build_phase {phase=complete, slide_count=10}"
+    }
+  ],
+  "canvas_deck_timeline": [
+    {
+      "seq": 3,
+      "t_ms": 4.5,
+      "type": "theme_sync",
+      "operation": null,
+      "slides": null,
+      "presentation_id": "pres_f03_blank"
+    },
+    {
+      "seq": 4,
+      "t_ms": 8.7,
+      "type": "presentation_init",
+      "operation": "full_update",
+      "slides": 1,
+      "preview_presentation_id": "pres_f03_blank",
+      "preview_url": "https://layout.synthetic.invalid/p/pres_f03_blank"
+    },
+    {
+      "seq": 5,
+      "t_ms": 10.7,
+      "type": "theme_sync",
+      "operation": null,
+      "slides": null,
+      "presentation_id": "pres_f03_blank"
+    },
+    {
+      "seq": 24,
+      "t_ms": 2570.3,
+      "type": "theme_sync",
+      "operation": null,
+      "slides": null,
+      "presentation_id": "pres_f03_outline"
+    },
+    {
+      "seq": 27,
+      "t_ms": 2585.8,
+      "type": "slide_update",
+      "operation": "full_update",
+      "slides": 10,
+      "preview_presentation_id": "pres_f03_outline",
+      "preview_url": "https://layout.synthetic.invalid/p/pres_f03_outline"
+    },
+    {
+      "seq": 35,
+      "t_ms": 3070.8,
+      "type": "theme_sync",
+      "operation": null,
+      "slides": null,
+      "presentation_id": "pres_f03_outline"
+    },
+    {
+      "seq": 41,
+      "t_ms": 3107.0,
+      "type": "slide_built",
+      "operation": null,
+      "slides": null,
+      "presentation_id": "pres_f03_built"
+    },
+    {
+      "seq": 44,
+      "t_ms": 3136.7,
+      "type": "slide_built",
+      "operation": null,
+      "slides": null,
+      "presentation_id": "pres_f03_built"
+    },
+    {
+      "seq": 47,
+      "t_ms": 3161.3,
+      "type": "slide_built",
+      "operation": null,
+      "slides": null,
+      "presentation_id": "pres_f03_built"
+    },
+    {
+      "seq": 50,
+      "t_ms": 3185.5,
+      "type": "slide_built",
+      "operation": null,
+      "slides": null,
+      "presentation_id": "pres_f03_built"
+    },
+    {
+      "seq": 53,
+      "t_ms": 3210.1,
+      "type": "slide_built",
+      "operation": null,
+      "slides": null,
+      "presentation_id": "pres_f03_built"
+    },
+    {
+      "seq": 56,
+      "t_ms": 3234.7,
+      "type": "slide_built",
+      "operation": null,
+      "slides": null,
+      "presentation_id": "pres_f03_built"
+    },
+    {
+      "seq": 59,
+      "t_ms": 3259.4,
+      "type": "slide_built",
+      "operation": null,
+      "slides": null,
+      "presentation_id": "pres_f03_built"
+    },
+    {
+      "seq": 62,
+      "t_ms": 3283.5,
+      "type": "slide_built",
+      "operation": null,
+      "slides": null,
+      "presentation_id": "pres_f03_built"
+    },
+    {
+      "seq": 65,
+      "t_ms": 3308.0,
+      "type": "slide_built",
+      "operation": null,
+      "slides": null,
+      "presentation_id": "pres_f03_built"
+    },
+    {
+      "seq": 68,
+      "t_ms": 3332.6,
+      "type": "slide_built",
+      "operation": null,
+      "slides": null,
+      "presentation_id": "pres_f03_built"
+    },
+    {
+      "seq": 69,
+      "t_ms": 3378.7,
+      "type": "build_phase",
+      "operation": null,
+      "slides": null,
+      "presentation_id": "pres_f03_built"
+    },
+    {
+      "seq": 70,
+      "t_ms": 3390.7,
+      "type": "presentation_url",
+      "operation": null,
+      "slides": null,
+      "presentation_id": "pres_f03_built",
+      "url": "https://layout.synthetic.invalid/p/pres_f03_built"
+    },
+    {
+      "seq": 73,
+      "t_ms": 3392.8,
+      "type": "build_phase",
+      "operation": null,
+      "slides": null,
+      "presentation_id": "pres_f03_built"
+    }
+  ],
+  "timing_note": "t_ms / dt_ms are offline wall-clock since connect: they show ORDER and relative spacing of this run only, not UAT latencies (every provider is a zero-latency stub; the Slide Builder poll interval is shortened).",
+  "run_notes": {
+    "stubs_hit": {
+      "layout.create_blank_presentation": 1,
+      "theme_builder.prepare": 1,
+      "model.narrative_framework": 1,
+      "model.stage3_brief": 1,
+      "model.stage4a_v3_outline": 1,
+      "layout.create_presentation (outline preview)": 1
+    },
+    "steps": [
+      {
+        "turn": 0,
+        "label": "connect",
+        "inbound_t_ms": 0.0,
+        "settled_t_ms": 224.6
+      },
+      {
+        "turn": 1,
+        "label": "brief",
+        "inbound_t_ms": 224.6,
+        "settled_t_ms": 1167.4
+      },
+      {
+        "turn": 2,
+        "label": "answer",
+        "inbound_t_ms": 1167.4,
+        "settled_t_ms": 1978.1
+      },
+      {
+        "turn": 3,
+        "label": "accept_plan",
+        "inbound_t_ms": 1978.1,
+        "settled_t_ms": 2780.7
+      },
+      {
+        "turn": 4,
+        "label": "approve_and_build",
+        "inbound_t_ms": 2780.7,
+        "settled_t_ms": 3586.1
+      }
+    ],
+    "errors": [],
+    "session_row_at_end": {
+      "has_topic": true,
+      "has_plan": true,
+      "has_strawman": true,
+      "has_content": true,
+      "has_explicit_approval": true,
+      "is_complete": false,
+      "extended_generation": true,
+      "requested_slide_count": 10,
+      "presentation_id": "pres_f03_built"
+    },
+    "sb_requests": [
+      {
+        "path": "/api/v2/slides/plan-and-build/jobs/443540d51b801f8899a3fa74d8ebbf5e",
+        "slides": 10,
+        "keys": [
+          "attempt_id",
+          "build_id",
+          "session_id",
+          "slides"
+        ]
+      }
+    ],
+    "script_unconsumed": 0,
+    "decision_engine_prompts": 2,
+    "llm_stub_calls_strategic_analyzer": 1
+  },
+  "fatal_error": null,
+  "live_call_guard_violations": [],
+  "socket_connect_attempts": [],
+  "frames": [
+    {
+      "seq": 1,
+      "turn": 0,
+      "direction": "connect",
+      "t_ms": 0.0,
+      "t_turn_ms": 0.0,
+      "dt_ms": 0.0,
+      "type": "connect",
+      "frame": {
+        "query": {
+          "session_id": "s_f03_a",
+          "user_id": "u_test",
+          "skip_history": false,
+          "message_count": 0,
+          "build_control_capability": 1
+        },
+        "note": "WebSocket upgrade; no client frame is sent before the greeting"
+      }
+    },
+    {
+      "seq": 2,
+      "turn": 0,
+      "direction": "out",
+      "t_ms": 0.1,
+      "t_turn_ms": 0.1,
+      "dt_ms": 0.1,
+      "type": "build_control_capability",
+      "frame": {
+        "type": "build_control_capability",
+        "message_id": "<id#1>",
+        "session_id": "s_f03_a",
+        "timestamp": "<ts>",
+        "payload": {
+          "control_token": "<secret>"
+        }
+      }
+    },
+    {
+      "seq": 3,
+      "turn": 0,
+      "direction": "out",
+      "t_ms": 4.5,
+      "t_turn_ms": 4.5,
+      "dt_ms": 4.4,
+      "type": "theme_sync",
+      "frame": {
+        "type": "theme_sync",
+        "session_id": "s_f03_a",
+        "timestamp": "<ts>",
+        "payload": {
+          "request_id": "<id#2>",
+          "status": "applied",
+          "presentation_id": "pres_f03_blank",
+          "theme_session_id": "theme-sess-1"
+        }
+      }
+    },
+    {
+      "seq": 4,
+      "turn": 0,
+      "direction": "out",
+      "t_ms": 8.7,
+      "t_turn_ms": 8.7,
+      "dt_ms": 4.2,
+      "type": "presentation_init",
+      "frame": {
+        "message_id": "<id#3>",
+        "session_id": "s_f03_a",
+        "timestamp": "<ts>",
+        "type": "presentation_init",
+        "role": "assistant",
+        "payload": {
+          "operation": "full_update",
+          "metadata": {
+            "main_title": "Untitled Presentation",
+            "overall_theme": "",
+            "design_suggestions": "",
+            "target_audience": "",
+            "presentation_duration": 0,
+            "preview_url": "https://layout.synthetic.invalid/p/pres_f03_blank",
+            "preview_presentation_id": "pres_f03_blank"
+          },
+          "slides": [
+            {
+              "slide_id": "blank_slide_1",
+              "slide_number": 1,
+              "slide_type": "title_slide",
+              "title": "",
+              "subtitle": "",
+              "narrative": "",
+              "key_points": [],
+              "variant_id": "H1s",
+              "service": "text",
+              "purpose": "title_slide",
+              "semantic_group": null,
+              "analytics_needed": null,
+              "visuals_needed": null,
+              "diagrams_needed": null,
+              "structure_preference": null,
+              "container_layout": null,
+              "speaker_notes": null
+            }
+          ],
+          "affected_slides": null,
+          "is_blank": true
+        }
+      }
+    },
+    {
+      "seq": 5,
+      "turn": 0,
+      "direction": "out",
+      "t_ms": 10.7,
+      "t_turn_ms": 10.7,
+      "dt_ms": 2.0,
+      "type": "theme_sync",
+      "frame": {
+        "type": "theme_sync",
+        "session_id": "s_f03_a",
+        "timestamp": "<ts>",
+        "payload": {
+          "request_id": "<id#4>",
+          "status": "restored",
+          "presentation_id": "pres_f03_blank",
+          "theme": null,
+          "applied": false,
+          "desired_status": null
+        }
+      }
+    },
+    {
+      "seq": 6,
+      "turn": 0,
+      "direction": "out",
+      "t_ms": 19.0,
+      "t_turn_ms": 19.0,
+      "dt_ms": 8.3,
+      "type": "chat_message",
+      "frame": {
+        "message_id": "<id#5>",
+        "session_id": "s_f03_a",
+        "timestamp": "<ts>",
+        "type": "chat_message",
+        "role": "assistant",
+        "payload": {
+          "text": "Hello! I'm your presentation assistant. I can help you create professional presentations. What topic would you like to present on?",
+          "sub_title": null,
+          "list_items": null,
+          "format": "markdown",
+          "ephemeral": false
+        }
+      }
+    },
+    {
+      "seq": 7,
+      "turn": 1,
+      "direction": "in",
+      "t_ms": 224.6,
+      "t_turn_ms": 0.0,
+      "dt_ms": 205.6,
+      "type": "user_message",
+      "frame": {
+        "type": "user_message",
+        "data": {
+          "text": "Help me pitch a new onboarding flow to our leadership team",
+          "extended_generation": true,
+          "deep_research": false,
+          "web_search": false,
+          "file_upload": false,
+          "use_knowledge_graph": false,
+          "store_name": null,
+          "client_caps": [
+            "mdc1",
+            "theme1",
+            "export1",
+            "element_refine1",
+            "element_edit1",
+            "notes1",
+            "bulk_edit1",
+            "mentions2",
+            "commands1"
+          ]
+        }
+      }
+    },
+    {
+      "seq": 8,
+      "turn": 1,
+      "direction": "out",
+      "t_ms": 975.8,
+      "t_turn_ms": 751.2,
+      "dt_ms": 751.2,
+      "type": "action_request",
+      "frame": {
+        "message_id": "<id#6>",
+        "session_id": "s_f03_a",
+        "timestamp": "<ts>",
+        "type": "action_request",
+        "role": "assistant",
+        "payload": {
+          "prompt_text": "Happy to help you pitch this. A few quick questions so I can tailor it:\n\n• Who is in the room, and how many people?\n\n• How long should the deck be?\n\n• What should leadership take away or decide?",
+          "actions": [
+            {
+              "label": "Skip — use sensible defaults",
+              "value": "skip_questions",
+              "primary": false,
+              "requires_input": false
+            }
+          ],
+          "question_set": {
+            "id": "qs_2",
+            "questions": [
+              {
+                "id": "q_audience",
+                "text": "Who is in the room, and how many people?",
+                "suggestions": [
+                  {
+                    "label": "Executive leadership team (5-10)",
+                    "recommended": true
+                  },
+                  {
+                    "label": "Department heads (10-20)",
+                    "recommended": false
+                  }
+                ],
+                "allow_free_text": true
+              },
+              {
+                "id": "q_length",
+                "text": "How long should the deck be?",
+                "suggestions": [
+                  {
+                    "label": "10 slides",
+                    "recommended": true
+                  },
+                  {
+                    "label": "15 slides",
+                    "recommended": false
+                  }
+                ],
+                "allow_free_text": true
+              },
+              {
+                "id": "q_focus",
+                "text": "What should leadership take away or decide?",
+                "suggestions": [
+                  {
+                    "label": "Approve the budget",
+                    "recommended": true
+                  },
+                  {
+                    "label": "Back the pilot",
+                    "recommended": false
+                  }
+                ],
+                "allow_free_text": true
+              }
+            ],
+            "intro": "Happy to help you pitch this. A few quick questions so I can tailor it:"
+          }
+        }
+      }
+    },
+    {
+      "seq": 9,
+      "turn": 2,
+      "direction": "in",
+      "t_ms": 1167.4,
+      "t_turn_ms": 0.0,
+      "dt_ms": 191.6,
+      "type": "user_message",
+      "frame": {
+        "type": "user_message",
+        "data": {
+          "text": "Leadership team of 8, 10 slides, focus on time-to-productivity and cost",
+          "extended_generation": true,
+          "deep_research": false,
+          "web_search": false,
+          "file_upload": false,
+          "use_knowledge_graph": false,
+          "store_name": null,
+          "client_caps": [
+            "mdc1",
+            "theme1",
+            "export1",
+            "element_refine1",
+            "element_edit1",
+            "notes1",
+            "bulk_edit1",
+            "mentions2",
+            "commands1"
+          ]
+        }
+      }
+    },
+    {
+      "seq": 10,
+      "turn": 2,
+      "direction": "out",
+      "t_ms": 1751.3,
+      "t_turn_ms": 583.9,
+      "dt_ms": 583.9,
+      "type": "status_update",
+      "frame": {
+        "message_id": "<id#7>",
+        "session_id": "s_f03_a",
+        "timestamp": "<ts>",
+        "type": "status_update",
+        "role": "assistant",
+        "payload": {
+          "status": "thinking",
+          "text": "Analyzing presentation strategy...",
+          "progress": null,
+          "estimated_time": null
+        }
+      }
+    },
+    {
+      "seq": 11,
+      "turn": 2,
+      "direction": "out",
+      "t_ms": 1786.9,
+      "t_turn_ms": 619.5,
+      "dt_ms": 35.6,
+      "type": "chat_message",
+      "frame": {
+        "message_id": "<id#8>",
+        "session_id": "s_f03_a",
+        "timestamp": "<ts>",
+        "type": "chat_message",
+        "role": "assistant",
+        "payload": {
+          "text": "Here's my proposed plan for your presentation:\n\n**Core Message (The \"So What?\")**\nA redesigned onboarding flow gets new customers productive faster and cuts the cost to serve them.\n\n**Strategic Shift**\n- **Where they are now:** Onboarding is slow, manual and expensive.\n- **Where we take them:** A guided flow halves time-to-productivity at lower cost.\n\n**Proposed Structure:** 10 slides (~15 minutes)\n1. **Why onboarding needs to change** – Frame the problem for leadership\n2. **Where new customers get stuck today** – Show the friction in the current flow\n3. **What slow onboarding costs us** – Quantify the cost\n4. **The new flow in one picture** – Introduce the proposal\n5. **How the guided steps work** – Explain the mechanism\n6. **Time-to-productivity: before and after** – Show the expected gain\n7. **Cost to serve: before and after** – Show the expected saving\n8. **Pilot plan and timeline** – Make the ask concrete\n9. **Risks and how we manage them** – Pre-empt objections\n10. **Decision requested** – Close with the ask\n\n**Assumptions I'm Making:**\n- Ten slides for eight executives\n- Focus on time-to-productivity and cost\n- Evidence from the current flow\n\n**Your Preferences:**\n- target 10 slides\n\nLet me know if I missed anything.",
+          "sub_title": null,
+          "list_items": null,
+          "format": "markdown",
+          "ephemeral": false
+        }
+      }
+    },
+    {
+      "seq": 12,
+      "turn": 2,
+      "direction": "out",
+      "t_ms": 1787.0,
+      "t_turn_ms": 619.6,
+      "dt_ms": 0.1,
+      "type": "action_request",
+      "frame": {
+        "message_id": "<id#9>",
+        "session_id": "s_f03_a",
+        "timestamp": "<ts>",
+        "type": "action_request",
+        "role": "assistant",
+        "payload": {
+          "prompt_text": "Does this structure work for you?",
+          "actions": [
+            {
+              "label": "Yes, let's build it!",
+              "value": "accept_plan",
+              "primary": true,
+              "requires_input": false
+            },
+            {
+              "label": "I'd like to make changes",
+              "value": "reject_plan",
+              "primary": false,
+              "requires_input": false
+            }
+          ]
+        }
+      }
+    },
+    {
+      "seq": 13,
+      "turn": 3,
+      "direction": "in",
+      "t_ms": 1978.1,
+      "t_turn_ms": 0.0,
+      "dt_ms": 191.1,
+      "type": "user_message",
+      "frame": {
+        "type": "user_message",
+        "data": {
+          "text": "Yes, let's build it!",
+          "extended_generation": true,
+          "deep_research": false,
+          "web_search": false,
+          "file_upload": false,
+          "use_knowledge_graph": false,
+          "store_name": null,
+          "client_caps": [
+            "mdc1",
+            "theme1",
+            "export1",
+            "element_refine1",
+            "element_edit1",
+            "notes1",
+            "bulk_edit1",
+            "mentions2",
+            "commands1"
+          ],
+          "action_value": "accept_plan",
+          "action_label": "Yes, let's build it!"
+        }
+      }
+    },
+    {
+      "seq": 14,
+      "turn": 3,
+      "direction": "out",
+      "t_ms": 2257.6,
+      "t_turn_ms": 279.5,
+      "dt_ms": 279.5,
+      "type": "status_update",
+      "frame": {
+        "message_id": "<id#10>",
+        "session_id": "s_f03_a",
+        "timestamp": "<ts>",
+        "type": "status_update",
+        "role": "assistant",
+        "payload": {
+          "status": "thinking",
+          "text": "Generating presentation outline...",
+          "progress": null,
+          "estimated_time": null
+        }
+      }
+    },
+    {
+      "seq": 15,
+      "turn": 3,
+      "direction": "out",
+      "t_ms": 2257.7,
+      "t_turn_ms": 279.6,
+      "dt_ms": 0.1,
+      "type": "build_phase",
+      "frame": {
+        "message_id": "<id#11>",
+        "session_id": "s_f03_a",
+        "timestamp": "<ts>",
+        "type": "build_phase",
+        "role": "assistant",
+        "payload": {
+          "build_id": "<id#12>",
+          "phase": "planning",
+          "label": "Designing your deck plan…",
+          "slide_count": null,
+          "slides_done": 0,
+          "auto_proceed": null,
+          "presentation_id": null,
+          "control_request_id": null
+        }
+      }
+    },
+    {
+      "seq": 16,
+      "turn": 3,
+      "direction": "out",
+      "t_ms": 2257.7,
+      "t_turn_ms": 279.6,
+      "dt_ms": 0.0,
+      "type": "chat_message",
+      "frame": {
+        "message_id": "<id#13>",
+        "session_id": "s_f03_a",
+        "timestamp": "<ts>",
+        "type": "chat_message",
+        "role": "assistant",
+        "payload": {
+          "text": "Reviewing your topic and audience…",
+          "sub_title": null,
+          "list_items": null,
+          "format": "markdown",
+          "ephemeral": true
+        }
+      }
+    },
+    {
+      "seq": 17,
+      "turn": 3,
+      "direction": "out",
+      "t_ms": 2257.8,
+      "t_turn_ms": 279.7,
+      "dt_ms": 0.1,
+      "type": "build_event",
+      "frame": {
+        "message_id": "<id#14>",
+        "session_id": "s_f03_a",
+        "timestamp": "<ts>",
+        "type": "build_event",
+        "role": "assistant",
+        "payload": {
+          "build_id": "<id#12>",
+          "seq": 0,
+          "scope": "deck",
+          "stage": "framing",
+          "status": "progress",
+          "text": "Reviewing your topic and audience…",
+          "detail": null,
+          "slide_index": null,
+          "job_id": null,
+          "ts": "<ts>"
+        }
+      }
+    },
+    {
+      "seq": 18,
+      "turn": 3,
+      "direction": "out",
+      "t_ms": 2361.5,
+      "t_turn_ms": 383.4,
+      "dt_ms": 103.7,
+      "type": "chat_message",
+      "frame": {
+        "message_id": "<id#15>",
+        "session_id": "s_f03_a",
+        "timestamp": "<ts>",
+        "type": "chat_message",
+        "role": "assistant",
+        "payload": {
+          "text": "Drafting the deck outline…",
+          "sub_title": null,
+          "list_items": null,
+          "format": "markdown",
+          "ephemeral": true
+        }
+      }
+    },
+    {
+      "seq": 19,
+      "turn": 3,
+      "direction": "out",
+      "t_ms": 2361.6,
+      "t_turn_ms": 383.5,
+      "dt_ms": 0.1,
+      "type": "build_event",
+      "frame": {
+        "message_id": "<id#16>",
+        "session_id": "s_f03_a",
+        "timestamp": "<ts>",
+        "type": "build_event",
+        "role": "assistant",
+        "payload": {
+          "build_id": "<id#12>",
+          "seq": 1,
+          "scope": "deck",
+          "stage": "outline",
+          "status": "progress",
+          "text": "Drafting the deck outline…",
+          "detail": null,
+          "slide_index": null,
+          "job_id": null,
+          "ts": "<ts>"
+        }
+      }
+    },
+    {
+      "seq": 20,
+      "turn": 3,
+      "direction": "out",
+      "t_ms": 2391.1,
+      "t_turn_ms": 413.0,
+      "dt_ms": 29.5,
+      "type": "chat_message",
+      "frame": {
+        "message_id": "<id#17>",
+        "session_id": "s_f03_a",
+        "timestamp": "<ts>",
+        "type": "chat_message",
+        "role": "assistant",
+        "payload": {
+          "text": "Choosing layouts for each slide…",
+          "sub_title": null,
+          "list_items": null,
+          "format": "markdown",
+          "ephemeral": true
+        }
+      }
+    },
+    {
+      "seq": 21,
+      "turn": 3,
+      "direction": "out",
+      "t_ms": 2391.2,
+      "t_turn_ms": 413.1,
+      "dt_ms": 0.1,
+      "type": "build_event",
+      "frame": {
+        "message_id": "<id#18>",
+        "session_id": "s_f03_a",
+        "timestamp": "<ts>",
+        "type": "build_event",
+        "role": "assistant",
+        "payload": {
+          "build_id": "<id#12>",
+          "seq": 2,
+          "scope": "deck",
+          "stage": "slide_layouts",
+          "status": "progress",
+          "text": "Choosing layouts for each slide…",
+          "detail": null,
+          "slide_index": null,
+          "job_id": null,
+          "ts": "<ts>"
+        }
+      }
+    },
+    {
+      "seq": 22,
+      "turn": 3,
+      "direction": "out",
+      "t_ms": 2411.5,
+      "t_turn_ms": 433.4,
+      "dt_ms": 20.3,
+      "type": "chat_message",
+      "frame": {
+        "message_id": "<id#19>",
+        "session_id": "s_f03_a",
+        "timestamp": "<ts>",
+        "type": "chat_message",
+        "role": "assistant",
+        "payload": {
+          "text": "Packaging your outline and picking a theme…",
+          "sub_title": null,
+          "list_items": null,
+          "format": "markdown",
+          "ephemeral": true
+        }
+      }
+    },
+    {
+      "seq": 23,
+      "turn": 3,
+      "direction": "out",
+      "t_ms": 2411.6,
+      "t_turn_ms": 433.5,
+      "dt_ms": 0.1,
+      "type": "build_event",
+      "frame": {
+        "message_id": "<id#20>",
+        "session_id": "s_f03_a",
+        "timestamp": "<ts>",
+        "type": "build_event",
+        "role": "assistant",
+        "payload": {
+          "build_id": "<id#12>",
+          "seq": 3,
+          "scope": "deck",
+          "stage": "package",
+          "status": "progress",
+          "text": "Packaging your outline and picking a theme…",
+          "detail": null,
+          "slide_index": null,
+          "job_id": null,
+          "ts": "<ts>"
+        }
+      }
+    },
+    {
+      "seq": 24,
+      "turn": 3,
+      "direction": "out",
+      "t_ms": 2570.3,
+      "t_turn_ms": 592.2,
+      "dt_ms": 158.7,
+      "type": "theme_sync",
+      "frame": {
+        "type": "theme_sync",
+        "session_id": "s_f03_a",
+        "timestamp": "<ts>",
+        "payload": {
+          "request_id": "<id#21>",
+          "status": "applied",
+          "presentation_id": "pres_f03_outline",
+          "theme_session_id": "theme-sess-1"
+        }
+      }
+    },
+    {
+      "seq": 25,
+      "turn": 3,
+      "direction": "out",
+      "t_ms": 2583.3,
+      "t_turn_ms": 605.2,
+      "dt_ms": 13.0,
+      "type": "slide_context",
+      "frame": {
+        "message_id": "<id#22>",
+        "session_id": "s_f03_a",
+        "timestamp": "<ts>",
+        "type": "slide_context",
+        "role": "assistant",
+        "payload": {
+          "deck": {
+            "deck_arc": "Slow onboarding costs us; a guided flow fixes time-to-productivity and cost.",
+            "presentation_brief": "Brief for Pitch for a new customer onboarding flow.",
+            "theme_session_id": "tsid-f03",
+            "theme_chrome_policy": {
+              "version": 1,
+              "hero": {}
+            },
+            "deck_composition_guidance": {
+              "version": 1,
+              "suggested_mix": {
+                "C1": 1.0
+              }
+            },
+            "color_application_policy": null,
+            "deck_identity": null,
+            "footer": {
+              "template": "{title}",
+              "values": {
+                "title": "Pitch for a new customer onboarding flow"
+              },
+              "page_numbers": false
+            }
+          },
+          "slides": [
+            {
+              "slide_index": 0,
+              "narrative_role": "hook",
+              "key_message": null,
+              "content_type": "hero",
+              "subtype": null,
+              "content": null,
+              "research_status": null,
+              "research_ready": true,
+              "research_issues": [],
+              "citation_count": 0,
+              "source_types": [],
+              "chart_epistemic_mode": null,
+              "chart_data_asset_id": null,
+              "chart_disclosure": null,
+              "chart_assumptions": [],
+              "chart_methodology": null
+            },
+            {
+              "slide_index": 1,
+              "narrative_role": "insight",
+              "key_message": null,
+              "content_type": "text_heavy_rows",
+              "subtype": null,
+              "content": {},
+              "research_status": null,
+              "research_ready": true,
+              "research_issues": [],
+              "citation_count": 0,
+              "source_types": [],
+              "chart_epistemic_mode": null,
+              "chart_data_asset_id": null,
+              "chart_disclosure": null,
+              "chart_assumptions": [],
+              "chart_methodology": null
+            },
+            {
+              "slide_index": 2,
+              "narrative_role": "insight",
+              "key_message": null,
+              "content_type": "text_heavy_rows",
+              "subtype": null,
+              "content": {},
+              "research_status": null,
+              "research_ready": true,
+              "research_issues": [],
+              "citation_count": 0,
+              "source_types": [],
+              "chart_epistemic_mode": null,
+              "chart_data_asset_id": null,
+              "chart_disclosure": null,
+              "chart_assumptions": [],
+              "chart_methodology": null
+            },
+            {
+              "slide_index": 3,
+              "narrative_role": "insight",
+              "key_message": null,
+              "content_type": "text_heavy_rows",
+              "subtype": null,
+              "content": {},
+              "research_status": null,
+              "research_ready": true,
+              "research_issues": [],
+              "citation_count": 0,
+              "source_types": [],
+              "chart_epistemic_mode": null,
+              "chart_data_asset_id": null,
+              "chart_disclosure": null,
+              "chart_assumptions": [],
+              "chart_methodology": null
+            },
+            {
+              "slide_index": 4,
+              "narrative_role": "insight",
+              "key_message": null,
+              "content_type": "text_heavy_rows",
+              "subtype": null,
+              "content": {},
+              "research_status": null,
+              "research_ready": true,
+              "research_issues": [],
+              "citation_count": 0,
+              "source_types": [],
+              "chart_epistemic_mode": null,
+              "chart_data_asset_id": null,
+              "chart_disclosure": null,
+              "chart_assumptions": [],
+              "chart_methodology": null
+            },
+            {
+              "slide_index": 5,
+              "narrative_role": "insight",
+              "key_message": null,
+              "content_type": "text_heavy_rows",
+              "subtype": null,
+              "content": {},
+              "research_status": null,
+              "research_ready": true,
+              "research_issues": [],
+              "citation_count": 0,
+              "source_types": [],
+              "chart_epistemic_mode": null,
+              "chart_data_asset_id": null,
+              "chart_disclosure": null,
+              "chart_assumptions": [],
+              "chart_methodology": null
+            },
+            {
+              "slide_index": 6,
+              "narrative_role": "insight",
+              "key_message": null,
+              "content_type": "text_heavy_rows",
+              "subtype": null,
+              "content": {},
+              "research_status": null,
+              "research_ready": true,
+              "research_issues": [],
+              "citation_count": 0,
+              "source_types": [],
+              "chart_epistemic_mode": null,
+              "chart_data_asset_id": null,
+              "chart_disclosure": null,
+              "chart_assumptions": [],
+              "chart_methodology": null
+            },
+            {
+              "slide_index": 7,
+              "narrative_role": "insight",
+              "key_message": null,
+              "content_type": "text_heavy_rows",
+              "subtype": null,
+              "content": {},
+              "research_status": null,
+              "research_ready": true,
+              "research_issues": [],
+              "citation_count": 0,
+              "source_types": [],
+              "chart_epistemic_mode": null,
+              "chart_data_asset_id": null,
+              "chart_disclosure": null,
+              "chart_assumptions": [],
+              "chart_methodology": null
+            },
+            {
+              "slide_index": 8,
+              "narrative_role": "insight",
+              "key_message": null,
+              "content_type": "text_heavy_rows",
+              "subtype": null,
+              "content": {},
+              "research_status": null,
+              "research_ready": true,
+              "research_issues": [],
+              "citation_count": 0,
+              "source_types": [],
+              "chart_epistemic_mode": null,
+              "chart_data_asset_id": null,
+              "chart_disclosure": null,
+              "chart_assumptions": [],
+              "chart_methodology": null
+            },
+            {
+              "slide_index": 9,
+              "narrative_role": "closing",
+              "key_message": null,
+              "content_type": "hero",
+              "subtype": null,
+              "content": null,
+              "research_status": null,
+              "research_ready": true,
+              "research_issues": [],
+              "citation_count": 0,
+              "source_types": [],
+              "chart_epistemic_mode": null,
+              "chart_data_asset_id": null,
+              "chart_disclosure": null,
+              "chart_assumptions": [],
+              "chart_methodology": null
+            }
+          ]
+        }
+      }
+    },
+    {
+      "seq": 26,
+      "turn": 3,
+      "direction": "out",
+      "t_ms": 2583.6,
+      "t_turn_ms": 605.5,
+      "dt_ms": 0.3,
+      "type": "build_phase",
+      "frame": {
+        "message_id": "<id#23>",
+        "session_id": "s_f03_a",
+        "timestamp": "<ts>",
+        "type": "build_phase",
+        "role": "assistant",
+        "payload": {
+          "build_id": "<id#12>",
+          "phase": "strawman",
+          "label": "Outline ready — shaping your slides…",
+          "slide_count": 10,
+          "slides_done": 0,
+          "auto_proceed": null,
+          "presentation_id": null,
+          "control_request_id": null
+        }
+      }
+    },
+    {
+      "seq": 27,
+      "turn": 3,
+      "direction": "out",
+      "t_ms": 2585.8,
+      "t_turn_ms": 607.6,
+      "dt_ms": 2.2,
+      "type": "slide_update",
+      "frame": {
+        "message_id": "<id#24>",
+        "session_id": "s_f03_a",
+        "timestamp": "<ts>",
+        "type": "slide_update",
+        "role": "assistant",
+        "payload": {
+          "operation": "full_update",
+          "metadata": {
+            "main_title": "Pitch for a new customer onboarding flow",
+            "overall_theme": "professional",
+            "design_suggestions": "",
+            "target_audience": "Leadership team of 8",
+            "presentation_duration": 15,
+            "preview_url": "https://layout.synthetic.invalid/p/pres_f03_outline",
+            "preview_presentation_id": "pres_f03_outline"
+          },
+          "slides": [
+            {
+              "slide_id": "<uuid#1>",
+              "slide_number": 1,
+              "slide_type": "title_slide",
+              "title": "Pitch for a new customer onboarding flow",
+              "subtitle": "Slow onboarding costs us; a guided flow fixes time-to-productivity and cost.",
+              "narrative": " ",
+              "key_points": [],
+              "variant_id": null,
+              "service": null,
+              "purpose": "hook",
+              "semantic_group": null,
+              "analytics_needed": null,
+              "visuals_needed": null,
+              "diagrams_needed": null,
+              "structure_preference": "H1",
+              "container_layout": null,
+              "speaker_notes": null
+            },
+            {
+              "slide_id": "<uuid#2>",
+              "slide_number": 2,
+              "slide_type": "content",
+              "title": "Where new customers get stuck today",
+              "subtitle": "Subtitle 0 on onboarding.",
+              "narrative": "Key message: Key message 0 on onboarding.",
+              "key_points": [],
+              "variant_id": null,
+              "service": null,
+              "purpose": "insight",
+              "semantic_group": null,
+              "analytics_needed": null,
+              "visuals_needed": null,
+              "diagrams_needed": null,
+              "structure_preference": "C1",
+              "container_layout": null,
+              "speaker_notes": null
+            },
+            {
+              "slide_id": "<uuid#3>",
+              "slide_number": 3,
+              "slide_type": "content",
+              "title": "What slow onboarding costs us",
+              "subtitle": "Subtitle 1 on onboarding.",
+              "narrative": "Key message: Key message 1 on onboarding.",
+              "key_points": [],
+              "variant_id": null,
+              "service": null,
+              "purpose": "insight",
+              "semantic_group": null,
+              "analytics_needed": null,
+              "visuals_needed": null,
+              "diagrams_needed": null,
+              "structure_preference": "C1",
+              "container_layout": null,
+              "speaker_notes": null
+            },
+            {
+              "slide_id": "<uuid#4>",
+              "slide_number": 4,
+              "slide_type": "content",
+              "title": "The new flow in one picture",
+              "subtitle": "Subtitle 2 on onboarding.",
+              "narrative": "Key message: Key message 2 on onboarding.",
+              "key_points": [],
+              "variant_id": null,
+              "service": null,
+              "purpose": "insight",
+              "semantic_group": null,
+              "analytics_needed": null,
+              "visuals_needed": null,
+              "diagrams_needed": null,
+              "structure_preference": "C1",
+              "container_layout": null,
+              "speaker_notes": null
+            },
+            {
+              "slide_id": "<uuid#5>",
+              "slide_number": 5,
+              "slide_type": "content",
+              "title": "How the guided steps work",
+              "subtitle": "Subtitle 3 on onboarding.",
+              "narrative": "Key message: Key message 3 on onboarding.",
+              "key_points": [],
+              "variant_id": null,
+              "service": null,
+              "purpose": "insight",
+              "semantic_group": null,
+              "analytics_needed": null,
+              "visuals_needed": null,
+              "diagrams_needed": null,
+              "structure_preference": "C1",
+              "container_layout": null,
+              "speaker_notes": null
+            },
+            {
+              "slide_id": "<uuid#6>",
+              "slide_number": 6,
+              "slide_type": "content",
+              "title": "Time-to-productivity: before and after",
+              "subtitle": "Subtitle 4 on onboarding.",
+              "narrative": "Key message: Key message 4 on onboarding.",
+              "key_points": [],
+              "variant_id": null,
+              "service": null,
+              "purpose": "insight",
+              "semantic_group": null,
+              "analytics_needed": null,
+              "visuals_needed": null,
+              "diagrams_needed": null,
+              "structure_preference": "C1",
+              "container_layout": null,
+              "speaker_notes": null
+            },
+            {
+              "slide_id": "<uuid#7>",
+              "slide_number": 7,
+              "slide_type": "content",
+              "title": "Cost to serve: before and after",
+              "subtitle": "Subtitle 5 on onboarding.",
+              "narrative": "Key message: Key message 5 on onboarding.",
+              "key_points": [],
+              "variant_id": null,
+              "service": null,
+              "purpose": "insight",
+              "semantic_group": null,
+              "analytics_needed": null,
+              "visuals_needed": null,
+              "diagrams_needed": null,
+              "structure_preference": "C1",
+              "container_layout": null,
+              "speaker_notes": null
+            },
+            {
+              "slide_id": "<uuid#8>",
+              "slide_number": 8,
+              "slide_type": "content",
+              "title": "Pilot plan and timeline",
+              "subtitle": "Subtitle 6 on onboarding.",
+              "narrative": "Key message: Key message 6 on onboarding.",
+              "key_points": [],
+              "variant_id": null,
+              "service": null,
+              "purpose": "insight",
+              "semantic_group": null,
+              "analytics_needed": null,
+              "visuals_needed": null,
+              "diagrams_needed": null,
+              "structure_preference": "C1",
+              "container_layout": null,
+              "speaker_notes": null
+            },
+            {
+              "slide_id": "<uuid#9>",
+              "slide_number": 9,
+              "slide_type": "content",
+              "title": "Risks and how we manage them",
+              "subtitle": "Subtitle 7 on onboarding.",
+              "narrative": "Key message: Key message 7 on onboarding.",
+              "key_points": [],
+              "variant_id": null,
+              "service": null,
+              "purpose": "insight",
+              "semantic_group": null,
+              "analytics_needed": null,
+              "visuals_needed": null,
+              "diagrams_needed": null,
+              "structure_preference": "C1",
+              "container_layout": null,
+              "speaker_notes": null
+            },
+            {
+              "slide_id": "<uuid#10>",
+              "slide_number": 10,
+              "slide_type": "closing_slide",
+              "title": "Pitch for a new customer onboarding flow",
+              "subtitle": "persuade",
+              "narrative": " ",
+              "key_points": [],
+              "variant_id": null,
+              "service": null,
+              "purpose": "closing",
+              "semantic_group": null,
+              "analytics_needed": null,
+              "visuals_needed": null,
+              "diagrams_needed": null,
+              "structure_preference": "H3",
+              "container_layout": null,
+              "speaker_notes": null
+            }
+          ],
+          "affected_slides": null,
+          "is_blank": false
+        }
+      }
+    },
+    {
+      "seq": 28,
+      "turn": 3,
+      "direction": "out",
+      "t_ms": 2588.0,
+      "t_turn_ms": 609.9,
+      "dt_ms": 2.2,
+      "type": "chat_message",
+      "frame": {
+        "message_id": "<id#25>",
+        "session_id": "s_f03_a",
+        "timestamp": "<ts>",
+        "type": "chat_message",
+        "role": "assistant",
+        "payload": {
+          "text": "I've created an outline with 10 slides for **Pitch for a new customer onboarding flow**. Review the structural outline in the preview. You can request changes or approve it to proceed.",
+          "sub_title": null,
+          "list_items": null,
+          "format": "markdown",
+          "ephemeral": false
+        }
+      }
+    },
+    {
+      "seq": 29,
+      "turn": 3,
+      "direction": "out",
+      "t_ms": 2588.2,
+      "t_turn_ms": 610.1,
+      "dt_ms": 0.2,
+      "type": "action_request",
+      "frame": {
+        "message_id": "<id#26>",
+        "session_id": "s_f03_a",
+        "timestamp": "<ts>",
+        "type": "action_request",
+        "role": "assistant",
+        "payload": {
+          "prompt_text": "Does this outline look good, or would you like to make changes?",
+          "actions": [
+            {
+              "label": "Looks perfect!",
+              "value": "accept_strawman:bd57a25dd42524dca59437454f235cd1e4f1b2ca5d34edb8f48a2cb7abf776ff",
+              "primary": true,
+              "requires_input": false
+            },
+            {
+              "label": "Make some changes",
+              "value": "request_refinement",
+              "primary": false,
+              "requires_input": false
+            }
+          ]
+        }
+      }
+    },
+    {
+      "seq": 30,
+      "turn": 3,
+      "direction": "out",
+      "t_ms": 2588.6,
+      "t_turn_ms": 610.5,
+      "dt_ms": 0.4,
+      "type": "token_usage",
+      "frame": {
+        "message_id": "<id#27>",
+        "session_id": "s_f03_a",
+        "timestamp": "<ts>",
+        "type": "token_usage",
+        "role": "assistant",
+        "payload": {
+          "turn": {
+            "tokens_in": 0,
+            "tokens_out": 0,
+            "total_tokens": 0,
+            "cached_tokens_in": 0,
+            "reasoning_tokens": 0,
+            "per_stage": []
+          },
+          "session": {
+            "tokens_in": 549,
+            "tokens_out": 223,
+            "total_tokens": 772,
+            "cached_tokens_in": 0,
+            "reasoning_tokens": 0,
+            "per_stage": [
+              {
+                "stage": "stage_2",
+                "tokens_in": 549,
+                "tokens_out": 223,
+                "total_tokens": 772,
+                "cached_tokens_in": 0,
+                "reasoning_tokens": 0,
+                "call_count": 1
+              }
+            ]
+          },
+          "coverage": "partial",
+          "action_type": "generate_strawman"
+        }
+      }
+    },
+    {
+      "seq": 31,
+      "turn": 4,
+      "direction": "in",
+      "t_ms": 2780.7,
+      "t_turn_ms": 0.0,
+      "dt_ms": 192.1,
+      "type": "user_message",
+      "frame": {
+        "type": "user_message",
+        "data": {
+          "text": "Approve & build",
+          "extended_generation": true,
+          "deep_research": false,
+          "web_search": false,
+          "file_upload": false,
+          "use_knowledge_graph": false,
+          "store_name": null,
+          "client_caps": [
+            "mdc1",
+            "theme1",
+            "export1",
+            "element_refine1",
+            "element_edit1",
+            "notes1",
+            "bulk_edit1",
+            "mentions2",
+            "commands1"
+          ],
+          "action_value": "accept_strawman:bd57a25dd42524dca59437454f235cd1e4f1b2ca5d34edb8f48a2cb7abf776ff",
+          "action_label": "Approve & build"
+        }
+      }
+    },
+    {
+      "seq": 32,
+      "turn": 4,
+      "direction": "out",
+      "t_ms": 3068.6,
+      "t_turn_ms": 287.9,
+      "dt_ms": 287.9,
+      "type": "status_update",
+      "frame": {
+        "message_id": "<id#28>",
+        "session_id": "s_f03_a",
+        "timestamp": "<ts>",
+        "type": "status_update",
+        "role": "assistant",
+        "payload": {
+          "status": "thinking",
+          "text": "Generating presentation content...",
+          "progress": null,
+          "estimated_time": null
+        }
+      }
+    },
+    {
+      "seq": 33,
+      "turn": 4,
+      "direction": "out",
+      "t_ms": 3068.6,
+      "t_turn_ms": 287.9,
+      "dt_ms": 0.0,
+      "type": "chat_message",
+      "frame": {
+        "message_id": "<id#29>",
+        "session_id": "s_f03_a",
+        "timestamp": "<ts>",
+        "type": "chat_message",
+        "role": "assistant",
+        "payload": {
+          "text": "Preparing your approved outline for slide generation…",
+          "sub_title": null,
+          "list_items": null,
+          "format": "markdown",
+          "ephemeral": true
+        }
+      }
+    },
+    {
+      "seq": 34,
+      "turn": 4,
+      "direction": "out",
+      "t_ms": 3068.7,
+      "t_turn_ms": 288.0,
+      "dt_ms": 0.1,
+      "type": "build_phase",
+      "frame": {
+        "message_id": "<id#30>",
+        "session_id": "s_f03_a",
+        "timestamp": "<ts>",
+        "type": "build_phase",
+        "role": "assistant",
+        "payload": {
+          "build_id": "<id#12>",
+          "phase": "building",
+          "label": "Building your slides…",
+          "slide_count": 10,
+          "slides_done": 0,
+          "auto_proceed": null,
+          "presentation_id": null,
+          "control_request_id": null
+        }
+      }
+    },
+    {
+      "seq": 35,
+      "turn": 4,
+      "direction": "out",
+      "t_ms": 3070.8,
+      "t_turn_ms": 290.1,
+      "dt_ms": 2.1,
+      "type": "theme_sync",
+      "frame": {
+        "type": "theme_sync",
+        "session_id": "s_f03_a",
+        "timestamp": "<ts>",
+        "payload": {
+          "request_id": "<id#31>",
+          "status": "applied",
+          "presentation_id": "pres_f03_outline",
+          "theme_session_id": "theme-sess-1"
+        }
+      }
+    },
+    {
+      "seq": 36,
+      "turn": 4,
+      "direction": "out",
+      "t_ms": 3070.8,
+      "t_turn_ms": 290.1,
+      "dt_ms": 0.0,
+      "type": "status_update",
+      "frame": {
+        "message_id": "<id#32>",
+        "session_id": "s_f03_a",
+        "timestamp": "<ts>",
+        "type": "status_update",
+        "role": "assistant",
+        "payload": {
+          "status": "thinking",
+          "text": "Syncing with preview changes...",
+          "progress": null,
+          "estimated_time": null
+        }
+      }
+    },
+    {
+      "seq": 37,
+      "turn": 4,
+      "direction": "out",
+      "t_ms": 3078.3,
+      "t_turn_ms": 297.6,
+      "dt_ms": 7.5,
+      "type": "status_update",
+      "frame": {
+        "message_id": "<id#33>",
+        "session_id": "s_f03_a",
+        "timestamp": "<ts>",
+        "type": "status_update",
+        "role": "assistant",
+        "payload": {
+          "status": "thinking",
+          "text": "Composing 10 slides (v2 path)...",
+          "progress": null,
+          "estimated_time": null
+        }
+      }
+    },
+    {
+      "seq": 38,
+      "turn": 4,
+      "direction": "out",
+      "t_ms": 3078.3,
+      "t_turn_ms": 297.6,
+      "dt_ms": 0.0,
+      "type": "chat_message",
+      "frame": {
+        "message_id": "<id#34>",
+        "session_id": "s_f03_a",
+        "timestamp": "<ts>",
+        "type": "chat_message",
+        "role": "assistant",
+        "payload": {
+          "text": "Handing 10 slides to the Slide Builder…",
+          "sub_title": null,
+          "list_items": null,
+          "format": "markdown",
+          "ephemeral": true
+        }
+      }
+    },
+    {
+      "seq": 39,
+      "turn": 4,
+      "direction": "out",
+      "t_ms": 3106.8,
+      "t_turn_ms": 326.1,
+      "dt_ms": 28.5,
+      "type": "chat_message",
+      "frame": {
+        "message_id": "<id#35>",
+        "session_id": "s_f03_a",
+        "timestamp": "<ts>",
+        "type": "chat_message",
+        "role": "assistant",
+        "payload": {
+          "text": "Building slide 1/10 - Pitch for a new customer onboarding flow",
+          "sub_title": null,
+          "list_items": null,
+          "format": "markdown",
+          "ephemeral": true
+        }
+      }
+    },
+    {
+      "seq": 40,
+      "turn": 4,
+      "direction": "out",
+      "t_ms": 3106.9,
+      "t_turn_ms": 326.2,
+      "dt_ms": 0.1,
+      "type": "build_event",
+      "frame": {
+        "message_id": "<id#36>",
+        "session_id": "s_f03_a",
+        "timestamp": "<ts>",
+        "type": "build_event",
+        "role": "assistant",
+        "payload": {
+          "build_id": "<id#12>",
+          "seq": 4,
+          "scope": "slide",
+          "stage": "render",
+          "status": "done",
+          "text": "Building slide 1/10 - Pitch for a new customer onboarding flow",
+          "detail": null,
+          "slide_index": 0,
+          "job_id": null,
+          "ts": "<ts>"
+        }
+      }
+    },
+    {
+      "seq": 41,
+      "turn": 4,
+      "direction": "out",
+      "t_ms": 3107.0,
+      "t_turn_ms": 326.3,
+      "dt_ms": 0.1,
+      "type": "slide_built",
+      "frame": {
+        "message_id": "<id#37>",
+        "session_id": "s_f03_a",
+        "timestamp": "<ts>",
+        "type": "slide_built",
+        "role": "assistant",
+        "payload": {
+          "presentation_id": "pres_f03_built",
+          "slide_index": 0,
+          "slide_count": 10,
+          "thumbnail_url": null,
+          "qa_verdict": null,
+          "qa_skipped_reason": null,
+          "session_id": "s_f03_a",
+          "build_id": "<id#12>"
+        }
+      }
+    },
+    {
+      "seq": 42,
+      "turn": 4,
+      "direction": "out",
+      "t_ms": 3136.6,
+      "t_turn_ms": 355.9,
+      "dt_ms": 29.6,
+      "type": "chat_message",
+      "frame": {
+        "message_id": "<id#38>",
+        "session_id": "s_f03_a",
+        "timestamp": "<ts>",
+        "type": "chat_message",
+        "role": "assistant",
+        "payload": {
+          "text": "Building slide 2/10 - Where new customers get stuck today",
+          "sub_title": null,
+          "list_items": null,
+          "format": "markdown",
+          "ephemeral": true
+        }
+      }
+    },
+    {
+      "seq": 43,
+      "turn": 4,
+      "direction": "out",
+      "t_ms": 3136.6,
+      "t_turn_ms": 355.9,
+      "dt_ms": 0.0,
+      "type": "build_event",
+      "frame": {
+        "message_id": "<id#39>",
+        "session_id": "s_f03_a",
+        "timestamp": "<ts>",
+        "type": "build_event",
+        "role": "assistant",
+        "payload": {
+          "build_id": "<id#12>",
+          "seq": 5,
+          "scope": "slide",
+          "stage": "render",
+          "status": "done",
+          "text": "Building slide 2/10 - Where new customers get stuck today",
+          "detail": null,
+          "slide_index": 1,
+          "job_id": null,
+          "ts": "<ts>"
+        }
+      }
+    },
+    {
+      "seq": 44,
+      "turn": 4,
+      "direction": "out",
+      "t_ms": 3136.7,
+      "t_turn_ms": 356.0,
+      "dt_ms": 0.1,
+      "type": "slide_built",
+      "frame": {
+        "message_id": "<id#40>",
+        "session_id": "s_f03_a",
+        "timestamp": "<ts>",
+        "type": "slide_built",
+        "role": "assistant",
+        "payload": {
+          "presentation_id": "pres_f03_built",
+          "slide_index": 1,
+          "slide_count": 10,
+          "thumbnail_url": null,
+          "qa_verdict": null,
+          "qa_skipped_reason": null,
+          "session_id": "s_f03_a",
+          "build_id": "<id#12>"
+        }
+      }
+    },
+    {
+      "seq": 45,
+      "turn": 4,
+      "direction": "out",
+      "t_ms": 3161.2,
+      "t_turn_ms": 380.5,
+      "dt_ms": 24.5,
+      "type": "chat_message",
+      "frame": {
+        "message_id": "<id#41>",
+        "session_id": "s_f03_a",
+        "timestamp": "<ts>",
+        "type": "chat_message",
+        "role": "assistant",
+        "payload": {
+          "text": "Building slide 3/10 - What slow onboarding costs us",
+          "sub_title": null,
+          "list_items": null,
+          "format": "markdown",
+          "ephemeral": true
+        }
+      }
+    },
+    {
+      "seq": 46,
+      "turn": 4,
+      "direction": "out",
+      "t_ms": 3161.3,
+      "t_turn_ms": 380.6,
+      "dt_ms": 0.1,
+      "type": "build_event",
+      "frame": {
+        "message_id": "<id#42>",
+        "session_id": "s_f03_a",
+        "timestamp": "<ts>",
+        "type": "build_event",
+        "role": "assistant",
+        "payload": {
+          "build_id": "<id#12>",
+          "seq": 6,
+          "scope": "slide",
+          "stage": "render",
+          "status": "done",
+          "text": "Building slide 3/10 - What slow onboarding costs us",
+          "detail": null,
+          "slide_index": 2,
+          "job_id": null,
+          "ts": "<ts>"
+        }
+      }
+    },
+    {
+      "seq": 47,
+      "turn": 4,
+      "direction": "out",
+      "t_ms": 3161.3,
+      "t_turn_ms": 380.6,
+      "dt_ms": 0.0,
+      "type": "slide_built",
+      "frame": {
+        "message_id": "<id#43>",
+        "session_id": "s_f03_a",
+        "timestamp": "<ts>",
+        "type": "slide_built",
+        "role": "assistant",
+        "payload": {
+          "presentation_id": "pres_f03_built",
+          "slide_index": 2,
+          "slide_count": 10,
+          "thumbnail_url": null,
+          "qa_verdict": null,
+          "qa_skipped_reason": null,
+          "session_id": "s_f03_a",
+          "build_id": "<id#12>"
+        }
+      }
+    },
+    {
+      "seq": 48,
+      "turn": 4,
+      "direction": "out",
+      "t_ms": 3185.3,
+      "t_turn_ms": 404.6,
+      "dt_ms": 24.0,
+      "type": "chat_message",
+      "frame": {
+        "message_id": "<id#44>",
+        "session_id": "s_f03_a",
+        "timestamp": "<ts>",
+        "type": "chat_message",
+        "role": "assistant",
+        "payload": {
+          "text": "Building slide 4/10 - The new flow in one picture",
+          "sub_title": null,
+          "list_items": null,
+          "format": "markdown",
+          "ephemeral": true
+        }
+      }
+    },
+    {
+      "seq": 49,
+      "turn": 4,
+      "direction": "out",
+      "t_ms": 3185.4,
+      "t_turn_ms": 404.7,
+      "dt_ms": 0.1,
+      "type": "build_event",
+      "frame": {
+        "message_id": "<id#45>",
+        "session_id": "s_f03_a",
+        "timestamp": "<ts>",
+        "type": "build_event",
+        "role": "assistant",
+        "payload": {
+          "build_id": "<id#12>",
+          "seq": 7,
+          "scope": "slide",
+          "stage": "render",
+          "status": "done",
+          "text": "Building slide 4/10 - The new flow in one picture",
+          "detail": null,
+          "slide_index": 3,
+          "job_id": null,
+          "ts": "<ts>"
+        }
+      }
+    },
+    {
+      "seq": 50,
+      "turn": 4,
+      "direction": "out",
+      "t_ms": 3185.5,
+      "t_turn_ms": 404.8,
+      "dt_ms": 0.1,
+      "type": "slide_built",
+      "frame": {
+        "message_id": "<id#46>",
+        "session_id": "s_f03_a",
+        "timestamp": "<ts>",
+        "type": "slide_built",
+        "role": "assistant",
+        "payload": {
+          "presentation_id": "pres_f03_built",
+          "slide_index": 3,
+          "slide_count": 10,
+          "thumbnail_url": null,
+          "qa_verdict": null,
+          "qa_skipped_reason": null,
+          "session_id": "s_f03_a",
+          "build_id": "<id#12>"
+        }
+      }
+    },
+    {
+      "seq": 51,
+      "turn": 4,
+      "direction": "out",
+      "t_ms": 3209.9,
+      "t_turn_ms": 429.2,
+      "dt_ms": 24.4,
+      "type": "chat_message",
+      "frame": {
+        "message_id": "<id#47>",
+        "session_id": "s_f03_a",
+        "timestamp": "<ts>",
+        "type": "chat_message",
+        "role": "assistant",
+        "payload": {
+          "text": "Building slide 5/10 - How the guided steps work",
+          "sub_title": null,
+          "list_items": null,
+          "format": "markdown",
+          "ephemeral": true
+        }
+      }
+    },
+    {
+      "seq": 52,
+      "turn": 4,
+      "direction": "out",
+      "t_ms": 3210.0,
+      "t_turn_ms": 429.3,
+      "dt_ms": 0.1,
+      "type": "build_event",
+      "frame": {
+        "message_id": "<id#48>",
+        "session_id": "s_f03_a",
+        "timestamp": "<ts>",
+        "type": "build_event",
+        "role": "assistant",
+        "payload": {
+          "build_id": "<id#12>",
+          "seq": 8,
+          "scope": "slide",
+          "stage": "render",
+          "status": "done",
+          "text": "Building slide 5/10 - How the guided steps work",
+          "detail": null,
+          "slide_index": 4,
+          "job_id": null,
+          "ts": "<ts>"
+        }
+      }
+    },
+    {
+      "seq": 53,
+      "turn": 4,
+      "direction": "out",
+      "t_ms": 3210.1,
+      "t_turn_ms": 429.4,
+      "dt_ms": 0.1,
+      "type": "slide_built",
+      "frame": {
+        "message_id": "<id#49>",
+        "session_id": "s_f03_a",
+        "timestamp": "<ts>",
+        "type": "slide_built",
+        "role": "assistant",
+        "payload": {
+          "presentation_id": "pres_f03_built",
+          "slide_index": 4,
+          "slide_count": 10,
+          "thumbnail_url": null,
+          "qa_verdict": null,
+          "qa_skipped_reason": null,
+          "session_id": "s_f03_a",
+          "build_id": "<id#12>"
+        }
+      }
+    },
+    {
+      "seq": 54,
+      "turn": 4,
+      "direction": "out",
+      "t_ms": 3234.6,
+      "t_turn_ms": 453.9,
+      "dt_ms": 24.5,
+      "type": "chat_message",
+      "frame": {
+        "message_id": "<id#50>",
+        "session_id": "s_f03_a",
+        "timestamp": "<ts>",
+        "type": "chat_message",
+        "role": "assistant",
+        "payload": {
+          "text": "Building slide 6/10 - Time-to-productivity: before and after",
+          "sub_title": null,
+          "list_items": null,
+          "format": "markdown",
+          "ephemeral": true
+        }
+      }
+    },
+    {
+      "seq": 55,
+      "turn": 4,
+      "direction": "out",
+      "t_ms": 3234.7,
+      "t_turn_ms": 454.0,
+      "dt_ms": 0.1,
+      "type": "build_event",
+      "frame": {
+        "message_id": "<id#51>",
+        "session_id": "s_f03_a",
+        "timestamp": "<ts>",
+        "type": "build_event",
+        "role": "assistant",
+        "payload": {
+          "build_id": "<id#12>",
+          "seq": 9,
+          "scope": "slide",
+          "stage": "render",
+          "status": "done",
+          "text": "Building slide 6/10 - Time-to-productivity: before and after",
+          "detail": null,
+          "slide_index": 5,
+          "job_id": null,
+          "ts": "<ts>"
+        }
+      }
+    },
+    {
+      "seq": 56,
+      "turn": 4,
+      "direction": "out",
+      "t_ms": 3234.7,
+      "t_turn_ms": 454.0,
+      "dt_ms": 0.0,
+      "type": "slide_built",
+      "frame": {
+        "message_id": "<id#52>",
+        "session_id": "s_f03_a",
+        "timestamp": "<ts>",
+        "type": "slide_built",
+        "role": "assistant",
+        "payload": {
+          "presentation_id": "pres_f03_built",
+          "slide_index": 5,
+          "slide_count": 10,
+          "thumbnail_url": null,
+          "qa_verdict": null,
+          "qa_skipped_reason": null,
+          "session_id": "s_f03_a",
+          "build_id": "<id#12>"
+        }
+      }
+    },
+    {
+      "seq": 57,
+      "turn": 4,
+      "direction": "out",
+      "t_ms": 3259.3,
+      "t_turn_ms": 478.6,
+      "dt_ms": 24.6,
+      "type": "chat_message",
+      "frame": {
+        "message_id": "<id#53>",
+        "session_id": "s_f03_a",
+        "timestamp": "<ts>",
+        "type": "chat_message",
+        "role": "assistant",
+        "payload": {
+          "text": "Building slide 7/10 - Cost to serve: before and after",
+          "sub_title": null,
+          "list_items": null,
+          "format": "markdown",
+          "ephemeral": true
+        }
+      }
+    },
+    {
+      "seq": 58,
+      "turn": 4,
+      "direction": "out",
+      "t_ms": 3259.4,
+      "t_turn_ms": 478.7,
+      "dt_ms": 0.1,
+      "type": "build_event",
+      "frame": {
+        "message_id": "<id#54>",
+        "session_id": "s_f03_a",
+        "timestamp": "<ts>",
+        "type": "build_event",
+        "role": "assistant",
+        "payload": {
+          "build_id": "<id#12>",
+          "seq": 10,
+          "scope": "slide",
+          "stage": "render",
+          "status": "done",
+          "text": "Building slide 7/10 - Cost to serve: before and after",
+          "detail": null,
+          "slide_index": 6,
+          "job_id": null,
+          "ts": "<ts>"
+        }
+      }
+    },
+    {
+      "seq": 59,
+      "turn": 4,
+      "direction": "out",
+      "t_ms": 3259.4,
+      "t_turn_ms": 478.7,
+      "dt_ms": 0.0,
+      "type": "slide_built",
+      "frame": {
+        "message_id": "<id#55>",
+        "session_id": "s_f03_a",
+        "timestamp": "<ts>",
+        "type": "slide_built",
+        "role": "assistant",
+        "payload": {
+          "presentation_id": "pres_f03_built",
+          "slide_index": 6,
+          "slide_count": 10,
+          "thumbnail_url": null,
+          "qa_verdict": null,
+          "qa_skipped_reason": null,
+          "session_id": "s_f03_a",
+          "build_id": "<id#12>"
+        }
+      }
+    },
+    {
+      "seq": 60,
+      "turn": 4,
+      "direction": "out",
+      "t_ms": 3283.4,
+      "t_turn_ms": 502.7,
+      "dt_ms": 24.0,
+      "type": "chat_message",
+      "frame": {
+        "message_id": "<id#56>",
+        "session_id": "s_f03_a",
+        "timestamp": "<ts>",
+        "type": "chat_message",
+        "role": "assistant",
+        "payload": {
+          "text": "Building slide 8/10 - Pilot plan and timeline",
+          "sub_title": null,
+          "list_items": null,
+          "format": "markdown",
+          "ephemeral": true
+        }
+      }
+    },
+    {
+      "seq": 61,
+      "turn": 4,
+      "direction": "out",
+      "t_ms": 3283.5,
+      "t_turn_ms": 502.8,
+      "dt_ms": 0.1,
+      "type": "build_event",
+      "frame": {
+        "message_id": "<id#57>",
+        "session_id": "s_f03_a",
+        "timestamp": "<ts>",
+        "type": "build_event",
+        "role": "assistant",
+        "payload": {
+          "build_id": "<id#12>",
+          "seq": 11,
+          "scope": "slide",
+          "stage": "render",
+          "status": "done",
+          "text": "Building slide 8/10 - Pilot plan and timeline",
+          "detail": null,
+          "slide_index": 7,
+          "job_id": null,
+          "ts": "<ts>"
+        }
+      }
+    },
+    {
+      "seq": 62,
+      "turn": 4,
+      "direction": "out",
+      "t_ms": 3283.5,
+      "t_turn_ms": 502.8,
+      "dt_ms": 0.0,
+      "type": "slide_built",
+      "frame": {
+        "message_id": "<id#58>",
+        "session_id": "s_f03_a",
+        "timestamp": "<ts>",
+        "type": "slide_built",
+        "role": "assistant",
+        "payload": {
+          "presentation_id": "pres_f03_built",
+          "slide_index": 7,
+          "slide_count": 10,
+          "thumbnail_url": null,
+          "qa_verdict": null,
+          "qa_skipped_reason": null,
+          "session_id": "s_f03_a",
+          "build_id": "<id#12>"
+        }
+      }
+    },
+    {
+      "seq": 63,
+      "turn": 4,
+      "direction": "out",
+      "t_ms": 3307.9,
+      "t_turn_ms": 527.2,
+      "dt_ms": 24.4,
+      "type": "chat_message",
+      "frame": {
+        "message_id": "<id#59>",
+        "session_id": "s_f03_a",
+        "timestamp": "<ts>",
+        "type": "chat_message",
+        "role": "assistant",
+        "payload": {
+          "text": "Building slide 9/10 - Risks and how we manage them",
+          "sub_title": null,
+          "list_items": null,
+          "format": "markdown",
+          "ephemeral": true
+        }
+      }
+    },
+    {
+      "seq": 64,
+      "turn": 4,
+      "direction": "out",
+      "t_ms": 3307.9,
+      "t_turn_ms": 527.2,
+      "dt_ms": 0.0,
+      "type": "build_event",
+      "frame": {
+        "message_id": "<id#60>",
+        "session_id": "s_f03_a",
+        "timestamp": "<ts>",
+        "type": "build_event",
+        "role": "assistant",
+        "payload": {
+          "build_id": "<id#12>",
+          "seq": 12,
+          "scope": "slide",
+          "stage": "render",
+          "status": "done",
+          "text": "Building slide 9/10 - Risks and how we manage them",
+          "detail": null,
+          "slide_index": 8,
+          "job_id": null,
+          "ts": "<ts>"
+        }
+      }
+    },
+    {
+      "seq": 65,
+      "turn": 4,
+      "direction": "out",
+      "t_ms": 3308.0,
+      "t_turn_ms": 527.3,
+      "dt_ms": 0.1,
+      "type": "slide_built",
+      "frame": {
+        "message_id": "<id#61>",
+        "session_id": "s_f03_a",
+        "timestamp": "<ts>",
+        "type": "slide_built",
+        "role": "assistant",
+        "payload": {
+          "presentation_id": "pres_f03_built",
+          "slide_index": 8,
+          "slide_count": 10,
+          "thumbnail_url": null,
+          "qa_verdict": null,
+          "qa_skipped_reason": null,
+          "session_id": "s_f03_a",
+          "build_id": "<id#12>"
+        }
+      }
+    },
+    {
+      "seq": 66,
+      "turn": 4,
+      "direction": "out",
+      "t_ms": 3332.5,
+      "t_turn_ms": 551.8,
+      "dt_ms": 24.5,
+      "type": "chat_message",
+      "frame": {
+        "message_id": "<id#62>",
+        "session_id": "s_f03_a",
+        "timestamp": "<ts>",
+        "type": "chat_message",
+        "role": "assistant",
+        "payload": {
+          "text": "Building slide 10/10 - Pitch for a new customer onboarding flow",
+          "sub_title": null,
+          "list_items": null,
+          "format": "markdown",
+          "ephemeral": true
+        }
+      }
+    },
+    {
+      "seq": 67,
+      "turn": 4,
+      "direction": "out",
+      "t_ms": 3332.6,
+      "t_turn_ms": 551.9,
+      "dt_ms": 0.1,
+      "type": "build_event",
+      "frame": {
+        "message_id": "<id#63>",
+        "session_id": "s_f03_a",
+        "timestamp": "<ts>",
+        "type": "build_event",
+        "role": "assistant",
+        "payload": {
+          "build_id": "<id#12>",
+          "seq": 13,
+          "scope": "slide",
+          "stage": "render",
+          "status": "done",
+          "text": "Building slide 10/10 - Pitch for a new customer onboarding flow",
+          "detail": null,
+          "slide_index": 9,
+          "job_id": null,
+          "ts": "<ts>"
+        }
+      }
+    },
+    {
+      "seq": 68,
+      "turn": 4,
+      "direction": "out",
+      "t_ms": 3332.6,
+      "t_turn_ms": 551.9,
+      "dt_ms": 0.0,
+      "type": "slide_built",
+      "frame": {
+        "message_id": "<id#64>",
+        "session_id": "s_f03_a",
+        "timestamp": "<ts>",
+        "type": "slide_built",
+        "role": "assistant",
+        "payload": {
+          "presentation_id": "pres_f03_built",
+          "slide_index": 9,
+          "slide_count": 10,
+          "thumbnail_url": null,
+          "qa_verdict": null,
+          "qa_skipped_reason": null,
+          "session_id": "s_f03_a",
+          "build_id": "<id#12>"
+        }
+      }
+    },
+    {
+      "seq": 69,
+      "turn": 4,
+      "direction": "out",
+      "t_ms": 3378.7,
+      "t_turn_ms": 598.0,
+      "dt_ms": 46.1,
+      "type": "build_phase",
+      "frame": {
+        "message_id": "<id#65>",
+        "session_id": "s_f03_a",
+        "timestamp": "<ts>",
+        "type": "build_phase",
+        "role": "assistant",
+        "payload": {
+          "build_id": "<id#12>",
+          "phase": "finalizing",
+          "label": "Finishing your deck…",
+          "slide_count": 10,
+          "slides_done": 10,
+          "auto_proceed": null,
+          "presentation_id": "pres_f03_built",
+          "control_request_id": null
+        }
+      }
+    },
+    {
+      "seq": 70,
+      "turn": 4,
+      "direction": "out",
+      "t_ms": 3390.7,
+      "t_turn_ms": 610.0,
+      "dt_ms": 12.0,
+      "type": "presentation_url",
+      "frame": {
+        "message_id": "<id#66>",
+        "session_id": "s_f03_a",
+        "timestamp": "<ts>",
+        "type": "presentation_url",
+        "role": "assistant",
+        "payload": {
+          "url": "https://layout.synthetic.invalid/p/pres_f03_built",
+          "presentation_id": "pres_f03_built",
+          "slide_count": 10,
+          "message": "Your presentation 'Pitch for a new customer onboarding flow' with 10 slides is ready!",
+          "citations_by_slide": null
+        }
+      }
+    },
+    {
+      "seq": 71,
+      "turn": 4,
+      "direction": "out",
+      "t_ms": 3392.7,
+      "t_turn_ms": 612.0,
+      "dt_ms": 2.0,
+      "type": "chat_message",
+      "frame": {
+        "message_id": "<id#67>",
+        "session_id": "s_f03_a",
+        "timestamp": "<ts>",
+        "type": "chat_message",
+        "role": "assistant",
+        "payload": {
+          "text": "🎉 Your presentation is ready!\n\n**Pitch for a new customer onboarding flow** - 10 slides\n\n[View Presentation](https://layout.synthetic.invalid/p/pres_f03_built)",
+          "sub_title": null,
+          "list_items": null,
+          "format": "markdown",
+          "ephemeral": false
+        }
+      }
+    },
+    {
+      "seq": 72,
+      "turn": 4,
+      "direction": "out",
+      "t_ms": 3392.8,
+      "t_turn_ms": 612.1,
+      "dt_ms": 0.1,
+      "type": "action_request",
+      "frame": {
+        "message_id": "<id#68>",
+        "session_id": "s_f03_a",
+        "timestamp": "<ts>",
+        "type": "action_request",
+        "role": "assistant",
+        "payload": {
+          "prompt_text": "What would you like to do next?",
+          "actions": [
+            {
+              "label": "Done, looks great!",
+              "value": "complete_presentation",
+              "primary": true,
+              "requires_input": false
+            },
+            {
+              "label": "Make adjustments",
+              "value": "request_adjustments",
+              "primary": false,
+              "requires_input": true
+            }
+          ]
+        }
+      }
+    },
+    {
+      "seq": 73,
+      "turn": 4,
+      "direction": "out",
+      "t_ms": 3392.8,
+      "t_turn_ms": 612.1,
+      "dt_ms": 0.0,
+      "type": "build_phase",
+      "frame": {
+        "message_id": "<id#69>",
+        "session_id": "s_f03_a",
+        "timestamp": "<ts>",
+        "type": "build_phase",
+        "role": "assistant",
+        "payload": {
+          "build_id": "<id#12>",
+          "phase": "complete",
+          "label": "Your deck is ready",
+          "slide_count": 10,
+          "slides_done": 10,
+          "auto_proceed": null,
+          "presentation_id": "pres_f03_built",
+          "control_request_id": null
+        }
+      }
+    }
+  ]
+}

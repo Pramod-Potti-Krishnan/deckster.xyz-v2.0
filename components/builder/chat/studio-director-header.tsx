@@ -74,6 +74,8 @@ export function StudioDirectorHeader({ connectionState, isLoadingSession = false
         {chatHeader ? chatHeader.text : isLoadingSession ? "Loading conversation…" : CONNECTION_LABELS[connectionState]}
       </span>
       {reconnect ? <>{reconnect}{actions}</> : actions}
+      {STUDIO_STAGE_OPEN_GATE_ENABLED ? <StudioStageShowCanvas /> : null /* STUDIO-STAGE-OPEN-GATE (NEXT_PUBLIC_STUDIO_STAGE_OPEN_GATE, PK Q1): "Show canvas", drawn only while the gate holds the stage closed */}
     </header>
   )
 }
+import { STUDIO_STAGE_OPEN_GATE_ENABLED, StudioStageShowCanvas } from "./studio-stage-show-canvas" // STUDIO-STAGE-OPEN-GATE: placed at the end, away from the imports other changes add at the top
