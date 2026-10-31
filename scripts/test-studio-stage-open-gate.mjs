@@ -31,6 +31,7 @@ import postcss from 'postcss'
 import React from 'react'
 import * as jsxRuntime from 'react/jsx-runtime'
 import { renderToStaticMarkup } from 'react-dom/server'
+import ReactMarkdown from 'react-markdown'
 import * as registry from './studio-later-changes.mjs'
 import {
   STAGE_OPEN_GATE_PIN_EDITS, STAGE_OPEN_GATE_PIN_FILES, STAGE_OPEN_GATE_PIN_MARK,
@@ -416,6 +417,8 @@ function parseComplex(text) {
     while (i < text.length && !/[\s>]/.test(text[i])) {
       if (text[i] === '[') { const end = text.indexOf(']', i); const body = text.slice(i + 1, end); const m = /^([\w-]+)(?:="([^"]*)")?$/.exec(body); if (!m) throw new Error(`attribute ${body}`); compound.push({ kind: 'attr', name: m[1], value: m[2] ?? null }); i = end + 1 }
       else if (text[i] === ':') {
+        const structural = /^:(first-child|last-child)(?![\w-(])/.exec(text.slice(i))
+        if (structural) { compound.push({ kind: structural[1] }); i += structural[0].length; continue }
         const state = /^:(hover|focus|focus-visible|disabled|active)(?![\w-(])/.exec(text.slice(i))
         if (state) { compound.push({ kind: 'state', name: state[1] }); i += state[0].length; continue }
         const m = /^:(has|not|is)\(/.exec(text.slice(i)); if (!m) throw new Error(`pseudo at ${text.slice(i, i + 20)}`)
@@ -440,6 +443,8 @@ function matchCompound(el, compound) {
     else if (s.kind === 'tag') { if (el.tag !== s.name) return false }
     else if (s.kind === 'class') { if (!String(el.attrs.class || '').split(/\s+/).includes(s.name)) return false }
     else if (s.kind === 'state') return false // an interactive state (hover, focus, disabled): never in this static markup
+    else if (s.kind === 'first-child') { if (!el.parent || el.parent.children[0] !== el) return false }
+    else if (s.kind === 'last-child') { if (!el.parent || el.parent.children.at(-1) !== el) return false }
     else if (s.kind === 'is') { if (!s.list.some(c => matchComplex(el, c))) return false }
     else if (s.kind === 'not') { if (s.list.some(c => matchComplex(el, c))) return false }
     else if (s.kind === 'has') { if (!s.list.some(c => descendants(el).some(d => matchComplex(d, c, el)))) return false }
@@ -489,7 +494,7 @@ function layoutOf(rules, dom) {
     chatFull: has(dom.chat, 'width', '100%', true) && has(dom.chatContent, 'width', '100%', true),
     stageHidden: has(dom.stage, 'visibility', 'hidden'),
     handlesGone: has(dom.handle, 'display', 'none') && has(dom.resize, 'display', 'none'),
-    columnCentred: has(dom.transcript, 'align-items', 'center') && has(dom.transcript, 'flex-direction', 'column') && declsFor(rules, dom.transcript.children[0]).some(d => d.prop === 'width' && /^min\((100%, (560|620)px|(560|620)px, 100%)\)$/.test(d.value)),
+    columnCentred: has(dom.transcript, 'align-items', 'center') && has(dom.transcript, 'flex-direction', 'column') && declsFor(rules, dom.transcript.children[0]).some(d => d.prop === 'width' && /^(min\((100%, (560|620)px|(560|620)px, 100%)\)|var\(--studio-chat-conversation-column, min\(100%, (560|620)px\)\))$/.test(d.value)),
     composerWidth: declsFor(rules, dom.composer).filter(d => d.prop === 'width').map(d => d.value).pop() ?? null,
   }
 }
@@ -688,7 +693,7 @@ check('FLAG OFF: every scenario renders byte-identical to the base page and styl
 function cssChecks(cssText) {
   const RULES_ON = cssRules(cssText), CSS_NOW = cssText
   const gateRules = RULES_ON.filter(r => STAGE_OPEN_GATE_MARKER_RE.test(CSS_NOW.split('\n').find(line => line.startsWith(r.selector)) ?? ''))
-  assert.equal(gateRules.length, 8, 'eight rules')
+  assert.equal(gateRules.length, 12, 'twelve rules: eight for the layout, four for the edges (F-10)')
   for (const r of gateRules) {
     assert.match(r.selector, /^\[data-studio-v4-shell="true"\] \[data-studio-v4-shell-workspace\]:has\(> \[data-studio-v4-shell-presentation\]\[data-studio-stage-gate="closed"\](\[data-studio-stage-gate-width="560"\])?\):has\(\[data-studio-workspace-drawer="deck"\]\[data-studio-workspace-visible="true"\]\):not\(:has\(\[data-studio-workspace-drawer="deck"\] \[data-studio-first-run\]\)\) /, r.selector.slice(0, 120))
   }
@@ -704,9 +709,15 @@ function cssChecks(cssText) {
   const hiddenChat = workspaceDom({ stageAttrs: { 'data-studio-stage-gate': 'closed' }, chatVisible: false, welcome: false })
   assert.equal(layoutOf(RULES_ON, hiddenChat).stageHidden, false, 'a hidden chat (single-pane, stage chosen) never leaves an empty workspace')
   const closed = layoutOf(RULES_ON, workspaceDom({ stageAttrs: { 'data-studio-stage-gate': 'closed' }, welcome: false }))
-  assert.deepEqual([closed.chatFull, closed.stageHidden, closed.handlesGone, Boolean(closed.columnCentred), closed.composerWidth], [true, true, true, true, 'min(100%, 668px)'])
+  assert.deepEqual([closed.chatFull, closed.stageHidden, closed.handlesGone, Boolean(closed.columnCentred), closed.composerWidth], [true, true, true, true, 'min(100%, calc(var(--studio-chat-conversation-column, 644px) + 24px))'])
   const closed560 = layoutOf(RULES_ON, workspaceDom({ stageAttrs: { 'data-studio-stage-gate': 'closed', 'data-studio-stage-gate-width': '560' }, welcome: false }))
-  assert.equal(closed560.composerWidth, 'min(100%, calc(24px + 560px))', 'the 560 column follows the welcome width decision')
+  assert.equal(closed560.composerWidth, 'min(100%, calc(var(--studio-chat-conversation-column, 560px) + 24px))', 'the 560 column follows the welcome width decision')
+  // F-10: the column and the composer read #555's token, with today's widths as the exact fallbacks
+  const widthsOf = sel => gateRules.filter(r => r.selector.endsWith(sel)).flatMap(r => r.decls.filter(d => d.prop === 'width').map(d => d.value))
+  assert.deepEqual(widthsOf('[data-radix-scroll-area-viewport] > div > div > *'), ['var(--studio-chat-conversation-column, min(100%, 620px))', 'var(--studio-chat-conversation-column, min(100%, 560px))'], 'the column: the token, else today\'s 620 / 560')
+  assert.deepEqual(widthsOf('[data-studio-v4-composer]'), ['min(100%, calc(var(--studio-chat-conversation-column, 644px) + 24px))', 'min(100%, calc(var(--studio-chat-conversation-column, 560px) + 24px))'], 'the composer: the column + its 24px padding (lib/studio-welcome-width.ts), else today\'s 668 / 584')
+  assert.equal((CSS_NOW.match(/--studio-chat-conversation-column/g) || []).length, 4 + 1, 'the token is read in the four width rules (and named once in a comment)')
+  assert.doesNotMatch(CSS_NOW.split('\n').filter(line => STAGE_OPEN_GATE_MARKER_RE.test(line)).join('\n'), /--studio-chat-conversation-column\s*:/, 'never defined here: #555 defines it (NEXT_PUBLIC_STUDIO_CHAT_COLUMN_WIDE)')
   // the older pins (test-studio-welcome-width, test-studio-first-run-v2) find the welcome's rules by their literal text and mutate its FIRST occurrence: none of those literals may appear in this change's lines
   for (const literal of ['width: min(620px, 100%)', 'width: min(668px, 100%)', 'max-width: 620px;', 'width: min(560px, 100%)', 'calc(560px + 24px)', 'data-studio-first-run-width', 'data-studio-first-run-stage']) {
     for (const line of CSS_NOW.split('\n').filter(line => STAGE_OPEN_GATE_MARKER_RE.test(line))) assert.ok(!line.includes(literal), `this change's CSS never repeats the older rules' literal ${literal}`)
@@ -715,6 +726,165 @@ function cssChecks(cssText) {
   assert.equal(firstRunHidden.length, 2, 'two rules hide the stage: the first-run one and this one, both with visibility (the stage stays mounted)')
   for (const r of gateRules) for (const d of r.decls) assert.ok(!(d.prop === 'display' && d.value === 'none') || /resize|drawer-handle/.test(r.selector), 'only the handles are display:none; the stage is never unmounted or display:none')
 }
+// ===== 4a. F-10: the cascade, computed (a small evaluator for the CSS math these rules use: var(), min(), max(), clamp(), calc() over px, % and vw) ================================
+/** The computed px of a CSS length expression, for a containing block of `cb` px, a viewport of `vw` px and the custom properties in `vars`. Anything it does not know throws. */
+function cssLength(expr, { cb, vw, vars = {} }) {
+  const src = String(expr).trim()
+  let i = 0
+  const ws = () => { while (/\s/.test(src[i] || '')) i++ }
+  const fn = name => { const m = new RegExp(`^${name}\\(`).exec(src.slice(i)); if (m) { i += m[0].length; return true } return false }
+  const args = () => { const out = []; for (;;) { ws(); out.push(sum()); ws(); if (src[i] === ',') { i++; continue } if (src[i] === ')') { i++; return out } throw new Error(`bad args at ${src.slice(i, i + 20)}`) } }
+  const atom = () => {
+    ws()
+    if (fn('min')) return Math.min(...args())
+    if (fn('max')) return Math.max(...args())
+    if (fn('clamp')) { const [lo, v, hi] = args(); return Math.max(lo, Math.min(v, hi)) }
+    if (fn('calc')) { ws(); const v = sum(); ws(); if (src[i++] !== ')') throw new Error('calc ) expected'); return v }
+    if (fn('var')) {
+      ws(); const name = /^--[\w-]+/.exec(src.slice(i))[0]; i += name.length; ws()
+      let fallback = null
+      if (src[i] === ',') { i++; const start = i; let depth = 0; while (i < src.length && !(depth === 0 && src[i] === ')')) { if (src[i] === '(') depth++; if (src[i] === ')') depth--; i++ } fallback = src.slice(start, i).trim() }
+      if (src[i++] !== ')') throw new Error('var ) expected')
+      const value = name in vars ? vars[name] : fallback
+      if (value === null) throw new Error(`${name} unset and no fallback`)
+      return cssLength(value, { cb, vw, vars })
+    }
+    if (src[i] === '(') { i++; const v = sum(); ws(); if (src[i++] !== ')') throw new Error(') expected'); return v }
+    const m = /^(-?\d+(?:\.\d+)?)(px|%|vw)/.exec(src.slice(i)); if (!m) throw new Error(`unknown length at "${src.slice(i, i + 24)}"`); i += m[0].length
+    return m[2] === 'px' ? Number(m[1]) : m[2] === '%' ? Number(m[1]) * cb / 100 : Number(m[1]) * vw / 100
+  }
+  const sum = () => { let v = atom(); for (;;) { ws(); const op = src[i]; if ((op === '+' || op === '-') && /\s/.test(src[i + 1] || '')) { i++; v = op === '+' ? v + atom() : v - atom() } else return v } }
+  const v = sum(); ws(); if (i !== src.length) throw new Error(`trailing "${src.slice(i)}"`); return v
+}
+/** #555's tokens, exactly as B51 defines them (NEXT_PUBLIC_STUDIO_CHAT_COLUMN_WIDE on). */
+const TOKEN_555 = { '--studio-chat-conversation-column': 'min(clamp(640px, 50vw, 1000px), 100%)', '--studio-chat-welcome-column': 'min(clamp(640px, 44vw, 880px), 100%)' }
+const BASE_554_CSS = (() => { try { return git('show', `3e3973c2b14a9342319953e2fc6e8c917c17f777:${CSS}`) } catch { return null } })() // #554 before F-10: "today's" closed-gate widths
+/** The winning width (the last matching rule in source order: the 560 rules come after, and are more specific than, the plain ones) for the column (a transcript row) and the composer. */
+function closedWidths(rules, { width560 = false } = {}) {
+  const dom = workspaceDom({ stageAttrs: { 'data-studio-stage-gate': 'closed', ...(width560 ? { 'data-studio-stage-gate-width': '560' } : {}) }, welcome: false })
+  const last = el => declsFor(rules, el).filter(d => d.prop === 'width').map(d => d.value).pop()
+  return { column: last(dom.transcript.children[0]), composer: last(dom.composer) }
+}
+function cascadeChecks(cssText) {
+  const rules = cssRules(cssText)
+  assert.ok(BASE_554_CSS, '#554 before F-10 (3e3973c2) is readable')
+  const before = cssRules(laterStrips(CSS, BASE_554_CSS))
+  for (const width560 of [false, true]) {
+    const now = closedWidths(rules, { width560 }), was = closedWidths(before, { width560 })
+    for (const vw of [390, 800, 1024, 1280, 1440, 1600, 1920, 2560]) {
+      const cb = vw - 57 - 12 // the chat panel inside the rail and the page padding: the exact number does not matter, the same box is used on both sides
+      for (const part of ['column', 'composer']) {
+        assert.equal(cssLength(now[part], { cb, vw }), cssLength(was[part], { cb, vw }), `token absent (${width560 ? '560' : 'plain'}, ${vw}px): the ${part} is today's width`)
+      }
+      const col = cssLength(now.column, { cb, vw, vars: TOKEN_555 }), want = Math.min(Math.max(640, vw / 2), 1000, cb)
+      assert.equal(col, want, `token present (${vw}px): the column is #555's clamp(640px, 50vw, 1000px), capped at the panel`)
+      assert.equal(cssLength(now.composer, { cb, vw, vars: TOKEN_555 }), Math.min(cb, want + 24), `token present (${vw}px): the composer is the column + 24px, capped at the panel`)
+    }
+  }
+  assert.equal(cssLength('var(--studio-chat-conversation-column, min(100%, 620px))', { cb: 1531, vw: 1600, vars: TOKEN_555 }), 800, '1600px window: an 800px (50%) column')
+  assert.equal(cssLength('var(--studio-chat-conversation-column, min(100%, 620px))', { cb: 1371, vw: 1440, vars: TOKEN_555 }), 720, '1440px window: a 720px (50%) column')
+}
+check('F-10: the column and the composer read #555\'s --studio-chat-conversation-column with exact fallbacks; computed through the real stylesheet: token absent = #554\'s widths before F-10 (8 windows x plain/560), token present = clamp(640px, 50vw, 1000px) and the composer = column + 24px', () => cascadeChecks(CSS_NOW))
+
+// ===== 4c. F-10: the edges on the REAL message rows (MessageList rendered with DIRECTOR-2's recorded frames: the user's turns, the clarifying card, the plan card) =================
+const ML_ENV = { [SHELL]: 'true', [FIRST_RUN_V2]: 'true' }
+const mlStubs = {
+  react: { ...React, useMemo: callback => callback(), useState: init => [typeof init === 'function' ? init() : init, () => {}], useRef: current => ({ current }), useEffect() {}, useLayoutEffect() {}, useCallback: fn => fn },
+  'react/jsx-runtime': jsxRuntime, 'react-markdown': ReactMarkdown, 'lucide-react': new Proxy({}, { get: (_, name) => name === '__esModule' ? false : (props => React.createElement('svg', { 'data-icon': String(name), width: props?.size })) }),
+  '@/components/ui/button': { Button: 'button' }, '@/components/ui/badge': { Badge: 'span' }, '@/components/file-chip': { FileChip: 'FileChip' },
+  '@/lib/debug-log': { debugLog() {} }, '@/lib/slide-compose-async': { hasLiveTrackedEphemeralMessage: () => false },
+  '@/lib/layout-service-client': { LAYOUT_VIEWER_URL_POLICY: {} }, '@/lib/layout-viewer-url-policy': { evaluateLayoutViewerUrl: () => ({ ok: false }) },
+  '@/lib/mdc-flags': { CHAT_CLARITY: false, CHAT_QUESTIONS: false }, '@/lib/build-narration-heuristics': { shouldRerouteEphemeral: value => Boolean(value) },
+  '@/components/builder/chat/question-card': { QuestionCard: props => React.createElement('div', { 'data-fixture-card': props.questionSet ? 'questions' : 'actions' }, props.promptText) }, // the card itself is out of scope here: the rows around it are what the rules touch
+  '@/components/builder/chat/studio-outline-card': { StudioOutlineCard: () => React.createElement('div', { 'data-fixture-card': 'outline' }) },
+}
+function loadMessageList() {
+  const cache = new Map()
+  const load = file => {
+    if (cache.has(file)) return cache.get(file).exports
+    const module = { exports: {} }
+    cache.set(file, module)
+    const rel = path.relative(root, file)
+    const js = ts.transpileModule(laterRead(rel), { compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022, jsx: ts.JsxEmit.ReactJSX, esModuleInterop: true } }).outputText
+    const req = spec => {
+      if (spec in mlStubs) return mlStubs[spec]
+      if (spec.endsWith('.css')) return {}
+      if (spec.startsWith('@/') || spec.startsWith('.')) {
+        const base = spec.startsWith('@/') ? path.join(root, spec.slice(2)) : path.resolve(path.dirname(file), spec)
+        for (const suffix of ['.ts', '.tsx']) if (fs.existsSync(base + suffix)) return load(base + suffix)
+        throw new Error(`unresolved ${spec} in ${rel}`)
+      }
+      // any other package (Radix popovers, icons ...) inside the rows' children: a pass-through, so the rows themselves are the real markup
+      return new Proxy({}, { get: (_, name) => name === '__esModule' ? false : (props => props?.children ?? null) })
+    }
+    vm.runInNewContext(js, { module, exports: module.exports, require: req, process: { env: { ...ML_ENV } }, console, setTimeout: () => 0, clearTimeout() {}, window: undefined, document: undefined })
+    return module.exports
+  }
+  return load(path.join(root, 'components/builder/message-list.tsx')).MessageList
+}
+/** React's static markup -> the selector engine's nodes (React writes well-formed markup: quoted attributes, explicit close tags, the void elements bare). */
+function parseMarkup(html) {
+  const VOID = new Set(['area', 'base', 'br', 'col', 'embed', 'hr', 'img', 'input', 'link', 'meta', 'source', 'track', 'wbr'])
+  const top = node('fragment'), stack = [top]
+  const re = /<(\/?)([a-zA-Z][\w-]*)((?:\s+[^\s"'>\/=]+(?:="[^"]*")?)*)\s*(\/?)>|[^<]+/g
+  let m
+  while ((m = re.exec(html))) {
+    if (!m[2]) continue // text
+    const [, close, tag, attrText, selfClose] = m
+    if (close) { while (stack.length > 1 && stack.pop().tag !== tag.toLowerCase()); continue }
+    const attrs = {}
+    for (const a of attrText.matchAll(/([^\s"'>\/=]+)(?:="([^"]*)")?/g)) attrs[a[1]] = a[2] ?? ''
+    const el = node(tag.toLowerCase(), attrs)
+    el.parent = stack.at(-1); stack.at(-1).children.push(el)
+    if (!VOID.has(el.tag) && !selfClose) stack.push(el)
+  }
+  return top.children
+}
+function recordedRows() {
+  const MessageList = loadMessageList()
+  const outs = F03_A.frames.filter(f => f.direction === 'out' && f.turn <= 2).map(f => f.frame)
+  const ins = F03_A.frames.filter(f => f.direction === 'in' && f.turn <= 2)
+  const messages = outs.filter(f => ['chat_message', 'action_request'].includes(f.type)).map((f, k) => ({ ...f, message_id: `m${k}`, timestamp: `2026-10-30T12:00:0${k}Z` }))
+  const userMessages = ins.map((f, k) => ({ id: `u${k}`, text: f.frame.data.text, timestamp: Date.parse(`2026-10-30T12:00:0${k}Z`) + 500 }))
+  const props = { sessionId: 's_f03_a', userMessages, messages, userMessageIdsRef: { current: new Set() }, userMessageContentMapRef: { current: new Map() }, hasSeenWelcomeRef: { current: true }, answeredActionsRef: { current: new Set() },
+    messagesEndRef: { current: null }, onActionClick() {}, onDraftPrompt() {} }
+  return parseMarkup(renderToStaticMarkup(MessageList(props)))
+}
+function edgeChecks(cssText) {
+  const rules = cssRules(cssText)
+  const rows = recordedRows()
+  const kinds = rows.map(r => r.attrs['data-studio-director-message'] ?? null)
+  assert.deepEqual(kinds.filter(Boolean), ['director', 'user', 'director', 'user', 'director', 'director'], 'the recorded turns: greeting, brief, clarifying card, answer, plan text, plan card')
+  assert.ok(rows.some(r => descendants(r).some(d => d.attrs['data-fixture-card'] === 'questions')), 'the clarifying card is drawn')
+  assert.equal(rows.filter(r => descendants(r).some(d => d.attrs['data-fixture-card'] === 'actions')).length, 1, 'the plan card is drawn')
+  const place = (closed) => {
+    const dom = workspaceDom({ stageAttrs: closed ? { 'data-studio-stage-gate': 'closed' } : {}, welcome: false })
+    dom.transcript.children = rows; for (const r of rows) r.parent = dom.transcript
+    return dom
+  }
+  const val = (el, prop) => declsFor(rules, el).filter(d => d.prop === prop).map(d => d.value).pop() ?? null
+  const closed = place(true)
+  for (const row of rows) {
+    const kind = row.attrs['data-studio-director-message']
+    if (!kind) continue
+    if (kind === 'user') {
+      assert.equal(val(row, 'justify-content'), 'flex-end', 'a user row packs to the right edge')
+      assert.equal(val(row.children[0], 'margin-inline'), 'auto 0', 'the user\'s bubble: its right edge on the column\'s right edge')
+    } else {
+      assert.equal(val(row, 'justify-content'), 'flex-start', 'a Director row packs to the left edge')
+      const content = row.children.filter(c => c.attrs['data-studio-director-part'] !== 'avatar')
+      assert.equal(content.length, 1, 'one content block beside the avatar')
+      assert.deepEqual(['flex', 'min-width', 'max-width', 'margin-inline'].map(prop => val(content[0], prop)), ['1 1 auto', '0', 'none', '0'], 'Director\'s content fills the row from its left edge, so a card is as wide as the column')
+      for (const a of row.children.filter(c => c.attrs['data-studio-director-part'] === 'avatar')) assert.equal(declsFor(rules.filter(r => r.selector.includes('[data-studio-director-part="avatar"])')), a).length, 0, 'the avatar is left as it is')
+    }
+    for (const d of descendants(row).filter(d => d.attrs['data-fixture-card'])) assert.ok(ancestors(d).includes(row.children.find(c => c.attrs['data-studio-director-part'] !== 'avatar')), 'the card sits in the full-width content block')
+  }
+  const open = place(false)
+  for (const row of rows) for (const el of [row, ...descendants(row)]) assert.equal(declsFor(rules.filter(r => /data-studio-stage-gate/.test(r.selector)), el).length, 0, 'gate open (or flag off): no edge rule matches')
+  return { closed, open }
+}
+check('F-10: the edges on the real rows: MessageList rendered with DIRECTOR-2\'s recorded turns (greeting, brief, clarifying card, answer, plan card): user rows pack right with the bubble on the right edge; Director rows pack left with their content filling the column; nothing matches with the gate open', () => edgeChecks(CSS_NOW))
+
 check('the stylesheet: every gate rule is keyed to [data-studio-stage-gate="closed"] on the stage AND a visible chat AND no welcome in it (so before the first message the first-run rules alone apply); with no attribute none matches; the strip gives the base CSS byte for byte', () => cssChecks(CSS_NOW))
 
 // ===== 4b. the chat header's "Show canvas" (PK Q1) and useStudioStageOpen() (FRONTEND-1's F-09), rendered with React =====================================================================
@@ -1022,6 +1192,14 @@ cssMutant('the stage-hiding rule dropped', css => css.split('\n').filter(line =>
 cssMutant('the chat-width rule dropped', css => css.split('\n').filter(line => !(STAGE_OPEN_GATE_MARKER_RE.test(line) && line.includes('width: 100% !important'))).join('\n'))
 cssMutant('the column not centred', css => css.split('\n').filter(line => !(STAGE_OPEN_GATE_MARKER_RE.test(line) && line.includes('align-items: center'))).join('\n'))
 cssMutant('keyed to a different attribute value', css => css.split('\n').map(line => STAGE_OPEN_GATE_MARKER_RE.test(line) ? line.replace(/\[data-studio-stage-gate="closed"\]\)/g, '[data-studio-stage-gate="shut"])') : line).join('\n'))
+const f10Mutant = (label, from, to) => { const css = swap(CSS_NOW, from, to); mutant(`F-10: ${label}`, () => { cascadeChecks(css); edgeChecks(css); cssChecks(css) }) }
+f10Mutant('the column fallback drifts (620 -> 640)', 'var(--studio-chat-conversation-column, min(100%, 620px))', 'var(--studio-chat-conversation-column, min(100%, 640px))')
+f10Mutant('the 560 column ignores the token', 'width: var(--studio-chat-conversation-column, min(100%, 560px));', 'width: min(100%, 560px);')
+f10Mutant('the composer without its 24px inset', 'calc(var(--studio-chat-conversation-column, 644px) + 24px)', 'calc(var(--studio-chat-conversation-column, 644px) + 0px)')
+f10Mutant('a misspelt token', 'var(--studio-chat-conversation-column, min(100%, 620px))', 'var(--studio-chat-conversation-col, min(100%, 620px))')
+f10Mutant('user rows not packed right', '[data-studio-director-message="user"] { justify-content: flex-end; margin-inline: 0; }', '[data-studio-director-message="user"] { margin-inline: 0; }')
+f10Mutant('the user bubble not pinned to the right edge', '[data-studio-director-message="user"] > div:first-child { margin-inline: auto 0; }', '[data-studio-director-message="user"] > div:first-child { margin-inline: 0; }')
+f10Mutant('Director content not filling the column', '> :not([data-studio-director-part="avatar"]) { flex: 1 1 auto; min-width: 0; max-width: none; margin-inline: 0; }', '> :not([data-studio-director-part="avatar"]) { min-width: 0; margin-inline: 0; }')
 mutant('stylesheet: a gate rule without the attribute (would apply flag off)', () => {
   const css = CSS_NOW.replace('/* PASS2D W', '[data-studio-v4-shell="true"] [data-studio-v4-shell-workspace]:has([data-studio-workspace-drawer="deck"][data-studio-workspace-visible="true"]):not(:has([data-studio-workspace-drawer="deck"] [data-studio-first-run])) [data-studio-v4-shell-presentation] { visibility: hidden; } /* STUDIO-STAGE-OPEN-GATE */\n/* PASS2D W')
   const rules = cssRules(css)
