@@ -177,6 +177,7 @@ const importLines = source => source.split('\n').filter(line => /^import[\s{*"']
 const chatCleanStrip = await import('./studio-chat-clean-strip.mjs') // LATER-CHANGES: registry read (CHAT-CLEAN): the strip of the change stacked after this one, so its marked lines come out before the pins below read a file
 const commandsStrip = await import('./studio-chat-commands-strip.mjs') // LATER-CHANGES: registry read (CHAT-COMMANDS): the strip of the change stacked after chat clean, so its marked lines come out before the pins below read a file
 const chatParityStrip = await import('./studio-chat-parity-strip.mjs') // stacked after #475: LATER-CHANGES: registry read (CHAT-PARITY): the strip of the change stacked after chat commands, so its marked lines (the palette's re-read listener in chat-input.tsx) come out too
+const laterChanges = await import('./studio-later-changes.mjs') // LATER-CHANGES: registry read (STUDIO-WELCOME-TRIM): every registered later change's marked lines (the welcome trim's, and those of the changes stacked after it) come out of a source before the pins below read it
 
 if (process.env.PRINT_GOLDEN) {
   const root = path.resolve(process.env.PASS2B_ROOT || here)
@@ -190,7 +191,7 @@ const GOLDEN = JSON.parse(fs.readFileSync(GOLDEN_FILE, 'utf8'))
 async function checks(root, { only } = {}) {
   const failures = []
   const fail = message => failures.push(message)
-  const read = relative => fs.readFileSync(path.join(root, relative), 'utf8')
+  const read = relative => laterChanges.stripLaterChanges(relative, fs.readFileSync(path.join(root, relative), 'utf8')) // LATER-CHANGES: registry read (STUDIO-WELCOME-TRIM)
   const stats = { runs: 0, hintCards: 0, reconnectButtons: 0, noticeDrops: 0, editPrompts: 0 }
   const fixtures = fixturesAll.filter(fixture => !only || only.includes(fixture.name))
 

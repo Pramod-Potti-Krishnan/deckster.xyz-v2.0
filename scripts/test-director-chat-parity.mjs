@@ -7,6 +7,7 @@ import React from 'react'
 import * as jsxRuntime from 'react/jsx-runtime'
 import ReactMarkdown from 'react-markdown'
 import { renderToStaticMarkup } from 'react-dom/server'
+import { stripWelcomeTrim } from './studio-welcome-trim-strip.mjs' // LATER-CHANGES: registry read (STUDIO-WELCOME-TRIM): a registered later change's marked lines come out of a source before it is loaded
 
 // Execute the actual MessageList/QuestionCard offline with isolated hook state.
 // Transport, timers and all effects are refused; receipts are synthetic renders.
@@ -40,7 +41,7 @@ function load(source, studio = true) {
   vm.runInNewContext(compiled.outputText, { module: mod, exports: mod.exports, process: { env: { NEXT_PUBLIC_STUDIO_V4_SHELL: studio ? 'true' : 'false' } }, fetch: refuse, setTimeout: refuse, clearTimeout: refuse, require: name => { assert.ok(name in imports, `Unexpected fixture dependency ${name}`); return imports[name] } })
   return mod.exports
 }
-const read = name => fs.readFileSync(new URL(`../${name}`, import.meta.url), 'utf8')
+const read = name => stripWelcomeTrim(name, fs.readFileSync(new URL(`../${name}`, import.meta.url), 'utf8')) // LATER-CHANGES: registry read (STUDIO-WELCOME-TRIM)
 const fromGit = (ref, name) => execFileSync('git', ['show', `${ref}:${name}`], { encoding: 'utf8' })
 for (const name of ['user-message-attachments', 'build-progress-visibility', 'director-transcript', 'director-chat-history', 'director-ask-identity', 'director-history-presentation', 'studio-greeting-lifecycle']) imports[`@/lib/${name}`] = load(read(`lib/${name}.ts`))
 const cardSource = read('components/builder/chat/question-card.tsx')

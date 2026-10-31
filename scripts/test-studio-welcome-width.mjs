@@ -26,7 +26,7 @@ const nodeRequire = createRequire(path.join(repoRoot, 'package.json'))
 const React = nodeRequire('react')
 const jsxRuntime = nodeRequire('react/jsx-runtime')
 const { renderToStaticMarkup } = nodeRequire('react-dom/server')
-const read = rel => fs.readFileSync(path.join(repoRoot, rel), 'utf8')
+const read = rel => stripLaterChanges(rel, fs.readFileSync(path.join(repoRoot, rel), 'utf8')) // LATER-CHANGES: registry read (STUDIO-WELCOME-TRIM): a registered later change's marked lines come out of a source before it is read
 
 const LIB = 'lib/studio-welcome-width.ts'
 const WELCOME = 'components/builder/chat/studio-welcome.tsx'
