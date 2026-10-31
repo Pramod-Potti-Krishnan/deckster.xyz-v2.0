@@ -467,12 +467,13 @@ function matchComplex(el, steps, anchor = null, k = steps.length - 1) {
 const ancestors = el => { const out = []; for (let p = el.parent; p; p = p.parent) out.push(p); return out }
 const node = (tag, attrs = {}, children = []) => { const n = { tag, attrs, children, parent: null }; for (const c of children) c.parent = n; return n }
 /** The Studio workspace markup the stylesheet sees (the parts its rules name), with the stage's attributes from the page and the chat's welcome or not. */
-function workspaceDom({ stageAttrs, chatVisible = true, welcome }) {
+function workspaceDom({ stageAttrs, chatVisible = true, welcome, columnWide = false }) {
   const transcript = node('div', {}, welcome
     ? [node('section', { 'data-studio-director-welcome': 'true', 'data-studio-first-run': 'true' }), node('section', { 'data-studio-first-run-starters': 'true' })]
     : [node('div', { 'data-studio-director-message': 'user' }), node('div', { 'data-studio-director-message': 'director' })])
   const chat = node('div', { 'data-studio-workspace-drawer': 'deck', 'data-studio-workspace-visible': String(chatVisible) }, [
-    node('div', { 'data-studio-workspace-content': 'true' }, [node('div', { 'data-radix-scroll-area-viewport': '' }, [node('div', {}, [transcript])]), node('div', { 'data-studio-v4-composer': 'true' })]),
+    node('div', { 'data-studio-workspace-content': 'true' }, [node('div', { 'data-radix-scroll-area-viewport': '' }, [node('div', {}, [transcript])]), node('div', { 'data-studio-v4-composer': 'true' }),
+      ...(columnWide ? [node('header', { 'data-studio-director-header': 'true', 'data-studio-chat-column-wide': 'true' })] : [])]), // #555's marker (its Director header), only in the "#555 on" cases
   ])
   const handle = node('div', { 'data-studio-drawer-handle': 'director' })
   const resize = node('div', { 'data-studio-workspace-resize': 'chat' })
@@ -693,9 +694,9 @@ check('FLAG OFF: every scenario renders byte-identical to the base page and styl
 function cssChecks(cssText) {
   const RULES_ON = cssRules(cssText), CSS_NOW = cssText
   const gateRules = RULES_ON.filter(r => STAGE_OPEN_GATE_MARKER_RE.test(CSS_NOW.split('\n').find(line => line.startsWith(r.selector)) ?? ''))
-  assert.equal(gateRules.length, 12, 'twelve rules: eight for the layout, four for the edges (F-10)')
+  assert.equal(gateRules.length, 13, 'thirteen rules: eight for the layout, four for the edges and one for the composer under #555\'s wide column (F-10)')
   for (const r of gateRules) {
-    assert.match(r.selector, /^\[data-studio-v4-shell="true"\] \[data-studio-v4-shell-workspace\]:has\(> \[data-studio-v4-shell-presentation\]\[data-studio-stage-gate="closed"\](\[data-studio-stage-gate-width="560"\])?\):has\(\[data-studio-workspace-drawer="deck"\]\[data-studio-workspace-visible="true"\]\):not\(:has\(\[data-studio-workspace-drawer="deck"\] \[data-studio-first-run\]\)\) /, r.selector.slice(0, 120))
+    assert.match(r.selector, /^\[data-studio-v4-shell="true"\](:has\(\[data-studio-chat-column-wide="true"\]\))? \[data-studio-v4-shell-workspace\]:has\(> \[data-studio-v4-shell-presentation\]\[data-studio-stage-gate="closed"\](\[data-studio-stage-gate-width="560"\])?\):has\(\[data-studio-workspace-drawer="deck"\]\[data-studio-workspace-visible="true"\]\):not\(:has\(\[data-studio-workspace-drawer="deck"\] \[data-studio-first-run\]\)\) /, r.selector.slice(0, 120))
   }
   assert.equal(otherStrips(CSS, stripStageOpenGate(CSS, CSS_NOW)), otherStrips(CSS, git('show', `${BASE_COMMIT}:${CSS}`)), 'the stylesheet without this change\'s lines is dev\'s')
   assert.doesNotMatch(stripStageOpenGate(CSS, CSS_NOW), /data-studio-stage-gate/, 'no other rule names the attribute')
@@ -715,8 +716,8 @@ function cssChecks(cssText) {
   // F-10: the column and the composer read #555's token, with today's widths as the exact fallbacks
   const widthsOf = sel => gateRules.filter(r => r.selector.endsWith(sel)).flatMap(r => r.decls.filter(d => d.prop === 'width').map(d => d.value))
   assert.deepEqual(widthsOf('[data-radix-scroll-area-viewport] > div > div > *'), ['var(--studio-chat-conversation-column, min(100%, 620px))', 'var(--studio-chat-conversation-column, min(100%, 560px))'], 'the column: the token, else today\'s 620 / 560')
-  assert.deepEqual(widthsOf('[data-studio-v4-composer]'), ['min(100%, calc(var(--studio-chat-conversation-column, 644px) + 24px))', 'min(100%, calc(var(--studio-chat-conversation-column, 560px) + 24px))'], 'the composer: the column + its 24px padding (lib/studio-welcome-width.ts), else today\'s 668 / 584')
-  assert.equal((CSS_NOW.match(/--studio-chat-conversation-column/g) || []).length, 4 + 1, 'the token is read in the four width rules (and named once in a comment)')
+  assert.deepEqual(widthsOf('[data-studio-v4-composer]'), ['min(100%, calc(var(--studio-chat-conversation-column, 644px) + 24px))', 'min(100%, calc(var(--studio-chat-conversation-column, 560px) + 24px))', '100%'], 'the composer: the column + its 24px padding (lib/studio-welcome-width.ts), else today\'s 668 / 584; under #555\'s marker the element spans the area (its padding centres the column)')
+  assert.equal(gateRules.flatMap(r => r.decls).filter(d => d.value.includes('var(--studio-chat-conversation-column')).length, 5, 'the token is read in five declarations: the two columns, the two composers and the wide composer\'s padding')
   assert.doesNotMatch(CSS_NOW.split('\n').filter(line => STAGE_OPEN_GATE_MARKER_RE.test(line)).join('\n'), /--studio-chat-conversation-column\s*:/, 'never defined here: #555 defines it (NEXT_PUBLIC_STUDIO_CHAT_COLUMN_WIDE)')
   // the older pins (test-studio-welcome-width, test-studio-first-run-v2) find the welcome's rules by their literal text and mutate its FIRST occurrence: none of those literals may appear in this change's lines
   for (const literal of ['width: min(620px, 100%)', 'width: min(668px, 100%)', 'max-width: 620px;', 'width: min(560px, 100%)', 'calc(560px + 24px)', 'data-studio-first-run-width', 'data-studio-first-run-stage']) {
@@ -753,17 +754,19 @@ function cssLength(expr, { cb, vw, vars = {} }) {
     const m = /^(-?\d+(?:\.\d+)?)(px|%|vw)/.exec(src.slice(i)); if (!m) throw new Error(`unknown length at "${src.slice(i, i + 24)}"`); i += m[0].length
     return m[2] === 'px' ? Number(m[1]) : m[2] === '%' ? Number(m[1]) * cb / 100 : Number(m[1]) * vw / 100
   }
-  const sum = () => { let v = atom(); for (;;) { ws(); const op = src[i]; if ((op === '+' || op === '-') && /\s/.test(src[i + 1] || '')) { i++; v = op === '+' ? v + atom() : v - atom() } else return v } }
+  const num = () => { ws(); const m = /^-?\d+(?:\.\d+)?(?![\w%])/.exec(src.slice(i)); if (!m) throw new Error(`a plain number expected at "${src.slice(i, i + 12)}"`); i += m[0].length; return Number(m[0]) }
+  const product = () => { let v = atom(); for (;;) { ws(); const op = src[i]; if (op === '*' || op === '/') { i++; v = op === '*' ? v * num() : v / num() } else return v } }
+  const sum = () => { let v = product(); for (;;) { ws(); const op = src[i]; if ((op === '+' || op === '-') && /\s/.test(src[i + 1] || '')) { i++; v = op === '+' ? v + product() : v - product() } else return v } }
   const v = sum(); ws(); if (i !== src.length) throw new Error(`trailing "${src.slice(i)}"`); return v
 }
 /** A MIRROR of #555's tokens at e6d0e603 (components/builder/chat/studio-chat-column-wide.css:5-8, NEXT_PUBLIC_STUDIO_CHAT_COLUMN_WIDE on), copied here as text: #554 reads no #555 code, and the token-absent (fallback) cases above are the main proof. The 8px keeps a 16px gutter beside the 12px scroll padding. */
 const TOKEN_555 = { '--studio-chat-conversation-column': 'min(clamp(640px, 50vw, 1000px), 100% - 8px)', '--studio-chat-welcome-column': 'min(clamp(640px, 44vw, 880px), 100% - 8px)' }
 const BASE_554_CSS = (() => { try { return git('show', `3e3973c2b14a9342319953e2fc6e8c917c17f777:${CSS}`) } catch { return null } })() // #554 before F-10: "today's" closed-gate widths
 /** The winning width (the last matching rule in source order: the 560 rules come after, and are more specific than, the plain ones) for the column (a transcript row) and the composer. */
-function closedWidths(rules, { width560 = false } = {}) {
-  const dom = workspaceDom({ stageAttrs: { 'data-studio-stage-gate': 'closed', ...(width560 ? { 'data-studio-stage-gate-width': '560' } : {}) }, welcome: false })
-  const last = el => declsFor(rules, el).filter(d => d.prop === 'width').map(d => d.value).pop()
-  return { column: last(dom.transcript.children[0]), composer: last(dom.composer) }
+function closedWidths(rules, { width560 = false, columnWide = false } = {}) {
+  const dom = workspaceDom({ stageAttrs: { 'data-studio-stage-gate': 'closed', ...(width560 ? { 'data-studio-stage-gate-width': '560' } : {}) }, welcome: false, columnWide })
+  const last = (el, prop) => declsFor(rules, el).filter(d => d.prop === prop).map(d => d.value).pop() ?? null
+  return { column: last(dom.transcript.children[0], 'width'), composer: last(dom.composer, 'width'), composerPadding: last(dom.composer, 'padding-inline') }
 }
 function cascadeChecks(cssText) {
   const rules = cssRules(cssText)
@@ -776,15 +779,22 @@ function cascadeChecks(cssText) {
       for (const part of ['column', 'composer']) {
         assert.equal(cssLength(now[part], { cb, vw }), cssLength(was[part], { cb, vw }), `token absent (${width560 ? '560' : 'plain'}, ${vw}px): the ${part} is today's width`)
       }
-      const col = cssLength(now.column, { cb, vw, vars: TOKEN_555 }), want = Math.min(Math.max(640, vw / 2), 1000, cb - 8)
-      assert.equal(col, want, `token present (${vw}px): the column is #555's clamp(640px, 50vw, 1000px), capped at the panel less 8px`)
-      assert.equal(cssLength(now.composer, { cb, vw, vars: TOKEN_555 }), Math.min(cb, want + 24), `token present (${vw}px): the composer is the column + 24px, capped at the panel (the same box: the token's 100% is resolved where it is used)`)
+      assert.equal(now.composerPadding, null, 'without #555\'s marker the composer\'s padding is left as it is (12px, or 16px with chat clean)')
+      const wide = closedWidths(rules, { width560, columnWide: true })
+      const col = cssLength(wide.column, { cb, vw, vars: TOKEN_555 }), want = Math.min(Math.max(640, vw / 2), 1000, cb - 8)
+      assert.equal(col, want, `#555 on (${vw}px): the column is #555's clamp(640px, 50vw, 1000px), capped at the panel less 8px`)
+      const el = cssLength(wide.composer, { cb, vw, vars: TOKEN_555 }), pad = cssLength(wide.composerPadding, { cb, vw, vars: TOKEN_555 })
+      assert.equal(el, cb, `#555 on (${vw}px): the composer element spans the chat area`)
+      assert.equal(el - 2 * pad, Math.min(col, cb - 32), `#555 on (${vw}px): the composer's VISIBLE box is the column exactly (whatever its own 12/16px padding was), or the area less a 16px gutter each side`)
     }
   }
   assert.equal(cssLength('var(--studio-chat-conversation-column, min(100%, 620px))', { cb: 1531, vw: 1600, vars: TOKEN_555 }), 800, '1600px window: an 800px (50%) column')
+  // the marker rule never changes the no-#555 case: with no marker in the page it matches nothing, whatever the token
+  const plain = workspaceDom({ stageAttrs: { 'data-studio-stage-gate': 'closed' }, welcome: false })
+  assert.equal(declsFor(rules.filter(r => r.selector.includes('data-studio-chat-column-wide')), plain.composer).length, 0, 'no #555 marker: the composer rule for the wide column does not match')
   assert.equal(cssLength('var(--studio-chat-conversation-column, min(100%, 620px))', { cb: 1371, vw: 1440, vars: TOKEN_555 }), 720, '1440px window: a 720px (50%) column')
 }
-check('F-10: the column and the composer read #555\'s --studio-chat-conversation-column with exact fallbacks; computed through the real stylesheet: token absent = #554\'s widths before F-10 (8 windows x plain/560), token present = clamp(640px, 50vw, 1000px) and the composer = column + 24px', () => cascadeChecks(CSS_NOW))
+check('F-10: the column and the composer read #555\'s --studio-chat-conversation-column with exact fallbacks; computed through the real stylesheet: token absent = #554\'s widths before F-10 (8 windows x plain/560), #555 on = clamp(640px, 50vw, 1000px), and the composer's visible box = the column exactly (the element spans the area, its padding centres the box)', () => cascadeChecks(CSS_NOW))
 
 // ===== 4c. F-10: the edges on the REAL message rows (MessageList rendered with DIRECTOR-2's recorded frames: the user's turns, the clarifying card, the plan card) =================
 const ML_ENV = { [SHELL]: 'true', [FIRST_RUN_V2]: 'true' }
@@ -1199,6 +1209,8 @@ f10Mutant('the composer without its 24px inset', 'calc(var(--studio-chat-convers
 f10Mutant('a misspelt token', 'var(--studio-chat-conversation-column, min(100%, 620px))', 'var(--studio-chat-conversation-col, min(100%, 620px))')
 f10Mutant('user rows not packed right', '[data-studio-director-message="user"] { justify-content: flex-end; margin-inline: 0; }', '[data-studio-director-message="user"] { margin-inline: 0; }')
 f10Mutant('the user bubble not pinned to the right edge', '[data-studio-director-message="user"] > div:first-child { margin-inline: auto 0; }', '[data-studio-director-message="user"] > div:first-child { margin-inline: 0; }')
+f10Mutant('the wide composer keeps "column + padding" (8px short with chat clean)', 'width: 100%; padding-inline: max(16px, calc((100% - var(--studio-chat-conversation-column, 100%)) / 2));', 'width: min(100%, calc(var(--studio-chat-conversation-column, 644px) + 24px));')
+f10Mutant('the wide composer rule without #555\'s marker (would change the no-#555 page)', '[data-studio-v4-shell="true"]:has([data-studio-chat-column-wide="true"]) [data-studio-v4-shell-workspace]', '[data-studio-v4-shell="true"] [data-studio-v4-shell-workspace]')
 f10Mutant('Director content not filling the column', '> :not([data-studio-director-part="avatar"]) { flex: 1 1 auto; min-width: 0; max-width: none; margin-inline: 0; }', '> :not([data-studio-director-part="avatar"]) { min-width: 0; margin-inline: 0; }')
 mutant('stylesheet: a gate rule without the attribute (would apply flag off)', () => {
   const css = CSS_NOW.replace('/* PASS2D W', '[data-studio-v4-shell="true"] [data-studio-v4-shell-workspace]:has([data-studio-workspace-drawer="deck"][data-studio-workspace-visible="true"]):not(:has([data-studio-workspace-drawer="deck"] [data-studio-first-run])) [data-studio-v4-shell-presentation] { visibility: hidden; } /* STUDIO-STAGE-OPEN-GATE */\n/* PASS2D W')
