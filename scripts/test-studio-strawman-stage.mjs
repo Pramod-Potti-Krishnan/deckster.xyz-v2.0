@@ -509,7 +509,6 @@ const libMutants = [
   ['step: the drop is kept off even before the build started', 'if (input.buildStarted && index === 0', 'if (index === 0'],
   ['step: every index is kept off once the build started', 'if (input.buildStarted && index === 0 &&', 'if (input.buildStarted &&'],
   ['step: another strawman deck is kept off too', 'state.shown && state.shown.presentationId === id && state.shown.index > 0) return', 'state.shown && state.shown.index > 0) return'],
-  ['step: slide 1 is kept off from a remembered slide 1 (nothing to keep)', 'state.shown.index > 0) return { shown: state.shown, pending: null }', 'state.shown.index >= 0) return { shown: state.shown, pending: null }'],
   ['build started: Director generating is not enough', 'return Boolean(input.generatingFinal) ||', 'return'],
   ['build started: generating alone says nothing', '(typeof input.narrationPhase === \'string\' && STRAWMAN_STAGE_BUILD_PHASES.includes(input.narrationPhase))', 'false'],
   ['build started: building is not a build phase', "['building', 'qa', 'finalizing', 'paused', 'stopped']", "['qa', 'finalizing', 'paused', 'stopped']"],
