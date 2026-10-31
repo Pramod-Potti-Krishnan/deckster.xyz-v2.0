@@ -756,8 +756,8 @@ function cssLength(expr, { cb, vw, vars = {} }) {
   const sum = () => { let v = atom(); for (;;) { ws(); const op = src[i]; if ((op === '+' || op === '-') && /\s/.test(src[i + 1] || '')) { i++; v = op === '+' ? v + atom() : v - atom() } else return v } }
   const v = sum(); ws(); if (i !== src.length) throw new Error(`trailing "${src.slice(i)}"`); return v
 }
-/** #555's tokens, exactly as B51 defines them (NEXT_PUBLIC_STUDIO_CHAT_COLUMN_WIDE on). */
-const TOKEN_555 = { '--studio-chat-conversation-column': 'min(clamp(640px, 50vw, 1000px), 100%)', '--studio-chat-welcome-column': 'min(clamp(640px, 44vw, 880px), 100%)' }
+/** A MIRROR of #555's tokens at e6d0e603 (components/builder/chat/studio-chat-column-wide.css:5-8, NEXT_PUBLIC_STUDIO_CHAT_COLUMN_WIDE on), copied here as text: #554 reads no #555 code, and the token-absent (fallback) cases above are the main proof. The 8px keeps a 16px gutter beside the 12px scroll padding. */
+const TOKEN_555 = { '--studio-chat-conversation-column': 'min(clamp(640px, 50vw, 1000px), 100% - 8px)', '--studio-chat-welcome-column': 'min(clamp(640px, 44vw, 880px), 100% - 8px)' }
 const BASE_554_CSS = (() => { try { return git('show', `3e3973c2b14a9342319953e2fc6e8c917c17f777:${CSS}`) } catch { return null } })() // #554 before F-10: "today's" closed-gate widths
 /** The winning width (the last matching rule in source order: the 560 rules come after, and are more specific than, the plain ones) for the column (a transcript row) and the composer. */
 function closedWidths(rules, { width560 = false } = {}) {
@@ -776,9 +776,9 @@ function cascadeChecks(cssText) {
       for (const part of ['column', 'composer']) {
         assert.equal(cssLength(now[part], { cb, vw }), cssLength(was[part], { cb, vw }), `token absent (${width560 ? '560' : 'plain'}, ${vw}px): the ${part} is today's width`)
       }
-      const col = cssLength(now.column, { cb, vw, vars: TOKEN_555 }), want = Math.min(Math.max(640, vw / 2), 1000, cb)
-      assert.equal(col, want, `token present (${vw}px): the column is #555's clamp(640px, 50vw, 1000px), capped at the panel`)
-      assert.equal(cssLength(now.composer, { cb, vw, vars: TOKEN_555 }), Math.min(cb, want + 24), `token present (${vw}px): the composer is the column + 24px, capped at the panel`)
+      const col = cssLength(now.column, { cb, vw, vars: TOKEN_555 }), want = Math.min(Math.max(640, vw / 2), 1000, cb - 8)
+      assert.equal(col, want, `token present (${vw}px): the column is #555's clamp(640px, 50vw, 1000px), capped at the panel less 8px`)
+      assert.equal(cssLength(now.composer, { cb, vw, vars: TOKEN_555 }), Math.min(cb, want + 24), `token present (${vw}px): the composer is the column + 24px, capped at the panel (the same box: the token's 100% is resolved where it is used)`)
     }
   }
   assert.equal(cssLength('var(--studio-chat-conversation-column, min(100%, 620px))', { cb: 1531, vw: 1600, vars: TOKEN_555 }), 800, '1600px window: an 800px (50%) column')
