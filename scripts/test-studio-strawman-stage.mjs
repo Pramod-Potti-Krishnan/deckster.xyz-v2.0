@@ -358,7 +358,7 @@ function sourceSuite(sources, { base = null } = {}) {
   for (const line of [phaseLine, planLine, hookLine]) ok(page.indexOf(line) < selectAt, 'page: decided before the outline canvas is selected')
   ok(page.indexOf(phaseLine) > page.indexOf('const effectiveActiveVersion = ') && page.indexOf(phaseLine) > page.indexOf('const effectiveSlideCount = ') && page.indexOf(phaseLine) > page.indexOf('const [layoutServiceApis') && page.indexOf(phaseLine) > page.indexOf('const [studioViewerSafety'), 'page: ...after everything it reads')
   // the one thing that turns the outline canvas off: the flag, inside the selection, after its own enabled
-  const spread = lineOf(page, '...(STUDIO_STRAWMAN_STAGE_ENABLED ? { enabled: false } : {}), // STRAWMAN-STAGE')
+  const spread = lineOf(page, '...(STUDIO_STRAWMAN_STAGE_ENABLED && strawmanPreviewUrl ? { enabled: false } : {}), // STRAWMAN-STAGE')
   const selectEnd = page.indexOf('\n  })\n', selectAt)
   ok(page.indexOf(spread) > selectAt && page.indexOf(spread) < selectEnd, 'page: the spread is inside the outline canvas selection')
   ok(page.indexOf(spread) > page.indexOf('enabled: STUDIO_OUTLINE_CANVAS_ENABLED && studioShell,', selectAt), 'page: ...after its own enabled, so it wins')
@@ -520,9 +520,10 @@ const planMutants = [
   ['the strip is not labelled', ' aria-label="Slide plan"', ''],
 ]
 const sourceMutants = [
-  ['page: the outline canvas stays on', '...(STUDIO_STRAWMAN_STAGE_ENABLED ? { enabled: false } : {}), // STRAWMAN-STAGE: no separate outline design over the deck viewer', '// STRAWMAN-STAGE: no separate outline design over the deck viewer', PAGE],
-  ['page: the outline canvas goes off without the flag', '...(STUDIO_STRAWMAN_STAGE_ENABLED ? { enabled: false } : {}), // STRAWMAN-STAGE', '...({ enabled: false }), // STRAWMAN-STAGE', PAGE],
-  ['page: the outline canvas is turned off by the phase, not the flag', '...(STUDIO_STRAWMAN_STAGE_ENABLED ? { enabled: false } : {}), // STRAWMAN-STAGE', "...(studioStrawmanPhase === 'strawman' ? { enabled: false } : {}), // STRAWMAN-STAGE", PAGE],
+  ['page: the outline canvas stays on', '...(STUDIO_STRAWMAN_STAGE_ENABLED && strawmanPreviewUrl ? { enabled: false } : {}), // STRAWMAN-STAGE: no separate outline design over the deck viewer', '// STRAWMAN-STAGE: no separate outline design over the deck viewer', PAGE],
+  ['page: the outline canvas goes off without the flag', '...(STUDIO_STRAWMAN_STAGE_ENABLED && strawmanPreviewUrl ? { enabled: false } : {}), // STRAWMAN-STAGE', '...({ enabled: false }), // STRAWMAN-STAGE', PAGE],
+  ['page: the outline canvas goes off even without a preview deck', '...(STUDIO_STRAWMAN_STAGE_ENABLED && strawmanPreviewUrl ? { enabled: false } : {}), // STRAWMAN-STAGE', '...(STUDIO_STRAWMAN_STAGE_ENABLED ? { enabled: false } : {}), // STRAWMAN-STAGE', PAGE],
+  ['page: the outline canvas is turned off by the phase, not the flag', '...(STUDIO_STRAWMAN_STAGE_ENABLED && strawmanPreviewUrl ? { enabled: false } : {}), // STRAWMAN-STAGE', "...(studioStrawmanPhase === 'strawman' ? { enabled: false } : {}), // STRAWMAN-STAGE", PAGE],
   ['page: the strip is drawn in every phase', "{studioStrawmanPhase === 'strawman' && <StudioStrawmanPlan", '{studioStrawmanPhase !== null && <StudioStrawmanPlan', PAGE],
   ['page: the strip is drawn with the flag off', "{studioStrawmanPhase === 'strawman' && <StudioStrawmanPlan", '{<StudioStrawmanPlan', PAGE],
   ['page: the strip is drawn without a plan', "<StudioStrawmanPlan plan={studioStrawmanPlan} />", '<StudioStrawmanPlan plan={null} />', PAGE],
