@@ -15,7 +15,9 @@
 [data-studio-v4-shell="true"]:has([data-studio-chat-column-wide="true"]) [data-studio-v4-shell-workspace]:has(> [data-studio-v4-shell-presentation][data-studio-first-run-stage="true"]):has([data-studio-workspace-drawer="deck"][data-studio-workspace-visible="true"] [data-studio-first-run][data-studio-director-welcome]) [data-studio-director-welcome][data-studio-first-run] {
   max-width: var(--studio-chat-welcome-column);
 }
-/* The composer element is the column plus its own 12 px padding each side (24 px), so the box you see is the column; capped like the column, so a narrow window keeps the same gutter. */
+/* The composer's VISIBLE box is the column. The composer element's own side padding is 12 px (p-3) on its own and 16 px with the chat-clean flag (studio-chat-clean.css), so "column + the padding" would leave the box 8 px short in the live build: instead the
+   element spans the chat area and its side padding is whatever centres a box of exactly the column's width (never under 16 px, the gutter of a narrow window). A percentage in padding is relative to the element's containing block, as the token's 100% is. */
 [data-studio-v4-shell="true"]:has([data-studio-chat-column-wide="true"]) [data-studio-v4-shell-workspace]:has(> [data-studio-v4-shell-presentation][data-studio-first-run-stage="true"]):has([data-studio-workspace-drawer="deck"][data-studio-workspace-visible="true"] [data-studio-first-run][data-studio-director-welcome]) [data-studio-v4-composer] {
-  width: min(calc(var(--studio-chat-welcome-column) + 24px), 100% - 8px);
+  width: 100%;
+  padding-inline: max(16px, calc((100% - var(--studio-chat-welcome-column)) / 2));
 }

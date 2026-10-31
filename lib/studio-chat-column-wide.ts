@@ -22,8 +22,8 @@ export const STUDIO_CHAT_CONVERSATION_COLUMN_TOKEN = '--studio-chat-conversation
 export const STUDIO_CHAT_WELCOME_COLUMN_VALUE = 'min(clamp(640px, 44vw, 880px), 100% - 8px)'
 export const STUDIO_CHAT_CONVERSATION_COLUMN_VALUE = 'min(clamp(640px, 50vw, 1000px), 100% - 8px)'
 
-/** The composer's own padding on both sides (its p-3, 12 px each, as lib/studio-welcome-width.ts documents): its element is the column plus this, so the VISIBLE box is as wide as the column. The stylesheet's `24px` must equal it. */
-export const STUDIO_CHAT_COMPOSER_INSET_PX = 24
+/** The least side padding the composer element keeps (the narrow-window gutter). Its VISIBLE box is the column: the element spans the chat area and centres the box with its side padding, whatever the element's own padding is (12 px, or 16 px with the chat-clean flag). */
+export const STUDIO_CHAT_COMPOSER_MIN_GUTTER_PX = 16
 
 /** True only for the exact string "true". Read when called (a proof sets the variable per case); the build inlines `process.env.NEXT_PUBLIC_STUDIO_CHAT_COLUMN_WIDE` here as it does for every other flag. */
 export function studioChatColumnWideOn(): boolean {

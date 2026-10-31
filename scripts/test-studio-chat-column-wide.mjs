@@ -9,7 +9,7 @@
 //  2. the tokens: exact names, the exact strings of lib/studio-chat-column-wide.ts, defined once, only in a rule keyed to the marker, and what they evaluate to (640 px at 1440, 704 at 1600, 880 from 2000, never over the cap, the 16 px gutter on a narrow window);
 //  3. every rule is keyed to the marker, and every rule but the token rule to the first-run stage, so the docked panel and every flag-off page match nothing;
 //  4. the cascade, on the REAL stylesheets: each rule of this change is more specific than every rule of studio-first-run.css that sets the same property on the same elements (the 620 / 668 rules and the 560 rules), with no !important anywhere, so it wins whatever the order;
-//  5. the welcome blocks it covers are exactly the ones today's rules size, and the composer is the column plus its own 24 px padding (so the visible box is the column);
+//  5. the welcome blocks it covers are exactly the ones today's rules size, and the composer's visible box is the column (the element spans the chat area and its side padding centres the box);
 //  6. scope over the COMMITTED diff, GATE-SAFE (subject across `rev-list --no-merges BASE..head`, HEAD^2 on the gate's merge, registry / .env.example / strip reads past a synthetic later change, no hash-object --stdin);  7. mutants are caught.
 import assert from 'node:assert/strict'
 import crypto from 'node:crypto'
@@ -211,7 +211,7 @@ await check('cascade: each rule of this change is MORE specific than every rule 
   assert.ok(widths.length >= 5, 'the 620 / 668 / 560 rules are among those compared')
   for (const other of widths.filter(rule => TARGETS.some(([, test]) => test(rule.selector)))) assert.ok(TARGETS.some(([, test]) => test(other.selector)))
 })
-await check('coverage and the composer inset: the rules size exactly the elements today\'s 620 / 668 / 560 rules size, and the composer ELEMENT is the column plus its own 24 px padding (the visible box is the column), capped like the column; every block uses the welcome token', () => {
+await check('coverage and the composer: the rules size exactly the elements today\'s 620 / 668 / 560 rules size; every block uses the welcome token; the composer ELEMENT spans the chat area and its side padding centres a visible box of exactly the column (whatever its own padding is: 12 px, or 16 px with chat clean), never under a 16 px gutter', () => {
   const ours = mine().flatMap(rule => rule.selectors.map(selector => ({ selector, decls: rule.decls }))).filter(rule => rule.selector !== TOKEN_SELECTOR)
   const sized = ruleList(firstRunText).flatMap(rule => rule.selectors.map(selector => ({ selector, decls: rule.decls }))).filter(rule => rule.decls.some(decl => (decl.prop === 'width' || decl.prop === 'max-width') && /(620|668|560)px/.test(decl.value)))
   const kinds = rules => new Set(rules.map(rule => TARGETS.find(([, test]) => test(rule.selector))?.[0]))
@@ -219,10 +219,14 @@ await check('coverage and the composer inset: the rules size exactly the element
   const value = (rule, prop) => rule.decls.find(decl => decl.prop === prop)?.value
   assert.equal(value(ours.find(rule => TARGETS[0][1](rule.selector)), 'width'), 'var(--studio-chat-welcome-column)')
   assert.equal(value(ours.find(rule => TARGETS[1][1](rule.selector)), 'max-width'), 'var(--studio-chat-welcome-column)')
-  assert.equal(value(ours.find(rule => TARGETS[2][1](rule.selector)), 'width'), `min(calc(var(--studio-chat-welcome-column) + ${lib.STUDIO_CHAT_COMPOSER_INSET_PX}px), 100% - 8px)`)
-  assert.equal(lib.STUDIO_CHAT_COMPOSER_INSET_PX, 24, 'the p-3 inset, 12 px each side'); assert.match(read('lib/studio-welcome-width.ts'), /STUDIO_WELCOME_COMPOSER_INSET_PX = 24/); assert.match(read('components/builder/chat-input.tsx'), /\bp-3\b/)
+  const composer = ours.find(rule => TARGETS[2][1](rule.selector))
+  assert.equal(value(composer, 'width'), '100%'); assert.equal(value(composer, 'padding-inline'), `max(${lib.STUDIO_CHAT_COMPOSER_MIN_GUTTER_PX}px, calc((100% - var(--studio-chat-welcome-column)) / 2))`)
+  assert.equal(lib.STUDIO_CHAT_COMPOSER_MIN_GUTTER_PX, 16)
+  assert.match(read('components/builder/studio-chat-clean.css'), /\[data-studio-chat-clean\] \[data-studio-v4-composer\] \{ padding: 8px 16px 10px;/, 'the live composer padding is 16 px (chat clean), 12 px without it (p-3): why the box is centred by padding, not by "column + 24"'); assert.match(read('components/builder/chat-input.tsx'), /\bp-3\b/)
   assert.ok(!ours.some(rule => /\b(620|668|560)px\b/.test(rule.decls.map(decl => decl.value).join(' '))), 'no old width survives in the new rules')
-  const evaluated = evaluate(lib.STUDIO_CHAT_WELCOME_COLUMN_VALUE, 1600, 5000) + lib.STUDIO_CHAT_COMPOSER_INSET_PX; assert.equal(evaluated, 704 + 24, 'composer element at 1600: 728 px, its visible box 704 px')
+  // the box the padding leaves, for the chat area the composer sits in: the column exactly, or the narrow-window gutter
+  const box = (area, column) => area - 2 * Math.max(16, (area - column) / 2)
+  assert.equal(box(1532, evaluate(lib.STUDIO_CHAT_WELCOME_COLUMN_VALUE, 1600, 1532)), 704); assert.equal(box(1372, evaluate(lib.STUDIO_CHAT_WELCOME_COLUMN_VALUE, 1440, 1372)), 640); assert.equal(box(360, evaluate(lib.STUDIO_CHAT_WELCOME_COLUMN_VALUE, 420, 360)), 328)
 })
 
 // ===== 6. scope =================================================================================================================================================
@@ -420,7 +424,8 @@ const cascadeOf = text => { const ours = ruleList(text).flatMap(rule => rule.sel
 await mutant('the composer rule is less specific than the 560 rule (it would lose to it)', () => cascadeOf(swap(cssText, '[data-studio-first-run][data-studio-director-welcome]) [data-studio-v4-composer] {', '[data-studio-first-run]) [data-studio-v4-composer] {')))
 await mutant('the block rule is less specific than the 560 rule', () => cascadeOf(swap(cssText, '[data-studio-first-run][data-studio-director-welcome]) div:has(> [data-studio-first-run]) > * {', '[data-studio-first-run]) div:has(> [data-studio-first-run]) > * {')))
 await mutant('the shell no longer needs the marker (one specificity step lost on every rule)', () => cascadeOf(cssText.replace(/\[data-studio-v4-shell="true"\]:has\(\[data-studio-chat-column-wide="true"\]\) \[data-studio-v4-shell-workspace\]/g, '[data-studio-v4-shell="true"] [data-studio-v4-shell-workspace]')))
-await mutant('the composer inset is dropped (the visible box would be 24 px narrower than the column)', () => { const text = swap(cssText, 'min(calc(var(--studio-chat-welcome-column) + 24px), 100% - 8px)', 'min(var(--studio-chat-welcome-column), 100% - 8px)'); assert.match(ruleList(text).find(rule => rule.selectors[0].endsWith('[data-studio-v4-composer]')).decls[0].value, /\+ 24px/) })
+await mutant('the composer padding is dropped (the visible box would be the element less its own 12 or 16 px: narrower than the column)', () => { const text = swap(cssText, 'padding-inline: max(16px, calc((100% - var(--studio-chat-welcome-column)) / 2));', ''); assert.ok(ruleList(text).find(rule => rule.selectors[0].endsWith('[data-studio-v4-composer]')).decls.some(decl => decl.prop === 'padding-inline')) })
+await mutant('the composer padding loses its 16 px floor (a narrow window would touch the edge)', () => { const text = swap(cssText, 'padding-inline: max(16px, calc(', 'padding-inline: max(0px, calc('); assert.match(ruleList(text).find(rule => rule.selectors[0].endsWith('[data-studio-v4-composer]')).decls.find(decl => decl.prop === 'padding-inline').value, /^max\(16px/) })
 await mutant('an old width is left in a rule (620 px)', () => { const text = swap(cssText, 'width: var(--studio-chat-welcome-column);\n}', 'width: min(620px, 100%);\n}'); assert.ok(!ruleList(text).some(rule => rule.decls.some(decl => /620px/.test(decl.value)))) })
 await mutant('a marker line is mistyped (the strip would leave it behind)', () => assert.equal(stripChatColumnWide(HEADER, headerSrc.replace('import "./studio-chat-column-wide.css" // STUDIO-CHAT-COLUMN-WIDE', 'import "./studio-chat-column-wide.css" // STUDIO-CHAT-COLUMN-WIDEE')), baseText(HEADER)))
 await mutant('the pin is not put back (the tag keeps its spread after the strip)', () => assert.equal(stripChatColumnWide(HEADER, headerSrc.replace('{...studioChatColumnWideProps() /* STUDIO-CHAT-COLUMN-WIDE:', '{...studioChatColumnWideProps() /* STUDIO-CHAT-COLUMN-WIDEX:')), baseText(HEADER)))
