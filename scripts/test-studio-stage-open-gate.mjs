@@ -794,7 +794,7 @@ function cascadeChecks(cssText) {
   assert.equal(declsFor(rules.filter(r => r.selector.includes('data-studio-chat-column-wide')), plain.composer).length, 0, 'no #555 marker: the composer rule for the wide column does not match')
   assert.equal(cssLength('var(--studio-chat-conversation-column, min(100%, 620px))', { cb: 1371, vw: 1440, vars: TOKEN_555 }), 720, '1440px window: a 720px (50%) column')
 }
-check('F-10: the column and the composer read #555\'s --studio-chat-conversation-column with exact fallbacks; computed through the real stylesheet: token absent = #554\'s widths before F-10 (8 windows x plain/560), #555 on = clamp(640px, 50vw, 1000px), and the composer's visible box = the column exactly (the element spans the area, its padding centres the box)', () => cascadeChecks(CSS_NOW))
+check('F-10: the column and the composer read #555\'s --studio-chat-conversation-column with exact fallbacks; computed through the real stylesheet: token absent = #554\'s widths before F-10 (8 windows x plain/560), #555 on = clamp(640px, 50vw, 1000px), and the composer\'s visible box = the column exactly (the element spans the area, its padding centres the box)', () => cascadeChecks(CSS_NOW))
 
 // ===== 4c. F-10: the edges on the REAL message rows (MessageList rendered with DIRECTOR-2's recorded frames: the user's turns, the clarifying card, the plan card) =================
 const ML_ENV = { [SHELL]: 'true', [FIRST_RUN_V2]: 'true' }
