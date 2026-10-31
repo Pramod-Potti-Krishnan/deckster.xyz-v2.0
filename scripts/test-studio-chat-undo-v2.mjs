@@ -342,7 +342,7 @@ async function suite() {
   await check('strip: stripping this change gives back the base\'s message list byte for byte; every piece occurs once and every added line carries the marker; any other file is returned as it is', async () => {
     const mod = await stripFile()
     assert.deepEqual([...mod.CHAT_UNDO_V2_FILES], [LIST]); assert.equal(mod.BASE_COMMIT, REGISTRY_V2)
-    const head = read(LIST)
+    const head = (await import('./studio-strawman-chat-strip.mjs')).stripStrawmanChat(LIST, read(LIST)) // LATER-CHANGES: registry read (STRAWMAN-CHAT): the strip of the change stacked after this one, so its marked lines in the message list come out first
     assert.equal(mod.stripChatUndoV2(LIST, chatClean.stripChatClean(LIST, order.stripChatCleanOrder(LIST, head) /* LATER-CHANGES: registry read (CHAT-CLEAN-ORDER) */)), baseOf(LIST), 'stripped is the base\'s file') // LATER-CHANGES: registry read (CHAT-CLEAN): chat clean's marked lines in the message list come out first
     for (const [added, original] of mod.CHAT_UNDO_V2_CHANGES[LIST]) {
       assert.equal(head.split(added).length - 1, 1, 'a piece occurs once'); assert.ok(!baseOf(LIST).includes(added), 'the base does not hold a piece'); assert.equal(original, '')

@@ -48,6 +48,8 @@ export const STRAWMAN_CHAT_PIN_EDITS = {
   "scripts/test-studio-chat-element-edit.mjs": [[FIRST_PARENT_SUBJECT_LINE, ""]],
   // the first-parent scope check of test-studio-deck-sync-truth.mjs: the same
   "scripts/test-studio-deck-sync-truth.mjs": [[FIRST_PARENT_SUBJECT_LINE, ""]],
+  // chat undo v2's proof strips the message list with its own strip and chat clean's and the order change's: this change's marked lines in the list (an import and the early return for a standalone outline frame) come out first, in one line
+  "scripts/test-studio-chat-undo-v2.mjs": [[`    const head = (await import('./studio-strawman-chat-strip.mjs')).stripStrawmanChat(LIST, read(LIST)) // ${STRAWMAN_CHAT_PIN_MARK}: the strip of the change stacked after this one, so its marked lines in the message list come out first\n`, "    const head = read(LIST)\n"]],
 }
 
 /** The proof without this change's edits (the previous file). Used by the strip and the proof. */
