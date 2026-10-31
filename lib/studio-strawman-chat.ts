@@ -1,7 +1,8 @@
 // STRAWMAN CHAT (FRONTEND-1; PK's UAT feedback F-06, F-08, F-09, 30 Oct): the Director chat stops drawing what the stage already says.
 //
-//   F-08  The outline card in the chat no longer lists the slides (the numbered, scrolling title + type + chips list). Director's one-line "I've created an outline with N slides..." message and its
-//         "Looks perfect! / Make some changes" buttons are not touched; the card keeps its heading, the deck's title and its one summary line, and the canvas note.
+//   F-08  There is no outline card in the chat at all (PK 31 Oct; the first cut dropped only the numbered, scrolling title + type + chips list): the card renders nothing, and the Director row of a
+//         standalone outline frame is not drawn either. Director's one-line "I've created an outline with N slides..." message and its "Looks perfect! / Make some changes" buttons are their own
+//         rows and are not touched. (The one lib function this needs is the flag itself; the card and the row only ask STUDIO_STRAWMAN_CHAT_ENABLED.)
 //   F-09  The Plan / Outline / Build / Check / Package card is gone from the chat (the chat clean job card, and the presence row's Build log: the chain of thought lives on the stage). While the stage is
 //         HIDDEN the chat shows exactly ONE quiet status line, phase words and an elapsed clock: "Drafting your outline... 0:18". While the stage is open the chat shows none.
 //   F-06  "Waiting for your go-ahead" is not shown in the chat when Director's build_phase said auto_proceed === true for this build (Director builds on by itself; the user has nothing to wait for).
@@ -134,63 +135,4 @@ export function strawmanChatAutoProceedStep(
 /** Director said auto_proceed === true for the build the narration is on. No build id on the narration (the heuristic path): not known, so not auto. */
 export function strawmanChatAutoProceedFor(state: StrawmanChatAutoProceed, narrationBuildId: string | null | undefined): boolean {
   return state.autoProceed === true && typeof narrationBuildId === 'string' && narrationBuildId !== '' && state.buildId === narrationBuildId
-}
-
-// ---------------------------------------------------------------------------
-// F-08: the outline card without the slide list
-// ---------------------------------------------------------------------------
-
-export interface StrawmanChatOutlineInput {
-  mainTitle: string
-  slideCount: number
-  durationMinutes: number | string | null | undefined
-  overallTheme: string | null | undefined
-  audience: string | null | undefined
-  historyStatus?: 'earlier' | 'current'
-  onCanvas?: boolean
-  canvasSuperseded?: boolean
-  outlineLabel?: boolean
-  deckSlideCount?: number | null
-}
-
-export interface StrawmanChatOutlineModel {
-  /** data-studio-director-part of the section. */
-  part: 'outline-review' | 'outline-history-review'
-  ariaLabel: string
-  heading: string
-  title: string
-  /** "Outline · 7 slides · 20 min · Corporate". */
-  meta: string
-  /** "The deck now has 9 slides.", only while the outline label is on and the counts differ. */
-  deckCount: string | null
-  /** "This outline has different notes. ...", for the current outline of a history pair. */
-  currentNote: string | null
-  /** "For <audience>", only where the slide list used to be inline. */
-  audience: string | null
-  canvasNote: string | null
-  supersededNote: string | null
-  /** The wrapper for an earlier outline: its summary line, else null. */
-  historySummary: string | null
-}
-
-/** What the outline card keeps once the slide list is gone; every word is the card's own (components/builder/chat/studio-outline-card.tsx). */
-export function strawmanChatOutlineModel(input: StrawmanChatOutlineInput): StrawmanChatOutlineModel {
-  const earlier = input.historyStatus === 'earlier' || input.canvasSuperseded === true
-  const count = input.slideCount
-  const audience = typeof input.audience === 'string' && input.audience !== '' ? input.audience : null
-  const theme = input.overallTheme ? ` · ${input.overallTheme}` : ''
-  const showDeckCount = input.outlineLabel === true && typeof input.deckSlideCount === 'number' && Number.isFinite(input.deckSlideCount) && input.deckSlideCount !== count
-  return {
-    part: input.historyStatus === 'earlier' ? 'outline-history-review' : 'outline-review',
-    ariaLabel: earlier ? 'Earlier presentation outline' : 'Presentation outline',
-    heading: earlier ? 'Earlier outline' : input.historyStatus === 'current' ? 'Current outline' : 'Presentation outline',
-    title: input.mainTitle,
-    meta: `${input.outlineLabel ? 'Outline · ' : ''}${count} slides · ${input.durationMinutes} min${theme}`,
-    deckCount: showDeckCount ? `The deck now has ${input.deckSlideCount} slides.` : null,
-    currentNote: input.historyStatus === 'current' ? 'This outline has different notes. The earlier outline remains available above.' : null,
-    audience: input.onCanvas || input.canvasSuperseded ? null : audience,
-    canvasNote: input.onCanvas ? 'The outline is on the canvas. Review each slide there, then approve it or ask for changes.' : null,
-    supersededNote: !input.onCanvas && input.canvasSuperseded ? 'Replaced by the outline on the canvas.' : null,
-    historySummary: input.historyStatus === 'earlier' ? `Earlier outline · ${count} slides` : null,
-  }
 }

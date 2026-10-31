@@ -1,12 +1,14 @@
 // FRONTEND-1 (PK's UAT feedback F-06, F-08, F-09, 30 Oct). Flag NEXT_PUBLIC_STUDIO_STRAWMAN_CHAT (exact "true", default off, build-time): the Director chat stops drawing what the stage already says.
-//   F-08  the outline card in the chat no longer lists the slides (the numbered, scrolling list); Director's one-line message and its "Looks perfect! / Make some changes" buttons stay.
+//   F-08  there is no outline card in the chat at all (PK 31 Oct; the first cut only dropped the numbered, scrolling slide list): the card renders nothing and a standalone outline frame draws no Director row;
+//         Director's one-line message and its "Looks perfect! / Make some changes" buttons are their own rows and stay.
 //   F-09  the Plan / Outline / Build / Check / Package card is gone from the chat (chat clean's job card, the presence row's Build log); the chain of thought shows on the stage. While the stage is hidden the chat shows exactly one
 //         quiet line, phase words and an elapsed clock ("Drafting your outline... 0:18"); while it is open, none.
 //   F-06  "Waiting for your go-ahead" is not shown when Director's build_phase said auto_proceed === true for this build (Studio never presses approve for the user).
-// Every decision is lib/studio-strawman-chat.ts (pure, import-free); components/builder/chat/studio-strawman-chat.tsx draws the line and the card; hooks/use-studio-strawman-chat.ts keeps auto_proceed.
+// Every decision is lib/studio-strawman-chat.ts (pure, import-free); components/builder/chat/studio-strawman-chat.tsx draws the line; hooks/use-studio-strawman-chat.ts keeps auto_proceed.
 // Every line this change adds to an EXISTING file is a pure insertion that carries the marker STRAWMAN-CHAT (matched as a whole token): app/builder/page.tsx (three imports at the end with the other late ones, the flag line, the hook
-// call and the ONE stage-open line, and the two lines that make the presence row's slot a ternary), components/builder/chat/studio-outline-card.tsx (two imports and one early return) and components/builder/chat/studio-chat-clean.tsx
-// (one import and the two lines that make the job card a ternary). Strip the marked lines and each file is its base, byte for byte.
+// call and the ONE stage-open line, and the two lines that make the presence row's slot a ternary), components/builder/chat/studio-outline-card.tsx (one import and one early return of null), components/builder/message-list.tsx
+// (one import and one early return of null for a standalone outline frame's Director row) and components/builder/chat/studio-chat-clean.tsx (one import and the two lines that make the job card a ternary). Strip the marked
+// lines and each file is its base, byte for byte.
 // The stage-open boolean is a parameter of every function: the page computes it on one marked line (strawmanChatStageOpen) from what it has today, so FRONTEND-2's studio-stage-open-gate can replace that line and nothing else.
 // How the older pins reach it: this change REGISTERS its files, its .env.example block and this strip (scripts/studio-later-changes.mjs, three lines), and teaches the older proofs that read these files raw or check the first-parent
 // line (STRAWMAN_CHAT_PIN_EDITS). Plain node, no imports, nothing read from disk or git here.
@@ -23,6 +25,7 @@ export const STRAWMAN_CHAT_SUBJECT = 'Strawman chat:'
 export const STRAWMAN_CHAT_FILES = [
   'app/builder/page.tsx',
   'components/builder/chat/studio-outline-card.tsx',
+  'components/builder/message-list.tsx',
   'components/builder/chat/studio-chat-clean.tsx',
 ]
 
@@ -63,7 +66,7 @@ export const STRAWMAN_CHAT_SCOPE_FILES = new Set([...STRAWMAN_CHAT_FILES, ...STR
 
 /** The whole .env.example block: its comments and its line. */
 export const STRAWMAN_CHAT_ENV_BLOCK = `# STUDIO STRAWMAN CHAT (FRONTEND-1; PK's UAT feedback F-06, F-08, F-09, 30 Oct). On for the exact value "true"; default off, and then the chat is exactly as before. Build-time value: change it on Vercel and redeploy. Studio shell only; the status line also needs NEXT_PUBLIC_BUILD_NARRATION.
-# On: (F-08) the outline card in the chat no longer lists the slides (the numbered, scrolling title + type + chips list); Director's one-line "I've created an outline" message and its "Looks perfect! / Make some changes" buttons stay.
+# On: (F-08) there is no outline card in the chat at all (PK 31 Oct), and a standalone outline frame draws no Director row; Director's one-line "I've created an outline" message and its "Looks perfect! / Make some changes" buttons stay.
 # (F-09) the Plan / Outline / Build / Check / Package card is gone from the chat (chat clean's job card) and so is the presence row's Build log: the chain of thought shows on the stage. While the stage is hidden the chat shows exactly one quiet line,
 # phase words and an elapsed clock ("Drafting your outline... 0:18"); once the stage is open it shows none. (F-06) "Waiting for your go-ahead" is not shown when Director's build_phase said auto_proceed === true for this build; Studio never presses approve.
 # No Director change, safe to set at any time. The page decides "stage open" on one marked line (strawmanChatStageOpen) so FRONTEND-2's stage-open gate can replace it.

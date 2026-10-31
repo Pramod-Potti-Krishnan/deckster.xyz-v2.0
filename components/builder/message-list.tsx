@@ -50,6 +50,7 @@ import type { QuestionSet } from "@/types/mdc"
 import { shouldRerouteEphemeral } from "@/lib/build-narration-heuristics"
 import { StudioWelcome, StudioFirstRunStarters, type StudioDirectorConnectionState, type StudioPresentationContext, type StudioWelcomeGreeting } from "@/components/builder/chat/studio-welcome"
 import { StudioOutlineCard } from "@/components/builder/chat/studio-outline-card"
+import { STUDIO_STRAWMAN_CHAT_ENABLED } from "@/lib/studio-strawman-chat" // STRAWMAN-CHAT
 import { StudioRecoveryCard } from "@/components/builder/chat/studio-recovery-card"
 import { studioChatRecoveryCard, type StudioChatRecoveryInput } from "@/lib/studio-chat-recovery"
 import { findAnsweredChoice, suggestionKey, type AnsweredChoice } from "@/lib/studio-chat-answered-choice"
@@ -1000,6 +1001,7 @@ export function MessageList({
               } else if (msg.type === 'slide_update') {
                 const slideMsg = msg as SlideUpdate & { clientOutlineHistoryStatus?: OutlineHistoryStatus }
                 if (studio && slideMsg.payload.is_blank === true) return null
+                if (STUDIO_STRAWMAN_CHAT_ENABLED && studio) return null // STRAWMAN-CHAT: no outline card in the chat (F-08, PK 31 Oct), so no empty Director row for it either; Director's one line and its buttons are their own rows
                 return (
                   <div data-studio-director-message={studio ? "director" : undefined} className="flex gap-3 animate-in fade-in duration-200" {...chatPolish()}>
                     <div data-studio-director-part="avatar" className="flex-shrink-0 w-6 h-6 rounded-full bg-purple-600 flex items-center justify-center">

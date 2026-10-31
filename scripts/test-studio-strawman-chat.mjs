@@ -1,12 +1,14 @@
 // FRONTEND-1 (PK's UAT feedback F-06, F-08, F-09, 30 Oct): proof of NEXT_PUBLIC_STUDIO_STRAWMAN_CHAT (exact "true", default off, build-time).
 //
-//   F-08  the outline card in the chat (components/builder/chat/studio-outline-card.tsx) no longer lists the slides; Director's one-line message and its buttons are other components and are not touched.
+//   F-08  there is no outline card in the chat at all (PK 31 Oct): components/builder/chat/studio-outline-card.tsx renders nothing, and a standalone outline frame's Director row (components/builder/message-list.tsx)
+//         is not drawn either (it would be an empty row). Director's one-line message and its "Looks perfect! / Make some changes" buttons are their own rows and are not touched.
 //   F-09  chat clean's Plan / Outline / Build / Check / Package job card is gone from the chat (components/builder/chat/studio-chat-clean.tsx), and the presence row's Build log is replaced, while a build is narrated,
 //         by ONE quiet status line, phase words and an elapsed clock ("Drafting your outline… 0:18"), shown only while the stage is hidden.
 //   F-06  "Waiting for your go-ahead" is not shown when Director's build_phase said auto_proceed === true for this build. Studio never presses approve.
 //
-//   1. The lib, function by function: the flag, the elapsed clock, the line's decision table, auto_proceed, the outline model.
-//   2. F-08, the REAL card: flag off is the base card's markup for every variant; flag on keeps the base's own words and drops the slide list.
+//   1. The lib, function by function: the flag, the elapsed clock, the line's decision table, auto_proceed.
+//   2. F-08, the REAL card: flag off is the base card's markup for every variant; flag on renders nothing.
+//   2b. F-08, the REAL message list on a Director outline sequence: flag off is the base list's markup; flag on has no outline card and no empty Director row, and the line and the buttons stay (also on the combined outline row).
 //   3. F-09, the REAL chat clean tail: flag off is the base's markup; flag on draws no job card, keeps the notes and Director's ordinary status line.
 //   4. F-09, the REAL status line on the offline React host: the words, the clock that ticks, nothing once the stage is open, nothing at the go-ahead gate when Director builds on by itself.
 //   5. F-06, the REAL hook beside chat clean's: the handler is wrapped once and stays wrapped across commits, in either order; auto_proceed is kept per build and per session.
@@ -38,6 +40,7 @@ const LIB = 'lib/studio-strawman-chat.ts'
 const COMP = 'components/builder/chat/studio-strawman-chat.tsx'
 const HOOK = 'hooks/use-studio-strawman-chat.ts'
 const CARD = 'components/builder/chat/studio-outline-card.tsx'
+const LIST = 'components/builder/message-list.tsx'
 const JOB = 'components/builder/chat/studio-chat-clean.tsx'
 const PAGE = 'app/builder/page.tsx'
 const read = rel => fs.readFileSync(path.join(repo, rel), 'utf8')
@@ -140,18 +143,6 @@ function libChecks(libText = read(LIB)) {
   assert.equal(auto(step(s1, frame('b2', undefined), 'S', 'S'), 'b1'), false, 'the old build\'s "true" does not leak into the next build')
   for (const [owner, session] of [['T', 'S'], [null, 'S'], [undefined, 'S'], ['S', null], ['S', undefined], ['S', 'new'], ['S', ''], ['new', 'new'], ['', '']]) assert.equal(step(none, frame('b1', true), owner, session), none, `owner ${String(owner)} / session ${String(session)}: ignored`)
   for (const bad of [null, undefined, 'x', 5, {}, { build_id: '' }, { build_id: '  ' }, { build_id: 7, auto_proceed: true }, { auto_proceed: true }]) assert.equal(step(none, bad, 'S', 'S'), none, `payload ${JSON.stringify(bad)}: ignored`)
-  // -- F-08: the outline card's model -----------------------------------------------------------------------------------------------------------
-  const outline = over => plain(lib.strawmanChatOutlineModel({ mainTitle: 'Q3 Review', slideCount: 7, durationMinutes: 20, overallTheme: 'Corporate', audience: 'Executives', ...over }))
-  assert.deepEqual(outline({}), { part: 'outline-review', ariaLabel: 'Presentation outline', heading: 'Presentation outline', title: 'Q3 Review', meta: '7 slides · 20 min · Corporate', deckCount: null, currentNote: null, audience: 'Executives', canvasNote: null, supersededNote: null, historySummary: null })
-  assert.equal(outline({ overallTheme: '' }).meta, '7 slides · 20 min'); assert.equal(outline({ overallTheme: undefined }).meta, '7 slides · 20 min'); assert.equal(outline({ outlineLabel: true }).meta, 'Outline · 7 slides · 20 min · Corporate')
-  assert.equal(outline({ outlineLabel: true, deckSlideCount: 9 }).deckCount, 'The deck now has 9 slides.'); assert.equal(outline({ outlineLabel: true, deckSlideCount: 7 }).deckCount, null); assert.equal(outline({ deckSlideCount: 9 }).deckCount, null, 'no outline label: no deck count')
-  assert.equal(outline({ outlineLabel: true, deckSlideCount: Number.NaN }).deckCount, null); assert.equal(outline({ outlineLabel: true, deckSlideCount: null }).deckCount, null)
-  const earlier = outline({ historyStatus: 'earlier' }); assert.equal(earlier.part, 'outline-history-review'); assert.equal(earlier.heading, 'Earlier outline'); assert.equal(earlier.ariaLabel, 'Earlier presentation outline'); assert.equal(earlier.historySummary, 'Earlier outline · 7 slides')
-  const current = outline({ historyStatus: 'current' }); assert.equal(current.heading, 'Current outline'); assert.equal(current.part, 'outline-review'); assert.equal(current.currentNote, 'This outline has different notes. The earlier outline remains available above.'); assert.equal(current.historySummary, null)
-  const onCanvas = outline({ onCanvas: true }); assert.equal(onCanvas.canvasNote, 'The outline is on the canvas. Review each slide there, then approve it or ask for changes.'); assert.equal(onCanvas.audience, null, 'the audience was inside the folded details')
-  const superseded = outline({ canvasSuperseded: true }); assert.equal(superseded.supersededNote, 'Replaced by the outline on the canvas.'); assert.equal(superseded.heading, 'Earlier outline'); assert.equal(superseded.ariaLabel, 'Earlier presentation outline'); assert.equal(superseded.part, 'outline-review', 'a superseded outline is not a history pair'); assert.equal(superseded.audience, null)
-  const both = outline({ onCanvas: true, canvasSuperseded: true }); assert.ok(both.canvasNote && both.supersededNote === null, 'on the canvas wins over superseded, as the card\'s own ternary does')
-  assert.equal(outline({ audience: null }).audience, null); assert.equal(outline({ audience: '' }).audience, null)
 }
 
 // ============================================================================================================================================
@@ -163,22 +154,23 @@ const FakeDate = class extends Date { constructor(...args) { if (args.length) su
 const ENV = { NODE_ENV: 'production', NEXT_PUBLIC_STUDIO_V4_SHELL: 'true', NEXT_PUBLIC_STUDIO_CHAT_CLEAN: 'true', NEXT_PUBLIC_BUILD_NARRATION: 'true', NEXT_PUBLIC_BUILD_CONTROL: 'true' }
 const ESM = await esmPackages(repo)
 /** The modules, with `overrides` (rel -> text) served to the loader in place of the files, and the flag on or off. */
-function modules({ on, overrides = {}, extra = [] }) {
+function modules({ on, overrides = {}, extra = [], shell = true }) {
   const fsReal = fs.readFileSync
   if (Object.keys(overrides).length) fs.readFileSync = function (file, ...rest) { const rel = typeof file === 'string' ? path.relative(repo, file) : null; return rel && rel in overrides ? overrides[rel] : fsReal.call(fs, file, ...rest) }
   try {
     const loader = createModuleLoader({
       root: repo,
-      globals: { process: { env: { ...ENV, ...(on ? { [FLAG]: 'true' } : {}) } }, console, setTimeout: () => 0, clearTimeout: () => {}, setInterval: (fn) => { intervals.push(fn); return intervals.length }, clearInterval: id => { intervals[id - 1] = null }, requestAnimationFrame: () => 0, cancelAnimationFrame: () => {}, Date: FakeDate, Symbol, Promise, Math, JSON, Object, Array, Error, Map, Set, Number, String, Boolean, RegExp, TextEncoder, TextDecoder, URL, queueMicrotask },
+      globals: { process: { env: { ...ENV, ...(shell ? {} : { NEXT_PUBLIC_STUDIO_V4_SHELL: 'false' }), ...(on ? { [FLAG]: 'true' } : {}) } }, console, setTimeout: () => 0, clearTimeout: () => {}, setInterval: (fn) => { intervals.push(fn); return intervals.length }, clearInterval: id => { intervals[id - 1] = null }, requestAnimationFrame: () => 0, cancelAnimationFrame: () => {}, Date: FakeDate, Symbol, Promise, Math, JSON, Object, Array, Error, Map, Set, Number, String, Boolean, RegExp, TextEncoder, TextDecoder, URL, queueMicrotask },
       stubs: { ...ESM, react: React, 'lucide-react': lucideStub(React) },
     })
     return { card: loader.load(CARD), job: loader.load(JOB), line: loader.load(COMP), hook: loader.load(HOOK), lib: loader.load(LIB), ...Object.fromEntries(extra.map(rel => [rel, loader.load(rel)])) }
   } finally { fs.readFileSync = fsReal }
 }
 const html = element => renderToStaticMarkup(element)
+const pick = (markup, re) => { const m = re.exec(markup); return m ? m[0] : null }
 
 // ============================================================================================================================================
-// 2. F-08, the outline card
+// 2. F-08, the outline card and the message list
 // ============================================================================================================================================
 const SLIDES = [
   { slide_id: 's1', slide_number: 1, slide_type: 'title_slide', title: 'Zebra Opening Slide', narrative: 'Why now', key_points: ['alpha point', 'beta point'], analytics_needed: null, visuals_needed: null, diagrams_needed: null, structure_preference: null },
@@ -192,38 +184,53 @@ for (const historyStatus of [undefined, 'earlier', 'current']) for (const where 
   VARIANTS.push({ historyStatus, ...(where === 'onCanvas' ? { onCanvas: true } : where === 'superseded' ? { canvasSuperseded: true } : {}), ...(outlineLabel ? { outlineLabel, deckSlideCount } : {}) })
 }
 const cardMarkup = (mods, props) => html(React.createElement(mods.card.StudioOutlineCard, { payload: PAYLOAD, contextByIndex: CONTEXT, renderEvidence: () => null, ...props }))
-const pick = (markup, re) => { const m = re.exec(markup); return m ? m[0] : null }
-/** The pieces of the base card that the flag-on card keeps: its own markup, byte for byte. */
-const KEPT = [
-  /<section data-studio-director-part="outline(?:-history)?-review" aria-label="[^"]*">/,
-  /<div data-studio-director-part="outline-review-heading">.*?<\/div>/,
-  /<p class="text-xs text-muted-foreground">This outline has different notes[^<]*<\/p>/,
-  /<h3>[^<]*<\/h3>/,
-  /<p data-studio-director-part="outline-review-meta">[^<]*<\/p>/,
-  /<p data-studio-director-part="outline-review-deck-count">[^<]*<\/p>/,
-  /<p data-studio-director-part="outline-review-canvas-note">[^<]*<\/p>/,
-  /<p data-studio-director-part="outline-review-superseded-note">[^<]*<\/p>/,
-  /<summary class="cursor-pointer text-xs font-medium">[^<]*<\/summary>/,
-]
 async function cardChecks(overrides = {}) {
   const off = modules({ on: false, overrides }), on = modules({ on: true, overrides }), baseOff = modules({ on: false, overrides: { [CARD]: baseText(CARD) } })
   for (const props of VARIANTS) {
     const label = JSON.stringify(props)
     const was = cardMarkup(baseOff, props), now = cardMarkup(off, props), flagged = cardMarkup(on, props)
     assert.equal(now, was, `flag off is the base card's markup byte for byte: ${label}`)
-    assert.ok(was.includes('data-studio-director-part="outline-review-slides"') || props.onCanvas || props.canvasSuperseded, `the base card lists the slides inline: ${label}`)
-    for (const needle of ['Zebra Opening Slide', 'Quokka Market Slide', 'Narwhal Closing Slide', 'outline-review-slides', 'outline-review-slide"', 'outline-review-number', 'outline-review-kind', 'outline-review-preview', 'outline-review-hint', 'outline-review-details', 'Slide details', 'Expand a slide', 'Hook the room', 'title_slide', '<ol', '<summary><span']) assert.ok(!flagged.includes(needle), `flag on: no ${needle} (${label})`)
-    for (const re of KEPT) assert.equal(pick(flagged, re), pick(was, re), `flag on keeps the base's own ${re.source.slice(0, 60)} (${label})`)
-    assert.ok(flagged.includes('<h3>Q3 Review</h3>'), `the deck's title stays (${label})`)
-    assert.equal(/outline-review-audience/.test(flagged), !props.onCanvas && !props.canvasSuperseded, `the audience line stays where the list was inline (${label})`)
-    if (!props.onCanvas && !props.canvasSuperseded) assert.equal(pick(flagged, /<p data-studio-director-part="outline-review-audience">[^<]*<\/p>/), pick(was, /<p data-studio-director-part="outline-review-audience">[^<]*<\/p>/), `the audience line is the base's (${label})`)
-    assert.equal(/<details data-studio-director-part="outline-history"/.test(flagged), props.historyStatus === 'earlier', `the earlier outline keeps its fold (${label})`)
-    assert.ok(flagged.length < was.length || props.onCanvas || props.canvasSuperseded, `flag on is shorter where the list was inline (${label})`)
+    assert.ok(was.includes('Zebra Opening Slide') || props.onCanvas || props.canvasSuperseded, `the base card lists the slides inline: ${label}`)
+    assert.equal(flagged, '', `flag on: the card renders nothing at all (${label})`)
   }
-  // a payload with no theme and no audience
-  const bare = { ...PAYLOAD, metadata: { ...PAYLOAD.metadata, overall_theme: '', target_audience: '' } }
-  const bareOn = html(React.createElement(on.card.StudioOutlineCard, { payload: bare, contextByIndex: null, renderEvidence: () => null })), bareBase = html(React.createElement(baseOff.card.StudioOutlineCard, { payload: bare, contextByIndex: null, renderEvidence: () => null }))
-  assert.equal(pick(bareOn, KEPT[4]), pick(bareBase, KEPT[4]), 'no theme: the meta line is the base\'s'); assert.ok(!bareOn.includes('outline-review-audience') && !bareBase.includes('outline-review-audience'), 'no audience: no line, as the base')
+}
+
+// the Director's own outline sequence (DIRECTOR-2, 27 Oct): slide_update, its one line, the approval card. The other: the combined outline row (slide_update, presentation_url, approval card).
+const FIX = JSON.parse(read('scripts/fixtures/chat-clean-order/outline-gate-director2-27oct.json'))
+const outlineFrames = [FIX.frames.outline_gate.find(f => f.type === 'slide_update'), FIX.frames.outline_gate.find(f => f.type === 'chat_message' && f.payload.ephemeral === false), FIX.frames.outline_gate.find(f => f.type === 'action_request')]
+const SEQ_A = outlineFrames.map(({ name, ...frame }, i) => ({ ...frame, clientTimestamp: T0 + i * 1000 })) // `name` is the fixture's own label, not a Director field
+const URL_FRAME = { message_id: 'msg_sc_url', session_id: FIX.session.id, timestamp: '2026-10-27T16:59:01.750000Z', type: 'presentation_url', payload: { url: 'https://layout.synthetic.invalid/p/synthetic-5e2675b8-outline', presentation_id: 'synthetic-5e2675b8-outline', slide_count: 5, message: 'Your outline is ready' } }
+const SEQ_B = [SEQ_A[0], { ...URL_FRAME, clientTimestamp: T0 + 1500 }, SEQ_A[2]]
+const listMarkup = (mods, messages) => {
+  const refs = { ids: { current: new Set() }, content: { current: new Map() }, welcome: { current: true }, answered: { current: new Set() }, end: { current: null } }
+  return html(React.createElement(mods.list.MessageList, { sessionId: FIX.session.id, userMessages: [], messages, userMessageIdsRef: refs.ids, userMessageContentMapRef: refs.content, hasSeenWelcomeRef: refs.welcome, answeredActionsRef: refs.answered, messagesEndRef: refs.end, onActionClick() {}, onSubmitAnswers() {}, suppressEphemeral: true, currentStatus: null, isGeneratingFinal: false }))
+}
+const countOf = (markup, needle) => markup.split(needle).length - 1
+async function listChecks(overrides = {}) {
+  const load = (on, shell = true) => modules({ on, shell, overrides, extra: [LIST] })
+  const take = mods => ({ ...mods, list: mods[LIST] })
+  const off = take(load(false)), on = take(load(true)), baseOff = take(modules({ on: false, overrides: { ...overrides, [LIST]: baseText(LIST) }, extra: [LIST] }))
+  const ONE_LINE = "Here&#x27;s the outline I&#x27;d build. Take a look and tell me what to change." // as the markup escapes it
+  for (const [name, seq] of [['the Director sequence (slide_update, one line, approval card)', SEQ_A], ['the combined outline row (slide_update, presentation_url, approval card)', SEQ_B]]) {
+    const was = listMarkup(baseOff, seq), now = listMarkup(off, seq), flagged = listMarkup(on, seq)
+    assert.equal(now, was, `${name}: flag off is the base list's markup byte for byte`)
+    assert.ok(was.includes('data-studio-director-part="outline-review"'), `${name}: the base list draws the outline card`)
+    assert.ok(!flagged.includes('outline-review') && !flagged.includes('Presentation outline') && !flagged.includes('Cutting food waste'), `${name}: flag on draws no outline card`)
+    assert.ok(flagged.includes('Looks perfect!') && flagged.includes('Make some changes'), `${name}: the approval buttons stay`)
+    assert.ok(was.includes('Looks perfect!'), `${name}: (and the base has them)`)
+  }
+  const aOn = listMarkup(on, SEQ_A), aBase = listMarkup(baseOff, SEQ_A)
+  assert.ok(aOn.includes(ONE_LINE) && aBase.includes(ONE_LINE), "Director's one line stays")
+  assert.equal(countOf(aOn, 'data-studio-director-message="director"'), countOf(aBase, 'data-studio-director-message="director"') - 1, 'the standalone outline frame\'s Director row is not drawn (it would be an empty avatar and label)')
+  assert.equal(countOf(aOn, 'data-studio-director-part="speaker"'), countOf(aOn, 'data-studio-director-message="director"'), 'every Director row that is drawn has its one speaker label and content')
+  const bOn = listMarkup(on, SEQ_B), bBase = listMarkup(baseOff, SEQ_B)
+  assert.equal(countOf(bOn, 'data-studio-director-message="director"'), countOf(bBase, 'data-studio-director-message="director"'), 'the combined row stays: it carries the presentation block and the buttons')
+  // not the Studio shell: the flag changes nothing
+  const classicOff = take(load(false, false)), classicOn = take(load(true, false))
+  for (const seq of [SEQ_A, SEQ_B]) assert.equal(listMarkup(classicOn, seq), listMarkup(classicOff, seq), 'outside the Studio shell the flag changes nothing')
+  // a blank deck's frame is state, as ever
+  const blank = [{ ...SEQ_A[0], payload: { ...SEQ_A[0].payload, is_blank: true } }]
+  assert.equal(listMarkup(on, blank), listMarkup(baseOff, blank), 'a blank-deck frame: the same with the flag on')
 }
 
 // ============================================================================================================================================
@@ -360,7 +367,7 @@ async function hookChecks(overrides = {}) {
 // ============================================================================================================================================
 // 6. The page
 // ============================================================================================================================================
-function pageChecks(pageText = read(PAGE)) {
+function pageChecks(pageText = read(PAGE), overrides = {}) {
   const ast = ts.createSourceFile(PAGE, pageText, ts.ScriptTarget.Latest, true, ts.ScriptKind.TSX)
   const found = { slot: [], decl: {} }
   const visit = node => {
@@ -391,6 +398,9 @@ function pageChecks(pageText = read(PAGE)) {
   assert.ok(!/studio-stage-open-gate/.test(lines.filter(line => /^import /.test(line)).join('\n')), 'the gate file does not exist on this base: nothing imports it')
   assert.ok(!/TODO/i.test(stageLines.join('\n')), 'the swap note is a plain comment')
   assert.equal(pageText.indexOf('useStudioChatCleanNotes({') < pageText.indexOf('useStudioStrawmanChat({'), true, 'my hook is declared after chat clean\'s notes hook (the wrapper order)')
+  const listLines = (LIST in overrides ? overrides[LIST] : read(LIST)).split('\n')
+  const blankAt = listLines.findIndex(line => line.includes('if (studio && slideMsg.payload.is_blank === true) return null'))
+  assert.notEqual(blankAt, -1); assert.match(listLines[blankAt + 1], /^\s*if \(STUDIO_STRAWMAN_CHAT_ENABLED && studio\) return null \/\/ STRAWMAN-CHAT/, 'the list\'s early return sits right after the blank-frame one, in the slide_update branch')
   // not touched: FRONTEND-2's F-03 spots, the outline canvas selection and render, the narration handlers effect
   const after = (text, anchor, n) => { const at = text.split('\n').findIndex(line => line.includes(anchor)); assert.notEqual(at, -1, anchor); return text.split('\n').slice(at - 1, at + 1 + n).join('\n') }
   const baseP = baseText(PAGE)
@@ -402,14 +412,15 @@ function pageChecks(pageText = read(PAGE)) {
 // ============================================================================================================================================
 async function behaviour(overrides = {}) {
   if (LIB in overrides) libChecks(overrides[LIB]); else libChecks()
-  await cardChecks(overrides); await jobChecks(overrides); await lineChecks(overrides); await hookChecks(overrides)
-  pageChecks(PAGE in overrides ? overrides[PAGE] : read(PAGE))
+  await cardChecks(overrides); await listChecks(overrides); await jobChecks(overrides); await lineChecks(overrides); await hookChecks(overrides)
+  pageChecks(PAGE in overrides ? overrides[PAGE] : read(PAGE), overrides)
 }
 
 console.log('1. the lib')
-await check('the flag, the elapsed clock, the line\'s decision table, auto_proceed, the outline model', () => libChecks())
-console.log('2. F-08, the outline card (the real component, flag off against the base file, flag on against its own words)')
-await check(`${VARIANTS.length} variants: flag off is the base card byte for byte; flag on has no slide list and keeps the base's heading, title, meta, notes and fold`, () => cardChecks())
+await check('the flag, the elapsed clock, the line\'s decision table, auto_proceed', () => libChecks())
+console.log('2. F-08, the outline card and the message list (the real components, flag off against the base files)')
+await check(`${VARIANTS.length} variants: flag off is the base card byte for byte; flag on renders nothing`, () => cardChecks())
+await check('the message list on a Director outline sequence and on the combined outline row: flag off is the base list byte for byte; flag on has no outline card and no empty Director row, keeps Director\'s one line and the buttons; outside the Studio shell nothing changes', () => listChecks())
 console.log('3. F-09, the chat clean tail')
 await check('flag off is the base tail byte for byte; flag on draws no job card and no Plan / Outline / Build / Check / Package, keeps the notes and Director\'s ordinary status line', () => jobChecks())
 console.log('4. F-09, the quiet status line')
@@ -417,12 +428,12 @@ await check('the words and the clock, ticking, nothing once the stage is open, n
 console.log('5. F-06, the hook')
 await check('the handler is wrapped once and stays wrapped (either order next to chat clean\'s hook), auto_proceed per build and per session, off wraps nothing', () => hookChecks())
 console.log('6. the page')
-await check('the slot is a ternary around the presence row; "stage open" is one marked line; the hook is declared after chat clean\'s; FRONTEND-2\'s spots and the outline canvas are untouched', () => pageChecks())
+await check('the slot is a ternary around the presence row; "stage open" is one marked line; the hook is declared after chat clean\'s; FRONTEND-2\'s spots and the outline canvas are untouched; the list\'s early return follows the blank-frame one', () => pageChecks())
 
 console.log('7. mutants')
 const mutate = (text, from, to, label) => { const at = text.indexOf(from); if (at === -1 || text.indexOf(from, at + 1) !== -1) throw new Error(`mutant "${label}": target ${JSON.stringify(from.slice(0, 70))} not found exactly once`); return text.replace(from, () => to) }
 await check('the unmutated files pass the mutant checks (the checks can pass)', () => behaviour({}))
-const texts = { [LIB]: read(LIB), [COMP]: read(COMP), [HOOK]: read(HOOK), [CARD]: read(CARD), [JOB]: read(JOB), [PAGE]: read(PAGE) }
+const texts = { [LIB]: read(LIB), [COMP]: read(COMP), [HOOK]: read(HOOK), [CARD]: read(CARD), [LIST]: read(LIST), [JOB]: read(JOB), [PAGE]: read(PAGE) }
 const mutants = [
   // the lib
   ['the flag is read loosely (!== "false"; unset is on)', LIB, "return value === 'true'", "return value !== 'false'"],
@@ -441,13 +452,10 @@ const mutants = [
   ['the new build keeps the old build\'s auto_proceed', LIB, 'return { buildId, autoProceed: value === true }', 'return { buildId, autoProceed: value === true || state.autoProceed }'],
   ['a frame without the field resets the value', LIB, 'return value === null || value === state.autoProceed ? state : { buildId, autoProceed: value }', 'return { buildId, autoProceed: value === true }'],
   ['auto_proceed is true for any build', LIB, "state.autoProceed === true && typeof narrationBuildId === 'string' && narrationBuildId !== '' && state.buildId === narrationBuildId", 'state.autoProceed === true'],
-  ['the outline model drops the canvas note', LIB, "canvasNote: input.onCanvas ? 'The outline is on the canvas. Review each slide there, then approve it or ask for changes.' : null", 'canvasNote: null'],
-  ['the outline model shows the audience beside the canvas', LIB, 'audience: input.onCanvas || input.canvasSuperseded ? null : audience', 'audience'],
   // the component
   ['the line never ticks', COMP, 'const timer = setInterval(() => setNow(Date.now()), 1000)', 'const timer = 0'],
   ['the line leaks its interval', COMP, 'return () => clearInterval(timer)', 'return () => {}'],
   ['the clock is read by the live region', COMP, '<span data-studio-strawman-chat-elapsed="true" aria-hidden="true">', '<span data-studio-strawman-chat-elapsed="true">'],
-  ['the card lists the slides again', COMP, '{model.audience && <p data-studio-director-part="outline-review-audience">For {model.audience}</p>}', '{model.audience && <p data-studio-director-part="outline-review-audience">For {model.audience}</p>}<ol data-studio-director-part="outline-review-slides" />'],
   // the hook
   ['the wrapper is not marked (it wraps on every commit)', HOOK, 'wrapped[WRAPPED] = true', ''],
   ['the wrapper drops the markers under it', HOOK, 'for (const key of Object.getOwnPropertySymbols(previous)) wrapped[key] = (previous as unknown as Record<symbol, unknown>)[key]', ''],
@@ -456,7 +464,13 @@ const mutants = [
   ['the hook wraps a handler that is not there', HOOK, "if (typeof previous !== 'function' || previous[WRAPPED]) return", 'if (previous?.[WRAPPED]) return'],
   ['the session is not the displayed one', HOOK, 'ownerSessionId, now.sessionId))', 'ownerSessionId, ownerSessionId))'],
   // the app files
-  ['the card ignores the flag', CARD, 'if (STUDIO_STRAWMAN_CHAT_ENABLED) return', 'if (false) return'],
+  ['the card ignores the flag', CARD, 'if (STUDIO_STRAWMAN_CHAT_ENABLED) return null', 'if (false) return null'],
+  ['the card is dropped with the flag off too', CARD, 'if (STUDIO_STRAWMAN_CHAT_ENABLED) return null', 'if (true) return null'],
+  ['the card draws a stub with the flag on', CARD, 'if (STUDIO_STRAWMAN_CHAT_ENABLED) return null', 'if (STUDIO_STRAWMAN_CHAT_ENABLED) return <section data-studio-director-part="outline-review" />'],
+  ['the list draws the outline frame\'s empty Director row', LIST, 'if (STUDIO_STRAWMAN_CHAT_ENABLED && studio) return null', ''],
+  ['the list drops the outline frame\'s row with the flag off too', LIST, 'if (STUDIO_STRAWMAN_CHAT_ENABLED && studio) return null', 'if (studio) return null'],
+  ['the list drops the row outside the Studio shell', LIST, 'if (STUDIO_STRAWMAN_CHAT_ENABLED && studio) return null', 'if (STUDIO_STRAWMAN_CHAT_ENABLED) return null'],
+  ['the list drops the combined outline row (with its buttons)', LIST, "if (msg.type === 'combined_strawman') {", "if (msg.type === 'combined_strawman') {\n                if (STUDIO_STRAWMAN_CHAT_ENABLED && studio) return null"],
   ['the job card ignores the flag', JOB, 'STUDIO_STRAWMAN_CHAT_ENABLED ? null : (', 'false ? null : ('],
   ['the job card is dropped with the flag off too', JOB, 'STUDIO_STRAWMAN_CHAT_ENABLED ? null : (', 'true ? null : ('],
   ['the page: the line replaces the row without a narrated build', PAGE, 'strawmanChatOn && buildNarration.active ?', 'strawmanChatOn ?'],
@@ -504,8 +518,8 @@ const strippedDiff = (rel, head) => {
 const scopeCommittedFiles = head => {
   const changed = git('diff', '--name-only', `${BASE_COMMIT}..${head}`).split('\n').filter(Boolean).filter(rel => STRAWMAN_CHAT_SCOPE_FILES.has(rel) || !registry.LATER_CHANGE_FILES.has(rel)).sort()
   assert.deepEqual(changed, [...STRAWMAN_CHAT_SCOPE_FILES].sort(), 'the committed files are exactly this change\'s')
-  assert.deepEqual(STRAWMAN_CHAT_FILES, [PAGE, CARD, JOB])
-  const expectedAdded = { [PAGE]: 8, [CARD]: 3, [JOB]: 3 }
+  assert.deepEqual(STRAWMAN_CHAT_FILES, [PAGE, CARD, LIST, JOB])
+  const expectedAdded = { [PAGE]: 8, [CARD]: 2, [LIST]: 2, [JOB]: 3 }
   for (const rel of STRAWMAN_CHAT_FILES) {
     const diff = strippedDiff(rel, head).split('\n').filter(line => /^[+-]/.test(line) && !/^(\+\+\+|---) /.test(line))
     assert.equal(diff.length, expectedAdded[rel], `${rel}: ${expectedAdded[rel]} added lines and no removed one`)
@@ -533,7 +547,7 @@ const scopeEnvAndRegistry = head => {
   for (const line of diff) assert.ok(line.startsWith('+') && line.includes('LATER-CHANGE') && line.includes('studio-strawman-chat-strip.mjs'), line.slice(0, 140))
 }
 await check(`this change's own commits (subject starts "${STRAWMAN_CHAT_SUBJECT}", found across the whole line, no merges) exist, with the co-author line; a commit that is not one touches only files a later change registered`, () => scopeOwnCommits(HEAD))
-await check('the committed files are exactly this change\'s; every line added to an existing file is a pure insertion that carries the marker (eight in the page, three in the card, three in the chat clean tail); the strip gives the base back byte for byte, also through the registry', () => scopeCommittedFiles(HEAD))
+await check('the committed files are exactly this change\'s; every line added to an existing file is a pure insertion that carries the marker (eight in the page, two in the card, two in the message list, three in the chat clean tail); the strip gives the base back byte for byte, also through the registry', () => scopeCommittedFiles(HEAD))
 const GATE_IDENT = { GIT_AUTHOR_NAME: 'gate', GIT_AUTHOR_EMAIL: 'gate@example.invalid', GIT_COMMITTER_NAME: 'gate', GIT_COMMITTER_EMAIL: 'gate@example.invalid', GIT_AUTHOR_DATE: '2026-10-30T00:00:00Z', GIT_COMMITTER_DATE: '2026-10-30T00:00:00Z' }
 const gateStyleMerge = head => {
   const tree = git('merge-tree', '--write-tree', BASE_COMMIT, head).trim().split('\n')[0]
@@ -563,7 +577,7 @@ await check('plumbing: the lib reads the literal env name (exact "true") once; t
   const text = read(LIB)
   assert.equal((text.match(/process\.env\.NEXT_PUBLIC_STUDIO_STRAWMAN_CHAT\b/g) || []).length, 1)
   assert.deepEqual([...text.matchAll(/^import .*$/gm)].map(m => m[0]), [], 'the lib is import-free')
-  for (const rel of [PAGE, CARD, JOB, COMP, HOOK]) assert.equal((read(rel).match(/process\.env\.NEXT_PUBLIC_STUDIO_STRAWMAN_CHAT\b/g) || []).length, 0, `${rel} does not read the env itself`)
+  for (const rel of [PAGE, CARD, LIST, JOB, COMP, HOOK]) assert.equal((read(rel).match(/process\.env\.NEXT_PUBLIC_STUDIO_STRAWMAN_CHAT\b/g) || []).length, 0, `${rel} does not read the env itself`)
   assert.match(read('.env.example'), new RegExp(`^${FLAG}="false"$`, 'm'))
   assert.equal((read('.env.example').match(new RegExp(FLAG, 'g')) || []).length, 1)
   for (const rel of ['scripts/test-studio-strawman-chat.mjs', 'scripts/studio-strawman-chat-strip.mjs', LIB, COMP, HOOK]) assert.doesNotMatch(read(rel), /(sk-[A-Za-z0-9]{16,}|AKIA[0-9A-Z]{12,}|eyJ[A-Za-z0-9_-]{20,}\.|-----BEGIN [A-Z ]*PRIVATE KEY|ghp_[A-Za-z0-9]{20,}|xox[bp]-)/, rel)
