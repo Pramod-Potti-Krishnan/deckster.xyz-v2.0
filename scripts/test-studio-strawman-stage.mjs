@@ -178,6 +178,7 @@ function noteSuite(lib, noteText = SOURCES[NOTE], css = SOURCES[CSS]) {
   const html = renderToStaticMarkup(React.createElement(StudioStrawmanNote))
   eq(html, '<p data-studio-strawman-note="true">No action needed: building starts automatically.</p>', 'line: the one plain line, in a paragraph keyed to the attribute the css uses, and nothing else')
   ok(!html.includes('<button') && !html.includes('<a ') && !/onclick/i.test(html) && !/approve/i.test(html), 'line: no button, no link, no Approve')
+  ok(!/<button|onClick|onApprove|handleActionClick/.test(noteText), 'line: its source has no button, no click, no approval')
   ok(!/<(h\d|ul|li|section)\b/.test(html) && !/Slide \d/.test(html), 'line: no title, no list, no slide plan (the preview deck\'s own slide says that: F-11)')
   // the css: keyed to the line's own attribute, scoped to the Studio shell, quiet (the shell's tokens, one hairline), never positioned over the viewer
   ok(/\[data-studio-v4-shell="true"\] \[data-studio-strawman-note="true"\] \{/.test(css), 'css: the line is scoped to the Studio shell')
@@ -496,11 +497,12 @@ const hookMutants = [
   ['the wait never looks again', 'const timer = setTimeout(() => setTick(value => value + 1), step.retryInMs)', 'const timer = setTimeout(() => {}, step.retryInMs)'],
   ['the wrong slide', 'current.goToSlide!(step.index)', 'current.goToSlide!(step.index + 1)'],
 ]
+const NOTE_P = '<p data-studio-strawman-note="true">{STRAWMAN_STAGE_NO_ACTION_LINE}</p>'
 const noteMutants = [
   ['the plain line is not drawn', '<p data-studio-strawman-note="true">{STRAWMAN_STAGE_NO_ACTION_LINE}</p>', '<p data-studio-strawman-note="true"></p>'],
   ['the plain line is not the lib\'s', '{STRAWMAN_STAGE_NO_ACTION_LINE}', 'Building starts automatically.'],
-  ['an Approve button is drawn', '<p data-studio-strawman-note="true">', '<button type="button">Approve</button><p data-studio-strawman-note="true">'],
-  ['a slide plan is drawn again', '<p data-studio-strawman-note="true">', '<h3>Slide 1 of 6</h3><p data-studio-strawman-note="true">'],
+  ['an Approve button is drawn', 'return ' + NOTE_P, 'return <><button type="button">Approve</button>' + NOTE_P + '</>'],
+  ['a slide plan is drawn again', 'return ' + NOTE_P, 'return <><h3>Slide 1 of 6</h3>' + NOTE_P + '</>'],
   ['the line is clickable', '<p data-studio-strawman-note="true">', '<p onClick={() => {}} data-studio-strawman-note="true">'],
 ]
 const sourceMutants = [
