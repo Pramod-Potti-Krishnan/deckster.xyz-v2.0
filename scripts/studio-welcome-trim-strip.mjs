@@ -76,9 +76,9 @@ export const WELCOME_TRIM_PROOF_EDITS = {
      "  const read = relative => fs.readFileSync(path.join(root, relative), 'utf8')\n"],
   ],
   "scripts/test-studio-pass2b-chat.mjs": [
-    ["const welcomeTrimStrip = await import('./studio-welcome-trim-strip.mjs') // LATER-CHANGES: registry read (STUDIO-WELCOME-TRIM): the strip of the change stacked after chat parity, so its marked lines in the Director header and the message list come out of a source before the pins below read it\n",
+    ["const laterChanges = await import('./studio-later-changes.mjs') // LATER-CHANGES: registry read (STUDIO-WELCOME-TRIM): every registered later change's marked lines (the welcome trim's, and those of the changes stacked after it) come out of a source before the pins below read it\n",
      ""],
-    ["  const read = relative => welcomeTrimStrip.stripWelcomeTrim(relative, fs.readFileSync(path.join(root, relative), 'utf8')) // LATER-CHANGES: registry read (STUDIO-WELCOME-TRIM)\n",
+    ["  const read = relative => laterChanges.stripLaterChanges(relative, fs.readFileSync(path.join(root, relative), 'utf8')) // LATER-CHANGES: registry read (STUDIO-WELCOME-TRIM)\n",
      "  const read = relative => fs.readFileSync(path.join(root, relative), 'utf8')\n"],
   ],
   "scripts/test-studio-chat-undo-v2.mjs": [

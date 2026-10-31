@@ -297,11 +297,11 @@ await check('flag off is the base, header: the Director header renders the same 
 })
 await check('the strip gives the three files back byte for byte (other changes\' lines out of both sides), and twice changes nothing more', () => {
   for (const rel of WELCOME_TRIM_FILES) {
-    const now = read(rel), base = baseText(rel)
+    const now = otherStrips(rel, read(rel)), base = otherStrips(rel, baseText(rel)) // a change stacked after this one (the wide chat column) has marked lines in the header too: they come out of both sides first
     assert.notEqual(now, base, `${rel} carries this change's lines`)
     assert.equal(stripWelcomeTrim(rel, now), base, `${rel}: stripped, it is the base's`)
     assert.equal(stripWelcomeTrim(rel, stripWelcomeTrim(rel, now)), base, `${rel}: idempotent`)
-    assert.equal(registry.stripLaterChanges(rel, now), registry.stripLaterChanges(rel, base), `${rel}: through the registry (the older pins' read) it is the base's too`)
+    assert.equal(registry.stripLaterChanges(rel, read(rel)), registry.stripLaterChanges(rel, baseText(rel)), `${rel}: through the registry (the older pins' read) it is the base's too`)
   }
   assert.equal(stripWelcomeTrim('lib/anything.ts', 'x'), 'x', 'a file it does not own comes back as it is')
 })
@@ -680,7 +680,7 @@ await check('ROBUST AFTER MERGE: a synthetic change stacked after this one (its 
   const advanced = gateMerge(unrelated, SYNTHETIC)
   assert.equal(scopeHead(advanced), SYNTHETIC); scopeAll(scopeHead(advanced), SYN_CTX)
   // the registry reads past it: through stripLaterChanges the older pins see the base, with the later change's lines in the file too
-  for (const rel of WELCOME_TRIM_FILES) assert.equal(stripWelcomeTrim(rel, syntheticStrip(rel, git('show', `${SYNTHETIC}:${rel}`))), baseText(rel), `${rel}: either order of the two strips gives the base`)
+  for (const rel of WELCOME_TRIM_FILES) assert.equal(stripWelcomeTrim(rel, syntheticStrip(rel, otherStrips(rel, git('show', `${SYNTHETIC}:${rel}`)))), otherStrips(rel, baseText(rel)), `${rel}: either order of the two strips gives the base (a change stacked after this one, the wide chat column, is read past too)`)
 })
 await check('mutant caught: the same synthetic later change fails a scope that is not told about it (its lines are unmarked additions, its registry lines extra)', () => {
   assert.throws(() => scopeCommittedFiles(SYNTHETIC), /unmarked added line|exactly its scope/)
