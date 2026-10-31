@@ -219,15 +219,17 @@ function libSuite(lib, libText = SOURCES[LIB]) {
   const holdOf = (over) => lib.strawmanStageHold({ held: true, phase: 'built', buildStarted: true, ...over })
   eq([holdOf({}), holdOf({ held: false }), holdOf({ phase: 'strawman' }), holdOf({ phase: null }), holdOf({ buildStarted: false })], [true, false, false, false, false], 'hold: only after the return, with the built deck on the stage and its build running')
 
-  const keep = over => lib.strawmanStageKeepStep({ pending: { presentationId: 'built-1', index: 4, at: 1000 }, now: 1000, hasViewerApi: true, viewerReady: true, slideCount: null, ...over })
+  const keep = over => lib.strawmanStageKeepStep({ pending: { presentationId: 'built-1', index: 4, at: 1000 }, now: 1000, hasViewerApi: true, viewerReady: true, slideCount: 10, ...over })
   eq(keep({}), { action: 'go', index: 4 }, 'keep: the viewer is ready: go to the slide')
   eq(keep({ pending: null }), { action: 'drop' }, 'keep: nothing pending')
   eq(keep({ viewerReady: false }), { action: 'wait', retryInMs: lib.STRAWMAN_STAGE_KEEP_RETRY_MS }, 'keep: the built deck\'s viewer is not ready: wait'); eq(keep({ hasViewerApi: false }), { action: 'wait', retryInMs: 250 }, 'keep: no viewer api: wait')
   eq(lib.STRAWMAN_STAGE_KEEP_RETRY_MS, 250, 'keep: looks every 250 ms'); eq(lib.STRAWMAN_STAGE_KEEP_MAX_MS, 20000, 'keep: gives up after 20 s')
   eq(keep({ now: 21000 }).action, 'go', 'keep: exactly at 20 s it still goes'); eq(keep({ now: 21001 }), { action: 'drop' }, 'keep: past 20 s it gives up'); eq(keep({ now: 21001, viewerReady: false }), { action: 'drop' }, 'keep: ...ready or not')
-  eq(keep({ slideCount: 10 }), { action: 'go', index: 4 }, 'keep: a deck that holds the slide'); eq(keep({ slideCount: 5 }), { action: 'go', index: 4 }, 'keep: ...the last slide of it')
-  eq(keep({ slideCount: 3 }), { action: 'go', index: 2 }, 'keep: a deck with fewer slides: its last slide'); eq(keep({ slideCount: 1 }), { action: 'drop' }, 'keep: a one-slide deck has nowhere to go')
-  for (const unknown of [null, undefined, 0, -2, 2.5, Number.NaN, '7']) eq(keep({ slideCount: unknown }), { action: 'go', index: 4 }, `keep: a count that is not known (${String(unknown)}) does not clamp`)
+  const known = { slideCount: 10 }
+  eq(keep(known), { action: 'go', index: 4 }, 'keep: a deck that holds the slide: go to it'); eq(keep({ slideCount: 5 }), { action: 'go', index: 4 }, 'keep: ...it is its last slide')
+  eq(keep({ slideCount: 4 }), { action: 'drop' }, 'keep: a deck that does not hold the slide (it grows with the build) cannot keep it: no move, no hold'); eq(keep({ slideCount: 3 }), { action: 'drop' }, 'keep: ...fewer slides'); eq(keep({ slideCount: 1 }), { action: 'drop' }, 'keep: ...a one-slide deck')
+  for (const unknown of [null, undefined, 0, -2, 2.5, Number.NaN, '7']) eq(keep({ slideCount: unknown }), { action: 'wait', retryInMs: 250 }, `keep: a count that is not known (${String(unknown)}) is waited for, not guessed`)
+  eq(keep({ slideCount: null, now: 21001 }), { action: 'drop' }, 'keep: ...for 20 s at most'); eq(keep({ slideCount: 10, viewerReady: false }), { action: 'wait', retryInMs: 250 }, 'keep: the viewer is waited for first')
 }
 libSuite(realLib)
 console.log(`PASS A  lib: flag, phase, chip, plan (with a fuzz: nothing made up), kept slide (${checks} checks)`)
@@ -281,7 +283,7 @@ async function makeWorld({ flags = ON, libText = SOURCES[LIB], hookText = SOURCE
   const hookModule = evalModule(hookText, HOOK, scope, { react: React, '@/lib/studio-strawman-stage': lib })
   const calls = { go: [] }
   const p = {
-    phase: 'strawman', presentationId: 'straw-1', currentSlideIndex: 0, buildStarted: false, slideCount: null,
+    phase: 'strawman', presentationId: 'straw-1', currentSlideIndex: 0, buildStarted: false, slideCount: 8,
     goToSlide: async index => { calls.go.push(index) }, viewerSafety: { presentationId: 'straw-1', ready: true, busy: false, error: false },
     ...props,
   }
@@ -357,8 +359,17 @@ async function hookSuite(make) {
   // a viewer that never gets ready: gives up after 20 s, leaves no timer
   w = await make({}); await w.set({ currentSlideIndex: 3 }); await w.swap(); await w.advance(19000); eq(w.calls.go, [], 'hook: still waiting at 19 s'); ok(w.pending() > 0, 'hook: ...still looking')
   await w.advance(2000); eq(w.pending(), 0, 'hook: gives up past 20 s: no timer left'); await w.ready(); await w.advance(1000); eq(w.calls.go, [], 'hook: ...and does not go late')
-  // the deck holds fewer slides than the user was past: its last slide; a one-slide deck: nowhere to go
-  w = await make({}); await w.set({ currentSlideIndex: 6 }); await w.swap({ slideCount: 4, viewerSafety: { presentationId: BUILT, ready: true, busy: false, error: false } }); eq(w.calls.go, [3], 'hook: a built deck of 4 slides: its last slide')
+  // a deck that does not hold the user's slide cannot keep it (it grows with the build): no move, no hold, no timer
+  w = await make({}); await w.set({ currentSlideIndex: 6 }); await w.set({ buildStarted: true }); await w.swap({ slideCount: 4, viewerSafety: { presentationId: BUILT, ready: true, busy: false, error: false } }); eq([w.calls.go, w.hold(), w.pending()], [[], false, 0], 'hook: a built deck of 4 slides, the user was on slide 7: nowhere to go, nothing held')
+  w = await make({}); await w.set({ currentSlideIndex: 6 }); await w.set({ buildStarted: true }); await w.swap({ slideCount: 7, viewerSafety: { presentationId: BUILT, ready: true, busy: false, error: false } }); eq([w.calls.go, w.hold()], [[6], true], 'hook: a built deck of 7 slides holds slide 7: gone back to')
+  // the built deck's slide count is not known yet (the page reads it from the viewer once it has drawn): waited for, not guessed
+  w = await make({ props: { slideCount: null } }); await w.set({ currentSlideIndex: 2 }); await w.set({ buildStarted: true }); await w.swap({ viewerSafety: { presentationId: BUILT, ready: true, busy: false, error: false } }); await w.advance(1000)
+  eq([w.calls.go, w.hold()], [[], false], 'hook: the viewer is ready but its slide count is not known: waits'); ok(w.pending() > 0, 'hook: ...and looks again')
+  await w.set({ slideCount: 6 }); eq([w.calls.go, w.hold()], [[2], true], 'hook: ...goes as soon as the deck is known to hold the slide')
+  w = await make({ props: { slideCount: null } }); await w.set({ currentSlideIndex: 2 }); await w.set({ buildStarted: true }); await w.swap({ viewerSafety: { presentationId: BUILT, ready: true, busy: false, error: false } }); await w.advance(21000)
+  eq([w.calls.go, w.hold(), w.pending()], [[], false, 0], 'hook: a count that never comes: gives up past 20 s, nothing moved, nothing held')
+  await w.set({ slideCount: 6 }); await w.advance(1000); eq(w.calls.go, [], 'hook: ...and does not go late')
+  // a one-slide deck: nowhere to go
   w = await make({}); await w.set({ currentSlideIndex: 6 }); await w.swap({ slideCount: 1, viewerSafety: { presentationId: BUILT, ready: true, busy: false, error: false } }); eq([w.calls.go, w.pending()], [[], 0], 'hook: a built deck of 1 slide: nowhere to go')
   // the same deck on the stage (no swap): nothing
   w = await make({}); await w.set({ currentSlideIndex: 3 }); await w.swap({ presentationId: 'straw-1', viewerSafety: { presentationId: 'straw-1', ready: true, busy: false, error: false } }); await w.advance(2000); eq([w.calls.go, w.pending()], [[], 0], 'hook: the same deck is no swap')
@@ -559,10 +570,12 @@ const libMutants = [
   ['keep: gives up at 20 s sharp', 'input.now - pending.at > STRAWMAN_STAGE_KEEP_MAX_MS', 'input.now - pending.at >= STRAWMAN_STAGE_KEEP_MAX_MS'],
   ['keep: goes before the viewer is ready', "if (!input.hasViewerApi || !input.viewerReady) return", "if (!input.hasViewerApi) return"],
   ['keep: goes without the viewer api', "if (!input.hasViewerApi || !input.viewerReady) return", "if (!input.viewerReady) return"],
-  ['keep: no clamp', 'count === null ? pending.index : Math.min(pending.index, count - 1)', 'pending.index'],
-  ['keep: goes to slide 1 of a deck with nowhere to go', 'return index > 0 ? { action: \'go\', index } : { action: \'drop\' }', "return { action: 'go', index }"],
+  ['keep: goes to a deck that does not hold the slide', "return pending.index < count ? { action: 'go', index: pending.index } : { action: 'drop' }", "return { action: 'go', index: pending.index }"],
+  ['keep: off by one (a deck whose last slide is the one before)', "return pending.index < count ?", "return pending.index <= count ?"],
+  ['keep: goes blind when the count is unknown', "  if (count === null) return { action: 'wait', retryInMs: STRAWMAN_STAGE_KEEP_RETRY_MS }\n", ''],
+  ['keep: drops at once when the count is unknown', "  if (count === null) return { action: 'wait', retryInMs: STRAWMAN_STAGE_KEEP_RETRY_MS }", "  if (count === null) return { action: 'drop' }"],
   ['keep: looks every second', 'export const STRAWMAN_STAGE_KEEP_RETRY_MS = 250', 'export const STRAWMAN_STAGE_KEEP_RETRY_MS = 1000'],
-  ['keep: a count of 0 clamps to slide 1', 'input.slideCount > 0 ? input.slideCount : null', 'input.slideCount >= 0 ? input.slideCount : null'],
+  ['keep: a count of 0 is a known count', 'input.slideCount > 0 ? input.slideCount : null', 'input.slideCount >= 0 ? input.slideCount : null'],
 ]
 const hookMutants = [
   // Each effect checks the flag on its own (so neither depends on the other for the flag-off guarantee): taking out one guard alone changes nothing anyone can see, taking out both does.

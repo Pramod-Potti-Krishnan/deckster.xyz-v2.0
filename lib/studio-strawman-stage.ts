@@ -178,22 +178,25 @@ export const STRAWMAN_STAGE_KEEP_RETRY_MS = 250
 
 export type StrawmanStageKeep = { action: 'drop' } | { action: 'wait'; retryInMs: number } | { action: 'go'; index: number }
 
-/** The next step of a pending return: wait for the viewer of the built deck, go to the slide (no further than the deck's last slide), or give up. */
+/**
+ * The next step of a pending return: wait for the viewer of the built deck and for its slide count, go to the slide only if the deck holds it, or give up. A deck that does not hold the user's slide (yet, because
+ * it grows with the build) cannot keep it: nothing is moved and nothing is held, and the narration's follow of the freshest built slide carries on as it does today.
+ */
 export function strawmanStageKeepStep(input: {
   pending: StrawmanStagePending | null
   now: number
   hasViewerApi: boolean
   viewerReady: boolean
-  /** Slides the built deck holds, when known. */
+  /** Slides the built deck holds, when known (the page reads it from the viewer once the deck has drawn). */
   slideCount: number | null | undefined
 }): StrawmanStageKeep {
   const { pending } = input
   if (!pending || input.now - pending.at > STRAWMAN_STAGE_KEEP_MAX_MS) return { action: 'drop' }
   if (!input.hasViewerApi || !input.viewerReady) return { action: 'wait', retryInMs: STRAWMAN_STAGE_KEEP_RETRY_MS }
   const count = typeof input.slideCount === 'number' && Number.isInteger(input.slideCount) && input.slideCount > 0 ? input.slideCount : null
-  const index = count === null ? pending.index : Math.min(pending.index, count - 1)
-  // A deck that opens on slide 1 and has no further slide yet has nowhere to go.
-  return index > 0 ? { action: 'go', index } : { action: 'drop' }
+  // Until the count is known nothing is known of whether the deck holds the slide (going blind would hold the narration off a deck that cannot show it).
+  if (count === null) return { action: 'wait', retryInMs: STRAWMAN_STAGE_KEEP_RETRY_MS }
+  return pending.index < count ? { action: 'go', index: pending.index } : { action: 'drop' }
 }
 
 /** The state after the page was taken back to the kept slide: nothing pending, and the narration's own page turns stand down while this build runs. */
