@@ -7203,10 +7203,9 @@ function AuthenticatedBuilderContent({ authScopeUserId }: { authScopeUserId: str
   })
   const retiredIntroActions = lockApprovalGateStatuses(
     historicalActionStatuses(messages, session.answeredActionsRef.current, session.userMessages), messages, approvalGatesLocked)
-  // STRAWMAN-STAGE (F-04..F-07, NEXT_PUBLIC_STUDIO_STRAWMAN_STAGE, default off): from the outline on the stage is the deck viewer showing Director's strawman preview deck (no outline design over it), with each slide's plan under it;
+  // STRAWMAN-STAGE (F-04..F-07, F-11, NEXT_PUBLIC_STUDIO_STRAWMAN_STAGE, default off): from the outline on the stage is the deck viewer showing Director's strawman preview deck (no outline design over it), with one quiet line under it;
   // STRAWMAN-STAGE: when the built deck replaces the preview deck the viewer stays on the same slide. Every decision is lib/studio-strawman-stage.ts; off, all of this is inert.
   const studioStrawmanPhase = strawmanStagePhase({ enabled: STUDIO_STRAWMAN_STAGE_ENABLED && studioShell, templateModeOn, activeVersion: effectiveActiveVersion, strawmanPreviewUrl, finalPresentationUrl }) // STRAWMAN-STAGE
-  const studioStrawmanPlan = studioStrawmanPhase === 'strawman' ? strawmanStagePlan({ slides: slideStructure?.slides, contextByIndex: slideContextByIndex, index: currentSlideIndex }) : null // STRAWMAN-STAGE
   const studioStrawmanHold = useStudioStrawmanStage({ phase: studioStrawmanPhase, presentationId: effectivePresentationId, currentSlideIndex, buildStarted: strawmanStageBuildStarted({ generatingFinal: isGeneratingFinal, narrationPhase: buildNarration.phase }), slideCount: effectiveSlideCount, goToSlide: layoutServiceApis?.goToSlide, viewerSafety: studioViewerSafety }) // STRAWMAN-STAGE
   // PASS2 #4 (flag NEXT_PUBLIC_STUDIO_OUTLINE_CANVAS, default off): while the outline gate is live, the canvas shows the outline.
   const studioOutlineCanvas = selectStudioOutlineCanvas({
@@ -8400,7 +8399,7 @@ function AuthenticatedBuilderContent({ authScopeUserId }: { authScopeUserId: str
             onTemplateBlueprintChange={handleTemplateBlueprintChange}
           />
           )}
-          {studioStrawmanPhase === 'strawman' && <StudioStrawmanPlan plan={studioStrawmanPlan} />}{/* STRAWMAN-STAGE (F-05, F-06): the slide's plan and the one plain line under the strawman deck; off, never drawn */}
+          {studioStrawmanPhase === 'strawman' && <StudioStrawmanNote />}{/* STRAWMAN-STAGE (F-06, F-11): the one plain line under the strawman deck, nothing else; off, never drawn */}
           {studioOutlineCanvas && <StudioOutlineCanvas key={studioOutlineCanvas.outline.message_id}
             outline={studioOutlineCanvas.outline.payload} contextByIndex={slideContextByIndex}
             onApprove={() => handleActionClick(studioOutlineCanvas.approve, studioOutlineCanvas.gate.message_id, studioOutlineCanvas.answerKey)} />}
@@ -8444,9 +8443,9 @@ import { useStudioFlowControl } from '@/hooks/use-studio-flow-control' // FLOW-C
 import { STUDIO_CHAT_CLEAN_ENABLED, chatCleanComposerState, chatCleanInstructions, chatCleanRootAttributes } from '@/lib/studio-chat-clean' // CHAT-CLEAN: placed here with the flow import, after the Builder's runners, for the same older proof
 import { flowBus } from '@/lib/studio-flow-control' // CHAT-CLEAN: the one-request hand-over of the resume's instructions (taken by sendBuildControl, whatever the flow flags)
 import { StudioChatCleanBar, useStudioChatCleanNotes } from '@/components/builder/chat/studio-chat-clean' // CHAT-CLEAN
-import { STUDIO_STRAWMAN_STAGE_ENABLED, strawmanStageBuildStarted, strawmanStagePhase, strawmanStagePlan } from '@/lib/studio-strawman-stage' // STRAWMAN-STAGE: placed here with the flow and chat imports, after the Builder, for the same older proofs
+import { STUDIO_STRAWMAN_STAGE_ENABLED, strawmanStageBuildStarted, strawmanStagePhase } from '@/lib/studio-strawman-stage' // STRAWMAN-STAGE: placed here with the flow and chat imports, after the Builder, for the same older proofs
 import { useStudioStrawmanStage } from '@/hooks/use-studio-strawman-stage' // STRAWMAN-STAGE
-import { StudioStrawmanPlan } from '@/components/builder/studio-strawman-plan' // STRAWMAN-STAGE
+import { StudioStrawmanNote } from '@/components/builder/studio-strawman-note' // STRAWMAN-STAGE
 import { STUDIO_CHAT_PARITY_ANY_ENABLED, STUDIO_CHAT_PARITY_IDENTITY_ENABLED, STUDIO_CHAT_PARITY_TEMPLATES_ENABLED, STUDIO_CHAT_PARITY_THEMES_ENABLED, chatParityBus, chatParityRefusal, chatParityRequest, chatParityResult } from '@/lib/studio-chat-parity' // CHAT-PARITY: placed here with the flow and chat-clean imports, after the Builder's runners, for the same older proof
 import { runChatParityAction } from '@/lib/studio-chat-parity-runners' // CHAT-PARITY
 import { composerTemplateActions, loadComposerTemplates } from '@/lib/studio-composer-popups' // CHAT-PARITY: the composer library's own list and action set (row 67)

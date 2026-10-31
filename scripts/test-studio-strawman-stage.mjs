@@ -1,14 +1,14 @@
-// FRONTEND-1 (PK's UAT feedback F-04, F-05, F-07, with F-06's one plain line; 30 Oct): proof of NEXT_PUBLIC_STUDIO_STRAWMAN_STAGE (the string "true", default off, build-time).
-//   lib/studio-strawman-stage.ts (pure decisions), hooks/use-studio-strawman-stage.ts (the slide kept across the swap), components/builder/studio-strawman-plan.tsx (+ .css) (the plan strip),
-//   marked lines in app/builder/page.tsx, and the .env.example block.
+// FRONTEND-1 (PK's UAT feedback F-04, F-07, with F-06's one plain line; 30 Oct; F-11, 31 Oct): proof of NEXT_PUBLIC_STUDIO_STRAWMAN_STAGE (the string "true", default off, build-time).
+//   lib/studio-strawman-stage.ts (pure decisions), hooks/use-studio-strawman-stage.ts (the slide kept across the swap), components/builder/studio-strawman-note.tsx (+ .css) (the one quiet line),
+//   marked lines in app/builder/page.tsx, and the .env.example block. What each strawman slide says about itself is the preview deck's own slide, not the stage's (F-11): there is no plan strip.
 //
-//   A. The lib, function by function: the flag, the phase (strawman / built / not applicable), the plan of a slide (title, content type + subtype else service, key message first then key points; an empty field is not drawn;
-//      nothing is made up: a fuzz proves every drawn word is one the wire sent), the kept slide (what is remembered while the strawman shows, the return left when the built deck takes the stage, the wait for its viewer).
-//   B. The strip, drawn: every field, every hidden field, the one plain line, no button.
-//   C. The REAL hook in the chat harness's offline React host with a virtual clock: the return to the slide after the swap (waits for the built deck's viewer, goes once, clamps to the deck, gives up after 20 s), no return for slide 1 or
-//      for a deck that is not another deck, and flag off: nothing remembered, timed or sent.
-//   D. The page and .env.example: every marked line is where and as gated as it must be (the outline canvas is turned off by the flag and nothing else; the F-03 gate spots are untouched); stripping them gives the base's file byte for byte;
-//      the scope is this change's files (not message-list.tsx, not the progress card, not lib/studio-stage-open-gate.ts); the registry names the change; the proof finds its own newest commit by its subject.
+//   A. The lib, function by function: the flag, the phase (strawman / built / not applicable), the kept slide (what is remembered while the strawman shows, the return left when the built deck takes the stage,
+//      the viewer's own drop to slide 1 once the build has started, the wait for the built deck's viewer and its slide count, the hold of the narration's own page turns).
+//   B. The line, drawn: the one plain line, no button, nothing else; its css.
+//   C. The REAL hook in the chat harness's offline React host with a virtual clock: the return to the slide after the swap (waits for the built deck's viewer and its slide count, goes once, gives up after 20 s), the hold,
+//      no return for slide 1 or for a deck that is not another deck, and flag off: nothing remembered, timed or sent.
+//   D. The page and .env.example: every marked line is where and as gated as it must be (the outline canvas is turned off by the flag, with a strawman preview deck, and nothing else; the F-03 gate spots are untouched); stripping them
+//      gives the base's file byte for byte; the scope is this change's files (not message-list.tsx, not the progress card, not lib/studio-stage-open-gate.ts); the registry names the change; the proof finds its own newest commit by its subject.
 //   E. MUTANTS: every one of them must be caught by A-D.
 //
 //   node scripts/test-studio-strawman-stage.mjs
@@ -45,15 +45,15 @@ process.on('unhandledRejection', error => { unhandled.push(error) })
 
 const LIB = 'lib/studio-strawman-stage.ts'
 const HOOK = 'hooks/use-studio-strawman-stage.ts'
-const PLAN = 'components/builder/studio-strawman-plan.tsx'
-const CSS = 'components/builder/studio-strawman-plan.css'
+const NOTE = 'components/builder/studio-strawman-note.tsx'
+const CSS = 'components/builder/studio-strawman-note.css'
 const PAGE = 'app/builder/page.tsx'
 // Later changes stack on top of this one, so every source, diff and scope check reads THIS change's own newest commit, not HEAD or the working tree (the working tree only before the first commit exists).
 const gitText = (...a) => execFileSync('git', ['-C', root, ...a], { encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'] }).trim()
 const OWN = (() => { try { return gitText('log', '-1', '--format=%H', '--no-merges', '-E', `--grep=^${strip.STRAWMAN_STAGE_SUBJECT}`, 'HEAD') || null } catch { return null } })()
 const readAt = (commit, rel) => { if (!commit) return read(rel); try { return execFileSync('git', ['-C', root, 'show', `${commit}:${rel}`], { encoding: 'utf8', maxBuffer: 1 << 28, stdio: ['ignore', 'pipe', 'ignore'] }) } catch { return read(rel) } }
 const readOwn = rel => readAt(OWN, rel)
-const SOURCES = { [LIB]: read(LIB), [HOOK]: read(HOOK), [PLAN]: read(PLAN), [CSS]: read(CSS), [PAGE]: readOwn(PAGE), '.env.example': readOwn('.env.example') }
+const SOURCES = { [LIB]: read(LIB), [HOOK]: read(HOOK), [NOTE]: read(NOTE), [CSS]: read(CSS), [PAGE]: readOwn(PAGE), '.env.example': readOwn('.env.example') }
 
 // ---- evaluation of module text (the real files and the mutants), in THIS realm so deepEqual compares plain objects ----------------------------------
 function compile(text, fileName) {
@@ -97,70 +97,6 @@ function libSuite(lib, libText = SOURCES[LIB]) {
   eq(phase({ activeVersion: 'final' }), 'built', 'phase: the final version is built'); eq(phase({ activeVersion: 'final', finalPresentationUrl: 'https://layout/p/final' }), 'built', 'phase: built with its url')
   eq(phase({ activeVersion: 'final', strawmanPreviewUrl: null }), 'built', 'phase: a restored finished deck is built')
   eq(phase({ activeVersion: 'blank' }), null, 'phase: a blank canvas is not applicable'); eq(phase({ activeVersion: null }), null, 'phase: no version'); eq(phase({ activeVersion: undefined }), null, 'phase: undefined version')
-
-  // -- the chip ---------------------------------------------------------------------------------------------------------------------------
-  const chip = lib.strawmanStageChip
-  eq(chip({ content_type: 'text_heavy', subtype: 'vertical' }, { service: 'text_service' }), 'Text heavy · Vertical', 'chip: content type + subtype, underscores read as spaces, first letter capital')
-  eq(chip({ content_type: 'chart', subtype: null }, null), 'Chart', 'chip: no subtype'); eq(chip({ content_type: 'chart' }, null), 'Chart', 'chip: subtype absent')
-  eq(chip({ content_type: 'chart', subtype: 'Chart' }, null), 'Chart', 'chip: a subtype that says the same adds nothing'); eq(chip({ content_type: 'chart', subtype: '   ' }, null), 'Chart', 'chip: a blank subtype adds nothing')
-  eq(chip({ content_type: 'infographic', subtype: 'big_numbers' }, { service: 'x' }), 'Infographic · Big numbers', 'chip: the service is used only when there is no content type')
-  eq(chip({}, { service: 'analytics_service' }), 'Analytics service', 'chip: else the service'); eq(chip(null, { service: 'diagram' }), 'Diagram', 'chip: no context at all')
-  eq(chip({ content_type: '  ' }, { service: 'diagram' }), 'Diagram', 'chip: a blank content type is none'); eq(chip({ content_type: 7 }, { service: 'diagram' }), 'Diagram', 'chip: a content type that is not text is none')
-  eq(chip({ subtype: 'vertical' }, null), null, 'chip: a subtype alone is not a chip'); eq(chip({}, {}), null, 'chip: neither'); eq(chip(undefined, undefined), null, 'chip: nothing'); eq(chip('x', 'y'), null, 'chip: not records')
-  eq(chip({ content_type: 'a__b  c_' }, null), 'A b c', 'chip: runs of underscores and spaces collapse')
-
-  // -- the plan ---------------------------------------------------------------------------------------------------------------------------
-  const slides = [
-    { slide_id: 's1', title: 'Opening', key_points: ['Welcome', 'Agenda'], service: 'text_service' },
-    { slide_id: 's2', title: 'Market size', key_points: ['TAM is 40B', 'Growing 12% a year', 'Three segments'], service: 'analytics_service' },
-    { slide_id: 's3', title: 'Close', key_points: [] },
-  ]
-  const context = { 1: { slide_index: 1, content_type: 'chart', subtype: 'bar', key_message: 'The market is large and growing' }, 0: { slide_index: 0, content_type: 'text_heavy' } }
-  const plan = (over = {}) => lib.strawmanStagePlan({ slides, contextByIndex: context, index: 1, ...over })
-  eq(plan(), { position: 2, total: 3, title: 'Market size', chip: 'Chart · Bar', points: ['The market is large and growing', 'TAM is 40B', 'Growing 12% a year', 'Three segments'] }, 'plan: title, chip, the key message first then the key points, and where the slide is')
-  eq(plan({ index: 0 }), { position: 1, total: 3, title: 'Opening', chip: 'Text heavy', points: ['Welcome', 'Agenda'] }, 'plan: the first slide; no key message, no subtype')
-  eq(plan({ index: 2 }), { position: 3, total: 3, title: 'Close', chip: null, points: [] }, 'plan: a slide with no context and no points: the chip and the list are empty, not made up')
-  eq(plan({ index: 99 }).position, 3, 'plan: an index past the end is the last slide'); eq(plan({ index: -1 }).position, 1, 'plan: negative is the first'); eq(plan({ index: 1.5 }).position, 1, 'plan: a fraction is the first')
-  eq(plan({ index: Number.NaN }).position, 1, 'plan: NaN is the first'); eq(plan({ index: '1' }).position, 1, 'plan: a string is the first')
-  eq(plan({ contextByIndex: null }), { position: 2, total: 3, title: 'Market size', chip: 'Analytics service', points: ['TAM is 40B', 'Growing 12% a year', 'Three segments'] }, 'plan: no slide_context: the service is the chip, no key message')
-  eq(plan({ contextByIndex: [] }).chip, 'Analytics service', 'plan: an array is no map'); eq(plan({ contextByIndex: 'x' }).chip, 'Analytics service', 'plan: a string is no map')
-  eq(lib.strawmanStagePlan({ slides: [{ title: 'A' }], contextByIndex: { 0: { key_message: 'a' } }, index: 0 }).points, [], 'plan: a key message that only differs from the title in case says nothing more: dropped')
-  eq(lib.strawmanStagePlan({ slides: [{ title: '   ' }], contextByIndex: { 0: { content_type: 'chart' } }, index: 0 }).title, null, 'plan: a blank title is no title')
-  eq(lib.strawmanStagePlan({ slides: [{ title: 'Market size', key_points: ['market size', 'Other'] }], contextByIndex: { 0: { key_message: '  MARKET   SIZE ' } }, index: 0 }).points, ['Other'], 'plan: a point or message that repeats the title (any case, any spacing) is dropped')
-  eq(lib.strawmanStagePlan({ slides: [{ title: 'T', key_points: ['One', 'one', ' ONE ', 'Two'] }], contextByIndex: null, index: 0 }).points, ['One', 'Two'], 'plan: repeated points are drawn once')
-  eq(lib.strawmanStagePlan({ slides: [{ title: 'T', key_points: ['', '   ', null, 4, {}, ['x'], 'Real'] }], contextByIndex: null, index: 0 }).points, ['Real'], 'plan: empty and non-text points are skipped')
-  eq(lib.strawmanStagePlan({ slides: [{ title: 'T', key_points: 'not a list' }], contextByIndex: null, index: 0 }).points, [], 'plan: key_points that is not a list is none')
-  eq(lib.strawmanStagePlan({ slides: [{ title: '  Spaced \n title  ' }], contextByIndex: null, index: 0 }).title, 'Spaced title', 'plan: white space collapses')
-  eq(lib.strawmanStagePlan({ slides: [{ title: 'T', key_points: Array.from({ length: 12 }, (_, i) => `Point ${i}`) }], contextByIndex: null, index: 0 }).points.length, lib.STRAWMAN_STAGE_MAX_POINTS, 'plan: a short list')
-  eq(lib.STRAWMAN_STAGE_MAX_POINTS, 6, 'plan: six at most')
-  eq(lib.strawmanStagePlan({ slides: [{ title: 'T', key_points: ['a', 'b'] }], contextByIndex: { 0: { key_message: 'M' } }, index: 0 }).points[0], 'M', 'plan: the key message comes first even with a short list')
-  eq(lib.strawmanStagePlan({ slides: [{ title: 'T', key_points: ['a', 'b', 'c', 'd', 'e', 'f'] }], contextByIndex: { 0: { key_message: 'M' } }, index: 0 }).points, ['M', 'a', 'b', 'c', 'd', 'e'], 'plan: the cap cuts the last point, never the key message')
-  eq(lib.strawmanStagePlan({ slides: [], contextByIndex: { 3: { content_type: 'chart', key_message: 'Only context' } }, index: 3 }), { position: null, total: null, title: null, chip: 'Chart', points: ['Only context'] }, 'plan: no outline frame yet: the context alone, no position')
-  for (const empty of [{ slides: [], contextByIndex: null, index: 0 }, { slides: null, contextByIndex: null, index: 0 }, { slides: undefined, contextByIndex: undefined, index: 0 }, { slides: 'x', contextByIndex: 3, index: 0 },
-    { slides: [{}], contextByIndex: {}, index: 0 }, { slides: [{ title: '  ', key_points: [] }], contextByIndex: { 0: {} }, index: 0 }, { slides: [null], contextByIndex: null, index: 0 }]) eq(lib.strawmanStagePlan(empty), null, `plan: nothing to show is null (${JSON.stringify(empty).slice(0, 60)})`)
-  eq(lib.strawmanStagePlan({ slides: [{ title: 'T', slide_type: 'title_slide', narrative: 'a story', analytics_needed: 'x' }], contextByIndex: null, index: 0 }), { position: 1, total: 1, title: 'T', chip: null, points: [] }, 'plan: fields that are not part of the plan (slide_type, narrative ...) are not drawn')
-  // nothing is made up: every word of every plan comes from the input (a deterministic fuzz)
-  let seed = 7
-  const rand = n => { seed = (seed * 1103515245 + 12345) & 0x7fffffff; return seed % n }
-  const words = ['Alpha', 'beta', 'GAMMA', '  delta  ', 'text_heavy', 'bar_chart', '', ' ', 'x', 'Q3 results', 'a_b']
-  const pick = () => { const kind = rand(8); return kind === 0 ? null : kind === 1 ? rand(5) : kind === 2 ? undefined : words[rand(words.length)] }
-  const norm = s => String(s).replace(/\s+/g, ' ').trim()
-  for (let round = 0; round < 300; round++) {
-    const n = rand(4)
-    const fuzzSlides = Array.from({ length: n }, () => ({ title: pick(), service: pick(), key_points: rand(3) === 0 ? pick() : Array.from({ length: rand(5) }, pick) }))
-    const fuzzContext = {}; for (let i = 0; i < 4; i++) if (rand(2)) fuzzContext[i] = { content_type: pick(), subtype: pick(), key_message: pick() }
-    const index = rand(6) - 1
-    const got = lib.strawmanStagePlan({ slides: fuzzSlides, contextByIndex: fuzzContext, index })
-    if (!got) continue
-    const allowed = new Set()
-    const allow = v => { if (typeof v === 'string') { allowed.add(norm(v).toLowerCase()); allowed.add(norm(v).replace(/_+/g, ' ').trim().toLowerCase()) } }
-    for (const s of fuzzSlides) { for (const v of [s.title, s.service, ...(Array.isArray(s.key_points) ? s.key_points : [])]) allow(v) }
-    for (const c of Object.values(fuzzContext)) for (const v of [c.content_type, c.subtype, c.key_message]) allow(v)
-    const drawn = [got.title, ...got.points, ...(got.chip ? got.chip.split(' · ') : [])].filter(v => v !== null)
-    for (const v of drawn) if (!allowed.has(norm(v).toLowerCase())) assert.fail(`fuzz: "${v}" was not on the wire (round ${round})`)
-    checks++
-    ok(got.points.length <= lib.STRAWMAN_STAGE_MAX_POINTS && new Set(got.points.map(p => p.toLowerCase())).size === got.points.length && got.points.every(p => p === norm(p) && p !== ''), `fuzz: a short list, no repeats, no blanks (round ${round})`)
-  }
 
   // -- the kept slide ---------------------------------------------------------------------------------------------------------------------
   const { initialStrawmanStageState: initial, strawmanStageStep: step } = lib
@@ -232,44 +168,25 @@ function libSuite(lib, libText = SOURCES[LIB]) {
   eq(keep({ slideCount: null, now: 21001 }), { action: 'drop' }, 'keep: ...for 20 s at most'); eq(keep({ slideCount: 10, viewerReady: false }), { action: 'wait', retryInMs: 250 }, 'keep: the viewer is waited for first')
 }
 libSuite(realLib)
-console.log(`PASS A  lib: flag, phase, chip, plan (with a fuzz: nothing made up), kept slide (${checks} checks)`)
+console.log(`PASS A  lib: flag, phase, kept slide, hold (${checks} checks)`)
 
 // ============================================================================================================================================
-// B. The strip
+// B. The line
 // ============================================================================================================================================
-function planSuite(lib, planText = SOURCES[PLAN], css = SOURCES[CSS]) {
-  const { StudioStrawmanPlan } = evalModule(planText, PLAN, {}, { react: React, 'react/jsx-runtime': require('react/jsx-runtime'), '@/lib/studio-strawman-stage': lib, './studio-strawman-plan.css': {} })
-  const draw = plan => renderToStaticMarkup(React.createElement(StudioStrawmanPlan, { plan }))
-  const NOTE = 'No action needed: building starts automatically.'
-  const full = { position: 2, total: 8, title: 'Market size', chip: 'Chart · Bar', points: ['The market is large', 'TAM is 40B'] }
-  let html = draw(full)
-  ok(html.includes('data-studio-strawman-plan="true"') && html.includes('aria-label="Slide plan"') && html.startsWith('<section'), 'strip: a labelled section keyed to the attribute the css uses')
-  ok(html.includes('>Slide 2 of 8<') && html.includes('data-studio-strawman-plan-part="position"'), 'strip: where the slide is')
-  ok(html.includes('data-studio-strawman-plan-part="chip">Chart · Bar<'), 'strip: the content type chip')
-  ok(/<h3[^>]*data-studio-strawman-plan-part="title">Market size<\/h3>/.test(html), 'strip: the title')
-  ok(html.includes('<ul') && html.includes('aria-label="Key points"') && html.includes('<li>The market is large</li><li>TAM is 40B</li>'), 'strip: the key points as a list, in order')
-  ok(html.includes('aria-live="polite"'), 'strip: the plan is announced politely when the slide changes')
-  ok(html.includes(`<p data-studio-strawman-plan-part="note">${NOTE}</p>`), 'strip: the one plain line')
-  ok(html.indexOf('data-studio-strawman-plan-part="plan"') < html.indexOf('data-studio-strawman-plan-part="note"'), 'strip: the line comes after the plan')
-  ok(!html.includes('<button') && !html.includes('<a ') && !/onclick/i.test(html) && !/approve/i.test(html), 'strip: no button, no link, no Approve')
-  html = draw(null); ok(html.includes(NOTE) && !html.includes('data-studio-strawman-plan-part="plan"') && !html.includes('<ul') && !html.includes('<h3') && !/Slide \d/.test(html), 'strip: no plan: the plain line alone')
-  html = draw({ position: null, total: null, title: null, chip: null, points: [] }); ok(html.includes(NOTE) && !html.includes('data-studio-strawman-plan-part="plan"'), 'strip: a plan with every field empty is the plain line alone')
-  html = draw({ ...full, chip: null }); ok(!html.includes('part="chip"') && html.includes('Market size') && html.includes('<li>'), 'strip: no chip, none drawn')
-  html = draw({ ...full, title: null }); ok(!html.includes('<h3') && html.includes('part="chip"') && html.includes('<li>'), 'strip: no title, none drawn')
-  html = draw({ ...full, points: [] }); ok(!html.includes('<ul') && !html.includes('<li>') && html.includes('Market size'), 'strip: no points, no list')
-  html = draw({ ...full, position: null, total: null }); ok(!/Slide \d/.test(html) && html.includes('Market size'), 'strip: no position, none drawn')
-  html = draw({ ...full, position: 2, total: null }); ok(!/Slide \d/.test(html), 'strip: a position without a total is not drawn')
-  html = draw({ ...full, title: 'A <b>bold</b> & "quoted" title' }); ok(html.includes('A &lt;b&gt;bold&lt;/b&gt; &amp; &quot;quoted&quot; title') && !html.includes('<b>'), 'strip: the words are text, never markup')
-  html = draw({ ...full, points: ['<i>x</i> & "y"'] }); ok(html.includes('<li>&lt;i&gt;x&lt;/i&gt; &amp; &quot;y&quot;</li>') && !html.includes('<i>'), 'strip: a point is text, never markup')
-  html = draw({ ...full, chip: null, title: null, points: ['Only a point'] }); ok(html.includes('<li>Only a point</li>') && !html.includes('part="chip"') && !html.includes('<h3'), 'strip: points alone')
-  // the css: keyed to the strip's own attributes, scoped to the Studio shell, quiet (the shell's tokens, one hairline), never positioned over the viewer
-  ok(/\[data-studio-v4-shell="true"\] \[data-studio-strawman-plan="true"\] \{/.test(css), 'css: the strip is scoped to the Studio shell')
-  ok(css.split('\n').filter(line => /^\s*\[|^@container/.test(line)).every(line => line.includes('data-studio-strawman-plan') || line.startsWith('@container')), 'css: every rule is keyed to the strip\'s own attribute')
-  ok(!/position:\s*(absolute|fixed)/.test(css) && /flex:\s*none/.test(css) && /border-top:\s*1px solid var\(--ss-line\)/.test(css) && /max-height:/.test(css), 'css: a row under the viewer (not over it), one hairline, a height cap')
+function noteSuite(lib, noteText = SOURCES[NOTE], css = SOURCES[CSS]) {
+  const { StudioStrawmanNote } = evalModule(noteText, NOTE, {}, { react: React, 'react/jsx-runtime': require('react/jsx-runtime'), '@/lib/studio-strawman-stage': lib, './studio-strawman-note.css': {} })
+  const html = renderToStaticMarkup(React.createElement(StudioStrawmanNote))
+  eq(html, '<p data-studio-strawman-note="true">No action needed: building starts automatically.</p>', 'line: the one plain line, in a paragraph keyed to the attribute the css uses, and nothing else')
+  ok(!html.includes('<button') && !html.includes('<a ') && !/onclick/i.test(html) && !/approve/i.test(html), 'line: no button, no link, no Approve')
+  ok(!/<(h\d|ul|li|section)\b/.test(html) && !/Slide \d/.test(html), 'line: no title, no list, no slide plan (the preview deck\'s own slide says that: F-11)')
+  // the css: keyed to the line's own attribute, scoped to the Studio shell, quiet (the shell's tokens, one hairline), never positioned over the viewer
+  ok(/\[data-studio-v4-shell="true"\] \[data-studio-strawman-note="true"\] \{/.test(css), 'css: the line is scoped to the Studio shell')
+  ok(css.split('\n').filter(line => /^\s*\[|^@container/.test(line)).every(line => line.includes('data-studio-strawman-note')), 'css: every rule is keyed to the line\'s own attribute')
+  ok(!/position:\s*(absolute|fixed)/.test(css) && /flex:\s*none/.test(css) && /border-top:\s*1px solid var\(--ss-line\)/.test(css) && /font-size:\s*11px/.test(css), 'css: a small row under the viewer (not over it), one hairline')
   ok(!/#[0-9a-f]{3,8}\b/i.test(css.replace(/\/\*[\s\S]*?\*\//g, '')), 'css: only the shell\'s tokens, no colours of its own')
 }
-planSuite(realLib)
-console.log(`PASS B  strip: markup, hidden fields, no button, css (${checks} checks)`)
+noteSuite(realLib)
+console.log(`PASS B  line: markup, no button, css (${checks} checks)`)
 
 // ============================================================================================================================================
 // C. The real hook in the offline React host
@@ -395,29 +312,27 @@ console.log(`PASS C  hook: the return to the user's slide, waits, clamps, gives 
 // ============================================================================================================================================
 const lines = text => text.split('\n')
 function sourceSuite(sources, { base = null } = {}) {
-  const page = sources[PAGE], env = sources['.env.example'], hook = sources[HOOK], planSource = sources[PLAN], libSource = sources[LIB]
+  const page = sources[PAGE], env = sources['.env.example'], hook = sources[HOOK], noteSource = sources[NOTE], libSource = sources[LIB]
   const lineOf = (text, needle) => { const found = lines(text).filter(line => line.includes(needle)); ok(found.length === 1, `exactly one line with: ${needle.slice(0, 70)} (${found.length})`); return found[0] }
   const marked = lines(page).filter(line => strip.STRAWMAN_STAGE_MARKER_RE.test(line))
-  eq(marked.length, 11, 'page: eleven marked lines (three imports, two comments, the phase, the plan, the hook call, the spread, the strip, the narration hold)')
+  eq(marked.length, 10, 'page: ten marked lines (three imports, two comments, the phase, the hook call, the spread, the line, the narration hold)')
   // nothing of it comes before the Builder's runners (an older proof slices the page by the positions of a parse that does not see these lines)
   const first = page.indexOf(marked[0])
   ok(first > page.indexOf('themeExportDirectiveRunnerRef.current = ') && first > page.indexOf('elementDirectiveRunnerRef.current = '), 'page: the first marked line is after the Builder\'s element and theme runners')
   // imports: after the Builder content, before the loading state, with the flow and chat imports
-  const importLib = lineOf(page, "import { STUDIO_STRAWMAN_STAGE_ENABLED, strawmanStageBuildStarted, strawmanStagePhase, strawmanStagePlan } from '@/lib/studio-strawman-stage' // STRAWMAN-STAGE")
+  const importLib = lineOf(page, "import { STUDIO_STRAWMAN_STAGE_ENABLED, strawmanStageBuildStarted, strawmanStagePhase } from '@/lib/studio-strawman-stage' // STRAWMAN-STAGE")
   const importHook = lineOf(page, "import { useStudioStrawmanStage } from '@/hooks/use-studio-strawman-stage' // STRAWMAN-STAGE")
-  const importPlan = lineOf(page, "import { StudioStrawmanPlan } from '@/components/builder/studio-strawman-plan' // STRAWMAN-STAGE")
-  for (const line of [importLib, importHook, importPlan]) ok(page.indexOf(line) > page.indexOf('function AuthenticatedBuilderContent(') && page.indexOf(line) < page.indexOf('function BuilderLoadingState('), 'page: imported between the Builder content and the loading state (after the runners)')
+  const importNote = lineOf(page, "import { StudioStrawmanNote } from '@/components/builder/studio-strawman-note' // STRAWMAN-STAGE")
+  for (const line of [importLib, importHook, importNote]) ok(page.indexOf(line) > page.indexOf('function AuthenticatedBuilderContent(') && page.indexOf(line) < page.indexOf('function BuilderLoadingState('), 'page: imported between the Builder content and the loading state (after the runners)')
   ok(page.indexOf(importLib) > page.indexOf("import { useStudioFlowControl } from '@/hooks/use-studio-flow-control'"), 'page: ...with the flow and chat imports')
   // the decisions: before the outline canvas is selected, after what they read
   const phaseLine = lineOf(page, 'const studioStrawmanPhase = strawmanStagePhase({')
   ok(phaseLine.includes('enabled: STUDIO_STRAWMAN_STAGE_ENABLED && studioShell, templateModeOn, activeVersion: effectiveActiveVersion,') && phaseLine.includes('strawmanPreviewUrl') && phaseLine.includes('finalPresentationUrl'), 'page: the phase is the Studio shell\'s, not template mode, from the displayed version and the two urls')
-  const planLine = lineOf(page, 'const studioStrawmanPlan = studioStrawmanPhase')
-  ok(planLine.includes("studioStrawmanPhase === 'strawman' ? strawmanStagePlan({") && planLine.includes('slides: slideStructure?.slides') && planLine.includes('contextByIndex: slideContextByIndex') && planLine.includes('index: currentSlideIndex') && planLine.endsWith(': null // STRAWMAN-STAGE'), 'page: the plan is of the slide on stage, from the outline frame and slide_context, only in the strawman phase')
   const hookLine = lineOf(page, 'const studioStrawmanHold = useStudioStrawmanStage({')
   for (const piece of ['phase: studioStrawmanPhase', 'presentationId: effectivePresentationId', 'currentSlideIndex, buildStarted: strawmanStageBuildStarted({ generatingFinal: isGeneratingFinal, narrationPhase: buildNarration.phase }), slideCount: effectiveSlideCount', 'goToSlide: layoutServiceApis?.goToSlide', 'viewerSafety: studioViewerSafety']) ok(hookLine.includes(piece), `page: the hook is handed ${piece}`)
   const selectAt = page.indexOf('const studioOutlineCanvas = selectStudioOutlineCanvas({')
   ok(selectAt > 0, 'page: the outline canvas selection is there')
-  for (const line of [phaseLine, planLine, hookLine]) ok(page.indexOf(line) < selectAt, 'page: decided before the outline canvas is selected')
+  for (const line of [phaseLine, hookLine]) ok(page.indexOf(line) < selectAt, 'page: decided before the outline canvas is selected')
   ok(page.indexOf(phaseLine) > page.indexOf('const effectiveActiveVersion = ') && page.indexOf(phaseLine) > page.indexOf('const effectiveSlideCount = ') && page.indexOf(phaseLine) > page.indexOf('const [layoutServiceApis') && page.indexOf(phaseLine) > page.indexOf('const [studioViewerSafety'), 'page: ...after everything it reads')
   // the one thing that turns the outline canvas off: the flag, inside the selection, after its own enabled
   const spread = lineOf(page, '...(STUDIO_STRAWMAN_STAGE_ENABLED && strawmanPreviewUrl ? { enabled: false } : {}), // STRAWMAN-STAGE')
@@ -430,9 +345,10 @@ function sourceSuite(sources, { base = null } = {}) {
   ok(holdLine.trim().startsWith('{...(studioStrawmanHold ?') && page.indexOf(holdLine) > page.indexOf('? narrationNavigate : null}') && page.indexOf(holdLine) < page.indexOf('buildNarration={effectiveBuildNarrationEnabled ? buildNarration : null}') && page.indexOf(holdLine) > page.indexOf('<PresentationArea'), 'page: the hold is an attribute of the viewer area, after narrationNavigate\'s own and before buildNarration, so it overrides it')
   ok(page.indexOf(hookLine) < page.indexOf(holdLine), 'page: ...the hook is called first')
   eq(lines(page).filter(line => line.includes('narrationNavigate={')).length, 1, 'page: narrationNavigate\'s own attribute is not rewritten')
-  // the strip: after the viewer, before the outline canvas's own JSX, only in the strawman phase
-  const jsx = lineOf(page, '<StudioStrawmanPlan plan={studioStrawmanPlan} />')
-  ok(jsx.trim().startsWith("{studioStrawmanPhase === 'strawman' && <StudioStrawmanPlan plan={studioStrawmanPlan} />}{/* STRAWMAN-STAGE"), 'page: the strip is drawn only in the strawman phase')
+  // the line: after the viewer, before the outline canvas's own JSX, only in the strawman phase
+  const jsx = lineOf(page, '<StudioStrawmanNote />')
+  ok(jsx.trim().startsWith("{studioStrawmanPhase === 'strawman' && <StudioStrawmanNote />}{/* STRAWMAN-STAGE"), 'page: the line is drawn only in the strawman phase')
+  ok(!page.includes('strawmanStagePlan') && !page.includes('studioStrawmanPlan') && !page.includes('StudioStrawmanPlan'), 'page: no plan strip (F-11)')
   ok(page.indexOf(jsx) > page.indexOf('<PresentationArea') && page.indexOf(jsx) < page.indexOf('{studioOutlineCanvas && <StudioOutlineCanvas'), 'page: ...after the viewer, before the outline canvas\'s own line')
   ok(!/onApprove|handleActionClick/.test(jsx), 'page: no approval on the stage')
   // the F-03 gate spots (FRONTEND-2's) and the outline canvas are untouched: the four lines around each anchor are the base's, contiguous
@@ -451,8 +367,9 @@ function sourceSuite(sources, { base = null } = {}) {
   ok(/import \{[^}]*\} from 'react'/.test(hook) && hook.includes("from '@/lib/studio-strawman-stage'") && lines(hook).filter(line => /^import /.test(line)).length === 2, 'hook: imports react and the lib, nothing else')
   ok(/if \(!STUDIO_STRAWMAN_STAGE_ENABLED\) return/.test(hook) && lines(hook).filter(line => line.includes('if (!STUDIO_STRAWMAN_STAGE_ENABLED')).length === 2, 'hook: both effects return at once with the flag off')
   ok(!/\bfetch\(|WebSocket|sendBuildControl|localStorage|sessionStorage/.test(hook), 'hook: it sends nothing and stores nothing')
-  ok(!/<button|onClick|onApprove|handleActionClick/.test(planSource), 'strip component: no button, no click, no approval')
-  ok(lines(planSource).filter(line => /^import /.test(line)).length === 2 && planSource.includes('./studio-strawman-plan.css'), 'strip component: imports the lib and its css only')
+  ok(!/<button|onClick|onApprove|handleActionClick/.test(noteSource), 'line component: no button, no click, no approval')
+  ok(lines(noteSource).filter(line => /^import /.test(line)).length === 2 && noteSource.includes('./studio-strawman-note.css'), 'line component: imports the lib and its css only')
+  ok(!/strawmanStagePlan|strawmanStageChip|slide_context|key_points/.test(libSource), 'lib: no plan code (F-11: the preview deck\'s own slide says that)')
   ok(!/^import /m.test(libSource) && !/\brequire\(/.test(libSource), 'lib: import-free')
   ok((libSource.match(/process\.env\./g) ?? []).length === 1 && libSource.includes('process.env.NEXT_PUBLIC_STUDIO_STRAWMAN_STAGE'), 'lib: one literal process.env read (so Next inlines it)')
   // env
@@ -525,23 +442,6 @@ const libMutants = [
   ['phase: the flag does not matter', 'if (!input.enabled || input.templateModeOn) return null', 'if (input.templateModeOn) return null'],
   ['phase: no preview deck still counts', "input.activeVersion === 'strawman' && input.strawmanPreviewUrl &&", "input.activeVersion === 'strawman' &&"],
   ['phase: the final version is not built', "if (input.activeVersion === 'final') return 'built'", "if (input.activeVersion === 'finalx') return 'built'"],
-  ['chip: the service comes first', 'const type = readable(isRecord(context) ? context.content_type : null)', 'const type = readable(isRecord(slide) ? slide.service : null) ?? readable(isRecord(context) ? context.content_type : null)'],
-  ['chip: a subtype is always added', "return subtype && subtype.toLowerCase() !== type.toLowerCase() ? `${type} \u00b7 ${subtype}` : type", "return subtype ? `${type} \u00b7 ${subtype}` : type"],
-  ['chip: the underscores stay', "text.replace(/_+/g, ' ')", 'text'],
-  ['chip: no capital', 'spaced.charAt(0).toUpperCase() + spaced.slice(1)', 'spaced'],
-  ['chip: a subtype alone is a chip', "  return readable(isRecord(slide) ? slide.service : null)\n}", "  return readable(isRecord(slide) ? slide.service : null) ?? readable(isRecord(context) ? context.subtype : null)\n}"],
-  ['plan: the key message comes last', "  add(isRecord(context) ? context.key_message : null)\n  const keyPoints = isRecord(slide) && Array.isArray(slide.key_points) ? slide.key_points : []\n  for (const point of keyPoints) add(point)", "  const keyPoints = isRecord(slide) && Array.isArray(slide.key_points) ? slide.key_points : []\n  for (const point of keyPoints) add(point)\n  add(isRecord(context) ? context.key_message : null)"],
-  ['plan: repeated points are drawn', 'if (!text || seen.has(text.toLowerCase())) return', 'if (!text) return'],
-  ['plan: a point that repeats the title is drawn', "const seen = new Set<string>(title ? [title.toLowerCase()] : [])", 'const seen = new Set<string>()'],
-  ['plan: a title is made up when there is none', 'const title = plainText(isRecord(slide) ? slide.title : null)', "const title = plainText(isRecord(slide) ? slide.title : null) ?? 'Untitled slide'"],
-  ['plan: an empty plan is drawn', 'if (!title && !chip && !points.length) return null', ''],
-  ['plan: no cap', 'points: points.slice(0, STRAWMAN_STAGE_MAX_POINTS)', 'points'],
-  ['plan: the cap is 3', 'export const STRAWMAN_STAGE_MAX_POINTS = 6', 'export const STRAWMAN_STAGE_MAX_POINTS = 3'],
-  ['plan: an index past the end is no slide', 'const index = slides.length ? Math.min(wanted, slides.length - 1) : wanted', 'const index = wanted'],
-  ['plan: a fraction is an index', 'Number.isInteger(input.index) && input.index >= 0 ? input.index : 0', 'typeof input.index === \'number\' && input.index >= 0 ? input.index : 0'],
-  ['plan: the position is 0-based', 'position: slides.length ? index + 1 : null', 'position: slides.length ? index : null'],
-  ['plan: white space is kept', "const collapsed = value.replace(/\\s+/g, ' ').trim()", 'const collapsed = value'],
-  ['plan: a blank string is text', 'return collapsed || null', 'return collapsed'],
   ['step: the strawman is not remembered', "    return { shown: { presentationId: id, index }, pending: null }", "    return state"],
   ['step: a drop to slide 1 after the build started is followed', "    if (input.buildStarted && index === 0 && state.shown && state.shown.presentationId === id && state.shown.index > 0) return { shown: state.shown, pending: null }\n", ""],
   ['step: the drop is kept off even before the build started', 'if (input.buildStarted && index === 0', 'if (index === 0'],
@@ -596,29 +496,21 @@ const hookMutants = [
   ['the wait never looks again', 'const timer = setTimeout(() => setTick(value => value + 1), step.retryInMs)', 'const timer = setTimeout(() => {}, step.retryInMs)'],
   ['the wrong slide', 'current.goToSlide!(step.index)', 'current.goToSlide!(step.index + 1)'],
 ]
-const planMutants = [
-  ['the plain line is not drawn', '<p data-studio-strawman-plan-part="note">{STRAWMAN_STAGE_NO_ACTION_LINE}</p>', ''],
+const noteMutants = [
+  ['the plain line is not drawn', '<p data-studio-strawman-note="true">{STRAWMAN_STAGE_NO_ACTION_LINE}</p>', '<p data-studio-strawman-note="true"></p>'],
   ['the plain line is not the lib\'s', '{STRAWMAN_STAGE_NO_ACTION_LINE}', 'Building starts automatically.'],
-  ['an Approve button is drawn', '<p data-studio-strawman-plan-part="note">', '<button type="button">Approve</button><p data-studio-strawman-plan-part="note">'],
-  ['an empty plan is drawn', 'plan && hasPlan &&', 'plan &&'],
-  ['the chip is drawn empty', '{plan.chip && <span', '{<span'],
-  ['the title is drawn empty', '{plan.title && <h3', '{<h3'],
-  ['the list is drawn empty', '{plan.points.length > 0 && (', '{('],
-  ['the position is drawn without a total', 'plan.position !== null && plan.total !== null &&', 'plan.position !== null &&'],
-  ['the words are markup', '<li key={i}>{point}</li>', '<li key={i} dangerouslySetInnerHTML={{ __html: point }} />'],
-  ['the plan is not announced', ' aria-live="polite"', ''],
-  ['the strip is not labelled', ' aria-label="Slide plan"', ''],
+  ['an Approve button is drawn', '<p data-studio-strawman-note="true">', '<button type="button">Approve</button><p data-studio-strawman-note="true">'],
+  ['a slide plan is drawn again', '<p data-studio-strawman-note="true">', '<h3>Slide 1 of 6</h3><p data-studio-strawman-note="true">'],
+  ['the line is clickable', '<p data-studio-strawman-note="true">', '<p onClick={() => {}} data-studio-strawman-note="true">'],
 ]
 const sourceMutants = [
   ['page: the outline canvas stays on', '...(STUDIO_STRAWMAN_STAGE_ENABLED && strawmanPreviewUrl ? { enabled: false } : {}), // STRAWMAN-STAGE: no separate outline design over the deck viewer', '// STRAWMAN-STAGE: no separate outline design over the deck viewer', PAGE],
   ['page: the outline canvas goes off without the flag', '...(STUDIO_STRAWMAN_STAGE_ENABLED && strawmanPreviewUrl ? { enabled: false } : {}), // STRAWMAN-STAGE', '...({ enabled: false }), // STRAWMAN-STAGE', PAGE],
   ['page: the outline canvas goes off even without a preview deck', '...(STUDIO_STRAWMAN_STAGE_ENABLED && strawmanPreviewUrl ? { enabled: false } : {}), // STRAWMAN-STAGE', '...(STUDIO_STRAWMAN_STAGE_ENABLED ? { enabled: false } : {}), // STRAWMAN-STAGE', PAGE],
   ['page: the outline canvas is turned off by the phase, not the flag', '...(STUDIO_STRAWMAN_STAGE_ENABLED && strawmanPreviewUrl ? { enabled: false } : {}), // STRAWMAN-STAGE', "...(studioStrawmanPhase === 'strawman' ? { enabled: false } : {}), // STRAWMAN-STAGE", PAGE],
-  ['page: the strip is drawn in every phase', "{studioStrawmanPhase === 'strawman' && <StudioStrawmanPlan", '{studioStrawmanPhase !== null && <StudioStrawmanPlan', PAGE],
-  ['page: the strip is drawn with the flag off', "{studioStrawmanPhase === 'strawman' && <StudioStrawmanPlan", '{<StudioStrawmanPlan', PAGE],
-  ['page: the strip is drawn without a plan', "<StudioStrawmanPlan plan={studioStrawmanPlan} />", '<StudioStrawmanPlan plan={null} />', PAGE],
-  ['page: the plan is of slide 1 always', 'index: currentSlideIndex }) : null // STRAWMAN-STAGE', 'index: 0 }) : null // STRAWMAN-STAGE', PAGE],
-  ['page: the plan ignores slide_context', 'contextByIndex: slideContextByIndex', 'contextByIndex: null', PAGE],
+  ['page: the line is drawn in every phase', "{studioStrawmanPhase === 'strawman' && <StudioStrawmanNote", '{studioStrawmanPhase !== null && <StudioStrawmanNote', PAGE],
+  ['page: the line is drawn with the flag off', "{studioStrawmanPhase === 'strawman' && <StudioStrawmanNote", '{<StudioStrawmanNote', PAGE],
+  ['page: a plan strip is brought back', "  const studioStrawmanPhase = strawmanStagePhase({", "  const studioStrawmanPlan = 1 // STRAWMAN-STAGE\n  const studioStrawmanPhase = strawmanStagePhase({", PAGE],
   ['page: the phase ignores the Studio shell', 'enabled: STUDIO_STRAWMAN_STAGE_ENABLED && studioShell', 'enabled: STUDIO_STRAWMAN_STAGE_ENABLED', PAGE],
   ['page: the phase ignores template mode', ' templateModeOn, activeVersion: effectiveActiveVersion', ' templateModeOn: false, activeVersion: effectiveActiveVersion', PAGE],
   ['page: the phase reads the raw version', 'activeVersion: effectiveActiveVersion', 'activeVersion', PAGE],
@@ -634,12 +526,11 @@ const sourceMutants = [
   ['page: the F-03 gate spot was touched', "  const studioFirstRunStage = ", "  const strawmanTouch = 1 // STRAWMAN-STAGE\n  const studioFirstRunStage = ", PAGE],
   ['page: an existing line is rewritten', "enabled: STUDIO_OUTLINE_CANVAS_ENABLED && studioShell,", "enabled: STUDIO_OUTLINE_CANVAS_ENABLED && studioShell && !STUDIO_STRAWMAN_STAGE_ENABLED, // STRAWMAN-STAGE", PAGE],
   ['hook: it sends something', 'void Promise.resolve(current.goToSlide!(step.index))', 'void fetch("/x"); void Promise.resolve(current.goToSlide!(step.index))', HOOK],
-  ['strip component: it gets a click', '<section data-studio-strawman-plan="true"', '<section onClick={() => {}} data-studio-strawman-plan="true"', PLAN],
   ['css: the strip floats over the viewer', 'flex: none; box-sizing: border-box;', 'position: absolute; flex: none; box-sizing: border-box;', CSS],
   ['css: a colour of its own', 'background: var(--ss-surface);', 'background: #ffffff;', CSS],
   ['env: the flag defaults on', `${FLAG}="false"`, `${FLAG}="true"`, '.env.example'],
 ]
-const COMPILED_LABELS = { lib: LIB, hook: HOOK, plan: PLAN }
+const COMPILED_LABELS = { lib: LIB, hook: HOOK, note: NOTE }
 function mutate(text, [name, from, to], label) {
   const pairs = Array.isArray(from) ? from.map((f, i) => [f, to[i]]) : [[from, to]]
   let out = text
@@ -660,7 +551,7 @@ for (const mutant of libMutants) {
   mutantCount++
   const text = mutate(SOURCES[LIB], mutant, 'lib')
   const before = checks
-  await caughtAsync(`lib: ${mutant[0]}`, async () => { libSuite(loadLib(text), text); planSuite(loadLib(text)); await hookSuite(worldMaker({ libText: text })) })
+  await caughtAsync(`lib: ${mutant[0]}`, async () => { libSuite(loadLib(text), text); noteSuite(loadLib(text)); await hookSuite(worldMaker({ libText: text })) })
   checks = before
 }
 for (const mutant of hookMutants) {
@@ -670,11 +561,11 @@ for (const mutant of hookMutants) {
   await caughtAsync(`hook: ${mutant[0]}`, () => hookSuite(worldMaker({ hookText: text })))
   checks = before
 }
-for (const mutant of planMutants) {
+for (const mutant of noteMutants) {
   mutantCount++
-  const text = mutate(SOURCES[PLAN], mutant, 'plan')
+  const text = mutate(SOURCES[NOTE], mutant, 'note')
   const before = checks
-  await caughtAsync(`plan: ${mutant[0]}`, () => planSuite(realLib, text))
+  await caughtAsync(`note: ${mutant[0]}`, () => noteSuite(realLib, text))
   checks = before
 }
 for (const [name, from, to, rel] of sourceMutants) {
@@ -682,7 +573,7 @@ for (const [name, from, to, rel] of sourceMutants) {
   const broken = mutate(SOURCES[rel], [name, from, to], rel)
   const before = checks
   await caughtAsync(`source: ${name}`, () => {
-    if (rel === CSS) { planSuite(realLib, SOURCES[PLAN], broken); return }
+    if (rel === CSS) { noteSuite(realLib, SOURCES[NOTE], broken); return }
     sourceSuite({ ...SOURCES, [rel]: broken }, { base: baseSources })
     if (baseSources && rel === PAGE) {
       ok(strip.stripStrawmanStage(rel, broken) === baseSources[rel], 'without its marked lines the file is still the base\'s')
@@ -716,7 +607,7 @@ if (baseSources) {
   }
 }
 eq(survivors, [], `every mutant is caught (survivors: ${survivors.join('; ') || 'none'})`)
-console.log(`PASS E  ${mutantCount} mutants (lib ${libMutants.length}, hook ${hookMutants.length}, strip component ${planMutants.length}, sources ${sourceMutants.length}, strip ${stripMutantCount}), every one caught${crashes.length ? ` (${crashes.length} by a thrown error rather than an assertion)` : ''}`)
+console.log(`PASS E  ${mutantCount} mutants (lib ${libMutants.length}, hook ${hookMutants.length}, line component ${noteMutants.length}, sources ${sourceMutants.length}, strip ${stripMutantCount}), every one caught${crashes.length ? ` (${crashes.length} by a thrown error rather than an assertion)` : ''}`)
 if (process.env.STRAWMAN_TEST_VERBOSE) for (const crash of crashes) console.log(`  threw: ${crash}`)
 release()
 console.log(`OK studio strawman stage: ${afterMutants} checks`)

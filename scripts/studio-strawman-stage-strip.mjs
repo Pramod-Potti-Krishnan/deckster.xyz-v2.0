@@ -1,9 +1,9 @@
-// FRONTEND-1 (PK's UAT feedback F-04, F-05, F-07, with F-06's one plain line; 30 Oct). Flag NEXT_PUBLIC_STUDIO_STRAWMAN_STAGE (the string "true", default off, build-time):
-// from the outline on, the stage is the normal deck viewer showing Director's Layout strawman preview deck (the slide_update preview_url Studio already loads as the presentation URL), not a separate outline design over it; each slide's plan
-// (title, content type, key points) sits under it in a quiet strip with one plain line ("No action needed: building starts automatically."; no Approve on the stage); and when the built deck replaces the preview deck the viewer stays on the same slide.
-// Every decision is lib/studio-strawman-stage.ts (pure); hooks/use-studio-strawman-stage.ts holds the slide kept across the swap; components/builder/studio-strawman-plan.tsx (+ .css) draws the strip.
-// Every line this change adds to an EXISTING file is a pure insertion that carries the marker STRAWMAN-STAGE (matched as a whole token): app/builder/page.tsx (three imports placed after the Builder content, with the flow and chat imports; the phase,
-// the plan and the hook's call just before the outline canvas is selected; one spread inside that selection that turns the outline canvas off; and one JSX line before the outline canvas's own). No existing line of app code is rewritten (a later change that
+// FRONTEND-1 (PK's UAT feedback F-04, F-07, with F-06's one plain line; 30 Oct; F-11, 31 Oct). Flag NEXT_PUBLIC_STUDIO_STRAWMAN_STAGE (the string "true", default off, build-time):
+// from the outline on, the stage is the normal deck viewer showing Director's Layout strawman preview deck (the slide_update preview_url Studio already loads as the presentation URL), not a separate outline design over it; under it one quiet line
+// ("No action needed: building starts automatically."; no Approve on the stage; what each slide says about itself is the preview deck's own slide, not the stage's: F-11); and when the built deck replaces the preview deck the viewer stays on the same slide.
+// Every decision is lib/studio-strawman-stage.ts (pure); hooks/use-studio-strawman-stage.ts holds the slide kept across the swap; components/builder/studio-strawman-note.tsx (+ .css) draws the line.
+// Every line this change adds to an EXISTING file is a pure insertion that carries the marker STRAWMAN-STAGE (matched as a whole token): app/builder/page.tsx (three imports placed after the Builder content, with the flow and chat imports; the phase
+// and the hook's call just before the outline canvas is selected; one spread inside that selection that turns the outline canvas off; and one JSX line before the outline canvas's own). No existing line of app code is rewritten (a later change that
 // stacks on this one, or one this is stacked on, may only insert too). Strip the marked lines and each file is its base, byte for byte.
 // Not touched, on purpose: components/builder/chat/message-list.tsx and the progress card (another builder's), and the F-03 gate spots in app/builder/page.tsx (after studioFirstRunStage, after the data-studio-first-run-stage attribute) and lib/studio-stage-open-gate.ts (FRONTEND-2's).
 // How the older pins reach it: this change REGISTERS its files, its .env.example block and this strip (scripts/studio-later-changes.mjs, three lines), and teaches the older proofs that read past it (STRAWMAN_STAGE_PIN_EDITS: one registry-read block each).
@@ -26,8 +26,8 @@ export const STRAWMAN_STAGE_FILES = [
 export const STRAWMAN_STAGE_NEW_FILES = [
   'lib/studio-strawman-stage.ts',
   'hooks/use-studio-strawman-stage.ts',
-  'components/builder/studio-strawman-plan.tsx',
-  'components/builder/studio-strawman-plan.css',
+  'components/builder/studio-strawman-note.tsx',
+  'components/builder/studio-strawman-note.css',
   'scripts/studio-strawman-stage-strip.mjs',
   'scripts/test-studio-strawman-stage.mjs',
 ]
@@ -69,11 +69,11 @@ export const STRAWMAN_STAGE_OWN_EDITS = ['.env.example', 'scripts/studio-later-c
 export const STRAWMAN_STAGE_SCOPE_FILES = new Set([...STRAWMAN_STAGE_FILES, ...STRAWMAN_STAGE_NEW_FILES, ...STRAWMAN_STAGE_OWN_EDITS])
 
 /** The whole .env.example block: its comments and its line. */
-export const STRAWMAN_STAGE_ENV_BLOCK = `# STUDIO STRAWMAN STAGE (FRONTEND-1; PK's UAT feedback F-04, F-05, F-07, with F-06's one plain line). On for the exact value "true"; default off, and then the outline stage, the chat's approval and the jump to the built deck are exactly as today.
+export const STRAWMAN_STAGE_ENV_BLOCK = `# STUDIO STRAWMAN STAGE (FRONTEND-1; PK's UAT feedback F-04, F-06, F-07, F-11). On for the exact value "true"; default off, and then the outline stage, the chat's approval and the jump to the built deck are exactly as today.
 # Build-time value: change it on Vercel and redeploy. Only in the Studio shell, and not in template mode.
-# On: no separate outline design over the stage (NEXT_PUBLIC_STUDIO_OUTLINE_CANVAS is not drawn); from the outline on the stage is the normal deck viewer, with its thumbnails, showing Director's Layout strawman preview deck (the slide_update preview_url).
-# Under the slide while it is still the strawman, a quiet strip shows that slide's plan from what is already on the wire (slide_update title, key_points, service; slide_context content_type, subtype, key_message; an empty field is not drawn, nothing is made up),
-# and one plain line: "No action needed: building starts automatically." There is no Approve on the stage. When the built deck replaces the preview deck the viewer is taken back to the slide the user was on (no reset to slide 1).
+# On: no separate outline design over the stage when Director sent a strawman preview deck (NEXT_PUBLIC_STUDIO_OUTLINE_CANVAS is not drawn then; without a preview deck it is); from the outline on the stage is the normal deck viewer, with its thumbnails, showing Director's Layout strawman preview deck (the slide_update preview_url).
+# What each strawman slide says about itself (title, key points, content type) is the preview deck's own slide, drawn by Director's Layout preview; the stage adds only one quiet line under the viewer while the deck is still the strawman:
+# "No action needed: building starts automatically." There is no Approve on the stage. When the built deck replaces the preview deck the viewer is taken back to the slide the user was on if the built deck holds it (no reset to slide 1), and the narration's follow of the newest built slide stands down for that build.
 # Flip it only together with Director's automatic start of the build (the F-06 change): the line is true only then.
 NEXT_PUBLIC_STUDIO_STRAWMAN_STAGE="false"
 `

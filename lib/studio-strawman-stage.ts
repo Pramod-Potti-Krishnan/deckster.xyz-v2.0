@@ -1,11 +1,10 @@
-// FRONTEND-1 (PK's UAT feedback F-04, F-05, F-07; 30 Oct): flag NEXT_PUBLIC_STUDIO_STRAWMAN_STAGE (the string "true", default off, build-time).
+// FRONTEND-1 (PK's UAT feedback F-04, F-07, F-06; F-11 of 31 Oct): flag NEXT_PUBLIC_STUDIO_STRAWMAN_STAGE (the string "true", default off, build-time).
 // Today, while Director's outline approval is live, the canvas shows a separate outline design (components/builder/studio-outline-canvas.tsx) over the deck viewer, and after the approval the stage jumps to the deck.
 // On, there is no separate outline design and no jump: from the outline on, the stage is the normal deck viewer showing Director's Layout strawman preview deck (its slide_update preview_url, which Studio already loads as the
-// presentation URL), each slide's plan sits under it, and when the built deck replaces the preview deck the viewer stays on the slide the user was on.
-//   (a) The plan: title + content type + key points of the slide on stage, from what is already on the wire: slide_update payload.slides[i] (title, key_points, service) and slide_context [i] (content_type, subtype, key_message).
-//       A field that is empty is not drawn; nothing is made up (a content type is the wire's own word with its underscores read as spaces).
-//   (b) The phase: "strawman" while the stage shows the preview deck and no build is on it, "built" once the build's deck is there, null when this does not apply (flag off, template mode, a blank canvas).
-//   (c) The kept slide: the slide the user was on while the strawman showed, and the one step that takes the viewer back to it once the built deck's viewer is ready (the hook is hooks/use-studio-strawman-stage.ts).
+// presentation URL), one quiet line under it says that no action is needed, and when the built deck replaces the preview deck the viewer stays on the slide the user was on.
+// What each strawman slide says about itself (title, key message, key points, content type) is the preview deck's own slide, drawn by Director's Layout preview, not by the stage (PK F-11).
+//   (a) The phase: "strawman" while the stage shows the preview deck and no build is on it, "built" once the build's deck is there, null when this does not apply (flag off, template mode, a blank canvas).
+//   (b) The kept slide: the slide the user was on while the strawman showed, and the one step that takes the viewer back to it once the built deck's viewer is ready (the hook is hooks/use-studio-strawman-stage.ts).
 // IMPORT-FREE BY DESIGN: scripts/test-studio-strawman-stage.mjs transpiles this file into a bare function scope with a fake `process`. The page holds the state and does the I/O (goToSlide, the render); every decision is here.
 
 // ---------------------------------------------------------------------------
@@ -22,7 +21,7 @@ export const STUDIO_STRAWMAN_STAGE_ENABLED = strawmanStageFlagOn(process.env.NEX
 export const STRAWMAN_STAGE_NO_ACTION_LINE = 'No action needed: building starts automatically.'
 
 // ---------------------------------------------------------------------------
-// (b) The phase
+// (a) The phase
 // ---------------------------------------------------------------------------
 
 export type StrawmanStagePhase = 'strawman' | 'built' | null
@@ -43,83 +42,7 @@ export function strawmanStagePhase(input: {
 }
 
 // ---------------------------------------------------------------------------
-// (a) The plan
-// ---------------------------------------------------------------------------
-
-/** At most this many lines under a slide (the key message first). */
-export const STRAWMAN_STAGE_MAX_POINTS = 6
-
-export interface StrawmanStagePlan {
-  /** 1-based position and the number of slides, when the outline frame is there. */
-  position: number | null
-  total: number | null
-  title: string | null
-  /** Content type (+ subtype), else the service. */
-  chip: string | null
-  /** The key message first, then the key points, without repeats. */
-  points: string[]
-}
-
-type Loose = Record<string, unknown>
-const isRecord = (value: unknown): value is Loose => typeof value === 'object' && value !== null
-
-/** A non-empty string with its white space collapsed, else null. */
-function plainText(value: unknown): string | null {
-  if (typeof value !== 'string') return null
-  const collapsed = value.replace(/\s+/g, ' ').trim()
-  return collapsed || null
-}
-
-/** The wire's own word, its underscores read as spaces and its first letter capital ("text_heavy" -> "Text heavy"). */
-function readable(value: unknown): string | null {
-  const text = plainText(value)
-  if (!text) return null
-  const spaced = text.replace(/_+/g, ' ').replace(/\s+/g, ' ').trim()
-  return spaced ? spaced.charAt(0).toUpperCase() + spaced.slice(1) : null
-}
-
-/** The chip: content_type (+ subtype when it says more), else the service; null when the wire names neither. */
-export function strawmanStageChip(context: unknown, slide: unknown): string | null {
-  const type = readable(isRecord(context) ? context.content_type : null)
-  if (type) {
-    const subtype = readable(isRecord(context) ? context.subtype : null)
-    return subtype && subtype.toLowerCase() !== type.toLowerCase() ? `${type} · ${subtype}` : type
-  }
-  return readable(isRecord(slide) ? slide.service : null)
-}
-
-/** The plan of the slide at `index` (0-based), or null when there is nothing to show for it. `slides` is slide_update payload.slides, `contextByIndex` the page's slide_context map. */
-export function strawmanStagePlan(input: { slides: unknown; contextByIndex: unknown; index: number }): StrawmanStagePlan | null {
-  const slides = Array.isArray(input.slides) ? input.slides : []
-  const wanted = Number.isInteger(input.index) && input.index >= 0 ? input.index : 0
-  const index = slides.length ? Math.min(wanted, slides.length - 1) : wanted
-  const slide = slides.length ? slides[index] : null
-  const context = isRecord(input.contextByIndex) ? input.contextByIndex[index] : null
-  const title = plainText(isRecord(slide) ? slide.title : null)
-  const chip = strawmanStageChip(context, slide)
-  const seen = new Set<string>(title ? [title.toLowerCase()] : [])
-  const points: string[] = []
-  const add = (value: unknown) => {
-    const text = plainText(value)
-    if (!text || seen.has(text.toLowerCase())) return
-    seen.add(text.toLowerCase())
-    points.push(text)
-  }
-  add(isRecord(context) ? context.key_message : null)
-  const keyPoints = isRecord(slide) && Array.isArray(slide.key_points) ? slide.key_points : []
-  for (const point of keyPoints) add(point)
-  if (!title && !chip && !points.length) return null
-  return {
-    position: slides.length ? index + 1 : null,
-    total: slides.length || null,
-    title,
-    chip,
-    points: points.slice(0, STRAWMAN_STAGE_MAX_POINTS),
-  }
-}
-
-// ---------------------------------------------------------------------------
-// (c) The kept slide
+// (b) The kept slide
 // ---------------------------------------------------------------------------
 
 export interface StrawmanStageShown { presentationId: string | null; index: number }

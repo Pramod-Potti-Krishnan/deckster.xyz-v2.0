@@ -1,0 +1,8 @@
+/* FRONTEND-1 (F-06, F-11; flag NEXT_PUBLIC_STUDIO_STRAWMAN_STAGE): the one quiet line under the deck viewer while the deck is Director's strawman. Every rule is keyed to
+   [data-studio-strawman-note], which only the line carries and only the flag draws, so with the flag off no rule here can match anything. It is a row of the presentation column
+   (the viewer above it keeps the rest), quiet: the shell's own surface and muted text, one hairline above. */
+[data-studio-v4-shell="true"] [data-studio-strawman-note="true"] {
+  flex: none; box-sizing: border-box; margin: 0; padding: 7px 18px 8px;
+  border-top: 1px solid var(--ss-line); background: var(--ss-surface); color: var(--ss-muted);
+  font-size: 11px; line-height: 1.4;
+}
