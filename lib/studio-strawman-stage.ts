@@ -125,7 +125,8 @@ export function strawmanStagePlan(input: { slides: unknown; contextByIndex: unkn
 export interface StrawmanStageShown { presentationId: string | null; index: number }
 /** The slide to go back to once the built deck's viewer is ready. */
 export interface StrawmanStagePending { presentationId: string; index: number; at: number }
-export interface StrawmanStageState { shown: StrawmanStageShown | null; pending: StrawmanStagePending | null }
+/** `held` is there only when true: the page was taken back to the kept slide, so the narration's own page turns stand down for the rest of that build (see strawmanStageHold). */
+export interface StrawmanStageState { shown: StrawmanStageShown | null; pending: StrawmanStagePending | null; held?: true }
 
 export function initialStrawmanStageState(): StrawmanStageState {
   return { shown: null, pending: null }
@@ -160,6 +161,8 @@ export function strawmanStageStep(
   if (input.phase !== 'built') return initialStrawmanStageState()
   // The built deck's id is not known yet: nothing to decide.
   if (!id) return state
+  // A later build is another build: the hold ends with the one it was made for.
+  if (state.held && input.buildStarted === false) return { shown: state.shown, pending: state.pending }
   if (state.shown) {
     const replaced = state.shown.presentationId !== id
     return { shown: null, pending: replaced && state.shown.index > 0 ? { presentationId: id, index: state.shown.index, at: input.now } : null }
@@ -191,4 +194,17 @@ export function strawmanStageKeepStep(input: {
   const index = count === null ? pending.index : Math.min(pending.index, count - 1)
   // A deck that opens on slide 1 and has no further slide yet has nowhere to go.
   return index > 0 ? { action: 'go', index } : { action: 'drop' }
+}
+
+/** The state after the page was taken back to the kept slide: nothing pending, and the narration's own page turns stand down while this build runs. */
+export function strawmanStageWent(state: StrawmanStageState): StrawmanStageState {
+  return { shown: state.shown, pending: null, held: true }
+}
+
+/**
+ * Whether the narration's own page turns (its follow of the freshest built slide, which pages the viewer back to slide 1 each time the viewer reports in) stand down: only after the page was taken
+ * back to the user's slide, while the built deck is on the stage and its build is running. A deck too short for the user's slide is not gone back to, and then the follow carries on as it does today.
+ */
+export function strawmanStageHold(input: { held: boolean; phase: StrawmanStagePhase; buildStarted: boolean }): boolean {
+  return input.held && input.phase === 'built' && input.buildStarted
 }

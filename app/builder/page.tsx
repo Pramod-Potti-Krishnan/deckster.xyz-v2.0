@@ -7207,7 +7207,7 @@ function AuthenticatedBuilderContent({ authScopeUserId }: { authScopeUserId: str
   // STRAWMAN-STAGE: when the built deck replaces the preview deck the viewer stays on the same slide. Every decision is lib/studio-strawman-stage.ts; off, all of this is inert.
   const studioStrawmanPhase = strawmanStagePhase({ enabled: STUDIO_STRAWMAN_STAGE_ENABLED && studioShell, templateModeOn, activeVersion: effectiveActiveVersion, strawmanPreviewUrl, finalPresentationUrl }) // STRAWMAN-STAGE
   const studioStrawmanPlan = studioStrawmanPhase === 'strawman' ? strawmanStagePlan({ slides: slideStructure?.slides, contextByIndex: slideContextByIndex, index: currentSlideIndex }) : null // STRAWMAN-STAGE
-  useStudioStrawmanStage({ phase: studioStrawmanPhase, presentationId: effectivePresentationId, currentSlideIndex, buildStarted: strawmanStageBuildStarted({ generatingFinal: isGeneratingFinal, narrationPhase: buildNarration.phase }), slideCount: effectiveSlideCount, goToSlide: layoutServiceApis?.goToSlide, viewerSafety: studioViewerSafety }) // STRAWMAN-STAGE
+  const studioStrawmanHold = useStudioStrawmanStage({ phase: studioStrawmanPhase, presentationId: effectivePresentationId, currentSlideIndex, buildStarted: strawmanStageBuildStarted({ generatingFinal: isGeneratingFinal, narrationPhase: buildNarration.phase }), slideCount: effectiveSlideCount, goToSlide: layoutServiceApis?.goToSlide, viewerSafety: studioViewerSafety }) // STRAWMAN-STAGE
   // PASS2 #4 (flag NEXT_PUBLIC_STUDIO_OUTLINE_CANVAS, default off): while the outline gate is live, the canvas shows the outline.
   const studioOutlineCanvas = selectStudioOutlineCanvas({
     enabled: STUDIO_OUTLINE_CANVAS_ENABLED && studioShell,
@@ -8175,6 +8175,7 @@ function AuthenticatedBuilderContent({ authScopeUserId }: { authScopeUserId: str
                 && !hasStudioPartialStageVersionIntent(studioPartialVersionIntentRef.current, studioPartialAuthority, buildNarration.buildId)
                 && (!studioPartialMetadata || (studioPartialDisplayed?.buildId === buildNarration.buildId
                   && studioPartialDisplayed.presentationId === buildNarration.buildPresentationId)))) ? narrationNavigate : null}
+            {...(studioStrawmanHold ? ({ narrationNavigate: null } as { narrationNavigate?: null }) : {})} // STRAWMAN-STAGE (F-07): once the viewer was taken back to the user's slide, the narration's follow of the freshest built slide stands down for this build (it would page back to slide 1)
             buildNarration={effectiveBuildNarrationEnabled ? buildNarration : null}
             buildNarrationApi={
               effectiveBuildNarrationEnabled

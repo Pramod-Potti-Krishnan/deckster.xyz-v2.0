@@ -9,8 +9,10 @@ import { useEffect, useRef, useState } from 'react'
 import {
   STUDIO_STRAWMAN_STAGE_ENABLED,
   initialStrawmanStageState,
+  strawmanStageHold,
   strawmanStageKeepStep,
   strawmanStageStep,
+  strawmanStageWent,
   type StrawmanStagePending,
   type StrawmanStagePhase,
   type StrawmanStageState,
@@ -29,12 +31,14 @@ export interface StudioStrawmanStageInput {
   viewerSafety: { presentationId: string | null; ready: boolean; busy: boolean; error: boolean } | null | undefined
 }
 
-export function useStudioStrawmanStage(input: StudioStrawmanStageInput): void {
+/** True while the narration's own page turns should stand down (the page was taken back to the user's slide and the build is running). */
+export function useStudioStrawmanStage(input: StudioStrawmanStageInput): boolean {
   const latestRef = useRef(input)
   latestRef.current = input
   const stateRef = useRef<StrawmanStageState>(initialStrawmanStageState())
   const [pending, setPending] = useState<StrawmanStagePending | null>(null)
   const [tick, setTick] = useState(0)
+  const [held, setHeld] = useState(false)
 
   // What the stage shows, once per change of deck, phase, slide or build start (the user's last slide is read before the new viewer reports its own; once the build has started, a drop to slide 1 is the viewer's, not the user's).
   useEffect(() => {
@@ -43,6 +47,7 @@ export function useStudioStrawmanStage(input: StudioStrawmanStageInput): void {
     const after = strawmanStageStep(before, { phase: input.phase, presentationId: input.presentationId, index: input.currentSlideIndex, now: Date.now(), buildStarted: input.buildStarted })
     stateRef.current = after
     if (after.pending !== before.pending) setPending(after.pending)
+    if (Boolean(after.held) !== Boolean(before.held)) setHeld(Boolean(after.held))
   }, [input.phase, input.presentationId, input.currentSlideIndex, input.buildStarted])
 
   // The return: wait for the built deck's viewer, then go to the slide.
@@ -60,8 +65,10 @@ export function useStudioStrawmanStage(input: StudioStrawmanStageInput): void {
       const timer = setTimeout(() => setTick(value => value + 1), step.retryInMs)
       return () => clearTimeout(timer)
     }
-    stateRef.current = { ...stateRef.current, pending: null }
+    stateRef.current = strawmanStageWent(stateRef.current)
     setPending(null)
+    setHeld(true)
     void Promise.resolve(current.goToSlide!(step.index)).catch(() => {})
   }, [pending, tick, input.goToSlide, input.viewerSafety, input.slideCount])
+  return STUDIO_STRAWMAN_STAGE_ENABLED && strawmanStageHold({ held, phase: input.phase, buildStarted: input.buildStarted })
 }
