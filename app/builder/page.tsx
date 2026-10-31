@@ -7211,7 +7211,7 @@ function AuthenticatedBuilderContent({ authScopeUserId }: { authScopeUserId: str
   // PASS2 #4 (flag NEXT_PUBLIC_STUDIO_OUTLINE_CANVAS, default off): while the outline gate is live, the canvas shows the outline.
   const studioOutlineCanvas = selectStudioOutlineCanvas({
     enabled: STUDIO_OUTLINE_CANVAS_ENABLED && studioShell,
-    ...(STUDIO_STRAWMAN_STAGE_ENABLED ? { enabled: false } : {}), // STRAWMAN-STAGE: no separate outline design over the deck viewer
+    ...(STUDIO_STRAWMAN_STAGE_ENABLED && strawmanPreviewUrl ? { enabled: false } : {}), // STRAWMAN-STAGE: no separate outline design over the deck viewer (only when the strawman preview deck exists; without one the outline canvas stays)
     blocked: templateModeOn || isGeneratingFinal || session.isLoadingSession || STUDIO_OUTLINE_CANVAS_BUSY_PHASES.has(buildNarration.phase),
     messages, answeredIds: session.answeredActionsRef.current, userTurns: session.userMessages,
     sessionId: currentSessionId, locked: approvalGatesLocked,
