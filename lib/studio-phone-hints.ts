@@ -58,7 +58,7 @@ export function studioPhoneFullscreenCanTry(input: { fullscreenEnabled: unknown;
 }
 
 /** The state after what happened: the tap found no way to ask ('unsupported'), the browser said yes ('granted') or refused ('refused', a rejected promise or a throw), the browser's own full screen ended ('ended', Escape or a system gesture),
- *  or Exit was tapped on our own stage ('exit'). A refusal arriving after the browser already left full screen cannot bring the stage back. */
+ *  or Exit was tapped on our own stage ('exit'). The browser's own end never ends a stage of our own (only Exit does). */
 export function studioPhoneFullscreenNext(state: StudioPhoneFullscreenState, event: 'unsupported' | 'granted' | 'refused' | 'ended' | 'exit'): StudioPhoneFullscreenState {
   if (event === 'unsupported' || event === 'refused') return 'fallback'
   if (event === 'granted') return 'native'
