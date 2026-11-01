@@ -57,6 +57,7 @@ import { evaluateLayoutViewerUrl } from '@/lib/layout-viewer-url-policy'
 import { STUDIO_RAIL_FOCUS_HIDDEN_STYLE } from '@/lib/studio-panel-focus'
 import { STUDIO_PHONE_STAGE_ATTRIBUTE, studioPhoneLandscapeFitPad } from '@/lib/studio-phone-landscape' // PHONE-LANDSCAPE
 import { useStudioPhoneLandscapeRail } from '@/hooks/use-studio-phone-landscape' // PHONE-LANDSCAPE
+import { useStudioPhoneSwipe } from '@/hooks/use-studio-phone-hints' // PHONE-HINTS
 import { clampPresentSlideIndex, isPresentViewOnlyEnabled, presentFrameStartIndex, presentNavigationCommand } from '@/lib/present-view-only'
 import { PresentViewOnlyFrame } from './present-view-only-frame'
 import {
@@ -1629,6 +1630,7 @@ export function PresentationViewer({
       console.error('❌ Error navigating to previous slide:', error)
     }
   }, [currentSlide, totalSlides, onSlideChange, studioShell, beginStudioViewerInteraction, beginStudioManualSlideNavigation])
+  useStudioPhoneSwipe(slideContainerRef, handlePrevSlide, handleNextSlide, currentSlide, totalSlides) // PHONE-HINTS: swipe left / right on the slide space changes slide in the portrait slide view (no arrows); nothing attached with the flag off
 
   // PASS2 #3: shown = the user's choice, unless the page has the rail collapsed for a creation panel. A collapsed rail stays
   // mounted (scroll position, selection and live frames intact) but out of the layout and invisible, so it comes back as it was.
