@@ -6,7 +6,7 @@
 // swipe hook's call, after the next / previous handlers). No existing line is rewritten and none of PR 1's own files is edited (its stylesheet reads the one custom property this change's stylesheet sets). Strip the marked lines and each file is its base, byte for byte.
 // How the older pins reach it: this change REGISTERS its files, its .env.example block and this strip (scripts/studio-later-changes.mjs, three lines). Plain node, no imports, nothing read from disk or git here.
 
-export const BASE_COMMIT = '9acf485516c19c3894e45fdf8f26d23ac0ff4aae' // PR 1's head (frontend1/phone-landscape) at the start of this change: this change is stacked on it
+export const BASE_COMMIT = 'e3c2477663026bc0aac89630aeb96e9df5f0365d' // PR 1's head (frontend1/phone-landscape) at the start of this change: this change is stacked on it
 export const PHONE_HINTS_FLAG = 'NEXT_PUBLIC_STUDIO_PHONE_HINTS'
 export const PHONE_HINTS_MARKER = 'PHONE-HINTS'
 /** The marker as a WHOLE token: PHONE-HINTS-X and X-PHONE-HINTS are not it. */
