@@ -15,6 +15,9 @@ import { StudioRail } from '@/components/layout/studio-rail'
 import { StudioPhoneTabBar } from '@/components/layout/studio-phone-tab-bar' // PHONE-SHELL-NAV (NEXT_PUBLIC_STUDIO_PHONE_SHELL, default off): on a phone the rail gives way to a bottom tab bar
 import { STUDIO_PHONE_SHELL_ENABLED } from '@/lib/studio-phone-shell' // PHONE-SHELL-NAV
 import { StudioPhoneBuilderTop } from '@/components/builder/studio-phone-builder-top' // PHONE-SHELL-TOP (NEXT_PUBLIC_STUDIO_PHONE_SHELL, default off): on a phone one top row, the switch below it with a Director dot
+import { StudioPhoneLandscape } from '@/components/builder/studio-phone-landscape' // PHONE-LANDSCAPE (NEXT_PUBLIC_STUDIO_PHONE_LANDSCAPE, default off, with the phone shell): a phone turned sideways gets a viewing stage; the portrait slide view folds the bar
+import { STUDIO_PHONE_LANDSCAPE_ENABLED, STUDIO_PHONE_LANDSCAPE_QUERY } from '@/lib/studio-phone-landscape' // PHONE-LANDSCAPE
+import { useStudioPhoneQuery } from '@/hooks/use-studio-phone-landscape' // PHONE-LANDSCAPE
 
 import { composerThemeSyncBlocked } from '@/lib/composer-theme-policy'
 
@@ -1573,7 +1576,8 @@ function AuthenticatedBuilderContent({ authScopeUserId }: { authScopeUserId: str
     document.addEventListener('fullscreenchange', syncFullscreen)
     return () => document.removeEventListener('fullscreenchange', syncFullscreen)
   }, [studioShell])
-  const studioOverlayWorkspace = studioShell && workspaceWidth <= 880
+  const studioPhoneLandscape = useStudioPhoneQuery(STUDIO_PHONE_LANDSCAPE_QUERY) // PHONE-LANDSCAPE: a phone turned sideways (false for good with the flag off); its stage hides the rail, so the workspace can be wider than 880 px and must still be one pane at a time
+  const studioOverlayWorkspace = studioShell && (workspaceWidth <= 880 || studioPhoneLandscape) // PHONE-LANDSCAPE: one pane at a time on a phone turned sideways whatever its width
   const selectWorkspacePane = useCallback((pane: StudioWorkspacePane) => {
     const current = studioVoiceLayoutIntentRef.current
     if (pane !== 'chat' && current.studioShell && current.workspaceWidth <= 880) retireStudioVoiceOwner()
@@ -7311,6 +7315,7 @@ function AuthenticatedBuilderContent({ authScopeUserId }: { authScopeUserId: str
       {studioShell && <StudioRail homeHref="https://deckster.xyz" sessionUsage={<TokenUsageStrip tokenUsage={tokenUsage} displayMode="counter" />} />}
       {STUDIO_PHONE_SHELL_ENABLED && <StudioPhoneTabBar sessionUsage={<TokenUsageStrip tokenUsage={tokenUsage} displayMode="counter" />} />}{/* PHONE-SHELL-NAV: NEXT_PUBLIC_STUDIO_PHONE_SHELL (default off), drawn next to the rail; shown at 640 px and narrower only */}
       {STUDIO_PHONE_SHELL_ENABLED && <StudioPhoneBuilderTop connectionState={connectionState} reconnectStatus={reconnectStatus} />}{/* PHONE-SHELL-TOP: NEXT_PUBLIC_STUDIO_PHONE_SHELL (default off); draws nothing here: the "..." menu and the Director dot are portalled into row 1 and row 2 */}
+      {STUDIO_PHONE_LANDSCAPE_ENABLED && <StudioPhoneLandscape deckOnStage={Boolean(effectivePresentationUrl) && !studioWelcome && !session.isLoadingSession} stageVisible={studioOverlayWorkspace && !studioCanvasCovered} slideNumber={currentSlideIndex + 1} connectionState={connectionState} reconnectStatus={reconnectStatus} onChat={() => { selectWorkspacePane('chat'); if (!showChat) setShowChat(true) }} />}{/* PHONE-LANDSCAPE: NEXT_PUBLIC_STUDIO_PHONE_LANDSCAPE (default off); the sideways viewing stage and the portrait slide view's Menu; Chat is the Director pane of the switch */}
       {studioShell && !effectivePresentationUrl && !session.isLoadingSession && workflowKey !== dismissedWorkflowKey && <>
         <ThemePanel isOpen={workflowAction === 'theme' && !savedThemeWorkflowId} onClose={() => setDismissedWorkflowKey(workflowKey)} presentationId={null} buildThemeSelection={buildThemeSelection} themeSync={themeSync} selectionLocked={generationSelectionsLocked} onBuildThemeChange={handleBuildThemeChange} />
         <Dialog open={workflowAction === 'templates' || workflowAction === 'master'} onOpenChange={open => { if (!open) setDismissedWorkflowKey(workflowKey) }}>

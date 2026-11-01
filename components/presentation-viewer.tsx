@@ -55,6 +55,8 @@ import {
 } from '@/lib/layout-viewer-messaging'
 import { evaluateLayoutViewerUrl } from '@/lib/layout-viewer-url-policy'
 import { STUDIO_RAIL_FOCUS_HIDDEN_STYLE } from '@/lib/studio-panel-focus'
+import { STUDIO_PHONE_STAGE_ATTRIBUTE, studioPhoneLandscapeFitPad } from '@/lib/studio-phone-landscape' // PHONE-LANDSCAPE
+import { useStudioPhoneLandscapeRail } from '@/hooks/use-studio-phone-landscape' // PHONE-LANDSCAPE
 import { clampPresentSlideIndex, isPresentViewOnlyEnabled, presentFrameStartIndex, presentNavigationCommand } from '@/lib/present-view-only'
 import { PresentViewOnlyFrame } from './present-view-only-frame'
 import {
@@ -818,6 +820,7 @@ export function PresentationViewer({
     return () => container.removeEventListener('focusin', revealAuthoringFocus)
   }, [studioShell, isFullscreen, showControls, studioAuthoringPortalTarget])
   const [showThumbnails, setShowThumbnails] = useState(true) // Show by default
+  useStudioPhoneLandscapeRail(showThumbnails, setShowThumbnails) // PHONE-LANDSCAPE: while the landscape stage is on the rail is the stage strip's (its own state); the portrait value is put back when it goes off
   const thumbnailVisibilityInitializedRef = useRef(false)
   useEffect(() => {
     if (thumbnailVisibilityInitializedRef.current) return
@@ -3840,7 +3843,7 @@ export function PresentationViewer({
     const calculate = () => {
       const { width, height } = container.getBoundingClientRect()
       // Subtract padding (p-4 = 16px each side)
-      const pw = width - 32, ph = height - 32
+      const pad = studioPhoneLandscapeFitPad(document.documentElement.getAttribute(STUDIO_PHONE_STAGE_ATTRIBUTE)), pw = width - pad, ph = height - pad // PHONE-LANDSCAPE: 16 px a side as ever, none in the landscape stage
       if (pw <= 0 || ph <= 0) return
       const ratio = 16 / 9
       let w = pw, h = w / ratio

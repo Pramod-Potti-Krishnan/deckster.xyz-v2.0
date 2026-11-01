@@ -1,0 +1,90 @@
+/* STUDIO PHONE LANDSCAPE (F-13 PR 1; flag NEXT_PUBLIC_STUDIO_PHONE_LANDSCAPE, default off, with the phone shell). Every rule needs an attribute that components/builder/studio-phone-landscape.tsx puts on <html> only while it is mounted
+   (data-studio-phone-landscape / -bar / -strip / -fan) or one of that component's own elements, so with the flag off none of it matches anything. The landscape rules sit in the same media query the component reads (a phone turned
+   sideways: a short, coarse-pointer landscape window), the portrait ones in the phone shell's own width plus portrait.
+   LANDSCAPE STAGE: the rail, the tab bar, the Slides | Director switch, the pull tabs, the notes handle, the brand row and the viewer's own thumbnail toggle go; the top bar and the authoring row stay in the page (laid out, invisible) because the fan
+   uses their controls and their menus open next to the fan button; the slide fills the screen (the viewer's fit padding is zeroed here and in its fit code); the thumbnails are the viewer's own rail, on the left, in a state of its own (a collapsed
+   strip is a 30 px handle). PORTRAIT SLIDE VIEW: the bottom bar folds to one Menu button; Menu brings the real bar back as a floating card. */
+
+@media (orientation: landscape) and (max-height: 500px) and (pointer: coarse) {
+  html[data-studio-phone-landscape="stage"] [data-studio-v4-shell="true"] { height: 100dvh; }
+  html[data-studio-phone-landscape="stage"] [data-studio-v4-shell="true"] > [data-studio-v4-rail] { display: none; }
+  html[data-studio-phone-landscape="stage"] [data-studio-v4-shell="true"] > [data-studio-phone-tabbar="true"] { display: none; }
+  html[data-studio-phone-landscape="stage"] [data-studio-v4-shell="true"]:has(> [data-studio-phone-tabbar="true"]) { padding-bottom: 0; }
+
+  /* the top bar and the authoring row: out of the flow, laid out and invisible (the fan clicks their controls; Export's and Add Element's menus open beside the fan button) */
+  html[data-studio-phone-landscape="stage"] [data-studio-v4-shell="true"] > [data-studio-v4-shell-column] > [data-studio-v4-shell-header],
+  html[data-studio-phone-landscape="stage"] [data-studio-v4-shell="true"] [data-studio-authoring-slot] {
+    position: fixed; top: auto; left: auto; right: 64px; bottom: 8px; z-index: 0; width: max-content; max-width: none; visibility: hidden; pointer-events: none;
+  }
+  html[data-studio-phone-landscape="stage"] [data-studio-v4-shell="true"] :is([data-studio-workspace-switch], [data-studio-drawer-handle], [data-studio-notes-handle], [data-studio-canvas-brand], [data-studio-v4-thumbnail-toggle], [data-studio-v4-thumbnail-resize]) { display: none; }
+
+  /* the workspace is the whole screen */
+  html[data-studio-phone-landscape="stage"] [data-studio-v4-shell="true"] [data-studio-v4-shell-workspace] { --studio-pane-toolbar-height: 0px; margin: 0; border: 0; border-radius: 0; }
+
+  /* the slide fills the screen: no fit padding; the rail (the viewer's own, with the look it has in the theme) on the left of it, its count given to the collapse button */
+  html[data-studio-phone-landscape="stage"] [data-studio-v4-shell="true"] [data-studio-slide-space] { padding: 0; }
+  html[data-studio-phone-landscape="stage"] [data-studio-v4-shell="true"] [data-studio-v4-viewer] > div:has(> [data-studio-v4-thumbnails]) { flex-direction: row-reverse; }
+  html[data-studio-phone-landscape="stage"] [data-studio-v4-shell="true"] [data-studio-v4-thumbnails] { border-left: 0; border-right: 1px solid var(--ss-line); }
+  html[data-studio-phone-landscape="stage"][data-studio-phone-strip="collapsed"] [data-studio-v4-shell="true"] [data-studio-v4-thumbnails] { border-right: 0; }
+  html[data-studio-phone-landscape="stage"] [data-studio-v4-shell="true"] [data-studio-v4-thumbnails] .studio-thumbnail-heading > span { visibility: hidden; }
+  html[data-studio-phone-landscape="stage"][data-studio-phone-strip="collapsed"] [data-studio-v4-shell="true"] [data-studio-v4-viewer] { padding-left: 30px; }
+
+  /* the strip's collapse button (open, over the right end of the rail's own "Slides" heading) and its handle (collapsed) */
+  [data-studio-phone-strip-head="true"] { position: fixed; left: calc(var(--studio-phone-strip-width, 140px) - 38px); top: 9px; z-index: 44; }
+  [data-studio-phone-strip-head="true"] > button, [data-studio-phone-strip-handle="true"] > button {
+    position: relative; display: flex; align-items: center; justify-content: center; width: 28px; height: 28px; padding: 0; border: 0; border-radius: 8px; background: transparent; color: var(--ss-muted); cursor: pointer;
+  }
+  [data-studio-phone-strip-head="true"] > button:hover, [data-studio-phone-strip-handle="true"] > button:hover { background: var(--ss-active); color: var(--ss-text); }
+  [data-studio-phone-strip-head="true"] > button::after, [data-studio-phone-strip-handle="true"] > button::after { content: ""; position: absolute; inset: -8px -4px; }
+  [data-studio-phone-strip-head="true"] svg, [data-studio-phone-strip-handle="true"] svg { width: 16px; height: 16px; stroke-width: 1.8; }
+  [data-studio-phone-strip-handle="true"] {
+    position: fixed; left: 0; top: 0; bottom: 0; z-index: 44; width: 30px; box-sizing: border-box; display: flex; flex-direction: column; align-items: center; padding-top: 5px; background: var(--ss-panel); border-right: 1px solid var(--ss-line); color: var(--ss-muted);
+  }
+  [data-studio-phone-strip-handle="true"] [data-studio-phone-strip-current="true"] { margin-top: 10px; min-width: 20px; height: 20px; padding: 0 4px; box-sizing: border-box; border-radius: 6px; background: var(--ss-accent); color: #fff; font-size: 10px; font-weight: 600; line-height: 20px; text-align: center; }
+  [data-studio-phone-strip-handle="true"] [data-studio-phone-strip-label="true"] { margin-top: 14px; writing-mode: vertical-rl; transform: rotate(180deg); font-size: 10px; font-weight: 600; letter-spacing: .16em; text-transform: uppercase; }
+
+  /* the Chat button (the way back to the Director) and the one floating button */
+  [data-studio-phone-controls="true"] { position: fixed; top: 8px; right: var(--studio-phone-controls-right, 8px); z-index: 44; display: flex; gap: 6px; }
+  [data-studio-phone-chat="true"], [data-studio-phone-fab="true"] {
+    position: relative; display: inline-flex; align-items: center; justify-content: center; gap: 6px; height: 30px; padding: 0 11px 0 9px; border: 0; border-radius: 15px;
+    background: rgb(14 21 20 / 66%); color: #fff; font-size: 12px; font-weight: 600; line-height: 1; backdrop-filter: blur(6px); -webkit-backdrop-filter: blur(6px); cursor: pointer;
+  }
+  [data-studio-phone-chat="true"]::after, [data-studio-phone-fab="true"]::after { content: ""; position: absolute; inset: -7px; }
+  [data-studio-phone-chat="true"] svg { width: 15px; height: 15px; stroke-width: 1.8; }
+  [data-studio-phone-chat-dot] { width: 6px; height: 6px; margin: -9px 0 0 -9px; border-radius: 50%; box-shadow: 0 0 0 2px rgb(14 21 20 / 66%); }
+  [data-studio-phone-chat-dot="green"] { background: #3dbb78; }
+  [data-studio-phone-chat-dot="amber"] { background: #fbbf24; }
+  [data-studio-phone-chat-dot="red"] { background: #f87171; }
+  [data-studio-phone-fab="true"] { position: fixed; right: 10px; bottom: 10px; z-index: 47; width: 40px; height: 40px; padding: 0; border-radius: 20px; }
+  [data-studio-phone-fab="true"][aria-expanded="true"] { background: var(--ss-accent); }
+  [data-studio-phone-fab="true"] svg { width: 20px; height: 20px; stroke-width: 2; }
+  [data-studio-phone-chat="true"]:focus-visible, [data-studio-phone-fab="true"]:focus-visible, [data-studio-phone-strip-head="true"] > button:focus-visible, [data-studio-phone-strip-handle="true"] > button:focus-visible, [data-studio-phone-fan-item]:focus-visible { outline: 2px solid var(--ss-accent); outline-offset: 2px; }
+
+  /* the fan: a card over the slide, above the button; a tap outside it closes it */
+  [data-studio-phone-fan-backdrop="true"] { position: fixed; inset: 0; z-index: 45; padding: 0; border: 0; background: transparent; }
+  [data-studio-phone-fan-card="true"] {
+    position: fixed; right: 10px; bottom: 58px; z-index: 46; box-sizing: border-box; width: min(372px, calc(100vw - 20px)); max-height: calc(100dvh - 72px); overflow-y: auto; display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 4px; padding: 6px;
+    border: 1px solid var(--ss-line); border-radius: 14px; background: var(--ss-panel); color: var(--ss-text); box-shadow: 0 8px 24px rgb(15 23 42 / 22%), 0 1px 3px rgb(15 23 42 / 10%);
+  }
+  [data-studio-phone-fan-item] { display: flex; align-items: center; gap: 8px; min-width: 0; min-height: 44px; padding: 0 10px; border: 0; border-radius: 9px; background: transparent; color: var(--ss-text); font-size: 13px; font-weight: 500; text-align: left; cursor: pointer; }
+  [data-studio-phone-fan-item]:hover:not(:disabled), [data-studio-phone-fan-item]:focus-visible { background: var(--ss-active); }
+  [data-studio-phone-fan-item]:disabled { opacity: .45; cursor: default; }
+  [data-studio-phone-fan-item] svg { flex: none; width: 16px; height: 16px; stroke-width: 1.8; color: var(--ss-muted); }
+  [data-studio-phone-fan-item] span { min-width: 0; overflow: hidden; display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; line-height: 16px; }
+}
+
+/* PORTRAIT SLIDE VIEW: the bar folds to the one Menu button (the page gets the bar's 56 px back); Menu brings the same bar back as a floating card above the button */
+@media (max-width: 640px) and (orientation: portrait) {
+  html[data-studio-phone-bar] [data-studio-v4-shell="true"] > [data-studio-phone-tabbar="true"] { display: none; }
+  html[data-studio-phone-bar] [data-studio-v4-shell="true"]:has(> [data-studio-phone-tabbar="true"]) { padding-bottom: 0; }
+  html[data-studio-phone-bar="open"] [data-studio-v4-shell="true"] > [data-studio-phone-tabbar="true"] {
+    display: flex; left: 10px; right: 10px; bottom: 74px; z-index: 46; height: 60px; padding: 4px 6px; border: 1px solid var(--ss-line); border-radius: 18px; box-shadow: 0 10px 28px rgb(15 23 42 / 18%), 0 2px 6px rgb(15 23 42 / 8%);
+  }
+  [data-studio-phone-menu="true"] {
+    position: fixed; right: 12px; bottom: 14px; z-index: 47; display: flex; align-items: center; justify-content: center; width: 48px; height: 48px; padding: 0; border: 1px solid var(--ss-line); border-radius: 16px;
+    background: var(--ss-panel); color: var(--ss-text); box-shadow: 0 4px 14px rgb(15 23 42 / 14%), 0 1px 3px rgb(15 23 42 / 8%); cursor: pointer;
+  }
+  [data-studio-phone-menu="true"][aria-expanded="true"] { background: var(--ss-accent-soft); color: var(--ss-accent); border-color: var(--ss-accent); }
+  [data-studio-phone-menu="true"] svg { width: 22px; height: 22px; stroke-width: 1.8; }
+  [data-studio-phone-menu="true"]:focus-visible { outline: 2px solid var(--ss-accent); outline-offset: 2px; }
+}
