@@ -68,6 +68,10 @@ export const STRAWMAN_STAGE_PIN_EDITS = {
       "REAL.laterRegistryLine = (previous => line => previous?.(line) || line.includes('studio-strawman-stage-strip.mjs'))(REAL.laterRegistryLine) // LATER-CHANGES: registry read (STRAWMAN-STAGE): the strawman stage's registry lines may follow this change's three (a later change's own line)\n",
       "",
     ],
+    [
+      "  const later = laterStrips(PAGE, syntheticStrip(PAGE, git('show', `${SYNTHETIC}:${PAGE}`))) // read as this change left it: the later change's lines out (as laterStrips does for a registered one) // LATER-CHANGES: registry read (STRAWMAN-STAGE): the registered changes after this one (the strawman stage's page lines) come out too, not only the synthetic one\n",
+      "  const later = syntheticStrip(PAGE, git('show', `${SYNTHETIC}:${PAGE}`)) // read as this change left it: the later change's lines out (as laterStrips does for a registered one)\n",
+    ],
   ],
 }
 
