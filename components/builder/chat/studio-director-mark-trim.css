@@ -1,0 +1,16 @@
+/* STUDIO-DIRECTOR-MARK-TRIM (B51, PK's UAT feedback F-02; flag NEXT_PUBLIC_STUDIO_DIRECTOR_MARK_TRIM). Every rule below can match only markup that exists with the flag on, so with the flag off none of it matches anything:
+   the header with NO star tile (the header always draws one otherwise: its first child is a [aria-hidden="true"] span), and the <img> the "deckster" mark draws (data-studio-director-mark). */
+
+/* The Director header with the star taken out. The chat header (NEXT_PUBLIC_STUDIO_CHAT_HEADER) lays its children on a three-column grid whose first column is the star's, and it places the actions by position
+   (:nth-child(n+4), counting the star). With the star gone the grid is the two-column one the narrow-panel rule in studio-director-header.css already uses, and the actions count from the third child, so no empty
+   column or 9px gap is left at the start of the row and the actions stay at the end. The plain header (flex) needs nothing: its children simply start at the padding. */
+[data-studio-v4-shell="true"] [data-studio-chat-header]:not(:has(> [aria-hidden="true"])) { grid-template-columns: minmax(0, 1fr) auto; column-gap: 0; }
+[data-studio-v4-shell="true"] [data-studio-chat-header]:not(:has(> [aria-hidden="true"])) > :is(strong, [role="status"]) { grid-column: 1; }
+[data-studio-v4-shell="true"] [data-studio-chat-header]:not(:has(> [aria-hidden="true"])) > :nth-child(n+3) { grid-column: 2; grid-row: 1 / span 2; align-self: center; margin-left: 7px; }
+/* A short window puts the header back on one flex row (studio-director-header.css): the grid placement above is not needed there. */
+@media (max-height: 640px) {
+  [data-studio-v4-shell="true"] [data-studio-chat-header]:not(:has(> [aria-hidden="true"])) > :nth-child(n+3) { margin-left: 0; }
+}
+
+/* The real Deckster mark, drawn at the star's size inside the star's own tile (header 13 px in 22 px, first-run head 22 px in 36 px / 42 px). */
+[data-studio-v4-shell="true"] img[data-studio-director-mark="deckster"] { display: block; flex: none; }

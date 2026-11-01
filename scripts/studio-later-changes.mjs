@@ -64,6 +64,8 @@ export const LATER_CHANGE_FILES = new Set([
   ...(await import('./studio-chat-element-text-set-strip.mjs')).CHAT_ELEMENT_TEXT_SET_SCOPE_FILES, // LATER-CHANGE: FRONTEND-2, B49 chat text set: a chat 'Change this to ...' on a selected text box sets exactly those words (NEXT_PUBLIC_STUDIO_CHAT_ELEMENT_TEXT_SET)
   ...(await import('./studio-chat-refine-structural-decline-strip.mjs')).CHAT_REFINE_STRUCTURAL_DECLINE_SCOPE_FILES, // LATER-CHANGE: FRONTEND-2, B50 structural refine decline: a chat refine of a title-type text box declines honestly instead of rewriting it from the instruction (NEXT_PUBLIC_STUDIO_CHAT_REFINE_STRUCTURAL_DECLINE)
   ...(await import('./studio-chat-text-set-keep-look-strip.mjs')).CHAT_TEXT_SET_KEEP_LOOK_SCOPE_FILES, // LATER-CHANGE: FRONTEND-2, B49b text set keep look: a chat exact-text set keeps the text box's look, so a title stays a title (NEXT_PUBLIC_STUDIO_CHAT_TEXT_SET_KEEP_LOOK)
+  ...(await import('./studio-welcome-trim-strip.mjs')).WELCOME_TRIM_SCOPE_FILES, // LATER-CHANGE: FRONTEND-2, B51 welcome trim and Director mark trim: the first-run welcome loses its extra copy and Director's greeting, and the old star can go (NEXT_PUBLIC_STUDIO_WELCOME_TRIM / NEXT_PUBLIC_STUDIO_DIRECTOR_MARK_TRIM)
+  ...(await import('./studio-chat-column-wide-strip.mjs')).CHAT_COLUMN_WIDE_SCOPE_FILES, // LATER-CHANGE: FRONTEND-2, B51 chat column wide (F-10): the first-run welcome column is about 44% of the window, and the shared column tokens are defined (NEXT_PUBLIC_STUDIO_CHAT_COLUMN_WIDE)
   // one line per later change, above this comment
 ])
 
@@ -100,6 +102,8 @@ export const LATER_ENV_BLOCKS = [
   (await import('./studio-chat-element-text-set-strip.mjs')).CHAT_ELEMENT_TEXT_SET_ENV_BLOCK, // LATER-CHANGE: FRONTEND-2, B49 chat text set (NEXT_PUBLIC_STUDIO_CHAT_ELEMENT_TEXT_SET)
   (await import('./studio-chat-refine-structural-decline-strip.mjs')).CHAT_REFINE_STRUCTURAL_DECLINE_ENV_BLOCK, // LATER-CHANGE: FRONTEND-2, B50 structural refine decline (NEXT_PUBLIC_STUDIO_CHAT_REFINE_STRUCTURAL_DECLINE)
   (await import('./studio-chat-text-set-keep-look-strip.mjs')).CHAT_TEXT_SET_KEEP_LOOK_ENV_BLOCK, // LATER-CHANGE: FRONTEND-2, B49b text set keep look (NEXT_PUBLIC_STUDIO_CHAT_TEXT_SET_KEEP_LOOK)
+  (await import('./studio-welcome-trim-strip.mjs')).WELCOME_TRIM_ENV_BLOCK, // LATER-CHANGE: FRONTEND-2, B51 welcome trim and Director mark trim (NEXT_PUBLIC_STUDIO_WELCOME_TRIM / NEXT_PUBLIC_STUDIO_DIRECTOR_MARK_TRIM)
+  (await import('./studio-chat-column-wide-strip.mjs')).CHAT_COLUMN_WIDE_ENV_BLOCK, // LATER-CHANGE: FRONTEND-2, B51 chat column wide (NEXT_PUBLIC_STUDIO_CHAT_COLUMN_WIDE)
   // one line per later change, above this comment
 ]
 
@@ -145,6 +149,8 @@ export const LATER_STRIPS = [
   (await import('./studio-chat-element-text-set-strip.mjs')).stripChatElementTextSet, // LATER-CHANGE: FRONTEND-2, B49 chat text set (NEXT_PUBLIC_STUDIO_CHAT_ELEMENT_TEXT_SET)
   (await import('./studio-chat-refine-structural-decline-strip.mjs')).stripChatRefineStructuralDecline, // LATER-CHANGE: FRONTEND-2, B50 structural refine decline (NEXT_PUBLIC_STUDIO_CHAT_REFINE_STRUCTURAL_DECLINE)
   (await import('./studio-chat-text-set-keep-look-strip.mjs')).stripChatTextSetKeepLook, // LATER-CHANGE: FRONTEND-2, B49b text set keep look (NEXT_PUBLIC_STUDIO_CHAT_TEXT_SET_KEEP_LOOK)
+  (await import('./studio-welcome-trim-strip.mjs')).stripWelcomeTrim, // LATER-CHANGE: FRONTEND-2, B51 welcome trim and Director mark trim (NEXT_PUBLIC_STUDIO_WELCOME_TRIM / NEXT_PUBLIC_STUDIO_DIRECTOR_MARK_TRIM)
+  (await import('./studio-chat-column-wide-strip.mjs')).stripChatColumnWide, // LATER-CHANGE: FRONTEND-2, B51 chat column wide (NEXT_PUBLIC_STUDIO_CHAT_COLUMN_WIDE)
   // one line per later change, above this comment
 ]
 
