@@ -2,7 +2,8 @@
    -fullscreen / -swipe) or one of that component's own elements, so with the flag off none of it matches anything. The portrait rules sit in the phone shell's own width plus portrait, the landscape ones in PR 1's landscape-phone query; the
    full-screen stage of our own (when the browser has no full screen, or refuses it) and the swipe rules are the same in both.
    SWIPE: the slide space takes horizontal touches (touch-action: pan-y) and the slide's frame lets them through (pointer-events: none), so a swipe starting on the slide itself reaches the viewer's listener; editing the slide turns the swipe off, which gives the frame its touches back.
-   FULL SCREEN, OUR OWN: a fixed 100dvh stage with nothing but the slide and an Exit button: the rail, top bar, switch, toolbar, pull tabs, notes, brand row, thumbnails, tab bar and PR 1's own controls are out (the top bar and the authoring row stay laid out and invisible, as in PR 1). */
+   FULL SCREEN, OUR OWN: a fixed 100dvh stage with nothing but the slide and an Exit button: the rail, top bar, switch, toolbar, pull tabs, notes, brand row, thumbnails, tab bar and PR 1's own controls are out (the top bar and the authoring row stay laid out and invisible, as in PR 1).
+   The slide space's black and the viewer's padding go through the viewer's own :not([data-studio-v4-fullscreen]) form, so (with the hints attribute too) they are more specific than the canvas sheet's neutral surface and PR 1's collapsed-strip padding. */
 
 @media (orientation: landscape) and (max-height: 500px) and (pointer: coarse) {
   html[data-studio-phone-hints] { --studio-phone-controls-right: 46px; }
@@ -68,8 +69,8 @@ html[data-studio-phone-fullscreen="fallback"] [data-studio-v4-shell="true"] [dat
 }
 html[data-studio-phone-fullscreen="fallback"] [data-studio-v4-shell="true"] :is([data-studio-workspace-switch], [data-studio-drawer-handle], [data-studio-notes-handle], [data-studio-canvas-brand], [data-studio-v4-thumbnail-toggle], [data-studio-v4-thumbnail-resize], [data-studio-v4-thumbnails]) { display: none; }
 html[data-studio-phone-fullscreen="fallback"] [data-studio-v4-shell="true"] [data-studio-v4-shell-workspace] { --studio-pane-toolbar-height: 0px; margin: 0; border: 0; border-radius: 0; }
-html[data-studio-phone-fullscreen="fallback"] [data-studio-v4-shell="true"] [data-studio-slide-space] { padding: 0; background: #000; }
-html[data-studio-phone-fullscreen="fallback"] [data-studio-v4-shell="true"] [data-studio-v4-viewer] { padding-left: 0; background: #000; }
+html[data-studio-phone-fullscreen="fallback"][data-studio-phone-hints] [data-studio-v4-shell="true"] [data-studio-v4-viewer]:not([data-studio-v4-fullscreen="true"]) [data-studio-slide-space="true"] { padding: 0; background: #000; }
+html[data-studio-phone-fullscreen="fallback"][data-studio-phone-hints] [data-studio-v4-shell="true"] [data-studio-v4-viewer]:not([data-studio-v4-fullscreen="true"]) { padding-left: 0; }
 html[data-studio-phone-fullscreen="fallback"] :is([data-studio-phone-controls="true"], [data-studio-phone-fab="true"], [data-studio-phone-fan-card="true"], [data-studio-phone-fan-backdrop="true"], [data-studio-phone-strip-head="true"], [data-studio-phone-strip-handle="true"], [data-studio-phone-menu="true"], [data-studio-phone-fullscreen-button="true"], [data-studio-phone-fullscreen-pill="true"]) { display: none; }
 html[data-studio-phone-fullscreen="fallback"] [data-studio-phone-exit="true"] {
   position: fixed; top: 8px; right: 8px; z-index: 70; display: inline-flex; align-items: center; justify-content: center; width: 30px; height: 30px; padding: 0; border: 0; border-radius: 15px;
