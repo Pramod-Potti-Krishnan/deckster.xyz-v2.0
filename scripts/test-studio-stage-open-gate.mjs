@@ -1035,7 +1035,7 @@ function scopeHead(ref = 'HEAD', { gateRule = true } = {}) {
   if (!gateRule || parents.length !== 2) return head
   return ownOf(parents[0]).length === 0 && ownOf(parents[1]).length > 0 ? parents[1] : head
 }
-const REAL = { norm: otherStrips, env: text => registry.stripLaterEnvBlocks('.env.example', text) }
+const REAL = { norm: otherStrips, env: text => registry.stripLaterEnvBlocks('.env.example', text), laterRegistryLine: line => line.includes('// LATER-CHANGE:') } // LATER-CHANGES: registry read (PHONE-LANDSCAPE): a change registered after this one puts its own lines after this one's in each list of the registry
 const diffLines = text => text.split('\n').filter(line => /^[+-]/.test(line) && !/^(\+\+\+|---) /.test(line))
 const normDiff = (ctx, rel, head) => git('diff', '-U0', blobOf(ctx.norm(rel, git('show', `${BASE_COMMIT}:${rel}`))), blobOf(ctx.norm(rel, git('show', `${head}:${rel}`))))
 const scopeOwnCommits = (head, opts) => {
@@ -1060,7 +1060,7 @@ const scopeCommittedFiles = (head, ctx = REAL) => {
     const now = git('show', `${head}:${rel}`), base = git('show', `${BASE_COMMIT}:${rel}`)
     assert.equal(ctx.norm(rel, stripStageOpenGate(rel, now)), ctx.norm(rel, base), `${rel}: the proof this change taught, put back, is the base's`)
     for (const [has] of STAGE_OPEN_GATE_PIN_EDITS[rel]) for (const line of has.split('\n').filter(Boolean)) assert.ok(line.includes(STAGE_OPEN_GATE_PIN_MARK), `${rel}: every taught line carries the registry-read mark: ${line.slice(0, 80)}`)
-    for (const line of diffLines(normDiff({ norm: (r, text) => r === rel ? text : ctx.norm(r, text) }, rel, head))) if (line.startsWith('+')) assert.ok(line.includes(STAGE_OPEN_GATE_PIN_MARK), `${rel}: an added line without the mark: ${line.slice(0, 100)}`)
+    for (const line of diffLines(normDiff({ norm: (r, text) => r === rel ? registry.LATER_STRIPS.slice(registry.LATER_STRIPS.indexOf(stripStageOpenGate) + 1).reduce((out, strip) => { const next = typeof strip === 'function' ? strip(r, out) : out; return typeof next === 'string' ? next : out }, text) : ctx.norm(r, text) }, rel, head))) if (line.startsWith('+')) assert.ok(line.includes(STAGE_OPEN_GATE_PIN_MARK), `${rel}: an added line without the mark: ${line.slice(0, 100)}`) // LATER-CHANGES: registry read (PHONE-LANDSCAPE): the lines of the changes registered after this one come out of a proof it taught before its added lines are read
   }
   for (const rel of ['components/builder/presentation-area.tsx', 'components/builder/studio-outline-canvas.tsx', 'lib/studio-flow-control.ts', 'hooks/use-studio-flow-control.ts', 'components/builder/studio-first-run-actions.tsx',
     'lib/studio-first-run-restoring.ts', 'hooks/use-deckster-websocket-v2.ts', 'components/builder/message-list.tsx']) assert.ok(!touched.has(rel), `${rel} is not touched by this change`)
