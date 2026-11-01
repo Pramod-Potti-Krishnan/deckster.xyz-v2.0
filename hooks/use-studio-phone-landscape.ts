@@ -1,11 +1,13 @@
 "use client"
 
-import { useEffect, useRef, useSyncExternalStore } from "react"
+import { useEffect, useLayoutEffect, useRef, useSyncExternalStore } from "react"
 import {
   STUDIO_PHONE_LANDSCAPE_ENABLED,
+  STUDIO_PHONE_LANDSCAPE_QUERY,
   STUDIO_PHONE_STRIP_DEFAULT,
   studioPhoneRailOpen,
   studioPhoneStripToggle,
+  studioPhoneWorkspaceWidth,
   type StudioPhoneStripState,
 } from "@/lib/studio-phone-landscape"
 
@@ -47,6 +49,22 @@ export function useStudioPhoneQuery(query: string): boolean {
   }
   const snapshot = () => STUDIO_PHONE_LANDSCAPE_ENABLED && typeof window !== "undefined" && typeof window.matchMedia === "function" && window.matchMedia(query).matches
   return useSyncExternalStore(subscribeQuery, snapshot, () => false)
+}
+
+// Where React cannot run a layout effect (the server render) an ordinary effect stands in; both are called the same way on every render.
+const useIsomorphicLayoutEffect = typeof window === "undefined" ? useEffect : useLayoutEffect
+
+/**
+ * The page's workspace width, as the page decides by it, on a phone turned sideways: never over its own 880 px "one pane at a time" threshold (the stage hides the rail, so a 926 or 932 px phone's workspace is wider and the page would drop the stage).
+ * Corrected before the browser paints, so no frame is drawn in the wrong layout. Does nothing with the flag off or off a phone turned sideways.
+ */
+export function useStudioPhoneWorkspaceClamp(workspaceWidth: number, setWorkspaceWidth: (width: number) => void) {
+  const landscape = useStudioPhoneQuery(STUDIO_PHONE_LANDSCAPE_QUERY)
+  useIsomorphicLayoutEffect(() => {
+    if (!STUDIO_PHONE_LANDSCAPE_ENABLED) return
+    const next = studioPhoneWorkspaceWidth(landscape, workspaceWidth)
+    if (next !== workspaceWidth) setWorkspaceWidth(next)
+  }, [landscape, workspaceWidth, setWorkspaceWidth])
 }
 
 /**

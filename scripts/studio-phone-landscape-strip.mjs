@@ -2,9 +2,9 @@
 // a phone turned sideways (the query (orientation: landscape) and (max-height: 500px) and (pointer: coarse), and its CSS twin) with a deck on the stage becomes a viewing stage: the slide fills the screen (the viewer's fit padding is zeroed), the thumbnails are a
 // collapsible strip on the LEFT (the viewer's own rail, in a state of its own so it never leaks into portrait), the rail, top bar, switch, toolbar, pull tabs and the tab bar go, a "Chat" button is a full-screen pane switch back to the Director, and ONE floating
 // button opens an overlay fan (Add slide, Add element and the deck actions the phone "..." menu has, each through the page's own control). In portrait the slide view folds the bottom bar to one Menu button.
-// Every line this change adds to an EXISTING file is a pure insertion that carries the marker PHONE-LANDSCAPE (a whole token), except TWO existing lines that are extended (the workspace's overlay test gains one term, the viewer's fit padding reads the stage); PIN_EDITS puts
-// those old lines back. Strip the marked lines and each file is its base, byte for byte: app/builder/page.tsx (three imports, the media-query hook and the extended overlay line, one line of JSX at the shell root) and components/presentation-viewer.tsx (two imports, the rail
-// hook's call and the extended fit line). The decisions live in lib/studio-phone-landscape.ts (pure); the state in hooks/use-studio-phone-landscape.ts; the drawing in components/builder/studio-phone-landscape.tsx and .css.
+// Every line this change adds to an EXISTING file is a pure insertion that carries the marker PHONE-LANDSCAPE (a whole token); no existing line is rewritten. Strip the marked lines and each file is its base, byte for byte: app/builder/page.tsx (three imports, the
+// workspace-width clamp's call and one line of JSX at the shell root) and components/presentation-viewer.tsx (two imports, the rail hook's call and the stage's fit, one line before the viewer's own fit). The decisions live in lib/studio-phone-landscape.ts (pure); the state in
+// hooks/use-studio-phone-landscape.ts; the drawing in components/builder/studio-phone-landscape.tsx and .css.
 // How the older pins reach it: this change REGISTERS its files, its .env.example block and this strip (scripts/studio-later-changes.mjs, three lines). Plain node, no imports, nothing read from disk or git here.
 
 export const BASE_COMMIT = 'abf52d4d4858b24cdb62549325ae5b9eed36624e' // origin/studio-v4-dev-preparation-code (#554 merged, on #555) merged into this branch before it was finished; this change started on 61a71137 (#555) and its own commits are found by subject
@@ -28,22 +28,6 @@ export const PHONE_LANDSCAPE_NEW_FILES = [
   'scripts/test-studio-phone-landscape.mjs',
 ]
 
-/** The two existing lines this change extends: [text now, text before], whole lines. */
-export const PHONE_LANDSCAPE_PIN_EDITS = {
-  'app/builder/page.tsx': [
-    ["  const studioOverlayWorkspace = studioShell && (workspaceWidth <= 880 || studioPhoneLandscape) // PHONE-LANDSCAPE: one pane at a time on a phone turned sideways whatever its width\n",
-     "  const studioOverlayWorkspace = studioShell && workspaceWidth <= 880\n"],
-  ],
-  'components/presentation-viewer.tsx': [
-    ["      const pad = studioPhoneLandscapeFitPad(document.documentElement.getAttribute(STUDIO_PHONE_STAGE_ATTRIBUTE)), pw = width - pad, ph = height - pad // PHONE-LANDSCAPE: 16 px a side as ever, none in the landscape stage\n",
-     "      const pw = width - 32, ph = height - 32\n"],
-  ],
-}
-
-export function putBackPin(rel, text) {
-  return (PHONE_LANDSCAPE_PIN_EDITS[rel] || []).reduce((out, [has, was]) => out.replace(has, () => was), text)
-}
-
 export const PHONE_LANDSCAPE_OWN_EDITS = ['.env.example', 'scripts/studio-later-changes.mjs']
 
 /** Every file this change's commits touch: what the older scope checks skip once the registry names it (scripts/studio-later-changes.mjs, LATER_CHANGE_FILES). */
@@ -57,9 +41,9 @@ export const PHONE_LANDSCAPE_ENV_BLOCK = `# STUDIO PHONE LANDSCAPE (FRONTEND-1; 
 NEXT_PUBLIC_STUDIO_PHONE_LANDSCAPE="false"
 `
 
-/** The file without this change's lines: the pins put back, then every line that carries the marker (as a whole token) is taken out, every other byte stays. Any other file is returned as it is. */
+/** The file without this change's lines: every line that carries the marker (as a whole token) is taken out, every other byte stays. Any other file is returned as it is. */
 export function stripPhoneLandscape(rel, text) {
   if (typeof text !== 'string') return text
   if (!PHONE_LANDSCAPE_FILES.includes(rel)) return text
-  return putBackPin(rel, text).split('\n').filter(line => !PHONE_LANDSCAPE_MARKER_RE.test(line)).join('\n')
+  return text.split('\n').filter(line => !PHONE_LANDSCAPE_MARKER_RE.test(line)).join('\n')
 }
