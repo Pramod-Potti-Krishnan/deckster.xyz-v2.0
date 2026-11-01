@@ -50,6 +50,21 @@ export const STRAWMAN_CHAT_PIN_EDITS = {
   "scripts/test-studio-deck-sync-truth.mjs": [[FIRST_PARENT_SUBJECT_LINE, ""]],
   // chat undo v2's proof strips the message list with its own strip and chat clean's, the order change's and the welcome trim's: this change's marked lines in the list (an import and the early return for a standalone outline frame) come out first, by one whole inserted line before the welcome trim's (a pure insertion: the welcome trim's own line is untouched, so the strips of the two commute in any order)
   "scripts/test-studio-chat-undo-v2.mjs": [[`    const welcomeTrimStrip = ((own, welcomeTrim) => ({ stripWelcomeTrim: (rel, text) => welcomeTrim.stripWelcomeTrim(rel, own.stripStrawmanChat(rel, text)) }))(await import('./studio-strawman-chat-strip.mjs'), await import('./studio-welcome-trim-strip.mjs')) // ${STRAWMAN_CHAT_PIN_MARK}: the strip of the change stacked after the welcome trim, so its marked lines in the message list come out before the welcome trim's strip runs on the next line (this callback's own binding, so the next line stays the welcome trim's, byte for byte)\n`, ""]],
+  // the stage open gate's proof (#554): on the real branch it wants every line added to its taught proofs to carry its own mark, its registry lines to close their lists, and its synthetic-later page read past the registered changes after it; this change is registered after it
+  "scripts/test-studio-stage-open-gate.mjs": [
+    [
+      "    for (const line of diffLines(normDiff({ norm: (r, text) => r === rel ? laterStrips(rel, text) : ctx.norm(r, text) }, rel, head))) if (line.startsWith('+')) assert.ok(line.includes(STAGE_OPEN_GATE_PIN_MARK), `${rel}: an added line without the mark: ${line.slice(0, 100)}`) // LATER-CHANGES: registry read (STRAWMAN-CHAT): the proof this change taught is read past the changes registered after it (the strawman chat's own teaching line) before its added lines are checked for this change's mark\n",
+      "    for (const line of diffLines(normDiff({ norm: (r, text) => r === rel ? text : ctx.norm(r, text) }, rel, head))) if (line.startsWith('+')) assert.ok(line.includes(STAGE_OPEN_GATE_PIN_MARK), `${rel}: an added line without the mark: ${line.slice(0, 100)}`)\n",
+    ],
+    [
+      "REAL.laterRegistryLine = (previous => line => previous?.(line) || line.includes('studio-strawman-chat-strip.mjs'))(REAL.laterRegistryLine) // LATER-CHANGES: registry read (STRAWMAN-CHAT): the strawman chat's registry lines may follow this change's three (a later change's own line)\n",
+      "",
+    ],
+    [
+      "  const later = laterStrips(PAGE, syntheticStrip(PAGE, git('show', `${SYNTHETIC}:${PAGE}`))) // read as this change left it: the later change's lines out (as laterStrips does for a registered one) // LATER-CHANGES: registry read (STRAWMAN-CHAT): the registered changes after this one (the strawman chat's page lines) come out too, not only the synthetic one\n",
+      "  const later = syntheticStrip(PAGE, git('show', `${SYNTHETIC}:${PAGE}`)) // read as this change left it: the later change's lines out (as laterStrips does for a registered one)\n",
+    ],
+  ],
 }
 
 /** The proof without this change's edits (the previous file). Used by the strip and the proof. */
