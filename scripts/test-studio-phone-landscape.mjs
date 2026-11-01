@@ -533,7 +533,7 @@ await check('ROBUST AFTER MERGE: a synthetic change stacked after this one (its 
   for (const rel of PHONE_LANDSCAPE_FILES) assert.equal(stripPhoneLandscape(rel, SYN_CTX.norm(rel, git('show', `${gate}:${rel}`))), SYN_CTX.norm(rel, git('show', `${BASE_COMMIT}:${rel}`)), `the merged tree is the base's ${rel} without this change's and the later change's lines`)
   const advanced = gateMerge(unrelated, SYNTHETIC)
   assert.equal(scopeHead(advanced), SYNTHETIC); scopeAll(scopeHead(advanced), SYN_CTX)
-  for (const rel of PHONE_LANDSCAPE_FILES) assert.equal(stripPhoneLandscape(rel, syntheticStrip(rel, git('show', `${SYNTHETIC}:${rel}`))), baseText(rel), `${rel}: either order of the two strips gives the base`)
+  for (const rel of PHONE_LANDSCAPE_FILES) assert.equal(stripPhoneLandscape(rel, syntheticStrip(rel, otherStrips(rel, git('show', `${SYNTHETIC}:${rel}`)))), otherStrips(rel, baseText(rel)), `${rel}: either order of the two strips gives the base (read past the changes registered after this one, as every other check here does)`)
 })
 await check('mutant caught: the same synthetic later change fails a scope that is not told about it (its lines are unmarked additions, its registry lines extra)', () => {
   assert.throws(() => scopeCommittedFiles(SYNTHETIC), /unmarked added line|exactly its scope/)
