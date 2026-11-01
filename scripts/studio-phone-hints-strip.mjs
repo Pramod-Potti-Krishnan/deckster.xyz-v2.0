@@ -7,7 +7,7 @@
 // The two older proofs that read the first-parent line of BASE..HEAD for their own commits' subjects (PR 1 taught them to leave "Phone landscape:" commits out) are taught one more inserted line each, for "Phone hints:" (PIN_EDITS, tests only, registry-read marks).
 // How the older pins reach it: this change REGISTERS its files, its .env.example block and this strip (scripts/studio-later-changes.mjs, three lines). Plain node, no imports, nothing read from disk or git here.
 
-export const BASE_COMMIT = '82a59a39fb3af12e71891bad50ca78278e7c812b' // PR 1's head (frontend1/phone-landscape) at the start of this change: this change is stacked on it
+export const BASE_COMMIT = '96294b66643b02e0f7a0fdad69e656aa368feafd' // PR 1's head (frontend1/phone-landscape) at the start of this change: this change is stacked on it
 export const PHONE_HINTS_FLAG = 'NEXT_PUBLIC_STUDIO_PHONE_HINTS'
 export const PHONE_HINTS_MARKER = 'PHONE-HINTS'
 /** The marker as a WHOLE token: PHONE-HINTS-X and X-PHONE-HINTS are not it. */
