@@ -12,7 +12,7 @@
 //  4. the component: its markup in the stage (Chat with the connection dot, the one floating button, the strip's collapse button or its 30 px handle), in the portrait slide view (one Menu button) and nowhere else; no orientation lock anywhere;
 //  5. the stylesheet (postcss, the REAL file): every rule is inside one of the two media queries, every selector is keyed to an <html> attribute this change sets or to one of its own elements, no !important; the queries are the lib's; the stage hides what it must and keeps the controls
 //     the fan uses laid out (never display: none: their menus anchor there); every rule it needs to beat in the phone shell's own sheet is beaten on specificity;
-//  6. the pins: page and viewer without the marked lines are the base's files byte for byte (also through the registry); the marked lines are where they should be and gated on the constant;
+//  6. the insertions: page and viewer without the marked lines are the base's files byte for byte (also through the registry; no existing line is rewritten); the marked lines are where they should be and gated on the constant;
 //  7. scope over the COMMITTED diff, GATE-SAFE (subject across `rev-list --no-merges BASE..head`, HEAD^2 on the gate's merge, registry / .env.example / strip reads past a synthetic later change, no hash-object --stdin);  8. mutants are caught.
 import assert from 'node:assert/strict'
 import crypto from 'node:crypto'
@@ -28,7 +28,7 @@ import { renderToStaticMarkup } from 'react-dom/server'
 import ts from 'typescript'
 import postcss from 'postcss'
 import {
-  BASE_COMMIT, PHONE_LANDSCAPE_FILES, PHONE_LANDSCAPE_NEW_FILES, PHONE_LANDSCAPE_PIN_EDITS, PHONE_LANDSCAPE_SCOPE_FILES, PHONE_LANDSCAPE_ENV_BLOCK, PHONE_LANDSCAPE_MARKER_RE, PHONE_LANDSCAPE_SUBJECT, PHONE_LANDSCAPE_FLAG, stripPhoneLandscape,
+  BASE_COMMIT, PHONE_LANDSCAPE_FILES, PHONE_LANDSCAPE_NEW_FILES, PHONE_LANDSCAPE_SCOPE_FILES, PHONE_LANDSCAPE_ENV_BLOCK, PHONE_LANDSCAPE_MARKER_RE, PHONE_LANDSCAPE_SUBJECT, PHONE_LANDSCAPE_FLAG, stripPhoneLandscape,
 } from './studio-phone-landscape-strip.mjs'
 import * as registry from './studio-later-changes.mjs'
 
@@ -104,6 +104,7 @@ function hookRuntime() {
     ...React,
     useRef: init => { const slot = state.index++; return state.refs[slot] ??= { current: init } },
     useEffect: (cb, deps) => { state.effects.push({ slot: state.index++, cb, deps }) },
+    useLayoutEffect: (cb, deps) => { state.effects.push({ slot: state.index++, cb, deps }) },
     useSyncExternalStore: (subscribe, snapshot) => { state.index++; return snapshot() },
   }
   return {
@@ -207,9 +208,13 @@ await check('the stage needs all four (the flag, a phone turned sideways, a deck
   assert.equal(lib.studioPhoneLandscapeStage({ enabled: 1, landscape: true, deckOnStage: true, stageVisible: true }), false, 'a truthy non-boolean is not true')
   assert.equal(lib.studioPhoneBarState(true, false), 'folded'); assert.equal(lib.studioPhoneBarState(true, true), 'open'); assert.equal(lib.studioPhoneBarState(false, true), null); assert.equal(lib.studioPhoneBarState(false, false), null)
 })
-await check('the fit padding is 32 off a dimension (16 a side, as the viewer has always kept) and 0 only for the stage attribute; the strip toggles between open and collapsed and starts open; the viewer\'s rail is the strip\'s while the stage is on and the remembered portrait value after', () => {
-  assert.equal(lib.studioPhoneLandscapeFitPad('stage'), 0)
-  for (const value of [null, undefined, '', 'Stage', 'on', 'true', 'collapsed']) assert.equal(lib.studioPhoneLandscapeFitPad(value), 32, String(value))
+await check('the stage\'s fit is the largest 16:9 box in the WHOLE slide space (no fit padding; 844x390 gives 693x390, 568x320 with its strip gives 428x241) and only for the stage attribute, and the page\'s width is never over its own 880 px threshold on a phone turned sideways (and untouched otherwise); the strip toggles between open and collapsed and starts open; the viewer\'s rail is the strip\'s while the stage is on and the remembered portrait value after', () => {
+  const fit = (attr, w, h) => { const out = lib.studioPhoneLandscapeFit(attr, w, h); return out === null ? null : { width: out.width, height: out.height } }
+  assert.deepEqual(fit('stage', 704, 390), { width: 693.3333333333333, height: 390 }, 'height-limited: the full height'); assert.deepEqual(fit('stage', 428, 320), { width: 428, height: 240.75 }, 'width-limited'); assert.deepEqual(fit('stage', 1600, 900), { width: 1600, height: 900 })
+  for (const attr of [null, undefined, '', 'Stage', 'on', 'true', 'collapsed']) assert.equal(fit(attr, 704, 390), null, `not the stage: ${String(attr)}`)
+  for (const [w, h] of [[0, 390], [704, 0], [-5, 390], [NaN, 390], [704, undefined]]) assert.equal(fit('stage', w, h), null, `a box with no size: ${w}x${h}`)
+  assert.equal(lib.STUDIO_PHONE_OVERLAY_MAX_WIDTH, 880); assert.match(read(PAGE), /const studioOverlayWorkspace = studioShell && workspaceWidth <= 880/, 'the page\'s own threshold is 880')
+  for (const [landscape, width, want] of [[true, 932, 880], [true, 926, 880], [true, 881, 880], [true, 880, 880], [true, 844, 844], [true, 568, 568], [false, 932, 932], [false, 1440, 1440], [false, 390, 390]]) assert.equal(lib.studioPhoneWorkspaceWidth(landscape, width), want, `${landscape} ${width}`)
   assert.equal(lib.STUDIO_PHONE_STRIP_DEFAULT, 'open'); assert.equal(lib.studioPhoneStripToggle('open'), 'collapsed'); assert.equal(lib.studioPhoneStripToggle('collapsed'), 'open')
   const rail = (stage, strip, remembered, current) => lib.studioPhoneRailOpen({ stage, strip, remembered, current })
   assert.equal(rail(true, 'open', false, false), true, 'stage, strip open: open whatever portrait had'); assert.equal(rail(true, 'collapsed', true, true), false, 'stage, strip collapsed: closed whatever portrait had')
@@ -270,6 +275,18 @@ await check('the viewer\'s rail (flag on): off the stage nothing is touched; the
   // a rail the viewer had OPEN in portrait comes back open, whatever the strip did
   hook.setStudioPhoneStage(true); shown = true; render(); const before = calls.length; hook.toggleStudioPhoneStrip(); render(); assert.equal(calls.at(-1), false)
   hook.setStudioPhoneStage(false); render(); assert.equal(calls.at(-1), true, 'portrait had it open: open again'); assert.ok(calls.length > before)
+})
+
+await check('the workspace clamp (flag on): on a phone turned sideways the page is told at most 880 px, before paint (a layout effect where there is a window); a narrower one, a portrait phone and a desktop window are left as they are; nothing happens with the flag off', () => {
+  const run = (flags, landscape, width) => {
+    const rt = hookRuntime(), w = windowStub({ [lib.STUDIO_PHONE_LANDSCAPE_QUERY]: landscape }), told = []
+    setFlags(flags); const hook = makeLoader({ reactImpl: rt.impl, globals: { window: w } }).load(HOOK); setFlags({})
+    rt.render(() => hook.useStudioPhoneWorkspaceClamp(width, next => told.push(next))); return told
+  }
+  assert.deepEqual(run({ flag: 'true' }, true, 932), [880]); assert.deepEqual(run({ flag: 'true' }, true, 926), [880]); assert.deepEqual(run({ flag: 'true' }, true, 844), []); assert.deepEqual(run({ flag: 'true' }, true, 880), [])
+  assert.deepEqual(run({ flag: 'true' }, false, 932), [], 'not a phone turned sideways'); assert.deepEqual(run({ flag: 'true' }, false, 1440), [])
+  assert.deepEqual(run({}, true, 932), [], 'flag off: nothing')
+  assert.match(read(HOOK), /const useIsomorphicLayoutEffect = typeof window === "undefined" \? useEffect : useLayoutEffect/, 'a layout effect in the browser (no wrong frame), an ordinary one on the server (no warning)')
 })
 
 // ===== 4. the component ========================================================================================================================================
@@ -368,8 +385,8 @@ const cascadeOf = text => {
 }
 await check('cascade: every rule of this change that overrides a rule of the phone shell\'s own sheet (the bar\'s display and position, the shell\'s bottom padding) is MORE specific, so it wins whatever the order, with no !important', () => cascadeOf(cssText))
 
-// ===== 6. the pins ================================================================================================================================================
-await check('the Builder page and the viewer without this change\'s lines are the base commit\'s files byte for byte (the two pinned lines put back), also through the registry, and twice changes nothing more; a file it does not own comes back as it is', () => {
+// ===== 6. the insertions ================================================================================================================================================
+await check('the Builder page and the viewer without this change\'s lines are the base commit\'s files byte for byte (no existing line is rewritten), also through the registry, and twice changes nothing more; a file it does not own comes back as it is', () => {
   for (const rel of PHONE_LANDSCAPE_FILES) {
     const now = read(rel), base = baseText(rel)
     assert.notEqual(now, base); assert.equal(stripPhoneLandscape(rel, otherStrips(rel, now)), otherStrips(rel, base), rel)
@@ -377,15 +394,18 @@ await check('the Builder page and the viewer without this change\'s lines are th
   }
   assert.equal(stripPhoneLandscape('lib/anything.ts', 'x'), 'x'); assert.equal(stripPhoneLandscape(PAGE, 5), 5)
 })
-await check('the marked lines are where they should be: the page has three imports, the media-query hook, the extended overlay line and one line of JSX (six); the viewer two imports, the rail hook and the extended fit line (four); every one names the marker as a whole token; the two pins are the only existing lines changed', () => {
+await check('the marked lines are where they should be: the page has three imports, the workspace clamp\'s call and one line of JSX (five); the viewer two imports, the rail hook\'s call and the stage\'s fit, which comes BEFORE the viewer\'s own fit line (four); every one names the marker as a whole token; no existing line is rewritten', () => {
   const page = read(PAGE), viewer = read(VIEWER)
-  assert.equal(count(page, /^.*PHONE-LANDSCAPE.*$/gm), 6); assert.equal(count(viewer, /^.*PHONE-LANDSCAPE.*$/gm), 4)
+  assert.equal(count(page, /^.*PHONE-LANDSCAPE.*$/gm), 5); assert.equal(count(viewer, /^.*PHONE-LANDSCAPE.*$/gm), 4)
   for (const line of [...page.split('\n'), ...viewer.split('\n')].filter(line => /PHONE-LANDSCAPE/.test(line))) assert.match(line, PHONE_LANDSCAPE_MARKER_RE)
-  assert.match(page, /const studioPhoneLandscape = useStudioPhoneQuery\(STUDIO_PHONE_LANDSCAPE_QUERY\) \/\/ PHONE-LANDSCAPE/); assert.match(page, /const studioOverlayWorkspace = studioShell && \(workspaceWidth <= 880 \|\| studioPhoneLandscape\) \/\/ PHONE-LANDSCAPE/)
+  assert.match(page, /useStudioPhoneWorkspaceClamp\(workspaceWidth, setWorkspaceWidth\) \/\/ PHONE-LANDSCAPE/); assert.ok(page.indexOf('useStudioPhoneWorkspaceClamp(workspaceWidth') < page.indexOf('const studioOverlayWorkspace ='), 'the clamp is called before the page decides by the width')
+  assert.ok(page.indexOf('const [workspaceWidth, setWorkspaceWidth] = useState(1100)') < page.indexOf('useStudioPhoneWorkspaceClamp(workspaceWidth'), 'after the state it reads and sets')
+  assert.match(page, /const studioOverlayWorkspace = studioShell && workspaceWidth <= 880\n/, 'the page\'s own line is as it was')
   assert.match(page, /stageVisible=\{studioOverlayWorkspace && !studioCanvasCovered\}/); assert.match(page, /deckOnStage=\{Boolean\(effectivePresentationUrl\) && !studioWelcome && !session\.isLoadingSession\}/); assert.match(page, /onChat=\{\(\) => \{ selectWorkspacePane\('chat'\); if \(!showChat\) setShowChat\(true\) \}\}/, 'Chat is the Director pane of the switch')
-  assert.match(viewer, /useStudioPhoneLandscapeRail\(showThumbnails, setShowThumbnails\) \/\/ PHONE-LANDSCAPE/); assert.match(viewer, /studioPhoneLandscapeFitPad\(document\.documentElement\.getAttribute\(STUDIO_PHONE_STAGE_ATTRIBUTE\)\), pw = width - pad, ph = height - pad \/\/ PHONE-LANDSCAPE/)
-  assert.ok(page.indexOf('const studioPhoneLandscape =') < page.indexOf('const studioOverlayWorkspace ='), 'the hook is called before its use')
-  assert.equal(lib.studioPhoneLandscapeFitPad(null), 32, 'flag off: the viewer\'s fit is 32 off a dimension, as it was')
+  assert.match(viewer, /useStudioPhoneLandscapeRail\(showThumbnails, setShowThumbnails\) \/\/ PHONE-LANDSCAPE/)
+  assert.match(viewer, /const stageFit = studioPhoneLandscapeFit\(document\.documentElement\.getAttribute\(STUDIO_PHONE_STAGE_ATTRIBUTE\), width, height\); if \(stageFit\) \{ setNormalSlideSize\(stageFit\); return \} \/\/ PHONE-LANDSCAPE/)
+  assert.ok(viewer.indexOf('const stageFit = ') < viewer.indexOf('const pw = width - 32, ph = height - 32'), 'the stage\'s fit comes first; the viewer\'s own fit line is untouched after it')
+  assert.equal(lib.studioPhoneLandscapeFit(null, 704, 390), null, 'flag off (the attribute is never set): the viewer\'s own fit runs, as it did')
 })
 
 // ===== 7. scope =====================================================================================================================================================
@@ -421,21 +441,18 @@ const scopeOwnCommits = (head, opts) => {
   for (const c of git('rev-list', '--no-merges', `${BASE_COMMIT}..${head}`).split('\n').filter(Boolean)) assert.doesNotMatch(subjectOf(c), OLDER_PREFIXES, `${c.slice(0, 8)} would be taken for an older change's own commit`)
   return own
 }
-/** The base lines the pin puts back: the lines of the base file that contain the pinned fragment (the pin is a whole line, so it keeps working when a later change adds a name earlier in that line). */
-const removedAllowed = (rel, baseNorm) => new Set(baseNorm.split('\n').filter(line => (PHONE_LANDSCAPE_PIN_EDITS[rel] || []).some(([, was]) => line.includes(was.replace(/\n$/, '')))))
 const scopeCommittedFiles = (head, ctx = REAL) => {
   const own = scopeOwnCommits(head)
   const touched = new Set()
   for (const c of own) for (const rel of git('show', '--name-only', '--format=', c).split('\n').filter(Boolean)) touched.add(rel)
   assert.deepEqual([...touched].sort(), [...PHONE_LANDSCAPE_SCOPE_FILES].sort(), 'the files this change\'s own commits touch are exactly its scope')
   for (const rel of PHONE_LANDSCAPE_FILES) {
-    const diff = diffLines(normDiff(ctx, rel, head)), allowedRemoved = removedAllowed(rel, ctx.norm(rel, git('show', `${BASE_COMMIT}:${rel}`)))
+    const diff = diffLines(normDiff(ctx, rel, head))
     for (const line of diff) {
-      if (line.startsWith('-')) assert.ok(allowedRemoved.has(line.slice(1)), `${rel}: a removed line that is not a pinned one: ${line.slice(0, 120)}`)
-      else assert.match(line, PHONE_LANDSCAPE_MARKER_RE, `${rel}: an unmarked added line: ${line.slice(0, 120)}`)
+      assert.ok(!line.startsWith('-'), `${rel}: a removed line (this change only inserts): ${line.slice(0, 120)}`)
+      assert.match(line, PHONE_LANDSCAPE_MARKER_RE, `${rel}: an unmarked added line: ${line.slice(0, 120)}`)
     }
     assert.ok(diff.filter(line => line.startsWith('+')).length > 0, `${rel}: the number of added lines`)
-    assert.equal(diff.filter(line => line.startsWith('-')).length, (PHONE_LANDSCAPE_PIN_EDITS[rel] || []).length, `${rel}: exactly the pinned lines are removed`)
     assert.equal(stripPhoneLandscape(rel, ctx.norm(rel, git('show', `${head}:${rel}`))), ctx.norm(rel, git('show', `${BASE_COMMIT}:${rel}`)), `${rel}: without its marked lines the file is the base's, byte for byte`)
   }
   for (const rel of PHONE_LANDSCAPE_NEW_FILES) assert.equal(git('cat-file', '-t', `${head}:${rel}`).trim(), 'blob', rel)
@@ -457,7 +474,7 @@ const scopeAll = (head, ctx = REAL) => { scopeOwnCommits(head); scopeCommittedFi
 
 const HEAD = scopeHead('HEAD')
 await check(`this change's own commits (subject starts "${PHONE_LANDSCAPE_SUBJECT}", found across the whole line, no merges) exist, with the co-author line; none could be taken for an older change's`, () => { scopeOwnCommits(HEAD) })
-await check('the committed files are exactly this change\'s; every line added to an existing file is a pure insertion that carries the marker (the two pinned lines aside); the strip gives the base back byte for byte; the phone shell\'s own files, the rail strip and the layout allocator are not touched', () => scopeCommittedFiles(HEAD))
+await check('the committed files are exactly this change\'s; every line added to an existing file is a pure insertion that carries the marker; the strip gives the base back byte for byte; the phone shell\'s own files, the rail strip and the layout allocator are not touched', () => scopeCommittedFiles(HEAD))
 await check('.env.example is the base plus the block (after one blank line); the registry gains exactly its three marked lines and loses none; no secret-shaped literal in the new files', () => {
   scopeEnvAndRegistry(HEAD)
   for (const rel of PHONE_LANDSCAPE_NEW_FILES.filter(rel => !rel.endsWith('.css'))) assert.doesNotMatch(fs.readFileSync(path.join(root, rel), 'utf8'), /(sk-[A-Za-z0-9]{16,}|AKIA[0-9A-Z]{12,}|eyJ[A-Za-z0-9_-]{20,}\.|-----BEGIN [A-Z ]*PRIVATE KEY)/, rel)
@@ -570,8 +587,15 @@ await mutant('the landscape query loses its coarse-pointer term (a short desktop
 await mutant('the landscape query is width-based (a narrow desktop window would match)', () => assert.equal(libWith({ flag: 'true' }, { [LIB]: swap(libSrc, '(max-height: 500px)', '(max-width: 932px)') }).STUDIO_PHONE_LANDSCAPE_QUERY, LANDSCAPE_MEDIA))
 await mutant('the stage no longer needs the stage on screen (the chat would be hidden behind the chrome-less stage)', () => assert.equal(libWith({ flag: 'true' }, { [LIB]: swap(libSrc, ' && input.stageVisible === true\n}\n\n/** The portrait slide view', '\n}\n\n/** The portrait slide view') }).studioPhoneLandscapeStage({ enabled: true, landscape: true, deckOnStage: true, stageVisible: false }), false))
 await mutant('the stage is on without a deck (the welcome would lose its chrome)', () => assert.equal(libWith({ flag: 'true' }, { [LIB]: swap(libSrc, ' && input.deckOnStage === true && input.stageVisible === true\n}\n\n/** The portrait slide view', ' && input.stageVisible === true\n}\n\n/** The portrait slide view') }).studioPhoneLandscapeStage({ enabled: true, landscape: true, deckOnStage: false, stageVisible: true }), false))
-await mutant('the fit padding is zero outside the stage too (the portrait slide would touch the frame)', () => assert.equal(libWith({ flag: 'true' }, { [LIB]: swap(libSrc, "stageAttribute === 'stage' ? 0 : 32", '0') }).studioPhoneLandscapeFitPad(null), 32))
-await mutant('the fit padding is not zeroed in the stage (the slide would be 636 px, not 693)', () => assert.equal(libWith({ flag: 'true' }, { [LIB]: swap(libSrc, "stageAttribute === 'stage' ? 0 : 32", '32') }).studioPhoneLandscapeFitPad('stage'), 0))
+await mutant('the stage\'s fit is returned outside the stage (the portrait slide would lose its 16 px a side)', () => assert.equal(libWith({ flag: 'true' }, { [LIB]: swap(libSrc, "if (stageAttribute !== 'stage' || !(width > 0) || !(height > 0)) return null", "if (!(width > 0) || !(height > 0)) return null") }).studioPhoneLandscapeFit(null, 704, 390), null))
+await mutant('the stage\'s fit keeps the 16 px a side (the slide would be 636 px, not 693)', () => assert.equal(libWith({ flag: 'true' }, { [LIB]: swap(libSrc, "let w = width, h = w / ratio\n  if (h > height) { h = height; w = h * ratio }", "let w = width - 32, h = w / ratio\n  if (h > height - 32) { h = height - 32; w = h * ratio }") }).studioPhoneLandscapeFit('stage', 704, 390).height, 390))
+await mutant('the stage\'s fit forgets the height limit (a wide box would overflow its height)', () => assert.equal(libWith({ flag: 'true' }, { [LIB]: swap(libSrc, '  if (h > height) { h = height; w = h * ratio }\n', '') }).studioPhoneLandscapeFit('stage', 704, 390).height, 390))
+await mutant('the stage\'s fit is for a box with no size', () => assert.equal(libWith({ flag: 'true' }, { [LIB]: swap(libSrc, " || !(width > 0) || !(height > 0)) return null", ") return null") }).studioPhoneLandscapeFit('stage', 0, 390), null))
+await mutant('the workspace is clamped off a phone turned sideways too (a desktop window would be told 880)', () => assert.equal(libWith({ flag: 'true' }, { [LIB]: swap(libSrc, 'return landscape === true && width > STUDIO_PHONE_OVERLAY_MAX_WIDTH ? STUDIO_PHONE_OVERLAY_MAX_WIDTH : width', 'return width > STUDIO_PHONE_OVERLAY_MAX_WIDTH ? STUDIO_PHONE_OVERLAY_MAX_WIDTH : width') }).studioPhoneWorkspaceWidth(false, 1440), 1440))
+await mutant('the workspace clamp\'s threshold drifts from the page\'s own 880', () => assert.equal(libWith({ flag: 'true' }, { [LIB]: swap(libSrc, 'export const STUDIO_PHONE_OVERLAY_MAX_WIDTH = 880', 'export const STUDIO_PHONE_OVERLAY_MAX_WIDTH = 900') }).STUDIO_PHONE_OVERLAY_MAX_WIDTH, 880))
+await mutant('the workspace clamp acts with the flag off', () => { const rt = hookRuntime(), w = windowStub({ [lib.STUDIO_PHONE_LANDSCAPE_QUERY]: true }), told = []; setFlags({}); const hook = makeLoader({ reactImpl: rt.impl, globals: { window: w }, sourceOverrides: { [HOOK]: swap(hookSrc, '    if (!STUDIO_PHONE_LANDSCAPE_ENABLED) return\n    const next', '    const next') } }).load(HOOK); setFlags({}); rt.render(() => hook.useStudioPhoneWorkspaceClamp(932, next => told.push(next))); assert.deepEqual(told, []) })
+await mutant('the workspace clamp is called after the page decides by the width', () => { const bad = pageSrc.replace(/^.*useStudioPhoneWorkspaceClamp\(workspaceWidth[^\n]*\n/m, '').replace('  const studioOverlayWorkspace = studioShell && workspaceWidth <= 880\n', '  const studioOverlayWorkspace = studioShell && workspaceWidth <= 880\n  useStudioPhoneWorkspaceClamp(workspaceWidth, setWorkspaceWidth) // PHONE-LANDSCAPE\n'); assert.ok(bad.indexOf('useStudioPhoneWorkspaceClamp(workspaceWidth') < bad.indexOf('const studioOverlayWorkspace =')) })
+await mutant('the viewer\'s own fit line is rewritten (the stage\'s fit takes its place)', () => assert.match(swap(viewerSrc, '      const pw = width - 32, ph = height - 32\n', '      const pw = width, ph = height\n'), /const pw = width - 32, ph = height - 32/))
 await mutant('the strip starts collapsed', () => assert.equal(libWith({ flag: 'true' }, { [LIB]: swap(libSrc, "STUDIO_PHONE_STRIP_DEFAULT: StudioPhoneStripState = 'open'", "STUDIO_PHONE_STRIP_DEFAULT: StudioPhoneStripState = 'collapsed'") }).STUDIO_PHONE_STRIP_DEFAULT, 'open'))
 await mutant('the rail in the stage follows the viewer\'s own value, not the strip\'s (a collapsed strip would stay open)', () => assert.equal(libWith({ flag: 'true' }, { [LIB]: swap(libSrc, "if (input.stage) return input.strip === 'open'", 'if (input.stage) return input.current') }).studioPhoneRailOpen({ stage: true, strip: 'collapsed', remembered: null, current: true }), false))
 await mutant('leaving the stage does not put the remembered portrait value back (the rail opened sideways would squeeze the portrait slide)', () => assert.equal(libWith({ flag: 'true' }, { [LIB]: swap(libSrc, 'return input.remembered === null ? input.current : input.remembered', 'return input.current') }).studioPhoneRailOpen({ stage: false, strip: 'open', remembered: false, current: true }), false))
@@ -599,7 +623,7 @@ await mutant('the stage rule for the workspace\'s left margin is gone (a 568 px 
 await mutant('the stage rule for the workspace\'s left margin loses its <html> key (it would tie with the phone shell\'s own rule and lose by order)', () => cascadeOf(swap(cssText, `${STAGE} [data-studio-v4-shell="true"]:has(> [data-studio-phone-tabbar="true"]) > [data-studio-v4-shell-column] > [data-studio-v4-shell-workspace] { margin-left: 0; }`, `[data-studio-v4-shell="true"]:has(> [data-studio-phone-tabbar="true"]) > [data-studio-v4-shell-column] > [data-studio-v4-shell-workspace] { margin-left: 0; }`)))
 await mutant('the stage rule for the shell\'s bottom padding loses a step of specificity', () => cascadeOf(swap(cssText, `${STAGE} [data-studio-v4-shell="true"]:has(> [data-studio-phone-tabbar="true"]) { padding-bottom: 0; }`, '[data-studio-v4-shell="true"]:has(> [data-studio-phone-tabbar="true"]) { padding-bottom: 0; }')))
 await mutant('a marker line is mistyped (the strip would leave it behind)', () => assert.equal(stripPhoneLandscape(VIEWER, viewerSrc.replace("import { useStudioPhoneLandscapeRail } from '@/hooks/use-studio-phone-landscape' // PHONE-LANDSCAPE", "import { useStudioPhoneLandscapeRail } from '@/hooks/use-studio-phone-landscape' // PHONE-LANDSCAPEE")), baseText(VIEWER)))
-await mutant('the pin is not put back (the overlay line keeps its extra term after the strip)', () => assert.equal(stripPhoneLandscape(PAGE, pageSrc.replace('(workspaceWidth <= 880 || studioPhoneLandscape) // PHONE-LANDSCAPE: one pane', '(workspaceWidth <= 880 || studioPhoneLandscape) // PHONE-LANDSCAPEX: one pane')), baseText(PAGE)))
+await mutant('the page\'s own overlay line is rewritten (a pin: older proofs that tolerate only insertions would fail)', () => assert.match(swap(pageSrc, 'const studioOverlayWorkspace = studioShell && workspaceWidth <= 880\n', 'const studioOverlayWorkspace = studioShell && (workspaceWidth <= 880 || true) // PHONE-LANDSCAPE\n'), /const studioOverlayWorkspace = studioShell && workspaceWidth <= 880\n/))
 await mutant('an orientation lock is added to the component', () => assert.ok(!/orientation\s*\.\s*lock|screen\.orientation/.test(componentSrc + '\nscreen.orientation.lock("landscape")\n')))
 await mutant('the page mounts the component without the constant', () => assert.match(swap(pageSrc, '{STUDIO_PHONE_LANDSCAPE_ENABLED && <StudioPhoneLandscape ', '{<StudioPhoneLandscape '), /\{STUDIO_PHONE_LANDSCAPE_ENABLED && <StudioPhoneLandscape /))
 

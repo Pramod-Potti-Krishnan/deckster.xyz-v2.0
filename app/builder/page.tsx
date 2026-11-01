@@ -16,8 +16,8 @@ import { StudioPhoneTabBar } from '@/components/layout/studio-phone-tab-bar' // 
 import { STUDIO_PHONE_SHELL_ENABLED } from '@/lib/studio-phone-shell' // PHONE-SHELL-NAV
 import { StudioPhoneBuilderTop } from '@/components/builder/studio-phone-builder-top' // PHONE-SHELL-TOP (NEXT_PUBLIC_STUDIO_PHONE_SHELL, default off): on a phone one top row, the switch below it with a Director dot
 import { StudioPhoneLandscape } from '@/components/builder/studio-phone-landscape' // PHONE-LANDSCAPE (NEXT_PUBLIC_STUDIO_PHONE_LANDSCAPE, default off, with the phone shell): a phone turned sideways gets a viewing stage; the portrait slide view folds the bar
-import { STUDIO_PHONE_LANDSCAPE_ENABLED, STUDIO_PHONE_LANDSCAPE_QUERY } from '@/lib/studio-phone-landscape' // PHONE-LANDSCAPE
-import { useStudioPhoneQuery } from '@/hooks/use-studio-phone-landscape' // PHONE-LANDSCAPE
+import { STUDIO_PHONE_LANDSCAPE_ENABLED } from '@/lib/studio-phone-landscape' // PHONE-LANDSCAPE
+import { useStudioPhoneWorkspaceClamp } from '@/hooks/use-studio-phone-landscape' // PHONE-LANDSCAPE
 
 import { composerThemeSyncBlocked } from '@/lib/composer-theme-policy'
 
@@ -1576,8 +1576,8 @@ function AuthenticatedBuilderContent({ authScopeUserId }: { authScopeUserId: str
     document.addEventListener('fullscreenchange', syncFullscreen)
     return () => document.removeEventListener('fullscreenchange', syncFullscreen)
   }, [studioShell])
-  const studioPhoneLandscape = useStudioPhoneQuery(STUDIO_PHONE_LANDSCAPE_QUERY) // PHONE-LANDSCAPE: a phone turned sideways (false for good with the flag off); its stage hides the rail, so the workspace can be wider than 880 px and must still be one pane at a time
-  const studioOverlayWorkspace = studioShell && (workspaceWidth <= 880 || studioPhoneLandscape) // PHONE-LANDSCAPE: one pane at a time on a phone turned sideways whatever its width
+  useStudioPhoneWorkspaceClamp(workspaceWidth, setWorkspaceWidth) // PHONE-LANDSCAPE: on a phone turned sideways the workspace is never counted wider than 880 px (the stage hides the rail, so a 926 or 932 px phone would drop one pane at a time and the stage with it); nothing with the flag off
+  const studioOverlayWorkspace = studioShell && workspaceWidth <= 880
   const selectWorkspacePane = useCallback((pane: StudioWorkspacePane) => {
     const current = studioVoiceLayoutIntentRef.current
     if (pane !== 'chat' && current.studioShell && current.workspaceWidth <= 880) retireStudioVoiceOwner()

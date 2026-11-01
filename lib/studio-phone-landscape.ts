@@ -42,9 +42,27 @@ export function studioPhoneBarState(slideView: boolean, menuOpen: boolean): Stud
   return menuOpen ? 'open' : 'folded'
 }
 
-/** The viewer's fit padding on each side (px): the 16 px a side the viewer has always kept (32 off a dimension), none in the landscape stage. `stageAttribute` is the value of the <html> stage attribute. */
-export function studioPhoneLandscapeFitPad(stageAttribute: string | null | undefined): number {
-  return stageAttribute === 'stage' ? 0 : 32
+/**
+ * The slide's size in the landscape stage: the largest 16:9 box that fits the whole slide space (no fit padding), by the same contain rule the viewer uses everywhere else. Null outside the stage (`stageAttribute` is the value of the <html> stage
+ * attribute) and for a box with no size, and then the viewer's own fit (16 px a side) is what runs.
+ */
+export function studioPhoneLandscapeFit(stageAttribute: string | null | undefined, width: number, height: number): { width: number; height: number } | null {
+  if (stageAttribute !== 'stage' || !(width > 0) || !(height > 0)) return null
+  const ratio = 16 / 9
+  let w = width, h = w / ratio
+  if (h > height) { h = height; w = h * ratio }
+  return { width: w, height: h }
+}
+
+/** The page's own test for "one pane at a time" is a workspace 880 px wide or narrower (app/builder/page.tsx: studioOverlayWorkspace). */
+export const STUDIO_PHONE_OVERLAY_MAX_WIDTH = 880
+
+/**
+ * The workspace width the page's layout decisions are given on a phone turned sideways: never wider than the overlay threshold. The stage hides the rail, so a 926 or 932 px phone's workspace is wider than 880 px and the page would drop its one-pane layout
+ * (and the stage with it, which brings the rail back, and so on); the real box is not changed, only the number the page decides by.
+ */
+export function studioPhoneWorkspaceWidth(landscape: boolean, width: number): number {
+  return landscape === true && width > STUDIO_PHONE_OVERLAY_MAX_WIDTH ? STUDIO_PHONE_OVERLAY_MAX_WIDTH : width
 }
 
 /** The stage strip's state: open (the thumbnails on the left) or collapsed (a 30 px handle). It is its own state, never the viewer's portrait one (a rail opened sideways must not squeeze the portrait slide). */
