@@ -29,6 +29,7 @@ import {
   coalesceCertifiedStudioGreetingPrefix,
   type InferredGreetingPrefixCertificate,
 } from '@/lib/studio-greeting-lifecycle'
+import { latchOpeningGreetings, NO_HIDDEN_GREETINGS, studioWelcomeTrimOn } from '@/lib/studio-welcome-trim' // STUDIO-WELCOME-TRIM
 import { deduplicateDirectorTranscript, type DirectorTranscriptEntry } from "@/lib/director-transcript"
 import { classifyDirectorMessage, getDirectorActionPolicy } from "@/lib/studio-director-message-policy"
 import { directorHistoryTimestamp } from "@/lib/director-chat-history"
@@ -282,6 +283,10 @@ export function MessageList({
         userMessageContentMap: userMessageContentMapRef.current,
       }).isUserMessage,
   )
+  // STUDIO-WELCOME-TRIM (flag NEXT_PUBLIC_STUDIO_WELCOME_TRIM, first-run welcome only, default off; lib/studio-welcome-trim.ts): Director's opening greeting is not drawn. A greeting seen while the conversation is still the empty first run (the answer just above,
+  // STUDIO-WELCOME-TRIM: no open deck) is remembered by id and stays hidden for as long as it is in the transcript, so the first message does not bring it back above that message. A greeting never seen empty (a restored history, an open deck, a same-text reply after a user turn) is drawn as today.
+  const trimGreetingsRef = useRef<ReadonlySet<string>>(NO_HIDDEN_GREETINGS) // STUDIO-WELCOME-TRIM
+  const trimmedGreetingIds = firstRunV2 && studioWelcomeTrimOn() ? (trimGreetingsRef.current = latchOpeningGreetings(trimGreetingsRef.current, messages, isEmptyStudioConversation && !presentationContext)) : NO_HIDDEN_GREETINGS // STUDIO-WELCOME-TRIM
   // Thinking-stream fade-out: when slide_update lands, fade tracked ephemeral
   // chat bubbles to opacity 0 over 300ms then unmount them on the next tick.
   const [fadingIds, setFadingIds] = useState<Set<string>>(new Set())
@@ -478,6 +483,7 @@ export function MessageList({
         studioPresented = presentTerminalOutlineRevisions(coalesceOutlineStateReplays([...projected]))
       }
     }
+    if (trimmedGreetingIds.size > 0) studioPresented = studioPresented.filter(entry => entry.messageType === 'user' || !trimmedGreetingIds.has((entry as DirectorMessage).message_id)) // STUDIO-WELCOME-TRIM: the hidden opening greeting is not drawn; the raw transcript is untouched
     // Preserve the legacy welcome policy outside Studio. Studio uses a bounded
     // display prefix; raw messages still drive history/actions/persistence.
     // PASS2 #4 (flag on, Studio only): a built deck's structure re-sent on reconnect is state, not a new outline card.
@@ -613,7 +619,7 @@ export function MessageList({
     }
 
     return processedMessages;
-  }, [userMessages, messages, ephemeralMessageIds, userMessageIdsRef, userMessageContentMapRef, hasSeenWelcomeRef, answeredActionsRef, suppressEphemeral, studio, sessionId, studioFrontendTranscriptReceipt, studioGreetingSafety]);
+  }, [userMessages, messages, ephemeralMessageIds, userMessageIdsRef, userMessageContentMapRef, hasSeenWelcomeRef, answeredActionsRef, suppressEphemeral, studio, sessionId, studioFrontendTranscriptReceipt, studioGreetingSafety, trimmedGreetingIds]); // STUDIO-WELCOME-TRIM
 
   const hasVisibleThinkingStream = processedMessages.some((item) => {
     if (item.messageType !== 'bot') return false

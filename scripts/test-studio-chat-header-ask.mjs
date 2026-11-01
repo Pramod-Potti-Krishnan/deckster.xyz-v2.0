@@ -59,8 +59,9 @@ const STATUSES = ['idle', 'scheduled', 'paused_offline', 'exhausted', 'manual']
 
 // ---------------------------------------------------------------------------------------------------------------------------------
 // Unit loader: one TypeScript file from `root`, evaluated with explicit imports and a plain `process.env`.
+import { stripLaterChanges } from './studio-later-changes.mjs' // LATER-CHANGES: registry read (STUDIO-WELCOME-TRIM): a registered later change's marked lines come out of a source before it is read
 function loadModule(root, relative, env, imports) {
-  const source = fs.readFileSync(path.join(root, relative), 'utf8')
+  const source = stripLaterChanges(relative, fs.readFileSync(path.join(root, relative), 'utf8')) // LATER-CHANGES: registry read (STUDIO-WELCOME-TRIM)
   const compiled = ts.transpileModule(source, { reportDiagnostics: true, compilerOptions: { jsx: ts.JsxEmit.ReactJSX, module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2020 } })
   const errors = (compiled.diagnostics || []).filter(entry => entry.category === ts.DiagnosticCategory.Error)
   if (errors.length) throw new Error(`${relative}: ${ts.flattenDiagnosticMessageText(errors[0].messageText, '\n')}`)
@@ -80,7 +81,7 @@ async function checks(root) {
   const failures = []
   const fail = message => failures.push(message)
   const stats = { checkpoints: 0, headerStates: new Map(), planGateCards: 0, unitHeader: 0, unitCard: 0 }
-  const read = relative => fs.readFileSync(path.join(root, relative), 'utf8')
+  const read = relative => stripLaterChanges(relative, fs.readFileSync(path.join(root, relative), 'utf8')) // LATER-CHANGES: registry read (STUDIO-WELCOME-TRIM)
 
   // ---- A. the five transcripts, five environments --------------------------------------------------------------------------
   // message id -> does any frame/row carrying that id offer accept_plan (so an expected change is tied to the real gate, not to a label)
