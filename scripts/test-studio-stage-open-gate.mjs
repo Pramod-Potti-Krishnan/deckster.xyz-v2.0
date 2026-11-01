@@ -1035,7 +1035,7 @@ function scopeHead(ref = 'HEAD', { gateRule = true } = {}) {
   if (!gateRule || parents.length !== 2) return head
   return ownOf(parents[0]).length === 0 && ownOf(parents[1]).length > 0 ? parents[1] : head
 }
-const REAL = { norm: otherStrips, env: text => registry.stripLaterEnvBlocks('.env.example', text), laterRegistryLine: line => line.includes('// LATER-CHANGE:') } // LATER-CHANGES: registry read (PHONE-LANDSCAPE): a change registered after this one puts its own lines after this one's in each list of the registry
+const REAL = { norm: otherStrips, env: text => registry.stripLaterEnvBlocks('.env.example', text), laterRegistryLine: line => line.includes('studio-phone-landscape-strip.mjs') } // LATER-CHANGES: registry read (PHONE-LANDSCAPE): the phone landscape (registered after this one) puts its own lines after this one's in each list of the registry
 const diffLines = text => text.split('\n').filter(line => /^[+-]/.test(line) && !/^(\+\+\+|---) /.test(line))
 const normDiff = (ctx, rel, head) => git('diff', '-U0', blobOf(ctx.norm(rel, git('show', `${BASE_COMMIT}:${rel}`))), blobOf(ctx.norm(rel, git('show', `${head}:${rel}`))))
 const scopeOwnCommits = (head, opts) => {
@@ -1151,7 +1151,7 @@ check('ROBUST AFTER MERGE: a synthetic change stacked after this one (its marked
   const advanced = gateMerge(unrelated, SYNTHETIC)
   assert.equal(scopeHead(advanced), SYNTHETIC); scopeAll(scopeHead(advanced), SYN_CTX)
   // and the page wiring, read past the later change's line, is still this change's
-  const later = syntheticStrip(PAGE, git('show', `${SYNTHETIC}:${PAGE}`)) // read as this change left it: the later change's lines out (as laterStrips does for a registered one)
+  const later = laterStrips(PAGE, syntheticStrip(PAGE, git('show', `${SYNTHETIC}:${PAGE}`))) // read as this change left it: the later change's lines out (as laterStrips does for a registered one) // LATER-CHANGES: registry read (PHONE-LANDSCAPE): the lines of the changes registered after this one come out too
   pageWiring(later)
 })
 mutant('scope: the synthetic later change is not told to the scope (its lines are unmarked additions, its registry lines extra)', () => { scopeCommittedFiles(synthetic()); scopeEnvAndRegistry(synthetic()) })
