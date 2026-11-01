@@ -1,6 +1,6 @@
 "use client"
 
-import { useCallback, useEffect, useRef, useState, useSyncExternalStore, type RefObject } from "react"
+import { useCallback, useEffect, useRef, useState } from "react"
 import {
   STUDIO_PHONE_FULLSCREEN_TARGET,
   STUDIO_PHONE_HINTS_ENABLED,
@@ -10,64 +10,44 @@ import {
   type StudioPhoneFullscreenState,
 } from "@/lib/studio-phone-hints"
 
-// STUDIO PHONE HINTS (NEXT_PUBLIC_STUDIO_PHONE_HINTS, default off; FRONTEND-1, F-13 PR 2): the state the hints share between the page (which knows when a swipe is allowed) and the viewer (which owns the slide and its navigation),
-// the swipe itself, and Full screen. A small module store, because the page's hints and the viewer never share a parent that could carry it. Every decision is lib/studio-phone-hints.ts.
+// STUDIO PHONE HINTS (NEXT_PUBLIC_STUDIO_PHONE_HINTS, default off; FRONTEND-1, F-13 PR 2): the swipe and Full screen. Every decision is lib/studio-phone-hints.ts; nothing here edits the viewer.
 
-interface SwipeStore { on: boolean; swipes: number }
-let store: SwipeStore = { on: false, swipes: 0 }
-const listeners = new Set<() => void>()
-const SERVER_STORE: SwipeStore = { on: false, swipes: 0 }
-const subscribe = (listener: () => void) => { listeners.add(listener); return () => { listeners.delete(listener) } }
-const getSnapshot = () => store
-const getServerSnapshot = () => SERVER_STORE
-const update = (next: Partial<SwipeStore>) => {
-  const merged = { ...store, ...next }
-  if (merged.on === store.on && merged.swipes === store.swipes) return
-  store = merged
-  listeners.forEach(listener => listener())
-}
-
-/** Whether a swipe changes the slide right now, and how many have (the hint ends with the first). */
-export function useStudioPhoneSwipeState(): SwipeStore {
-  return useSyncExternalStore(subscribe, getSnapshot, getServerSnapshot)
-}
-
-/** The page tells the store whether a swipe is allowed (portrait slide view or the full-screen stage, not editing). */
-export function setStudioPhoneSwipeOn(on: boolean) { update({ on }) }
+/** The viewer's own keyboard navigation (the arrow keys it already handles on the window: its next / previous handlers, the ones the arrows had), as the key it listens for. */
+const SWIPE_KEYS = { next: "ArrowRight", prev: "ArrowLeft" } as const
+const SLIDE_SPACE = '[data-studio-slide-space="true"]'
 
 /**
- * Swipe left / right on the slide space: next / previous slide through the viewer's own handlers (the arrows' and the keyboard's), nothing past either end. The stylesheet (keyed to the swipe attribute) sets touch-action: pan-y on the slide space and
- * lets the touches through the slide's frame, which would otherwise keep them; this only listens. Off the swipe's own state, and with the flag off, nothing is attached.
+ * Swipe left / right on the slide space: the next / previous slide through the viewer's own keyboard handler (a key press the page dispatches on the body, which is what the arrows and the keyboard do, so the viewer's own guards, a build in progress or a
+ * panel over the canvas, apply), nothing past either end. The stylesheet (keyed to the swipe attribute) sets touch-action: pan-y on the slide space and lets the touches through the slide's frame, which would otherwise keep them; this only listens: on the document, so a
+ * viewer that mounts again is still heard, for a touch that starts inside the slide space. Nothing is attached with the flag off or while a swipe is not allowed. `onSwiped` is told after each swipe that changed the slide.
  */
-export function useStudioPhoneSwipe(container: RefObject<HTMLElement | null>, onPrev: () => unknown, onNext: () => unknown, slide: number, count: number) {
-  const { on } = useStudioPhoneSwipeState()
-  const latest = useRef({ onPrev, onNext, slide, count })
-  latest.current = { onPrev, onNext, slide, count }
+export function useStudioPhoneSwipe(on: boolean, slide: number, count: number, onSwiped: () => void) {
+  const latest = useRef({ slide, count, onSwiped })
+  latest.current = { slide, count, onSwiped }
   useEffect(() => {
     if (!STUDIO_PHONE_HINTS_ENABLED || !on) return
-    const element = container.current
-    if (!element) return
     let start: { x: number; y: number; t: number; id: number } | null = null
-    const onDown = (event: PointerEvent) => { start = { x: event.clientX, y: event.clientY, t: event.timeStamp, id: event.pointerId } }
+    const inside = (event: Event) => event.target instanceof Element && event.target.closest(SLIDE_SPACE) !== null
+    const onDown = (event: PointerEvent) => { start = inside(event) ? { x: event.clientX, y: event.clientY, t: event.timeStamp, id: event.pointerId } : null }
     const onUp = (event: PointerEvent) => {
       if (!start || event.pointerId !== start.id) return
       const from = start
       start = null
       const direction = studioPhoneSwipeDirection({ dx: event.clientX - from.x, dy: event.clientY - from.y, dt: event.timeStamp - from.t, slide: latest.current.slide, count: latest.current.count })
       if (!direction) return
-      void (direction === "next" ? latest.current.onNext() : latest.current.onPrev())
-      update({ swipes: store.swipes + 1 })
+      document.body.dispatchEvent(new KeyboardEvent("keydown", { key: SWIPE_KEYS[direction], bubbles: true, cancelable: true }))
+      latest.current.onSwiped()
     }
     const onCancel = () => { start = null }
-    element.addEventListener("pointerdown", onDown)
-    element.addEventListener("pointerup", onUp)
-    element.addEventListener("pointercancel", onCancel)
+    document.addEventListener("pointerdown", onDown, true)
+    document.addEventListener("pointerup", onUp, true)
+    document.addEventListener("pointercancel", onCancel, true)
     return () => {
-      element.removeEventListener("pointerdown", onDown)
-      element.removeEventListener("pointerup", onUp)
-      element.removeEventListener("pointercancel", onCancel)
+      document.removeEventListener("pointerdown", onDown, true)
+      document.removeEventListener("pointerup", onUp, true)
+      document.removeEventListener("pointercancel", onCancel, true)
     }
-  }, [on, container])
+  }, [on])
 }
 
 /**

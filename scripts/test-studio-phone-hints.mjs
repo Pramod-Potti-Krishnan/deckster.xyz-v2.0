@@ -28,7 +28,7 @@ import { renderToStaticMarkup } from 'react-dom/server'
 import ts from 'typescript'
 import postcss from 'postcss'
 import {
-  BASE_COMMIT, PHONE_HINTS_FILES, PHONE_HINTS_NEW_FILES, PHONE_HINTS_SCOPE_FILES, PHONE_HINTS_ENV_BLOCK, PHONE_HINTS_MARKER_RE, PHONE_HINTS_SUBJECT, PHONE_HINTS_FLAG, stripPhoneHints,
+  BASE_COMMIT, PHONE_HINTS_FILES, PHONE_HINTS_NEW_FILES, PHONE_HINTS_PIN_EDITS, PHONE_HINTS_PIN_FILES, PHONE_HINTS_PIN_MARK, PHONE_HINTS_SCOPE_FILES, PHONE_HINTS_ENV_BLOCK, PHONE_HINTS_MARKER_RE, PHONE_HINTS_SUBJECT, PHONE_HINTS_FLAG, stripPhoneHints,
 } from './studio-phone-hints-strip.mjs'
 import * as registry from './studio-later-changes.mjs'
 
@@ -126,7 +126,13 @@ const target = () => {
   const handlers = {}
   return { handlers, addEventListener: (type, fn) => { (handlers[type] ??= []).push(fn) }, removeEventListener: (type, fn) => { handlers[type] = (handlers[type] ?? []).filter(x => x !== fn) }, fire: (type, event) => (handlers[type] ?? []).slice().forEach(fn => fn(event)) }
 }
-const pointer = (x, y, t, id = 1) => ({ clientX: x, clientY: y, timeStamp: t, pointerId: id })
+/** A touch event on the page: its target is an element that is inside the slide space or not (the swipe only starts from the slide space), `closest` answering as the browser would. */
+class FakeElement { constructor(inside) { this.inside = inside } closest(selector) { return this.inside && selector === '[data-studio-slide-space="true"]' ? this : null } }
+class FakeKeyboardEvent { constructor(type, init) { this.type = type; Object.assign(this, init) } }
+const pointer = (x, y, t, id = 1, inside = true) => ({ clientX: x, clientY: y, timeStamp: t, pointerId: id, target: new FakeElement(inside) })
+/** A document that records its listeners and the keys dispatched on its body. */
+const swipeDocument = () => { const doc = target(); doc.keys = []; doc.body = { dispatchEvent: event => { doc.keys.push(event.key); return true } }; return doc }
+const swipeGlobals = doc => ({ document: doc, Element: FakeElement, KeyboardEvent: FakeKeyboardEvent })
 
 // ---- the stylesheets, parsed --------------------------------------------------------------------------------------------------------------------
 const ruleList = text => { const out = []; postcss.parse(text).walkRules(rule => out.push({ selectors: rule.selectors.map(selector => selector.trim()), media: rule.parent?.type === 'atrule' ? rule.parent.params : null, decls: rule.nodes.filter(node => node.type === 'decl').map(node => ({ prop: node.prop, value: node.value, important: node.important })) })); return out }
@@ -171,12 +177,11 @@ await check('the flag is the exact string "true" AND PR 1\'s flag AND the phone 
   for (const flags of [{ flag: 'false' }, { flag: 'TRUE' }, { flag: ' true' }, { flag: 'true', landscape: null }, { flag: 'true', landscape: 'false' }, { flag: 'true', phoneShell: null }, { flag: 'true', shell: 'false' }]) assert.equal(libWith(flags).STUDIO_PHONE_HINTS_ENABLED, false, JSON.stringify(flags))
 })
 await check('with the flag off nothing is attached and nothing is drawn: the swipe hook adds no listener, Full screen follows no fullscreenchange, and the page mounts the component only behind the constant', () => {
-  const rt = hookRuntime(), el = target(), doc = target()
-  setFlags({}); const off = makeLoader({ reactImpl: rt.impl, globals: { document: { ...doc, fullscreenEnabled: true, querySelector: () => null } } }).load(HOOK); setFlags({})
-  off.setStudioPhoneSwipeOn(true)
-  rt.render(() => off.useStudioPhoneSwipe({ current: el }, () => {}, () => {}, 2, 5)); rt.render(() => off.useStudioPhoneFullscreen())
-  assert.deepEqual(Object.keys(el.handlers), [], 'no listener on the slide space'); assert.deepEqual(Object.keys(doc.handlers), [], 'no fullscreenchange')
-  off.setStudioPhoneSwipeOn(false)
+  const rt = hookRuntime(), doc = swipeDocument()
+  setFlags({}); const off = makeLoader({ reactImpl: rt.impl, globals: { ...swipeGlobals(doc), }, }).load(HOOK); setFlags({})
+  Object.assign(doc, { fullscreenEnabled: true, querySelector: () => null })
+  rt.render(() => off.useStudioPhoneSwipe(true, 2, 5, () => {})); rt.render(() => off.useStudioPhoneFullscreen())
+  assert.deepEqual(Object.keys(doc.handlers), [], 'no listener on the document: no swipe, no fullscreenchange'); assert.deepEqual(doc.keys, [])
   assert.match(read(PAGE), /\{STUDIO_PHONE_HINTS_ENABLED && <StudioPhoneHints /, 'mounted only behind the constant')
 })
 
@@ -219,20 +224,22 @@ await check('the swipe: left is next, right is previous, only when far enough (4
 
 // ===== 3. the hooks ============================================================================================================================================
 const hooksWith = (flags, globals = {}, sourceOverrides = {}) => { const rt = hookRuntime(); setFlags(flags); try { return { rt, hook: makeLoader({ reactImpl: rt.impl, globals, sourceOverrides }).load(HOOK) } } finally { setFlags({}) } }
-await check('the swipe (flag on): listens on the slide space only while it is on; a quick left drag is the viewer\'s next, a right drag its previous, nothing past the ends; a counter tells the hint a swipe happened; a cancelled drag or another pointer\'s release does nothing; the listeners go with it', () => {
-  const { rt, hook } = hooksWith({ flag: 'true' }); const el = target(); const calls = []
-  const props = { slide: 3, count: 6 }
-  const render = () => rt.render(() => hook.useStudioPhoneSwipe({ current: el }, () => calls.push('prev'), () => calls.push('next'), props.slide, props.count))
-  render(); assert.deepEqual(Object.keys(el.handlers), [], 'off: nothing attached'); assert.equal(hook.useStudioPhoneSwipeState().on, false)
-  hook.setStudioPhoneSwipeOn(true); render(); assert.deepEqual(Object.keys(el.handlers).sort(), ['pointercancel', 'pointerdown', 'pointerup'])
-  el.fire('pointerdown', pointer(300, 400, 1000)); el.fire('pointerup', pointer(200, 405, 1250)); assert.deepEqual(calls, ['next']); assert.equal(hook.useStudioPhoneSwipeState().swipes, 1)
-  el.fire('pointerdown', pointer(100, 400, 2000)); el.fire('pointerup', pointer(220, 395, 2200)); assert.deepEqual(calls, ['next', 'prev']); assert.equal(hook.useStudioPhoneSwipeState().swipes, 2)
-  el.fire('pointerdown', pointer(100, 400, 3000)); el.fire('pointerup', pointer(110, 400, 3100)); el.fire('pointerdown', pointer(100, 400, 3200)); el.fire('pointerup', pointer(300, 700, 3300)); assert.equal(calls.length, 2, 'a tap and a mostly vertical drag change nothing')
-  el.fire('pointerdown', pointer(300, 400, 4000, 7)); el.fire('pointercancel', {}); el.fire('pointerup', pointer(100, 400, 4100, 7)); assert.equal(calls.length, 2, 'cancelled')
-  el.fire('pointerdown', pointer(300, 400, 5000, 1)); el.fire('pointerup', pointer(100, 400, 5100, 2)); assert.equal(calls.length, 2, 'another pointer\'s release'); el.fire('pointerup', pointer(100, 400, 5150, 1)); assert.equal(calls.length, 3, 'its own release still counts')
-  props.slide = 6; render(); el.fire('pointerdown', pointer(300, 400, 6000)); el.fire('pointerup', pointer(100, 400, 6100)); assert.equal(calls.length, 3, 'on the last slide a left swipe does nothing (the latest slide is read, not the one the effect started with)'); assert.equal(hook.useStudioPhoneSwipeState().swipes, 3)
-  hook.setStudioPhoneSwipeOn(false); render(); assert.deepEqual(Object.values(el.handlers).flat(), [], 'turned off: every listener removed')
-  hook.setStudioPhoneSwipeOn(true); render(); rt.unmount(); assert.deepEqual(Object.values(el.handlers).flat(), [], 'unmounted: every listener removed')
+await check('the swipe (flag on): listens on the document only while it is allowed; a quick left drag that starts in the slide space presses the key the viewer listens for to go to the NEXT slide, a right drag the PREVIOUS one, nothing past the ends or from outside the slide space; the page is told after each; a cancelled drag or another pointer\'s release does nothing; the listeners go with it', () => {
+  const doc = swipeDocument(), rt = hookRuntime(); setFlags({ flag: 'true' }); const hook = makeLoader({ reactImpl: rt.impl, globals: swipeGlobals(doc) }).load(HOOK); setFlags({})
+  const props = { on: false, slide: 3, count: 6 }; let told = 0
+  const render = () => rt.render(() => hook.useStudioPhoneSwipe(props.on, props.slide, props.count, () => { told++ }))
+  render(); assert.deepEqual(Object.keys(doc.handlers), [], 'not allowed: nothing attached')
+  props.on = true; render(); assert.deepEqual(Object.keys(doc.handlers).sort(), ['pointercancel', 'pointerdown', 'pointerup'])
+  doc.fire('pointerdown', pointer(300, 400, 1000)); doc.fire('pointerup', pointer(200, 405, 1250)); assert.deepEqual(doc.keys, ['ArrowRight']); assert.equal(told, 1)
+  doc.fire('pointerdown', pointer(100, 400, 2000)); doc.fire('pointerup', pointer(220, 395, 2200)); assert.deepEqual(doc.keys, ['ArrowRight', 'ArrowLeft']); assert.equal(told, 2)
+  doc.fire('pointerdown', pointer(100, 400, 3000)); doc.fire('pointerup', pointer(110, 400, 3100)); doc.fire('pointerdown', pointer(100, 400, 3200)); doc.fire('pointerup', pointer(300, 700, 3300)); assert.equal(doc.keys.length, 2, 'a tap and a mostly vertical drag change nothing')
+  doc.fire('pointerdown', pointer(300, 400, 4000, 7)); doc.fire('pointercancel', {}); doc.fire('pointerup', pointer(100, 400, 4100, 7)); assert.equal(doc.keys.length, 2, 'cancelled')
+  doc.fire('pointerdown', pointer(300, 400, 5000, 1)); doc.fire('pointerup', pointer(100, 400, 5100, 2)); assert.equal(doc.keys.length, 2, 'another pointer\'s release'); doc.fire('pointerup', pointer(100, 400, 5150, 1)); assert.equal(doc.keys.length, 3, 'its own release still counts')
+  doc.fire('pointerdown', pointer(300, 400, 5500, 1, false)); doc.fire('pointerup', pointer(100, 400, 5600, 1, false)); assert.equal(doc.keys.length, 3, 'a drag that starts outside the slide space (the chat, the rail, the page) is not a swipe')
+  props.slide = 6; render(); doc.fire('pointerdown', pointer(300, 400, 6000)); doc.fire('pointerup', pointer(100, 400, 6100)); assert.equal(doc.keys.length, 3, 'on the last slide a left swipe does nothing (the latest slide is read, not the one the effect started with)'); assert.equal(told, 3)
+  props.on = false; render(); assert.deepEqual(Object.values(doc.handlers).flat(), [], 'turned off: every listener removed')
+  props.on = true; render(); rt.unmount(); assert.deepEqual(Object.values(doc.handlers).flat(), [], 'unmounted: every listener removed')
+  assert.match(read(HOOK), /document\.body\.dispatchEvent\(new KeyboardEvent\("keydown", \{ key: SWIPE_KEYS\[direction\], bubbles: true, cancelable: true \}\)\)/); assert.match(read(HOOK), /const SWIPE_KEYS = \{ next: "ArrowRight", prev: "ArrowLeft" \} as const/)
 })
 const docStub = (over = {}) => { const d = { ...target(), fullscreenEnabled: true, fullscreenElement: null, exits: 0, exitFullscreen() { d.exits++; return Promise.resolve() }, querySelector: () => box, ...over }; return d }
 const box = { requestFullscreen: () => Promise.resolve() }
@@ -262,7 +269,7 @@ const stubFor = ({ landscape = false, portrait = false }) => ({ '@/hooks/use-stu
 const componentSrc = read(COMPONENT)
 /** The first render the server would draw has not read the storage yet (nothing flashes); `seen` forces what the effect would have read, `hint` what the swipe hint's effect would have set, so the markup of each state can be checked. */
 const withState = ({ seen, hint = false }) => swap(swap(swap(componentSrc, 'const [rotateSeen, setRotateSeen] = useState<boolean | null>(null)', `const [rotateSeen, setRotateSeen] = useState<boolean | null>(${seen})`), 'const [swipeSeen, setSwipeSeen] = useState<boolean | null>(null)', `const [swipeSeen, setSwipeSeen] = useState<boolean | null>(${seen})`), 'const [swipeHint, setSwipeHint] = useState(false)', `const [swipeHint, setSwipeHint] = useState(${hint})`)
-const render = (flags, props = {}, over = {}) => { setFlags({ flag: 'true' }); try { const C = makeLoader({ stubs: stubFor(flags), sourceOverrides: over }).load(COMPONENT).StudioPhoneHints; return renderToStaticMarkup(React.createElement(C, { deckOnStage: true, stageVisible: true, editing: false, slideCount: 6, ...props })) } finally { setFlags({}) } }
+const render = (flags, props = {}, over = {}) => { setFlags({ flag: 'true' }); try { const C = makeLoader({ stubs: stubFor(flags), sourceOverrides: over }).load(COMPONENT).StudioPhoneHints; return renderToStaticMarkup(React.createElement(C, { deckOnStage: true, stageVisible: true, editing: false, slideNumber: 3, slideCount: 6, ...props })) } finally { setFlags({}) } }
 await check('portrait slide view: the Full screen button above the slide always; nothing else before the storage is read; the rotate card with PK\'s words (X, Full screen, Not now) when not seen; the swipe hint when it is on; no prev / next arrows', () => {
   const first = render({ portrait: true })
   assert.match(first, /<button type="button" data-studio-phone-fullscreen-pill="true"[^>]*><svg[^>]*><\/svg>Full screen<\/button>/); assert.ok(!/rotate-hint/.test(first), 'nothing flashes before the storage is read'); assert.ok(!/swipe-hint/.test(first)); assert.equal(count(first, /<button/g), 1)
@@ -347,7 +354,7 @@ const fallbackCascade = text => {
 await check('cascade: the full-screen stage\'s black slide space and its viewer padding are MORE specific than the canvas sheet\'s neutral surface and than PR 1\'s collapsed-strip padding, so they win whatever the order', () => fallbackCascade(cssText))
 
 // ===== 6. the pins ================================================================================================================================================
-await check('the Builder page and the viewer without this change\'s lines are PR 1\'s files byte for byte, also through the registry, and twice changes nothing more; a file it does not own comes back as it is', () => {
+await check('the Builder page without this change\'s lines is PR 1\'s page byte for byte, also through the registry, and twice changes nothing more; a file it does not own comes back as it is', () => {
   for (const rel of PHONE_HINTS_FILES) {
     const now = read(rel), base = baseText(rel)
     assert.notEqual(now, base); assert.equal(stripPhoneHints(rel, otherStrips(rel, now)), otherStrips(rel, base), rel)
@@ -355,15 +362,16 @@ await check('the Builder page and the viewer without this change\'s lines are PR
   }
   assert.equal(stripPhoneHints('lib/anything.ts', 'x'), 'x'); assert.equal(stripPhoneHints(PAGE, 5), 5)
 })
-await check('the marked lines are where they should be: the page has two imports and one line of JSX (after PR 1\'s), the viewer an import and the swipe hook\'s call (after the previous-slide handler); every one names the marker as a whole token; no existing line is changed', () => {
+await check('the marked lines are where they should be: the page has two imports and one line of JSX (after PR 1\'s), every one names the marker as a whole token and none names PR 1\'s (neither strip can take out the other\'s lines); the viewer is not touched at all and still answers the key the swipe presses', () => {
   const page = read(PAGE), viewer = read(VIEWER)
-  assert.equal(count(page, /^.*PHONE-HINTS.*$/gm), 3); assert.equal(count(viewer, /^.*PHONE-HINTS.*$/gm), 2)
-  for (const line of [...page.split('\n'), ...viewer.split('\n')].filter(line => /PHONE-HINTS/.test(line))) assert.match(line, PHONE_HINTS_MARKER_RE)
-  assert.match(page, /\{STUDIO_PHONE_HINTS_ENABLED && <StudioPhoneHints deckOnStage=\{Boolean\(effectivePresentationUrl\) && !studioWelcome && !session\.isLoadingSession\} stageVisible=\{studioOverlayWorkspace && !studioCanvasCovered\} editing=\{studioViewerEditing\} slideCount=\{effectiveSlideCount \?\? 0\} \/>\}/)
+  assert.equal(count(page, /^.*PHONE-HINTS.*$/gm), 3); assert.equal(count(viewer, /PHONE-HINTS/g), 0)
+  for (const line of page.split('\n').filter(line => /PHONE-HINTS/.test(line))) assert.match(line, PHONE_HINTS_MARKER_RE)
+  assert.match(page, /\{STUDIO_PHONE_HINTS_ENABLED && <StudioPhoneHints deckOnStage=\{Boolean\(effectivePresentationUrl\) && !studioWelcome && !session\.isLoadingSession\} stageVisible=\{studioOverlayWorkspace && !studioCanvasCovered\} editing=\{studioViewerEditing\} slideNumber=\{currentSlideIndex \+ 1\} slideCount=\{effectiveSlideCount \?\? 0\} \/>\}/)
   assert.ok(page.indexOf('<StudioPhoneLandscape ') < page.indexOf('<StudioPhoneHints '), 'after PR 1\'s line')
-  for (const line of [...page.split('\n'), ...viewer.split('\n')].filter(line => PHONE_HINTS_MARKER_RE.test(line))) assert.ok(!/(?<![\w-])PHONE-LANDSCAPE(?![\w-])/.test(line), `a PHONE-HINTS line must not name PR 1's marker (its strip would take this line out too): ${line.slice(0, 100)}`)
-  assert.match(viewer, /useStudioPhoneSwipe\(slideContainerRef, handlePrevSlide, handleNextSlide, currentSlide, totalSlides\) \/\/ PHONE-HINTS/)
-  assert.ok(viewer.indexOf('const handlePrevSlide = useCallback') < viewer.indexOf('useStudioPhoneSwipe(slideContainerRef'), 'the call is after both handlers it uses'); assert.ok(viewer.indexOf('const slideContainerRef = useRef') < viewer.indexOf('useStudioPhoneSwipe(slideContainerRef'))
+  for (const line of page.split('\n').filter(line => PHONE_HINTS_MARKER_RE.test(line))) assert.ok(!/(?<![\w-])PHONE-LANDSCAPE(?![\w-])/.test(line), `a PHONE-HINTS line must not name PR 1's marker (its strip would take this line out too): ${line.slice(0, 100)}`)
+  assert.equal(viewer, baseText(VIEWER), 'the viewer is PR 1\'s (the base\'s), byte for byte')
+  assert.match(viewer, /window\.addEventListener\('keydown', handleKeyDown\)/); assert.match(viewer, /case 'ArrowRight':\n        case 'ArrowDown':\n          e\.preventDefault\(\)\n          handleNextSlide\(\)/); assert.match(viewer, /case 'ArrowLeft':\n        case 'ArrowUp':\n          e\.preventDefault\(\)\n          handlePrevSlide\(\)/)
+  assert.match(viewer, /if \(studioShell && !shouldHandleStudioCanvasShortcut\(e\)\) return/, 'the viewer\'s own guard (a panel over the canvas, a dialog) applies to a swipe too')
 })
 
 // ===== 7. scope =====================================================================================================================================================
@@ -414,7 +422,14 @@ const scopeCommittedFiles = (head, ctx = REAL) => {
     assert.equal(stripPhoneHints(rel, ctx.norm(rel, git('show', `${head}:${rel}`))), ctx.norm(rel, git('show', `${BASE_COMMIT}:${rel}`)), `${rel}: without its marked lines the file is the base's, byte for byte`)
   }
   for (const rel of PHONE_HINTS_NEW_FILES) assert.equal(git('cat-file', '-t', `${head}:${rel}`).trim(), 'blob', rel)
-  for (const rel of ['components/builder/studio-phone-landscape.tsx', 'components/builder/studio-phone-landscape.css', 'lib/studio-phone-landscape.ts', 'hooks/use-studio-phone-landscape.ts', 'scripts/studio-phone-landscape-strip.mjs', 'scripts/test-studio-phone-landscape.mjs', 'components/layout/studio-phone-tab-bar.tsx',
+  for (const rel of PHONE_HINTS_PIN_FILES) {
+    const now = git('show', `${head}:${rel}`), base = git('show', `${BASE_COMMIT}:${rel}`)
+    assert.equal(stripPhoneHints(rel, otherStrips(rel, now)), otherStrips(rel, base), `${rel}: an older proof taught one more line; putting it back (past the changes registered after this one) gives PR 1's proof byte for byte`)
+    assert.equal(stripPhoneHints(rel, stripPhoneHints(rel, otherStrips(rel, now))), otherStrips(rel, base), `${rel}: putting back twice changes nothing more`)
+    for (const [has, was] of PHONE_HINTS_PIN_EDITS[rel]) { assert.equal(now.split(has).length - 1, 1, `${rel}: the taught line is there exactly once`); assert.equal(was, '', `${rel}: a pure insertion`); for (const line of has.split('\n').filter(Boolean)) assert.ok(line.includes(PHONE_HINTS_PIN_MARK), `${rel}: the taught line carries the registry-read mark`) }
+    const added = diffLines(normDiff(ctx, rel, head)); assert.ok(added.length >= 1 && added.every(line => line.startsWith('+') && line.includes(PHONE_HINTS_PIN_MARK)), `${rel}: every line this change added to the proof carries the mark and none is removed`)
+  }
+  for (const rel of ['components/presentation-viewer.tsx', 'components/builder/studio-phone-landscape.tsx', 'components/builder/studio-phone-landscape.css', 'lib/studio-phone-landscape.ts', 'hooks/use-studio-phone-landscape.ts', 'scripts/studio-phone-landscape-strip.mjs', 'scripts/test-studio-phone-landscape.mjs', 'components/layout/studio-phone-tab-bar.tsx',
     'components/layout/studio-phone-shell.css', 'components/slide-thumbnail-strip.tsx', 'app/layout.tsx', 'components/builder/presentation-area.tsx', 'hooks/use-deckster-websocket-v2.ts', 'package.json']) assert.ok(!touched.has(rel), `${rel} is not touched by this change (PR 1's files stay as PR 1 made them)`)
 }
 const scopeEnvAndRegistry = (head, ctx = REAL) => {
@@ -536,9 +551,8 @@ await check('mutant caught: an own commit without the co-author line, an unmarke
 
 // ===== 8. mutants (each one edit of the real sources, fed to the same checks) =============================================================================
 if (!process.env.CHECK_ONLY) console.log('mutants')
-const libSrc = read(LIB), hookSrc = read(HOOK), pageSrc = read(PAGE), viewerSrc = read(VIEWER)
+const libSrc = read(LIB), hookSrc = read(HOOK), pageSrc = read(PAGE)
 const sheetKeyed = text => { for (const rule of ruleList(text)) for (const selector of rule.selectors) assert.ok(keyed(selector), selector.slice(0, 80)) }
-const swipeWith = (over, run) => { const { rt, hook } = hooksWith({ flag: 'true' }, {}, over); const el = target(); const calls = []; const render = () => rt.render(() => hook.useStudioPhoneSwipe({ current: el }, () => calls.push('prev'), () => calls.push('next'), 3, 6)); hook.setStudioPhoneSwipeOn(true); render(); run({ el, calls, hook, render }) }
 const fullscreenWith = async (over, request, { enabled = true } = {}) => { const doc = docStub({ fullscreenEnabled: enabled, querySelector: () => ({ requestFullscreen: request }) }); const { rt, hook } = hooksWith({ flag: 'true' }, { document: doc }, over); let api = rt.render(() => hook.useStudioPhoneFullscreen()); api.enter(); await settle(); api = rt.render(() => hook.useStudioPhoneFullscreen()); return { api, doc, rt, hook } }
 await mutant('the flag is read as truthy, not exactly "true"', () => assert.equal(libWith({ flag: 'false' }, { [LIB]: swap(libSrc, "flag === 'true' && landscape", "flag !== undefined && landscape") }).STUDIO_PHONE_HINTS_ENABLED, false))
 await mutant('the flag no longer needs PR 1\'s flag', () => assert.equal(libWith({ flag: 'true', landscape: 'false' }, { [LIB]: swap(libSrc, " && landscape === 'true'", '') }).STUDIO_PHONE_HINTS_ENABLED, false))
@@ -557,12 +571,16 @@ await mutant('left is previous (the directions are swapped)', () => assert.equal
 await mutant('the swipe goes past the last slide', () => assert.equal(libWith({ flag: 'true' }, { [LIB]: swap(libSrc, "return slide < count ? 'next' : null", "return 'next'") }).studioPhoneSwipeDirection({ dx: -80, dy: 0, dt: 100, slide: 6, count: 6 }), null))
 await mutant('a mostly vertical drag turns the slide (the ratio is gone)', () => assert.equal(libWith({ flag: 'true' }, { [LIB]: swap(libSrc, ' || Math.abs(dx) < Math.abs(dy) * STUDIO_PHONE_SWIPE.horizontalRatio', '') }).studioPhoneSwipeDirection({ dx: -50, dy: 80, dt: 100, slide: 3, count: 6 }), null))
 await mutant('a swipe works while the slide is being edited', () => assert.equal(libWith({ flag: 'true' }, { [LIB]: swap(libSrc, ' && input.editing !== true', '') }).studioPhoneSwipeOn({ enabled: true, portraitSlideView: true, fallback: false, editing: true, slideCount: 6 }), false))
-await mutant('the swipe hook listens with the flag off', () => { const rt = hookRuntime(), el = target(); setFlags({}); const hook = makeLoader({ reactImpl: rt.impl, sourceOverrides: { [HOOK]: swap(hookSrc, 'if (!STUDIO_PHONE_HINTS_ENABLED || !on) return', 'if (!on) return') } }).load(HOOK); setFlags({}); hook.setStudioPhoneSwipeOn(true); rt.render(() => hook.useStudioPhoneSwipe({ current: el }, () => {}, () => {}, 2, 5)); hook.setStudioPhoneSwipeOn(false); assert.deepEqual(Object.keys(el.handlers), []) })
-await mutant('the swipe hook reads the slide it started with, not the latest (a left swipe on the last slide would go on)', () => { const { rt, hook } = hooksWith({ flag: 'true' }, {}, { [HOOK]: swap(hookSrc, 'slide: latest.current.slide, count: latest.current.count', 'slide: 3, count: 6') }); const el = target(), calls = []; hook.setStudioPhoneSwipeOn(true); rt.render(() => hook.useStudioPhoneSwipe({ current: el }, () => calls.push('prev'), () => calls.push('next'), 6, 6)); el.fire('pointerdown', pointer(300, 400, 1000)); el.fire('pointerup', pointer(100, 400, 1100)); assert.deepEqual(calls, []) })
-await mutant('the swipe hook ignores which pointer was released', () => swipeWith({ [HOOK]: swap(hookSrc, 'if (!start || event.pointerId !== start.id) return', 'if (!start) return') }, ({ el, calls }) => { el.fire('pointerdown', pointer(300, 400, 1000, 1)); el.fire('pointerup', pointer(100, 400, 1100, 2)); assert.deepEqual(calls, []) }))
-await mutant('a cancelled drag still turns the slide', () => swipeWith({ [HOOK]: swap(hookSrc, 'const onCancel = () => { start = null }', 'const onCancel = () => {}') }, ({ el, calls }) => { el.fire('pointerdown', pointer(300, 400, 1000)); el.fire('pointercancel', {}); el.fire('pointerup', pointer(100, 400, 1100)); assert.deepEqual(calls, []) }))
-await mutant('the swipe counter is not bumped (the hint would stay after a swipe)', () => swipeWith({ [HOOK]: swap(hookSrc, '      update({ swipes: store.swipes + 1 })\n', '') }, ({ el, hook }) => { el.fire('pointerdown', pointer(300, 400, 1000)); el.fire('pointerup', pointer(100, 400, 1100)); assert.equal(hook.useStudioPhoneSwipeState().swipes, 1) }))
-await mutant('the swipe hook leaves its listeners behind', () => swipeWith({ [HOOK]: swap(hookSrc, '      element.removeEventListener("pointerup", onUp)\n', '') }, ({ el, hook, render }) => { hook.setStudioPhoneSwipeOn(false); render(); assert.deepEqual(Object.values(el.handlers).flat(), []) }))
+const swipeRun = (over, props, run) => { const doc = swipeDocument(), rt = hookRuntime(); setFlags({ flag: 'true' }); const hook = makeLoader({ reactImpl: rt.impl, globals: swipeGlobals(doc), sourceOverrides: over }).load(HOOK); setFlags({}); let told = 0; const render = () => rt.render(() => hook.useStudioPhoneSwipe(props.on, props.slide, props.count, () => { told++ })); render(); run({ doc, render, rt, told: () => told }) }
+await mutant('the swipe hook listens with the flag off', () => { const doc = swipeDocument(), rt = hookRuntime(); setFlags({}); const hook = makeLoader({ reactImpl: rt.impl, globals: swipeGlobals(doc), sourceOverrides: { [HOOK]: swap(hookSrc, 'if (!STUDIO_PHONE_HINTS_ENABLED || !on) return', 'if (!on) return') } }).load(HOOK); setFlags({}); rt.render(() => hook.useStudioPhoneSwipe(true, 2, 5, () => {})); assert.deepEqual(Object.keys(doc.handlers), []) })
+await mutant('the swipe hook listens while a swipe is not allowed', () => swipeRun({ [HOOK]: swap(hookSrc, 'if (!STUDIO_PHONE_HINTS_ENABLED || !on) return', 'if (!STUDIO_PHONE_HINTS_ENABLED) return') }, { on: false, slide: 3, count: 6 }, ({ doc }) => assert.deepEqual(Object.keys(doc.handlers), [])))
+await mutant('the swipe hook reads the slide it started with, not the latest (a left swipe on the last slide would go on)', () => swipeRun({ [HOOK]: swap(hookSrc, 'slide: latest.current.slide, count: latest.current.count', 'slide: 3, count: 6') }, { on: true, slide: 6, count: 6 }, ({ doc }) => { doc.fire('pointerdown', pointer(300, 400, 1000)); doc.fire('pointerup', pointer(100, 400, 1100)); assert.deepEqual(doc.keys, []) }))
+await mutant('the swipe hook ignores which pointer was released', () => swipeRun({ [HOOK]: swap(hookSrc, 'if (!start || event.pointerId !== start.id) return', 'if (!start) return') }, { on: true, slide: 3, count: 6 }, ({ doc }) => { doc.fire('pointerdown', pointer(300, 400, 1000, 1)); doc.fire('pointerup', pointer(100, 400, 1100, 2)); assert.deepEqual(doc.keys, []) }))
+await mutant('a cancelled drag still turns the slide', () => swipeRun({ [HOOK]: swap(hookSrc, 'const onCancel = () => { start = null }', 'const onCancel = () => {}') }, { on: true, slide: 3, count: 6 }, ({ doc }) => { doc.fire('pointerdown', pointer(300, 400, 1000)); doc.fire('pointercancel', {}); doc.fire('pointerup', pointer(100, 400, 1100)); assert.deepEqual(doc.keys, []) }))
+await mutant('a drag that starts outside the slide space turns the slide (the chat, the rail and the page would swipe too)', () => swipeRun({ [HOOK]: swap(hookSrc, 'start = inside(event) ? { x: event.clientX, y: event.clientY, t: event.timeStamp, id: event.pointerId } : null', 'start = { x: event.clientX, y: event.clientY, t: event.timeStamp, id: event.pointerId }') }, { on: true, slide: 3, count: 6 }, ({ doc }) => { doc.fire('pointerdown', pointer(300, 400, 1000, 1, false)); doc.fire('pointerup', pointer(100, 400, 1100, 1, false)); assert.deepEqual(doc.keys, []) }))
+await mutant('a left swipe goes to the previous slide (the keys are swapped)', () => swipeRun({ [HOOK]: swap(hookSrc, 'const SWIPE_KEYS = { next: "ArrowRight", prev: "ArrowLeft" } as const', 'const SWIPE_KEYS = { next: "ArrowLeft", prev: "ArrowRight" } as const') }, { on: true, slide: 3, count: 6 }, ({ doc }) => { doc.fire('pointerdown', pointer(300, 400, 1000)); doc.fire('pointerup', pointer(100, 400, 1100)); assert.deepEqual(doc.keys, ['ArrowRight']) }))
+await mutant('the page is not told about a swipe (the hint would stay after it)', () => swipeRun({ [HOOK]: swap(hookSrc, '      latest.current.onSwiped()\n', '') }, { on: true, slide: 3, count: 6 }, ({ doc, told }) => { doc.fire('pointerdown', pointer(300, 400, 1000)); doc.fire('pointerup', pointer(100, 400, 1100)); assert.equal(told(), 1) }))
+await mutant('the swipe hook leaves its listeners behind', () => swipeRun({ [HOOK]: swap(hookSrc, '      document.removeEventListener("pointerup", onUp, true)\n', '') }, { on: true, slide: 3, count: 6 }, ({ doc, rt }) => { rt.unmount(); assert.deepEqual(Object.values(doc.handlers).flat(), []) }))
 await mutant('Full screen awaits something before asking the browser (the tap\'s permission could be gone)', async () => { const calls = { n: 0 }; const { rt, hook } = hooksWith({ flag: 'true' }, { document: docStub({ querySelector: () => ({ requestFullscreen: () => { calls.n++; return Promise.resolve() } }) }) }, { [HOOK]: swap(hookSrc, '    try {\n      Promise.resolve(target.requestFullscreen())', '    try {\n      Promise.resolve().then(() => target.requestFullscreen())') }); const api = rt.render(() => hook.useStudioPhoneFullscreen()); api.enter(); assert.equal(calls.n, 1) })
 await mutant('a rejected request leaves Full screen doing nothing', async () => { const r = await fullscreenWith({ [HOOK]: swap(hookSrc, '.then(() => move("granted"), () => move("refused"))', '.then(() => move("granted"), () => {})') }, () => Promise.reject(new Error('x'))); assert.equal(r.api.state, 'fallback') })
 await mutant('a synchronous throw from requestFullscreen is not caught', async () => { await fullscreenWith({ [HOOK]: swap(hookSrc, '    } catch {\n      move("refused")\n    }', '    } finally {\n    }') }, () => { throw new Error('x') }) })
@@ -589,10 +607,9 @@ await mutant('the full-screen stage has no rule for the workspace\'s left margin
 await mutant('the full-screen stage\'s workspace margin loses its <html> keys (it would tie with the phone shell\'s own rule and lose by order)', () => fallbackCascade(swap(cssText, 'html[data-studio-phone-fullscreen="fallback"][data-studio-phone-hints] [data-studio-v4-shell="true"]:has(> [data-studio-phone-tabbar="true"]) > [data-studio-v4-shell-column] > [data-studio-v4-shell-workspace] { margin-left: 0; }', '[data-studio-v4-shell="true"]:has(> [data-studio-phone-tabbar="true"]) > [data-studio-v4-shell-column] > [data-studio-v4-shell-workspace] { margin-left: 0; }')))
 await mutant('the full-screen stage\'s viewer padding loses the hints attribute (it would tie with PR 1\'s collapsed-strip rule)', () => fallbackCascade(swap(cssText, 'html[data-studio-phone-fullscreen="fallback"][data-studio-phone-hints] [data-studio-v4-shell="true"] [data-studio-v4-viewer]:not([data-studio-v4-fullscreen="true"]) { padding-left: 0; }', 'html[data-studio-phone-fullscreen="fallback"] [data-studio-v4-shell="true"] [data-studio-v4-viewer]:not([data-studio-v4-fullscreen="true"]) { padding-left: 0; }')))
 await mutant('a PHONE-HINTS line names PR 1\'s marker (PR 1\'s strip would take it out too)', () => { const bad = pageSrc.replace('// PHONE-HINTS (NEXT_PUBLIC_STUDIO_PHONE_HINTS, default off, needs the landscape flag too)', '// PHONE-HINTS (NEXT_PUBLIC_STUDIO_PHONE_HINTS, default off, with PHONE-LANDSCAPE)'); assert.notEqual(bad, pageSrc); for (const line of bad.split('\n').filter(line => PHONE_HINTS_MARKER_RE.test(line))) assert.ok(!/(?<![\w-])PHONE-LANDSCAPE(?![\w-])/.test(line), line.slice(0, 80)) })
-await mutant('a marker line is mistyped (the strip would leave it behind)', () => assert.equal(stripPhoneHints(VIEWER, viewerSrc.replace("import { useStudioPhoneSwipe } from '@/hooks/use-studio-phone-hints' // PHONE-HINTS", "import { useStudioPhoneSwipe } from '@/hooks/use-studio-phone-hints' // PHONE-HINTSS")), baseText(VIEWER)))
+await mutant('a marker line is mistyped (the strip would leave it behind)', () => assert.equal(stripPhoneHints(PAGE, pageSrc.replace("import { STUDIO_PHONE_HINTS_ENABLED } from '@/lib/studio-phone-hints' // PHONE-HINTS", "import { STUDIO_PHONE_HINTS_ENABLED } from '@/lib/studio-phone-hints' // PHONE-HINTSS")), baseText(PAGE)))
 await mutant('an existing line of the page is changed (not a pure insertion)', () => assert.equal(stripPhoneHints(PAGE, swap(pageSrc, "const studioWelcome = studioShell && !studioPartialMetadata", "const studioWelcome = studioShell && !studioPartialMetadata /* edited */")), baseText(PAGE)))
 await mutant('the page mounts the component without the constant', () => assert.match(swap(pageSrc, '{STUDIO_PHONE_HINTS_ENABLED && <StudioPhoneHints ', '{<StudioPhoneHints '), /\{STUDIO_PHONE_HINTS_ENABLED && <StudioPhoneHints /))
-await mutant('the viewer calls the swipe hook before the handlers it uses', () => { const moved = viewerSrc.replace(/^.*useStudioPhoneSwipe\(slideContainerRef[^\n]*\n/m, '').replace('  const handleNextSlide = useCallback(async () => {', "  useStudioPhoneSwipe(slideContainerRef, handlePrevSlide, handleNextSlide, currentSlide, totalSlides) // PHONE-HINTS\n  const handleNextSlide = useCallback(async () => {"); assert.ok(moved.indexOf('const handlePrevSlide = useCallback') < moved.indexOf('useStudioPhoneSwipe(slideContainerRef')) })
 
 console.log(`\n${passed} passed, ${failed.length} failed; mutants: ${caught} caught, ${missed.length} missed`)
 if (failed.length || missed.length) { if (failed.length) console.error(`failed: ${failed.join('; ')}`); if (missed.length) console.error(`missed: ${missed.join('; ')}`); process.exit(1) }

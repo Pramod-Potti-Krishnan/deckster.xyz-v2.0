@@ -22,7 +22,7 @@ import {
   type StudioHintStorage,
 } from "@/lib/studio-phone-hints"
 import { useStudioPhoneQuery } from "@/hooks/use-studio-phone-landscape"
-import { setStudioPhoneSwipeOn, useStudioPhoneFullscreen, useStudioPhoneSwipeState } from "@/hooks/use-studio-phone-hints"
+import { useStudioPhoneFullscreen, useStudioPhoneSwipe } from "@/hooks/use-studio-phone-hints"
 import "./studio-phone-hints.css"
 
 /** The slide's own box on the page (the viewer's frame), which the portrait hints are placed against. */
@@ -39,19 +39,20 @@ interface Frame { left: number; top: number; right: number; bottom: number }
  * (stored per phone), and in the landscape stage a Full screen button beside Chat. Full screen is the browser's, asked for in the tap, or a fixed 100dvh stage of our own; never an orientation lock. The page passes where the user is (a deck on the stage,
  * the stage on screen, editing or not); the decisions are lib/studio-phone-hints.ts, the swipe and Full screen are hooks/use-studio-phone-hints.ts, and the stylesheet is keyed to the attributes this sets on <html>.
  */
-export function StudioPhoneHints({ deckOnStage, stageVisible, editing, slideCount }: { deckOnStage: boolean; stageVisible: boolean; editing: boolean; slideCount: number }) {
+export function StudioPhoneHints({ deckOnStage, stageVisible, editing, slideNumber, slideCount }: { deckOnStage: boolean; stageVisible: boolean; editing: boolean; slideNumber: number; slideCount: number }) {
   const landscape = useStudioPhoneQuery(STUDIO_PHONE_LANDSCAPE_QUERY)
   const portrait = useStudioPhoneQuery(STUDIO_PHONE_PORTRAIT_QUERY)
   const stage = studioPhoneLandscapeStage({ enabled: true, landscape, deckOnStage, stageVisible })
   const slideView = studioPhonePortraitSlideView({ enabled: true, portrait, deckOnStage, stageVisible })
   const { state: fullscreen, enter, exit } = useStudioPhoneFullscreen()
-  const { swipes } = useStudioPhoneSwipeState()
+  const [swipes, setSwipes] = useState(0)
   const [rotateSeen, setRotateSeen] = useState<boolean | null>(null)
   const [swipeSeen, setSwipeSeen] = useState<boolean | null>(null)
   const [swipeHint, setSwipeHint] = useState(false)
   const [frame, setFrame] = useState<Frame | null>(null)
   const swipeOn = studioPhoneSwipeOn({ enabled: true, portraitSlideView: slideView, fallback: fullscreen === "fallback", editing, slideCount })
   const rotateShown = studioPhoneRotateHintShown({ enabled: true, portraitSlideView: slideView, seen: rotateSeen, fullscreen })
+  useStudioPhoneSwipe(swipeOn, slideNumber, slideCount, () => setSwipes(count => count + 1)) // the viewer's own next / previous, by the key it listens for
   const swipeShown = studioPhoneSwipeHintShown({ swipeOn, seen: swipeSeen, slideCount })
 
   // What this phone has been shown, read once on the client (nothing flashes before that); a storage that throws reads as "not seen" and the in-memory answer holds for the page load.
@@ -81,7 +82,7 @@ export function StudioPhoneHints({ deckOnStage, stageVisible, editing, slideCoun
   useEffect(() => {
     const root = document.documentElement
     root.setAttribute(STUDIO_PHONE_HINTS_ATTRIBUTE, "on")
-    return () => { root.removeAttribute(STUDIO_PHONE_HINTS_ATTRIBUTE); root.removeAttribute(STUDIO_PHONE_FULLSCREEN_ATTRIBUTE); root.removeAttribute(STUDIO_PHONE_SWIPE_ATTRIBUTE); setStudioPhoneSwipeOn(false) }
+    return () => { root.removeAttribute(STUDIO_PHONE_HINTS_ATTRIBUTE); root.removeAttribute(STUDIO_PHONE_FULLSCREEN_ATTRIBUTE); root.removeAttribute(STUDIO_PHONE_SWIPE_ATTRIBUTE) }
   }, [])
   useEffect(() => {
     const root = document.documentElement
@@ -90,7 +91,6 @@ export function StudioPhoneHints({ deckOnStage, stageVisible, editing, slideCoun
   useEffect(() => {
     const root = document.documentElement
     if (swipeOn) root.setAttribute(STUDIO_PHONE_SWIPE_ATTRIBUTE, "on"); else root.removeAttribute(STUDIO_PHONE_SWIPE_ATTRIBUTE)
-    setStudioPhoneSwipeOn(swipeOn)
   }, [swipeOn])
 
   // The slide's box, followed (the viewer fits it with a ResizeObserver of its own and the frame comes and goes with the page): the portrait hints sit against it.
