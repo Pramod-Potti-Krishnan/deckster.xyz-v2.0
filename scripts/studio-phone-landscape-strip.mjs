@@ -41,10 +41,12 @@ export const PHONE_LANDSCAPE_PIN_EDITS = {
      ""]
   ],
   "scripts/test-studio-stage-open-gate.mjs": [
-    ["const REAL = { norm: otherStrips, env: text => registry.stripLaterEnvBlocks('.env.example', text), laterRegistryLine: line => line.includes('// LATER-CHANGE:') } // LATER-CHANGES: registry read (PHONE-LANDSCAPE): a change registered after this one puts its own lines after this one's in each list of the registry\n",
+    ["const REAL = { norm: otherStrips, env: text => registry.stripLaterEnvBlocks('.env.example', text), laterRegistryLine: line => line.includes('studio-phone-landscape-strip.mjs') } // LATER-CHANGES: registry read (PHONE-LANDSCAPE): the phone landscape (registered after this one) puts its own lines after this one's in each list of the registry\n",
      "const REAL = { norm: otherStrips, env: text => registry.stripLaterEnvBlocks('.env.example', text) }\n"],
     ["    for (const line of diffLines(normDiff({ norm: (r, text) => r === rel ? registry.LATER_STRIPS.slice(registry.LATER_STRIPS.indexOf(stripStageOpenGate) + 1).reduce((out, strip) => { const next = typeof strip === 'function' ? strip(r, out) : out; return typeof next === 'string' ? next : out }, text) : ctx.norm(r, text) }, rel, head))) if (line.startsWith('+')) assert.ok(line.includes(STAGE_OPEN_GATE_PIN_MARK), `${rel}: an added line without the mark: ${line.slice(0, 100)}`) // LATER-CHANGES: registry read (PHONE-LANDSCAPE): the lines of the changes registered after this one come out of a proof it taught before its added lines are read\n",
-     "    for (const line of diffLines(normDiff({ norm: (r, text) => r === rel ? text : ctx.norm(r, text) }, rel, head))) if (line.startsWith('+')) assert.ok(line.includes(STAGE_OPEN_GATE_PIN_MARK), `${rel}: an added line without the mark: ${line.slice(0, 100)}`)\n"]
+     "    for (const line of diffLines(normDiff({ norm: (r, text) => r === rel ? text : ctx.norm(r, text) }, rel, head))) if (line.startsWith('+')) assert.ok(line.includes(STAGE_OPEN_GATE_PIN_MARK), `${rel}: an added line without the mark: ${line.slice(0, 100)}`)\n"],
+    ["  const later = laterStrips(PAGE, syntheticStrip(PAGE, git('show', `${SYNTHETIC}:${PAGE}`))) // read as this change left it: the later change's lines out (as laterStrips does for a registered one) // LATER-CHANGES: registry read (PHONE-LANDSCAPE): the lines of the changes registered after this one come out too\n",
+     "  const later = syntheticStrip(PAGE, git('show', `${SYNTHETIC}:${PAGE}`)) // read as this change left it: the later change's lines out (as laterStrips does for a registered one)\n"]
   ]
 }
 
