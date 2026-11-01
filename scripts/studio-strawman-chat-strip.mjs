@@ -5,15 +5,15 @@
 //         quiet line, phase words and an elapsed clock ("Drafting your outline... 0:18"); while it is open, none.
 //   F-06  "Waiting for your go-ahead" is not shown when Director's build_phase said auto_proceed === true for this build (Studio never presses approve for the user).
 // Every decision is lib/studio-strawman-chat.ts (pure, import-free); components/builder/chat/studio-strawman-chat.tsx draws the line; hooks/use-studio-strawman-chat.ts keeps auto_proceed.
-// Every line this change adds to an EXISTING file is a pure insertion that carries the marker STRAWMAN-CHAT (matched as a whole token): app/builder/page.tsx (three imports at the end with the other late ones, the flag line, the hook
+// Every line this change adds to an EXISTING file is a pure insertion that carries the marker STRAWMAN-CHAT (matched as a whole token): app/builder/page.tsx (four imports at the end with the other late ones, the flag line, the hook
 // call and the ONE stage-open line, and the two lines that make the presence row's slot a ternary), components/builder/chat/studio-outline-card.tsx (one import and one early return of null), components/builder/message-list.tsx
 // (one import and one early return of null for a standalone outline frame's Director row) and components/builder/chat/studio-chat-clean.tsx (one import and the two lines that make the job card a ternary). Strip the marked
 // lines and each file is its base, byte for byte.
-// The stage-open boolean is a parameter of every function: the page computes it on one marked line (strawmanChatStageOpen) from what it has today, so FRONTEND-2's studio-stage-open-gate can replace that line and nothing else.
+// The stage-open boolean is a parameter of every function: the page computes it on one marked line (strawmanChatStageOpen): FRONTEND-2's useStudioStageOpen() (lib/studio-stage-open-gate.ts, #554) and what the page has today, so a change to either is that one line and nothing else.
 // How the older pins reach it: this change REGISTERS its files, its .env.example block and this strip (scripts/studio-later-changes.mjs, three lines), and teaches the older proofs that read these files raw or check the first-parent
 // line (STRAWMAN_CHAT_PIN_EDITS). Plain node, no imports, nothing read from disk or git here.
 
-export const BASE_COMMIT = '61a71137c210423ea53c9414dd98e75adb9e7c7c' // origin/studio-v4-dev-preparation-code (#555 merged, 1 Nov): the dev tip this change was last refreshed onto (it was cut from a470679, #553 merged, 30 Oct)
+export const BASE_COMMIT = 'abf52d4d4858b24cdb62549325ae5b9eed36624e' // origin/studio-v4-dev-preparation-code (#554 merged, 1 Nov): the dev tip this change was last refreshed onto (it was cut from a470679, #553 merged, 30 Oct)
 export const STRAWMAN_CHAT_FLAG = 'NEXT_PUBLIC_STUDIO_STRAWMAN_CHAT'
 export const STRAWMAN_CHAT_MARKER = 'STRAWMAN-CHAT'
 /** The marker as a WHOLE token: STRAWMAN-CHAT-X and X-STRAWMAN-CHAT are not it. */
@@ -71,7 +71,7 @@ export const STRAWMAN_CHAT_ENV_BLOCK = `# STUDIO STRAWMAN CHAT (FRONTEND-1; PK's
 # On: (F-08) there is no outline card in the chat at all (PK 31 Oct), and a standalone outline frame draws no Director row; Director's one-line "I've created an outline" message and its "Looks perfect! / Make some changes" buttons stay.
 # (F-09) the Plan / Outline / Build / Check / Package card is gone from the chat (chat clean's job card) and so is the presence row's Build log: the chain of thought shows on the stage. While the stage is hidden the chat shows exactly one quiet line,
 # phase words and an elapsed clock ("Drafting your outline... 0:18"); once the stage is open it shows none. (F-06) "Waiting for your go-ahead" is not shown when Director's build_phase said auto_proceed === true for this build; Studio never presses approve.
-# No Director change, safe to set at any time. The page decides "stage open" on one marked line (strawmanChatStageOpen) so FRONTEND-2's stage-open gate can replace it.
+# No Director change, safe to set at any time. The page decides "stage open" on one marked line (strawmanChatStageOpen): FRONTEND-2's stage open gate (useStudioStageOpen(), true while NEXT_PUBLIC_STUDIO_STAGE_OPEN_GATE is off) and what the page has today.
 NEXT_PUBLIC_STUDIO_STRAWMAN_CHAT="false"
 `
 

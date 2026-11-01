@@ -391,11 +391,11 @@ function pageChecks(pageText = read(PAGE), overrides = {}) {
   for (const name of Object.keys(found.decl)) assert.equal(found.decl[name].length, 1, `${name} is declared once`)
   assert.equal(found.decl.strawmanChatOn[0].initializer.getText(ast), 'STUDIO_STRAWMAN_CHAT_ENABLED && studioShell && effectiveBuildNarrationEnabled', 'the flag, the Studio shell and the narration canvas')
   assert.equal(found.decl.strawmanChat[0].initializer.getText(ast), 'useStudioStrawmanChat({ enabled: strawmanChatOn, sessionId: currentSessionId, buildId: buildNarration.buildId, handlers: buildNarrationHandlersRef })')
-  assert.equal(found.decl.strawmanChatStageOpen[0].initializer.getText(ast), '!studioWelcome && !studioCanvasCovered', 'stage open = what the page has today: the welcome is not on the canvas and the chat is not covering it')
+  assert.equal(found.decl.strawmanChatStageOpen[0].initializer.getText(ast), 'useStudioStageOpen() && !studioWelcome && !studioCanvasCovered', 'stage open = FRONTEND-2\'s stage open gate (true while its flag is off) AND what the page has today: the welcome is not on the canvas and the chat is not covering it; the hook is the first operand, so it is called on every render')
   const lines = pageText.split('\n')
   const stageLines = lines.filter(line => /strawmanChatStageOpen\b/.test(line))
-  assert.equal(stageLines.filter(line => /^\s*const strawmanChatStageOpen =/.test(line)).length, 1, 'the stage-open boolean is computed on ONE line'); assert.match(stageLines.find(line => /^\s*const strawmanChatStageOpen =/.test(line)), /THE ONE LINE to swap for FRONTEND-2's studio-stage-open-gate export: once #554 merges this call site becomes useStudioStageOpen\(\) from lib\/studio-stage-open-gate\.ts/, 'and says how to swap it (to useStudioStageOpen() once #554 merges)')
-  assert.ok(!/studio-stage-open-gate/.test(lines.filter(line => /^import /.test(line)).join('\n')), 'the gate file does not exist on this base: nothing imports it')
+  assert.equal(stageLines.filter(line => /^\s*const strawmanChatStageOpen =/.test(line)).length, 1, 'the stage-open boolean is computed on ONE line'); assert.match(stageLines.find(line => /^\s*const strawmanChatStageOpen =/.test(line)), /FRONTEND-2's stage open gate \(lib\/studio-stage-open-gate\.ts, PR #554: true when its flag is off or the stage is open, false only while the gate holds the stage hidden\) AND what the page has today/, 'and says what it is made of: the gate (useStudioStageOpen()) and what the page has today')
+  assert.deepEqual(lines.filter(line => /^import .*studio-stage-open-gate/.test(line) && STRAWMAN_CHAT_MARKER_RE.test(line)).map(line => line.replace(/ \/\/.*$/, '')), ["import { useStudioStageOpen } from '@/lib/studio-stage-open-gate'"], 'this change imports only useStudioStageOpen from the gate, on one marked line (FRONTEND-2\'s own import line is theirs)')
   assert.ok(!/TODO/i.test(stageLines.join('\n')), 'the swap note is a plain comment')
   assert.equal(pageText.indexOf('useStudioChatCleanNotes({') < pageText.indexOf('useStudioStrawmanChat({'), true, 'my hook is declared after chat clean\'s notes hook (the wrapper order)')
   const listLines = (LIST in overrides ? overrides[LIST] : read(LIST)).split('\n')
@@ -475,7 +475,10 @@ const mutants = [
   ['the job card is dropped with the flag off too', JOB, 'STUDIO_STRAWMAN_CHAT_ENABLED ? null : (', 'true ? null : ('],
   ['the page: the line replaces the row without a narrated build', PAGE, 'strawmanChatOn && buildNarration.active ?', 'strawmanChatOn ?'],
   ['the page: the line ignores the stage', PAGE, 'stageOpen={strawmanChatStageOpen}', 'stageOpen={false}'],
-  ['the page: the stage-open line is computed twice', PAGE, 'stageOpen={strawmanChatStageOpen}', 'stageOpen={!studioWelcome && !studioCanvasCovered}'],
+  ['the page: the stage-open line is computed twice', PAGE, 'stageOpen={strawmanChatStageOpen}', 'stageOpen={useStudioStageOpen() && !studioWelcome && !studioCanvasCovered}'],
+  ['the page: the stage-open line ignores the gate', PAGE, 'const strawmanChatStageOpen = useStudioStageOpen() && ', 'const strawmanChatStageOpen = '],
+  ['the page: the stage-open line reads the gate after the other terms (the hook would be skipped)', PAGE, 'const strawmanChatStageOpen = useStudioStageOpen() && !studioWelcome && !studioCanvasCovered', 'const strawmanChatStageOpen = !studioWelcome && !studioCanvasCovered && useStudioStageOpen()'],
+  ['the page: the stage-open line drops the page\'s own terms', PAGE, 'useStudioStageOpen() && !studioWelcome && !studioCanvasCovered', 'useStudioStageOpen()'],
   ['the page: the hook is declared before chat clean\'s', PAGE, 'const strawmanChat = useStudioStrawmanChat(', 'const strawmanChatEarly = useStudioStrawmanChat('],
   ['the page: a held build is drawn although a bar says it', PAGE, 'heldCovered={chatCleanOn || Boolean(flowControl.bar)}', 'heldCovered={false}'],
 ]
@@ -519,7 +522,7 @@ const scopeCommittedFiles = head => {
   const changed = git('diff', '--name-only', `${BASE_COMMIT}..${head}`).split('\n').filter(Boolean).filter(rel => STRAWMAN_CHAT_SCOPE_FILES.has(rel) || !registry.LATER_CHANGE_FILES.has(rel)).sort()
   assert.deepEqual(changed, [...STRAWMAN_CHAT_SCOPE_FILES].sort(), 'the committed files are exactly this change\'s')
   assert.deepEqual(STRAWMAN_CHAT_FILES, [PAGE, CARD, LIST, JOB])
-  const expectedAdded = { [PAGE]: 8, [CARD]: 2, [LIST]: 2, [JOB]: 3 }
+  const expectedAdded = { [PAGE]: 9, [CARD]: 2, [LIST]: 2, [JOB]: 3 }
   for (const rel of STRAWMAN_CHAT_FILES) {
     const diff = strippedDiff(rel, head).split('\n').filter(line => /^[+-]/.test(line) && !/^(\+\+\+|---) /.test(line))
     assert.equal(diff.length, expectedAdded[rel], `${rel}: ${expectedAdded[rel]} added lines and no removed one`)
@@ -547,7 +550,7 @@ const scopeEnvAndRegistry = head => {
   for (const line of diff) assert.ok(line.startsWith('+') && line.includes('LATER-CHANGE') && line.includes('studio-strawman-chat-strip.mjs'), line.slice(0, 140))
 }
 await check(`this change's own commits (subject starts "${STRAWMAN_CHAT_SUBJECT}", found across the whole line, no merges) exist, with the co-author line; a commit that is not one touches only files a later change registered`, () => scopeOwnCommits(HEAD))
-await check('the committed files are exactly this change\'s; every line added to an existing file is a pure insertion that carries the marker (eight in the page, two in the card, two in the message list, three in the chat clean tail); the strip gives the base back byte for byte, also through the registry', () => scopeCommittedFiles(HEAD))
+await check('the committed files are exactly this change\'s; every line added to an existing file is a pure insertion that carries the marker (nine in the page, two in the card, two in the message list, three in the chat clean tail); the strip gives the base back byte for byte, also through the registry', () => scopeCommittedFiles(HEAD))
 const GATE_IDENT = { GIT_AUTHOR_NAME: 'gate', GIT_AUTHOR_EMAIL: 'gate@example.invalid', GIT_COMMITTER_NAME: 'gate', GIT_COMMITTER_EMAIL: 'gate@example.invalid', GIT_AUTHOR_DATE: '2026-10-30T00:00:00Z', GIT_COMMITTER_DATE: '2026-10-30T00:00:00Z' }
 const gateStyleMerge = head => {
   const tree = git('merge-tree', '--write-tree', BASE_COMMIT, head).trim().split('\n')[0]
