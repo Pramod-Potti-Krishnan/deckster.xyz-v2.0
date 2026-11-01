@@ -42,18 +42,6 @@ export function studioPhoneBarState(slideView: boolean, menuOpen: boolean): Stud
   return menuOpen ? 'open' : 'folded'
 }
 
-/**
- * The slide's size in the landscape stage: the largest 16:9 box that fits the whole slide space (no fit padding), by the same contain rule the viewer uses everywhere else. Null outside the stage (`stageAttribute` is the value of the <html> stage
- * attribute) and for a box with no size, and then the viewer's own fit (16 px a side) is what runs.
- */
-export function studioPhoneLandscapeFit(stageAttribute: string | null | undefined, width: number, height: number): { width: number; height: number } | null {
-  if (stageAttribute !== 'stage' || !(width > 0) || !(height > 0)) return null
-  const ratio = 16 / 9
-  let w = width, h = w / ratio
-  if (h > height) { h = height; w = h * ratio }
-  return { width: w, height: h }
-}
-
 /** The page's own test for "one pane at a time" is a workspace 880 px wide or narrower (app/builder/page.tsx: studioOverlayWorkspace). */
 export const STUDIO_PHONE_OVERLAY_MAX_WIDTH = 880
 
@@ -72,10 +60,22 @@ export function studioPhoneStripToggle(state: StudioPhoneStripState): StudioPhon
   return state === 'open' ? 'collapsed' : 'open'
 }
 
-/** What the viewer's rail shows while the stage is on, and what it goes back to: the strip's own state while on (true = the rail is open), the portrait value that was remembered when it went off. */
-export function studioPhoneRailOpen(input: { stage: boolean; strip: StudioPhoneStripState; remembered: boolean | null; current: boolean }): boolean {
-  if (input.stage) return input.strip === 'open'
-  return input.remembered === null ? input.current : input.remembered
+/** The viewer's own rail toggle (components/presentation-viewer.tsx draws it, `aria-expanded` says whether the rail is open); the stage uses it, it never changes the viewer. */
+export const STUDIO_PHONE_RAIL_TOGGLE = '[data-studio-v4-thumbnail-toggle="true"]'
+
+/**
+ * What the stage does to the viewer's own rail toggle. `railOpen` is what the toggle says now (null: it is not on the page yet), `remembered` the viewer's own (portrait) value kept while the stage is on (null off the stage).
+ * While the stage is on the rail is the strip's: it is made open or closed to match the strip's state, once, with the viewer's own value remembered first; when the stage goes off, that value is put back, and forgotten.
+ */
+export function studioPhoneRailSync(input: { stage: boolean; strip: StudioPhoneStripState; railOpen: boolean | null; remembered: boolean | null }): { click: boolean; remembered: boolean | null; done: boolean } {
+  const { stage, strip, railOpen, remembered } = input
+  if (railOpen === null) return { click: false, remembered, done: false }
+  if (stage) {
+    const keep = remembered === null ? railOpen : remembered
+    return { click: railOpen !== (strip === 'open'), remembered: keep, done: true }
+  }
+  if (remembered === null) return { click: false, remembered: null, done: true }
+  return { click: railOpen !== remembered, remembered: null, done: true }
 }
 
 /** The fan's entries, in the order PK's brief gives: the two authoring actions, then the deck actions the phone "..." menu has (the menu's own order), then the thumbnails strip. */
