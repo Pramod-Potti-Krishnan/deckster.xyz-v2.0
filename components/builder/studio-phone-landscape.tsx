@@ -31,11 +31,16 @@ const FAN_ICONS: Record<StudioPhoneFanKey, typeof Plus> = {
 }
 
 const find = (selector: string): HTMLElement | null => { try { return document.querySelector<HTMLElement>(selector) } catch { return null } }
+/** The page's own controls the deck actions use: the same ones the phone "..." menu uses (lib/studio-phone-builder-top.ts). */
+const DECK_TARGETS: Partial<Record<StudioPhoneFanKey, string>> = {
+  newDeck: STUDIO_PHONE_DECK_MENU_TARGETS.newDeck, export: STUDIO_PHONE_DECK_MENU_TARGETS.export, notes: STUDIO_PHONE_DECK_MENU_TARGETS.notes,
+  slide: STUDIO_PHONE_DECK_MENU_TARGETS.slide, deckList: STUDIO_PHONE_DECK_MENU_TARGETS.deckList, presenter: STUDIO_PHONE_DECK_MENU_TARGETS.presenter,
+}
 const locate = (key: StudioPhoneFanKey): HTMLElement | null => {
   const words = AUTHORING_WORDS[key]
   if (words) return Array.from(document.querySelectorAll<HTMLElement>(AUTHORING_SLOT)).find(button => words.test(button.textContent ?? "")) ?? null
-  if (key === "thumbnails") return null
-  return find(STUDIO_PHONE_DECK_MENU_TARGETS[key])
+  const target = DECK_TARGETS[key]
+  return target ? find(target) : null
 }
 const probe = (key: StudioPhoneFanKey): StudioPhoneFanProbe | null => {
   const control = locate(key)

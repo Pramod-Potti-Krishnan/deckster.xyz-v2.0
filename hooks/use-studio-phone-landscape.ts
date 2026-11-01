@@ -37,7 +37,7 @@ export function setStudioPhoneStage(stage: boolean) { update({ stage }) }
 /** The strip's collapse / expand (its state is kept for the page's life, not written anywhere). */
 export function toggleStudioPhoneStrip() { update({ strip: studioPhoneStripToggle(store.strip) }) }
 
-/** A media query as a boolean: false on the server and until the browser has answered; follows `change` (a rotation on iOS and Android fires it, no orientationchange needed). False for good with the flag off: nothing is listened to. */
+/** A media query as a boolean: false on the server and until the browser has answered; follows `change` (a rotation on iOS and Android fires it). False for good with the flag off: nothing is listened to. */
 export function useStudioPhoneQuery(query: string): boolean {
   const subscribeQuery = (listener: () => void) => {
     if (!STUDIO_PHONE_LANDSCAPE_ENABLED || typeof window === "undefined" || typeof window.matchMedia !== "function") return () => {}
