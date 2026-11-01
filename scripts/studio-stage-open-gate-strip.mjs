@@ -40,6 +40,13 @@ export const STAGE_OPEN_GATE_NEW_FILES = [
 /** The older proofs this change teaches: [text the proof has now, text the proof had before] per edit, whole lines, so putting them back gives the previous file. Every line the proof has now carries a registry-read mark. */
 export const STAGE_OPEN_GATE_PIN_MARK = 'LATER-CHANGES: registry read (STUDIO-STAGE-OPEN-GATE)'
 export const STAGE_OPEN_GATE_PIN_EDITS = {
+  // test-studio-chat-column-wide.mjs (#555, merged before this change) reads studio-first-run.css and the Director header raw: the changes registered after it come out first
+  "scripts/test-studio-chat-column-wide.mjs": [
+    ["const read = rel => registry.LATER_STRIPS.slice(registry.LATER_STRIPS.indexOf(stripChatColumnWide) + 1).reduce((out, strip) => { const next = typeof strip === 'function' ? strip(rel, out) : out; return typeof next === 'string' ? next : out }, fs.readFileSync(path.join(root, rel), 'utf8')) // LATER-CHANGES: registry read (STUDIO-STAGE-OPEN-GATE): the changes registered after this one (the stage open gate's marked lines in studio-first-run.css and the Director header) come out before a file is read\n",
+     "const read = rel => fs.readFileSync(path.join(root, rel), 'utf8')\n"],
+    ["  for (const rel of CHAT_COLUMN_WIDE_FILES) assert.equal(stripChatColumnWide(rel, syntheticStrip(rel, otherStrips(rel, git('show', `${SYNTHETIC}:${rel}`)))), otherStrips(rel, baseText(rel)), `${rel}: either order of the two strips gives the base`) // LATER-CHANGES: registry read (STUDIO-STAGE-OPEN-GATE): the other registered changes' lines (the stage open gate's in the Director header) out of both sides\n",
+     "  for (const rel of CHAT_COLUMN_WIDE_FILES) assert.equal(stripChatColumnWide(rel, syntheticStrip(rel, git('show', `${SYNTHETIC}:${rel}`))), baseText(rel), `${rel}: either order of the two strips gives the base`)\n"],
+  ],
   // the first-parent scope check of test-studio-chat-element-edit.mjs: a branch stacked after this change has this change's commits on the first-parent line
   "scripts/test-studio-chat-element-edit.mjs": [
     ["  shas.splice(0, shas.length, ...shas.filter(sha => !/^Stage open gate:/.test(git('log', '-1', '--format=%s', sha)))) // LATER-CHANGES: registry read (STUDIO-STAGE-OPEN-GATE): on a branch stacked after this change (the stage open gate's), the first-parent commits are its own, not this change's; with none left the pins and identity checks above cover the files\n", ""],
@@ -48,10 +55,11 @@ export const STAGE_OPEN_GATE_PIN_EDITS = {
   "scripts/test-studio-deck-sync-truth.mjs": [
     ["  shas.splice(0, shas.length, ...shas.filter(sha => !/^Stage open gate:/.test(git('log', '-1', '--format=%s', sha)))) // LATER-CHANGES: registry read (STUDIO-STAGE-OPEN-GATE): on a branch stacked after this change (the stage open gate's), the first-parent commits are its own, not this change's; with none left the pins and identity checks above cover the files\n", ""],
   ],
-  // its D6 import-lines pin and its source pins read the Director header raw: the header's two marked lines come out first, then #555's registry read (put back: dev's line, #555's registry read alone)
+  // its D6 import-lines pin and its source pins read the Director header raw: the header's two marked lines come out first, then #555's registry read. Put back: the line before EITHER change taught it, so this strip and
+  // #555's (whose own line is gone from the file) commute, whichever runs first (as #553 did for the chat element edit pins)
   "scripts/test-studio-pass2b-chat.mjs": [
     ["  const stageOpenGateStrip = await import('./studio-stage-open-gate-strip.mjs') // LATER-CHANGES: registry read (STUDIO-STAGE-OPEN-GATE): the stage open gate's marked lines (the Director header's \"Show canvas\" line and import) come out of a source before the pins below read it\n  const read = relative => laterChanges.stripLaterChanges(relative, stageOpenGateStrip.stripStageOpenGate(relative, fs.readFileSync(path.join(root, relative), 'utf8'))) // LATER-CHANGES: registry read (STUDIO-STAGE-OPEN-GATE): this change's strip, then the registry read #555 put here (STUDIO-WELCOME-TRIM)\n",
-     "  const read = relative => laterChanges.stripLaterChanges(relative, fs.readFileSync(path.join(root, relative), 'utf8')) // LATER-CHANGES: registry read (STUDIO-WELCOME-TRIM)\n"],
+     "  const read = relative => fs.readFileSync(path.join(root, relative), 'utf8')\n"],
   ],
   // its header loader has an allow-list of imports: the "Show canvas" import is answered as with the flag off (put back: the list without it)
   "scripts/test-studio-chat-header-ask.mjs": [
