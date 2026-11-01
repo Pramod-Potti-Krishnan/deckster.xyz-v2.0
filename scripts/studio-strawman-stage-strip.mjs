@@ -9,7 +9,7 @@
 // How the older pins reach it: this change REGISTERS its files, its .env.example block and this strip (scripts/studio-later-changes.mjs, three lines), and teaches the older proofs that read past it (STRAWMAN_STAGE_PIN_EDITS: one registry-read block each).
 // Plain node, no imports, nothing read from disk or git here.
 
-export const BASE_COMMIT = '61a71137c210423ea53c9414dd98e75adb9e7c7c' // origin/studio-v4-dev-preparation-code with #555 merged (1 Nov): the dev tip this change was last refreshed onto (it was cut from a470679, #553 merged, 30 Oct)
+export const BASE_COMMIT = 'abf52d4d4858b24cdb62549325ae5b9eed36624e' // origin/studio-v4-dev-preparation-code with #554 merged (1 Nov): the dev tip this change was last refreshed onto (it was cut from a470679, #553 merged, 30 Oct)
 export const STRAWMAN_STAGE_FLAG = 'NEXT_PUBLIC_STUDIO_STRAWMAN_STAGE'
 export const STRAWMAN_STAGE_MARKER = 'STRAWMAN-STAGE'
 /** The marker as a WHOLE token: STRAWMAN-STAGE-X and X-STRAWMAN-STAGE are not it. */
