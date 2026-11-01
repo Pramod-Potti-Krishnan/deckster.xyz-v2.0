@@ -30,7 +30,7 @@ import {
 import * as registry from './studio-later-changes.mjs'
 
 const root = path.resolve(fileURLToPath(new URL('../', import.meta.url)))
-const read = rel => fs.readFileSync(path.join(root, rel), 'utf8')
+const read = rel => registry.LATER_STRIPS.slice(registry.LATER_STRIPS.indexOf(stripChatColumnWide) + 1).reduce((out, strip) => { const next = typeof strip === 'function' ? strip(rel, out) : out; return typeof next === 'string' ? next : out }, fs.readFileSync(path.join(root, rel), 'utf8')) // LATER-CHANGES: registry read (STUDIO-STAGE-OPEN-GATE): the changes registered after this one (the stage open gate's marked lines in studio-first-run.css and the Director header) come out before a file is read
 const sha = text => crypto.createHash('sha256').update(text).digest('hex')
 const git = (...args) => execFileSync('git', args, { cwd: root, encoding: 'utf8', maxBuffer: 1 << 28, stdio: ['ignore', 'pipe', 'pipe'], timeout: 60_000 })
 const baseText = rel => git('show', `${BASE_COMMIT}:${rel}`)
@@ -381,7 +381,7 @@ await check('ROBUST AFTER MERGE: a synthetic change stacked after this one (its 
   const advanced = gateMerge(unrelated, SYNTHETIC)
   assert.equal(scopeHead(advanced), SYNTHETIC); scopeAll(scopeHead(advanced), SYN_CTX)
   // the registry reads past it: through stripLaterChanges the older pins see the base, with the later change's lines in the file too
-  for (const rel of CHAT_COLUMN_WIDE_FILES) assert.equal(stripChatColumnWide(rel, syntheticStrip(rel, git('show', `${SYNTHETIC}:${rel}`))), baseText(rel), `${rel}: either order of the two strips gives the base`)
+  for (const rel of CHAT_COLUMN_WIDE_FILES) assert.equal(stripChatColumnWide(rel, syntheticStrip(rel, otherStrips(rel, git('show', `${SYNTHETIC}:${rel}`)))), otherStrips(rel, baseText(rel)), `${rel}: either order of the two strips gives the base`) // LATER-CHANGES: registry read (STUDIO-STAGE-OPEN-GATE): the other registered changes' lines (the stage open gate's in the Director header) out of both sides
 })
 await check('mutant caught: the same synthetic later change fails a scope that is not told about it (its lines are unmarked additions, its registry lines extra)', () => {
   assert.throws(() => scopeCommittedFiles(SYNTHETIC), /unmarked added line|exactly its scope/)
