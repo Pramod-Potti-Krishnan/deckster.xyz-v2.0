@@ -66,6 +66,11 @@ export const STAGE_OPEN_GATE_PIN_EDITS = {
     ["  const headerImports = { 'lucide-react': { Sparkles: 'Sparkles' }, 'react/jsx-runtime': { jsx, jsxs: jsx }, './studio-director-header.css': {}, './studio-stage-show-canvas': { STUDIO_STAGE_OPEN_GATE_ENABLED: false, StudioStageShowCanvas: () => null } } // LATER-CHANGES: registry read (STUDIO-STAGE-OPEN-GATE): the stage open gate's \"Show canvas\" import, as with its flag off (its own proof, test-studio-stage-open-gate, covers it on)\n",
      "  const headerImports = { 'lucide-react': { Sparkles: 'Sparkles' }, 'react/jsx-runtime': { jsx, jsxs: jsx }, './studio-director-header.css': {} }\n"],
   ],
+  // #538's files check (its strippedDiff, a line the theme own choice added) piped the 455 KB page into a stdin hash-object, which stalled #554's gate for 600 s: one line, inserted in that check, writes the text to git as a FILE (B41's
+  // fix). A pure insertion, put back as nothing: the theme own choice's pin of the stdin line still finds it, whichever strip runs first
+  "scripts/test-studio-chat-element-edit-2.mjs": [
+    ["  const strippedDiff = rel => { const dir = fs.mkdtempSync(path.join(process.env.TMPDIR || '/tmp', 'cee2-stripped-')); try { const file = path.join(dir, 'stripped'); fs.writeFileSync(file, laterStrips(rel, git('show', `HEAD:${rel}`))); const blob = execFileSync('git', ['hash-object', '-w', '--no-filters', '--', file], { cwd: repo, encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'], maxBuffer: 1 << 28, timeout: 60_000 }).trim(); return git('diff', '-U0', `${BASE_COMMIT}:${rel}`, blob) } finally { fs.rmSync(dir, { recursive: true, force: true }) } } // LATER-CHANGES: registry read (STUDIO-STAGE-OPEN-GATE): this check writes the stripped text to git as a FILE in a fresh temp dir (stdin ignored, a 60 s cap, no filters), as B41 did for theme own choice and chat clean order; the module's strippedDiff above pipes the 455 KB page into a stdin hash-object, which stalled #554's gate run for its full 600 s. That line stays byte for byte (the theme own choice's strip takes it out), it is just not called\n", ""],
+  ],
 }
 
 /** The proof without this change's edits (the previous file). */
