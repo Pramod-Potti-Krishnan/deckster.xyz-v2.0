@@ -13,7 +13,7 @@
 // How the older pins reach it: this change REGISTERS its files, its .env.example block and this strip (scripts/studio-later-changes.mjs, three lines), and teaches the older proofs that read these files raw or check the first-parent
 // line (STRAWMAN_CHAT_PIN_EDITS). Plain node, no imports, nothing read from disk or git here.
 
-export const BASE_COMMIT = 'a470679ca8e198557b2a6f9848e568324305d371' // origin/studio-v4-dev-preparation-code (#553 merged) at the start of this change
+export const BASE_COMMIT = '61a71137c210423ea53c9414dd98e75adb9e7c7c' // origin/studio-v4-dev-preparation-code (#555 merged, 1 Nov): the dev tip this change was last refreshed onto (it was cut from a470679, #553 merged, 30 Oct)
 export const STRAWMAN_CHAT_FLAG = 'NEXT_PUBLIC_STUDIO_STRAWMAN_CHAT'
 export const STRAWMAN_CHAT_MARKER = 'STRAWMAN-CHAT'
 /** The marker as a WHOLE token: STRAWMAN-CHAT-X and X-STRAWMAN-CHAT are not it. */
@@ -48,8 +48,8 @@ export const STRAWMAN_CHAT_PIN_EDITS = {
   "scripts/test-studio-chat-element-edit.mjs": [[FIRST_PARENT_SUBJECT_LINE, ""]],
   // the first-parent scope check of test-studio-deck-sync-truth.mjs: the same
   "scripts/test-studio-deck-sync-truth.mjs": [[FIRST_PARENT_SUBJECT_LINE, ""]],
-  // chat undo v2's proof strips the message list with its own strip and chat clean's and the order change's: this change's marked lines in the list (an import and the early return for a standalone outline frame) come out first, in one line
-  "scripts/test-studio-chat-undo-v2.mjs": [[`    const head = (await import('./studio-strawman-chat-strip.mjs')).stripStrawmanChat(LIST, read(LIST)) // ${STRAWMAN_CHAT_PIN_MARK}: the strip of the change stacked after this one, so its marked lines in the message list come out first\n`, "    const head = read(LIST)\n"]],
+  // chat undo v2's proof strips the message list with its own strip and chat clean's, the order change's and the welcome trim's: this change's marked lines in the list (an import and the early return for a standalone outline frame) come out first, in the one line that already strips the welcome trim's
+  "scripts/test-studio-chat-undo-v2.mjs": [[`    const head = welcomeTrimStrip.stripWelcomeTrim(LIST, (await import('./studio-strawman-chat-strip.mjs')).stripStrawmanChat(LIST, read(LIST))) // LATER-CHANGES: registry read (STUDIO-WELCOME-TRIM) // ${STRAWMAN_CHAT_PIN_MARK}: the strip of the change stacked after this one, so its marked lines in the message list come out first\n`, "    const head = welcomeTrimStrip.stripWelcomeTrim(LIST, read(LIST)) // LATER-CHANGES: registry read (STUDIO-WELCOME-TRIM)\n"]],
 }
 
 /** The proof without this change's edits (the previous file). Used by the strip and the proof. */
