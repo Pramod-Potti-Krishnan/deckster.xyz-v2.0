@@ -11,14 +11,17 @@ import {
   STUDIO_PHONE_PORTRAIT_QUERY,
   STUDIO_PHONE_STAGE_ATTRIBUTE,
   STUDIO_PHONE_STRIP_ATTRIBUTE,
+  STUDIO_PHONE_STRIP_DEFAULT,
   studioPhoneBarState,
   studioPhoneFanItems,
   studioPhoneLandscapeStage,
   studioPhonePortraitSlideView,
+  studioPhoneStripToggle,
   type StudioPhoneFanKey,
   type StudioPhoneFanProbe,
+  type StudioPhoneStripState,
 } from "@/lib/studio-phone-landscape"
-import { setStudioPhoneStage, toggleStudioPhoneStrip, useStudioPhoneQuery, useStudioPhoneStage } from "@/hooks/use-studio-phone-landscape"
+import { useStudioPhoneQuery, useStudioPhoneRailSync } from "@/hooks/use-studio-phone-landscape"
 import "./studio-phone-landscape.css"
 
 /** The authoring row's own controls (the viewer portals them into its authoring slot), found by the words they carry. */
@@ -65,7 +68,8 @@ export function StudioPhoneLandscape({ deckOnStage, stageVisible, slideNumber, c
 }) {
   const landscape = useStudioPhoneQuery(STUDIO_PHONE_LANDSCAPE_QUERY)
   const portrait = useStudioPhoneQuery(STUDIO_PHONE_PORTRAIT_QUERY)
-  const { strip } = useStudioPhoneStage()
+  const [strip, setStrip] = useState<StudioPhoneStripState>(STUDIO_PHONE_STRIP_DEFAULT)
+  const toggleStudioPhoneStrip = useCallback(() => setStrip(studioPhoneStripToggle), [])
   const stage = studioPhoneLandscapeStage({ enabled: true, landscape, deckOnStage, stageVisible })
   const slideView = studioPhonePortraitSlideView({ enabled: true, portrait, deckOnStage, stageVisible })
   const [fanOpen, setFanOpen] = useState(false)
@@ -75,9 +79,11 @@ export function StudioPhoneLandscape({ deckOnStage, stageVisible, slideNumber, c
   const fan = useRef<HTMLDivElement>(null)
   const bar = studioPhoneBarState(slideView, menuOpen)
 
+  // The viewer's own rail follows the strip while the stage is on (through the viewer's own toggle), and goes back to the portrait value after.
+  useStudioPhoneRailSync(stage, strip)
+
   // The stage, the bar and the strip are attributes of the page the stylesheet reads; they are taken off again when this goes (a page that leaves, the flag's own component unmounting).
   useEffect(() => {
-    setStudioPhoneStage(stage)
     const root = document.documentElement
     const set = (name: string, value: string | null) => { if (value === null) root.removeAttribute(name); else root.setAttribute(name, value) }
     set(STUDIO_PHONE_STAGE_ATTRIBUTE, stage ? "stage" : null)
@@ -86,7 +92,6 @@ export function StudioPhoneLandscape({ deckOnStage, stageVisible, slideNumber, c
     set(STUDIO_PHONE_FAN_ATTRIBUTE, stage && fanOpen ? "open" : null)
   }, [stage, strip, bar, fanOpen])
   useEffect(() => () => {
-    setStudioPhoneStage(false)
     const root = document.documentElement
     for (const name of [STUDIO_PHONE_STAGE_ATTRIBUTE, STUDIO_PHONE_STRIP_ATTRIBUTE, STUDIO_PHONE_BAR_ATTRIBUTE, STUDIO_PHONE_FAN_ATTRIBUTE]) root.removeAttribute(name)
   }, [])

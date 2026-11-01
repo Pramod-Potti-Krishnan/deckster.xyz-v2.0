@@ -55,9 +55,6 @@ import {
 } from '@/lib/layout-viewer-messaging'
 import { evaluateLayoutViewerUrl } from '@/lib/layout-viewer-url-policy'
 import { STUDIO_RAIL_FOCUS_HIDDEN_STYLE } from '@/lib/studio-panel-focus'
-import { STUDIO_PHONE_STAGE_ATTRIBUTE, studioPhoneLandscapeFit } from '@/lib/studio-phone-landscape' // PHONE-LANDSCAPE
-import { useStudioPhoneLandscapeRail } from '@/hooks/use-studio-phone-landscape' // PHONE-LANDSCAPE
-import { useStudioPhoneSwipe } from '@/hooks/use-studio-phone-hints' // PHONE-HINTS
 import { clampPresentSlideIndex, isPresentViewOnlyEnabled, presentFrameStartIndex, presentNavigationCommand } from '@/lib/present-view-only'
 import { PresentViewOnlyFrame } from './present-view-only-frame'
 import {
@@ -821,7 +818,6 @@ export function PresentationViewer({
     return () => container.removeEventListener('focusin', revealAuthoringFocus)
   }, [studioShell, isFullscreen, showControls, studioAuthoringPortalTarget])
   const [showThumbnails, setShowThumbnails] = useState(true) // Show by default
-  useStudioPhoneLandscapeRail(showThumbnails, setShowThumbnails) // PHONE-LANDSCAPE: while the landscape stage is on the rail is the stage strip's (its own state); the portrait value is put back when it goes off
   const thumbnailVisibilityInitializedRef = useRef(false)
   useEffect(() => {
     if (thumbnailVisibilityInitializedRef.current) return
@@ -1630,7 +1626,6 @@ export function PresentationViewer({
       console.error('❌ Error navigating to previous slide:', error)
     }
   }, [currentSlide, totalSlides, onSlideChange, studioShell, beginStudioViewerInteraction, beginStudioManualSlideNavigation])
-  useStudioPhoneSwipe(slideContainerRef, handlePrevSlide, handleNextSlide, currentSlide, totalSlides) // PHONE-HINTS: swipe left / right on the slide space changes slide in the portrait slide view (no arrows); nothing attached with the flag off
 
   // PASS2 #3: shown = the user's choice, unless the page has the rail collapsed for a creation panel. A collapsed rail stays
   // mounted (scroll position, selection and live frames intact) but out of the layout and invisible, so it comes back as it was.
@@ -3845,7 +3840,6 @@ export function PresentationViewer({
     const calculate = () => {
       const { width, height } = container.getBoundingClientRect()
       // Subtract padding (p-4 = 16px each side)
-      const stageFit = studioPhoneLandscapeFit(document.documentElement.getAttribute(STUDIO_PHONE_STAGE_ATTRIBUTE), width, height); if (stageFit) { setNormalSlideSize(stageFit); return } // PHONE-LANDSCAPE: the landscape stage fits the whole slide space (no 16 px a side); null everywhere else, and the viewer's own fit below runs
       const pw = width - 32, ph = height - 32
       if (pw <= 0 || ph <= 0) return
       const ratio = 16 / 9

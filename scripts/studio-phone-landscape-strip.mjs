@@ -2,9 +2,10 @@
 // a phone turned sideways (the query (orientation: landscape) and (max-height: 500px) and (pointer: coarse), and its CSS twin) with a deck on the stage becomes a viewing stage: the slide fills the screen (the viewer's fit padding is zeroed), the thumbnails are a
 // collapsible strip on the LEFT (the viewer's own rail, in a state of its own so it never leaks into portrait), the rail, top bar, switch, toolbar, pull tabs and the tab bar go, a "Chat" button is a full-screen pane switch back to the Director, and ONE floating
 // button opens an overlay fan (Add slide, Add element and the deck actions the phone "..." menu has, each through the page's own control). In portrait the slide view folds the bottom bar to one Menu button.
-// Every line this change adds to an EXISTING file is a pure insertion that carries the marker PHONE-LANDSCAPE (a whole token); no existing line is rewritten. Strip the marked lines and each file is its base, byte for byte: app/builder/page.tsx (three imports, the
-// workspace-width clamp's call and one line of JSX at the shell root) and components/presentation-viewer.tsx (two imports, the rail hook's call and the stage's fit, one line before the viewer's own fit). The decisions live in lib/studio-phone-landscape.ts (pure); the state in
+// Every line this change adds to an EXISTING app file is a pure insertion that carries the marker PHONE-LANDSCAPE (a whole token); no existing line is rewritten, and the viewer is not touched (its own rail toggle is clicked, its own fit is fed a slide space 32 px larger by
+// CSS). Strip the marked lines and app/builder/page.tsx is its base, byte for byte (three imports, the workspace-width clamp's call and one line of JSX at the shell root). The decisions live in lib/studio-phone-landscape.ts (pure); the hooks in
 // hooks/use-studio-phone-landscape.ts; the drawing in components/builder/studio-phone-landscape.tsx and .css.
+// Two older proofs read the first-parent line of BASE..HEAD for their own commits' subjects, and a branch with this change on it has this change's commits there: each is taught one inserted line that leaves "Phone landscape:" commits out (PIN_EDITS, tests only, registry-read marks).
 // How the older pins reach it: this change REGISTERS its files, its .env.example block and this strip (scripts/studio-later-changes.mjs, three lines). Plain node, no imports, nothing read from disk or git here.
 
 export const BASE_COMMIT = 'abf52d4d4858b24cdb62549325ae5b9eed36624e' // origin/studio-v4-dev-preparation-code (#554 merged, on #555) merged into this branch before it was finished; this change started on 61a71137 (#555) and its own commits are found by subject
@@ -16,7 +17,7 @@ export const PHONE_LANDSCAPE_MARKER_RE = /(?<![\w-])PHONE-LANDSCAPE(?![\w-])/
 export const PHONE_LANDSCAPE_SUBJECT = 'Phone landscape:'
 
 /** Existing files that get marked lines. */
-export const PHONE_LANDSCAPE_FILES = ['app/builder/page.tsx', 'components/presentation-viewer.tsx']
+export const PHONE_LANDSCAPE_FILES = ['app/builder/page.tsx']
 
 /** New files (no base text to put back). */
 export const PHONE_LANDSCAPE_NEW_FILES = [
@@ -28,7 +29,28 @@ export const PHONE_LANDSCAPE_NEW_FILES = [
   'scripts/test-studio-phone-landscape.mjs',
 ]
 
-export const PHONE_LANDSCAPE_OWN_EDITS = ['.env.example', 'scripts/studio-later-changes.mjs']
+/** The older proofs this change teaches: [text the proof has now, text the proof had before] per edit, whole lines, so putting them back gives the previous file. Every line the proof has now carries a registry-read mark. */
+export const PHONE_LANDSCAPE_PIN_MARK = "LATER-CHANGES: registry read (PHONE-LANDSCAPE)"
+export const PHONE_LANDSCAPE_PIN_EDITS = {
+  "scripts/test-studio-deck-sync-truth.mjs": [
+    ["  shas.splice(0, shas.length, ...shas.filter(sha => !/^Phone landscape:/.test(git('log', '-1', '--format=%s', sha)))) // LATER-CHANGES: registry read (PHONE-LANDSCAPE): on a branch stacked after this change (the phone landscape's), the first-parent commits are its own, not this change's; with none left the pins and identity checks cover the files\n",
+     ""]
+  ],
+  "scripts/test-studio-chat-element-edit.mjs": [
+    ["  shas.splice(0, shas.length, ...shas.filter(sha => !/^Phone landscape:/.test(git('log', '-1', '--format=%s', sha)))) // LATER-CHANGES: registry read (PHONE-LANDSCAPE): on a branch stacked after this change (the phone landscape's), the first-parent commits are its own, not this change's; with none left the pins and identity checks cover the files\n",
+     ""]
+  ]
+}
+
+/** The proof without this change's edits (the previous file). */
+export function putBackPin(rel, text) {
+  return (PHONE_LANDSCAPE_PIN_EDITS[rel] || []).reduce((out, [has, was]) => out.replace(has, () => was), text)
+}
+
+/** The older proofs this change teaches. */
+export const PHONE_LANDSCAPE_PIN_FILES = Object.keys(PHONE_LANDSCAPE_PIN_EDITS)
+
+export const PHONE_LANDSCAPE_OWN_EDITS = ['.env.example', 'scripts/studio-later-changes.mjs', ...PHONE_LANDSCAPE_PIN_FILES]
 
 /** Every file this change's commits touch: what the older scope checks skip once the registry names it (scripts/studio-later-changes.mjs, LATER_CHANGE_FILES). */
 export const PHONE_LANDSCAPE_SCOPE_FILES = new Set([...PHONE_LANDSCAPE_FILES, ...PHONE_LANDSCAPE_NEW_FILES, ...PHONE_LANDSCAPE_OWN_EDITS])
@@ -44,6 +66,7 @@ NEXT_PUBLIC_STUDIO_PHONE_LANDSCAPE="false"
 /** The file without this change's lines: every line that carries the marker (as a whole token) is taken out, every other byte stays. Any other file is returned as it is. */
 export function stripPhoneLandscape(rel, text) {
   if (typeof text !== 'string') return text
+  if (rel in PHONE_LANDSCAPE_PIN_EDITS) return putBackPin(rel, text) // an older proof this change taught: its previous text
   if (!PHONE_LANDSCAPE_FILES.includes(rel)) return text
   return text.split('\n').filter(line => !PHONE_LANDSCAPE_MARKER_RE.test(line)).join('\n')
 }

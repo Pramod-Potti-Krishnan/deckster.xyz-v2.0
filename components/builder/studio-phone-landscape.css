@@ -2,7 +2,7 @@
    (data-studio-phone-landscape / -bar / -strip / -fan) or one of that component's own elements, so with the flag off none of it matches anything. The landscape rules sit in the same media query the component reads (a phone turned
    sideways: a short, coarse-pointer landscape window), the portrait ones in the phone shell's own width plus portrait.
    LANDSCAPE STAGE: the rail, the tab bar, the Slides | Director switch, the pull tabs, the notes handle, the brand row and the viewer's own thumbnail toggle go; the top bar and the authoring row stay in the page (laid out, invisible) because the fan
-   uses their controls and their menus open next to the fan button; the slide fills the screen (the viewer's fit padding is zeroed here and in its fit code); the thumbnails are the viewer's own rail, on the left, in a state of its own (a collapsed
+   uses their controls and their menus open next to the fan button; the slide fills the screen (the viewer's own 16 px a side is cancelled by a negative margin, so its fit code is untouched); the thumbnails are the viewer's own rail, on the left, in a state of its own (a collapsed
    strip is a 30 px handle). PORTRAIT SLIDE VIEW: the bottom bar folds to one Menu button; Menu brings the real bar back as a floating card. */
 
 @media (orientation: landscape) and (max-height: 500px) and (pointer: coarse) {
@@ -24,8 +24,9 @@
   /* (at 640 px and narrower, a 568 px phone turned sideways, the phone shell gives the workspace a 10 px left margin by a more specific rule: this one is more specific still) */
   html[data-studio-phone-landscape="stage"] [data-studio-v4-shell="true"]:has(> [data-studio-phone-tabbar="true"]) > [data-studio-v4-shell-column] > [data-studio-v4-shell-workspace] { margin-left: 0; }
 
-  /* the slide fills the screen: no fit padding; the rail (the viewer's own, with the look it has in the theme) on the left of it, its count given to the collapse button */
-  html[data-studio-phone-landscape="stage"] [data-studio-v4-shell="true"] [data-studio-slide-space] { padding: 0; }
+  /* the slide fills the screen: the slide space is made 32 px larger than the space on screen (16 px of negative margin all round; the column around it clips what is outside) and keeps its own 16 px padding, so the viewer's own fit, which takes
+     32 px off the box it measures, gets exactly the whole space. The rail (the viewer's own, with the look it has in the theme) is on the left of it, its count given to the collapse button */
+  html[data-studio-phone-landscape="stage"] [data-studio-v4-shell="true"] [data-studio-slide-space] { margin: -16px; }
   html[data-studio-phone-landscape="stage"] [data-studio-v4-shell="true"] [data-studio-v4-viewer] > div:has(> [data-studio-v4-thumbnails]) { flex-direction: row-reverse; }
   html[data-studio-phone-landscape="stage"] [data-studio-v4-shell="true"] [data-studio-v4-thumbnails] { border-left: 0; border-right: 1px solid var(--ss-line); }
   html[data-studio-phone-landscape="stage"][data-studio-phone-strip="collapsed"] [data-studio-v4-shell="true"] [data-studio-v4-thumbnails] { border-right: 0; }
