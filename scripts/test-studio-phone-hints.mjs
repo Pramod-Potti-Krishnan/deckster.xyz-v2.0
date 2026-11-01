@@ -305,7 +305,7 @@ await check('the swipe: the slide space takes horizontal touches (touch-action: 
   const rules = mine().filter(rule => rule.media === null && rule.selectors.some(s => s.startsWith('html[data-studio-phone-swipe="on"]')))
   assert.equal(rules.length, 2)
   assert.equal(rules.find(rule => rule.selectors[0].endsWith('[data-studio-slide-space]')).decls.find(decl => decl.prop === 'touch-action').value, 'pan-y'); assert.equal(rules.find(rule => rule.selectors[0].endsWith('iframe')).decls.find(decl => decl.prop === 'pointer-events').value, 'none')
-  assert.ok(!/(arrow|prev|next)/i.test(cssText.replace(/data-studio-phone-hint-[a-z]+/g, '')), 'no arrows in the sheet')
+  assert.ok(!mine().some(rule => rule.selectors.some(selector => /(arrow|prev|next)/i.test(selector))), 'no arrow, previous or next control is styled (the comments are not rules)')
 })
 await check('our own full-screen stage hides what it must (rail, tab bar, switch, pull tabs, notes, brand row, the thumbnails and their toggle, PR 1\'s controls, fan, strip and Menu, this change\'s own buttons), fills 100dvh, keeps the top bar and the authoring row LAID OUT and invisible, and shows one Exit button above the dialogs', () => {
   const fall = mine().filter(rule => rule.selectors.some(s => s.startsWith('html[data-studio-phone-fullscreen="fallback"]')))
