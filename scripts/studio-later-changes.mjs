@@ -66,6 +66,7 @@ export const LATER_CHANGE_FILES = new Set([
   ...(await import('./studio-chat-text-set-keep-look-strip.mjs')).CHAT_TEXT_SET_KEEP_LOOK_SCOPE_FILES, // LATER-CHANGE: FRONTEND-2, B49b text set keep look: a chat exact-text set keeps the text box's look, so a title stays a title (NEXT_PUBLIC_STUDIO_CHAT_TEXT_SET_KEEP_LOOK)
   ...(await import('./studio-welcome-trim-strip.mjs')).WELCOME_TRIM_SCOPE_FILES, // LATER-CHANGE: FRONTEND-2, B51 welcome trim and Director mark trim: the first-run welcome loses its extra copy and Director's greeting, and the old star can go (NEXT_PUBLIC_STUDIO_WELCOME_TRIM / NEXT_PUBLIC_STUDIO_DIRECTOR_MARK_TRIM)
   ...(await import('./studio-chat-column-wide-strip.mjs')).CHAT_COLUMN_WIDE_SCOPE_FILES, // LATER-CHANGE: FRONTEND-2, B51 chat column wide (F-10): the first-run welcome column is about 44% of the window, and the shared column tokens are defined (NEXT_PUBLIC_STUDIO_CHAT_COLUMN_WIDE)
+  ...(await import('./studio-phone-landscape-strip.mjs')).PHONE_LANDSCAPE_SCOPE_FILES, // LATER-CHANGE: FRONTEND-1, F-13 phone landscape (PR 1): a phone turned sideways gets a viewing stage, the portrait slide view folds the bar (NEXT_PUBLIC_STUDIO_PHONE_LANDSCAPE)
   // one line per later change, above this comment
 ])
 
@@ -104,6 +105,7 @@ export const LATER_ENV_BLOCKS = [
   (await import('./studio-chat-text-set-keep-look-strip.mjs')).CHAT_TEXT_SET_KEEP_LOOK_ENV_BLOCK, // LATER-CHANGE: FRONTEND-2, B49b text set keep look (NEXT_PUBLIC_STUDIO_CHAT_TEXT_SET_KEEP_LOOK)
   (await import('./studio-welcome-trim-strip.mjs')).WELCOME_TRIM_ENV_BLOCK, // LATER-CHANGE: FRONTEND-2, B51 welcome trim and Director mark trim (NEXT_PUBLIC_STUDIO_WELCOME_TRIM / NEXT_PUBLIC_STUDIO_DIRECTOR_MARK_TRIM)
   (await import('./studio-chat-column-wide-strip.mjs')).CHAT_COLUMN_WIDE_ENV_BLOCK, // LATER-CHANGE: FRONTEND-2, B51 chat column wide (NEXT_PUBLIC_STUDIO_CHAT_COLUMN_WIDE)
+  (await import('./studio-phone-landscape-strip.mjs')).PHONE_LANDSCAPE_ENV_BLOCK, // LATER-CHANGE: FRONTEND-1, F-13 phone landscape, PR 1 (NEXT_PUBLIC_STUDIO_PHONE_LANDSCAPE)
   // one line per later change, above this comment
 ]
 
@@ -151,6 +153,7 @@ export const LATER_STRIPS = [
   (await import('./studio-chat-text-set-keep-look-strip.mjs')).stripChatTextSetKeepLook, // LATER-CHANGE: FRONTEND-2, B49b text set keep look (NEXT_PUBLIC_STUDIO_CHAT_TEXT_SET_KEEP_LOOK)
   (await import('./studio-welcome-trim-strip.mjs')).stripWelcomeTrim, // LATER-CHANGE: FRONTEND-2, B51 welcome trim and Director mark trim (NEXT_PUBLIC_STUDIO_WELCOME_TRIM / NEXT_PUBLIC_STUDIO_DIRECTOR_MARK_TRIM)
   (await import('./studio-chat-column-wide-strip.mjs')).stripChatColumnWide, // LATER-CHANGE: FRONTEND-2, B51 chat column wide (NEXT_PUBLIC_STUDIO_CHAT_COLUMN_WIDE)
+  (await import('./studio-phone-landscape-strip.mjs')).stripPhoneLandscape, // LATER-CHANGE: FRONTEND-1, F-13 phone landscape, PR 1 (NEXT_PUBLIC_STUDIO_PHONE_LANDSCAPE)
   // one line per later change, above this comment
 ]
 
