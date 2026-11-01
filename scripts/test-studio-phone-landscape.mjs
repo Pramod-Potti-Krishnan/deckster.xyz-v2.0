@@ -412,7 +412,7 @@ function scopeHead(ref = 'HEAD', { gateRule = true } = {}) {
 const REAL = { norm: otherStrips, env: text => registry.stripLaterEnvBlocks('.env.example', text) }
 const diffLines = text => text.split('\n').filter(line => /^[+-]/.test(line) && !/^(\+\+\+|---) /.test(line))
 const normDiff = (ctx, rel, head) => git('diff', '-U0', blobOf(ctx.norm(rel, git('show', `${BASE_COMMIT}:${rel}`))), blobOf(ctx.norm(rel, git('show', `${head}:${rel}`))))
-const OLDER_PREFIXES = /^(Chat column wide:|Welcome trim:|Director mark trim:|Chat element edit|Targeted chat edit:|Targeted chat add:|Chat text set:|Text set keep look:|Structural refine decline:)/
+const OLDER_PREFIXES = /^(Stage open gate:|Chat column wide:|Welcome trim:|Director mark trim:|Chat element edit|Targeted chat edit:|Targeted chat add:|Chat text set:|Text set keep look:|Structural refine decline:)/
 const scopeOwnCommits = (head, opts) => {
   const own = ownOf(head, opts)
   assert.ok(own.length >= 1, 'no own commit yet')
