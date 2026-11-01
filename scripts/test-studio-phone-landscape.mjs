@@ -467,10 +467,12 @@ const scopeCommittedFiles = (head, ctx = REAL) => {
   for (const rel of PHONE_LANDSCAPE_NEW_FILES) assert.equal(git('cat-file', '-t', `${head}:${rel}`).trim(), 'blob', rel)
   for (const rel of PHONE_LANDSCAPE_PIN_FILES) {
     const now = git('show', `${head}:${rel}`), base = git('show', `${BASE_COMMIT}:${rel}`)
-    assert.equal(stripPhoneLandscape(rel, otherStrips(rel, now)), otherStrips(rel, base), `${rel}: an older proof taught one line; putting it back (past the changes registered after this one) gives dev's proof byte for byte`)
+    assert.equal(stripPhoneLandscape(rel, otherStrips(rel, now)), otherStrips(rel, base), `${rel}: an older proof taught a line or two; putting them back (past the changes registered after this one) gives dev's proof byte for byte`)
     assert.equal(stripPhoneLandscape(rel, stripPhoneLandscape(rel, otherStrips(rel, now))), otherStrips(rel, base), `${rel}: putting back twice changes nothing more`)
-    for (const [has, was] of PHONE_LANDSCAPE_PIN_EDITS[rel]) { assert.equal(now.split(has).length - 1, 1, `${rel}: the taught line is there exactly once`); assert.equal(was, '', `${rel}: a pure insertion`); for (const line of has.split('\n').filter(Boolean)) assert.ok(line.includes(PHONE_LANDSCAPE_PIN_MARK), `${rel}: the taught line carries the registry-read mark`) }
-    const added = diffLines(normDiff(ctx, rel, head)); assert.ok(added.length >= 1 && added.every(line => line.startsWith('+') && line.includes(PHONE_LANDSCAPE_PIN_MARK)), `${rel}: every line this change added to the proof carries the mark and none is removed`)
+    const wasLines = new Set()
+    for (const [has, was] of PHONE_LANDSCAPE_PIN_EDITS[rel]) { assert.equal(now.split(has).length - 1, 1, `${rel}: the taught line is there exactly once`); for (const line of has.split('\n').filter(Boolean)) assert.ok(line.includes(PHONE_LANDSCAPE_PIN_MARK), `${rel}: the taught line carries the registry-read mark`); for (const line of was.split('\n').filter(Boolean)) wasLines.add(line) }
+    const changed = diffLines(normDiff(ctx, rel, head)); assert.ok(changed.some(line => line.startsWith('+')), `${rel}: lines added`)
+    for (const line of changed) { if (line.startsWith('+')) assert.ok(line.includes(PHONE_LANDSCAPE_PIN_MARK), `${rel}: an added line without the mark: ${line.slice(0, 100)}`); else assert.ok(wasLines.has(line.slice(1)), `${rel}: a removed line that is not one this change replaced: ${line.slice(0, 100)}`) }
   }
   for (const rel of ['components/presentation-viewer.tsx', 'components/layout/studio-phone-tab-bar.tsx', 'components/layout/studio-phone-shell.css', 'components/builder/studio-phone-builder-top.tsx', 'components/builder/studio-phone-builder-top.css', 'lib/studio-phone-shell.ts', 'lib/studio-phone-builder-top.ts', 'components/slide-thumbnail-strip.tsx',
     'components/builder/studio-workspace.css', 'lib/studio-workspace-layout.ts', 'app/layout.tsx', 'components/builder/presentation-area.tsx', 'hooks/use-deckster-websocket-v2.ts', 'package.json']) assert.ok(!touched.has(rel), `${rel} is not touched by this change`)
@@ -588,6 +590,13 @@ await check('mutant caught: an own commit without the co-author line, an unmarke
   for (const rel of ['components/layout/studio-phone-tab-bar.tsx', 'components/slide-thumbnail-strip.tsx']) {
     const foreign = commitWith(HEAD, { [rel]: git('show', `${HEAD}:${rel}`) + '\n' }, `${PHONE_LANDSCAPE_SUBJECT} touches ${rel}${TRAILER}`)
     assert.throws(() => scopeCommittedFiles(foreign), /exactly its scope|is not touched/, rel)
+  }
+})
+
+await check('mutant caught: an unmarked line added to a taught older proof in an own commit fails the scope (the taught proofs hold only this change\'s marked lines)', () => {
+  for (const rel of PHONE_LANDSCAPE_PIN_FILES) {
+    const sneaky = commitWith(HEAD, { [rel]: git('show', `${HEAD}:${rel}`) + '\nconst sneaky = 1\n' }, `${PHONE_LANDSCAPE_SUBJECT} a sneaky line in ${rel}${TRAILER}`)
+    assert.throws(() => scopeCommittedFiles(sneaky), /byte for byte|an added line without the mark/, rel)
   }
 })
 
