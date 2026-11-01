@@ -763,8 +763,16 @@ function cssLength(expr, { cb, vw, vars = {} }) {
   const sum = () => { let v = product(); for (;;) { ws(); const op = src[i]; if ((op === '+' || op === '-') && /\s/.test(src[i + 1] || '')) { i++; v = op === '+' ? v + product() : v - product() } else return v } }
   const v = sum(); ws(); if (i !== src.length) throw new Error(`trailing "${src.slice(i)}"`); return v
 }
-/** A MIRROR of #555's tokens at e6d0e603 (components/builder/chat/studio-chat-column-wide.css:5-8, NEXT_PUBLIC_STUDIO_CHAT_COLUMN_WIDE on), copied here as text: #554 reads no #555 code, and the token-absent (fallback) cases above are the main proof. The 8px keeps a 16px gutter beside the 12px scroll padding. */
-const TOKEN_555 = { '--studio-chat-conversation-column': 'min(clamp(640px, 50vw, 1000px), 100% - 8px)', '--studio-chat-welcome-column': 'min(clamp(640px, 44vw, 880px), 100% - 8px)' }
+/** A MIRROR of #555's tokens at e6d0e603 / 065e25bf (components/builder/chat/studio-chat-column-wide.css:5-8, NEXT_PUBLIC_STUDIO_CHAT_COLUMN_WIDE on), copied as text; the token-absent (fallback) cases above stay the main proof. */
+const TOKEN_555_MIRROR = { '--studio-chat-conversation-column': 'min(clamp(640px, 50vw, 1000px), 100% - 8px)', '--studio-chat-welcome-column': 'min(clamp(640px, 44vw, 880px), 100% - 8px)' }
+/** With #555 merged (dev 61a71137), the REAL tokens, read from its stylesheet: the cascade below runs on them; the mirror must still be them, word for word. */
+const COLUMN_WIDE_CSS = 'components/builder/chat/studio-chat-column-wide.css'
+const TOKEN_555_REAL = fs.existsSync(path.join(root, COLUMN_WIDE_CSS)) ? (() => {
+  const out = {}
+  postcss.parse(read(COLUMN_WIDE_CSS)).walkDecls(/^--studio-chat-(conversation|welcome)-column$/, d => { if (d.parent?.selector === '[data-studio-v4-shell="true"]:has([data-studio-chat-column-wide="true"])') out[d.prop] = d.value })
+  return out
+})() : null
+const TOKEN_555 = TOKEN_555_REAL ?? TOKEN_555_MIRROR
 const BASE_554_CSS = (() => { try { return git('show', `3e3973c2b14a9342319953e2fc6e8c917c17f777:${CSS}`) } catch { return null } })() // #554 before F-10: "today's" closed-gate widths
 /** The winning width (the last matching rule in source order: the 560 rules come after, and are more specific than, the plain ones) for the column (a transcript row) and the composer. */
 function closedWidths(rules, { width560 = false, columnWide = false } = {}) {
@@ -775,6 +783,7 @@ function closedWidths(rules, { width560 = false, columnWide = false } = {}) {
 function cascadeChecks(cssText) {
   const rules = cssRules(cssText)
   assert.ok(BASE_554_CSS, '#554 before F-10 (3e3973c2) is readable')
+  if (TOKEN_555_REAL) assert.deepEqual(TOKEN_555_REAL, TOKEN_555_MIRROR, '#555 is merged: its real tokens (studio-chat-column-wide.css, on the shell under its marker) are the mirror, word for word; the cascade runs on the real ones')
   const before = cssRules(laterStrips(CSS, BASE_554_CSS))
   for (const width560 of [false, true]) {
     const now = closedWidths(rules, { width560 }), was = closedWidths(before, { width560 })
@@ -923,6 +932,11 @@ function loadHeader({ libs = ON, env = ON_ENV, sources = {} } = {}) {
       if (spec === '@/lib/studio-stage-open-gate') return libs.gate
       if (spec === './studio-stage-show-canvas') return load(SHOW)
       if (spec === '@/lib/director-reconnect-policy' || spec === './studio-welcome') return {} // type-only imports in the header (erased)
+      // any other repo module the header imports (with #555 merged: its Director mark, lib/studio-director-mark.ts): the real file
+      if (spec.startsWith('@/') || spec.startsWith('./')) {
+        const base = spec.startsWith('@/') ? spec.slice(2) : path.join(path.dirname(rel), spec)
+        for (const suffix of ['.ts', '.tsx']) if (fs.existsSync(path.join(root, base + suffix))) return load(base + suffix)
+      }
       throw new Error(`unexpected import ${spec} in ${rel}`)
     }
     vm.runInNewContext(js, { module, exports: module.exports, require: req, process: { env: { ...env } }, console })

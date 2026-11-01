@@ -7,7 +7,7 @@
 // How the older pins reach it: this change REGISTERS its files, its .env.example block and this strip (scripts/studio-later-changes.mjs, three lines), and teaches the two older proofs that read the Director header
 // raw with an import allow-list or an import pin (STAGE_OPEN_GATE_PIN_EDITS). Plain node, no imports, nothing read from disk or git here.
 
-export const BASE_COMMIT = 'a470679ca8e198557b2a6f9848e568324305d371' // origin/studio-v4-dev-preparation-code with #553 merged: dev, which this change is cut from
+export const BASE_COMMIT = '61a71137c210423ea53c9414dd98e75adb9e7c7c' // origin/studio-v4-dev-preparation-code with #555 merged (tree 0d8cafa4): dev, merged into this branch (cut from a470679c, #553 merged)
 export const STAGE_OPEN_GATE_FLAG = 'NEXT_PUBLIC_STUDIO_STAGE_OPEN_GATE'
 export const STAGE_OPEN_GATE_MARKER = 'STUDIO-STAGE-OPEN-GATE'
 /** The marker as a WHOLE token: STUDIO-STAGE-OPEN-GATE-X and X-STUDIO-STAGE-OPEN-GATE are not it. */
@@ -48,10 +48,10 @@ export const STAGE_OPEN_GATE_PIN_EDITS = {
   "scripts/test-studio-deck-sync-truth.mjs": [
     ["  shas.splice(0, shas.length, ...shas.filter(sha => !/^Stage open gate:/.test(git('log', '-1', '--format=%s', sha)))) // LATER-CHANGES: registry read (STUDIO-STAGE-OPEN-GATE): on a branch stacked after this change (the stage open gate's), the first-parent commits are its own, not this change's; with none left the pins and identity checks above cover the files\n", ""],
   ],
-  // its D6 import-lines pin and its source pins read the Director header raw: the header's two marked lines come out first (put back: the plain read)
+  // its D6 import-lines pin and its source pins read the Director header raw: the header's two marked lines come out first, then #555's registry read (put back: dev's line, #555's registry read alone)
   "scripts/test-studio-pass2b-chat.mjs": [
-    ["  const stageOpenGateStrip = await import('./studio-stage-open-gate-strip.mjs') // LATER-CHANGES: registry read (STUDIO-STAGE-OPEN-GATE): the stage open gate's marked lines (the Director header's \"Show canvas\" line and import) come out of a source before the pins below read it\n  const read = relative => stageOpenGateStrip.stripStageOpenGate(relative, fs.readFileSync(path.join(root, relative), 'utf8')) // LATER-CHANGES: registry read (STUDIO-STAGE-OPEN-GATE)\n",
-     "  const read = relative => fs.readFileSync(path.join(root, relative), 'utf8')\n"],
+    ["  const stageOpenGateStrip = await import('./studio-stage-open-gate-strip.mjs') // LATER-CHANGES: registry read (STUDIO-STAGE-OPEN-GATE): the stage open gate's marked lines (the Director header's \"Show canvas\" line and import) come out of a source before the pins below read it\n  const read = relative => laterChanges.stripLaterChanges(relative, stageOpenGateStrip.stripStageOpenGate(relative, fs.readFileSync(path.join(root, relative), 'utf8'))) // LATER-CHANGES: registry read (STUDIO-STAGE-OPEN-GATE): this change's strip, then the registry read #555 put here (STUDIO-WELCOME-TRIM)\n",
+     "  const read = relative => laterChanges.stripLaterChanges(relative, fs.readFileSync(path.join(root, relative), 'utf8')) // LATER-CHANGES: registry read (STUDIO-WELCOME-TRIM)\n"],
   ],
   // its header loader has an allow-list of imports: the "Show canvas" import is answered as with the flag off (put back: the list without it)
   "scripts/test-studio-chat-header-ask.mjs": [
