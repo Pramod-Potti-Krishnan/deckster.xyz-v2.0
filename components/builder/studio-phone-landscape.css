@@ -21,6 +21,9 @@
   /* the workspace is the whole screen */
   html[data-studio-phone-landscape="stage"] [data-studio-v4-shell="true"] [data-studio-v4-shell-workspace] { --studio-pane-toolbar-height: 0px; margin: 0; border: 0; border-radius: 0; }
 
+  /* (at 640 px and narrower, a 568 px phone turned sideways, the phone shell gives the workspace a 10 px left margin by a more specific rule: this one is more specific still) */
+  html[data-studio-phone-landscape="stage"] [data-studio-v4-shell="true"]:has(> [data-studio-phone-tabbar="true"]) > [data-studio-v4-shell-column] > [data-studio-v4-shell-workspace] { margin-left: 0; }
+
   /* the slide fills the screen: no fit padding; the rail (the viewer's own, with the look it has in the theme) on the left of it, its count given to the collapse button */
   html[data-studio-phone-landscape="stage"] [data-studio-v4-shell="true"] [data-studio-slide-space] { padding: 0; }
   html[data-studio-phone-landscape="stage"] [data-studio-v4-shell="true"] [data-studio-v4-viewer] > div:has(> [data-studio-v4-thumbnails]) { flex-direction: row-reverse; }
