@@ -191,7 +191,8 @@ const GOLDEN = JSON.parse(fs.readFileSync(GOLDEN_FILE, 'utf8'))
 async function checks(root, { only } = {}) {
   const failures = []
   const fail = message => failures.push(message)
-  const read = relative => laterChanges.stripLaterChanges(relative, fs.readFileSync(path.join(root, relative), 'utf8')) // LATER-CHANGES: registry read (STUDIO-WELCOME-TRIM)
+  const stageOpenGateStrip = await import('./studio-stage-open-gate-strip.mjs') // LATER-CHANGES: registry read (STUDIO-STAGE-OPEN-GATE): the stage open gate's marked lines (the Director header's "Show canvas" line and import) come out of a source before the pins below read it
+  const read = relative => laterChanges.stripLaterChanges(relative, stageOpenGateStrip.stripStageOpenGate(relative, fs.readFileSync(path.join(root, relative), 'utf8'))) // LATER-CHANGES: registry read (STUDIO-STAGE-OPEN-GATE): this change's strip, then the registry read #555 put here (STUDIO-WELCOME-TRIM)
   const stats = { runs: 0, hintCards: 0, reconnectButtons: 0, noticeDrops: 0, editPrompts: 0 }
   const fixtures = fixturesAll.filter(fixture => !only || only.includes(fixture.name))
 
