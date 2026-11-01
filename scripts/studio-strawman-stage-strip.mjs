@@ -9,7 +9,7 @@
 // How the older pins reach it: this change REGISTERS its files, its .env.example block and this strip (scripts/studio-later-changes.mjs, three lines), and teaches the older proofs that read past it (STRAWMAN_STAGE_PIN_EDITS: one registry-read block each).
 // Plain node, no imports, nothing read from disk or git here.
 
-export const BASE_COMMIT = 'a470679ca8e198557b2a6f9848e568324305d371' // origin/studio-v4-dev-preparation-code with #553 merged (30 Oct): dev, which this change is cut from
+export const BASE_COMMIT = '61a71137c210423ea53c9414dd98e75adb9e7c7c' // origin/studio-v4-dev-preparation-code with #555 merged (1 Nov): the dev tip this change was last refreshed onto (it was cut from a470679, #553 merged, 30 Oct)
 export const STRAWMAN_STAGE_FLAG = 'NEXT_PUBLIC_STUDIO_STRAWMAN_STAGE'
 export const STRAWMAN_STAGE_MARKER = 'STRAWMAN-STAGE'
 /** The marker as a WHOLE token: STRAWMAN-STAGE-X and X-STRAWMAN-STAGE are not it. */
@@ -20,6 +20,12 @@ export const STRAWMAN_STAGE_SUBJECT = 'Strawman stage:'
 /** Existing files that get marked lines (pure insertions only). */
 export const STRAWMAN_STAGE_FILES = [
   'app/builder/page.tsx',
+]
+
+/** Files an earlier cut of this change added and a later one retired (F-11: the plan under the slide went, the one quiet line stayed). They stay named in the registry's scope: the first-parent scope checks of older proofs read the commit that added them as this change's. */
+export const STRAWMAN_STAGE_RETIRED_FILES = [
+  'components/builder/studio-strawman-plan.tsx',
+  'components/builder/studio-strawman-plan.css',
 ]
 
 /** New files (no base text to put back). */
@@ -66,7 +72,7 @@ export const STRAWMAN_STAGE_PIN_FILES = Object.keys(STRAWMAN_STAGE_PIN_EDITS)
 export const STRAWMAN_STAGE_OWN_EDITS = ['.env.example', 'scripts/studio-later-changes.mjs', ...STRAWMAN_STAGE_PIN_FILES]
 
 /** Every file this change's commits touch: what the older scope checks skip once the registry names it (scripts/studio-later-changes.mjs, LATER_CHANGE_FILES). */
-export const STRAWMAN_STAGE_SCOPE_FILES = new Set([...STRAWMAN_STAGE_FILES, ...STRAWMAN_STAGE_NEW_FILES, ...STRAWMAN_STAGE_OWN_EDITS])
+export const STRAWMAN_STAGE_SCOPE_FILES = new Set([...STRAWMAN_STAGE_FILES, ...STRAWMAN_STAGE_NEW_FILES, ...STRAWMAN_STAGE_RETIRED_FILES, ...STRAWMAN_STAGE_OWN_EDITS])
 
 /** The whole .env.example block: its comments and its line. */
 export const STRAWMAN_STAGE_ENV_BLOCK = `# STUDIO STRAWMAN STAGE (FRONTEND-1; PK's UAT feedback F-04, F-06, F-07, F-11). On for the exact value "true"; default off, and then the outline stage, the chat's approval and the jump to the built deck are exactly as today.
