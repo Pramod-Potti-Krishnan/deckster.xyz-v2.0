@@ -59,6 +59,16 @@ export const STRAWMAN_STAGE_PIN_EDITS = {
       "",
     ],
   ],
+  "scripts/test-studio-stage-open-gate.mjs": [ // #554's proof: it reads its taught proofs raw for its own mark and wants its registry lines to close their lists; this change is registered after it
+    [
+      "    for (const line of diffLines(normDiff({ norm: (r, text) => r === rel ? laterStrips(rel, text) : ctx.norm(r, text) }, rel, head))) if (line.startsWith('+')) assert.ok(line.includes(STAGE_OPEN_GATE_PIN_MARK), `${rel}: an added line without the mark: ${line.slice(0, 100)}`) // LATER-CHANGES: registry read (STRAWMAN-STAGE): the proof this change taught is read past the changes registered after it (the strawman stage's own teaching line) before its added lines are checked for this change's mark\n",
+      "    for (const line of diffLines(normDiff({ norm: (r, text) => r === rel ? text : ctx.norm(r, text) }, rel, head))) if (line.startsWith('+')) assert.ok(line.includes(STAGE_OPEN_GATE_PIN_MARK), `${rel}: an added line without the mark: ${line.slice(0, 100)}`)\n",
+    ],
+    [
+      "REAL.laterRegistryLine = (previous => line => previous?.(line) || line.includes('studio-strawman-stage-strip.mjs'))(REAL.laterRegistryLine) // LATER-CHANGES: registry read (STRAWMAN-STAGE): the strawman stage's registry lines may follow this change's three (a later change's own line)\n",
+      "",
+    ],
+  ],
 }
 
 /** The proof without this change's edits (the previous file). Used by the strip and the proof. */
