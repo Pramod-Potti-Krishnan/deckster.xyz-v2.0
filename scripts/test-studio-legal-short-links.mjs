@@ -1,3 +1,4 @@
+import { stripVoiceCore } from './studio-voice-core-strip.mjs' // LATER-CHANGES: registry read (STUDIO-VOICE-CORE): remove only this later port's exact test metadata
 // FRONTEND-2 (PROGRAM-1 decision D16 a, 25 Oct): proof for the flag NEXT_PUBLIC_STUDIO_LEGAL_SHORT_LINKS (exact "true", default off, build-time). `uat`'s next.config.mjs has two short legal links (/terms -> /legal/terms,
 // /privacy -> /legal/privacy, permanent: false) and a cache header on /marketing/v3/slides/:path* that the Studio dev tree lacks; carried into `uat`, the dev tree's next.config.mjs would drop all three. They are ported
 // as two new pages (the redirects, behind the flag) and one vercel.json entry (the header: a deploy config file cannot read an environment variable, so it is not behind the flag). NOT ported: `uat`'s /docs/api -> /docs and
@@ -39,7 +40,7 @@ const showCache = new Map()
 const showOf = (commit, rel) => { const ref = `${commit}:${rel}`; if (!showCache.has(ref)) showCache.set(ref, git('show', ref)); return showCache.get(ref) }
 const baseOf = rel => showOf(BASE, rel)
 let overrides = {} // in-memory mutations: every proof reads its sources through read()
-const read = rel => (rel in overrides ? overrides[rel] : fs.readFileSync(path.join(root, rel), 'utf8'))
+const read = rel => stripVoiceCore(rel, (rel in overrides ? overrides[rel] : fs.readFileSync(path.join(root, rel), 'utf8')))
 const sha = value => crypto.createHash('sha256').update(value).digest('hex')
 
 let checks = 0

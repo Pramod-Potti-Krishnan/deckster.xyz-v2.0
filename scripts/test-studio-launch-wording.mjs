@@ -1,3 +1,4 @@
+import { stripVoiceCore } from './studio-voice-core-strip.mjs' // LATER-CHANGES: registry read (STUDIO-VOICE-CORE): remove only this later port's exact test metadata
 // FRONTEND-1 Pass 3: launched wording on the signed-in pages (flag NEXT_PUBLIC_STUDIO_LAUNCH_WORDING, exact "true", default off, read at build time).
 // PK 23 Oct: "replace 'coming soon' / mock wording with launched wording (we are going out); grey out what is truly not ready instead of promising it."
 // Plan and evidence per row: streams/frontend/pass3/launched-wording/PLAN.md (workspace). The list of changed sentences is lib/studio-launch-wording.ts (import-free).
@@ -28,7 +29,7 @@ import { stripJobDeadlines } from './studio-job-deadlines-strip.mjs' // P3-4b (N
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..')
 const git = (...args) => execFileSync('git', args, { cwd: root, encoding: 'utf8', maxBuffer: 1 << 28 })
-const read = rel => fs.readFileSync(path.join(root, rel), 'utf8')
+const read = rel => stripVoiceCore(rel, fs.readFileSync(path.join(root, rel), 'utf8'))
 const baseOf = rel => git('show', `${BASE_COMMIT}:${rel}`)
 const FLAG = 'NEXT_PUBLIC_STUDIO_LAUNCH_WORDING'
 const WORDS_LIB = 'lib/studio-launch-wording.ts'

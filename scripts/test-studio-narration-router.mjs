@@ -1,3 +1,4 @@
+import { stripVoiceCore } from './studio-voice-core-strip.mjs' // LATER-CHANGES: registry read (STUDIO-VOICE-CORE): remove only this later port's exact test metadata
 // FRONTEND-2, BY10: Studio's narration model calls through the model router (server flag NARRATION_VIA_ROUTER, only the string "true", default off).
 // Run: node scripts/test-studio-narration-router.mjs   (plain node: transpile + vm, no network, no install; `git show` reads the base commit)
 //
@@ -56,7 +57,7 @@ const HARNESS = 'scripts/studio-library-manage-harness.mjs'
 const STACK_TOLERANT = 'scripts/studio-stack-tolerant.mjs' // the scope and shared-file rules for a tree that holds later PRs too (read from its text, so the mutants below can edit it)
 const NR_PKG_CHANGES = [['    "test:studio-narration-router": "node scripts/test-studio-narration-router.mjs"', '']] // this change's one package.json line
 
-const tryRead = rel => { try { return fs.readFileSync(path.join(repoRoot, rel), 'utf8') } catch { return null } }
+const tryRead = rel => { try { return stripVoiceCore(rel, fs.readFileSync(path.join(repoRoot, rel), 'utf8')) } catch { return null } }
 const baseCache = new Map()
 const headCache = new Map()
 const ownHeadSource = rel => { if (!headCache.has(rel)) headCache.set(rel, gitOut('show', `${OWN_HEAD}:${rel}`)); return headCache.get(rel) }

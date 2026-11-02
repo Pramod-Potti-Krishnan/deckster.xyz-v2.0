@@ -1,3 +1,4 @@
+import { stripVoiceCore } from './studio-voice-core-strip.mjs' // LATER-CHANGES: registry read (STUDIO-VOICE-CORE): remove only this later port's exact test metadata
 // PASS2 Docs / Help / Legal / Agents (FRONTEND-1): the public pages /docs, /docs/<category>/<article>, /docs/api, /legal/{privacy,terms,security,cookies}, /agents/<agent> in the Studio shell's tokens. There is no mockup for them.
 // Flag NEXT_PUBLIC_STUDIO_P2_DOCS (exact "true"), default off.
 //   /docs and the articles are rebuilt; the legal, API and agent pages keep their markup, words and links and take the shell's look through one marker element.
@@ -43,7 +44,7 @@ import { stripLaunchWording } from './studio-launch-wording-strip.mjs' // NEXT_P
 
 const repoRoot = path.resolve(new URL('..', import.meta.url).pathname)
 const BASE_COMMIT = process.env.P2_DOCS_BASE || 'fae962006b080e26eb70c2add7066ca1edf8eca2'
-const read = rel => stripLaunchWording(rel, fs.readFileSync(path.join(repoRoot, rel), 'utf8'))
+const read = rel => stripLaunchWording(rel, stripVoiceCore(rel, fs.readFileSync(path.join(repoRoot, rel), 'utf8')))
 const baseCache = new Map()
 const baseSource = rel => {
   if (!baseCache.has(rel)) {

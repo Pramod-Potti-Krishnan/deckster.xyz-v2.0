@@ -1,3 +1,4 @@
+import { stripVoiceCore } from './studio-voice-core-strip.mjs' // LATER-CHANGES: registry read (STUDIO-VOICE-CORE): remove only this later port's exact test metadata
 // PASS2 polish (FRONTEND-1): PP-1..PP-7 of ops/program/cards/FE-P2-POLISH-FROM-SHOTS.md, seven gaps seen in the mock | before | after shots of the merged Pass 2 pages, and PP-8 (PK's note on the account menu).
 // ONE flag, NEXT_PUBLIC_STUDIO_P2_POLISH (exact "true", default off); every fix also needs its page's own Pass 2 flag.
 //   PP-1 Publish        the wizard's "What viewers get" panel is not clipped under the sticky footer: the step body and the panel scroll on their own above it
@@ -40,7 +41,7 @@ import { stripLaunchWording } from './studio-launch-wording-strip.mjs' // NEXT_P
 
 const repoRoot = path.resolve(new URL('..', import.meta.url).pathname)
 const BASE_COMMIT = process.env.P2_POLISH_BASE || STRIP_BASE
-const read = rel => stripLaunchWording(rel, fs.readFileSync(path.join(repoRoot, rel), 'utf8'))
+const read = rel => stripLaunchWording(rel, stripVoiceCore(rel, fs.readFileSync(path.join(repoRoot, rel), 'utf8')))
 const baseCache = new Map()
 // .env.example and package.json are the two files every flag-gated change appends a line or a block to, so once other changes are stacked on this one they hold lines this change never wrote.
 // For those two (and only those) the base's lines must all still be there, in order, with nothing of this change left, and any extra line must be a comment, a blank, an env line or a test

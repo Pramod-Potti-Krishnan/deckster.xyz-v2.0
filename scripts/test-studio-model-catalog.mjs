@@ -1,3 +1,4 @@
+import { stripVoiceCore } from './studio-voice-core-strip.mjs' // LATER-CHANGES: registry read (STUDIO-VOICE-CORE): remove only this later port's exact test metadata
 // FRONTEND-2 Pass 3 "model catalog on the Intelligence page" (flag NEXT_PUBLIC_STUDIO_MODEL_CATALOG, default off). Offline: no DOM, no network, no sign-in, no model call.
 //
 // What is proven, on the REAL sources (the TypeScript is transpiled and run in a vm; the page, workspace and chooser are the real files rendered with react-dom/server):
@@ -71,7 +72,7 @@ const STACK_PKG_CHANGES = [['    "test:studio-model-catalog": "node scripts/test
 const STACK_SHOWN = new Map(), stackShow = (commit, rel) => { const key = `${commit}:${rel}`; if (!STACK_SHOWN.has(key)) STACK_SHOWN.set(key, git('show', key)); return STACK_SHOWN.get(key) } // stacked after #475: a commit's file, read once (the strip is held to fixed inputs, whatever HEAD carries)
 const OWN = [LIB, ROUTE, UI, CSS, LAYOUT, ENV, PKG, STRIP]
 for (const rel of [LIB, ROUTE, UI, CSS, LAYOUT, STRIP]) assert.ok(fs.existsSync(path.join(ROOT, rel)), `${rel} exists`)
-const read = rel => stripLaunchWording(rel, fs.readFileSync(path.join(ROOT, rel), 'utf8'))
+const read = rel => stripLaunchWording(rel, stripVoiceCore(rel, fs.readFileSync(path.join(ROOT, rel), 'utf8')))
 const SOURCES = Object.fromEntries(OWN.map(rel => [rel, read(rel)]))
 const stripComments = text => text.replace(/\/\*[\s\S]*?\*\//g, '').replace(/(^|[^:\\'"`])\/\/[^\n]*/g, '$1')
 const git = (...args) => execFileSync('git', args, { cwd: repoRoot, encoding: 'utf8', maxBuffer: 64 * 1024 * 1024 })
