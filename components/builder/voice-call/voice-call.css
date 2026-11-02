@@ -4,7 +4,9 @@
   padding: 8px 12px; border-top: 1px solid var(--ss-line); background: var(--ss-panel); color: var(--ss-text);
 }
 [data-studio-voice-call="dock"] .studio-voice-stage { grid-area: stage; display: flex; align-items: center; justify-content: center; }
-[data-studio-voice-call="dock"] .studio-voice-body { grid-area: body; min-width: 0; display: flex; flex-direction: column; align-items: flex-start; gap: 3px; }
+[data-studio-voice-call="dock"] .studio-voice-body { grid-area: body; min-width: 0; display: flex; flex-direction: column; align-items: stretch; gap: 3px; }
+[data-studio-voice-call="dock"] .studio-voice-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+[data-studio-voice-call="dock"] .studio-voice-tools { display: flex; align-items: center; gap: 4px; }
 [data-studio-voice-call="dock"] .studio-voice-actions { grid-area: actions; display: flex; align-items: center; gap: 6px; }
 [data-studio-voice-call="dock"] .studio-voice-notice { grid-area: notice; }
 
@@ -27,7 +29,7 @@
 [data-studio-voice-call="dock"] .studio-voice-chip[data-chip="Thinking"] i { background: color-mix(in srgb, var(--ss-accent) 60%, var(--ss-muted)); animation: studio-voice-pulse 1.6s ease-in-out infinite; }
 [data-studio-voice-call="dock"] .studio-voice-chip[data-chip="Speaking"] i { background: var(--ss-teal); animation: studio-voice-pulse 0.8s ease-in-out infinite; }
 [data-studio-voice-call="dock"] .studio-voice-chip[data-chip="Your turn"] i { background: var(--ss-teal); }
-[data-studio-voice-call="dock"] .studio-voice-caption { margin: 0; font-size: 13px; line-height: 18px; color: var(--ss-text); overflow-wrap: anywhere; display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; }
+[data-studio-voice-call="dock"] .studio-voice-caption { margin: 0; font-size: 13px; line-height: 18px; color: var(--ss-text); overflow-wrap: anywhere; display: -webkit-box; -webkit-line-clamp: 4; -webkit-box-orient: vertical; overflow: hidden; }
 [data-studio-voice-call="dock"] .studio-voice-caption[data-studio-voice-caption="hint"] { color: var(--ss-muted); font-size: 12px; }
 [data-studio-voice-call="dock"] .studio-voice-progress { margin: 0; font-size: 12px; line-height: 16px; color: var(--ss-muted); overflow-wrap: anywhere; }
 @keyframes studio-voice-pulse { 0%, 100% { transform: scale(1); opacity: 1; } 50% { transform: scale(1.5); opacity: 0.55; } }
@@ -36,7 +38,7 @@
 [data-studio-voice-call="dock"] .studio-voice-talk { display: inline-flex; align-items: center; justify-content: center; gap: 6px; min-height: 36px; padding: 0 14px; border-radius: 9999px; border: 1px solid var(--ss-line); background: var(--ss-action); color: var(--ss-on-action); font-size: 13px; font-weight: 600; touch-action: none; user-select: none; -webkit-user-select: none; white-space: nowrap; }
 [data-studio-voice-call="dock"] .studio-voice-talk:hover:not(:disabled) { background: var(--ss-action-hover); }
 [data-studio-voice-call="dock"] .studio-voice-talk[data-holding="true"] { background: var(--ss-accent); color: #fff; box-shadow: 0 0 0 4px color-mix(in srgb, var(--ss-accent) 25%, transparent); }
-[data-studio-voice-call="dock"] .studio-voice-icon { display: inline-flex; align-items: center; justify-content: center; width: 36px; height: 36px; border-radius: 9999px; border: 1px solid var(--ss-line); background: var(--ss-surface); color: var(--ss-text); }
+[data-studio-voice-call="dock"] .studio-voice-icon { display: inline-flex; align-items: center; justify-content: center; width: 30px; height: 30px; border-radius: 9999px; border: 1px solid var(--ss-line); background: var(--ss-surface); color: var(--ss-text); }
 [data-studio-voice-call="dock"] .studio-voice-icon:hover:not(:disabled) { background: var(--ss-active); }
 [data-studio-voice-call="dock"] .studio-voice-end { color: #b3261e; }
 [data-studio-voice-call="dock"] button:disabled { opacity: 0.45; cursor: not-allowed; }
@@ -51,16 +53,17 @@
 
 /* the chest view: the disc becomes a 240 px panel on top, the words and the controls under it, centred */
 [data-studio-v4-shell="true"] [data-studio-voice-call="dock"][data-voice-expanded="true"] { grid-template-columns: minmax(0, 1fr); grid-template-areas: "stage" "body" "actions" "notice"; justify-items: center; text-align: center; gap: 8px; padding: 12px; }
-[data-studio-voice-call="dock"][data-voice-expanded="true"] .studio-voice-body { align-items: center; }
+[data-studio-voice-call="dock"][data-voice-expanded="true"] .studio-voice-body { align-items: center; width: 100%; }
+[data-studio-voice-call="dock"][data-voice-expanded="true"] .studio-voice-head { justify-content: center; flex-wrap: wrap; }
 [data-studio-voice-call="dock"][data-voice-expanded="true"] .studio-voice-actions { flex-wrap: wrap; justify-content: center; }
 [data-studio-voice-call="dock"][data-voice-expanded="true"] .studio-voice-notice { width: 100%; text-align: left; }
 
 /* a phone: the 64 px disc and the words on one row, the controls under them (the talk button takes the width) */
 @media (max-width: 767px) {
-  [data-studio-v4-shell="true"] [data-studio-voice-call="dock"]:not([data-voice-expanded="true"]) { grid-template-columns: auto minmax(0, 1fr); grid-template-areas: "stage body" "actions actions" "notice notice"; gap: 6px 10px; padding: 8px 10px; }
+  [data-studio-v4-shell="true"] [data-studio-voice-call="dock"]:not([data-voice-expanded="true"]) { grid-template-columns: auto minmax(0, 1fr); grid-template-areas: "stage body" "actions actions" "notice notice"; gap: 6px 10px; padding: 8px 10px; align-items: start; }
   [data-studio-voice-call="dock"]:not([data-voice-expanded="true"]) .studio-voice-actions { width: 100%; }
   [data-studio-voice-call="dock"] .studio-voice-talk { flex: 1 1 auto; min-height: 44px; }
-  [data-studio-voice-call="dock"] .studio-voice-icon { width: 44px; height: 44px; }
+  [data-studio-voice-call="dock"] .studio-voice-icon { width: 40px; height: 40px; }
   [data-studio-voice-call="dock"] .studio-voice-initials { font-size: 1.2rem; }
 }
 @media (prefers-reduced-motion: reduce) {

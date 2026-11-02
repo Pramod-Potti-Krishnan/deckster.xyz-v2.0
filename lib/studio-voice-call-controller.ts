@@ -10,7 +10,7 @@ import {
   type CallEffect, type CallEvent, type CallState,
 } from '@/lib/studio/voice'
 import {
-  actionsFromFrame, applyDirectorSignal, callControls, closesOpenAction, chipLabel, companionScene, describeSpeechProblem, disarmVoiceTurn, initialDirectorTrack, armVoiceTurn, progressCaption, progressTextFromFrame,
+  actionsFromFrame, applyDirectorSignal, callControls, closesOpenAction, rearmBeat, REPLY_LEAD_MS, chipLabel, companionScene, describeSpeechProblem, disarmVoiceTurn, initialDirectorTrack, armVoiceTurn, progressCaption, progressTextFromFrame,
   isProgressSpoken, matchSpokenAnswer, signalFromFrame, spokenLineFromFrame, type CallControls, type CallNotice, type CallPhase, type ChipLabel, type CompanionScene, type DirectorTrack, type SpeechProblem, type VoiceAction,
 } from '@/lib/studio-voice-call-ui'
 import { VoiceRouterError, type VoiceRouterPort } from '@/lib/studio-voice-call-router'
@@ -137,8 +137,10 @@ export class VoiceCallController {
   private startToken = 0
   /** Replies Director still owes for turns the user cancelled: the next report for each is not said (it is in the chat). */
   private owedReplies = 0
-  /** The turn number of a turn Director opened itself (a report, a progress line), or -1. */
-  private pseudoTurn = -1
+  /** The first line of a reply is not played before this moment (REPLY_LEAD_MS after its text arrived). */
+  private replyLeadUntil = 0
+  /** A gesture beat (pleased, concerned, sorry ...) came while speech hid it: it is shown, in full, when the speech ends. */
+  private beatHidden = false
   /** The newest progress line Director sent (payload.spoken of a status, a phase or a deck event), waiting for a quiet moment. */
   private progressLine: { text: string; at: number } | null = null
   private lastProgressSaidAt = -Infinity
@@ -170,8 +172,8 @@ export class VoiceCallController {
   getLevel = (): number => (this.speakingNow ? this.player.level() : 0)
 
   private scene(): CompanionScene {
-    // A turn of Director's own that has not started to speak yet (its line is being fetched) is not "thinking": nobody asked it anything.
-    const phase = this.pseudoTurn === this.cs.turn && this.cs.phase === 'thinking' ? 'idle' : this.cs.phase
+    // A turn whose reply has arrived (or that Director opened itself) and whose first line is still being fetched is not "thinking": its beat (present, sorry, concerned ...) shows until the voice starts.
+    const phase = this.cs.phase === 'thinking' && this.cs.replyDone ? 'idle' : this.cs.phase
     return companionScene({ phase, speakingNow: this.speakingNow, track: this.track, now: this.env.now() })
   }
 
@@ -221,6 +223,8 @@ export class VoiceCallController {
     this.status = null
     this.progressLine = null
     this.openAction = null
+    this.beatHidden = false
+    this.replyLeadUntil = 0
     this.quietSince = this.env.now()
     this.armTick()
     this.emit()
@@ -407,7 +411,9 @@ export class VoiceCallController {
     const words = progressTextFromFrame(frame)
     if (words) this.status = words
     const signal = signalFromFrame(frame)
+    const before = this.track.beat
     if (signal) this.track = applyDirectorSignal(this.track, signal, now)
+    if (this.track.beat && this.track.beat !== before && this.track.beat.scene !== 'reporting' && (this.speakingNow || this.playing || this.queue.length > 0 || this.cs.phase !== 'idle')) this.beatHidden = true
     // What Director was doing is not what it is doing once it is done, stopped or in trouble: its last words are not shown under a new turn.
     if (signal && (signal.kind === 'idle' || signal.kind === 'concerned' || signal.kind === 'paused' || (signal.kind === 'pleased' && signal.big))) this.status = null
     const type = typeof frame === 'object' && frame !== null ? (frame as { type?: unknown }).type : undefined
@@ -441,6 +447,7 @@ export class VoiceCallController {
     }
     if (!sentences.length || this.speechOff) return
     const turn = this.openSpeechTurn()
+    this.replyLeadUntil = this.env.now() + REPLY_LEAD_MS
     for (const sentence of sentences) this.enqueue(sentence, 'reply', turn, true)
     this.awaiting = null
     this.dispatch({ type: 'reply_done', turn })
@@ -472,7 +479,6 @@ export class VoiceCallController {
     if (this.awaiting || this.cs.phase === 'thinking' || this.cs.phase === 'speaking') return this.cs.turn
     const turn = this.cs.turn + 1
     this.cs = { ...this.cs, phase: 'thinking', turn, replyDone: false, playing: false, source: null }
-    this.pseudoTurn = turn
     return turn
   }
 
@@ -503,6 +509,7 @@ export class VoiceCallController {
 
   private pump(): void {
     if (this.playing || !this.queue.length || !this.active) { this.afterSpeech(); return }
+    if (this.queue[0]!.kind === 'reply' && this.env.now() < this.replyLeadUntil) return // the tick tries again: the gesture is seen first
     const item = this.queue.shift()!
     this.playing = item
     void item.audio.then(blob => {
@@ -512,7 +519,7 @@ export class VoiceCallController {
         onStart: () => {
           if (this.playing !== item) return
           this.speakingNow = true
-          if (item.kind !== 'filler') this.showCaption(item.text)
+          this.showCaption(item.text)
           if (item.phased && this.audioStartedFor !== item.turn) {
             this.audioStartedFor = item.turn
             this.dispatch({ type: 'audio_started', turn: item.turn })
@@ -531,6 +538,7 @@ export class VoiceCallController {
     this.speakingNow = false
     this.quietSince = this.env.now()
     this.captionUntil = this.env.now() + CAPTION_HOLD_MS
+    if (this.beatHidden && !this.queue.length) { this.track = rearmBeat(this.track, this.env.now()); this.beatHidden = false }
     this.pump()
     this.emit()
   }
@@ -607,6 +615,7 @@ export class VoiceCallController {
     if (!this.active || this.disposed) return
     const now = this.env.now()
     if (this.caption && !this.speakingNow && !this.playing && now >= this.captionUntil) this.caption = null
+    if (!this.playing && this.queue.length) this.pump()
     const awaiting = this.awaiting
     if (awaiting && awaiting.transcribedAt !== null && this.cs.phase === 'thinking') {
       if (now - awaiting.lastActivity > REPLY_TIMEOUT_MS) { this.failTurn(awaiting.turn, 'no_answer'); return }

@@ -62,7 +62,20 @@ export function VoiceCallDock({ snapshot, pack, getLevel, onTalkStart, onTalkEnd
         </div>
       </div>
       <div className="studio-voice-body">
-        <span className="studio-voice-chip" data-chip={snapshot.chip} role="status"><i aria-hidden />{snapshot.chip}</span>
+        <div className="studio-voice-head">
+          <span className="studio-voice-chip" data-chip={snapshot.chip} role="status"><i aria-hidden />{snapshot.chip}</span>
+          <div className="studio-voice-tools">
+            <button type="button" className="studio-voice-icon" disabled={!controls.stop} onClick={onStop} aria-label="Stop" title="Stop">
+              <Square aria-hidden className="h-3.5 w-3.5 fill-current" />
+            </button>
+            <button type="button" className="studio-voice-icon" disabled={!controls.expand} onClick={onToggleExpanded} aria-label={expanded ? COLLAPSE_LABEL : EXPAND_LABEL} aria-pressed={expanded} title={expanded ? COLLAPSE_LABEL : EXPAND_LABEL}>
+              {expanded ? <Minimize2 aria-hidden className="h-4 w-4" /> : <Maximize2 aria-hidden className="h-4 w-4" />}
+            </button>
+            <button type="button" className="studio-voice-icon studio-voice-end" disabled={!controls.end} onClick={onEnd} aria-label="End call" title="End call">
+              <PhoneOff aria-hidden className="h-4 w-4" />
+            </button>
+          </div>
+        </div>
         {caption ? <p className="studio-voice-caption" data-studio-voice-caption={snapshot.caption ? 'line' : 'hint'} aria-live="polite">{caption}</p> : null}
         {snapshot.progress ? <p className="studio-voice-progress" data-studio-voice-progress="true">{snapshot.progress}</p> : null}
       </div>
@@ -83,15 +96,6 @@ export function VoiceCallDock({ snapshot, pack, getLevel, onTalkStart, onTalkEnd
         >
           <Mic aria-hidden className="h-4 w-4" />
           <span>{snapshot.holding ? 'Release to send' : 'Hold to talk'}</span>
-        </button>
-        <button type="button" className="studio-voice-icon" disabled={!controls.stop} onClick={onStop} aria-label="Stop" title="Stop">
-          <Square aria-hidden className="h-3.5 w-3.5 fill-current" />
-        </button>
-        <button type="button" className="studio-voice-icon" disabled={!controls.expand} onClick={onToggleExpanded} aria-label={expanded ? COLLAPSE_LABEL : EXPAND_LABEL} aria-pressed={expanded} title={expanded ? COLLAPSE_LABEL : EXPAND_LABEL}>
-          {expanded ? <Minimize2 aria-hidden className="h-4 w-4" /> : <Maximize2 aria-hidden className="h-4 w-4" />}
-        </button>
-        <button type="button" className="studio-voice-icon studio-voice-end" disabled={!controls.end} onClick={onEnd} aria-label="End call" title="End call">
-          <PhoneOff aria-hidden className="h-4 w-4" />
         </button>
       </div>
       {notice ? (

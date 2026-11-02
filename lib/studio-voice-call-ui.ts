@@ -276,6 +276,8 @@ export const SCENES: readonly CompanionScene[] = ['idle', 'listening', 'thinking
 
 /** How long each one-shot beat is held before the character goes back to what it was doing (ms). */
 export const BEAT_MS: Readonly<Record<'reporting' | 'pleased' | 'celebrating' | 'concerned' | 'sorry', number>> = { reporting: 2500, pleased: 2200, celebrating: 3800, concerned: 4500, sorry: 3500 }
+/** A reply's first line is held this long after its text arrives, so the character's gesture (present, sorry, concerned) is seen before it speaks (a real voice takes about as long to arrive). */
+export const REPLY_LEAD_MS = 500
 /** A small "pleased" (one slide built) at most this often. */
 export const PLEASED_EVERY_MS = 20000
 
@@ -323,6 +325,13 @@ export function applyDirectorSignal(track: DirectorTrack, signal: DirectorSignal
     }
     case 'concerned': return { ...expired, background: expired.background === 'thinking' ? 'none' : expired.background, beat: { scene: 'concerned', until: now + BEAT_MS.concerned }, dance: false }
   }
+}
+
+/** A beat that came while the Director was speaking was hidden by the speech: when the speech ends it gets its full time (a "reporting" beat does not: the report was just spoken). */
+export function rearmBeat(track: DirectorTrack, now: number): DirectorTrack {
+  const beat = track.beat
+  if (!beat || beat.scene === 'reporting') return track
+  return { ...track, beat: { scene: beat.scene, until: now + BEAT_MS[beat.scene] } }
 }
 
 /** What to draw now. The call phase wins (talking and listening are the user's and Director's turn), then a beat that is still playing, then what Director is doing. */
@@ -538,6 +547,19 @@ export const CALL_BUTTON_START = 'Start a voice call'
 export const CALL_BUTTON_END = 'End the voice call'
 export function callButtonLabel(active: boolean): string {
   return active ? CALL_BUTTON_END : CALL_BUTTON_START
+}
+
+/** Space talks while a call is on, unless the key belongs to what has focus: a text field, a select, an editable region, or a control that Space activates (a button, a link, a menu item, a tab, a checkbox ...) keeps its Space. The call's own buttons are the exception: after the call button is pressed it keeps focus, and Space must still talk. */
+export interface SpaceTarget { tagName?: string; isContentEditable?: boolean; getAttribute?(name: string): string | null; closest?(selector: string): unknown }
+const SPACE_ROLES = /^(button|link|menuitem|menuitemcheckbox|menuitemradio|tab|option|switch|checkbox|radio|combobox|slider|spinbutton|textbox|searchbox)$/
+export function spaceBelongsToTarget(target: SpaceTarget | null | undefined): boolean {
+  if (!target) return false
+  if (isTypingTarget(target)) return true
+  if (target.closest?.('[data-studio-voice-call="button"], .studio-voice-talk')) return false
+  const tag = (target.tagName ?? '').toUpperCase()
+  if (tag === 'BUTTON' || tag === 'A' || tag === 'SUMMARY') return true
+  const role = target.getAttribute?.('role')
+  return typeof role === 'string' && SPACE_ROLES.test(role)
 }
 
 /** Space talks, unless the user is typing: a text field, a select, a text area or an editable region keeps its Space. */

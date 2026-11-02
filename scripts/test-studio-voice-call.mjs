@@ -221,6 +221,9 @@ function uiSuite(ui, over = {}) {
   eq(at(big3, { kind: 'pleased', big: true }, 30000).dance, false, 'track: ...and the next does not'); eq(at(at(at(at(at(T0, { kind: 'pleased', big: true }, 0), { kind: 'pleased', big: true }, 70000), { kind: 'pleased', big: true }, 140000), { kind: 'pleased', big: true }, 210000), { kind: 'pleased', big: true }, 280000).celebrations, 5, 'track: the count is kept')
   const dancer = at(at(at(T0, { kind: 'pleased', big: true }, 0), { kind: 'pleased', big: true }, 100), { kind: 'pleased', big: true }, 200), dancer2 = at(at(at(dancer, { kind: 'pleased', big: true }, 300), { kind: 'pleased', big: true }, 400), { kind: 'pleased', big: true }, 500)
   eq([dancer.dance, dancer2.dance], [true, false], 'track: a dance never comes twice within a minute')
+  const hidden = at(T0, { kind: 'concerned' }, 0)
+  eq([ui.rearmBeat(hidden, 50000).beat, ui.rearmBeat(at(T0, { kind: 'reporting', decline: false }, 0), 50000).beat?.scene, ui.rearmBeat(T0, 5).beat], [{ scene: 'concerned', until: 50000 + ui.BEAT_MS.concerned }, 'reporting', null], 'track: a beat that speech hid gets its full time when the speech ends (a report does not: it was just spoken)')
+  eq(ui.rearmBeat(at(T0, { kind: 'reporting', decline: false }, 7), 50000).beat.until, 7 + ui.BEAT_MS.reporting, 'track: ...and a reporting beat is left as it was')
   eq(ui.chipLabel('listening'), 'Listening', 'chip: listening'); eq(ui.chipLabel('thinking'), 'Thinking', 'chip: thinking'); eq(ui.chipLabel('speaking'), 'Speaking', 'chip: speaking')
   eq(ui.SCENES.filter(scene => !['listening', 'thinking', 'speaking'].includes(scene)).map(ui.chipLabel).every(label => label === 'Your turn'), true, 'chip: every other scene is the user\'s turn (the user may talk while Director works)')
 
@@ -274,6 +277,10 @@ function uiSuite(ui, over = {}) {
   eq(ui.callControls({ active: true, starting: false, phase: 'idle', speakingNow: false, connected: false }).talk, false, 'controls: no talking without a socket'); eq(ui.callControls({ active: true, starting: true, phase: 'idle', speakingNow: false, connected: true }), { talk: false, stop: false, end: false, expand: false }, 'controls: nothing while the microphone is being asked for')
   eq([ui.callButtonLabel(false), ui.callButtonLabel(true)], ['Start a voice call', 'End the voice call'], 'button: label')
   eq([{ tagName: 'TEXTAREA' }, { tagName: 'input' }, { tagName: 'SELECT' }, { tagName: 'DIV', isContentEditable: true }, { tagName: 'BUTTON' }, { tagName: 'DIV' }, null].map(ui.isTypingTarget), [true, true, true, true, false, false, false], 'typing target: text fields keep their Space')
+  const el = (tagName, attrs = {}, own = false, editable = false) => ({ tagName, isContentEditable: editable, getAttribute: name => attrs[name] ?? null, closest: () => (own ? {} : null) })
+  eq([el('TEXTAREA'), el('INPUT'), el('SELECT'), el('DIV', {}, false, true), el('BUTTON'), el('A'), el('SUMMARY'), el('DIV', { role: 'menuitem' }), el('DIV', { role: 'tab' }), el('SPAN', { role: 'checkbox' }), el('DIV'), el('BODY'), el('SPAN'), null, undefined].map(ui.spaceBelongsToTarget),
+    [true, true, true, true, true, true, true, true, true, true, false, false, false, false, false], 'space: a text field and every other control that Space activates keep their Space; the page itself does not')
+  eq([ui.spaceBelongsToTarget(el('BUTTON', {}, true)), ui.spaceBelongsToTarget(el('SPAN', { role: 'button' }, true))], [false, false], 'space: ...except the call\'s own button and the talk button: Space talks there (focus stays on the call button after it is pressed)')
   eq([{ code: 'Space' }, { key: ' ' }, { code: 'Space', repeat: true }, { code: 'Space', metaKey: true }, { code: 'Space', ctrlKey: true }, { code: 'Space', altKey: true }, { code: 'Space', shiftKey: true }, { code: 'KeyA' }].map(ui.isTalkKey), [true, true, false, false, false, false, false, false], 'talk key: Space alone, not a repeat')
   eq(['not_connected', 'limit', 'failed', 'too_short', 'no_words', 'not_sent', 'no_answer'].every(problem => ui.describeSpeechProblem(problem).title && ui.describeSpeechProblem(problem).steps.length > 0), true, 'words: every speech problem has a title and a step')
   eq(ui.describeSpeechProblem('not_connected').title, "Speech isn't connected yet", 'words: the honest one for a missing router')
@@ -381,7 +388,8 @@ function makeCall({ over = {}, mic = {}, reduced = false, connected = true, send
     start: async () => { await ctl.startCall(); await settle() },
     talk: async (ms = 1250) => { ctl.pttDown(); await settle(); await clock.advance(ms); await ctl.pttUp(); await settle() },
     frame: async (type, payload = {}, id = null) => { ctl.onFrame(frame(type, payload, id)); await settle() },
-    reply: async (spoken, text = 'Done. The title is shorter.', extra = {}) => { await world.frame('chat_message', { text, ephemeral: false, ...(spoken === undefined ? {} : { spoken }), ...extra }) },
+    // the reply's first line is held REPLY_LEAD_MS so the gesture is seen first: by default the clock runs past it
+    reply: async (spoken, text = 'Done. The title is shorter.', extra = {}, lead = true) => { await world.frame('chat_message', { text, ephemeral: false, ...(spoken === undefined ? {} : { spoken }), ...extra }); if (lead) await clock.advance(750) },
     // the speaker: start the n-th clip, finish it
     playStart: async n => { log.plays[n].hooks.onStart(); await settle() },
     playEnd: async n => { log.plays[n].hooks.onEnd(); await settle() },
@@ -519,6 +527,24 @@ async function controllerSuite(over = {}) {
     eq(w.log.spoken.length, asked, 'reply: ...and the router is not asked again for the rest of the call')
   }
 
+  // ---- the gesture is seen before the voice, and again after it -------------------------------------------------------------------------------------
+  {
+    const w = makeCall({ over }); await w.start(); await w.talk()
+    await w.reply('Sure, done.', 'Sure, done.', {}, false)
+    eq([w.log.plays.length, w.snap().phase, w.snap().scene, w.snap().chip], [0, 'thinking', 'reporting', 'Your turn'], 'gesture: the reply has arrived: the character presents (not "thinking") and its first line is held for a moment')
+    await w.clock.advance(250); eq(w.log.plays.length, 0, 'gesture: ...not yet at 0.25 s'); await w.clock.advance(500); eq(w.log.plays.length, 1, 'gesture: ...played at 0.5 s')
+    await w.playStart(0); eq(w.snap().scene, 'speaking', 'gesture: then it talks'); await w.playEnd(0); await w.clock.advance(3000); eq(w.snap().scene, 'idle', 'gesture: a plain report is not shown again after it is said')
+    const sorry = makeCall({ over }); await sorry.start(); await sorry.talk()
+    await sorry.reply("I can't translate the deck yet.", "I can't translate the deck yet.", { companion_state: 'reporting' }, false)
+    eq(sorry.snap().scene, 'sorry', 'gesture: an honest decline: sorry (a shrug) before the voice')
+    await sorry.clock.advance(750); await sorry.playStart(0); eq(sorry.snap().scene, 'speaking', 'gesture: ...then it speaks'); await sorry.clock.advance(5000); await sorry.playEnd(0)
+    eq(sorry.snap().scene, 'sorry', 'gesture: ...and the shrug is seen again once the speech is over (speech had hidden it)')
+    await sorry.clock.advance(4000); eq(sorry.snap().scene, 'idle', 'gesture: ...and then it is over')
+    const party = makeCall({ over }); await party.start(); await party.reply('Your deck is ready.', 'Your deck is ready.'); await party.frame('build_phase', { phase: 'complete', label: 'Your deck is ready', companion_state: 'pleased' })
+    await party.playStart(0); eq(party.snap().scene, 'speaking', 'gesture: the report is said'); await party.playEnd(0)
+    eq(party.snap().scene, 'celebrating', 'gesture: the celebration (build complete) comes after the speech that hid it')
+  }
+
   // ---- talk-over and Stop ----------------------------------------------------------------------------------------------------------------------
   {
     const w = makeCall({ over }); await w.start(); await w.talk(); await w.reply('One. Two. Three.'); await w.playStart(0)
@@ -547,7 +573,7 @@ async function controllerSuite(over = {}) {
     await w.clock.advance(1000); eq(w.log.spoken, [], 'filler: not before 1.2 s')
     await w.clock.advance(400); eq(w.log.spoken.length, 1, 'filler: one short line after 1.2 s of waiting'); ok(w.log.spoken[0].length < 40, 'filler: a short one')
     eq(w.snap().phase, 'thinking', 'filler: the turn is still thinking while it is said')
-    await w.playStart(0); eq([w.snap().phase, w.snap().scene, w.snap().chip], ['thinking', 'speaking', 'Speaking'], 'filler: the character speaks it (the reducer is not moved)'); await w.playEnd(0)
+    await w.playStart(0); eq([w.snap().phase, w.snap().scene, w.snap().chip, w.snap().caption], ['thinking', 'speaking', 'Speaking', w.log.spoken[0]], 'filler: the character speaks it (the reducer is not moved), and its words are the caption'); await w.playEnd(0)
     eq(w.snap().scene, 'thinking', 'filler: ...then is thinking again, not stuck speaking')
     await w.clock.advance(5000); eq(w.log.spoken.length, 1, 'filler: once per turn')
     const early = makeCall({ over }); await early.start(); await early.talk(); await early.reply('Quick answer.'); await early.clock.advance(3000)
@@ -589,7 +615,7 @@ async function controllerSuite(over = {}) {
     await hush.playStart(1); eq([hush.snap().phase, hush.snap().scene], ['thinking', 'speaking'], 'progress: ...the character speaks it'); await hush.playEnd(1)
     await hush.reply('Done.'); await hush.playStart(2); eq(hush.snap().phase, 'speaking', 'progress: the reply after it is the turn\'s speech'); await hush.playEnd(2); eq(hush.snap().phase, 'idle', 'progress: ...and the turn ends')
     const over_ = makeCall({ over }); await over_.start()
-    await over_.frame('chat_message', { text: 'x', spoken: 'A report.' }); await over_.playStart(0)
+    await over_.reply('A report.', 'x'); await over_.playStart(0)
     await over_.frame('build_phase', { phase: 'building', spoken: 'A progress line' }); await over_.clock.advance(9000)
     eq(over_.log.spoken, ['A report.'], 'progress: never over a line that is being said')
     await over_.playEnd(0); await over_.clock.advance(4500); eq(over_.log.spoken, ['A report.', 'A progress line'], 'progress: ...it waits its turn')
@@ -605,6 +631,7 @@ async function controllerSuite(over = {}) {
     await w.frame('action_request', { prompt_text: 'Does this structure work for you?', actions: PLAN, spoken: 'Does this structure work for you?' }, 'plan-card')
     eq(w.log.spoken.length >= 2 && w.log.spoken.join(' ').includes('Here is my plan') && w.log.spoken.at(-1).includes('Does this structure work'), true, 'card: the reply and then the card\'s question are both said, in order (a card\'s line right after a reply\'s)')
     eq(w.snap().scene, 'reporting', 'card: ...while the lines are fetched Director is reporting (a turn of its own, not a thinking one)')
+    await w.clock.advance(750)
     for (let i = 0; i < w.log.plays.length; i++) { await w.playStart(i); await w.playEnd(i) }
     await w.clock.advance(3000)
     eq([w.snap().phase, w.snap().scene], ['idle', 'waiting'], 'card: a card is waiting for you')
@@ -634,7 +661,7 @@ async function controllerSuite(over = {}) {
     eq([failed.snap().phase, failed.snap().notice?.title, failed.ui.voiceCallBus.pending], ['idle', "That didn't reach the Director", null], 'card: a click the socket never took is told to the user')
     const first = makeCall({ over }); await first.start(); await first.talk(); await first.frame('action_request', { prompt_text: 'Who is in the room, and how many?', actions: [{ label: 'Skip', value: 'skip_questions', primary: false, requires_input: false }], spoken: 'Who is in the room, and how many people?' }, 'q1')
     ok(first.log.spoken.length >= 1 && first.snap().phase === 'thinking', 'card: the clarifying questions are the reply to the turn: said')
-    await first.playStart(0); eq(first.snap().phase, 'speaking', 'card: ...as the turn\'s speech')
+    await first.clock.advance(750); await first.playStart(0); eq(first.snap().phase, 'speaking', 'card: ...as the turn\'s speech')
   }
 
   // ---- the character's scene from Director's frames -----------------------------------------------------------------------------------------
@@ -844,6 +871,7 @@ function sourceSuite(sources, { base = null } = {}) {
   ok(!/fetch\(|XMLHttpRequest|speechSynthesis|SpeechRecognition|new WebSocket|OpenRouter|api\.openai|elevenlabs/i.test([UI, ROUTER, CTL, HOOK].map(rel => sources[rel] ?? read(rel)).join('\n').replace(/\/\/[^\n]*/g, '').replace(/\/\*[\s\S]*?\*\//g, '')), 'speech: no fetch, no browser speech, no vendor in the lib, the controller or the hook (the router port is handed its fetch)')
   ok(sources[BROWSER].includes('fetch(input, init as RequestInit)') && (sources[BROWSER].match(/\bfetch\(/g) ?? []).length === 1, 'speech: the only fetch is the router port\'s, on the page\'s own origin')
   ok(hook.includes("import('@/lib/studio-voice-call-controller')") && hook.includes("import('@/lib/studio-voice-call-browser')") && !/^import (?!type )[^\n]*studio-voice-call-(controller|browser)'/m.test(hook) && !/^import (?!type )[^\n]*@\/lib\/studio\/voice/m.test(hook), 'hook: the controller, the browser adapters and the core are loaded on demand, not imported')
+  ok(hook.includes('spaceBelongsToTarget(event.target as HTMLElement | null)') && !hook.includes('isTypingTarget('), 'hook: Space is the talk key unless the target keeps it (a text field, a control that Space activates)')
   ok(hook.includes('const enabled = options.enabled && STUDIO_VOICE_CALL_UI_ENABLED') && /if \(!enabled\) return\n/.test(hook), 'hook: the flag gates the load')
   ok(hook.includes("dynamic(() => import('@/components/builder/voice-call/voice-call-dock')") && !/^import .*voice-call-dock/m.test(hook), 'hook: the dock (and its stylesheet and icons) is its own chunk')
   // .env.example
@@ -913,6 +941,7 @@ if (baseOk) {
   ok(!fs.existsSync(path.join(root, 'public/companions')) || !git('ls-files', 'public/companions').trim(), 'scope: no companion art is tracked')
 } else console.log(`NOTE D  git has no ${strip.BASE_COMMIT.slice(0, 8)}: the base-identity and scope checks were skipped`)
 console.log(`PASS D  registry, strip identity, scope (${checks} checks)`)
+if (process.env.VOICE_TEST_SKIP_MUTANTS === '1') { release(); console.log(`SKIPPED E  mutants (VOICE_TEST_SKIP_MUTANTS=1); OK so far: ${checks} checks`); process.exit(0) }
 
 // ============================================================================================================================================
 // E. Mutants: every one must be caught
@@ -961,6 +990,8 @@ const mutants = [
   [UI, 'Stop is always on', 'stop: live && (input.phase', 'stop: live || (input.phase'],
   [UI, 'talking works without a socket', 'talk: live && input.connected', 'talk: live'],
   [UI, 'Space talks in a text field', "tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT' || target.isContentEditable === true", 'false'],
+  [UI, 'Space is taken from a button', "if (tag === 'BUTTON' || tag === 'A' || tag === 'SUMMARY') return true", ''],
+  [UI, 'Space is taken from the call\'s own button', "if (target.closest?.('[data-studio-voice-call=\"button\"], .studio-voice-talk')) return false", ''],
   [UI, 'Space with the Command key talks', '&& !event.metaKey && !event.ctrlKey', '&& !event.ctrlKey'],
   [UI, 'a key repeat talks again', '&& !event.repeat', ''],
   [UI, 'the not-connected words blame the user', "title: \"Speech isn't connected yet\"", "title: 'Something went wrong'"],
@@ -1023,7 +1054,13 @@ const mutants = [
   [CTL, 'talking over does not cancel the turn', "case 'cancel_turn':\n        if", "case 'cancel_turn':\n        break\n        if"],
   [CTL, 'speech that failed is retried for ever', "if (!this.speechOff) {\n        this.speechOff = true", "if (!this.speechOff) {\n        this.speechOff = false"],
   [CTL, 'the character does not speak while a line plays', "return companionScene({ phase, speakingNow: this.speakingNow,", "return companionScene({ phase, speakingNow: false,"],
-  [CTL, 'a turn Director opened itself looks like thinking', "const phase = this.pseudoTurn === this.cs.turn && this.cs.phase === 'thinking' ? 'idle' : this.cs.phase", "const phase = this.cs.phase"],
+  [CTL, 'a turn whose reply arrived is still thinking', "const phase = this.cs.phase === 'thinking' && this.cs.replyDone ? 'idle' : this.cs.phase", "const phase = this.cs.phase"],
+  [CTL, 'the voice does not wait for the gesture', "if (this.queue[0]!.kind === 'reply' && this.env.now() < this.replyLeadUntil) return", ''],
+  [CTL, 'the lead is never set', 'this.replyLeadUntil = this.env.now() + REPLY_LEAD_MS', 'this.replyLeadUntil = 0'],
+  [CTL, 'a beat hidden by speech is lost', 'if (this.beatHidden && !this.queue.length) { this.track = rearmBeat(this.track, this.env.now()); this.beatHidden = false }', ''],
+  [CTL, 'a hidden beat is not noticed', 'this.beatHidden = true\n', 'this.beatHidden = false\n'],
+  [UI, 'a report is shown again after it is said', "if (!beat || beat.scene === 'reporting') return track", 'if (!beat) return track'],
+  [UI, 'a re-armed beat keeps its old end', 'beat: { scene: beat.scene, until: now + BEAT_MS[beat.scene] } }', 'beat: { scene: beat.scene, until: beat.until } }'],
   [CTL, 'a status outlives its build', "(signal.kind === 'pleased' && signal.big))) this.status = null", "false)) void 0"],
   [CTL, 'the caption never clears', 'now >= this.captionUntil) this.caption = null', 'false) this.caption = null'],
   [CTL, 'the mouth reads the speaker when it is silent', 'getLevel = (): number => (this.speakingNow ? this.player.level() : 0)', 'getLevel = (): number => this.player.level()'],

@@ -4,7 +4,7 @@ import { createElement, useCallback, useEffect, useRef, useState, useSyncExterna
 import dynamic from 'next/dynamic'
 import type { VoiceCallController, VoiceCallSnapshot } from '@/lib/studio-voice-call-controller'
 import type { VoiceAction } from '@/lib/studio-voice-call-ui'
-import { STUDIO_VOICE_CALL_UI_ENABLED, STUDIO_VOICE_COMPANION, isTalkKey, isTypingTarget, voiceCallBus, disarmVoiceTurn, type VoiceCallComposerProps } from '@/lib/studio-voice-call-ui'
+import { STUDIO_VOICE_CALL_UI_ENABLED, STUDIO_VOICE_COMPANION, isTalkKey, spaceBelongsToTarget, voiceCallBus, disarmVoiceTurn, type VoiceCallComposerProps } from '@/lib/studio-voice-call-ui'
 
 export interface UseStudioVoiceCallOptions {
   /** The Studio shell (the call needs the flag too, read here). Off: nothing is loaded, listened to, timed or asked for. */
@@ -84,13 +84,13 @@ export function useStudioVoiceCall(options: UseStudioVoiceCallOptions): StudioVo
   useEffect(() => {
     if (!controller || !active) return
     const down = (event: KeyboardEvent) => {
-      if (!isTalkKey(event) || isTypingTarget(event.target as HTMLElement | null)) return
+      if (!isTalkKey(event) || spaceBelongsToTarget(event.target as HTMLElement | null)) return
       event.preventDefault()
       controller.pttDown()
     }
     const up = (event: KeyboardEvent) => {
       if (event.code !== 'Space' && event.key !== ' ') return
-      if (isTypingTarget(event.target as HTMLElement | null)) return
+      if (spaceBelongsToTarget(event.target as HTMLElement | null)) return
       event.preventDefault()
       void controller.pttUp()
     }
