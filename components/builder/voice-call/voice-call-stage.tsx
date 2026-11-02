@@ -51,12 +51,14 @@ function loadSceneArt(pack: string): Promise<string | null> {
       } catch { /* the default file is tried */ }
       const url = sceneUrl(pack, file)
       return new Promise<string | null>(resolve => {
-        const image = new Image()
-        image.onload = () => resolve(url)
-        image.onerror = () => resolve(null)
-        image.src = url
+        try {
+          const image = new Image()
+          image.onload = () => resolve(url)
+          image.onerror = () => resolve(null)
+          image.src = url
+        } catch { resolve(null) }
       })
-    })()
+    })().catch(() => null)
     sceneArt.set(pack, found)
   }
   return found

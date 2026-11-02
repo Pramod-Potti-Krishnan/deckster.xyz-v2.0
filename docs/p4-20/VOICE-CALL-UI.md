@@ -1,6 +1,6 @@
 # P4-20 Studio voice call UI
 
-Branch `frontend1/p4-20-call-ui`, based on Studio `abf52d4d`, with ELEMENT-3's `element3/p4-19-voice-core` (1d1327f4) merged in because the UI needs its modules to compile. Flag `NEXT_PUBLIC_STUDIO_VOICE_CALL` (exact `"true"`, default off, build-time). Optional `NEXT_PUBLIC_STUDIO_VOICE_COMPANION` (pack folder name, default `bob`).
+Branch `frontend1/p4-20-call-ui`, based on Studio `abf52d4d`, with ELEMENT-3's `element3/p4-19-voice-core` (ad5b5232, which carries Studio dev 1f7b9fc2) merged in because the UI needs its modules to compile. Flag `NEXT_PUBLIC_STUDIO_VOICE_CALL` (exact `"true"`, default off, build-time). Optional `NEXT_PUBLIC_STUDIO_VOICE_COMPANION` (pack folder name, default `bob`).
 
 ## What it is
 
@@ -10,8 +10,8 @@ Branch `frontend1/p4-20-call-ui`, based on Studio `abf52d4d`, with ELEMENT-3's `
 | The seam to model-router (hearing, speaking), two same-origin routes. | `lib/studio-voice-call-router.ts` |
 | One call's life: microphone, turn-taking (ELEMENT-3's `reduceCall`), speech queue, Director's frames. Everything browser-side is injected. | `lib/studio-voice-call-controller.ts` |
 | The browser's microphone, recorder, speaker, clock. | `lib/studio-voice-call-browser.ts` |
-| The page's hook (loads the controller on demand, Space key, session change). | `hooks/use-studio-voice-call.ts` |
-| Dock, companion player (canvas, bird-layout packs), composer call button, stylesheet. | `components/builder/voice-call/` |
+| The page's hook (loads the controller and the stage on demand, Space key, session change). | `hooks/use-studio-voice-call.ts` |
+| The call stage (video and audio, the transcript, the controls, the scene art), the two call buttons beside Send, the companion player (canvas, bird-layout packs), the stylesheet. | `components/builder/voice-call/` |
 | Marked `// VOICE-CALL` lines | `app/builder/page.tsx`, `hooks/use-deckster-websocket-v2.ts`, `components/builder/chat-input.tsx` |
 
 With the flag off nothing is loaded, listened to, timed or asked for; strip the marked lines and each existing file is the base's, byte for byte.
@@ -33,14 +33,24 @@ ROUTER-1's transport contract (via the core's `docs/p4-19/VOICE-CORE.md`): the c
 
 404, 501 and 503 read as "Speech isn't connected yet", 402 and 429 as a limit. Neither route exists on this branch; tests and shots answer them locally.
 
+## The call (redesign, PK 2026-11-02)
+
+- **The call is primary.** Two buttons, **Audio** and **Video**, sit right beside Send (same size and colour as Send; the chat-clean composer's 24 px square there; on a phone 44 px pills with a word on each). One tap starts that kind of call and is the only thing that asks for the microphone. This is the simplest clear pattern: no menu, no second step.
+- **While a call is on the composer is not drawn** (`chat-input.tsx` returns nothing; its draft, uploads and state stay, because the component stays mounted). A stage fills the chat column instead (the whole screen on a phone, under the status bar and above the home indicator). When the call ends the composer is back as it was.
+- **Video**: the character's scene is the canvas and the character is large in it (chest view, sitting on the bottom of the picture). **Audio**: a calm wash with the face as a large centred disc (176 px, 148 px on a phone) in a level ring that grows with what the microphone hears while you talk and with the voice while it speaks.
+- **Overlays, the same in both**: the state chip (Your turn / Listening / Thinking / Speaking), Stop, Mute and End, the talk button, what the Director is doing while it builds, and **the live transcript in the bottom fifth** (your words as heard, then the companion's, a reply spoken in pieces as one message; scrollable, kept at the newest line unless you scroll up, shown by default, hidden with its toggle; while hidden, the line being said shows as a subtitle).
+- **Talking**: hold the talk button (or Space) and let go to send, or **tap** it (a press under 300 ms) to talk until you tap again, which sends; a latch left on is sent after a minute. **Mute** drops a recording in progress and keeps nothing from being said until you unmute.
+
 ## Companion packs
 
 `public/companions/<name>/` in the bird layout (`motion/manifest.json`, `motion/face/manifest.json` for the disc). Not committed here: Garud delivers the real packs. A missing or invalid pack leaves a plain disc with initials. Clips a pack lacks fall back through the core's `resolveCompanionClip`.
 
+**Scene art (optional)**: the video call reads one image from the pack's folder, `scene.webp` by default or the file named by a `"scene"` field in `motion/manifest.json` (a web image inside the pack's folder; anything else is ignored). The pack has none today, so the canvas is a soft room drawn out of the shell's tokens (a wall, a desk line). The shots use a drawn placeholder labelled "placeholder scene" kept out of the tree.
+
 ## Behaviour worth knowing
 
 - The microphone is asked for by the call button and nothing else (`getUserMedia` appears once, in `lib/studio-voice-call-browser.ts`, called from `startCall`). A refusal says why in the core's words (`describeMicError`) with Try again. The same click unlocks the speaker.
-- Hold the talk button or Space (Space is left to a focused text field, button, link or menu item, except the call's own buttons). Talking over the Director, or Stop, cancels its speech and the turn that is pending; the reply to a cancelled turn is in the chat and is not said.
+- Hold the talk button or Space, or tap it to latch (Space is left to a focused text field, button, link or menu item, except the talk button). Talking over the Director, or Stop, cancels its speech and the turn that is pending; the reply to a cancelled turn is in the chat and is not said.
 - A reply's first line waits half a second, so the gesture (present, sorry, concerned) is seen before the voice; a beat that speech hid (a celebration, a failure) is shown after it. A failure is not covered by the report that explains it.
 - Reduced motion draws one still per state. A missing pack leaves a plain disc with initials.
 - Voice mode on the Director's side ends with the next typed message; the next voice turn starts it again.

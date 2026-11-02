@@ -876,8 +876,11 @@ function componentStubs(host) {
   return { './voice-call.css': {}, '../studio-composer-hint': { StudioComposerHint: noHint }, './companion-player': host.load(PLAYER) }
 }
 async function stageSuite(over = {}) {
+  const was = { fetch: globalThis.fetch, Image: globalThis.Image }
   globalThis.window = { matchMedia: () => ({ matches: false, addEventListener() {}, removeEventListener() {} }) } // a desktop; the offline renderer runs the stage's effects
-  try { await stageSuiteBody(over) } finally { delete globalThis.window }
+  globalThis.fetch = async () => { throw new Error('offline') } // no scene art unless a scene is staged (sceneWorld): nothing is requested from anywhere
+  globalThis.Image = class { set src(_url) { queueMicrotask(() => this.onerror?.()) } }
+  try { await stageSuiteBody(over) } finally { delete globalThis.window; globalThis.fetch = was.fetch; globalThis.Image = was.Image }
 }
 async function stageSuiteBody(over = {}) {
   const fakePlayer = ({ pack, scene, framing, size, reducedMotion }) => React.createElement('div', { 'data-fake-player': 'true', 'data-pack': pack, 'data-scene': scene, 'data-framing': framing, 'data-size': size, 'data-reduced': String(reducedMotion) })
