@@ -3,6 +3,7 @@
 import { createElement, useCallback, useEffect, useRef, useState, useSyncExternalStore, type ReactNode } from 'react'
 import dynamic from 'next/dynamic'
 import type { VoiceCallController, VoiceCallSnapshot } from '@/lib/studio-voice-call-controller'
+import type { VoiceAction } from '@/lib/studio-voice-call-ui'
 import { STUDIO_VOICE_CALL_UI_ENABLED, STUDIO_VOICE_COMPANION, isTalkKey, isTypingTarget, voiceCallBus, disarmVoiceTurn, type VoiceCallComposerProps } from '@/lib/studio-voice-call-ui'
 
 export interface UseStudioVoiceCallOptions {
@@ -10,6 +11,8 @@ export interface UseStudioVoiceCallOptions {
   enabled: boolean
   /** The page's ordinary send of typed words (handleSendMessage(undefined, text)); with the call's turn armed, the socket hook makes it a voice turn. */
   sendTurn: (text: string) => Promise<unknown> | unknown
+  /** The page's own click on a button of a card (handleActionClick): a spoken "yes" to the plan is that button, sent as a voice turn. */
+  sendAction: (action: VoiceAction, messageId: string) => Promise<unknown> | unknown
   /** The session on screen: a call ends when it changes. */
   sessionKey: string | null
   /** The Director socket is open. */
@@ -47,7 +50,7 @@ export function useStudioVoiceCall(options: UseStudioVoiceCallOptions): StudioVo
     let made: VoiceCallController | null = null
     void Promise.all([import('@/lib/studio-voice-call-controller'), import('@/lib/studio-voice-call-browser')]).then(([core, browser]) => {
       if (cancelled) return
-      made = new core.VoiceCallController({ env: browser.browserVoiceEnv(), port: browser.browserVoicePort(), sendTurn: text => live.current.sendTurn(text), isConnected: () => live.current.connected })
+      made = new core.VoiceCallController({ env: browser.browserVoiceEnv(), port: browser.browserVoicePort(), sendTurn: text => live.current.sendTurn(text), sendAction: (action, messageId) => live.current.sendAction(action, messageId), isConnected: () => live.current.connected })
       voiceCallBus.frame = made.onFrame
       voiceCallBus.sent = made.onSent
       setController(made)

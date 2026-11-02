@@ -6,12 +6,12 @@
 //   Director's frames -> the character's scene (payload.companion_state, else the frame's type); its payload.spoken (a chat_message's line, a progress frame's line, and nothing else) -> router speak, sentence by sentence -> speaking -> idle
 //   talking over Director, or Stop -> the speech and the pending turn are cancelled (the core's barge-in)
 import {
-  canTalk, cleanForSpeech, describeMicError, initialCallState, pickFiller, reduceCall, shouldPlayFiller, splitSentences, worthSending,
+  canTalk, cleanForSpeech, describeMicError, initialCallState, pickFiller, PROGRESS_AFTER_MS, PROGRESS_EVERY_MS, reduceCall, shouldPlayFiller, splitSentences, worthSending,
   type CallEffect, type CallEvent, type CallState,
 } from '@/lib/studio/voice'
 import {
-  applyDirectorSignal, callControls, chipLabel, companionScene, describeSpeechProblem, disarmVoiceTurn, initialDirectorTrack, armVoiceTurn, progressCaption, progressTextFromFrame,
-  isProgressSpoken, signalFromFrame, spokenLineFromFrame, type CallControls, type CallNotice, type CallPhase, type ChipLabel, type CompanionScene, type DirectorTrack, type SpeechProblem,
+  actionsFromFrame, applyDirectorSignal, callControls, closesOpenAction, chipLabel, companionScene, describeSpeechProblem, disarmVoiceTurn, initialDirectorTrack, armVoiceTurn, progressCaption, progressTextFromFrame,
+  isProgressSpoken, matchSpokenAnswer, signalFromFrame, spokenLineFromFrame, type CallControls, type CallNotice, type CallPhase, type ChipLabel, type CompanionScene, type DirectorTrack, type SpeechProblem, type VoiceAction,
 } from '@/lib/studio-voice-call-ui'
 import { VoiceRouterError, type VoiceRouterPort } from '@/lib/studio-voice-call-router'
 
@@ -73,6 +73,8 @@ export interface VoiceCallOptions {
   port: VoiceRouterPort
   /** The page's ordinary send of typed words (handleSendMessage(undefined, text)); the socket hook makes it a voice turn because the controller armed it. */
   sendTurn(text: string): Promise<unknown> | unknown
+  /** The page's own click on a button of a card (handleActionClick): a spoken "yes" to the plan is that button's text and value with mode "voice". The card is the Director's action_request message `messageId`. */
+  sendAction(action: VoiceAction, messageId: string): Promise<unknown> | unknown
   /** The socket is open (the talk button is off while it is not). */
   isConnected(): boolean
 }
@@ -81,6 +83,8 @@ export interface VoiceCallOptions {
 export const REPLY_TIMEOUT_MS = 90000
 /** The caption of a line stays this long after it was spoken. */
 export const CAPTION_HOLD_MS = 8000
+/** A progress line that has waited this long for its moment is stale: the Director is on to something else. */
+export const PROGRESS_STALE_MS = 20000
 const TICK_MS = 250
 
 interface Awaiting {
@@ -99,6 +103,7 @@ export class VoiceCallController {
   private readonly env: VoiceCallEnv
   private readonly port: VoiceRouterPort
   private readonly sendTurn: VoiceCallOptions['sendTurn']
+  private readonly sendAction: VoiceCallOptions['sendAction']
   private readonly isConnected: () => boolean
   private readonly player: VoicePlayer
   private readonly listeners = new Set<() => void>()
@@ -134,11 +139,19 @@ export class VoiceCallController {
   private owedReplies = 0
   /** The turn number of a turn Director opened itself (a report, a progress line), or -1. */
   private pseudoTurn = -1
+  /** The newest progress line Director sent (payload.spoken of a status, a phase or a deck event), waiting for a quiet moment. */
+  private progressLine: { text: string; at: number } | null = null
+  private lastProgressSaidAt = -Infinity
+  /** When it last was quiet: the call began, the user spoke, a line was said or a reply arrived. */
+  private quietSince = 0
+  /** The buttons of the card Director has open (its action_request), until it moves on or the user answers. */
+  private openAction: { messageId: string; actions: VoiceAction[] } | null = null
 
   constructor(options: VoiceCallOptions) {
     this.env = options.env
     this.port = options.port
     this.sendTurn = options.sendTurn
+    this.sendAction = options.sendAction
     this.isConnected = options.isConnected
     this.player = this.env.createPlayer()
     this.snapshot = this.build()
@@ -206,6 +219,9 @@ export class VoiceCallController {
     this.starting = false
     this.caption = null
     this.status = null
+    this.progressLine = null
+    this.openAction = null
+    this.quietSince = this.env.now()
     this.armTick()
     this.emit()
   }
@@ -228,6 +244,8 @@ export class VoiceCallController {
     this.status = null
     this.awaiting = null
     this.owedReplies = 0
+    this.progressLine = null
+    this.openAction = null
     this.track = initialDirectorTrack()
     this.emit()
   }
@@ -259,6 +277,7 @@ export class VoiceCallController {
     this.notice = this.notice?.kind === 'mic' ? this.notice : null
     this.holding = true
     this.status = null
+    this.quietSince = this.env.now()
     this.dispatch({ type: 'talk_start', source: 'ptt' })
     this.emit()
   }
@@ -327,9 +346,16 @@ export class VoiceCallController {
     this.awaiting.text = text
     this.awaiting.transcribedAt = now
     this.awaiting.lastActivity = now
-    armVoiceTurn(text)
+    this.quietSince = now
+    // A card is open and the words are plainly its answer ("yes" to the plan): the card's own button is pressed, as a voice turn. Anything else is a plain voice message.
+    const open = this.openAction
+    const action = open ? matchSpokenAnswer(text, open.actions) : null
+    this.openAction = null
+    const words = action ? action.label : text
+    this.awaiting.text = words
+    armVoiceTurn(words)
     try {
-      await this.sendTurn(text)
+      await (action && open ? this.sendAction(action, open.messageId) : this.sendTurn(text))
     } catch {
       /* the page toasts a failed send itself; below, a turn the socket never saw is told to the user */
     }
@@ -386,16 +412,21 @@ export class VoiceCallController {
     if (signal && (signal.kind === 'idle' || signal.kind === 'concerned' || signal.kind === 'paused' || (signal.kind === 'pleased' && signal.big))) this.status = null
     const type = typeof frame === 'object' && frame !== null ? (frame as { type?: unknown }).type : undefined
     // any text of the reply (even a progress bubble) means the Director is already answering: no filler on top of it
-    if (type === 'chat_message' && this.awaiting) this.awaiting.replyTextArrived = true
-    if (type === 'chat_message' && signal && signal.kind === 'reporting') this.heardReply(frame)
+    if ((type === 'chat_message' || type === 'action_request') && this.awaiting) this.awaiting.replyTextArrived = true
+    // a card with buttons is open until Director moves on; a new turn of Director's closes it
+    if (closesOpenAction(frame)) this.openAction = null
+    const buttons = actionsFromFrame(frame)
+    if (buttons && typeof id === 'string' && id) this.openAction = { messageId: id, actions: buttons }
+    if ((type === 'chat_message' && signal?.kind === 'reporting') || (type === 'action_request' && signal?.kind === 'waiting')) this.heardReply(frame)
     else if (isProgressSpoken(frame)) this.heardProgress(spokenLineFromFrame(frame)!)
     this.emit()
   }
 
-  /** A chat_message that is a report (not a progress bubble): its spoken line, if the Director sent one, is said sentence by sentence, unless the user has the floor. No line, nothing to say: the reply is in the chat. */
+  /** A chat_message that is a report (not a progress bubble), or a card: its spoken line, if the Director sent one, is said chunk by chunk, unless the user has the floor. No line, nothing to say: the reply is in the chat. */
   private heardReply(frame: unknown): void {
     const awaiting = this.awaiting
     if (awaiting) awaiting.replyTextArrived = true
+    this.quietSince = this.env.now()
     if (this.cs.phase === 'listening') return // the user is talking: the reply is in the chat, and nothing talks over them
     if (!awaiting && this.owedReplies > 0) { this.owedReplies--; return } // the reply to a turn the user cancelled: it is in the chat, it is not said
     const spoken = spokenLineFromFrame(frame)
@@ -416,12 +447,15 @@ export class VoiceCallController {
     this.pump()
   }
 
-  /** A spoken progress line on a status_update, a build_phase or a deck-scope build_event: said between turns too (the Director builds while you talk), unless the user has the floor. */
+  /** A spoken progress line on a status_update, a build_phase or a deck-scope build_event. The Director sends one for most progress frames; whether it is worth saying is the client's call (Garud's rules, P4-18 section 5): only the newest waits, and it is said when it has been quiet for 4 s and the last one was at least 6 s ago. */
   private heardProgress(line: string): void {
-    if (this.cs.phase === 'listening' || this.speechOff) return
+    this.progressLine = { text: line, at: this.env.now() }
+  }
+
+  private sayProgress(line: string): void {
     const sentences = splitSentences(cleanForSpeech(line))
     if (!sentences.length) return
-    this.queue = this.queue.filter(item => item.kind !== 'progress') // only the newest progress line waits: a stale one is not worth saying
+    this.lastProgressSaidAt = this.env.now()
     if (this.awaiting) {
       // a user turn waits for its reply: the line is said, and the turn stays "thinking"
       for (const sentence of sentences) this.enqueue(sentence, 'progress', this.cs.turn, false)
@@ -495,6 +529,7 @@ export class VoiceCallController {
     if (this.playing !== item) return
     this.playing = null
     this.speakingNow = false
+    this.quietSince = this.env.now()
     this.captionUntil = this.env.now() + CAPTION_HOLD_MS
     this.pump()
     this.emit()
@@ -582,6 +617,15 @@ export class VoiceCallController {
         this.lastFiller = phrase
         this.enqueue(phrase, 'filler', awaiting.turn, false)
         this.pump()
+      }
+    }
+    const progress = this.progressLine
+    if (progress) {
+      const busy = this.speakingNow || !!this.playing || this.queue.length > 0
+      if (now - progress.at > PROGRESS_STALE_MS || this.speechOff) this.progressLine = null
+      else if (!busy && this.cs.phase !== 'listening' && now - this.quietSince >= PROGRESS_AFTER_MS && now - this.lastProgressSaidAt >= PROGRESS_EVERY_MS) {
+        this.progressLine = null
+        this.sayProgress(progress.text)
       }
     }
     this.emit()

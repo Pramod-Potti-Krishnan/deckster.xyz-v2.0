@@ -6493,7 +6493,7 @@ function AuthenticatedBuilderContent({ authScopeUserId }: { authScopeUserId: str
     sessionKey: currentSessionId || wsSessionId, onStopFailed: () => toast({ title: "Couldn't stop the build", description: 'Your changes are still in the box.' }), // FLOW-CONTROL
   }) // FLOW-CONTROL
   // VOICE-CALL (P4-20, NEXT_PUBLIC_STUDIO_VOICE_CALL): the docked companion and the composer's call button. With the flag off it loads, listens to, times and asks for nothing. The words of a voice turn go through the ordinary send above.
-  const voiceCall = useStudioVoiceCall({ enabled: studioShell, sendTurn: text => handleSendMessage(undefined, text), sessionKey: currentSessionId || wsSessionId, connected }) // VOICE-CALL
+  const voiceCall = useStudioVoiceCall({ enabled: studioShell, sendTurn: text => handleSendMessage(undefined, text), sendAction: (action, messageId) => handleActionClick(action, messageId), sessionKey: currentSessionId || wsSessionId, connected }) // VOICE-CALL
   // CHAT-CLEAN (NEXT_PUBLIC_STUDIO_CHAT_CLEAN, Studio shell only, default off): PK's v3 Director chat (lib/studio-chat-clean.ts decides everything). The sends are the existing build controls (stop / resume), with the draft as the resume's instructions through the flow bus; off, the hook below is inert and nothing else here is read.
   const chatCleanShell = STUDIO_CHAT_CLEAN_ENABLED && studioShell // CHAT-CLEAN: the thread and the composer in the v3 design
   const chatCleanOn = chatCleanShell && effectiveBuildNarrationEnabled // CHAT-CLEAN: the job card, Send <-> Stop and the Continue bar need the narration canvas

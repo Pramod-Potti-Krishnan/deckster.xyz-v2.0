@@ -192,27 +192,77 @@ export function progressTextFromFrame(frame: unknown): string | null {
 }
 
 /**
- * What the Director says aloud, from payload.spoken, and only that: on a chat_message (two sentences at most, about 240 characters; it includes the question if the reply asks one) and, for a progress line, on a
- * status_update, a build_phase or a deck-scope build_event (about 120 characters, never filler, never a repeat: all the Director's doing). A line over the cap is a mistake on the Director's side, not something to read
- * aloud, so it is not said. A frame with no spoken line has nothing to say, and nothing is made up from its text.
+ * What the Director says aloud, from payload.spoken, and only that (P4-18): on a chat_message (a reply: two sentences at most, about 240 characters, the closing question always in), on an action_request (a card or
+ * the clarifying questions, all of them, about 240 characters) and, for a progress line, on a status_update, a build_phase or a deck-scope build_event (about 120 characters, never filler, never a repeat). A line over its
+ * cap is a mistake on the Director's side, not something to read aloud, so it is not said. A frame with no spoken line has nothing to say, and nothing is made up from its text.
  */
 export const MAX_SPOKEN_CHARS = 300
 export const MAX_SPOKEN_PROGRESS_CHARS = 160
 export function spokenLineFromFrame(frame: unknown): string | null {
   const type = frameType(frame)
   const payload = framePayload(frame)
-  const chat = type === 'chat_message'
-  if (!chat && type !== 'status_update' && type !== 'build_phase' && !(type === 'build_event' && payload.scope === 'deck')) return null
+  const long = type === 'chat_message' || type === 'action_request'
+  if (!long && type !== 'status_update' && type !== 'build_phase' && !(type === 'build_event' && payload.scope === 'deck')) return null
   const line = cleanText(payload.spoken)
-  return line && line.length <= (chat ? MAX_SPOKEN_CHARS : MAX_SPOKEN_PROGRESS_CHARS) ? line : null
+  return line && line.length <= (long ? MAX_SPOKEN_CHARS : MAX_SPOKEN_PROGRESS_CHARS) ? line : null
 }
 
-/** A spoken line on a progress frame (not a chat_message): said between turns too, while the Director builds. */
-export const isProgressSpoken = (frame: unknown): boolean => frameType(frame) !== 'chat_message' && spokenLineFromFrame(frame) !== null
+/** A spoken line on a progress frame (not a reply or a card): the client decides which are worth saying, and when (Garud's rules, the controller's). */
+export const isProgressSpoken = (frame: unknown): boolean => frameType(frame) !== 'chat_message' && frameType(frame) !== 'action_request' && spokenLineFromFrame(frame) !== null
 
 /** The chat text of a chat_message (what the caption falls back to), or null. */
 export function replyTextFromFrame(frame: unknown): string | null {
   return frameType(frame) === 'chat_message' ? cleanText(framePayload(frame).text) : null
+}
+
+// ---------------------------------------------------------------------------
+// A spoken answer to a card (PROVISIONAL, P4-18: a "yes" to the plan goes as the card's own text and its action_value, with mode "voice")
+// ---------------------------------------------------------------------------
+
+/** One button of an action_request, as Director sends it. */
+export interface VoiceAction { label: string; value: string; primary: boolean; requires_input: boolean }
+
+/** The buttons of an action_request frame (a card with none is a question for the chat), or null. */
+export function actionsFromFrame(frame: unknown): VoiceAction[] | null {
+  if (frameType(frame) !== 'action_request') return null
+  const raw = framePayload(frame).actions
+  if (!Array.isArray(raw)) return null
+  const actions = raw.filter(isRecord).filter(a => typeof a.label === 'string' && a.label.trim() && typeof a.value === 'string' && a.value)
+    .map(a => ({ label: (a.label as string).trim(), value: a.value as string, primary: a.primary === true, requires_input: a.requires_input === true }))
+  return actions.length > 0 ? actions : null
+}
+
+/** Director has moved on (a new turn is being worked): a card that was open is answered, or over. Frames that only report or end a build do not close it (the "what next?" card arrives beside build_phase complete). */
+export function closesOpenAction(frame: unknown): boolean {
+  const type = frameType(frame)
+  const payload = framePayload(frame)
+  if (type === 'status_update') return payload.status === 'thinking' || payload.status === 'generating'
+  if (type === 'build_phase') return payload.phase === 'planning' || payload.phase === 'strawman' || payload.phase === 'building' || payload.phase === 'qa' || payload.phase === 'finalizing'
+  return false
+}
+
+const sayNorm = (text: string): string => text.toLowerCase().replace(/['\u2019]/g, '').replace(/[^a-z0-9]+/g, ' ').replace(/\b(please|thanks|thank you)\b/g, ' ').replace(/\s+/g, ' ').trim()
+const YES_WORDS: readonly string[] = ['yes', 'yeah', 'yep', 'yup', 'sure', 'ok', 'okay', 'go ahead', 'do it', 'go for it', 'lets go', 'looks good', 'looks great', 'looks perfect', 'sounds good', 'sounds great', 'that works', 'thats good', 'perfect', 'great', 'approve', 'accept', 'confirm', 'lets build it', 'build it', 'yes lets build it', 'yes go ahead', 'yes do it', 'yes sure', 'yes thats right']
+const NO_WORDS: readonly string[] = ['no', 'nope', 'nah', 'not yet', 'not quite', 'change it', 'make changes', 'make some changes', 'i want changes', 'i want to make changes', 'id like changes', 'id like to make changes', 'no change it', 'no make changes']
+
+/**
+ * Which button of an open card the user said, or null (then the words go as an ordinary voice message). Only a clear match counts, the whole transcript and nothing more:
+ *   the label, as it reads (case, punctuation and "please" aside), when exactly one button has it;
+ *   on a two-button card with one primary, a plain yes (or "go ahead", "looks good" ...) is the primary button and a plain no (or "change it") is the other.
+ * A button that asks for typed input is never picked by voice, "yes, but make it shorter" is a message, not a click, and a card with no buttons is never answered by a button.
+ */
+export function matchSpokenAnswer(transcript: string, actions: readonly VoiceAction[] | null | undefined): VoiceAction | null {
+  if (!actions || actions.length === 0 || typeof transcript !== 'string') return null
+  const said = sayNorm(transcript)
+  if (!said) return null
+  const byLabel = actions.filter(action => sayNorm(action.label) === said)
+  if (byLabel.length > 1) return null
+  if (byLabel.length === 1) return byLabel[0]!.requires_input ? null : byLabel[0]!
+  const primary = actions.filter(action => action.primary), others = actions.filter(action => !action.primary)
+  if (primary.length !== 1 || others.length !== 1) return null
+  if (YES_WORDS.includes(said)) return primary[0]!.requires_input ? null : primary[0]!
+  if (NO_WORDS.includes(said)) return others[0]!.requires_input ? null : others[0]!
+  return null
 }
 
 // ---------------------------------------------------------------------------

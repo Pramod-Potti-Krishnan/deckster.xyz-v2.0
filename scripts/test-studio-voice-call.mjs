@@ -164,14 +164,37 @@ function uiSuite(ui, over = {}) {
   eq(spoken('build_phase', { phase: 'building', label: 'Building', spoken: 'Building your slides.' }), 'Building your slides.', 'spoken: a build_phase\'s line')
   eq(spoken('build_event', { scope: 'deck', text: 'x', spoken: 'Checking the layouts.' }), 'Checking the layouts.', 'spoken: a deck-scope build_event\'s line')
   eq(spoken('build_event', { scope: 'slide', text: 'x', spoken: 'Slide three.' }), null, 'spoken: a slide-scope build_event says nothing aloud')
-  eq(spoken('slide_built', { spoken: 'Hi' }), null, 'spoken: no other frame is read aloud'); eq(spoken('action_request', { spoken: 'Hi' }), null, 'spoken: an action_request is read in the chat')
+  eq(spoken('slide_built', { spoken: 'Hi' }), null, 'spoken: no other frame is read aloud'); eq(spoken('action_request', { prompt_text: 'Which theme?', spoken: 'Which theme?' }), 'Which theme?', 'spoken: a card\'s (or the clarifying questions\') payload.spoken')
+  eq(spoken('action_request', { prompt_text: 'Which theme?' }), null, 'spoken: a card with no spoken line says nothing'); eq(spoken('action_request', { spoken: 'a'.repeat(300) }) !== null && spoken('action_request', { spoken: 'a'.repeat(301) }) === null, true, 'spoken: a card line over 300 characters is not said')
   eq(spoken('status_update', { status: 'generating', spoken: 'a'.repeat(160) }) !== null && spoken('status_update', { status: 'generating', spoken: 'a'.repeat(161) }) === null, true, 'spoken: a progress line over 160 characters is not said')
-  eq(ui.isProgressSpoken(frame('build_phase', { phase: 'building', spoken: 'On it.' })), true, 'progress: a progress frame with a line'); eq(ui.isProgressSpoken(frame('chat_message', { spoken: 'On it.' })), false, 'progress: a chat_message is a reply, not progress')
+  eq(ui.isProgressSpoken(frame('build_phase', { phase: 'building', spoken: 'On it.' })), true, 'progress: a progress frame with a line'); eq([ui.isProgressSpoken(frame('chat_message', { spoken: 'On it.' })), ui.isProgressSpoken(frame('action_request', { spoken: 'On it.' }))], [false, false], 'progress: a chat_message or a card is a reply, not progress')
   eq(ui.isProgressSpoken(frame('build_phase', { phase: 'building' })), false, 'progress: no line, no progress speech')
   const words = (type, payload) => ui.progressTextFromFrame(frame(type, payload))
   eq([words('build_event', { scope: 'deck', text: 'Researching…' }), words('build_event', { scope: 'slide', text: 'Slide 3' }), words('build_phase', { label: 'Building your slides…' }), words('status_update', { status: 'generating', text: 'Drafting' }), words('status_update', { status: 'thinking', text: 'Thinking…' }), words('slide_progress', { text: 'Rendering' }), words('chat_message', { text: 'x' })],
     ['Researching…', null, 'Building your slides…', 'Drafting', null, 'Rendering', null], 'progress text: deck events, labels, statuses (not "thinking"), slide_progress; a slide-scoped event is not the deck\'s story')
   eq(ui.replyTextFromFrame(frame('chat_message', { text: ' hi ' })), 'hi', 'reply text'); eq(ui.replyTextFromFrame(frame('status_update', { text: 'hi' })), null, 'reply text: chat_message only')
+
+  // -- a spoken answer to a card (PROVISIONAL, P4-18) -----------------------------------------------------------------------------------------------------
+  const PLAN = [{ label: "Yes, let's build it!", value: 'accept_plan', primary: true, requires_input: false }, { label: "I'd like to make changes", value: 'reject_plan', primary: false, requires_input: false }]
+  const NEXT = [{ label: 'Done, looks great!', value: 'complete_presentation', primary: true, requires_input: false }, { label: 'Make adjustments', value: 'request_adjustments', primary: false, requires_input: true }]
+  const SKIP = [{ label: 'Skip \u2014 use sensible defaults', value: 'skip_questions', primary: false, requires_input: false }]
+  const said = (transcript, actions) => ui.matchSpokenAnswer(transcript, actions)?.value ?? null
+  for (const [words, want] of [["Yes, let's build it!", 'accept_plan'], ['yes', 'accept_plan'], ['Yes please.', 'accept_plan'], ['yeah', 'accept_plan'], ['Go ahead', 'accept_plan'], ['looks good', 'accept_plan'], ['OK', 'accept_plan'], ['sounds good, thanks', 'accept_plan'], ['let\u2019s build it', 'accept_plan'],
+    ['no', 'reject_plan'], ['Nope.', 'reject_plan'], ['not yet', 'reject_plan'], ['change it', 'reject_plan'], ["I'd like to make changes", 'reject_plan'], ['make some changes please', 'reject_plan'],
+    ['yes but make the deck shorter', null], ['yes, and add a slide about risks', null], ['no, make it blue', null], ['', null], ['   ', null], ['the weather is nice', null], ['yes yes yes yes yes yes yes yes yes', null], ['maybe', null]]) {
+    eq(said(words, PLAN), want, `answer: "${words}" on the plan card is ${want ?? 'not a click'}`)
+  }
+  eq([said('yes', NEXT), said('Done, looks great', NEXT), said('no', NEXT), said('make adjustments', NEXT), said('adjust', NEXT)], ['complete_presentation', 'complete_presentation', null, null, null], 'answer: a button that asks for typed input is never picked by voice (so "no" has nothing to press)')
+  eq([said('yes', SKIP), said('no', SKIP), said('skip use sensible defaults', SKIP), said('skip', SKIP)], [null, null, 'skip_questions', null], 'answer: a card with one non-primary button is answered by its label only')
+  eq([said('yes', null), said('yes', undefined), said('yes', []), ui.matchSpokenAnswer(7, PLAN)], [null, null, null, null], 'answer: no card, no click, and junk never throws')
+  eq(said('yes', [{ ...PLAN[0], primary: true }, { ...PLAN[1], primary: true }]), null, 'answer: two primary buttons: "yes" is ambiguous')
+  eq(said('go', [{ label: 'Go', value: 'a', primary: true, requires_input: false }, { label: 'Go', value: 'b', primary: false, requires_input: false }]), null, 'answer: two buttons with the same label: not a click')
+  eq(said('yes', [{ ...PLAN[0], requires_input: true }, PLAN[1]]), null, 'answer: a primary button that asks for input is not clicked by "yes"')
+  eq(ui.actionsFromFrame(frame('action_request', { actions: PLAN })), PLAN, 'card: the buttons of an action_request')
+  eq([ui.actionsFromFrame(frame('action_request', { actions: [] })), ui.actionsFromFrame(frame('action_request', {})), ui.actionsFromFrame(frame('action_request', { actions: 'x' })), ui.actionsFromFrame(frame('chat_message', { actions: PLAN })), ui.actionsFromFrame(null)], [null, null, null, null, null], 'card: no buttons, no card')
+  eq(ui.actionsFromFrame(frame('action_request', { actions: [{ label: ' Ok ', value: 'ok' }, { label: '', value: 'x' }, { label: 'y', value: '' }, 5, null, { label: 'Go', value: 'go', primary: true, requires_input: 'yes' }] })), [{ label: 'Ok', value: 'ok', primary: false, requires_input: false }, { label: 'Go', value: 'go', primary: true, requires_input: false }], 'card: junk buttons are left out and the flags are booleans')
+  eq([['status_update', { status: 'thinking' }], ['status_update', { status: 'generating' }], ['build_phase', { phase: 'planning' }], ['build_phase', { phase: 'building' }]].map(([type, payload]) => ui.closesOpenAction(frame(type, payload))), [true, true, true, true], 'card: Director taking a new turn closes it')
+  eq([['status_update', { status: 'idle' }], ['status_update', { status: 'error' }], ['build_phase', { phase: 'complete' }], ['build_phase', { phase: 'paused' }], ['chat_message', { text: 'x' }], ['slide_built', {}], ['action_request', {}]].map(([type, payload]) => ui.closesOpenAction(frame(type, payload))), [false, false, false, false, false, false, false], 'card: ...and a report, a finished build or another frame does not (the "what next?" card arrives beside build_phase complete)')
 
   // -- the track and the scene ------------------------------------------------------------------------------------------------------------------
   const T0 = ui.initialDirectorTrack()
@@ -315,7 +338,7 @@ function makeCall({ over = {}, mic = {}, reduced = false, connected = true, send
   const host = makeHost({ env: ENV_ON, over })
   const ctlMod = host.load(CTL), ui = host.load(UI), router = host.load(ROUTER), core = host.load('lib/studio/voice/index.ts')
   const clock = new Clock()
-  const log = { micOpened: 0, micClosed: 0, recordings: [], cancelled: 0, plays: [], stops: 0, transcribed: [], spoken: [], sent: [], wire: [], aborted: 0, errors: [] }
+  const log = { micOpened: 0, micClosed: 0, recordings: [], cancelled: 0, plays: [], stops: 0, transcribed: [], spoken: [], sent: [], wire: [], actions: [], aborted: 0, errors: [] }
   const player = { level: 0.3, play(blob, hooks) { log.plays.push({ blob, hooks }) }, stop() { log.stops++ }, getLevel() { return this.level } }
   const recordingSpec = { durationMs: 1200, peak: 0.2, ...mic.recording }
   const env = {
@@ -344,7 +367,14 @@ function makeCall({ over = {}, mic = {}, reduced = false, connected = true, send
     log.sent.push(text)
     if (sendObserved && data.mode === 'voice') ctl.onSent(text)
   }
-  ctl = new ctlMod.VoiceCallController({ env, port, sendTurn, isConnected: () => state.connected })
+  const sendAction = async (action, messageId) => {
+    // The page's own click on a card's button (handleActionClick) with the armed words: the button's label and value, and the voice fields from the socket hook.
+    const data = { text: action.label, action_value: action.value, action_label: action.label, client_caps: ['mdc1'] }
+    if (takes) ui.addVoiceCallFields(data, action.label)
+    log.wire.push(data); log.actions.push({ action, messageId })
+    if (sendObserved && data.mode === 'voice') ctl.onSent(action.label)
+  }
+  ctl = new ctlMod.VoiceCallController({ env, port, sendTurn, sendAction, isConnected: () => state.connected })
   const world = {
     ctl, ui, env, clock, log, player, state, ctlMod, core,
     snap: () => ctl.getSnapshot(),
@@ -529,31 +559,82 @@ async function controllerSuite(over = {}) {
     eq(reduced.log.spoken.length, 1, 'filler: ...but a little sooner than 1.2 s (the tick at 1.0 s)')
   }
 
-  // ---- progress lines ---------------------------------------------------------------------------------------------------------------------------
+  // ---- progress lines: the Director sends a line for most progress frames; the client decides which are worth saying (a status after 4 s of quiet, one every 6 s, only the newest) -------
   {
     const w = makeCall({ over }); await w.start()
-    await w.frame('build_phase', { phase: 'building', label: 'Building your slides…', spoken: 'Building your slides.' })
-    eq([w.log.spoken, w.snap().scene, w.snap().progress], [['Building your slides.'], 'working', 'Building your slides…'], 'progress: a build_phase line is said between turns, and the label is shown under the disc')
+    await w.frame('build_phase', { phase: 'building', label: 'Building your slides…', spoken: 'Building your slides' })
+    eq([w.log.spoken, w.snap().scene, w.snap().progress], [[], 'working', 'Building your slides…'], 'progress: a line is not said at once (the label is shown under the disc)')
+    await w.clock.advance(3000); eq(w.log.spoken, [], 'progress: ...nor before 4 s of quiet')
+    await w.clock.advance(1250); eq(w.log.spoken, ['Building your slides'], 'progress: ...after 4 s of quiet it is said')
     await w.playStart(0); eq([w.snap().phase, w.snap().chip], ['speaking', 'Speaking'], 'progress: said as a turn of Director\'s own'); await w.playEnd(0); eq(w.snap().phase, 'idle', 'progress: ...which ends')
-    await w.frame('build_event', { scope: 'deck', text: 'Checking layouts', status: 'progress', spoken: 'Checking the layouts.' }); eq(w.log.spoken.at(-1), 'Checking the layouts.', 'progress: a deck-scope build_event line')
-    await w.frame('build_event', { scope: 'slide', text: 'Slide 3', status: 'progress', spoken: 'Slide three.' }); eq(w.log.spoken.at(-1), 'Checking the layouts.', 'progress: a slide-scope event is not said')
-    await w.frame('build_phase', { phase: 'building', label: 'Still building' }); eq(w.log.spoken.at(-1), 'Checking the layouts.', 'progress: a frame with no spoken line says nothing aloud')
-  }
-  {
-    const w = makeCall({ over }); await w.start(); await w.talk()
-    await w.frame('status_update', { status: 'generating', text: 'Researching the topic…', spoken: 'Researching the topic.' })
-    eq([w.log.spoken.at(-1), w.snap().phase], ['Researching the topic.', 'thinking'], 'progress: while a turn waits for its reply the line is said and the turn stays thinking')
-    await w.playStart(0); eq([w.snap().phase, w.snap().scene], ['thinking', 'speaking'], 'progress: ...the character speaks it'); await w.playEnd(0)
-    await w.reply('Done.'); await w.playStart(1); eq(w.snap().phase, 'speaking', 'progress: the reply after it is the turn\'s speech'); await w.playEnd(1); eq(w.snap().phase, 'idle', 'progress: ...and the turn ends')
+    await w.frame('build_event', { scope: 'deck', text: 'Checking layouts', status: 'progress', spoken: 'Checking the layouts' })
+    await w.clock.advance(5000); eq(w.log.spoken.length, 1, 'progress: the next line waits for 4 s of quiet and 6 s since the last one')
+    await w.clock.advance(2000); eq(w.log.spoken.at(-1), 'Checking the layouts', 'progress: ...then is said')
+    await w.playStart(1); await w.playEnd(1)
+    await w.frame('build_event', { scope: 'slide', text: 'Slide 3', status: 'progress', spoken: 'Slide three' }); await w.frame('build_phase', { phase: 'building', label: 'Still building' })
+    await w.clock.advance(12000); eq(w.log.spoken.length, 2, 'progress: a slide-scope event, and a frame with no spoken line, say nothing aloud')
   }
   {
     const w = makeCall({ over }); await w.start()
-    await w.frame('build_phase', { phase: 'building', spoken: 'First line.' }); await w.playStart(0)
-    await w.frame('build_phase', { phase: 'building', spoken: 'Second line.' }); await w.frame('build_phase', { phase: 'building', spoken: 'Third line.' })
-    eq(w.log.spoken, ['First line.', 'Second line.', 'Third line.'], 'progress: lines are fetched as they come')
-    await w.playEnd(0); eq(w.log.plays.length, 2, 'progress: only the newest waiting line is said: the stale one is dropped'); await w.playStart(1); eq(w.log.plays[1].blob.size, 'Third line.'.length, 'progress: ...the third')
-    const listening = makeCall({ over }); await listening.start(); listening.ctl.pttDown(); await settle(); await listening.frame('build_phase', { phase: 'building', spoken: 'Hush.' })
-    eq(listening.log.spoken, [], 'progress: nothing is said while the user is talking')
+    await w.frame('build_phase', { phase: 'building', spoken: 'First line' }); await w.clock.advance(1000); await w.frame('status_update', { status: 'generating', text: 'x', spoken: 'Second line' })
+    await w.clock.advance(4500); eq(w.log.spoken, ['Second line'], 'progress: only the newest line waits: the first was never said')
+    const stale = makeCall({ over, mic: { recording: { durationMs: 100 } } }); await stale.start(); stale.ctl.pttDown(); await settle()
+    await stale.frame('build_phase', { phase: 'building', spoken: 'Hush' }); await stale.clock.advance(25000)
+    eq(stale.log.spoken, [], 'progress: nothing is said while the user is talking')
+    await stale.ctl.pttUp(); await settle(); await stale.clock.advance(8000); eq(stale.log.spoken, [], 'progress: ...and a line that waited more than 20 s is stale and dropped')
+    const hush = makeCall({ over }); await hush.start(); await hush.talk(); await hush.frame('status_update', { status: 'generating', text: 'x', spoken: 'Researching' })
+    await hush.clock.advance(1500); eq(hush.log.spoken.length, 1, 'progress: (the filler is what a waiting turn hears first)'); await hush.playStart(0); await hush.playEnd(0)
+    await hush.clock.advance(4500)
+    eq([hush.log.spoken.at(-1), hush.snap().phase], ['Researching', 'thinking'], 'progress: while a turn waits for its reply the line is said after the filler, and the turn stays thinking')
+    await hush.playStart(1); eq([hush.snap().phase, hush.snap().scene], ['thinking', 'speaking'], 'progress: ...the character speaks it'); await hush.playEnd(1)
+    await hush.reply('Done.'); await hush.playStart(2); eq(hush.snap().phase, 'speaking', 'progress: the reply after it is the turn\'s speech'); await hush.playEnd(2); eq(hush.snap().phase, 'idle', 'progress: ...and the turn ends')
+    const over_ = makeCall({ over }); await over_.start()
+    await over_.frame('chat_message', { text: 'x', spoken: 'A report.' }); await over_.playStart(0)
+    await over_.frame('build_phase', { phase: 'building', spoken: 'A progress line' }); await over_.clock.advance(9000)
+    eq(over_.log.spoken, ['A report.'], 'progress: never over a line that is being said')
+    await over_.playEnd(0); await over_.clock.advance(4500); eq(over_.log.spoken, ['A report.', 'A progress line'], 'progress: ...it waits its turn')
+    const quiet = makeCall({ over, speakFails: 'not_connected' }); await quiet.start(); await quiet.frame('build_phase', { phase: 'building', spoken: 'A line' }); await quiet.clock.advance(5000); await quiet.frame('build_phase', { phase: 'building', spoken: 'Another line' }); await quiet.clock.advance(20000)
+    eq(quiet.log.spoken.length, 1, 'progress: speech that is not connected is asked for once, not for every line')
+  }
+
+  // ---- a spoken answer to a card -----------------------------------------------------------------------------------------------------------------
+  {
+    const PLAN = [{ label: "Yes, let's build it!", value: 'accept_plan', primary: true, requires_input: false }, { label: "I'd like to make changes", value: 'reject_plan', primary: false, requires_input: false }]
+    const w = makeCall({ over, transcripts: ['Yes, lets build it', 'yes'] }); await w.start()
+    await w.frame('chat_message', { text: 'Here is the plan.', spoken: 'Here is my plan for the pitch.' }, 'plan-chat')
+    await w.frame('action_request', { prompt_text: 'Does this structure work for you?', actions: PLAN, spoken: 'Does this structure work for you?' }, 'plan-card')
+    eq(w.log.spoken.length >= 2 && w.log.spoken.join(' ').includes('Here is my plan') && w.log.spoken.at(-1).includes('Does this structure work'), true, 'card: the reply and then the card\'s question are both said, in order (a card\'s line right after a reply\'s)')
+    eq(w.snap().scene, 'reporting', 'card: ...while the lines are fetched Director is reporting (a turn of its own, not a thinking one)')
+    for (let i = 0; i < w.log.plays.length; i++) { await w.playStart(i); await w.playEnd(i) }
+    await w.clock.advance(3000)
+    eq([w.snap().phase, w.snap().scene], ['idle', 'waiting'], 'card: a card is waiting for you')
+    await w.talk()
+    eq([w.log.actions.length, w.log.sent, w.log.actions[0]?.action.value, w.log.actions[0]?.messageId], [1, [], 'accept_plan', 'plan-card'], 'card: a spoken "yes" presses the plan card\'s own button (not a typed message), on that card')
+    eq(w.log.wire[0], { text: "Yes, let's build it!", action_value: 'accept_plan', action_label: "Yes, let's build it!", client_caps: ['mdc1', 'voice1'], mode: 'voice' }, 'card: ...as the card\'s own text and action_value, with mode "voice" and the cap voice1')
+    eq([w.snap().phase, w.ui.voiceCallBus.pending], ['thinking', null], 'card: the turn waits for Director like any other; nothing stays armed')
+    await w.reply(undefined); w.ctl.pttDown(); await settle(); await w.clock.advance(1000); await w.ctl.pttUp(); await settle()
+    eq(w.log.actions.length, 1, 'card: the card is answered once: a second "yes" is not a click')
+  }
+  {
+    const PLAN = [{ label: "Yes, let's build it!", value: 'accept_plan', primary: true, requires_input: false }, { label: "I'd like to make changes", value: 'reject_plan', primary: false, requires_input: false }]
+    for (const [words, why] of [['yes but make it ten slides', 'more than a yes'], ['', 'nothing heard']]) {
+      const w = makeCall({ over, transcripts: [words] }); await w.start(); await w.frame('action_request', { actions: PLAN, prompt_text: 'x', spoken: 'x' }, 'c1'); await w.talk()
+      eq([w.log.actions.length, w.log.sent], [0, words ? [words] : []], `card: ${why}: no button, the words go as an ordinary voice message`)
+      if (words) eq(w.log.wire[0].mode, 'voice', 'card: ...a voice turn')
+    }
+    const moved = makeCall({ over, transcripts: ['yes'] }); await moved.start(); await moved.frame('action_request', { actions: PLAN, prompt_text: 'x' }, 'c1'); await moved.frame('status_update', { status: 'thinking', text: 'x' }); await moved.talk()
+    eq([moved.log.actions.length, moved.log.sent], [0, ['yes']], 'card: once Director has moved on (a new turn) the old card is not pressed')
+    const finished = makeCall({ over, transcripts: ['yes'] }); await finished.start(); await finished.frame('action_request', { actions: PLAN, prompt_text: 'x' }, 'c1'); await finished.frame('build_phase', { phase: 'complete' }); await finished.talk()
+    eq(finished.log.actions.length, 1, 'card: a finished build does not close the "what next?" card that arrives beside it')
+    const replaced = makeCall({ over, transcripts: ['yes'] }); await replaced.start(); await replaced.frame('action_request', { actions: PLAN, prompt_text: 'x' }, 'old'); await replaced.frame('action_request', { actions: [{ label: 'Done, looks great!', value: 'complete_presentation', primary: true, requires_input: false }, { label: 'Make adjustments', value: 'request_adjustments', primary: false, requires_input: true }], prompt_text: 'y' }, 'new'); await replaced.talk()
+    eq([replaced.log.actions[0]?.action.value, replaced.log.actions[0]?.messageId], ['complete_presentation', 'new'], 'card: the newest card is the open one')
+    const none = makeCall({ over, transcripts: ['yes'] }); await none.start(); await none.frame('action_request', { actions: [], prompt_text: 'Who is in the room?', spoken: 'Who is in the room?' }, 'q'); await none.talk()
+    eq([none.log.actions.length, none.log.sent], [0, ['yes']], 'card: questions with no buttons are answered by words')
+    const failed = makeCall({ over, transcripts: ['yes'], sendObserved: false }); await failed.start(); await failed.frame('action_request', { actions: PLAN, prompt_text: 'x' }, 'c1'); await failed.talk()
+    eq([failed.snap().phase, failed.snap().notice?.title, failed.ui.voiceCallBus.pending], ['idle', "That didn't reach the Director", null], 'card: a click the socket never took is told to the user')
+    const first = makeCall({ over }); await first.start(); await first.talk(); await first.frame('action_request', { prompt_text: 'Who is in the room, and how many?', actions: [{ label: 'Skip', value: 'skip_questions', primary: false, requires_input: false }], spoken: 'Who is in the room, and how many people?' }, 'q1')
+    ok(first.log.spoken.length >= 1 && first.snap().phase === 'thinking', 'card: the clarifying questions are the reply to the turn: said')
+    await first.playStart(0); eq(first.snap().phase, 'speaking', 'card: ...as the turn\'s speech')
   }
 
   // ---- the character's scene from Director's frames -----------------------------------------------------------------------------------------
@@ -689,7 +770,7 @@ async function hookSuite(over = {}) {
   }
   try {
     const off = mk({})
-    const offRun = await run(off, { enabled: true, sendTurn: () => {}, sessionKey: 's1', connected: true })
+    const offRun = await run(off, { enabled: true, sendTurn: () => {}, sendAction: () => {}, sessionKey: 's1', connected: true })
     eq([offRun.latest().dock, offRun.latest().composerProps, off.calls.controllers.length, listeners.length, off.ui.voiceCallBus.frame, off.ui.voiceCallBus.sent], [null, null, 0, 0, null, null], 'hook: flag off: no dock, no button, no controller, no listener, nothing on the bus')
     offRun.rootNode.unmount()
     const shell = mk(ENV_ON)
@@ -697,13 +778,13 @@ async function hookSuite(over = {}) {
     eq([shellOff.latest().dock, shellOff.latest().composerProps, shell.calls.controllers.length, shell.ui.voiceCallBus.frame], [null, null, 0, null], 'hook: flag on but not the Studio shell: nothing')
     shellOff.rootNode.unmount()
     const on = mk(ENV_ON)
-    const sent = []
-    const onRun = await run(on, { enabled: true, sendTurn: text => { sent.push(text) }, sessionKey: 's1', connected: true })
+    const sent = [], actions = []
+    const onRun = await run(on, { enabled: true, sendTurn: text => { sent.push(text) }, sendAction: (action, id) => { actions.push([action, id]) }, sessionKey: 's1', connected: true })
     eq(on.calls.controllers.length, 1, 'hook: flag on: one controller, loaded after mount')
     const o = on.calls.controllers[0]
     eq([o.env, o.port], [{ marker: 'env' }, { marker: 'port' }], 'hook: ...with the browser\'s environment and the router port')
     ok(typeof on.ui.voiceCallBus.frame === 'function' && typeof on.ui.voiceCallBus.sent === 'function', 'hook: ...and the bus is wired to it')
-    o.sendTurn('hello'); eq(sent, ['hello'], 'hook: the controller\'s send is the page\'s send'); eq(o.isConnected(), true, 'hook: ...and it knows the socket is open')
+    o.sendTurn('hello'); eq(sent, ['hello'], 'hook: the controller\'s send is the page\'s send'); o.sendAction({ label: 'Yes' }, 'm1'); eq(actions, [[{ label: 'Yes' }, 'm1']], 'hook: ...and a card\'s button is the page\'s own click'); eq(o.isConnected(), true, 'hook: ...and it knows the socket is open')
     eq(onRun.latest().composerProps?.active, false, 'hook: the composer gets the call button\'s state')
     eq(listeners.length, 0, 'hook: no key listener before a call')
     eq(on.calls.ended ?? 0, 0, 'hook: the call is not ended while the session stays')
@@ -725,7 +806,7 @@ function sourceSuite(sources, { base = null } = {}) {
   // the page
   eq(lines(page).filter(line => MARK.test(line)).length, 6, 'page: six marked lines (the comment and the hook call, the dock, the composer prop, the comment and the import at the end)')
   const call = lineOf(page, 'const voiceCall = useStudioVoiceCall({')
-  ok(call.includes('enabled: studioShell') && call.includes('sendTurn: text => handleSendMessage(undefined, text)') && call.includes('sessionKey: currentSessionId || wsSessionId') && call.includes('connected }) // VOICE-CALL'), 'page: the hook is handed the Studio shell, the page\'s ordinary send, the session and the socket state')
+  ok(call.includes('enabled: studioShell') && call.includes('sendTurn: text => handleSendMessage(undefined, text)') && call.includes('sendAction: (action, messageId) => handleActionClick(action, messageId)') && call.includes('sessionKey: currentSessionId || wsSessionId') && call.includes('connected }) // VOICE-CALL'), 'page: the hook is handed the Studio shell, the page\'s ordinary send, the session and the socket state')
   ok(page.indexOf(call) > page.indexOf('const handleSendMessage = useCallback(') && page.indexOf(call) > page.indexOf('const flowControl = useStudioFlowControl({'), 'page: the call hook comes after the send it uses and after the flow hook')
   const dockLine = lineOf(page, '{voiceCall.dock}{/* VOICE-CALL')
   ok(page.indexOf(dockLine) > page.indexOf('{flowControl.bar}') && page.indexOf(dockLine) < page.indexOf('<ChatInput\n'), 'page: the dock sits above the composer, under the flow bar')
@@ -855,8 +936,8 @@ const mutants = [
   [UI, 'a paused build is waiting', "if (phase === 'paused' || phase === 'stopped') return { kind: 'paused' }", "if (phase === 'paused' || phase === 'stopped') return { kind: 'waiting' }"],
   [UI, 'a slide failure is not concern', "case 'slide_failed': return { kind: 'concerned' }", "case 'slide_failed': return null"],
   [UI, 'every build_event is the deck\'s', "payload.scope === 'deck'", "true"],
-  [UI, 'the spoken cap is gone', 'line.length <= (chat ? MAX_SPOKEN_CHARS : MAX_SPOKEN_PROGRESS_CHARS)', 'true'],
-  [UI, 'any frame is read aloud', "if (!chat && type !== 'status_update' && type !== 'build_phase' && !(type === 'build_event' && payload.scope === 'deck')) return null", ''],
+  [UI, 'the spoken cap is gone', 'line.length <= (long ? MAX_SPOKEN_CHARS : MAX_SPOKEN_PROGRESS_CHARS)', 'true'],
+  [UI, 'any frame is read aloud', "if (!long && type !== 'status_update' && type !== 'build_phase' && !(type === 'build_event' && payload.scope === 'deck')) return null", ''],
   [UI, 'the text is spoken when there is no line', "const line = cleanText(payload.spoken)", "const line = cleanText(payload.spoken) ?? cleanText(payload.text)"],
   [UI, 'a small pleased every time', 'now - expired.lastPleasedAt < PLEASED_EVERY_MS', 'false'],
   [UI, 'a report does not end the thinking', "background: expired.background === 'thinking' ? 'none' : expired.background, beat: { scene, until", "background: expired.background, beat: { scene, until"],
@@ -898,7 +979,7 @@ const mutants = [
   [CTL, 'the mic is not released on end', "this.mic?.close()\n        this.mic = null", "this.mic = null"],
   [CTL, 'a tick timer is left after the call', "this.mic = null\n        this.clearTick()", "this.mic = null"],
   [CTL, 'a short recording is sent', 'const verdict = worthSending({ durationMs: heard.durationMs, peakLevel: heard.peak })', 'const verdict = { ok: true }'],
-  [CTL, 'the words are not armed', 'armVoiceTurn(text)\n    try {', 'try {'],
+  [CTL, 'the words are not armed', 'armVoiceTurn(words)\n    try {', 'try {'],
   [CTL, 'the turn stays armed', 'disarmVoiceTurn()\n    if (this.awaiting?.turn !== turn) return', 'if (this.awaiting?.turn !== turn) return'],
   [CTL, 'a send nobody saw is fine', "if (!this.awaiting.sendObserved) this.failTurn(turn, 'not_sent')", ''],
   [CTL, 'a frame is handled twice', 'if (this.seen.has(id)) return', 'if (false) return'],
@@ -908,8 +989,29 @@ const mutants = [
   [CTL, 'the reply to a stopped turn is said', "if (!awaiting && this.owedReplies > 0) { this.owedReplies--; return }", ''],
   [CTL, 'a reply with nothing to say hangs the turn', "this.dispatch({ type: 'reply_done', turn: this.cs.turn })\n      this.dispatch({ type: 'audio_drained', turn: this.cs.turn })\n      return\n    }\n    if (!sentences.length || this.speechOff) return", "return\n    }\n    if (!sentences.length || this.speechOff) return"],
   [CTL, 'a reply is spoken as one block', 'for (const sentence of sentences) this.enqueue(sentence, \'reply\', turn, true)', "this.enqueue(sentences.join(' '), 'reply', turn, true)"],
-  [CTL, 'progress is said while the user talks', "if (this.cs.phase === 'listening' || this.speechOff) return\n    const sentences = splitSentences(cleanForSpeech(line))", "if (this.speechOff) return\n    const sentences = splitSentences(cleanForSpeech(line))"],
-  [CTL, 'every stale progress line is kept', "this.queue = this.queue.filter(item => item.kind !== 'progress')", ''],
+  [CTL, 'progress is said while the user talks', "!busy && this.cs.phase !== 'listening' && now - this.quietSince", "!busy && now - this.quietSince"],
+  [CTL, 'a stale progress line is said', 'if (now - progress.at > PROGRESS_STALE_MS || this.speechOff) this.progressLine = null', 'if (this.speechOff) this.progressLine = null'],
+  [CTL, 'progress is said before 4 s of quiet', 'now - this.quietSince >= PROGRESS_AFTER_MS', 'true'],
+  [CTL, 'progress is said every tick', 'now - this.lastProgressSaidAt >= PROGRESS_EVERY_MS', 'true'],
+  [CTL, 'the oldest progress line is kept', 'this.progressLine = { text: line, at: this.env.now() }', 'this.progressLine = this.progressLine ?? { text: line, at: this.env.now() }'],
+  [CTL, 'progress is said over speech', 'const busy = this.speakingNow || !!this.playing || this.queue.length > 0', 'const busy = false'],
+  [CTL, 'a card is never pressed', 'const action = open ? matchSpokenAnswer(text, open.actions) : null', 'const action = null'],
+  [CTL, 'a card stays open after it is answered', 'this.openAction = null\n    const words = action', 'const words = action'],
+  [CTL, 'a card is never closed', 'if (closesOpenAction(frame)) this.openAction = null', ''],
+  [CTL, 'a card is not tracked', "if (buttons && typeof id === 'string' && id) this.openAction = { messageId: id, actions: buttons }", ''],
+  [CTL, 'a card is pressed by the typed path', 'await (action && open ? this.sendAction(action, open.messageId) : this.sendTurn(text))', 'await this.sendTurn(text)'],
+  [CTL, 'the armed words are the transcript, not the label', 'armVoiceTurn(words)', 'armVoiceTurn(text)'],
+  [CTL, 'a card is not a reply', "(type === 'action_request' && signal?.kind === 'waiting')) this.heardReply(frame)", "false) this.heardReply(frame)"],
+  [UI, 'a card line is not read', "const long = type === 'chat_message' || type === 'action_request'", "const long = type === 'chat_message'"],
+  [UI, 'a card is progress', "!== 'chat_message' && frameType(frame) !== 'action_request' && spokenLineFromFrame(frame) !== null", "!== 'chat_message' && spokenLineFromFrame(frame) !== null"],
+  [UI, 'yes presses the other button', 'if (YES_WORDS.includes(said)) return primary[0]!.requires_input ? null : primary[0]!', 'if (YES_WORDS.includes(said)) return others[0]!'],
+  [UI, 'no works on any card', 'if (primary.length !== 1 || others.length !== 1) return null', ''],
+  [UI, 'a button that asks for input is pressed by voice', 'if (YES_WORDS.includes(said)) return primary[0]!.requires_input ? null : primary[0]!', 'if (YES_WORDS.includes(said)) return primary[0]!'],
+  [UI, 'a label is matched loosely', 'actions.filter(action => sayNorm(action.label) === said)', 'actions.filter(action => sayNorm(action.label).includes(said))'],
+  [UI, 'a build that is starting does not close the card', "return payload.phase === 'planning' || payload.phase === 'strawman' || payload.phase === 'building'", "return payload.phase === 'complete' || payload.phase === 'strawman'"],
+  [UI, 'a thinking status does not close the card', "return payload.status === 'thinking' || payload.status === 'generating'", "return payload.status === 'generating'"],
+  [UI, 'a card with junk buttons is trusted', "typeof a.label === 'string' && a.label.trim() && typeof a.value === 'string' && a.value", 'true'],
+  [PAGE, 'a card is pressed by typing its label', 'sendAction: (action, messageId) => handleActionClick(action, messageId)', 'sendAction: (action) => handleSendMessage(undefined, action.label)'],
   [CTL, 'a progress line moves the waiting turn to speaking', "for (const sentence of sentences) this.enqueue(sentence, 'progress', this.cs.turn, false)", "for (const sentence of sentences) this.enqueue(sentence, 'progress', this.cs.turn, true)"],
   [CTL, 'the filler comes after the reply', 'replyTextArrived: awaiting.replyTextArrived,', 'replyTextArrived: false,'],
   [CTL, 'the filler is said twice', 'alreadyUsed: awaiting.fillerUsed,', 'alreadyUsed: false,'],
