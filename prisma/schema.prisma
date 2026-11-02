@@ -294,6 +294,7 @@ model UserPreferences {
 
   // Privacy preferences
   activityTracking      Boolean  @default(false) @map("activity_tracking")
+  templateAutoApply     Boolean? @map("template_auto_apply") // STUDIO-TEMPLATE-AUTO-APPLY-SERVER: the template auto-apply check per user, NULL = never set = ON. The column must exist BEFORE this line is merged: apply prisma/sql/20261102_template_auto_apply.sql first (the existing /api/preferences route selects every field)
 
   // Timestamps
   createdAt             DateTime @default(now()) @map("created_at")
