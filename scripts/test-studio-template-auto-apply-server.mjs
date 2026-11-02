@@ -68,6 +68,10 @@ const FLAG = strip.STUDIO_TEMPLATE_AUTO_APPLY_SERVER_FLAG, MATCH_FLAG = matchStr
 const BOTH = { [MATCH_FLAG]: 'true', [FLAG]: 'true' }
 const MARK = strip.STUDIO_TEMPLATE_AUTO_APPLY_SERVER_MARKER_RE
 const PATH_URL = '/api/preferences/template-auto-apply'
+/** The executable text of the SQL file, verbatim as PK runs it (comments aside): the convention of prisma/sql/20260810_narration_voice.sql (unqualified table, ADD COLUMN IF NOT EXISTS, a COMMENT ON COLUMN). */
+const SQL_CODE = "ALTER TABLE fe_user_preferences\n  ADD COLUMN IF NOT EXISTS template_auto_apply BOOLEAN;\nCOMMENT ON COLUMN fe_user_preferences.template_auto_apply IS\n  'Template auto-apply check (W2 P4-7/8): the user''s standing preference across devices. NULL = never set = ON.';"
+const sqlCodeOf = text => text.split('\n').filter(row => !row.trim().startsWith('--')).join('\n').trim()
+const sqlForbidden = /\b(DROP|RENAME|TRUNCATE|DELETE|UPDATE|INSERT|DEFAULT|NOT\s+NULL|ALTER\s+COLUMN|TYPE|CASCADE|CREATE|GRANT|REVOKE)\b/i
 
 // ---- #559's recordings (the real frames) -------------------------------------------------------------------------------------------------------------------------------
 const FIX = JSON.parse(read('scripts/studio-template-match-fixtures/frames.json'))
@@ -548,16 +552,17 @@ if (baseOk) {
 
   await check('D. the SQL file is additive and idempotent: one ALTER TABLE ... ADD COLUMN IF NOT EXISTS (nullable, no default); no DROP / RENAME / TYPE / DEFAULT / NOT NULL / UPDATE / DELETE outside comments; the header orders the apply BEFORE the merge; the rollback and the read-only check are in it', () => {
     const sql = read(SQL)
-    const code = sql.split('\n').filter(row => !row.trim().startsWith('--')).join('\n').trim()
-    eq(code, 'ALTER TABLE fe_user_preferences ADD COLUMN IF NOT EXISTS template_auto_apply boolean;', 'the only statement')
-    ok(!/\b(DROP|RENAME|TRUNCATE|DELETE|UPDATE|INSERT|DEFAULT|NOT\s+NULL|ALTER\s+COLUMN|\bTYPE\b|CASCADE|CREATE|GRANT|REVOKE)\b/i.test(code), 'no destructive or other-column keyword in the executable code')
-    eq((code.match(/ALTER TABLE/gi) ?? []).length, 1, 'one ALTER TABLE'); eq((code.match(/;/g) ?? []).length, 1, 'one statement')
+    const code = sqlCodeOf(sql)
+    eq(code, SQL_CODE, 'the only statements: PK\'s text, verbatim (the ALTER TABLE and the COMMENT ON COLUMN)')
+    ok(!sqlForbidden.test(code.replace(/'(?:[^']|'')*'/g, "''")), 'no destructive or other-column keyword in the executable code (the comment text aside)')
+    eq((code.match(/ALTER TABLE/gi) ?? []).length, 1, 'one ALTER TABLE'); eq((code.match(/COMMENT ON/gi) ?? []).length, 1, 'one COMMENT ON'); eq((code.match(/;/g) ?? []).length, 2, 'two statements')
+    ok(/COMMENT ON COLUMN fe_user_preferences\.template_auto_apply IS/.test(code), 'the comment is on the new column only')
     ok(/IF NOT EXISTS/.test(code), 'idempotent')
-    ok(/^-- .*(\n-- .*)*\n-- APPLY THIS BEFORE THE PR/m.test(sql) || /APPLY THIS BEFORE THE PR THAT ADDS/.test(sql), 'the header says: apply BEFORE the PR is merged')
+    ok(/APPLY THIS BEFORE THE PR THAT ADDS/.test(sql) && /#559b/.test(sql), 'the header says: apply BEFORE the PR is merged (#560, also called #559b)')
     ok(/Additive only and idempotent/.test(sql) && /Nullable, NO default/.test(sql) && /NULL means "never set"/.test(sql), 'the header says: additive, idempotent, nullable with no default, NULL = never set')
     ok(sql.includes('--   ALTER TABLE fe_user_preferences DROP COLUMN IF EXISTS template_auto_apply;'), 'the rollback line (a comment)')
     ok(sql.includes("WHERE table_name = 'fe_user_preferences' AND column_name = 'template_auto_apply';") && sql.includes('template_auto_apply | boolean | YES'), 'the read-only check and its expected row (a comment)')
-    ok(/fe_user_preferences/.test(sql) && !/[^_]user_preferences/.test(code), 'the table is fe_user_preferences')
+    ok(/fe_user_preferences/.test(sql) && !/[^_]user_preferences/.test(code), 'the table is fe_user_preferences, unqualified (no schema prefix)'); ok(!/\bpublic\./i.test(code), 'no schema prefix')
     const existing = git('ls-tree', '--name-only', BASE_COMMIT, 'prisma/sql/').split('\n').filter(Boolean)
     ok(existing.length >= 10 && !existing.includes(SQL), 'a new file next to the older hand-run files')
   }, { mutable: false })
@@ -853,16 +858,21 @@ if (baseOk) {
 }
 {
   const sql = read(SQL)
-  const sqlOk = text => { const code = text.split('\n').filter(row => !row.trim().startsWith('--')).join('\n').trim(); assert.equal(code, 'ALTER TABLE fe_user_preferences ADD COLUMN IF NOT EXISTS template_auto_apply boolean;'); assert.ok(!/\b(DROP|RENAME|TRUNCATE|DELETE|UPDATE|INSERT|DEFAULT|NOT\s+NULL|ALTER\s+COLUMN|\bTYPE\b)\b/i.test(code)) }
+  const sqlOk = text => { const code = sqlCodeOf(text); assert.equal(code, SQL_CODE); assert.ok(!sqlForbidden.test(code.replace(/'(?:[^']|'')*'/g, "''"))) }
   sqlOk(sql)
   for (const [label, text] of [
     ['no IF NOT EXISTS', sql.replace('ADD COLUMN IF NOT EXISTS', 'ADD COLUMN')],
-    ['a default', sql.replace('template_auto_apply boolean;', 'template_auto_apply boolean DEFAULT true;')],
-    ['NOT NULL', sql.replace('template_auto_apply boolean;', 'template_auto_apply boolean NOT NULL;')],
+    ['a default', sql.replace('template_auto_apply BOOLEAN;', 'template_auto_apply BOOLEAN DEFAULT true;')],
+    ['NOT NULL', sql.replace('template_auto_apply BOOLEAN;', 'template_auto_apply BOOLEAN NOT NULL;')],
+    ['another type', sql.replace('template_auto_apply BOOLEAN;', 'template_auto_apply TEXT;')],
+    ['the comment text changes', sql.replace('the user\'\'s standing preference', 'the users standing preference')],
+    ['no comment', sql.replace(/COMMENT ON COLUMN[\s\S]*$/, '')],
+    ['a comment on another column', sql.replace('COMMENT ON COLUMN fe_user_preferences.template_auto_apply', 'COMMENT ON COLUMN fe_user_preferences.email_marketing')],
     ['another column dropped', `${sql}\nALTER TABLE fe_user_preferences DROP COLUMN email_marketing;\n`],
     ['another column retyped', `${sql}\nALTER TABLE fe_user_preferences ALTER COLUMN email_marketing TYPE text;\n`],
     ['an UPDATE', `${sql}\nUPDATE fe_user_preferences SET template_auto_apply = true;\n`],
-    ['the wrong table', sql.replace('ALTER TABLE fe_user_preferences ADD', 'ALTER TABLE user_preferences ADD')],
+    ['the wrong table', sql.replace('ALTER TABLE fe_user_preferences\n', 'ALTER TABLE user_preferences\n')],
+    ['a schema-qualified table', sql.replace('ALTER TABLE fe_user_preferences\n', 'ALTER TABLE public.fe_user_preferences\n')],
   ]) await mutant(`sql: ${label}`, () => sqlOk(text))
 }
 

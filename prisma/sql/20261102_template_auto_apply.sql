@@ -6,8 +6,9 @@
 -- `@@map("fe_user_preferences")`, like every other frontend table in this database.
 --
 -- ============================================================================================================================
--- APPLY THIS BEFORE THE PR THAT ADDS `templateAutoApply` TO prisma/schema.prisma IS MERGED. Hand-run, once, in the Supabase SQL editor
--- (PK, or someone PK names). The build only runs `prisma generate`; nothing in the build or the deploy applies this file.
+-- APPLY THIS BEFORE THE PR THAT ADDS `templateAutoApply` TO prisma/schema.prisma IS MERGED (#560, also called #559b; stacked on #559).
+-- Hand-run, once, in the Supabase SQL editor (PK, or someone PK names). The build only runs `prisma generate`; nothing in the build
+-- or the deploy applies this file.
 --
 -- WHY THE ORDER MATTERS: Prisma's generated client selects EVERY field of a model that a query does not narrow with `select`.
 -- The existing GET and PATCH in app/api/preferences/route.ts (the Settings > Notifications and Privacy pages, for every user)
@@ -29,4 +30,7 @@
 -- Rollback (PK; only after the flag is unflipped and the PR is reverted or not merged):
 --   ALTER TABLE fe_user_preferences DROP COLUMN IF EXISTS template_auto_apply;
 
-ALTER TABLE fe_user_preferences ADD COLUMN IF NOT EXISTS template_auto_apply boolean;
+ALTER TABLE fe_user_preferences
+  ADD COLUMN IF NOT EXISTS template_auto_apply BOOLEAN;
+COMMENT ON COLUMN fe_user_preferences.template_auto_apply IS
+  'Template auto-apply check (W2 P4-7/8): the user''s standing preference across devices. NULL = never set = ON.';
