@@ -1,7 +1,7 @@
-// FRONTEND-1 (F-13 phone orientation, PR 1 of 2; PK's answers of 1 Nov, amended 2 Nov): proof of the sideways viewing stage (and that portrait is left to the phone shell's own bottom tab bar). Flag NEXT_PUBLIC_STUDIO_PHONE_LANDSCAPE (exact "true", build-time, default off), only active with the phone
+// FRONTEND-1 (F-13 phone orientation, PR 1 of 2; PK's answers of 1 Nov, amended 2 Nov): proof of the sideways viewing stage with its two floating buttons (a hamburger for the bar's destinations, a plus for the editing fan) and that portrait is left to the phone shell's own bottom tab bar. Flag NEXT_PUBLIC_STUDIO_PHONE_LANDSCAPE (exact "true", build-time, default off), only active with the phone
 // shell (NEXT_PUBLIC_STUDIO_PHONE_SHELL and NEXT_PUBLIC_STUDIO_V4_SHELL). A phone turned sideways (the query (orientation: landscape) and (max-height: 500px) and (pointer: coarse), and its CSS twin) with a deck on the stage: the slide fills the screen
-// (the viewer's own fit fed a slide space 32 px larger by CSS: the viewer is not edited), the thumbnails are a collapsible strip on the LEFT with a state of its own, the rail, top bar, switch, toolbar, pull tabs and tab bar go, a Chat button is a pane switch back to the Director, and ONE floating button opens an
-// overlay fan (Add slide, Add element and the phone "..." menu's deck actions, through the page's own controls). In portrait nothing is drawn and no rule applies: the bottom tab bar stays on screen in the slide view too (PK, 2 Nov). The screen is never locked to an orientation.
+// (the viewer's own fit fed a slide space 32 px larger by CSS: the viewer is not edited), the thumbnails are a collapsible strip on the LEFT with a state of its own, the rail, top bar, switch, toolbar, pull tabs and tab bar go, a Chat button is a pane switch back to the Director, and TWO floating buttons each open one
+// overlay menu, one at a time: a hamburger for the bar's destinations (a click on the real tab bar's own control) and a plus for the fan (Add slide, Add element and the phone "..." menu's deck actions, through the page's own controls). In portrait nothing is drawn and no rule applies: the bottom tab bar stays on screen in the slide view too (PK, 2 Nov). The screen is never locked to an orientation.
 //
 //   node scripts/test-studio-phone-landscape.mjs        (plain node: transpile + vm of the REAL lib, hook and component, postcss over the REAL stylesheets, no network, no browser; the real page is driven by the harness shots)
 //
@@ -9,9 +9,9 @@
 //  1. the flag is the exact string "true" AND the phone shell AND the Studio shell (every other spelling of each is off); nothing is listened to and nothing is drawn with it off;
 //  2. the decisions (lib): the stage needs all four of flag, landscape, a deck on the stage and the stage on screen; the page's width on a phone turned sideways; the strip's own state and what the stage does to the viewer's own rail toggle; the fan's entries;
 //  3. the hooks: the media query is read once and followed on `change` (and never touched with the flag off); the stage store tells its subscribers; the viewer's rail is the strip's while the stage is on and the portrait value comes back (no leak into portrait);
-//  4. the component: its markup in the stage (Chat with the connection dot, the one floating button, the strip's collapse button or its 30 px handle) and nowhere else (portrait draws nothing); no orientation lock anywhere;
+//  4. the component: its markup in the stage (Chat with the connection dot, the hamburger and the plus, the strip's collapse button or its 30 px handle; each menu's open markup; never both menus) and nowhere else (portrait draws nothing); no routing of its own; no orientation lock anywhere;
 //  5. the stylesheet (postcss, the REAL file): every rule is inside the one landscape media query (portrait has none), every selector is keyed to an <html> attribute this change sets or to one of its own elements, no !important; the queries are the lib's; the stage hides what it must and keeps the controls
-//     the fan uses laid out (never display: none: their menus anchor there); every rule it needs to beat in the phone shell's own sheet is beaten on specificity;
+//     the fan uses laid out (never display: none: their menus anchor there); the two buttons' size, hit areas, gap, safe-area insets and the cards' anchors and reach (clear of the strip); every rule it needs to beat in the phone shell's own sheet (the More sheet's too) is beaten on specificity;
 //  6. the insertions: page and viewer without the marked lines are the base's files byte for byte (also through the registry; no existing line is rewritten); the marked lines are where they should be and gated on the constant;
 //  7. scope over the COMMITTED diff, GATE-SAFE (subject across `rev-list --no-merges BASE..head`, HEAD^2 on the gate's merge, registry / .env.example / strip reads past a synthetic later change, no hash-object --stdin);  8. mutants are caught.
 import assert from 'node:assert/strict'
@@ -164,7 +164,7 @@ function specificity(selector) {
 }
 const cmp = (x, y) => x[0] - y[0] || x[1] - y[1] || x[2] - y[2]
 const LANDSCAPE_MEDIA = '(orientation: landscape) and (max-height: 500px) and (pointer: coarse)'
-const STAGE = 'html[data-studio-phone-landscape="stage"]', OWN_ELEMENTS = ['[data-studio-phone-strip-head', '[data-studio-phone-strip-handle', '[data-studio-phone-controls', '[data-studio-phone-chat', '[data-studio-phone-fab', '[data-studio-phone-fan']
+const STAGE = 'html[data-studio-phone-landscape="stage"]', OWN_ELEMENTS = ['[data-studio-phone-strip-head', '[data-studio-phone-strip-handle', '[data-studio-phone-controls', '[data-studio-phone-chat', '[data-studio-phone-fab', '[data-studio-phone-fan', '[data-studio-phone-nav', '[data-studio-phone-dock', '[data-studio-phone-menu-backdrop']
 const keyed = selector => selector.includes('html[data-studio-phone-landscape=') || OWN_ELEMENTS.some(own => selector.includes(own))
 
 // ===== 1. the flag =============================================================================================================================================
@@ -304,12 +304,17 @@ const component = (flags, sourceOverrides = {}) => { setFlags({ flag: 'true' });
 const markup = (flags, props = {}, sourceOverrides = {}) => renderToStaticMarkup(React.createElement(component(flags, sourceOverrides), { deckOnStage: true, stageVisible: true, slideNumber: 3, connectionState: 'connected', onChat() {}, ...props }))
 /** The strip's state is the component's own (useState); the collapsed markup is that state forced, as the tap on the button would make it. */
 const COLLAPSED = { [COMPONENT]: swap(read(COMPONENT), 'useState<StudioPhoneStripState>(STUDIO_PHONE_STRIP_DEFAULT)', 'useState<StudioPhoneStripState>("collapsed")') }
-await check('the component draws the stage only in a phone turned sideways with a deck on the stage on screen: Chat with its connection dot (the Director header\'s own words), the one floating button, the strip\'s collapse button; the strip collapsed is a handle with the current slide number; nowhere else', () => {
+const dockCount = html => count((/<div data-studio-phone-dock="true">(.*?)<\/div>/.exec(html) ?? ['', ''])[1], /<button/g)
+const oneMenuState = source => { assert.equal(count(source, /useState<StudioPhoneMenu>/g), 1, 'one state holds the open menu (two could not both be open)'); assert.ok(!/useState\(false\)|useState<boolean>/.test(source), 'no boolean per menu') }
+const menuGoesFirst = source => assert.match(source, /const runNav = \(key: StudioPhoneNavKey\) => \{\n    setMenu\(null\)\n/, 'the menu goes before the destination is run (the sheet opens over a clean stage)')
+const noOwnRouting = source => assert.ok(!/next\/link|next\/navigation|useRouter|router\.push|href=|window\.location/.test(source), 'no routing of its own: a destination is a click on the bar\'s control')
+await check('the component draws the stage only in a phone turned sideways with a deck on the stage on screen: Chat with its connection dot (the Director header\'s own words), the two floating buttons (hamburger on the left of the plus), the strip\'s collapse button; the strip collapsed is a handle with the current slide number; nowhere else', () => {
   const stage = markup({ landscape: true })
-  assert.match(stage, /data-studio-phone-landscape-layer="stage"/); assert.equal(count(stage, /data-studio-phone-fab="true"/g), 1, 'ONE floating button')
+  assert.match(stage, /data-studio-phone-landscape-layer="stage"/); assert.equal(count(stage, /data-studio-phone-fab="true"/g), 1, 'one plus'); assert.equal(count(stage, /data-studio-phone-nav-button="true"/g), 1, 'one hamburger')
+  assert.equal(dockCount(stage), 2, 'TWO floating buttons, in one dock'); assert.ok(stage.indexOf('data-studio-phone-nav-button') < stage.indexOf('data-studio-phone-fab'), 'the hamburger is on the left of the plus')
   assert.match(stage, /<button[^>]*data-studio-phone-chat="true"[^>]*>.*Chat.*<\/button>/); assert.match(stage, /data-studio-phone-chat-dot="green"/); assert.match(stage, /<span class="sr-only"> connected<\/span>/)
-  assert.match(stage, /aria-label="Collapse thumbnails" aria-expanded="true"/); assert.ok(!/data-studio-phone-menu/.test(stage), 'no Menu button (the bottom bar is not folded)'); assert.ok(!/data-studio-phone-fan-card/.test(stage), 'the fan is closed until the button is tapped')
-  assert.match(stage, /aria-label="Actions" aria-haspopup="menu" aria-expanded="false"/)
+  assert.match(stage, /aria-label="Collapse thumbnails" aria-expanded="true"/); assert.ok(!/data-studio-phone-menu=/.test(stage), 'no Menu button (the bottom bar is not folded)'); assert.ok(!/data-studio-phone-nav-card|data-studio-phone-menu-backdrop/.test(stage), 'the hamburger\'s menu is closed until it is tapped'); assert.ok(!/data-studio-phone-fan-card/.test(stage), 'the fan is closed until the button is tapped')
+  assert.match(stage, /aria-label="Actions" aria-haspopup="menu" aria-expanded="false"/); assert.match(stage, /aria-label="Navigation" aria-haspopup="menu" aria-expanded="false"/)
   const collapsed = markup({ landscape: true }, { slideNumber: 4 }, COLLAPSED)
   assert.match(collapsed, /data-studio-phone-strip-handle="true"/); assert.match(collapsed, /aria-label="Expand thumbnails" aria-expanded="false"/); assert.match(collapsed, /data-studio-phone-strip-current="true"[^>]*>4</); assert.ok(!/strip-head/.test(collapsed))
   for (const [state, tone] of [['connecting', 'amber'], ['error', 'red'], ['disconnected', 'red']]) assert.match(markup({ landscape: true }, { connectionState: state }), new RegExp(`data-studio-phone-chat-dot="${tone}"`), state)
@@ -317,19 +322,55 @@ await check('the component draws the stage only in a phone turned sideways with 
   assert.equal(markup({ landscape: true }, { deckOnStage: false }), '', 'no deck on the stage (the welcome, a loading session): nothing'); assert.equal(markup({ landscape: true }, { stageVisible: false }), '', 'the chat or a panel is on screen: nothing (the page is as it is today)')
   assert.equal(markup({}), '', 'the query does not match (a desktop window, a portrait phone): nothing')
 })
+/** A menu's open markup is that state forced, as the tap on its button would make it (the entries are what the page's controls gave). */
+const NAV_ENTRIES = '[{ key: "studio", label: "Studio", current: true }, { key: "decks", label: "Your decks", current: false }, { key: "templates", label: "Templates", current: false }, { key: "themes", label: "Themes", current: false }, { key: "more", label: "More", current: false }]'
+const FAN_ENTRIES = '[{ key: "addSlide", label: "Add Slide", disabled: false }, { key: "thumbnails", label: "Hide thumbnails", disabled: false }]'
+const MENU_OPEN = which => ({ [COMPONENT]: swap(swap(swap(read(COMPONENT), 'useState<StudioPhoneMenu>(null)', `useState<StudioPhoneMenu>("${which}")`), 'useState<ReturnType<typeof studioPhoneNavItems>>([])', `useState<ReturnType<typeof studioPhoneNavItems>>(${NAV_ENTRIES})`), 'useState<ReturnType<typeof studioPhoneFanItems>>([])', `useState<ReturnType<typeof studioPhoneFanItems>>(${FAN_ENTRIES})`) })
+await check('the hamburger\'s menu (open): the bar\'s five destinations in the bar\'s order as menu items (buttons: the click goes to the bar\'s own control, so there is no link and no route here), the current page marked, a tap-outside backdrop, the hamburger pressed and the plus not; the plus\'s fan (open) is the other way round; never both cards, and no backdrop with both closed', () => {
+  const nav = markup({ landscape: true }, {}, MENU_OPEN('nav'))
+  assert.match(nav, /<div data-studio-phone-nav-card="true" role="menu" aria-label="Studio destinations">/); assert.equal(count(nav, /data-studio-phone-nav-item="/g), 5)
+  assert.deepEqual([...nav.matchAll(/data-studio-phone-nav-item="(\w+)"/g)].map(match => match[1]), ['studio', 'decks', 'templates', 'themes', 'more'], 'the bar\'s order')
+  assert.deepEqual([...nav.matchAll(/<button[^>]*data-studio-phone-nav-item="\w+"[^>]*>.*?<span>([^<]*)<\/span>/g)].map(match => match[1]), ['Studio', 'Your decks', 'Templates', 'Themes', 'More'], 'the words the bar shows')
+  assert.equal(count(nav, /data-studio-phone-nav-item="\w+"[^>]*aria-current="page"/g), 1); assert.match(nav, /data-studio-phone-nav-item="studio"[^>]*aria-current="page"/, 'the current page is marked')
+  assert.ok(!/<a[ >]|href=/.test(nav), 'no link and no href of its own'); assert.equal(count(nav, /role="menuitem"/g), 5)
+  assert.match(nav, /data-studio-phone-menu-backdrop="true"/); assert.match(nav, /data-studio-phone-nav-button="true" aria-label="Navigation" aria-haspopup="menu" aria-expanded="true"/); assert.match(nav, /data-studio-phone-fab="true" aria-label="Actions" aria-haspopup="menu" aria-expanded="false"/); assert.ok(!/data-studio-phone-fan-card/.test(nav), 'not the fan too')
+  const fan = markup({ landscape: true }, {}, MENU_OPEN('fan'))
+  assert.match(fan, /<div data-studio-phone-fan-card="true" role="menu" aria-label="Deck actions">/); assert.match(fan, /data-studio-phone-fab="true" aria-label="Actions" aria-haspopup="menu" aria-expanded="true"/); assert.match(fan, /data-studio-phone-nav-button="true" aria-label="Navigation" aria-haspopup="menu" aria-expanded="false"/)
+  assert.ok(!/data-studio-phone-nav-card/.test(fan), 'not the hamburger\'s too'); assert.match(fan, /data-studio-phone-menu-backdrop="true"/)
+  assert.ok(!/data-studio-phone-menu-backdrop/.test(markup({ landscape: true })), 'both closed: no backdrop')
+  oneMenuState(read(COMPONENT))
+})
+await check('the stage\'s menu rule: one menu at a time (a button closes its own menu, or opens its own in place of the other\'s); the hamburger\'s entries are the bar\'s own controls in the bar\'s order, read from the bar as it is, named by the words it shows, the current page marked; none of its destinations is routed here', () => {
+  const m = lib.studioPhoneMenuToggle
+  assert.equal(m(null, 'nav'), 'nav'); assert.equal(m(null, 'fan'), 'fan'); assert.equal(m('nav', 'nav'), null); assert.equal(m('fan', 'fan'), null); assert.equal(m('nav', 'fan'), 'fan', 'the plus replaces the hamburger\'s menu'); assert.equal(m('fan', 'nav'), 'nav', 'the hamburger replaces the fan')
+  for (const open of [null, 'fan', 'nav']) for (const tapped of ['fan', 'nav']) assert.equal(m(open, tapped), open === tapped ? null : tapped, `${open} / ${tapped}`)
+  const bar = read('components/layout/studio-phone-tab-bar.tsx'), shell = read('lib/studio-phone-shell.ts')
+  const barKeys = [...new Set([...bar.matchAll(/data-studio-phone-tab="(\w+)"/g)].map(match => match[1]))]
+  assert.deepEqual([...lib.STUDIO_PHONE_NAV_ORDER], barKeys, 'the bar\'s own destinations, in its order'); assert.deepEqual([...lib.STUDIO_PHONE_NAV_ORDER], [...shell.matchAll(/\{ tab: '(\w+)'/g)].map(match => match[1]).concat('more'), 'the phone shell\'s tab list plus More')
+  for (const key of lib.STUDIO_PHONE_NAV_ORDER) assert.equal(lib.studioPhoneNavSelector(key), `[data-studio-phone-tabbar="true"] [data-studio-phone-tab="${key}"]`, key)
+  const on = (label, current = false) => ({ label, current })
+  const all = { studio: on('Studio', true), decks: on('Decks'), templates: on('Templates'), themes: on('Themes'), more: on('More') }
+  assert.deepEqual([...lib.studioPhoneNavItems(all).map(item => [item.key, item.label, item.current])], [['studio', 'Studio', true], ['decks', 'Decks', false], ['templates', 'Templates', false], ['themes', 'Themes', false], ['more', 'More', false]], 'named by the words the bar shows (Decks when the plain labels are off)')
+  assert.deepEqual([...lib.studioPhoneNavItems({})], [], 'nothing on the page: nothing listed (the bar is not there)')
+  const some = lib.studioPhoneNavItems({ ...all, templates: null, decks: on('   '), themes: on('  Themes  '), more: { label: null, current: false } })
+  assert.deepEqual([...some.map(item => item.key)], ['studio', 'decks', 'themes', 'more'], 'a control that is not on the page is not listed'); assert.equal(some.find(item => item.key === 'decks').label, 'Your decks', 'a blank name falls back'); assert.equal(some.find(item => item.key === 'themes').label, 'Themes', 'trimmed'); assert.equal(some.find(item => item.key === 'more').label, 'More')
+  assert.equal(lib.studioPhoneNavItems({ studio: { label: 'Studio', current: 1 } })[0].current, false, 'only true is current')
+  const source = read(COMPONENT)
+  noOwnRouting(source); menuGoesFirst(source); assert.match(source, /find\(studioPhoneNavSelector\(key\)\)/); assert.match(source, /requestAnimationFrame\(\(\) => control\.click\(\)\)/)
+})
 await check('portrait draws nothing and styles nothing: the component asks only the landscape query, so with it false (a portrait phone, with or without a deck on the stage) it renders no element; the sheet has no rule that touches the bottom tab bar outside the landscape query', () => {
   const source = read(COMPONENT)
   assert.ok(!/portrait/i.test(source.replace(/\/\*[\s\S]*?\*\//g, '').replace(/\/\/[^\n]*/g, '')), 'no portrait query, state or element in the component')
   assert.equal(count(source, /useStudioPhoneQuery\(/g), 1, 'one query is asked: the landscape one')
   for (const props of [{}, { stageVisible: false }, { deckOnStage: false }]) assert.equal(markup({ landscape: false }, props), '', JSON.stringify(props))
   assert.ok(!mine().some(rule => rule.media !== LANDSCAPE_MEDIA), 'every rule is in the landscape query')
-  assert.ok(!/studio-phone-bar|data-studio-phone-menu/.test(cssText + source + read(LIB)), 'the folded bar\'s attribute and Menu button are gone')
+  assert.ok(!/studio-phone-bar|data-studio-phone-menu=/.test(cssText + source + read(LIB)), 'the folded bar\'s attribute and Menu button are gone')
 })
 await check('every attribute the markup and the effects use is one the stylesheet is keyed to; the <html> attributes are the lib\'s constants; the fan opens from the button with the page\'s own controls (click, or the Enter key a menu trigger opens on), never re-implemented; no orientation lock anywhere', () => {
   const source = read(COMPONENT)
   for (const attr of ['STUDIO_PHONE_STAGE_ATTRIBUTE', 'STUDIO_PHONE_STRIP_ATTRIBUTE', 'STUDIO_PHONE_FAN_ATTRIBUTE']) assert.ok(source.includes(attr), attr)
   assert.deepEqual([lib.STUDIO_PHONE_STAGE_ATTRIBUTE, lib.STUDIO_PHONE_STRIP_ATTRIBUTE, lib.STUDIO_PHONE_FAN_ATTRIBUTE].map(String), ['data-studio-phone-landscape', 'data-studio-phone-strip', 'data-studio-phone-fan'])
-  for (const own of source.match(/data-studio-phone-[a-z-]+/g)) assert.ok(cssText.includes(own) || /data-studio-phone-(fan-item|landscape-layer|chat-dot|strip-current|strip-label|fan-backdrop|fan-card)/.test(own), `${own} is in the stylesheet`)
+  for (const own of source.match(/data-studio-phone-[a-z-]+/g)) assert.ok(cssText.includes(own) || /data-studio-phone-(fan-item|landscape-layer|chat-dot|strip-current|strip-label|fan-card|nav-card|nav-item)/.test(own), `${own} is in the stylesheet`)
   assert.match(source, /control\.dispatchEvent\(new KeyboardEvent\("keydown", \{ key: "Enter"/); assert.match(source, /control\.click\(\)/)
   for (const rel of [LIB, HOOK, COMPONENT, CSS]) assert.ok(!/orientation\s*\.\s*lock|screen\.orientation|lockOrientation|\.lock\(/.test(read(rel)), `${rel}: no orientation lock`)
   let hits = ''; try { hits = git('grep', '-n', '-E', 'orientation\\.lock|screen\\.orientation', '--', 'app', 'components', 'hooks', 'lib') } catch { /* none: exit 1 */ }
@@ -360,6 +401,47 @@ await check('the stage hides what it must (rail, tab bar, switch, pull tabs, not
   assert.equal(declared(s => s.endsWith('[data-studio-v4-thumbnails]') && !s.includes('collapsed'), 'border-left'), '0'); assert.equal(declared(s => s.includes('[data-studio-phone-strip="collapsed"]') && s.endsWith('[data-studio-v4-viewer]'), 'padding-left'), '30px', 'the collapsed strip is a 30 px handle')
   assert.ok(landscape.every(rule => rule.selectors.every(s => !/^\[data-studio-v4-shell/.test(s))), 'no stage rule starts at the shell without the <html> key')
 })
+/** The two floating buttons and the cards, read from the sheet's rules (the real one, or a mutated copy): size, hit areas, gap, safe-area insets, where each card is anchored and how far it reaches. Every number is parsed, none is assumed. */
+const geometryOf = text => {
+  const landscape = ruleList(text).filter(rule => rule.media === LANDSCAPE_MEDIA)
+  const decl = (selector, prop) => landscape.find(rule => rule.selectors.includes(selector) && rule.decls.some(d => d.prop === prop))?.decls.find(d => d.prop === prop)?.value
+  const shared = (selector, prop) => landscape.find(rule => rule.selectors.length > 1 && rule.selectors.includes(selector) && rule.decls.some(d => d.prop === prop))?.decls.find(d => d.prop === prop)?.value
+  const px = value => { const m = /^(-?\d+(?:\.\d+)?)px$/.exec(String(value).trim()); assert.ok(m, `a px value, got ${JSON.stringify(value)}`); return Number(m[1]) }
+  const inset = (value, side) => { const m = new RegExp(`^calc\\((\\d+)px \\+ env\\(safe-area-inset-${side}, 0px\\)\\)$`).exec(String(value).trim()); assert.ok(m, `${value} is an edge distance plus the ${side} safe area`); return Number(m[1]) }
+  const DOCK = '[data-studio-phone-dock="true"]', NAV = '[data-studio-phone-nav-button="true"]', FAB = '[data-studio-phone-fab="true"]', FANCARD = '[data-studio-phone-fan-card="true"]', NAVCARD = '[data-studio-phone-nav-card="true"]', CHAT = '[data-studio-phone-chat="true"]', CONTROLS = '[data-studio-phone-controls="true"]'
+  const g = { dockRight: inset(decl(DOCK, 'right'), 'right'), dockBottom: inset(decl(DOCK, 'bottom'), 'bottom'), gap: px(decl(DOCK, 'gap')), position: decl(DOCK, 'position') }
+  g.size = { nav: [px(shared(NAV, 'width')), px(shared(NAV, 'height'))], fab: [px(shared(FAB, 'width')), px(shared(FAB, 'height'))] }
+  g.hit = { nav: Math.abs(px(decl(`${NAV}::after`, 'inset') ?? shared(`${NAV}::after`, 'inset'))), fab: Math.abs(px(decl(`${FAB}::after`, 'inset') ?? shared(`${FAB}::after`, 'inset'))) }
+  g.chat = { height: px(decl(CHAT, 'height')), hit: Math.abs(px(decl(`${CHAT}::after`, 'inset'))), top: inset(decl(CONTROLS, 'top'), 'top'), right: /^calc\(var\(--studio-phone-controls-right, 8px\) \+ env\(safe-area-inset-right, 0px\)\)$/.test(decl(CONTROLS, 'right')) }
+  g.cards = { bottom: inset(shared(FANCARD, 'bottom'), 'bottom'), fanRight: inset(decl(FANCARD, 'right'), 'right'), navRight: inset(decl(NAVCARD, 'right'), 'right'), fanWidth: /^min\((\d+)px, calc\(100vw - (\d+)px\)\)$/.exec(decl(FANCARD, 'width')), navWidth: /^min\((\d+)px, calc\(100vw - (\d+)px\)\)$/.exec(decl(NAVCARD, 'width')) }
+  g.item = px(shared('[data-studio-phone-fan-item]', 'min-height')); g.itemNav = px(shared('[data-studio-phone-nav-item]', 'min-height'))
+  return g
+}
+const checkGeometry = text => {
+  const g = geometryOf(text)
+  assert.equal(g.position, 'fixed')
+  for (const key of ['nav', 'fab']) { assert.deepEqual(g.size[key], [40, 40], `${key}: 40 x 40`); assert.ok(g.size[key][0] + 2 * g.hit[key] >= 44 && g.size[key][1] + 2 * g.hit[key] >= 44, `${key}: a 44 px hit area (${g.size[key][0]} + 2 x ${g.hit[key]})`) }
+  assert.ok(g.chat.height + 2 * g.chat.hit >= 44, 'Chat: a 44 px hit area'); assert.ok(g.item >= 44 && g.itemNav >= 44, 'menu entries are at least 44 px tall')
+  assert.ok(g.gap - g.hit.nav - g.hit.fab >= 0, `the two hit areas do not overlap (gap ${g.gap}, reach ${g.hit.nav} + ${g.hit.fab})`)
+  assert.ok(g.chat.right && g.chat.top >= 8, 'Chat is inside the safe area, top and right')
+  // the cards sit above the buttons and end where their button ends: the fan on the plus (the dock\'s right edge), the hamburger\'s on the hamburger (one button and one gap further in)
+  assert.equal(g.cards.bottom, g.dockBottom + g.size.fab[1] + g.gap, 'the cards sit one gap above the buttons'); assert.equal(g.cards.fanRight, g.dockRight, 'the fan ends at the plus\'s edge'); assert.equal(g.cards.navRight, g.dockRight + g.size.fab[0] + g.gap, 'the hamburger\'s card ends at the hamburger\'s edge')
+  // clear of the thumbnail strip (the left edge: 140 px open, 30 px collapsed) on every sideways phone from a 568 px iPhone SE to a 932 px Pro Max
+  const reach = (vw, right, width) => vw - right - Math.min(Number(width[1]), vw - Number(width[2]))
+  for (const vw of [568, 667, 844, 932]) { assert.ok(reach(vw, g.cards.fanRight, g.cards.fanWidth) >= 140 + 8, `the fan clears the strip at ${vw}`); assert.ok(reach(vw, g.cards.navRight, g.cards.navWidth) >= 140 + 8, `the hamburger\'s card clears the strip at ${vw}`) }
+  return g
+}
+const checkSheet = text => {
+  const sheetRule = ruleList(text).find(rule => rule.selectors.some(s => s.endsWith('[data-studio-phone-more="true"]'))); const pad = sheetRule.decls.find(decl => decl.prop === 'padding').value
+  for (const side of ['top', 'right', 'bottom']) assert.ok(pad.includes(`env(safe-area-inset-${side}, 0px)`), `the More panel\'s padding leaves the ${side} safe area`)
+  assert.equal(sheetRule.decls.find(decl => decl.prop === 'right').value, '0'); assert.equal(sheetRule.decls.find(decl => decl.prop === 'left').value, 'auto', 'a panel on the right edge, not the shell\'s bottom sheet')
+}
+await check('the two floating buttons and their cards (parsed from the sheet): 40 px buttons with a 44 px hit area, 8 px apart so the hit areas never overlap, inside the safe area on the sides they sit on (the dock, Chat, both cards), the cards one gap above the buttons and ending at their own button, clear of the thumbnail strip on 568 to 932 px phones', () => {
+  const g = checkGeometry(cssText)
+  assert.deepEqual([g.dockRight, g.dockBottom, g.gap], [10, 10, 8]); assert.equal(g.cards.bottom, 58); assert.equal(g.cards.navRight, 58)
+  for (const selector of ['[data-studio-phone-fan-card="true"]', '[data-studio-phone-nav-card="true"]']) assert.match(ruleList(cssText).find(rule => rule.selectors.includes(selector)).decls.find(decl => decl.prop === 'max-height').value, /env\(safe-area-inset-bottom, 0px\)/, `${selector}: its height leaves the bottom safe area`)
+  checkSheet(cssText)
+})
 await check('the top bar and the authoring row are NOT display: none in the stage: they are out of the flow, laid out and invisible (the fan clicks their controls and their menus open beside the fan button, which a display: none anchor would not allow)', () => {
   const rule = mine().find(rule => rule.media === LANDSCAPE_MEDIA && rule.selectors.some(s => s.includes('[data-studio-v4-shell-header]')) && rule.selectors.some(s => s.includes('[data-studio-authoring-slot]')))
   assert.ok(rule, 'one rule for both'); const value = prop => rule.decls.find(decl => decl.prop === prop)?.value
@@ -372,6 +454,9 @@ const cascadeOf = text => {
     ['the bar\'s display: flex', s => s.endsWith('> [data-studio-phone-tabbar="true"]') && !s.includes('composer'), 'display', t => t.endsWith('> [data-studio-phone-tabbar="true"]'), 'display'],
     ['the shell\'s bottom padding', s => s.includes(':has(> [data-studio-phone-tabbar="true"])') && !s.includes('[data-composer-focus'), 'padding-bottom', t => t.includes(':has(> [data-studio-phone-tabbar="true"])') && !t.includes('composer-focus'), 'padding-bottom'],
     ['the workspace\'s 10 px left margin at 640 px and narrower (a 568 px phone turned sideways)', s => s.endsWith('> [data-studio-v4-shell-workspace]'), 'margin-left', t => t.endsWith('> [data-studio-v4-shell-workspace]'), 'margin-left'],
+    ['the More sheet\'s box (the shell\'s bottom sheet: left 0, bottom 0, 80dvh) at 640 px and narrower', s => s.endsWith('[data-studio-v4-shell="true"][data-studio-phone-more="true"]'), 'left', t => t.endsWith('[data-studio-v4-shell="true"][data-studio-phone-more="true"]'), 'left'],
+    ['the More sheet\'s rows', s => s.endsWith('[data-studio-phone-more="true"] > ul > li > a'), 'display', t => t.endsWith('[data-studio-phone-more="true"] > ul > li > a'), 'display'],
+    ['the More sheet\'s overlay', s => s.endsWith('[data-studio-phone-more-overlay="true"]'), 'position', t => t.endsWith('[data-studio-phone-more-overlay="true"]'), 'position'],
   ]
   let compared = 0
   for (const [label, wantOurs, ourProp, wantTheirs, theirProp] of pairs) {
@@ -379,7 +464,7 @@ const cascadeOf = text => {
     assert.ok(mineRules.length >= 1 && others.length >= 1, `${label}: rules on both sides`)
     for (const a of mineRules) for (const b of others) { assert.ok(cmp(specificity(a.selector), specificity(b.selector)) > 0, `${label}: ours ${specificity(a.selector)} beats ${specificity(b.selector)}`); compared++ }
   }
-  assert.ok(compared >= 3, `compared ${compared}`)
+  assert.ok(compared >= 6, `compared ${compared}`)
 }
 await check('cascade: every rule of this change that overrides a rule of the phone shell\'s own sheet (the bar\'s display, the shell\'s bottom padding, the workspace\'s left margin) is MORE specific, so it wins whatever the order, with no !important', () => cascadeOf(cssText))
 
@@ -619,7 +704,34 @@ await mutant('the fan drops the strip\'s own entry', () => assert.ok(libWith({ f
 await mutant('the fan lists a control that is not on the page', () => assert.equal(libWith({ flag: 'true' }, { [LIB]: swap(libSrc, '    if (!probe) continue\n', '    if (!probe) { items.push({ key, label: FAN_FALLBACK[key], disabled: true }); continue }\n') }).studioPhoneFanItems({}, 'open').length, 1))
 await mutant('the fan puts Add element before Add slide', () => assert.deepEqual([...libWith({ flag: 'true' }, { [LIB]: swap(libSrc, "['addSlide', 'addElement', 'newDeck'", "['addElement', 'addSlide', 'newDeck'") }).STUDIO_PHONE_FAN_ORDER].slice(0, 2), ['addSlide', 'addElement']))
 await mutant('the media-query hook is listened to with the flag off', () => { const w = windowStub({}); const impl = { ...React, useSyncExternalStore: (subscribe, snapshot) => { subscribe(() => {}); return snapshot() } }; setFlags({}); try { makeLoader({ reactImpl: impl, globals: { window: w }, sourceOverrides: { [HOOK]: swap(hookSrc, 'if (!STUDIO_PHONE_LANDSCAPE_ENABLED || typeof window', 'if (typeof window') } }).load(HOOK).useStudioPhoneQuery('(x)') } finally { setFlags({}) } assert.deepEqual(w.asked, []) })
-await mutant('the component draws two floating buttons', () => assert.equal(count(renderToStaticMarkup(React.createElement((() => { setFlags({ flag: 'true' }); try { return makeLoader({ stubs: stubFor({ landscape: true }), sourceOverrides: { [COMPONENT]: swap(componentSrc, '          <button ref={fab} type="button" data-studio-phone-fab="true"', '          <button type="button" data-studio-phone-fab="true" /><button ref={fab} type="button" data-studio-phone-fab="true"') } }).load(COMPONENT).StudioPhoneLandscape } finally { setFlags({}) } })(), { deckOnStage: true, stageVisible: true, slideNumber: 1, connectionState: 'connected', onChat() {} })), /data-studio-phone-fab="true"/g), 1))
+const renderWith = (sourceOverrides, props = {}) => { setFlags({ flag: 'true' }); try { return renderToStaticMarkup(React.createElement(makeLoader({ stubs: stubFor({ landscape: true }), sourceOverrides }).load(COMPONENT).StudioPhoneLandscape, { deckOnStage: true, stageVisible: true, slideNumber: 1, connectionState: 'connected', onChat() {}, ...props })) } finally { setFlags({}) } }
+await mutant('the component draws a third floating button (the stage has the hamburger and the plus)', () => assert.equal(dockCount(renderWith({ [COMPONENT]: swap(componentSrc, '            <button ref={fab} type="button" data-studio-phone-fab="true"', '            <button type="button" data-studio-phone-fab="true" /><button ref={fab} type="button" data-studio-phone-fab="true"') })), 2))
+await mutant('the hamburger is missing', () => assert.equal(count(renderWith({ [COMPONENT]: swap(componentSrc, '<button ref={burger} type="button" data-studio-phone-nav-button="true"', '<button ref={burger} type="button" data-studio-phone-nav-other="true"') }), /data-studio-phone-nav-button="true"/g), 1))
+await mutant('the hamburger is on the right of the plus', () => { const lines = componentSrc.split('\n'); const a = lines.findIndex(line => line.includes('<button ref={burger}')), b = lines.findIndex(line => line.includes('<button ref={fab}')); [lines[a], lines[b]] = [lines[b], lines[a]]; const html = renderWith({ [COMPONENT]: lines.join('\n') }); assert.ok(html.indexOf('data-studio-phone-nav-button') < html.indexOf('data-studio-phone-fab')) })
+await mutant('a tap on a menu button never closes its own menu', () => assert.equal(libWith({ flag: 'true' }, { [LIB]: swap(libSrc, 'return open === tapped ? null : tapped', 'return tapped') }).studioPhoneMenuToggle('nav', 'nav'), null))
+await mutant('a tap on the other button is ignored while a menu is open (the hamburger could not replace the fan)', () => assert.equal(libWith({ flag: 'true' }, { [LIB]: swap(libSrc, 'return open === tapped ? null : tapped', 'return open === tapped ? null : open ?? tapped') }).studioPhoneMenuToggle('fan', 'nav'), 'nav'))
+await mutant('the component keeps a state per menu (both could be open)', () => oneMenuState(componentSrc + '\nconst [navOpen, setNavOpen] = useState(false)\n'))
+await mutant('both cards are drawn whatever menu is open', () => assert.ok(!/data-studio-phone-nav-card/.test(renderWith({ [COMPONENT]: swap(MENU_OPEN('fan')[COMPONENT], '{menu === "nav" && (', '{(menu === "nav" || menu === "fan") && (') }))))
+await mutant('the hamburger lists the destinations in another order', () => assert.deepEqual([...libWith({ flag: 'true' }, { [LIB]: swap(libSrc, "['studio', 'decks', 'templates', 'themes', 'more']", "['decks', 'studio', 'templates', 'themes', 'more']") }).STUDIO_PHONE_NAV_ORDER], ['studio', 'decks', 'templates', 'themes', 'more']))
+await mutant('the hamburger lists a destination that is not on the page', () => assert.equal(libWith({ flag: 'true' }, { [LIB]: swap(libSrc, "    const probe = probes[key]\n    if (!probe) continue\n    const label = typeof probe.label === 'string' && probe.label.trim() !== '' ? probe.label.trim() : NAV_FALLBACK[key]", "    const probe = probes[key] ?? { label: null, current: false }\n    const label = typeof probe.label === 'string' && probe.label.trim() !== '' ? probe.label.trim() : NAV_FALLBACK[key]") }).studioPhoneNavItems({}).length, 0))
+await mutant('the hamburger names a destination by its own words, not the bar\'s', () => assert.equal(libWith({ flag: 'true' }, { [LIB]: swap(libSrc, "const label = typeof probe.label === 'string' && probe.label.trim() !== '' ? probe.label.trim() : NAV_FALLBACK[key]", "const label = NAV_FALLBACK[key]") }).studioPhoneNavItems({ decks: { label: 'Decks', current: false } })[0].label, 'Decks'))
+await mutant('the hamburger does not mark the current page', () => assert.equal(libWith({ flag: 'true' }, { [LIB]: swap(libSrc, 'current: probe.current === true', 'current: false') }).studioPhoneNavItems({ studio: { label: 'Studio', current: true } })[0].current, true))
+await mutant('a destination is found by a selector that is not the bar\'s own control', () => assert.equal(libWith({ flag: 'true' }, { [LIB]: swap(libSrc, '[data-studio-phone-tabbar="true"] [data-studio-phone-tab="${key}"]', '[data-studio-phone-nav-tab="${key}"]') }).studioPhoneNavSelector('more'), '[data-studio-phone-tabbar="true"] [data-studio-phone-tab="more"]'))
+await mutant('the component routes a destination itself (a router of its own)', () => noOwnRouting(componentSrc.replace('const runNav = (key: StudioPhoneNavKey) => {', 'const runNav = (key: StudioPhoneNavKey) => {\n    router.push("/dashboard")')))
+await mutant('a destination is run before the menu has gone (the sheet would open under the open menu)', () => menuGoesFirst(componentSrc.replace('const runNav = (key: StudioPhoneNavKey) => {\n    setMenu(null)\n', 'const runNav = (key: StudioPhoneNavKey) => {\n')))
+await mutant('the hamburger says nothing about being open', () => assert.match(renderWith({ [COMPONENT]: swap(MENU_OPEN('nav')[COMPONENT], 'aria-expanded={menu === "nav"}', '') }), /data-studio-phone-nav-button="true" aria-label="Navigation" aria-haspopup="menu" aria-expanded="true"/))
+await mutant('the dock buttons\' hit area shrinks below 44 px', () => checkGeometry(swap(cssText, '[data-studio-phone-nav-button="true"]::after, [data-studio-phone-fab="true"]::after { content: ""; position: absolute; inset: -2px; }', '[data-studio-phone-nav-button="true"]::after, [data-studio-phone-fab="true"]::after { content: ""; position: absolute; inset: 0; }')))
+await mutant('the two buttons are closer than their hit areas (gap 2 px)', () => checkGeometry(swap(cssText, 'z-index: 47; display: flex; gap: 8px; }', 'z-index: 47; display: flex; gap: 2px; }')))
+await mutant('the dock ignores the right safe area', () => checkGeometry(swap(cssText, '[data-studio-phone-dock="true"] { position: fixed; right: calc(10px + env(safe-area-inset-right, 0px));', '[data-studio-phone-dock="true"] { position: fixed; right: 10px;')))
+await mutant('the dock ignores the bottom safe area', () => checkGeometry(swap(cssText, 'bottom: calc(10px + env(safe-area-inset-bottom, 0px)); z-index: 47;', 'bottom: 10px; z-index: 47;')))
+await mutant('Chat ignores the top safe area', () => checkGeometry(swap(cssText, 'top: calc(8px + env(safe-area-inset-top, 0px));', 'top: 8px;')))
+await mutant('the hamburger\'s card is anchored on the plus (it would not end at the hamburger)', () => checkGeometry(swap(cssText, '[data-studio-phone-nav-card="true"] { right: calc(58px + env(safe-area-inset-right, 0px));', '[data-studio-phone-nav-card="true"] { right: calc(10px + env(safe-area-inset-right, 0px));')))
+await mutant('the cards sit on the buttons (no gap above them)', () => checkGeometry(swap(cssText, 'position: fixed; bottom: calc(58px + env(safe-area-inset-bottom, 0px)); z-index: 46;', 'position: fixed; bottom: calc(50px + env(safe-area-inset-bottom, 0px)); z-index: 46;')))
+await mutant('the fan reaches over the thumbnail strip on a 568 px phone', () => checkGeometry(swap(cssText, 'width: min(372px, calc(100vw - 20px));', 'width: min(540px, calc(100vw - 20px));')))
+await mutant('the entries are shorter than 44 px', () => checkGeometry(swap(cssText, 'min-width: 0; min-height: 44px; padding: 0 10px;', 'min-width: 0; min-height: 36px; padding: 0 10px;')))
+await mutant('the More panel loses its <html> key (it would tie with the phone shell\'s bottom sheet and lose by order)', () => cascadeOf(swap(cssText, 'html[data-studio-phone-landscape="stage"] [data-studio-v4-shell="true"][data-studio-phone-more="true"] {', '[data-studio-v4-shell="true"][data-studio-phone-more="true"] {')))
+await mutant('the More panel keeps the shell\'s bottom-sheet box (left 0)', () => checkSheet(swap(cssText, 'bottom: 0; left: auto; z-index: 51;', 'bottom: 0; left: 0; z-index: 51;')))
+await mutant('the More panel ignores the bottom safe area', () => checkSheet(swap(cssText, ' calc(12px + env(safe-area-inset-bottom, 0px)) 12px;\n    border: 1px solid', ' 12px 12px;\n    border: 1px solid')))
 await mutant('the component draws in the stage without a deck on it', () => { setFlags({ flag: 'true' }); try { const C = makeLoader({ stubs: stubFor({ landscape: true }), sourceOverrides: { [COMPONENT]: swap(componentSrc, 'studioPhoneLandscapeStage({ enabled: true, landscape, deckOnStage, stageVisible })', 'studioPhoneLandscapeStage({ enabled: true, landscape, deckOnStage: true, stageVisible })') } }).load(COMPONENT).StudioPhoneLandscape; assert.equal(renderToStaticMarkup(React.createElement(C, { deckOnStage: false, stageVisible: true, slideNumber: 1, connectionState: 'connected', onChat() {} })), '') } finally { setFlags({}) } })
 await mutant('Chat names no connection state (the dot would say nothing to a screen reader)', () => { setFlags({ flag: 'true' }); try { const C = makeLoader({ stubs: stubFor({ landscape: true }), sourceOverrides: { [COMPONENT]: swap(componentSrc, 'Chat<span className="sr-only">{` ${dot.state}`}</span>', 'Chat') } }).load(COMPONENT).StudioPhoneLandscape; assert.match(renderToStaticMarkup(React.createElement(C, { deckOnStage: true, stageVisible: true, slideNumber: 1, connectionState: 'connected', onChat() {} })), /sr-only/) } finally { setFlags({}) } })
 await mutant('a rule loses its <html> key (it would match with the flag off)', () => notKeyed(swap(cssText, `  ${STAGE} [data-studio-v4-shell="true"] > [data-studio-v4-rail] { display: none; }`, '  [data-studio-v4-shell="true"] > [data-studio-v4-rail] { display: none; }')))

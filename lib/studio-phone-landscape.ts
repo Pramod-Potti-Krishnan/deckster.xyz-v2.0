@@ -1,10 +1,11 @@
-// STUDIO PHONE LANDSCAPE (FRONTEND-1; F-13 PR 1, PK's answers of 1 Nov). Flag NEXT_PUBLIC_STUDIO_PHONE_LANDSCAPE (exact "true", default off, read at build time), only active with the phone shell
+// STUDIO PHONE LANDSCAPE (FRONTEND-1; F-13 PR 1, PK's answers of 1 Nov, amended 2 Nov). Flag NEXT_PUBLIC_STUDIO_PHONE_LANDSCAPE (exact "true", default off, read at build time), only active with the phone shell
 // (NEXT_PUBLIC_STUDIO_PHONE_SHELL and NEXT_PUBLIC_STUDIO_V4_SHELL, both exact "true"). Import-free: the flag, the landscape-phone query, the attributes the stylesheet is keyed to, and the decisions (when the
-// stage is on, the stage fit padding, the action fan's entries). No I/O; the hook (hooks/use-studio-phone-landscape.ts) and the component (components/builder/studio-phone-landscape.tsx) read the page and call these.
+// stage is on, the stage fit padding, which one menu is open, the navigation menu's and the action fan's entries). No I/O; the hook (hooks/use-studio-phone-landscape.ts) and the component (components/builder/studio-phone-landscape.tsx) read the page and call these.
 //
 // What the flag does on a phone: turned sideways (a short, coarse-pointer landscape window, not a narrow desktop window) with a deck on the stage, the page becomes a viewing stage: the slide fills the screen, the
-// thumbnails are a collapsible strip on the left, the rail, top bar, Slides | Director switch, toolbar, pull tabs and the tab bar go, a "Chat" button goes back to the Director (a full-screen pane switch) and ONE floating
-// button opens an overlay fan of actions (Add slide, Add element and the deck actions the phone "..." menu has). In portrait nothing here is drawn: the phone shell's bottom tab bar stays on screen in the slide view too (PK, 2 Nov). Flag off, nothing here is drawn.
+// thumbnails are a collapsible strip on the left, the rail, top bar, Slides | Director switch, toolbar, pull tabs and the tab bar go, a "Chat" button goes back to the Director (a full-screen pane switch) and TWO small floating
+// buttons each open one overlay menu (one at a time): a hamburger for the bar's destinations (Studio, Your decks, Templates, Themes, More: each uses the real bar's own control) and a plus for the editing actions (the fan:
+// Add slide, Add element and the deck actions the phone "..." menu has). In portrait nothing here is drawn: the phone shell's bottom tab bar stays on screen in the slide view too (PK, 2 Nov). Flag off, nothing here is drawn.
 
 /** Exact "true" for the flag AND the phone shell AND the Studio shell; anything else (unset, "false", "TRUE", " true", "1") is off. The caller passes the three `process.env` values (Next inlines them at build time). */
 export function studioPhoneLandscapeOn(flag: string | null | undefined, phoneShell: string | null | undefined, studioShell: string | null | undefined): boolean {
@@ -21,6 +22,13 @@ export const STUDIO_PHONE_LANDSCAPE_QUERY = '(orientation: landscape) and (max-h
 export const STUDIO_PHONE_STAGE_ATTRIBUTE = 'data-studio-phone-landscape'
 export const STUDIO_PHONE_STRIP_ATTRIBUTE = 'data-studio-phone-strip'
 export const STUDIO_PHONE_FAN_ATTRIBUTE = 'data-studio-phone-fan'
+
+/** The stage's two overlay menus: the plus's action fan and the hamburger's destinations. One state with one value, so never both. */
+export type StudioPhoneMenu = 'fan' | 'nav' | null
+/** What a tap on one of the two buttons does to the open menu: its own menu closes, the other's (or none) opens in its place, so at most one menu is ever open. */
+export function studioPhoneMenuToggle(open: StudioPhoneMenu, tapped: 'fan' | 'nav'): StudioPhoneMenu {
+  return open === tapped ? null : tapped
+}
 
 /** The stage is on only with a phone turned sideways, a deck on the stage and the stage (not the chat or a panel) the surface the user is on. */
 export function studioPhoneLandscapeStage(input: { enabled: boolean; landscape: boolean; deckOnStage: boolean; stageVisible: boolean }): boolean {
@@ -89,6 +97,33 @@ export function studioPhoneFanItems(probes: Partial<Record<StudioPhoneFanKey, St
     if (!probe) continue
     const label = typeof probe.label === 'string' && probe.label.trim() !== '' ? probe.label.trim() : FAN_FALLBACK[key]
     items.push({ key, label, disabled: probe.disabled === true })
+  }
+  return items
+}
+
+/** The bar's destinations the hamburger lists: the keys of the phone tab bar's own controls (components/layout/studio-phone-tab-bar.tsx, data-studio-phone-tab), in its order. */
+export type StudioPhoneNavKey = 'studio' | 'decks' | 'templates' | 'themes' | 'more'
+export const STUDIO_PHONE_NAV_ORDER: readonly StudioPhoneNavKey[] = ['studio', 'decks', 'templates', 'themes', 'more']
+
+/** A destination's own control: the phone tab bar's (hidden on the stage, still on the page); the entry uses it as it is, so its link, its handler or its More sheet is the bar's and no route is written twice. */
+export function studioPhoneNavSelector(key: StudioPhoneNavKey): string {
+  return `[data-studio-phone-tabbar="true"] [data-studio-phone-tab="${key}"]`
+}
+
+/** The words an entry falls back to when its control shows none. */
+const NAV_FALLBACK: Record<StudioPhoneNavKey, string> = { studio: 'Studio', decks: 'Your decks', templates: 'Templates', themes: 'Themes', more: 'More' }
+
+/** What the component read from a destination's control: the words it shows and whether it is the page the user is on (aria-current). Null: the control is not on the page. */
+export interface StudioPhoneNavProbe { label: string | null; current: boolean }
+
+/** The hamburger's entries for what is on the page: one per control found, in the bar's order, named by the words the bar shows (a blank one falls back), the current page marked. */
+export function studioPhoneNavItems(probes: Partial<Record<StudioPhoneNavKey, StudioPhoneNavProbe | null>>): Array<{ key: StudioPhoneNavKey; label: string; current: boolean }> {
+  const items: Array<{ key: StudioPhoneNavKey; label: string; current: boolean }> = []
+  for (const key of STUDIO_PHONE_NAV_ORDER) {
+    const probe = probes[key]
+    if (!probe) continue
+    const label = typeof probe.label === 'string' && probe.label.trim() !== '' ? probe.label.trim() : NAV_FALLBACK[key]
+    items.push({ key, label, current: probe.current === true })
   }
   return items
 }
