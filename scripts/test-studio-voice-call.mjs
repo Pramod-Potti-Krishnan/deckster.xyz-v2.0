@@ -645,6 +645,18 @@ async function controllerSuite(over = {}) {
     await w.reply('A later, unasked report.'); eq(w.log.spoken, ['A later, unasked report.'], 'stop: ...and only that one is skipped')
   }
   {
+    // (P4-21, found by the replay of the recordings) a progress bubble that came before Stop is "reply text" for the filler, but it is not the reply: the reply that follows is still the stopped turn's, and is not said
+    const w = makeCall({ over }); await w.start(); await w.talk()
+    await w.frame('chat_message', { text: 'Reviewing your topic\u2026', ephemeral: true }); w.ctl.stop(); await settle()
+    await w.reply('Late answer.'); eq([w.log.spoken, w.snap().phase], [[], 'idle'], 'stop: a progress bubble before Stop does not make the stopped turn\'s reply one to be said')
+    await w.reply('A later, unasked report.'); eq(w.log.spoken, ['A later, unasked report.'], 'stop: ...and only that one is skipped')
+    // (P4-21) the user talks over a pending turn, and its reply arrives while they are still talking: it is not said, and the debt is paid, so the next report that nobody asked for is said
+    const listening = makeCall({ over }); await listening.start(); await listening.talk(); listening.ctl.pttDown(); await settle()
+    await listening.reply('Said to nobody.'); eq(listening.log.spoken, [], 'floor: the reply to the turn the user talked over, arriving while they talk, is not said')
+    await listening.clock.advance(1000); await listening.ctl.pttUp(); await settle()
+    await listening.reply('The next report.'); eq(listening.log.spoken, ['The next report.'], 'floor: ...and it was the reply that was owed: the next report that nobody asked for is said')
+  }
+  {
     const w = makeCall({ over }); await w.start(); await w.talk(); await w.reply('One. Two.'); await w.playStart(0)
     w.ctl.stop(); await settle()
     eq([w.snap().phase, w.log.stops >= 1, w.snap().scene !== 'speaking', w.ctl.getLevel()], ['idle', true, true, 0], 'stop: speech is stopped at once, the mouth shut')
@@ -703,6 +715,12 @@ async function controllerSuite(over = {}) {
     await over_.frame('build_phase', { phase: 'building', spoken: 'A progress line' }); await over_.clock.advance(9000)
     eq(over_.log.spoken, ['A report.'], 'progress: never over a line that is being said')
     await over_.playEnd(0); await over_.clock.advance(4500); eq(over_.log.spoken, ['A report.', 'A progress line'], 'progress: ...it waits its turn')
+    // (P4-21, found by the replay of the recordings) a status is only worth saying while the wait goes on: once the reply (or the card) it came before has arrived it is stale, and is not said after it
+    const before = makeCall({ over }); await before.start()
+    await before.frame('status_update', { status: 'generating', text: 'x', spoken: 'Analyzing presentation strategy' }); await before.reply(undefined, 'Here is the plan.'); await before.clock.advance(30000)
+    eq(before.log.spoken, [], 'progress: a status that came before the reply is not said after it')
+    await before.frame('build_phase', { phase: 'building', spoken: 'Building the slides' }); await before.clock.advance(5000)
+    eq(before.log.spoken, ['Building the slides'], 'progress: ...a status after the reply is')
     const quiet = makeCall({ over, speakFails: 'not_connected' }); await quiet.start(); await quiet.frame('build_phase', { phase: 'building', spoken: 'A line' }); await quiet.clock.advance(5000); await quiet.frame('build_phase', { phase: 'building', spoken: 'Another line' }); await quiet.clock.advance(20000)
     eq(quiet.log.spoken.length, 1, 'progress: speech that is not connected is asked for once, not for every line')
   }
@@ -1482,6 +1500,9 @@ const mutants = [
   [CTL, 'the reply is read from the text', "const spoken = spokenLineFromFrame(frame)\n    const sentences", "const spoken = spokenLineFromFrame(frame) ?? replyTextFromFrame(frame)\n    const sentences"],
   [CTL, 'the reply talks over the user', "if (this.cs.phase === 'listening') return // the user is talking: the reply is in the chat, and nothing talks over them\n", ''],
   [CTL, 'the reply to a stopped turn is said', "if (!awaiting && this.owedReplies > 0) { this.owedReplies--; return }", ''],
+  [CTL, 'the debt is not paid while the user talks', "if (!awaiting && this.owedReplies > 0) { this.owedReplies--; return } // the reply to a turn the user cancelled: it is in the chat, it is not said (also when the user is already talking: the debt is paid either way)\n    if (this.cs.phase === 'listening') return // the user is talking: the reply is in the chat, and nothing talks over them\n", "if (this.cs.phase === 'listening') return // the user is talking\n    if (!awaiting && this.owedReplies > 0) { this.owedReplies--; return }\n"],
+  [CTL, 'a status outlives the reply it came before', 'this.progressLine = null // a status is only worth saying while the wait goes on', 'void 0 // a status is only worth saying while the wait goes on'],
+  [CTL, 'a progress bubble counts as the reply', 'if (this.awaiting && this.awaiting.sendObserved) this.owedReplies++', 'if (this.awaiting && this.awaiting.sendObserved && !this.awaiting.replyTextArrived) this.owedReplies++'],
   [CTL, 'a reply with nothing to say hangs the turn', "this.dispatch({ type: 'reply_done', turn: this.cs.turn })\n      this.dispatch({ type: 'audio_drained', turn: this.cs.turn })\n      return\n    }\n    if (!sentences.length || this.speechOff) return", "return\n    }\n    if (!sentences.length || this.speechOff) return"],
   [CTL, 'a reply is spoken as one block', 'for (const sentence of sentences) this.enqueue(sentence, \'reply\', turn, true)', "this.enqueue(sentences.join(' '), 'reply', turn, true)"],
   [CTL, 'progress is said while the user talks', "!busy && this.cs.phase !== 'listening' && now - this.quietSince", "!busy && now - this.quietSince"],

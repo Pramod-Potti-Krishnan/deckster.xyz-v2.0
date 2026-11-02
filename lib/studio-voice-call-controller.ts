@@ -496,8 +496,9 @@ export class VoiceCallController {
     const awaiting = this.awaiting
     if (awaiting) awaiting.replyTextArrived = true
     this.quietSince = this.env.now()
+    this.progressLine = null // a status is only worth saying while the wait goes on: once the reply (or the card) is here, the status it came before is stale, not said after it
+    if (!awaiting && this.owedReplies > 0) { this.owedReplies--; return } // the reply to a turn the user cancelled: it is in the chat, it is not said (also when the user is already talking: the debt is paid either way)
     if (this.cs.phase === 'listening') return // the user is talking: the reply is in the chat, and nothing talks over them
-    if (!awaiting && this.owedReplies > 0) { this.owedReplies--; return } // the reply to a turn the user cancelled: it is in the chat, it is not said
     const spoken = spokenLineFromFrame(frame)
     const sentences = spoken ? splitSentences(cleanForSpeech(spoken)) : []
     if (spoken && sentences.length) this.showCaption(spoken)
@@ -645,7 +646,7 @@ export class VoiceCallController {
         this.stopSpeech()
         break
       case 'cancel_turn':
-        if (this.awaiting && this.awaiting.sendObserved && !this.awaiting.replyTextArrived) this.owedReplies++
+        if (this.awaiting && this.awaiting.sendObserved) this.owedReplies++ // (a pending turn has had no report yet, whatever progress bubbles came: heardReply ends the turn the moment the report is here)
         this.turnCtl?.abort()
         this.turnCtl = null
         this.awaiting = null
