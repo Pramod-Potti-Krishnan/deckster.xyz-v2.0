@@ -1,0 +1,107 @@
+// FRONTEND-1 (PK's UAT feedback F-04, F-07, with F-06's one plain line; 30 Oct; F-11, 31 Oct). Flag NEXT_PUBLIC_STUDIO_STRAWMAN_STAGE (the string "true", default off, build-time):
+// from the outline on, the stage is the normal deck viewer showing Director's Layout strawman preview deck (the slide_update preview_url Studio already loads as the presentation URL), not a separate outline design over it; under it one quiet line
+// ("No action needed: building starts automatically."; no Approve on the stage; what each slide says about itself is the preview deck's own slide, not the stage's: F-11); and when the built deck replaces the preview deck the viewer stays on the same slide.
+// Every decision is lib/studio-strawman-stage.ts (pure); hooks/use-studio-strawman-stage.ts holds the slide kept across the swap; components/builder/studio-strawman-note.tsx (+ .css) draws the line.
+// Every line this change adds to an EXISTING file is a pure insertion that carries the marker STRAWMAN-STAGE (matched as a whole token): app/builder/page.tsx (three imports placed after the Builder content, with the flow and chat imports; the phase
+// and the hook's call just before the outline canvas is selected; one spread inside that selection that turns the outline canvas off; and one JSX line before the outline canvas's own). No existing line of app code is rewritten (a later change that
+// stacks on this one, or one this is stacked on, may only insert too). Strip the marked lines and each file is its base, byte for byte.
+// Not touched, on purpose: components/builder/chat/message-list.tsx and the progress card (another builder's), and the F-03 gate spots in app/builder/page.tsx (after studioFirstRunStage, after the data-studio-first-run-stage attribute) and lib/studio-stage-open-gate.ts (FRONTEND-2's).
+// How the older pins reach it: this change REGISTERS its files, its .env.example block and this strip (scripts/studio-later-changes.mjs, three lines), and teaches the older proofs that read past it (STRAWMAN_STAGE_PIN_EDITS: one registry-read block each).
+// Plain node, no imports, nothing read from disk or git here.
+
+export const BASE_COMMIT = 'abf52d4d4858b24cdb62549325ae5b9eed36624e' // origin/studio-v4-dev-preparation-code with #554 merged (1 Nov): the dev tip this change was last refreshed onto (it was cut from a470679, #553 merged, 30 Oct)
+export const STRAWMAN_STAGE_FLAG = 'NEXT_PUBLIC_STUDIO_STRAWMAN_STAGE'
+export const STRAWMAN_STAGE_MARKER = 'STRAWMAN-STAGE'
+/** The marker as a WHOLE token: STRAWMAN-STAGE-X and X-STRAWMAN-STAGE are not it. */
+export const STRAWMAN_STAGE_MARKER_RE = /(?<![\w-])STRAWMAN-STAGE(?![\w-])/
+/** The subject prefix of this change's own commits (the proof finds its newest one by it). */
+export const STRAWMAN_STAGE_SUBJECT = 'Strawman stage:'
+
+/** Existing files that get marked lines (pure insertions only). */
+export const STRAWMAN_STAGE_FILES = [
+  'app/builder/page.tsx',
+]
+
+/** Files an earlier cut of this change added and a later one retired (F-11: the plan under the slide went, the one quiet line stayed). They stay named in the registry's scope: the first-parent scope checks of older proofs read the commit that added them as this change's. */
+export const STRAWMAN_STAGE_RETIRED_FILES = [
+  'components/builder/studio-strawman-plan.tsx',
+  'components/builder/studio-strawman-plan.css',
+]
+
+/** New files (no base text to put back). */
+export const STRAWMAN_STAGE_NEW_FILES = [
+  'lib/studio-strawman-stage.ts',
+  'hooks/use-studio-strawman-stage.ts',
+  'components/builder/studio-strawman-note.tsx',
+  'components/builder/studio-strawman-note.css',
+  'scripts/studio-strawman-stage-strip.mjs',
+  'scripts/test-studio-strawman-stage.mjs',
+]
+
+/** The older proofs this change teaches: [text the proof has now, text the proof had before] per edit, whole lines, so putting them back gives the previous file byte for byte. Every line the proof has now carries STRAWMAN_STAGE_PIN_MARK. */
+export const STRAWMAN_STAGE_PIN_MARK = '// LATER-CHANGES: registry read (STRAWMAN-STAGE)'
+export const STRAWMAN_STAGE_PIN_EDITS = {
+  "scripts/test-studio-outline-canvas.mjs": [ // PASS2 #4's proof: it reads the page raw and pins the outline canvas's selection and JSX as contiguous text; this change's spread and strip line sit inside those blocks
+    [
+      "  const page = (await import('./studio-later-changes.mjs')).stripLaterChanges('app/builder/page.tsx', read('app/builder/page.tsx')) // LATER-CHANGES: registry read (STRAWMAN-STAGE): the lines of the changes registered after this one come out of the page first\n",
+      "  const page = read('app/builder/page.tsx')\n",
+    ],
+  ],
+  "scripts/test-studio-chat-element-edit.mjs": [ // #522's proof: its scope check reads the first-parent line of BASE..HEAD (a branch stacked after it has others' commits there); one line, like the chat text set's
+    [
+      "  shas.splice(0, shas.length, ...shas.filter(sha => !/^Strawman stage:/.test(git('log', '-1', '--format=%s', sha)))) // LATER-CHANGES: registry read (STRAWMAN-STAGE): on a branch stacked after this change (the strawman stage's), the first-parent commits are its own, not this change's; with none left the pins and identity checks above cover the files\n",
+      "",
+    ],
+  ],
+  "scripts/test-studio-deck-sync-truth.mjs": [ // B26's proof: the same first-parent scope check
+    [
+      "  shas.splice(0, shas.length, ...shas.filter(sha => !/^Strawman stage:/.test(git('log', '-1', '--format=%s', sha)))) // LATER-CHANGES: registry read (STRAWMAN-STAGE): on a branch stacked after this change (the strawman stage's), the first-parent commits are its own, not this change's; with none left the pins and identity checks above cover the files\n",
+      "",
+    ],
+  ],
+  "scripts/test-studio-stage-open-gate.mjs": [ // #554's proof: it reads its taught proofs raw for its own mark and wants its registry lines to close their lists; this change is registered after it
+    [
+      "    for (const line of diffLines(normDiff({ norm: (r, text) => r === rel ? laterStrips(rel, text) : ctx.norm(r, text) }, rel, head))) if (line.startsWith('+')) assert.ok(line.includes(STAGE_OPEN_GATE_PIN_MARK), `${rel}: an added line without the mark: ${line.slice(0, 100)}`) // LATER-CHANGES: registry read (STRAWMAN-STAGE): the proof this change taught is read past the changes registered after it (the strawman stage's own teaching line) before its added lines are checked for this change's mark\n",
+      "    for (const line of diffLines(normDiff({ norm: (r, text) => r === rel ? text : ctx.norm(r, text) }, rel, head))) if (line.startsWith('+')) assert.ok(line.includes(STAGE_OPEN_GATE_PIN_MARK), `${rel}: an added line without the mark: ${line.slice(0, 100)}`)\n",
+    ],
+    [
+      "REAL.laterRegistryLine = (previous => line => previous?.(line) || line.includes('studio-strawman-stage-strip.mjs'))(REAL.laterRegistryLine) // LATER-CHANGES: registry read (STRAWMAN-STAGE): the strawman stage's registry lines may follow this change's three (a later change's own line)\n",
+      "",
+    ],
+    [
+      "  const later = laterStrips(PAGE, syntheticStrip(PAGE, git('show', `${SYNTHETIC}:${PAGE}`))) // read as this change left it: the later change's lines out (as laterStrips does for a registered one) // LATER-CHANGES: registry read (STRAWMAN-STAGE): the registered changes after this one (the strawman stage's page lines) come out too, not only the synthetic one\n",
+      "  const later = syntheticStrip(PAGE, git('show', `${SYNTHETIC}:${PAGE}`)) // read as this change left it: the later change's lines out (as laterStrips does for a registered one)\n",
+    ],
+  ],
+}
+
+/** The proof without this change's edits (the previous file). Used by the strip and the proof. */
+export function putBackPin(rel, text) {
+  return (STRAWMAN_STAGE_PIN_EDITS[rel] || []).reduce((out, [has, was]) => out.replace(has, () => was), text)
+}
+
+/** The older proofs this change teaches. */
+export const STRAWMAN_STAGE_PIN_FILES = Object.keys(STRAWMAN_STAGE_PIN_EDITS)
+
+export const STRAWMAN_STAGE_OWN_EDITS = ['.env.example', 'scripts/studio-later-changes.mjs', ...STRAWMAN_STAGE_PIN_FILES]
+
+/** Every file this change's commits touch: what the older scope checks skip once the registry names it (scripts/studio-later-changes.mjs, LATER_CHANGE_FILES). */
+export const STRAWMAN_STAGE_SCOPE_FILES = new Set([...STRAWMAN_STAGE_FILES, ...STRAWMAN_STAGE_NEW_FILES, ...STRAWMAN_STAGE_RETIRED_FILES, ...STRAWMAN_STAGE_OWN_EDITS])
+
+/** The whole .env.example block: its comments and its line. */
+export const STRAWMAN_STAGE_ENV_BLOCK = `# STUDIO STRAWMAN STAGE (FRONTEND-1; PK's UAT feedback F-04, F-06, F-07, F-11). On for the exact value "true"; default off, and then the outline stage, the chat's approval and the jump to the built deck are exactly as today.
+# Build-time value: change it on Vercel and redeploy. Only in the Studio shell, and not in template mode.
+# On: no separate outline design over the stage when Director sent a strawman preview deck (NEXT_PUBLIC_STUDIO_OUTLINE_CANVAS is not drawn then; without a preview deck it is); from the outline on the stage is the normal deck viewer, with its thumbnails, showing Director's Layout strawman preview deck (the slide_update preview_url).
+# What each strawman slide says about itself (title, key points, content type) is the preview deck's own slide, drawn by Director's Layout preview; the stage adds only one quiet line under the viewer while the deck is still the strawman:
+# "No action needed: building starts automatically." There is no Approve on the stage. When the built deck replaces the preview deck the viewer is taken back to the slide the user was on if the built deck holds it (no reset to slide 1), and the narration's follow of the newest built slide stands down for that build.
+# Flip it only together with Director's automatic start of the build (the F-06 change): the line is true only then.
+NEXT_PUBLIC_STUDIO_STRAWMAN_STAGE="false"
+`
+
+/** The file without this change's lines: every line that carries the marker (as a whole token) is taken out, every other byte stays. Any other file is returned as it is. */
+export function stripStrawmanStage(rel, text) {
+  if (typeof text !== 'string') return text
+  if (rel in STRAWMAN_STAGE_PIN_EDITS) return putBackPin(rel, text) // an older proof this change taught: its previous text
+  if (!STRAWMAN_STAGE_FILES.includes(rel)) return text
+  return text.split('\n').filter(line => !STRAWMAN_STAGE_MARKER_RE.test(line)).join('\n')
+}
