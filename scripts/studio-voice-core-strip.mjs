@@ -252,6 +252,10 @@ export const VOICE_CORE_PROOF_EDITS = {
     [
       "    const diff = voiceCoreProofDiffLines(rel, git('diff', '-U0', BASE_COMMIT, '--', rel).split('\\n'))\n",
       "    const diff = git('diff', '-U0', BASE_COMMIT, '--', rel).split('\\n')\n"
+    ],
+    [
+      "    const added = voiceCoreProofDiffLines(rel, git('diff', '-U0', BASE_COMMIT, 'HEAD', '--', rel).split('\\n')).filter(line => line.startsWith('+') && !line.startsWith('+++'))",
+      "    const added = git('diff', '-U0', BASE_COMMIT, 'HEAD', '--', rel).split('\\n').filter(line => line.startsWith('+') && !line.startsWith('+++'))"
     ]
   ]
 };
