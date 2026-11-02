@@ -1,8 +1,13 @@
 import { describe, expect, it } from "vitest";
 import { readFileSync } from "node:fs";
-import { stripVoiceCore, VOICE_CORE_SCOPE_PIN } from "../../studio-voice-core-strip.mjs";
+import { stripVoiceCore, VOICE_CORE_ENV_BLOCK, VOICE_CORE_SCOPE_PIN } from "../../studio-voice-core-strip.mjs";
 
 describe("voice proof compatibility is exact", () => {
+  it("registers after all earlier changes so their environment proofs can remove this later flag", async () => {
+    const registry = await import("../../studio-later-changes.mjs");
+    expect(registry.LATER_ENV_BLOCKS.at(-1)).toBe(VOICE_CORE_ENV_BLOCK);
+    expect(registry.LATER_STRIPS.at(-1)).toBe(stripVoiceCore);
+  });
   it("removes only the new dependency and test script", () => {
     const source = readFileSync("package.json", "utf8");
     const result = JSON.parse(stripVoiceCore("package.json", source));
