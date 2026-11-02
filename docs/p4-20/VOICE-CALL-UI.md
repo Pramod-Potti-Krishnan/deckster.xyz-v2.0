@@ -23,9 +23,15 @@ With the flag off nothing is loaded, listened to, timed or asked for; strip the 
 - Director to Studio (voice mode only, existing frames): `payload.spoken` on `chat_message` and `action_request` (the reply, the card, all the clarifying questions; up to about 240 characters) and on `status_update` / `build_phase` / deck-scope `build_event` (about 120 characters); `payload.companion_state` (`thinking | working | reporting | pleased | concerned | waiting`; `listening` is client-only).
 - Studio speaks only `payload.spoken`; nothing is made up from the chat text. Replies and cards are said at once (chunk by chunk); progress lines follow Garud's rules (said after 4 s of quiet, at most one every 6 s, only the newest, dropped after 20 s). It drives the character from `companion_state` when present, from the frame's type when not.
 
-## Speech in and out (placeholders until the routes exist)
+## Speech in and out (the router contract; the routes do not exist yet)
 
-`POST /api/studio/voice/transcribe` (multipart `audio` and `label: studio.voice_stt`, answers `{ "text" }`) and `POST /api/studio/voice/speak` (JSON `{ "text", "label": "studio.voice_tts" }`, answers audio). Studio's own routes call model-router; the browser never holds a key. 404, 501 and 503 read as "Speech isn't connected yet", 402 and 429 as a limit. Neither route exists on this branch.
+ROUTER-1's transport contract (via the core's `docs/p4-19/VOICE-CORE.md`): the calls belong in Studio's SERVER adapter, which holds the router key; the browser never does. Hearing is the router's chat/completions with `input_audio` as base64 WAV (task `studio.voice_stt`); speaking is the router's audio/speech (task `studio.voice_tts`, audio plus `x-generation-id`). So the call is written against two same-origin routes:
+
+- `POST /api/studio/voice/transcribe`: multipart `audio` (a WAV, 16 kHz, mono, 16-bit: the capture layer in `lib/studio-voice-call-browser.ts` decodes what the recorder produced and converts it) and `label: studio.voice_stt`; answers `{ "text" }`.
+- `POST /api/studio/voice/speak`: JSON `{ "text", "label": "studio.voice_tts" }`; answers audio.
+- Either answer may carry the optional header `X-Deckster-Cost-Usd`; the call keeps the core's `CallCostMeter` and adds `null` when it is not there (never zero). The per-call cap is P4-22's.
+
+404, 501 and 503 read as "Speech isn't connected yet", 402 and 429 as a limit. Neither route exists on this branch; tests and shots answer them locally.
 
 ## Companion packs
 
