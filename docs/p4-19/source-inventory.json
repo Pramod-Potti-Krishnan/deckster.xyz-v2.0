@@ -1,0 +1,21 @@
+{
+  "src/voice/sentences.ts": "d45c0a45bb7f1ceaac648109b21a8cab175dd2fdc4988e7b2404d11862fdefc0",
+  "src/voice/vad.ts": "18db70e8d93e9bbbd3f593a7ab6aa9508dcf6b99b2dca3cac133d4d954d28553",
+  "src/voice/call-state.ts": "4ff0485d6940bff39fbeb80f71be51d925538c0ab8a08bd42408e2a06e8ab99d",
+  "src/voice/turns.ts": "529c4341feb33b1110b6d3764f7a86565f073b2833b0dfe659c38ab4ee1b2831",
+  "src/voice/tone.ts": "8e1a200d205f850e8a6a1f6000808b12aad26dbebeffa795249bb643e3c86e90",
+  "src/voice/avatar-rig.ts": "71ef57e0bc35cd357b642013588e03d9c02bdb1cc9f08c9dc0b425ab8e33ea22",
+  "src/voice/bird-motion.ts": "0cfbd256be9f964e0d92765329cea045cadc9ee325dc0f70e8147e277892f2b0",
+  "src/voice/mic-errors.ts": "3f0d0cb392f64ab29ed34bf9bb9c586c8b560d058866c1f2e7dc0707ab037080",
+  "src/voice/format.ts": "001383cb522fc49a033c94ca1bd167194165adadeb35a9655b47361d9efea1d3",
+  "src/voice/birds.ts": "33e7f0b1a2e00bac1e256b963781dd66eec94c8c8afffe355ff4f356411131aa",
+  "test/voice-sentences.test.ts": "17c67ef1ca38724eeb75a16eacc64ff58d05eb94f4e50beeaea17bc5f1f25165",
+  "test/voice-vad.test.ts": "eef48172e9ea60c19e4a7e5ec993c86af6d347ac5d4c0901b310dd590ae9a046",
+  "test/voice-call-state.test.ts": "99f4388a61a1326438f4a999af2d7aa6ffff304b450655ed507614f4081d13d4",
+  "test/voice-turns.test.ts": "c6f8b4d78c9f3fafd449b582383e91b116264e82fc0b71baba336d4f4aefcfdc",
+  "test/voice-tone.test.ts": "de631e0f5228b0e0101691400437f8a4b13f7dc178c39f75efe78909768e767f",
+  "test/voice-avatar-rig.test.ts": "b72088ccb8e771a9fc2b7c0dabff4a0f503469815ba5aa1417caf24fac98ee0b",
+  "test/bird-motion.test.ts": "e7b4fa7f13dac7f13e3228a3ca40eb44173261ad46c0b12d04d7bab7a56ce32b",
+  "test/voice-input.test.ts": "94b4cc8ab3b774af0773315bb5147dc1994ea7e5140a4693a6be0ddc52387dbe",
+  "test/cos-cost.test.ts": "51e04565a147fae8587e512be3b9d8acc8f5a208e5676d042f7843a68a21a9e4"
+}
