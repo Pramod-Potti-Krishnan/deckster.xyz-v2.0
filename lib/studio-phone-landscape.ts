@@ -101,7 +101,7 @@ export function studioPhoneFanItems(probes: Partial<Record<StudioPhoneFanKey, St
   return items
 }
 
-/** The bar's destinations the hamburger lists: the keys of the phone tab bar's own controls (components/layout/studio-phone-tab-bar.tsx, data-studio-phone-tab), in its order. */
+/** The bar's destinations the hamburger lists: the keys of the phone tab bar's own controls (the bar component under components/layout; each carries data-studio-phone-tab), in its order. */
 export type StudioPhoneNavKey = 'studio' | 'decks' | 'templates' | 'themes' | 'more'
 export const STUDIO_PHONE_NAV_ORDER: readonly StudioPhoneNavKey[] = ['studio', 'decks', 'templates', 'themes', 'more']
 
