@@ -6506,6 +6506,9 @@ function AuthenticatedBuilderContent({ authScopeUserId }: { authScopeUserId: str
   const chatCleanStop = () => { const requestId = sendBuildControl('stop', buildNarration.buildId ?? undefined); if (requestId) markNarrationControl('stop_requested', buildNarration.buildId, requestId); else toast({ title: "Couldn't stop the build", description: 'Director did not take the request. Your draft is still in the box.' }) } // CHAT-CLEAN: the composer's Stop (non-destructive, as the ribbon's: built slides are kept)
   const chatCleanContinue = () => { const requestId = sendBuildControl('resume', buildNarration.buildId ?? undefined); if (requestId) markNarrationControl('resume_requested', buildNarration.buildId, requestId) } // CHAT-CLEAN: Continue = resume as planned (the draft stays in the box)
   const chatCleanSendDirections = () => { const text = chatCleanInstructions(inputMessage); if (!text || chatCleanComposer.sendMode !== 'instructions') return; flowBus.instructions = text; const requestId = sendBuildControl('resume', buildNarration.buildId ?? undefined); flowBus.instructions = undefined; if (!requestId) { toast({ title: "Couldn't send your directions", description: 'Director did not take the request. Your draft is still in the box.' }); return } markNarrationControl('resume_requested', buildNarration.buildId, requestId); chatCleanNotes.addDirections(text); setInputMessage('') } // CHAT-CLEAN: Send with a draft while held ALWAYS goes as build_control resume {instructions} (Director !564: a plain message after a stop never rebuilds); the bus hands the text to this one request, as the flow hook does
+  const strawmanChatOn = STUDIO_STRAWMAN_CHAT_ENABLED && studioShell && effectiveBuildNarrationEnabled // STRAWMAN-CHAT (NEXT_PUBLIC_STUDIO_STRAWMAN_CHAT, default off): no slide list in the outline card, no progress card in the chat, one quiet status line while the stage is hidden (lib/studio-strawman-chat.ts)
+  const strawmanChat = useStudioStrawmanChat({ enabled: strawmanChatOn, sessionId: currentSessionId, buildId: buildNarration.buildId, handlers: buildNarrationHandlersRef }) // STRAWMAN-CHAT: Director's auto_proceed for this build, read through the narration handlers ref (declared after chat clean's notes hook)
+  const strawmanChatStageOpen = useStudioStageOpen() && !studioWelcome && !studioCanvasCovered // STRAWMAN-CHAT: FRONTEND-2's stage open gate (lib/studio-stage-open-gate.ts, PR #554: true when its flag is off or the stage is open, false only while the gate holds the stage hidden) AND what the page has today: the welcome is not what the canvas shows, and a narrow layout's chat is not covering it. Stage open means its chain of thought is on screen, so the chat says nothing
   // CHAT-COMMANDS (NEXT_PUBLIC_STUDIO_CHAT_COMMANDS, needs NEXT_PUBLIC_STUDIO_CHAT_CLEAN and the Studio shell, default off): the composer's "/" commands and "@" mentions (lib/studio-chat-commands.ts decides, components/builder/chat/studio-chat-commands.tsx draws). The page only hands over what it holds; off, the prop below is never passed.
   const chatCommandsOn = STUDIO_CHAT_COMMANDS_ENABLED && chatCleanShell // CHAT-COMMANDS
   const chatCommandsSlides = (slideStructure?.slides || []).map((sl: { title?: string; slide_id?: string }, i: number) => ({ index: i, title: sl?.title || '', slide_id: sl?.slide_id ?? null })) // CHAT-COMMANDS: the same list the K1 slide picker was given
@@ -7222,9 +7225,14 @@ function AuthenticatedBuilderContent({ authScopeUserId }: { authScopeUserId: str
   })
   const retiredIntroActions = lockApprovalGateStatuses(
     historicalActionStatuses(messages, session.answeredActionsRef.current, session.userMessages), messages, approvalGatesLocked)
+  // STRAWMAN-STAGE (F-04..F-07, F-11, NEXT_PUBLIC_STUDIO_STRAWMAN_STAGE, default off): from the outline on the stage is the deck viewer showing Director's strawman preview deck (no outline design over it), with one quiet line under it;
+  // STRAWMAN-STAGE: when the built deck replaces the preview deck the viewer stays on the same slide. Every decision is lib/studio-strawman-stage.ts; off, all of this is inert.
+  const studioStrawmanPhase = strawmanStagePhase({ enabled: STUDIO_STRAWMAN_STAGE_ENABLED && studioShell, templateModeOn, activeVersion: effectiveActiveVersion, strawmanPreviewUrl, finalPresentationUrl }) // STRAWMAN-STAGE
+  const studioStrawmanHold = useStudioStrawmanStage({ phase: studioStrawmanPhase, presentationId: effectivePresentationId, currentSlideIndex, buildStarted: strawmanStageBuildStarted({ generatingFinal: isGeneratingFinal, narrationPhase: buildNarration.phase }), slideCount: effectiveSlideCount, goToSlide: layoutServiceApis?.goToSlide, viewerSafety: studioViewerSafety }) // STRAWMAN-STAGE
   // PASS2 #4 (flag NEXT_PUBLIC_STUDIO_OUTLINE_CANVAS, default off): while the outline gate is live, the canvas shows the outline.
   const studioOutlineCanvas = selectStudioOutlineCanvas({
     enabled: STUDIO_OUTLINE_CANVAS_ENABLED && studioShell,
+    ...(STUDIO_STRAWMAN_STAGE_ENABLED && strawmanPreviewUrl ? { enabled: false } : {}), // STRAWMAN-STAGE: no separate outline design over the deck viewer (only when the strawman preview deck exists; without one the outline canvas stays)
     blocked: templateModeOn || isGeneratingFinal || session.isLoadingSession || STUDIO_OUTLINE_CANVAS_BUSY_PHASES.has(buildNarration.phase),
     messages, answeredIds: session.answeredActionsRef.current, userTurns: session.userMessages,
     sessionId: currentSessionId, locked: approvalGatesLocked,
@@ -7906,7 +7914,9 @@ function AuthenticatedBuilderContent({ authScopeUserId }: { authScopeUserId: str
                   </ScrollArea>
 
                   {effectiveBuildNarrationEnabled && (
+                    strawmanChatOn && buildNarration.active ? <StudioStrawmanChatLine narration={buildNarration} stageOpen={strawmanChatStageOpen} autoProceed={strawmanChat.autoProceed} heldCovered={chatCleanOn || Boolean(flowControl.bar)} loadingSession={studioShell ? session.isLoadingSession : undefined} /> : ( // STRAWMAN-CHAT: the chat's one quiet status line (nothing once the stage is open) instead of the presence row's Build log; no narration, the row as ever
                     <DirectorPresence narration={buildNarration} currentStatus={currentStatus} loadingSession={studioShell ? session.isLoadingSession : undefined} />
+                    ) // STRAWMAN-CHAT
                   )}
                   {flowControl.bar}{/* FLOW-CONTROL (NEXT_PUBLIC_STUDIO_FLOW_AMEND): the calm line and Resume / Rebuild while the build is held; off, null */}
 
@@ -8191,6 +8201,7 @@ function AuthenticatedBuilderContent({ authScopeUserId }: { authScopeUserId: str
                 && !hasStudioPartialStageVersionIntent(studioPartialVersionIntentRef.current, studioPartialAuthority, buildNarration.buildId)
                 && (!studioPartialMetadata || (studioPartialDisplayed?.buildId === buildNarration.buildId
                   && studioPartialDisplayed.presentationId === buildNarration.buildPresentationId)))) ? narrationNavigate : null}
+            {...(studioStrawmanHold ? ({ narrationNavigate: null } as { narrationNavigate?: null }) : {})} // STRAWMAN-STAGE (F-07): once the viewer was taken back to the user's slide, the narration's follow of the freshest built slide stands down for this build (it would page back to slide 1)
             buildNarration={effectiveBuildNarrationEnabled ? buildNarration : null}
             buildNarrationApi={
               effectiveBuildNarrationEnabled
@@ -8415,6 +8426,7 @@ function AuthenticatedBuilderContent({ authScopeUserId }: { authScopeUserId: str
             onTemplateBlueprintChange={handleTemplateBlueprintChange}
           />
           )}
+          {studioStrawmanPhase === 'strawman' && <StudioStrawmanNote />}{/* STRAWMAN-STAGE (F-06, F-11): the one plain line under the strawman deck, nothing else; off, never drawn */}
           {studioOutlineCanvas && <StudioOutlineCanvas key={studioOutlineCanvas.outline.message_id}
             outline={studioOutlineCanvas.outline.payload} contextByIndex={slideContextByIndex}
             onApprove={() => handleActionClick(studioOutlineCanvas.approve, studioOutlineCanvas.gate.message_id, studioOutlineCanvas.answerKey)} />}
@@ -8458,6 +8470,9 @@ import { useStudioFlowControl } from '@/hooks/use-studio-flow-control' // FLOW-C
 import { STUDIO_CHAT_CLEAN_ENABLED, chatCleanComposerState, chatCleanInstructions, chatCleanRootAttributes } from '@/lib/studio-chat-clean' // CHAT-CLEAN: placed here with the flow import, after the Builder's runners, for the same older proof
 import { flowBus } from '@/lib/studio-flow-control' // CHAT-CLEAN: the one-request hand-over of the resume's instructions (taken by sendBuildControl, whatever the flow flags)
 import { StudioChatCleanBar, useStudioChatCleanNotes } from '@/components/builder/chat/studio-chat-clean' // CHAT-CLEAN
+import { STUDIO_STRAWMAN_STAGE_ENABLED, strawmanStageBuildStarted, strawmanStagePhase } from '@/lib/studio-strawman-stage' // STRAWMAN-STAGE: placed here with the flow and chat imports, after the Builder, for the same older proofs
+import { useStudioStrawmanStage } from '@/hooks/use-studio-strawman-stage' // STRAWMAN-STAGE
+import { StudioStrawmanNote } from '@/components/builder/studio-strawman-note' // STRAWMAN-STAGE
 import { STUDIO_CHAT_PARITY_ANY_ENABLED, STUDIO_CHAT_PARITY_IDENTITY_ENABLED, STUDIO_CHAT_PARITY_TEMPLATES_ENABLED, STUDIO_CHAT_PARITY_THEMES_ENABLED, chatParityBus, chatParityRefusal, chatParityRequest, chatParityResult } from '@/lib/studio-chat-parity' // CHAT-PARITY: placed here with the flow and chat-clean imports, after the Builder's runners, for the same older proof
 import { runChatParityAction } from '@/lib/studio-chat-parity-runners' // CHAT-PARITY
 import { composerTemplateActions, loadComposerTemplates } from '@/lib/studio-composer-popups' // CHAT-PARITY: the composer library's own list and action set (row 67)
@@ -8465,6 +8480,10 @@ import { STUDIO_CHAT_COMMANDS_ENABLED } from '@/lib/studio-chat-commands-wire' /
 import type { ChatCommandsPageProps } from '@/lib/studio-chat-commands' // CHAT-COMMANDS
 import type { ExportDirectiveMessage } from '@/lib/chat-theme-export' // CHAT-COMMANDS
 import { STUDIO_STAGE_OPEN_GATE_ENABLED, stepStudioStageGate, studioStageGateProps, useStudioStageCanvasAsked, useStudioStageGatePublish, type StudioStageGateState } from '@/lib/studio-stage-open-gate' // STUDIO-STAGE-OPEN-GATE
+import { STUDIO_STRAWMAN_CHAT_ENABLED } from '@/lib/studio-strawman-chat' // STRAWMAN-CHAT: placed here with the other late imports, after the Builder's runners, for the same older proofs
+import { useStudioStrawmanChat } from '@/hooks/use-studio-strawman-chat' // STRAWMAN-CHAT
+import { StudioStrawmanChatLine } from '@/components/builder/chat/studio-strawman-chat' // STRAWMAN-CHAT
+import { useStudioStageOpen } from '@/lib/studio-stage-open-gate' // STRAWMAN-CHAT: FRONTEND-2's gate, read on the one stage-open line
 
 function BuilderLoadingState({ message = 'Loading builder...' }: { message?: string }) {
   // NEXT_PUBLIC_STUDIO_SESSION_HYGIENE: the route loader is the builder shell, not a blank page with a spinner.

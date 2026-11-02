@@ -1035,7 +1035,10 @@ function scopeHead(ref = 'HEAD', { gateRule = true } = {}) {
   if (!gateRule || parents.length !== 2) return head
   return ownOf(parents[0]).length === 0 && ownOf(parents[1]).length > 0 ? parents[1] : head
 }
-const REAL = { norm: otherStrips, env: text => registry.stripLaterEnvBlocks('.env.example', text), laterRegistryLine: line => line.includes('studio-phone-landscape-strip.mjs') } // LATER-CHANGES: registry read (PHONE-LANDSCAPE): the phone landscape (registered after this one) puts its own lines after this one's in each list of the registry
+const REAL = { norm: otherStrips, env: text => registry.stripLaterEnvBlocks('.env.example', text) }
+REAL.laterRegistryLine = (previous => line => previous?.(line) || line.includes('studio-strawman-stage-strip.mjs'))(REAL.laterRegistryLine) // LATER-CHANGES: registry read (STRAWMAN-STAGE): the strawman stage's registry lines may follow this change's three (a later change's own line)
+REAL.laterRegistryLine = (previous => line => previous?.(line) || line.includes('studio-strawman-chat-strip.mjs'))(REAL.laterRegistryLine) // LATER-CHANGES: registry read (STRAWMAN-CHAT): the strawman chat's registry lines may follow this change's three (a later change's own line)
+REAL.laterRegistryLine = (previous => line => previous?.(line) || line.includes('studio-phone-landscape-strip.mjs'))(REAL.laterRegistryLine) // LATER-CHANGES: registry read (PHONE-LANDSCAPE): the phone landscape's registry lines may follow this change's (a later change's own line), like the strawman stage's and chat's
 const diffLines = text => text.split('\n').filter(line => /^[+-]/.test(line) && !/^(\+\+\+|---) /.test(line))
 const normDiff = (ctx, rel, head) => git('diff', '-U0', blobOf(ctx.norm(rel, git('show', `${BASE_COMMIT}:${rel}`))), blobOf(ctx.norm(rel, git('show', `${head}:${rel}`))))
 const scopeOwnCommits = (head, opts) => {
@@ -1060,7 +1063,7 @@ const scopeCommittedFiles = (head, ctx = REAL) => {
     const now = git('show', `${head}:${rel}`), base = git('show', `${BASE_COMMIT}:${rel}`)
     assert.equal(ctx.norm(rel, stripStageOpenGate(rel, now)), ctx.norm(rel, base), `${rel}: the proof this change taught, put back, is the base's`)
     for (const [has] of STAGE_OPEN_GATE_PIN_EDITS[rel]) for (const line of has.split('\n').filter(Boolean)) assert.ok(line.includes(STAGE_OPEN_GATE_PIN_MARK), `${rel}: every taught line carries the registry-read mark: ${line.slice(0, 80)}`)
-    for (const line of diffLines(normDiff({ norm: (r, text) => r === rel ? registry.LATER_STRIPS.slice(registry.LATER_STRIPS.indexOf(stripStageOpenGate) + 1).reduce((out, strip) => { const next = typeof strip === 'function' ? strip(r, out) : out; return typeof next === 'string' ? next : out }, text) : ctx.norm(r, text) }, rel, head))) if (line.startsWith('+')) assert.ok(line.includes(STAGE_OPEN_GATE_PIN_MARK), `${rel}: an added line without the mark: ${line.slice(0, 100)}`) // LATER-CHANGES: registry read (PHONE-LANDSCAPE): the lines of the changes registered after this one come out of a proof it taught before its added lines are read
+    for (const line of diffLines(normDiff({ norm: (r, text) => r === rel ? laterStrips(rel, text) : ctx.norm(r, text) }, rel, head))) if (line.startsWith('+')) assert.ok(line.includes(STAGE_OPEN_GATE_PIN_MARK), `${rel}: an added line without the mark: ${line.slice(0, 100)}`) // LATER-CHANGES: registry read (STRAWMAN-STAGE): the proof this change taught is read past the changes registered after it (the strawman stage's own teaching line) before its added lines are checked for this change's mark
   }
   for (const rel of ['components/builder/presentation-area.tsx', 'components/builder/studio-outline-canvas.tsx', 'lib/studio-flow-control.ts', 'hooks/use-studio-flow-control.ts', 'components/builder/studio-first-run-actions.tsx',
     'lib/studio-first-run-restoring.ts', 'hooks/use-deckster-websocket-v2.ts', 'components/builder/message-list.tsx']) assert.ok(!touched.has(rel), `${rel} is not touched by this change`)
@@ -1151,7 +1154,7 @@ check('ROBUST AFTER MERGE: a synthetic change stacked after this one (its marked
   const advanced = gateMerge(unrelated, SYNTHETIC)
   assert.equal(scopeHead(advanced), SYNTHETIC); scopeAll(scopeHead(advanced), SYN_CTX)
   // and the page wiring, read past the later change's line, is still this change's
-  const later = laterStrips(PAGE, syntheticStrip(PAGE, git('show', `${SYNTHETIC}:${PAGE}`))) // read as this change left it: the later change's lines out (as laterStrips does for a registered one) // LATER-CHANGES: registry read (PHONE-LANDSCAPE): the lines of the changes registered after this one come out too
+  const later = laterStrips(PAGE, syntheticStrip(PAGE, git('show', `${SYNTHETIC}:${PAGE}`))) // read as this change left it: the later change's lines out (as laterStrips does for a registered one) // LATER-CHANGES: registry read (STRAWMAN-STAGE): the registered changes after this one (the strawman stage's page lines) come out too, not only the synthetic one
   pageWiring(later)
 })
 mutant('scope: the synthetic later change is not told to the scope (its lines are unmarked additions, its registry lines extra)', () => { scopeCommittedFiles(synthetic()); scopeEnvAndRegistry(synthetic()) })

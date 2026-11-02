@@ -6,10 +6,10 @@
 // Every line this change adds to an EXISTING app file is a pure insertion that carries the marker PHONE-LANDSCAPE (a whole token); no existing line is rewritten, and the viewer is not touched (its own rail toggle is clicked, its own fit is fed a slide space 32 px larger by
 // CSS). Strip the marked lines and app/builder/page.tsx is its base, byte for byte (three imports, the workspace-width clamp's call and one line of JSX at the shell root). The decisions live in lib/studio-phone-landscape.ts (pure); the hooks in
 // hooks/use-studio-phone-landscape.ts; the drawing in components/builder/studio-phone-landscape.tsx and .css.
-// Two older proofs read the first-parent line of BASE..HEAD for their own commits' subjects, and a branch with this change on it has this change's commits there: each is taught one inserted line that leaves "Phone landscape:" commits out (PIN_EDITS, tests only, registry-read marks).
+// Two older proofs read the first-parent line of BASE..HEAD for their own commits' subjects, and a branch with this change on it has this change's commits there: each is taught one inserted line that leaves "Phone landscape:" commits out (PIN_EDITS, tests only, registry-read marks). The stage open gate proof is taught one inserted line too, chained after the strawman stage's and chat's: its registry-line allowance also lets this change's registry lines follow its own (dev dc154019: the two other lines both changes rewrote are dev's as they stand, whose laterStrips already reads past this change).
 // How the older pins reach it: this change REGISTERS its files, its .env.example block and this strip (scripts/studio-later-changes.mjs, three lines). Plain node, no imports, nothing read from disk or git here.
 
-export const BASE_COMMIT = 'abf52d4d4858b24cdb62549325ae5b9eed36624e' // origin/studio-v4-dev-preparation-code (#554 merged, on #555) merged into this branch before it was finished; this change started on 61a71137 (#555) and its own commits are found by subject
+export const BASE_COMMIT = 'dc1540195b58630a345d4ada0f81edd9a31b4673' // origin/studio-v4-dev-preparation-code (#557 merged, on #556) merged into this branch; this change started on 61a71137 (#555) and its own commits are found by subject
 export const PHONE_LANDSCAPE_FLAG = 'NEXT_PUBLIC_STUDIO_PHONE_LANDSCAPE'
 export const PHONE_LANDSCAPE_MARKER = 'PHONE-LANDSCAPE'
 /** The marker as a WHOLE token: PHONE-LANDSCAPE-X and X-PHONE-LANDSCAPE are not it. */
@@ -42,12 +42,8 @@ export const PHONE_LANDSCAPE_PIN_EDITS = {
      ""]
   ],
   "scripts/test-studio-stage-open-gate.mjs": [
-    ["const REAL = { norm: otherStrips, env: text => registry.stripLaterEnvBlocks('.env.example', text), laterRegistryLine: line => line.includes('studio-phone-landscape-strip.mjs') } // LATER-CHANGES: registry read (PHONE-LANDSCAPE): the phone landscape (registered after this one) puts its own lines after this one's in each list of the registry\n",
-     "const REAL = { norm: otherStrips, env: text => registry.stripLaterEnvBlocks('.env.example', text) }\n"],
-    ["    for (const line of diffLines(normDiff({ norm: (r, text) => r === rel ? registry.LATER_STRIPS.slice(registry.LATER_STRIPS.indexOf(stripStageOpenGate) + 1).reduce((out, strip) => { const next = typeof strip === 'function' ? strip(r, out) : out; return typeof next === 'string' ? next : out }, text) : ctx.norm(r, text) }, rel, head))) if (line.startsWith('+')) assert.ok(line.includes(STAGE_OPEN_GATE_PIN_MARK), `${rel}: an added line without the mark: ${line.slice(0, 100)}`) // LATER-CHANGES: registry read (PHONE-LANDSCAPE): the lines of the changes registered after this one come out of a proof it taught before its added lines are read\n",
-     "    for (const line of diffLines(normDiff({ norm: (r, text) => r === rel ? text : ctx.norm(r, text) }, rel, head))) if (line.startsWith('+')) assert.ok(line.includes(STAGE_OPEN_GATE_PIN_MARK), `${rel}: an added line without the mark: ${line.slice(0, 100)}`)\n"],
-    ["  const later = laterStrips(PAGE, syntheticStrip(PAGE, git('show', `${SYNTHETIC}:${PAGE}`))) // read as this change left it: the later change's lines out (as laterStrips does for a registered one) // LATER-CHANGES: registry read (PHONE-LANDSCAPE): the lines of the changes registered after this one come out too\n",
-     "  const later = syntheticStrip(PAGE, git('show', `${SYNTHETIC}:${PAGE}`)) // read as this change left it: the later change's lines out (as laterStrips does for a registered one)\n"]
+    ["REAL.laterRegistryLine = (previous => line => previous?.(line) || line.includes('studio-phone-landscape-strip.mjs'))(REAL.laterRegistryLine) // LATER-CHANGES: registry read (PHONE-LANDSCAPE): the phone landscape's registry lines may follow this change's (a later change's own line), like the strawman stage's and chat's\n",
+     ""]
   ]
 }
 
