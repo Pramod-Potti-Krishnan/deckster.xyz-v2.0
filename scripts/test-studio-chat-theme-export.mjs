@@ -1,3 +1,4 @@
+import { voiceCoreProofDiffLines } from './studio-voice-core-strip.mjs' // LATER-CHANGES: registry read (STUDIO-VOICE-CORE): normalize only exact voice-port proof edits
 // FRONTEND-2 Pass 3: change the theme and export the deck from chat, Studio half (NEXT_PUBLIC_CHAT_THEME_CHANGE, NEXT_PUBLIC_CHAT_EXPORT;
 // each exact "true", default off, independent of the other). Contract: streams/director2/theme-export/CONTRACT.md (Director !513).
 //
@@ -651,7 +652,7 @@ await check(`identity: stripping this change gives back ${BASE_COMMIT.slice(0, 7
   changed.splice(0, changed.length, ...changed.filter(rel => !/^(app\/api\/templates\/\[id\]\/route\.ts|components\/studio-libraries\/(library-manage|templates-workspace)\.tsx|hooks\/use-templates\.ts|lib\/studio-library-manage\.ts|scripts\/(studio-library-manage-strip|test-studio-route-params|test-studio-template-library-manage|test-studio-theme-library-manage)\.mjs|scripts\/fixtures\/template-rename\/.+)$/.test(rel))) // stacked after #475: the template rename's own files (PR #477) are not this change's to answer for
   for (const rel of READS_THROUGH_STRIP.filter(rel => changed.includes(rel))) {
     if (rel === 'scripts/studio-library-manage-harness.mjs') { const v = stackFileTolerant(git('show', `${STACK[475].head}:${rel}`), read(rel)); assert.ok(v.ok, `${rel}: ${v.reason}`); if (!v.exact) continue } // stacked after #475: a later PR's lines in the harness are taken, the stack's (#475's head) kept in order (scripts/studio-stack-tolerant.mjs); as the stack left it, it is checked below as before
-    const diff = git('diff', '-U0', BASE_COMMIT, '--', rel).split('\n')
+    const diff = voiceCoreProofDiffLines(rel, git('diff', '-U0', BASE_COMMIT, '--', rel).split('\n'))
     const removed = diff.filter(line => line.startsWith('-') && !line.startsWith('---')), added = diff.filter(line => line.startsWith('+') && !line.startsWith('+++'))
     added.splice(0, added.length, ...added.filter(line => !/^\+import \{ stripNewDeckHandoffSend \} from '\.\/studio-new-deck-handoff-send-strip\.mjs'/.test(line) && !/stripLaunchWording|STUDIO_LAUNCH_WORDING/.test(line))) // stacked after #475: the new-deck handoff send (NEXT_PUBLIC_STUDIO_NEW_DECK_HANDOFF_SEND) chains its strip into this root with one import line; that line is a later PR's, not this change's. So are the launched-wording import and call (NEXT_PUBLIC_STUDIO_LAUNCH_WORDING)
     added.splice(0, added.length, ...added.filter(line => !/^\+import \{ stripPublishReviewFit \} from '\.\/studio-publish-review-fit-strip\.mjs'/.test(line))) // stacked after #475: the publish review fit change (NEXT_PUBLIC_STUDIO_PUBLISH_REVIEW_FIT) chains its strip into this root with one import line; that line is a later PR's, not this change's
@@ -672,7 +673,7 @@ await check(`identity: stripping this change gives back ${BASE_COMMIT.slice(0, 7
   // Stacked on #470: its own test reads the hook and its listed files through this change's strip first and lists this change's files as stacked.
   const STACKED_SIBLING_TESTS = ['scripts/test-studio-chat-element-refine.mjs']
   for (const rel of STACKED_SIBLING_TESTS.filter(rel => changed.includes(rel))) {
-    const added = git('diff', '-U0', BASE_COMMIT, 'HEAD', '--', rel).split('\n').filter(line => line.startsWith('+') && !line.startsWith('+++'))
+    const added = voiceCoreProofDiffLines(rel, git('diff', '-U0', BASE_COMMIT, 'HEAD', '--', rel).split('\n')).filter(line => line.startsWith('+') && !line.startsWith('+++'))
     for (const line of added) assert.match(line, /ThemeExport|THEME_EXPORT|chat-theme-export|#472|stacked|stripLaunchWording|STUDIO_LAUNCH_WORDING/i, `${rel}: ${line.slice(0, 160)}`)
   }
   { const scope = stackScope(changed, STACK[472], STACKED_KNOWN); assert.equal(STACK[472].base, BASE_COMMIT); assert.deepEqual(git('diff', '--name-only', STACK[472].base, STACK[472].head).split('\n').filter(Boolean), STACK[472].files, 'the frozen files are #472\'s own diff'); assert.deepEqual({ missing: scope.missing, stray: scope.stray }, { missing: [], stray: [] }, 'every frozen file is changed, no stray in its family'); console.log(scope.line); changed.splice(0, changed.length, ...scope.checked) } // stacked after #475: only this change's files, its family and its declared stack are checked below; a later PR's files are ignored, with a count
