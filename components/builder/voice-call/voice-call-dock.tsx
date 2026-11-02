@@ -56,6 +56,7 @@ export function VoiceCallDock({ snapshot, pack, getLevel, onTalkStart, onTalkEnd
       data-voice-active={snapshot.active ? 'true' : 'false'}
       aria-label="Voice call"
     >
+      <div className="studio-voice-grid">
       <div className="studio-voice-stage">
         <div className="studio-voice-disc" data-ring={snapshot.scene} data-framing={framing}>
           <CompanionPlayer pack={pack} scene={snapshot.scene} dance={snapshot.dance} framing={framing} size={size} reducedMotion={snapshot.reducedMotion} getLevel={getLevel} />
@@ -110,6 +111,7 @@ export function VoiceCallDock({ snapshot, pack, getLevel, onTalkStart, onTalkEnd
           </div>
         </div>
       ) : null}
+      </div>
     </section>
   )
 }
