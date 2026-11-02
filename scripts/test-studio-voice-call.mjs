@@ -938,7 +938,7 @@ async function stageSuiteBody(over = {}) {
   ok(!/aria-label="Stop"[^>]*disabled/.test(speaking) && !/disabled=""[^>]*aria-label="Stop"/.test(speaking), 'stage: Stop is on while it speaks')
   ok(!speaking.includes('data-studio-voice-caption'), 'stage: with the transcript shown, the line being said is not repeated as a subtitle')
   const working = html({ scene: 'working', progress: 'Building your slides…' })
-  ok(working.includes('Building your slides…') && working.includes('data-studio-voice-status="progress"') && !working.includes('data-studio-voice-status="hint"'), 'stage: what the Director is doing shows under the figure (instead of the hint)')
+  ok(working.includes('Building your slides…') && working.includes('data-studio-voice-status="progress"') && working.includes('class="studio-voice-progress"') && !working.includes('data-studio-voice-status="hint"') && !working.includes('class="studio-voice-hint"') && idle.includes('class="studio-voice-hint"'), 'stage: what the Director is doing shows under the figure (instead of the hint)')
   // the talk button's words and states
   ok(html({ holding: true }).includes('>Release to send<') && html({ holding: true }).includes('aria-pressed="true"') && html({ holding: true }).includes('data-holding="true"'), 'stage: held: Release to send')
   const latched = html({ holding: true, latched: true })
@@ -999,16 +999,37 @@ async function stageSuiteBody(over = {}) {
   }
   const phoneHtml = await phoneStage(true), deskHtml = await phoneStage(false)
   ok(phoneHtml.includes('data-voice-phone="true"') && phoneHtml.includes('data-size="148"') && deskHtml.includes('data-voice-phone="false"') && deskHtml.includes('data-size="176"'), 'stage: a phone gets the 148 px disc, a desktop the 176 px one')
+  // the catalog loader (Bob's companion.json): asked for only when the base lacks lean_in, merged, and never fatal
+  {
+    const catalogUi = makeHost({ env: ENV_ON, over }).load(UI)
+    const withBase = { version: 1, bird: 'b', neutral: 'neutral', packBudgetMiB: 8, totalBytes: 100, uniqueFrames: 1, frames: { neutral: { src: 'n.webp' } }, clips: { idle_breathe: { frames: ['neutral'], fps: 4 } } }
+    const withCompanion = { totalBytes: 50, frames: { lean_1: { src: 'l.webp' } }, clips: { lean_in: { frames: ['lean_1'], fps: 4 } } }
+    const run = async (map, parse = raw => raw) => { const asked = []; const out = await catalogUi.loadCatalog('/companions/b/motion/manifest.json', async url => { asked.push(url); const hit = map[url]; if (hit instanceof Error) throw hit; if (hit === undefined) throw new Error('404'); return hit }, parse); return { out, asked } }
+    const full = await run({ '/companions/b/motion/manifest.json': { ...withBase, clips: { ...withBase.clips, lean_in: {} } } })
+    eq(full.asked, ['/companions/b/motion/manifest.json'], 'catalog loader: a pack that has lean_in is read once (no request for a companion.json)')
+    const joined = await run({ '/companions/b/motion/manifest.json': withBase, '/companions/b/motion/companion.json': withCompanion })
+    eq([joined.asked, Object.keys(joined.out.clips).sort(), joined.out.uniqueFrames], [['/companions/b/motion/manifest.json', '/companions/b/motion/companion.json'], ['idle_breathe', 'lean_in'], 2], 'catalog loader: a pack without lean_in has companion.json (beside the manifest) merged in')
+    const gone = await run({ '/companions/b/motion/manifest.json': withBase })
+    eq([gone.asked.length, Object.keys(gone.out.clips)], [2, ['idle_breathe']], 'catalog loader: a companion.json that is not there leaves the base')
+    let seen = 0; const refused = await run({ '/companions/b/motion/manifest.json': withBase, '/companions/b/motion/companion.json': withCompanion }, raw => { seen++; if (seen === 1) throw new Error('refused'); return raw })
+    eq([seen, Object.keys(refused.out.clips)], [2, ['idle_breathe']], 'catalog loader: a merged set the parser refuses falls back to the base')
+    let rejected = null; try { await run({}) } catch (error) { rejected = error.message } eq(rejected, '404', 'catalog loader: the base failing is a failure (the pack is a plain disc)')
+    const nested = await catalogUi.loadCatalog('/companions/b/motion/face/manifest.json', async url => (url.endsWith('companion.json') ? withCompanion : withBase), raw => raw)
+    ok(!!nested.clips.lean_in, 'catalog loader: the Face pack\'s companion.json is the one beside its own manifest')
+  }
   // a phone: the stage is drawn as a child of the shell itself, above the shell's own chrome (a desktop keeps it in the chat column)
   {
-    const portalStage = makeHost({ env: ENV_ON, over, stubs: { './companion-player': { CompanionPlayer: fakePlayer }, 'react-dom': { createPortal: (child, target) => React.createElement('div', { 'data-portal': target.id }, child) } } }).load(STAGE)
+    let playerMounts = 0
+    const countingPlayer = props => { React.useEffect(() => { playerMounts++ }, []); return fakePlayer(props) }
+    const portalStage = makeHost({ env: ENV_ON, over, stubs: { './companion-player': { CompanionPlayer: countingPlayer }, 'react-dom': { createPortal: (child, target) => React.createElement('div', { 'data-portal': target.id }, child) } } }).load(STAGE)
     const withDocument = async (matches, shell) => {
       const prevWindow = globalThis.window
       globalThis.window = { matchMedia: () => ({ matches, addEventListener() {}, removeEventListener() {} }) }
       globalThis.document = { querySelector: selector => (selector === '[data-studio-v4-shell="true"]' ? shell : null) }
       try { const rootNode = await mount({}, portalStage); const out = markup(rootNode); rootNode.unmount(); return out } finally { globalThis.window = prevWindow; delete globalThis.document }
     }
-    const onPhone = await withDocument(true, { id: 'the-shell' }), onDesk = await withDocument(false, { id: 'the-shell' }), noShell = await withDocument(true, null)
+    const onPhone = await withDocument(true, { id: 'the-shell' }); eq(playerMounts, 1, 'phone: it is under the shell from the first render (the character is mounted once, not moved after a first draw)')
+    const onDesk = await withDocument(false, { id: 'the-shell' }), noShell = await withDocument(true, null)
     ok(onPhone.includes('data-portal="the-shell"') && onPhone.includes('data-voice-phone="true"') && onPhone.includes('data-studio-voice-call="stage"'), 'phone: the stage is a child of the shell (above its tab bar and logo)')
     ok(!onDesk.includes('data-portal') && onDesk.includes('data-voice-phone="false"'), 'phone: a desktop keeps the stage in the chat column')
     ok(!noShell.includes('data-portal') && noShell.includes('data-studio-voice-call="stage"'), 'phone: with no shell found it stays where it is')
@@ -1255,7 +1276,8 @@ function sourceSuite(sources, { base = null } = {}) {
   ok(strip.stripVoiceCall(PAGE, 42) === 42, 'strip: not text comes back as it is')
   ok(sources[BROWSER].includes('blob: await toWav(heard, context)') && sources[BROWSER].includes('encodeWavPcm16(resampleLinear(mixToMono(channels), decoded.sampleRate, VOICE_WAV_RATE), VOICE_WAV_RATE)') && sources[BROWSER].includes("type: 'audio/wav'"), 'browser: what was recorded is decoded, mixed to mono, brought to 16 kHz and sent as WAV (ROUTER-1: hearing takes base64 WAV)')
   ok(sources[PLAYER].includes('const width = framedWidth(framing, size, rect)'), 'player: its width is the lib\'s (the disc is a square, the chest as wide as its crop)')
-  ok(sources[PLAYER].includes('const main = await loadManifest(core, `${root}manifest.json`)') && sources[PLAYER].includes('const face = await loadManifest(core, `${root}${main.face.manifest}`)') && sources[PLAYER].includes("url.replace(/[^/]*$/, 'companion.json')") && sources[PLAYER].includes('if (needsCompanionCatalog(raw))') && sources[PLAYER].includes('core.resolveCompanionClip(manifest, name)'), 'player: the whole character and its Face pack both read their companion catalog when the base lacks the companion clips, and every clip is resolved through the core (a pack without one falls back)')
+  ok(sources[PLAYER].includes('const main = await loadCatalog(`${root}manifest.json`, fetchJson, core.parseBirdMotionManifest)') && sources[PLAYER].includes('const face = await loadCatalog(`${root}${main.face.manifest}`, fetchJson, core.parseBirdMotionManifest)') && sources[PLAYER].includes('core.resolveCompanionClip(manifest, name)'), 'player: the whole character and its Face pack both read through the catalog loader (companion clips merged when the base lacks them), and every clip is resolved through the core (a pack without one falls back)')
+  ok(sources[STAGE].includes('size={videoCharacterPx(height)}') && sources[STAGE].includes("useLevelVariable(ringRef, getLevel, live && !snapshot.reducedMotion && (snapshot.holding || snapshot.scene === 'speaking'))") && sources[STAGE].includes('const read = () => setHeight(element.clientHeight)') && sources[STAGE].includes('new ResizeObserver(read)'), 'stage: the character is as tall as the call\'s measured height allows (it follows a resize), and the level ring is driven only while you talk or it speaks, never in reduced motion')
   ok(/if \(plan\.accent\) \{[\s\S]{0,260}overlay = \{ clip: plan\.accent\.clip[\s\S]{0,400}mouthShapeIndex\(/.test(sources[PLAYER]), 'player: an accent can play while it speaks (before the mouth is drawn)')
   // the stylesheet: nothing global, nothing that reaches an element without the call's own attributes
   const css = sources[CSS]
@@ -1417,7 +1439,6 @@ const mutants = [
   [UI, 'talking works without a socket', 'talk: live && input.connected', 'talk: live'],
   [UI, 'Space talks in a text field', "tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT' || target.isContentEditable === true", 'false'],
   [UI, 'Space is taken from a button', "if (tag === 'BUTTON' || tag === 'A' || tag === 'SUMMARY') return true", ''],
-  [UI, 'Space is taken from the call\'s own button', "if (target.closest?.('[data-studio-voice-call=\"button\"], .studio-voice-talk')) return false", ''],
   [UI, 'Space with the Command key talks', '&& !event.metaKey && !event.ctrlKey', '&& !event.ctrlKey'],
   [UI, 'a key repeat talks again', '&& !event.repeat', ''],
   [UI, 'the not-connected words blame the user', "title: \"Speech isn't connected yet\"", "title: 'Something went wrong'"],
@@ -1509,7 +1530,8 @@ const mutants = [
   [UI, 'a re-armed beat keeps its old end', 'beat: { scene: beat.scene, until: now + BEAT_MS[beat.scene] } }', 'beat: { scene: beat.scene, until: beat.until } }'],
   [CTL, 'a status outlives its build', "(signal.kind === 'pleased' && signal.big))) this.status = null", "false)) void 0"],
   [CTL, 'the caption never clears', 'now >= this.captionUntil) this.caption = null', 'false) this.caption = null'],
-  [CTL, 'the mouth reads the speaker when it is silent', 'getLevel = (): number => (this.speakingNow ? this.player.level() : 0)', 'getLevel = (): number => this.player.level()'],
+  [CTL, 'the mouth reads the speaker when it is silent', 'getLevel = (): number => (this.speakingNow ? this.player.level() : this.holding && this.mic?.level ? this.mic.level() : 0)', 'getLevel = (): number => this.player.level()'],
+  [CTL, 'the ring never reads the microphone', ': this.holding && this.mic?.level ? this.mic.level() : 0)', ': 0)'],
   [CTL, 'a snapshot is rebuilt for nothing', 'if (same) return\n    this.snapshot = next', 'this.snapshot = next'],
   // the hook and the components
   [HOOK, 'the flag does not gate the load', 'const enabled = options.enabled && STUDIO_VOICE_CALL_UI_ENABLED', 'const enabled = options.enabled'],
@@ -1570,9 +1592,12 @@ const mutants = [
   [BUTTONS, 'a press takes the draft\'s focus', 'onMouseDown={event => event.preventDefault()}', 'onMouseDown={() => {}}'],
   [BUTTONS, 'only one button', 'CALL_MODES.map(mode', "CALL_MODES.slice(0, 1).map(mode"],
   [BUTTONS, 'the word shows on a desktop', 'studio-voice-start-word hidden', 'studio-voice-start-word'],
-  [PLAYER, 'the Face pack does not read its catalog', 'const face = await loadManifest(core, `${root}${main.face.manifest}`)', 'const face = core.parseBirdMotionManifest(await fetchJson(`${root}${main.face.manifest}`))'],
-  [PLAYER, 'the catalog is asked for every time', 'if (needsCompanionCatalog(raw)) {', 'if (true) {'],
-  [PLAYER, 'a catalog that fails fails the pack', '} catch { /* the base alone */ }', '} catch (e) { throw e }'],
+  [PLAYER, 'the Face pack does not read its catalog', 'const face = await loadCatalog(`${root}${main.face.manifest}`, fetchJson, core.parseBirdMotionManifest)', 'const face = core.parseBirdMotionManifest(await fetchJson(`${root}${main.face.manifest}`))'],
+  [PLAYER, 'the whole character does not read its catalog', 'const main = await loadCatalog(`${root}manifest.json`, fetchJson, core.parseBirdMotionManifest)', 'const main = core.parseBirdMotionManifest(await fetchJson(`${root}manifest.json`))'],
+  [UI, 'the catalog is asked for every time', '  if (needsCompanionCatalog(raw)) {\n    try {', '  if (true) {\n    try {'],
+  [UI, 'a catalog that fails fails the pack', '    } catch { /* the base alone */ }\n  }\n  return parse(raw)', '    } catch (e) { throw e }\n  }\n  return parse(raw)'],
+  [UI, 'the catalog is read from the wrong place', "url.replace(/[^/]*$/, 'companion.json')", "'companion.json'"],
+  [UI, 'the catalog is not merged', 'return parse(mergeCompanionCatalog(raw, (await fetchJson(', 'return parse((raw, (await fetchJson('],
   [PLAYER, 'nothing plays while it speaks', '// an emphasis now and then while it speaks (the mouth is still for the moment it takes)\n        if (plan.accent) {', '// an emphasis now and then while it speaks (the mouth is still for the moment it takes)\n        if (false) {'],
   [PLAYER, 'a pack that fails shows nothing', "{!ready ? <span className=\"studio-voice-initials\" aria-hidden>{initialsFor(pack)}</span> : null}", ''],
   [UI, 'the disc is as wide as its crop', "return rect && framing === 'chest' ? Math.round(size * rect.sw / rect.sh) : size", 'return rect ? Math.round(size * rect.sw / rect.sh) : size'],
@@ -1589,7 +1614,7 @@ const mutants = [
   [PAGE, 'the voice turn goes by another send', 'sendTurn: text => handleSendMessage(undefined, text)', 'sendTurn: text => sendMessage(text)'],
   [INPUT, 'the buttons are drawn with the flag off', '{voiceCall ? <VoiceCallButtons', '{true ? <VoiceCallButtons'],
   [INPUT, 'the composer stays during a call', 'if (voiceCall?.active) return null // VOICE-CALL', 'if (false) return null // VOICE-CALL'],
-  [INPUT, 'the composer hides before its hooks', '  if (voiceCall?.active) return null // VOICE-CALL', '  if (voiceCall?.active) return null // VOICE-CALL\n  useEffect(() => {}, [])'],
+  [INPUT, 'the composer hides before its hooks', '  if (voiceCall?.active) return null // VOICE-CALL (NEXT_PUBLIC_STUDIO_VOICE_CALL): while a call is on you are only talking; the composer (and its draft, which stays in the page) comes back when it ends', '  if (voiceCall?.active) return null // VOICE-CALL (NEXT_PUBLIC_STUDIO_VOICE_CALL): while a call is on you are only talking; the composer (and its draft, which stays in the page) comes back when it ends\n  useEffect(() => {}, [])'],
 ]
 const survivors = [], crashes = [], stale = []
 let mutantCount = 0

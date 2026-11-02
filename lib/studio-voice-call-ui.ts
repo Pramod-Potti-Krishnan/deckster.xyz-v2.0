@@ -455,6 +455,16 @@ export const clipDurationSec = (clip: ClipLike): number => (clip.fps > 0 ? clip.
  * over-counts the bytes (they share their frames), and Garud states the combined set is under 8 MiB, so the combined size is capped at the pack's budget. Pure; a catalog that is not an object leaves the base alone.
  */
 export interface RawCatalog { totalBytes?: number; packBudgetMiB?: number; uniqueFrames?: number; frames?: Record<string, unknown>; clips?: Record<string, unknown> }
+/** Reads one manifest (and, when the base lacks the companion clips, merges companion.json from beside it). `fetchJson` and `parse` are the caller's (the player's fetch and the core's parser), so this stays pure and tested: a catalog that cannot be read, or a merged set the parser refuses, leaves the base; the base itself failing fails. */
+export async function loadCatalog<T>(url: string, fetchJson: (url: string) => Promise<unknown>, parse: (raw: unknown) => T): Promise<T> {
+  const raw = (await fetchJson(url)) as RawCatalog
+  if (needsCompanionCatalog(raw)) {
+    try {
+      return parse(mergeCompanionCatalog(raw, (await fetchJson(url.replace(/[^/]*$/, 'companion.json'))) as RawCatalog))
+    } catch { /* the base alone */ }
+  }
+  return parse(raw)
+}
 export const needsCompanionCatalog = (raw: RawCatalog | null | undefined): boolean => !!raw && typeof raw === 'object' && !!raw.clips && !raw.clips.lean_in
 export function mergeCompanionCatalog<T extends RawCatalog>(base: T, companion: RawCatalog | null | undefined): T {
   if (!companion || typeof companion !== 'object' || !companion.frames || !companion.clips || !base.frames || !base.clips) return base
