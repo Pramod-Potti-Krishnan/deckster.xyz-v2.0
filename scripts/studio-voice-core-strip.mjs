@@ -36,6 +36,7 @@ export const VOICE_CORE_SCOPE_FILES = new Set([
   "scripts/studio-voice-vitest.config.mjs",
   "scripts/test-studio-chat-element-edit.mjs",
   "scripts/test-studio-chat-element-refine.mjs",
+  "scripts/test-studio-chat-theme-export.mjs",
   "scripts/test-studio-deck-mutation-dedupe.mjs",
   "scripts/test-studio-deck-sync-truth.mjs",
   "scripts/test-studio-launch-wording.mjs",
@@ -241,6 +242,16 @@ export const VOICE_CORE_PROOF_EDITS = {
     [
       "const read = rel => stripVoiceCore(rel, (rel in overrides ? overrides[rel] : fs.readFileSync(path.join(root, rel), 'utf8')))\n",
       "const read = rel => (rel in overrides ? overrides[rel] : fs.readFileSync(path.join(root, rel), 'utf8'))\n"
+    ]
+  ],
+  "scripts/test-studio-chat-theme-export.mjs": [
+    [
+      "import { voiceCoreProofDiffLines } from './studio-voice-core-strip.mjs' // LATER-CHANGES: registry read (STUDIO-VOICE-CORE): normalize only exact voice-port proof edits\n",
+      ""
+    ],
+    [
+      "    const diff = voiceCoreProofDiffLines(rel, git('diff', '-U0', BASE_COMMIT, '--', rel).split('\\n'))\n",
+      "    const diff = git('diff', '-U0', BASE_COMMIT, '--', rel).split('\\n')\n"
     ]
   ]
 };
