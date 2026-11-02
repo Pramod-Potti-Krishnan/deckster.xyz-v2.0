@@ -29,7 +29,7 @@ Ported from the local voice core at source revision `d05252905f5f2ced9771d1138f7
 
 Run `pnpm test:studio-voice-core` after installing locked dependencies. Vitest is test-only. All fixtures are generated values, fake clocks, in-memory phrase fetchers and synthetic manifests: no real audio or paid calls.
 
-222 tests pass: 190 source cases, one flag case covering six values, 13 optional companion clip cases, 15 gesture fallback/decode cases, and three exact proof-compatibility cases. The seven source suites are carried across; the avatar rig suite omits its one unrelated roster/palette case. Microphone-help and cost-meter describe blocks are extracted from the broader source input/cost suites, without their server/database/provider imports. No voice provider integration is claimed.
+225 tests pass: 190 source cases, one flag case covering six values, 13 optional companion clip cases, 15 gesture fallback/decode cases, and six exact proof-compatibility cases. The seven source suites are carried across; the avatar rig suite omits its one unrelated roster/palette case. Microphone-help and cost-meter describe blocks are extracted from the broader source input/cost suites, without their server/database/provider imports. No voice provider integration is claimed.
 
 ## P4-20 wiring notes
 
@@ -42,4 +42,10 @@ Run `pnpm test:studio-voice-core` after installing locked dependencies. Vitest i
 
 ## Existing Studio proofs
 
-The port registers its additive files, environment block and exact test-manifest additions with `scripts/studio-later-changes.mjs`. `studio-voice-core-strip.mjs` removes only those known additions when older proofs compare their source snapshots. One older first-parent commit-scope proof is taught the voice port's commit subjects; its original runtime and source assertions remain intact. Exact-strip tests check that unrelated dependency versions and source assertions remain visible. The dependency entry sits before TypeScript so the base's final dependency line retains its original comma behavior.
+The port registers its additive files, environment block and exact test-manifest additions after all earlier changes (the ordering is tested) with `scripts/studio-later-changes.mjs`. `studio-voice-core-strip.mjs` removes only those known additions when older proofs compare their source snapshots. Older first-parent commit-scope proofs are taught the voice port's bounded commit subjects, with git output whitespace normalized. Raw metadata readers remove only this port's known test script, dev dependency and lockfile hunks before applying their existing comparisons. All taught proof files restore to their original baseline bytes; their original assertions remain intact. Exact-strip tests check that unrelated dependency versions, lockfile edits and source assertions remain visible. The registration-order check compares against the preceding stage-gate feature, so future registered features can follow this one. The dependency entry sits before TypeScript so the base's final dependency line retains its original comma behavior.
+
+## Director recorded-frame check
+
+The P4-18 final contract and fixtures are in the program workspace at `streams/director2/p4-18-voice/`. `action_request` question cards carry `payload.spoken`; an honest decline is `reporting`, while failure frames carry `concerned`. Replay/history frames carry neither voice field. The plan-card `action_value` mapping remains a P4-20 integration decision.
+
+A local text-only replay through this chunker preserved all 21 spoken lines in V1 and all 24 in V2, including every question card. Typed V0 contained zero spoken lines. This validates recorded input handling, not connected operation or audio latency. Fixture hashes and results are included in the final comparison evidence.
