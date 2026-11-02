@@ -28,6 +28,8 @@ export interface VoiceMic {
 export interface VoicePlayer {
   play(audio: Blob, hooks: { onStart(): void; onEnd(): void; onError(): void }): void
   stop(): void
+  /** Called inside the call button's click: the browser lets audio play from then on (an audio context that is created or resumed outside a user gesture can stay suspended). */
+  prime?(): void
   /** What is coming out now, 0..1 (the mouth). */
   level(): number
 }
@@ -204,6 +206,7 @@ export class VoiceCallController {
     this.starting = true
     this.notice = null
     const token = ++this.startToken
+    this.player.prime?.() // inside the click: the speaker is unlocked now, not at the first sentence
     this.emit()
     const failure = !this.env.secureContext() ? 'InsecureContext' : !this.env.hasMic() ? 'Unsupported' : null
     if (failure) return this.micFailed(failure)

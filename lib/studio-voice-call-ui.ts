@@ -299,7 +299,12 @@ export const initialDirectorTrack = (): DirectorTrack => ({ background: 'none', 
 export const DANCE_EVERY = 3
 export const DANCE_COOLDOWN_MS = 60000
 
-/** Fold one signal into the track. Pure: `now` is a millisecond clock the caller owns. */
+/** Which beat wins when two are at once: a failure is not covered by the report that explains it, a decline not by a plain report. */
+export const BEAT_RANK: Readonly<Record<'reporting' | 'pleased' | 'celebrating' | 'sorry' | 'concerned', number>> = { reporting: 0, pleased: 1, celebrating: 2, sorry: 3, concerned: 4 }
+type BeatScene = 'reporting' | 'pleased' | 'celebrating' | 'sorry' | 'concerned'
+const outranks = (held: DirectorTrack['beat'], next: BeatScene): boolean => !!held && BEAT_RANK[held.scene] > BEAT_RANK[next]
+
+/** Fold one signal into the track. Pure: `now` is a millisecond clock the caller owns. A beat still playing is kept when the new one ranks below it (BEAT_RANK). */
 export function applyDirectorSignal(track: DirectorTrack, signal: DirectorSignal, now: number): DirectorTrack {
   const expired = track.beat && now >= track.beat.until ? { ...track, beat: null } : track
   switch (signal.kind) {
@@ -312,15 +317,19 @@ export function applyDirectorSignal(track: DirectorTrack, signal: DirectorSignal
     case 'reporting': {
       const scene = signal.decline ? 'sorry' : 'reporting'
       // The reply ends the thinking; a build that is running stays what the character is doing once the beat is over.
-      return { ...expired, background: expired.background === 'thinking' ? 'none' : expired.background, beat: { scene, until: now + BEAT_MS[scene] }, dance: false }
+      const background = expired.background === 'thinking' ? 'none' : expired.background
+      if (outranks(expired.beat, scene)) return { ...expired, background }
+      return { ...expired, background, beat: { scene, until: now + BEAT_MS[scene] }, dance: false }
     }
     case 'pleased': {
       if (signal.big) {
         const celebrations = expired.celebrations + 1
         const dance = (celebrations - 1) % DANCE_EVERY === DANCE_EVERY - 1 && (expired.lastDanceAt === null || now - expired.lastDanceAt >= DANCE_COOLDOWN_MS)
-        return { ...expired, background: 'none', celebrations, lastDanceAt: dance ? now : expired.lastDanceAt, dance, lastPleasedAt: now, beat: { scene: 'celebrating', until: now + BEAT_MS.celebrating + (dance ? 2000 : 0) } }
+        const held = outranks(expired.beat, 'celebrating')
+        return { ...expired, background: 'none', celebrations, lastDanceAt: dance ? now : expired.lastDanceAt, lastPleasedAt: now, ...(held ? {} : { dance, beat: { scene: 'celebrating' as const, until: now + BEAT_MS.celebrating + (dance ? 2000 : 0) } }) }
       }
       if (expired.lastPleasedAt !== null && now - expired.lastPleasedAt < PLEASED_EVERY_MS) return expired
+      if (outranks(expired.beat, 'pleased')) return { ...expired, lastPleasedAt: now }
       return { ...expired, lastPleasedAt: now, dance: false, beat: { scene: 'pleased', until: now + BEAT_MS.pleased } }
     }
     case 'concerned': return { ...expired, background: expired.background === 'thinking' ? 'none' : expired.background, beat: { scene: 'concerned', until: now + BEAT_MS.concerned }, dance: false }

@@ -221,6 +221,10 @@ function uiSuite(ui, over = {}) {
   eq(at(big3, { kind: 'pleased', big: true }, 30000).dance, false, 'track: ...and the next does not'); eq(at(at(at(at(at(T0, { kind: 'pleased', big: true }, 0), { kind: 'pleased', big: true }, 70000), { kind: 'pleased', big: true }, 140000), { kind: 'pleased', big: true }, 210000), { kind: 'pleased', big: true }, 280000).celebrations, 5, 'track: the count is kept')
   const dancer = at(at(at(T0, { kind: 'pleased', big: true }, 0), { kind: 'pleased', big: true }, 100), { kind: 'pleased', big: true }, 200), dancer2 = at(at(at(dancer, { kind: 'pleased', big: true }, 300), { kind: 'pleased', big: true }, 400), { kind: 'pleased', big: true }, 500)
   eq([dancer.dance, dancer2.dance], [true, false], 'track: a dance never comes twice within a minute')
+  const failed = at(T0, { kind: 'concerned' }, 0)
+  eq([at(failed, { kind: 'reporting', decline: false }, 100).beat.scene, at(failed, { kind: 'reporting', decline: true }, 100).beat.scene, at(failed, { kind: 'pleased', big: true }, 100).beat.scene, at(failed, { kind: 'pleased', big: false }, 100).beat.scene], ['concerned', 'concerned', 'concerned', 'concerned'], 'track: a failure is not covered by the report that explains it, a celebration or a slide built')
+  eq([at(failed, { kind: 'reporting', decline: false }, ui.BEAT_MS.concerned).beat.scene, at(at(T0, { kind: 'reporting', decline: true }, 0), { kind: 'reporting', decline: false }, 100).beat.scene, at(at(T0, { kind: 'reporting', decline: false }, 0), { kind: 'pleased', big: false }, 100).beat.scene, at(at(T0, { kind: 'reporting', decline: false }, 0), { kind: 'concerned' }, 100).beat.scene], ['reporting', 'sorry', 'pleased', 'concerned'], 'track: ...once it is over the next beat is shown; a decline outranks a plain report; a pleased, a report; a failure, anything')
+  eq([at(at(T0, { kind: 'pleased', big: true }, 0), { kind: 'reporting', decline: false }, 100).beat.scene, at(at(T0, { kind: 'reporting', decline: false }, 0), { kind: 'pleased', big: true }, 100).beat.scene], ['celebrating', 'celebrating'], 'track: a celebration is not covered by the report before or after it')
   const hidden = at(T0, { kind: 'concerned' }, 0)
   eq([ui.rearmBeat(hidden, 50000).beat, ui.rearmBeat(at(T0, { kind: 'reporting', decline: false }, 0), 50000).beat?.scene, ui.rearmBeat(T0, 5).beat], [{ scene: 'concerned', until: 50000 + ui.BEAT_MS.concerned }, 'reporting', null], 'track: a beat that speech hid gets its full time when the speech ends (a report does not: it was just spoken)')
   eq(ui.rearmBeat(at(T0, { kind: 'reporting', decline: false }, 7), 50000).beat.until, 7 + ui.BEAT_MS.reporting, 'track: ...and a reporting beat is left as it was')
@@ -345,7 +349,7 @@ function makeCall({ over = {}, mic = {}, reduced = false, connected = true, send
   const host = makeHost({ env: ENV_ON, over })
   const ctlMod = host.load(CTL), ui = host.load(UI), router = host.load(ROUTER), core = host.load('lib/studio/voice/index.ts')
   const clock = new Clock()
-  const log = { micOpened: 0, micClosed: 0, recordings: [], cancelled: 0, plays: [], stops: 0, transcribed: [], spoken: [], sent: [], wire: [], actions: [], aborted: 0, errors: [] }
+  const log = { primed: [], micOpened: 0, micClosed: 0, recordings: [], cancelled: 0, plays: [], stops: 0, transcribed: [], spoken: [], sent: [], wire: [], actions: [], aborted: 0, errors: [] }
   const player = { level: 0.3, play(blob, hooks) { log.plays.push({ blob, hooks }) }, stop() { log.stops++ }, getLevel() { return this.level } }
   const recordingSpec = { durationMs: 1200, peak: 0.2, ...mic.recording }
   const env = {
@@ -356,7 +360,7 @@ function makeCall({ over = {}, mic = {}, reduced = false, connected = true, send
       log.micOpened++
       return { record: () => { const rec = { stopped: false, stop: async () => { rec.stopped = true; return { blob: new Blob(['audio']), durationMs: recordingSpec.durationMs, peak: recordingSpec.peak } }, cancel: () => { log.cancelled++ } }; log.recordings.push(rec); return rec }, close: () => { log.micClosed++ } }
     },
-    createPlayer: () => ({ play: (blob, hooks) => player.play(blob, hooks), stop: () => player.stop(), level: () => player.getLevel() }),
+    createPlayer: () => ({ play: (blob, hooks) => player.play(blob, hooks), stop: () => player.stop(), level: () => player.getLevel(), prime: () => { log.primed.push(log.micOpened) } }),
     now: () => clock.now(), setTimer: (fn, ms) => clock.set(fn, ms), clearTimer: id => clock.clear(id), reducedMotion: () => reduced, macApp: () => false, mac: () => false,
   }
   const queue = [...transcripts]
@@ -409,6 +413,7 @@ async function controllerSuite(over = {}) {
     eq([w.snap().phase, w.log.recordings.length], ['idle', 0], 'call: talking before the call starts does nothing')
     await w.start()
     eq([w.log.micOpened, w.snap().active, w.snap().chip, w.snap().scene, w.snap().controls.talk], [1, true, 'Your turn', 'idle', true], 'call: the call button asks for the microphone once, and it is the user\'s turn')
+    eq(w.log.primed, [0], 'call: the speaker is unlocked inside the click, before the microphone is granted')
     ok(w.clock.pending() > 0, 'call: a call has one tick timer')
     await w.start(); eq(w.log.micOpened, 1, 'call: starting again does not ask again')
     w.ctl.endCall(); await settle()
@@ -1005,6 +1010,9 @@ const mutants = [
   [ROUTER, 'the speech goes to another origin', "speak: '/api/studio/voice/speak'", "speak: 'https://speech.example.com/speak'"],
   // the controller
   [CTL, 'the microphone is asked for at construction', "this.snapshot = this.build()\n  }", "this.snapshot = this.build(); void this.env.openMic()\n  }"],
+  [CTL, 'the speaker is not unlocked by the click', 'this.player.prime?.() // inside the click: the speaker is unlocked now, not at the first sentence', ''],
+  [UI, 'a report covers a failure', 'const outranks = (held: DirectorTrack[\'beat\'], next: BeatScene): boolean => !!held && BEAT_RANK[held.scene] > BEAT_RANK[next]', 'const outranks = (held: DirectorTrack[\'beat\'], next: BeatScene): boolean => false'],
+  [UI, 'a plain report covers a decline', 'reporting: 0, pleased: 1, celebrating: 2, sorry: 3, concerned: 4 }', 'reporting: 3, pleased: 1, celebrating: 2, sorry: 3, concerned: 4 }'],
   [CTL, 'a mic that is granted late stays open', "if (this.disposed || token !== this.startToken) { mic.close(); return }", "if (this.disposed) { mic.close(); return }"],
   [CTL, 'the mic error is swallowed', "return this.micFailed(typeof error === 'object'", "return void (typeof error === 'object'"],
   [CTL, 'the mic is not released on end', "this.mic?.close()\n        this.mic = null", "this.mic = null"],

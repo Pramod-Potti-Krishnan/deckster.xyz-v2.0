@@ -74,6 +74,7 @@ function openMic(): Promise<VoiceMic> {
 /** One audio element, started on demand (so a flag-on page that never makes a call creates no audio graph), with an analyser on it for the mouth. */
 function createPlayer(): VoicePlayer {
   let audio: HTMLAudioElement | null = null
+  let audioContext: AudioContext | null = null
   let analyser: AnalyserNode | null = null
   let bytes: Uint8Array | null = null
   let url: string | null = null
@@ -86,6 +87,7 @@ function createPlayer(): VoicePlayer {
     if (Ctx) {
       try {
         const context = new Ctx()
+        audioContext = context
         analyser = context.createAnalyser()
         analyser.fftSize = 1024
         bytes = new Uint8Array(analyser.fftSize)
@@ -98,6 +100,10 @@ function createPlayer(): VoicePlayer {
     return audio
   }
   return {
+    prime() {
+      element()
+      if (audioContext?.state === 'suspended') void audioContext.resume().catch(() => {})
+    },
     play(blob, hooks) {
       const el = element()
       release()
