@@ -1037,6 +1037,7 @@ function scopeHead(ref = 'HEAD', { gateRule = true } = {}) {
 }
 const REAL = { norm: otherStrips, env: text => registry.stripLaterEnvBlocks('.env.example', text) }
 REAL.laterRegistryLine = (previous => line => previous?.(line) || line.includes('studio-strawman-stage-strip.mjs'))(REAL.laterRegistryLine) // LATER-CHANGES: registry read (STRAWMAN-STAGE): the strawman stage's registry lines may follow this change's three (a later change's own line)
+REAL.laterRegistryLine = (previous => line => previous?.(line) || line.includes('studio-strawman-chat-strip.mjs'))(REAL.laterRegistryLine) // LATER-CHANGES: registry read (STRAWMAN-CHAT): the strawman chat's registry lines may follow this change's three (a later change's own line)
 const diffLines = text => text.split('\n').filter(line => /^[+-]/.test(line) && !/^(\+\+\+|---) /.test(line))
 const normDiff = (ctx, rel, head) => git('diff', '-U0', blobOf(ctx.norm(rel, git('show', `${BASE_COMMIT}:${rel}`))), blobOf(ctx.norm(rel, git('show', `${head}:${rel}`))))
 const scopeOwnCommits = (head, opts) => {
