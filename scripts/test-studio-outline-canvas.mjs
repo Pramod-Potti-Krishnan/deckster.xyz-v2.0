@@ -584,7 +584,7 @@ check(assert.doesNotMatch, read('components/builder/presentation-area.tsx'), /ou
 
 // ---------------------------------------------------------------- page wiring
 {
-  const page = read('app/builder/page.tsx')
+  const page = (await import('./studio-later-changes.mjs')).stripLaterChanges('app/builder/page.tsx', read('app/builder/page.tsx')) // LATER-CHANGES: registry read (STRAWMAN-STAGE): the lines of the changes registered after this one come out of the page first
   check(assert.ok, page.includes(`  const studioOutlineCanvas = selectStudioOutlineCanvas({
     enabled: STUDIO_OUTLINE_CANVAS_ENABLED && studioShell,
     blocked: templateModeOn || isGeneratingFinal || session.isLoadingSession || STUDIO_OUTLINE_CANVAS_BUSY_PHASES.has(buildNarration.phase),
