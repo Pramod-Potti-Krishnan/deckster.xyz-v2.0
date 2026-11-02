@@ -31,6 +31,21 @@ export const BIRD_DANCE_CLIPS = ["dance_bounce", "dance_shimmy"] as const;
 /** Additive companion clips: legacy packs may omit every one of these. */
 export const COMPANION_MOTION_CLIPS = ["lean_in", "work_loop", "look_down", "one_moment", "invite", "hold", "point_left", "point_right", "emphasis", "shrug", "thank_you", "count", "celebrate"] as const;
 export const BIRD_OPTIONAL_MOTION_CLIPS = [...COMPANION_MOTION_CLIPS, "wave_both", ...BIRD_EXPRESSIONS.flatMap((expression) => BIRD_FACE_ANGLES.map((angle) => `expr_${expression}_${angle}`)), ...BIRD_DANCE_CLIPS];
+/** Closest legacy pose when a companion pack has not supplied a new clip yet. */
+export const COMPANION_CLIP_FALLBACKS: Readonly<Record<string, string>> = {
+  lean_in: "head_tilt", work_loop: "idle_breathe", look_down: "look_up", one_moment: "welcome",
+  invite: "welcome", hold: "idle_breathe", point_left: "point", point_right: "point", emphasis: "nod",
+  shrug: "present", thank_you: "welcome", count: "point", celebrate: "wave_both", wave_both: "welcome",
+};
+/** Resolve UI clip hints safely; unknown hints use a nod, and undecoded clips use their legacy fallback. */
+export function resolveCompanionClip(manifest: BirdMotionManifest, name: string, ready: (clip: string) => boolean = () => true): string {
+  let clip = name;
+  for (let i = 0; i < 4; i++) {
+    if (Object.prototype.hasOwnProperty.call(manifest.clips, clip) && ready(clip)) return clip;
+    clip = Object.prototype.hasOwnProperty.call(COMPANION_CLIP_FALLBACKS, clip) ? COMPANION_CLIP_FALLBACKS[clip]! : "nod";
+  }
+  return "idle_breathe";
+}
 const OPTIONAL_CLIPS = new Set<string>(BIRD_OPTIONAL_MOTION_CLIPS);
 /** Optional clips (two-wing wave, expressions, dances) may decode on demand; every other clip is part of the standard pack. */
 export const isOptionalMotionClip = (name: string): boolean => OPTIONAL_CLIPS.has(name);
@@ -306,6 +321,14 @@ export class BirdMotionRig {
     const clip = this.resolvedGesture(MOTION_GESTURES[kind]);
     this.pending = { clip, priority: 3 };
   }
+  /** Explicit companion gesture hint; fetching/decoding remains owned by the host. Unknown hints never throw. */
+  gestureClip(name: string, at?: number): void {
+    if (at !== undefined && !this.ledger.claim("gesture", at)) return;
+    if (this.reduced) return;
+    this.reaction = null; this.pendingMoment = undefined;
+    const clip = Object.prototype.hasOwnProperty.call(this.manifest.clips, name) ? name : resolveCompanionClip(this.manifest, name);
+    this.pending = { clip, priority: 3 };
+  }
   private select(clip: string, priority = 0): void {
     if (clip === this.clip && priority === this.priority) return;
     this.clip = clip;
@@ -352,7 +375,7 @@ export class BirdMotionRig {
       const pending = this.pending;
       if (pending.since === undefined) { pending.since = this.time; pending.loading = this.want([pending.clip]); }
       if (!pending.loading || this.time - pending.since >= BIRD_MOTION_DECODE_GRACE) {
-        const fallback = pending.clip === "wave_both" && this.has("welcome") ? "welcome" : null;
+        const fallback = Object.prototype.hasOwnProperty.call(COMPANION_CLIP_FALLBACKS, pending.clip) ? resolveCompanionClip(this.manifest, pending.clip, (clip) => this.has(clip)) : null;
         if (fallback) pending.clip = fallback; else this.pending = null;
       }
     }
