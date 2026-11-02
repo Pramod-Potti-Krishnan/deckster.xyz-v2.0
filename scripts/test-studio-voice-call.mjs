@@ -928,7 +928,7 @@ function sourceSuite(sources, { base = null } = {}) {
       ok(reg.stripLaterChanges(rel, sources[rel] ?? read(rel)) === reg.stripLaterChanges(rel, base.__pins[rel]), `${rel}: read through the registry it is the base's file (older proofs read it like that)`)
       ok(strip.stripVoiceCall(rel, sources[rel] ?? read(rel)).split('\n').every(line => !MARK.test(line)), `${rel}: the strip takes every marked line out`)
     }
-    eq([lines(read('scripts/test-theme-font-selection.mjs')).filter(line => MARK.test(line)).length, lines(read('scripts/test-studio-chat-theme-export.mjs')).filter(line => MARK.test(line)).length], [1, 1], 'pins: the sandbox gets one constant, the line counter one filter')
+    eq(['scripts/test-theme-font-selection.mjs', 'scripts/test-studio-chat-theme-export.mjs', 'scripts/test-studio-stage-open-gate.mjs'].map(rel => lines(read(rel)).filter(line => MARK.test(line)).length), [1, 2, 2], 'pins: the sandbox gets one constant, the line counter two filters (the core\'s merged lines in the stacked files and in the sibling test), the stage open gate an import and one replaced line (a real later change in the page)')
     eq(['Voice call: the lib', 'Voice core: x', 'Chat element edit: x', 'Voice caller: x'].map(coreMod.isVoiceCoreCommitSubject), [true, true, false, false], 'subjects: the voice core\'s subject helper (read by the scope proofs that were taught it) also leaves out "Voice call:" commits, and nothing else')
     eq(strip.VOICE_CALL_PUT_BACK_FILES.map(rel => lines(read(rel)).filter(line => MARK.test(line)).length), [0, 0], 'pins: the two scope proofs one commit taught and a later one put back carry nothing of this change now')
     eq(lines(core_text()).filter(line => MARK.test(line)).length, 1, 'core strip: one marked line (the helper\'s return), nothing else of the core\'s file is touched here')
@@ -1191,6 +1191,7 @@ if (baseSources) {
   const stripCases = [
     ['the marker matches inside a word', '/(?<![\\w-])VOICE-CALL(?![\\w-])/', '/VOICE-CALL/'],
     ['only the first marked line goes', '.filter(line => !VOICE_CALL_MARKER_RE.test(line))', '.filter((line, at, all) => !VOICE_CALL_MARKER_RE.test(line) || all.findIndex(l => VOICE_CALL_MARKER_RE.test(l)) !== at)'],
+    ['a replaced line is not put back', "const put = rel in VOICE_CALL_PIN_EDITS ? VOICE_CALL_PIN_EDITS[rel].reduce((out, [has, was]) => out.replace(has, () => was), text) : text", 'const put = text'],
     ['the registry lines stay', "if (rel === 'scripts/studio-later-changes.mjs') return text.split('\\n').filter(line => !line.includes(VOICE_CALL_REGISTRY_MARK)).join('\\n')", 'if (false) return text'],
     ['a taught proof is not stripped', "if (!VOICE_CALL_FILES.includes(rel) && !VOICE_CALL_PIN_FILES.includes(rel)) return text", "if (!VOICE_CALL_FILES.includes(rel)) return text"],
     ['another file is stripped too', "if (!VOICE_CALL_FILES.includes(rel)) return text", 'if (false) return text'],

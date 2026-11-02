@@ -1,4 +1,5 @@
 import { stripVoiceCore } from './studio-voice-core-strip.mjs' // LATER-CHANGES: registry read (STUDIO-VOICE-CORE): remove only this later port's exact test metadata
+import { stripVoiceCall } from './studio-voice-call-strip.mjs' // VOICE-CALL, LATER-CHANGES: registry read (VOICE-CALL): a later change of the Studio stack, read past its marked lines
 // FRONTEND-2 (B52, 30 Oct): the stage open gate. PK UAT feedback F-03, flag NEXT_PUBLIC_STUDIO_STAGE_OPEN_GATE (exact "true", default off; with NEXT_PUBLIC_STUDIO_FIRST_RUN_V2 on, as on dev).
 // The chat stays full-width through Director's clarifying questions; the deck stage opens only on the strawman or build streaming, a ready deck, or an explicit ask, then stays open for the session.
 //
@@ -1153,7 +1154,7 @@ check('ROBUST AFTER MERGE: a synthetic change stacked after this one (its marked
   assert.equal(scopeHead(advanced), SYNTHETIC); scopeAll(scopeHead(advanced), SYN_CTX)
   // and the page wiring, read past the later change's line, is still this change's
   const later = syntheticStrip(PAGE, git('show', `${SYNTHETIC}:${PAGE}`)) // read as this change left it: the later change's lines out (as laterStrips does for a registered one)
-  pageWiring(later)
+  pageWiring(stripVoiceCall(PAGE, later)) // VOICE-CALL, LATER-CHANGES: registry read (VOICE-CALL): the page read past the synthetic change's lines is also read past a REAL later change's (the voice call UI marks lines in the page)
 })
 mutant('scope: the synthetic later change is not told to the scope (its lines are unmarked additions, its registry lines extra)', () => { scopeCommittedFiles(synthetic()); scopeEnvAndRegistry(synthetic()) })
 mutant('scope: the .env.example block registered in the middle of its list (the older proofs then misread "the blocks after mine")', () => {

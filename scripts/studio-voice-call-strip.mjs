@@ -40,9 +40,19 @@ export const VOICE_CALL_NEW_FILES = [
  * core's merged lines and this change's sandbox line). The older scope proofs that read first-parent commit subjects (chat element edit, deck sync truth) are taught nothing here: the voice core's subject helper (isVoiceCoreCommitSubject)
  * also leaves out "Voice call:" (one marked edit of scripts/studio-voice-core-strip.mjs, VOICE_CALL_CORE_STRIP_EDIT).
  */
-export const VOICE_CALL_PIN_FILES = ['scripts/test-theme-font-selection.mjs', 'scripts/test-studio-chat-theme-export.mjs']
+export const VOICE_CALL_PIN_FILES = ['scripts/test-theme-font-selection.mjs', 'scripts/test-studio-chat-theme-export.mjs', 'scripts/test-studio-stage-open-gate.mjs']
 
 /** Files this change edits that are neither marked app code nor new: its .env.example block, the registry (three lines) and the older proofs it teaches. No package.json script: run the proof with `node scripts/test-studio-voice-call.mjs`. */
+/** An older proof taught by REPLACING one whole line (the line now carries the marker; the strip puts the old line back): the stage open gate's "robust after a later change" check reads the page past a synthetic change's lines, and this is a real one. */
+export const VOICE_CALL_PIN_EDITS = {
+  'scripts/test-studio-stage-open-gate.mjs': [
+    [
+      "  pageWiring(stripVoiceCall(PAGE, later)) // VOICE-CALL, LATER-CHANGES: registry read (VOICE-CALL): the page read past the synthetic change's lines is also read past a REAL later change's (the voice call UI marks lines in the page)\n",
+      '  pageWiring(later)\n',
+    ],
+  ],
+}
+
 /** Two older proofs one of this change's commits taught and a later one put back (the voice core's subject helper took over): the history touches them, the tree does not change them. */
 export const VOICE_CALL_PUT_BACK_FILES = ['scripts/test-studio-chat-element-edit.mjs', 'scripts/test-studio-deck-sync-truth.mjs']
 
@@ -80,5 +90,6 @@ export function stripVoiceCall(rel, text) {
   if (typeof text !== 'string') return text
   if (rel === 'scripts/studio-later-changes.mjs') return text.split('\n').filter(line => !line.includes(VOICE_CALL_REGISTRY_MARK)).join('\n')
   if (!VOICE_CALL_FILES.includes(rel) && !VOICE_CALL_PIN_FILES.includes(rel)) return text
-  return text.split('\n').filter(line => !VOICE_CALL_MARKER_RE.test(line)).join('\n')
+  const put = rel in VOICE_CALL_PIN_EDITS ? VOICE_CALL_PIN_EDITS[rel].reduce((out, [has, was]) => out.replace(has, () => was), text) : text // a replaced line goes back first (it carries the marker too)
+  return put.split('\n').filter(line => !VOICE_CALL_MARKER_RE.test(line)).join('\n')
 }
