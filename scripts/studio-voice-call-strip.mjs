@@ -35,8 +35,14 @@ export const VOICE_CALL_NEW_FILES = [
   'scripts/test-studio-voice-call.mjs',
 ]
 
-/** Files this change edits that are neither marked app code nor new: its .env.example block and the registry (three lines). No package.json script: run the proof with `node scripts/test-studio-voice-call.mjs`. */
-export const VOICE_CALL_OWN_EDITS = ['.env.example', 'scripts/studio-later-changes.mjs']
+/**
+ * Older proofs this change teaches, each by pure insertions that carry the marker (the strip puts the file back): the two that read first-parent commit subjects (chat element edit, deck sync truth: "Voice call:" subjects are excluded, as the
+ * voice core's are), the font-selection sandbox (one constant, as chat parity's), and the chat theme export's stacked-line counter (it filters the voice core's merged import and this change's sandbox line).
+ */
+export const VOICE_CALL_PIN_FILES = ['scripts/test-studio-chat-element-edit.mjs', 'scripts/test-studio-deck-sync-truth.mjs', 'scripts/test-theme-font-selection.mjs', 'scripts/test-studio-chat-theme-export.mjs']
+
+/** Files this change edits that are neither marked app code nor new: its .env.example block, the registry (three lines) and the older proofs it teaches. No package.json script: run the proof with `node scripts/test-studio-voice-call.mjs`. */
+export const VOICE_CALL_OWN_EDITS = ['.env.example', 'scripts/studio-later-changes.mjs', ...VOICE_CALL_PIN_FILES]
 
 /** Every file this change's own commits touch: what the older scope checks skip once the registry names it (scripts/studio-later-changes.mjs, LATER_CHANGE_FILES). */
 export const VOICE_CALL_SCOPE_FILES = new Set([...VOICE_CALL_FILES, ...VOICE_CALL_NEW_FILES, ...VOICE_CALL_OWN_EDITS])
@@ -55,9 +61,18 @@ export const VOICE_CALL_ENV_BLOCK = `# STUDIO VOICE CALL UI (FRONTEND-1, W6 P4-2
 NEXT_PUBLIC_STUDIO_VOICE_COMPANION="bob"
 `
 
-/** The file without this change's lines: every line that carries the marker (as a whole token) is taken out, every other byte stays. Any other file is returned as it is. */
+/** A commit of this change: its subject starts "Voice call:" (the older scope proofs that read first-parent subjects leave these out). */
+export function isVoiceCallCommitSubject(value) {
+  return String(value).trim().startsWith(VOICE_CALL_SUBJECT)
+}
+
+/** The registry text without this change's three lines (a later strip is read out of the registry itself by the proofs that check "the last registered line of its list"). */
+export const VOICE_CALL_REGISTRY_MARK = "./studio-voice-call-strip.mjs')"
+
+/** The file without this change's lines: every line that carries the marker (as a whole token) is taken out in the app files and in the older proofs it teaches, and its three registry lines are taken out of the registry; every other byte stays. Any other file is returned as it is. */
 export function stripVoiceCall(rel, text) {
   if (typeof text !== 'string') return text
-  if (!VOICE_CALL_FILES.includes(rel)) return text
+  if (rel === 'scripts/studio-later-changes.mjs') return text.split('\n').filter(line => !line.includes(VOICE_CALL_REGISTRY_MARK)).join('\n')
+  if (!VOICE_CALL_FILES.includes(rel) && !VOICE_CALL_PIN_FILES.includes(rel)) return text
   return text.split('\n').filter(line => !VOICE_CALL_MARKER_RE.test(line)).join('\n')
 }

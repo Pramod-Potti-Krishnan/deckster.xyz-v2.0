@@ -862,8 +862,9 @@ function sourceSuite(sources, { base = null } = {}) {
   // the page
   eq(lines(page).filter(line => MARK.test(line)).length, 6, 'page: six marked lines (the comment and the hook call, the dock, the composer prop, the comment and the import at the end)')
   const call = lineOf(page, 'const voiceCall = useStudioVoiceCall({')
-  ok(call.includes('enabled: studioShell') && call.includes('sendTurn: text => handleSendMessage(undefined, text)') && call.includes('sendAction: (action, messageId) => handleActionClick(action, messageId)') && call.includes('sessionKey: currentSessionId || wsSessionId') && call.includes('connected }) // VOICE-CALL'), 'page: the hook is handed the Studio shell, the page\'s ordinary send, the session and the socket state')
-  ok(page.indexOf(call) > page.indexOf('const handleSendMessage = useCallback(') && page.indexOf(call) > page.indexOf('const flowControl = useStudioFlowControl({'), 'page: the call hook comes after the send it uses and after the flow hook')
+  ok(call.includes('enabled: studioShell') && call.includes('sendTurn: text => handleSendMessage(undefined, text)') && call.includes('sendAction: handleActionClick,') && call.includes('sessionKey: currentSessionId || wsSessionId') && call.includes('connected }) // VOICE-CALL'), 'page: the hook is handed the Studio shell, the page\'s ordinary send, the session and the socket state')
+  ok(page.indexOf(call) > page.indexOf('const handleSendMessage = useCallback(') && page.indexOf(call) > page.indexOf('const handleActionClick = useCallback(') && page.indexOf(call) > page.indexOf('const flowControl = useStudioFlowControl({'), 'page: the call hook comes after the two sends it uses (a typed turn, a card\'s button) and after the flow hook')
+  eq(lines(page).filter(line => MARK.test(line) && /handleActionClick\(/.test(line)).length, 0, 'page: no call of handleActionClick( is written by this change (the outline canvas proof counts them: the hook is handed the function itself)')
   const dockLine = lineOf(page, '{voiceCall.dock}{/* VOICE-CALL')
   ok(page.indexOf(dockLine) > page.indexOf('{flowControl.bar}') && page.indexOf(dockLine) < page.indexOf('<ChatInput\n'), 'page: the dock sits above the composer, under the flow bar')
   const propLine = lineOf(page, '{...(voiceCall.composerProps ? { voiceCall: voiceCall.composerProps } : {})} // VOICE-CALL')
@@ -914,6 +915,21 @@ function sourceSuite(sources, { base = null } = {}) {
       ok(sources[rel] !== base[rel], `${rel}: it is changed`)
     }
   }
+  // the older proofs this change teaches, and the registry text
+  if (base && base.__pins) {
+    const reg = base.__reg
+    for (const rel of strip.VOICE_CALL_PIN_FILES) {
+      const marked = lines(sources[rel] ?? read(rel)).filter(line => MARK.test(line))
+      ok(marked.length > 0 && marked.every(line => /LATER-CHANGES: registry read \(VOICE-CALL\)/.test(line)), `${rel}: this change's lines in it are marked VOICE-CALL and say why`)
+      ok(reg.stripLaterChanges(rel, sources[rel] ?? read(rel)) === reg.stripLaterChanges(rel, base.__pins[rel]), `${rel}: read through the registry it is the base's file (older proofs read it like that)`)
+      ok(strip.stripVoiceCall(rel, sources[rel] ?? read(rel)).split('\n').every(line => !MARK.test(line)), `${rel}: the strip takes every marked line out`)
+    }
+    eq([lines(read('scripts/test-studio-chat-element-edit.mjs')).filter(line => MARK.test(line)).length, lines(read('scripts/test-studio-deck-sync-truth.mjs')).filter(line => MARK.test(line)).length, lines(read('scripts/test-theme-font-selection.mjs')).filter(line => MARK.test(line)).length, lines(read('scripts/test-studio-chat-theme-export.mjs')).filter(line => MARK.test(line)).length], [2, 2, 1, 1], 'pins: the two subject readers get an import and a filter, the sandbox one constant, the line counter one filter')
+    const registryText = read('scripts/studio-later-changes.mjs')
+    const without = strip.stripVoiceCall('scripts/studio-later-changes.mjs', registryText)
+    eq([registryText.split('\n').length - without.split('\n').length, without.includes("studio-voice-call-strip.mjs')"), without.includes('studio-voice-core-strip.mjs')], [3, false, true], 'registry: the strip takes this change\'s three lines out of the registry text, and only those (older proofs read "the last registered line of its list" that way)')
+  }
+  eq(['Voice call: the lib', ' Voice call: x', 'Voice core: x', 'voice call: x', 'A Voice call: x', ''].map(strip.isVoiceCallCommitSubject), [true, true, false, false, false, false], 'subjects: "Voice call:" is this change\'s (the older scope proofs leave these commits out, as they do the voice core\'s)')
   // the strip itself
   ok(strip.stripVoiceCall('lib/other.ts', 'x // VOICE-CALL\n') === 'x // VOICE-CALL\n', 'strip: a file that is not this change\'s comes back as it is')
   ok(strip.stripVoiceCall(PAGE, 'a\nb // VOICE-CALL-X\nc // X-VOICE-CALL\nd // VOICE-CALL\ne // NEXT_PUBLIC_STUDIO_VOICE_CALL\n') === 'a\nb // VOICE-CALL-X\nc // X-VOICE-CALL\ne // NEXT_PUBLIC_STUDIO_VOICE_CALL\n', 'strip: the marker is a whole token')
@@ -933,6 +949,7 @@ const baseSources = baseOk ? Object.fromEntries(strip.VOICE_CALL_FILES.map(rel =
 const OWN = baseOk ? git('log', '--no-merges', '--format=%H', `--grep=^${strip.VOICE_CALL_SUBJECT}`, '-E', `${strip.BASE_COMMIT}..HEAD`).split('\n').filter(Boolean) : []
 
 async function all(over = {}, { slow = true } = {}) {
+  if (baseSources && !baseSources.__pins) { Object.defineProperty(baseSources, '__pins', { value: Object.fromEntries(strip.VOICE_CALL_PIN_FILES.map(rel => [rel, git('show', `${strip.BASE_COMMIT}:${rel}`)])), enumerable: false }); Object.defineProperty(baseSources, '__reg', { value: await import('./studio-later-changes.mjs'), enumerable: false }) }
   uiSuite(loadUi(over), over)
   await routerSuite(over)
   await controllerSuite(over)
@@ -1088,7 +1105,7 @@ const mutants = [
   [UI, 'a build that is starting does not close the card', "return payload.phase === 'planning' || payload.phase === 'strawman' || payload.phase === 'building'", "return payload.phase === 'complete' || payload.phase === 'strawman'"],
   [UI, 'a thinking status does not close the card', "return payload.status === 'thinking' || payload.status === 'generating'", "return payload.status === 'generating'"],
   [UI, 'a card with junk buttons is trusted', "typeof a.label === 'string' && a.label.trim() && typeof a.value === 'string' && a.value", 'true'],
-  [PAGE, 'a card is pressed by typing its label', 'sendAction: (action, messageId) => handleActionClick(action, messageId)', 'sendAction: (action) => handleSendMessage(undefined, action.label)'],
+  [PAGE, 'a card is pressed by typing its label', 'sendAction: handleActionClick,', 'sendAction: (action) => handleSendMessage(undefined, action.label),'],
   [CTL, 'a progress line moves the waiting turn to speaking', "for (const sentence of sentences) this.enqueue(sentence, 'progress', this.cs.turn, false)", "for (const sentence of sentences) this.enqueue(sentence, 'progress', this.cs.turn, true)"],
   [CTL, 'the filler comes after the reply', 'replyTextArrived: awaiting.replyTextArrived,', 'replyTextArrived: false,'],
   [CTL, 'the filler is said twice', 'alreadyUsed: awaiting.fillerUsed,', 'alreadyUsed: false,'],
@@ -1165,6 +1182,8 @@ if (baseSources) {
   const stripCases = [
     ['the marker matches inside a word', '/(?<![\\w-])VOICE-CALL(?![\\w-])/', '/VOICE-CALL/'],
     ['only the first marked line goes', '.filter(line => !VOICE_CALL_MARKER_RE.test(line))', '.filter((line, at, all) => !VOICE_CALL_MARKER_RE.test(line) || all.findIndex(l => VOICE_CALL_MARKER_RE.test(l)) !== at)'],
+    ['the registry lines stay', "if (rel === 'scripts/studio-later-changes.mjs') return text.split('\\n').filter(line => !line.includes(VOICE_CALL_REGISTRY_MARK)).join('\\n')", 'if (false) return text'],
+    ['a taught proof is not stripped', "if (!VOICE_CALL_FILES.includes(rel) && !VOICE_CALL_PIN_FILES.includes(rel)) return text", "if (!VOICE_CALL_FILES.includes(rel)) return text"],
     ['another file is stripped too', "if (!VOICE_CALL_FILES.includes(rel)) return text", 'if (false) return text'],
     ['the composer is not stripped', "export const VOICE_CALL_FILES = ['app/builder/page.tsx', 'hooks/use-deckster-websocket-v2.ts', 'components/builder/chat-input.tsx']", "export const VOICE_CALL_FILES = ['app/builder/page.tsx', 'hooks/use-deckster-websocket-v2.ts']"],
   ]
@@ -1180,7 +1199,10 @@ if (baseSources) {
     const token = mod.stripVoiceCall(PAGE, 'b // VOICE-CALL-X\n') === 'b // VOICE-CALL-X\n'
     const identity = strip.VOICE_CALL_FILES.every(rel => mod.stripVoiceCall(rel, SOURCES[rel]) === baseSources[rel])
     const first = mod.stripVoiceCall(PAGE, 'a // VOICE-CALL\nb // VOICE-CALL\n') === '\n'
-    if (otherFile && token && identity && first) survivors.push(`strip: ${name}`)
+    const regText = read('scripts/studio-later-changes.mjs')
+    const registryOut = mod.stripVoiceCall('scripts/studio-later-changes.mjs', regText).split('\n').length === regText.split('\n').length - 3
+    const pinsOut = strip.VOICE_CALL_PIN_FILES.every(rel => mod.stripVoiceCall(rel, read(rel)).split('\n').every(line => !strip.VOICE_CALL_MARKER_RE.test(line)))
+    if (otherFile && token && identity && first && registryOut && pinsOut) survivors.push(`strip: ${name}`)
   }
 }
 checks = before + 0
