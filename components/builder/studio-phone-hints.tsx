@@ -2,20 +2,17 @@
 
 import { useEffect, useState } from "react"
 import { ChevronLeft, ChevronRight, Maximize2, Minimize2, RotateCw, X } from "lucide-react"
-import {
-  STUDIO_PHONE_LANDSCAPE_QUERY,
-  STUDIO_PHONE_PORTRAIT_QUERY,
-  studioPhoneLandscapeStage,
-  studioPhonePortraitSlideView,
-} from "@/lib/studio-phone-landscape"
+import { STUDIO_PHONE_LANDSCAPE_QUERY, studioPhoneLandscapeStage } from "@/lib/studio-phone-landscape"
 import {
   STUDIO_PHONE_FULLSCREEN_ATTRIBUTE,
   STUDIO_PHONE_HINTS_ATTRIBUTE,
+  STUDIO_PHONE_PORTRAIT_QUERY,
   STUDIO_PHONE_ROTATE_HINT_KEY,
   STUDIO_PHONE_SWIPE_ATTRIBUTE,
   STUDIO_PHONE_SWIPE_HINT_KEY,
   studioPhoneHintRemember,
   studioPhoneHintSeen,
+  studioPhonePortraitSlideView,
   studioPhoneRotateHintShown,
   studioPhoneSwipeHintShown,
   studioPhoneSwipeOn,
@@ -25,14 +22,19 @@ import { useStudioPhoneQuery } from "@/hooks/use-studio-phone-landscape"
 import { useStudioPhoneFullscreen, useStudioPhoneSwipe } from "@/hooks/use-studio-phone-hints"
 import "./studio-phone-hints.css"
 
-/** The slide's own box on the page (the viewer's frame), which the portrait hints are placed against. */
+/** The slide's own box on the page (the viewer's frame), which the portrait hints are placed against, and the phone shell's bottom tab bar, which stays under the slide in portrait (PK, 2 Nov) and which the hints sit above. */
 const SLIDE_FRAME = "[data-studio-slide-space] iframe"
+const TAB_BAR = "[data-studio-phone-tabbar]"
+/** The room the rotate card needs above the bar: its own height (about 150 px) and a gap. */
+const ROTATE_CARD_ROOM = 164
+/** Where the bar's top is when it is not on the page (the phone shell's own 56 px of bar). */
+const BAR_HEIGHT = 56
 const SWIPE_HINT_MILLISECONDS = 7000
 
 /** localStorage, or nothing: reading the property itself can throw (Safari private mode, blocked site data). */
 const storage = (): StudioHintStorage | null => { try { return window.localStorage } catch { return null } }
 
-interface Frame { left: number; top: number; right: number; bottom: number }
+interface Frame { left: number; top: number; right: number; bottom: number; barTop: number | null }
 
 /**
  * STUDIO PHONE HINTS (NEXT_PUBLIC_STUDIO_PHONE_HINTS, default off, with PR 1's flag; F-13 PR 2): the portrait slide view's one-time "Rotate for the best view" card and "Full screen" button, swipe to change slide with a one-time swipe hint
@@ -101,9 +103,10 @@ export function StudioPhoneHints({ deckOnStage, stageVisible, editing, slideNumb
       cancelAnimationFrame(pending)
       pending = requestAnimationFrame(() => {
         const box = document.querySelector(SLIDE_FRAME)?.getBoundingClientRect()
+        const bar = document.querySelector(TAB_BAR)?.getBoundingClientRect()
         setFrame(current => {
-          const next = box && box.width > 0 ? { left: Math.round(box.left), top: Math.round(box.top), right: Math.round(box.right), bottom: Math.round(box.bottom) } : null
-          return current && next && current.left === next.left && current.top === next.top && current.right === next.right && current.bottom === next.bottom ? current : next
+          const next = box && box.width > 0 ? { left: Math.round(box.left), top: Math.round(box.top), right: Math.round(box.right), bottom: Math.round(box.bottom), barTop: bar && bar.height > 0 ? Math.round(bar.top) : null } : null
+          return current && next && current.left === next.left && current.top === next.top && current.right === next.right && current.bottom === next.bottom && current.barTop === next.barTop ? current : next
         })
       })
     }
@@ -129,7 +132,7 @@ export function StudioPhoneHints({ deckOnStage, stageVisible, editing, slideNumb
         <button type="button" data-studio-phone-fullscreen-button="true" aria-label="Full screen" onClick={enter}><Maximize2 aria-hidden="true" /></button>
       )}
       {rotateShown && (
-        <section data-studio-phone-rotate-hint="true" aria-label="Rotate for the best view" style={frame ? { top: Math.min(frame.bottom + 22, Math.max(8, window.innerHeight - 220)) } : undefined}>
+        <section data-studio-phone-rotate-hint="true" aria-label="Rotate for the best view" style={frame ? { top: Math.min(frame.bottom + 22, Math.max(8, (frame.barTop ?? window.innerHeight - BAR_HEIGHT) - ROTATE_CARD_ROOM)) } : undefined}>
           <button type="button" data-studio-phone-hint-dismiss="true" aria-label="Dismiss" onClick={dismissRotate}><X aria-hidden="true" /></button>
           <div data-studio-phone-hint-head="true">
             <span data-studio-phone-hint-tile="true" aria-hidden="true"><RotateCw /></span>

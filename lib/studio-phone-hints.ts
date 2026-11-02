@@ -19,6 +19,14 @@ export const STUDIO_PHONE_HINTS_ATTRIBUTE = 'data-studio-phone-hints'
 export const STUDIO_PHONE_FULLSCREEN_ATTRIBUTE = 'data-studio-phone-fullscreen'
 export const STUDIO_PHONE_SWIPE_ATTRIBUTE = 'data-studio-phone-swipe'
 
+/** The phone shell's own width plus portrait (components/layout/studio-phone-shell.css): a phone that is not turned sideways. */
+export const STUDIO_PHONE_PORTRAIT_QUERY = '(max-width: 640px) and (orientation: portrait)'
+
+/** The portrait slide view: a portrait phone with a deck on the stage and the stage the surface on screen. The phone shell's bottom tab bar stays on screen in it (PK, 2 Nov): the slide, the swipe and the hints all sit above the bar. */
+export function studioPhonePortraitSlideView(input: { enabled: boolean; portrait: boolean; deckOnStage: boolean; stageVisible: boolean }): boolean {
+  return input.enabled === true && input.portrait === true && input.deckOnStage === true && input.stageVisible === true
+}
+
 /** What is asked of the browser's full screen: the viewer's own box (the same element its Present uses; its own full-screen layout takes over when the browser says so). */
 export const STUDIO_PHONE_FULLSCREEN_TARGET = '[data-studio-v4-viewer]'
 
