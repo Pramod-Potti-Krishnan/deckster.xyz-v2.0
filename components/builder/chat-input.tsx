@@ -58,7 +58,7 @@ import { STUDIO_CHAT_CLEAN_ENABLED, CHAT_CLEAN_TEXTAREA_MIN_HEIGHT, type ChatCle
 import { StudioChatCleanSendSide } from '@/components/builder/chat/studio-chat-clean' // CHAT-CLEAN
 import { useStudioChatCommands } from '@/components/builder/chat/studio-chat-commands' // CHAT-COMMANDS (NEXT_PUBLIC_STUDIO_CHAT_COMMANDS, default off)
 import type { ChatCommandsPageProps } from '@/lib/studio-chat-commands' // CHAT-COMMANDS
-import { VoiceCallButton } from './voice-call/voice-call-button' // VOICE-CALL (NEXT_PUBLIC_STUDIO_VOICE_CALL, default off)
+import { VoiceCallButtons } from './voice-call/voice-call-buttons' // VOICE-CALL (NEXT_PUBLIC_STUDIO_VOICE_CALL, default off)
 import type { VoiceCallComposerProps } from '@/lib/studio-voice-call-ui' // VOICE-CALL
 
 const TEXTAREA_MIN_HEIGHT = 96
@@ -147,7 +147,7 @@ export interface ChatInputProps {
   studioEditPrompt?: boolean
   studioChatClean?: ChatCleanComposerProps // CHAT-CLEAN (NEXT_PUBLIC_STUDIO_CHAT_CLEAN): the composer's mode and the page's Stop / send-directions handlers; passed only with the flag on
   studioChatCommands?: ChatCommandsPageProps // CHAT-COMMANDS (NEXT_PUBLIC_STUDIO_CHAT_COMMANDS): the deck's slides, the current slide, the selected element and the export runner for the "/" and "@" menus; passed only with the flag on
-  voiceCall?: VoiceCallComposerProps // VOICE-CALL (NEXT_PUBLIC_STUDIO_VOICE_CALL): the call button's state and handler; passed only with the flag on (the page's call hook)
+  voiceCall?: VoiceCallComposerProps // VOICE-CALL (NEXT_PUBLIC_STUDIO_VOICE_CALL): the two call buttons' handler and state, and `active` (a call is on: the composer is not drawn); passed only with the flag on (the page's call hook)
 }
 
 export function ChatInput({
@@ -822,6 +822,7 @@ export function ChatInput({
       className="hidden"
     />
   )
+  if (voiceCall?.active) return null // VOICE-CALL (NEXT_PUBLIC_STUDIO_VOICE_CALL): while a call is on you are only talking; the composer (and its draft, which stays in the page) comes back when it ends
   return (
     <div
       data-studio-v4-chrome={process.env.NEXT_PUBLIC_STUDIO_V4_TOKENS === 'true' ? 'true' : undefined}
@@ -1503,10 +1504,10 @@ export function ChatInput({
                   )}
                 </DropdownMenuContent>
               </DropdownMenu>
-              {voiceCall ? <VoiceCallButton {...voiceCall} studio={studio} /> : null}{/* VOICE-CALL (NEXT_PUBLIC_STUDIO_VOICE_CALL): the call button, last in the left group; the only thing that asks for the microphone */}
             </div>
 
             {chatClean ? <StudioChatCleanSendSide composer={chatClean.composer} onStop={chatClean.onStop} picker={{ sessionId: chatClean.sessionId, disabled: !user || isLoadingSession }} research={chatCleanResearch} /> : null}{/* CHAT-CLEAN: the model picker (the gauge button) and Stop beside Send; the stylesheet moves the research options button above next to them and hides Send while Stop shows */}
+            {voiceCall ? <VoiceCallButtons {...voiceCall} studio={studio} /> : null}{/* VOICE-CALL (NEXT_PUBLIC_STUDIO_VOICE_CALL): the Audio and Video call buttons, right beside Send; the only things that ask for the microphone */}
             {/* Right: Send button - rounded square with up arrow */}
             {isTemplateReuseRunning ? (
               <StudioComposerHint enabled={studio} label="Stop template reuse">

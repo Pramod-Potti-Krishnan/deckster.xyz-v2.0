@@ -50,7 +50,16 @@ function openMic(): Promise<VoiceMic> {
       } catch { context = null; analyser = null }
     }
     const mime = pickRecorderMime(type => typeof MediaRecorder !== 'undefined' && MediaRecorder.isTypeSupported(type))
+    const levelBytes = new Uint8Array(analyser ? analyser.fftSize : 0)
     const mic: VoiceMic = {
+      level() {
+        if (!analyser) return 0
+        analyser.getByteTimeDomainData(levelBytes)
+        return rmsByteTimeDomain(levelBytes)
+      },
+      setMuted(muted: boolean) {
+        for (const track of stream.getAudioTracks()) track.enabled = !muted
+      },
       record(): VoiceRecording {
         const chunks: Blob[] = []
         const recorder = mime ? new MediaRecorder(stream, { mimeType: mime }) : new MediaRecorder(stream)

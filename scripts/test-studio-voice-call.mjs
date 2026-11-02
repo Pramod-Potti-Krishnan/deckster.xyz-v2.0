@@ -7,8 +7,8 @@
 //       the mouth, the framing, the controls, the words).
 //   A2. The router seam (a fake fetch: statuses -> kinds, abort, nothing requested until a method is called).
 //   B.  The controller against the real core: the microphone is asked for by the call and by nothing else, honest errors, push-to-talk, the voice turn (armed words, mode and cap), the reply's spoken line only, talk-over and Stop,
-//       the filler, progress lines between turns, the timeout, the character's scene from Director's frames, tear-down (no timer, no track left).
-//   C.  The components drawn offline (dock states, the call button, the player's fallback) and the hook (flag off: nothing loaded, listened to or timed).
+//       the filler, progress lines between turns, the timeout, the character's scene from Director's frames, audio or video, mute, tap-to-talk, the live transcript, the level, tear-down (no timer, no track left).
+//   C.  The components drawn offline (the call stage in audio and video, its transcript and controls, the scene art, the two call buttons, the player's fallback) and the hook (flag off: nothing loaded, listened to or timed).
 //   D.  The page, the socket hook, the composer, .env.example, the strip, the scope and the registry: every marked line is where and as gated as it must be; stripping them gives the base's files byte for byte.
 //   E.  MUTANTS: every one of them must be caught by A-D.
 //
@@ -42,12 +42,12 @@ const strip = await import('./studio-voice-call-strip.mjs')
 const core = await import('./studio-voice-core-strip.mjs')
 
 const UI = 'lib/studio-voice-call-ui.ts', ROUTER = 'lib/studio-voice-call-router.ts', CTL = 'lib/studio-voice-call-controller.ts', BROWSER = 'lib/studio-voice-call-browser.ts'
-const HOOK = 'hooks/use-studio-voice-call.ts', DOCK = 'components/builder/voice-call/voice-call-dock.tsx', BUTTON = 'components/builder/voice-call/voice-call-button.tsx', PLAYER = 'components/builder/voice-call/companion-player.tsx'
+const HOOK = 'hooks/use-studio-voice-call.ts', STAGE = 'components/builder/voice-call/voice-call-stage.tsx', BUTTONS = 'components/builder/voice-call/voice-call-buttons.tsx', PLAYER = 'components/builder/voice-call/companion-player.tsx'
 const CSS = 'components/builder/voice-call/voice-call.css'
 const PAGE = 'app/builder/page.tsx', WS = 'hooks/use-deckster-websocket-v2.ts', INPUT = 'components/builder/chat-input.tsx'
 const CORE = 'lib/studio/voice'
 const CORE_STRIP = 'scripts/studio-voice-core-strip.mjs'
-const SOURCES = Object.fromEntries([UI, ROUTER, CTL, BROWSER, HOOK, DOCK, BUTTON, PLAYER, CSS, PAGE, WS, INPUT, CORE_STRIP, '.env.example'].map(rel => [rel, read(rel)]))
+const SOURCES = Object.fromEntries([UI, ROUTER, CTL, BROWSER, HOOK, STAGE, BUTTONS, PLAYER, CSS, PAGE, WS, INPUT, CORE_STRIP, '.env.example'].map(rel => [rel, read(rel)]))
 
 // ---- a tiny module host: the real files (or a mutant of one), their imports resolved against the repo, in THIS realm --------------------------------------------------------------------------------
 function compile(text, fileName) {
@@ -286,24 +286,53 @@ function uiSuite(ui, over = {}) {
   eq([Math.round(chest.sh), chest.sy, Math.round(chest.sw)], [384, 92, 441], 'framing: the chest is the top 62% of the character, at most 1.15 times as wide as tall')
   eq([ui.framedWidth('disc', 88, chest), ui.framedWidth('disc', 88, null), ui.framedWidth('chest', 240, chest), ui.framedWidth('chest', 240, null)], [88, 88, 276, 240], 'framing: the disc is a square, the chest is as wide as its crop (a square before the pack is read)')
   eq(ui.framingRect(face, 'chest'), ui.framingRect(face, 'chest'), 'framing: deterministic'); ok(chest.sx >= 0 && chest.sx + chest.sw <= 768 && disc.sx >= 0 && disc.sx + disc.sw <= 768, 'framing: inside the canvas')
-  eq([ui.DISC_PX_DESKTOP, ui.DISC_PX_PHONE, ui.CHEST_PX, ui.VOICE_PHONE_MEDIA], [88, 64, 240, '(max-width: 767px)'], 'sizes: 88, 64, 240, and a phone is 767 px and narrower')
+  eq([ui.AUDIO_DISC_PX, ui.AUDIO_DISC_PX_PHONE, ui.VOICE_PHONE_MEDIA], [176, 148, '(max-width: 767px)'], 'sizes: the audio call\'s disc is 176 px (148 on a phone), and a phone is 767 px and narrower')
   eq(['bob', 'deckster-owl', 'a', 'x-y-z', '', 'DECK'].map(ui.initialsFor), ['B', 'DO', 'A', 'XY', 'D', 'DECK'.slice(0, 1)], 'initials: one or two capitals')
-  eq(ui.callControls({ active: false, starting: false, phase: 'idle', speakingNow: false, connected: true }), { talk: false, stop: false, end: false, expand: false }, 'controls: nothing before the call')
-  eq(ui.callControls({ active: true, starting: false, phase: 'idle', speakingNow: false, connected: true }), { talk: true, stop: false, end: true, expand: true }, 'controls: in a call, your turn')
+  eq(ui.callControls({ active: false, starting: false, phase: 'idle', speakingNow: false, connected: true }), { talk: false, stop: false, mute: false, end: false }, 'controls: nothing before the call')
+  eq(ui.callControls({ active: true, starting: false, phase: 'idle', speakingNow: false, connected: true }), { talk: true, stop: false, mute: true, end: true }, 'controls: in a call, your turn')
   eq(ui.callControls({ active: true, starting: false, phase: 'speaking', speakingNow: true, connected: true }).stop, true, 'controls: Stop while Director speaks'); eq(ui.callControls({ active: true, starting: false, phase: 'thinking', speakingNow: false, connected: true }).stop, true, 'controls: Stop while a turn waits')
-  eq(ui.callControls({ active: true, starting: false, phase: 'idle', speakingNow: false, connected: false }).talk, false, 'controls: no talking without a socket'); eq(ui.callControls({ active: true, starting: true, phase: 'idle', speakingNow: false, connected: true }), { talk: false, stop: false, end: false, expand: false }, 'controls: nothing while the microphone is being asked for')
-  eq([ui.callButtonLabel(false), ui.callButtonLabel(true)], ['Start a voice call', 'End the voice call'], 'button: label')
+  eq(ui.callControls({ active: true, starting: false, phase: 'idle', speakingNow: false, connected: false }).talk, false, 'controls: no talking without a socket'); eq(ui.callControls({ active: true, starting: true, phase: 'idle', speakingNow: false, connected: true }), { talk: false, stop: false, mute: false, end: false }, 'controls: nothing while the microphone is being asked for')
+  eq(ui.callControls({ active: true, starting: false, phase: 'idle', speakingNow: false, connected: true, muted: true }), { talk: false, stop: false, mute: true, end: true }, 'controls: muted: no talking, but the microphone can be unmuted and the call ended')
+  eq([ui.callButtonLabel('audio'), ui.callButtonLabel('video'), ui.CALL_MODES, ['audio', 'video', 'both', '', null, 1].map(ui.isCallMode)], ['Start an audio call', 'Start a video call', ['audio', 'video'], [true, true, false, false, false, false]], 'buttons: Audio and Video, named')
   eq([{ tagName: 'TEXTAREA' }, { tagName: 'input' }, { tagName: 'SELECT' }, { tagName: 'DIV', isContentEditable: true }, { tagName: 'BUTTON' }, { tagName: 'DIV' }, null].map(ui.isTypingTarget), [true, true, true, true, false, false, false], 'typing target: text fields keep their Space')
   const el = (tagName, attrs = {}, own = false, editable = false) => ({ tagName, isContentEditable: editable, getAttribute: name => attrs[name] ?? null, closest: () => (own ? {} : null) })
   eq([el('TEXTAREA'), el('INPUT'), el('SELECT'), el('DIV', {}, false, true), el('BUTTON'), el('A'), el('SUMMARY'), el('DIV', { role: 'menuitem' }), el('DIV', { role: 'tab' }), el('SPAN', { role: 'checkbox' }), el('DIV'), el('BODY'), el('SPAN'), null, undefined].map(ui.spaceBelongsToTarget),
     [true, true, true, true, true, true, true, true, true, true, false, false, false, false, false], 'space: a text field and every other control that Space activates keep their Space; the page itself does not')
-  eq([ui.spaceBelongsToTarget(el('BUTTON', {}, true)), ui.spaceBelongsToTarget(el('SPAN', { role: 'button' }, true))], [false, false], 'space: ...except the call\'s own button and the talk button: Space talks there (focus stays on the call button after it is pressed)')
+  eq([ui.spaceBelongsToTarget(el('BUTTON', {}, true)), ui.spaceBelongsToTarget(el('SPAN', { role: 'button' }, true))], [false, false], 'space: ...except the talk button: Space talks there (focus stays on it after it is pressed)')
   eq([{ code: 'Space' }, { key: ' ' }, { code: 'Space', repeat: true }, { code: 'Space', metaKey: true }, { code: 'Space', ctrlKey: true }, { code: 'Space', altKey: true }, { code: 'Space', shiftKey: true }, { code: 'KeyA' }].map(ui.isTalkKey), [true, true, false, false, false, false, false, false], 'talk key: Space alone, not a repeat')
   eq(['not_connected', 'limit', 'failed', 'too_short', 'no_words', 'not_sent', 'no_answer'].every(problem => ui.describeSpeechProblem(problem).title && ui.describeSpeechProblem(problem).steps.length > 0), true, 'words: every speech problem has a title and a step')
   eq(ui.describeSpeechProblem('not_connected').title, "Speech isn't connected yet", 'words: the honest one for a missing router')
   eq([ui.progressCaption('Building slide 3', 'working'), ui.progressCaption('Building slide 3', 'idle'), ui.progressCaption(null, 'working'), ui.progressCaption('  ', 'working'), ui.progressCaption('Researching', 'thinking')], ['Building slide 3', null, null, null, 'Researching'], 'progress caption: under the disc while Director works or thinks')
   const long = 'Researching the market for each of the six slides in detail and checking every source again'
   ok(ui.progressCaption(long, 'working').endsWith('…') && ui.progressCaption(long, 'working').length <= 81 && !ui.progressCaption(long, 'working').slice(0, -1).endsWith(' '), 'progress caption: cut at a word')
+  // ---- the call's transcript, its scene, its talk button ----
+  {
+    const talkOnly = sel => ({ tagName: 'BUTTON', getAttribute: () => null, closest: s2 => (s2 === '.studio-voice-talk' ? {} : null) })
+    eq([ui.spaceBelongsToTarget(talkOnly()), ui.spaceBelongsToTarget({ tagName: 'BUTTON', getAttribute: () => null, closest: () => null })], [false, true], 'space: only the talk button (.studio-voice-talk) is excepted; Stop, Mute, End and the transcript toggle keep their Space')
+    const add = ui.appendTranscript
+    let list = []
+    list = add(list, 'you', '  make the title\n shorter  '); eq(list, [{ id: 1, who: 'you', text: 'make the title shorter' }], 'transcript: a line is trimmed and its spaces collapsed')
+    eq([add(list, 'you', '   '), add(list, 'director', ''), add(list, 'you', undefined)].every(next => next === list), true, 'transcript: a blank line adds nothing (the same list comes back)')
+    eq(add(list, 'you', 'make the title shorter') === list, true, 'transcript: the same line twice in a row by the same speaker is not repeated')
+    list = add(list, 'director', 'Sure. Shortened.'); list = add(list, 'you', 'make the title shorter'); eq(list.map(entry => [entry.id, entry.who]), [[1, 'you'], [2, 'director'], [3, 'you']], 'transcript: ...but the same words after the other speaker are a new line (ids count up)')
+    const joined = add(list, 'you', 'and the subtitle', undefined, true); eq([joined.length, joined[2].text, joined[2].id], [3, 'make the title shorter and the subtitle', 3], 'transcript: join carries on the same speaker\'s last entry, keeping its id')
+    eq(add(list, 'director', 'New.', undefined, true).length, 4, 'transcript: ...but never joins the other speaker\'s entry')
+    let many = []; for (let i = 0; i < 70; i++) many = add(many, i % 2 ? 'you' : 'director', `line ${i}`)
+    eq([many.length, many[0].text, many[many.length - 1].text, ui.TRANSCRIPT_MAX], [60, 'line 10', 'line 69', 60], 'transcript: the newest 60 are kept')
+    eq(add([], 'you', 'x', 1).length, 1, 'transcript: the cap is a parameter'); eq(add(add([], 'you', 'a', 1), 'director', 'b', 1).map(entry => entry.text), ['b'], 'transcript: ...and the oldest goes first')
+    const frozen = Object.freeze([]); add(frozen, 'you', 'x'); eq(frozen.length, 0, 'transcript: pure (the list given is not changed)')
+    eq([ui.TRANSCRIPT_SHARE, ui.SCENE_SHARE], [0.2, 0.8], 'scene: the transcript is the bottom fifth, the scene the rest')
+    eq([ui.videoCharacterPx(900), ui.videoCharacterPx(844), ui.videoCharacterPx(0), ui.videoCharacterPx(NaN), ui.videoCharacterPx(100), ui.videoCharacterPx(5000)], [562, 527, 240, 240, 160, 640], 'scene: the character fills the scene\'s share of the call, less room for the overlays, within 160 and 640 px')
+    eq([ui.sceneFileFrom(undefined), ui.sceneFileFrom('scene.webp'), ui.sceneFileFrom('scenes/desk-01.png'), ui.sceneFileFrom('../x.webp'), ui.sceneFileFrom('/etc/x.webp'), ui.sceneFileFrom('a//b.webp'), ui.sceneFileFrom('x.gif'), ui.sceneFileFrom('x.webp?y=1'), ui.sceneFileFrom(7), ui.sceneFileFrom(' room.jpg ')],
+      ['scene.webp', 'scene.webp', 'scenes/desk-01.png', 'scene.webp', 'scene.webp', 'scene.webp', 'scene.webp', 'scene.webp', 'scene.webp', 'room.jpg'], 'scene: a pack\'s scene file is a web image inside its own folder, else scene.webp')
+    eq([ui.sceneUrl('bob', 'scene.webp'), ui.DEFAULT_SCENE_FILE], ['/companions/bob/scene.webp', 'scene.webp'], 'scene: the image is read from the pack\'s folder')
+    eq([ui.talkLabel({ holding: false, latched: false, muted: false }), ui.talkLabel({ holding: true, latched: false, muted: false }), ui.talkLabel({ holding: true, latched: true, muted: false }), ui.talkLabel({ holding: false, latched: false, muted: true }), ui.talkLabel({ holding: true, latched: true, muted: true })],
+      ['Hold to talk', 'Release to send', 'Tap to send', 'Muted', 'Muted'], 'talk button: it says what the next press or letting go does')
+    eq([ui.companionName('bob'), ui.companionName('deckster-owl'), ui.companionName(''), ui.companionName('---')], ['Bob', 'Deckster Owl', 'Companion', 'Companion'], 'transcript: the companion goes by its pack\'s name')
+    eq([ui.ringLevel(0), ui.ringLevel(-1), ui.ringLevel(NaN), ui.ringLevel(0.1), ui.ringLevel(0.2), ui.ringLevel(0.333), ui.ringLevel(0.5), ui.ringLevel(9)], [0, 0, 0, 0.4, 0.8, 1, 1, 1], 'ring: a quiet voice (0.05 to 0.3) is most of the ring, clamped to 0..1, two decimals')
+    eq([ui.TAP_TALK_MS, ui.LATCH_MAX_MS], [300, 60000], 'talk: a press under 300 ms is a tap (it latches); a latch left on is sent after a minute')
+    eq([ui.MUTE_LABEL, ui.UNMUTE_LABEL], ['Mute microphone', 'Unmute microphone'], 'mute: named')
+  }
 }
 
 // ============================================================================================================================================
@@ -364,7 +393,7 @@ function makeCall({ over = {}, mic = {}, reduced = false, connected = true, send
   const host = makeHost({ env: identity ? { ...ENV_ON, NEXT_PUBLIC_STUDIO_ASK_CARD_IDENTITY_ENABLED: 'true' } : ENV_ON, over })
   const ctlMod = host.load(CTL), ui = host.load(UI), router = host.load(ROUTER), core = host.load('lib/studio/voice/index.ts')
   const clock = new Clock()
-  const log = { primed: [], micOpened: 0, micClosed: 0, recordings: [], cancelled: 0, plays: [], stops: 0, transcribed: [], spoken: [], sent: [], wire: [], actions: [], aborted: 0, errors: [] }
+  const log = { primed: [], micOpened: 0, micClosed: 0, recordings: [], cancelled: 0, plays: [], stops: 0, transcribed: [], spoken: [], sent: [], wire: [], actions: [], aborted: 0, errors: [], muted: [] }
   const player = { level: 0.3, play(blob, hooks) { log.plays.push({ blob, hooks }) }, stop() { log.stops++ }, getLevel() { return this.level } }
   const recordingSpec = { durationMs: 1200, peak: 0.2, ...mic.recording }
   const env = {
@@ -373,7 +402,7 @@ function makeCall({ over = {}, mic = {}, reduced = false, connected = true, send
       if (mic.error) throw Object.assign(new Error('x'), { name: mic.error })
       if (mic.deferred) await mic.deferred
       log.micOpened++
-      return { record: () => { const rec = { stopped: false, stop: async () => { rec.stopped = true; return { blob: new Blob(['audio']), durationMs: recordingSpec.durationMs, peak: recordingSpec.peak } }, cancel: () => { log.cancelled++ } }; log.recordings.push(rec); return rec }, close: () => { log.micClosed++ } }
+      return { ...(mic.noMeter ? {} : { level: () => mic.level ?? 0 }), setMuted: muted => { log.muted.push(muted) }, record: () => { const rec = { stopped: false, stop: async () => { rec.stopped = true; return { blob: new Blob(['audio']), durationMs: recordingSpec.durationMs, peak: recordingSpec.peak } }, cancel: () => { log.cancelled++ } }; log.recordings.push(rec); return rec }, close: () => { log.micClosed++ } }
     },
     createPlayer: () => ({ play: (blob, hooks) => player.play(blob, hooks), stop: () => player.stop(), level: () => player.getLevel(), prime: () => { log.primed.push(log.micOpened) } }),
     now: () => clock.now(), setTimer: (fn, ms) => clock.set(fn, ms), clearTimer: id => clock.clear(id), reducedMotion: () => reduced, macApp: () => false, mac: () => false,
@@ -404,7 +433,9 @@ function makeCall({ over = {}, mic = {}, reduced = false, connected = true, send
   const world = {
     ctl, ui, env, clock, log, player, state, ctlMod, core,
     snap: () => ctl.getSnapshot(),
-    start: async () => { await ctl.startCall(); await settle() },
+    start: async mode => { await ctl.startCall(mode); await settle() },
+    press: async () => { ctl.talkPress(); await settle() },
+    release: async () => { ctl.talkRelease(); await settle() },
     talk: async (ms = 1250) => { ctl.pttDown(); await settle(); await clock.advance(ms); await ctl.pttUp(); await settle() },
     frame: async (type, payload = {}, id = null, extra = {}) => { ctl.onFrame({ ...frame(type, payload, id), ...extra }); await settle() },
     // the reply's first line is held REPLY_LEAD_MS so the gesture is seen first: by default the clock runs past it
@@ -453,7 +484,7 @@ async function controllerSuite(over = {}) {
     let grant; const deferred = new Promise(resolve => { grant = resolve })
     const w = makeCall({ over, mic: { deferred } })
     const pending = w.ctl.startCall(); await settle()
-    eq([w.snap().starting, w.snap().active, w.snap().controls], [true, false, { talk: false, stop: false, end: false, expand: false }], 'mic: while the browser asks, the call is starting and nothing is live')
+    eq([w.snap().starting, w.snap().active, w.snap().controls], [true, false, { talk: false, stop: false, mute: false, end: false }], 'mic: while the browser asks, the call is starting and nothing is live')
     w.ctl.endCall(); grant(); await pending; await settle()
     eq([w.snap().active, w.log.micClosed, w.snap().starting], [false, 1, false], 'mic: a microphone granted after the call was ended is released at once')
   }
@@ -753,6 +784,77 @@ async function controllerSuite(over = {}) {
     eq([w.snap().phase, w.snap().notice?.title], ['idle', "The Director hasn't answered yet"], 'timeout: 90 s of nothing ends the turn, plainly')
   }
 
+  // ---- audio or video, and the controls of the redesigned call: mute, tap-to-latch, the transcript, the level ---------------------------------------
+  {
+    const m = makeCall({ over }); await m.start()
+    eq([m.snap().mode, m.snap().muted, m.snap().latched, m.snap().transcript, m.snap().controls.mute], ['audio', false, false, [], true], 'call: starts as an audio call, not muted, nothing said, Mute available')
+    m.ctl.endCall(); await settle(); await m.start('video'); eq(m.snap().mode, 'video', 'call: the video button starts a video call'); m.ctl.endCall(); await settle(); await m.start('audio'); eq(m.snap().mode, 'audio', 'call: ...and the audio button an audio call')
+    const idle = makeCall({ over }); idle.ctl.setMuted(true); eq([idle.snap().muted, idle.log.muted], [false, []], 'mute: nothing to mute before a call')
+    // mute: nothing can be said, a recording in progress is dropped, the microphone's tracks are told
+    m.ctl.setMuted(true); await settle()
+    eq([m.snap().muted, m.snap().controls.talk, m.snap().controls.mute, m.log.muted], [true, false, true, [true]], 'mute: muted: the talk button is off, Mute stays (it is Unmute), the microphone is told')
+    m.ctl.pttDown(); m.ctl.talkPress(); await settle(); eq([m.snap().holding, m.snap().phase, m.log.recordings.length], [false, 'idle', 0], 'mute: ...nobody can talk (button or Space)')
+    m.ctl.setMuted(true); eq(m.log.muted, [true], 'mute: muting twice tells the microphone once')
+    m.ctl.setMuted(false); await settle(); eq([m.snap().muted, m.snap().controls.talk, m.log.muted], [false, true, [true, false]], 'mute: unmuted: talking again')
+    m.ctl.pttDown(); await settle(); eq(m.snap().phase, 'listening', 'mute: ...listening')
+    m.ctl.setMuted(true); await settle(); eq([m.snap().holding, m.snap().phase, m.snap().latched, m.log.cancelled >= 1], [false, 'idle', false, true], 'mute: muting while you talk drops the recording')
+    m.ctl.endCall(); await settle(); await m.start(); eq([m.snap().muted, m.snap().transcript], [false, []], 'mute: a new call starts unmuted')
+  }
+  {
+    // hold to talk: letting go sends (as before); a tap latches the microphone on, and the next tap sends
+    const w = makeCall({ over }); await w.start()
+    await w.press(); eq([w.snap().holding, w.snap().latched, w.snap().phase], [true, false, 'listening'], 'talk: pressing starts listening')
+    await w.clock.advance(900); await w.release(); await settle()
+    eq([w.snap().holding, w.log.transcribed.length, w.log.sent], [false, 1, ['make the title shorter']], 'talk: a long press is hold to talk: letting go sends it')
+    const t = makeCall({ over, transcripts: ['one', 'two', 'three'] }); await t.start()
+    await t.press(); await t.clock.advance(120); await t.release()
+    eq([t.snap().holding, t.snap().latched, t.snap().phase, t.log.recordings.length, t.log.transcribed.length], [true, true, 'listening', 1, 0], 'talk: a tap latches the microphone on (still listening, nothing sent)')
+    await t.clock.advance(1500); await t.press()
+    eq([t.snap().holding, t.snap().latched, t.log.transcribed.length], [false, false, 1], 'talk: ...and the next tap sends')
+    await t.release(); eq(t.log.transcribed.length, 1, 'talk: ...and the lifting of that finger sends nothing more')
+    await t.press(); await t.clock.advance(100); await t.release(); eq(t.snap().latched, true, 'talk: latched again')
+    t.ctl.stop(); await settle(); await t.ctl.pttUp(); await settle(); eq([t.snap().holding, t.snap().latched], [false, false], 'talk: letting go any other way (the window loses focus) sends and clears the latch')
+    // a latch left on is sent after a minute
+    const f = makeCall({ over }); await f.start(); await f.press(); await f.clock.advance(100); await f.release()
+    eq(f.snap().latched, true, 'talk: latched'); await f.clock.advance(59000); eq([f.snap().latched, f.log.transcribed.length], [true, 0], 'talk: ...still on at 59 s')
+    await f.clock.advance(2000); await settle(); eq([f.snap().latched, f.snap().holding, f.log.transcribed.length], [false, false, 1], 'talk: ...sent at a minute')
+    // the key: the same two calls
+    const k = makeCall({ over }); await k.start(); k.ctl.talkRelease(); await settle(); eq(k.snap().holding, false, 'talk: letting go without a press does nothing')
+    const n = makeCall({ over, connected: false }); await n.start(); await n.press(); await n.release(); eq([n.snap().holding, n.snap().latched, n.log.recordings.length], [false, false, 0], 'talk: no socket: a tap latches nothing')
+    // ending a call clears a latch
+    const e = makeCall({ over }); await e.start(); await e.press(); await e.clock.advance(100); await e.release(); e.ctl.endCall(); await settle(); await e.start(); eq([e.snap().latched, e.snap().holding], [false, false], 'talk: a new call starts with nothing latched')
+  }
+  {
+    // the live transcript: what you said (as heard), then what the companion said, in pieces joined into one message
+    const w = makeCall({ over, transcripts: ['make the title shorter', 'and the subtitle too'] }); await w.start()
+    await w.talk()
+    eq(w.snap().transcript.map(entry => [entry.who, entry.text]), [['you', 'make the title shorter']], 'transcript: your words, as heard')
+    await w.reply('I shortened the title to fit on one line. The subtitle stays exactly as it was.')
+    const pieces = w.log.plays.length
+    ok(pieces >= 1, 'transcript: the reply is spoken')
+    eq(w.snap().transcript.length, 1, 'transcript: a line is added when it starts to be spoken, not before')
+    await w.playStart(0)
+    eq(w.snap().transcript.map(entry => entry.who), ['you', 'director'], 'transcript: ...the first piece starts: the companion\'s message begins')
+    await w.playEnd(0)
+    for (let i = 1; i < w.log.plays.length; i++) { await w.playStart(i); await w.playEnd(i) }
+    eq(w.snap().transcript.length, 2, 'transcript: a reply spoken in pieces is one message')
+    eq(w.snap().transcript[1].text, w.log.spoken.join(' '), 'transcript: ...of everything that was said, in order')
+    await w.talk(); eq(w.snap().transcript.map(entry => entry.who), ['you', 'director', 'you'], 'transcript: your next turn is a new line')
+    const ids = w.snap().transcript.map(entry => entry.id); eq(ids, [1, 2, 3], 'transcript: ids count up')
+    ok(w.snap().transcript === w.ctl.getSnapshot().transcript, 'transcript: the same list until a line is added (no render)')
+    w.ctl.endCall(); await settle(); await w.start(); eq(w.snap().transcript, [], 'transcript: a new call starts empty')
+    // a typed message is not said and not in the transcript
+    const g = makeCall({ over, transcripts: [] }); await g.start(); await g.ctl.onSent('typed words'); await g.reply(undefined, 'Done, typed.'); eq(g.snap().transcript, [], 'transcript: typed words and an unspoken reply are chat, not call')
+  }
+  {
+    // the level: the microphone's while you talk, the speaker's while it speaks, else nothing
+    const w = makeCall({ over, mic: { level: 0.42 } }); await w.start()
+    eq(w.ctl.getLevel(), 0, 'level: nothing before anyone talks')
+    w.ctl.pttDown(); await settle(); eq(w.ctl.getLevel(), 0.42, 'level: while you talk it is the microphone\'s')
+    await w.clock.advance(1250); await w.ctl.pttUp(); await settle(); eq(w.ctl.getLevel(), 0, 'level: ...and nothing once you let go')
+    await w.reply('Done. The title is now on one line.'); await w.playStart(0); eq(w.ctl.getLevel(), 0.3, 'level: while it speaks it is the speaker\'s')
+    const bare = makeCall({ over, mic: { noMeter: true } }); await bare.start(); bare.ctl.pttDown(); await settle(); eq(bare.ctl.getLevel(), 0, 'level: a microphone with no meter reads zero')
+  }
   // ---- tear-down ------------------------------------------------------------------------------------------------------------------------------
   {
     const w = makeCall({ over }); await w.start(); await w.talk(); await w.reply('One. Two.'); await w.playStart(0)
@@ -760,9 +862,9 @@ async function controllerSuite(over = {}) {
     eq([w.snap().active, w.log.micClosed, w.clock.pending(), w.log.cancelled >= 1, w.ui.voiceCallBus.pending], [false, 1, 0, true, null], 'end: the recording is dropped, the microphone released, no timer left, nothing armed')
     const d = makeCall({ over }); await d.start(); d.ctl.dispose(); await settle()
     eq([d.log.micClosed, d.clock.pending()], [1, 0], 'dispose: releases everything'); d.ctl.onFrame(frame('chat_message', { spoken: 'x' })); await d.ctl.startCall(); eq(d.log.micOpened, 1, 'dispose: a disposed controller does nothing more')
-    const sub = makeCall({ over }); let seen = 0; const off = sub.ctl.subscribe(() => { seen++ }); await sub.start(); ok(seen > 0, 'snapshot: subscribers are told'); off(); const before = seen; sub.ctl.setExpanded(true); eq(seen, before, 'snapshot: an unsubscribed listener is not told')
+    const sub = makeCall({ over }); let seen = 0; const off = sub.ctl.subscribe(() => { seen++ }); await sub.start(); ok(seen > 0, 'snapshot: subscribers are told'); off(); const before = seen; sub.ctl.setMuted(true); eq(seen, before, 'snapshot: an unsubscribed listener is not told')
     const same = sub.ctl.getSnapshot(); sub.ctl.tick(); eq(sub.ctl.getSnapshot() === same, true, 'snapshot: nothing changed, the same snapshot (no render)')
-    sub.ctl.setExpanded(false); eq(sub.snap().expanded, false, 'snapshot: expanded toggles')
+    sub.ctl.setMuted(false); eq(sub.snap().muted, false, 'snapshot: mute toggles')
   }
 }
 
@@ -773,58 +875,144 @@ const noHint = ({ children }) => children
 function componentStubs(host) {
   return { './voice-call.css': {}, '../studio-composer-hint': { StudioComposerHint: noHint }, './companion-player': host.load(PLAYER) }
 }
-async function dockSuite(over = {}) {
-  const host = makeHost({ env: ENV_ON, over })
-  const stubs = {}
-  const dock = makeHost({ env: ENV_ON, over, stubs: { './companion-player': { CompanionPlayer: ({ pack, scene, framing, size, reducedMotion }) => React.createElement('div', { 'data-fake-player': 'true', 'data-pack': pack, 'data-scene': scene, 'data-framing': framing, 'data-size': size, 'data-reduced': String(reducedMotion) }) }, ...stubs } }).load(DOCK)
-  const base = { active: true, starting: false, phase: 'idle', scene: 'idle', chip: 'Your turn', dance: false, caption: null, progress: null, notice: null, expanded: false, reducedMotion: false, holding: false, controls: { talk: true, stop: false, end: true, expand: true } }
+async function stageSuite(over = {}) {
+  globalThis.window = { matchMedia: () => ({ matches: false, addEventListener() {}, removeEventListener() {} }) } // a desktop; the offline renderer runs the stage's effects
+  try { await stageSuiteBody(over) } finally { delete globalThis.window }
+}
+async function stageSuiteBody(over = {}) {
+  const fakePlayer = ({ pack, scene, framing, size, reducedMotion }) => React.createElement('div', { 'data-fake-player': 'true', 'data-pack': pack, 'data-scene': scene, 'data-framing': framing, 'data-size': size, 'data-reduced': String(reducedMotion) })
+  const loadStage = () => makeHost({ env: ENV_ON, over, stubs: { './companion-player': { CompanionPlayer: fakePlayer } } }).load(STAGE)
+  const stage = loadStage()
+  const base = { active: true, starting: false, phase: 'idle', scene: 'idle', chip: 'Your turn', dance: false, caption: null, progress: null, notice: null, mode: 'audio', muted: false, reducedMotion: false, holding: false, latched: false, transcript: [], controls: { talk: true, stop: false, mute: true, end: true } }
   const calls = []
-  const props = snapshot => ({ snapshot: { ...base, ...snapshot }, pack: 'bob', getLevel: () => 0, onTalkStart: () => calls.push('down'), onTalkEnd: () => calls.push('up'), onStop: () => calls.push('stop'), onEnd: () => calls.push('end'), onToggleExpanded: () => calls.push('expand'), onRetry: () => calls.push('retry'), onDismissNotice: () => calls.push('dismiss') })
-  const html = snapshot => renderToStaticMarkup(React.createElement(dock.VoiceCallDock, props(snapshot)))
-  const idle = html({})
-  ok(idle.includes('data-studio-voice-call="dock"') && idle.includes('data-voice-chip="Your turn"') && idle.includes('data-studio-voice-caption="hint"') && idle.includes('data-voice-expanded="false"'), 'dock: idle: the chip, the hint and the disc')
-  ok(idle.includes('data-framing="disc"') && idle.includes('data-size="88"') && idle.includes('data-pack="bob"'), 'dock: the player is the 88 px disc of the pack')
-  ok(idle.includes('aria-label="Hold to talk"') && idle.includes('aria-label="Stop"') && idle.includes('aria-label="Bigger view"') && idle.includes('aria-label="End call"'), 'dock: the four controls are named')
-  ok(/aria-label="Stop"[^>]*disabled|disabled=""[^>]*aria-label="Stop"/.test(idle) && !/aria-label="Hold to talk"[^>]*disabled/.test(idle) && !/disabled=""[^>]*aria-label="Hold to talk"/.test(idle), 'dock: Stop is off in your turn, the talk button is on')
-  for (const [chip, scene] of [['Listening', 'listening'], ['Thinking', 'thinking'], ['Speaking', 'speaking']]) ok(html({ chip, scene }).includes(`data-voice-chip="${chip}"`) && html({ chip, scene }).includes(`>${chip}</span>`), `dock: the chip says ${chip}`)
-  const speaking = html({ chip: 'Speaking', scene: 'speaking', phase: 'speaking', caption: 'Sure. I shortened the title.', controls: { talk: true, stop: true, end: true, expand: true } })
-  ok(speaking.includes('Sure. I shortened the title.') && speaking.includes('data-studio-voice-caption="line"') && !speaking.includes('data-studio-voice-caption="hint"'), 'dock: speaking shows the line, not the hint')
-  ok(html({ scene: 'working', progress: 'Building your slides…' }).includes('Building your slides…') && html({ scene: 'working', progress: 'Building your slides…' }).includes('data-studio-voice-progress'), 'dock: what the Director is doing sits under the disc')
-  ok(html({ holding: true }).includes('Release to send') && html({ holding: true }).includes('aria-pressed="true"') && html({}).includes('>Hold to talk<'), 'dock: the talk button says what letting go does')
-  const big = html({ expanded: true })
-  ok(big.includes('data-voice-expanded="true"') && big.includes('data-framing="chest"') && big.includes('data-size="240"') && big.includes('aria-label="Smaller view"'), 'dock: expanded: the chest view, 240 px, and the way back')
-  ok(html({ reducedMotion: true }).includes('data-reduced="true"'), 'dock: reduced motion is handed to the player')
-  const noMic = html({ active: false, notice: { kind: 'mic', title: 'Your browser blocked the microphone', steps: ['Click the lock icon.', 'Then press Try again.'], retry: true }, controls: { talk: false, stop: false, end: false, expand: false } })
-  ok(noMic.includes('role="alert"') && noMic.includes('Your browser blocked the microphone') && noMic.includes('Click the lock icon.') && noMic.includes('Try again</button>') && noMic.includes('aria-label="Dismiss"') && noMic.includes('data-studio-voice-notice="mic"'), 'dock: a refused microphone says why, what to do, with Try again and Dismiss')
-  ok(!html({ notice: { kind: 'turn', title: 'That was too short', steps: ['Hold the button the whole time you speak.'], retry: false } }).includes('Try again'), 'dock: a notice that cannot be retried has no Try again')
-  ok(html({ active: false, starting: true }).includes('Waiting for your microphone…'), 'dock: while the browser asks, it says so')
-  ok(!html({ active: false }).includes('data-studio-voice-caption'), 'dock: no talking hint when no call is on')
-  // a phone: the disc is 64 px (the media query is read in an effect, so the dock is run in the offline host)
+  const props = snapshot => ({ snapshot: { ...base, ...snapshot }, pack: 'bob', getLevel: () => 0, onTalkPress: () => calls.push('press'), onTalkRelease: () => calls.push('release'), onStop: () => calls.push('stop'), onMute: muted => calls.push(`mute:${muted}`), onEnd: () => calls.push('end'), onRetry: () => calls.push('retry'), onDismissNotice: () => calls.push('dismiss') })
+  const html = (snapshot, mod = stage) => renderToStaticMarkup(React.createElement(mod.VoiceCallStage, props(snapshot)))
   const { toElements } = mini
-  const phoneDock = async matches => {
-    globalThis.window = { matchMedia: () => ({ matches, addEventListener() {}, removeEventListener() {} }) }
-    try {
-      const Dock = dock.VoiceCallDock
-      const rootNode = new Root(); rootNode.setElement(React.createElement(Dock, props({})))
-      for (let i = 0; i < 20; i++) { await macro(); if (!rootNode.flush()) break }
-      const out = renderToStaticMarkup(toElements(rootNode.tree)); rootNode.unmount(); return out
-    } finally { delete globalThis.window }
+  const hostNodes = (node, pred, out = []) => { if (!node) return out; if (node.t === 'host' && pred(node)) out.push(node); if (node.t === 'comp') hostNodes(node.child, pred, out); else if (node.children) for (const child of node.children) hostNodes(child, pred, out); return out }
+  const settleRoot = async rootNode => { for (let i = 0; i < 30; i++) { await macro(); if (!rootNode.flush()) break } }
+  const mount = async (snapshot, mod = stage) => { const rootNode = new Root(); rootNode.setElement(React.createElement(mod.VoiceCallStage, props(snapshot))); await settleRoot(rootNode); return rootNode }
+  const markup = rootNode => renderToStaticMarkup(toElements(rootNode.tree))
+  // an audio call, your turn
+  const idle = html({})
+  ok(idle.includes('data-studio-voice-call="stage"') && idle.includes('data-voice-mode="audio"') && idle.includes('aria-label="Audio call"') && idle.includes('data-voice-chip="Your turn"') && idle.includes('data-studio-voice-status="hint"'), 'stage: audio, idle: the chip and the hint')
+  ok(idle.includes('data-framing="disc"') && idle.includes('data-size="176"') && idle.includes('data-pack="bob"') && idle.includes('studio-voice-ring') && idle.includes('studio-voice-halo'), 'stage: audio: the pack\'s face as a 176 px disc in a level ring')
+  ok(idle.includes('aria-label="Hold to talk"') && idle.includes('aria-label="Stop"') && idle.includes('aria-label="Mute microphone"') && idle.includes('aria-label="End call"') && idle.includes('aria-label="Hide transcript"') && idle.includes('>Hold to talk<'), 'stage: the controls are named: talk, Stop, Mute, End, and the transcript toggle')
+  ok(/aria-label="Stop"[^>]*disabled|disabled=""[^>]*aria-label="Stop"/.test(idle) && !/aria-label="Hold to talk"[^>]*disabled/.test(idle) && !/disabled=""[^>]*aria-label="Hold to talk"/.test(idle) && !/disabled=""[^>]*aria-label="Mute microphone"/.test(idle), 'stage: Stop is off in your turn, the talk button and Mute are on')
+  ok(idle.includes('data-voice-transcript="open"') && idle.includes('role="log"') && idle.includes('What you and the companion say will appear here.') && idle.includes('aria-expanded="true"'), 'stage: the transcript is shown by default (empty, it says what it is for)')
+  ok(!idle.includes('--voice-scene-art') && idle.includes('data-voice-art="gradient"'), 'stage: no scene art: the token gradient')
+  // a video call
+  const video = html({ mode: 'video' })
+  ok(video.includes('data-voice-mode="video"') && video.includes('aria-label="Video call"') && video.includes('data-framing="chest"') && video.includes('data-size="240"') && video.includes('studio-voice-actor') && !video.includes('studio-voice-ring') && !video.includes('studio-voice-halo'), 'stage: video: the pack\'s chest view large in its scene, no level ring (the size follows the call\'s measured height: 240 before it is measured)')
+  for (const [chip, scene] of [['Listening', 'listening'], ['Thinking', 'thinking'], ['Speaking', 'speaking']]) ok(html({ chip, scene }).includes(`data-voice-chip="${chip}"`) && html({ chip, scene }).includes(`>${chip}</span>`) && html({ chip, scene }).includes(`data-ring="${scene}"`), `stage: the chip says ${chip}`)
+  const speaking = html({ chip: 'Speaking', scene: 'speaking', phase: 'speaking', caption: 'Sure. I shortened the title.', controls: { talk: true, stop: true, mute: true, end: true } })
+  ok(!/aria-label="Stop"[^>]*disabled/.test(speaking) && !/disabled=""[^>]*aria-label="Stop"/.test(speaking), 'stage: Stop is on while it speaks')
+  ok(!speaking.includes('data-studio-voice-caption'), 'stage: with the transcript shown, the line being said is not repeated as a subtitle')
+  const working = html({ scene: 'working', progress: 'Building your slides…' })
+  ok(working.includes('Building your slides…') && working.includes('data-studio-voice-status="progress"') && !working.includes('data-studio-voice-status="hint"'), 'stage: what the Director is doing shows under the figure (instead of the hint)')
+  // the talk button's words and states
+  ok(html({ holding: true }).includes('>Release to send<') && html({ holding: true }).includes('aria-pressed="true"') && html({ holding: true }).includes('data-holding="true"'), 'stage: held: Release to send')
+  const latched = html({ holding: true, latched: true })
+  ok(latched.includes('>Tap to send<') && latched.includes('data-latched="true"') && latched.includes('data-studio-voice-status="hint"') && latched.includes('Tap again to send'), 'stage: latched on by a tap: Tap to send, and the hint says so')
+  const muted = html({ muted: true, controls: { talk: false, stop: false, mute: true, end: true } })
+  ok(muted.includes('data-voice-muted="true"') && muted.includes('aria-label="Unmute microphone"') && muted.includes('aria-pressed="true"') && muted.includes('>Muted<') && muted.includes('Your microphone is muted') && /disabled=""[^>]*aria-label="Hold to talk"|aria-label="Hold to talk"[^>]*disabled/.test(muted), 'stage: muted: Unmute, the talk button says Muted and is off, the status says why')
+  ok(html({ reducedMotion: true }).includes('data-reduced="true"'), 'stage: reduced motion is handed to the player')
+  ok(html({ active: false, starting: true, controls: { talk: false, stop: false, mute: false, end: false } }).includes('Waiting for your microphone…'), 'stage: while the browser asks, it says so')
+  // the transcript
+  const talk = [{ id: 1, who: 'you', text: 'make the title shorter' }, { id: 2, who: 'director', text: 'Done. The title is on one line now.' }]
+  const withLines = html({ transcript: talk })
+  ok(withLines.includes('make the title shorter') && withLines.includes('Done. The title is on one line now.') && withLines.includes('data-who="you"') && withLines.includes('data-who="director"') && withLines.includes('<b>You</b>') && withLines.includes('<b>Bob</b>') && !withLines.includes('will appear here'), 'transcript: your words and the companion\'s, each labelled, oldest first')
+  ok(withLines.indexOf('make the title shorter') < withLines.indexOf('Done. The title is on one line now.') && /role="log"[^>]*aria-live="polite"|aria-live="polite"[^>]*role="log"/.test(withLines) && withLines.includes('tabindex="0"'), 'transcript: a log, announced politely, reachable by keyboard (it scrolls)')
+  // hide it and show it again (the toggle is real state: the offline renderer clicks it)
+  {
+    const rootNode = await mount({ transcript: talk, caption: 'Done. The title is on one line now.' })
+    const toggle = () => hostNodes(rootNode.tree, node => node.props?.['aria-expanded'] !== undefined)[0]
+    ok(markup(rootNode).includes('data-voice-transcript="open"') && !markup(rootNode).includes('data-studio-voice-caption'), 'transcript: shown by default')
+    toggle().props.onClick(); await settleRoot(rootNode)
+    const hidden = markup(rootNode)
+    ok(hidden.includes('data-voice-transcript="collapsed"') && !hidden.includes('role="log"') && hidden.includes('aria-label="Show transcript"') && hidden.includes('aria-expanded="false"') && hidden.includes('>Transcript<'), 'transcript: hidden: only its bar is left')
+    ok(hidden.includes('data-studio-voice-caption="line"') && hidden.includes('Done. The title is on one line now.'), 'transcript: ...and the line being said shows as a subtitle instead')
+    toggle().props.onClick(); await settleRoot(rootNode)
+    ok(markup(rootNode).includes('data-voice-transcript="open"') && markup(rootNode).includes('role="log"') && !markup(rootNode).includes('data-studio-voice-caption'), 'transcript: shown again')
+    rootNode.unmount()
   }
-  const phoneHtml = await phoneDock(true), deskHtml = await phoneDock(false)
-  ok(phoneHtml.includes('data-voice-phone="true"') && phoneHtml.includes('data-size="64"') && deskHtml.includes('data-voice-phone="false"') && deskHtml.includes('data-size="88"'), 'dock: a phone gets the 64 px disc, a desktop the 88 px one')
-  // the button
-  const button = makeHost({ env: ENV_ON, over, stubs: { '../studio-composer-hint': { StudioComposerHint: noHint } } }).load(BUTTON)
-  const b = p => renderToStaticMarkup(React.createElement(button.VoiceCallButton, { active: false, busy: false, disabled: false, onClick: () => {}, studio: true, ...p }))
-  ok(b({}).includes('aria-label="Start a voice call"') && b({}).includes('data-voice-active="false"') && b({}).includes('type="button"') && b({}).includes('aria-pressed="false"'), 'button: starts a call')
-  ok(b({ active: true }).includes('aria-label="End the voice call"') && b({ active: true }).includes('data-voice-active="true"') && b({ active: true }).includes('aria-pressed="true"'), 'button: ends it')
-  ok(/disabled=""/.test(b({ busy: true })) && /disabled=""/.test(b({ disabled: true })) && !/disabled=""/.test(b({})), 'button: off while the microphone is asked for')
-  ok(!b({ studio: true }).includes('title=') && b({ studio: false }).includes('title="Start a voice call"'), 'button: a tooltip in the shell, a title elsewhere')
+  // the controls call the page's handlers
+  {
+    const rootNode = await mount({ controls: { talk: true, stop: true, mute: true, end: true } })
+    const byLabel = label => hostNodes(rootNode.tree, node => node.props?.['aria-label'] === label)[0]
+    calls.length = 0
+    byLabel('Stop').props.onClick(); byLabel('Mute microphone').props.onClick(); byLabel('End call').props.onClick()
+    const talkButton = byLabel('Hold to talk')
+    const ev = { preventDefault() {}, pointerId: 1, currentTarget: { setPointerCapture() {}, releasePointerCapture() {} } }
+    talkButton.props.onPointerDown(ev); talkButton.props.onPointerUp(ev); talkButton.props.onPointerDown(ev); talkButton.props.onPointerCancel()
+    eq(calls, ['stop', 'mute:true', 'end', 'press', 'release', 'press', 'release'], 'controls: Stop, Mute (to muted), End, and the talk button\'s press and release (up or cancelled) reach the call')
+    let prevented = 0; talkButton.props.onKeyDown({ key: ' ', preventDefault: () => { prevented++ } }); talkButton.props.onKeyDown({ key: 'a', preventDefault: () => { prevented++ } }); eq(prevented, 1, 'controls: Space on the talk button does not click it (the page\'s Space handler talks)')
+    rootNode.unmount()
+    const m = await mount({ muted: true }); calls.length = 0; hostNodes(m.tree, node => node.props?.['aria-label'] === 'Unmute microphone')[0].props.onClick(); eq(calls, ['mute:false'], 'controls: when muted the button unmutes'); m.unmount()
+  }
+  // a notice: with no call it is docked above the composer; during a call it floats over the stage
+  const noMic = html({ active: false, notice: { kind: 'mic', title: 'Your browser blocked the microphone', steps: ['Click the lock icon.', 'Then press Try again.'], retry: true }, controls: { talk: false, stop: false, mute: false, end: false } })
+  ok(noMic.includes('data-studio-voice-call="notice"') && !noMic.includes('data-studio-voice-call="stage"') && !noMic.includes('role="log"') && !noMic.includes('Hold to talk'), 'notice: no call: only the words, docked (no stage, no controls)')
+  ok(noMic.includes('role="alert"') && noMic.includes('Your browser blocked the microphone') && noMic.includes('Click the lock icon.') && noMic.includes('Try again</button>') && noMic.includes('aria-label="Dismiss"') && noMic.includes('data-studio-voice-notice="mic"'), 'notice: a refused microphone says why, what to do, with Try again and Dismiss')
+  const turnNotice = html({ notice: { kind: 'turn', title: 'That was too short', steps: ['Hold the button the whole time you speak.'], retry: false } })
+  ok(turnNotice.includes('data-studio-voice-call="stage"') && turnNotice.includes('data-studio-voice-notice="turn"') && !turnNotice.includes('Try again'), 'notice: during a call it is on the stage, and a notice that cannot be retried has no Try again')
+  ok(html({ active: false }) === '' && !html({ active: false }).includes('data-studio-voice-caption'), 'notice: nothing to say and no call: nothing is drawn')
+  {
+    const rootNode = await mount({ active: false, notice: { kind: 'mic', title: 'x', steps: ['y'], retry: true }, controls: { talk: false, stop: false, mute: false, end: false } }); calls.length = 0
+    const named = (tag, text) => hostNodes(rootNode.tree, node => node.type === tag && JSON.stringify(node.children).includes(text))[0]
+    named('button', 'Try again').props.onClick(); hostNodes(rootNode.tree, node => node.props?.['aria-label'] === 'Dismiss')[0].props.onClick(); eq(calls, ['retry', 'dismiss'], 'notice: Try again and Dismiss reach the call'); rootNode.unmount()
+  }
+  // a phone: the disc is 148 px (the media query is read in an effect, so the stage is run in the offline host)
+  const phoneStage = async matches => {
+    const prev = globalThis.window
+    globalThis.window = { matchMedia: () => ({ matches, addEventListener() {}, removeEventListener() {} }) }
+    try { const rootNode = await mount({}); const out = markup(rootNode); rootNode.unmount(); return out } finally { globalThis.window = prev }
+  }
+  const phoneHtml = await phoneStage(true), deskHtml = await phoneStage(false)
+  ok(phoneHtml.includes('data-voice-phone="true"') && phoneHtml.includes('data-size="148"') && deskHtml.includes('data-voice-phone="false"') && deskHtml.includes('data-size="176"'), 'stage: a phone gets the 148 px disc, a desktop the 176 px one')
+  // the character's scene: the pack's own image when it has one, else the gradient
+  const sceneWorld = async (manifest, have, snapshot = { mode: 'video' }) => {
+    const asked = []
+    const was = { fetch: globalThis.fetch, Image: globalThis.Image }
+    globalThis.fetch = async url => { asked.push(url); if (manifest === 'throws') throw new Error('offline'); return { ok: manifest !== null, json: async () => manifest } }
+    globalThis.Image = class { set src(url) { asked.push(url); queueMicrotask(() => { if (have.includes(url)) this.onload?.(); else this.onerror?.() }) } }
+    try {
+      const mod = loadStage()
+      const rootNode = await mount(snapshot, mod); const out = markup(rootNode); rootNode.unmount(); return { out, asked }
+    } finally { Object.assign(globalThis, { fetch: was.fetch, Image: was.Image }) }
+  }
+  const art1 = await sceneWorld({}, ['/companions/bob/scene.webp'])
+  ok(art1.out.includes('data-voice-art="image"') && art1.out.includes('/companions/bob/scene.webp') && art1.asked.join(' ').includes('/companions/bob/motion/manifest.json'), 'scene: a pack with scene.webp: it is the canvas (the manifest is read for a named file first)')
+  const art2 = await sceneWorld({ scene: 'scenes/desk.png' }, ['/companions/bob/scenes/desk.png', '/companions/bob/scene.webp'])
+  ok(art2.out.includes('data-voice-art="image"') && art2.out.includes('/companions/bob/scenes/desk.png') && !art2.out.includes('/companions/bob/scene.webp'), 'scene: ...or the file its manifest names')
+  const art3 = await sceneWorld({}, [])
+  ok(art3.out.includes('data-voice-art="gradient"') && !art3.out.includes('--voice-scene-art'), 'scene: a pack with none: the gradient')
+  const art4 = await sceneWorld('throws', ['/companions/bob/scene.webp'])
+  ok(art4.out.includes('data-voice-art="image"'), 'scene: a manifest that cannot be read falls back to scene.webp')
+  const art5 = await sceneWorld({ scene: '../../etc/passwd.webp' }, ['/companions/bob/scene.webp'])
+  ok(art5.out.includes('/companions/bob/scene.webp') && !art5.out.includes('passwd'), 'scene: a manifest\'s path that leaves the pack\'s folder is not followed')
+  const art6 = await sceneWorld({}, ['/companions/bob/scene.webp'], { mode: 'audio' })
+  eq([art6.asked.length, art6.out.includes('data-voice-art="gradient"')], [0, true], 'scene: an audio call asks for no scene (it has none)')
+  const art7 = await sceneWorld({}, ['/companions/bob/scene.webp'], { active: false, notice: { kind: 'mic', title: 'x', steps: ['y'], retry: true }, mode: 'video' })
+  eq(art7.asked.length, 0, 'scene: with no call nothing is asked for')
+  // the two buttons beside Send
+  const buttons = makeHost({ env: ENV_ON, over, stubs: { '../studio-composer-hint': { StudioComposerHint: noHint } } }).load(BUTTONS)
+  const starts = []
+  const b = p => renderToStaticMarkup(React.createElement(buttons.VoiceCallButtons, { active: false, busy: false, disabled: false, onStart: mode => starts.push(mode), studio: true, ...p }))
+  ok(b({}).includes('data-studio-voice-call="buttons"') && b({}).includes('role="group"') && b({}).includes('aria-label="Start a call"'), 'buttons: one group beside Send')
+  ok(b({}).includes('aria-label="Start an audio call"') && b({}).includes('aria-label="Start a video call"') && b({}).includes('data-voice-mode="audio"') && b({}).includes('data-voice-mode="video"') && (b({}).match(/type="button"/g) ?? []).length === 2, 'buttons: Audio and Video, two buttons, one tap each')
+  ok(b({}).indexOf('data-voice-mode="audio"') < b({}).indexOf('data-voice-mode="video"') && b({}).includes('>Audio<') && b({}).includes('>Video<') && b({}).includes('studio-voice-start-word hidden'), 'buttons: Audio first; each has its word, shown on a phone only (the stylesheet)')
+  ok((b({ busy: true }).match(/disabled=""/g) ?? []).length === 2 && (b({ disabled: true }).match(/disabled=""/g) ?? []).length === 2 && !/disabled=""/.test(b({})), 'buttons: both off while the microphone is asked for')
+  ok(!b({ studio: true }).includes('title=') && b({ studio: false }).includes('title="Start an audio call"') && b({ studio: false }).includes('title="Start a video call"'), 'buttons: a tooltip in the shell, a title elsewhere')
+  {
+    const rootNode = new Root(); rootNode.setElement(React.createElement(buttons.VoiceCallButtons, { active: false, busy: false, disabled: false, onStart: mode => starts.push(mode), studio: true })); await settleRoot(rootNode)
+    starts.length = 0; for (const node of hostNodes(rootNode.tree, n => n.type === 'button')) node.props.onClick()
+    eq(starts, ['audio', 'video'], 'buttons: Audio starts an audio call, Video a video call'); rootNode.unmount()
+  }
   // the player without a pack
   const player = makeHost({ env: ENV_ON, over }).load(PLAYER)
   const p = renderToStaticMarkup(React.createElement(player.CompanionPlayer, { pack: 'bob', scene: 'idle', dance: false, framing: 'disc', size: 88, reducedMotion: false, getLevel: () => 0 }))
   ok(p.includes('data-studio-voice-companion="loading"') && p.includes('>B<') && p.includes('width:88px') && p.includes('height:88px') && !p.includes('<canvas'), 'player: before the pack is read: a plain disc with initials, no canvas')
   ok(renderToStaticMarkup(React.createElement(player.CompanionPlayer, { pack: 'deckster-owl', scene: 'idle', dance: false, framing: 'chest', size: 240, reducedMotion: true, getLevel: () => 0 })).includes('>DO<'), 'player: initials of the pack\'s name')
-  return host
 }
 
 async function hookSuite(over = {}) {
@@ -832,8 +1020,13 @@ async function hookSuite(over = {}) {
   const mk = env => {
     const calls = { controllers: [] }
     const stubs = {
-      'next/dynamic': () => () => null,
-      '@/lib/studio-voice-call-controller': { VoiceCallController: class { constructor(o) { calls.controllers.push(o); this.subscribe = () => () => {}; this.getSnapshot = () => ({ active: false, starting: false, notice: null }); this.onFrame = () => {}; this.onSent = () => {}; this.dispose = () => { calls.disposed = true }; this.endCall = () => { calls.ended = (calls.ended ?? 0) + 1 }; this.getLevel = () => 0 } } },
+      '@/components/builder/voice-call/voice-call-stage': { VoiceCallStage: function FakeStage() { return null } },
+      '@/lib/studio-voice-call-controller': { VoiceCallController: class { constructor(o) {
+        calls.controllers.push(o); calls.snapshot = { active: false, starting: false, notice: null, mode: 'audio' }; calls.did = []
+        this.subscribe = () => () => {}; this.getSnapshot = () => calls.snapshot; this.onFrame = () => {}; this.onSent = () => {}; this.dispose = () => { calls.disposed = true }; this.endCall = () => { calls.ended = (calls.ended ?? 0) + 1 }; this.getLevel = () => 0
+        this.startCall = async mode => { calls.did.push(['start', mode]) }; this.talkPress = () => { calls.did.push(['press']) }; this.talkRelease = () => { calls.did.push(['release']) }; this.pttUp = async () => { calls.did.push(['pttUp']) }
+        this.stop = () => { calls.did.push(['stop']) }; this.setMuted = muted => { calls.did.push(['mute', muted]) }; this.dismissNotice = () => { calls.did.push(['dismiss']) }
+      } } },
       '@/lib/studio-voice-call-browser': { browserVoiceEnv: () => ({ marker: 'env' }), browserVoicePort: () => ({ marker: 'port' }) },
     }
     const host = makeHost({ env, over, stubs })
@@ -866,8 +1059,30 @@ async function hookSuite(over = {}) {
     eq([o.env, o.port], [{ marker: 'env' }, { marker: 'port' }], 'hook: ...with the browser\'s environment and the router port')
     ok(typeof on.ui.voiceCallBus.frame === 'function' && typeof on.ui.voiceCallBus.sent === 'function', 'hook: ...and the bus is wired to it')
     o.sendTurn('hello'); eq(sent, ['hello'], 'hook: the controller\'s send is the page\'s send'); o.sendAction({ label: 'Yes' }, 'm1'); eq(actions, [[{ label: 'Yes' }, 'm1']], 'hook: ...and a card\'s button is the page\'s own click'); eq(o.isConnected(), true, 'hook: ...and it knows the socket is open')
-    eq(onRun.latest().composerProps?.active, false, 'hook: the composer gets the call button\'s state')
+    const cp = onRun.latest().composerProps
+    eq([cp?.active, cp?.busy, cp?.disabled, typeof cp?.onStart, onRun.latest().dock], [false, false, false, 'function', null], 'hook: the composer gets the two buttons\' state and handler; no stage while there is no call')
+    cp.onStart('video'); cp.onStart('audio'); await settle(); eq(on.calls.did, [['start', 'video'], ['start', 'audio']], 'hook: Video and Audio start the call in their mode')
     eq(listeners.length, 0, 'hook: no key listener before a call')
+    // a call is on: the stage is drawn from the snapshot, the composer is told to hide, Space talks
+    on.calls.snapshot = { active: true, starting: false, notice: null, mode: 'video', muted: false }; await onRun.set({})
+    const live = onRun.latest(), stageEl = live.dock
+    eq([live.composerProps.active, typeof stageEl?.type, stageEl?.props.pack, stageEl?.props.snapshot === on.calls.snapshot], [true, 'function', 'bob', true], 'hook: a call is on: the stage is drawn (the companion\'s pack) and the composer is told to hide')
+    on.calls.did.length = 0
+    stageEl.props.onTalkPress(); stageEl.props.onTalkRelease(); stageEl.props.onStop(); stageEl.props.onMute(true); stageEl.props.onEnd(); stageEl.props.onDismissNotice(); stageEl.props.onRetry()
+    eq([on.calls.did, on.calls.ended ?? 0], [[['press'], ['release'], ['stop'], ['mute', true], ['dismiss'], ['start', 'video']], 1], 'hook: the stage\'s controls reach the call (Try again starts the same kind of call)')
+    on.calls.ended = 0
+    const types = listeners.filter(l => l[0] === 'add').map(l => l[1]).sort(); eq(types, ['blur', 'keydown', 'keyup'], 'hook: ...Space and losing the window are listened to only while a call is on')
+    const handler = type => listeners.filter(l => l[0] === 'add' && l[1] === type).at(-1)[2]
+    const target = (tag = 'DIV') => ({ tagName: tag, getAttribute: () => null, closest: () => null })
+    let prevented = 0
+    const key = (type, extra = {}) => handler(type)({ code: 'Space', key: ' ', target: target(), preventDefault: () => { prevented++ }, ...extra })
+    on.calls.did.length = 0
+    key('keydown'); key('keyup'); key('keydown', { target: target('TEXTAREA') }); key('keyup', { target: target('TEXTAREA') }); key('keydown', { repeat: true }); key('keydown', { code: 'KeyA', key: 'a' })
+    eq([on.calls.did, prevented], [[['press'], ['release']], 2], 'hook: Space presses and releases the talk button; in a text field, repeating or another key it does nothing (and keeps its default)')
+    on.calls.did.length = 0; handler('blur')(); eq(on.calls.did, [['pttUp']], 'hook: losing the window lets go')
+    on.calls.snapshot = { active: false, starting: false, notice: { kind: 'mic', title: 'x', steps: [], retry: true }, mode: 'video' }; await onRun.set({})
+    eq([onRun.latest().composerProps.active, typeof onRun.latest().dock?.type], [false, 'function'], 'hook: a refused microphone: the composer is back and the notice is drawn')
+    on.calls.snapshot = { active: false, starting: false, notice: null, mode: 'video' }; await onRun.set({}); eq([onRun.latest().dock, listeners.filter(l => l[0] === 'remove').length], [null, 3], 'hook: the call is over: nothing drawn, the listeners removed')
     eq(on.calls.ended ?? 0, 0, 'hook: the call is not ended while the session stays')
     await onRun.set({ sessionKey: 's2' }); eq(on.calls.ended, 1, 'hook: the session on screen changed: the call is ended')
     await onRun.set({ connected: false }); eq([on.calls.ended, o.isConnected()], [1, false], 'hook: ...and only a change of session ends it (the socket state is read live)')
@@ -890,13 +1105,13 @@ function sourceSuite(sources, { base = null } = {}) {
   const page = sources[PAGE], ws = sources[WS], input = sources[INPUT], env = sources['.env.example'], hook = sources[HOOK]
   const lineOf = (text, needle) => { const found = lines(text).filter(line => line.includes(needle)); ok(found.length === 1, `exactly one line with: ${needle.slice(0, 70)} (${found.length})`); return found[0] }
   // the page
-  eq(lines(page).filter(line => MARK.test(line)).length, 6, 'page: six marked lines (the comment and the hook call, the dock, the composer prop, the comment and the import at the end)')
+  eq(lines(page).filter(line => MARK.test(line)).length, 6, 'page: six marked lines (the comment and the hook call, the call, the composer prop, the comment and the import at the end)')
   const call = lineOf(page, 'const voiceCall = useStudioVoiceCall({')
   ok(call.includes('enabled: studioShell') && call.includes('sendTurn: text => handleSendMessage(undefined, text)') && call.includes('sendAction: handleActionClick,') && call.includes('sessionKey: currentSessionId || wsSessionId') && call.includes('connected }) // VOICE-CALL'), 'page: the hook is handed the Studio shell, the page\'s ordinary send, the session and the socket state')
   ok(page.indexOf(call) > page.indexOf('const handleSendMessage = useCallback(') && page.indexOf(call) > page.indexOf('const handleActionClick = useCallback(') && page.indexOf(call) > page.indexOf('const flowControl = useStudioFlowControl({'), 'page: the call hook comes after the two sends it uses (a typed turn, a card\'s button) and after the flow hook')
   eq(lines(page).filter(line => MARK.test(line) && /handleActionClick\(/.test(line)).length, 0, 'page: no call of handleActionClick( is written by this change (the outline canvas proof counts them: the hook is handed the function itself)')
   const dockLine = lineOf(page, '{voiceCall.dock}{/* VOICE-CALL')
-  ok(page.indexOf(dockLine) > page.indexOf('{flowControl.bar}') && page.indexOf(dockLine) < page.indexOf('<ChatInput\n'), 'page: the dock sits above the composer, under the flow bar')
+  ok(page.indexOf(dockLine) > page.indexOf('{flowControl.bar}') && page.indexOf(dockLine) < page.indexOf('<ChatInput\n'), 'page: the call (its stage over the column, or the notice above the composer) sits under the flow bar, before the composer')
   const propLine = lineOf(page, '{...(voiceCall.composerProps ? { voiceCall: voiceCall.composerProps } : {})} // VOICE-CALL')
   ok(page.indexOf(propLine) > page.indexOf('<ChatInput\n') && page.indexOf(propLine) < page.indexOf('onSubmit={handleSendMessage}'), 'page: the call button\'s props reach the composer (and only with the flag on)')
   const importLine = lineOf(page, "import { useStudioVoiceCall } from '@/hooks/use-studio-voice-call' // VOICE-CALL")
@@ -919,11 +1134,15 @@ function sourceSuite(sources, { base = null } = {}) {
   ok(ws.indexOf(sentTap) > ws.indexOf(fields) && lines(ws)[lines(ws).indexOf(sentTap) - 1].includes('wsRef.current.send(JSON.stringify(message));'), 'ws: ...right after the send')
   ok(!ws.includes('onVoiceCall') && !ws.includes('getUserMedia') && !/mode:\s*'voice'/.test(ws.replace(sentTap, '')), 'ws: no new option, no microphone; the mode is written in the lib only')
   // the composer
-  eq(lines(input).filter(line => MARK.test(line)).length, 5, 'input: five marked lines (two imports, the prop, its destructuring, the button)')
-  lineOf(input, "import { VoiceCallButton } from './voice-call/voice-call-button' // VOICE-CALL"); lineOf(input, "import type { VoiceCallComposerProps } from '@/lib/studio-voice-call-ui' // VOICE-CALL")
+  eq(lines(input).filter(line => MARK.test(line)).length, 6, 'input: six marked lines (two imports, the prop, its destructuring, the line that hides the composer during a call, the two buttons)')
+  lineOf(input, "import { VoiceCallButtons } from './voice-call/voice-call-buttons' // VOICE-CALL"); lineOf(input, "import type { VoiceCallComposerProps } from '@/lib/studio-voice-call-ui' // VOICE-CALL")
   lineOf(input, '  voiceCall?: VoiceCallComposerProps // VOICE-CALL'); lineOf(input, '  voiceCall, // VOICE-CALL')
-  const btn = lineOf(input, '{voiceCall ? <VoiceCallButton {...voiceCall} studio={studio} /> : null}{/* VOICE-CALL')
-  ok(input.indexOf(btn) > input.indexOf('aria-label="Build theme"') && input.indexOf(btn) > input.indexOf("data-studio-composer-menu={studio ? 'research' : undefined}") && input.indexOf(btn) < input.indexOf('{chatClean ? <StudioChatCleanSendSide'), 'input: the call button is last in the toolbar\'s left group, before the send side')
+  const btn = lineOf(input, '{voiceCall ? <VoiceCallButtons {...voiceCall} studio={studio} /> : null}{/* VOICE-CALL')
+  ok(input.indexOf(btn) > input.indexOf('{chatClean ? <StudioChatCleanSendSide') && input.indexOf(btn) < input.indexOf('{isTemplateReuseRunning ? (') && input.indexOf(btn) < input.indexOf('data-studio-v4-send="true"') && input.indexOf(btn) > input.indexOf('aria-label="Build theme"'), 'input: the two call buttons sit right beside Send: after the toolbar\'s tools and the chat-clean send side, before Send')
+  const hide = lineOf(input, 'if (voiceCall?.active) return null // VOICE-CALL')
+  const mainReturn = input.indexOf('  return (\n    <div\n      data-studio-v4-chrome=')
+  ok(input.indexOf(hide) < mainReturn && input.slice(input.indexOf(hide) + hide.length, mainReturn).trim() === '' && !/(^\s+|=\s*)use[A-Z]\w*\(/m.test(input.slice(input.indexOf(hide))), 'input: while a call is on the composer returns nothing, right before the main return and after every hook (its draft, uploads and state stay)')
+  ok(!lines(input).some(line => /VOICE-CALL/.test(line) && /ml-auto|justify-between/.test(line)), 'input: the call changes none of the toolbar\'s layout in the component (the stylesheet places the buttons)')
   ok(!input.includes('getUserMedia'), 'input: the composer never asks for the microphone')
   // the microphone: asked for in one place
   const code = text => text.replace(/\/\/[^\n]*/g, '').replace(/\/\*[\s\S]*?\*\//g, '')
@@ -935,7 +1154,8 @@ function sourceSuite(sources, { base = null } = {}) {
   ok(hook.includes("import('@/lib/studio-voice-call-controller')") && hook.includes("import('@/lib/studio-voice-call-browser')") && !/^import (?!type )[^\n]*studio-voice-call-(controller|browser)'/m.test(hook) && !/^import (?!type )[^\n]*@\/lib\/studio\/voice/m.test(hook), 'hook: the controller, the browser adapters and the core are loaded on demand, not imported')
   ok(hook.includes('spaceBelongsToTarget(event.target as HTMLElement | null)') && !hook.includes('isTypingTarget('), 'hook: Space is the talk key unless the target keeps it (a text field, a control that Space activates)')
   ok(hook.includes('const enabled = options.enabled && STUDIO_VOICE_CALL_UI_ENABLED') && /if \(!enabled\) return\n/.test(hook), 'hook: the flag gates the load')
-  ok(hook.includes("dynamic(() => import('@/components/builder/voice-call/voice-call-dock')") && !/^import .*voice-call-dock/m.test(hook), 'hook: the dock (and its stylesheet and icons) is its own chunk')
+  ok(hook.includes("import('@/components/builder/voice-call/voice-call-stage')") && !/^import (?!type )[^\n]*voice-call-stage/m.test(hook) && !hook.includes("from 'next/dynamic'"), 'hook: the stage (and its stylesheet and icons, which the two buttons use too) is its own chunk, loaded with the controller when the flag is on, before the buttons are handed out')
+  ok(!/^import (?!type )[^\n]*voice-call-buttons/m.test(hook) && /import \{ VoiceCallButtons \}/.test(input), 'hook: the two buttons are the composer\'s own import (a few lines, no stylesheet)')
   // .env.example
   ok(env.endsWith(`\n${strip.VOICE_CALL_ENV_BLOCK}`) && strip.VOICE_CALL_ENV_BLOCK.endsWith('\n'), '.env.example: the block is the last thing in the file, after one blank line')
   eq(lines(env).filter(line => line === 'NEXT_PUBLIC_STUDIO_VOICE_COMPANION="bob"').length, 1, '.env.example: the companion once, "bob"'); eq(lines(env).filter(line => /^NEXT_PUBLIC_STUDIO_VOICE_CALL=/.test(line)).length, 1, '.env.example: the call flag is on ELEMENT-3\'s one line, not repeated here')
@@ -969,7 +1189,10 @@ function sourceSuite(sources, { base = null } = {}) {
   ok(sources[PLAYER].includes('const width = framedWidth(framing, size, rect)'), 'player: its width is the lib\'s (the disc is a square, the chest as wide as its crop)')
   // the stylesheet: nothing global, nothing that reaches an element without the call's own attributes
   const css = sources[CSS]
-  ok(lines(css).filter(line => /^[^\s@/}]/.test(line) && !line.startsWith('[data-studio-v4-shell="true"] [data-studio-voice-call="dock"]') && !line.startsWith('[data-studio-voice-call="dock"]')).length === 0, 'css: every rule is keyed to the call\'s own attribute')
+  const keyed = line => /^\[data-studio-voice-call="(stage|notice|buttons|button)"\]/.test(line) || /^\[data-studio-v4-shell="true"\] \[data-studio-voice-call="(stage|notice|buttons|button)"\]/.test(line) || /^\[data-studio-v4-chrome="true"\] \[data-studio-voice-call="button"\]/.test(line) || /^\[data-studio-v4-shell="true"\] \[data-studio-chat-clean\] \[data-studio-voice-call="(buttons|button)"\]/.test(line)
+  ok(lines(css).filter(line => /^[^\s@/}]/.test(line) && !keyed(line)).length === 0, 'css: every rule is keyed to the call\'s own attribute')
+  ok(!/\[data-studio-v4-send\]/.test(css) && !/(^|\n)(html|body|button|\*)\b/.test(css), 'css: nothing reaches Send or any element the call does not own')
+  ok(/@media \(max-width: 767px\)[\s\S]*position: fixed; inset: 0/.test(css) && /studio-voice-start-word \{ display: inline; \}/.test(css) && /\[data-studio-chat-clean\] \[data-studio-voice-call="button"\] \{ width: 24px; height: 24px/.test(css) && /flex: 0 0 20%/.test(css), 'css: the stage is the whole screen on a phone, the buttons are the chat-clean 24 px square beside Send (a word on each on a phone), the transcript is a fifth')
   ok(/prefers-reduced-motion: reduce/.test(css) && /max-width: 767px/.test(css), 'css: reduced motion and the phone layout are there')
 }
 
@@ -984,7 +1207,7 @@ async function all(over = {}, { slow = true } = {}) {
   uiSuite(loadUi(over), over)
   await routerSuite(over)
   await controllerSuite(over)
-  await dockSuite(over)
+  await stageSuite(over)
   await hookSuite(over)
   sourceSuite({ ...SOURCES, ...over }, { base: baseSources })
 }
@@ -1019,6 +1242,7 @@ if (baseOk) {
     ok(OWN.length > 0 && subjects.filter(subject => subject.startsWith(strip.VOICE_CALL_SUBJECT)).length === OWN.length, 'scope: the commits are named "Voice call: ..." (this proof reads those)')
   }
   for (const rel of strip.VOICE_CALL_NEW_FILES) ok(fs.existsSync(path.join(root, rel)), `scope: ${rel} exists`)
+  for (const rel of strip.VOICE_CALL_RETIRED_FILES) ok(!fs.existsSync(path.join(root, rel)) && strip.VOICE_CALL_SCOPE_FILES.has(rel) && !strip.VOICE_CALL_NEW_FILES.includes(rel), `scope: ${rel} is gone from the tree (the stage and the two buttons replaced it) and stays named for the history`)
   ok(strip.VOICE_CALL_FILES.every(rel => !strip.VOICE_CALL_NEW_FILES.includes(rel)), 'scope: marked and new files are different lists')
   ok(!fs.existsSync(path.join(root, 'public/companions')) || !git('ls-files', 'public/companions').trim(), 'scope: no companion art is tracked')
 } else console.log(`NOTE D  git has no ${strip.BASE_COMMIT.slice(0, 8)}: the base-identity and scope checks were skipped`)
@@ -1066,8 +1290,25 @@ const mutants = [
   [UI, 'hold runs past its hold frame', "Math.min(raw, clip.hold !== undefined ? Math.min(clip.hold, last) : last)", 'Math.min(raw, last)'],
   [UI, 'the mouth never closes', 'if (smooth < 0.025) return syllable % 11 === 0 ? 7 : syllable % 7 === 0 ? 8 : 0', 'if (smooth < 0.025) return 2'],
   [UI, 'the disc is not square', 'return { sx: clamp(cx - side / 2, 0, size.width - side), sy: bbox.y, sw: side, sh: side }', 'return { sx: clamp(cx - side / 2, 0, size.width - side), sy: bbox.y, sw: side, sh: side * 1.3 }'],
-  [UI, 'the disc is 90 px', 'export const DISC_PX_DESKTOP = 88', 'export const DISC_PX_DESKTOP = 90'],
-  [UI, 'the chest is 200 px', 'export const CHEST_PX = 240', 'export const CHEST_PX = 200'],
+  [UI, 'the audio disc is 180 px', 'export const AUDIO_DISC_PX = 176', 'export const AUDIO_DISC_PX = 180'],
+  [UI, 'the phone disc is 160 px', 'export const AUDIO_DISC_PX_PHONE = 148', 'export const AUDIO_DISC_PX_PHONE = 160'],
+  [UI, 'the transcript is a quarter', 'export const TRANSCRIPT_SHARE = 0.2', 'export const TRANSCRIPT_SHARE = 0.25'],
+  [UI, 'the character ignores the scene\'s share', 'canvasHeight * SCENE_SHARE * 0.78', 'canvasHeight * 0.78'],
+  [UI, 'the character may be huge', 'Math.min(640, Math.max(160,', 'Math.min(2000, Math.max(160,'],
+  [UI, 'a scene path may leave the pack', "&& !path.split('/').includes('..') && !path.includes('//') ? path", '? path'],
+  [UI, 'a scene may be any file', '\\.(webp|png|jpg|jpeg)$/.test(path)', '\\.[a-z]+$/.test(path)'],
+  [UI, 'the transcript repeats a line', 'if (last && last.who === who && last.text === line) return list', ''],
+  [UI, 'the transcript never joins', 'if (join && last && last.who === who) return', 'if (false) return'],
+  [UI, 'the transcript is unbounded', 'return next.length > max ? next.slice(next.length - max) : next', 'return next'],
+  [UI, 'the transcript keeps the oldest', 'next.slice(next.length - max)', 'next.slice(0, max)'],
+  [UI, 'a tap is a long press', 'export const TAP_TALK_MS = 300', 'export const TAP_TALK_MS = 0'],
+  [UI, 'a latch is never sent', 'export const LATCH_MAX_MS = 60000', 'export const LATCH_MAX_MS = 6000000'],
+  [UI, 'the talk button does not say Muted', "if (input.muted) return 'Muted'", "if (input.muted) return 'Hold to talk'"],
+  [UI, 'the talk button does not say Tap to send', "if (input.latched) return 'Tap to send'", "if (input.latched) return 'Release to send'"],
+  [UI, 'the ring is not clamped', 'Math.round(Math.min(1, level * 4) * 100) / 100', 'Math.round(level * 4 * 100) / 100'],
+  [UI, 'Space is taken from the talk button', "if (target.closest?.('.studio-voice-talk')) return false", ''],
+  [UI, 'a muted call can talk', 'talk: live && input.connected && !input.muted', 'talk: live && input.connected'],
+  [UI, 'a call cannot be muted', 'mute: live, end: live', 'mute: false, end: live'],
   [UI, 'a phone is wider', "'(max-width: 767px)'", "'(max-width: 1023px)'"],
   [UI, 'Stop is always on', 'stop: live && (input.phase', 'stop: live || (input.phase'],
   [UI, 'talking works without a socket', 'talk: live && input.connected', 'talk: live'],
@@ -1172,15 +1413,49 @@ const mutants = [
   [HOOK, 'the bus is not cleared', 'if (voiceCallBus.frame === made.onFrame) voiceCallBus.frame = null', ''],
   [HOOK, 'the call outlives the session', 'controller?.endCall()', 'void 0'],
   [HOOK, 'the controller is not disposed', 'made.dispose()', 'void 0'],
-  [DOCK, 'the chip is not shown', '<span className="studio-voice-chip" data-chip={snapshot.chip} role="status"><i aria-hidden />{snapshot.chip}</span>', ''],
-  [DOCK, 'expanding does not change the framing', "const framing = expanded ? 'chest' : 'disc'", "const framing = 'disc'"],
-  [DOCK, 'the disc is not 64 on a phone', 'expanded ? CHEST_PX : phone ? DISC_PX_PHONE : DISC_PX_DESKTOP', 'expanded ? CHEST_PX : DISC_PX_DESKTOP'],
-  [DOCK, 'a notice has no way to retry', '{notice.retry ? <button type="button" onClick={onRetry}>Try again</button> : null}', ''],
-  [DOCK, 'the line is not shown', "{caption ? <p className=\"studio-voice-caption\"", "{false ? <p className=\"studio-voice-caption\""],
-  [DOCK, 'the progress is not shown', '{snapshot.progress ? <p className="studio-voice-progress"', '{false ? <p className="studio-voice-progress"'],
-  [DOCK, 'Stop is not off in your turn', 'disabled={!controls.stop}', 'disabled={false}'],
-  [BUTTON, 'the button does not toggle its label', 'const label = callButtonLabel(active)', "const label = 'Start a voice call'"],
-  [BUTTON, 'the button stays on while the mic is asked for', 'disabled={disabled || busy}', 'disabled={disabled}'],
+  [HOOK, 'Space presses the wrong way', '      event.preventDefault()\n      controller.talkPress()\n', '      event.preventDefault()\n      controller.talkRelease()\n'],
+  [HOOK, 'Space is not let go', '      event.preventDefault()\n      controller.talkRelease()\n', '      event.preventDefault()\n      controller.talkPress()\n'],
+  [HOOK, 'losing the window does not let go', "const release = () => { void controller.pttUp() }", 'const release = () => {}'],
+  [HOOK, 'a button starts the wrong kind of call', 'onStart: mode => { void controller.startCall(mode) }', 'onStart: () => { void controller.startCall() }'],
+  [HOOK, 'Try again starts another kind of call', 'void controller.startCall(controller.getSnapshot().mode)', 'void controller.startCall()'],
+  [HOOK, 'the composer stays during a call', 'active: snapshot.active || snapshot.starting, busy', 'active: false, busy'],
+  [HOOK, 'the stage is never drawn', 'const showDock = snapshot.active || snapshot.starting || !!snapshot.notice', 'const showDock = false'],
+  [HOOK, 'the mute button does nothing', 'onMute: muted => controller.setMuted(muted)', 'onMute: () => {}'],
+  [STAGE, 'the chip is not shown', '<span className="studio-voice-chip" data-chip={snapshot.chip} role="status"><i aria-hidden />{snapshot.chip}</span>', ''],
+  [STAGE, 'video draws the disc', 'framing="chest" size={videoCharacterPx(height)}', 'framing="disc" size={videoCharacterPx(height)}'],
+  [STAGE, 'video ignores the call\'s height', 'size={videoCharacterPx(height)}', 'size={240}'],
+  [STAGE, 'the disc is not smaller on a phone', 'const discPx = phone ? AUDIO_DISC_PX_PHONE : AUDIO_DISC_PX', 'const discPx = AUDIO_DISC_PX'],
+  [STAGE, 'audio has no ring', '<i className="studio-voice-ring" aria-hidden />', ''],
+  [STAGE, 'the level ring runs for nothing', "live && !snapshot.reducedMotion && (snapshot.holding || snapshot.scene === 'speaking')", 'true'],
+  [STAGE, 'Mute is always off', 'disabled={!controls.mute}', 'disabled={true}'],
+  [STAGE, 'Mute does not toggle', 'onClick={() => onMute(!muted)}', 'onClick={() => onMute(false)}'],
+  [STAGE, 'the talk button is not off when muted', 'disabled={!controls.talk}', 'disabled={false}'],
+  [STAGE, 'the talk button\'s press is its release', 'event.currentTarget.setPointerCapture?.(event.pointerId); onTalkPress() }}', 'event.currentTarget.setPointerCapture?.(event.pointerId); onTalkRelease() }}'],
+  [STAGE, 'a cancelled touch does not let go', 'onPointerCancel={onTalkRelease}', 'onPointerCancel={() => {}}'],
+  [STAGE, 'Space clicks the talk button', "if (event.key === ' ') event.preventDefault()", ''],
+  [STAGE, 'the transcript is hidden by default', 'const [collapsed, setCollapsed] = useState(false)', 'const [collapsed, setCollapsed] = useState(true)'],
+  [STAGE, 'the transcript toggle does not toggle', 'onToggle={() => setCollapsed(value => !value)}', 'onToggle={() => setCollapsed(true)}'],
+  [STAGE, 'a hidden transcript still lists', '{collapsed ? null : (', '{false ? null : ('],
+  [STAGE, 'the subtitle is always shown', "const subtitle = collapsed && !snapshot.starting ? snapshot.caption : null", "const subtitle = !snapshot.starting ? snapshot.caption : null"],
+  [STAGE, 'the subtitle never shows', "const subtitle = collapsed && !snapshot.starting ? snapshot.caption : null", 'const subtitle = null'],
+  [STAGE, 'you are the companion', "<b>{entry.who === 'you' ? 'You' : name}</b>", '<b>{name}</b>'],
+  [STAGE, 'the transcript is not a log', 'role="log"', 'role="region"'],
+  [STAGE, 'the scene is asked for in audio', 'useSceneArt(pack, live && mode === \'video\')', 'useSceneArt(pack, live)'],
+  [STAGE, 'the scene is asked for without a call', 'useSceneArt(pack, live && mode === \'video\')', 'useSceneArt(pack, mode === \'video\')'],
+  [STAGE, 'the scene is never used', "data-voice-art={art ? 'image' : 'gradient'}", "data-voice-art=\"gradient\""],
+  [STAGE, 'the scene is the wrong file', 'const url = sceneUrl(pack, file)', 'const url = sceneUrl(pack, DEFAULT_SCENE_FILE)'],
+  [STAGE, 'the manifest\'s scene is not read', 'file = sceneFileFrom(((await response.json()) as { scene?: unknown } | null)?.scene)', 'file = DEFAULT_SCENE_FILE'],
+  [STAGE, 'a missing scene is shown', 'image.onerror = () => resolve(null)', 'image.onerror = () => resolve(url)'],
+  [STAGE, 'the notice has no stage-less form', "if (!live) return noticeBlock ?", "if (false) return noticeBlock ?"],
+  [STAGE, 'the status is always the hint', "snapshot.progress && !muted && !snapshot.starting ? 'studio-voice-progress' : 'studio-voice-hint'", "'studio-voice-hint'"],
+  [STAGE, 'the muted status is lost', "muted ? MUTED_HINT : snapshot.progress", "snapshot.progress"],
+  [STAGE, 'a notice has no way to retry', '{notice.retry ? <button type="button" onClick={onRetry}>Try again</button> : null}', ''],
+  [STAGE, 'Stop is not off in your turn', 'disabled={!controls.stop}', 'disabled={false}'],
+  [BUTTONS, 'both buttons say the same', 'const label = callButtonLabel(mode)', "const label = callButtonLabel('audio')"],
+  [BUTTONS, 'both buttons start the same call', 'onClick={() => onStart(mode)}', "onClick={() => onStart('audio')}"],
+  [BUTTONS, 'the buttons stay on while the mic is asked for', 'disabled={disabled || busy}', 'disabled={disabled}'],
+  [BUTTONS, 'only one button', 'CALL_MODES.map(mode', "CALL_MODES.slice(0, 1).map(mode"],
+  [BUTTONS, 'the word shows on a desktop', 'studio-voice-start-word hidden', 'studio-voice-start-word'],
   [PLAYER, 'a pack that fails shows nothing', "{!ready ? <span className=\"studio-voice-initials\" aria-hidden>{initialsFor(pack)}</span> : null}", ''],
   [UI, 'the disc is as wide as its crop', "return rect && framing === 'chest' ? Math.round(size * rect.sw / rect.sh) : size", 'return rect ? Math.round(size * rect.sw / rect.sh) : size'],
   [PLAYER, 'the player sizes itself by hand', 'const width = framedWidth(framing, size, rect)', 'const width = size'],
@@ -1194,8 +1469,9 @@ const mutants = [
   [PAGE, 'the hook is called with the flag only', 'enabled: studioShell,', 'enabled: true,'],
   [PAGE, 'the dock is drawn without the hook', '{voiceCall.dock}{/* VOICE-CALL', '{null}{/* VOICE-CALL'],
   [PAGE, 'the voice turn goes by another send', 'sendTurn: text => handleSendMessage(undefined, text)', 'sendTurn: text => sendMessage(text)'],
-  [INPUT, 'the button is drawn with the flag off', '{voiceCall ? <VoiceCallButton', '{true ? <VoiceCallButton'],
-  [INPUT, 'the button is first in the toolbar', "              {voiceCall ? <VoiceCallButton {...voiceCall} studio={studio} /> : null}{/* VOICE-CALL (NEXT_PUBLIC_STUDIO_VOICE_CALL): the call button, last in the left group; the only thing that asks for the microphone */}\n            </div>", "            </div>"],
+  [INPUT, 'the buttons are drawn with the flag off', '{voiceCall ? <VoiceCallButtons', '{true ? <VoiceCallButtons'],
+  [INPUT, 'the composer stays during a call', 'if (voiceCall?.active) return null // VOICE-CALL', 'if (false) return null // VOICE-CALL'],
+  [INPUT, 'the composer hides before its hooks', '  if (voiceCall?.active) return null // VOICE-CALL', '  if (voiceCall?.active) return null // VOICE-CALL\n  useEffect(() => {}, [])'],
 ]
 const survivors = [], crashes = [], stale = []
 let mutantCount = 0

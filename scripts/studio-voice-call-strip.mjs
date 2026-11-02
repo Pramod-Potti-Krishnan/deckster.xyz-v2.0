@@ -1,11 +1,12 @@
 // FRONTEND-1 (W6 P4-20 "Talk to the Director", the Studio voice call UI). Flag NEXT_PUBLIC_STUDIO_VOICE_CALL (the string "true", default off, build-time; ELEMENT-3's P4-19 core owns the .env.example line that names it) and
-// NEXT_PUBLIC_STUDIO_VOICE_COMPANION (the pack folder under public/companions/, default "bob"). With the flag on: a call button in the composer's toolbar (the only thing that asks for the microphone), a companion
-// docked in the chat column above the composer (a face disc of 88 px, 64 px on a phone, that opens to a 240 px chest view) with the state chip (Your turn / Listening / Thinking / Speaking), push-to-talk (hold the
-// button or Space), Stop and talking over it, and the character driven by Director's frames. Speech goes in and out through a same-origin router contract (lib/studio-voice-call-router.ts), never direct.
+// NEXT_PUBLIC_STUDIO_VOICE_COMPANION (the pack folder under public/companions/, default "bob"). With the flag on: two call buttons (Audio, Video) right beside Send (the only things that ask for the microphone); while a call is on
+// the composer is not drawn and a stage fills the chat column (the whole screen on a phone): VIDEO is the character large in its setting (the pack's scene image, else a token gradient), AUDIO is a calm scene with the face large and
+// centred in a level ring, both with the state chip (Your turn / Listening / Thinking / Speaking), Stop / Mute / End, hold-to-talk or tap-to-talk (the button or Space), and a live transcript in the bottom fifth (scrollable, can be hidden);
+// the character is driven by Director's frames. Speech goes in and out through a same-origin router contract (lib/studio-voice-call-router.ts), never direct.
 // The Director side is DIRECTOR-2's P4-18 schema: client cap voice1, user_message data.mode "voice", payload.spoken and payload.companion_state.
-// Every line this change adds to an EXISTING file is a pure insertion that carries the marker VOICE-CALL (matched as a whole token): app/builder/page.tsx (the hook call, the dock, the composer prop, two lines at
+// Every line this change adds to an EXISTING file is a pure insertion that carries the marker VOICE-CALL (matched as a whole token): app/builder/page.tsx (the hook call, the call stage, the composer prop, two lines at
 // the end beside the flow-control import), hooks/use-deckster-websocket-v2.ts (one import, the frame tap, the two voice fields on the one armed voice turn, the sent tap) and components/builder/chat-input.tsx (two
-// imports, one prop, its destructuring, the button). Strip the marked lines and each file is its base, byte for byte. No existing line of app code is rewritten.
+// imports, one prop, its destructuring, the buttons beside Send, the line that hides the composer during a call). Strip the marked lines and each file is its base, byte for byte. No existing line of app code is rewritten.
 // How the older pins reach it: this change REGISTERS its files, its .env.example block and this strip (scripts/studio-later-changes.mjs, three lines). Plain node, no imports, nothing read from disk or git here.
 
 export const BASE_COMMIT = 'abf52d4d4858b24cdb62549325ae5b9eed36624e' // origin/studio-v4-dev-preparation-code (#554 merged) at the start of this change
@@ -27,8 +28,8 @@ export const VOICE_CALL_NEW_FILES = [
   'lib/studio-voice-call-browser.ts',
   'hooks/use-studio-voice-call.ts',
   'components/builder/voice-call/companion-player.tsx',
-  'components/builder/voice-call/voice-call-dock.tsx',
-  'components/builder/voice-call/voice-call-button.tsx',
+  'components/builder/voice-call/voice-call-stage.tsx',
+  'components/builder/voice-call/voice-call-buttons.tsx',
   'components/builder/voice-call/voice-call.css',
   'docs/p4-20/VOICE-CALL-UI.md',
   'scripts/studio-voice-call-strip.mjs',
@@ -40,22 +41,27 @@ export const VOICE_CALL_PUT_BACK_FILES = ['scripts/test-studio-chat-element-edit
 
 /** The one edit of the voice core's strip module (its commit-subject helper also names this change's commits): the line carries the marker, the text before it is the core's own. */
 export const VOICE_CALL_CORE_STRIP_EDIT = 'scripts/studio-voice-core-strip.mjs'
+/** The dock and the one toolbar button the first design had (replaced by the stage and the two buttons beside Send): this change's earlier commits touched them, the tree has them no more. */
+export const VOICE_CALL_RETIRED_FILES = ['components/builder/voice-call/voice-call-dock.tsx', 'components/builder/voice-call/voice-call-button.tsx']
+
 /** Files this change edits that are neither marked app code nor new: its .env.example block, the registry (three lines), the core's subject helper (one marked edit) and the proofs its history touched. No package.json script: run the proof with `node scripts/test-studio-voice-call.mjs`. */
 export const VOICE_CALL_OWN_EDITS = ['.env.example', 'scripts/studio-later-changes.mjs', VOICE_CALL_CORE_STRIP_EDIT, ...VOICE_CALL_PUT_BACK_FILES]
 
 /** Every file this change's own commits touch: what the older scope checks skip once the registry names it (scripts/studio-later-changes.mjs, LATER_CHANGE_FILES). */
-export const VOICE_CALL_SCOPE_FILES = new Set([...VOICE_CALL_FILES, ...VOICE_CALL_NEW_FILES, ...VOICE_CALL_OWN_EDITS])
+export const VOICE_CALL_SCOPE_FILES = new Set([...VOICE_CALL_FILES, ...VOICE_CALL_NEW_FILES, ...VOICE_CALL_OWN_EDITS, ...VOICE_CALL_RETIRED_FILES])
 
 /** The whole .env.example block (it follows ELEMENT-3's two lines, which hold NEXT_PUBLIC_STUDIO_VOICE_CALL=false). */
 export const VOICE_CALL_ENV_BLOCK = `# STUDIO VOICE CALL UI (FRONTEND-1, W6 P4-20). The flag is NEXT_PUBLIC_STUDIO_VOICE_CALL, on the line just above (it is ELEMENT-3's P4-19 line): the exact value "true" enables it; anything else, including unset, is off, and then nothing changes: no
-# button, no dock, no listener, no timer, no import of the voice core, and no microphone. Build-time value: change it on Vercel and redeploy. It needs the Studio shell. Set it only with Director's DIRECTOR_VOICE_CONTRACT_ENABLED (P4-18) and
+# buttons, no stage, no listener, no timer, no import of the voice core, and no microphone. Build-time value: change it on Vercel and redeploy. It needs the Studio shell. Set it only with Director's DIRECTOR_VOICE_CONTRACT_ENABLED (P4-18) and
 # the router's speech routes (below) in place; without them the call opens and says plainly "Speech isn't connected yet".
-# On: a call button sits last in the composer's toolbar. Tapping it is the only thing that asks for the microphone (getUserMedia); a refusal says why in plain words (the core's microphone help) with Try again. The call docks the companion above the
-# composer: an 88 px face disc (64 px on a phone) that opens to a 240 px chest view, a state chip (Your turn / Listening / Thinking / Speaking), hold-to-talk (the button or Space, never inside a text field), Stop and End. The words you say go as
-# an ordinary user_message with data.mode "voice" and the client cap "voice1"; Director answers with its usual chat text and, in voice mode, payload.spoken and payload.companion_state. Only payload.spoken is said. Reduced motion draws one still per state.
+# On: two call buttons, Audio and Video, sit right beside Send (one tap each). Tapping one is the only thing that asks for the microphone (getUserMedia); a refusal says why in plain words (the core's microphone help) with Try again.
+# While a call is on the composer is not drawn: a stage fills the chat column (the whole screen on a phone). VIDEO is the character large in its setting (the pack's scene image, public/companions/<name>/scene.webp or the manifest's "scene" file,
+# else a soft gradient out of the shell's tokens); AUDIO is a calm scene with the face large and centred in a level ring. Both have a state chip (Your turn / Listening / Thinking / Speaking), Stop, Mute and End, a talk button (hold it, or Space,
+# and let go to send; or tap it to talk until you tap again), and a live transcript in the bottom fifth (scrollable, can be hidden). The words you say go as an ordinary user_message with data.mode "voice" and the client cap "voice1"; Director
+# answers with its usual chat text and, in voice mode, payload.spoken and payload.companion_state. Only payload.spoken is said. Reduced motion draws one still per state.
 # Speech in and out is two same-origin routes that call model-router (never a vendor from the browser): POST /api/studio/voice/transcribe (multipart audio, label studio.voice_stt, answers {"text"}) and POST /api/studio/voice/speak
 # (JSON {"text","label":"studio.voice_tts"}, answers audio). Neither route exists yet (ELEMENT-3 / ROUTER-1).
-# STUDIO VOICE COMPANION: the character's pack folder under public/companions/ (bird layout: motion/manifest.json, a Face pack beside it for the disc). Lower-case letters, digits and dashes, up to 32; anything else is the default. A missing or invalid pack
+# STUDIO VOICE COMPANION: the character's pack folder under public/companions/ (bird layout: motion/manifest.json, a Face pack beside it for the audio call's disc, an optional scene image for the video call). Lower-case letters, digits and dashes, up to 32; anything else is the default. A missing or invalid pack
 # leaves a plain disc with initials. Garud delivers the packs; Bob is the first.
 NEXT_PUBLIC_STUDIO_VOICE_COMPANION="bob"
 `

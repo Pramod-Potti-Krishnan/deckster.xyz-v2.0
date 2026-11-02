@@ -7908,7 +7908,7 @@ function AuthenticatedBuilderContent({ authScopeUserId }: { authScopeUserId: str
                     <DirectorPresence narration={buildNarration} currentStatus={currentStatus} loadingSession={studioShell ? session.isLoadingSession : undefined} />
                   )}
                   {flowControl.bar}{/* FLOW-CONTROL (NEXT_PUBLIC_STUDIO_FLOW_AMEND): the calm line and Resume / Rebuild while the build is held; off, null */}
-                  {voiceCall.dock}{/* VOICE-CALL (NEXT_PUBLIC_STUDIO_VOICE_CALL): the companion docked above the composer while a call is on; off, null */}
+                  {voiceCall.dock}{/* VOICE-CALL (NEXT_PUBLIC_STUDIO_VOICE_CALL): the call, a stage over the chat column while it is on (the composer is hidden then), the microphone notice above the composer otherwise; off, null */}
 
                   {chatCleanOn ? <StudioChatCleanBar composer={chatCleanComposer} onContinue={chatCleanContinue} /> : null}{/* CHAT-CLEAN: the slim "Stopped at slide N · slides 1–N kept · Continue" bar above the composer while the build is held (the flow bar above it is hidden by the stylesheet); off, null */}
                   {workflowBrief && <div className="studio-brief-handoff" role="region" aria-label="Brief ready">

@@ -1,8 +1,8 @@
 "use client"
 
-import { createElement, useCallback, useEffect, useRef, useState, useSyncExternalStore, type ReactNode } from 'react'
-import dynamic from 'next/dynamic'
+import { createElement, useEffect, useRef, useState, useSyncExternalStore, type ComponentType, type ReactNode } from 'react'
 import type { VoiceCallController, VoiceCallSnapshot } from '@/lib/studio-voice-call-controller'
+import type { VoiceCallStageProps } from '@/components/builder/voice-call/voice-call-stage'
 import type { VoiceAction } from '@/lib/studio-voice-call-ui'
 import { STUDIO_VOICE_CALL_UI_ENABLED, STUDIO_VOICE_COMPANION, isTalkKey, spaceBelongsToTarget, voiceCallBus, disarmVoiceTurn, type VoiceCallComposerProps } from '@/lib/studio-voice-call-ui'
 
@@ -20,22 +20,19 @@ export interface UseStudioVoiceCallOptions {
 }
 
 export interface StudioVoiceCall {
-  /** The docked companion, above the composer: null until a call starts (or the microphone is refused). */
+  /** The call: a stage that fills the chat column while it is on (the composer is not drawn then), and the plain-words notice when the microphone was refused. null otherwise. */
   dock: ReactNode
-  /** What the composer's call button gets: null with the flag off. */
+  /** What the composer's two call buttons get (and `active`: the composer is hidden): null with the flag off, and until the call's code and stylesheet are loaded. */
   composerProps: VoiceCallComposerProps | null
 }
-
-/** The dock (and the companion player, its stylesheet and its icons) is its own chunk, fetched when a call first draws it: a page with the flag off never loads it. */
-const VoiceCallDock = dynamic(() => import('@/components/builder/voice-call/voice-call-dock').then(module => module.VoiceCallDock), { ssr: false })
 
 const NONE: StudioVoiceCall = { dock: null, composerProps: null }
 const noopSubscribe = () => () => {}
 
 /**
- * NEXT_PUBLIC_STUDIO_VOICE_CALL (default off). With it on, the call's controller and the browser's microphone and speaker adapters are loaded when the page mounts (a dynamic import: with the flag off
- * nothing of the core is in the page), the controller is shown Director's frames through the bus the socket hook feeds, and the dock and the composer button are drawn from its snapshot. The microphone is
- * asked for by the call button and nothing else. Space is the talk key while a call is on (never in a text field).
+ * NEXT_PUBLIC_STUDIO_VOICE_CALL (default off). With it on, the call's controller, the browser's microphone and speaker adapters and the call stage (with its stylesheet, which the two call buttons use too) are loaded
+ * when the page mounts (dynamic imports: with the flag off none of it is in the page), the controller is shown Director's frames through the bus the socket hook feeds, and the stage and the composer's two buttons
+ * are drawn from its snapshot. The microphone is asked for by a call button and nothing else. Space is the talk key while a call is on (never in a text field).
  */
 export function useStudioVoiceCall(options: UseStudioVoiceCallOptions): StudioVoiceCall {
   const enabled = options.enabled && STUDIO_VOICE_CALL_UI_ENABLED
@@ -43,16 +40,18 @@ export function useStudioVoiceCall(options: UseStudioVoiceCallOptions): StudioVo
   const live = useRef(options)
   live.current = options
   const [controller, setController] = useState<VoiceCallController | null>(null)
+  const [Stage, setStage] = useState<ComponentType<VoiceCallStageProps> | null>(null)
 
   useEffect(() => {
     if (!enabled) return
     let cancelled = false
     let made: VoiceCallController | null = null
-    void Promise.all([import('@/lib/studio-voice-call-controller'), import('@/lib/studio-voice-call-browser')]).then(([core, browser]) => {
+    void Promise.all([import('@/lib/studio-voice-call-controller'), import('@/lib/studio-voice-call-browser'), import('@/components/builder/voice-call/voice-call-stage')]).then(([core, browser, stage]) => {
       if (cancelled) return
       made = new core.VoiceCallController({ env: browser.browserVoiceEnv(), port: browser.browserVoicePort(), sendTurn: text => live.current.sendTurn(text), sendAction: (action, messageId, answerKey) => live.current.sendAction(action, messageId, answerKey), isConnected: () => live.current.connected })
       voiceCallBus.frame = made.onFrame
       voiceCallBus.sent = made.onSent
+      setStage(() => stage.VoiceCallStage)
       setController(made)
     })
     return () => {
@@ -64,6 +63,7 @@ export function useStudioVoiceCall(options: UseStudioVoiceCallOptions): StudioVo
       }
       disarmVoiceTurn()
       setController(null)
+      setStage(null)
     }
   }, [enabled])
 
@@ -86,13 +86,13 @@ export function useStudioVoiceCall(options: UseStudioVoiceCallOptions): StudioVo
     const down = (event: KeyboardEvent) => {
       if (!isTalkKey(event) || spaceBelongsToTarget(event.target as HTMLElement | null)) return
       event.preventDefault()
-      controller.pttDown()
+      controller.talkPress()
     }
     const up = (event: KeyboardEvent) => {
       if (event.code !== 'Space' && event.key !== ' ') return
       if (spaceBelongsToTarget(event.target as HTMLElement | null)) return
       event.preventDefault()
-      void controller.pttUp()
+      controller.talkRelease()
     }
     const release = () => { void controller.pttUp() }
     window.addEventListener('keydown', down)
@@ -105,23 +105,16 @@ export function useStudioVoiceCall(options: UseStudioVoiceCallOptions): StudioVo
     }
   }, [controller, active])
 
-  const toggle = useCallback(() => {
-    if (!controller) return
-    const current = controller.getSnapshot()
-    if (current.active || current.starting) controller.endCall()
-    else void controller.startCall()
-  }, [controller])
-
-  if (!enabled || !controller || !snapshot) return NONE
+  if (!enabled || !controller || !snapshot || !Stage) return NONE
   const showDock = snapshot.active || snapshot.starting || !!snapshot.notice
   return {
     dock: showDock
-      ? createElement(VoiceCallDock, {
+      ? createElement(Stage, {
         snapshot, pack: STUDIO_VOICE_COMPANION, getLevel: controller.getLevel,
-        onTalkStart: () => controller.pttDown(), onTalkEnd: () => { void controller.pttUp() }, onStop: () => controller.stop(), onEnd: () => controller.endCall(),
-        onToggleExpanded: () => controller.setExpanded(!controller.getSnapshot().expanded), onRetry: () => { void controller.startCall() }, onDismissNotice: () => controller.dismissNotice(),
+        onTalkPress: () => controller.talkPress(), onTalkRelease: () => controller.talkRelease(), onStop: () => controller.stop(), onMute: muted => controller.setMuted(muted), onEnd: () => controller.endCall(),
+        onRetry: () => { void controller.startCall(controller.getSnapshot().mode) }, onDismissNotice: () => controller.dismissNotice(),
       })
       : null,
-    composerProps: { active: snapshot.active || snapshot.starting, busy: snapshot.starting, disabled: false, onClick: toggle },
+    composerProps: { active: snapshot.active || snapshot.starting, busy: snapshot.starting, disabled: false, onStart: mode => { void controller.startCall(mode) } },
   }
 }

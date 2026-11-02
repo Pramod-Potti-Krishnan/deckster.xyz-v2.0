@@ -10,8 +10,8 @@ import {
   type CallEffect, type CallEvent, type CallState,
 } from '@/lib/studio/voice'
 import {
-  actionsFromFrame, applyDirectorSignal, callControls, closesOpenAction, rearmBeat, REPLY_LEAD_MS, chipLabel, companionScene, describeSpeechProblem, disarmVoiceTurn, initialDirectorTrack, armVoiceTurn, progressCaption, progressTextFromFrame,
-  isProgressSpoken, matchSpokenAnswer, signalFromFrame, spokenLineFromFrame, type CallControls, type CallNotice, type CallPhase, type ChipLabel, type CompanionScene, type DirectorTrack, type SpeechProblem, type VoiceAction,
+  actionsFromFrame, appendTranscript, applyDirectorSignal, callControls, closesOpenAction, rearmBeat, REPLY_LEAD_MS, LATCH_MAX_MS, TAP_TALK_MS, chipLabel, companionScene, describeSpeechProblem, disarmVoiceTurn, initialDirectorTrack, armVoiceTurn, progressCaption, progressTextFromFrame,
+  isProgressSpoken, matchSpokenAnswer, signalFromFrame, spokenLineFromFrame, type CallControls, type CallMode, type CallNotice, type CallPhase, type TranscriptEntry, type ChipLabel, type CompanionScene, type DirectorTrack, type SpeechProblem, type VoiceAction,
 } from '@/lib/studio-voice-call-ui'
 import { VoiceRouterError, type VoiceRouterPort } from '@/lib/studio-voice-call-router'
 import { askAnswerKey } from '@/lib/director-ask-identity'
@@ -23,6 +23,10 @@ export interface VoiceRecording {
 }
 export interface VoiceMic {
   record(): VoiceRecording
+  /** What the microphone hears now, 0..1 (the level ring while you talk). */
+  level?(): number
+  /** Mute: the tracks stop carrying sound. */
+  setMuted?(muted: boolean): void
   /** Release every track: the browser's recording indicator goes out. */
   close(): void
 }
@@ -64,10 +68,16 @@ export interface VoiceCallSnapshot {
   /** What Director is doing, from its frames ("Building the slides"), under the disc while it works. */
   progress: string | null
   notice: VoiceCallNotice | null
-  expanded: boolean
+  /** Audio or video: how the call is drawn (the same controls and transcript either way). */
+  mode: CallMode
+  muted: boolean
   reducedMotion: boolean
-  /** The talk button or Space is held. */
+  /** The talk button or Space is held, or latched on by a tap. */
   holding: boolean
+  /** A tap latched the microphone on: the next tap sends. */
+  latched: boolean
+  /** What was said so far in this call, oldest first (the live transcript). */
+  transcript: readonly TranscriptEntry[]
   controls: CallControls
 }
 
@@ -121,7 +131,13 @@ export class VoiceCallController {
   private active = false
   private starting = false
   private holding = false
-  private expanded = false
+  private mode: CallMode = 'audio'
+  private muted = false
+  private latched = false
+  private pressedAt = 0
+  private transcript: readonly TranscriptEntry[] = []
+  /** The turn whose reply the transcript's last line belongs to: the next sentence of that reply joins it. */
+  private joinTurn: number | null = null
   private notice: VoiceCallNotice | null = null
   private caption: string | null = null
   private captionUntil = 0
@@ -180,8 +196,8 @@ export class VoiceCallController {
   /** The running cost of this call (the core's meter): the known total, how many answers did not say, and the words for them. */
   getCost = (): { totalUsd: number; unknownCount: number; label: string } => ({ totalUsd: this.meter.totalUsd, unknownCount: this.meter.unknownCount, label: this.meter.label })
 
-  /** What is coming out of the speaker now (0..1), read by the character every animation frame. It is not in the snapshot: it changes sixty times a second. */
-  getLevel = (): number => (this.speakingNow ? this.player.level() : 0)
+  /** What is coming out of the speaker now, or, while you talk, what the microphone hears (0..1): read every animation frame by the character's mouth and the level ring. It is not in the snapshot: it changes sixty times a second. */
+  getLevel = (): number => (this.speakingNow ? this.player.level() : this.holding && this.mic?.level ? this.mic.level() : 0)
 
   private scene(): CompanionScene {
     // A turn whose reply has arrived (or that Director opened itself) and whose first line is still being fetched is not "thinking": its beat (present, sorry, concerned ...) shows until the voice starts.
@@ -193,8 +209,8 @@ export class VoiceCallController {
     const scene = this.scene()
     return {
       active: this.active, starting: this.starting, phase: this.cs.phase, scene, chip: chipLabel(scene), dance: this.track.dance,
-      caption: this.caption, progress: progressCaption(this.status, scene), notice: this.notice, expanded: this.expanded, reducedMotion: this.env.reducedMotion(), holding: this.holding,
-      controls: callControls({ active: this.active, starting: this.starting, phase: this.cs.phase, speakingNow: this.speakingNow, connected: this.isConnected() }),
+      caption: this.caption, progress: progressCaption(this.status, scene), notice: this.notice, mode: this.mode, muted: this.muted, reducedMotion: this.env.reducedMotion(), holding: this.holding, latched: this.latched, transcript: this.transcript,
+      controls: callControls({ active: this.active, starting: this.starting, phase: this.cs.phase, speakingNow: this.speakingNow, connected: this.isConnected(), muted: this.muted }),
     }
   }
 
@@ -211,8 +227,9 @@ export class VoiceCallController {
   // ---------------------------------------------------------------------------------------------------- the call
 
   /** The call button. The only place a microphone is asked for. */
-  async startCall(): Promise<void> {
+  async startCall(mode: CallMode = 'audio'): Promise<void> {
     if (this.disposed || this.active || this.starting) return
+    this.mode = mode
     this.starting = true
     this.notice = null
     const token = ++this.startToken
@@ -239,6 +256,10 @@ export class VoiceCallController {
     this.beatHidden = false
     this.replyLeadUntil = 0
     this.meter = new CallCostMeter()
+    this.transcript = []
+    this.joinTurn = null
+    this.muted = false
+    this.latched = false
     this.quietSince = this.env.now()
     this.armTick()
     this.emit()
@@ -255,6 +276,7 @@ export class VoiceCallController {
     if (this.disposed || (!this.active && !this.starting)) { this.starting = false; return }
     this.startToken++
     this.holding = false
+    this.latched = false
     this.dispatch({ type: 'end' })
     this.active = false
     this.starting = false
@@ -275,9 +297,13 @@ export class VoiceCallController {
     this.listeners.clear()
   }
 
-  setExpanded(expanded: boolean): void {
-    if (this.expanded === expanded) return
-    this.expanded = expanded
+  /** Mute the microphone (or not): a recording in progress is dropped, the tracks stop carrying sound, and nothing can be said until it is unmuted. */
+  setMuted(muted: boolean): void {
+    if (!this.active || this.muted === muted) return
+    this.muted = muted
+    if (muted) { this.holding = false; this.latched = false }
+    this.dispatch({ type: 'mute', muted })
+    this.mic?.setMuted?.(muted)
     this.emit()
   }
 
@@ -304,6 +330,7 @@ export class VoiceCallController {
   async pttUp(): Promise<void> {
     if (!this.holding) return
     this.holding = false
+    this.latched = false
     if (this.cs.phase !== 'listening' || this.cs.source !== 'ptt') { this.emit(); return }
     const recording = this.recording
     this.recording = null
@@ -326,6 +353,23 @@ export class VoiceCallController {
     this.dispatch({ type: 'talk_end', source: 'ptt', keep: true })
     this.beginTurn(this.cs.turn, heard.blob)
     this.emit()
+  }
+
+  /**
+   * The talk button's press (pointer or touch): hold to talk, letting go sends; or tap (a press shorter than TAP_TALK_MS) to talk until the next tap, which sends. Space uses the same two calls.
+   * A press while the microphone is latched on is the tap that sends.
+   */
+  talkPress(): void {
+    if (!this.active) return
+    if (this.latched) { void this.pttUp(); return }
+    this.pressedAt = this.env.now()
+    this.pttDown()
+  }
+
+  talkRelease(): void {
+    if (!this.holding) return
+    if (this.env.now() - this.pressedAt < TAP_TALK_MS) { this.latched = true; this.emit(); return }
+    void this.pttUp()
   }
 
   private finishRecordingFailed(): void {
@@ -373,6 +417,9 @@ export class VoiceCallController {
     this.openAction = null
     const words = action ? action.label : text
     this.awaiting.text = words
+    this.transcript = appendTranscript(this.transcript, 'you', words)
+    this.joinTurn = null
+    this.emit()
     armVoiceTurn(words)
     try {
       await (action && open ? this.sendAction(action, open.messageId, askAnswerKey({ message_id: open.messageId, timestamp: open.timestamp })) : this.sendTurn(text))
@@ -537,6 +584,8 @@ export class VoiceCallController {
           if (this.playing !== item) return
           this.speakingNow = true
           this.showCaption(item.text)
+          this.transcript = appendTranscript(this.transcript, 'director', item.text, undefined, item.kind === 'reply' && this.joinTurn === item.turn)
+          this.joinTurn = item.kind === 'reply' ? item.turn : null
           if (item.phased && this.audioStartedFor !== item.turn) {
             this.audioStartedFor = item.turn
             this.dispatch({ type: 'audio_started', turn: item.turn })
@@ -631,6 +680,7 @@ export class VoiceCallController {
   tick(): void {
     if (!this.active || this.disposed) return
     const now = this.env.now()
+    if (this.latched && now - this.pressedAt >= LATCH_MAX_MS) { void this.pttUp(); return } // a tap-latched microphone left on is sent after a minute
     if (this.caption && !this.speakingNow && !this.playing && now >= this.captionUntil) this.caption = null
     if (!this.playing && this.queue.length) this.pump()
     const awaiting = this.awaiting

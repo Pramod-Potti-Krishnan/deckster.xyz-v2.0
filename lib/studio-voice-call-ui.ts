@@ -532,9 +532,9 @@ export function encodeWavPcm16(samples: ArrayLike<number>, sampleRate: number): 
 // The pack's framing (where the face and the chest sit in a bird-format frame)
 // ---------------------------------------------------------------------------
 
-export const DISC_PX_DESKTOP = 88
-export const DISC_PX_PHONE = 64
-export const CHEST_PX = 240
+/** An audio call: the face disc, large and centred, with a level ring around it. */
+export const AUDIO_DISC_PX = 176
+export const AUDIO_DISC_PX_PHONE = 148
 /** A phone, as the call lays out: 767 px and narrower. */
 export const VOICE_PHONE_MEDIA = '(max-width: 767px)'
 /** Hands and head stay inside this fraction of the frame (Garud's safe area), so a crop never cuts a gesture. */
@@ -579,41 +579,45 @@ export function initialsFor(name: string): string {
 // ---------------------------------------------------------------------------
 
 export interface CallControls {
-  /** Hold to talk (the button, or Space). */
+  /** Hold to talk (the button, or Space), or tap to latch. */
   talk: boolean
   /** Stop what Director is saying (and a turn that is waiting), which is also what talking over it does. */
   stop: boolean
+  /** Mute the microphone: no talking, a recording in progress is dropped. */
+  mute: boolean
   end: boolean
-  expand: boolean
 }
 
-export function callControls(input: { active: boolean; starting: boolean; phase: CallPhase; speakingNow: boolean; connected: boolean }): CallControls {
+export function callControls(input: { active: boolean; starting: boolean; phase: CallPhase; speakingNow: boolean; connected: boolean; muted?: boolean }): CallControls {
   const live = input.active && !input.starting
-  return { talk: live && input.connected, stop: live && (input.phase === 'speaking' || input.phase === 'thinking' || input.speakingNow), end: live, expand: live }
+  return { talk: live && input.connected && !input.muted, stop: live && (input.phase === 'speaking' || input.phase === 'thinking' || input.speakingNow), mute: live, end: live }
 }
 
-/** What the composer's call button gets (the page passes it down with the flag on, nothing with it off). */
+/** The two kinds of call: audio (a calm scene: the face, large, with a level ring) and video (the character's whole scene, its setting behind it). Both have the same controls and the same transcript. */
+export type CallMode = 'audio' | 'video'
+export const CALL_MODES: readonly CallMode[] = ['audio', 'video']
+export const isCallMode = (value: unknown): value is CallMode => value === 'audio' || value === 'video'
+
+/** What the composer's call buttons get (the page passes it down with the flag on, nothing with it off). The composer shows two buttons beside Send, one tap each: Audio and Video. While a call is on the composer is not shown at all. */
 export interface VoiceCallComposerProps {
-  /** A call is on: the button ends it. */
+  /** A call is on (or starting): the composer is hidden. */
   active: boolean
   /** The microphone is being asked for. */
   busy: boolean
   disabled: boolean
-  onClick: () => void
+  onStart: (mode: CallMode) => void
 }
-export const CALL_BUTTON_START = 'Start a voice call'
-export const CALL_BUTTON_END = 'End the voice call'
-export function callButtonLabel(active: boolean): string {
-  return active ? CALL_BUTTON_END : CALL_BUTTON_START
+export function callButtonLabel(mode: CallMode): string {
+  return mode === 'video' ? 'Start a video call' : 'Start an audio call'
 }
 
-/** Space talks while a call is on, unless the key belongs to what has focus: a text field, a select, an editable region, or a control that Space activates (a button, a link, a menu item, a tab, a checkbox ...) keeps its Space. The call's own buttons are the exception: after the call button is pressed it keeps focus, and Space must still talk. */
+/** Space talks while a call is on, unless the key belongs to what has focus: a text field, a select, an editable region, or a control that Space activates (a button, a link, a menu item, a tab, a checkbox ...) keeps its Space. The talk button is the exception: with focus on it, Space is what it is for. The call's other buttons (Stop, Mute, End, the transcript toggle) keep their Space. */
 export interface SpaceTarget { tagName?: string; isContentEditable?: boolean; getAttribute?(name: string): string | null; closest?(selector: string): unknown }
 const SPACE_ROLES = /^(button|link|menuitem|menuitemcheckbox|menuitemradio|tab|option|switch|checkbox|radio|combobox|slider|spinbutton|textbox|searchbox)$/
 export function spaceBelongsToTarget(target: SpaceTarget | null | undefined): boolean {
   if (!target) return false
   if (isTypingTarget(target)) return true
-  if (target.closest?.('[data-studio-voice-call="button"], .studio-voice-talk')) return false
+  if (target.closest?.('.studio-voice-talk')) return false
   const tag = (target.tagName ?? '').toUpperCase()
   if (tag === 'BUTTON' || tag === 'A' || tag === 'SUMMARY') return true
   const role = target.getAttribute?.('role')
@@ -632,9 +636,75 @@ export function isTalkKey(event: { code?: string; key?: string; repeat?: boolean
   return (event.code === 'Space' || event.key === ' ') && !event.repeat && !event.metaKey && !event.ctrlKey && !event.altKey && !event.shiftKey
 }
 
-export const TALK_HINT = 'Hold the button, or Space, to talk'
-export const EXPAND_LABEL = 'Bigger view'
-export const COLLAPSE_LABEL = 'Smaller view'
+export const TALK_HINT = 'Hold the button or Space to talk, or tap it to talk until you tap again'
+export const TALK_LATCHED_HINT = 'Tap again to send'
+/** The talk button's words: held, latched on by a tap, muted, or waiting. */
+export function talkLabel(input: { holding: boolean; latched: boolean; muted: boolean }): string {
+  if (input.muted) return 'Muted'
+  if (input.latched) return 'Tap to send'
+  if (input.holding) return 'Release to send'
+  return 'Hold to talk'
+}
+export const MUTE_LABEL = 'Mute microphone'
+export const UNMUTE_LABEL = 'Unmute microphone'
+export const MUTED_HINT = 'Your microphone is muted'
+/** A press shorter than this is a tap: it latches the microphone on until the next tap (a longer press is hold-to-talk, and letting go sends). */
+export const TAP_TALK_MS = 300
+/** A microphone latched on by a tap and then forgotten is sent (and closed) after this long. */
+export const LATCH_MAX_MS = 60000
+
+// ---------------------------------------------------------------------------
+// The call's transcript and its scene
+// ---------------------------------------------------------------------------
+
+/** The live transcript of a call: what you said (as heard) and what the Director said (its spoken lines), oldest first. */
+export interface TranscriptEntry { id: number; who: 'you' | 'director'; text: string }
+export const TRANSCRIPT_MAX = 60
+export const TRANSCRIPT_TITLE = 'Transcript'
+export const TRANSCRIPT_HIDE_LABEL = 'Hide transcript'
+export const TRANSCRIPT_SHOW_LABEL = 'Show transcript'
+export const TRANSCRIPT_EMPTY = 'What you and the companion say will appear here.'
+/** The name the companion goes by in the transcript: the pack's folder name in capitals ("bob" is "Bob", "deckster-owl" is "Deckster Owl"). */
+export function companionName(pack: string): string {
+  const words = String(pack).split(/[^a-z0-9]+/i).filter(Boolean)
+  return words.length ? words.map(word => word.charAt(0).toUpperCase() + word.slice(1)).join(' ') : 'Companion'
+}
+/** Adds a line (trimmed; a blank one is not added; the same line twice in a row by the same speaker is not repeated), keeping the newest TRANSCRIPT_MAX. With `join` it carries on the same speaker's last entry instead. Pure: a new array, or the same one when nothing is added. */
+export function appendTranscript(list: readonly TranscriptEntry[], who: TranscriptEntry['who'], text: string, max = TRANSCRIPT_MAX, join = false): readonly TranscriptEntry[] {
+  const line = typeof text === 'string' ? text.replace(/\s+/g, ' ').trim() : ''
+  if (!line) return list
+  const last = list[list.length - 1]
+  if (last && last.who === who && last.text === line) return list
+  // join: the line carries on the same speaker's last entry (a reply spoken a sentence at a time reads as one message), keeping its id.
+  if (join && last && last.who === who) return [...list.slice(0, -1), { ...last, text: `${last.text} ${line}` }]
+  const next = [...list, { id: (last ? last.id : 0) + 1, who, text: line }]
+  return next.length > max ? next.slice(next.length - max) : next
+}
+
+/** What the level ring and the mouth read: the raw level of the microphone or the speaker (a quiet voice is about 0.05 to 0.3) as 0..1, two decimals. */
+export function ringLevel(level: number): number {
+  if (!Number.isFinite(level) || level <= 0) return 0
+  return Math.round(Math.min(1, level * 4) * 100) / 100
+}
+
+/** The transcript takes the bottom fifth of the call, the scene the rest (the character's scene is the canvas everything else overlays). */
+export const TRANSCRIPT_SHARE = 0.2
+export const SCENE_SHARE = 1 - TRANSCRIPT_SHARE
+
+/** How tall the character is drawn in a video call: it fills the scene's share of the canvas, less room for the chip and the controls above it and the talk button under it. Clamped so a huge window or a tiny one stays sane. */
+export function videoCharacterPx(canvasHeight: number): number {
+  if (!Number.isFinite(canvasHeight) || canvasHeight <= 0) return 240
+  return Math.round(Math.min(640, Math.max(160, canvasHeight * SCENE_SHARE * 0.78)))
+}
+
+/** The scene image a pack may carry: `scene` in its manifest (a path inside the pack's folder: letters, digits, dash, underscore, dot and slash, no "..", no leading slash, a web image), else scene.webp beside the manifest's folder. Anything else is the default. */
+export const DEFAULT_SCENE_FILE = 'scene.webp'
+export function sceneFileFrom(manifestScene: unknown): string {
+  if (typeof manifestScene !== 'string') return DEFAULT_SCENE_FILE
+  const path = manifestScene.trim()
+  return /^[a-zA-Z0-9_][a-zA-Z0-9_./-]*\.(webp|png|jpg|jpeg)$/.test(path) && !path.split('/').includes('..') && !path.includes('//') ? path : DEFAULT_SCENE_FILE
+}
+export const sceneUrl = (pack: string, file: string): string => `/companions/${pack}/${file}`
 
 /** Words for a speech (not microphone) problem. The microphone's own come from the core's describeMicError. */
 export type SpeechProblem = 'not_connected' | 'limit' | 'failed' | 'too_short' | 'no_words' | 'not_sent' | 'no_answer'

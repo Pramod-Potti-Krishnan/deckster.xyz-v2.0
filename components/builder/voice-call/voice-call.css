@@ -1,80 +1,119 @@
-/* W6 P4-20 voice call (NEXT_PUBLIC_STUDIO_VOICE_CALL): the docked companion above the composer. Studio tokens only (--ss-*), light and dark with the shell. Nothing here applies with the flag off: no element carries these attributes. */
-/* the dock is its own size container: it lays out by the width of the chat column it sits in (a narrow column and a phone get the two-row layout), not by the window */
-[data-studio-v4-shell="true"] [data-studio-voice-call="dock"] {
-  flex-shrink: 0; container-type: inline-size; container-name: voice-dock; width: 100%; max-width: 560px; margin-inline: auto;
-  border-top: 1px solid var(--ss-line); background: var(--ss-panel); color: var(--ss-text);
-}
-[data-studio-voice-call="dock"] .studio-voice-grid { display: grid; grid-template-columns: auto minmax(0, 1fr) auto; grid-template-areas: "stage body actions" "notice notice notice"; align-items: center; gap: 4px 12px; padding: 8px 12px; }
-[data-studio-voice-call="dock"] .studio-voice-stage { grid-area: stage; display: flex; align-items: center; justify-content: center; }
-[data-studio-voice-call="dock"] .studio-voice-body { grid-area: body; min-width: 0; display: flex; flex-direction: column; align-items: stretch; gap: 3px; }
-[data-studio-voice-call="dock"] .studio-voice-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
-[data-studio-voice-call="dock"] .studio-voice-tools { display: flex; align-items: center; gap: 4px; flex: none; }
-[data-studio-voice-call="dock"] .studio-voice-actions { grid-area: actions; display: flex; align-items: center; gap: 6px; }
-[data-studio-voice-call="dock"] .studio-voice-notice { grid-area: notice; }
+/* W6 P4-20 voice call (NEXT_PUBLIC_STUDIO_VOICE_CALL): the two call buttons beside Send, and the call itself (a stage that fills the chat column, or the whole screen on a phone). Studio tokens only (--ss-*, --sv4-*, --scc-*), light and dark with the shell. Nothing here applies with the flag off: no element carries these attributes. */
 
-/* before a call (the microphone is being asked for, or was refused) there is no chip and no controls: the disc and the words only */
-[data-studio-voice-call="dock"][data-voice-active="false"] .studio-voice-head, [data-studio-voice-call="dock"][data-voice-active="false"] .studio-voice-actions { display: none; }
-
-/* the disc: a circle that holds the companion (88 px, 64 px on a phone); the chest view is a rounded panel 240 px tall in the same column */
-[data-studio-voice-call="dock"] .studio-voice-disc { border-radius: 9999px; overflow: hidden; background: var(--ss-active); box-shadow: 0 0 0 2px var(--ss-line); transition: box-shadow 160ms ease; flex: none; line-height: 0; }
-[data-studio-voice-call="dock"] .studio-voice-disc[data-framing="chest"] { border-radius: 18px; }
-[data-studio-voice-call="dock"] .studio-voice-disc[data-ring="listening"] { box-shadow: 0 0 0 3px var(--ss-accent); }
-[data-studio-voice-call="dock"] .studio-voice-disc[data-ring="speaking"] { box-shadow: 0 0 0 3px var(--ss-teal); }
-[data-studio-voice-call="dock"] .studio-voice-disc[data-ring="thinking"] { box-shadow: 0 0 0 3px color-mix(in srgb, var(--ss-accent) 45%, var(--ss-line)); }
-[data-studio-voice-call="dock"] .studio-voice-disc[data-ring="concerned"],
-[data-studio-voice-call="dock"] .studio-voice-disc[data-ring="sorry"] { box-shadow: 0 0 0 3px color-mix(in srgb, #b3261e 55%, var(--ss-line)); }
-[data-studio-voice-call="dock"] .studio-voice-companion { position: relative; display: block; }
-[data-studio-voice-call="dock"] .studio-voice-companion canvas { position: absolute; inset: 0; display: block; transition: opacity 120ms ease; }
-[data-studio-voice-call="dock"] .studio-voice-initials { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; font-weight: 700; font-size: 1.6rem; letter-spacing: 0.02em; color: var(--ss-teal); line-height: 1; }
-
-/* the chip and the words */
-[data-studio-voice-call="dock"] .studio-voice-chip { white-space: nowrap; flex: none; display: inline-flex; align-items: center; gap: 6px; padding: 2px 10px 2px 8px; border-radius: 9999px; font-size: 12px; font-weight: 600; line-height: 18px; background: var(--ss-active); color: var(--ss-text); border: 1px solid var(--ss-line); }
-[data-studio-voice-call="dock"] .studio-voice-chip i { width: 8px; height: 8px; border-radius: 9999px; background: var(--ss-muted); }
-[data-studio-voice-call="dock"] .studio-voice-chip[data-chip="Listening"] i { background: var(--ss-accent); animation: studio-voice-pulse 1.1s ease-in-out infinite; }
-[data-studio-voice-call="dock"] .studio-voice-chip[data-chip="Thinking"] i { background: color-mix(in srgb, var(--ss-accent) 60%, var(--ss-muted)); animation: studio-voice-pulse 1.6s ease-in-out infinite; }
-[data-studio-voice-call="dock"] .studio-voice-chip[data-chip="Speaking"] i { background: var(--ss-teal); animation: studio-voice-pulse 0.8s ease-in-out infinite; }
-[data-studio-voice-call="dock"] .studio-voice-chip[data-chip="Your turn"] i { background: var(--ss-teal); }
-[data-studio-voice-call="dock"] .studio-voice-caption { margin: 0; font-size: 13px; line-height: 18px; color: var(--ss-text); overflow-wrap: anywhere; display: -webkit-box; -webkit-line-clamp: 4; -webkit-box-orient: vertical; overflow: hidden; }
-[data-studio-voice-call="dock"] .studio-voice-caption[data-studio-voice-caption="hint"] { color: var(--ss-muted); font-size: 12px; }
-[data-studio-voice-call="dock"] .studio-voice-progress { margin: 0; font-size: 12px; line-height: 16px; color: var(--ss-muted); overflow-wrap: anywhere; }
-@keyframes studio-voice-pulse { 0%, 100% { transform: scale(1); opacity: 1; } 50% { transform: scale(1.5); opacity: 0.55; } }
-
-/* the controls */
-[data-studio-voice-call="dock"] .studio-voice-talk { display: inline-flex; align-items: center; justify-content: center; gap: 6px; min-height: 36px; padding: 0 14px; border-radius: 9999px; border: 1px solid var(--ss-line); background: var(--ss-action); color: var(--ss-on-action); font-size: 13px; font-weight: 600; touch-action: none; user-select: none; -webkit-user-select: none; white-space: nowrap; }
-[data-studio-voice-call="dock"] .studio-voice-talk:hover:not(:disabled) { background: var(--ss-action-hover); }
-[data-studio-voice-call="dock"] .studio-voice-talk[data-holding="true"] { background: var(--ss-accent); color: #fff; box-shadow: 0 0 0 4px color-mix(in srgb, var(--ss-accent) 25%, transparent); }
-[data-studio-voice-call="dock"] .studio-voice-icon { display: inline-flex; align-items: center; justify-content: center; width: 30px; height: 30px; border-radius: 9999px; border: 1px solid var(--ss-line); background: var(--ss-surface); color: var(--ss-text); }
-[data-studio-voice-call="dock"] .studio-voice-icon:hover:not(:disabled) { background: var(--ss-active); }
-[data-studio-voice-call="dock"] .studio-voice-end { color: #b3261e; }
-[data-studio-voice-call="dock"] button:disabled { opacity: 0.45; cursor: not-allowed; }
-[data-studio-voice-call="dock"] button:focus-visible { outline: 2px solid var(--ss-accent); outline-offset: 2px; }
-
-/* an honest problem: plain words, what to do, and Try again where trying again can help */
-[data-studio-voice-call="dock"] .studio-voice-notice { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; margin-top: 6px; padding: 8px 10px; border-radius: 10px; border: 1px solid color-mix(in srgb, #b3261e 35%, var(--ss-line)); background: color-mix(in srgb, #b3261e 7%, var(--ss-panel)); font-size: 12.5px; line-height: 18px; }
-[data-studio-voice-call="dock"] .studio-voice-notice strong { display: block; font-size: 13px; }
-[data-studio-voice-call="dock"] .studio-voice-notice ol { margin: 2px 0 0; padding-left: 18px; color: var(--ss-muted); }
-[data-studio-voice-call="dock"] .studio-voice-notice-actions { display: flex; align-items: center; gap: 6px; flex: none; }
-[data-studio-voice-call="dock"] .studio-voice-notice-actions button { min-height: 28px; padding: 0 10px; border-radius: 9999px; border: 1px solid var(--ss-line); background: var(--ss-surface); color: var(--ss-text); font-weight: 600; display: inline-flex; align-items: center; justify-content: center; }
-
-/* the chest view: the disc becomes a 240 px panel on top, the words and the controls under it, centred */
-[data-studio-voice-call="dock"][data-voice-expanded="true"] .studio-voice-grid { grid-template-columns: minmax(0, 1fr); grid-template-areas: "stage" "body" "actions" "notice"; justify-items: center; text-align: center; gap: 8px; padding: 12px; }
-[data-studio-voice-call="dock"][data-voice-expanded="true"] .studio-voice-body { align-items: center; width: 100%; }
-[data-studio-voice-call="dock"][data-voice-expanded="true"] .studio-voice-head { justify-content: center; flex-wrap: wrap; }
-[data-studio-voice-call="dock"][data-voice-expanded="true"] .studio-voice-actions { flex-wrap: wrap; justify-content: center; }
-[data-studio-voice-call="dock"][data-voice-expanded="true"] .studio-voice-notice { width: 100%; text-align: left; }
-
-/* a narrow column (under 520 px: a phone, or the chat panel beside an open stage): the disc and the words on one row, the talk button under them across the width */
-@container voice-dock (max-width: 519px) {
-  [data-studio-voice-call="dock"][data-voice-expanded="false"] .studio-voice-grid { grid-template-columns: auto minmax(0, 1fr); grid-template-areas: "stage body" "actions actions" "notice notice"; gap: 6px 10px; padding: 8px 10px; align-items: start; }
-  [data-studio-voice-call="dock"][data-voice-expanded="false"] .studio-voice-actions { width: 100%; }
-  [data-studio-voice-call="dock"][data-voice-expanded="false"] .studio-voice-talk { flex: 1 1 auto; }
-}
+/* ---- the two buttons beside Send: Send's size and colour; the chat-clean composer's 24 px square; on a phone larger, with a word on each ---- */
+[data-studio-voice-call="buttons"] { flex: none; }
+[data-studio-v4-chrome="true"] [data-studio-voice-call="button"] { background-color: var(--sv4-accent); color: var(--sv4-on-accent); }
+[data-studio-v4-chrome="true"] [data-studio-voice-call="button"]:hover:not(:disabled) { filter: brightness(1.1); }
+[data-studio-v4-chrome="true"] [data-studio-voice-call="button"]:focus-visible { outline: 2px solid var(--sv4-accent); outline-offset: 2px; }
+[data-studio-v4-shell="true"] [data-studio-chat-clean] [data-studio-voice-call="buttons"] { order: 12; margin-left: 0; margin-right: 4px; }
+[data-studio-v4-shell="true"] [data-studio-chat-clean] [data-studio-voice-call="button"] { width: 24px; height: 24px; border-radius: 4px; background: var(--scc-accent); color: var(--scc-on-accent); transition: none; }
+[data-studio-v4-shell="true"] [data-studio-chat-clean] [data-studio-voice-call="button"] svg { width: 14px; height: 14px; }
+[data-studio-v4-shell="true"] [data-studio-chat-clean] [data-studio-voice-call="button"]:focus-visible { outline: 2px solid var(--scc-ink); outline-offset: 2px; filter: none; }
 @media (max-width: 767px) {
-  [data-studio-voice-call="dock"] .studio-voice-talk { min-height: 44px; }
-  [data-studio-voice-call="dock"] .studio-voice-icon { width: 40px; height: 40px; }
-  [data-studio-voice-call="dock"] .studio-voice-initials { font-size: 1.2rem; }
+  [data-studio-voice-call="buttons"] { gap: 8px; }
+  [data-studio-v4-shell="true"] [data-studio-chat-clean] [data-studio-voice-call="button"], [data-studio-v4-chrome="true"] [data-studio-voice-call="button"] { width: auto; min-width: 44px; height: 44px; padding: 0 16px; border-radius: 9999px; gap: 7px; font-size: 14px; font-weight: 600; line-height: 1; }
+  [data-studio-v4-shell="true"] [data-studio-chat-clean] [data-studio-voice-call="button"] svg, [data-studio-v4-chrome="true"] [data-studio-voice-call="button"] svg { width: 18px; height: 18px; }
+  [data-studio-voice-call="button"] .studio-voice-start-word { display: inline; }
+}
+
+/* ---- the call: the stage fills the chat column (it is positioned in it) and covers the composer's place; the transcript is its bottom fifth ---- */
+[data-studio-v4-shell="true"] [data-studio-voice-call="stage"] {
+  position: absolute; inset: 0; z-index: 40; display: flex; flex-direction: column; overflow: hidden; color: var(--ss-text);
+  background: var(--ss-panel);
+}
+/* the canvas: the character's setting. Video draws the pack's scene image when it has one, else a soft room (a wall, a desk line) out of the shell's tokens; audio is a calm wash around the face */
+[data-studio-voice-call="stage"][data-voice-mode="video"][data-voice-art="gradient"] {
+  background:
+    linear-gradient(180deg, transparent 0 63%, color-mix(in srgb, var(--ss-teal) 13%, var(--ss-panel)) 63% 100%),
+    radial-gradient(120% 90% at 50% 0%, color-mix(in srgb, var(--ss-accent) 15%, var(--ss-panel)) 0%, var(--ss-panel) 68%);
+}
+[data-studio-voice-call="stage"][data-voice-mode="video"][data-voice-art="image"] { background: var(--voice-scene-art) center / cover no-repeat, var(--ss-panel); }
+[data-studio-voice-call="stage"][data-voice-mode="audio"] { background: radial-gradient(70% 55% at 50% 40%, color-mix(in srgb, var(--ss-accent) 14%, var(--ss-panel)) 0%, var(--ss-panel) 100%); }
+[data-studio-voice-call="stage"] .studio-voice-canvas { position: relative; flex: 1 1 0; min-height: 0; }
+
+/* overlays: glass, so they read on any scene */
+[data-studio-voice-call="stage"] .studio-voice-top { position: absolute; z-index: 3; top: 0; left: 0; right: 0; display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 12px 14px; }
+[data-studio-voice-call="stage"] .studio-voice-tools { display: flex; align-items: center; gap: 6px; flex: none; }
+[data-studio-voice-call="stage"] .studio-voice-chip, [data-studio-voice-call="stage"] .studio-voice-icon, [data-studio-voice-call="stage"] .studio-voice-lines p, [data-studio-voice-call="stage"] .studio-voice-notice {
+  background: color-mix(in srgb, var(--ss-panel) 84%, transparent); -webkit-backdrop-filter: blur(10px); backdrop-filter: blur(10px);
+}
+[data-studio-voice-call="stage"] .studio-voice-chip { white-space: nowrap; flex: none; display: inline-flex; align-items: center; gap: 6px; padding: 3px 12px 3px 9px; border-radius: 9999px; font-size: 12.5px; font-weight: 600; line-height: 18px; color: var(--ss-text); border: 1px solid var(--ss-line); }
+[data-studio-voice-call="stage"] .studio-voice-chip i { width: 8px; height: 8px; border-radius: 9999px; background: var(--ss-muted); }
+[data-studio-voice-call="stage"] .studio-voice-chip[data-chip="Listening"] i { background: var(--ss-accent); animation: studio-voice-pulse 1.1s ease-in-out infinite; }
+[data-studio-voice-call="stage"] .studio-voice-chip[data-chip="Thinking"] i { background: color-mix(in srgb, var(--ss-accent) 60%, var(--ss-muted)); animation: studio-voice-pulse 1.6s ease-in-out infinite; }
+[data-studio-voice-call="stage"] .studio-voice-chip[data-chip="Speaking"] i { background: var(--ss-teal); animation: studio-voice-pulse 0.8s ease-in-out infinite; }
+[data-studio-voice-call="stage"] .studio-voice-chip[data-chip="Your turn"] i { background: var(--ss-teal); }
+@keyframes studio-voice-pulse { 0%, 100% { transform: scale(1); opacity: 1; } 50% { transform: scale(1.5); opacity: 0.55; } }
+[data-studio-voice-call="stage"] .studio-voice-icon { display: inline-flex; align-items: center; justify-content: center; width: 36px; height: 36px; border-radius: 9999px; border: 1px solid var(--ss-line); color: var(--ss-text); }
+[data-studio-voice-call="stage"] .studio-voice-icon:hover:not(:disabled) { background: var(--ss-active); }
+[data-studio-voice-call="stage"] .studio-voice-icon[aria-pressed="true"] { background: var(--ss-active); color: #b3261e; }
+[data-studio-voice-call="stage"] .studio-voice-end { color: #b3261e; }
+[data-studio-voice-call="stage"] .studio-voice-small { width: 28px; height: 28px; background: transparent; -webkit-backdrop-filter: none; backdrop-filter: none; border-color: transparent; }
+[data-studio-voice-call="stage"] button:disabled, [data-studio-voice-call="notice"] button:disabled { opacity: 0.45; cursor: not-allowed; }
+[data-studio-voice-call="stage"] button:focus-visible, [data-studio-voice-call="stage"] .studio-voice-transcript-list:focus-visible { outline: 2px solid var(--ss-accent); outline-offset: 2px; }
+
+/* the figure: video, the character large in the setting and sitting on the bottom of the picture; audio, the face centred in a level ring */
+[data-studio-voice-call="stage"] .studio-voice-figure { position: absolute; inset: 0; display: flex; justify-content: center; pointer-events: none; }
+[data-studio-voice-call="stage"][data-voice-mode="video"] .studio-voice-figure { align-items: flex-end; }
+[data-studio-voice-call="stage"][data-voice-mode="audio"] .studio-voice-figure { align-items: center; padding-bottom: 56px; }
+[data-studio-voice-call="stage"] .studio-voice-actor { line-height: 0; filter: drop-shadow(0 14px 18px rgb(0 0 0 / 0.16)); }
+[data-studio-voice-call="stage"] .studio-voice-companion { position: relative; display: block; }
+[data-studio-voice-call="stage"] .studio-voice-companion canvas { position: absolute; inset: 0; display: block; transition: opacity 120ms ease; }
+[data-studio-voice-call="stage"] .studio-voice-initials { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; font-weight: 700; font-size: 2.6rem; letter-spacing: 0.02em; color: var(--ss-teal); line-height: 1; }
+[data-studio-voice-call="stage"] .studio-voice-halo { position: relative; display: grid; place-items: center; padding: 18px; line-height: 0; --voice-level: 0; }
+[data-studio-voice-call="stage"] .studio-voice-disc { position: relative; border-radius: 9999px; overflow: hidden; background: var(--ss-active); box-shadow: 0 0 0 2px var(--ss-line); flex: none; line-height: 0; }
+/* the level ring: it grows with what the microphone hears while you talk, and with the voice while it speaks (--voice-level, 0..1, set by one animation loop) */
+[data-studio-voice-call="stage"] .studio-voice-ring { position: absolute; inset: 8px; border-radius: 9999px; --ring: var(--ss-line); box-shadow: 0 0 0 calc(2px + var(--voice-level) * 12px) var(--ring), 0 0 calc(10px + var(--voice-level) * 36px) calc(var(--voice-level) * 8px) color-mix(in srgb, var(--ring) 40%, transparent); transition: box-shadow 90ms linear; }
+[data-studio-voice-call="stage"] .studio-voice-halo[data-ring="listening"] .studio-voice-ring { --ring: var(--ss-accent); }
+[data-studio-voice-call="stage"] .studio-voice-halo[data-ring="speaking"] .studio-voice-ring { --ring: var(--ss-teal); }
+[data-studio-voice-call="stage"] .studio-voice-halo[data-ring="thinking"] .studio-voice-ring { --ring: color-mix(in srgb, var(--ss-accent) 50%, var(--ss-line)); animation: studio-voice-breathe 2.4s ease-in-out infinite; }
+[data-studio-voice-call="stage"] .studio-voice-halo:is([data-ring="concerned"], [data-ring="sorry"]) .studio-voice-ring { --ring: color-mix(in srgb, #b3261e 60%, var(--ss-line)); }
+@keyframes studio-voice-breathe { 0%, 100% { transform: scale(1); opacity: 0.8; } 50% { transform: scale(1.045); opacity: 1; } }
+
+/* the words under the figure, and the talk button */
+[data-studio-voice-call="stage"] .studio-voice-lines { position: absolute; z-index: 2; left: 14px; right: 14px; bottom: 84px; display: flex; flex-direction: column; align-items: center; gap: 6px; pointer-events: none; }
+[data-studio-voice-call="stage"] .studio-voice-lines p { margin: 0; max-width: 560px; padding: 4px 12px; border-radius: 12px; text-align: center; overflow-wrap: anywhere; font-size: 13px; line-height: 18px; color: var(--ss-text); }
+[data-studio-voice-call="stage"] .studio-voice-hint, [data-studio-voice-call="stage"] .studio-voice-progress { color: var(--ss-muted); font-size: 12.5px; }
+[data-studio-voice-call="stage"] .studio-voice-talk-row { position: absolute; z-index: 3; left: 0; right: 0; bottom: 14px; display: flex; justify-content: center; padding: 0 14px; }
+[data-studio-voice-call="stage"] .studio-voice-talk { display: inline-flex; align-items: center; justify-content: center; gap: 9px; min-height: 52px; min-width: 220px; padding: 0 30px; border-radius: 9999px; border: 1px solid var(--ss-line); background: var(--ss-action); color: var(--ss-on-action); font-size: 15px; font-weight: 600; touch-action: none; user-select: none; -webkit-user-select: none; white-space: nowrap; box-shadow: 0 8px 22px rgb(0 0 0 / 0.18); }
+[data-studio-voice-call="stage"] .studio-voice-talk:hover:not(:disabled) { background: var(--ss-action-hover); }
+[data-studio-voice-call="stage"] .studio-voice-talk[data-holding="true"], [data-studio-voice-call="stage"] .studio-voice-talk[data-latched="true"] { background: var(--ss-accent); color: #fff; border-color: transparent; box-shadow: 0 0 0 5px color-mix(in srgb, var(--ss-accent) 28%, transparent), 0 8px 22px rgb(0 0 0 / 0.18); }
+
+/* the transcript: the bottom fifth of the call, glass over the setting, scrollable, can be hidden */
+[data-studio-voice-call="stage"] .studio-voice-transcript { flex: 0 0 20%; min-height: 104px; display: flex; flex-direction: column; border-top: 1px solid var(--ss-line); background: color-mix(in srgb, var(--ss-panel) 80%, transparent); -webkit-backdrop-filter: blur(14px); backdrop-filter: blur(14px); }
+[data-studio-voice-call="stage"] .studio-voice-transcript[data-studio-voice-transcript="collapsed"] { flex: 0 0 auto; min-height: 0; }
+[data-studio-voice-call="stage"] .studio-voice-transcript-head { flex: none; display: flex; align-items: center; justify-content: space-between; padding: 2px 8px 0 14px; font-size: 11px; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase; color: var(--ss-muted); }
+[data-studio-voice-call="stage"] .studio-voice-transcript-list { flex: 1 1 0; min-height: 0; overflow-y: auto; overscroll-behavior: contain; padding: 2px 14px 10px; display: flex; flex-direction: column; gap: 5px; font-size: 13px; line-height: 18px; }
+[data-studio-voice-call="stage"] .studio-voice-line { margin: 0; display: grid; grid-template-columns: 52px minmax(0, 1fr); column-gap: 8px; overflow-wrap: anywhere; }
+[data-studio-voice-call="stage"] .studio-voice-line b { font-size: 11.5px; font-weight: 700; line-height: 18px; color: var(--ss-teal); }
+[data-studio-voice-call="stage"] .studio-voice-line[data-who="you"] b { color: var(--ss-accent); }
+[data-studio-voice-call="stage"] .studio-voice-transcript-empty { margin: 0; color: var(--ss-muted); }
+
+/* an honest problem: plain words, what to do, and Try again where trying again can help (on the stage it floats under the top bar; with no call it is docked above the composer) */
+[data-studio-voice-call="stage"] .studio-voice-notice { position: absolute; z-index: 4; top: 60px; left: 14px; right: 14px; margin-inline: auto; max-width: 560px; }
+[data-studio-voice-call="notice"] { flex-shrink: 0; width: 100%; max-width: 560px; margin-inline: auto; padding: 8px 12px; border-top: 1px solid var(--ss-line); background: var(--ss-panel); color: var(--ss-text); }
+[data-studio-voice-call="stage"] .studio-voice-notice, [data-studio-voice-call="notice"] .studio-voice-notice { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; padding: 8px 10px; border-radius: 10px; border: 1px solid color-mix(in srgb, #b3261e 35%, var(--ss-line)); font-size: 12.5px; line-height: 18px; color: var(--ss-text); }
+[data-studio-voice-call="notice"] .studio-voice-notice { background: color-mix(in srgb, #b3261e 7%, var(--ss-panel)); }
+[data-studio-voice-call="stage"] .studio-voice-notice strong, [data-studio-voice-call="notice"] .studio-voice-notice strong { display: block; font-size: 13px; }
+[data-studio-voice-call="stage"] .studio-voice-notice ol, [data-studio-voice-call="notice"] .studio-voice-notice ol { margin: 2px 0 0; padding-left: 18px; color: var(--ss-muted); }
+[data-studio-voice-call="stage"] .studio-voice-notice-actions, [data-studio-voice-call="notice"] .studio-voice-notice-actions { display: flex; align-items: center; gap: 6px; flex: none; }
+[data-studio-voice-call="stage"] .studio-voice-notice-actions button, [data-studio-voice-call="notice"] .studio-voice-notice-actions button { min-height: 28px; padding: 0 10px; border-radius: 9999px; border: 1px solid var(--ss-line); background: var(--ss-surface); color: var(--ss-text); font-weight: 600; display: inline-flex; align-items: center; justify-content: center; }
+
+/* a phone: the call is the whole screen (under the status bar and the home indicator), the talk button wide and tall */
+@media (max-width: 767px) {
+  [data-studio-v4-shell="true"] [data-studio-voice-call="stage"] { position: fixed; inset: 0; z-index: 90; padding-top: env(safe-area-inset-top, 0px); }
+  [data-studio-voice-call="stage"] .studio-voice-icon { width: 44px; height: 44px; }
+  [data-studio-voice-call="stage"] .studio-voice-small { width: 36px; height: 36px; }
+  [data-studio-voice-call="stage"] .studio-voice-talk { min-height: 60px; width: min(100%, 360px); min-width: 0; font-size: 16px; }
+  [data-studio-voice-call="stage"] .studio-voice-transcript { padding-bottom: env(safe-area-inset-bottom, 0px); }
+  [data-studio-voice-call="stage"] .studio-voice-transcript-list { font-size: 14px; line-height: 20px; }
+  [data-studio-voice-call="stage"] .studio-voice-line { grid-template-columns: 46px minmax(0, 1fr); }
+  [data-studio-voice-call="stage"] .studio-voice-initials { font-size: 2rem; }
+  [data-studio-voice-call="stage"][data-voice-mode="audio"] .studio-voice-figure { padding-bottom: 80px; }
+  [data-studio-voice-call="stage"] .studio-voice-lines { bottom: 90px; }
+  [data-studio-voice-call="stage"] .studio-voice-notice { top: 68px; }
 }
 @media (prefers-reduced-motion: reduce) {
-  [data-studio-voice-call="dock"] .studio-voice-chip i { animation: none !important; }
-  [data-studio-voice-call="dock"] .studio-voice-disc, [data-studio-voice-call="dock"] .studio-voice-companion canvas { transition: none; }
+  [data-studio-voice-call="stage"] .studio-voice-chip i, [data-studio-voice-call="stage"] .studio-voice-ring { animation: none !important; }
+  [data-studio-voice-call="stage"] .studio-voice-ring, [data-studio-voice-call="stage"] .studio-voice-companion canvas { transition: none; }
 }
