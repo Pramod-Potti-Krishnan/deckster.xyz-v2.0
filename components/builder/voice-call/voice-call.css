@@ -10,6 +10,9 @@
 [data-studio-voice-call="dock"] .studio-voice-actions { grid-area: actions; display: flex; align-items: center; gap: 6px; }
 [data-studio-voice-call="dock"] .studio-voice-notice { grid-area: notice; }
 
+/* before a call (the microphone is being asked for, or was refused) there is no chip and no controls: the disc and the words only */
+[data-studio-voice-call="dock"][data-voice-active="false"] .studio-voice-head, [data-studio-voice-call="dock"][data-voice-active="false"] .studio-voice-actions { display: none; }
+
 /* the disc: a circle that holds the companion (88 px, 64 px on a phone); the chest view is a rounded panel 240 px tall in the same column */
 [data-studio-voice-call="dock"] .studio-voice-disc { border-radius: 9999px; overflow: hidden; background: var(--ss-active); box-shadow: 0 0 0 2px var(--ss-line); transition: box-shadow 160ms ease; flex: none; line-height: 0; }
 [data-studio-voice-call="dock"] .studio-voice-disc[data-framing="chest"] { border-radius: 18px; }

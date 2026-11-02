@@ -30,3 +30,11 @@ With the flag off nothing is loaded, listened to, timed or asked for; strip the 
 ## Companion packs
 
 `public/companions/<name>/` in the bird layout (`motion/manifest.json`, `motion/face/manifest.json` for the disc). Not committed here: Garud delivers the real packs. A missing or invalid pack leaves a plain disc with initials. Clips a pack lacks fall back through the core's `resolveCompanionClip`.
+
+## Behaviour worth knowing
+
+- The microphone is asked for by the call button and nothing else (`getUserMedia` appears once, in `lib/studio-voice-call-browser.ts`, called from `startCall`). A refusal says why in the core's words (`describeMicError`) with Try again. The same click unlocks the speaker.
+- Hold the talk button or Space (Space is left to a focused text field, button, link or menu item, except the call's own buttons). Talking over the Director, or Stop, cancels its speech and the turn that is pending; the reply to a cancelled turn is in the chat and is not said.
+- A reply's first line waits half a second, so the gesture (present, sorry, concerned) is seen before the voice; a beat that speech hid (a celebration, a failure) is shown after it. A failure is not covered by the report that explains it.
+- Reduced motion draws one still per state. A missing pack leaves a plain disc with initials.
+- Voice mode on the Director's side ends with the next typed message; the next voice turn starts it again.
