@@ -49,3 +49,13 @@ The port registers its additive files, environment block and exact test-manifest
 The P4-18 final contract and fixtures are in the program workspace at `streams/director2/p4-18-voice/`. `action_request` question cards carry `payload.spoken`; an honest decline is `reporting`, while failure frames carry `concerned`. Replay/history frames carry neither voice field. The plan-card `action_value` mapping remains a P4-20 integration decision.
 
 A local text-only replay through this chunker preserved all 21 spoken lines in V1 and all 24 in V2, including every question card. Typed V0 contained zero spoken lines. This validates recorded input handling, not connected operation or audio latency. Fixture hashes and results are included in the final comparison evidence.
+
+## Router transport contract received from ROUTER-1
+
+ROUTER-1's router MR !49 provides labels `studio.voice_stt` and `studio.voice_tts`. Calls belong in Studio's server adapter, using the existing studio proxy-scoped router key and identity headers; provider keys stay server-only.
+
+- STT uses router `POST /v1/chat/completions` with `X-MR-Service: studio`, `X-MR-Task: studio.voice_stt`, a concrete configured audio-capable model, and `input_audio` with base64 WAV. The transcript is `choices[0].message.content`. The router has no transcription endpoint; do not call `/audio/transcriptions`. The capture layer must produce the agreed WAV input; these pure modules do not record or convert audio.
+- TTS uses router `POST /v1/audio/speech`, task `studio.voice_tts`, a concrete configured narration model, sentence `input`, `voice`, and `response_format` mp3 or pcm. The response is audio bytes with its Content-Type and `x-generation-id`.
+- `COST_HEADER` is an optional normalized Studio-adapter header, not a claim that the router returns a USD header. The adapter can resolve available billing metadata server-side; add `null` to the meter while cost is unknown. Never infer that an unknown cost is zero.
+
+The exact model defaults, request fixtures and ledger rows are owned by ROUTER-1 in `tests/test_voice_and_author_labels.py` and `docs/changes/ROUTER3-voice-and-author-mode-labels.md` on its MR !49 branch. Only mocks/recorded frames have been used here; a real audio probe needs the separately authorized P4-22 step.

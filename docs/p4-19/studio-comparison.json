@@ -5,7 +5,7 @@
   "baseHead": "abf52d4d4858b24cdb62549325ae5b9eed36624e",
   "fullBranchHead": "466fc2503463be2213b6f1d267eed30fcc5cf078",
   "latestFocusedHead": "a68e3e1f165273402b809479fb22ab2b43caa8ae",
-  "status": "ready-for-OPS-2-gate",
+  "status": "validated-on-cut-base-target-refresh-required",
   "voiceFixtureTests": {
     "files": 11,
     "passed": 225,
@@ -3357,5 +3357,12 @@
       "baseDiagnosticSha256": null,
       "branchDiagnosticSha256": null
     }
-  ]
+  ],
+  "targetObservedAtHandoff": "1f7b9fc29537fb85cd166f82ce86eabe70293c62",
+  "integrationStatus": {
+    "pullRequestMergeable": "CONFLICTING",
+    "cause": "Studio PR #556 advanced the target after the comparison snapshot",
+    "owner": "PROGRAM-1 / OPS-2; assignment prohibits merges by ELEMENT-3",
+    "testedBaseRemains": "abf52d4d"
+  }
 }

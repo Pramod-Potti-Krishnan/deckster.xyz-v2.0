@@ -1,6 +1,8 @@
 # P4-19 — Director voice core gate result
 
-Ready for OPS-2 review on `element3/p4-19-voice-core`, [Studio PR #558](https://github.com/Pramod-Potti-Krishnan/deckster.xyz-v2.0/pull/558). Base: `abf52d4d` (`studio-v4-dev-preparation-code`).
+Core validated; Studio target refresh is required before integration gate. Review branch: `element3/p4-19-voice-core`, [Studio PR #558](https://github.com/Pramod-Potti-Krishnan/deckster.xyz-v2.0/pull/558). Tested cut base: `abf52d4d` (`studio-v4-dev-preparation-code`).
+
+At handoff, Studio had advanced through PR #556 to `1f7b9fc29537fb85cd166f82ce86eabe70293c62`; GitHub reports this PR as conflicting. The results below apply to the tested cut base. PROGRAM-1 / OPS-2 must arrange the integration refresh and gate against the new target under the assignment's no-merge rule. Overlapping areas include the environment example, proof registry, and stage/commit-scope proofs.
 
 The client-safe core includes sentence chunking, energy VAD, call-state reduction, filler/progress decisions, tone, avatar rig, motion playback and manifest parsing, microphone recovery, duration and running cost helpers. Optional companion clips retain legacy-pack fallbacks. `NEXT_PUBLIC_STUDIO_VOICE_CALL` defaults off and enables only on literal `true`.
 
