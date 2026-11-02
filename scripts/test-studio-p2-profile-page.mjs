@@ -1,3 +1,4 @@
+import { stripVoiceCore } from './studio-voice-core-strip.mjs' // LATER-CHANGES: registry read (STUDIO-VOICE-CORE): remove only this later port's exact test metadata
 // PASS2 Profile page (FRONTEND-1): /settings/profile in the Studio shell's tokens, with every state spoken. There is no mockup for this page.
 // Flag NEXT_PUBLIC_STUDIO_P2_PROFILE_PAGE (exact "true"), default off, and it also needs the Studio shell (NEXT_PUBLIC_STUDIO_V4_SHELL "true").
 //   The same three things as before: display name, account photo, the way to Billing. No new action. The old page's code is untouched (renamed only).
@@ -25,7 +26,7 @@ import postcss from 'postcss'
 
 const repoRoot = path.resolve(new URL('..', import.meta.url).pathname)
 const BASE_COMMIT = process.env.P2_PROFILE_BASE || 'bcd8aed0d0e8d202c8859c4fd45ccae06de8e307'
-const read = rel => fs.readFileSync(path.join(repoRoot, rel), 'utf8')
+const read = rel => stripVoiceCore(rel, fs.readFileSync(path.join(repoRoot, rel), 'utf8'))
 const baseCache = new Map()
 const baseSource = rel => {
   if (!baseCache.has(rel)) {
