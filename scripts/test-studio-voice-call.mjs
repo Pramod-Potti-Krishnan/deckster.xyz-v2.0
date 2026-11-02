@@ -974,7 +974,7 @@ const mutants = [
   [UI, 'any frame is read aloud', "if (!long && type !== 'status_update' && type !== 'build_phase' && !(type === 'build_event' && payload.scope === 'deck')) return null", ''],
   [UI, 'the text is spoken when there is no line', "const line = cleanText(payload.spoken)", "const line = cleanText(payload.spoken) ?? cleanText(payload.text)"],
   [UI, 'a small pleased every time', 'now - expired.lastPleasedAt < PLEASED_EVERY_MS', 'false'],
-  [UI, 'a report does not end the thinking', "background: expired.background === 'thinking' ? 'none' : expired.background, beat: { scene, until", "background: expired.background, beat: { scene, until"],
+  [UI, 'a report does not end the thinking', "const background = expired.background === 'thinking' ? 'none' : expired.background\n      if (outranks(expired.beat, scene))", "const background = expired.background\n      if (outranks(expired.beat, scene))"],
   [UI, 'a beat never ends', 'if (beat && input.now < beat.until) return beat.scene', 'if (beat) return beat.scene'],
   [UI, 'the call phase loses to a beat', "if (input.phase === 'listening') return 'listening'\n  if (input.phase === 'speaking' || input.speakingNow) return 'speaking'\n  if (input.phase === 'thinking') return 'thinking'\n  const beat", "const beat"],
   [UI, 'every celebration dances', '(celebrations - 1) % DANCE_EVERY === DANCE_EVERY - 1 &&', 'true &&'],
