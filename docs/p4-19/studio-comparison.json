@@ -5,7 +5,7 @@
   "baseHead": "abf52d4d4858b24cdb62549325ae5b9eed36624e",
   "fullBranchHead": "466fc2503463be2213b6f1d267eed30fcc5cf078",
   "latestFocusedHead": "a68e3e1f165273402b809479fb22ab2b43caa8ae",
-  "status": "validated-on-cut-base-target-refresh-required",
+  "status": "refreshed-affected-proofs-green-awaiting-program-gate",
   "voiceFixtureTests": {
     "files": 11,
     "passed": 225,
@@ -3364,5 +3364,471 @@
     "cause": "Studio PR #556 advanced the target after the comparison snapshot",
     "owner": "PROGRAM-1 / OPS-2; assignment prohibits merges by ELEMENT-3",
     "testedBaseRemains": "abf52d4d"
+  },
+  "targetRefresh": {
+    "targetHead": "1f7b9fc29537fb85cd166f82ce86eabe70293c62",
+    "testedRefreshHead": "bc8646426cc9077e5d8f9a49ffe55c17b827421a",
+    "scope": "29 affected Studio proofs; historical full inventory below remains on abf52d4d",
+    "baseline": {
+      "test-studio-bulk-edit-prompt-text.mjs": {
+        "status": 0,
+        "allowanceSeconds": 600,
+        "elapsedSeconds": 1.11,
+        "worker": "element3-p4-19-refresh-base"
+      },
+      "test-studio-chat-add-stacking.mjs": {
+        "status": 0,
+        "allowanceSeconds": 600,
+        "elapsedSeconds": 46.42,
+        "worker": "element3-p4-19-refresh-base-worker"
+      },
+      "test-studio-chat-add-targeted.mjs": {
+        "status": 0,
+        "allowanceSeconds": 600,
+        "elapsedSeconds": 61.51,
+        "worker": "element3-p4-19-refresh-base"
+      },
+      "test-studio-chat-clean.mjs": {
+        "status": 0,
+        "allowanceSeconds": 600,
+        "elapsedSeconds": 22.49,
+        "worker": "element3-p4-19-refresh-base-worker"
+      },
+      "test-studio-chat-element-refine.mjs": {
+        "status": 0,
+        "allowanceSeconds": 600,
+        "elapsedSeconds": 8.18,
+        "worker": "element3-p4-19-refresh-base-worker"
+      },
+      "test-studio-chat-element-edit.mjs": {
+        "status": 0,
+        "allowanceSeconds": 600,
+        "elapsedSeconds": 66.21,
+        "worker": "element3-p4-19-refresh-base"
+      },
+      "test-studio-chat-parity.mjs": {
+        "status": 0,
+        "allowanceSeconds": 600,
+        "elapsedSeconds": 2.5,
+        "worker": "element3-p4-19-refresh-base"
+      },
+      "test-studio-chat-element-text-set.mjs": {
+        "status": 0,
+        "allowanceSeconds": 600,
+        "elapsedSeconds": 57.85,
+        "worker": "element3-p4-19-refresh-base-worker"
+      },
+      "test-studio-chat-refine-structural-decline.mjs": {
+        "status": 0,
+        "allowanceSeconds": 600,
+        "elapsedSeconds": 45.76,
+        "worker": "element3-p4-19-refresh-base"
+      },
+      "test-studio-chat-text-set-keep-look.mjs": {
+        "status": 0,
+        "allowanceSeconds": 600,
+        "elapsedSeconds": 46.17,
+        "worker": "element3-p4-19-refresh-base-worker"
+      },
+      "test-studio-chat-theme-export.mjs": {
+        "status": 0,
+        "allowanceSeconds": 600,
+        "elapsedSeconds": 12.13,
+        "worker": "element3-p4-19-refresh-base"
+      },
+      "test-studio-d1-debug-routes.mjs": {
+        "status": 0,
+        "allowanceSeconds": 600,
+        "elapsedSeconds": 13.0,
+        "worker": "element3-p4-19-refresh-base-worker"
+      },
+      "test-studio-deck-mutation-dedupe.mjs": {
+        "status": 0,
+        "allowanceSeconds": 600,
+        "elapsedSeconds": 15.51,
+        "worker": "element3-p4-19-refresh-base"
+      },
+      "test-studio-later-changes.mjs": {
+        "status": 0,
+        "allowanceSeconds": 600,
+        "elapsedSeconds": 66.76,
+        "worker": "element3-p4-19-refresh-base"
+      },
+      "test-studio-launch-wording.mjs": {
+        "status": 0,
+        "allowanceSeconds": 600,
+        "elapsedSeconds": 2.55,
+        "worker": "element3-p4-19-refresh-base"
+      },
+      "test-studio-legal-short-links.mjs": {
+        "status": 0,
+        "allowanceSeconds": 600,
+        "elapsedSeconds": 9.52,
+        "worker": "element3-p4-19-refresh-base"
+      },
+      "test-studio-model-catalog.mjs": {
+        "status": 0,
+        "allowanceSeconds": 600,
+        "elapsedSeconds": 8.25,
+        "worker": "element3-p4-19-refresh-base"
+      },
+      "test-studio-model-choice-deck-save.mjs": {
+        "status": 0,
+        "allowanceSeconds": 600,
+        "elapsedSeconds": 16.65,
+        "worker": "element3-p4-19-refresh-base"
+      },
+      "test-studio-model-choice.mjs": {
+        "status": 0,
+        "allowanceSeconds": 600,
+        "elapsedSeconds": 133.88,
+        "worker": "element3-p4-19-refresh-base"
+      },
+      "test-studio-deck-sync-truth.mjs": {
+        "status": 0,
+        "allowanceSeconds": 600,
+        "elapsedSeconds": 452.94,
+        "worker": "element3-p4-19-refresh-base-worker"
+      },
+      "test-studio-p2-docs.mjs": {
+        "status": 0,
+        "allowanceSeconds": 600,
+        "elapsedSeconds": 12.16,
+        "worker": "element3-p4-19-refresh-base-worker"
+      },
+      "test-studio-narration-router.mjs": {
+        "status": 0,
+        "allowanceSeconds": 600,
+        "elapsedSeconds": 267.24,
+        "worker": "element3-p4-19-refresh-base"
+      },
+      "test-studio-p2-profile-page.mjs": {
+        "status": 0,
+        "allowanceSeconds": 600,
+        "elapsedSeconds": 5.53,
+        "worker": "element3-p4-19-refresh-base"
+      },
+      "test-studio-p2-polish.mjs": {
+        "status": 0,
+        "allowanceSeconds": 600,
+        "elapsedSeconds": 113.04,
+        "worker": "element3-p4-19-refresh-base-worker"
+      },
+      "test-studio-phone-shell-nav.mjs": {
+        "status": 0,
+        "allowanceSeconds": 600,
+        "elapsedSeconds": 10.26,
+        "worker": "element3-p4-19-refresh-base-worker"
+      },
+      "test-studio-p2-publish.mjs": {
+        "status": 0,
+        "allowanceSeconds": 600,
+        "elapsedSeconds": 100.49,
+        "worker": "element3-p4-19-refresh-base"
+      },
+      "test-studio-strawman-stage.mjs": {
+        "status": 0,
+        "allowanceSeconds": 600,
+        "elapsedSeconds": 3.08,
+        "worker": "element3-p4-19-refresh-base"
+      },
+      "test-studio-uat-marketing.mjs": {
+        "status": 0,
+        "allowanceSeconds": 600,
+        "elapsedSeconds": 17.82,
+        "worker": "element3-p4-19-refresh-base"
+      },
+      "test-studio-stage-open-gate.mjs": {
+        "status": 0,
+        "allowanceSeconds": 600,
+        "elapsedSeconds": 56.34,
+        "worker": "element3-p4-19-refresh-base-worker"
+      }
+    },
+    "initialBranch": {
+      "test-studio-bulk-edit-prompt-text.mjs": {
+        "status": 0,
+        "allowanceSeconds": 600,
+        "elapsedSeconds": 1.16,
+        "worker": "element3-p4-19"
+      },
+      "test-studio-chat-add-stacking.mjs": {
+        "status": 0,
+        "allowanceSeconds": 600,
+        "elapsedSeconds": 54.52,
+        "worker": "element3-p4-19-worker"
+      },
+      "test-studio-chat-add-targeted.mjs": {
+        "status": 0,
+        "allowanceSeconds": 600,
+        "elapsedSeconds": 68.99,
+        "worker": "element3-p4-19"
+      },
+      "test-studio-chat-clean.mjs": {
+        "status": 0,
+        "allowanceSeconds": 600,
+        "elapsedSeconds": 23.0,
+        "worker": "element3-p4-19-worker"
+      },
+      "test-studio-chat-element-refine.mjs": {
+        "status": 0,
+        "allowanceSeconds": 600,
+        "elapsedSeconds": 7.94,
+        "worker": "element3-p4-19-worker"
+      },
+      "test-studio-chat-element-edit.mjs": {
+        "status": 0,
+        "allowanceSeconds": 600,
+        "elapsedSeconds": 70.66,
+        "worker": "element3-p4-19"
+      },
+      "test-studio-chat-parity.mjs": {
+        "status": 0,
+        "allowanceSeconds": 600,
+        "elapsedSeconds": 3.24,
+        "worker": "element3-p4-19"
+      },
+      "test-studio-chat-element-text-set.mjs": {
+        "status": 0,
+        "allowanceSeconds": 600,
+        "elapsedSeconds": 66.63,
+        "worker": "element3-p4-19-worker"
+      },
+      "test-studio-chat-refine-structural-decline.mjs": {
+        "status": 0,
+        "allowanceSeconds": 600,
+        "elapsedSeconds": 55.9,
+        "worker": "element3-p4-19"
+      },
+      "test-studio-chat-text-set-keep-look.mjs": {
+        "status": 0,
+        "allowanceSeconds": 600,
+        "elapsedSeconds": 56.03,
+        "worker": "element3-p4-19-worker"
+      },
+      "test-studio-chat-theme-export.mjs": {
+        "status": 1,
+        "allowanceSeconds": 600,
+        "elapsedSeconds": 12.45,
+        "worker": "element3-p4-19"
+      },
+      "test-studio-d1-debug-routes.mjs": {
+        "status": 0,
+        "allowanceSeconds": 600,
+        "elapsedSeconds": 26.2,
+        "worker": "element3-p4-19-worker"
+      },
+      "test-studio-deck-mutation-dedupe.mjs": {
+        "status": 0,
+        "allowanceSeconds": 600,
+        "elapsedSeconds": 78.37,
+        "worker": "element3-p4-19"
+      },
+      "test-studio-later-changes.mjs": {
+        "status": 1,
+        "allowanceSeconds": 600,
+        "elapsedSeconds": 152.14,
+        "worker": "element3-p4-19"
+      },
+      "test-studio-launch-wording.mjs": {
+        "status": 0,
+        "allowanceSeconds": 600,
+        "elapsedSeconds": 4.79,
+        "worker": "element3-p4-19"
+      },
+      "test-studio-legal-short-links.mjs": {
+        "status": 0,
+        "allowanceSeconds": 600,
+        "elapsedSeconds": 32.81,
+        "worker": "element3-p4-19"
+      },
+      "test-studio-model-catalog.mjs": {
+        "status": 0,
+        "allowanceSeconds": 600,
+        "elapsedSeconds": 19.31,
+        "worker": "element3-p4-19"
+      },
+      "test-studio-model-choice-deck-save.mjs": {
+        "status": 0,
+        "allowanceSeconds": 600,
+        "elapsedSeconds": 42.93,
+        "worker": "element3-p4-19"
+      },
+      "test-studio-deck-sync-truth.mjs": {
+        "status": 124,
+        "allowanceSeconds": 600,
+        "elapsedSeconds": 600.49,
+        "worker": "element3-p4-19-worker"
+      },
+      "test-studio-model-choice.mjs": {
+        "status": 0,
+        "allowanceSeconds": 600,
+        "elapsedSeconds": 303.75,
+        "worker": "element3-p4-19"
+      },
+      "test-studio-p2-docs.mjs": {
+        "status": 0,
+        "allowanceSeconds": 600,
+        "elapsedSeconds": 74.5,
+        "worker": "element3-p4-19"
+      },
+      "test-studio-p2-polish.mjs": {
+        "status": 0,
+        "allowanceSeconds": 600,
+        "elapsedSeconds": 361.73,
+        "worker": "element3-p4-19"
+      },
+      "test-studio-p2-profile-page.mjs": {
+        "status": 0,
+        "allowanceSeconds": 600,
+        "elapsedSeconds": 8.18,
+        "worker": "element3-p4-19"
+      },
+      "test-studio-narration-router.mjs": {
+        "status": 0,
+        "allowanceSeconds": 600,
+        "elapsedSeconds": 484.83,
+        "worker": "element3-p4-19-worker"
+      },
+      "test-studio-phone-shell-nav.mjs": {
+        "status": 0,
+        "allowanceSeconds": 600,
+        "elapsedSeconds": 21.85,
+        "worker": "element3-p4-19-worker"
+      },
+      "test-studio-p2-publish.mjs": {
+        "status": 0,
+        "allowanceSeconds": 600,
+        "elapsedSeconds": 151.65,
+        "worker": "element3-p4-19"
+      },
+      "test-studio-strawman-stage.mjs": {
+        "status": 0,
+        "allowanceSeconds": 600,
+        "elapsedSeconds": 7.88,
+        "worker": "element3-p4-19"
+      },
+      "test-studio-stage-open-gate.mjs": {
+        "status": 0,
+        "allowanceSeconds": 600,
+        "elapsedSeconds": 112.93,
+        "worker": "element3-p4-19-worker"
+      },
+      "test-studio-uat-marketing.mjs": {
+        "status": 0,
+        "allowanceSeconds": 600,
+        "elapsedSeconds": 35.85,
+        "worker": "element3-p4-19"
+      }
+    },
+    "finalSerialReruns": {
+      "test-studio-chat-theme-export.mjs": {
+        "status": 0,
+        "elapsedSeconds": 24.26
+      },
+      "test-studio-model-catalog.mjs": {
+        "status": 0,
+        "elapsedSeconds": 12.88
+      },
+      "test-studio-narration-router.mjs": {
+        "status": 0,
+        "elapsedSeconds": 158.91
+      },
+      "test-studio-chat-element-refine.mjs": {
+        "status": 0,
+        "elapsedSeconds": 11.58
+      },
+      "test-studio-later-changes.mjs": {
+        "status": 0,
+        "elapsedSeconds": 54.12
+      },
+      "test-studio-deck-sync-truth.mjs": {
+        "status": 0,
+        "elapsedSeconds": 251.56
+      }
+    },
+    "effectiveBranchPassed": 29,
+    "newFailures": 0,
+    "voiceFixtures": 225,
+    "strictClientTypes": "passed",
+    "normalizedProofMetadataViews": {
+      "files": 19,
+      "mismatches": 0
+    },
+    "runtimeSources": "app/components/hooks/public/styles/types identical to target",
+    "clientCore": "lib/studio/voice identical to fullBranchHead 466fc250",
+    "rerunReason": "Second chat-theme sibling raw diff needed exact voice normalization; registry child spawn timed out and deck-sync hit outer 600s parallel allowance. Serial reruns retain original internal limits/assertions, outer allowance 2400s.",
+    "logs": {
+      "p4-19-refresh-base-results": {
+        "test-studio-bulk-edit-prompt-text.mjs.log": "7892b29f7e2e5aba87dc3315d8c214461941197f97aa1145893a9d412126619d",
+        "test-studio-chat-add-stacking.mjs.log": "234a52f9042e71503203b5e3fcb539f2dfbec5d82eb9ede437ee717c3cb1d0ed",
+        "test-studio-chat-add-targeted.mjs.log": "8ddf1f7d188ee46b37d9df0ba96ebcb9c6f90ce08fde9f3f66952578aade3f34",
+        "test-studio-chat-clean.mjs.log": "cae45640e93fc638a58aa615e13a45df687539567ddc2f013b1fd3703ece8d3d",
+        "test-studio-chat-element-edit.mjs.log": "3828dc86f48408607b25b200105e4c710ee13b61ba7668c951ef6d8dbad84706",
+        "test-studio-chat-element-refine.mjs.log": "e75f8e168ac026e2d7966a6aa42ec8474b6632fe97fc0ed2381b6ec409da2e80",
+        "test-studio-chat-element-text-set.mjs.log": "4d02ae68167ac630d81f485aa469571f5b095e03d05b6ab5a1d1bcd477e7dde5",
+        "test-studio-chat-parity.mjs.log": "110f21c5aa462fd7bbb17810ace3fe3a2f472565d548481b532f21e661b2d78b",
+        "test-studio-chat-refine-structural-decline.mjs.log": "ff031c5aeb2f2bdfffb3cc90bfee6184b0f46ab29e3b0aba7164ab8a463d9e6c",
+        "test-studio-chat-text-set-keep-look.mjs.log": "98bc4d8ef6c5a611447b9194c7c6722f35654dc92098d9e6cba8802decd27e16",
+        "test-studio-chat-theme-export.mjs.log": "e3cc68d19e3385cc3d87bc3f6b5914dcccd3d29edae87850a0d6dc4aa4479c6d",
+        "test-studio-d1-debug-routes.mjs.log": "bb18ae7c03aff7acaad9e8e6698a57302beac4a710ad14cde999fee6f541b930",
+        "test-studio-deck-mutation-dedupe.mjs.log": "898a96ddf347506740aeceb62b0b1ad162dc111e06c59915aa60f3569493af99",
+        "test-studio-deck-sync-truth.mjs.log": "6f62ae911352878552073eee6630527cfcdd8f30bc5bda44659d0c1de5373d7b",
+        "test-studio-later-changes.mjs.log": "c9bc1e62c273d929bf557efc26870b12fcb2dda7dc2a56bf1b7ae3862187459f",
+        "test-studio-launch-wording.mjs.log": "d64b09cb6b3b2a54f98827ccfbfcef0a33b907c51fec6a5b66264dbebd34cffc",
+        "test-studio-legal-short-links.mjs.log": "be99f99078f65dca4394993d558d9564f3c5849b3fee2405bb341fbfc3d75d8a",
+        "test-studio-model-catalog.mjs.log": "f0d118b3b4f41cce634009b39dce7d540a6ec6e3721fac7f4c984509bd436789",
+        "test-studio-model-choice-deck-save.mjs.log": "079d60c5cbbd1876a60e0df1185a6f2f59e045021b085351f83a1e03f0ed5101",
+        "test-studio-model-choice.mjs.log": "1c796e094d1dd851e5fa0b9a35833645896673d89fefa1cc3cb63f7600d99e2a",
+        "test-studio-narration-router.mjs.log": "1f18d2859b21d80937f4ff47a80d12ea65238411939e4dfccd32d7ce1582bb85",
+        "test-studio-p2-docs.mjs.log": "2fd0a253c3db37f613c20cb175fd30408029c037268e64653c8818bc363f56be",
+        "test-studio-p2-polish.mjs.log": "a638990f70801b09b516e67356752312c9c952333774bdd4512fcd8f5be381b5",
+        "test-studio-p2-profile-page.mjs.log": "98b9f40275d15e58b8fa8ea350358e3df519fd54ea82c04d48fee89209aaaa99",
+        "test-studio-p2-publish.mjs.log": "ffb89bf7763286930d23def9ff97323fc176a3511d15a82f632167e2e52b748b",
+        "test-studio-phone-shell-nav.mjs.log": "bb2e74fab202907348461c5f14b528c3b6056d1ffdd3c4bc4033cd5f006a9d0a",
+        "test-studio-stage-open-gate.mjs.log": "a70a20d4de656f2c64234839eaeefc3ff92c75d4d3ee39900fd43fec55fb93bf",
+        "test-studio-strawman-stage.mjs.log": "1cd99dc5aa8d7d9527c2bc51eb4317272f9896ea6c64d7c992dbf4c5d546bea6",
+        "test-studio-uat-marketing.mjs.log": "21e3f9e986e750c7767f1826e7f8887a0fc7b1fb5c892365e7762b7b6d24007f"
+      },
+      "p4-19-refresh-branch-results": {
+        "test-studio-bulk-edit-prompt-text.mjs.log": "7892b29f7e2e5aba87dc3315d8c214461941197f97aa1145893a9d412126619d",
+        "test-studio-chat-add-stacking.mjs.log": "234a52f9042e71503203b5e3fcb539f2dfbec5d82eb9ede437ee717c3cb1d0ed",
+        "test-studio-chat-add-targeted.mjs.log": "8ddf1f7d188ee46b37d9df0ba96ebcb9c6f90ce08fde9f3f66952578aade3f34",
+        "test-studio-chat-clean.mjs.log": "cae45640e93fc638a58aa615e13a45df687539567ddc2f013b1fd3703ece8d3d",
+        "test-studio-chat-element-edit.mjs.log": "79600858ed1708c464010843c13d234647b0a894659ebfa0ebcbd78ea84ccd18",
+        "test-studio-chat-element-refine.mjs.log": "397a2926d47986c559804284d93a3f698df266fcff8dbce1d9188f711f4fd84e",
+        "test-studio-chat-element-text-set.mjs.log": "302466b89cbf5713e4c8cf8a0e7a2704ad49de46b701f836f0e06ee179057dd1",
+        "test-studio-chat-parity.mjs.log": "110f21c5aa462fd7bbb17810ace3fe3a2f472565d548481b532f21e661b2d78b",
+        "test-studio-chat-refine-structural-decline.mjs.log": "ff031c5aeb2f2bdfffb3cc90bfee6184b0f46ab29e3b0aba7164ab8a463d9e6c",
+        "test-studio-chat-text-set-keep-look.mjs.log": "611c94a057835495687f7e30c38b28cac17acceb029cc8528df80feb15c4be36",
+        "test-studio-chat-theme-export.mjs.log": "3aa28a495aaecc149b8aa9ef24e40eef359f18103dd506142ad0a5f557d8ea1e",
+        "test-studio-d1-debug-routes.mjs.log": "bb18ae7c03aff7acaad9e8e6698a57302beac4a710ad14cde999fee6f541b930",
+        "test-studio-deck-mutation-dedupe.mjs.log": "898a96ddf347506740aeceb62b0b1ad162dc111e06c59915aa60f3569493af99",
+        "test-studio-deck-sync-truth.mjs.log": "41fc7de10f3b86ee8882a2997a6ad73c5d9f57e9192f895f0fd7735f93fed7d0",
+        "test-studio-later-changes.mjs.log": "34530cdff4ca8b08afdac96ee5c42be3ee64279a0b035b49e68d0d9c60e5f615",
+        "test-studio-launch-wording.mjs.log": "d64b09cb6b3b2a54f98827ccfbfcef0a33b907c51fec6a5b66264dbebd34cffc",
+        "test-studio-legal-short-links.mjs.log": "be99f99078f65dca4394993d558d9564f3c5849b3fee2405bb341fbfc3d75d8a",
+        "test-studio-model-catalog.mjs.log": "d181f3bd007f45df925586d05c7da341a9b114f20cbe9e9b808019d2002073f0",
+        "test-studio-model-choice-deck-save.mjs.log": "079d60c5cbbd1876a60e0df1185a6f2f59e045021b085351f83a1e03f0ed5101",
+        "test-studio-model-choice.mjs.log": "1c796e094d1dd851e5fa0b9a35833645896673d89fefa1cc3cb63f7600d99e2a",
+        "test-studio-narration-router.mjs.log": "a214d0f83ee8c8099ab5d6ef1618622d3e60e0051ec45862ae95c9e01428c06d",
+        "test-studio-p2-docs.mjs.log": "2fd0a253c3db37f613c20cb175fd30408029c037268e64653c8818bc363f56be",
+        "test-studio-p2-polish.mjs.log": "a638990f70801b09b516e67356752312c9c952333774bdd4512fcd8f5be381b5",
+        "test-studio-p2-profile-page.mjs.log": "98b9f40275d15e58b8fa8ea350358e3df519fd54ea82c04d48fee89209aaaa99",
+        "test-studio-p2-publish.mjs.log": "2e816cadcdf806338668aba26dd28e526aabcbb49e8ef31aa76c5b53d06cb1fe",
+        "test-studio-phone-shell-nav.mjs.log": "bb2e74fab202907348461c5f14b528c3b6056d1ffdd3c4bc4033cd5f006a9d0a",
+        "test-studio-stage-open-gate.mjs.log": "a70a20d4de656f2c64234839eaeefc3ff92c75d4d3ee39900fd43fec55fb93bf",
+        "test-studio-strawman-stage.mjs.log": "1cd99dc5aa8d7d9527c2bc51eb4317272f9896ea6c64d7c992dbf4c5d546bea6",
+        "test-studio-uat-marketing.mjs.log": "21e3f9e986e750c7767f1826e7f8887a0fc7b1fb5c892365e7762b7b6d24007f"
+      },
+      "p4-19-refresh-final-results": {
+        "test-studio-chat-element-refine.mjs.log": "397a2926d47986c559804284d93a3f698df266fcff8dbce1d9188f711f4fd84e",
+        "test-studio-chat-theme-export.mjs.log": "6a0a2cb038e336ad81bea0699411273400b16d42622390821edb831755863589",
+        "test-studio-deck-sync-truth.mjs.log": "6f62ae911352878552073eee6630527cfcdd8f30bc5bda44659d0c1de5373d7b",
+        "test-studio-later-changes.mjs.log": "45b571b57c3ca8f5a2d2aaa62b95938eb2a9ea03a9d50c00234117a7c996be3f",
+        "test-studio-model-catalog.mjs.log": "d181f3bd007f45df925586d05c7da341a9b114f20cbe9e9b808019d2002073f0",
+        "test-studio-narration-router.mjs.log": "a214d0f83ee8c8099ab5d6ef1618622d3e60e0051ec45862ae95c9e01428c06d"
+      }
+    }
   }
 }

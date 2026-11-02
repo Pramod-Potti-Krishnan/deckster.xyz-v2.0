@@ -1,8 +1,10 @@
 # P4-19 — Director voice core gate result
 
-Core validated; Studio target refresh is required before integration gate. Review branch: `element3/p4-19-voice-core`, [Studio PR #558](https://github.com/Pramod-Potti-Krishnan/deckster.xyz-v2.0/pull/558). Tested cut base: `abf52d4d` (`studio-v4-dev-preparation-code`).
+Core refreshed against Studio dev `1f7b9fc29537fb85cd166f82ce86eabe70293c62`; awaiting OPS-2 / PROGRAM-1 integration gate. Review branch: `element3/p4-19-voice-core`, [Studio PR #558](https://github.com/Pramod-Potti-Krishnan/deckster.xyz-v2.0/pull/558).
 
-At handoff, Studio had advanced through PR #556 to `1f7b9fc29537fb85cd166f82ce86eabe70293c62`; GitHub reports this PR as conflicting. The results below apply to the tested cut base. PROGRAM-1 / OPS-2 must arrange the integration refresh and gate against the new target under the assignment's no-merge rule. Overlapping areas include the environment example, proof registry, and stage/commit-scope proofs.
+The authorized feature-branch merge preserves the target's strawman changes. Against this refreshed target, all 29 affected Studio proofs pass on both baseline and branch, 225 voice fixtures pass, and strict client-core TypeScript passes. The initial branch pass found a second raw-diff check in theme-export and two timeouts; exact-edit normalization fixes the check, and all six dependent/timeout checks pass serially with original internal assertions and limits. Nineteen normalized proof/metadata views restore exactly to the target. Existing app pages, components, hooks, assets, styles and types are byte-identical to that target. No Studio dev push, PR merge or deploy was performed.
+
+The full inventory below is historical evidence on `abf52d4d`, not a new full-suite run on `1f7b9fc2`. The delivered client core is byte-identical to its full-suite checkpoint; the refresh reruns cover the affected proof files and new strawman/stage checks. Detailed baseline, initial failures, serial results and log hashes appear in `targetRefresh` in the comparison evidence.
 
 The client-safe core includes sentence chunking, energy VAD, call-state reduction, filler/progress decisions, tone, avatar rig, motion playback and manifest parsing, microphone recovery, duration and running cost helpers. Optional companion clips retain legacy-pack fallbacks. `NEXT_PUBLIC_STUDIO_VOICE_CALL` defaults off and enables only on literal `true`.
 
@@ -20,7 +22,7 @@ The existing app pages, components, hooks, assets, styles, types and production 
 
 The full Studio inventories ran sequentially under the program heavy-job lock. Branch checks used two separate worktrees of one immutable checkpoint. Initial baseline timeouts were rerun with a larger allowance. One branch mutation-heavy proof was rerun alone after reaching the parallel allowance; its original assertions and mutation checks were retained.
 
-Older source proofs recognize only this port's exact test metadata and bounded commit subjects. All 15 taught proof files, package metadata, lockfile and registry restore exactly to their baseline views. Unknown dependency/source edits remain checked. This preserves the original assertions while accommodating the new test runner and additive flag.
+Older source proofs recognize only this port's exact test metadata and bounded commit subjects. All 16 taught proof files, package metadata, lockfile and registry restore exactly to their baseline views. Unknown dependency/source edits remain checked. This preserves the original assertions while accommodating the new test runner and additive flag.
 
 The full branch inventory tested `466fc250`; subsequent proof-only compatibility changes were validated at the focused checkpoints recorded in the [detailed matrix](studio-comparison.json). The delivered client core is unchanged from that full run. Unchanged evidence was reused; focused fixes and their tested heads/logs are recorded separately.
 
