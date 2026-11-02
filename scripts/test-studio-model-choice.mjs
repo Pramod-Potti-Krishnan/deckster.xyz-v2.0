@@ -1,3 +1,4 @@
+import { stripVoiceCore } from './studio-voice-core-strip.mjs' // LATER-CHANGES: registry read (STUDIO-VOICE-CORE): normalize only this port's exact proof metadata
 // FRONTEND-2: proof for P3-10 MODEL CHOICE, the Studio picker and its server routes (flag NEXT_PUBLIC_STUDIO_MODEL_CHOICE, exact "true", default off; the chooser acts only with
 // NEXT_PUBLIC_STUDIO_P2_INTELLIGENCE on too). Design (A) of ROUTER-2's P3-10 doc: choices are saved in the Model Router by Studio's own server routes (app/api/model-choice/prefs, .../prefs/deck/[deckKey],
 // app/api/model-choice/used/[buildId]; lib/studio-model-choice-server.ts), never by the browser and never through Director. Every catalogue and router answer below is a fixture
@@ -53,7 +54,7 @@ const FIX = 'scripts/fixtures/studio-model-choice', FIXTURE = `${FIX}/catalogue-
 const SNAPSHOT = 'components/studio-personal/model-catalog-snapshot.json', SNAPSHOT_10 = 'components/studio-personal/model-catalog-snapshot-2026-10.json'
 
 let overrides = {}
-const read = rel => (rel in overrides ? overrides[rel] : fs.readFileSync(path.join(root, rel), 'utf8'))
+const read = rel => stripVoiceCore(rel, (rel in overrides ? overrides[rel] : fs.readFileSync(path.join(root, rel), 'utf8')))
 const json = rel => JSON.parse(read(rel))
 const stripModule = async () => import(`data:text/javascript,${encodeURIComponent(read(STRIP))}`)
 const BASE = process.env.MODEL_CHOICE_BASE || (await stripModule()).BASE_COMMIT

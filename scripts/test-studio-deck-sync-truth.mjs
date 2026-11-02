@@ -1,4 +1,4 @@
-import { isVoiceCoreCommitSubject } from './studio-voice-core-strip.mjs' // LATER-CHANGES: registry read (STUDIO-VOICE-CORE): only the voice port's bounded commit subjects are excluded
+import { isVoiceCoreCommitSubject, stripVoiceCore } from './studio-voice-core-strip.mjs' // LATER-CHANGES: registry read (STUDIO-VOICE-CORE): normalize only this port's exact proof metadata
 // FRONTEND-2 (B26): after chat deletes and a reload, "Slides 3" over a 2-slide deck and "This deck changed in another tab" with no other tab (E2E-2, Studio dev, 27 Oct).
 // Flag NEXT_PUBLIC_STUDIO_DECK_SYNC_TRUTH, exact "true", default off.
 // Run: node scripts/test-studio-deck-sync-truth.mjs   (plain node: transpile + vm, no network; `git` reads the base commit and the committed diff)
@@ -1216,7 +1216,7 @@ await record('flag off, source: taking this change\'s lines out gives dev\'s fil
     assert.equal(stripDeckSyncTruth(rel, stripped), stripped, `${rel} idempotent`)
     assert.ok(DECK_SYNC_TRUTH_MARKER_RE.test(rawText(rel)), `${rel} carries the marker`)
   }
-  for (const rel of Object.keys(DECK_SYNC_TRUTH_PIN_EDITS)) assert.equal(sha(stripPeers(rel, stripDeckSyncTruth(rel, rawText(rel)))), sha(stripPeers(rel, gitText(rel, BASE))), `${rel} (an older proof taught to read through the registry)`)
+  for (const rel of Object.keys(DECK_SYNC_TRUTH_PIN_EDITS)) assert.equal(sha(stripPeers(rel, stripDeckSyncTruth(rel, stripVoiceCore(rel, rawText(rel))))), sha(stripPeers(rel, gitText(rel, BASE))), `${rel} (an older proof taught to read through the registry)`)
   assert.equal(sha(stripLaterEnvBlocks('.env.example', rawText('.env.example'))), sha(stripLaterEnvBlocks('.env.example', gitText('.env.example', BASE))), '.env.example: only this change\'s block is new')
   assert.ok(rawText('.env.example').includes(DECK_SYNC_TRUTH_ENV_BLOCK), 'the env block is in .env.example')
   assert.match(DECK_SYNC_TRUTH_ENV_BLOCK, /^NEXT_PUBLIC_STUDIO_DECK_SYNC_TRUTH="false"$/m)
