@@ -928,9 +928,10 @@ function sourceSuite(sources, { base = null } = {}) {
       ok(reg.stripLaterChanges(rel, sources[rel] ?? read(rel)) === reg.stripLaterChanges(rel, base.__pins[rel]), `${rel}: read through the registry it is the base's file (older proofs read it like that)`)
       ok(strip.stripVoiceCall(rel, sources[rel] ?? read(rel)).split('\n').every(line => !MARK.test(line)), `${rel}: the strip takes every marked line out`)
     }
-    eq(['scripts/test-theme-font-selection.mjs', 'scripts/test-studio-chat-theme-export.mjs', 'scripts/test-studio-stage-open-gate.mjs'].map(rel => lines(read(rel)).filter(line => MARK.test(line)).length), [1, 2, 2], 'pins: the sandbox gets one constant, the line counter two filters (the core\'s merged lines in the stacked files and in the sibling test), the stage open gate an import and one replaced line (a real later change in the page)')
+    eq(['scripts/test-theme-font-selection.mjs', 'scripts/test-studio-stage-open-gate.mjs'].map(rel => lines(read(rel)).filter(line => MARK.test(line)).length), [1, 2], 'pins: the sandbox gets one constant, the stage open gate an import and one replaced line (a real later change in the page)')
+    eq(lines(read('scripts/test-studio-chat-theme-export.mjs')).filter(line => MARK.test(line)).length, 0, 'pins: the chat theme export proof is not touched here (it is the voice core\'s to teach: the model catalog and narration router proofs police its added lines)')
     eq(['Voice call: the lib', 'Voice core: x', 'Chat element edit: x', 'Voice caller: x'].map(coreMod.isVoiceCoreCommitSubject), [true, true, false, false], 'subjects: the voice core\'s subject helper (read by the scope proofs that were taught it) also leaves out "Voice call:" commits, and nothing else')
-    eq(strip.VOICE_CALL_PUT_BACK_FILES.map(rel => lines(read(rel)).filter(line => MARK.test(line)).length), [0, 0], 'pins: the two scope proofs one commit taught and a later one put back carry nothing of this change now')
+    eq(strip.VOICE_CALL_PUT_BACK_FILES.map(rel => lines(read(rel)).filter(line => MARK.test(line)).length), [0, 0, 0], 'pins: the three proofs one commit taught and a later one put back carry nothing of this change now')
     eq(lines(core_text()).filter(line => MARK.test(line)).length, 1, 'core strip: one marked line (the helper\'s return), nothing else of the core\'s file is touched here')
     ok(!strip.VOICE_CALL_FILES.includes('scripts/studio-voice-core-strip.mjs') && !strip.VOICE_CALL_PIN_FILES.includes('scripts/studio-voice-core-strip.mjs') && strip.VOICE_CALL_SCOPE_FILES.has('scripts/studio-voice-core-strip.mjs'), 'core strip: it is a scope file of this change, and the strip does not take its marked line out (that line is an edit, not an insertion)')
     const registryText = read('scripts/studio-later-changes.mjs')
@@ -1194,7 +1195,7 @@ if (baseSources) {
     ['a replaced line is not put back', "const put = rel in VOICE_CALL_PIN_EDITS ? VOICE_CALL_PIN_EDITS[rel].reduce((out, [has, was]) => out.replace(has, () => was), text) : text", 'const put = text'],
     ['the registry lines stay', "if (rel === 'scripts/studio-later-changes.mjs') return text.split('\\n').filter(line => !line.includes(VOICE_CALL_REGISTRY_MARK)).join('\\n')", 'if (false) return text'],
     ['a taught proof is not stripped', "if (!VOICE_CALL_FILES.includes(rel) && !VOICE_CALL_PIN_FILES.includes(rel)) return text", "if (!VOICE_CALL_FILES.includes(rel)) return text"],
-    ['another file is stripped too', "if (!VOICE_CALL_FILES.includes(rel)) return text", 'if (false) return text'],
+    ['another file is stripped too', "if (!VOICE_CALL_FILES.includes(rel) && !VOICE_CALL_PIN_FILES.includes(rel)) return text", 'if (false) return text'],
     ['the composer is not stripped', "export const VOICE_CALL_FILES = ['app/builder/page.tsx', 'hooks/use-deckster-websocket-v2.ts', 'components/builder/chat-input.tsx']", "export const VOICE_CALL_FILES = ['app/builder/page.tsx', 'hooks/use-deckster-websocket-v2.ts']"],
   ]
   const run = text => {

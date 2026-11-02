@@ -36,11 +36,12 @@ export const VOICE_CALL_NEW_FILES = [
 ]
 
 /**
- * Older proofs this change teaches, each by pure insertions that carry the marker (the strip puts the file back): the font-selection sandbox (one constant, as chat parity's) and the chat theme export's stacked-line counter (it filters the voice
- * core's merged lines and this change's sandbox line). The older scope proofs that read first-parent commit subjects (chat element edit, deck sync truth) are taught nothing here: the voice core's subject helper (isVoiceCoreCommitSubject)
+ * Older proofs this change teaches, each by marked lines (the strip puts the file back): the font-selection sandbox (one constant, as chat parity's) and the stage open gate's robustness check (an import and one replaced line: a real later change in
+ * the page). NOT taught: the chat theme export proof, which fails on the voice core's own head (e324183b) because of the core's lines in the stacked test files; that is the core's to teach (see the report), and editing it here would
+ * make the model catalog and narration router proofs, which police its added lines, fail as well. The older scope proofs that read first-parent commit subjects (chat element edit, deck sync truth) are taught nothing here: the voice core's subject helper (isVoiceCoreCommitSubject)
  * also leaves out "Voice call:" (one marked edit of scripts/studio-voice-core-strip.mjs, VOICE_CALL_CORE_STRIP_EDIT).
  */
-export const VOICE_CALL_PIN_FILES = ['scripts/test-theme-font-selection.mjs', 'scripts/test-studio-chat-theme-export.mjs', 'scripts/test-studio-stage-open-gate.mjs']
+export const VOICE_CALL_PIN_FILES = ['scripts/test-theme-font-selection.mjs', 'scripts/test-studio-stage-open-gate.mjs']
 
 /** Files this change edits that are neither marked app code nor new: its .env.example block, the registry (three lines) and the older proofs it teaches. No package.json script: run the proof with `node scripts/test-studio-voice-call.mjs`. */
 /** An older proof taught by REPLACING one whole line (the line now carries the marker; the strip puts the old line back): the stage open gate's "robust after a later change" check reads the page past a synthetic change's lines, and this is a real one. */
@@ -53,8 +54,8 @@ export const VOICE_CALL_PIN_EDITS = {
   ],
 }
 
-/** Two older proofs one of this change's commits taught and a later one put back (the voice core's subject helper took over): the history touches them, the tree does not change them. */
-export const VOICE_CALL_PUT_BACK_FILES = ['scripts/test-studio-chat-element-edit.mjs', 'scripts/test-studio-deck-sync-truth.mjs']
+/** Three older proofs one of this change's commits taught and a later one put back (the voice core's subject helper took over for the first two; the third is the core's to teach): the history touches them, the tree does not change them. */
+export const VOICE_CALL_PUT_BACK_FILES = ['scripts/test-studio-chat-element-edit.mjs', 'scripts/test-studio-deck-sync-truth.mjs', 'scripts/test-studio-chat-theme-export.mjs']
 
 /** The one edit of the voice core's strip module (its commit-subject helper also names this change's commits): the line carries the marker, the text before it is the core's own. */
 export const VOICE_CALL_CORE_STRIP_EDIT = 'scripts/studio-voice-core-strip.mjs'
