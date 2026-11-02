@@ -636,7 +636,7 @@ if (baseOk) {
     for (const rel of SOURCE_FILES) {
       const diff = diffLines(git('diff', '-U0', blobOf(ctx.norm(rel, baseText(rel))), blobOf(ctx.norm(rel, git('show', `${head}:${rel}`)))))
       for (const row of diff) ok(row.startsWith('+') && MARK.test(row), `${rel}: an unmarked or removed line: ${row.slice(0, 100)}`)
-      ok(diff.length > 0, `${rel}: lines added`)
+      eq(diff.length, { [HOOK]: 6, [SCHEMA]: 1 }[rel], `${rel}: exactly the marked lines this change adds (six in the store, one in the schema)`)
       ok(strip.stripStudioTemplateAutoApplyServer(rel, ctx.norm(rel, git('show', `${head}:${rel}`))) === ctx.norm(rel, baseText(rel)), `${rel}: without its marked lines the file is #559's, byte for byte`)
     }
     for (const rel of strip.STUDIO_TEMPLATE_AUTO_APPLY_SERVER_NEW_FILES) eq(git('cat-file', '-t', `${head}:${rel}`).trim(), 'blob', rel)
