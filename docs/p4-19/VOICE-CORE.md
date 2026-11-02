@@ -29,7 +29,7 @@ Ported from the local voice core at source revision `d05252905f5f2ced9771d1138f7
 
 Run `pnpm test:studio-voice-core` after installing locked dependencies. Vitest is test-only. All fixtures are generated values, fake clocks, in-memory phrase fetchers and synthetic manifests: no real audio or paid calls.
 
-219 tests pass: 190 source cases, one flag case covering six values, 13 optional companion clip cases, and 15 gesture fallback/decode cases. The seven source suites are carried across; the avatar rig suite omits its one unrelated roster/palette case. Microphone-help and cost-meter describe blocks are extracted from the broader source input/cost suites, without their server/database/provider imports. No voice provider integration is claimed.
+222 tests pass: 190 source cases, one flag case covering six values, 13 optional companion clip cases, 15 gesture fallback/decode cases, and three exact proof-compatibility cases. The seven source suites are carried across; the avatar rig suite omits its one unrelated roster/palette case. Microphone-help and cost-meter describe blocks are extracted from the broader source input/cost suites, without their server/database/provider imports. No voice provider integration is claimed.
 
 ## P4-20 wiring notes
 
@@ -39,3 +39,7 @@ Run `pnpm test:studio-voice-core` after installing locked dependencies. Vitest i
 - `skip`, `end`, and barge-in emit cancellation/teardown effects. The audio owner must stop playback and cancel pending requests before starting the next recording. Ignore late results by turn ID.
 - `turn_failed` recovers the machine; keep user-facing error information separately in UI state. There is no additional `error` phase in the ported source reducer.
 - Fetch and validate the manifest in the UI before constructing `BirdMotionRig`. Call `step(dt, { state, level })`; drive `AvatarRig` with the same state/level. The UI owns URL loading, decoded frame availability, animation scheduling, tab visibility, reduced-motion preference and canvas/DOM updates. Play full-frame gestures in sentence gaps so speech and gestures take turns.
+
+## Existing Studio proofs
+
+The port registers its additive files, environment block and exact test-manifest additions with `scripts/studio-later-changes.mjs`. `studio-voice-core-strip.mjs` removes only those known additions when older proofs compare their source snapshots. One older first-parent commit-scope proof is taught the voice port's commit subjects; its original runtime and source assertions remain intact. Exact-strip tests check that unrelated dependency versions and source assertions remain visible. The dependency entry sits before TypeScript so the base's final dependency line retains its original comma behavior.
