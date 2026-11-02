@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { COMPANION_MOTION_CLIPS, BIRD_MOTION_CLIPS, BIRD_MOTION_CORE_CLIPS, BIRD_MOTION_DECODE_GRACE, BIRD_MOTION_GESTURE_CLIPS, BIRD_MOTION_IDLE_CLIPS, BIRD_VISEMES, BIRD_EXPRESSIONS, BIRD_FACE_ANGLES, BIRD_DANCE_CLIPS, MOTION_MOMENTS, BirdMotionLedger, BirdMotionRig, isOptionalMotionClip, parseBirdMotionManifest, type BirdMotionManifest } from "../../../lib/studio/voice/bird-motion";
+import { resolveCompanionClip, COMPANION_MOTION_CLIPS, BIRD_MOTION_CLIPS, BIRD_MOTION_CORE_CLIPS, BIRD_MOTION_DECODE_GRACE, BIRD_MOTION_GESTURE_CLIPS, BIRD_MOTION_IDLE_CLIPS, BIRD_VISEMES, BIRD_EXPRESSIONS, BIRD_FACE_ANGLES, BIRD_DANCE_CLIPS, MOTION_MOMENTS, BirdMotionLedger, BirdMotionRig, isOptionalMotionClip, parseBirdMotionManifest, type BirdMotionManifest } from "../../../lib/studio/voice/bird-motion";
 
 function pack(waveBoth = false): BirdMotionManifest {
   const box = { x: 10, y: 10, width: 80, height: 80 };
@@ -473,5 +473,40 @@ describe("Deckster companion clip compatibility", () => {
     expect(parseBirdMotionManifest(legacy).clips[name]).toBeDefined();
     legacy.clips[name]!.frames[0] = "absent";
     expect(() => parseBirdMotionManifest(legacy)).toThrow();
+  });
+});
+
+describe("companion gesture fallback playback", () => {
+  it.each(COMPANION_MOTION_CLIPS)("plays %s or its legacy fallback without throwing", (name) => {
+    const m = pack();
+    const fallback = resolveCompanionClip(m, name);
+    expect(m.clips[fallback]).toBeDefined();
+    const rig = new BirdMotionRig(m); rig.gestureClip(name);
+    expect(rig.step(0, { state: "idle" }).clip).toBe(fallback);
+    m.clips[name] = { ...m.clips.wave!, frames: [...m.clips.wave!.frames] };
+    const supplied = new BirdMotionRig(m); supplied.gestureClip(name);
+    expect(supplied.step(0, { state: "idle" }).clip).toBe(name);
+  });
+  it("unknown and prototype-property hints are safe, and reduced motion stays still", () => {
+    const m = pack();
+    for (const name of ["unknown", "toString", "__proto__"]) {
+      const rig = new BirdMotionRig(m); rig.gestureClip(name);
+      expect(rig.step(0, { state: "idle" }).clip).toBe("nod");
+    }
+    const rig = new BirdMotionRig(m, { reduced: true }); rig.gestureClip("point_left");
+    expect(rig.step(0, { state: "idle" }).clip).toBe("idle_breathe");
+  });
+});
+
+describe("companion clip decode fallback", () => {
+  it("gives a supplied optional clip time to decode, then uses its decoded legacy gesture", () => {
+    const m = pack(); m.clips.point_left = { ...m.clips.point!, frames: [...m.clips.point!.frames] };
+    const requested: string[] = [];
+    const rig = new BirdMotionRig(m, { clips: { ready: name => name !== "point_left", request: names => { requested.push(...names); return true; } } });
+    rig.gestureClip("point_left");
+    expect(rig.step(0, { state: "idle" }).clip).toBe("idle_breathe");
+    expect(requested).toContain("point_left");
+    rig.step(.25, { state: "idle" }); rig.step(.25, { state: "idle" });
+    expect(rig.step(.15, { state: "idle" }).clip).toBe("point");
   });
 });
