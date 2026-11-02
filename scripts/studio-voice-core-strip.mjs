@@ -35,11 +35,13 @@ export const VOICE_CORE_SCOPE_FILES = new Set([
   "scripts/studio-voice-core-strip.mjs",
   "scripts/studio-voice-vitest.config.mjs",
   "scripts/test-studio-chat-element-edit.mjs",
+  "scripts/test-studio-chat-element-refine.mjs",
   "scripts/test-studio-deck-mutation-dedupe.mjs",
   "scripts/test-studio-deck-sync-truth.mjs",
   "scripts/test-studio-launch-wording.mjs",
   "scripts/test-studio-legal-short-links.mjs",
   "scripts/test-studio-model-catalog.mjs",
+  "scripts/test-studio-model-choice.mjs",
   "scripts/test-studio-narration-router.mjs",
   "scripts/test-studio-p2-docs.mjs",
   "scripts/test-studio-p2-polish.mjs",
@@ -71,6 +73,14 @@ export const VOICE_CORE_PROOF_EDITS = {
     [
       "  shas.splice(0, shas.length, ...shas.filter(sha => !isVoiceCoreCommitSubject(git('log', '-1', '--format=%s', sha)))) // LATER-CHANGES: registry read (STUDIO-VOICE-CORE): the pure voice port owns these later commits; this proof still checks its original files\n",
       ""
+    ],
+    [
+      "import { isVoiceCoreCommitSubject, stripVoiceCore } from './studio-voice-core-strip.mjs' // LATER-CHANGES: registry read (STUDIO-VOICE-CORE): normalize only this port's exact proof metadata\n",
+      ""
+    ],
+    [
+      "  for (const rel of Object.keys(DECK_SYNC_TRUTH_PIN_EDITS)) assert.equal(sha(stripPeers(rel, stripDeckSyncTruth(rel, stripVoiceCore(rel, rawText(rel))))), sha(stripPeers(rel, gitText(rel, BASE))), `${rel} (an older proof taught to read through the registry)`)\n",
+      "  for (const rel of Object.keys(DECK_SYNC_TRUTH_PIN_EDITS)) assert.equal(sha(stripPeers(rel, stripDeckSyncTruth(rel, rawText(rel)))), sha(stripPeers(rel, gitText(rel, BASE))), `${rel} (an older proof taught to read through the registry)`)\n"
     ]
   ],
   "scripts/test-studio-chat-element-edit.mjs": [
@@ -121,6 +131,14 @@ export const VOICE_CORE_PROOF_EDITS = {
     [
       "const read = rel => stripLaunchWording(rel, stripVoiceCore(rel, fs.readFileSync(path.join(ROOT, rel), 'utf8')))\n",
       "const read = rel => stripLaunchWording(rel, fs.readFileSync(path.join(ROOT, rel), 'utf8'))\n"
+    ],
+    [
+      "import { stripVoiceCore, voiceCoreProofDiffLines } from './studio-voice-core-strip.mjs' // LATER-CHANGES: registry read (STUDIO-VOICE-CORE): normalize only this port's exact proof metadata\n",
+      ""
+    ],
+    [
+      "  const lines = (rel, sign) => voiceCoreProofDiffLines(rel, git('diff', '-U0', BASE_COMMIT, 'HEAD', '--', rel).split('\\n')).filter(line => line.startsWith(sign) && !line.startsWith(sign.repeat(3)))\n",
+      "  const lines = (rel, sign) => git('diff', '-U0', BASE_COMMIT, 'HEAD', '--', rel).split('\\n').filter(line => line.startsWith(sign) && !line.startsWith(sign.repeat(3)))\n"
     ]
   ],
   "scripts/test-studio-narration-router.mjs": [
@@ -131,6 +149,14 @@ export const VOICE_CORE_PROOF_EDITS = {
     [
       "const tryRead = rel => { try { return stripVoiceCore(rel, fs.readFileSync(path.join(repoRoot, rel), 'utf8')) } catch { return null } }\n",
       "const tryRead = rel => { try { return fs.readFileSync(path.join(repoRoot, rel), 'utf8') } catch { return null } }\n"
+    ],
+    [
+      "import { stripVoiceCore, voiceCoreProofDiffLines } from './studio-voice-core-strip.mjs' // LATER-CHANGES: registry read (STUDIO-VOICE-CORE): normalize only this port's exact proof metadata\n",
+      ""
+    ],
+    [
+      "    const lines = (rel, sign) => voiceCoreProofDiffLines(rel, (gitOut('diff', '-U0', BASE_COMMIT, 'HEAD', '--', rel) ?? '').split('\\n')).filter(line => line.startsWith(sign) && !line.startsWith(sign.repeat(3)))\n",
+      "    const lines = (rel, sign) => (gitOut('diff', '-U0', BASE_COMMIT, 'HEAD', '--', rel) ?? '').split('\\n').filter(line => line.startsWith(sign) && !line.startsWith(sign.repeat(3)))\n"
     ]
   ],
   "scripts/test-studio-p2-docs.mjs": [
@@ -191,6 +217,30 @@ export const VOICE_CORE_PROOF_EDITS = {
     [
       "    for (const line of diffLines(normDiff({ norm: (r, text) => r === rel ? stripVoiceCore(r, text) : ctx.norm(r, text) }, rel, head))) if (line.startsWith('+')) assert.ok(line.includes(STAGE_OPEN_GATE_PIN_MARK), `${rel}: an added line without the mark: ${line.slice(0, 100)}`)\n",
       "    for (const line of diffLines(normDiff({ norm: (r, text) => r === rel ? text : ctx.norm(r, text) }, rel, head))) if (line.startsWith('+')) assert.ok(line.includes(STAGE_OPEN_GATE_PIN_MARK), `${rel}: an added line without the mark: ${line.slice(0, 100)}`)\n"
+    ]
+  ],
+  "scripts/test-studio-chat-element-refine.mjs": [
+    [
+      "import { voiceCoreProofDiffLines } from './studio-voice-core-strip.mjs' // LATER-CHANGES: registry read (STUDIO-VOICE-CORE): normalize only this port's exact proof metadata\n",
+      ""
+    ],
+    [
+      "    const removed = voiceCoreProofDiffLines(rel, git('diff', '-U0', BASE_COMMIT, '--', rel).split('\\n')).filter(line => line.startsWith('-') && !line.startsWith('---'))\n",
+      "    const removed = git('diff', '-U0', BASE_COMMIT, '--', rel).split('\\n').filter(line => line.startsWith('-') && !line.startsWith('---'))\n"
+    ],
+    [
+      "    const added = voiceCoreProofDiffLines(rel, git('diff', '-U0', BASE_COMMIT, '--', rel).split('\\n')).filter(line => line.startsWith('+') && !line.startsWith('+++'))\n",
+      "    const added = git('diff', '-U0', BASE_COMMIT, '--', rel).split('\\n').filter(line => line.startsWith('+') && !line.startsWith('+++'))\n"
+    ]
+  ],
+  "scripts/test-studio-model-choice.mjs": [
+    [
+      "import { stripVoiceCore } from './studio-voice-core-strip.mjs' // LATER-CHANGES: registry read (STUDIO-VOICE-CORE): normalize only this port's exact proof metadata\n",
+      ""
+    ],
+    [
+      "const read = rel => stripVoiceCore(rel, (rel in overrides ? overrides[rel] : fs.readFileSync(path.join(root, rel), 'utf8')))\n",
+      "const read = rel => (rel in overrides ? overrides[rel] : fs.readFileSync(path.join(root, rel), 'utf8'))\n"
     ]
   ]
 };
@@ -398,6 +448,30 @@ export const VOICE_CORE_LOCK_EDITS = [
     "  which@2.0.2:\n    dependencies:\n      isexe: 2.0.0\n\n  wrap-ansi@7.0.0:\n    dependencies:\n"
   ]
 ];
+/** Normalize only exact voice-port rows before an older proof checks its raw diff. Unknown rows stay visible. */
+export function voiceCoreProofDiffLines(rel, lines) {
+  if (!Object.prototype.hasOwnProperty.call(VOICE_CORE_PROOF_EDITS, rel)) return lines;
+  const restored = new Set();
+  const out = lines.flatMap(line => {
+    if (!line.startsWith("+") || line.startsWith("+++")) return [line];
+    const source = line.slice(1) + "\n";
+    const normalized = stripVoiceCore(rel, source);
+    if (normalized === source) return [line];
+    if (!normalized) return [];
+    const rows = (normalized.endsWith("\n") ? normalized.slice(0, -1) : normalized).split("\n");
+    rows.forEach(row => restored.add(row));
+    return rows.map(row => "+" + row);
+  });
+  // Only a known restored read/pin row can become unchanged; unrelated additions/removals are never cancelled.
+  for (const row of restored) {
+    let plus = out.indexOf("+" + row), minus = out.indexOf("-" + row);
+    while (plus !== -1 && minus !== -1) {
+      out.splice(Math.max(plus, minus), 1); out.splice(Math.min(plus, minus), 1);
+      plus = out.indexOf("+" + row); minus = out.indexOf("-" + row);
+    }
+  }
+  return out;
+}
 export function stripVoiceCore(rel, text) {
   if (VOICE_CORE_PROOF_EDITS[rel]) {
     let out = text;

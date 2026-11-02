@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { readFileSync } from "node:fs";
-import { stripVoiceCore, VOICE_CORE_ENV_BLOCK, VOICE_CORE_SCOPE_PIN, VOICE_CORE_PROOF_EDITS, VOICE_CORE_LOCK_EDITS, VOICE_CORE_KNOWN_SUBJECTS, isVoiceCoreCommitSubject } from "../../studio-voice-core-strip.mjs";
+import { stripVoiceCore, VOICE_CORE_ENV_BLOCK, VOICE_CORE_SCOPE_PIN, VOICE_CORE_PROOF_EDITS, VOICE_CORE_LOCK_EDITS, VOICE_CORE_KNOWN_SUBJECTS, isVoiceCoreCommitSubject, voiceCoreProofDiffLines } from "../../studio-voice-core-strip.mjs";
 
 describe("voice proof compatibility is exact", () => {
   it("normalizes git subject newlines and recognizes only this port's bounded subjects", () => {
@@ -41,6 +41,10 @@ describe("voice proof compatibility is exact", () => {
   it("removes its compatibility pin and preserves every older assertion", () => {
     expect(stripVoiceCore("scripts/test-studio-deck-sync-truth.mjs", "before\n" + VOICE_CORE_SCOPE_PIN + "after\n")).toBe("before\nafter\n");
     expect(stripVoiceCore("scripts/test-studio-deck-sync-truth.mjs", "assert(false)\n")).toBe("assert(false)\n");
+    const rel = "scripts/test-studio-model-catalog.mjs";
+    const [has, was] = VOICE_CORE_PROOF_EDITS[rel].find(([has, was]) => was && has.includes("const read"))!;
+    expect(voiceCoreProofDiffLines(rel, ["-" + was.slice(0, -1), "+" + has.slice(0, -1), "+assert(false)", "-foreign"])).toEqual(["+assert(false)", "-foreign"]);
+    expect(voiceCoreProofDiffLines(rel, ["+unknown", "-unknown"])).toEqual(["+unknown", "-unknown"]);
     for (const [file, edits] of Object.entries(VOICE_CORE_PROOF_EDITS)) {
       for (const [has, was] of edits) expect(stripVoiceCore(file, "before\n" + has + "assert(false)\n")).toBe("before\n" + was + "assert(false)\n");
     }
