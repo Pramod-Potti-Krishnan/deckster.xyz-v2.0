@@ -654,7 +654,10 @@ if (baseOk) {
         for (const line of has.split('\n').filter(Boolean)) ok(line.includes(strip.STUDIO_TEMPLATE_AUTO_APPLY_SERVER_PIN_MARK), `${rel}: every taught line carries the registry-read mark: ${line.slice(0, 80)}`)
         ok(!MARK.test(was), `${rel}: what a taught edit replaces is not marked`)
       }
-      for (const row of diffLines(git('diff', '-U0', blobOf(ctx.norm(rel, base)), blobOf(ctx.norm(rel, now))))) ok(row.startsWith('+') && row.includes(strip.STUDIO_TEMPLATE_AUTO_APPLY_SERVER_PIN_MARK), `${rel}: only marked additions: ${row.slice(0, 100)}`)
+      const replaced = strip.STUDIO_TEMPLATE_AUTO_APPLY_SERVER_PIN_EDITS[rel].map(([, was]) => was.replace(/\n$/, '')).filter(Boolean) // a taught edit may REPLACE one line (the route-set check of test-studio-model-choice); the original is what the strip puts back
+      const taughtDiff = diffLines(git('diff', '-U0', blobOf(ctx.norm(rel, base)), blobOf(ctx.norm(rel, now))))
+      for (const row of taughtDiff) ok(row.startsWith('+') ? row.includes(strip.STUDIO_TEMPLATE_AUTO_APPLY_SERVER_PIN_MARK) : replaced.includes(row.slice(1)), `${rel}: only marked additions, and the registered replaced lines go: ${row.slice(0, 100)}`)
+      eq(taughtDiff.filter(row => row.startsWith('-')).length, replaced.length, `${rel}: exactly the registered replaced lines are removed`)
     }
     ok(strip.STUDIO_TEMPLATE_AUTO_APPLY_SERVER_PIN_FILES.length > 0 && strip.STUDIO_TEMPLATE_AUTO_APPLY_SERVER_PIN_FILES.every(rel => !SOURCE_FILES.includes(rel) && !strip.STUDIO_TEMPLATE_AUTO_APPLY_SERVER_NEW_FILES.includes(rel)), 'the taught proofs are a list of their own')
     for (const rel of NEVER) ok(!touched.has(rel), `${rel} is not touched by this change`)

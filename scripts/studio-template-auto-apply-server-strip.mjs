@@ -43,6 +43,13 @@ export const STUDIO_TEMPLATE_AUTO_APPLY_SERVER_PIN_EDITS = {
   "scripts/test-studio-chat-element-edit.mjs": [[FIRST_PARENT_SUBJECT_LINE, ""]],
   // the first-parent scope check of test-studio-deck-sync-truth.mjs: the same
   "scripts/test-studio-deck-sync-truth.mjs": [[FIRST_PARENT_SUBJECT_LINE, ""]],
+  // the route-set check of test-studio-model-choice.mjs ("the route set grows by exactly the three new routes"): this change adds one inert route of its own, so the check does not count it (one replaced line)
+  "scripts/test-studio-model-choice.mjs": [
+    [
+      `    const after = routesOf(git('ls-files', '-co', '--exclude-standard', '--', 'app').split('\\n').filter(Boolean).filter(file => file !== 'app/api/preferences/template-auto-apply/route.ts')) ${STUDIO_TEMPLATE_AUTO_APPLY_SERVER_PIN_MARK}: the route set is this change's three; the template auto-apply server adds one inert route of its own (a 404 while its flag is off)\n`,
+      "    const after = routesOf(git('ls-files', '-co', '--exclude-standard', '--', 'app').split('\\n').filter(Boolean))\n",
+    ],
+  ],
   // the template match's own proof (#559): on the real branch it wants its registry lines to close their lists; this change is registered after it, so its own registry lines may follow the template match's (the hook that proof's synthetic later change already uses)
   "scripts/test-studio-template-match.mjs": [
     [

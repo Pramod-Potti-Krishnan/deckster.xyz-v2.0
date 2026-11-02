@@ -978,7 +978,7 @@ async function suite({ quiet = false, extraCommitted = [] } = {}) {
   await check('M: the route set grows by exactly the three new routes; each route is thin and server-only', () => {
     const routesOf = files => [...new Set(files.filter(file => /^app\/(.*\/)?(page|route)\.(tsx|ts|jsx|js)$/.test(file)).map(file => '/' + file.replace(/^app\//, '').replace(/(^|\/)(page|route)\.\w+$/, '').split('/').filter(segment => segment && !/^\(.*\)$/.test(segment)).join('/')))].sort()
     const before = routesOf(git('ls-tree', '-r', '--name-only', BASE, '--', 'app').split('\n').filter(Boolean))
-    const after = routesOf(git('ls-files', '-co', '--exclude-standard', '--', 'app').split('\n').filter(Boolean))
+    const after = routesOf(git('ls-files', '-co', '--exclude-standard', '--', 'app').split('\n').filter(Boolean).filter(file => file !== 'app/api/preferences/template-auto-apply/route.ts')) // LATER-CHANGES: registry read (STUDIO-TEMPLATE-AUTO-APPLY-SERVER): the route set is this change's three; the template auto-apply server adds one inert route of its own (a 404 while its flag is off)
     deep(after.filter(route => !before.includes(route)), ['/api/model-choice/prefs', '/api/model-choice/prefs/deck/[deckKey]', '/api/model-choice/used/[buildId]']); deep(before.filter(route => !after.includes(route)), [])
     eq(after.length, before.length + 3)
     deep([...strip.MODEL_CHOICE_ROUTES], [USER_ROUTE, DECK_ROUTE, USED_ROUTE])
