@@ -1,0 +1,1008 @@
+// FRONTEND-1 (W6 P4-20 "Talk to the Director", the Studio voice call UI): proof of NEXT_PUBLIC_STUDIO_VOICE_CALL (the string "true", default off, build-time) and NEXT_PUBLIC_STUDIO_VOICE_COMPANION.
+//   lib/studio-voice-call-ui.ts (pure: flag, wire, frame -> scene, scene -> clips, framing, words), lib/studio-voice-call-router.ts (the same-origin seam to model-router), lib/studio-voice-call-controller.ts (one call's life,
+//   run here against ELEMENT-3's REAL core with a virtual clock and fakes), hooks/use-studio-voice-call.ts, components/builder/voice-call/*, and the marked lines in app/builder/page.tsx, hooks/use-deckster-websocket-v2.ts and
+//   components/builder/chat-input.tsx, the .env.example block, the registry. The Director side is DIRECTOR-2's final P4-18 schema (client cap voice1, user_message data.mode "voice", payload.spoken, payload.companion_state).
+//
+//   A.  The lib, function by function (flags, the armed voice turn and its fields, every row of the frame -> scene table and the companion_state hint, spoken lines, the track, the scene, the chip, the clip plans, frames at a time,
+//       the mouth, the framing, the controls, the words).
+//   A2. The router seam (a fake fetch: statuses -> kinds, abort, nothing requested until a method is called).
+//   B.  The controller against the real core: the microphone is asked for by the call and by nothing else, honest errors, push-to-talk, the voice turn (armed words, mode and cap), the reply's spoken line only, talk-over and Stop,
+//       the filler, progress lines between turns, the timeout, the character's scene from Director's frames, tear-down (no timer, no track left).
+//   C.  The components drawn offline (dock states, the call button, the player's fallback) and the hook (flag off: nothing loaded, listened to or timed).
+//   D.  The page, the socket hook, the composer, .env.example, the strip, the scope and the registry: every marked line is where and as gated as it must be; stripping them gives the base's files byte for byte.
+//   E.  MUTANTS: every one of them must be caught by A-D.
+//
+//   node scripts/test-studio-voice-call.mjs
+//
+// Offline: no microphone, no audio, no socket, no fetch and no real timer (the host network guard is installed); git is read only for D.
+process.env.NODE_ENV = 'production'
+import assert from 'node:assert/strict'
+import fs from 'node:fs'
+import net from 'node:net'
+import dns from 'node:dns'
+import path from 'node:path'
+import { createRequire } from 'node:module'
+import { execFileSync } from 'node:child_process'
+import { fileURLToPath } from 'node:url'
+import ts from 'typescript'
+import { installHostNetworkGuard } from './studio-chat-harness/fake-env.mjs'
+
+const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..')
+const require = createRequire(import.meta.url)
+const release = installHostNetworkGuard(net, dns)
+let checks = 0
+const ok = (condition, message) => { checks++; assert.ok(condition, message) }
+const eq = (actual, expected, message) => { checks++; assert.deepEqual(actual, expected, message) }
+const read = rel => fs.readFileSync(path.join(root, rel), 'utf8')
+const React = (await import('react')).default
+const { renderToStaticMarkup } = await import('react-dom/server')
+const mini = await import('./studio-chat-harness/mini-react.mjs')
+const { Root } = mini
+const strip = await import('./studio-voice-call-strip.mjs')
+
+const UI = 'lib/studio-voice-call-ui.ts', ROUTER = 'lib/studio-voice-call-router.ts', CTL = 'lib/studio-voice-call-controller.ts', BROWSER = 'lib/studio-voice-call-browser.ts'
+const HOOK = 'hooks/use-studio-voice-call.ts', DOCK = 'components/builder/voice-call/voice-call-dock.tsx', BUTTON = 'components/builder/voice-call/voice-call-button.tsx', PLAYER = 'components/builder/voice-call/companion-player.tsx'
+const CSS = 'components/builder/voice-call/voice-call.css'
+const PAGE = 'app/builder/page.tsx', WS = 'hooks/use-deckster-websocket-v2.ts', INPUT = 'components/builder/chat-input.tsx'
+const CORE = 'lib/studio/voice'
+const SOURCES = Object.fromEntries([UI, ROUTER, CTL, BROWSER, HOOK, DOCK, BUTTON, PLAYER, CSS, PAGE, WS, INPUT, '.env.example'].map(rel => [rel, read(rel)]))
+
+// ---- a tiny module host: the real files (or a mutant of one), their imports resolved against the repo, in THIS realm --------------------------------------------------------------------------------
+function compile(text, fileName) {
+  const out = ts.transpileModule(text, { fileName, reportDiagnostics: true, compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022, jsx: ts.JsxEmit.ReactJSX, esModuleInterop: true, isolatedModules: true } })
+  const errors = (out.diagnostics ?? []).filter(item => item.category === ts.DiagnosticCategory.Error)
+  if (errors.length) throw new Error(`${fileName} does not transpile: ${ts.flattenDiagnosticMessageText(errors[0].messageText, '\n')}`)
+  return out.outputText
+}
+function makeHost({ env = {}, stubs = {}, over = {} } = {}) {
+  const cache = new Map()
+  const resolve = (from, spec) => {
+    const base = spec.startsWith('@/') ? path.join(root, spec.slice(2)) : path.resolve(path.dirname(from), spec)
+    for (const candidate of [base, `${base}.ts`, `${base}.tsx`, path.join(base, 'index.ts')]) if (fs.existsSync(candidate) && fs.statSync(candidate).isFile()) return candidate
+    throw new Error(`cannot resolve ${spec} from ${path.relative(root, from)}`)
+  }
+  const load = abs => {
+    if (cache.has(abs)) return cache.get(abs).exports
+    const module = { exports: {} }
+    cache.set(abs, module)
+    const rel = path.relative(root, abs)
+    const text = rel in over ? over[rel] : fs.readFileSync(abs, 'utf8')
+    const require_ = spec => {
+      if (spec in stubs) return stubs[spec]
+      if (spec.endsWith('.css')) return {}
+      if (spec.startsWith('@/') || spec.startsWith('.')) return load(resolve(abs, spec))
+      return require(spec)
+    }
+    new Function('module', 'exports', 'require', 'process', compile(text, rel))(module, module.exports, require_, { env })
+    return module.exports
+  }
+  return { load: rel => load(path.join(root, rel)) }
+}
+const ENV_ON = { NEXT_PUBLIC_STUDIO_VOICE_CALL: 'true' }
+const loadUi = (over = {}, env = ENV_ON) => makeHost({ env, over }).load(UI)
+const macro = () => new Promise(resolve => setImmediate(resolve))
+const settle = async () => { for (let i = 0; i < 4; i++) { await Promise.resolve(); await macro() } }
+
+// ============================================================================================================================================
+// A. The lib
+// ============================================================================================================================================
+const frame = (type, payload = {}, id = null) => ({ type, session_id: 's1', message_id: id ?? `${type}-${++frame.n}`, payload })
+frame.n = 0
+function uiSuite(ui, over = {}) {
+  // -- flags ------------------------------------------------------------------------------------------------------------------------------
+  for (const [label, value, want] of [['unset', undefined, false], ['"false"', 'false', false], ['"TRUE"', 'TRUE', false], ['"1"', '1', false], ['empty', '', false], ['" true"', ' true', false], ['"true"', 'true', true]]) {
+    eq(loadUi(over, value === undefined ? {} : { NEXT_PUBLIC_STUDIO_VOICE_CALL: value }).STUDIO_VOICE_CALL_UI_ENABLED, want, `flag: ${label}`)
+  }
+  eq(ui.voiceCallFlagOn('true'), true, 'flag fn: true'); eq(ui.voiceCallFlagOn(undefined), false, 'flag fn: unset')
+  for (const [value, want] of [[undefined, 'bob'], ['', 'bob'], ['bob', 'bob'], ['deckster-owl', 'deckster-owl'], ['Bob', 'bob'], ['../etc', 'bob'], ['a/b', 'bob'], ['-x', 'bob'], ['x'.repeat(33), 'bob'], ['x'.repeat(32), 'x'.repeat(32)], ['b o b', 'bob'], ['bob.webp', 'bob']]) {
+    eq(ui.companionNameFrom(value), want, `companion name: ${String(value).slice(0, 20)}`)
+  }
+  eq(loadUi(over, { NEXT_PUBLIC_STUDIO_VOICE_COMPANION: 'toy-1' }).STUDIO_VOICE_COMPANION, 'toy-1', 'companion: read from the environment')
+  eq(loadUi(over, {}).STUDIO_VOICE_COMPANION, 'bob', 'companion: default')
+
+  // -- the voice turn on the wire ----------------------------------------------------------------------------------------------------------
+  eq([ui.voiceCallBus.frame, ui.voiceCallBus.sent, ui.voiceCallBus.pending], [null, null, null], 'bus: empty at rest')
+  eq([ui.VOICE_TURN_MODE, ui.VOICE_CAP], ['voice', 'voice1'], 'wire: mode "voice", cap "voice1"')
+  const typed = { text: 'hello', client_caps: ['mdc1'] }
+  eq(ui.addVoiceCallFields({ ...typed }, 'hello'), typed, 'wire: nothing armed, nothing added (a typed message is exactly as before)')
+  ui.armVoiceTurn('make it shorter')
+  eq(ui.addVoiceCallFields({ text: 'something else', client_caps: ['mdc1'] }, 'something else'), { text: 'something else', client_caps: ['mdc1'] }, 'wire: another message is not the voice turn')
+  eq(ui.voiceCallBus.pending, { text: 'make it shorter' }, 'wire: ...and the armed turn stays armed for its own words')
+  eq(ui.addVoiceCallFields({ text: 'make it shorter', client_caps: ['mdc1', 'element_edit1'] }, 'make it shorter'), { text: 'make it shorter', client_caps: ['mdc1', 'element_edit1', 'voice1'], mode: 'voice' }, 'wire: the armed words get mode and the cap, after the other caps')
+  eq(ui.voiceCallBus.pending, null, 'wire: ...once')
+  eq(ui.addVoiceCallFields({ text: 'make it shorter' }, 'make it shorter'), { text: 'make it shorter' }, 'wire: a second message with the same words is not a voice turn')
+  ui.armVoiceTurn('a'); eq(ui.addVoiceCallFields({ text: 'a' }, 'a'), { text: 'a', mode: 'voice', client_caps: ['voice1'] }, 'wire: no caps before: just voice1')
+  ui.armVoiceTurn('a'); eq(ui.addVoiceCallFields({ text: 'a', client_caps: ['voice1', 'x'] }, 'a').client_caps, ['voice1', 'x'], 'wire: voice1 once')
+  ui.armVoiceTurn('a'); eq(ui.addVoiceCallFields({ text: 'a', client_caps: 'oops' }, 'a').client_caps, ['voice1'], 'wire: caps that are not a list are replaced by ours')
+  ui.armVoiceTurn('a'); ui.disarmVoiceTurn(); eq(ui.voiceCallBus.pending, null, 'wire: disarmed')
+  eq(ui.isVoiceCallFrameType('chat_message') && ui.isVoiceCallFrameType('build_event') && ui.isVoiceCallFrameType('status_update') && ui.isVoiceCallFrameType('action_request'), true, 'frame types: the ones Director\'s state rides')
+  eq(['sync_response', 'error', 'slide_update', 'deck_mutation', 'token_usage', undefined].map(ui.isVoiceCallFrameType), [false, false, false, false, false, false], 'frame types: nothing else is shown to the call')
+
+  // -- Director's frames -> a signal (Garud's table, DIRECTOR-2's frames) -----------------------------------------------------------------------
+  const sig = (type, payload) => ui.signalFromFrame(frame(type, payload))
+  eq(sig('status_update', { status: 'thinking' }), { kind: 'thinking' }, 'signal: status_update thinking')
+  eq(sig('status_update', { status: 'generating' }), { kind: 'working' }, 'signal: status_update generating')
+  eq(sig('status_update', { status: 'error' }), { kind: 'concerned' }, 'signal: status_update error')
+  eq(sig('status_update', { status: 'idle' }), { kind: 'idle' }, 'signal: status_update idle')
+  eq(sig('status_update', { status: 'complete' }), null, 'signal: status_update complete says nothing about the character')
+  for (const phase of ['planning', 'strawman', 'building', 'qa', 'finalizing']) eq(sig('build_phase', { phase }), { kind: 'working' }, `signal: build_phase ${phase} is working`)
+  eq(sig('build_phase', { phase: 'complete' }), { kind: 'pleased', big: true }, 'signal: build_phase complete is the big pleased')
+  eq([sig('build_phase', { phase: 'paused' }), sig('build_phase', { phase: 'stopped' })], [{ kind: 'paused' }, { kind: 'paused' }], 'signal: build_phase paused / stopped is paused')
+  eq(sig('build_phase', { phase: 'error' }), { kind: 'concerned' }, 'signal: build_phase error')
+  eq(sig('build_phase', { phase: 'settled' }), null, 'signal: an unknown phase says nothing')
+  eq([sig('build_event', { status: 'started' }), sig('build_event', { status: 'progress' })], [{ kind: 'working' }, { kind: 'working' }], 'signal: build_event started / progress is working')
+  eq(sig('build_event', { status: 'error' }), { kind: 'concerned' }, 'signal: build_event error'); eq(sig('build_event', { status: 'done' }), null, 'signal: build_event done is not a state')
+  eq(sig('slide_progress', { text: 'x' }), { kind: 'working' }, 'signal: slide_progress is working')
+  eq(sig('slide_built', {}), { kind: 'pleased', big: false }, 'signal: slide_built is the small pleased'); eq(sig('slide_failed', {}), { kind: 'concerned' }, 'signal: slide_failed')
+  eq(sig('action_request', {}), { kind: 'waiting' }, 'signal: action_request is waiting')
+  eq(sig('chat_message', { text: 'Done.' }), { kind: 'reporting', decline: false }, 'signal: chat_message is reporting')
+  eq(sig('chat_message', { text: 'Preparing...', ephemeral: true }), null, 'signal: an ephemeral progress bubble is not a report')
+  for (const text of ["I can't do that yet.", 'I cannot change the logo.', "Sorry, that is not possible.", "I couldn't open that file.", "I'm unable to do that.", "I'm not able to add a video."]) eq(sig('chat_message', { text }), { kind: 'reporting', decline: true }, `signal: an honest decline is sorry: ${text}`)
+  for (const text of ['I can see the problem.', 'It cannot hurt.', 'Sure, I can do that.', 'I have changed the title.']) eq(sig('chat_message', { text }), { kind: 'reporting', decline: false }, `signal: not a decline: ${text}`)
+  eq([sig('slide_update', {}), sig('presentation_url', {}), ui.signalFromFrame(null), ui.signalFromFrame('x'), ui.signalFromFrame({ type: 'chat_message' })], [null, null, null, null, { kind: 'reporting', decline: false }], 'signal: other frames and junk say nothing, and never throw')
+  // the Director's own hint wins, refined only by what the frame itself knows
+  for (const [hint, want] of [['thinking', { kind: 'thinking' }], ['working', { kind: 'working' }], ['reporting', { kind: 'reporting', decline: false }], ['pleased', { kind: 'pleased', big: false }], ['concerned', { kind: 'concerned' }], ['waiting', { kind: 'waiting' }]]) {
+    eq(sig('status_update', { status: 'idle', companion_state: hint }), want, `hint: ${hint} wins over the frame's type`)
+  }
+  eq(sig('chat_message', { text: "I can't do that.", companion_state: 'reporting' }), { kind: 'reporting', decline: true }, 'hint: reporting on a decline is sorry')
+  eq(sig('build_phase', { phase: 'complete', companion_state: 'pleased' }), { kind: 'pleased', big: true }, 'hint: pleased on build_phase complete is the big one')
+  eq(sig('slide_built', { companion_state: 'pleased' }), { kind: 'pleased', big: false }, 'hint: pleased on slide_built is the small one')
+  eq(sig('build_phase', { phase: 'paused', companion_state: 'waiting' }), { kind: 'paused' }, 'hint: waiting on a paused build is the hold pose')
+  eq(sig('action_request', { companion_state: 'waiting' }), { kind: 'waiting' }, 'hint: waiting on a question is the invitation')
+  eq(sig('build_phase', { phase: 'stopped', companion_state: 'concerned' }), { kind: 'concerned' }, 'hint: concerned on a stopped build (DIRECTOR-2) is concerned')
+  eq(sig('build_phase', { phase: 'building', companion_state: 'listening' }), { kind: 'working' }, 'hint: "listening" is client-only: ignored, the frame decides')
+  eq(sig('build_phase', { phase: 'building', companion_state: 'dancing' }), { kind: 'working' }, 'hint: an unknown state is ignored, never guessed at')
+  eq(sig('build_phase', { phase: 'building', companion_state: 7 }), { kind: 'working' }, 'hint: a non-string is ignored')
+
+  // -- words on frames -------------------------------------------------------------------------------------------------------------------------
+  const spoken = (type, payload) => ui.spokenLineFromFrame(frame(type, payload))
+  eq(spoken('chat_message', { text: 'Long text', spoken: ' Sure, done. ' }), 'Sure, done.', 'spoken: a chat_message\'s payload.spoken, trimmed')
+  eq(spoken('chat_message', { text: 'Long text' }), null, 'spoken: no spoken line, nothing to say (nothing is made up from the text)')
+  eq(spoken('chat_message', { text: 'x', spoken: '   ' }), null, 'spoken: blank is nothing'); eq(spoken('chat_message', { spoken: 7 }), null, 'spoken: not a string is nothing')
+  eq(spoken('chat_message', { spoken: 'a'.repeat(300) }) !== null && spoken('chat_message', { spoken: 'a'.repeat(301) }) === null, true, 'spoken: a chat line over 300 characters is not said')
+  eq(spoken('status_update', { status: 'generating', text: 'Researching', spoken: 'Researching the topic.' }), 'Researching the topic.', 'spoken: a status_update\'s line')
+  eq(spoken('build_phase', { phase: 'building', label: 'Building', spoken: 'Building your slides.' }), 'Building your slides.', 'spoken: a build_phase\'s line')
+  eq(spoken('build_event', { scope: 'deck', text: 'x', spoken: 'Checking the layouts.' }), 'Checking the layouts.', 'spoken: a deck-scope build_event\'s line')
+  eq(spoken('build_event', { scope: 'slide', text: 'x', spoken: 'Slide three.' }), null, 'spoken: a slide-scope build_event says nothing aloud')
+  eq(spoken('slide_built', { spoken: 'Hi' }), null, 'spoken: no other frame is read aloud'); eq(spoken('action_request', { spoken: 'Hi' }), null, 'spoken: an action_request is read in the chat')
+  eq(spoken('status_update', { status: 'generating', spoken: 'a'.repeat(160) }) !== null && spoken('status_update', { status: 'generating', spoken: 'a'.repeat(161) }) === null, true, 'spoken: a progress line over 160 characters is not said')
+  eq(ui.isProgressSpoken(frame('build_phase', { phase: 'building', spoken: 'On it.' })), true, 'progress: a progress frame with a line'); eq(ui.isProgressSpoken(frame('chat_message', { spoken: 'On it.' })), false, 'progress: a chat_message is a reply, not progress')
+  eq(ui.isProgressSpoken(frame('build_phase', { phase: 'building' })), false, 'progress: no line, no progress speech')
+  const words = (type, payload) => ui.progressTextFromFrame(frame(type, payload))
+  eq([words('build_event', { scope: 'deck', text: 'Researching…' }), words('build_event', { scope: 'slide', text: 'Slide 3' }), words('build_phase', { label: 'Building your slides…' }), words('status_update', { status: 'generating', text: 'Drafting' }), words('status_update', { status: 'thinking', text: 'Thinking…' }), words('slide_progress', { text: 'Rendering' }), words('chat_message', { text: 'x' })],
+    ['Researching…', null, 'Building your slides…', 'Drafting', null, 'Rendering', null], 'progress text: deck events, labels, statuses (not "thinking"), slide_progress; a slide-scoped event is not the deck\'s story')
+  eq(ui.replyTextFromFrame(frame('chat_message', { text: ' hi ' })), 'hi', 'reply text'); eq(ui.replyTextFromFrame(frame('status_update', { text: 'hi' })), null, 'reply text: chat_message only')
+
+  // -- the track and the scene ------------------------------------------------------------------------------------------------------------------
+  const T0 = ui.initialDirectorTrack()
+  eq([T0.background, T0.beat], ['none', null], 'track: starts empty')
+  const at = (track, signal, now) => ui.applyDirectorSignal(track, signal, now)
+  let track = at(T0, { kind: 'working' }, 1000)
+  eq(track.background, 'working', 'track: working is held'); eq(ui.companionScene({ phase: 'idle', track, now: 1500 }), 'working', 'scene: idle call, Director working -> working')
+  eq(ui.companionScene({ phase: 'listening', track, now: 1500 }), 'listening', 'scene: the user\'s turn wins'); eq(ui.companionScene({ phase: 'speaking', track, now: 1500 }), 'speaking', 'scene: Director\'s speech wins')
+  eq(ui.companionScene({ phase: 'thinking', track, now: 1500 }), 'thinking', 'scene: a turn waiting for its reply is thinking'); eq(ui.companionScene({ phase: 'idle', speakingNow: true, track, now: 1500 }), 'speaking', 'scene: a line coming out is speaking')
+  track = at(track, { kind: 'pleased', big: false }, 2000)
+  eq(ui.companionScene({ phase: 'idle', track, now: 2100 }), 'pleased', 'scene: a beat over what Director was doing'); eq(ui.companionScene({ phase: 'idle', track, now: 2000 + ui.BEAT_MS.pleased }), 'working', 'scene: ...and back to it when the beat is over')
+  track = at(track, { kind: 'pleased', big: false }, 2000 + ui.PLEASED_EVERY_MS - 1)
+  eq(ui.companionScene({ phase: 'idle', track, now: 2000 + ui.PLEASED_EVERY_MS }), 'working', 'track: a small pleased at most every 20 s (a slide built 19.999 s later is not another one)')
+  track = at(track, { kind: 'pleased', big: false }, 2000 + ui.PLEASED_EVERY_MS)
+  eq(ui.companionScene({ phase: 'idle', track, now: 2000 + ui.PLEASED_EVERY_MS + 10 }), 'pleased', 'track: ...and 20 s later it is')
+  track = at(T0, { kind: 'thinking' }, 0); eq(ui.companionScene({ phase: 'idle', track, now: 1 }), 'thinking', 'scene: Director thinking on a typed turn')
+  const replied = at(track, { kind: 'reporting', decline: false }, 10)
+  eq([replied.background, replied.beat.scene], ['none', 'reporting'], 'track: a report ends the thinking'); eq(at(at(T0, { kind: 'working' }, 0), { kind: 'reporting', decline: false }, 10).background, 'working', 'track: ...but not a build that is still going')
+  eq(at(T0, { kind: 'reporting', decline: true }, 0).beat.scene, 'sorry', 'track: a decline is sorry'); eq(at(T0, { kind: 'concerned' }, 0).beat.scene, 'concerned', 'track: concerned')
+  for (const [kind, want] of [['waiting', 'waiting'], ['paused', 'paused'], ['reading', 'reading']]) eq(ui.companionScene({ phase: 'idle', track: at(T0, { kind }, 0), now: 1 }), want, `scene: ${kind}`)
+  eq(ui.companionScene({ phase: 'idle', track: at(at(T0, { kind: 'waiting' }, 0), { kind: 'idle' }, 1), now: 2 }), 'idle', 'scene: idle clears a held state')
+  const big1 = at(T0, { kind: 'pleased', big: true }, 0), big2 = at(big1, { kind: 'pleased', big: true }, 10000), big3 = at(big2, { kind: 'pleased', big: true }, 20000)
+  eq([big1.dance, big2.dance, big3.dance, big3.beat.scene], [false, false, true, 'celebrating'], 'track: every third celebration dances')
+  eq(at(big3, { kind: 'pleased', big: true }, 30000).dance, false, 'track: ...and the next does not'); eq(at(at(at(at(at(T0, { kind: 'pleased', big: true }, 0), { kind: 'pleased', big: true }, 70000), { kind: 'pleased', big: true }, 140000), { kind: 'pleased', big: true }, 210000), { kind: 'pleased', big: true }, 280000).celebrations, 5, 'track: the count is kept')
+  const dancer = at(at(at(T0, { kind: 'pleased', big: true }, 0), { kind: 'pleased', big: true }, 100), { kind: 'pleased', big: true }, 200), dancer2 = at(at(at(dancer, { kind: 'pleased', big: true }, 300), { kind: 'pleased', big: true }, 400), { kind: 'pleased', big: true }, 500)
+  eq([dancer.dance, dancer2.dance], [true, false], 'track: a dance never comes twice within a minute')
+  eq(ui.chipLabel('listening'), 'Listening', 'chip: listening'); eq(ui.chipLabel('thinking'), 'Thinking', 'chip: thinking'); eq(ui.chipLabel('speaking'), 'Speaking', 'chip: speaking')
+  eq(ui.SCENES.filter(scene => !['listening', 'thinking', 'speaking'].includes(scene)).map(ui.chipLabel).every(label => label === 'Your turn'), true, 'chip: every other scene is the user\'s turn (the user may talk while Director works)')
+
+  // -- scenes -> clips (Garud's table) ---------------------------------------------------------------------------------------------------------
+  const plan = (scene, dance = false) => ui.scenePlan(scene, { dance })
+  const names = scene => plan(scene).steps.map(step => `${step.clip}:${step.mode}`)
+  eq(names('idle'), ['idle_breathe:loop'], 'clips: idle breathes'); eq(plan('idle').blink, true, 'clips: idle blinks')
+  eq(names('listening'), ['lean_in:hold'], 'clips: listening = lean_in hold'); eq(plan('listening').accent, { clip: 'nod', reverse: false, everyMs: [3500, 5500] }, 'clips: ...and a nod every few seconds')
+  eq(names('thinking'), ['expr_thinking_front:hold'], 'clips: thinking = expr_thinking')
+  eq(names('working'), ['work_loop:loop'], 'clips: working = work_loop'); eq(plan('working').accent, { clip: 'look_down', reverse: true, everyMs: [8000, 12000] }, 'clips: ...with a glance up (look_down reversed) every 8-12 s')
+  eq(names('reporting'), ['present:once', 'idle_breathe:loop'], 'clips: reporting = present, then talk (the talk is the speaking scene)')
+  eq(names('pleased'), ['expr_happy_front:hold'], 'clips: pleased = a happy beat'); eq(names('celebrating'), ['expr_happy_front:once', 'wave_both:once', 'expr_happy_front:hold'], 'clips: the big pleased = happy -> wave_both')
+  eq(plan('celebrating', true).steps.map(step => step.clip), ['expr_happy_front', 'wave_both', 'dance_bounce', 'expr_happy_front'], 'clips: ...sometimes a dance')
+  eq(names('concerned'), ['expr_concerned_front:hold'], 'clips: concerned'); eq(names('sorry'), ['expr_sorry_front:once', 'shrug:once', 'expr_sorry_front:hold'], 'clips: sorry = expr_sorry + shrug')
+  eq(names('waiting'), ['invite:once', 'lean_in:hold'], 'clips: waiting = invite, then lean_in'); eq(names('paused'), ['hold:hold'], 'clips: paused = hold'); eq(names('reading'), ['look_down:hold'], 'clips: reading = look_down')
+  eq(names('speaking'), ['talk_neutral:talk'], 'clips: speaking = the talk set')
+  eq(ui.SCENES.every(scene => plan(scene).steps.length > 0 && !!plan(scene).still.clip), true, 'clips: every scene has a plan and a still')
+  eq(['idle', 'listening', 'thinking', 'speaking', 'pleased', 'concerned'].map(scene => `${plan(scene).still.clip}:${plan(scene).still.at}`), ['idle_breathe:first', 'lean_in:hold', 'expr_thinking_front:hold', 'talk_neutral:first', 'expr_happy_front:hold', 'expr_concerned_front:hold'], 'reduced motion: one still per state (listening = lean_in hold, thinking, speaking = talk closed, pleased = happy, concerned)')
+  eq(ui.clipsForScene('working'), ['work_loop', 'look_down', 'blink'], 'clips: a scene\'s clips, accent and blink included'); eq(ui.clipsForScene('celebrating').includes('dance_bounce'), true, 'clips: a celebration may ask for the dance')
+  // frames at a time
+  const clip = { frames: ['a', 'b', 'c', 'd'], fps: 2, hold: 2 }, looped = { frames: ['a', 'b', 'c', 'd'], fps: 2, loop: [1, 3] }
+  eq([0, 0.49, 0.5, 1.2, 1.9, 5].map(t => ui.stepFrameIndex(clip, 'once', t)), [0, 0, 1, 2, 3, 3], 'frames: once runs to the last frame and stays')
+  eq([0, 1.1, 1.6, 9].map(t => ui.stepFrameIndex(clip, 'hold', t)), [0, 2, 2, 2], 'frames: hold stops at the hold frame')
+  eq([0, 1.5, 2.0, 2.5, 3.0].map(t => ui.stepFrameIndex(looped, 'loop', t)), [0, 1, 2, 1, 2], 'frames: a loop repeats its loop range')
+  eq([0, 3, 4, 5, 9].map(t => ui.stepFrameIndex({ frames: ['a', 'b', 'c'], fps: 1 }, 'loop', t)), [0, 0, 1, 2, 0], 'frames: a loop with no range repeats all of it')
+  eq(ui.stepFrameIndex(clip, 'hold', -5), 0, 'frames: negative time is the first frame'); eq(ui.stepFrameIndex({ frames: ['a'], fps: 5 }, 'loop', 100), 0, 'frames: a one-frame loop')
+  const clips = { present: { frames: ['p1', 'p2', 'p3', 'p4'], fps: 4 }, idle_breathe: { frames: ['i1', 'i2'], fps: 2 }, expr_sorry_front: { frames: ['s1', 's2'], fps: 2, hold: 1 }, shrug: { frames: ['h1', 'h2'], fps: 2 } }
+  const poseOf = (scene, t) => { const pose = ui.planPoseAt(plan(scene), name => clips[name], t); return `${pose.clip}:${pose.index}:${pose.resting}` }
+  eq([0, 0.5, 0.99, 1.0, 5].map(t => poseOf('reporting', t)), ['present:0:false', 'present:2:false', 'present:3:false', 'idle_breathe:0:true', 'idle_breathe:0:true'], 'plan: a one-shot step plays, then the resting loop')
+  eq([0, 0.6, 1.0, 1.6, 3].map(t => poseOf('sorry', t)), ['expr_sorry_front:0:false', 'expr_sorry_front:1:false', 'shrug:0:false', 'shrug:1:false', 'expr_sorry_front:1:true'], 'plan: sorry plays its beat, the shrug, then rests on the hold frame')
+  eq(ui.stillFrameIndex(plan('sorry'), clips.expr_sorry_front), 1, 'still: the hold frame'); eq(ui.stillFrameIndex(plan('idle'), clips.idle_breathe), 0, 'still: the first frame'); eq(ui.stillFrameIndex({ still: { clip: 'x', at: 'last' } }, clips.present), 3, 'still: the last frame')
+  eq(ui.nextDelayMs([3000, 6000], 0), 3000, 'delay: low'); eq(ui.nextDelayMs([3000, 6000], 0.5), 4500, 'delay: middle'); eq(ui.nextDelayMs([3000, 6000], 5) <= 6000 && ui.nextDelayMs([3000, 6000], -1) === 3000 && ui.nextDelayMs([3000, 6000], NaN) === 3000, true, 'delay: clamped')
+  eq([[0, 0.1], [0.01, 0.1], [0.1, 0], [0.3, 0], [0.9, 0]].map(([level, time]) => ui.mouthShapeIndex(level, time, 10)), [0, 0, 6, 3, 2], 'mouth: closed, closed, fv, open, wide (the core rig\'s mapping)')
+  eq(ui.mouthShapeIndex(0.1, 0.1, 10), 1, 'mouth: a quiet level varies with the syllable clock'); eq(ui.mouthShapeIndex(NaN, 3, 10), 0, 'mouth: a bad level is closed')
+  eq(new Set([0, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8].map(t => ui.mouthShapeIndex(0.3, t, 10))).size > 1, true, 'mouth: an open mouth does not hold one shape')
+
+  // -- framing, controls, words ----------------------------------------------------------------------------------------------------------------
+  const full = { size: { width: 768, height: 768 }, bbox: { x: 47, y: 92, width: 655, height: 619 } }, face = { size: { width: 627, height: 627 }, bbox: { x: 0, y: 82, width: 627, height: 545 }, variant: 'face' }
+  eq(ui.framingRect(face, 'disc'), { sx: 0, sy: 0, sw: 627, sh: 627 }, 'framing: a Face pack is drawn whole in the disc')
+  const disc = ui.framingRect(full, 'disc'), chest = ui.framingRect(full, 'chest')
+  eq([Math.round(disc.sw), Math.round(disc.sh), disc.sy], [248, 248, 92], 'framing: the disc of a full pack is the head and shoulders, a square at the top of the character')
+  ok(Math.abs(disc.sx + disc.sw / 2 - (47 + 655 / 2)) < 1, 'framing: ...centred on the character')
+  eq([Math.round(chest.sh), chest.sy, Math.round(chest.sw)], [384, 92, 441], 'framing: the chest is the top 62% of the character, at most 1.15 times as wide as tall')
+  eq([ui.framedWidth('disc', 88, chest), ui.framedWidth('disc', 88, null), ui.framedWidth('chest', 240, chest), ui.framedWidth('chest', 240, null)], [88, 88, 276, 240], 'framing: the disc is a square, the chest is as wide as its crop (a square before the pack is read)')
+  eq(ui.framingRect(face, 'chest'), ui.framingRect(face, 'chest'), 'framing: deterministic'); ok(chest.sx >= 0 && chest.sx + chest.sw <= 768 && disc.sx >= 0 && disc.sx + disc.sw <= 768, 'framing: inside the canvas')
+  eq([ui.DISC_PX_DESKTOP, ui.DISC_PX_PHONE, ui.CHEST_PX, ui.VOICE_PHONE_MEDIA], [88, 64, 240, '(max-width: 767px)'], 'sizes: 88, 64, 240, and a phone is 767 px and narrower')
+  eq(['bob', 'deckster-owl', 'a', 'x-y-z', '', 'DECK'].map(ui.initialsFor), ['B', 'DO', 'A', 'XY', 'D', 'DECK'.slice(0, 1)], 'initials: one or two capitals')
+  eq(ui.callControls({ active: false, starting: false, phase: 'idle', speakingNow: false, connected: true }), { talk: false, stop: false, end: false, expand: false }, 'controls: nothing before the call')
+  eq(ui.callControls({ active: true, starting: false, phase: 'idle', speakingNow: false, connected: true }), { talk: true, stop: false, end: true, expand: true }, 'controls: in a call, your turn')
+  eq(ui.callControls({ active: true, starting: false, phase: 'speaking', speakingNow: true, connected: true }).stop, true, 'controls: Stop while Director speaks'); eq(ui.callControls({ active: true, starting: false, phase: 'thinking', speakingNow: false, connected: true }).stop, true, 'controls: Stop while a turn waits')
+  eq(ui.callControls({ active: true, starting: false, phase: 'idle', speakingNow: false, connected: false }).talk, false, 'controls: no talking without a socket'); eq(ui.callControls({ active: true, starting: true, phase: 'idle', speakingNow: false, connected: true }), { talk: false, stop: false, end: false, expand: false }, 'controls: nothing while the microphone is being asked for')
+  eq([ui.callButtonLabel(false), ui.callButtonLabel(true)], ['Start a voice call', 'End the voice call'], 'button: label')
+  eq([{ tagName: 'TEXTAREA' }, { tagName: 'input' }, { tagName: 'SELECT' }, { tagName: 'DIV', isContentEditable: true }, { tagName: 'BUTTON' }, { tagName: 'DIV' }, null].map(ui.isTypingTarget), [true, true, true, true, false, false, false], 'typing target: text fields keep their Space')
+  eq([{ code: 'Space' }, { key: ' ' }, { code: 'Space', repeat: true }, { code: 'Space', metaKey: true }, { code: 'Space', ctrlKey: true }, { code: 'Space', altKey: true }, { code: 'Space', shiftKey: true }, { code: 'KeyA' }].map(ui.isTalkKey), [true, true, false, false, false, false, false, false], 'talk key: Space alone, not a repeat')
+  eq(['not_connected', 'limit', 'failed', 'too_short', 'no_words', 'not_sent', 'no_answer'].every(problem => ui.describeSpeechProblem(problem).title && ui.describeSpeechProblem(problem).steps.length > 0), true, 'words: every speech problem has a title and a step')
+  eq(ui.describeSpeechProblem('not_connected').title, "Speech isn't connected yet", 'words: the honest one for a missing router')
+  eq([ui.progressCaption('Building slide 3', 'working'), ui.progressCaption('Building slide 3', 'idle'), ui.progressCaption(null, 'working'), ui.progressCaption('  ', 'working'), ui.progressCaption('Researching', 'thinking')], ['Building slide 3', null, null, null, 'Researching'], 'progress caption: under the disc while Director works or thinks')
+  const long = 'Researching the market for each of the six slides in detail and checking every source again'
+  ok(ui.progressCaption(long, 'working').endsWith('…') && ui.progressCaption(long, 'working').length <= 81 && !ui.progressCaption(long, 'working').slice(0, -1).endsWith(' '), 'progress caption: cut at a word')
+}
+
+// ============================================================================================================================================
+// A2. The router seam
+// ============================================================================================================================================
+async function routerSuite(over = {}) {
+  const mod = makeHost({ over }).load(ROUTER)
+  const calls = []
+  const reply = (status, body, blob) => async (url, init) => { calls.push({ url, init }); return { ok: status >= 200 && status < 300, status, json: async () => body, blob: async () => blob ?? new Blob(['audio']) } }
+  class Form { constructor() { this.fields = [] } append(name, value, filename) { this.fields.push([name, value, filename]) } }
+  const port = fetchImpl => mod.createVoiceRouterPort(fetchImpl, Form)
+  mod.createVoiceRouterPort(async () => { throw new Error('nothing may be requested by creating the port') }, Form)
+  eq([mod.VOICE_ROUTER_LABELS, mod.VOICE_ROUTER_ENDPOINTS], [{ stt: 'studio.voice_stt', tts: 'studio.voice_tts' }, { transcribe: '/api/studio/voice/transcribe', speak: '/api/studio/voice/speak' }], 'router: the labels and the same-origin routes')
+  eq(await port(reply(200, { text: ' hello there ' })).transcribe(new Blob(['x'])), { text: 'hello there' }, 'router: transcribe answers the words, trimmed')
+  eq([calls[0].url, calls[0].init.method, calls[0].init.credentials, calls[0].init.body.fields.map(f => f[0] + '=' + (typeof f[1] === 'string' ? f[1] : 'blob'))], ['/api/studio/voice/transcribe', 'POST', 'same-origin', ['audio=blob', 'label=studio.voice_stt']], 'router: a multipart POST with the audio and the stt label')
+  eq(await port(reply(200, {})).transcribe(new Blob(['x'])), { text: '' }, 'router: no text is "no words", not an error'); eq(await port(reply(200, null)).transcribe(new Blob(['x'])), { text: '' }, 'router: a null body is "no words"')
+  const spoken = await port(reply(200, null, new Blob(['voice']))).speak('One sentence.')
+  eq([spoken.size, calls.at(-1).url, calls.at(-1).init.method, JSON.parse(calls.at(-1).init.body), calls.at(-1).init.headers], [5, '/api/studio/voice/speak', 'POST', { text: 'One sentence.', label: 'studio.voice_tts' }, { 'Content-Type': 'application/json' }], 'router: speak POSTs the sentence with the tts label and answers the audio')
+  for (const [status, kind] of [[404, 'not_connected'], [501, 'not_connected'], [503, 'not_connected'], [402, 'limit'], [429, 'limit'], [500, 'failed'], [400, 'failed'], [401, 'failed']]) {
+    eq(mod.routerErrorKind(status), kind, `router: status ${status} is ${kind}`)
+    const error = await port(reply(status, {})).transcribe(new Blob(['x'])).catch(e => e)
+    eq([error instanceof mod.VoiceRouterError, error.kind], [true, kind], `router: transcribe ${status} throws ${kind}`)
+    const error2 = await port(reply(status, {})).speak('x').catch(e => e)
+    eq([error2 instanceof mod.VoiceRouterError, error2.kind], [true, kind], `router: speak ${status} throws ${kind}`)
+  }
+  const down = await port(async () => { throw new TypeError('Failed to fetch') }).speak('x').catch(e => e)
+  eq(down.kind, 'not_connected', 'router: an unreachable route is "not connected"')
+  const ctl = new AbortController(); ctl.abort()
+  const aborted = await port(async () => { throw Object.assign(new Error('x'), { name: 'AbortError' }) }).transcribe(new Blob(['x']), { signal: ctl.signal }).catch(e => e)
+  eq(aborted.kind, 'aborted', 'router: a cancelled request is "aborted"')
+  eq((await port(async () => { throw new Error('boom') }).transcribe(new Blob(['x']), { signal: ctl.signal }).catch(e => e)).kind, 'aborted', 'router: any failure after an abort is "aborted"')
+  eq(calls.every(call => call.url.startsWith('/api/')), true, 'router: only same-origin /api routes')
+}
+
+// ============================================================================================================================================
+// B. The controller against the real core
+// ============================================================================================================================================
+class Clock {
+  constructor() { this.t = 100000; this.timers = new Map(); this.id = 1 }
+  now() { return this.t }
+  set(fn, ms) { const id = this.id++; this.timers.set(id, { id, fn, at: this.t + ms }); return id }
+  clear(id) { this.timers.delete(id) }
+  pending() { return this.timers.size }
+  async advance(ms) {
+    const target = this.t + ms
+    for (;;) {
+      const next = [...this.timers.values()].filter(timer => timer.at <= target).sort((a, b) => a.at - b.at || a.id - b.id)[0]
+      if (!next) break
+      this.timers.delete(next.id); this.t = Math.max(this.t, next.at); next.fn(); await settle()
+    }
+    this.t = target
+    await settle()
+  }
+}
+function makeCall({ over = {}, mic = {}, reduced = false, connected = true, sendObserved = true, takes = true, transcripts = ['make the title shorter'], speakFails = null, transcribeFails = null } = {}) {
+  const host = makeHost({ env: ENV_ON, over })
+  const ctlMod = host.load(CTL), ui = host.load(UI), router = host.load(ROUTER), core = host.load('lib/studio/voice/index.ts')
+  const clock = new Clock()
+  const log = { micOpened: 0, micClosed: 0, recordings: [], cancelled: 0, plays: [], stops: 0, transcribed: [], spoken: [], sent: [], wire: [], aborted: 0, errors: [] }
+  const player = { level: 0.3, play(blob, hooks) { log.plays.push({ blob, hooks }) }, stop() { log.stops++ }, getLevel() { return this.level } }
+  const recordingSpec = { durationMs: 1200, peak: 0.2, ...mic.recording }
+  const env = {
+    secureContext: () => mic.insecure !== true, hasMic: () => mic.unsupported !== true,
+    openMic: async () => {
+      if (mic.error) throw Object.assign(new Error('x'), { name: mic.error })
+      if (mic.deferred) await mic.deferred
+      log.micOpened++
+      return { record: () => { const rec = { stopped: false, stop: async () => { rec.stopped = true; return { blob: new Blob(['audio']), durationMs: recordingSpec.durationMs, peak: recordingSpec.peak } }, cancel: () => { log.cancelled++ } }; log.recordings.push(rec); return rec }, close: () => { log.micClosed++ } }
+    },
+    createPlayer: () => ({ play: (blob, hooks) => player.play(blob, hooks), stop: () => player.stop(), level: () => player.getLevel() }),
+    now: () => clock.now(), setTimer: (fn, ms) => clock.set(fn, ms), clearTimer: id => clock.clear(id), reducedMotion: () => reduced, macApp: () => false, mac: () => false,
+  }
+  const queue = [...transcripts]
+  const port = {
+    transcribe: async (blob, opts) => { log.transcribed.push({ size: blob.size, signal: opts?.signal }); if (transcribeFails) throw new router.VoiceRouterError(transcribeFails, 'x'); return { text: queue.length ? queue.shift() : '' } },
+    speak: async (text, opts) => { log.spoken.push(text); if (opts?.signal?.aborted) throw new router.VoiceRouterError('aborted', 'x'); if (speakFails) throw new router.VoiceRouterError(speakFails, 'x'); return new Blob([text]) },
+  }
+  const state = { connected }
+  let ctl = null
+  const sendTurn = async text => {
+    // What the page's send and the socket hook do with the bus: the user_message is built, the voice fields are applied, and the "sent" tap runs.
+    const data = { text, client_caps: ['mdc1'] }
+    if (takes) ui.addVoiceCallFields(data, text) // (a page that bails before it builds the message never takes the armed turn)
+    log.wire.push(data)
+    log.sent.push(text)
+    if (sendObserved && data.mode === 'voice') ctl.onSent(text)
+  }
+  ctl = new ctlMod.VoiceCallController({ env, port, sendTurn, isConnected: () => state.connected })
+  const world = {
+    ctl, ui, env, clock, log, player, state, ctlMod, core,
+    snap: () => ctl.getSnapshot(),
+    start: async () => { await ctl.startCall(); await settle() },
+    talk: async (ms = 1250) => { ctl.pttDown(); await settle(); await clock.advance(ms); await ctl.pttUp(); await settle() },
+    frame: async (type, payload = {}, id = null) => { ctl.onFrame(frame(type, payload, id)); await settle() },
+    reply: async (spoken, text = 'Done. The title is shorter.', extra = {}) => { await world.frame('chat_message', { text, ephemeral: false, ...(spoken === undefined ? {} : { spoken }), ...extra }) },
+    // the speaker: start the n-th clip, finish it
+    playStart: async n => { log.plays[n].hooks.onStart(); await settle() },
+    playEnd: async n => { log.plays[n].hooks.onEnd(); await settle() },
+  }
+  return world
+}
+
+async function controllerSuite(over = {}) {
+  // ---- the microphone is asked for by the call and by nothing else -------------------------------------------------------------------------
+  {
+    const w = makeCall({ over })
+    eq([w.log.micOpened, w.snap().active, w.snap().starting], [0, false, false], 'call: building the controller asks for nothing')
+    eq([w.clock.pending(), w.log.plays.length], [0, 0], 'call: ...and starts no timer')
+    await w.frame('chat_message', { text: 'x', spoken: 'Hello.' }); await w.frame('build_phase', { phase: 'building' })
+    eq([w.log.micOpened, w.log.spoken.length, w.snap().scene], [0, 0, 'idle'], 'call: frames before a call are ignored (nothing is spoken, nothing moves)')
+    w.ctl.pttDown(); await settle()
+    eq([w.snap().phase, w.log.recordings.length], ['idle', 0], 'call: talking before the call starts does nothing')
+    await w.start()
+    eq([w.log.micOpened, w.snap().active, w.snap().chip, w.snap().scene, w.snap().controls.talk], [1, true, 'Your turn', 'idle', true], 'call: the call button asks for the microphone once, and it is the user\'s turn')
+    ok(w.clock.pending() > 0, 'call: a call has one tick timer')
+    await w.start(); eq(w.log.micOpened, 1, 'call: starting again does not ask again')
+    w.ctl.endCall(); await settle()
+    eq([w.snap().active, w.log.micClosed, w.clock.pending()], [false, 1, 0], 'call: End releases the microphone and leaves no timer')
+    w.ctl.endCall(); eq(w.log.micClosed, 1, 'call: ending twice releases once')
+    w.ctl.onFrame(frame('chat_message', { text: 'x', spoken: 'Hi.' })); await settle(); eq(w.log.spoken.length, 0, 'call: a frame after the call is ignored')
+  }
+  for (const [error, title, kind] of [['NotAllowedError', 'Your browser blocked the microphone', 'denied'], ['PermissionDeniedError', 'Your browser blocked the microphone', 'denied'], ['NotFoundError', 'No microphone found', 'not_found'], ['NotReadableError', 'The microphone is busy', 'in_use'], ['SomethingElse', "Couldn't start the microphone", 'unknown']]) {
+    const w = makeCall({ over, mic: { error } })
+    await w.start()
+    eq([w.snap().active, w.snap().starting, w.snap().notice?.title, w.snap().notice?.kind, w.snap().notice?.retry, w.snap().notice?.steps.length > 0, w.log.micOpened], [false, false, title, 'mic', true, true, 0], `mic: ${error} says why, in the core's words, with Try again`)
+  }
+  for (const [mic, title] of [[{ insecure: true }, 'Calls need a secure address'], [{ unsupported: true }, "This browser can't record audio"]]) {
+    const w = makeCall({ over, mic }); await w.start()
+    eq([w.snap().notice?.title, w.log.micOpened, w.snap().active], [title, 0, false], `mic: ${title} (the microphone is not asked for)`)
+  }
+  {
+    const w = makeCall({ over, mic: { error: 'NotAllowedError' } }); await w.start(); w.ctl.dismissNotice(); eq(w.snap().notice, null, 'mic: the notice is dismissed')
+    const retry = makeCall({ over }); await retry.start(); eq(retry.snap().active, true, 'mic: Try again is just starting again')
+  }
+  {
+    let grant; const deferred = new Promise(resolve => { grant = resolve })
+    const w = makeCall({ over, mic: { deferred } })
+    const pending = w.ctl.startCall(); await settle()
+    eq([w.snap().starting, w.snap().active, w.snap().controls], [true, false, { talk: false, stop: false, end: false, expand: false }], 'mic: while the browser asks, the call is starting and nothing is live')
+    w.ctl.endCall(); grant(); await pending; await settle()
+    eq([w.snap().active, w.log.micClosed, w.snap().starting], [false, 1, false], 'mic: a microphone granted after the call was ended is released at once')
+  }
+
+  // ---- push to talk, and the voice turn --------------------------------------------------------------------------------------------------------
+  {
+    const w = makeCall({ over }); await w.start()
+    w.ctl.pttDown(); await settle()
+    eq([w.snap().phase, w.snap().chip, w.snap().scene, w.snap().holding, w.log.recordings.length], ['listening', 'Listening', 'listening', true, 1], 'ptt: holding listens and records')
+    w.ctl.pttDown(); eq(w.log.recordings.length, 1, 'ptt: a second press while held records nothing more')
+    await w.clock.advance(1200); await w.ctl.pttUp(); await settle()
+    eq([w.snap().phase, w.snap().chip, w.snap().holding, w.log.transcribed.length, w.log.sent, w.snap().scene], ['thinking', 'Thinking', false, 1, ['make the title shorter'], 'thinking'], 'ptt: letting go sends the recording to the router and the words to the page\'s send; the turn is thinking')
+    eq(w.log.wire[0], { text: 'make the title shorter', client_caps: ['mdc1', 'voice1'], mode: 'voice' }, 'turn: the user_message is the transcript with mode "voice" and the cap voice1')
+    eq(w.ui.voiceCallBus.pending, null, 'turn: nothing stays armed')
+    w.ctl.pttDown(); await settle(); await w.clock.advance(1000); await w.ctl.pttUp(); await settle()
+    ok(w.snap().notice?.title === "I didn't catch any words" || w.snap().phase === 'thinking', 'ptt: a second press talks over the pending turn')
+  }
+  {
+    const w = makeCall({ over, mic: { recording: { durationMs: 200 } } }); await w.start(); await w.talk(200)
+    eq([w.snap().phase, w.log.transcribed.length, w.snap().notice?.title, w.log.cancelled], ['idle', 0, 'That was too short', 0], 'ptt: a tap is too short: nothing is sent and the user is told')
+    const silent = makeCall({ over, mic: { recording: { peak: 0.001 } } }); await silent.start(); await silent.talk()
+    eq([silent.snap().phase, silent.log.transcribed.length, silent.snap().notice?.title], ['idle', 0, "I didn't catch any words"], 'ptt: a silent recording is not sent')
+    const empty = makeCall({ over, transcripts: [''] }); await empty.start(); await empty.talk()
+    eq([empty.snap().phase, empty.log.sent.length, empty.snap().notice?.title], ['idle', 0, "I didn't catch any words"], 'ptt: no words heard: no message, the turn ends')
+    const off = makeCall({ over, connected: false }); await off.start(); off.ctl.pttDown(); await settle()
+    eq([off.snap().phase, off.snap().controls.talk, off.log.recordings.length], ['idle', false, 0], 'ptt: no talking without a socket')
+    const bail = makeCall({ over, takes: false, sendObserved: false }); await bail.start(); await bail.talk()
+    eq([bail.ui.voiceCallBus.pending, bail.snap().phase], [null, 'idle'], 'turn: a send that never built the message leaves nothing armed (a later typed message with the same words is not a voice turn)')
+    const notSent = makeCall({ over, sendObserved: false }); await notSent.start(); await notSent.talk()
+    eq([notSent.snap().phase, notSent.snap().notice?.title, notSent.ui.voiceCallBus.pending], ['idle', "That didn't reach the Director", null], 'turn: words the socket never took are told to the user, and the turn ends, disarmed')
+    for (const [kind, title] of [['not_connected', "Speech isn't connected yet"], ['limit', 'Voice is paused for now'], ['failed', "Couldn't hear that"]]) {
+      const bad = makeCall({ over, transcribeFails: kind }); await bad.start(); await bad.talk()
+      eq([bad.snap().phase, bad.snap().notice?.title, bad.log.sent.length, bad.snap().active], ['idle', title, 0, true], `turn: a router that says ${kind} gets "${title}"; the call stays up for typing`)
+    }
+    const aborted = makeCall({ over, transcribeFails: 'aborted' }); await aborted.start(); await aborted.talk()
+    eq([aborted.snap().notice, aborted.snap().phase], [null, 'thinking'], 'turn: an aborted transcription says nothing')
+  }
+
+  // ---- the reply: only payload.spoken is said -----------------------------------------------------------------------------------------------
+  {
+    const w = makeCall({ over }); await w.start(); await w.talk()
+    const line = 'Sure. I shortened the title on slide two. Anything else you would like me to change?'
+    const chunks = w.core.splitSentences(line)
+    ok(chunks.length >= 2, 'reply: the core splits this line into more than one chunk')
+    await w.reply(line)
+    eq(w.log.spoken, chunks, 'reply: the spoken line, chunk by chunk (the core\'s sentence chunker), through the router (nothing from the chat text)')
+    eq([w.snap().phase, w.snap().caption], ['thinking', line], 'reply: the line is the caption; the audio has not started')
+    await w.playStart(0)
+    eq([w.snap().phase, w.snap().chip, w.snap().scene, w.snap().controls.stop], ['speaking', 'Speaking', 'speaking', true], 'reply: the first chunk starts: speaking')
+    eq(w.ctl.getLevel(), 0.3, 'reply: the mouth reads the speaker\'s level')
+    for (let i = 0; i < chunks.length - 1; i++) { await w.playEnd(i); eq(w.snap().phase, 'speaking', 'reply: between chunks it is still speaking'); await w.playStart(i + 1) }
+    eq(w.ctl.getLevel(), 0.3, 'reply: ...and the last one'); await w.playEnd(chunks.length - 1)
+    eq([w.snap().phase, w.snap().chip, w.ctl.getLevel()], ['idle', 'Your turn', 0], 'reply: the last chunk ends: your turn, the mouth shut')
+    ok(w.snap().caption !== null, 'reply: the caption stays a moment'); await w.clock.advance(8500); eq(w.snap().caption, null, 'reply: ...then clears')
+  }
+  {
+    const w = makeCall({ over }); await w.start(); await w.talk()
+    await w.reply(undefined, 'A long reply with **markdown** and a list.\n- one\n- two')
+    eq([w.log.spoken, w.snap().phase, w.snap().caption], [[], 'idle', null], 'reply: no spoken line, nothing is said (nothing is made up from the text), and the turn ends')
+    const blank = makeCall({ over }); await blank.start(); await blank.talk(); await blank.reply('   ')
+    eq([blank.log.spoken, blank.snap().phase], [[], 'idle'], 'reply: a blank line is nothing')
+    const over300 = makeCall({ over }); await over300.start(); await over300.talk(); await over300.reply('A'.repeat(310))
+    eq([over300.log.spoken, over300.snap().phase], [[], 'idle'], 'reply: a line over its cap is not said')
+    const eph = makeCall({ over }); await eph.start(); await eph.talk(); await eph.frame('chat_message', { text: 'Preparing...', ephemeral: true, spoken: 'Preparing.' })
+    eq([eph.log.spoken, eph.snap().phase], [[], 'thinking'], 'reply: a progress bubble is not the reply')
+  }
+  {
+    const w = makeCall({ over }); await w.start()
+    await w.reply('Your deck is ready. Take a look.', 'Your deck is ready.')
+    eq([w.log.spoken, w.snap().phase, w.snap().scene], [w.core.splitSentences('Your deck is ready. Take a look.'), 'thinking', 'reporting'], 'report: a report with no turn of its own is said all the same (the Director builds while you talk)')
+    await w.playStart(0); eq(w.snap().phase, 'speaking', 'report: ...as a turn of its own'); for (let i = 0; i < w.log.spoken.length; i++) { if (i) await w.playStart(i); await w.playEnd(i) }; eq(w.snap().phase, 'idle', 'report: ...which ends')
+    const nothing = makeCall({ over }); await nothing.start(); await nothing.reply(undefined, 'Your deck is ready.')
+    eq([nothing.log.spoken, nothing.snap().phase, nothing.snap().scene], [[], 'idle', 'reporting'], 'report: a report with no line is a pose and a chat message, no speech')
+    const dup = makeCall({ over }); await dup.start(); await dup.frame('chat_message', { text: 'x', spoken: 'Once.' }, 'same-id'); await dup.frame('chat_message', { text: 'x', spoken: 'Once.' }, 'same-id')
+    eq(dup.log.spoken, ['Once.'], 'report: a frame seen twice (same message_id) is said once')
+  }
+  {
+    const w = makeCall({ over }); await w.start(); await w.talk()
+    w.ctl.pttDown(); await settle()
+    await w.reply('You will not hear this.')
+    eq([w.log.spoken, w.snap().phase], [[], 'listening'], 'floor: while the user is talking nothing talks over them')
+    const idle = makeCall({ over }); await idle.start(); idle.ctl.pttDown(); await settle(); await idle.reply('A report while you talk.'); await idle.frame('build_phase', { phase: 'building', spoken: 'Building.' })
+    eq([idle.log.spoken, idle.snap().phase], [[], 'listening'], 'floor: ...and a report or a progress line that arrives with no turn pending waits for you too')
+  }
+  {
+    const w = makeCall({ over, speakFails: 'not_connected', transcripts: ['one', 'two'] }); await w.start(); await w.talk()
+    await w.reply('First line. Second line.')
+    eq([w.snap().notice?.title, w.snap().phase], ["Speech isn't connected yet", 'idle'], 'reply: speech not connected: said plainly, once, and the turn ends (the reply is in the chat)')
+    ok(w.log.spoken.length >= 1, 'reply: ...after one attempt'); const asked = w.log.spoken.length
+    await w.talk(); await w.reply('Another line.')
+    eq(w.log.spoken.length, asked, 'reply: ...and the router is not asked again for the rest of the call')
+  }
+
+  // ---- talk-over and Stop ----------------------------------------------------------------------------------------------------------------------
+  {
+    const w = makeCall({ over }); await w.start(); await w.talk(); await w.reply('One. Two. Three.'); await w.playStart(0)
+    eq(w.snap().phase, 'speaking', 'talk-over: speaking')
+    w.ctl.pttDown(); await settle()
+    eq([w.snap().phase, w.log.stops >= 1, w.log.recordings.length, w.ctl.getLevel()], ['listening', true, 2, 0], 'talk-over: pressing talk stops the speaker, drops the queue and starts a new recording')
+    await w.playEnd(0); eq(w.snap().phase, 'listening', 'talk-over: a late "ended" of the cancelled clip changes nothing')
+  }
+  {
+    const w = makeCall({ over }); await w.start(); await w.talk()
+    w.ctl.stop(); await settle()
+    eq([w.snap().phase, w.snap().controls.stop], ['idle', false], 'stop: a waiting turn is stopped')
+    await w.reply('Late answer.'); eq([w.log.spoken, w.snap().phase], [[], 'idle'], 'stop: the late reply to a stopped turn is not said (it is in the chat)')
+    await w.reply('A later, unasked report.'); eq(w.log.spoken, ['A later, unasked report.'], 'stop: ...and only that one is skipped')
+  }
+  {
+    const w = makeCall({ over }); await w.start(); await w.talk(); await w.reply('One. Two.'); await w.playStart(0)
+    w.ctl.stop(); await settle()
+    eq([w.snap().phase, w.log.stops >= 1, w.snap().scene !== 'speaking', w.ctl.getLevel()], ['idle', true, true, 0], 'stop: speech is stopped at once, the mouth shut')
+    await w.playEnd(0); eq(w.snap().phase, 'idle', 'stop: ...and a late end of the clip changes nothing')
+  }
+
+  // ---- the filler -----------------------------------------------------------------------------------------------------------------------------
+  {
+    const w = makeCall({ over }); await w.start(); await w.talk()
+    await w.clock.advance(1000); eq(w.log.spoken, [], 'filler: not before 1.2 s')
+    await w.clock.advance(400); eq(w.log.spoken.length, 1, 'filler: one short line after 1.2 s of waiting'); ok(w.log.spoken[0].length < 40, 'filler: a short one')
+    eq(w.snap().phase, 'thinking', 'filler: the turn is still thinking while it is said')
+    await w.playStart(0); eq([w.snap().phase, w.snap().scene, w.snap().chip], ['thinking', 'speaking', 'Speaking'], 'filler: the character speaks it (the reducer is not moved)'); await w.playEnd(0)
+    eq(w.snap().scene, 'thinking', 'filler: ...then is thinking again, not stuck speaking')
+    await w.clock.advance(5000); eq(w.log.spoken.length, 1, 'filler: once per turn')
+    const early = makeCall({ over }); await early.start(); await early.talk(); await early.reply('Quick answer.'); await early.clock.advance(3000)
+    eq(early.log.spoken, ['Quick answer.'], 'filler: never after the reply has arrived')
+    const bubble = makeCall({ over }); await bubble.start(); await bubble.talk(); await bubble.frame('chat_message', { text: 'Reviewing your topic…', ephemeral: true }); await bubble.clock.advance(3000)
+    eq(bubble.log.spoken, [], 'filler: never once any text of the reply (even a progress bubble) has arrived')
+    const reduced = makeCall({ over, reduced: true }); await reduced.start(); await reduced.talk(); await reduced.clock.advance(750)
+    eq(reduced.log.spoken.length, 0, 'filler: with reduced motion not before 0.9 s'); await reduced.clock.advance(250)
+    eq(reduced.log.spoken.length, 1, 'filler: ...but a little sooner than 1.2 s (the tick at 1.0 s)')
+  }
+
+  // ---- progress lines ---------------------------------------------------------------------------------------------------------------------------
+  {
+    const w = makeCall({ over }); await w.start()
+    await w.frame('build_phase', { phase: 'building', label: 'Building your slides…', spoken: 'Building your slides.' })
+    eq([w.log.spoken, w.snap().scene, w.snap().progress], [['Building your slides.'], 'working', 'Building your slides…'], 'progress: a build_phase line is said between turns, and the label is shown under the disc')
+    await w.playStart(0); eq([w.snap().phase, w.snap().chip], ['speaking', 'Speaking'], 'progress: said as a turn of Director\'s own'); await w.playEnd(0); eq(w.snap().phase, 'idle', 'progress: ...which ends')
+    await w.frame('build_event', { scope: 'deck', text: 'Checking layouts', status: 'progress', spoken: 'Checking the layouts.' }); eq(w.log.spoken.at(-1), 'Checking the layouts.', 'progress: a deck-scope build_event line')
+    await w.frame('build_event', { scope: 'slide', text: 'Slide 3', status: 'progress', spoken: 'Slide three.' }); eq(w.log.spoken.at(-1), 'Checking the layouts.', 'progress: a slide-scope event is not said')
+    await w.frame('build_phase', { phase: 'building', label: 'Still building' }); eq(w.log.spoken.at(-1), 'Checking the layouts.', 'progress: a frame with no spoken line says nothing aloud')
+  }
+  {
+    const w = makeCall({ over }); await w.start(); await w.talk()
+    await w.frame('status_update', { status: 'generating', text: 'Researching the topic…', spoken: 'Researching the topic.' })
+    eq([w.log.spoken.at(-1), w.snap().phase], ['Researching the topic.', 'thinking'], 'progress: while a turn waits for its reply the line is said and the turn stays thinking')
+    await w.playStart(0); eq([w.snap().phase, w.snap().scene], ['thinking', 'speaking'], 'progress: ...the character speaks it'); await w.playEnd(0)
+    await w.reply('Done.'); await w.playStart(1); eq(w.snap().phase, 'speaking', 'progress: the reply after it is the turn\'s speech'); await w.playEnd(1); eq(w.snap().phase, 'idle', 'progress: ...and the turn ends')
+  }
+  {
+    const w = makeCall({ over }); await w.start()
+    await w.frame('build_phase', { phase: 'building', spoken: 'First line.' }); await w.playStart(0)
+    await w.frame('build_phase', { phase: 'building', spoken: 'Second line.' }); await w.frame('build_phase', { phase: 'building', spoken: 'Third line.' })
+    eq(w.log.spoken, ['First line.', 'Second line.', 'Third line.'], 'progress: lines are fetched as they come')
+    await w.playEnd(0); eq(w.log.plays.length, 2, 'progress: only the newest waiting line is said: the stale one is dropped'); await w.playStart(1); eq(w.log.plays[1].blob.size, 'Third line.'.length, 'progress: ...the third')
+    const listening = makeCall({ over }); await listening.start(); listening.ctl.pttDown(); await settle(); await listening.frame('build_phase', { phase: 'building', spoken: 'Hush.' })
+    eq(listening.log.spoken, [], 'progress: nothing is said while the user is talking')
+  }
+
+  // ---- the character's scene from Director's frames -----------------------------------------------------------------------------------------
+  {
+    const w = makeCall({ over }); await w.start()
+    await w.frame('status_update', { status: 'thinking', text: 'Thinking…' }); eq([w.snap().scene, w.snap().chip], ['thinking', 'Thinking'], 'scene: a typed turn Director is thinking about')
+    await w.frame('build_phase', { phase: 'building', label: 'Building your slides…' }); eq([w.snap().scene, w.snap().chip, w.snap().progress], ['working', 'Your turn', 'Building your slides…'], 'scene: working (your turn: you may talk), with what it is doing')
+    await w.frame('build_event', { scope: 'deck', status: 'progress', text: 'Choosing layouts…' }); eq(w.snap().progress, 'Choosing layouts…', 'scene: the latest words')
+    await w.frame('slide_built', { slide_index: 0 }); eq(w.snap().scene, 'pleased', 'scene: a slide built')
+    await w.clock.advance(2500); eq(w.snap().scene, 'working', 'scene: ...then back to work')
+    await w.frame('slide_failed', { job_id: 'j' }); eq(w.snap().scene, 'concerned', 'scene: a slide failed')
+    await w.clock.advance(4800); eq(w.snap().scene, 'working', 'scene: ...and back')
+    await w.frame('action_request', { prompt_text: 'Proceed?', actions: [] }); eq(w.snap().scene, 'waiting', 'scene: a question from Director is waiting for you')
+    await w.frame('build_phase', { phase: 'complete', label: 'Your deck is ready' }); eq([w.snap().scene, w.snap().progress], ['celebrating', null], 'scene: the deck is done: the big pleased, and the old words go')
+    await w.clock.advance(4300); eq(w.snap().scene, 'idle', 'scene: ...and rest')
+    await w.frame('status_update', { status: 'thinking', text: 'Thinking…' }); eq([w.snap().scene, w.snap().progress], ['thinking', null], 'scene: the last build\'s words are not shown under a new turn')
+    await w.frame('action_request', { prompt_text: 'Which theme?', actions: [] }); eq(w.snap().scene, 'waiting', 'scene: waiting for you')
+    await w.frame('build_phase', { phase: 'paused' }); eq(w.snap().scene, 'paused', 'scene: paused')
+    await w.frame('chat_message', { text: "I can't add a video.", companion_state: 'reporting' }); eq(w.snap().scene, 'sorry', 'scene: an honest decline is sorry')
+    await w.frame('status_update', { status: 'idle', companion_state: 'working' }); await w.clock.advance(3900); eq(w.snap().scene, 'working', 'scene: the Director\'s own companion_state drives it')
+    await w.frame('slide_update', {}); eq(w.snap().scene, 'working', 'scene: a frame that says nothing changes nothing')
+  }
+  {
+    const w = makeCall({ over }); await w.start(); await w.talk(); await w.frame('build_phase', { phase: 'complete' })
+    eq(w.snap().scene, 'thinking', 'scene: a pending turn is thinking whatever else happens (your turn\'s state wins over a beat)')
+  }
+
+  // ---- the turn that never gets an answer --------------------------------------------------------------------------------------------------
+  {
+    const w = makeCall({ over }); await w.start(); await w.talk()
+    await w.clock.advance(60000); eq(w.snap().phase, 'thinking', 'timeout: a minute is not too long')
+    await w.frame('build_phase', { phase: 'building' }); await w.clock.advance(60000)
+    eq(w.snap().phase, 'thinking', 'timeout: any frame keeps the turn alive')
+    await w.clock.advance(40000)
+    eq([w.snap().phase, w.snap().notice?.title], ['idle', "The Director hasn't answered yet"], 'timeout: 90 s of nothing ends the turn, plainly')
+  }
+
+  // ---- tear-down ------------------------------------------------------------------------------------------------------------------------------
+  {
+    const w = makeCall({ over }); await w.start(); await w.talk(); await w.reply('One. Two.'); await w.playStart(0)
+    w.ctl.pttDown(); await settle(); w.ctl.endCall(); await settle()
+    eq([w.snap().active, w.log.micClosed, w.clock.pending(), w.log.cancelled >= 1, w.ui.voiceCallBus.pending], [false, 1, 0, true, null], 'end: the recording is dropped, the microphone released, no timer left, nothing armed')
+    const d = makeCall({ over }); await d.start(); d.ctl.dispose(); await settle()
+    eq([d.log.micClosed, d.clock.pending()], [1, 0], 'dispose: releases everything'); d.ctl.onFrame(frame('chat_message', { spoken: 'x' })); await d.ctl.startCall(); eq(d.log.micOpened, 1, 'dispose: a disposed controller does nothing more')
+    const sub = makeCall({ over }); let seen = 0; const off = sub.ctl.subscribe(() => { seen++ }); await sub.start(); ok(seen > 0, 'snapshot: subscribers are told'); off(); const before = seen; sub.ctl.setExpanded(true); eq(seen, before, 'snapshot: an unsubscribed listener is not told')
+    const same = sub.ctl.getSnapshot(); sub.ctl.tick(); eq(sub.ctl.getSnapshot() === same, true, 'snapshot: nothing changed, the same snapshot (no render)')
+    sub.ctl.setExpanded(false); eq(sub.snap().expanded, false, 'snapshot: expanded toggles')
+  }
+}
+
+// ============================================================================================================================================
+// C. Components and the hook, offline
+// ============================================================================================================================================
+const noHint = ({ children }) => children
+function componentStubs(host) {
+  return { './voice-call.css': {}, '../studio-composer-hint': { StudioComposerHint: noHint }, './companion-player': host.load(PLAYER) }
+}
+async function dockSuite(over = {}) {
+  const host = makeHost({ env: ENV_ON, over })
+  const stubs = {}
+  const dock = makeHost({ env: ENV_ON, over, stubs: { './companion-player': { CompanionPlayer: ({ pack, scene, framing, size, reducedMotion }) => React.createElement('div', { 'data-fake-player': 'true', 'data-pack': pack, 'data-scene': scene, 'data-framing': framing, 'data-size': size, 'data-reduced': String(reducedMotion) }) }, ...stubs } }).load(DOCK)
+  const base = { active: true, starting: false, phase: 'idle', scene: 'idle', chip: 'Your turn', dance: false, caption: null, progress: null, notice: null, expanded: false, reducedMotion: false, holding: false, controls: { talk: true, stop: false, end: true, expand: true } }
+  const calls = []
+  const props = snapshot => ({ snapshot: { ...base, ...snapshot }, pack: 'bob', getLevel: () => 0, onTalkStart: () => calls.push('down'), onTalkEnd: () => calls.push('up'), onStop: () => calls.push('stop'), onEnd: () => calls.push('end'), onToggleExpanded: () => calls.push('expand'), onRetry: () => calls.push('retry'), onDismissNotice: () => calls.push('dismiss') })
+  const html = snapshot => renderToStaticMarkup(React.createElement(dock.VoiceCallDock, props(snapshot)))
+  const idle = html({})
+  ok(idle.includes('data-studio-voice-call="dock"') && idle.includes('data-voice-chip="Your turn"') && idle.includes('data-studio-voice-caption="hint"') && idle.includes('data-voice-expanded="false"'), 'dock: idle: the chip, the hint and the disc')
+  ok(idle.includes('data-framing="disc"') && idle.includes('data-size="88"') && idle.includes('data-pack="bob"'), 'dock: the player is the 88 px disc of the pack')
+  ok(idle.includes('aria-label="Hold to talk"') && idle.includes('aria-label="Stop"') && idle.includes('aria-label="Bigger view"') && idle.includes('aria-label="End call"'), 'dock: the four controls are named')
+  ok(/aria-label="Stop"[^>]*disabled|disabled=""[^>]*aria-label="Stop"/.test(idle) && !/aria-label="Hold to talk"[^>]*disabled/.test(idle) && !/disabled=""[^>]*aria-label="Hold to talk"/.test(idle), 'dock: Stop is off in your turn, the talk button is on')
+  for (const [chip, scene] of [['Listening', 'listening'], ['Thinking', 'thinking'], ['Speaking', 'speaking']]) ok(html({ chip, scene }).includes(`data-voice-chip="${chip}"`) && html({ chip, scene }).includes(`>${chip}</span>`), `dock: the chip says ${chip}`)
+  const speaking = html({ chip: 'Speaking', scene: 'speaking', phase: 'speaking', caption: 'Sure. I shortened the title.', controls: { talk: true, stop: true, end: true, expand: true } })
+  ok(speaking.includes('Sure. I shortened the title.') && speaking.includes('data-studio-voice-caption="line"') && !speaking.includes('data-studio-voice-caption="hint"'), 'dock: speaking shows the line, not the hint')
+  ok(html({ scene: 'working', progress: 'Building your slides…' }).includes('Building your slides…') && html({ scene: 'working', progress: 'Building your slides…' }).includes('data-studio-voice-progress'), 'dock: what the Director is doing sits under the disc')
+  ok(html({ holding: true }).includes('Release to send') && html({ holding: true }).includes('aria-pressed="true"') && html({}).includes('>Hold to talk<'), 'dock: the talk button says what letting go does')
+  const big = html({ expanded: true })
+  ok(big.includes('data-voice-expanded="true"') && big.includes('data-framing="chest"') && big.includes('data-size="240"') && big.includes('aria-label="Smaller view"'), 'dock: expanded: the chest view, 240 px, and the way back')
+  ok(html({ reducedMotion: true }).includes('data-reduced="true"'), 'dock: reduced motion is handed to the player')
+  const noMic = html({ active: false, notice: { kind: 'mic', title: 'Your browser blocked the microphone', steps: ['Click the lock icon.', 'Then press Try again.'], retry: true }, controls: { talk: false, stop: false, end: false, expand: false } })
+  ok(noMic.includes('role="alert"') && noMic.includes('Your browser blocked the microphone') && noMic.includes('Click the lock icon.') && noMic.includes('Try again</button>') && noMic.includes('aria-label="Dismiss"') && noMic.includes('data-studio-voice-notice="mic"'), 'dock: a refused microphone says why, what to do, with Try again and Dismiss')
+  ok(!html({ notice: { kind: 'turn', title: 'That was too short', steps: ['Hold the button the whole time you speak.'], retry: false } }).includes('Try again'), 'dock: a notice that cannot be retried has no Try again')
+  ok(html({ active: false, starting: true }).includes('Waiting for your microphone…'), 'dock: while the browser asks, it says so')
+  ok(!html({ active: false }).includes('data-studio-voice-caption'), 'dock: no talking hint when no call is on')
+  // a phone: the disc is 64 px (the media query is read in an effect, so the dock is run in the offline host)
+  const { toElements } = mini
+  const phoneDock = async matches => {
+    globalThis.window = { matchMedia: () => ({ matches, addEventListener() {}, removeEventListener() {} }) }
+    try {
+      const Dock = dock.VoiceCallDock
+      const rootNode = new Root(); rootNode.setElement(React.createElement(Dock, props({})))
+      for (let i = 0; i < 20; i++) { await macro(); if (!rootNode.flush()) break }
+      const out = renderToStaticMarkup(toElements(rootNode.tree)); rootNode.unmount(); return out
+    } finally { delete globalThis.window }
+  }
+  const phoneHtml = await phoneDock(true), deskHtml = await phoneDock(false)
+  ok(phoneHtml.includes('data-voice-phone="true"') && phoneHtml.includes('data-size="64"') && deskHtml.includes('data-voice-phone="false"') && deskHtml.includes('data-size="88"'), 'dock: a phone gets the 64 px disc, a desktop the 88 px one')
+  // the button
+  const button = makeHost({ env: ENV_ON, over, stubs: { '../studio-composer-hint': { StudioComposerHint: noHint } } }).load(BUTTON)
+  const b = p => renderToStaticMarkup(React.createElement(button.VoiceCallButton, { active: false, busy: false, disabled: false, onClick: () => {}, studio: true, ...p }))
+  ok(b({}).includes('aria-label="Start a voice call"') && b({}).includes('data-voice-active="false"') && b({}).includes('type="button"') && b({}).includes('aria-pressed="false"'), 'button: starts a call')
+  ok(b({ active: true }).includes('aria-label="End the voice call"') && b({ active: true }).includes('data-voice-active="true"') && b({ active: true }).includes('aria-pressed="true"'), 'button: ends it')
+  ok(/disabled=""/.test(b({ busy: true })) && /disabled=""/.test(b({ disabled: true })) && !/disabled=""/.test(b({})), 'button: off while the microphone is asked for')
+  ok(!b({ studio: true }).includes('title=') && b({ studio: false }).includes('title="Start a voice call"'), 'button: a tooltip in the shell, a title elsewhere')
+  // the player without a pack
+  const player = makeHost({ env: ENV_ON, over }).load(PLAYER)
+  const p = renderToStaticMarkup(React.createElement(player.CompanionPlayer, { pack: 'bob', scene: 'idle', dance: false, framing: 'disc', size: 88, reducedMotion: false, getLevel: () => 0 }))
+  ok(p.includes('data-studio-voice-companion="loading"') && p.includes('>B<') && p.includes('width:88px') && p.includes('height:88px') && !p.includes('<canvas'), 'player: before the pack is read: a plain disc with initials, no canvas')
+  ok(renderToStaticMarkup(React.createElement(player.CompanionPlayer, { pack: 'deckster-owl', scene: 'idle', dance: false, framing: 'chest', size: 240, reducedMotion: true, getLevel: () => 0 })).includes('>DO<'), 'player: initials of the pack\'s name')
+  return host
+}
+
+async function hookSuite(over = {}) {
+  const loads = []
+  const mk = env => {
+    const calls = { controllers: [] }
+    const stubs = {
+      'next/dynamic': () => () => null,
+      '@/lib/studio-voice-call-controller': { VoiceCallController: class { constructor(o) { calls.controllers.push(o); this.subscribe = () => () => {}; this.getSnapshot = () => ({ active: false, starting: false, notice: null }); this.onFrame = () => {}; this.onSent = () => {}; this.dispose = () => { calls.disposed = true }; this.endCall = () => { calls.ended = (calls.ended ?? 0) + 1 }; this.getLevel = () => 0 } } },
+      '@/lib/studio-voice-call-browser': { browserVoiceEnv: () => ({ marker: 'env' }), browserVoicePort: () => ({ marker: 'port' }) },
+    }
+    const host = makeHost({ env, over, stubs })
+    return { calls, ui: host.load(UI), hook: host.load(HOOK) }
+  }
+  const listeners = []
+  const win = { addEventListener: (type, fn) => listeners.push(['add', type, fn]), removeEventListener: (type, fn) => listeners.push(['remove', type, fn]) }
+  globalThis.window = win
+  const run = async (world, opts) => {
+    let latest = null
+    function Page() { latest = world.hook.useStudioVoiceCall({ ...opts }); return null }
+    const rootNode = new Root(); rootNode.setElement(React.createElement(Page))
+    for (let i = 0; i < 40; i++) { await macro(); if (!rootNode.flush()) break }
+    return { rootNode, latest: () => latest, set: async patch => { Object.assign(opts, patch); rootNode.schedule(); for (let i = 0; i < 40; i++) { await macro(); if (!rootNode.flush()) break } } }
+  }
+  try {
+    const off = mk({})
+    const offRun = await run(off, { enabled: true, sendTurn: () => {}, sessionKey: 's1', connected: true })
+    eq([offRun.latest().dock, offRun.latest().composerProps, off.calls.controllers.length, listeners.length, off.ui.voiceCallBus.frame, off.ui.voiceCallBus.sent], [null, null, 0, 0, null, null], 'hook: flag off: no dock, no button, no controller, no listener, nothing on the bus')
+    offRun.rootNode.unmount()
+    const shell = mk(ENV_ON)
+    const shellOff = await run(shell, { enabled: false, sendTurn: () => {}, sessionKey: 's1', connected: true })
+    eq([shellOff.latest().dock, shellOff.latest().composerProps, shell.calls.controllers.length, shell.ui.voiceCallBus.frame], [null, null, 0, null], 'hook: flag on but not the Studio shell: nothing')
+    shellOff.rootNode.unmount()
+    const on = mk(ENV_ON)
+    const sent = []
+    const onRun = await run(on, { enabled: true, sendTurn: text => { sent.push(text) }, sessionKey: 's1', connected: true })
+    eq(on.calls.controllers.length, 1, 'hook: flag on: one controller, loaded after mount')
+    const o = on.calls.controllers[0]
+    eq([o.env, o.port], [{ marker: 'env' }, { marker: 'port' }], 'hook: ...with the browser\'s environment and the router port')
+    ok(typeof on.ui.voiceCallBus.frame === 'function' && typeof on.ui.voiceCallBus.sent === 'function', 'hook: ...and the bus is wired to it')
+    o.sendTurn('hello'); eq(sent, ['hello'], 'hook: the controller\'s send is the page\'s send'); eq(o.isConnected(), true, 'hook: ...and it knows the socket is open')
+    eq(onRun.latest().composerProps?.active, false, 'hook: the composer gets the call button\'s state')
+    eq(listeners.length, 0, 'hook: no key listener before a call')
+    eq(on.calls.ended ?? 0, 0, 'hook: the call is not ended while the session stays')
+    await onRun.set({ sessionKey: 's2' }); eq(on.calls.ended, 1, 'hook: the session on screen changed: the call is ended')
+    await onRun.set({ connected: false }); eq([on.calls.ended, o.isConnected()], [1, false], 'hook: ...and only a change of session ends it (the socket state is read live)')
+    onRun.rootNode.unmount()
+    eq([on.calls.disposed, on.ui.voiceCallBus.frame, on.ui.voiceCallBus.sent], [true, null, null], 'hook: unmounting disposes the controller and clears the bus')
+  } finally { delete globalThis.window }
+}
+
+// ============================================================================================================================================
+// D. The page, the socket hook, the composer, .env.example, the scope
+// ============================================================================================================================================
+const lines = text => text.split('\n')
+const MARK = strip.VOICE_CALL_MARKER_RE
+function sourceSuite(sources, { base = null } = {}) {
+  const page = sources[PAGE], ws = sources[WS], input = sources[INPUT], env = sources['.env.example'], hook = sources[HOOK]
+  const lineOf = (text, needle) => { const found = lines(text).filter(line => line.includes(needle)); ok(found.length === 1, `exactly one line with: ${needle.slice(0, 70)} (${found.length})`); return found[0] }
+  // the page
+  eq(lines(page).filter(line => MARK.test(line)).length, 6, 'page: six marked lines (the comment and the hook call, the dock, the composer prop, the comment and the import at the end)')
+  const call = lineOf(page, 'const voiceCall = useStudioVoiceCall({')
+  ok(call.includes('enabled: studioShell') && call.includes('sendTurn: text => handleSendMessage(undefined, text)') && call.includes('sessionKey: currentSessionId || wsSessionId') && call.includes('connected }) // VOICE-CALL'), 'page: the hook is handed the Studio shell, the page\'s ordinary send, the session and the socket state')
+  ok(page.indexOf(call) > page.indexOf('const handleSendMessage = useCallback(') && page.indexOf(call) > page.indexOf('const flowControl = useStudioFlowControl({'), 'page: the call hook comes after the send it uses and after the flow hook')
+  const dockLine = lineOf(page, '{voiceCall.dock}{/* VOICE-CALL')
+  ok(page.indexOf(dockLine) > page.indexOf('{flowControl.bar}') && page.indexOf(dockLine) < page.indexOf('<ChatInput\n'), 'page: the dock sits above the composer, under the flow bar')
+  const propLine = lineOf(page, '{...(voiceCall.composerProps ? { voiceCall: voiceCall.composerProps } : {})} // VOICE-CALL')
+  ok(page.indexOf(propLine) > page.indexOf('<ChatInput\n') && page.indexOf(propLine) < page.indexOf('onSubmit={handleSendMessage}'), 'page: the call button\'s props reach the composer (and only with the flag on)')
+  const importLine = lineOf(page, "import { useStudioVoiceCall } from '@/hooks/use-studio-voice-call' // VOICE-CALL")
+  ok(page.indexOf(importLine) > page.indexOf("import { useStudioFlowControl } from '@/hooks/use-studio-flow-control' // FLOW-CONTROL") && page.indexOf(importLine) > page.indexOf('function AuthenticatedBuilderContent('), 'page: the import sits after the Builder content, beside the flow import (older proofs slice the page by position)')
+  ok(!page.includes('getUserMedia') && !page.includes('MediaRecorder') && !page.includes('voice-call-controller') && !page.includes('STUDIO_VOICE_CALL_UI_ENABLED'), 'page: it knows the hook and nothing of the microphone, the controller or the flag')
+  // the socket hook
+  eq(lines(ws).filter(line => MARK.test(line)).length, 5, 'ws: five marked lines (the import, the comment, the frame tap, the voice fields, the sent tap)')
+  lineOf(ws, "import { STUDIO_VOICE_CALL_UI_ENABLED, addVoiceCallFields, isVoiceCallFrameType, voiceCallBus } from '@/lib/studio-voice-call-ui'; // VOICE-CALL")
+  const tap = lineOf(ws, 'voiceCallBus.frame?.(parsedMessage); // VOICE-CALL')
+  ok(tap.includes('if (STUDIO_VOICE_CALL_UI_ENABLED && isVoiceCallFrameType(parsedMessage.type) && parsedMessage.session_id === socketSessionId && isCurrentSocket())'), 'ws: the frame tap is gated: the flag, the types that carry state, this socket\'s session, while this socket is current')
+  for (const needle of ['routeStudioBulkEditUndoFrame(parsedMessage', 'if (!isKnownDirectorMessageType(parsedMessage.type))', "if (parsedMessage.type === 'deck_mutation') {"]) ok(ws.indexOf(tap) < ws.indexOf(needle), `ws: the tap is ahead of ${needle.slice(0, 40)}`)
+  ok(ws.indexOf(tap) > ws.indexOf('flowBus.phase?.(parsedMessage.payload)'), 'ws: ...and after the flow control taps (a frame carries on exactly as before)')
+  ok(!/voiceCallBus\.frame\?\.\(parsedMessage\);[^\n]*\n\s*(return|continue)/.test(ws.slice(ws.indexOf(tap), ws.indexOf(tap) + 400)), 'ws: the tap never consumes a frame')
+  const fields = lineOf(ws, 'if (STUDIO_VOICE_CALL_UI_ENABLED) addVoiceCallFields(message.data as unknown as Record<string, unknown>, text); // VOICE-CALL')
+  ok(ws.indexOf(fields) > ws.indexOf('if (CHAT_PARITY_CAPS.length > 0) addChatParityCaps(') && ws.indexOf(fields) < ws.indexOf('      return message;\n    };'), 'ws: the voice fields come last, after every other cap, inside buildUserMessage')
+  const sentTap = lineOf(ws, 'voiceCallBus.sent?.(text); // VOICE-CALL')
+  ok(sentTap.includes("if (STUDIO_VOICE_CALL_UI_ENABLED && (message.data as unknown as Record<string, unknown>).mode === 'voice')"), 'ws: the sent tap is gated and for a voice turn only')
+  ok(ws.indexOf(sentTap) > ws.indexOf(fields) && lines(ws)[lines(ws).indexOf(sentTap) - 1].includes('wsRef.current.send(JSON.stringify(message));'), 'ws: ...right after the send')
+  ok(!ws.includes('onVoiceCall') && !ws.includes('getUserMedia') && !/mode:\s*'voice'/.test(ws.replace(sentTap, '')), 'ws: no new option, no microphone; the mode is written in the lib only')
+  // the composer
+  eq(lines(input).filter(line => MARK.test(line)).length, 5, 'input: five marked lines (two imports, the prop, its destructuring, the button)')
+  lineOf(input, "import { VoiceCallButton } from './voice-call/voice-call-button' // VOICE-CALL"); lineOf(input, "import type { VoiceCallComposerProps } from '@/lib/studio-voice-call-ui' // VOICE-CALL")
+  lineOf(input, '  voiceCall?: VoiceCallComposerProps // VOICE-CALL'); lineOf(input, '  voiceCall, // VOICE-CALL')
+  const btn = lineOf(input, '{voiceCall ? <VoiceCallButton {...voiceCall} studio={studio} /> : null}{/* VOICE-CALL')
+  ok(input.indexOf(btn) > input.indexOf('aria-label="Build theme"') && input.indexOf(btn) > input.indexOf("data-studio-composer-menu={studio ? 'research' : undefined}") && input.indexOf(btn) < input.indexOf('{chatClean ? <StudioChatCleanSendSide'), 'input: the call button is last in the toolbar\'s left group, before the send side')
+  ok(!input.includes('getUserMedia'), 'input: the composer never asks for the microphone')
+  // the microphone: asked for in one place
+  const code = text => text.replace(/\/\/[^\n]*/g, '').replace(/\/\*[\s\S]*?\*\//g, '')
+  ok(fs.readdirSync(path.join(root, 'lib')).filter(f => f.startsWith('studio-voice-call')).every(f => (code(f === 'studio-voice-call-browser.ts' ? sources[BROWSER] : read(`lib/${f}`)).match(/getUserMedia\(/g) ?? []).length === (f === 'studio-voice-call-browser.ts' ? 1 : 0)) && !code(hook).includes('getUserMedia'), 'microphone: getUserMedia is called in exactly one place (the browser adapter\'s openMic), which only the controller\'s startCall calls')
+  const ctlText = sources[CTL]
+  eq(lines(ctlText).filter(line => /\.openMic\(/.test(line)).length, 1, 'microphone: the controller opens it in one place'); ok(ctlText.indexOf('this.env.openMic()') > ctlText.indexOf('async startCall()') && ctlText.indexOf('this.env.openMic()') < ctlText.indexOf('private micFailed'), 'microphone: ...inside startCall')
+  ok(!/fetch\(|XMLHttpRequest|speechSynthesis|SpeechRecognition|new WebSocket|OpenRouter|api\.openai|elevenlabs/i.test([UI, ROUTER, CTL, HOOK].map(rel => sources[rel] ?? read(rel)).join('\n').replace(/\/\/[^\n]*/g, '').replace(/\/\*[\s\S]*?\*\//g, '')), 'speech: no fetch, no browser speech, no vendor in the lib, the controller or the hook (the router port is handed its fetch)')
+  ok(sources[BROWSER].includes('fetch(input, init as RequestInit)') && (sources[BROWSER].match(/\bfetch\(/g) ?? []).length === 1, 'speech: the only fetch is the router port\'s, on the page\'s own origin')
+  ok(hook.includes("import('@/lib/studio-voice-call-controller')") && hook.includes("import('@/lib/studio-voice-call-browser')") && !/^import (?!type )[^\n]*studio-voice-call-(controller|browser)'/m.test(hook) && !/^import (?!type )[^\n]*@\/lib\/studio\/voice/m.test(hook), 'hook: the controller, the browser adapters and the core are loaded on demand, not imported')
+  ok(hook.includes('const enabled = options.enabled && STUDIO_VOICE_CALL_UI_ENABLED') && /if \(!enabled\) return\n/.test(hook), 'hook: the flag gates the load')
+  ok(hook.includes("dynamic(() => import('@/components/builder/voice-call/voice-call-dock')") && !/^import .*voice-call-dock/m.test(hook), 'hook: the dock (and its stylesheet and icons) is its own chunk')
+  // .env.example
+  ok(env.endsWith(`\n${strip.VOICE_CALL_ENV_BLOCK}`) && strip.VOICE_CALL_ENV_BLOCK.endsWith('\n'), '.env.example: the block is the last thing in the file, after one blank line')
+  eq(lines(env).filter(line => line === 'NEXT_PUBLIC_STUDIO_VOICE_COMPANION="bob"').length, 1, '.env.example: the companion once, "bob"'); eq(lines(env).filter(line => /^NEXT_PUBLIC_STUDIO_VOICE_CALL=/.test(line)).length, 1, '.env.example: the call flag is on ELEMENT-3\'s one line, not repeated here')
+  ok(lines(strip.VOICE_CALL_ENV_BLOCK).filter(line => line && !line.startsWith('#') && line !== 'NEXT_PUBLIC_STUDIO_VOICE_COMPANION="bob"').length === 0, '.env.example: the block is comments and its one assignment')
+  ok(lines(env.slice(env.indexOf('# STUDIO VOICE CALL UI'))).every(line => !/exact "true" enables it/.test(line)), '.env.example: the block does not use the phrase older proofs read')
+  if (base) {
+    for (const rel of strip.VOICE_CALL_FILES) {
+      ok(strip.stripVoiceCall(rel, sources[rel]) === base[rel], `${rel}: without this change's lines it is the base's file, byte for byte`)
+      ok(sources[rel] !== base[rel], `${rel}: it is changed`)
+    }
+  }
+  // the strip itself
+  ok(strip.stripVoiceCall('lib/other.ts', 'x // VOICE-CALL\n') === 'x // VOICE-CALL\n', 'strip: a file that is not this change\'s comes back as it is')
+  ok(strip.stripVoiceCall(PAGE, 'a\nb // VOICE-CALL-X\nc // X-VOICE-CALL\nd // VOICE-CALL\ne // NEXT_PUBLIC_STUDIO_VOICE_CALL\n') === 'a\nb // VOICE-CALL-X\nc // X-VOICE-CALL\ne // NEXT_PUBLIC_STUDIO_VOICE_CALL\n', 'strip: the marker is a whole token')
+  ok(strip.stripVoiceCall(PAGE, 42) === 42, 'strip: not text comes back as it is')
+  ok(sources[PLAYER].includes('const width = framedWidth(framing, size, rect)'), 'player: its width is the lib\'s (the disc is a square, the chest as wide as its crop)')
+  // the stylesheet: nothing global, nothing that reaches an element without the call's own attributes
+  const css = sources[CSS]
+  ok(lines(css).filter(line => /^[^\s@/}]/.test(line) && !line.startsWith('[data-studio-v4-shell="true"] [data-studio-voice-call="dock"]') && !line.startsWith('[data-studio-voice-call="dock"]')).length === 0, 'css: every rule is keyed to the call\'s own attribute')
+  ok(/prefers-reduced-motion: reduce/.test(css) && /max-width: 767px/.test(css), 'css: reduced motion and the phone layout are there')
+}
+
+const git = (...args) => execFileSync('git', ['-C', root, ...args], { encoding: 'utf8', maxBuffer: 1 << 28, stdio: ['ignore', 'pipe', 'ignore'] })
+const baseOk = (() => { try { git('cat-file', '-e', `${strip.BASE_COMMIT}^{commit}`); return true } catch { return false } })()
+const baseSources = baseOk ? Object.fromEntries(strip.VOICE_CALL_FILES.map(rel => [rel, git('show', `${strip.BASE_COMMIT}:${rel}`)])) : null
+// This change's own commits (the merge of ELEMENT-3's core is not one of them): by subject, from the base.
+const OWN = baseOk ? git('log', '--no-merges', '--format=%H', `--grep=^${strip.VOICE_CALL_SUBJECT}`, '-E', `${strip.BASE_COMMIT}..HEAD`).split('\n').filter(Boolean) : []
+
+async function all(over = {}, { slow = true } = {}) {
+  uiSuite(loadUi(over), over)
+  await routerSuite(over)
+  await controllerSuite(over)
+  await dockSuite(over)
+  await hookSuite(over)
+  sourceSuite({ ...SOURCES, ...over }, { base: baseSources })
+}
+
+// ============================================================================================================================================
+await all()
+console.log(`PASS A-D  lib, router, controller, components, hook, sources (${checks} checks)`)
+if (baseOk) {
+  const registry = await import('./studio-later-changes.mjs')
+  ok(registry.LATER_STRIPS.includes(strip.stripVoiceCall), 'registry: the strip is named'); ok(registry.LATER_ENV_BLOCKS.includes(strip.VOICE_CALL_ENV_BLOCK), 'registry: the block is named')
+  ok([...strip.VOICE_CALL_SCOPE_FILES].every(rel => registry.LATER_CHANGE_FILES.has(rel)), 'registry: every file is named')
+  for (const rel of strip.VOICE_CALL_FILES) ok(registry.stripLaterChanges(rel, SOURCES[rel]) === registry.stripLaterChanges(rel, baseSources[rel]), `registry: ${rel}, read through it, is the base's (older proofs read it like that)`)
+  ok(OWN.length > 0 || process.env.VOICE_CALL_PROOF_NO_COMMITS === '1', 'scope: this change has its own "Voice call:" commits (set VOICE_CALL_PROOF_NO_COMMITS=1 before the first commit)')
+  if (OWN.length > 0) {
+    const changed = new Set(OWN.flatMap(sha => git('show', '--name-only', '--format=', sha).split('\n').filter(Boolean)))
+    eq([...changed].filter(rel => !strip.VOICE_CALL_SCOPE_FILES.has(rel)).sort(), [], 'scope: every file of this change\'s own commits is this change\'s')
+    ok([...changed].every(rel => !rel.startsWith('public/companions/')), 'scope: no companion art is committed (Garud delivers the packs)')
+    for (const rel of strip.VOICE_CALL_FILES) {
+      const diff = git('diff', '--unified=0', strip.BASE_COMMIT, 'HEAD', '--', rel).split('\n')
+      const added = diff.filter(line => line.startsWith('+') && !line.startsWith('+++')), removed = diff.filter(line => line.startsWith('-') && !line.startsWith('---'))
+      ok(added.length > 0 && added.every(line => MARK.test(line)), `${rel}: every added line carries the marker (${added.filter(line => !MARK.test(line)).length} do not)`)
+      eq(removed, [], `${rel}: no existing line is rewritten or removed (pure insertions, so a stacked change cannot be broken by this one)`)
+    }
+    const envDiff = git('diff', '--unified=0', strip.BASE_COMMIT, 'HEAD', '--', '.env.example').split('\n').filter(line => /^[-+]/.test(line) && !/^(---|\+\+\+)/.test(line))
+    ok(envDiff.every(line => line.startsWith('+')), '.env.example: only lines added')
+    ok(envDiff.map(line => line.slice(1)).join('\n').endsWith(strip.VOICE_CALL_ENV_BLOCK.trimEnd()), '.env.example: this change adds exactly its block (after ELEMENT-3\'s two lines)')
+    const subjects = git('log', '--no-merges', '--format=%s', `${strip.BASE_COMMIT}..HEAD`).split('\n').filter(Boolean)
+    ok(OWN.length > 0 && subjects.filter(subject => subject.startsWith(strip.VOICE_CALL_SUBJECT)).length === OWN.length, 'scope: the commits are named "Voice call: ..." (this proof reads those)')
+  }
+  for (const rel of strip.VOICE_CALL_NEW_FILES) ok(fs.existsSync(path.join(root, rel)), `scope: ${rel} exists`)
+  ok(strip.VOICE_CALL_FILES.every(rel => !strip.VOICE_CALL_NEW_FILES.includes(rel)), 'scope: marked and new files are different lists')
+  ok(!fs.existsSync(path.join(root, 'public/companions')) || !git('ls-files', 'public/companions').trim(), 'scope: no companion art is tracked')
+} else console.log(`NOTE D  git has no ${strip.BASE_COMMIT.slice(0, 8)}: the base-identity and scope checks were skipped`)
+console.log(`PASS D  registry, strip identity, scope (${checks} checks)`)
+
+// ============================================================================================================================================
+// E. Mutants: every one must be caught
+// ============================================================================================================================================
+const mutants = [
+  // the lib
+  [UI, 'flag: anything but "true" turns it on', "return value === 'true'", "return value !== 'false'"],
+  [UI, 'companion: any name is a folder', "/^[a-z0-9][a-z0-9-]{0,31}$/.test(value)", "typeof value === 'string' && value.length > 0"],
+  [UI, 'the voice fields go on any message', 'if (!takeVoiceTurn(text)) return data', 'if (false) return data'],
+  [UI, 'the voice cap replaces the others', "data.client_caps = existing.includes(VOICE_CAP) ? existing : [...existing, VOICE_CAP]", "data.client_caps = [VOICE_CAP]"],
+  [UI, 'the mode is not "voice"', "export const VOICE_TURN_MODE = 'voice'", "export const VOICE_TURN_MODE = 'speech'"],
+  [UI, 'the cap is not voice1', "export const VOICE_CAP = 'voice1'", "export const VOICE_CAP = 'voice'"],
+  [UI, 'an armed turn is kept after it is taken', 'voiceCallBus.pending = null\n  return true', 'return true'],
+  [UI, 'an armed turn is taken by any words', 'if (!pending || pending.text !== text) return false', 'if (!pending) return false'],
+  [UI, 'sync_response reaches the call', "'slide_built', 'slide_failed', 'action_request']", "'slide_built', 'slide_failed', 'action_request', 'sync_response']"],
+  [UI, 'a progress bubble is a report', "if (payload.ephemeral === true) return null", 'void 0'],
+  [UI, 'a decline is not sorry', "return { kind: 'reporting', decline: isDeclineText(cleanText(payload.text)) }\n    }\n    default", "return { kind: 'reporting', decline: false }\n    }\n    default"],
+  [UI, 'the hint is ignored', 'const hinted = signalFromHint(payload.companion_state)', 'const hinted = null'],
+  [UI, 'listening is accepted from the wire', "'thinking', 'working', 'reporting', 'pleased', 'concerned', 'waiting', 'idle'", "'thinking', 'working', 'reporting', 'pleased', 'concerned', 'waiting', 'listening', 'idle'"],
+  [UI, 'a finished build is the small pleased', "if (phase === 'complete') return { kind: 'pleased', big: true }", "if (phase === 'complete') return { kind: 'pleased', big: false }"],
+  [UI, 'a paused build is waiting', "if (phase === 'paused' || phase === 'stopped') return { kind: 'paused' }", "if (phase === 'paused' || phase === 'stopped') return { kind: 'waiting' }"],
+  [UI, 'a slide failure is not concern', "case 'slide_failed': return { kind: 'concerned' }", "case 'slide_failed': return null"],
+  [UI, 'every build_event is the deck\'s', "payload.scope === 'deck'", "true"],
+  [UI, 'the spoken cap is gone', 'line.length <= (chat ? MAX_SPOKEN_CHARS : MAX_SPOKEN_PROGRESS_CHARS)', 'true'],
+  [UI, 'any frame is read aloud', "if (!chat && type !== 'status_update' && type !== 'build_phase' && !(type === 'build_event' && payload.scope === 'deck')) return null", ''],
+  [UI, 'the text is spoken when there is no line', "const line = cleanText(payload.spoken)", "const line = cleanText(payload.spoken) ?? cleanText(payload.text)"],
+  [UI, 'a small pleased every time', 'now - expired.lastPleasedAt < PLEASED_EVERY_MS', 'false'],
+  [UI, 'a report does not end the thinking', "background: expired.background === 'thinking' ? 'none' : expired.background, beat: { scene, until", "background: expired.background, beat: { scene, until"],
+  [UI, 'a beat never ends', 'if (beat && input.now < beat.until) return beat.scene', 'if (beat) return beat.scene'],
+  [UI, 'the call phase loses to a beat', "if (input.phase === 'listening') return 'listening'\n  if (input.phase === 'speaking' || input.speakingNow) return 'speaking'\n  if (input.phase === 'thinking') return 'thinking'\n  const beat", "const beat"],
+  [UI, 'every celebration dances', '(celebrations - 1) % DANCE_EVERY === DANCE_EVERY - 1 &&', 'true &&'],
+  [UI, 'a dance twice within a minute', '(expired.lastDanceAt === null || now - expired.lastDanceAt >= DANCE_COOLDOWN_MS)', 'true'],
+  [UI, 'working is not the glance up', "accent: { clip: 'look_down', reverse: true, everyMs: [8000, 12000] }", "accent: { clip: 'look_down', reverse: false, everyMs: [8000, 12000] }"],
+  [UI, 'listening does not lean', "steps: [{ clip: 'lean_in', mode: 'hold' }], accent: { clip: 'nod'", "steps: [{ clip: 'head_tilt', mode: 'hold' }], accent: { clip: 'nod'"],
+  [UI, 'thinking is not the thinking face', "{ clip: 'expr_thinking_front', mode: 'hold' }], accent: null, blink: false, still: { clip: 'expr_thinking_front', at: 'hold' } }\n    case 'speaking'", "{ clip: 'expr_thinking_front', mode: 'loop' }], accent: null, blink: false, still: { clip: 'expr_thinking_front', at: 'hold' } }\n    case 'speaking'"],
+  [UI, 'sorry has no shrug', "{ clip: 'shrug', mode: 'once' }, ", ''],
+  [UI, 'waiting does not invite', "{ clip: 'invite', mode: 'once' }, { clip: 'lean_in', mode: 'hold' }", "{ clip: 'lean_in', mode: 'hold' }"],
+  [UI, 'the still of listening is the first frame', "still: { clip: 'lean_in', at: 'hold' } }\n    case 'thinking'", "still: { clip: 'lean_in', at: 'first' } }\n    case 'thinking'"],
+  [UI, 'a loop ignores its range', 'clip.loop && clip.loop[1] > clip.loop[0] ? clip.loop : [0, clip.frames.length]', '[0, clip.frames.length]'],
+  [UI, 'hold runs past its hold frame', "Math.min(raw, clip.hold !== undefined ? Math.min(clip.hold, last) : last)", 'Math.min(raw, last)'],
+  [UI, 'the mouth never closes', 'if (smooth < 0.025) return syllable % 11 === 0 ? 7 : syllable % 7 === 0 ? 8 : 0', 'if (smooth < 0.025) return 2'],
+  [UI, 'the disc is not square', 'return { sx: clamp(cx - side / 2, 0, size.width - side), sy: bbox.y, sw: side, sh: side }', 'return { sx: clamp(cx - side / 2, 0, size.width - side), sy: bbox.y, sw: side, sh: side * 1.3 }'],
+  [UI, 'the disc is 90 px', 'export const DISC_PX_DESKTOP = 88', 'export const DISC_PX_DESKTOP = 90'],
+  [UI, 'the chest is 200 px', 'export const CHEST_PX = 240', 'export const CHEST_PX = 200'],
+  [UI, 'a phone is wider', "'(max-width: 767px)'", "'(max-width: 1023px)'"],
+  [UI, 'Stop is always on', 'stop: live && (input.phase', 'stop: live || (input.phase'],
+  [UI, 'talking works without a socket', 'talk: live && input.connected', 'talk: live'],
+  [UI, 'Space talks in a text field', "tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT' || target.isContentEditable === true", 'false'],
+  [UI, 'Space with the Command key talks', '&& !event.metaKey && !event.ctrlKey', '&& !event.ctrlKey'],
+  [UI, 'a key repeat talks again', '&& !event.repeat', ''],
+  [UI, 'the not-connected words blame the user', "title: \"Speech isn't connected yet\"", "title: 'Something went wrong'"],
+  // the router
+  [ROUTER, 'a 404 is a plain failure', "if (status === 404 || status === 501 || status === 503) return 'not_connected'", "if (status === 501 || status === 503) return 'not_connected'"],
+  [ROUTER, 'a limit is a failure', "if (status === 402 || status === 429) return 'limit'", "if (status === 402) return 'limit'"],
+  [ROUTER, 'the stt label is wrong', "stt: 'studio.voice_stt'", "stt: 'studio.stt'"],
+  [ROUTER, 'the tts label is wrong', "tts: 'studio.voice_tts'", "tts: 'studio.tts'"],
+  [ROUTER, 'the transcript is not trimmed', "(body as { text: string }).text.trim()", "(body as { text: string }).text"],
+  [ROUTER, 'an abort is a failure', "if (name === 'AbortError' || signal?.aborted) return new VoiceRouterError('aborted', 'The request was cancelled')", ''],
+  [ROUTER, 'the speech goes to another origin', "speak: '/api/studio/voice/speak'", "speak: 'https://speech.example.com/speak'"],
+  // the controller
+  [CTL, 'the microphone is asked for at construction', "this.snapshot = this.build()\n  }", "this.snapshot = this.build(); void this.env.openMic()\n  }"],
+  [CTL, 'a mic that is granted late stays open', "if (this.disposed || token !== this.startToken) { mic.close(); return }", "if (this.disposed) { mic.close(); return }"],
+  [CTL, 'the mic error is swallowed', "return this.micFailed(typeof error === 'object'", "return void (typeof error === 'object'"],
+  [CTL, 'the mic is not released on end', "this.mic?.close()\n        this.mic = null", "this.mic = null"],
+  [CTL, 'a tick timer is left after the call', "this.mic = null\n        this.clearTick()", "this.mic = null"],
+  [CTL, 'a short recording is sent', 'const verdict = worthSending({ durationMs: heard.durationMs, peakLevel: heard.peak })', 'const verdict = { ok: true }'],
+  [CTL, 'the words are not armed', 'armVoiceTurn(text)\n    try {', 'try {'],
+  [CTL, 'the turn stays armed', 'disarmVoiceTurn()\n    if (this.awaiting?.turn !== turn) return', 'if (this.awaiting?.turn !== turn) return'],
+  [CTL, 'a send nobody saw is fine', "if (!this.awaiting.sendObserved) this.failTurn(turn, 'not_sent')", ''],
+  [CTL, 'a frame is handled twice', 'if (this.seen.has(id)) return', 'if (false) return'],
+  [CTL, 'frames before the call are handled', "if (!this.active || this.disposed) return\n    const id =", "if (this.disposed) return\n    const id ="],
+  [CTL, 'the reply is read from the text', "const spoken = spokenLineFromFrame(frame)\n    const sentences", "const spoken = spokenLineFromFrame(frame) ?? replyTextFromFrame(frame)\n    const sentences"],
+  [CTL, 'the reply talks over the user', "if (this.cs.phase === 'listening') return // the user is talking: the reply is in the chat, and nothing talks over them\n", ''],
+  [CTL, 'the reply to a stopped turn is said', "if (!awaiting && this.owedReplies > 0) { this.owedReplies--; return }", ''],
+  [CTL, 'a reply with nothing to say hangs the turn', "this.dispatch({ type: 'reply_done', turn: this.cs.turn })\n      this.dispatch({ type: 'audio_drained', turn: this.cs.turn })\n      return\n    }\n    if (!sentences.length || this.speechOff) return", "return\n    }\n    if (!sentences.length || this.speechOff) return"],
+  [CTL, 'a reply is spoken as one block', 'for (const sentence of sentences) this.enqueue(sentence, \'reply\', turn, true)', "this.enqueue(sentences.join(' '), 'reply', turn, true)"],
+  [CTL, 'progress is said while the user talks', "if (this.cs.phase === 'listening' || this.speechOff) return\n    const sentences = splitSentences(cleanForSpeech(line))", "if (this.speechOff) return\n    const sentences = splitSentences(cleanForSpeech(line))"],
+  [CTL, 'every stale progress line is kept', "this.queue = this.queue.filter(item => item.kind !== 'progress')", ''],
+  [CTL, 'a progress line moves the waiting turn to speaking', "for (const sentence of sentences) this.enqueue(sentence, 'progress', this.cs.turn, false)", "for (const sentence of sentences) this.enqueue(sentence, 'progress', this.cs.turn, true)"],
+  [CTL, 'the filler comes after the reply', 'replyTextArrived: awaiting.replyTextArrived,', 'replyTextArrived: false,'],
+  [CTL, 'the filler is said twice', 'alreadyUsed: awaiting.fillerUsed,', 'alreadyUsed: false,'],
+  [CTL, 'the filler ignores reduced motion', 'reducedMotion: this.env.reducedMotion(), speechOff: this.speechOff })', 'reducedMotion: false, speechOff: this.speechOff })'],
+  [CTL, 'the turn never times out', 'if (now - awaiting.lastActivity > REPLY_TIMEOUT_MS)', 'if (false)'],
+  [CTL, 'a frame does not keep the turn alive', 'if (this.awaiting) this.awaiting.lastActivity = now\n    const words', 'const words'],
+  [CTL, 'the timeout is 20 s', 'export const REPLY_TIMEOUT_MS = 90000', 'export const REPLY_TIMEOUT_MS = 20000'],
+  [CTL, 'talking over does not stop the speech', "case 'cancel_speech':\n        this.stopSpeech()\n        break", "case 'cancel_speech':\n        break"],
+  [CTL, 'talking over does not cancel the turn', "case 'cancel_turn':\n        if", "case 'cancel_turn':\n        break\n        if"],
+  [CTL, 'speech that failed is retried for ever', "if (!this.speechOff) {\n        this.speechOff = true", "if (!this.speechOff) {\n        this.speechOff = false"],
+  [CTL, 'the character does not speak while a line plays', "return companionScene({ phase, speakingNow: this.speakingNow,", "return companionScene({ phase, speakingNow: false,"],
+  [CTL, 'a turn Director opened itself looks like thinking', "const phase = this.pseudoTurn === this.cs.turn && this.cs.phase === 'thinking' ? 'idle' : this.cs.phase", "const phase = this.cs.phase"],
+  [CTL, 'a status outlives its build', "(signal.kind === 'pleased' && signal.big))) this.status = null", "false)) void 0"],
+  [CTL, 'the caption never clears', 'now >= this.captionUntil) this.caption = null', 'false) this.caption = null'],
+  [CTL, 'the mouth reads the speaker when it is silent', 'getLevel = (): number => (this.speakingNow ? this.player.level() : 0)', 'getLevel = (): number => this.player.level()'],
+  [CTL, 'a snapshot is rebuilt for nothing', 'if (same) return\n    this.snapshot = next', 'this.snapshot = next'],
+  // the hook and the components
+  [HOOK, 'the flag does not gate the load', 'const enabled = options.enabled && STUDIO_VOICE_CALL_UI_ENABLED', 'const enabled = options.enabled'],
+  [HOOK, 'the bus is not cleared', 'if (voiceCallBus.frame === made.onFrame) voiceCallBus.frame = null', ''],
+  [HOOK, 'the call outlives the session', 'controller?.endCall()', 'void 0'],
+  [HOOK, 'the controller is not disposed', 'made.dispose()', 'void 0'],
+  [DOCK, 'the chip is not shown', '<span className="studio-voice-chip" data-chip={snapshot.chip} role="status"><i aria-hidden />{snapshot.chip}</span>', ''],
+  [DOCK, 'expanding does not change the framing', "const framing = expanded ? 'chest' : 'disc'", "const framing = 'disc'"],
+  [DOCK, 'the disc is not 64 on a phone', 'expanded ? CHEST_PX : phone ? DISC_PX_PHONE : DISC_PX_DESKTOP', 'expanded ? CHEST_PX : DISC_PX_DESKTOP'],
+  [DOCK, 'a notice has no way to retry', '{notice.retry ? <button type="button" onClick={onRetry}>Try again</button> : null}', ''],
+  [DOCK, 'the line is not shown', "{caption ? <p className=\"studio-voice-caption\"", "{false ? <p className=\"studio-voice-caption\""],
+  [DOCK, 'the progress is not shown', '{snapshot.progress ? <p className="studio-voice-progress"', '{false ? <p className="studio-voice-progress"'],
+  [DOCK, 'Stop is not off in your turn', 'disabled={!controls.stop}', 'disabled={false}'],
+  [BUTTON, 'the button does not toggle its label', 'const label = callButtonLabel(active)', "const label = 'Start a voice call'"],
+  [BUTTON, 'the button stays on while the mic is asked for', 'disabled={disabled || busy}', 'disabled={disabled}'],
+  [PLAYER, 'a pack that fails shows nothing', "{!ready ? <span className=\"studio-voice-initials\" aria-hidden>{initialsFor(pack)}</span> : null}", ''],
+  [UI, 'the disc is as wide as its crop', "return rect && framing === 'chest' ? Math.round(size * rect.sw / rect.sh) : size", 'return rect ? Math.round(size * rect.sw / rect.sh) : size'],
+  [PLAYER, 'the player sizes itself by hand', 'const width = framedWidth(framing, size, rect)', 'const width = size'],
+  // the sources
+  [WS, 'the frame tap is not gated by the flag', 'if (STUDIO_VOICE_CALL_UI_ENABLED && isVoiceCallFrameType(parsedMessage.type)', 'if (isVoiceCallFrameType(parsedMessage.type)'],
+  [WS, 'the frame tap shows another session\'s frames', "isVoiceCallFrameType(parsedMessage.type) && parsedMessage.session_id === socketSessionId && isCurrentSocket()) voiceCallBus", "isVoiceCallFrameType(parsedMessage.type) && isCurrentSocket()) voiceCallBus"],
+  [WS, 'the voice fields are not gated', 'if (STUDIO_VOICE_CALL_UI_ENABLED) addVoiceCallFields(', 'if (true) addVoiceCallFields('],
+  [WS, 'the voice fields are written by hand', 'addVoiceCallFields(message.data as unknown as Record<string, unknown>, text); // VOICE-CALL', "(message.data as unknown as Record<string, unknown>).mode = 'voice'; // VOICE-CALL"],
+  [WS, 'the sent tap is for every message', "(message.data as unknown as Record<string, unknown>).mode === 'voice')", 'true)'],
+  [PAGE, 'the hook is called with the flag only', 'enabled: studioShell,', 'enabled: true,'],
+  [PAGE, 'the dock is drawn without the hook', '{voiceCall.dock}{/* VOICE-CALL', '{null}{/* VOICE-CALL'],
+  [PAGE, 'the voice turn goes by another send', 'sendTurn: text => handleSendMessage(undefined, text)', 'sendTurn: text => sendMessage(text)'],
+  [INPUT, 'the button is drawn with the flag off', '{voiceCall ? <VoiceCallButton', '{true ? <VoiceCallButton'],
+  [INPUT, 'the button is first in the toolbar', "              {voiceCall ? <VoiceCallButton {...voiceCall} studio={studio} /> : null}{/* VOICE-CALL (NEXT_PUBLIC_STUDIO_VOICE_CALL): the call button, last in the left group; the only thing that asks for the microphone */}\n            </div>", "            </div>"],
+]
+const survivors = [], crashes = [], stale = []
+let mutantCount = 0
+const before = checks
+for (const mutant of mutants) {
+  const [rel, name, from, to] = mutant
+  mutantCount++
+  const text = SOURCES[rel]
+  const at = text.indexOf(from)
+  if (at < 0) { stale.push(`${name} (${rel})`); continue }
+  const broken = text.slice(0, at) + to + text.slice(at + from.length)
+  if (broken === text) { stale.push(`${name} (${rel}: changes nothing)`); continue }
+  if (/\.(ts|tsx)$/.test(rel)) { try { compile(broken, rel) } catch (error) { crashes.push(`${name}: does not transpile`); survivors.push(`${name} (does not transpile: a mutant that is not valid code proves nothing)`); continue } }
+  const saved = checks
+  let caught = false
+  try { await all({ [rel]: broken }) } catch (error) { caught = true; if (error?.name !== 'AssertionError') crashes.push(`${name}: ${String(error?.message).slice(0, 80)}`) }
+  checks = saved
+  if (!caught) survivors.push(name)
+}
+// the strip module itself
+const stripText = fs.readFileSync(path.join(root, 'scripts/studio-voice-call-strip.mjs'), 'utf8')
+let stripMutants = 0
+if (baseSources) {
+  const stripCases = [
+    ['the marker matches inside a word', '/(?<![\\w-])VOICE-CALL(?![\\w-])/', '/VOICE-CALL/'],
+    ['only the first marked line goes', '.filter(line => !VOICE_CALL_MARKER_RE.test(line))', '.filter((line, at, all) => !VOICE_CALL_MARKER_RE.test(line) || all.findIndex(l => VOICE_CALL_MARKER_RE.test(l)) !== at)'],
+    ['another file is stripped too', "if (!VOICE_CALL_FILES.includes(rel)) return text", 'if (false) return text'],
+    ['the composer is not stripped', "export const VOICE_CALL_FILES = ['app/builder/page.tsx', 'hooks/use-deckster-websocket-v2.ts', 'components/builder/chat-input.tsx']", "export const VOICE_CALL_FILES = ['app/builder/page.tsx', 'hooks/use-deckster-websocket-v2.ts']"],
+  ]
+  const run = text => {
+    const out = ts.transpileModule(text, { compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022 } }).outputText
+    const module = { exports: {} }; new Function('module', 'exports', out)(module, module.exports); return module.exports
+  }
+  for (const [name, from, to] of stripCases) {
+    mutantCount++; stripMutants++
+    ok(stripText.includes(from), `strip mutant "${name}" matches`)
+    const mod = run(stripText.replace(from, () => to))
+    const otherFile = mod.stripVoiceCall('lib/other.ts', 'x // VOICE-CALL\n') === 'x // VOICE-CALL\n'
+    const token = mod.stripVoiceCall(PAGE, 'b // VOICE-CALL-X\n') === 'b // VOICE-CALL-X\n'
+    const identity = strip.VOICE_CALL_FILES.every(rel => mod.stripVoiceCall(rel, SOURCES[rel]) === baseSources[rel])
+    const first = mod.stripVoiceCall(PAGE, 'a // VOICE-CALL\nb // VOICE-CALL\n') === '\n'
+    if (otherFile && token && identity && first) survivors.push(`strip: ${name}`)
+  }
+}
+checks = before + 0
+console.log(`stale mutants: ${stale.join('; ') || 'none'}; survivors: ${survivors.join('; ') || 'none'}`)
+eq(stale, [], 'every mutant still matches its source')
+eq(survivors, [], `every mutant is caught (survivors: ${survivors.join('; ') || 'none'})`)
+console.log(`PASS E  ${mutantCount} mutants (${stripMutants} of the strip), every one caught${crashes.length ? ` (${crashes.length} by a thrown error)` : ''}`)
+if (process.env.VOICE_TEST_VERBOSE) for (const crash of crashes) console.log(`  threw: ${crash}`)
+release()
+console.log(`OK studio voice call: ${checks} checks`)
