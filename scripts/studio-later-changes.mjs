@@ -67,6 +67,7 @@ export const LATER_CHANGE_FILES = new Set([
   ...(await import('./studio-welcome-trim-strip.mjs')).WELCOME_TRIM_SCOPE_FILES, // LATER-CHANGE: FRONTEND-2, B51 welcome trim and Director mark trim: the first-run welcome loses its extra copy and Director's greeting, and the old star can go (NEXT_PUBLIC_STUDIO_WELCOME_TRIM / NEXT_PUBLIC_STUDIO_DIRECTOR_MARK_TRIM)
   ...(await import('./studio-chat-column-wide-strip.mjs')).CHAT_COLUMN_WIDE_SCOPE_FILES, // LATER-CHANGE: FRONTEND-2, B51 chat column wide (F-10): the first-run welcome column is about 44% of the window, and the shared column tokens are defined (NEXT_PUBLIC_STUDIO_CHAT_COLUMN_WIDE)
   ...(await import('./studio-stage-open-gate-strip.mjs')).STAGE_OPEN_GATE_SCOPE_FILES, // LATER-CHANGE: FRONTEND-2, B52 stage open gate: the chat stays full-width through Director's clarifying questions; the stage opens on the strawman or build, a ready deck or an explicit ask (NEXT_PUBLIC_STUDIO_STAGE_OPEN_GATE)
+  ...(await import('./studio-strawman-stage-strip.mjs')).STRAWMAN_STAGE_SCOPE_FILES, // LATER-CHANGE: FRONTEND-1, F-04/F-05/F-07 strawman stage: the stage is the deck viewer showing Director's strawman preview deck, each slide's plan under it, the slide kept across the swap (NEXT_PUBLIC_STUDIO_STRAWMAN_STAGE)
   // one line per later change, above this comment
 ])
 
@@ -106,6 +107,7 @@ export const LATER_ENV_BLOCKS = [
   (await import('./studio-welcome-trim-strip.mjs')).WELCOME_TRIM_ENV_BLOCK, // LATER-CHANGE: FRONTEND-2, B51 welcome trim and Director mark trim (NEXT_PUBLIC_STUDIO_WELCOME_TRIM / NEXT_PUBLIC_STUDIO_DIRECTOR_MARK_TRIM)
   (await import('./studio-chat-column-wide-strip.mjs')).CHAT_COLUMN_WIDE_ENV_BLOCK, // LATER-CHANGE: FRONTEND-2, B51 chat column wide (NEXT_PUBLIC_STUDIO_CHAT_COLUMN_WIDE)
   (await import('./studio-stage-open-gate-strip.mjs')).STAGE_OPEN_GATE_ENV_BLOCK, // LATER-CHANGE: FRONTEND-2, B52 stage open gate (NEXT_PUBLIC_STUDIO_STAGE_OPEN_GATE)
+  (await import('./studio-strawman-stage-strip.mjs')).STRAWMAN_STAGE_ENV_BLOCK, // LATER-CHANGE: FRONTEND-1, F-04/F-05/F-07 strawman stage (NEXT_PUBLIC_STUDIO_STRAWMAN_STAGE)
   // one line per later change, above this comment
 ]
 
@@ -154,6 +156,7 @@ export const LATER_STRIPS = [
   (await import('./studio-welcome-trim-strip.mjs')).stripWelcomeTrim, // LATER-CHANGE: FRONTEND-2, B51 welcome trim and Director mark trim (NEXT_PUBLIC_STUDIO_WELCOME_TRIM / NEXT_PUBLIC_STUDIO_DIRECTOR_MARK_TRIM)
   (await import('./studio-chat-column-wide-strip.mjs')).stripChatColumnWide, // LATER-CHANGE: FRONTEND-2, B51 chat column wide (NEXT_PUBLIC_STUDIO_CHAT_COLUMN_WIDE)
   (await import('./studio-stage-open-gate-strip.mjs')).stripStageOpenGate, // LATER-CHANGE: FRONTEND-2, B52 stage open gate (NEXT_PUBLIC_STUDIO_STAGE_OPEN_GATE)
+  (await import('./studio-strawman-stage-strip.mjs')).stripStrawmanStage, // LATER-CHANGE: FRONTEND-1, F-04/F-05/F-07 strawman stage (NEXT_PUBLIC_STUDIO_STRAWMAN_STAGE)
   // one line per later change, above this comment
 ]
 
