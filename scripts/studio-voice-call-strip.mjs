@@ -36,13 +36,19 @@ export const VOICE_CALL_NEW_FILES = [
 ]
 
 /**
- * Older proofs this change teaches, each by pure insertions that carry the marker (the strip puts the file back): the two that read first-parent commit subjects (chat element edit, deck sync truth: "Voice call:" subjects are excluded, as the
- * voice core's are), the font-selection sandbox (one constant, as chat parity's), and the chat theme export's stacked-line counter (it filters the voice core's merged import and this change's sandbox line).
+ * Older proofs this change teaches, each by pure insertions that carry the marker (the strip puts the file back): the font-selection sandbox (one constant, as chat parity's) and the chat theme export's stacked-line counter (it filters the voice
+ * core's merged lines and this change's sandbox line). The older scope proofs that read first-parent commit subjects (chat element edit, deck sync truth) are taught nothing here: the voice core's subject helper (isVoiceCoreCommitSubject)
+ * also leaves out "Voice call:" (one marked edit of scripts/studio-voice-core-strip.mjs, VOICE_CALL_CORE_STRIP_EDIT).
  */
-export const VOICE_CALL_PIN_FILES = ['scripts/test-studio-chat-element-edit.mjs', 'scripts/test-studio-deck-sync-truth.mjs', 'scripts/test-theme-font-selection.mjs', 'scripts/test-studio-chat-theme-export.mjs']
+export const VOICE_CALL_PIN_FILES = ['scripts/test-theme-font-selection.mjs', 'scripts/test-studio-chat-theme-export.mjs']
 
 /** Files this change edits that are neither marked app code nor new: its .env.example block, the registry (three lines) and the older proofs it teaches. No package.json script: run the proof with `node scripts/test-studio-voice-call.mjs`. */
-export const VOICE_CALL_OWN_EDITS = ['.env.example', 'scripts/studio-later-changes.mjs', ...VOICE_CALL_PIN_FILES]
+/** Two older proofs one of this change's commits taught and a later one put back (the voice core's subject helper took over): the history touches them, the tree does not change them. */
+export const VOICE_CALL_PUT_BACK_FILES = ['scripts/test-studio-chat-element-edit.mjs', 'scripts/test-studio-deck-sync-truth.mjs']
+
+/** The one edit of the voice core's strip module (its commit-subject helper also names this change's commits): the line carries the marker, the text before it is the core's own. */
+export const VOICE_CALL_CORE_STRIP_EDIT = 'scripts/studio-voice-core-strip.mjs'
+export const VOICE_CALL_OWN_EDITS = ['.env.example', 'scripts/studio-later-changes.mjs', VOICE_CALL_CORE_STRIP_EDIT, ...VOICE_CALL_PIN_FILES, ...VOICE_CALL_PUT_BACK_FILES]
 
 /** Every file this change's own commits touch: what the older scope checks skip once the registry names it (scripts/studio-later-changes.mjs, LATER_CHANGE_FILES). */
 export const VOICE_CALL_SCOPE_FILES = new Set([...VOICE_CALL_FILES, ...VOICE_CALL_NEW_FILES, ...VOICE_CALL_OWN_EDITS])

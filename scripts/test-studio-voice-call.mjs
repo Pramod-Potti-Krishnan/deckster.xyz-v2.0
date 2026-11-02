@@ -39,13 +39,15 @@ const { renderToStaticMarkup } = await import('react-dom/server')
 const mini = await import('./studio-chat-harness/mini-react.mjs')
 const { Root } = mini
 const strip = await import('./studio-voice-call-strip.mjs')
+const core = await import('./studio-voice-core-strip.mjs')
 
 const UI = 'lib/studio-voice-call-ui.ts', ROUTER = 'lib/studio-voice-call-router.ts', CTL = 'lib/studio-voice-call-controller.ts', BROWSER = 'lib/studio-voice-call-browser.ts'
 const HOOK = 'hooks/use-studio-voice-call.ts', DOCK = 'components/builder/voice-call/voice-call-dock.tsx', BUTTON = 'components/builder/voice-call/voice-call-button.tsx', PLAYER = 'components/builder/voice-call/companion-player.tsx'
 const CSS = 'components/builder/voice-call/voice-call.css'
 const PAGE = 'app/builder/page.tsx', WS = 'hooks/use-deckster-websocket-v2.ts', INPUT = 'components/builder/chat-input.tsx'
 const CORE = 'lib/studio/voice'
-const SOURCES = Object.fromEntries([UI, ROUTER, CTL, BROWSER, HOOK, DOCK, BUTTON, PLAYER, CSS, PAGE, WS, INPUT, '.env.example'].map(rel => [rel, read(rel)]))
+const CORE_STRIP = 'scripts/studio-voice-core-strip.mjs'
+const SOURCES = Object.fromEntries([UI, ROUTER, CTL, BROWSER, HOOK, DOCK, BUTTON, PLAYER, CSS, PAGE, WS, INPUT, CORE_STRIP, '.env.example'].map(rel => [rel, read(rel)]))
 
 // ---- a tiny module host: the real files (or a mutant of one), their imports resolved against the repo, in THIS realm --------------------------------------------------------------------------------
 function compile(text, fileName) {
@@ -73,7 +75,7 @@ function makeHost({ env = {}, stubs = {}, over = {} } = {}) {
       if (spec.startsWith('@/') || spec.startsWith('.')) return load(resolve(abs, spec))
       return require(spec)
     }
-    new Function('module', 'exports', 'require', 'process', compile(text, rel))(module, module.exports, require_, { env })
+    new Function('module', 'exports', 'require', 'process', compile(text, rel.replace(/\.mjs$/, '.ts')))(module, module.exports, require_, { env })
     return module.exports
   }
   return { load: rel => load(path.join(root, rel)) }
@@ -857,6 +859,8 @@ async function hookSuite(over = {}) {
 const lines = text => text.split('\n')
 const MARK = strip.VOICE_CALL_MARKER_RE
 function sourceSuite(sources, { base = null } = {}) {
+  const core_text = () => sources[CORE_STRIP]
+  const coreMod = makeHost({ over: { [CORE_STRIP]: sources[CORE_STRIP] } }).load(CORE_STRIP)
   const page = sources[PAGE], ws = sources[WS], input = sources[INPUT], env = sources['.env.example'], hook = sources[HOOK]
   const lineOf = (text, needle) => { const found = lines(text).filter(line => line.includes(needle)); ok(found.length === 1, `exactly one line with: ${needle.slice(0, 70)} (${found.length})`); return found[0] }
   // the page
@@ -924,7 +928,11 @@ function sourceSuite(sources, { base = null } = {}) {
       ok(reg.stripLaterChanges(rel, sources[rel] ?? read(rel)) === reg.stripLaterChanges(rel, base.__pins[rel]), `${rel}: read through the registry it is the base's file (older proofs read it like that)`)
       ok(strip.stripVoiceCall(rel, sources[rel] ?? read(rel)).split('\n').every(line => !MARK.test(line)), `${rel}: the strip takes every marked line out`)
     }
-    eq([lines(read('scripts/test-studio-chat-element-edit.mjs')).filter(line => MARK.test(line)).length, lines(read('scripts/test-studio-deck-sync-truth.mjs')).filter(line => MARK.test(line)).length, lines(read('scripts/test-theme-font-selection.mjs')).filter(line => MARK.test(line)).length, lines(read('scripts/test-studio-chat-theme-export.mjs')).filter(line => MARK.test(line)).length], [2, 2, 1, 1], 'pins: the two subject readers get an import and a filter, the sandbox one constant, the line counter one filter')
+    eq([lines(read('scripts/test-theme-font-selection.mjs')).filter(line => MARK.test(line)).length, lines(read('scripts/test-studio-chat-theme-export.mjs')).filter(line => MARK.test(line)).length], [1, 1], 'pins: the sandbox gets one constant, the line counter one filter')
+    eq(['Voice call: the lib', 'Voice core: x', 'Chat element edit: x', 'Voice caller: x'].map(coreMod.isVoiceCoreCommitSubject), [true, true, false, false], 'subjects: the voice core\'s subject helper (read by the scope proofs that were taught it) also leaves out "Voice call:" commits, and nothing else')
+    eq(strip.VOICE_CALL_PUT_BACK_FILES.map(rel => lines(read(rel)).filter(line => MARK.test(line)).length), [0, 0], 'pins: the two scope proofs one commit taught and a later one put back carry nothing of this change now')
+    eq(lines(core_text()).filter(line => MARK.test(line)).length, 1, 'core strip: one marked line (the helper\'s return), nothing else of the core\'s file is touched here')
+    ok(!strip.VOICE_CALL_FILES.includes('scripts/studio-voice-core-strip.mjs') && !strip.VOICE_CALL_PIN_FILES.includes('scripts/studio-voice-core-strip.mjs') && strip.VOICE_CALL_SCOPE_FILES.has('scripts/studio-voice-core-strip.mjs'), 'core strip: it is a scope file of this change, and the strip does not take its marked line out (that line is an edit, not an insertion)')
     const registryText = read('scripts/studio-later-changes.mjs')
     const without = strip.stripVoiceCall('scripts/studio-later-changes.mjs', registryText)
     eq([registryText.split('\n').length - without.split('\n').length, without.includes("studio-voice-call-strip.mjs')"), without.includes('studio-voice-core-strip.mjs')], [3, false, true], 'registry: the strip takes this change\'s three lines out of the registry text, and only those (older proofs read "the last registered line of its list" that way)')
@@ -1052,6 +1060,7 @@ const mutants = [
   [ROUTER, 'the speech goes to another origin', "speak: '/api/studio/voice/speak'", "speak: 'https://speech.example.com/speak'"],
   // the controller
   [CTL, 'the microphone is asked for at construction', "this.snapshot = this.build()\n  }", "this.snapshot = this.build(); void this.env.openMic()\n  }"],
+  [CORE_STRIP, 'the voice core\'s subject helper does not know this change', ' || subject.startsWith("Voice call:")', ''],
   [CTL, 'the hearing is not metered', 'this.meter.add(heard.costUsd)', ''],
   [CTL, 'an unknown cost is zero', 'this.meter.add(spoken.costUsd)', 'this.meter.add(spoken.costUsd ?? 0)'],
   [CTL, 'the meter outlives the call', 'this.replyLeadUntil = 0\n    this.meter = new CallCostMeter()', 'this.replyLeadUntil = 0'],

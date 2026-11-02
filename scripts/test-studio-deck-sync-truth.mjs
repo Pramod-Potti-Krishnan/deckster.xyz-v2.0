@@ -1,5 +1,4 @@
 import { isVoiceCoreCommitSubject, stripVoiceCore } from './studio-voice-core-strip.mjs' // LATER-CHANGES: registry read (STUDIO-VOICE-CORE): normalize only this port's exact proof metadata
-import { isVoiceCallCommitSubject } from './studio-voice-call-strip.mjs' // VOICE-CALL, LATER-CHANGES: registry read (VOICE-CALL): only the voice call UI's "Voice call:" commit subjects are excluded
 // FRONTEND-2 (B26): after chat deletes and a reload, "Slides 3" over a 2-slide deck and "This deck changed in another tab" with no other tab (E2E-2, Studio dev, 27 Oct).
 // Flag NEXT_PUBLIC_STUDIO_DECK_SYNC_TRUTH, exact "true", default off.
 // Run: node scripts/test-studio-deck-sync-truth.mjs   (plain node: transpile + vm, no network; `git` reads the base commit and the committed diff)
@@ -1265,7 +1264,6 @@ await record(`scope: every own commit (the first-parent line of BASE..HEAD, no m
   shas.splice(0, shas.length, ...shas.filter(sha => !/^Stage open gate:/.test(git('log', '-1', '--format=%s', sha)))) // LATER-CHANGES: registry read (STUDIO-STAGE-OPEN-GATE): on a branch stacked after this change (the stage open gate's), the first-parent commits are its own, not this change's; with none left the pins and identity checks above cover the files
   for (const sha of shas) assert.equal(git('rev-list', '--parents', '-n', '1', sha).trim().split(' ').length, 2, `${sha} is not a merge`)
   shas.splice(0, shas.length, ...shas.filter(sha => !isVoiceCoreCommitSubject(git('log', '-1', '--format=%s', sha)))) // LATER-CHANGES: registry read (STUDIO-VOICE-CORE): the pure voice port owns these later commits; this proof still checks its original files
-  shas.splice(0, shas.length, ...shas.filter(sha => !isVoiceCallCommitSubject(git('log', '-1', '--format=%s', sha)))) // VOICE-CALL, LATER-CHANGES: registry read (VOICE-CALL): the voice call UI owns its "Voice call:" commits; this proof still checks its original files
   const mergesOnLine = git('rev-list', '--first-parent', '--merges', `${BASE}..HEAD`).split('\n').filter(Boolean)
   for (const sha of mergesOnLine) assert.equal(shas.includes(sha), false, 'a merge commit is not an own commit')
   if (shas.length === 0) { console.log('NOTE scope: no commit of this change on the first-parent line (merged into dev: its commits are on the second parent); the identity checks above cover the files'); return }

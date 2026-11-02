@@ -1,5 +1,4 @@
 import { isVoiceCoreCommitSubject } from './studio-voice-core-strip.mjs' // LATER-CHANGES: registry read (STUDIO-VOICE-CORE): only the voice port's bounded commit subjects are excluded
-import { isVoiceCallCommitSubject } from './studio-voice-call-strip.mjs' // VOICE-CALL, LATER-CHANGES: registry read (VOICE-CALL): only the voice call UI's "Voice call:" commit subjects are excluded
 // FRONTEND-2 Pass 3 (P3-1 A, chat parity): edit an element from chat and refresh the Notes panel, Studio half (NEXT_PUBLIC_STUDIO_CHAT_ELEMENT_EDIT, exact "true", default off).
 //
 //   node scripts/test-studio-chat-element-edit.mjs                  # everything, offline (the viewer's replies and acks come from layout-transcripts.json, which the real Layout code recorded)
@@ -1373,7 +1372,6 @@ await check('scope: this change\'s own commits (the first-parent line without me
   shas.splice(0, shas.length, ...shas.filter(sha => !/^Text set keep look:/.test(git('log', '-1', '--format=%s', sha)))) // LATER-CHANGES: registry read (CHAT-TEXT-SET-KEEP-LOOK): on a branch stacked after this change (text set keep look's), the first-parent commits are its own, not this change's; with none left the pins and identity checks above cover the files
   shas.splice(0, shas.length, ...shas.filter(sha => !/^Stage open gate:/.test(git('log', '-1', '--format=%s', sha)))) // LATER-CHANGES: registry read (STUDIO-STAGE-OPEN-GATE): on a branch stacked after this change (the stage open gate's), the first-parent commits are its own, not this change's; with none left the pins and identity checks above cover the files
   shas.splice(0, shas.length, ...shas.filter(sha => !isVoiceCoreCommitSubject(git('log', '-1', '--format=%s', sha)))) // LATER-CHANGES: registry read (STUDIO-VOICE-CORE): the pure voice port owns these later commits; this proof still checks its original files
-  shas.splice(0, shas.length, ...shas.filter(sha => !isVoiceCallCommitSubject(git('log', '-1', '--format=%s', sha)))) // VOICE-CALL, LATER-CHANGES: registry read (VOICE-CALL): the voice call UI owns its "Voice call:" commits; this proof still checks its original files
   // Merged into dev, this change's commits come in by the merge's second parent and the first-parent line has none of them: nothing of this change's own is left to read (the files are dev's then).
   if (shas.length === 0) { console.log('NOTE scope: no commit of this change on the first-parent line (merged into dev: its commits are on the second parent); the pins and identity checks above cover the files'); return }
   assert.ok(shas.length >= 5, `${shas.length} own commits`)

@@ -57,7 +57,7 @@ export const VOICE_CORE_KNOWN_SUBJECTS = [
 ];
 export function isVoiceCoreCommitSubject(value) {
   const subject = String(value).trim();
-  return VOICE_CORE_KNOWN_SUBJECTS.includes(subject) || subject.startsWith("Voice core:");
+  return VOICE_CORE_KNOWN_SUBJECTS.includes(subject) || subject.startsWith("Voice core:") || subject.startsWith("Voice call:"); // VOICE-CALL: the voice call UI (P4-20) is the next change of the same family; the older scope proofs leave its "Voice call:" commits out too
 }
 export const VOICE_CORE_SCOPE_PIN = "  shas.splice(0, shas.length, ...shas.filter(sha => !isVoiceCoreCommitSubject(git('log', '-1', '--format=%s', sha)))) // LATER-CHANGES: registry read (STUDIO-VOICE-CORE): the pure voice port owns these later commits; this proof still checks its original files\n";
 export const VOICE_CORE_PROOF_EDITS = {
