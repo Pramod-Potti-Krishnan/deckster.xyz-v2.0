@@ -881,6 +881,9 @@ async function hookSuite(over = {}) {
 // ============================================================================================================================================
 const lines = text => text.split('\n')
 const MARK = strip.VOICE_CALL_MARKER_RE
+/** Every other registered later change's lines taken out (the merged core brings the voice core's and the strawman stage's marked lines into the same files; this change is read on its own). */
+const othersOut = (registry, rel, text) => registry.LATER_STRIPS.filter(fn => fn !== strip.stripVoiceCall).reduce((out, fn) => fn(rel, out), text)
+
 function sourceSuite(sources, { base = null } = {}) {
   const core_text = () => sources[CORE_STRIP]
   const coreMod = makeHost({ over: { [CORE_STRIP]: sources[CORE_STRIP] } }).load(CORE_STRIP)
@@ -940,26 +943,19 @@ function sourceSuite(sources, { base = null } = {}) {
   ok(lines(env.slice(env.indexOf('# STUDIO VOICE CALL UI'))).every(line => !/exact "true" enables it/.test(line)), '.env.example: the block does not use the phrase older proofs read')
   if (base) {
     for (const rel of strip.VOICE_CALL_FILES) {
-      ok(strip.stripVoiceCall(rel, sources[rel]) === base[rel], `${rel}: without this change's lines it is the base's file, byte for byte`)
+      ok(othersOut(base.__reg, rel, strip.stripVoiceCall(rel, sources[rel])) === othersOut(base.__reg, rel, base[rel]), `${rel}: without this change's lines it is the base's file, byte for byte (read past the other registered changes, which came with the merged core)`)
       ok(sources[rel] !== base[rel], `${rel}: it is changed`)
     }
   }
   // the older proofs this change teaches, and the registry text
-  if (base && base.__pins) {
-    const reg = base.__reg
-    for (const rel of strip.VOICE_CALL_PIN_FILES) {
-      const marked = lines(sources[rel] ?? read(rel)).filter(line => MARK.test(line))
-      ok(marked.length > 0 && marked.every(line => /LATER-CHANGES: registry read \(VOICE-CALL\)/.test(line)), `${rel}: this change's lines in it are marked VOICE-CALL and say why`)
-      ok(reg.stripLaterChanges(rel, sources[rel] ?? read(rel)) === reg.stripLaterChanges(rel, base.__pins[rel]), `${rel}: read through the registry it is the base's file (older proofs read it like that)`)
-      ok(strip.stripVoiceCall(rel, sources[rel] ?? read(rel)).split('\n').every(line => !MARK.test(line)), `${rel}: the strip takes every marked line out`)
-    }
-    eq(['scripts/test-studio-stage-open-gate.mjs'].map(rel => lines(read(rel)).filter(line => MARK.test(line)).length), [2], 'pins: the stage open gate gets an import and one replaced line (a real later change in the page)')
+  if (base && base.__reg) {
     eq(lines(read('scripts/test-theme-font-selection.mjs')).filter(line => MARK.test(line)).length, 0, 'pins: the font-selection sandbox is not touched (the socket hook\'s voice line guards the flag with typeof: nothing to define there)')
-    eq(lines(read('scripts/test-studio-chat-theme-export.mjs')).filter(line => MARK.test(line)).length, 0, 'pins: the chat theme export proof is not touched here (it is the voice core\'s to teach: the model catalog and narration router proofs police its added lines)')
+    eq(lines(read('scripts/test-studio-chat-theme-export.mjs')).filter(line => MARK.test(line)).length, 0, 'pins: the chat theme export proof is not touched here (it is the voice core\'s: ELEMENT-3 taught it at ad5b5232)')
+    eq(lines(read('scripts/test-studio-stage-open-gate.mjs')).filter(line => MARK.test(line)).length, 0, 'pins: the stage open gate proof is not touched here (it reads the page past every registered later change: laterStrips)')
     eq(['Voice call: the lib', 'Voice core: x', 'Chat element edit: x', 'Voice caller: x'].map(coreMod.isVoiceCoreCommitSubject), [true, true, false, false], 'subjects: the voice core\'s subject helper (read by the scope proofs that were taught it) also leaves out "Voice call:" commits, and nothing else')
-    eq(strip.VOICE_CALL_PUT_BACK_FILES.map(rel => lines(read(rel)).filter(line => MARK.test(line)).length), [0, 0, 0, 0], 'pins: the four proofs one commit taught and a later one put back carry nothing of this change now')
+    eq(strip.VOICE_CALL_PUT_BACK_FILES.map(rel => lines(read(rel)).filter(line => MARK.test(line)).length), [0, 0, 0, 0, 0], 'pins: the five proofs one commit touched and a later one put back carry nothing of this change now')
     eq(lines(core_text()).filter(line => MARK.test(line)).length, 1, 'core strip: one marked line (the helper\'s return), nothing else of the core\'s file is touched here')
-    ok(!strip.VOICE_CALL_FILES.includes('scripts/studio-voice-core-strip.mjs') && !strip.VOICE_CALL_PIN_FILES.includes('scripts/studio-voice-core-strip.mjs') && strip.VOICE_CALL_SCOPE_FILES.has('scripts/studio-voice-core-strip.mjs'), 'core strip: it is a scope file of this change, and the strip does not take its marked line out (that line is an edit, not an insertion)')
+    ok(!strip.VOICE_CALL_FILES.includes('scripts/studio-voice-core-strip.mjs') && strip.VOICE_CALL_SCOPE_FILES.has('scripts/studio-voice-core-strip.mjs'), 'core strip: it is a scope file of this change, and the strip does not take its marked line out (that line is an edit, not an insertion)')
     const registryText = read('scripts/studio-later-changes.mjs')
     const without = strip.stripVoiceCall('scripts/studio-later-changes.mjs', registryText)
     eq([registryText.split('\n').length - without.split('\n').length, without.includes("studio-voice-call-strip.mjs')"), without.includes('studio-voice-core-strip.mjs')], [3, false, true], 'registry: the strip takes this change\'s three lines out of the registry text, and only those (older proofs read "the last registered line of its list" that way)')
@@ -984,7 +980,7 @@ const baseSources = baseOk ? Object.fromEntries(strip.VOICE_CALL_FILES.map(rel =
 const OWN = baseOk ? git('log', '--no-merges', '--format=%H', `--grep=^${strip.VOICE_CALL_SUBJECT}`, '-E', `${strip.BASE_COMMIT}..HEAD`).split('\n').filter(Boolean) : []
 
 async function all(over = {}, { slow = true } = {}) {
-  if (baseSources && !baseSources.__pins) { Object.defineProperty(baseSources, '__pins', { value: Object.fromEntries(strip.VOICE_CALL_PIN_FILES.map(rel => [rel, git('show', `${strip.BASE_COMMIT}:${rel}`)])), enumerable: false }); Object.defineProperty(baseSources, '__reg', { value: await import('./studio-later-changes.mjs'), enumerable: false }) }
+  if (baseSources && !baseSources.__reg) Object.defineProperty(baseSources, '__reg', { value: await import('./studio-later-changes.mjs'), enumerable: false })
   uiSuite(loadUi(over), over)
   await routerSuite(over)
   await controllerSuite(over)
@@ -1007,8 +1003,12 @@ if (baseOk) {
     eq([...changed].filter(rel => !strip.VOICE_CALL_SCOPE_FILES.has(rel)).sort(), [], 'scope: every file of this change\'s own commits is this change\'s')
     ok([...changed].every(rel => !rel.startsWith('public/companions/')), 'scope: no companion art is committed (Garud delivers the packs)')
     for (const rel of strip.VOICE_CALL_FILES) {
-      const diff = git('diff', '--unified=0', strip.BASE_COMMIT, 'HEAD', '--', rel).split('\n')
-      const added = diff.filter(line => line.startsWith('+') && !line.startsWith('+++')), removed = diff.filter(line => line.startsWith('-') && !line.startsWith('---'))
+      // the lines of the base, read past the other registered changes (the merged core's own marked lines), must all be in the file, in order, and every other line must carry this change's marker
+      const was = othersOut(registry, rel, baseSources[rel]).split('\n'), now = othersOut(registry, rel, git('show', `HEAD:${rel}`)).split('\n')
+      const added = [], removed = []
+      let at = 0
+      for (const line of now) { if (at < was.length && line === was[at]) at++; else added.push(line) }
+      for (let i = at; i < was.length; i++) removed.push(was[i])
       ok(added.length > 0 && added.every(line => MARK.test(line)), `${rel}: every added line carries the marker (${added.filter(line => !MARK.test(line)).length} do not)`)
       eq(removed, [], `${rel}: no existing line is rewritten or removed (pure insertions, so a stacked change cannot be broken by this one)`)
     }
@@ -1222,10 +1222,8 @@ if (baseSources) {
   const stripCases = [
     ['the marker matches inside a word', '/(?<![\\w-])VOICE-CALL(?![\\w-])/', '/VOICE-CALL/'],
     ['only the first marked line goes', '.filter(line => !VOICE_CALL_MARKER_RE.test(line))', '.filter((line, at, all) => !VOICE_CALL_MARKER_RE.test(line) || all.findIndex(l => VOICE_CALL_MARKER_RE.test(l)) !== at)'],
-    ['a replaced line is not put back', "const put = rel in VOICE_CALL_PIN_EDITS ? VOICE_CALL_PIN_EDITS[rel].reduce((out, [has, was]) => out.replace(has, () => was), text) : text", 'const put = text'],
     ['the registry lines stay', "if (rel === 'scripts/studio-later-changes.mjs') return text.split('\\n').filter(line => !line.includes(VOICE_CALL_REGISTRY_MARK)).join('\\n')", 'if (false) return text'],
-    ['a taught proof is not stripped', "if (!VOICE_CALL_FILES.includes(rel) && !VOICE_CALL_PIN_FILES.includes(rel)) return text", "if (!VOICE_CALL_FILES.includes(rel)) return text"],
-    ['another file is stripped too', "if (!VOICE_CALL_FILES.includes(rel) && !VOICE_CALL_PIN_FILES.includes(rel)) return text", 'if (false) return text'],
+    ['another file is stripped too', "if (!VOICE_CALL_FILES.includes(rel)) return text", 'if (false) return text'],
     ['the composer is not stripped', "export const VOICE_CALL_FILES = ['app/builder/page.tsx', 'hooks/use-deckster-websocket-v2.ts', 'components/builder/chat-input.tsx']", "export const VOICE_CALL_FILES = ['app/builder/page.tsx', 'hooks/use-deckster-websocket-v2.ts']"],
   ]
   const run = text => {
@@ -1238,12 +1236,11 @@ if (baseSources) {
     const mod = run(stripText.replace(from, () => to))
     const otherFile = mod.stripVoiceCall('lib/other.ts', 'x // VOICE-CALL\n') === 'x // VOICE-CALL\n'
     const token = mod.stripVoiceCall(PAGE, 'b // VOICE-CALL-X\n') === 'b // VOICE-CALL-X\n'
-    const identity = strip.VOICE_CALL_FILES.every(rel => mod.stripVoiceCall(rel, SOURCES[rel]) === baseSources[rel])
+    const identity = strip.VOICE_CALL_FILES.every(rel => othersOut(baseSources.__reg, rel, mod.stripVoiceCall(rel, SOURCES[rel])) === othersOut(baseSources.__reg, rel, baseSources[rel]))
     const first = mod.stripVoiceCall(PAGE, 'a // VOICE-CALL\nb // VOICE-CALL\n') === '\n'
     const regText = read('scripts/studio-later-changes.mjs')
     const registryOut = mod.stripVoiceCall('scripts/studio-later-changes.mjs', regText).split('\n').length === regText.split('\n').length - 3
-    const pinsOut = strip.VOICE_CALL_PIN_FILES.every(rel => mod.stripVoiceCall(rel, read(rel)).split('\n').every(line => !strip.VOICE_CALL_MARKER_RE.test(line)))
-    if (otherFile && token && identity && first && registryOut && pinsOut) survivors.push(`strip: ${name}`)
+    if (otherFile && token && identity && first && registryOut) survivors.push(`strip: ${name}`)
   }
 }
 checks = before + 0

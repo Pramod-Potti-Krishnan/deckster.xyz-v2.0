@@ -35,31 +35,13 @@ export const VOICE_CALL_NEW_FILES = [
   'scripts/test-studio-voice-call.mjs',
 ]
 
-/**
- * Older proofs this change teaches, each by marked lines (the strip puts the file back): the stage open gate's robustness check (an import and one replaced line: a real later change in the page). The font-selection sandbox is not taught: the
- * socket hook's one flag-gated line guards the flag with typeof, so the sandbox runs it unchanged. NOT taught: the chat theme export proof, which fails on the voice core's own head (e324183b) because of the core's lines in the stacked test files; that is the core's to teach (see the report), and editing it here would
- * make the model catalog and narration router proofs, which police its added lines, fail as well. The older scope proofs that read first-parent commit subjects (chat element edit, deck sync truth) are taught nothing here: the voice core's subject helper (isVoiceCoreCommitSubject)
- * also leaves out "Voice call:" (one marked edit of scripts/studio-voice-core-strip.mjs, VOICE_CALL_CORE_STRIP_EDIT).
- */
-export const VOICE_CALL_PIN_FILES = ['scripts/test-studio-stage-open-gate.mjs']
-
-/** Files this change edits that are neither marked app code nor new: its .env.example block, the registry (three lines) and the older proofs it teaches. No package.json script: run the proof with `node scripts/test-studio-voice-call.mjs`. */
-/** An older proof taught by REPLACING one whole line (the line now carries the marker; the strip puts the old line back): the stage open gate's "robust after a later change" check reads the page past a synthetic change's lines, and this is a real one. */
-export const VOICE_CALL_PIN_EDITS = {
-  'scripts/test-studio-stage-open-gate.mjs': [
-    [
-      "  pageWiring(stripVoiceCall(PAGE, later)) // VOICE-CALL, LATER-CHANGES: registry read (VOICE-CALL): the page read past the synthetic change's lines is also read past a REAL later change's (the voice call UI marks lines in the page)\n",
-      '  pageWiring(later)\n',
-    ],
-  ],
-}
-
-/** Four older proofs one of this change's commits taught and a later one put back (the voice core's subject helper took over for the first two; the third is the core's to teach; the fourth needs no teaching: the socket hook's voice line guards the flag with typeof): the history touches them, the tree does not change them. */
-export const VOICE_CALL_PUT_BACK_FILES = ['scripts/test-studio-chat-element-edit.mjs', 'scripts/test-studio-deck-sync-truth.mjs', 'scripts/test-studio-chat-theme-export.mjs', 'scripts/test-theme-font-selection.mjs']
+/** Older proofs one of this change's commits touched and a later one put back (the voice core's subject helper took over for the element-edit and deck-sync ones; the theme-export one is the core's own now (ad5b5232); the stage open gate's reads the page past every registered later change itself (laterStrips); the font-selection sandbox runs the socket hook unchanged, its voice line guards the flag with typeof): the history touches them, the tree does not change them. */
+export const VOICE_CALL_PUT_BACK_FILES = ['scripts/test-studio-chat-element-edit.mjs', 'scripts/test-studio-deck-sync-truth.mjs', 'scripts/test-studio-chat-theme-export.mjs', 'scripts/test-theme-font-selection.mjs', 'scripts/test-studio-stage-open-gate.mjs']
 
 /** The one edit of the voice core's strip module (its commit-subject helper also names this change's commits): the line carries the marker, the text before it is the core's own. */
 export const VOICE_CALL_CORE_STRIP_EDIT = 'scripts/studio-voice-core-strip.mjs'
-export const VOICE_CALL_OWN_EDITS = ['.env.example', 'scripts/studio-later-changes.mjs', VOICE_CALL_CORE_STRIP_EDIT, ...VOICE_CALL_PIN_FILES, ...VOICE_CALL_PUT_BACK_FILES]
+/** Files this change edits that are neither marked app code nor new: its .env.example block, the registry (three lines), the core's subject helper (one marked edit) and the proofs its history touched. No package.json script: run the proof with `node scripts/test-studio-voice-call.mjs`. */
+export const VOICE_CALL_OWN_EDITS = ['.env.example', 'scripts/studio-later-changes.mjs', VOICE_CALL_CORE_STRIP_EDIT, ...VOICE_CALL_PUT_BACK_FILES]
 
 /** Every file this change's own commits touch: what the older scope checks skip once the registry names it (scripts/studio-later-changes.mjs, LATER_CHANGE_FILES). */
 export const VOICE_CALL_SCOPE_FILES = new Set([...VOICE_CALL_FILES, ...VOICE_CALL_NEW_FILES, ...VOICE_CALL_OWN_EDITS])
@@ -86,11 +68,10 @@ export function isVoiceCallCommitSubject(value) {
 /** The registry text without this change's three lines (a later strip is read out of the registry itself by the proofs that check "the last registered line of its list"). */
 export const VOICE_CALL_REGISTRY_MARK = "./studio-voice-call-strip.mjs')"
 
-/** The file without this change's lines: every line that carries the marker (as a whole token) is taken out in the app files and in the older proofs it teaches, and its three registry lines are taken out of the registry; every other byte stays. Any other file is returned as it is. */
+/** The file without this change's lines: every line that carries the marker (as a whole token) is taken out in the app files, and its three registry lines are taken out of the registry; every other byte stays. Any other file is returned as it is. */
 export function stripVoiceCall(rel, text) {
   if (typeof text !== 'string') return text
   if (rel === 'scripts/studio-later-changes.mjs') return text.split('\n').filter(line => !line.includes(VOICE_CALL_REGISTRY_MARK)).join('\n')
-  if (!VOICE_CALL_FILES.includes(rel) && !VOICE_CALL_PIN_FILES.includes(rel)) return text
-  const put = rel in VOICE_CALL_PIN_EDITS ? VOICE_CALL_PIN_EDITS[rel].reduce((out, [has, was]) => out.replace(has, () => was), text) : text // a replaced line goes back first (it carries the marker too)
-  return put.split('\n').filter(line => !VOICE_CALL_MARKER_RE.test(line)).join('\n')
+  if (!VOICE_CALL_FILES.includes(rel)) return text
+  return text.split('\n').filter(line => !VOICE_CALL_MARKER_RE.test(line)).join('\n')
 }
