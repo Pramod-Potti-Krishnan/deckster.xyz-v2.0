@@ -26,6 +26,8 @@ import {
   type TemplatePickerRow,
   type TemplatePreferenceStorage,
 } from "@/lib/studio-template-match"
+import { STUDIO_TEMPLATE_AUTO_APPLY_SERVER_ENABLED } from "@/lib/studio-template-auto-apply-server" // STUDIO-TEMPLATE-AUTO-APPLY-SERVER (NEXT_PUBLIC_STUDIO_TEMPLATE_AUTO_APPLY_SERVER, default off): the check follows the user across devices
+import { autoApplyServerAsk, autoApplyServerSave, type AutoApplyServerHandlers } from "@/hooks/use-studio-template-auto-apply-server" // STUDIO-TEMPLATE-AUTO-APPLY-SERVER
 
 /** What the socket hook hands over when a socket opens: how to send a frame on it, and the capabilities every message of this client advertises (template_match1 is added by the message builders). */
 export interface TemplateMatchSocket {
@@ -58,6 +60,7 @@ let socket: TemplateMatchSocket | null = null
 let snapshot: StudioTemplateMatchSnapshot = { frame: null, sessionId: null, badge: null, chips: NONE, rows: [], autoApply: true, pickerRequest: 0, sheetOpen: false }
 const listeners = new Set<() => void>()
 const publish = (next: StudioTemplateMatchSnapshot) => { snapshot = next; for (const listener of Array.from(listeners)) listener() }
+const autoApplyServerHandlers: AutoApplyServerHandlers = { user: () => user, current: () => snapshot.autoApply, adopt: enabled => { writeAutoApplyPreference(browserStorage(), user, enabled); publish({ ...snapshot, autoApply: enabled }); if (socket) socket.send(templateAutoApplyMessage(enabled, socket.caps())) } } // STUDIO-TEMPLATE-AUTO-APPLY-SERVER: the stored value won: the cache, the check and a re-sent template_auto_apply on the open socket
 
 function withFrame(frame: TemplateMatchFrame | null, sessionId: string | null): StudioTemplateMatchSnapshot {
   return { ...snapshot, frame, sessionId, badge: templateBadge(frame), chips: frame ? templateChips(frame) : NONE, rows: pickerRows(frame) }
@@ -74,6 +77,7 @@ export function templateMatchSocketOpened(input: { sessionId: string | null; use
   const sameSession = snapshot.sessionId === input.sessionId
   const autoApply = readAutoApplyPreference(browserStorage(), user)
   publish({ ...(sameSession ? snapshot : withFrame(null, input.sessionId)), autoApply, sessionId: input.sessionId })
+  if (STUDIO_TEMPLATE_AUTO_APPLY_SERVER_ENABLED) autoApplyServerAsk(user, autoApplyServerHandlers) // STUDIO-TEMPLATE-AUTO-APPLY-SERVER: once per page and user, ask for the stored preference (it never waits: the send below goes out with the cache)
   return input.socket.send(templateAutoApplyMessage(autoApply, input.socket.caps()))
 }
 
@@ -91,6 +95,7 @@ export function templateMatchFrameReceived(message: unknown, sessionId: string |
   // The frame's auto_apply is Director's session value: when it differs from the standing preference (a chat "no template" turned it off) the preference follows it, on this device and for the check; nothing is sent back and nothing is announced.
   const standing = autoApplyAfterFrame(frame, snapshot.autoApply)
   if (standing !== null) writeAutoApplyPreference(browserStorage(), user, standing)
+  if (standing !== null && STUDIO_TEMPLATE_AUTO_APPLY_SERVER_ENABLED) autoApplyServerSave(user, standing) // STUDIO-TEMPLATE-AUTO-APPLY-SERVER: the frame changed the standing preference (a chat "no template"): saved for the user too
   publish({ ...withFrame(frame, sessionId), ...(standing !== null ? { autoApply: standing } : {}) })
   return true
 }
@@ -100,6 +105,7 @@ export function setTemplateAutoApply(enabled: boolean): boolean {
   if (!STUDIO_TEMPLATE_MATCH_ENABLED) return false
   const on = enabled === true
   writeAutoApplyPreference(browserStorage(), user, on)
+  if (STUDIO_TEMPLATE_AUTO_APPLY_SERVER_ENABLED) autoApplyServerSave(user, on) // STUDIO-TEMPLATE-AUTO-APPLY-SERVER: the user's check: saved for the user too
   publish({ ...snapshot, autoApply: on })
   return socket ? socket.send(templateAutoApplyMessage(on, socket.caps())) : false
 }

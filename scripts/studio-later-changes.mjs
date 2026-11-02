@@ -70,6 +70,7 @@ export const LATER_CHANGE_FILES = new Set([
   ...(await import('./studio-strawman-stage-strip.mjs')).STRAWMAN_STAGE_SCOPE_FILES, // LATER-CHANGE: FRONTEND-1, F-04/F-05/F-07 strawman stage: the stage is the deck viewer showing Director's strawman preview deck, each slide's plan under it, the slide kept across the swap (NEXT_PUBLIC_STUDIO_STRAWMAN_STAGE)
   ...(await import('./studio-strawman-chat-strip.mjs')).STRAWMAN_CHAT_SCOPE_FILES, // LATER-CHANGE: FRONTEND-1, strawman chat: no slide list in the chat outline card, no progress card, one quiet status line while the stage is hidden (NEXT_PUBLIC_STUDIO_STRAWMAN_CHAT)
   ...(await import('./studio-template-match-strip.mjs')).STUDIO_TEMPLATE_MATCH_SCOPE_FILES, // LATER-CHANGE: FRONTEND-2, W2 P4-7/8 template match: Studio shows the template Director applied, with Change / Undo, source chips and an auto-apply check (NEXT_PUBLIC_STUDIO_TEMPLATE_MATCH)
+  ...(await import('./studio-template-auto-apply-server-strip.mjs')).STUDIO_TEMPLATE_AUTO_APPLY_SERVER_SCOPE_FILES, // LATER-CHANGE: FRONTEND-2, template auto-apply follows the user across devices: stored on UserPreferences, localStorage only a cache (NEXT_PUBLIC_STUDIO_TEMPLATE_AUTO_APPLY_SERVER), stacked on the template match
   // one line per later change, above this comment
 ])
 
@@ -112,6 +113,7 @@ export const LATER_ENV_BLOCKS = [
   (await import('./studio-strawman-stage-strip.mjs')).STRAWMAN_STAGE_ENV_BLOCK, // LATER-CHANGE: FRONTEND-1, F-04/F-05/F-07 strawman stage (NEXT_PUBLIC_STUDIO_STRAWMAN_STAGE)
   (await import('./studio-strawman-chat-strip.mjs')).STRAWMAN_CHAT_ENV_BLOCK, // LATER-CHANGE: FRONTEND-1, strawman chat (NEXT_PUBLIC_STUDIO_STRAWMAN_CHAT)
   (await import('./studio-template-match-strip.mjs')).STUDIO_TEMPLATE_MATCH_ENV_BLOCK, // LATER-CHANGE: FRONTEND-2, W2 P4-7/8 template match (NEXT_PUBLIC_STUDIO_TEMPLATE_MATCH)
+  (await import('./studio-template-auto-apply-server-strip.mjs')).STUDIO_TEMPLATE_AUTO_APPLY_SERVER_ENV_BLOCK, // LATER-CHANGE: FRONTEND-2, template auto-apply server (NEXT_PUBLIC_STUDIO_TEMPLATE_AUTO_APPLY_SERVER)
   // one line per later change, above this comment
 ]
 
@@ -163,6 +165,7 @@ export const LATER_STRIPS = [
   (await import('./studio-strawman-stage-strip.mjs')).stripStrawmanStage, // LATER-CHANGE: FRONTEND-1, F-04/F-05/F-07 strawman stage (NEXT_PUBLIC_STUDIO_STRAWMAN_STAGE)
   (await import('./studio-strawman-chat-strip.mjs')).stripStrawmanChat, // LATER-CHANGE: FRONTEND-1, strawman chat (NEXT_PUBLIC_STUDIO_STRAWMAN_CHAT)
   (await import('./studio-template-match-strip.mjs')).stripStudioTemplateMatch, // LATER-CHANGE: FRONTEND-2, W2 P4-7/8 template match (NEXT_PUBLIC_STUDIO_TEMPLATE_MATCH)
+  (await import('./studio-template-auto-apply-server-strip.mjs')).stripStudioTemplateAutoApplyServer, // LATER-CHANGE: FRONTEND-2, template auto-apply server (NEXT_PUBLIC_STUDIO_TEMPLATE_AUTO_APPLY_SERVER)
   // one line per later change, above this comment
 ]
 

@@ -891,6 +891,7 @@ if (baseOk) {
     for (const rel of strip.STUDIO_TEMPLATE_MATCH_NEW_FILES.filter(r => !r.endsWith('.json'))) ok(!/(sk-[A-Za-z0-9]{16,}|AKIA[0-9A-Z]{12,}|eyJ[A-Za-z0-9_-]{20,}\.|-----BEGIN [A-Z ]*PRIVATE KEY)/.test(git('show', `${head}:${rel}`)), `${rel}: no credential-shaped literal`)
   }
   const REAL = { norm: otherStrips, env: text => registry.stripLaterEnvBlocks('.env.example', text) }
+  REAL.laterRegistryLine = (previous => line => previous?.(line) || line.includes('studio-template-auto-apply-server-strip.mjs'))(REAL.laterRegistryLine) // LATER-CHANGES: registry read (STUDIO-TEMPLATE-AUTO-APPLY-SERVER): the template auto-apply server's registry lines may follow this change's three (a later change's own line)
   const scopeAll = (head, ctx = REAL) => { scopeOwnCommits(head); scopeCommittedFiles(head, ctx); scopeEnvAndRegistry(head, ctx) }
   const gateMerge = (dev, head) => plumb(['commit-tree', plumb(['merge-tree', '--write-tree', dev, head]).split('\n')[0], '-p', dev, '-p', head, '-m', 'gate-style merge (local, no ref)'])
   const TRAILER = '\n\nCo-Authored-By: Claude Sonnet 5.5 <noreply@anthropic.com>'
