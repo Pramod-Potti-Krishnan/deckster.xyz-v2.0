@@ -418,6 +418,16 @@ export function templateSwitchMessage(templateId: string | null, caps: unknown):
 // The preference: auto-apply, per user on this device
 // ---------------------------------------------------------------------------
 
+/**
+ * The standing preference after a frame was taken. The check is the user's STANDING setting, remembered for every new deck (PK, 2 Nov 17:13Z), and Director's session value is what the frame's `auto_apply` says: a chat
+ * "no template" / "turn off templates" turns it off for the session (DIRECTOR-2, 17:23Z), a template_switch to null ("no template for THIS deck") leaves it as it was, and a reconnect re-sends the frame as a refresh.
+ * So: the frame's value when it differs from the current preference (to be written and shown), else null (a refresh, our own toggle's answer, a switch to null: nothing to write, no notice).
+ */
+export function autoApplyAfterFrame(frame: TemplateMatchFrame | null, current: boolean): boolean | null {
+  if (!frame || typeof current !== 'boolean') return null
+  return frame.auto_apply !== current ? frame.auto_apply : null
+}
+
 export const TEMPLATE_AUTO_APPLY_STORAGE_KEY = 'studio.templateAutoApply.v1'
 /** The key of the one JSON object { "<user>": boolean } under TEMPLATE_AUTO_APPLY_STORAGE_KEY, for a visitor with no user id. */
 export const TEMPLATE_AUTO_APPLY_ANONYMOUS = '_'

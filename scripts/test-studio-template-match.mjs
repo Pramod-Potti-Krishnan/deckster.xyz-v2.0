@@ -52,6 +52,8 @@ function mutant(label, run) {
 const ok = (condition, message) => { checks++; assert.ok(condition, message) }
 const eq = (actual, expected, message) => { checks++; assert.deepEqual(actual, expected, message) }
 const read = rel => fs.readFileSync(path.join(root, rel), 'utf8')
+const attr = (node, name) => node.props[name]
+const noComments = text => text.replace(/\/\*[\s\S]*?\*\//g, '').replace(/^\s*\/\/.*$/gm, '')
 const swap = (text, from, to) => { assert.equal(text.split(from).length, 2, `exactly one ${JSON.stringify(from.slice(0, 80))}`); return text.replace(from, () => to) }
 
 // ---- the recordings ------------------------------------------------------------------------------------------------------------------------------------------------------
@@ -117,7 +119,8 @@ const AREA = 'components/builder/presentation-area.tsx', STRIP = 'components/sli
 /** A throwaway browser: localStorage (or a broken one) and matchMedia. */
 function fakeStorage(seed) {
   const map = new Map(seed ? Object.entries(seed) : [])
-  return { map, getItem: key => (map.has(key) ? map.get(key) : null), setItem: (key, value) => { map.set(key, String(value)) } }
+  const storage = { map, writes: 0, getItem: key => (map.has(key) ? map.get(key) : null), setItem: (key, value) => { storage.writes++; map.set(key, String(value)) } } // writes counts what the code wrote (a seed put in the map is not a write)
+  return storage
 }
 function makeWorld({ env = ON_ENV, storage = fakeStorage(), gateOpen = true, phoneShell = false, phone = false, overrides = {}, brokenWindow = false } = {}) {
   const state = { gateOpen, phone }
@@ -230,13 +233,14 @@ check('A. every recorded Director frame is drawn as its recorded state says (all
 
 check('A. every message Studio sends in a recording is what the builders produce, in the recorded order; the connect-time template_auto_apply comes before the first user_message', () => {
   for (const name of ['M1', 'M3', 'M4', 'M5', 'M1-s11', 'M3-s11']) {
-    const { sent } = replay(name)
+    const replayed = replay(name), { sent } = replayed
     const want = SC[name].frames.filter(step => step.direction === 'in' && (step.type === 'template_auto_apply' || step.type === 'template_switch')).map(step => step.frame)
     eq(sent, want, `${name}: the sent messages are the recorded ones, verbatim (data, not payload; client_caps ends with template_match1)`)
     const order = SC[name].frames.filter(step => step.direction === 'in').map(step => step.type)
     eq(order[0], 'template_auto_apply', `${name}: recorded: the first inbound is the connect-time step`)
     ok(order.indexOf('template_auto_apply') < order.indexOf('user_message'), `${name}: ... before the first user_message`)
     for (const message of sent) eq(message.data.client_caps.at(-1), 'template_match1', `${name}: the cap is last`)
+    eq(replayed.world.storage.writes, Math.max(0, inbound(name, 'template_auto_apply').length - 1), `${name}: the preference was written once per toggle and never by a frame (our own toggle's answer carries the same value; the recorded switches leave auto_apply alone)`)
   }
   // M0 and M2 were recorded without the connect step; Studio sends it on every connect all the same, with the same envelope as M1's
   for (const name of ['M0', 'M2']) {
@@ -289,6 +293,60 @@ check('A. the store follows the latest frame only: a frame of another session ne
   eq(store.getSnapshot().badge, null, 'a socket of another session drops it: nothing of the old deck is shown on the new one')
   eq(store.getSnapshot().chips.size, 0, '... no chips either')
   eq(store.getSnapshot().sessionId, 's_other', '... and the store follows the new session')
+})
+
+check('A. the standing preference follows the frame\'s auto_apply (PK 17:13Z: the check is the user\'s standing setting; DIRECTOR-2 17:23Z: a chat "no template" turns it off for the session): written once, shown in the check, nothing sent back, nothing announced', () => {
+  const frameOf = (name, seq) => directorFrames(name).find(item => item.seq === seq).frame
+  const KEY = 'studio.templateAutoApply.v1'
+  const stored = world => JSON.parse(world.storage.map.get(KEY) ?? 'null')
+  const ticked = (world) => attr(mount(world, CHECK, 'StudioTemplateAutoApplyCheck').hosts().filter(n => n.type === 'input')[0], 'checked')
+  const lib = makeWorld().lib
+  // the pure rule, on the recorded frames
+  const parsed = (name, seq) => lib.parseTemplateMatchFrame(frameOf(name, seq))
+  eq([lib.autoApplyAfterFrame(parsed('M4', 18), true), lib.autoApplyAfterFrame(parsed('M4', 18), false), lib.autoApplyAfterFrame(parsed('M4', 16), false), lib.autoApplyAfterFrame(parsed('M4', 16), true)], [false, null, true, null], 'the rule: the frame\'s value when it differs, else null')
+  eq([lib.autoApplyAfterFrame(null, true), lib.autoApplyAfterFrame(parsed('M1', 14), 'yes')], [null, null], 'no frame or no real preference: nothing to write')
+  // 1. a frame with auto_apply false after true (M4 seq 18 as received while the preference is ON): written, the check unticked, nothing sent back
+  let world = makeWorld(), sent = open(world, null, 0)
+  eq([ticked(world), world.storage.writes], [true, 0], 'the check starts ticked, nothing written yet')
+  ok(world.hook.templateMatchFrameReceived(frameOf('M4', 18), SESSION), 'the frame is taken')
+  eq([stored(world), world.storage.writes, world.hook.studioTemplateMatchStore.getSnapshot().autoApply, ticked(world)], [{ u_test: false }, 1, false, false], 'auto_apply false after true: written (false, once), published, the check unticked')
+  eq(sent, [], 'nothing is sent back (Director already has the value: no echo loop)')
+  eq(world.hook.studioTemplateMatchStore.getSnapshot().badge, null, 'and the frame is drawn as ever (auto-apply off: no badge)')
+  // 2. a later true writes true and ticks the check
+  ok(world.hook.templateMatchFrameReceived(frameOf('M4', 16), SESSION), 'the next frame is taken')
+  eq([stored(world), world.storage.writes, world.hook.studioTemplateMatchStore.getSnapshot().autoApply, ticked(world), sent], [{ u_test: true }, 2, true, true, []], 'a later true: written (true), the check ticked, still nothing sent')
+  // 3. a switch to null leaves auto_apply as it was: its frame writes nothing (M3 seq 23 and M3-s11 seq 23 are the recorded template_switch null)
+  for (const [name, seq] of [['M3', 23], ['M3-s11', 23]]) {
+    world = makeWorld(); sent = open(world, null, 0)
+    eq(frameOf(name, seq).payload.reason, 'no_template', `${name}:${seq} is the recorded switch to null`)
+    ok(world.hook.templateMatchFrameReceived(frameOf(name, seq), SESSION), `${name}:${seq} is taken`)
+    eq([world.storage.writes, world.storage.map.size, world.hook.studioTemplateMatchStore.getSnapshot().autoApply, ticked(world), sent], [0, 0, true, true, []], `${name}:${seq}: a switch to null writes nothing and leaves the check ticked`)
+  }
+  // 4. a re-sent same-value frame (a reconnect's refresh) writes nothing: auto-apply ON (M1 seq 14, twice) and OFF (M4 seq 14 then 18, with the preference already off)
+  world = makeWorld(); sent = open(world, null, 0)
+  world.hook.templateMatchFrameReceived(frameOf('M1', 14), SESSION); world.hook.templateMatchFrameReceived(frameOf('M1', 14), SESSION)
+  eq([world.storage.writes, ticked(world), sent], [0, true, []], 'a refresh with the same value (ON): nothing written')
+  world = makeWorld({ storage: fakeStorage({ [KEY]: JSON.stringify({ u_test: false }) }) }); sent = open(world, null, 0)
+  eq(ticked(world), false, 'the saved OFF is what the check starts from')
+  for (const seq of [14, 18, 14]) world.hook.templateMatchFrameReceived(frameOf('M4', seq), SESSION)
+  eq([world.storage.writes, stored(world), ticked(world), sent], [0, { u_test: false }, false, []], 'a refresh with the same value (OFF), as the connect-time frame and as the auto_apply_off answer: nothing written')
+  // 5. another session\'s frame writes nothing and is not taken
+  world = makeWorld(); sent = open(world, null, 0)
+  eq(world.hook.templateMatchFrameReceived(frameOf('M4', 18), 's_other'), false, 'a frame of another session is not taken')
+  eq([world.storage.writes, world.storage.map.size, world.hook.studioTemplateMatchStore.getSnapshot().autoApply, world.hook.studioTemplateMatchStore.getSnapshot().frame, ticked(world)], [0, 0, true, null, true], '... nothing written, the check ticked, no frame kept')
+  // 6. a storage that throws: the check still follows for the page
+  for (const [label, make] of [['setItem throws', () => makeWorld({ storage: { getItem: () => null, setItem() { throw new Error('QuotaExceededError') } } })], ['localStorage itself throws', () => makeWorld({ brokenWindow: true })]]) {
+    world = make(); sent = open(world, null, 0)
+    ok(world.hook.templateMatchFrameReceived(frameOf('M4', 18), SESSION), `${label}: the frame is taken`)
+    eq([world.hook.studioTemplateMatchStore.getSnapshot().autoApply, ticked(world), sent], [false, false, []], `${label}: the check still follows the frame (this page), nothing thrown, nothing sent`)
+  }
+  // 7. our own toggle: written by the toggle, its answer writes nothing more, and the only message is the toggle itself
+  world = makeWorld(); sent = open(world, null, 0)
+  world.hook.setTemplateAutoApply(false)
+  world.hook.templateMatchFrameReceived(frameOf('M4', 18), SESSION)
+  eq([world.storage.writes, stored(world), sent], [1, { u_test: false }, [recorded('M4', 17)]], 'our own toggle: one write (the toggle\'s), its answer writes nothing, one message (the recorded "off" envelope)')
+  // 8. no notice: nothing in the hook or the check announces the change
+  ok(!/toast|notice|alert|announce|aria-live/i.test(noComments(src(HOOK)) + noComments(src(CHECK))), 'no toast, notice or live region anywhere in the hook or the check')
 })
 
 check('A. section 11 (the field-present recordings M1-s11 / M3-s11): the key `applied_match` is on every row of an s11 frame and on none of v0; the counts come from covered / total; the applied template\'s own chips follow every switch (rule 2), and agree with deck[k].slides (rule 3)', () => {
@@ -472,7 +530,6 @@ function open(world, name, seq, { user = 'u_test' } = {}) {
   if (name) hook.templateMatchFrameReceived(directorFrames(name).find(item => item.seq === seq).frame, SESSION)
   return sent
 }
-const attr = (node, name) => node.props[name]
 function badgeSuite(overrides) {
   let world = makeWorld({ overrides }), sent = open(world, 'M1', 14)
   let badge = mount(world, BADGE, 'StudioTemplateMatchBadge')
@@ -618,7 +675,6 @@ check('C. the stylesheet: every rule is keyed to the marker (so flag off, nothin
 const ALL_CAP_FLAGS = { NEXT_PUBLIC_CHAT_DIRECTIVES: 'true', NEXT_PUBLIC_CHAT_THEME_CHANGE: 'true', NEXT_PUBLIC_CHAT_EXPORT: 'true', NEXT_PUBLIC_CHAT_ELEMENT_REFINE: 'true', NEXT_PUBLIC_STUDIO_CHAT_ELEMENT_EDIT: 'true',
   NEXT_PUBLIC_STUDIO_BULK_EDIT: 'true', NEXT_PUBLIC_STUDIO_CHAT_COMMANDS: 'true', NEXT_PUBLIC_STUDIO_CHAT_CLEAN: 'true', NEXT_PUBLIC_STUDIO_V4_SHELL: 'true' }
 const lines = text => text.split('\n')
-const noComments = text => text.replace(/\/\*[\s\S]*?\*\//g, '').replace(/^\s*\/\/.*$/gm, '')
 const MARK = strip.STUDIO_TEMPLATE_MATCH_MARKER_RE
 function wsHookChecks(hookText) {
   const rows = lines(hookText), marked = rows.filter(row => MARK.test(row))
@@ -967,7 +1023,15 @@ const H = (label, from, to) => mutantSuite(`hook: ${label}`, HOOK, from, to)
 H('no connect message', 'return input.socket.send(templateAutoApplyMessage(autoApply, input.socket.caps()))', 'return true')
 H('the saved preference is not read at connect', 'const autoApply = readAutoApplyPreference(browserStorage(), user)', 'const autoApply = true')
 H('a frame of another session stays', 'const sameSession = snapshot.sessionId === input.sessionId', 'const sameSession = true')
-H('a bad frame wipes the last good one', '  if (!frame) return false\n  publish(withFrame(frame, sessionId))', '  if (!frame) { publish(withFrame(null, sessionId)); return false }\n  publish(withFrame(frame, sessionId))')
+H('a bad frame wipes the last good one', '  const frame = parseTemplateMatchFrame(message)\n  if (!frame) return false', '  const frame = parseTemplateMatchFrame(message)\n  if (!frame) { publish(withFrame(null, sessionId)); return false }')
+L('a frame never moves the preference', "return frame.auto_apply !== current ? frame.auto_apply : null", 'return null')
+L('every frame moves the preference (a refresh and our own answer write too)', "return frame.auto_apply !== current ? frame.auto_apply : null", 'return frame.auto_apply')
+L('the preference takes the wrong value', "return frame.auto_apply !== current ? frame.auto_apply : null", 'return frame.auto_apply !== current ? current : null')
+H('a frame of another session is taken', "  if (snapshot.sessionId !== null && sessionId !== snapshot.sessionId) return false // another session's frame: nothing of it is taken, shown or written\n", '')
+H('the frame\'s value is not written to the device (the check follows, the device forgets)', '  if (standing !== null) writeAutoApplyPreference(browserStorage(), user, standing)\n', '')
+H('the check does not follow the frame (the device is written, the page is not)', '...(standing !== null ? { autoApply: standing } : {})', '...{}')
+H('the frame is answered with a template_auto_apply (an echo)', '  if (standing !== null) writeAutoApplyPreference(browserStorage(), user, standing)\n', '  if (standing !== null) { writeAutoApplyPreference(browserStorage(), user, standing); if (socket) socket.send(templateAutoApplyMessage(standing, socket.caps())) }\n')
+H('a notice is announced when the preference follows a frame', '  if (standing !== null) writeAutoApplyPreference(browserStorage(), user, standing)\n', '  if (standing !== null) { writeAutoApplyPreference(browserStorage(), user, standing); void window.alert }\n')
 H('a toggle is not saved', 'writeAutoApplyPreference(browserStorage(), user, on)\n', 'void on\n')
 H('a toggle is not sent', 'return socket ? socket.send(templateAutoApplyMessage(on, socket.caps())) : false', 'return false')
 H('a switch carries no caps', 'socket.send(templateSwitchMessage(templateId, socket.caps()))', 'socket.send(templateSwitchMessage(templateId, []))')

@@ -9,6 +9,7 @@
 import { useCallback, useEffect, useMemo, useRef, useSyncExternalStore } from "react"
 import {
   STUDIO_TEMPLATE_MATCH_ENABLED,
+  autoApplyAfterFrame,
   parseTemplateMatchFrame,
   pickerAvailable,
   pickerRows,
@@ -81,12 +82,16 @@ export function templateMatchSocketClosed(closing: TemplateMatchSocket): void {
   if (socket === closing) socket = null
 }
 
-/** A `template_match` message from Director. A frame that is not one this build reads (unknown version, malformed) leaves the last frame as it was. Returns whether it was taken. */
+/** A `template_match` message from Director. A frame that is not one this build reads (unknown version, malformed), or one of another session, leaves the last frame as it was. Returns whether it was taken. */
 export function templateMatchFrameReceived(message: unknown, sessionId: string | null): boolean {
   if (!STUDIO_TEMPLATE_MATCH_ENABLED) return false
+  if (snapshot.sessionId !== null && sessionId !== snapshot.sessionId) return false // another session's frame: nothing of it is taken, shown or written
   const frame = parseTemplateMatchFrame(message)
   if (!frame) return false
-  publish(withFrame(frame, sessionId))
+  // The frame's auto_apply is Director's session value: when it differs from the standing preference (a chat "no template" turned it off) the preference follows it, on this device and for the check; nothing is sent back and nothing is announced.
+  const standing = autoApplyAfterFrame(frame, snapshot.autoApply)
+  if (standing !== null) writeAutoApplyPreference(browserStorage(), user, standing)
+  publish({ ...withFrame(frame, sessionId), ...(standing !== null ? { autoApply: standing } : {}) })
   return true
 }
 
