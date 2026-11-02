@@ -5,7 +5,7 @@
   "baseHead": "abf52d4d4858b24cdb62549325ae5b9eed36624e",
   "fullBranchHead": "466fc2503463be2213b6f1d267eed30fcc5cf078",
   "latestFocusedHead": "a68e3e1f165273402b809479fb22ab2b43caa8ae",
-  "status": "refreshed-affected-proofs-green-awaiting-program-gate",
+  "status": "rebased-dc154019-light-checks-only-awaiting-seat2-gate",
   "voiceFixtureTests": {
     "files": 11,
     "passed": 225,
@@ -3830,5 +3830,28 @@
         "test-studio-narration-router.mjs.log": "a214d0f83ee8c8099ab5d6ef1618622d3e60e0051ec45862ae95c9e01428c06d"
       }
     }
+  },
+  "lightRefresh": {
+    "targetHead": "dc1540195b58630a345d4ada0f81edd9a31b4673",
+    "rebasedCodeHead": "3becf05ec0f39136d6a06ad19ddcf455aec45482",
+    "normalizedProofMetadataViews": {
+      "files": 19,
+      "mismatches": 0
+    },
+    "appSourceIdentity": "identical to dc154019 across app/components/hooks/public/styles/types",
+    "coreAndFixtureIdentity": "identical to ad5b5232",
+    "checks": [
+      "exact source/metadata views",
+      "JavaScript syntax",
+      "git diff --check",
+      "git merge-tree --write-tree dc154019 HEAD"
+    ],
+    "notRerun": [
+      "Vitest",
+      "TypeScript check",
+      "Studio suites",
+      "builds"
+    ],
+    "reason": "PROGRAM-1 2026-11-02T15:49Z Mac memory/disk hold; light rebase only, OPS-2 gates on seat 2"
   }
 }

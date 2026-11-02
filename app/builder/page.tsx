@@ -6500,6 +6500,9 @@ function AuthenticatedBuilderContent({ authScopeUserId }: { authScopeUserId: str
   const chatCleanStop = () => { const requestId = sendBuildControl('stop', buildNarration.buildId ?? undefined); if (requestId) markNarrationControl('stop_requested', buildNarration.buildId, requestId); else toast({ title: "Couldn't stop the build", description: 'Director did not take the request. Your draft is still in the box.' }) } // CHAT-CLEAN: the composer's Stop (non-destructive, as the ribbon's: built slides are kept)
   const chatCleanContinue = () => { const requestId = sendBuildControl('resume', buildNarration.buildId ?? undefined); if (requestId) markNarrationControl('resume_requested', buildNarration.buildId, requestId) } // CHAT-CLEAN: Continue = resume as planned (the draft stays in the box)
   const chatCleanSendDirections = () => { const text = chatCleanInstructions(inputMessage); if (!text || chatCleanComposer.sendMode !== 'instructions') return; flowBus.instructions = text; const requestId = sendBuildControl('resume', buildNarration.buildId ?? undefined); flowBus.instructions = undefined; if (!requestId) { toast({ title: "Couldn't send your directions", description: 'Director did not take the request. Your draft is still in the box.' }); return } markNarrationControl('resume_requested', buildNarration.buildId, requestId); chatCleanNotes.addDirections(text); setInputMessage('') } // CHAT-CLEAN: Send with a draft while held ALWAYS goes as build_control resume {instructions} (Director !564: a plain message after a stop never rebuilds); the bus hands the text to this one request, as the flow hook does
+  const strawmanChatOn = STUDIO_STRAWMAN_CHAT_ENABLED && studioShell && effectiveBuildNarrationEnabled // STRAWMAN-CHAT (NEXT_PUBLIC_STUDIO_STRAWMAN_CHAT, default off): no slide list in the outline card, no progress card in the chat, one quiet status line while the stage is hidden (lib/studio-strawman-chat.ts)
+  const strawmanChat = useStudioStrawmanChat({ enabled: strawmanChatOn, sessionId: currentSessionId, buildId: buildNarration.buildId, handlers: buildNarrationHandlersRef }) // STRAWMAN-CHAT: Director's auto_proceed for this build, read through the narration handlers ref (declared after chat clean's notes hook)
+  const strawmanChatStageOpen = useStudioStageOpen() && !studioWelcome && !studioCanvasCovered // STRAWMAN-CHAT: FRONTEND-2's stage open gate (lib/studio-stage-open-gate.ts, PR #554: true when its flag is off or the stage is open, false only while the gate holds the stage hidden) AND what the page has today: the welcome is not what the canvas shows, and a narrow layout's chat is not covering it. Stage open means its chain of thought is on screen, so the chat says nothing
   // CHAT-COMMANDS (NEXT_PUBLIC_STUDIO_CHAT_COMMANDS, needs NEXT_PUBLIC_STUDIO_CHAT_CLEAN and the Studio shell, default off): the composer's "/" commands and "@" mentions (lib/studio-chat-commands.ts decides, components/builder/chat/studio-chat-commands.tsx draws). The page only hands over what it holds; off, the prop below is never passed.
   const chatCommandsOn = STUDIO_CHAT_COMMANDS_ENABLED && chatCleanShell // CHAT-COMMANDS
   const chatCommandsSlides = (slideStructure?.slides || []).map((sl: { title?: string; slide_id?: string }, i: number) => ({ index: i, title: sl?.title || '', slide_id: sl?.slide_id ?? null })) // CHAT-COMMANDS: the same list the K1 slide picker was given
@@ -7905,7 +7908,9 @@ function AuthenticatedBuilderContent({ authScopeUserId }: { authScopeUserId: str
                   </ScrollArea>
 
                   {effectiveBuildNarrationEnabled && (
+                    strawmanChatOn && buildNarration.active ? <StudioStrawmanChatLine narration={buildNarration} stageOpen={strawmanChatStageOpen} autoProceed={strawmanChat.autoProceed} heldCovered={chatCleanOn || Boolean(flowControl.bar)} loadingSession={studioShell ? session.isLoadingSession : undefined} /> : ( // STRAWMAN-CHAT: the chat's one quiet status line (nothing once the stage is open) instead of the presence row's Build log; no narration, the row as ever
                     <DirectorPresence narration={buildNarration} currentStatus={currentStatus} loadingSession={studioShell ? session.isLoadingSession : undefined} />
+                    ) // STRAWMAN-CHAT
                   )}
                   {flowControl.bar}{/* FLOW-CONTROL (NEXT_PUBLIC_STUDIO_FLOW_AMEND): the calm line and Resume / Rebuild while the build is held; off, null */}
                   {voiceCall.dock}{/* VOICE-CALL (NEXT_PUBLIC_STUDIO_VOICE_CALL): the call, a stage over the chat column while it is on (the composer is hidden then), the microphone notice above the composer otherwise; off, null */}
@@ -8473,6 +8478,10 @@ import { STUDIO_CHAT_COMMANDS_ENABLED } from '@/lib/studio-chat-commands-wire' /
 import type { ChatCommandsPageProps } from '@/lib/studio-chat-commands' // CHAT-COMMANDS
 import type { ExportDirectiveMessage } from '@/lib/chat-theme-export' // CHAT-COMMANDS
 import { STUDIO_STAGE_OPEN_GATE_ENABLED, stepStudioStageGate, studioStageGateProps, useStudioStageCanvasAsked, useStudioStageGatePublish, type StudioStageGateState } from '@/lib/studio-stage-open-gate' // STUDIO-STAGE-OPEN-GATE
+import { STUDIO_STRAWMAN_CHAT_ENABLED } from '@/lib/studio-strawman-chat' // STRAWMAN-CHAT: placed here with the other late imports, after the Builder's runners, for the same older proofs
+import { useStudioStrawmanChat } from '@/hooks/use-studio-strawman-chat' // STRAWMAN-CHAT
+import { StudioStrawmanChatLine } from '@/components/builder/chat/studio-strawman-chat' // STRAWMAN-CHAT
+import { useStudioStageOpen } from '@/lib/studio-stage-open-gate' // STRAWMAN-CHAT: FRONTEND-2's gate, read on the one stage-open line
 
 function BuilderLoadingState({ message = 'Loading builder...' }: { message?: string }) {
   // NEXT_PUBLIC_STUDIO_SESSION_HYGIENE: the route loader is the builder shell, not a blank page with a spinner.
